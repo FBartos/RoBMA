@@ -22,22 +22,17 @@
 \arguments{
 \item{object}{a fitted brma object}
 
-\item{newdata}{specification for prediction data. Defaults to \code{NULL} which
-corresponds to prediction for the observed data. Alternatives are:
-\itemize{
-\item{\code{TRUE} returns a single aggregated prediction (either the scalar
-parameter for models without moderators/scale, or the average across the
-model matrix for regression models). Not available for \code{type = "response"}
-since observation-level sampling variance is required.}
-\item{A data.frame (for meta-regression) or a named list with effect size
-measure and variability metrics (for meta-analysis) for new studies. The input
-must contain the variables used by the requested prediction type. Outcome
-columns are optional for \code{type = "terms"} unless PET/PEESE bias terms
-are included via \code{bias_adjusted = FALSE}. Missing values in
-\code{newdata} are rejected; prediction never drops rows silently. For
-known-\code{V} \code{brma.mv()} response prediction, explicit
-\code{newdata} requires a new sampling covariance matrix.}
-}}
+\item{newdata}{prediction data. Defaults to \code{NULL}, which predicts the
+observed rows. New-effect predictions require an explicit data frame or
+named list with one row per target effect and every variable used by the
+requested fixed, scale, and random-effect designs. Missing ordinary
+grouping-only identifiers are synthesized as row-specific new levels;
+known-\code{R} grouping identifiers must be supplied. Outcome columns are
+optional for \code{type = "terms"} unless PET/PEESE bias terms are included
+via \code{bias_adjusted = FALSE}. Missing values are rejected; prediction
+never drops rows silently. For known-\code{V} \code{brma.mv()} response
+prediction, explicit \code{newdata} also requires a new sampling covariance
+matrix.}
 
 \item{V_new}{optional sampling covariance matrix for explicit
 \code{newdata} response predictions from known-\code{V} \code{brma.mv()}
@@ -59,11 +54,9 @@ draws of conditional BLUP means, not simulated latent-effect draws.
 Existing \code{brma.mv()} random-formula models return conditional true
 effects at fitted random-effect levels. \code{brma.mv()} response
 predictions marginalize random-formula effects so they are comparable to
-ordinary \code{brma()} response predictions. For \code{brma.mv()}
-random-formula models, explicit \code{newdata} conditions on existing
-random-effect levels and samples unseen random-effect levels. Aggregated
-random-formula predictions marginalize random effects and average across
-rows.}
+ordinary \code{brma()} response predictions. Each explicit random-formula
+prediction row is a new true effect, marginal over all applicable random
+components; matching a fitted group label does not reuse its fitted BLUP.}
 \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
 Incorporates both heterogeneity and sampling variability. For known-\code{V}
 \code{brma.mv()} models, explicit \code{newdata} response predictions
@@ -154,11 +147,9 @@ the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
 are added to the fixed location and the result is titled conditional true
 effects. Random-effect blocks compiled as marginalized contribute Gaussian
 BLUP means for existing-data estimate predictions. Existing-data response
-predictions instead use the fixed-location mean and add the marginal
-random-effect covariance to the known sampling covariance. For explicit new
-data, unseen random-effect levels are sampled from their model distribution.
-For aggregated random-formula predictions, random effects are sampled
-marginally before averaging over rows.
+predictions instead use the fixed-location mean and marginal draws from every
+random component before adding sampling noise. Explicit new rows use the same
+marginal random-component target and never reuse fitted BLUP draws.
 
 For RoBMA product-space objects, conditional posterior predictions subset
 posterior rows according to model indicators. This removes the original
@@ -181,15 +172,15 @@ raw future effect-size estimates with the supplied \code{sei}, not
 For known-\code{V} \code{brma.mv()} models, explicit \code{newdata}
 response prediction requires \code{V_new}. Non-random models draw from the
 new sampling covariance plus posterior heterogeneity. Random-formula models
-draw from a joint normal with fixed-location mean and covariance
-\code{V} or \code{V_new} plus the marginal random-effect covariance and any
-marginalized estimate-level variance. Cross-covariance with observed rows is
-not supported. Explicit \code{newdata} estimate/response predictions are not
+generate marginal random-effect contributions component-wise, then add
+\code{V} or \code{V_new} sampling noise and any marginalized estimate-level
+variance. Cross-covariance with observed rows is not supported. Explicit
+\code{newdata} estimate/response predictions are not
 available for \code{brma.mv()} objects with marginalized known-\code{R}
 blocks, because their row multipliers are fitted-row metadata.
 \code{brma.mv()} prediction results carry a
 \code{brma_mv_prediction_target} attribute recording the formula,
-random-effect, and response-covariance target used.
+random-effect, and response-generation target used.
 }
 \examples{
 \dontrun{
@@ -216,7 +207,8 @@ if (requireNamespace("metadat", quietly = TRUE) &&
   )
 
   predict(fit, type = "terms")
-  predict(fit, newdata = TRUE, type = "terms")
+  predict(fit, newdata = data.frame(ablat = 50, year = 1970),
+          type = "estimate")
   predict(fit, type = "estimate")
 }
 }

@@ -20,7 +20,7 @@
 \item{bias_adjusted}{whether to adjust for publication bias. Defaults to
 \code{TRUE}. For PET/PEESE models this removes the regression bias term from
 the pooled location effect. Selection-model weighting affects response
-predictions, not this \code{type = "terms"} wrapper.}
+predictions, not this fixed-location posterior summary.}
 
 \item{output_measure}{effect-size measure for location/effect predictions.
 Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
@@ -39,8 +39,7 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 \item{conditional}{whether to return the pooled effect conditional on the
 effect component for RoBMA product-space objects. Defaults to \code{FALSE}.}
 
-\item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
-arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.}
+\item{...}{reserved for internal posterior-sample reuse.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
@@ -52,8 +51,8 @@ Computes the pooled (aggregated) effect size estimate
 from a fitted brma object by averaging across the moderator model matrix.
 }
 \details{
-This function is a convenience wrapper around \code{predict.brma(...,
-type = "terms", newdata = TRUE, bias_adjusted = TRUE, quiet = TRUE)}.
+This function evaluates the fixed-location model over the fitted moderator
+design and averages those posterior draws directly.
 
 For meta-regression models, the pooled effect averages the effect size
 estimate across moderator levels proportionately to the levels observed

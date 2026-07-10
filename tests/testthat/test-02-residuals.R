@@ -233,16 +233,17 @@ test_that("Residuals for RoBMA fits are internally consistent", {
 
 .known_v_first_block_cdf_oracle <- function(fit_brma) {
 
-  setup         <- .estimate_likelihood_setup.brma(fit_brma)
-  known_V       <- .data_known_v_data(setup[["data"]])
-  block         <- known_V[["block_indices"]][[1L]]
-  s             <- 1L
-  extra         <- .known_v_extra_variance_from_setup(setup)
-  covariance    <- known_V[["V"]][block, block, drop = FALSE] +
+  setup       <- .estimate_likelihood_setup.brma(fit_brma)
+  known_V     <- .data_known_v_data(setup[["data"]])
+  known_block <- .known_v_blocks(known_V)[[1L]]
+  block       <- known_block[["index"]]
+  s           <- 1L
+  extra       <- .known_v_extra_variance_from_setup(setup)
+  covariance  <- known_block[["covariance"]] +
     diag(extra[s, block], nrow = length(block))
-  yi            <- setup[["yi"]][block]
-  mu            <- setup[["mu"]][s, block]
-  lower_tail    <- TRUE
+  yi          <- setup[["yi"]][block]
+  mu          <- setup[["mu"]][s, block]
+  lower_tail  <- TRUE
 
   if (identical(setup[["effect_direction"]], "negative")) {
     yi         <- -yi
@@ -309,14 +310,15 @@ test_that("Residuals for RoBMA fits are internally consistent", {
 
 .known_v_rstandard_estimate_oracle <- function(fit_brma) {
 
-  setup          <- .estimate_likelihood_setup.brma(fit_brma)
-  known_V        <- .data_known_v_data(setup[["data"]])
-  extra          <- .known_v_extra_variance_from_setup(setup)
-  X              <- .get_model_matrix(fit_brma)
-  yi             <- setup[["yi"]]
-  K              <- setup[["K"]]
-  S              <- setup[["S"]]
-  offset_samples <- setup[["mu_random"]]
+  setup               <- .estimate_likelihood_setup.brma(fit_brma)
+  known_V             <- .data_known_v_data(setup[["data"]])
+  sampling_covariance <- .known_v_materialize(known_V)
+  extra               <- .known_v_extra_variance_from_setup(setup)
+  X                   <- .get_model_matrix(fit_brma)
+  yi                  <- setup[["yi"]]
+  K                   <- setup[["K"]]
+  S                   <- setup[["S"]]
+  offset_samples      <- setup[["mu_random"]]
   if (is.null(offset_samples)) {
     offset_samples <- matrix(0, nrow = S, ncol = K)
   }
@@ -326,16 +328,18 @@ test_that("Residuals for RoBMA fits are internally consistent", {
   z_samples     <- matrix(NA_real_, nrow = S, ncol = K)
 
   for (s in seq_len(S)) {
-    covariance <- known_V[["V"]] + diag(extra[s, ], nrow = K)
+    covariance <- sampling_covariance + diag(extra[s, ], nrow = K)
     W          <- chol2inv(chol(covariance))
     WX         <- W %*% X
     XtWX_inv   <- .hat_solve_crossprod(crossprod(X, WX))
     y_offset   <- yi - offset_samples[s, ]
     beta_hat   <- as.vector(XtWX_inv %*% crossprod(X, as.vector(W %*% y_offset)))
     raw_resid  <- y_offset - as.vector(X %*% beta_hat)
-    residual   <- as.vector(known_V[["V"]] %*% W %*% raw_resid)
+    residual   <- as.vector(sampling_covariance %*% W %*% raw_resid)
     C          <- W - WX %*% XtWX_inv %*% t(WX)
-    se         <- sqrt(pmax(diag(known_V[["V"]] %*% C %*% known_V[["V"]]), 0))
+    se         <- sqrt(pmax(diag(
+      sampling_covariance %*% C %*% sampling_covariance
+    ), 0))
 
     resid_samples[s, ] <- residual
     se_samples[s, ]    <- se
@@ -455,7 +459,7 @@ test_that("brma.mv known-V residual diagnostics match Schur and GLS oracles", {
   setup       <- .estimate_likelihood_setup.brma(fit_brma)
   cdf_matrix  <- .cdf_lik_estimate.brma(fit_brma)
   known_V     <- .data_known_v_data(setup[["data"]])
-  first_block <- known_V[["block_indices"]][[1L]]
+  first_block <- .known_v_blocks(known_V)[[1L]][["index"]]
 
   expect_equal(
     unname(cdf_matrix[1L, first_block]),
@@ -467,7 +471,7 @@ test_that("brma.mv known-V residual diagnostics match Schur and GLS oracles", {
     unname(.known_v_pearson_residual_se_samples(fit_brma, "marginal")),
     unname(sqrt(
       matrix(
-        diag(known_V[["V"]]),
+        .known_v_diagonal(known_V),
         nrow  = setup[["S"]],
         ncol  = setup[["K"]],
         byrow = TRUE
@@ -478,7 +482,7 @@ test_that("brma.mv known-V residual diagnostics match Schur and GLS oracles", {
   expect_equal(
     unname(.known_v_pearson_residual_se_samples(fit_brma, "estimate")),
     unname(sqrt(matrix(
-      diag(known_V[["V"]]),
+      .known_v_diagonal(known_V),
       nrow  = setup[["S"]],
       ncol  = setup[["K"]],
       byrow = TRUE
@@ -536,7 +540,7 @@ test_that("brma.mv random known-V estimate residuals use BLUP and sampled offset
   expect_equal(
     unname(.known_v_pearson_residual_se_samples(fit_brma, "estimate")),
     unname(sqrt(matrix(
-      diag(known_V[["V"]]),
+      .known_v_diagonal(known_V),
       nrow  = setup[["S"]],
       ncol  = setup[["K"]],
       byrow = TRUE
@@ -564,9 +568,9 @@ test_that("Known-V Pearson residuals chunk marginal covariance without changing 
   fit_brma     <- fits[[name]]
   expected     <- residuals(fit_brma, type = "pearson")
   K            <- nobs(fit_brma)
-  one_draw_mem <- .known_v_covariance_bytes(1L, K)
+  one_draw_mem <- .known_v_covariance_peak_bytes(1L, K)
   old_options  <- options(
-    RoBMA.known_v_covariance_max_bytes = 2 * one_draw_mem
+    RoBMA.known_v_covariance_max_bytes = one_draw_mem
   )
   on.exit(options(old_options), add = TRUE)
 

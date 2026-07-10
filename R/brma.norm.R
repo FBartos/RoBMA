@@ -243,6 +243,7 @@ brma <- brma.norm <- function(
 
   ### fit the model
   object$fit <- .fit(object)
+  .stop_fit_errors(object$fit)
 
   ### store simple summary & coefficients
   object$summary       <- .object_summary(object)

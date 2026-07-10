@@ -75,7 +75,10 @@ We walk through the school-calendar dataset from @konstantopoulos2011fixed, show
 All `brma()` calls keep the default prior distributions; see the [*Prior Distributions*](v01-prior-distributions.html) vignette for the prior definitions and customization options.
 For the non-multilevel workflow showing more features (also applicable to the multilevel models) see the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette.
 
-The `RoBMA` R package currently supports the simple multilevel structure shown here, with one cluster grouping above the estimate level (parameterized by total heterogeneity $\tau^2$ and cluster-level allocation $\rho$). Broader support for multivariate models and more complex random-effects structures is planned for a future release.
+The `cluster` argument provides a specialized way to fit three-level models through the univariate `brma()` interface, without requiring the more general `brma.mv()` specification.
+It supports one cluster grouping above the estimate level and parameterizes the model by total heterogeneity $\tau^2$ and cluster-level allocation $\rho$.
+Known sampling covariance matrices and richer random-formula structures use the separate `brma.mv(..., V = ..., random = ...)` interface; `brma.mv()` intentionally does not accept `cluster`.
+See the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette for those models.
 
 ## Multilevel Random-Effects Model
 

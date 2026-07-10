@@ -178,6 +178,7 @@ update.brma <- function(
   object[["autofit_control"]] <- extend_autofit_control
   object[["fit"]]             <- .fit(object, extend = TRUE)
   object[["autofit_control"]] <- stored_autofit_control
+  .stop_fit_errors(object[["fit"]])
 
   return(object)
 }

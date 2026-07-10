@@ -183,6 +183,7 @@ fit_catalog <- function() {
       "brma.mv_block_mvn",
       "brma.mv_block_mvn_fixed_random_null",
       "brma.mv_block_mvn_random",
+      "brma.mv_block_mvn_random_sampled",
       "brma.mv_block_mvn_known_R",
       "brma.mv_latent_estimate_scale",
       "brma.mv_block_mvn_estimate_scale",
@@ -195,7 +196,9 @@ fit_catalog <- function() {
       "brma.mv_v14_konstantopoulos2011_cs",
       "brma.mv_v14_assink2016_nested",
       "brma.mv_v14_ishak2007_har",
-      "brma.mv_v14_begg1989_study_treatment"
+      "brma.mv_v14_begg1989_study_treatment",
+      "brma.mv_singular_regularized_whitened",
+      "brma.mv_singular_regularized_block_mvn"
     ),
     class = c(
       rep("brma.norm", 11),
@@ -206,7 +209,7 @@ fit_catalog <- function() {
       rep("BMA.norm", 4),
       rep("BMA.glmm", 4),
       rep("RoBMA", 5),
-      rep("brma.mv", 18)
+      rep("brma.mv", 21)
     ),
     family = c(
       rep("norm", 11),
@@ -217,7 +220,7 @@ fit_catalog <- function() {
       rep("norm", 4),
       rep("glmm", 4),
       rep("norm", 5),
-      rep("norm", 18)
+      rep("norm", 21)
     ),
     source_file = c(
       rep("test-01-brma.norm.R", 11),
@@ -228,7 +231,7 @@ fit_catalog <- function() {
       rep("test-01-BMA.norm.R", 4),
       rep("test-01-BMA.glmm.R", 4),
       rep("test-01-RoBMA.R", 5),
-      rep("test-01-brma.mv.R", 18)
+      rep("test-01-brma.mv.R", 21)
     ),
     has_metafor = c(
       TRUE, TRUE, TRUE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE, TRUE, TRUE,
@@ -239,9 +242,11 @@ fit_catalog <- function() {
       rep(FALSE, 16),
       TRUE,
       FALSE,
+      FALSE,
       TRUE,
       rep(FALSE, 8),
-      rep(TRUE, 4)
+      rep(TRUE, 4),
+      rep(FALSE, 2)
     ),
     has_waic = FALSE,
     tier = c(
@@ -255,7 +260,8 @@ fit_catalog <- function() {
       "core", "core", "extended", "extended",
       "core", "extended", "core", "extended", "extended",
       "core", "core", "core", "core", "core", "core", "core", "core", "core", "core",
-      "core", "core", "core", "core", "core", "core", "core", "core"
+      "core", "core", "core", "core", "core", "core", "core", "core", "core", "core",
+      "core"
     ),
     stringsAsFactors = FALSE
   )
@@ -315,6 +321,7 @@ fit_catalog <- function() {
     c("brma.mv", "normal", "known_v", "block_mvn"),
     c("brma.mv", "metafor", "normal", "known_v", "block_mvn", "fixed", "random_null"),
     c("brma.mv", "normal", "known_v", "block_mvn", "random"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "sampled"),
     c("brma.mv", "metafor", "normal", "known_v", "known_R", "block_mvn", "random", "mods"),
     c("brma.mv", "normal", "known_v", "latent", "random", "scale"),
     c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale"),
@@ -327,8 +334,31 @@ fit_catalog <- function() {
     c("brma.mv", "metafor", "normal", "known_v", "v14", "multilevel", "cs"),
     c("brma.mv", "metafor", "normal", "known_v", "v14", "multilevel", "nested"),
     c("brma.mv", "metafor", "normal", "known_v", "v14", "multilevel", "mods", "har"),
-    c("brma.mv", "metafor", "normal", "known_v", "v14", "multilevel", "mods", "cs")
+    c("brma.mv", "metafor", "normal", "known_v", "v14", "multilevel", "mods", "cs"),
+    c("brma.mv", "normal", "known_v", "singular", "whitened"),
+    c("brma.mv", "normal", "known_v", "singular", "block_mvn")
   ))
+
+  parity_catalog <- data.frame(
+    name = c(
+      "vif_parity_brma",
+      "vif_parity_brma_mv"
+    ),
+    class = c("brma.norm", "brma.mv"),
+    family = c("norm", "norm"),
+    source_file = rep("test-01-vif-parity.R", 2),
+    has_metafor = FALSE,
+    has_waic = FALSE,
+    tier = "core",
+    has_loo = TRUE,
+    has_marglik = c(TRUE, FALSE),
+    features = I(list(
+      c("normal", "mods", "vif", "parity"),
+      c("brma.mv", "normal", "known_v", "mods", "vif", "parity")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, parity_catalog)
 
   return(catalog)
 }

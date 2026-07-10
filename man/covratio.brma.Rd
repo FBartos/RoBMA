@@ -5,7 +5,7 @@
 \alias{covratio}
 \title{COVRATIO for brma Objects}
 \usage{
-\method{covratio}{brma}(model, type = "mods", ...)
+\method{covratio}{brma}(model, type = "mods", component = NULL, parameter = NULL, ...)
 }
 \arguments{
 \item{model}{a fitted brma object.}
@@ -13,6 +13,12 @@
 \item{type}{type of parameters to be summarized. Defaults to \code{"mods"}
 (for the effect size and meta-regression coefficients). Use \code{"scale"}
 for heterogeneity and scale-regression coefficients.}
+
+\item{component}{optional parameter namespace. Use \code{"random"} with one
+explicitly selected semantic random-effect quantity.}
+
+\item{parameter}{semantic random-effect quantity used when
+\code{component = "random"}.}
 
 \item{...}{additional arguments. The internal \code{.weights} argument can
 supply precomputed PSIS weights for callers that already extracted them.}

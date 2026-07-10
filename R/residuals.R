@@ -406,7 +406,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
     posterior_samples = sample_info[["posterior_samples"]]
   )
   known_V         <- .data_known_v_data(setup[["data"]])
-  sampling_diag   <- diag(known_V[["V"]])
+  sampling_diag   <- .known_v_diagonal(known_V)
   sampling_matrix <- matrix(
     sampling_diag,
     nrow  = setup[["S"]],

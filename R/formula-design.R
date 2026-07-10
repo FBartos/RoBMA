@@ -321,6 +321,27 @@
 }
 
 
+# Return whether the user-facing fitted formula contains an intercept.
+.fitted_formula_has_intercept <- function(object, parameter, required = TRUE) {
+
+  design <- .fitted_formula_design(
+    object    = object,
+    parameter = parameter,
+    required  = required
+  )
+  if (is.null(design)) {
+    return(FALSE)
+  }
+
+  source_terms <- attr(design[["source_data"]], "terms", exact = TRUE)
+  if (!is.null(source_terms)) {
+    return(identical(attr(source_terms, "intercept", exact = TRUE), 1L))
+  }
+
+  "intercept" %in% design[["model_terms"]]
+}
+
+
 # Return a fitted formula with an evaluation environment suitable for model.frame().
 .fitted_formula_evaluable <- function(object, design, source) {
 

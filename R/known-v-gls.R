@@ -28,10 +28,9 @@
   }
 
   known_V <- .data_known_v_data(object[["data"]])
-  V       <- known_V[["V"]]
   K       <- nrow(object[["data"]][["outcome"]])
 
-  if (!is.matrix(V) || nrow(V) != K || ncol(V) != K) {
+  if (.known_v_nrow(known_V) != K) {
     stop("Known-V covariance metadata is inconsistent with the outcome data.",
          call. = FALSE)
   }
@@ -54,7 +53,7 @@
   covariance_samples <- .known_v_marginal_covariance_samples_raw(
     object            = object,
     posterior_samples = posterior_samples,
-    V                 = V,
+    known_V           = known_V,
     K                 = K
   )
 
@@ -69,7 +68,7 @@
 
 .known_v_marginal_covariance_samples_raw <- function(object,
                                                      posterior_samples,
-                                                     V,
+                                                     known_V,
                                                      K) {
 
   covariance_samples <- if (.is_random(object)) {
@@ -110,7 +109,7 @@
   }
 
   covariance_samples <- .known_v_add_base_covariance(
-    base_covariance    = V,
+    base_covariance    = known_V,
     covariance_samples = covariance_samples
   )
 
@@ -129,10 +128,9 @@
   }
 
   known_V <- .data_known_v_data(object[["data"]])
-  V       <- known_V[["V"]]
   K       <- nrow(object[["data"]][["outcome"]])
 
-  if (!is.matrix(V) || nrow(V) != K || ncol(V) != K) {
+  if (.known_v_nrow(known_V) != K) {
     stop("Known-V covariance metadata is inconsistent with the outcome data.",
          call. = FALSE)
   }
@@ -146,6 +144,24 @@
   )
   posterior_samples <- sample_info[["posterior_samples"]]
   S                 <- nrow(posterior_samples)
+
+  if (!.is_random(object)) {
+    extra_variance <- .known_v_diagonal_extra_variance_samples(
+      object            = object,
+      posterior_samples = posterior_samples,
+      K                 = K
+    )
+    marginal_variance <- sweep(
+      extra_variance,
+      2L,
+      .known_v_diagonal(known_V),
+      "+"
+    )
+    attr(marginal_variance, "known_v_diagnostic") <-
+      .known_v_diagnostic_metadata(sample_info)
+    return(marginal_variance)
+  }
+
   marginal_variance <- matrix(NA_real_, nrow = S, ncol = K)
 
   chunk_info <- .known_v_apply_marginal_covariance_chunks(
@@ -259,6 +275,16 @@
 }
 
 
+.known_v_covariance_peak_bytes <- function(S, K) {
+
+  bytes_per_matrix <- .known_v_covariance_bytes(1L, K)
+
+  # Input and output draw arrays coexist while base covariance is added. Two
+  # extra matrices conservatively cover the current block and R temporaries.
+  (2 * as.double(S) + 2) * bytes_per_matrix
+}
+
+
 .known_v_format_bytes <- function(bytes) {
 
   units <- c("B", "KB", "MB", "GB", "TB")
@@ -277,13 +303,13 @@
                                                       caller = "known-V covariance helper") {
 
   max_bytes <- .known_v_covariance_max_bytes(max_bytes)
-  required  <- .known_v_covariance_bytes(S, K)
+  required  <- .known_v_covariance_peak_bytes(S, K)
 
   if (is.finite(max_bytes) && required > max_bytes) {
     stop(
-      caller, " would allocate approximately ",
-      .known_v_format_bytes(required), " for a full draw x row x row ",
-      "covariance array, exceeding the configured budget of ",
+      caller, " would require approximately ",
+      .known_v_format_bytes(required), " at peak while constructing a full ",
+      "draw x row x row covariance array, exceeding the configured budget of ",
       .known_v_format_bytes(max_bytes), ". Use a chunked diagnostic path, ",
       "reduce 'max_samples', or increase option ",
       "'RoBMA.known_v_covariance_max_bytes'.",
@@ -298,7 +324,7 @@
 .known_v_covariance_chunk_indices <- function(S, K, max_bytes = NULL) {
 
   max_bytes      <- .known_v_covariance_max_bytes(max_bytes)
-  one_draw_bytes <- .known_v_covariance_bytes(1L, K)
+  one_draw_bytes <- .known_v_covariance_peak_bytes(1L, K)
 
   if (is.finite(max_bytes) && one_draw_bytes > max_bytes) {
     stop(
@@ -313,7 +339,9 @@
   chunk_size <- if (is.infinite(max_bytes)) {
     S
   } else {
-    max(1L, min(S, floor(max_bytes / one_draw_bytes)))
+    bytes_per_matrix <- .known_v_covariance_bytes(1L, K)
+    max_draws         <- floor((max_bytes / bytes_per_matrix - 2) / 2)
+    max(1L, min(S, max_draws))
   }
   starts <- seq.int(1L, S, by = chunk_size)
 
@@ -329,10 +357,9 @@
                                                       FUN) {
 
   known_V <- .data_known_v_data(object[["data"]])
-  V       <- known_V[["V"]]
   K       <- nrow(object[["data"]][["outcome"]])
 
-  if (!is.matrix(V) || nrow(V) != K || ncol(V) != K) {
+  if (.known_v_nrow(known_V) != K) {
     stop("Known-V covariance metadata is inconsistent with the outcome data.",
          call. = FALSE)
   }
@@ -348,7 +375,7 @@
     covariance_samples <- .known_v_marginal_covariance_samples_raw(
       object            = object,
       posterior_samples = posterior_samples[rows, , drop = FALSE],
-      V                 = V,
+      known_V           = known_V,
       K                 = K
     )
     FUN(covariance_samples, rows)
@@ -359,7 +386,8 @@
     chunk_size      = max(lengths(chunks)),
     n_chunks        = length(chunks),
     full_bytes      = .known_v_covariance_bytes(nrow(posterior_samples), K),
-    one_draw_bytes  = .known_v_covariance_bytes(1L, K)
+    peak_bytes      = .known_v_covariance_peak_bytes(nrow(posterior_samples), K),
+    one_draw_bytes  = .known_v_covariance_peak_bytes(1L, K)
   ))
 }
 
@@ -398,6 +426,27 @@
                                                        posterior_samples,
                                                        K) {
 
+  extra_variance <- .known_v_diagonal_extra_variance_samples(
+    object            = object,
+    posterior_samples = posterior_samples,
+    K                 = K
+  )
+  S <- nrow(extra_variance)
+
+  covariance_samples <- array(0, dim = c(S, K, K))
+  for (s in seq_len(S)) {
+    covariance_samples[s, , ] <- diag(extra_variance[s, ],
+                                      nrow = K, ncol = K)
+  }
+
+  return(covariance_samples)
+}
+
+
+.known_v_diagonal_extra_variance_samples <- function(object,
+                                                      posterior_samples,
+                                                      K) {
+
   S <- nrow(posterior_samples)
 
   if (.is_scale(object)) {
@@ -423,19 +472,18 @@
     extra_variance <- matrix(fixed_tau^2, nrow = S, ncol = K)
   }
 
-  covariance_samples <- array(0, dim = c(S, K, K))
-  for (s in seq_len(S)) {
-    covariance_samples[s, , ] <- diag(extra_variance[s, ],
-                                      nrow = K, ncol = K)
-  }
-
-  return(covariance_samples)
+  return(extra_variance)
 }
 
 
 .known_v_add_base_covariance <- function(base_covariance, covariance_samples) {
 
-  K <- nrow(base_covariance)
+  known_V <- if (is.matrix(base_covariance)) {
+    list(V = base_covariance)
+  } else {
+    base_covariance
+  }
+  K <- .known_v_nrow(known_V)
 
   if (is.matrix(covariance_samples)) {
     if (nrow(covariance_samples) != K || ncol(covariance_samples) != K) {
@@ -454,7 +502,15 @@
 
   out <- covariance_samples
   for (s in seq_len(dim(out)[1L])) {
-    out[s, , ] <- base_covariance + out[s, , ]
+    current <- matrix(out[s, , ], nrow = K, ncol = K)
+    diag(current) <- diag(current) + .known_v_diagonal(known_V)
+    for (block in .known_v_correlated_blocks(known_V)) {
+      index     <- block[["index"]]
+      increment <- block[["covariance"]]
+      diag(increment) <- 0
+      current[index, index] <- current[index, index] + increment
+    }
+    out[s, , ] <- current
   }
 
   return(out)

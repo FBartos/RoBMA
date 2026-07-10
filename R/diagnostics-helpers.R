@@ -109,12 +109,13 @@
 
   if (.is_mods(model) || .is_random(model)) {
     samples <- BayesTools::JAGS_estimates_table(
-      fit                = model[["fit"]],
-      keep_formulas      = "mu",
-      remove_diagnostics = TRUE,
-      transform_factors  = transform_factors,
-      transform_scaled   = !standardized_coefficients,
-      return_samples     = TRUE
+      fit                    = model[["fit"]],
+      keep_formulas          = "mu",
+      random_effects_summary = "none",
+      remove_diagnostics     = TRUE,
+      transform_factors      = transform_factors,
+      transform_scaled       = !standardized_coefficients,
+      return_samples         = TRUE
     )
 
     return(.diagnostic_fixed_location_coefficient_samples(
@@ -133,6 +134,61 @@
   )
 
   return(as.matrix(samples))
+}
+
+.diagnostic_parameter_component <- function(type, component,
+                                            type_supplied = FALSE,
+                                            allow_bias = FALSE) {
+
+  type_component <- switch(
+    type,
+    mods  = "mods",
+    scale = "scale",
+    bias  = "bias"
+  )
+  if (is.null(component)) {
+    return(type_component)
+  }
+
+  component <- .parameter_component_normalize(component)
+  if (type_supplied && !identical(component, type_component)) {
+    stop(
+      "Explicit 'type' and 'component' select different parameter namespaces.",
+      call. = FALSE
+    )
+  }
+  if (identical(component, "auto")) {
+    stop("'component' must select a parameter namespace.", call. = FALSE)
+  }
+  if (identical(component, "bias") && !allow_bias) {
+    stop("component = 'bias' is not available for this diagnostic.",
+         call. = FALSE)
+  }
+
+  component
+}
+
+.diagnostic_random_parameter_samples <- function(
+    model, parameter = NULL, standardized_coefficients = FALSE) {
+
+  bundle <- .brma_random_parameter_bundle(
+    object                    = model,
+    standardized_coefficients = standardized_coefficients
+  )
+  if (ncol(bundle[["samples"]]) == 0L) {
+    stop("No random-effect quantities are available for this model.",
+         call. = FALSE)
+  }
+  if (is.null(parameter)) {
+    return(bundle[["samples"]])
+  }
+
+  selected <- .brma_random_parameter_select(
+    object                    = model,
+    parameter                 = parameter,
+    standardized_coefficients = standardized_coefficients
+  )
+  selected[["samples"]]
 }
 
 

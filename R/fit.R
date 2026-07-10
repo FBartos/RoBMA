@@ -65,27 +65,46 @@
       yi <- -1 * yi
     }
 
-    known_v_whitened  <- .is_data_known_v_parameterization(data, "whitened")
-    known_v_block_mvn <- .is_data_known_v_parameterization(data, "block_mvn")
+    known_v_whitened  <- .is_data_known_v_backend(data, "whitened")
+    known_v_block_mvn <- .is_data_known_v_backend(data, "block_mvn")
     if (known_v_whitened) {
       known_V <- .data_known_v_data(data)
-      fit_data <- list(
-        whitening_y      = as.vector(known_V[["whitening_matrix"]] %*% yi),
-        whitening_var    = known_V[["whitening_variance"]],
-        whitening_matrix = known_V[["whitening_matrix"]]
-      )
+      if (!is.null(known_V[["whitening_blocks"]])) {
+        independent <- .known_v_independent_indices(known_V)
+        fit_data <- list()
+        if (length(independent) > 0L) {
+          fit_data[["known_v_independent_n"]]     <- length(independent)
+          fit_data[["known_v_independent_index"]] <- independent
+          fit_data[["known_v_independent_y"]]     <- yi[independent]
+          fit_data[["known_v_independent_var"]]   <-
+            .known_v_diagonal(known_V)[independent]
+        }
+        for (b in seq_along(known_V[["whitening_blocks"]])) {
+          block <- known_V[["whitening_blocks"]][[b]]
+          index <- block[["index"]]
+          fit_data[[paste0("whitening_y_", b)]] <- as.vector(
+            block[["rotation"]] %*% yi[index]
+          )
+          fit_data[[paste0("whitening_var_", b)]] <- block[["variance"]]
+          fit_data[[paste0("whitening_matrix_", b)]] <- block[["rotation"]]
+        }
+      } else {
+        fit_data <- list(
+          whitening_y      = as.vector(known_V[["whitening_matrix"]] %*% yi),
+          whitening_var    = known_V[["whitening_variance"]],
+          whitening_matrix = known_V[["whitening_matrix"]]
+        )
+      }
     } else if (known_v_block_mvn) {
       known_V <- .data_known_v_data(data)
       fit_data <- list()
 
-      has_singleton_blocks <- any(vapply(
-        known_V[["block_mvn_blocks"]],
-        function(block) block[["size"]] == 1L,
-        logical(1)
-      ))
-      if (has_singleton_blocks) {
-        fit_data[["yi"]]          <- yi
-        fit_data[["known_v_var"]] <- known_V[["residual_variance"]]
+      independent <- .known_v_independent_indices(known_V)
+      if (length(independent) > 0L) {
+        fit_data[["known_v_independent_n"]]     <- length(independent)
+        fit_data[["known_v_independent_index"]] <- independent
+        fit_data[["known_v_independent_y"]]     <- yi[independent]
+        fit_data[["known_v_independent_var"]]   <- .known_v_diagonal(known_V)[independent]
       }
 
       for (b in seq_along(known_V[["block_mvn_blocks"]])) {
@@ -119,12 +138,24 @@
 
     }
 
-    if (.is_data_known_v_parameterization(data, "latent")) {
+    if (.is_data_known_v_backend(data, c("latent", "diagonal"))) {
       known_V <- .data_known_v_data(data)
       fit_data[["sampling_var"]] <- known_V[["residual_variance"]]
       if (known_V[["rank"]] > 0L) {
-        fit_data[["sampling_rank"]] <- known_V[["rank"]]
-        fit_data[["sampling_B"]]    <- known_V[["B"]]
+        if (!is.null(known_V[["latent_blocks"]])) {
+          independent <- .known_v_independent_indices(known_V)
+          if (length(independent) > 0L) {
+            fit_data[["known_v_independent_n"]]     <- length(independent)
+            fit_data[["known_v_independent_index"]] <- independent
+          }
+          for (b in seq_along(known_V[["latent_blocks"]])) {
+            fit_data[[paste0("sampling_B_", b)]] <-
+              known_V[["latent_blocks"]][[b]][["B"]]
+          }
+        } else {
+          fit_data[["sampling_rank"]] <- known_V[["rank"]]
+          fit_data[["sampling_B"]] <- known_V[["B"]]
+        }
       }
     }
 
@@ -219,9 +250,10 @@
   is_known_v                   <- .is_data_known_v(data)
   known_v_rank                 <- .data_known_v_rank(data)
   known_v_parameterization     <- .data_known_v_parameterization(data)
-  is_known_v_latent            <- is_known_v && known_v_parameterization == "latent"
-  is_known_v_whitened          <- is_known_v && known_v_parameterization == "whitened"
-  is_known_v_block_mvn         <- is_known_v && known_v_parameterization == "block_mvn"
+  known_v_backend              <- .data_known_v_effective_backend(data)
+  is_known_v_latent            <- is_known_v && known_v_backend %in% c("latent", "diagonal")
+  is_known_v_whitened          <- is_known_v && known_v_backend == "whitened"
+  is_known_v_block_mvn         <- is_known_v && known_v_backend == "block_mvn"
   has_marginalized_random      <- .data_has_marginalized_random_effects(data)
 
   if (is_known_v_whitened && is_scale) {
@@ -280,6 +312,32 @@
     )
   }
 
+  if (is_known_v_latent && known_v_rank > 0L) {
+    known_V <- .data_known_v_data(data)
+    if (!is.null(known_V[["latent_blocks"]])) {
+      independent <- .known_v_independent_indices(known_V)
+      if (length(independent) > 0L) {
+        model_syntax <- paste0(
+          model_syntax,
+          "for(j in 1:known_v_independent_n){\n",
+          "  sampling_dependency[known_v_independent_index[j]] = 0\n",
+          "}\n"
+        )
+      }
+      for (b in seq_along(known_V[["latent_blocks"]])) {
+        block <- known_V[["latent_blocks"]][[b]]
+        for (j in seq_along(block[["index"]])) {
+          model_syntax <- paste0(
+            model_syntax,
+            "sampling_dependency[", block[["index"]][[j]], "] = inprod(",
+            "sampling_B_", b, "[", j, ",1:", block[["rank"]], "],",
+            "sampling_z[", block[["z_start"]], ":", block[["z_end"]], "])\n"
+          )
+        }
+      }
+    }
+  }
+
   ### enter the main block
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
 
@@ -297,10 +355,12 @@
   }
   # add known-V sampling dependency latent factors
   if (is_known_v_latent && known_v_rank > 0L) {
-    model_syntax <- paste0(
-      model_syntax,
-      "  sampling_dependency[i] = inprod(sampling_B[i,1:sampling_rank], sampling_z[1:sampling_rank])\n"
-    )
+    if (is.null(.data_known_v_data(data)[["latent_blocks"]])) {
+      model_syntax <- paste0(
+        model_syntax,
+        "  sampling_dependency[i] = inprod(sampling_B[i,1:sampling_rank], sampling_z[1:sampling_rank])\n"
+      )
+    }
     mu_estimate <- paste0(mu_estimate, " + sampling_dependency[i]")
   }
   # add PET/PEESE
@@ -469,35 +529,97 @@
 
   model_syntax <- paste0(model_syntax, "}\n")
   if (outcome_type == "norm" && is_known_v_whitened) {
-    model_syntax <- paste0(model_syntax, "for(j in 1:K){\n")
-    model_syntax <- paste0(model_syntax, "  whitening_mu[j] = inprod(whitening_matrix[j,1:K], mu_observed[1:K])\n")
-    if (is_random) {
-      if (has_marginalized_random) {
-        marginalized_random_var <- .data_marginalized_random_variance_expression(data, row_index = "j")
-        model_syntax <- paste0(model_syntax, "  whitening_y[j] ~ dnorm(whitening_mu[j], 1/( whitening_var[j] + ", marginalized_random_var, " ))\n")
-      } else {
-        model_syntax <- paste0(model_syntax, "  whitening_y[j] ~ dnorm(whitening_mu[j], 1/( whitening_var[j] ))\n")
+    known_V <- .data_known_v_data(data)
+    if (!is.null(known_V[["whitening_blocks"]])) {
+      independent <- .known_v_independent_indices(known_V)
+      if (length(independent) > 0L) {
+        independent_extra <- if (is_random) {
+          .data_marginalized_random_variance_expression(
+            data,
+            row_index = "known_v_independent_index[j]"
+          )
+        } else {
+          "pow(tau,2)"
+        }
+        model_syntax <- paste0(
+          model_syntax,
+          "for(j in 1:known_v_independent_n){\n",
+          "  known_v_independent_y[j] ~ dnorm(",
+          "mu_observed[known_v_independent_index[j]], 1/( ",
+          "known_v_independent_var[j] + ", independent_extra, " ))\n",
+          "}\n"
+        )
+      }
+      for (b in seq_along(known_V[["whitening_blocks"]])) {
+        block <- known_V[["whitening_blocks"]][[b]]
+        index <- block[["index"]]
+        for (j in seq_along(index)) {
+          model_syntax <- paste0(
+            model_syntax,
+            "whitening_mu_source_", b, "[", j, "] = mu_observed[", index[[j]], "]\n"
+          )
+        }
+        model_syntax <- paste0(
+          model_syntax,
+          "for(j in 1:", block[["size"]], "){\n",
+          "  whitening_mu_", b, "[j] = inprod(whitening_matrix_", b,
+          "[j,1:", block[["size"]], "],whitening_mu_source_", b,
+          "[1:", block[["size"]], "])\n"
+        )
+        extra <- if (is_random) {
+          if (has_marginalized_random) {
+            .data_marginalized_random_variance_expression(
+              data,
+              row_index = as.character(index[[1L]])
+            )
+          } else {
+            "0"
+          }
+        } else {
+          "pow(tau,2)"
+        }
+        model_syntax <- paste0(
+          model_syntax,
+          "  whitening_y_", b, "[j] ~ dnorm(whitening_mu_", b,
+          "[j], 1/( whitening_var_", b, "[j] + ", extra, " ))\n",
+          "}\n"
+        )
       }
     } else {
-      model_syntax <- paste0(model_syntax, "  whitening_y[j] ~ dnorm(whitening_mu[j], 1/( whitening_var[j] + pow(tau,2) ))\n")
+      model_syntax <- paste0(model_syntax, "for(j in 1:K){\n")
+      model_syntax <- paste0(model_syntax, "  whitening_mu[j] = inprod(whitening_matrix[j,1:K], mu_observed[1:K])\n")
+      if (is_random) {
+        if (has_marginalized_random) {
+          marginalized_random_var <- .data_marginalized_random_variance_expression(data, row_index = "j")
+          model_syntax <- paste0(model_syntax, "  whitening_y[j] ~ dnorm(whitening_mu[j], 1/( whitening_var[j] + ", marginalized_random_var, " ))\n")
+        } else {
+          model_syntax <- paste0(model_syntax, "  whitening_y[j] ~ dnorm(whitening_mu[j], 1/( whitening_var[j] ))\n")
+        }
+      } else {
+        model_syntax <- paste0(model_syntax, "  whitening_y[j] ~ dnorm(whitening_mu[j], 1/( whitening_var[j] + pow(tau,2) ))\n")
+      }
+      model_syntax <- paste0(model_syntax, "}\n")
     }
-    model_syntax <- paste0(model_syntax, "}\n")
   }
   if (outcome_type == "norm" && is_known_v_block_mvn) {
     known_V <- .data_known_v_data(data)
 
+    independent <- .known_v_independent_indices(known_V)
+    if (length(independent) > 0L) {
+      model_syntax <- paste0(
+        model_syntax,
+        "for(j in 1:known_v_independent_n){\n",
+        "  known_v_independent_y[j] ~ dnorm(",
+        "mu_observed[known_v_independent_index[j]], 1/( ",
+        "known_v_independent_var[j] + ",
+        "tau2_observed[known_v_independent_index[j]] ))\n",
+        "}\n"
+      )
+    }
+
     for (b in seq_along(known_V[["block_mvn_blocks"]])) {
       block <- known_V[["block_mvn_blocks"]][[b]]
       idx   <- block[["index"]]
-
-      if (block[["size"]] == 1L) {
-        i <- idx[[1]]
-        model_syntax <- paste0(
-          model_syntax,
-          "yi[", i, "] ~ dnorm(mu_observed[", i, "], 1/( known_v_var[", i, "] + tau2_observed[", i, "] ))\n"
-        )
-        next
-      }
 
       for (j in seq_along(idx)) {
         model_syntax <- paste0(
@@ -621,6 +743,28 @@
 
   return(fit)
 }
+
+
+# Stop before post-processing when fitting produced no posterior.
+.stop_fit_errors <- function(fit) {
+
+  fit_errors <- fit[["errors"]]
+  fit_failed <- identical(fit[["has_posterior"]], FALSE) ||
+    length(fit_errors) > 0L
+
+  if (!fit_failed) {
+    return(invisible(TRUE))
+  }
+  if (length(fit_errors) > 0L) {
+    stop(paste(fit_errors, collapse = "\n"), call. = FALSE)
+  }
+
+  stop(
+    "Model fitting failed before posterior samples were produced.",
+    call. = FALSE
+  )
+}
+
 
 .is_priors_PET            <- function(priors) {
 
@@ -764,6 +908,19 @@
     return("latent")
   }
   return(known_V[["parameterization"]])
+}
+.data_known_v_effective_backend <- function(data) {
+  known_V <- .data_known_v_data(data)
+  if (is.null(known_V) || is.null(known_V[["effective_backend"]])) {
+    return(.data_known_v_parameterization(data))
+  }
+  return(known_V[["effective_backend"]])
+}
+.is_data_known_v_backend <- function(data, backend) {
+  return(
+    .is_data_known_v(data) &&
+      .data_known_v_effective_backend(data) %in% backend
+  )
 }
 .is_data_known_v_parameterization <- function(data, parameterization) {
   return(.is_data_known_v(data) && .data_known_v_parameterization(data) == parameterization)

@@ -94,8 +94,10 @@ default but still forward this argument to \code{plot_diagnostic.brma()}.}
 
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias
-\code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
-terms used in multiple model components.}
+\code{"location"}), \code{"scale"}, \code{"random"}, or \code{"bias"} to
+disambiguate terms used in multiple model components. The random component
+selects semantic standard deviation, correlation, and allocation parameters
+from \code{brma.mv()} random formulas.}
 }
 \value{
 \code{plot_diagnostic} returns the object returned by

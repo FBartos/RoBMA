@@ -307,18 +307,12 @@ expect_prediction_matches_metafor <- function(case) {
   fitted_tol  <- case_value(case, "fitted_tolerance", tolerance)
 
   if (kind == "simple") {
-    mu_predict <- .sample_mean(predict(fit_brma, type = "terms", newdata = TRUE), "mu")
-    mu_wrapper <- .sample_mean(pooled_effect(fit_brma), "mu")
-    testthat::expect_equal(mu_predict, mu_wrapper,
-                           info = paste(name, "pooled_effect wrapper"))
-    testthat::expect_equal(mu_predict, fit_metafor$beta[[1]], tolerance = tolerance,
+    mu_pooled <- .sample_mean(pooled_effect(fit_brma), "mu")
+    testthat::expect_equal(mu_pooled, fit_metafor$beta[[1]], tolerance = tolerance,
                            info = paste(name, "pooled effect matches metafor"))
 
-    tau_predict <- .sample_mean(predict(fit_brma, type = "terms.scale", newdata = TRUE), "tau")
-    tau_wrapper <- .sample_mean(pooled_heterogeneity(fit_brma), "tau")
-    testthat::expect_equal(tau_predict, tau_wrapper,
-                           info = paste(name, "pooled_heterogeneity wrapper"))
-    testthat::expect_equal(tau_predict, sqrt(fit_metafor$tau2), tolerance = tau_tol,
+    tau_pooled <- .sample_mean(pooled_heterogeneity(fit_brma), "tau")
+    testthat::expect_equal(tau_pooled, sqrt(fit_metafor$tau2), tolerance = tau_tol,
                            info = paste(name, "tau matches metafor"))
 
     theta_predict <- .sample_means(predict(fit_brma, type = "effect"))

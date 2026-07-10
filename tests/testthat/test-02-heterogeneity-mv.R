@@ -522,8 +522,8 @@ test_that("brma.mv heterogeneity supports single known-V component", {
   fit_brma <- fits[[name]]
 
   pooled <- pooled_heterogeneity(fit_brma)
-  direct <- predict(fit_brma, type = "terms.scale", newdata = TRUE,
-                    quiet = TRUE)
+  direct <- predict(fit_brma, type = "terms.scale", quiet = TRUE)
+  direct <- matrix(sqrt(rowMeans(as.matrix(direct)^2)), ncol = 1L)
   total  <- pooled_heterogeneity(fit_brma, component = "total")
   tau    <- pooled_heterogeneity(fit_brma, component = "tau")
   summary <- summary_heterogeneity(fit_brma)

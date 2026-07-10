@@ -33,6 +33,18 @@
 #' block-MVN threshold defaults to 128 rows per covariance block and can be
 #' changed with `options(RoBMA.known_v_block_mvn_max_block_size = value)`, where
 #' `value` is a positive integer or `Inf`.
+#' Singular positive-semidefinite `V` matrices are supported only when
+#' integrated conditional variance is structurally positive on every retained
+#' null direction. This can come from strictly positive heterogeneity or a
+#' supported marginalized random-effect variance. The check is performed after
+#' formulas and priors are compiled. Sampled random effects change the
+#' conditional mean and therefore do not regularize the likelihood covariance.
+#' For the block-MVN backend, a fixed point regularizer must also be large
+#' enough to make each block numerically positive definite at double precision;
+#' ineffective fixed values fail during preflight rather than inside JAGS.
+#' The latent known-`V` backend is unavailable for singular `V`; use `"auto"`,
+#' `"whitened"`, or `"block_mvn"`. Unsupported configurations fail before
+#' fitting rather than invoking a degenerate-normal likelihood.
 #' As a convenience for diagonal known-`V` inputs, `brma.mv()` also accepts
 #' hidden `vi` or `sei` arguments through `...` when `V` is omitted; these are
 #' converted to `diag(vi)` or `diag(sei^2)`. Do not supply `V` together with
@@ -85,7 +97,7 @@
 #'
 #' The implementation intentionally omits the `weights` and `cluster` arguments
 #' from `metafor::rma.mv()`. Use `random` for multilevel structures.
-#' Estimate-unit `logLik()`, `add_loo()`, `add_waic()`, `residuals()`, and
+#' Estimate-unit `log_lik()`, `add_loo()`, `add_waic()`, `residuals()`, and
 #' `rstudent()` are available for known-`V` models. Bridge-sampling marginal
 #' likelihoods via `add_marglik()` are available for fitted single-model
 #' known-`V` objects. `rstandard()` is available for known-`V` models at
@@ -94,7 +106,7 @@
 #' @section Diagnostic target semantics:
 #' The main `brma.mv()` post-fit methods intentionally use different targets:
 #' \itemize{
-#'   \item `logLik(unit = "estimate")`, `add_loo()`/`loo()`,
+#'   \item `log_lik(unit = "estimate")`, `add_loo()`/`loo()`,
 #'     `add_waic()`/`waic()`, and `rstudent()` use estimate-unit log-score
 #'     targets. When known `V` induces dependence, these contributions are
 #'     Schur-complement conditionals \eqn{p(y_i \mid y_{-i}, \theta)} within
@@ -122,9 +134,12 @@
 #'     influence targets. Cluster/block LOO is deferred for `brma.mv()` because
 #'     its deletion target is a joint dependency block, not an independent row.
 #' }
-#' Default scalar heterogeneity summaries are not reported for `brma.mv()`
-#' because known-`V` and random-formula structures need component-specific
-#' summaries rather than a single \eqn{\tau}/\eqn{I^2} table.
+#' Simple `brma.mv()` models with scalar heterogeneity report the usual `tau`
+#' summary. Random-formula models instead report component-specific standard
+#' deviation, correlation, and allocation summaries; use
+#' `summary_heterogeneity(component = ...)` or
+#' `pooled_heterogeneity(component = ...)` for absolute component `tau`/`tau2`
+#' summaries. General known-`V` models do not report scalar I2/H2.
 #'
 #' @return A fitted object of class `c("brma.mv", "brma.norm", "brma")`.
 #' The advanced internal `only_data = TRUE` path returns checked data before
@@ -242,20 +257,17 @@ brma.mv <- function(
     object                     = object,
     marginalize_estimate_level = marginalize_estimate_level
   )
+  .brma_mv_check_singular_v_regularization(object)
   if (isTRUE(dots[["only_priors"]]))
     return(.set_only_priors_class(object))
 
   object$fit <- .fit(object)
+  .stop_fit_errors(object$fit)
 
   object$summary      <- .object_summary(object)
   object$coefficients <- .object_coefficients(object)
 
-  object <- .autocompute_brma(
-    object,
-    loo     = TRUE,
-    waic    = TRUE,
-    marglik = FALSE
-  )
+  object <- .autocompute_brma(object)
 
   return(object)
 }

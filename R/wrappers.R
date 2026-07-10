@@ -283,18 +283,17 @@ pooled_effect <- function(object, ...) {
 #' @param bias_adjusted whether to adjust for publication bias. Defaults to
 #' \code{TRUE}. For PET/PEESE models this removes the regression bias term from
 #' the pooled location effect. Selection-model weighting affects response
-#' predictions, not this \code{type = "terms"} wrapper.
+#' predictions, not this fixed-location posterior summary.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
 #' @param conditional whether to return the pooled effect conditional on the
 #' effect component for RoBMA product-space objects. Defaults to \code{FALSE}.
 #' @inheritParams predict.brma
-#' @param ... additional arguments passed to \code{\link{predict.brma}}; wrapper
-#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.
+#' @param ... reserved for internal posterior-sample reuse.
 #'
 #' @details
-#' This function is a convenience wrapper around \code{predict.brma(...,
-#' type = "terms", newdata = TRUE, bias_adjusted = TRUE, quiet = TRUE)}.
+#' This function evaluates the fixed-location model over the fitted moderator
+#' design and averages those posterior draws directly.
 #'
 #' For meta-regression models, the pooled effect averages the effect size
 #' estimate across moderator levels proportionately to the levels observed
@@ -329,27 +328,81 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
                                output_measure = NULL, transform = NULL,
                                probs = c(.025, .975),
                                conditional = FALSE, ...) {
-  out <- predict.brma(
-    object         = object,
-    newdata        = TRUE,
-    type           = "terms",
-    output_measure = output_measure,
-    transform      = transform,
-    probs          = probs,
-    bias_adjusted  = bias_adjusted,
-    conditional    = conditional,
-    quiet          = TRUE,
-    ...
+  dots <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = ".posterior_samples",
+    caller  = "pooled_effect.brma()"
   )
-  attr(out, "title") <- .effect_output_title(
+  BayesTools::check_bool(bias_adjusted, "bias_adjusted")
+  BayesTools::check_bool(conditional, "conditional")
+  if (conditional && !.is_RoBMA(object)) {
+    stop("'conditional' pooled effects are available only for RoBMA objects.",
+         call. = FALSE)
+  }
+
+  data              <- object[["data"]]
+  priors            <- object[["priors"]]
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    dots[[".posterior_samples"]]
+  )
+  mu_samples <- .evaluate.brma.mu(
+    fit               = object[["fit"]],
+    outcome_data      = data[["outcome"]],
+    mods_data         = data[["mods"]],
+    mods_formula      = if (.is_mods(object)) {
+      .create_fit_formula_list(data = data, "mods")
+    } else {
+      NULL
+    },
+    mods_priors       = if (.is_random(object)) {
+      priors[["location"]]
+    } else {
+      priors[["mods"]]
+    },
+    is_mods           = .is_mods(object),
+    is_PET            = .is_PET(object),
+    is_PEESE          = .is_PEESE(object),
+    effect_direction  = .effect_direction(object),
+    bias_adjusted     = bias_adjusted,
+    K                 = nrow(data[["outcome"]]),
+    posterior_samples = posterior_samples,
+    priors            = priors
+  )
+  samples <- matrix(rowMeans(mu_samples), ncol = 1L)
+  colnames(samples) <- "mu"
+
+  chain_info <- .brma_samples_chain_info(
+    fit       = object[["fit"]],
+    n_samples = nrow(posterior_samples)
+  )
+  effect_transform <- .effect_output_setup(
+    object         = object,
+    output_measure = output_measure,
+    transform      = transform
+  )
+  out <- .new_effect_brma_samples(
+    samples          = samples,
+    n_chains         = chain_info[["n_chains"]],
+    n_iter           = chain_info[["n_iter"]],
     title            = if (conditional) {
       "Conditional Pooled Effect Size"
     } else {
       "Pooled Effect Size"
     },
-    effect_transform = attr(out, "effect_transform")
+    probs            = probs,
+    data             = NULL,
+    effect_transform = effect_transform
   )
-  return(out)
+  return(.condition_prediction_samples(
+    object            = object,
+    samples           = out,
+    conditional       = conditional,
+    parameters        = .conditional_effect_parameters(object),
+    posterior_samples = posterior_samples,
+    quiet             = TRUE
+  ))
 }
 
 
@@ -390,15 +443,13 @@ pooled_heterogeneity <- function(object, ...) {
 #' @param component heterogeneity component to return for \code{brma.mv()}
 #' models. Defaults to \code{"all"}. Use \code{"total"} for the
 #' variance-additive total heterogeneity.
-#' @param ... additional arguments passed to \code{\link{predict.brma}}; wrapper
-#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.
+#' @param ... reserved for internal posterior-sample forwarding.
 #'
 #' @details
 #' For location-scale models (with scale regression), the pooled heterogeneity
 #' is the square root of the average observation-specific heterogeneity
-#' variance, \eqn{\sqrt{mean(\tau_i^2)}}. This differs from
-#' \code{predict(..., type = "terms.scale", newdata = TRUE)}, which reports the
-#' average predicted standard deviation.
+#' variance, \eqn{\sqrt{mean(\tau_i^2)}} over the fitted scale design. Public
+#' \code{predict(..., type = "terms.scale")} calls remain row-specific.
 #'
 #' For models without scale regression, this returns the single tau parameter.
 #'

@@ -60,6 +60,18 @@ for those sampled random effects, but it is not added again as a marginal
 compiled as marginalized instead enter through the diagonal extra variance
 term prepared by BayesTools.
 
+Estimate-unit deletion retains the fitted grouping and known-\code{V}
+dependency structure; it does not represent deletion of an entire new random
+group. Models with no local effects, sampled local effects, marginalized
+local effects, or a mixture of sampled and marginalized effects remain
+comparable when their data hash, deletion unit, conditioning depth, and
+likelihood target agree. The sampled/marginalized labels are retained as
+provenance rather than comparison keys.
+
+Conditioning on sampled local effects can produce high Pareto-k values.
+Inspect the diagnostics with \code{\link{check_loo}} and the corresponding
+\pkg{loo} helpers before interpreting comparisons.
+
 The PSIS object is essential for model comparison via
 \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 RoBMA stores target metadata so comparisons can reject mismatched data,

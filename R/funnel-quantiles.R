@@ -30,7 +30,7 @@
 
   known_V           <- .data_known_v_data(object[["data"]])
   marginal_variance <- .known_v_marginal_variance_samples(object)
-  V_diagonal        <- diag(known_V[["V"]])
+  V_diagonal        <- .known_v_diagonal(known_V)
   extra_variance <- pmax(sweep(marginal_variance, 2L, V_diagonal, "-"), 0)
   tau_samples    <- sqrt(rowMeans(extra_variance))
 
@@ -354,12 +354,9 @@
     return(as.numeric(posterior_samples[, "mu"]))
   }
 
-  mu_samples <- predict.brma(
+  mu_samples <- pooled_effect.brma(
     object             = x,
-    newdata            = TRUE,
-    type               = "terms",
     bias_adjusted      = TRUE,
-    quiet              = TRUE,
     .posterior_samples = posterior_samples
   )
 

@@ -528,7 +528,14 @@
   valid <- rep(TRUE, n_candidates)
   changed_parameters <- character()
 
-  if (identical(replacement[["type"]], "linear")) {
+  if (identical(replacement[["type"]], "scale_log_intercept")) {
+    factors <- .iwmde_scale_log_intercept_factors(context, parameter)[row_index]
+    raw_values <- values[grid_index] / factors[state_index]
+    valid <- is.finite(raw_values) &
+      is.finite(factors[state_index]) & factors[state_index] > 0
+    samples[, parameter] <- raw_values
+    changed_parameters <- parameter
+  } else if (identical(replacement[["type"]], "linear")) {
     valid <- rep(FALSE, n_candidates)
 
     for (i in seq_along(row_states)) {
@@ -600,6 +607,26 @@
 
   out <- function(row, valid = TRUE) {
     return(list(row = row, valid = valid))
+  }
+
+  if (identical(replacement[["type"]], "scale_log_intercept")) {
+    factor <- .iwmde_scale_log_intercept_factors(
+      context,
+      parameter
+    )[state[["row_index"]]]
+    if (!is.finite(factor) || factor <= 0 || !is.finite(value)) {
+      return(out(state[["row"]], valid = FALSE))
+    }
+
+    row <- state[["row"]]
+    row[[parameter]] <- value / factor
+    synced <- .iwmde_sync_invgamma_auxiliary_row(
+      context    = context,
+      row        = row,
+      parameters = parameter
+    )
+
+    return(out(synced[["row"]], valid = synced[["valid"]]))
   }
 
   if (identical(replacement[["type"]], "linear")) {
@@ -717,7 +744,7 @@
                                      replacement) {
 
   row <- state[["row"]]
-  if (!identical(replacement[["type"]], "linear")) {
+  if (!replacement[["type"]] %in% c("linear", "scale_log_intercept")) {
     row[[parameter]] <- value
   }
   replaced <- .iwmde_replace_parameters(
@@ -819,6 +846,32 @@
       )
       return(out(synced[["row"]], parameters, valid = synced[["valid"]]))
     }
+  }
+
+  if (identical(replacement[["type"]], "scale_log_intercept")) {
+    replaced_row <- .iwmde_replace_row_for_value(
+      context     = context,
+      state       = state,
+      parameter   = parameter,
+      value       = value,
+      replacement = replacement
+    )
+    if (!isTRUE(replaced_row[["valid"]])) {
+      return(out(replaced_row[["row"]], state[["parameters"]],
+                 use_focal_prior_delta = FALSE, valid = FALSE))
+    }
+    parameters <- .iwmde_row_parameters(
+      context      = context,
+      row          = replaced_row[["row"]],
+      active_setup = state[["active_setup"]],
+      state_scope  = .iwmde_state_scope_value(state)
+    )
+
+    return(out(
+      row                   = replaced_row[["row"]],
+      parameters            = parameters,
+      use_focal_prior_delta = FALSE
+    ))
   }
 
   if (identical(replacement[["type"]], "indexed")) {
@@ -932,6 +985,11 @@
 
 .iwmde_replacement_spec <- function(context, parameter,
                                     parameter_spec = NULL) {
+
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "scale_log_intercept")) {
+    return(list(type = "scale_log_intercept"))
+  }
 
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "linear")) {

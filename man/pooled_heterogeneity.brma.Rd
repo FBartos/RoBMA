@@ -26,8 +26,7 @@ the heterogeneity component for RoBMA product-space objects. Defaults to
 models. Defaults to \code{"all"}. Use \code{"total"} for the
 variance-additive total heterogeneity.}
 
-\item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
-arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.}
+\item{...}{reserved for internal posterior-sample forwarding.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
@@ -44,9 +43,8 @@ scale model matrix.
 \details{
 For location-scale models (with scale regression), the pooled heterogeneity
 is the square root of the average observation-specific heterogeneity
-variance, \eqn{\sqrt{mean(\tau_i^2)}}. This differs from
-\code{predict(..., type = "terms.scale", newdata = TRUE)}, which reports the
-average predicted standard deviation.
+variance, \eqn{\sqrt{mean(\tau_i^2)}} over the fitted scale design. Public
+\code{predict(..., type = "terms.scale")} calls remain row-specific.
 
 For models without scale regression, this returns the single tau parameter.
 

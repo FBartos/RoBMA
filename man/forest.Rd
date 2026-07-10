@@ -9,6 +9,7 @@
   x,
   addfit = TRUE,
   addpred = FALSE,
+  newdata = NULL,
   predstyle = "line",
   mlab = NULL,
   row = -1,
@@ -41,8 +42,11 @@
 \item{addfit}{logical; whether to add the RoBMA pooled-effect summary
 polygon. Defaults to \code{TRUE}.}
 
-\item{addpred}{logical; whether to add a posterior prediction interval to
-the pooled-effect summary polygon. Defaults to \code{FALSE}.}
+\item{addpred}{logical; whether to add a posterior prediction interval for
+one new true effect. Defaults to \code{FALSE}.}
+
+\item{newdata}{optional one-row prediction design used when
+\code{addpred = TRUE}. See \code{as_metafor_forest()}.}
 
 \item{predstyle}{character; prediction interval style passed to
 \code{\link[metafor]{addpoly.default}}. Defaults to \code{"line"}.}
@@ -97,9 +101,11 @@ API instead of constructing a fake metafor model object. The observed study
 rows are shown as usual Wald intervals based on the supplied effect sizes
 and standard errors. The model summary row uses the posterior mean and
 credible interval from \code{\link{pooled_effect}}. When
-\code{addpred = TRUE}, the prediction interval is computed from
-\code{\link{predict.brma}} with \code{type = "estimate"} and
-\code{newdata = TRUE}. For \pkg{metafor}'s \code{predstyle = "shade"} and
+\code{addpred = TRUE}, the displayed center and credible interval use the
+fixed location at one explicit prediction row and the prediction interval
+uses \code{\link{predict.brma}} with \code{type = "estimate"} for that same
+row. For intercept-only models the adapter creates an unambiguous one-row
+design automatically. For \pkg{metafor}'s \code{predstyle = "shade"} and
 \code{predstyle = "dist"}, the displayed predictive distribution uses
 metafor's normal approximation implied by the posterior prediction interval
 endpoints.

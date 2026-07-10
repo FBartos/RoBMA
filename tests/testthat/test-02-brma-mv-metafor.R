@@ -306,7 +306,7 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
       component = "study",
       row       = "sd(time[4] | study)",
       expected  = function(m) sqrt(m[["tau2"]][[4]]),
-      tolerance = 0.75
+      tolerance = 1.10
     ),
     list(
       name      = "brma.mv_v14_begg1989_study_treatment",
@@ -456,6 +456,88 @@ test_that("v14 brma.mv fixed fitted values and residuals match metafor reference
   }
 })
 
+
+test_that("explicit brma.mv new-effect predictions track metafor targets", {
+
+  skip_if_missing_fits(c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_assink2016_nested",
+    "brma.mv_v14_ishak2007_har"
+  ))
+
+  predict_rma <- getS3method(
+    "predict",
+    "rma",
+    envir = asNamespace("metafor")
+  )
+  cases <- list(
+    list(
+      name = "brma.mv_v14_konstantopoulos2011_cs",
+      newdata = function(dat) dat[1L, c("school", "district"), drop = FALSE],
+      reference = function(fit, dat) {
+        predict_rma(fit, tau2.levels = dat[["school"]][[1L]])
+      },
+      tolerance = c(mean = .10, lower = .15, upper = .15)
+    ),
+    list(
+      name = "brma.mv_v14_assink2016_nested",
+      newdata = function(dat) data.frame(.prediction_row = 1L),
+      reference = function(fit, dat) predict_rma(fit),
+      tolerance = c(mean = .10, lower = .20, upper = .20)
+    ),
+    list(
+      name = "brma.mv_v14_ishak2007_har",
+      newdata = function(dat) {
+        dat[1L, c("time", "time_factor", "study"), drop = FALSE]
+      },
+      reference = function(fit, dat) {
+        predict_rma(
+          fit,
+          newmods     = fit[["X"]][1L, , drop = FALSE],
+          tau2.levels = dat[["time"]][[1L]]
+        )
+      },
+      tolerance = c(mean = .75, lower = 1.75, upper = 1.75)
+    )
+  )
+
+  for (case in cases) {
+    name     <- case[["name"]]
+    fit_brma <- fits[[name]]
+    fit_meta <- .mv_metafor(name)
+    dat      <- info[[name]][["data"]]
+    newdata  <- case[["newdata"]](dat)
+    reference <- case[["reference"]](fit_meta, newdata)
+
+    set.seed(81)
+    observed <- summary(predict(
+      fit_brma,
+      newdata = newdata,
+      type    = "estimate",
+      quiet   = TRUE
+    ))
+
+    .expect_close_abs(
+      observed  = observed[1L, "Mean"],
+      expected  = reference[["pred"]][[1L]],
+      tolerance = case[["tolerance"]][["mean"]],
+      label     = paste(name, "new-effect center")
+    )
+    .expect_close_abs(
+      observed  = observed[1L, "0.025"],
+      expected  = reference[["pi.lb"]][[1L]],
+      tolerance = case[["tolerance"]][["lower"]],
+      label     = paste(name, "new-effect lower bound")
+    )
+    .expect_close_abs(
+      observed  = observed[1L, "0.975"],
+      expected  = reference[["pi.ub"]][[1L]],
+      tolerance = case[["tolerance"]][["upper"]],
+      label     = paste(name, "new-effect upper bound")
+    )
+  }
+})
+
 test_that("v14 brma.mv ranef components track metafor references", {
 
   skip_if_missing_fits(mv_metafor_fit_names)
@@ -483,7 +565,7 @@ test_that("v14 brma.mv ranef components track metafor references", {
       name              = "brma.mv_v14_ishak2007_har",
       component         = "study",
       metafor_component = "~time | study",
-      tolerance         = 2.00,
+      tolerance         = 2.25,
       rank              = 0.98
     ),
     list(

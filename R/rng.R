@@ -54,37 +54,87 @@
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
 
-  if (known_V[["parameterization"]] %in% c("whitened", "block_mvn")) {
-    sampling_noise <- matrix(stats::rnorm(S * K), nrow = S, ncol = K) %*%
-      known_V[["sampling_factor"]]
-    heterogeneity_noise <- matrix(stats::rnorm(S * K), nrow = S, ncol = K) *
-      tau_within
-
-    return(mu_samples + sampling_noise + heterogeneity_noise)
-  }
-
-  sampling_dependency <- matrix(0, nrow = S, ncol = K)
-  if (known_V[["rank"]] > 0L) {
-    z_new <- matrix(
-      stats::rnorm(S * known_V[["rank"]]),
-      nrow = S,
-      ncol = known_V[["rank"]]
-    )
-    sampling_dependency <- z_new %*% t(known_V[["B"]])
-  }
-
-  residual_sei <- matrix(
-    known_V[["residual_sei"]],
-    nrow  = S,
-    ncol  = K,
-    byrow = TRUE
-  )
-  total_sd <- sqrt(tau_within^2 + residual_sei^2)
-
-  response_samples <- mu_samples + sampling_dependency +
-    matrix(stats::rnorm(S * K), nrow = S, ncol = K) * total_sd
+  sampling_noise      <- .known_v_sampling_noise(known_V, S = S, K = K)
+  heterogeneity_noise <- matrix(stats::rnorm(S * K), nrow = S, ncol = K) *
+    tau_within
+  response_samples    <- mu_samples + sampling_noise + heterogeneity_noise
 
   return(response_samples)
+}
+
+
+# Draw known-V sampling noise without materializing a global covariance factor.
+.known_v_sampling_noise <- function(known_V, S, K) {
+
+  has_canonical_covariance <- !is.null(known_V[["storage"]]) ||
+    !is.null(known_V[["diagonal"]]) ||
+    !is.null(known_V[["V"]])
+
+  if (has_canonical_covariance) {
+    if (.known_v_nrow(known_V) != K) {
+      stop("Known-V covariance dimensions do not match prediction rows.",
+           call. = FALSE)
+    }
+
+    sampling_noise <- matrix(0, nrow = S, ncol = K)
+    independent    <- .known_v_independent_indices(known_V)
+    if (length(independent) > 0L) {
+      independent_noise <- matrix(
+        stats::rnorm(S * length(independent)),
+        nrow = S,
+        ncol = length(independent)
+      )
+      sampling_noise[, independent] <- sweep(
+        independent_noise,
+        MARGIN = 2L,
+        STATS  = sqrt(.known_v_diagonal(known_V)[independent]),
+        FUN    = "*"
+      )
+    }
+
+    for (block in .known_v_correlated_blocks(known_V)) {
+      index  <- block[["index"]]
+      factor <- .known_v_sampling_factor(block[["covariance"]])
+      sampling_noise[, index] <- matrix(
+        stats::rnorm(S * length(index)),
+        nrow = S,
+        ncol = length(index)
+      ) %*% factor
+    }
+
+    return(sampling_noise)
+  }
+
+  if (!is.null(known_V[["sampling_factor"]])) {
+    factor <- known_V[["sampling_factor"]]
+    if (!is.matrix(factor) || !identical(dim(factor), c(K, K))) {
+      stop("Legacy known-V sampling factor has inconsistent dimensions.",
+           call. = FALSE)
+    }
+    return(matrix(stats::rnorm(S * K), nrow = S, ncol = K) %*% factor)
+  }
+
+  rank <- known_V[["rank"]]
+  B    <- known_V[["B"]]
+  sei  <- known_V[["residual_sei"]]
+  if (is.null(rank) || is.null(B) || is.null(sei) ||
+      !is.matrix(B) || nrow(B) != K || ncol(B) != rank || length(sei) != K) {
+    stop("Legacy known-V sampling metadata are incomplete or inconsistent.",
+         call. = FALSE)
+  }
+
+  sampling_noise <- matrix(0, nrow = S, ncol = K)
+  if (rank > 0L) {
+    sampling_noise <- matrix(
+      stats::rnorm(S * rank),
+      nrow = S,
+      ncol = rank
+    ) %*% t(B)
+  }
+  residual_noise <- matrix(stats::rnorm(S * K), nrow = S, ncol = K)
+  residual_noise <- sweep(residual_noise, 2L, sei, "*")
+
+  sampling_noise + residual_noise
 }
 
 

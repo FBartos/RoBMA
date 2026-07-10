@@ -1,6 +1,6 @@
 # brma.mv Conditioning Depths and Predictive Targets
 
-Use this note when changing `logLik()`, `add_loo()`, `add_waic()`,
+Use this note when changing `log_lik()`, `add_loo()`, `add_waic()`,
 `rstudent()`, `add_marglik()`, or known-`V`/known-`R` random-effect
 diagnostics. It records the current design decisions so the same target
 semantics do not need to be reconstructed from scratch.
@@ -13,13 +13,13 @@ semantics do not need to be reconstructed from scratch.
   by the target. Current values are `"marginal"`, `"cluster"`, and `"estimate"`.
 - LOO/WAIC expose `unit`; they derive `conditioning_depth` with
   `.loo_conditioning_depth_from_unit()`.
-- `logLik()`, LOO, WAIC, and LOO-PIT residuals use predictive log-score
+- `log_lik()`, LOO, WAIC, and LOO-PIT residuals use predictive log-score
   targets. They are not marginal covariance diagnostics.
 - `hatvalues()`, marginal `rstandard()`, Pearson residual SEs, and `vif()` use
   marginal GLS covariance targets.
-- same-data `predict.brma.mv(type = "response")` also uses a marginal
-  covariance target, so response predictions are comparable to `brma()`
-  predictions rather than conditional fitted-random-effect BLUPs.
+- same-data `predict.brma.mv(type = "response")` also uses marginal component
+  generation, so response predictions are comparable to `brma()` predictions
+  rather than conditional fitted-random-effect BLUPs.
 - `add_marglik()`/`bridge_sampler()` use the full joint fitted likelihood plus
   the fitted model prior density. They are not pointwise predictive scores.
 
@@ -43,7 +43,7 @@ diagnostic documentation, keep `.brma_mv_diagnostic_target_table()` in
 | `brma.mv()` known `V` | `unit = "cluster"` | Deferred. There is no implemented joint dependency-block LOO target yet. |
 
 Important caveat: `conditioning_depth = "cluster"` in fitted values means
-"condition on cluster-level effects". `unit = "cluster"` for LOO/logLik means
+"condition on cluster-level effects". `unit = "cluster"` for LOO/log_lik means
 "score a held-out cluster as one joint unit". For normal multilevel LOO, the
 held-out cluster effect is integrated, not conditioned on its fitted value.
 
@@ -75,7 +75,7 @@ normal likelihood.
 
 ## Random Formula Effects in brma.mv Known-V Scores
 
-For `brma.mv()` random-formula models, estimate-depth LOO/logLik/WAIC currently
+For `brma.mv()` random-formula models, estimate-depth LOO/log_lik/WAIC currently
 exist only for known-`V` fits. The setup intentionally does this:
 
 1. It evaluates fixed effects.
@@ -130,7 +130,7 @@ Current known-`R` rules:
   sampled or rejected by BayesTools/RoBMA validation; RoBMA does not implement a
   dense known-`R` likelihood.
 - New prediction levels for known-`R` blocks are rejected.
-- In estimate-unit `logLik()`, LOO, WAIC, and LOO-PIT residuals, sampled
+- In estimate-unit `log_lik()`, LOO, WAIC, and LOO-PIT residuals, sampled
   known-`R` random effects are conditioned on; marginalized known-`R` blocks
   enter as diagonal extra variance.
 - Known `R` is not split into pointwise likelihood terms and is not added again
@@ -163,7 +163,8 @@ pointwise predictive log-score:
 - `rstandard(conditioning_depth = "marginal")`
 - Pearson residual SEs with marginal conditioning
 - `vif()`
-- `predict(..., type = "response")` covariance for known-`V` `brma.mv()` paths
+- `predict(..., type = "response")` generative distribution for known-`V`
+  `brma.mv()` paths
 
 These paths use known `V` plus random-effect covariance:
 
@@ -177,19 +178,20 @@ For known `R`, BayesTools contributes the group-axis covariance inside
 scaling, ordering, or definiteness logic.
 
 For same-data `brma.mv()` response predictions, the posterior mean is evaluated
-from fixed/location terms only and the covariance is `V + ZGZ'` plus any
-validated marginalized random-effect variance. Sampled fitted random effects
-are not added to the response mean in this target. This intentionally mirrors
+from fixed/location terms only. Sampling noise is generated from known `V`, and
+each applicable random-effect component is generated marginally. Sampled fitted
+random effects are not added as conditional BLUPs. This intentionally mirrors
 the univariate `brma()` response target, where between-study heterogeneity is
-represented through predictive variance rather than point BLUPs. `type =
-"estimate"` remains the fitted latent-effect target and conditions on sampled
-random effects when they are part of the fitted model.
+represented through posterior predictive generation rather than point BLUPs.
+`type = "estimate"` remains the fitted latent-effect target for `newdata = NULL`
+and conditions on sampled random effects when they are part of the fitted model.
 
-For aggregate predictions, RoBMA first adds BayesTools-backed sampled random
-effects and RoBMA marginalized-block draws at the row level, then averages rows.
-This keeps aggregate estimates on the same predictive scale as non-aggregate
-estimate predictions without reimplementing BayesTools random-effect
-covariance logic.
+Explicit prediction rows represent new true effects. Random-formula components
+are generated marginally for each row; deliberately repeated ordinary grouping
+IDs share a generated effect. Known-`R` rows must use fitted levels because an
+`R_new` interface is deferred. The former unreleased logical aggregate
+prediction mode does not exist. `pooled_effect()` averages fitted-design fixed
+location draws directly and is not a prediction target.
 
 Key files:
 
@@ -230,18 +232,40 @@ Key files:
 - `R/brma-mv-targets.R`
 - BayesTools bridge/JAGS formula machinery
 
-## LOO, WAIC, and logLik Consistency
+## LOO, WAIC, and log_lik Consistency
 
-LOO and WAIC reuse the same log-likelihood matrix as `logLik()` for the same
+LOO and WAIC reuse the same log-likelihood matrix as `log_lik()` for the same
 unit. Therefore, if a semantic change is made to the estimate log-likelihood,
 it also changes LOO, WAIC, LOO-PIT residuals, and influence diagnostics that
 use PSIS weights.
+
+`log_lik()` returns pointwise posterior draws, not a scalar maximized
+log-likelihood. For correlated known `V`, summing its Schur-conditional columns
+produces a composite score rather than the full joint fitted likelihood.
+`logLik.brma()` is intentionally absent, and `AIC()`/`BIC()` are unsupported.
+
+At estimate depth, deletion means holding out one estimate within the retained
+grouping and known-`V` dependency structure. It does not mean holding out a
+whole new group. Sampled, analytically marginalized, and mixed random-effect
+representations remain comparable when their data hash, deletion unit,
+conditioning depth, and likelihood target agree. `random_effects` and
+`estimate_level_random` record draw provenance and are not comparison keys.
+
+This policy does not imply equal numerical reliability. PSIS reweights draws
+toward the leave-one-estimate-out posterior, but sampled local effects can
+produce high Pareto-k values. WAIC can be especially sensitive to whether a
+latent effect is sampled or marginalized. Check diagnostics and compare matched
+sampled/marginalized representations when changing these paths.
 
 Current consistency checks:
 
 - `.check_loo_compare_targets()` rejects mismatched data hashes, units,
   conditioning depths, or likelihood target labels.
+- The four-field compatibility key is applied separately within LOO and WAIC;
+  LOO and WAIC objects are not mixed in one comparison table.
 - `data_hash` describes the observed outcome target, including known `V`.
+- Cached LOO/WAIC extraction recomputes this four-field target key and rejects
+  stale results after outcome, known-`V`, unit, or target changes.
 - Known `R` metadata is preserved for transparency but does not define a
   separate deletion target.
 - WAIC target metadata is copied from the same log-likelihood target used by
@@ -280,7 +304,7 @@ Current relevant tests include:
   - known-`V` Schur target
   - target metadata availability
   - known-`R` row multipliers in known-`V` syntax/data
-  - logLik/bridge extra variance from `tau^2 * row_multiplier`
+  - log_lik/bridge extra variance from `tau^2 * row_multiplier`
   - backend restrictions for row-varying known-`R` variance
 - `tests/testthat/test-00-brma-mv-known-r.R`
   - known-`R` metadata
@@ -288,8 +312,10 @@ Current relevant tests include:
   - `Rscale = "none"` marginal covariance semantics
   - supported known-`R` auto-marginalization and sampled fallbacks
 - `tests/testthat/test-03-loo.R`
-  - direct known-`R` `logLik()`, LOO, and WAIC metadata
+  - direct known-`R` `log_lik()`, LOO, and WAIC metadata
   - known-`V` estimate-unit target metadata
+  - unified no-random, sampled, marginalized, and mixed comparison policy
+  - matched sampled/marginalized reliability and stale-cache checks
 - `tests/testthat/test-03-bridgesampling.R`
   - marginal likelihood target metadata and bridge availability
 - `tests/testthat/test-02-vif.R`, `test-02-residuals.R`,

@@ -103,7 +103,7 @@
 
   known_V <- .data_known_v_data(data)
   if (!identical(known_V[["parameterization_requested"]], "auto") ||
-      !identical(known_V[["parameterization"]], "whitened")) {
+      !identical(.data_known_v_effective_backend(data), "whitened")) {
     return(data)
   }
 
@@ -111,8 +111,8 @@
     known_V[["residual_fraction_requested"]]
   )
   new_known_V <- .known_v_prepare(
-    V                                   = known_V[["V"]],
-    keep_rows                           = rep(TRUE, nrow(known_V[["V"]])),
+    V                                   = .known_v_as_input(known_V),
+    keep_rows                           = rep(TRUE, .known_v_nrow(known_V)),
     known_v_parameterization            = "auto",
     known_v_residual_fraction           = known_V[["residual_fraction_requested"]],
     known_v_residual_fraction_specified = known_v_residual_fraction_specified,
@@ -120,7 +120,7 @@
     warn_singular                       = FALSE
   )
   attr(data, "known_V_data") <- new_known_V
-  data[["outcome"]][["sei"]] <- sqrt(diag(new_known_V[["V"]]))
+  data[["outcome"]][["sei"]] <- sqrt(.known_v_diagonal(new_known_V))
 
   return(data)
 }
@@ -410,7 +410,7 @@
     .marginalized_random_effect_variance_expression(term, row_index = "i")
   }
 
-  if (.is_data_known_v_parameterization(data, "whitened") &&
+  if (.is_data_known_v_backend(data, "whitened") &&
       .marginalized_random_effects_row_varying(terms)) {
     stop(
       "known_v_parameterization = 'whitened' cannot be combined with ",

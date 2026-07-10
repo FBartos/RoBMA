@@ -35,6 +35,10 @@
 #' @param return_loo_estimates whether to return the leave-one-out coefficient
 #' estimates used to compute DFBETAS instead of standardized DFBETAS values.
 #' Defaults to \code{FALSE}.
+#' @param component optional parameter namespace. Use \code{"random"} for
+#'   semantic random-effect SD, correlation, and allocation quantities.
+#' @param parameter optional semantic random-effect quantity. When omitted with
+#'   \code{component = "random"}, all available random quantities are returned.
 #' @param ... additional arguments (currently ignored).
 #'
 #' @details
@@ -90,11 +94,26 @@
 #' @exportS3Method
 dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE,
                          transform_factors = TRUE,
-                         return_loo_estimates = FALSE, ...) {
+                         return_loo_estimates = FALSE, component = NULL,
+                         parameter = NULL, ...) {
 
   dots <- list(...)
   .weights <- dots[[".weights"]]
   BayesTools::check_char(type, "type", allow_values = c("mods", "scale", "bias"))
+  BayesTools::check_char(component, "component", check_length = 1,
+                         allow_NULL = TRUE)
+  BayesTools::check_char(parameter, "parameter", check_length = 1,
+                         allow_NULL = TRUE)
+  component <- .diagnostic_parameter_component(
+    type          = type,
+    component     = component,
+    type_supplied = !missing(type),
+    allow_bias    = TRUE
+  )
+  if (!identical(component, "random") && !is.null(parameter)) {
+    stop("'parameter' is currently available only with component = 'random'.",
+         call. = FALSE)
+  }
 
   if (is.null(.weights)) {
     psis_context <- .diagnostic_psis_context(model)
@@ -108,38 +127,46 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   is_scale <- .is_scale(model)
   is_bias  <- .is_bias(model)
 
-  if (type == "mods") {
+  if (component == "mods") {
     samples_table <- .diagnostic_location_parameter_samples(
       model                     = model,
       standardized_coefficients = standardized_coefficients,
       transform_factors         = transform_factors
     )
-  } else if (type == "scale") {
+  } else if (component == "scale") {
     if (is_scale) {
       # scale-regression: tau is modeled via log_tau formula
       samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_formulas      = "log_tau",
-        remove_diagnostics = TRUE,
-        transform_factors  = transform_factors,
-        return_samples     = TRUE
+        fit                    = model[["fit"]],
+        keep_formulas          = "log_tau",
+        random_effects_summary = "none",
+        remove_diagnostics     = TRUE,
+        transform_factors      = transform_factors,
+        return_samples         = TRUE
       )
     } else {
       # random/fixed effects: tau is a parameter (intercept)
       samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_parameters    = "tau",
-        remove_diagnostics = TRUE,
-        transform_factors  = transform_factors,
-        return_samples     = TRUE
+        fit                    = model[["fit"]],
+        keep_parameters        = "tau",
+        random_effects_summary = "none",
+        remove_diagnostics     = TRUE,
+        transform_factors      = transform_factors,
+        return_samples         = TRUE
       )
     }
-  } else if (type == "bias") {
+  } else if (component == "bias") {
     if (!is_bias) {
       stop("type = 'bias' is only available for models with publication bias adjustment.", call. = FALSE)
     }
 
     samples_table <- .dfbetas_bias_samples(model)
+  } else if (component == "random") {
+    samples_table <- .diagnostic_random_parameter_samples(
+      model                     = model,
+      parameter                 = parameter,
+      standardized_coefficients = standardized_coefficients
+    )
   }
 
 
@@ -211,13 +238,13 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   # 4. Compute DFBETAS
   # (beta_full - beta_loo) / se_loo
   dfbetas_val <- (beta_full_mat - beta_loo) / se_loo
-  undefined   <- apply(se_loo <= sqrt(.Machine$double.eps), 2, any)
+  undefined   <- se_loo <= sqrt(.Machine$double.eps)
   note        <- NULL
   if (any(undefined)) {
-    dfbetas_val[, undefined] <- NaN
+    dfbetas_val[undefined] <- NaN
     note <- .diagnostic_zero_variance_note(
       diagnostic = "DFBETAS",
-      parameters = colnames(samples_mat)[undefined]
+      parameters = colnames(samples_mat)[apply(undefined, 2, any)]
     )
   }
   # convert to data frame

@@ -229,9 +229,20 @@
   }
   if (.is_data_known_v(object[["data"]])) {
     known_V <- .data_known_v_data(object[["data"]])
+    blocks  <- .known_v_correlated_blocks(known_V)
+    diagonal <- .normalize_hash_zero(.known_v_diagonal(known_V))
     payload[["known_V"]] <- list(
-      dim = dim(known_V[["V"]]),
-      V   = unname(as.numeric(known_V[["V"]]))
+      version  = 2L,
+      K        = .known_v_nrow(known_V),
+      diagonal = unname(diagonal),
+      blocks   = lapply(blocks, function(block) {
+        list(
+          index      = unname(as.integer(block[["index"]])),
+          covariance = unname(.normalize_hash_zero(
+            as.numeric(block[["covariance"]])
+          ))
+        )
+      })
     )
   }
 
@@ -294,6 +305,13 @@
     caller, " with ", argument, " = 'cluster' is not implemented currently.",
     call. = FALSE
   )
+}
+
+
+.normalize_hash_zero <- function(x) {
+
+  x[x == 0] <- 0
+  x
 }
 
 
@@ -446,6 +464,107 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .current_predictive_target_key
+# ---------------------------------------------------------------------------- #
+#
+# Build the current LOO/WAIC compatibility key without evaluating draws.
+#
+# ---------------------------------------------------------------------------- #
+.current_predictive_target_key <- function(object, unit) {
+
+  unit      <- .normalize_unit(unit)
+  data_hash <- .get_outcome_hash(object)
+  if (unit == "estimate") {
+    target <- if (.known_v_estimate_target_uses_schur_conditioning(
+        object[["data"]])) {
+      "known_v_estimate"
+    } else {
+      "factorized_estimate"
+    }
+  } else {
+    target <- "cluster_joint"
+  }
+
+  list(
+    unit               = unit,
+    conditioning_depth = .loo_conditioning_depth_from_unit(unit),
+    target             = target,
+    data_hash          = data_hash
+  )
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .predictive_target_fingerprint
+# ---------------------------------------------------------------------------- #
+#
+# Collapse the public LOO/WAIC compatibility key to a stable scalar.
+#
+# ---------------------------------------------------------------------------- #
+.predictive_target_fingerprint <- function(metadata) {
+
+  fields <- c("unit", "conditioning_depth", "target", "data_hash")
+  if (is.null(metadata) || !all(fields %in% names(metadata))) {
+    return(NULL)
+  }
+  key <- metadata[fields]
+  if (any(vapply(key, function(x) length(x) != 1L || is.na(x), logical(1)))) {
+    return(NULL)
+  }
+
+  paste(vapply(key, as.character, character(1)), collapse = "|")
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .check_cached_predictive_target
+# ---------------------------------------------------------------------------- #
+#
+# Reject cached predictive diagnostics that no longer match the fitted target.
+#
+# ---------------------------------------------------------------------------- #
+.check_cached_predictive_target <- function(object, metadata, unit, method) {
+
+  recompute <- if (identical(method, "LOO")) "add_loo()" else "add_waic()"
+  stored_fingerprint <- .predictive_target_fingerprint(metadata)
+  if (is.null(stored_fingerprint)) {
+    stop(
+      "Stored ", method, " has incomplete RoBMA target metadata. Recompute ",
+      "with ", recompute, ".",
+      call. = FALSE
+    )
+  }
+  if (!identical(metadata[["unit"]], unit)) {
+    stop(
+      "Stored ", method, " was computed with unit = '", metadata[["unit"]],
+      "'. Recompute with ", recompute, " using unit = '", unit, "'.",
+      call. = FALSE
+    )
+  }
+
+  current <- .current_predictive_target_key(object, unit)
+  if (!identical(metadata[["data_hash"]], current[["data_hash"]])) {
+    stop(
+      "Stored ", method, " does not match the current outcome data. ",
+      "Recompute with ", recompute, ".",
+      call. = FALSE
+    )
+  }
+  if (!identical(
+      stored_fingerprint,
+      .predictive_target_fingerprint(current))) {
+    stop(
+      "Stored ", method, " does not match the current likelihood target. ",
+      "Recompute with ", recompute, ".",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .check_loo_target
 # ---------------------------------------------------------------------------- #
 #
@@ -479,14 +598,7 @@
   }
 
   metadata <- .get_loo_target_metadata(loo_result)
-
-  if (!is.null(metadata) && metadata[["unit"]] != unit) {
-    stop(
-      "Stored LOO was computed with unit = '", metadata[["unit"]],
-      "'. Recompute with add_loo(object, unit = '", unit, "').",
-      call. = FALSE
-    )
-  }
+  .check_cached_predictive_target(object, metadata, unit, "LOO")
 
   return(loo_result)
 }
@@ -526,14 +638,7 @@
   }
 
   metadata <- .get_loo_target_metadata(waic_result)
-
-  if (!is.null(metadata) && metadata[["unit"]] != unit) {
-    stop(
-      "Stored WAIC was computed with unit = '", metadata[["unit"]],
-      "'. Recompute with add_waic(object, unit = '", unit, "').",
-      call. = FALSE
-    )
-  }
+  .check_cached_predictive_target(object, metadata, unit, "WAIC")
 
   return(waic_result)
 }
@@ -586,6 +691,14 @@
 
   if (any(missing)) {
     stop("LOO/WAIC objects without RoBMA target metadata cannot be compared.",
+         call. = FALSE)
+  }
+
+  criteria <- vapply(loo_objects, function(object) {
+    if (inherits(object, "waic")) "WAIC" else "LOO"
+  }, character(1))
+  if (length(unique(criteria)) > 1L) {
+    stop("LOO and WAIC objects cannot be compared in the same table.",
          call. = FALSE)
   }
 

@@ -42,6 +42,11 @@ For \code{brma.mv()} models with known random-effect group covariance
 \code{R}, estimate-unit WAIC has the same conditioning convention as
 estimate-unit LOO: sampled random effects are conditioned on, and known
 \code{R} is not added again as a marginal \eqn{ZGZ'} covariance term.
+Estimate deletion retains the fitted grouping/dependency structure, and the
+same four-field comparison policy applies across sampled, marginalized, and
+mixed local-effect representations. WAIC can be more sensitive than LOO to
+whether local effects are sampled or marginalized, so compare its values
+with that representation dependence in mind.
 }
 \seealso{
 \code{\link{waic.brma}}, \code{\link{add_loo}}, \code{\link[loo]{waic}}

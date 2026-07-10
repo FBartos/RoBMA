@@ -273,7 +273,6 @@
     posterior_samples = sample_info[["posterior_samples"]]
   )
   known_V <- .data_known_v_data(setup[["data"]])
-  V       <- known_V[["V"]]
   yi      <- setup[["yi"]]
   S       <- setup[["S"]]
   K       <- setup[["K"]]
@@ -291,7 +290,6 @@
   z_sum          <- if (return_se && return_resid && summarize) rep(0, K) else NULL
   M_diag_samples <- matrix(0, nrow = S, ncol = K)
   residual_tol   <- 100 * .Machine$double.eps * max(1, max(abs(yi)))
-  I_K            <- diag(K)
   chunk_info     <- NULL
 
   if (conditioning_depth == "estimate") {
@@ -301,22 +299,19 @@
     }
 
     for (s in seq_len(S)) {
-      covariance  <- V + diag(extra_variance[s, ], nrow = K)
-      y_offset   <- yi - offset_samples[s, ]
-      projection <- .known_v_gls_projection(
-        X          = X,
-        y          = y_offset,
-        covariance = covariance
+      y_offset  <- yi - offset_samples[s, ]
+      projection <- .known_v_gls_projection_blocks(
+        X              = X,
+        y              = y_offset,
+        known_V        = known_V,
+        extra_variance = extra_variance[s, ],
+        return_full_H  = return_full_H
       )
-      residual   <- as.vector(V %*% projection[["W"]] %*% projection[["residual"]])
-      C          <- projection[["W"]] -
-        projection[["WX"]] %*% projection[["XtWX_inv"]] %*% t(projection[["WX"]])
-      C          <- (C + t(C)) / 2
-      se2        <- diag(V %*% C %*% V)
-      se         <- sqrt(pmax(se2, 0))
+      residual   <- projection[["sampling_residual"]]
+      se         <- sqrt(pmax(projection[["sampling_residual_variance"]], 0))
 
-      H_diag_samples[s, ] <- diag(projection[["H"]])
-      M_diag_samples[s, ] <- diag(projection[["covariance"]])
+      H_diag_samples[s, ] <- projection[["H_diag"]]
+      M_diag_samples[s, ] <- .known_v_diagonal(known_V) + extra_variance[s, ]
 
       if (return_full_H) {
         H_samples[s, , ] <- projection[["H"]]
@@ -344,6 +339,7 @@
     }
 
   } else if (conditioning_depth == "marginal") {
+    I_K <- diag(K)
     chunk_info <- .known_v_apply_marginal_covariance_chunks(
       object            = object,
       posterior_samples = setup[["posterior_samples"]],
@@ -418,6 +414,91 @@
   )
 
   return(result)
+}
+
+
+.known_v_gls_projection_blocks <- function(X, y, known_V, extra_variance,
+                                           return_full_H = FALSE) {
+
+  K <- .known_v_nrow(known_V)
+  p <- ncol(X)
+  if (nrow(X) != K || length(y) != K || length(extra_variance) != K) {
+    stop("Known-V block GLS inputs have inconsistent dimensions.", call. = FALSE)
+  }
+
+  W_X         <- matrix(0, nrow = K, ncol = p)
+  W_y         <- numeric(K)
+  independent <- .known_v_independent_indices(known_V)
+  if (length(independent) > 0L) {
+    variance <- .known_v_diagonal(known_V)[independent] +
+      extra_variance[independent]
+    if (any(!is.finite(variance) | variance <= 0)) {
+      stop("Known-V residual covariance is not positive definite.", call. = FALSE)
+    }
+    W_X[independent, ] <- X[independent, , drop = FALSE] / variance
+    W_y[independent]   <- y[independent] / variance
+  }
+
+  inverse_blocks <- vector("list", length(.known_v_correlated_blocks(known_V)))
+  for (b in seq_along(.known_v_correlated_blocks(known_V))) {
+    block      <- .known_v_correlated_blocks(known_V)[[b]]
+    index      <- block[["index"]]
+    covariance <- block[["covariance"]]
+    diag(covariance) <- diag(covariance) + extra_variance[index]
+    chol_covariance <- tryCatch(chol(covariance), error = function(e) NULL)
+    if (is.null(chol_covariance)) {
+      stop("Known-V residual covariance is not positive definite.", call. = FALSE)
+    }
+    inverse_blocks[[b]] <- chol2inv(chol_covariance)
+    W_X[index, ] <- inverse_blocks[[b]] %*% X[index, , drop = FALSE]
+    W_y[index]   <- as.vector(inverse_blocks[[b]] %*% y[index])
+  }
+
+  XtWX_inv <- .hat_solve_crossprod(crossprod(X, W_X))
+  beta_hat <- as.vector(XtWX_inv %*% crossprod(X, W_y))
+  residual <- y - as.vector(X %*% beta_hat)
+  W_r      <- numeric(K)
+  if (length(independent) > 0L) {
+    variance         <- .known_v_diagonal(known_V)[independent] +
+      extra_variance[independent]
+    W_r[independent] <- residual[independent] / variance
+  }
+  for (b in seq_along(.known_v_correlated_blocks(known_V))) {
+    index      <- .known_v_correlated_blocks(known_V)[[b]][["index"]]
+    W_r[index] <- as.vector(inverse_blocks[[b]] %*% residual[index])
+  }
+
+  sampling_residual <- numeric(K)
+  V_W_X             <- matrix(0, nrow = K, ncol = p)
+  first_variance    <- numeric(K)
+  if (length(independent) > 0L) {
+    V_diag <- .known_v_diagonal(known_V)[independent]
+    M_diag <- V_diag + extra_variance[independent]
+    sampling_residual[independent] <- V_diag * W_r[independent]
+    V_W_X[independent, ] <- W_X[independent, , drop = FALSE] * V_diag
+    first_variance[independent] <- V_diag^2 / M_diag
+  }
+  for (b in seq_along(.known_v_correlated_blocks(known_V))) {
+    block   <- .known_v_correlated_blocks(known_V)[[b]]
+    index   <- block[["index"]]
+    V_block <- block[["covariance"]]
+    sampling_residual[index] <- as.vector(V_block %*% W_r[index])
+    V_W_X[index, ] <- V_block %*% W_X[index, , drop = FALSE]
+    first_variance[index] <- rowSums((V_block %*% inverse_blocks[[b]]) * V_block)
+  }
+
+  correction <- rowSums((V_W_X %*% XtWX_inv) * V_W_X)
+  H_diag     <- rowSums((X %*% XtWX_inv) * W_X)
+
+  out <- list(
+    H_diag                       = H_diag,
+    sampling_residual            = sampling_residual,
+    sampling_residual_variance   = first_variance - correction
+  )
+  if (isTRUE(return_full_H)) {
+    out[["H"]] <- X %*% XtWX_inv %*% t(W_X)
+  }
+  out
 }
 
 

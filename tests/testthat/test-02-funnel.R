@@ -58,6 +58,7 @@ test_that("known-V marginal variance samples extract diagonals in chunks", {
   data <- list(outcome = data.frame(yi = c(.10, .20), sei = sqrt(diag(V))))
   attr(data, "known_V")      <- TRUE
   attr(data, "known_V_data") <- list(V = V)
+  attr(data, "random")       <- TRUE
   object <- list(
     data = data,
     fit  = list()
@@ -75,7 +76,7 @@ test_that("known-V marginal variance samples extract diagonals in chunks", {
     },
     .known_v_marginal_covariance_samples_raw = function(object,
                                                         posterior_samples,
-                                                        V,
+                                                        known_V,
                                                         K) {
       rows <- as.integer(posterior_samples[, "tau"])
       covariances[rows, , , drop = FALSE]
@@ -86,7 +87,7 @@ test_that("known-V marginal variance samples extract diagonals in chunks", {
   out <- .known_v_marginal_variance_samples(
     object            = object,
     posterior_samples = posterior_samples,
-    max_bytes         = .known_v_covariance_bytes(1L, 2L)
+    max_bytes         = .known_v_covariance_peak_bytes(1L, 2L)
   )
   metadata <- attr(out, "known_v_diagnostic", exact = TRUE)
 

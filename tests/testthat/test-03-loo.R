@@ -24,9 +24,8 @@ info      <- lazy_infos(fit_names, validate = FALSE)
 .expected_known_v_estimate_target <- function(object) {
 
   known_V <- .data_known_v_data(object[["data"]])
-  V       <- known_V[["V"]]
 
-  if (any(V[row(V) != col(V)] != 0)) {
+  if (length(.known_v_correlated_blocks(known_V)) > 0L) {
     return("known_v_estimate")
   }
 
@@ -34,18 +33,33 @@ info      <- lazy_infos(fit_names, validate = FALSE)
 }
 
 
-test_that("logLik returns finite pointwise matrices for cached fits", {
+test_that("log_lik returns finite pointwise matrices for cached fits", {
 
   for (name in c("bcg_meta-analysis", "bcg_meta-regression")) {
     fit_brma <- fits[[name]]
-    log_lik  <- logLik(fit_brma)
+    log_lik  <- log_lik(fit_brma)
 
-    expect_s3_class(log_lik, "logLik.brma")
     expect_true(is.matrix(log_lik), info = name)
     expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
     expect_true(all(is.finite(log_lik)), info = name)
     expect_true(stats::var(rowSums(log_lik)) > 0, info = name)
   }
+})
+
+test_that("logLik is absent and information criteria fail explicitly", {
+
+  fit_name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(fit_name)
+  fit_brma <- fits[[fit_name]]
+  draws    <- log_lik(fit_brma)
+
+  expect_true("log_lik" %in% getNamespaceExports("RoBMA"))
+  expect_true(is.matrix(draws))
+  expect_equal(ncol(draws), nobs(fit_brma))
+  expect_null(getS3method("logLik", "brma", optional = TRUE))
+  expect_error(stats::logLik(fit_brma), "no applicable method")
+  expect_error(stats::AIC(fit_brma), "AIC\\(\\) is not defined for brma")
+  expect_error(stats::BIC(fit_brma), "BIC\\(\\) is not defined for brma")
 })
 
 test_that("loo and WAIC expose cached diagnostics and missing-cache errors", {
@@ -113,6 +127,21 @@ test_that("loo_compare accepts loo objects", {
   expect_true("se_diff" %in% colnames(out))
 })
 
+test_that("cluster-unit LOO has a comparable joint-target label", {
+
+  fit_name <- "konstantopoulos2011_3lvl"
+  skip_if_missing_fits(fit_name)
+
+  fit_brma <- suppressWarnings(add_loo(fits[[fit_name]], unit = "cluster"))
+  loo_brma <- loo(fit_brma, unit = "cluster")
+  target   <- attr(loo_brma, "RoBMA_target", exact = TRUE)
+  loo_copy <- loo_brma
+  out      <- loo_compare(loo_brma, loo_copy)
+
+  expect_equal(target[["target"]], "cluster_joint")
+  expect_equal(nrow(out), 2L)
+})
+
 test_that("loo_compare rejects fewer than two models", {
 
   # get one brma fit
@@ -121,7 +150,7 @@ test_that("loo_compare rejects fewer than two models", {
   expect_error(loo_compare(fit_brma, "At least two models"))
 })
 
-test_that("logLik, LOO, weights, diagnostics, and WAIC are available for product-space fits", {
+test_that("log_lik, LOO, weights, diagnostics, and WAIC are available for product-space fits", {
 
   product_names <- c(
     "dat.lehmann2018_BMA.norm",
@@ -134,8 +163,7 @@ test_that("logLik, LOO, weights, diagnostics, and WAIC are available for product
 
     fit_brma <- fits[[name]]
 
-    log_lik <- logLik(fit_brma)
-    expect_s3_class(log_lik, "logLik.brma")
+    log_lik <- log_lik(fit_brma)
     expect_true(is.matrix(log_lik), info = name)
     expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
     expect_true(all(is.finite(log_lik)), info = name)
@@ -197,10 +225,9 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
     if (is_known_r) {
       fit_brma <- suppressWarnings(add_loo(fit_brma))
     }
-    log_lik  <- logLik(fit_brma)
+    log_lik  <- log_lik(fit_brma)
     target   <- attr(log_lik, "RoBMA_target", exact = TRUE)
 
-    expect_s3_class(log_lik, "logLik.brma")
     expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
     expect_true(all(is.finite(log_lik)), info = name)
     expect_equal(
@@ -280,10 +307,9 @@ test_that("v14 brma.mv metafor fixtures cache usable estimate-unit LOO", {
 
   for (name in mv_names) {
     fit_brma <- fits[[name]]
-    log_lik  <- logLik(fit_brma)
+    log_lik  <- log_lik(fit_brma)
     target   <- attr(log_lik, "RoBMA_target", exact = TRUE)
 
-    expect_s3_class(log_lik, "logLik.brma")
     expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
     expect_true(all(is.finite(log_lik)), info = name)
     expect_equal(
@@ -320,7 +346,7 @@ test_that("brma.mv estimate-unit LOO rejects unsupported and missing targets", {
   fit_brma <- fits[[mv_name]]
 
   expect_error(
-    logLik(fit_brma, unit = "cluster"),
+    log_lik(fit_brma, unit = "cluster"),
     "cluster"
   )
   expect_error(
@@ -356,6 +382,224 @@ test_that("loo_compare accepts brma.mv backends with the same known-V target", {
   expect_true(is.matrix(out))
   expect_equal(nrow(out), 3)
   expect_true("elpd_diff" %in% colnames(out))
+})
+
+test_that("LOO and WAIC compare random-effect representations on one target", {
+
+  representation_names <- c(
+    none         = "brma.mv_block_mvn",
+    marginalized = "brma.mv_block_mvn_random",
+    sampled      = "brma.mv_block_mvn_known_R",
+    mixed        = "brma.mv_block_mvn_random_scale"
+  )
+  skip_if_missing_fits(unname(representation_names))
+
+  representation_fits <- lapply(representation_names, function(name) {
+    fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+    suppressWarnings(add_waic(fit_brma))
+  })
+  targets <- lapply(representation_fits, function(fit_brma) {
+    attr(log_lik(fit_brma), "RoBMA_target", exact = TRUE)
+  })
+
+  expect_equal(
+    vapply(targets, function(target) target[["random_effects"]], character(1)),
+    c(none = "none", marginalized = "none", sampled = "conditioned",
+      mixed = "conditioned")
+  )
+  expect_equal(
+    vapply(targets, function(target) {
+      target[["estimate_level_random"]]
+    }, character(1)),
+    c(none = "none", marginalized = "marginalized", sampled = "none",
+      mixed = "marginalized")
+  )
+
+  comparison_fields <- c("data_hash", "unit", "conditioning_depth", "target")
+  for (field in comparison_fields) {
+    values <- vapply(targets, function(target) target[[field]], character(1))
+    expect_equal(length(unique(values)), 1L, info = field)
+  }
+
+  loo_comparison <- suppressWarnings(do.call(
+    loo_compare,
+    unname(lapply(representation_fits, loo))
+  ))
+  waic_comparison <- suppressWarnings(do.call(
+    loo_compare,
+    unname(lapply(representation_fits, waic))
+  ))
+
+  expect_equal(nrow(loo_comparison), length(representation_names))
+  expect_equal(nrow(waic_comparison), length(representation_names))
+})
+
+test_that("matched sampled and marginalized effects have equivalent scores", {
+
+  representation_names <- c(
+    marginalized = "brma.mv_block_mvn_random",
+    sampled      = "brma.mv_block_mvn_random_sampled"
+  )
+  skip_if_missing_fits(unname(representation_names))
+
+  representation_fits <- lapply(representation_names, function(name) {
+    fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+    suppressWarnings(add_waic(fit_brma))
+  })
+  loo_comparison <- suppressWarnings(do.call(
+    loo_compare,
+    unname(lapply(representation_fits, loo))
+  ))
+  waic_comparison <- suppressWarnings(do.call(
+    loo_compare,
+    unname(lapply(representation_fits, waic))
+  ))
+
+  expect_lt(
+    abs(loo_comparison[2L, "elpd_diff"]),
+    0.25
+  )
+  expect_lt(
+    abs(waic_comparison[2L, "elpd_diff"]),
+    0.25
+  )
+})
+
+test_that("marginalized normal score equals the sampled-effect convolution", {
+
+  yi  <- c(-0.4, 0.2, 0.9)
+  mu  <- c(-0.1, 0.3, 0.5)
+  tau <- c(0.2, 0.5, 0.8)
+  sei <- c(0.1, 0.25, 0.4)
+
+  integrated <- vapply(seq_along(yi), function(i) {
+    stats::integrate(
+      function(random_effect) {
+        stats::dnorm(
+          yi[[i]],
+          mean = mu[[i]] + random_effect,
+          sd   = sei[[i]]
+        ) * stats::dnorm(random_effect, mean = 0, sd = tau[[i]])
+      },
+      lower       = -Inf,
+      upper       = Inf,
+      subdivisions = 1000L,
+      rel.tol     = 1e-11
+    )[["value"]]
+  }, numeric(1))
+  marginalized <- exp(.outcome_pdf.norm(
+    yi         = yi,
+    mu_samples = matrix(mu, nrow = 1L),
+    tau_within = matrix(tau, nrow = 1L),
+    sei        = sei
+  )[1L, ])
+
+  expect_equal(marginalized, integrated, tolerance = 1e-9)
+})
+
+test_that("sampled local effects expose their observed PSIS reliability risk", {
+
+  marginalized <- fits[["brma.mv_block_mvn_random"]]
+  sampled      <- fits[["brma.mv_block_mvn_random_sampled"]]
+  marginalized_k <- loo::pareto_k_values(loo(marginalized))
+  sampled_k      <- loo::pareto_k_values(loo(sampled))
+
+  expect_false(any(marginalized_k > 0.7))
+  expect_true(any(sampled_k > 0.7))
+  expect_warning(
+    check_loo(sampled),
+    "Some Pareto k values are high"
+  )
+})
+
+test_that("LOO and WAIC cannot be mixed in one comparison table", {
+
+  fit_brma <- fits[["brma.mv_block_mvn_random"]]
+  fit_brma <- suppressWarnings(add_waic(fit_brma))
+
+  expect_error(
+    loo_compare(loo(fit_brma), waic(fit_brma)),
+    "cannot be compared in the same table"
+  )
+})
+
+test_that("cached LOO and WAIC reject stale outcome and known-V targets", {
+
+  mv_name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(mv_name)
+  fit_mv <- fits[[mv_name]]
+  fit_mv <- suppressWarnings(add_loo(fit_mv))
+  fit_mv <- suppressWarnings(add_waic(fit_mv))
+
+  stale_outcome <- fit_mv
+  stale_outcome[["data"]][["outcome"]][["yi"]][1L] <-
+    stale_outcome[["data"]][["outcome"]][["yi"]][1L] + 0.01
+  expect_error(loo(stale_outcome), "current outcome data")
+  expect_error(waic(stale_outcome), "current outcome data")
+
+  stale_V <- fit_mv
+  known_V <- .data_known_v_data(stale_V[["data"]])
+  if (!is.null(known_V[["blocks"]])) {
+    known_V[["blocks"]][[1L]][["covariance"]][1L, 2L] <-
+      known_V[["blocks"]][[1L]][["covariance"]][1L, 2L] + 0.001
+    known_V[["blocks"]][[1L]][["covariance"]][2L, 1L] <-
+      known_V[["blocks"]][[1L]][["covariance"]][1L, 2L]
+  } else if (!is.null(known_V[["V"]])) {
+    known_V[["V"]][1L, 2L] <- known_V[["V"]][1L, 2L] + 0.001
+    known_V[["V"]][2L, 1L] <- known_V[["V"]][1L, 2L]
+  } else {
+    known_V[["diagonal"]][1L] <- known_V[["diagonal"]][1L] + 0.01
+  }
+  attr(stale_V[["data"]], "known_V_data") <- known_V
+
+  expect_error(loo(stale_V), "current outcome data")
+  expect_error(waic(stale_V), "current outcome data")
+})
+
+test_that("cached target checks ignore provenance but reject target changes", {
+
+  fit_brma <- fits[["brma.mv_block_mvn"]]
+  fit_brma <- suppressWarnings(add_loo(fit_brma))
+  fit_brma <- suppressWarnings(add_waic(fit_brma))
+
+  provenance_only <- fit_brma
+  loo_target <- attr(
+    provenance_only[["loo"]][["estimate"]],
+    "RoBMA_target",
+    exact = TRUE
+  )
+  waic_target <- attr(
+    provenance_only[["waic"]][["estimate"]],
+    "RoBMA_target",
+    exact = TRUE
+  )
+  loo_target[["random_effects"]]           <- "conditioned"
+  waic_target[["estimate_level_random"]] <- "marginalized"
+  attr(provenance_only[["loo"]][["estimate"]], "RoBMA_target") <- loo_target
+  attr(provenance_only[["waic"]][["estimate"]], "RoBMA_target") <- waic_target
+
+  expect_no_error(loo(provenance_only))
+  expect_no_error(waic(provenance_only))
+
+  changed_target <- fit_brma
+  target <- attr(
+    changed_target[["loo"]][["estimate"]],
+    "RoBMA_target",
+    exact = TRUE
+  )
+  target[["target"]] <- "different_estimate_target"
+  attr(changed_target[["loo"]][["estimate"]], "RoBMA_target") <- target
+  expect_error(loo(changed_target), "current likelihood target")
+
+  incomplete_target <- fit_brma
+  target <- attr(
+    incomplete_target[["waic"]][["estimate"]],
+    "RoBMA_target",
+    exact = TRUE
+  )
+  target[["conditioning_depth"]] <- NULL
+  attr(incomplete_target[["waic"]][["estimate"]], "RoBMA_target") <- target
+  expect_error(waic(incomplete_target), "incomplete RoBMA target metadata")
 })
 
 
@@ -765,7 +1009,7 @@ test_that("loo_weights and check_loo return stable diagnostics", {
   # check loo_weights
   weights <- loo_weights(fit_brma)
   expect_true(is.matrix(weights))
-  expect_equal(dim(weights), dim(logLik(fit_brma)))
+  expect_equal(dim(weights), dim(log_lik(fit_brma)))
   expect_equal(colSums(weights), rep(1, ncol(weights)), tolerance = 1e-10)
 
   # check check_loo (should not throw anything for this clean fit)

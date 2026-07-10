@@ -420,7 +420,6 @@ test_that("v14 brma.mv influence diagnostics return finite estimate-unit output"
     covr     <- covratio(fit_brma)
     inf_mat  <- as.matrix(inf_brma[["inf"]])
     dfbs_mat <- as.matrix(inf_brma[["dfbs"]])
-    rho_cols <- grep("rho", colnames(dfbs_mat), value = TRUE)
 
     expect_s3_class(inf_brma, "infl.brma")
     expect_equal(nrow(inf_brma[["inf"]]), nobs(fit_brma), info = name)
@@ -431,38 +430,15 @@ test_that("v14 brma.mv influence diagnostics return finite estimate-unit output"
     expect_equal(length(covr), nobs(fit_brma), info = name)
     expect_true(all(is.finite(inf_mat[, setdiff(colnames(inf_mat), "cov.r"), drop = FALSE])),
                 info = name)
-    expect_true(all(is.finite(dfbs_mat[, setdiff(colnames(dfbs_mat), rho_cols), drop = FALSE])),
-                info = name)
+    expect_true(all(is.finite(dfbs_mat)), info = name)
+    expect_false(any(grepl("rho|var_frac|var_ratio|sd\\(", colnames(dfbs_mat))),
+                 info = name)
     expect_true(all(is.finite(dff)), info = name)
     expect_true(all(is.finite(cook)), info = name)
-    if (identical(name, "brma.mv_v14_begg1989_study_treatment")) {
-      expect_equal(rho_cols, "(mu) rho(study)", info = name)
-      expect_true(all(is.nan(dfbs_mat[, rho_cols])), info = name)
-      expect_true(all(is.nan(as.matrix(dfbs)[, rho_cols])), info = name)
-      expect_true(all(is.finite(inf_mat[, "cov.r"])), info = name)
-      expect_true(all(is.finite(covr)), info = name)
-      expect_match(
-        attr(covr, "note"),
-        "COVRATIO excluded parameter\\(s\\) \\(mu\\) rho\\(study\\)",
-        info = name
-      )
-      expect_match(
-        attr(inf_brma, "note"),
-        "COVRATIO excluded parameter\\(s\\) \\(mu\\) rho\\(study\\)",
-        info = name
-      )
-      expect_match(
-        attr(inf_brma, "note"),
-        "DFBETAS could not be computed for parameter\\(s\\) \\(mu\\) rho\\(study\\)",
-        info = name
-      )
-    } else {
-      expect_true(all(is.finite(dfbs_mat[, rho_cols, drop = FALSE])), info = name)
-      expect_true(all(is.finite(as.matrix(dfbs))), info = name)
-      expect_true(all(is.finite(inf_mat[, "cov.r"])), info = name)
-      expect_true(all(is.finite(covr)), info = name)
-      expect_null(attr(covr, "note"), info = name)
-      expect_null(attr(inf_brma, "note"), info = name)
-    }
+    expect_true(all(is.finite(as.matrix(dfbs))), info = name)
+    expect_true(all(is.finite(inf_mat[, "cov.r"])), info = name)
+    expect_true(all(is.finite(covr)), info = name)
+    expect_null(attr(covr, "note"), info = name)
+    expect_null(attr(inf_brma, "note"), info = name)
   }
 })

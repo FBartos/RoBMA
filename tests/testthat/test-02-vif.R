@@ -100,6 +100,112 @@ test_that("full covariance VIF backend matches manual GLS oracle", {
   expect_false(isTRUE(all.equal(actual, diagonal_only, tolerance = 1e-8)))
 })
 
+test_that("diagonal VIF averages coefficient covariance over posterior draws", {
+
+  X <- cbind(
+    intercept = 1,
+    x         = c(-2, -1, 0, 1, 2),
+    z         = c(0, 1, 0, 2, 1)
+  )
+  vi          <- c(0.02, 0.05, 0.03, 0.08, 0.04)
+  weights     <- rep(1, length(vi))
+  tau_samples <- c(0, 1.2)
+  tau_within  <- matrix(tau_samples, nrow = 2, ncol = length(vi))
+
+  expected <- Reduce(`+`, lapply(tau_samples, function(tau) {
+    W <- diag(weights / (vi + tau^2))
+    solve(crossprod(X, W %*% X))
+  })) / length(tau_samples)
+  actual <- .vif_vcov_from_tau_samples(
+    X                  = X,
+    vi                 = vi,
+    weights            = weights,
+    tau_within_samples = tau_within
+  )
+  plug_in <- solve(crossprod(
+    X,
+    diag(weights / (vi + mean(tau_samples)^2)) %*% X
+  ))
+
+  dimnames(expected) <- dimnames(actual)
+  dimnames(plug_in)  <- dimnames(actual)
+  expect_equal(actual, expected, tolerance = 1e-12)
+  expect_false(isTRUE(all.equal(actual, plug_in, tolerance = 1e-8)))
+})
+
+test_that("diagonal brma and known-V covariance paths use the same estimand", {
+
+  X <- cbind(
+    intercept = 1,
+    x         = c(-2, -1, 0, 1, 2),
+    z         = c(0, 1, 0, 2, 1)
+  )
+  vi          <- c(0.02, 0.05, 0.03, 0.08, 0.04)
+  weights     <- rep(1, length(vi))
+  tau_samples <- c(0, 0.15, 0.5)
+  tau_within  <- matrix(tau_samples, nrow = 3, ncol = length(vi))
+  covariance_samples <- array(0, dim = c(3, length(vi), length(vi)))
+  for (s in seq_along(tau_samples)) {
+    covariance_samples[s, , ] <- diag((vi + tau_samples[s]^2) / weights)
+  }
+
+  ordinary <- .vif_vcov_from_tau_samples(
+    X                  = X,
+    vi                 = vi,
+    weights            = weights,
+    tau_within_samples = tau_within
+  )
+  known_v <- .vif_vcov_from_covariance_samples(
+    X                  = X,
+    covariance_samples = covariance_samples
+  )
+
+  expect_equal(ordinary, known_v, tolerance = 1e-12)
+})
+
+test_that("scalar heterogeneity draws remain compact for large designs", {
+
+  S <- 15000L
+  K <- 10000L
+  tau <- matrix(seq(0, 1, length.out = S), ncol = 1)
+
+  normalized <- .vif_tau_matrix(tau, K, "tau")
+
+  expect_equal(dim(normalized), c(S, 1L))
+  expect_lt(as.numeric(object.size(normalized)), 2 * S * 8)
+})
+
+test_that("compact cluster heterogeneity broadcasts across rows", {
+
+  X <- cbind(
+    intercept = 1,
+    x         = c(-1, 0, 1, 2)
+  )
+  vi      <- c(0.02, 0.05, 0.03, 0.08)
+  cluster <- c(1, 1, 2, 2)
+  within  <- matrix(c(0.1, 0.2), ncol = 1)
+  between <- matrix(c(0.3, 0.4), ncol = 1)
+
+  compact <- .vif_vcov_from_tau_samples(
+    X                   = X,
+    vi                  = vi,
+    weights             = rep(1, length(vi)),
+    tau_within_samples  = within,
+    tau_between_samples = between,
+    cluster             = cluster
+  )
+  expanded <- .vif_vcov_from_tau_samples(
+    X                   = X,
+    vi                  = vi,
+    weights             = rep(1, length(vi)),
+    tau_within_samples  = matrix(within[, 1], nrow = 2, ncol = length(vi)),
+    tau_between_samples = matrix(between[, 1], nrow = 2, ncol = length(vi)),
+    cluster             = cluster
+  )
+
+  expect_equal(compact, expanded, tolerance = 1e-12)
+})
+
 test_that("known-V VIF uses sampling covariance alone without scalar tau", {
 
   object <- structure(
@@ -129,7 +235,6 @@ test_that("known-V VIF uses sampling covariance alone without scalar tau", {
     )
   )
 
-  expect_equal(.vif_scalar_tau_mean(object), 0)
   expect_equal(covariance_samples[1, , ], V)
 })
 
@@ -226,6 +331,148 @@ test_that("VIF rejects models without moderators", {
   }
 })
 
+test_that("ordinary VIF uses posterior covariance averaging", {
+
+  name <- "bcg_meta-regression"
+  skip_if_missing_fits(name)
+
+  object <- fits[[name]]
+  X      <- .get_model_matrix(object)
+  K      <- nrow(X)
+  tau <- .evaluate.brma.tau(
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = NULL,
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = FALSE,
+    is_multilevel     = FALSE,
+    K                 = K,
+    allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
+  )
+  expected <- .vif_vcov_from_tau_samples(
+    X                   = X,
+    vi                  = .outcome_data_vi(object),
+    weights             = .outcome_data_weights(object),
+    tau_within_samples  = tau[["tau_within"]],
+    tau_between_samples = tau[["tau_between"]]
+  )
+
+  expect_equal(.vif_vcov_brma(object, X), expected, tolerance = 1e-12)
+})
+
+test_that("product-space VIF averages all posterior covariance states", {
+
+  names <- c(
+    "dat.lehmann2018_BMA.norm_mods",
+    "dat.lehmann2018_RoBMA_mods",
+    "bcg_BMA.glmm_3lvl_location_scale"
+  )
+  skip_if_missing_fits(names)
+
+  for (name in names) {
+    object        <- fits[[name]]
+    X             <- .get_model_matrix(object)
+    vi            <- .outcome_data_vi(object)
+    weights       <- .outcome_data_weights(object)
+    is_scale      <- .is_scale(object)
+    is_multilevel <- .is_multilevel(object)
+    tau <- .evaluate.brma.tau(
+      fit               = object[["fit"]],
+      scale_data        = object[["data"]][["scale"]],
+      scale_formula     = if (is_scale) .create_fit_formula_list(
+        data = object[["data"]],
+        "scale"
+      ) else NULL,
+      scale_priors      = object[["priors"]][["scale"]],
+      is_scale          = is_scale,
+      is_multilevel     = is_multilevel,
+      K                 = nrow(X),
+      allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
+    )
+    block_indices <- if (is_multilevel) {
+      split(
+        seq_len(nrow(X)),
+        object[["data"]][["outcome"]][["cluster"]]
+      )
+    } else {
+      list()
+    }
+    expected <- Reduce(`+`, lapply(seq_len(nrow(tau[["tau_within"]])), function(s) {
+      M <- diag(
+        (vi + tau[["tau_within"]][s, ]^2) / weights,
+        nrow = length(vi)
+      )
+      for (index in block_indices) {
+        M[index, index] <- M[index, index] + tcrossprod(
+          tau[["tau_between"]][s, index]
+        )
+      }
+      solve(crossprod(X, solve(M, X)))
+    })) / nrow(tau[["tau_within"]])
+    dimnames(expected) <- list(colnames(X), colnames(X))
+
+    expect_equal(
+      .vif_vcov_brma(object, X),
+      expected,
+      tolerance = 1e-10,
+      info      = name
+    )
+  }
+})
+
+test_that("fixed heterogeneity VIF matches metafor covariance", {
+
+  X <- cbind(
+    intercept = 1,
+    x         = c(-2, -1, 0, 1, 2),
+    z         = c(0, 1, 0, 2, 1)
+  )
+  vi      <- c(0.02, 0.05, 0.03, 0.08, 0.04)
+  tau     <- 0.25
+  weights <- rep(1, length(vi))
+  actual <- .vif_vcov_from_tau_samples(
+    X                  = X,
+    vi                 = vi,
+    weights            = weights,
+    tau_within_samples = matrix(tau, nrow = 8, ncol = length(vi))
+  )
+  fit_metafor <- metafor::rma(
+    yi        = c(-0.2, 0.1, 0.3, 0.05, 0.4),
+    vi        = vi,
+    mods      = X[, -1, drop = FALSE],
+    intercept = TRUE,
+    tau2      = tau^2
+  )
+  expected <- fit_metafor[["vb"]]
+  dimnames(expected) <- dimnames(actual)
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+test_that("equivalent brma and diagonal-V brma.mv fits have VIF parity", {
+
+  names <- c("vif_parity_brma", "vif_parity_brma_mv")
+  skip_if_missing_fits(names)
+
+  ordinary <- vif(
+    fits[[names[[1]]]],
+    posterior_correlation = FALSE
+  )[["vif"]]
+  known_v <- vif(
+    fits[[names[[2]]]],
+    posterior_correlation = FALSE
+  )[["vif"]]
+
+  expect_equal(ordinary[["term"]], known_v[["term"]])
+  expect_equal(ordinary[["df"]], known_v[["df"]])
+  expect_equal(ordinary[["GVIF"]], known_v[["GVIF"]], tolerance = 0.05)
+  expect_equal(
+    ordinary[["GVIF^(1/(2*df))"]],
+    known_v[["GVIF^(1/(2*df))"]],
+    tolerance = 0.03
+  )
+})
+
 test_that("VIF supports brma.mv known-V GLS meta-regressions", {
 
   name <- "brma.mv_block_mvn_mods"
@@ -272,7 +519,7 @@ test_that("VIF supports brma.mv random-formula marginal GLS covariance", {
   expect_equal(
     covariance_samples,
     .known_v_add_base_covariance(
-      base_covariance    = known_V[["V"]],
+      base_covariance    = .known_v_materialize(known_V),
       covariance_samples = random_vcov[["samples"]]
     )
   )
@@ -307,7 +554,7 @@ test_that("VIF supports brma.mv known-R marginal GLS covariance", {
   expect_equal(
     covariance_samples,
     .known_v_add_base_covariance(
-      base_covariance    = known_V[["V"]],
+      base_covariance    = .known_v_materialize(known_V),
       covariance_samples = random_vcov[["samples"]]
     )
   )
@@ -325,9 +572,9 @@ test_that("VIF chunks brma.mv known-V marginal covariance without changing resul
   object       <- fits[[name]]
   expected     <- vif(object, posterior_correlation = FALSE)[["vif"]]
   K            <- nobs(object)
-  one_draw_mem <- .known_v_covariance_bytes(1L, K)
+  one_draw_mem <- .known_v_covariance_peak_bytes(1L, K)
   old_options  <- options(
-    RoBMA.known_v_covariance_max_bytes = 2 * one_draw_mem
+    RoBMA.known_v_covariance_max_bytes = one_draw_mem
   )
   on.exit(options(old_options), add = TRUE)
 

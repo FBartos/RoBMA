@@ -11,7 +11,7 @@
 
   data.frame(
     method = c(
-      "logLik(unit = 'estimate')",
+      "log_lik(unit = 'estimate')",
       "add_loo()/loo()",
       "add_waic()/waic()",
       "rstudent()/LOO-PIT residuals",
@@ -112,6 +112,7 @@
     return(list(
       known_v                              = FALSE,
       known_v_parameterization            = NULL,
+      known_v_effective_backend           = NULL,
       known_v_parameterization_requested  = NULL
     ))
   }
@@ -120,6 +121,11 @@
   list(
     known_v                              = TRUE,
     known_v_parameterization            = known_V[["parameterization"]],
+    known_v_effective_backend           = if (is.null(known_V[["effective_backend"]])) {
+      known_V[["parameterization"]]
+    } else {
+      known_V[["effective_backend"]]
+    },
     known_v_parameterization_requested  = known_V[["parameterization_requested"]]
   )
 }
@@ -131,7 +137,20 @@
     return(NULL)
   }
 
-  label <- paste0("Known-V backend: ", metadata[["known_v_parameterization"]])
+  effective_backend <- metadata[["known_v_effective_backend"]]
+  if (is.null(effective_backend)) {
+    effective_backend <- metadata[["known_v_parameterization"]]
+  }
+  label <- paste0("Known-V backend: ", effective_backend)
+  if (!identical(metadata[["known_v_parameterization"]], effective_backend)) {
+    label <- paste0(
+      label,
+      " (selected: ", metadata[["known_v_parameterization"]],
+      "; requested: ", metadata[["known_v_parameterization_requested"]],
+      ")"
+    )
+    return(label)
+  }
   if (!identical(
     metadata[["known_v_parameterization_requested"]],
     metadata[["known_v_parameterization"]]

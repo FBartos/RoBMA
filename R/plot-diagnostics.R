@@ -17,8 +17,10 @@
 #'   \code{parameter} with \code{component = "scale"}.
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #'   infers the component when possible. Use \code{"mods"} (alias
-#'   \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
-#'   terms used in multiple model components.
+#'   \code{"location"}), \code{"scale"}, \code{"random"}, or \code{"bias"} to
+#'   disambiguate terms used in multiple model components. The random component
+#'   selects semantic standard deviation, correlation, and allocation parameters
+#'   from `brma.mv()` random formulas.
 #' @param type diagnostic plot type. Convenience wrappers set a type-specific
 #'   default but still forward this argument to \code{plot_diagnostic.brma()}.
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2
@@ -53,6 +55,8 @@ plot_diagnostic.brma <- function(
     component        = component,
     object           = x
   )
+  parameter_entry <- .brma_parameter_select_entry(x, parameter)
+  is_random       <- identical(parameter_entry[["component"]], "random")
 
   # a message with info about multiple plots
   if(plot_type == "base" && parameter == "omega") {
@@ -62,9 +66,24 @@ plot_diagnostic.brma <- function(
   dots  <- .set_dots_diagnostics(..., type = type, chains = x[["fit_control"]][["chains"]])
 
   # get the parameter name
+  if (is_random) {
+    random_diagnostic <- .brma_random_parameter_diagnostic_fit(
+      object    = x,
+      parameter = parameter
+    )
+    diagnostic_fit       <- random_diagnostic[["fit"]]
+    diagnostic_parameter <- random_diagnostic[["parameter"]]
+    if (is.null(dots[["main"]])) {
+      dots[["main"]] <- random_diagnostic[["label"]]
+    }
+  } else {
+    diagnostic_fit       <- x[["fit"]]
+    diagnostic_parameter <- parameter
+  }
+
   args                   <- dots
-  args$fit               <- x[["fit"]]
-  args$parameter         <- parameter
+  args$fit               <- diagnostic_fit
+  args$parameter         <- diagnostic_parameter
   args$type              <- type
   args$plot_type         <- plot_type
   args$lags              <- lags

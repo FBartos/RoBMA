@@ -94,6 +94,7 @@ reference:
   contents:
   - brma
   - brma.glmm
+  - brma.mv
   - RoBMA
   - BMA
   - BMA.glmm
@@ -108,6 +109,8 @@ reference:
   - prior_specification
   - RoBMA_prior_specification
   - publication_bias_prior_specification
+  - random_effect_formula_tags
+  - random_effect_prior_specification
   - prior
   - prior_none
   - prior_factor
@@ -141,6 +144,8 @@ reference:
   - fitted.brma
   - nobs.brma
   - predict.brma
+  - hypothesis.marginal_means.brma
+  - hypothesis_quantities
 - title: Model comparison
   contents:
   - add_marglik.brma
@@ -156,7 +161,8 @@ reference:
   - check_loo.brma
   - add_waic.brma
   - waic.brma
-  - logLik.brma
+  - log_lik
+  - AIC.brma
   - reexports
 - title: Diagnostics and influence
   contents:
@@ -174,6 +180,8 @@ reference:
 - title: Plots
   contents:
   - plot.brma
+  - forest.brma
+  - as_metafor_forest
   - funnel.brma
   - radial.brma
   - regplot.brma

@@ -153,6 +153,30 @@ test_that("Wrapper functions have correct interface", {
                info = "true_effects are identical to blup")
 })
 
+
+test_that("pooled_effect aggregates fitted-design location draws directly", {
+
+  name <- "bcg_meta-regression"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  terms <- predict(
+    fit_brma,
+    type          = "terms",
+    bias_adjusted = TRUE,
+    quiet         = TRUE
+  )
+  pooled   <- pooled_effect(fit_brma)
+  expected <- matrix(rowMeans(as.matrix(terms)), ncol = 1L)
+  expect_equal(unname(as.matrix(pooled)), unname(expected), tolerance = 1e-12)
+
+  testthat::local_mocked_bindings(
+    predict.brma = function(...) stop("pooled_effect used predict.brma"),
+    .package = "RoBMA"
+  )
+  expect_silent(pooled_effect(fit_brma))
+})
+
 test_that("fitted returns in-sample posterior means", {
 
   model_names <- c(
@@ -263,26 +287,18 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
     pooled_effect_cond     <- expect_silent(
       pooled_effect(fit_brma, conditional = TRUE)
     )
-    pooled_effect_predict  <- expect_silent(
+    pooled_effect_terms <- expect_silent(
       predict(
         fit_brma,
-        newdata       = TRUE,
         type          = "terms",
         bias_adjusted = TRUE,
         conditional   = TRUE,
         quiet         = TRUE
       )
     )
-    expect_message(
-      predict(
-        fit_brma,
-        newdata       = TRUE,
-        type          = "terms",
-        bias_adjusted = TRUE,
-        conditional   = TRUE,
-        quiet         = FALSE
-      ),
-      "flattened"
+    pooled_effect_expected <- matrix(
+      rowMeans(as.matrix(pooled_effect_terms)),
+      ncol = 1L
     )
 
     expect_equal(
@@ -292,8 +308,8 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
     )
     expect_equal(
       unname(as.matrix(pooled_effect_cond)),
-      unname(as.matrix(pooled_effect_predict)),
-      info = paste(name, "pooled_effect matches conditional predict")
+      unname(pooled_effect_expected),
+      info = paste(name, "pooled_effect matches fitted-design row mean")
     )
     expect_match(attr(pooled_effect_cond, "title"), "Conditional")
   }
@@ -327,7 +343,7 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
   expect_message(
     predict(
       fit_brma,
-      newdata     = TRUE,
+      newdata     = NULL,
       type        = "terms.scale",
       conditional = TRUE,
       quiet       = FALSE
@@ -384,15 +400,15 @@ test_that("Model-averaged predictions cover BMA.norm, BMA.glmm, and RoBMA", {
     expect_brma_samples_matrix(response, n_studies, paste(name, "response"))
 
     pooled <- pooled_effect(fit_brma)
-    pooled_predict <- predict(
+    pooled_terms <- predict(
       fit_brma,
-      newdata       = TRUE,
       type          = "terms",
       bias_adjusted = TRUE,
       quiet         = TRUE
     )
+    pooled_expected <- matrix(rowMeans(as.matrix(pooled_terms)), ncol = 1L)
     expect_brma_samples_matrix(pooled, 1, paste(name, "pooled_effect"))
-    expect_equal(unname(as.matrix(pooled)), unname(as.matrix(pooled_predict)))
+    expect_equal(unname(as.matrix(pooled)), unname(pooled_expected))
 
     pooled_het <- pooled_heterogeneity(fit_brma)
     pooled_het_expected <- matrix(

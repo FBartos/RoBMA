@@ -11,6 +11,7 @@ as_metafor_forest(x, ...)
   x,
   level = 95,
   addpred = FALSE,
+  newdata = NULL,
   bias_adjusted = TRUE,
   conditional = FALSE,
   ...
@@ -28,7 +29,13 @@ arguments are also stored in \code{addpoly_args}. This includes
 \item{level}{credible/confidence level in percent. Defaults to \code{95}.}
 
 \item{addpred}{logical; whether to compute a posterior prediction interval
-for the pooled effect. Defaults to \code{FALSE}.}
+for one new true effect. Defaults to \code{FALSE}.}
+
+\item{newdata}{optional one-row prediction design used when
+\code{addpred = TRUE}. Required when moderators, scale predictors,
+non-scalar random structures, or known-\code{R} components make the target
+ambiguous. Each row passed to \code{predict.brma()} is one new true effect;
+the forest adapter accepts exactly one because it draws one summary polygon.}
 
 \item{bias_adjusted}{logical; whether pooled and prediction summaries should
 adjust for publication bias. Defaults to \code{TRUE}.}

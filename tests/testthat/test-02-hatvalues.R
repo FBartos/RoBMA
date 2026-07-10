@@ -72,9 +72,9 @@ test_that("Hatvalues chunk known-V covariance without changing results", {
   fit          <- fits[[name]]
   expected     <- hatvalues(fit)
   K            <- nobs(fit)
-  one_draw_mem <- .known_v_covariance_bytes(1L, K)
+  one_draw_mem <- .known_v_covariance_peak_bytes(1L, K)
   old_options  <- options(
-    RoBMA.known_v_covariance_max_bytes = 2 * one_draw_mem
+    RoBMA.known_v_covariance_max_bytes = one_draw_mem
   )
   on.exit(options(old_options), add = TRUE)
 

@@ -202,6 +202,18 @@ threshold, and falls back to the latent backend for large blocks. The automatic
 block-MVN threshold defaults to 128 rows per covariance block and can be
 changed with \code{options(RoBMA.known_v_block_mvn_max_block_size = value)}, where
 \code{value} is a positive integer or \code{Inf}.
+Singular positive-semidefinite \code{V} matrices are supported only when
+integrated conditional variance is structurally positive on every retained
+null direction. This can come from strictly positive heterogeneity or a
+supported marginalized random-effect variance. The check is performed after
+formulas and priors are compiled. Sampled random effects change the
+conditional mean and therefore do not regularize the likelihood covariance.
+For the block-MVN backend, a fixed point regularizer must also be large
+enough to make each block numerically positive definite at double precision;
+ineffective fixed values fail during preflight rather than inside JAGS.
+The latent known-\code{V} backend is unavailable for singular \code{V}; use \code{"auto"},
+\code{"whitened"}, or \code{"block_mvn"}. Unsupported configurations fail before
+fitting rather than invoking a degenerate-normal likelihood.
 As a convenience for diagonal known-\code{V} inputs, \code{brma.mv()} also accepts
 hidden \code{vi} or \code{sei} arguments through \code{...} when \code{V} is omitted; these are
 converted to \code{diag(vi)} or \code{diag(sei^2)}. Do not supply \code{V} together with
@@ -254,7 +266,7 @@ rejected.
 
 The implementation intentionally omits the \code{weights} and \code{cluster} arguments
 from \code{metafor::rma.mv()}. Use \code{random} for multilevel structures.
-Estimate-unit \code{logLik()}, \code{add_loo()}, \code{add_waic()}, \code{residuals()}, and
+Estimate-unit \code{log_lik()}, \code{add_loo()}, \code{add_waic()}, \code{residuals()}, and
 \code{rstudent()} are available for known-\code{V} models. Bridge-sampling marginal
 likelihoods via \code{add_marglik()} are available for fitted single-model
 known-\code{V} objects. \code{rstandard()} is available for known-\code{V} models at
@@ -264,7 +276,7 @@ supported estimate and marginal conditioning depths.
 
 The main \code{brma.mv()} post-fit methods intentionally use different targets:
 \itemize{
-\item \code{logLik(unit = "estimate")}, \code{add_loo()}/\code{loo()},
+\item \code{log_lik(unit = "estimate")}, \code{add_loo()}/\code{loo()},
 \code{add_waic()}/\code{waic()}, and \code{rstudent()} use estimate-unit log-score
 targets. When known \code{V} induces dependence, these contributions are
 Schur-complement conditionals \eqn{p(y_i \mid y_{-i}, \theta)} within
@@ -292,9 +304,12 @@ are marginalized through the BayesTools covariance metadata.
 influence targets. Cluster/block LOO is deferred for \code{brma.mv()} because
 its deletion target is a joint dependency block, not an independent row.
 }
-Default scalar heterogeneity summaries are not reported for \code{brma.mv()}
-because known-\code{V} and random-formula structures need component-specific
-summaries rather than a single \eqn{\tau}/\eqn{I^2} table.
+Simple \code{brma.mv()} models with scalar heterogeneity report the usual \code{tau}
+summary. Random-formula models instead report component-specific standard
+deviation, correlation, and allocation summaries; use
+\code{summary_heterogeneity(component = ...)} or
+\code{pooled_heterogeneity(component = ...)} for absolute component \code{tau}/\code{tau2}
+summaries. General known-\code{V} models do not report scalar I2/H2.
 }
 
 \examples{

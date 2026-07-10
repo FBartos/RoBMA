@@ -26,13 +26,24 @@ test_that("brma.mv stores and decomposes known V", {
   expect_equal(data[["outcome"]][["sei"]], sqrt(diag(V)))
 
   known_V <- attr(data, "known_V_data")
-  expect_equal(known_V[["V"]], V)
+  expect_equal(.known_v_materialize(known_V), V)
+  reconstructed <- diag(known_V[["residual_variance"]], nrow = 3)
+  for (block in known_V[["latent_blocks"]]) {
+    index <- block[["index"]]
+    reconstructed[index, index] <- reconstructed[index, index] +
+      tcrossprod(block[["B"]])
+  }
   expect_equal(
-    diag(known_V[["residual_variance"]], nrow = 3) + tcrossprod(known_V[["B"]]),
+    reconstructed,
     V,
     tolerance = 1e-10
   )
-  expect_equal(known_V[["rank"]], ncol(known_V[["B"]]))
+  expect_equal(
+    known_V[["rank"]],
+    sum(vapply(known_V[["latent_blocks"]], `[[`, integer(1), "rank"))
+  )
+  expect_null(known_V[["B"]])
+  expect_null(known_V[["sampling_factor"]])
 })
 
 
@@ -49,9 +60,44 @@ test_that("brma.mv supports list V input", {
     only_data                 = TRUE
   )
 
+  known_V <- .data_known_v_data(object[["data"]])
   expect_equal(
-    attr(object[["data"]], "known_V_data")[["V"]],
+    .known_v_materialize(known_V),
     rbind(cbind(V1, matrix(0, 2, 1)), cbind(matrix(0, 1, 2), V2))
+  )
+  expect_equal(known_V[["storage"]], "blocks")
+  expect_false(any(c("V", "B", "whitening_matrix", "sampling_factor") %in%
+                   names(known_V)))
+})
+
+
+test_that("connected dense known V is retained without duplicate block storage", {
+
+  V <- matrix(
+    c(
+      0.04, 0.01, 0.005,
+      0.01, 0.09, 0.015,
+      0.005, 0.015, 0.16
+    ),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  object <- brma.mv(
+    yi                        = c(0.10, 0.20, 0.30),
+    V                         = V,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+  known_V <- .data_known_v_data(object[["data"]])
+
+  expect_equal(known_V[["storage"]], "dense")
+  expect_equal(known_V[["V"]], V)
+  expect_null(known_V[["blocks"]])
+  expect_equal(known_V[["block_indices"]], list(seq_len(nrow(V))))
+  expect_identical(
+    .known_v_correlated_blocks(known_V)[[1L]][["covariance"]],
+    known_V[["V"]]
   )
 })
 
@@ -71,6 +117,31 @@ test_that("known V list input rejects empty blocks", {
 })
 
 
+test_that("known V validates dense structure before row filtering", {
+
+  expect_error(
+    brma.mv(
+      yi        = c(0.10, 0.20),
+      V         = matrix(letters[1:4], nrow = 2L),
+      measure   = "GEN",
+      only_data = TRUE
+    ),
+    "'V' argument must be numeric",
+    fixed = TRUE
+  )
+  expect_error(
+    brma.mv(
+      yi        = c(0.10, 0.20, 0.30),
+      V         = matrix(seq_len(6), nrow = 3L),
+      measure   = "GEN",
+      only_data = TRUE
+    ),
+    "'V' argument must be a non-empty square matrix",
+    fixed = TRUE
+  )
+})
+
+
 test_that("known V symmetry tolerance scales with covariance magnitude", {
 
   V <- matrix(
@@ -86,7 +157,7 @@ test_that("known V symmetry tolerance scales with covariance magnitude", {
   )
 
   expect_equal(
-    attr(object[["data"]], "known_V_data")[["V"]],
+    .known_v_materialize(.data_known_v_data(object[["data"]])),
     (V + t(V)) / 2
   )
 })
@@ -104,6 +175,24 @@ test_that("V_new list input rejects empty blocks", {
 })
 
 
+test_that("V_new structural errors name V_new", {
+
+  expect_error(
+    .known_v_newdata_prepare(V_new = "invalid", k = 1L),
+    "'V_new' argument must be a variance vector",
+    fixed = TRUE
+  )
+  expect_error(
+    .known_v_newdata_prepare(
+      V_new = matrix(letters[1:4], nrow = 2L),
+      k     = 2L
+    ),
+    "'V_new' argument must be numeric",
+    fixed = TRUE
+  )
+})
+
+
 test_that("V_new symmetry tolerance scales with covariance magnitude", {
 
   V_new <- matrix(
@@ -112,7 +201,7 @@ test_that("V_new symmetry tolerance scales with covariance magnitude", {
   )
   out <- .known_v_newdata_prepare(V_new, k = 2L)
 
-  expect_equal(out[["V"]], (V_new + t(V_new)) / 2)
+  expect_equal(.known_v_materialize(out), (V_new + t(V_new)) / 2)
 })
 
 
@@ -127,11 +216,32 @@ test_that("brma.mv supports variance vector V input", {
     only_data                 = TRUE
   )
 
-  expect_equal(
-    attr(object[["data"]], "known_V_data")[["V"]],
-    diag(vi)
-  )
+  known_V <- .data_known_v_data(object[["data"]])
+  expect_equal(.known_v_materialize(known_V), diag(vi))
   expect_equal(object[["data"]][["outcome"]][["sei"]], sqrt(vi))
+  expect_equal(known_V[["storage"]], "diagonal")
+  expect_false(any(c("V", "B", "whitening_matrix", "sampling_factor") %in%
+                   names(known_V)))
+})
+
+
+test_that("known V base covariance preserves singleton draw dimensions", {
+
+  known_V <- .known_v_prepare(
+    V                         = 0.04,
+    keep_rows                 = TRUE,
+    known_v_parameterization  = "auto",
+    known_v_residual_fraction = NULL
+  )
+  covariance_samples <- array(c(0.01, 0.02), dim = c(2L, 1L, 1L))
+
+  out <- .known_v_add_base_covariance(
+    base_covariance    = known_V,
+    covariance_samples = covariance_samples
+  )
+
+  expect_equal(dim(out), c(2L, 1L, 1L))
+  expect_equal(out[, 1L, 1L], c(0.05, 0.06))
 })
 
 
@@ -162,9 +272,18 @@ test_that("brma.mv supports hidden vi and sei diagonal known-V input", {
     only_data                 = TRUE
   )
 
-  expect_equal(.data_known_v_data(vi_object[["data"]])[["V"]], diag(vi))
-  expect_equal(.data_known_v_data(sei_object[["data"]])[["V"]], diag(vi))
-  expect_equal(.data_known_v_data(both_object[["data"]])[["V"]], diag(vi))
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(vi_object[["data"]])),
+    diag(vi)
+  )
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(sei_object[["data"]])),
+    diag(vi)
+  )
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(both_object[["data"]])),
+    diag(vi)
+  )
   expect_error(
     brma.mv(
       yi        = c(0.10, 0.20, -0.05),
@@ -185,6 +304,97 @@ test_that("brma.mv supports hidden vi and sei diagonal known-V input", {
     ),
     "must be consistent"
   )
+})
+
+
+test_that("large diagonal known V retains linear storage", {
+
+  K  <- 10000L
+  vi <- seq(0.01, 0.02, length.out = K)
+
+  object <- brma.mv(
+    yi                        = rep(0, K),
+    V                         = vi,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+  known_V <- .data_known_v_data(object[["data"]])
+
+  expect_equal(.known_v_nrow(known_V), K)
+  expect_equal(.known_v_diagonal(known_V), vi)
+  expect_equal(known_V[["storage"]], "diagonal")
+  expect_length(.known_v_correlated_blocks(known_V), 0L)
+  expect_false(any(c("V", "B", "whitening_matrix", "sampling_factor") %in%
+                   names(known_V)))
+  expect_lt(as.numeric(utils::object.size(known_V)), 2 * 1024^2)
+})
+
+
+test_that("many small known-V blocks retain local backend artifacts", {
+
+  n_blocks <- 1000L
+  block    <- matrix(c(0.04, 0.01, 0.01, 0.09), nrow = 2L)
+  V        <- rep(list(block), n_blocks)
+
+  object <- brma.mv(
+    yi                        = rep(0, 2L * n_blocks),
+    V                         = V,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+  known_V <- .data_known_v_data(object[["data"]])
+
+  expect_equal(.known_v_nrow(known_V), 2L * n_blocks)
+  expect_equal(known_V[["storage"]], "blocks")
+  expect_length(.known_v_correlated_blocks(known_V), n_blocks)
+  expect_length(known_V[["whitening_blocks"]], n_blocks)
+  expect_true(all(vapply(
+    known_V[["whitening_blocks"]],
+    function(x) identical(dim(x[["rotation"]]), c(2L, 2L)),
+    logical(1)
+  )))
+  expect_false(any(c("V", "B", "whitening_matrix", "sampling_factor") %in%
+                   names(known_V)))
+  expect_lt(as.numeric(utils::object.size(known_V)), 10 * 1024^2)
+})
+
+
+test_that("known-V hashes are invariant to equivalent input representation", {
+
+  yi       <- c(0.10, 0.20, -0.05)
+  diagonal <- c(0.04, 0.09, 0.16)
+  block    <- matrix(c(0.04, 0.01, 0.01, 0.09), nrow = 2L)
+
+  make_object <- function(V) {
+    brma.mv(
+      yi                        = yi,
+      V                         = V,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    )
+  }
+
+  diagonal_objects <- list(
+    make_object(diagonal),
+    make_object(diag(diagonal)),
+    make_object(lapply(diagonal, function(x) matrix(x, 1L, 1L)))
+  )
+  diagonal_hashes <- vapply(diagonal_objects, .get_outcome_hash, character(1))
+  expect_length(unique(diagonal_hashes), 1L)
+
+  block_dense <- rbind(
+    cbind(block, matrix(0, 2L, 1L)),
+    cbind(matrix(0, 1L, 2L), matrix(diagonal[[3L]], 1L, 1L))
+  )
+  block_objects <- list(
+    make_object(block_dense),
+    make_object(list(block, matrix(diagonal[[3L]], 1L, 1L)))
+  )
+  block_hashes <- vapply(block_objects, .get_outcome_hash, character(1))
+  expect_length(unique(block_hashes), 1L)
 })
 
 
@@ -230,20 +440,20 @@ test_that("brma.mv warns and accepts rank-one all-correlated known V", {
 
   known_V <- attr(object[["data"]], "known_V_data")
 
-  expect_equal(known_V[["V"]], V)
+  expect_equal(.known_v_materialize(known_V), V)
   expect_equal(known_V[["parameterization"]], "whitened")
-  expect_equal(crossprod(known_V[["sampling_factor"]]), V, tolerance = 1e-10)
+  expect_null(known_V[["sampling_factor"]])
   expect_lte(min(abs(known_V[["diagnostics"]][["min_whitening_variance"]])), 1e-10)
 
   expect_error(
-    brma.mv(
+    suppressWarnings(brma.mv(
       yi                        = c(0.10, 0.20, 0.30),
       V                         = V,
       known_v_parameterization  = "latent",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_data                 = TRUE
-    ),
+    )),
     "cannot use known_v_parameterization = 'latent'"
   )
 
@@ -312,7 +522,10 @@ test_that("brma.mv aligns V after subset and missing rows", {
   )
 
   expected_V <- V[c(1, 3, 4), c(1, 3, 4), drop = FALSE]
-  expect_equal(attr(object[["data"]], "known_V_data")[["V"]], expected_V)
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(object[["data"]])),
+    expected_V
+  )
   expect_equal(object[["data"]][["outcome"]][["yi"]], c(0.10, 0.30, 0.40))
   expect_equal(object[["data"]][["outcome"]][["slab"]],
                c("Study 1", "Study 3", "Study 4"))
@@ -334,7 +547,7 @@ test_that("brma.mv aligns V after subset and missing rows", {
     )
   )
   expect_equal(
-    attr(subset_object[["data"]], "known_V_data")[["V"]],
+    .known_v_materialize(.data_known_v_data(subset_object[["data"]])),
     V[c(1, 3), c(1, 3), drop = FALSE]
   )
   expect_equal(subset_object[["data"]][["outcome"]][["yi"]], c(0.10, 0.30))
@@ -342,6 +555,205 @@ test_that("brma.mv aligns V after subset and missing rows", {
                c("Study 1", "Study 3"))
   expect_equal(as.character(subset_object[["data"]][["location"]][["study"]]),
                c("a", "c"))
+})
+
+
+test_that("brma.mv validates only retained known-V blocks", {
+
+  valid_block <- matrix(
+    c(0.04, 0.01, 0.01, 0.09),
+    nrow = 2
+  )
+  indefinite_block <- matrix(
+    c(0.04, 0.08, 0.08, 0.04),
+    nrow = 2
+  )
+  nonfinite_block <- matrix(
+    c(0.04, Inf, Inf, 0.09),
+    nrow = 2
+  )
+  keep_valid <- c(TRUE, TRUE, FALSE, FALSE)
+  keep_bad   <- !keep_valid
+  yi         <- c(0.10, 0.20, 0.30, 0.40)
+
+  expect_silent(
+    indefinite_excluded <- brma.mv(
+      yi                        = yi,
+      V                         = list(valid_block, indefinite_block),
+      subset                    = keep_valid,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    )
+  )
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(indefinite_excluded[["data"]])),
+    valid_block
+  )
+
+  expect_silent(
+    nonfinite_excluded <- brma.mv(
+      yi                        = yi,
+      V                         = list(valid_block, nonfinite_block),
+      subset                    = keep_valid,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    )
+  )
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(nonfinite_excluded[["data"]])),
+    valid_block
+  )
+
+  expect_error(
+    brma.mv(
+      yi                        = yi,
+      V                         = list(valid_block, indefinite_block),
+      subset                    = keep_bad,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "positive definite"
+  )
+  expect_error(
+    brma.mv(
+      yi                        = yi,
+      V                         = list(valid_block, nonfinite_block),
+      subset                    = keep_bad,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "finite non-missing"
+  )
+})
+
+
+test_that("brma.mv drops diagonal-NA rows before known-V validation", {
+
+  yi <- c(0.10, 0.20, 0.30)
+  V  <- diag(c(0.04, NA_real_, 0.16))
+
+  expect_warning(
+    object <- brma.mv(
+      yi                        = yi,
+      V                         = V,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "removed due to missing values"
+  )
+
+  expect_equal(object[["data"]][["outcome"]][["yi"]], yi[c(1, 3)])
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(object[["data"]])),
+    V[c(1, 3), c(1, 3), drop = FALSE]
+  )
+})
+
+
+test_that("brma.mv validates hidden vi and sei after row selection", {
+
+  yi     <- c(0.10, 0.20, 0.30)
+  subset <- c(TRUE, FALSE, TRUE)
+
+  expect_warning(
+    missing_vi <- brma.mv(
+      yi                        = yi,
+      vi                        = c(0.04, NA_real_, 0.16),
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "removed due to missing values"
+  )
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(missing_vi[["data"]])),
+    diag(c(0.04, 0.16))
+  )
+
+  expect_silent(
+    excluded_signs <- brma.mv(
+      yi                        = yi,
+      vi                        = c(0.04, -0.09, 0.16),
+      sei                       = c(0.20, -0.30, 0.40),
+      subset                    = subset,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    )
+  )
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(excluded_signs[["data"]])),
+    diag(c(0.04, 0.16))
+  )
+
+  expect_silent(
+    excluded_inconsistency <- brma.mv(
+      yi                        = yi,
+      vi                        = c(0.04, 0.09, 0.16),
+      sei                       = c(0.20, 0.50, 0.40),
+      subset                    = subset,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    )
+  )
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(excluded_inconsistency[["data"]])),
+    diag(c(0.04, 0.16))
+  )
+
+  expect_silent(
+    excluded_nonfinite <- brma.mv(
+      yi                        = yi,
+      vi                        = c(0.04, Inf, 0.16),
+      sei                       = c(0.20, Inf, 0.40),
+      subset                    = subset,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    )
+  )
+  expect_equal(
+    .known_v_materialize(.data_known_v_data(excluded_nonfinite[["data"]])),
+    diag(c(0.04, 0.16))
+  )
+
+  expect_error(
+    brma.mv(
+      yi                        = yi,
+      vi                        = c(0.04, -0.09, 0.16),
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "'vi' must contain positive finite values"
+  )
+  expect_error(
+    brma.mv(
+      yi                        = yi,
+      sei                       = c(0.20, -0.30, 0.40),
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "'sei' must contain positive finite values"
+  )
+  expect_error(
+    brma.mv(
+      yi                        = yi,
+      vi                        = c(0.04, 0.09, 0.16),
+      sei                       = c(0.20, 0.50, 0.40),
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "must be consistent"
+  )
 })
 
 
@@ -369,16 +781,18 @@ test_that("brma.mv rejects invalid and unsupported inputs", {
     byrow = TRUE
   )
   V_singular_not_ones <- diag(sei) %*% R %*% diag(sei)
-  expect_error(
-    brma.mv(
+  expect_warning(
+    singular_data <- brma.mv(
       yi                        = c(0.10, 0.20, 0.30),
       V                         = V_singular_not_ones,
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_data                 = TRUE
     ),
-    "positive definite"
+    "provisional"
   )
+  expect_s3_class(singular_data, "brma.mv")
+  expect_true(.data_known_v_data(singular_data[["data"]])[["singular"]])
 
   expect_error(
     brma.mv(
@@ -1250,7 +1664,7 @@ test_that("brma.mv marginalizes one-to-one random intercepts into likelihood var
   whitened_syntax <- .create_model_syntax(whitened[["data"]], whitened[["priors"]])
   expect_match(
     whitened_syntax,
-    "whitening_y\\[j\\] ~ dnorm\\(whitening_mu\\[j\\], 1/\\( whitening_var\\[j\\] \\+ pow\\(mu__xREx__study_intercept,2\\) \\)\\)"
+    "whitening_y_1\\[j\\] ~ dnorm\\(whitening_mu_1\\[j\\], 1/\\( whitening_var_1\\[j\\] \\+ pow\\(mu__xREx__study_intercept,2\\) \\)\\)"
   )
 
   block_mvn <- brma.mv(
@@ -1541,7 +1955,7 @@ test_that("brma.mv supports partial random scale with sampled random component",
   )
   expect_match(
     syntax,
-    "tau2_observed\\[i\\] = pow\\(tau_ran_effects\\[i\\],2\\)"
+    "sampling_var\\[i\\] \\+ pow\\(tau_ran_effects\\[i\\],2\\)"
   )
 
   posterior <- matrix(
@@ -1593,7 +2007,7 @@ test_that("brma.mv marginalized random scale applies allocation weights", {
   syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
   expect_match(
     syntax,
-    "tau2_observed\\[i\\] = pow\\(tau\\[i\\] \\* sqrt\\(mu__xRE_ALLOCx_total__weight\\[1\\]\\),2\\)"
+    "sampling_var\\[i\\] \\+ pow\\(tau\\[i\\] \\* sqrt\\(mu__xRE_ALLOCx_total__weight\\[1\\]\\),2\\)"
   )
 
   posterior <- matrix(
@@ -1802,6 +2216,7 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   expect_true(known_v_backend[["known_v"]])
   expect_equal(known_v_backend[["known_v_parameterization_requested"]], "auto")
   expect_equal(known_v_backend[["known_v_parameterization"]], "whitened")
+  expect_equal(known_v_backend[["known_v_effective_backend"]], "whitened")
   expect_match(
     .brma_mv_known_v_backend_label(known_v_backend),
     "requested: auto",
@@ -1811,6 +2226,21 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   expect_equal(marglik_metadata[["reported_target"]], "full joint fitted likelihood")
   expect_equal(marglik_metadata[["known_v_parameterization_requested"]], "auto")
   expect_equal(marglik_metadata[["known_v_parameterization"]], "whitened")
+
+  diagonal_object <- brma.mv(
+    yi                        = c(0.10, 0.20),
+    V                         = c(0.04, 0.09),
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+  diagonal_backend <- .brma_mv_known_v_backend_metadata(diagonal_object)
+  expect_equal(diagonal_backend[["known_v_parameterization"]], "whitened")
+  expect_equal(diagonal_backend[["known_v_effective_backend"]], "diagonal")
+  expect_equal(
+    .brma_mv_known_v_backend_label(diagonal_backend),
+    "Known-V backend: diagonal (selected: whitened; requested: auto)"
+  )
 
   dffits_target <- .brma_mv_target_row("dffits()")
   expect_equal(dffits_target[["status"]], "implemented")
@@ -1879,7 +2309,8 @@ test_that("brma.mv adds latent known-V factors to fit syntax", {
 
   expect_true("sampling_z" %in% names(fit_priors))
   expect_true("sampling_var" %in% names(fit_data))
-  expect_true("sampling_B" %in% names(fit_data))
+  expect_true("sampling_B_1" %in% names(fit_data))
+  expect_false("sampling_B" %in% names(fit_data))
   expect_match(syntax, "sampling_dependency", fixed = TRUE)
   expect_match(syntax, "sampling_var\\[i\\]")
   expect_silent(
@@ -2247,13 +2678,18 @@ test_that("brma.mv prepares whitened known-V backend", {
   expect_equal(known_V[["rank"]], 0L)
   expect_equal(known_V[["residual_fraction_requested"]], 0.50)
 
-  rotated_V <- known_V[["whitening_matrix"]] %*% V %*%
-    t(known_V[["whitening_matrix"]])
+  whitening_block <- known_V[["whitening_blocks"]][[1L]]
+  rotation        <- whitening_block[["rotation"]]
+  rotated_V       <- rotation %*%
+    .known_v_block_covariance(known_V, whitening_block[["index"]]) %*%
+    t(rotation)
   expect_equal(
     rotated_V,
-    diag(known_V[["whitening_variance"]], nrow = 2),
+    diag(whitening_block[["variance"]], nrow = 2),
     tolerance = 1e-10
   )
+  expect_null(known_V[["whitening_matrix"]])
+  expect_null(known_V[["sampling_factor"]])
 })
 
 
@@ -2323,7 +2759,8 @@ test_that("brma.mv auto known-V update preserves residual fraction", {
   ), "known_V_data")
 
   expect_equal(updated_known_V[["parameterization_requested"]], "auto")
-  expect_equal(updated_known_V[["parameterization"]], "block_mvn")
+  expect_equal(updated_known_V[["parameterization"]], "whitened")
+  expect_equal(updated_known_V[["effective_backend"]], "diagonal")
   expect_equal(updated_known_V[["residual_fraction_requested"]], 0.40)
 })
 
@@ -2356,14 +2793,15 @@ test_that("brma.mv marginalized known R contributes known-V row variance", {
   syntax   <- .create_model_syntax(object[["data"]], object[["priors"]])
 
   expect_equal(known_V[["parameterization_requested"]], "auto")
-  expect_equal(known_V[["parameterization"]], "block_mvn")
+  expect_equal(known_V[["parameterization"]], "whitened")
+  expect_equal(known_V[["effective_backend"]], "diagonal")
   expect_equal(unname(term[["row_multiplier"]]), c(4, 9, 16))
   expect_equal(unname(fit_data[[row_name]]), c(4, 9, 16))
   expect_match(
     .data_marginalized_random_variance_expression(object[["data"]]),
     paste0("pow\\(", sd_name, ",2\\) \\* ", row_name, "\\[i\\]")
   )
-  expect_match(syntax, paste0("tau2_observed\\[i\\] = pow\\(", sd_name))
+  expect_match(syntax, paste0("sampling_var\\[i\\] \\+ pow\\(", sd_name))
   expect_match(syntax, paste0(row_name, "\\[i\\]"))
 
   posterior <- matrix(
@@ -2523,7 +2961,7 @@ test_that("brma.mv known R row multipliers enter known-V backends consistently",
   whitened_syntax <- .create_model_syntax(whitened[["data"]], whitened[["priors"]])
   expect_false(.marginalized_random_effects_row_varying(list(whitened_term)))
   expect_equal(unname(whitened_term[["row_multiplier"]]), c(1, 1, 1))
-  expect_match(whitened_syntax, "whitening_var\\[j\\]")
+  expect_match(whitened_syntax, "whitening_var_1\\[j\\]")
   expect_match(whitened_syntax, whitened_term[["row_multiplier_name"]],
                fixed = TRUE)
 
@@ -2577,7 +3015,10 @@ test_that("brma.mv adds whitened known-V likelihood to fit syntax", {
   syntax     <- .create_model_syntax(object[["data"]], object[["priors"]])
 
   expect_false("sampling_z" %in% names(fit_priors))
-  expect_true(all(c("whitening_y", "whitening_var", "whitening_matrix") %in% names(fit_data)))
+  expect_true(all(c("whitening_y_1", "whitening_var_1", "whitening_matrix_1") %in%
+                  names(fit_data)))
+  expect_false(any(c("whitening_y", "whitening_var", "whitening_matrix") %in%
+                   names(fit_data)))
   expect_false("sampling_var" %in% names(fit_data))
   expect_false("sampling_B" %in% names(fit_data))
   expect_match(syntax, "mu_observed", fixed = TRUE)
@@ -2613,16 +3054,16 @@ test_that("brma.mv prepares block-MVN known-V backend", {
   expect_true(known_V[["correlated"]])
   expect_equal(known_V[["rank"]], 0L)
   expect_equal(known_V[["residual_variance"]], diag(V))
-  expect_equal(known_V[["sampling_factor"]], chol(V))
+  expect_null(known_V[["sampling_factor"]])
   expect_null(known_V[["residual_fraction_requested"]])
 
-  expect_length(known_V[["block_mvn_blocks"]], 2L)
+  expect_length(known_V[["block_mvn_blocks"]], 1L)
   expect_equal(known_V[["block_mvn_blocks"]][[1]][["index"]], 1:2)
   expect_equal(
     known_V[["block_mvn_blocks"]][[1]][["v_lower"]],
     V[1:2, 1:2][lower.tri(V[1:2, 1:2], diag = TRUE)]
   )
-  expect_equal(known_V[["block_mvn_blocks"]][[2]][["index"]], 3L)
+  expect_equal(.known_v_independent_indices(known_V), 3L)
 })
 
 
@@ -2652,7 +3093,10 @@ test_that("brma.mv adds block-MVN known-V likelihood to fit syntax", {
   expect_false("sampling_z" %in% names(fit_priors))
   expect_false(any(c("sampling_var", "sampling_B") %in% names(fit_data)))
   expect_false(any(c("whitening_y", "whitening_var", "whitening_matrix") %in% names(fit_data)))
-  expect_true(all(c("yi", "known_v_var", "known_v_y_1", "known_v_lower_1") %in% names(fit_data)))
+  expect_true(all(c(
+    "known_v_independent_y", "known_v_independent_var",
+    "known_v_y_1", "known_v_lower_1"
+  ) %in% names(fit_data)))
   expect_equal(fit_data[["known_v_y_1"]], c(0.10, 0.20))
   expect_equal(length(fit_data[["known_v_lower_1"]]), 3L)
 
@@ -2660,7 +3104,7 @@ test_that("brma.mv adds block-MVN known-V likelihood to fit syntax", {
   expect_match(syntax, "tau2_observed", fixed = TRUE)
   expect_match(syntax, "dknown_v_mnorm", fixed = TRUE)
   expect_match(syntax, "known_v_y_1\\[1:2\\] ~ dknown_v_mnorm")
-  expect_match(syntax, "yi\\[3\\] ~ dnorm\\(mu_observed\\[3\\]")
+  expect_match(syntax, "known_v_independent_y\\[j\\] ~ dnorm")
   expect_false(grepl("sampling_dependency", syntax, fixed = TRUE))
 })
 
@@ -2715,10 +3159,13 @@ test_that("brma.mv block-MVN packing handles mixed-sign covariance blocks", {
 
   blocks <- attr(object[["data"]], "known_V_data")[["block_mvn_blocks"]]
 
-  expect_length(blocks, 2L)
+  expect_length(blocks, 1L)
   expect_equal(blocks[[1]][["index"]], 1:3)
   expect_equal(blocks[[1]][["v_lower"]], V_block[lower.tri(V_block, diag = TRUE)])
-  expect_equal(blocks[[2]][["index"]], 4L)
+  expect_equal(
+    .known_v_independent_indices(.data_known_v_data(object[["data"]])),
+    4L
+  )
 })
 
 
@@ -3459,10 +3906,19 @@ test_that("brma.mv preserves tiny nonzero known-V covariance", {
   )
   known_V <- attr(object[["data"]], "known_V_data")
 
-  expect_length(known_V[["block_indices"]], 1L)
-  expect_gt(known_V[["rank"]], 0L)
   expect_equal(
-    diag(known_V[["residual_variance"]], nrow = 2) + tcrossprod(known_V[["B"]]),
+    lapply(.known_v_blocks(known_V), `[[`, "index"),
+    list(1:2)
+  )
+  expect_gt(known_V[["rank"]], 0L)
+  reconstructed <- diag(known_V[["residual_variance"]], nrow = 2)
+  for (block in known_V[["latent_blocks"]]) {
+    index <- block[["index"]]
+    reconstructed[index, index] <- reconstructed[index, index] +
+      tcrossprod(block[["B"]])
+  }
+  expect_equal(
+    reconstructed,
     V,
     tolerance = 1e-10
   )
@@ -3582,7 +4038,7 @@ test_that("brma.mv known-V estimate log-likelihood uses Schur conditional target
 })
 
 
-test_that("known-V dependency blocks are canonicalized from V metadata", {
+test_that("known-V dependency blocks use canonical block metadata", {
 
   object <- brma.mv(
     yi                        = c(0.10, 0.20, -0.05),
@@ -3600,17 +4056,15 @@ test_that("known-V dependency blocks are canonicalized from V metadata", {
     only_priors               = TRUE
   )
 
-  data_missing_blocks <- object[["data"]]
-  known_V             <- .data_known_v_data(data_missing_blocks)
-  known_V[["block_indices"]] <- NULL
-  attr(data_missing_blocks, "known_V_data") <- known_V
-
-  blocks <- .known_v_dependency_blocks(data_missing_blocks, K = 3L)
+  blocks <- .known_v_dependency_blocks(object[["data"]], K = 3L)
   expect_equal(blocks, list(1:2, 3L))
 
   data_bad_blocks <- object[["data"]]
   known_V         <- .data_known_v_data(data_bad_blocks)
-  known_V[["block_indices"]] <- list(c(1L, 1L), 3L)
+  known_V[["blocks"]] <- list(list(
+    index      = c(1L, 1L),
+    covariance = matrix(c(0.04, 0.01, 0.01, 0.09), nrow = 2L)
+  ))
   attr(data_bad_blocks, "known_V_data") <- known_V
   expect_error(
     .known_v_dependency_blocks(data_bad_blocks, K = 3L),
@@ -3668,6 +4122,283 @@ test_that("singular PSD known-V Cholesky targets fail with targeted messages", {
       covariance = V
     ),
     "positive semidefinite"
+  )
+})
+
+
+test_that("brma.mv singular-V preflight requires structural regularization", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    study    = rep("s1", 3),
+    estimate = paste0("e", 1:3),
+    x        = c(-1, 0, 1)
+  )
+  sei <- c(0.20, 0.30, 0.40)
+  V   <- tcrossprod(sei)
+  A         <- matrix(c(1, 0, 1, 0, 1, 1), nrow = 3, ncol = 2)
+  V_general <- tcrossprod(A)
+
+  prior_zero <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 0)
+  )
+  prior_positive <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 0.10)
+  )
+  prior_tiny_positive <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 1e-6)
+  )
+
+  expect_false(.known_v_nullspace_is_regularized(V, rep(FALSE, 3)))
+  expect_false(.known_v_nullspace_is_regularized(V, c(TRUE, FALSE, FALSE)))
+  expect_true(.known_v_nullspace_is_regularized(V, c(TRUE, TRUE, FALSE)))
+
+  expect_warning(
+    general_positive <- brma.mv(
+      yi                        = yi,
+      V                         = V_general,
+      data                      = dat,
+      prior_heterogeneity       = prior_positive,
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    ),
+    "provisional"
+  )
+  expect_s3_class(general_positive, "brma.mv")
+  expect_warning(
+    scale_positive <- brma.mv(
+      yi                        = yi,
+      V                         = V_general,
+      scale                     = ~ x,
+      data                      = dat,
+      prior_scale               = list(
+        intercept = prior_positive,
+        x         = BayesTools::prior(
+          distribution = "spike",
+          parameters   = list(location = log(2))
+        )
+      ),
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    ),
+    "provisional"
+  )
+  expect_equal(
+    .brma_mv_fixed_integrated_variance(scale_positive, K = 3L),
+    (0.10 * exp(log(2) * dat[["x"]]))^2,
+    tolerance = 1e-14
+  )
+  V_tolerance <- matrix(c(1, 1 + 1e-9, 1 + 1e-9, 1), nrow = 2)
+  expect_warning(
+    tolerance_positive <- brma.mv(
+      yi                        = yi,
+      V                         = V_tolerance,
+      data                      = dat[1:2, , drop = FALSE],
+      prior_heterogeneity       = prior_tiny_positive,
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    ),
+    "provisional"
+  )
+  tolerance_V <- .known_v_materialize(
+    .data_known_v_data(tolerance_positive[["data"]])
+  )
+  expect_equal(diag(tolerance_V), c(1, 1), tolerance = 1e-14)
+  expect_gte(
+    min(eigen(tolerance_V, symmetric = TRUE, only.values = TRUE)[["values"]]),
+    -1e-14
+  )
+  V_tight <- matrix(
+    c(1, 1 + .Machine$double.eps, 1 + .Machine$double.eps, 1),
+    nrow = 2
+  )
+  tight_V <- suppressWarnings(.known_v_as_matrix(V_tight))
+  expect_gte(
+    min(eigen(tight_V, symmetric = TRUE, only.values = TRUE)[["values"]]),
+    -1e-14
+  )
+  prior_too_small <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 1e-9)
+  )
+  prior_scale_too_small <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 1e-9)
+  )
+  prior_scale_invalid <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = log(1e-9))
+  )
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V_tight,
+      data                      = dat[1:2, , drop = FALSE],
+      prior_heterogeneity       = prior_too_small,
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )),
+    "numerically positive definite"
+  )
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V_tight,
+      scale                     = ~ 1,
+      data                      = dat[1:2, , drop = FALSE],
+      prior_scale               = list(intercept = prior_scale_invalid),
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )),
+    "strictly positive"
+  )
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V_tight,
+      scale                     = ~ 1,
+      data                      = dat[1:2, , drop = FALSE],
+      prior_scale               = list(intercept = prior_scale_too_small),
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )),
+    "numerically positive definite"
+  )
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V_general,
+      data                      = dat,
+      prior_heterogeneity       = prior_zero,
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )),
+    "not structurally regularized"
+  )
+
+  for (parameterization in c("whitened", "block_mvn")) {
+    expect_error(
+      suppressWarnings(brma.mv(
+        yi                        = yi,
+        V                         = V,
+        data                      = dat,
+        prior_heterogeneity       = prior_zero,
+        known_v_parameterization  = parameterization,
+        measure                   = "GEN",
+        prior_unit_information_sd = 1,
+        only_priors               = TRUE
+      )),
+      "not structurally regularized"
+    )
+    expect_warning(
+      positive <- brma.mv(
+        yi                        = yi,
+        V                         = V,
+        data                      = dat,
+        prior_heterogeneity       = prior_positive,
+        known_v_parameterization  = parameterization,
+        measure                   = "GEN",
+        prior_unit_information_sd = 1,
+        only_priors               = TRUE
+      ),
+      "provisional"
+    )
+    expect_s3_class(positive, "brma.mv")
+  }
+
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                         = yi,
+      V                          = V,
+      random                     = ~ 1 | study,
+      data                       = dat,
+      known_v_parameterization   = "block_mvn",
+      measure                    = "GEN",
+      prior_unit_information_sd  = 1,
+      only_priors                = TRUE
+    )),
+    "Sampled random effects change the conditional mean"
+  )
+
+  expect_warning(
+    marginalized <- brma.mv(
+      yi                         = yi,
+      V                          = V,
+      random                     = ~ 1 | estimate,
+      data                       = dat,
+      known_v_parameterization   = "block_mvn",
+      measure                    = "GEN",
+      prior_unit_information_sd  = 1,
+      only_priors                = TRUE
+    ),
+    "provisional"
+  )
+  expect_true(.data_has_marginalized_random_effects(marginalized[["data"]]))
+
+  expect_warning(
+    allocated <- brma.mv(
+      yi                         = yi,
+      V                          = V,
+      scale                      = ~ x,
+      random                     = ~ 1 | study / estimate,
+      data                       = dat,
+      known_v_parameterization   = "block_mvn",
+      measure                    = "GEN",
+      prior_unit_information_sd  = 1,
+      only_priors                = TRUE
+    ),
+    "provisional"
+  )
+  expect_true(.data_has_marginalized_random_effects(allocated[["data"]]))
+
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V,
+      random                    = ~ 1 | estimate,
+      data                      = dat,
+      prior_heterogeneity       = BayesTools::prior_random(
+        estimate = BayesTools::random_block(sd = prior_zero)
+      ),
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )),
+    "not structurally regularized"
+  )
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V,
+      random                    = ~ 1 | estimate,
+      data                      = dat,
+      prior_heterogeneity       = BayesTools::prior_random(
+        estimate = BayesTools::random_block(sd = prior_too_small)
+      ),
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )),
+    "numerically positive definite"
   )
 })
 
@@ -3757,6 +4488,39 @@ test_that("brma.mv known-V target hash includes covariance structure", {
     .get_outcome_hash(object_1),
     .get_outcome_hash(object_2)
   ))
+})
+
+
+test_that("brma.mv known-V target hash normalizes signed zero", {
+
+  V_positive_zero <- matrix(
+    c(
+      0.04, 0.01, 0,
+      0.01, 0.09, 0.02,
+      0, 0.02, 0.16
+    ),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  V_negative_zero       <- V_positive_zero
+  V_negative_zero[1, 3] <- -0
+  V_negative_zero[3, 1] <- -0
+  object_1 <- brma.mv(
+    yi                        = c(0.10, 0.20, 0.30),
+    V                         = V_positive_zero,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  object_2 <- brma.mv(
+    yi                        = c(0.10, 0.20, 0.30),
+    V                         = V_negative_zero,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  expect_identical(.get_outcome_hash(object_1), .get_outcome_hash(object_2))
 })
 
 

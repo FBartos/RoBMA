@@ -44,15 +44,12 @@
     return(as.list(seq_len(K)))
   }
 
-  block_indices <- known_V[["block_indices"]]
-  if (is.null(block_indices) || length(block_indices) == 0L) {
-    V <- known_V[["V"]]
-    if (!is.matrix(V) || !identical(dim(V), c(K, K))) {
-      stop("Known-V block metadata is missing and cannot be reconstructed.",
-           call. = FALSE)
-    }
-    block_indices <- .known_v_block_indices(V)
+  if (.known_v_nrow(known_V) != K) {
+    stop("Known-V block metadata is missing and cannot be reconstructed.",
+         call. = FALSE)
   }
+  blocks        <- .known_v_blocks(known_V)
+  block_indices <- lapply(blocks, `[[`, "index")
 
   .known_v_validate_dependency_blocks(block_indices, K)
   return(block_indices)
@@ -120,31 +117,34 @@
     )
   }
 
-  data              <- setup[["data"]]
-  known_V           <- .data_known_v_data(data)
-  V                 <- known_V[["V"]]
-  K                 <- setup[["K"]]
-  S                 <- setup[["S"]]
-  yi                <- setup[["yi"]]
-  mu_samples        <- setup[["mu"]]
+  data       <- setup[["data"]]
+  known_V    <- .data_known_v_data(data)
+  K          <- setup[["K"]]
+  S          <- setup[["S"]]
+  yi         <- setup[["yi"]]
+  mu_samples <- setup[["mu"]]
 
   if (identical(setup[["effect_direction"]], "negative")) {
     yi         <- -yi
     mu_samples <- -mu_samples
   }
 
-  if (!is.matrix(V) || nrow(V) != K || ncol(V) != K) {
+  if (.known_v_nrow(known_V) != K) {
     stop("Known-V covariance metadata is inconsistent with the outcome data.",
          call. = FALSE)
   }
-  block_indices <- .known_v_dependency_blocks(data = data, K = K)
+  block_data        <- .known_v_blocks(known_V)
+  block_indices     <- lapply(block_data, `[[`, "index")
+  block_covariances <- lapply(block_data, `[[`, "covariance")
+  .known_v_validate_dependency_blocks(block_indices, K)
 
   extra_variance <- .known_v_extra_variance_from_setup(setup)
 
   log_lik <- matrix(NA_real_, nrow = S, ncol = K)
   for (s in seq_len(S)) {
-    for (idx in block_indices) {
-      covariance <- V[idx, idx, drop = FALSE] +
+    for (block in seq_along(block_indices)) {
+      idx        <- block_indices[[block]]
+      covariance <- block_covariances[[block]] +
         diag(extra_variance[s, idx], nrow = length(idx))
       log_lik[s, idx] <- .log_lik_known_v_component_conditional(
         yi         = yi[idx],
@@ -188,7 +188,6 @@
 
   data       <- setup[["data"]]
   known_V    <- .data_known_v_data(data)
-  V          <- known_V[["V"]]
   K          <- setup[["K"]]
   S          <- setup[["S"]]
   yi         <- setup[["yi"]]
@@ -199,18 +198,22 @@
     mu_samples <- -mu_samples
   }
 
-  if (!is.matrix(V) || nrow(V) != K || ncol(V) != K) {
+  if (.known_v_nrow(known_V) != K) {
     stop("Known-V covariance metadata is inconsistent with the outcome data.",
          call. = FALSE)
   }
 
-  block_indices  <- .known_v_dependency_blocks(data = data, K = K)
-  extra_variance <- .known_v_extra_variance_from_setup(setup)
-  log_lik        <- numeric(S)
+  block_data        <- .known_v_blocks(known_V)
+  block_indices     <- lapply(block_data, `[[`, "index")
+  block_covariances <- lapply(block_data, `[[`, "covariance")
+  .known_v_validate_dependency_blocks(block_indices, K)
+  extra_variance    <- .known_v_extra_variance_from_setup(setup)
+  log_lik           <- numeric(S)
 
   for (s in seq_len(S)) {
-    for (idx in block_indices) {
-      covariance <- V[idx, idx, drop = FALSE] +
+    for (block in seq_along(block_indices)) {
+      idx        <- block_indices[[block]]
+      covariance <- block_covariances[[block]] +
         diag(extra_variance[s, idx], nrow = length(idx))
       log_lik[[s]] <- log_lik[[s]] + .marglik_mvn_log_density(
         y          = yi[idx],
@@ -272,15 +275,13 @@
     )
   }
 
-  data           <- setup[["data"]]
-  known_V        <- .data_known_v_data(data)
-  V              <- known_V[["V"]]
-  K              <- setup[["K"]]
-  S              <- setup[["S"]]
-  yi             <- setup[["yi"]]
-  mu_samples     <- setup[["mu"]]
-  extra_variance <- .known_v_extra_variance_from_setup(setup)
-  lower_tail     <- TRUE
+  data       <- setup[["data"]]
+  known_V    <- .data_known_v_data(data)
+  K          <- setup[["K"]]
+  S          <- setup[["S"]]
+  yi         <- setup[["yi"]]
+  mu_samples <- setup[["mu"]]
+  lower_tail <- TRUE
 
   if (identical(setup[["effect_direction"]], "negative")) {
     yi         <- -yi
@@ -288,15 +289,25 @@
     lower_tail <- FALSE
   }
 
-  block_indices <- .known_v_dependency_blocks(data = data, K = K)
+  if (.known_v_nrow(known_V) != K) {
+    stop("Known-V covariance metadata is inconsistent with the outcome data.",
+         call. = FALSE)
+  }
+
+  block_data        <- .known_v_blocks(known_V)
+  block_indices     <- lapply(block_data, `[[`, "index")
+  block_covariances <- lapply(block_data, `[[`, "covariance")
+  .known_v_validate_dependency_blocks(block_indices, K)
+  extra_variance    <- .known_v_extra_variance_from_setup(setup)
 
   cdf      <- matrix(NA_real_, nrow = S, ncol = K)
   mean     <- matrix(NA_real_, nrow = S, ncol = K)
   variance <- matrix(NA_real_, nrow = S, ncol = K)
 
   for (s in seq_len(S)) {
-    for (idx in block_indices) {
-      covariance <- V[idx, idx, drop = FALSE] +
+    for (block in seq_along(block_indices)) {
+      idx        <- block_indices[[block]]
+      covariance <- block_covariances[[block]] +
         diag(extra_variance[s, idx], nrow = length(idx))
       distribution <- .known_v_component_conditional_distribution(
         yi         = yi[idx],
@@ -534,6 +545,10 @@
 
 
 .known_v_chol_covariance <- function(covariance, context) {
+
+  if (!.known_v_is_numerically_positive_definite(covariance)) {
+    .known_v_stop_non_positive_definite_covariance(covariance, context)
+  }
 
   chol_covariance <- tryCatch(
     chol(covariance),

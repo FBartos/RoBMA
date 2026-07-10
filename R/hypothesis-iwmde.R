@@ -11,8 +11,8 @@
   }
 
   sample_parameter <- .as_mixed_posteriors_parameters(object, parameter)
-  raw_samples <- BayesTools::as_mixed_posteriors(
-    model            = object[["fit"]],
+  raw_samples <- .brma_as_mixed_posteriors(
+    object           = object,
     parameters       = sample_parameter,
     conditional      = conditional,
     conditional_rule = "AND",
@@ -252,6 +252,78 @@
     existing = existing,
     ordinate = ordinate
   )
+
+  return(posterior)
+}
+
+
+.hypothesis_brma_attach_iwmde_log_intercept <- function(
+    object, posterior, parameter, hypothesis, n_points, max_samples,
+    normalization_points, normalization_prob, density_method) {
+
+  point_refs <- .hypothesis_brma_point_refs(hypothesis, parameter)
+  if (nrow(point_refs) == 0L) {
+    return(posterior)
+  }
+  if (any(point_refs[["value"]] <= 0)) {
+    stop(
+      "qCMDE/IWMDE point hypotheses for a log-scale intercept require a ",
+      "strictly positive value.",
+      call. = FALSE
+    )
+  }
+  if (is.null(normalization_points)) {
+    normalization_points <- max(50L, n_points)
+  }
+
+  context        <- .iwmde_context(object)
+  estimate_cache <- .iwmde_estimate_cache()
+  for (i in seq_len(nrow(point_refs))) {
+    value <- point_refs[["value"]][i]
+    estimate <- .iwmde_estimate(
+      context         = context,
+      parameter       = parameter,
+      density_method  = density_method,
+      density_control = list(
+        n_points             = n_points,
+        max_samples          = max_samples,
+        normalization_points = normalization_points,
+        normalization_prob   = normalization_prob,
+        display_grid         = "ordinate"
+      ),
+      outputs        = "ordinate",
+      values         = value,
+      parameter_spec = list(
+        type             = "scale_log_intercept",
+        conditional      = NULL,
+        conditional_rule = "AND"
+      ),
+      metadata = .iwmde_posterior_metadata(
+        samples   = posterior,
+        parameter = parameter
+      ),
+      cache = estimate_cache
+    )
+    ordinate <- estimate[["posterior_ordinate"]]
+    if (is.null(ordinate)) {
+      stop(
+        "Precomputed ", density_method, " posterior ordinate is unavailable for '",
+        parameter, " = ", value, "': ",
+        .hypothesis_brma_diagnostic_reason(
+          estimate[["diagnostics"]][["ordinate"]]
+        ),
+        call. = FALSE
+      )
+    }
+    existing <- .iwmde_posterior_ordinate_drop_value(
+      posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE),
+      value              = value
+    )
+    attr(posterior, "posterior_ordinate") <- BayesTools::posterior_ordinate_append(
+      existing = existing,
+      ordinate = ordinate
+    )
+  }
 
   return(posterior)
 }

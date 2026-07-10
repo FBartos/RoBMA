@@ -175,6 +175,7 @@
   attr(log_lik, "RoBMA_target") <- list(
     unit               = "cluster",
     conditioning_depth = "cluster",
+    target             = "cluster_joint",
     n                  = length(cluster_indices),
     targets            = cluster_labels,
     data_hash          = data_hash

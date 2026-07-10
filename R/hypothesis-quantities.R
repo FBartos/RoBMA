@@ -33,6 +33,42 @@ hypothesis_quantities.brma <- function(object, ...) {
     out,
     point_test_methods = "KDE, qCMDE, IWMDE"
   )
+  is_random <- out[["component"]] == "random"
+  if (any(is_random)) {
+    bundle <- .brma_random_parameter_bundle(object)
+    specs  <- bundle[["specs"]]
+    index <- match(out[["parameter"]][is_random], specs[["parameter"]])
+    reasons <- vapply(index, function(i) {
+      .brma_random_parameter_point_test_reason(
+        as.list(specs[i, , drop = FALSE])
+      )
+    }, character(1))
+    out[["bracket"]][is_random]                <- NA_character_
+    out[["point_test"]][is_random]             <- !nzchar(reasons)
+    out[["point_test_methods"]][is_random]     <- ifelse(
+      nzchar(reasons), "", "KDE, normal"
+    )
+    out[["direction_test_methods"]][is_random] <- "KDE, normal"
+    out[["reason"]][is_random]                 <- reasons
+
+    fixed <- vapply(index, function(i) {
+      values <- bundle[["samples"]][, i]
+      diff(range(values, na.rm = TRUE)) <= sqrt(.Machine$double.eps)
+    }, logical(1))
+    random_rows <- which(is_random)
+    if (any(fixed)) {
+      fixed_rows <- random_rows[fixed]
+      out[["point_test"]][fixed_rows]             <- FALSE
+      out[["direction_test"]][fixed_rows]         <- FALSE
+      out[["point_test_methods"]][fixed_rows]     <- ""
+      out[["direction_test_methods"]][fixed_rows] <- ""
+      out[["reason"]][fixed_rows] <- paste0(
+        ifelse(nzchar(out[["reason"]][fixed_rows]),
+               paste0(out[["reason"]][fixed_rows], " "), ""),
+        "The quantity is fixed by the fitted model; posterior hypothesis tests are undefined."
+      )
+    }
+  }
   rownames(out) <- NULL
   return(out)
 }

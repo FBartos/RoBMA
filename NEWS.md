@@ -14,18 +14,42 @@
   `density_method`.
 - adds RoBMA-owned provenance and BF-grade diagnostics to precomputed
   qCMDE/IWMDE density and ordinate attributes.
+- adds `log_lik()` for pointwise posterior log-likelihood draws used by LOO and
+  WAIC.
+- adds semantic `component = "random"` parameter summaries, plots, MCMC
+  diagnostics, and coherent interval/directional hypotheses for `brma.mv()`.
+- adds `include_auxiliary` to all fitted-model `as_draws*()` methods; the
+  default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Breaking changes
 - removes the previous `marginal_means.brma(normal_approximation)` argument;
   marginal-means Bayes factors now use posterior ordinates from KDE/qCMDE/IWMDE
   routes instead of the removed normal-approximation switch.
+- removes the unreleased `logLik.brma()` method. Use `log_lik()` for pointwise
+  posterior log-likelihood draws; `AIC()` and `BIC()` now fail explicitly.
+- removes the unreleased logical aggregate prediction mode. Explicit prediction
+  rows now each represent one new true effect; use `pooled_effect()` for direct
+  fitted-design aggregation.
 
 ### Fixes
 - aligns same-data `brma.mv()` response prediction with `brma()` semantics by
   using fixed means and marginal known-`V` plus random-effect covariance instead
   of conditioning on fitted random effects.
-- makes aggregate `brma.mv()` predictions include marginalized random-effect
-  draws before row averaging.
+- requires `V_new` for explicit known-`V` response predictions, rejects unseen
+  known-`R` levels without an `R_new` interface, and makes forest prediction
+  intervals target exactly one explicit new true effect when the design is
+  ambiguous.
+- supports arbitrary singular positive-semidefinite `V` when compiled priors or
+  marginalized random effects structurally regularize every null direction;
+  tolerance-negative eigenvalues are projected to the PSD boundary, and
+  guaranteed or numerically ineffective fixed regularizers fail before fitting.
+- retains diagonal and block-list known-`V` inputs in compact canonical form
+  while preserving numerical parity across fitting, prediction, likelihood,
+  diagnostics, hashing, and bridge-sampling consumers.
+- averages posterior coefficient covariance when computing VIF/GVIF instead of
+  plugging posterior mean heterogeneity into a single covariance matrix.
+- validates cached LOO/WAIC objects against the current data and target
+  fingerprint before reuse.
 - reports location-scale pooled heterogeneity as posterior RMS heterogeneity,
   matching multivariate RMS semantics.
 - hardens known-`V` estimate log-likelihood sums, diagnostics, funnel variance
@@ -69,7 +93,7 @@
 - adds the `brma_samples` posterior-sample class with print, summary, matrix, and `posterior` conversion methods.
 - adds `predict.brma()` for posterior predictions of fixed terms, cluster effects, latent true effects, observed responses, and scale terms, with `newdata`, `conditional`, `bias_adjusted`, `output_measure`, and `transform` support.
 - adds convenience wrappers `fitted()`, `pooled_effect()`, `pooled_heterogeneity()`, `blup()`, `true_effects()`, and `ranef()` for `brma` objects.
-- adds model-comparison helpers `add_loo()`, `loo()`, `loo_compare()`, `loo_weights()`, `check_loo()`, `add_waic()`, `waic()`, and `logLik()` using the `loo` package.
+- adds model-comparison helpers `add_loo()`, `loo()`, `loo_compare()`, `loo_weights()`, `check_loo()`, `add_waic()`, and `waic()` using the `loo` package.
 - adds bridge-sampling marginal likelihood support for single-model `brma` fits via `add_marglik()`, `bridge_sampler()`, `logml()`, `bf()`, `bayes_factor()`, and `post_prob()`.
 - adds residual and influence diagnostics: `residuals()`, `rstandard()`, `rstudent()` / `LOO-PIT`, `hatvalues()`, `influence()`, `dfbetas()`, `dffits()`, `cooks.distance()`, `covratio()`, and `vif()`.
 - adds plotting methods for `brma` objects: posterior/prior plots, `funnel()`, `regplot()`, `qqnorm()`, `radial()` / `galbraith()`, MCMC diagnostic plots, weightfunction plots, and PET-PEESE plots.

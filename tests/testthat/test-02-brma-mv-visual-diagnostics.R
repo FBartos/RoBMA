@@ -149,7 +149,7 @@ test_that("v14 brma.mv forest adapters return data and render", {
 
   for (name in mv_visual_fit_names) {
     fit_brma    <- fits[[name]]
-    forest_data <- as_metafor_forest(fit_brma, addpred = TRUE)
+    forest_data <- as_metafor_forest(fit_brma, addpred = FALSE)
 
     expect_true(inherits(forest_data, "metafor_forest.brma"), info = name)
     expect_equal(nrow(forest_data[["studies"]]), nobs(fit_brma), info = name)
@@ -163,12 +163,12 @@ test_that("v14 brma.mv forest adapters return data and render", {
                 info = name)
     expect_true(all(is.finite(forest_data[["pooled"]][["ci.ub"]])),
                 info = name)
-    expect_true(forest_data[["addpred"]], info = name)
+    expect_false(forest_data[["addpred"]], info = name)
 
     if (.mv_visual_should_render(name)) {
       .with_temp_plot_device(expect_silent(metafor::forest(
         fit_brma,
-        addpred = TRUE
+        addpred = FALSE
       )))
     }
   }

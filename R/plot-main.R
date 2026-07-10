@@ -20,8 +20,10 @@
 #' \code{"intercept"} for the heterogeneity intercept in location-scale models.
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
-#' \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
-#' terms used in multiple model components.
+#' \code{"location"}), \code{"scale"}, \code{"random"}, or \code{"bias"} to
+#' disambiguate terms used in multiple model components. The random component
+#' selects semantic standard deviation, correlation, and allocation parameters
+#' from `brma.mv()` random formulas.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
 #' \code{"base"}.
@@ -211,32 +213,61 @@ lines.brma <- function(
   }
 
   ### obtain posterior samples in the plotting format
-  sample_parameter <- .as_mixed_posteriors_parameters(x, parameter)
-  samples <- BayesTools::as_mixed_posteriors(
-    model            = x[["fit"]],
-    parameters       = sample_parameter,
-    conditional      = if (conditional) parameter else NULL,
-    transform_scaled = !standardized_coefficients
-  )
-  density_sample_parameter <- .plot_brma_density_sample_parameter(
-    samples          = samples,
-    parameter        = parameter,
-    sample_parameter = sample_parameter
-  )
-  if (.density_method_uses_precomputed(density_method)) {
-    samples <- .plot_brma_attach_iwmde(
-      object                  = x,
-      samples                 = samples,
-      parameter               = parameter,
-      sample_parameter        = density_sample_parameter,
-      conditional             = if (conditional) parameter else NULL,
-      n_points                = density_control[["n_points"]],
-      max_samples             = density_control[["max_samples"]],
-      normalization_points    = density_control[["normalization_points"]],
-      normalization_prob      = density_control[["normalization_prob"]],
-      density_method          = density_method,
-      display_grid            = density_control[["display_grid"]]
+  parameter_entry <- .brma_parameter_select_entry(x, parameter)
+  is_random       <- identical(parameter_entry[["component"]], "random")
+  random_label    <- NULL
+  if (is_random) {
+    if (conditional) {
+      stop(
+        "Conditional product-space plots are not available for semantic ",
+        "random-effect quantities.",
+        call. = FALSE
+      )
+    }
+    if (.density_method_uses_precomputed(density_method)) {
+      stop(
+        "qCMDE/IWMDE plots are not available for derived random-effect quantities. ",
+        "Use density_method = 'KDE'.",
+        call. = FALSE
+      )
+    }
+    sample_parameter <- parameter
+    samples <- .brma_random_parameter_mixed_posterior(
+      object                    = x,
+      parameter                 = parameter,
+      standardized_coefficients = standardized_coefficients,
+      prior                     = prior
     )
+    density_sample_parameter <- parameter
+    random_label <- parameter_entry[["term"]]
+  } else {
+    sample_parameter <- .as_mixed_posteriors_parameters(x, parameter)
+    samples <- .brma_as_mixed_posteriors(
+      object           = x,
+      parameters       = sample_parameter,
+      conditional      = if (conditional) parameter else NULL,
+      transform_scaled = !standardized_coefficients
+    )
+    density_sample_parameter <- .plot_brma_density_sample_parameter(
+      samples          = samples,
+      parameter        = parameter,
+      sample_parameter = sample_parameter
+    )
+    if (.density_method_uses_precomputed(density_method)) {
+      samples <- .plot_brma_attach_iwmde(
+        object                  = x,
+        samples                 = samples,
+        parameter               = parameter,
+        sample_parameter        = density_sample_parameter,
+        conditional             = if (conditional) parameter else NULL,
+        n_points                = density_control[["n_points"]],
+        max_samples             = density_control[["max_samples"]],
+        normalization_points    = density_control[["normalization_points"]],
+        normalization_prob      = density_control[["normalization_prob"]],
+        density_method          = density_method,
+        display_grid            = density_control[["display_grid"]]
+      )
+    }
   }
 
   ### set up plotting arguments
@@ -244,7 +275,8 @@ lines.brma <- function(
   dots       <- do.call(.set_dots_plot, c(dots_raw, list(n_levels = n_levels)))
   dots_prior <- .set_dots_prior(dots_prior)
   if (is.null(dots[["par_name"]])) {
-    dots[["par_name"]] <- .plot_parameter_label(parameter, effect_transform)
+    dots[["par_name"]] <- if (is_random) random_label else
+      .plot_parameter_label(parameter, effect_transform)
   }
 
   # prepare the argument call
@@ -407,8 +439,8 @@ lines.brma <- function(
     return(samples)
   }
 
-  raw_samples <- BayesTools::as_mixed_posteriors(
-    model            = object[["fit"]],
+  raw_samples <- .brma_as_mixed_posteriors(
+    object           = object,
     parameters       = sample_parameter,
     conditional      = conditional,
     transform_scaled = FALSE

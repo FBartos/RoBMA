@@ -406,13 +406,11 @@ test_that(".outcome_rng.norm_known_v uses Cholesky orientation for full covarian
     byrow = TRUE
   )
   tau <- .15
-  known_V <- list(
-    parameterization = "block_mvn",
-    sampling_factor  = chol(V)
-  )
+  known_V         <- .known_v_canonicalize(V)
+  sampling_factor <- .known_v_sampling_factor(V)
 
   expect_equal(
-    t(known_V[["sampling_factor"]]) %*% known_V[["sampling_factor"]],
+    t(sampling_factor) %*% sampling_factor,
     V,
     tolerance = 1e-14
   )
@@ -727,13 +725,19 @@ test_that(".evaluate.brma.tau returns correct structure", {
       )
     }
 
-    if (!has_tau_samples && .has_fixed_zero_tau_prior(priors)) {
+    fixed_tau <- .fixed_tau_prior_value(priors)
+    if (!has_tau_samples && !is.null(fixed_tau)) {
       expect_error(
         evaluate_tau(),
         "Missing posterior tau columns",
         info = paste(name, ": missing tau requires explicit allowance")
       )
-      result <- evaluate_tau(allow_missing_tau = TRUE)
+      result <- evaluate_tau(allow_missing_tau = fixed_tau)
+      expect_equal(
+        result[["tau_total"]],
+        matrix(fixed_tau, nrow = nrow(posterior_samples), ncol = K),
+        info = paste(name, ": fixed tau is reconstructed from the prior")
+      )
     } else {
       result <- evaluate_tau()
     }
@@ -970,255 +974,6 @@ test_that("matrix replication patterns preserve dimensions", {
     expect_equal(mat2[, k], vec2)
   }
 })
-
-# ============================================================================ #
-# SECTION 3: Unit Tests for Aggregated Predictions (newdata = TRUE)
-# ============================================================================ #
-# These tests verify the aggregation logic for predict.brma with newdata = TRUE
-# ============================================================================ #
-
-test_that("aggregation matches rowMeans", {
-
-  # test that rowMeans aggregation works as expected
-  S <- 100
-  K <- 5
-
-  set.seed(888)
-  mu_samples <- matrix(rnorm(S * K, mean = 0.3, sd = 0.1), nrow = S, ncol = K)
-
-  # aggregation: rowMeans across K observations
-
-  mu_aggregated <- matrix(rowMeans(mu_samples), ncol = 1)
-
-  # verify dimensions
-  expect_equal(dim(mu_aggregated), c(S, 1))
-
-  # verify mean is preserved (on average)
-  expect_equal(mean(mu_aggregated), mean(mu_samples), tolerance = 0.01)
-
-  # verify aggregation against a direct matrix calculation
-  expected_aggregated <- matrix(apply(mu_samples, 1, mean), ncol = 1)
-  expect_equal(mu_aggregated, expected_aggregated, tolerance = 1e-14)
-})
-
-test_that("aggregation is no-op for identical columns (non-mods/scale models)", {
-
-  # for models without moderators/scale, all columns are identical
-  # aggregation should return the same value
-  S <- 100
-  K <- 5
-
-  # create mock data where all columns are identical
-  mu_values <- rnorm(S, mean = 0.5, sd = 0.1)
-  mu_samples <- matrix(mu_values, nrow = S, ncol = K)
-
-  # aggregation
-  mu_aggregated <- matrix(rowMeans(mu_samples), ncol = 1)
-
-  # should be identical to original column
-  expect_equal(mu_aggregated[, 1], mu_values, tolerance = 1e-14)
-})
-
-test_that("aggregated true effects have expected variance", {
-
-  # for aggregated effect predictions:
-  # theta ~ N(mu, tau) where mu and tau are aggregated
-  # variance of theta should be approximately var(mu) + mean(tau)^2
-
-  S <- 10000  # many samples for stable variance estimation
-
-  set.seed(999)
-  mu_aggregated  <- matrix(rnorm(S, mean = 0.4, sd = 0.05), ncol = 1)
-  tau_aggregated <- matrix(abs(rnorm(S, mean = 0.25, sd = 0.02)), ncol = 1)
-
-  # sample true effects: theta = mu + rnorm(S) * tau
-  theta_samples <- mu_aggregated + rnorm(S) * tau_aggregated
-
-  # expected variance: Var(mu) + E[tau^2] = Var(mu) + Var(tau) + E[tau]^2
-  expected_var <- var(mu_aggregated) + var(tau_aggregated) + mean(tau_aggregated)^2
-
-  # observed variance should be close
-  observed_var <- var(theta_samples)
-  expect_equal(observed_var, expected_var, tolerance = 0.02,
-               info = "Aggregated theta variance matches theory")
-})
-
-
-# ============================================================================ #
-# SECTION 4: Integration Tests for predict.brma with newdata = TRUE
-# ============================================================================ #
-# These tests verify predict.brma with aggregated predictions using cached fits
-# ============================================================================ #
-
-skip_if_no_fits()
-
-test_that("predict.brma with newdata = TRUE returns single aggregated prediction", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    # test type = "terms"
-    result_terms <- predict(object, newdata = TRUE, type = "terms")
-
-    expect_s3_class(result_terms, "brma_samples")
-    expect_null(attr(result_terms, "data"), info = paste(name, ": data is NULL for aggregate"))
-    expect_equal(nrow(summary(result_terms)), 1,
-                 info = paste(name, ": has single row for aggregate terms"))
-
-    # test type = "terms.scale"
-    result_scale <- predict(object, newdata = TRUE, type = "terms.scale")
-
-    if (inherits(object, "brma.mv") && .is_random(object)) {
-      expect_type(result_scale, "list")
-      for (component in names(result_scale)) {
-        expect_s3_class(result_scale[[component]], "brma_samples")
-        expect_null(attr(result_scale[[component]], "data"),
-                    info = paste(name, component, ": data is NULL for aggregate scale"))
-        expect_equal(nrow(summary(result_scale[[component]])), 1,
-                     info = paste(name, component, ": has single row for aggregate scale"))
-      }
-    } else {
-      expect_s3_class(result_scale, "brma_samples")
-      expect_null(attr(result_scale, "data"), info = paste(name, ": data is NULL for aggregate scale"))
-      expect_equal(nrow(summary(result_scale)), 1,
-                   info = paste(name, ": has single row for aggregate scale"))
-    }
-
-    result_effect <- predict(object, newdata = TRUE, type = "effect")
-
-    expect_s3_class(result_effect, "brma_samples")
-    expect_null(attr(result_effect, "data"), info = paste(name, ": data is NULL for aggregate effect"))
-    expect_equal(nrow(summary(result_effect)), 1,
-                 info = paste(name, ": has single row for aggregate effect"))
-  }
-})
-
-test_that("predict.brma with newdata = TRUE returns S x 1 matrix", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    # get expected sample count
-    posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
-    S <- nrow(posterior_samples)
-
-    # test type = "terms"
-    samples_terms <- predict(object, newdata = TRUE, type = "terms")
-    expect_equal(dim(samples_terms), c(S, 1),
-                 info = paste(name, ": terms samples are S x 1"))
-    expect_equal(colnames(samples_terms), "mu",
-                 info = paste(name, ": terms samples have 'mu' column name"))
-
-    # test type = "terms.scale"
-    samples_scale <- predict(object, newdata = TRUE, type = "terms.scale")
-    if (inherits(object, "brma.mv") && .is_random(object)) {
-      expect_type(samples_scale, "list")
-      for (component in names(samples_scale)) {
-        expect_equal(dim(samples_scale[[component]]), c(S, 1),
-                     info = paste(name, component, ": scale samples are S x 1"))
-        expect_equal(colnames(samples_scale[[component]]), "tau",
-                     info = paste(name, component, ": scale samples have 'tau' column name"))
-      }
-    } else {
-      expect_equal(dim(samples_scale), c(S, 1),
-                   info = paste(name, ": scale samples are S x 1"))
-      expect_equal(colnames(samples_scale), "tau",
-                   info = paste(name, ": scale samples have 'tau' column name"))
-    }
-
-    samples_effect <- predict(object, newdata = TRUE, type = "effect")
-    expect_equal(dim(samples_effect), c(S, 1),
-                 info = paste(name, ": effect samples are S x 1"))
-    expect_equal(colnames(samples_effect), "theta",
-                 info = paste(name, ": effect samples have 'theta' column name"))
-  }
-})
-
-test_that("predict.brma rejects response-scale newdata predictions", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    # should throw error for type = "response"
-    expect_error(
-      predict(object, newdata = TRUE, type = "response"),
-      "Aggregated predictions.*not available for type = 'response'",
-      info = paste(name, ": aggregate + response is rejected")
-    )
-  }
-})
-
-test_that("aggregated mu equals rowMeans of non-aggregated mu", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    # get non-aggregated samples (as plain matrix)
-    samples_full <- as.matrix(predict(object, newdata = NULL, type = "terms"))
-
-    # get aggregated samples (as plain matrix)
-    samples_agg <- as.matrix(predict(object, newdata = TRUE, type = "terms"))
-
-    # aggregated should equal rowMeans of full
-    expected_agg <- matrix(rowMeans(samples_full), ncol = 1)
-    colnames(expected_agg) <- "mu"
-
-    expect_equal(samples_agg, expected_agg, tolerance = 1e-10,
-                 info = paste(name, ": aggregated mu equals rowMeans of full mu"))
-  }
-})
-
-test_that("aggregated tau equals rowMeans of non-aggregated tau", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    samples_full <- predict(object, newdata = NULL, type = "terms.scale")
-    samples_agg  <- predict(object, newdata = TRUE, type = "terms.scale")
-
-    if (inherits(object, "brma.mv") && .is_random(object)) {
-      expect_equal(names(samples_agg), names(samples_full))
-      for (component in names(samples_full)) {
-        expected_agg <- matrix(rowMeans(as.matrix(samples_full[[component]])), ncol = 1)
-        colnames(expected_agg) <- "tau"
-
-        expect_equal(as.matrix(samples_agg[[component]]), expected_agg, tolerance = 1e-10,
-                     info = paste(name, component, ": aggregated tau equals rowMeans of full tau"))
-      }
-    } else {
-      samples_full <- as.matrix(samples_full)
-      samples_agg  <- as.matrix(samples_agg)
-
-      # aggregated should equal rowMeans of full
-      expected_agg <- matrix(rowMeans(samples_full), ncol = 1)
-      colnames(expected_agg) <- "tau"
-
-      expect_equal(samples_agg, expected_agg, tolerance = 1e-10,
-                   info = paste(name, ": aggregated tau equals rowMeans of full tau"))
-    }
-  }
-})
-
 
 # ============================================================================ #
 # SECTION 3: Tests for .extract_use_normal()

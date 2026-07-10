@@ -888,13 +888,16 @@
   }
 
   known_V <- .data_known_v_data(data)
-  V       <- known_V[["V"]]
-  if (!is.matrix(V) || !identical(dim(V), c(K, K))) {
+  if (.known_v_nrow(known_V) != K) {
     stop("Known-V covariance dimensions do not match fitted rows.",
          call. = FALSE)
   }
 
-  block_indices <- .known_v_dependency_blocks(data = data, K = K)
+  block_data <- .known_v_blocks(known_V)
+  .known_v_validate_dependency_blocks(
+    lapply(block_data, `[[`, "index"),
+    K
+  )
 
   source_samples <- .predict_known_v_newdata_marginalized_source_samples(
     object            = object,
@@ -920,8 +923,9 @@
     term_variance <- .expand_random_effect_variance(term_sd^2, S = S, K = K)
     contribution  <- matrix(0, nrow = S, ncol = K)
 
-    for (idx in block_indices) {
-      V_block <- V[idx, idx, drop = FALSE]
+    for (block in block_data) {
+      idx     <- block[["index"]]
+      V_block <- block[["covariance"]]
       for (s in seq_len(S)) {
         covariance <- V_block
         diag(covariance) <- diag(covariance) + total_variance[s, idx]
@@ -1027,16 +1031,6 @@
 }
 
 
-.evaluate.brma.aggregate_scale_terms_list <- function(scale_samples) {
-
-  lapply(scale_samples, function(component_samples) {
-    out <- matrix(rowMeans(component_samples), ncol = 1L)
-    colnames(out) <- "tau"
-    out
-  })
-}
-
-
 .evaluate.brma.scale_component_names <- function(scale_specs) {
 
   vapply(scale_specs, `[[`, character(1), "display_name")
@@ -1063,26 +1057,26 @@
     stop("'bias_offset' must have the same dimensions as 'mu_samples'.",
          call. = FALSE)
   }
-  if (is.null(known_V) || is.null(known_V[["V"]])) {
+  if (is.null(known_V)) {
     stop("Known-V BLUP requires known-V metadata.", call. = FALSE)
   }
 
-  V <- known_V[["V"]]
-  if (!is.matrix(V) || !identical(dim(V), c(K, K))) {
+  if (.known_v_nrow(known_V) != K) {
     stop("Known-V covariance dimensions do not match prediction rows.",
          call. = FALSE)
   }
 
-  block_indices <- known_V[["block_indices"]]
-  if (is.null(block_indices) || length(block_indices) == 0L) {
-    block_indices <- .known_v_block_indices(V)
-  }
-  .known_v_validate_dependency_blocks(block_indices, K)
+  block_data <- .known_v_blocks(known_V)
+  .known_v_validate_dependency_blocks(
+    lapply(block_data, `[[`, "index"),
+    K
+  )
 
   true_effects_samples <- mu_samples
-  for (idx in block_indices) {
+  for (block in block_data) {
+    idx          <- block[["index"]]
     n_block      <- length(idx)
-    V_block      <- V[idx, idx, drop = FALSE]
+    V_block      <- block[["covariance"]]
     tau_block    <- tau_within[, idx, drop = FALSE]
     residual     <- matrix(yi[idx], nrow = S, ncol = n_block, byrow = TRUE) -
       bias_offset[, idx, drop = FALSE] - mu_samples[, idx, drop = FALSE]
@@ -1424,7 +1418,7 @@
 .evaluate.brma.sampling_dependency <- function(fit, data, posterior_samples = NULL) {
 
   known_V <- .data_known_v_data(data)
-  if (is.null(known_V) || !.is_data_known_v_parameterization(data, "latent") ||
+  if (is.null(known_V) || !.is_data_known_v_backend(data, "latent") ||
       known_V[["rank"]] == 0L) {
     K <- nrow(data[["outcome"]])
     posterior_samples <- .get_posterior_samples(fit, posterior_samples)
@@ -1438,7 +1432,7 @@
     K                 = known_V[["rank"]]
   )
 
-  sampling_dependency <- z_samples %*% t(known_V[["B"]])
+  sampling_dependency <- .known_v_latent_apply(known_V, z_samples)
   if (.data_effect_direction(data) == "negative") {
     sampling_dependency <- -sampling_dependency
   }

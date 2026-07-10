@@ -49,6 +49,26 @@
     return(parameter_spec)
   }
 
+  if (identical(parameter_spec[["type"]], "scale_log_intercept")) {
+    if (!.iwmde_parameter_has_resolved_values(context, parameter)) {
+      return(list(status = "unsupported", reason = "posterior column is missing"))
+    }
+
+    factors <- .iwmde_scale_log_intercept_factors(context, parameter)
+    if (length(factors) != nrow(samples) ||
+        any(!is.finite(factors) | factors <= 0)) {
+      return(list(
+        status = "unsupported",
+        reason = "scale-intercept transformation is unavailable"
+      ))
+    }
+
+    parameter_spec[["parameter"]] <- parameter
+    parameter_spec[["status"]]    <- "ok"
+
+    return(parameter_spec)
+  }
+
   if (!identical(parameter_spec[["type"]], "linear")) {
     return(list(status = "unsupported", reason = "unknown IWMDE parameter spec"))
   }
@@ -160,11 +180,46 @@
 .iwmde_parameter_values <- function(context, parameter, parameter_spec) {
 
   samples <- context[["posterior_samples"]]
+  if (identical(parameter_spec[["type"]], "scale_log_intercept")) {
+    return(
+      .iwmde_parameter_column_values(context, samples, parameter) *
+        .iwmde_scale_log_intercept_factors(context, parameter)
+    )
+  }
   if (identical(parameter_spec[["type"]], "linear")) {
     return(.iwmde_linear_values(context, samples, parameter_spec[["weights"]]))
   }
 
   return(.iwmde_parameter_column_values(context, samples, parameter))
+}
+
+
+.iwmde_scale_log_intercept_factors <- function(context, parameter) {
+
+  key <- paste0("scale_log_intercept_factors|", parameter)
+  if (exists(key, envir = context[["row_cache"]], inherits = FALSE)) {
+    return(get(key, envir = context[["row_cache"]], inherits = FALSE))
+  }
+
+  samples <- context[["posterior_samples"]]
+  factors <- rep(NA_real_, nrow(samples))
+  transformed <- tryCatch(
+    BayesTools::transform_scale_samples(context[["formula_fit"]]),
+    error = function(e) NULL
+  )
+  if (!is.null(transformed)) {
+    transformed <- as.matrix(transformed)
+  }
+  if (!is.null(transformed) &&
+      nrow(transformed) == nrow(samples) &&
+      parameter %in% colnames(samples) &&
+      parameter %in% colnames(transformed)) {
+    raw <- as.numeric(samples[, parameter])
+    factors <- as.numeric(transformed[, parameter]) / raw
+  }
+
+  assign(key, factors, envir = context[["row_cache"]])
+  return(factors)
 }
 
 
@@ -310,6 +365,10 @@
 .iwmde_parameter_components <- function(context, parameter,
                                         parameter_spec = NULL) {
 
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "scale_log_intercept")) {
+    parameter_spec <- NULL
+  }
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "linear")) {
     return(.iwmde_linear_components(context, parameter_spec))
@@ -767,6 +826,19 @@
 
   if (length(rows) == 0L) {
     return(matrix(numeric(), nrow = 0L, ncol = 2L))
+  }
+
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "scale_log_intercept")) {
+    supports <- .iwmde_parameter_row_supports(
+      context        = context,
+      parameter      = parameter,
+      rows           = rows,
+      parameter_spec = NULL
+    )
+    factors <- .iwmde_scale_log_intercept_factors(context, parameter)[rows]
+
+    return(supports * factors)
   }
 
   if (!is.null(parameter_spec) &&

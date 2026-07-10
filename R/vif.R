@@ -5,15 +5,13 @@
 # Variance Inflation Factor (VIF) and Generalized VIF (GVIF) for brma objects.
 #
 # Two complementary diagnostics for multicollinearity:
-# 1. Classical VIF/GVIF from cov2cor(vcov) (matches metafor)
+# 1. Posterior-averaged working VIF/GVIF from cov2cor(vcov)
 # 2. Posterior correlation of regression coefficients (Bayesian diagnostic)
 #
-# VIF is computed from the correlation matrix of the coefficient
-# variance-covariance matrix: vcov = (X'WX)^{-1}. For simple models, W uses
-# diag(weight_i/(vi + tau^2)); scale and multilevel models average this
-# coefficient covariance over posterior heterogeneity draws. brma.mv known-V
+# VIF is computed from the correlation matrix of the posterior mean coefficient
+# variance-covariance matrix: vcov = mean_s((X'W_sX)^{-1}). brma.mv known-V
 # models use the full supplied sampling covariance plus any marginal
-# heterogeneity or formula random-effect covariance.
+# heterogeneity or formula random-effect covariance in each posterior draw.
 #
 # GVIF formula (Fox & Monette, 1992, for multi-df terms):
 #   GVIF = det(R_11) * det(R_22) / det(R)
@@ -71,12 +69,13 @@ vif <- function(object, ...) {
 #'
 #' @details
 #' VIF is computed from the correlation matrix derived from the
-#' coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}. For standard
-#' meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \hat\tau^2))}
-#' with \eqn{\hat\tau} equal to the posterior mean heterogeneity. For scale
-#' and multilevel models, the coefficient covariance is averaged across
-#' posterior heterogeneity draws, using observation-specific \eqn{\tau_i}
-#' and block-structured multilevel covariance where applicable.
+#' coefficient variance-covariance matrix. The package computes
+#' \eqn{\mathrm{E}[(X'W_sX)^{-1} \mid y]} by averaging coefficient covariance
+#' across posterior heterogeneity draws. Standard models use
+#' \eqn{W_s = \mathrm{diag}(w_i/(v_i + \tau_s^2))}; scale and multilevel models
+#' use observation-specific \eqn{\tau_{is}} and block-structured multilevel
+#' covariance where applicable. Averaging occurs before conversion to a
+#' correlation matrix and computation of VIF/GVIF.
 #'
 #' A VIF of 1 indicates no collinearity; values above 5 or 10 are
 #' commonly considered problematic.
@@ -90,11 +89,13 @@ vif <- function(object, ...) {
 #'
 #' When \code{posterior_correlation = TRUE}, the function also returns the
 #' posterior correlation matrix of the regression coefficients. This
-#' Bayesian diagnostic complements VIF: while VIF diagnoses the
-#' \emph{potential} for collinearity problems (a data property), the
-#' posterior correlation shows the \emph{realized} identification
-#' given the data and priors. Informative priors can mitigate
-#' collinearity, reducing posterior correlations even when VIF is high.
+#' Bayesian diagnostic complements VIF: VIF summarizes collinearity under the
+#' posterior distribution of the marginal working covariance, whereas the
+#' posterior correlation shows the realized joint identification of the
+#' coefficients given the data and priors. Unlike a fixed-covariance design
+#' VIF, posterior-averaged VIF can therefore depend on the outcome and the
+#' heterogeneity prior. Informative coefficient priors can also reduce posterior
+#' correlations even when VIF is high.
 #'
 #' Data-only objects created with \code{only_data = TRUE} are rejected because
 #' VIF depends on fitted heterogeneity information, not just the parsed data.
@@ -103,6 +104,12 @@ vif <- function(object, ...) {
 #' marginal GLS covariance. Formula random effects are marginalized through
 #' BayesTools' random-effect covariance metadata rather than treated as
 #' conditioned fitted effects.
+#'
+#' For generalized linear mixed models, this is a working effect-size-scale
+#' diagnostic based on the fitted model's approximate sampling variances. It is
+#' not a VIF derived directly from the binomial or Poisson information matrix.
+#' When the marginal covariance is fixed, the calculation reduces to the
+#' conventional fixed-covariance VIF used by \pkg{metafor}.
 #'
 #' @return An object of class \code{vif.brma} containing:
 #' \item{vif}{A data frame with columns \code{term}, \code{df}, \code{GVIF},
@@ -189,10 +196,9 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # .compute_vif
 # ---------------------------------------------------------------------------- #
 #
-# Compute VIF/GVIF from cov2cor(solve(X'WX)). Simple models use the posterior
-# mean tau plug-in. Scale and multilevel models average solve(X'WX) over
-# posterior heterogeneity draws so observation-specific and block covariances
-# are preserved.
+# Compute VIF/GVIF after averaging solve(X'WX) over posterior heterogeneity
+# draws so scalar, observation-specific, and block covariances share one
+# package-wide estimand.
 #
 # @param object brma object with moderators
 #
@@ -245,28 +251,25 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   K       <- length(vi)
 
   # extract posterior heterogeneity
-  # for simple models: use summary["tau", "Mean"] to preserve metafor-style VIF
-  # for scale/multilevel models: use full posterior tau matrices
   is_scale      <- .is_scale(object)
   is_multilevel <- .is_multilevel(object)
+  tau_K         <- if (!is_scale && !is_multilevel) 1L else K
 
-  if (!is_scale && !is_multilevel) {
-    tau_within_samples  <- matrix(.vif_scalar_tau_mean(object), nrow = 1, ncol = K)
-    tau_between_samples <- matrix(0, nrow = 1, ncol = K)
-  } else {
-    tau_result <- .evaluate.brma.tau(
-      fit           = object[["fit"]],
-      scale_data    = object[["data"]][["scale"]],
-      scale_formula = if (is_scale) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
-      scale_priors  = object[["priors"]][["scale"]],
-      is_scale      = is_scale,
-      is_multilevel     = is_multilevel,
-      K                 = K,
-      allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
-    )
-    tau_within_samples  <- tau_result[["tau_within"]]
-    tau_between_samples <- tau_result[["tau_between"]]
-  }
+  tau_result <- .evaluate.brma.tau(
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (is_scale) .create_fit_formula_list(
+      data = object[["data"]],
+      "scale"
+    ) else NULL,
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = is_scale,
+    is_multilevel     = is_multilevel,
+    K                 = tau_K,
+    allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
+  )
+  tau_within_samples  <- tau_result[["tau_within"]]
+  tau_between_samples <- tau_result[["tau_between"]]
 
   # compute posterior-averaged vcov = (X'WX)^{-1} using meta-analytic weights
   vcov <- .vif_vcov_from_tau_samples(
@@ -405,31 +408,6 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 
 
 # ---------------------------------------------------------------------------- #
-# .vif_scalar_tau_mean
-# ---------------------------------------------------------------------------- #
-#
-# Scalar heterogeneity plug-in used by classical VIF. Fixed-effect models report
-# no tau row, so their extra heterogeneity covariance is zero.
-#
-# ---------------------------------------------------------------------------- #
-.vif_scalar_tau_mean <- function(object) {
-
-  summary_table <- object[["summary"]]
-  if (is.null(summary_table) || !"tau" %in% rownames(summary_table)) {
-    return(0)
-  }
-
-  tau <- summary_table["tau", "Mean"]
-  if (!is.finite(tau)) {
-    stop("VIF cannot determine a finite scalar heterogeneity estimate.",
-         call. = FALSE)
-  }
-
-  return(tau)
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .vif_vcov_from_covariance_samples
 # ---------------------------------------------------------------------------- #
 #
@@ -519,8 +497,8 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # @param X design matrix.
 # @param vi sampling variances.
 # @param weights likelihood weights.
-# @param tau_within_samples S x K matrix of estimate-level heterogeneity SDs.
-# @param tau_between_samples optional S x K matrix of cluster-level SDs.
+# @param tau_within_samples S x 1 or S x K matrix of estimate-level SDs.
+# @param tau_between_samples optional S x 1 or S x K matrix of cluster-level SDs.
 # @param cluster optional cluster identifiers for multilevel block covariance.
 #
 # @return posterior mean of solve(X'WX).
@@ -536,7 +514,11 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   tau_within_samples <- .vif_tau_matrix(tau_within_samples, K, "tau_within_samples")
 
   if (is.null(tau_between_samples)) {
-    tau_between_samples <- matrix(0, nrow = nrow(tau_within_samples), ncol = K)
+    tau_between_samples <- matrix(
+      0,
+      nrow = nrow(tau_within_samples),
+      ncol = ncol(tau_within_samples)
+    )
   } else {
     tau_between_samples <- .vif_tau_matrix(tau_between_samples, K, "tau_between_samples")
   }
@@ -555,11 +537,16 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   vcov_sum <- matrix(0, nrow = P, ncol = P)
 
   for (s in seq_len(S)) {
-    diagonal_s <- (vi + tau_within_samples[s, ]^2) / weights
+    tau_within_s  <- tau_within_samples[s, ]
+    tau_between_s <- tau_between_samples[s, ]
+    if (!is.null(cluster) && length(tau_between_s) == 1L) {
+      tau_between_s <- rep(tau_between_s, K)
+    }
+    diagonal_s    <- (vi + tau_within_s^2) / weights
     WX <- .hat_apply_precision(
       x             = X,
       diagonal      = diagonal_s,
-      rank_one      = if (!is.null(cluster)) tau_between_samples[s, ] else NULL,
+      rank_one      = if (!is.null(cluster)) tau_between_s else NULL,
       block_indices = block_indices
     )
 
@@ -579,7 +566,7 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # .vif_tau_matrix
 # ---------------------------------------------------------------------------- #
 #
-# Normalize heterogeneity input to an S x K matrix.
+# Normalize heterogeneity input to a compact S x 1 or row-specific S x K matrix.
 #
 # ---------------------------------------------------------------------------- #
 .vif_tau_matrix <- function(x, K, name) {
@@ -597,12 +584,8 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 
   x <- as.matrix(x)
 
-  if (ncol(x) == 1L && K > 1L) {
-    x <- matrix(x[, 1], nrow = nrow(x), ncol = K)
-  }
-
-  if (ncol(x) != K) {
-    stop("'", name, "' must have K columns.", call. = FALSE)
+  if (!ncol(x) %in% c(1L, K)) {
+    stop("'", name, "' must have one or K columns.", call. = FALSE)
   }
 
   return(x)

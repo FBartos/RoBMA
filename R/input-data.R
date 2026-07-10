@@ -279,6 +279,7 @@ NULL
   outcome_type       <- outcome_result$outcome_type
   effect_direction   <- outcome_result$effect_direction
   known_V_input      <- outcome_result$known_V_input
+  known_V_hidden     <- outcome_result$known_V_hidden
 
   ### Step 2: Extract moderator variables (mods and scale)
   if (!is.null(mods_from_yi)) {
@@ -412,6 +413,10 @@ NULL
   ### Create output object
   known_V <- NULL
   if (!is.null(known_V_input)) {
+    .check_and_list_data.mv_validate_hidden_inputs(
+      hidden    = known_V_hidden,
+      keep_rows = keep_rows
+    )
     known_V <- .known_v_prepare(
       V                                   = known_V_input,
       keep_rows                           = keep_rows,
@@ -420,7 +425,7 @@ NULL
       known_v_residual_fraction_specified = known_v_residual_fraction_specified,
       known_v_is_scale                    = !is.null(data_scale)
     )
-    data_outcome[["sei"]] <- sqrt(diag(known_V[["V"]]))
+    data_outcome[["sei"]] <- sqrt(.known_v_diagonal(known_V))
   }
 
   data_list <- list(
@@ -622,15 +627,21 @@ NULL
   if (all(is.na(yi)))
     stop("The 'yi' argument must contain at least one non-NA value.", call. = FALSE)
 
-  k        <- length(yi)
-  V        <- .check_and_list_data.mv_known_v_input(
+  k             <- length(yi)
+  known_V_input <- .check_and_list_data.mv_known_v_input(
     V   = V,
     vi  = vi,
     sei = sei,
     k   = k
   )
-  V_matrix <- .known_v_as_matrix(V, k = k, warn_singular = FALSE)
-  sei      <- sqrt(diag(V_matrix))
+  if (.known_v_input_nrow(known_V_input[["V"]]) != k) {
+    stop("The dimensions of 'V' must match the length of 'yi'.", call. = FALSE)
+  }
+  V_diagonal <- .known_v_input_diagonal(known_V_input[["V"]])
+  sei        <- known_V_input[["sei_for_na"]]
+  if (is.null(sei)) {
+    sei <- sqrt(pmax(V_diagonal, 0))
+  }
 
   if (!is.null(ni))
     BayesTools::check_real(ni, "ni", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
@@ -669,7 +680,8 @@ NULL
     na_check_cols      = c("yi", "sei"),
     effect_direction   = effect_direction,
     outcome_type       = "norm",
-    known_V_input      = V_matrix
+    known_V_input      = known_V_input[["V"]],
+    known_V_hidden     = known_V_input[["hidden"]]
   ))
 }
 
@@ -689,32 +701,77 @@ NULL
          call. = FALSE)
   }
   if (has_V) {
-    return(V)
+    return(list(
+      V          = V,
+      sei_for_na = NULL,
+      hidden     = NULL
+    ))
   }
 
   if (has_vi) {
-    BayesTools::check_real(
-      vi,
-      "vi",
-      check_length = k,
-      allow_NULL   = FALSE,
-      allow_NA     = FALSE,
-      lower        = 0,
-      allow_bound  = FALSE
-    )
+    .check_and_list_data.mv_hidden_input_structure(vi, "vi", k)
   }
   if (has_sei) {
-    BayesTools::check_real(
-      sei,
-      "sei",
-      check_length = k,
-      allow_NULL   = FALSE,
-      allow_NA     = FALSE,
-      lower        = 0,
-      allow_bound  = FALSE
+    .check_and_list_data.mv_hidden_input_structure(sei, "sei", k)
+  }
+
+  sei_for_na <- if (has_sei) sei else sqrt(pmax(vi, 0))
+  if (has_vi && has_sei) {
+    sei_for_na[is.na(vi)] <- NA_real_
+  }
+
+  return(list(
+    V          = if (has_vi) vi else sei^2,
+    sei_for_na = sei_for_na,
+    hidden     = list(
+      vi  = if (has_vi)  vi  else NULL,
+      sei = if (has_sei) sei else NULL
+    )
+  ))
+}
+
+
+.check_and_list_data.mv_hidden_input_structure <- function(x, name, k) {
+
+  if (!is.numeric(x) || !is.null(dim(x)) || length(x) != k) {
+    stop(
+      "Hidden brma.mv() input '", name,
+      "' must be a numeric vector with the same length as 'yi'.",
+      call. = FALSE
     )
   }
-  if (has_vi && has_sei) {
+
+  invisible(TRUE)
+}
+
+
+# Validate hidden diagonal inputs after row selection.
+.check_and_list_data.mv_validate_hidden_inputs <- function(hidden, keep_rows) {
+
+  if (is.null(hidden)) {
+    return(invisible(TRUE))
+  }
+  if (!is.logical(keep_rows) || anyNA(keep_rows)) {
+    stop("Internal error: invalid hidden known-V row selector.", call. = FALSE)
+  }
+
+  vi  <- hidden[["vi"]]
+  sei <- hidden[["sei"]]
+  if (!is.null(vi)) {
+    vi <- vi[keep_rows]
+    if (any(!is.finite(vi)) || any(vi <= 0)) {
+      stop("Hidden brma.mv() input 'vi' must contain positive finite values.",
+           call. = FALSE)
+    }
+  }
+  if (!is.null(sei)) {
+    sei <- sei[keep_rows]
+    if (any(!is.finite(sei)) || any(sei <= 0)) {
+      stop("Hidden brma.mv() input 'sei' must contain positive finite values.",
+           call. = FALSE)
+    }
+  }
+  if (!is.null(vi) && !is.null(sei)) {
     implied_vi <- sei^2
     tolerance  <- sqrt(.Machine$double.eps) *
       pmax(1, abs(vi), abs(implied_vi))
@@ -724,11 +781,7 @@ NULL
     }
   }
 
-  if (has_vi) {
-    return(vi)
-  }
-
-  return(sei^2)
+  return(invisible(TRUE))
 }
 
 
@@ -2122,6 +2175,28 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 }
 
 
+.prepare_newdata_formula_arg_variables <- function(formula_arg) {
+
+  if (is.null(formula_arg)) {
+    return(character())
+  }
+  if (inherits(formula_arg, "formula")) {
+    return(all.vars(formula_arg))
+  }
+  if (inherits(formula_arg, "BayesTools_random_effects")) {
+    return(all.vars(formula_arg[["formula"]]))
+  }
+  if (is.list(formula_arg)) {
+    return(unique(unlist(
+      lapply(formula_arg, .prepare_newdata_formula_arg_variables),
+      use.names = FALSE
+    )))
+  }
+
+  stop("Internal error: unsupported formula argument for newdata.", call. = FALSE)
+}
+
+
 .prepare_newdata_scale_formula_arg <- function(original_data) {
 
   if (!.is_data_scale(original_data)) {
@@ -2159,6 +2234,47 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   }
 
   return(random_effects)
+}
+
+
+.prepare_newdata_random_grouping_values <- function(newdata, random_effects,
+                                                    protected_variables = character()) {
+
+  terms <- random_effects[["terms"]]
+  if (length(terms) == 0L) {
+    return(newdata)
+  }
+
+  random_design_variables <- unique(unlist(lapply(terms, function(term) {
+    all.vars(term[["expr"]])
+  }), use.names = FALSE))
+  protected_variables <- unique(c(protected_variables, random_design_variables))
+
+  for (term in terms) {
+    grouping_vars <- all.vars(term[["group_expr"]])
+    missing_vars  <- setdiff(grouping_vars, names(newdata))
+    if (length(missing_vars) == 0L) {
+      next
+    }
+    if (.random_effect_term_has_known_group_covariance(term)) {
+      stop(
+        "Known-R new-effect prediction requires explicit fitted grouping ",
+        "variable(s) for block '", term[["block_name"]], "': ",
+        paste(missing_vars, collapse = ", "), ". Unseen known-R levels ",
+        "require 'R_new', which is not supported.",
+        call. = FALSE
+      )
+    }
+
+    synthesis_vars <- setdiff(missing_vars, protected_variables)
+    for (variable in synthesis_vars) {
+      newdata[[variable]] <- paste0(
+        ".RoBMA_new_", term[["block_name"]], "_", seq_len(nrow(newdata))
+      )
+    }
+  }
+
+  return(newdata)
 }
 
 
@@ -2232,6 +2348,24 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   # add random formula when the requested prediction needs random metadata
   if (include_random) {
     random_formula_arg <- .prepare_newdata_random_formula_arg(original_data)
+    protected_variables <- character()
+    if (.is_mods(object)) {
+      protected_variables <- c(
+        protected_variables,
+        all.vars(attr(original_data[["mods"]], "formula"))
+      )
+    }
+    if (.is_scale(object) && include_scale) {
+      protected_variables <- c(
+        protected_variables,
+        .prepare_newdata_formula_arg_variables(scale_formula_arg)
+      )
+    }
+    newdata <- .prepare_newdata_random_grouping_values(
+      newdata             = newdata,
+      random_effects      = random_formula_arg,
+      protected_variables = protected_variables
+    )
     call_args[["random"]] <- quote(.RoBMA_random)
     extra_env[[".RoBMA_random"]] <- random_formula_arg
   } else {

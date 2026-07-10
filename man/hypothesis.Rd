@@ -84,8 +84,12 @@ diagnostics rather than probabilities for all hypothesis types.}
 
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias
-\code{"location"}) or \code{"scale"} to disambiguate terms used in
-multiple model components. Publication-bias parameters are not supported.}
+\code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
+terms used in multiple model components. The random component supports
+interval and directional hypotheses for semantic standard deviation,
+correlation, and allocation quantities. Point-null hypotheses are available
+only when the induced prior and transformation define a coherent point
+density. Publication-bias parameters are not supported.}
 
 \item{standardized_coefficients}{whether moderator and scale coefficients
 are tested on the standardized predictor scale. Defaults to \code{FALSE}.}

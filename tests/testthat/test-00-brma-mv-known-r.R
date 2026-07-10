@@ -410,7 +410,7 @@ test_that("brma.mv marginalizes supported one-to-one known R blocks", {
                          fixed = TRUE)))
   expect_error(
     predict(known_r, newdata = dat, type = "estimate"),
-    "new or reordered known-R rows"
+    "marginalized known-R blocks"
   )
   expect_equal(ordinary_term[["compile_mode"]], "marginalized")
   expect_true(.data_has_marginalized_random_effects(ordinary[["data"]]))

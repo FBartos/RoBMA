@@ -1,5 +1,5 @@
 #' @importFrom graphics hist lines
-#' @importFrom stats coef cooks.distance dfbetas fitted hatvalues influence logLik model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update vcov
+#' @importFrom stats AIC BIC coef cooks.distance dfbetas fitted hatvalues influence model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update vcov
 #' @importFrom utils capture.output getS3method
 NULL
 

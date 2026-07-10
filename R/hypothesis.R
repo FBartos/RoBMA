@@ -75,8 +75,12 @@ hypothesis.default <- function(object, ...) {
 #' @param hypothesis character vector with scalar hypothesis statements.
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
-#' \code{"location"}) or \code{"scale"} to disambiguate terms used in
-#' multiple model components. Publication-bias parameters are not supported.
+#' \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
+#' terms used in multiple model components. The random component supports
+#' interval and directional hypotheses for semantic standard deviation,
+#' correlation, and allocation quantities. Point-null hypotheses are available
+#' only when the induced prior and transformation define a coherent point
+#' density. Publication-bias parameters are not supported.
 #' @param standardized_coefficients whether moderator and scale coefficients
 #' are tested on the standardized predictor scale. Defaults to \code{FALSE}.
 #' @param conditional whether to use the conditional posterior for product-space
@@ -168,9 +172,69 @@ hypothesis.brma <- function(object, hypothesis,
     parameter  = parameter
   )
 
+  if (identical(selected[["component"]], "random")) {
+    return(.hypothesis_brma_random(
+      object                    = object,
+      parameter                 = parameter,
+      hypothesis                = hypothesis,
+      standardized_coefficients = standardized_coefficients,
+      conditional               = conditional,
+      logBF                     = logBF,
+      BF01                      = BF01,
+      seed                      = seed,
+      density_method            = density_method,
+      n_samples                 = n_samples,
+      columns                   = columns
+    ))
+  }
+
+  if (.hypothesis_brma_log_intercept_draws_available(
+      object                    = object,
+      selected                  = selected,
+      standardized_coefficients = standardized_coefficients,
+      conditional               = conditional,
+      density_method            = density_method)) {
+    draws <- .hypothesis_brma_log_intercept_draws(
+      object    = object,
+      parameter = parameter,
+      n_samples = n_samples,
+      seed      = seed
+    )
+    posterior <- draws[["posterior"]]
+    if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
+      posterior <- .hypothesis_brma_attach_iwmde_log_intercept(
+        object               = object,
+        posterior            = posterior,
+        parameter            = parameter,
+        hypothesis           = hypothesis,
+        n_points             = density_control[["n_points"]],
+        max_samples          = density_control[["max_samples"]],
+        normalization_points = density_control[["normalization_points"]],
+        normalization_prob   = density_control[["normalization_prob"]],
+        density_method       = density_method
+      )
+    }
+    out <- BayesTools::hypothesis_BF(
+      posterior      = posterior,
+      prior          = draws[["prior"]],
+      hypothesis     = hypothesis,
+      parameter      = parameter,
+      logBF          = logBF,
+      BF01           = BF01,
+      seed           = seed,
+      columns        = columns,
+      density_method = if (.density_method_uses_precomputed(
+          density_method, allow_normal = TRUE)) "precomputed" else density_method
+    )
+    if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
+      out <- .hypothesis_brma_append_iwmde_warnings(out, posterior)
+    }
+    return(out)
+  }
+
   sample_parameter <- .as_mixed_posteriors_parameters(object, parameter)
-  samples <- BayesTools::as_mixed_posteriors(
-    model            = object[["fit"]],
+  samples <- .brma_as_mixed_posteriors(
+    object           = object,
     parameters       = sample_parameter,
     conditional      = if (conditional) parameter else NULL,
     conditional_rule = "AND",
@@ -230,6 +294,157 @@ hypothesis.brma <- function(object, hypothesis,
   }
 
   return(out)
+}
+
+.hypothesis_brma_random <- function(
+    object, parameter, hypothesis, standardized_coefficients,
+    conditional, logBF, BF01, seed, density_method, n_samples, columns) {
+
+  if (conditional) {
+    stop(
+      "Conditional product-space hypotheses are not available for semantic ",
+      "random-effect quantities.",
+      call. = FALSE
+    )
+  }
+  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
+    stop(
+      "qCMDE/IWMDE hypotheses are not available for semantic random-effect ",
+      "quantities. Use density_method = 'KDE' or 'normal'.",
+      call. = FALSE
+    )
+  }
+
+  posterior <- .brma_random_parameter_select(
+    object                    = object,
+    parameter                 = parameter,
+    standardized_coefficients = standardized_coefficients
+  )
+  prior <- .brma_random_parameter_select(
+    object                    = object,
+    parameter                 = parameter,
+    standardized_coefficients = standardized_coefficients,
+    prior                     = TRUE,
+    n_prior_samples           = n_samples,
+    seed                      = seed
+  )
+  posterior_values <- as.numeric(posterior[["samples"]][, 1L])
+  prior_values     <- as.numeric(prior[["samples"]][, 1L])
+
+  point_refs <- BayesTools::hypothesis_parse_point_reference(
+    hypothesis     = hypothesis,
+    allow_compound = TRUE
+  )
+  if (nrow(point_refs) > 0L) {
+    if (any(!point_refs[["direct"]])) {
+      stop(
+        "Point-null tests for random-effect quantities require a direct scalar ",
+        "parameter reference.",
+        call. = FALSE
+      )
+    }
+    reason <- .brma_random_parameter_point_test_reason(
+      posterior[["spec"]]
+    )
+    if (nzchar(reason)) {
+      stop(reason, call. = FALSE)
+    }
+
+    support <- .brma_random_parameter_support(
+      posterior[["spec"]],
+      posterior[["prior"]],
+      posterior[["source_prior"]]
+    )
+    values <- point_refs[["value"]]
+    at_boundary <- (is.finite(support[1L]) & values <= support[1L]) |
+      (is.finite(support[2L]) & values >= support[2L])
+    if (any(at_boundary)) {
+      stop(
+        "Point-null Bayes factors at the support boundary are not available ",
+        "for random-effect quantity '", posterior[["entry"]][["term"]], "'.",
+        call. = FALSE
+      )
+    }
+  }
+  if (length(unique(prior_values[is.finite(prior_values)])) < 2L) {
+    stop(
+      "Hypothesis tests are not defined for fixed random-effect quantity '",
+      posterior[["entry"]][["term"]], "'.",
+      call. = FALSE
+    )
+  }
+
+  BayesTools::hypothesis_BF(
+    posterior      = posterior_values,
+    prior          = prior_values,
+    hypothesis     = hypothesis,
+    parameter      = parameter,
+    logBF          = logBF,
+    BF01           = BF01,
+    seed           = seed,
+    columns        = columns,
+    density_method = density_method
+  )
+}
+
+.hypothesis_brma_log_intercept_draws_available <- function(
+    object, selected, standardized_coefficients, conditional,
+    density_method) {
+
+  if (standardized_coefficients || conditional ||
+      !identical(selected[["component"]], "scale")) {
+    return(FALSE)
+  }
+
+  entry <- .brma_parameter_select_entry(
+    object    = object,
+    parameter = selected[["parameter"]],
+    component = selected[["component"]]
+  )
+  formula_parameter <- entry[["formula_parameter"]]
+  if (is.null(formula_parameter) || length(formula_parameter) != 1L ||
+      is.na(formula_parameter) || !nzchar(formula_parameter)) {
+    return(FALSE)
+  }
+  formula_scale     <- attr(object[["fit"]], "formula_scale", exact = TRUE)
+  scale_info        <- formula_scale[[formula_parameter]]
+
+  isTRUE(attr(scale_info, "log_intercept", exact = TRUE)) &&
+    identical(entry[["term"]], "intercept")
+}
+
+.hypothesis_brma_log_intercept_draws <- function(object, parameter,
+                                                  n_samples, seed) {
+
+  samples <- .brma_as_mixed_posteriors(
+    object           = object,
+    parameters       = parameter,
+    conditional      = NULL,
+    conditional_rule = "AND",
+    transform_scaled = TRUE,
+    n_prior_samples  = n_samples
+  )
+  posterior <- samples[[parameter]]
+  prior_density <- attr(samples, "prior_densities", exact = TRUE)[[parameter]]
+  if (is.null(posterior) || is.null(prior_density)) {
+    stop(
+      "Could not reconstruct posterior and prior draws for transformed scale ",
+      "intercept '", parameter, "'.",
+      call. = FALSE
+    )
+  }
+  attr(posterior, "parameter")     <- parameter
+  attr(posterior, "prior_density") <- prior_density
+  class(posterior) <- unique(c(
+    class(posterior),
+    "marginal_posterior.simple",
+    "marginal_posterior"
+  ))
+
+  list(
+    posterior = posterior,
+    prior     = NULL
+  )
 }
 
 #' @rdname hypothesis

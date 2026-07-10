@@ -45,17 +45,17 @@ as_draws_rvars(x, ...)
 
 \method{as_draws_rvars}{default}(x, ...)
 
-\method{as_draws}{brma}(x, ...)
+\method{as_draws}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_array}{brma}(x, ...)
+\method{as_draws_array}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_df}{brma}(x, ...)
+\method{as_draws_df}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_list}{brma}(x, ...)
+\method{as_draws_list}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_matrix}{brma}(x, ...)
+\method{as_draws_matrix}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_rvars}{brma}(x, ...)
+\method{as_draws_rvars}{brma}(x, include_auxiliary = FALSE, ...)
 }
 \arguments{
 \item{x}{an object to convert. The \code{brma} methods expect a fitted
@@ -64,6 +64,11 @@ corresponding \pkg{posterior} conversion function.}
 
 \item{...}{additional arguments passed to the corresponding
 \pkg{posterior} function.}
+
+\item{include_auxiliary}{logical; whether to include raw backend auxiliary
+variables. Defaults to \code{FALSE}, returning the stable model-parameter
+schema. Set to \code{TRUE} to expose every variable stored by the fitted
+backend.}
 }
 \value{
 An object of the corresponding \pkg{posterior} draws class.
@@ -93,8 +98,14 @@ The following conversion functions are available:
 These methods require the \pkg{posterior} package to be installed.
 For \code{brma} methods, conversion is performed by first extracting the MCMC
 samples as a \code{mcmc.list} object and then using the corresponding
-\pkg{posterior} conversion function. \code{brma_samples} objects have
-separate methods documented at \code{\link{as_draws.brma_samples}}.
+\pkg{posterior} conversion function. By default, backend-private latent
+effects, known-\code{V} dependency factors, random-effect simulation and
+Cholesky factors, and prior-parameterization variables are omitted. Public
+covariance parameters, derived correlation matrices, allocation weights,
+model indicators, and likelihood parameters remain available.
+\code{include_auxiliary = TRUE} returns the raw backend variables without
+filtering. \code{brma_samples} objects have separate methods documented at
+\code{\link{as_draws.brma_samples}}.
 }
 \seealso{
 \code{\link[posterior]{draws}}, \code{\link{brma}},

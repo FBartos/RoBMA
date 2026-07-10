@@ -104,8 +104,10 @@ normalization entries are used with \code{density_method = "qCMDE"} and
 
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias
-\code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
-terms used in multiple model components.}
+\code{"location"}), \code{"scale"}, \code{"random"}, or \code{"bias"} to
+disambiguate terms used in multiple model components. The random component
+selects semantic standard deviation, correlation, and allocation parameters
+from \code{brma.mv()} random formulas.}
 
 \item{...}{list of additional graphical arguments
 to be passed to the plotting function. Supported arguments

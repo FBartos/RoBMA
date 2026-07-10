@@ -56,7 +56,7 @@
 #
 # Compute pointwise log-likelihoods from an explicit posterior sample matrix.
 #
-# This is the shared evaluator used by regular LOO/logLik paths and by IWMDE
+# This is the shared evaluator used by regular log_lik/LOO paths and by IWMDE
 # candidate rows. It owns only posterior-row evaluation and dispatch; the actual
 # likelihood math stays in the existing outcome and cluster helpers.
 #
@@ -1015,6 +1015,13 @@
     known_v              = .is_data_known_v(setup[["data"]]),
     known_v_estimate_backend = known_v_estimate_backend,
     known_v_parameterization = if (is.null(known_V)) NULL else known_V[["parameterization"]],
+    known_v_effective_backend = if (is.null(known_V)) {
+      NULL
+    } else if (is.null(known_V[["effective_backend"]])) {
+      known_V[["parameterization"]]
+    } else {
+      known_V[["effective_backend"]]
+    },
     known_v_parameterization_requested = if (is.null(known_V)) {
       NULL
     } else {

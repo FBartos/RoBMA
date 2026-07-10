@@ -21,6 +21,10 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' @param type type of parameters to be summarized. Defaults to \code{"mods"}
 #' (for the effect size and meta-regression coefficients). Use \code{"scale"}
 #' for heterogeneity and scale-regression coefficients.
+#' @param component optional parameter namespace. Use \code{"random"} with one
+#'   explicitly selected semantic random-effect quantity.
+#' @param parameter semantic random-effect quantity used when
+#'   \code{component = "random"}.
 #' @param ... additional arguments. The internal \code{.weights} argument can
 #' supply precomputed PSIS weights for callers that already extracted them.
 #'
@@ -60,11 +64,32 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' @seealso \code{\link{influence.brma}}, \code{\link{dffits.brma}}, \code{\link{cooks.distance.brma}}
 #' @aliases covratio
 #' @exportS3Method
-covratio.brma <- function(model, type = "mods", ...) {
+covratio.brma <- function(model, type = "mods", component = NULL,
+                          parameter = NULL, ...) {
 
   dots <- list(...)
   .weights <- dots[[".weights"]]
   BayesTools::check_char(type, "type", allow_values = c("mods", "scale"))
+  BayesTools::check_char(component, "component", check_length = 1,
+                         allow_NULL = TRUE)
+  BayesTools::check_char(parameter, "parameter", check_length = 1,
+                         allow_NULL = TRUE)
+  component <- .diagnostic_parameter_component(
+    type          = type,
+    component     = component,
+    type_supplied = !missing(type),
+    allow_bias    = FALSE
+  )
+  if (identical(component, "random") && is.null(parameter)) {
+    stop(
+      "COVRATIO for random-effect quantities requires one explicit 'parameter'.",
+      call. = FALSE
+    )
+  }
+  if (!identical(component, "random") && !is.null(parameter)) {
+    stop("'parameter' is currently available only with component = 'random'.",
+         call. = FALSE)
+  }
 
   if (is.null(.weights)) {
     psis_context <- .diagnostic_psis_context(model)
@@ -78,26 +103,33 @@ covratio.brma <- function(model, type = "mods", ...) {
   is_scale <- .is_scale(model)
 
   # We follow dfbetas logic here:
-  if (type == "mods") {
+  if (component == "mods") {
     samples_table <- .diagnostic_location_parameter_samples(model)
-  } else if (type == "scale") {
+  } else if (component == "scale") {
     if (is_scale) {
       # scale-regression: tau is modeled via log_tau formula
       samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_formulas      = "log_tau",
-        remove_diagnostics = TRUE,
-        return_samples     = TRUE
+        fit                    = model[["fit"]],
+        keep_formulas          = "log_tau",
+        random_effects_summary = "none",
+        remove_diagnostics     = TRUE,
+        return_samples         = TRUE
       )
     } else {
       # random/fixed effects: tau is a parameter (intercept)
       samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_parameters    = "tau",
-        remove_diagnostics = TRUE,
-        return_samples     = TRUE
+        fit                    = model[["fit"]],
+        keep_parameters        = "tau",
+        random_effects_summary = "none",
+        remove_diagnostics     = TRUE,
+        return_samples         = TRUE
       )
     }
+  } else if (component == "random") {
+    samples_table <- .diagnostic_random_parameter_samples(
+      model     = model,
+      parameter = parameter
+    )
   }
 
   # Ensure matrix (S x P)

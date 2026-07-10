@@ -10,6 +10,8 @@
   standardized_coefficients = FALSE,
   transform_factors = TRUE,
   return_loo_estimates = FALSE,
+  component = NULL,
+  parameter = NULL,
   ...
 )
 }
@@ -33,6 +35,12 @@ Defaults to \code{TRUE}.}
 \item{return_loo_estimates}{whether to return the leave-one-out coefficient
 estimates used to compute DFBETAS instead of standardized DFBETAS values.
 Defaults to \code{FALSE}.}
+
+\item{component}{optional parameter namespace. Use \code{"random"} for
+semantic random-effect SD, correlation, and allocation quantities.}
+
+\item{parameter}{optional semantic random-effect quantity. When omitted with
+\code{component = "random"}, all available random quantities are returned.}
 
 \item{...}{additional arguments (currently ignored).}
 }

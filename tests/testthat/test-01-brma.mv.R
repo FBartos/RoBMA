@@ -82,9 +82,13 @@ skip_refit_if_cached("brma.mv")
 test_that("brma.mv fits known-V backend smoke models", {
 
   smoke <- .brma_mv_smoke_data()
-  dat   <- smoke[["dat"]]
-  V     <- smoke[["V"]]
-  args  <- .brma_mv_fit_args()
+  dat      <- smoke[["dat"]]
+  V        <- smoke[["V"]]
+  V_blocks <- lapply(seq_len(3L), function(g) {
+    index <- ((g - 1L) * 2L + 1L):(g * 2L)
+    V[index, index, drop = FALSE]
+  })
+  args     <- .brma_mv_fit_args()
 
   fit_latent <- brma.mv(
     yi                        = yi,
@@ -111,7 +115,7 @@ test_that("brma.mv fits known-V backend smoke models", {
 
   fit_whitened <- brma.mv(
     yi                        = yi,
-    V                         = V,
+    V                         = V_blocks,
     data                      = dat,
     known_v_parameterization  = "whitened",
     measure                   = args[["measure"]],
@@ -128,6 +132,10 @@ test_that("brma.mv fits known-V backend smoke models", {
   expect_s3_class(fit_whitened, "brma.mv")
   expect_true("mu" %in% rownames(fit_whitened[["summary"]]))
   expect_match(whitened_syntax, "whitening_y", fixed = TRUE)
+  whitened_known_V <- .data_known_v_data(fit_whitened[["data"]])
+  expect_identical(whitened_known_V[["storage"]], "blocks")
+  expect_null(whitened_known_V[["V"]])
+  expect_null(whitened_known_V[["whitening_matrix"]])
   fit_whitened <- suppressWarnings(add_loo(fit_whitened))
   expect_s3_class(fit_whitened[["loo"]][["estimate"]], "loo")
   save_fit("brma.mv_whitened", fit_whitened, info = list(data = dat, V = V))
@@ -191,10 +199,88 @@ test_that("brma.mv fits known-V backend smoke models", {
   expect_true(any(block_random_output == "Random"))
   expect_true(any(grepl("sd(", block_random_output, fixed = TRUE)))
   fit_block_random <- suppressWarnings(add_loo(fit_block_random))
+  fit_block_random <- suppressWarnings(add_waic(fit_block_random))
   expect_s3_class(fit_block_random[["loo"]][["estimate"]], "loo")
+  expect_s3_class(fit_block_random[["waic"]][["estimate"]], "waic")
+  fit_block_random_cache <- fit_block_random
+  fit_block_random_cache[["waic"]] <- NULL
   save_fit(
     "brma.mv_block_mvn_random",
+    fit_block_random_cache,
+    info = list(data = dat, V = V, random = "estimate")
+  )
+
+  fit_block_random_sampled <- brma.mv(
+    yi                         = yi,
+    V                          = V,
+    data                       = transform(dat, estimate = seq_len(nrow(dat))),
+    random                     = ~ 1 | estimate,
+    marginalize_estimate_level = FALSE,
+    known_v_parameterization   = "block_mvn",
+    measure                    = args[["measure"]],
+    chains                     = args[["chains"]],
+    sample                     = args[["sample"]],
+    burnin                     = args[["burnin"]],
+    adapt                      = args[["adapt"]],
+    seed                       = args[["seed"]],
+    silent                     = args[["silent"]],
+    prior_unit_information_sd  = args[["prior_unit_information_sd"]],
+    convergence_checks         = args[["convergence_checks"]]
+  )
+  fit_block_random_sampled <- suppressWarnings(add_loo(
+    fit_block_random_sampled
+  ))
+  fit_block_random_sampled <- suppressWarnings(add_waic(
+    fit_block_random_sampled
+  ))
+
+  marginalized_target <- attr(
+    log_lik(fit_block_random),
+    "RoBMA_target",
+    exact = TRUE
+  )
+  sampled_target <- attr(
+    log_lik(fit_block_random_sampled),
+    "RoBMA_target",
+    exact = TRUE
+  )
+  comparison_fields <- c(
+    "unit", "conditioning_depth", "target", "data_hash"
+  )
+  expect_identical(
+    marginalized_target[comparison_fields],
+    sampled_target[comparison_fields]
+  )
+  expect_identical(
+    marginalized_target[["estimate_level_random"]],
+    "marginalized"
+  )
+  expect_identical(sampled_target[["random_effects"]], "conditioned")
+
+  loo_comparison <- loo_compare(
     fit_block_random,
+    fit_block_random_sampled
+  )
+  waic_comparison <- loo_compare(
+    waic(fit_block_random),
+    waic(fit_block_random_sampled)
+  )
+  expect_true(all(is.finite(loo_comparison)))
+  expect_true(all(is.finite(waic_comparison)))
+  expect_lt(
+    abs(loo_comparison[2L, "elpd_diff"]),
+    0.25
+  )
+  expect_lt(
+    abs(waic_comparison[2L, "elpd_diff"]),
+    0.25
+  )
+
+  fit_block_random_sampled_cache <- fit_block_random_sampled
+  fit_block_random_sampled_cache[["waic"]] <- NULL
+  save_fit(
+    "brma.mv_block_mvn_random_sampled",
+    fit_block_random_sampled_cache,
     info = list(data = dat, V = V, random = "estimate")
   )
 
@@ -557,6 +643,212 @@ test_that("brma.mv fits known-V backend smoke models", {
     "brma.mv_block_mvn_random_mods_scale",
     fit_block_random_mods_scale,
     info = list(data = dat, V = V, mods = c("x", "z"), random = "study/effect", scale = "x")
+  )
+})
+
+
+test_that("brma.mv fits structurally regularized singular V", {
+
+  dat <- data.frame(
+    yi    = c(0.08, 0.13, 0.18),
+    study = rep("s1", 3)
+  )
+  sei <- c(0.20, 0.30, 0.40)
+  V   <- tcrossprod(sei)
+  A         <- matrix(c(1, 0, 1, 0, 1, 1), nrow = 3, ncol = 2)
+  V_general <- tcrossprod(A)
+  args <- .brma_mv_fit_args()
+
+  prior_zero <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 0)
+  )
+  prior_positive <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 0.10)
+  )
+  prior_tiny_positive <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 1e-6)
+  )
+
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V,
+      data                      = dat,
+      prior_heterogeneity       = prior_zero,
+      known_v_parameterization  = "whitened",
+      measure                   = args[["measure"]],
+      prior_unit_information_sd = args[["prior_unit_information_sd"]],
+      chains                    = args[["chains"]],
+      sample                    = args[["sample"]],
+      burnin                    = args[["burnin"]],
+      adapt                     = args[["adapt"]],
+      seed                      = args[["seed"]],
+      silent                    = args[["silent"]],
+      convergence_checks        = args[["convergence_checks"]]
+    )),
+    "not structurally regularized"
+  )
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V,
+      random                    = ~ 1 | study,
+      data                      = dat,
+      known_v_parameterization  = "block_mvn",
+      measure                   = args[["measure"]],
+      prior_unit_information_sd = args[["prior_unit_information_sd"]],
+      chains                    = args[["chains"]],
+      sample                    = args[["sample"]],
+      burnin                    = args[["burnin"]],
+      adapt                     = args[["adapt"]],
+      seed                      = args[["seed"]],
+      silent                    = args[["silent"]],
+      convergence_checks        = args[["convergence_checks"]]
+    )),
+    "Sampled random effects change the conditional mean"
+  )
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V_general,
+      data                      = dat,
+      prior_heterogeneity       = prior_zero,
+      known_v_parameterization  = "block_mvn",
+      measure                   = args[["measure"]],
+      prior_unit_information_sd = args[["prior_unit_information_sd"]],
+      chains                    = args[["chains"]],
+      sample                    = args[["sample"]],
+      burnin                    = args[["burnin"]],
+      adapt                     = args[["adapt"]],
+      seed                      = args[["seed"]],
+      silent                    = args[["silent"]],
+      convergence_checks        = args[["convergence_checks"]]
+    )),
+    "not structurally regularized"
+  )
+
+  general_fit <- suppressWarnings(brma.mv(
+    yi                        = yi,
+    V                         = V_general,
+    data                      = dat,
+    prior_heterogeneity       = prior_positive,
+    known_v_parameterization  = "block_mvn",
+    measure                   = args[["measure"]],
+    prior_unit_information_sd = args[["prior_unit_information_sd"]],
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    convergence_checks        = args[["convergence_checks"]]
+  ))
+  expect_s3_class(general_fit, "brma.mv")
+  expect_true(isTRUE(general_fit[["fit"]][["has_posterior"]]))
+
+  V_tolerance <- matrix(c(1, 1 + 1e-9, 1 + 1e-9, 1), nrow = 2)
+  tolerance_fit <- suppressWarnings(brma.mv(
+    yi                        = yi,
+    V                         = V_tolerance,
+    data                      = dat[1:2, , drop = FALSE],
+    prior_heterogeneity       = prior_tiny_positive,
+    known_v_parameterization  = "block_mvn",
+    measure                   = args[["measure"]],
+    prior_unit_information_sd = args[["prior_unit_information_sd"]],
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    convergence_checks        = args[["convergence_checks"]]
+  ))
+  expect_s3_class(tolerance_fit, "brma.mv")
+  expect_true(isTRUE(tolerance_fit[["fit"]][["has_posterior"]]))
+
+  estimate_dat <- transform(dat, estimate = paste0("e", seq_len(nrow(dat))))
+  marginalized_fit <- suppressWarnings(brma.mv(
+    yi                        = yi,
+    V                         = V,
+    random                    = ~ 1 | estimate,
+    data                      = estimate_dat,
+    prior_heterogeneity       = BayesTools::prior_random(
+      estimate = BayesTools::random_block(sd = prior_positive)
+    ),
+    known_v_parameterization  = "block_mvn",
+    measure                   = args[["measure"]],
+    prior_unit_information_sd = args[["prior_unit_information_sd"]],
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    convergence_checks        = args[["convergence_checks"]]
+  ))
+  expect_s3_class(marginalized_fit, "brma.mv")
+  expect_true(isTRUE(marginalized_fit[["fit"]][["has_posterior"]]))
+
+  fixed_scale_fit <- suppressWarnings(brma.mv(
+    yi                        = yi,
+    V                         = V,
+    scale                     = ~ 1,
+    data                      = dat,
+    prior_scale               = list(
+      intercept = BayesTools::prior(
+        distribution = "spike",
+        parameters   = list(location = 0.10)
+      )
+    ),
+    known_v_parameterization  = "block_mvn",
+    measure                   = args[["measure"]],
+    prior_unit_information_sd = args[["prior_unit_information_sd"]],
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    convergence_checks        = args[["convergence_checks"]]
+  ))
+  expect_s3_class(fixed_scale_fit, "brma.mv")
+  expect_true(isTRUE(fixed_scale_fit[["fit"]][["has_posterior"]]))
+
+  fits <- list()
+  for (parameterization in c("whitened", "block_mvn")) {
+    fit <- suppressWarnings(brma.mv(
+      yi                        = yi,
+      V                         = V,
+      data                      = dat,
+      prior_heterogeneity       = prior_positive,
+      known_v_parameterization  = parameterization,
+      measure                   = args[["measure"]],
+      prior_unit_information_sd = args[["prior_unit_information_sd"]],
+      chains                    = args[["chains"]],
+      sample                    = args[["sample"]],
+      burnin                    = args[["burnin"]],
+      adapt                     = args[["adapt"]],
+      seed                      = args[["seed"]],
+      silent                    = args[["silent"]],
+      convergence_checks        = args[["convergence_checks"]]
+    ))
+    expect_s3_class(fit, "brma.mv")
+    expect_true(isTRUE(fit[["fit"]][["has_posterior"]]))
+    fits[[parameterization]] <- suppressWarnings(add_loo(fit))
+  }
+
+  save_fit(
+    "brma.mv_singular_regularized_whitened",
+    fits[["whitened"]],
+    info = list(data = dat, V = V)
+  )
+  save_fit(
+    "brma.mv_singular_regularized_block_mvn",
+    fits[["block_mvn"]],
+    info = list(data = dat, V = V)
   )
 })
 

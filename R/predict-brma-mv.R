@@ -9,7 +9,7 @@
 
 .predict_known_v_newdata_add_vi <- function(newdata, V_new) {
 
-  diag_v <- diag(V_new)
+  diag_v <- if (is.matrix(V_new)) diag(V_new) else as.numeric(V_new)
   if ("vi" %in% names(newdata)) {
     .predict_known_v_newdata_check_variance(
       supplied = newdata[["vi"]],
@@ -57,120 +57,171 @@
 }
 
 
-.predict_known_v_response_covariance <- function(object, data, known_V,
-                                                 posterior_samples,
-                                                 caller = "known-V response prediction") {
+.predict_brma_mv_new_effect_random_draws <- function(object, data,
+                                                     posterior_samples,
+                                                     max_bytes = NULL) {
 
-  S <- nrow(posterior_samples)
-  K <- nrow(data[["outcome"]])
+  S      <- nrow(posterior_samples)
+  K      <- nrow(data[["outcome"]])
+  out    <- matrix(0, nrow = S, ncol = K)
+  blocks <- .data_sampled_random_effect_blocks(object[["data"]])
 
-  .known_v_check_full_covariance_allocation(
-    S      = S,
-    K      = K,
-    caller = caller
-  )
-
-  covariance_samples <- array(0, dim = c(S, K, K))
-  formula_design     <- .predict_known_v_formula_design_with_row_source_values(
-    object = object,
-    data   = data
-  )
-  sampled_blocks     <- .formula_design_sampled_random_effect_blocks(formula_design)
-
-  if (length(sampled_blocks) > 0L) {
-    location_priors <- attr(object[["fit"]], "prior_list")
-    if (is.null(location_priors)) {
-      location_priors <- object[["priors"]][["location"]]
-    }
-
-    formula_fit <- .posterior_formula_fit(
-      fit               = object[["fit"]],
-      posterior_samples = posterior_samples,
-      formula_design    = TRUE
+  if (length(blocks) > 0L) {
+    formula_design <- .predict_known_v_formula_design_with_row_source_values(
+      object = object,
+      data   = data
     )
-    attr(formula_fit, "formula_design") <- list(mu = formula_design)
+    terms <- formula_design[["random_effects"]]
 
-    random_vcov <- tryCatch(
-      BayesTools::random_effects_marginal_vcov(
-        fit               = formula_fit,
-        parameter         = "mu",
-        data              = data[["location"]],
-        posterior_samples = posterior_samples,
-        prior_list        = location_priors,
-        blocks            = sampled_blocks,
-        new_levels        = "sample"
-      ),
-      error = function(e) {
-        stop(
-          "Cannot compute random-effect covariance for ", caller, ": ",
-          conditionMessage(e),
-          call. = FALSE
+    for (block in blocks) {
+      block_terms <- terms[vapply(
+        terms,
+        function(term) identical(term[["block_name"]], block),
+        logical(1)
+      )]
+      known_R <- any(vapply(
+        block_terms,
+        .random_effect_term_has_known_group_covariance,
+        logical(1)
+      ))
+      chunks <- if (known_R) {
+        .known_v_covariance_chunk_indices(
+          S         = S,
+          K         = K,
+          max_bytes = max_bytes
         )
+      } else {
+        list(seq_len(S))
       }
-    )
 
-    covariance_samples <- random_vcov[["samples"]]
-    if (length(dim(covariance_samples)) != 3L ||
-        dim(covariance_samples)[1L] != S ||
-        dim(covariance_samples)[2L] != K ||
-        dim(covariance_samples)[3L] != K) {
-      stop("Random-effect covariance samples have inconsistent dimensions.",
-           call. = FALSE)
+      for (rows in chunks) {
+        contribution <- tryCatch(
+          .evaluate.brma.random_effects(
+            fit               = object[["fit"]],
+            data              = data,
+            priors            = object[["priors"]],
+            posterior_samples = posterior_samples[rows, , drop = FALSE],
+            same_data         = FALSE,
+            required          = TRUE,
+            formula_target    = "marginal",
+            blocks            = block,
+            object            = object
+          ),
+          error = function(e) {
+            message <- conditionMessage(e)
+            if (known_R && grepl(
+              "new levels|New random-effect level|cannot include new levels",
+              message,
+              ignore.case = TRUE
+            )) {
+              stop(
+                "New-effect prediction for unseen known-R levels requires ",
+                "'R_new', which is not supported. Supply fitted known-R ",
+                "levels or omit the prediction interval. Original error: ",
+                message,
+                call. = FALSE
+              )
+            }
+            stop(e)
+          }
+        )
+        out[rows, ] <- out[rows, , drop = FALSE] + contribution
+      }
     }
   }
 
-  marginalized_variance <- .predict_known_v_newdata_marginalized_variance(
-    object            = object,
-    data              = data,
-    posterior_samples = posterior_samples
-  )
-
-  for (s in seq_len(S)) {
-    covariance_samples[s, , ] <- covariance_samples[s, , ] +
-      diag(marginalized_variance[s, ], nrow = K, ncol = K)
-  }
-
-  return(.known_v_add_base_covariance(
-    base_covariance    = known_V[["V"]],
-    covariance_samples = covariance_samples
-  ))
-}
-
-
-.predict_known_v_newdata_response_covariance <- function(object, data,
-                                                         known_V_new,
-                                                         posterior_samples) {
-
-  .predict_known_v_response_covariance(
-    object            = object,
-    data              = data,
-    known_V           = known_V_new,
-    posterior_samples = posterior_samples,
-    caller            = "known-V newdata response prediction"
-  )
-}
-
-
-.predict_known_v_newdata_marginalized_variance <- function(object, data,
-                                                           posterior_samples) {
-
-  S <- nrow(posterior_samples)
-  K <- nrow(data[["outcome"]])
-
-  if (!.data_has_marginalized_random_effects(object[["data"]])) {
-    return(matrix(0, nrow = S, ncol = K))
-  }
-
-  return(.evaluate_marginalized_random_variance(
-    data              = object[["data"]],
-    posterior_samples = posterior_samples,
-    K                 = K,
-    source_samples    = .predict_known_v_newdata_marginalized_source_samples(
+  if (.data_has_marginalized_random_effects(object[["data"]])) {
+    out <- out + .predict_known_v_marginalized_random_draws(
       object            = object,
       data              = data,
       posterior_samples = posterior_samples
     )
-  ))
+  }
+
+  return(out)
+}
+
+
+.predict_brma_mv_response_peak_bytes <- function(S, K) {
+
+  # Conservatively cover the output slice, random and sampling components,
+  # and two addition temporaries. The retained S x K output is not included.
+  5 * 8 * as.double(S) * as.double(K)
+}
+
+
+.predict_brma_mv_response_chunk_indices <- function(S, K, max_bytes = NULL) {
+
+  max_bytes      <- .known_v_covariance_max_bytes(max_bytes)
+  one_draw_bytes <- .predict_brma_mv_response_peak_bytes(1L, K)
+  if (is.finite(max_bytes) && one_draw_bytes > max_bytes) {
+    stop(
+      "A single known-V response draw requires approximately ",
+      .known_v_format_bytes(one_draw_bytes), ", exceeding the configured ",
+      "budget of ", .known_v_format_bytes(max_bytes), ". Increase option ",
+      "'RoBMA.known_v_covariance_max_bytes'.",
+      call. = FALSE
+    )
+  }
+
+  chunk_size <- if (is.infinite(max_bytes)) {
+    S
+  } else {
+    max(1L, min(S, floor(max_bytes / one_draw_bytes)))
+  }
+  starts <- seq.int(1L, S, by = chunk_size)
+
+  return(lapply(starts, function(start) {
+    seq.int(start, min(S, start + chunk_size - 1L))
+  }))
+}
+
+
+.predict_brma_mv_known_v_response_draws <- function(object, data, known_V,
+                                                     mu_samples,
+                                                     posterior_samples,
+                                                     same_data,
+                                                     max_bytes = NULL) {
+
+  S <- nrow(posterior_samples)
+  K <- nrow(data[["outcome"]])
+  if (!identical(dim(mu_samples), c(S, K))) {
+    stop("Known-V response means have inconsistent dimensions.", call. = FALSE)
+  }
+
+  chunks <- .predict_brma_mv_response_chunk_indices(
+    S         = S,
+    K         = K,
+    max_bytes = max_bytes
+  )
+  out <- mu_samples
+  for (rows in chunks) {
+    random_noise <- .predict_brma_mv_new_effect_random_draws(
+      object            = object,
+      data              = data,
+      posterior_samples = posterior_samples[rows, , drop = FALSE],
+      max_bytes         = max_bytes
+    )
+    sampling_noise <- .known_v_sampling_noise(
+      known_V,
+      S = length(rows),
+      K = K
+    )
+    out[rows, ] <- out[rows, , drop = FALSE] + random_noise + sampling_noise
+  }
+
+  attr(out, "brma_mv_response_generation") <- list(
+    method       = "component_generative",
+    same_data    = same_data,
+    chunk_size   = max(lengths(chunks)),
+    n_chunks     = length(chunks),
+    max_bytes    = .known_v_covariance_max_bytes(max_bytes),
+    working_peak = .predict_brma_mv_response_peak_bytes(
+      max(lengths(chunks)),
+      K
+    )
+  )
+  return(out)
 }
 
 
@@ -534,7 +585,7 @@
 
 
 .predict_brma_attach_mv_metadata <- function(samples, object, type, same_data,
-                                             aggregate, random_mv,
+                                             random_mv,
                                              known_V_new = NULL) {
 
   if (!inherits(object, "brma.mv")) {
@@ -545,7 +596,6 @@
     object      = object,
     type        = type,
     same_data   = same_data,
-    aggregate   = aggregate,
     random_mv   = random_mv,
     known_V_new = known_V_new
   )
@@ -562,15 +612,15 @@
 }
 
 
-.predict_brma_mv_metadata <- function(object, type, same_data, aggregate,
-                                      random_mv, known_V_new = NULL) {
+.predict_brma_mv_metadata <- function(object, type, same_data, random_mv,
+                                      known_V_new = NULL) {
 
   formula_target <- switch(type,
     "terms"       = "fixed",
     "terms.scale" = "scale",
     "cluster"     = "legacy_cluster",
     "estimate"    = if (random_mv) {
-      if (aggregate) "marginal" else "conditional"
+      if (same_data) "conditional" else "marginal"
     } else {
       "fixed_plus_heterogeneity"
     },
@@ -590,16 +640,16 @@
     formula_target
   }
   if (random_mv) {
-    if (type == "estimate" && is.null(known_V_new)) {
-      random_effect_target    <- if (aggregate) "marginal_sample" else "conditional_mean"
+    if (type == "estimate") {
+      random_effect_target    <- if (same_data) "conditional_mean" else "marginal_sample"
       random_effects_in_mean <- TRUE
-      mean_target             <- if (aggregate) {
-        "fixed_plus_marginal_random_effects"
-      } else {
+      mean_target             <- if (same_data) {
         "fixed_plus_conditional_random_effects"
+      } else {
+        "fixed_plus_marginal_random_effects"
       }
     } else if (type == "response") {
-      random_effect_target <- "marginal_covariance"
+      random_effect_target <- "marginal_sample"
     } else if (type == "terms") {
       random_effect_target <- "excluded"
     }
@@ -608,11 +658,11 @@
   response_covariance_target <- NA_character_
   if (type == "response") {
     response_covariance_target <- if (!is.null(known_V_new) && random_mv) {
-      "V_new_plus_marginal_random_effect_covariance"
+      "V_new_plus_marginal_random_effect_generation"
     } else if (!is.null(known_V_new)) {
       "V_new_plus_heterogeneity"
     } else if (random_mv && .is_data_known_v(object[["data"]]) && same_data) {
-      "known_V_plus_marginal_random_effect_covariance"
+      "known_V_plus_marginal_random_effect_generation"
     } else if (random_mv && .data_has_marginalized_random_effects(object[["data"]])) {
       "known_V_plus_marginalized_estimate_level_variance"
     } else if (.is_data_known_v(object[["data"]])) {
@@ -623,19 +673,19 @@
   }
 
   new_levels <- NA_character_
-  if (random_mv && type == "response" && !is.null(known_V_new)) {
-    new_levels <- "marginal_random_effect_covariance"
+  if (random_mv && type == "response" && !same_data) {
+    new_levels <- "marginal_new_effects"
   } else if (random_mv && !same_data) {
-    new_levels <- if (aggregate) "sample_marginally" else "sample_unseen_levels"
+    new_levels <- "marginal_new_effects"
   } else if (random_mv && same_data) {
-    new_levels <- "existing_levels_only"
+    new_levels <- if (type == "estimate") "existing_levels_only" else "marginal_fitted_design"
   }
 
   return(list(
     method                     = "predict.brma",
     class                      = "brma.mv",
     type                       = type,
-    unit                       = if (aggregate) "aggregate" else "estimate",
+    unit                       = "estimate",
     same_data                  = same_data,
     known_v                    = .is_data_known_v(object[["data"]]) || !is.null(known_V_new),
     random_formula             = random_mv,

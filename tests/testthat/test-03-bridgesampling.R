@@ -72,6 +72,11 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
       .data_known_v_data(fit_brma[["data"]])[["parameterization_requested"]],
       info = name
     )
+    expect_equal(
+      target[["known_v_effective_backend"]],
+      .data_known_v_effective_backend(fit_brma[["data"]]),
+      info = name
+    )
     if (name %in% same_model_names) {
       backend_logml[[name]] <- logml(fit_brma)
       same_models[[name]]   <- fit_brma

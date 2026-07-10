@@ -160,6 +160,10 @@ test_that("plot_prior selects brma.mv location and component-scale priors", {
   )
 
   catalog <- .brma_parameter_catalog(mv_priors)
+  expect_equal(
+    nrow(.brma_random_parameter_bundle(mv_priors)[["specs"]]),
+    0L
+  )
   expect_true(any(
     catalog[["parameter"]] == "mu_mod_cont" &
       catalog[["source"]] == "location"

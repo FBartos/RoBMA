@@ -69,6 +69,18 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' compiled as marginalized instead enter through the diagonal extra variance
 #' term prepared by BayesTools.
 #'
+#' Estimate-unit deletion retains the fitted grouping and known-\code{V}
+#' dependency structure; it does not represent deletion of an entire new random
+#' group. Models with no local effects, sampled local effects, marginalized
+#' local effects, or a mixture of sampled and marginalized effects remain
+#' comparable when their data hash, deletion unit, conditioning depth, and
+#' likelihood target agree. The sampled/marginalized labels are retained as
+#' provenance rather than comparison keys.
+#'
+#' Conditioning on sampled local effects can produce high Pareto-k values.
+#' Inspect the diagnostics with \code{\link{check_loo}} and the corresponding
+#' \pkg{loo} helpers before interpreting comparisons.
+#'
 #' The PSIS object is essential for model comparison via
 #' \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 #' RoBMA stores target metadata so comparisons can reject mismatched data,
@@ -226,6 +238,11 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' \code{R}, estimate-unit WAIC has the same conditioning convention as
 #' estimate-unit LOO: sampled random effects are conditioned on, and known
 #' \code{R} is not added again as a marginal \eqn{ZGZ'} covariance term.
+#' Estimate deletion retains the fitted grouping/dependency structure, and the
+#' same four-field comparison policy applies across sampled, marginalized, and
+#' mixed local-effect representations. WAIC can be more sensitive than LOO to
+#' whether local effects are sampled or marginalized, so compare its values
+#' with that representation dependence in mind.
 #'
 #' @return The brma object with the WAIC result stored in
 #' \code{object[["waic"]][[unit]]}.
@@ -342,42 +359,83 @@ loo.brma <- function(x, unit = "estimate", ...) {
 }
 
 
-#' @title Extract Log-Likelihood Matrix from brma Object
+#' @title Extract Pointwise Log-Likelihood Draws
 #'
-#' @description Extract the pointwise log-likelihood matrix from a brma model
-#' object. This is an S x K or S x G matrix where S is the number of posterior
-#' samples, K is the number of estimates, and G is the number of clusters.
-#' This method implements the S3
-#' \'logLik\' generic for \code{brma} objects and returns the matrix of
-#' pointwise log-likelihoods (one column per observation, one row per sample).
+#' @description Extract posterior pointwise log-likelihood draws from a fitted
+#' \code{brma} object. The result is an \eqn{S \times K} or \eqn{S \times G}
+#' matrix, where \eqn{S} is the number of posterior draws, \eqn{K} is the
+#' number of estimates, and \eqn{G} is the number of clusters.
 #'
 #' @param object a brma model object.
 #' @param unit output unit. See \code{\link{add_loo}}.
 #' @param ... currently unused.
 #'
 #' @details
-#' The log-likelihood is computed for each observation at each posterior sample.
+#' This function returns posterior log-likelihood draws, not a scalar maximized
+#' log-likelihood. RoBMA therefore does not implement \code{stats::logLik()}.
+#'
+#' The log-likelihood is computed for each target at each posterior sample.
 #' For binomial and Poisson models, each observation consists of a pair of
 #' counts (ai/ci or x1i/x2i) that together define a single effect size estimate.
+#' For correlated known-\code{V} \code{brma.mv()} models, estimate-unit columns
+#' are Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}. Their row sum
+#' is not presented as a full joint likelihood.
 #'
-#' @return An S x K or S x G matrix of log-likelihood values.
+#' @return An \eqn{S \times K} or \eqn{S \times G} matrix of pointwise
+#' log-likelihood draws with \code{RoBMA_target} metadata.
 #'
-#' @seealso \code{\link{loo.brma}}
+#' @seealso \code{\link{loo.brma}}, \code{\link{add_waic}}
 #'
 #' @export
-logLik.brma <- function(object, unit = "estimate", ...) {
-  out <- .log_lik.brma(object, unit = unit, caller = "logLik()")
-  class(out) <- c("logLik.brma", class(out))
-  return(out)
+log_lik <- function(object, ...) UseMethod("log_lik")
+
+
+#' @rdname log_lik
+#' @export
+log_lik.brma <- function(object, unit = "estimate", ...) {
+
+  return(.log_lik.brma(object, unit = unit, caller = "log_lik()"))
 }
 
 
+#' @title Unsupported Information Criteria for brma Objects
+#'
+#' @description `brma` objects expose posterior pointwise log-likelihood draws,
+#' not a maximized scalar log-likelihood. AIC and BIC are therefore undefined
+#' and these methods always stop with an explicit error.
+#'
+#' @param object a brma model object.
+#' @param ... ignored.
+#' @param k ignored; retained for the \code{stats::AIC()} method signature.
+#'
+#' @return These methods do not return a value.
+#'
+#' @seealso \code{\link{log_lik}}, \code{\link{loo.brma}},
+#'   \code{\link{waic.brma}}
+#'
+#' @rdname information_criteria_brma
 #' @export
-print.logLik.brma <- function(x, ...) {
-  S <- if (is.matrix(x)) nrow(x) else length(x)
-  K <- if (is.matrix(x)) ncol(x) else 1
-  cat(sprintf("%d*%d pointwise log-likelihood matrix\n", S, K))
-  invisible(x)
+AIC.brma <- function(object, ..., k = 2) {
+
+  stop(
+    "AIC() is not defined for brma objects because RoBMA does not expose a ",
+    "scalar maximized likelihood. Use loo() or waic() for predictive model ",
+    "assessment.",
+    call. = FALSE
+  )
+}
+
+
+#' @rdname information_criteria_brma
+#' @export
+BIC.brma <- function(object, ...) {
+
+  stop(
+    "BIC() is not defined for brma objects because RoBMA does not expose a ",
+    "scalar maximized likelihood. Use loo() or waic() for predictive model ",
+    "assessment.",
+    call. = FALSE
+  )
 }
 
 
@@ -407,7 +465,10 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' out-of-sample predictive performance. This evaluates how well models predict
 #' \emph{new} observations, not how well they fit the observed data.
 #' RoBMA rejects comparisons with different outcome targets/data, \code{unit},
-#' or implied \code{conditioning_depth}.
+#' or implied \code{conditioning_depth}. The same compatibility key is applied
+#' separately to LOO and WAIC; the two criteria cannot be mixed in one
+#' comparison table. Sampled versus marginalized local-effect provenance does
+#' not by itself block comparison.
 #'
 #' @return A matrix of class \code{"compare.loo"} as returned by
 #' \code{\link[loo]{loo_compare}}.

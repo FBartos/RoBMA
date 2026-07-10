@@ -24,13 +24,54 @@ test_that("forest level normalization accepts documented percent values", {
   )
 })
 
+
+test_that("forest detects compiled random-slope ambiguity", {
+
+  dat <- data.frame(
+    yi    = c(.1, .2, .3),
+    x     = c(0, 1, 2),
+    study = c("s1", "s2", "s3")
+  )
+  intercept <- brma.mv(
+    yi                        = yi,
+    V                         = diag(c(.04, .05, .06)),
+    random                    = ~ 1 | study,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  slope <- brma.mv(
+    yi                        = yi,
+    V                         = diag(c(.04, .05, .06)),
+    random                    = ~ us(1 + x | study),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  slope_only <- brma.mv(
+    yi                        = yi,
+    V                         = diag(c(.04, .05, .06)),
+    random                    = ~ us(0 + x | study),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  expect_false(.forest_prediction_design_is_ambiguous(intercept))
+  expect_true(.forest_prediction_design_is_ambiguous(slope))
+  expect_true(.forest_prediction_design_is_ambiguous(slope_only))
+})
+
 # list cached fits lazily
 skip_if_no_fits()
 fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 info      <- lazy_infos(fit_names, validate = FALSE)
 
-.test_forest <- function(x, ..., addpred = TRUE) {
+.test_forest <- function(x, ..., addpred = FALSE) {
 
   suppressWarnings(metafor::forest(x, addpred = addpred, ...))
 }
@@ -130,10 +171,15 @@ test_that("as_metafor_forest returns metafor-ready vector arguments", {
   expect_true(
     all(is.finite(unlist(out[["pooled"]][
       1,
-      c("estimate", "ci.lb", "ci.ub", "pi.lb", "pi.ub")
+      c("estimate", "ci.lb", "ci.ub")
     ])))
   )
-  expect_equal(out[["addpoly_args"]][["x"]], out[["pooled"]][["estimate"]])
+  expect_true(all(is.finite(unlist(out[["prediction"]]))))
+  expect_true(all(is.na(out[["pooled"]][c("pi.lb", "pi.ub")])))
+  expect_equal(
+    out[["addpoly_args"]][["x"]],
+    out[["prediction"]][["estimate"]]
+  )
   expect_true(is.finite(attributes(out[["addpoly_args"]][["pi.lb"]])[["se"]]))
   expect_identical(out[["addpoly_args"]][["rows"]], -1)
   expect_identical(out[["addpoly_args"]][["predstyle"]], "bar")
@@ -184,7 +230,7 @@ test_that("as_metafor_forest supports representative fitted object families", {
 
   for (name in .forest_core_names) {
     fit <- fits[[name]]
-    out <- as_metafor_forest(fit, addpred = TRUE)
+    out <- as_metafor_forest(fit, addpred = FALSE)
 
     expect_true(inherits(out, "metafor_forest.brma"), info = name)
     expect_equal(nrow(out[["studies"]]), nobs(fit), info = name)
@@ -195,9 +241,79 @@ test_that("as_metafor_forest supports representative fitted object families", {
     expect_true(all(is.finite(out[["pooled"]][["estimate"]])), info = name)
     expect_true(all(is.finite(out[["pooled"]][["ci.lb"]])), info = name)
     expect_true(all(is.finite(out[["pooled"]][["ci.ub"]])), info = name)
-    expect_true(all(is.finite(out[["pooled"]][["pi.lb"]])), info = name)
-    expect_true(all(is.finite(out[["pooled"]][["pi.ub"]])), info = name)
+    expect_null(out[["prediction"]], info = name)
+    expect_false(out[["addpred"]], info = name)
   }
+})
+
+test_that("forest prediction uses one explicit moderator row throughout", {
+
+  name <- "bcg_meta-regression"
+  skip_if_missing_fits(name)
+
+  fit     <- fits[[name]]
+  newdata <- data.frame(ablat = 70, year = 1980)
+  expected_terms <- .forest_summary_row(predict(
+    fit,
+    newdata = newdata,
+    type    = "terms",
+    quiet   = TRUE
+  ))
+  set.seed(91)
+  expected_effect <- .forest_summary_row(predict(
+    fit,
+    newdata = newdata,
+    type    = "estimate",
+    quiet   = TRUE
+  ))
+  set.seed(91)
+  out <- as_metafor_forest(
+    fit,
+    newdata = newdata,
+    addpred = TRUE
+  )
+
+  expect_equal(out[["prediction"]][["estimate"]], expected_terms[["estimate"]])
+  expect_equal(out[["prediction"]][["ci.lb"]], expected_terms[["ci.lb"]])
+  expect_equal(out[["prediction"]][["ci.ub"]], expected_terms[["ci.ub"]])
+  expect_equal(out[["prediction"]][["pi.lb"]], expected_effect[["ci.lb"]])
+  expect_equal(out[["prediction"]][["pi.ub"]], expected_effect[["ci.ub"]])
+  expect_equal(out[["addpoly_args"]][["x"]], expected_terms[["estimate"]])
+  expect_identical(out[["addpoly_args"]][["mlab"]], "Predicted Effect")
+  expect_error(
+    as_metafor_forest(fit, addpred = TRUE),
+    "requires one explicit 'newdata' row",
+    fixed = TRUE
+  )
+  expect_error(
+    as_metafor_forest(
+      fit,
+      newdata = rbind(newdata, newdata),
+      addpred = TRUE
+    ),
+    "exactly one 'newdata' row",
+    fixed = TRUE
+  )
+})
+
+test_that("forest known-R prediction requires supported explicit levels", {
+
+  name <- "brma.mv_block_mvn_known_R"
+  skip_if_missing_fits(name)
+
+  fit     <- fits[[name]]
+  newdata <- data.frame(x = 0, z = -1, study = "s1")
+  set.seed(92)
+  out <- as_metafor_forest(fit, newdata = newdata, addpred = TRUE)
+
+  expect_true(all(is.finite(unlist(out[["prediction"]]))))
+  expect_identical(out[["addpoly_args"]][["mlab"]], "Predicted Effect")
+
+  newdata[["study"]] <- "unseen"
+  expect_error(
+    as_metafor_forest(fit, newdata = newdata, addpred = TRUE),
+    "R_new"
+  )
 })
 
 

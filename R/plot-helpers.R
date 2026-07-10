@@ -45,7 +45,8 @@
 }
 
 .component_values <- function(allow_auto = FALSE, allow_all = FALSE,
-                              allow_outcome = FALSE, allow_bias = FALSE) {
+                              allow_outcome = FALSE, allow_bias = FALSE,
+                              allow_random = FALSE) {
 
   values <- c("mods", "location", "scale")
   if (allow_outcome) {
@@ -53,6 +54,9 @@
   }
   if (allow_bias) {
     values <- c(values, "bias")
+  }
+  if (allow_random) {
+    values <- c(values, "random")
   }
   if (allow_all) {
     values <- c(values, "all")
@@ -67,6 +71,7 @@
 .component_normalize <- function(component, argument = "component",
                                  allow_auto = FALSE, allow_all = FALSE,
                                  allow_outcome = FALSE, allow_bias = FALSE,
+                                 allow_random = FALSE,
                                  null = "auto",
                                  location_value = c("mods", "location")) {
 
@@ -82,7 +87,8 @@
       allow_auto    = allow_auto,
       allow_all     = allow_all,
       allow_outcome = allow_outcome,
-      allow_bias    = allow_bias
+      allow_bias    = allow_bias,
+      allow_random  = allow_random
     )
   )
 
@@ -99,6 +105,7 @@
     component      = component,
     allow_auto     = TRUE,
     allow_bias     = TRUE,
+    allow_random   = TRUE,
     location_value = "mods"
   )
 }
@@ -131,7 +138,7 @@
 
   if (identical(component, "mods")) {
     if (.is_mods(object) || .is_random(object)) {
-      return("intercept")
+      return(.brma_parameter_default_formula(object, "mods"))
     }
     return("mu")
   }
@@ -144,7 +151,7 @@
           call. = FALSE
         )
       }
-      return("intercept")
+      return(.brma_parameter_default_formula(object, "scale"))
     }
     if (!is.null(object[["priors"]][["outcome"]][["tau"]])) {
       return("tau")
@@ -154,12 +161,35 @@
   if (identical(component, "bias")) {
     stop("Specify 'parameter' when component = 'bias'.", call. = FALSE)
   }
+  if (identical(component, "random")) {
+    stop("Specify 'parameter' when component = 'random'.", call. = FALSE)
+  }
 
-  if (.is_mods(object)) {
-    return("mu")
+  if (.is_mods(object) || .is_random(object)) {
+    return(.brma_parameter_default_formula(object, "mods"))
   }
 
   return("mu")
+}
+
+.brma_parameter_default_formula <- function(object, component) {
+
+  catalog <- .brma_parameter_catalog(object)
+  rows    <- catalog[catalog[["component"]] == component, , drop = FALSE]
+  if (any(rows[["alias"]] == "intercept")) {
+    return("intercept")
+  }
+
+  parameters <- unique(rows[["parameter"]])
+  if (length(parameters) == 1L) {
+    return(parameters)
+  }
+
+  stop(
+    "Specify 'parameter' when component = '", component,
+    "' because the fitted formula has no intercept.",
+    call. = FALSE
+  )
 }
 
 .brma_parameter_select <- function(object, parameter,
@@ -242,9 +272,11 @@
 
   if (.is_mods(object) || .is_random(object)) {
     location_source <- if (.is_random(object)) "location" else "mods"
-    add("mu_intercept", "mods", "intercept",
-        c("mu_intercept", "mu", "intercept"),
-        source = location_source, formula_parameter = "mu")
+    if (.fitted_formula_has_intercept(object, "mu", required = FALSE)) {
+      add("mu_intercept", "mods", "intercept",
+          c("mu_intercept", "mu", "intercept"),
+          source = location_source, formula_parameter = "mu")
+    }
     .brma_parameter_catalog_terms(
       object            = object,
       model_parameter   = "mu",
@@ -275,9 +307,12 @@
           paste0(component_aliases, "_intercept")
         )
       }
-      add(intercept_parameter, "scale", "intercept",
-          intercept_aliases, source = "scale",
-          formula_parameter = formula_parameter)
+      if (.fitted_formula_has_intercept(
+          object, formula_parameter, required = FALSE)) {
+        add(intercept_parameter, "scale", "intercept",
+            intercept_aliases, source = "scale",
+            formula_parameter = formula_parameter)
+      }
       .brma_parameter_catalog_terms(
         object            = object,
         model_parameter   = formula_parameter,
@@ -308,6 +343,28 @@
 
   if (!is.null(outcome_priors[["bias"]])) {
     add("bias", "bias", "bias", "bias", source = "bias")
+  }
+
+  if (.is_random(object)) {
+    random_specs <- .brma_random_parameter_bundle(object)[["specs"]]
+    if (nrow(random_specs) > 0L) {
+      for (i in seq_len(nrow(random_specs))) {
+        spec <- random_specs[i, , drop = FALSE]
+        add(
+          parameter         = spec[["parameter"]],
+          component         = "random",
+          term              = spec[["label"]],
+          aliases           = c(
+            spec[["parameter"]],
+            spec[["label"]],
+            spec[["summary_type"]],
+            paste0("(", spec[["formula_parameter"]], ") ", spec[["label"]])
+          ),
+          source            = "random",
+          formula_parameter = spec[["formula_parameter"]]
+        )
+      }
+    }
   }
 
   out <- do.call(rbind, rows)
@@ -472,6 +529,34 @@
   }
 
   return(parameters)
+}
+
+.brma_as_mixed_posteriors <- function(object, parameters, conditional = NULL,
+                                      ...) {
+
+  fit        <- object[["fit"]]
+  prior_list <- attr(fit, "prior_list", exact = TRUE)
+
+  if (!is.null(prior_list)) {
+    protected <- unique(c(parameters, conditional))
+    drop <- vapply(prior_list, function(prior) {
+      prior_attributes <- names(attributes(prior))
+      BayesTools::is.prior.vector(prior) &&
+        any(startsWith(prior_attributes, "random_"))
+    }, logical(1))
+    drop[names(prior_list) %in% protected] <- FALSE
+
+    if (any(drop)) {
+      attr(fit, "prior_list") <- prior_list[!drop]
+    }
+  }
+
+  BayesTools::as_mixed_posteriors(
+    model       = fit,
+    parameters  = parameters,
+    conditional = conditional,
+    ...
+  )
 }
 
 .plot_parameter_label <- function(parameter, effect_transform = NULL) {
