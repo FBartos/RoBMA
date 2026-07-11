@@ -40,3 +40,4 @@ CLAUDE.md
 
 # StatsVault local workspace and generated agent bridges
 .StatsVault/
+/tools/rma-mv-parity

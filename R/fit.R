@@ -68,8 +68,9 @@
     known_v_whitened  <- .is_data_known_v_backend(data, "whitened")
     known_v_block_mvn <- .is_data_known_v_backend(data, "block_mvn")
     if (known_v_whitened) {
-      known_V <- .data_known_v_data(data)
-      if (!is.null(known_V[["whitening_blocks"]])) {
+      known_V         <- .data_known_v_data(data)
+      whitening_blocks <- .known_v_backend_blocks(known_V, "whitened")
+      if (!is.null(whitening_blocks)) {
         independent <- .known_v_independent_indices(known_V)
         fit_data <- list()
         if (length(independent) > 0L) {
@@ -79,8 +80,8 @@
           fit_data[["known_v_independent_var"]]   <-
             .known_v_diagonal(known_V)[independent]
         }
-        for (b in seq_along(known_V[["whitening_blocks"]])) {
-          block <- known_V[["whitening_blocks"]][[b]]
+        for (b in seq_along(whitening_blocks)) {
+          block <- whitening_blocks[[b]]
           index <- block[["index"]]
           fit_data[[paste0("whitening_y_", b)]] <- as.vector(
             block[["rotation"]] %*% yi[index]
@@ -89,15 +90,17 @@
           fit_data[[paste0("whitening_matrix_", b)]] <- block[["rotation"]]
         }
       } else {
+        whitening <- .known_v_legacy_whitening(known_V)
         fit_data <- list(
-          whitening_y      = as.vector(known_V[["whitening_matrix"]] %*% yi),
-          whitening_var    = known_V[["whitening_variance"]],
-          whitening_matrix = known_V[["whitening_matrix"]]
+          whitening_y      = as.vector(whitening[["matrix"]] %*% yi),
+          whitening_var    = whitening[["variance"]],
+          whitening_matrix = whitening[["matrix"]]
         )
       }
     } else if (known_v_block_mvn) {
       known_V <- .data_known_v_data(data)
       fit_data <- list()
+      block_mvn_blocks <- .known_v_backend_blocks(known_V, "block_mvn")
 
       independent <- .known_v_independent_indices(known_V)
       if (length(independent) > 0L) {
@@ -107,8 +110,8 @@
         fit_data[["known_v_independent_var"]]   <- .known_v_diagonal(known_V)[independent]
       }
 
-      for (b in seq_along(known_V[["block_mvn_blocks"]])) {
-        block <- known_V[["block_mvn_blocks"]][[b]]
+      for (b in seq_along(block_mvn_blocks)) {
+        block <- block_mvn_blocks[[b]]
         if (block[["size"]] > 1L) {
           fit_data[[paste0("known_v_y_", b)]]     <- yi[block[["index"]]]
           fit_data[[paste0("known_v_lower_", b)]] <- block[["v_lower"]]
@@ -140,21 +143,22 @@
 
     if (.is_data_known_v_backend(data, c("latent", "diagonal"))) {
       known_V <- .data_known_v_data(data)
-      fit_data[["sampling_var"]] <- known_V[["residual_variance"]]
-      if (known_V[["rank"]] > 0L) {
-        if (!is.null(known_V[["latent_blocks"]])) {
+      latent_blocks <- .known_v_backend_blocks(known_V, "latent")
+      fit_data[["sampling_var"]] <- .known_v_residual_variance(known_V)
+      if (.known_v_rank(known_V) > 0L) {
+        if (!is.null(latent_blocks)) {
           independent <- .known_v_independent_indices(known_V)
           if (length(independent) > 0L) {
             fit_data[["known_v_independent_n"]]     <- length(independent)
             fit_data[["known_v_independent_index"]] <- independent
           }
-          for (b in seq_along(known_V[["latent_blocks"]])) {
+          for (b in seq_along(latent_blocks)) {
             fit_data[[paste0("sampling_B_", b)]] <-
-              known_V[["latent_blocks"]][[b]][["B"]]
+              latent_blocks[[b]][["B"]]
           }
         } else {
-          fit_data[["sampling_rank"]] <- known_V[["rank"]]
-          fit_data[["sampling_B"]] <- known_V[["B"]]
+          fit_data[["sampling_rank"]] <- .known_v_rank(known_V)
+          fit_data[["sampling_B"]] <- .known_v_legacy_latent_factor(known_V)
         }
       }
     }
@@ -313,8 +317,9 @@
   }
 
   if (is_known_v_latent && known_v_rank > 0L) {
-    known_V <- .data_known_v_data(data)
-    if (!is.null(known_V[["latent_blocks"]])) {
+    known_V      <- .data_known_v_data(data)
+    latent_blocks <- .known_v_backend_blocks(known_V, "latent")
+    if (!is.null(latent_blocks)) {
       independent <- .known_v_independent_indices(known_V)
       if (length(independent) > 0L) {
         model_syntax <- paste0(
@@ -324,8 +329,8 @@
           "}\n"
         )
       }
-      for (b in seq_along(known_V[["latent_blocks"]])) {
-        block <- known_V[["latent_blocks"]][[b]]
+      for (b in seq_along(latent_blocks)) {
+        block <- latent_blocks[[b]]
         for (j in seq_along(block[["index"]])) {
           model_syntax <- paste0(
             model_syntax,
@@ -529,8 +534,9 @@
 
   model_syntax <- paste0(model_syntax, "}\n")
   if (outcome_type == "norm" && is_known_v_whitened) {
-    known_V <- .data_known_v_data(data)
-    if (!is.null(known_V[["whitening_blocks"]])) {
+    known_V          <- .data_known_v_data(data)
+    whitening_blocks <- .known_v_backend_blocks(known_V, "whitened")
+    if (!is.null(whitening_blocks)) {
       independent <- .known_v_independent_indices(known_V)
       if (length(independent) > 0L) {
         independent_extra <- if (is_random) {
@@ -550,8 +556,8 @@
           "}\n"
         )
       }
-      for (b in seq_along(known_V[["whitening_blocks"]])) {
-        block <- known_V[["whitening_blocks"]][[b]]
+      for (b in seq_along(whitening_blocks)) {
+        block <- whitening_blocks[[b]]
         index <- block[["index"]]
         for (j in seq_along(index)) {
           model_syntax <- paste0(
@@ -603,6 +609,7 @@
   }
   if (outcome_type == "norm" && is_known_v_block_mvn) {
     known_V <- .data_known_v_data(data)
+    block_mvn_blocks <- .known_v_backend_blocks(known_V, "block_mvn")
 
     independent <- .known_v_independent_indices(known_V)
     if (length(independent) > 0L) {
@@ -617,8 +624,8 @@
       )
     }
 
-    for (b in seq_along(known_V[["block_mvn_blocks"]])) {
-      block <- known_V[["block_mvn_blocks"]][[b]]
+    for (b in seq_along(block_mvn_blocks)) {
+      block <- block_mvn_blocks[[b]]
       idx   <- block[["index"]]
 
       for (j in seq_along(idx)) {
@@ -904,17 +911,17 @@
 }
 .data_known_v_parameterization  <- function(data) {
   known_V <- .data_known_v_data(data)
-  if (is.null(known_V) || is.null(known_V[["parameterization"]])) {
+  if (is.null(known_V) || is.null(.known_v_parameterization(known_V))) {
     return("latent")
   }
-  return(known_V[["parameterization"]])
+  return(.known_v_parameterization(known_V))
 }
 .data_known_v_effective_backend <- function(data) {
   known_V <- .data_known_v_data(data)
-  if (is.null(known_V) || is.null(known_V[["effective_backend"]])) {
+  if (is.null(known_V) || is.null(.known_v_effective_backend(known_V))) {
     return(.data_known_v_parameterization(data))
   }
-  return(known_V[["effective_backend"]])
+  return(.known_v_effective_backend(known_V))
 }
 .is_data_known_v_backend <- function(data, backend) {
   return(
@@ -927,17 +934,17 @@
 }
 .data_known_v_rank        <- function(data) {
   known_V <- .data_known_v_data(data)
-  if (is.null(known_V) || is.null(known_V[["rank"]])) {
+  if (is.null(known_V)) {
     return(0L)
   }
-  return(known_V[["rank"]])
+  return(.known_v_rank(known_V))
 }
 .data_known_v_correlated  <- function(data) {
   known_V <- .data_known_v_data(data)
   if (is.null(known_V)) {
     return(FALSE)
   }
-  return(isTRUE(known_V[["correlated"]]))
+  return(.known_v_is_correlated(known_V))
 }
 .data_outcome_type        <- function(data) {
   return(attr(data, "outcome_type"))

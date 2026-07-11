@@ -929,8 +929,10 @@
       for (s in seq_len(S)) {
         covariance <- V_block
         diag(covariance) <- diag(covariance) + total_variance[s, idx]
-        chol_covariance <- try(chol(covariance), silent = TRUE)
-        if (inherits(chol_covariance, "try-error")) {
+        chol_covariance <- .covariance_cholesky(
+          .covariance_factorization(covariance)
+        )
+        if (is.null(chol_covariance)) {
           stop(
             "Cannot solve marginalized random-effect BLUP covariance block; ",
             "covariance is not positive definite.",
@@ -1096,15 +1098,15 @@
     }
 
     if (constant_tau) {
-      eigen_v     <- eigen(V_block, symmetric = TRUE)
+      eigen_v     <- .covariance_factorization(V_block)
       tau2        <- tau_block[, 1L]^2
-      denominator <- outer(tau2, eigen_v[["values"]], "+")
+      denominator <- outer(tau2, eigen_v[["decomposition_values"]], "+")
       if (any(!is.finite(denominator) | denominator <= 0)) {
         stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
              call. = FALSE)
       }
-      solved <- (residual %*% eigen_v[["vectors"]] / denominator) %*%
-        t(eigen_v[["vectors"]])
+      solved <- (residual %*% eigen_v[["eigenvectors"]] / denominator) %*%
+        t(eigen_v[["eigenvectors"]])
       true_effects_samples[, idx] <- mu_samples[, idx, drop = FALSE] +
         solved * tau2
       next
@@ -1114,8 +1116,8 @@
       tau2    <- tau_block[s, ]^2
       M_block <- V_block
       diag(M_block) <- diag(M_block) + tau2
-      chol_m  <- try(chol(M_block), silent = TRUE)
-      if (inherits(chol_m, "try-error")) {
+      chol_m  <- .covariance_cholesky(.covariance_factorization(M_block))
+      if (is.null(chol_m)) {
         stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
              call. = FALSE)
       }
@@ -1269,9 +1271,9 @@
 
   covariance <- diag(diagonal, nrow = length(diagonal), ncol = length(diagonal)) +
     tcrossprod(rank_one)
-  chol_m <- try(chol(covariance), silent = TRUE)
+  chol_m <- .covariance_cholesky(.covariance_factorization(covariance))
 
-  if (inherits(chol_m, "try-error")) {
+  if (is.null(chol_m)) {
     stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
          call. = FALSE)
   }
@@ -1419,7 +1421,7 @@
 
   known_V <- .data_known_v_data(data)
   if (is.null(known_V) || !.is_data_known_v_backend(data, "latent") ||
-      known_V[["rank"]] == 0L) {
+      .known_v_rank(known_V) == 0L) {
     K <- nrow(data[["outcome"]])
     posterior_samples <- .get_posterior_samples(fit, posterior_samples)
     return(matrix(0, nrow = nrow(posterior_samples), ncol = K))
@@ -1429,7 +1431,7 @@
   z_samples <- .extract_posterior_matrix(
     posterior_samples = posterior_samples,
     parameter         = "sampling_z",
-    K                 = known_V[["rank"]]
+    K                 = .known_v_rank(known_V)
   )
 
   sampling_dependency <- .known_v_latent_apply(known_V, z_samples)

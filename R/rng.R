@@ -66,9 +66,7 @@
 # Draw known-V sampling noise without materializing a global covariance factor.
 .known_v_sampling_noise <- function(known_V, S, K) {
 
-  has_canonical_covariance <- !is.null(known_V[["storage"]]) ||
-    !is.null(known_V[["diagonal"]]) ||
-    !is.null(known_V[["V"]])
+  has_canonical_covariance <- .known_v_has_canonical_representation(known_V)
 
   if (has_canonical_covariance) {
     if (.known_v_nrow(known_V) != K) {
@@ -105,8 +103,9 @@
     return(sampling_noise)
   }
 
-  if (!is.null(known_V[["sampling_factor"]])) {
-    factor <- known_V[["sampling_factor"]]
+  legacy <- .known_v_legacy_sampling(known_V)
+  if (!is.null(legacy[["factor"]])) {
+    factor <- legacy[["factor"]]
     if (!is.matrix(factor) || !identical(dim(factor), c(K, K))) {
       stop("Legacy known-V sampling factor has inconsistent dimensions.",
            call. = FALSE)
@@ -114,9 +113,9 @@
     return(matrix(stats::rnorm(S * K), nrow = S, ncol = K) %*% factor)
   }
 
-  rank <- known_V[["rank"]]
-  B    <- known_V[["B"]]
-  sei  <- known_V[["residual_sei"]]
+  rank <- legacy[["rank"]]
+  B    <- legacy[["B"]]
+  sei  <- legacy[["sei"]]
   if (is.null(rank) || is.null(B) || is.null(sei) ||
       !is.matrix(B) || nrow(B) != K || ncol(B) != rank || length(sei) != K) {
     stop("Legacy known-V sampling metadata are incomplete or inconsistent.",
@@ -154,17 +153,20 @@
 
   response_samples <- mu_samples
   for (s in seq_len(S)) {
-    covariance <- (covariance_samples[s, , ] + t(covariance_samples[s, , ])) / 2
-    eig        <- eigen(covariance, symmetric = TRUE)
-    values     <- eig[["values"]]
-    tolerance  <- sqrt(.Machine$double.eps) * max(1, max(abs(values)))
-    if (min(values) < -tolerance) {
+    covariance <- matrix(
+      covariance_samples[s, , ],
+      nrow = K,
+      ncol = K
+    )
+    factorization <- .covariance_factorization(covariance)
+    factor        <- .covariance_sampling_factor(factorization)
+    if (is.null(factor)) {
       stop("Known-V response covariance is not positive semidefinite.",
            call. = FALSE)
     }
 
     response_samples[s, ] <- mu_samples[s, ] +
-      as.vector(eig[["vectors"]] %*% (sqrt(pmax(values, 0)) * stats::rnorm(K)))
+      as.vector(stats::rnorm(K) %*% factor)
   }
 
   return(response_samples)

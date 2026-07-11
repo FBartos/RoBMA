@@ -546,34 +546,25 @@
 
 .known_v_chol_covariance <- function(covariance, context) {
 
-  if (!.known_v_is_numerically_positive_definite(covariance)) {
-    .known_v_stop_non_positive_definite_covariance(covariance, context)
-  }
-
-  chol_covariance <- tryCatch(
-    chol(covariance),
-    error = function(e) NULL
-  )
+  factorization <- .covariance_factorization(covariance)
+  chol_covariance <- .covariance_cholesky(factorization)
   if (is.null(chol_covariance)) {
     .known_v_stop_non_positive_definite_covariance(covariance, context)
   }
 
-  return(chol_covariance)
+  chol_covariance
 }
 
 
 .known_v_stop_non_positive_definite_covariance <- function(covariance, context) {
 
-  eigenvalues <- tryCatch(
-    eigen((covariance + t(covariance)) / 2,
-          symmetric = TRUE, only.values = TRUE)[["values"]],
+  factorization <- tryCatch(
+    .covariance_factorization(covariance),
     error = function(e) NULL
   )
 
-  if (!is.null(eigenvalues)) {
-    tolerance <- sqrt(.Machine$double.eps) *
-      max(1, max(abs(eigenvalues)))
-    if (min(eigenvalues) >= -tolerance) {
+  if (!is.null(factorization)) {
+    if (.covariance_is_positive_semidefinite(factorization)) {
       stop(
         "Known-V ", context, " covariance is positive semidefinite, ",
         "not positive definite; this Cholesky-based target is not ",

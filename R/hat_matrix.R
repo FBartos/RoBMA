@@ -445,7 +445,9 @@
     index      <- block[["index"]]
     covariance <- block[["covariance"]]
     diag(covariance) <- diag(covariance) + extra_variance[index]
-    chol_covariance <- tryCatch(chol(covariance), error = function(e) NULL)
+    chol_covariance <- .covariance_cholesky(
+      .covariance_factorization(covariance)
+    )
     if (is.null(chol_covariance)) {
       stop("Known-V residual covariance is not positive definite.", call. = FALSE)
     }

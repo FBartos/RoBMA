@@ -714,9 +714,13 @@ add_marglik.brma <- function(object, ...) {
   } else {
     NULL
   }
-  sampling_rank <- if (!is.null(known_V) &&
-                       !is.null(known_V[["latent_blocks"]])) {
-    known_V[["rank"]]
+  latent_blocks <- if (is.null(known_V)) {
+    NULL
+  } else {
+    .known_v_backend_blocks(known_V, "latent")
+  }
+  sampling_rank <- if (!is.null(latent_blocks)) {
+    .known_v_rank(known_V)
   } else {
     data[["sampling_rank"]]
   }
@@ -733,9 +737,9 @@ add_marglik.brma <- function(object, ...) {
     sampling_z <- unlist(parameters[sampling_z_names], use.names = FALSE)
   }
 
-  if (!is.null(known_V) && !is.null(known_V[["latent_blocks"]])) {
+  if (!is.null(latent_blocks)) {
     sampling_dependency <- numeric(K)
-    for (block in known_V[["latent_blocks"]]) {
+    for (block in latent_blocks) {
       if (block[["rank"]] == 0L) {
         next
       }
@@ -897,7 +901,12 @@ add_marglik.brma <- function(object, ...) {
     NULL
   }
 
-  if (!is.null(known_V) && !is.null(known_V[["whitening_blocks"]])) {
+  whitening_blocks <- if (is.null(known_V)) {
+    NULL
+  } else {
+    .known_v_backend_blocks(known_V, "whitened")
+  }
+  if (!is.null(whitening_blocks)) {
     log_lik <- numeric(K)
     variance <- numeric(K)
 
@@ -918,8 +927,8 @@ add_marglik.brma <- function(object, ...) {
       )
     }
 
-    for (b in seq_along(known_V[["whitening_blocks"]])) {
-      block         <- known_V[["whitening_blocks"]][[b]]
+    for (b in seq_along(whitening_blocks)) {
+      block         <- whitening_blocks[[b]]
       index         <- block[["index"]]
       whitening_mu  <- as.vector(
         block[["rotation"]] %*% as.numeric(mu_samples[1L, index])
@@ -978,7 +987,7 @@ add_marglik.brma <- function(object, ...) {
     yi <- -yi
   }
 
-  if (!is.null(known_V[["version"]]) && known_V[["version"]] >= 2L) {
+  if (.known_v_has_canonical_representation(known_V)) {
     independent <- .known_v_independent_indices(known_V)
     if (length(independent) > 0L) {
       variance <- .known_v_diagonal(known_V)[independent] +
@@ -1005,7 +1014,7 @@ add_marglik.brma <- function(object, ...) {
   } else {
     block_indices <- .known_v_dependency_blocks(data = model_data, K = K)
     for (idx in block_indices) {
-      covariance <- known_V[["V"]][idx, idx, drop = FALSE] +
+      covariance <- .known_v_materialize(known_V)[idx, idx, drop = FALSE] +
         diag(as.numeric(extra_variance[1L, idx]), nrow = length(idx))
       log_lik <- log_lik + .marglik_mvn_log_density(
         y          = yi[idx],

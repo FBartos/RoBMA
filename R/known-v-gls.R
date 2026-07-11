@@ -526,11 +526,9 @@
 # ---------------------------------------------------------------------------- #
 .known_v_gls_projection <- function(X, y, covariance) {
 
-  covariance <- (covariance + t(covariance)) / 2
-  chol_covariance <- tryCatch(
-    chol(covariance),
-    error = function(e) NULL
-  )
+  factorization   <- .covariance_factorization(covariance)
+  covariance      <- factorization[["covariance"]]
+  chol_covariance <- .covariance_cholesky(factorization)
   if (is.null(chol_covariance)) {
     stop("Known-V residual covariance is not positive definite.",
          call. = FALSE)

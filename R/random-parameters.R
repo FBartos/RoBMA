@@ -133,9 +133,9 @@
   colnames(samples) <- parameters
   specs             <- .brma_random_parameter_specs(priors)
   specs[["source_parameter"]] <- .brma_random_parameter_source_names(
-    fit     = fit,
-    samples = samples,
-    specs   = specs
+    fit            = fit,
+    specs          = specs,
+    summary_priors = priors
   )
 
   list(samples = samples, specs = specs, priors = priors)
@@ -147,13 +147,23 @@
     value <- attr(prior, name, exact = TRUE)
     if (is.null(value) || length(value) == 0L) NA_character_ else as.character(value[[1L]])
   }
+  attr_string_first <- function(prior, names) {
+    values <- vapply(names, function(name) attr_string(prior, name), character(1))
+    values <- values[!is.na(values) & nzchar(values)]
+    if (length(values) == 0L) NA_character_ else values[[1L]]
+  }
 
   data.frame(
     parameter         = names(priors),
     label             = vapply(priors, attr_string, character(1), "random_summary_label"),
     summary_type      = vapply(priors, attr_string, character(1), "random_summary"),
     formula_parameter = vapply(priors, attr_string, character(1), "parameter"),
-    block             = vapply(priors, attr_string, character(1), "random_block"),
+    block             = vapply(
+      priors,
+      attr_string_first,
+      character(1),
+      names = c("random_factor", "random_block")
+    ),
     grouping          = vapply(priors, attr_string, character(1), "random_grouping_factor"),
     structure         = vapply(priors, attr_string, character(1), "random_structure"),
     allocation        = vapply(priors, attr_string, character(1), "random_allocation"),
@@ -182,33 +192,184 @@
   )
 }
 
-.brma_random_parameter_source_names <- function(fit, samples, specs) {
+.brma_random_parameter_source_names <- function(
+    fit, specs, summary_priors) {
 
-  raw_samples <- as.matrix(coda::as.mcmc.list(fit))
-  prior_names <- names(attr(fit, "prior_list", exact = TRUE))
-  candidates  <- intersect(prior_names, colnames(raw_samples))
-  out         <- rep(NA_character_, nrow(specs))
+  prior_list     <- attr(fit, "prior_list", exact = TRUE)
+  formula_design <- attr(fit, "formula_design", exact = TRUE)
+  prior_names    <- names(prior_list)
+  out            <- rep(NA_character_, nrow(specs))
 
-  if (length(candidates) == 0L || nrow(samples) != nrow(raw_samples)) {
+  if (length(prior_names) == 0L || nrow(specs) == 0L) {
     return(out)
   }
 
   for (i in seq_len(nrow(specs))) {
-    values <- samples[, specs[["parameter"]][i]]
-    matches <- vapply(candidates, function(candidate) {
-      isTRUE(all.equal(
-        unname(values),
-        unname(raw_samples[, candidate]),
-        tolerance = sqrt(.Machine$double.eps),
-        check.attributes = FALSE
-      ))
-    }, logical(1))
-    if (sum(matches) == 1L) {
-      out[i] <- candidates[matches]
+    spec          <- as.list(specs[i, , drop = FALSE])
+    summary_prior <- summary_priors[[spec[["parameter"]]]]
+    source        <- .brma_random_parameter_source_name(
+      spec           = spec,
+      summary_prior  = summary_prior,
+      prior_list     = prior_list,
+      formula_design = formula_design
+    )
+    if (length(source) == 1L && !is.na(source) && source %in% prior_names) {
+      out[i] <- source
     }
   }
 
   out
+}
+
+
+.brma_random_parameter_source_name <- function(
+    spec, summary_prior, prior_list, formula_design) {
+
+  type <- spec[["summary_type"]]
+  if (type %in% c("var_frac", "var_ratio", "sd_multiplier")) {
+    metadata <- attr(
+      summary_prior,
+      "random_allocation_metadata",
+      exact = TRUE
+    )
+    return(.brma_random_parameter_unique_name(metadata[["weight_name"]]))
+  }
+
+  if (identical(type, "sd_total")) {
+    matches <- vapply(prior_list, function(prior) {
+      isTRUE(attr(prior, "random_sd_total", exact = TRUE)) &&
+        .brma_random_parameter_metadata_matches(
+          attr(prior, "parameter", exact = TRUE),
+          spec[["formula_parameter"]]
+        ) &&
+        .brma_random_parameter_metadata_matches(
+          attr(prior, "random_allocation", exact = TRUE),
+          spec[["allocation"]]
+        )
+    }, logical(1))
+    return(.brma_random_parameter_unique_name(names(prior_list)[matches]))
+  }
+
+  term <- .brma_random_parameter_design_term(formula_design, spec)
+  if (is.null(term)) {
+    return(NA_character_)
+  }
+
+  if (identical(type, "sd")) {
+    return(.brma_random_parameter_sd_source(term, spec))
+  }
+  if (identical(type, "rho")) {
+    correlation <- term[["correlation"]]
+    if (!is.list(correlation) || !identical(correlation[["type"]], "rho")) {
+      return(NA_character_)
+    }
+    if (!is.null(correlation[["sample_fixed"]])) {
+      return(NA_character_)
+    }
+    rho_scale <- correlation[["rho_scale"]]
+    if (!is.null(rho_scale) && !identical(rho_scale, "rho")) {
+      return(NA_character_)
+    }
+    candidates <- c(correlation[["rho_name"]], correlation[["sample_name"]])
+    candidates <- intersect(unique(candidates), names(prior_list))
+    return(.brma_random_parameter_unique_name(candidates))
+  }
+
+  NA_character_
+}
+
+
+.brma_random_parameter_design_term <- function(formula_design, spec) {
+
+  if (!is.list(formula_design)) {
+    return(NULL)
+  }
+  designs <- Filter(function(design) {
+    .brma_random_parameter_metadata_matches(
+      design[["parameter"]],
+      spec[["formula_parameter"]]
+    )
+  }, formula_design)
+  terms <- unlist(lapply(designs, `[[`, "random_effects"), recursive = FALSE)
+  terms <- Filter(function(term) {
+    .brma_random_parameter_metadata_matches(
+      term[["block_name"]],
+      spec[["block"]]
+    ) && .brma_random_parameter_metadata_matches(
+      term[["group_label"]],
+      spec[["grouping"]]
+    )
+  }, terms)
+
+  if (length(terms) == 1L) terms[[1L]] else NULL
+}
+
+
+.brma_random_parameter_sd_source <- function(term, spec) {
+
+  sources <- unique(term[["sd_parameter_names"]])
+  sources <- sources[!is.na(sources) & nzchar(sources)]
+  if (length(sources) == 1L) {
+    return(sources)
+  }
+  if (length(sources) == 0L) {
+    return(NA_character_)
+  }
+
+  leaves <- term[["sd_leaves"]]
+  terms  <- leaves[["leaf_terms"]]
+  if (is.null(terms) || is.null(names(terms))) {
+    return(NA_character_)
+  }
+  components <- unname(terms[sources])
+  components <- .brma_random_parameter_normalize_components(components, term)
+  matches    <- !is.na(components) & components == spec[["random_component"]]
+  .brma_random_parameter_unique_name(sources[matches])
+}
+
+
+.brma_random_parameter_normalize_components <- function(components, term) {
+
+  components <- gsub("__xXx__", ":", components, fixed = TRUE)
+  components[components == "sd"]          <- "shared"
+  components[components == "(Intercept)"] <- "intercept"
+
+  index <- term[["structured_index"]]
+  if (is.list(index) && length(index[["name"]]) == 1L &&
+      length(index[["label"]]) == 1L &&
+      !identical(index[["name"]], index[["label"]])) {
+    replace <- components == index[["name"]] |
+      startsWith(components, paste0(index[["name"]], "["))
+    components[replace] <- paste0(
+      index[["label"]],
+      substr(
+        components[replace],
+        nchar(index[["name"]]) + 1L,
+        nchar(components[replace])
+      )
+    )
+  }
+
+  components
+}
+
+
+.brma_random_parameter_metadata_matches <- function(value, target) {
+
+  missing_value  <- is.null(value) || length(value) != 1L || is.na(value)
+  missing_target <- is.null(target) || length(target) != 1L || is.na(target)
+  if (missing_value || missing_target) {
+    return(missing_value && missing_target)
+  }
+  identical(as.character(value), as.character(target))
+}
+
+
+.brma_random_parameter_unique_name <- function(names) {
+
+  names <- unique(names)
+  names <- names[!is.na(names) & nzchar(names)]
+  if (length(names) == 1L) names else NA_character_
 }
 
 .brma_random_parameter_fit_with_samples <- function(fit, samples) {
@@ -306,34 +467,36 @@
 .brma_random_parameter_support <- function(spec, prior = NULL,
                                            source_prior = NULL) {
 
+  type <- spec[["summary_type"]]
+  support <- if (type %in% c("sd", "sd_total", "sd_multiplier")) {
+    c(0, Inf)
+  } else if (type %in% c("rho", "cor")) {
+    c(-1, 1)
+  } else if (identical(type, "var_frac")) {
+    c(0, 1)
+  } else if (identical(type, "var_ratio")) {
+    metadata <- if (is.null(prior)) NULL else
+      attr(prior, "random_allocation_metadata", exact = TRUE)
+    upper <- if (is.null(metadata[["n_targets"]])) Inf else
+      as.numeric(metadata[["n_targets"]])
+    c(0, upper)
+  } else {
+    c(-Inf, Inf)
+  }
+
   if (!is.null(source_prior) && !is.null(source_prior[["truncation"]])) {
     truncation <- source_prior[["truncation"]]
     lower      <- truncation[["lower"]]
     upper      <- truncation[["upper"]]
     if (length(lower) == 1L && length(upper) == 1L) {
-      return(c(as.numeric(lower), as.numeric(upper)))
+      support <- c(
+        max(support[1L], as.numeric(lower)),
+        min(support[2L], as.numeric(upper))
+      )
     }
   }
 
-  type <- spec[["summary_type"]]
-  if (type %in% c("sd", "sd_total", "sd_multiplier")) {
-    return(c(0, Inf))
-  }
-  if (type %in% c("rho", "cor")) {
-    return(c(-1, 1))
-  }
-  if (identical(type, "var_frac")) {
-    return(c(0, 1))
-  }
-  if (identical(type, "var_ratio")) {
-    metadata <- if (is.null(prior)) NULL else
-      attr(prior, "random_allocation_metadata", exact = TRUE)
-    upper <- if (is.null(metadata[["n_targets"]])) Inf else
-      as.numeric(metadata[["n_targets"]])
-    return(c(0, upper))
-  }
-
-  c(-Inf, Inf)
+  support
 }
 
 .brma_random_parameter_point_test_reason <- function(spec) {

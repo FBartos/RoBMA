@@ -1014,18 +1014,15 @@
     data_hash            = data_hash,
     known_v              = .is_data_known_v(setup[["data"]]),
     known_v_estimate_backend = known_v_estimate_backend,
-    known_v_parameterization = if (is.null(known_V)) NULL else known_V[["parameterization"]],
+    known_v_parameterization = if (is.null(known_V)) NULL else
+      .known_v_parameterization(known_V),
     known_v_effective_backend = if (is.null(known_V)) {
       NULL
-    } else if (is.null(known_V[["effective_backend"]])) {
-      known_V[["parameterization"]]
-    } else {
-      known_V[["effective_backend"]]
-    },
+    } else .known_v_effective_backend(known_V),
     known_v_parameterization_requested = if (is.null(known_V)) {
       NULL
     } else {
-      known_V[["parameterization_requested"]]
+      .known_v_requested_parameterization(known_V)
     },
     dependency_component_sizes = component_sizes,
     known_v_schur       = known_v_schur,

@@ -102,19 +102,19 @@
   }
 
   known_V <- .data_known_v_data(data)
-  if (!identical(known_V[["parameterization_requested"]], "auto") ||
+  if (!identical(.known_v_requested_parameterization(known_V), "auto") ||
       !identical(.data_known_v_effective_backend(data), "whitened")) {
     return(data)
   }
 
   known_v_residual_fraction_specified <- !is.null(
-    known_V[["residual_fraction_requested"]]
+    .known_v_requested_residual_fraction(known_V)
   )
   new_known_V <- .known_v_prepare(
     V                                   = .known_v_as_input(known_V),
     keep_rows                           = rep(TRUE, .known_v_nrow(known_V)),
     known_v_parameterization            = "auto",
-    known_v_residual_fraction           = known_V[["residual_fraction_requested"]],
+    known_v_residual_fraction           = .known_v_requested_residual_fraction(known_V),
     known_v_residual_fraction_specified = known_v_residual_fraction_specified,
     known_v_is_scale                    = TRUE,
     warn_singular                       = FALSE

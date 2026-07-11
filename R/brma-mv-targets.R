@@ -120,13 +120,9 @@
   known_V <- .data_known_v_data(data)
   list(
     known_v                              = TRUE,
-    known_v_parameterization            = known_V[["parameterization"]],
-    known_v_effective_backend           = if (is.null(known_V[["effective_backend"]])) {
-      known_V[["parameterization"]]
-    } else {
-      known_V[["effective_backend"]]
-    },
-    known_v_parameterization_requested  = known_V[["parameterization_requested"]]
+    known_v_parameterization            = .known_v_parameterization(known_V),
+    known_v_effective_backend           = .known_v_effective_backend(known_V),
+    known_v_parameterization_requested  = .known_v_requested_parameterization(known_V)
   )
 }
 
