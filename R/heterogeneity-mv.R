@@ -912,12 +912,6 @@
 .brma_mv_random_block_row_sd_samples <- function(object, posterior_samples,
                                                  block, K, original_error) {
 
-  .known_v_check_full_covariance_allocation(
-    S      = nrow(posterior_samples),
-    K      = K,
-    caller = "brma.mv heterogeneity component extraction"
-  )
-
   formula_fit <- .posterior_formula_fit(
     fit               = object[["fit"]],
     posterior_samples = posterior_samples,
@@ -935,6 +929,9 @@
 
   location_priors <- attr(object[["fit"]], "prior_list")
   if (is.null(location_priors)) {
+    location_priors <- formula_design[["prior_list"]]
+  }
+  if (is.null(location_priors)) {
     location_priors <- object[["priors"]][["location"]]
   }
 
@@ -945,7 +942,8 @@
       data              = object[["data"]][["location"]],
       posterior_samples = posterior_samples,
       prior_list        = location_priors,
-      blocks            = block
+      blocks            = block,
+      diagonal_only     = TRUE
     ),
     error = function(e) {
       stop(
@@ -957,21 +955,45 @@
     }
   )
 
-  covariance <- random_vcov[["samples"]]
-  if (length(dim(covariance)) != 3L ||
-      dim(covariance)[1L] != nrow(posterior_samples) ||
-      dim(covariance)[2L] != K ||
-      dim(covariance)[3L] != K) {
-    stop("Random-effect covariance samples have inconsistent dimensions.",
-         call. = FALSE)
+  variance <- .brma_mv_validate_random_marginal_variance_samples(
+    random_vcov = random_vcov,
+    S           = nrow(posterior_samples),
+    K           = K
+  )
+
+  return(sqrt(variance))
+}
+
+
+# Validate the BayesTools diagonal marginal-variance return schema.
+.brma_mv_validate_random_marginal_variance_samples <- function(random_vcov,
+                                                               S, K) {
+
+  metadata <- random_vcov[["metadata"]]
+  variance <- random_vcov[["samples"]]
+  valid_metadata <- is.list(metadata) &&
+    identical(metadata[["representation"]], "diagonal") &&
+    identical(metadata[["quantity"]], "variance") &&
+    isTRUE(metadata[["diagonal_only"]]) &&
+    identical(metadata[["dense"]], FALSE) &&
+    identical(metadata[["n_draws"]], S) &&
+    identical(metadata[["n_rows"]], K) &&
+    identical(metadata[["row_order"]], seq_len(K)) &&
+    is.character(metadata[["row_names"]]) &&
+    length(metadata[["row_names"]]) == K
+
+  if (!valid_metadata || !is.matrix(variance) || !is.numeric(variance) ||
+      !identical(dim(variance), c(S, K)) || any(!is.finite(variance)) ||
+      any(variance < 0) ||
+      !identical(colnames(variance), metadata[["row_names"]])) {
+    stop(
+      "Random-effect marginal variance samples have an invalid diagonal ",
+      "variance schema.",
+      call. = FALSE
+    )
   }
 
-  samples <- matrix(NA_real_, nrow = nrow(posterior_samples), ncol = K)
-  for (s in seq_len(nrow(samples))) {
-    samples[s, ] <- sqrt(pmax(diag(covariance[s, , ]), 0))
-  }
-
-  return(samples)
+  return(variance)
 }
 
 

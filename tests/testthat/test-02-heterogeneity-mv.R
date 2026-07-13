@@ -345,6 +345,9 @@ test_that("brma.mv heterogeneity reports ambiguous component aliases", {
 
 test_that("brma.mv heterogeneity falls back to row-marginal random SDs", {
 
+  old_options <- options(RoBMA.known_v_covariance_max_bytes = 1)
+  on.exit(options(old_options), add = TRUE)
+
   object <- .brma_mv_heterogeneity_slope_object()
   posterior_samples <- matrix(
     c(
@@ -393,16 +396,127 @@ test_that("brma.mv heterogeneity falls back to row-marginal random SDs", {
     data              = object[["data"]][["location"]],
     posterior_samples = posterior_samples,
     prior_list        = object[["priors"]][["location"]],
-    blocks            = "study"
+    blocks            = "study",
+    diagonal_only     = TRUE
   )
-  expected <- matrix(NA_real_, nrow = nrow(posterior_samples),
-                     ncol = nobs(object))
-  for (s in seq_len(nrow(expected))) {
-    expected[s, ] <- sqrt(pmax(diag(random_vcov[["samples"]][s, , ]), 0))
-  }
+  expected <- sqrt(random_vcov[["samples"]])
 
   expect_named(components, "study")
   expect_equal(components[["study"]], expected, tolerance = 1e-12)
+})
+
+
+test_that("brma.mv validates marginal random variance schemas", {
+
+  valid <- list(
+    samples = matrix(
+      c(0.04, 0.09, 0.16, 0.25),
+      nrow = 2,
+      dimnames = list(NULL, c("1", "2"))
+    ),
+    metadata = list(
+      representation = "diagonal",
+      quantity       = "variance",
+      diagonal_only  = TRUE,
+      dense          = FALSE,
+      n_draws        = 2L,
+      n_rows         = 2L,
+      row_order      = 1:2,
+      row_names      = c("1", "2")
+    )
+  )
+
+  expect_equal(
+    .brma_mv_validate_random_marginal_variance_samples(valid, 2L, 2L),
+    valid[["samples"]]
+  )
+
+  invalid <- list(
+    representation = function(x) {
+      x[["metadata"]][["representation"]] <- "dense"
+      x
+    },
+    row_order = function(x) {
+      x[["metadata"]][["row_order"]] <- 2:1
+      x
+    },
+    row_names = function(x) {
+      colnames(x[["samples"]]) <- c("2", "1")
+      x
+    },
+    negative = function(x) {
+      x[["samples"]][1L, 1L] <- -1e-12
+      x
+    }
+  )
+  for (mutate in invalid) {
+    expect_error(
+      .brma_mv_validate_random_marginal_variance_samples(
+        mutate(valid), 2L, 2L
+      ),
+      "invalid diagonal variance schema",
+      fixed = TRUE
+    )
+  }
+})
+
+
+test_that("HAR row-marginal heterogeneity scales to all posterior draws", {
+
+  skip_on_cran()
+
+  n_draws <- 40000L
+  n_rows  <- 82L
+  dat <- data.frame(
+    yi    = seq_len(n_rows) / n_rows,
+    study = factor(rep("s1", n_rows)),
+    time  = seq_len(n_rows)
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(0.04, n_rows)),
+    data                      = dat,
+    random                    = ~ har(time | study),
+    known_v_parameterization  = "block_mvn",
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_samples <- cbind(
+    mu__xRE_ALLOCx_allocation__total_sd = rep(2, n_draws),
+    matrix(
+      1 / n_rows,
+      nrow = n_draws,
+      ncol = n_rows,
+      dimnames = list(
+        NULL,
+        paste0(
+          "mu__xRE_ALLOCx_allocation__weight[",
+          seq_len(n_rows),
+          "]"
+        )
+      )
+    )
+  )
+  old_options <- options(RoBMA.known_v_covariance_max_bytes = 1)
+  on.exit(options(old_options), add = TRUE)
+
+  samples <- .brma_mv_random_block_row_sd_samples(
+    object            = object,
+    posterior_samples = posterior_samples,
+    block             = "study",
+    K                 = n_rows,
+    original_error    = simpleError("forced fallback")
+  )
+
+  expect_equal(dim(samples), c(n_draws, n_rows))
+  expect_true(all(is.finite(samples)))
+  expect_equal(
+    unname(samples[c(1L, n_draws), c(1L, n_rows)]),
+    matrix(2, nrow = 2L, ncol = 2L),
+    tolerance = 1e-12
+  )
+  expect_lt(as.numeric(utils::object.size(samples)), 40 * 1024^2)
 })
 
 
