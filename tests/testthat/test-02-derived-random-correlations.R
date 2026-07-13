@@ -172,6 +172,28 @@ test_that("monitoring and quadratic expansion guards preserve the schema", {
     "incomplete random-effect correlation matrix"
   )
 
+  malformed_complete <- as.matrix(
+    RoBMA:::.brma_append_derived_random_correlation(
+      raw,
+      .derived_random_term()
+    )[[1L]]
+  )
+  correlation_columns <- grep(
+    "mu__xREx__study_xRE_CORx_R[",
+    colnames(malformed_complete),
+    fixed = TRUE
+  )
+  colnames(malformed_complete)[correlation_columns[[9L]]] <-
+    colnames(malformed_complete)[correlation_columns[[8L]]]
+  malformed_complete <- coda::mcmc.list(coda::mcmc(malformed_complete))
+  expect_error(
+    RoBMA:::.brma_append_derived_random_correlation(
+      malformed_complete,
+      .derived_random_term()
+    ),
+    "incomplete random-effect correlation matrix"
+  )
+
   existing <- RoBMA:::.brma_append_derived_random_correlation(
     raw,
     .derived_random_term()

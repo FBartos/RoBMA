@@ -236,14 +236,22 @@ NULL
 
   prefix   <- paste0(spec[["correlation_base"]], "[")
   expected <- as.numeric(spec[["n_columns"]])^2
-  counts   <- vapply(mcmc_list, function(chain) {
-    sum(startsWith(colnames(as.matrix(chain)), prefix))
-  }, numeric(1))
+  observed <- lapply(mcmc_list, function(chain) {
+    variables <- colnames(as.matrix(chain))
+    variables[startsWith(variables, prefix)]
+  })
+  counts <- vapply(observed, length, numeric(1))
   if (all(counts == 0)) {
     return("missing")
   }
   if (all(counts == expected)) {
-    return("present")
+    canonical <- .brma_derived_random_correlation_names(spec)
+    valid <- vapply(observed, function(variables) {
+      anyDuplicated(variables) == 0L && setequal(variables, canonical)
+    }, logical(1))
+    if (all(valid)) {
+      return("present")
+    }
   }
 
   stop(
