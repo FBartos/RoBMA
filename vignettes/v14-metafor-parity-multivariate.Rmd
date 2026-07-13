@@ -254,13 +254,6 @@ summary_heterogeneity(fit2_brma)
 
 The first heterogeneity table summarizes the shared `study/esid` heterogeneity allocation, including the total heterogeneity and variance fractions; the following tables summarize the block-specific standard deviations.
 
-  newdata = known_r_rows,
-  V_new  = matrix(c(0.04, 0.01, 0.01, 0.05), 2, 2),
-  type    = "response"
-)
-
-# Errors because level D has no row or column in study_R.
-predict(fit_known_r, newdata = data.frame(study = "D"), type = "estimate")
 ## Heterogeneous AR(1) Structure
 
 The `dat.ishak2007` dataset from the `metadat` package contains results from 46 studies of deep-brain stimulation for Parkinson's disease.
