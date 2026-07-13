@@ -64,10 +64,6 @@ argument.}
 Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
 \code{TRUE}.}
 
-\item{max_samples}{maximum posterior draws used to compute known-\code{V}
-internally standardized residuals. Defaults to \code{Inf}. Finite values
-select draws deterministically and are ignored for other residual types.}
-
 \item{xlim}{x-axis limits. If not specified, limits are computed from data.}
 
 \item{ylim}{y-axis limits. If not specified, limits are computed from data.}
@@ -80,6 +76,10 @@ select draws deterministically and are ignored for other residual types.}
 
 \item{plot_type}{whether to use a base plot \code{"base"} or ggplot2
 \code{"ggplot"} for plotting. Defaults to \code{"base"}.}
+
+\item{max_samples}{maximum posterior draws used to compute known-\code{V}
+internally standardized residuals. Defaults to \code{Inf}. Finite values
+select draws deterministically and are ignored for other residual types.}
 
 \item{...}{additional graphical arguments to customize the plot appearance:
 \describe{
