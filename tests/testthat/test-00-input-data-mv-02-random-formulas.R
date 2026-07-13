@@ -277,6 +277,112 @@ test_that("brma.mv supports BayesTools random covariance shapes", {
 })
 
 
+test_that("brma.mv preserves BayesTools random-effect parameterization policy", {
+
+  dat <- data.frame(
+    yi    = seq(-0.20, 0.25, length.out = 10L),
+    study = rep(c("s1", "s2"), each = 5L)
+  )
+  sd_prior <- BayesTools::prior(
+    "normal",
+    parameters = list(mean = 0, sd = 1),
+    truncation = list(lower = 0, upper = Inf)
+  )
+
+  compile <- function(prior_heterogeneity) {
+
+    object <- brma.mv(
+      yi                        = yi,
+      V                         = diag(rep(0.04, nrow(dat))),
+      random                    = ~ 1 | study,
+      data                      = dat,
+      measure                   = "GEN",
+      prior_heterogeneity       = prior_heterogeneity,
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )
+    design <- .fitted_formula_design(object, "mu", required = TRUE)
+    return(design[["random_effects"]][[1L]])
+  }
+
+  centered <- compile(BayesTools::prior_random(
+    sd = sd_prior,
+    parameterization = "centered"
+  ))
+  automatic <- compile(BayesTools::prior_random(
+    sd = sd_prior,
+    parameterization = "auto"
+  ))
+  overridden <- compile(BayesTools::prior_random(
+    sd = sd_prior,
+    parameterization = "centered",
+    study = BayesTools::random_block(parameterization = "noncentered")
+  ))
+
+  expect_identical(centered[["parameterization_requested"]], "centered")
+  expect_identical(centered[["parameterization_resolved"]], "centered")
+  expect_identical(automatic[["parameterization_requested"]], "auto")
+  expect_identical(automatic[["parameterization_resolved"]], "centered")
+  expect_match(automatic[["parameterization_reason"]], "replication")
+  expect_identical(overridden[["parameterization_requested"]], "noncentered")
+  expect_identical(overridden[["parameterization_resolved"]], "noncentered")
+})
+
+
+test_that("brma.mv compiles sparse high-dimensional structured effects", {
+
+  n_groups         <- 8L
+  levels_per_group <- 5L
+  n_outcomes       <- n_groups * levels_per_group
+  dat <- data.frame(
+    yi      = seq(-0.2, 0.2, length.out = n_outcomes),
+    study   = factor(rep(seq_len(n_groups), each = levels_per_group)),
+    outcome = factor(seq_len(n_outcomes))
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(0.04, nrow(dat))),
+    random                    = ~ cs(outcome | study),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  compiled <- BayesTools::JAGS_formula(
+    formula       = .create_fit_formula_list(
+      data      = object[["data"]],
+      parameter = "location"
+    ),
+    parameter     = "mu",
+    data          = .create_fit_formula_data_list(
+      data      = object[["data"]],
+      parameter = "location"
+    ),
+    prior_list    = .create_fit_formula_prior_list(
+      priors    = object[["priors"]],
+      parameter = "location"
+    ),
+    formula_scale = .data_standardize_continuous_predictors(object[["data"]]),
+    prior_random  = object[["priors"]][["random"]],
+    random_effects_compile = .object_formula_random_effects_compile(
+      object,
+      "location"
+    )
+  )
+  term   <- compiled[["formula_design"]][["random_effects"]][[1L]]
+  syntax <- compiled[["formula_syntax"]]
+
+  expect_identical(term[["parameterization_resolved"]], "noncentered")
+  expect_identical(term[["latent_layout"]][["type"]], "group_local")
+  expect_equal(term[["latent_layout"]][["n_local"]], nrow(dat))
+  expect_match(syntax, "_xRE_MAPx", fixed = TRUE)
+  expect_match(syntax, "_xRE_COLx", fixed = TRUE)
+  expect_false(grepl("_xRE_DATAx", syntax, fixed = TRUE))
+  expect_false(grepl("_xRE_CORx_L", syntax, fixed = TRUE))
+  expect_false(grepl("_xRE_CORx_R", syntax, fixed = TRUE))
+})
+
+
 test_that("brma.mv validates random formula edge cases", {
 
   dat <- data.frame(

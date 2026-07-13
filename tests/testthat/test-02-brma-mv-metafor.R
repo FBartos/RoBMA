@@ -63,14 +63,44 @@ info <- lazy_infos(c(mv_fixed_metafor_fit_name, mv_known_r_metafor_fit_name,
   )
 }
 
-.metafor_fixed_prediction <- function(fit_metafor) {
+.metafor_normal_prior_beta <- function(fit_metafor, mean, sd) {
 
-  as.vector(fit_metafor[["X"]] %*% fit_metafor[["beta"]])
+  beta                 <- as.numeric(fit_metafor[["beta"]])
+  likelihood_precision <- solve(fit_metafor[["vb"]])
+  prior_mean           <- rep(mean, length.out = length(beta))
+  prior_sd             <- rep(sd, length.out = length(beta))
+  prior_precision      <- diag(1 / prior_sd^2)
+
+  return(as.numeric(solve(
+    likelihood_precision + prior_precision,
+    likelihood_precision %*% beta + prior_precision %*% prior_mean
+  )))
 }
 
-.metafor_marginal_residual <- function(fit_metafor) {
+.metafor_fixed_prediction <- function(fit_metafor,
+                                      beta = fit_metafor[["beta"]]) {
 
-  as.numeric(fit_metafor[["yi"]] - .metafor_fixed_prediction(fit_metafor))
+  as.vector(fit_metafor[["X"]] %*% beta)
+}
+
+.metafor_marginal_residual <- function(fit_metafor,
+                                       beta = fit_metafor[["beta"]]) {
+
+  as.numeric(
+    fit_metafor[["yi"]] - .metafor_fixed_prediction(fit_metafor, beta)
+  )
+}
+
+.ishak_prior_aware_beta <- function(fit_metafor) {
+
+  prior <- fits[["brma.mv_v14_ishak2007_har"]][["priors"]][["mods"]][[
+    "time_factor"
+  ]]
+  return(.metafor_normal_prior_beta(
+    fit_metafor = fit_metafor,
+    mean         = prior[["parameters"]][["mean"]],
+    sd           = prior[["parameters"]][["sd"]]
+  ))
 }
 
 .brma_fixed_prediction_mean <- function(fit_brma) {
@@ -202,8 +232,8 @@ test_that("v14 brma.mv fixed effects match metafor references", {
     list(
       name      = "brma.mv_v14_ishak2007_har",
       rows      = paste0("time_factor[", 1:4, "]"),
-      expected  = function(m) as.numeric(m[["beta"]]),
-      tolerance = 0.75
+      expected  = .ishak_prior_aware_beta,
+      tolerance = 0.40
     ),
     list(
       name      = "brma.mv_v14_begg1989_study_treatment",
@@ -214,12 +244,12 @@ test_that("v14 brma.mv fixed effects match metafor references", {
   )
 
   for (case in cases) {
-      name     <- case[["name"]]
-      observed <- vapply(
-        case[["rows"]],
-        function(row) .mv_summary_mean(name, "estimates_mods", row),
-        numeric(1)
-      )
+    name     <- case[["name"]]
+    observed <- vapply(
+      case[["rows"]],
+      function(row) .mv_summary_mean(name, "estimates_mods", row),
+      numeric(1)
+    )
     expected <- case[["expected"]](.mv_metafor(name))
 
     for (i in seq_along(observed)) {
@@ -420,7 +450,7 @@ test_that("v14 brma.mv fixed fitted values and residuals match metafor reference
   tolerances <- c(
     brma.mv_v14_konstantopoulos2011_cs        = 0.05,
     brma.mv_v14_assink2016_nested             = 0.05,
-    brma.mv_v14_ishak2007_har                 = 0.75,
+    brma.mv_v14_ishak2007_har                 = 0.40,
     brma.mv_v14_begg1989_study_treatment      = 0.05
   )
 
@@ -429,14 +459,22 @@ test_that("v14 brma.mv fixed fitted values and residuals match metafor reference
     fit_metafor <- .mv_metafor(name)
     tolerance   <- tolerances[[name]]
 
+    reference_beta <- if (identical(name, "brma.mv_v14_ishak2007_har")) {
+      .ishak_prior_aware_beta(fit_metafor)
+    } else {
+      fit_metafor[["beta"]]
+    }
     brma_pred    <- .brma_fixed_prediction_mean(fit_brma)
-    metafor_pred <- .metafor_fixed_prediction(fit_metafor)
+    metafor_pred <- .metafor_fixed_prediction(fit_metafor, reference_beta)
     brma_resid   <- residuals(
       fit_brma,
       type               = "outcome",
       conditioning_depth = "marginal"
     )
-    metafor_resid <- .metafor_marginal_residual(fit_metafor)
+    metafor_resid <- .metafor_marginal_residual(
+      fit_metafor,
+      reference_beta
+    )
 
     expect_equal(length(brma_pred), length(metafor_pred))
     expect_equal(length(brma_resid), length(metafor_resid))

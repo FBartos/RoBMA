@@ -57,9 +57,15 @@
 #' Cholesky factors, and prior-parameterization variables are omitted. Public
 #' covariance parameters, derived correlation matrices, allocation weights,
 #' model indicators, and likelihood parameters remain available.
-#' \code{include_auxiliary = TRUE} returns the raw backend variables without
-#' filtering. \code{brma_samples} objects have separate methods documented at
-#' \code{\link{as_draws.brma_samples}}.
+#' Scalar-structure random-effect correlation matrices are reconstructed from
+#' compact rho draws on demand. Conversion fails before allocating them when
+#' their combined draw-by-matrix size exceeds
+#' `getOption("RoBMA.max_derived_correlation_cells", 2e7)`. Increase this option
+#' explicitly when the dense public matrices are required. Use
+#' `include_auxiliary = TRUE` to skip derivation and return the raw backend
+#' variables without filtering; compatible older fits may contain dense
+#' auxiliary variables. \code{brma_samples} objects have separate methods
+#' documented at \code{\link{as_draws.brma_samples}}.
 #'
 #' @return An object of the corresponding \pkg{posterior} draws class.
 #'
@@ -103,7 +109,273 @@ NULL
     return(mcmc_list)
   }
 
-  return(.brma_filter_auxiliary_variables(x, mcmc_list))
+  mcmc_list <- .brma_filter_auxiliary_variables(x, mcmc_list)
+  return(.brma_append_derived_random_correlations(x, mcmc_list))
+}
+
+
+# Reconstruct public scalar-structure correlation matrices from compact rho draws.
+.brma_append_derived_random_correlations <- function(x, mcmc_list) {
+
+  formula_design <- attr(x[["fit"]], "formula_design", exact = TRUE)
+  if (is.null(formula_design) || !is.list(formula_design)) {
+    return(mcmc_list)
+  }
+
+  random_terms <- unlist(lapply(formula_design, function(design) {
+    if (is.null(design[["random_effects"]])) {
+      return(list())
+    }
+    design[["random_effects"]]
+  }), recursive = FALSE)
+  .brma_check_derived_random_correlation_budget(
+    random_terms = random_terms,
+    mcmc_list    = mcmc_list
+  )
+  return(.brma_append_derived_random_correlation_terms(
+    mcmc_list    = mcmc_list,
+    random_terms = random_terms
+  ))
+}
+
+
+# Guard the total dense output allocation before deriving any matrices.
+.brma_check_derived_random_correlation_budget <- function(random_terms,
+                                                          mcmc_list) {
+
+  max_cells <- getOption("RoBMA.max_derived_correlation_cells", 2e7)
+  if (!is.numeric(max_cells) || length(max_cells) != 1L ||
+      is.na(max_cells) || max_cells < 1) {
+    stop(
+      "Option 'RoBMA.max_derived_correlation_cells' must be a positive numeric scalar.",
+      call. = FALSE
+    )
+  }
+  n_draws <- sum(vapply(mcmc_list, nrow, integer(1)))
+  required_cells <- sum(vapply(random_terms, function(random_term) {
+    spec <- .brma_derived_random_correlation_spec(random_term)
+    if (is.null(spec)) {
+      return(0)
+    }
+    presence <- .brma_derived_random_correlation_presence(
+      mcmc_list = mcmc_list,
+      spec      = spec
+    )
+    if (identical(presence, "present")) {
+      return(0)
+    }
+    as.numeric(spec[["n_columns"]])^2 * n_draws
+  }, numeric(1)))
+  if (required_cells > max_cells) {
+    stop(
+      "Default draw conversion would derive ",
+      format(required_cells, scientific = FALSE, trim = TRUE),
+      " dense random-correlation cells, exceeding option ",
+      "'RoBMA.max_derived_correlation_cells' (",
+      format(max_cells, scientific = FALSE, trim = TRUE),
+      "). Increase the option or use 'include_auxiliary = TRUE' to return ",
+      "raw backend draws without derivation.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(required_cells))
+}
+
+
+# Validate metadata needed to reconstruct one scalar correlation structure.
+.brma_derived_random_correlation_spec <- function(random_term) {
+
+  structure <- random_term[["structure"]]
+  if (!is.character(structure) || length(structure) != 1L ||
+      is.na(structure) ||
+      !tolower(structure) %in% c("cs", "hcs", "ar1", "car", "har")) {
+    return(NULL)
+  }
+  monitor <- random_term[["monitor"]]
+  if (!is.null(monitor) && !isTRUE(monitor[["correlation"]])) {
+    return(NULL)
+  }
+
+  parameter_stem <- random_term[["parameter_stem"]]
+  n_columns      <- random_term[["n_columns"]]
+  if (!is.character(parameter_stem) || length(parameter_stem) != 1L ||
+      is.na(parameter_stem) || !nzchar(parameter_stem) ||
+      !is.numeric(n_columns) || length(n_columns) != 1L ||
+      is.na(n_columns) || !is.finite(n_columns) ||
+      n_columns != floor(n_columns) || n_columns < 1 ||
+      n_columns > .Machine$integer.max) {
+    stop("Invalid scalar random-correlation metadata in fitted object.",
+         call. = FALSE)
+  }
+  n_columns        <- as.integer(n_columns)
+  correlation_base <- paste0(parameter_stem, "_xRE_CORx_R")
+  correlation      <- random_term[["correlation"]]
+  anchor_names    <- unique(c(
+    random_term[["sd_parameter_names"]],
+    if (is.list(correlation)) correlation[["rho_name"]] else NULL,
+    if (is.list(correlation)) correlation[["sample_name"]] else NULL
+  ))
+  anchor_names <- anchor_names[
+    is.character(anchor_names) & !is.na(anchor_names) & nzchar(anchor_names)
+  ]
+
+  return(list(
+    random_term      = random_term,
+    block_name       = random_term[["block_name"]],
+    parameter_stem   = parameter_stem,
+    n_columns        = n_columns,
+    correlation_base = correlation_base,
+    anchor_names     = anchor_names
+  ))
+}
+
+
+# Classify whether a scalar correlation matrix is absent or already complete.
+.brma_derived_random_correlation_presence <- function(spec, mcmc_list) {
+
+  prefix   <- paste0(spec[["correlation_base"]], "[")
+  expected <- as.numeric(spec[["n_columns"]])^2
+  counts   <- vapply(mcmc_list, function(chain) {
+    sum(startsWith(colnames(as.matrix(chain)), prefix))
+  }, numeric(1))
+  if (all(counts == 0)) {
+    return("missing")
+  }
+  if (all(counts == expected)) {
+    return("present")
+  }
+
+  stop(
+    "Fitted draws contain an incomplete random-effect correlation matrix for block '",
+    spec[["block_name"]], "'. Refit the model with the current ",
+    "RoBMA/BayesTools build.",
+    call. = FALSE
+  )
+}
+
+
+# Generate canonical column names for one derived correlation matrix.
+.brma_derived_random_correlation_names <- function(spec) {
+
+  return(unlist(lapply(seq_len(spec[["n_columns"]]), function(column) {
+    paste0(
+      spec[["correlation_base"]], "[",
+      seq_len(spec[["n_columns"]]), ",", column, "]"
+    )
+  }), use.names = FALSE))
+}
+
+
+# Locate the legacy block-local insertion point for derived matrix columns.
+.brma_derived_random_correlation_anchors <- function(variables, specs) {
+
+  anchors <- vapply(specs, function(spec) {
+    indexes <- unlist(lapply(spec[["anchor_names"]], function(anchor) {
+      which(variables == anchor | startsWith(variables, paste0(anchor, "[")))
+    }), use.names = FALSE)
+    if (length(indexes) == 0L) {
+      return(NA_integer_)
+    }
+    max(indexes)
+  }, integer(1))
+
+  for (i in which(is.na(anchors))) {
+    next_anchors     <- anchors[seq_along(anchors) > i & !is.na(anchors)]
+    previous_anchors <- anchors[seq_along(anchors) < i & !is.na(anchors)]
+    if (length(next_anchors) > 0L) {
+      anchors[[i]] <- min(next_anchors) - 1L
+    } else if (length(previous_anchors) > 0L) {
+      anchors[[i]] <- max(previous_anchors)
+    } else {
+      anchors[[i]] <- length(variables)
+    }
+  }
+
+  return(anchors)
+}
+
+
+# Interleave appended matrices at their legacy block-local monitor positions.
+.brma_derived_random_correlation_order <- function(variables, specs,
+                                                   derived) {
+
+  anchors <- .brma_derived_random_correlation_anchors(variables, specs)
+  after   <- vector("list", length(variables) + 1L)
+  offset  <- length(variables)
+  for (i in seq_along(specs)) {
+    indexes <- offset + seq_len(ncol(derived[[i]]))
+    after[[anchors[[i]] + 1L]] <- c(after[[anchors[[i]] + 1L]], indexes)
+    offset <- offset + ncol(derived[[i]])
+  }
+  order <- vector("list", length(variables) + 1L)
+  order[[1L]] <- after[[1L]]
+  for (i in seq_along(variables)) {
+    order[[i + 1L]] <- c(i, after[[i + 1L]])
+  }
+
+  return(unlist(order, use.names = FALSE))
+}
+
+
+# Reconstruct all missing scalar correlation matrices with one copy per chain.
+.brma_append_derived_random_correlation_terms <- function(mcmc_list,
+                                                          random_terms) {
+
+  specs <- lapply(random_terms, .brma_derived_random_correlation_spec)
+  specs <- specs[!vapply(specs, is.null, logical(1))]
+  if (length(specs) == 0L) {
+    return(mcmc_list)
+  }
+  presence <- vapply(
+    specs,
+    .brma_derived_random_correlation_presence,
+    character(1),
+    mcmc_list = mcmc_list
+  )
+  specs <- specs[presence == "missing"]
+  if (length(specs) == 0L) {
+    return(mcmc_list)
+  }
+
+  chains <- lapply(mcmc_list, function(chain) {
+    values  <- as.matrix(chain)
+    derived <- lapply(specs, function(spec) {
+      matrix(
+        BayesTools::random_effects_correlation_draws(
+          random_term       = spec[["random_term"]],
+          posterior_samples = values
+        ),
+        nrow     = nrow(values),
+        dimnames = list(NULL, .brma_derived_random_correlation_names(spec))
+      )
+    })
+    combined <- do.call(cbind, c(list(values), derived))
+    combined <- combined[, .brma_derived_random_correlation_order(
+      variables = colnames(values),
+      specs     = specs,
+      derived   = derived
+    ), drop = FALSE]
+    mcpar <- coda::mcpar(chain)
+    coda::mcmc(
+      combined,
+      start = mcpar[[1L]],
+      end   = mcpar[[2L]],
+      thin  = mcpar[[3L]]
+    )
+  })
+
+  return(coda::mcmc.list(chains))
+}
+
+
+# Reconstruct one CS/HCS/AR1/HAR/CAR correlation matrix per posterior draw.
+.brma_append_derived_random_correlation <- function(mcmc_list, random_term) {
+
+  return(.brma_append_derived_random_correlation_terms(
+    mcmc_list    = mcmc_list,
+    random_terms = list(random_term)
+  ))
 }
 
 

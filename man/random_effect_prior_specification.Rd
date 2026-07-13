@@ -123,6 +123,12 @@ covariance prior distributions via
 \code{\link[BayesTools:prior_random]{BayesTools::random_covariance()}}, and
 total-standard-deviation allocations via
 \code{\link[BayesTools:prior_random]{BayesTools::random_variance_allocation()}}.
+The \code{parameterization} argument and block-specific overrides select
+\code{"noncentered"}, \code{"centered"}, or \code{"auto"} backend representations without
+changing the specified standard-deviation, allocation, or correlation prior
+distributions. Explicit centering requires strictly positive backend-owned
+standard-deviation coordinates; BayesTools rejects unsupported centered
+combinations and lets \code{"auto"} fall back to the noncentered representation.
 See \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} for the
 generic random-effect prior constructors and use
 \code{vignette("v14-metafor-parity-multivariate", package = "RoBMA")} for

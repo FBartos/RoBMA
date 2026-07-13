@@ -1027,6 +1027,11 @@ test_that("brma.mv fits v14 metafor parity models", {
     contrast     = "independent"
   )
   args <- .brma_mv_metafor_fit_args(seed = 3)
+  # HAR mixes slowly in this sparse repeated-measures example. Keep this
+  # reference fit large enough that parity is not determined by sampler noise.
+  args[["chains"]] <- 4
+  args[["sample"]] <- 10000
+  args[["burnin"]] <- 4000
   fit3_brma <- brma.mv(
     yi                        = yi,
     V                         = V_ishak,

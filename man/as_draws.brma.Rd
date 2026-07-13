@@ -103,9 +103,15 @@ effects, known-\code{V} dependency factors, random-effect simulation and
 Cholesky factors, and prior-parameterization variables are omitted. Public
 covariance parameters, derived correlation matrices, allocation weights,
 model indicators, and likelihood parameters remain available.
-\code{include_auxiliary = TRUE} returns the raw backend variables without
-filtering. \code{brma_samples} objects have separate methods documented at
-\code{\link{as_draws.brma_samples}}.
+Scalar-structure random-effect correlation matrices are reconstructed from
+compact rho draws on demand. Conversion fails before allocating them when
+their combined draw-by-matrix size exceeds
+\code{getOption("RoBMA.max_derived_correlation_cells", 2e7)}. Increase this option
+explicitly when the dense public matrices are required. Use
+\code{include_auxiliary = TRUE} to skip derivation and return the raw backend
+variables without filtering; compatible older fits may contain dense
+auxiliary variables. \code{brma_samples} objects have separate methods
+documented at \code{\link{as_draws.brma_samples}}.
 }
 \seealso{
 \code{\link[posterior]{draws}}, \code{\link{brma}},
