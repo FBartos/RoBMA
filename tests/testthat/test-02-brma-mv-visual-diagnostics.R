@@ -120,12 +120,12 @@ test_that("v14 brma.mv Q-Q diagnostics use rstandard residuals", {
   for (name in mv_visual_fit_names) {
     fit_brma <- fits[[name]]
     qq_data <- suppressWarnings(qqnorm(fit_brma, as_data = TRUE))
-    qq_rstd <- qqnorm(
+    qq_rstd <- suppressWarnings(qqnorm(
       fit_brma,
       type        = "rstandard",
       as_data     = TRUE,
       max_samples = 100
-    )
+    ))
 
     .expect_mv_components(qq_data, expected_components, name)
     .expect_mv_components(qq_rstd, expected_components, name)
@@ -135,17 +135,17 @@ test_that("v14 brma.mv Q-Q diagnostics use rstandard residuals", {
     expect_equal(qq_data[["y"]], sort(qq_data[["y"]]), info = name)
 
     if (.mv_visual_should_render(name)) {
-      .with_temp_plot_device(expect_silent(qqnorm(
+      .with_temp_plot_device(expect_silent(suppressWarnings(qqnorm(
         fit_brma,
         type        = "rstandard",
         max_samples = 100
-      )))
-      expect_true(.is_ggplot(qqnorm(
+      ))))
+      expect_true(.is_ggplot(suppressWarnings(qqnorm(
         fit_brma,
         type        = "rstandard",
         plot_type   = "ggplot",
         max_samples = 100
-      )))
+      ))))
     }
   }
 })
@@ -195,12 +195,12 @@ test_that("fixed-effect brma.mv visual diagnostics use zero heterogeneity", {
     as_data                = TRUE,
     max_samples            = 100
   )
-  qq_data <- qqnorm(
+  qq_data <- suppressWarnings(qqnorm(
     fit_brma,
     type        = "rstandard",
     as_data     = TRUE,
     max_samples = 100
-  )
+  ))
   forest_data <- as_metafor_forest(fit_brma, addpred = TRUE)
 
   .expect_mv_components(
@@ -233,17 +233,17 @@ test_that("fixed-effect brma.mv visual diagnostics use zero heterogeneity", {
     plot_type              = "ggplot",
     max_samples            = 100
   )))
-  .with_temp_plot_device(expect_silent(qqnorm(
+  .with_temp_plot_device(expect_silent(suppressWarnings(qqnorm(
     fit_brma,
     type        = "rstandard",
     max_samples = 100
-  )))
-  expect_true(.is_ggplot(qqnorm(
+  ))))
+  expect_true(.is_ggplot(suppressWarnings(qqnorm(
     fit_brma,
     type        = "rstandard",
     plot_type   = "ggplot",
     max_samples = 100
-  )))
+  ))))
   .with_temp_plot_device(expect_silent(metafor::forest(
     fit_brma,
     addpred = TRUE
