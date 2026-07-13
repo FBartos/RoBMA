@@ -53,6 +53,9 @@
 #' @param smooth logical indicating whether to smooth the envelope bounds using
 #' Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
 #' \code{TRUE}.
+#' @param max_samples maximum posterior draws used to compute known-\code{V}
+#' internally standardized residuals. Defaults to \code{Inf}. Finite values
+#' select draws deterministically and are ignored for other residual types.
 #' @param xlim x-axis limits. If not specified, limits are computed from data.
 #' @param ylim y-axis limits. If not specified, limits are computed from data.
 #' @param xlab title for the x-axis. If not specified, defaults to
@@ -147,7 +150,8 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
                          conditioning_depth = "marginal", envelope = TRUE,
                          conf_level = 95,
                          bonferroni = FALSE, reps = 1000, smooth = TRUE,
-                         xlim, ylim, xlab, ylab, plot_type = "base", ...) {
+                         xlim, ylim, xlab, ylab, plot_type = "base",
+                         max_samples = Inf, ...) {
 
   # input validation
   conditioning_depth_specified <- !missing(conditioning_depth)
@@ -169,6 +173,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   BayesTools::check_bool(bonferroni, "bonferroni")
   BayesTools::check_int(reps, "reps", lower = 1)
   BayesTools::check_bool(smooth, "smooth")
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   .check_unit_conditioning_depth(
     object             = y,
@@ -203,6 +208,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     bonferroni         = bonferroni,
     reps               = reps,
     smooth             = smooth,
+    max_samples        = max_samples,
     xlim               = if (missing(xlim)) NULL else xlim,
     ylim               = if (missing(ylim)) NULL else ylim,
     xlab               = if (missing(xlab)) NULL else xlab,
@@ -243,6 +249,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 # @param bonferroni logical; Bonferroni correction
 # @param reps       number of simulation replications
 # @param smooth     logical; smooth envelope bounds
+# @param max_samples maximum posterior draws for known-V rstandard residuals.
 # @param xlim       x-axis limits (NULL for auto)
 # @param ylim       y-axis limits (NULL for auto)
 # @param xlab       x-axis label (NULL for default)
@@ -253,7 +260,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 #
 # ---------------------------------------------------------------------------- #
 .qqnorm_data <- function(x, type, unit, conditioning_depth, envelope, conf_level,
-                          bonferroni, reps, smooth,
+                          bonferroni, reps, smooth, max_samples,
                           xlim, ylim, xlab, ylab, dots) {
 
   # get standardized residuals
@@ -261,7 +268,8 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     res_obj <- rstandard.brma(
       model              = x,
       unit               = unit,
-      conditioning_depth = conditioning_depth
+      conditioning_depth = conditioning_depth,
+      max_samples        = max_samples
     )
   } else {
     # type == "rstudent" or "LOO-PIT"

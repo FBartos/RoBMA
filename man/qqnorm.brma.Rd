@@ -19,6 +19,7 @@
   xlab,
   ylab,
   plot_type = "base",
+  max_samples = Inf,
   ...
 )
 }
@@ -62,6 +63,10 @@ argument.}
 \item{smooth}{logical indicating whether to smooth the envelope bounds using
 Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
 \code{TRUE}.}
+
+\item{max_samples}{maximum posterior draws used to compute known-\code{V}
+internally standardized residuals. Defaults to \code{Inf}. Finite values
+select draws deterministically and are ignored for other residual types.}
 
 \item{xlim}{x-axis limits. If not specified, limits are computed from data.}
 

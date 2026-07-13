@@ -511,6 +511,13 @@ test_that("Q-Q plot data and argument validation are stable", {
   expect_error(qqnorm(fit_brma, type = "invalid"),
     info = "invalid type is rejected"
   )
+
+  expect_error(
+    qqnorm(fit_brma, type = "rstandard", max_samples = 9),
+    "'max_samples' must be at least 10",
+    fixed = TRUE,
+    info  = "invalid maximum posterior sample count is rejected"
+  )
 })
 
 # ============================================================================ #
