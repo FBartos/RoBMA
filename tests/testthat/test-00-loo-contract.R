@@ -4,6 +4,26 @@
 
 source(testthat::test_path("common-functions.R"))
 
+test_that("outcome hashes use a cross-version canonical encoding", {
+
+  object <- brma(
+    yi = c(0.1, -0.2), sei = c(0.3, 0.4), measure = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors = TRUE
+  )
+
+  expect_identical(.get_outcome_hash(object), "747ab8e37b24cc8e")
+  expect_identical(
+    .outcome_hash_bytes(list(value = -0)),
+    .outcome_hash_bytes(list(value = 0))
+  )
+  expect_false(identical(
+    .outcome_hash_bytes(list(value = 0)),
+    .outcome_hash_bytes(list(value = NA_real_))
+  ))
+})
+
+
 test_that("loo_compare preserves the released numeric comparison table", {
 
   set.seed(11)

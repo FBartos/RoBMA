@@ -246,7 +246,7 @@
     )
   }
 
-  bytes <- as.integer(serialize(payload, NULL, version = 3))
+  bytes <- as.integer(.outcome_hash_bytes(payload))
   hash1 <- 5381
   hash2 <- 0
 
@@ -259,6 +259,70 @@
     sprintf("%08x", as.integer(hash1)),
     sprintf("%08x", as.integer(hash2))
   ))
+}
+
+
+# Encode outcome-hash payloads independently of the R serialization version.
+.outcome_hash_bytes <- function(x) {
+
+  encode_length <- function(x) {
+    writeBin(as.integer(x), raw(), size = 4L, endian = "big")
+  }
+  encode_character <- function(x) {
+    value_bytes <- lapply(x, function(value) {
+      if (is.na(value)) {
+        return(encode_length(-1L))
+      } else {
+        bytes <- charToRaw(enc2utf8(value))
+        return(c(encode_length(length(bytes)), bytes))
+      }
+    })
+    do.call(c, c(
+      list(charToRaw("c"), encode_length(length(x))),
+      value_bytes
+    ))
+  }
+
+  if (is.null(x)) {
+    return(charToRaw("n"))
+  }
+  if (is.list(x)) {
+    element_names <- names(x)
+    if (is.null(element_names)) {
+      element_names <- rep("", length(x))
+    }
+    element_bytes <- lapply(seq_along(x), function(i) {
+      c(
+        encode_character(element_names[[i]]),
+        .outcome_hash_bytes(x[[i]])
+      )
+    })
+    return(do.call(c, c(
+      list(charToRaw("l"), encode_length(length(x))),
+      element_bytes
+    )))
+  }
+  if (is.double(x)) {
+    x[!is.na(x) & x == 0] <- 0
+    return(c(
+      charToRaw("d"),
+      encode_length(length(x)),
+      writeBin(x, raw(), size = 8L, endian = "big")
+    ))
+  }
+  if (is.integer(x)) {
+    return(c(
+      charToRaw("i"),
+      encode_length(length(x)),
+      writeBin(x, raw(), size = 4L, endian = "big")
+    ))
+  }
+  if (is.character(x)) {
+    return(encode_character(x))
+  }
+
+  stop("Internal error: unsupported outcome-hash payload type.",
+       call. = FALSE)
 }
 
 
