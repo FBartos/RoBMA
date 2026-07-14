@@ -82,7 +82,7 @@ OBJECTS = distributions/DWN.o \
 		  distributions/DSELNORMSTEPSWITCH.o \
 		  distributions/DSELNORMKERNEL.o \
 		  selnorm/selnorm.o \
-		  r-glmm.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
+		  glmm-aghq.o r-glmm.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
 
 ###############
 

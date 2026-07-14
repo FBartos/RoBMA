@@ -94,13 +94,29 @@ of the prior distribution respectively.}
 \item{density_method}{posterior density method. \code{"KDE"} uses the
 standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
 row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
-Chen-style moment-matched IWMDE densities. Matching is case-insensitive.}
+Chen-style moment-matched IWMDE densities. qCMDE is preferred when its
+additional normalization cost is acceptable; IWMDE can be faster but is
+more sensitive to its fitted conditional weights. Matching is
+case-insensitive. qCMDE/IWMDE are not available for non-known-\code{V}
+\code{brma.mv()} random-formula models, derived semantic random-effect
+quantities, or selection-weightfunction coordinates requiring joint
+replacement. IWMDE is also unavailable for binomial and Poisson GLMMs; use
+qCMDE for GLMM density plots.}
 
 \item{density_control}{named list of density-estimation settings. Supported
-entries are \code{n_points}, \code{max_samples}, \code{display_grid},
-\code{normalization_points}, and \code{normalization_prob}. The
-normalization entries are used with \code{density_method = "qCMDE"} and
-\code{density_method = "IWMDE"}.}
+entries are \code{n_points} (default \code{100}), \code{max_samples}
+(default \code{500}), \code{initial_samples} (default \code{500}),
+\code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
+(default \code{"adaptive"}), \code{normalization_points} (default
+\code{NULL}, resolved to \code{max(50, n_points)}), and
+\code{normalization_prob} (default \code{0.999}).
+\code{initial_samples} and \code{target_relative_mcse} are point-ordinate
+controls and do not alter this fixed-budget density plot. The normalization
+entries are used with
+\code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+Increase the row and normalization budgets and compare results when density
+diagnostics report low effective sample size, concentrated contributions,
+dropped rows, or unstable normalization.}
 
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias

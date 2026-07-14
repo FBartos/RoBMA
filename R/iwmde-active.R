@@ -196,14 +196,10 @@
 
   state_scope <- match.arg(state_scope)
   row <- .resolve_fixed_prior_row(row, active_setup[["fit_priors"]])
-  parameters <- list()
-  base_parameters <- try(
-    BayesTools::JAGS_marglik_parameters(row, active_setup[["fit_priors"]]),
-    silent = TRUE
+  parameters <- .iwmde_marglik_row_parameters(
+    row        = row,
+    fit_priors = active_setup[["fit_priors"]]
   )
-  if (!inherits(base_parameters, "try-error")) {
-    parameters <- c(parameters, base_parameters)
-  }
 
   data <- context[["data"]]
   K    <- nrow(data[["outcome"]])
@@ -305,6 +301,56 @@
   )
 
   return(parameters)
+}
+
+
+.iwmde_marglik_row_parameters <- function(row, fit_priors) {
+
+  if (length(fit_priors) == 0L) {
+    return(list())
+  }
+
+  parameters <- list()
+  for (i in seq_along(fit_priors)) {
+    if (.iwmde_direct_marglik_parameter_missing(
+      row   = row,
+      prior = fit_priors[[i]],
+      name  = names(fit_priors)[[i]]
+    )) {
+      next
+    }
+    current <- tryCatch(
+      BayesTools::JAGS_marglik_parameters(row, fit_priors[i]),
+      error = function(e) {
+
+        if (.iwmde_marglik_parameters_missing(e)) {
+          return(list())
+        }
+        stop(e)
+      }
+    )
+    parameters <- c(parameters, current)
+  }
+
+  return(parameters)
+}
+
+
+.iwmde_direct_marglik_parameter_missing <- function(row, prior, name) {
+
+  if (!BayesTools::is.prior.simple(prior) ||
+      BayesTools::is.prior.point(prior)) {
+    return(FALSE)
+  }
+
+  return(!name %in% names(row))
+}
+
+
+.iwmde_marglik_parameters_missing <- function(error) {
+
+  message <- conditionMessage(error)
+  return(startsWith(message, "'samples' does not contain all monitored "))
 }
 
 

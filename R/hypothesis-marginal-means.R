@@ -49,6 +49,17 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   density_method       <- .density_method_normalize(density_method)
   precomputed_density <- density_method %in% c("qCMDE", "IWMDE")
   if (precomputed_density) {
+    density_control <- .hypothesis_marginal_means_density_control(
+      object          = object,
+      density_method  = density_method,
+      density_control = density_control
+    )
+    if (is.null(density_control[["normalization_points"]])) {
+      density_control[["normalization_points"]] <- max(
+        50L,
+        density_control[["n_points"]]
+      )
+    }
     object <- .hypothesis_marginal_means_attach_iwmde(
       object          = object,
       parameter       = parameter,
@@ -187,18 +198,10 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     )
   }
   .check_iwmde_available(source_object, "qCMDE/IWMDE marginal-means hypothesis()")
-
-  density_control <- .hypothesis_marginal_means_density_control(
-    object          = object,
-    density_method  = density_method,
-    density_control = density_control
+  .iwmde_check_point_ordinate_supported(
+    source_object,
+    density_method
   )
-  if (is.null(density_control[["normalization_points"]])) {
-    density_control[["normalization_points"]] <- max(
-      50L,
-      density_control[["n_points"]]
-    )
-  }
 
   context        <- .iwmde_context(source_object)
   estimate_cache <- .iwmde_estimate_cache()
@@ -248,18 +251,31 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
                                                        density_control) {
 
   if (is.null(density_control) && is.list(object[["iwmde_settings"]])) {
-    settings <- object[["iwmde_settings"]]
-    keep <- c("n_points", "max_samples", "display_grid")
+    settings <- if (is.list(object[["iwmde_ordinate_settings"]])) {
+      object[["iwmde_ordinate_settings"]]
+    } else {
+      object[["iwmde_settings"]]
+    }
+    keep <- c(
+      "n_points",
+      "max_samples",
+      "initial_samples",
+      "target_relative_mcse",
+      "display_grid"
+    )
     if (density_method %in% c("qCMDE", "IWMDE")) {
       keep <- c(keep, "normalization_points", "normalization_prob")
     }
     density_control <- settings[intersect(keep, names(settings))]
   }
 
-  .density_control_normalize(
+  density_control <- .iwmde_density_control_resolve(
     density_method  = density_method,
-    density_control = density_control
+    density_control = density_control,
+    purpose         = "ordinate"
   )
+
+  return(density_control)
 }
 
 
@@ -307,20 +323,15 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     parameter = parameter,
     level     = spec[["level"]]
   )
-  plan <- .iwmde_plan(
+  expected_provenance <- .iwmde_request_provenance(
     context         = context,
     parameter       = spec[["label"]],
     density_method  = density_method,
     density_control = density_control,
-    outputs         = "ordinate",
-    values          = value,
+    attribute       = "ordinate",
+    value           = value,
     parameter_spec  = spec,
     metadata        = metadata
-  )
-  expected_provenance <- .iwmde_estimate_request_provenance(
-    plan      = plan,
-    attribute = "ordinate",
-    value     = value
   )
   if (.iwmde_posterior_ordinate_matches_request(
         posterior_ordinate = existing,
@@ -330,18 +341,26 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   }
   existing <- .iwmde_posterior_ordinate_drop_value(existing, value)
 
-  estimate <- .iwmde_estimate_from_plan(
-    context = context,
-    plan    = plan,
-    cache   = estimate_cache
+  estimate <- .iwmde_estimate(
+    context         = context,
+    parameter       = spec[["label"]],
+    density_method  = density_method,
+    density_control = density_control,
+    outputs         = "ordinate",
+    values          = value,
+    parameter_spec  = spec,
+    metadata        = metadata,
+    cache           = estimate_cache
   )
   diagnostic <- estimate[["diagnostics"]][["ordinate"]]
   ordinate   <- estimate[["posterior_ordinate"]]
   if (is.null(ordinate)) {
-    stop(
-      density_method, " posterior ordinate is unavailable for '", label, " = ",
-      value, "': ", .hypothesis_brma_diagnostic_reason(diagnostic),
-      call. = FALSE
+    .iwmde_stop_ordinate_unavailable(
+      message = paste0(
+        density_method, " posterior ordinate is unavailable for '", label,
+        " = ", value, "': ", .hypothesis_brma_diagnostic_reason(diagnostic)
+      ),
+      estimate = estimate
     )
   }
 

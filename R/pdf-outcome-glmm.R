@@ -14,6 +14,23 @@
 .outcome_pdf.binom <- function(ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi,
                                weights = NULL, n_theta = 15, n_pi = 30) {
 
+  use_aghq   <- missing(n_theta) && missing(n_pi)
+  prior_spec <- .glmm_aghq_prior_spec(prior_pi, "bin")
+  if (use_aghq) {
+    .glmm_aghq_require_default(prior_spec, "bin")
+    out <- .glmm_binom_aghq(
+      ai          = ai,
+      ci          = ci,
+      n1i         = n1i,
+      n2i         = n2i,
+      mu_samples  = mu_samples,
+      tau_within  = tau_within,
+      weights     = weights,
+      prior_spec  = prior_spec
+    )
+    return(.glmm_aghq_value(out))
+  }
+
   if (!.has_native_glmm("bin")) {
     return(.outcome_pdf.binom_r(
       ai         = ai,
@@ -253,6 +270,24 @@
                                    prior_pi, weights = NULL,
                                    n_theta = 15, n_pi = 30) {
 
+  use_aghq   <- missing(n_theta) && missing(n_pi)
+  prior_spec <- .glmm_aghq_prior_spec(prior_pi, "bin")
+  if (use_aghq) {
+    .glmm_aghq_require_default(prior_spec, "bin", row_sum = TRUE)
+    out <- .glmm_binom_aghq(
+      ai          = ai,
+      ci          = ci,
+      n1i         = n1i,
+      n2i         = n2i,
+      mu_samples  = mu_samples,
+      tau_within  = tau_within,
+      weights     = weights,
+      prior_spec  = prior_spec,
+      row_sum     = TRUE
+    )
+    return(.glmm_aghq_value(out))
+  }
+
   if (!.has_native_glmm_row_sum("bin")) {
     return(rowSums(.outcome_pdf.binom(
       ai         = ai,
@@ -310,6 +345,23 @@
 .outcome_pdf.pois <- function(x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi,
                               weights = NULL, n_theta = 15, n_phi = 30) {
 
+  use_aghq   <- missing(n_theta) && missing(n_phi)
+  prior_spec <- .glmm_aghq_prior_spec(prior_phi, "pois")
+  if (use_aghq) {
+    .glmm_aghq_require_default(prior_spec, "pois")
+    out <- .glmm_pois_aghq(
+      x1i        = x1i,
+      x2i        = x2i,
+      t1i        = t1i,
+      t2i        = t2i,
+      mu_samples = mu_samples,
+      tau_within = tau_within,
+      weights    = weights,
+      prior_spec = prior_spec
+    )
+    return(.glmm_aghq_value(out))
+  }
+
   if (!.has_native_glmm("pois")) {
     return(.outcome_pdf.pois_r(
       x1i        = x1i,
@@ -359,6 +411,24 @@
 .outcome_pdf_sum.pois <- function(x1i, x2i, t1i, t2i, mu_samples,
                                   tau_within, prior_phi, weights = NULL,
                                   n_theta = 15, n_phi = 30) {
+
+  use_aghq   <- missing(n_theta) && missing(n_phi)
+  prior_spec <- .glmm_aghq_prior_spec(prior_phi, "pois")
+  if (use_aghq) {
+    .glmm_aghq_require_default(prior_spec, "pois", row_sum = TRUE)
+    out <- .glmm_pois_aghq(
+      x1i        = x1i,
+      x2i        = x2i,
+      t1i        = t1i,
+      t2i        = t2i,
+      mu_samples = mu_samples,
+      tau_within = tau_within,
+      weights    = weights,
+      prior_spec = prior_spec,
+      row_sum    = TRUE
+    )
+    return(.glmm_aghq_value(out))
+  }
 
   if (!.has_native_glmm_row_sum("pois")) {
     return(rowSums(.outcome_pdf.pois(

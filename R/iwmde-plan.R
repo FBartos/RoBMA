@@ -4,30 +4,40 @@
 
 .iwmde_plan <- function(context, parameter, density_method, density_control,
                         outputs = c("density", "ordinate"), values = NULL,
-                        parameter_spec = NULL, metadata = NULL) {
+                        parameter_spec = NULL, metadata = NULL,
+                        row_budget = NULL) {
 
-  context <- .iwmde_context_ensure_caches(context)
+  context        <- .iwmde_context_ensure_caches(context)
   density_method <- .density_method_normalize_precomputed(density_method)
-  internal_ordinate_grid <- is.list(density_control) &&
-    identical(density_control[["display_grid"]], "ordinate")
-  if (internal_ordinate_grid) {
-    density_control[["display_grid"]] <- "adaptive"
-  }
-  density_control <- .density_control_normalize(
+  outputs <- unique(match.arg(
+    outputs,
+    c("density", "ordinate"),
+    several.ok = TRUE
+  ))
+  density_control <- .iwmde_density_control_resolve(
     density_method  = density_method,
-    density_control = density_control
+    density_control = density_control,
+    purpose         = if (identical(outputs, "ordinate")) {
+      "ordinate"
+    } else {
+      "density"
+    }
   )
-  if (internal_ordinate_grid) {
-    density_control[["display_grid"]] <- "ordinate"
-  }
   if (is.null(density_control[["normalization_points"]])) {
     density_control[["normalization_points"]] <- max(
       50L,
       density_control[["n_points"]]
     )
   }
+  if (!is.null(row_budget)) {
+    BayesTools::check_int(row_budget, "row_budget", lower = 20)
+  }
+  row_budget <- if (is.null(row_budget)) {
+    density_control[["max_samples"]]
+  } else {
+    min(row_budget, density_control[["max_samples"]])
+  }
 
-  outputs <- unique(match.arg(outputs, c("density", "ordinate"), several.ok = TRUE))
   values  <- as.numeric(values)
   values  <- values[is.finite(values)]
 
@@ -51,13 +61,14 @@
       display_grid     = density_control[["display_grid"]]
     ),
     control = density_control,
+    row_budget = row_budget,
     method  = method,
     density_method = density_method,
     source_fingerprint = .iwmde_source_fingerprint(context)
   )
   plan <- .iwmde_plan_prepare_contract(context, plan)
+  plan <- .iwmde_new_plan(plan)
   plan[["plan_key"]] <- .iwmde_hash("iwmde_plan", .iwmde_plan_key_payload(plan))
-  class(plan) <- c("iwmde_plan", "list")
 
   return(plan)
 }
@@ -126,10 +137,10 @@
   }
 
   candidate_rows <- continuous_rows
-  if (length(candidate_rows) > plan[["control"]][["max_samples"]]) {
+  if (length(candidate_rows) > plan[["row_budget"]]) {
     candidate_rows <- .iwmde_select_active_rows(
       rows        = candidate_rows,
-      max_samples = plan[["control"]][["max_samples"]],
+      max_samples = plan[["row_budget"]],
       context     = context
     )
   }
@@ -294,23 +305,18 @@
     ))
   }
 
-  row_states <- tryCatch(
-    .iwmde_row_states(
-      context        = context,
-      rows           = candidate_rows,
-      parameter      = plan[["target"]][["parameter"]],
-      parameter_spec = plan[["execution_spec"]]
-    ),
-    error = function(e) e
+  row_states <- .iwmde_row_states(
+    context        = context,
+    rows           = candidate_rows,
+    parameter      = plan[["target"]][["parameter"]],
+    parameter_spec = plan[["execution_spec"]]
   )
-  if (inherits(row_states, "error")) {
-    return(empty(conditionMessage(row_states)))
-  }
 
   baseline_log_q <- vapply(row_states, function(state) {
     state[["baseline_log_q"]]
   }, numeric(1))
   finite_baseline <- is.finite(baseline_log_q)
+  .iwmde_validate_row_states(row_states[finite_baseline])
 
   return(list(
     status           = "ok",
@@ -477,9 +483,12 @@
 .iwmde_plan_key_payload <- function(plan) {
 
   return(.iwmde_compact_nulls(list(
+    schema_version     = .iwmde_schema_version(),
+    algorithm_version  = .iwmde_algorithm_version(),
     target             = plan[["target"]],
     outputs            = plan[["outputs"]],
     control            = .iwmde_density_control_provenance(plan[["control"]]),
+    row_budget         = plan[["row_budget"]],
     method             = plan[["method"]],
     density_method     = plan[["density_method"]],
     status             = plan[["status"]],
@@ -498,22 +507,24 @@
 
 .iwmde_source_fingerprint <- function(context) {
 
-  samples <- context[["posterior_samples"]]
-  sample_rows <- if (is.null(samples)) {
-    NULL
-  } else {
-    n <- nrow(samples)
-    rows <- unique(c(seq_len(min(5L, n)), pmax(1L, n - 4L):n))
-    rows <- rows[rows >= 1L & rows <= n]
-    samples[rows, , drop = FALSE]
+  if (!is.null(context[["source_fingerprint"]])) {
+    return(context[["source_fingerprint"]])
   }
+
+  return(.iwmde_compute_source_fingerprint(context))
+}
+
+
+.iwmde_compute_source_fingerprint <- function(context) {
+
+  samples <- context[["posterior_samples"]]
 
   return(.iwmde_compact_nulls(list(
     object_class    = class(context[["object"]]),
     fit_class       = class(context[["object"]][["fit"]]),
     posterior_dim   = dim(samples),
     posterior_names = .iwmde_hash("iwmde_columns", colnames(samples)),
-    posterior_values = .iwmde_hash("iwmde_sample_rows", sample_rows),
+    posterior_values = .iwmde_hash("iwmde_posterior_draws", samples),
     data             = .iwmde_hash("iwmde_data", context[["data"]]),
     priors           = .iwmde_hash("iwmde_priors", context[["priors"]]),
     selection_spec   = .iwmde_hash(
@@ -529,20 +540,22 @@
 .iwmde_plan_provenance <- function(plan) {
 
   return(.iwmde_compact_nulls(list(
-    schema_version     = .iwmde_schema_version(),
-    provenance_level   = "iwmde_plan",
-    plan_key           = plan[["plan_key"]],
-    density_method     = plan[["density_method"]],
-    method             = plan[["method"]],
-    internal_method    = plan[["method"]],
-    density_control    = .iwmde_density_control_provenance(plan[["control"]]),
-    target             = plan[["target"]],
-    status             = plan[["status"]],
-    reason             = plan[["reason"]],
-    rows               = .iwmde_plan_rows_provenance(plan),
-    support            = .iwmde_plan_support_provenance(plan),
-    grids              = .iwmde_plan_grid_provenance(plan),
-    source_fingerprint = plan[["source_fingerprint"]]
+    schema_version      = .iwmde_schema_version(),
+    algorithm_version   = .iwmde_algorithm_version(),
+    provenance_level    = "iwmde_plan",
+    plan_key            = plan[["plan_key"]],
+    density_method      = plan[["density_method"]],
+    method              = plan[["method"]],
+    internal_method     = plan[["method"]],
+    density_control     = .iwmde_density_control_provenance(plan[["control"]]),
+    row_budget          = plan[["row_budget"]],
+    target              = plan[["target"]],
+    status              = plan[["status"]],
+    reason              = plan[["reason"]],
+    rows                = .iwmde_plan_rows_provenance(plan),
+    support             = .iwmde_plan_support_provenance(plan),
+    grids               = .iwmde_plan_grid_provenance(plan),
+    source_fingerprint  = plan[["source_fingerprint"]]
   )))
 }
 
@@ -642,4 +655,43 @@
     source_fingerprint  = plan[["source_fingerprint"]],
     plan_key            = plan[["plan_key"]]
   )
+}
+
+
+.iwmde_request_provenance <- function(context, parameter, density_method,
+                                      density_control,
+                                      attribute = c("density", "ordinate"),
+                                      value = NULL, parameter_spec = NULL,
+                                      metadata = NULL) {
+
+  context        <- .iwmde_context_ensure_caches(context)
+  attribute      <- match.arg(attribute)
+  density_method <- .density_method_normalize_precomputed(density_method)
+  density_control <- .iwmde_density_control_resolve(
+    density_method  = density_method,
+    density_control = density_control,
+    purpose         = attribute
+  )
+  if (is.null(density_control[["normalization_points"]])) {
+    density_control[["normalization_points"]] <- max(
+      50L,
+      density_control[["n_points"]]
+    )
+  }
+
+  parameter_spec <- .iwmde_parameter_spec(context, parameter, parameter_spec)
+  if (length(value) > 1L) {
+    value <- value[[1L]]
+  }
+
+  return(.iwmde_provenance_request(
+    density_method     = density_method,
+    method             = .density_method_iwmde_estimator(density_method),
+    metadata           = metadata,
+    density_control    = density_control,
+    value              = value,
+    attribute          = attribute,
+    target_key         = .iwmde_target_key(parameter, parameter_spec),
+    source_fingerprint = .iwmde_source_fingerprint(context)
+  ))
 }

@@ -8,6 +8,25 @@
                             cache = NULL) {
 
   context <- .iwmde_context_ensure_caches(context)
+  .iwmde_check_context_density_method_supported(context, density_method)
+  outputs <- unique(match.arg(
+    outputs,
+    c("density", "ordinate"),
+    several.ok = TRUE
+  ))
+  if (identical(outputs, "ordinate")) {
+    return(.iwmde_estimate_adaptive_ordinate(
+      context         = context,
+      parameter       = parameter,
+      density_method  = density_method,
+      density_control = density_control,
+      values          = values,
+      parameter_spec  = parameter_spec,
+      metadata        = metadata,
+      cache           = cache
+    ))
+  }
+
   plan <- .iwmde_plan(
     context         = context,
     parameter       = parameter,
@@ -27,6 +46,177 @@
 }
 
 
+.iwmde_estimate_adaptive_ordinate <- function(
+    context, parameter, density_method, density_control, values,
+    parameter_spec = NULL, metadata = NULL, cache = NULL) {
+
+  control <- .iwmde_density_control_resolve(
+    density_method  = density_method,
+    density_control = density_control,
+    purpose         = "ordinate"
+  )
+  hard_cap <- control[["max_samples"]]
+  budget   <- min(control[["initial_samples"]], hard_cap)
+  history  <- list()
+
+  repeat {
+    plan <- .iwmde_plan(
+      context         = context,
+      parameter       = parameter,
+      density_method  = density_method,
+      density_control = control,
+      outputs         = "ordinate",
+      values          = values,
+      parameter_spec  = parameter_spec,
+      metadata        = metadata,
+      row_budget      = as.integer(budget)
+    )
+    out <- .iwmde_estimate_from_plan(
+      context = context,
+      plan    = plan,
+      cache   = cache
+    )
+
+    diagnostic <- out[["diagnostics"]][["ordinate"]]
+    metrics    <- .iwmde_adaptation_metrics(diagnostic)
+    eligible   <- length(plan[["rows"]][["continuous_rows"]])
+    achieved   <- plan[["rows"]][["n_candidate_rows"]]
+    if (!is.finite(eligible) || eligible < 1L) {
+      eligible <- achieved
+    }
+    effective_cap <- min(hard_cap, eligible)
+    precision_target_met <- is.finite(metrics[["relative_mcse"]]) &&
+      metrics[["relative_mcse"]] <= control[["target_relative_mcse"]]
+    bf_grade_met <- is.null(.iwmde_diagnostics_bf_failure_reason(
+      diagnostic[["diagnostics"]]
+    ))
+    target_met <- precision_target_met && bf_grade_met
+    all_rows_used <- is.finite(eligible) && achieved >= eligible
+    hard_cap_reached <- is.finite(hard_cap) && hard_cap < eligible &&
+      achieved >= hard_cap
+
+    history[[length(history) + 1L]] <- data.frame(
+      requested_row_budget = as.integer(budget),
+      evaluated_rows       = as.integer(achieved),
+      relative_mcse        = metrics[["relative_mcse"]],
+      ess                  = metrics[["ess"]],
+      max_weight_share     = metrics[["max_weight_share"]],
+      precision_target_met = precision_target_met,
+      bf_grade_met         = bf_grade_met,
+      stringsAsFactors     = FALSE
+    )
+
+    exhausted <- all_rows_used || hard_cap_reached ||
+      !is.finite(effective_cap) || achieved >= effective_cap
+    if (target_met || exhausted || !identical(diagnostic[["status"]], "ok")) {
+      break
+    }
+
+    next_budget <- .iwmde_next_row_budget(
+      current              = budget,
+      relative_mcse        = metrics[["relative_mcse"]],
+      target_relative_mcse = control[["target_relative_mcse"]],
+      cap                  = effective_cap
+    )
+    if (!is.finite(next_budget) || next_budget <= budget) {
+      break
+    }
+    budget <- next_budget
+  }
+
+  adaptation <- list(
+    adaptive             = TRUE,
+    initial_row_budget   = control[["initial_samples"]],
+    achieved_row_budget  = as.integer(achieved),
+    eligible_rows        = as.integer(eligible),
+    hard_cap             = hard_cap,
+    hard_cap_reached     = hard_cap_reached,
+    all_rows_used        = all_rows_used,
+    target_relative_mcse = control[["target_relative_mcse"]],
+    precision_target_met = precision_target_met,
+    bf_grade_met         = bf_grade_met,
+    target_met           = target_met,
+    n_steps              = length(history),
+    history              = do.call(rbind, history)
+  )
+
+  return(.iwmde_estimate_attach_adaptation(out, adaptation))
+}
+
+
+.iwmde_adaptation_metrics <- function(diagnostic) {
+
+  diagnostics <- diagnostic[["diagnostics"]]
+  if (!is.list(diagnostics)) {
+    diagnostics <- list()
+  }
+
+  return(list(
+    relative_mcse = .iwmde_diagnostic_scalar_any(
+      diagnostics,
+      c("bf_relative_mcse", "relative_mcse")
+    ),
+    ess = .iwmde_diagnostic_scalar_any(
+      diagnostics,
+      c("bf_ess", "ess")
+    ),
+    max_weight_share = .iwmde_diagnostic_scalar_any(
+      diagnostics,
+      c("bf_max_weight_share", "max_weight_share")
+    )
+  ))
+}
+
+
+.iwmde_next_row_budget <- function(current, relative_mcse,
+                                    target_relative_mcse, cap) {
+
+  growth <- 2
+  if (is.finite(relative_mcse) && relative_mcse > 0 &&
+      is.finite(target_relative_mcse) && target_relative_mcse > 0) {
+    projected <- 1.2 * (relative_mcse / target_relative_mcse)^2
+    growth    <- min(4, max(1.5, projected))
+  }
+  next_budget <- max(current + 20, ceiling(current * growth))
+
+  return(min(as.integer(next_budget), cap))
+}
+
+
+.iwmde_estimate_attach_adaptation <- function(estimate, adaptation) {
+
+  diagnostic <- estimate[["diagnostics"]][["ordinate"]]
+  if (is.list(diagnostic)) {
+    diagnostic[["adaptation"]] <- adaptation
+    if (is.list(diagnostic[["diagnostics"]])) {
+      for (name in setdiff(names(adaptation), "history")) {
+        diagnostic[["diagnostics"]][[name]] <- adaptation[[name]]
+      }
+    }
+    estimate[["diagnostics"]][["ordinate"]] <- diagnostic
+  }
+
+  for (ordinate_name in c(
+    "posterior_ordinate",
+    "rejected_posterior_ordinate"
+  )) {
+    ordinate <- estimate[[ordinate_name]]
+    if (is.list(ordinate) && is.list(ordinate[["diagnostics"]])) {
+      for (name in setdiff(names(adaptation), "history")) {
+        ordinate[["diagnostics"]][[name]] <- adaptation[[name]]
+      }
+      ordinate[["diagnostics"]][["adaptation_history"]] <-
+        adaptation[["history"]]
+      estimate[[ordinate_name]] <- ordinate
+    }
+  }
+
+  estimate[["adaptation"]] <- adaptation
+
+  return(estimate)
+}
+
+
 .iwmde_estimate_from_plan <- function(context, plan, cache = NULL) {
 
   key <- plan[["plan_key"]]
@@ -40,15 +230,12 @@
   ordinate_diagnostic <- NULL
 
   if (isTRUE(plan[["outputs"]][["need_density"]])) {
-    density_diagnostic <- .iwmde_estimate_try_diagnostic(
-      plan = plan,
-      expr = .iwmde_execute_plan_diagnostic(
-        context         = context,
-        plan            = plan,
-        output          = "density",
-        execution_cache = execution_cache,
-        diagnostic_cache = diagnostic_cache
-      )
+    density_diagnostic <- .iwmde_execute_plan_diagnostic(
+      context          = context,
+      plan             = plan,
+      output           = "density",
+      execution_cache  = execution_cache,
+      diagnostic_cache = diagnostic_cache
     )
     density_diagnostic <- .iwmde_attach_plan_to_diagnostic(
       diagnostic = density_diagnostic,
@@ -57,15 +244,12 @@
   }
 
   if (isTRUE(plan[["outputs"]][["need_ordinate"]])) {
-    ordinate_diagnostic <- .iwmde_estimate_try_diagnostic(
-      plan = plan,
-      expr = .iwmde_execute_plan_diagnostic(
-        context         = context,
-        plan            = plan,
-        output          = "ordinate",
-        execution_cache = execution_cache,
-        diagnostic_cache = diagnostic_cache
-      )
+    ordinate_diagnostic <- .iwmde_execute_plan_diagnostic(
+      context          = context,
+      plan             = plan,
+      output           = "ordinate",
+      execution_cache  = execution_cache,
+      diagnostic_cache = diagnostic_cache
     )
     ordinate_diagnostic <- .iwmde_attach_plan_to_diagnostic(
       diagnostic = ordinate_diagnostic,
@@ -81,20 +265,6 @@
   .iwmde_estimate_cache_set(cache, key, out)
 
   return(out)
-}
-
-
-.iwmde_estimate_try_diagnostic <- function(plan, expr) {
-
-  tryCatch(
-    expr,
-    error = function(e) {
-      .iwmde_unsupported(
-        parameter = plan[["target"]][["parameter"]],
-        reason    = conditionMessage(e)
-      )
-    }
-  )
 }
 
 
@@ -116,6 +286,7 @@
 
   density_attribute <- NULL
   ordinate_attribute <- NULL
+  rejected_ordinate_attribute <- NULL
 
   if (!is.null(density_diagnostic)) {
     density_attribute <- .iwmde_posterior_density_attribute(
@@ -126,12 +297,19 @@
     )
   }
   if (!is.null(ordinate_diagnostic)) {
-    ordinate_attribute <- .iwmde_posterior_ordinate_attribute(
+    candidate_ordinate <- .iwmde_posterior_ordinate_attribute(
       diagnostic      = ordinate_diagnostic,
       density_method  = plan[["density_method"]],
       density_control = plan[["control"]],
-      metadata        = plan[["target"]][["metadata"]]
+      metadata        = plan[["target"]][["metadata"]],
+      allow_rejected  = TRUE
     )
+    if (!is.null(candidate_ordinate) &&
+        .iwmde_posterior_ordinate_supports_bf(candidate_ordinate)) {
+      ordinate_attribute <- candidate_ordinate
+    } else {
+      rejected_ordinate_attribute <- candidate_ordinate
+    }
   }
 
   out <- list(
@@ -151,9 +329,10 @@
       density  = density_diagnostic,
       ordinate = ordinate_diagnostic
     ),
-    posterior_density   = density_attribute,
-    posterior_ordinate  = ordinate_attribute,
-    provenance          = .iwmde_plan_provenance(plan)
+    posterior_density            = density_attribute,
+    posterior_ordinate           = ordinate_attribute,
+    rejected_posterior_ordinate  = rejected_ordinate_attribute,
+    provenance                   = .iwmde_plan_provenance(plan)
   )
   class(out) <- c("iwmde_estimate", "list")
 
@@ -386,7 +565,10 @@
     density[["x"]]            <- plan[["grids"]][["requested_values"]]
   }
 
-  return(density)
+  return(.iwmde_new_density_result(
+    fields    = density,
+    estimator = plan[["method"]]
+  ))
 }
 
 
@@ -395,6 +577,10 @@
   parameter <- plan[["target"]][["parameter"]]
   rows      <- plan[["rows"]]
   is_density <- identical(output, "density")
+  .iwmde_validate_density_result(
+    density   = density,
+    estimator = plan[["method"]]
+  )
 
   plot_integral <- if (is_density) {
     .iwmde_trapz(density[["x"]], density[["y"]])
@@ -403,10 +589,10 @@
   }
   kde <- if (is_density) {
     .iwmde_kde(
-      values = rows[["continuous_values"]],
-      xlim   = plan[["support"]][["density_xlim"]],
-      n      = plan[["control"]][["n_points"]],
-      mass   = rows[["active_mass"]]
+      values   = rows[["continuous_values"]],
+      xlim     = plan[["support"]][["density_xlim"]],
+      n_points = plan[["control"]][["n_points"]],
+      mass     = rows[["active_mass"]]
     )
   } else {
     NULL
@@ -443,8 +629,14 @@
     } else {
       NA_real_
     },
-    normalization_integral      = density[["normalization_integral"]],
-    normalization_final_integral = density[["normalization_final_integral"]],
+    pilot_normalization_integral =
+      density[["pilot_normalization_integral"]],
+    final_normalization_integral =
+      density[["final_normalization_integral"]],
+    support_grid_normalization_integral =
+      density[["support_grid_normalization_integral"]],
+    normalization_relative_error =
+      density[["normalization_relative_error"]],
     normalization_points        = density[["normalization_points"]],
     normalization_range         = density[["normalization_range"]],
     normalization_initial_points = density[["normalization_initial_points"]],
@@ -490,6 +682,26 @@
     n_dropped_log_q             = execution[["n_dropped_log_q"]],
     n_dropped_weight            = density[["n_dropped_weight"]],
     weight_partitions           = density[["weight_partitions"]],
+    n_weight_fallbacks          = if (is.null(density[["n_weight_fallbacks"]])) {
+      0L
+    } else {
+      density[["n_weight_fallbacks"]]
+    },
+    n_weight_fallback_rows      = if (is.null(density[["n_weight_fallback_rows"]])) {
+      0L
+    } else {
+      density[["n_weight_fallback_rows"]]
+    },
+    weight_fallback_from        = if (is.null(density[["weight_fallback_from"]])) {
+      character()
+    } else {
+      density[["weight_fallback_from"]]
+    },
+    weight_fallback_reasons     = if (is.null(density[["weight_fallback_reasons"]])) {
+      structure(integer(), names = character())
+    } else {
+      density[["weight_fallback_reasons"]]
+    },
     max_log_ratio               = density[["max_log_ratio"]],
     min_finite_terms            = min(density[["finite_terms"]]),
     n_normalized_rows           = density[["n_normalized_rows"]],
@@ -534,7 +746,7 @@
     bf_max_log_ratio            = bf_diagnostics[["bf_max_log_ratio"]]
   )
 
-  out <- list(
+  out <- .iwmde_new_diagnostic(list(
     parameter    = parameter,
     status       = "ok",
     samples      = rows[["samples"]],
@@ -550,12 +762,10 @@
     },
     iwmde        = density,
     diagnostics  = diagnostics
-  )
+  ))
   if (is_density) {
     out[["histogram"]] <- hist_data
     out[["kde"]]       <- kde
   }
-  class(out) <- c("iwmde_parameter_diagnostic", "list")
-
   return(out)
 }

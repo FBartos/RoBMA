@@ -6,6 +6,50 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
   source(testthat::test_path("common-functions.R"), local = TRUE)
 }
 
+.bridge_shared_prior_semantics <- function(object, focal) {
+
+  priors <- object[["priors"]]
+  if (is.null(priors[["outcome"]][["mu"]]) &&
+      !is.null(priors[["mods"]][["intercept"]])) {
+    priors[["outcome"]][["mu"]] <- priors[["mods"]][["intercept"]]
+  }
+  priors[["mods"]][["intercept"]] <- NULL
+  priors[["outcome"]][[focal]]     <- NULL
+  priors[["mods"]][[focal]]        <- NULL
+  priors <- lapply(priors, function(group) {
+    if (is.null(group)) {
+      return(NULL)
+    }
+    group <- lapply(group, function(prior) {
+      list(
+        distribution = prior[["distribution"]],
+        parameters   = prior[["parameters"]],
+        truncation   = prior[["truncation"]]
+      )
+    })
+    group[sort(names(group))]
+  })
+  priors <- priors[vapply(priors, length, integer(1)) > 0L]
+
+  return(priors[sort(names(priors))])
+}
+
+
+.expect_bridge_nesting <- function(null, full, focal) {
+
+  expect_equal(null[["data"]][["outcome"]], full[["data"]][["outcome"]])
+  null_data_attributes           <- attributes(null[["data"]])
+  full_data_attributes           <- attributes(full[["data"]])
+  null_data_attributes[["mods"]] <- NULL
+  full_data_attributes[["mods"]] <- NULL
+  expect_equal(null_data_attributes, full_data_attributes)
+  expect_equal(null[["likelihood"]], full[["likelihood"]])
+  expect_equal(
+    .bridge_shared_prior_semantics(null, focal),
+    .bridge_shared_prior_semantics(full, focal)
+  )
+}
+
 .expect_iwmde_ok <- function(out, parameters, estimator = "q_grid_cmde",
                              mass_tolerance = NULL) {
 
@@ -136,8 +180,10 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
     point_mass_total                  = 0,
     plot_total_mass                   = 1,
     display_mass_fraction             = 1,
-    normalization_integral            = 1,
-    normalization_final_integral      = 1,
+    pilot_normalization_integral      = 1,
+    final_normalization_integral      = 1,
+    support_grid_normalization_integral = 1,
+    normalization_relative_error      = 0,
     normalization_points              = 100L,
     normalization_range               = c(-1, 1),
     normalization_initial_points      = 50L,
@@ -508,7 +554,13 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
                                         mass_tolerance = NULL) {
 
   active_mass            <- diagnostic[["active_mass"]]
-  normalization_integral <- diagnostic[["diagnostics"]][["normalization_integral"]]
+  normalization_integral <- if (identical(estimator, "q_grid_cmde")) {
+    diagnostic[["diagnostics"]][["final_normalization_integral"]]
+  } else {
+    diagnostic[["diagnostics"]][["support_grid_normalization_integral"]]
+  }
+  normalization_relative_error <-
+    diagnostic[["diagnostics"]][["normalization_relative_error"]]
   normalization_mass_ratio <- diagnostic[["diagnostics"]][["normalization_mass_ratio"]]
 
   expect_true(is.finite(active_mass))
@@ -517,6 +569,8 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
   expect_gt(normalization_integral, 0)
   expect_true(is.finite(normalization_mass_ratio))
   expect_gt(normalization_mass_ratio, 0)
+  expect_true(is.finite(normalization_relative_error))
+  expect_gte(normalization_relative_error, 0)
   if (identical(estimator, "q_grid_cmde")) {
     normalizer_change <- diagnostic[["diagnostics"]][["max_normalizer_relative_change"]]
     ordinate_change   <- diagnostic[["diagnostics"]][["max_ordinate_relative_change"]]

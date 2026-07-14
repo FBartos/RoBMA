@@ -44,15 +44,28 @@
     return(as.list(seq_len(K)))
   }
 
+  block_data <- .known_v_dependency_block_data(data, K)
+  return(lapply(block_data, `[[`, "index"))
+}
+
+
+# Return validated row indices and covariances for each known-V block.
+.known_v_dependency_block_data <- function(data, K) {
+
+  known_V <- .data_known_v_data(data)
+  if (is.null(known_V)) {
+    stop("Known-V covariance metadata is unavailable.", call. = FALSE)
+  }
+
   if (.known_v_nrow(known_V) != K) {
     stop("Known-V block metadata is missing and cannot be reconstructed.",
          call. = FALSE)
   }
-  blocks        <- .known_v_blocks(known_V)
-  block_indices <- lapply(blocks, `[[`, "index")
+  block_data    <- .known_v_blocks(known_V)
+  block_indices <- lapply(block_data, `[[`, "index")
 
   .known_v_validate_dependency_blocks(block_indices, K)
-  return(block_indices)
+  return(block_data)
 }
 
 
@@ -133,10 +146,9 @@
     stop("Known-V covariance metadata is inconsistent with the outcome data.",
          call. = FALSE)
   }
-  block_data        <- .known_v_blocks(known_V)
+  block_data        <- .known_v_dependency_block_data(data, K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
-  .known_v_validate_dependency_blocks(block_indices, K)
 
   extra_variance <- .known_v_extra_variance_from_setup(setup)
 
@@ -203,10 +215,9 @@
          call. = FALSE)
   }
 
-  block_data        <- .known_v_blocks(known_V)
+  block_data        <- .known_v_dependency_block_data(data, K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
-  .known_v_validate_dependency_blocks(block_indices, K)
   extra_variance    <- .known_v_extra_variance_from_setup(setup)
   log_lik           <- numeric(S)
 
@@ -294,10 +305,9 @@
          call. = FALSE)
   }
 
-  block_data        <- .known_v_blocks(known_V)
+  block_data        <- .known_v_dependency_block_data(data, K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
-  .known_v_validate_dependency_blocks(block_indices, K)
   extra_variance    <- .known_v_extra_variance_from_setup(setup)
 
   cdf      <- matrix(NA_real_, nrow = S, ncol = K)

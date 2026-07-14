@@ -126,11 +126,11 @@ vignette_cache_save(cached_fits)
 Bayesian meta-analysis produces posterior distributions for the average effect, the between-study heterogeneity, and any meta-regression coefficients, and Bayes factors quantify evidence for or against specific values of these parameters.
 
 The posterior distributions are usually summarized via posterior means and credible intervals, and visualized via (prior and) posterior density plots, usually obtained via kernel density estimation (KDE).
-The KDE visualization can be, however, quite  "bumpy" even with a sizable number of posterior samples.
-In the first part of this vignette we illustrate how the posterior density visualization can be improved via q-grid conditional marginal density estimator (qCMDE) implemented in the `RoBMA` R package [@RoBMA].
+The KDE visualization can be, however, quite "bumpy" even with a sizable number of posterior samples.
+In the first part of this vignette we describe the likelihood-aware q-grid conditional marginal density estimator (qCMDE) and importance-weighted marginal density estimator (IWMDE) implemented in the `RoBMA` R package [@RoBMA].
 
-In the second part of the vignette, we illustrate how to compute Bayes factors based on posterior distribution in the `RoBMA` R package (which takes advantage of the qCMDE estimator when testing a point null hypothesis).
-This posterior samples route allows us to re-use a single model fit with a Savage--Dickey density ratio [@dickey1971weighted; @wagenmakers2010bayesian] to compute Bayes factor for point-null hypotheses and encompassing-prior odds [@klugkist2005bayesian] for inequality and region hypotheses.
+In the second part of the vignette, we illustrate how to compute Bayes factors based on posterior distributions in the `RoBMA` R package, using qCMDE or IWMDE when testing a point null hypothesis.
+This posterior samples route allows us to re-use a single model fit with a Savage--Dickey density ratio [@dickey1971weighted; @wagenmakers2010bayesian] to compute Bayes factors for compatible point-null hypotheses and encompassing-prior odds [@klugkist2005bayesian] for inequality and region hypotheses.
 It adds to the existing bridge sampling route [@gronau2017tutorial] which compares marginal likelihoods of separately fitted constrained and unconstrained models (see "Comparing Models with Bayes Factors" in [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html)),
 and the product-space route [@lodewyckx2011tutorial] which fits multiple models simultaneously in a single MCMC run and estimates the Bayes factor from the posterior inclusion probabilities (see [*Bayesian Model Averaging*](v20-bayesian-model-averaging.html)).
 
@@ -169,14 +169,144 @@ fit_simple <- brma(
 summary(fit_simple)
 ```
 
-## qCMDE Posterior Density Estimation
+## Likelihood-Aware Posterior Density Estimation
 
 By default, `plot.brma()` visualizes posterior distributions with kernel density estimation (KDE) on the sampled MCMC draws.
 KDE summaries are convenient and generic, but they might not look smooth even with a sizable number of posterior samples, and the density value at a specific point, for example `mu = 0`, inherits the same Monte Carlo noise.
 
-qCMDE is a model-aware alternative.
-It reuses the joint posterior already available from the fitted model to produce a smoother density curve and a more stable estimate of the posterior density at any user-specified value.
-The construction extends the Rao--Blackwellized marginal density estimator of @gelfand1992bayesian and the importance-weighted marginal density estimator of @chen1994importance.
+qCMDE and IWMDE are model-aware alternatives.
+They reuse the fitted likelihood and prior together with posterior nuisance-parameter draws to estimate a focal posterior density.
+The construction builds on conditional marginal density estimation and the importance-weighted marginal density estimator of @chen1994importance; it is closely related to Rao--Blackwellized marginal density estimation [@gelfand1992bayesian].
+
+### What the estimators compute
+
+Let $\theta$ denote the scalar focal parameter, $\xi$ all nuisance quantities, and $q(\theta,\xi)$ the unnormalized joint posterior kernel.
+For an ordinary continuous target and eligible posterior rows $(\theta_i,\xi_i)$, qCMDE computes
+
+$$
+\widehat{p}_{Q}(\theta^{*}\mid y)
+= \frac{1}{S}\sum_{i=1}^{S}
+\frac{q(\theta^{*},\xi_{i})}{\int_{\Theta} q(t,\xi_{i})\,dt}.
+$$
+
+The denominator numerically normalizes each row over the support $\Theta$ before the conditional densities are averaged.
+The display grid and the hidden normalization grids are separate: changing plot limits does not redefine the integral.
+For a spike-mixture or product-space parameter, RoBMA also retains the posterior mass of the continuous active branch instead of renormalizing it away.
+
+IWMDE computes the same posterior density through the Chen importance identity,
+
+$$
+\widehat{p}_{I}(\theta^{*}\mid y)
+= \frac{1}{S}\sum_{i=1}^{S}
+w(\theta_{i}\mid\xi_{i})
+\frac{q(\theta^{*},\xi_{i})}{q(\theta_{i},\xi_{i})},
+$$
+
+where $w(\theta\mid\xi)$ is a normalized conditional density.
+RoBMA estimates moment-matched conditional-normal, Gamma, or bounded-scale weights, depending on the focal support.
+This avoids qCMDE's row-by-row numerical normalization, but makes the estimate more sensitive to conditional-weight fit and contribution concentration.
+
+For binomial and Poisson GLMMs, $\xi_i$ includes the sampled estimate-level heterogeneity effects and baserates or log-rates.
+The estimators condition on these local states in each posterior row and average them out across rows.
+This is the exact identity $p(\theta\mid y)=E_{\xi\mid y}\{p(\theta\mid\xi,y)\}$; it does not reuse the separate marginal quadrature employed by pointwise log-likelihood calculations.
+
+### Choosing a method
+
+Use qCMDE as the preferred likelihood-aware method when it is supported and its additional numerical cost is acceptable.
+Its row normalization removes the need to choose a parametric conditional weight and provides direct quadrature checks.
+Use IWMDE when qCMDE is too expensive, especially for repeated exploratory plots, but inspect its effective sample size, largest contribution, support-grid mass, and any weight fallback.
+For GLMMs, IWMDE is unavailable for both descriptive density curves and point-null Bayes factors: its conditional-weight problem includes many local latent quantities and did not meet the bridge-sampling or density-policy certification tolerances even with all posterior rows.
+Use qCMDE for GLMM density estimation and point-null Bayes factors.
+KDE remains the generic default and is appropriate when only the overall posterior shape is needed.
+
+`hypothesis()` also offers `density_method = "normal"`.
+The global normal approximation can be a useful rough check for an interior, nearly symmetric coefficient, but it is not a validation oracle.
+It can be seriously inaccurate at one-sided boundaries and at posterior ordinates in skewed or distant tails.
+
+### Controls and reliability
+
+`density_control` accepts the following settings:
+
+| Setting | Default | Role |
+|:--|:--|:--|
+| `n_points` | `100` | Number of plotted density points; also determines the default initial normalization-grid size. |
+| `max_samples` | `500` for curves; `Inf` for point ordinates | Maximum eligible posterior rows evaluated. A finite point-ordinate value is a hard cap. |
+| `initial_samples` | `500` | Initial deterministic row budget for an adaptive point ordinate. |
+| `target_relative_mcse` | `0.05` | Point-ordinate adaptation target for relative Monte Carlo error. |
+| `normalization_points` | `NULL` | Initial hidden normalization-grid size; `NULL` resolves to `max(50, n_points)`. |
+| `normalization_prob` | `0.999` | Central posterior probability used to seed the hidden normalization range; qCMDE refines and extends that range. |
+| `display_grid` | `"adaptive"` | Adaptive or uniform placement of plotted points; it is immaterial for a point-only hypothesis. |
+
+Density curves use the fixed `max_samples = 500` plotting budget.
+Point ordinates instead evaluate deterministic increasing budgets, beginning at `initial_samples`, until the precision target and every BF-grade reliability gate are met, all eligible rows are used, or a finite `max_samples` hard cap is reached.
+This adaptive sequence does not add random subsampling variation between repeated calls.
+
+The estimator diagnostics distinguish the eligible row count, achieved budget, evaluated and retained rows, active mixture mass, relative Monte Carlo error, effective sample size (ESS), largest contribution share, finite contribution count, dropped rows, and normalization stability.
+The method-specific records use `pilot_normalization_integral` and `final_normalization_integral` for qCMDE and `support_grid_normalization_integral` for IWMDE.
+The public `density_diagnostics()` table reports this normalization check as `normalization_relative_error` and separately identifies the active `stability_metric`: qCMDE checks posterior-ordinate movement, whereas IWMDE checks normalization mass.
+The diagnostics also report `hard_cap_reached`, `all_rows_used`, whether the precision target and all BF-grade gates were met, and any IWMDE weight fallback and its reason.
+
+Point-ordinate reliability warnings are issued when relative MCSE is at least 5%, ESS is below 100, the largest contribution share is at least 20%, or fewer than 100 finite contributions remain.
+An ordinate is rejected when relative MCSE is at least 25%, ESS is below 20, the largest contribution share is at least 50%, or fewer than 20 finite contributions remain.
+qCMDE posterior-ordinate movement warns above 2.5% and rejects above 5%; IWMDE normalization error warns above 5% and rejects above 10%.
+Adaptive-quadrature sensitivity warns above 2.5% and rejects above 5%.
+Warnings therefore indicate an estimate that passed the hard gates but deserves a sensitivity analysis.
+
+For point-null results, `error%(BF)` (stored as `BF_error`) is a conditional Monte Carlo error estimate obtained from batches of posterior-ordinate contributions.
+It is not a complete standard error.
+It does not include uncertainty in the prior ordinate or, for IWMDE, uncertainty from learning $w(\theta\mid\xi)$ from the same posterior draws; RoBMA does not perform bootstrap, cross-fitting, or other expanded error calculations.
+
+For an important point-null result, inspect the compact diagnostics and repeat the computation with a stricter precision target and finer normalization grid:
+
+```{r qcmde-sensitivity, eval = FALSE}
+bf_default <- hypothesis(
+  fit_simple,
+  hypothesis     = "mu != 0 vs mu = 0",
+  logBF          = TRUE,
+  density_method = "qCMDE"
+)
+density_diagnostics(bf_default)
+
+bf_tighter <- hypothesis(
+  fit_simple,
+  hypothesis      = "mu != 0 vs mu = 0",
+  logBF           = TRUE,
+  density_method  = "qCMDE",
+  density_control = list(target_relative_mcse = 0.025)
+)
+
+bf_finer_grid <- hypothesis(
+  fit_simple,
+  hypothesis      = "mu != 0 vs mu = 0",
+  logBF           = TRUE,
+  density_method  = "qCMDE",
+  density_control = list(
+    target_relative_mcse = 0.025,
+    normalization_points = 200,
+    normalization_prob   = 0.9999
+  )
+)
+
+bf_iwmde_check <- hypothesis(
+  fit_simple,
+  hypothesis      = "mu != 0 vs mu = 0",
+  logBF           = TRUE,
+  density_method  = "IWMDE",
+  density_control = list(target_relative_mcse = 0.025)
+)
+```
+
+Compare Bayes factors on the log scale, their `error%(BF)`, and the results from `density_diagnostics()`.
+The result should remain stable relative to its reported conditional Monte Carlo error.
+If `all_rows_used` is `TRUE` while the target remains unmet, extend or refit the model to obtain more posterior draws.
+If more posterior draws or a finer normalization budget do not stabilize the result, do not interpret the numerical Bayes factor as precise.
+
+### Supported targets
+
+qCMDE/IWMDE require a focal replacement that preserves a valid joint posterior kernel.
+They support the fitted scalar and linear-combination targets explicitly routed by RoBMA, including supported marginal means.
+They currently do not support non-known-`V` `brma.mv()` random-formula models, derived semantic random-effect quantities, selection-weightfunction coordinates that require a joint omega/eta replacement, or IWMDE density estimation for GLMMs.
+Use KDE or the explicitly suggested alternative when RoBMA rejects such a target; do not treat a fallback density as a likelihood-aware ordinate.
 
 Passing `density_method = "qCMDE"` to `plot.brma()` switches the density route from the default KDE to qCMDE.
 We compare the two estimators for the average effect (`mu`) and the between-study heterogeneity (`tau`); the grey curves overlay the corresponding prior distribution.
@@ -185,9 +315,9 @@ We compare the two estimators for the average effect (`mu`) and the between-stud
 par(mfrow = c(2, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 
 plot(fit_simple, parameter = "mu",  prior = TRUE, density_method = "KDE",   main = "mu: KDE",   xlim = c(-1.8, 0.6))
-plot(fit_simple, parameter = "mu",  prior = TRUE, density_method = "qCMDE", main = "mu: qCMDE", xlim = c(-1.8, 0.6))
+plot(fit_simple, parameter = "mu",  prior = TRUE, density_method = "qCMDE", density_control = list(max_samples = 1000L), main = "mu: qCMDE", xlim = c(-1.8, 0.6))
 plot(fit_simple, parameter = "tau", prior = TRUE, density_method = "KDE",   main = "tau: KDE",   xlim = c(0, 1.2))
-plot(fit_simple, parameter = "tau", prior = TRUE, density_method = "qCMDE", main = "tau: qCMDE", xlim = c(0, 1.2))
+plot(fit_simple, parameter = "tau", prior = TRUE, density_method = "qCMDE", density_control = list(max_samples = 1000L), main = "tau: qCMDE", xlim = c(0, 1.2))
 ```
 
 The qCMDE curves are visibly smoother on both panels, but otherwise track the KDE summary in shape and location.
@@ -196,6 +326,8 @@ The qCMDE curves are visibly smoother on both panels, but otherwise track the KD
 
 Bayes factors compare two models by their prior predictive performance, usually through the ratio of marginal likelihoods [@kass1995bayes].
 For point-null hypotheses on a single parameter, the same Bayes factor can be obtained from the Savage--Dickey density ratio [@dickey1971weighted; @wagenmakers2010bayesian], which needs only the prior and posterior density ordinate at the tested value.
+For an unrestricted alternative $H_1$ against $\theta = \theta_0$, $\text{BF}_{10} = p(\theta_0\mid H_1) / p(\theta_0\mid y,H_1)$ only when the null model's nuisance-parameter prior equals the conditional prior induced by $H_1$ at $\theta_0$.
+When this nesting condition does not hold, the density ratio and a separately fitted constrained model answer different model-comparison questions; use marginal-likelihood comparison instead.
 For inequality and region hypotheses, the encompassing-prior approach computes the Bayes factor as the change from prior odds to posterior odds for the restricted region [@klugkist2005bayesian].
 The Savage--Dickey and encompassing-prior routes are both available from a single fit through `hypothesis()`; the rest of this section walks through three example hypotheses on the average effect and contrasts both routes:
 
@@ -336,11 +468,13 @@ knitr::kable(
 )
 ```
 
-The point-null Bayes factors agree closely across the two routes.
+The point-null Bayes factors are compatible at their reported numerical precision across the two routes.
+The comparison is meaningful because the constrained fits use priors compatible with the corresponding conditional priors under the unrestricted fit.
+The default posterior-row budget is intended for routine use, not high-precision numerical certification; apply the sensitivity workflow above before reporting a precise Bayes factor.
 The posterior-based value for $\text{BF}_{-+}$ is limited by the number of posterior draws as only a very small proportion of samples is at the positive side.
 Consequently, the encompassing prior estimate is much more variable than the corresponding bridge sampling approach (see the `Posterior BF error (%)` column).
-In general, Bayes factors larger than 100 (lower than 1/100) are likely to have limited precision when using the posterior based or product-space approaches.
-(This usually does not matter for the interpretation, i.e., the data provide overwhelming evidence for one of the hypotheses.)
+In general, Bayes factors larger than 100 (lower than 1/100) are likely to have limited precision when using posterior-based or product-space approaches.
+They can support an order-of-magnitude interpretation, but their numerical value should not be reported as precise without adequate diagnostics and sensitivity checks.
 
 ## Meta-Regression
 
@@ -365,31 +499,45 @@ summary(fit_meta_reg)
 
 qCMDE is again available directly through `plot.brma()`.
 When interpreting categorical moderators, estimated marginal means (EMMs) are a clearer way to report the results.
-The `marginal_means()` allows us to compute Bayes factors using `bf = TRUE` and use the qCMDE via `density_method = "qCMDE"` arguments.
-The density estimate is directly saved in the EMMs object, so the corresponding hypotheses can be tested later with `hypothesis()`.
+The `marginal_means()` function can precompute qCMDE curves and point ordinates with `density_method = "qCMDE"`.
+Because each marginal-mean level is a separate linear-combination target, this is substantially more expensive than a primitive coefficient curve; restrict `parameter`, `type`, and `levels` when only selected targets are needed.
 
 ```{r meta-reg-marginal-means}
 emm_meta_reg_default <- marginal_means(fit_meta_reg)
-emm_meta_reg_qcmde   <- marginal_means(fit_meta_reg, bf = TRUE, density_method = "qCMDE")
 ```
 
-The four panels below compare KDE and qCMDE for the `ablat` coefficient and for the per-level posterior of the three `alloc` marginal means.
+```{r meta-reg-marginal-means-qcmde, eval = FALSE}
+emm_meta_reg_qcmde <- marginal_means(
+  fit_meta_reg,
+  bf             = TRUE,
+  parameter      = "alloc",
+  type           = "averaged",
+  density_method = "qCMDE"
+)
+```
 
-```{r meta-reg-densities, fig.height = 5}
-par(mfrow = c(2, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+The panels below compare KDE and qCMDE for the `ablat` coefficient and show the per-level KDE posterior for the three `alloc` marginal means.
+The final non-executed call shows the corresponding qCMDE plot once the targeted densities have been precomputed.
+
+```{r meta-reg-densities, fig.height = 3}
+par(mfrow = c(1, 3), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 
 plot(fit_meta_reg, parameter = "ablat", prior = TRUE, density_method = "KDE",   main = "KDE",   xlim = c(-0.08, 0.03))
-plot(fit_meta_reg, parameter = "ablat", prior = TRUE, density_method = "qCMDE", main = "qCMDE", xlim = c(-0.08, 0.03))
+plot(fit_meta_reg, parameter = "ablat", prior = TRUE, density_method = "qCMDE", density_control = list(max_samples = 2000L), main = "qCMDE", xlim = c(-0.08, 0.03))
 plot(emm_meta_reg_default, parameter = "alloc", prior = TRUE, main = "alloc means: KDE",   xlim = c(-1.6, 0.3))
+```
+
+```{r meta-reg-qcmde-density-plot, eval = FALSE}
 plot(emm_meta_reg_qcmde,   parameter = "alloc", prior = TRUE, main = "alloc means: qCMDE", xlim = c(-1.6, 0.3))
 ```
 
 Hypotheses on the categorical moderator can then be stated directly in terms of named allocation-method marginal means.
 The bracket syntax (`alloc[alternate]`) selects a named level from the allocation marginal posterior.
+These directional comparisons use encompassing prior-posterior odds and do not require a point ordinate.
 
 ```{r hypothesis-alloc}
 hypothesis(
-  emm_meta_reg_qcmde,
+  emm_meta_reg_default,
   hypothesis = c(
     "alloc[alternate] > alloc[random]",
     "alloc[alternate] > alloc[systematic]",

@@ -31,6 +31,38 @@ source(testthat::test_path("common-functions.R"))
 }
 
 
+.hypothesis_expect_bridge_agreement <- function(result, null, full,
+                                                hard_tolerance          = 0.05,
+                                                uncertainty_multiplier = 3,
+                                                index                   = 1L) {
+
+  raw_bf           <- as.numeric(attr(result, "raw_BF", exact = TRUE))[index]
+  bf_error_percent <- as.numeric(result[["BF_error"]])[index]
+  expect_length(raw_bf, 1L)
+  expect_length(bf_error_percent, 1L)
+
+  log_difference     <- abs(
+    log(raw_bf) -
+      (logml(full) - logml(null))
+  )
+  estimator_log_mcse <- sqrt(log1p((bf_error_percent / 100)^2))
+  bridge_log_mcse    <- sqrt(
+    null[["marglik"]][["mcse_logml"]]^2 +
+      full[["marglik"]][["mcse_logml"]]^2
+  )
+  combined_log_mcse  <- sqrt(estimator_log_mcse^2 + bridge_log_mcse^2)
+
+  expect_true(
+    log_difference <= hard_tolerance,
+    info = "estimator and bridge log Bayes factors must meet the hard tolerance"
+  )
+  expect_true(
+    log_difference <= uncertainty_multiplier * combined_log_mcse,
+    info = "estimator and bridge log Bayes factors must agree within uncertainty"
+  )
+}
+
+
 test_that("qCMDE factor point guards use display aliases", {
 
   expect_equal(
@@ -97,6 +129,20 @@ test_that("qCMDE/IWMDE hypotheses guard non-known-V random-formula objects upfro
 })
 
 
+test_that("GLMM IWMDE point Bayes factors fail certification upfront", {
+
+  object <- structure(list(), class = c("brma.glmm", "brma"))
+
+  expect_error(
+    .iwmde_check_point_ordinate_supported(object, "IWMDE"),
+    "do not meet the bridge-sampling certification tolerance"
+  )
+  expect_invisible(
+    .iwmde_check_point_ordinate_supported(object, "qCMDE")
+  )
+})
+
+
 test_that("qCMDE point attachment drops stale same-value ordinates", {
 
   diagnostics <- list(
@@ -107,7 +153,8 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
     max_weight_share          = .10,
     row_drop_fraction         = 0,
     active_mass               = 1,
-    normalization_integral    = 1,
+    final_normalization_integral = 1,
+    support_grid_normalization_integral = 1,
     ordinate_relative_change  = 0
   )
   stale <- list(
@@ -207,6 +254,7 @@ test_that("hypothesis resolves coefficient aliases on both coefficient scales", 
 
   .hypothesis_expect_bridge_ready(fit_full)
   .hypothesis_expect_bridge_ready(fit_null)
+  .expect_bridge_nesting(fit_null, fit_full, "vi")
 
   bf_bridge <- .hypothesis_bridge_bf01(fit_null, fit_full)
   bf_alias <- hypothesis(
@@ -356,8 +404,12 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
 
   .hypothesis_expect_bridge_ready(fit_full)
   .hypothesis_expect_bridge_ready(fit_null)
+  .expect_bridge_nesting(
+    fit_null,
+    fit_full,
+    "vi"
+  )
 
-  bf_bridge <- .hypothesis_bridge_bf01(fit_null, fit_full)
   bf_qcmde <- hypothesis(
     fit_full,
     c("vi = 0", "vi = 0.01"),
@@ -365,9 +417,10 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     columns                   = "all",
     density_method            = "qCMDE",
     density_control           = list(
-      n_points             = 40,
-      max_samples          = 120,
-      normalization_points = 50
+      n_points             = 60,
+      max_samples          = 5000,
+      initial_samples      = 5000,
+      normalization_points = 100
     ),
     n_samples                 = 1000
   )
@@ -378,8 +431,9 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     columns                   = "all",
     density_method            = "IWMDE",
     density_control           = list(
-      n_points    = 40,
-      max_samples = 120
+      n_points        = 60,
+      max_samples     = 5000,
+      initial_samples = 5000
     ),
     n_samples                 = 1000
   )
@@ -400,12 +454,20 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
 
   expect_true(all(bf_qcmde[["method"]] == "Savage-Dickey (precomputed)"))
   expect_true(all(is.finite(bf_qcmde[["BF_error"]])))
-  expect_equal(log(attr(bf_qcmde, "raw_BF")[[1L]]), log(1 / bf_bridge),
-               tolerance = 0.25)
+  diagnostics <- density_diagnostics(bf_qcmde)
+  expect_s3_class(diagnostics, "iwmde_density_diagnostics")
+  expect_equal(nrow(diagnostics), 2L)
+  expect_true(all(diagnostics[["achieved_row_budget"]] == 5000L))
+  expect_true(all(diagnostics[["relative_mcse"]] < .25))
+  .hypothesis_expect_bridge_agreement(
+    bf_qcmde,
+    fit_null,
+    fit_full,
+    index = 1L
+  )
   expect_equal(bf_iwmde[["method"]], "Savage-Dickey (precomputed)")
   expect_true(is.finite(bf_iwmde[["BF_error"]]))
-  expect_equal(log(attr(bf_iwmde, "raw_BF")), log(1 / bf_bridge),
-               tolerance = 0.25)
+  .hypothesis_expect_bridge_agreement(bf_iwmde, fit_null, fit_full)
   expect_equal(bf_point_region[["method"]], "transitive Savage-Dickey")
   expect_true(is.finite(bf_point_region[["BF_error"]]))
 })
@@ -487,7 +549,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 30,
-      max_samples          = 80,
+      max_samples          = 240,
       normalization_points = 60
     ),
     n_samples       = 10000
@@ -499,7 +561,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
     density_method  = "IWMDE",
     density_control = list(
       n_points             = 30,
-      max_samples          = 120,
+      max_samples          = 240,
       normalization_points = 80
     ),
     n_samples       = 10000
@@ -517,7 +579,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
       bf      = bf_tau_zero,
       control = list(
         n_points             = 30,
-        max_samples          = 80,
+        max_samples          = 240,
         normalization_points = 60
       )
     ),
@@ -525,7 +587,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
       bf      = bf_tau_zero_iwmde,
       control = list(
         n_points             = 30,
-        max_samples          = 120,
+        max_samples          = 240,
         normalization_points = 80
       )
     )
@@ -583,7 +645,7 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 40,
-      max_samples          = 120,
+      max_samples          = 240,
       normalization_points = 50
     ),
     n_samples       = 1000
@@ -633,7 +695,7 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
     density_method = "qCMDE",
     density_control = list(
       n_points             = 40,
-      max_samples          = 120,
+      max_samples          = 240,
       normalization_points = 50
     )
   )
@@ -695,7 +757,9 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
     .iwmde_row_states = function(context, rows, parameter = NULL,
                                  parameter_spec = NULL) {
 
-      lapply(rows, function(row) list(baseline_log_q = 0))
+      lapply(rows, function(row) {
+        .iwmde_new_row_state(list(baseline_log_q = 0))
+      })
     },
     .iwmde_execute_plan_diagnostic = function(
         context, plan, output, execution_cache = NULL,
@@ -718,7 +782,8 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
           bf_max_weight_share = .2,
           bf_max_log_ratio    = 0,
           active_mass         = 1,
-          normalization_integral = 1,
+          final_normalization_integral = 1,
+          support_grid_normalization_integral = 1,
           bf_ordinate_relative_change = 0,
           max_ordinate_relative_change = 0,
           max_normalizer_relative_change = 0,
@@ -762,7 +827,7 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
     exact = TRUE
   )
 
-  expect_equal(out, "ok")
+  expect_equal(as.character(out), "ok")
   expect_equal(captured[["density_method"]], "precomputed")
   expect_true(BayesTools::posterior_ordinate_has_value(ordinate, 0))
   expect_equal(ordinate[["condition_key"]], condition_key)
@@ -831,7 +896,8 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
         bf_max_weight_share = .2,
         bf_max_log_ratio    = 0,
         active_mass         = 1,
-        normalization_integral = 1,
+        final_normalization_integral = 1,
+        support_grid_normalization_integral = 1,
         bf_ordinate_relative_change = 0,
         max_ordinate_relative_change = 0,
         max_normalizer_relative_change = 0,
@@ -865,7 +931,9 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
   row_states_mock <- function(context, rows, parameter = NULL,
                               parameter_spec = NULL) {
 
-    lapply(rows, function(row) list(baseline_log_q = 0))
+    lapply(rows, function(row) {
+      .iwmde_new_row_state(list(baseline_log_q = 0))
+    })
   }
   testthat::local_mocked_bindings(
     .iwmde_row_states = row_states_mock,
@@ -1080,6 +1148,26 @@ test_that("marginal means hypothesis rejects normal density method", {
 })
 
 
+test_that("marginal means hypothesis validates controls without a point null", {
+
+  skip_on_cran()
+  skip_if_missing_fits("bcg_meta-regression2")
+
+  fit <- load_fit("bcg_meta-regression2")
+  mm  <- marginal_means(fit, n_samples = 1000)
+
+  expect_error(
+    hypothesis(
+      mm,
+      "alloc[random] > 0",
+      density_method  = "qCMDE",
+      density_control = list(unknown = 1)
+    ),
+    "unrecognized setting"
+  )
+})
+
+
 test_that("factor-level PET moderator point null agrees with bridge oracle", {
 
   skip_on_cran()
@@ -1093,6 +1181,11 @@ test_that("factor-level PET moderator point null agrees with bridge oracle", {
 
   .hypothesis_expect_bridge_ready(fit_full)
   .hypothesis_expect_bridge_ready(fit_null)
+  .expect_bridge_nesting(
+    fit_null,
+    fit_full,
+    "Preregistered"
+  )
 
   bf_bridge <- .hypothesis_bridge_bf01(fit_null, fit_full)
   bf_kde <- hypothesis(
@@ -1107,19 +1200,34 @@ test_that("factor-level PET moderator point null agrees with bridge oracle", {
     columns         = "all",
     density_method  = "qCMDE",
     density_control = list(
-      n_points             = 40,
-      max_samples          = 120,
-      normalization_points = 50
+      n_points             = 60,
+      max_samples          = 2000,
+      initial_samples      = 2000,
+      normalization_points = 100
+    ),
+    n_samples       = 1000
+  )
+  bf_iwmde <- hypothesis(
+    fit_full,
+    "Preregistered[Pre-Registered] = 0",
+    columns         = "all",
+    density_method  = "IWMDE",
+    density_control = list(
+      n_points        = 60,
+      max_samples     = 2000,
+      initial_samples = 2000
     ),
     n_samples       = 1000
   )
 
   expect_equal(log(attr(bf_kde, "raw_BF")), log(1 / bf_bridge),
                tolerance = 0.35)
-  expect_equal(log(attr(bf_qcmde, "raw_BF")), log(1 / bf_bridge),
-               tolerance = 0.35)
+  .hypothesis_expect_bridge_agreement(bf_qcmde, fit_null, fit_full)
+  .hypothesis_expect_bridge_agreement(bf_iwmde, fit_null, fit_full)
   expect_equal(bf_qcmde[["method"]], "Savage-Dickey (precomputed)")
   expect_true(is.finite(bf_qcmde[["BF_error"]]))
+  expect_equal(bf_iwmde[["method"]], "Savage-Dickey (precomputed)")
+  expect_true(is.finite(bf_iwmde[["BF_error"]]))
 })
 
 

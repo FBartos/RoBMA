@@ -37,12 +37,18 @@ With \code{unit = "estimate"}, LOO-CV is computed with one contribution per
 effect-size estimate. For binomial and Poisson models, each pair of counts
 (ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
 one contribution.
+Estimate-unit GLMM log-likelihoods require an untruncated beta baserate prior
+for binomial models or an untruncated normal log-rate prior for Poisson
+models. Point, truncated, and other nuisance-prior families are rejected
+because the certified adaptive quadrature does not cover them.
 
 With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 per cluster. For unweighted normal models without selection this uses the
-analytic cluster block covariance. Selection, data-weighted normal, and
-GLMM models integrate the held-out cluster effect with Gauss-Hermite
-quadrature.
+analytic cluster block covariance. Selection and data-weighted normal models
+integrate the held-out cluster effect with Gauss-Hermite quadrature.
+Cluster-unit binomial and Poisson GLMM log-likelihoods are unavailable until
+certified nested adaptive quadrature is implemented; use
+\code{unit = "estimate"} for GLMMs.
 
 For selection models, the LOO evaluates the weighted likelihood, conditioning
 on the posterior omega samples.

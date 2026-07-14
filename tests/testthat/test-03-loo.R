@@ -142,6 +142,56 @@ test_that("cluster-unit LOO has a comparable joint-target label", {
   expect_equal(nrow(out), 2L)
 })
 
+test_that("cluster-unit GLMM likelihood requires certified nested quadrature", {
+
+  fit_name <- "bcg_glmm_3lvl_scale"
+  skip_if_missing_fits(fit_name)
+  fit_brma <- fits[[fit_name]]
+
+  expect_error(
+    log_lik(fit_brma, unit = "cluster"),
+    "Cluster-unit GLMM log-likelihood is unavailable"
+  )
+  expect_error(
+    add_loo(fit_brma, unit = "cluster"),
+    "Cluster-unit GLMM log-likelihood is unavailable"
+  )
+  expect_error(
+    add_waic(fit_brma, unit = "cluster"),
+    "Cluster-unit GLMM log-likelihood is unavailable"
+  )
+})
+
+
+test_that("estimate-unit GLMM likelihood rejects unsupported nuisance priors", {
+
+  fit_names <- c("bcg_glmm", "nielweise2008_glmm")
+  skip_if_missing_fits(fit_names)
+
+  fit_bin <- fits[[fit_names[[1L]]]]
+  fit_bin[["priors"]][["outcome"]][["pi"]] <- BayesTools::prior(
+    "beta",
+    list(1, 1),
+    truncation = list(.01, .99)
+  )
+  expect_error(
+    log_lik(fit_bin),
+    "requires an untruncated beta 'prior_pi'"
+  )
+
+  fit_pois <- fits[[fit_names[[2L]]]]
+  fit_pois[["priors"]][["outcome"]][["phi"]] <- BayesTools::prior(
+    "normal",
+    list(0, 1),
+    truncation = list(-3, 3)
+  )
+  expect_error(
+    log_lik(fit_pois),
+    "requires an untruncated normal 'prior_phi'"
+  )
+})
+
+
 test_that("loo_compare rejects fewer than two models", {
 
   # get one brma fit
@@ -764,6 +814,16 @@ test_that(".outcome_pdf.binom handles boundary cell studies", {
 
   expect_equal(dim(log_lik), c(2, 4))
   expect_true(all(is.finite(log_lik)))
+
+  ai       <- c(10, 0, 10, 0)
+  ci       <- c(10, 0, 0, 10)
+  n1i      <- rep(10, 4)
+  n2i      <- rep(10, 4)
+  expected <- lchoose(n1i, ai) + lchoose(n2i, ci) +
+    lbeta(ai + ci + 1, n1i + n2i - ai - ci + 1)
+
+  expect_equal(log_lik[1, ], expected, tolerance = 1e-8)
+  expect_equal(log_lik[2, ], expected, tolerance = 1e-8)
 })
 
 test_that(".outcome_pdf.binom matches R reference", {

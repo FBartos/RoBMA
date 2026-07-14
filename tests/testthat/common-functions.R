@@ -360,6 +360,31 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, parity_catalog)
 
+  iwmde_oracle_catalog <- data.frame(
+    name = c(
+      "nielweise2008_glmm_effect_null",
+      "dat.lehmann2018-3PSM_effect_null",
+      "iwmde_known_v_tau_full",
+      "iwmde_known_v_tau_null"
+    ),
+    class = c("brma.glmm", "bselmodel", "brma.mv", "brma.mv"),
+    family = c("glmm", "norm", "norm", "norm"),
+    source_file = rep("test-01-iwmde-oracle-nested.R", 4),
+    has_metafor = FALSE,
+    has_waic = FALSE,
+    tier = "extended",
+    has_loo = c(FALSE, FALSE, TRUE, TRUE),
+    has_marglik = TRUE,
+    features = I(list(
+      c("glmm", "poisson", "iwmde", "nested_null"),
+      c("normal", "selection", "iwmde", "nested_null"),
+      c("normal", "known_v", "iwmde", "nested_full"),
+      c("normal", "known_v", "iwmde", "nested_null")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, iwmde_oracle_catalog)
+
   return(catalog)
 }
 
@@ -550,6 +575,7 @@ source_file_md5 <- function(source_file) {
     "R/covariance-factorization.R",
     "R/fit.R",
     "R/formula-design.R",
+    "R/glmm-aghq.R",
     "R/input-data.R",
     "R/input-data-mv.R",
     "R/input-object.R",
@@ -599,6 +625,8 @@ source_file_md5 <- function(source_file) {
     "src/distributions/DWN.h",
     "src/distributions/DWP.cc",
     "src/distributions/DWP.h",
+    "src/glmm-aghq.cc",
+    "src/glmm-aghq.h",
     "src/r-glmm.cc",
     "src/r-selnorm.cc",
     "src/r-selnorm-common.cc.inc",

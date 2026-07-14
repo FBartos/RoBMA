@@ -7,6 +7,8 @@
 #include <R_ext/Rdynload.h>
 #include <Rinternals.h> // for SEXP
 
+#include "glmm-aghq.h"
+
 extern void getjagsversions(int *forced, int *assumed, int *detected, int *used);
 extern SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
                                              SEXP n1i, SEXP n2i,
@@ -396,6 +398,10 @@ static const R_CMethodDef cMethods[] = {
 };
 
 static const R_CallMethodDef callMethods[] = {
+    {"RoBMA_glmm_binom_aghq", (DL_FUNC) &RoBMA_glmm_binom_aghq, 14},
+    {"RoBMA_glmm_binom_aghq_row_sum", (DL_FUNC) &RoBMA_glmm_binom_aghq_row_sum, 14},
+    {"RoBMA_glmm_pois_aghq", (DL_FUNC) &RoBMA_glmm_pois_aghq, 14},
+    {"RoBMA_glmm_pois_aghq_row_sum", (DL_FUNC) &RoBMA_glmm_pois_aghq_row_sum, 14},
     {"RoBMA_glmm_binom_marginal_loglik", (DL_FUNC) &RoBMA_glmm_binom_marginal_loglik, 11},
     {"RoBMA_glmm_pois_marginal_loglik",  (DL_FUNC) &RoBMA_glmm_pois_marginal_loglik,  11},
     {"RoBMA_glmm_binom_marginal_loglik_row_sum", (DL_FUNC) &RoBMA_glmm_binom_marginal_loglik_row_sum, 11},

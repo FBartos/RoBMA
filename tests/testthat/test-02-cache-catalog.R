@@ -181,6 +181,7 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/covariance-factorization.R",
     "R/fit.R",
     "R/formula-design.R",
+    "R/glmm-aghq.R",
     "R/input-data.R",
     "R/input-object.R",
     "R/input-priors.R",
@@ -201,6 +202,8 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "src/Makevars.win",
     "src/RoBMA.cc",
     "src/distributions/DWN.cc",
+    "src/glmm-aghq.cc",
+    "src/glmm-aghq.h",
     "src/r-glmm.cc",
     "src/r-selnorm.cc",
     "src/r-selnorm-common.cc.inc",
@@ -571,7 +574,11 @@ test_that("fit catalog is internally consistent", {
                info = "fit catalog names must be unique")
   expect_true(all(file.exists(testthat::test_path(catalog[["source_file"]]))),
               info = "all catalog source files must exist")
-  no_loo_fits <- c("brma.mv_block_mvn_random_mods_scale")
+  no_loo_fits <- c(
+    "brma.mv_block_mvn_random_mods_scale",
+    "nielweise2008_glmm_effect_null",
+    "dat.lehmann2018-3PSM_effect_null"
+  )
   expect_equal(catalog[["name"]][!catalog[["has_loo"]]], no_loo_fits,
                info = "selected brma.mv cache fixtures omit pre-computed LOO")
   expect_true(all(!catalog[["has_waic"]]),
@@ -582,7 +589,9 @@ test_that("fit catalog is internally consistent", {
     "brma.mv_v14_konstantopoulos2011_cs",
     "brma.mv_v14_assink2016_nested",
     "brma.mv_v14_ishak2007_har",
-    "brma.mv_v14_begg1989_study_treatment"
+    "brma.mv_v14_begg1989_study_treatment",
+    "iwmde_known_v_tau_full",
+    "iwmde_known_v_tau_null"
   )
   expect_equal(catalog[["name"]][catalog[["class"]] == "brma.mv" & catalog[["has_marglik"]]],
                v14_marglik_fits,

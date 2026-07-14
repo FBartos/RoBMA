@@ -12,8 +12,11 @@
   estimation for supported `plot()`, `hypothesis()`/`bf_hypothesis()`,
   `marginal_means()`, and `hypothesis.marginal_means()` workflows via
   `density_method`.
-- adds RoBMA-owned provenance and BF-grade diagnostics to precomputed
-  qCMDE/IWMDE density and ordinate attributes.
+- adds adaptive deterministic row budgets and stricter BF-grade reliability
+  gates to qCMDE/IWMDE point ordinates, with compact public diagnostics via
+  `density_diagnostics()`.
+- adds RoBMA-owned schema/version provenance to precomputed qCMDE/IWMDE density
+  and ordinate attributes.
 - adds `log_lik()` for pointwise posterior log-likelihood draws used by LOO and
   WAIC.
 - adds semantic `component = "random"` parameter summaries, plots, MCMC
@@ -63,10 +66,30 @@
   fail, reporting dropped rows instead of redistributing their mass.
 - freezes finite baseline row eligibility in qCMDE/IWMDE plans, cache keys, and
   diagnostics so denominator rows and estimator rows are reported separately.
+- conditions GLMM qCMDE/IWMDE ordinates on sampled estimate-level effects and
+  baserates or log-rates, then averages over posterior rows instead of using a
+  prior-scale nuisance grid inside the density estimator.
+- replaces ordinary estimate-unit GLMM fixed-grid integration with native joint
+  adaptive quadrature and errors explicitly for unsupported truncated nuisance
+  priors instead of silently using an inaccurate fallback.
+- rejects cluster-unit GLMM log-likelihood, LOO, and WAIC until certified nested
+  adaptive quadrature is available; estimate-unit GLMM diagnostics remain
+  supported.
+- rejects GLMM IWMDE density estimation after all-row bridge and density-policy
+  probes missed the approved certification tolerances; qCMDE remains supported
+  for descriptive density curves and point-null Bayes factors.
 - evaluates qCMDE/IWMDE boundary point nulls with explicit requested/evaluation
   value provenance for one-sided Savage-Dickey Bayes factors.
 - reuses marginal-means qCMDE/IWMDE ordinates only when provenance proves the
   method, settings, target, source object, and value are compatible.
+
+### Documentation
+- documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting
+  requirement, method selection, tuning controls, reliability diagnostics,
+  unsupported targets, sensitivity workflow, and normal-approximation limits.
+- clarifies that qCMDE/IWMDE `BF_error` is a conditional Monte Carlo error and
+  that prior-ordinate and IWMDE weight-estimation uncertainty are outside its
+  scope.
 
 ## version 4.0.0
 ### Breaking changes
@@ -129,7 +152,7 @@
 - moves fitting to JAGS product-space models with mixture-prior indicators for model averaging.
 - replaces legacy weighted-normal and multivariate-normal native code with selected-normal kernels shared by JAGS and R-native calls.
 - adds native selected-normal routines for log likelihoods, normalizers, CDFs, moments, RNG, weighted summaries, funnel contours, regplot intervals, and zplot densities/threshold summaries.
-- adds native GLMM marginal and cluster log-likelihood helpers for binomial and Poisson models.
+- adds native estimate-unit GLMM marginal log-likelihood helpers for binomial and Poisson models.
 - caches selected-normal normalizers and uses telescoping selection probabilities with log-space fallbacks for better numerical stability.
 - relocates selected-normal C++ code to `src/selnorm/` and updates `Makevars*`, native registration, cleanup rules, and JAGS distribution registration.
 - removes unused native matrix/LAPACK helper sources and older source-level transformation helpers.

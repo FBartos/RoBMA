@@ -55,13 +55,33 @@ standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
 row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
 Chen-style moment-matched IWMDE densities for plotting. RoBMA stores
 separate precomputed posterior ordinates at \code{null_hypothesis}; these
-ordinates do not alter the plotting grid. Matching is case-insensitive.}
+ordinates do not alter the plotting grid. qCMDE is preferred when its
+additional normalization cost is acceptable; IWMDE can be faster but is
+more sensitive to its fitted conditional weights. Matching is
+case-insensitive. When an ordinate is used for a Bayes factor,
+\code{BF_error} is a conditional Monte Carlo error estimate. It excludes
+uncertainty in the prior ordinate and, for IWMDE, uncertainty from estimating
+the conditional weight function. Use \code{density_diagnostics()} on a
+subsequent \code{hypothesis()} result to inspect the ordinate diagnostics.
+IWMDE is unavailable for binomial and Poisson GLMMs because its
+high-dimensional conditional weights did not meet the bridge-sampling
+certification tolerance. Use qCMDE for GLMM density curves and Bayes factors.}
 
 \item{density_control}{named list of density-estimation settings. Supported
-entries are \code{n_points}, \code{max_samples}, \code{display_grid},
-\code{normalization_points}, and \code{normalization_prob}. The
-normalization entries are used with \code{density_method = "qCMDE"} and
-\code{density_method = "IWMDE"}.}
+entries are \code{n_points} (default \code{100}), \code{max_samples},
+\code{initial_samples} (default \code{500}),
+\code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
+(default \code{"adaptive"}), \code{normalization_points} (default
+\code{NULL}, resolved to \code{max(50, n_points)}), and
+\code{normalization_prob} (default \code{0.999}). \code{max_samples}
+defaults to \code{500} for stored density curves and \code{Inf} for point
+ordinates. Point ordinates adapt deterministically from
+\code{initial_samples} until the relative-MCSE target and all BF-grade
+reliability gates pass, all eligible rows are used, or a finite
+\code{max_samples} cap is reached. The normalization entries are used with
+\code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
+random-formula models and for derived semantic random-effect quantities.}
 
 \item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }

@@ -15,6 +15,43 @@
 #' expressions, for example \code{"mu = 0"}, \code{"year > 0"}, or
 #' \code{"mu_alloc[alternate] > mu_alloc[random]"}.
 #'
+#' @details For a continuous focal parameter \eqn{\theta}, nuisance parameters
+#' \eqn{\xi}, and an unnormalized joint posterior kernel
+#' \eqn{q(\theta,\xi)}, qCMDE estimates the posterior ordinate as
+#' \deqn{\widehat{p}_{Q}(\theta^{*}\mid y)=\frac{1}{S}\sum_{i=1}^{S}
+#' \frac{q(\theta^{*},\xi_{i})}{\int_{\Theta} q(t,\xi_{i})\,dt}.}
+#' Each row is therefore normalized over the focal-parameter support before the
+#' conditional densities are averaged. IWMDE instead uses
+#' \deqn{\widehat{p}_{I}(\theta^{*}\mid y)=\frac{1}{S}\sum_{i=1}^{S}
+#' w(\theta_{i}\mid\xi_{i})\frac{q(\theta^{*},\xi_{i})}
+#' {q(\theta_{i},\xi_{i})},}
+#' where \eqn{w(\theta\mid\xi)} is a normalized, fitted conditional weight.
+#' Spike-mixture and product-space results additionally retain the posterior
+#' mass of the continuous active branch. These estimators build on conditional
+#' marginal density estimation and importance-weighted marginal density
+#' estimation \insertCite{gelfand1992bayesian,chen1994importance}{RoBMA}.
+#'
+#' qCMDE is the preferred likelihood-aware method when it is supported and its
+#' additional numerical normalization cost is acceptable. IWMDE can be faster,
+#' but is more sensitive to the adequacy and concentration of its fitted
+#' conditional weights. The normal approximation is useful as a rough check for
+#' near-normal interior ordinates; it is not a validation reference for skewed
+#' tails, bounded parameters, or one-sided support boundaries.
+#' For binomial and Poisson GLMMs, the nuisance state includes the sampled
+#' estimate-level heterogeneity effects and baserates or log-rates. Averaging
+#' their row-conditional focal densities is an exact marginalization identity.
+#' IWMDE is unavailable for GLMM density estimation because its
+#' high-dimensional conditional weights did not meet bridge-sampling
+#' certification. GLMM density curves and point-null hypotheses require qCMDE.
+#'
+#' For an unrestricted alternative against \eqn{\theta=\theta_0}, the
+#' Savage-Dickey identity \insertCite{dickey1971weighted,wagenmakers2010bayesian}{RoBMA}
+#' gives
+#' \eqn{BF_{10}=p(\theta_0\mid H_1)/p(\theta_0\mid y,H_1)} only when the null
+#' model's nuisance-parameter prior is the conditional prior induced by the
+#' unrestricted model at \eqn{\theta_0}. Otherwise, fit the constrained model
+#' separately and compare marginal likelihoods, for example by bridge sampling.
+#'
 #' @param object a fitted \code{brma}, \code{BMA}, \code{RoBMA}, or a posterior
 #' object accepted by \code{BayesTools::hypothesis_BF()}.
 #' @param ... additional arguments passed to methods.
@@ -54,7 +91,11 @@
 #' hypothesis(emm, "group[B] > 0 vs group[B] = 0", density_method = "qCMDE")
 #' }
 #'
-#' @seealso [marginal_means()], [plot.brma()], [bridge_sampler.brma()]
+#' @references
+#' \insertAllCited{}
+#'
+#' @seealso [density_diagnostics()], [marginal_means()], [plot.brma()],
+#' [bridge_sampler.brma()]
 #' @export
 hypothesis <- function(object, ...) {
 
@@ -99,11 +140,37 @@ hypothesis.default <- function(object, ...) {
 #' BayesTools normal approximation for point-null hypotheses on fitted
 #' \code{brma} objects. \code{"qCMDE"} and \code{"IWMDE"} attach RoBMA
 #' likelihood-aware posterior ordinates for direct point-null hypotheses and
-#' propagate their \code{BF_error} estimates printed as \code{error\%(BF)}. For
+#' propagate their \code{BF_error} estimates printed as \code{error\%(BF)}.
+#' \code{BF_error} is a conditional Monte Carlo error estimate for the computed
+#' posterior ordinate, not a complete standard error. It excludes uncertainty
+#' in the prior ordinate and, for IWMDE, uncertainty from estimating the
+#' conditional weight function. Use \code{density_diagnostics()} to inspect the
+#' attached computation and reliability diagnostics. For
 #' \code{marginal_means.brma} objects, \code{"normal"} is not supported, and
 #' \code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
 #' the stored source model. Matching is case-insensitive.
-#' @param density_control named list of qCMDE/IWMDE tuning settings.
+#' @param density_control named list of qCMDE/IWMDE tuning settings. Supported
+#' entries are \code{n_points} (default \code{100}), \code{max_samples}
+#' (default \code{Inf} for point ordinates), \code{initial_samples} (default
+#' \code{500}), \code{target_relative_mcse} (default \code{0.05}),
+#' \code{normalization_points} (default \code{NULL}, resolved to
+#' \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999}),
+#' and \code{display_grid} (default \code{"adaptive"}). Point ordinates use
+#' deterministic increasing row budgets, beginning at \code{initial_samples},
+#' until the precision target and every BF-grade reliability gate are met,
+#' every eligible row is used, or the \code{max_samples} hard cap is reached.
+#' \code{display_grid} is immaterial for
+#' point-only requests. If all rows are used without meeting the target, obtain
+#' more posterior draws before reporting a precise Bayes factor. Increase
+#' \code{normalization_points} and \code{normalization_prob} to check numerical
+#' support coverage. A point ordinate warns at relative MCSE at least 5 percent,
+#' ESS below 100, maximum contribution share at least 20 percent, or fewer than
+#' 100 finite contributions. It is rejected at relative MCSE at least 25
+#' percent, ESS below 20, maximum share at least 50 percent, or fewer than 20
+#' finite contributions. qCMDE ordinate movement warns above 2.5 percent and is
+#' rejected above 5 percent; IWMDE normalization error warns above 5 percent and
+#' is rejected above 10 percent. Adaptive-quadrature sensitivity warns above
+#' 2.5 percent and is rejected above 5 percent.
 #' @param n_samples number of prior samples/grid points used by BayesTools for
 #' deterministic marginal prior densities.
 #'
@@ -144,7 +211,8 @@ hypothesis.brma <- function(object, hypothesis,
     density_control <- .density_control_normalize(
       density_method  = density_method,
       density_control = density_control,
-      allow_normal    = TRUE
+      allow_normal    = TRUE,
+      purpose         = "ordinate"
     )
   }
   if (conditional && !.is_RoBMA(object)) {
@@ -209,6 +277,8 @@ hypothesis.brma <- function(object, hypothesis,
         hypothesis           = hypothesis,
         n_points             = density_control[["n_points"]],
         max_samples          = density_control[["max_samples"]],
+        initial_samples      = density_control[["initial_samples"]],
+        target_relative_mcse = density_control[["target_relative_mcse"]],
         normalization_points = density_control[["normalization_points"]],
         normalization_prob   = density_control[["normalization_prob"]],
         density_method       = density_method
@@ -264,6 +334,8 @@ hypothesis.brma <- function(object, hypothesis,
       conditional              = if (conditional) parameter else NULL,
       n_points                 = density_control[["n_points"]],
       max_samples              = density_control[["max_samples"]],
+      initial_samples          = density_control[["initial_samples"]],
+      target_relative_mcse     = density_control[["target_relative_mcse"]],
       normalization_points     = density_control[["normalization_points"]],
       normalization_prob       = density_control[["normalization_prob"]],
       density_method           = density_method,

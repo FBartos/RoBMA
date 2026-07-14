@@ -1,0 +1,816 @@
+# ============================================================================ #
+# IWMDE Weight Kernels
+# ============================================================================ #
+
+.iwmde_chen_conditional_gaussian <- function(z_fit, x_fit, x_eval) {
+
+  fit_keep <- is.finite(z_fit) & stats::complete.cases(x_fit)
+  if (sum(fit_keep) < 3L) {
+    .iwmde_chen_conditional_stop("fewer than three finite conditioning rows")
+  }
+
+  x_fit <- x_fit[fit_keep, , drop = FALSE]
+  z_fit <- z_fit[fit_keep]
+  center <- colMeans(x_fit)
+  scale  <- apply(x_fit, 2L, stats::sd)
+  keep   <- is.finite(scale) & scale > sqrt(.Machine$double.eps)
+  if (!any(keep)) {
+    .iwmde_chen_conditional_stop("all conditioning columns have zero variance")
+  }
+
+  x_fit  <- sweep(x_fit[, keep, drop = FALSE], 2L, center[keep], "-")
+  x_fit  <- sweep(x_fit, 2L, scale[keep], "/")
+  x_eval <- sweep(x_eval[, keep, drop = FALSE], 2L, center[keep], "-")
+  x_eval <- sweep(x_eval, 2L, scale[keep], "/")
+
+  covariance <- stats::cov(cbind(z_fit, x_fit))
+  if (!all(is.finite(covariance))) {
+    .iwmde_chen_conditional_stop(
+      "the conditional covariance matrix is not finite"
+    )
+  }
+
+  n_predictors <- ncol(x_fit)
+  variance_z   <- covariance[1L, 1L]
+  covariance_zx <- matrix(covariance[1L, -1L], nrow = 1L)
+  covariance_x  <- covariance[-1L, -1L, drop = FALSE]
+  ridge <- max(1e-10, 1e-8 * mean(diag(covariance_x)))
+  inverse <- try(
+    chol2inv(chol(covariance_x + diag(ridge, n_predictors))),
+    silent = TRUE
+  )
+  if (inherits(inverse, "try-error")) {
+    .iwmde_chen_conditional_stop(
+      "the conditional covariance matrix is not positive definite"
+    )
+  }
+
+  coefficients <- covariance_zx %*% inverse
+  variance <- as.numeric(
+    variance_z - coefficients %*% t(covariance_zx)
+  )
+  if (!is.finite(variance) || variance <= sqrt(.Machine$double.eps)) {
+    .iwmde_chen_conditional_stop("the conditional variance is not positive")
+  }
+
+  eval_keep <- stats::complete.cases(x_eval)
+  means <- rep(NA_real_, nrow(x_eval))
+  means[eval_keep] <- as.numeric(
+    mean(z_fit) + x_eval[eval_keep, , drop = FALSE] %*% t(coefficients)
+  )
+
+  return(list(
+    means     = means,
+    sd        = sqrt(variance),
+    eval_keep = eval_keep
+  ))
+}
+
+.iwmde_iwmde_normalization <- function(normalization_grid,
+                                       log_q_norm,
+                                       baseline_log_q,
+                                       log_weight, active_mass,
+                                       denominator) {
+
+  empty <- list(
+    mass_ratio = NA_real_,
+    integral   = NA_real_,
+    points     = 0L,
+    range      = c(NA_real_, NA_real_),
+    scale_type = NA_character_
+  )
+  if (is.null(normalization_grid) ||
+      is.null(log_q_norm) ||
+      length(normalization_grid[["x"]]) < 2L ||
+      nrow(log_q_norm) != length(normalization_grid[["x"]]) ||
+      ncol(log_q_norm) == 0L ||
+      length(baseline_log_q) != ncol(log_q_norm) ||
+      length(log_weight) != ncol(log_q_norm) ||
+      length(log_weight) == 0L) {
+    return(empty)
+  }
+
+  log_terms <- sweep(
+    sweep(log_q_norm, 2L, baseline_log_q, "-"),
+    2L,
+    log_weight,
+    "+"
+  )
+  log_terms <- sweep(
+    log_terms,
+    1L,
+    normalization_grid[["log_jacobian"]],
+    "+"
+  )
+  density_terms <- .iwmde_density_aggregate(
+    log_terms   = log_terms,
+    active_mass = active_mass,
+    denominator = denominator
+  )
+  integral <- .iwmde_trapz(
+    normalization_grid[["z"]],
+    density_terms[["y"]]
+  )
+  mass_ratio <- if (is.finite(integral) && integral > 0) {
+    active_mass / integral
+  } else {
+    NA_real_
+  }
+
+  return(list(
+    mass_ratio = mass_ratio,
+    integral   = integral,
+    points     = length(normalization_grid[["x"]]),
+    range      = range(normalization_grid[["x"]]),
+    scale_type = "support_grid"
+  ))
+}
+
+
+.iwmde_chen_log_weight <- function(context, parameter, parameter_spec,
+                                   active_rows, active_values, weight_rows,
+                                   weight_values, support) {
+
+  active_supports <- .iwmde_parameter_row_supports(
+    context        = context,
+    parameter      = parameter,
+    rows           = active_rows,
+    parameter_spec = parameter_spec
+  )
+  weight_supports <- .iwmde_parameter_row_supports(
+    context        = context,
+    parameter      = parameter,
+    rows           = weight_rows,
+    parameter_spec = parameter_spec
+  )
+  active_keys  <- paste(
+    .iwmde_chen_row_active_keys(context, active_rows),
+    .iwmde_chen_support_keys(active_supports),
+    sep = "||"
+  )
+  weight_keys  <- paste(
+    .iwmde_chen_row_active_keys(context, weight_rows),
+    .iwmde_chen_support_keys(weight_supports),
+    sep = "||"
+  )
+  out          <- rep(-Inf, length(active_values))
+  methods      <- character()
+  partitions   <- list()
+
+  for (key in unique(active_keys)) {
+    active_index <- which(active_keys == key)
+    weight_index <- which(weight_keys == key)
+    if (length(active_index) == 0L || length(weight_index) == 0L) {
+      next
+    }
+
+    row_support <- active_supports[active_index[1L], ]
+    if (!.iwmde_chen_valid_support(row_support)) {
+      next
+    }
+    if (!is.finite(row_support[1]) && !is.finite(row_support[2])) {
+      weight <- .iwmde_chen_try_weight(
+        expr          = .iwmde_chen_conditional_normal_log_weight(
+          context        = context,
+          parameter      = parameter,
+          parameter_spec = parameter_spec,
+          active_rows    = active_rows[active_index],
+          active_values  = active_values[active_index],
+          weight_rows    = weight_rows[weight_index],
+          weight_values  = weight_values[weight_index]
+        ),
+        fallback      = .iwmde_chen_marginal_normal_log_weight(
+          active_values = active_values[active_index],
+          weight_values = weight_values[weight_index]
+        ),
+        fallback_from = "chen_conditional_normal"
+      )
+    } else if (all(is.finite(row_support))) {
+      weight <- .iwmde_chen_try_weight(
+        expr          = .iwmde_chen_logit_conditional_normal_log_weight(
+          context        = context,
+          parameter      = parameter,
+          parameter_spec = parameter_spec,
+          active_rows    = active_rows[active_index],
+          active_values  = active_values[active_index],
+          weight_rows    = weight_rows[weight_index],
+          weight_values  = weight_values[weight_index],
+          support        = row_support
+        ),
+        fallback      = .iwmde_chen_beta_log_weight(
+          active_values = active_values[active_index],
+          weight_values = weight_values[weight_index],
+          support       = row_support
+        ),
+        fallback_from = "chen_logit_conditional_normal"
+      )
+    } else {
+      weight <- .iwmde_chen_gamma_log_weight_single(
+        active_values = active_values[active_index],
+        weight_values = weight_values[weight_index],
+        support       = row_support
+      )
+    }
+    weight <- .iwmde_chen_weight_fallback_fields(weight)
+
+    out[active_index] <- weight[["log_weight"]]
+    methods <- c(methods, weight[["method"]])
+    partitions[[length(partitions) + 1L]] <- list(
+      key             = key,
+      support         = row_support,
+      method          = weight[["method"]],
+      fallback_from   = weight[["fallback_from"]],
+      fallback_reason = weight[["fallback_reason"]],
+      n_eval_rows     = length(active_index),
+      n_fit_rows      = length(weight_index),
+      n_finite_terms  = sum(is.finite(weight[["log_weight"]]))
+    )
+  }
+
+  fallback_summary <- .iwmde_chen_fallback_summary(partitions)
+
+  return(list(
+    log_weight       = out,
+    method           = .iwmde_chen_method_label(methods, "chen"),
+    fallback_from    = fallback_summary[["from"]],
+    fallback_reason  = fallback_summary[["reason"]],
+    fallback_count   = fallback_summary[["count"]],
+    fallback_rows    = fallback_summary[["rows"]],
+    fallback_reasons = fallback_summary[["reasons"]],
+    partitions       = partitions
+  ))
+}
+
+
+.iwmde_chen_try_weight <- function(expr, fallback, fallback_from) {
+
+  tryCatch(
+    .iwmde_chen_weight_fallback_fields(expr),
+    iwmde_chen_weight_unavailable = function(e) {
+
+      .iwmde_chen_weight_fallback_fields(
+        weight          = fallback,
+        fallback_from   = fallback_from,
+        fallback_reason = gsub("[\r\n\t]+", " ", conditionMessage(e))
+      )
+    }
+  )
+}
+
+
+.iwmde_chen_weight_fallback_fields <- function(
+    weight, fallback_from = NULL, fallback_reason = NULL) {
+
+  if (!is.null(fallback_from) || is.null(weight[["fallback_from"]])) {
+    weight[["fallback_from"]] <- if (is.null(fallback_from)) {
+      NA_character_
+    } else {
+      as.character(fallback_from)[[1L]]
+    }
+  }
+  if (!is.null(fallback_reason) || is.null(weight[["fallback_reason"]])) {
+    weight[["fallback_reason"]] <- if (is.null(fallback_reason)) {
+      NA_character_
+    } else {
+      as.character(fallback_reason)[[1L]]
+    }
+  }
+
+  return(weight)
+}
+
+
+.iwmde_chen_fallback_summary <- function(partitions) {
+
+  if (length(partitions) == 0L) {
+    return(list(
+      count   = 0L,
+      rows    = 0L,
+      from    = character(),
+      reason  = character(),
+      reasons = structure(integer(), names = character())
+    ))
+  }
+
+  fallback_reason <- vapply(partitions, function(partition) {
+    partition[["fallback_reason"]]
+  }, character(1))
+  fallback_from <- vapply(partitions, function(partition) {
+    partition[["fallback_from"]]
+  }, character(1))
+  fallback_index <- !is.na(fallback_reason)
+  reason_table   <- table(fallback_reason[fallback_index])
+  reason_counts  <- as.integer(reason_table)
+  names(reason_counts) <- names(reason_table)
+
+  return(list(
+    count   = as.integer(sum(fallback_index)),
+    rows    = as.integer(sum(vapply(
+      partitions[fallback_index],
+      `[[`,
+      integer(1),
+      "n_eval_rows"
+    ))),
+    from    = unique(fallback_from[fallback_index]),
+    reason  = unique(fallback_reason[fallback_index]),
+    reasons = reason_counts
+  ))
+}
+
+
+.iwmde_chen_row_active_keys <- function(context, rows) {
+
+  if (is.null(context[["posterior_samples"]]) || length(rows) == 0L) {
+    return(rep("all", length(rows)))
+  }
+  samples <- context[["posterior_samples"]]
+
+  vapply(rows, function(row) {
+    if (!is.finite(row) || row < 1L || row > nrow(samples)) {
+      return("all")
+    }
+
+    row_values <- samples[row, , drop = FALSE]
+    if (is.data.frame(row_values)) {
+      row_values <- as.list(row_values[1L, , drop = FALSE])
+    } else {
+      row_values <- as.list(row_values[1L, ])
+      names(row_values) <- colnames(samples)
+    }
+
+    .iwmde_active_key(context, row_values)
+  }, character(1))
+}
+
+
+.iwmde_chen_valid_support <- function(support) {
+
+  return(
+    length(support) == 2L &&
+      !any(is.na(support)) &&
+      support[1] < support[2]
+  )
+}
+
+
+.iwmde_chen_support_keys <- function(supports) {
+
+  apply(supports, 1L, function(support) {
+    paste(
+      .iwmde_key_number(support[1]),
+      .iwmde_key_number(support[2]),
+      sep = ","
+    )
+  })
+}
+
+
+.iwmde_chen_method_label <- function(methods, fallback) {
+
+  methods <- unique(methods[nzchar(methods)])
+  if (length(methods) == 0L) {
+    return(fallback)
+  }
+  if (length(methods) == 1L) {
+    return(methods)
+  }
+
+  return(paste0("chen_mixed(", paste(methods, collapse = ","), ")"))
+}
+
+
+.iwmde_chen_gamma_log_weight_single <- function(active_values, weight_values,
+                                                support) {
+
+  out <- rep(-Inf, length(active_values))
+  if (is.finite(support[1])) {
+    distance_fit  <- weight_values - support[1]
+    distance_eval <- active_values - support[1]
+  } else if (is.finite(support[2])) {
+    distance_fit  <- support[2] - weight_values
+    distance_eval <- support[2] - active_values
+  } else {
+    return(list(log_weight = out, method = "chen_gamma"))
+  }
+
+  distance_fit <- distance_fit[
+    is.finite(distance_fit) & distance_fit > 0
+  ]
+  keep <- is.finite(distance_eval) & distance_eval > 0
+  if (length(distance_fit) < 3L || !any(keep)) {
+    return(list(log_weight = out, method = "chen_gamma"))
+  }
+
+  location <- mean(distance_fit)
+  variance <- stats::var(distance_fit)
+  if (!is.finite(location) || !is.finite(variance) ||
+      location <= 0 || variance <= sqrt(.Machine$double.eps)) {
+    return(list(log_weight = out, method = "chen_gamma"))
+  }
+
+  shape <- location^2 / variance
+  rate  <- location / variance
+  if (!is.finite(shape) || !is.finite(rate) ||
+      shape <= 0 || rate <= 0) {
+    return(list(log_weight = out, method = "chen_gamma"))
+  }
+
+  out[keep] <- stats::dgamma(
+    distance_eval[keep],
+    shape = shape,
+    rate  = rate,
+    log   = TRUE
+  )
+
+  return(list(log_weight = out, method = "chen_gamma"))
+}
+
+
+.iwmde_chen_logit_conditional_normal_log_weight <- function(context,
+                                                            parameter,
+                                                            parameter_spec,
+                                                            active_rows,
+                                                            active_values,
+                                                            weight_rows,
+                                                            weight_values,
+                                                            support) {
+
+  active <- .iwmde_chen_logit_transform(active_values, support)
+  weight <- .iwmde_chen_logit_transform(weight_values, support)
+  out    <- rep(-Inf, length(active_values))
+
+  conditioning <- .iwmde_chen_conditioning_matrix(
+    context        = context,
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    active_rows    = active_rows,
+    weight_rows    = weight_rows
+  )
+  if (ncol(conditioning[["fit"]]) == 0L) {
+    return(.iwmde_chen_beta_log_weight(
+      active_values = active_values,
+      weight_values = weight_values,
+      support       = support
+    ))
+  }
+
+  x_fit  <- conditioning[["fit"]]
+  x_eval <- conditioning[["eval"]]
+  z_fit  <- weight[["z"]]
+  gaussian <- .iwmde_chen_conditional_gaussian(
+    z_fit  = z_fit,
+    x_fit  = x_fit,
+    x_eval = x_eval
+  )
+  eval_keep <- gaussian[["eval_keep"]] & is.finite(active[["z"]]) &
+    is.finite(active[["log_jacobian"]]) &
+    is.finite(gaussian[["means"]])
+  out[eval_keep] <- stats::dnorm(
+    active[["z"]][eval_keep],
+    mean = gaussian[["means"]][eval_keep],
+    sd   = gaussian[["sd"]],
+    log  = TRUE
+  ) + active[["log_jacobian"]][eval_keep]
+
+  return(list(log_weight = out, method = "chen_logit_conditional_normal"))
+}
+
+
+.iwmde_chen_logit_transform <- function(values, support) {
+
+  lower <- support[1]
+  upper <- support[2]
+  width <- upper - lower
+  prob  <- (values - lower) / width
+
+  return(list(
+    z            = stats::qlogis(prob),
+    log_jacobian = -log(width) - log(prob) - log1p(-prob)
+  ))
+}
+
+
+.iwmde_chen_beta_log_weight <- function(active_values, weight_values,
+                                        support) {
+
+  out   <- rep(-Inf, length(active_values))
+  lower <- support[1]
+  upper <- support[2]
+  width <- upper - lower
+
+  prob_fit <- (weight_values - lower) / width
+  prob_fit <- prob_fit[
+    is.finite(prob_fit) & prob_fit > 0 & prob_fit < 1
+  ]
+  prob_eval <- (active_values - lower) / width
+  keep      <- is.finite(prob_eval) & prob_eval > 0 & prob_eval < 1
+  if (length(prob_fit) < 3L || !any(keep)) {
+    return(list(log_weight = out, method = "chen_beta"))
+  }
+
+  location <- mean(prob_fit)
+  variance <- stats::var(prob_fit)
+  maximum  <- location * (1 - location)
+  if (!is.finite(location) || !is.finite(variance) ||
+      location <= 0 || location >= 1 ||
+      variance <= sqrt(.Machine$double.eps) ||
+      variance >= maximum) {
+    return(list(log_weight = out, method = "chen_beta"))
+  }
+
+  common <- maximum / variance - 1
+  alpha  <- location * common
+  beta   <- (1 - location) * common
+  if (!is.finite(alpha) || !is.finite(beta) ||
+      alpha <= 0 || beta <= 0) {
+    return(list(log_weight = out, method = "chen_beta"))
+  }
+
+  out[keep] <- stats::dbeta(
+    prob_eval[keep],
+    shape1 = alpha,
+    shape2 = beta,
+    log    = TRUE
+  ) - log(width)
+
+  return(list(log_weight = out, method = "chen_beta"))
+}
+
+
+.iwmde_chen_conditional_stop <- function(reason) {
+
+  condition <- structure(
+    list(
+      message = paste0(
+        "IWMDE Chen conditional-normal weights are unavailable: ",
+        reason,
+        "."
+      ),
+      call = NULL
+    ),
+    class = c(
+      "iwmde_chen_weight_unavailable",
+      "error",
+      "condition"
+    )
+  )
+  stop(condition)
+}
+
+.iwmde_chen_conditional_normal_log_weight <- function(context, parameter,
+                                                      parameter_spec,
+                                                      active_rows,
+                                                      active_values,
+                                                      weight_rows,
+                                                      weight_values) {
+
+  samples <- context[["posterior_samples"]]
+  conditioning <- .iwmde_chen_conditioning_matrix(
+    context        = context,
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    active_rows    = active_rows,
+    weight_rows    = weight_rows
+  )
+  if (ncol(conditioning[["fit"]]) == 0L) {
+    return(.iwmde_chen_marginal_normal_log_weight(
+      active_values = active_values,
+      weight_values = weight_values
+    ))
+  }
+
+  x_fit  <- conditioning[["fit"]]
+  x_eval <- conditioning[["eval"]]
+  z_fit  <- weight_values
+  gaussian <- .iwmde_chen_conditional_gaussian(
+    z_fit  = z_fit,
+    x_fit  = x_fit,
+    x_eval = x_eval
+  )
+  out       <- rep(-Inf, length(active_values))
+  eval_keep <- gaussian[["eval_keep"]] & is.finite(active_values) &
+    is.finite(gaussian[["means"]])
+  out[eval_keep] <- stats::dnorm(
+    active_values[eval_keep],
+    mean = gaussian[["means"]][eval_keep],
+    sd   = gaussian[["sd"]],
+    log  = TRUE
+  )
+
+  return(list(log_weight = out, method = "chen_conditional_normal"))
+}
+
+
+.iwmde_chen_marginal_normal_log_weight <- function(active_values,
+                                                   weight_values) {
+
+  out    <- rep(-Inf, length(active_values))
+  values <- weight_values[is.finite(weight_values)]
+  if (length(values) < 2L) {
+    return(list(log_weight = out, method = "chen_marginal_normal"))
+  }
+
+  location <- mean(values)
+  scale    <- stats::sd(values)
+  finite   <- is.finite(active_values)
+  if (!is.finite(location) || !is.finite(scale) ||
+      scale <= sqrt(.Machine$double.eps)) {
+    return(list(log_weight = out, method = "chen_marginal_normal"))
+  }
+
+  out[finite] <- stats::dnorm(
+    active_values[finite],
+    mean = location,
+    sd   = scale,
+    log  = TRUE
+  )
+
+  return(list(log_weight = out, method = "chen_marginal_normal"))
+}
+
+
+.iwmde_chen_conditioning_matrix <- function(context, parameter,
+                                            parameter_spec, active_rows,
+                                            weight_rows) {
+
+  context <- .iwmde_context_ensure_caches(context)
+  samples <- context[["posterior_samples"]]
+  columns <- .iwmde_chen_conditioning_columns(
+    context        = context,
+    parameter      = parameter,
+    parameter_spec = parameter_spec
+  )
+  if (length(columns) == 0L) {
+    return(list(
+      fit     = matrix(numeric(), nrow = length(weight_rows), ncol = 0L),
+      eval    = matrix(numeric(), nrow = length(active_rows), ncol = 0L),
+      columns = character()
+    ))
+  }
+
+  fit_values  <- matrix(NA_real_, nrow = length(weight_rows), ncol = length(columns))
+  eval_values <- matrix(NA_real_, nrow = length(active_rows), ncol = length(columns))
+  colnames(fit_values)  <- columns
+  colnames(eval_values) <- columns
+
+  for (column in columns) {
+    transformed <- .iwmde_chen_transform_conditioning_column(
+      context     = context,
+      fit_values  = .iwmde_parameter_column_values(
+        context   = context,
+        samples   = samples[weight_rows, , drop = FALSE],
+        parameter = column
+      ),
+      eval_values = .iwmde_parameter_column_values(
+        context   = context,
+        samples   = samples[active_rows, , drop = FALSE],
+        parameter = column
+      ),
+      column      = column
+    )
+    fit_values[, column]  <- transformed[["fit"]]
+    eval_values[, column] <- transformed[["eval"]]
+  }
+
+  keep <- vapply(seq_along(columns), function(i) {
+    values <- fit_values[, i]
+    finite <- is.finite(values)
+    sum(finite) >= 3L &&
+      stats::sd(values[finite]) > sqrt(.Machine$double.eps) &&
+      length(unique(signif(values[finite], 12))) > 1L
+  }, logical(1))
+
+  if (!any(keep)) {
+    return(list(
+      fit     = matrix(numeric(), nrow = length(weight_rows), ncol = 0L),
+      eval    = matrix(numeric(), nrow = length(active_rows), ncol = 0L),
+      columns = character()
+    ))
+  }
+
+  columns     <- columns[keep]
+  fit_values  <- fit_values[, keep, drop = FALSE]
+  eval_values <- eval_values[, keep, drop = FALSE]
+
+  return(list(
+    fit     = fit_values,
+    eval    = eval_values,
+    columns = columns
+  ))
+}
+
+
+.iwmde_chen_conditioning_columns <- function(context, parameter,
+                                             parameter_spec) {
+
+  samples <- context[["posterior_samples"]]
+  columns <- colnames(samples)
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "linear")) {
+    target_columns <- names(parameter_spec[["weights"]])
+  } else {
+    target_columns <- parameter
+  }
+
+  candidates <- columns[
+    !columns %in% target_columns &
+      !columns %in% context[["indicator_names"]] &
+      !vapply(columns, .iwmde_parameter_is_indicator, logical(1)) &
+      !vapply(columns, .iwmde_parameter_is_local_latent, logical(1)) &
+      vapply(columns, function(column) {
+        .iwmde_chen_is_global_conditioning_column(
+          context = context,
+          column  = column
+        )
+      }, logical(1))
+  ]
+
+  return(candidates)
+}
+
+
+.iwmde_chen_is_global_conditioning_column <- function(context, column) {
+
+  return(
+    column == "mu" ||
+      startsWith(column, "mu_") ||
+      grepl("^mu\\[[0-9]+\\]$", column) ||
+      column %in% c("tau", "log_tau", "rho", "PET", "PEESE") ||
+      startsWith(column, "tau_") ||
+      startsWith(column, "log_tau_") ||
+      .iwmde_parameter_is_weightfunction_coordinate(
+        parameter       = column,
+        context         = context,
+        include_private = FALSE
+      )
+  )
+}
+
+
+.iwmde_chen_transform_conditioning_column <- function(context,
+                                                      fit_values,
+                                                      eval_values,
+                                                      column) {
+
+  if (column == "tau" || startsWith(column, "tau_")) {
+    return(.iwmde_chen_transform_nonnegative(fit_values, eval_values))
+  }
+  if (column == "rho") {
+    return(.iwmde_chen_transform_unit_interval(fit_values, eval_values))
+  }
+  omega_coordinates <- if (!is.null(context[["selection_spec"]])) {
+    context[["selection_spec"]][["jags_omega"]]
+  } else {
+    character()
+  }
+  if (.iwmde_parameter_matches_coordinate(column, omega_coordinates)) {
+    return(.iwmde_chen_transform_omega(fit_values, eval_values))
+  }
+  if (column == "log_tau" ||
+      startsWith(column, "log_tau_")) {
+    return(list(
+      fit  = as.numeric(fit_values),
+      eval = as.numeric(eval_values)
+    ))
+  }
+
+  return(list(
+    fit  = as.numeric(fit_values),
+    eval = as.numeric(eval_values)
+  ))
+}
+
+
+.iwmde_chen_transform_nonnegative <- function(fit_values, eval_values) {
+
+  return(list(
+    fit  = log1p(pmax(as.numeric(fit_values), 0)),
+    eval = log1p(pmax(as.numeric(eval_values), 0))
+  ))
+}
+
+
+.iwmde_chen_transform_unit_interval <- function(fit_values, eval_values) {
+
+  eps <- sqrt(.Machine$double.eps)
+
+  return(list(
+    fit  = stats::qlogis(pmin(pmax(as.numeric(fit_values), eps), 1 - eps)),
+    eval = stats::qlogis(pmin(pmax(as.numeric(eval_values), eps), 1 - eps))
+  ))
+}
+
+
+.iwmde_chen_transform_omega <- function(fit_values, eval_values) {
+
+  fit  <- as.numeric(fit_values)
+  eval <- as.numeric(eval_values)
+  all_values <- c(fit, eval)
+  finite     <- all_values[is.finite(all_values)]
+  if (length(finite) > 0L && min(finite) >= 0 &&
+      max(finite) <= 1 + sqrt(.Machine$double.eps)) {
+    return(.iwmde_chen_transform_unit_interval(fit, eval))
+  }
+
+  return(.iwmde_chen_transform_nonnegative(fit, eval))
+}

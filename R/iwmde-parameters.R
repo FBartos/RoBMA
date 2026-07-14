@@ -203,15 +203,10 @@
 
   samples <- context[["posterior_samples"]]
   factors <- rep(NA_real_, nrow(samples))
-  transformed <- tryCatch(
-    BayesTools::transform_scale_samples(context[["formula_fit"]]),
-    error = function(e) NULL
+  transformed <- as.matrix(
+    BayesTools::transform_scale_samples(context[["formula_fit"]])
   )
-  if (!is.null(transformed)) {
-    transformed <- as.matrix(transformed)
-  }
-  if (!is.null(transformed) &&
-      nrow(transformed) == nrow(samples) &&
+  if (nrow(transformed) == nrow(samples) &&
       parameter %in% colnames(samples) &&
       parameter %in% colnames(transformed)) {
     raw <- as.numeric(samples[, parameter])
@@ -327,27 +322,23 @@
 
 .iwmde_unsupported <- function(parameter, reason) {
 
-  out <- list(
+  return(.iwmde_new_diagnostic(list(
     parameter = parameter,
     status    = "unsupported",
     reason    = reason
-  )
-  class(out) <- c("iwmde_parameter_diagnostic", "list")
-  return(out)
+  )))
 }
 
 
 .iwmde_point_only_diagnostic <- function(parameter, samples, component) {
 
-  out <- list(
+  return(.iwmde_new_diagnostic(list(
     parameter    = parameter,
     status       = "point_only",
     samples      = samples,
     point_masses = component[["point_masses"]],
     reason       = "parameter has no continuous active posterior component"
-  )
-  class(out) <- c("iwmde_parameter_diagnostic", "list")
-  return(out)
+  )))
 }
 
 

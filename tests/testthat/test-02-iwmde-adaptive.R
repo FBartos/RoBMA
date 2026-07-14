@@ -1,0 +1,337 @@
+context("IWMDE adaptive ordinates and public diagnostics")
+
+source(testthat::test_path("common-functions.R"))
+
+
+.iwmde_adaptive_test_diagnostics <- function(row_budget, relative_mcse,
+                                             ess = row_budget,
+                                             max_weight_share = 1 / row_budget) {
+
+  return(list(
+    bf_relative_mcse             = relative_mcse,
+    bf_finite_terms              = row_budget,
+    bf_ess                       = ess,
+    bf_max_weight_share          = max_weight_share,
+    bf_ordinate_relative_change  = 0,
+    max_quadrature_relative_change = 0,
+    row_drop_fraction            = 0,
+    estimator                    = "q_grid_cmde"
+  ))
+}
+
+
+test_that("density and ordinate controls have separate row policies", {
+
+  density  <- .density_control_normalize("qCMDE", purpose = "density")
+  ordinate <- .density_control_normalize("qCMDE", purpose = "ordinate")
+
+  expect_equal(density[["max_samples"]], 500L)
+  expect_equal(ordinate[["max_samples"]], Inf)
+  expect_equal(ordinate[["initial_samples"]], 500L)
+  expect_equal(ordinate[["target_relative_mcse"]], .05)
+  expect_equal(.iwmde_bf_warning_relative_mcse(), .05)
+  expect_equal(.iwmde_bf_max_relative_mcse(), .25)
+  expect_equal(.iwmde_bf_min_ess(), 20)
+  expect_equal(.iwmde_bf_max_weight_share(), .50)
+
+  expect_error(
+    .density_control_normalize(
+      "qCMDE",
+      list(initial_samples = 100, max_samples = 50),
+      purpose = "ordinate"
+    ),
+    "cannot exceed"
+  )
+})
+
+
+test_that("adaptive ordinate evaluation records cap exhaustion", {
+
+  skip_on_cran()
+  skip_if_missing_fits("bcg_meta-analysis")
+
+  estimate <- .iwmde_estimate(
+    context         = .iwmde_context(load_fit("bcg_meta-analysis")),
+    parameter       = "mu",
+    density_method  = "IWMDE",
+    density_control = list(
+      n_points             = 20,
+      initial_samples      = 20,
+      max_samples          = 40,
+      target_relative_mcse = 1e-6,
+      normalization_points = 20,
+      display_grid         = "ordinate"
+    ),
+    outputs         = "ordinate",
+    values          = 0,
+    parameter_spec  = list(type = "primitive"),
+    metadata        = list(parameter = "mu"),
+    cache           = .iwmde_estimate_cache()
+  )
+
+  adaptation <- estimate[["adaptation"]]
+  expect_true(adaptation[["adaptive"]])
+  expect_equal(adaptation[["initial_row_budget"]], 20L)
+  expect_equal(adaptation[["achieved_row_budget"]], 40L)
+  expect_true(adaptation[["hard_cap_reached"]])
+  expect_false(adaptation[["all_rows_used"]])
+  expect_false(adaptation[["target_met"]])
+  expect_equal(adaptation[["n_steps"]], 2L)
+  expect_equal(adaptation[["history"]][["requested_row_budget"]], c(20L, 40L))
+})
+
+
+test_that("adaptive qCMDE stops when the precision target is met", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_plan = function(context, parameter, density_method,
+                           density_control, outputs, values,
+                           parameter_spec, metadata, row_budget) {
+
+      list(
+        row_budget = row_budget,
+        rows = list(
+          continuous_rows = seq_len(100L),
+          n_candidate_rows = row_budget
+        )
+      )
+    },
+    .iwmde_estimate_from_plan = function(context, plan, cache = NULL) {
+
+      relative_mcse <- if (plan[["row_budget"]] < 80L) .20 else .04
+      list(
+        diagnostics = list(
+          ordinate = list(
+            status      = "ok",
+            diagnostics = .iwmde_adaptive_test_diagnostics(
+              row_budget   = plan[["row_budget"]],
+              relative_mcse = relative_mcse
+            )
+          )
+        ),
+        posterior_ordinate = list(diagnostics = list())
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  estimate <- .iwmde_estimate_adaptive_ordinate(
+    context         = list(),
+    parameter       = "mu",
+    density_method  = "qCMDE",
+    density_control = list(
+      initial_samples      = 20L,
+      max_samples          = 100L,
+      target_relative_mcse = .05
+    ),
+    values          = 0
+  )
+  adaptation <- estimate[["adaptation"]]
+
+  expect_equal(
+    adaptation[["history"]][["requested_row_budget"]],
+    c(20L, 80L)
+  )
+  expect_equal(adaptation[["achieved_row_budget"]], 80L)
+  expect_equal(adaptation[["n_steps"]], 2L)
+  expect_true(adaptation[["target_met"]])
+  expect_false(adaptation[["hard_cap_reached"]])
+  expect_false(adaptation[["all_rows_used"]])
+})
+
+
+test_that("adaptive qCMDE continues until budget-rescuable BF gates pass", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_plan = function(context, parameter, density_method,
+                           density_control, outputs, values,
+                           parameter_spec, metadata, row_budget) {
+
+      list(
+        row_budget = row_budget,
+        rows = list(
+          continuous_rows = seq_len(100L),
+          n_candidate_rows = row_budget
+        )
+      )
+    },
+    .iwmde_estimate_from_plan = function(context, plan, cache = NULL) {
+
+      passing <- plan[["row_budget"]] >= 40L
+      diagnostics <- .iwmde_adaptive_test_diagnostics(
+        row_budget       = plan[["row_budget"]],
+        relative_mcse    = .20,
+        ess              = if (passing) 30 else 10,
+        max_weight_share = if (passing) .10 else .60
+      )
+      diagnostics[["bf_finite_terms"]] <- if (passing) 40L else 10L
+
+      list(
+        diagnostics = list(
+          ordinate = list(status = "ok", diagnostics = diagnostics)
+        ),
+        posterior_ordinate = list(diagnostics = list())
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  estimate <- .iwmde_estimate_adaptive_ordinate(
+    context         = list(),
+    parameter       = "mu",
+    density_method  = "qCMDE",
+    density_control = list(
+      initial_samples      = 20L,
+      max_samples          = 100L,
+      target_relative_mcse = .50
+    ),
+    values          = 0
+  )
+  adaptation <- estimate[["adaptation"]]
+
+  expect_equal(
+    adaptation[["history"]][["requested_row_budget"]],
+    c(20L, 40L)
+  )
+  expect_true(all(adaptation[["history"]][["precision_target_met"]]))
+  expect_equal(adaptation[["history"]][["bf_grade_met"]], c(FALSE, TRUE))
+  expect_true(adaptation[["precision_target_met"]])
+  expect_true(adaptation[["bf_grade_met"]])
+  expect_true(adaptation[["target_met"]])
+})
+
+
+test_that("density_diagnostics exposes compact BF-grade diagnostics", {
+
+  diagnostics <- list(
+    evaluation_value                  = 0,
+    relative_mcse                     = .03,
+    finite_terms                      = 500L,
+    ess                               = 250,
+    max_weight_share                  = .02,
+    active_mass                       = 1,
+    n_candidate_rows                  = 500L,
+    n_evaluated_rows                  = 500L,
+    n_normalized_rows                 = 500L,
+    row_drop_fraction                 = .02,
+    normalization_relative_error      = .001,
+    ordinate_relative_change          = .002,
+    max_quadrature_relative_change    = .003,
+    target_relative_mcse              = .05,
+    achieved_row_budget               = 500L,
+    eligible_rows                     = 1000L,
+    hard_cap                          = Inf,
+    hard_cap_reached                  = FALSE,
+    all_rows_used                     = FALSE,
+    n_steps                           = 1L,
+    target_met                        = TRUE,
+    precision_target_met              = TRUE,
+    bf_grade_met                      = TRUE,
+    n_weight_fallbacks                = 1L,
+    weight_fallback_reasons           = c(singular_covariance = 1L),
+    estimator                         = "iwmde",
+    weight_method                     = "chen_marginal_normal"
+  )
+  ordinate <- BayesTools::posterior_ordinate_attribute(
+    value          = 0,
+    ordinate       = .4,
+    method         = "iwmde",
+    density_method = "IWMDE",
+    diagnostics    = diagnostics,
+    parameter      = "mu"
+  )
+  ordinate[["iwmde_provenance"]] <- list(
+    request_key        = "request",
+    schema_version     = .iwmde_schema_version(),
+    algorithm_version  = .iwmde_algorithm_version(),
+    source_fingerprint = list(draws = "hash")
+  )
+  posterior <- stats::setNames(1:10, paste0("draw", 1:10))
+  attr(posterior, "posterior_ordinate") <- ordinate
+  table <- structure(
+    data.frame(BF = 1, row.names = "mu = 0"),
+    class = c("BayesTools_hypothesis_BF", "data.frame")
+  )
+  table <- .hypothesis_brma_append_iwmde_warnings(table, posterior)
+  out   <- density_diagnostics(table)
+
+  expect_s3_class(out, "iwmde_density_diagnostics")
+  expect_equal(nrow(out), 1L)
+  expect_equal(out[["estimator"]], "iwmde")
+  expect_equal(out[["achieved_row_budget"]], 500L)
+  expect_equal(out[["relative_mcse"]], .03)
+  expect_equal(out[["stability_metric"]], "normalization_relative_error")
+  expect_equal(out[["stability_warning_threshold"]], .05)
+  expect_equal(out[["stability_rejection_threshold"]], .10)
+  expect_equal(out[["quadrature_warning_threshold"]], .025)
+  expect_equal(out[["quadrature_rejection_threshold"]], .05)
+  expect_equal(out[["row_drop_fraction"]], .02)
+  expect_equal(out[["warning_row_drop_fraction"]], .05)
+  expect_equal(out[["rejection_row_drop_fraction"]], .10)
+  expect_equal(out[["warning_relative_mcse"]], .05)
+  expect_equal(out[["rejection_relative_mcse"]], .25)
+  expect_true(out[["precision_target_met"]])
+  expect_true(out[["bf_grade_met"]])
+  expect_equal(out[["n_weight_fallbacks"]], 1L)
+  expect_match(out[["weight_fallback_reasons"]], "singular_covariance=1")
+  expect_equal(out[["status"]], "ok")
+})
+
+
+test_that("rejected ordinate errors retain public diagnostics", {
+
+  diagnostics <- .iwmde_adaptive_test_diagnostics(
+    row_budget       = 40L,
+    relative_mcse    = .30,
+    ess              = 10,
+    max_weight_share = .60
+  )
+  ordinate <- BayesTools::posterior_ordinate_attribute(
+    value          = 0,
+    ordinate       = .4,
+    method         = "q_grid_cmde",
+    density_method = "qCMDE",
+    diagnostics    = diagnostics,
+    parameter      = "mu"
+  )
+  estimate <- list(
+    rejected_posterior_ordinate = ordinate,
+    diagnostics = list(ordinate = list(status = "ok"))
+  )
+  error <- tryCatch(
+    .iwmde_stop_ordinate_unavailable("ordinate rejected", estimate),
+    error = identity
+  )
+
+  expect_s3_class(error, "iwmde_ordinate_error")
+  expect_match(conditionMessage(error), "ordinate rejected")
+  out <- density_diagnostics(error)
+  expect_s3_class(out, "iwmde_density_diagnostics")
+  expect_equal(nrow(out), 1L)
+  expect_equal(out[["status"]], "rejected")
+})
+
+
+test_that("point-BF policy enforces adaptive quadrature stability", {
+
+  diagnostics <- list(
+    estimator                       = "q_grid_cmde",
+    relative_mcse                   = .01,
+    finite_terms                    = 500L,
+    ess                             = 250,
+    max_weight_share                = .01,
+    row_drop_fraction               = 0,
+    ordinate_relative_change        = .001,
+    max_quadrature_relative_change  = .03
+  )
+
+  warning <- .iwmde_diagnostics_bf_warning(diagnostics)
+  expect_match(warning, "quadrature sensitivity")
+  expect_null(.iwmde_diagnostics_bf_failure_reason(diagnostics))
+
+  diagnostics[["max_quadrature_relative_change"]] <- .06
+  expect_match(
+    .iwmde_diagnostics_bf_failure_reason(diagnostics),
+    "quadrature sensitivity"
+  )
+})

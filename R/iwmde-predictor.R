@@ -498,8 +498,16 @@
   if (.data_outcome_type(context[["data"]]) != "norm") {
     return(NULL)
   }
-  if (.iwmde_uses_known_v_joint_likelihood(context)) {
-    return(NULL)
+  if (identical(basis[["scale_update"]], "tau")) {
+    return(.iwmde_log_q_grid_normal_known_v_tau_group(
+      context     = context,
+      parameter   = parameter,
+      values      = values,
+      row_states  = row_states,
+      replacement = replacement,
+      setup       = setup,
+      basis       = basis
+    ))
   }
   if (isTRUE(basis[["formula_mu"]]) ||
       isTRUE(basis[["formula_logtau"]]) ||
@@ -521,10 +529,13 @@
     ))
   }
 
-  likelihood_change <- .iwmde_normal_location_likelihood_change(
-    context = context,
-    setup   = setup,
-    basis   = basis
+  likelihood_change <- .iwmde_normal_location_likelihood_change_cached(
+    context     = context,
+    parameter   = parameter,
+    row_states  = row_states,
+    replacement = replacement,
+    setup       = setup,
+    basis       = basis
   )
   if (is.null(likelihood_change)) {
     return(NULL)
@@ -576,6 +587,54 @@
 
   return(matrix(log_q, nrow = G, ncol = S))
 }
+
+
+.iwmde_normal_location_likelihood_change_cached <- function(
+    context, parameter, row_states, replacement, setup, basis) {
+
+  cache <- context[["predictor_cache"]]
+  if (!.iwmde_uses_known_v_joint_likelihood(context) ||
+      !is.environment(cache)) {
+    return(.iwmde_normal_location_likelihood_change(
+      context = context,
+      setup   = setup,
+      basis   = basis
+    ))
+  }
+
+  rows <- vapply(row_states, function(state) {
+    state[["row_index"]]
+  }, integer(1))
+  state_scope <- unique(vapply(
+    row_states,
+    .iwmde_state_scope_value,
+    character(1)
+  ))
+  if (length(state_scope) != 1L) {
+    state_scope <- "mixed"
+  }
+  key <- .iwmde_predictor_cache_key(
+    prefix      = "known_v_location_likelihood_change",
+    active_key  = .iwmde_state_active_key(context, row_states[[1L]]),
+    parameter   = parameter,
+    replacement = replacement,
+    state_scope = state_scope,
+    rows        = rows
+  )
+  if (exists(key, envir = cache, inherits = FALSE)) {
+    return(get(key, envir = cache, inherits = FALSE))
+  }
+
+  likelihood_change <- .iwmde_normal_location_likelihood_change(
+    context = context,
+    setup   = setup,
+    basis   = basis
+  )
+  assign(key, likelihood_change, envir = cache)
+
+  return(likelihood_change)
+}
+
 
 .iwmde_log_q_grid_selnorm_multilevel_location_group <- function(context,
                                                                  parameter,
@@ -791,6 +850,16 @@
     mu_basis <- -mu_basis
   }
 
+  if (.iwmde_uses_known_v_joint_likelihood(context)) {
+    return(.iwmde_normal_location_likelihood_change_known_v(
+      context  = context,
+      setup    = setup,
+      yi       = yi,
+      mu       = mu,
+      mu_basis = mu_basis
+    ))
+  }
+
   if (!.is_data_multilevel(data)) {
     return(.iwmde_normal_location_likelihood_change_estimate(
       yi           = yi,
@@ -893,24 +962,6 @@
     linear    = linear,
     quadratic = quadratic
   ))
-}
-
-
-.iwmde_diag_rank_one_crossprod <- function(x, y, diagonal, rank_one) {
-
-  if (!all(is.finite(diagonal)) || any(diagonal <= 0)) {
-    return(NA_real_)
-  }
-
-  inv_diag <- 1 / diagonal
-  inv_rank <- rank_one * inv_diag
-  denom    <- 1 + sum(rank_one * inv_rank)
-  if (!is.finite(denom) || denom <= .Machine$double.eps) {
-    return(NA_real_)
-  }
-
-  return(sum(x * y * inv_diag) -
-    sum(rank_one * x * inv_diag) * sum(rank_one * y * inv_diag) / denom)
 }
 
 

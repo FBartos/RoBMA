@@ -402,10 +402,7 @@
   }
 
   return(vapply(values, function(value) {
-    out <- tryCatch(
-      BayesTools::lpdf(prior, value),
-      error = function(e) NA_real_
-    )
+    out <- BayesTools::lpdf(prior, value)
     if (length(out) != 1L || is.na(out[[1L]])) {
       return(NA_real_)
     }

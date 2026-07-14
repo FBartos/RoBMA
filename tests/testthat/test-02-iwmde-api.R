@@ -609,7 +609,8 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
     min_ess                           = 80,
     max_weight_share                  = .05,
     active_mass                       = 1,
-    normalization_integral            = 1,
+    final_normalization_integral      = 1,
+    normalization_relative_error      = 0,
     normalization_mass_ratio          = 1,
     row_drop_fraction                 = 0,
     max_ordinate_relative_change      = .06,
@@ -784,8 +785,8 @@ test_that("IWMDE BF diagnostics retain boundary evaluation point", {
         estimator              = "q_grid_cmde",
         weight_method          = "conditional_grid",
         active_mass            = 1,
-        normalization_integral = 1,
-        normalization_final_integral = 1,
+        final_normalization_integral = 1,
+        normalization_relative_error = 0,
         normalization_mass_ratio = 1,
         max_ordinate_relative_change = 0,
         max_normalizer_relative_change = 0,
@@ -828,7 +829,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
       x                       = c(-1, 0, 1),
       y                       = c(.1, .4, .1),
       estimator               = "q_grid_cmde",
-      normalization_integral  = 1,
+      final_normalization_integral = 1,
       normalization_mass_ratio = 1,
       ordinate_relative_change = c(0, 0, 0)
     ),
@@ -846,7 +847,8 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
       bf_max_log_ratio    = 0,
       n_estimator_rows    = 500,
       active_mass         = 1,
-      normalization_integral = 1,
+      final_normalization_integral = 1,
+      normalization_relative_error = 0,
       bf_ordinate_relative_change = 0,
       max_ordinate_relative_change = 0,
       max_normalizer_relative_change = 0,
@@ -922,7 +924,8 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
   ))
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
-  expect_equal(provenance[["schema_version"]], "1")
+  expect_equal(provenance[["schema_version"]], "2")
+  expect_equal(provenance[["algorithm_version"]], "1")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -992,7 +995,7 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
         x                         = c(-1, 0, 1),
         y                         = c(.1, .4, .1),
         estimator                 = "q_grid_cmde",
-        normalization_integral    = 1,
+        final_normalization_integral = 1,
         normalization_mass_ratio  = 1,
         ordinate_relative_change  = c(0, 0, 0)
       ),
@@ -1010,7 +1013,8 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
         bf_max_log_ratio    = 0,
         n_estimator_rows    = 500,
         active_mass         = 1,
-        normalization_integral = 1,
+        final_normalization_integral = 1,
+        normalization_relative_error = 0,
         bf_ordinate_relative_change = 0,
         max_ordinate_relative_change = 0,
         max_normalizer_relative_change = 0,
@@ -1024,6 +1028,16 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
   ordinate_calls <- 0L
 
   testthat::local_mocked_bindings(
+    .iwmde_row_states = function(context, rows, parameter, parameter_spec) {
+
+      lapply(rows, function(row) {
+        .iwmde_new_row_state(list(
+          baseline_log_q = 0,
+          active_key     = "all",
+          row_index      = row
+        ))
+      })
+    },
     .iwmde_execute_plan_diagnostic = function(context, plan, output,
                                               execution_cache = NULL,
                                               diagnostic_cache = NULL) {
@@ -1127,12 +1141,12 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
       },
       diagnostics    = list(
         evaluation_value       = 0,
-        relative_mcse          = .1,
-        finite_terms           = 60,
-        ess                    = 30,
-        max_weight_share       = .2,
+        relative_mcse          = .01,
+        finite_terms           = 200,
+        ess                    = 150,
+        max_weight_share       = .05,
         active_mass            = 1,
-        normalization_integral = normalization_integral,
+        normalization_relative_error = abs(normalization_integral - 1),
         ordinate_relative_change = ordinate_relative_change,
         max_normalizer_relative_change = ordinate_relative_change,
         normalization_range    = c(-1, 1),
@@ -1302,7 +1316,8 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
       bf_ess                 = 30,
       bf_max_weight_share    = .2,
       active_mass            = 1,
-      normalization_integral = 1,
+      final_normalization_integral = 1,
+      normalization_relative_error = 0,
       bf_ordinate_relative_change = .06,
       max_normalizer_relative_change = .06,
       normalization_range    = c(-1, 1),
@@ -1325,12 +1340,12 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
     density_method = "qCMDE",
     diagnostics    = list(
       evaluation_value       = 0,
-      relative_mcse          = .30,
-      finite_terms           = 40,
-      ess                    = 10,
-      max_weight_share       = .60,
+      relative_mcse          = .10,
+      finite_terms           = 60,
+      ess                    = 50,
+      max_weight_share       = .30,
       active_mass            = 1,
-      normalization_integral = 1,
+      normalization_relative_error = 0,
       ordinate_relative_change = 0,
       max_normalizer_relative_change = 0,
       normalization_range    = c(-1, 1),
@@ -1341,10 +1356,10 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
   warnings <- .iwmde_posterior_ordinate_warnings(ordinate)
 
   expect_true(.iwmde_posterior_ordinate_supports_bf(ordinate))
-  expect_true(any(grepl("relative MCSE.*30%.*25%.*100%", warnings)))
-  expect_true(any(grepl("uses only\\s+40.*finite importance terms.*50.*20", warnings)))
-  expect_true(any(grepl("effective sample size.*10.*20.*4", warnings)))
-  expect_true(any(grepl("largest importance weight.*60%.*50%.*80%", warnings)))
+  expect_true(any(grepl("relative MCSE.*10%.*5%.*25%", warnings)))
+  expect_true(any(grepl("uses only\\s+60.*finite importance terms.*100.*20", warnings)))
+  expect_true(any(grepl("effective sample size.*50.*100.*20", warnings)))
+  expect_true(any(grepl("largest importance weight.*30%.*20%.*50%", warnings)))
 })
 
 
@@ -1373,7 +1388,7 @@ test_that("qCMDE and IWMDE row-loss thresholds warn before failing", {
         ess                    = 30,
         max_weight_share       = .2,
         active_mass            = 1,
-        normalization_integral = 1,
+        normalization_relative_error = 0,
         ordinate_relative_change = 0,
         max_normalizer_relative_change = 0,
         normalization_range    = c(-1, 1),
@@ -1601,7 +1616,9 @@ test_that("IWMDE plan freezes finite baseline row contract", {
                                  parameter_spec = NULL) {
 
       lapply(seq_along(rows), function(i) {
-        list(baseline_log_q = if (i %in% drop_positions) -Inf else 0)
+        .iwmde_new_row_state(list(
+          baseline_log_q = if (i %in% drop_positions) -Inf else 0
+        ))
       })
     },
     .package = "RoBMA"
@@ -1804,11 +1821,13 @@ test_that("IWMDE restricted weights integrate without post-hoc scaling", {
   expect_equal(diagnostic[["status"]], "ok")
   expect_equal(diagnostic[["support"]], c(-Inf, 0))
   expect_equal(diagnostic[["diagnostics"]][["weight_method"]], "chen_gamma")
-  expect_true(is.finite(diagnostic[["iwmde"]][["normalization_integral"]]))
+  expect_true(is.finite(
+    diagnostic[["iwmde"]][["support_grid_normalization_integral"]]
+  ))
   expect_gt(diagnostic[["iwmde"]][["normalization_mass_ratio"]], 0)
   expect_equal(diagnostic[["diagnostics"]][["normalization_scale"]], "support_grid")
   expect_equal(
-    diagnostic[["diagnostics"]][["normalization_integral"]],
+    diagnostic[["diagnostics"]][["support_grid_normalization_integral"]],
     diagnostic[["active_mass"]],
     tolerance = .10
   )

@@ -459,7 +459,7 @@ test_that("IWMDE disables focal prior delta for vector priors", {
   }
 })
 
-test_that("IWMDE uses marginal likelihood for GLMM global rows", {
+test_that("IWMDE conditions GLMM global parameters on sampled local states", {
 
   fit_names <- c("bcg_glmm", "nielweise2008_glmm")
   .skip_if_missing_raw_fits(fit_names)
@@ -477,7 +477,10 @@ test_that("IWMDE uses marginal likelihood for GLMM global rows", {
 
       for (i in seq_along(rows)) {
         state <- row_states[[i]]
-        expect_equal(state[["likelihood_mode"]], "marginal")
+        expect_equal(state[["likelihood_mode"]], "conditional")
+        expect_equal(state[["state_scope"]], "local")
+        expect_true("theta" %in% names(state[["prior_list"]]))
+        expect_true(any(c("pi", "phi") %in% names(state[["prior_list"]])))
         expect_true(is.finite(state[["baseline_log_lik"]]))
 
         log_q <- .iwmde_log_q_replacement(
@@ -531,7 +534,7 @@ test_that("IWMDE uses marginal cluster likelihood for multilevel selection rows"
   }
 })
 
-test_that("IWMDE uses marginal cluster likelihood for GLMM global rows", {
+test_that("IWMDE conditions multilevel GLMM rows on sampled local states", {
 
   .skip_if_missing_raw_fits("bcg_BMA.glmm_3lvl_location_scale")
 
@@ -548,7 +551,10 @@ test_that("IWMDE uses marginal cluster likelihood for GLMM global rows", {
 
   for (i in seq_along(rows)) {
     state <- row_states[[i]]
-    expect_equal(state[["likelihood_mode"]], "marginal")
+    expect_equal(state[["likelihood_mode"]], "conditional")
+    expect_equal(state[["state_scope"]], "local")
+    expect_true(all(c("gamma", "theta") %in% names(state[["prior_list"]])))
+    expect_true(any(c("pi", "phi") %in% names(state[["prior_list"]])))
     expect_true(is.finite(state[["baseline_log_lik"]]))
 
     log_q <- .iwmde_log_q_replacement(

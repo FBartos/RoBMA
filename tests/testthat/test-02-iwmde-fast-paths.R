@@ -182,10 +182,12 @@ test_that("qCMDE density normalization is row-wise and mass preserving", {
   expect_equal(density[["normalization_mass_ratio"]], 1)
   final_width <- diff(density[["normalization_range"]])
   pilot_width <- diff(density[["normalization_initial_range"]])
-  expect_equal(density[["normalization_integral"]],
+  expect_equal(density[["pilot_normalization_integral"]],
                .6 * pilot_width / final_width,
                tolerance = 1e-10)
-  expect_equal(density[["normalization_final_integral"]], .6,
+  expect_equal(density[["final_normalization_integral"]], .6,
+               tolerance = 1e-10)
+  expect_equal(density[["normalization_relative_error"]], 0,
                tolerance = 1e-10)
   expect_equal(.iwmde_trapz(density[["x"]], density[["y"]]), .6 / final_width,
                tolerance = 1e-10)
@@ -659,8 +661,8 @@ test_that("qCMDE uses refined normalizers and diagnoses pilot-grid impact", {
     replacement        = list(type = "scalar")
   )
 
-  expect_lt(density[["normalization_integral"]], 1)
-  expect_equal(density[["normalization_final_integral"]], 1, tolerance = 1e-10)
+  expect_lt(density[["pilot_normalization_integral"]], 1)
+  expect_equal(density[["final_normalization_integral"]], 1, tolerance = 1e-10)
   expect_gt(density[["ordinate_relative_change"]][[1]], .05)
   expect_gt(density[["max_normalizer_relative_change"]], .05)
   expect_match(
@@ -673,7 +675,8 @@ test_that("qCMDE uses refined normalizers and diagnoses pilot-grid impact", {
       max_weight_share       = .2,
       evaluation_value       = 0,
       normalization_range    = range(norm_grid),
-      normalization_integral = density[["normalization_integral"]],
+      normalization_relative_error =
+        density[["normalization_relative_error"]],
       ordinate_relative_change =
         density[["ordinate_relative_change"]][[1]],
       max_normalizer_relative_change =
@@ -694,7 +697,8 @@ test_that("qCMDE BF gate rejects validation movement despite perfect mass", {
     ess                    = 40,
     max_weight_share       = .10,
     evaluation_value       = 0,
-    normalization_integral = 1,
+    final_normalization_integral = 1,
+    normalization_relative_error = 0,
     active_mass            = 1,
     normalization_mass_ratio = 1,
     row_drop_fraction      = 0,
@@ -755,7 +759,11 @@ test_that("IWMDE density reports raw support mass without scaling the curve", {
 
   expect_equal(density[["estimator"]], "iwmde")
   expect_equal(density[["weight_method"]], "mock")
-  expect_equal(density[["normalization_integral"]], .5, tolerance = 1e-10)
+  expect_equal(
+    density[["support_grid_normalization_integral"]],
+    .5,
+    tolerance = 1e-10
+  )
   expect_equal(density[["normalization_mass_ratio"]], 2, tolerance = 1e-10)
   expect_equal(.iwmde_trapz(density[["x"]], density[["y"]]), .5,
                tolerance = 1e-10)
@@ -810,7 +818,11 @@ test_that("IWMDE dropped weight rows keep target denominator", {
   expect_equal(.iwmde_trapz(density[["x"]], density[["y"]]), .25,
                tolerance = 1e-10)
   expect_equal(density[["y"]], rep(.25, length(grid)), tolerance = 1e-10)
-  expect_equal(density[["normalization_integral"]], .25, tolerance = 1e-10)
+  expect_equal(
+    density[["support_grid_normalization_integral"]],
+    .25,
+    tolerance = 1e-10
+  )
   expect_equal(density[["normalization_mass_ratio"]], 4, tolerance = 1e-10)
   expect_equal(density[["n_candidate_rows"]], 2L)
   expect_equal(density[["n_normalized_rows"]], 1L)
@@ -1023,7 +1035,7 @@ test_that("Chen weight dispatcher falls back when conditioning fails", {
     },
     .iwmde_chen_conditional_normal_log_weight = function(...) {
 
-      stop("conditioning failed", call. = FALSE)
+      .iwmde_chen_conditional_stop("conditioning failed")
     },
     .iwmde_chen_marginal_normal_log_weight = function(active_values,
                                                       weight_values) {
@@ -1057,7 +1069,7 @@ test_that("Chen weight dispatcher falls back when conditioning fails", {
     },
     .iwmde_chen_logit_conditional_normal_log_weight = function(...) {
 
-      stop("conditioning failed", call. = FALSE)
+      .iwmde_chen_conditional_stop("conditioning failed")
     },
     .iwmde_chen_beta_log_weight = function(active_values, weight_values,
                                            support) {
@@ -2217,6 +2229,8 @@ test_that("IWMDE predictor fast path matches scalar fallback", {
 
   cases <- list(
     list("bcg_meta-analysis", "mu", NULL),
+    list("brma.mv_block_mvn_fixed_random_null", "mu", NULL),
+    list("brma.mv_block_mvn", "mu", NULL),
     list("bcg_meta-analysis", "tau", NULL),
     list("konstantopoulos2011_3lvl", "rho", NULL),
     list("dat.lehmann2018-PET", "PET", NULL),
@@ -2246,6 +2260,8 @@ test_that("IWMDE normal quadratic fast path matches scalar fallback", {
 
   cases <- list(
     list("bcg_meta-analysis", "mu", NULL),
+    list("brma.mv_block_mvn_fixed_random_null", "mu", NULL),
+    list("brma.mv_block_mvn", "mu", NULL),
     list("dat.lehmann2018-3PSM", "mu", NULL),
     list("dat.lehmann2018-PET", "PET", NULL),
     list("dat.lehmann2018-PEESE", "PEESE", NULL),
@@ -2268,4 +2284,79 @@ test_that("IWMDE normal quadratic fast path matches scalar fallback", {
       parameter_spec = case[[3L]]
     )
   }
+})
+
+
+test_that("known-V normal q-grid factors invariant blocks once", {
+
+  fit_name <- "brma.mv_block_mvn_fixed_random_null"
+  .skip_if_missing_raw_fits(fit_name)
+
+  context   <- .iwmde_context(load_fit(fit_name, validate = FALSE))
+  parameter <- "mu"
+  spec      <- .iwmde_parameter_spec(context, parameter, NULL)
+  values    <- .iwmde_parameter_values(context, parameter, spec)
+  component <- .iwmde_parameter_components(context, parameter, spec)
+  rows      <- which(component[["active"]] & is.finite(values))
+  rows      <- head(rows, 3L)
+  row_states <- .iwmde_row_states(context, rows, parameter, spec)
+  keep       <- vapply(row_states, function(state) {
+    is.finite(state[["baseline_log_q"]])
+  }, logical(1))
+  row_states <- row_states[keep]
+
+  expect_gt(length(row_states), 0L)
+
+  active_setup <- row_states[[1L]][["active_setup"]]
+  setup <- .iwmde_predictor_setup(
+    context      = context,
+    row_states   = row_states,
+    active_setup = active_setup,
+    unit         = "estimate"
+  )
+  replacement <- .iwmde_replacement_spec(context, parameter, spec)
+  basis <- .iwmde_predictor_update_basis(
+    context     = context,
+    parameter   = parameter,
+    row_states  = row_states,
+    replacement = replacement,
+    setup       = setup
+  )
+  grid <- seq(min(values[rows]), max(values[rows]), length.out = 20L)
+
+  original_factor <- .known_v_chol_covariance
+  factor_calls     <- 0L
+  testthat::local_mocked_bindings(
+    .known_v_chol_covariance = function(covariance, context) {
+
+      factor_calls <<- factor_calls + 1L
+      original_factor(covariance = covariance, context = context)
+    },
+    .package = "RoBMA"
+  )
+
+  out <- .iwmde_log_q_grid_normal_location_group(
+    context     = context,
+    parameter   = parameter,
+    values      = grid,
+    row_states  = row_states,
+    replacement = replacement,
+    setup       = setup,
+    basis       = basis
+  )
+  reused <- .iwmde_log_q_grid_normal_location_group(
+    context     = context,
+    parameter   = parameter,
+    values      = rev(grid),
+    row_states  = row_states,
+    replacement = replacement,
+    setup       = setup,
+    basis       = basis
+  )
+
+  block_count <- length(.known_v_blocks(.data_known_v_data(context[["data"]])))
+  expect_true(is.matrix(out))
+  expect_equal(dim(out), c(length(grid), length(row_states)))
+  expect_equal(reused, out[nrow(out):1L, , drop = FALSE], tolerance = 1e-12)
+  expect_equal(factor_calls, block_count)
 })

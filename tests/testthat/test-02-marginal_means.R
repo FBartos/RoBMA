@@ -88,7 +88,9 @@ REFERENCE_DIR <<- testthat::test_path("..", "results", "marginal_means")
     max_weight_share                  = .10,
     row_drop_fraction                 = 0,
     active_mass                       = 1,
-    normalization_integral            = 1,
+    final_normalization_integral      = 1,
+    support_grid_normalization_integral = 1,
+    normalization_relative_error      = 0,
     normalization_mass_ratio          = 1,
     max_ordinate_relative_change      = 0,
     max_normalizer_relative_change    = 0,
@@ -486,7 +488,9 @@ test_that("marginal_means BF refresh requires ordinate provenance", {
     max_weight_share             = .10,
     row_drop_fraction            = 0,
     active_mass                  = 1,
-    normalization_integral       = 1,
+    final_normalization_integral = 1,
+    support_grid_normalization_integral = 1,
+    normalization_relative_error = 0,
     normalization_mass_ratio     = 1,
     ordinate_relative_change     = 0,
     max_normalizer_relative_change = 0
@@ -545,6 +549,20 @@ test_that("marginal_means BF refresh requires ordinate provenance", {
   expect_match(
     attr(bf[["random"]], "warnings"),
     "posterior ordinate was unavailable"
+  )
+
+  expect_error(
+    .marginal_means_refresh_iwmde_bf(
+      inference       = list(
+        conditional = list(mu = posterior),
+        inference   = list(mu = NULL)
+      ),
+      parameters      = "mu",
+      null_hypothesis = 0,
+      density_method  = "qCMDE",
+      object          = NULL
+    ),
+    "Cannot validate a stored qCMDE/IWMDE ordinate"
   )
 })
 
@@ -715,6 +733,7 @@ mv_marginal_means_fit_names <- c(
 )
 fit_names <- unique(c(
   "bcg_meta-analysis",
+  "bcg_glmm_reg",
   marginal_means_cases()[["name"]],
   marginal_means_interaction_plot_cases()[["name"]],
   mv_marginal_means_fit_names
@@ -749,6 +768,34 @@ marginal_means_expected_stats <- function(emm, type = "averaged",
 
   return(stats)
 }
+
+
+test_that("GLMM IWMDE marginal means are rejected before estimation", {
+
+  skip_if_missing_fits("bcg_glmm_reg")
+  fit <- fits[["bcg_glmm_reg"]]
+
+  expect_error(
+    marginal_means(
+      fit,
+      density_method = "IWMDE",
+      bf             = TRUE,
+      n_samples      = 100
+    ),
+    "IWMDE density estimation is unavailable"
+  )
+
+  expect_error(
+    marginal_means(
+      fit,
+      density_method  = "IWMDE",
+      density_control = list(n_points = 20, max_samples = 20),
+      bf              = FALSE,
+      n_samples       = 100
+    ),
+    "IWMDE density estimation is unavailable"
+  )
+})
 
 
 test_that("marginal_means stores BayesTools marginal inference", {
@@ -884,7 +931,8 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
     inference            = mm[["inference"]],
     parameters           = mm[["parameters"]],
     null_hypothesis      = mm[["null_hypothesis"]],
-    density_method       = mm[["density_method"]]
+    density_method       = mm[["density_method"]],
+    object               = mm
   )
   expected <- BayesTools::Savage_Dickey_BF(
     posterior            = mm[["inference"]][["conditional"]][["mu_alloc"]],
@@ -1115,7 +1163,8 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
     inference            = mm[["inference"]],
     parameters           = mm[["parameters"]],
     null_hypothesis      = mm[["null_hypothesis"]],
-    density_method       = mm[["density_method"]]
+    density_method       = mm[["density_method"]],
+    object               = mm
   )
 
   expect_equal(conditional_density[["density_method"]], "IWMDE")
@@ -1216,21 +1265,25 @@ test_that("marginal_means rejects IWMDE BFs with poor ordinate diagnostics", {
   posterior_ordinate[["diagnostics"]][["relative_mcse"]] <- .1
   posterior_ordinate[["diagnostics"]][["ess"]] <- 2
   expect_false(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
-  posterior_ordinate[["diagnostics"]][["ess"]] <- 10
+  posterior_ordinate[["diagnostics"]][["ess"]] <- 50
   posterior_ordinate[["diagnostics"]][["max_weight_share"]] <- .95
   expect_false(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
   posterior_ordinate[["diagnostics"]][["max_weight_share"]] <- .2
   posterior_ordinate[["diagnostics"]][["active_mass"]] <- 1
-  posterior_ordinate[["diagnostics"]][["normalization_integral"]] <- 1
+  posterior_ordinate[["diagnostics"]][["support_grid_normalization_integral"]] <- 1
+  posterior_ordinate[["diagnostics"]][["normalization_relative_error"]] <- 0
   posterior_ordinate[["diagnostics"]][["normalization_mass_ratio"]] <- 1
   expect_true(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
-  posterior_ordinate[["diagnostics"]][["normalization_integral"]] <- .70
+  posterior_ordinate[["diagnostics"]][["support_grid_normalization_integral"]] <- .70
+  posterior_ordinate[["diagnostics"]][["normalization_relative_error"]] <- .30
   posterior_ordinate[["diagnostics"]][["normalization_mass_ratio"]] <- 1 / .70
   expect_false(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
-  posterior_ordinate[["diagnostics"]][["normalization_integral"]] <- .92
+  posterior_ordinate[["diagnostics"]][["support_grid_normalization_integral"]] <- .92
+  posterior_ordinate[["diagnostics"]][["normalization_relative_error"]] <- .08
   posterior_ordinate[["diagnostics"]][["normalization_mass_ratio"]] <- 1 / .92
   expect_true(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
-  posterior_ordinate[["diagnostics"]][["normalization_integral"]] <- NA_real_
+  posterior_ordinate[["diagnostics"]][["support_grid_normalization_integral"]] <- NA_real_
+  posterior_ordinate[["diagnostics"]][["normalization_relative_error"]] <- NA_real_
   expect_false(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
 
   qcmde_ordinate <- list(
@@ -1239,11 +1292,12 @@ test_that("marginal_means rejects IWMDE BFs with poor ordinate diagnostics", {
     diagnostics = list(
       estimator              = "q_grid_cmde",
       relative_mcse          = .1,
-      finite_terms           = 20,
-      ess                    = 10,
+      finite_terms           = 60,
+      ess                    = 50,
       max_weight_share       = .2,
       active_mass            = .5,
-      normalization_integral = .5,
+      final_normalization_integral = .5,
+      normalization_relative_error = 0,
       ordinate_relative_change = 0,
       max_normalizer_relative_change = 0,
       normalization_range    = c(-1, 1)

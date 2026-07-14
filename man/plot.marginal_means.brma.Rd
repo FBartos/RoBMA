@@ -59,14 +59,22 @@ before plotting and never silently mix with KDE. Plot-time qCMDE/IWMDE
 computation can be slow and is used only for the current plot call; precompute
 with \code{marginal_means(..., density_method = "qCMDE")} or
 \code{marginal_means(..., density_method = "IWMDE")} to reuse densities across
-plots.}
+plots. Prefer qCMDE for likelihood-aware final results; IWMDE can be faster
+but is more sensitive to its fitted conditional weights.}
 
 \item{density_control}{named list of qCMDE/IWMDE density-estimation settings.
-Supported entries are \code{n_points}, \code{max_samples},
-\code{display_grid}, \code{normalization_points}, and
-\code{normalization_prob}. Supplying \code{density_control} forces
+Supported entries are \code{n_points} (default \code{100}),
+\code{max_samples} (default \code{500}), \code{initial_samples} (default
+\code{500}), \code{target_relative_mcse} (default \code{0.05}),
+\code{display_grid} (default \code{"adaptive"}),
+\code{normalization_points} (default \code{NULL}, resolved to
+\code{max(50, n_points)}), and \code{normalization_prob} (default
+\code{0.999}). \code{initial_samples} and \code{target_relative_mcse} are
+point-ordinate controls and do not alter this fixed-budget plot. Supplying
+\code{density_control} forces
 recomputation for the plotted marginal means instead of reusing stored
-densities.}
+densities. Increase row and normalization budgets when diagnostics report
+concentrated contributions, dropped rows, or unstable normalization.}
 
 \item{...}{additional graphical arguments passed to
 \code{BayesTools::plot_marginal()}.}

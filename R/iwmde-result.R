@@ -4,6 +4,12 @@
 
 .iwmde_schema_version <- function() {
 
+  return("2")
+}
+
+
+.iwmde_algorithm_version <- function() {
+
   return("1")
 }
 
@@ -19,21 +25,7 @@
 
 .iwmde_hash <- function(prefix, payload) {
 
-  bytes <- as.integer(serialize(payload, NULL, version = 3))
-  hash1 <- 5381
-  hash2 <- 0
-
-  for (byte in bytes) {
-    hash1 <- (hash1 * 33 + byte) %% 2147483647
-    hash2 <- (hash2 * 65599 + byte) %% 2147483629
-  }
-
-  return(paste(
-    prefix,
-    sprintf("%08x", as.integer(hash1)),
-    sprintf("%08x", as.integer(hash2)),
-    sep = "|"
-  ))
+  return(paste(prefix, rlang::hash(payload), sep = "|"))
 }
 
 
@@ -59,6 +51,8 @@
   keep <- c(
     "n_points",
     "max_samples",
+    "initial_samples",
+    "target_relative_mcse",
     "normalization_points",
     "normalization_prob",
     "display_grid"
@@ -99,11 +93,14 @@
     warn_min_ess      = .iwmde_bf_warning_min_ess(),
     max_weight_share  = .iwmde_bf_max_weight_share(),
     warn_weight_share = .iwmde_bf_warning_weight_share(),
+    min_finite_terms  = .iwmde_bf_min_finite_terms(),
     warn_min_finite_terms = .iwmde_bf_warning_min_finite_terms(),
     qcmde_warn        = .iwmde_bf_mass_warning_tolerance("q_grid_cmde"),
     qcmde_fail        = .iwmde_bf_mass_fail_tolerance("q_grid_cmde"),
     iwmde_warn        = .iwmde_bf_mass_warning_tolerance("iwmde"),
-    iwmde_fail        = .iwmde_bf_mass_fail_tolerance("iwmde")
+    iwmde_fail        = .iwmde_bf_mass_fail_tolerance("iwmde"),
+    quadrature_warn   = .iwmde_quadrature_warning_tolerance(),
+    quadrature_fail   = .iwmde_quadrature_fail_tolerance()
   ))
 }
 
@@ -136,18 +133,18 @@
   density_method <- .density_method_normalize(density_method)
 
   request <- list(
-    schema_version   = .iwmde_schema_version(),
-    provenance_level = "diagnostic_adapter",
-    attribute        = attribute,
-    density_method   = density_method,
-    method           = method,
-    internal_method  = method,
-    density_control = .iwmde_density_control_provenance(density_control),
-    target          = .iwmde_target_provenance(metadata),
-    target_key      = target_key,
-    plan_key        = plan_key,
+    schema_version    = .iwmde_schema_version(),
+    algorithm_version = .iwmde_algorithm_version(),
+    provenance_level  = "diagnostic_adapter",
+    attribute         = attribute,
+    density_method    = density_method,
+    method            = method,
+    internal_method   = method,
+    density_control   = .iwmde_density_control_provenance(density_control),
+    target            = .iwmde_target_provenance(metadata),
+    target_key        = target_key,
     source_fingerprint = source_fingerprint,
-    requested_value = if (is.null(value)) {
+    requested_value   = if (is.null(value)) {
       NULL
     } else {
       .iwmde_key_number(value)
@@ -156,6 +153,9 @@
   request <- .iwmde_compact_nulls(request)
 
   request[["request_key"]] <- .iwmde_hash("iwmde_request", request)
+  if (!is.null(plan_key)) {
+    request[["plan_key"]] <- plan_key
+  }
 
   return(request)
 }

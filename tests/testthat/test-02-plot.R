@@ -30,7 +30,7 @@ test_that("plot.brma clears stale posterior density before qCMDE attach", {
 })
 
 
-test_that("plot.brma qCMDE keeps known-V marginalized random SDs", {
+test_that("plot.brma qCMDE reaches diagnostics with marginalized random SDs", {
 
   fit <- try(load_fit("brma.mv_block_mvn_random", validate = FALSE), silent = TRUE)
   if (inherits(fit, "try-error")) {
@@ -44,8 +44,7 @@ test_that("plot.brma qCMDE keeps known-V marginalized random SDs", {
     .package = "BayesTools"
   )
 
-  warnings <- character()
-  out <- withCallingHandlers(
+  error <- tryCatch(
     plot(
       fit,
       parameter       = "mu",
@@ -53,14 +52,16 @@ test_that("plot.brma qCMDE keeps known-V marginalized random SDs", {
       density_method  = "qCMDE",
       density_control = list(n_points = 20, max_samples = 20)
     ),
-    warning = function(w) {
-      warnings <<- c(warnings, conditionMessage(w))
-      invokeRestart("muffleWarning")
-    }
+    error = identity
   )
 
-  expect_s3_class(out, "mock_plot")
-  expect_false(any(grepl("Missing posterior column", warnings, fixed = TRUE)))
+  expect_s3_class(error, "error")
+  expect_match(conditionMessage(error), "rejected by diagnostics")
+  expect_false(grepl(
+    "Missing posterior column",
+    conditionMessage(error),
+    fixed = TRUE
+  ))
 })
 
 
@@ -301,6 +302,36 @@ test_that("plot.brma forwards attached IWMDE posterior density", {
   expect_equal(posterior_density[["status"]], "ok")
   expect_equal(posterior_density[["density_method"]], "IWMDE")
   expect_equal(posterior_density[["diagnostics"]][["estimator"]], "iwmde")
+})
+
+
+test_that("plot.brma fails closed when an explicit estimator is rejected", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_estimate = function(...) {
+
+      return(list(
+        diagnostics = list(density = list(
+          status = "unsupported",
+          reason = "sentinel diagnostic rejection"
+        )),
+        posterior_density = NULL
+      ))
+    },
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    plot(
+      fits[["bcg_meta-analysis"]],
+      parameter       = "mu",
+      plot_type       = "ggplot",
+      density_method  = "qCMDE",
+      density_control = list(n_points = 20, max_samples = 20)
+    ),
+    "rejected by diagnostics: sentinel diagnostic rejection",
+    fixed = TRUE
+  )
 })
 
 

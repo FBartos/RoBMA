@@ -46,12 +46,18 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' effect-size estimate. For binomial and Poisson models, each pair of counts
 #' (ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
 #' one contribution.
+#' Estimate-unit GLMM log-likelihoods require an untruncated beta baserate prior
+#' for binomial models or an untruncated normal log-rate prior for Poisson
+#' models. Point, truncated, and other nuisance-prior families are rejected
+#' because the certified adaptive quadrature does not cover them.
 #'
 #' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 #' per cluster. For unweighted normal models without selection this uses the
-#' analytic cluster block covariance. Selection, data-weighted normal, and
-#' GLMM models integrate the held-out cluster effect with Gauss-Hermite
-#' quadrature.
+#' analytic cluster block covariance. Selection and data-weighted normal models
+#' integrate the held-out cluster effect with Gauss-Hermite quadrature.
+#' Cluster-unit binomial and Poisson GLMM log-likelihoods are unavailable until
+#' certified nested adaptive quadrature is implemented; use
+#' \code{unit = "estimate"} for GLMMs.
 #'
 #' For selection models, the LOO evaluates the weighted likelihood, conditioning
 #' on the posterior omega samples.
@@ -380,6 +386,11 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' For correlated known-\code{V} \code{brma.mv()} models, estimate-unit columns
 #' are Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}. Their row sum
 #' is not presented as a full joint likelihood.
+#' Estimate-unit GLMM draws require an untruncated beta baserate prior for
+#' binomial models or an untruncated normal log-rate prior for Poisson models.
+#' Point, truncated, and other nuisance-prior families are unsupported. Cluster
+#' unit GLMM draws are unavailable until certified nested adaptive quadrature is
+#' implemented.
 #'
 #' @return An \eqn{S \times K} or \eqn{S \times G} matrix of pointwise
 #' log-likelihood draws with \code{RoBMA_target} metadata.

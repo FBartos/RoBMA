@@ -82,12 +82,15 @@
       return(NULL)
     }
 
-    log_prior <- vapply(seq_along(valid_positions), function(i) {
-      position <- valid_positions[i]
-      state    <- group_states[[candidates[["state_index"]][position]]]
-
-      .iwmde_log_prior_row(valid_samples[i, ], state[["prior_list"]])
-    }, numeric(1))
+    log_prior <- .iwmde_replacement_log_prior(
+      parameter       = parameter,
+      values          = values,
+      valid_samples   = valid_samples,
+      valid_positions = valid_positions,
+      candidates      = candidates,
+      row_states      = group_states,
+      replacement     = replacement
+    )
 
     log_q <- log_lik + log_prior
     for (i in seq_along(valid_positions)) {
@@ -100,6 +103,43 @@
   }
 
   return(out)
+}
+
+
+.iwmde_replacement_log_prior <- function(parameter, values, valid_samples,
+                                         valid_positions, candidates,
+                                         row_states, replacement) {
+
+  state_index <- candidates[["state_index"]][valid_positions]
+  grid_index  <- candidates[["grid_index"]][valid_positions]
+  log_prior   <- rep(NA_real_, length(valid_positions))
+
+  for (i in unique(state_index)) {
+    positions <- which(state_index == i)
+    state     <- row_states[[i]]
+    use_delta <- identical(replacement[["type"]], "scalar") &&
+      isTRUE(state[["use_focal_prior_delta"]])
+
+    if (use_delta) {
+      focal_log_prior <- .iwmde_focal_log_prior_values(
+        prior     = state[["focal_prior"]],
+        values    = values[grid_index[positions]],
+        parameter = parameter
+      )
+      log_prior[positions] <- state[["baseline_log_prior"]] +
+        focal_log_prior - state[["baseline_focal_log_prior"]]
+      next
+    }
+
+    log_prior[positions] <- vapply(positions, function(position) {
+      .iwmde_log_prior_row(
+        valid_samples[position, ],
+        state[["prior_list"]]
+      )
+    }, numeric(1))
+  }
+
+  return(log_prior)
 }
 
 
@@ -183,20 +223,27 @@
   prior_list <- active_setup[["fit_priors"]]
   if (is.null(prior_list) &&
       !is.null(context[["data"]]) &&
-      !is.null(active_setup[["priors"]])) {
-    prior_list <- try(
-      .create_fit_priors(
-        data   = context[["data"]],
-        priors = active_setup[["priors"]]
-      ),
-      silent = TRUE
+      !is.null(active_setup[["priors"]]) &&
+      .iwmde_can_create_fit_priors(context[["data"]])) {
+    prior_list <- .create_fit_priors(
+      data   = context[["data"]],
+      priors = active_setup[["priors"]]
     )
-    if (inherits(prior_list, "try-error")) {
-      prior_list <- NULL
-    }
   }
 
   return(.resolve_fixed_prior_sample_columns(samples, prior_list))
+}
+
+
+.iwmde_can_create_fit_priors <- function(data) {
+
+  outcome_type <- .data_outcome_type(data)
+
+  return(
+    length(outcome_type) == 1L &&
+      !is.na(outcome_type) &&
+      outcome_type %in% c("norm", "bin", "pois")
+  )
 }
 
 

@@ -48,7 +48,17 @@ marginal_means <- function(object, ...) {
 #' row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
 #' Chen-style moment-matched IWMDE densities for plotting. RoBMA stores
 #' separate precomputed posterior ordinates at \code{null_hypothesis}; these
-#' ordinates do not alter the plotting grid. Matching is case-insensitive.
+#' ordinates do not alter the plotting grid. qCMDE is preferred when its
+#' additional normalization cost is acceptable; IWMDE can be faster but is
+#' more sensitive to its fitted conditional weights. Matching is
+#' case-insensitive. When an ordinate is used for a Bayes factor,
+#' \code{BF_error} is a conditional Monte Carlo error estimate. It excludes
+#' uncertainty in the prior ordinate and, for IWMDE, uncertainty from estimating
+#' the conditional weight function. Use \code{density_diagnostics()} on a
+#' subsequent \code{hypothesis()} result to inspect the ordinate diagnostics.
+#' IWMDE is unavailable for binomial and Poisson GLMMs because its
+#' high-dimensional conditional weights did not meet the bridge-sampling
+#' certification tolerance. Use qCMDE for GLMM density curves and Bayes factors.
 #' @param parameter,type,levels optional selectors restricting qCMDE/IWMDE
 #' density precomputation to a marginal-means parameter, output type, or factor
 #' levels. \code{parameter} and \code{levels} also restrict the conditional
@@ -56,10 +66,20 @@ marginal_means <- function(object, ...) {
 #' computed from conditional marginal means, even when \code{type} excludes
 #' \code{"conditional"}.
 #' @param density_control named list of density-estimation settings. Supported
-#' entries are \code{n_points}, \code{max_samples}, \code{display_grid},
-#' \code{normalization_points}, and \code{normalization_prob}. The
-#' normalization entries are used with \code{density_method = "qCMDE"} and
-#' \code{density_method = "IWMDE"}.
+#' entries are \code{n_points} (default \code{100}), \code{max_samples},
+#' \code{initial_samples} (default \code{500}),
+#' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
+#' (default \code{"adaptive"}), \code{normalization_points} (default
+#' \code{NULL}, resolved to \code{max(50, n_points)}), and
+#' \code{normalization_prob} (default \code{0.999}). \code{max_samples}
+#' defaults to \code{500} for stored density curves and \code{Inf} for point
+#' ordinates. Point ordinates adapt deterministically from
+#' \code{initial_samples} until the relative-MCSE target and all BF-grade
+#' reliability gates pass, all eligible rows are used, or a finite
+#' \code{max_samples} cap is reached. The normalization entries are used with
+#' \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+#' qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
+#' random-formula models and for derived semantic random-effect quantities.
 #' @inheritParams predict.brma
 #' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
@@ -115,6 +135,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   density_method <- .density_method_normalize(
     density_method = density_method
   )
+  density_control_input <- density_control
   precompute_density <- .density_method_uses_precomputed(density_method)
   if (!precompute_density &&
       (!is.null(parameter) || !is.null(type) || !is.null(levels))) {
@@ -127,15 +148,30 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   if (precompute_density || !is.null(density_control)) {
     density_control <- .density_control_normalize(
       density_method  = density_method,
-      density_control = density_control
+      density_control = density_control,
+      purpose         = "density"
     )
+  }
+  ordinate_control <- if (precompute_density) {
+    .density_control_normalize(
+      density_method  = density_method,
+      density_control = density_control_input,
+      purpose         = "ordinate"
+    )
+  } else {
+    NULL
   }
   precompute_type     <- .marginal_means_precompute_type(type)
   precompute_levels   <- .marginal_means_precompute_levels(levels)
   precompute_targeted <- !is.null(parameter) || !is.null(type) ||
     !is.null(levels)
-  model_averaged <- .is_RoBMA(object)
-  bf             <- .marginal_means_resolve_bf(model_averaged, bf)
+  model_averaged           <- .is_RoBMA(object)
+  bf                       <- .marginal_means_resolve_bf(model_averaged, bf)
+  point_ordinate_supported <- !precompute_density ||
+    .iwmde_point_ordinate_supported(object, density_method)
+  if (precompute_density) {
+    .iwmde_check_density_method_supported(object, density_method)
+  }
   effect_transform <- .effect_output_setup(
     object         = object,
     output_measure = output_measure,
@@ -212,9 +248,10 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     effect_transform       = effect_transform,
     model_averaged         = model_averaged,
     density_method         = density_method,
-    bf                     = bf,
-    name                   = .summary.brma_model_names(object),
-    source_object          = object
+    point_ordinate_supported = point_ordinate_supported,
+    bf                       = bf,
+    name                     = .summary.brma_model_names(object),
+    source_object            = object
   )
 
   class(output) <- c("marginal_means.brma", "marginal_means")
@@ -233,7 +270,9 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
       parameter               = parameter,
       type                    = precompute_type,
       levels                  = precompute_levels,
-      targeted                = precompute_targeted
+      targeted                = precompute_targeted,
+      include_ordinates       = point_ordinate_supported,
+      ordinate_control        = ordinate_control
     )
   }
 
@@ -289,856 +328,6 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 }
 
 
-.marginal_means_precompute_type <- function(type) {
-
-  if (is.null(type)) {
-    return(c("averaged", "conditional"))
-  }
-
-  BayesTools::check_char(type, "type", check_length = 0, allow_NA = FALSE)
-  type <- match.arg(type, c("averaged", "conditional"), several.ok = TRUE)
-
-  return(unique(type))
-}
-
-
-.marginal_means_precompute_levels <- function(levels) {
-
-  if (is.null(levels)) {
-    return(NULL)
-  }
-
-  BayesTools::check_char(levels, "levels", check_length = 0, allow_NA = FALSE)
-
-  return(unique(levels))
-}
-
-
-.marginal_means_attach_iwmde <- function(object, marginal_means_object,
-                                         n_points, max_samples,
-                                         normalization_points,
-                                         normalization_prob, density_method,
-                                         display_grid, null_hypothesis,
-                                         parameter, type, levels, targeted,
-                                         include_ordinates = TRUE) {
-
-  .check_iwmde_available(object, "qCMDE/IWMDE marginal_means()")
-
-  if (is.null(normalization_points)) {
-    normalization_points <- max(50L, n_points)
-  }
-
-  context              <- .iwmde_context(object)
-  estimate_cache       <- .iwmde_estimate_cache()
-  diagnostics          <- list()
-  ordinate_diagnostics <- list()
-  density_control_list <- list(
-    n_points             = n_points,
-    max_samples          = max_samples,
-    normalization_points = normalization_points,
-    normalization_prob   = normalization_prob,
-    display_grid         = display_grid
-  )
-  ordinate_control_list <- density_control_list
-  ordinate_control_list[["display_grid"]] <- "ordinate"
-  include_values       <- NULL
-  specs_by_type        <- .marginal_means_iwmde_specs_by_type(
-    marginal_means_object = marginal_means_object,
-    parameter             = parameter,
-    type                  = type,
-    levels                = levels,
-    targeted              = targeted
-  )
-  ordinate_specs <- if (isTRUE(include_ordinates)) {
-    .marginal_means_iwmde_ordinate_specs(
-      marginal_means_object = marginal_means_object,
-      parameter             = parameter,
-      levels                = levels,
-      targeted              = targeted
-    )
-  } else {
-    list()
-  }
-
-  for (current_type in names(specs_by_type)) {
-    specs <- specs_by_type[[current_type]]
-
-    estimates <- lapply(specs, function(spec) {
-      .iwmde_estimate(
-        context         = context,
-        parameter       = spec[["label"]],
-        density_method  = density_method,
-        density_control = density_control_list,
-        outputs         = "density",
-        values          = include_values,
-        parameter_spec  = spec,
-        metadata        = .marginal_means_iwmde_metadata(
-          marginal_means_object = marginal_means_object,
-          type                  = current_type,
-          spec                  = spec
-        ),
-        cache           = estimate_cache
-      )
-    })
-    names(estimates) <- names(specs)
-    diagnostics[[current_type]] <- lapply(estimates, function(estimate) {
-      estimate[["diagnostics"]][["density"]]
-    })
-
-    marginal_means_object <- .marginal_means_attach_iwmde_type(
-      marginal_means_object = marginal_means_object,
-      type                  = current_type,
-      specs                 = specs,
-      estimates             = estimates
-    )
-  }
-
-  if (length(ordinate_specs) > 0L) {
-    ordinate_estimates <- lapply(ordinate_specs, function(spec) {
-      .iwmde_estimate(
-        context         = context,
-        parameter       = spec[["label"]],
-        density_method  = density_method,
-        density_control = ordinate_control_list,
-        outputs         = "ordinate",
-        values          = null_hypothesis,
-        parameter_spec  = spec,
-        metadata        = .marginal_means_iwmde_metadata(
-          marginal_means_object = marginal_means_object,
-          type                  = "conditional",
-          spec                  = spec
-        ),
-        cache           = estimate_cache
-      )
-    })
-    names(ordinate_estimates) <- names(ordinate_specs)
-    ordinate_diagnostics[["conditional"]] <- lapply(ordinate_estimates, function(estimate) {
-      estimate[["diagnostics"]][["ordinate"]]
-    })
-    marginal_means_object <- .marginal_means_attach_iwmde_ordinate_type(
-      marginal_means_object = marginal_means_object,
-      type                  = "conditional",
-      specs                 = ordinate_specs,
-      estimates             = ordinate_estimates
-    )
-  }
-
-  marginal_means_object[["iwmde_diagnostics"]] <- diagnostics
-  marginal_means_object[["iwmde_ordinate_diagnostics"]] <- ordinate_diagnostics
-  marginal_means_object[["iwmde_settings"]] <- list(
-    n_points             = n_points,
-    max_samples          = max_samples,
-    normalization_points = normalization_points,
-    normalization_prob   = normalization_prob,
-    density_method       = density_method,
-    method               = .density_method_iwmde_estimator(density_method),
-    display_grid         = display_grid,
-    include_values       = include_values,
-    ordinate_values      = null_hypothesis,
-    parameter            = parameter,
-    type                 = type,
-    levels               = levels
-  )
-  if (isTRUE(include_ordinates)) {
-    marginal_means_object[["inference"]] <- .marginal_means_refresh_iwmde_bf(
-      inference            = marginal_means_object[["inference"]],
-      parameters           = marginal_means_object[["parameters"]],
-      null_hypothesis      = marginal_means_object[["null_hypothesis"]],
-      density_method       = marginal_means_object[["density_method"]],
-      object               = marginal_means_object
-    )
-  }
-
-  return(marginal_means_object)
-}
-
-
-.marginal_means_iwmde_specs_by_type <- function(marginal_means_object,
-                                                parameter, type, levels,
-                                                targeted) {
-
-  specs_by_type <- lapply(type, function(current_type) {
-    .iwmde_marginal_means_specs(
-      marginal_means_object = marginal_means_object,
-      parameter             = parameter,
-      type                  = current_type,
-      levels                = levels
-    )
-  })
-  names(specs_by_type) <- type
-
-  empty <- vapply(specs_by_type, function(specs) {
-    length(specs) == 0L
-  }, logical(1))
-  if (any(empty) && isTRUE(targeted)) {
-    stop(
-      "No qCMDE/IWMDE marginal-means targets matched 'parameter', ",
-      "'type', and 'levels'.",
-      call. = FALSE
-    )
-  }
-
-  return(specs_by_type[!empty])
-}
-
-
-.marginal_means_iwmde_ordinate_specs <- function(marginal_means_object,
-                                                 parameter, levels,
-                                                 targeted) {
-
-  specs_by_type <- .marginal_means_iwmde_specs_by_type(
-    marginal_means_object = marginal_means_object,
-    parameter             = parameter,
-    type                  = "conditional",
-    levels                = levels,
-    targeted              = targeted
-  )
-
-  return(specs_by_type[["conditional"]])
-}
-
-
-.marginal_means_attach_iwmde_type <- function(marginal_means_object, type,
-                                              specs, estimates) {
-
-  for (name in names(specs)) {
-    estimate <- estimates[[name]]
-    diagnostic <- estimate[["diagnostics"]][["density"]]
-    if (!identical(diagnostic[["status"]], "ok") ||
-        is.null(estimate[["posterior_density"]])) {
-      next
-    }
-
-    parameter <- specs[[name]][["parameter"]]
-    level     <- specs[[name]][["level"]]
-    samples   <- marginal_means_object[["inference"]][[type]][[parameter]]
-    if (is.null(samples)) {
-      next
-    }
-
-    if (is.list(samples) && !is.null(samples[[level]])) {
-      attr(samples[[level]], "posterior_density") <- estimate[["posterior_density"]]
-    } else {
-      attr(samples, "posterior_density") <- estimate[["posterior_density"]]
-    }
-    marginal_means_object[["inference"]][[type]][[parameter]] <- samples
-  }
-
-  return(marginal_means_object)
-}
-
-
-.marginal_means_attach_iwmde_ordinate_type <- function(marginal_means_object, type,
-                                                       specs, estimates) {
-
-  for (name in names(specs)) {
-    estimate <- estimates[[name]]
-    diagnostic <- estimate[["diagnostics"]][["ordinate"]]
-    if (!identical(diagnostic[["status"]], "ok")) {
-      next
-    }
-
-    parameter <- specs[[name]][["parameter"]]
-    level     <- specs[[name]][["level"]]
-    samples   <- marginal_means_object[["inference"]][[type]][[parameter]]
-    if (is.null(samples)) {
-      next
-    }
-
-    if (is.list(samples) && !is.null(samples[[level]])) {
-      attr(samples[[level]], "posterior_ordinate") <- estimate[["posterior_ordinate"]]
-    } else {
-      attr(samples, "posterior_ordinate") <- estimate[["posterior_ordinate"]]
-    }
-    marginal_means_object[["inference"]][[type]][[parameter]] <- samples
-  }
-
-  return(marginal_means_object)
-}
-
-
-.marginal_means_iwmde_metadata <- function(marginal_means_object, type, spec) {
-
-  parameter <- spec[["parameter"]]
-  level     <- spec[["level"]]
-  samples   <- marginal_means_object[["inference"]][[type]][[parameter]]
-  if (is.null(samples)) {
-    return(list(parameter = parameter, level = level))
-  }
-
-  if (is.list(samples) && !is.null(samples[[level]])) {
-    return(.iwmde_posterior_metadata(
-      samples   = samples[[level]],
-      parameter = parameter,
-      level     = level
-    ))
-  }
-
-  return(.iwmde_posterior_metadata(
-    samples   = samples,
-    parameter = parameter,
-    level     = level
-  ))
-}
-
-
-.marginal_means_iwmde_settings_control <- function(object, density_method,
-                                                  display_grid) {
-
-  settings <- object[["iwmde_settings"]]
-  control <- settings[intersect(
-    c(
-      "n_points",
-      "max_samples",
-      "normalization_points",
-      "normalization_prob",
-      "display_grid"
-    ),
-    names(settings)
-  )]
-  control[["display_grid"]] <- display_grid
-  internal_ordinate_grid <- identical(display_grid, "ordinate")
-  if (internal_ordinate_grid) {
-    control[["display_grid"]] <- "adaptive"
-  }
-  control <- .density_control_normalize(
-    density_method  = density_method,
-    density_control = control
-  )
-  if (internal_ordinate_grid) {
-    control[["display_grid"]] <- "ordinate"
-  }
-
-  .marginal_means_density_control_effective(control)
-}
-
-
-.marginal_means_ordinate_request_provenance <- function(object, parameter,
-                                                        null_hypothesis,
-                                                        density_method) {
-
-  if (is.null(object)) {
-    return(list())
-  }
-
-  source_object <- tryCatch(
-    .iwmde_marginal_means_source_object(object),
-    error = function(e) NULL
-  )
-  if (is.null(source_object)) {
-    return(list())
-  }
-  context <- tryCatch(
-    .iwmde_context(source_object),
-    error = function(e) NULL
-  )
-  if (is.null(context)) {
-    return(list())
-  }
-
-  specs <- tryCatch(
-    .iwmde_marginal_means_specs(
-      marginal_means_object = object,
-      parameter             = parameter,
-      type                  = "conditional",
-      levels                = NULL
-    ),
-    error = function(e) list()
-  )
-  density_control <- .marginal_means_iwmde_settings_control(
-    object         = object,
-    density_method = density_method,
-    display_grid   = "ordinate"
-  )
-  out <- list()
-
-  for (name in names(specs)) {
-    spec <- specs[[name]]
-    metadata <- .marginal_means_iwmde_metadata(
-      marginal_means_object = object,
-      type                  = "conditional",
-      spec                  = spec
-    )
-    plan <- .iwmde_plan(
-      context         = context,
-      parameter       = spec[["label"]],
-      density_method  = density_method,
-      density_control = density_control,
-      outputs         = "ordinate",
-      values          = null_hypothesis,
-      parameter_spec  = spec,
-      metadata        = metadata
-    )
-    out[[spec[["level"]]]] <- .iwmde_estimate_request_provenance(
-      plan      = plan,
-      attribute = "ordinate",
-      value     = null_hypothesis
-    )
-  }
-
-  return(out)
-}
-
-
-.marginal_means_refresh_iwmde_bf <- function(inference, parameters,
-                                             null_hypothesis,
-                                             density_method = "KDE",
-                                             object = NULL) {
-
-  density_method <- .density_method_normalize(
-    density_method = density_method
-  )
-  if (!.density_method_uses_precomputed(density_method) ||
-      is.null(inference[["conditional"]]) ||
-      is.null(inference[["inference"]])) {
-    return(inference)
-  }
-
-  for (parameter in parameters) {
-    posterior <- inference[["conditional"]][[parameter]]
-    if (is.null(posterior)) {
-      next
-    }
-    provenance <- .marginal_means_ordinate_request_provenance(
-      object          = object,
-      parameter       = parameter,
-      null_hypothesis = null_hypothesis,
-      density_method  = density_method
-    )
-    bf <- .marginal_means_iwmde_bf(
-      posterior       = posterior,
-      null_hypothesis = null_hypothesis,
-      provenance      = provenance,
-      density_method  = density_method
-    )
-
-    inference[["inference"]][[parameter]] <- bf
-  }
-
-  return(inference)
-}
-
-
-.marginal_means_iwmde_bf <- function(posterior, null_hypothesis,
-                                     provenance = NULL,
-                                     density_method = NULL,
-                                     warning = .marginal_means_iwmde_bf_warning()) {
-
-  if (!is.list(posterior)) {
-    return(.marginal_means_iwmde_bf_scalar(
-      posterior       = posterior,
-      null_hypothesis = null_hypothesis,
-      provenance      = provenance,
-      density_method  = density_method,
-      warning         = warning
-    ))
-  }
-
-  out <- vector("list", length(posterior))
-  names(out) <- names(posterior)
-  strict_provenance <- length(provenance) > 0L
-  valid <- vapply(names(posterior), function(level) {
-    .marginal_means_posterior_ordinate_matches_request(
-      posterior_ordinate = attr(posterior[[level]], "posterior_ordinate",
-                                exact = TRUE),
-      value              = null_hypothesis,
-      provenance         = if (isTRUE(strict_provenance)) provenance[[level]] else NULL,
-      density_method     = density_method,
-      allow_missing_provenance = !isTRUE(strict_provenance)
-    )
-  }, logical(1))
-  if (!any(valid)) {
-    for (i in seq_along(out)) {
-      out[[i]] <- .marginal_means_unavailable_bf_scalar(
-        .marginal_means_iwmde_bf_warning(
-          attr(posterior[[i]], "posterior_ordinate", exact = TRUE),
-          default = warning
-        )
-      )
-    }
-    return(out)
-  }
-
-  bf_posterior <- .marginal_means_bf_posterior(posterior[valid])
-  class(bf_posterior) <- class(posterior)
-  bf <- BayesTools::Savage_Dickey_BF(
-    posterior            = bf_posterior,
-    null_hypothesis      = null_hypothesis,
-    normal_approximation = FALSE,
-    silent               = TRUE,
-    density_method       = "precomputed"
-  )
-
-  for (i in seq_along(out)) {
-    if (isTRUE(valid[[i]])) {
-      out[[i]] <- .iwmde_bf_append_warning(
-        bf                 = bf[[names(out)[[i]]]],
-        posterior_ordinate = attr(posterior[[i]], "posterior_ordinate",
-                                  exact = TRUE)
-      )
-    } else {
-      out[[i]] <- .marginal_means_unavailable_bf_scalar(
-        .marginal_means_iwmde_bf_warning(
-          attr(posterior[[i]], "posterior_ordinate", exact = TRUE),
-          default = warning
-        )
-      )
-    }
-  }
-
-  return(out)
-}
-
-
-.marginal_means_iwmde_bf_scalar <- function(posterior, null_hypothesis,
-                                            provenance, density_method,
-                                            warning) {
-
-  if (!.marginal_means_posterior_ordinate_matches_request(
-    posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE),
-    value              = null_hypothesis,
-    provenance         = provenance,
-    density_method     = density_method,
-    allow_missing_provenance = length(provenance) == 0L
-  )) {
-    return(.marginal_means_unavailable_bf_scalar(
-      .marginal_means_iwmde_bf_warning(
-        attr(posterior, "posterior_ordinate", exact = TRUE),
-        default = warning
-      )
-    ))
-  }
-
-  posterior <- .marginal_means_bf_posterior(posterior)
-  bf <- BayesTools::Savage_Dickey_BF(
-    posterior            = posterior,
-    null_hypothesis      = null_hypothesis,
-    normal_approximation = FALSE,
-    silent               = TRUE,
-    density_method       = "precomputed"
-  )
-
-  .iwmde_bf_append_warning(
-    bf                 = bf,
-    posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE)
-  )
-}
-
-
-.marginal_means_posterior_ordinate_matches_request <- function(
-    posterior_ordinate, value, provenance, density_method,
-    allow_missing_provenance = FALSE) {
-
-  if (!isTRUE(allow_missing_provenance) || length(provenance) > 0L) {
-    return(.iwmde_posterior_ordinate_matches_request(
-      posterior_ordinate = posterior_ordinate,
-      value              = value,
-      provenance         = provenance
-    ))
-  }
-
-  entries <- .iwmde_posterior_ordinate_entries(posterior_ordinate)
-  if (length(entries) == 0L) {
-    return(FALSE)
-  }
-  density_method <- if (is.null(density_method)) {
-    NULL
-  } else {
-    .density_method_normalize(density_method)
-  }
-
-  any(vapply(entries, function(entry) {
-    .iwmde_ordinate_value_matches(entry, value) &&
-      .marginal_means_ordinate_density_method_matches(entry, density_method) &&
-      .iwmde_posterior_ordinate_supports_bf(entry)
-  }, logical(1)))
-}
-
-
-.marginal_means_ordinate_density_method_matches <- function(entry,
-                                                            density_method) {
-
-  if (is.null(density_method)) {
-    return(TRUE)
-  }
-  entry_method <- tryCatch(
-    .density_method_normalize(entry[["density_method"]]),
-    error = function(e) NULL
-  )
-
-  identical(entry_method, density_method)
-}
-
-
-.marginal_means_iwmde_bf_warning <- function(posterior_ordinate = NULL,
-                                             default = NULL) {
-
-  if (is.null(default)) {
-    default <- paste0(
-      "Precomputed posterior ordinate was unavailable or failed diagnostics; ",
-      "Savage-Dickey Bayes factor is not reported."
-    )
-  }
-
-  reasons <- .iwmde_posterior_ordinate_failure_reasons(posterior_ordinate)
-  if (length(reasons) == 0L) {
-    return(default)
-  }
-
-  paste0(
-    "Precomputed posterior ordinate failed diagnostics (",
-    paste(reasons, collapse = "; "),
-    "); ",
-    "Savage-Dickey Bayes factor is not reported."
-  )
-}
-
-
-.marginal_means_unavailable_bf_scalar <- function(warning) {
-
-  out <- NA_real_
-  attr(out, "warnings") <- warning
-  return(out)
-}
-
-
-.marginal_means_posterior_density_matches <- function(samples, provenance) {
-
-  density <- attr(samples, "posterior_density", exact = TRUE)
-  .iwmde_posterior_density_matches_request(
-    posterior_density = density,
-    provenance        = provenance
-  )
-}
-
-
-.marginal_means_missing_posterior_density_levels <- function(samples,
-                                                             provenance,
-                                                             parameter = NULL) {
-
-  if (!is.list(samples)) {
-    level <- .marginal_means_posterior_density_levels(samples, parameter)
-    if (.marginal_means_posterior_density_matches(
-          samples    = samples,
-          provenance = provenance[[level]]
-        )) {
-      return(character())
-    }
-
-    return(level)
-  }
-
-  levels <- names(samples)
-  missing <- !vapply(levels, function(level) {
-    .marginal_means_posterior_density_matches(
-      samples    = samples[[level]],
-      provenance = provenance[[level]]
-    )
-  }, logical(1))
-
-  return(levels[missing])
-}
-
-
-.marginal_means_posterior_density_levels <- function(samples, parameter = NULL) {
-
-  if (is.list(samples)) {
-    return(names(samples))
-  }
-
-  level <- names(samples)
-  if (is.null(level) || length(level) == 0L || !nzchar(level[[1L]])) {
-    if (is.null(parameter)) {
-      return("")
-    }
-    return(parameter)
-  }
-
-  return(level[[1L]])
-}
-
-
-.marginal_means_density_control_effective <- function(density_control) {
-
-  if (is.null(density_control[["normalization_points"]])) {
-    density_control[["normalization_points"]] <- max(
-      50L,
-      density_control[["n_points"]]
-    )
-  }
-
-  return(density_control)
-}
-
-
-.marginal_means_density_request_provenance <- function(x, selected, type,
-                                                       density_method,
-                                                       density_control,
-                                                       context) {
-
-  specs_by_type <- .marginal_means_iwmde_specs_by_type(
-    marginal_means_object = x,
-    parameter             = selected[["term"]],
-    type                  = type,
-    levels                = NULL,
-    targeted              = TRUE
-  )
-  specs <- specs_by_type[[type]]
-  out   <- list()
-
-  for (name in names(specs)) {
-    spec <- specs[[name]]
-    metadata <- .marginal_means_iwmde_metadata(
-      marginal_means_object = x,
-      type                  = type,
-      spec                  = spec
-    )
-    plan <- .iwmde_plan(
-      context         = context,
-      parameter       = spec[["label"]],
-      density_method  = density_method,
-      density_control = density_control,
-      outputs         = "density",
-      values          = NULL,
-      parameter_spec  = spec,
-      metadata        = metadata
-    )
-    out[[spec[["level"]]]] <- .iwmde_estimate_request_provenance(
-      plan      = plan,
-      attribute = "density"
-    )
-  }
-
-  return(out)
-}
-
-
-.marginal_means_plot_iwmde_message <- function(density_method, n_levels,
-                                               force) {
-
-  level_label <- if (n_levels == 1L) "level" else "levels"
-  reason <- if (isTRUE(force)) {
-    "because 'density_control' was supplied"
-  } else {
-    "because stored densities are missing"
-  }
-
-  message(
-    "Computing ", density_method, " density for ", n_levels,
-    " marginal-means ", level_label, " ", reason, ". ",
-    "Precompute with marginal_means(..., density_method = \"",
-    density_method, "\") to reuse densities across plots."
-  )
-
-  return(invisible(NULL))
-}
-
-
-.marginal_means_plot_prepare_iwmde <- function(x, selected, type,
-                                               density_method,
-                                               density_control,
-                                               force = FALSE) {
-
-  parameter <- selected[["parameter"]]
-  samples   <- x[["inference"]][[type]][[parameter]]
-  density_control <- .marginal_means_density_control_effective(density_control)
-  source_object   <- .iwmde_marginal_means_source_object(x)
-  context         <- .iwmde_context(source_object)
-  provenance <- .marginal_means_density_request_provenance(
-    x               = x,
-    selected        = selected,
-    type            = type,
-    density_method  = density_method,
-    density_control = density_control,
-    context         = context
-  )
-  missing_levels <- if (isTRUE(force)) {
-    .marginal_means_posterior_density_levels(samples, parameter)
-  } else {
-    .marginal_means_missing_posterior_density_levels(
-      samples    = samples,
-      provenance = provenance,
-      parameter  = parameter
-    )
-  }
-  if (length(missing_levels) > 0L) {
-    .marginal_means_plot_iwmde_message(
-      density_method = density_method,
-      n_levels       = length(missing_levels),
-      force          = force
-    )
-    x <- .marginal_means_attach_iwmde(
-      object                = source_object,
-      marginal_means_object = x,
-      n_points              = density_control[["n_points"]],
-      max_samples           = density_control[["max_samples"]],
-      normalization_points  = density_control[["normalization_points"]],
-      normalization_prob    = density_control[["normalization_prob"]],
-      density_method        = density_method,
-      display_grid          = density_control[["display_grid"]],
-      null_hypothesis       = x[["null_hypothesis"]],
-      parameter             = selected[["term"]],
-      type                  = type,
-      levels                = missing_levels,
-      targeted              = TRUE,
-      include_ordinates     = FALSE
-    )
-  }
-
-  missing_levels <- .marginal_means_missing_posterior_density_levels(
-    samples    = x[["inference"]][[type]][[parameter]],
-    provenance = provenance,
-    parameter  = parameter
-  )
-  if (length(missing_levels) > 0L) {
-    stop(
-      density_method, " density was unavailable for marginal-means level(s): ",
-      paste0("'", missing_levels, "'", collapse = ", "), ".",
-      call. = FALSE
-    )
-  }
-
-  return(x)
-}
-
-
-.marginal_means_has_bf_posterior_ordinate <- function(samples) {
-
-  if (!is.list(samples)) {
-    return(.iwmde_posterior_ordinate_supports_bf(
-      attr(samples, "posterior_ordinate")
-    ))
-  }
-
-  has_ordinate <- vapply(samples, function(sample) {
-    .iwmde_posterior_ordinate_supports_bf(attr(sample, "posterior_ordinate"))
-  }, logical(1))
-
-  return(length(has_ordinate) > 0L && any(has_ordinate))
-}
-
-
-.marginal_means_bf_posterior <- function(samples) {
-
-  if (!is.list(samples)) {
-    if (!.iwmde_posterior_ordinate_supports_bf(attr(samples, "posterior_ordinate"))) {
-      attr(samples, "posterior_ordinate") <- NULL
-      attr(samples, "posterior_density") <- NULL
-    }
-    return(samples)
-  }
-
-  for (i in seq_along(samples)) {
-    if (!.iwmde_posterior_ordinate_supports_bf(attr(samples[[i]], "posterior_ordinate"))) {
-      attr(samples[[i]], "posterior_ordinate") <- NULL
-      attr(samples[[i]], "posterior_density") <- NULL
-    }
-  }
-
-  return(samples)
-}
-
-
 #' @title Summarize Estimated Marginal Means
 #'
 #' @description Summarizes estimated marginal means stored in a
@@ -1176,6 +365,12 @@ summary.marginal_means.brma <- function(object, type = NULL,
   BayesTools::check_bool(logBF, "logBF")
   BayesTools::check_bool(BF01, "BF01")
   bf <- .marginal_means_resolve_bf(object[["model_averaged"]], bf, object[["bf"]])
+  if (isTRUE(bf) && identical(object[["point_ordinate_supported"]], FALSE)) {
+    .iwmde_check_point_ordinate_supported(
+      object[["source_object"]],
+      object[["density_method"]]
+    )
+  }
 
   if (missing(output_measure) && missing(transform)) {
     effect_transform <- object[["effect_transform"]]
@@ -1316,13 +511,21 @@ print.summary.marginal_means.brma <- function(x, ...) {
 #' computation can be slow and is used only for the current plot call; precompute
 #' with \code{marginal_means(..., density_method = "qCMDE")} or
 #' \code{marginal_means(..., density_method = "IWMDE")} to reuse densities across
-#' plots.
+#' plots. Prefer qCMDE for likelihood-aware final results; IWMDE can be faster
+#' but is more sensitive to its fitted conditional weights.
 #' @param density_control named list of qCMDE/IWMDE density-estimation settings.
-#' Supported entries are \code{n_points}, \code{max_samples},
-#' \code{display_grid}, \code{normalization_points}, and
-#' \code{normalization_prob}. Supplying \code{density_control} forces
+#' Supported entries are \code{n_points} (default \code{100}),
+#' \code{max_samples} (default \code{500}), \code{initial_samples} (default
+#' \code{500}), \code{target_relative_mcse} (default \code{0.05}),
+#' \code{display_grid} (default \code{"adaptive"}),
+#' \code{normalization_points} (default \code{NULL}, resolved to
+#' \code{max(50, n_points)}), and \code{normalization_prob} (default
+#' \code{0.999}). \code{initial_samples} and \code{target_relative_mcse} are
+#' point-ordinate controls and do not alter this fixed-budget plot. Supplying
+#' \code{density_control} forces
 #' recomputation for the plotted marginal means instead of reusing stored
-#' densities.
+#' densities. Increase row and normalization budgets when diagnostics report
+#' concentrated contributions, dropped rows, or unstable normalization.
 #' @inheritParams predict.brma
 #' @param ... additional graphical arguments passed to
 #' \code{BayesTools::plot_marginal()}.
