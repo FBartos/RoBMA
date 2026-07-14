@@ -7,7 +7,6 @@ source(testthat::test_path("common-functions.R"))
                                  sample_fixed = NULL,
                                  rho_scale = "rho",
                                  bounds = c(lower = -1, upper = 1),
-                                 distance_matrix = NULL,
                                  time_values = NULL,
                                  block_name = "study",
                                  parameter_stem = paste0(
@@ -30,11 +29,10 @@ source(testthat::test_path("common-functions.R"))
       rho_scale = rho_scale,
       bounds = bounds
     ),
-    car = if (is.null(distance_matrix) && is.null(time_values)) {
+    car = if (is.null(time_values)) {
       NULL
     } else {
       list(
-        distance_matrix = distance_matrix,
         time_values = time_values
       )
     }
@@ -100,19 +98,6 @@ test_that("compact rho draws reconstruct scalar correlation matrices", {
     tolerance = 1e-15
   )
 
-  legacy_term <- .derived_random_term(
-    structure = "car",
-    distance_matrix = car_distance
-  )
-  legacy_draws <- RoBMA:::.brma_append_derived_random_correlation(
-    mcmc_list = .derived_correlation_mcmc(rho = 0.81),
-    random_term = legacy_term
-  )
-  expect_equal(
-    .derived_correlation_matrix(legacy_draws, 1L, 3L),
-    0.81^car_distance,
-    tolerance = 1e-15
-  )
 })
 
 test_that("fixed rho coordinates and one-column structures are reconstructed", {
@@ -157,53 +142,6 @@ test_that("monitoring and quadratic expansion guards preserve the schema", {
   expect_identical(
     RoBMA:::.brma_append_derived_random_correlation(raw, unmonitored),
     raw
-  )
-
-  partial <- as.matrix(raw[[1L]])
-  partial <- cbind(partial, mu__xREx__study_xRE_CORx_R.1.1. = 1)
-  colnames(partial)[ncol(partial)] <-
-    "mu__xREx__study_xRE_CORx_R[1,1]"
-  partial <- coda::mcmc.list(coda::mcmc(partial))
-  expect_error(
-    RoBMA:::.brma_append_derived_random_correlation(
-      partial,
-      .derived_random_term()
-    ),
-    "incomplete random-effect correlation matrix"
-  )
-
-  malformed_complete <- as.matrix(
-    RoBMA:::.brma_append_derived_random_correlation(
-      raw,
-      .derived_random_term()
-    )[[1L]]
-  )
-  correlation_columns <- grep(
-    "mu__xREx__study_xRE_CORx_R[",
-    colnames(malformed_complete),
-    fixed = TRUE
-  )
-  colnames(malformed_complete)[correlation_columns[[9L]]] <-
-    colnames(malformed_complete)[correlation_columns[[8L]]]
-  malformed_complete <- coda::mcmc.list(coda::mcmc(malformed_complete))
-  expect_error(
-    RoBMA:::.brma_append_derived_random_correlation(
-      malformed_complete,
-      .derived_random_term()
-    ),
-    "incomplete random-effect correlation matrix"
-  )
-
-  existing <- RoBMA:::.brma_append_derived_random_correlation(
-    raw,
-    .derived_random_term()
-  )
-  expect_identical(
-    RoBMA:::.brma_append_derived_random_correlation(
-      existing,
-      .derived_random_term()
-    ),
-    existing
   )
 
   old <- getOption("RoBMA.max_derived_correlation_cells")

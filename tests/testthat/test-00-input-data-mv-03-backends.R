@@ -638,7 +638,6 @@ test_that("brma.mv marginalized known R contributes known-V row variance", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "block_mvn",
       model_data                 = object[["data"]]
     ),
     sum(expected_log_lik),

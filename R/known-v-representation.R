@@ -54,6 +54,56 @@
 }
 
 
+.validate_prepared_known_v <- function(known_V) {
+
+  .validate_known_v(known_V)
+  required <- c(
+    "parameterization", "parameterization_requested", "effective_backend",
+    "correlated", "singular", "residual_variance", "residual_sei", "rank"
+  )
+  if (!all(required %in% names(known_V))) {
+    stop("Internal error: prepared known-V metadata are incomplete.",
+         call. = FALSE)
+  }
+
+  parameterization  <- known_V[["parameterization"]]
+  requested         <- known_V[["parameterization_requested"]]
+  backend           <- known_V[["effective_backend"]]
+  K                 <- .known_v_nrow(known_V)
+  residual_variance <- known_V[["residual_variance"]]
+  residual_sei      <- known_V[["residual_sei"]]
+  rank              <- known_V[["rank"]]
+  if (length(parameterization) != 1L ||
+      !parameterization %in% c("latent", "whitened", "block_mvn") ||
+      length(requested) != 1L ||
+      !requested %in% c("auto", "latent", "whitened", "block_mvn") ||
+      length(backend) != 1L ||
+      !backend %in% c("diagonal", "latent", "whitened", "block_mvn") ||
+      !is.logical(known_V[["correlated"]]) ||
+      length(known_V[["correlated"]]) != 1L ||
+      is.na(known_V[["correlated"]]) ||
+      !is.logical(known_V[["singular"]]) ||
+      length(known_V[["singular"]]) != 1L ||
+      is.na(known_V[["singular"]]) ||
+      !is.numeric(residual_variance) || length(residual_variance) != K ||
+      anyNA(residual_variance) || any(!is.finite(residual_variance)) ||
+      any(residual_variance < 0) ||
+      !is.numeric(residual_sei) || length(residual_sei) != K ||
+      anyNA(residual_sei) || any(!is.finite(residual_sei)) ||
+      any(residual_sei < 0) ||
+      length(rank) != 1L || is.na(rank) || rank < 0L ||
+      rank != as.integer(rank)) {
+    stop("Internal error: prepared known-V metadata are invalid.",
+         call. = FALSE)
+  }
+  if (!identical(backend, "diagonal")) {
+    .known_v_backend_blocks(known_V, backend)
+  }
+
+  invisible(known_V)
+}
+
+
 .known_v_update <- function(known_V, fields) {
 
   if (!is.list(known_V) || !is.list(fields) || is.null(names(fields)) ||
@@ -73,24 +123,9 @@
 }
 
 
-.known_v_version <- function(known_V) {
-
-  version <- known_V[["version"]]
-  if (is.null(version)) 1L else as.integer(version)
-}
-
-
-.known_v_has_canonical_representation <- function(known_V) {
-
-  .known_v_version(known_V) >= 2L &&
-    !is.null(known_V[["storage"]]) && !is.null(known_V[["diagonal"]])
-}
-
-
 .known_v_effective_backend <- function(known_V) {
 
-  backend <- known_V[["effective_backend"]]
-  if (is.null(backend)) .known_v_parameterization(known_V) else backend
+  known_V[["effective_backend"]]
 }
 
 
@@ -114,22 +149,13 @@
 
 .known_v_rank <- function(known_V) {
 
-  rank <- known_V[["rank"]]
-  if (is.null(rank)) 0L else as.integer(rank)
+  as.integer(known_V[["rank"]])
 }
 
 
 .known_v_residual_variance <- function(known_V) {
 
-  variance <- known_V[["residual_variance"]]
-  if (is.null(variance)) .known_v_diagonal(known_V) else variance
-}
-
-
-.known_v_residual_sei <- function(known_V) {
-
-  sei <- known_V[["residual_sei"]]
-  if (is.null(sei)) sqrt(.known_v_residual_variance(known_V)) else sei
+  known_V[["residual_variance"]]
 }
 
 
@@ -143,39 +169,21 @@
     whitened  = "whitening_blocks",
     block_mvn = "block_mvn_blocks"
   )
-  known_V[[field]]
+  blocks <- known_V[[field]]
+  if (!is.list(blocks)) {
+    stop(
+      "Internal error: current known-V backend metadata are incomplete.",
+      call. = FALSE
+    )
+  }
+
+  blocks
 }
 
 
 .known_v_requested_residual_fraction <- function(known_V) {
 
   known_V[["residual_fraction_requested"]]
-}
-
-
-.known_v_legacy_whitening <- function(known_V) {
-
-  list(
-    matrix   = known_V[["whitening_matrix"]],
-    variance = known_V[["whitening_variance"]]
-  )
-}
-
-
-.known_v_legacy_latent_factor <- function(known_V) {
-
-  known_V[["B"]]
-}
-
-
-.known_v_legacy_sampling <- function(known_V) {
-
-  list(
-    factor = known_V[["sampling_factor"]],
-    rank   = known_V[["rank"]],
-    B      = known_V[["B"]],
-    sei    = known_V[["residual_sei"]]
-  )
 }
 
 
@@ -347,47 +355,22 @@
 }
 
 
-# Canonical known-V accessors. Legacy fields remain readable for cached objects.
+# Canonical known-V accessors.
 .known_v_nrow <- function(known_V) {
 
-  if (!is.null(known_V[["K"]])) {
-    return(as.integer(known_V[["K"]]))
-  }
-  if (!is.null(known_V[["V"]])) {
-    return(nrow(known_V[["V"]]))
-  }
-  if (!is.null(known_V[["diagonal"]])) {
-    return(length(known_V[["diagonal"]]))
-  }
-
-  stop("Known-V metadata does not record its dimension.", call. = FALSE)
+  as.integer(known_V[["K"]])
 }
 
 
 .known_v_storage <- function(known_V) {
 
-  if (!is.null(known_V[["storage"]])) {
-    return(known_V[["storage"]])
-  }
-  if (!is.null(known_V[["V"]])) {
-    return("dense")
-  }
-
-  stop("Known-V metadata does not record its storage representation.",
-       call. = FALSE)
+  known_V[["storage"]]
 }
 
 
 .known_v_diagonal <- function(known_V) {
 
-  if (!is.null(known_V[["diagonal"]])) {
-    return(as.numeric(known_V[["diagonal"]]))
-  }
-  if (!is.null(known_V[["V"]])) {
-    return(diag(known_V[["V"]]))
-  }
-
-  stop("Known-V metadata does not contain its diagonal.", call. = FALSE)
+  as.numeric(known_V[["diagonal"]])
 }
 
 
@@ -453,19 +436,14 @@
   K         <- .known_v_nrow(known_V)
   out       <- matrix(0, nrow = nrow(z_samples), ncol = K)
 
-  if (!is.null(known_V[["latent_blocks"]])) {
-    for (block in known_V[["latent_blocks"]]) {
-      if (block[["rank"]] == 0L) {
-        next
-      }
-      z_index <- seq.int(block[["z_start"]], block[["z_end"]])
-      out[, block[["index"]]] <- z_samples[, z_index, drop = FALSE] %*%
-        t(block[["B"]])
+  latent_blocks <- .known_v_backend_blocks(known_V, "latent")
+  for (block in latent_blocks) {
+    if (block[["rank"]] == 0L) {
+      next
     }
-    return(out)
-  }
-  if (!is.null(known_V[["B"]])) {
-    return(z_samples %*% t(known_V[["B"]]))
+    z_index <- seq.int(block[["z_start"]], block[["z_end"]])
+    out[, block[["index"]]] <- z_samples[, z_index, drop = FALSE] %*%
+      t(block[["B"]])
   }
 
   out
@@ -682,5 +660,3 @@
   factorization <- .covariance_factorization(V_new)
   min(factorization[["eigenvalues"]]) <= factorization[["psd_tolerance"]]
 }
-
-

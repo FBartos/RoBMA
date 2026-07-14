@@ -265,17 +265,8 @@ test_that("brma.mv fits known-V backend smoke models", {
     waic(fit_block_random),
     waic(fit_block_random_sampled)
   )
-  comparison_columns <- c("elpd_diff", "se_diff")
-  expect_true(all(vapply(
-    loo_comparison[comparison_columns],
-    function(column) all(is.finite(column)),
-    logical(1)
-  )))
-  expect_true(all(vapply(
-    waic_comparison[comparison_columns],
-    function(column) all(is.finite(column)),
-    logical(1)
-  )))
+  expect_true(all(is.finite(loo_comparison)))
+  expect_true(all(is.finite(waic_comparison)))
   expect_lt(
     abs(loo_comparison[2L, "elpd_diff"]),
     0.25

@@ -140,7 +140,6 @@ add_marglik.brma <- function(object, ...) {
     is_multilevel            = .is_data_multilevel(data),
     is_weights               = .is_data_weights(data),
     is_known_v               = .is_data_known_v(data),
-    known_v_parameterization = .data_known_v_effective_backend(data),
     model_data               = data,
     is_PET                   = .is_priors_PET(priors),
     is_PEESE                 = .is_priors_PEESE(priors),
@@ -300,7 +299,7 @@ add_marglik.brma <- function(object, ...) {
 #
 # The function converts single-sample parameters to 1-row matrices to reuse
 # the existing evaluate and pdf helper functions from evaluate.R and pdf.R.
-# (in contrast to .pdf.brma, this function does not add likelihood contributions from 
+# (in contrast to .log_lik.brma, this function does not add likelihood contributions from
 #  estimate-level effects / baserate/ lograte for GLMMs since those are automatically 
 #  handled via JAGS_bridgesampling function -- i.e., all parameters generated directly 
 #  by BayesTools are automatically evaluated in the likelihood calculation, the only 
@@ -336,17 +335,18 @@ add_marglik.brma <- function(object, ...) {
     parameters, data,
     is_mods, is_scale, is_multilevel, is_weights,
     is_known_v, is_PET, is_PEESE, is_weightfunction, effect_direction,
-    outcome_type, is_random = FALSE, known_v_parameterization = "latent",
-    model_data = NULL, bridge_context = NULL, fixed_tau = NULL,
+    outcome_type, is_random = FALSE, model_data = NULL,
+    bridge_context = NULL, fixed_tau = NULL,
     fixed_zero_tau = FALSE) {
 
   ### extract number of observations
   K <- data[["K"]]
 
-  if (is_known_v && !is.null(model_data) && .is_data_known_v(model_data)) {
-    known_v_parameterization <- .data_known_v_effective_backend(model_data)
+  if (is_known_v &&
+      (is.null(model_data) || !.is_data_known_v(model_data))) {
+    stop("Known-V bridge likelihood requires current model metadata.",
+         call. = FALSE)
   }
-
   if (is_known_v && is_weights) {
     stop(
       "Known-V bridge likelihoods do not support likelihood weights.",
@@ -401,7 +401,6 @@ add_marglik.brma <- function(object, ...) {
   if (is_known_v) {
     sampling_dependency <- .marglik_get_sampling_dependency(
       parameters       = parameters,
-      data             = data,
       model_data       = model_data,
       effect_direction = effect_direction,
       K                = K
@@ -430,7 +429,6 @@ add_marglik.brma <- function(object, ...) {
         tau_within_samples       = tau_within_samples,
         is_random                = is_random,
         is_weightfunction        = is_weightfunction,
-        known_v_parameterization = known_v_parameterization,
         effect_direction         = effect_direction,
         K                        = K
       )
@@ -705,28 +703,19 @@ add_marglik.brma <- function(object, ...) {
 }
 
 
-.marglik_get_sampling_dependency <- function(parameters, data,
-                                             effect_direction, K,
-                                             model_data = NULL) {
+.marglik_get_sampling_dependency <- function(parameters, effect_direction, K,
+                                             model_data) {
 
-  known_V <- if (!is.null(model_data) && .is_data_known_v(model_data)) {
-    .data_known_v_data(model_data)
-  } else {
-    NULL
+  if (is.null(model_data) || !.is_data_known_v(model_data)) {
+    stop("Known-V latent dependency requires current model metadata.",
+         call. = FALSE)
   }
-  latent_blocks <- if (is.null(known_V)) {
-    NULL
-  } else {
-    .known_v_backend_blocks(known_V, "latent")
-  }
-  sampling_rank <- if (!is.null(latent_blocks)) {
-    .known_v_rank(known_V)
-  } else {
-    data[["sampling_rank"]]
-  }
-  if (is.null(sampling_rank) || sampling_rank == 0L) {
+  known_V       <- .data_known_v_data(model_data)
+  sampling_rank <- .known_v_rank(known_V)
+  if (sampling_rank == 0L) {
     return(matrix(0, nrow = 1, ncol = K))
   }
+  latent_blocks <- .known_v_backend_blocks(known_V, "latent")
 
   sampling_z <- parameters[["sampling_z"]]
   if (is.null(sampling_z)) {
@@ -737,32 +726,21 @@ add_marglik.brma <- function(object, ...) {
     sampling_z <- unlist(parameters[sampling_z_names], use.names = FALSE)
   }
 
-  if (!is.null(latent_blocks)) {
-    sampling_dependency <- numeric(K)
-    for (block in latent_blocks) {
-      if (block[["rank"]] == 0L) {
-        next
-      }
-      index <- block[["index"]]
-      sampling_dependency[index] <- as.vector(
-        block[["B"]] %*% sampling_z[block[["z_start"]]:block[["z_end"]]]
-      )
+  sampling_dependency <- numeric(K)
+  for (block in latent_blocks) {
+    if (block[["rank"]] == 0L) {
+      next
     }
-    sampling_dependency <- matrix(
-      sampling_dependency,
-      nrow = 1,
-      ncol = K
-    )
-  } else {
-    if (is.null(data[["sampling_B"]])) {
-      stop("Missing known-V latent loading metadata.", call. = FALSE)
-    }
-    sampling_dependency <- matrix(
-      as.vector(data[["sampling_B"]] %*% sampling_z),
-      nrow = 1,
-      ncol = K
+    index <- block[["index"]]
+    sampling_dependency[index] <- as.vector(
+      block[["B"]] %*% sampling_z[block[["z_start"]]:block[["z_end"]]]
     )
   }
+  sampling_dependency <- matrix(
+    sampling_dependency,
+    nrow = 1,
+    ncol = K
+  )
 
   if (effect_direction == "negative") {
     sampling_dependency <- -sampling_dependency
@@ -776,12 +754,13 @@ add_marglik.brma <- function(object, ...) {
                                           bridge_context,
                                           mu_samples, tau_within_samples,
                                           is_random, is_weightfunction,
-                                          known_v_parameterization,
                                           effect_direction, K) {
 
-  if (!is.null(model_data) && .is_data_known_v(model_data)) {
-    known_v_parameterization <- .data_known_v_effective_backend(model_data)
+  if (is.null(model_data) || !.is_data_known_v(model_data)) {
+    stop("Known-V bridge likelihood requires known-V model metadata.",
+         call. = FALSE)
   }
+  known_v_parameterization <- .data_known_v_effective_backend(model_data)
 
   extra_variance <- .marglik_known_v_extra_variance(
     parameters         = parameters,
@@ -821,11 +800,6 @@ add_marglik.brma <- function(object, ...) {
       call. = FALSE
     )
   }
-  if (is.null(model_data) || !.is_data_known_v(model_data)) {
-    stop("Known-V bridge likelihood requires known-V model metadata.",
-         call. = FALSE)
-  }
-
   if (known_v_parameterization == "whitened") {
     return(.marglik_known_v_whitened_log_lik(
       data           = data,
@@ -840,8 +814,7 @@ add_marglik.brma <- function(object, ...) {
       model_data       = model_data,
       mu_samples       = mu_samples,
       extra_variance   = extra_variance,
-      effect_direction = effect_direction,
-      K                = K
+      effect_direction = effect_direction
     ))
   }
 
@@ -893,91 +866,65 @@ add_marglik.brma <- function(object, ...) {
 
 .marglik_known_v_whitened_log_lik <- function(data, mu_samples,
                                               extra_variance, K,
-                                              model_data = NULL) {
+                                              model_data) {
 
-  known_V <- if (!is.null(model_data) && .is_data_known_v(model_data)) {
-    .data_known_v_data(model_data)
-  } else {
-    NULL
+  if (is.null(model_data) || !.is_data_known_v(model_data)) {
+    stop("Known-V whitened bridge likelihood requires current model metadata.",
+         call. = FALSE)
+  }
+  known_V          <- .data_known_v_data(model_data)
+  whitening_blocks <- .known_v_backend_blocks(known_V, "whitened")
+  log_lik          <- numeric(K)
+  variance         <- numeric(K)
+
+  independent <- .known_v_independent_indices(known_V)
+  if (length(independent) > 0L) {
+    variance[independent] <- .known_v_diagonal(known_V)[independent] +
+      as.numeric(extra_variance[1L, independent])
+    if (any(!is.finite(variance[independent])) ||
+        any(variance[independent] <= 0)) {
+      stop("Known-V whitened bridge variances must be positive.",
+           call. = FALSE)
+    }
+    log_lik[independent] <- stats::dnorm(
+      x    = data[["known_v_independent_y"]],
+      mean = as.numeric(mu_samples[1L, independent]),
+      sd   = sqrt(variance[independent]),
+      log  = TRUE
+    )
   }
 
-  whitening_blocks <- if (is.null(known_V)) {
-    NULL
-  } else {
-    .known_v_backend_blocks(known_V, "whitened")
+  for (b in seq_along(whitening_blocks)) {
+    block        <- whitening_blocks[[b]]
+    index        <- block[["index"]]
+    whitening_mu <- as.vector(
+      block[["rotation"]] %*% as.numeric(mu_samples[1L, index])
+    )
+    variance[index] <- block[["variance"]] +
+      as.numeric(extra_variance[1L, index])
+    if (any(!is.finite(variance[index])) || any(variance[index] <= 0)) {
+      stop("Known-V whitened bridge variances must be positive.",
+           call. = FALSE)
+    }
+    log_lik[index] <- stats::dnorm(
+      x    = data[[paste0("whitening_y_", b)]],
+      mean = whitening_mu,
+      sd   = sqrt(variance[index]),
+      log  = TRUE
+    )
   }
-  if (!is.null(whitening_blocks)) {
-    log_lik <- numeric(K)
-    variance <- numeric(K)
-
-    independent <- .known_v_independent_indices(known_V)
-    if (length(independent) > 0L) {
-      variance[independent] <- .known_v_diagonal(known_V)[independent] +
-        as.numeric(extra_variance[1L, independent])
-      if (any(!is.finite(variance[independent])) ||
-          any(variance[independent] <= 0)) {
-        stop("Known-V whitened bridge variances must be positive.",
-             call. = FALSE)
-      }
-      log_lik[independent] <- stats::dnorm(
-        x    = data[["known_v_independent_y"]],
-        mean = as.numeric(mu_samples[1L, independent]),
-        sd   = sqrt(variance[independent]),
-        log  = TRUE
-      )
-    }
-
-    for (b in seq_along(whitening_blocks)) {
-      block         <- whitening_blocks[[b]]
-      index         <- block[["index"]]
-      whitening_mu  <- as.vector(
-        block[["rotation"]] %*% as.numeric(mu_samples[1L, index])
-      )
-      variance[index] <- block[["variance"]] +
-        as.numeric(extra_variance[1L, index])
-      if (any(!is.finite(variance[index])) || any(variance[index] <= 0)) {
-        stop("Known-V whitened bridge variances must be positive.",
-             call. = FALSE)
-      }
-      log_lik[index] <- stats::dnorm(
-        x    = data[[paste0("whitening_y_", b)]],
-        mean = whitening_mu,
-        sd   = sqrt(variance[index]),
-        log  = TRUE
-      )
-    }
-
-    if (any(!is.finite(variance)) || any(variance <= 0)) {
-      stop("Known-V whitened bridge variances must be positive.", call. = FALSE)
-    }
-
-    return(matrix(log_lik, nrow = 1L, ncol = K))
-  }
-
-  whitening_mu <- as.vector(data[["whitening_matrix"]] %*%
-    as.numeric(mu_samples[1L, ]))
-  variance     <- data[["whitening_var"]] + as.numeric(extra_variance[1L, ])
 
   if (any(!is.finite(variance)) || any(variance <= 0)) {
     stop("Known-V whitened bridge variances must be positive.", call. = FALSE)
   }
 
-  matrix(
-    stats::dnorm(
-      x    = data[["whitening_y"]],
-      mean = whitening_mu,
-      sd   = sqrt(variance),
-      log  = TRUE
-    ),
-    nrow = 1L,
-    ncol = K
-  )
+  return(matrix(log_lik, nrow = 1L, ncol = K))
 }
 
 
 .marglik_known_v_block_mvn_log_lik_sum <- function(model_data, mu_samples,
                                                    extra_variance,
-                                                   effect_direction, K) {
+                                                   effect_direction) {
 
   known_V <- .data_known_v_data(model_data)
   yi      <- model_data[["outcome"]][["yi"]]
@@ -987,41 +934,28 @@ add_marglik.brma <- function(object, ...) {
     yi <- -yi
   }
 
-  if (.known_v_has_canonical_representation(known_V)) {
-    independent <- .known_v_independent_indices(known_V)
-    if (length(independent) > 0L) {
-      variance <- .known_v_diagonal(known_V)[independent] +
-        as.numeric(extra_variance[1L, independent])
-      log_lik <- log_lik + sum(stats::dnorm(
-        x    = yi[independent],
-        mean = as.numeric(mu_samples[1L, independent]),
-        sd   = sqrt(variance),
-        log  = TRUE
-      ))
-    }
+  independent <- .known_v_independent_indices(known_V)
+  if (length(independent) > 0L) {
+    variance <- .known_v_diagonal(known_V)[independent] +
+      as.numeric(extra_variance[1L, independent])
+    log_lik <- log_lik + sum(stats::dnorm(
+      x    = yi[independent],
+      mean = as.numeric(mu_samples[1L, independent]),
+      sd   = sqrt(variance),
+      log  = TRUE
+    ))
+  }
 
-    covariance_blocks <- .known_v_correlated_blocks(known_V)
-    for (b in seq_along(covariance_blocks)) {
-      idx <- covariance_blocks[[b]][["index"]]
-      covariance <- covariance_blocks[[b]][["covariance"]] +
-        diag(as.numeric(extra_variance[1L, idx]), nrow = length(idx))
-      log_lik <- log_lik + .marglik_mvn_log_density(
-        y          = yi[idx],
-        mean       = as.numeric(mu_samples[1L, idx]),
-        covariance = covariance
-      )
-    }
-  } else {
-    block_indices <- .known_v_dependency_blocks(data = model_data, K = K)
-    for (idx in block_indices) {
-      covariance <- .known_v_materialize(known_V)[idx, idx, drop = FALSE] +
-        diag(as.numeric(extra_variance[1L, idx]), nrow = length(idx))
-      log_lik <- log_lik + .marglik_mvn_log_density(
-        y          = yi[idx],
-        mean       = as.numeric(mu_samples[1L, idx]),
-        covariance = covariance
-      )
-    }
+  covariance_blocks <- .known_v_correlated_blocks(known_V)
+  for (b in seq_along(covariance_blocks)) {
+    idx <- covariance_blocks[[b]][["index"]]
+    covariance <- covariance_blocks[[b]][["covariance"]] +
+      diag(as.numeric(extra_variance[1L, idx]), nrow = length(idx))
+    log_lik <- log_lik + .marglik_mvn_log_density(
+      y          = yi[idx],
+      mean       = as.numeric(mu_samples[1L, idx]),
+      covariance = covariance
+    )
   }
 
   return(log_lik)

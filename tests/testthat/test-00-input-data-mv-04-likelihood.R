@@ -79,7 +79,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "block_mvn",
       model_data                 = block_mvn[["data"]]
     ),
     block_expected,
@@ -99,7 +98,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "block_mvn",
       model_data                 = block_mvn[["data"]]
     ),
     "Known-V bridge likelihoods"
@@ -154,7 +152,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "whitened",
       model_data                 = whitened[["data"]]
     ),
     block_expected,
@@ -198,7 +195,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "block_mvn",
       model_data                 = rank_one_block[["data"]]
     ),
     rank_one_expected,
@@ -233,7 +229,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "whitened",
       model_data                 = rank_one_whitened[["data"]]
     ),
     rank_one_expected,
@@ -287,7 +282,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "block_mvn",
       model_data                 = scale_block[["data"]]
     ),
     scale_expected,
@@ -332,7 +326,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "block_mvn",
       model_data                 = random_block[["data"]]
     ),
     random_expected,
@@ -375,7 +368,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "whitened",
       model_data                 = random_whitened[["data"]]
     ),
     random_expected,
@@ -448,7 +440,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "block_mvn",
       model_data                 = allocation_block[["data"]],
       bridge_context             = allocation_bridge_context
     ),
@@ -544,7 +535,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "block_mvn",
       model_data                 = sd_component_block[["data"]],
       bridge_context             = sd_component_context
     ),

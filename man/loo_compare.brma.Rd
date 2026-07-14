@@ -15,8 +15,9 @@
 \item{unit}{output/deletion unit used when extracting LOO from brma objects.}
 }
 \value{
-A data frame of class \code{"compare.loo"} as returned by
-\code{\link[loo]{loo_compare}}.
+A numeric matrix of class \code{"compare.loo"}. The matrix retains
+the comparison columns and printing contract returned by loo versions before
+2.10.0.
 }
 \description{
 Compare multiple brma models using LOO-PSIS cross-validation.

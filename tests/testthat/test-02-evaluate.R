@@ -1160,13 +1160,13 @@ test_that(".extract_use_normal returns correct structure for RoBMA", {
 })
 
 # ============================================================================ #
-# SECTION 4: Integration Tests for .pdf.brma() and .cdf.brma() with use_normal
+# SECTION 4: Integration Tests for .log_lik.brma() and .cdf.brma() with use_normal
 # ============================================================================ #
 # These tests verify that PDF and CDF functions work correctly with the
 # use_normal fast-path optimization
 # ============================================================================ #
 
-test_that(".pdf.brma returns finite log-likelihoods for weightfunction models", {
+test_that(".log_lik.brma returns finite log-likelihoods for weightfunction models", {
 
   for (name in names(fits)) {
 
@@ -1177,7 +1177,7 @@ test_that(".pdf.brma returns finite log-likelihoods for weightfunction models", 
     if (!.is_weightfunction(object)) next
 
     # compute PDF (this internally uses use_normal optimization)
-    log_lik <- .pdf.brma(object)
+    log_lik <- .log_lik.brma(object)
 
     # verify structure
     expect_true(is.matrix(log_lik),

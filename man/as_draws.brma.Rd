@@ -108,10 +108,9 @@ compact rho draws on demand. Conversion fails before allocating them when
 their combined draw-by-matrix size exceeds
 \code{getOption("RoBMA.max_derived_correlation_cells", 2e7)}. Increase this option
 explicitly when the dense public matrices are required. Use
-\code{include_auxiliary = TRUE} to skip derivation and return the raw backend
-variables without filtering; compatible older fits may contain dense
-auxiliary variables. \code{brma_samples} objects have separate methods
-documented at \code{\link{as_draws.brma_samples}}.
+\code{include_auxiliary = TRUE} to skip derivation and return the current raw
+backend variables without filtering. \code{brma_samples} objects have
+separate methods documented at \code{\link{as_draws.brma_samples}}.
 }
 \seealso{
 \code{\link[posterior]{draws}}, \code{\link{brma}},

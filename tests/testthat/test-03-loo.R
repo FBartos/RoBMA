@@ -101,12 +101,9 @@ test_that("loo_compare compares two brma models", {
   out <- suppressWarnings(loo_compare(fit_brma, fit_brma2))
 
   # check structure
-  expect_s3_class(out, "compare.loo")
-  expect_s3_class(out, "data.frame")
+  expect_identical(class(out), c("compare.loo", "matrix", "array"))
   expect_equal(nrow(out), 2)
-  expect_true(all(c(
-    "model", "elpd_diff", "se_diff", "p_worse", "diag_diff", "diag_elpd"
-  ) %in% colnames(out)))
+  expect_true(all(c("elpd_diff", "se_diff") %in% colnames(out)))
 })
 
 test_that("loo_compare accepts loo objects", {
@@ -123,12 +120,9 @@ test_that("loo_compare accepts loo objects", {
   out <- loo_compare(loo_brma, loo_brma2)
 
   # check structure
-  expect_s3_class(out, "compare.loo")
-  expect_s3_class(out, "data.frame")
+  expect_identical(class(out), c("compare.loo", "matrix", "array"))
   expect_equal(nrow(out), 2)
-  expect_true(all(c(
-    "model", "elpd_diff", "se_diff", "p_worse", "diag_diff", "diag_elpd"
-  ) %in% colnames(out)))
+  expect_true(all(c("elpd_diff", "se_diff") %in% colnames(out)))
 })
 
 test_that("cluster-unit LOO has a comparable joint-target label", {

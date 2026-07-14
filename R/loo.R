@@ -481,8 +481,9 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' comparison table. Sampled versus marginalized local-effect provenance does
 #' not by itself block comparison.
 #'
-#' @return A data frame of class \code{"compare.loo"} as returned by
-#' \code{\link[loo]{loo_compare}}.
+#' @return A numeric matrix of class \code{"compare.loo"}. The matrix retains
+#' the comparison columns and printing contract returned by loo versions before
+#' 2.10.0.
 #'
 #' @seealso \code{\link{loo.brma}}, \code{\link[loo]{loo_compare}}
 #'
@@ -527,7 +528,7 @@ loo_compare.brma <- function(x, ..., unit = "estimate") {
   # call the 'loo' package's default implementation to avoid dispatch recursion
   .check_loo_compare_targets(loo_objects)
   loo_compare_fun <- get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE)
-  result <- do.call(loo_compare_fun, loo_objects)
+  result <- .as_legacy_loo_compare(do.call(loo_compare_fun, loo_objects))
 
   return(result)
 }
@@ -544,8 +545,9 @@ loo_compare.brma <- function(x, ..., unit = "estimate") {
 #' objects to compare.
 #' @param unit output/deletion unit used when extracting LOO from brma objects.
 #'
-#' @return A data frame of class \code{"compare.loo"} as returned by
-#' \code{\link[loo]{loo_compare}}.
+#' @return A numeric matrix of class \code{"compare.loo"}. The matrix retains
+#' the comparison columns and printing contract returned by loo versions before
+#' 2.10.0.
 #'
 #' @seealso \code{\link{loo.brma}}, \code{\link[loo]{loo_compare}}
 #'
@@ -574,9 +576,74 @@ loo_compare.loo <- function(x, ..., unit = "estimate") {
   # call the 'loo' package's default implementation to avoid dispatch recursion
   .check_loo_compare_targets(loo_objects)
   loo_compare_fun <- get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE)
-  result <- do.call(loo_compare_fun, loo_objects)
+  result <- .as_legacy_loo_compare(do.call(loo_compare_fun, loo_objects))
 
   return(result)
+}
+
+
+# Preserve RoBMA's released numeric loo-comparison contract across loo 2.10.
+.as_legacy_loo_compare <- function(x) {
+
+  if (!is.data.frame(x)) {
+    stop("Internal error: unsupported loo comparison table.", call. = FALSE)
+  }
+  metric_columns <- list(
+    loo = c(
+      "elpd_loo", "se_elpd_loo", "p_loo", "se_p_loo",
+      "looic", "se_looic"
+    ),
+    waic = c(
+      "elpd_waic", "se_elpd_waic", "p_waic", "se_p_waic",
+      "waic", "se_waic"
+    )
+  )
+  matched_metric <- names(metric_columns)[vapply(
+    metric_columns,
+    function(columns) all(columns %in% colnames(x)),
+    logical(1)
+  )]
+  if (length(matched_metric) != 1L || !"model" %in% colnames(x)) {
+    stop("Internal error: unsupported loo comparison table.", call. = FALSE)
+  }
+  legacy_columns <- c("elpd_diff", "se_diff", metric_columns[[matched_metric]])
+  if (!all(legacy_columns %in% colnames(x))) {
+    stop("Internal error: incomplete loo comparison table.", call. = FALSE)
+  }
+
+  out <- as.matrix(x[, legacy_columns, drop = FALSE])
+  if (!is.numeric(out) || anyNA(x[["model"]]) ||
+      any(!nzchar(as.character(x[["model"]])))) {
+    stop("Internal error: invalid loo comparison table.", call. = FALSE)
+  }
+  rownames(out) <- as.character(x[["model"]])
+  class(out)    <- c("compare.loo", "matrix", "array")
+
+  return(out)
+}
+
+
+.print_compare_loo <- function(x, ..., digits = 1, simplify = TRUE) {
+
+  if (is.data.frame(x)) {
+    print_method <- get(
+      "print.compare.loo",
+      envir    = asNamespace("loo"),
+      inherits = FALSE
+    )
+    return(print_method(x, ..., digits = digits))
+  }
+
+  x_copy <- x
+  if (ncol(x_copy) >= 2L && isTRUE(simplify)) {
+    x_copy <- x_copy[, c("elpd_diff", "se_diff"), drop = FALSE]
+  }
+  print(
+    format(round(x_copy, digits), nsmall = digits),
+    quote = FALSE
+  )
+
+  invisible(x)
 }
 
 

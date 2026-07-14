@@ -31,7 +31,12 @@ test_that("known-V funnel tau uses marginal covariance samples", {
   V    <- matrix(c(.04, .01, .01, .09), nrow = 2L)
   data <- list(outcome = data.frame(yi = c(.10, .20), sei = sqrt(diag(V))))
   attr(data, "known_V")      <- TRUE
-  attr(data, "known_V_data") <- list(V = V)
+  attr(data, "known_V_data") <- .known_v_prepare(
+    V                         = V,
+    keep_rows                 = rep(TRUE, nrow(V)),
+    known_v_parameterization  = "block_mvn",
+    known_v_residual_fraction = NULL
+  )
   object <- list(data = data)
   class(object) <- c("brma.mv", "brma")
 
@@ -57,7 +62,12 @@ test_that("known-V marginal variance samples use the diagonal backend", {
   V    <- matrix(c(.04, .01, .01, .09), nrow = 2L)
   data <- list(outcome = data.frame(yi = c(.10, .20), sei = sqrt(diag(V))))
   attr(data, "known_V")      <- TRUE
-  attr(data, "known_V_data") <- list(V = V)
+  attr(data, "known_V_data") <- .known_v_prepare(
+    V                         = V,
+    keep_rows                 = rep(TRUE, nrow(V)),
+    known_v_parameterization  = "block_mvn",
+    known_v_residual_fraction = NULL
+  )
   attr(data, "random")       <- TRUE
   object <- list(
     data = data,

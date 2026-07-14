@@ -262,6 +262,11 @@ NULL
   # Register methods for brma class
   .s3_register("loo::loo",         "brma")
   .s3_register("loo::loo_compare", "brma")
+  .s3_register(
+    "base::print",
+    "compare.loo",
+    method = .print_compare_loo
+  )
 
   invisible(NULL)
 }

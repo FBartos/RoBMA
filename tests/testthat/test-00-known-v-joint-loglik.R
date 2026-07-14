@@ -5,10 +5,11 @@ test_that("known-V joint log-likelihood uses block MVN density", {
   V    <- matrix(c(.04, .015, .015, .09), nrow = 2L)
   data <- list(outcome = data.frame(yi = c(.10, -.20), sei = c(.20, .30)))
   attr(data, "known_V")      <- TRUE
-  attr(data, "known_V_data") <- list(
-    V             = V,
-    block_indices = list(1:2),
-    correlated    = TRUE
+  attr(data, "known_V_data") <- .known_v_prepare(
+    V                         = V,
+    keep_rows                 = rep(TRUE, nrow(V)),
+    known_v_parameterization  = "block_mvn",
+    known_v_residual_fraction = NULL
   )
   attr(data, "random")       <- FALSE
 
@@ -47,8 +48,14 @@ test_that("known-V joint log-likelihood uses block MVN density", {
   singular_setup <- setup
   singular_setup[["data"]] <- data
   singular_setup[["data"]][["outcome"]][["sei"]] <- c(1, 1)
-  attr(singular_setup[["data"]], "known_V_data")[["V"]] <-
-    matrix(1, nrow = 2L, ncol = 2L)
+  attr(singular_setup[["data"]], "known_V_data") <-
+    .known_v_prepare(
+      V                         = matrix(1, nrow = 2L, ncol = 2L),
+      keep_rows                 = rep(TRUE, 2L),
+      known_v_parameterization  = "block_mvn",
+      known_v_residual_fraction = NULL,
+      warn_singular             = FALSE
+    )
   singular_setup[["tau_within"]] <- matrix(0, nrow = 2L, ncol = 2L)
   expect_error(
     .log_lik_known_v_joint_sum_from_setup(singular_setup),
@@ -187,7 +194,6 @@ test_that("evaluated known-V marginalized scale maps component row source", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      known_v_parameterization   = "block_mvn",
       model_data                 = object[["data"]],
       bridge_context             = bridge_context
     ),

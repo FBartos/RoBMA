@@ -208,7 +208,6 @@
     is_multilevel     = .is_data_multilevel(context[["data"]]),
     is_weights        = .is_data_weights(context[["data"]]),
     is_known_v        = .is_data_known_v(context[["data"]]),
-    known_v_parameterization = .data_known_v_parameterization(context[["data"]]),
     model_data        = context[["data"]],
     is_PET            = active_setup[["is_PET"]],
     is_PEESE          = active_setup[["is_PEESE"]],

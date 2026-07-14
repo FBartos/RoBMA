@@ -524,8 +524,17 @@ test_that("marglik selected-normal known-V path separates SE roles", {
     K             = 2L,
     yi            = c(.1, .2),
     sei           = c(1, 1.5),
-    sampling_var  = c(.04, .09),
-    sampling_rank = 0L
+    sampling_var  = c(.04, .09)
+  )
+  model_data <- list(
+    outcome = data.frame(yi = data[["yi"]], sei = data[["sei"]])
+  )
+  attr(model_data, "known_V") <- TRUE
+  attr(model_data, "known_V_data") <- .known_v_prepare(
+    V                         = data[["sampling_var"]],
+    keep_rows                 = rep(TRUE, data[["K"]]),
+    known_v_parameterization  = "latent",
+    known_v_residual_fraction = NULL
   )
   parameters <- list(mu = 0, tau = 0)
 
@@ -556,7 +565,8 @@ test_that("marglik selected-normal known-V path separates SE roles", {
     is_PEESE          = FALSE,
     is_weightfunction = TRUE,
     effect_direction  = "positive",
-    outcome_type      = "norm"
+    outcome_type      = "norm",
+    model_data        = model_data
   ), 0)
   expect_equal(captured[["sei"]], sqrt(data[["sampling_var"]]))
   expect_equal(captured[["selection_sei"]], data[["sei"]])

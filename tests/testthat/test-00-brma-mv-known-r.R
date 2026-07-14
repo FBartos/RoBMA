@@ -536,6 +536,60 @@ test_that("known-R marginalization availability rethrows unexpected errors", {
 })
 
 
+test_that("known-R marginalization handles only the BayesTools condition", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"))
+  )
+  K <- diag(c(4, 9, 16))
+  dimnames(K) <- list(levels(dat[["estimate"]]), levels(dat[["estimate"]]))
+  object <- brma.mv(
+    yi                         = yi,
+    V                          = diag(0.01, nrow(dat)),
+    random                     = ~ 1 | estimate,
+    R                          = K,
+    Rscale                     = "none",
+    data                       = dat,
+    measure                    = "GEN",
+    marginalize_estimate_level = FALSE,
+    prior_unit_information_sd  = 1,
+    only_priors                = TRUE
+  )
+  sampled_design <- .object_bayestools_formula_design(
+    object                 = object,
+    parameter              = "mu",
+    source                 = "location",
+    random_effects_compile = NULL
+  )
+  unavailable <- structure(
+    list(
+      message    = "unavailable",
+      call       = NULL,
+      block_name = "estimate",
+      reason     = "not_diagonal"
+    ),
+    class = c(
+      "BayesTools_random_effects_marginal_variance_unavailable",
+      "error",
+      "condition"
+    )
+  )
+
+  testthat::local_mocked_bindings(
+    random_effects_marginal_variance_factors = function(...) {
+      stop(unavailable)
+    },
+    .package = "BayesTools"
+  )
+
+  expect_false(.known_r_marginal_variance_factors_available(
+    formula_design = sampled_design,
+    block          = "estimate"
+  ))
+})
+
+
 test_that("known-V marginal covariance includes marginalized known-R row multipliers", {
 
   dat <- data.frame(

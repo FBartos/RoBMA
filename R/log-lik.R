@@ -29,27 +29,6 @@
   }
 }
 
-
-
-# ---------------------------------------------------------------------------- #
-# .pdf.brma
-# ---------------------------------------------------------------------------- #
-#
-# Back-end wrapper kept for internal callers that use the old helper name.
-#
-# @param object brma object.
-# @param unit   character; output/deletion unit.
-#
-# @return S x K or S x G matrix of log-likelihood values.
-#
-# ---------------------------------------------------------------------------- #
-.pdf.brma <- function(object, unit = "estimate") {
-
-  return(.log_lik.brma(object = object, unit = unit))
-}
-
-
-
 # ---------------------------------------------------------------------------- #
 # .log_lik_from_posterior_samples
 # ---------------------------------------------------------------------------- #

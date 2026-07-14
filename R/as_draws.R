@@ -62,10 +62,9 @@
 #' their combined draw-by-matrix size exceeds
 #' `getOption("RoBMA.max_derived_correlation_cells", 2e7)`. Increase this option
 #' explicitly when the dense public matrices are required. Use
-#' `include_auxiliary = TRUE` to skip derivation and return the raw backend
-#' variables without filtering; compatible older fits may contain dense
-#' auxiliary variables. \code{brma_samples} objects have separate methods
-#' documented at \code{\link{as_draws.brma_samples}}.
+#' `include_auxiliary = TRUE` to skip derivation and return the current raw
+#' backend variables without filtering. \code{brma_samples} objects have
+#' separate methods documented at \code{\link{as_draws.brma_samples}}.
 #'
 #' @return An object of the corresponding \pkg{posterior} draws class.
 #'
@@ -157,13 +156,6 @@ NULL
     if (is.null(spec)) {
       return(0)
     }
-    presence <- .brma_derived_random_correlation_presence(
-      mcmc_list = mcmc_list,
-      spec      = spec
-    )
-    if (identical(presence, "present")) {
-      return(0)
-    }
     as.numeric(spec[["n_columns"]])^2 * n_draws
   }, numeric(1)))
   if (required_cells > max_cells) {
@@ -231,38 +223,6 @@ NULL
 }
 
 
-# Classify whether a scalar correlation matrix is absent or already complete.
-.brma_derived_random_correlation_presence <- function(spec, mcmc_list) {
-
-  prefix   <- paste0(spec[["correlation_base"]], "[")
-  expected <- as.numeric(spec[["n_columns"]])^2
-  observed <- lapply(mcmc_list, function(chain) {
-    variables <- colnames(as.matrix(chain))
-    variables[startsWith(variables, prefix)]
-  })
-  counts <- vapply(observed, length, numeric(1))
-  if (all(counts == 0)) {
-    return("missing")
-  }
-  if (all(counts == expected)) {
-    canonical <- .brma_derived_random_correlation_names(spec)
-    valid <- vapply(observed, function(variables) {
-      anyDuplicated(variables) == 0L && setequal(variables, canonical)
-    }, logical(1))
-    if (all(valid)) {
-      return("present")
-    }
-  }
-
-  stop(
-    "Fitted draws contain an incomplete random-effect correlation matrix for block '",
-    spec[["block_name"]], "'. Refit the model with the current ",
-    "RoBMA/BayesTools build.",
-    call. = FALSE
-  )
-}
-
-
 # Generate canonical column names for one derived correlation matrix.
 .brma_derived_random_correlation_names <- function(spec) {
 
@@ -326,22 +286,12 @@ NULL
 }
 
 
-# Reconstruct all missing scalar correlation matrices with one copy per chain.
+# Reconstruct scalar correlation matrices with one copy per chain.
 .brma_append_derived_random_correlation_terms <- function(mcmc_list,
                                                           random_terms) {
 
   specs <- lapply(random_terms, .brma_derived_random_correlation_spec)
   specs <- specs[!vapply(specs, is.null, logical(1))]
-  if (length(specs) == 0L) {
-    return(mcmc_list)
-  }
-  presence <- vapply(
-    specs,
-    .brma_derived_random_correlation_presence,
-    character(1),
-    mcmc_list = mcmc_list
-  )
-  specs <- specs[presence == "missing"]
   if (length(specs) == 0L) {
     return(mcmc_list)
   }

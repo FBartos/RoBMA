@@ -1,5 +1,23 @@
 context("brma.mv known-V representation and validation")
 
+test_that("known-V consumers require the current representation", {
+
+  data <- list(outcome = data.frame(yi = 0, sei = 1))
+  attr(data, "known_V")      <- TRUE
+  attr(data, "known_V_data") <- list(V = matrix(1, nrow = 1L, ncol = 1L))
+
+  expect_error(
+    .data_known_v_data(data),
+    "known-V representation is incomplete"
+  )
+
+  attr(data, "known_V_data") <- .known_v_canonicalize(1)
+  expect_error(
+    .data_known_v_data(data),
+    "prepared known-V metadata are incomplete"
+  )
+})
+
 test_that("brma.mv stores and decomposes known V", {
 
   V <- matrix(

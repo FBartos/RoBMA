@@ -180,7 +180,6 @@
     return(FALSE)
   }
 
-  .brma_mv_require_marginal_variance_factors_api()
   factors <- tryCatch(
     BayesTools::random_effects_marginal_variance_factors(
       formula_design      = formula_design,
@@ -189,7 +188,10 @@
       require_one_to_one  = TRUE
     ),
     error = function(e) {
-      if (.known_r_marginal_variance_factors_unavailable_error(e)) {
+      if (inherits(
+        e,
+        "BayesTools_random_effects_marginal_variance_unavailable"
+      )) {
         return(NULL)
       }
       stop(e)
@@ -197,43 +199,6 @@
   )
 
   !is.null(factors)
-}
-
-
-.known_r_marginal_variance_factors_unavailable_error <- function(error) {
-
-  if (inherits(error, "BayesTools_random_effects_marginal_variance_unavailable")) {
-    return(TRUE)
-  }
-
-  error_message <- conditionMessage(error)
-  expected <- c(
-    "do not support row-indexed external SD sources",
-    "require one random-effect column",
-    "require diagonal row-space covariance",
-    "require a one-to-one row-to-group mapping"
-  )
-
-  any(vapply(expected, grepl, logical(1), x = error_message, fixed = TRUE))
-}
-
-
-.brma_mv_require_marginal_variance_factors_api <- function() {
-
-  if (!exists(
-    "random_effects_marginal_variance_factors",
-    envir   = asNamespace("BayesTools"),
-    mode    = "function",
-    inherits = FALSE
-  )) {
-    stop(
-      "Known-R marginalization requires BayesTools with ",
-      "random_effects_marginal_variance_factors().",
-      call. = FALSE
-    )
-  }
-
-  invisible(TRUE)
 }
 
 
@@ -256,7 +221,6 @@
     return(list(formula_design = formula_design, terms = terms))
   }
 
-  .brma_mv_require_marginal_variance_factors_api()
   factors <- BayesTools::random_effects_marginal_variance_factors(
     formula_design      = formula_design,
     blocks              = known_r_blocks,

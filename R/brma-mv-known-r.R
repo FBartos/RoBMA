@@ -20,8 +20,6 @@
     return(NULL)
   }
 
-  .brma_mv_require_group_covariance_api()
-
   entries <- .brma_mv_R_entries(R)
   scales  <- .brma_mv_normalize_Rscale(
     Rscale  = Rscale,
@@ -46,29 +44,6 @@
 
   names(group_covariance) <- entry_names
   return(group_covariance)
-}
-
-
-.brma_mv_require_group_covariance_api <- function() {
-
-  has_constructor <- exists(
-    "random_group_covariance",
-    envir    = asNamespace("BayesTools"),
-    inherits = FALSE
-  )
-  has_parser_arg <- "group_covariance" %in%
-    names(formals(BayesTools::random_effects_formula))
-
-  if (!has_constructor || !has_parser_arg) {
-    stop(
-      "Known random-effect group covariance requires a BayesTools build with ",
-      "random_group_covariance() and random_effects_formula(..., ",
-      "group_covariance = ...).",
-      call. = FALSE
-    )
-  }
-
-  invisible(TRUE)
 }
 
 
