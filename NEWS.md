@@ -65,8 +65,8 @@
   plugging posterior mean heterogeneity into a single covariance matrix.
 - validates cached LOO/WAIC objects against the current data and target
   fingerprint before reuse.
-- makes LOO/WAIC outcome fingerprints independent of the R serialization
-  writer version and refreshes affected precomputed vignette fits.
+- makes LOO/WAIC outcome fingerprints explicitly versioned and independent of
+  the R serialization writer version, and refreshes affected precomputed fits.
 - reports location-scale pooled heterogeneity as posterior RMS heterogeneity,
   matching multivariate RMS semantics.
 - hardens known-`V` estimate log-likelihood sums, diagnostics, funnel variance

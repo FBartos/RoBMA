@@ -6,21 +6,99 @@ source(testthat::test_path("common-functions.R"))
 
 test_that("outcome hashes use a cross-version canonical encoding", {
 
-  object <- brma(
-    yi = c(0.1, -0.2), sei = c(0.3, 0.4), measure = "GEN",
+  normal_object <- brma(
+    yi                        = c(0.1, -0.2),
+    sei                       = c(0.3, 0.4),
+    measure                   = "GEN",
     prior_unit_information_sd = 1,
-    only_priors = TRUE
+    only_priors               = TRUE
+  )
+  binomial_object <- brma.glmm(
+    ai        = c(1L, 2L),
+    bi        = c(9L, 8L),
+    ci        = c(3L, 4L),
+    di        = c(7L, 6L),
+    measure   = "OR",
+    only_data = TRUE
+  )
+  poisson_object <- brma.glmm(
+    x1i       = c(3L, 5L),
+    x2i       = c(2L, 4L),
+    t1i       = c(10, 12),
+    t2i       = c(11, 13),
+    measure   = "IRR",
+    only_data = TRUE
+  )
+  clustered_object <- brma(
+    yi        = c(0.1, -0.2, 0.3),
+    sei       = c(0.3, 0.4, 0.5),
+    weights   = c(1, 2, 3),
+    cluster   = c("b", "a", "b"),
+    measure   = "GEN",
+    only_data = TRUE
+  )
+  known_v_object <- brma.mv(
+    yi        = c(0.1, 0.2, 0.3),
+    V         = matrix(c(
+      0.04, 0.01, 0.00,
+      0.01, 0.09, 0.00,
+      0.00, 0.00, 0.16
+    ), nrow = 3, byrow = TRUE),
+    measure   = "GEN",
+    only_data = TRUE
   )
 
-  expect_identical(.get_outcome_hash(object), "747ab8e37b24cc8e")
+  expect_identical(.get_outcome_hash(normal_object),
+                   "v1:048626303c301ec7")
+  expect_identical(.get_outcome_hash(binomial_object),
+                   "v1:59842cf30feb47a0")
+  expect_identical(.get_outcome_hash(poisson_object),
+                   "v1:2bc43cb622c4d2c0")
+  expect_identical(.get_outcome_hash(clustered_object),
+                   "v1:3867d5a13ac04d2a")
+  expect_identical(.get_outcome_hash(known_v_object),
+                   "v1:4c17e1973256ec90")
   expect_identical(
     .outcome_hash_bytes(list(value = -0)),
     .outcome_hash_bytes(list(value = 0))
   )
   expect_false(identical(
+    .outcome_hash_bytes(list(value = 1L)),
+    .outcome_hash_bytes(list(value = 1))
+  ))
+  expect_false(identical(
+    .outcome_hash_bytes(list(a = 1, b = 2)),
+    .outcome_hash_bytes(list(b = 2, a = 1))
+  ))
+  expect_false(identical(
+    .outcome_hash_bytes(list(1)),
+    .outcome_hash_bytes(structure(list(1), names = ""))
+  ))
+  expect_false(identical(
     .outcome_hash_bytes(list(value = 0)),
     .outcome_hash_bytes(list(value = NA_real_))
   ))
+  expect_false(identical(
+    .outcome_hash_bytes(list(value = NA_real_)),
+    .outcome_hash_bytes(list(value = NaN))
+  ))
+  expect_false(identical(
+    .outcome_hash_bytes(list(value = Inf)),
+    .outcome_hash_bytes(list(value = -Inf))
+  ))
+  expect_false(identical(
+    .outcome_hash_bytes(list(value = NA_integer_)),
+    .outcome_hash_bytes(list(value = NA_real_))
+  ))
+
+  utf8_value   <- "\u00e9"
+  latin1_value <- iconv(utf8_value, from = "UTF-8", to = "latin1")
+  Encoding(utf8_value) <- "UTF-8"
+  expect_false(is.na(latin1_value))
+  expect_identical(
+    .outcome_hash_bytes(list(value = utf8_value)),
+    .outcome_hash_bytes(list(value = latin1_value))
+  )
 })
 
 

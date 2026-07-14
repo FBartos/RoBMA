@@ -256,6 +256,7 @@
   }
 
   return(paste0(
+    "v1:",
     sprintf("%08x", as.integer(hash1)),
     sprintf("%08x", as.integer(hash2))
   ))
@@ -264,6 +265,11 @@
 
 # Encode outcome-hash payloads independently of the R serialization version.
 .outcome_hash_bytes <- function(x) {
+
+  if (length(x) > .Machine$integer.max) {
+    stop("Internal error: outcome-hash payload is too long.",
+         call. = FALSE)
+  }
 
   encode_length <- function(x) {
     writeBin(as.integer(x), raw(), size = 4L, endian = "big")
@@ -287,18 +293,13 @@
     return(charToRaw("n"))
   }
   if (is.list(x)) {
-    element_names <- names(x)
-    if (is.null(element_names)) {
-      element_names <- rep("", length(x))
-    }
-    element_bytes <- lapply(seq_along(x), function(i) {
-      c(
-        encode_character(element_names[[i]]),
-        .outcome_hash_bytes(x[[i]])
-      )
-    })
+    element_bytes <- lapply(x, .outcome_hash_bytes)
     return(do.call(c, c(
-      list(charToRaw("l"), encode_length(length(x))),
+      list(
+        charToRaw("l"),
+        encode_length(length(x)),
+        .outcome_hash_bytes(names(x))
+      ),
       element_bytes
     )))
   }
