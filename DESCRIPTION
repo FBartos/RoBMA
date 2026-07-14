@@ -40,7 +40,7 @@ Depends:
 Imports:
     BayesTools (>= 0.3.1.6),
     bridgesampling,
-    loo,
+    loo (>= 2.10.0),
     MASS,
     parallel,
     runjags,

@@ -16,7 +16,7 @@ objects to compare.}
 \item{unit}{output/deletion unit used when extracting LOO from brma objects.}
 }
 \value{
-A matrix of class \code{"compare.loo"} as returned by
+A data frame of class \code{"compare.loo"} as returned by
 \code{\link[loo]{loo_compare}}.
 }
 \description{

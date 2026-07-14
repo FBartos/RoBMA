@@ -28,6 +28,8 @@
 ### Breaking changes
 - requires BayesTools 0.3.1.6 and R 4.3.0 for the multivariate random-effect
   backend and its scalable diagonal marginal-variance interface.
+- requires loo 2.10.0 and returns its mixed-type `compare.loo` data frame,
+  including model-comparison probability and diagnostic columns.
 - removes the previous `marginal_means.brma(normal_approximation)` argument;
   marginal-means Bayes factors now use posterior ordinates from KDE/qCMDE/IWMDE
   routes instead of the removed normal-approximation switch.
