@@ -1,5 +1,10 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
-# Declare files that will always have CRLF line endings on checkout.
+# Keep shell entry points portable in checkouts and source archives.
 configure.ac text eol=lf
+configure text eol=lf
+cleanup text eol=lf
+configure.win text eol=lf
+cleanup.win text eol=lf
+*.sh text eol=lf
