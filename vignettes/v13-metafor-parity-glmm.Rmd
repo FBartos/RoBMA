@@ -87,11 +87,20 @@ head(dat.bcg)
 
 `metafor::rma.glmm()` fits the random-effects logistic model.
 We use `model = "UM.FS"` to obtain the unconditional model with fixed study-specific intercepts, the formulation that corresponds to the binomial GLMM in `brma.glmm()` (Model 4 in @jackson2018comparison).
+The larger optimizer evaluation budget makes this reference fit reproducible
+when all package vignettes are built in one session; it does not change the
+model or the resulting estimates.
 
 ```{r fit1-metafor}
 fit1_metafor <- metafor::rma.glmm(
-  ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR", 
-  model = "UM.FS", data = dat.bcg
+  ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
+  model = "UM.FS",
+  control = list(
+    glmerCtrl = list(
+      optCtrl = list(maxfun = 100000)
+    )
+  ),
+  data = dat.bcg
 )
 fit1_metafor
 ```
