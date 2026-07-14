@@ -84,7 +84,7 @@
 #'   \item{\code{endogenity_control}}{Whether endogeneity was controlled.}
 #'   \item{\code{motivation_control}}{Whether motivation was controlled.}
 #' }
-#' @source \url{http://meta-analysis.cz/students}
+#' @source \url{https://meta-analysis.cz/students/}
 #'
 #' @references
 #' \insertAllCited{}

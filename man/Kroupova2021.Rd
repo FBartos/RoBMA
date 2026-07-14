@@ -22,7 +22,7 @@ A data.frame with 11 columns and 881 observations:
 }
 }
 \source{
-\url{http://meta-analysis.cz/students}
+\url{https://meta-analysis.cz/students/}
 }
 \usage{
 Kroupova2021
