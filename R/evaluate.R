@@ -469,6 +469,7 @@
 #                         (NULL if not a meta-regression model)
 # @param mods_formula     formula object for meta-regression
 # @param mods_priors      list of priors for moderator parameters
+# @param priors           complete model-prior specification
 # @param is_mods          logical; whether model is meta-regression
 # @param is_PET           logical; whether model includes PET adjustment
 # @param is_PEESE         logical; whether model includes PEESE adjustment
@@ -482,10 +483,10 @@
 # @return S x K matrix of mu (location) posterior samples
 #
 # ---------------------------------------------------------------------------- #
-.evaluate.brma.mu <- function(fit, outcome_data, mods_data, mods_formula, mods_priors,
-                              is_mods, is_PET, is_PEESE, effect_direction,
-                              bias_adjusted, K, posterior_samples = NULL,
-                              priors = NULL) {
+.evaluate.brma.mu <- function(fit, outcome_data, mods_data, mods_formula,
+                              mods_priors, priors, is_mods, is_PET, is_PEESE,
+                              effect_direction, bias_adjusted, K,
+                              posterior_samples = NULL) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S <- nrow(posterior_samples)

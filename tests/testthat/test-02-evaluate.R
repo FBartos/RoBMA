@@ -675,6 +675,31 @@ test_that("selected-normal RNG requires explicit row routing", {
   )
 })
 
+test_that("outcome CDF values stay in the open unit interval", {
+
+  cdf_vals <- .outcome_cdf.norm(
+    yi         = c(-100, 100),
+    mu_samples = matrix(0, nrow = 1L, ncol = 2L),
+    tau_within = matrix(0, nrow = 1L, ncol = 2L),
+    sei        = c(1, 1)
+  )
+
+  expect_true(all(cdf_vals > 0 & cdf_vals < 1))
+  expect_equal(
+    cdf_vals[1L, 1L],
+    .Machine$double.xmin * .Machine$double.eps
+  )
+  expect_equal(cdf_vals[1L, 2L], 1 - .Machine$double.eps / 2)
+
+  interior_tail <- .outcome_cdf.norm(
+    yi         = c(-38, 8.2),
+    mu_samples = matrix(0, nrow = 1L, ncol = 2L),
+    tau_within = matrix(0, nrow = 1L, ncol = 2L),
+    sei        = c(1, 1)
+  )
+  expect_equal(as.numeric(interior_tail), stats::pnorm(c(-38, 8.2)))
+})
+
 
 # ============================================================================ #
 # SECTION 2: Integration Tests with Pre-fitted Models
@@ -798,7 +823,8 @@ test_that(".evaluate.brma.mu returns correct dimensions", {
       is_PEESE          = is_PEESE,
       effect_direction  = effect_direction,
       bias_adjusted     = TRUE,
-      K                 = K
+      K                 = K,
+      priors            = priors
     )
 
     # verify dimensions

@@ -96,7 +96,15 @@ cache generation failure first.
 
 ### Cache Validation
 
-`save_fit()` writes the fit, info object, and metadata. Metadata records the normalized `test-01-*` file hash, the cache-affecting fitting-source hash, and whether the object contains LOO, WAIC, marginal likelihood, and metafor info. The fitting-source hash is intentionally scoped to fitting, prior/data input, cached LOO/marglik, and native likelihood/JAGS code; unrelated summaries, plotting, prediction, documentation, and post-fit methods should not force refits.
+`save_fit()` writes the fit, info object, and metadata. Metadata records the
+normalized `test-01-*` file hash, the cache-affecting RoBMA source hash,
+`BayesTools::fit_backend_fingerprint()`, and whether the object contains LOO,
+WAIC, marginal likelihood, and metafor info. The RoBMA source hash is
+intentionally scoped to fitting, prior/data input, cached LOO/marglik, and
+native likelihood/JAGS code; unrelated summaries, plotting, prediction,
+documentation, and post-fit methods should not force refits. BayesTools owns
+its generic backend fingerprint contract; do not duplicate dependency
+source-tree hashing in RoBMA.
 
 `skip_refit_if_cached("brma.norm")` and similar group calls skip a whole `test-01-*` file only when all cataloged fits for that group are valid.
 

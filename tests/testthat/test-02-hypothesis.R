@@ -663,7 +663,6 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
   point_bf <- hypothesis(
     mm_qcmde,
     "alloc[random] = 0",
-    type           = "conditional",
     columns        = "all",
     density_method = "qCMDE"
   )
@@ -690,7 +689,6 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
   point_bf_kde <- hypothesis(
     mm_kde,
     "alloc[alternate] = 0",
-    type           = "conditional",
     columns        = "all",
     density_method = "qCMDE",
     density_control = list(

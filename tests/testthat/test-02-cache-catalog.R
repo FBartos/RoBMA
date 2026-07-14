@@ -96,18 +96,18 @@ source(testthat::test_path("common-functions.R"))
   entry <- fit_catalog_entry(name)
 
   return(list(
-    version               = FIT_CACHE_VERSION,
-    name                  = name,
-    saved_at              = "synthetic",
-    fit_class             = entry[["class"]],
-    source_file           = entry[["source_file"]],
-    source_file_md5       = source_file_md5(entry[["source_file"]]),
-    package_source_md5    = package_source_md5(),
-    bayestools_source_md5 = bayestools_source_md5(),
-    has_loo               = entry[["has_loo"]],
-    has_waic              = entry[["has_waic"]],
-    has_marglik           = entry[["has_marglik"]],
-    has_metafor_info      = entry[["has_metafor"]]
+    schema_version                 = FIT_CACHE_SCHEMA_VERSION,
+    name                           = name,
+    saved_at                       = "synthetic",
+    fit_class                      = entry[["class"]],
+    source_file                    = entry[["source_file"]],
+    source_file_md5                = source_file_md5(entry[["source_file"]]),
+    package_source_md5             = package_source_md5(),
+    bayestools_backend_fingerprint = bayestools_backend_fingerprint(),
+    has_loo                        = entry[["has_loo"]],
+    has_waic                       = entry[["has_waic"]],
+    has_marglik                    = entry[["has_marglik"]],
+    has_metafor_info               = entry[["has_metafor"]]
   ))
 }
 
@@ -328,211 +328,6 @@ test_that("package source hash refreshes after source edits", {
   expect_false(identical(package_source_md5(), hash_before))
 })
 
-test_that("BayesTools fingerprint refreshes only after an explicit clear", {
-
-  package_root <- tempfile("bayestools-source-")
-  dir.create(file.path(package_root, "R"), recursive = TRUE)
-  dir.create(file.path(package_root, "src"), recursive = TRUE)
-  on.exit(unlink(package_root, recursive = TRUE), add = TRUE)
-
-  description_file <- file.path(package_root, "DESCRIPTION")
-  namespace_file   <- file.path(package_root, "NAMESPACE")
-  r_file           <- file.path(package_root, "R", "fit.R")
-  src_file         <- file.path(package_root, "src", "backend.cc")
-  writeLines(
-    c("Package: BayesTools", "Version: 1.0.0"),
-    description_file,
-    useBytes = TRUE
-  )
-  writeLines("export(fit)", namespace_file, useBytes = TRUE)
-  writeLines("fit <- function() 1", r_file, useBytes = TRUE)
-  writeLines("int backend() { return 1; }", src_file, useBytes = TRUE)
-
-  old_cache_names <- ls(envir = .bayestools_source_md5_cache)
-  old_cache       <- mget(
-    old_cache_names,
-    envir    = .bayestools_source_md5_cache,
-    inherits = FALSE
-  )
-  on.exit({
-    .clear_bayestools_source_md5_cache()
-    if (length(old_cache) > 0L) {
-      list2env(old_cache, envir = .bayestools_source_md5_cache)
-    }
-  }, add = TRUE)
-
-  reset_source_root <- function() {
-
-    .clear_bayestools_source_md5_cache()
-    assign(
-      "source_root",
-      normalizePath(package_root, winslash = "/", mustWork = TRUE),
-      envir = .bayestools_source_md5_cache
-    )
-  }
-  reset_source_root()
-
-  source_files <- .bayestools_source_files(relative = TRUE)
-  expect_true(all(c("R/fit.R", "src/backend.cc", "NAMESPACE") %in% source_files))
-
-  hash_before <- bayestools_source_md5()
-  writeLines(
-    c(readLines(r_file, warn = FALSE), "# source hash comment"),
-    r_file,
-    useBytes = TRUE
-  )
-  expect_identical(bayestools_source_md5(), hash_before)
-
-  writeLines("fit <- function() 22", r_file, useBytes = TRUE)
-  expect_identical(bayestools_source_md5(), hash_before)
-
-  reset_source_root()
-  hash_after_r_change <- bayestools_source_md5()
-  expect_false(identical(hash_after_r_change, hash_before))
-
-  writeLines("int backend() { return 22; }", src_file, useBytes = TRUE)
-  reset_source_root()
-  hash_after_native_change <- bayestools_source_md5()
-  expect_false(identical(hash_after_native_change, hash_after_r_change))
-
-  writeLines(
-    c("Package: BayesTools", "Version: 1.0.1"),
-    description_file,
-    useBytes = TRUE
-  )
-  reset_source_root()
-  expect_false(identical(
-    bayestools_source_md5(),
-    hash_after_native_change
-  ))
-})
-
-test_that("BayesTools fingerprint tracks installed build artifacts", {
-
-  package_root <- tempfile("bayestools-installed-")
-  dir.create(file.path(package_root, "R"), recursive = TRUE)
-  dir.create(file.path(package_root, "libs", "x64"), recursive = TRUE)
-  on.exit(unlink(package_root, recursive = TRUE), add = TRUE)
-
-  writeLines(
-    c("Package: BayesTools", "Version: 1.0.0"),
-    file.path(package_root, "DESCRIPTION"),
-    useBytes = TRUE
-  )
-  writeLines(
-    "useDynLib(BayesTools)",
-    file.path(package_root, "NAMESPACE"),
-    useBytes = TRUE
-  )
-  rdb_file <- file.path(package_root, "R", "BayesTools.rdb")
-  dll_file <- file.path(package_root, "libs", "x64", "BayesTools.dll")
-  writeBin(charToRaw("compiled R database"), rdb_file)
-  writeBin(charToRaw("native library"), dll_file)
-
-  old_cache_names <- ls(envir = .bayestools_source_md5_cache)
-  old_cache       <- mget(
-    old_cache_names,
-    envir    = .bayestools_source_md5_cache,
-    inherits = FALSE
-  )
-  on.exit({
-    .clear_bayestools_source_md5_cache()
-    if (length(old_cache) > 0L) {
-      list2env(old_cache, envir = .bayestools_source_md5_cache)
-    }
-  }, add = TRUE)
-
-  reset_source_root <- function() {
-
-    .clear_bayestools_source_md5_cache()
-    assign(
-      "source_root",
-      normalizePath(package_root, winslash = "/", mustWork = TRUE),
-      envir = .bayestools_source_md5_cache
-    )
-  }
-  reset_source_root()
-
-  source_files <- .bayestools_source_files(relative = TRUE)
-  expect_true(all(c(
-    "NAMESPACE",
-    "R/BayesTools.rdb",
-    "libs/x64/BayesTools.dll"
-  ) %in% source_files))
-
-  hash_before <- bayestools_source_md5()
-  writeBin(charToRaw("changed compiled R database"), rdb_file)
-  expect_identical(bayestools_source_md5(), hash_before)
-
-  reset_source_root()
-  expect_false(identical(bayestools_source_md5(), hash_before))
-})
-
-test_that("BayesTools fingerprint preserves loaded-root precedence", {
-
-  installed_root <- tempfile("bayestools-installed-root-")
-  source_root    <- tempfile("bayestools-source-root-")
-  dir.create(file.path(installed_root, "R"), recursive = TRUE)
-  dir.create(file.path(source_root, "R"), recursive = TRUE)
-  on.exit(unlink(c(installed_root, source_root), recursive = TRUE), add = TRUE)
-
-  for (root in c(installed_root, source_root)) {
-    writeLines(
-      c("Package: BayesTools", "Version: 1.0.0"),
-      file.path(root, "DESCRIPTION"),
-      useBytes = TRUE
-    )
-  }
-  writeBin(
-    charToRaw("compiled R database"),
-    file.path(installed_root, "R", "BayesTools.rdb")
-  )
-  writeLines(
-    "fit <- function() 1",
-    file.path(source_root, "R", "fit.R"),
-    useBytes = TRUE
-  )
-
-  candidates <- .bayestools_source_root_candidates(c(
-    installed_root,
-    source_root
-  ))
-  expect_identical(
-    candidates[[1L]],
-    normalizePath(installed_root, winslash = "/", mustWork = TRUE)
-  )
-})
-
-
-test_that("BayesTools fingerprint follows the loaded namespace", {
-
-  namespace_root <- getNamespaceInfo(asNamespace("BayesTools"), "path")
-  skip_if_not(
-    file.exists(file.path(namespace_root, "DESCRIPTION")) &&
-      dir.exists(file.path(namespace_root, "R")),
-    "Loaded BayesTools namespace does not expose a fingerprintable root."
-  )
-
-  old_cache_names <- ls(envir = .bayestools_source_md5_cache)
-  old_cache       <- mget(
-    old_cache_names,
-    envir    = .bayestools_source_md5_cache,
-    inherits = FALSE
-  )
-  on.exit({
-    .clear_bayestools_source_md5_cache()
-    if (length(old_cache) > 0L) {
-      list2env(old_cache, envir = .bayestools_source_md5_cache)
-    }
-  }, add = TRUE)
-
-  .clear_bayestools_source_md5_cache()
-  expect_identical(
-    .bayestools_source_root(),
-    normalizePath(namespace_root, winslash = "/", mustWork = TRUE)
-  )
-})
-
 test_that("R source hashes ignore comments and formatting", {
 
   file_a <- tempfile("robma-source-a-", fileext = ".R")
@@ -625,6 +420,26 @@ test_that("fit catalog mirrors test-01 save_fit calls", {
                info = "catalog source_file must match the test-01 file calling save_fit()")
 })
 
+test_that("BayesTools cache fingerprint fails closed", {
+
+  fingerprint <- BayesTools::fit_backend_fingerprint()
+  expect_identical(bayestools_backend_fingerprint(), fingerprint)
+
+  invalid_values <- list(NULL, NA_character_, "", "not-a-fingerprint", 1)
+  for (value in invalid_values) {
+    expect_error(
+      bayestools_backend_fingerprint(value = value),
+      "unavailable or invalid",
+      fixed = TRUE
+    )
+    expect_identical(
+      bayestools_backend_fingerprint(required = FALSE, value = value),
+      NA_character_
+    )
+  }
+})
+
+
 test_that("cache validation rejects corrupted synthetic metadata", {
 
   name     <- "bcg_meta-analysis"
@@ -643,6 +458,108 @@ test_that("cache validation rejects corrupted synthetic metadata", {
     ),
     character(),
     info = "valid synthetic metadata passes without cache files"
+  )
+  expect_identical(names(metadata), FIT_CACHE_METADATA_FIELDS)
+
+  invalid_metadata <- validate_cached_fit(
+    name        = name,
+    fit         = fit,
+    info        = info,
+    metadata    = "not-a-list",
+    check_files = FALSE,
+    deep        = TRUE
+  )
+  expect_true("metadata must be a list" %in% invalid_metadata)
+
+  stale_schema <- metadata
+  stale_schema[["schema_version"]] <- FIT_CACHE_SCHEMA_VERSION + 1L
+  expect_true(
+    "cache schema changed" %in% validate_cached_fit(
+      name        = name,
+      fit         = fit,
+      info        = info,
+      metadata    = stale_schema,
+      check_files = FALSE,
+      deep        = TRUE
+    )
+  )
+
+  missing_schema <- metadata
+  missing_schema[["schema_version"]] <- NULL
+  missing_schema_problems <- validate_cached_fit(
+    name        = name,
+    fit         = fit,
+    info        = info,
+    metadata    = missing_schema,
+    check_files = FALSE,
+    deep        = TRUE
+  )
+  expect_true("cache metadata fields changed" %in% missing_schema_problems)
+  expect_true("cache schema changed" %in% missing_schema_problems)
+
+  unexpected_field <- metadata
+  unexpected_field[["obsolete"]] <- TRUE
+  expect_true(
+    "cache metadata fields changed" %in% validate_cached_fit(
+      name        = name,
+      fit         = fit,
+      info        = info,
+      metadata    = unexpected_field,
+      check_files = FALSE,
+      deep        = TRUE
+    )
+  )
+
+  stale_name <- metadata
+  stale_name[["name"]] <- "wrong-name"
+  expect_true(
+    "metadata name mismatch" %in% validate_cached_fit(
+      name        = name,
+      fit         = fit,
+      info        = info,
+      metadata    = stale_name,
+      check_files = FALSE,
+      deep        = TRUE
+    )
+  )
+
+  stale_source_file <- metadata
+  stale_source_file[["source_file"]] <- "test-01-wrong.R"
+  expect_true(
+    "metadata source file mismatch" %in% validate_cached_fit(
+      name        = name,
+      fit         = fit,
+      info        = info,
+      metadata    = stale_source_file,
+      check_files = FALSE,
+      deep        = TRUE
+    )
+  )
+
+  unavailable_backend <- validate_cached_fit(
+    name                   = name,
+    fit                    = fit,
+    info                   = info,
+    metadata               = metadata,
+    check_files            = FALSE,
+    deep                   = TRUE,
+    bayestools_fingerprint = NA_character_
+  )
+  expect_true(
+    "BayesTools backend fingerprint unavailable" %in% unavailable_backend
+  )
+
+  malformed_backend <- validate_cached_fit(
+    name                   = name,
+    fit                    = fit,
+    info                   = info,
+    metadata               = metadata,
+    check_files            = FALSE,
+    deep                   = TRUE,
+    bayestools_fingerprint = "malformed"
+  )
+  expect_true(
+    "BayesTools backend fingerprint unavailable" %in% malformed_backend
   )
 
   stale_source <- metadata
@@ -676,10 +593,10 @@ test_that("cache validation rejects corrupted synthetic metadata", {
   }
 
   stale_bayestools <- metadata
-  stale_bayestools[["bayestools_source_md5"]] <- "not-current"
-  if (!is.na(bayestools_source_md5())) {
+  stale_bayestools[["bayestools_backend_fingerprint"]] <- "not-current"
+  if (!is.na(BayesTools::fit_backend_fingerprint())) {
     expect_true(
-      "BayesTools source hash changed" %in% validate_cached_fit(
+      "BayesTools backend changed" %in% validate_cached_fit(
         name        = name,
         fit         = fit,
         info        = info,
@@ -687,13 +604,13 @@ test_that("cache validation rejects corrupted synthetic metadata", {
         check_files = FALSE,
         deep        = TRUE
       ),
-      info = "BayesTools source hash is enforced"
+      info = "BayesTools backend fingerprint is enforced"
     )
 
     missing_bayestools <- metadata
-    missing_bayestools[["bayestools_source_md5"]] <- NULL
+    missing_bayestools[["bayestools_backend_fingerprint"]] <- NULL
     expect_true(
-      "BayesTools source hash changed" %in% validate_cached_fit(
+      "BayesTools backend changed" %in% validate_cached_fit(
         name        = name,
         fit         = fit,
         info        = info,
@@ -701,7 +618,7 @@ test_that("cache validation rejects corrupted synthetic metadata", {
         check_files = FALSE,
         deep        = TRUE
       ),
-      info = "missing BayesTools source hash is rejected"
+      info = "missing BayesTools backend fingerprint is rejected"
     )
   }
 

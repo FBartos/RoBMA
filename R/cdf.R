@@ -17,6 +17,17 @@
 # ============================================================================ #
 
 
+# Keep the finite-precision representation consistent with the documented
+# open-unit-interval CDF contract.
+.cdf_open_unit <- function(x) {
+
+  lower <- .Machine$double.xmin * .Machine$double.eps
+  upper <- 1 - .Machine$double.eps / 2
+
+  return(pmin(pmax(x, lower), upper))
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .outcome_cdf.norm
 # ---------------------------------------------------------------------------- #
@@ -59,7 +70,7 @@
     lower.tail = lower.tail
   )
 
-  return(cdf_vals)
+  return(.cdf_open_unit(cdf_vals))
 }
 
 
@@ -78,14 +89,16 @@
   sei_mat   <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
   total_sd  <- sqrt(tau_within^2 + sei_mat^2)
 
-  return(.selection_step_cdf_matrix(
+  cdf_vals <- .selection_step_cdf_matrix(
     q                 = yi,
     mean              = mu_samples,
     sd                = total_sd,
     sei               = sei,
     selection_context = selection_context,
     lower.tail        = lower.tail
-  ))
+  )
+
+  return(.cdf_open_unit(cdf_vals))
 }
 
 

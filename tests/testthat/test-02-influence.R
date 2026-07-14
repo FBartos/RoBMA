@@ -414,10 +414,10 @@ test_that("v14 brma.mv influence diagnostics return finite estimate-unit output"
   for (name in mv_names) {
     fit_brma <- fits[[name]]
     inf_brma <- suppressWarnings(influence(fit_brma))
-    dfbs     <- dfbetas(fit_brma)
+    dfbs     <- .with_expected_pareto_warnings_muffled(stats::dfbetas(fit_brma))
     dff      <- suppressWarnings(dffits(fit_brma))
     cook     <- suppressWarnings(cooks.distance(fit_brma))
-    covr     <- covratio(fit_brma)
+    covr     <- .with_expected_pareto_warnings_muffled(stats::covratio(fit_brma))
     inf_mat  <- as.matrix(inf_brma[["inf"]])
     dfbs_mat <- as.matrix(inf_brma[["dfbs"]])
 

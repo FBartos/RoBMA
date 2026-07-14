@@ -519,9 +519,37 @@ marginal_means_interaction_plot_cases <- function() {
   )
 }
 
+.announce_existing_visual_snapshots <- function() {
+
+  snapshotter <- getOption("testthat.snapshotter")
+  if (is.null(snapshotter) || !snapshotter$is_active() ||
+      is.null(snapshotter$file) || !nzchar(snapshotter$file)) {
+    return(invisible(FALSE))
+  }
+
+  snapshot_dir <- testthat::test_path("_snaps", snapshotter$file)
+  if (!dir.exists(snapshot_dir)) {
+    return(invisible(FALSE))
+  }
+
+  snapshots <- list.files(snapshot_dir)
+  snapshots <- snapshots[!grepl(".new.", snapshots, fixed = TRUE)]
+  for (snapshot in snapshots) {
+    # Equivalent to announce_snapshot_file(), without requiring edition 3.
+    snapshotter$announce_file_snapshot(snapshot)
+  }
+
+  return(invisible(TRUE))
+}
+
 skip_if_not_full_visuals <- function(reason = NULL) {
 
   if (!is_true_env("ROBMA_TEST_FULL_VISUALS")) {
+    # Conditional file snapshots must be announced before skipping or testthat
+    # treats their committed baselines as obsolete. Full-visual runs still
+    # exercise every snapshot and therefore retain normal stale-file cleanup.
+    .announce_existing_visual_snapshots()
+
     detail <- if (is.null(reason)) "" else paste0(" ", reason)
     testthat::skip(paste0(
       "Skipping extended visual gallery by default.",

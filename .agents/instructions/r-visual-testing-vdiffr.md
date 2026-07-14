@@ -54,6 +54,11 @@ skip_if_not_full_visuals("This variant duplicates core visual coverage.")
 ```
 
 Set `ROBMA_TEST_FULL_VISUALS=TRUE` only when intentionally running those cases.
+Use `skip_if_not_full_visuals()` rather than a raw `testthat::skip()` for these
+galleries. The helper announces existing conditional snapshots before skipping,
+which prevents ordinary test runs from deleting their committed baselines.
+The shared cached-fit skip helpers do the same when visual files cannot run
+because their required fits are missing or stale.
 
 ## Data-Return Tests
 

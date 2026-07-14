@@ -25,9 +25,16 @@ test_that("DFBETAS for location-scale models expose location and scale terms", {
 
   fit_brma <- fits[[name]]
 
-  expect_dfbetas_table(dfbetas(fit_brma), nobs(fit_brma), info = name)
-  expect_dfbetas_table(dfbetas(fit_brma, type = "scale"), nobs(fit_brma),
-                       info = paste(name, "scale"))
+  expect_dfbetas_table(
+    .dfbetas_for_parity(fit_brma),
+    nobs(fit_brma),
+    info = name
+  )
+  expect_dfbetas_table(
+    .dfbetas_for_parity(fit_brma, type = "scale"),
+    nobs(fit_brma),
+    info = paste(name, "scale")
+  )
 })
 
 test_that("DFBETAS outputs use study-label row names", {
@@ -38,9 +45,9 @@ test_that("DFBETAS outputs use study-label row names", {
   fit_brma <- fits[[name]]
   labels   <- RoBMA:::.diagnostic_study_labels(fit_brma)
 
-  expect_equal(rownames(dfbetas(fit_brma)), labels)
+  expect_equal(rownames(.dfbetas_for_parity(fit_brma)), labels)
   expect_equal(
-    rownames(dfbetas(fit_brma, return_loo_estimates = TRUE)),
+    rownames(.dfbetas_for_parity(fit_brma, return_loo_estimates = TRUE)),
     labels
   )
 })
@@ -52,17 +59,21 @@ test_that("DFBETAS for selection models expose bias terms", {
 
   fit_pos <- fits[["dat.lehmann2018-3PSM"]]
   fit_neg <- fits[["dat.lehmann2018-3PSM_neg"]]
-  dfb_pos <- dfbetas(fit_pos)
-  dfb_neg <- dfbetas(fit_neg)
+  dfb_pos <- .dfbetas_for_parity(fit_pos)
+  dfb_neg <- .dfbetas_for_parity(fit_neg)
 
   expect_equal(dfb_pos[-4, 1], -dfb_neg[-4, 1], tolerance = 0.01,
                info = "positive and negative selection DFBETAS flip")
 
   for (name in c("dat.lehmann2018-3PSM", "dat.lehmann2018-3PSMreg")) {
     fit_brma <- fits[[name]]
-    expect_dfbetas_table(dfbetas(fit_brma), nobs(fit_brma), info = name)
+    expect_dfbetas_table(
+      .dfbetas_for_parity(fit_brma),
+      nobs(fit_brma),
+      info = name
+    )
 
-    bias_dfbetas <- dfbetas(fit_brma, type = "bias")
+    bias_dfbetas <- .dfbetas_for_parity(fit_brma, type = "bias")
     expect_dfbetas_table(bias_dfbetas, nobs(fit_brma), info = paste(name, "bias"))
     expect_true(any(grepl("^omega", colnames(bias_dfbetas))), info = name)
   }
@@ -88,7 +99,7 @@ test_that("DFBETAS for PET and PEESE expose publication-bias terms", {
     name          <- bias_cases[["name"]][[i]]
     expected_col  <- bias_cases[["column"]][[i]]
     fit_brma      <- fits[[name]]
-    bias_dfbetas  <- dfbetas(fit_brma, type = "bias")
+    bias_dfbetas  <- .dfbetas_for_parity(fit_brma, type = "bias")
 
     expect_dfbetas_table(bias_dfbetas, nobs(fit_brma), info = paste(name, "bias"))
     expect_true(expected_col %in% colnames(bias_dfbetas), info = name)
@@ -102,7 +113,7 @@ test_that("DFBETAS for GLMM fits are finite", {
 
   for (name in model_names) {
     fit_brma <- fits[[name]]
-    expect_dfbetas_table(dfbetas(fit_brma), nobs(fit_brma), info = name)
+    expect_dfbetas_table(.dfbetas_for_parity(fit_brma), nobs(fit_brma), info = name)
   }
 })
 
@@ -128,13 +139,20 @@ test_that("DFBETAS for model-averaging fits are internally consistent", {
     name     <- cases[["name"]][[i]]
     type     <- cases[["type"]][[i]]
     fit_brma <- fits[[name]]
-    dfb      <- if (is.na(type)) dfbetas(fit_brma) else dfbetas(fit_brma, type = type)
+    dfb      <- if (is.na(type)) {
+      .dfbetas_for_parity(fit_brma)
+    } else {
+      .dfbetas_for_parity(fit_brma, type = type)
+    }
 
     expect_dfbetas_table(dfb, nobs(fit_brma), min_cols = cases[["min_cols"]][[i]],
                          info = name)
   }
 
-  bias_dfbetas <- dfbetas(fits[["dat.lehmann2018_RoBMA"]], type = "bias")
+  bias_dfbetas <- .dfbetas_for_parity(
+    fits[["dat.lehmann2018_RoBMA"]],
+    type = "bias"
+  )
   expect_dfbetas_table(bias_dfbetas, nobs(fits[["dat.lehmann2018_RoBMA"]]),
                        min_cols = 3, info = "RoBMA bias")
   expect_true(any(grepl("^omega", colnames(bias_dfbetas))))

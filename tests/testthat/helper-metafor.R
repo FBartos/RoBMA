@@ -764,6 +764,27 @@ expect_vif_matches_metafor <- function(case) {
   )
 }
 
+.with_expected_pareto_warnings_muffled <- function(expr) {
+
+  withCallingHandlers(
+    expr,
+    warning = function(condition) {
+      expected <- startsWith(
+        conditionMessage(condition),
+        "Some Pareto k values are high (> 0.7)"
+      )
+      if (expected) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+}
+
+.dfbetas_for_parity <- function(...) {
+
+  return(.with_expected_pareto_warnings_muffled(stats::dfbetas(...)))
+}
+
 expect_dfbetas_match_metafor <- function(case) {
 
   name        <- case_name(case)
@@ -772,7 +793,7 @@ expect_dfbetas_match_metafor <- function(case) {
   oracle      <- case_value(case, "oracle", "equal")
   tolerance   <- case_value(case, "tolerance", 0.10)
 
-  brma_dfbetas <- dfbetas(fit_brma)
+  brma_dfbetas <- .dfbetas_for_parity(fit_brma)
   if (oracle == "structure") {
     expect_dfbetas_table(brma_dfbetas, nobs(fit_brma), info = name)
     return(invisible(TRUE))

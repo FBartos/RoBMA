@@ -4,9 +4,22 @@
 if (!exists("GENERATE_REFERENCE_FILES")) {
   GENERATE_REFERENCE_FILES <- FALSE
 }
-if (!exists("FIT_CACHE_VERSION")) {
-  FIT_CACHE_VERSION <- 5L
-}
+
+FIT_CACHE_SCHEMA_VERSION <- 6L
+FIT_CACHE_METADATA_FIELDS <- c(
+  "schema_version",
+  "name",
+  "saved_at",
+  "fit_class",
+  "source_file",
+  "source_file_md5",
+  "package_source_md5",
+  "bayestools_backend_fingerprint",
+  "has_loo",
+  "has_waic",
+  "has_marglik",
+  "has_metafor_info"
+)
 
 .common_functions_dir <- function() {
 
@@ -539,20 +552,11 @@ source_file_md5 <- function(source_file) {
 }
 
 .package_source_md5_cache <- new.env(parent = emptyenv())
-.bayestools_source_md5_cache <- new.env(parent = emptyenv())
 
 .clear_package_source_md5_cache <- function() {
 
   rm(list = ls(envir = .package_source_md5_cache),
      envir = .package_source_md5_cache)
-
-  return(invisible(TRUE))
-}
-
-.clear_bayestools_source_md5_cache <- function() {
-
-  rm(list = ls(envir = .bayestools_source_md5_cache),
-     envir = .bayestools_source_md5_cache)
 
   return(invisible(TRUE))
 }
@@ -833,208 +837,25 @@ package_source_md5 <- function() {
   return(value)
 }
 
-.bayestools_source_root_candidates <- function(candidates) {
+bayestools_backend_fingerprint <- function(
+    required = TRUE,
+    value    = BayesTools::fit_backend_fingerprint()) {
 
-  candidates <- unique(candidates[!is.na(candidates) & nzchar(candidates)])
-  candidates <- unique(normalizePath(
-    candidates,
-    winslash = "/",
-    mustWork = FALSE
-  ))
-  valid <- vapply(candidates, function(candidate) {
-    file.exists(file.path(candidate, "DESCRIPTION")) &&
-      dir.exists(file.path(candidate, "R"))
-  }, logical(1))
-
-  return(candidates[valid])
-}
-
-.bayestools_source_root <- function() {
-
-  if (exists("source_root", envir = .bayestools_source_md5_cache,
-             inherits = FALSE)) {
-    return(get("source_root", envir = .bayestools_source_md5_cache,
-               inherits = FALSE))
-  }
-
-  namespace_root <- tryCatch(
-    getNamespaceInfo(asNamespace("BayesTools"), "path"),
-    error = function(e) ""
-  )
-  installed_root <- system.file(package = "BayesTools")
-  robma_root      <- .fit_cache_source_root()
-  sibling_root    <- if (is.na(robma_root)) {
-    ""
-  } else {
-    file.path(dirname(robma_root), "BayesTools")
-  }
-  candidates <- .bayestools_source_root_candidates(
-    c(namespace_root, installed_root, sibling_root)
-  )
-
-  for (candidate in candidates) {
-    assign("source_root", candidate, envir = .bayestools_source_md5_cache)
-    return(candidate)
-  }
-
-  assign("source_root", NA_character_, envir = .bayestools_source_md5_cache)
-  return(NA_character_)
-}
-
-.bayestools_source_version <- function(package_root = NULL) {
-
-  if (is.null(package_root)) {
-    package_root <- .bayestools_source_root()
-  }
-  if (!is.na(package_root)) {
-    description <- file.path(package_root, "DESCRIPTION")
-    version <- tryCatch(
-      read.dcf(description, fields = "Version")[[1L]],
-      error = function(e) NA_character_
+  valid <- is.character(value) && length(value) == 1L && !is.na(value) &&
+    grepl("^[[:xdigit:]]{32}$", value)
+  if (!valid && required) {
+    stop(
+      "BayesTools backend fingerprint is unavailable or invalid.",
+      call. = FALSE
     )
-    if (!is.na(version) && nzchar(version)) {
-      return(version)
-    }
   }
-
-  tryCatch(
-    as.character(utils::packageVersion("BayesTools")),
-    error = function(e) NA_character_
-  )
-}
-
-.bayestools_source_files <- function(package_root = NULL, relative = FALSE) {
-
-  if (is.null(package_root)) {
-    package_root <- .bayestools_source_root()
-  }
-  if (is.na(package_root)) {
-    return(character())
-  }
-  package_root <- normalizePath(package_root, winslash = "/", mustWork = FALSE)
-
-  r_root         <- file.path(package_root, "R")
-  source_r_files <- if (dir.exists(r_root)) {
-    list.files(
-      r_root,
-      pattern    = "\\.[Rr]$",
-      recursive  = TRUE,
-      full.names = TRUE
-    )
-  } else {
-    character()
-  }
-  is_source_tree <- length(source_r_files) > 0L
-
-  if (is_source_tree) {
-    src_root  <- file.path(package_root, "src")
-    src_files <- if (dir.exists(src_root)) {
-      list.files(src_root, recursive = TRUE, full.names = TRUE)
-    } else {
-      character()
-    }
-    src_extensions <- c(
-      "c", "cc", "cpp", "cxx", "f", "f77", "f90", "f95",
-      "h", "hh", "hpp", "hxx", "inc"
-    )
-    src_files <- src_files[
-      tolower(tools::file_ext(src_files)) %in% src_extensions |
-        grepl("^Makevars", basename(src_files))
-    ]
-    root_files <- file.path(
-      package_root,
-      c("NAMESPACE", "configure", "configure.win", "cleanup", "cleanup.win")
-    )
-    source_files <- c(source_r_files, src_files, root_files[file.exists(root_files)])
-  } else {
-    installed_roots <- file.path(package_root, c("R", "libs"))
-    source_files <- unlist(lapply(installed_roots, function(path) {
-      if (!dir.exists(path)) {
-        return(character())
-      }
-      list.files(path, recursive = TRUE, full.names = TRUE)
-    }), use.names = FALSE)
-    namespace <- file.path(package_root, "NAMESPACE")
-    if (file.exists(namespace)) {
-      source_files <- c(source_files, namespace)
-    }
-  }
-
-  source_files <- sort(unique(normalizePath(
-    source_files[file.exists(source_files)],
-    winslash = "/",
-    mustWork = TRUE
-  )))
-  if (relative) {
-    return(substring(source_files, nchar(package_root) + 2L))
-  }
-
-  return(source_files)
-}
-
-bayestools_source_md5 <- function() {
-
-  # BayesTools owns the generic fitting-backend contract. The local source-root
-  # branch remains only as an injectable test seam for synthetic package trees.
-  if (!exists("source_root", envir = .bayestools_source_md5_cache,
-              inherits = FALSE)) {
-    namespace <- asNamespace("BayesTools")
-    if (exists("fit_backend_fingerprint", envir = namespace,
-               inherits = FALSE)) {
-      fingerprint <- get(
-        "fit_backend_fingerprint",
-        envir    = namespace,
-        inherits = FALSE
-      )
-      return(fingerprint())
-    }
-
-    # Compatibility with installed BayesTools versions predating the public
-    # backend fingerprint. Hash the loaded namespace tree below.
-    .bayestools_source_root()
-  }
-
-  if (exists("value", envir = .bayestools_source_md5_cache,
-             inherits = FALSE)) {
-    return(get("value", envir = .bayestools_source_md5_cache,
-               inherits = FALSE))
-  }
-
-  package_root <- .bayestools_source_root()
-  version      <- .bayestools_source_version(package_root)
-  if (is.na(version)) {
-    assign("value", NA_character_, envir = .bayestools_source_md5_cache)
+  if (!valid) {
     return(NA_character_)
   }
 
-  # BayesTools does not yet expose a stable fit-affecting manifest. Hash its
-  # complete executable R/native surface conservatively so cache reuse cannot
-  # silently cross dependency implementations.
-  source_files <- .bayestools_source_files(package_root = package_root)
-  file_hashes <- if (length(source_files) > 0L) {
-    vapply(source_files, .fit_cache_source_file_md5, character(1))
-  } else {
-    character()
-  }
-  relative_files <- if (length(source_files) > 0L) {
-    substring(source_files, nchar(package_root) + 2L)
-  } else {
-    character()
-  }
-  hash_input <- c(
-    paste0("Version:", version),
-    paste0(relative_files, ":", unname(file_hashes))
-  )
-
-  normalized <- tempfile("bayestools-package-source-", fileext = ".txt")
-  writeLines(hash_input, normalized, useBytes = TRUE)
-  on.exit(unlink(normalized), add = TRUE)
-
-  value <- unname(tools::md5sum(normalized))
-  assign("value", value, envir = .bayestools_source_md5_cache)
-
   return(value)
 }
+
 
 fit_cache_metadata <- function(name, fit, info = NULL) {
 
@@ -1042,18 +863,18 @@ fit_cache_metadata <- function(name, fit, info = NULL) {
   source_file <- if (is.null(entry)) NA_character_ else entry[["source_file"]]
 
   metadata <- list(
-    version               = FIT_CACHE_VERSION,
-    name                  = name,
-    saved_at              = format(Sys.time(), usetz = TRUE),
-    fit_class             = class(fit),
-    source_file           = source_file,
-    source_file_md5       = source_file_md5(source_file),
-    package_source_md5    = package_source_md5(),
-    bayestools_source_md5 = bayestools_source_md5(),
-    has_loo               = !is.null(fit[["loo"]]),
-    has_waic              = !is.null(fit[["waic"]]),
-    has_marglik           = !is.null(fit[["marglik"]]),
-    has_metafor_info      = !is.null(info) &&
+    schema_version                 = FIT_CACHE_SCHEMA_VERSION,
+    name                           = name,
+    saved_at                       = format(Sys.time(), usetz = TRUE),
+    fit_class                      = class(fit),
+    source_file                    = source_file,
+    source_file_md5                = source_file_md5(source_file),
+    package_source_md5             = package_source_md5(),
+    bayestools_backend_fingerprint = bayestools_backend_fingerprint(),
+    has_loo                        = !is.null(fit[["loo"]]),
+    has_waic                       = !is.null(fit[["waic"]]),
+    has_marglik                    = !is.null(fit[["marglik"]]),
+    has_metafor_info               = !is.null(info) &&
       "metafor" %in% names(info) && !is.null(info[["metafor"]])
   )
 
@@ -1155,7 +976,11 @@ is_false_env <- function(name) {
 
 validate_cached_fit <- function(name, fit = NULL, info = NULL,
                                 metadata = NULL, check_source = TRUE,
-                                check_files = TRUE, deep = FALSE) {
+                                check_files = TRUE, deep = FALSE,
+                                bayestools_fingerprint =
+                                  bayestools_backend_fingerprint(
+                                    required = FALSE
+                                  )) {
 
   messages <- character()
   paths    <- fit_cache_paths(name)
@@ -1178,14 +1003,28 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
   }
   if (is.null(metadata)) {
     messages <- c(messages, "metadata file is missing")
+  } else if (!is.list(metadata)) {
+    messages <- c(messages, "metadata must be a list")
+    metadata <- NULL
   }
 
   if (!is.null(entry) && !is.null(metadata)) {
-    if (is.null(metadata[["version"]]) || !identical(metadata[["version"]], FIT_CACHE_VERSION)) {
-      messages <- c(messages, "cache version changed")
+    if (!identical(names(metadata), FIT_CACHE_METADATA_FIELDS)) {
+      messages <- c(messages, "cache metadata fields changed")
     }
-    if (!is.null(metadata[["name"]]) && !identical(metadata[["name"]], name)) {
+    if (is.null(metadata[["schema_version"]]) ||
+        !identical(
+          metadata[["schema_version"]],
+          FIT_CACHE_SCHEMA_VERSION
+        )) {
+      messages <- c(messages, "cache schema changed")
+    }
+    if (is.null(metadata[["name"]]) || !identical(metadata[["name"]], name)) {
       messages <- c(messages, "metadata name mismatch")
+    }
+    if (is.null(metadata[["source_file"]]) ||
+        !identical(metadata[["source_file"]], entry[["source_file"]])) {
+      messages <- c(messages, "metadata source file mismatch")
     }
     if (is.null(metadata[["fit_class"]]) || !entry[["class"]] %in% metadata[["fit_class"]]) {
       messages <- c(messages, paste0("metadata fit class does not include '", entry[["class"]], "'"))
@@ -1234,14 +1073,20 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
       messages <- c(messages, "cache source hash changed")
     }
 
-    expected_bayestools_md5 <- bayestools_source_md5()
-    if (check_source && !is.na(expected_bayestools_md5) &&
-        (is.null(metadata[["bayestools_source_md5"]]) ||
-         !identical(
-           metadata[["bayestools_source_md5"]],
-           expected_bayestools_md5
-         ))) {
-      messages <- c(messages, "BayesTools source hash changed")
+    if (check_source) {
+      bayestools_fingerprint <- bayestools_backend_fingerprint(
+        required = FALSE,
+        value    = bayestools_fingerprint
+      )
+      if (is.na(bayestools_fingerprint)) {
+        messages <- c(messages, "BayesTools backend fingerprint unavailable")
+      } else if (is.null(metadata[["bayestools_backend_fingerprint"]]) ||
+                 !identical(
+                   metadata[["bayestools_backend_fingerprint"]],
+                   bayestools_fingerprint
+                 )) {
+        messages <- c(messages, "BayesTools backend changed")
+      }
     }
   }
 
@@ -1304,6 +1149,9 @@ is_cached_fit_valid <- function(name, check_source = TRUE, deep = FALSE) {
 skip_if_no_fits <- function() {
 
   if (length(list_fits(validate = TRUE)) == 0) {
+    if (exists(".announce_existing_visual_snapshots", mode = "function")) {
+      .announce_existing_visual_snapshots()
+    }
     skip("No valid cached fits available. Run `devtools::test(filter = '01-')` first.")
   }
 }
@@ -1312,6 +1160,9 @@ skip_if_missing_fits <- function(names) {
 
   missing <- setdiff(names, list_fits(validate = TRUE))
   if (length(missing) > 0) {
+    if (exists(".announce_existing_visual_snapshots", mode = "function")) {
+      .announce_existing_visual_snapshots()
+    }
     skip(paste0("Required pre-fitted models missing or stale: ", paste(missing, collapse = ", ")))
   }
 }
@@ -1620,7 +1471,6 @@ clean_cached_fits <- function(name) {
     .clear_info_object_cache()
   }
   .clear_package_source_md5_cache()
-  .clear_bayestools_source_md5_cache()
 
   message("Cleaned cached fits in: ", test_files_dir)
 
