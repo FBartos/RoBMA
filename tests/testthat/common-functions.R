@@ -728,6 +728,23 @@ source_file_md5 <- function(source_file) {
     }
   }
 
+  text_extensions <- c(
+    "c", "cc", "cpp", "cxx", "f", "f77", "f90", "f95",
+    "h", "hh", "hpp", "hxx", "inc", "in"
+  )
+  text_basenames <- c(
+    "NAMESPACE", "Makevars", "Makevars.in", "Makevars.ucrt", "Makevars.win",
+    "configure", "configure.win", "cleanup", "cleanup.win"
+  )
+  if (extension %in% text_extensions || basename(path) %in% text_basenames) {
+    lines      <- readLines(path, warn = FALSE)
+    normalized <- tempfile("robma-package-source-", fileext = ".txt")
+    writeLines(lines, normalized, useBytes = TRUE)
+    on.exit(unlink(normalized), add = TRUE)
+
+    return(unname(tools::md5sum(normalized)))
+  }
+
   return(unname(tools::md5sum(path)))
 }
 
