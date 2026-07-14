@@ -33,15 +33,35 @@
 #'
 #' @param object an object returned by [hypothesis()] with
 #'   `density_method = "qCMDE"` or `density_method = "IWMDE"`, or an
-#'   `iwmde_ordinate_error` caught from a rejected point-ordinate computation.
+#'   `RoBMA_density_ordinate_error` caught from a rejected point-ordinate
+#'   computation.
 #' @param ... unused.
 #'
-#' @return A data frame of class `iwmde_density_diagnostics`, with one row per
+#' @return A data frame of class `RoBMA_density_diagnostics`, with one row per
 #' computed point ordinate. Columns identify the estimator, parameter, requested
 #' and evaluated values, schema/source provenance, row counts, active mass,
 #' relative MCSE, ESS, largest contribution share, finite terms, normalization
 #' and quadrature checks, adaptive-budget state, policy thresholds, weight
 #' fallbacks, status, and warnings.
+#'
+#' The exact columns, in order, are `schema_version`, `algorithm_version`,
+#' `source_fingerprint`, `estimator`, `density_method`, `parameter`, `level`,
+#' `requested_value`, `evaluation_value`, `achieved_row_budget`, `eligible_rows`,
+#' `evaluated_rows`, `retained_rows`, `finite_terms`, `row_drop_fraction`,
+#' `active_mass`, `relative_mcse`, `ess`, `max_weight_share`,
+#' `normalization_relative_error`, `stability_metric`,
+#' `stability_relative_error`, `ordinate_relative_change`,
+#' `quadrature_relative_change`, `target_relative_mcse`,
+#' `stability_warning_threshold`, `stability_rejection_threshold`,
+#' `quadrature_warning_threshold`, `quadrature_rejection_threshold`,
+#' `warning_relative_mcse`, `rejection_relative_mcse`,
+#' `warning_min_finite_terms`, `rejection_min_finite_terms`, `warning_min_ess`,
+#' `rejection_min_ess`, `warning_max_weight_share`,
+#' `rejection_max_weight_share`, `warning_row_drop_fraction`,
+#' `rejection_row_drop_fraction`, `hard_cap`, `hard_cap_reached`,
+#' `all_rows_used`, `adaptation_steps`, `target_met`, `precision_target_met`,
+#' `bf_grade_met`, `n_weight_fallbacks`, `weight_fallback_reasons`, `status`,
+#' and `warnings`.
 #'
 #' @examples \dontrun{
 #' result <- hypothesis(
@@ -57,7 +77,7 @@
 #'     hypothesis     = "mu != 0 vs mu = 0",
 #'     density_method = "IWMDE"
 #'   ),
-#'   iwmde_ordinate_error = identity
+#'   RoBMA_density_ordinate_error = identity
 #' )
 #' density_diagnostics(failed)
 #' }
@@ -74,19 +94,16 @@ density_diagnostics <- function(object, ...) {
 #' @export
 density_diagnostics.default <- function(object, ...) {
 
-  diagnostics <- if (inherits(object, "iwmde_ordinate_error")) {
-    object[["density_diagnostics"]]
-  } else {
-    attr(object, "density_diagnostics", exact = TRUE)
-  }
-  if (is.null(diagnostics)) {
-    stop(
-      "No qCMDE/IWMDE point-ordinate diagnostics are attached to 'object'.",
-      call. = FALSE
-    )
-  }
-
-  return(diagnostics)
+  .warn_unused_dots(
+    dots    = list(...),
+    allowed = character(),
+    caller  = "density_diagnostics()"
+  )
+  stop(
+    "No density diagnostics method is available for objects of class ",
+    paste0("'", class(object), "'", collapse = ", "), ".",
+    call. = FALSE
+  )
 }
 
 
@@ -98,10 +115,9 @@ density_diagnostics.default <- function(object, ...) {
     list(
       message             = message,
       call                = NULL,
-      density_diagnostics = diagnostics,
-      estimate            = estimate
+      density_diagnostics = diagnostics
     ),
-    class = c("iwmde_ordinate_error", "error", "condition")
+    class = c("RoBMA_density_ordinate_error", "error", "condition")
   )
 
   stop(condition)
@@ -120,7 +136,27 @@ density_diagnostics.default <- function(object, ...) {
 #' @export
 density_diagnostics.BayesTools_hypothesis_BF <- function(object, ...) {
 
-  return(density_diagnostics.default(object, ...))
+  .warn_unused_dots(
+    dots    = list(...),
+    allowed = character(),
+    caller  = "density_diagnostics()"
+  )
+  diagnostics <- attr(object, "density_diagnostics", exact = TRUE)
+
+  return(.density_diagnostics_validate(diagnostics))
+}
+
+
+#' @export
+density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
+
+  .warn_unused_dots(
+    dots    = list(...),
+    allowed = character(),
+    caller  = "density_diagnostics()"
+  )
+
+  return(.density_diagnostics_validate(object[["density_diagnostics"]]))
 }
 
 
@@ -144,7 +180,7 @@ density_diagnostics.BayesTools_hypothesis_BF <- function(object, ...) {
   out <- do.call(rbind, rows)
   out <- out[!duplicated(out), , drop = FALSE]
   rownames(out) <- NULL
-  class(out) <- c("iwmde_density_diagnostics", "data.frame")
+  class(out) <- c("RoBMA_density_diagnostics", "data.frame")
 
   return(out)
 }
@@ -205,11 +241,11 @@ density_diagnostics.BayesTools_hypothesis_BF <- function(object, ...) {
       diagnostics,
       c("n_normalized_rows", "n_estimator_rows")
     ),
-    row_drop_fraction = .iwmde_diagnostics_row_loss_fraction(diagnostics),
     finite_terms = .iwmde_public_integer_any(
       diagnostics,
       "finite_terms"
     ),
+    row_drop_fraction = .iwmde_diagnostics_row_loss_fraction(diagnostics),
     active_mass = .iwmde_public_numeric(diagnostics[["active_mass"]]),
     relative_mcse = .iwmde_public_numeric(diagnostics[["relative_mcse"]]),
     ess = .iwmde_public_numeric(diagnostics[["ess"]]),
@@ -306,9 +342,36 @@ density_diagnostics.BayesTools_hypothesis_BF <- function(object, ...) {
     n_weight_fallbacks = integer(), weight_fallback_reasons = character(),
     status = character(), warnings = character(), stringsAsFactors = FALSE
   )
-  class(out) <- c("iwmde_density_diagnostics", "data.frame")
+  class(out) <- c("RoBMA_density_diagnostics", "data.frame")
 
   return(out)
+}
+
+
+# Validate the stable public density-diagnostics schema.
+.density_diagnostics_validate <- function(diagnostics) {
+
+  template <- .iwmde_empty_public_density_diagnostics()
+  if (!inherits(diagnostics, "RoBMA_density_diagnostics") ||
+      !is.data.frame(diagnostics) ||
+      !identical(names(diagnostics), names(template))) {
+    stop(
+      "Attached density diagnostics do not satisfy the RoBMA public schema.",
+      call. = FALSE
+    )
+  }
+
+  valid_types <- vapply(seq_along(template), function(i) {
+    identical(typeof(diagnostics[[i]]), typeof(template[[i]]))
+  }, logical(1))
+  if (!all(valid_types)) {
+    stop(
+      "Attached density diagnostics do not satisfy the RoBMA public schema.",
+      call. = FALSE
+    )
+  }
+
+  return(diagnostics)
 }
 
 

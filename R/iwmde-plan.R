@@ -629,35 +629,6 @@
 }
 
 
-.iwmde_estimate_request_provenance <- function(plan, attribute = c("density", "ordinate"),
-                                               value = NULL) {
-
-  attribute <- match.arg(attribute)
-  if (is.null(value)) {
-    value <- if (identical(attribute, "ordinate")) {
-      plan[["outputs"]][["requested_values"]]
-    } else {
-      NULL
-    }
-  }
-  if (length(value) > 1L) {
-    value <- value[[1L]]
-  }
-
-  .iwmde_provenance_request(
-    density_method      = plan[["density_method"]],
-    method              = plan[["method"]],
-    metadata            = plan[["target"]][["metadata"]],
-    density_control     = plan[["control"]],
-    value               = value,
-    attribute           = attribute,
-    target_key          = plan[["target"]][["target_key"]],
-    source_fingerprint  = plan[["source_fingerprint"]],
-    plan_key            = plan[["plan_key"]]
-  )
-}
-
-
 .iwmde_request_provenance <- function(context, parameter, density_method,
                                       density_control,
                                       attribute = c("density", "ordinate"),

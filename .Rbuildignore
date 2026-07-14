@@ -49,4 +49,3 @@ _pkgdown.yml
 ^\.git$
 ^RMA_MV_.*\.(md|html)$
 ^ROBMA_KNOWN_R_MARGINALIZATION_.*\.md$
-^IWMDE_QCMDE_BRANCH_REVIEW\.md$

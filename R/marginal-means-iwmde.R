@@ -2,7 +2,7 @@
 # Marginal-Means qCMDE/IWMDE Helpers
 # ============================================================================ #
 
-.marginal_means_precompute_type <- function(type) {
+.marginal_means_precompute_type <- function(type, model_averaged) {
 
   if (is.null(type)) {
     return(c("averaged", "conditional"))
@@ -10,6 +10,10 @@
 
   BayesTools::check_char(type, "type", check_length = 0, allow_NA = FALSE)
   type <- match.arg(type, c("averaged", "conditional"), several.ok = TRUE)
+  if (!isTRUE(model_averaged) && "conditional" %in% type) {
+    stop("The 'type' argument is available only for RoBMA marginal means.",
+         call. = FALSE)
+  }
 
   return(unique(type))
 }
@@ -24,6 +28,26 @@
   BayesTools::check_char(levels, "levels", check_length = 0, allow_NA = FALSE)
 
   return(unique(levels))
+}
+
+
+# Extract the fitted source object stored by marginal_means().
+.iwmde_marginal_means_source_object <- function(marginal_means_object) {
+
+  if (!inherits(marginal_means_object, "marginal_means.brma")) {
+    stop("'marginal_means_object' must inherit from 'marginal_means.brma'.",
+         call. = FALSE)
+  }
+
+  source_object <- marginal_means_object[["source_object"]]
+  if (is.null(source_object) ||
+      !inherits(source_object, "brma") ||
+      is.null(source_object[["fit"]])) {
+    stop("'marginal_means_object' does not contain the source fitted brma object.",
+         call. = FALSE)
+  }
+
+  return(source_object)
 }
 
 
@@ -150,9 +174,9 @@
     )
   }
 
-  marginal_means_object[["iwmde_diagnostics"]] <- diagnostics
-  marginal_means_object[["iwmde_ordinate_diagnostics"]] <- ordinate_diagnostics
-  marginal_means_object[["iwmde_settings"]] <- list(
+  marginal_means_object[["density_diagnostics"]] <- diagnostics
+  marginal_means_object[["ordinate_diagnostics"]] <- ordinate_diagnostics
+  marginal_means_object[["density_settings"]] <- list(
     n_points             = n_points,
     max_samples          = max_samples,
     normalization_points = normalization_points,
@@ -167,7 +191,7 @@
     levels               = levels,
     include_ordinates    = isTRUE(include_ordinates)
   )
-  marginal_means_object[["iwmde_ordinate_settings"]] <- ordinate_control_list
+  marginal_means_object[["ordinate_settings"]] <- ordinate_control_list
   if (isTRUE(include_ordinates)) {
     marginal_means_object[["inference"]] <- .marginal_means_refresh_iwmde_bf(
       inference            = marginal_means_object[["inference"]],
@@ -315,10 +339,10 @@
                                                   display_grid) {
 
   settings <- if (identical(display_grid, "ordinate") &&
-                  is.list(object[["iwmde_ordinate_settings"]])) {
-    object[["iwmde_ordinate_settings"]]
+                  is.list(object[["ordinate_settings"]])) {
+    object[["ordinate_settings"]]
   } else {
-    object[["iwmde_settings"]]
+    object[["density_settings"]]
   }
   control <- settings[intersect(
     c(
@@ -761,22 +785,6 @@
   }
 
   return(x)
-}
-
-
-.marginal_means_has_bf_posterior_ordinate <- function(samples) {
-
-  if (!is.list(samples)) {
-    return(.iwmde_posterior_ordinate_supports_bf(
-      attr(samples, "posterior_ordinate")
-    ))
-  }
-
-  has_ordinate <- vapply(samples, function(sample) {
-    .iwmde_posterior_ordinate_supports_bf(attr(sample, "posterior_ordinate"))
-  }, logical(1))
-
-  return(length(has_ordinate) > 0L && any(has_ordinate))
 }
 
 

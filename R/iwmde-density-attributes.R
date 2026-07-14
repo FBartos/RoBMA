@@ -2,12 +2,6 @@
 # IWMDE Density Methods, Metadata, and Attribute Adapters
 # ============================================================================ #
 
-.iwmde_normalize_method <- function(method) {
-
-  return(match.arg(method, c("q_grid_cmde", "iwmde")))
-}
-
-
 .density_method_normalize <- function(density_method, allow_normal = FALSE) {
 
   allowed <- c("KDE", "qCMDE", "IWMDE")

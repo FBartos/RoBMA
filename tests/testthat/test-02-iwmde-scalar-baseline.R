@@ -131,13 +131,6 @@ test_that("IWMDE active-branch wrappers call localized likelihood helpers", {
       calls[["setup"]] <<- TRUE
       return(list(posterior_samples = posterior_samples))
     },
-    .log_lik_from_posterior_samples = function(fit, posterior_samples,
-                                                data, priors, unit,
-                                                add_metadata = FALSE,
-                                                data_hash = NULL) {
-      calls[["matrix"]] <<- TRUE
-      return(matrix(0, nrow = nrow(posterior_samples), ncol = 1L))
-    },
     .log_lik_from_posterior_samples_sum = function(fit, posterior_samples,
                                                     data, priors, unit,
                                                     data_hash = NULL) {
@@ -173,15 +166,6 @@ test_that("IWMDE active-branch wrappers call localized likelihood helpers", {
     list(posterior_samples = samples)
   )
   expect_equal(
-    .iwmde_log_lik_from_posterior_samples_active_branch(
-      context           = context,
-      posterior_samples = samples,
-      active_setup      = active_setup,
-      unit              = "estimate"
-    ),
-    matrix(0, nrow = 1L, ncol = 1L)
-  )
-  expect_equal(
     .iwmde_selection_context_active_branch(
       context           = context,
       active_setup      = active_setup,
@@ -211,7 +195,7 @@ test_that("IWMDE active-branch wrappers call localized likelihood helpers", {
   )
   expect_equal(
     names(calls),
-    c("setup", "matrix", "selection", "sum", "evaluated_sum")
+    c("setup", "selection", "sum", "evaluated_sum")
   )
 })
 

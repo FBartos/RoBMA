@@ -52,7 +52,7 @@ test_that("known-V funnel tau uses marginal covariance samples", {
 })
 
 
-test_that("known-V marginal variance samples extract diagonals in chunks", {
+test_that("known-V marginal variance samples use the diagonal backend", {
 
   V    <- matrix(c(.04, .01, .01, .09), nrow = 2L)
   data <- list(outcome = data.frame(yi = c(.10, .20), sei = sqrt(diag(V))))
@@ -65,21 +65,33 @@ test_that("known-V marginal variance samples extract diagonals in chunks", {
   )
   class(object) <- c("brma.mv", "brma")
   posterior_samples <- matrix(1:3, ncol = 1L, dimnames = list(NULL, "tau"))
-  covariances <- array(NA_real_, dim = c(3L, 2L, 2L))
-  for (s in seq_len(3L)) {
-    covariances[s, , ] <- V + diag(c(s, s + 1), nrow = 2L)
-  }
+  random_variance <- cbind(1:3, 2:4)
+  colnames(random_variance) <- c("1", "2")
+  n_calls <- 0L
 
   testthat::local_mocked_bindings(
     .get_posterior_samples = function(fit, posterior_samples = NULL) {
       posterior_samples
     },
-    .known_v_marginal_covariance_samples_raw = function(object,
-                                                        posterior_samples,
-                                                        known_V,
-                                                        K) {
-      rows <- as.integer(posterior_samples[, "tau"])
-      covariances[rows, , , drop = FALSE]
+    .brma_mv_random_effects_marginal_vcov = function(
+        object, posterior_samples, blocks = NULL, diagonal_only = FALSE) {
+
+      n_calls <<- n_calls + 1L
+      expect_true(diagonal_only)
+      expect_null(blocks)
+      list(
+        samples  = random_variance,
+        metadata = list(
+          representation = "diagonal",
+          quantity       = "variance",
+          diagonal_only  = TRUE,
+          dense          = FALSE,
+          n_draws        = 3L,
+          n_rows         = 2L,
+          row_order      = 1:2,
+          row_names      = c("1", "2")
+        )
+      )
     },
     .package = "RoBMA"
   )
@@ -87,13 +99,14 @@ test_that("known-V marginal variance samples extract diagonals in chunks", {
   out <- .known_v_marginal_variance_samples(
     object            = object,
     posterior_samples = posterior_samples,
-    max_bytes         = .known_v_covariance_peak_bytes(1L, 2L)
+    max_bytes         = 1
   )
   metadata <- attr(out, "known_v_diagnostic", exact = TRUE)
 
   attr(out, "known_v_diagnostic") <- NULL
+  expect_equal(n_calls, 1L)
   expect_equal(out, cbind(c(1.04, 2.04, 3.04), c(2.09, 3.09, 4.09)))
-  expect_equal(metadata[["n_chunks"]], 3L)
+  expect_null(metadata[["n_chunks"]])
 })
 
 

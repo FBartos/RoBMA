@@ -13,7 +13,7 @@
   dots_prior = NULL,
   output_measure = NULL,
   transform = NULL,
-  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_method = NULL,
   density_control = NULL,
   ...
 )
@@ -51,9 +51,9 @@ log-scale measures.}
 exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
 and \code{"IRR"}.}
 
-\item{density_method}{posterior density method. \code{"KDE"} uses the
-standard BayesTools kernel density estimate and is the default, even when
-qCMDE/IWMDE densities are stored on \code{x}. \code{"qCMDE"} and
+\item{density_method}{posterior density method. The default \code{NULL}
+reuses the method stored on \code{x}; specify \code{"KDE"} to override a
+stored qCMDE/IWMDE method. \code{"qCMDE"} and
 \code{"IWMDE"} compute any missing densities for the plotted marginal means
 before plotting and never silently mix with KDE. Plot-time qCMDE/IWMDE
 computation can be slow and is used only for the current plot call; precompute

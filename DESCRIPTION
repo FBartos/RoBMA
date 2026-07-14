@@ -36,7 +36,7 @@ RoxygenNote: 7.3.3
 SystemRequirements: JAGS >= 4.3.1 (https://mcmc-jags.sourceforge.io/)
 NeedsCompilation: yes
 Depends:
-    R (>= 4.0.0)
+    R (>= 4.3.0)
 Imports:
     BayesTools (>= 0.3.1.6),
     bridgesampling,

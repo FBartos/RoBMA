@@ -440,14 +440,6 @@
   ))
 }
 
-.iwmde_diagnostics_dots_allowed <- function() {
-
-  return(c(
-    "hist_col", "hist_border", "kde_col", "kde_lwd",
-    "iwmde_col", "iwmde_lwd"
-  ))
-}
-
 .plot_level_palette   <- function(n_levels) {
 
   if (n_levels <= 0L) {

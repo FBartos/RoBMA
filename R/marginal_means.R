@@ -37,12 +37,16 @@ marginal_means <- function(object, ...) {
 #'
 #' @param object a fitted \code{brma} object with moderators.
 #' @param null_hypothesis point null hypothesis used for inclusion Bayes
-#' factors. Defaults to \code{0}.
+#' factors, specified on the fitted linear-predictor scale. Defaults to
+#' \code{0}. This remains on the fitted scale when \code{output_measure} or
+#' \code{transform} changes the displayed scale.
 #' @param n_samples number of samples/grid points used by BayesTools for
 #' marginal prior densities. Defaults to \code{10000}.
 #' @param bf whether inclusion Bayes factors should be shown by default in
 #' summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
-#' for single-model \code{brma} objects.
+#' for single-model \code{brma} objects. With qCMDE/IWMDE, setting
+#' \code{bf = FALSE} also skips point-ordinate precomputation; point hypotheses
+#' can still compute requested ordinates on demand.
 #' @param density_method posterior density method. \code{"KDE"} uses the
 #' standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
 #' row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
@@ -83,8 +87,14 @@ marginal_means <- function(object, ...) {
 #' @inheritParams predict.brma
 #' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
-#' @return A list of class \code{marginal_means.brma} containing the
-#' BayesTools \code{marginal_inference} object and parameter metadata.
+#' @return A list of class \code{marginal_means.brma}. Its stable fields are
+#' \code{inference}, \code{parameters}, \code{term_map}, \code{formula},
+#' \code{null_hypothesis}, \code{n_samples}, \code{conditional_rule},
+#' \code{input_measure}, \code{effect_transform}, \code{model_averaged},
+#' \code{density_method}, \code{point_ordinate_supported}, \code{bf},
+#' \code{name}, and \code{source_object}. qCMDE/IWMDE objects additionally
+#' contain \code{density_diagnostics}, \code{ordinate_diagnostics},
+#' \code{density_settings}, and \code{ordinate_settings}.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE) &&
@@ -161,11 +171,14 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   } else {
     NULL
   }
-  precompute_type     <- .marginal_means_precompute_type(type)
+  model_averaged      <- .is_RoBMA(object)
+  precompute_type     <- .marginal_means_precompute_type(
+    type           = type,
+    model_averaged = model_averaged
+  )
   precompute_levels   <- .marginal_means_precompute_levels(levels)
   precompute_targeted <- !is.null(parameter) || !is.null(type) ||
     !is.null(levels)
-  model_averaged           <- .is_RoBMA(object)
   bf                       <- .marginal_means_resolve_bf(model_averaged, bf)
   point_ordinate_supported <- !precompute_density ||
     .iwmde_point_ordinate_supported(object, density_method)
@@ -254,7 +267,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     source_object            = object
   )
 
-  class(output) <- c("marginal_means.brma", "marginal_means")
+  class(output) <- "marginal_means.brma"
 
   if (precompute_density) {
     output <- .marginal_means_attach_iwmde(
@@ -271,7 +284,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
       type                    = precompute_type,
       levels                  = precompute_levels,
       targeted                = precompute_targeted,
-      include_ordinates       = point_ordinate_supported,
+      include_ordinates       = isTRUE(bf) && point_ordinate_supported,
       ordinate_control        = ordinate_control
     )
   }
@@ -348,7 +361,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 #' @param bf whether to show inclusion Bayes factors. Defaults to the setting
 #' stored by \code{marginal_means()}.
 #' @inheritParams predict.brma
-#' @param ... additional arguments (currently ignored).
+#' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
 #' @return A \code{BayesTools_table} of class
 #' \code{summary.marginal_means.brma}.
@@ -357,9 +370,14 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 summary.marginal_means.brma <- function(object, type = NULL,
                                         probs = c(.025, .50, .975),
                                         logBF = FALSE, BF01 = FALSE,
-                                        bf = NULL,
-                                        output_measure = NULL, transform = NULL, ...) {
+                                         bf = NULL,
+                                         output_measure = NULL, transform = NULL, ...) {
 
+  .warn_unused_dots(
+    dots    = list(...),
+    allowed = character(),
+    caller  = "summary.marginal_means()"
+  )
   type <- .marginal_means_type(object = object, type = type)
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
   BayesTools::check_bool(logBF, "logBF")
@@ -466,17 +484,23 @@ print.marginal_means.brma <- function(x, ...) {
 #' @description Prints a summary table of estimated marginal means.
 #'
 #' @param x a \code{summary.marginal_means.brma} object.
-#' @param ... additional arguments (currently ignored).
+#' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
 #' @return Returns \code{x} invisibly.
 #'
 #' @export
 print.summary.marginal_means.brma <- function(x, ...) {
 
-  class(x) <- setdiff(class(x), "summary.marginal_means.brma")
+  .warn_unused_dots(
+    dots    = list(...),
+    allowed = character(),
+    caller  = "print.summary.marginal_means()"
+  )
+  display <- x
+  class(display) <- setdiff(class(display), "summary.marginal_means.brma")
 
   cat("\n")
-  print(x)
+  print(display)
   cat("\n")
 
   return(invisible(x))
@@ -503,9 +527,9 @@ print.summary.marginal_means.brma <- function(x, ...) {
 #' (\code{"ggplot"}). Defaults to \code{"base"}.
 #' @param dots_prior list of additional graphical arguments passed to the prior
 #' plotting function.
-#' @param density_method posterior density method. \code{"KDE"} uses the
-#' standard BayesTools kernel density estimate and is the default, even when
-#' qCMDE/IWMDE densities are stored on \code{x}. \code{"qCMDE"} and
+#' @param density_method posterior density method. The default \code{NULL}
+#' reuses the method stored on \code{x}; specify \code{"KDE"} to override a
+#' stored qCMDE/IWMDE method. \code{"qCMDE"} and
 #' \code{"IWMDE"} compute any missing densities for the plotted marginal means
 #' before plotting and never silently mix with KDE. Plot-time qCMDE/IWMDE
 #' computation can be slow and is used only for the current plot call; precompute
@@ -538,16 +562,14 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
                                      prior = FALSE, plot_type = "base",
                                      dots_prior = NULL,
                                      output_measure = NULL, transform = NULL,
-                                     density_method = c(
-                                       "KDE", "qCMDE", "IWMDE"
-                                     ),
+                                     density_method = NULL,
                                      density_control = NULL, ...) {
 
   type <- .marginal_means_type(object = x, type = type)
   BayesTools::check_bool(prior, "prior")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   density_control_requested <- !is.null(density_control)
-  density_method <- .density_method_normalize(density_method)
+  density_method <- .marginal_means_density_method(x, density_method)
   if (.density_method_uses_precomputed(density_method) ||
       !is.null(density_control)) {
     density_control <- .density_control_normalize(
@@ -750,6 +772,20 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   }
 
   return(type)
+}
+
+
+# Resolve a marginal-means density method, inheriting the stored method.
+.marginal_means_density_method <- function(object, density_method) {
+
+  if (is.null(density_method)) {
+    density_method <- object[["density_method"]]
+  }
+  if (is.null(density_method)) {
+    density_method <- "KDE"
+  }
+
+  return(.density_method_normalize(density_method))
 }
 
 

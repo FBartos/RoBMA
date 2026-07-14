@@ -455,7 +455,7 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
   expect_true(all(bf_qcmde[["method"]] == "Savage-Dickey (precomputed)"))
   expect_true(all(is.finite(bf_qcmde[["BF_error"]])))
   diagnostics <- density_diagnostics(bf_qcmde)
-  expect_s3_class(diagnostics, "iwmde_density_diagnostics")
+  expect_s3_class(diagnostics, "RoBMA_density_diagnostics")
   expect_equal(nrow(diagnostics), 2L)
   expect_true(all(diagnostics[["achieved_row_budget"]] == 5000L))
   expect_true(all(diagnostics[["relative_mcse"]] < .25))
@@ -734,7 +734,7 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
     density_method   = "KDE",
     source_object    = structure(list(fit = list()), class = c("RoBMA", "brma"))
   )
-  class(object) <- c("marginal_means.brma", "marginal_means")
+  class(object) <- "marginal_means.brma"
 
   captured <- NULL
   minimal_context <- function(object) {
@@ -875,7 +875,7 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
       density_method   = "KDE",
       source_object    = structure(list(fit = list()), class = c("RoBMA", "brma"))
     )
-    class(object) <- c("marginal_means.brma", "marginal_means")
+    class(object) <- "marginal_means.brma"
 
     return(object)
   }
@@ -1063,7 +1063,7 @@ test_that("marginal means hypothesis BFs use alternative-conditioned marginals",
     ),
     density_method = "KDE"
   )
-  class(object) <- c("marginal_means.brma", "marginal_means")
+  class(object) <- "marginal_means.brma"
 
   captured <- list()
   testthat::local_mocked_bindings(
@@ -1092,7 +1092,7 @@ test_that("marginal means hypothesis BFs use alternative-conditioned marginals",
   )
   expect_warning(
     expect_equal(
-      hypothesis(object, "alloc[alternate] > 0", type = "averaged"),
+      hypothesis(object, "alloc[alternate] > 0", type = "conditional"),
       "ok"
     ),
     "Unused argument.*'type'"
@@ -1120,10 +1120,56 @@ test_that("marginal means hypothesis BFs use alternative-conditioned marginals",
 test_that("marginal means hypothesis density methods use public names", {
 
   expect_false("type" %in% names(formals(hypothesis.marginal_means.brma)))
-  expect_equal(
-    eval(formals(hypothesis.marginal_means.brma)[["density_method"]]),
-    c("KDE", "qCMDE", "IWMDE")
+  expect_null(formals(hypothesis.marginal_means.brma)[["density_method"]])
+})
+
+
+test_that("marginal means hypothesis inherits and can override stored density method", {
+
+  posterior <- list(
+    mu_alloc = structure(
+      list(alternate = stats::rnorm(20)),
+      class = c("marginal_posterior.factor", "list")
+    )
   )
+  object <- list(
+    inference = structure(
+      list(
+        averaged    = posterior,
+        conditional = posterior,
+        inference   = list()
+      ),
+      class = c("marginal_inference", "list")
+    ),
+    term_map = data.frame(
+      term             = "alloc",
+      parameter        = "mu_alloc",
+      label            = "alloc",
+      stringsAsFactors = FALSE
+    ),
+    density_method = "qCMDE"
+  )
+  class(object) <- "marginal_means.brma"
+
+  captured <- character()
+  testthat::local_mocked_bindings(
+    hypothesis_BF = function(..., density_method) {
+      captured <<- c(captured, density_method)
+      return("ok")
+    },
+    .package = "BayesTools"
+  )
+
+  expect_equal(hypothesis(object, "alloc[alternate] > 0"), "ok")
+  expect_equal(
+    hypothesis(
+      object,
+      "alloc[alternate] > 0",
+      density_method = "KDE"
+    ),
+    "ok"
+  )
+  expect_equal(captured, c("precomputed", "KDE"))
 })
 
 
@@ -1139,7 +1185,6 @@ test_that("marginal means hypothesis rejects normal density method", {
     hypothesis(
       mm,
       "alloc[random] = 0",
-      type           = "conditional",
       columns        = "all",
       density_method = "normal"
     ),

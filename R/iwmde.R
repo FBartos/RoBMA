@@ -3,7 +3,6 @@
 # ============================================================================ #
 
 # The old monolithic iwmde.R implementation is split by concern:
-# - iwmde-api-diagnostics.R: exported developer diagnostic surfaces
 # - iwmde-context.R: fitted-object context and availability checks
 # - iwmde-density-attributes.R: method and result-attribute adapters
 # - iwmde-parameter-diagnostics.R: parameter diagnostic orchestration

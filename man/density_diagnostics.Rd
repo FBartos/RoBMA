@@ -9,17 +9,37 @@ density_diagnostics(object, ...)
 \arguments{
 \item{object}{an object returned by \code{\link[=hypothesis]{hypothesis()}} with
 \code{density_method = "qCMDE"} or \code{density_method = "IWMDE"}, or an
-\code{iwmde_ordinate_error} caught from a rejected point-ordinate computation.}
+\code{RoBMA_density_ordinate_error} caught from a rejected point-ordinate
+computation.}
 
 \item{...}{unused.}
 }
 \value{
-A data frame of class \code{iwmde_density_diagnostics}, with one row per
+A data frame of class \code{RoBMA_density_diagnostics}, with one row per
 computed point ordinate. Columns identify the estimator, parameter, requested
 and evaluated values, schema/source provenance, row counts, active mass,
 relative MCSE, ESS, largest contribution share, finite terms, normalization
 and quadrature checks, adaptive-budget state, policy thresholds, weight
 fallbacks, status, and warnings.
+
+The exact columns, in order, are \code{schema_version}, \code{algorithm_version},
+\code{source_fingerprint}, \code{estimator}, \code{density_method}, \code{parameter}, \code{level},
+\code{requested_value}, \code{evaluation_value}, \code{achieved_row_budget}, \code{eligible_rows},
+\code{evaluated_rows}, \code{retained_rows}, \code{finite_terms}, \code{row_drop_fraction},
+\code{active_mass}, \code{relative_mcse}, \code{ess}, \code{max_weight_share},
+\code{normalization_relative_error}, \code{stability_metric},
+\code{stability_relative_error}, \code{ordinate_relative_change},
+\code{quadrature_relative_change}, \code{target_relative_mcse},
+\code{stability_warning_threshold}, \code{stability_rejection_threshold},
+\code{quadrature_warning_threshold}, \code{quadrature_rejection_threshold},
+\code{warning_relative_mcse}, \code{rejection_relative_mcse},
+\code{warning_min_finite_terms}, \code{rejection_min_finite_terms}, \code{warning_min_ess},
+\code{rejection_min_ess}, \code{warning_max_weight_share},
+\code{rejection_max_weight_share}, \code{warning_row_drop_fraction},
+\code{rejection_row_drop_fraction}, \code{hard_cap}, \code{hard_cap_reached},
+\code{all_rows_used}, \code{adaptation_steps}, \code{target_met}, \code{precision_target_met},
+\code{bf_grade_met}, \code{n_weight_fallbacks}, \code{weight_fallback_reasons}, \code{status},
+and \code{warnings}.
 }
 \description{
 Extracts the compact reliability diagnostics attached to a
@@ -67,7 +87,7 @@ failed <- tryCatch(
     hypothesis     = "mu != 0 vs mu = 0",
     density_method = "IWMDE"
   ),
-  iwmde_ordinate_error = identity
+  RoBMA_density_ordinate_error = identity
 )
 density_diagnostics(failed)
 }

@@ -128,10 +128,21 @@ void validate_common(SEXP mu_samples, SEXP tau_within, SEXP weights,
     Rf_error("'tau_within' dimensions must match 'mu_samples'.");
   }
 
+  // Diagnostic counts are returned as R integers. Cap the cell count before
+  // multiplication so neither those counts nor native indexes can overflow.
+  const int max_cells = std::numeric_limits<int>::max();
+  if (*S > max_cells / *K) {
+    Rf_error("AGHQ supports at most %d matrix cells.", max_cells);
+  }
+  const R_xlen_t n_cells = static_cast<R_xlen_t>(*S) *
+    static_cast<R_xlen_t>(*K);
+  if (XLENGTH(mu_samples) != n_cells || XLENGTH(tau_within) != n_cells) {
+    Rf_error("AGHQ matrix dimensions do not match their storage lengths.");
+  }
+
   const double *mu_p  = REAL(mu_samples);
   const double *tau_p = REAL(tau_within);
-  const int n_cells   = *S * *K;
-  for (int i = 0; i < n_cells; ++i) {
+  for (R_xlen_t i = 0; i < n_cells; ++i) {
     if (!std::isfinite(mu_p[i]) || !std::isfinite(tau_p[i])) {
       Rf_error("'mu_samples' and 'tau_within' must contain finite values.");
     }
@@ -776,7 +787,8 @@ SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
       if ((s & 255) == 0) {
         R_CheckUserInterrupt();
       }
-      const int cell = s + S * k;
+      const R_xlen_t cell = static_cast<R_xlen_t>(s) +
+        static_cast<R_xlen_t>(S) * static_cast<R_xlen_t>(k);
       BinomialProblem problem;
       problem.a               = a_p[k];
       problem.c               = c_p[k];
@@ -926,7 +938,8 @@ SEXP run_poisson(SEXP x1i, SEXP x2i, SEXP t1i, SEXP t2i,
       if ((s & 255) == 0) {
         R_CheckUserInterrupt();
       }
-      const int cell = s + S * k;
+      const R_xlen_t cell = static_cast<R_xlen_t>(s) +
+        static_cast<R_xlen_t>(S) * static_cast<R_xlen_t>(k);
       PoissonProblem problem;
       problem.x1            = x1_p[k];
       problem.x2            = x2_p[k];

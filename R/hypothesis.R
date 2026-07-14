@@ -113,7 +113,9 @@ hypothesis.default <- function(object, ...) {
 
 #' @rdname hypothesis
 #'
-#' @param hypothesis character vector with scalar hypothesis statements.
+#' @param hypothesis character vector with scalar hypothesis statements. For
+#' \code{marginal_means.brma} objects, constants are specified on the fitted
+#' linear-predictor scale, even when the object stores a display transformation.
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
 #' \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
@@ -146,7 +148,9 @@ hypothesis.default <- function(object, ...) {
 #' in the prior ordinate and, for IWMDE, uncertainty from estimating the
 #' conditional weight function. Use \code{density_diagnostics()} to inspect the
 #' attached computation and reliability diagnostics. For
-#' \code{marginal_means.brma} objects, \code{"normal"} is not supported, and
+#' \code{marginal_means.brma} objects, \code{"normal"} is not supported. Their
+#' default \code{NULL} reuses the density method stored by
+#' \code{marginal_means()}; explicitly request \code{"KDE"} to override it.
 #' \code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
 #' the stored source model. Matching is case-insensitive.
 #' @param density_control named list of qCMDE/IWMDE tuning settings. Supported

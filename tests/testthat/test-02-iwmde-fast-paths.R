@@ -1286,7 +1286,6 @@ test_that("IWMDE parameter filters use selection-specific JAGS names", {
     support_cache      = new.env(parent = emptyenv())
   )
 
-  expect_equal(.iwmde_default_parameters(context), "mu")
   expect_true(.iwmde_parameter_is_weightfunction_coordinate(
     parameter = "custom.omega+beta[1]",
     context   = context

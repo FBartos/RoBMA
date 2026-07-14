@@ -14,7 +14,8 @@
   `density_method`.
 - adds adaptive deterministic row budgets and stricter BF-grade reliability
   gates to qCMDE/IWMDE point ordinates, with compact public diagnostics via
-  `density_diagnostics()`.
+  `density_diagnostics()` and method-neutral `RoBMA_density_diagnostics` /
+  `RoBMA_density_ordinate_error` classes.
 - adds RoBMA-owned schema/version provenance to precomputed qCMDE/IWMDE density
   and ordinate attributes.
 - adds `log_lik()` for pointwise posterior log-likelihood draws used by LOO and
@@ -25,9 +26,15 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Breaking changes
+- requires BayesTools 0.3.1.6 and R 4.3.0 for the multivariate random-effect
+  backend and its scalable diagonal marginal-variance interface.
 - removes the previous `marginal_means.brma(normal_approximation)` argument;
   marginal-means Bayes factors now use posterior ordinates from KDE/qCMDE/IWMDE
   routes instead of the removed normal-approximation switch.
+- simplifies the unreleased marginal-means density contract: plot and hypothesis
+  methods inherit the stored density method unless explicitly overridden,
+  `bf = FALSE` skips qCMDE/IWMDE ordinate precomputation, and single-model
+  objects reject explicit conditional density precomputation.
 - removes the unreleased `logLik.brma()` method. Use `log_lik()` for pointwise
   posterior log-likelihood draws; `AIC()` and `BIC()` now fail explicitly.
 - removes the unreleased logical aggregate prediction mode. Explicit prediction

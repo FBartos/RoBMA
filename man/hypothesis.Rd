@@ -16,7 +16,7 @@
   logBF = FALSE,
   BF01 = FALSE,
   seed = NULL,
-  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_method = NULL,
   density_control = NULL,
   columns = "default",
   ...
@@ -50,7 +50,9 @@ BF_hypothesis(object, ...)
 \item{object}{a fitted \code{brma}, \code{BMA}, \code{RoBMA}, or a posterior
 object accepted by \code{BayesTools::hypothesis_BF()}.}
 
-\item{hypothesis}{character vector with scalar hypothesis statements.}
+\item{hypothesis}{character vector with scalar hypothesis statements. For
+\code{marginal_means.brma} objects, constants are specified on the fitted
+linear-predictor scale, even when the object stores a display transformation.}
 
 \item{parameter}{optional marginal-means parameter/term used to disambiguate
 the hypothesis expression.}
@@ -72,7 +74,9 @@ posterior ordinate, not a complete standard error. It excludes uncertainty
 in the prior ordinate and, for IWMDE, uncertainty from estimating the
 conditional weight function. Use \code{density_diagnostics()} to inspect the
 attached computation and reliability diagnostics. For
-\code{marginal_means.brma} objects, \code{"normal"} is not supported, and
+\code{marginal_means.brma} objects, \code{"normal"} is not supported. Their
+default \code{NULL} reuses the density method stored by
+\code{marginal_means()}; explicitly request \code{"KDE"} to override it.
 \code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
 the stored source model. Matching is case-insensitive.}
 
@@ -135,6 +139,10 @@ expressions, for example \code{"mu = 0"}, \code{"year > 0"}, or
 \code{"mu_alloc[alternate] > mu_alloc[random]"}.
 }
 \details{
+Marginal-means hypotheses are specified on the fitted
+linear-predictor scale. Display transformations stored by
+\code{marginal_means()} do not transform hypothesis constants.
+
 For a continuous focal parameter \eqn{\theta}, nuisance parameters
 \eqn{\xi}, and an unnormalized joint posterior kernel
 \eqn{q(\theta,\xi)}, qCMDE estimates the posterior ordinate as

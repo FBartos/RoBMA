@@ -255,7 +255,27 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
   table <- .hypothesis_brma_append_iwmde_warnings(table, posterior)
   out   <- density_diagnostics(table)
 
-  expect_s3_class(out, "iwmde_density_diagnostics")
+  expect_identical(class(out), c("RoBMA_density_diagnostics", "data.frame"))
+  expect_named(out, c(
+    "schema_version", "algorithm_version", "source_fingerprint", "estimator",
+    "density_method", "parameter", "level", "requested_value",
+    "evaluation_value", "achieved_row_budget", "eligible_rows",
+    "evaluated_rows", "retained_rows", "finite_terms", "row_drop_fraction",
+    "active_mass", "relative_mcse", "ess", "max_weight_share",
+    "normalization_relative_error", "stability_metric",
+    "stability_relative_error", "ordinate_relative_change",
+    "quadrature_relative_change", "target_relative_mcse",
+    "stability_warning_threshold", "stability_rejection_threshold",
+    "quadrature_warning_threshold", "quadrature_rejection_threshold",
+    "warning_relative_mcse", "rejection_relative_mcse",
+    "warning_min_finite_terms", "rejection_min_finite_terms",
+    "warning_min_ess", "rejection_min_ess", "warning_max_weight_share",
+    "rejection_max_weight_share", "warning_row_drop_fraction",
+    "rejection_row_drop_fraction", "hard_cap", "hard_cap_reached",
+    "all_rows_used", "adaptation_steps", "target_met",
+    "precision_target_met", "bf_grade_met", "n_weight_fallbacks",
+    "weight_fallback_reasons", "status", "warnings"
+  ))
   expect_equal(nrow(out), 1L)
   expect_equal(out[["estimator"]], "iwmde")
   expect_equal(out[["achieved_row_budget"]], 500L)
@@ -303,12 +323,45 @@ test_that("rejected ordinate errors retain public diagnostics", {
     error = identity
   )
 
-  expect_s3_class(error, "iwmde_ordinate_error")
+  expect_s3_class(error, "RoBMA_density_ordinate_error")
   expect_match(conditionMessage(error), "ordinate rejected")
+  expect_false("estimate" %in% names(error))
   out <- density_diagnostics(error)
-  expect_s3_class(out, "iwmde_density_diagnostics")
+  expect_s3_class(out, "RoBMA_density_diagnostics")
   expect_equal(nrow(out), 1L)
   expect_equal(out[["status"]], "rejected")
+})
+
+
+test_that("density_diagnostics uses explicit methods and validates its schema", {
+
+  diagnostics <- .iwmde_empty_public_density_diagnostics()
+  generic_object <- structure(list(), density_diagnostics = diagnostics)
+  malformed <- structure(
+    data.frame(BF = 1),
+    class = c("BayesTools_hypothesis_BF", "data.frame"),
+    density_diagnostics = data.frame(status = "ok")
+  )
+
+  expect_error(
+    density_diagnostics(generic_object),
+    "No density diagnostics method"
+  )
+  expect_error(
+    density_diagnostics(malformed),
+    "public schema"
+  )
+  expect_warning(
+    density_diagnostics(
+      structure(
+        data.frame(BF = 1),
+        class = c("BayesTools_hypothesis_BF", "data.frame"),
+        density_diagnostics = diagnostics
+      ),
+      obsolete = TRUE
+    ),
+    "Unused argument.*'obsolete'"
+  )
 })
 
 

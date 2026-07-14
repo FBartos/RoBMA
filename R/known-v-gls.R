@@ -72,32 +72,9 @@
                                                      K) {
 
   covariance_samples <- if (.is_random(object)) {
-    formula_fit <- .posterior_formula_fit(
-      fit               = object[["fit"]],
-      posterior_samples = posterior_samples,
-      formula_design    = TRUE
-    )
-    formula_design <- if (.is_scale(object)) {
-      .predict_known_v_formula_design_with_row_source_values(
-        object = object,
-        data   = object[["data"]]
-      )
-    } else {
-      .fitted_formula_design(object, "mu", required = TRUE)
-    }
-    attr(formula_fit, "formula_design") <- list(mu = formula_design)
-
-    location_priors <- attr(object[["fit"]], "prior_list")
-    if (is.null(location_priors)) {
-      location_priors <- object[["priors"]][["location"]]
-    }
-
-    random_vcov <- BayesTools::random_effects_marginal_vcov(
-      fit               = formula_fit,
-      parameter         = "mu",
-      data              = object[["data"]][["location"]],
-      posterior_samples = posterior_samples,
-      prior_list        = location_priors
+    random_vcov <- .brma_mv_random_effects_marginal_vcov(
+      object            = object,
+      posterior_samples = posterior_samples
     )
     random_vcov[["samples"]]
   } else {
@@ -162,23 +139,25 @@
     return(marginal_variance)
   }
 
-  marginal_variance <- matrix(NA_real_, nrow = S, ncol = K)
-
-  chunk_info <- .known_v_apply_marginal_covariance_chunks(
+  random_vcov <- .brma_mv_random_effects_marginal_vcov(
     object            = object,
     posterior_samples = posterior_samples,
-    max_bytes         = max_bytes,
-    FUN               = function(covariance_samples, rows) {
-      marginal_variance[rows, ] <<- .known_v_covariance_diagonal_samples(
-        covariance_samples
-      )
-    }
+    diagonal_only     = TRUE
+  )
+  random_variance <- .brma_mv_validate_random_marginal_variance_samples(
+    random_vcov = random_vcov,
+    S           = S,
+    K           = K
+  )
+  random_variance <- unname(random_variance)
+  marginal_variance <- sweep(
+    random_variance,
+    2L,
+    .known_v_diagonal(known_V),
+    "+"
   )
 
-  metadata <- .known_v_diagnostic_metadata(
-    sample_info = sample_info,
-    chunk_info  = chunk_info
-  )
+  metadata <- .known_v_diagnostic_metadata(sample_info)
   attr(marginal_variance, "known_v_diagnostic") <- metadata
 
   return(marginal_variance)

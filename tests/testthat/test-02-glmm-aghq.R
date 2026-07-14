@@ -169,6 +169,35 @@ test_that("exact beta-binomial shortcut rejects nonfinite powered values", {
 })
 
 
+test_that("AGHQ rejects matrices beyond its integer diagnostic capacity", {
+
+  skip_if(.Machine[["sizeof.pointer"]] < 8L,
+          "long-vector ALTREP requires a 64-bit R build")
+
+  oversized <- seq_len(65536 * 32768)
+  dim(oversized) <- c(65536L, 32768L)
+
+  expect_error(
+    .glmm_binom_aghq(
+      0L, 0L, 1L, 1L,
+      oversized, oversized, NULL,
+      c(alpha = 1, beta = 1)
+    ),
+    "AGHQ supports at most 2147483647 matrix cells",
+    info = "cell cap is checked before compact ALTREP matrices materialize"
+  )
+  expect_error(
+    .glmm_pois_aghq(
+      0L, 0L, 1, 1,
+      oversized, oversized, NULL,
+      c(mean = 0, sd = 1)
+    ),
+    "AGHQ supports at most 2147483647 matrix cells",
+    info = "Poisson dispatch shares the overflow-safe extent validation"
+  )
+})
+
+
 test_that("AGHQ certifies difficult rows from the cached GLMM fits", {
 
   skip_on_cran()

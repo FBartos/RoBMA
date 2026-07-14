@@ -25,31 +25,6 @@
 }
 
 
-.iwmde_log_lik_from_posterior_samples_active_branch <- function(context,
-                                                                posterior_samples,
-                                                                active_setup,
-                                                                unit,
-                                                                add_metadata = FALSE,
-                                                                data_hash = NULL) {
-
-  posterior_samples <- .iwmde_likelihood_posterior_samples(
-    context      = context,
-    samples      = posterior_samples,
-    active_setup = active_setup
-  )
-
-  return(.log_lik_from_posterior_samples(
-    fit                  = context[["object"]][["fit"]],
-    posterior_samples    = posterior_samples,
-    data                 = context[["data"]],
-    priors               = active_setup[["priors"]],
-    unit                 = unit,
-    add_metadata         = add_metadata,
-    data_hash            = data_hash
-  ))
-}
-
-
 .iwmde_log_lik_from_posterior_samples_sum_active_branch <- function(context,
                                                                     posterior_samples,
                                                                     active_setup,

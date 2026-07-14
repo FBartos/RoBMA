@@ -52,7 +52,7 @@ REFERENCE_DIR <<- testthat::test_path("..", "results", "marginal_means")
     model_averaged   = FALSE,
     bf               = FALSE
   )
-  class(emm) <- c("marginal_means.brma", "marginal_means")
+  class(emm) <- "marginal_means.brma"
 
   return(emm)
 }
@@ -116,6 +116,39 @@ test_that("plot.marginal_means warns on unused dots", {
   expect_warning(
     plot(emm, parameter = "alloc", iwmde_n_points = 20),
     "Unused argument.*iwmde_n_points"
+  )
+})
+
+
+test_that("marginal_means print contracts preserve the original objects", {
+
+  emm <- .marginal_means_test_object()
+  emm[["density_method"]] <- "KDE"
+  emm[["point_ordinate_supported"]] <- TRUE
+  emm[["inference"]][["inference"]] <- list(mu_alloc = 1)
+
+  testthat::local_mocked_bindings(
+    marginal_estimates_table = function(...) {
+      structure(data.frame(Mean = 1), class = c("BayesTools_table", "data.frame"))
+    },
+    .package = "BayesTools"
+  )
+
+  summary_emm <- summary(emm)
+  summary_print <- NULL
+  capture.output(summary_print <- withVisible(print(summary_emm)))
+  expect_identical(summary_print[["value"]], summary_emm)
+  expect_false(summary_print[["visible"]])
+
+  object_print <- NULL
+  capture.output(object_print <- withVisible(print(emm)))
+  expect_identical(object_print[["value"]], emm)
+  expect_false(object_print[["visible"]])
+
+  expect_warning(summary(emm, obsolete = TRUE), "Unused argument.*'obsolete'")
+  expect_warning(
+    invisible(capture.output(print(summary_emm, obsolete = TRUE))),
+    "Unused argument.*'obsolete'"
   )
 })
 
@@ -280,9 +313,10 @@ test_that("marginal means qCMDE/IWMDE attach checks availability directly", {
 })
 
 
-test_that("marginal_means plot defaults to KDE despite stored posterior density", {
+test_that("marginal_means plot inherits and can override the stored density method", {
 
   emm <- .marginal_means_test_object()
+  emm[["density_method"]] <- "qCMDE"
   density <- list(
     status         = "ok",
     x              = seq(-1, 1, length.out = 5),
@@ -305,16 +339,28 @@ test_that("marginal_means plot defaults to KDE despite stored posterior density"
     },
     .package = "BayesTools"
   )
+  testthat::local_mocked_bindings(
+    .marginal_means_plot_prepare_iwmde = function(x, ...) x,
+    .package = "RoBMA"
+  )
 
   out <- plot(emm, parameter = "alloc", plot_type = "ggplot")
 
   expect_s3_class(out, "mock_plot")
   expect_equal(captured[["parameter"]], "mu_alloc")
-  expect_equal(captured[["dots"]][["density_method"]], "KDE")
+  expect_equal(captured[["dots"]][["density_method"]], "precomputed")
   expect_identical(
     attr(captured[["samples"]][["mu_alloc"]][["alternate"]], "posterior_density"),
     density
   )
+
+  plot(
+    emm,
+    parameter      = "alloc",
+    plot_type      = "ggplot",
+    density_method = "KDE"
+  )
+  expect_equal(captured[["dots"]][["density_method"]], "KDE")
 })
 
 
@@ -802,7 +848,13 @@ test_that("marginal_means stores BayesTools marginal inference", {
 
   mm <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
 
-  expect_s3_class(mm, "marginal_means.brma")
+  expect_identical(class(mm), "marginal_means.brma")
+  expect_named(mm, c(
+    "inference", "parameters", "term_map", "formula", "null_hypothesis",
+    "n_samples", "conditional_rule", "input_measure", "effect_transform",
+    "model_averaged", "density_method", "point_ordinate_supported", "bf",
+    "name", "source_object"
+  ))
   expect_s3_class(mm[["inference"]], "marginal_inference")
   expect_equal(mm[["parameters"]], c("mu_intercept", "mu_alloc"))
   expect_equal(mm[["term_map"]][["term"]], c("intercept", "alloc"))
@@ -900,6 +952,14 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
     density_control   = list(n_points = 20, max_samples = 20)
   )
 
+  expect_named(mm, c(
+    "inference", "parameters", "term_map", "formula", "null_hypothesis",
+    "n_samples", "conditional_rule", "input_measure", "effect_transform",
+    "model_averaged", "density_method", "point_ordinate_supported", "bf",
+    "name", "source_object", "density_diagnostics", "ordinate_diagnostics",
+    "density_settings", "ordinate_settings"
+  ))
+
   averaged_density <- attr(
     mm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
@@ -972,35 +1032,61 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
 })
 
 
+test_that("marginal_means print methods preserve objects and reject unused dots", {
+
+  mm         <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+  summary_mm <- summary(mm)
+
+  summary_print <- NULL
+  summary_output <- capture.output(
+    summary_print <- withVisible(print(summary_mm))
+  )
+  expect_identical(summary_print[["value"]], summary_mm)
+  expect_false(summary_print[["visible"]])
+  expect_true(any(grepl("Marginal Means", summary_output, fixed = TRUE)))
+
+  object_print <- NULL
+  capture.output(object_print <- withVisible(print(mm)))
+  expect_identical(object_print[["value"]], mm)
+  expect_false(object_print[["visible"]])
+
+  expect_warning(summary(mm, obsolete = TRUE), "Unused argument.*'obsolete'")
+  expect_warning(
+    invisible(capture.output(print(summary_mm, obsolete = TRUE))),
+    "Unused argument.*'obsolete'"
+  )
+})
+
+
 test_that("marginal_means restricts qCMDE precomputation targets", {
 
   .local_mock_marginal_means_iwmde_success()
 
   mm <- marginal_means(
-    fits[["bcg_meta-regression2"]],
+    fits[["dat.lehmann2018_RoBMA_mods"]],
     n_samples       = 1000,
     bf              = TRUE,
     density_method  = "qCMDE",
-    parameter       = "alloc",
+    parameter       = "Preregistered",
     type            = "conditional",
-    levels          = "alternate",
+    levels          = "Not Pre-Registered",
     density_control = list(n_points = 20, max_samples = 20)
   )
 
   averaged_density <- attr(
-    mm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
+    mm[["inference"]][["averaged"]][["mu_Preregistered"]][["Not Pre-Registered"]],
     "posterior_density"
   )
   conditional_density <- attr(
-    mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
+    mm[["inference"]][["conditional"]][["mu_Preregistered"]][["Not Pre-Registered"]],
     "posterior_density"
   )
   skipped_density <- attr(
-    mm[["inference"]][["conditional"]][["mu_alloc"]][["random"]],
+    mm[["inference"]][["conditional"]][["mu_Preregistered"]][["Pre-Registered"]],
     "posterior_density"
   )
   skipped_ordinate <- attr(
-    mm[["inference"]][["conditional"]][["mu_alloc"]][["random"]],
+    mm[["inference"]][["conditional"]][["mu_Preregistered"]][["Pre-Registered"]],
     "posterior_ordinate"
   )
 
@@ -1008,16 +1094,15 @@ test_that("marginal_means restricts qCMDE precomputation targets", {
   expect_equal(conditional_density[["density_method"]], "qCMDE")
   expect_null(skipped_density)
   expect_null(skipped_ordinate)
-  expect_equal(mm[["iwmde_settings"]][["parameter"]], "alloc")
-  expect_equal(mm[["iwmde_settings"]][["type"]], "conditional")
-  expect_equal(mm[["iwmde_settings"]][["levels"]], "alternate")
+  expect_equal(mm[["density_settings"]][["parameter"]], "Preregistered")
+  expect_equal(mm[["density_settings"]][["type"]], "conditional")
+  expect_equal(mm[["density_settings"]][["levels"]], "Not Pre-Registered")
   expect_true(is.finite(as.numeric(
-    mm[["inference"]][["inference"]][["mu_alloc"]][["alternate"]]
+    mm[["inference"]][["inference"]][["mu_Preregistered"]][["Not Pre-Registered"]]
   )))
-  expect_true(is.na(mm[["inference"]][["inference"]][["mu_alloc"]][["random"]]))
-  expect_true(is.na(mm[["inference"]][["inference"]][["mu_alloc"]][["systematic"]]))
+  expect_true(is.na(mm[["inference"]][["inference"]][["mu_Preregistered"]][["Pre-Registered"]]))
   expect_false(is.null(attr(
-    mm[["inference"]][["inference"]][["mu_alloc"]][["random"]],
+    mm[["inference"]][["inference"]][["mu_Preregistered"]][["Pre-Registered"]],
     "warnings"
   )))
 })
@@ -1054,10 +1139,7 @@ test_that("marginal_means computes BF ordinates when density target is averaged"
   expect_equal(averaged_density[["density_method"]], "qCMDE")
   expect_null(conditional_density)
   expect_equal(conditional_ordinate[["density_method"]], "qCMDE")
-  expect_equal(mm[["iwmde_settings"]][["type"]], "averaged")
-  expect_true(.marginal_means_has_bf_posterior_ordinate(
-    mm[["inference"]][["conditional"]][["mu_alloc"]]
-  ))
+  expect_equal(mm[["density_settings"]][["type"]], "averaged")
   expect_true(is.finite(as.numeric(
     mm[["inference"]][["inference"]][["mu_alloc"]][["alternate"]]
   )))
@@ -1087,7 +1169,7 @@ test_that("marginal_means IWMDE ordinates do not expand plot densities", {
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_ordinate"
   )
-  ordinate_diagnostic <- mm[["iwmde_ordinate_diagnostics"]][["conditional"]][["alloc: alternate"]]
+  ordinate_diagnostic <- mm[["ordinate_diagnostics"]][["conditional"]][["alloc: alternate"]]
 
   expect_true(max(conditional_density[["x"]]) < mm[["null_hypothesis"]])
   expect_null(conditional_ordinate)
@@ -1095,14 +1177,12 @@ test_that("marginal_means IWMDE ordinates do not expand plot densities", {
   expect_true(max(ordinate_diagnostic[["xlim"]]) < mm[["null_hypothesis"]])
   expect_true(max(ordinate_diagnostic[["diagnostics"]][["normalization_range"]]) <
                 mm[["null_hypothesis"]])
-  expect_false(.marginal_means_has_bf_posterior_ordinate(
-    mm[["inference"]][["conditional"]][["mu_alloc"]]
-  ))
+  expect_false(.iwmde_posterior_ordinate_supports_bf(conditional_ordinate))
   expect_true(all(!is.finite(unlist(mm[["inference"]][["inference"]][["mu_alloc"]]))))
 })
 
 
-test_that("marginal_means precomputes qCMDE ordinates when BFs are hidden", {
+test_that("marginal_means skips qCMDE ordinates when BFs are hidden", {
 
   .local_mock_marginal_means_iwmde_success()
 
@@ -1118,28 +1198,13 @@ test_that("marginal_means precomputes qCMDE ordinates when BFs are hidden", {
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_ordinate"
   )
-  expected <- BayesTools::Savage_Dickey_BF(
-    posterior            = mm[["inference"]][["conditional"]][["mu_alloc"]],
-    null_hypothesis      = mm[["null_hypothesis"]],
-    normal_approximation = FALSE,
-    silent               = TRUE,
-    density_method       = "precomputed"
-  )
   hidden_summary <- summary(mm)
-  bf_summary     <- summary(mm, bf = TRUE)
 
   expect_false(mm[["bf"]])
-  expect_equal(posterior_ordinate[["value"]], mm[["null_hypothesis"]])
-  expect_true(.marginal_means_has_bf_posterior_ordinate(
-    mm[["inference"]][["conditional"]][["mu_alloc"]]
-  ))
-  .expect_marginal_means_bf_values(
-    actual   = mm[["inference"]][["inference"]][["mu_alloc"]],
-    expected = expected
-  )
+  expect_null(posterior_ordinate)
+  expect_false(mm[["density_settings"]][["include_ordinates"]])
+  expect_length(mm[["ordinate_diagnostics"]], 0L)
   expect_false("inclusion_BF" %in% attr(hidden_summary, "type"))
-  expect_true("inclusion_BF" %in% attr(bf_summary, "type"))
-  expect_true(is.finite(attr(expected[["alternate"]], "BF_error_percent")))
 })
 
 
@@ -1176,10 +1241,6 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
     )[["method"]],
     "iwmde"
   )
-  expect_true(.marginal_means_has_bf_posterior_ordinate(
-    mm[["inference"]][["conditional"]][["mu_alloc"]]
-  ))
-
   posterior <- mm[["inference"]][["conditional"]][["mu_alloc"]]
   valid <- vapply(posterior, function(sample) {
     .iwmde_posterior_ordinate_supports_bf(
@@ -1225,22 +1286,6 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
                attr(expected[["alternate"]], "BF_error_percent"),
                tolerance = 1e-12)
   expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (precomputed)")
-})
-
-
-test_that("marginal_means does not mix qCMDE and KDE BF refresh within a parameter", {
-
-  samples <- list(
-    level_a = structure(
-      rnorm(20),
-      posterior_density = list(
-        diagnostics = .marginal_means_iwmde_density_diagnostics("q_grid_cmde")
-      )
-    ),
-    level_b = rnorm(20)
-  )
-
-  expect_false(.marginal_means_has_bf_posterior_ordinate(samples))
 })
 
 
@@ -1592,6 +1637,16 @@ test_that("marginal_means requires moderators", {
 test_that("marginal_means conditional type is RoBMA-only", {
 
   emm <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+
+  expect_error(
+    marginal_means(
+      fits[["bcg_meta-regression2"]],
+      n_samples      = 1000,
+      density_method = "qCMDE",
+      type           = "conditional"
+    ),
+    "RoBMA marginal means"
+  )
 
   expect_error(
     summary(emm, type = "conditional"),

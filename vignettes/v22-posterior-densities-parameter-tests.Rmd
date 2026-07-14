@@ -500,6 +500,7 @@ summary(fit_meta_reg)
 qCMDE is again available directly through `plot.brma()`.
 When interpreting categorical moderators, estimated marginal means (EMMs) are a clearer way to report the results.
 The `marginal_means()` function can precompute qCMDE curves and point ordinates with `density_method = "qCMDE"`.
+Its `plot()` and `hypothesis()` methods reuse that stored method by default; pass `density_method = "KDE"` to override it.
 Because each marginal-mean level is a separate linear-combination target, this is substantially more expensive than a primitive coefficient curve; restrict `parameter`, `type`, and `levels` when only selected targets are needed.
 
 ```{r meta-reg-marginal-means}

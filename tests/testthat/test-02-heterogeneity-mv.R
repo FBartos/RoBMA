@@ -461,6 +461,61 @@ test_that("brma.mv validates marginal random variance schemas", {
 })
 
 
+test_that("brma.mv random covariance adapter prefers compiled priors", {
+
+  object            <- .brma_mv_heterogeneity_slope_object()
+  posterior_samples <- matrix(
+    c(0.20, 0.30),
+    nrow = 1L,
+    dimnames = list(NULL, c(
+      "mu__xREx__study_intercept",
+      "mu__xREx__study_x"
+    ))
+  )
+  formula_design  <- .fitted_formula_design(object, "mu", required = TRUE)
+  compiled_priors <- formula_design[["prior_list"]]
+  expect_false(is.null(compiled_priors))
+
+  attr(object[["fit"]], "prior_list") <- NULL
+  object[["priors"]][["location"]] <- list(raw_fallback = TRUE)
+  captured <- NULL
+  sentinel <- list(samples = matrix(1, nrow = 1L, ncol = nobs(object)))
+
+  testthat::local_mocked_bindings(
+    .fitted_formula_design = function(object, parameter, required = FALSE) {
+      formula_design
+    },
+    .package = "RoBMA"
+  )
+  testthat::local_mocked_bindings(
+    random_effects_marginal_vcov = function(
+        fit, parameter, data, posterior_samples, prior_list, blocks,
+        diagonal_only) {
+
+      captured <<- list(
+        prior_list    = prior_list,
+        blocks        = blocks,
+        diagonal_only = diagonal_only
+      )
+      sentinel
+    },
+    .package = "BayesTools"
+  )
+
+  out <- .brma_mv_random_effects_marginal_vcov(
+    object            = object,
+    posterior_samples = posterior_samples,
+    blocks            = "study",
+    diagonal_only     = TRUE
+  )
+
+  expect_identical(out, sentinel)
+  expect_identical(captured[["prior_list"]], compiled_priors)
+  expect_identical(captured[["blocks"]], "study")
+  expect_true(captured[["diagonal_only"]])
+})
+
+
 test_that("HAR row-marginal heterogeneity scales to all posterior draws", {
 
   skip_on_cran()

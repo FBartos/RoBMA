@@ -23,7 +23,9 @@
 \item{object}{a fitted \code{brma} object with moderators.}
 
 \item{null_hypothesis}{point null hypothesis used for inclusion Bayes
-factors. Defaults to \code{0}.}
+factors, specified on the fitted linear-predictor scale. Defaults to
+\code{0}. This remains on the fitted scale when \code{output_measure} or
+\code{transform} changes the displayed scale.}
 
 \item{n_samples}{number of samples/grid points used by BayesTools for
 marginal prior densities. Defaults to \code{10000}.}
@@ -41,7 +43,9 @@ and \code{"IRR"}.}
 
 \item{bf}{whether inclusion Bayes factors should be shown by default in
 summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
-for single-model \code{brma} objects.}
+for single-model \code{brma} objects. With qCMDE/IWMDE, setting
+\code{bf = FALSE} also skips point-ordinate precomputation; point hypotheses
+can still compute requested ordinates on demand.}
 
 \item{parameter, type, levels}{optional selectors restricting qCMDE/IWMDE
 density precomputation to a marginal-means parameter, output type, or factor
@@ -86,8 +90,14 @@ random-formula models and for derived semantic random-effect quantities.}
 \item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }
 \value{
-A list of class \code{marginal_means.brma} containing the
-BayesTools \code{marginal_inference} object and parameter metadata.
+A list of class \code{marginal_means.brma}. Its stable fields are
+\code{inference}, \code{parameters}, \code{term_map}, \code{formula},
+\code{null_hypothesis}, \code{n_samples}, \code{conditional_rule},
+\code{input_measure}, \code{effect_transform}, \code{model_averaged},
+\code{density_method}, \code{point_ordinate_supported}, \code{bf},
+\code{name}, and \code{source_object}. qCMDE/IWMDE objects additionally
+contain \code{density_diagnostics}, \code{ordinate_diagnostics},
+\code{density_settings}, and \code{ordinate_settings}.
 }
 \description{
 Computes estimated marginal means for a fitted \code{brma}

@@ -2,15 +2,16 @@
 #'
 #' @param parameter optional marginal-means parameter/term used to disambiguate
 #' the hypothesis expression.
+#' @details Marginal-means hypotheses are specified on the fitted
+#' linear-predictor scale. Display transformations stored by
+#' \code{marginal_means()} do not transform hypothesis constants.
 #'
 #' @export
 hypothesis.marginal_means.brma <- function(object, hypothesis,
                                            parameter = NULL,
                                            logBF = FALSE, BF01 = FALSE,
                                            seed = NULL,
-                                           density_method = c(
-                                             "KDE", "qCMDE", "IWMDE"
-                                           ),
+                                           density_method = NULL,
                                            density_control = NULL,
                                            columns = "default",
                                            ...) {
@@ -20,12 +21,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   BayesTools::check_bool(BF01, "BF01")
   BayesTools::check_real(seed, "seed", check_length = 1, allow_NULL = TRUE, allow_NA = FALSE)
   BayesTools::check_char(columns, "columns", check_length = 0, allow_NA = FALSE)
-  dots <- list(...)
-  if (identical(dots[["type"]], "conditional")) {
-    dots[["type"]] <- NULL
-  }
   .warn_unused_dots(
-    dots    = dots,
+    dots    = list(...),
     allowed = character(),
     caller  = "hypothesis.marginal_means()"
   )
@@ -46,7 +43,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     parameter  = parameter
   )
 
-  density_method       <- .density_method_normalize(density_method)
+  density_method       <- .marginal_means_density_method(object, density_method)
   precomputed_density <- density_method %in% c("qCMDE", "IWMDE")
   if (precomputed_density) {
     density_control <- .hypothesis_marginal_means_density_control(
@@ -250,11 +247,11 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 .hypothesis_marginal_means_density_control <- function(object, density_method,
                                                        density_control) {
 
-  if (is.null(density_control) && is.list(object[["iwmde_settings"]])) {
-    settings <- if (is.list(object[["iwmde_ordinate_settings"]])) {
-      object[["iwmde_ordinate_settings"]]
+  if (is.null(density_control) && is.list(object[["density_settings"]])) {
+    settings <- if (is.list(object[["ordinate_settings"]])) {
+      object[["ordinate_settings"]]
     } else {
-      object[["iwmde_settings"]]
+      object[["density_settings"]]
     }
     keep <- c(
       "n_points",

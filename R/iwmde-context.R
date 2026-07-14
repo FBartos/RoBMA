@@ -111,20 +111,3 @@
 
   return(indicator_names)
 }
-
-
-.iwmde_default_parameters <- function(context) {
-
-  parameters <- colnames(context[["posterior_samples"]])
-  parameters <- parameters[!grepl("(^|_)indicator$", parameters)]
-  parameters <- parameters[parameters != "bias_indicator"]
-
-  keep <- !vapply(parameters, function(parameter) {
-    .iwmde_parameter_is_weightfunction_coordinate(
-      parameter = parameter,
-      context   = context
-    )
-  }, logical(1))
-
-  return(parameters[keep])
-}
