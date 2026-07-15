@@ -86,7 +86,7 @@
   }
 
   covariance_samples <- .known_v_add_base_covariance(
-    known_V             = known_V,
+    known_V            = known_V,
     covariance_samples = covariance_samples
   )
 

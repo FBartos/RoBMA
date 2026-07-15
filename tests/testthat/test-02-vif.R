@@ -32,10 +32,6 @@ test_that("VIF rejects data-only objects", {
   K <- nrow(X)
   P <- ncol(X)
 
-  if (is.matrix(covariance_samples)) {
-    covariance_samples <- array(covariance_samples, dim = c(1L, K, K))
-  }
-
   vcov_sum <- matrix(0, nrow = P, ncol = P)
   for (s in seq_len(dim(covariance_samples)[1L])) {
     M <- covariance_samples[s, , ]
@@ -98,6 +94,10 @@ test_that("full covariance VIF backend matches manual GLS oracle", {
 
   expect_equal(actual, expected, tolerance = 1e-12)
   expect_false(isTRUE(all.equal(actual, diagonal_only, tolerance = 1e-8)))
+  expect_error(
+    .vif_vcov_from_covariance_samples(X, M1),
+    "draw x row x row"
+  )
 })
 
 test_that("diagonal VIF averages coefficient covariance over posterior draws", {
@@ -228,7 +228,7 @@ test_that("known-V VIF uses sampling covariance alone without scalar tau", {
   )
   known_V <- .known_v_newdata_prepare(V, k = nrow(V))
   covariance_samples <- .known_v_add_base_covariance(
-    known_V             = known_V,
+    known_V            = known_V,
     covariance_samples = .known_v_diagonal_extra_covariance_samples(
       object            = object,
       posterior_samples = posterior_samples,
@@ -520,7 +520,7 @@ test_that("VIF supports brma.mv random-formula marginal GLS covariance", {
   expect_equal(
     covariance_samples,
     .known_v_add_base_covariance(
-      known_V             = known_V,
+      known_V            = known_V,
       covariance_samples = random_vcov[["samples"]]
     )
   )
@@ -555,7 +555,7 @@ test_that("VIF supports brma.mv known-R marginal GLS covariance", {
   expect_equal(
     covariance_samples,
     .known_v_add_base_covariance(
-      known_V             = known_V,
+      known_V            = known_V,
       covariance_samples = random_vcov[["samples"]]
     )
   )

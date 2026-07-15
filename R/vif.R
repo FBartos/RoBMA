@@ -420,9 +420,6 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   K <- nrow(X)
   P <- ncol(X)
 
-  if (is.matrix(covariance_samples)) {
-    covariance_samples <- array(covariance_samples, dim = c(1L, K, K))
-  }
   if (length(dim(covariance_samples)) != 3L ||
       dim(covariance_samples)[2L] != K ||
       dim(covariance_samples)[3L] != K) {
