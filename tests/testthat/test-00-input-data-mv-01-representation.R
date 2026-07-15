@@ -254,12 +254,39 @@ test_that("known V base covariance preserves singleton draw dimensions", {
   covariance_samples <- array(c(0.01, 0.02), dim = c(2L, 1L, 1L))
 
   out <- .known_v_add_base_covariance(
-    base_covariance    = known_V,
+    known_V             = known_V,
     covariance_samples = covariance_samples
   )
 
   expect_equal(dim(out), c(2L, 1L, 1L))
   expect_equal(out[, 1L, 1L], c(0.05, 0.06))
+})
+
+
+test_that("known V base covariance requires canonical typed inputs", {
+
+  known_V <- .known_v_prepare(
+    V                         = 0.04,
+    keep_rows                 = TRUE,
+    known_v_parameterization  = "auto",
+    known_v_residual_fraction = NULL
+  )
+  covariance_samples <- array(0.01, dim = c(1L, 1L, 1L))
+
+  expect_error(
+    .known_v_add_base_covariance(
+      known_V             = matrix(0.04, nrow = 1L),
+      covariance_samples = covariance_samples
+    ),
+    "known-V representation must be a list"
+  )
+  expect_error(
+    .known_v_add_base_covariance(
+      known_V             = known_V,
+      covariance_samples = matrix(0.01, nrow = 1L)
+    ),
+    "draw x row x row"
+  )
 })
 
 

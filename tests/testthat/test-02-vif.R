@@ -226,8 +226,9 @@ test_that("known-V VIF uses sampling covariance alone without scalar tau", {
     nrow = 2,
     dimnames = list(NULL, c("mu", "x"))
   )
+  known_V <- .known_v_newdata_prepare(V, k = nrow(V))
   covariance_samples <- .known_v_add_base_covariance(
-    base_covariance    = V,
+    known_V             = known_V,
     covariance_samples = .known_v_diagonal_extra_covariance_samples(
       object            = object,
       posterior_samples = posterior_samples,
@@ -519,7 +520,7 @@ test_that("VIF supports brma.mv random-formula marginal GLS covariance", {
   expect_equal(
     covariance_samples,
     .known_v_add_base_covariance(
-      base_covariance    = .known_v_materialize(known_V),
+      known_V             = known_V,
       covariance_samples = random_vcov[["samples"]]
     )
   )
@@ -554,7 +555,7 @@ test_that("VIF supports brma.mv known-R marginal GLS covariance", {
   expect_equal(
     covariance_samples,
     .known_v_add_base_covariance(
-      base_covariance    = .known_v_materialize(known_V),
+      known_V             = known_V,
       covariance_samples = random_vcov[["samples"]]
     )
   )

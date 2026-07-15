@@ -86,7 +86,7 @@
   }
 
   covariance_samples <- .known_v_add_base_covariance(
-    base_covariance    = known_V,
+    known_V             = known_V,
     covariance_samples = covariance_samples
   )
 
@@ -455,22 +455,10 @@
 }
 
 
-.known_v_add_base_covariance <- function(base_covariance, covariance_samples) {
+.known_v_add_base_covariance <- function(known_V, covariance_samples) {
 
-  known_V <- if (is.matrix(base_covariance)) {
-    list(V = base_covariance)
-  } else {
-    base_covariance
-  }
+  .validate_known_v(known_V)
   K <- .known_v_nrow(known_V)
-
-  if (is.matrix(covariance_samples)) {
-    if (nrow(covariance_samples) != K || ncol(covariance_samples) != K) {
-      stop("Known-V covariance matrix has inconsistent dimensions.",
-           call. = FALSE)
-    }
-    covariance_samples <- array(covariance_samples, dim = c(1L, K, K))
-  }
 
   if (length(dim(covariance_samples)) != 3L ||
       dim(covariance_samples)[2L] != K ||
