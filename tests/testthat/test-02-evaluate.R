@@ -129,10 +129,7 @@ test_that("known-V BLUP uses full covariance blocks", {
   tau_within <- matrix(c(0.5, 0.25), nrow = 1)
   yi         <- c(1.0, -0.7)
   V          <- matrix(c(0.04, 0.02, 0.02, 0.09), nrow = 2)
-  known_V    <- list(
-    V             = V,
-    block_indices = list(1:2)
-  )
+  known_V    <- .known_v_newdata_prepare(V, k = length(yi))
 
   theta <- .evaluate.brma.known_v_blup.norm(
     mu_samples = mu_samples,
@@ -186,7 +183,7 @@ test_that("known-V BLUP scalar-tau blocks match inverse oracle", {
     mu_samples  = mu_samples,
     tau_within  = tau_within,
     yi          = yi,
-    known_V     = list(V = V, block_indices = list(1:3)),
+    known_V     = .known_v_newdata_prepare(V, k = length(yi)),
     bias_offset = bias_offset
   )
   expected <- mu_samples
@@ -227,7 +224,7 @@ test_that("known-V BLUP row-varying tau blocks match inverse oracle", {
     mu_samples = mu_samples,
     tau_within = tau_within,
     yi         = yi,
-    known_V    = list(V = V, block_indices = list(1:3))
+    known_V    = .known_v_newdata_prepare(V, k = length(yi))
   )
   expected <- mu_samples
   for (s in seq_len(nrow(mu_samples))) {
@@ -253,7 +250,7 @@ test_that("known-V BLUP singleton blocks use scalar shrinkage", {
     mu_samples  = mu_samples,
     tau_within  = tau_within,
     yi          = yi,
-    known_V     = list(V = V, block_indices = list(1L)),
+    known_V     = .known_v_newdata_prepare(V, k = length(yi)),
     bias_offset = bias_offset
   )
   expected <- mu_samples[, 1L] +
@@ -266,12 +263,22 @@ test_that("known-V BLUP singleton blocks use scalar shrinkage", {
 
 test_that("known-V BLUP helper rejects unsolvable covariance blocks", {
 
+  invalid_known_V <- .new_known_v(list(
+    version       = 2L,
+    storage       = "dense",
+    K             = 1L,
+    diagonal      = 0,
+    V             = matrix(-.5, nrow = 1),
+    blocks        = NULL,
+    block_indices = list(1L)
+  ))
+
   expect_error(
     .evaluate.brma.known_v_blup.norm(
       mu_samples = matrix(0, nrow = 1, ncol = 1),
       tau_within = matrix(.1, nrow = 1, ncol = 1),
       yi         = 0,
-      known_V    = list(V = matrix(-.5, nrow = 1), block_indices = list(1L))
+      known_V    = invalid_known_V
     ),
     "positive definite"
   )
