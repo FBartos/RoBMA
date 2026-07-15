@@ -341,6 +341,21 @@ test_that("Funnel plot for GLMM model renders ggplot output", {
 
   fit_brma <- fits[[name]]
 
+  student     <- expect_no_warning(rstudent(fit_brma))
+  funnel_data <- expect_no_warning(
+    .test_funnel(fit_brma, residual = TRUE, as_data = TRUE)
+  )
+  expect_equal(
+    funnel_data[["points"]][["x"]],
+    student[["resid"]],
+    tolerance = 1e-12
+  )
+  expect_equal(
+    funnel_data[["points"]][["y"]],
+    student[["se"]],
+    tolerance = 1e-12
+  )
+
   # there is no funnel plot for metafor
   expect_vdiffr_snapshot(
     "funnel_glmm_ggplot",

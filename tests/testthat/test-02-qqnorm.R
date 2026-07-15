@@ -192,6 +192,21 @@ test_that("Q-Q plot for GLMM model renders residual quantiles", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
+  student <- expect_no_warning(rstudent(fit_brma))
+  qq_data <- expect_no_warning(
+    qqnorm(fit_brma, envelope = FALSE, as_data = TRUE)
+  )
+  expect_equal(
+    qq_data[["points"]][["x"]],
+    stats::qnorm(stats::ppoints(nrow(student))),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    qq_data[["points"]][["y"]],
+    sort(student[["z"]]),
+    tolerance = 1e-12
+  )
+
   # rstudent only (rstandard not available for GLMM)
   expect_vdiffr_snapshot("qqnorm_glmm_base", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))

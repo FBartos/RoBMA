@@ -133,6 +133,91 @@ test_that("Extended rstudent residuals without direct metafor oracle are calibra
   expect_true(cor(glmm_resid, glmm_rstudent$z) > 0.9)
 })
 
+test_that("Low-k GLMM LOO-PIT residuals match effect-size and PSIS oracles", {
+
+  model_names <- c("nielweise2008_glmm", "bcg_glmm_reg")
+  skip_if_missing_fits(model_names)
+
+  for (name in model_names) {
+    fit_brma <- fits[[name]]
+    outcome  <- fit_brma[["data"]][["outcome"]]
+
+    effect_sizes <- if (.outcome_type(fit_brma) == "pois") {
+      metafor::escalc(
+        measure = "IRR",
+        x1i     = outcome[["x1i"]],
+        x2i     = outcome[["x2i"]],
+        t1i     = outcome[["t1i"]],
+        t2i     = outcome[["t2i"]]
+      )
+    } else {
+      metafor::escalc(
+        measure = "OR",
+        ai      = outcome[["ai"]],
+        bi      = outcome[["n1i"]] - outcome[["ai"]],
+        ci      = outcome[["ci"]],
+        di      = outcome[["n2i"]] - outcome[["ci"]]
+      )
+    }
+    expect_equal(
+      as.numeric(.outcome_data_yi(fit_brma)),
+      as.numeric(effect_sizes[["yi"]]),
+      tolerance = 1e-12,
+      info      = name
+    )
+    expect_equal(
+      as.numeric(.outcome_data_sei(fit_brma)),
+      as.numeric(sqrt(effect_sizes[["vi"]])),
+      tolerance = 1e-12,
+      info      = name
+    )
+
+    setup      <- .estimate_likelihood_setup.brma(fit_brma)
+    yi_matrix  <- matrix(setup[["yi"]], nrow = setup[["S"]],
+                         ncol = setup[["K"]], byrow = TRUE)
+    sei_matrix <- matrix(setup[["sei"]], nrow = setup[["S"]],
+                         ncol = setup[["K"]], byrow = TRUE)
+    cdf_oracle <- stats::pnorm(
+      yi_matrix,
+      mean = setup[["mu"]],
+      sd   = sqrt(setup[["tau_within"]]^2 + sei_matrix^2)
+    )
+    expect_equal(
+      unname(.cdf_lik_estimate.brma(fit_brma, setup = setup)),
+      unname(cdf_oracle),
+      tolerance = 1e-12,
+      info      = name
+    )
+
+    loo_result  <- loo(fit_brma)
+    psis_object <- loo_result[["psis_object"]]
+    expect_true(all(loo::pareto_k_values(loo_result) <= .7), info = name)
+    e_loo_mean <- function(x) {
+
+      loo::E_loo(x, psis_object, type = "mean")[["value"]]
+    }
+
+    pred_mean   <- e_loo_mean(setup[["mu"]])
+    pred_second <- e_loo_mean(
+      setup[["mu"]]^2 + setup[["tau_within"]]^2 + sei_matrix^2
+    )
+    pit <- e_loo_mean(cdf_oracle)
+    pit <- pmax(pmin(pit, 1 - 1e-10), 1e-10)
+    oracle <- cbind(
+      resid = setup[["yi"]] - pred_mean,
+      se    = sqrt(pmax(pred_second - pred_mean^2, 0)),
+      z     = stats::qnorm(pit)
+    )
+    actual <- expect_no_warning(rstudent(fit_brma))
+    expect_equal(
+      unname(as.matrix(actual)),
+      unname(oracle),
+      tolerance = 1e-12,
+      info      = name
+    )
+  }
+})
+
 test_that("Residuals for BMA.norm fits are internally consistent", {
 
   name <- "dat.lehmann2018_BMA.norm"
