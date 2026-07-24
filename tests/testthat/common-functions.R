@@ -711,6 +711,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/distributions/DSELNORMSTEP.h",
     "src/distributions/DSELNORMSTEPSWITCH.cc",
     "src/distributions/DSELNORMSTEPSWITCH.h",
+    "src/distributions/selnorm-jags-bounds.h",
     "src/distributions/DKNOWNVMNORM.cc",
     "src/distributions/DKNOWNVMNORM.h",
     "src/distributions/DWB.cc",

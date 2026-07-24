@@ -122,6 +122,78 @@ test_that("RoBMA JAGS module exposes scalar selected-normal step switch kernel",
   expect_true(all(fit[[1]][, "bias_indicator"] %in% c(1, 2)))
 })
 
+
+test_that("general selected-normal JAGS kernel restores protocol sentinels", {
+
+  RoBMA:::.load_RoBMA_module()
+
+  model_syntax <- paste0(
+    "model{\n",
+    "  y ~ dselnorm_kernel(mu_num, sigma_num, mu_norm, sigma_norm, ",
+    "sei, 1, omega, z_lower, z_upper, obs_bin, 1, 0, 0, ",
+    "phack_source, phack_dest, segment_bounds, segment_step_bin, ",
+    "segment_phack_region, 1)\n",
+    "}\n"
+  )
+  data <- list(
+    y                    = 1e290,
+    mu_num               = 1e300,
+    sigma_num            = 1e300,
+    mu_norm              = 1e300,
+    sigma_norm           = 1e300,
+    sei                  = 1,
+    omega                = c(1, .5),
+    z_lower              = c(0, -1e300),
+    z_upper              = c(1e300, 0),
+    obs_bin              = 1L,
+    phack_source         = c(0, 0),
+    phack_dest           = c(0, 0),
+    segment_bounds       = c(-1e300, 0, 1e300),
+    segment_step_bin     = c(2L, 1L),
+    segment_phack_region = c(0L, 0L)
+  )
+
+  model <- rjags::jags.model(
+    file     = textConnection(model_syntax),
+    data     = data,
+    quiet    = TRUE,
+    n.chains = 2,
+    n.adapt  = 0
+  )
+  dic <- rjags::dic.samples(
+    model,
+    n.iter       = 2,
+    type         = "pD",
+    progress.bar = "none"
+  )
+
+  normalizer <- stats::pnorm(
+    0,
+    mean       = data[["mu_norm"]],
+    sd         = data[["sigma_norm"]],
+    lower.tail = FALSE
+  ) + data[["omega"]][2L] * stats::pnorm(
+    0,
+    mean = data[["mu_norm"]],
+    sd   = data[["sigma_norm"]]
+  )
+  expected_deviance <- -2 * (
+    stats::dnorm(
+      data[["y"]],
+      mean = data[["mu_num"]],
+      sd   = data[["sigma_num"]],
+      log  = TRUE
+    ) - log(normalizer)
+  )
+
+  expect_equal(
+    as.numeric(sum(dic[["deviance"]])),
+    expected_deviance,
+    tolerance = 128 * .Machine$double.eps
+  )
+})
+
+
 test_that("RoBMA JAGS module exposes known-V multivariate normal kernel", {
 
   RoBMA:::.load_RoBMA_module()

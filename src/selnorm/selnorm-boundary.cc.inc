@@ -1,11 +1,11 @@
 bool selnorm_bound_is_negative_infinity(double x)
 {
-  return x <= -1e290 || (std::isinf(x) && x < 0);
+  return std::isinf(x) && x < 0;
 }
 
 bool selnorm_bound_is_positive_infinity(double x)
 {
-  return x >= 1e290 || (std::isinf(x) && x > 0);
+  return std::isinf(x) && x > 0;
 }
 
 bool selnorm_same_finite_bound(double x, double y)

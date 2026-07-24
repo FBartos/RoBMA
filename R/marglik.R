@@ -619,9 +619,30 @@ add_marglik.brma <- function(object, ...) {
 }
 
 
+# Restore exact IEEE infinities from selection bounds serialized for JAGS.
+.marglik_restore_jags_selection_bounds <- function(x) {
+
+  if (is.null(x)) {
+    return(NULL)
+  }
+
+  negative_sentinel <- !is.na(x) & x == -1e300
+  positive_sentinel <- !is.na(x) & x ==  1e300
+  x[negative_sentinel] <- -Inf
+  x[positive_sentinel] <-  Inf
+
+  return(x)
+}
+
+
 .marglik_selection_context <- function(parameters, data) {
 
-  n_bins <- length(data[["sel_z_lower"]])
+  z_lower        <- .marglik_restore_jags_selection_bounds(data[["sel_z_lower"]])
+  z_upper        <- .marglik_restore_jags_selection_bounds(data[["sel_z_upper"]])
+  segment_bounds <- .marglik_restore_jags_selection_bounds(
+    data[["sel_segment_bounds"]]
+  )
+  n_bins         <- length(z_lower)
   phack_z_source <- if (!is.null(data[["phack_z_source"]])) {
     data[["phack_z_source"]]
   } else if (!is.null(data[["sel_phack_z_source"]])) {
@@ -662,8 +683,8 @@ add_marglik.brma <- function(object, ...) {
 
   selection_context <- list(
     kernel_mode    = data[["sel_kernel_mode"]],
-    z_lower        = data[["sel_z_lower"]],
-    z_upper        = data[["sel_z_upper"]],
+    z_lower        = z_lower,
+    z_upper        = z_upper,
     obs_bin        = data[["sel_obs_bin"]],
     sign           = data[["sel_sign"]],
     n_bins         = n_bins,
@@ -673,7 +694,7 @@ add_marglik.brma <- function(object, ...) {
     phack_z_source = phack_z_source,
     phack_z_dest   = phack_z_dest,
     segments       = list(
-      bounds       = data[["sel_segment_bounds"]],
+      bounds       = segment_bounds,
       step_bin     = data[["sel_segment_step_bin"]],
       phack_region = data[["sel_segment_phack_region"]]
     ),
