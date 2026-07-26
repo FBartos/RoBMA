@@ -1,20 +1,36 @@
 double phack_power_weight(double z, double lower, double upper, int q,
                           bool source)
 {
-  const double width = upper - lower;
-  if (!(width > 0) || q <= 0) {
-    return 0;
+  if (!std::isfinite(z) || !std::isfinite(lower) || !std::isfinite(upper) ||
+      !(lower < upper) || (q != 1 && q != 2) ||
+      z < lower || z > upper) {
+    return std::numeric_limits<double>::quiet_NaN();
   }
 
-  double x = source ? (z - lower) / width : (upper - z) / width;
-  if (x < 0 && x > -1e-12) {
-    x = 0;
+  if (z == lower) {
+    return source ? 0.0 : 1.0;
   }
-  if (x > 1 && x < 1 + 1e-12) {
-    x = 1;
+  if (z == upper) {
+    return source ? 1.0 : 0.0;
   }
-  if (!(x > 0) || x > 1 + 1e-12) {
-    return 0;
+
+  const double width = upper - lower;
+  double x;
+  if (std::isfinite(width)) {
+    x = source ? (z - lower) / width : (upper - z) / width;
+  } else {
+    const double scale        = std::max(std::abs(lower), std::abs(upper));
+    const double scaled_lower = lower / scale;
+    const double scaled_upper = upper / scale;
+    const double scaled_z     = z / scale;
+    const double scaled_width = scaled_upper - scaled_lower;
+    x = source ?
+      (scaled_z - scaled_lower) / scaled_width :
+      (scaled_upper - scaled_z) / scaled_width;
+  }
+
+  if (!std::isfinite(x) || !(x > 0) || !(x < 1)) {
+    return std::numeric_limits<double>::quiet_NaN();
   }
 
   return q == 1 ? x : x * x;

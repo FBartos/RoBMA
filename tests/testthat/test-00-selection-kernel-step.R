@@ -490,6 +490,40 @@ test_that("active combined p-hacking normalizer is stable and matches reference"
   expect_true(all(is.finite(tail_lik)))
 })
 
+test_that("p-hacking power coordinates retain exact endpoints across overflowed widths", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  z    <- c(-1e308, 0, 1e308)
+  spec <- .test_step_spec(z, rep(1, length(z)))
+  spec[["phack_z_source"]] <- c(-1e308, 1e308)
+  spec[["phack_z_dest"]]   <- c(-1e308, 1e308)
+  spec <- .selection_reset_native_cache(spec)
+
+  mean  <- matrix(0, nrow = 1, ncol = length(z))
+  sd    <- matrix(1e308, nrow = 1, ncol = length(z))
+  omega <- matrix(1, nrow = 1, ncol = spec[["n_bins"]])
+  alpha <- .5
+
+  log_lik <- .selnorm_kernel_loglik_matrix(
+    yi             = z,
+    mu_num         = mean,
+    sigma_num      = sd,
+    sei            = rep(1, length(z)),
+    omega          = omega,
+    selection_spec = spec,
+    alpha          = alpha,
+    phack_kind     = 1L,
+    kernel_mode    = SELKERNEL_PHACK_POWER
+  )
+  normal_log_lik <- stats::dnorm(z, mean = 0, sd = 1e308, log = TRUE)
+
+  expect_equal(
+    as.numeric(log_lik) - normal_log_lik,
+    c(0, log1p(-alpha * .5), log1p(-alpha))
+  )
+})
+
 test_that("step normalizer is unchanged by sentinels and adjacent repeated bins", {
 
   skip_if_not(.has_native_selnorm_kernel())
