@@ -1,28 +1,29 @@
 double interval_prob_cdf(double lower, double upper, double mean, double sd)
 {
-  if (!(sd > 0) || lower >= upper) {
+  if (!(sd > 0) || !std::isfinite(sd) || !std::isfinite(mean) ||
+      std::isnan(lower) || std::isnan(upper)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (lower >= upper) {
     return 0;
   }
 
+  double out;
   if (std::isinf(lower) && lower < 0) {
     if (std::isinf(upper) && upper > 0) {
       return 1;
     }
-    return pnorm(upper, mean, sd, true, false);
-  }
-  if (std::isinf(upper) && upper > 0) {
-    return pnorm(lower, mean, sd, false, false);
+    out = pnorm(upper, mean, sd, true, false);
+  } else if (std::isinf(upper) && upper > 0) {
+    out = pnorm(lower, mean, sd, false, false);
+  } else {
+    const double p_lower = pnorm(lower, mean, sd, true, false);
+    const double p_upper = pnorm(upper, mean, sd, true, false);
+    out = p_upper - p_lower;
   }
 
-  const double p_lower = pnorm(lower, mean, sd, true, false);
-  const double p_upper = pnorm(upper, mean, sd, true, false);
-
-  double out = p_upper - p_lower;
-  if (out < 0 && out > -1e-14) {
-    out = 0;
-  }
-  if (out > 1 && out < 1 + 1e-14) {
-    out = 1;
+  if (!std::isfinite(out) || out < 0 || out > 1) {
+    return std::numeric_limits<double>::quiet_NaN();
   }
   return out;
 }
@@ -77,7 +78,11 @@ double sub_logspace(double log_a, double log_b)
 
 double interval_log_prob(double lower, double upper, double mean, double sd)
 {
-  if (!(sd > 0) || lower >= upper) {
+  if (!(sd > 0) || !std::isfinite(sd) || !std::isfinite(mean) ||
+      std::isnan(lower) || std::isnan(upper)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (lower >= upper) {
     return -INFINITY;
   }
   if (std::isinf(lower) && lower < 0 && std::isinf(upper) && upper > 0) {
@@ -101,7 +106,10 @@ double interval_log_prob(double lower, double upper, double mean, double sd)
   }
 
   const double prob = interval_prob_cdf(lower, upper, mean, sd);
-  return prob > 0 ? std::log(prob) : -INFINITY;
+  if (!std::isfinite(prob)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  return prob == 0 ? -INFINITY : std::log(prob);
 }
 
 double interval_prob(double lower, double upper, double mean, double sd)
