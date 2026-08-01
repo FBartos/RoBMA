@@ -956,3 +956,80 @@
 
   return(c(-Inf, Inf))
 }
+
+
+# Identify exact ordinate values where a simple prior is nonregular.
+.iwmde_prior_ordinate_behavior <- function(prior, value) {
+
+  if (is.null(prior) || !BayesTools::is.prior.simple(prior) ||
+      BayesTools::is.prior.none(prior) || BayesTools::is.prior.point(prior)) {
+    return(NULL)
+  }
+
+  density <- tryCatch(
+    suppressWarnings(BayesTools::mpdf(prior, value)),
+    error = function(e) NA_real_
+  )
+  if (length(density) != 1L || is.na(density) || density < 0) {
+    return("undefined")
+  }
+  if (is.infinite(density)) {
+    return("infinite")
+  }
+  if (density == 0) {
+    return("zero")
+  }
+
+  return("regular")
+}
+
+
+# Warn when an exact requested ordinate is nonregular in an active prior branch.
+.iwmde_ordinate_prior_warnings <- function(context, parameter, rows,
+                                            parameter_spec, values) {
+
+  if (!identical(parameter_spec[["type"]], "primitive") ||
+      length(rows) == 0L || length(values) == 0L) {
+    return(character())
+  }
+
+  samples <- context[["posterior_samples"]]
+  keys    <- vapply(rows, function(row) {
+    .iwmde_active_key(context, samples[row, ])
+  }, character(1))
+  rows   <- rows[!duplicated(keys)]
+  priors <- lapply(rows, function(row) {
+    .iwmde_focal_prior_cached(
+      context    = context,
+      parameter  = parameter,
+      row        = samples[row, ],
+      active_key = .iwmde_active_key(context, samples[row, ])
+    )
+  })
+
+  warnings <- unlist(lapply(values, function(value) {
+    behavior <- unique(vapply(priors, function(prior) {
+      out <- .iwmde_prior_ordinate_behavior(prior, value)
+      if (is.null(out)) "" else out
+    }, character(1)))
+    behavior <- behavior[behavior %in% c("zero", "infinite", "undefined")]
+    if (length(behavior) == 0L) {
+      return(character())
+    }
+
+    descriptions <- c(
+      zero      = "tends to zero",
+      infinite  = "is singular (tends to infinity)",
+      undefined = "is undefined"
+    )
+    paste0(
+      "The qCMDE/IWMDE ordinate for '", parameter, "' at ",
+      format(value, digits = 16L, scientific = FALSE, trim = TRUE),
+      " is nonregular because at least one active prior density ",
+      paste(unname(descriptions[behavior]), collapse = " or "),
+      ". The exact requested value is retained; the Bayes factor may be unavailable."
+    )
+  }), use.names = FALSE)
+
+  return(unique(warnings))
+}

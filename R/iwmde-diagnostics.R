@@ -464,6 +464,11 @@
 
   warnings <- character()
 
+  ordinate_warnings <- diagnostics[["ordinate_warnings"]]
+  if (!is.null(ordinate_warnings)) {
+    warnings <- c(warnings, as.character(ordinate_warnings))
+  }
+
   relative_mcse <- .iwmde_diagnostic_scalar_any(
     diagnostics,
     c("relative_mcse", "bf_relative_mcse")

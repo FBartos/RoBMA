@@ -210,10 +210,13 @@
     requested_values >= support[1] &
       requested_values <= support[2]
   ]
-  evaluation_values <- .iwmde_ordinate_interior_values(
-    values  = requested_values,
-    support = support,
-    xlim    = xlim
+  evaluation_values  <- requested_values
+  ordinate_warnings  <- .iwmde_ordinate_prior_warnings(
+    context        = context,
+    parameter      = parameter,
+    rows           = candidate_rows,
+    parameter_spec = parameter_spec,
+    values         = requested_values
   )
 
   continuous_values <- posterior_values[continuous_rows]
@@ -278,6 +281,7 @@
     evaluation_values  = evaluation_values,
     normalization_grid = normalization_grid
   )
+  plan[["ordinate_warnings"]] <- ordinate_warnings
 
   return(plan)
 }
@@ -496,6 +500,7 @@
     rows               = .iwmde_plan_rows_provenance(plan),
     support            = .iwmde_plan_support_provenance(plan),
     grids              = .iwmde_plan_grid_provenance(plan),
+    ordinate_warnings  = plan[["ordinate_warnings"]],
     replacement        = .iwmde_hash(
       "iwmde_replacement",
       plan[["replacement"]]
@@ -555,6 +560,7 @@
     rows                = .iwmde_plan_rows_provenance(plan),
     support             = .iwmde_plan_support_provenance(plan),
     grids               = .iwmde_plan_grid_provenance(plan),
+    ordinate_warnings   = plan[["ordinate_warnings"]],
     source_fingerprint  = plan[["source_fingerprint"]]
   )))
 }

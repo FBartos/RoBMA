@@ -652,16 +652,10 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
 })
 
 
-test_that("IWMDE BF diagnostics retain boundary evaluation point", {
+test_that("IWMDE BF diagnostics retain the exact boundary ordinate", {
 
-  evaluation_value <- 1e-6
-  boundary_meanlog <- -.2
-  boundary_sdlog   <- .5
-  expected_ordinate <- stats::dlnorm(
-    evaluation_value,
-    meanlog = boundary_meanlog,
-    sdlog   = boundary_sdlog
-  )
+  evaluation_value  <- 0
+  expected_ordinate <- stats::dnorm(evaluation_value)
   density <- list(
     x                = 0,
     evaluation_x     = evaluation_value,
@@ -711,6 +705,104 @@ test_that("IWMDE BF diagnostics retain boundary evaluation point", {
 })
 
 
+test_that("IWMDE identifies exact nonregular prior ordinates", {
+
+  beta_zero <- BayesTools::prior(
+    "beta",
+    parameters = list(alpha = 2, beta = 2)
+  )
+  beta_infinite <- BayesTools::prior(
+    "beta",
+    parameters = list(alpha = .5, beta = 2)
+  )
+  beta_regular <- BayesTools::prior(
+    "beta",
+    parameters = list(alpha = 1, beta = 1)
+  )
+
+  expect_identical(.iwmde_prior_ordinate_behavior(beta_zero, 0), "zero")
+  expect_identical(
+    .iwmde_prior_ordinate_behavior(beta_infinite, 0),
+    "infinite"
+  )
+  expect_identical(.iwmde_prior_ordinate_behavior(beta_regular, 0), "regular")
+  expect_identical(.iwmde_prior_ordinate_behavior(
+    BayesTools::prior("lognormal", parameters = list(meanlog = 0, sdlog = 1)),
+    0
+  ), "zero")
+  expect_identical(.iwmde_prior_ordinate_behavior(
+    BayesTools::prior("gamma", parameters = list(shape = .5, rate = 1)),
+    0
+  ), "infinite")
+  expect_identical(.iwmde_prior_ordinate_behavior(
+    BayesTools::prior(
+      "moment",
+      parameters = list(location = 0, tau = 1, order = 1)
+    ),
+    0
+  ), "zero")
+
+  context <- list(
+    posterior_samples = matrix(
+      c(.2, .4),
+      ncol     = 1L,
+      dimnames = list(NULL, "rho")
+    ),
+    flat_prior_list = list(rho = beta_zero),
+    indicator_names = character(),
+    support_cache   = new.env(parent = emptyenv())
+  )
+  warnings <- .iwmde_ordinate_prior_warnings(
+    context        = context,
+    parameter      = "rho",
+    rows           = 1:2,
+    parameter_spec = list(type = "primitive"),
+    values         = 0
+  )
+
+  expect_length(warnings, 1L)
+  expect_match(warnings, "exact requested value is retained")
+  expect_match(
+    .iwmde_diagnostics_bf_warning(list(
+      estimator         = "iwmde",
+      ordinate_warnings = warnings
+    )),
+    "prior density tends to zero"
+  )
+
+  testthat::local_mocked_bindings(
+    .iwmde_context_ensure_caches = function(context) context,
+    .iwmde_check_context_density_method_supported = function(...) NULL,
+    .iwmde_plan = function(...) list(ordinate_warnings = warnings),
+    .iwmde_estimate_from_plan = function(context, plan, cache) {
+      list(plan = plan)
+    },
+    .package = "RoBMA"
+  )
+  expect_warning(
+    .iwmde_estimate(
+      context         = list(),
+      parameter       = "rho",
+      density_method  = "qCMDE",
+      density_control = list(),
+      outputs         = c("density", "ordinate"),
+      values          = 0
+    ),
+    "exact requested value is retained"
+  )
+
+  context[["flat_prior_list"]][["rho"]] <- beta_regular
+  rm(list = ls(context[["support_cache"]]), envir = context[["support_cache"]])
+  expect_length(.iwmde_ordinate_prior_warnings(
+    context        = context,
+    parameter      = "rho",
+    rows           = 1:2,
+    parameter_spec = list(type = "primitive"),
+    values         = 0
+  ), 0L)
+})
+
+
 test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   density_control <- list(
@@ -737,7 +829,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
     diagnostics = list(
       bf_included         = TRUE,
       bf_value            = 0,
-      bf_evaluation_value = 1e-6,
+      bf_evaluation_value = 0,
       bf_ordinate         = .4,
       bf_mcse             = .01,
       bf_relative_mcse    = .01,
@@ -826,7 +918,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "2")
-  expect_equal(provenance[["algorithm_version"]], "1")
+  expect_equal(provenance[["algorithm_version"]], "2")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -835,11 +927,11 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
   expect_equal(provenance[["requested_value"]], .iwmde_key_number(0))
   expect_equal(
     provenance[["result"]][["evaluation_value"]],
-    1e-6
+    0
   )
   expect_equal(
     provenance[["result"]][["evaluation_value_key"]],
-    .iwmde_key_number(1e-6)
+    .iwmde_key_number(0)
   )
   expect_true(isTRUE(provenance[["result"]][["bf_grade"]]))
   expect_true(.iwmde_posterior_ordinate_matches_request(

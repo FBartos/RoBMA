@@ -15,7 +15,7 @@
     several.ok = TRUE
   ))
   if (identical(outputs, "ordinate")) {
-    return(.iwmde_estimate_adaptive_ordinate(
+    out <- .iwmde_estimate_adaptive_ordinate(
       context         = context,
       parameter       = parameter,
       density_method  = density_method,
@@ -24,25 +24,31 @@
       parameter_spec  = parameter_spec,
       metadata        = metadata,
       cache           = cache
-    ))
+    )
+  } else {
+    plan <- .iwmde_plan(
+      context         = context,
+      parameter       = parameter,
+      density_method  = density_method,
+      density_control = density_control,
+      outputs         = outputs,
+      values          = values,
+      parameter_spec  = parameter_spec,
+      metadata        = metadata
+    )
+    out <- .iwmde_estimate_from_plan(
+      context = context,
+      plan    = plan,
+      cache   = cache
+    )
   }
 
-  plan <- .iwmde_plan(
-    context         = context,
-    parameter       = parameter,
-    density_method  = density_method,
-    density_control = density_control,
-    outputs         = outputs,
-    values          = values,
-    parameter_spec  = parameter_spec,
-    metadata        = metadata
-  )
+  ordinate_warnings <- out[["plan"]][["ordinate_warnings"]]
+  if (length(ordinate_warnings) > 0L) {
+    warning(paste(ordinate_warnings, collapse = " "), call. = FALSE)
+  }
 
-  return(.iwmde_estimate_from_plan(
-    context = context,
-    plan    = plan,
-    cache   = cache
-  ))
+  return(out)
 }
 
 
@@ -721,6 +727,7 @@
     } else {
       "ordinate"
     },
+    ordinate_warnings           = plan[["ordinate_warnings"]],
     bf_value                    = bf_diagnostics[["bf_value"]],
     bf_evaluation_value         = bf_diagnostics[["bf_evaluation_value"]],
     bf_included                 = bf_diagnostics[["bf_included"]],

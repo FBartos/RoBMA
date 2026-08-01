@@ -616,7 +616,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
     ordinate <- estimate[["posterior_ordinate"]]
 
     expect_equal(ordinate[["value"]], 0)
-    expect_gt(ordinate[["evaluation_value"]], 0)
+    expect_equal(ordinate[["evaluation_value"]], 0)
     expect_true(.iwmde_posterior_ordinate_supports_bf(ordinate))
 
     prior_ordinate <- 2 * stats::dnorm(
