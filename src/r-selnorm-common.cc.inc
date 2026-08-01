@@ -325,14 +325,9 @@ struct FunnelSeContext {
   const SelNormKernelData *data;
   std::vector<double> location;
   std::vector<double> total_sd;
-  std::vector<double> mean_z;
-  std::vector<double> sd_z;
   std::vector<double> log_norm;
-  std::vector<double> normalizer;
-  std::vector<double> boundary_tail;
   std::vector<char> zero_sd;
   std::vector<char> weighted;
-  std::vector<char> fast_step;
 };
 
 double funnel_selected_cdf_zero_se(double q, int s, const FunnelSeContext &ctx)
@@ -386,20 +381,12 @@ void funnel_prepare_se_context(FunnelSeContext *ctx)
 {
   const SelNormKernelData &data = *ctx->data;
   const double se2 = ctx->se * ctx->se;
-  const int n_boundaries = std::max(data.n_bins - 1, 0);
 
   ctx->location.assign(static_cast<size_t>(ctx->S), 0);
   ctx->total_sd.assign(static_cast<size_t>(ctx->S), 0);
-  ctx->mean_z.assign(static_cast<size_t>(ctx->S), 0);
-  ctx->sd_z.assign(static_cast<size_t>(ctx->S), 0);
   ctx->log_norm.assign(static_cast<size_t>(ctx->S), 0);
-  ctx->normalizer.assign(static_cast<size_t>(ctx->S), 0);
-  ctx->boundary_tail.assign(
-    static_cast<size_t>(ctx->S) * static_cast<size_t>(n_boundaries), 0
-  );
   ctx->zero_sd.assign(static_cast<size_t>(ctx->S), 0);
   ctx->weighted.assign(static_cast<size_t>(ctx->S), 0);
-  ctx->fast_step.assign(static_cast<size_t>(ctx->S), 0);
 
   for (int s = 0; s < ctx->S; ++s) {
     const size_t si = static_cast<size_t>(s);
@@ -417,59 +404,6 @@ void funnel_prepare_se_context(FunnelSeContext *ctx)
       if ((*ctx->row_active_phack)[si]) {
         ctx->log_norm[si] = std::numeric_limits<double>::quiet_NaN();
       } else {
-        const int row_mode = (*ctx->row_mode)[si];
-        const bool step_mode = row_mode == SELKERNEL_STEP ||
-          row_mode == SELKERNEL_STEP_PHACK_POWER;
-        const double mean_z = data.effect_sign * location / ctx->se;
-        const double sd_z = total_sd / ctx->se;
-
-        ctx->mean_z[si] = mean_z;
-        ctx->sd_z[si] = sd_z;
-
-        if (step_mode && data.trusted_step_partition &&
-            data.telescope_probabilities) {
-          const double *omega_s = ctx->omega + s;
-          double normalizer = omega_s[static_cast<size_t>(ctx->S) *
-            static_cast<size_t>(data.n_bins - 1)];
-          double norm_abs = std::abs(normalizer);
-          bool ok = std::isfinite(normalizer);
-
-          for (int b = 0; ok && b < n_boundaries; ++b) {
-            const double w_left = omega_s[static_cast<size_t>(ctx->S) *
-              static_cast<size_t>(b)];
-            const double w_right = omega_s[static_cast<size_t>(ctx->S) *
-              static_cast<size_t>(b + 1)];
-            if (w_left == w_right) {
-              continue;
-            }
-
-            const double tail_boundary = pnorm(
-              data.z_lower[b], mean_z, sd_z, false, false
-            );
-            if (!std::isfinite(tail_boundary)) {
-              ok = false;
-              break;
-            }
-
-            ctx->boundary_tail[
-              si * static_cast<size_t>(n_boundaries) + static_cast<size_t>(b)
-            ] = tail_boundary;
-
-            const double contribution = (w_left - w_right) * tail_boundary;
-            normalizer += contribution;
-            norm_abs += std::abs(contribution);
-          }
-
-          if (ok && std::isfinite(normalizer) && normalizer > 0 &&
-              normalizer > std::numeric_limits<double>::min() &&
-              normalizer > 1e-8 * norm_abs) {
-            ctx->normalizer[si] = normalizer;
-            ctx->log_norm[si] = std::log(normalizer);
-            ctx->fast_step[si] = 1;
-            continue;
-          }
-        }
-
         ctx->log_norm[si] = cpp_selnorm_kernel_log_norm(
           location,
           total_sd,
@@ -487,81 +421,6 @@ void funnel_prepare_se_context(FunnelSeContext *ctx)
   }
 }
 
-double funnel_step_selected_cdf_precomputed(double q, int s,
-                                            const FunnelSeContext &ctx)
-{
-  const SelNormKernelData &data = *ctx.data;
-  const size_t si = static_cast<size_t>(s);
-  const int n_boundaries = std::max(data.n_bins - 1, 0);
-  const double q_z = data.effect_sign * q / ctx.se;
-  const double tail_q = pnorm(q_z, ctx.mean_z[si], ctx.sd_z[si], false, false);
-  const double cdf_q = pnorm(q_z, ctx.mean_z[si], ctx.sd_z[si], true, false);
-
-  if (!std::isfinite(tail_q) || !std::isfinite(cdf_q)) {
-    return NA_REAL;
-  }
-
-  const double *omega_s = ctx.omega + s;
-  const bool signed_lower_tail = data.effect_sign == 1;
-  const double normalizer = ctx.normalizer[si];
-  double requested = signed_lower_tail ?
-    omega_s[static_cast<size_t>(ctx.S) * static_cast<size_t>(data.n_bins - 1)] *
-      cdf_q :
-    omega_s[static_cast<size_t>(ctx.S) * static_cast<size_t>(data.n_bins - 1)] *
-      tail_q;
-  double req_abs = std::abs(requested);
-
-  for (int b = 0; b < n_boundaries; ++b) {
-    const double w_left = omega_s[static_cast<size_t>(ctx.S) *
-      static_cast<size_t>(b)];
-    const double w_right = omega_s[static_cast<size_t>(ctx.S) *
-      static_cast<size_t>(b + 1)];
-    if (w_left == w_right) {
-      continue;
-    }
-
-    const double diff = w_left - w_right;
-    const double tail_boundary = ctx.boundary_tail[
-      si * static_cast<size_t>(n_boundaries) + static_cast<size_t>(b)
-    ];
-    double req_contrib = 0;
-
-    if (signed_lower_tail) {
-      if (q_z > data.z_lower[b]) {
-        double interval = tail_boundary - tail_q;
-        const double scale = std::max(std::abs(tail_boundary), std::abs(tail_q));
-        const double tol = 1e-14 * std::max(scale, 1.0);
-        if (interval < 0 && interval > -tol) {
-          interval = 0;
-        } else if (interval < 0) {
-          return NA_REAL;
-        }
-        req_contrib = diff * interval;
-      }
-    } else {
-      req_contrib = diff * (q_z >= data.z_lower[b] ? tail_q : tail_boundary);
-    }
-
-    requested += req_contrib;
-    req_abs += std::abs(req_contrib);
-  }
-
-  const double req_tol = 1e-10 *
-    std::max(std::max(req_abs, normalizer), 1.0);
-  if (requested < 0 && requested > -req_tol) {
-    requested = 0;
-  } else if (requested < 0) {
-    return NA_REAL;
-  }
-  if (requested > normalizer && requested < normalizer + req_tol) {
-    requested = normalizer;
-  } else if (requested > normalizer) {
-    return NA_REAL;
-  }
-
-  return clamp_probability_value(requested / normalizer);
-}
-
 double funnel_model_averaged_cdf_native(double q, const FunnelSeContext &ctx)
 {
   double cdf_sum = 0;
@@ -577,25 +436,6 @@ double funnel_model_averaged_cdf_native(double q, const FunnelSeContext &ctx)
         cdf_s = funnel_selected_cdf_zero_se(q, s, ctx);
       } else if ((*ctx.row_active_phack)[si]) {
         cdf_s = NA_REAL;
-      } else if (ctx.fast_step[si]) {
-        cdf_s = funnel_step_selected_cdf_precomputed(q, s, ctx);
-        if (!std::isfinite(cdf_s)) {
-          cdf_s = cpp_selnorm_kernel_cdf_with_log_norm(
-            q,
-            ctx.location[si],
-            ctx.total_sd[si],
-            ctx.se,
-            ctx.omega + s,
-            (*ctx.row_alpha)[si],
-            (*ctx.row_phack)[si],
-            (*ctx.row_mode)[si],
-            *ctx.data,
-            ctx.log_norm[si],
-            ctx.S,
-            true,
-            false
-          );
-        }
       } else {
         cdf_s = cpp_selnorm_kernel_cdf_with_log_norm(
           q,

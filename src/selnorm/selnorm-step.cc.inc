@@ -1,107 +1,3 @@
-double step_log_normalizer_trusted_telescoping(const double *omega,
-                                               const SelNormKernelData &data,
-                                               double mean_z, double sd_z,
-                                               int omega_stride)
-{
-  double normalizer = omega_at(omega, data.n_bins, omega_stride);
-  double total_abs  = std::abs(normalizer);
-
-  for (int b = 0; b < data.n_bins - 1; ++b) {
-    const double w_left  = omega_at(omega, b + 1, omega_stride);
-    const double w_right = omega_at(omega, b + 2, omega_stride);
-    if (w_left == w_right) {
-      continue;
-    }
-
-    const double contribution = (w_left - w_right) *
-      tail_at(data.z_lower[b], mean_z, sd_z);
-    normalizer += contribution;
-    total_abs  += std::abs(contribution);
-  }
-
-  if (!std::isfinite(normalizer) || !(normalizer > 0)) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-  if (normalizer <= std::numeric_limits<double>::min()) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-  if (normalizer <= 1e-8 * total_abs) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  return std::log(normalizer);
-}
-
-double step_log_normalizer_trusted_partition(const double *omega,
-                                             const SelNormKernelData &data,
-                                             double mean_z, double sd_z,
-                                             int omega_stride)
-{
-  double out = -INFINITY;
-
-  for (int b = 0; b < data.n_bins; ) {
-    const double w = omega_at(omega, b + 1, omega_stride);
-    int last = b;
-
-    while (last + 1 < data.n_bins &&
-           omega_at(omega, last + 2, omega_stride) == w) {
-      ++last;
-    }
-
-    if (w > 0) {
-      const double log_prob = interval_log_prob(
-        data.z_lower[last], data.z_upper[b], mean_z, sd_z
-      );
-      if (log_prob != -INFINITY) {
-        out = add_logspace(out, std::log(w) + log_prob);
-      }
-    }
-
-    b = last + 1;
-  }
-
-  return out;
-}
-
-double step_log_normalizer(const double *omega, const SelNormKernelData &data,
-                           double mean_z, double sd_z, int omega_stride)
-{
-  if (data.trusted_step_partition) {
-    if (data.telescope_probabilities) {
-      const double log_normalizer = step_log_normalizer_trusted_telescoping(
-        omega, data, mean_z, sd_z, omega_stride
-      );
-      if (std::isfinite(log_normalizer)) {
-        return log_normalizer;
-      }
-    }
-
-    return step_log_normalizer_trusted_partition(
-      omega, data, mean_z, sd_z, omega_stride
-    );
-  }
-
-  double out = -INFINITY;
-
-  for (int b = 0; b < data.n_bins; ++b) {
-    const double w = omega_at(omega, b + 1, omega_stride);
-    if (w <= 0) {
-      continue;
-    }
-
-    const double log_prob = interval_log_prob(
-      data.z_lower[b], data.z_upper[b], mean_z, sd_z
-    );
-    if (log_prob == -INFINITY) {
-      continue;
-    }
-
-    out = add_logspace(out, std::log(w) + log_prob);
-  }
-
-  return out;
-}
-
 double clamp_probability(double x)
 {
   if (x < 0) {
@@ -165,91 +61,96 @@ double trusted_interval_prob(double lower, double upper, double mean,
   return prob;
 }
 
-double step_cdf_trusted_telescoping(const double *omega,
-                                    const SelNormKernelData &data,
-                                    double q_z, double mean_z, double sd_z,
-                                    int omega_stride,
-                                    bool signed_lower_tail,
-                                    bool *ok)
+bool add_weighted_standard_normal_interval(double lower, double upper,
+                                           double log_weight,
+                                           double *log_mass)
 {
-  *ok = false;
-
-  const double tail_q = tail_at(q_z, mean_z, sd_z);
-  const double cdf_q  = cdf_at(q_z, mean_z, sd_z);
-  if (!std::isfinite(tail_q) || !std::isfinite(cdf_q)) {
-    return std::numeric_limits<double>::quiet_NaN();
+  if (!(lower < upper)) {
+    return true;
   }
 
-  const double w_last = omega_at(omega, data.n_bins, omega_stride);
-  double normalizer   = w_last;
-  double norm_abs     = std::abs(normalizer);
-  double requested    = signed_lower_tail ? w_last * cdf_q : w_last * tail_q;
-  double req_abs      = std::abs(requested);
-
-  for (int b = 0; b < data.n_bins - 1; ++b) {
-    const double w_left  = omega_at(omega, b + 1, omega_stride);
-    const double w_right = omega_at(omega, b + 2, omega_stride);
-    if (w_left == w_right) {
-      continue;
-    }
-
-    const double diff          = w_left - w_right;
-    const double tail_boundary = tail_at(data.z_lower[b], mean_z, sd_z);
-    const double norm_contrib  = diff * tail_boundary;
-    normalizer += norm_contrib;
-    norm_abs   += std::abs(norm_contrib);
-
-    double req_contrib = 0;
-    if (signed_lower_tail) {
-      if (q_z > data.z_lower[b]) {
-        double interval = tail_boundary - tail_q;
-        const double scale = std::max(std::abs(tail_boundary), std::abs(tail_q));
-        const double tol   = 1e-14 * std::max(scale, 1.0);
-        if (interval < 0 && interval > -tol) {
-          interval = 0;
-        } else if (interval < 0) {
-          return std::numeric_limits<double>::quiet_NaN();
-        }
-        req_contrib = diff * interval;
-      }
-    } else {
-      req_contrib = diff * (q_z >= data.z_lower[b] ? tail_q : tail_boundary);
-    }
-
-    requested += req_contrib;
-    req_abs   += std::abs(req_contrib);
+  const double log_probability = interval_log_prob(lower, upper, 0, 1);
+  if (!std::isfinite(log_probability)) {
+    return false;
   }
-
-  if (!std::isfinite(normalizer) || !(normalizer > 0) ||
-      normalizer <= std::numeric_limits<double>::min() ||
-      normalizer <= 1e-8 * norm_abs ||
-      !std::isfinite(requested)) {
-    return std::numeric_limits<double>::quiet_NaN();
+  const double log_term = log_weight + log_probability;
+  if (!std::isfinite(log_term)) {
+    return false;
   }
-
-  const double req_tol = 1e-10 * std::max(std::max(req_abs, normalizer), 1.0);
-  if (requested < 0 && requested > -req_tol) {
-    requested = 0;
-  } else if (requested < 0) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-  if (requested > normalizer && requested < normalizer + req_tol) {
-    requested = normalizer;
-  } else if (requested > normalizer) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  *ok = true;
-  return clamp_probability(requested / normalizer);
+  *log_mass = add_logspace(*log_mass, log_term);
+  return true;
 }
 
-double step_log_cdf_logspace(const double *omega,
-                             const SelNormKernelData &data,
-                             double q_z, double mean_z, double sd_z,
-                             int omega_stride, bool signed_lower_tail,
-                             bool trusted_partition)
+double step_log_normalizer_score_space(const double *omega,
+                                       const SelNormKernelData &data,
+                                       double mean, double sd, double sei,
+                                       int omega_stride)
 {
-  double log_denom      = -INFINITY;
+  double log_mass = -INFINITY;
+
+  for (int b = 0; b < data.n_bins; ) {
+    const double w = omega_at(omega, b + 1, omega_stride);
+    int last = b;
+
+    if (data.trusted_step_partition) {
+      while (last + 1 < data.n_bins &&
+             omega_at(omega, last + 2, omega_stride) == w) {
+        ++last;
+      }
+    }
+
+    if (w > 0) {
+      const double lower_z = data.trusted_step_partition ?
+        data.z_lower[last] : data.z_lower[b];
+      const double upper_z = data.z_upper[b];
+      const double lower   = stable_affine_score(lower_z, sei, mean, sd);
+      const double upper   = stable_affine_score(upper_z, sei, mean, sd);
+      if (std::isnan(lower) || std::isnan(upper) || !(lower < upper) ||
+          !add_weighted_standard_normal_interval(
+            lower, upper, std::log(w), &log_mass
+          )) {
+        return std::numeric_limits<double>::quiet_NaN();
+      }
+    } else if (w < 0 || std::isnan(w)) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    b = data.trusted_step_partition ? last + 1 : b + 1;
+  }
+
+  return log_mass;
+}
+
+bool normalize_log_tail_pair(double log_lower_mass, double log_upper_mass,
+                             double *log_lower, double *log_upper)
+{
+  if (std::isnan(log_lower_mass) || std::isnan(log_upper_mass) ||
+      (log_lower_mass == -INFINITY && log_upper_mass == -INFINITY)) {
+    return false;
+  }
+  if (log_lower_mass == -INFINITY) {
+    *log_lower = -INFINITY;
+    *log_upper = 0;
+    return true;
+  }
+  if (log_upper_mass == -INFINITY) {
+    *log_lower = 0;
+    *log_upper = -INFINITY;
+    return true;
+  }
+
+  *log_lower = -log1pexp(log_upper_mass - log_lower_mass);
+  *log_upper = -log1pexp(log_lower_mass - log_upper_mass);
+  return std::isfinite(*log_lower) && std::isfinite(*log_upper);
+}
+
+bool step_log_tail_pair_logspace(const double *omega,
+                                 const SelNormKernelData &data,
+                                 double q_score, double mean, double sd,
+                                 double sei, int omega_stride,
+                                 bool trusted_partition,
+                                 double *log_lower, double *log_upper)
+{
   double log_lower_mass = -INFINITY;
   double log_upper_mass = -INFINITY;
 
@@ -265,67 +166,37 @@ double step_log_cdf_logspace(const double *omega,
     }
 
     if (w > 0) {
-      const double lower = trusted_partition ? data.z_lower[last] : data.z_lower[b];
-      const double upper = data.z_upper[b];
+      const double lower_z = trusted_partition ?
+        data.z_lower[last] : data.z_lower[b];
+      const double upper_z = data.z_upper[b];
+      const double lower = stable_affine_score(lower_z, sei, mean, sd);
+      const double upper = stable_affine_score(upper_z, sei, mean, sd);
       const double log_w = std::log(w);
-      const double log_prob = interval_log_prob(lower, upper, mean_z, sd_z);
-      if (log_prob != -INFINITY) {
-        log_denom = add_logspace(log_denom, log_w + log_prob);
+      if (std::isnan(lower) || std::isnan(upper) || !(lower < upper) ||
+          !add_weighted_standard_normal_interval(
+            lower, std::min(upper, q_score), log_w, &log_lower_mass
+          ) ||
+          !add_weighted_standard_normal_interval(
+            std::max(lower, q_score), upper, log_w, &log_upper_mass
+          )) {
+        return false;
       }
-
-      const double log_lower_prob = interval_log_prob(
-        lower, std::min(upper, q_z), mean_z, sd_z
-      );
-      if (log_lower_prob != -INFINITY) {
-        log_lower_mass = add_logspace(log_lower_mass, log_w + log_lower_prob);
-      }
-
-      const double log_upper_prob = interval_log_prob(
-        std::max(lower, q_z), upper, mean_z, sd_z
-      );
-      if (log_upper_prob != -INFINITY) {
-        log_upper_mass = add_logspace(log_upper_mass, log_w + log_upper_prob);
-      }
+    } else if (w < 0 || std::isnan(w)) {
+      return false;
     }
 
     b = trusted_partition ? last + 1 : b + 1;
   }
 
-  if (!std::isfinite(log_denom)) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  const double log_requested_mass = signed_lower_tail ?
-    log_lower_mass : log_upper_mass;
-  if (log_requested_mass == -INFINITY) {
-    return -INFINITY;
-  }
-
-  return log_requested_mass - log_denom;
-}
-
-double step_cdf_logspace(const double *omega, const SelNormKernelData &data,
-                         double q_z, double mean_z, double sd_z,
-                         int omega_stride, bool signed_lower_tail,
-                         bool trusted_partition)
-{
-  const double log_probability = step_log_cdf_logspace(
-    omega, data, q_z, mean_z, sd_z, omega_stride, signed_lower_tail,
-    trusted_partition
+  return normalize_log_tail_pair(
+    log_lower_mass, log_upper_mass, log_lower, log_upper
   );
-  if (std::isnan(log_probability)) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-  if (log_probability == -INFINITY) {
-    return 0;
-  }
-
-  return clamp_probability(std::exp(log_probability));
 }
 
 double step_cdf_logspace_with_log_norm(const double *omega,
                                        const SelNormKernelData &data,
-                                       double q_z, double mean_z, double sd_z,
+                                       double q_score, double mean, double sd,
+                                       double sei,
                                        int omega_stride,
                                        bool signed_lower_tail,
                                        bool trusted_partition,
@@ -350,23 +221,23 @@ double step_cdf_logspace_with_log_norm(const double *omega,
     }
 
     if (w > 0) {
-      const double lower = trusted_partition ? data.z_lower[last] : data.z_lower[b];
-      const double upper = data.z_upper[b];
+      const double lower_z = trusted_partition ?
+        data.z_lower[last] : data.z_lower[b];
+      const double upper_z = data.z_upper[b];
+      const double lower   = stable_affine_score(lower_z, sei, mean, sd);
+      const double upper   = stable_affine_score(upper_z, sei, mean, sd);
       const double log_w = std::log(w);
-
-      const double log_lower_prob = interval_log_prob(
-        lower, std::min(upper, q_z), mean_z, sd_z
-      );
-      if (log_lower_prob != -INFINITY) {
-        log_lower_mass = add_logspace(log_lower_mass, log_w + log_lower_prob);
+      if (std::isnan(lower) || std::isnan(upper) || !(lower < upper) ||
+          !add_weighted_standard_normal_interval(
+            lower, std::min(upper, q_score), log_w, &log_lower_mass
+          ) ||
+          !add_weighted_standard_normal_interval(
+            std::max(lower, q_score), upper, log_w, &log_upper_mass
+          )) {
+        return std::numeric_limits<double>::quiet_NaN();
       }
-
-      const double log_upper_prob = interval_log_prob(
-        std::max(lower, q_z), upper, mean_z, sd_z
-      );
-      if (log_upper_prob != -INFINITY) {
-        log_upper_mass = add_logspace(log_upper_mass, log_w + log_upper_prob);
-      }
+    } else if (w < 0 || std::isnan(w)) {
+      return std::numeric_limits<double>::quiet_NaN();
     }
 
     b = trusted_partition ? last + 1 : b + 1;
@@ -450,166 +321,6 @@ bool clamp_requested_mass(double *requested, double normalizer, double req_abs)
     return false;
   }
 
-  return true;
-}
-
-double step_cdf_trusted_telescoping_with_log_norm(
-  const double *omega,
-  const SelNormKernelData &data,
-  double q_z,
-  double mean_z,
-  double sd_z,
-  int omega_stride,
-  bool signed_lower_tail,
-  double log_normalizer,
-  bool *ok)
-{
-  *ok = false;
-
-  const double normalizer = std::exp(log_normalizer);
-  if (!std::isfinite(normalizer) ||
-      normalizer <= std::numeric_limits<double>::min()) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  const double tail_q = tail_at(q_z, mean_z, sd_z);
-  const double cdf_q  = cdf_at(q_z, mean_z, sd_z);
-  if (!std::isfinite(tail_q) || !std::isfinite(cdf_q)) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  const double w_last = omega_at(omega, data.n_bins, omega_stride);
-  double requested    = signed_lower_tail ? w_last * cdf_q : w_last * tail_q;
-  double req_abs      = std::abs(requested);
-
-  for (int b = 0; b < data.n_bins - 1; ++b) {
-    const double w_left  = omega_at(omega, b + 1, omega_stride);
-    const double w_right = omega_at(omega, b + 2, omega_stride);
-    if (w_left == w_right) {
-      continue;
-    }
-
-    const double diff = w_left - w_right;
-    const double tail_boundary = tail_at(data.z_lower[b], mean_z, sd_z);
-    double req_contrib = 0;
-    if (signed_lower_tail) {
-      if (q_z > data.z_lower[b]) {
-        double interval = tail_boundary - tail_q;
-        const double scale = std::max(std::abs(tail_boundary), std::abs(tail_q));
-        const double tol   = 1e-14 * std::max(scale, 1.0);
-        if (interval < 0 && interval > -tol) {
-          interval = 0;
-        } else if (interval < 0) {
-          return std::numeric_limits<double>::quiet_NaN();
-        }
-        req_contrib = diff * interval;
-      }
-    } else {
-      req_contrib = diff * (q_z >= data.z_lower[b] ? tail_q : tail_boundary);
-    }
-
-    requested += req_contrib;
-    req_abs   += std::abs(req_contrib);
-  }
-
-  if (!std::isfinite(requested) ||
-      !clamp_requested_mass(&requested, normalizer, req_abs)) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  *ok = true;
-  return clamp_probability(requested / normalizer);
-}
-
-bool step_summary_trusted_telescoping(const double *omega,
-                                      const SelNormKernelData &data,
-                                      double q_z, double mean_z, double sd_z,
-                                      double signed_mean, double sd,
-                                      double sei, int omega_stride,
-                                      bool signed_lower_tail,
-                                      double *cdf,
-                                      double *moment_mean,
-                                      double *moment_second)
-{
-  const double tail_q = tail_at(q_z, mean_z, sd_z);
-  const double cdf_q  = cdf_at(q_z, mean_z, sd_z);
-  if (!std::isfinite(tail_q) || !std::isfinite(cdf_q)) {
-    return false;
-  }
-
-  const double w_last = omega_at(omega, data.n_bins, omega_stride);
-  double normalizer   = w_last;
-  double norm_abs     = std::abs(normalizer);
-  double requested    = signed_lower_tail ? w_last * cdf_q : w_last * tail_q;
-  double req_abs      = std::abs(requested);
-  double signed_first = w_last * signed_mean;
-  double signed_second = w_last * (sd * sd + signed_mean * signed_mean);
-
-  for (int b = 0; b < data.n_bins - 1; ++b) {
-    const double w_left  = omega_at(omega, b + 1, omega_stride);
-    const double w_right = omega_at(omega, b + 2, omega_stride);
-    if (w_left == w_right) {
-      continue;
-    }
-
-    const double diff          = w_left - w_right;
-    const double tail_boundary = tail_at(data.z_lower[b], mean_z, sd_z);
-    const double norm_contrib  = diff * tail_boundary;
-    normalizer += norm_contrib;
-    norm_abs   += std::abs(norm_contrib);
-
-    double req_contrib = 0;
-    if (signed_lower_tail) {
-      if (q_z > data.z_lower[b]) {
-        double interval = tail_boundary - tail_q;
-        const double scale = std::max(std::abs(tail_boundary), std::abs(tail_q));
-        const double tol   = 1e-14 * std::max(scale, 1.0);
-        if (interval < 0 && interval > -tol) {
-          interval = 0;
-        } else if (interval < 0) {
-          return false;
-        }
-        req_contrib = diff * interval;
-      }
-    } else {
-      req_contrib = diff * (q_z >= data.z_lower[b] ? tail_q : tail_boundary);
-    }
-
-    requested += req_contrib;
-    req_abs   += std::abs(req_contrib);
-
-    double m0, m1, m2;
-    normal_tail_raw_moments(
-      data.z_lower[b] * sei, signed_mean, sd, &m0, &m1, &m2
-    );
-    signed_first  += diff * m1;
-    signed_second += diff * m2;
-  }
-
-  if (!std::isfinite(normalizer) || !(normalizer > 0) ||
-      normalizer <= std::numeric_limits<double>::min() ||
-      normalizer <= 1e-8 * norm_abs ||
-      !std::isfinite(requested) ||
-      !std::isfinite(signed_first) ||
-      !std::isfinite(signed_second)) {
-    return false;
-  }
-
-  if (!clamp_requested_mass(&requested, normalizer, req_abs)) {
-    return false;
-  }
-
-  const double second_tol = 1e-10 *
-    std::max(std::abs(signed_second), sd * sd + signed_mean * signed_mean);
-  if (signed_second < 0 && signed_second > -second_tol) {
-    signed_second = 0;
-  } else if (signed_second < 0) {
-    return false;
-  }
-
-  *cdf           = clamp_probability(requested / normalizer);
-  *moment_mean   = data.effect_sign * signed_first / normalizer;
-  *moment_second = signed_second / normalizer;
   return true;
 }
 

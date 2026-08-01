@@ -900,7 +900,10 @@
         fixed_tau         = .fixed_tau_prior_value(x[["priors"]]),
         fixed_rho         = .fixed_rho_prior_value(x[["priors"]])
       )
-      tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
+      tau_total <- .root_sum_squares(
+        tau_result[["tau_within"]],
+        tau_result[["tau_between"]]
+      )
     }
   }
 
@@ -918,7 +921,7 @@
   }
 
   if (si) {
-    sd_si <- sqrt(tau_total^2 + se_rep^2)
+    sd_si <- .root_sum_squares(tau_total, se_rep)
 
     if (sampling_bias && .is_weightfunction(x)) {
       si_bounds <- .regplot_selection_mixture_interval_quantiles(

@@ -225,6 +225,51 @@ void truncated_raw_moments(double lower, double upper, double mean, double sd,
   }
 }
 
+double log1pexp(double x)
+{
+  if (x > 0) {
+    return x + std::log1p(std::exp(-x));
+  }
+  return std::log1p(std::exp(x));
+}
+
+double stable_normal_score(double x, double mean, double sd)
+{
+  if (!(sd > 0) || std::isnan(x) || !std::isfinite(mean)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (std::isinf(x)) {
+    return x;
+  }
+
+  const double difference = x - mean;
+  if (std::isfinite(difference)) {
+    return difference / sd;
+  }
+
+  const double scale = std::max(std::max(std::abs(x), std::abs(mean)), sd);
+  return (x / scale - mean / scale) / (sd / scale);
+}
+
+double stable_affine_score(double z, double sei, double mean, double sd)
+{
+  if (!(sei > 0) || !(sd > 0) || std::isnan(z) ||
+      !std::isfinite(mean)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (std::isinf(z)) {
+    return z;
+  }
+
+  const double difference = std::fma(z, sei, -mean);
+  if (std::isfinite(difference)) {
+    return difference / sd;
+  }
+
+  const double scale = std::max(std::max(sei, std::abs(mean)), sd);
+  return std::fma(z, sei / scale, -mean / scale) / (sd / scale);
+}
+
 [[maybe_unused]] double source_power_moment(
   double lower, double upper, double mean, double sd,
   double source_lower, double source_upper, int q

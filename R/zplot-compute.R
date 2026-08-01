@@ -131,7 +131,7 @@
   S         <- nrow(mu_samples)
   K         <- ncol(mu_samples)
   sei_mat   <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd  <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd  <- .root_sum_squares(tau_within, sei_mat)
 
   if (!is.null(selection) && .has_native_zplot_threshold()) {
     return(.zplot_selnorm_threshold_summary(
@@ -330,7 +330,7 @@
   S           <- nrow(mu_samples)
   K           <- ncol(mu_samples)
   sei_mat     <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd    <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd    <- .root_sum_squares(tau_within, sei_mat)
 
   if (is.null(selection)) {
     return(.zplot_normal_density_matrix(

@@ -490,6 +490,11 @@ test_that("native weighted selected-normal summary matches matrix reductions", {
     log(colSums(psis * cdf_upper)),
     tolerance = 1e-12
   )
+  expect_equal(
+    exp(native[["log_lower"]]) + exp(native[["log_upper"]]),
+    rep(1, K),
+    tolerance = 1e-15
+  )
   expected_mean <- colSums(psis * moments[["mean"]])
   centered      <- sweep(moments[["mean"]], 2L, expected_mean, "-")
   expected_variance <- colSums(psis * (
@@ -497,6 +502,161 @@ test_that("native weighted selected-normal summary matches matrix reductions", {
   ))
   expect_equal(native[["mean"]], expected_mean, tolerance = 1e-12)
   expect_equal(native[["variance"]], expected_variance, tolerance = 1e-12)
+})
+
+
+test_that("selected-normal PIT preserves finite affine contrasts", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  q_base    <- 0x1.d5f4b3ac79505p+560
+  mean_base <- 0x1.d5f4b3ac79506p+560
+  sd        <- 0x1p+508
+  sei       <- 0x1.6ec9d2937021cp-463
+  expect_identical(q_base / sei, mean_base / sei)
+
+  for (effect_direction in c("positive", "negative")) {
+    direction <- if (effect_direction == "positive") 1 else -1
+    yi        <- direction * q_base
+    mean      <- direction * mean_base
+    expected  <- (yi - mean) / sd
+    spec      <- .test_step_spec(
+      yi               = yi,
+      sei              = sei,
+      effect_direction = effect_direction
+    )
+    selection <- spec
+    selection[["omega"]]       <- matrix(1, nrow = 1L, ncol = spec[["n_bins"]])
+    selection[["alpha"]]       <- 0
+    selection[["phack_kind"]]  <- 0L
+    selection[["kernel_mode"]] <- SELKERNEL_STEP
+    selection[["use_normal"]]  <- FALSE
+
+    summary <- .selection_step_weighted_summary(
+      yi                = yi,
+      mean              = matrix(mean, nrow = 1L),
+      sd                = matrix(sd, nrow = 1L),
+      sei               = sei,
+      psis_weights      = matrix(7, nrow = 1L),
+      selection_context = selection
+    )
+
+    expect_equal(summary[["log_lower"]], stats::pnorm(
+      expected,
+      log.p = TRUE
+    ))
+    expect_equal(summary[["log_upper"]], stats::pnorm(
+      expected,
+      lower.tail = FALSE,
+      log.p      = TRUE
+    ))
+    expect_equal(
+      .loo_pit_z_from_log_probabilities(
+        summary[["log_lower"]],
+        summary[["log_upper"]]
+      ),
+      expected
+    )
+  }
+})
+
+
+test_that("selected-normal CDF handles extreme finite scales and rejects invalid ones", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  spec  <- .test_step_spec(0, 1)
+  omega <- matrix(1, nrow = 1L, ncol = spec[["n_bins"]])
+  tiny  <- .Machine$double.xmin * .Machine$double.eps
+  cdf   <- .selnorm_kernel_cdf_matrix(
+    q              = 4,
+    mean           = matrix(4, nrow = 1L),
+    sd             = matrix(1, nrow = 1L),
+    sei            = tiny,
+    omega          = omega,
+    selection_spec = spec
+  )
+  log_norm <- .selnorm_kernel_log_norm_matrix(
+    mean           = matrix(4, nrow = 1L),
+    sd             = matrix(1, nrow = 1L),
+    sei            = tiny,
+    omega          = omega,
+    selection_spec = spec
+  )
+
+  expect_identical(cdf[1L, 1L], .5)
+  expect_identical(log_norm[1L, 1L], 0)
+
+  evaluate <- function(q = 0, sd = 1, sei = 1) {
+    .selnorm_kernel_cdf_matrix(
+      q              = q,
+      mean           = matrix(0, nrow = 1L),
+      sd             = matrix(sd, nrow = 1L),
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec
+    )[1L, 1L]
+  }
+  expect_true(is.nan(evaluate(q = NaN)))
+  expect_true(is.nan(evaluate(sd = Inf)))
+  expect_true(is.nan(evaluate(sei = Inf)))
+})
+
+
+test_that("normal scale composition avoids intermediate overflow", {
+
+  component <- .Machine$double.xmax / 2
+  expected  <- component * sqrt(2)
+  tiny      <- .Machine$double.xmin / 2
+
+  expect_true(is.infinite(sqrt(component^2 + component^2)))
+  expect_equal(.root_sum_squares(component, component), expected)
+  expect_identical(sqrt(tiny^2 + tiny^2), 0)
+  expect_gt(.root_sum_squares(tiny, tiny), 0)
+  expect_identical(.root_sum_squares(0, 0), 0)
+  expect_identical(.root_sum_squares(Inf, 1), Inf)
+  expect_true(is.na(.root_sum_squares(NA_real_, 1)))
+
+  matrix_result <- .root_sum_squares(
+    matrix(c(3, 5), nrow = 1L),
+    matrix(c(4, 12), nrow = 1L)
+  )
+  expect_identical(matrix_result, matrix(c(5, 13), nrow = 1L))
+})
+
+
+test_that("zero-weight selection intervals produce exact CDF plateaus", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  spec        <- .test_step_spec(0, 1)
+  lower       <- spec[["z_lower"]][2L]
+  upper       <- spec[["z_upper"]][2L]
+  query       <- lower + c(1 / 3, 2 / 3) * (upper - lower)
+  omega       <- matrix(c(1, 0, .35, .2), nrow = 1L)
+  mean        <- matrix(0, nrow = 1L, ncol = 2L)
+  sd          <- matrix(1, nrow = 1L, ncol = 2L)
+  lower_tail  <- .selnorm_kernel_cdf_matrix(
+    q              = query,
+    mean           = mean,
+    sd             = sd,
+    sei            = rep(1, 2L),
+    omega          = omega,
+    selection_spec = spec
+  )
+  upper_tail <- .selnorm_kernel_cdf_matrix(
+    q              = query,
+    mean           = mean,
+    sd             = sd,
+    sei            = rep(1, 2L),
+    omega          = omega,
+    selection_spec = spec,
+    lower.tail     = FALSE
+  )
+
+  expect_identical(lower_tail[1L, 1L], lower_tail[1L, 2L])
+  expect_identical(upper_tail[1L, 1L], upper_tail[1L, 2L])
+  expect_equal(lower_tail + upper_tail, matrix(1, nrow = 1L, ncol = 2L))
 })
 
 

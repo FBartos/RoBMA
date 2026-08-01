@@ -89,7 +89,7 @@
 # ---------------------------------------------------------------------------- #
 .funnel_model_averaged_se_setup <- function(se, setup, effect_direction) {
 
-  total_sd      <- sqrt(se^2 + setup[["tau"]]^2)
+  total_sd      <- .root_sum_squares(se, setup[["tau"]])
   location      <- .funnel_row_location(se, setup, effect_direction)
   zero_sd       <- total_sd == 0
   normal_rows   <- !setup[["is_weightfunction"]] & !zero_sd

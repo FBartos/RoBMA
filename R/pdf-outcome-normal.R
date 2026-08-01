@@ -34,7 +34,7 @@
   sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
 
   # compute total SD: sqrt(tau^2 + se^2)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd <- .root_sum_squares(tau_within, sei_mat)
 
   # compute log-likelihood for each cell
   log_lik <- stats::dnorm(yi_mat, mean = mu_samples, sd = total_sd, log = TRUE)
@@ -58,7 +58,7 @@
   S        <- nrow(mu_samples)
   K        <- ncol(mu_samples)
   sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd <- .root_sum_squares(tau_within, sei_mat)
 
   return(.selnorm_kernel_loglik_matrix(
     yi             = yi,
@@ -111,7 +111,7 @@
   S        <- nrow(mu_samples)
   K        <- ncol(mu_samples)
   sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd <- .root_sum_squares(tau_within, sei_mat)
 
   return(.selnorm_kernel_loglik_row_sum(
     yi             = yi,

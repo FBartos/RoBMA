@@ -893,7 +893,7 @@ rstudent.brma <- function(model, unit = "estimate",
   posterior_samples <- setup[["posterior_samples"]]
   S                 <- nrow(mu_samples)
   sei_mat           <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd          <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd          <- .root_sum_squares(tau_within, sei_mat)
 
   selection_context <- .selection_context(
     object            = object,
@@ -934,7 +934,7 @@ rstudent.brma <- function(model, unit = "estimate",
   S        <- nrow(mu_samples)
   K        <- ncol(mu_samples)
   sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd <- .root_sum_squares(tau_within, sei_mat)
 
   return(.selection_step_moments_matrix(
     mean              = mu_samples,
@@ -1054,7 +1054,7 @@ rstudent.brma <- function(model, unit = "estimate",
     ncol  = setup[["K"]],
     byrow = TRUE
   )
-  total_sd <- sqrt(setup[["tau_within"]]^2 + sei_mat^2)
+  total_sd <- .root_sum_squares(setup[["tau_within"]], sei_mat)
 
   return(list(
     log_lower = stats::pnorm(

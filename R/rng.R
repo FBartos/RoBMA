@@ -38,7 +38,7 @@
   sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
 
   # compute total SD: sqrt(tau^2 + se^2)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd <- .root_sum_squares(tau_within, sei_mat)
 
   # sample from N(mu, total_sd) for each cell
   # matrix(rnorm(S*K), S, K) * total_sd + mu is vectorized sampling
@@ -150,7 +150,7 @@
   S          <- nrow(mu_samples)
   K          <- ncol(mu_samples)
   sei_mat    <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd   <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd   <- .root_sum_squares(tau_within, sei_mat)
   selection_context <- BayesTools::selection_context_validate(
     context   = selection_context,
     n_samples = S,

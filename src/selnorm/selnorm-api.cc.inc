@@ -15,7 +15,11 @@ double cpp_selnorm_kernel_lpdf(
   int omega_stride,
   bool validate_omega)
 {
-  if (!(sigma_num > 0) || !(sigma_norm > 0) || !(sei > 0) || !(weight > 0)) {
+  if (!(sigma_num > 0) || !std::isfinite(sigma_num) ||
+      !(sigma_norm > 0) || !std::isfinite(sigma_norm) ||
+      !(sei > 0) || !std::isfinite(sei) ||
+      !std::isfinite(mu_num) || !std::isfinite(mu_norm) ||
+      !(weight > 0) || !std::isfinite(weight)) {
     return std::numeric_limits<double>::quiet_NaN();
   }
   if (!valid_kernel_mode(kernel_mode) ||
@@ -87,8 +91,8 @@ double cpp_selnorm_kernel_lpdf(
   double log_normalizer = 0;
   if (mode == SELKERNEL_STEP ||
       (mode == SELKERNEL_STEP_PHACK_POWER && !use_phack)) {
-    log_normalizer = step_log_normalizer(
-      omega, data, mean_z, sd_z, omega_stride
+    log_normalizer = step_log_normalizer_score_space(
+      omega, data, signed_mu_norm, sigma_norm, sei, omega_stride
     );
   } else if (mode == SELKERNEL_STEP_PHACK_POWER) {
     log_normalizer = combined_log_normalizer(
@@ -117,7 +121,8 @@ double cpp_selnorm_kernel_log_norm(
   int omega_stride,
   bool validate_omega)
 {
-  if (!(sd > 0) || !(sei > 0) ||
+  if (!(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei) || !std::isfinite(mean) ||
       !valid_kernel_mode(kernel_mode) ||
       !(data.effect_sign == 1 || data.effect_sign == -1) ||
       !valid_phack_kind(phack_kind) ||
@@ -148,8 +153,8 @@ double cpp_selnorm_kernel_log_norm(
 
   if (kernel_mode == SELKERNEL_STEP ||
       (kernel_mode == SELKERNEL_STEP_PHACK_POWER && !use_phack)) {
-    log_normalizer = step_log_normalizer(
-      omega, data, mean_z, sd_z, omega_stride
+    log_normalizer = step_log_normalizer_score_space(
+      omega, data, data.effect_sign * mean, sd, sei, omega_stride
     );
   } else if (kernel_mode == SELKERNEL_STEP_PHACK_POWER) {
     const double log_beta = use_phack ?
@@ -181,55 +186,21 @@ double cpp_selnorm_kernel_cdf(
   bool lower_tail,
   bool validate_omega)
 {
-  if (!(sd > 0) || !(sei > 0) ||
-      !valid_kernel_mode(kernel_mode) ||
-      !(data.effect_sign == 1 || data.effect_sign == -1) ||
-      !valid_phack_kind(phack_kind) ||
-      !valid_phack_kind(data.q)) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  if (kernel_mode == SELKERNEL_NORMAL) {
-    return pnorm(q, mean, sd, lower_tail, false);
-  }
-
-  const bool use_phack = (kernel_mode == SELKERNEL_PHACK_POWER ||
-    kernel_mode == SELKERNEL_STEP_PHACK_POWER) && phack_kind > 0 && alpha > 0;
-  if (use_phack) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-  if (kernel_mode == SELKERNEL_PHACK_POWER) {
-    return pnorm(q, mean, sd, lower_tail, false);
-  }
-
-  if (validate_omega && !validate_omega_values(omega, data, omega_stride)) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  const double signed_q = data.effect_sign * q;
-  const double q_z      = signed_q / sei;
-  const double mean_z   = data.effect_sign * mean / sei;
-  const double sd_z     = sd / sei;
-  const bool signed_lower_tail = data.effect_sign == 1 ?
-    lower_tail : !lower_tail;
-
-  if (data.trusted_step_partition && data.telescope_probabilities) {
-    bool ok = false;
-    const double out = step_cdf_trusted_telescoping(
-      omega, data, q_z, mean_z, sd_z, omega_stride, signed_lower_tail, &ok
-    );
-    if (ok) {
-      return out;
-    }
-  }
-
-  return step_cdf_logspace(
-    omega, data, q_z, mean_z, sd_z, omega_stride, signed_lower_tail,
-    data.trusted_step_partition
+  double log_lower;
+  double log_upper;
+  cpp_selnorm_kernel_log_tail_pair(
+    q, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, data,
+    &log_lower, &log_upper, omega_stride, validate_omega
   );
+  const double log_probability = lower_tail ? log_lower : log_upper;
+  if (std::isnan(log_probability)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  return log_probability == -INFINITY ? 0 :
+    clamp_probability(std::exp(log_probability));
 }
 
-double cpp_selnorm_kernel_log_cdf(
+void cpp_selnorm_kernel_log_tail_pair(
   double q,
   double mean,
   double sd,
@@ -239,46 +210,66 @@ double cpp_selnorm_kernel_log_cdf(
   int phack_kind,
   int kernel_mode,
   const SelNormKernelData &data,
+  double *log_lower,
+  double *log_upper,
   int omega_stride,
-  bool lower_tail,
   bool validate_omega)
 {
-  if (!(sd > 0) || !(sei > 0) ||
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  *log_lower = nan;
+  *log_upper = nan;
+  if (!(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei) ||
+      !std::isfinite(mean) || std::isnan(q) ||
       !valid_kernel_mode(kernel_mode) ||
       !(data.effect_sign == 1 || data.effect_sign == -1) ||
       !valid_phack_kind(phack_kind) ||
       !valid_phack_kind(data.q)) {
-    return std::numeric_limits<double>::quiet_NaN();
+    return;
   }
 
   if (kernel_mode == SELKERNEL_NORMAL) {
-    return pnorm(q, mean, sd, lower_tail, true);
+    const double score = stable_normal_score(q, mean, sd);
+    *log_lower = pnorm(score, 0, 1, true, true);
+    *log_upper = pnorm(score, 0, 1, false, true);
+    return;
   }
 
   const bool use_phack = (kernel_mode == SELKERNEL_PHACK_POWER ||
     kernel_mode == SELKERNEL_STEP_PHACK_POWER) && phack_kind > 0 && alpha > 0;
   if (use_phack) {
-    return std::numeric_limits<double>::quiet_NaN();
+    return;
   }
   if (kernel_mode == SELKERNEL_PHACK_POWER) {
-    return pnorm(q, mean, sd, lower_tail, true);
+    const double score = stable_normal_score(q, mean, sd);
+    *log_lower = pnorm(score, 0, 1, true, true);
+    *log_upper = pnorm(score, 0, 1, false, true);
+    return;
   }
 
   if (validate_omega && !validate_omega_values(omega, data, omega_stride)) {
-    return std::numeric_limits<double>::quiet_NaN();
+    return;
   }
 
-  const double signed_q = data.effect_sign * q;
-  const double q_z      = signed_q / sei;
-  const double mean_z   = data.effect_sign * mean / sei;
-  const double sd_z     = sd / sei;
-  const bool signed_lower_tail = data.effect_sign == 1 ?
-    lower_tail : !lower_tail;
+  const double signed_q    = data.effect_sign * q;
+  const double signed_mean = data.effect_sign * mean;
+  const double q_score     = stable_normal_score(signed_q, signed_mean, sd);
+  double signed_log_lower;
+  double signed_log_upper;
+  if (!step_log_tail_pair_logspace(
+    omega, data, q_score, signed_mean, sd, sei, omega_stride,
+    data.trusted_step_partition, &signed_log_lower, &signed_log_upper
+  )) {
+    return;
+  }
 
-  return step_log_cdf_logspace(
-    omega, data, q_z, mean_z, sd_z, omega_stride, signed_lower_tail,
-    data.trusted_step_partition
-  );
+  if (data.effect_sign == 1) {
+    *log_lower = signed_log_lower;
+    *log_upper = signed_log_upper;
+  } else {
+    *log_lower = signed_log_upper;
+    *log_upper = signed_log_lower;
+  }
 }
 
 double cpp_selnorm_kernel_cdf_with_log_norm(
@@ -296,7 +287,9 @@ double cpp_selnorm_kernel_cdf_with_log_norm(
   bool lower_tail,
   bool validate_omega)
 {
-  if (!(sd > 0) || !(sei > 0) ||
+  if (!(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei) ||
+      !std::isfinite(mean) || std::isnan(q) ||
       !valid_kernel_mode(kernel_mode) ||
       !(data.effect_sign == 1 || data.effect_sign == -1) ||
       !valid_phack_kind(phack_kind) ||
@@ -305,7 +298,7 @@ double cpp_selnorm_kernel_cdf_with_log_norm(
   }
 
   if (kernel_mode == SELKERNEL_NORMAL) {
-    return pnorm(q, mean, sd, lower_tail, false);
+    return pnorm(stable_normal_score(q, mean, sd), 0, 1, lower_tail, false);
   }
 
   const bool use_phack = (kernel_mode == SELKERNEL_PHACK_POWER ||
@@ -314,33 +307,21 @@ double cpp_selnorm_kernel_cdf_with_log_norm(
     return std::numeric_limits<double>::quiet_NaN();
   }
   if (kernel_mode == SELKERNEL_PHACK_POWER) {
-    return pnorm(q, mean, sd, lower_tail, false);
+    return pnorm(stable_normal_score(q, mean, sd), 0, 1, lower_tail, false);
   }
 
   if (validate_omega && !validate_omega_values(omega, data, omega_stride)) {
     return std::numeric_limits<double>::quiet_NaN();
   }
 
-  const double signed_q = data.effect_sign * q;
-  const double q_z      = signed_q / sei;
-  const double mean_z   = data.effect_sign * mean / sei;
-  const double sd_z     = sd / sei;
+  const double signed_q    = data.effect_sign * q;
+  const double signed_mean = data.effect_sign * mean;
+  const double q_score     = stable_normal_score(signed_q, signed_mean, sd);
   const bool signed_lower_tail = data.effect_sign == 1 ?
     lower_tail : !lower_tail;
 
-  if (data.trusted_step_partition && data.telescope_probabilities) {
-    bool ok = false;
-    const double out = step_cdf_trusted_telescoping_with_log_norm(
-      omega, data, q_z, mean_z, sd_z, omega_stride, signed_lower_tail,
-      log_normalizer, &ok
-    );
-    if (ok) {
-      return out;
-    }
-  }
-
   return step_cdf_logspace_with_log_norm(
-    omega, data, q_z, mean_z, sd_z, omega_stride, signed_lower_tail,
+    omega, data, q_score, signed_mean, sd, sei, omega_stride, signed_lower_tail,
     data.trusted_step_partition, log_normalizer
   );
 }
@@ -434,84 +415,6 @@ void cpp_selnorm_kernel_moments(
     *moment_mean = data.effect_sign * signed_first / denom;
   }
   *moment_second = signed_second / denom;
-}
-
-void cpp_selnorm_kernel_summary(
-  double q,
-  double mean,
-  double sd,
-  double sei,
-  const double *omega,
-  double alpha,
-  int phack_kind,
-  int kernel_mode,
-  const SelNormKernelData &data,
-  double *cdf,
-  double *moment_mean,
-  double *moment_second,
-  int omega_stride,
-  bool lower_tail,
-  bool validate_omega)
-{
-  *cdf           = std::numeric_limits<double>::quiet_NaN();
-  *moment_mean   = std::numeric_limits<double>::quiet_NaN();
-  *moment_second = std::numeric_limits<double>::quiet_NaN();
-
-  if (!(sd > 0) || !(sei > 0) ||
-      !valid_kernel_mode(kernel_mode) ||
-      !(data.effect_sign == 1 || data.effect_sign == -1) ||
-      !valid_phack_kind(phack_kind) ||
-      !valid_phack_kind(data.q)) {
-    return;
-  }
-
-  if (kernel_mode == SELKERNEL_NORMAL) {
-    *cdf           = pnorm(q, mean, sd, lower_tail, false);
-    *moment_mean   = mean;
-    *moment_second = sd * sd + mean * mean;
-    return;
-  }
-
-  const bool use_phack = (kernel_mode == SELKERNEL_PHACK_POWER ||
-    kernel_mode == SELKERNEL_STEP_PHACK_POWER) && phack_kind > 0 && alpha > 0;
-  if (use_phack) {
-    return;
-  }
-  if (kernel_mode == SELKERNEL_PHACK_POWER) {
-    *cdf           = pnorm(q, mean, sd, lower_tail, false);
-    *moment_mean   = mean;
-    *moment_second = sd * sd + mean * mean;
-    return;
-  }
-
-  if (validate_omega && !validate_omega_values(omega, data, omega_stride)) {
-    return;
-  }
-
-  const double signed_q          = data.effect_sign * q;
-  const double q_z               = signed_q / sei;
-  const double signed_mean       = data.effect_sign * mean;
-  const double mean_z            = signed_mean / sei;
-  const double sd_z              = sd / sei;
-  const bool signed_lower_tail   = data.effect_sign == 1 ?
-    lower_tail : !lower_tail;
-
-  if (data.trusted_step_partition && data.telescope_probabilities &&
-      step_summary_trusted_telescoping(
-        omega, data, q_z, mean_z, sd_z, signed_mean, sd, sei,
-        omega_stride, signed_lower_tail, cdf, moment_mean, moment_second
-      )) {
-    return;
-  }
-
-  cpp_selnorm_kernel_moments(
-    mean, sd, sei, omega, alpha, phack_kind, kernel_mode, data,
-    moment_mean, moment_second, omega_stride, false
-  );
-  *cdf = cpp_selnorm_kernel_cdf(
-    q, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, data,
-    omega_stride, lower_tail, false
-  );
 }
 
 double cpp_selnorm_kernel_threshold(

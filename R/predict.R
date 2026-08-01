@@ -644,7 +644,10 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
     ))
   }
 
-  tau_samples <- sqrt(scale_state[["within"]]^2 + scale_state[["between"]]^2)
+  tau_samples <- .root_sum_squares(
+    scale_state[["within"]],
+    scale_state[["between"]]
+  )
   colnames(tau_samples) <- paste0("tau[", seq_len(context[["K"]]), "]")
   .predict_brma_finalize(
     context    = context,

@@ -49,7 +49,7 @@
   sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
 
   # compute total SD: sqrt(tau^2 + se^2)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd <- .root_sum_squares(tau_within, sei_mat)
 
   # compute CDF value for each cell
   cdf_vals <- stats::pnorm(
@@ -76,7 +76,7 @@
   S         <- nrow(mu_samples)
   K         <- ncol(mu_samples)
   sei_mat   <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd  <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd  <- .root_sum_squares(tau_within, sei_mat)
 
   cdf_vals <- .selection_step_cdf_matrix(
     q                 = yi,

@@ -1,11 +1,3 @@
-double log1pexp(double x)
-{
-  if (x > 0) {
-    return x + std::log1p(std::exp(-x));
-  }
-  return std::log1p(std::exp(x));
-}
-
 double phack_power_weight(double z, double lower, double upper, int q,
                           bool source)
 {

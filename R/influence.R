@@ -220,7 +220,10 @@ influence.brma <- function(model, ...) {
     fixed_tau         = .fixed_tau_prior_value(model[["priors"]]),
     fixed_rho         = .fixed_rho_prior_value(model[["priors"]])
   )
-  tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
+  tau_total <- .root_sum_squares(
+    tau_result[["tau_within"]],
+    tau_result[["tau_between"]]
+  )
 
   return(.influence_tau_del_from_samples(tau_total, weights))
 }

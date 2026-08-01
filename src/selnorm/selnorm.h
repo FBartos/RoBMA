@@ -76,7 +76,7 @@ double cpp_selnorm_kernel_cdf(
   bool validate_omega = true
 );
 
-double cpp_selnorm_kernel_log_cdf(
+void cpp_selnorm_kernel_log_tail_pair(
   double q,
   double mean,
   double sd,
@@ -86,8 +86,9 @@ double cpp_selnorm_kernel_log_cdf(
   int phack_kind,
   int kernel_mode,
   const SelNormKernelData &data,
+  double *log_lower,
+  double *log_upper,
   int omega_stride = 1,
-  bool lower_tail = true,
   bool validate_omega = true
 );
 
@@ -121,24 +122,6 @@ void cpp_selnorm_kernel_moments(
   int omega_stride = 1,
   bool validate_omega = true,
   double *moment_variance = nullptr
-);
-
-void cpp_selnorm_kernel_summary(
-  double q,
-  double mean,
-  double sd,
-  double sei,
-  const double *omega,
-  double alpha,
-  int phack_kind,
-  int kernel_mode,
-  const SelNormKernelData &data,
-  double *cdf,
-  double *moment_mean,
-  double *moment_second,
-  int omega_stride = 1,
-  bool lower_tail = true,
-  bool validate_omega = true
 );
 
 double cpp_selnorm_kernel_threshold(

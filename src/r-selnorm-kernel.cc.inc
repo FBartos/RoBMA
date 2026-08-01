@@ -575,15 +575,12 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       moment_variance_work[s] = moment_variance;
 
       const double log_weight = std::log(w);
-      const double log_lower = cpp_selnorm_kernel_log_cdf(
+      double log_lower;
+      double log_upper;
+      cpp_selnorm_kernel_log_tail_pair(
         yi_p[k], mean_p[cell], sd_p[cell], sei_p[k],
         selnorm.omega_row(s), alpha_s, phack_s, mode_s, selnorm.data,
-        S, true, false
-      );
-      const double log_upper = cpp_selnorm_kernel_log_cdf(
-        yi_p[k], mean_p[cell], sd_p[cell], sei_p[k],
-        selnorm.omega_row(s), alpha_s, phack_s, mode_s, selnorm.data,
-        S, false, false
+        &log_lower, &log_upper, S, false
       );
 
       if (std::isnan(log_lower) || std::isnan(log_upper)) {
@@ -632,9 +629,23 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       );
     }
 
-    const double log_weight_sum = std::log(static_cast<double>(weight_sum));
-    log_lower_out_p[k] = log_lower_sum - log_weight_sum;
-    log_upper_out_p[k] = log_upper_sum - log_weight_sum;
+    if (log_lower_sum == -INFINITY && log_upper_sum == -INFINITY) {
+      Rf_error("Selected-normal predictive tail probabilities are undefined.");
+    } else if (log_lower_sum == -INFINITY) {
+      log_lower_out_p[k] = -INFINITY;
+      log_upper_out_p[k] = 0;
+    } else if (log_upper_sum == -INFINITY) {
+      log_lower_out_p[k] = 0;
+      log_upper_out_p[k] = -INFINITY;
+    } else {
+      const double difference = log_upper_sum - log_lower_sum;
+      log_lower_out_p[k] = difference > 0 ?
+        -difference - std::log1p(std::exp(-difference)) :
+        -std::log1p(std::exp(difference));
+      log_upper_out_p[k] = difference < 0 ?
+        difference - std::log1p(std::exp(difference)) :
+        -std::log1p(std::exp(-difference));
+    }
     mean_out_p[k]      = static_cast<double>(mixture_mean);
     variance_out_p[k]  = static_cast<double>(mixture_variance);
   }

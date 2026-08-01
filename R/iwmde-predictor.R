@@ -476,7 +476,7 @@
 
 .iwmde_log_tau_total <- function(tau_within, tau_between) {
 
-  tau_total <- sqrt(tau_within^2 + tau_between^2)
+  tau_total <- .root_sum_squares(tau_within, tau_between)
   return(log(tau_total))
 }
 
@@ -725,8 +725,8 @@
   row_index  <- rep(seq_len(S), each = G)
   grid_index <- rep(seq_len(G), times = S)
   delta      <- values[grid_index] - basis[["current"]][row_index]
-  sd         <- sqrt(setup[["tau_within"]]^2 +
-    matrix(setup[["sei"]]^2, nrow = S, ncol = K, byrow = TRUE))
+  sei        <- matrix(setup[["sei"]], nrow = S, ncol = K, byrow = TRUE)
+  sd         <- .root_sum_squares(setup[["tau_within"]], sei)
 
   current_log_norm <- .iwmde_selected_normal_current_log_norm(
     context           = context,

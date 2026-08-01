@@ -65,7 +65,7 @@
                                   is_weightfunction, is_PET, is_PEESE,
                                   effect_direction, max_samples) {
   n_se   <- length(se_sequence)
-  sd_seq <- sqrt(se_sequence^2 + tau^2)
+  sd_seq <- .root_sum_squares(se_sequence, tau)
 
   # default: standard normal quantiles centered at mu
   if (!sampling_bias || (!is_weightfunction && !is_PET && !is_PEESE)) {
