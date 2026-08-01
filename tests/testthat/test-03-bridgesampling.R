@@ -17,6 +17,17 @@ marglik_names <- list_fits(has_marglik = TRUE)
 fits          <- lazy_fits(marglik_names, validate = FALSE)
 info          <- lazy_infos(marglik_names, validate = FALSE)
 
+.bridge_mcse <- function(object) {
+
+  repetitions <- object[["repetitions"]]
+  included    <- repetitions[["success"]] & repetitions[["finite"]]
+  if (!any(included)) {
+    return(NA_real_)
+  }
+
+  return(max(repetitions[["mcse"]][included]))
+}
+
 # ---------------------------------------------------------------------------- #
 # bridge_sampler function works with all model types
 # ---------------------------------------------------------------------------- #
@@ -25,7 +36,7 @@ test_that("bridge_sampler extracts bridge sampling object", {
 
   for (name in marglik_names) {
     # the marginal likelihood inherits the correct class
-    expect_s3_class(bridge_sampler(fits[[name]]), "bridge")
+    expect_s3_class(bridge_sampler(fits[[name]]), "BayesTools_marglik")
   }
 })
 
@@ -59,7 +70,7 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
     set.seed(100)
     fit_brma <- add_marglik(load_fit(name, validate = FALSE))
     target   <- attr(fit_brma[["marglik"]], "RoBMA_target", exact = TRUE)
-    expect_true(inherits(fit_brma[["marglik"]], "bridge"), info = name)
+    expect_s3_class(fit_brma[["marglik"]], "BayesTools_marglik", info = name)
     expect_true(is.finite(logml(fit_brma)), info = name)
     expect_equal(target[["reported_target"]], "full joint fitted likelihood", info = name)
     expect_equal(
@@ -120,7 +131,7 @@ test_that("add_marglik computes bridge sampling for marginalized random allocati
   set.seed(100)
   fit_brma <- add_marglik(load_fit(name, validate = FALSE))
   target   <- attr(fit_brma[["marglik"]], "RoBMA_target", exact = TRUE)
-  expect_true(inherits(fit_brma[["marglik"]], "bridge"))
+  expect_s3_class(fit_brma[["marglik"]], "BayesTools_marglik")
   expect_true(is.finite(logml(fit_brma)))
   expect_equal(target[["reported_target"]], "full joint fitted likelihood")
 })
@@ -140,10 +151,11 @@ test_that("v14 brma.mv metafor fixtures cache usable marginal likelihoods", {
     bridge   <- bridge_sampler(fit_brma)
     target   <- attr(bridge, "RoBMA_target", exact = TRUE)
 
-    expect_true(inherits(bridge, "bridge"), info = name)
+    mcse <- .bridge_mcse(bridge)
+    expect_s3_class(bridge, "BayesTools_marglik", info = name)
     expect_true(is.finite(logml(fit_brma)), info = name)
-    expect_true(is.finite(bridge[["mcse_logml"]]), info = name)
-    expect_true(bridge[["mcse_logml"]] < 1, info = name)
+    expect_true(is.finite(mcse), info = name)
+    expect_true(mcse < 1, info = name)
     expect_equal(target[["reported_target"]], "full joint fitted likelihood",
                  info = name)
     expect_true(isTRUE(target[["known_v"]]), info = name)

@@ -211,6 +211,18 @@ test_that("known-V posterior ordinate and marginal likelihood are exact", {
 # Test: Bridge oracles for GLMM and active selection likelihoods
 # ============================================================================ #
 
+.iwmde_oracle_bridge_mcse <- function(object) {
+
+  repetitions <- object[["marglik"]][["repetitions"]]
+  included    <- repetitions[["success"]] & repetitions[["finite"]]
+  if (!any(included)) {
+    return(NA_real_)
+  }
+
+  return(max(repetitions[["mcse"]][included]))
+}
+
+
 .iwmde_oracle_expect_bridge <- function(result, null, full,
                                          hard_tolerance = .10,
                                          info = NULL) {
@@ -220,8 +232,8 @@ test_that("known-V posterior ordinate and marginal likelihood are exact", {
   log_difference   <- abs(log(raw_bf) - (logml(full) - logml(null)))
   estimator_mcse   <- sqrt(log1p((bf_error_percent / 100)^2))
   bridge_mcse      <- sqrt(
-    full[["marglik"]][["mcse_logml"]]^2 +
-      null[["marglik"]][["mcse_logml"]]^2
+    .iwmde_oracle_bridge_mcse(full)^2 +
+      .iwmde_oracle_bridge_mcse(null)^2
   )
 
   expect_lte(log_difference, hard_tolerance, label = info)
@@ -254,8 +266,8 @@ test_that("qCMDE matches GLMM and both estimators match selection bridge factors
     .expect_bridge_nesting(null, full, "mu")
     expect_true(is.finite(logml(null)))
     expect_true(is.finite(logml(full)))
-    expect_lt(null[["marglik"]][["mcse_logml"]], .05)
-    expect_lt(full[["marglik"]][["mcse_logml"]], .05)
+    expect_lt(.iwmde_oracle_bridge_mcse(null), .05)
+    expect_lt(.iwmde_oracle_bridge_mcse(full), .05)
 
     # GLMM local-state IWMDE has a high-dimensional fitted weight function;
     # qCMDE provides the stable fixed-runtime bridge certification here.
@@ -325,8 +337,8 @@ test_that("qCMDE and IWMDE match the known-V tau boundary bridge factor", {
   .expect_bridge_nesting(null, full, "tau")
   expect_true(is.finite(logml(null)))
   expect_true(is.finite(logml(full)))
-  expect_lt(null[["marglik"]][["mcse_logml"]], .05)
-  expect_lt(full[["marglik"]][["mcse_logml"]], .05)
+  expect_lt(.iwmde_oracle_bridge_mcse(null), .05)
+  expect_lt(.iwmde_oracle_bridge_mcse(full), .05)
 
   for (density_method in c("qCMDE", "IWMDE")) {
     result <- hypothesis(
