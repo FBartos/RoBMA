@@ -966,18 +966,29 @@
     return(NULL)
   }
 
-  density <- tryCatch(
-    suppressWarnings(BayesTools::mpdf(prior, value)),
+  support <- .iwmde_prior_support(prior)
+  if (value < support[1L] || value > support[2L]) {
+    return("zero")
+  }
+
+  log_density <- tryCatch(
+    suppressWarnings(BayesTools::mlpdf(prior, value)),
     error = function(e) NA_real_
   )
-  if (length(density) != 1L || is.na(density) || density < 0) {
+  if (length(log_density) != 1L || is.na(log_density)) {
     return("undefined")
   }
-  if (is.infinite(density)) {
+  if (is.infinite(log_density) && log_density > 0) {
     return("infinite")
   }
-  if (density == 0) {
-    return("zero")
+  if (is.infinite(log_density)) {
+    distribution <- prior[["distribution"]]
+    is_boundary  <- value == support[1L] || value == support[2L]
+    is_nonlocal_zero <- distribution %in% c("moment", "invmoment") &&
+      value == prior[["parameters"]][["location"]]
+    if (is_boundary || is_nonlocal_zero || distribution == "bernoulli") {
+      return("zero")
+    }
   }
 
   return("regular")

@@ -718,6 +718,10 @@ test_that("IWMDE identifies exact nonregular prior ordinates", {
     "beta",
     parameters = list(alpha = 1, beta = 1)
   )
+  normal_regular <- BayesTools::prior(
+    "normal",
+    parameters = list(mean = 0, sd = 1)
+  )
 
   expect_identical(.iwmde_prior_ordinate_behavior(beta_zero, 0), "zero")
   expect_identical(
@@ -725,6 +729,14 @@ test_that("IWMDE identifies exact nonregular prior ordinates", {
     "infinite"
   )
   expect_identical(.iwmde_prior_ordinate_behavior(beta_regular, 0), "regular")
+  expect_identical(
+    .iwmde_prior_ordinate_behavior(normal_regular, 40),
+    "regular"
+  )
+  expect_identical(
+    .iwmde_prior_ordinate_behavior(normal_regular, 1e200),
+    "regular"
+  )
   expect_identical(.iwmde_prior_ordinate_behavior(
     BayesTools::prior("lognormal", parameters = list(meanlog = 0, sdlog = 1)),
     0
@@ -768,6 +780,17 @@ test_that("IWMDE identifies exact nonregular prior ordinates", {
     )),
     "prior density tends to zero"
   )
+
+  context[["flat_prior_list"]][["rho"]] <- beta_infinite
+  context[["support_cache"]] <- new.env(parent = emptyenv())
+  infinite_warnings <- .iwmde_ordinate_prior_warnings(
+    context        = context,
+    parameter      = "rho",
+    rows           = 1:2,
+    parameter_spec = list(type = "primitive"),
+    values         = 0
+  )
+  expect_match(infinite_warnings, "singular (tends to infinity)", fixed = TRUE)
 
   testthat::local_mocked_bindings(
     .iwmde_context_ensure_caches = function(context) context,
