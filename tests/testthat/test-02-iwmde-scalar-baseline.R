@@ -235,6 +235,30 @@ test_that("IWMDE support transforms preserve density mass", {
   )
 })
 
+
+test_that("IWMDE support interiors respect narrow parameter scales", {
+
+  bounded <- .iwmde_open_finite_support(
+    xlim    = c(0, 1e-10),
+    support = c(0, 1e-10)
+  )
+  asymmetric <- .iwmde_open_finite_support(
+    xlim    = c(.9, 1),
+    support = c(-1e100, 1)
+  )
+  subnormal <- .iwmde_open_finite_support(
+    xlim    = c(0, 1e-320),
+    support = c(0, Inf)
+  )
+
+  expect_true(0 < bounded[1L] && bounded[1L] < bounded[2L])
+  expect_true(bounded[2L] < 1e-10)
+  expect_true(.8 < asymmetric[1L] && asymmetric[1L] < asymmetric[2L])
+  expect_true(asymmetric[2L] < 1)
+  expect_true(0 < subnormal[1L] && subnormal[1L] < subnormal[2L])
+})
+
+
 test_that("IWMDE integration grid ignores display and evaluation ordinates", {
 
   values       <- seq(-1, 1, length.out = 101)

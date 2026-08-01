@@ -36,17 +36,13 @@
 
 .iwmde_open_finite_support <- function(xlim, support) {
 
-  width <- diff(xlim)
-  if (!is.finite(width) || width <= 0) {
-    width <- 1
-  }
-  eps <- sqrt(.Machine$double.eps) * max(1, width)
+  offset <- .iwmde_interior_offsets(xlim, support)
 
   if (is.finite(support[1]) && xlim[1] <= support[1]) {
-    xlim[1] <- support[1] + eps
+    xlim[1] <- support[1] + offset[1L]
   }
   if (is.finite(support[2]) && xlim[2] >= support[2]) {
-    xlim[2] <- support[2] - eps
+    xlim[2] <- support[2] - offset[2L]
   }
   if (xlim[1] >= xlim[2] && all(is.finite(support))) {
     midpoint <- mean(support)
@@ -55,6 +51,33 @@
   }
 
   return(xlim)
+}
+
+
+.iwmde_interior_offsets <- function(xlim, support) {
+
+  width <- diff(xlim)
+  if (!is.finite(width) || width <= 0) {
+    width <- diff(support)
+  }
+  if (!is.finite(width) || width <= 0) {
+    finite <- c(xlim, support)
+    finite <- finite[is.finite(finite)]
+    scale  <- if (length(finite) > 0L) max(abs(finite)) else 0
+    width  <- .Machine$double.eps * scale
+  }
+  if (!is.finite(width) || width <= 0) {
+    width <- .Machine$double.xmin * .Machine$double.eps
+  }
+
+  boundary_scale <- abs(support)
+  boundary_scale[!is.finite(boundary_scale)] <- 0
+
+  return(pmax(
+    sqrt(.Machine$double.eps) * width,
+    .Machine$double.eps * boundary_scale,
+    .Machine$double.xmin * .Machine$double.eps
+  ))
 }
 
 
@@ -212,12 +235,12 @@
 
   z <- seq(z_range[1], z_range[2], length.out = normalization_points)
   x <- .iwmde_from_internal(z, transform)
-  eps <- sqrt(.Machine$double.eps) * max(1, diff(range(x)))
+  offset <- .iwmde_interior_offsets(range(x), support)
   if (is.finite(support[1])) {
-    x[x <= support[1]] <- support[1] + eps
+    x[x <= support[1]] <- support[1] + offset[1L]
   }
   if (is.finite(support[2])) {
-    x[x >= support[2]] <- support[2] - eps
+    x[x >= support[2]] <- support[2] - offset[2L]
   }
   z <- .iwmde_to_internal(x, transform)
   if (any(!is.finite(x)) || any(!is.finite(z))) {
