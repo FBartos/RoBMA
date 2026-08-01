@@ -118,3 +118,11 @@ if (is.null(filter)) {
 
 elapsed <- proc.time()[["elapsed"]] - started
 message(profile, " profile completed in ", round(elapsed, 1), " seconds.")
+
+if (identical(profile, "standard") && is.null(filter) && elapsed > 15 * 60) {
+  stop(
+    "The standard test profile exceeded its 15-minute runtime budget (",
+    round(elapsed, 1), " seconds).",
+    call. = FALSE
+  )
+}
