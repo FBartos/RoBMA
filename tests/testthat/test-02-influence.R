@@ -42,13 +42,90 @@ test_that("PSIS fitted-value influence helpers match direct calculations", {
       expected_cook_delta
   ) / 2
 
-  summary <- .psis_fit_influence_summary(fit_samples, weights)
-  expect_equal(summary[["full_fit"]], full_fit)
-  expect_equal(summary[["loo_fit"]], loo_fit)
-  expect_equal(summary[["loo_var"]], pmax(loo_var, 0))
   expect_equal(.dffits_internal(fit_samples, weights), expected_dffits)
   expect_equal(unname(.cooks.distance_internal(fit_samples, weights, P = 2)),
                expected_cook)
+})
+
+test_that("influence diagnostics retain tiny non-zero posterior variation", {
+
+  fit_samples <- matrix(
+    c(
+      0, 1, 3,
+      1, 2, 1,
+      2, 4, 5,
+      4, 3, 2,
+      7, 6, 8
+    ),
+    nrow  = 5,
+    byrow = TRUE,
+    dimnames = list(NULL, paste0("study", 1:3))
+  )
+  weights <- cbind(
+    c(.40, .25, .15, .10, .10),
+    c(.10, .20, .30, .25, .15),
+    rep(.20, 5)
+  )
+
+  scales      <- c(2^-500, 2^-20, 2^20)
+  offsets     <- c(0, 2^20, -2^40)
+  transformed <- sweep(fit_samples, 2, scales, "*")
+  transformed <- sweep(transformed, 2, offsets, "+")
+
+  expect_equal(
+    .dffits_internal(transformed, weights),
+    .dffits_internal(fit_samples, weights),
+    tolerance = 1e-9
+  )
+  expect_equal(
+    unname(.cooks.distance_internal(transformed, weights, P = 3)),
+    unname(.cooks.distance_internal(fit_samples, weights, P = 3)),
+    tolerance = 1e-9
+  )
+
+  dfbetas_base <- .dfbetas_internal(fit_samples[, 1:2], weights)
+  dfbetas_tiny <- .dfbetas_internal(transformed[, 1:2], weights)
+  expect_equal(
+    dfbetas_tiny[["values"]],
+    dfbetas_base[["values"]],
+    tolerance = 1e-9
+  )
+
+  with_constant <- cbind(transformed[, 1:2], fixed = 1)
+  dfbetas_fixed <- .dfbetas_internal(with_constant, weights)
+  expect_true(all(is.nan(dfbetas_fixed[["values"]][, "fixed"])))
+  expect_identical(dfbetas_fixed[["undefined"]][, "fixed"], rep(TRUE, 3))
+})
+
+test_that("COVRATIO is invariant to parameter location and scale", {
+
+  samples <- cbind(
+    beta_1 = c(0, 1, 2, 4, 7),
+    beta_2 = c(3, 1, 5, 2, 8)
+  )
+  weights <- cbind(
+    c(.40, .25, .15, .10, .10),
+    c(.10, .20, .30, .25, .15),
+    rep(.20, 5)
+  )
+  transformed <- sweep(samples, 2, c(2^-500, 2^-20), "*")
+  transformed <- sweep(transformed, 2, c(0, 2^20), "+")
+
+  base <- .covratio_internal(samples, weights)
+  tiny <- .covratio_internal(transformed, weights)
+
+  expect_equal(tiny[["values"]], base[["values"]], tolerance = 1e-9)
+  expect_identical(tiny[["excluded"]], c(beta_1 = FALSE, beta_2 = FALSE))
+
+  fixed <- .covratio_internal(cbind(transformed, fixed = 1), weights)
+  expect_identical(fixed[["excluded"]][["fixed"]], TRUE)
+  expect_equal(fixed[["values"]], tiny[["values"]], tolerance = 1e-12)
+})
+
+test_that("symmetric inverse uses a relative numerical-rank threshold", {
+
+  x <- diag(c(1, 1e-12))
+  expect_equal(.symmetric_ginv(x), diag(c(1, 1e12)), tolerance = 1e-12)
 })
 
 test_that("PSIS tau deletion helper aggregates remaining scale rows", {

@@ -178,67 +178,17 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
     stop("No parameters available for DFBETAS with the requested type.", call. = FALSE)
   }
 
-  # dimensions
-  S <- nrow(samples_mat) # number of samples
-  P <- ncol(samples_mat) # number of coefficients
-  K <- ncol(weights)     # number of observations
+  result <- .dfbetas_internal(samples_mat, weights)
 
-  # 1. Compute LOO-weighted means for each observation i and parameter j
-  # beta_loo[i, j] = sum_s (w_{is} * beta_{js})
-  # weights is S x K -> t(weights) is K x S
-  # samples_mat is S x P
-  # K x S %*% S x P -> K x P
-  beta_loo <- crossprod(weights, samples_mat)
-
-  # 2. Compute Robust Weighted SD (SE LOO)
-  # Uses centered moment calculation: sum(w * (x - mu)^2)
-  # This avoids catastrophic cancellation issues with E[x^2] - E[x]^2
-  se_loo <- matrix(NA, nrow = K, ncol = P)
-
-  for (j in seq_len(P)) {
-    # Get samples for parameter j (vector length S)
-    beta_s <- samples_mat[, j]
-
-    # Get LOO means for parameter j (vector length K)
-    mu_k <- beta_loo[, j]
-
-    # Efficient Centering:
-    # Use outer() to create an (S x K) matrix of differences
-    # element [s, k] = beta_s[s] - mu_k[k]
-    # This vectorizes the subtraction of every sample from every LOO mean
-    diff_mat <- outer(beta_s, mu_k, "-")
-
-    # Square differences
-    diff_sq <- diff_mat^2
-
-    # Weighted Sum of Squares (Variance)
-    # colSums of (S x K) * (S x K) -> Vector length K
-    # This is the "Population Variance" of the LOO posterior distribution
-    var_k <- colSums(weights * diff_sq)
-
-    # Store SE
-    se_loo[, j] <- sqrt(var_k)
-  }
-
-  # 3. Compute full posterior means (unweighted / equal weights)
-  # beta_full[j] = mean(beta_{js})
-  beta_full <- colMeans(samples_mat)
-
-  # expand beta_full to K x P matrix for vectorized subtraction
-  beta_full_mat <- matrix(beta_full, nrow = K, ncol = P, byrow = TRUE)
-
-  # 4. Return LOO estimates if requested
   if (return_loo_estimates) {
-    beta_loo_df <- as.data.frame(beta_loo)
+    beta_loo_df <- as.data.frame(result[["loo_estimates"]])
     colnames(beta_loo_df) <- colnames(samples_mat)
     beta_loo_df <- .diagnostic_set_rownames(beta_loo_df, model)
     return(beta_loo_df)
   }
 
-  # 4. Compute DFBETAS
-  # (beta_full - beta_loo) / se_loo
-  dfbetas_val <- (beta_full_mat - beta_loo) / se_loo
-  undefined   <- se_loo <= sqrt(.Machine$double.eps)
+  dfbetas_val <- result[["values"]]
+  undefined   <- result[["undefined"]]
   note        <- NULL
   if (any(undefined)) {
     dfbetas_val[undefined] <- NaN
@@ -258,6 +208,48 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   class(dfbetas_df) <- c("dfbetas.brma", class(dfbetas_df))
 
   return(dfbetas_df)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .dfbetas_internal
+# ---------------------------------------------------------------------------- #
+#
+# Compute PSIS DFBETAS in affine-standardized posterior coordinates.
+#
+# ---------------------------------------------------------------------------- #
+.dfbetas_internal <- function(samples, weights) {
+
+  summary <- .psis_influence_summary(samples, weights)
+  K       <- nrow(summary[["loo_fit"]])
+  P       <- ncol(summary[["loo_fit"]])
+  se_loo  <- sqrt(summary[["loo_var"]])
+
+  beta_full <- matrix(
+    summary[["full_fit"]],
+    nrow  = K,
+    ncol  = P,
+    byrow = TRUE
+  )
+  undefined <- se_loo == 0
+  values    <- matrix(
+    NaN,
+    nrow     = K,
+    ncol     = P,
+    dimnames = dimnames(summary[["loo_fit"]])
+  )
+  values[!undefined] <-
+    (beta_full[!undefined] - summary[["loo_fit"]][!undefined]) /
+    se_loo[!undefined]
+
+  loo_estimates <- sweep(summary[["loo_fit"]], 2, summary[["scale"]], "*")
+  loo_estimates <- sweep(loo_estimates, 2, summary[["origin"]], "+")
+
+  return(list(
+    values        = values,
+    loo_estimates = loo_estimates,
+    undefined     = undefined
+  ))
 }
 
 

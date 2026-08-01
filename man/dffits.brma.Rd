@@ -41,7 +41,7 @@ in the reported fitted value.
 
 Estimate-unit LOO must first be computed with
 \code{model <- add_loo(model, unit = "estimate")}. If the leave-one-out
-posterior SD of a fitted value is near zero, the corresponding DFFITS value
+posterior SD of a fitted value is zero, the corresponding DFFITS value
 is returned as \code{NA}.
 }
 \examples{

@@ -42,7 +42,7 @@ dffits <- function(model, ...) UseMethod("dffits")
 #'
 #' Estimate-unit LOO must first be computed with
 #' \code{model <- add_loo(model, unit = "estimate")}. If the leave-one-out
-#' posterior SD of a fitted value is near zero, the corresponding DFFITS value
+#' posterior SD of a fitted value is zero, the corresponding DFFITS value
 #' is returned as \code{NA}.
 #'
 #' @return A named numeric vector of DFFITS values, one for each observation.
@@ -80,12 +80,18 @@ dffits.brma <- function(model, ...) {
 
 .dffits_internal <- function(fit_samples, weights) {
 
-  summary <- .psis_fit_influence_summary(fit_samples, weights)
+  if (ncol(as.matrix(fit_samples)) != ncol(as.matrix(weights))) {
+    stop("'fit_samples' and 'weights' must have the same number of columns.",
+         call. = FALSE)
+  }
+
+  summary <- .psis_influence_summary(fit_samples, weights)
 
   delta <- summary[["full_fit"]] - diag(summary[["loo_fit"]])
   se    <- sqrt(diag(summary[["loo_var"]]))
-  out   <- delta / se
-  out[se <= sqrt(.Machine$double.eps)] <- NA_real_
+  out   <- rep(NA_real_, length(se))
+  valid <- se > 0
+  out[valid] <- delta[valid] / se[valid]
 
   names(out) <- colnames(fit_samples)
 
@@ -131,34 +137,112 @@ dffits.brma <- function(model, ...) {
 
 
 # ---------------------------------------------------------------------------- #
-# .psis_fit_influence_summary
+# .influence_sample_coordinates
 # ---------------------------------------------------------------------------- #
 #
-# Full and PSIS leave-one-out fitted-value moments.
+# Express posterior samples in dimensionless, affine-standardized coordinates.
+# This keeps standardized influence diagnostics invariant to parameter units
+# and avoids underflow for small but non-zero posterior variation.
 #
 # ---------------------------------------------------------------------------- #
-.psis_fit_influence_summary <- function(fit_samples, weights) {
+.influence_sample_coordinates <- function(samples) {
 
-  if (!is.matrix(fit_samples)) {
-    fit_samples <- as.matrix(fit_samples)
+  if (!is.matrix(samples)) {
+    samples <- as.matrix(samples)
   }
-  if (!is.matrix(weights)) {
-    weights <- as.matrix(weights)
-  }
-  if (nrow(fit_samples) != nrow(weights) ||
-      ncol(fit_samples) != ncol(weights)) {
-    stop("'fit_samples' and 'weights' must have the same dimensions.",
+  if (nrow(samples) == 0L || ncol(samples) == 0L || any(!is.finite(samples))) {
+    stop("'samples' must be a non-empty matrix of finite values.",
          call. = FALSE)
   }
 
-  full_fit <- colMeans(fit_samples)
-  loo_fit  <- crossprod(weights, fit_samples)
-  loo_m2   <- crossprod(weights, fit_samples^2)
-  loo_var  <- pmax(loo_m2 - loo_fit^2, 0)
+  origin  <- samples[1L, ]
+  shifted <- sweep(samples, 2, origin, "-")
+  if (any(!is.finite(shifted))) {
+    stop("The posterior sample range exceeds finite arithmetic.",
+         call. = FALSE)
+  }
+
+  scale    <- apply(abs(shifted), 2, max)
+  variable <- scale > 0
+  shifted[, variable] <- sweep(
+    shifted[, variable, drop = FALSE],
+    2,
+    scale[variable],
+    "/"
+  )
+  shifted[, !variable] <- 0
+
+  return(list(
+    samples  = shifted,
+    origin   = origin,
+    scale    = scale,
+    variable = variable
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .influence_normalize_weights
+# ---------------------------------------------------------------------------- #
+#
+# Validate and normalize observation-specific importance weights.
+#
+# ---------------------------------------------------------------------------- #
+.influence_normalize_weights <- function(weights, n_samples) {
+
+  if (!is.matrix(weights)) {
+    weights <- as.matrix(weights)
+  }
+  if (nrow(weights) != n_samples || ncol(weights) == 0L ||
+      any(!is.finite(weights)) || any(weights < 0)) {
+    stop("'weights' must be a non-negative finite matrix with one row per sample.",
+         call. = FALSE)
+  }
+
+  weight_sums <- colSums(weights)
+  if (any(!is.finite(weight_sums)) || any(weight_sums <= 0)) {
+    stop("Each column of 'weights' must have a positive finite sum.",
+         call. = FALSE)
+  }
+
+  return(sweep(weights, 2, weight_sums, "/"))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .psis_influence_summary
+# ---------------------------------------------------------------------------- #
+#
+# Full and PSIS leave-one-out moments in affine-standardized coordinates.
+#
+# ---------------------------------------------------------------------------- #
+.psis_influence_summary <- function(samples, weights) {
+
+  coordinates <- .influence_sample_coordinates(samples)
+  samples     <- coordinates[["samples"]]
+  weights     <- .influence_normalize_weights(weights, nrow(samples))
+
+  full_fit <- colMeans(samples)
+  loo_fit  <- crossprod(weights, samples)
+  loo_var  <- matrix(
+    0,
+    nrow     = ncol(weights),
+    ncol     = ncol(samples),
+    dimnames = list(colnames(weights), colnames(samples))
+  )
+
+  for (j in seq_len(ncol(samples))) {
+    centered     <- outer(samples[, j], loo_fit[, j], "-")
+    loo_var[, j] <- colSums(weights * centered^2)
+  }
 
   return(list(
     full_fit = full_fit,
     loo_fit  = loo_fit,
-    loo_var  = loo_var
+    loo_var  = loo_var,
+    samples  = samples,
+    origin   = coordinates[["origin"]],
+    scale    = coordinates[["scale"]],
+    variable = coordinates[["variable"]]
   ))
 }

@@ -135,22 +135,17 @@ covratio.brma <- function(model, type = "mods", component = NULL,
   # Ensure matrix (S x P)
   beta_samples <- as.matrix(samples_table)
 
-  S <- nrow(beta_samples)
-  K <- ncol(weights)
+  result <- .covratio_internal(beta_samples, weights)
+  K      <- length(result[["values"]])
+  note   <- NULL
 
-  note <- NULL
-  undefined <- apply(
-    beta_samples,
-    2,
-    function(x) diff(range(x, na.rm = TRUE)) <= sqrt(.Machine$double.eps)
-  )
-  if (any(undefined)) {
+  if (any(result[["excluded"]])) {
     zero_note <- .diagnostic_excluded_zero_variance_note(
       diagnostic = "COVRATIO",
-      parameters = colnames(beta_samples)[undefined],
+      parameters = colnames(beta_samples)[result[["excluded"]]],
       variance   = "posterior"
     )
-    if (all(undefined)) {
+    if (all(result[["excluded"]])) {
       note <- .diagnostic_collect_notes(
         zero_note,
         "COVRATIO could not be computed because no parameters with non-zero posterior variance remain; values are reported as NaN."
@@ -162,19 +157,9 @@ covratio.brma <- function(model, type = "mods", component = NULL,
       ))
     }
     note <- .diagnostic_collect_notes(note, zero_note)
-    beta_samples <- beta_samples[, !undefined, drop = FALSE]
   }
 
-  # 1. Full Covariance (Method = "ML" for consistency)
-  # We construct uniform weights 1/S to use cov.wt with "ML"
-  # This avoids the (S-1)/S mismatch with the LOO calculation
-  w_full <- rep(1/S, S)
-  cov_full_res <- stats::cov.wt(beta_samples, wt = w_full, method = "ML")
-
-  # Log-Determinant of Full Covariance
-  # determinant() returns $modulus which is the log-abs-determinant
-  val_full <- as.numeric(determinant(cov_full_res$cov, logarithm = TRUE)$modulus)
-  if (!is.finite(val_full)) {
+  if (!result[["full_defined"]]) {
     note <- .diagnostic_collect_notes(
       note,
       "COVRATIO could not be computed because the full posterior covariance determinant is zero or non-finite; values are reported as NaN."
@@ -186,27 +171,9 @@ covratio.brma <- function(model, type = "mods", component = NULL,
     ))
   }
 
-  out <- numeric(K)
-
-  # 2. Loop over Studies for LOO Covariance
-  for (i in seq_len(K)) {
-
-    # Extract weights for observation i
-    # (These should be pre-normalized, but cov.wt handles normalization too)
-    w_i <- weights[, i]
-
-    # STABILITY FIX: Use method = "ML"
-    # "unbiased" uses factor 1/(1 - sum(w^2)), which explodes if ESS is low.
-    # "ML" uses factor 1/sum(w) = 1, which is stable for distribution variance.
-    cov_loo_res <- stats::cov.wt(beta_samples, wt = w_i, method = "ML")
-    val_loo     <- as.numeric(determinant(cov_loo_res$cov, logarithm = TRUE)$modulus)
-
-    # Compute Ratio
-    out[i] <- if (is.finite(val_loo)) exp(val_loo - val_full) else NaN
-  }
-
+  out <- result[["values"]]
   out <- .diagnostic_set_names(out, model)
-  if (any(is.nan(out))) {
+  if (any(!result[["loo_defined"]])) {
     note <- .diagnostic_collect_notes(
       note,
       "COVRATIO could not be computed for one or more observations because the LOO covariance determinant is zero or non-finite; affected values are reported as NaN."
@@ -221,6 +188,87 @@ covratio.brma <- function(model, type = "mods", component = NULL,
   }
 
   return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .covratio_internal
+# ---------------------------------------------------------------------------- #
+#
+# Compute covariance determinant ratios in affine-standardized coordinates.
+#
+# ---------------------------------------------------------------------------- #
+.covratio_internal <- function(samples, weights) {
+
+  coordinates <- .influence_sample_coordinates(samples)
+  weights     <- .influence_normalize_weights(weights, nrow(samples))
+  excluded    <- !coordinates[["variable"]]
+  K           <- ncol(weights)
+  values      <- rep(NaN, K)
+  loo_defined <- rep(FALSE, K)
+
+  if (all(excluded)) {
+    return(list(
+      values       = values,
+      excluded     = excluded,
+      full_defined = FALSE,
+      loo_defined  = loo_defined
+    ))
+  }
+
+  samples  <- coordinates[["samples"]][, !excluded, drop = FALSE]
+  full_cov <- stats::cov.wt(
+    samples,
+    wt     = rep(1 / nrow(samples), nrow(samples)),
+    method = "ML"
+  )[["cov"]]
+  full_log_det <- .positive_log_determinant(full_cov)
+  if (!is.finite(full_log_det)) {
+    return(list(
+      values       = values,
+      excluded     = excluded,
+      full_defined = FALSE,
+      loo_defined  = loo_defined
+    ))
+  }
+
+  for (i in seq_len(K)) {
+    loo_cov     <- stats::cov.wt(
+      samples,
+      wt     = weights[, i],
+      method = "ML"
+    )[["cov"]]
+    loo_log_det <- .positive_log_determinant(loo_cov)
+    if (is.finite(loo_log_det)) {
+      values[[i]]      <- exp(loo_log_det - full_log_det)
+      loo_defined[[i]] <- TRUE
+    }
+  }
+
+  return(list(
+    values       = values,
+    excluded     = excluded,
+    full_defined = TRUE,
+    loo_defined  = loo_defined
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .positive_log_determinant
+# ---------------------------------------------------------------------------- #
+#
+# Return a finite log determinant only for positive-definite matrices.
+#
+# ---------------------------------------------------------------------------- #
+.positive_log_determinant <- function(x) {
+
+  value <- determinant(x, logarithm = TRUE)
+  if (value[["sign"]] != 1 || !is.finite(value[["modulus"]])) {
+    return(NA_real_)
+  }
+
+  return(as.numeric(value[["modulus"]]))
 }
 
 

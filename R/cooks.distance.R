@@ -70,14 +70,25 @@ cooks.distance.brma <- function(model, ...) {
 
 .cooks.distance_internal <- function(fit_samples, weights, P) {
 
-  summary <- .psis_fit_influence_summary(fit_samples, weights)
-  delta   <- sweep(summary[["loo_fit"]], 2, summary[["full_fit"]], "-")
-  delta   <- -delta
+  if (length(P) != 1L || !is.finite(P) || P <= 0) {
+    stop("'P' must be one positive finite value.", call. = FALSE)
+  }
 
-  vcov_fit <- stats::cov(fit_samples)
+  summary  <- .psis_influence_summary(fit_samples, weights)
+  variable <- summary[["variable"]]
+  if (!any(variable)) {
+    out <- rep(0, ncol(weights))
+    names(out) <- colnames(fit_samples)
+    return(out)
+  }
+
+  delta   <- sweep(summary[["loo_fit"]], 2, summary[["full_fit"]], "-")
+  delta   <- -delta[, variable, drop = FALSE]
+
+  vcov_fit <- stats::cov(summary[["samples"]][, variable, drop = FALSE])
   vcov_inv <- .symmetric_ginv(vcov_fit)
 
-  d_vec <- rowSums((delta %*% vcov_inv) * delta) / max(P, 1L)
+  d_vec <- rowSums((delta %*% vcov_inv) * delta) / P
   names(d_vec) <- colnames(fit_samples)
 
   return(d_vec)
@@ -91,18 +102,25 @@ cooks.distance.brma <- function(model, ...) {
 # Generalized inverse for symmetric positive semi-definite covariance matrices.
 #
 # ---------------------------------------------------------------------------- #
-.symmetric_ginv <- function(x, tol = sqrt(.Machine$double.eps)) {
+.symmetric_ginv <- function(x) {
 
-  x   <- (x + t(x)) / 2
-  eig <- eigen(x, symmetric = TRUE)
+  x          <- (x + t(x)) / 2
+  components <- svd(x)
 
-  keep <- eig[["values"]] > max(abs(eig[["values"]]), 1) * tol
+  scale <- max(components[["d"]])
+  if (scale == 0) {
+    return(matrix(0, nrow = nrow(x), ncol = ncol(x)))
+  }
+
+  tolerance <- max(dim(x)) * .Machine$double.eps * scale
+  keep      <- components[["d"]] > tolerance
   if (!any(keep)) {
     return(matrix(0, nrow = nrow(x), ncol = ncol(x)))
   }
 
-  vectors <- eig[["vectors"]][, keep, drop = FALSE]
-  values  <- eig[["values"]][keep]
+  left   <- components[["u"]][, keep, drop = FALSE]
+  right  <- components[["v"]][, keep, drop = FALSE]
+  values <- components[["d"]][keep]
 
-  return(vectors %*% diag(1 / values, nrow = length(values)) %*% t(vectors))
+  return(right %*% diag(1 / values, nrow = length(values)) %*% t(left))
 }
