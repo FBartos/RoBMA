@@ -53,11 +53,18 @@ case_has_check <- function(case, check) {
 
 filter_cases <- function(cases, tier = test_tier()) {
 
-  if (!"tier" %in% names(cases)) {
-    return(cases)
+  if ("tier" %in% names(cases)) {
+    cases <- cases[cases[["tier"]] %in% tier, , drop = FALSE]
   }
 
-  return(cases[cases[["tier"]] %in% tier, , drop = FALSE])
+  if ("name" %in% names(cases)) {
+    catalog_names <- fit_catalog()[["name"]]
+    cached_case   <- cases[["name"]] %in% catalog_names
+    active_case   <- cases[["name"]] %in% active_fit_catalog()[["name"]]
+    cases <- cases[!cached_case | active_case, , drop = FALSE]
+  }
+
+  return(cases)
 }
 
 for_each_case <- function(cases, callback, tier = test_tier()) {

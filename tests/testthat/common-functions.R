@@ -422,17 +422,36 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, iwmde_oracle_catalog)
 
-  catalog[["profile"]] <- "standard"
+  catalog[["profile"]] <- "certification"
   catalog[["profile"]][catalog[["name"]] %in% c(
-    "brma.mv_v14_konstantopoulos2011_cs",
-    "brma.mv_v14_assink2016_nested",
-    "brma.mv_v14_ishak2007_har",
-    "brma.mv_v14_begg1989_study_treatment",
-    "nielweise2008_glmm_effect_null",
-    "dat.lehmann2018-3PSM_effect_null",
-    "iwmde_known_v_tau_full",
-    "iwmde_known_v_tau_null"
-  )] <- "certification"
+    "bcg_meta-analysis",
+    "bcg_meta-regression",
+    "bcg_meta-regression2",
+    "bcg_meta-regression2b",
+    "bcg_meta-regression3",
+    "bcg_meta-regression3b",
+    "bcg_meta-regression4",
+    "bcg_meta-regression4b",
+    "bangertdrowns2004_location-scale",
+    "konstantopoulos2011_3lvl",
+    "konstantopoulos2011_3lvl2",
+    "bcg_glmm",
+    "bcg_glmm_reg",
+    "nielweise2008_glmm",
+    "dat.lehmann2018-PET",
+    "dat.lehmann2018-PEESE",
+    "dat.lehmann2018-3PSM",
+    "dat.lehmann2018_BMA.norm",
+    "bcg_BMA.glmm",
+    "dat.lehmann2018_RoBMA",
+    "brma.mv_latent",
+    "brma.mv_whitened",
+    "brma.mv_block_mvn",
+    "brma.mv_block_mvn_fixed_random_null",
+    "brma.mv_block_mvn_random",
+    "vif_parity_brma",
+    "vif_parity_brma_mv"
+  )] <- "standard"
 
   return(catalog)
 }

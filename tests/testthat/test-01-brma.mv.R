@@ -649,6 +649,8 @@ test_that("brma.mv fits known-V backend smoke models", {
 
 test_that("brma.mv fits structurally regularized singular V", {
 
+  skip_if_fit_not_active("brma.mv_singular_regularized_whitened")
+
   dat <- data.frame(
     yi    = c(0.08, 0.13, 0.18),
     study = rep("s1", 3)

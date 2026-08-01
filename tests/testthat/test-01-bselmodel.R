@@ -24,6 +24,8 @@ test_that("bselmodel fits one-step metafor-reference selection model", {
 })
 
 test_that("bselmodel fits two-step metafor-reference selection model", {
+
+  skip_if_fit_not_active("dat.lehmann2018-4PSM")
   ### fit selection model
   data(dat.lehmann2018, package = "metadat")
   fit_rma.metafor <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
@@ -39,6 +41,8 @@ test_that("bselmodel fits two-step metafor-reference selection model", {
 })
 
 test_that("bselmodel fits negative-direction metafor-reference selection model", {
+
+  skip_if_fit_not_active("dat.lehmann2018-3PSM_neg")
   ### fit selection model
   data(dat.lehmann2018, package = "metadat")
   dat.lehmann2018$yi <- -dat.lehmann2018$yi
@@ -55,6 +59,8 @@ test_that("bselmodel fits negative-direction metafor-reference selection model",
 })
 
 test_that("bselmodel fits selection meta-regression model", {
+
+  skip_if_fit_not_active("dat.lehmann2018-3PSMreg")
   ### fit selection model
   data(dat.lehmann2018, package = "metadat")
   fit_rma.metafor <- metafor::rma(yi, vi, mods = ~ Preregistered, data = dat.lehmann2018, method = "ML")

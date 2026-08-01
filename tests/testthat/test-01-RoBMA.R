@@ -26,6 +26,8 @@ test_that("RoBMA handles default model", {
 })
 
 test_that("RoBMA handles custom priors", {
+
+  skip_if_fit_not_active("dat.lehmann2018_RoBMA_custom")
   data(dat.lehmann2018, package = "metadat")
   fit <- RoBMA(
     yi = yi, vi = vi,
@@ -48,6 +50,8 @@ test_that("RoBMA handles custom priors", {
 })
 
 test_that("RoBMA handles meta-regression", {
+
+  skip_if_fit_not_active("dat.lehmann2018_RoBMA_mods")
   data(dat.lehmann2018, package = "metadat")
   fit <- suppressWarnings(RoBMA(
     yi = yi, vi = vi, mods = ~ Preregistered,
@@ -63,6 +67,8 @@ test_that("RoBMA handles meta-regression", {
 })
 
 test_that("RoBMA handles meta-regression with interaction", {
+
+  skip_if_fit_not_active("dat.lehmann2018_RoBMA_mods2")
   data(dat.lehmann2018, package = "metadat")
   fit <- RoBMA(
     yi = yi, vi = vi, mods = ~ Preregistered * Gender,
@@ -78,6 +84,8 @@ test_that("RoBMA handles meta-regression with interaction", {
 })
 
 test_that("RoBMA handles multilevel location-scale meta-regression", {
+
+  skip_if_fit_not_active("dat.lehmann2018_RoBMA_3lvl_mods_scale")
   data(dat.lehmann2018, package = "metadat")
   fit <- suppressWarnings(RoBMA(
     yi = yi, vi = vi, mods = ~ Preregistered, scale = ~ Preregistered, cluster = Full_Citation,

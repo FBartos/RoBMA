@@ -44,6 +44,8 @@ test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
 })
 
 test_that("brma.glmm handles multilevel scale regression model", {
+
+  skip_if_fit_not_active("bcg_glmm_3lvl_scale")
   # using RoBMA package
   data(dat.bcg, package = "metadat")
   fit_simple.brma <- brma.glmm(
