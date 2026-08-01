@@ -892,6 +892,7 @@ test_that("brma.mv block-MVN packing handles mixed-sign covariance blocks", {
     byrow = TRUE
   )
   V_block <- diag(c(0.18, 0.24, 0.30)) %*% R %*% diag(c(0.18, 0.24, 0.30))
+  V_block <- (V_block + t(V_block)) / 2
   V <- rbind(
     cbind(V_block, matrix(0, 3, 1)),
     cbind(matrix(0, 1, 3), matrix(0.025, 1, 1))

@@ -19,6 +19,19 @@ test_that("covariance policy classifies positive semidefinite matrices", {
 })
 
 
+test_that("covariance policy rejects materially invalid correlations", {
+
+  correlation <- matrix(
+    c(1, 1 + 1e-9, 1 + 1e-9, 1),
+    nrow = 2L
+  )
+  factorization <- .covariance_factorization(correlation)
+
+  expect_identical(factorization[["status"]], "indefinite")
+  expect_false(.covariance_is_positive_semidefinite(factorization))
+})
+
+
 test_that("covariance sampling factor preserves singular covariance", {
 
   covariance    <- matrix(c(1, 1, 1, 1), nrow = 2L)

@@ -197,30 +197,19 @@
 
   .known_v_check_symmetric(V_matrix, "'V'")
 
-  V_matrix <- (V_matrix + t(V_matrix)) / 2
   diagonal <- diag(V_matrix)
   if (any(diagonal <= 0)) {
     stop("The diagonal of 'V' must contain positive variances.", call. = FALSE)
   }
 
-  correlation   <- stats::cov2cor(V_matrix)
-  factorization <- .covariance_factorization(correlation)
-  eigenvalues   <- factorization[["decomposition_values"]]
+  factorization <- .known_v_correlation_factorization(V_matrix)
   if (isTRUE(factorization[["singular"]])) {
     if (.covariance_is_positive_semidefinite(factorization)) {
-      if (min(eigenvalues) < 0) {
-        eigenvalues[eigenvalues < 0] <- 0
-        factor <- factorization[["eigenvectors"]] %*%
-          diag(sqrt(eigenvalues), nrow = length(eigenvalues))
-        correlation <- stats::cov2cor(tcrossprod(factor))
-        V_matrix <- correlation * tcrossprod(sqrt(diagonal))
-        V_matrix <- (V_matrix + t(V_matrix)) / 2
-      }
       if (isTRUE(warn_singular)) {
         .known_v_warn_singular()
       }
     } else {
-      stop("The 'V' argument must be positive definite.", call. = FALSE)
+      stop("The 'V' argument must be positive semidefinite.", call. = FALSE)
     }
   }
 
@@ -485,10 +474,7 @@
 
 .known_v_check_symmetric <- function(V_matrix, arg) {
 
-  symmetry_error <- max(abs(V_matrix - t(V_matrix)))
-  tolerance      <- sqrt(.Machine$double.eps) * max(1, max(abs(V_matrix)))
-
-  if (symmetry_error > tolerance) {
+  if (any(V_matrix != t(V_matrix))) {
     stop(arg, " must be symmetric.", call. = FALSE)
   }
 
@@ -641,13 +627,18 @@
     stop("'V_new' must contain only finite non-missing values.", call. = FALSE)
   }
   .known_v_check_symmetric(V_new, "'V_new'")
-  V_new <- (V_new + t(V_new)) / 2
   if (any(diag(V_new) < 0)) {
     stop("The diagonal of 'V_new' must contain non-negative variances.",
          call. = FALSE)
   }
-  factorization <- .covariance_factorization(V_new)
-  if (!.covariance_is_positive_semidefinite(factorization)) {
+  zero_variance <- diag(V_new) == 0
+  if (any(zero_variance) &&
+      any(V_new[zero_variance, , drop = FALSE] != 0)) {
+    stop("'V_new' must be positive semidefinite.", call. = FALSE)
+  }
+  factorization <- .known_v_correlation_factorization(V_new)
+  if (!is.null(factorization) &&
+      !.covariance_is_positive_semidefinite(factorization)) {
     stop("'V_new' must be positive semidefinite.", call. = FALSE)
   }
 
@@ -657,6 +648,21 @@
 
 .known_v_newdata_block_is_singular <- function(V_new) {
 
-  factorization <- .covariance_factorization(V_new)
-  min(factorization[["eigenvalues"]]) <= factorization[["psd_tolerance"]]
+  any(diag(V_new) == 0) ||
+    isTRUE(.known_v_correlation_factorization(V_new)[["singular"]])
+}
+
+
+# Factorize the positive-variance correlation block for scale-stable checks.
+.known_v_correlation_factorization <- function(V) {
+
+  positive_variance <- diag(V) > 0
+  if (!any(positive_variance)) {
+    return(NULL)
+  }
+
+  correlation <- stats::cov2cor(
+    V[positive_variance, positive_variance, drop = FALSE]
+  )
+  return(.covariance_factorization(correlation))
 }

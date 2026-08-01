@@ -160,23 +160,27 @@ test_that("known V validates dense structure before row filtering", {
 })
 
 
-test_that("known V symmetry tolerance scales with covariance magnitude", {
+test_that("known V must be symmetric and is never silently changed", {
 
   V <- matrix(
     c(1e8, 1e4, 1e4 + 1e-4, 2e8),
     nrow = 2L
   )
-  object <- brma.mv(
-    yi                        = c(0.10, 0.20),
-    V                         = V,
-    measure                   = "GEN",
-    prior_unit_information_sd = 1,
-    only_data                 = TRUE
+  expect_error(
+    brma.mv(
+      yi                        = c(0.10, 0.20),
+      V                         = V,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "must be symmetric"
   )
 
-  expect_equal(
-    .known_v_materialize(.data_known_v_data(object[["data"]])),
-    (V + t(V)) / 2
+  symmetric <- matrix(c(1e8, 1e4, 1e4, 2e8), nrow = 2L)
+  expect_identical(
+    .known_v_as_matrix(symmetric),
+    symmetric
   )
 })
 
@@ -211,15 +215,27 @@ test_that("V_new structural errors name V_new", {
 })
 
 
-test_that("V_new symmetry tolerance scales with covariance magnitude", {
+test_that("V_new must be symmetric and is never silently changed", {
 
   V_new <- matrix(
     c(1e8, 1e4, 1e4 + 1e-4, 2e8),
     nrow = 2L
   )
-  out <- .known_v_newdata_prepare(V_new, k = 2L)
+  expect_error(
+    .known_v_newdata_prepare(V_new, k = 2L),
+    "must be symmetric"
+  )
+  expect_error(
+    .known_v_newdata_prepare(
+      matrix(c(1, 1 + 1e-9, 1 + 1e-9, 1), nrow = 2L),
+      k = 2L
+    ),
+    "positive semidefinite"
+  )
 
-  expect_equal(.known_v_materialize(out), (V_new + t(V_new)) / 2)
+  symmetric <- matrix(c(1e8, 1e4, 1e4, 2e8), nrow = 2L)
+  out       <- .known_v_newdata_prepare(symmetric, k = 2L)
+  expect_identical(.known_v_materialize(out), symmetric)
 })
 
 
@@ -531,6 +547,21 @@ test_that("brma.mv warns and accepts rank-one all-correlated known V", {
 })
 
 
+test_that("known V retains exact rank-one correlation blocks across scales", {
+
+  sei <- c(0.20, 0.30, 0.40)
+  for (scale in c(1e-12, 1, 1e12)) {
+    V <- scale * tcrossprod(sei)
+
+    expect_warning(
+      validated <- .known_v_as_matrix(V),
+      "positive semidefinite"
+    )
+    expect_identical(validated, V)
+  }
+})
+
+
 test_that("brma.mv aligns V after subset and missing rows", {
 
   V <- matrix(
@@ -660,7 +691,7 @@ test_that("brma.mv validates only retained known-V blocks", {
       prior_unit_information_sd = 1,
       only_data                 = TRUE
     ),
-    "positive definite"
+    "positive semidefinite"
   )
   expect_error(
     brma.mv(
@@ -812,7 +843,7 @@ test_that("brma.mv rejects invalid and unsupported inputs", {
       prior_unit_information_sd = 1,
       only_data                 = TRUE
     ),
-    "positive definite"
+    "positive semidefinite"
   )
 
   sei <- c(0.20, 0.30, 0.40)

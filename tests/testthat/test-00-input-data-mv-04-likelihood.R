@@ -848,8 +848,8 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
     tolerance = 1e-14
   )
   V_tolerance <- matrix(c(1, 1 + 1e-9, 1 + 1e-9, 1), nrow = 2)
-  expect_warning(
-    tolerance_positive <- brma.mv(
+  expect_error(
+    brma.mv(
       yi                        = yi,
       V                         = V_tolerance,
       data                      = dat[1:2, , drop = FALSE],
@@ -859,25 +859,17 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       prior_unit_information_sd = 1,
       only_priors               = TRUE
     ),
-    "provisional"
-  )
-  tolerance_V <- .known_v_materialize(
-    .data_known_v_data(tolerance_positive[["data"]])
-  )
-  expect_equal(diag(tolerance_V), c(1, 1), tolerance = 1e-14)
-  expect_gte(
-    min(eigen(tolerance_V, symmetric = TRUE, only.values = TRUE)[["values"]]),
-    -1e-14
+    "positive semidefinite"
   )
   V_tight <- matrix(
     c(1, 1 + .Machine$double.eps, 1 + .Machine$double.eps, 1),
     nrow = 2
   )
-  tight_V <- suppressWarnings(.known_v_as_matrix(V_tight))
-  expect_gte(
-    min(eigen(tight_V, symmetric = TRUE, only.values = TRUE)[["values"]]),
-    -1e-14
+  expect_warning(
+    tight_V <- .known_v_as_matrix(V_tight),
+    "positive semidefinite"
   )
+  expect_identical(tight_V, V_tight)
   prior_too_small <- BayesTools::prior(
     distribution = "spike",
     parameters   = list(location = 1e-9)

@@ -9,22 +9,24 @@
          call. = FALSE)
   }
 
-  covariance     <- (covariance + t(covariance)) / 2
-  eigen          <- eigen(covariance, symmetric = TRUE)
-  # Classification historically used LAPACK's values-only path. Keep that
-  # spectrum separate from the eigenvectors used for reconstruction.
-  values         <- eigen(covariance, symmetric = TRUE, only.values = TRUE)[["values"]]
-  scale          <- max(abs(values))
-  psd_tolerance  <- sqrt(.Machine$double.eps) * max(1, scale)
-  pd_tolerance   <- if (scale == 0) {
+  covariance <- (covariance + t(covariance)) / 2
+  eigen      <- eigen(covariance, symmetric = TRUE)
+  values     <- eigen[["values"]]
+  scale      <- max(abs(values))
+  tolerance  <- if (scale == 0) {
     0
   } else {
-    .Machine$double.eps * max(1, nrow(covariance)) * scale
+    # Backward-error envelope for symmetrization and the eigensolve. This
+    # classifies roundoff without changing the supplied covariance matrix.
+    operation_count <- 4 * max(1, nrow(covariance))
+    relative_error  <- operation_count * .Machine$double.eps /
+      (1 - operation_count * .Machine$double.eps)
+    relative_error * scale
   }
 
-  status <- if (min(values) < -psd_tolerance) {
+  status <- if (min(values) < -tolerance) {
     "indefinite"
-  } else if (scale == 0 || min(values) <= pd_tolerance) {
+  } else if (scale == 0 || min(values) <= tolerance) {
     "positive_semidefinite"
   } else {
     "positive_definite"
@@ -37,8 +39,8 @@
       decomposition_values = eigen[["values"]],
       eigenvectors  = eigen[["vectors"]],
       scale         = scale,
-      psd_tolerance = psd_tolerance,
-      pd_tolerance  = pd_tolerance,
+      psd_tolerance = tolerance,
+      pd_tolerance  = tolerance,
       singular      = !identical(status, "positive_definite"),
       status        = status
     ),
