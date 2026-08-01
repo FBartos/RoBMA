@@ -261,13 +261,7 @@ bool row_has_active_phack(int mode, double alpha, int phack_kind)
 
 double clamp_probability_value(double x)
 {
-  if (x < 0) {
-    return 0;
-  }
-  if (x > 1) {
-    return 1;
-  }
-  return x;
+  return std::isfinite(x) && x >= 0 && x <= 1 ? x : NA_REAL;
 }
 
 double funnel_interval_prob(double lower, double upper, double mean, double sd)
@@ -286,18 +280,16 @@ double funnel_interval_prob(double lower, double upper, double mean, double sd)
     return pnorm(lower, mean, sd, false, false);
   }
 
-  double out = pnorm(upper, mean, sd, true, false) -
+  if (lower > mean) {
+    return pnorm(lower, mean, sd, false, false) -
+      pnorm(upper, mean, sd, false, false);
+  }
+
+  return pnorm(upper, mean, sd, true, false) -
     pnorm(lower, mean, sd, true, false);
-  if (out < 0 && out > -1e-14) {
-    out = 0;
-  }
-  if (out > 1 && out < 1 + 1e-14) {
-    out = 1;
-  }
-  return out;
 }
 
-double funnel_quantile_type8(const std::vector<double> &x, double p)
+double funnel_empirical_quantile(const std::vector<double> &x, double p)
 {
   const int n = static_cast<int>(x.size());
   std::vector<double> sorted(x);
@@ -309,18 +301,11 @@ double funnel_quantile_type8(const std::vector<double> &x, double p)
   }
   std::sort(sorted.begin(), sorted.end());
 
-  const double h = (static_cast<double>(n) + 1.0 / 3.0) * p + 1.0 / 3.0;
-  if (h <= 1) {
-    return sorted[0];
-  }
-  if (h >= n) {
-    return sorted[static_cast<size_t>(n - 1)];
-  }
-
-  const int j = static_cast<int>(std::floor(h));
-  const double g = h - static_cast<double>(j);
-  return (1 - g) * sorted[static_cast<size_t>(j - 1)] +
-    g * sorted[static_cast<size_t>(j)];
+  const int index = std::max(
+    0,
+    std::min(n - 1, static_cast<int>(std::ceil(static_cast<double>(n) * p)) - 1)
+  );
+  return sorted[static_cast<size_t>(index)];
 }
 
 struct FunnelSeContext {
@@ -399,7 +384,6 @@ double funnel_selected_cdf_zero_se(double q, int s, const FunnelSeContext &ctx)
 
 void funnel_prepare_se_context(FunnelSeContext *ctx)
 {
-  const double eps_sd = std::sqrt(DBL_EPSILON);
   const SelNormKernelData &data = *ctx->data;
   const double se2 = ctx->se * ctx->se;
   const int n_boundaries = std::max(data.n_bins - 1, 0);
@@ -422,11 +406,11 @@ void funnel_prepare_se_context(FunnelSeContext *ctx)
     const double location = ctx->mu[s] +
       ctx->direction * ctx->PET[s] * ctx->se +
       ctx->direction * ctx->PEESE[s] * se2;
-    const double total_sd = std::sqrt(se2 + ctx->tau[s] * ctx->tau[s]);
+    const double total_sd = std::hypot(ctx->se, ctx->tau[s]);
 
     ctx->location[si] = location;
     ctx->total_sd[si] = total_sd;
-    ctx->zero_sd[si]  = total_sd < eps_sd;
+    ctx->zero_sd[si]  = total_sd == 0;
     ctx->weighted[si] = ctx->is_weightfunction[s] != 0 && !ctx->zero_sd[si];
 
     if (ctx->weighted[si] && ctx->se > 0) {
@@ -665,39 +649,30 @@ double funnel_model_averaged_quantile_native(double p,
                                              double previous,
                                              bool use_previous)
 {
-  const double eps_sd = std::sqrt(DBL_EPSILON);
   bool all_zero_sd = true;
   double lower = INFINITY;
   double upper = -INFINITY;
   double step = 0;
-  double max_abs_location = 1;
 
   for (int s = 0; s < ctx.S; ++s) {
     const size_t si = static_cast<size_t>(s);
     all_zero_sd = all_zero_sd && ctx.zero_sd[si];
-    const double spread = std::max(ctx.total_sd[si], eps_sd);
+    const double spread = ctx.total_sd[si];
     lower = std::min(lower, ctx.location[si] - 10 * spread);
     upper = std::max(upper, ctx.location[si] + 10 * spread);
     step  = std::max(step, spread);
 
-    if (std::isfinite(ctx.location[si])) {
-      max_abs_location = std::max(max_abs_location, std::fabs(ctx.location[si]));
-    }
   }
 
   if (all_zero_sd) {
-    return funnel_quantile_type8(ctx.location, p);
+    return funnel_empirical_quantile(ctx.location, p);
   }
 
   if (!std::isfinite(lower) || !std::isfinite(upper)) {
     return NA_REAL;
   }
   if (lower >= upper) {
-    lower -= 1;
-    upper += 1;
-  }
-  if (!std::isfinite(step) || step <= 0) {
-    step = max_abs_location;
+    return lower;
   }
 
   const double global_lower = lower;
@@ -791,7 +766,12 @@ double funnel_model_averaged_quantile_native(double p,
       lower_value = mid_value;
     }
 
-    if (std::fabs(upper - lower) <= 1e-6 || mid_value == 0) {
+    const double tolerance = DBL_EPSILON * std::max(
+      std::max(std::fabs(lower), std::fabs(upper)),
+      step
+    );
+    if ((tolerance > 0 && std::fabs(upper - lower) <= tolerance) ||
+        mid_value == 0) {
       break;
     }
   }

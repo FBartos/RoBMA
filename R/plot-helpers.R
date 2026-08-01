@@ -1,3 +1,24 @@
+.plot_validate_cdf <- function(value, context, operation_count = 1L) {
+
+  if (!is.numeric(value) || any(!is.finite(value))) {
+    stop(context, " produced invalid CDF values.", call. = FALSE)
+  }
+
+  relative_error <- operation_count * .Machine$double.eps /
+    (1 - operation_count * .Machine$double.eps)
+  near_zero <- value < 0 & value >= -relative_error
+  near_one  <- value > 1 & value <= 1 + relative_error
+  value[near_zero] <- 0
+  value[near_one]  <- 1
+
+  if (any(value < 0 | value > 1)) {
+    stop(context, " produced invalid CDF values.", call. = FALSE)
+  }
+
+  return(value)
+}
+
+
 .check_and_select_plot_parameter <- function(parameter, parameter_mods,
                                              parameter_scale, object,
                                              component = "auto") {

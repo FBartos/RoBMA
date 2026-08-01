@@ -17,13 +17,11 @@
   )
   total_sd <- se_setup[["total_sd"]]
   location <- se_setup[["location"]]
-  eps_sd   <- sqrt(.Machine$double.eps)
-
-  if (all(total_sd < eps_sd)) {
-    return(unname(stats::quantile(location, probs = p, names = FALSE, type = 8)))
+  if (all(total_sd == 0)) {
+    return(unname(stats::quantile(location, probs = p, names = FALSE, type = 1)))
   }
 
-  spread <- pmax(total_sd, eps_sd)
+  spread <- total_sd
   lower  <- min(location - 10 * spread, na.rm = TRUE)
   upper  <- max(location + 10 * spread, na.rm = TRUE)
 
@@ -31,8 +29,7 @@
     return(NA_real_)
   }
   if (lower >= upper) {
-    lower <- lower - 1
-    upper <- upper + 1
+    return(lower)
   }
 
   obj_fun <- function(q) {
@@ -42,10 +39,6 @@
   lower_value <- obj_fun(lower)
   upper_value <- obj_fun(upper)
   step        <- max(spread, na.rm = TRUE)
-  if (!is.finite(step) || step <= 0) {
-    step <- max(1, abs(location), na.rm = TRUE)
-  }
-
   for (i in seq_len(25)) {
     if (lower_value <= 0 && upper_value >= 0) {
       break
@@ -65,8 +58,16 @@
     return(.funnel_grid_quantile_precomputed(p, lower, upper, se_setup))
   }
 
+  tolerance <- max(
+    .Machine$double.xmin,
+    .Machine$double.eps * max(abs(lower), abs(upper), step)
+  )
   out <- tryCatch(
-    stats::uniroot(obj_fun, interval = c(lower, upper), tol = 1e-6)[["root"]],
+    stats::uniroot(
+      obj_fun,
+      interval = c(lower, upper),
+      tol      = tolerance
+    )[["root"]],
     error = function(e) NA_real_
   )
 
@@ -90,8 +91,7 @@
 
   total_sd      <- sqrt(se^2 + setup[["tau"]]^2)
   location      <- .funnel_row_location(se, setup, effect_direction)
-  eps_sd        <- sqrt(.Machine$double.eps)
-  zero_sd       <- total_sd < eps_sd
+  zero_sd       <- total_sd == 0
   normal_rows   <- !setup[["is_weightfunction"]] & !zero_sd
   weighted_rows <- setup[["is_weightfunction"]] & !zero_sd
   selection     <- setup[["selection"]]
@@ -257,7 +257,7 @@
     }
   }
 
-  cdf_values <- pmin(pmax(cdf_values, 0), 1)
+  cdf_values <- .plot_validate_cdf(cdf_values, "Model-averaged funnel")
   return(mean(cdf_values))
 }
 
@@ -310,8 +310,9 @@
     }
 
     out <- mass / step_selection[["denom"]]
-    out <- pmin(pmax(out, 0), 1)
-    return(out)
+    if (all(is.finite(out)) && all(out >= 0 & out <= 1)) {
+      return(out)
+    }
   }
 
   mass     <- rep(0, length(step_selection[["rows"]]))
@@ -339,7 +340,11 @@
     mass <- mass + step_selection[["omega"]][, b] * selected_mass
   }
 
-  return(mass / step_selection[["denom"]])
+  return(.plot_validate_cdf(
+    mass / step_selection[["denom"]],
+    "Selected-normal funnel",
+    operation_count = 4L * step_selection[["n_bins"]] + 4L
+  ))
 }
 
 
@@ -461,8 +466,11 @@
   }
 
   out <- mass / denom
-  out <- pmin(pmax(out, 0), 1)
-  return(out)
+  return(.plot_validate_cdf(
+    out,
+    "Zero-SE selected-normal funnel",
+    operation_count = 4L * selection[["n_bins"]] + 4L
+  ))
 }
 
 

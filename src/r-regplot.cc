@@ -122,18 +122,12 @@ static bool regplot_row_has_active_phack(int mode, double alpha, int phack_kind)
     mode == SELKERNEL_STEP_PHACK_POWER) && phack_kind > 0 && alpha > 0;
 }
 
-static double regplot_clamp_probability(double x)
+static double regplot_probability(double x)
 {
-  if (x < 0) {
-    return 0;
-  }
-  if (x > 1) {
-    return 1;
-  }
-  return x;
+  return std::isfinite(x) && x >= 0 && x <= 1 ? x : NA_REAL;
 }
 
-static double regplot_quantile_type8(const double *x, int n, double p)
+static double regplot_empirical_quantile(const double *x, int n, double p)
 {
   std::vector<double> sorted(static_cast<size_t>(n));
   for (int i = 0; i < n; ++i) {
@@ -144,34 +138,26 @@ static double regplot_quantile_type8(const double *x, int n, double p)
   }
   std::sort(sorted.begin(), sorted.end());
 
-  const double h = (static_cast<double>(n) + 1.0 / 3.0) * p + 1.0 / 3.0;
-  if (h <= 1) {
-    return sorted[0];
-  }
-  if (h >= n) {
-    return sorted[static_cast<size_t>(n - 1)];
-  }
-
-  const int j = static_cast<int>(std::floor(h));
-  const double g = h - static_cast<double>(j);
-  return (1 - g) * sorted[static_cast<size_t>(j - 1)] +
-    g * sorted[static_cast<size_t>(j)];
+  const int index = std::max(
+    0,
+    std::min(n - 1, static_cast<int>(std::ceil(static_cast<double>(n) * p)) - 1)
+  );
+  return sorted[static_cast<size_t>(index)];
 }
 
 static double regplot_normal_mixture_cdf(double q, const double *mean,
                                          const double *sd, int S)
 {
-  const double eps_sd = std::sqrt(DBL_EPSILON);
   double cdf_sum = 0;
 
   for (int s = 0; s < S; ++s) {
     double cdf_s;
-    if (sd[s] < eps_sd) {
+    if (sd[s] == 0) {
       cdf_s = q >= mean[s] ? 1.0 : 0.0;
     } else {
       cdf_s = pnorm(q, mean[s], sd[s], true, false);
     }
-    cdf_sum += regplot_clamp_probability(cdf_s);
+    cdf_sum += regplot_probability(cdf_s);
   }
 
   return cdf_sum / static_cast<double>(S);
@@ -191,12 +177,11 @@ static double regplot_selnorm_mixture_cdf_cached(
   const SelNormKernelData &data,
   int S)
 {
-  const double eps_sd = std::sqrt(DBL_EPSILON);
   double cdf_sum = 0;
 
   for (int s = 0; s < S; ++s) {
     double cdf_s;
-    if (sd[s] < eps_sd) {
+    if (sd[s] == 0) {
       cdf_s = q >= mean[s] ? 1.0 : 0.0;
     } else if (row_active_phack[static_cast<size_t>(s)]) {
       cdf_s = NA_REAL;
@@ -217,28 +202,10 @@ static double regplot_selnorm_mixture_cdf_cached(
         false
       );
     }
-    cdf_sum += regplot_clamp_probability(cdf_s);
+    cdf_sum += regplot_probability(cdf_s);
   }
 
   return cdf_sum / static_cast<double>(S);
-}
-
-static void regplot_normal_mixture_cdf_pdf(double q, const double *mean,
-                                           const double *sd, int S,
-                                           double *cdf, double *pdf)
-{
-  double cdf_sum = 0;
-  double pdf_sum = 0;
-
-  for (int s = 0; s < S; ++s) {
-    const double cdf_s = pnorm(q, mean[s], sd[s], true, false);
-    const double pdf_s = dnorm(q, mean[s], sd[s], false);
-    cdf_sum += regplot_clamp_probability(cdf_s);
-    pdf_sum += pdf_s;
-  }
-
-  *cdf = cdf_sum / static_cast<double>(S);
-  *pdf = pdf_sum / static_cast<double>(S);
 }
 
 template <typename CdfFun>
@@ -267,41 +234,32 @@ static double regplot_mixture_quantile(double p, const double *mean,
                                        const double *sd, int S,
                                        CdfFun cdf_fun)
 {
-  const double eps_sd = std::sqrt(DBL_EPSILON);
   bool all_zero_sd = true;
   double lower = INFINITY;
   double upper = -INFINITY;
   double step = 0;
-  double max_abs_mean = 1;
 
   for (int s = 0; s < S; ++s) {
-    if (!(sd[s] < eps_sd)) {
+    if (sd[s] != 0) {
       all_zero_sd = false;
     }
 
-    const double spread = std::max(sd[s], eps_sd);
+    const double spread = sd[s];
     lower = std::min(lower, mean[s] - 10 * spread);
     upper = std::max(upper, mean[s] + 10 * spread);
     step  = std::max(step, spread);
 
-    if (std::isfinite(mean[s])) {
-      max_abs_mean = std::max(max_abs_mean, std::fabs(mean[s]));
-    }
   }
 
   if (all_zero_sd) {
-    return regplot_quantile_type8(mean, S, p);
+    return regplot_empirical_quantile(mean, S, p);
   }
 
   if (!std::isfinite(lower) || !std::isfinite(upper)) {
     return NA_REAL;
   }
   if (lower >= upper) {
-    lower -= 1;
-    upper += 1;
-  }
-  if (!std::isfinite(step) || step <= 0) {
-    step = max_abs_mean;
+    return lower;
   }
 
   double lower_value = cdf_fun(lower) - p;
@@ -338,7 +296,11 @@ static double regplot_mixture_quantile(double p, const double *mean,
       lower_value = mid_value;
     }
 
-    if (std::fabs(upper - lower) <= 1e-6) {
+    const double tolerance = DBL_EPSILON * std::max(
+      std::max(std::fabs(lower), std::fabs(upper)),
+      step
+    );
+    if (tolerance > 0 && std::fabs(upper - lower) <= tolerance) {
       break;
     }
     if (mid_value == 0) {
@@ -352,117 +314,12 @@ static double regplot_mixture_quantile(double p, const double *mean,
 static double regplot_normal_mixture_quantile(double p, const double *mean,
                                               const double *sd, int S)
 {
-  const double eps_sd = std::sqrt(DBL_EPSILON);
-  bool all_zero_sd = true;
-  bool any_zero_sd = false;
-  double lower = INFINITY;
-  double upper = -INFINITY;
-  double step = 0;
-  double mix_mean = 0;
-  double mix_second = 0;
-
-  for (int s = 0; s < S; ++s) {
-    const bool zero_sd = sd[s] < eps_sd;
-    all_zero_sd = all_zero_sd && zero_sd;
-    any_zero_sd = any_zero_sd || zero_sd;
-
-    const double spread = std::max(sd[s], eps_sd);
-    lower = std::min(lower, mean[s] - 10 * spread);
-    upper = std::max(upper, mean[s] + 10 * spread);
-    step  = std::max(step, spread);
-    mix_mean   += mean[s];
-    mix_second += mean[s] * mean[s] + sd[s] * sd[s];
-  }
-
-  if (all_zero_sd) {
-    return regplot_quantile_type8(mean, S, p);
-  }
-
-  if (any_zero_sd) {
-    return regplot_mixture_quantile(
-      p, mean, sd, S,
-      [mean, sd, S](double q) {
-        return regplot_normal_mixture_cdf(q, mean, sd, S);
-      }
-    );
-  }
-
-  if (!std::isfinite(lower) || !std::isfinite(upper)) {
-    return NA_REAL;
-  }
-  if (lower >= upper) {
-    lower -= 1;
-    upper += 1;
-  }
-  if (!std::isfinite(step) || step <= 0) {
-    step = 1;
-  }
-
-  double lower_value = regplot_normal_mixture_cdf(lower, mean, sd, S) - p;
-  double upper_value = regplot_normal_mixture_cdf(upper, mean, sd, S) - p;
-
-  for (int i = 0; i < 25; ++i) {
-    if (lower_value <= 0 && upper_value >= 0) {
-      break;
+  return regplot_mixture_quantile(
+    p, mean, sd, S,
+    [mean, sd, S](double q) {
+      return regplot_normal_mixture_cdf(q, mean, sd, S);
     }
-    if (lower_value > 0) {
-      lower -= step;
-      lower_value = regplot_normal_mixture_cdf(lower, mean, sd, S) - p;
-    }
-    if (upper_value < 0) {
-      upper += step;
-      upper_value = regplot_normal_mixture_cdf(upper, mean, sd, S) - p;
-    }
-    step *= 2;
-  }
-
-  if (lower_value > 0 || upper_value < 0) {
-    return regplot_grid_quantile(
-      p, lower, upper,
-      [mean, sd, S](double q) {
-        return regplot_normal_mixture_cdf(q, mean, sd, S);
-      }
-    );
-  }
-
-  mix_mean /= static_cast<double>(S);
-  mix_second /= static_cast<double>(S);
-  const double mix_var = std::max(mix_second - mix_mean * mix_mean, 0.0);
-  double q = mix_mean + std::sqrt(mix_var) * qnorm(p, 0, 1, true, false);
-
-  if (!std::isfinite(q) || q <= lower || q >= upper) {
-    q = lower + 0.5 * (upper - lower);
-  }
-
-  for (int i = 0; i < 40; ++i) {
-    double cdf = 0;
-    double pdf = 0;
-    regplot_normal_mixture_cdf_pdf(q, mean, sd, S, &cdf, &pdf);
-    const double value = cdf - p;
-
-    if (value >= 0) {
-      upper = q;
-      upper_value = value;
-    } else {
-      lower = q;
-      lower_value = value;
-    }
-
-    if (std::fabs(value) <= 1e-9 || std::fabs(upper - lower) <= 1e-6) {
-      return q;
-    }
-
-    double candidate = NA_REAL;
-    if (std::isfinite(pdf) && pdf > 0) {
-      candidate = q - value / pdf;
-    }
-    if (!std::isfinite(candidate) || candidate <= lower || candidate >= upper) {
-      candidate = lower + 0.5 * (upper - lower);
-    }
-    q = candidate;
-  }
-
-  return lower + 0.5 * (upper - lower);
+  );
 }
 
 static SEXP regplot_interval_result(int K, std::vector<double> &lower,
@@ -660,7 +517,7 @@ extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
     std::vector<double> row_log_norm(static_cast<size_t>(S), 0);
 
     for (int s = 0; s < S; ++s) {
-      if (sd_k[s] < std::sqrt(DBL_EPSILON)) {
+      if (sd_k[s] == 0) {
         continue;
       }
       if (row_active_phack[static_cast<size_t>(s)]) {

@@ -176,13 +176,11 @@
 # ---------------------------------------------------------------------------- #
 .regplot_mixture_quantile <- function(p, mean, sd, cdf_fun) {
 
-  eps_sd <- sqrt(.Machine$double.eps)
-
-  if (all(sd < eps_sd)) {
-    return(unname(stats::quantile(mean, probs = p, names = FALSE, type = 8)))
+  if (all(sd == 0)) {
+    return(unname(stats::quantile(mean, probs = p, names = FALSE, type = 1)))
   }
 
-  spread <- pmax(sd, eps_sd)
+  spread <- sd
   lower  <- min(mean - 10 * spread, na.rm = TRUE)
   upper  <- max(mean + 10 * spread, na.rm = TRUE)
 
@@ -190,18 +188,13 @@
     return(NA_real_)
   }
   if (lower >= upper) {
-    lower <- lower - 1
-    upper <- upper + 1
+    return(lower)
   }
 
   obj_fun     <- function(q) cdf_fun(q) - p
   lower_value <- obj_fun(lower)
   upper_value <- obj_fun(upper)
   step        <- max(spread, na.rm = TRUE)
-
-  if (!is.finite(step) || step <= 0) {
-    step <- max(1, abs(mean), na.rm = TRUE)
-  }
 
   for (i in seq_len(25)) {
     if (lower_value <= 0 && upper_value >= 0) {
@@ -222,8 +215,16 @@
     return(.regplot_grid_quantile(p, lower, upper, cdf_fun))
   }
 
+  tolerance <- max(
+    .Machine$double.xmin,
+    .Machine$double.eps * max(abs(lower), abs(upper), step)
+  )
   out <- tryCatch(
-    stats::uniroot(obj_fun, interval = c(lower, upper), tol = 1e-6)[["root"]],
+    stats::uniroot(
+      obj_fun,
+      interval = c(lower, upper),
+      tol      = tolerance
+    )[["root"]],
     error = function(e) NA_real_
   )
 
@@ -240,9 +241,8 @@
 # ---------------------------------------------------------------------------- #
 .regplot_normal_mixture_cdf <- function(q, mean, sd) {
 
-  eps_sd     <- sqrt(.Machine$double.eps)
   cdf_values <- rep(NA_real_, length(mean))
-  zero_sd    <- sd < eps_sd
+  zero_sd    <- sd == 0
 
   if (any(zero_sd)) {
     cdf_values[zero_sd] <- as.numeric(q >= mean[zero_sd])
@@ -255,7 +255,10 @@
     )
   }
 
-  cdf_values <- pmin(pmax(cdf_values, 0), 1)
+  cdf_values <- .plot_validate_cdf(
+    cdf_values,
+    "Regression-plot normal mixture"
+  )
   return(base::mean(cdf_values))
 }
 
@@ -266,9 +269,8 @@
 .regplot_selection_mixture_cdf <- function(q, mean, sd, se, setup,
                                            effect_direction) {
 
-  eps_sd     <- sqrt(.Machine$double.eps)
   cdf_values <- rep(NA_real_, length(mean))
-  zero_sd    <- sd < eps_sd
+  zero_sd    <- sd == 0
 
   if (any(zero_sd)) {
     cdf_values[zero_sd] <- as.numeric(q >= mean[zero_sd])
@@ -297,7 +299,10 @@
     )
   }
 
-  cdf_values <- pmin(pmax(cdf_values, 0), 1)
+  cdf_values <- .plot_validate_cdf(
+    cdf_values,
+    "Regression-plot selected-normal mixture"
+  )
   return(base::mean(cdf_values))
 }
 

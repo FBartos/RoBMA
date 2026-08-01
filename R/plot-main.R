@@ -960,28 +960,43 @@ lines.brma <- function(
   keep <- is.finite(raw_samples) & is.finite(plotted_samples)
   raw_samples     <- raw_samples[keep]
   plotted_samples <- plotted_samples[keep]
-  if (length(raw_samples) < 2L ||
-      diff(range(raw_samples)) <= sqrt(.Machine$double.eps)) {
+  if (length(raw_samples) < 2L) {
     return(NULL)
   }
 
-  raw_center     <- raw_samples - mean(raw_samples)
-  plotted_center <- plotted_samples - mean(plotted_samples)
+  raw_origin      <- raw_samples[[1L]]
+  plotted_origin  <- plotted_samples[[1L]]
+  raw_shifted     <- raw_samples - raw_origin
+  plotted_shifted <- plotted_samples - plotted_origin
+  raw_scale       <- max(abs(raw_shifted))
+  plotted_scale   <- max(abs(plotted_shifted))
+  if (raw_scale == 0 || plotted_scale == 0) {
+    return(NULL)
+  }
+
+  raw_scaled     <- raw_shifted / raw_scale
+  plotted_scaled <- plotted_shifted / plotted_scale
+  raw_center     <- raw_scaled - mean(raw_scaled)
+  plotted_center <- plotted_scaled - mean(plotted_scaled)
   denominator    <- sum(raw_center^2)
   if (!is.finite(denominator) || denominator <= 0) {
     return(NULL)
   }
 
-  slope     <- sum(raw_center * plotted_center) / denominator
-  intercept <- mean(plotted_samples) - slope * mean(raw_samples)
-  if (!is.finite(slope) || !is.finite(intercept) ||
-      abs(slope) <= sqrt(.Machine$double.eps)) {
+  scaled_slope     <- sum(raw_center * plotted_center) / denominator
+  scaled_intercept <- mean(plotted_scaled) - scaled_slope * mean(raw_scaled)
+  fitted_scaled    <- scaled_intercept + scaled_slope * raw_scaled
+  scale            <- max(1, diff(range(plotted_scaled)), abs(plotted_scaled))
+  if (!is.finite(scaled_slope) || scaled_slope == 0 ||
+      !is.finite(scaled_intercept) ||
+      max(abs(fitted_scaled - plotted_scaled)) > tolerance * scale) {
     return(NULL)
   }
 
-  fitted <- intercept + slope * raw_samples
-  scale  <- max(1, diff(range(plotted_samples)), max(abs(plotted_samples)))
-  if (max(abs(fitted - plotted_samples)) > tolerance * scale) {
+  slope     <- scaled_slope * plotted_scale / raw_scale
+  intercept <- plotted_origin + plotted_scale * scaled_intercept -
+    slope * raw_origin
+  if (!is.finite(slope) || slope == 0 || !is.finite(intercept)) {
     return(NULL)
   }
 

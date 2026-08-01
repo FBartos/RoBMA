@@ -583,19 +583,51 @@
              call. = FALSE)
       }
 
-      for (s in seq_len(dim(vcov_samples)[1L])) {
-        variance[s, ] <- variance[s, ] + pmax(diag(vcov_samples[s, , ]), 0)
-      }
+      sampled_variance <- t(vapply(
+        seq_len(dim(vcov_samples)[1L]),
+        function(s) diag(vcov_samples[s, , ]),
+        numeric(nrow(newdata))
+      ))
+      sampled_variance <- .regplot_validate_variance(
+        sampled_variance,
+        "Sampled random-effect variance"
+      )
+      variance <- variance + sampled_variance
     }
   }
 
-  variance <- variance + .regplot_mv_marginalized_variance_samples(
+  marginalized_variance <- .regplot_mv_marginalized_variance_samples(
     x                 = x,
     newdata           = newdata,
     posterior_samples = posterior_samples
   )
+  marginalized_variance <- .regplot_validate_variance(
+    marginalized_variance,
+    "Marginalized random-effect variance"
+  )
+  variance <- variance + marginalized_variance
 
-  return(sqrt(pmax(variance, 0)))
+  return(.regplot_variance_sd(
+    variance,
+    "Combined random-effect variance"
+  ))
+}
+
+
+.regplot_variance_sd <- function(variance, context) {
+
+  return(sqrt(.regplot_validate_variance(variance, context)))
+}
+
+
+.regplot_validate_variance <- function(variance, context) {
+
+  if (!is.numeric(variance) || any(!is.finite(variance)) ||
+      any(variance < 0)) {
+    stop(context, " must be finite and non-negative.", call. = FALSE)
+  }
+
+  return(variance)
 }
 
 
@@ -712,6 +744,27 @@
 }
 
 
+.regplot_normalized_precision <- function(sei) {
+
+  if (!is.numeric(sei) || length(sei) == 0L || any(!is.finite(sei)) ||
+      any(sei <= 0)) {
+    stop("Regression-plot standard errors must be finite and positive.",
+         call. = FALSE)
+  }
+
+  relative_sd <- min(sei) / sei
+  minimum     <- min(relative_sd)
+  if (minimum == 1) {
+    return(numeric(length(sei)))
+  }
+
+  return(
+    ((relative_sd - minimum) * (relative_sd + minimum)) /
+      ((1 - minimum) * (1 + minimum))
+  )
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .regplot_data
 # ---------------------------------------------------------------------------- #
@@ -752,7 +805,6 @@
 
   yi      <- .outcome_data_yi(x)
   sei_obs <- .outcome_data_sei(x)
-  vi      <- sei_obs^2
   K       <- length(yi)
   se_rep  <- if (is.null(reference_sei)) stats::median(sei_obs) else reference_sei
 
@@ -760,9 +812,8 @@
   probs <- c(alpha / 2, 1 - alpha / 2)
 
   if (is.null(psize)) {
-    weights   <- 1 / vi
-    weights_n <- (weights - min(weights)) / (max(weights) - min(weights) + 1e-10)
-    psize     <- plim[1] + weights_n * (plim[2] - plim[1])
+    precision <- .regplot_normalized_precision(sei_obs)
+    psize     <- plim[1] + precision * (plim[2] - plim[1])
   } else if (length(psize) == 1) {
     psize <- rep(psize, K)
   }

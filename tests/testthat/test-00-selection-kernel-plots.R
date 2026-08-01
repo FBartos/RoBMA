@@ -374,6 +374,57 @@ test_that("native regplot selection intervals match R reference", {
   expect_equal(native[["upper"]], ref[["upper"]], tolerance = 1e-5)
 })
 
+test_that("plot quantiles retain tiny positive normal scales", {
+
+  tiny_sd <- sqrt(.Machine$double.eps) / 100
+  probs   <- c(.025, .975)
+
+  regplot_r <- .regplot_mixture_interval_quantiles_r(
+    mean_samples = matrix(0, nrow = 1L),
+    sd_samples   = matrix(tiny_sd, nrow = 1L),
+    probs        = probs
+  )
+  expect_equal(
+    unlist(regplot_r, use.names = FALSE) / tiny_sd,
+    stats::qnorm(probs),
+    tolerance = 1e-7
+  )
+
+  if (.has_native_regplot_mixture()) {
+    regplot_native <- .regplot_mixture_interval_quantiles(
+      mean_samples = matrix(0, nrow = 1L),
+      sd_samples   = matrix(tiny_sd, nrow = 1L),
+      probs        = probs
+    )
+    expect_equal(
+      unlist(regplot_native, use.names = FALSE) / tiny_sd,
+      stats::qnorm(probs),
+      tolerance = 1e-7
+    )
+  }
+
+  funnel_setup <- list(
+    mu                = 0,
+    tau               = tiny_sd,
+    PET               = 0,
+    PEESE             = 0,
+    is_weightfunction = FALSE,
+    selection         = NULL
+  )
+  expect_equal(
+    vapply(
+      probs,
+      .funnel_model_averaged_quantile,
+      numeric(1L),
+      se               = 0,
+      setup            = funnel_setup,
+      effect_direction = "positive"
+    ) / tiny_sd,
+    stats::qnorm(probs),
+    tolerance = 1e-7
+  )
+})
+
 test_that("native weighted selected-normal summary matches matrix reductions", {
 
   skip_if_not(.has_native_selnorm_kernel())
