@@ -45,6 +45,23 @@ expect_effect_jacobian_matches_numeric <- function(input_measure, values,
   )
 }
 
+test_that("Fisher transformation preserves and validates its exact domain", {
+
+  expect_identical(
+    .cor_to_z(c(-1, 0, 1)),
+    c(-Inf, 0, Inf)
+  )
+  expect_error(
+    .cor_to_z(c(0, 1 + .Machine$double.eps)),
+    "numeric, finite, and within \\[-1, 1\\]"
+  )
+  expect_error(
+    .cor_to_z(c(0, NA_real_)),
+    "numeric, finite, and within"
+  )
+})
+
+
 test_that("effect-size measure transformations match metafor", {
 
   d_values <- c(-1, 0, 1)

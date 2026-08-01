@@ -135,7 +135,12 @@
 
 .cor_to_z <- function(x) {
 
-  x <- pmin(pmax(x, -1), 1)
+  if (!is.numeric(x) || any(!is.finite(x)) || any(x < -1 | x > 1)) {
+    stop(
+      "Correlation values must be numeric, finite, and within [-1, 1].",
+      call. = FALSE
+    )
+  }
 
   return(atanh(x))
 }
