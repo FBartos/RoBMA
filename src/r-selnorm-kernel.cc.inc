@@ -542,6 +542,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       if (!std::isfinite(w) || w < 0) {
         Rf_error("'psis_weights' must be finite and non-negative.");
       }
+      if (w == 0) {
+        continue;
+      }
       const double alpha_s = selnorm.alpha_at(s);
       const int phack_s = selnorm.phack_kind_at(s);
       const int mode_s = selnorm.kernel_mode_at(s);
@@ -568,38 +571,36 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       moment_mean_work[s]   = moment_mean;
       moment_second_work[s] = moment_second;
 
-      if (w > 0) {
-        const double log_weight = std::log(w);
-        const double log_lower = cpp_selnorm_kernel_log_cdf(
-          yi_p[k], mean_p[cell], sd_p[cell], sei_p[k],
-          selnorm.omega_row(s), alpha_s, phack_s, mode_s, selnorm.data,
-          S, true, false
-        );
-        const double log_upper = cpp_selnorm_kernel_log_cdf(
-          yi_p[k], mean_p[cell], sd_p[cell], sei_p[k],
-          selnorm.omega_row(s), alpha_s, phack_s, mode_s, selnorm.data,
-          S, false, false
-        );
+      const double log_weight = std::log(w);
+      const double log_lower = cpp_selnorm_kernel_log_cdf(
+        yi_p[k], mean_p[cell], sd_p[cell], sei_p[k],
+        selnorm.omega_row(s), alpha_s, phack_s, mode_s, selnorm.data,
+        S, true, false
+      );
+      const double log_upper = cpp_selnorm_kernel_log_cdf(
+        yi_p[k], mean_p[cell], sd_p[cell], sei_p[k],
+        selnorm.omega_row(s), alpha_s, phack_s, mode_s, selnorm.data,
+        S, false, false
+      );
 
-        if (std::isnan(log_lower) || std::isnan(log_upper)) {
-          log_lower_sum = NA_REAL;
-          log_upper_sum = NA_REAL;
-        } else if (!std::isnan(log_lower_sum)) {
-          const double lower_term = log_weight + log_lower;
-          const double upper_term = log_weight + log_upper;
-          const double lower_max  = std::max(log_lower_sum, lower_term);
-          const double upper_max  = std::max(log_upper_sum, upper_term);
-          log_lower_sum = lower_max == -INFINITY ? -INFINITY :
-            lower_max + std::log(
-              std::exp(log_lower_sum - lower_max) +
-              std::exp(lower_term - lower_max)
-            );
-          log_upper_sum = upper_max == -INFINITY ? -INFINITY :
-            upper_max + std::log(
-              std::exp(log_upper_sum - upper_max) +
-              std::exp(upper_term - upper_max)
-            );
-        }
+      if (std::isnan(log_lower) || std::isnan(log_upper)) {
+        log_lower_sum = NA_REAL;
+        log_upper_sum = NA_REAL;
+      } else if (!std::isnan(log_lower_sum)) {
+        const double lower_term = log_weight + log_lower;
+        const double upper_term = log_weight + log_upper;
+        const double lower_max  = std::max(log_lower_sum, lower_term);
+        const double upper_max  = std::max(log_upper_sum, upper_term);
+        log_lower_sum = lower_max == -INFINITY ? -INFINITY :
+          lower_max + std::log(
+            std::exp(log_lower_sum - lower_max) +
+            std::exp(lower_term - lower_max)
+          );
+        log_upper_sum = upper_max == -INFINITY ? -INFINITY :
+          upper_max + std::log(
+            std::exp(log_upper_sum - upper_max) +
+            std::exp(upper_term - upper_max)
+          );
       }
       weight_sum += static_cast<long double>(w);
       mean_sum += static_cast<long double>(w) * moment_mean;
@@ -612,6 +613,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     long double variance_sum = 0;
     for (int s = 0; s < S; ++s) {
       const int cell = s + S * k;
+      if (weights_p[cell] == 0) {
+        continue;
+      }
       const long double component_mean = moment_mean_work[s];
       const long double centered = component_mean - mixture_mean;
       const long double component_variance =

@@ -1115,7 +1115,7 @@ rstudent.brma <- function(model, unit = "estimate",
   }
 
   log_weights <- log(psis_weights)
-  log_average <- function(log_values) {
+  log_sum <- function(log_values) {
 
     terms     <- log_weights + log_values
     maxima    <- apply(terms, 2L, max)
@@ -1130,9 +1130,15 @@ rstudent.brma <- function(model, unit = "estimate",
     return(out)
   }
 
+  log_weight_sum <- log_sum(matrix(
+    0,
+    nrow = nrow(log_weights),
+    ncol = ncol(log_weights)
+  ))
+
   return(.loo_pit_z_from_log_probabilities(
-    log_average(log_lower),
-    log_average(log_upper)
+    log_sum(log_lower) - log_weight_sum,
+    log_sum(log_upper) - log_weight_sum
   ))
 }
 

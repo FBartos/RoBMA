@@ -81,6 +81,30 @@ test_that("LOO-PIT transformation preserves extreme normal quantiles", {
 })
 
 
+test_that("LOO-PIT tail mixtures are invariant to weight scale", {
+
+  z <- c(-8, 8)
+  log_lower <- matrix(
+    rep(stats::pnorm(z, log.p = TRUE), each = 2L),
+    nrow = 2L
+  )
+  log_upper <- matrix(
+    rep(stats::pnorm(z, lower.tail = FALSE, log.p = TRUE), each = 2L),
+    nrow = 2L
+  )
+
+  expect_equal(
+    .loo_pit_z_from_log_tails(
+      log_lower    = log_lower,
+      log_upper    = log_upper,
+      psis_weights = matrix(c(2, 3, 20, 30), nrow = 2L)
+    ),
+    z,
+    tolerance = 1e-12
+  )
+})
+
+
 test_that("normal LOO-PIT tails remain finite after probability underflow", {
 
   setup <- list(

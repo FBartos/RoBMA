@@ -500,6 +500,38 @@ test_that("native weighted selected-normal summary matches matrix reductions", {
 })
 
 
+test_that("zero-weight selected-normal rows do not enter mixture evaluation", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  spec      <- .test_step_spec(yi = 0, sei = 1)
+  selection <- spec
+  selection[["omega"]]       <- matrix(1, nrow = 2L, ncol = spec[["n_bins"]])
+  selection[["alpha"]]       <- c(0, 0)
+  selection[["phack_kind"]]  <- c(0L, 0L)
+  selection[["kernel_mode"]] <- c(SELKERNEL_STEP, SELKERNEL_STEP)
+  selection[["use_normal"]]  <- c(FALSE, FALSE)
+
+  summary <- .selection_step_weighted_summary(
+    yi                = 0,
+    mean              = matrix(c(0, 0), ncol = 1L),
+    sd                = matrix(c(1, 0), ncol = 1L),
+    sei               = 1,
+    psis_weights      = matrix(c(1, 0), ncol = 1L),
+    selection_context = selection
+  )
+
+  expect_equal(summary[["log_lower"]], stats::pnorm(0, log.p = TRUE))
+  expect_equal(summary[["log_upper"]], stats::pnorm(
+    0,
+    lower.tail = FALSE,
+    log.p      = TRUE
+  ))
+  expect_equal(summary[["mean"]], 0)
+  expect_equal(summary[["variance"]], 1)
+})
+
+
 test_that("selected-normal log tails survive probability underflow", {
 
   skip_if_not(.has_native_selnorm_kernel())
