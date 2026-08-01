@@ -292,7 +292,7 @@
   }
 
   for (value in sort(unique(values))) {
-    if (any(abs(grid - value) <= sqrt(.Machine$double.eps) * max(1, abs(value)))) {
+    if (any(grid == value)) {
       next
     }
     grid[which.min(abs(grid - value))] <- value

@@ -802,6 +802,37 @@ test_that("IWMDE identifies exact nonregular prior ordinates", {
 })
 
 
+test_that("IWMDE keeps adjacent representable coordinates distinct", {
+
+  value          <- 1
+  adjacent_value <- value + .Machine$double.eps
+  ordinate       <- list(value = value)
+  density        <- list(
+    x           = c(value, adjacent_value),
+    y           = c(2, 3),
+    finite_terms = c(10, 20),
+    ess           = c(5, 10)
+  )
+
+  expect_true(.iwmde_ordinate_value_matches(ordinate, value))
+  expect_false(.iwmde_ordinate_value_matches(ordinate, adjacent_value))
+
+  diagnostics <- .iwmde_density_bf_diagnostics(density, adjacent_value)
+  expect_true(diagnostics[["bf_included"]])
+  expect_equal(diagnostics[["bf_grid_index"]], 2L)
+  expect_equal(diagnostics[["bf_ordinate"]], 3)
+
+  grid <- .iwmde_include_display_values(
+    grid    = c(0, value, 2),
+    values  = adjacent_value,
+    xlim    = c(0, 2),
+    support = c(0, 2)
+  )
+  expect_true(any(grid == adjacent_value))
+  expect_false(any(grid == value))
+})
+
+
 test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   density_control <- list(

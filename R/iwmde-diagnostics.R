@@ -980,8 +980,7 @@
   if (length(x) == 0L) {
     return(out)
   }
-  tolerance <- sqrt(.Machine$double.eps) * max(1, abs(out[["bf_value"]]))
-  index <- which(abs(x - out[["bf_value"]]) <= tolerance)
+  index <- which(x == out[["bf_value"]])
   if (length(index) == 0L) {
     return(out)
   }

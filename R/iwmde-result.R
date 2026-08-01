@@ -318,8 +318,7 @@
     return(FALSE)
   }
 
-  tolerance <- sqrt(.Machine$double.eps) * max(1, abs(value))
-  return(abs(entry_value - value) <= tolerance)
+  return(entry_value == value)
 }
 
 
