@@ -682,7 +682,7 @@ test_that("selected-normal RNG requires explicit row routing", {
   )
 })
 
-test_that("outcome CDF values stay in the open unit interval", {
+test_that("outcome CDF values retain exact probability endpoints", {
 
   cdf_vals <- .outcome_cdf.norm(
     yi         = c(-100, 100),
@@ -691,12 +691,7 @@ test_that("outcome CDF values stay in the open unit interval", {
     sei        = c(1, 1)
   )
 
-  expect_true(all(cdf_vals > 0 & cdf_vals < 1))
-  expect_equal(
-    cdf_vals[1L, 1L],
-    .Machine$double.xmin * .Machine$double.eps
-  )
-  expect_equal(cdf_vals[1L, 2L], 1 - .Machine$double.eps / 2)
+  expect_identical(cdf_vals, matrix(c(0, 1), nrow = 1L))
 
   interior_tail <- .outcome_cdf.norm(
     yi         = c(-38, 8.2),
@@ -1217,8 +1212,8 @@ test_that(".cdf.brma returns valid CDF values for weightfunction models", {
                 info = paste(name, ": cdf_vals is a matrix"))
     expect_true(all(is.finite(cdf_vals)),
                 info = paste(name, ": all CDF values are finite"))
-    expect_true(all(cdf_vals > 0 & cdf_vals < 1),
-                info = paste(name, ": all CDF values are in (0, 1)"))
+    expect_true(all(cdf_vals >= 0 & cdf_vals <= 1),
+                info = paste(name, ": all CDF values are in [0, 1]"))
 
     # verify dimensions match
     K <- length(.outcome_data_yi(object))

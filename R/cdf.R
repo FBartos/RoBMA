@@ -17,17 +17,6 @@
 # ============================================================================ #
 
 
-# Keep the finite-precision representation consistent with the documented
-# open-unit-interval CDF contract.
-.cdf_open_unit <- function(x) {
-
-  lower <- .Machine$double.xmin * .Machine$double.eps
-  upper <- 1 - .Machine$double.eps / 2
-
-  return(pmin(pmax(x, lower), upper))
-}
-
-
 # ---------------------------------------------------------------------------- #
 # .outcome_cdf.norm
 # ---------------------------------------------------------------------------- #
@@ -46,7 +35,7 @@
 # @param sei              numeric vector of length K; standard errors
 # @param lower.tail       logical; return P(Y <= yi) if TRUE, P(Y > yi) if FALSE
 #
-# @return S x K matrix of CDF values in (0, 1)
+# @return S x K matrix of CDF values in [0, 1]
 #
 # ---------------------------------------------------------------------------- #
 .outcome_cdf.norm <- function(yi, mu_samples, tau_within, sei,
@@ -70,7 +59,7 @@
     lower.tail = lower.tail
   )
 
-  return(.cdf_open_unit(cdf_vals))
+  return(cdf_vals)
 }
 
 
@@ -98,7 +87,7 @@
     lower.tail        = lower.tail
   )
 
-  return(.cdf_open_unit(cdf_vals))
+  return(cdf_vals)
 }
 
 
@@ -188,7 +177,7 @@
 #                           - "estimate": True estimate effects
 #                             (mu + gamma + theta). CDF: yi ~ N(theta_i, sei^2)
 #
-# @return S x K matrix of CDF values in (0, 1)
+# @return S x K matrix of CDF values in [0, 1]
 #
 # ---------------------------------------------------------------------------- #
 .cdf.brma <- function(object, conditioning_depth = "marginal") {
@@ -359,7 +348,7 @@
 #
 # @param object brma object.
 #
-# @return S x K matrix of CDF values in (0, 1)
+# @return S x K matrix of CDF values in [0, 1]
 #
 # ---------------------------------------------------------------------------- #
 .cdf_lik_estimate.brma <- function(object, setup = NULL) {
