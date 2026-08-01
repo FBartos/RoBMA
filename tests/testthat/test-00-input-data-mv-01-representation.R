@@ -858,6 +858,18 @@ test_that("brma.mv validates hidden vi and sei after row selection", {
     ),
     "must be consistent"
   )
+  for (sei in c(1e-200, 1e200)) {
+    expect_error(
+      brma.mv(
+        yi                        = c(0.10, 0.20),
+        sei                       = c(0.20, sei),
+        measure                   = "GEN",
+        prior_unit_information_sd = 1,
+        only_data                 = TRUE
+      ),
+      "positive finite squared sampling variances"
+    )
+  }
 })
 
 

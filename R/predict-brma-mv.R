@@ -19,8 +19,8 @@
   }
   if ("sei" %in% names(newdata)) {
     .predict_known_v_newdata_check_variance(
-      supplied = newdata[["sei"]]^2,
-      expected = diag_v,
+      supplied = newdata[["sei"]],
+      expected = sqrt(diag_v),
       label    = "sei"
     )
   }
@@ -45,8 +45,8 @@
     )
   }
 
-  tolerance <- sqrt(.Machine$double.eps) * max(1, max(abs(expected)))
-  if (max(abs(supplied - expected)) > tolerance) {
+  if (any(supplied < 0) ||
+      any(!.equal_within_double_roundoff(supplied, expected))) {
     stop(
       "The '", label, "' column in 'newdata' must match diag(V_new).",
       call. = FALSE

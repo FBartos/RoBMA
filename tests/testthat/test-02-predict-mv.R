@@ -192,6 +192,32 @@ test_that("known-V newdata response predictions require and validate V_new", {
   expect_brma_samples_matrix(response_list, 2, "known-V block-list V_new response")
 })
 
+
+test_that("known-V prediction compares supplied sampling scales row-wise", {
+
+  expect_silent(.predict_known_v_newdata_check_variance(
+    supplied = c(1e-300, 1e300),
+    expected = c(1e-300, 1e300),
+    label    = "vi"
+  ))
+  expect_error(
+    .predict_known_v_newdata_check_variance(
+      supplied = c(1e-300 * (1 + 1e-10), 1e300),
+      expected = c(1e-300, 1e300),
+      label    = "vi"
+    ),
+    "must match diag\\(V_new\\)"
+  )
+
+  actual <- .predict_known_v_newdata_add_vi(
+    newdata = data.frame(sei = c(1e-150, 1e150)),
+    V_new   = diag(c(1e-300, 1e300))
+  )
+  expect_identical(actual[["vi"]], c(1e-300, 1e300))
+  expect_false("sei" %in% names(actual))
+})
+
+
 test_that("known-V newdata response predictions preserve V_new covariance", {
 
   object <- .brma_mv_prior_object(random = FALSE)

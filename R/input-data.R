@@ -458,6 +458,21 @@ NULL
 }
 
 
+.equal_within_double_roundoff <- function(x, y) {
+
+  difference <- abs(x - y)
+  scale      <- pmax(abs(x), abs(y))
+
+  return(difference == 0 | difference <= .Machine$double.eps * scale)
+}
+
+
+.sampling_variance_matches_se <- function(vi, sei) {
+
+  return(.equal_within_double_roundoff(sqrt(vi), sei))
+}
+
+
 # Internal function to extract and validate outcome variables for normal likelihood models
 # Handles yi, vi/sei, ni, weights, cluster, slab, and yi as formula
 #
@@ -547,8 +562,18 @@ NULL
     stop("Either 'vi' (variance) or 'sei' (standard error) must be provided.", call. = FALSE)
   } else {
     # Both provided - check consistency
-    if (any(abs(vi - sei^2) > 1e-10, na.rm = TRUE))
+    if (any(!.sampling_variance_matches_se(vi, sei), na.rm = TRUE))
       stop("The provided 'vi' and 'sei' values are inconsistent.", call. = FALSE)
+  }
+
+  represented_vi  <- sei^2
+  unrepresentable <- !is.na(sei) & sei > 0 &
+    (!is.finite(represented_vi) | represented_vi == 0)
+  if (any(unrepresentable)) {
+    stop(
+      "Positive 'sei' values must have positive finite squared sampling variances.",
+      call. = FALSE
+    )
   }
 
   # Validate ni (sample sizes)
@@ -773,12 +798,19 @@ NULL
     }
   }
   if (!is.null(vi) && !is.null(sei)) {
-    implied_vi <- sei^2
-    tolerance  <- sqrt(.Machine$double.eps) *
-      pmax(1, abs(vi), abs(implied_vi))
-    if (any(abs(vi - implied_vi) > tolerance)) {
+    if (any(!.sampling_variance_matches_se(vi, sei))) {
       stop("Hidden brma.mv() inputs 'vi' and 'sei' must be consistent.",
            call. = FALSE)
+    }
+  }
+  if (!is.null(sei)) {
+    represented_vi <- sei^2
+    if (any(!is.finite(represented_vi)) || any(represented_vi <= 0)) {
+      stop(
+        "Hidden brma.mv() input 'sei' must have positive finite squared ",
+        "sampling variances.",
+        call. = FALSE
+      )
     }
   }
 

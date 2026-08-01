@@ -147,6 +147,33 @@ test_that("Input generates default slab when not provided", {
 })
 
 
+test_that("normal input requires representable and consistent sampling variances", {
+
+  for (sei in c(1e-200, 1e200)) {
+    expect_error(
+      brma.norm(yi = 0, sei = sei, only_data = TRUE),
+      "positive finite squared sampling variances"
+    )
+  }
+
+  expect_silent(brma.norm(
+    yi        = c(-1, 0, 1),
+    vi        = c(1e-300, .04, 1e300),
+    sei       = sqrt(c(1e-300, .04, 1e300)),
+    only_data = TRUE
+  ))
+  expect_error(
+    brma.norm(
+      yi        = 0,
+      vi        = 1e-300,
+      sei       = 1e-150 * (1 + 1e-10),
+      only_data = TRUE
+    ),
+    "inconsistent"
+  )
+})
+
+
 test_that("Input handles subset argument", {
 
   skip_on_cran()
