@@ -103,7 +103,6 @@
   z_sum          <- if (return_se && return_resid && summarize) rep(0, K) else NULL
   M_diag_samples <- matrix(0, nrow = S, ncol = K) # useful debug/checking
   I_K            <- diag(K)
-  residual_tol   <- 100 * .Machine$double.eps * max(1, max(abs(yi)))
 
   # Pre-calculate indices for multilevel blocks to avoid repeating inside loop
   block_indices <- list()
@@ -179,7 +178,6 @@
       }
 
       if (return_resid) {
-        residual[abs(residual) < residual_tol] <- 0
         residual_s <- residual
         if (summarize) {
           resid_sum <- resid_sum + residual
@@ -207,6 +205,7 @@
             X             = X,
             XtWX_inv      = XtWX_inv,
             diagonal      = diagonal_s,
+            tau_within    = tau_w_s / sqrt(weights),
             tau_between   = tau_b_s,
             vi            = sampling_diagonal_s,
             block_indices = block_indices,
@@ -214,7 +213,7 @@
           )
         }
 
-        se_s <- sqrt(pmax(se2, 0))
+        se_s <- .hat_variance_sd(se2, "Residual variance")
         if (summarize) {
           se_sum <- se_sum + se_s
         } else {
@@ -290,7 +289,6 @@
   resid_sum      <- if (return_resid && summarize) rep(0, K) else NULL
   z_sum          <- if (return_se && return_resid && summarize) rep(0, K) else NULL
   M_diag_samples <- matrix(0, nrow = S, ncol = K)
-  residual_tol   <- 100 * .Machine$double.eps * max(1, max(abs(yi)))
   chunk_info     <- NULL
 
   if (conditioning_depth == "estimate") {
@@ -309,7 +307,10 @@
         return_full_H  = return_full_H
       )
       residual   <- projection[["sampling_residual"]]
-      se         <- sqrt(pmax(projection[["sampling_residual_variance"]], 0))
+      se         <- .hat_variance_sd(
+        projection[["sampling_residual_variance"]],
+        "Known-V sampling residual variance"
+      )
 
       H_diag_samples[s, ] <- projection[["H_diag"]]
       M_diag_samples[s, ] <- .known_v_diagonal(known_V) + extra_variance[s, ]
@@ -318,7 +319,6 @@
         H_samples[s, , ] <- projection[["H"]]
       }
       if (return_resid) {
-        residual[abs(residual) < residual_tol] <- 0
         if (summarize) {
           resid_sum <- resid_sum + residual
         } else {
@@ -356,7 +356,10 @@
           residual <- projection[["residual"]]
           A        <- I_K - projection[["H"]]
           se2      <- diag(A %*% projection[["covariance"]] %*% t(A))
-          se       <- sqrt(pmax(se2, 0))
+          se       <- .hat_variance_sd(
+            se2,
+            "Known-V marginal residual variance"
+          )
 
           H_diag_samples[s, ] <<- diag(projection[["H"]])
           M_diag_samples[s, ] <<- diag(projection[["covariance"]])
@@ -365,7 +368,6 @@
             H_samples[s, , ] <<- projection[["H"]]
           }
           if (return_resid) {
-            residual[abs(residual) < residual_tol] <- 0
             if (summarize) {
               resid_sum <<- resid_sum + residual
             } else {
@@ -623,7 +625,7 @@
 # Fallback cluster-level residual variance using block-structured W and M.
 #
 # ---------------------------------------------------------------------------- #
-.hat_cluster_se2 <- function(X, XtWX_inv, diagonal, tau_between, vi,
+.hat_cluster_se2 <- function(X, XtWX_inv, diagonal, tau_within, tau_between, vi,
                              block_indices, I_K) {
 
   K <- length(vi)
@@ -633,7 +635,7 @@
     block_indices = block_indices
   )
   M <- .build_multilevel_marginal_covariance(
-    tau_within    = sqrt(pmax(diagonal - vi, 0)),
+    tau_within    = tau_within,
     tau_between   = tau_between,
     vi            = vi,
     block_indices = block_indices
@@ -648,4 +650,15 @@
   A <- (I_K - between_cov %*% W)
 
   return(diag(A %*% (M - Q) %*% t(A)))
+}
+
+
+.hat_variance_sd <- function(variance, context) {
+
+  if (!is.numeric(variance) || any(!is.finite(variance)) ||
+      any(variance < 0)) {
+    stop(context, " must be finite and non-negative.", call. = FALSE)
+  }
+
+  return(sqrt(variance))
 }

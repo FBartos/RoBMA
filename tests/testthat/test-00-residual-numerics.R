@@ -1,3 +1,56 @@
+test_that("residual standard deviations retain small variances", {
+
+  expect_identical(
+    .hat_variance_sd(c(0, .Machine$double.xmin), "Test variance"),
+    sqrt(c(0, .Machine$double.xmin))
+  )
+  expect_error(
+    .hat_variance_sd(-.Machine$double.xmin, "Test variance"),
+    "finite and non-negative"
+  )
+})
+
+
+test_that("hat-matrix diagnostics retain small nonzero residuals", {
+
+  tiny <- 2^-100
+  object <- brma.norm(
+    yi        = c(0, tiny, 0),
+    sei       = rep(1, 3),
+    only_data = TRUE
+  )
+  object[["priors"]] <- list(
+    outcome = list(tau = NULL, bias = NULL),
+    scale   = NULL
+  )
+  object[["fit"]] <- coda::mcmc.list(coda::mcmc(matrix(
+    0,
+    nrow     = 1,
+    ncol     = 1,
+    dimnames = list(NULL, "tau")
+  )))
+  class(object) <- c("brma.norm", "brma")
+
+  diagnostics <- .compute_hat_matrix_samples(
+    object       = object,
+    return_se    = TRUE,
+    return_resid = TRUE
+  )
+
+  expect_true(all(diagnostics[["resid"]] != 0))
+  expect_equal(
+    as.vector(diagnostics[["resid"]]),
+    c(-tiny / 3, 2 * tiny / 3, -tiny / 3),
+    tolerance = 1e-15
+  )
+  expect_equal(
+    as.vector(diagnostics[["se"]]),
+    rep(sqrt(2 / 3), 3),
+    tolerance = 1e-15
+  )
+})
+
+
 test_that("LOO-PIT transformation preserves extreme normal quantiles", {
 
   z <- c(-100, -40, 0, 40, 100)
