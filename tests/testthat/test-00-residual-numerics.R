@@ -16,6 +16,13 @@ test_that("unit-leverage residual rows are identified structurally", {
   X <- cbind(1, c(1, 0, 0))
 
   expect_identical(.hat_zero_residual_rows(X), 1L)
+
+  nearly_dependent <- rbind(
+    c(0, 1),
+    c(1, 1),
+    c(2, 2 + 1e-10)
+  )
+  expect_identical(.hat_zero_residual_rows(nearly_dependent), integer())
 })
 
 

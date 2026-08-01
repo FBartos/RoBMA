@@ -645,10 +645,13 @@
 # ---------------------------------------------------------------------------- #
 .hat_zero_residual_rows <- function(X) {
 
-  full_rank <- qr(X)[["rank"]]
+  zero_tolerance <- .Machine$double.xmin * .Machine$double.eps
+  full_rank      <- qr(X, tol = zero_tolerance)[["rank"]]
   return(which(vapply(
     seq_len(nrow(X)),
-    function(i) qr(X[-i, , drop = FALSE])[["rank"]] < full_rank,
+    function(i) {
+      qr(X[-i, , drop = FALSE], tol = zero_tolerance)[["rank"]] < full_rank
+    },
     logical(1L)
   )))
 }
