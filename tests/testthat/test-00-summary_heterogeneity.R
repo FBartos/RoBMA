@@ -1,5 +1,61 @@
 context("Summary heterogeneity helpers")
 
+test_that("rho allocation retains endpoints and rejects invalid values", {
+
+  tau <- matrix(.3, nrow = 3L, ncol = 2L)
+  out <- RoBMA:::.heterogeneity_components(
+    tau_total     = tau,
+    rho           = c(0, .5, 1),
+    is_multilevel = TRUE
+  )
+
+  expect_equal(out[["rho"]], c(0, .5, 1))
+  expect_equal(out[["tau_within"]][1, ], c(.3, .3))
+  expect_equal(out[["tau_between"]][1, ], c(0, 0))
+  expect_equal(out[["tau_within"]][3, ], c(0, 0))
+  expect_equal(out[["tau_between"]][3, ], c(.3, .3))
+  expect_equal(
+    out[["tau_within"]]^2 + out[["tau_between"]]^2,
+    tau^2
+  )
+
+  expect_error(
+    RoBMA:::.heterogeneity_components(
+      tau[1, , drop = FALSE],
+      -1e-12,
+      TRUE
+    ),
+    "within \\[0, 1\\]"
+  )
+  expect_error(
+    RoBMA:::.heterogeneity_components(
+      tau[1, , drop = FALSE],
+      1 + 1e-12,
+      TRUE
+    ),
+    "within \\[0, 1\\]"
+  )
+
+  posterior <- matrix(
+    c(.2, .4),
+    ncol     = 1L,
+    dimnames = list(NULL, "tau")
+  )
+  fixed <- RoBMA:::.evaluate.brma.tau(
+    fit               = NULL,
+    scale_data        = NULL,
+    scale_formula     = NULL,
+    scale_priors      = NULL,
+    is_scale          = FALSE,
+    is_multilevel     = TRUE,
+    K                 = 1L,
+    posterior_samples = posterior,
+    fixed_rho         = 1
+  )
+  expect_equal(fixed[["tau_within"]], matrix(0, nrow = 2L))
+  expect_equal(as.numeric(fixed[["tau_between"]]), c(.2, .4))
+})
+
 test_that("scale heterogeneity summaries aggregate variances before tau", {
 
   tau_within <- matrix(
@@ -62,4 +118,28 @@ test_that("multilevel scale heterogeneity partitions variance and I2", {
   expect_equal(samples[["I2 [within]"]], rowMeans(100 * sigma2_within / denominator))
   expect_equal(samples[["I2 [between]"]], rowMeans(100 * sigma2_between / denominator))
   expect_equal(samples[["I2"]], samples[["I2 [within]"]] + samples[["I2 [between]"]])
+})
+
+
+test_that("heterogeneity summaries reject invalid rho without projection", {
+
+  tau <- matrix(0, nrow = 2L, ncol = 1L)
+  unidentified <- RoBMA:::.summary_heterogeneity_samples(
+    tau_within_samples  = tau,
+    tau_between_samples = tau,
+    v_tilde             = 1,
+    is_multilevel       = TRUE
+  )
+
+  expect_true(all(is.na(unidentified[["rho"]])))
+  expect_error(
+    RoBMA:::.summary_heterogeneity_samples(
+      tau_within_samples  = tau,
+      tau_between_samples = tau,
+      rho_samples         = c(-1e-12, 1),
+      v_tilde             = 1,
+      is_multilevel       = TRUE
+    ),
+    "within \\[0, 1\\]"
+  )
 })

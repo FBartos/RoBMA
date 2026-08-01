@@ -845,7 +845,8 @@
         is_multilevel     = is_multilevel,
         K                 = n_pred,
         posterior_samples = posterior_samples,
-        allow_missing_tau = .fixed_tau_prior_value(x[["priors"]])
+        fixed_tau         = .fixed_tau_prior_value(x[["priors"]]),
+        fixed_rho         = .fixed_rho_prior_value(x[["priors"]])
       )
       tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
     }

@@ -182,7 +182,8 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
     is_multilevel     = is_multilevel,
     K                 = K,
     posterior_samples = posterior_samples,
-    allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
   )
 
   samples_list <- .summary_heterogeneity_samples(
@@ -238,12 +239,6 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
   if (!is.numeric(v_tilde) || length(v_tilde) != 1 || !is.finite(v_tilde) || v_tilde <= 0) {
     stop("'v_tilde' must be a positive finite number.", call. = FALSE)
   }
-  if (is_multilevel && !is.null(rho_samples) &&
-      (!is.numeric(rho_samples) || length(rho_samples) != nrow(tau_within_samples))) {
-    stop("'rho_samples' must be a numeric vector matching posterior sample rows.",
-         call. = FALSE)
-  }
-
   sigma2_within_matrix  <- tau_within_samples^2
   sigma2_between_matrix <- tau_between_samples^2
   sigma2_total_matrix   <- sigma2_within_matrix + sigma2_between_matrix
@@ -262,9 +257,16 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
     I2_within  <- rowMeans(100 * sigma2_within_matrix / denominator_matrix)
     I2_between <- rowMeans(100 * sigma2_between_matrix / denominator_matrix)
     if (is.null(rho_samples)) {
-      rho_samples <- ifelse(sigma2_total > 0, sigma2_between / sigma2_total, 0)
+      rho_samples <- rep(NA_real_, length(sigma2_total))
+      identified  <- sigma2_total > 0
+      rho_samples[identified] <- sigma2_between[identified] /
+        sigma2_total[identified]
     } else {
-      rho_samples <- pmin(pmax(rho_samples, 0), 1)
+      rho_samples <- .resolve_heterogeneity_allocation(
+        rho       = rho_samples,
+        n_samples = nrow(tau_within_samples),
+        context   = "Heterogeneity summary"
+      )
     }
 
     return(list(

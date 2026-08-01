@@ -698,7 +698,8 @@
     list(
       tau_total   = zero_tau,
       tau_within  = zero_tau,
-      tau_between = zero_tau
+      tau_between = zero_tau,
+      rho         = NULL
     )
   } else {
     .evaluate.brma.tau(
@@ -710,7 +711,8 @@
       is_multilevel     = is_multilevel,
       K                 = K,
       posterior_samples = posterior_samples,
-      allow_missing_tau = .fixed_tau_prior_value(priors)
+      fixed_tau         = .fixed_tau_prior_value(priors),
+      fixed_rho         = .fixed_rho_prior_value(priors)
     )
   }
 
@@ -793,8 +795,11 @@
     S                 = nrow(mu_samples),
     mu                = mu_samples,
     mu_random         = mu_random_samples,
+    tau_total         = tau_result[["tau_total"]],
     tau_within        = tau_result[["tau_within"]],
     tau_between       = tau_result[["tau_between"]],
+    rho               = tau_result[["rho"]],
+    is_multilevel     = is_multilevel,
     cluster           = cluster,
     weights           = if (.is_data_weights(data)) data[["outcome"]][["weights"]] else NULL,
     data_hash         = data_hash,

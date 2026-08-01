@@ -259,7 +259,8 @@
     is_multilevel     = is_multilevel,
     K                 = K,
     posterior_samples = posterior_samples,
-    allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
   )
 
   if (conditioning_depth == "estimate") {

@@ -128,7 +128,6 @@ test_that("fixed nonzero priors fill missing evaluator columns", {
 
   expect_equal(.fixed_mu_prior_value(priors), 0.20)
   expect_equal(.fixed_tau_prior_value(priors), 0.05)
-  expect_false(.has_fixed_zero_tau_prior(priors))
 
   factor_prior <- BayesTools::prior_factor(
     "spike",
@@ -181,7 +180,7 @@ test_that("fixed nonzero priors fill missing evaluator columns", {
     is_multilevel     = FALSE,
     K                 = 3L,
     posterior_samples = samples,
-    allow_missing_tau = .fixed_tau_prior_value(priors)
+    fixed_tau         = .fixed_tau_prior_value(priors)
   )
   expect_equal(tau_result[["tau_total"]], matrix(0.05, nrow = 4L, ncol = 3L))
 

@@ -145,7 +145,7 @@ add_marglik.brma <- function(object, ...) {
     is_PEESE                 = .is_priors_PEESE(priors),
     is_weightfunction        = .is_priors_weightfunction(priors),
     fixed_tau                = .fixed_tau_prior_value(priors),
-    fixed_zero_tau           = .has_fixed_zero_tau_prior(priors),
+    fixed_rho                = .fixed_rho_prior_value(priors),
     effect_direction         = .data_effect_direction(data),
     outcome_type             = .data_outcome_type(data)
   )
@@ -336,8 +336,7 @@ add_marglik.brma <- function(object, ...) {
     is_mods, is_scale, is_multilevel, is_weights,
     is_known_v, is_PET, is_PEESE, is_weightfunction, effect_direction,
     outcome_type, is_random = FALSE, model_data = NULL,
-    bridge_context = NULL, fixed_tau = NULL,
-    fixed_zero_tau = FALSE) {
+    bridge_context = NULL, fixed_tau = NULL, fixed_rho = NULL) {
 
   ### extract number of observations
   K <- data[["K"]]
@@ -382,7 +381,7 @@ add_marglik.brma <- function(object, ...) {
       is_multilevel   = is_multilevel,
       K               = K,
       fixed_tau       = fixed_tau,
-      fixed_zero_tau  = fixed_zero_tau
+      fixed_rho       = fixed_rho
     )
   }
   tau_within_samples  <- tau_result[["tau_within"]]
@@ -557,8 +556,7 @@ add_marglik.brma <- function(object, ...) {
 
 #' @keywords internal
 .marglik_get_tau_samples <- function(parameters, is_scale, is_multilevel, K,
-                                     fixed_tau = NULL,
-                                     fixed_zero_tau = FALSE) {
+                                     fixed_tau = NULL, fixed_rho = NULL) {
 
   # BayesTools returns:
   # - scalar tau (no scale regression)
@@ -567,42 +565,27 @@ add_marglik.brma <- function(object, ...) {
     # log_tau vector -> exponentiate and convert to 1 x K matrix
     tau_samples <- matrix(exp(parameters[["log_tau"]]), nrow = 1, ncol = K)
   } else {
-    missing_tau <- .resolve_missing_tau_value(
-      if (!is.null(fixed_tau)) fixed_tau else fixed_zero_tau
-    )
-    if (!is.null(missing_tau) && is.null(parameters[["tau"]])) {
-      tau_samples <- matrix(missing_tau, nrow = 1, ncol = K)
+    if (!is.null(fixed_tau) && is.null(parameters[["tau"]])) {
+      tau_samples <- matrix(fixed_tau, nrow = 1, ncol = K)
     } else {
       # scalar tau -> replicate to 1 x K matrix
       tau_samples <- matrix(parameters[["tau"]], nrow = 1, ncol = K)
     }
   }
 
-  # split tau into within/between components for multilevel models
-  if (is_multilevel) {
-    # extract rho (proportion of variance at cluster-level)
-    rho <- parameters[["rho"]]
-
-    # clamp rho to [0, 1] to handle numerical precision issues
-    rho <- min(max(rho, 0), 1)
-
-    # tau_within  = tau * sqrt(1 - rho)  (estimate-level heterogeneity)
-    # tau_between = tau * sqrt(rho)      (cluster-level heterogeneity)
-    tau_within_samples  <- tau_samples * sqrt(1 - rho)
-    tau_between_samples <- tau_samples * sqrt(rho)
-
+  rho <- if (is_multilevel && !is.null(fixed_rho)) {
+    fixed_rho
+  } else if (is_multilevel) {
+    parameters[["rho"]]
   } else {
-
-    # non-multilevel: all heterogeneity is at estimate-level
-    tau_within_samples  <- tau_samples
-    tau_between_samples <- matrix(0, nrow = 1, ncol = K)
-
+    NULL
   }
 
-  return(list(
-    tau_total   = tau_samples,
-    tau_within  = tau_within_samples,
-    tau_between = tau_between_samples
+  return(.heterogeneity_components(
+    tau_total     = tau_samples,
+    rho           = rho,
+    is_multilevel = is_multilevel,
+    context       = "Marginal-likelihood heterogeneity"
   ))
 }
 

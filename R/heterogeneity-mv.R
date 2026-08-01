@@ -815,7 +815,8 @@
     is_multilevel     = FALSE,
     K                 = K,
     posterior_samples = posterior_samples,
-    allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
   )
   out <- list(tau = .expand_brma_mv_heterogeneity_samples(
     samples = tau_result[["tau_total"]],

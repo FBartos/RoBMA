@@ -579,7 +579,8 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
     is_multilevel     = context[["is_multilevel"]],
     K                 = K,
     posterior_samples = posterior_samples,
-    allow_missing_tau = .fixed_tau_prior_value(priors)
+    fixed_tau         = .fixed_tau_prior_value(priors),
+    fixed_rho         = .fixed_rho_prior_value(priors)
   )
 
   list(

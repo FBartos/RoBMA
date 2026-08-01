@@ -47,13 +47,6 @@
   return(suppressWarnings(coda::as.mcmc(fit)))
 }
 
-.is_zero_point_prior <- function(prior) {
-
-  value <- .point_prior_value(prior)
-
-  return(!is.null(value) && isTRUE(all.equal(value, 0)))
-}
-
 .point_prior_value <- function(prior) {
 
   if (is.null(prior) || !BayesTools::is.prior.point(prior)) {
@@ -84,6 +77,15 @@
   }
 
   return(.point_prior_value(priors[["outcome"]][["mu"]]))
+}
+
+.fixed_rho_prior_value <- function(priors) {
+
+  if (is.null(priors) || is.null(priors[["outcome"]])) {
+    return(NULL)
+  }
+
+  return(.point_prior_value(priors[["outcome"]][["rho"]]))
 }
 
 .fixed_bias_parameter_value <- function(priors, parameter) {
@@ -166,29 +168,6 @@
   return(cbind(posterior_samples, fixed_samples))
 }
 
-.has_fixed_zero_tau_prior <- function(priors) {
-
-  if (is.null(priors) || is.null(priors[["outcome"]])) {
-    return(FALSE)
-  }
-
-  return(.is_zero_point_prior(priors[["outcome"]][["tau"]]))
-}
-
-.resolve_missing_tau_value <- function(allow_missing_tau) {
-
-  if (isTRUE(allow_missing_tau)) {
-    return(0)
-  }
-  if (is.numeric(allow_missing_tau) &&
-      length(allow_missing_tau) == 1L &&
-      is.finite(allow_missing_tau)) {
-    return(as.numeric(allow_missing_tau))
-  }
-
-  return(NULL)
-}
-
 .posterior_or_fixed_scalar <- function(posterior_samples, parameter,
                                        fixed_value = NULL,
                                        required = TRUE) {
@@ -204,6 +183,61 @@
   }
 
   return(NULL)
+}
+
+
+# Validate scalar or row-wise heterogeneity-allocation values without clipping.
+.resolve_heterogeneity_allocation <- function(rho, n_samples, context) {
+
+  if (!is.numeric(rho) || !length(rho) %in% c(1L, n_samples)) {
+    stop(
+      context,
+      " 'rho' must be a numeric scalar or vector matching posterior rows.",
+      call. = FALSE
+    )
+  }
+  if (any(!is.finite(rho)) || any(rho < 0 | rho > 1)) {
+    stop(
+      context,
+      " 'rho' must contain only finite values within [0, 1].",
+      call. = FALSE
+    )
+  }
+
+  return(rep(as.numeric(rho), length.out = n_samples))
+}
+
+
+# Split total heterogeneity while preserving exact allocation endpoints.
+.heterogeneity_components <- function(tau_total, rho = NULL,
+                                      is_multilevel = FALSE,
+                                      context = "Heterogeneity") {
+
+  if (!is.matrix(tau_total) || !is.numeric(tau_total) ||
+      any(!is.finite(tau_total)) || any(tau_total < 0)) {
+    stop(
+      context,
+      " 'tau_total' must be a finite, non-negative numeric matrix.",
+      call. = FALSE
+    )
+  }
+  if (!isTRUE(is_multilevel)) {
+    return(list(
+      tau_total   = tau_total,
+      tau_within  = tau_total,
+      tau_between = matrix(0, nrow = nrow(tau_total), ncol = ncol(tau_total)),
+      rho         = NULL
+    ))
+  }
+
+  rho <- .resolve_heterogeneity_allocation(rho, nrow(tau_total), context)
+
+  return(list(
+    tau_total   = tau_total,
+    tau_within  = tau_total * sqrt(1 - rho),
+    tau_between = tau_total * sqrt(rho),
+    rho         = rho
+  ))
 }
 
 
@@ -347,7 +381,7 @@
 .evaluate.brma.tau <- function(fit, scale_data, scale_formula, scale_priors,
                                is_scale, is_multilevel, K,
                                posterior_samples = NULL,
-                               allow_missing_tau = FALSE) {
+                               fixed_tau = NULL, fixed_rho = NULL) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S <- nrow(posterior_samples)  # number of posterior samples
@@ -374,12 +408,6 @@
 
   } else {
 
-    fixed_tau <- if (is.numeric(allow_missing_tau)) {
-      .resolve_missing_tau_value(allow_missing_tau)
-    } else {
-      NULL
-    }
-
     if (!is.null(fixed_tau)) {
       tau_samples <- matrix(fixed_tau, nrow = S, ncol = K)
     } else {
@@ -389,15 +417,10 @@
         required          = FALSE
       )
       if (is.null(tau_parameter)) {
-        missing_tau <- .resolve_missing_tau_value(allow_missing_tau)
-        if (is.null(missing_tau) &&
-            !any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
+        if (!any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
           stop("Missing posterior tau columns.", call. = FALSE)
         }
-        if (is.null(missing_tau)) {
-          missing_tau <- 0
-        }
-        tau_samples <- matrix(missing_tau, nrow = S, ncol = K)
+        tau_samples <- matrix(0, nrow = S, ncol = K)
       } else if (ncol(tau_parameter) == 1L) {
         # simple model: extract tau column and replicate to K columns
         # matrix(vec, nrow = S, ncol = K) replicates vec across columns
@@ -415,35 +438,21 @@
 
   }
 
-  ### split tau into within/between components for multilevel models
-  if (is_multilevel) {
-
-    # extract rho (proportion of variance at cluster-level)
-    rho_samples <- posterior_samples[, "rho"]
-
-    # clamp rho to [0, 1] to handle JAGS numerical precision issues
-    # pmin/pmax are vectorized min/max: faster than rho[rho > 1] <- 1
-    rho_samples <- pmin(pmax(rho_samples, 0), 1)
-
-    # tau_within = tau * sqrt(1 - rho)  (estimate-level heterogeneity)
-    # tau_between = tau * sqrt(rho)     (cluster-level heterogeneity)
-    # multiplication by vector rho_samples broadcasts across columns
-    tau_within_samples  <- tau_samples * sqrt(1 - rho_samples)
-    tau_between_samples <- tau_samples * sqrt(rho_samples)
-
+  rho_samples <- if (is_multilevel) {
+    .posterior_or_fixed_scalar(
+      posterior_samples = posterior_samples,
+      parameter         = "rho",
+      fixed_value       = fixed_rho
+    )
   } else {
-
-    # non-multilevel: all heterogeneity is at estimate-level
-    # tau_between is zero matrix for consistent interface
-    tau_within_samples  <- tau_samples
-    tau_between_samples <- matrix(0, nrow = S, ncol = K)
-
+    NULL
   }
 
-  return(list(
-    tau_total   = tau_samples,
-    tau_within  = tau_within_samples,
-    tau_between = tau_between_samples
+  return(.heterogeneity_components(
+    tau_total     = tau_samples,
+    rho           = rho_samples,
+    is_multilevel = is_multilevel,
+    context       = "Posterior heterogeneity"
   ))
 }
 

@@ -485,7 +485,7 @@
 .iwmde_log_tau_total <- function(tau_within, tau_between) {
 
   tau_total <- sqrt(tau_within^2 + tau_between^2)
-  return(log(pmax(tau_total, .Machine$double.xmin)))
+  return(log(tau_total))
 }
 
 
@@ -1000,9 +1000,10 @@
     )
   }
 
-  tau_total <- sqrt(setup[["tau_within"]]^2 + setup[["tau_between"]]^2)
-  rho       <- .iwmde_predictor_rho(setup)
-  valid     <- is.finite(values[grid_index]) & is.finite(delta)
+  tau_total     <- setup[["tau_total"]]
+  is_multilevel <- isTRUE(setup[["is_multilevel"]])
+  rho           <- .iwmde_predictor_rho(setup)
+  valid         <- is.finite(values[grid_index]) & is.finite(delta)
 
   if (identical(basis[["scale_update"]], "tau")) {
     tau_value <- values[grid_index]
@@ -1014,14 +1015,15 @@
 
   if (identical(basis[["scale_update"]], "rho")) {
     rho_value <- values[grid_index]
-    valid     <- valid & rho_value >= 0 & rho_value <= 1
+    valid     <- valid & is.finite(rho_value) &
+      rho_value >= 0 & rho_value <= 1
     rho       <- rho_value
   } else {
     rho <- rho[row_index]
   }
 
   if (!is.null(basis[["log_tau_basis"]])) {
-    log_tau <- log(pmax(tau_total, .Machine$double.xmin))
+    log_tau <- log(tau_total)
     log_tau <- log_tau + basis[["log_tau_basis"]][row_index, , drop = FALSE] * delta
     valid   <- valid & is.finite(rowSums(log_tau))
     tau_total <- exp(log_tau)
@@ -1035,12 +1037,21 @@
     tau_within  <- tau_result[["tau_within"]]
     tau_between <- tau_result[["tau_between"]]
   } else {
-    rho <- pmin(pmax(rho, 0), 1)
-    if (length(rho) == 1L) {
-      rho <- rep(rho, length(row_index))
+    valid <- valid &
+      rowSums(!is.finite(tau_total) | tau_total < 0) == 0L
+    tau_within  <- matrix(NA_real_, nrow = nrow(tau_total), ncol = K)
+    tau_between <- matrix(NA_real_, nrow = nrow(tau_total), ncol = K)
+    valid_rows  <- which(valid)
+    if (length(valid_rows) > 0L) {
+      tau_result <- .heterogeneity_components(
+        tau_total     = tau_total[valid_rows, , drop = FALSE],
+        rho           = if (is_multilevel) rho[valid_rows] else NULL,
+        is_multilevel = is_multilevel,
+        context       = "IWMDE predictor candidates"
+      )
+      tau_within[valid_rows, ]  <- tau_result[["tau_within"]]
+      tau_between[valid_rows, ] <- tau_result[["tau_between"]]
     }
-    tau_within  <- tau_total * sqrt(1 - rho)
-    tau_between <- tau_total * sqrt(rho)
   }
 
   if (!is.null(replacement_samples)) {
@@ -1118,19 +1129,23 @@
     is_multilevel     = .is_data_multilevel(data),
     K                 = nrow(data[["outcome"]]),
     posterior_samples = samples,
-    allow_missing_tau = .fixed_tau_prior_value(active_setup[["priors"]])
+    fixed_tau         = .fixed_tau_prior_value(active_setup[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(active_setup[["priors"]])
   ))
 }
 
 
 .iwmde_predictor_rho <- function(setup) {
 
-  samples <- setup[["posterior_samples"]]
-  if ("rho" %in% colnames(samples)) {
-    return(pmin(pmax(as.numeric(samples[, "rho"]), 0), 1))
+  if (!isTRUE(setup[["is_multilevel"]])) {
+    return(rep(0, nrow(setup[["mu"]])))
   }
 
-  return(rep(0, nrow(setup[["mu"]])))
+  return(.resolve_heterogeneity_allocation(
+    rho       = setup[["rho"]],
+    n_samples = nrow(setup[["mu"]]),
+    context   = "IWMDE predictor setup"
+  ))
 }
 
 

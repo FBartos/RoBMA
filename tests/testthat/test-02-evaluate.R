@@ -743,7 +743,7 @@ test_that(".evaluate.brma.tau returns correct structure", {
       required          = FALSE
     ))
 
-    evaluate_tau <- function(allow_missing_tau = FALSE) {
+    evaluate_tau <- function(fixed_tau = NULL) {
       .evaluate.brma.tau(
         fit               = object[["fit"]],
         scale_data        = object[["data"]][["scale"]],
@@ -753,7 +753,8 @@ test_that(".evaluate.brma.tau returns correct structure", {
         is_multilevel     = is_multilevel,
         K                 = K,
         posterior_samples = posterior_samples,
-        allow_missing_tau = allow_missing_tau
+        fixed_tau         = fixed_tau,
+        fixed_rho         = .fixed_rho_prior_value(priors)
       )
     }
 
@@ -764,7 +765,7 @@ test_that(".evaluate.brma.tau returns correct structure", {
         "Missing posterior tau columns",
         info = paste(name, ": missing tau requires explicit allowance")
       )
-      result <- evaluate_tau(allow_missing_tau = fixed_tau)
+      result <- evaluate_tau(fixed_tau = fixed_tau)
       expect_equal(
         result[["tau_total"]],
         matrix(fixed_tau, nrow = nrow(posterior_samples), ncol = K),
@@ -916,30 +917,6 @@ test_that(".evaluate.brma.bias_offset handles PET/PEESE and effect direction", {
 
   expect_equal(offset_positive, expected_positive, tolerance = 1e-12)
   expect_equal(offset_negative, -expected_positive, tolerance = 1e-12)
-})
-
-test_that("rho clamping handles boundary values", {
-
-  # test that rho values outside [0, 1] are properly clamped
-
-  # create mock rho with edge cases
-  rho <- c(-0.01, 0, 0.5, 1, 1.001)
-  rho_clamped <- pmin(pmax(rho, 0), 1)
-
-  expect_equal(rho_clamped, c(0, 0, 0.5, 1, 1))
-
-  # verify tau decomposition is valid after clamping
-  tau <- 0.3
-  tau_within  <- tau * sqrt(1 - rho_clamped)
-  tau_between <- tau * sqrt(rho_clamped)
-
-  # all values should be non-negative
-  expect_true(all(tau_within >= 0))
-  expect_true(all(tau_between >= 0))
-
-  # verify Pythagorean relationship: tau^2 = tau_within^2 + tau_between^2
-  tau_reconstructed <- sqrt(tau_within^2 + tau_between^2)
-  expect_equal(tau_reconstructed, rep(tau, length(rho)), tolerance = 1e-10)
 })
 
 test_that("GLMM posterior extraction helpers are vectorized", {

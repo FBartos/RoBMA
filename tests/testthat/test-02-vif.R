@@ -348,7 +348,8 @@ test_that("ordinary VIF uses posterior covariance averaging", {
     is_scale          = FALSE,
     is_multilevel     = FALSE,
     K                 = K,
-    allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
   )
   expected <- .vif_vcov_from_tau_samples(
     X                   = X,
@@ -388,7 +389,8 @@ test_that("product-space VIF averages all posterior covariance states", {
       is_scale          = is_scale,
       is_multilevel     = is_multilevel,
       K                 = nrow(X),
-      allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
+      fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+      fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
     )
     block_indices <- if (is_multilevel) {
       split(
