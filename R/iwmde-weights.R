@@ -677,24 +677,46 @@
   eval_values <- matrix(NA_real_, nrow = length(active_rows), ncol = length(columns))
   colnames(fit_values)  <- columns
   colnames(eval_values) <- columns
+  keep_columns          <- rep(TRUE, length(columns))
 
-  for (column in columns) {
+  for (i in seq_along(columns)) {
+    column     <- columns[[i]]
+    raw_fit    <- .iwmde_parameter_column_values(
+      context   = context,
+      samples   = samples[weight_rows, , drop = FALSE],
+      parameter = column
+    )
+    raw_eval   <- .iwmde_parameter_column_values(
+      context   = context,
+      samples   = samples[active_rows, , drop = FALSE],
+      parameter = column
+    )
+    raw_values <- c(raw_fit, raw_eval)
+    if (all(is.finite(raw_values)) && length(unique(raw_values)) == 1L) {
+      keep_columns[[i]] <- FALSE
+      next
+    }
+
     transformed <- .iwmde_chen_transform_conditioning_column(
       context     = context,
-      fit_values  = .iwmde_parameter_column_values(
-        context   = context,
-        samples   = samples[weight_rows, , drop = FALSE],
-        parameter = column
-      ),
-      eval_values = .iwmde_parameter_column_values(
-        context   = context,
-        samples   = samples[active_rows, , drop = FALSE],
-        parameter = column
-      ),
+      fit_values  = raw_fit,
+      eval_values = raw_eval,
       column      = column
     )
     fit_values[, column]  <- transformed[["fit"]]
     eval_values[, column] <- transformed[["eval"]]
+  }
+
+  columns     <- columns[keep_columns]
+  fit_values  <- fit_values[, keep_columns, drop = FALSE]
+  eval_values <- eval_values[, keep_columns, drop = FALSE]
+
+  if (length(columns) == 0L) {
+    return(list(
+      fit     = matrix(numeric(), nrow = length(weight_rows), ncol = 0L),
+      eval    = matrix(numeric(), nrow = length(active_rows), ncol = 0L),
+      columns = character()
+    ))
   }
 
   if (any(!is.finite(fit_values))) {

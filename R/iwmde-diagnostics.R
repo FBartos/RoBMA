@@ -240,14 +240,57 @@
   }
 
   warnings <- .iwmde_diagnostics_density_sample_warning(density_diagnostics)
+  fallback_warning <- .iwmde_diagnostics_weight_fallback_warning(
+    density_diagnostics
+  )
   normalization_warning <- .iwmde_diagnostics_density_mass_warning(
     diagnostics = density_diagnostics,
     estimator   = estimator
   )
   quadrature_warning <- .iwmde_diagnostics_quadrature_warning(density_diagnostics)
-  warnings <- c(warnings, normalization_warning, quadrature_warning)
+  warnings <- c(
+    warnings,
+    fallback_warning,
+    normalization_warning,
+    quadrature_warning
+  )
 
   return(unique(warnings[nzchar(warnings)]))
+}
+
+
+.iwmde_diagnostics_weight_fallback_warning <- function(diagnostics) {
+
+  fallback_count <- .iwmde_diagnostic_scalar(
+    diagnostics,
+    "n_weight_fallbacks"
+  )
+  if (!is.finite(fallback_count) || fallback_count <= 0) {
+    return(character())
+  }
+
+  fallback_rows <- .iwmde_diagnostic_scalar(
+    diagnostics,
+    "n_weight_fallback_rows"
+  )
+  reasons <- diagnostics[["weight_fallback_reasons"]]
+  reason_text <- if (is.numeric(reasons) && length(reasons) > 0L &&
+                     !is.null(names(reasons))) {
+    paste(names(reasons), collapse = "; ")
+  } else {
+    "conditional weight estimation was unavailable"
+  }
+  row_text <- if (is.finite(fallback_rows)) {
+    paste0(" affecting ", .iwmde_count(fallback_rows), " estimator rows")
+  } else {
+    ""
+  }
+
+  return(paste0(
+    "IWMDE used normalized fallback weights in ",
+    .iwmde_count(fallback_count), " conditional partitions", row_text,
+    ": ", reason_text, "."
+  ))
 }
 
 
@@ -468,6 +511,10 @@
   if (!is.null(ordinate_warnings)) {
     warnings <- c(warnings, as.character(ordinate_warnings))
   }
+  warnings <- c(
+    warnings,
+    .iwmde_diagnostics_weight_fallback_warning(diagnostics)
+  )
 
   relative_mcse <- .iwmde_diagnostic_scalar_any(
     diagnostics,
@@ -591,7 +638,7 @@
     warnings <- c(warnings, quadrature_warning)
   }
 
-  return(warnings)
+  return(unique(warnings[nzchar(warnings)]))
 }
 
 

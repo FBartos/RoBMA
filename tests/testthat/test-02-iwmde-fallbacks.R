@@ -213,6 +213,34 @@ test_that("Chen dispatcher aggregates fallback partitions and rows", {
 })
 
 
+test_that("Chen conditioning drops exact boundary constants before transforming", {
+
+  samples <- cbind(
+    mu  = c(-.2, -.1, .1, .2),
+    rho = rep(0, 4L)
+  )
+  context <- list(
+    posterior_samples = samples,
+    indicator_names   = character(),
+    priors            = list(),
+    flat_prior_list   = list(),
+    formula_inputs    = list()
+  )
+
+  conditioning <- .iwmde_chen_conditioning_matrix(
+    context        = context,
+    parameter      = "mu",
+    parameter_spec = list(type = "primitive", parameter = "mu"),
+    active_rows    = 1:2,
+    weight_rows    = 3:4
+  )
+
+  expect_identical(conditioning[["columns"]], character())
+  expect_equal(dim(conditioning[["fit"]]), c(2L, 0L))
+  expect_equal(dim(conditioning[["eval"]]), c(2L, 0L))
+})
+
+
 test_that("IWMDE density surfaces aggregate fallback diagnostics", {
 
   grid <- seq(0, 1, length.out = 21L)
@@ -328,4 +356,12 @@ test_that("IWMDE density surfaces aggregate fallback diagnostics", {
     diagnostic[["diagnostics"]][["weight_fallback_reasons"]],
     c("singular covariance" = 1L)
   )
+  expect_true(any(grepl(
+    "normalized fallback weights",
+    .iwmde_diagnostics_density_warning(diagnostic[["diagnostics"]])
+  )))
+  expect_true(any(grepl(
+    "normalized fallback weights",
+    .iwmde_diagnostics_bf_warning(diagnostic[["diagnostics"]])
+  )))
 })
