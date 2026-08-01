@@ -90,9 +90,19 @@ run_tests <- function(filter = NULL) {
 
 validate_fit_cache <- function() {
 
-  expected  <- active_fit_catalog()[["name"]]
-  available <- list_fits(validate = TRUE)
-  missing   <- setdiff(expected, available)
+  expected   <- active_fit_catalog()[["name"]]
+  cached     <- list_fits(validate = FALSE)
+  unexpected <- setdiff(cached, expected)
+  if (length(unexpected) > 0L) {
+    stop(
+      "The ", profile, " cache contains fits from another profile: ",
+      paste(unexpected, collapse = ", "),
+      ". Use an isolated cache or rerun with --clean.",
+      call. = FALSE
+    )
+  }
+  available  <- list_fits(validate = TRUE)
+  missing    <- setdiff(expected, available)
   if (length(missing) > 0L) {
     stop(
       "Cached fit generation incomplete. Missing or stale fits: ",

@@ -209,6 +209,22 @@ test_that("brma.mv fits known-V backend smoke models", {
     fit_block_random_cache,
     info = list(data = dat, V = V, random = "estimate")
   )
+})
+
+
+test_that("brma.mv fits extended known-V backend smoke models", {
+
+  skip_if_not_certification(
+    "These redundant known-V parameterizations are certification coverage."
+  )
+
+  smoke <- .brma_mv_smoke_data()
+  dat   <- smoke[["dat"]]
+  V     <- smoke[["V"]]
+  args  <- .brma_mv_fit_args()
+
+  fit_block_random <- load_fit("brma.mv_block_mvn_random")
+  fit_block_random <- suppressWarnings(add_waic(fit_block_random))
 
   fit_block_random_sampled <- brma.mv(
     yi                         = yi,

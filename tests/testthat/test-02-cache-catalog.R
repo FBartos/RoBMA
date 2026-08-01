@@ -719,9 +719,12 @@ test_that("cached fits are catalogued and valid", {
 
   catalog_names <- fit_catalog()[["name"]]
   uncatalogued  <- setdiff(cached_names, catalog_names)
+  inactive      <- setdiff(cached_names, active_fit_catalog()[["name"]])
 
   expect_equal(uncatalogued, character(),
                info = "all cached fits must be listed in fit_catalog()")
+  expect_equal(inactive, character(),
+               info = "the active cache must not contain fits from another profile")
 
   problems <- lapply(cached_names, validate_cached_fit, deep = TRUE)
   names(problems) <- cached_names
