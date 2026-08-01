@@ -735,7 +735,7 @@
 # ---------------------------------------------------------------------------- #
 .hat_zero_residual_rows <- function(X) {
 
-  zero_tolerance <- .Machine$double.xmin * .Machine$double.eps
+  zero_tolerance <- max(dim(X)) * .Machine$double.eps
   full_rank      <- qr(X, tol = zero_tolerance)[["rank"]]
   return(which(vapply(
     seq_len(nrow(X)),

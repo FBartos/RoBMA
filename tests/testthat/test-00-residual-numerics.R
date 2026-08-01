@@ -23,6 +23,18 @@ test_that("unit-leverage residual rows are identified structurally", {
     c(2, 2 + 1e-10)
   )
   expect_identical(.hat_zero_residual_rows(nearly_dependent), integer())
+
+  alloc <- factor(c(
+    rep("random", 4), "alternate", "alternate", rep("random", 3),
+    rep("systematic", 4)
+  ))
+  year <- factor(c(
+    rep("before", 3), "after", "after", "before", "after", "after",
+    "before", "before", rep("after", 3)
+  ))
+  factorial <- stats::model.matrix(~ alloc * year)
+
+  expect_identical(.hat_zero_residual_rows(factorial), c(5L, 6L, 10L))
 })
 
 
