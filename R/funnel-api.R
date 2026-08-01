@@ -120,10 +120,12 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' The \code{sampling_heterogeneity} and \code{sampling_bias} arguments are
 #' ignored in residual mode.
 #'
-#' For GLMM models, observed effect sizes are computed from the raw frequency
-#' data using formulas equivalent to \code{metafor::escalc}. Residual-mode
-#' GLMM funnels use approximate effect-size-scale residual/PIT companions, not
-#' exact PIT diagnostics for the raw count likelihood.
+#' For GLMM models, outcome-mode observed effect sizes are computed from the raw
+#' frequency data using formulas equivalent to \code{metafor::escalc}.
+#' LOO-PIT residual mode is unavailable because the fitted predictive
+#' distribution is discrete and no discrete PIT convention has been defined.
+#' Use \code{type = "outcome"} for a descriptive effect-size-scale residual
+#' funnel when needed.
 #'
 #' @return If \code{as_data = TRUE}, \code{funnel.brma} returns a list with the
 #' data used for plotting, including the plotted points, funnel polygons,

@@ -29,8 +29,8 @@
 \item{type}{the type of standardized residuals to use. Options are:
 \itemize{
 \item \code{"rstudent"} (alias: \code{"LOO-PIT"}; default): Leave-one-out
-probability integral transform residuals. Works for all model types
-including GLMMs and selection models. This is the recommended type for
+probability integral transform residuals. Works for normal outcome
+models, including selection models. This is the recommended type for
 Bayesian models as it properly accounts for estimation uncertainty and
 leverage. Note: requires that loo has been computed (see
 \code{\link{add_loo}}).
@@ -125,8 +125,8 @@ standardized residuals.
 
 The default residual type is \code{"rstudent"} (LOO-PIT), which differs
 from \code{metafor::qqnorm} (which defaults to \code{"rstandard"}).
-LOO-PIT residuals are preferred because they are available for all model
-types (including GLMMs and selection models) and properly account for
+LOO-PIT residuals are preferred for normal outcome models because they
+properly account for
 estimation uncertainty via leave-one-out cross-validation.
 
 The confidence envelope is computed in closed form from the distribution of
@@ -142,9 +142,10 @@ this envelope remains an independent order-statistic reference band. It is
 descriptive and does not model residual correlation induced by known sampling
 covariance.
 
-For GLMM models, LOO-PIT residuals and the QQ plot are computed on the
-approximate effect-size scale used by \code{loo}; they are not exact
-count-scale PIT diagnostics.
+Q-Q residual plots are not available for binomial or Poisson GLMMs. Their
+fitted predictive distributions are discrete, so a randomized, mid-P, or
+other discrete PIT convention must be chosen before a normal Q-Q diagnostic
+is defined.
 }
 \examples{
 \dontrun{

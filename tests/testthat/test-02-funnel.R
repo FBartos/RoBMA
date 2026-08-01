@@ -343,19 +343,13 @@ test_that("Funnel plot for GLMM model renders ggplot output", {
 
   fit_brma <- fits[[name]]
 
-  student     <- expect_no_warning(rstudent(fit_brma))
-  funnel_data <- expect_no_warning(
-    .test_funnel(fit_brma, residual = TRUE, as_data = TRUE)
+  expect_error(
+    rstudent(fit_brma),
+    "discrete PIT convention"
   )
-  expect_equal(
-    funnel_data[["points"]][["x"]],
-    student[["resid"]],
-    tolerance = 1e-12
-  )
-  expect_equal(
-    funnel_data[["points"]][["y"]],
-    student[["se"]],
-    tolerance = 1e-12
+  expect_error(
+    .test_funnel(fit_brma, residual = TRUE, as_data = TRUE),
+    "discrete PIT convention"
   )
 
   # there is no funnel plot for metafor
@@ -365,7 +359,7 @@ test_that("Funnel plot for GLMM model renders ggplot output", {
   )
 })
 
-test_that("Funnel plot for GLMM meta-regression renders ggplot output", {
+test_that("GLMM meta-regression rejects residual funnel without a PIT convention", {
 
   skip_if_not_full_visuals("GLMM meta-regression duplicates the default GLMM funnel visual.")
 
@@ -374,10 +368,9 @@ test_that("Funnel plot for GLMM meta-regression renders ggplot output", {
 
   fit_brma <- fits[[name]]
 
-  # there is no funnel plot for metafor
-  expect_vdiffr_snapshot(
-    "funnel_glmm_reg_ggplot",
-    suppressWarnings(.test_funnel(fit_brma, plot_type = "ggplot"))
+  expect_error(
+    .test_funnel(fit_brma, plot_type = "ggplot"),
+    "discrete PIT convention"
   )
 })
 

@@ -186,35 +186,17 @@ test_that("Q-Q plot for 3-level meta-regression renders residual quantiles", {
 # Test: GLMM Model Q-Q Plot
 # ============================================================================ #
 
-test_that("Q-Q plot for GLMM model renders residual quantiles", {
+test_that("Q-Q plot rejects GLMMs without a discrete PIT convention", {
 
   name     <- "nielweise2008_glmm"
   fit_brma <- fits[[name]]
-  set.seed(1)
-
-  student <- expect_no_warning(rstudent(fit_brma))
-  qq_data <- expect_no_warning(
-    qqnorm(fit_brma, envelope = FALSE, as_data = TRUE)
+  expect_error(
+    rstudent(fit_brma),
+    "discrete PIT convention"
   )
-  expect_equal(
-    qq_data[["points"]][["x"]],
-    stats::qnorm(stats::ppoints(nrow(student))),
-    tolerance = 1e-12
-  )
-  expect_equal(
-    qq_data[["points"]][["y"]],
-    sort(student[["z"]]),
-    tolerance = 1e-12
-  )
-
-  # rstudent only (rstandard not available for GLMM)
-  expect_vdiffr_snapshot("qqnorm_glmm_base", function() {
-    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
-  })
-
-  expect_vdiffr_snapshot(
-    "qqnorm_glmm_ggplot",
-    suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
+  expect_error(
+    qqnorm(fit_brma, envelope = FALSE, as_data = TRUE),
+    "discrete PIT convention"
   )
 
   # rstandard should error for GLMM models
@@ -224,22 +206,15 @@ test_that("Q-Q plot for GLMM model renders residual quantiles", {
   )
 })
 
-test_that("Q-Q plot for GLMM meta-regression renders residual quantiles", {
+test_that("Q-Q plot rejects GLMM meta-regression without a PIT convention", {
 
   skip_if_not_full_visuals("GLMM meta-regression duplicates the default GLMM Q-Q visual.")
 
   name     <- "bcg_glmm_reg"
   fit_brma <- fits[[name]]
-  set.seed(1)
-
-  # rstudent only (rstandard not available for GLMM)
-  expect_vdiffr_snapshot("qqnorm_glmm_reg_base", function() {
-    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
-  })
-
-  expect_vdiffr_snapshot(
-    "qqnorm_glmm_reg_ggplot",
-    suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
+  expect_error(
+    qqnorm(fit_brma),
+    "discrete PIT convention"
   )
 
   # rstandard should error for GLMM models
@@ -379,15 +354,11 @@ test_that("Q-Q plot for BMA.norm meta-regression renders base output", {
 # Test: BMA.glmm Model Q-Q Plot
 # ============================================================================ #
 
-test_that("Q-Q plot for BMA.glmm model renders base output", {
+test_that("Q-Q plot rejects BMA.glmm without a discrete PIT convention", {
 
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
   fit_brma <- fits[[name]]
-  set.seed(1)
-
-  expect_vdiffr_snapshot("qqnorm_BMA.glmm", function() {
-    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
-  })
+  expect_error(qqnorm(fit_brma), "discrete PIT convention")
 })
 
 # ============================================================================ #
