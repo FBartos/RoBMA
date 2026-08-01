@@ -1273,7 +1273,7 @@
     inv_diag_rank_one <- rank_one / diagonal
     denom             <- 1 + sum(rank_one * inv_diag_rank_one)
 
-    if (is.finite(denom) && denom > .Machine$double.eps) {
+    if (is.finite(denom) && denom > 0) {
       correction <- inv_diag_rank_one * sum(rank_one * inv_diag_residual) / denom
       return(inv_diag_residual - correction)
     }

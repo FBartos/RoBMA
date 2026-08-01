@@ -31,7 +31,7 @@
       residual_valid <- residual[valid, , drop = FALSE]
       denom          <- 1 + rowSums(rank_valid^2 * inv_diag)
       valid_rows     <- which(valid)
-      valid_denom    <- is.finite(denom) & denom > .Machine$double.eps
+      valid_denom    <- is.finite(denom) & denom > 0
 
       if (any(valid_denom)) {
         rows      <- valid_rows[valid_denom]
@@ -89,7 +89,7 @@
   inv_rank <- rank_one * inv_diag
   denom    <- 1 + sum(rank_one * inv_rank)
 
-  if (!is.finite(denom) || denom <= .Machine$double.eps) {
+  if (!is.finite(denom) || denom <= 0) {
     covariance <- diag(diagonal, nrow = length(diagonal), ncol = length(diagonal)) +
       tcrossprod(rank_one)
     return(mvtnorm::dmvnorm(
