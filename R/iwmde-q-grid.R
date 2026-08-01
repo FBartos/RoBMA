@@ -219,14 +219,6 @@
   if (is.null(basis)) {
     return(NULL)
   }
-  basis <- .iwmde_predictor_resolve_formula_basis(
-    context      = context,
-    active_setup = active_setup,
-    setup        = setup,
-    basis        = basis,
-    row_states   = row_states
-  )
-
   normal_out <- .iwmde_log_q_grid_normal_location_group(
     context     = context,
     parameter   = parameter,

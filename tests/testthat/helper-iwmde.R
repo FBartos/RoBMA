@@ -646,14 +646,6 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
     replacement = replacement,
     setup       = setup
   )
-  basis <- .iwmde_predictor_resolve_formula_basis(
-    context      = context,
-    active_setup = active_setup,
-    setup        = setup,
-    basis        = basis,
-    row_states   = row_states
-  )
-
   fast <- .iwmde_log_q_grid_normal_location_group(
     context     = context,
     parameter   = parameter,

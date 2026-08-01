@@ -1697,6 +1697,35 @@ test_that("negative-direction PET and PEESE location fast paths match flipped li
 })
 
 
+test_that("formula predictors bypass the quadratic location path", {
+
+  data <- list(outcome = data.frame(yi = 0, sei = 1))
+  attr(data, "outcome_type") <- "norm"
+  row_states <- list(list(active_setup = list(is_weightfunction = FALSE)))
+
+  for (formula_component in c("formula_mu", "formula_logtau")) {
+    basis <- list(
+      formula_mu     = FALSE,
+      formula_logtau = FALSE,
+      scale_update   = "none",
+      log_tau_basis  = NULL,
+      mu_basis       = NULL
+    )
+    basis[[formula_component]] <- TRUE
+
+    expect_null(.iwmde_log_q_grid_normal_location_group(
+      context     = list(data = data),
+      parameter   = "mu_x",
+      values      = 0,
+      row_states  = row_states,
+      replacement = list(type = "scalar"),
+      setup       = list(),
+      basis       = basis
+    ))
+  }
+})
+
+
 test_that("negative-direction selected-normal normalizer change matches matrix reference", {
 
   prior <- BayesTools::prior_weightfunction(
@@ -1879,7 +1908,7 @@ test_that("multilevel weightfunction location fast path dispatches to cluster se
 })
 
 
-test_that("multilevel weightfunction location fast path matches scalar fallback", {
+test_that("multilevel weightfunction formula path matches scalar fallback", {
 
   skip_if_not_certification(
     "The exact multilevel scalar-vs-grid equivalence matrix is certification coverage."
@@ -1945,14 +1974,8 @@ test_that("multilevel weightfunction location fast path matches scalar fallback"
 
   expect_false(is.null(basis))
 
-  basis <- .iwmde_predictor_resolve_formula_basis(
-    context      = context,
-    active_setup = active_setup,
-    setup        = setup,
-    basis        = basis,
-    row_states   = row_states
-  )
-  fast <- .iwmde_log_q_grid_normal_location_group(
+  expect_true(isTRUE(basis[["formula_mu"]]))
+  expect_null(.iwmde_log_q_grid_normal_location_group(
     context     = context,
     parameter   = parameter,
     values      = grid_values,
@@ -1960,6 +1983,13 @@ test_that("multilevel weightfunction location fast path matches scalar fallback"
     replacement = replacement,
     setup       = setup,
     basis       = basis
+  ))
+  fast <- .iwmde_log_q_grid_predictor_group(
+    context     = context,
+    parameter   = parameter,
+    values      = grid_values,
+    row_states  = row_states,
+    replacement = replacement
   )
   scalar <- .iwmde_log_q_grid_scalar(
     context     = context,
@@ -2395,13 +2425,7 @@ test_that("IWMDE normal quadratic fast path matches scalar fallback", {
     list("dat.lehmann2018-PET_neg", "PET", NULL),
     list("dat.lehmann2018-PEESE_neg", "PEESE", NULL),
     list("dat.lehmann2018-3PSM_neg", "mu", NULL),
-    list("bcg_meta-regression", "mu_ablat", NULL),
-    list("konstantopoulos2011_3lvl", "mu", NULL),
-    list(
-      "bcg_meta-regression",
-      "mu_intercept + mu_ablat",
-      list(type = "linear", weights = c(mu_intercept = 1, mu_ablat = 1))
-    )
+    list("konstantopoulos2011_3lvl", "mu", NULL)
   )
 
   for (case in cases) {
