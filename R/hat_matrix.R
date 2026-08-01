@@ -144,12 +144,37 @@
     XtWX     <- crossprod(X, WX)
     XtWX_inv <- .hat_solve_crossprod(XtWX)
     XB       <- X %*% XtWX_inv
-    marginal_A <- if (return_se &&
-                      (conditioning_depth == "marginal" ||
-                       (conditioning_depth == "cluster" && !is_multilevel))) {
-      I_K - XB %*% t(WX)
-    } else {
-      NULL
+    variance_transform <- NULL
+    if (return_se) {
+      residual_projection <- I_K - XB %*% t(WX)
+      variance_transform   <- residual_projection
+
+      if (conditioning_depth == "estimate") {
+        W <- .hat_precision_matrix(
+          diagonal      = diagonal_s,
+          rank_one      = if (is_multilevel) tau_b_s else NULL,
+          block_indices = block_indices
+        )
+        variance_transform <- sweep(
+          W - WX %*% XtWX_inv %*% t(WX),
+          1L,
+          sampling_diagonal_s,
+          "*"
+        )
+
+      } else if (conditioning_depth == "cluster" && is_multilevel) {
+        W <- .hat_precision_matrix(
+          diagonal      = diagonal_s,
+          rank_one      = tau_b_s,
+          block_indices = block_indices
+        )
+        between_covariance <- matrix(0, nrow = K, ncol = K)
+        for (idx in block_indices) {
+          between_covariance[idx, idx] <- tcrossprod(tau_b_s[idx])
+        }
+        variance_transform <-
+          (I_K - between_covariance %*% W) %*% residual_projection
+      }
     }
 
     H_diag_samples[s, ] <- rowSums(XB * WX)
@@ -165,8 +190,8 @@
       beta_hat <- as.vector(XtWX_inv %*% crossprod(X, Wy))
       residual <- yi - as.vector(X %*% beta_hat)
 
-      if (!is.null(marginal_A)) {
-        residual <- as.vector(marginal_A %*% yi)
+      if (!is.null(variance_transform)) {
+        residual <- as.vector(variance_transform %*% yi)
 
       } else if (conditioning_depth == "estimate") {
         weighted_residual <- .hat_apply_precision(
@@ -202,36 +227,12 @@
       }
 
       if (return_se) {
-        if (conditioning_depth == "marginal" ||
-            (conditioning_depth == "cluster" && !is_multilevel)) {
-          se2 <- .hat_marginal_se2(
-            A             = marginal_A,
-            diagonal      = diagonal_s,
-            rank_one      = if (is_multilevel) tau_b_s else NULL,
-            block_indices = block_indices
-          )
-
-        } else if (conditioning_depth == "estimate") {
-          W_diag  <- .hat_precision_diag(
-            diagonal      = diagonal_s,
-            rank_one      = if (is_multilevel) tau_b_s else NULL,
-            block_indices = block_indices
-          )
-          QW_diag <- rowSums((WX %*% XtWX_inv) * WX)
-          se2     <- sampling_diagonal_s^2 * (W_diag - QW_diag)
-
-        } else {
-          se2 <- .hat_cluster_se2(
-            X             = X,
-            XtWX_inv      = XtWX_inv,
-            diagonal      = diagonal_s,
-            tau_within    = tau_w_s / sqrt(weights),
-            tau_between   = tau_b_s,
-            vi            = sampling_diagonal_s,
-            block_indices = block_indices,
-            I_K           = I_K
-          )
-        }
+        se2 <- .hat_transformed_covariance_diag(
+          transform     = variance_transform,
+          diagonal      = diagonal_s,
+          rank_one      = if (is_multilevel) tau_b_s else NULL,
+          block_indices = block_indices
+        )
         se2[zero_residual_rows] <- 0
 
         se_s <- .hat_variance_sd(se2, "Residual variance")
@@ -625,32 +626,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .hat_precision_diag
-# ---------------------------------------------------------------------------- #
-#
-# Diagonal of the inverse marginal covariance.
-#
-# ---------------------------------------------------------------------------- #
-.hat_precision_diag <- function(diagonal, rank_one = NULL, block_indices = list()) {
-
-  if (is.null(rank_one)) {
-    return(1 / diagonal)
-  }
-
-  out <- rep(NA_real_, length(diagonal))
-  for (idx in block_indices) {
-    inv_diag <- 1 / diagonal[idx]
-    inv_u    <- rank_one[idx] * inv_diag
-    denom    <- 1 + sum(rank_one[idx] * inv_u)
-
-    out[idx] <- inv_diag - inv_u^2 / denom
-  }
-
-  return(out)
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .hat_precision_matrix
 # ---------------------------------------------------------------------------- #
 #
@@ -699,28 +674,29 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .hat_marginal_se2
+# .hat_transformed_covariance_diag
 # ---------------------------------------------------------------------------- #
 #
-# Compute diag((I - H) M (I - H)') from a covariance factor. This avoids the
-# cancellation in diag(M) - diag(X (X' W X)^-1 X') at unit leverage.
+# Compute diag(T M T') from a diagonal-plus-rank-one covariance factor. This
+# avoids subtracting algebraically equivalent positive-semidefinite matrices.
 #
 # ---------------------------------------------------------------------------- #
-.hat_marginal_se2 <- function(A, diagonal, rank_one, block_indices) {
+.hat_transformed_covariance_diag <- function(transform, diagonal, rank_one,
+                                             block_indices) {
 
-  A_diagonal <- sweep(A, 2L, sqrt(diagonal), "*")
-  se2        <- rowSums(A_diagonal^2)
+  diagonal_factor <- sweep(transform, 2L, sqrt(diagonal), "*")
+  variance        <- rowSums(diagonal_factor^2)
 
   if (!is.null(rank_one)) {
     for (idx in block_indices) {
       block_factor <- as.vector(
-        A[, idx, drop = FALSE] %*% rank_one[idx]
+        transform[, idx, drop = FALSE] %*% rank_one[idx]
       )
-      se2 <- se2 + block_factor^2
+      variance <- variance + block_factor^2
     }
   }
 
-  return(se2)
+  return(variance)
 }
 
 
@@ -744,41 +720,6 @@
     },
     logical(1L)
   )))
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .hat_cluster_se2
-# ---------------------------------------------------------------------------- #
-#
-# Fallback cluster-level residual variance using block-structured W and M.
-#
-# ---------------------------------------------------------------------------- #
-.hat_cluster_se2 <- function(X, XtWX_inv, diagonal, tau_within, tau_between, vi,
-                             block_indices, I_K) {
-
-  K <- length(vi)
-  W <- .hat_precision_matrix(
-    diagonal      = diagonal,
-    rank_one      = tau_between,
-    block_indices = block_indices
-  )
-  M <- .build_multilevel_marginal_covariance(
-    tau_within    = tau_within,
-    tau_between   = tau_between,
-    vi            = vi,
-    block_indices = block_indices
-  )
-
-  between_cov <- matrix(0, nrow = K, ncol = K)
-  for (idx in block_indices) {
-    between_cov[idx, idx] <- tcrossprod(tau_between[idx])
-  }
-
-  Q <- X %*% XtWX_inv %*% t(X)
-  A <- (I_K - between_cov %*% W)
-
-  return(diag(A %*% (M - Q) %*% t(A)))
 }
 
 

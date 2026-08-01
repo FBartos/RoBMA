@@ -38,7 +38,7 @@ test_that("unit-leverage residual rows are identified structurally", {
 })
 
 
-test_that("marginal residual variances use a covariance factor", {
+test_that("transformed residual variances use a covariance factor", {
 
   X          <- cbind(1, c(-1, 0, 1))
   diagonal   <- c(0.5, 1, 2)
@@ -50,8 +50,8 @@ test_that("marginal residual variances use a covariance factor", {
   XB         <- X %*% solve(crossprod(X, WX))
   A          <- diag(3L) - XB %*% t(WX)
 
-  variance <- .hat_marginal_se2(
-    A             = A,
+  variance <- .hat_transformed_covariance_diag(
+    transform     = A,
     diagonal      = diagonal,
     rank_one      = rank_one,
     block_indices = block
@@ -59,6 +59,45 @@ test_that("marginal residual variances use a covariance factor", {
 
   expect_true(all(variance >= 0))
   expect_equal(variance, diag(A %*% covariance %*% t(A)), tolerance = 1e-15)
+})
+
+
+test_that("estimate and cluster residual variances avoid PSD subtraction", {
+
+  X <- matrix(c(
+    1, 1, 1, 1,
+    6.072075e-7, -3.901161e5, 4.130463, 104.9131,
+    -5.899230e-6, -1.276173e5, 4.659023e-6, 1270.221
+  ), nrow = 4L)
+  diagonal <- c(4.240359, 2.437391e-6, 1.313608, 6.024016)
+  rank_one <- c(-67.93884, 844.9597, .02247927, -2779.021)
+  blocks   <- list(seq_len(4L))
+  W        <- .hat_precision_matrix(diagonal, rank_one, blocks)
+  WX       <- W %*% X
+  B        <- .hat_solve_crossprod(crossprod(X, WX))
+  A        <- diag(4L) - X %*% B %*% t(WX)
+
+  old_estimate <- diag(W) - rowSums((WX %*% B) * WX)
+  estimate_transform <- W - WX %*% B %*% t(WX)
+  estimate_variance <- .hat_transformed_covariance_diag(
+    transform     = estimate_transform,
+    diagonal      = diagonal,
+    rank_one      = rank_one,
+    block_indices = blocks
+  )
+
+  between_covariance <- tcrossprod(rank_one)
+  cluster_adjustment <- diag(4L) - between_covariance %*% W
+  cluster_variance <- .hat_transformed_covariance_diag(
+    transform     = cluster_adjustment %*% A,
+    diagonal      = diagonal,
+    rank_one      = rank_one,
+    block_indices = blocks
+  )
+
+  expect_true(any(old_estimate < 0))
+  expect_true(all(estimate_variance >= 0))
+  expect_true(all(cluster_variance >= 0))
 })
 
 
