@@ -578,6 +578,12 @@
     }
   )
   raw_log_weight    <- weight[["log_weight"]]
+  if (anyNA(raw_log_weight) || any(raw_log_weight == Inf)) {
+    stop(
+      "IWMDE weight estimation produced positive-infinite or undefined log weights.",
+      call. = FALSE
+    )
+  }
   keep_rows         <- is.finite(raw_log_weight)
   n_dropped_weight  <- sum(!keep_rows)
   row_states        <- row_states[keep_rows]

@@ -129,8 +129,8 @@ test_that("IWMDE disables focal prior delta for sampled random SD rows", {
 test_that("IWMDE density aggregation matches row-wise reference", {
 
   log_terms <- matrix(c(
-    0, -1, -Inf, NA,
-    -Inf, -Inf, NA, NA,
+    0, -1, -Inf, -Inf,
+    -Inf, -Inf, -Inf, -Inf,
     2, 1, 0, -1
   ), nrow = 3, byrow = TRUE)
   active_mass <- .75
@@ -179,6 +179,53 @@ test_that("IWMDE density aggregation matches row-wise reference", {
   )
   expect_equal(padded[["y"]], 1)
   expect_equal(rowMeans(padded[["contributions"]]), padded[["y"]])
+
+  expect_error(
+    .iwmde_density_aggregate(
+      log_terms   = matrix(c(0, Inf), nrow = 1L),
+      active_mass = 1,
+      denominator = 2L
+    ),
+    "positive-infinite or undefined"
+  )
+  expect_error(
+    .iwmde_density_aggregate(
+      log_terms   = matrix(c(0, NaN), nrow = 1L),
+      active_mass = 1,
+      denominator = 2L
+    ),
+    "positive-infinite or undefined"
+  )
+})
+
+
+test_that("IWMDE rejects invalid Chen log weights", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_chen_log_weight = function(...) {
+      list(log_weight = c(0, Inf), method = "test")
+    },
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    .iwmde_density_iwmde(
+      context          = list(),
+      parameter        = "mu",
+      parameter_spec   = list(),
+      display_grid     = 0,
+      row_states       = list(list(), list()),
+      active_rows      = 1:2,
+      active_values    = c(0, 1),
+      weight_rows      = 1:2,
+      weight_values    = c(0, 1),
+      support           = c(-Inf, Inf),
+      active_mass       = 1,
+      replacement       = NULL,
+      n_candidate_rows = 2L
+    ),
+    "positive-infinite or undefined"
+  )
 })
 
 

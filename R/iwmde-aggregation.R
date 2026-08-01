@@ -7,6 +7,12 @@
   if (!is.matrix(log_terms)) {
     log_terms <- as.matrix(log_terms)
   }
+  if (anyNA(log_terms) || any(log_terms == Inf)) {
+    stop(
+      "IWMDE density aggregation encountered positive-infinite or undefined log terms.",
+      call. = FALSE
+    )
+  }
   denominator <- as.integer(denominator[[1L]])
   if (!is.finite(denominator) || denominator < ncol(log_terms)) {
     denominator <- ncol(log_terms)
