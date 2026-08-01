@@ -208,6 +208,26 @@ NULL
   return(object)
 }
 
+
+# Validate model indicators without changing their represented values.
+.as_exact_model_indicator <- function(value, name, scalar = FALSE) {
+
+  if ((!is.numeric(value) && !is.integer(value)) ||
+      (scalar && length(value) != 1L) ||
+      any(!is.finite(value))) {
+    stop("'", name, "' must contain finite model indicators.", call. = FALSE)
+  }
+  if (any(value != trunc(value))) {
+    stop("'", name, "' must be integer-valued.", call. = FALSE)
+  }
+  if (any(abs(value) > .Machine$integer.max)) {
+    stop("'", name, "' exceeds R's supported integer range.", call. = FALSE)
+  }
+
+  return(as.integer(value))
+}
+
+
 .extract_posterior_indicator <- function(posterior_samples, parameter,
                                          prior = NULL, column = NULL) {
 
@@ -219,18 +239,16 @@ NULL
          call. = FALSE)
   }
 
-  indicator <- posterior_samples[, column]
-  if (!is.numeric(indicator) && !is.integer(indicator)) {
-    stop("Invalid posterior model indicator: '", column, "'.",
-         call. = FALSE)
-  }
-  if (any(!is.finite(indicator)) ||
-      any(abs(indicator - round(indicator)) > sqrt(.Machine$double.eps))) {
-    stop("Invalid posterior model indicator: '", column, "'.",
-         call. = FALSE)
-  }
-
-  indicator <- as.integer(round(indicator))
+  indicator <- tryCatch(
+    .as_exact_model_indicator(posterior_samples[, column], column),
+    error = function(error) {
+      stop(
+        "Invalid posterior model indicator: '", column, "'. ",
+        conditionMessage(error),
+        call. = FALSE
+      )
+    }
+  )
   if (!is.null(prior)) {
     valid_values <- seq_len(length(prior))
     if (any(!indicator %in% valid_values)) {

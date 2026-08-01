@@ -1216,9 +1216,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     if (!"bias_indicator" %in% colnames(posterior_samples)) {
       return(NULL)
     }
-    indicator <- suppressWarnings(as.integer(round(posterior_samples[, "bias_indicator"])))
-    if (any(!is.finite(indicator)) ||
-        any(indicator < 1L | indicator > nrow(fixed_omega))) {
+    indicator <- .as_exact_model_indicator(
+      posterior_samples[, "bias_indicator"],
+      "bias_indicator"
+    )
+    if (any(indicator < 1L | indicator > nrow(fixed_omega))) {
       return(NULL)
     }
     omega <- fixed_omega[indicator, , drop = FALSE]

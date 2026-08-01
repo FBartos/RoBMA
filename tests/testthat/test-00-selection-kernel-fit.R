@@ -282,3 +282,30 @@ test_that("selection omega extraction orders indexed posterior columns numerical
     "custom.omega\\+beta"
   )
 })
+
+
+test_that("fixed selection mixtures require exact branch indicators", {
+
+  selection_spec <- list(
+    fixed_omega = matrix(c(1, 0.5), ncol = 1L),
+    n_bins      = 1L,
+    jags_omega  = "omega"
+  )
+  samples <- matrix(
+    c(1, 2),
+    ncol     = 1L,
+    dimnames = list(NULL, "bias_indicator")
+  )
+
+  expect_equal(
+    .extract_selection_fixed_omega_samples(samples, selection_spec),
+    matrix(c(1, 0.5), ncol = 1L,
+           dimnames = list(NULL, "omega[1]"))
+  )
+
+  samples[1L, 1L] <- 1 + .Machine$double.eps
+  expect_error(
+    .extract_selection_fixed_omega_samples(samples, selection_spec),
+    "integer-valued"
+  )
+})

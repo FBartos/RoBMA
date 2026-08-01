@@ -648,10 +648,11 @@
     if (!indicator %in% names(row)) {
       return(NULL)
     }
-    index <- as.integer(round(row[[indicator]]))
-    if (!is.finite(index) || index < 1L || index > length(prior)) {
-      return(NULL)
-    }
+    index <- .iwmde_indicator_index(
+      row[[indicator]],
+      indicator,
+      max_index = length(prior)
+    )
     prior <- prior[[index]]
   }
 

@@ -152,3 +152,31 @@ test_that("brma_samples chain info preserves only balanced chains", {
     list(n_chains = 1L, n_iter = 3L)
   )
 })
+
+
+test_that("posterior model indicators must be exact integers", {
+
+  samples <- matrix(
+    c(1, 2),
+    ncol     = 1L,
+    dimnames = list(NULL, "mu_indicator")
+  )
+  expect_identical(
+    .extract_posterior_indicator(
+      posterior_samples = samples,
+      parameter         = "mu",
+      prior             = list(NULL, NULL)
+    ),
+    c(1L, 2L)
+  )
+
+  samples[1L, 1L] <- 1 + .Machine$double.eps
+  expect_error(
+    .extract_posterior_indicator(
+      posterior_samples = samples,
+      parameter         = "mu",
+      prior             = list(NULL, NULL)
+    ),
+    "integer-valued"
+  )
+})

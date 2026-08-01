@@ -115,16 +115,7 @@
 
 .iwmde_indicator_index <- function(value, name, max_index = NULL) {
 
-  if (length(value) != 1L || !is.numeric(value) || !is.finite(value)) {
-    stop("'", name, "' must be a finite scalar model indicator.", call. = FALSE)
-  }
-
-  rounded <- round(value)
-  if (value != rounded) {
-    stop("'", name, "' must be integer-valued.", call. = FALSE)
-  }
-
-  index <- as.integer(rounded)
+  index <- .as_exact_model_indicator(value, name, scalar = TRUE)
   if (index < 1L || (!is.null(max_index) && index > max_index)) {
     stop("'", name, "' is outside the available prior components.", call. = FALSE)
   }
