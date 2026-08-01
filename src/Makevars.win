@@ -88,6 +88,10 @@ OBJECTS = distributions/DWN.o \
 
 all: $(SHLIB)
 
+glmm-aghq.o: glmm-binomial-loglik.h
+
+r-glmm.o: glmm-binomial-loglik.h
+
 R_SELNORM_INC = r-selnorm-common.cc.inc \
 				r-selnorm-loglik.cc.inc \
 				r-selnorm-kernel.cc.inc \

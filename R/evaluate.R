@@ -1614,7 +1614,6 @@
 .evaluate.brma.baserate_newdata <- function(prior_pi, S, K) {
 
   pi_samples <- .draw_prior_samples_matrix(prior = prior_pi, S = S, K = K)
-  pi_samples <- pmin(pmax(pi_samples, .Machine$double.eps), 1 - .Machine$double.eps)
 
   return(.logit(pi_samples))
 }

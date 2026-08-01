@@ -656,6 +656,31 @@ test_that("native GLMM row-sum kernels match matrix likelihoods", {
     )),
     tolerance = 1e-12
   )
+
+  expect_identical(
+    .outcome_pdf_sum.binom_conditional(
+      ai             = 2L,
+      ci             = 0L,
+      n1i            = 2L,
+      n2i            = 3L,
+      mu_samples     = matrix(Inf),
+      logit_baserate = matrix(0)
+    ),
+    0,
+    info = "zero-count endpoint terms use their mathematical limit"
+  )
+  expect_identical(
+    .outcome_pdf_sum.binom_conditional(
+      ai             = 0L,
+      ci             = 3L,
+      n1i            = 2L,
+      n2i            = 3L,
+      mu_samples     = matrix(Inf),
+      logit_baserate = matrix(0)
+    ),
+    -Inf,
+    info = "positive-count impossible endpoints remain impossible"
+  )
   expect_equal(
     .outcome_pdf_sum.pois_conditional(
       x1i, x2i, t1i, t2i, mu, log_phi, weights = weights

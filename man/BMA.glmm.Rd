@@ -131,7 +131,8 @@ alternative cluster-level heterogeneity allocation component(s).}
 
 \item{prior_baserate}{prior distribution for the estimate-specific midpoint
 base-rate probability in binomial GLMM models (\code{measure = "OR"}). If omitted
-or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors.}
+or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors. Point priors must lie
+strictly inside \verb{(0, 1)}.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
 log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a

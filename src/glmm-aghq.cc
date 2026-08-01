@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <limits>
 
+#include "glmm-binomial-loglik.h"
+
 namespace {
 
 const double LOG_2PI = std::log(2.0 * std::acos(-1.0));
@@ -329,11 +331,11 @@ struct BinomialProblem {
     const double effect = mu + tau * theta;
     const double eta1   = logit_pi + 0.5 * effect;
     const double eta2   = logit_pi - 0.5 * effect;
-    const double log_likelihood = log_coefficient +
-      a * log_inv_logit(eta1) +
-      (n1 - a) * log_one_minus_inv_logit(eta1) +
-      c * log_inv_logit(eta2) +
-      (n2 - c) * log_one_minus_inv_logit(eta2);
+    const double log_likelihood = glmm_binomial_log_likelihood(
+      a, c, n1, n2, log_coefficient,
+      log_inv_logit(eta1), log_one_minus_inv_logit(eta1),
+      log_inv_logit(eta2), log_one_minus_inv_logit(eta2)
+    );
     const double log_prior =
       -0.5 * theta * theta - 0.5 * LOG_2PI +
       alpha * log_inv_logit(logit_pi) +

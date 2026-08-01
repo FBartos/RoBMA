@@ -6,6 +6,8 @@
 #include <limits>
 #include <vector>
 
+#include "glmm-binomial-loglik.h"
+
 static int matrix_nrow_glmm(SEXP x, const char *name)
 {
   SEXP dim = Rf_getAttrib(x, R_DimSymbol);
@@ -139,8 +141,6 @@ static double binom_marginal_loglik_scalar(
   const double *grid_weights, int n_theta, int n_pi,
   std::vector<double> &terms, std::vector<double> &half_effect)
 {
-  const int bi = n1i - ai;
-  const int di = n2i - ci;
   int grid_index = 0;
 
   for (int t = 0; t < n_theta; ++t) {
@@ -157,11 +157,10 @@ static double binom_marginal_loglik_scalar(
       log_inv_logit_pair_glmm(eta_1, &log_p_1, &log_q_1);
       log_inv_logit_pair_glmm(eta_2, &log_p_2, &log_q_2);
 
-      const double log_lik = log_coef +
-        ai * log_p_1 +
-        bi * log_q_1 +
-        ci * log_p_2 +
-        di * log_q_2;
+      const double log_lik = glmm_binomial_log_likelihood(
+        ai, ci, n1i, n2i, log_coef,
+        log_p_1, log_q_1, log_p_2, log_q_2
+      );
 
       terms[grid_index] = weight * log_lik + grid_weights[grid_index];
       ++grid_index;
@@ -363,11 +362,10 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
           log_inv_logit_pair_glmm(eta_1, &log_p_1, &log_q_1);
           log_inv_logit_pair_glmm(eta_2, &log_p_2, &log_q_2);
 
-          const double log_lik = log_coef +
-            ai_k * log_p_1 +
-            bi_k * log_q_1 +
-            ci_k * log_p_2 +
-            di_k * log_q_2;
+          const double log_lik = glmm_binomial_log_likelihood(
+            ai_k, ci_k, n1_k, n2_k, log_coef,
+            log_p_1, log_q_1, log_p_2, log_q_2
+          );
 
           terms[grid_index] = weight_k * log_lik + grid_weights[grid_index];
           ++grid_index;
@@ -723,11 +721,10 @@ extern "C" SEXP RoBMA_glmm_binom_conditional_loglik_sum(
       log_inv_logit_pair_glmm(eta_2, &log_p_2, &log_q_2);
 
       const double weight_k = weights_p == 0 ? 1.0 : weights_p[k];
-      const double log_lik = log_coef[k] +
-        ai_p[k] * log_p_1 +
-        (n1i_p[k] - ai_p[k]) * log_q_1 +
-        ci_p[k] * log_p_2 +
-        (n2i_p[k] - ci_p[k]) * log_q_2;
+      const double log_lik = glmm_binomial_log_likelihood(
+        ai_p[k], ci_p[k], n1i_p[k], n2i_p[k], log_coef[k],
+        log_p_1, log_q_1, log_p_2, log_q_2
+      );
       row_sum += weight_k * log_lik;
     }
     out_p[s] = row_sum;

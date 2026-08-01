@@ -401,13 +401,14 @@
 
   pi_grid <- .glmm_prior_quantile_grid(prior = prior_pi, n = n_pi)
 
-  if (any(pi_grid[["grid"]] < 0 | pi_grid[["grid"]] > 1)) {
-    stop("The binomial GLMM baserate prior produced nodes outside [0, 1].",
-         call. = FALSE)
+  pi_nodes <- pi_grid[["grid"]]
+  if (any(pi_nodes <= 0 | pi_nodes >= 1)) {
+    stop(
+      "The binomial GLMM baserate prior must produce quadrature nodes ",
+      "strictly inside (0, 1).",
+      call. = FALSE
+    )
   }
-
-  pi_nodes <- pmin(pmax(pi_grid[["grid"]], .Machine$double.eps),
-                   1 - .Machine$double.eps)
 
   logit_pi_grid  <- matrix(qlogis(pi_nodes), nrow = n_pi, ncol = K)
   log_pi_weights <- matrix(pi_grid[["log_weights"]], nrow = n_pi, ncol = K)

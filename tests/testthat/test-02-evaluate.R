@@ -978,6 +978,29 @@ test_that("GLMM posterior extraction helpers are vectorized", {
   )
 })
 
+
+test_that("Binomial baserate evaluation preserves exact endpoints", {
+
+  posterior_samples <- cbind(mu = c(0.1, 0.2), "pi[1]" = c(0, 1))
+
+  expect_identical(
+    as.vector(.evaluate.brma.baserate(
+      fit               = NULL,
+      K                 = 1L,
+      posterior_samples = posterior_samples
+    )),
+    c(-Inf, Inf)
+  )
+  expect_identical(
+    as.vector(.evaluate.brma.baserate_newdata(
+      prior_pi = BayesTools::prior("spike", parameters = list(location = 0)),
+      S        = 2L,
+      K        = 1L
+    )),
+    rep(-Inf, 2L)
+  )
+})
+
 test_that("matrix replication patterns preserve dimensions", {
 
   # verify that matrix(vec, S, K, byrow = TRUE) works as expected

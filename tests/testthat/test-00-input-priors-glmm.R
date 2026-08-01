@@ -42,6 +42,56 @@ test_that("Binomial GLMM baserate priors are assigned", {
 })
 
 
+test_that("Binomial GLMM baserate point priors exclude endpoints", {
+
+  for (location in c(0, 1)) {
+    prior_baserate <- BayesTools::prior(
+      "spike",
+      parameters = list(location = location)
+    )
+
+    expect_error(
+      brma.glmm(
+        ai = ai, bi = bi, ci = ci, di = di,
+        data = test_data_bin, measure = "OR",
+        prior_baserate = prior_baserate, only_priors = TRUE
+      ),
+      "baserate.*strictly within \\(0, 1\\)"
+    )
+  }
+
+  expect_no_error(.assign_prior.baserate(BayesTools::prior(
+    "spike",
+    parameters = list(location = .Machine$double.eps)
+  )))
+  expect_no_error(.assign_prior.baserate(BayesTools::prior(
+    "spike",
+    parameters = list(location = 1 - .Machine$double.eps)
+  )))
+})
+
+
+test_that("Binomial nuisance quadrature does not clip representable tails", {
+
+  prior_pi <- BayesTools::prior("beta", parameters = list(alpha = 0.01, beta = 1))
+  pi_nodes <- as.numeric(BayesTools::quant(
+    prior_pi,
+    .gauss_legendre_nodes(17L)[["nodes"]]
+  ))
+  grid <- .glmm_binom_logit_pi_grid(
+    ai       = 0L,
+    ci       = 0L,
+    n1i      = 1L,
+    n2i      = 1L,
+    prior_pi = prior_pi,
+    n_pi     = 17L
+  )
+
+  expect_true(min(pi_nodes) < .Machine$double.eps)
+  expect_identical(grid[["grid"]][, 1L], stats::qlogis(pi_nodes))
+})
+
+
 test_that("Poisson GLMM lograte priors are assigned", {
 
   result_default <- brma.glmm(

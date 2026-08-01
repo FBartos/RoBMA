@@ -718,6 +718,13 @@
 
   # check the user specified prior distribution
   prior <- .check_prior.restricted_01(prior, prior_name = "baserate")
+  if (BayesTools::is.prior.point(prior) &&
+      (mean(prior) <= 0 || mean(prior) >= 1)) {
+    stop(
+      "Point prior distribution for 'baserate' must be strictly within (0, 1).",
+      call. = FALSE
+    )
+  }
 
   # transform the prior into independent factor prior
   prior <- BayesTools::prior_factor(prior[["distribution"]], parameters = prior[["parameters"]], truncation = prior[["truncation"]], contrast = "independent")
