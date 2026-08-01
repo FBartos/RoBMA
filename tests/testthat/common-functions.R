@@ -614,7 +614,11 @@ source_file_md5 <- function(source_file) {
   return(unname(tools::md5sum(normalized)))
 }
 
-.package_source_md5_cache <- new.env(parent = emptyenv())
+.package_source_md5_cache <- getOption("RoBMA.test.package_source_md5_cache")
+if (!is.environment(.package_source_md5_cache)) {
+  .package_source_md5_cache <- new.env(parent = emptyenv())
+  options(RoBMA.test.package_source_md5_cache = .package_source_md5_cache)
+}
 
 .clear_package_source_md5_cache <- function() {
 
@@ -1043,7 +1047,8 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
                                 bayestools_fingerprint =
                                   bayestools_backend_fingerprint(
                                     required = FALSE
-                                  )) {
+                                  ),
+                                package_md5 = NULL) {
 
   messages <- character()
   paths    <- fit_cache_paths(name)
@@ -1123,20 +1128,23 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
       }
     }
 
-    expected_md5 <- source_file_md5(entry[["source_file"]])
-    if (check_source && !is.na(expected_md5) &&
-        (is.null(metadata[["source_file_md5"]]) || !identical(metadata[["source_file_md5"]], expected_md5))) {
-      messages <- c(messages, "source file hash changed")
-    }
-
-    expected_package_md5 <- package_source_md5()
-    if (check_source && !is.na(expected_package_md5) &&
-        (is.null(metadata[["package_source_md5"]]) ||
-         !identical(metadata[["package_source_md5"]], expected_package_md5))) {
-      messages <- c(messages, "cache source hash changed")
-    }
-
     if (check_source) {
+      expected_md5 <- source_file_md5(entry[["source_file"]])
+      if (!is.na(expected_md5) &&
+          (is.null(metadata[["source_file_md5"]]) ||
+           !identical(metadata[["source_file_md5"]], expected_md5))) {
+        messages <- c(messages, "source file hash changed")
+      }
+
+      if (is.null(package_md5)) {
+        package_md5 <- package_source_md5()
+      }
+      if (!is.na(package_md5) &&
+          (is.null(metadata[["package_source_md5"]]) ||
+           !identical(metadata[["package_source_md5"]], package_md5))) {
+        messages <- c(messages, "cache source hash changed")
+      }
+
       bayestools_fingerprint <- bayestools_backend_fingerprint(
         required = FALSE,
         value    = bayestools_fingerprint
@@ -1404,7 +1412,18 @@ list_fits <- function(name, feature, class, family, has_metafor, has_loo,
   }
 
   if (validate) {
-    files <- files[vapply(files, is_cached_fit_valid, TRUE, deep = deep)]
+    package_md5 <- package_source_md5()
+    files <- files[vapply(
+      files,
+      function(name) {
+        length(validate_cached_fit(
+          name        = name,
+          deep        = deep,
+          package_md5 = package_md5
+        )) == 0L
+      },
+      logical(1)
+    )]
   }
 
   return(files)
