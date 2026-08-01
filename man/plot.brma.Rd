@@ -101,7 +101,10 @@ case-insensitive. qCMDE/IWMDE are not available for non-known-\code{V}
 \code{brma.mv()} random-formula models, derived semantic random-effect
 quantities, or selection-weightfunction coordinates requiring joint
 replacement. IWMDE is also unavailable for binomial and Poisson GLMMs; use
-qCMDE for GLMM density plots.}
+qCMDE for GLMM density plots. qCMDE/IWMDE densities are evaluated on the
+fitted coefficient coordinate. If automatic predictor scaling changes the
+requested display coordinate, use \code{standardized_coefficients = TRUE};
+RoBMA does not infer a coefficient transformation from posterior draws.}
 
 \item{density_control}{named list of density-estimation settings. Supported
 entries are \code{n_points} (default \code{100}), \code{max_samples}

@@ -44,7 +44,10 @@
 #' \code{brma.mv()} random-formula models, derived semantic random-effect
 #' quantities, or selection-weightfunction coordinates requiring joint
 #' replacement. IWMDE is also unavailable for binomial and Poisson GLMMs; use
-#' qCMDE for GLMM density plots.
+#' qCMDE for GLMM density plots. qCMDE/IWMDE densities are evaluated on the
+#' fitted coefficient coordinate. If automatic predictor scaling changes the
+#' requested display coordinate, use `standardized_coefficients = TRUE`;
+#' RoBMA does not infer a coefficient transformation from posterior draws.
 #' @param density_control named list of density-estimation settings. Supported
 #' entries are \code{n_points} (default \code{100}), \code{max_samples}
 #' (default \code{500}), \code{initial_samples} (default \code{500}),
@@ -913,92 +916,25 @@ lines.brma <- function(
 .plot_brma_align_iwmde_density <- function(posterior_density, raw_samples,
                                             plotted_samples) {
 
-  transform <- .plot_brma_affine_sample_transform(raw_samples, plotted_samples)
-  if (is.null(posterior_density) || is.null(transform)) {
+  if (is.null(posterior_density) ||
+      !.plot_brma_same_sample_scale(raw_samples, plotted_samples)) {
     return(NULL)
-  }
-  if (isTRUE(all.equal(transform[["intercept"]], 0)) &&
-      isTRUE(all.equal(transform[["slope"]], 1))) {
-    return(posterior_density)
-  }
-
-  posterior_density[["x"]] <- transform[["intercept"]] +
-    transform[["slope"]] * posterior_density[["x"]]
-  posterior_density[["y"]] <- posterior_density[["y"]] / abs(transform[["slope"]])
-  order_x <- order(posterior_density[["x"]])
-  posterior_density[["x"]] <- posterior_density[["x"]][order_x]
-  posterior_density[["y"]] <- posterior_density[["y"]][order_x]
-  if (!is.null(posterior_density[["point_masses"]]) &&
-      nrow(posterior_density[["point_masses"]]) > 0L) {
-    posterior_density[["point_masses"]][["x"]] <- transform[["intercept"]] +
-      transform[["slope"]] * posterior_density[["point_masses"]][["x"]]
-  }
-  posterior_density[["diagnostics"]][["plot_scale_transform"]] <- transform
-  provenance <- posterior_density[["iwmde_provenance"]]
-  if (is.list(provenance)) {
-    provenance[["result"]] <- c(
-      provenance[["result"]],
-      list(plot_scale_transform = transform)
-    )
-    posterior_density[["iwmde_provenance"]] <- provenance
   }
 
   return(posterior_density)
 }
 
 
-.plot_brma_affine_sample_transform <- function(raw_samples, plotted_samples,
-                                               tolerance = 1e-7) {
+.plot_brma_same_sample_scale <- function(raw_samples, plotted_samples) {
 
   raw_samples     <- as.numeric(raw_samples)
   plotted_samples <- as.numeric(plotted_samples)
   if (length(raw_samples) != length(plotted_samples) ||
-      length(raw_samples) < 2L) {
-    return(NULL)
+      length(raw_samples) == 0L ||
+      any(!is.finite(raw_samples)) ||
+      any(!is.finite(plotted_samples))) {
+    return(FALSE)
   }
 
-  keep <- is.finite(raw_samples) & is.finite(plotted_samples)
-  raw_samples     <- raw_samples[keep]
-  plotted_samples <- plotted_samples[keep]
-  if (length(raw_samples) < 2L) {
-    return(NULL)
-  }
-
-  raw_origin      <- raw_samples[[1L]]
-  plotted_origin  <- plotted_samples[[1L]]
-  raw_shifted     <- raw_samples - raw_origin
-  plotted_shifted <- plotted_samples - plotted_origin
-  raw_scale       <- max(abs(raw_shifted))
-  plotted_scale   <- max(abs(plotted_shifted))
-  if (raw_scale == 0 || plotted_scale == 0) {
-    return(NULL)
-  }
-
-  raw_scaled     <- raw_shifted / raw_scale
-  plotted_scaled <- plotted_shifted / plotted_scale
-  raw_center     <- raw_scaled - mean(raw_scaled)
-  plotted_center <- plotted_scaled - mean(plotted_scaled)
-  denominator    <- sum(raw_center^2)
-  if (!is.finite(denominator) || denominator <= 0) {
-    return(NULL)
-  }
-
-  scaled_slope     <- sum(raw_center * plotted_center) / denominator
-  scaled_intercept <- mean(plotted_scaled) - scaled_slope * mean(raw_scaled)
-  fitted_scaled    <- scaled_intercept + scaled_slope * raw_scaled
-  scale            <- max(1, diff(range(plotted_scaled)), abs(plotted_scaled))
-  if (!is.finite(scaled_slope) || scaled_slope == 0 ||
-      !is.finite(scaled_intercept) ||
-      max(abs(fitted_scaled - plotted_scaled)) > tolerance * scale) {
-    return(NULL)
-  }
-
-  slope     <- scaled_slope * plotted_scale / raw_scale
-  intercept <- plotted_origin + plotted_scale * scaled_intercept -
-    slope * raw_origin
-  if (!is.finite(slope) || slope == 0 || !is.finite(intercept)) {
-    return(NULL)
-  }
-
-  return(list(intercept = intercept, slope = slope))
+  return(identical(raw_samples, plotted_samples))
 }

@@ -104,13 +104,11 @@
 
   raw_values <- as.numeric(raw_posterior)
   display_values <- as.numeric(posterior)
-  transform <- .plot_brma_affine_sample_transform(raw_values, display_values)
-  if (is.null(transform)) {
+  if (!.plot_brma_same_sample_scale(raw_values, display_values)) {
     stop("Could not align qCMDE/IWMDE ordinate to the displayed coefficient scale.",
          call. = FALSE)
   }
 
-  raw_value <- (value - transform[["intercept"]]) / transform[["slope"]]
   estimate <- .iwmde_estimate(
     context         = context,
     parameter       = parameter,
@@ -125,7 +123,7 @@
       display_grid         = "ordinate"
     ),
     outputs        = "ordinate",
-    values         = raw_value,
+    values         = value,
     parameter_spec = list(
       type             = "primitive",
       conditional      = conditional,
@@ -151,11 +149,6 @@
     )
   }
 
-  ordinate <- .hypothesis_brma_transform_ordinate(
-    ordinate  = ordinate,
-    transform = transform,
-    value     = value
-  )
   existing <- .iwmde_posterior_ordinate_drop_value(
     posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE),
     value              = value
@@ -201,15 +194,13 @@
 
   raw_values     <- as.numeric(raw_posterior[[level]])
   display_values <- as.numeric(posterior[[level]])
-  transform <- .plot_brma_affine_sample_transform(raw_values, display_values)
-  if (is.null(transform)) {
+  if (!.plot_brma_same_sample_scale(raw_values, display_values)) {
     stop(
       "Could not align qCMDE/IWMDE ordinate for '", parameter, "[", level,
       "]' to the displayed scale.",
       call. = FALSE
     )
   }
-  raw_value <- (value - transform[["intercept"]]) / transform[["slope"]]
   estimate <- .iwmde_estimate(
     context         = context,
     parameter       = paste0(parameter, "[", level, "]"),
@@ -224,7 +215,7 @@
       display_grid         = "ordinate"
     ),
     outputs        = "ordinate",
-    values         = raw_value,
+    values         = value,
     parameter_spec = list(
       type             = "linear",
       weights          = weights,
@@ -257,11 +248,6 @@
     )
   }
 
-  ordinate <- .hypothesis_brma_transform_ordinate(
-    ordinate  = ordinate,
-    transform = transform,
-    value     = value
-  )
   existing <- .iwmde_posterior_ordinate_drop_value(
     posterior_ordinate = attr(posterior[[level]], "posterior_ordinate",
                               exact = TRUE),
@@ -351,44 +337,6 @@
   }
 
   return(posterior)
-}
-
-
-.hypothesis_brma_transform_ordinate <- function(ordinate, transform, value) {
-
-  slope <- abs(transform[["slope"]])
-  ordinate[["value"]]    <- value
-  ordinate[["ordinate"]] <- ordinate[["ordinate"]] / slope
-  if (!is.null(ordinate[["evaluation_value"]])) {
-    ordinate[["evaluation_value"]] <- transform[["intercept"]] +
-      transform[["slope"]] * ordinate[["evaluation_value"]]
-  }
-
-  diagnostics <- ordinate[["diagnostics"]]
-  if (!is.null(diagnostics[["evaluation_value"]])) {
-    diagnostics[["evaluation_value"]] <- transform[["intercept"]] +
-      transform[["slope"]] * diagnostics[["evaluation_value"]]
-  }
-  if (!is.null(diagnostics[["mcse"]])) {
-    diagnostics[["mcse"]] <- diagnostics[["mcse"]] / slope
-  }
-  if (!is.null(diagnostics[["normalization_range"]])) {
-    diagnostics[["normalization_range"]] <- transform[["intercept"]] +
-      transform[["slope"]] * diagnostics[["normalization_range"]]
-    diagnostics[["normalization_range"]] <- sort(diagnostics[["normalization_range"]])
-  }
-  diagnostics[["plot_scale_transform"]] <- transform
-  ordinate[["diagnostics"]] <- diagnostics
-  provenance <- ordinate[["iwmde_provenance"]]
-  if (is.list(provenance)) {
-    provenance[["result"]] <- c(
-      provenance[["result"]],
-      list(plot_scale_transform = transform)
-    )
-    ordinate[["iwmde_provenance"]] <- provenance
-  }
-
-  return(ordinate)
 }
 
 

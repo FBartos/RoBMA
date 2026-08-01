@@ -78,7 +78,12 @@ attached computation and reliability diagnostics. For
 default \code{NULL} reuses the density method stored by
 \code{marginal_means()}; explicitly request \code{"KDE"} to override it.
 \code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
-the stored source model. Matching is case-insensitive.}
+the stored source model. Matching is case-insensitive. qCMDE/IWMDE ordinates
+are evaluated on the fitted coefficient coordinate. If automatic predictor
+scaling changes the requested coefficient coordinate, use
+\code{standardized_coefficients = TRUE}; RoBMA does not infer a coefficient
+transformation from posterior draws. Dedicated exact transformations, such
+as the scale-intercept transformation, remain available.}
 
 \item{density_control}{named list of qCMDE/IWMDE tuning settings. Supported
 entries are \code{n_points} (default \code{100}), \code{max_samples}

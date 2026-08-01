@@ -12,15 +12,13 @@ test_that("regplot point sizes use relative precision without an offset", {
   expect_identical(.regplot_normalized_precision(rep(3, 4)), numeric(4))
 })
 
-test_that("plot affine transforms retain non-zero represented slopes", {
+test_that("IWMDE density alignment requires an unchanged sample scale", {
 
   raw <- 2^-400 * c(-2, -1, 1, 2)
 
-  large <- .plot_brma_affine_sample_transform(raw, raw * 2^200)
-  small <- .plot_brma_affine_sample_transform(raw / 2^-400, raw)
-
-  expect_equal(large[["slope"]], 2^200)
-  expect_equal(small[["slope"]], 2^-400)
+  expect_true(.plot_brma_same_sample_scale(raw, raw))
+  expect_false(.plot_brma_same_sample_scale(raw, raw * 2^200))
+  expect_false(.plot_brma_same_sample_scale(raw / 2^-400, raw))
 })
 
 test_that("regplot variance conversion rejects invalid values", {

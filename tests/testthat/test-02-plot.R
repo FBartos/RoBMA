@@ -335,7 +335,7 @@ test_that("plot.brma fails closed when an explicit estimator is rejected", {
 })
 
 
-test_that("plot.brma aligns qCMDE density to plotted coefficient scale", {
+test_that("plot.brma forwards qCMDE density on the fitted coefficient scale", {
 
   captured <- NULL
   .local_mock_iwmde_estimate_success()
@@ -349,17 +349,18 @@ test_that("plot.brma aligns qCMDE density to plotted coefficient scale", {
 
   plot(
     fits[["bcg_meta-regression"]],
-    parameter_mods    = "year",
-    plot_type         = "ggplot",
-    density_method    = "qCMDE",
-    density_control   = list(n_points = 20, max_samples = 20)
+    parameter_mods            = "year",
+    standardized_coefficients = TRUE,
+    plot_type                 = "ggplot",
+    density_method            = "qCMDE",
+    density_control           = list(n_points = 20, max_samples = 20)
   )
 
   plotted_samples   <- captured[["samples"]][[captured[["parameter"]]]]
   posterior_density <- attr(plotted_samples, "posterior_density")
 
   expect_equal(captured[["dots"]][["density_method"]], "precomputed")
-  expect_false(is.null(posterior_density[["diagnostics"]][["plot_scale_transform"]]))
+  expect_null(posterior_density[["diagnostics"]][["plot_scale_transform"]])
   expect_lte(
     max(abs(posterior_density[["x"]])),
     max(abs(as.numeric(plotted_samples))) + .05
@@ -530,7 +531,7 @@ test_that("plot.brma forwards factor densities under transformed BayesTools alia
 })
 
 
-test_that("plot.brma drops qCMDE density when scale alignment is not affine", {
+test_that("plot.brma drops qCMDE density when sample scales differ", {
 
   posterior_density <- list(
     x            = seq(-1, 1, length.out = 20),
