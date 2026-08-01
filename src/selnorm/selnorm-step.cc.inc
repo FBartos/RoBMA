@@ -70,10 +70,16 @@ bool add_weighted_standard_normal_interval(double lower, double upper,
   }
 
   const double log_probability = interval_log_prob(lower, upper, 0, 1);
+  if (log_probability == -INFINITY) {
+    return true;
+  }
   if (!std::isfinite(log_probability)) {
     return false;
   }
   const double log_term = log_weight + log_probability;
+  if (log_term == -INFINITY) {
+    return true;
+  }
   if (!std::isfinite(log_term)) {
     return false;
   }

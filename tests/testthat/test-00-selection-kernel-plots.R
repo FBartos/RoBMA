@@ -660,6 +660,35 @@ test_that("zero-weight selection intervals produce exact CDF plateaus", {
 })
 
 
+test_that("selected-normal CDF retains representable extreme endpoints", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  spec  <- .test_step_spec(0, 1)
+  omega <- matrix(1, nrow = 1L, ncol = spec[["n_bins"]])
+  lower <- .selnorm_kernel_cdf_matrix(
+    q              = 1e200,
+    mean           = matrix(0, nrow = 1L),
+    sd             = matrix(1, nrow = 1L),
+    sei            = 1,
+    omega          = omega,
+    selection_spec = spec
+  )
+  upper <- .selnorm_kernel_cdf_matrix(
+    q              = 1e200,
+    mean           = matrix(0, nrow = 1L),
+    sd             = matrix(1, nrow = 1L),
+    sei            = 1,
+    omega          = omega,
+    selection_spec = spec,
+    lower.tail     = FALSE
+  )
+
+  expect_identical(lower[1L, 1L], 1)
+  expect_identical(upper[1L, 1L], 0)
+})
+
+
 test_that("zero-weight selected-normal rows do not enter mixture evaluation", {
 
   skip_if_not(.has_native_selnorm_kernel())
