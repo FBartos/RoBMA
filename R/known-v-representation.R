@@ -202,15 +202,12 @@
     stop("The diagonal of 'V' must contain positive variances.", call. = FALSE)
   }
 
-  factorization <- .known_v_correlation_factorization(V_matrix)
-  if (isTRUE(factorization[["singular"]])) {
-    if (.covariance_is_positive_semidefinite(factorization)) {
-      if (isTRUE(warn_singular)) {
-        .known_v_warn_singular()
-      }
-    } else {
-      stop("The 'V' argument must be positive semidefinite.", call. = FALSE)
-    }
+  classification <- .known_v_covariance_classification(V_matrix)
+  if (!isTRUE(classification[["positive_semidefinite"]])) {
+    stop("The 'V' argument must be positive semidefinite.", call. = FALSE)
+  }
+  if (isTRUE(classification[["singular"]]) && isTRUE(warn_singular)) {
+    .known_v_warn_singular()
   }
 
   return(V_matrix)
@@ -637,9 +634,8 @@
       any(V_new[zero_variance, , drop = FALSE] != 0)) {
     stop("'V_new' must be positive semidefinite.", call. = FALSE)
   }
-  factorization <- .known_v_correlation_factorization(V_new)
-  if (!is.null(factorization) &&
-      !.covariance_is_positive_semidefinite(factorization)) {
+  classification <- .known_v_covariance_classification(V_new)
+  if (!isTRUE(classification[["positive_semidefinite"]])) {
     stop("'V_new' must be positive semidefinite.", call. = FALSE)
   }
 
@@ -650,27 +646,39 @@
 .known_v_newdata_block_is_singular <- function(V_new) {
 
   any(diag(V_new) == 0) ||
-    isTRUE(.known_v_correlation_factorization(V_new)[["singular"]])
+    isTRUE(.known_v_covariance_classification(V_new)[["singular"]])
 }
 
 
-# Factorize the positive-variance correlation block for scale-stable checks.
-.known_v_correlation_factorization <- function(V) {
+# Classify exact dependency blocks without modifying the supplied covariance.
+.known_v_covariance_classification <- function(V) {
 
   positive_variance <- diag(V) > 0
   if (!any(positive_variance)) {
-    return(NULL)
+    return(list(positive_semidefinite = TRUE, singular = TRUE))
   }
 
   covariance <- V[positive_variance, positive_variance, drop = FALSE]
-  input_factorization <- .covariance_factorization(covariance, strict = TRUE)
-  if (!.covariance_is_positive_semidefinite(input_factorization)) {
-    return(input_factorization)
-  }
-  if (!is.null(.covariance_exact_rank_one_factor(covariance))) {
-    return(input_factorization)
+  indices    <- .known_v_block_indices(covariance)
+  singular   <- any(!positive_variance)
+
+  for (index in indices) {
+    block               <- covariance[index, index, drop = FALSE]
+    input_factorization <- .covariance_factorization(block, strict = TRUE)
+    if (!.covariance_is_positive_semidefinite(input_factorization)) {
+      return(list(positive_semidefinite = FALSE, singular = TRUE))
+    }
+
+    factorization <- if (!is.null(.covariance_exact_rank_one_factor(block))) {
+      input_factorization
+    } else {
+      .covariance_factorization(stats::cov2cor(block))
+    }
+    if (!.covariance_is_positive_semidefinite(factorization)) {
+      return(list(positive_semidefinite = FALSE, singular = TRUE))
+    }
+    singular <- singular || isTRUE(factorization[["singular"]])
   }
 
-  correlation <- stats::cov2cor(covariance)
-  return(.covariance_factorization(correlation))
+  return(list(positive_semidefinite = TRUE, singular = singular))
 }

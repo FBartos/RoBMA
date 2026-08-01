@@ -253,7 +253,7 @@
 
 .known_v_is_singular <- function(V) {
 
-  .known_v_correlation_factorization(V)[["singular"]]
+  .known_v_covariance_classification(V)[["singular"]]
 }
 
 

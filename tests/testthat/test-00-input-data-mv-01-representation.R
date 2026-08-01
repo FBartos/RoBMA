@@ -602,6 +602,42 @@ test_that("known V retains exact rank-one correlation blocks across scales", {
 })
 
 
+test_that("known V retains exact rank-one dependency blocks", {
+
+  sei <- c(0.20, 0.30, 0.40)
+  for (scale in 2^c(-40, 0, 40)) {
+    V <- .known_v_blockdiag(list(
+      scale * tcrossprod(sei),
+      matrix(scale * 0.25, nrow = 1L)
+    ))
+
+    expect_warning(
+      validated <- .known_v_as_matrix(V),
+      "positive semidefinite"
+    )
+    expect_identical(validated, V)
+
+    expect_warning(
+      prepared <- .known_v_prepare(
+        V                         = V,
+        keep_rows                 = rep(TRUE, 4L),
+        known_v_parameterization  = "auto",
+        known_v_residual_fraction = NULL
+      ),
+      "positive semidefinite"
+    )
+    expect_identical(.known_v_materialize(prepared), V)
+    expect_true(.known_v_is_singular_representation(prepared))
+    expect_length(prepared[["latent_blocks"]], 1L)
+    expect_identical(prepared[["latent_blocks"]][[1L]][["rank"]], 1L)
+
+    prediction <- .known_v_newdata_prepare(V, k = 4L)
+    expect_identical(.known_v_materialize(prediction), V)
+    expect_true(.known_v_is_singular_representation(prediction))
+  }
+})
+
+
 test_that("known V rejects adjacent-above-one correlations", {
 
   V <- matrix(
@@ -615,6 +651,17 @@ test_that("known V rejects adjacent-above-one correlations", {
   )
   expect_error(
     .known_v_newdata_prepare(V, k = 2L),
+    "positive semidefinite"
+  )
+
+  rank_one <- tcrossprod(c(0.20, 0.30, 0.40))
+  mixed    <- .known_v_blockdiag(list(rank_one, V))
+  expect_error(
+    .known_v_as_matrix(mixed),
+    "positive semidefinite"
+  )
+  expect_error(
+    .known_v_newdata_prepare(mixed, k = 5L),
     "positive semidefinite"
   )
 })
