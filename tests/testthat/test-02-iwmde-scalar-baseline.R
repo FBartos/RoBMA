@@ -319,7 +319,7 @@ test_that("IWMDE adaptive display grid concentrates support points", {
   expect_gt(sum(abs(adaptive - 2) < .25), sum(abs(uniform - 2) < .25))
 })
 
-test_that("Chen conditional weights use all global nuisance parameters", {
+test_that("Chen conditioning rejects structural boundary mixtures", {
 
   .skip_if_missing_raw_fits("dat.lehmann2018_RoBMA")
 
@@ -340,17 +340,16 @@ test_that("Chen conditional weights use all global nuisance parameters", {
   component <- .iwmde_parameter_components(context, "mu", spec)
   values    <- .iwmde_parameter_values(context, "mu", spec)
   rows      <- which(component[["active"]] & is.finite(values))
-  matrix    <- .iwmde_chen_conditioning_matrix(
-    context        = context,
-    parameter      = "mu",
-    parameter_spec = spec,
-    active_rows    = head(rows, 50L),
-    weight_rows    = rows
+  expect_error(
+    .iwmde_chen_conditioning_matrix(
+      context        = context,
+      parameter      = "mu",
+      parameter_spec = spec,
+      active_rows    = head(rows, 50L),
+      weight_rows    = rows
+    ),
+    "conditioning fit columns contain non-finite transformed values"
   )
-
-  expect_true(any(startsWith(matrix[["columns"]], "omega[")))
-  expect_false(any(grepl("indicator$", matrix[["columns"]])))
-  expect_true(all(is.finite(matrix[["fit"]])))
 })
 
 test_that("IWMDE replacement maps preserve the baseline posterior ordinate", {
