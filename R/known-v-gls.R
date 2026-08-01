@@ -525,12 +525,13 @@
   residual <- y - as.vector(X %*% beta_hat)
 
   return(list(
-    covariance = covariance,
-    W          = W,
-    WX         = WX,
-    XtWX_inv   = XtWX_inv,
-    H          = H,
-    beta_hat   = beta_hat,
-    residual   = residual
+    covariance        = covariance,
+    covariance_factor = t(chol_covariance),
+    W                 = W,
+    WX                = WX,
+    XtWX_inv          = XtWX_inv,
+    H                 = H,
+    beta_hat          = beta_hat,
+    residual          = residual
   ))
 }

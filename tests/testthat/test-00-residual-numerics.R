@@ -101,6 +101,70 @@ test_that("estimate and cluster residual variances avoid PSD subtraction", {
 })
 
 
+test_that("known-V estimate residual variance avoids PSD subtraction", {
+
+  X <- matrix(c(
+    1, 1, 1, 1,
+    6.072075e-7, -3.901161e5, 4.130463, 104.9131,
+    -5.899230e-6, -1.276173e5, 4.659023e-6, 1270.221
+  ), nrow = 4L)
+  sampling_variance <- c(
+    151.324100309942,
+    5463391.08469307,
+    1.54136201531135e-8,
+    1.8986576975829e-4
+  )
+  extra_variance <- c(
+    .0931437304737963,
+    186841.573373015,
+    861201.17955025,
+    1.0401676712931e-4
+  )
+  known_V <- .known_v_prepare(
+    V                         = sampling_variance,
+    keep_rows                 = rep(TRUE, 4L),
+    known_v_parameterization  = "auto",
+    known_v_residual_fraction = NULL,
+    warn_singular             = FALSE
+  )
+
+  projection <- .known_v_gls_projection_blocks(
+    X              = X,
+    y              = c(-.2, .1, .3, -.1),
+    known_V        = known_V,
+    extra_variance = extra_variance
+  )
+
+  marginal_variance <- sampling_variance + extra_variance
+  W                 <- diag(1 / marginal_variance)
+  WX                <- W %*% X
+  B                 <- .hat_solve_crossprod(crossprod(X, WX))
+  V_W_X             <- sampling_variance * WX
+  subtractive <- sampling_variance^2 / marginal_variance -
+    rowSums((V_W_X %*% B) * V_W_X)
+
+  expect_true(any(subtractive < 0))
+  expect_true(all(projection[["sampling_residual_variance"]] >= 0))
+})
+
+
+test_that("known-V rank-one residuals allow a regularized zero diagonal", {
+
+  V <- tcrossprod(c(.2, .3, .4))
+  known_V <- .known_v_canonicalize(V, warn_singular = FALSE)
+
+  projection <- .known_v_gls_projection_blocks(
+    X              = cbind(1, c(-1, 0, 1)),
+    y              = c(-.1, .2, .3),
+    known_V        = known_V,
+    extra_variance = c(0, .1, .2)
+  )
+
+  expect_true(all(is.finite(unlist(projection))))
+  expect_true(all(projection[["sampling_residual_variance"]] >= 0))
+})
+
+
 test_that("hat-matrix diagnostics retain small nonzero residuals", {
 
   tiny <- 2^-100
