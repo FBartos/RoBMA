@@ -28,10 +28,7 @@
 
 .get_funnel_tau_known_v <- function(object) {
 
-  known_V           <- .data_known_v_data(object[["data"]])
-  marginal_variance <- .known_v_marginal_variance_samples(object)
-  V_diagonal        <- .known_v_diagonal(known_V)
-  extra_variance <- pmax(sweep(marginal_variance, 2L, V_diagonal, "-"), 0)
+  extra_variance <- .known_v_extra_variance_samples(object)
   tau_samples    <- sqrt(rowMeans(extra_variance))
 
   return(mean(tau_samples))

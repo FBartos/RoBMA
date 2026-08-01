@@ -26,7 +26,7 @@ test_that("funnel line clipping preserves segment order", {
 })
 
 
-test_that("known-V funnel tau uses marginal covariance samples", {
+test_that("known-V funnel tau uses extra variance samples", {
 
   V    <- matrix(c(.04, .01, .01, .09), nrow = 2L)
   data <- list(outcome = data.frame(yi = c(.10, .20), sei = sqrt(diag(V))))
@@ -40,18 +40,13 @@ test_that("known-V funnel tau uses marginal covariance samples", {
   object <- list(data = data)
   class(object) <- c("brma.mv", "brma")
 
-  covariance_samples <- array(NA_real_, dim = c(2L, 2L, 2L))
-  covariance_samples[1L, , ] <- V + diag(c(.01, .04), nrow = 2L)
-  covariance_samples[2L, , ] <- V + diag(c(.09, .16), nrow = 2L)
+  extra_variance <- rbind(c(.01, .04), c(.09, .16))
   testthat::local_mocked_bindings(
-    .known_v_marginal_variance_samples = function(object, ...) {
-
-      .known_v_covariance_diagonal_samples(covariance_samples)
-    },
+    .known_v_extra_variance_samples = function(object, ...) extra_variance,
     .package = "RoBMA"
   )
 
-  expected <- mean(sqrt(rowMeans(rbind(c(.01, .04), c(.09, .16)))))
+  expected <- mean(sqrt(rowMeans(extra_variance)))
 
   expect_equal(.get_funnel_tau(object), expected)
 })
@@ -117,6 +112,13 @@ test_that("known-V marginal variance samples use the diagonal backend", {
   expect_equal(n_calls, 1L)
   expect_equal(out, cbind(c(1.04, 2.04, 3.04), c(2.09, 3.09, 4.09)))
   expect_null(metadata[["n_chunks"]])
+
+  extra <- .known_v_extra_variance_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  attr(extra, "known_v_diagnostic") <- NULL
+  expect_equal(extra, unname(random_variance))
 })
 
 

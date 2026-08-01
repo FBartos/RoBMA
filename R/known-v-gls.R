@@ -99,8 +99,34 @@
                                                max_samples = Inf,
                                                max_bytes = NULL) {
 
+  extra_variance <- .known_v_extra_variance_samples(
+    object            = object,
+    posterior_samples = posterior_samples,
+    max_samples       = max_samples,
+    max_bytes         = max_bytes
+  )
+  known_V <- .data_known_v_data(object[["data"]])
+
+  marginal_variance <- sweep(
+    extra_variance,
+    2L,
+    .known_v_diagonal(known_V),
+    "+"
+  )
+  attr(marginal_variance, "known_v_diagnostic") <-
+    attr(extra_variance, "known_v_diagnostic", exact = TRUE)
+
+  return(marginal_variance)
+}
+
+
+.known_v_extra_variance_samples <- function(object,
+                                            posterior_samples = NULL,
+                                            max_samples = Inf,
+                                            max_bytes = NULL) {
+
   if (!inherits(object, "brma.mv") || !.is_data_known_v(object[["data"]])) {
-    stop("Known-V marginal variance samples require a brma.mv known-V object.",
+    stop("Known-V extra variance samples require a brma.mv known-V object.",
          call. = FALSE)
   }
 
@@ -116,7 +142,7 @@
     object            = object,
     posterior_samples = posterior_samples,
     max_samples       = max_samples,
-    caller            = ".known_v_marginal_variance_samples()",
+    caller            = ".known_v_extra_variance_samples()",
     warn              = FALSE
   )
   posterior_samples <- sample_info[["posterior_samples"]]
@@ -128,15 +154,9 @@
       posterior_samples = posterior_samples,
       K                 = K
     )
-    marginal_variance <- sweep(
-      extra_variance,
-      2L,
-      .known_v_diagonal(known_V),
-      "+"
-    )
-    attr(marginal_variance, "known_v_diagnostic") <-
+    attr(extra_variance, "known_v_diagnostic") <-
       .known_v_diagnostic_metadata(sample_info)
-    return(marginal_variance)
+    return(extra_variance)
   }
 
   random_vcov <- .brma_mv_random_effects_marginal_vcov(
@@ -150,17 +170,11 @@
     K           = K
   )
   random_variance <- unname(random_variance)
-  marginal_variance <- sweep(
-    random_variance,
-    2L,
-    .known_v_diagonal(known_V),
-    "+"
-  )
 
   metadata <- .known_v_diagnostic_metadata(sample_info)
-  attr(marginal_variance, "known_v_diagnostic") <- metadata
+  attr(random_variance, "known_v_diagnostic") <- metadata
 
-  return(marginal_variance)
+  return(random_variance)
 }
 
 
