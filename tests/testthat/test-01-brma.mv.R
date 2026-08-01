@@ -969,6 +969,9 @@ test_that("brma.mv fits v14 metafor parity models", {
     rho     = c(0.7, 0.5),
     data    = dat_assink
   )
+  # vcalc() can differ across triangles by floating-point roundoff. Construct
+  # the exact symmetric fixture required by the brma.mv() input contract.
+  V_assink[lower.tri(V_assink)] <- t(V_assink)[lower.tri(V_assink)]
   fit2_metafor <- metafor::rma.mv(
     yi,
     V_assink,
