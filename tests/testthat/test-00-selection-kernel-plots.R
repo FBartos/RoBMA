@@ -445,6 +445,10 @@ test_that("plot quantile inversion fails without a valid CDF bracket", {
     "valid bracketed CDF"
   )
   expect_error(
+    .regplot_grid_quantile(.5, -1, 1, function(q) .75),
+    "valid bracketed CDF"
+  )
+  expect_error(
     .regplot_grid_quantile(.5, -1, 1, function(q) NaN),
     "valid bracketed CDF"
   )
@@ -452,6 +456,14 @@ test_that("plot quantile inversion fails without a valid CDF bracket", {
     testthat::with_mocked_bindings(
       .funnel_grid_quantile_precomputed(.5, -1, 1, list()),
       .funnel_model_averaged_cdf_precomputed = function(q, se_setup) .25,
+      .package = "RoBMA"
+    ),
+    "valid bracketed CDF"
+  )
+  expect_error(
+    testthat::with_mocked_bindings(
+      .funnel_grid_quantile_precomputed(.5, -1, 1, list()),
+      .funnel_model_averaged_cdf_precomputed = function(q, se_setup) .75,
       .package = "RoBMA"
     ),
     "valid bracketed CDF"

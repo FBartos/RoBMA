@@ -472,6 +472,13 @@ double funnel_grid_quantile_native(double p, double lower, double upper,
     return NA_REAL;
   }
 
+  const double lower_cdf = funnel_model_averaged_cdf_native(lower, ctx);
+  const double upper_cdf = funnel_model_averaged_cdf_native(upper, ctx);
+  if (!std::isfinite(lower_cdf) || !std::isfinite(upper_cdf) ||
+      lower_cdf > p || upper_cdf < p) {
+    return NA_REAL;
+  }
+
   for (int i = 0; i < n_grid; ++i) {
     const double q = lower +
       (upper - lower) * static_cast<double>(i) / static_cast<double>(n_grid - 1);

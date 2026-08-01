@@ -351,7 +351,7 @@
 
   grid <- seq(lower, upper, length.out = 1000)
   cdf  <- vapply(grid, cdf_fun, numeric(1))
-  if (any(!is.finite(cdf))) {
+  if (any(!is.finite(cdf)) || cdf[1L] > p || cdf[length(cdf)] < p) {
     stop(
       "Regression-plot quantiles could not be computed from a valid bracketed CDF.",
       call. = FALSE

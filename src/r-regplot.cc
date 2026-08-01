@@ -218,6 +218,13 @@ static double regplot_grid_quantile(double p, double lower, double upper,
     return NA_REAL;
   }
 
+  const double lower_cdf = cdf_fun(lower);
+  const double upper_cdf = cdf_fun(upper);
+  if (!std::isfinite(lower_cdf) || !std::isfinite(upper_cdf) ||
+      lower_cdf > p || upper_cdf < p) {
+    return NA_REAL;
+  }
+
   for (int i = 0; i < n_grid; ++i) {
     const double q = lower +
       (upper - lower) * static_cast<double>(i) / static_cast<double>(n_grid - 1);
