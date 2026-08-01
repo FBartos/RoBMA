@@ -355,15 +355,12 @@
     mean <- -mean
   }
 
-  second <- variance + mean^2
-
   return(list(
     cdf       = cdf,
     log_lower = log_lower,
     log_upper = log_upper,
     mean      = mean,
-    variance  = variance,
-    second    = second
+    variance  = variance
   ))
 }
 

@@ -427,8 +427,13 @@ test_that("native weighted selected-normal summary matches matrix reductions", {
     log(colSums(psis * cdf_upper)),
     tolerance = 1e-12
   )
-  expect_equal(native[["mean"]], colSums(psis * moments[["mean"]]), tolerance = 1e-12)
-  expect_equal(native[["second"]], colSums(psis * moments[["second"]]), tolerance = 1e-12)
+  expected_mean <- colSums(psis * moments[["mean"]])
+  centered      <- sweep(moments[["mean"]], 2L, expected_mean, "-")
+  expected_variance <- colSums(psis * (
+    moments[["second"]] - moments[["mean"]]^2 + centered^2
+  ))
+  expect_equal(native[["mean"]], expected_mean, tolerance = 1e-12)
+  expect_equal(native[["variance"]], expected_variance, tolerance = 1e-12)
 })
 
 

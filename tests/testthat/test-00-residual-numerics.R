@@ -59,3 +59,26 @@ test_that("GLMM LOO-PIT is rejected before PSIS work", {
     "discrete PIT convention"
   )
 })
+
+
+test_that("predictive variance uses centered mixture moments", {
+
+  mean <- matrix(1e12 + c(-1, 1), ncol = 1L)
+  moments <- .weighted_predictive_moments(
+    mean     = mean,
+    variance = matrix(4, nrow = 2L),
+    weights  = matrix(c(1, 1), ncol = 1L)
+  )
+
+  expect_equal(moments[["mean"]], 1e12)
+  expect_equal(moments[["variance"]], 5)
+  expect_equal(moments[["se"]], sqrt(5))
+  expect_error(
+    .weighted_predictive_moments(
+      mean     = mean,
+      variance = matrix(c(1, -1), ncol = 1L),
+      weights  = matrix(c(1, 1), ncol = 1L)
+    ),
+    "invalid"
+  )
+})

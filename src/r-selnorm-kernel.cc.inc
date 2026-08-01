@@ -500,18 +500,18 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   SEXP out_log_lower = PROTECT(Rf_allocVector(REALSXP, K));
   SEXP out_log_upper = PROTECT(Rf_allocVector(REALSXP, K));
   SEXP out_mean = PROTECT(Rf_allocVector(REALSXP, K));
-  SEXP out_second = PROTECT(Rf_allocVector(REALSXP, K));
+  SEXP out_variance = PROTECT(Rf_allocVector(REALSXP, K));
   SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
 
   SET_STRING_ELT(names, 0, Rf_mkChar("log_lower"));
   SET_STRING_ELT(names, 1, Rf_mkChar("log_upper"));
   SET_STRING_ELT(names, 2, Rf_mkChar("mean"));
-  SET_STRING_ELT(names, 3, Rf_mkChar("second"));
+  SET_STRING_ELT(names, 3, Rf_mkChar("variance"));
   SET_VECTOR_ELT(out, 0, out_log_lower);
   SET_VECTOR_ELT(out, 1, out_log_upper);
   SET_VECTOR_ELT(out, 2, out_mean);
-  SET_VECTOR_ELT(out, 3, out_second);
+  SET_VECTOR_ELT(out, 3, out_variance);
   Rf_setAttrib(out, R_NamesSymbol, names);
 
   const double *yi_p        = REAL(yi);
@@ -522,17 +522,26 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   double *log_lower_out_p   = REAL(out_log_lower);
   double *log_upper_out_p   = REAL(out_log_upper);
   double *mean_out_p        = REAL(out_mean);
-  double *second_out_p      = REAL(out_second);
+  double *variance_out_p    = REAL(out_variance);
+  double *moment_mean_work = reinterpret_cast<double *>(
+    R_alloc(S, sizeof(double))
+  );
+  double *moment_second_work = reinterpret_cast<double *>(
+    R_alloc(S, sizeof(double))
+  );
 
   for (int k = 0; k < K; ++k) {
     double log_lower_sum = -INFINITY;
     double log_upper_sum = -INFINITY;
-    double mean_sum = 0;
-    double second_sum = 0;
+    long double weight_sum = 0;
+    long double mean_sum = 0;
 
     for (int s = 0; s < S; ++s) {
       const int cell = s + S * k;
       const double w = weights_p[cell];
+      if (!std::isfinite(w) || w < 0) {
+        Rf_error("'psis_weights' must be finite and non-negative.");
+      }
       const double alpha_s = selnorm.alpha_at(s);
       const int phack_s = selnorm.phack_kind_at(s);
       const int mode_s = selnorm.kernel_mode_at(s);
@@ -553,6 +562,11 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
         S,
         false
       );
+      if (!std::isfinite(moment_mean) || !std::isfinite(moment_second)) {
+        Rf_error("Selected-normal predictive moments are not finite.");
+      }
+      moment_mean_work[s]   = moment_mean;
+      moment_second_work[s] = moment_second;
 
       if (w > 0) {
         const double log_weight = std::log(w);
@@ -587,14 +601,37 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
             );
         }
       }
-      mean_sum += w * moment_mean;
-      second_sum += w * moment_second;
+      weight_sum += static_cast<long double>(w);
+      mean_sum += static_cast<long double>(w) * moment_mean;
     }
 
-    log_lower_out_p[k] = log_lower_sum;
-    log_upper_out_p[k] = log_upper_sum;
-    mean_out_p[k] = mean_sum;
-    second_out_p[k] = second_sum;
+    if (!std::isfinite(weight_sum) || weight_sum <= 0) {
+      Rf_error("'psis_weights' must have positive finite column sums.");
+    }
+    const long double mixture_mean = mean_sum / weight_sum;
+    long double variance_sum = 0;
+    for (int s = 0; s < S; ++s) {
+      const int cell = s + S * k;
+      const long double component_mean = moment_mean_work[s];
+      const long double centered = component_mean - mixture_mean;
+      const long double component_variance =
+        static_cast<long double>(moment_second_work[s]) -
+        component_mean * component_mean;
+      variance_sum += static_cast<long double>(weights_p[cell]) *
+        (component_variance + centered * centered);
+    }
+    const long double mixture_variance = variance_sum / weight_sum;
+    if (!std::isfinite(mixture_variance) || mixture_variance < 0) {
+      Rf_error(
+        "Selected-normal predictive variance is not finite and non-negative."
+      );
+    }
+
+    const double log_weight_sum = std::log(static_cast<double>(weight_sum));
+    log_lower_out_p[k] = log_lower_sum - log_weight_sum;
+    log_upper_out_p[k] = log_upper_sum - log_weight_sum;
+    mean_out_p[k]      = static_cast<double>(mixture_mean);
+    variance_out_p[k]  = static_cast<double>(mixture_variance);
   }
 
   UNPROTECT(6);

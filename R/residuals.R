@@ -778,6 +778,39 @@ rstudent.brma <- function(model, unit = "estimate",
 # @return list with numeric vectors resid and se.
 #
 # ---------------------------------------------------------------------------- #
+.weighted_predictive_moments <- function(mean, variance, weights) {
+
+  mean     <- as.matrix(mean)
+  variance <- as.matrix(variance)
+  weights  <- as.matrix(weights)
+  if (!identical(dim(mean), dim(variance)) ||
+      !identical(dim(mean), dim(weights)) ||
+      any(!is.finite(mean)) || any(!is.finite(variance)) ||
+      any(variance < 0) || any(!is.finite(weights)) || any(weights < 0)) {
+    stop("Predictive moments and weights are invalid.", call. = FALSE)
+  }
+
+  weight_sum <- colSums(weights)
+  if (any(!is.finite(weight_sum)) || any(weight_sum <= 0)) {
+    stop("Predictive weights must have positive finite column sums.",
+         call. = FALSE)
+  }
+  weights  <- sweep(weights, 2L, weight_sum, "/")
+  location <- colSums(weights * mean)
+  centered <- sweep(mean, 2L, location, "-")
+  variance <- colSums(weights * (variance + centered^2))
+  if (any(!is.finite(variance)) || any(variance < 0)) {
+    stop("Predictive variance is not finite and non-negative.", call. = FALSE)
+  }
+
+  return(list(
+    mean     = location,
+    variance = variance,
+    se       = sqrt(variance)
+  ))
+}
+
+
 .loo_predictive_moments_estimate <- function(object, setup, psis_object,
                                              psis_weights = NULL) {
 
@@ -798,16 +831,16 @@ rstudent.brma <- function(model, unit = "estimate",
   }
 
   if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
-    summary        <- .known_v_estimate_target_summary_from_setup(setup)
-    mean_samples   <- summary[["mean"]]
-    second_samples <- summary[["second"]]
-
-    pred_mean   <- colSums(psis_weights * mean_samples)
-    pred_second <- colSums(psis_weights * second_samples)
+    summary <- .known_v_estimate_target_summary_from_setup(setup)
+    moments <- .weighted_predictive_moments(
+      mean     = summary[["mean"]],
+      variance = summary[["variance"]],
+      weights  = psis_weights
+    )
 
     return(list(
-      resid = yi - pred_mean,
-      se    = sqrt(pmax(pred_second - pred_mean^2, 0))
+      resid = yi - moments[["mean"]],
+      se    = moments[["se"]]
     ))
   }
 
@@ -825,23 +858,19 @@ rstudent.brma <- function(model, unit = "estimate",
       se    = summary[["se"]]
     ))
   } else {
-    pred_var       <- tau_within^2 + sei_mat^2
-    mean_samples   <- mu_samples
-    second_samples <- pred_var + mu_samples^2
+    variance_samples <- tau_within^2 + sei_mat^2
+    mean_samples     <- mu_samples
   }
 
-  mean_samples   <- as.matrix(mean_samples)
-  second_samples <- as.matrix(second_samples)
-
-  pred_mean   <- colSums(psis_weights * mean_samples)
-  pred_second <- colSums(psis_weights * second_samples)
-
-  resid <- yi - pred_mean
-  se    <- sqrt(pmax(pred_second - pred_mean^2, 0))
+  moments <- .weighted_predictive_moments(
+    mean     = mean_samples,
+    variance = variance_samples,
+    weights  = psis_weights
+  )
 
   return(list(
-    resid = resid,
-    se    = se
+    resid = yi - moments[["mean"]],
+    se    = moments[["se"]]
   ))
 }
 
@@ -879,12 +908,11 @@ rstudent.brma <- function(model, unit = "estimate",
     selection_context = selection_context
   )
 
-  resid    <- yi - summary[["mean"]]
-  se       <- sqrt(pmax(summary[["second"]] - summary[["mean"]]^2, 0))
+  resid <- yi - summary[["mean"]]
 
   return(list(
     resid = resid,
-    se    = se,
+    se    = sqrt(summary[["variance"]]),
     z     = .loo_pit_z_from_log_probabilities(
       summary[["log_lower"]],
       summary[["log_upper"]]
