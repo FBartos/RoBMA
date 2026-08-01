@@ -127,10 +127,26 @@
 
 .iwmde_key_number <- function(x) {
 
-  x <- zapsmall(as.numeric(x), digits = 14)
-  x[abs(x) < sqrt(.Machine$double.eps)] <- 0
+  x <- as.numeric(x)
 
-  return(formatC(x, digits = 15, format = "fg", flag = "#"))
+  return(vapply(x, function(value) {
+
+    if (is.nan(value)) {
+      return("NaN")
+    }
+    if (is.na(value)) {
+      return("NA")
+    }
+    if (is.infinite(value)) {
+      return(if (value > 0) "Inf" else "-Inf")
+    }
+    if (value == 0) {
+      value <- 0
+    }
+
+    bytes <- writeBin(value, raw(), size = 8L, endian = "big")
+    return(paste(sprintf("%02x", as.integer(bytes)), collapse = ""))
+  }, character(1), USE.NAMES = FALSE))
 }
 
 

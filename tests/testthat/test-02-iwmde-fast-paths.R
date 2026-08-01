@@ -24,6 +24,27 @@ test_that("IWMDE predictor cache keys remain compact", {
 })
 
 
+test_that("IWMDE numeric cache keys preserve represented coordinates", {
+
+  values <- c(
+    0,
+    .Machine$double.xmin,
+    1e-20,
+    2e-20,
+    1,
+    1 + .Machine$double.eps
+  )
+  keys <- .iwmde_key_number(values)
+
+  expect_length(unique(keys), length(values))
+  expect_identical(.iwmde_key_number(-0), .iwmde_key_number(0))
+  expect_identical(
+    .iwmde_key_number(c(0, 1, -1)),
+    c("0000000000000000", "3ff0000000000000", "bff0000000000000")
+  )
+})
+
+
 test_that("IWMDE identifies sampled random SD focal parameters", {
 
   dat <- data.frame(
