@@ -1504,3 +1504,44 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   expect_true(grepl("fixed_location_fitted_value", dffits_target[["known_v_semantics"]],
                     fixed = TRUE))
 })
+
+
+test_that("random-effect structure preserves every represented design change", {
+
+  allocation <- list(leaf_index_by_column = 1L)
+  term <- list(model_matrix = matrix(c(0, 1e-15, 0), ncol = 1L))
+  expect_identical(
+    .brma_mv_sd_component_allocation_rows(
+      allocation   = allocation,
+      term         = term,
+      component    = 1L,
+      source_shape = "row",
+      K            = 3L
+    ),
+    2L
+  )
+
+  intercept_term <- list(
+    n_columns    = 1L,
+    structure    = "us",
+    model_matrix = matrix(1, nrow = 3L),
+    group_map    = 1:3,
+    n_groups     = 3L
+  )
+  expect_true(.is_estimate_level_random_intercept(intercept_term, k = 3L))
+  intercept_term[["model_matrix"]][2L] <- 1 + .Machine$double.eps
+  expect_false(.is_estimate_level_random_intercept(intercept_term, k = 3L))
+
+  object <- list(formula_design = list(mu = list(
+    random_effects = list(intercept_term)
+  )))
+  expect_false(.regplot_mv_random_intercept_only(object))
+
+  multiplier_term <- list(
+    row_multiplier      = c(1, 1 + .Machine$double.eps),
+    row_multiplier_name = "known_r_multiplier"
+  )
+  expect_true(
+    .marginalized_random_effect_row_multiplier_varying(multiplier_term)
+  )
+})

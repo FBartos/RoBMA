@@ -644,7 +644,8 @@
     identical(as.integer(term[["n_columns"]]), 1L) &&
       is.matrix(model_matrix) &&
       ncol(model_matrix) == 1L &&
-      all(abs(model_matrix[, 1L] - 1) < 1e-12)
+      all(is.finite(model_matrix)) &&
+      all(model_matrix[, 1L] == 1)
   }, logical(1)))
 }
 

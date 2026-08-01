@@ -607,7 +607,7 @@
     )
   }
 
-  active <- rowSums(abs(model_matrix[, columns, drop = FALSE]) > 1e-12) > 0
+  active <- rowSums(model_matrix[, columns, drop = FALSE] != 0) > 0
   rows   <- which(active)
   if (length(rows) == 0L) {
     stop(

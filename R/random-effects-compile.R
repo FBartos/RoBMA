@@ -316,8 +316,8 @@
 
   model_matrix <- term[["model_matrix"]]
   if (!is.matrix(model_matrix) || nrow(model_matrix) != k ||
-      ncol(model_matrix) != 1L || anyNA(model_matrix) ||
-      any(abs(model_matrix[, 1L] - 1) > 1e-12)) {
+      ncol(model_matrix) != 1L || any(!is.finite(model_matrix)) ||
+      any(model_matrix[, 1L] != 1)) {
     return(FALSE)
   }
 
@@ -819,8 +819,7 @@
   }
 
   multiplier <- term[["row_multiplier"]]
-  max(abs(multiplier - multiplier[[1L]])) > sqrt(.Machine$double.eps) *
-    max(1, max(abs(multiplier)))
+  any(multiplier != multiplier[[1L]])
 }
 
 
