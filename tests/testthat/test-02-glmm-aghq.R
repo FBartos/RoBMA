@@ -156,6 +156,26 @@ test_that("binomial AGHQ matches closed form and streams row sums", {
 })
 
 
+test_that("binomial AGHQ initializes extreme beta priors on the log-odds scale", {
+
+  events <- .glmm_binom_aghq(
+    1L, 1L, 2L, 2L,
+    matrix(.1), matrix(.2), NULL,
+    c(alpha = 1e16, beta = 1)
+  )
+  non_events <- .glmm_binom_aghq(
+    1L, 1L, 2L, 2L,
+    matrix(-.1), matrix(.2), NULL,
+    c(alpha = 1, beta = 1e16)
+  )
+
+  expect_true(is.finite(events[["value"]][1L, 1L]))
+  expect_equal(events[["value"]], non_events[["value"]], tolerance = 1e-10)
+  expect_identical(events[["max_mode_iterations"]], 1L)
+  expect_identical(non_events[["max_mode_iterations"]], 1L)
+})
+
+
 test_that("exact beta-binomial shortcut rejects nonfinite powered values", {
 
   expect_error(

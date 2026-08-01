@@ -376,12 +376,16 @@ struct BinomialProblem {
   void initial(double *theta, double *nuisance) const
   {
     *theta = 0.0;
-    const double events = static_cast<double>(a) + c;
-    const double total  = static_cast<double>(n1) + n2;
-    double pi0 = (alpha + weight * events) /
-      (alpha + beta + weight * total);
-    pi0 = std::max(1e-12, std::min(1.0 - 1e-12, pi0));
-    *nuisance = std::log(pi0) - std::log1p(-pi0);
+    const double events     = static_cast<double>(a) + c;
+    const double non_events = static_cast<double>(n1 - a) + n2 - c;
+    const double log_events = events > 0.0
+      ? std::log(weight) + std::log(events)
+      : -std::numeric_limits<double>::infinity();
+    const double log_non_events = non_events > 0.0
+      ? std::log(weight) + std::log(non_events)
+      : -std::numeric_limits<double>::infinity();
+    *nuisance = log_add_exp(std::log(alpha), log_events) -
+      log_add_exp(std::log(beta), log_non_events);
   }
 };
 
