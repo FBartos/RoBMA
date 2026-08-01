@@ -480,7 +480,7 @@ test_that("plot.brma forwards qCMDE/IWMDE densities for single-column factor ter
 })
 
 
-test_that("plot.brma forwards factor densities under transformed BayesTools aliases", {
+test_that("plot.brma forwards fitted-scale densities under BayesTools aliases", {
 
   skip_if_missing_fits(c(
     "bcg_meta-regression3b",
@@ -516,10 +516,11 @@ test_that("plot.brma forwards factor densities under transformed BayesTools alia
     expect_warning(
       out <- plot(
         fits[[cases[["name"]][[i]]]],
-        parameter_mods  = cases[["parameter_mods"]][[i]],
-        plot_type       = "ggplot",
-        density_method  = "qCMDE",
-        density_control = list(n_points = 20, max_samples = 20)
+        parameter_mods           = cases[["parameter_mods"]][[i]],
+        standardized_coefficients = TRUE,
+        plot_type                = "ggplot",
+        density_method           = "qCMDE",
+        density_control          = list(n_points = 20, max_samples = 20)
       ),
       NA
     )
