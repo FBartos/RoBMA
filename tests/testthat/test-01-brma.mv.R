@@ -667,11 +667,6 @@ test_that("brma.mv fits structurally regularized singular V", {
     distribution = "spike",
     parameters   = list(location = 0.10)
   )
-  prior_tiny_positive <- BayesTools::prior(
-    distribution = "spike",
-    parameters   = list(location = 1e-6)
-  )
-
   expect_error(
     suppressWarnings(brma.mv(
       yi                        = yi,
@@ -750,24 +745,23 @@ test_that("brma.mv fits structurally regularized singular V", {
   expect_true(isTRUE(general_fit[["fit"]][["has_posterior"]]))
 
   V_tolerance <- matrix(c(1, 1 + 1e-9, 1 + 1e-9, 1), nrow = 2)
-  tolerance_fit <- suppressWarnings(brma.mv(
-    yi                        = yi,
-    V                         = V_tolerance,
-    data                      = dat[1:2, , drop = FALSE],
-    prior_heterogeneity       = prior_tiny_positive,
-    known_v_parameterization  = "block_mvn",
-    measure                   = args[["measure"]],
-    prior_unit_information_sd = args[["prior_unit_information_sd"]],
-    chains                    = args[["chains"]],
-    sample                    = args[["sample"]],
-    burnin                    = args[["burnin"]],
-    adapt                     = args[["adapt"]],
-    seed                      = args[["seed"]],
-    silent                    = args[["silent"]],
-    convergence_checks        = args[["convergence_checks"]]
-  ))
-  expect_s3_class(tolerance_fit, "brma.mv")
-  expect_true(isTRUE(tolerance_fit[["fit"]][["has_posterior"]]))
+  expect_error(
+    suppressWarnings(brma.mv(
+      yi                       = yi,
+      V                        = V_tolerance,
+      data                     = dat[1:2, , drop = FALSE],
+      known_v_parameterization = "block_mvn",
+      measure                  = args[["measure"]],
+      chains                   = args[["chains"]],
+      sample                   = args[["sample"]],
+      burnin                   = args[["burnin"]],
+      adapt                    = args[["adapt"]],
+      seed                     = args[["seed"]],
+      silent                   = args[["silent"]],
+      convergence_checks       = args[["convergence_checks"]]
+    )),
+    "must be positive semidefinite"
+  )
 
   estimate_dat <- transform(dat, estimate = paste0("e", seq_len(nrow(dat))))
   marginalized_fit <- suppressWarnings(brma.mv(
