@@ -160,12 +160,13 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
 
   rank_one_sei        <- c(0.20, 0.30, 0.40)
   rank_one_V          <- tcrossprod(rank_one_sei)
-  rank_one_parameters <- list(mu = 0, tau = 0.10)
-  rank_one_expected   <- .marglik_mvn_log_density(
-    y          = c(0.10, 0.20, -0.05),
-    mean       = rep(0, 3),
-    covariance = rank_one_V + diag(rank_one_parameters[["tau"]]^2, nrow = 3)
-  )
+  rank_one_parameters <- list(mu = 0, tau = 0.10, sampling_z = 0)
+  rank_one_expected   <- sum(stats::dnorm(
+    c(0.10, 0.20, -0.05),
+    mean = 0,
+    sd   = rank_one_parameters[["tau"]],
+    log  = TRUE
+  ))
 
   expect_warning(
     rank_one_block <- brma.mv(
@@ -865,11 +866,11 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
     c(1, 1 + .Machine$double.eps, 1 + .Machine$double.eps, 1),
     nrow = 2
   )
-  expect_warning(
-    tight_V <- .known_v_as_matrix(V_tight),
+  expect_error(
+    .known_v_as_matrix(V_tight),
     "positive semidefinite"
   )
-  expect_identical(tight_V, V_tight)
+  V_rank_one <- tcrossprod(c(1, 1))
   prior_too_small <- BayesTools::prior(
     distribution = "spike",
     parameters   = list(location = 1e-9)
@@ -882,23 +883,27 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
     distribution = "spike",
     parameters   = list(location = log(1e-9))
   )
-  expect_error(
-    suppressWarnings(brma.mv(
+  expect_warning(
+    tiny_positive <- brma.mv(
       yi                        = yi,
-      V                         = V_tight,
+      V                         = V_rank_one,
       data                      = dat[1:2, , drop = FALSE],
       prior_heterogeneity       = prior_too_small,
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_priors               = TRUE
-    )),
-    "numerically positive definite"
+    ),
+    "positive semidefinite"
+  )
+  expect_equal(
+    .data_known_v_effective_backend(tiny_positive[["data"]]),
+    "latent"
   )
   expect_error(
     suppressWarnings(brma.mv(
       yi                        = yi,
-      V                         = V_tight,
+      V                         = V_rank_one,
       scale                     = ~ 1,
       data                      = dat[1:2, , drop = FALSE],
       prior_scale               = list(intercept = prior_scale_invalid),
@@ -909,10 +914,10 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
     )),
     "strictly positive"
   )
-  expect_error(
-    suppressWarnings(brma.mv(
+  expect_warning(
+    tiny_scale <- brma.mv(
       yi                        = yi,
-      V                         = V_tight,
+      V                         = V_rank_one,
       scale                     = ~ 1,
       data                      = dat[1:2, , drop = FALSE],
       prior_scale               = list(intercept = prior_scale_too_small),
@@ -920,9 +925,10 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_priors               = TRUE
-    )),
-    "numerically positive definite"
+    ),
+    "positive semidefinite"
   )
+  expect_equal(.data_known_v_effective_backend(tiny_scale[["data"]]), "latent")
   expect_error(
     suppressWarnings(brma.mv(
       yi                        = yi,
@@ -1028,8 +1034,8 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
     )),
     "not structurally regularized"
   )
-  expect_error(
-    suppressWarnings(brma.mv(
+  expect_warning(
+    tiny_random <- brma.mv(
       yi                        = yi,
       V                         = V,
       random                    = ~ 1 | estimate,
@@ -1041,9 +1047,10 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_priors               = TRUE
-    )),
-    "numerically positive definite"
+    ),
+    "positive semidefinite"
   )
+  expect_equal(.data_known_v_effective_backend(tiny_random[["data"]]), "latent")
 })
 
 

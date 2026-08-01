@@ -45,6 +45,16 @@
   block_data        <- .known_v_dependency_block_data(data, K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
+  if (any(vapply(
+    block_covariances,
+    function(covariance) {
+      !is.null(.covariance_exact_rank_one_factor(covariance)) &&
+        nrow(covariance) > 1L
+    },
+    logical(1)
+  ))) {
+    return(NULL)
+  }
 
   residual <- matrix(
     setup[["yi"]],
@@ -104,6 +114,16 @@
   block_data        <- .known_v_dependency_block_data(context[["data"]], K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
+  if (any(vapply(
+    block_covariances,
+    function(covariance) {
+      !is.null(.covariance_exact_rank_one_factor(covariance)) &&
+        nrow(covariance) > 1L
+    },
+    logical(1)
+  ))) {
+    return(NULL)
+  }
 
   extra_variance <- .known_v_extra_variance_from_setup(setup)
   linear         <- numeric(S)

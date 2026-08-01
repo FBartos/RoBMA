@@ -33,6 +33,11 @@
 #' block-MVN threshold defaults to 128 rows per covariance block and can be
 #' changed with `options(RoBMA.known_v_block_mvn_max_block_size = value)`, where
 #' `value` is a positive integer or `Inf`.
+#' Submitted covariance matrices are validated without projecting negative
+#' eigenvalues to the positive-semidefinite boundary. Exact rank-one dependency
+#' blocks are represented by one latent sampling factor, including when another
+#' backend was requested, so correlations of one and any separate positive
+#' diagonal variance retain their mathematical structure.
 #' Singular positive-semidefinite `V` matrices are supported only when
 #' integrated conditional variance is structurally positive on every retained
 #' null direction. This can come from strictly positive heterogeneity or a
@@ -42,9 +47,9 @@
 #' For the block-MVN backend, a fixed point regularizer must also be large
 #' enough to make each block numerically positive definite at double precision;
 #' ineffective fixed values fail during preflight rather than inside JAGS.
-#' The latent known-`V` backend is unavailable for singular `V`; use `"auto"`,
-#' `"whitened"`, or `"block_mvn"`. Unsupported configurations fail before
-#' fitting rather than invoking a degenerate-normal likelihood.
+#' The latent known-`V` backend is unavailable for other singular `V` matrices;
+#' use `"auto"`, `"whitened"`, or `"block_mvn"`. Unsupported configurations
+#' fail before fitting rather than invoking a degenerate-normal likelihood.
 #' As a convenience for diagonal known-`V` inputs, `brma.mv()` also accepts
 #' hidden `vi` or `sei` arguments through `...` when `V` is omitted; these are
 #' converted to `diag(vi)` or `diag(sei^2)`. Do not supply `V` together with

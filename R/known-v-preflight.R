@@ -41,7 +41,7 @@
   }
 
   fixed_variance <- .brma_mv_fixed_integrated_variance(object, K = K)
-  if (identical(.known_v_parameterization(known_V), "block_mvn") &&
+  if (identical(.known_v_effective_backend(known_V), "block_mvn") &&
       !is.null(fixed_variance)) {
     invalid_numeric_blocks <- Filter(function(block) {
       index      <- block[["index"]]

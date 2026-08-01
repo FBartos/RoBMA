@@ -32,14 +32,48 @@ test_that("covariance policy rejects materially invalid correlations", {
 })
 
 
+test_that("strict covariance policy rejects adjacent-above-one correlations", {
+
+  correlation <- matrix(
+    c(1, 1 + .Machine$double.eps, 1 + .Machine$double.eps, 1),
+    nrow = 2L
+  )
+  factorization <- .covariance_factorization(correlation, strict = TRUE)
+
+  expect_identical(factorization[["status"]], "indefinite")
+  expect_false(.covariance_is_positive_semidefinite(factorization))
+  expect_null(.covariance_sampling_factor(factorization))
+
+  rho <- -0.5 - .Machine$double.eps
+  near_indefinite <- matrix(rho, nrow = 3L, ncol = 3L)
+  diag(near_indefinite) <- 1
+  expect_identical(
+    .covariance_factorization(near_indefinite, strict = TRUE)[["status"]],
+    "indefinite"
+  )
+})
+
+
 test_that("covariance sampling factor preserves singular covariance", {
 
   covariance    <- matrix(c(1, 1, 1, 1), nrow = 2L)
   factorization <- .covariance_factorization(covariance)
   factor        <- .covariance_sampling_factor(factorization)
 
-  expect_equal(tcrossprod(factor), covariance, tolerance = 1e-12)
+  expect_equal(crossprod(factor), covariance, tolerance = 1e-12)
   expect_null(.covariance_cholesky(factorization))
+})
+
+
+test_that("covariance sampling factor preserves exact rank-one covariance", {
+
+  factor          <- c(2^-40, 1, 2^40)
+  covariance      <- tcrossprod(factor)
+  factorization   <- .covariance_factorization(covariance, strict = TRUE)
+  sampling_factor <- .covariance_sampling_factor(factorization)
+
+  expect_identical(factorization[["status"]], "positive_semidefinite")
+  expect_identical(crossprod(sampling_factor), covariance)
 })
 
 

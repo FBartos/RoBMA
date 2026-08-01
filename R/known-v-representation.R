@@ -662,8 +662,15 @@
     return(NULL)
   }
 
-  correlation <- stats::cov2cor(
-    V[positive_variance, positive_variance, drop = FALSE]
-  )
+  covariance <- V[positive_variance, positive_variance, drop = FALSE]
+  input_factorization <- .covariance_factorization(covariance, strict = TRUE)
+  if (!.covariance_is_positive_semidefinite(input_factorization)) {
+    return(input_factorization)
+  }
+  if (!is.null(.covariance_exact_rank_one_factor(covariance))) {
+    return(input_factorization)
+  }
+
+  correlation <- stats::cov2cor(covariance)
   return(.covariance_factorization(correlation))
 }

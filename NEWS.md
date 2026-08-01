@@ -54,10 +54,12 @@
   known-`R` levels without an `R_new` interface, and makes forest prediction
   intervals target exactly one explicit new true effect when the design is
   ambiguous.
-- supports arbitrary singular positive-semidefinite `V` when compiled priors or
+- supports singular positive-semidefinite `V` when compiled priors or
   marginalized random effects structurally regularize every null direction;
-  tolerance-negative eigenvalues are projected to the PSD boundary, and
-  guaranteed or numerically ineffective fixed regularizers fail before fitting.
+  invalid negative eigenvalues now fail input validation instead of being
+  projected to the PSD boundary. Exact rank-one blocks use one latent sampling
+  factor so correlations of one and separate tiny diagonal variance remain
+  structurally distinct.
 - retains diagonal and block-list known-`V` inputs in compact canonical form
   while preserving numerical parity across fitting, prediction, likelihood,
   diagnostics, hashing, and bridge-sampling consumers.

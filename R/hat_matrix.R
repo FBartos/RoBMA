@@ -460,19 +460,47 @@
 
   inverse_blocks <- vector("list", length(.known_v_correlated_blocks(known_V)))
   for (b in seq_along(.known_v_correlated_blocks(known_V))) {
-    block      <- .known_v_correlated_blocks(known_V)[[b]]
-    index      <- block[["index"]]
-    covariance <- block[["covariance"]]
-    diag(covariance) <- diag(covariance) + extra_variance[index]
-    chol_covariance <- .covariance_cholesky(
-      .covariance_factorization(covariance)
-    )
-    if (is.null(chol_covariance)) {
-      stop("Known-V residual covariance is not positive definite.", call. = FALSE)
+    block            <- .known_v_correlated_blocks(known_V)[[b]]
+    index            <- block[["index"]]
+    block_covariance <- block[["covariance"]]
+    rank_one_factor  <- .covariance_exact_rank_one_factor(block_covariance)
+    if (!is.null(rank_one_factor)) {
+      diagonal <- extra_variance[index]
+      if (any(!is.finite(diagonal)) || any(diagonal <= 0)) {
+        stop("Known-V residual covariance is not positive definite.",
+             call. = FALSE)
+      }
+      inverse_blocks[[b]] <- list(
+        diagonal = diagonal,
+        rank_one = rank_one_factor
+      )
+      local_index <- seq_along(index)
+      W_X[index, ] <- .hat_apply_precision(
+        X[index, , drop = FALSE],
+        diagonal      = diagonal,
+        rank_one      = rank_one_factor,
+        block_indices = list(local_index)
+      )
+      W_y[index] <- .hat_apply_precision(
+        y[index],
+        diagonal      = diagonal,
+        rank_one      = rank_one_factor,
+        block_indices = list(local_index)
+      )
+    } else {
+      covariance <- block_covariance
+      diag(covariance) <- diag(covariance) + extra_variance[index]
+      chol_covariance <- .covariance_cholesky(
+        .covariance_factorization(covariance)
+      )
+      if (is.null(chol_covariance)) {
+        stop("Known-V residual covariance is not positive definite.",
+             call. = FALSE)
+      }
+      inverse_blocks[[b]] <- chol2inv(chol_covariance)
+      W_X[index, ] <- inverse_blocks[[b]] %*% X[index, , drop = FALSE]
+      W_y[index]   <- as.vector(inverse_blocks[[b]] %*% y[index])
     }
-    inverse_blocks[[b]] <- chol2inv(chol_covariance)
-    W_X[index, ] <- inverse_blocks[[b]] %*% X[index, , drop = FALSE]
-    W_y[index]   <- as.vector(inverse_blocks[[b]] %*% y[index])
   }
 
   XtWX_inv <- .hat_solve_crossprod(crossprod(X, W_X))
@@ -485,8 +513,18 @@
     W_r[independent] <- residual[independent] / variance
   }
   for (b in seq_along(.known_v_correlated_blocks(known_V))) {
-    index      <- .known_v_correlated_blocks(known_V)[[b]][["index"]]
-    W_r[index] <- as.vector(inverse_blocks[[b]] %*% residual[index])
+    index         <- .known_v_correlated_blocks(known_V)[[b]][["index"]]
+    inverse_block <- inverse_blocks[[b]]
+    if (is.list(inverse_block)) {
+      W_r[index] <- .hat_apply_precision(
+        residual[index],
+        diagonal      = inverse_block[["diagonal"]],
+        rank_one      = inverse_block[["rank_one"]],
+        block_indices = list(seq_along(index))
+      )
+    } else {
+      W_r[index] <- as.vector(inverse_block %*% residual[index])
+    }
   }
 
   sampling_residual <- numeric(K)
@@ -503,9 +541,21 @@
     block   <- .known_v_correlated_blocks(known_V)[[b]]
     index   <- block[["index"]]
     V_block <- block[["covariance"]]
-    sampling_residual[index] <- as.vector(V_block %*% W_r[index])
-    V_W_X[index, ] <- V_block %*% W_X[index, , drop = FALSE]
-    first_variance[index] <- rowSums((V_block %*% inverse_blocks[[b]]) * V_block)
+    inverse_block <- inverse_blocks[[b]]
+    if (is.list(inverse_block)) {
+      rank_one <- inverse_block[["rank_one"]]
+      ratio    <- sum(rank_one^2 / inverse_block[["diagonal"]])
+      sampling_residual[index] <- rank_one * sum(rank_one * W_r[index])
+      V_W_X[index, ] <- tcrossprod(
+        rank_one,
+        colSums(rank_one * W_X[index, , drop = FALSE])
+      )
+      first_variance[index] <- rank_one^2 * ratio / (1 + ratio)
+    } else {
+      sampling_residual[index] <- as.vector(V_block %*% W_r[index])
+      V_W_X[index, ] <- V_block %*% W_X[index, , drop = FALSE]
+      first_variance[index] <- rowSums((V_block %*% inverse_block) * V_block)
+    }
   }
 
   correction <- rowSums((V_W_X %*% XtWX_inv) * V_W_X)

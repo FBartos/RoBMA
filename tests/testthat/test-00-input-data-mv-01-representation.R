@@ -531,19 +531,27 @@ test_that("brma.mv warns and accepts rank-one all-correlated known V", {
 
   expect_equal(.known_v_materialize(known_V), V)
   expect_equal(known_V[["parameterization"]], "whitened")
-  expect_null(known_V[["sampling_factor"]])
-  expect_lte(min(abs(known_V[["diagnostics"]][["min_whitening_variance"]])), 1e-10)
+  expect_equal(known_V[["effective_backend"]], "latent")
+  expect_equal(known_V[["rank"]], 1L)
+  expect_identical(
+    tcrossprod(known_V[["latent_blocks"]][[1L]][["B"]]),
+    V
+  )
 
-  expect_error(
-    suppressWarnings(brma.mv(
+  expect_warning(
+    latent_object <- brma.mv(
       yi                        = c(0.10, 0.20, 0.30),
       V                         = V,
       known_v_parameterization  = "latent",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_data                 = TRUE
-    )),
-    "cannot use known_v_parameterization = 'latent'"
+    ),
+    "positive semidefinite"
+  )
+  expect_equal(
+    attr(latent_object[["data"]], "known_V_data")[["effective_backend"]],
+    "latent"
   )
 
   dat <- data.frame(
@@ -572,13 +580,17 @@ test_that("brma.mv warns and accepts rank-one all-correlated known V", {
     attr(scale_object[["data"]], "known_V_data")[["parameterization"]],
     "block_mvn"
   )
+  expect_equal(
+    attr(scale_object[["data"]], "known_V_data")[["effective_backend"]],
+    "latent"
+  )
 })
 
 
 test_that("known V retains exact rank-one correlation blocks across scales", {
 
   sei <- c(0.20, 0.30, 0.40)
-  for (scale in c(1e-12, 1, 1e12)) {
+  for (scale in 2^c(-40, 0, 40)) {
     V <- scale * tcrossprod(sei)
 
     expect_warning(
@@ -587,6 +599,24 @@ test_that("known V retains exact rank-one correlation blocks across scales", {
     )
     expect_identical(validated, V)
   }
+})
+
+
+test_that("known V rejects adjacent-above-one correlations", {
+
+  V <- matrix(
+    c(1, 1 + .Machine$double.eps, 1 + .Machine$double.eps, 1),
+    nrow = 2L
+  )
+
+  expect_error(
+    .known_v_as_matrix(V),
+    "positive semidefinite"
+  )
+  expect_error(
+    .known_v_newdata_prepare(V, k = 2L),
+    "positive semidefinite"
+  )
 })
 
 

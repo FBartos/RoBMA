@@ -55,7 +55,10 @@
   } else {
     NULL
   }
-  if (isTRUE(singular) && known_v_parameterization == "latent") {
+  exact_rank_one_latent <- isTRUE(singular) &&
+    .known_v_singular_blocks_are_exact_rank_one(known_V)
+  if (isTRUE(singular) && known_v_parameterization == "latent" &&
+      !exact_rank_one_latent) {
     stop(
       "Singular all-correlated known-V matrices cannot use ",
       "known_v_parameterization = 'latent'. Use 'block_mvn', or 'whitened' ",
@@ -63,19 +66,22 @@
       call. = FALSE
     )
   }
+  effective_backend <- if (!correlated) {
+    "diagonal"
+  } else if (exact_rank_one_latent) {
+    "latent"
+  } else {
+    known_v_parameterization
+  }
   known_V <- .known_v_update(known_V, list(
     parameterization           = known_v_parameterization,
     parameterization_requested = known_v_requested_parameterization,
-    effective_backend          = if (correlated) {
-      known_v_parameterization
-    } else {
-      "diagonal"
-    },
+    effective_backend          = effective_backend,
     correlated                 = correlated,
     residual_fraction_requested = known_v_residual_fraction_metadata
   ))
 
-  if (known_v_parameterization == "whitened") {
+  if (effective_backend == "whitened") {
     .known_v_warn_unused_residual_fraction(
       known_v_parameterization,
       known_v_residual_fraction_specified &&
@@ -93,7 +99,7 @@
     ))
   }
 
-  if (known_v_parameterization == "block_mvn") {
+  if (effective_backend == "block_mvn") {
     .known_v_warn_unused_residual_fraction(
       known_v_parameterization,
       known_v_residual_fraction_specified &&
@@ -247,8 +253,24 @@
 
 .known_v_is_singular <- function(V) {
 
-  correlation <- stats::cov2cor(V)
-  .covariance_factorization(correlation)[["singular"]]
+  .known_v_correlation_factorization(V)[["singular"]]
+}
+
+
+# Whether every singular dependency block has an exact rank-one factor.
+.known_v_singular_blocks_are_exact_rank_one <- function(known_V) {
+
+  singular_blocks <- Filter(function(block) {
+    .known_v_is_singular(block[["covariance"]])
+  }, .known_v_correlated_blocks(known_V))
+
+  length(singular_blocks) > 0L && all(vapply(
+    singular_blocks,
+    function(block) {
+      !is.null(.covariance_exact_rank_one_factor(block[["covariance"]]))
+    },
+    logical(1)
+  ))
 }
 
 .known_v_warn_singular <- function() {
@@ -452,7 +474,10 @@
       stop("Known-V whitening covariance is not positive semidefinite.",
            call. = FALSE)
     }
-    values[values < 0] <- 0
+    if (any(values < 0)) {
+      stop("Known-V whitening covariance has negative eigenvalues.",
+           call. = FALSE)
+    }
 
     whitening_blocks[[b]] <- list(
       index    = idx,
@@ -555,6 +580,18 @@
   block_size <- nrow(V_block)
   diagonal   <- diag(V_block)
 
+  rank_one_factor <- .covariance_exact_rank_one_factor(V_block)
+  if (!is.null(rank_one_factor) && block_size > 1L) {
+    return(list(
+      residual_variance            = numeric(block_size),
+      B                            = matrix(rank_one_factor, ncol = 1L),
+      effective_residual_fraction  = 0,
+      max_reconstruction_error     = 0,
+      min_latent_eigenvalue        = 0,
+      reduced                      = FALSE
+    ))
+  }
+
   if (block_size == 1L || all(V_block[row(V_block) != col(V_block)] == 0)) {
     return(list(
       residual_variance            = diagonal,
@@ -589,6 +626,9 @@
   if (!.covariance_is_positive_semidefinite(eig)) {
     stop("Known-V decomposition failed; V - D is not positive semidefinite.",
          call. = FALSE)
+  }
+  if (any(eig[["decomposition_values"]] < 0)) {
+    stop("Known-V decomposition produced negative eigenvalues.", call. = FALSE)
   }
 
   if (any(keep)) {

@@ -23,7 +23,7 @@
     attr(prior_list[["gamma"]], "levels") <- length(unique(data[["outcome"]][["cluster"]]))
   }
   # add known-V sampling dependency latent factors
-  if (.is_data_known_v_parameterization(data, "latent") && .data_known_v_rank(data) > 0L) {
+  if (.is_data_known_v_backend(data, "latent") && .data_known_v_rank(data) > 0L) {
     prior_list[["sampling_z"]] <- BayesTools::prior_factor(
       "normal",
       parameters = list("mean" = 0, "sd" = 1),

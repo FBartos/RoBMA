@@ -64,6 +64,72 @@ test_that("known-V joint log-likelihood uses block MVN density", {
 })
 
 
+test_that("rank-one known V retains sub-ULP diagonal variance", {
+
+  V    <- matrix(1, nrow = 2L, ncol = 2L)
+  data <- list(outcome = data.frame(yi = c(0.10, -0.20), sei = c(1, 1)))
+  attr(data, "known_V")      <- TRUE
+  attr(data, "known_V_data") <- .known_v_prepare(
+    V                         = V,
+    keep_rows                 = rep(TRUE, 2L),
+    known_v_parameterization  = "block_mvn",
+    known_v_residual_fraction = NULL,
+    warn_singular             = FALSE
+  )
+  attr(data, "random") <- FALSE
+
+  diagonal <- rep(1e-18, 2L)
+  setup <- list(
+    outcome_type      = "norm",
+    is_weightfunction = FALSE,
+    weights           = NULL,
+    data              = data,
+    K                 = 2L,
+    S                 = 1L,
+    yi                = c(0.10, -0.20),
+    mu                = matrix(0, nrow = 1L, ncol = 2L),
+    tau_within        = matrix(sqrt(diagonal), nrow = 1L),
+    effect_direction  = "positive",
+    posterior_samples = matrix(numeric(0), nrow = 1L, ncol = 0L),
+    marginalized_random_source_samples = NULL
+  )
+
+  determinant <- diagonal[[1L]] * (2 + diagonal[[1L]])
+  residual    <- setup[["yi"]]
+  quadratic   <- (
+    (1 + diagonal[[1L]]) * sum(residual^2) -
+      2 * prod(residual)
+  ) / determinant
+  expected_joint <- -0.5 * (
+    2 * log(2 * pi) + log(determinant) + quadratic
+  )
+  expected_variance <- diagonal[[1L]] *
+    (2 + diagonal[[1L]]) / (1 + diagonal[[1L]])
+
+  expect_equal(
+    .log_lik_known_v_joint_sum_from_setup(setup),
+    expected_joint,
+    tolerance = 1e-12
+  )
+  distribution <- .known_v_estimate_target_summary_from_setup(setup)
+  expect_equal(
+    distribution[["variance"]],
+    matrix(expected_variance, nrow = 1L, ncol = 2L),
+    tolerance = 1e-12
+  )
+  expect_true(all(is.finite(distribution[["log_lower"]])))
+  expect_true(all(is.finite(distribution[["log_upper"]])))
+
+  projection <- .known_v_gls_projection_blocks(
+    X              = matrix(1, nrow = 2L, ncol = 1L),
+    y              = setup[["yi"]],
+    known_V        = .data_known_v_data(data),
+    extra_variance = diagonal
+  )
+  expect_true(all(is.finite(unlist(projection))))
+})
+
+
 test_that("evaluated known-V random log-likelihood requires conditioned mu", {
 
   dat <- data.frame(

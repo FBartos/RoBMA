@@ -931,14 +931,26 @@ add_marglik.brma <- function(object, ...) {
 
   covariance_blocks <- .known_v_correlated_blocks(known_V)
   for (b in seq_along(covariance_blocks)) {
-    idx <- covariance_blocks[[b]][["index"]]
-    covariance <- covariance_blocks[[b]][["covariance"]] +
-      diag(as.numeric(extra_variance[1L, idx]), nrow = length(idx))
-    log_lik <- log_lik + .marglik_mvn_log_density(
-      y          = yi[idx],
-      mean       = as.numeric(mu_samples[1L, idx]),
-      covariance = covariance
-    )
+    idx              <- covariance_blocks[[b]][["index"]]
+    block_covariance <- covariance_blocks[[b]][["covariance"]]
+    rank_one_factor  <- .covariance_exact_rank_one_factor(block_covariance)
+    if (!is.null(rank_one_factor)) {
+      log_lik <- log_lik + .known_v_diagonal_rank_one_log_density(
+        y        = yi[idx],
+        mean     = as.numeric(mu_samples[1L, idx]),
+        diagonal = as.numeric(extra_variance[1L, idx]),
+        rank_one = rank_one_factor,
+        context  = "bridge"
+      )
+    } else {
+      covariance <- block_covariance +
+        diag(as.numeric(extra_variance[1L, idx]), nrow = length(idx))
+      log_lik <- log_lik + .marglik_mvn_log_density(
+        y          = yi[idx],
+        mean       = as.numeric(mu_samples[1L, idx]),
+        covariance = covariance
+      )
+    }
   }
 
   return(log_lik)

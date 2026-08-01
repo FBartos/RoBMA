@@ -1,6 +1,6 @@
 # Internal covariance factorization policy.
 
-.covariance_factorization <- function(covariance) {
+.covariance_factorization <- function(covariance, strict = FALSE) {
 
   if (!is.matrix(covariance) || !is.numeric(covariance) ||
       nrow(covariance) != ncol(covariance) || nrow(covariance) == 0L ||
@@ -8,12 +8,20 @@
     stop("Internal error: covariance must be a finite non-empty numeric square matrix.",
          call. = FALSE)
   }
+  if (!is.logical(strict) || length(strict) != 1L || is.na(strict)) {
+    stop("Internal error: invalid strict covariance policy.", call. = FALSE)
+  }
 
-  covariance <- (covariance + t(covariance)) / 2
-  eigen      <- eigen(covariance, symmetric = TRUE)
-  values     <- eigen[["values"]]
-  scale      <- max(abs(values))
-  tolerance  <- if (scale == 0) {
+  covariance      <- (covariance + t(covariance)) / 2
+  rank_one_factor <- .covariance_exact_rank_one_factor(covariance)
+  decomposition   <- eigen(covariance, symmetric = TRUE)
+  values          <- eigen(
+    covariance,
+    symmetric   = TRUE,
+    only.values = TRUE
+  )[["values"]]
+  scale           <- max(abs(values))
+  tolerance       <- if (scale == 0) {
     0
   } else {
     # Backward-error envelope for symmetrization and the eigensolve. This
@@ -24,7 +32,9 @@
     relative_error * scale
   }
 
-  status <- if (min(values) < -tolerance) {
+  status <- if (!is.null(rank_one_factor)) {
+    if (nrow(covariance) == 1L) "positive_definite" else "positive_semidefinite"
+  } else if (min(values) < if (strict) 0 else -tolerance) {
     "indefinite"
   } else if (scale == 0 || min(values) <= tolerance) {
     "positive_semidefinite"
@@ -34,18 +44,45 @@
 
   structure(
     list(
-      covariance    = covariance,
-      eigenvalues   = values,
-      decomposition_values = eigen[["values"]],
-      eigenvectors  = eigen[["vectors"]],
-      scale         = scale,
-      psd_tolerance = tolerance,
-      pd_tolerance  = tolerance,
-      singular      = !identical(status, "positive_definite"),
-      status        = status
+      covariance          = covariance,
+      eigenvalues         = values,
+      decomposition_values = decomposition[["values"]],
+      eigenvectors        = decomposition[["vectors"]],
+      rank_one_factor     = rank_one_factor,
+      scale               = scale,
+      psd_tolerance       = tolerance,
+      pd_tolerance        = tolerance,
+      singular            = !identical(status, "positive_definite"),
+      status              = status
     ),
     class = c("brma_covariance_factorization", "list")
   )
+}
+
+
+# Return u only when the stored covariance is exactly u u' in binary64.
+.covariance_exact_rank_one_factor <- function(covariance) {
+
+  if (!is.matrix(covariance) || nrow(covariance) != ncol(covariance) ||
+      anyNA(covariance) || any(!is.finite(covariance)) ||
+      any(covariance != t(covariance)) || any(diag(covariance) <= 0)) {
+    return(NULL)
+  }
+
+  magnitude <- sqrt(diag(covariance))
+  pivot     <- which.max(magnitude)
+  direction <- sign(covariance[pivot, ])
+  if (any(direction == 0)) {
+    return(NULL)
+  }
+  direction[[pivot]] <- 1
+  factor             <- magnitude * direction
+
+  if (!all(tcrossprod(factor) == covariance)) {
+    return(NULL)
+  }
+
+  unname(factor)
 }
 
 
@@ -83,6 +120,14 @@
     return(NULL)
   }
 
+  rank_one_factor <- factorization[["rank_one_factor"]]
+  if (!is.null(rank_one_factor)) {
+    size            <- length(rank_one_factor)
+    sampling_factor <- matrix(0, nrow = size, ncol = size)
+    sampling_factor[1L, ] <- rank_one_factor
+    return(sampling_factor)
+  }
+
   chol_factor <- tryCatch(
     chol(factorization[["covariance"]]),
     error = function(e) NULL
@@ -91,7 +136,10 @@
     return(chol_factor)
   }
 
-  values <- pmax(factorization[["decomposition_values"]], 0)
+  values <- factorization[["decomposition_values"]]
+  if (any(values < 0)) {
+    return(NULL)
+  }
   vectors <- factorization[["eigenvectors"]]
   vectors %*% diag(sqrt(values), nrow = length(values)) %*% t(vectors)
 }
