@@ -437,6 +437,75 @@ test_that("plot quantiles retain tiny positive normal scales", {
   )
 })
 
+
+test_that("plot quantile inversion fails without a valid CDF bracket", {
+
+  expect_error(
+    .regplot_grid_quantile(.5, -1, 1, function(q) .25),
+    "valid bracketed CDF"
+  )
+  expect_error(
+    .regplot_grid_quantile(.5, -1, 1, function(q) NaN),
+    "valid bracketed CDF"
+  )
+  expect_error(
+    testthat::with_mocked_bindings(
+      .funnel_grid_quantile_precomputed(.5, -1, 1, list()),
+      .funnel_model_averaged_cdf_precomputed = function(q, se_setup) .25,
+      .package = "RoBMA"
+    ),
+    "valid bracketed CDF"
+  )
+})
+
+
+test_that("native selected-normal plot quantiles reject zero mass", {
+
+  skip_if_not(.has_native_regplot_selection_mixture())
+  skip_if_not(.has_native_funnel_model_averaged_quantiles(list(
+    selection = list()
+  )))
+
+  S         <- 2L
+  spec      <- .test_step_spec(.10, .10)
+  selection <- spec
+  selection[["omega"]]       <- matrix(0, nrow = S, ncol = spec[["n_bins"]])
+  selection[["alpha"]]       <- rep(0, S)
+  selection[["phack_kind"]]  <- rep(0L, S)
+  selection[["kernel_mode"]] <- rep(SELKERNEL_STEP, S)
+  selection[["use_normal"]]  <- rep(FALSE, S)
+  selection[["has_phack"]]   <- FALSE
+
+  expect_error(
+    .regplot_selnorm_mixture_interval_quantiles(
+      mean_samples      = matrix(0, nrow = S),
+      sd_samples        = matrix(.20, nrow = S),
+      se                = .10,
+      probs             = c(.025, .975),
+      selection_context = selection
+    ),
+    "valid bracketed CDF"
+  )
+
+  setup <- list(
+    mu                = rep(0, S),
+    tau               = rep(.20, S),
+    PET               = rep(0, S),
+    PEESE             = rep(0, S),
+    is_weightfunction = rep(TRUE, S),
+    selection         = selection
+  )
+  expect_error(
+    .funnel_model_averaged_quantiles_native(
+      se_sequence      = .10,
+      setup            = setup,
+      effect_direction = "positive"
+    ),
+    "valid bracketed CDF"
+  )
+})
+
+
 test_that("native weighted selected-normal summary matches matrix reductions", {
 
   skip_if_not(.has_native_selnorm_kernel())

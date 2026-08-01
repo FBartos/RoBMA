@@ -167,6 +167,13 @@ extern "C" SEXP RoBMA_funnel_model_averaged_quantiles(
     mid_p[ell] = funnel_model_averaged_quantile_native(
       0.5, ctx, has_previous ? mid_p[ell - 1] : NA_REAL, has_previous
     );
+    if (!std::isfinite(lower_p[ell]) || !std::isfinite(upper_p[ell]) ||
+        !std::isfinite(mid_p[ell]) || lower_p[ell] > mid_p[ell] ||
+        mid_p[ell] > upper_p[ell]) {
+      Rf_error(
+        "Funnel quantiles could not be computed from a valid bracketed CDF."
+      );
+    }
   }
 
   UNPROTECT(5);

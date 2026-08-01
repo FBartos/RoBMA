@@ -184,17 +184,20 @@
   lower  <- min(mean - 10 * spread, na.rm = TRUE)
   upper  <- max(mean + 10 * spread, na.rm = TRUE)
 
-  if (!is.finite(lower) || !is.finite(upper)) {
-    return(NA_real_)
-  }
-  if (lower >= upper) {
-    return(lower)
+  if (!is.finite(lower) || !is.finite(upper) || lower >= upper) {
+    stop(
+      "Regression-plot quantiles could not be computed from a valid bracketed CDF.",
+      call. = FALSE
+    )
   }
 
   obj_fun     <- function(q) cdf_fun(q) - p
   lower_value <- obj_fun(lower)
   upper_value <- obj_fun(upper)
   step        <- max(spread, na.rm = TRUE)
+  if (!is.finite(lower_value) || !is.finite(upper_value)) {
+    return(.regplot_grid_quantile(p, lower, upper, cdf_fun))
+  }
 
   for (i in seq_len(25)) {
     if (lower_value <= 0 && upper_value >= 0) {
@@ -203,10 +206,16 @@
     if (lower_value > 0) {
       lower       <- lower - step
       lower_value <- obj_fun(lower)
+      if (!is.finite(lower_value)) {
+        return(.regplot_grid_quantile(p, lower, upper, cdf_fun))
+      }
     }
     if (upper_value < 0) {
       upper       <- upper + step
       upper_value <- obj_fun(upper)
+      if (!is.finite(upper_value)) {
+        return(.regplot_grid_quantile(p, lower, upper, cdf_fun))
+      }
     }
     step <- step * 2
   }
@@ -342,10 +351,19 @@
 
   grid <- seq(lower, upper, length.out = 1000)
   cdf  <- vapply(grid, cdf_fun, numeric(1))
+  if (any(!is.finite(cdf))) {
+    stop(
+      "Regression-plot quantiles could not be computed from a valid bracketed CDF.",
+      call. = FALSE
+    )
+  }
   index <- which(cdf >= p)[1]
 
   if (is.na(index)) {
-    return(grid[length(grid)])
+    stop(
+      "Regression-plot quantiles could not be computed from a valid bracketed CDF.",
+      call. = FALSE
+    )
   }
 
   return(grid[index])

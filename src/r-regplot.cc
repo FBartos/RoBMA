@@ -214,19 +214,23 @@ static double regplot_grid_quantile(double p, double lower, double upper,
 {
   const int n_grid = 1000;
 
-  if (lower == upper) {
-    return upper;
+  if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper) {
+    return NA_REAL;
   }
 
   for (int i = 0; i < n_grid; ++i) {
     const double q = lower +
       (upper - lower) * static_cast<double>(i) / static_cast<double>(n_grid - 1);
-    if (cdf_fun(q) >= p) {
+    const double cdf = cdf_fun(q);
+    if (!std::isfinite(cdf)) {
+      return NA_REAL;
+    }
+    if (cdf >= p) {
       return q;
     }
   }
 
-  return upper;
+  return NA_REAL;
 }
 
 template <typename CdfFun>
@@ -255,15 +259,15 @@ static double regplot_mixture_quantile(double p, const double *mean,
     return regplot_empirical_quantile(mean, S, p);
   }
 
-  if (!std::isfinite(lower) || !std::isfinite(upper)) {
+  if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper) {
     return NA_REAL;
-  }
-  if (lower >= upper) {
-    return lower;
   }
 
   double lower_value = cdf_fun(lower) - p;
   double upper_value = cdf_fun(upper) - p;
+  if (!std::isfinite(lower_value) || !std::isfinite(upper_value)) {
+    return NA_REAL;
+  }
 
   for (int i = 0; i < 25; ++i) {
     if (lower_value <= 0 && upper_value >= 0) {
@@ -272,10 +276,16 @@ static double regplot_mixture_quantile(double p, const double *mean,
     if (lower_value > 0) {
       lower -= step;
       lower_value = cdf_fun(lower) - p;
+      if (!std::isfinite(lower_value)) {
+        return NA_REAL;
+      }
     }
     if (upper_value < 0) {
       upper += step;
       upper_value = cdf_fun(upper) - p;
+      if (!std::isfinite(upper_value)) {
+        return NA_REAL;
+      }
     }
     step *= 2;
   }
@@ -287,6 +297,9 @@ static double regplot_mixture_quantile(double p, const double *mean,
   for (int i = 0; i < 100; ++i) {
     const double mid = lower + 0.5 * (upper - lower);
     const double mid_value = cdf_fun(mid) - p;
+    if (!std::isfinite(mid_value)) {
+      return NA_REAL;
+    }
 
     if (mid_value >= 0) {
       upper = mid;
@@ -329,6 +342,13 @@ static SEXP regplot_interval_result(int K, std::vector<double> &lower,
   SEXP upper_out = PROTECT(Rf_allocVector(REALSXP, K));
 
   for (int k = 0; k < K; ++k) {
+    if (!std::isfinite(lower[static_cast<size_t>(k)]) ||
+        !std::isfinite(upper[static_cast<size_t>(k)]) ||
+        lower[static_cast<size_t>(k)] > upper[static_cast<size_t>(k)]) {
+      Rf_error(
+        "Regression-plot quantiles could not be computed from a valid bracketed CDF."
+      );
+    }
     REAL(lower_out)[k] = lower[static_cast<size_t>(k)];
     REAL(upper_out)[k] = upper[static_cast<size_t>(k)];
   }
