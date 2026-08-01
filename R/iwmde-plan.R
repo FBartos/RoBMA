@@ -146,7 +146,7 @@
   }
 
   candidate_values <- posterior_values[candidate_rows]
-  if (stats::sd(candidate_values) <= sqrt(.Machine$double.eps)) {
+  if (all(candidate_values == candidate_values[[1L]])) {
     plan[["status"]] <- "unsupported"
     plan[["reason"]] <- "active samples have zero variance"
     plan[["rows"]]   <- .iwmde_plan_empty_rows()

@@ -142,7 +142,7 @@
     return(NULL)
   }
 
-  keep <- is.finite(weights) & abs(weights) > sqrt(.Machine$double.eps)
+  keep <- is.finite(weights) & weights != 0
   weights <- weights[keep]
 
   return(weights)

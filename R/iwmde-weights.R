@@ -4,16 +4,27 @@
 
 .iwmde_chen_conditional_gaussian <- function(z_fit, x_fit, x_eval) {
 
-  fit_keep <- is.finite(z_fit) & stats::complete.cases(x_fit)
-  if (sum(fit_keep) < 3L) {
-    .iwmde_chen_conditional_stop("fewer than three finite conditioning rows")
+  if (!is.numeric(z_fit) || !is.matrix(x_fit) || !is.matrix(x_eval) ||
+      length(z_fit) != nrow(x_fit) || ncol(x_fit) != ncol(x_eval)) {
+    stop("Internal IWMDE conditioning inputs are inconsistent.",
+         call. = FALSE)
+  }
+  if (length(z_fit) < 3L) {
+    .iwmde_chen_conditional_stop("fewer than three conditioning rows")
+  }
+  if (any(!is.finite(z_fit)) || any(!is.finite(x_fit))) {
+    .iwmde_chen_conditional_stop(
+      "conditioning fit rows contain non-finite values"
+    )
   }
 
-  x_fit <- x_fit[fit_keep, , drop = FALSE]
-  z_fit <- z_fit[fit_keep]
+  column_scale <- apply(abs(x_fit), 2L, max)
+  column_scale[column_scale == 0] <- 1
+  x_fit  <- sweep(x_fit, 2L, column_scale, "/")
+  x_eval <- sweep(x_eval, 2L, column_scale, "/")
   center <- colMeans(x_fit)
   scale  <- apply(x_fit, 2L, stats::sd)
-  keep   <- is.finite(scale) & scale > sqrt(.Machine$double.eps)
+  keep   <- is.finite(scale) & scale > 0
   if (!any(keep)) {
     .iwmde_chen_conditional_stop("all conditioning columns have zero variance")
   }
@@ -23,6 +34,17 @@
   x_eval <- sweep(x_eval[, keep, drop = FALSE], 2L, center[keep], "-")
   x_eval <- sweep(x_eval, 2L, scale[keep], "/")
 
+  if (length(z_fit) <= ncol(x_fit) + 1L) {
+    .iwmde_chen_conditional_stop(
+      "too few rows for a positive conditional variance"
+    )
+  }
+
+  focal_scale <- max(abs(z_fit))
+  if (focal_scale == 0) {
+    .iwmde_chen_conditional_stop("the conditional variance is not positive")
+  }
+  z_fit     <- z_fit / focal_scale
   covariance <- stats::cov(cbind(z_fit, x_fit))
   if (!all(is.finite(covariance))) {
     .iwmde_chen_conditional_stop(
@@ -30,39 +52,36 @@
     )
   }
 
-  n_predictors <- ncol(x_fit)
-  variance_z   <- covariance[1L, 1L]
   covariance_zx <- matrix(covariance[1L, -1L], nrow = 1L)
   covariance_x  <- covariance[-1L, -1L, drop = FALSE]
-  ridge <- max(1e-10, 1e-8 * mean(diag(covariance_x)))
-  inverse <- try(
-    chol2inv(chol(covariance_x + diag(ridge, n_predictors))),
-    silent = TRUE
-  )
-  if (inherits(inverse, "try-error")) {
+  factor <- try(chol(covariance_x), silent = TRUE)
+  if (inherits(factor, "try-error")) {
     .iwmde_chen_conditional_stop(
       "the conditional covariance matrix is not positive definite"
     )
   }
 
-  coefficients <- covariance_zx %*% inverse
-  variance <- as.numeric(
-    variance_z - coefficients %*% t(covariance_zx)
+  coefficients <- backsolve(
+    factor,
+    forwardsolve(t(factor), as.numeric(covariance_zx))
   )
-  if (!is.finite(variance) || variance <= sqrt(.Machine$double.eps)) {
+  residuals <- as.numeric(z_fit - mean(z_fit) - x_fit %*% coefficients)
+  variance  <- sum(residuals^2) / (length(residuals) - 1L)
+  if (!is.finite(variance) || variance <= 0) {
     .iwmde_chen_conditional_stop("the conditional variance is not positive")
   }
 
   eval_keep <- stats::complete.cases(x_eval)
   means <- rep(NA_real_, nrow(x_eval))
   means[eval_keep] <- as.numeric(
-    mean(z_fit) + x_eval[eval_keep, , drop = FALSE] %*% t(coefficients)
+    mean(z_fit) + x_eval[eval_keep, , drop = FALSE] %*% coefficients
   )
 
   return(list(
-    means     = means,
-    sd        = sqrt(variance),
-    eval_keep = eval_keep
+    means       = means,
+    sd          = sqrt(variance),
+    focal_scale = focal_scale,
+    eval_keep   = eval_keep
   ))
 }
 
@@ -404,11 +423,11 @@
   location <- mean(distance_fit)
   variance <- stats::var(distance_fit)
   if (!is.finite(location) || !is.finite(variance) ||
-      location <= 0 || variance <= sqrt(.Machine$double.eps)) {
+      location <= 0 || variance <= 0) {
     return(list(log_weight = out, method = "chen_gamma"))
   }
 
-  shape <- location^2 / variance
+  shape <- (location / sqrt(variance))^2
   rate  <- location / variance
   if (!is.finite(shape) || !is.finite(rate) ||
       shape <= 0 || rate <= 0) {
@@ -466,11 +485,12 @@
     is.finite(active[["log_jacobian"]]) &
     is.finite(gaussian[["means"]])
   out[eval_keep] <- stats::dnorm(
-    active[["z"]][eval_keep],
+    active[["z"]][eval_keep] / gaussian[["focal_scale"]],
     mean = gaussian[["means"]][eval_keep],
     sd   = gaussian[["sd"]],
     log  = TRUE
-  ) + active[["log_jacobian"]][eval_keep]
+  ) - log(gaussian[["focal_scale"]]) +
+    active[["log_jacobian"]][eval_keep]
 
   return(list(log_weight = out, method = "chen_logit_conditional_normal"))
 }
@@ -513,7 +533,7 @@
   maximum  <- location * (1 - location)
   if (!is.finite(location) || !is.finite(variance) ||
       location <= 0 || location >= 1 ||
-      variance <= sqrt(.Machine$double.eps) ||
+      variance <= 0 ||
       variance >= maximum) {
     return(list(log_weight = out, method = "chen_beta"))
   }
@@ -591,11 +611,11 @@
   eval_keep <- gaussian[["eval_keep"]] & is.finite(active_values) &
     is.finite(gaussian[["means"]])
   out[eval_keep] <- stats::dnorm(
-    active_values[eval_keep],
+    active_values[eval_keep] / gaussian[["focal_scale"]],
     mean = gaussian[["means"]][eval_keep],
     sd   = gaussian[["sd"]],
     log  = TRUE
-  )
+  ) - log(gaussian[["focal_scale"]])
 
   return(list(log_weight = out, method = "chen_conditional_normal"))
 }
@@ -605,25 +625,30 @@
                                                    weight_values) {
 
   out    <- rep(-Inf, length(active_values))
-  values <- weight_values[is.finite(weight_values)]
-  if (length(values) < 2L) {
+  values <- as.numeric(weight_values)
+  if (length(values) < 2L || any(!is.finite(values))) {
     return(list(log_weight = out, method = "chen_marginal_normal"))
   }
 
-  location <- mean(values)
-  scale    <- stats::sd(values)
-  finite   <- is.finite(active_values)
+  focal_scale <- max(abs(values))
+  if (focal_scale == 0) {
+    return(list(log_weight = out, method = "chen_marginal_normal"))
+  }
+  scaled_values <- values / focal_scale
+  location      <- mean(scaled_values)
+  scale         <- stats::sd(scaled_values)
+  finite        <- is.finite(active_values)
   if (!is.finite(location) || !is.finite(scale) ||
-      scale <= sqrt(.Machine$double.eps)) {
+      scale <= 0) {
     return(list(log_weight = out, method = "chen_marginal_normal"))
   }
 
   out[finite] <- stats::dnorm(
-    active_values[finite],
+    active_values[finite] / focal_scale,
     mean = location,
     sd   = scale,
     log  = TRUE
-  )
+  ) - log(focal_scale)
 
   return(list(log_weight = out, method = "chen_marginal_normal"))
 }
@@ -672,12 +697,15 @@
     eval_values[, column] <- transformed[["eval"]]
   }
 
+  if (any(!is.finite(fit_values))) {
+    .iwmde_chen_conditional_stop(
+      "conditioning fit columns contain non-finite transformed values"
+    )
+  }
+
   keep <- vapply(seq_along(columns), function(i) {
     values <- fit_values[, i]
-    finite <- is.finite(values)
-    sum(finite) >= 3L &&
-      stats::sd(values[finite]) > sqrt(.Machine$double.eps) &&
-      length(unique(signif(values[finite], 12))) > 1L
+    length(unique(values)) > 1L
   }, logical(1))
 
   if (!any(keep)) {
@@ -783,20 +811,28 @@
 
 .iwmde_chen_transform_nonnegative <- function(fit_values, eval_values) {
 
+  fit  <- as.numeric(fit_values)
+  eval <- as.numeric(eval_values)
+  fit[fit < 0]   <- NA_real_
+  eval[eval < 0] <- NA_real_
+
   return(list(
-    fit  = log1p(pmax(as.numeric(fit_values), 0)),
-    eval = log1p(pmax(as.numeric(eval_values), 0))
+    fit  = log1p(fit),
+    eval = log1p(eval)
   ))
 }
 
 
 .iwmde_chen_transform_unit_interval <- function(fit_values, eval_values) {
 
-  eps <- sqrt(.Machine$double.eps)
+  fit  <- as.numeric(fit_values)
+  eval <- as.numeric(eval_values)
+  fit[fit < 0 | fit > 1]     <- NA_real_
+  eval[eval < 0 | eval > 1] <- NA_real_
 
   return(list(
-    fit  = stats::qlogis(pmin(pmax(as.numeric(fit_values), eps), 1 - eps)),
-    eval = stats::qlogis(pmin(pmax(as.numeric(eval_values), eps), 1 - eps))
+    fit  = stats::qlogis(fit),
+    eval = stats::qlogis(eval)
   ))
 }
 
@@ -808,7 +844,7 @@
   all_values <- c(fit, eval)
   finite     <- all_values[is.finite(all_values)]
   if (length(finite) > 0L && min(finite) >= 0 &&
-      max(finite) <= 1 + sqrt(.Machine$double.eps)) {
+      max(finite) <= 1) {
     return(.iwmde_chen_transform_unit_interval(fit, eval))
   }
 

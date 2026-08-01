@@ -1144,10 +1144,9 @@ test_that("Chen conditional-normal weights match bivariate normal oracle", {
   x_scale  <- stats::sd(x)
   x_fit    <- (x - x_center) / x_scale
   cov_mat  <- stats::cov(cbind(z, x_fit))
-  ridge    <- max(1e-10, 1e-8 * cov_mat[2L, 2L])
-  beta     <- cov_mat[1L, 2L] / (cov_mat[2L, 2L] + ridge)
-  variance <- cov_mat[1L, 1L] - beta * cov_mat[2L, 1L]
+  beta     <- cov_mat[1L, 2L] / cov_mat[2L, 2L]
   means    <- mean(z) + ((x - x_center) / x_scale) * beta
+  variance <- sum((z - means)^2) / (length(z) - 1L)
   expected <- stats::dnorm(
     active_values,
     mean = means,
@@ -1157,6 +1156,49 @@ test_that("Chen conditional-normal weights match bivariate normal oracle", {
 
   expect_equal(weight[["method"]], "chen_conditional_normal")
   expect_equal(weight[["log_weight"]], expected, tolerance = 1e-12)
+})
+
+
+test_that("Chen Gaussian weights preserve represented small scales", {
+
+  x      <- 2^-400 * seq(-2, 2, length.out = 200L)
+  z      <- 2^-300 * (seq(-1, 1, length.out = 200L) +
+    stats::qnorm(stats::ppoints(200L)) / 10)
+  active <- z + 2^-305 * sin(seq_along(z))
+
+  gaussian <- .iwmde_chen_conditional_gaussian(
+    z_fit  = z,
+    x_fit  = matrix(x),
+    x_eval = matrix(x)
+  )
+  expected <- stats::dnorm(
+    active / gaussian[["focal_scale"]],
+    mean = gaussian[["means"]],
+    sd   = gaussian[["sd"]],
+    log  = TRUE
+  ) - log(gaussian[["focal_scale"]])
+
+  expect_true(all(is.finite(expected)))
+  expect_true(gaussian[["sd"]] > 0)
+})
+
+
+test_that("Chen conditioning transforms do not clip support violations", {
+
+  unit <- .iwmde_chen_transform_unit_interval(
+    c(0, 1, -.Machine$double.eps, 1 + .Machine$double.eps),
+    c(0, 1)
+  )
+  nonnegative <- .iwmde_chen_transform_nonnegative(
+    c(-.Machine$double.xmin, 0, .Machine$double.xmin),
+    0
+  )
+
+  expect_identical(unit[["fit"]], c(-Inf, Inf, NA_real_, NA_real_))
+  expect_identical(
+    nonnegative[["fit"]],
+    c(NA_real_, 0, log1p(.Machine$double.xmin))
+  )
 })
 
 

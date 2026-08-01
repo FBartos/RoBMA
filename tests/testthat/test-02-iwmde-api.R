@@ -1784,7 +1784,7 @@ test_that("IWMDE Chen conditional-normal weights error on failed conditioning", 
       weight_rows    = 1:4,
       weight_values  = c(NA_real_, NA_real_, 0.1, NA_real_)
     ),
-    "fewer than three finite conditioning rows"
+    "conditioning fit rows contain non-finite values"
   )
 
   expect_error(
@@ -1798,6 +1798,6 @@ test_that("IWMDE Chen conditional-normal weights error on failed conditioning", 
       weight_values  = c(NA_real_, NA_real_, 0.4, NA_real_),
       support        = c(0, 1)
     ),
-    "fewer than three finite conditioning rows"
+    "conditioning fit rows contain non-finite values"
   )
 })
