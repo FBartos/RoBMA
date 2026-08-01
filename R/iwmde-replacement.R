@@ -597,9 +597,7 @@
         next
       }
       if (length(linear[["active_columns"]]) == 0L) {
-        valid[positions] <- vapply(values, function(value) {
-          isTRUE(all.equal(linear[["current"]], value, tolerance = 1e-10))
-        }, logical(1))
+        valid[positions] <- values == linear[["current"]]
         next
       }
 
@@ -714,7 +712,7 @@
   }
 
   if (length(linear[["active_columns"]]) == 0L) {
-    valid <- isTRUE(all.equal(linear[["current"]], value, tolerance = 1e-10))
+    valid <- linear[["current"]] == value
     return(out(row, valid = valid))
   }
 
@@ -981,7 +979,7 @@
   }
 
   if (length(linear[["active_columns"]]) == 0L) {
-    valid <- isTRUE(all.equal(linear[["current"]], value, tolerance = 1e-10))
+    valid <- linear[["current"]] == value
     return(out(row, state[["parameters"]], valid = valid))
   }
 

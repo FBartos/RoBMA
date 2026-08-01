@@ -53,7 +53,8 @@ hypothesis_quantities.brma <- function(object, ...) {
 
     fixed <- vapply(index, function(i) {
       values <- bundle[["samples"]][, i]
-      diff(range(values, na.rm = TRUE)) <= sqrt(.Machine$double.eps)
+      finite <- values[is.finite(values)]
+      length(finite) > 0L && all(finite == finite[[1L]])
     }, logical(1))
     random_rows <- which(is_random)
     if (any(fixed)) {

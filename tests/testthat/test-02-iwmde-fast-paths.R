@@ -1273,6 +1273,39 @@ test_that("IWMDE omega collapse rejects unequal merged bins", {
 })
 
 
+test_that("IWMDE structural identities are exact", {
+
+  expect_error(
+    .iwmde_indicator_index(1 + .Machine$double.eps, "model_indicator", 2L),
+    "integer-valued"
+  )
+  expect_false(.iwmde_same_p_cuts(
+    c(0, .5, 1),
+    c(0, .5 + .Machine$double.eps, 1)
+  ))
+
+  collapsed <- .iwmde_collapse_omega(
+    omega       = c(1, 1 + .Machine$double.eps),
+    global_cuts = c(0, .25, .5),
+    active_cuts = c(0, .5)
+  )
+  expect_true(is.na(collapsed[[1L]]))
+
+  tiny <- .Machine$double.eps / 2
+  expect_identical(
+    .iwmde_linear_weights(c(mu = tiny, tau = 0)),
+    c(mu = tiny)
+  )
+
+  points <- .iwmde_point_mass_table(
+    c(1, 1 + .Machine$double.eps, 1),
+    denominator = 3L
+  )
+  expect_identical(points[["x"]], c(1, 1 + .Machine$double.eps))
+  expect_identical(points[["mass"]], c(2 / 3, 1 / 3))
+})
+
+
 test_that("IWMDE omega helpers use selection-specific JAGS names", {
 
   context <- list(

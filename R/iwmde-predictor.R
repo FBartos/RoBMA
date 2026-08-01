@@ -154,11 +154,7 @@
       if (isTRUE(column_basis[["formula_mu"]])) {
         has_formula_mu <- TRUE
         if (column %in% formula_mu_columns) {
-          if (!isTRUE(all.equal(
-            formula_mu_coefficients[[column]],
-            coefficient,
-            tolerance = 1e-12
-          ))) {
+          if (formula_mu_coefficients[[column]] != coefficient) {
             return(NULL)
           }
         } else {
@@ -170,11 +166,7 @@
       if (isTRUE(column_basis[["formula_logtau"]])) {
         has_formula_logtau <- TRUE
         if (column %in% formula_logtau_columns) {
-          if (!isTRUE(all.equal(
-            formula_logtau_coefficients[[column]],
-            coefficient,
-            tolerance = 1e-12
-          ))) {
+          if (formula_logtau_coefficients[[column]] != coefficient) {
             return(NULL)
           }
         } else {
@@ -938,7 +930,7 @@
 
     inv_diag <- 1 / diagonal
     denom    <- 1 + rowSums(rank_one^2 * inv_diag)
-    if (any(!is.finite(denom) | denom <= .Machine$double.eps)) {
+    if (any(!is.finite(denom) | denom <= 0)) {
       return(NULL)
     }
 
@@ -1237,7 +1229,7 @@
 
     active_columns <- .iwmde_linear_active_columns(context, row, weights)
     if (length(active_columns) == 0L) {
-      valid <- abs(values - current) <= 1e-10
+      valid <- values == current
       out[idx[valid]] <- state[["baseline_log_prior"]]
       next
     }

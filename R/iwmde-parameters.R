@@ -390,15 +390,7 @@
     }
   }
 
-  finite_point_location <- point_location[is.finite(point_location)]
-  if (length(finite_point_location) > 0L) {
-    point_table <- table(signif(finite_point_location, 12))
-    points <- data.frame(
-      x    = as.numeric(names(point_table)),
-      mass = as.numeric(point_table) / n,
-      row.names = NULL
-    )
-  }
+  points <- .iwmde_point_mass_table(point_location, denominator = n)
 
   return(list(
     active         = active,
@@ -439,16 +431,7 @@
     }
   }
 
-  points         <- data.frame(x = numeric(), mass = numeric())
-  finite_point_location <- point_location[is.finite(point_location)]
-  if (length(finite_point_location) > 0L) {
-    point_table <- table(signif(finite_point_location, 12))
-    points <- data.frame(
-      x    = as.numeric(names(point_table)),
-      mass = as.numeric(point_table) / n,
-      row.names = NULL
-    )
-  }
+  points <- .iwmde_point_mass_table(point_location, denominator = n)
 
   return(list(
     active         = active,
@@ -578,20 +561,36 @@
   point_location[!rows] <- NA_real_
   component[["point_location"]] <- point_location
 
-  point_location <- point_location[is.finite(point_location)]
-  if (length(point_location) == 0L) {
-    component[["point_masses"]] <- data.frame(x = numeric(), mass = numeric())
-    return(component)
-  }
-
-  point_table <- table(signif(point_location, 12))
-  component[["point_masses"]] <- data.frame(
-    x         = as.numeric(names(point_table)),
-    mass      = as.numeric(point_table) / sum(rows),
-    row.names = NULL
+  component[["point_masses"]] <- .iwmde_point_mass_table(
+    locations   = point_location,
+    denominator = sum(rows)
   )
 
   return(component)
+}
+
+
+.iwmde_point_mass_table <- function(locations, denominator) {
+
+  locations <- locations[is.finite(locations)]
+  if (length(locations) == 0L) {
+    return(data.frame(x = numeric(), mass = numeric()))
+  }
+  if (!is.numeric(denominator) || length(denominator) != 1L ||
+      !is.finite(denominator) || denominator <= 0) {
+    stop("Point-mass denominator must be finite and positive.", call. = FALSE)
+  }
+
+  values <- sort(unique(locations))
+  counts <- vapply(values, function(value) {
+    sum(locations == value)
+  }, integer(1L))
+
+  return(data.frame(
+    x         = values,
+    mass      = counts / denominator,
+    row.names = NULL
+  ))
 }
 
 

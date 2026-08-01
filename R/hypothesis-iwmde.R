@@ -556,7 +556,7 @@
     return(FALSE)
   }
 
-  isTRUE(all.equal(value, side_value, tolerance = sqrt(.Machine$double.eps)))
+  identical(value, side_value)
 }
 
 

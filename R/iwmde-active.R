@@ -120,7 +120,7 @@
   }
 
   rounded <- round(value)
-  if (abs(value - rounded) > 1e-8) {
+  if (value != rounded) {
     stop("'", name, "' must be integer-valued.", call. = FALSE)
   }
 
@@ -466,7 +466,7 @@
     return(FALSE)
   }
 
-  return(all(abs(as.numeric(x) - as.numeric(y)) <= 1e-12))
+  return(identical(as.numeric(x), as.numeric(y)))
 }
 
 
@@ -488,7 +488,6 @@
 
   bins <- .iwmde_collapse_omega_bins(global_cuts, active_cuts)
   out  <- rep(NA_real_, length(bins))
-  tol  <- sqrt(.Machine$double.eps)
   for (i in seq_along(bins)) {
     index <- bins[[i]]
     if (length(index) == 0L || any(index > length(omega))) {
@@ -499,10 +498,9 @@
       next
     }
     values <- as.numeric(omega[index])
-    scale  <- max(1, abs(values), na.rm = TRUE)
     if (all(is.finite(values)) &&
-        max(abs(values - values[1L])) <= tol * scale) {
-      out[i] <- mean(values)
+        all(values == values[1L])) {
+      out[i] <- values[1L]
     }
   }
 
@@ -514,7 +512,6 @@
 
   bins <- .iwmde_collapse_omega_bins(global_cuts, active_cuts)
   out  <- matrix(NA_real_, nrow = nrow(omega), ncol = length(bins))
-  tol  <- sqrt(.Machine$double.eps)
   for (i in seq_along(bins)) {
     index <- bins[[i]]
     if (length(index) == 0L || any(index > ncol(omega))) {
@@ -526,18 +523,12 @@
     }
     values <- omega[, index, drop = FALSE]
     finite <- rowSums(is.finite(values)) == ncol(values)
-    row_min <- values[, 1L]
-    row_max <- values[, 1L]
-    scale   <- abs(values[, 1L])
+    keep <- finite
     for (j in seq.int(2L, ncol(values))) {
-      row_min <- pmin(row_min, values[, j])
-      row_max <- pmax(row_max, values[, j])
-      scale   <- pmax(scale, abs(values[, j]))
+      keep <- keep & values[, j] == values[, 1L]
     }
-    spread <- row_max - row_min
-    keep   <- finite & spread <= tol * pmax(1, scale)
     if (any(keep)) {
-      out[keep, i] <- rowMeans(values[keep, , drop = FALSE])
+      out[keep, i] <- values[keep, 1L]
     }
   }
 
@@ -553,8 +544,8 @@
     lower <- active_cuts[i]
     upper <- active_cuts[i + 1L]
     bins  <- which(
-      global_cuts[-length(global_cuts)] >= lower - 1e-12 &
-        global_cuts[-1L] <= upper + 1e-12
+      global_cuts[-length(global_cuts)] >= lower &
+        global_cuts[-1L] <= upper
     )
     if (length(bins) == 0L) {
       out[[i]] <- integer()
