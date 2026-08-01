@@ -425,8 +425,7 @@ print.interpret.brma <- function(x, ...) {
     lower          = .interpret_probability_column(row, probs[1]),
     upper          = .interpret_probability_column(row, probs[2]),
     lower_prob     = probs[1],
-    upper_prob     = probs[2],
-    interval_level = diff(range(probs))
+    upper_prob     = probs[2]
   )
   if (!is.null(units)) {
     schema[["units"]] <- units
@@ -554,7 +553,6 @@ print.interpret.brma <- function(x, ...) {
     upper_value    = as.numeric(row[1, upper_col]),
     lower_prob     = probs[1],
     upper_prob     = probs[2],
-    interval_level = diff(range(probs)),
     conditioning   = conditioning
   ))
 }
