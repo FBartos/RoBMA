@@ -196,52 +196,31 @@
   upper_value <- obj_fun(upper)
   step        <- max(spread, na.rm = TRUE)
   if (!is.finite(lower_value) || !is.finite(upper_value)) {
-    return(.regplot_grid_quantile(p, lower, upper, cdf_fun))
+    return(.regplot_bracketed_quantile(p, lower, upper, cdf_fun))
   }
 
   for (i in seq_len(25)) {
-    if (lower_value <= 0 && upper_value >= 0) {
+    if (lower_value < 0 && upper_value >= 0) {
       break
     }
-    if (lower_value > 0) {
+    if (lower_value >= 0) {
       lower       <- lower - step
       lower_value <- obj_fun(lower)
       if (!is.finite(lower_value)) {
-        return(.regplot_grid_quantile(p, lower, upper, cdf_fun))
+        return(.regplot_bracketed_quantile(p, lower, upper, cdf_fun))
       }
     }
     if (upper_value < 0) {
       upper       <- upper + step
       upper_value <- obj_fun(upper)
       if (!is.finite(upper_value)) {
-        return(.regplot_grid_quantile(p, lower, upper, cdf_fun))
+        return(.regplot_bracketed_quantile(p, lower, upper, cdf_fun))
       }
     }
     step <- step * 2
   }
 
-  if (lower_value > 0 || upper_value < 0) {
-    return(.regplot_grid_quantile(p, lower, upper, cdf_fun))
-  }
-
-  tolerance <- max(
-    .Machine$double.xmin,
-    .Machine$double.eps * max(abs(lower), abs(upper), step)
-  )
-  out <- tryCatch(
-    stats::uniroot(
-      obj_fun,
-      interval = c(lower, upper),
-      tol      = tolerance
-    )[["root"]],
-    error = function(e) NA_real_
-  )
-
-  if (is.na(out)) {
-    out <- .regplot_grid_quantile(p, lower, upper, cdf_fun)
-  }
-
-  return(out)
+  return(.regplot_bracketed_quantile(p, lower, upper, cdf_fun))
 }
 
 
@@ -345,26 +324,41 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .regplot_grid_quantile
+# .regplot_bracketed_quantile
 # ---------------------------------------------------------------------------- #
-.regplot_grid_quantile <- function(p, lower, upper, cdf_fun) {
+#
+# Return inf{x: F(x) >= p} within a valid finite CDF bracket.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_bracketed_quantile <- function(p, lower, upper, cdf_fun) {
 
-  grid <- seq(lower, upper, length.out = 1000)
-  cdf  <- vapply(grid, cdf_fun, numeric(1))
-  if (any(!is.finite(cdf)) || cdf[1L] > p || cdf[length(cdf)] < p) {
+  lower_cdf <- cdf_fun(lower)
+  upper_cdf <- cdf_fun(upper)
+  if (!is.finite(lower_cdf) || !is.finite(upper_cdf) ||
+      lower_cdf >= p || upper_cdf < p) {
     stop(
       "Regression-plot quantiles could not be computed from a valid bracketed CDF.",
       call. = FALSE
     )
   }
-  index <- which(cdf >= p)[1]
-
-  if (is.na(index)) {
-    stop(
-      "Regression-plot quantiles could not be computed from a valid bracketed CDF.",
-      call. = FALSE
-    )
+  repeat {
+    mid <- 0.5 * lower + 0.5 * upper
+    if (mid <= lower || mid >= upper) {
+      break
+    }
+    mid_cdf <- cdf_fun(mid)
+    if (!is.finite(mid_cdf)) {
+      stop(
+        "Regression-plot quantiles could not be computed from a valid bracketed CDF.",
+        call. = FALSE
+      )
+    }
+    if (mid_cdf >= p) {
+      upper <- mid
+    } else {
+      lower <- mid
+    }
   }
 
-  return(grid[index])
+  return(upper)
 }

@@ -463,37 +463,6 @@ double funnel_model_averaged_cdf_native(double q, const FunnelSeContext &ctx)
   return cdf_sum / static_cast<double>(ctx.S);
 }
 
-double funnel_grid_quantile_native(double p, double lower, double upper,
-                                   const FunnelSeContext &ctx)
-{
-  const int n_grid = 1000;
-
-  if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper) {
-    return NA_REAL;
-  }
-
-  const double lower_cdf = funnel_model_averaged_cdf_native(lower, ctx);
-  const double upper_cdf = funnel_model_averaged_cdf_native(upper, ctx);
-  if (!std::isfinite(lower_cdf) || !std::isfinite(upper_cdf) ||
-      lower_cdf > p || upper_cdf < p) {
-    return NA_REAL;
-  }
-
-  for (int i = 0; i < n_grid; ++i) {
-    const double q = lower +
-      (upper - lower) * static_cast<double>(i) / static_cast<double>(n_grid - 1);
-    const double cdf = funnel_model_averaged_cdf_native(q, ctx);
-    if (!std::isfinite(cdf)) {
-      return NA_REAL;
-    }
-    if (cdf >= p) {
-      return q;
-    }
-  }
-
-  return NA_REAL;
-}
-
 double funnel_model_averaged_quantile_native(double p,
                                              const FunnelSeContext &ctx,
                                              double previous,
@@ -538,7 +507,7 @@ double funnel_model_averaged_quantile_native(double p,
 
   if (!std::isfinite(lower_value) || !std::isfinite(upper_value)) {
     if (!using_previous) {
-      return funnel_grid_quantile_native(p, lower, upper, ctx);
+      return NA_REAL;
     }
     using_previous = false;
     lower = global_lower;
@@ -547,15 +516,15 @@ double funnel_model_averaged_quantile_native(double p,
     lower_value = funnel_model_averaged_cdf_native(lower, ctx) - p;
     upper_value = funnel_model_averaged_cdf_native(upper, ctx) - p;
     if (!std::isfinite(lower_value) || !std::isfinite(upper_value)) {
-      return funnel_grid_quantile_native(p, lower, upper, ctx);
+      return NA_REAL;
     }
   }
 
   for (int i = 0; i < 25; ++i) {
-    if (lower_value <= 0 && upper_value >= 0) {
+    if (lower_value < 0 && upper_value >= 0) {
       break;
     }
-    if (lower_value > 0) {
+    if (lower_value >= 0) {
       lower -= step;
       lower_value = funnel_model_averaged_cdf_native(lower, ctx) - p;
     }
@@ -566,7 +535,7 @@ double funnel_model_averaged_quantile_native(double p,
     step *= 2;
   }
 
-  if (lower_value > 0 || upper_value < 0 ||
+  if (lower_value >= 0 || upper_value < 0 ||
       !std::isfinite(lower_value) || !std::isfinite(upper_value)) {
     if (using_previous) {
       lower = global_lower;
@@ -576,10 +545,10 @@ double funnel_model_averaged_quantile_native(double p,
       upper_value = funnel_model_averaged_cdf_native(upper, ctx) - p;
 
       for (int i = 0; i < 25; ++i) {
-        if (lower_value <= 0 && upper_value >= 0) {
+        if (lower_value < 0 && upper_value >= 0) {
           break;
         }
-        if (lower_value > 0) {
+        if (lower_value >= 0) {
           lower -= step;
           lower_value = funnel_model_averaged_cdf_native(lower, ctx) - p;
         }
@@ -592,38 +561,31 @@ double funnel_model_averaged_quantile_native(double p,
     }
   }
 
-  if (lower_value > 0 || upper_value < 0 ||
+  if (lower_value >= 0 || upper_value < 0 ||
       !std::isfinite(lower_value) || !std::isfinite(upper_value)) {
-    return funnel_grid_quantile_native(p, lower, upper, ctx);
+    return NA_REAL;
   }
 
-  for (int i = 0; i < 100; ++i) {
-    const double mid = lower + 0.5 * (upper - lower);
+  while (true) {
+    const double mid = 0.5 * lower + 0.5 * upper;
+    if (mid <= lower || mid >= upper) {
+      break;
+    }
     const double mid_value = funnel_model_averaged_cdf_native(mid, ctx) - p;
 
     if (!std::isfinite(mid_value)) {
-      return funnel_grid_quantile_native(p, lower, upper, ctx);
+      return NA_REAL;
     }
 
     if (mid_value >= 0) {
       upper = mid;
-      upper_value = mid_value;
     } else {
       lower = mid;
-      lower_value = mid_value;
     }
 
-    const double tolerance = DBL_EPSILON * std::max(
-      std::max(std::fabs(lower), std::fabs(upper)),
-      step
-    );
-    if ((tolerance > 0 && std::fabs(upper - lower) <= tolerance) ||
-        mid_value == 0) {
-      break;
-    }
   }
 
-  return lower + 0.5 * (upper - lower);
+  return upper;
 }
 
 struct NormClusterArgs {

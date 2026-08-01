@@ -209,38 +209,6 @@ static double regplot_selnorm_mixture_cdf_cached(
 }
 
 template <typename CdfFun>
-static double regplot_grid_quantile(double p, double lower, double upper,
-                                    CdfFun cdf_fun)
-{
-  const int n_grid = 1000;
-
-  if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper) {
-    return NA_REAL;
-  }
-
-  const double lower_cdf = cdf_fun(lower);
-  const double upper_cdf = cdf_fun(upper);
-  if (!std::isfinite(lower_cdf) || !std::isfinite(upper_cdf) ||
-      lower_cdf > p || upper_cdf < p) {
-    return NA_REAL;
-  }
-
-  for (int i = 0; i < n_grid; ++i) {
-    const double q = lower +
-      (upper - lower) * static_cast<double>(i) / static_cast<double>(n_grid - 1);
-    const double cdf = cdf_fun(q);
-    if (!std::isfinite(cdf)) {
-      return NA_REAL;
-    }
-    if (cdf >= p) {
-      return q;
-    }
-  }
-
-  return NA_REAL;
-}
-
-template <typename CdfFun>
 static double regplot_mixture_quantile(double p, const double *mean,
                                        const double *sd, int S,
                                        CdfFun cdf_fun)
@@ -277,10 +245,10 @@ static double regplot_mixture_quantile(double p, const double *mean,
   }
 
   for (int i = 0; i < 25; ++i) {
-    if (lower_value <= 0 && upper_value >= 0) {
+    if (lower_value < 0 && upper_value >= 0) {
       break;
     }
-    if (lower_value > 0) {
+    if (lower_value >= 0) {
       lower -= step;
       lower_value = cdf_fun(lower) - p;
       if (!std::isfinite(lower_value)) {
@@ -297,12 +265,15 @@ static double regplot_mixture_quantile(double p, const double *mean,
     step *= 2;
   }
 
-  if (lower_value > 0 || upper_value < 0) {
-    return regplot_grid_quantile(p, lower, upper, cdf_fun);
+  if (lower_value >= 0 || upper_value < 0) {
+    return NA_REAL;
   }
 
-  for (int i = 0; i < 100; ++i) {
-    const double mid = lower + 0.5 * (upper - lower);
+  while (true) {
+    const double mid = 0.5 * lower + 0.5 * upper;
+    if (mid <= lower || mid >= upper) {
+      break;
+    }
     const double mid_value = cdf_fun(mid) - p;
     if (!std::isfinite(mid_value)) {
       return NA_REAL;
@@ -310,25 +281,13 @@ static double regplot_mixture_quantile(double p, const double *mean,
 
     if (mid_value >= 0) {
       upper = mid;
-      upper_value = mid_value;
     } else {
       lower = mid;
-      lower_value = mid_value;
     }
 
-    const double tolerance = DBL_EPSILON * std::max(
-      std::max(std::fabs(lower), std::fabs(upper)),
-      step
-    );
-    if (tolerance > 0 && std::fabs(upper - lower) <= tolerance) {
-      break;
-    }
-    if (mid_value == 0) {
-      return mid;
-    }
   }
 
-  return lower + 0.5 * (upper - lower);
+  return upper;
 }
 
 static double regplot_normal_mixture_quantile(double p, const double *mean,

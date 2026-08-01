@@ -438,23 +438,70 @@ test_that("plot quantiles retain tiny positive normal scales", {
 })
 
 
+test_that("plot quantile inversion returns the generalized inverse", {
+
+  jump <- 0.123456789
+  step_cdf <- function(q) {
+    if (q < jump) .25 else .75
+  }
+
+  expect_identical(
+    .regplot_bracketed_quantile(.5, -1, 1, step_cdf),
+    jump
+  )
+  expect_identical(
+    .regplot_bracketed_quantile(
+      .5,
+      -1,
+      20,
+      function(q) if (q < 0) .25 else .75
+    ),
+    0
+  )
+  expect_identical(
+    testthat::with_mocked_bindings(
+      .funnel_bracketed_quantile_precomputed(.5, -1, 1, list()),
+      .funnel_model_averaged_cdf_precomputed = function(q, se_setup) {
+        step_cdf(q)
+      },
+      .package = "RoBMA"
+    ),
+    jump
+  )
+
+  if (.has_native_regplot_mixture()) {
+    native <- .regplot_mixture_interval_quantiles(
+      mean_samples = matrix(c(0, 10), ncol = 1L),
+      sd_samples   = matrix(c(0, 1), ncol = 1L),
+      probs        = c(.25, .75)
+    )
+    expect_identical(native[["lower"]], 0)
+    expect_identical(native[["upper"]], 10)
+  }
+})
+
+
 test_that("plot quantile inversion fails without a valid CDF bracket", {
 
   expect_error(
-    .regplot_grid_quantile(.5, -1, 1, function(q) .25),
+    .regplot_bracketed_quantile(.5, -1, 1, function(q) .25),
     "valid bracketed CDF"
   )
   expect_error(
-    .regplot_grid_quantile(.5, -1, 1, function(q) .75),
+    .regplot_bracketed_quantile(.5, -1, 1, function(q) .75),
     "valid bracketed CDF"
   )
   expect_error(
-    .regplot_grid_quantile(.5, -1, 1, function(q) NaN),
+    .regplot_bracketed_quantile(.5, -1, 1, function(q) .5),
+    "valid bracketed CDF"
+  )
+  expect_error(
+    .regplot_bracketed_quantile(.5, -1, 1, function(q) NaN),
     "valid bracketed CDF"
   )
   expect_error(
     testthat::with_mocked_bindings(
-      .funnel_grid_quantile_precomputed(.5, -1, 1, list()),
+      .funnel_bracketed_quantile_precomputed(.5, -1, 1, list()),
       .funnel_model_averaged_cdf_precomputed = function(q, se_setup) .25,
       .package = "RoBMA"
     ),
@@ -462,8 +509,16 @@ test_that("plot quantile inversion fails without a valid CDF bracket", {
   )
   expect_error(
     testthat::with_mocked_bindings(
-      .funnel_grid_quantile_precomputed(.5, -1, 1, list()),
+      .funnel_bracketed_quantile_precomputed(.5, -1, 1, list()),
       .funnel_model_averaged_cdf_precomputed = function(q, se_setup) .75,
+      .package = "RoBMA"
+    ),
+    "valid bracketed CDF"
+  )
+  expect_error(
+    testthat::with_mocked_bindings(
+      .funnel_bracketed_quantile_precomputed(.5, -1, 1, list()),
+      .funnel_model_averaged_cdf_precomputed = function(q, se_setup) .5,
       .package = "RoBMA"
     ),
     "valid bracketed CDF"

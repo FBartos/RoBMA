@@ -40,51 +40,35 @@
   upper_value <- obj_fun(upper)
   step        <- max(spread, na.rm = TRUE)
   if (!is.finite(lower_value) || !is.finite(upper_value)) {
-    return(.funnel_grid_quantile_precomputed(p, lower, upper, se_setup))
+    return(.funnel_bracketed_quantile_precomputed(p, lower, upper, se_setup))
   }
   for (i in seq_len(25)) {
-    if (lower_value <= 0 && upper_value >= 0) {
+    if (lower_value < 0 && upper_value >= 0) {
       break
     }
-    if (lower_value > 0) {
+    if (lower_value >= 0) {
       lower       <- lower - step
       lower_value <- obj_fun(lower)
       if (!is.finite(lower_value)) {
-        return(.funnel_grid_quantile_precomputed(p, lower, upper, se_setup))
+        return(.funnel_bracketed_quantile_precomputed(p, lower, upper, se_setup))
       }
     }
     if (upper_value < 0) {
       upper       <- upper + step
       upper_value <- obj_fun(upper)
       if (!is.finite(upper_value)) {
-        return(.funnel_grid_quantile_precomputed(p, lower, upper, se_setup))
+        return(.funnel_bracketed_quantile_precomputed(p, lower, upper, se_setup))
       }
     }
     step <- step * 2
   }
 
-  if (lower_value > 0 || upper_value < 0) {
-    return(.funnel_grid_quantile_precomputed(p, lower, upper, se_setup))
-  }
-
-  tolerance <- max(
-    .Machine$double.xmin,
-    .Machine$double.eps * max(abs(lower), abs(upper), step)
-  )
-  out <- tryCatch(
-    stats::uniroot(
-      obj_fun,
-      interval = c(lower, upper),
-      tol      = tolerance
-    )[["root"]],
-    error = function(e) NA_real_
-  )
-
-  if (is.na(out)) {
-    out <- .funnel_grid_quantile_precomputed(p, lower, upper, se_setup)
-  }
-
-  return(out)
+  return(.funnel_bracketed_quantile_precomputed(
+    p        = p,
+    lower    = lower,
+    upper    = upper,
+    se_setup = se_setup
+  ))
 }
 
 
@@ -484,54 +468,41 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .funnel_grid_quantile
+# .funnel_bracketed_quantile_precomputed
 # ---------------------------------------------------------------------------- #
 #
-# Fallback inversion for discontinuous CDFs from degenerate posterior rows.
+# Return inf{x: F(x) >= p} using a precomputed standard-error context.
 #
 # ---------------------------------------------------------------------------- #
-.funnel_grid_quantile <- function(p, lower, upper, se, setup, effect_direction) {
+.funnel_bracketed_quantile_precomputed <- function(p, lower, upper, se_setup) {
 
-  se_setup <- .funnel_model_averaged_se_setup(
-    se               = se,
-    setup            = setup,
-    effect_direction = effect_direction
-  )
-
-  return(.funnel_grid_quantile_precomputed(p, lower, upper, se_setup))
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .funnel_grid_quantile_precomputed
-# ---------------------------------------------------------------------------- #
-#
-# Fallback inversion using a precomputed standard-error context.
-#
-# ---------------------------------------------------------------------------- #
-.funnel_grid_quantile_precomputed <- function(p, lower, upper, se_setup) {
-
-  grid <- seq(lower, upper, length.out = 1000)
-  cdf  <- vapply(
-    grid,
-    .funnel_model_averaged_cdf_precomputed,
-    numeric(1),
-    se_setup = se_setup
-  )
-  if (any(!is.finite(cdf)) || cdf[1L] > p || cdf[length(cdf)] < p) {
+  lower_cdf <- .funnel_model_averaged_cdf_precomputed(lower, se_setup)
+  upper_cdf <- .funnel_model_averaged_cdf_precomputed(upper, se_setup)
+  if (!is.finite(lower_cdf) || !is.finite(upper_cdf) ||
+      lower_cdf >= p || upper_cdf < p) {
     stop(
       "Funnel quantiles could not be computed from a valid bracketed CDF.",
       call. = FALSE
     )
   }
-  index <- which(cdf >= p)[1]
-
-  if (is.na(index)) {
-    stop(
-      "Funnel quantiles could not be computed from a valid bracketed CDF.",
-      call. = FALSE
-    )
+  repeat {
+    mid <- 0.5 * lower + 0.5 * upper
+    if (mid <= lower || mid >= upper) {
+      break
+    }
+    mid_cdf <- .funnel_model_averaged_cdf_precomputed(mid, se_setup)
+    if (!is.finite(mid_cdf)) {
+      stop(
+        "Funnel quantiles could not be computed from a valid bracketed CDF.",
+        call. = FALSE
+      )
+    }
+    if (mid_cdf >= p) {
+      upper <- mid
+    } else {
+      lower <- mid
+    }
   }
 
-  return(grid[index])
+  return(upper)
 }
