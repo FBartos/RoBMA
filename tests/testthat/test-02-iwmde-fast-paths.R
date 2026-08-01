@@ -45,6 +45,22 @@ test_that("IWMDE numeric cache keys preserve represented coordinates", {
 })
 
 
+test_that("IWMDE adaptive-grid scaling preserves valid numeric states", {
+
+  tiny <- c(
+    .Machine$double.xmin * .Machine$double.eps,
+    2 * .Machine$double.xmin * .Machine$double.eps
+  )
+
+  expect_equal(.iwmde_rescale_positive(numeric()), numeric())
+  expect_equal(.iwmde_rescale_positive(c(0, 0)), c(0, 0))
+  expect_equal(.iwmde_rescale_positive(tiny), c(.5, 1))
+  expect_error(.iwmde_rescale_positive(c(1, NA_real_)), "must be finite")
+  expect_error(.iwmde_rescale_positive(c(1, Inf)), "must be finite")
+  expect_error(.iwmde_rescale_positive(c(1, -1e-300)), "must be nonnegative")
+})
+
+
 test_that("IWMDE identifies sampled random SD focal parameters", {
 
   dat <- data.frame(

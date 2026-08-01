@@ -378,7 +378,7 @@
   }
 
   density_score <- .iwmde_rescale_positive(pilot[["y"]])
-  second_diff   <- diff(pilot[["y"]], differences = 2L) / dz^2
+  second_diff   <- diff(pilot[["y"]], differences = 2L)
   curvature     <- c(0, abs(second_diff), 0)
   curvature_score <- .iwmde_rescale_positive(curvature) * sqrt(density_score)
 
@@ -395,9 +395,22 @@
 
 .iwmde_rescale_positive <- function(x) {
 
-  x[!is.finite(x) | x < 0] <- 0
+  if (!is.numeric(x) || !is.null(dim(x))) {
+    stop("Adaptive display-grid weights must be a numeric vector.",
+         call. = FALSE)
+  }
+  if (anyNA(x) || any(!is.finite(x))) {
+    stop("Adaptive display-grid weights must be finite.", call. = FALSE)
+  }
+  if (any(x < 0)) {
+    stop("Adaptive display-grid weights must be nonnegative.", call. = FALSE)
+  }
+  if (length(x) == 0L) {
+    return(numeric())
+  }
+
   maximum <- max(x)
-  if (!is.finite(maximum) || maximum <= 0) {
+  if (maximum == 0) {
     return(rep(0, length(x)))
   }
 
