@@ -17,8 +17,6 @@
 ^index\.html$
 ^package-lock\.json$
 ^vignettes/_minimal_test\.Rmd$
-^tests/testthat/test-01-load\.R$
-^tests/testthat/test-02-distributions\.R$
 ^..Rcheck
 ^.*\.o
 ^docs$
