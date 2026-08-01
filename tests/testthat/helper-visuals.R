@@ -6,8 +6,58 @@ expect_vdiffr_snapshot <- function(title, fig, ...) {
 
   skip_if_no_vdiffr_snapshots()
   testthat::skip_if_not_installed("vdiffr")
-  vdiffr::expect_doppelganger(title, fig, ...)
+  vdiffr::expect_doppelganger(
+    title,
+    fig,
+    ...,
+    writer = .write_canonical_svg
+  )
 }
+
+.write_canonical_svg <- function(plot, file, title = "") {
+
+  vdiffr::write_svg(plot, file, title)
+  .canonicalize_dense_diamond_polygons(file)
+}
+
+
+# Metafor 5.0.0 increased each straight diamond edge from two endpoints to
+# 10,000 collinear vertices. Collapse only that exact redundant encoding so
+# snapshots remain sensitive to the corners and every other SVG element.
+.canonicalize_dense_diamond_polygons <- function(file,
+                                                  vertices_per_edge = 10000L) {
+
+  svg      <- readLines(file, warn = FALSE)
+  polygons <- grep("^<polygon points='", svg)
+
+  for (i in polygons) {
+    parts <- regmatches(
+      svg[i],
+      regexec("^<polygon points='([^']*)'(.*)$", svg[i])
+    )[[1L]]
+    if (length(parts) != 3L) {
+      next
+    }
+
+    points <- strsplit(trimws(parts[2L]), " +")[[1L]]
+    if (length(points) != 4L * vertices_per_edge) {
+      next
+    }
+
+    corners <- points[seq.int(
+      from       = 1L,
+      by         = vertices_per_edge,
+      length.out = 4L
+    )]
+    svg[i] <- paste0(
+      "<polygon points='", paste(corners, collapse = " "), " '", parts[3L]
+    )
+  }
+
+  writeLines(svg, file, useBytes = TRUE)
+  return(invisible(file))
+}
+
 
 expect_brma_plot_snapshot <- function(name, plot) {
 

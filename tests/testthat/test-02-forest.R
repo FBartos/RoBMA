@@ -5,6 +5,24 @@ source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
 
+test_that("dense metafor diamonds retain their four visual corners", {
+
+  file <- tempfile(fileext = ".svg")
+  on.exit(unlink(file), add = TRUE)
+  writeLines(
+    "<polygon points='1,2 3,4 3,4 5,6 5,6 7,8 7,8 1,2 ' style='fill: #000000;' />",
+    file
+  )
+
+  .canonicalize_dense_diamond_polygons(file, vertices_per_edge = 2L)
+
+  expect_identical(
+    readLines(file, warn = FALSE),
+    "<polygon points='1,2 3,4 5,6 7,8 ' style='fill: #000000;' />"
+  )
+})
+
+
 test_that("RoBMA does not export a competing forest generic", {
 
   expect_false("forest" %in% getNamespaceExports("RoBMA"))
@@ -433,6 +451,17 @@ test_that("Forest plot for simple meta-analysis matches metafor structure", {
       atransf   = exp
     )
   })
+
+})
+
+
+test_that("Forest prediction-shade gallery is stable", {
+
+  skip_if_not_full_visuals(
+    "Metafor's high-resolution prediction gradient is release-only coverage."
+  )
+  name     <- "bcg_meta-analysis"
+  fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("forest_simple_prediction_shade", function() {
     metafor::forest(
