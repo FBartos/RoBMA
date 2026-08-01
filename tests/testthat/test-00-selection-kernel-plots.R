@@ -174,14 +174,26 @@ test_that("native zplot density matches selected-normal R reference", {
         dens[const_rows, ] <- dens[const_rows, , drop = FALSE] / exp(log_norm)
       }
       if (length(weight_rows) > 0L) {
-        selection_weight <- BayesTools::selection_context_subset_rows(selection, weight_rows)
-        log_pdf <- .selection_step_logpdf_matrix(
-          y                 = y_seq,
+        selection_weight <- BayesTools::selection_context_subset_rows(
+          selection,
+          weight_rows
+        )
+        log_norm_weight <- .selection_step_log_norm_matrix(
           mean              = mu[weight_rows, , drop = FALSE],
           sd                = total_sd[weight_rows, , drop = FALSE],
           sei               = sei,
           selection_context = selection_weight
         )
+        bin <- .selection_step_bin_from_z(
+          selection[["sign"]] * z_values[ell],
+          selection[["p_cuts"]]
+        )
+        log_pdf <- stats::dnorm(
+          matrix(y_seq, nrow = length(weight_rows), ncol = K, byrow = TRUE),
+          mean = mu[weight_rows, , drop = FALSE],
+          sd   = total_sd[weight_rows, , drop = FALSE],
+          log  = TRUE
+        ) - log_norm_weight + log(selection[["omega"]][weight_rows, bin])
         dens[weight_rows, ] <- exp(log_pdf) * sei_mat[weight_rows, , drop = FALSE]
       }
 

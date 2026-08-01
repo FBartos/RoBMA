@@ -245,7 +245,7 @@ SelNormNativeArgs validate_selnorm_native_args(
 int z_step_bin(double z, const SelNormKernelData &data)
 {
   for (int b = 0; b < data.n_bins; ++b) {
-    if (z >= data.z_lower[b] - 1e-12 && z <= data.z_upper[b] + 1e-12) {
+    if (z >= data.z_lower[b] && z <= data.z_upper[b]) {
       return b + 1;
     }
   }

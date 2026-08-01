@@ -189,26 +189,38 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
 .selection_obs_bin <- function(yi, sei, p_cuts, sign) {
 
-  p_value <- stats::pnorm(sign * yi / sei, lower.tail = FALSE)
-  return(.selection_p_bin(p_value, p_cuts))
+  return(.selection_step_bin_from_z(sign * yi / sei, p_cuts))
 }
 
 .selection_step_bin_from_z <- function(z, p_cuts) {
 
-  p_value <- stats::pnorm(z, lower.tail = FALSE)
-  return(.selection_p_bin(p_value, p_cuts))
+  p_cuts <- .selection_assert_p_cuts(p_cuts)
+  z_cut  <- stats::qnorm(p_cuts[-1L], lower.tail = FALSE)
+
+  bin <- vapply(z, function(value) {
+    if (is.na(value)) {
+      return(NA_integer_)
+    }
+    return(which(value >= z_cut)[1L])
+  }, integer(1L))
+
+  return(as.integer(bin))
 }
 
 .selection_p_bin <- function(p_value, p_cuts) {
 
   p_cuts <- .selection_assert_p_cuts(p_cuts)
-
-  for (cut in p_cuts) {
-    close <- !is.na(p_value) & abs(p_value - cut) <= 1e-12
-    p_value[close] <- cut
+  if (!is.numeric(p_value) ||
+      any(!is.na(p_value) & (!is.finite(p_value) | p_value < 0 | p_value > 1))) {
+    stop("Selection p-values must be numeric values in [0, 1].", call. = FALSE)
   }
-  bin     <- findInterval(p_value, p_cuts, rightmost.closed = TRUE, left.open = TRUE)
-  bin     <- pmin(pmax(bin, 1L), length(p_cuts) - 1L)
+
+  bin <- findInterval(
+    p_value,
+    p_cuts,
+    rightmost.closed = TRUE,
+    left.open        = TRUE
+  )
   return(as.integer(bin))
 }
 
@@ -228,8 +240,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   p_cuts <- .selection_assert_p_cuts(p_cuts)
 
-  z_lower <- stats::qnorm(1 - p_cuts[-1])
-  z_upper <- stats::qnorm(1 - p_cuts[-length(p_cuts)])
+  z_lower <- stats::qnorm(p_cuts[-1L], lower.tail = FALSE)
+  z_upper <- stats::qnorm(
+    p_cuts[-length(p_cuts)],
+    lower.tail = FALSE
+  )
   bounds  <- c(-Inf, Inf, z_lower[is.finite(z_lower)], z_upper[is.finite(z_upper)])
 
   if (has_phacking) {
@@ -274,15 +289,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
       anyNA(p_cuts) || any(!is.finite(p_cuts))) {
     stop("Selection p-value cut breaks must be finite numeric values.", call. = FALSE)
   }
-  if (abs(p_cuts[1L]) > 1e-12 || abs(p_cuts[length(p_cuts)] - 1) > 1e-12) {
+  if (p_cuts[1L] != 0 || p_cuts[length(p_cuts)] != 1) {
     stop("Selection p-value cut breaks must include endpoints 0 and 1.", call. = FALSE)
   }
   if (any(diff(p_cuts) <= 0)) {
     stop("Selection p-value cut breaks must be strictly increasing.", call. = FALSE)
   }
 
-  p_cuts[1L]             <- 0
-  p_cuts[length(p_cuts)] <- 1
   return(as.numeric(p_cuts))
 }
 
@@ -471,8 +484,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   has_phack   <- backend[["mode"]] %in% c("phack_power", "step_phack_power")
   phack       <- backend[["phacking"]]
   sign        <- if (signed_data || effect_direction != "negative") 1L else -1L
-  z_lower     <- stats::qnorm(1 - p_cuts[-1])
-  z_upper     <- stats::qnorm(1 - p_cuts[-length(p_cuts)])
+  z_lower     <- stats::qnorm(p_cuts[-1L], lower.tail = FALSE)
+  z_upper     <- stats::qnorm(
+    p_cuts[-length(p_cuts)],
+    lower.tail = FALSE
+  )
   telescope_probabilities <- has_step &&
     .selection_telescope_probability_check(priors_bias, z_lower, z_upper)
   phack_q_values <- if (has_phack) .selection_phack_q_values(phack[["q"]]) else 1L
@@ -1471,10 +1487,24 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
 .selection_interval_prob_vec <- function(lower, upper, mean, sd) {
 
-  out <- stats::pnorm(upper, mean = mean, sd = sd) -
+  lower_tail <- stats::pnorm(upper, mean = mean, sd = sd) -
     stats::pnorm(lower, mean = mean, sd = sd)
+  upper_tail <- stats::pnorm(
+    lower,
+    mean       = mean,
+    sd         = sd,
+    lower.tail = FALSE
+  ) - stats::pnorm(
+    upper,
+    mean       = mean,
+    sd         = sd,
+    lower.tail = FALSE
+  )
+  out <- ifelse(lower >= mean, upper_tail, lower_tail)
   out[lower >= upper] <- 0
-  out[out < 0 & out > -1e-12] <- 0
+  if (any(!is.finite(out)) || any(out < 0) || any(out > 1)) {
+    stop("Selection interval probability evaluation failed.", call. = FALSE)
+  }
   return(out)
 }
 

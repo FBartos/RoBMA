@@ -10,12 +10,7 @@ bool selnorm_bound_is_positive_infinity(double x)
 
 bool selnorm_same_finite_bound(double x, double y)
 {
-  if (!std::isfinite(x) || !std::isfinite(y)) {
-    return false;
-  }
-
-  const double scale = 1 + std::max(std::abs(x), std::abs(y));
-  return std::abs(x - y) <= 1e-12 * scale;
+  return std::isfinite(x) && std::isfinite(y) && x == y;
 }
 
 bool selnorm_is_descending_step_partition(const double *z_lower,
