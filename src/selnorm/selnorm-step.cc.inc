@@ -45,6 +45,7 @@ double trusted_interval_prob(double lower, double upper, double mean,
                              double sd, bool *ok)
 {
   if (!(sd > 0) || lower >= upper) {
+    *ok = false;
     return 0;
   }
 

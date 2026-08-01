@@ -346,7 +346,8 @@ void cpp_selnorm_kernel_moments(
     *moment_variance = std::numeric_limits<double>::quiet_NaN();
   }
 
-  if (!(sd > 0) || !(sei > 0) ||
+  if (!std::isfinite(mean) || !std::isfinite(sd) ||
+      !std::isfinite(sei) || !(sd > 0) || !(sei > 0) ||
       !valid_kernel_mode(kernel_mode) ||
       !(data.effect_sign == 1 || data.effect_sign == -1) ||
       !valid_phack_kind(phack_kind) ||
@@ -355,8 +356,14 @@ void cpp_selnorm_kernel_moments(
   }
 
   if (kernel_mode == SELKERNEL_NORMAL) {
+    const double second = sd * sd + mean * mean;
+    if (moment_variance == NULL && !std::isfinite(second)) {
+      return;
+    }
     *moment_mean   = mean;
-    *moment_second = sd * sd + mean * mean;
+    if (std::isfinite(second)) {
+      *moment_second = second;
+    }
     if (moment_variance != NULL) {
       *moment_variance = sd * sd;
     }
@@ -369,8 +376,14 @@ void cpp_selnorm_kernel_moments(
     return;
   }
   if (kernel_mode == SELKERNEL_PHACK_POWER) {
+    const double second = sd * sd + mean * mean;
+    if (moment_variance == NULL && !std::isfinite(second)) {
+      return;
+    }
     *moment_mean   = mean;
-    *moment_second = sd * sd + mean * mean;
+    if (std::isfinite(second)) {
+      *moment_second = second;
+    }
     if (moment_variance != NULL) {
       *moment_variance = sd * sd;
     }
@@ -402,18 +415,45 @@ void cpp_selnorm_kernel_moments(
     );
   }
 
-  if (!(denom > 0)) {
+  if (!std::isfinite(denom) || !(denom > 0) ||
+      !std::isfinite(signed_first) ||
+      (moment_variance == NULL &&
+       (!std::isfinite(signed_second) || signed_second < 0))) {
     return;
   }
 
   if (moment_variance != NULL) {
+    if (!std::isfinite(centered_first) ||
+        !std::isfinite(centered_second) || centered_second < 0) {
+      return;
+    }
     const double centered_mean = centered_first / denom;
-    *moment_mean     = data.effect_sign * (signed_mean + centered_mean);
-    *moment_variance = centered_second / denom - centered_mean * centered_mean;
+    const double result_mean =
+      data.effect_sign * (signed_mean + centered_mean);
+    const double result_variance =
+      centered_second / denom - centered_mean * centered_mean;
+    if (!std::isfinite(result_mean) || !std::isfinite(result_variance) ||
+        result_variance < 0) {
+      return;
+    }
+    *moment_mean     = result_mean;
+    *moment_variance = result_variance;
+    if (std::isfinite(signed_second) && signed_second >= 0) {
+      const double result_second = signed_second / denom;
+      if (std::isfinite(result_second) && result_second >= 0) {
+        *moment_second = result_second;
+      }
+    }
   } else {
-    *moment_mean = data.effect_sign * signed_first / denom;
+    const double result_mean = data.effect_sign * signed_first / denom;
+    const double result_second = signed_second / denom;
+    if (!std::isfinite(result_mean) || !std::isfinite(result_second) ||
+        result_second < 0) {
+      return;
+    }
+    *moment_mean   = result_mean;
+    *moment_second = result_second;
   }
-  *moment_second = signed_second / denom;
 }
 
 double cpp_selnorm_kernel_threshold(
