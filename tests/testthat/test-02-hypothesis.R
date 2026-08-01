@@ -19,9 +19,22 @@ source(testthat::test_path("common-functions.R"))
 
 .hypothesis_expect_bridge_ready <- function(object) {
 
+  mcse <- .hypothesis_bridge_mcse(object)
   expect_true(is.finite(logml(object)))
-  expect_true(is.finite(object[["marglik"]][["mcse_logml"]]))
-  expect_lt(object[["marglik"]][["mcse_logml"]], 0.05)
+  expect_true(is.finite(mcse))
+  expect_lt(mcse, 0.05)
+}
+
+
+.hypothesis_bridge_mcse <- function(object) {
+
+  repetitions <- object[["marglik"]][["repetitions"]]
+  included    <- repetitions[["success"]] & repetitions[["finite"]]
+  if (!any(included)) {
+    return(NA_real_)
+  }
+
+  return(max(repetitions[["mcse"]][included]))
 }
 
 
@@ -47,8 +60,8 @@ source(testthat::test_path("common-functions.R"))
   )
   estimator_log_mcse <- sqrt(log1p((bf_error_percent / 100)^2))
   bridge_log_mcse    <- sqrt(
-    null[["marglik"]][["mcse_logml"]]^2 +
-      full[["marglik"]][["mcse_logml"]]^2
+    .hypothesis_bridge_mcse(null)^2 +
+      .hypothesis_bridge_mcse(full)^2
   )
   combined_log_mcse  <- sqrt(estimator_log_mcse^2 + bridge_log_mcse^2)
 
