@@ -18,6 +18,15 @@ visual_test_tier <- function() {
   return(tier)
 }
 
+test_profile_value <- function(standard, certification) {
+
+  if (is_certification_profile()) {
+    return(certification)
+  }
+
+  return(standard)
+}
+
 case_value <- function(case, name, default = NULL) {
 
   if (!name %in% names(case)) {

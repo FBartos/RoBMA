@@ -946,7 +946,7 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
 
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
-    n_samples         = 1000,
+    n_samples         = test_profile_value(250L, 1000L),
     bf                = TRUE,
     density_method    = "qCMDE",
     density_control   = list(n_points = 20, max_samples = 20)
@@ -1064,7 +1064,7 @@ test_that("marginal_means restricts qCMDE precomputation targets", {
 
   mm <- marginal_means(
     fits[["dat.lehmann2018_RoBMA_mods"]],
-    n_samples       = 1000,
+    n_samples       = test_profile_value(250L, 1000L),
     bf              = TRUE,
     density_method  = "qCMDE",
     parameter       = "Preregistered",
@@ -1114,7 +1114,7 @@ test_that("marginal_means computes BF ordinates when density target is averaged"
 
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
-    n_samples       = 1000,
+    n_samples       = test_profile_value(250L, 1000L),
     bf              = TRUE,
     density_method  = "qCMDE",
     parameter       = "alloc",
@@ -1150,12 +1150,16 @@ test_that("marginal_means computes BF ordinates when density target is averaged"
 
 test_that("marginal_means IWMDE ordinates do not expand plot densities", {
 
+  skip_if_not_certification(
+    "Off-support ordinate and display-grid separation is numerical certification coverage."
+  )
+
   .local_mock_marginal_means_iwmde_success()
 
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
     null_hypothesis  = 5,
-    n_samples        = 1000,
+    n_samples        = test_profile_value(250L, 1000L),
     bf               = TRUE,
     density_method   = "qCMDE",
     density_control  = list(n_points = 20, max_samples = 20)
@@ -1184,11 +1188,15 @@ test_that("marginal_means IWMDE ordinates do not expand plot densities", {
 
 test_that("marginal_means skips qCMDE ordinates when BFs are hidden", {
 
+  skip_if_not_certification(
+    "The qCMDE no-BF density matrix duplicates standard marginal-means no-BF coverage."
+  )
+
   .local_mock_marginal_means_iwmde_success()
 
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
-    n_samples         = 1000,
+    n_samples         = test_profile_value(250L, 1000L),
     bf                = FALSE,
     density_method    = "qCMDE",
     density_control   = list(n_points = 20, max_samples = 20)
@@ -1210,14 +1218,22 @@ test_that("marginal_means skips qCMDE ordinates when BFs are hidden", {
 
 test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
 
+  skip_if_not_certification(
+    "Full IWMDE BF refresh complements the standard qCMDE BF integration test."
+  )
+
   .local_mock_marginal_means_iwmde_success(omit_ordinate_levels = "systematic")
 
+  density_control <- test_profile_value(
+    standard      = list(n_points = 40, max_samples = 50),
+    certification = list(n_points = 80, max_samples = 200)
+  )
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
-    n_samples         = 1000,
+    n_samples         = test_profile_value(250L, 1000L),
     bf                = TRUE,
     density_method    = "IWMDE",
-    density_control   = list(n_points = 80, max_samples = 200)
+    density_control   = density_control
   )
 
   conditional_density <- attr(
@@ -1589,6 +1605,9 @@ test_that("marginal_means prior plot gallery snapshots are stable", {
 
 test_that("marginal_means interaction plots render moderator type combinations", {
 
+  skip_if_not_full_visuals(
+    "The full moderator-type interaction matrix is visual-gallery coverage."
+  )
   skip_if_missing_fits(unique(marginal_means_interaction_plot_cases()[["name"]]))
 
   for_each_case(marginal_means_interaction_plot_cases(), function(case) {

@@ -1881,6 +1881,10 @@ test_that("multilevel weightfunction location fast path dispatches to cluster se
 
 test_that("multilevel weightfunction location fast path matches scalar fallback", {
 
+  skip_if_not_certification(
+    "The exact multilevel scalar-vs-grid equivalence matrix is certification coverage."
+  )
+
   fit_name  <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
   parameter <- "mu_Preregistered"
   .skip_if_missing_raw_fits(fit_name)
@@ -2307,6 +2311,10 @@ test_that("IWMDE inverse-gamma auxiliary matrix sync reuses active states", {
 
 test_that("IWMDE batched q evaluation matches scalar fallback", {
 
+  skip_if_not_certification(
+    "The exact batched-vs-scalar likelihood matrix is certification coverage."
+  )
+
   cases <- list(
     list("bcg_meta-regression", "mu_ablat", NULL),
     list("bangertdrowns2004_location-scale", "log_tau_intercept", NULL),
@@ -2338,6 +2346,10 @@ test_that("IWMDE batched q evaluation matches scalar fallback", {
 
 test_that("IWMDE predictor fast path matches scalar fallback", {
 
+  skip_if_not_certification(
+    "The exhaustive predictor fast-path equivalence matrix is certification coverage."
+  )
+
   cases <- list(
     list("bcg_meta-analysis", "mu", NULL),
     list("brma.mv_block_mvn_fixed_random_null", "mu", NULL),
@@ -2368,6 +2380,10 @@ test_that("IWMDE predictor fast path matches scalar fallback", {
 })
 
 test_that("IWMDE normal quadratic fast path matches scalar fallback", {
+
+  skip_if_not_certification(
+    "The exhaustive quadratic fast-path equivalence matrix is certification coverage."
+  )
 
   cases <- list(
     list("bcg_meta-analysis", "mu", NULL),

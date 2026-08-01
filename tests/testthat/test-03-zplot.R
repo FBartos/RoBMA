@@ -272,10 +272,11 @@ test_that("zplot handles RoBMA bias-mixture branches", {
   name <- "dat.lehmann2018_RoBMA"
   skip_if_not(name %in% names(fits), "RoBMA cached fit not available.")
 
+  max_samples       <- test_profile_value(100L, 1000L)
   fit               <- fits[[name]]
   posterior_samples <- .get_posterior_samples(fit[["fit"]])
-  if (nrow(posterior_samples) > 1000) {
-    selected_ind      <- round(seq(from = 1, to = nrow(posterior_samples), length.out = 1000))
+  if (nrow(posterior_samples) > max_samples) {
+    selected_ind      <- round(seq(from = 1, to = nrow(posterior_samples), length.out = max_samples))
     posterior_samples <- posterior_samples[selected_ind, , drop = FALSE]
   }
   selection         <- .zplot_selection_context(
@@ -298,18 +299,18 @@ test_that("zplot handles RoBMA bias-mixture branches", {
   expect_equal(ncol(selection_args[["omega"]]), selection[["n_bins"]])
   expect_length(selection_args[["crit_yi"]], active_cuts)
 
-  zc <- .test_as_zplot(fit, max_samples = 1000)
+  zc <- .test_as_zplot(fit, max_samples = max_samples)
   expect_true(all(is.finite(zc[["zplot"]][["estimates"]][["EDR"]])))
   expect_true(all(zc[["zplot"]][["estimates"]][["EDR"]] >= 0))
   expect_true(all(zc[["zplot"]][["estimates"]][["EDR"]] <= 1))
   expect_true(all(is.finite(zc[["zplot"]][["estimates"]][["weights"]])))
 
   fitted_density <- .test_lines_zplot(
-    zc, as_data = TRUE, max_samples = 1000, plot_ci = FALSE,
+    zc, as_data = TRUE, max_samples = max_samples, plot_ci = FALSE,
     extrapolate = FALSE, length.out = 25
   )
   extrapolated_density <- .test_lines_zplot(
-    zc, as_data = TRUE, max_samples = 1000, plot_ci = FALSE,
+    zc, as_data = TRUE, max_samples = max_samples, plot_ci = FALSE,
     extrapolate = TRUE, length.out = 25
   )
 
@@ -319,7 +320,7 @@ test_that("zplot handles RoBMA bias-mixture branches", {
   fitted_area       <- .zplot_test_area(.test_lines_zplot(
     zc,
     as_data     = TRUE,
-    max_samples = 1000,
+    max_samples = max_samples,
     plot_ci     = FALSE,
     extrapolate = FALSE,
     from        = -20,
@@ -329,7 +330,7 @@ test_that("zplot handles RoBMA bias-mixture branches", {
   extrapolated_area <- .zplot_test_area(.test_lines_zplot(
     zc,
     as_data     = TRUE,
-    max_samples = 1000,
+    max_samples = max_samples,
     plot_ci     = FALSE,
     extrapolate = TRUE,
     from        = -20,
