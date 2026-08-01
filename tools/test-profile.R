@@ -72,16 +72,21 @@ if (clean) {
 }
 
 started <- proc.time()[["elapsed"]]
-test_args <- list(
-  reporter        = "llm",
-  stop_on_failure = TRUE
-)
-if (!is.null(filter)) {
-  test_args[["filter"]] <- filter
-}
-do.call(devtools::test, test_args)
+run_tests <- function(filter = NULL) {
 
-if (is.null(filter) || identical(filter, "01-")) {
+  test_args <- list(
+    reporter        = "llm",
+    stop_on_failure = TRUE
+  )
+  if (!is.null(filter)) {
+    test_args[["filter"]] <- filter
+  }
+
+  do.call(devtools::test, test_args)
+}
+
+validate_fit_cache <- function() {
+
   expected  <- active_fit_catalog()[["name"]]
   available <- list_fits(validate = TRUE)
   missing   <- setdiff(expected, available)
@@ -93,6 +98,19 @@ if (is.null(filter) || identical(filter, "01-")) {
     )
   }
   message("Validated ", length(available), " ", profile, " cached fits.")
+
+  return(invisible(available))
+}
+
+if (is.null(filter)) {
+  run_tests("01-")
+  validate_fit_cache()
+  run_tests("00-|02-|03-")
+} else {
+  run_tests(filter)
+  if (identical(filter, "01-")) {
+    validate_fit_cache()
+  }
 }
 
 elapsed <- proc.time()[["elapsed"]] - started
