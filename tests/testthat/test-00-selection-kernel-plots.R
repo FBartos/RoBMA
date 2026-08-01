@@ -532,6 +532,32 @@ test_that("zero-weight selected-normal rows do not enter mixture evaluation", {
 })
 
 
+test_that("selected-normal variance is centered before reducing moments", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  spec      <- .test_step_spec(yi = 1e12, sei = 1)
+  selection <- spec
+  selection[["omega"]]       <- matrix(1, nrow = 1L, ncol = spec[["n_bins"]])
+  selection[["alpha"]]       <- 0
+  selection[["phack_kind"]]  <- 0L
+  selection[["kernel_mode"]] <- SELKERNEL_STEP
+  selection[["use_normal"]]  <- FALSE
+
+  summary <- .selection_step_weighted_summary(
+    yi                = 1e12,
+    mean              = matrix(1e12, nrow = 1L),
+    sd                = matrix(1, nrow = 1L),
+    sei               = 1,
+    psis_weights      = matrix(1, nrow = 1L),
+    selection_context = selection
+  )
+
+  expect_equal(summary[["mean"]], 1e12)
+  expect_equal(summary[["variance"]], 1)
+})
+
+
 test_that("selected-normal log tails survive probability underflow", {
 
   skip_if_not(.has_native_selnorm_kernel())

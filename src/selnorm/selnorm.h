@@ -119,7 +119,8 @@ void cpp_selnorm_kernel_moments(
   double *moment_mean,
   double *moment_second,
   int omega_stride = 1,
-  bool validate_omega = true
+  bool validate_omega = true,
+  double *moment_variance = nullptr
 );
 
 void cpp_selnorm_kernel_summary(

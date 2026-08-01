@@ -775,11 +775,19 @@ void step_moments_partition(const double *omega,
                             double signed_mean, double sd, double sei,
                             int omega_stride, bool trusted_partition,
                             double *denom, double *signed_first,
-                            double *signed_second)
+                            double *signed_second,
+                            double *centered_first = NULL,
+                            double *centered_second = NULL)
 {
   *denom         = 0;
   *signed_first  = 0;
   *signed_second = 0;
+  if (centered_first != NULL) {
+    *centered_first = 0;
+  }
+  if (centered_second != NULL) {
+    *centered_second = 0;
+  }
 
   for (int b = 0; b < data.n_bins; ) {
     const double w = omega_at(omega, b + 1, omega_stride);
@@ -793,7 +801,7 @@ void step_moments_partition(const double *omega,
     }
 
     if (w > 0) {
-      double m0, m1, m2;
+      double m0, m1, m2, centered_m1, centered_m2;
       truncated_raw_moments(
         (trusted_partition ? data.z_lower[last] : data.z_lower[b]) * sei,
         data.z_upper[b] * sei,
@@ -801,12 +809,20 @@ void step_moments_partition(const double *omega,
         sd,
         &m0,
         &m1,
-        &m2
+        &m2,
+        &centered_m1,
+        &centered_m2
       );
 
       *denom         += w * m0;
       *signed_first  += w * m1;
       *signed_second += w * m2;
+      if (centered_first != NULL) {
+        *centered_first += w * centered_m1;
+      }
+      if (centered_second != NULL) {
+        *centered_second += w * centered_m2;
+      }
     }
 
     b = trusted_partition ? last + 1 : b + 1;

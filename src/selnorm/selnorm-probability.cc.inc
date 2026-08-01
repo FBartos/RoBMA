@@ -179,13 +179,21 @@ double std_phi(double x)
 }
 
 void truncated_raw_moments(double lower, double upper, double mean, double sd,
-                           double *m0, double *m1, double *m2)
+                           double *m0, double *m1, double *m2,
+                           double *centered_m1 = nullptr,
+                           double *centered_m2 = nullptr)
 {
   *m0 = interval_prob(lower, upper, mean, sd);
 
   if (*m0 == 0 || !(sd > 0)) {
     *m1 = 0;
     *m2 = 0;
+    if (centered_m1 != nullptr) {
+      *centered_m1 = 0;
+    }
+    if (centered_m2 != nullptr) {
+      *centered_m2 = 0;
+    }
     return;
   }
 
@@ -209,6 +217,12 @@ void truncated_raw_moments(double lower, double upper, double mean, double sd,
   *m1 = mean * *m0 + sd * tail_shift;
   *m2 = (mean * mean + sd * sd) * *m0 +
     2 * mean * sd * tail_shift + sd * sd * second_shift;
+  if (centered_m1 != nullptr) {
+    *centered_m1 = sd * tail_shift;
+  }
+  if (centered_m2 != nullptr) {
+    *centered_m2 = sd * sd * (*m0 + second_shift);
+  }
 }
 
 [[maybe_unused]] double source_power_moment(

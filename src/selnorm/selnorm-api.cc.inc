@@ -357,10 +357,14 @@ void cpp_selnorm_kernel_moments(
   double *moment_mean,
   double *moment_second,
   int omega_stride,
-  bool validate_omega)
+  bool validate_omega,
+  double *moment_variance)
 {
   *moment_mean   = std::numeric_limits<double>::quiet_NaN();
   *moment_second = std::numeric_limits<double>::quiet_NaN();
+  if (moment_variance != NULL) {
+    *moment_variance = std::numeric_limits<double>::quiet_NaN();
+  }
 
   if (!(sd > 0) || !(sei > 0) ||
       !valid_kernel_mode(kernel_mode) ||
@@ -373,6 +377,9 @@ void cpp_selnorm_kernel_moments(
   if (kernel_mode == SELKERNEL_NORMAL) {
     *moment_mean   = mean;
     *moment_second = sd * sd + mean * mean;
+    if (moment_variance != NULL) {
+      *moment_variance = sd * sd;
+    }
     return;
   }
 
@@ -384,6 +391,9 @@ void cpp_selnorm_kernel_moments(
   if (kernel_mode == SELKERNEL_PHACK_POWER) {
     *moment_mean   = mean;
     *moment_second = sd * sd + mean * mean;
+    if (moment_variance != NULL) {
+      *moment_variance = sd * sd;
+    }
     return;
   }
 
@@ -395,15 +405,20 @@ void cpp_selnorm_kernel_moments(
   double denom;
   double signed_first;
   double signed_second;
+  double centered_first;
+  double centered_second;
 
-  if (!(data.trusted_step_partition && data.telescope_probabilities &&
+  if (!(moment_variance == NULL && data.trusted_step_partition &&
+        data.telescope_probabilities &&
         step_moments_trusted_telescoping(
           omega, data, signed_mean, sd, sei, omega_stride,
           &denom, &signed_first, &signed_second
         ))) {
     step_moments_partition(
       omega, data, signed_mean, sd, sei, omega_stride,
-      data.trusted_step_partition, &denom, &signed_first, &signed_second
+      data.trusted_step_partition, &denom, &signed_first, &signed_second,
+      moment_variance == NULL ? NULL : &centered_first,
+      moment_variance == NULL ? NULL : &centered_second
     );
   }
 
@@ -411,7 +426,13 @@ void cpp_selnorm_kernel_moments(
     return;
   }
 
-  *moment_mean   = data.effect_sign * signed_first / denom;
+  if (moment_variance != NULL) {
+    const double centered_mean = centered_first / denom;
+    *moment_mean     = data.effect_sign * (signed_mean + centered_mean);
+    *moment_variance = centered_second / denom - centered_mean * centered_mean;
+  } else {
+    *moment_mean = data.effect_sign * signed_first / denom;
+  }
   *moment_second = signed_second / denom;
 }
 

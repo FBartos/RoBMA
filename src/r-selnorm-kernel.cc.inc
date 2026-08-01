@@ -526,7 +526,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   double *moment_mean_work = reinterpret_cast<double *>(
     R_alloc(S, sizeof(double))
   );
-  double *moment_second_work = reinterpret_cast<double *>(
+  double *moment_variance_work = reinterpret_cast<double *>(
     R_alloc(S, sizeof(double))
   );
 
@@ -550,6 +550,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       const int mode_s = selnorm.kernel_mode_at(s);
       double moment_mean = NA_REAL;
       double moment_second = NA_REAL;
+      double moment_variance = NA_REAL;
 
       cpp_selnorm_kernel_moments(
         mean_p[cell],
@@ -563,13 +564,15 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
         &moment_mean,
         &moment_second,
         S,
-        false
+        false,
+        &moment_variance
       );
-      if (!std::isfinite(moment_mean) || !std::isfinite(moment_second)) {
+      if (!std::isfinite(moment_mean) || !std::isfinite(moment_variance) ||
+          moment_variance < 0) {
         Rf_error("Selected-normal predictive moments are not finite.");
       }
-      moment_mean_work[s]   = moment_mean;
-      moment_second_work[s] = moment_second;
+      moment_mean_work[s]     = moment_mean;
+      moment_variance_work[s] = moment_variance;
 
       const double log_weight = std::log(w);
       const double log_lower = cpp_selnorm_kernel_log_cdf(
@@ -618,9 +621,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       }
       const long double component_mean = moment_mean_work[s];
       const long double centered = component_mean - mixture_mean;
-      const long double component_variance =
-        static_cast<long double>(moment_second_work[s]) -
-        component_mean * component_mean;
+      const long double component_variance = moment_variance_work[s];
       variance_sum += static_cast<long double>(weights_p[cell]) *
         (component_variance + centered * centered);
     }
