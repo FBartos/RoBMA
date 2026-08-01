@@ -1025,6 +1025,7 @@ test_that("brma.mv fits v14 metafor parity models", {
     phi     = 0.97,
     data    = dat_ishak
   )
+  V_ishak[lower.tri(V_ishak)] <- t(V_ishak)[lower.tri(V_ishak)]
   fit3_metafor <- metafor::rma.mv(
     yi,
     V_ishak,
