@@ -189,7 +189,7 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
   samples_list <- .summary_heterogeneity_samples(
     tau_within_samples  = tau_result[["tau_within"]],
     tau_between_samples = tau_result[["tau_between"]],
-    rho_samples         = if (is_multilevel) posterior_samples[, "rho"] else NULL,
+    rho_samples         = if (is_multilevel) tau_result[["rho"]] else NULL,
     v_tilde             = v_tilde,
     is_multilevel       = is_multilevel
   )

@@ -56,6 +56,53 @@ test_that("rho allocation retains endpoints and rejects invalid values", {
   expect_equal(as.numeric(fixed[["tau_between"]]), c(.2, .4))
 })
 
+
+test_that("fixed rho summaries use evaluated allocation samples", {
+
+  observed_rho <- NULL
+  testthat::local_mocked_bindings(
+    .outcome_data_vi = function(object) c(1, 1),
+    .get_model_matrix = function(object) matrix(1, nrow = 2L, ncol = 1L),
+    .get_posterior_samples = function(fit) matrix(
+      c(.2, .4),
+      ncol     = 1L,
+      dimnames = list(NULL, "tau")
+    ),
+    .evaluate.brma.tau = function(...) list(
+      tau_within  = matrix(0, nrow = 2L, ncol = 2L),
+      tau_between = matrix(c(.2, .2, .4, .4), nrow = 2L),
+      rho         = c(1, 1)
+    ),
+    .summary_heterogeneity_samples = function(
+        tau_within_samples, tau_between_samples, rho_samples, ...) {
+      observed_rho <<- rho_samples
+      list(rho = rho_samples)
+    },
+    .package = "RoBMA"
+  )
+
+  data <- list(scale = NULL)
+  attr(data, "cluster") <- TRUE
+  attr(data, "scale")   <- FALSE
+  object <- structure(list(
+    fit    = NULL,
+    data   = data,
+    priors = list(
+      outcome = list(
+        rho = BayesTools::prior(
+          "point",
+          parameters = list(location = 1)
+        )
+      ),
+      scale = NULL
+    )
+  ), class = "brma")
+
+  summary_heterogeneity.brma(object)
+
+  expect_identical(observed_rho, c(1, 1))
+})
+
 test_that("scale heterogeneity summaries aggregate variances before tau", {
 
   tau_within <- matrix(
