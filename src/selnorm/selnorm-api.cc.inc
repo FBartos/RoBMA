@@ -196,8 +196,7 @@ double cpp_selnorm_kernel_cdf(
   if (std::isnan(log_probability)) {
     return std::numeric_limits<double>::quiet_NaN();
   }
-  return log_probability == -INFINITY ? 0 :
-    clamp_probability(std::exp(log_probability));
+  return probability_from_log_ratio(log_probability, 0);
 }
 
 void cpp_selnorm_kernel_log_tail_pair(
@@ -483,7 +482,10 @@ double cpp_selnorm_kernel_threshold(
           mean_z, sd_z, omega_stride,
           &upper_prob, &lower_prob, inverse_weight
         )) {
-      return upper_prob + lower_prob;
+      const double probability = upper_prob + lower_prob;
+      return std::isfinite(probability) &&
+        probability >= 0 && probability <= 1 ?
+        probability : std::numeric_limits<double>::quiet_NaN();
     }
   }
 
@@ -498,7 +500,10 @@ double cpp_selnorm_kernel_threshold(
         mean_z, sd_z, omega_stride, data.trusted_step_partition,
         &upper_prob, &lower_prob, inverse_weight
       )) {
-    return upper_prob + lower_prob;
+    const double probability = upper_prob + lower_prob;
+    return std::isfinite(probability) &&
+      probability >= 0 && probability <= 1 ?
+      probability : std::numeric_limits<double>::quiet_NaN();
   }
 
   return std::numeric_limits<double>::quiet_NaN();

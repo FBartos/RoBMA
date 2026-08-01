@@ -1,12 +1,20 @@
-double clamp_probability(double x)
+double probability_from_log_ratio(double log_mass, double log_denom)
 {
-  if (x < 0) {
+  if (log_mass == -INFINITY) {
     return 0;
   }
-  if (x > 1) {
-    return 1;
+  if (!std::isfinite(log_mass) || !std::isfinite(log_denom) ||
+      log_mass > log_denom) {
+    return std::numeric_limits<double>::quiet_NaN();
   }
-  return x;
+
+  const double probability = std::exp(log_mass - log_denom);
+  if (!std::isfinite(probability) ||
+      probability < 0 || probability > 1) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  return probability;
 }
 
 void normal_tail_raw_moments(double lower, double mean, double sd,
@@ -42,18 +50,8 @@ double trusted_interval_prob(double lower, double upper, double mean,
 
   const double tail_lower = tail_at(lower, mean, sd);
   const double tail_upper = tail_at(upper, mean, sd);
-  double prob = tail_lower - tail_upper;
-
-  if (!std::isfinite(prob)) {
-    *ok = false;
-    return 0;
-  }
-
-  const double scale = std::max(std::abs(tail_lower), std::abs(tail_upper));
-  const double tol   = 1e-14 * std::max(scale, 1.0);
-  if (prob < 0 && prob > -tol) {
-    prob = 0;
-  } else if (prob < 0) {
+  const double prob = tail_lower - tail_upper;
+  if (!(prob > 0) || prob > 1) {
     *ok = false;
     return 0;
   }
@@ -251,11 +249,7 @@ double step_cdf_logspace_with_log_norm(const double *omega,
 
   const double log_requested_mass = signed_lower_tail ?
     log_lower_mass : log_upper_mass;
-  if (log_requested_mass == -INFINITY) {
-    return 0;
-  }
-
-  return clamp_probability(std::exp(log_requested_mass - log_denom));
+  return probability_from_log_ratio(log_requested_mass, log_denom);
 }
 
 bool step_moments_trusted_telescoping(const double *omega,
@@ -300,30 +294,7 @@ bool step_moments_trusted_telescoping(const double *omega,
     return false;
   }
 
-  const double second_tol = 1e-10 *
-    std::max(std::abs(*signed_second), sd * sd + signed_mean * signed_mean);
-  if (*signed_second < 0 && *signed_second > -second_tol) {
-    *signed_second = 0;
-  } else if (*signed_second < 0) {
-    return false;
-  }
-
-  return true;
-}
-
-bool clamp_requested_mass(double *requested, double normalizer, double req_abs)
-{
-  const double req_tol = 1e-10 *
-    std::max(std::max(req_abs, normalizer), 1.0);
-
-  if (*requested < 0 && *requested > -req_tol) {
-    *requested = 0;
-  } else if (*requested < 0) {
-    return false;
-  }
-  if (*requested > normalizer && *requested < normalizer + req_tol) {
-    *requested = normalizer;
-  } else if (*requested > normalizer) {
+  if (*signed_second < 0) {
     return false;
   }
 
@@ -361,8 +332,6 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
     signed_lower_tail[0] ? w_last * cdf_q[0] : w_last * tail_q[0],
     signed_lower_tail[1] ? w_last * cdf_q[1] : w_last * tail_q[1]
   };
-  double req_abs[2] = {std::abs(requested[0]), std::abs(requested[1])};
-
   for (int b = 0; b < data.n_bins - 1; ++b) {
     const double w_left  = omega_at(omega, b + 1, omega_stride);
     const double w_right = omega_at(omega, b + 2, omega_stride);
@@ -380,12 +349,8 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
       double req_contrib = 0;
       if (signed_lower_tail[i]) {
         if (q_z[i] > data.z_lower[b]) {
-          double interval = tail_boundary - tail_q[i];
-          const double scale = std::max(std::abs(tail_boundary), std::abs(tail_q[i]));
-          const double tol   = 1e-14 * std::max(scale, 1.0);
-          if (interval < 0 && interval > -tol) {
-            interval = 0;
-          } else if (interval < 0) {
+          const double interval = tail_boundary - tail_q[i];
+          if (!(interval > 0)) {
             return false;
           }
           req_contrib = diff * interval;
@@ -395,7 +360,6 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
       }
 
       requested[i] += req_contrib;
-      req_abs[i]   += std::abs(req_contrib);
     }
   }
 
@@ -407,15 +371,17 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
     return false;
   }
 
-  if (!clamp_requested_mass(&requested[0], normalizer, req_abs[0]) ||
-      !clamp_requested_mass(&requested[1], normalizer, req_abs[1])) {
+  if (requested[0] < 0 || requested[0] > normalizer ||
+      requested[1] < 0 || requested[1] > normalizer) {
     return false;
   }
 
-  *p1             = clamp_probability(requested[0] / normalizer);
-  *p2             = clamp_probability(requested[1] / normalizer);
+  *p1             = requested[0] / normalizer;
+  *p2             = requested[1] / normalizer;
   *inverse_weight = 1 / normalizer;
-  return true;
+  return std::isfinite(*p1) && *p1 >= 0 && *p1 <= 1 &&
+    std::isfinite(*p2) && *p2 >= 0 && *p2 <= 1 &&
+    std::isfinite(*inverse_weight) && *inverse_weight > 0;
 }
 
 bool step_cdf_pair_logspace(const double *omega,
@@ -478,13 +444,13 @@ bool step_cdf_pair_logspace(const double *omega,
     return false;
   }
 
-  *p1 = log_mass[0] == -INFINITY ?
-    0 : clamp_probability(std::exp(log_mass[0] - log_denom));
-  *p2 = log_mass[1] == -INFINITY ?
-    0 : clamp_probability(std::exp(log_mass[1] - log_denom));
+  *p1 = probability_from_log_ratio(log_mass[0], log_denom);
+  *p2 = probability_from_log_ratio(log_mass[1], log_denom);
   *inverse_weight = std::exp(-log_denom);
 
-  return true;
+  return std::isfinite(*p1) && *p1 >= 0 && *p1 <= 1 &&
+    std::isfinite(*p2) && *p2 >= 0 && *p2 <= 1 &&
+    std::isfinite(*inverse_weight) && *inverse_weight > 0;
 }
 
 void step_moments_partition(const double *omega,
