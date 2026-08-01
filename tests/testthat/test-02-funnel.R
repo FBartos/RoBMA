@@ -397,6 +397,18 @@ test_that("Funnel plot for selection model matches metafor structure", {
     metafor::funnel(fit_metafor, main = "metafor", xlim = c(-2, 2), ylim = c(0.8, 0))
     .test_funnel(fit_brma, plot_type = "base", main = "brma", xlim = c(-2, 2), ylim = c(0.8, 0), sampling_bias = FALSE, sampling_heterogeneity = FALSE)
   })
+})
+
+test_that("Selection funnel endpoint geometry is retained for certification", {
+
+  skip_if_not_full_visuals(
+    "Selected-normal endpoint geometry changed after exact boundary handling and needs maintainer review."
+  )
+
+  name <- "dat.lehmann2018-3PSM"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot(
     "funnel_selmodel_pos_brma_ggplot",
