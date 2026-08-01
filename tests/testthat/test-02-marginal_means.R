@@ -6,6 +6,7 @@ source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
 source(testthat::test_path("helper-iwmde.R"))
 REFERENCE_DIR <<- testthat::test_path("..", "results", "marginal_means")
+smoke_samples <- test_profile_value(250L, 1000L)
 
 .expect_marginal_means_bf_values <- function(actual, expected) {
 
@@ -866,7 +867,10 @@ test_that("GLMM IWMDE marginal means are rejected before estimation", {
 
 test_that("marginal_means stores BayesTools marginal inference", {
 
-  mm <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+  mm <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    n_samples = smoke_samples
+  )
 
   expect_identical(class(mm), "marginal_means.brma")
   expect_named(mm, c(
@@ -1054,7 +1058,10 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
 
 test_that("marginal_means print methods preserve objects and reject unused dots", {
 
-  mm         <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+  mm <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    n_samples = smoke_samples
+  )
   summary_mm <- summary(mm)
 
   summary_print <- NULL
@@ -1421,15 +1428,18 @@ test_that("marginal_means rejects IWMDE BFs with poor ordinate diagnostics", {
 
 test_that("marginal_means hides BFs for non-RoBMA fits by default", {
 
-  emm_brma <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+  emm_brma <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    n_samples = smoke_samples
+  )
   emm_brma_bf <- marginal_means(
     fits[["bcg_meta-regression2"]],
-    n_samples = 1000,
+    n_samples = smoke_samples,
     bf        = TRUE
   )
   emm_robma <- marginal_means(
     fits[["dat.lehmann2018_RoBMA_mods"]],
-    n_samples = 1000
+    n_samples = smoke_samples
   )
 
   expect_false("inclusion_BF" %in% attr(summary(emm_brma), "type"))
@@ -1442,7 +1452,10 @@ test_that("marginal_means hides BFs for non-RoBMA fits by default", {
 
 test_that("marginal_means plot errors show formula terms", {
 
-  emm <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+  emm <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    n_samples = smoke_samples
+  )
 
   expect_error(
     plot(emm),
@@ -1457,7 +1470,10 @@ test_that("marginal_means plot errors show formula terms", {
 
 test_that("marginal_means plot labels effect axis and term legend", {
 
-  emm  <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+  emm <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    n_samples = smoke_samples
+  )
   plot <- plot(emm, parameter = "alloc", plot_type = "ggplot")
   colour_scale   <- plot[["scales"]][["get_scales"]]("colour")
   linetype_scale <- plot[["scales"]][["get_scales"]]("linetype")
@@ -1497,7 +1513,7 @@ test_that("marginal_means summaries transform effect-size scale", {
 
   emm <- marginal_means(
     fits[["bcg_meta-regression2"]],
-    n_samples = 1000,
+    n_samples = smoke_samples,
     transform = "EXP"
   )
 
@@ -1519,7 +1535,7 @@ test_that("marginal_means summaries convert effect-size measures", {
 
   emm <- marginal_means(
     fits[["dat.lehmann2018_BMA.norm_mods"]],
-    n_samples = 1000
+    n_samples = smoke_samples
   )
   effect_transform <- .effect_output_setup_measure(
     input_measure  = emm[["input_measure"]],
@@ -1671,12 +1687,15 @@ test_that("marginal_means requires moderators", {
 
 test_that("marginal_means conditional type is RoBMA-only", {
 
-  emm <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+  emm <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    n_samples = smoke_samples
+  )
 
   expect_error(
     marginal_means(
       fits[["bcg_meta-regression2"]],
-      n_samples      = 1000,
+      n_samples      = smoke_samples,
       density_method = "qCMDE",
       type           = "conditional"
     ),
@@ -1694,7 +1713,7 @@ test_that("marginal_means conditional type is RoBMA-only", {
 
   emm_robma <- marginal_means(
     fits[["dat.lehmann2018_RoBMA_mods"]],
-    n_samples = 1000
+    n_samples = smoke_samples
   )
   expect_s3_class(
     summary(emm_robma, type = "conditional"),

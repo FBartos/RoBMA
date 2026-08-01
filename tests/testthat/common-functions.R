@@ -45,6 +45,31 @@ is_certification_profile <- function() {
   return(identical(test_profile(), "certification"))
 }
 
+test_glmm_fit_settings <- function() {
+
+  if (is_certification_profile()) {
+    return(list(
+      chains = 3L,
+      sample = 5000L,
+      burnin = 2000L,
+      adapt  = 500L
+    ))
+  }
+
+  return(list(
+    chains = 3L,
+    sample = 1500L,
+    burnin = 500L,
+    adapt  = 500L
+  ))
+}
+
+.test_profile_cache_dir <- function(root, profile = test_profile()) {
+
+  root <- normalizePath(root, winslash = "/", mustWork = FALSE)
+  return(file.path(root, profile))
+}
+
 .common_functions_dir <- function() {
 
   frames <- sys.frames()
@@ -66,18 +91,18 @@ is_certification_profile <- function() {
   return(normalizePath(getwd(), winslash = "/", mustWork = FALSE))
 }
 
-# Get the directory where prefitted models are stored. Profiles use isolated
-# caches unless the caller explicitly provides a cache directory.
-test_files_dir <- Sys.getenv("ROBMA_TEST_FILES_DIR")
-if (test_files_dir == "") {
+# Get the directory where prefitted models are stored. An explicit directory
+# is a shared cache root; each profile always receives its own subdirectory.
+test_files_root <- Sys.getenv("ROBMA_TEST_FILES_DIR")
+if (test_files_root == "") {
   on_cran <- get("on_cran", envir = asNamespace("testthat"), inherits = FALSE)
-  test_files_dir <- if (on_cran()) {
-    file.path(tempdir(), "RoBMA_test_files", test_profile())
+  test_files_root <- if (on_cran()) {
+    file.path(tempdir(), "RoBMA_test_files")
   } else {
-    file.path(.common_functions_dir(), "test_files", test_profile())
+    file.path(.common_functions_dir(), "test_files")
   }
 }
-test_files_dir <- normalizePath(test_files_dir, winslash = "/", mustWork = FALSE)
+test_files_dir <- .test_profile_cache_dir(test_files_root)
 
 # Setup directory for saving fitted models
 temp_fits_dir     <- file.path(test_files_dir, "fits")
@@ -89,9 +114,6 @@ if (!dir.exists(temp_fits_dir)) dir.create(temp_fits_dir, showWarnings = FALSE, 
 if (!dir.exists(temp_info_dir)) dir.create(temp_info_dir, showWarnings = FALSE, recursive = TRUE)
 if (!dir.exists(temp_metadata_dir)) dir.create(temp_metadata_dir, showWarnings = FALSE, recursive = TRUE)
 if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, recursive = TRUE)
-
-# Set environment variable so other test files can locate pre-fitted models
-Sys.setenv(ROBMA_TEST_FILES_DIR = test_files_dir)
 
 # Use skip_if_no_fits() for tests that need pre-fitted models.
 

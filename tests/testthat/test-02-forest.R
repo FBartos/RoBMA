@@ -135,7 +135,10 @@ info      <- lazy_infos(fit_names, validate = FALSE)
   "dat.lehmann2018_RoBMA"
 )
 
+.forest_standard_snapshot_names <- setdiff(.forest_core_names, "bcg_glmm")
+
 .forest_extended_names <- c(
+  "bcg_glmm",
   "bcg_meta-regression2",
   "bangertdrowns2004_location-scale",
   "konstantopoulos2011_3lvl2",
@@ -515,9 +518,13 @@ test_that("Forest prediction-shade gallery is stable", {
 test_that("Forest plot renders representative fitted object families", {
 
   skip_if_not_installed("metafor")
-  skip_if_missing_fits(.forest_core_names)
+  skip_if_missing_fits(.forest_standard_snapshot_names)
 
-  for (name in setdiff(.forest_core_names, "bcg_meta-analysis")) {
+  snapshot_names <- setdiff(
+    .forest_standard_snapshot_names,
+    "bcg_meta-analysis"
+  )
+  for (name in snapshot_names) {
     local({
       name_local <- name
       fit_brma   <- fits[[name_local]]

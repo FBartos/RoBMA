@@ -336,7 +336,7 @@ test_that("Funnel plot for 3-level meta-regression renders residual views", {
 # Test: GLMM Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for GLMM model renders ggplot output", {
+test_that("Funnel plot rejects undefined GLMM residuals", {
 
   name <- "nielweise2008_glmm"
   skip_if_missing_fits(name)
@@ -351,6 +351,19 @@ test_that("Funnel plot for GLMM model renders ggplot output", {
     .test_funnel(fit_brma, residual = TRUE, as_data = TRUE),
     "discrete PIT convention"
   )
+
+})
+
+test_that("Funnel plot for full-draw GLMM model remains stable", {
+
+  skip_if_not_full_visuals(
+    "The GLMM baseline uses the full-draw certification fixture."
+  )
+
+  name <- "nielweise2008_glmm"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
 
   # there is no funnel plot for metafor
   expect_vdiffr_snapshot(

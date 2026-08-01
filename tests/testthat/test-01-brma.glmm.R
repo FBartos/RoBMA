@@ -6,6 +6,7 @@ skip_on_cran()
 skip_if_not_installed("metadat")
 skip_if_not_installed("metafor")
 skip_refit_if_cached("brma.glmm")
+fit_settings <- test_glmm_fit_settings()
 
 ### Uses examples from the metafor package
 test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
@@ -14,7 +15,13 @@ test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
   fit_simple.metafor <- metafor::rma.glmm(measure = "OR", ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg, model = "UM.FS")
 
   # using RoBMA package
-  fit_simple.brma <- brma.glmm(ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg, measure = "OR", seed = 1, silent = TRUE)
+  fit_simple.brma <- brma.glmm(
+    ai = tpos, bi = tneg, ci = cpos, di = cneg,
+    data = dat.bcg, measure = "OR",
+    chains = fit_settings[["chains"]], sample = fit_settings[["sample"]],
+    burnin = fit_settings[["burnin"]], adapt = fit_settings[["adapt"]],
+    seed = 1, silent = TRUE
+  )
   fit_simple.brma <- add_marglik(fit_simple.brma)
   fit_simple.brma <- suppressWarnings(add_loo(fit_simple.brma))
   save_fit("bcg_glmm", fit_simple.brma, info = list(metafor = fit_simple.metafor))
@@ -25,7 +32,13 @@ test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
   fit_reg.metafor <- suppressWarnings(metafor::rma.glmm(measure = "OR", ai = tpos, bi = tneg, ci = cpos, di = cneg, mods = ~ alloc, data = dat.bcg, model = "UM.FS"))
 
   # using RoBMA package
-  fit_reg.brma <- brma.glmm(ai = tpos, bi = tneg, ci = cpos, di = cneg, mods = ~ alloc, data = dat.bcg, measure = "OR", seed = 1, silent = TRUE)
+  fit_reg.brma <- brma.glmm(
+    ai = tpos, bi = tneg, ci = cpos, di = cneg,
+    mods = ~ alloc, data = dat.bcg, measure = "OR",
+    chains = fit_settings[["chains"]], sample = fit_settings[["sample"]],
+    burnin = fit_settings[["burnin"]], adapt = fit_settings[["adapt"]],
+    seed = 1, silent = TRUE
+  )
   fit_reg.brma <- add_marglik(fit_reg.brma)
   fit_reg.brma <- suppressWarnings(add_loo(fit_reg.brma))
   save_fit("bcg_glmm_reg", fit_reg.brma, info = list(mods = c("alloc"), metafor = fit_reg.metafor))
@@ -36,7 +49,13 @@ test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
   data(dat.nielweise2008, package = "metadat")
   fit_simple.metafor <- metafor::rma.glmm(measure = "IRR", x1i = x1i, t1i = t1i, x2i = x2i, t2i = t2i, data = dat.nielweise2008, model = "UM.FS")
 
-  fit_simple.brma <- brma.glmm(x1i = x1i, t1i = t1i, x2i = x2i, t2i = t2i, data = dat.nielweise2008, measure = "IRR", seed = 1, silent = TRUE)
+  fit_simple.brma <- brma.glmm(
+    x1i = x1i, t1i = t1i, x2i = x2i, t2i = t2i,
+    data = dat.nielweise2008, measure = "IRR",
+    chains = fit_settings[["chains"]], sample = fit_settings[["sample"]],
+    burnin = fit_settings[["burnin"]], adapt = fit_settings[["adapt"]],
+    seed = 1, silent = TRUE
+  )
   fit_simple.brma <- add_marglik(fit_simple.brma)
   fit_simple.brma <- suppressWarnings(add_loo(fit_simple.brma))
   save_fit("nielweise2008_glmm", fit_simple.brma, info = list(metafor = fit_simple.metafor))

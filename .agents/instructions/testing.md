@@ -87,12 +87,12 @@ cache generation failure first.
 
 ### How It Works
 
-- Fitted models are saved to `ROBMA_TEST_FILES_DIR` when that environment
-  variable is set
+- `ROBMA_TEST_FILES_DIR` sets a cache root. Standard and certification fits
+  are always stored in separate profile subdirectories.
 - Default local caches when `ROBMA_TEST_FILES_DIR` is unset:
   `tests/testthat/test_files/standard` and
   `tests/testthat/test_files/certification`
-- CRAN cache: `tempdir()/RoBMA_test_files`
+- CRAN cache: `tempdir()/RoBMA_test_files/{profile}`
 - Subdirectories: `fits/`, `info/`, `metadata/`, `temp/`
 - Cache persists across R sessions by default in local development
 
@@ -100,7 +100,7 @@ cache generation failure first.
 
 | Variable | Purpose |
 |----------|---------|
-| `ROBMA_TEST_FILES_DIR` | Cache directory location |
+| `ROBMA_TEST_FILES_DIR` | Cache root; profile subdirectories are added automatically |
 | `ROBMA_TEST_PROFILE` | `standard` (default) or `certification` |
 | `ROBMA_TEST_SKIP_REFIT` | Skip fitting if a valid cache exists; defaults to `TRUE` |
 | `ROBMA_TEST_FORCE_REFIT` | Force refitting even if a valid cache exists |
@@ -170,9 +170,9 @@ source(testthat::test_path("common-functions.R"))
 clean_cached_fits()
 ```
 
-`clean_cached_fits()` cleans the active cache root. If
-`ROBMA_TEST_FILES_DIR` is set, it cleans that directory rather than the
-repo-local default.
+`clean_cached_fits()` cleans the active profile cache. If
+`ROBMA_TEST_FILES_DIR` is set, it cleans that root's active profile
+subdirectory rather than the repo-local default.
 
 ## Writing New Tests
 

@@ -408,7 +408,12 @@ test_that("Q-Q plot data and argument validation are stable", {
   # Test as_data = TRUE returns list with expected components
   # --------------------------------------------------
 
-  qq_data <- qqnorm(fit_brma, as_data = TRUE, type = "rstandard")
+  qq_data <- qqnorm(
+    fit_brma,
+    as_data     = TRUE,
+    type        = "rstandard",
+    max_samples = 100
+  )
 
   expect_true(is.list(qq_data),
     info = "as_data = TRUE returns a list"
@@ -450,7 +455,13 @@ test_that("Q-Q plot data and argument validation are stable", {
   # Test envelope = FALSE suppresses envelope
   # --------------------------------------------------
 
-  qq_data_no_env <- qqnorm(fit_brma, as_data = TRUE, envelope = FALSE, type = "rstandard")
+  qq_data_no_env <- qqnorm(
+    fit_brma,
+    as_data     = TRUE,
+    envelope    = FALSE,
+    type        = "rstandard",
+    max_samples = 100
+  )
   expect_null(qq_data_no_env$envelope,
     info = "envelope is NULL when envelope = FALSE"
   )
@@ -469,18 +480,20 @@ test_that("Q-Q plot data and argument validation are stable", {
   set.seed(1)
   qq_env_1 <- qqnorm(
     fit_brma,
-    as_data  = TRUE,
-    type     = "rstandard",
-    reps     = 10,
-    envelope = TRUE
+    as_data     = TRUE,
+    type        = "rstandard",
+    reps        = 10,
+    envelope    = TRUE,
+    max_samples = 100
   )[["envelope"]]
   set.seed(999)
   qq_env_2 <- qqnorm(
     fit_brma,
-    as_data  = TRUE,
-    type     = "rstandard",
-    reps     = 100,
-    envelope = TRUE
+    as_data     = TRUE,
+    type        = "rstandard",
+    reps        = 100,
+    envelope    = TRUE,
+    max_samples = 100
   )[["envelope"]]
   expect_equal(qq_env_1, qq_env_2,
     info = "closed-form QQ envelope is deterministic and ignores reps"

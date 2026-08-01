@@ -11,6 +11,8 @@ fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 info      <- lazy_infos(fit_names, validate = FALSE)
 
+zplot_smoke_samples <- test_profile_value(100L, 1000L)
+
 .test_as_zplot <- function(..., max_samples = 1000) {
 
   as_zplot(..., max_samples = max_samples)
@@ -58,20 +60,20 @@ test_that("zplot creates reusable objects and plots directly", {
   skip_if_missing_fits(name)
 
   fit <- fits[[name]]
-  zp  <- .test_as_zplot(fit, max_samples = 1000)
+  zp  <- .test_as_zplot(fit, max_samples = zplot_smoke_samples)
 
   expect_s3_class(zp, "zplot_brma")
   expect_named(zp[["zplot"]], c("estimates", "data"))
   expect_true(.is_ggplot(.test_zplot(
     fit,
     plot_type           = "ggplot",
-    summary_max_samples = 1000,
-    max_samples = 1000
+    summary_max_samples = zplot_smoke_samples,
+    max_samples         = zplot_smoke_samples
   )))
   expect_true(.is_ggplot(.test_zplot(
     zp,
     plot_type   = "ggplot",
-    max_samples = 1000
+    max_samples = zplot_smoke_samples
   )))
 })
 
@@ -80,7 +82,10 @@ test_that("zplot allows descriptive known-V brma.mv displays", {
   name <- "brma.mv_block_mvn"
   skip_if_missing_fits(name)
 
-  zc <- .test_as_zplot(fits[[name]], max_samples = 1000)
+  zc <- .test_as_zplot(
+    fits[[name]],
+    max_samples = zplot_smoke_samples
+  )
 
   expect_s3_class(zc, "zplot_brma")
   expect_true(all(is.finite(zc[["zplot"]][["estimates"]][["EDR"]])))
@@ -93,7 +98,7 @@ test_that("zplot allows descriptive known-V brma.mv displays", {
   density <- .test_lines_zplot(
     zc,
     as_data     = TRUE,
-    max_samples = 1000,
+    max_samples = zplot_smoke_samples,
     plot_ci     = FALSE,
     length.out  = 25
   )
@@ -272,7 +277,8 @@ test_that("zplot handles RoBMA bias-mixture branches", {
   name <- "dat.lehmann2018_RoBMA"
   skip_if_not(name %in% names(fits), "RoBMA cached fit not available.")
 
-  max_samples       <- test_profile_value(100L, 1000L)
+  max_samples        <- test_profile_value(100L, 1000L)
+  integration_points <- test_profile_value(401L, 2001L)
   fit               <- fits[[name]]
   posterior_samples <- .get_posterior_samples(fit[["fit"]])
   if (nrow(posterior_samples) > max_samples) {
@@ -325,7 +331,7 @@ test_that("zplot handles RoBMA bias-mixture branches", {
     extrapolate = FALSE,
     from        = -20,
     to          = 20,
-    length.out  = 2001
+    length.out  = integration_points
   ))
   extrapolated_area <- .zplot_test_area(.test_lines_zplot(
     zc,
@@ -335,7 +341,7 @@ test_that("zplot handles RoBMA bias-mixture branches", {
     extrapolate = TRUE,
     from        = -20,
     to          = 20,
-    length.out  = 2001
+    length.out  = integration_points
   ))
   expected_area     <- mean(zc[["zplot"]][["estimates"]][["weights"]])
 

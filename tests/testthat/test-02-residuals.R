@@ -198,10 +198,13 @@ test_that("Residuals for BMA.norm fits are internally consistent", {
 
 test_that("Residuals for BMA.glmm fits are internally consistent", {
 
-  model_names <- c("bcg_BMA.glmm", "nielweise2008_BMA.glmm", "bcg_BMA.glmm_3lvl_location_scale")
+  model_names <- "bcg_BMA.glmm"
+  if (is_certification_profile()) {
+    model_names <- c(model_names, "nielweise2008_BMA.glmm")
+  }
   skip_if_missing_fits(model_names)
 
-  for (name in c("bcg_BMA.glmm", "nielweise2008_BMA.glmm")) {
+  for (name in model_names) {
     fit_brma <- fits[[name]]
     n        <- nobs(fit_brma)
 
@@ -210,8 +213,18 @@ test_that("Residuals for BMA.glmm fits are internally consistent", {
     expect_error(rstandard(fit_brma), "normal outcome models")
     expect_error(rstudent(fit_brma), "discrete PIT convention")
   }
+})
 
-  fit_3lvl <- fits[["bcg_BMA.glmm_3lvl_location_scale"]]
+test_that("Residuals for multilevel BMA.glmm fits are internally consistent", {
+
+  skip_if_not_certification(
+    "The multilevel BMA.glmm fit is a certification fixture."
+  )
+
+  name <- "bcg_BMA.glmm_3lvl_location_scale"
+  skip_if_missing_fits(name)
+
+  fit_3lvl <- fits[[name]]
   n_3lvl   <- nrow(fit_3lvl[["data"]][["outcome"]])
 
   expect_null(fit_3lvl[["marglik"]])
@@ -371,13 +384,16 @@ test_that("Residuals for RoBMA fits are internally consistent", {
 
 test_that("brma.mv known-V residual diagnostics are internally consistent", {
 
-  mv_names <- c(
-    "brma.mv_latent",
-    "brma.mv_whitened",
-    "brma.mv_block_mvn",
-    "brma.mv_block_mvn_random_scale",
-    "brma.mv_block_mvn_known_R"
-  )
+  mv_names <- "brma.mv_block_mvn"
+  if (is_certification_profile()) {
+    mv_names <- c(
+      "brma.mv_latent",
+      "brma.mv_whitened",
+      mv_names,
+      "brma.mv_block_mvn_random_scale",
+      "brma.mv_block_mvn_known_R"
+    )
+  }
   skip_if_missing_fits(mv_names)
 
   for (name in mv_names) {

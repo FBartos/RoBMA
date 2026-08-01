@@ -227,10 +227,14 @@ test_that("log_lik, LOO, weights, diagnostics, and WAIC are available for produc
 
     expect_no_error(suppressWarnings(check_loo(fit_brma)))
 
-    fit_waic <- fit_brma
-    fit_waic[["waic"]] <- NULL
-    fit_waic <- suppressWarnings(add_waic(fit_waic))
-    waic_result <- waic(fit_waic)
+    if (identical(name, "dat.lehmann2018_BMA.norm")) {
+      fit_waic <- fit_brma
+      fit_waic[["waic"]] <- NULL
+      fit_waic   <- suppressWarnings(add_waic(fit_waic))
+      waic_result <- waic(fit_waic)
+    } else {
+      waic_result <- suppressWarnings(loo::waic(log_lik))
+    }
     expect_s3_class(waic_result, "waic")
   }
 })
@@ -254,17 +258,20 @@ test_that("loo_compare compares BMA and RoBMA product-space fits on the same dat
 
 test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", {
 
-  mv_names <- c(
-    "brma.mv_latent",
-    "brma.mv_whitened",
-    "brma.mv_block_mvn",
-    "brma.mv_block_mvn_fixed_random_null",
-    "brma.mv_block_mvn_known_R",
-    "brma.mv_block_mvn_random_scale",
-    "brma.mv_block_mvn_3lvl_scale_total",
-    "brma.mv_block_mvn_3lvl_scale_top",
-    "brma.mv_block_mvn_3lvl_scale_bottom"
-  )
+  mv_names <- "brma.mv_block_mvn"
+  if (is_certification_profile()) {
+    mv_names <- c(
+      "brma.mv_latent",
+      "brma.mv_whitened",
+      mv_names,
+      "brma.mv_block_mvn_fixed_random_null",
+      "brma.mv_block_mvn_known_R",
+      "brma.mv_block_mvn_random_scale",
+      "brma.mv_block_mvn_3lvl_scale_total",
+      "brma.mv_block_mvn_3lvl_scale_top",
+      "brma.mv_block_mvn_3lvl_scale_bottom"
+    )
+  }
   skip_if_missing_fits(mv_names)
 
   for (name in mv_names) {
@@ -437,10 +444,15 @@ test_that("LOO and WAIC compare random-effect representations on one target", {
 
   representation_names <- c(
     none         = "brma.mv_block_mvn",
-    marginalized = "brma.mv_block_mvn_random",
-    sampled      = "brma.mv_block_mvn_known_R",
-    mixed        = "brma.mv_block_mvn_random_scale"
+    marginalized = "brma.mv_block_mvn_random"
   )
+  if (is_certification_profile()) {
+    representation_names <- c(
+      representation_names,
+      sampled = "brma.mv_block_mvn_known_R",
+      mixed   = "brma.mv_block_mvn_random_scale"
+    )
+  }
   skip_if_missing_fits(unname(representation_names))
 
   representation_fits <- lapply(representation_names, function(name) {
@@ -451,17 +463,30 @@ test_that("LOO and WAIC compare random-effect representations on one target", {
     attr(log_lik(fit_brma), "RoBMA_target", exact = TRUE)
   })
 
+  expected_random_effects <- c(none = "none", marginalized = "none")
+  expected_estimate_level <- c(none = "none", marginalized = "marginalized")
+  if (is_certification_profile()) {
+    expected_random_effects <- c(
+      expected_random_effects,
+      sampled = "conditioned",
+      mixed   = "conditioned"
+    )
+    expected_estimate_level <- c(
+      expected_estimate_level,
+      sampled = "none",
+      mixed   = "marginalized"
+    )
+  }
+
   expect_equal(
     vapply(targets, function(target) target[["random_effects"]], character(1)),
-    c(none = "none", marginalized = "none", sampled = "conditioned",
-      mixed = "conditioned")
+    expected_random_effects
   )
   expect_equal(
     vapply(targets, function(target) {
       target[["estimate_level_random"]]
     }, character(1)),
-    c(none = "none", marginalized = "marginalized", sampled = "none",
-      mixed = "marginalized")
+    expected_estimate_level
   )
 
   comparison_fields <- c("data_hash", "unit", "conditioning_depth", "target")
@@ -484,6 +509,10 @@ test_that("LOO and WAIC compare random-effect representations on one target", {
 })
 
 test_that("matched sampled and marginalized effects have equivalent scores", {
+
+  skip_if_not_certification(
+    "Matched sampled-effect scores require certification-only fits."
+  )
 
   representation_names <- c(
     marginalized = "brma.mv_block_mvn_random",
@@ -547,6 +576,10 @@ test_that("marginalized normal score equals the sampled-effect convolution", {
 })
 
 test_that("sampled local effects expose their observed PSIS reliability risk", {
+
+  skip_if_not_certification(
+    "The sampled-effect reliability contrast uses a certification fixture."
+  )
 
   marginalized <- fits[["brma.mv_block_mvn_random"]]
   sampled      <- fits[["brma.mv_block_mvn_random_sampled"]]

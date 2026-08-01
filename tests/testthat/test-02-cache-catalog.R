@@ -2,6 +2,54 @@ context("Cached fit catalog")
 
 source(testthat::test_path("common-functions.R"))
 
+test_that("GLMM test settings preserve full certification draws", {
+
+  old_profile <- Sys.getenv("ROBMA_TEST_PROFILE", unset = NA_character_)
+  on.exit({
+    if (is.na(old_profile)) {
+      Sys.unsetenv("ROBMA_TEST_PROFILE")
+    } else {
+      Sys.setenv(ROBMA_TEST_PROFILE = old_profile)
+    }
+  })
+
+  Sys.setenv(ROBMA_TEST_PROFILE = "standard")
+  standard <- test_glmm_fit_settings()
+  Sys.setenv(ROBMA_TEST_PROFILE = "certification")
+  certification <- test_glmm_fit_settings()
+
+  expect_identical(standard, list(
+    chains = 3L,
+    sample = 1500L,
+    burnin = 500L,
+    adapt  = 500L
+  ))
+  expect_identical(certification, list(
+    chains = 3L,
+    sample = 5000L,
+    burnin = 2000L,
+    adapt  = 500L
+  ))
+})
+
+test_that("test cache roots isolate profiles", {
+
+  cache_root    <- tempfile("robma-profile-cache-")
+  standard      <- .test_profile_cache_dir(cache_root, "standard")
+  certification <- .test_profile_cache_dir(cache_root, "certification")
+
+  expect_identical(basename(standard), "standard")
+  expect_identical(basename(certification), "certification")
+  expect_identical(dirname(standard), dirname(certification))
+
+  named_root <- file.path(cache_root, "standard")
+  expect_identical(
+    .test_profile_cache_dir(named_root, "certification"),
+    file.path(normalizePath(named_root, winslash = "/", mustWork = FALSE),
+              "certification")
+  )
+})
+
 .collect_save_fit_calls <- function(expr, source_file) {
 
   out <- data.frame(
