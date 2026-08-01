@@ -59,6 +59,9 @@ if (profile %in% c("cache", "01-cache")) {
   }
   profile <- "standard"
   filter  <- paste(extra_args, collapse = "|")
+} else if (profile %in% c("standard", "certification") &&
+           length(extra_args) > 0L) {
+  filter <- paste(extra_args, collapse = "|")
 } else if (!profile %in% c("standard", "certification")) {
   filter  <- profile
   profile <- "standard"
