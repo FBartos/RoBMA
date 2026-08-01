@@ -98,6 +98,34 @@ test_that("unit weights reduce one- and two-sided step kernels to normal", {
   }
 })
 
+test_that("selected-normal probabilities use distribution-relative tails", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  q        <- c(1e300, -1e300)
+  mean     <- matrix(c(2e300, -5e299), nrow = 1)
+  sd       <- matrix(1e299, nrow = 1, ncol = 2)
+  sei      <- c(1, 1)
+  spec     <- .test_step_spec(c(0, 0), sei)
+  omega    <- matrix(1, nrow = 1, ncol = spec[["n_bins"]])
+  expected <- stats::pnorm(q, mean = mean, sd = sd)
+
+  actual <- .selnorm_kernel_cdf_matrix(
+    q              = q,
+    mean           = mean,
+    sd             = sd,
+    sei            = sei,
+    omega          = omega,
+    selection_spec = spec
+  )
+
+  expect_equal(
+    as.vector(log(actual)),
+    as.vector(log(expected)),
+    tolerance = 1e-12
+  )
+})
+
 test_that("default RoBMA step normalizer matches independent Bem2011 reference", {
 
   skip_if_not(.has_native_selnorm_kernel())

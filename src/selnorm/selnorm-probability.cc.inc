@@ -8,12 +8,6 @@ double interval_prob_cdf(double lower, double upper, double mean, double sd)
     if (std::isinf(upper) && upper > 0) {
       return 1;
     }
-    if (upper <= -1e290) {
-      return 0;
-    }
-    if (upper >= 1e290) {
-      return 1;
-    }
     return pnorm(upper, mean, sd, true, false);
   }
   if (std::isinf(upper) && upper > 0) {
@@ -38,12 +32,6 @@ double cdf_at(double x, double mean, double sd)
   if (std::isinf(x)) {
     return x < 0 ? 0 : 1;
   }
-  if (x <= -1e290) {
-    return 0;
-  }
-  if (x >= 1e290) {
-    return 1;
-  }
   return pnorm(x, mean, sd, true, false);
 }
 
@@ -51,12 +39,6 @@ double tail_at(double x, double mean, double sd)
 {
   if (std::isinf(x)) {
     return x < 0 ? 1 : 0;
-  }
-  if (x <= -1e290) {
-    return 1;
-  }
-  if (x >= 1e290) {
-    return 0;
   }
   return pnorm(x, mean, sd, false, false);
 }
