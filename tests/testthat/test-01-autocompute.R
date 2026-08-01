@@ -68,7 +68,7 @@ test_that("autocompute options are applied for brma()", {
 
   expect_s3_class(fit_auto$loo$estimate, "loo")
   expect_s3_class(fit_auto$waic$estimate, "waic")
-  expect_s3_class(fit_auto$marglik, "bridge")
+  expect_s3_class(fit_auto$marglik, "BayesTools_marglik")
 })
 
 test_that("autocompute options are applied for brma.mv() known-V storage", {
@@ -161,7 +161,7 @@ test_that("autocompute options are applied for brma.mv() known-V storage", {
 
     expect_s3_class(fit_auto[["loo"]][["estimate"]], "loo")
     expect_s3_class(fit_auto[["waic"]][["estimate"]], "waic")
-    expect_s3_class(fit_auto[["marglik"]], "bridge")
+    expect_s3_class(fit_auto[["marglik"]], "BayesTools_marglik")
     expect_true(is.finite(logml(fit_auto)), info = name)
     expect_equal(known_V[["storage"]], representation[["storage"]], info = name)
     expect_equal(

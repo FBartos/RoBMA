@@ -12,8 +12,8 @@
 \item{...}{additional arguments (currently not used).}
 }
 \value{
-An object of class \code{"bridge"} as returned by
-\code{\link[bridgesampling]{bridge_sampler}}.
+A \code{"BayesTools_marglik"} object containing the bridge-sampling
+result and diagnostics.
 }
 \description{
 Extract the marginal likelihood bridge sampling object from

@@ -92,7 +92,7 @@ add_marglik.brma <- function(object, ...) {
 #
 # @param object a brma model object.
 #
-# @return An object of class "bridge" as returned by bridgesampling::bridge_sampler.
+# @return A `BayesTools_marglik` object.
 #
 # @keywords internal
 .marglik <- function(object) {

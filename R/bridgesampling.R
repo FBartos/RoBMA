@@ -130,8 +130,8 @@ bridgesampling::bayes_factor
 #' The returned object can be used for Bayesian model comparison via
 #' \code{\link{bf}} and \code{\link{post_prob}}.
 #'
-#' @return An object of class \code{"bridge"} as returned by
-#' \code{\link[bridgesampling]{bridge_sampler}}.
+#' @return A \code{"BayesTools_marglik"} object containing the bridge-sampling
+#' result and diagnostics.
 #'
 #' @seealso \code{\link{add_marglik}}, \code{\link[bridgesampling]{bridge_sampler}},
 #' \code{\link{logml.brma}}, \code{\link{bf.brma}}, \code{\link{post_prob.brma}}
