@@ -724,11 +724,12 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
 .marginal_means_drop_bf <- function(table) {
 
   table_type <- attr(table, "type")
-  if (is.null(table_type) || !any(table_type == "inclusion_BF")) {
+  bf_types   <- c("inclusion_BF", "BF_error")
+  if (is.null(table_type) || !any(table_type %in% bf_types)) {
     return(table)
   }
 
-  keep        <- table_type != "inclusion_BF"
+  keep        <- !table_type %in% bf_types
   table_attrs <- attributes(table)
   table       <- table[, keep, drop = FALSE]
 

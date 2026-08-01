@@ -153,6 +153,26 @@ test_that("marginal_means print contracts preserve the original objects", {
 })
 
 
+test_that("marginal_means removes all BF-only output", {
+
+  table <- data.frame(
+    Mean             = 1,
+    inclusion_BF     = "2",
+    BF_error_percent = 3
+  )
+  attr(table, "type")     <- c("estimate", "inclusion_BF", "BF_error")
+  attr(table, "warnings") <- "BF diagnostic warning"
+  attr(table, "title")    <- "Marginal means"
+
+  result <- .marginal_means_drop_bf(table)
+
+  expect_identical(names(result), "Mean")
+  expect_identical(attr(result, "type"), "estimate")
+  expect_null(attr(result, "warnings"))
+  expect_identical(attr(result, "title"), "Marginal means")
+})
+
+
 test_that("marginal_means BF ordinate targets stay conditional", {
 
   emm <- .marginal_means_iwmde_test_object()
