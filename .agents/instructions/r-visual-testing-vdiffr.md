@@ -53,7 +53,7 @@ Gallery-style or redundant visual cases should be gated:
 skip_if_not_full_visuals("This variant duplicates core visual coverage.")
 ```
 
-Set `ROBMA_TEST_FULL_VISUALS=TRUE` only when intentionally running those cases.
+Run `Rscript tools/test-profile.R certification` to include those cases.
 Use `skip_if_not_full_visuals()` rather than a raw `testthat::skip()` for these
 galleries. The helper announces existing conditional snapshots before skipping,
 which prevents ordinary test runs from deleting their committed baselines.

@@ -1,7 +1,7 @@
 test_tier <- function() {
 
   tier <- "core"
-  if (is_true_env("ROBMA_TEST_EXTENDED")) {
+  if (is_certification_profile()) {
     tier <- c(tier, "extended")
   }
 
@@ -11,7 +11,7 @@ test_tier <- function() {
 visual_test_tier <- function() {
 
   tier <- test_tier()
-  if (is_true_env("ROBMA_TEST_FULL_VISUALS")) {
+  if (is_certification_profile()) {
     tier <- c(tier, "visual-gallery")
   }
 
@@ -544,7 +544,7 @@ marginal_means_interaction_plot_cases <- function() {
 
 skip_if_not_full_visuals <- function(reason = NULL) {
 
-  if (!is_true_env("ROBMA_TEST_FULL_VISUALS")) {
+  if (!is_certification_profile()) {
     # Conditional file snapshots must be announced before skipping or testthat
     # treats their committed baselines as obsolete. Full-visual runs still
     # exercise every snapshot and therefore retain normal stale-file cleanup.
@@ -554,7 +554,7 @@ skip_if_not_full_visuals <- function(reason = NULL) {
     testthat::skip(paste0(
       "Skipping extended visual gallery by default.",
       detail,
-      " Set ROBMA_TEST_FULL_VISUALS=TRUE to run it."
+      " Run the certification profile to include it."
     ))
   }
 }

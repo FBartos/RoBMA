@@ -52,19 +52,32 @@ devtools::test(reporter = "llm")
 
 ### Pre-Release Workflow
 
-Use the release profile when cached-fit integration coverage must be treated as
-required evidence:
+The standard profile is the default development and CI suite. It preserves
+representative full-draw fits, metafor comparisons, integration coverage, and
+human-reviewed visual snapshots while targeting at most 15 minutes on the
+reference development machine:
+
+```sh
+Rscript tools/test-profile.R standard
+```
+
+The certification profile adds high-draw v14 fixtures, nested bridge oracles,
+exhaustive numerical-density comparisons, redundant diagnostic matrices, and
+the complete visual gallery. It may take hours and is intended for feature
+certification and major releases:
+
+```sh
+Rscript tools/test-profile.R certification
+```
+
+Use the release profile to run both profiles from clean isolated caches and
+then run `R CMD check`:
 
 ```sh
 Rscript tools/test-profile.R release
 ```
 
-This cleans the active cache, runs `devtools::test(filter = "01-", reporter =
-"llm")`, validates that every `fit_catalog()` entry is available and current,
-forces the subsequent pass to reuse the validated cache, runs the full extended
-`devtools::test(reporter = "llm")`, then runs `devtools::check(error_on =
-"warning")`. The legacy wrapper `Rscript tools/full-tests.R` runs the same
-release profile.
+The legacy wrapper `Rscript tools/full-tests.R` runs the same release profile.
 
 If this profile reports missing or stale cached fits, do not treat downstream
 `skip_if_no_fits()` / `skip_if_missing_fits()` skips as release evidence; fix the
@@ -76,8 +89,9 @@ cache generation failure first.
 
 - Fitted models are saved to `ROBMA_TEST_FILES_DIR` when that environment
   variable is set
-- Default local cache when `ROBMA_TEST_FILES_DIR` is unset:
-  `tests/testthat/test_files`, resolved relative to `common-functions.R`
+- Default local caches when `ROBMA_TEST_FILES_DIR` is unset:
+  `tests/testthat/test_files/standard` and
+  `tests/testthat/test_files/certification`
 - CRAN cache: `tempdir()/RoBMA_test_files`
 - Subdirectories: `fits/`, `info/`, `metadata/`, `temp/`
 - Cache persists across R sessions by default in local development
@@ -87,11 +101,9 @@ cache generation failure first.
 | Variable | Purpose |
 |----------|---------|
 | `ROBMA_TEST_FILES_DIR` | Cache directory location |
+| `ROBMA_TEST_PROFILE` | `standard` (default) or `certification` |
 | `ROBMA_TEST_SKIP_REFIT` | Skip fitting if a valid cache exists; defaults to `TRUE` |
 | `ROBMA_TEST_FORCE_REFIT` | Force refitting even if a valid cache exists |
-| `ROBMA_TEST_EXTENDED` | Include extended, slower model-family/case matrix tests |
-| `ROBMA_TEST_FULL_DIAGNOSTICS` | Run extended redundant residual/influence diagnostics skipped by default |
-| `ROBMA_TEST_FULL_VISUALS` | Run visual-gallery snapshots skipped by default |
 | `ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS` | Allow missing vdiffr snapshots only while regenerating snapshots |
 
 ### Cache Validation
@@ -122,8 +134,7 @@ Use `list_fits(validate = FALSE)` only when inspecting raw cache files.
 
 Some residual and influence tests are intentionally gated with
 `skip_if_not_full_diagnostics()`. They duplicate core metafor/model-family
-coverage or have no stable oracle, but remain available by setting
-`ROBMA_TEST_FULL_DIAGNOSTICS=TRUE`.
+coverage or have no stable oracle and run only in the certification profile.
 
 ### Fit Catalog
 
@@ -133,6 +144,7 @@ coverage or have no stable oracle, but remain available by setting
 - source `test-01-*` file
 - availability of metafor reference, LOO, WAIC, and marginal likelihood
 - test tier and feature tags
+- minimum test profile (`standard` or `certification`)
 
 Use catalog filters instead of ad hoc hard-coded model lists when possible:
 

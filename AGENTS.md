@@ -56,6 +56,8 @@ devtools::check()                 # Full R CMD check
 
 **Testing Note**: Always use testthat LLM reporting for unit tests (`reporter = "llm"`; or set `AGENT=1` if a wrapper cannot pass `reporter`). Long-running model fits are cached. 
 Run `devtools::test(filter = "01-", reporter = "llm")` first to generate cached fits, then use `devtools::test(filter = "topic", reporter = "llm")` for faster iteration.
+Use `Rscript tools/test-profile.R standard` for the ordinary <=15-minute suite and
+`Rscript tools/test-profile.R certification` only for exhaustive numerical evidence.
 
 ## Code Style
 

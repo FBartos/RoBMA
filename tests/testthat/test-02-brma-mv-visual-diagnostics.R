@@ -33,8 +33,7 @@ fits <- lazy_fits(c(mv_visual_fixed_fit_name, mv_visual_fit_names),
 
 .mv_visual_full <- function() {
 
-  toupper(Sys.getenv("ROBMA_TEST_FULL_VISUALS", unset = "")) %in%
-    c("TRUE", "1", "YES")
+  return(is_certification_profile())
 }
 
 .mv_visual_should_render <- function(name) {

@@ -21,6 +21,30 @@ FIT_CACHE_METADATA_FIELDS <- c(
   "has_metafor_info"
 )
 
+TEST_PROFILES <- c("standard", "certification")
+
+test_profile <- function() {
+
+  profile <- Sys.getenv("ROBMA_TEST_PROFILE", unset = "standard")
+  profile <- tolower(profile)
+
+  if (!profile %in% TEST_PROFILES) {
+    stop(
+      "'ROBMA_TEST_PROFILE' must be one of: ",
+      paste(TEST_PROFILES, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  return(profile)
+}
+
+is_certification_profile <- function() {
+
+  return(identical(test_profile(), "certification"))
+}
+
 .common_functions_dir <- function() {
 
   frames <- sys.frames()
@@ -42,15 +66,15 @@ FIT_CACHE_METADATA_FIELDS <- c(
   return(normalizePath(getwd(), winslash = "/", mustWork = FALSE))
 }
 
-# Get the directory where prefitted models are stored. Local development uses
-# a persistent ignored folder; CRAN checks fall back to tempdir().
+# Get the directory where prefitted models are stored. Profiles use isolated
+# caches unless the caller explicitly provides a cache directory.
 test_files_dir <- Sys.getenv("ROBMA_TEST_FILES_DIR")
 if (test_files_dir == "") {
   on_cran <- get("on_cran", envir = asNamespace("testthat"), inherits = FALSE)
   test_files_dir <- if (on_cran()) {
-    file.path(tempdir(), "RoBMA_test_files")
+    file.path(tempdir(), "RoBMA_test_files", test_profile())
   } else {
-    file.path(.common_functions_dir(), "test_files")
+    file.path(.common_functions_dir(), "test_files", test_profile())
   }
 }
 test_files_dir <- normalizePath(test_files_dir, winslash = "/", mustWork = FALSE)
@@ -273,7 +297,7 @@ fit_catalog <- function() {
       "core", "core", "extended", "extended",
       "core", "extended", "core", "extended", "extended",
       "core", "core", "core", "core", "core", "core", "core", "core", "core", "core",
-      "core", "core", "core", "core", "core", "core", "core", "core", "core", "core",
+      "core", "core", "core", "core", "core", "extended", "extended", "extended", "extended", "core",
       "core"
     ),
     stringsAsFactors = FALSE
@@ -398,6 +422,18 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, iwmde_oracle_catalog)
 
+  catalog[["profile"]] <- "standard"
+  catalog[["profile"]][catalog[["name"]] %in% c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_assink2016_nested",
+    "brma.mv_v14_ishak2007_har",
+    "brma.mv_v14_begg1989_study_treatment",
+    "nielweise2008_glmm_effect_null",
+    "dat.lehmann2018-3PSM_effect_null",
+    "iwmde_known_v_tau_full",
+    "iwmde_known_v_tau_null"
+  )] <- "certification"
+
   return(catalog)
 }
 
@@ -413,9 +449,35 @@ fit_catalog_entry <- function(name) {
   return(catalog[index, , drop = FALSE])
 }
 
-catalog_group_fits <- function(name) {
+active_fit_catalog <- function() {
 
   catalog <- fit_catalog()
+  if (!is_certification_profile()) {
+    catalog <- catalog[catalog[["profile"]] == "standard", , drop = FALSE]
+  }
+
+  return(catalog)
+}
+
+is_fit_active <- function(name) {
+
+  return(name %in% active_fit_catalog()[["name"]])
+}
+
+skip_if_fit_not_active <- function(name) {
+
+  if (!is_fit_active(name)) {
+    testthat::skip(paste0(
+      "Cached fit '", name, "' belongs to the certification profile."
+    ))
+  }
+
+  return(invisible(FALSE))
+}
+
+catalog_group_fits <- function(name, active_only = TRUE) {
+
+  catalog <- if (active_only) active_fit_catalog() else fit_catalog()
 
   if (name %in% catalog[["name"]]) {
     return(name)
@@ -489,7 +551,8 @@ catalog_fits <- function(feature, class, family, has_metafor, has_loo,
 
   return(
     call_name %in% c("context", "source", "skip_on_cran",
-                     "skip_if_not_installed", "skip_refit_if_cached") ||
+                     "skip_if_not_installed", "skip_refit_if_cached",
+                     "skip_if_fit_not_active", "skip_if_not_certification") ||
       grepl("^expect_", call_name)
   )
 }
@@ -1169,13 +1232,26 @@ skip_if_missing_fits <- function(names) {
 
 skip_if_not_full_diagnostics <- function(reason) {
 
-  if (!is_true_env("ROBMA_TEST_FULL_DIAGNOSTICS")) {
+  if (!is_certification_profile()) {
     skip(paste(
       "Skipping extended diagnostic redundancy check by default.",
       reason,
-      "Set ROBMA_TEST_FULL_DIAGNOSTICS=TRUE to run it."
+      "Run the certification profile to include it."
     ))
   }
+}
+
+skip_if_not_certification <- function(reason = NULL) {
+
+  if (!is_certification_profile()) {
+    detail <- if (is.null(reason)) "" else paste0(" ", reason)
+    skip(paste0(
+      "Skipping numerical certification case in the standard profile.",
+      detail
+    ))
+  }
+
+  return(invisible(FALSE))
 }
 
 # Skip model fitting if a valid cached fit exists. Refit by setting
@@ -1298,10 +1374,14 @@ load_info <- function(name, validate = TRUE) {
 
 list_fits <- function(name, feature, class, family, has_metafor, has_loo,
                       has_waic, has_marglik, tier, validate = TRUE,
-                      deep = FALSE) {
+                      deep = FALSE, active_only = TRUE) {
 
   files <- suppressWarnings(list.files(temp_fits_dir, pattern = "\\.RDS$"))
   files <- sub("\\.RDS$", "", files)
+
+  if (active_only) {
+    files <- intersect(files, active_fit_catalog()[["name"]])
+  }
 
   if (!missing(name)) {
     files <- intersect(files, name)
@@ -1441,7 +1521,7 @@ as.list.lazy_cached_objects <- function(x, ...) {
 clean_cached_fits <- function(name) {
 
   if (!missing(name)) {
-    fit_names <- catalog_group_fits(name)
+    fit_names <- catalog_group_fits(name, active_only = FALSE)
     if (length(fit_names) == 0) {
       fit_names <- name
     }

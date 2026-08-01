@@ -393,6 +393,7 @@ test_that("hypothesis default output is compact and attaches table warnings", {
 
 test_that("qCMDE point-null ordinates agree with bridge oracle and report error", {
 
+  skip_if_not_certification("This bridge comparison uses a 5,000-row density budget.")
   skip_on_cran()
   skip_if_missing_fits(c(
     "konstantopoulos2011_3lvl",
@@ -475,6 +476,7 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
 
 test_that("factor level hypotheses use joint priors and child ordinates", {
 
+  skip_if_not_certification("This case validates fitted qCMDE ordinates.")
   skip_on_cran()
   skip_if_missing_fits("bcg_meta-regression2")
 
@@ -538,6 +540,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
 
 test_that("qCMDE point-null ordinates support boundary nulls", {
 
+  skip_if_not_certification("This case certifies boundary density ordinates.")
   skip_on_cran()
   skip_if_missing_fits("bcg_meta-analysis")
 
@@ -636,6 +639,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
 
 test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE", {
 
+  skip_if_not_certification("This case computes fitted marginal qCMDE ordinates.")
   skip_on_cran()
   skip_if_missing_fits("bcg_meta-regression2")
 
@@ -1213,6 +1217,7 @@ test_that("marginal means hypothesis validates controls without a point null", {
 
 test_that("factor-level PET moderator point null agrees with bridge oracle", {
 
+  skip_if_not_certification("This bridge comparison uses 2,000-row density budgets.")
   skip_on_cran()
   skip_if_missing_fits(c(
     "dat.lehmann2018-PET",

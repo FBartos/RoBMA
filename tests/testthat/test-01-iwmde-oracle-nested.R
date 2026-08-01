@@ -9,6 +9,7 @@ skip_refit_if_cached("iwmde-oracle-nested")
 
 test_that("nested models support IWMDE bridge oracles", {
 
+  skip_if_not_certification("These nested bridge fits certify numerical accuracy.")
   spike <- BayesTools::prior(
     "spike",
     parameters = list(location = 0)

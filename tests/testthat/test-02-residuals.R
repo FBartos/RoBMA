@@ -423,6 +423,7 @@ test_that("brma.mv known-V residual diagnostics are internally consistent", {
 
 test_that("v14 brma.mv residual diagnostics return finite estimate-unit output", {
 
+  skip_if_not_certification("This case exercises the high-draw v14 fixtures.")
   mv_names <- c(
     "brma.mv_v14_konstantopoulos2011_cs",
     "brma.mv_v14_assink2016_nested",

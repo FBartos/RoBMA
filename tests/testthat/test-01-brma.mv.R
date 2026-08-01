@@ -908,6 +908,7 @@ test_that("brma.mv fits fixed-effect known-V model with random = NULL", {
 
 test_that("brma.mv fits v14 metafor parity models", {
 
+  skip_if_not_certification("These high-draw parity fits are release evidence.")
   skip_if_not_installed("metadat")
   skip_if_not_installed("metafor")
 

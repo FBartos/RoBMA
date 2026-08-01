@@ -401,6 +401,22 @@ test_that("fit catalog is internally consistent", {
                info = "each catalog row must have feature tags")
   expect_true(all(vapply(catalog[["features"]], length, integer(1)) > 0L),
               info = "feature tags cannot be empty")
+  expect_setequal(unique(catalog[["profile"]]), TEST_PROFILES)
+  expect_setequal(
+    catalog[["name"]][catalog[["profile"]] == "certification"],
+    c(
+      "brma.mv_v14_konstantopoulos2011_cs",
+      "brma.mv_v14_assink2016_nested",
+      "brma.mv_v14_ishak2007_har",
+      "brma.mv_v14_begg1989_study_treatment",
+      "nielweise2008_glmm_effect_null",
+      "dat.lehmann2018-3PSM_effect_null",
+      "iwmde_known_v_tau_full",
+      "iwmde_known_v_tau_null"
+    )
+  )
+  expect_true(all(active_fit_catalog()[["profile"]] %in%
+                    if (is_certification_profile()) TEST_PROFILES else "standard"))
 })
 
 test_that("fit catalog mirrors test-01 save_fit calls", {
