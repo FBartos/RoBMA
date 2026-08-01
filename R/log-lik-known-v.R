@@ -310,9 +310,11 @@
   block_covariances <- lapply(block_data, `[[`, "covariance")
   extra_variance    <- .known_v_extra_variance_from_setup(setup)
 
-  cdf      <- matrix(NA_real_, nrow = S, ncol = K)
-  mean     <- matrix(NA_real_, nrow = S, ncol = K)
-  variance <- matrix(NA_real_, nrow = S, ncol = K)
+  cdf       <- matrix(NA_real_, nrow = S, ncol = K)
+  log_lower <- matrix(NA_real_, nrow = S, ncol = K)
+  log_upper <- matrix(NA_real_, nrow = S, ncol = K)
+  mean      <- matrix(NA_real_, nrow = S, ncol = K)
+  variance  <- matrix(NA_real_, nrow = S, ncol = K)
 
   for (s in seq_len(S)) {
     for (block in seq_along(block_indices)) {
@@ -330,6 +332,20 @@
         sd         = sqrt(distribution[["variance"]]),
         lower.tail = lower_tail
       )
+      log_lower[s, idx] <- stats::pnorm(
+        distribution[["residual"]],
+        mean       = 0,
+        sd         = sqrt(distribution[["variance"]]),
+        lower.tail = lower_tail,
+        log.p      = TRUE
+      )
+      log_upper[s, idx] <- stats::pnorm(
+        distribution[["residual"]],
+        mean       = 0,
+        sd         = sqrt(distribution[["variance"]]),
+        lower.tail = !lower_tail,
+        log.p      = TRUE
+      )
       mean[s, idx]     <- distribution[["mean"]]
       variance[s, idx] <- distribution[["variance"]]
     }
@@ -342,10 +358,12 @@
   second <- variance + mean^2
 
   return(list(
-    cdf      = cdf,
-    mean     = mean,
-    variance = variance,
-    second   = second
+    cdf       = cdf,
+    log_lower = log_lower,
+    log_upper = log_upper,
+    mean      = mean,
+    variance  = variance,
+    second    = second
   ))
 }
 

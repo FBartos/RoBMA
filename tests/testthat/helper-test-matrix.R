@@ -345,7 +345,7 @@ residual_metafor_cases <- function() {
   out[["rstudent"]] <- I(list(
     "equal", "rank", NULL, NULL, "rank", NULL, "selection_pos", NULL,
     "selection_neg", "equal", NULL, "equal", "equal", NULL, "equal",
-    "glmm_align", NULL
+    NULL, NULL
   ))
 
   return(out)

@@ -497,18 +497,21 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     Rf_error("'yi' and 'sei' must have one value per observation.");
   }
 
-  SEXP out_cdf = PROTECT(Rf_allocVector(REALSXP, K));
+  SEXP out_log_lower = PROTECT(Rf_allocVector(REALSXP, K));
+  SEXP out_log_upper = PROTECT(Rf_allocVector(REALSXP, K));
   SEXP out_mean = PROTECT(Rf_allocVector(REALSXP, K));
   SEXP out_second = PROTECT(Rf_allocVector(REALSXP, K));
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 3));
-  SEXP names = PROTECT(Rf_allocVector(STRSXP, 3));
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
 
-  SET_STRING_ELT(names, 0, Rf_mkChar("cdf"));
-  SET_STRING_ELT(names, 1, Rf_mkChar("mean"));
-  SET_STRING_ELT(names, 2, Rf_mkChar("second"));
-  SET_VECTOR_ELT(out, 0, out_cdf);
-  SET_VECTOR_ELT(out, 1, out_mean);
-  SET_VECTOR_ELT(out, 2, out_second);
+  SET_STRING_ELT(names, 0, Rf_mkChar("log_lower"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("log_upper"));
+  SET_STRING_ELT(names, 2, Rf_mkChar("mean"));
+  SET_STRING_ELT(names, 3, Rf_mkChar("second"));
+  SET_VECTOR_ELT(out, 0, out_log_lower);
+  SET_VECTOR_ELT(out, 1, out_log_upper);
+  SET_VECTOR_ELT(out, 2, out_mean);
+  SET_VECTOR_ELT(out, 3, out_second);
   Rf_setAttrib(out, R_NamesSymbol, names);
 
   const double *yi_p        = REAL(yi);
@@ -516,12 +519,14 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   const double *sd_p        = REAL(sd);
   const double *sei_p       = REAL(sei);
   const double *weights_p   = REAL(psis_weights);
-  double *cdf_out_p         = REAL(out_cdf);
+  double *log_lower_out_p   = REAL(out_log_lower);
+  double *log_upper_out_p   = REAL(out_log_upper);
   double *mean_out_p        = REAL(out_mean);
   double *second_out_p      = REAL(out_second);
 
   for (int k = 0; k < K; ++k) {
-    double cdf_sum = 0;
+    double log_lower_sum = -INFINITY;
+    double log_upper_sum = -INFINITY;
     double mean_sum = 0;
     double second_sum = 0;
 
@@ -531,12 +536,10 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       const double alpha_s = selnorm.alpha_at(s);
       const int phack_s = selnorm.phack_kind_at(s);
       const int mode_s = selnorm.kernel_mode_at(s);
-      double cdf = NA_REAL;
       double moment_mean = NA_REAL;
       double moment_second = NA_REAL;
 
-      cpp_selnorm_kernel_summary(
-        yi_p[k],
+      cpp_selnorm_kernel_moments(
         mean_p[cell],
         sd_p[cell],
         sei_p[k],
@@ -545,24 +548,55 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
         phack_s,
         mode_s,
         selnorm.data,
-        &cdf,
         &moment_mean,
         &moment_second,
         S,
-        true,
         false
       );
 
-      cdf_sum += w * cdf;
+      if (w > 0) {
+        const double log_weight = std::log(w);
+        const double log_lower = cpp_selnorm_kernel_log_cdf(
+          yi_p[k], mean_p[cell], sd_p[cell], sei_p[k],
+          selnorm.omega_row(s), alpha_s, phack_s, mode_s, selnorm.data,
+          S, true, false
+        );
+        const double log_upper = cpp_selnorm_kernel_log_cdf(
+          yi_p[k], mean_p[cell], sd_p[cell], sei_p[k],
+          selnorm.omega_row(s), alpha_s, phack_s, mode_s, selnorm.data,
+          S, false, false
+        );
+
+        if (std::isnan(log_lower) || std::isnan(log_upper)) {
+          log_lower_sum = NA_REAL;
+          log_upper_sum = NA_REAL;
+        } else if (!std::isnan(log_lower_sum)) {
+          const double lower_term = log_weight + log_lower;
+          const double upper_term = log_weight + log_upper;
+          const double lower_max  = std::max(log_lower_sum, lower_term);
+          const double upper_max  = std::max(log_upper_sum, upper_term);
+          log_lower_sum = lower_max == -INFINITY ? -INFINITY :
+            lower_max + std::log(
+              std::exp(log_lower_sum - lower_max) +
+              std::exp(lower_term - lower_max)
+            );
+          log_upper_sum = upper_max == -INFINITY ? -INFINITY :
+            upper_max + std::log(
+              std::exp(log_upper_sum - upper_max) +
+              std::exp(upper_term - upper_max)
+            );
+        }
+      }
       mean_sum += w * moment_mean;
       second_sum += w * moment_second;
     }
 
-    cdf_out_p[k] = cdf_sum;
+    log_lower_out_p[k] = log_lower_sum;
+    log_upper_out_p[k] = log_upper_sum;
     mean_out_p[k] = mean_sum;
     second_out_p[k] = second_sum;
   }
 
-  UNPROTECT(5);
+  UNPROTECT(6);
   return out;
 }

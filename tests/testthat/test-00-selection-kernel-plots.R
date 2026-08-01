@@ -409,13 +409,65 @@ test_that("native weighted selected-normal summary matches matrix reductions", {
     psis_weights      = psis,
     selection_context = selection
   )
-  cdf     <- .selection_step_cdf_matrix(yi, mean, sd, sei, selection)
+  cdf_lower <- .selection_step_cdf_matrix(
+    yi, mean, sd, sei, selection, lower.tail = TRUE
+  )
+  cdf_upper <- .selection_step_cdf_matrix(
+    yi, mean, sd, sei, selection, lower.tail = FALSE
+  )
   moments <- .selection_step_moments_matrix(mean, sd, sei, selection)
 
-  expect_equal(native[["cdf"]], colSums(psis * cdf), tolerance = 1e-12)
+  expect_equal(
+    native[["log_lower"]],
+    log(colSums(psis * cdf_lower)),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    native[["log_upper"]],
+    log(colSums(psis * cdf_upper)),
+    tolerance = 1e-12
+  )
   expect_equal(native[["mean"]], colSums(psis * moments[["mean"]]), tolerance = 1e-12)
   expect_equal(native[["second"]], colSums(psis * moments[["second"]]), tolerance = 1e-12)
 })
+
+
+test_that("selected-normal log tails survive probability underflow", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  yi        <- c(-100, 100)
+  sei       <- c(1, 1)
+  S         <- 2L
+  spec      <- .test_step_spec(yi = yi, sei = sei)
+  selection <- spec
+  selection[["omega"]]       <- matrix(1, nrow = S, ncol = spec[["n_bins"]])
+  selection[["alpha"]]       <- rep(0, S)
+  selection[["phack_kind"]]  <- rep(0L, S)
+  selection[["kernel_mode"]] <- rep(SELKERNEL_STEP, S)
+  selection[["use_normal"]]  <- rep(FALSE, S)
+
+  summary <- .selection_step_weighted_summary(
+    yi                = yi,
+    mean              = matrix(0, nrow = S, ncol = length(yi)),
+    sd                = matrix(1, nrow = S, ncol = length(yi)),
+    sei               = sei,
+    psis_weights      = matrix(0.5, nrow = S, ncol = length(yi)),
+    selection_context = selection
+  )
+
+  expect_true(all(is.finite(summary[["log_lower"]])))
+  expect_true(all(is.finite(summary[["log_upper"]])))
+  expect_equal(
+    .loo_pit_z_from_log_probabilities(
+      summary[["log_lower"]],
+      summary[["log_upper"]]
+    ),
+    yi,
+    tolerance = 1e-10
+  )
+})
+
 
 test_that("p-hacking priors are deferred before RoBMA model construction", {
 

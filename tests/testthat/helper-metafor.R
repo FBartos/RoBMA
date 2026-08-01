@@ -260,11 +260,6 @@ expect_residuals_match_metafor <- function(case) {
                           info = paste(name, "selection LOO SEs finite"))
     testthat::expect_true(all(brma_rstudent$se > 0),
                           info = paste(name, "selection LOO SEs positive"))
-  } else if (identical(rstudent_kind, "glmm_align")) {
-    brma_resid    <- residuals(fit_brma)
-    brma_rstudent <- suppressWarnings(rstudent(fit_brma, type = "estimate"))
-    testthat::expect_true(stats::cor(brma_resid, brma_rstudent$z) > 0.9,
-                          info = paste(name, "rstudent and residuals align"))
   }
 }
 

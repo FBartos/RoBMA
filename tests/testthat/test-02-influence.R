@@ -291,16 +291,31 @@ test_that("DFFITS rejects unsupported model families", {
   expect_error(dffits(fits[["dat.lehmann2018_RoBMA"]]), "not available for selection models")
 })
 
+
+test_that("Influence rejects GLMMs without a discrete PIT convention", {
+
+  model_names <- c("bcg_glmm", "bcg_BMA.glmm")
+  skip_if_missing_fits(model_names)
+
+  for (name in model_names) {
+    expect_error(
+      influence(fits[[name]]),
+      "discrete PIT convention",
+      info = name
+    )
+  }
+})
+
+
 test_that("Influence stats for model-averaging fits are internally consistent", {
 
   cases <- data.frame(
-    name = c("dat.lehmann2018_BMA.norm", "bcg_BMA.glmm", "dat.lehmann2018_RoBMA"),
-    unsupported_cook = c(NA, "normal outcome models", "selection models"),
+    name = c("dat.lehmann2018_BMA.norm", "dat.lehmann2018_RoBMA"),
+    unsupported_cook = c(NA, "selection models"),
     stringsAsFactors = FALSE
   )
   cases[["inf_cols"]] <- I(list(
     c("rstudent", "dffits", "cook.d", "cov.r", "tau.del", "hat"),
-    c("rstudent", "cov.r", "tau.del"),
     c("rstudent", "cov.r", "tau.del")
   ))
   skip_if_missing_fits(cases[["name"]])

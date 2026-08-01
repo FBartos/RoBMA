@@ -54,15 +54,12 @@ or model misspecification.
 The \code{z} column is the primary standardized diagnostic. The \code{resid}
 and \code{se} columns are raw-scale companions computed from LOO predictive
 moments using the normalized PSIS weights. For selection models, these moments
-are computed from the fitted selected-normal predictive distribution. For
-GLMMs, they are computed on the approximate effect-size scale used by the
-LOO-PIT diagnostic; they are not exact PIT diagnostics for the raw count
-likelihood.
+are computed from the fitted selected-normal predictive distribution.
 
 Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
 residuals properly account for estimation uncertainty and leverage without
-requiring explicit hat matrix computation. This makes \code{rstudent.brma}
-suitable for all model types including selection models and GLMMs.
+requiring explicit hat matrix computation. Binomial and Poisson GLMMs are
+unavailable until a discrete PIT convention is defined.
 For correlated known-\code{V} \code{brma.mv()} models, the PIT and companion
 residual moments are computed from the Schur-complement conditional
 predictive distribution used by estimate-unit LOO.

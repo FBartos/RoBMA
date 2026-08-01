@@ -22,6 +22,10 @@ scale-model rows after each deletion.}
 \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
 Undefined determinant- or variance-standardized diagnostics are reported as
 \code{NaN} and printed with an explanatory note.
+Binomial and Poisson GLMMs are not supported because the aggregate includes
+an \code{rstudent} LOO-PIT component and no discrete PIT convention has been
+defined. Their PIT-independent COVRATIO and DFBETAS diagnostics remain
+available through \code{covratio()} and \code{dfbetas()}.
 For \code{brma.mv()} objects, influence returns only components with
 implemented estimate-unit targets. DFFITS and Cook's distance report
 influence on fixed-location fitted values \eqn{\mu = X\beta}; \code{tau.del}

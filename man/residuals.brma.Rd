@@ -35,9 +35,10 @@ sampling. The LOO-CDF value for each observation is computed and transformed
 to standard normal quantiles via \eqn{\Phi^{-1}(u_i)}. Under a correctly
 specified model, these residuals should follow a standard normal distribution.
 This is the recommended standardized residual for Bayesian models as it properly
-accounts for estimation uncertainty and leverage. Available for all model
-types. Note: This requires that the loo has been computed previously (see
-\code{add_loo()} function).
+accounts for estimation uncertainty and leverage. Available for normal
+outcome models. Binomial and Poisson models require an explicit discrete
+PIT convention, which is not implemented. Note: This requires that the loo
+has been computed previously (see \code{add_loo()} function).
 }}
 
 \item{unit}{output unit. Only \code{"estimate"} is implemented currently..}
@@ -97,7 +98,10 @@ are computed via leave-one-out probability integral transformation:
 where \eqn{u_i = \sum_s w_{is} F(y_i | \theta^{(s)})} is the LOO-weighted CDF
 value, \eqn{w_{is}} are the normalized PSIS weights, and \eqn{F} is the
 cumulative distribution function of the estimate-unit predictive
-distribution used by LOO. Under a correctly specified model, LOO-PIT
+distribution used by LOO. Lower and upper probabilities are accumulated
+separately on the log scale, and the smaller tail is passed directly to the
+normal quantile function. Therefore extreme residuals are not truncated by
+probability clipping. Under a correctly specified model, LOO-PIT
 residuals should follow a standard normal distribution. Unlike traditional
 standardized residuals, LOO-PIT residuals properly account for estimation
 uncertainty and leverage without requiring a hat matrix. This is the
@@ -106,12 +110,11 @@ recommended method for standardized residuals in Bayesian meta-analysis.
 For meta-regression models, fitted values incorporate moderator effects.
 For models without moderators, all fitted values equal the pooled effect.
 
-For GLMM models (binomial or Poisson), observed effect sizes and their
-sampling variances are computed from the raw frequency data using the
-same formulas as \code{metafor::escalc} with the default zero-cell
-adjustment (adding 0.5 to all cells when any cell is zero). GLMM residuals
-and LOO-PIT values are therefore approximate effect-size-scale diagnostics,
-not exact PIT diagnostics for the raw count likelihood.
+LOO-PIT is not available for binomial or Poisson GLMMs. Their fitted
+predictive distributions are discrete, so a PIT diagnostic requires an
+explicit randomized, mid-P, or other discrete convention. The former normal
+approximation on a derived effect-size scale is not a PIT for the fitted
+count likelihood.
 
 For correlated known-\code{V} \code{brma.mv()} models, LOO-PIT residuals use
 the same conditional estimate-unit target as LOO,

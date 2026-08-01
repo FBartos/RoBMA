@@ -27,6 +27,10 @@
 #' \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
 #' Undefined determinant- or variance-standardized diagnostics are reported as
 #' \code{NaN} and printed with an explanatory note.
+#' Binomial and Poisson GLMMs are not supported because the aggregate includes
+#' an \code{rstudent} LOO-PIT component and no discrete PIT convention has been
+#' defined. Their PIT-independent COVRATIO and DFBETAS diagnostics remain
+#' available through \code{covratio()} and \code{dfbetas()}.
 #' For \code{brma.mv()} objects, influence returns only components with
 #' implemented estimate-unit targets. DFFITS and Cook's distance report
 #' influence on fixed-location fitted values \eqn{\mu = X\beta}; \code{tau.del}
@@ -61,6 +65,11 @@ influence.brma <- function(model, ...) {
   # hatvalues, dffit, and cooks distance are possible only for normal-normal models
   outcome_type       <- .outcome_type(model)
   is_weightfunction  <- .is_weightfunction(model)
+  .check_residual_type_availability(
+    type              = "rstudent",
+    outcome_type      = outcome_type,
+    is_weightfunction = is_weightfunction
+  )
   if (inherits(model, "brma.mv")) {
     .check_fixed_location_influence_available(model, "influence")
   }

@@ -243,10 +243,11 @@ double step_cdf_trusted_telescoping(const double *omega,
   return clamp_probability(requested / normalizer);
 }
 
-double step_cdf_logspace(const double *omega, const SelNormKernelData &data,
-                         double q_z, double mean_z, double sd_z,
-                         int omega_stride, bool signed_lower_tail,
-                         bool trusted_partition)
+double step_log_cdf_logspace(const double *omega,
+                             const SelNormKernelData &data,
+                             double q_z, double mean_z, double sd_z,
+                             int omega_stride, bool signed_lower_tail,
+                             bool trusted_partition)
 {
   double log_denom      = -INFINITY;
   double log_lower_mass = -INFINITY;
@@ -297,10 +298,29 @@ double step_cdf_logspace(const double *omega, const SelNormKernelData &data,
   const double log_requested_mass = signed_lower_tail ?
     log_lower_mass : log_upper_mass;
   if (log_requested_mass == -INFINITY) {
+    return -INFINITY;
+  }
+
+  return log_requested_mass - log_denom;
+}
+
+double step_cdf_logspace(const double *omega, const SelNormKernelData &data,
+                         double q_z, double mean_z, double sd_z,
+                         int omega_stride, bool signed_lower_tail,
+                         bool trusted_partition)
+{
+  const double log_probability = step_log_cdf_logspace(
+    omega, data, q_z, mean_z, sd_z, omega_stride, signed_lower_tail,
+    trusted_partition
+  );
+  if (std::isnan(log_probability)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (log_probability == -INFINITY) {
     return 0;
   }
 
-  return clamp_probability(std::exp(log_requested_mass - log_denom));
+  return clamp_probability(std::exp(log_probability));
 }
 
 double step_cdf_logspace_with_log_norm(const double *omega,

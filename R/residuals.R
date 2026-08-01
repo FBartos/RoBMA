@@ -37,9 +37,10 @@
 #'     to standard normal quantiles via \eqn{\Phi^{-1}(u_i)}. Under a correctly
 #'     specified model, these residuals should follow a standard normal distribution.
 #'     This is the recommended standardized residual for Bayesian models as it properly
-#'     accounts for estimation uncertainty and leverage. Available for all model
-#'     types. Note: This requires that the loo has been computed previously (see
-#'     \code{add_loo()} function).
+#'     accounts for estimation uncertainty and leverage. Available for normal
+#'     outcome models. Binomial and Poisson models require an explicit discrete
+#'     PIT convention, which is not implemented. Note: This requires that the loo
+#'     has been computed previously (see \code{add_loo()} function).
 #' }
 #' @param unit output unit. Only \code{"estimate"} is implemented currently..
 #' @param conditioning_depth conditioning depth for non-LOO residuals. \code{"marginal"}
@@ -87,7 +88,10 @@
 #' where \eqn{u_i = \sum_s w_{is} F(y_i | \theta^{(s)})} is the LOO-weighted CDF
 #' value, \eqn{w_{is}} are the normalized PSIS weights, and \eqn{F} is the
 #' cumulative distribution function of the estimate-unit predictive
-#' distribution used by LOO. Under a correctly specified model, LOO-PIT
+#' distribution used by LOO. Lower and upper probabilities are accumulated
+#' separately on the log scale, and the smaller tail is passed directly to the
+#' normal quantile function. Therefore extreme residuals are not truncated by
+#' probability clipping. Under a correctly specified model, LOO-PIT
 #' residuals should follow a standard normal distribution. Unlike traditional
 #' standardized residuals, LOO-PIT residuals properly account for estimation
 #' uncertainty and leverage without requiring a hat matrix. This is the
@@ -96,12 +100,11 @@
 #' For meta-regression models, fitted values incorporate moderator effects.
 #' For models without moderators, all fitted values equal the pooled effect.
 #'
-#' For GLMM models (binomial or Poisson), observed effect sizes and their
-#' sampling variances are computed from the raw frequency data using the
-#' same formulas as \code{metafor::escalc} with the default zero-cell
-#' adjustment (adding 0.5 to all cells when any cell is zero). GLMM residuals
-#' and LOO-PIT values are therefore approximate effect-size-scale diagnostics,
-#' not exact PIT diagnostics for the raw count likelihood.
+#' LOO-PIT is not available for binomial or Poisson GLMMs. Their fitted
+#' predictive distributions are discrete, so a PIT diagnostic requires an
+#' explicit randomized, mid-P, or other discrete convention. The former normal
+#' approximation on a derived effect-size scale is not a PIT for the fitted
+#' count likelihood.
 #'
 #' For correlated known-\code{V} \code{brma.mv()} models, LOO-PIT residuals use
 #' the same conditional estimate-unit target as LOO,
@@ -622,15 +625,12 @@ rstandard.brma <- function(model, unit = "estimate",
 #' The \code{z} column is the primary standardized diagnostic. The \code{resid}
 #' and \code{se} columns are raw-scale companions computed from LOO predictive
 #' moments using the normalized PSIS weights. For selection models, these moments
-#' are computed from the fitted selected-normal predictive distribution. For
-#' GLMMs, they are computed on the approximate effect-size scale used by the
-#' LOO-PIT diagnostic; they are not exact PIT diagnostics for the raw count
-#' likelihood.
+#' are computed from the fitted selected-normal predictive distribution.
 #'
 #' Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
 #' residuals properly account for estimation uncertainty and leverage without
-#' requiring explicit hat matrix computation. This makes \code{rstudent.brma}
-#' suitable for all model types including selection models and GLMMs.
+#' requiring explicit hat matrix computation. Binomial and Poisson GLMMs are
+#' unavailable until a discrete PIT convention is defined.
 #' For correlated known-\code{V} \code{brma.mv()} models, the PIT and companion
 #' residual moments are computed from the Schur-complement conditional
 #' predictive distribution used by estimate-unit LOO.
@@ -698,6 +698,11 @@ rstudent.brma <- function(model, unit = "estimate",
   )
 
   setup <- .estimate_likelihood_setup.brma(model)
+  .check_residual_type_availability(
+    type              = "rstudent",
+    outcome_type      = setup[["outcome_type"]],
+    is_weightfunction = setup[["is_weightfunction"]]
+  )
 
   # extract PSIS object once and reuse it for PIT and LOO expectations
   psis_context <- .diagnostic_psis_context(model, .psis_context)
@@ -873,15 +878,16 @@ rstudent.brma <- function(model, unit = "estimate",
     selection_context = selection_context
   )
 
-  u_values <- pmax(pmin(summary[["cdf"]], 1 - 1e-10), 1e-10)
   resid    <- yi - summary[["mean"]]
   se       <- sqrt(pmax(summary[["second"]] - summary[["mean"]]^2, 0))
 
   return(list(
     resid = resid,
     se    = se,
-    z     = stats::qnorm(u_values),
-    u     = u_values
+    z     = .loo_pit_z_from_log_probabilities(
+      summary[["log_lower"]],
+      summary[["log_upper"]]
+    )
   ))
 }
 
@@ -982,21 +988,123 @@ rstudent.brma <- function(model, unit = "estimate",
     return(summary[["z"]])
   }
 
-  # compute CDF matrix (S x K) for the estimate-unit LOO target
-  cdf_matrix <- .cdf_lik_estimate.brma(object, setup = setup)
+  log_tails <- .loo_predictive_log_tails_estimate(setup)
+  return(.loo_pit_z_from_log_tails(
+    log_lower    = log_tails[["log_lower"]],
+    log_upper    = log_tails[["log_upper"]],
+    psis_weights = psis_weights
+  ))
+}
 
-  # compute LOO-weighted CDF for each observation
-# u_i = sum_s w_{is} * F(yi | parameters^(s))
-  # this is a weighted average across posterior samples
-  u_values <- colSums(psis_weights * cdf_matrix)
 
-  # clamp to avoid infinite quantiles
-  u_values <- pmax(pmin(u_values, 1 - 1e-10), 1e-10)
+# Compute paired log tails for the normal estimate-unit LOO target.
+.loo_predictive_log_tails_estimate <- function(setup) {
 
-  # transform to standard normal quantiles: r_i = qnorm(u_i)
-  resid_point <- stats::qnorm(u_values)
+  if (!identical(setup[["outcome_type"]], "norm")) {
+    stop(
+      "LOO-PIT residuals are not available for binomial or Poisson GLMMs ",
+      "because a discrete PIT convention has not been defined.",
+      call. = FALSE
+    )
+  }
 
-  return(resid_point)
+  if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
+    summary <- .known_v_estimate_target_summary_from_setup(setup)
+    return(summary[c("log_lower", "log_upper")])
+  }
+
+  yi_mat <- matrix(
+    setup[["yi"]],
+    nrow  = setup[["S"]],
+    ncol  = setup[["K"]],
+    byrow = TRUE
+  )
+  sei_mat <- matrix(
+    setup[["sei"]],
+    nrow  = setup[["S"]],
+    ncol  = setup[["K"]],
+    byrow = TRUE
+  )
+  total_sd <- sqrt(setup[["tau_within"]]^2 + sei_mat^2)
+
+  return(list(
+    log_lower = stats::pnorm(
+      yi_mat,
+      mean  = setup[["mu"]],
+      sd    = total_sd,
+      log.p = TRUE
+    ),
+    log_upper = stats::pnorm(
+      yi_mat,
+      mean       = setup[["mu"]],
+      sd         = total_sd,
+      lower.tail = FALSE,
+      log.p      = TRUE
+    )
+  ))
+}
+
+
+# Transform paired log probabilities without materializing the larger tail.
+.loo_pit_z_from_log_probabilities <- function(log_lower, log_upper) {
+
+  if (!is.numeric(log_lower) || !is.numeric(log_upper) ||
+      length(log_lower) != length(log_upper) ||
+      anyNA(log_lower) || anyNA(log_upper) ||
+      any(log_lower > 0) || any(log_upper > 0)) {
+    stop("Internal error: invalid paired log PIT probabilities.", call. = FALSE)
+  }
+
+  use_lower <- log_lower <= log_upper
+  z         <- numeric(length(log_lower))
+  z[use_lower] <- stats::qnorm(
+    log_lower[use_lower],
+    log.p = TRUE
+  )
+  z[!use_lower] <- stats::qnorm(
+    log_upper[!use_lower],
+    lower.tail = FALSE,
+    log.p      = TRUE
+  )
+  return(z)
+}
+
+
+# PSIS-average paired per-draw log tails and transform them to z scores.
+.loo_pit_z_from_log_tails <- function(log_lower, log_upper, psis_weights) {
+
+  log_lower    <- as.matrix(log_lower)
+  log_upper    <- as.matrix(log_upper)
+  psis_weights <- as.matrix(psis_weights)
+  if (!identical(dim(log_lower), dim(log_upper)) ||
+      !identical(dim(log_lower), dim(psis_weights)) ||
+      anyNA(log_lower) || anyNA(log_upper) ||
+      any(log_lower > 0) || any(log_upper > 0) ||
+      anyNA(psis_weights) || any(!is.finite(psis_weights)) ||
+      any(psis_weights < 0) || any(colSums(psis_weights) <= 0)) {
+    stop("Internal error: invalid LOO-PIT tails or PSIS weights.", call. = FALSE)
+  }
+
+  log_weights <- log(psis_weights)
+  log_average <- function(log_values) {
+
+    terms     <- log_weights + log_values
+    maxima    <- apply(terms, 2L, max)
+    out       <- rep(-Inf, ncol(terms))
+    is_finite <- is.finite(maxima)
+    out[is_finite] <- maxima[is_finite] + log(colSums(exp(sweep(
+      terms[, is_finite, drop = FALSE],
+      2L,
+      maxima[is_finite],
+      "-"
+    ))))
+    return(out)
+  }
+
+  return(.loo_pit_z_from_log_probabilities(
+    log_average(log_lower),
+    log_average(log_upper)
+  ))
 }
 
 
@@ -1016,11 +1124,19 @@ rstudent.brma <- function(model, unit = "estimate",
 #
 # ---------------------------------------------------------------------------- #
 .check_residual_type_availability <- function(type, outcome_type, is_weightfunction) {
+  if (is.element(type, c("LOO-PIT", "rstudent")) &&
+      outcome_type != "norm") {
+    stop(
+      "LOO-PIT residuals are not available for binomial or Poisson GLMMs ",
+      "because a discrete PIT convention has not been defined.",
+      call. = FALSE
+    )
+  }
+
   if (type == "pearson") {
     if (outcome_type != "norm") {
       stop(
-        "Pearson residuals are only available for normal outcome models. ",
-        "Use type = 'LOO-PIT' for GLMM models.",
+        "Pearson residuals are only available for normal outcome models.",
         call. = FALSE
       )
     }
@@ -1036,8 +1152,7 @@ rstudent.brma <- function(model, unit = "estimate",
   if (type == "rstandard") {
     if (outcome_type != "norm") {
       stop(
-        "Standardized residuals (rstandard) are only available for normal outcome models. ",
-        "Use type = 'LOO-PIT' for GLMM models.",
+        "Standardized residuals (rstandard) are only available for normal outcome models.",
         call. = FALSE
       )
     }
