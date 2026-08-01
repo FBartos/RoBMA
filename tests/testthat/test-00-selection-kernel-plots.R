@@ -470,11 +470,18 @@ test_that("plot quantile inversion returns the generalized inverse", {
   )
 
   if (.has_native_regplot_mixture()) {
+    reference <- .regplot_mixture_interval_quantiles_r(
+      mean_samples = matrix(c(0, 10), ncol = 1L),
+      sd_samples   = matrix(c(0, 1), ncol = 1L),
+      probs        = c(.25, .75)
+    )
     native <- .regplot_mixture_interval_quantiles(
       mean_samples = matrix(c(0, 10), ncol = 1L),
       sd_samples   = matrix(c(0, 1), ncol = 1L),
       probs        = c(.25, .75)
     )
+    expect_identical(reference[["lower"]], 0)
+    expect_identical(reference[["upper"]], 10)
     expect_identical(native[["lower"]], 0)
     expect_identical(native[["upper"]], 10)
   }

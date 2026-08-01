@@ -63,6 +63,24 @@
     step <- step * 2
   }
 
+  if (all(spread > 0)) {
+    tolerance <- max(
+      .Machine$double.xmin,
+      .Machine$double.eps * max(abs(lower), abs(upper), step)
+    )
+    out <- tryCatch(
+      stats::uniroot(
+        obj_fun,
+        interval = c(lower, upper),
+        tol      = tolerance
+      )[["root"]],
+      error = function(e) NA_real_
+    )
+    if (is.finite(out)) {
+      return(out)
+    }
+  }
+
   return(.funnel_bracketed_quantile_precomputed(
     p        = p,
     lower    = lower,
