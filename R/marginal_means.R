@@ -743,14 +743,7 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
     attr(table, attr_name) <- table_attrs[[attr_name]]
   }
 
-  warnings <- attr(table, "warnings")
-  if (!is.null(warnings)) {
-    warnings <- warnings[!grepl("Savage-Dickey", warnings, fixed = TRUE)]
-    if (length(warnings) == 0L) {
-      warnings <- NULL
-    }
-    attr(table, "warnings") <- warnings
-  }
+  attr(table, "warnings") <- NULL
 
   return(table)
 }

@@ -1397,11 +1397,7 @@ test_that("marginal_means hides BFs for non-RoBMA fits by default", {
   )
 
   expect_false("inclusion_BF" %in% attr(summary(emm_brma), "type"))
-  expect_false(any(grepl(
-    "Savage-Dickey",
-    attr(summary(emm_brma), "warnings"),
-    fixed = TRUE
-  )))
+  expect_null(attr(summary(emm_brma), "warnings"))
   expect_true("inclusion_BF" %in% attr(summary(emm_brma_bf), "type"))
   expect_true("inclusion_BF" %in% attr(summary(emm_brma, bf = TRUE), "type"))
   expect_true("inclusion_BF" %in% attr(summary(emm_robma), "type"))
