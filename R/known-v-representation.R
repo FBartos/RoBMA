@@ -522,14 +522,15 @@
     )
   }
 
-  known_V <- .known_v_canonicalize_newdata(V_new)
-  correlated <- length(.known_v_correlated_blocks(known_V)) > 0L
+  known_V           <- .known_v_canonicalize_newdata(V_new)
+  correlated        <- length(.known_v_correlated_blocks(known_V)) > 0L
+  residual_variance <- .known_v_diagonal(known_V)
   .known_v_update(known_V, list(
     parameterization  = "block_mvn",
     effective_backend = if (correlated) "block_mvn" else "diagonal",
     correlated        = correlated,
-    residual_variance = .known_v_diagonal(known_V),
-    residual_sei      = sqrt(pmax(.known_v_diagonal(known_V), 0)),
+    residual_variance = residual_variance,
+    residual_sei      = sqrt(residual_variance),
     rank              = 0L
   ))
 }

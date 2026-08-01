@@ -753,7 +753,7 @@ add_marglik.brma <- function(object, ...) {
     is_random          = is_random,
     K                  = K
   )
-  tau_within <- sqrt(pmax(extra_variance, 0))
+  tau_within <- sqrt(extra_variance)
 
   if (known_v_parameterization %in% c("latent", "diagonal")) {
     if (is_weightfunction) {
@@ -838,7 +838,7 @@ add_marglik.brma <- function(object, ...) {
   }
   if (any(!is.finite(extra_variance)) || any(extra_variance < 0)) {
     stop(
-      "Known-V bridge diagonal variance contributions must be non-negative.",
+      "Known-V bridge diagonal variance contributions must be finite and non-negative.",
       call. = FALSE
     )
   }

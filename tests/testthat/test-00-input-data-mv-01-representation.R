@@ -18,6 +18,34 @@ test_that("known-V consumers require the current representation", {
   )
 })
 
+test_that("known-V row filtering tracks missingness without changing variance", {
+
+  variances <- c(-.Machine$double.xmin, 0, .Machine$double.xmin, NA_real_)
+  input <- .check_and_list_data.mv_known_v_input(
+    V   = NULL,
+    vi  = variances,
+    sei = NULL,
+    k   = length(variances)
+  )
+
+  expect_identical(input[["V"]], variances)
+  expect_identical(
+    input[["missing_for_na"]],
+    c(FALSE, FALSE, FALSE, TRUE)
+  )
+})
+
+
+test_that("known-V newdata retains exact non-negative variances", {
+
+  variances <- c(0, .Machine$double.xmin, 1)
+  known_V   <- .known_v_newdata_prepare(variances, k = length(variances))
+
+  expect_identical(known_V[["residual_variance"]], variances)
+  expect_identical(known_V[["residual_sei"]], sqrt(variances))
+})
+
+
 test_that("brma.mv stores and decomposes known V", {
 
   V <- matrix(

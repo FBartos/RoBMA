@@ -593,7 +593,7 @@
 
   if (any(keep)) {
     B <- eig[["eigenvectors"]][, keep, drop = FALSE] %*%
-      diag(sqrt(pmax(eig[["decomposition_values"]][keep], 0)), nrow = sum(keep))
+      diag(sqrt(eig[["decomposition_values"]][keep]), nrow = sum(keep))
   } else {
     B <- matrix(numeric(0), nrow = block_size, ncol = 0L)
   }

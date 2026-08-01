@@ -637,11 +637,9 @@ NULL
   if (.known_v_input_nrow(known_V_input[["V"]]) != k) {
     stop("The dimensions of 'V' must match the length of 'yi'.", call. = FALSE)
   }
-  V_diagonal <- .known_v_input_diagonal(known_V_input[["V"]])
-  sei        <- known_V_input[["sei_for_na"]]
-  if (is.null(sei)) {
-    sei <- sqrt(pmax(V_diagonal, 0))
-  }
+  missing_for_na <- known_V_input[["missing_for_na"]]
+  sei            <- numeric(k)
+  sei[missing_for_na] <- NA_real_
 
   if (!is.null(ni))
     BayesTools::check_real(ni, "ni", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
@@ -702,9 +700,9 @@ NULL
   }
   if (has_V) {
     return(list(
-      V          = V,
-      sei_for_na = NULL,
-      hidden     = NULL
+      V              = V,
+      missing_for_na = is.na(.known_v_input_diagonal(V)),
+      hidden         = NULL
     ))
   }
 
@@ -715,15 +713,18 @@ NULL
     .check_and_list_data.mv_hidden_input_structure(sei, "sei", k)
   }
 
-  sei_for_na <- if (has_sei) sei else sqrt(pmax(vi, 0))
-  if (has_vi && has_sei) {
-    sei_for_na[is.na(vi)] <- NA_real_
+  missing_for_na <- rep(FALSE, k)
+  if (has_vi) {
+    missing_for_na <- missing_for_na | is.na(vi)
+  }
+  if (has_sei) {
+    missing_for_na <- missing_for_na | is.na(sei)
   }
 
   return(list(
-    V          = if (has_vi) vi else sei^2,
-    sei_for_na = sei_for_na,
-    hidden     = list(
+    V              = if (has_vi) vi else sei^2,
+    missing_for_na = missing_for_na,
+    hidden         = list(
       vi  = if (has_vi)  vi  else NULL,
       sei = if (has_sei) sei else NULL
     )

@@ -473,7 +473,7 @@
 
 .known_v_extra_sd_from_setup <- function(setup) {
 
-  sqrt(pmax(.known_v_extra_variance_from_setup(setup), 0))
+  sqrt(.known_v_extra_variance_from_setup(setup))
 }
 
 
@@ -492,7 +492,7 @@
 
   .evaluate.brma.known_v_blup.norm(
     mu_samples = setup[["mu"]],
-    tau_within = sqrt(pmax(extra_variance, 0)),
+    tau_within = sqrt(extra_variance),
     yi         = setup[["yi"]],
     known_V    = .data_known_v_data(setup[["data"]])
   )
