@@ -133,7 +133,7 @@ test_that("fixed nonzero priors fill missing evaluator columns", {
   factor_prior <- BayesTools::prior_factor(
     "spike",
     parameters = list(0.10),
-    contrast   = "meandif"
+    contrast   = "treatment"
   )
   expect_equal(.point_prior_value(factor_prior), 0.10)
   expect_equal(
