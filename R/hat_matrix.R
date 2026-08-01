@@ -94,15 +94,20 @@
   }
 
   # initialize outputs
-  H_diag_samples <- matrix(0, nrow = S, ncol = K)
-  H_samples      <- if (return_full_H) array(0, dim = c(S, K, K)) else NULL
-  se_samples     <- if (return_se && !summarize) matrix(0, nrow = S, ncol = K) else NULL
-  resid_samples  <- if (return_resid && !summarize) matrix(0, nrow = S, ncol = K) else NULL
-  se_sum         <- if (return_se && summarize) rep(0, K) else NULL
-  resid_sum      <- if (return_resid && summarize) rep(0, K) else NULL
-  z_sum          <- if (return_se && return_resid && summarize) rep(0, K) else NULL
-  M_diag_samples <- matrix(0, nrow = S, ncol = K) # useful debug/checking
-  I_K            <- diag(K)
+  H_diag_samples    <- matrix(0, nrow = S, ncol = K)
+  H_samples         <- if (return_full_H) array(0, dim = c(S, K, K)) else NULL
+  se_samples        <- if (return_se && !summarize) matrix(0, nrow = S, ncol = K) else NULL
+  resid_samples     <- if (return_resid && !summarize) matrix(0, nrow = S, ncol = K) else NULL
+  se_sum            <- if (return_se && summarize) rep(0, K) else NULL
+  resid_sum         <- if (return_resid && summarize) rep(0, K) else NULL
+  z_sum             <- if (return_se && return_resid && summarize) rep(0, K) else NULL
+  M_diag_samples    <- matrix(0, nrow = S, ncol = K) # useful debug/checking
+  I_K               <- diag(K)
+  zero_residual_rows <- if (return_se || return_resid) {
+    .hat_zero_residual_rows(X)
+  } else {
+    integer()
+  }
 
   # Pre-calculate indices for multilevel blocks to avoid repeating inside loop
   block_indices <- list()
@@ -176,6 +181,7 @@
         }
         residual <- residual - cluster_adjust
       }
+      residual[zero_residual_rows] <- 0
 
       if (return_resid) {
         residual_s <- residual
@@ -212,6 +218,7 @@
             I_K           = I_K
           )
         }
+        se2[zero_residual_rows] <- 0
 
         se_s <- .hat_variance_sd(se2, "Residual variance")
         if (summarize) {
@@ -268,14 +275,19 @@
     max_samples = max_samples,
     caller      = "known-V hat/residual diagnostics"
   )
-  setup   <- .estimate_likelihood_setup.brma(
+  setup <- .estimate_likelihood_setup.brma(
     object            = object,
     posterior_samples = sample_info[["posterior_samples"]]
   )
-  known_V <- .data_known_v_data(setup[["data"]])
-  yi      <- setup[["yi"]]
-  S       <- setup[["S"]]
-  K       <- setup[["K"]]
+  known_V            <- .data_known_v_data(setup[["data"]])
+  yi                 <- setup[["yi"]]
+  S                  <- setup[["S"]]
+  K                  <- setup[["K"]]
+  zero_residual_rows <- if (return_se || return_resid) {
+    .hat_zero_residual_rows(X)
+  } else {
+    integer()
+  }
 
   if (conditioning_depth == "estimate") {
     extra_variance <- .known_v_extra_variance_from_setup(setup)
@@ -307,6 +319,8 @@
         return_full_H  = return_full_H
       )
       residual   <- projection[["sampling_residual"]]
+      residual[zero_residual_rows] <- 0
+      projection[["sampling_residual_variance"]][zero_residual_rows] <- 0
       se         <- .hat_variance_sd(
         projection[["sampling_residual_variance"]],
         "Known-V sampling residual variance"
@@ -354,8 +368,10 @@
             covariance = covariance
           )
           residual <- projection[["residual"]]
+          residual[zero_residual_rows] <- 0
           A        <- I_K - projection[["H"]]
           se2      <- diag(A %*% projection[["covariance"]] %*% t(A))
+          se2[zero_residual_rows] <- 0
           se       <- .hat_variance_sd(
             se2,
             "Known-V marginal residual variance"
@@ -615,6 +631,26 @@
   }
 
   return(tryCatch(solve(x), error = function(e) MASS::ginv(x)))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .hat_zero_residual_rows
+# ---------------------------------------------------------------------------- #
+#
+# Rows whose removal lowers the design rank are fitted exactly by every
+# weighted projection: e_i belongs to the column space of X, so both their
+# residual and residual variance are identically zero.
+#
+# ---------------------------------------------------------------------------- #
+.hat_zero_residual_rows <- function(X) {
+
+  full_rank <- qr(X)[["rank"]]
+  return(which(vapply(
+    seq_len(nrow(X)),
+    function(i) qr(X[-i, , drop = FALSE])[["rank"]] < full_rank,
+    logical(1L)
+  )))
 }
 
 

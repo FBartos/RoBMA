@@ -11,6 +11,14 @@ test_that("residual standard deviations retain small variances", {
 })
 
 
+test_that("unit-leverage residual rows are identified structurally", {
+
+  X <- cbind(1, c(1, 0, 0))
+
+  expect_identical(.hat_zero_residual_rows(X), 1L)
+})
+
+
 test_that("hat-matrix diagnostics retain small nonzero residuals", {
 
   tiny <- 2^-100
