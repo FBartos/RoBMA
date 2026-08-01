@@ -287,6 +287,45 @@ test_that("IWMDE integration grid ignores display and evaluation ordinates", {
   expect_lt(max(with_far[["x"]]), 5)
 })
 
+
+test_that("IWMDE normalization grids reject saturated support transforms", {
+
+  bounded_transform <- .iwmde_parameter_transform(c(0, 1))
+  lower_saturation  <- c(2^-1074, 2^-1073, 2^-1072)
+  upper_saturation  <- 1 - c(.Machine$double.eps, 2^-45, 2^-40)
+
+  for (values in list(lower_saturation, upper_saturation)) {
+    expect_null(.iwmde_normalization_grid(
+      values               = values,
+      display_grid         = values,
+      support              = c(0, 1),
+      transform            = bounded_transform,
+      normalization_points = 41L,
+      normalization_prob   = .90
+    ))
+  }
+
+  cases <- list(
+    list(values = seq(.1, .9, length.out = 20), support = c(0, 1)),
+    list(values = exp(seq(-2, 2, length.out = 20)), support = c(0, Inf)),
+    list(values = -exp(seq(-2, 2, length.out = 20)), support = c(-Inf, 0))
+  )
+  for (case in cases) {
+    grid <- .iwmde_normalization_grid(
+      values               = case[["values"]],
+      display_grid         = case[["values"]],
+      support              = case[["support"]],
+      transform            = .iwmde_parameter_transform(case[["support"]]),
+      normalization_points = 41L,
+      normalization_prob   = .90
+    )
+    expect_false(is.null(grid))
+    expect_true(all(diff(grid[["z"]]) > 0))
+    expect_true(all(is.finite(grid[["log_jacobian"]])))
+  }
+})
+
+
 test_that("IWMDE adaptive display grid concentrates support points", {
 
   set.seed(1)

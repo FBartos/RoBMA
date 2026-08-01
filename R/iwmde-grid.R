@@ -235,22 +235,21 @@
 
   z <- seq(z_range[1], z_range[2], length.out = normalization_points)
   x <- .iwmde_from_internal(z, transform)
-  offset <- .iwmde_interior_offsets(range(x), support)
-  if (is.finite(support[1])) {
-    x[x <= support[1]] <- support[1] + offset[1L]
-  }
-  if (is.finite(support[2])) {
-    x[x >= support[2]] <- support[2] - offset[2L]
-  }
   z <- .iwmde_to_internal(x, transform)
-  if (any(!is.finite(x)) || any(!is.finite(z))) {
+  log_jacobian <- .iwmde_log_jacobian(z, transform)
+  x_difference <- diff(x)
+  if (any(!is.finite(x)) || any(!is.finite(z)) ||
+      any(!is.finite(log_jacobian)) ||
+      any(x <= support[1] | x >= support[2]) ||
+      any(diff(z) <= 0) ||
+      !(all(x_difference > 0) || all(x_difference < 0))) {
     return(NULL)
   }
 
   return(list(
     x            = x,
     z            = z,
-    log_jacobian = .iwmde_log_jacobian(z, transform)
+    log_jacobian = log_jacobian
   ))
 }
 
