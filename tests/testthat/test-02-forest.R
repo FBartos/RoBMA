@@ -23,6 +23,26 @@ test_that("dense metafor diamonds retain their four visual corners", {
 })
 
 
+test_that("dense polygon canonicalization preserves changed geometry", {
+
+  file <- tempfile(fileext = ".svg")
+  on.exit(unlink(file), add = TRUE)
+  polygon <- paste0(
+    "<polygon points='",
+    "1,2 2,3 3,4 ",
+    "3,4 4.5,9 5,6 ",
+    "5,6 6,7 7,8 ",
+    "7,8 4,5 1,2 ",
+    "' style='fill: #000000;' />"
+  )
+  writeLines(polygon, file)
+
+  .canonicalize_dense_diamond_polygons(file, vertices_per_edge = 3L)
+
+  expect_identical(readLines(file, warn = FALSE), polygon)
+})
+
+
 test_that("RoBMA does not export a competing forest generic", {
 
   expect_false("forest" %in% getNamespaceExports("RoBMA"))
