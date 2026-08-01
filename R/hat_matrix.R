@@ -144,7 +144,13 @@
     XtWX     <- crossprod(X, WX)
     XtWX_inv <- .hat_solve_crossprod(XtWX)
     XB       <- X %*% XtWX_inv
-    Q_diag   <- rowSums(XB * X)
+    marginal_A <- if (return_se &&
+                      (conditioning_depth == "marginal" ||
+                       (conditioning_depth == "cluster" && !is_multilevel))) {
+      I_K - XB %*% t(WX)
+    } else {
+      NULL
+    }
 
     H_diag_samples[s, ] <- rowSums(XB * WX)
 
@@ -159,7 +165,10 @@
       beta_hat <- as.vector(XtWX_inv %*% crossprod(X, Wy))
       residual <- yi - as.vector(X %*% beta_hat)
 
-      if (conditioning_depth == "estimate") {
+      if (!is.null(marginal_A)) {
+        residual <- as.vector(marginal_A %*% yi)
+
+      } else if (conditioning_depth == "estimate") {
         weighted_residual <- .hat_apply_precision(
           x             = residual,
           diagonal      = diagonal_s,
@@ -195,7 +204,12 @@
       if (return_se) {
         if (conditioning_depth == "marginal" ||
             (conditioning_depth == "cluster" && !is_multilevel)) {
-          se2 <- M_diag_s - Q_diag
+          se2 <- .hat_marginal_se2(
+            A             = marginal_A,
+            diagonal      = diagonal_s,
+            rank_one      = if (is_multilevel) tau_b_s else NULL,
+            block_indices = block_indices
+          )
 
         } else if (conditioning_depth == "estimate") {
           W_diag  <- .hat_precision_diag(
@@ -681,6 +695,32 @@
   }
 
   return(tryCatch(solve(x), error = function(e) MASS::ginv(x)))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .hat_marginal_se2
+# ---------------------------------------------------------------------------- #
+#
+# Compute diag((I - H) M (I - H)') from a covariance factor. This avoids the
+# cancellation in diag(M) - diag(X (X' W X)^-1 X') at unit leverage.
+#
+# ---------------------------------------------------------------------------- #
+.hat_marginal_se2 <- function(A, diagonal, rank_one, block_indices) {
+
+  A_diagonal <- sweep(A, 2L, sqrt(diagonal), "*")
+  se2        <- rowSums(A_diagonal^2)
+
+  if (!is.null(rank_one)) {
+    for (idx in block_indices) {
+      block_factor <- as.vector(
+        A[, idx, drop = FALSE] %*% rank_one[idx]
+      )
+      se2 <- se2 + block_factor^2
+    }
+  }
+
+  return(se2)
 }
 
 

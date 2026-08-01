@@ -26,6 +26,30 @@ test_that("unit-leverage residual rows are identified structurally", {
 })
 
 
+test_that("marginal residual variances use a covariance factor", {
+
+  X          <- cbind(1, c(-1, 0, 1))
+  diagonal   <- c(0.5, 1, 2)
+  rank_one   <- c(0.2, 0.3, 0.4)
+  block      <- list(seq_len(3L))
+  covariance <- diag(diagonal) + tcrossprod(rank_one)
+  precision  <- solve(covariance)
+  WX         <- precision %*% X
+  XB         <- X %*% solve(crossprod(X, WX))
+  A          <- diag(3L) - XB %*% t(WX)
+
+  variance <- .hat_marginal_se2(
+    A             = A,
+    diagonal      = diagonal,
+    rank_one      = rank_one,
+    block_indices = block
+  )
+
+  expect_true(all(variance >= 0))
+  expect_equal(variance, diag(A %*% covariance %*% t(A)), tolerance = 1e-15)
+})
+
+
 test_that("hat-matrix diagnostics retain small nonzero residuals", {
 
   tiny <- 2^-100
