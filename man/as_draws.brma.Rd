@@ -67,8 +67,9 @@ corresponding \pkg{posterior} conversion function.}
 
 \item{include_auxiliary}{logical; whether to include raw backend auxiliary
 variables. Defaults to \code{FALSE}, returning the stable model-parameter
-schema. Set to \code{TRUE} to expose every variable stored by the fitted
-backend.}
+schema. Set to \code{TRUE} to expose the non-private coordinates recorded
+by the fitted BayesTools parameter registry without adding RoBMA-derived
+quantities.}
 }
 \value{
 An object of the corresponding \pkg{posterior} draws class.
@@ -108,8 +109,11 @@ compact rho draws on demand. Conversion fails before allocating them when
 their combined draw-by-matrix size exceeds
 \code{getOption("RoBMA.max_derived_correlation_cells", 2e7)}. Increase this option
 explicitly when the dense public matrices are required. Use
-\code{include_auxiliary = TRUE} to skip derivation and return the current raw
-backend variables without filtering. \code{brma_samples} objects have
+Structural point-prior coordinates are returned as exact constant columns,
+with chain timing taken from the fitted draw geometry. Private backend
+anchors are never exposed. Use \code{include_auxiliary = TRUE} to skip RoBMA
+filtering and derivation while retaining BayesTools' public/private
+boundary. \code{brma_samples} objects have
 separate methods documented at \code{\link{as_draws.brma_samples}}.
 }
 \seealso{

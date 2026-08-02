@@ -29,8 +29,9 @@
 #' corresponding \pkg{posterior} conversion function.
 #' @param include_auxiliary logical; whether to include raw backend auxiliary
 #' variables. Defaults to \code{FALSE}, returning the stable model-parameter
-#' schema. Set to \code{TRUE} to expose every variable stored by the fitted
-#' backend.
+#' schema. Set to \code{TRUE} to expose the non-private coordinates recorded
+#' by the fitted BayesTools parameter registry without adding RoBMA-derived
+#' quantities.
 #' @param ... additional arguments passed to the corresponding
 #' \pkg{posterior} function.
 #'
@@ -62,8 +63,11 @@
 #' their combined draw-by-matrix size exceeds
 #' `getOption("RoBMA.max_derived_correlation_cells", 2e7)`. Increase this option
 #' explicitly when the dense public matrices are required. Use
-#' `include_auxiliary = TRUE` to skip derivation and return the current raw
-#' backend variables without filtering. \code{brma_samples} objects have
+#' Structural point-prior coordinates are returned as exact constant columns,
+#' with chain timing taken from the fitted draw geometry. Private backend
+#' anchors are never exposed. Use `include_auxiliary = TRUE` to skip RoBMA
+#' filtering and derivation while retaining BayesTools' public/private
+#' boundary. \code{brma_samples} objects have
 #' separate methods documented at \code{\link{as_draws.brma_samples}}.
 #'
 #' @return An object of the corresponding \pkg{posterior} draws class.
@@ -103,7 +107,11 @@ NULL
     stop("The 'brma' object does not contain a valid fit", call. = FALSE)
   }
 
-  mcmc_list <- coda::as.mcmc.list(x[["fit"]])
+  .brma_validate_fit_contract(
+    x,
+    requires = c("parameter_registry", "draw_geometry")
+  )
+  mcmc_list <- BayesTools::JAGS_materialize_draws(x[["fit"]])
   if (include_auxiliary) {
     return(mcmc_list)
   }
@@ -405,9 +413,15 @@ NULL
 .brma_filter_auxiliary_variables <- function(x, mcmc_list) {
 
   chain_variables <- lapply(mcmc_list, function(chain) {
-    colnames(as.matrix(chain))
+    colnames(chain)
   })
   variables <- chain_variables[[1L]]
+  if (is.null(variables)) {
+    variables <- character(0)
+    chain_variables <- lapply(chain_variables, function(x) {
+      if (is.null(x)) character(0) else x
+    })
+  }
   if (!all(vapply(
     chain_variables,
     identical,
@@ -415,6 +429,9 @@ NULL
     y = variables
   ))) {
     stop("MCMC chains contain inconsistent variable schemas.", call. = FALSE)
+  }
+  if (length(variables) == 0L) {
+    return(mcmc_list)
   }
 
   catalog <- .brma_auxiliary_variable_catalog(x, variables)

@@ -211,9 +211,14 @@ test_that("default draw extraction filters auxiliary variables only", {
     ))
   )
   chain <- coda::mcmc(values, start = 5, thin = 2)
-  object <- structure(
-    list(fit = coda::mcmc.list(chain)),
-    class = "brma"
+  materialized <- coda::mcmc.list(chain)
+  fit <- structure(list(sentinel = TRUE), class = "BayesTools_fit")
+  attr(fit, "prior_list") <- list()
+  object <- structure(list(fit = fit), class = "brma")
+  testthat::local_mocked_bindings(
+    JAGS_validate_fit_contract = function(...) invisible(TRUE),
+    JAGS_materialize_draws = function(...) materialized,
+    .package = "BayesTools"
   )
 
   filtered <- RoBMA:::.brma_to_mcmc.list(object)
@@ -227,7 +232,7 @@ test_that("default draw extraction filters auxiliary variables only", {
     c("mu", "tau_indicator", "mu__xREx__study_xRE_CORx_R[1,1]")
   )
   expect_equal(coda::mcpar(filtered[[1]]), coda::mcpar(chain))
-  expect_equal(raw, coda::as.mcmc.list(object[["fit"]]), tolerance = 0)
+  expect_equal(raw, materialized, tolerance = 0)
 })
 
 test_that("all brma draw formats share auxiliary filtering and validation", {
