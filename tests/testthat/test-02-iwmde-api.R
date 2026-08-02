@@ -1600,33 +1600,39 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
 
 test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
 
+  diagnostics <- list(
+    evaluation_value       = 0,
+    relative_mcse          = .173,
+    finite_terms           = 60,
+    ess                    = 67.8,
+    max_weight_share       = .30,
+    active_mass            = 1,
+    normalization_relative_error = 0,
+    ordinate_relative_change = 0,
+    max_normalizer_relative_change = 0,
+    normalization_range    = c(-1, 1),
+    estimator              = "q_grid_cmde",
+    weight_method          = "test"
+  )
   ordinate <- BayesTools::posterior_ordinate_attribute(
     value          = 0,
     ordinate       = .4,
     method         = "q_grid_cmde",
     density_method = "qCMDE",
-    diagnostics    = list(
-      evaluation_value       = 0,
-      relative_mcse          = .10,
-      finite_terms           = 60,
-      ess                    = 50,
-      max_weight_share       = .30,
-      active_mass            = 1,
-      normalization_relative_error = 0,
-      ordinate_relative_change = 0,
-      max_normalizer_relative_change = 0,
-      normalization_range    = c(-1, 1),
-      estimator              = "q_grid_cmde",
-      weight_method          = "test"
-    )
+    diagnostics    = diagnostics
   )
   warnings <- .iwmde_posterior_ordinate_warnings(ordinate)
 
   expect_true(.iwmde_posterior_ordinate_supports_bf(ordinate))
-  expect_true(any(grepl("relative MCSE.*10%.*5%.*25%", warnings)))
+  expect_true("qCMDE relative MCSE is 17.3%" %in% warnings)
   expect_true(any(grepl("uses only\\s+60.*finite importance terms.*100.*20", warnings)))
-  expect_true(any(grepl("effective sample size.*50.*100.*20", warnings)))
+  expect_true("qCMDE effective sample size is 67.8" %in% warnings)
   expect_true(any(grepl("largest importance weight.*30%.*20%.*50%", warnings)))
+
+  diagnostics[["estimator"]] <- "iwmde"
+  warnings <- .iwmde_diagnostics_bf_warning(diagnostics)
+  expect_true("IWMDE relative MCSE is 17.3%" %in% warnings)
+  expect_true("IWMDE effective sample size is 67.8" %in% warnings)
 })
 
 

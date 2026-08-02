@@ -48,6 +48,9 @@
   fitted-design aggregation.
 
 ### Fixes
+- shortens qCMDE/IWMDE relative-MCSE and effective-sample-size warnings to
+  report only the observed diagnostic value instead of repeating policy
+  thresholds.
 - aligns same-data `brma.mv()` response prediction with `brma()` semantics by
   using fixed means and marginal known-`V` plus random-effect covariance instead
   of conditioning on fitted random effects.

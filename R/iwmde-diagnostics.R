@@ -526,12 +526,7 @@
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " relative MCSE is ",
-      .iwmde_percent(relative_mcse),
-      " (warning threshold ",
-      .iwmde_percent(.iwmde_bf_warning_relative_mcse()),
-      "; BF rejection threshold ",
-      .iwmde_percent(.iwmde_bf_max_relative_mcse()),
-      ")."
+      .iwmde_percent(relative_mcse)
     ))
   }
 
@@ -564,12 +559,7 @@
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " effective sample size is ",
-      .iwmde_count(ess),
-      " (warning threshold ",
-      .iwmde_count(.iwmde_bf_warning_min_ess()),
-      "; BF rejection threshold ",
-      .iwmde_count(.iwmde_bf_min_ess()),
-      ")."
+      .iwmde_count(ess)
     ))
   }
 
