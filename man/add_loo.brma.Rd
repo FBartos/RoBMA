@@ -82,6 +82,10 @@ The PSIS object is essential for model comparison via
 \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 RoBMA stores target metadata so comparisons can reject mismatched data,
 unit, or conditioning-depth targets.
+Models whose log-likelihood has no posterior variation, such as fully fixed
+point-prior models, use their exact constant importance ratios. Their Pareto
+diagnostics are recorded as zero instead of attempting an undefined
+generalized-Pareto fit to identical tail values.
 
 \strong{Important for model comparison:} When comparing models via
 \code{\link[loo]{loo_compare}}, the selection is based on expected

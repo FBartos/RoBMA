@@ -444,6 +444,45 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, iwmde_oracle_catalog)
 
+  fixed_model_catalog <- data.frame(
+    name = c(
+      "fixed_null_brma",
+      "fixed_nonzero_brma",
+      "fixed_nonzero_brma_mv",
+      "fixed_null_brma_glmm",
+      "fixed_null_bPET",
+      "fixed_null_bPEESE",
+      "fixed_null_bselmodel"
+    ),
+    class = c(
+      "brma.norm",
+      "brma.norm",
+      "brma.mv",
+      "brma.glmm",
+      "bPET",
+      "bPEESE",
+      "bselmodel"
+    ),
+    family = c("norm", "norm", "norm", "glmm", "norm", "norm", "norm"),
+    source_file = rep("test-01-fixed-null-models.R", 7),
+    has_metafor = FALSE,
+    has_waic = FALSE,
+    tier = "core",
+    has_loo = TRUE,
+    has_marglik = TRUE,
+    features = I(list(
+      c("normal", "fixed", "null", "exact_marglik"),
+      c("normal", "fixed", "nonzero_tau", "exact_marglik"),
+      c("brma.mv", "normal", "known_v", "fixed", "nonzero_tau", "exact_marglik"),
+      c("glmm", "binomial", "fixed", "null"),
+      c("normal", "PET", "fixed", "null", "exact_marglik"),
+      c("normal", "PEESE", "fixed", "null", "exact_marglik"),
+      c("normal", "selection", "fixed", "null", "exact_marglik")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, fixed_model_catalog)
+
   catalog[["profile"]] <- "certification"
   catalog[["profile"]][catalog[["name"]] %in% c(
     "bcg_meta-analysis",
@@ -476,7 +515,14 @@ fit_catalog <- function() {
     "brma.mv_block_mvn_fixed_random_null",
     "brma.mv_block_mvn_random",
     "vif_parity_brma",
-    "vif_parity_brma_mv"
+    "vif_parity_brma_mv",
+    "fixed_null_brma",
+    "fixed_nonzero_brma",
+    "fixed_nonzero_brma_mv",
+    "fixed_null_brma_glmm",
+    "fixed_null_bPET",
+    "fixed_null_bPEESE",
+    "fixed_null_bselmodel"
   )] <- "standard"
 
   return(catalog)

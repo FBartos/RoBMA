@@ -91,6 +91,10 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 #' RoBMA stores target metadata so comparisons can reject mismatched data,
 #' unit, or conditioning-depth targets.
+#' Models whose log-likelihood has no posterior variation, such as fully fixed
+#' point-prior models, use their exact constant importance ratios. Their Pareto
+#' diagnostics are recorded as zero instead of attempting an undefined
+#' generalized-Pareto fit to identical tail values.
 #'
 #' \strong{Important for model comparison:} When comparing models via
 #' \code{\link[loo]{loo_compare}}, the selection is based on expected
@@ -141,16 +145,34 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   # determine number of cores based on `parallel` and package options
   cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
 
+  deterministic <- .is_deterministic_log_lik(log_lik)
+
   # compute relative effective sample sizes if not provided
   if (is.null(r_eff)) {
-    # loo::relative_eff expects exp(log_lik) with chain_id for matrix input
-    chain_id <- .loo_chain_id(object[["fit"]], n_samples = nrow(log_lik))
+    if (deterministic) {
+      r_eff <- rep(1, ncol(log_lik))
+    } else {
+      # loo::relative_eff expects exp(log_lik) with chain_id for matrix input
+      chain_id <- .loo_chain_id(object[["fit"]], n_samples = nrow(log_lik))
 
-    r_eff <- loo::relative_eff(exp(log_lik), chain_id = chain_id, cores = cores)
+      r_eff <- loo::relative_eff(exp(log_lik), chain_id = chain_id, cores = cores)
+    }
   }
 
   # call loo on the log-likelihood matrix
-  loo_result <- loo::loo(log_lik, r_eff = r_eff, save_psis = TRUE, cores = cores)
+  loo_result <- if (deterministic) {
+    suppressWarnings(loo::loo(
+      log_lik,
+      r_eff     = r_eff,
+      save_psis = TRUE,
+      cores     = cores
+    ))
+  } else {
+    loo::loo(log_lik, r_eff = r_eff, save_psis = TRUE, cores = cores)
+  }
+  if (deterministic) {
+    loo_result <- .set_deterministic_loo_diagnostics(loo_result)
+  }
   loo_result <- .add_loo_target_metadata(
     object             = loo_result,
     unit               = target[["unit"]],
@@ -166,6 +188,34 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   }
   object[["loo"]][[unit]] <- loo_result
   return(object)
+}
+
+
+.is_deterministic_log_lik <- function(log_lik) {
+
+  if (!is.matrix(log_lik) || nrow(log_lik) == 0L) {
+    return(FALSE)
+  }
+
+  return(all(vapply(seq_len(ncol(log_lik)), function(i) {
+    column <- log_lik[, i]
+    isTRUE(all(column == column[[1L]]))
+  }, logical(1))))
+}
+
+
+.set_deterministic_loo_diagnostics <- function(loo_result) {
+
+  n_units  <- nrow(loo_result[["pointwise"]])
+  pareto_k <- rep(0, n_units)
+
+  loo_result[["diagnostics"]][["pareto_k"]] <- pareto_k
+  loo_result[["pointwise"]][, "influence_pareto_k"] <- pareto_k
+  if (!is.null(loo_result[["psis_object"]][["diagnostics"]])) {
+    loo_result[["psis_object"]][["diagnostics"]][["pareto_k"]] <- pareto_k
+  }
+
+  return(loo_result)
 }
 
 

@@ -271,6 +271,7 @@ NULL
     fit               = object[["fit"]],
     transform_factors = TRUE,
     transform_scaled  = TRUE,
+    remove_spike_0    = FALSE,
     remove_parameters = c(
       "theta", # remove random-effects (estimate-level)
       "gamma", # remove random-effects (cluster-level)

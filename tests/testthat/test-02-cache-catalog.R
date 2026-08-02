@@ -434,7 +434,8 @@ test_that("fit catalog is internally consistent", {
     "brma.mv_v14_ishak2007_har",
     "brma.mv_v14_begg1989_study_treatment",
     "iwmde_known_v_tau_full",
-    "iwmde_known_v_tau_null"
+    "iwmde_known_v_tau_null",
+    "fixed_nonzero_brma_mv"
   )
   expect_equal(catalog[["name"]][catalog[["class"]] == "brma.mv" & catalog[["has_marglik"]]],
                v14_marglik_fits,
@@ -483,7 +484,14 @@ test_that("fit catalog is internally consistent", {
       "brma.mv_block_mvn_fixed_random_null",
       "brma.mv_block_mvn_random",
       "vif_parity_brma",
-      "vif_parity_brma_mv"
+      "vif_parity_brma_mv",
+      "fixed_null_brma",
+      "fixed_nonzero_brma",
+      "fixed_nonzero_brma_mv",
+      "fixed_null_brma_glmm",
+      "fixed_null_bPET",
+      "fixed_null_bPEESE",
+      "fixed_null_bselmodel"
     )
   )
   expect_true(all(active_fit_catalog()[["profile"]] %in%

@@ -26,7 +26,8 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.7 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.10 and R 4.3.0 for point-prior monitoring, exact
+  zero-dimensional marginal likelihoods, the multivariate random-effect
   backend, scalable diagonal marginal-variance interface, and structural prior-
   ordinate classification.
 - requires loo 2.10.0 internally while preserving RoBMA's released numeric
@@ -51,6 +52,11 @@
 - shortens qCMDE/IWMDE relative-MCSE and effective-sample-size warnings to
   report only the observed diagnostic value instead of repeating policy
   thresholds.
+- supports fully fixed point-prior models across `brma`, publication-bias,
+  GLMM, multilevel, and `brma.mv()` classes; fixed parameters remain available
+  in posterior summaries, and zero-dimensional marginal likelihoods are exact.
+- treats constant log-likelihood draws from fully fixed models as exact LOO
+  importance ratios instead of reporting spurious infinite Pareto diagnostics.
 - aligns same-data `brma.mv()` response prediction with `brma()` semantics by
   using fixed means and marginal known-`V` plus random-effect covariance instead
   of conditioning on fitted random effects.

@@ -465,6 +465,7 @@ print.brma <- function(x, ...) {
     conditional        = conditional,
     remove_diagnostics = !include_mcmc_diagnostics,
     remove_inclusion   = if (conditional) TRUE else is_robma,
+    remove_spike_0     = FALSE,
     probs              = probs,
     diagnostic_columns = .summary_estimates_diagnostic_columns(
       include_mcmc_diagnostics
