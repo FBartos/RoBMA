@@ -17,11 +17,11 @@ scenario_dir <- file.path(project_root, "tests", "scenarios")
 
 scenario_files <- list.files(
   scenario_dir,
-  pattern    = "^test-[a-z0-9][a-z0-9_-]*\\.[Rr]$",
+  pattern    = "^test-[a-z0-9]([a-z0-9._-]*[a-z0-9_-])?\\.[Rr]$",
   full.names = TRUE
 )
 scenario_names <- sub(
-  "^test-([a-z0-9][a-z0-9_-]*)\\.[Rr]$",
+  "^test-([a-z0-9]([a-z0-9._-]*[a-z0-9_-])?)\\.[Rr]$",
   "\\1",
   basename(scenario_files)
 )

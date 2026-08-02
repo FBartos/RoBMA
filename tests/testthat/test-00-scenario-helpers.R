@@ -11,38 +11,57 @@ source(testthat::test_path("..", "scenarios", "helper-scenarios.R"))
 }
 
 
-test_that("scenario_fit caches fits until regeneration is requested", {
+test_that("scenario_fit invalidates changed calls and supports regeneration", {
 
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   counter <- 0L
 
   scenario_start("unit", root = root, create_missing = TRUE)
-  first <- scenario_fit("model", {
+  first <- scenario_fit("model.one", {
     counter <- counter + 1L
     list(value = counter)
   })
-  second <- scenario_fit("model", {
+  second <- scenario_fit("model.one", {
     counter <- counter + 1L
     list(value = counter)
   })
 
   expect_identical(counter, 1L)
   expect_identical(first, second)
-  expect_true(file.exists(file.path(root, "cache", "unit", "model.rds")))
+  expect_true(file.exists(file.path(root, "cache", "unit", "model.one.rds")))
+  expect_true(file.exists(file.path(
+    root, "cache", "unit", "model.one.call.txt"
+  )))
 
-  REGENERATE_SCENARIO_FILES <- TRUE
-  scenario_start("unit", root = root, create_missing = TRUE)
-  third <- scenario_fit("model", {
+  third <- expect_message(
+    scenario_fit("model.one", {
+      counter <- counter + 1L
+      list(value = counter, changed = TRUE)
+    }),
+    "Fit call changed.*refitting"
+  )
+  fourth <- scenario_fit("model.one", {
     counter <- counter + 1L
-    list(value = counter)
+    list(value = counter, changed = TRUE)
   })
 
   expect_identical(counter, 2L)
-  expect_identical(third[["value"]], 2L)
+  expect_true(third[["changed"]])
+  expect_identical(third, fourth)
+
+  REGENERATE_SCENARIO_FILES <- TRUE
+  scenario_start("unit", root = root, create_missing = TRUE)
+  fifth <- scenario_fit("model.one", {
+    counter <- counter + 1L
+    list(value = counter, changed = TRUE)
+  })
+
+  expect_identical(counter, 3L)
+  expect_identical(fifth[["value"]], 3L)
   expect_identical(readRDS(file.path(
-    root, "cache", "unit", "model.rds"
-  )), third)
+    root, "cache", "unit", "model.one.rds"
+  )), fifth)
 })
 
 
@@ -98,6 +117,57 @@ test_that("scenario_text rejects missing baselines when creation is disabled", {
 })
 
 
+test_that("scenario_text replays captured output interactively", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env      <- environment(scenario_text)
+  old_interactive <- get(".scenario_is_interactive", envir = helper_env)
+  on.exit(assign(
+    ".scenario_is_interactive",
+    old_interactive,
+    envir = helper_env
+  ), add = TRUE)
+  assign(
+    ".scenario_is_interactive",
+    function() TRUE,
+    envir = helper_env
+  )
+
+  scenario_start("unit", root = root, create_missing = TRUE)
+  expect_output(
+    scenario_text("visible", print("interactive output")),
+    '[1] "interactive output"',
+    fixed = TRUE
+  )
+})
+
+
+test_that("scenario plot evaluation restores base graphics parameters", {
+
+  state <- new.env(parent = emptyenv())
+  .with_temp_plot_device({
+    state[["before"]] <- graphics::par("mar")
+    .scenario_evaluate_plot(quote({
+      graphics::par(mar = c(2, 1, 2, 1))
+    }), environment())
+    state[["after_success"]] <- graphics::par("mar")
+
+    expect_error(
+      .scenario_evaluate_plot(quote({
+        graphics::par(mar = c(1, 1, 1, 1))
+        stop("plot failed")
+      }), environment()),
+      "plot failed"
+    )
+    state[["after_error"]] <- graphics::par("mar")
+  })
+
+  expect_equal(state[["after_success"]], state[["before"]])
+  expect_equal(state[["after_error"]], state[["before"]])
+})
+
+
 test_that("scenario_plot delegates plot comparison to vdiffr", {
 
   skip_if_not_installed("vdiffr")
@@ -107,8 +177,26 @@ test_that("scenario_plot delegates plot comparison to vdiffr", {
     root           = testthat::test_path(),
     create_missing = TRUE
   )
+  helper_env      <- environment(scenario_plot)
+  old_interactive <- get(".scenario_is_interactive", envir = helper_env)
+  on.exit(assign(
+    ".scenario_is_interactive",
+    old_interactive,
+    envir = helper_env
+  ), add = TRUE)
+  assign(
+    ".scenario_is_interactive",
+    function() TRUE,
+    envir = helper_env
+  )
+  draws <- new.env(parent = emptyenv())
+  draws[["count"]] <- 0L
 
-  scenario_plot("simple-base-plot", {
-    graphics::plot(1:3, 1:3, xlab = "x", ylab = "y")
+  .with_temp_plot_device({
+    scenario_plot("simple-base-plot", {
+      draws[["count"]] <- draws[["count"]] + 1L
+      graphics::plot(1:3, 1:3, xlab = "x", ylab = "y")
+    })
   })
+  expect_gte(draws[["count"]], 2L)
 })

@@ -58,6 +58,12 @@ if (!exists(".write_canonical_svg", mode = "function")) {
 }
 
 
+.scenario_is_interactive <- function() {
+
+  return(interactive())
+}
+
+
 .scenario_validate_flag <- function(value, name) {
 
   if (!is.logical(value) || length(value) != 1L || is.na(value)) {
@@ -71,11 +77,11 @@ if (!exists(".write_canonical_svg", mode = "function")) {
 .scenario_validate_name <- function(name, type = "artifact") {
 
   valid <- is.character(name) && length(name) == 1L && !is.na(name) &&
-    grepl("^[a-z0-9][a-z0-9_-]*$", name)
+    grepl("^[a-z0-9][a-z0-9._-]*$", name) && !endsWith(name, ".")
   if (!valid) {
     stop(
       "Scenario ", type, " names must use lowercase letters, numbers, ",
-      "underscores, and hyphens.",
+      "underscores, hyphens, and internal periods.",
       call. = FALSE
     )
   }
@@ -152,26 +158,40 @@ scenario_start <- function(name, regenerate = NULL,
 }
 
 
-.scenario_fit_path <- function(name) {
+.scenario_fit_paths <- function(name) {
 
   config <- .scenario_config()
   name   <- .scenario_validate_name(name, "fit")
 
-  return(file.path(config[["cache_dir"]], paste0(name, ".rds")))
+  return(list(
+    fit  = file.path(config[["cache_dir"]], paste0(name, ".rds")),
+    call = file.path(config[["cache_dir"]], paste0(name, ".call.txt"))
+  ))
 }
 
 
-# Load an existing cached fit without evaluating code, or evaluate and cache
-# the fitting expression when the cache is missing or regeneration is enabled.
+# Load an existing cached fit only when its fitting call still matches.
+# Otherwise evaluate the expression and replace the fit and call cache.
 scenario_fit <- function(name, code) {
 
-  config <- .scenario_config()
-  path   <- .scenario_fit_path(name)
-  expr   <- substitute(code)
+  config   <- .scenario_config()
+  paths    <- .scenario_fit_paths(name)
+  expr     <- substitute(code)
+  fit_call <- deparse(expr, width.cutoff = 500L)
 
-  if (file.exists(path) && !config[["regenerate"]]) {
+  cached_call <- if (file.exists(paths[["call"]])) {
+    tryCatch(
+      readLines(paths[["call"]], warn = FALSE, encoding = "UTF-8"),
+      error = function(error) NULL
+    )
+  } else {
+    NULL
+  }
+  call_matches <- identical(cached_call, fit_call)
+
+  if (file.exists(paths[["fit"]]) && !config[["regenerate"]] && call_matches) {
     return(tryCatch(
-      readRDS(path),
+      readRDS(paths[["fit"]]),
       error = function(error) {
         stop(
           "Cached scenario fit '", name,
@@ -181,10 +201,21 @@ scenario_fit <- function(name, code) {
       }
     ))
   }
+  if (file.exists(paths[["fit"]]) && !config[["regenerate"]]) {
+    reason <- if (is.null(cached_call)) {
+      "Missing cached call for"
+    } else {
+      "Fit call changed for"
+    }
+    message(
+      reason, " scenario fit '", name, "'; refitting."
+    )
+  }
 
   fit <- eval(expr, envir = parent.frame())
   dir.create(config[["cache_dir"]], recursive = TRUE, showWarnings = FALSE)
-  saveRDS(fit, path)
+  saveRDS(fit, paths[["fit"]])
+  .scenario_write_lines(fit_call, paths[["call"]])
 
   return(fit)
 }
@@ -216,6 +247,9 @@ scenario_text <- function(name, code) {
     value <- eval(expr, envir = parent.frame()),
     type = "output"
   )
+  if (.scenario_is_interactive() && length(output) > 0L) {
+    writeLines(output)
+  }
 
   if (!file.exists(path) && !config[["create_missing"]] &&
       !config[["regenerate"]]) {
@@ -264,6 +298,26 @@ scenario_text <- function(name, code) {
 }
 
 
+.scenario_evaluate_plot <- function(expr, envir, restore_par = TRUE) {
+
+  if (restore_par) {
+    old_par <- graphics::par(no.readonly = TRUE)
+    old_par[["new"]] <- NULL
+    on.exit(graphics::par(old_par), add = TRUE)
+  }
+
+  value <- eval(expr, envir = envir)
+  if (is.function(value)) {
+    value <- value()
+  }
+  if (inherits(value, "ggplot")) {
+    print(value)
+  }
+
+  return(invisible(value))
+}
+
+
 # Render a plot expression on vdiffr's device and compare it with a tracked SVG.
 scenario_plot <- function(name, code) {
 
@@ -298,14 +352,11 @@ scenario_plot <- function(name, code) {
   eval_env <- parent.frame()
   figure <- function() {
 
-    value <- eval(expr, envir = eval_env)
-    if (is.function(value)) {
-      value <- value()
-    }
-    if (inherits(value, "ggplot")) {
-      print(value)
-    }
-    return(invisible(value))
+    # vdiffr closes its temporary device, so its par settings cannot leak.
+    .scenario_evaluate_plot(expr, eval_env, restore_par = FALSE)
+  }
+  if (.scenario_is_interactive()) {
+    .scenario_evaluate_plot(expr, eval_env)
   }
 
   writer <- function(plot, file, title = "") {
