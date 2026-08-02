@@ -397,6 +397,32 @@
 .brma_parameter_catalog_terms <- function(object, model_parameter, component,
                                           formula_parameter, source, add) {
 
+  if (!is.null(object[["fit"]])) {
+    name_map <- .fitted_formula_name_map(
+      object    = object,
+      parameter = model_parameter,
+      required  = TRUE
+    )
+    rows <- name_map[
+      name_map[["kind"]] == "fixed" &
+        name_map[["role"]] == "coefficient" &
+        name_map[["term"]] != "intercept",
+      ,
+      drop = FALSE
+    ]
+    for (i in seq_len(nrow(rows))) {
+      add(
+        parameter         = rows[["jags_name"]][[i]],
+        component         = component,
+        term              = rows[["term"]][[i]],
+        aliases           = c(rows[["jags_name"]][[i]], rows[["term"]][[i]]),
+        source            = source,
+        formula_parameter = formula_parameter
+      )
+    }
+    return(invisible(NULL))
+  }
+
   terms <- .fitted_formula_terms(
     object            = object,
     parameter         = model_parameter,

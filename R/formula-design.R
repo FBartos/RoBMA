@@ -7,6 +7,60 @@
 # ============================================================================ #
 
 
+# Validate the versioned BayesTools metadata consumed by a fitted-object path.
+.brma_validate_fit_contract <- function(object, requires) {
+
+  fit <- if (inherits(object, "BayesTools_fit")) object else object[["fit"]]
+  if (is.null(fit) || !inherits(fit, "BayesTools_fit")) {
+    stop(
+      "Current BayesTools fitted metadata are unavailable. Refit the model ",
+      "with the current RoBMA/BayesTools build.",
+      call. = FALSE
+    )
+  }
+
+  BayesTools::JAGS_validate_fit_contract(fit, requires = requires)
+  return(invisible(TRUE))
+}
+
+
+# Return the persisted semantic-to-backend map for one fitted formula.
+.fitted_formula_name_map <- function(object, parameter, required = TRUE) {
+
+  if (is.null(object[["fit"]])) {
+    if (required) {
+      stop(
+        "Fitted formula name-map metadata for parameter '", parameter,
+        "' are unavailable. Fit the model before requesting fitted ",
+        "parameter identities.",
+        call. = FALSE
+      )
+    }
+    return(NULL)
+  }
+
+  .brma_validate_fit_contract(
+    object,
+    requires = c(
+      "name_encoding",
+      "formula_name_map",
+      "formula_design",
+      "parameter_registry"
+    )
+  )
+  name_map <- BayesTools::JAGS_formula_name_map(object[["fit"]], parameter)
+  if (is.null(name_map) && required) {
+    stop(
+      "Fitted formula name-map metadata for parameter '", parameter,
+      "' are missing. Refit the model with the current RoBMA/BayesTools build.",
+      call. = FALSE
+    )
+  }
+
+  return(name_map)
+}
+
+
 # Return the BayesTools formula design for a brma formula parameter.
 .fitted_formula_design <- function(object, parameter, required = TRUE) {
 
