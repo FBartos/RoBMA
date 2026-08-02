@@ -325,41 +325,61 @@ test_that("no-intercept random formulas expose only fitted location terms", {
   )
 })
 
-test_that("transformed scale intercept supports qCMDE and IWMDE hypotheses", {
+test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", {
 
   skip_if_missing_fits("brma.mv_block_mvn_random_scale")
   fit <- load_fit("brma.mv_block_mvn_random_scale", validate = FALSE)
+  entry <- .brma_parameter_select_entry(
+    fit,
+    parameter = "intercept",
+    component = "scale"
+  )
+  transform <- BayesTools::JAGS_formula_coefficient_transform(
+    fit[["fit"]],
+    parameter = entry[["formula_parameter"]]
+  )
+  target_i <- match(entry[["parameter"]], transform[["target_names"]])
+  dependencies <- transform[["dependencies"]][
+    transform[["dependencies"]][["target"]] == entry[["parameter"]],
+    ,
+    drop = FALSE
+  ]
+  nonlinear_joint <- nrow(dependencies) > 1L &&
+    (transform[["output_transforms"]][[target_i]] != "identity" ||
+       any(transform[["source_transforms"]][dependencies[["source"]]] !=
+             "identity"))
+  if (!nonlinear_joint) {
+    skip("Cached fit does not contain a nonlinear joint scale transform.")
+  }
 
-  qcmde <- suppressWarnings(hypothesis(
+  kde <- hypothesis(
     fit,
     "intercept = 0.2 vs intercept != 0.2",
     component      = "scale",
-    density_method = "qCMDE",
-    density_control = list(
-      n_points             = 30L,
-      max_samples          = 40L,
-      normalization_points = 40L
-    ),
+    density_method = "KDE",
     n_samples = 1000L,
     seed      = 31
-  ))
-  iwmde <- suppressWarnings(hypothesis(
-    fit,
-    "intercept = 0.2 vs intercept != 0.2",
-    component      = "scale",
-    density_method = "IWMDE",
-    density_control = list(
-      n_points             = 60L,
-      max_samples          = 200L,
-      normalization_points = 200L,
-      normalization_prob   = 0.99999
-    ),
-    n_samples = 3000L,
-    seed      = 32
-  ))
+  )
 
-  expect_s3_class(qcmde, "BayesTools_hypothesis_BF")
-  expect_s3_class(iwmde, "BayesTools_hypothesis_BF")
+  expect_s3_class(kde, "BayesTools_hypothesis_BF")
+  for (method in c("qCMDE", "IWMDE")) {
+    expect_error(
+      hypothesis(
+        fit,
+        "intercept = 0.2 vs intercept != 0.2",
+        component       = "scale",
+        density_method  = method,
+        density_control = list(
+          n_points             = 30L,
+          max_samples          = 40L,
+          normalization_points = 40L
+        ),
+        n_samples = 1000L,
+        seed      = 32
+      ),
+      "nonlinear joint transform"
+    )
+  }
 })
 
 test_that("random prior overlays and diagnostic labels are semantic", {

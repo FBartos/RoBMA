@@ -153,11 +153,11 @@ hypothesis.default <- function(object, ...) {
 #' \code{marginal_means()}; explicitly request \code{"KDE"} to override it.
 #' \code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
 #' the stored source model. Matching is case-insensitive. qCMDE/IWMDE ordinates
-#' are evaluated on the fitted coefficient coordinate. If automatic predictor
-#' scaling changes the requested coefficient coordinate, use
-#' `standardized_coefficients = TRUE`; RoBMA does not infer a coefficient
-#' transformation from posterior draws. Dedicated exact transformations, such
-#' as the scale-intercept transformation, remain available.
+#' use the exact fitted-to-original structural coefficient map and induced
+#' prior density stored by BayesTools. qCMDE/IWMDE supports exact linear maps.
+#' For nonlinear joint maps, such as an exponentiated intercept that also
+#' depends on varying slopes, use \code{density_method = "KDE"} or
+#' \code{standardized_coefficients = TRUE}.
 #' @param density_control named list of qCMDE/IWMDE tuning settings. Supported
 #' entries are \code{n_points} (default \code{100}), \code{max_samples}
 #' (default \code{Inf} for point ordinates), \code{initial_samples} (default
@@ -249,6 +249,11 @@ hypothesis.brma <- function(object, hypothesis,
     aliases    = selected[["aliases"]],
     parameter  = parameter
   )
+  coefficient_target <- .hypothesis_brma_formula_coefficient_target(
+    object                    = object,
+    selected                  = selected,
+    standardized_coefficients = standardized_coefficients
+  )
 
   if (identical(selected[["component"]], "random")) {
     return(.hypothesis_brma_random(
@@ -266,52 +271,6 @@ hypothesis.brma <- function(object, hypothesis,
     ))
   }
 
-  if (.hypothesis_brma_log_intercept_draws_available(
-      object                    = object,
-      selected                  = selected,
-      standardized_coefficients = standardized_coefficients,
-      conditional               = conditional,
-      density_method            = density_method)) {
-    draws <- .hypothesis_brma_log_intercept_draws(
-      object    = object,
-      parameter = parameter,
-      n_samples = n_samples,
-      seed      = seed
-    )
-    posterior <- draws[["posterior"]]
-    if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
-      posterior <- .hypothesis_brma_attach_iwmde_log_intercept(
-        object               = object,
-        posterior            = posterior,
-        parameter            = parameter,
-        hypothesis           = hypothesis,
-        n_points             = density_control[["n_points"]],
-        max_samples          = density_control[["max_samples"]],
-        initial_samples      = density_control[["initial_samples"]],
-        target_relative_mcse = density_control[["target_relative_mcse"]],
-        normalization_points = density_control[["normalization_points"]],
-        normalization_prob   = density_control[["normalization_prob"]],
-        density_method       = density_method
-      )
-    }
-    out <- BayesTools::hypothesis_BF(
-      posterior      = posterior,
-      prior          = draws[["prior"]],
-      hypothesis     = hypothesis,
-      parameter      = parameter,
-      logBF          = logBF,
-      BF01           = BF01,
-      seed           = seed,
-      columns        = columns,
-      density_method = if (.density_method_uses_precomputed(
-          density_method, allow_normal = TRUE)) "precomputed" else density_method
-    )
-    if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
-      out <- .hypothesis_brma_append_iwmde_warnings(out, posterior)
-    }
-    return(out)
-  }
-
   sample_parameter <- .as_mixed_posteriors_parameters(object, parameter)
   samples <- .brma_as_mixed_posteriors(
     object           = object,
@@ -321,6 +280,17 @@ hypothesis.brma <- function(object, hypothesis,
     transform_scaled = !standardized_coefficients,
     n_prior_samples  = n_samples
   )
+  if (!is.null(coefficient_target)) {
+    coefficient_target <- .hypothesis_brma_formula_prior_target(
+      object      = object,
+      samples     = samples,
+      hypothesis  = hypothesis,
+      target_info = coefficient_target
+    )
+    prior_densities <- attr(samples, "prior_densities", exact = TRUE)
+    prior_densities[[parameter]] <- coefficient_target[["prior_density"]]
+    attr(samples, "prior_densities") <- prior_densities
+  }
   density_sample_parameter <- .plot_brma_density_sample_parameter(
     samples          = samples,
     parameter        = parameter,
@@ -333,6 +303,9 @@ hypothesis.brma <- function(object, hypothesis,
     use_formula   = FALSE,
     n_samples     = n_samples
   )
+  if (!is.null(coefficient_target)) {
+    attr(posterior, "prior_density") <- coefficient_target[["prior_density"]]
+  }
 
   if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
     posterior <- .hypothesis_brma_attach_iwmde(
@@ -349,7 +322,12 @@ hypothesis.brma <- function(object, hypothesis,
       normalization_points     = density_control[["normalization_points"]],
       normalization_prob       = density_control[["normalization_prob"]],
       density_method           = density_method,
-      n_samples                = n_samples
+      n_samples                = n_samples,
+      parameter_spec           = if (is.null(coefficient_target)) {
+        NULL
+      } else {
+        coefficient_target[["parameter_spec"]]
+      }
     )
   }
 
@@ -469,64 +447,116 @@ hypothesis.brma <- function(object, hypothesis,
   )
 }
 
-.hypothesis_brma_log_intercept_draws_available <- function(
-    object, selected, standardized_coefficients, conditional,
-    density_method) {
+.hypothesis_brma_formula_coefficient_target <- function(
+    object, selected, standardized_coefficients) {
 
-  if (standardized_coefficients || conditional ||
-      !identical(selected[["component"]], "scale")) {
-    return(FALSE)
+  entry <- selected[["entry"]]
+  if (standardized_coefficients ||
+      selected[["component"]] %in% c("random", "bias") ||
+      is.null(entry)) {
+    return(NULL)
   }
-
-  entry <- .brma_parameter_select_entry(
-    object    = object,
-    parameter = selected[["parameter"]],
-    component = selected[["component"]]
-  )
   formula_parameter <- entry[["formula_parameter"]]
   if (is.null(formula_parameter) || length(formula_parameter) != 1L ||
       is.na(formula_parameter) || !nzchar(formula_parameter)) {
-    return(FALSE)
+    return(NULL)
   }
-  formula_scale     <- attr(object[["fit"]], "formula_scale", exact = TRUE)
-  scale_info        <- formula_scale[[formula_parameter]]
 
-  isTRUE(attr(scale_info, "log_intercept", exact = TRUE)) &&
-    identical(entry[["term"]], "intercept")
-}
-
-.hypothesis_brma_log_intercept_draws <- function(object, parameter,
-                                                  n_samples, seed) {
-
-  samples <- .brma_as_mixed_posteriors(
-    object           = object,
-    parameters       = parameter,
-    conditional      = NULL,
-    conditional_rule = "AND",
-    transform_scaled = TRUE,
-    n_prior_samples  = n_samples
+  transform <- BayesTools::JAGS_formula_coefficient_transform(
+    fit          = object[["fit"]],
+    parameter    = formula_parameter,
+    target_scale = "original"
   )
-  posterior <- samples[[parameter]]
-  prior_density <- attr(samples, "prior_densities", exact = TRUE)[[parameter]]
-  if (is.null(posterior) || is.null(prior_density)) {
+  if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
+      !identical(transform[["schema_version"]], 1L)) {
     stop(
-      "Could not reconstruct posterior and prior draws for transformed scale ",
-      "intercept '", parameter, "'.",
+      "Formula coefficient transformation metadata are unsupported. Refit ",
+      "the model with the current BayesTools version.",
       call. = FALSE
     )
   }
-  attr(posterior, "parameter")     <- parameter
-  attr(posterior, "prior_density") <- prior_density
-  class(posterior) <- unique(c(
-    class(posterior),
-    "marginal_posterior.simple",
-    "marginal_posterior"
-  ))
+  target <- selected[["parameter"]]
+  target_i <- match(target, transform[["target_names"]])
+  if (is.na(target_i)) {
+    stop(
+      "Resolved formula coefficient '", target,
+      "' is absent from the fitted coefficient transformation.",
+      call. = FALSE
+    )
+  }
 
-  list(
-    posterior = posterior,
-    prior     = NULL
+  return(list(
+    formula_parameter = formula_parameter,
+    target            = target,
+    target_i          = target_i,
+    transform         = transform
+  ))
+}
+
+
+.hypothesis_brma_formula_prior_target <- function(
+    object, samples, hypothesis, target_info) {
+
+  prior_density <- BayesTools::JAGS_formula_prior_density(
+    fit          = object[["fit"]],
+    parameter    = target_info[["formula_parameter"]],
+    target       = target_info[["target"]],
+    target_scale = "original",
+    context      = attr(samples, "prior_density_context", exact = TRUE)
   )
+  refs <- .hypothesis_brma_point_refs(
+    hypothesis,
+    target_info[["target"]],
+    require_direct = FALSE
+  )
+  for (value in refs[["value"]]) {
+    ordinate <- BayesTools::prior_density_ordinate(prior_density, value)
+    if (!isTRUE(ordinate[["exact"]])) {
+      stop(
+        "The induced prior ordinate for transformed coefficient '",
+        target_info[["target"]], "' is not exact enough for a point-null ",
+        "Bayes factor.",
+        call. = FALSE
+      )
+    }
+  }
+
+  transform <- target_info[["transform"]]
+  target_i  <- target_info[["target_i"]]
+  weights   <- transform[["matrix"]][target_i, ]
+  weights   <- weights[weights != 0]
+  source_transforms <- transform[["source_transforms"]][names(weights)]
+  output_transform  <- transform[["output_transforms"]][[
+    target_info[["target"]]
+  ]]
+  identity <- all(source_transforms == "identity") &&
+    identical(output_transform, "identity")
+  unit_target <- length(weights) == 1L &&
+    identical(names(weights), target_info[["target"]]) &&
+    identical(unname(weights), 1)
+  ordinary_unit_identity <- identity && unit_target
+  log_unit_identity <- unit_target &&
+    identical(source_transforms, stats::setNames("log", names(weights))) &&
+    identical(output_transform, "exp")
+
+  parameter_spec <- if (ordinary_unit_identity || log_unit_identity) {
+    list(type = "primitive", prior_density = prior_density)
+  } else if (identity) {
+    list(type = "linear", weights = weights, prior_density = prior_density)
+  } else {
+    list(
+      type   = "unsupported_formula_transform",
+      reason = paste0(
+        "qCMDE/IWMDE does not support the fitted nonlinear joint transform ",
+        "for '", target_info[["target"]], "'. Use density_method = 'KDE' ",
+        "or standardized_coefficients = TRUE."
+      )
+    )
+  }
+
+  target_info[["prior_density"]] <- prior_density
+  target_info[["parameter_spec"]] <- parameter_spec
+  return(target_info)
 }
 
 #' @rdname hypothesis

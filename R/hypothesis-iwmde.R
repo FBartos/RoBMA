@@ -5,7 +5,8 @@
                                           target_relative_mcse,
                                           normalization_points,
                                           normalization_prob, density_method,
-                                          n_samples) {
+                                          n_samples,
+                                          parameter_spec = NULL) {
 
   point_refs <- .hypothesis_brma_point_refs(hypothesis, parameter)
   if (nrow(point_refs) == 0L) {
@@ -61,7 +62,8 @@
         target_relative_mcse     = target_relative_mcse,
         normalization_points     = normalization_points,
         normalization_prob       = normalization_prob,
-        density_method           = density_method
+        density_method           = density_method,
+        parameter_spec           = parameter_spec
       )
     } else {
       posterior <- .hypothesis_brma_attach_iwmde_level(
@@ -92,7 +94,7 @@
     posterior, raw_posterior, context, estimate_cache, parameter,
     parameter_label, value, conditional, n_points, max_samples,
     initial_samples, target_relative_mcse, normalization_points,
-    normalization_prob, density_method) {
+    normalization_prob, density_method, parameter_spec = NULL) {
 
   if (is.list(raw_posterior) || is.list(posterior)) {
     stop(
@@ -104,10 +106,23 @@
 
   raw_values <- as.numeric(raw_posterior)
   display_values <- as.numeric(posterior)
-  if (!.plot_brma_same_sample_scale(raw_values, display_values)) {
+  if (is.null(parameter_spec) &&
+      !.plot_brma_same_sample_scale(raw_values, display_values)) {
     stop("Could not align qCMDE/IWMDE ordinate to the displayed coefficient scale.",
          call. = FALSE)
   }
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "unsupported_formula_transform")) {
+    stop(parameter_spec[["reason"]], call. = FALSE)
+  }
+  if (is.null(parameter_spec)) {
+    parameter_spec <- list(
+      type          = "primitive",
+      prior_density = attr(raw_posterior, "prior_density", exact = TRUE)
+    )
+  }
+  parameter_spec[["conditional"]]      <- conditional
+  parameter_spec[["conditional_rule"]] <- "AND"
 
   estimate <- .iwmde_estimate(
     context         = context,
@@ -124,12 +139,7 @@
     ),
     outputs        = "ordinate",
     values         = value,
-    parameter_spec = list(
-      type             = "primitive",
-      prior_density    = attr(raw_posterior, "prior_density", exact = TRUE),
-      conditional      = conditional,
-      conditional_rule = "AND"
-    ),
+    parameter_spec = parameter_spec,
     metadata       = .iwmde_posterior_metadata(
       samples   = posterior,
       parameter = parameter
@@ -263,85 +273,6 @@
     existing = existing,
     ordinate = ordinate
   )
-
-  return(posterior)
-}
-
-
-.hypothesis_brma_attach_iwmde_log_intercept <- function(
-    object, posterior, parameter, hypothesis, n_points, max_samples,
-    initial_samples, target_relative_mcse, normalization_points,
-    normalization_prob, density_method) {
-
-  point_refs <- .hypothesis_brma_point_refs(hypothesis, parameter)
-  if (nrow(point_refs) == 0L) {
-    return(posterior)
-  }
-  .iwmde_check_point_ordinate_supported(object, density_method)
-  if (any(point_refs[["value"]] <= 0)) {
-    stop(
-      "qCMDE/IWMDE point hypotheses for a log-scale intercept require a ",
-      "strictly positive value.",
-      call. = FALSE
-    )
-  }
-  if (is.null(normalization_points)) {
-    normalization_points <- max(50L, n_points)
-  }
-
-  context        <- .iwmde_context(object)
-  estimate_cache <- .iwmde_estimate_cache()
-  for (i in seq_len(nrow(point_refs))) {
-    value <- point_refs[["value"]][i]
-    estimate <- .iwmde_estimate(
-      context         = context,
-      parameter       = parameter,
-      density_method  = density_method,
-      density_control = list(
-        n_points             = n_points,
-        max_samples          = max_samples,
-        initial_samples      = initial_samples,
-        target_relative_mcse = target_relative_mcse,
-        normalization_points = normalization_points,
-        normalization_prob   = normalization_prob,
-        display_grid         = "ordinate"
-      ),
-      outputs        = "ordinate",
-      values         = value,
-      parameter_spec = list(
-        type             = "scale_log_intercept",
-        prior_density    = attr(posterior, "prior_density", exact = TRUE),
-        conditional      = NULL,
-        conditional_rule = "AND"
-      ),
-      metadata = .iwmde_posterior_metadata(
-        samples   = posterior,
-        parameter = parameter
-      ),
-      cache = estimate_cache
-    )
-    ordinate <- estimate[["posterior_ordinate"]]
-    if (is.null(ordinate)) {
-      .iwmde_stop_ordinate_unavailable(
-        message = paste0(
-          "Precomputed ", density_method,
-          " posterior ordinate is unavailable for '", parameter, " = ", value,
-          "': ", .hypothesis_brma_diagnostic_reason(
-            estimate[["diagnostics"]][["ordinate"]]
-          )
-        ),
-        estimate = estimate
-      )
-    }
-    existing <- .iwmde_posterior_ordinate_drop_value(
-      posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE),
-      value              = value
-    )
-    attr(posterior, "posterior_ordinate") <- BayesTools::posterior_ordinate_append(
-      existing = existing,
-      ordinate = ordinate
-    )
-  }
 
   return(posterior)
 }

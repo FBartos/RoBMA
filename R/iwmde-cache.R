@@ -84,14 +84,6 @@
     return(paste(c("primitive", parameter, condition_key), collapse = "|"))
   }
 
-  if (identical(parameter_spec[["type"]], "scale_log_intercept")) {
-    return(paste(c(
-      "scale_log_intercept",
-      parameter,
-      condition_key
-    ), collapse = "|"))
-  }
-
   if (identical(parameter_spec[["status"]], "unsupported")) {
     return(paste0("unsupported|", parameter))
   }

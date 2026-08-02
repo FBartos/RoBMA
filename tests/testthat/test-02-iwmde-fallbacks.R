@@ -101,24 +101,6 @@ test_that("conditional-weight fallback preserves method and failure reason", {
 test_that("IWMDE parameter and prior evaluation errors propagate", {
 
   testthat::local_mocked_bindings(
-    transform_scale_samples = function(...) {
-      stop("scale transformation defect", call. = FALSE)
-    },
-    .package = "BayesTools"
-  )
-  expect_error(
-    .iwmde_scale_log_intercept_factors(
-      context   = list(
-        posterior_samples = matrix(1, nrow = 2, ncol = 1),
-        formula_fit       = list(),
-        row_cache         = new.env(parent = emptyenv())
-      ),
-      parameter = "mu"
-    ),
-    "scale transformation defect"
-  )
-
-  testthat::local_mocked_bindings(
     is.prior.none = function(...) FALSE,
     lpdf = function(...) {
       stop("prior density defect", call. = FALSE)

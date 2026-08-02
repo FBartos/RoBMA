@@ -39,6 +39,7 @@
     parameter  = entry[["parameter"]],
     aliases    = aliases,
     component  = entry[["component"]],
+    entry      = as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE]),
     resolution = resolved
   ))
 }

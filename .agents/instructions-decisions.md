@@ -57,14 +57,3 @@ remove the item.
 - Recommendation: define quadrature order, convergence checks, failure behavior,
   and boundary handling before changing the implementation.
 - Decision:
-
-## Transformed qCMDE/IWMDE Coordinates
-
-- Issue: sample-based affine detection was removed because it could silently
-  change density ordinates and Bayes factors. qCMDE/IWMDE currently require the
-  fitted coefficient coordinate unless an exact transformation is available.
-- Impact: automatically unscaled formula coefficients may require
-  `standardized_coefficients = TRUE`; KDE remains available on display scales.
-- Recommendation: restore transformed-coordinate support only from structural
-  BayesTools coefficient maps with an exact Jacobian.
-- Decision:
