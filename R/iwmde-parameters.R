@@ -958,86 +958,190 @@
 }
 
 
-# Identify exact ordinate values where a simple prior is nonregular.
-.iwmde_prior_ordinate_behavior <- function(prior, value) {
+# Classify exact requested ordinates from deterministic prior provenance.
+.iwmde_prepare_prior_ordinates <- function(context, parameter, parameter_spec,
+                                           values) {
 
-  if (is.null(prior) || !BayesTools::is.prior.simple(prior) ||
-      BayesTools::is.prior.none(prior) || BayesTools::is.prior.point(prior)) {
-    return(NULL)
+  if (is.null(parameter_spec)) {
+    parameter_spec <- list(type = "primitive")
+  }
+  if (!is.null(parameter_spec[["prior_ordinates"]])) {
+    requested <- .iwmde_unique_ordinate_values(values)
+    prepared  <- parameter_spec[["prior_ordinates"]]
+    valid <- is.list(prepared) && length(prepared) == length(requested) &&
+      (length(prepared) == 0L || identical(names(prepared), names(requested)))
+    if (valid && length(prepared) > 0L) {
+      for (i in seq_along(prepared)) {
+        valid <- isTRUE(tryCatch({
+          .iwmde_validate_prior_ordinate(prepared[[i]], unname(requested[[i]]))
+          TRUE
+        }, error = function(error) FALSE))
+        if (!valid) {
+          break
+        }
+      }
+    }
+    if (!isTRUE(valid)) {
+      stop("Prepared prior ordinates do not match the current request.",
+           call. = FALSE)
+    }
+    parameter_spec[["prior_density"]] <- NULL
+    return(parameter_spec)
   }
 
-  support <- .iwmde_prior_support(prior)
-  if (value < support[1L] || value > support[2L]) {
-    return("zero")
-  }
-
-  log_density <- tryCatch(
-    suppressWarnings(BayesTools::mlpdf(prior, value)),
-    error = function(e) NA_real_
-  )
-  if (length(log_density) != 1L || is.na(log_density)) {
-    return("undefined")
-  }
-  if (is.infinite(log_density) && log_density > 0) {
-    return("infinite")
-  }
-  if (is.infinite(log_density)) {
-    distribution <- prior[["distribution"]]
-    is_boundary  <- value == support[1L] || value == support[2L]
-    is_nonlocal_zero <- distribution %in% c("moment", "invmoment") &&
-      value == prior[["parameters"]][["location"]]
-    if (is_boundary || is_nonlocal_zero || distribution == "bernoulli") {
-      return("zero")
+  prior_density <- parameter_spec[["prior_density"]]
+  conditional   <- parameter_spec[["conditional"]]
+  if (is.null(prior_density) &&
+      identical(parameter_spec[["type"]], "primitive") &&
+      (is.null(conditional) || length(conditional) == 0L)) {
+    prior_name <- .iwmde_parameter_prior_name(context, parameter)
+    if (!is.null(prior_name)) {
+      prior_density <- context[["flat_prior_list"]][[prior_name]]
     }
   }
 
-  return("regular")
+  classifications <- .iwmde_prior_ordinate_classifications(
+    prior_density = prior_density,
+    values        = values
+  )
+  parameter_spec[["prior_density"]] <- NULL
+  parameter_spec["prior_ordinates"] <- list(classifications)
+
+  return(parameter_spec)
 }
 
 
-# Warn when an exact requested ordinate is nonregular in an active prior branch.
-.iwmde_ordinate_prior_warnings <- function(context, parameter, rows,
-                                            parameter_spec, values) {
+# Classify each exact finite value once through the BayesTools contract.
+.iwmde_prior_ordinate_classifications <- function(prior_density, values) {
 
-  if (!identical(parameter_spec[["type"]], "primitive") ||
-      length(rows) == 0L || length(values) == 0L) {
+  values <- .iwmde_unique_ordinate_values(values)
+  if (length(values) == 0L) {
+    return(list())
+  }
+
+  classifications <- lapply(unname(values), function(value) {
+    result <- if (is.null(prior_density)) {
+      .iwmde_unknown_prior_ordinate(value)
+    } else {
+      BayesTools::prior_density_ordinate(prior_density, value)
+    }
+
+    .iwmde_validate_prior_ordinate(result, value)
+    unclass(result)
+  })
+  names(classifications) <- names(values)
+
+  return(classifications)
+}
+
+
+# Retain unique finite values under exact binary64 keys.
+.iwmde_unique_ordinate_values <- function(values) {
+
+  values <- as.numeric(values)
+  values <- values[is.finite(values)]
+  keys   <- vapply(values, .iwmde_key_number, character(1))
+  keep   <- !duplicated(keys)
+  values <- values[keep]
+  names(values) <- keys[keep]
+
+  return(values)
+}
+
+
+# Represent a target whose deterministic prior density is unavailable.
+.iwmde_unknown_prior_ordinate <- function(value) {
+
+  return(list(
+    schema_version = "1",
+    value          = as.numeric(value),
+    behavior       = "unknown",
+    log_density    = NA_real_,
+    point_mass     = 0,
+    exact          = FALSE,
+    method         = "unsupported_provenance",
+    reason         = "The deterministic target prior density is unavailable.",
+    provenance     = list(kind = "missing_target_density")
+  ))
+}
+
+
+# Fail closed if the installed BayesTools ordinate schema is incompatible.
+.iwmde_validate_prior_ordinate <- function(result, value) {
+
+  fields <- c(
+    "schema_version", "value", "behavior", "log_density", "point_mass",
+    "exact", "method", "reason", "provenance"
+  )
+  behaviors <- c(
+    "regular", "zero", "infinite", "point_mass", "undefined", "unknown"
+  )
+  methods <- c(
+    "primitive", "point", "finite_mixture", "scalar_affine",
+    "linear_normal", "named_transform", "unsupported_provenance"
+  )
+  valid <- is.list(result) && identical(names(result), fields) &&
+    identical(result[["schema_version"]], "1") &&
+    is.numeric(result[["value"]]) && length(result[["value"]]) == 1L &&
+    identical(as.numeric(result[["value"]]), as.numeric(value)) &&
+    is.character(result[["behavior"]]) &&
+    length(result[["behavior"]]) == 1L &&
+    !is.na(result[["behavior"]]) && result[["behavior"]] %in% behaviors &&
+    is.numeric(result[["log_density"]]) &&
+    length(result[["log_density"]]) == 1L &&
+    is.numeric(result[["point_mass"]]) &&
+    length(result[["point_mass"]]) == 1L &&
+    is.logical(result[["exact"]]) && length(result[["exact"]]) == 1L &&
+    !is.na(result[["exact"]]) &&
+    is.character(result[["method"]]) && length(result[["method"]]) == 1L &&
+    !is.na(result[["method"]]) && result[["method"]] %in% methods &&
+    (is.null(result[["reason"]]) ||
+      (is.character(result[["reason"]]) && length(result[["reason"]]) == 1L)) &&
+    is.list(result[["provenance"]])
+  if (!isTRUE(valid)) {
+    stop(
+      "BayesTools returned an incompatible prior-density ordinate result.",
+      call. = FALSE
+    )
+  }
+
+  invisible(result)
+}
+
+
+# Warn before estimation when the target prior ordinate is nonregular.
+.iwmde_ordinate_prior_warnings <- function(parameter, prior_ordinates) {
+
+  if (length(prior_ordinates) == 0L) {
     return(character())
   }
 
-  samples <- context[["posterior_samples"]]
-  keys    <- vapply(rows, function(row) {
-    .iwmde_active_key(context, samples[row, ])
-  }, character(1))
-  rows   <- rows[!duplicated(keys)]
-  priors <- lapply(rows, function(row) {
-    .iwmde_focal_prior_cached(
-      context    = context,
-      parameter  = parameter,
-      row        = samples[row, ],
-      active_key = .iwmde_active_key(context, samples[row, ])
-    )
-  })
-
-  warnings <- unlist(lapply(values, function(value) {
-    behavior <- unique(vapply(priors, function(prior) {
-      out <- .iwmde_prior_ordinate_behavior(prior, value)
-      if (is.null(out)) "" else out
-    }, character(1)))
-    behavior <- behavior[behavior %in% c("zero", "infinite", "undefined")]
-    if (length(behavior) == 0L) {
+  descriptions <- c(
+    zero       = "tends to zero",
+    infinite   = "is singular (tends to infinity)",
+    point_mass = "assigns positive point mass",
+    undefined  = "is undefined"
+  )
+  warnings <- unlist(lapply(prior_ordinates, function(ordinate) {
+    behavior <- ordinate[["behavior"]]
+    if (identical(behavior, "regular")) {
       return(character())
     }
+    if (identical(behavior, "unknown")) {
+      return(paste0(
+        "The qCMDE/IWMDE target prior density for '", parameter, "' at ",
+        format(ordinate[["value"]], digits = 17L, trim = TRUE),
+        " could not be classified from deterministic provenance. ",
+        "Nonregularity cannot be ruled out; the exact requested value is ",
+        "retained and the Bayes factor may be unavailable."
+      ))
+    }
 
-    descriptions <- c(
-      zero      = "tends to zero",
-      infinite  = "is singular (tends to infinity)",
-      undefined = "is undefined"
-    )
     paste0(
       "The qCMDE/IWMDE ordinate for '", parameter, "' at ",
-      format(value, digits = 16L, scientific = FALSE, trim = TRUE),
-      " is nonregular because at least one active prior density ",
-      paste(unname(descriptions[behavior]), collapse = " or "),
+      format(ordinate[["value"]], digits = 17L, trim = TRUE),
+      " is nonregular because the target prior density ",
+      descriptions[[behavior]],
       ". The exact requested value is retained; the Bayes factor may be unavailable."
     )
   }), use.names = FALSE)

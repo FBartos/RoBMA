@@ -8,12 +8,33 @@
                             cache = NULL) {
 
   context <- .iwmde_context_ensure_caches(context)
-  .iwmde_check_context_density_method_supported(context, density_method)
   outputs <- unique(match.arg(
     outputs,
     c("density", "ordinate"),
     several.ok = TRUE
   ))
+  ordinate_values <- NULL
+  if ("ordinate" %in% outputs) {
+    ordinate_values <- suppressWarnings(as.numeric(values))
+    ordinate_values <- ordinate_values[is.finite(ordinate_values)]
+    if (length(ordinate_values) > 0L) {
+      ordinate_values <- ordinate_values[[1L]]
+    }
+  }
+  parameter_spec <- .iwmde_prepare_prior_ordinates(
+    context        = context,
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    values         = ordinate_values
+  )
+  ordinate_warnings <- .iwmde_ordinate_prior_warnings(
+    parameter       = parameter,
+    prior_ordinates = parameter_spec[["prior_ordinates"]]
+  )
+  if (length(ordinate_warnings) > 0L) {
+    warning(paste(ordinate_warnings, collapse = " "), call. = FALSE)
+  }
+  .iwmde_check_context_density_method_supported(context, density_method)
   if (identical(outputs, "ordinate")) {
     out <- .iwmde_estimate_adaptive_ordinate(
       context         = context,
@@ -41,11 +62,6 @@
       plan    = plan,
       cache   = cache
     )
-  }
-
-  ordinate_warnings <- out[["plan"]][["ordinate_warnings"]]
-  if (length(ordinate_warnings) > 0L) {
-    warning(paste(ordinate_warnings, collapse = " "), call. = FALSE)
   }
 
   return(out)
@@ -727,6 +743,7 @@
     } else {
       "ordinate"
     },
+    prior_ordinates             = plan[["prior_ordinates"]],
     ordinate_warnings           = plan[["ordinate_warnings"]],
     bf_value                    = bf_diagnostics[["bf_value"]],
     bf_evaluation_value         = bf_diagnostics[["bf_evaluation_value"]],

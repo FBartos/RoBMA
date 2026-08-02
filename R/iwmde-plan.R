@@ -38,12 +38,30 @@
     min(row_budget, density_control[["max_samples"]])
   }
 
-  values  <- as.numeric(values)
-  values  <- values[is.finite(values)]
+  values <- as.numeric(values)
+  values <- values[is.finite(values)]
+  ordinate_values <- if ("ordinate" %in% outputs && length(values) > 0L) {
+    values[[1L]]
+  } else {
+    NULL
+  }
 
-  parameter_spec <- .iwmde_parameter_spec(context, parameter, parameter_spec)
-  method         <- .density_method_iwmde_estimator(density_method)
-  target_key     <- .iwmde_target_key(parameter, parameter_spec)
+  parameter_spec <- .iwmde_prepare_prior_ordinates(
+    context        = context,
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    values         = ordinate_values
+  )
+  prior_ordinates <- parameter_spec[["prior_ordinates"]]
+  parameter_spec[["prior_ordinates"]] <- NULL
+  ordinate_warnings <- .iwmde_ordinate_prior_warnings(
+    parameter       = parameter,
+    prior_ordinates = prior_ordinates
+  )
+  parameter_spec        <- .iwmde_parameter_spec(context, parameter, parameter_spec)
+  method                <- .density_method_iwmde_estimator(density_method)
+  target_key            <- .iwmde_target_key(parameter, parameter_spec)
+  stored_parameter_spec <- .iwmde_plan_parameter_spec(parameter_spec)
 
   plan <- list(
     target = .iwmde_plan_target(
@@ -52,7 +70,7 @@
       metadata       = metadata,
       target_key     = target_key
     ),
-    parameter_spec = parameter_spec,
+    parameter_spec = stored_parameter_spec,
     execution_spec = .iwmde_plan_execution_spec(parameter_spec),
     outputs = list(
       need_density     = "density" %in% outputs,
@@ -64,7 +82,9 @@
     row_budget = row_budget,
     method  = method,
     density_method = density_method,
-    source_fingerprint = .iwmde_source_fingerprint(context)
+    source_fingerprint = .iwmde_source_fingerprint(context),
+    prior_ordinates     = prior_ordinates,
+    ordinate_warnings   = ordinate_warnings
   )
   plan <- .iwmde_plan_prepare_contract(context, plan)
   plan <- .iwmde_new_plan(plan)
@@ -223,14 +243,7 @@
     requested_values >= support[1] &
       requested_values <= support[2]
   ]
-  evaluation_values  <- requested_values
-  ordinate_warnings  <- .iwmde_ordinate_prior_warnings(
-    context        = context,
-    parameter      = parameter,
-    rows           = candidate_rows,
-    parameter_spec = parameter_spec,
-    values         = requested_values
-  )
+  evaluation_values <- requested_values
 
   continuous_values <- posterior_values[continuous_rows]
   density_xlim <- .iwmde_include_plot_values(
@@ -294,9 +307,19 @@
     evaluation_values  = evaluation_values,
     normalization_grid = normalization_grid
   )
-  plan[["ordinate_warnings"]] <- ordinate_warnings
-
   return(plan)
+}
+
+
+# Retain only fields used to execute or identify a plan.
+.iwmde_plan_parameter_spec <- function(parameter_spec) {
+
+  fields <- c(
+    "type", "parameter", "weights", "conditional", "conditional_rule",
+    "condition_key", "status", "reason"
+  )
+
+  return(parameter_spec[intersect(fields, names(parameter_spec))])
 }
 
 
@@ -513,6 +536,7 @@
     rows               = .iwmde_plan_rows_provenance(plan),
     support            = .iwmde_plan_support_provenance(plan),
     grids              = .iwmde_plan_grid_provenance(plan),
+    prior_ordinates    = plan[["prior_ordinates"]],
     ordinate_warnings  = plan[["ordinate_warnings"]],
     replacement        = .iwmde_hash(
       "iwmde_replacement",
@@ -573,6 +597,7 @@
     rows                = .iwmde_plan_rows_provenance(plan),
     support             = .iwmde_plan_support_provenance(plan),
     grids               = .iwmde_plan_grid_provenance(plan),
+    prior_ordinates     = plan[["prior_ordinates"]],
     ordinate_warnings   = plan[["ordinate_warnings"]],
     source_fingerprint  = plan[["source_fingerprint"]]
   )))
@@ -669,10 +694,29 @@
     )
   }
 
-  parameter_spec <- .iwmde_parameter_spec(context, parameter, parameter_spec)
-  if (length(value) > 1L) {
-    value <- value[[1L]]
+  if (identical(attribute, "ordinate")) {
+    value <- suppressWarnings(as.numeric(value))
+    value <- value[is.finite(value)]
+    if (length(value) > 1L) {
+      value <- value[[1L]]
+    }
+  } else {
+    value <- NULL
   }
+  ordinate_values <- if (identical(attribute, "ordinate")) value else NULL
+  parameter_spec <- .iwmde_prepare_prior_ordinates(
+    context        = context,
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    values         = ordinate_values
+  )
+  prior_ordinates <- if (identical(attribute, "ordinate")) {
+    parameter_spec[["prior_ordinates"]]
+  } else {
+    NULL
+  }
+  parameter_spec[["prior_ordinates"]] <- NULL
+  parameter_spec <- .iwmde_parameter_spec(context, parameter, parameter_spec)
 
   return(.iwmde_provenance_request(
     density_method     = density_method,
@@ -682,6 +726,7 @@
     value              = value,
     attribute          = attribute,
     target_key         = .iwmde_target_key(parameter, parameter_spec),
-    source_fingerprint = .iwmde_source_fingerprint(context)
+    source_fingerprint = .iwmde_source_fingerprint(context),
+    prior_ordinates    = prior_ordinates
   ))
 }

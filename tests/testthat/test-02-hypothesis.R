@@ -182,9 +182,14 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
   fresh[["iwmde_provenance"]] <- list(request_key = "fresh")
   posterior <- stats::rnorm(50)
   attr(posterior, "posterior_ordinate") <- stale
+  raw_posterior <- as.numeric(posterior)
+  prior_density <- BayesTools:::.prior_linear_density_point(0)
+  attr(raw_posterior, "prior_density") <- prior_density
+  captured_parameter_spec <- NULL
 
   testthat::local_mocked_bindings(
-    .iwmde_estimate = function(...) {
+    .iwmde_estimate = function(..., parameter_spec) {
+      captured_parameter_spec <<- parameter_spec
       list(
         diagnostics        = list(ordinate = list(status = "ok")),
         posterior_ordinate = fresh
@@ -195,7 +200,7 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
 
   out <- .hypothesis_brma_attach_iwmde_scalar(
     posterior            = posterior,
-    raw_posterior        = as.numeric(posterior),
+    raw_posterior        = raw_posterior,
     context              = list(),
     estimate_cache       = .iwmde_estimate_cache(),
     parameter            = "mu",
@@ -214,6 +219,7 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
   )
   expect_length(entries, 1L)
   expect_equal(entries[[1L]][["iwmde_provenance"]][["request_key"]], "fresh")
+  expect_identical(captured_parameter_spec[["prior_density"]], prior_density)
 })
 
 
@@ -724,6 +730,10 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
   sample <- structure(
     stats::rnorm(40),
     linear_weights             = c(mu_intercept = 1, mu_alloc = 1),
+    prior_density              = BayesTools::prior(
+      "normal",
+      parameters = list(mean = 0, sd = 1)
+    ),
     effective_conditional      = c("mu_intercept", "mu_alloc"),
     effective_conditional_rule = "OR",
     condition_key              = condition_key
@@ -863,6 +873,10 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
   sample <- structure(
     stats::rnorm(40),
     linear_weights             = c(mu_intercept = 1, mu_alloc = 1),
+    prior_density              = BayesTools::prior(
+      "normal",
+      parameters = list(mean = 0, sd = 1)
+    ),
     effective_conditional      = c("mu_intercept", "mu_alloc"),
     effective_conditional_rule = "OR",
     condition_key              = condition_key

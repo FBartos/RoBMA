@@ -26,8 +26,9 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.6 and R 4.3.0 for the multivariate random-effect
-  backend and its scalable diagonal marginal-variance interface.
+- requires BayesTools 0.3.1.7 and R 4.3.0 for the multivariate random-effect
+  backend, scalable diagonal marginal-variance interface, and structural prior-
+  ordinate classification.
 - requires loo 2.10.0 internally while preserving RoBMA's released numeric
   `compare.loo` matrix and printing contract.
 - removes transitional pre-release known-`V`, dense random-correlation, and
@@ -96,6 +97,9 @@
   for descriptive density curves and point-null Bayes factors.
 - evaluates qCMDE/IWMDE boundary point nulls with explicit requested/evaluation
   value provenance for one-sided Savage-Dickey Bayes factors.
+- classifies primitive and induced qCMDE/IWMDE prior ordinates before estimation
+  and warns for zero, infinite, discrete, undefined, or structurally unknown
+  target densities without reconstructing them from posterior draws.
 - reuses marginal-means qCMDE/IWMDE ordinates only when provenance proves the
   method, settings, target, source object, and value are compatible.
 - increases the `metafor::rma.glmm()` optimizer budget in the GLMM parity

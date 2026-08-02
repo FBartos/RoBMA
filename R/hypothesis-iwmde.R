@@ -126,6 +126,7 @@
     values         = value,
     parameter_spec = list(
       type             = "primitive",
+      prior_density    = attr(raw_posterior, "prior_density", exact = TRUE),
       conditional      = conditional,
       conditional_rule = "AND"
     ),
@@ -219,6 +220,11 @@
     parameter_spec = list(
       type             = "linear",
       weights          = weights,
+      prior_density    = attr(
+        raw_posterior[[level]],
+        "prior_density",
+        exact = TRUE
+      ),
       conditional      = if (is.null(conditional)) {
         attr(raw_posterior[[level]], "effective_conditional", exact = TRUE)
       } else {
@@ -304,6 +310,7 @@
       values         = value,
       parameter_spec = list(
         type             = "scale_log_intercept",
+        prior_density    = attr(posterior, "prior_density", exact = TRUE),
         conditional      = NULL,
         conditional_rule = "AND"
       ),

@@ -268,6 +268,7 @@
     n_refinement_steps                = diagnostics[["n_refinement_steps"]],
     estimator                         = diagnostics[["estimator"]],
     weight_method                     = diagnostics[["weight_method"]],
+    prior_ordinates                   = diagnostics[["prior_ordinates"]],
     ordinate_warnings                 = diagnostics[["ordinate_warnings"]]
   )
   ordinate_warning <- .iwmde_diagnostics_bf_warning(ordinate_diagnostics)

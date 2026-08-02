@@ -88,7 +88,7 @@ test_that("request keys carry schema and algorithm versions", {
   )
 
   expect_equal(request[["schema_version"]], "2")
-  expect_equal(request[["algorithm_version"]], "3")
+  expect_equal(request[["algorithm_version"]], "4")
 
   testthat::local_mocked_bindings(
     .iwmde_algorithm_version = function() "changed",
@@ -102,6 +102,40 @@ test_that("request keys carry schema and algorithm versions", {
 
   expect_equal(changed_request[["algorithm_version"]], "changed")
   expect_false(identical(request[["request_key"]], changed_request[["request_key"]]))
+})
+
+
+test_that("ordinate request keys include prior classification provenance", {
+
+  zero <- .iwmde_prior_ordinate_classifications(
+    BayesTools::prior("beta", parameters = list(alpha = 2, beta = 2)),
+    0
+  )
+  regular <- .iwmde_prior_ordinate_classifications(
+    BayesTools::prior("normal", parameters = list(mean = 0, sd = 1)),
+    0
+  )
+  zero_request <- .iwmde_provenance_request(
+    density_method  = "qCMDE",
+    method          = "q_grid_cmde",
+    value           = 0,
+    attribute       = "ordinate",
+    target_key      = "primitive|mu",
+    prior_ordinates = zero
+  )
+  regular_request <- .iwmde_provenance_request(
+    density_method  = "qCMDE",
+    method          = "q_grid_cmde",
+    value           = 0,
+    attribute       = "ordinate",
+    target_key      = "primitive|mu",
+    prior_ordinates = regular
+  )
+
+  expect_false(identical(
+    zero_request[["request_key"]],
+    regular_request[["request_key"]]
+  ))
 })
 
 
@@ -195,6 +229,8 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
     method             = "q_grid_cmde",
     density_method     = "qCMDE",
     source_fingerprint = list(posterior_values = "draws"),
+    prior_ordinates    = list(),
+    ordinate_warnings  = character(),
     status             = "ok",
     rows               = list(),
     support            = list(),
@@ -421,6 +457,30 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
 })
 
 
+test_that("stored plan specs exclude density construction state", {
+
+  parameter_spec <- list(
+    type                  = "linear",
+    weights               = c(mu = 1),
+    conditional           = "mu",
+    conditional_rule      = "AND",
+    condition_key         = "condition",
+    status                = "ok",
+    prior_density_context = list(large = TRUE),
+    marginal_samples      = structure(1:3, prior_density = list(raw = TRUE)),
+    source                = "marginal_means"
+  )
+  stored <- .iwmde_plan_parameter_spec(parameter_spec)
+
+  expect_named(stored, c(
+    "type", "weights", "conditional", "conditional_rule", "condition_key",
+    "status"
+  ))
+  expect_null(stored[["prior_density_context"]])
+  expect_null(stored[["marginal_samples"]])
+})
+
+
 test_that("IWMDE planning propagates row-state programming errors", {
 
   testthat::local_mocked_bindings(
@@ -447,6 +507,10 @@ test_that("IWMDE planning propagates row-state programming errors", {
 
 test_that("plan keys carry schema and algorithm versions", {
 
+  prior_ordinates <- .iwmde_prior_ordinate_classifications(
+    BayesTools::prior("normal", parameters = list(mean = 0, sd = 1)),
+    0
+  )
   plan <- list(
     target             = list(target_key = "primitive|mu"),
     outputs            = list(need_density = TRUE),
@@ -454,12 +518,17 @@ test_that("plan keys carry schema and algorithm versions", {
     method             = "q_grid_cmde",
     density_method     = "qCMDE",
     status             = "ok",
+    prior_ordinates    = prior_ordinates,
     source_fingerprint = list(posterior_values = "draws")
   )
   payload <- .iwmde_plan_key_payload(plan)
 
   expect_equal(payload[["schema_version"]], "2")
-  expect_equal(payload[["algorithm_version"]], "3")
+  expect_equal(payload[["algorithm_version"]], "4")
+  expect_identical(
+    payload[["prior_ordinates"]],
+    .iwmde_compact_nulls(prior_ordinates)
+  )
 
   testthat::local_mocked_bindings(
     .iwmde_algorithm_version = function() "changed",

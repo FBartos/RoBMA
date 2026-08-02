@@ -704,7 +704,7 @@ test_that("IWMDE BF diagnostics retain the exact boundary ordinate", {
 })
 
 
-test_that("IWMDE identifies exact nonregular prior ordinates", {
+test_that("IWMDE delegates exact prior ordinates to BayesTools", {
 
   beta_zero <- BayesTools::prior(
     "beta",
@@ -723,54 +723,144 @@ test_that("IWMDE identifies exact nonregular prior ordinates", {
     parameters = list(mean = 0, sd = 1)
   )
 
-  expect_identical(.iwmde_prior_ordinate_behavior(beta_zero, 0), "zero")
-  expect_identical(
-    .iwmde_prior_ordinate_behavior(beta_infinite, 0),
-    "infinite"
-  )
-  expect_identical(.iwmde_prior_ordinate_behavior(beta_regular, 0), "regular")
-  expect_identical(
-    .iwmde_prior_ordinate_behavior(normal_regular, 40),
-    "regular"
-  )
-  expect_identical(
-    .iwmde_prior_ordinate_behavior(normal_regular, 1e200),
-    "regular"
-  )
-  expect_identical(.iwmde_prior_ordinate_behavior(
+  behavior <- function(prior, value) {
+
+    .iwmde_prior_ordinate_classifications(prior, value)[[1L]][["behavior"]]
+  }
+
+  expect_identical(behavior(beta_zero, 0), "zero")
+  expect_identical(behavior(beta_infinite, 0), "infinite")
+  expect_identical(behavior(beta_regular, 0), "regular")
+  expect_identical(behavior(normal_regular, 40), "regular")
+  expect_identical(behavior(normal_regular, 1e200), "regular")
+  expect_identical(behavior(
     BayesTools::prior("lognormal", parameters = list(meanlog = 0, sdlog = 1)),
     0
   ), "zero")
-  expect_identical(.iwmde_prior_ordinate_behavior(
+  expect_identical(behavior(
     BayesTools::prior("gamma", parameters = list(shape = .5, rate = 1)),
     0
   ), "infinite")
-  expect_identical(.iwmde_prior_ordinate_behavior(
+  expect_identical(behavior(
     BayesTools::prior(
       "moment",
       parameters = list(location = 0, tau = 1, order = 1)
     ),
     0
   ), "zero")
-
-  context <- list(
-    posterior_samples = matrix(
-      c(.2, .4),
-      ncol     = 1L,
-      dimnames = list(NULL, "rho")
-    ),
-    flat_prior_list = list(rho = beta_zero),
-    indicator_names = character(),
-    support_cache   = new.env(parent = emptyenv())
+  expect_identical(behavior(
+    BayesTools::prior("point", parameters = list(location = 0)),
+    0
+  ), "point_mass")
+  expect_identical(
+    .iwmde_prior_ordinate_classifications(NULL, 0)[[1L]][["behavior"]],
+    "unknown"
   )
-  warnings <- .iwmde_ordinate_prior_warnings(
+  unknown <- .iwmde_prior_ordinate_classifications(NULL, 0)[[1L]]
+  expect_identical(unknown[["method"]], "unsupported_provenance")
+  expect_equal(unknown[["point_mass"]], 0)
+
+  induced <- BayesTools:::.prior_linear_combination_density(
+    prior_list = list(beta = normal_regular),
+    weights    = c(beta = 2),
+    n_grid     = 128
+  )
+  induced_ordinate <- .iwmde_prior_ordinate_classifications(induced, 0)[[1L]]
+  expect_identical(induced_ordinate[["behavior"]], "regular")
+  expect_identical(induced_ordinate[["method"]], "scalar_affine")
+
+  adjacent <- .iwmde_prior_ordinate_classifications(
+    normal_regular,
+    c(1, 1 + .Machine$double.eps)
+  )
+  expect_length(adjacent, 2L)
+})
+
+
+test_that("IWMDE prepares compact prior ordinates idempotently", {
+
+  prior <- BayesTools::prior(
+    "beta",
+    parameters = list(alpha = 2, beta = 2)
+  )
+  context <- list(flat_prior_list = list(rho = prior))
+
+  primitive <- .iwmde_prepare_prior_ordinates(
     context        = context,
     parameter      = "rho",
-    rows           = 1:2,
     parameter_spec = list(type = "primitive"),
     values         = 0
   )
+  expect_identical(
+    primitive[["prior_ordinates"]][[1L]][["behavior"]],
+    "zero"
+  )
 
+  supplied <- .iwmde_prepare_prior_ordinates(
+    context        = list(flat_prior_list = list()),
+    parameter      = "contrast",
+    parameter_spec = list(type = "linear", prior_density = prior),
+    values         = 0
+  )
+  expect_null(supplied[["prior_density"]])
+  expect_identical(supplied[["prior_ordinates"]][[1L]][["behavior"]], "zero")
+
+  conditional <- .iwmde_prepare_prior_ordinates(
+    context        = context,
+    parameter      = "rho",
+    parameter_spec = list(type = "primitive", conditional = "rho"),
+    values         = 0
+  )
+  expect_identical(
+    conditional[["prior_ordinates"]][[1L]][["behavior"]],
+    "unknown"
+  )
+
+  n_classifications <- 0L
+  testthat::local_mocked_bindings(
+    .iwmde_prior_ordinate_classifications = function(...) {
+      n_classifications <<- n_classifications + 1L
+      ordinate <- list(.iwmde_unknown_prior_ordinate(0))
+      names(ordinate) <- .iwmde_key_number(0)
+      ordinate
+    },
+    .package = "RoBMA"
+  )
+  prepared <- .iwmde_prepare_prior_ordinates(
+    context        = context,
+    parameter      = "rho",
+    parameter_spec = list(type = "primitive"),
+    values         = 0
+  )
+  .iwmde_prepare_prior_ordinates(
+    context        = context,
+    parameter      = "rho",
+    parameter_spec = prepared,
+    values         = 0
+  )
+  expect_equal(n_classifications, 1L)
+
+  stale <- primitive
+  stale[["prior_ordinates"]][[1L]][["value"]] <- 1
+  expect_error(
+    .iwmde_prepare_prior_ordinates(
+      context        = context,
+      parameter      = "rho",
+      parameter_spec = stale,
+      values         = 0
+    ),
+    "do not match the current request"
+  )
+})
+
+
+test_that("IWMDE warns about nonregular priors before estimator failure", {
+
+  ordinates <- .iwmde_prior_ordinate_classifications(
+    BayesTools::prior("beta", parameters = list(alpha = 2, beta = 2)),
+    0
+  )
+  warnings <- .iwmde_ordinate_prior_warnings("rho", ordinates)
   expect_length(warnings, 1L)
   expect_match(warnings, "exact requested value is retained")
   expect_match(
@@ -781,47 +871,133 @@ test_that("IWMDE identifies exact nonregular prior ordinates", {
     "prior density tends to zero"
   )
 
-  context[["flat_prior_list"]][["rho"]] <- beta_infinite
-  context[["support_cache"]] <- new.env(parent = emptyenv())
-  infinite_warnings <- .iwmde_ordinate_prior_warnings(
-    context        = context,
-    parameter      = "rho",
-    rows           = 1:2,
-    parameter_spec = list(type = "primitive"),
-    values         = 0
+  expect_match(
+    .iwmde_ordinate_prior_warnings(
+      "rho",
+      .iwmde_prior_ordinate_classifications(
+        BayesTools::prior("beta", parameters = list(alpha = .5, beta = 2)),
+        0
+      )
+    ),
+    "singular (tends to infinity)",
+    fixed = TRUE
   )
-  expect_match(infinite_warnings, "singular (tends to infinity)", fixed = TRUE)
+  expect_match(
+    .iwmde_ordinate_prior_warnings(
+      "rho",
+      .iwmde_prior_ordinate_classifications(
+        BayesTools::prior("point", parameters = list(location = 0)),
+        0
+      )
+    ),
+    "positive point mass"
+  )
+  expect_match(
+    .iwmde_ordinate_prior_warnings(
+      "rho",
+      .iwmde_prior_ordinate_classifications(NULL, 0)
+    ),
+    "deterministic provenance"
+  )
+  expect_false(grepl(
+    "is nonregular",
+    .iwmde_ordinate_prior_warnings(
+      "rho",
+      .iwmde_prior_ordinate_classifications(NULL, 0)
+    ),
+    fixed = TRUE
+  ))
 
+  events <- character()
+  testthat::local_mocked_bindings(
+    .iwmde_context_ensure_caches = function(context) context,
+    .iwmde_check_context_density_method_supported = function(...) {
+      events <<- c(events, "error")
+      stop("estimator failed", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+  expect_error(
+    withCallingHandlers(
+      .iwmde_estimate(
+        context         = list(flat_prior_list = list()),
+        parameter       = "rho",
+        density_method  = "qCMDE",
+        density_control = list(),
+        outputs         = "ordinate",
+        values          = 0,
+        parameter_spec  = list(
+          type          = "primitive",
+          prior_density = BayesTools::prior(
+            "beta",
+            parameters = list(alpha = 2, beta = 2)
+          )
+        )
+      ),
+      warning = function(warning) {
+        events <<- c(events, "warning")
+        invokeRestart("muffleWarning")
+      }
+    ),
+    "estimator failed"
+  )
+  expect_identical(events, c("warning", "error"))
+})
+
+
+test_that("IWMDE preflights only ordinate outputs", {
+
+  captured_spec <- NULL
   testthat::local_mocked_bindings(
     .iwmde_context_ensure_caches = function(context) context,
     .iwmde_check_context_density_method_supported = function(...) NULL,
-    .iwmde_plan = function(...) list(ordinate_warnings = warnings),
+    .iwmde_plan = function(..., parameter_spec) {
+      captured_spec <<- parameter_spec
+      list(prior_ordinates = list(), ordinate_warnings = character())
+    },
     .iwmde_estimate_from_plan = function(context, plan, cache) {
       list(plan = plan)
     },
     .package = "RoBMA"
   )
+
+  expect_no_warning(.iwmde_estimate(
+    context         = list(flat_prior_list = list()),
+    parameter       = "rho",
+    density_method  = "qCMDE",
+    density_control = list(),
+    outputs         = "density",
+    values          = 0,
+    parameter_spec  = list(
+      type          = "primitive",
+      prior_density = BayesTools::prior(
+        "beta",
+        parameters = list(alpha = 2, beta = 2)
+      )
+    )
+  ))
+  expect_length(captured_spec[["prior_ordinates"]], 0L)
+
   expect_warning(
     .iwmde_estimate(
-      context         = list(),
+      context         = list(flat_prior_list = list()),
       parameter       = "rho",
       density_method  = "qCMDE",
       density_control = list(),
       outputs         = c("density", "ordinate"),
-      values          = 0
+      values          = c(0, 1),
+      parameter_spec  = list(
+        type          = "primitive",
+        prior_density = BayesTools::prior(
+          "beta",
+          parameters = list(alpha = 2, beta = 2)
+        )
+      )
     ),
-    "exact requested value is retained"
+    "prior density tends to zero"
   )
-
-  context[["flat_prior_list"]][["rho"]] <- beta_regular
-  rm(list = ls(context[["support_cache"]]), envir = context[["support_cache"]])
-  expect_length(.iwmde_ordinate_prior_warnings(
-    context        = context,
-    parameter      = "rho",
-    rows           = 1:2,
-    parameter_spec = list(type = "primitive"),
-    values         = 0
-  ), 0L)
+  expect_length(captured_spec[["prior_ordinates"]], 1L)
+  expect_identical(captured_spec[["prior_ordinates"]][[1L]][["value"]], 0)
 })
 
 
@@ -971,7 +1147,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "2")
-  expect_equal(provenance[["algorithm_version"]], "3")
+  expect_equal(provenance[["algorithm_version"]], "4")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -1016,6 +1192,10 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
     normalization_points = 20,
     normalization_prob   = .95,
     display_grid         = "adaptive"
+  )
+  prior_density <- BayesTools::prior(
+    "normal",
+    parameters = list(mean = 0, sd = 1)
   )
   context <- list(
     posterior_samples = matrix(
@@ -1109,7 +1289,7 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
     density_control = density_control,
     outputs         = c("density", "ordinate"),
     values          = 0,
-    parameter_spec  = list(type = "primitive"),
+    parameter_spec  = list(type = "primitive", prior_density = prior_density),
     metadata        = list(parameter = "mu"),
     cache           = cache
   )
@@ -1120,13 +1300,18 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
     density_control = density_control,
     outputs         = c("density", "ordinate"),
     values          = 0,
-    parameter_spec  = list(type = "primitive"),
+    parameter_spec  = list(type = "primitive", prior_density = prior_density),
     metadata        = list(parameter = "mu"),
     cache           = cache
   )
 
   expect_s3_class(estimate, "iwmde_estimate")
   expect_s3_class(estimate[["plan"]], "iwmde_plan")
+  expect_null(estimate[["plan"]][["parameter_spec"]][["prior_density"]])
+  expect_identical(
+    estimate[["plan"]][["prior_ordinates"]][[1L]][["behavior"]],
+    "regular"
+  )
   expect_equal(estimate_again[["plan"]][["plan_key"]], estimate[["plan"]][["plan_key"]])
   expect_equal(density_calls, 1L)
   expect_equal(ordinate_calls, 1L)
@@ -1136,6 +1321,8 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
   provenance <- estimate[["posterior_ordinate"]][["iwmde_provenance"]]
   expect_equal(provenance[["provenance_level"]], "iwmde_plan")
   expect_equal(provenance[["plan_key"]], estimate[["plan"]][["plan_key"]])
+  expect_identical(provenance[["prior_ordinates"]],
+                   estimate[["plan"]][["prior_ordinates"]])
   expect_true(is.list(provenance[["source_fingerprint"]]))
   expect_true(.iwmde_posterior_ordinate_matches_request(
     posterior_ordinate = estimate[["posterior_ordinate"]],
@@ -1147,10 +1334,44 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
       density_control = density_control,
       attribute       = "ordinate",
       value           = 0,
-      parameter_spec  = list(type = "primitive"),
+      parameter_spec  = list(type = "primitive", prior_density = prior_density),
       metadata        = list(parameter = "mu")
     )
   ))
+  density_request <- .iwmde_request_provenance(
+    context         = context,
+    parameter       = "mu",
+    density_method  = "qCMDE",
+    density_control = density_control,
+    attribute       = "density",
+    parameter_spec  = list(type = "primitive", prior_density = prior_density),
+    metadata        = list(parameter = "mu")
+  )
+  expect_true(.iwmde_posterior_density_matches_request(
+    posterior_density = estimate[["posterior_density"]],
+    provenance        = density_request
+  ))
+  expect_null(
+    estimate[["posterior_density"]][["iwmde_provenance"]][["prior_ordinates"]]
+  )
+  expect_identical(
+    density_request[["request_key"]],
+    .iwmde_request_provenance(
+      context         = context,
+      parameter       = "mu",
+      density_method  = "qCMDE",
+      density_control = density_control,
+      attribute       = "density",
+      parameter_spec  = list(
+        type          = "primitive",
+        prior_density = BayesTools::prior(
+          "normal",
+          parameters = list(mean = 0, sd = 2)
+        )
+      ),
+      metadata        = list(parameter = "mu")
+    )[["request_key"]]
+  )
 
   context_changed <- context
   context_changed[["posterior_samples"]][1, 1] <- 99
@@ -1164,7 +1385,7 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
       density_control = density_control,
       attribute       = "ordinate",
       value           = 0,
-      parameter_spec  = list(type = "primitive"),
+      parameter_spec  = list(type = "primitive", prior_density = prior_density),
       metadata        = list(parameter = "mu")
     )
   ))
@@ -1728,6 +1949,7 @@ test_that("IWMDE marginal-mean specs preserve child condition metadata", {
     list(condition_key = condition_key),
     class = "prior_density_context"
   )
+  prior_density <- BayesTools:::.prior_linear_density_point(0)
   samples <- structure(
     stats::rnorm(20),
     linear_weights              = c(mu_intercept = 1, mu_alloc = 1),
@@ -1738,7 +1960,8 @@ test_that("IWMDE marginal-mean specs preserve child condition metadata", {
     condition_key               = condition_key,
     condition_event             = condition_event,
     resolved_condition_event    = condition_event,
-    prior_density_context       = prior_density_context
+    prior_density_context       = prior_density_context,
+    prior_density               = prior_density
   )
   marginal_means_object <- list(
     inference        = list(
@@ -1768,6 +1991,7 @@ test_that("IWMDE marginal-mean specs preserve child condition metadata", {
   expect_identical(spec[["condition_event"]], condition_event)
   expect_identical(spec[["resolved_condition_event"]], condition_event)
   expect_identical(spec[["prior_density_context"]], prior_density_context)
+  expect_identical(spec[["prior_density"]], prior_density)
   expect_equal(.iwmde_parameter_condition_key(spec), condition_key)
   expect_equal(
     .iwmde_posterior_metadata(samples, "mu_alloc", "alternate")[["condition_key"]],

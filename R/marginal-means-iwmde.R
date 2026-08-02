@@ -856,7 +856,8 @@
           label     = label,
           parameter = parameter_name,
           level     = level,
-          weights   = attr(level_sample, "linear_weights")
+          weights   = attr(level_sample, "linear_weights"),
+          prior_density = attr(level_sample, "prior_density", exact = TRUE)
         ),
         condition_metadata,
         list(

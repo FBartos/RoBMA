@@ -10,7 +10,7 @@
 
 .iwmde_algorithm_version <- function() {
 
-  return("3")
+  return("4")
 }
 
 
@@ -127,7 +127,8 @@
                                       attribute = c("density", "ordinate"),
                                       target_key = NULL,
                                       source_fingerprint = NULL,
-                                      plan_key = NULL) {
+                                      plan_key = NULL,
+                                      prior_ordinates = NULL) {
 
   attribute <- match.arg(attribute)
   density_method <- .density_method_normalize(density_method)
@@ -144,6 +145,7 @@
     target            = .iwmde_target_provenance(metadata),
     target_key        = target_key,
     source_fingerprint = source_fingerprint,
+    prior_ordinates   = prior_ordinates,
     requested_value   = if (is.null(value)) {
       NULL
     } else {
@@ -168,8 +170,9 @@
                                      evaluation_value = NULL,
                                      attribute = c("density", "ordinate")) {
 
-  method <- .iwmde_result_method(diagnostic, density_method)
-  plan   <- diagnostic[["plan"]]
+  attribute <- match.arg(attribute)
+  method    <- .iwmde_result_method(diagnostic, density_method)
+  plan      <- diagnostic[["plan"]]
   source_fingerprint <- if (is.list(plan)) {
     plan[["source_fingerprint"]]
   } else {
@@ -180,6 +183,11 @@
   } else {
     diagnostic[["target_key"]]
   }
+  prior_ordinates <- if (identical(attribute, "ordinate") && is.list(plan)) {
+    plan[["prior_ordinates"]]
+  } else {
+    NULL
+  }
   provenance <- .iwmde_provenance_request(
     density_method   = density_method,
     method           = method,
@@ -189,11 +197,15 @@
     attribute        = attribute,
     target_key       = target_key,
     source_fingerprint = source_fingerprint,
-    plan_key           = if (is.list(plan)) plan[["plan_key"]] else NULL
+    plan_key           = if (is.list(plan)) plan[["plan_key"]] else NULL,
+    prior_ordinates    = prior_ordinates
   )
   if (is.list(plan)) {
     provenance[["provenance_level"]] <- "iwmde_plan"
     provenance[["plan_key"]]         <- plan[["plan_key"]]
+    if (identical(attribute, "ordinate")) {
+      provenance[["prior_ordinates"]] <- prior_ordinates
+    }
   }
   diagnostics <- diagnostic[["diagnostics"]]
   bf_grade <- if (identical(attribute[[1L]], "ordinate") &&
