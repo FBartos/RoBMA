@@ -453,7 +453,8 @@ hypothesis.brma <- function(object, hypothesis,
   entry <- selected[["entry"]]
   if (standardized_coefficients ||
       selected[["component"]] %in% c("random", "bias") ||
-      is.null(entry)) {
+      is.null(entry) ||
+      identical(entry[["role"]], "formula_coefficient_group")) {
     return(NULL)
   }
   formula_parameter <- entry[["formula_parameter"]]

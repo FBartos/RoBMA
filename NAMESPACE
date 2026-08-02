@@ -2,6 +2,7 @@
 
 S3method(AIC,brma)
 S3method(BIC,brma)
+S3method(BayesTools::parameter_draws,brma)
 S3method(add_loo,brma)
 S3method(add_marglik,brma)
 S3method(add_waic,brma)

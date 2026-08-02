@@ -6,20 +6,33 @@ context("BayesTools parameter catalog contract")
   quantities <- data.frame(
     quantity_id = c(
       "BayesTools::mu_x",
+      "BayesTools::mu_f_1",
+      "BayesTools::mu_f_2",
       "BayesTools::log_tau_x",
       "BayesTools::random_sd_study_intercept"
     ),
-    canonical_name    = c("mu_x", "log_tau_x", "random_sd_study_intercept"),
+    canonical_name    = c(
+      "mu_x", "mu_f[1]", "mu_f[2]", "log_tau_x",
+      "random_sd_study_intercept"
+    ),
     provider          = "BayesTools",
-    namespace         = c("mu", "log_tau", "mu"),
-    role              = c("fixed_coefficient", "fixed_coefficient", "random_sd"),
-    formula_parameter = c("mu", "log_tau", "mu"),
-    term              = c("x", "x", "intercept"),
-    component         = c("mu_x", "log_tau_x", "intercept"),
-    display_label     = c("mu_x", "log_tau_x", "sd(study,intercept)"),
+    namespace         = c("mu", "mu", "mu", "log_tau", "mu"),
+    role              = c(
+      "fixed_coefficient", "fixed_coefficient", "fixed_coefficient",
+      "fixed_coefficient", "random_sd"
+    ),
+    formula_parameter = c("mu", "mu", "mu", "log_tau", "mu"),
+    term              = c("x", "f", "f", "x", "intercept"),
+    component         = c(
+      "mu_x", "mu_f[1]", "mu_f[2]", "log_tau_x", "intercept"
+    ),
+    display_label     = c(
+      "mu_x", "mu_f[1]", "mu_f[2]", "log_tau_x",
+      "sd(study,intercept)"
+    ),
     fitted_scale      = "fitted_original",
     display_scale     = "original",
-    status            = c("sampled", "sampled", "derived"),
+    status            = c("sampled", "sampled", "sampled", "sampled", "derived"),
     fixed_value       = NA_real_,
     internal          = FALSE,
     stringsAsFactors  = FALSE,
@@ -30,10 +43,10 @@ context("BayesTools parameter catalog contract")
     function(name) list(type = "coordinate", dependencies = name)
   ))
   aliases <- data.frame(
-    alias       = character(),
-    quantity_id = character(),
-    namespace   = character(),
-    component   = character(),
+    alias       = c("f", "f"),
+    quantity_id = c("BayesTools::mu_f_1", "BayesTools::mu_f_2"),
+    namespace   = c("mu", "mu"),
+    component   = c("mu_f[1]", "mu_f[2]"),
     stringsAsFactors = FALSE
   )
   out <- list(
@@ -42,6 +55,24 @@ context("BayesTools parameter catalog contract")
     aliases        = aliases
   )
   class(out) <- c("BayesTools_parameter_catalog", "list")
+  return(out)
+}
+
+
+.test_formula_name_map <- function(parameter) {
+
+  out <- data.frame(
+    encoded_name      = c("mu_x", "mu_f", "log_tau_x"),
+    jags_name         = c("mu_x", "mu_f", "log_tau_x"),
+    kind              = "fixed",
+    formula_parameter = c("mu", "mu", "log_tau"),
+    term              = c("x", "f", "x"),
+    role              = "coefficient",
+    stringsAsFactors  = FALSE
+  )
+  out <- out[out[["formula_parameter"]] == parameter, , drop = FALSE]
+  class(out) <- c("BayesTools_formula_name_map", "data.frame")
+  attr(out, "schema_version") <- 1L
   return(out)
 }
 
@@ -68,10 +99,13 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   checked <- NULL
   testthat::local_mocked_bindings(
     JAGS_validate_fit_contract = function(fit, requires) {
-      checked <<- requires
+      checked <<- unique(c(checked, requires))
       invisible(TRUE)
     },
     parameter_catalog = function(object, ...) .test_parameter_catalog(),
+    JAGS_formula_name_map = function(fit, parameter) {
+      .test_formula_name_map(parameter)
+    },
     .package = "BayesTools"
   )
   testthat::local_mocked_bindings(
@@ -84,6 +118,7 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   catalog <- .brma_parameter_catalog(object)
   mods    <- .brma_parameter_select_entry(object, "x", component = "mods")
   scale   <- .brma_parameter_select_entry(object, "x", component = "scale")
+  factor  <- .brma_parameter_select_entry(object, "f", component = "mods")
 
   expect_setequal(
     checked,
@@ -95,6 +130,15 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   expect_true(any(catalog[["component"]] == "random"))
   expect_identical(mods[["parameter"]], "mu_x")
   expect_identical(scale[["parameter"]], "log_tau_x")
+  expect_identical(factor[["parameter"]], "mu_f")
+  expect_identical(
+    factor[["selection"]][["quantities"]][["provider"]],
+    "RoBMA"
+  )
+  expect_identical(
+    factor[["selection"]][["quantities"]][["role"]],
+    "formula_coefficient_group"
+  )
   expect_s3_class(mods[["selection"]], "BayesTools_parameter_selection")
   expect_error(
     .brma_parameter_select_entry(object, "x"),
@@ -104,4 +148,20 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
     .brma_parameter_select_entry(object, "missing", component = "mods"),
     class = "BayesTools_parameter_not_found"
   )
+
+  materialized <- NULL
+  testthat::local_mocked_bindings(
+    JAGS_materialize_draws = function(fit, parameters) {
+      materialized <<- list(fit = fit, parameters = parameters)
+      "draws"
+    },
+    .package = "BayesTools"
+  )
+  class(object) <- "brma"
+  expect_identical(
+    BayesTools::parameter_draws(object, factor[["selection"]]),
+    "draws"
+  )
+  expect_identical(materialized[["fit"]], object[["fit"]])
+  expect_identical(materialized[["parameters"]], c("mu_f[1]", "mu_f[2]"))
 })

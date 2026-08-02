@@ -408,16 +408,56 @@
     }
   }
   for (formula_parameter in names(formula_specs)) {
-    spec <- formula_specs[[formula_parameter]]
-    rows <- which(
-      public &
-        quantities[["formula_parameter"]] == formula_parameter &
-        quantities[["role"]] == "fixed_coefficient"
+    spec     <- formula_specs[[formula_parameter]]
+    name_map <- .fitted_formula_name_map(
+      object    = object,
+      parameter = formula_parameter,
+      required  = TRUE
     )
-    for (row in rows) {
-      quantity <- as.list(quantities[row, , drop = FALSE])
-      term     <- quantity[["term"]]
-      entry_aliases <- c(quantity[["canonical_name"]], term)
+    fixed_rows <- name_map[
+      name_map[["kind"]] == "fixed" &
+        name_map[["role"]] == "coefficient",
+      ,
+      drop = FALSE
+    ]
+    for (row in seq_len(nrow(fixed_rows))) {
+      map_row <- fixed_rows[row, , drop = FALSE]
+      term    <- map_row[["term"]]
+      coordinate_rows <- which(
+        public &
+          quantities[["formula_parameter"]] == formula_parameter &
+          quantities[["role"]] == "fixed_coefficient" &
+          sub("\\[.*$", "", quantities[["canonical_name"]]) ==
+            map_row[["jags_name"]]
+      )
+      if (length(coordinate_rows) == 0L) {
+        stop(
+          "Fitted coefficient metadata for formula parameter '",
+          formula_parameter, "' and term '", term,
+          "' are incomplete. Refit the model with the current ",
+          "RoBMA/BayesTools build.",
+          call. = FALSE
+        )
+      }
+      if (length(coordinate_rows) == 1L) {
+        quantity <- quantities[coordinate_rows, , drop = FALSE]
+      } else {
+        quantity <- .brma_parameter_catalog_formula_quantity(
+          catalog            = catalog,
+          map_row            = map_row,
+          coordinates        = quantities[coordinate_rows, , drop = FALSE],
+          semantic_component = spec[["component"]]
+        )
+        extension_quantities[[length(extension_quantities) + 1L]] <- quantity
+        catalog[["aliases"]] <- catalog[["aliases"]][
+          !catalog[["aliases"]][["quantity_id"]] %in%
+            quantities[["quantity_id"]][coordinate_rows],
+          ,
+          drop = FALSE
+        ]
+      }
+      quantity <- as.list(quantity)
+      entry_aliases <- c(map_row[["jags_name"]], term)
       if (identical(formula_parameter, "mu") && identical(term, "intercept")) {
         entry_aliases <- c(entry_aliases, "mu", "effect", "intercept")
       }
@@ -441,7 +481,7 @@
       }
       add_entry(
         quantity          = quantity,
-        parameter         = quantity[["canonical_name"]],
+        parameter         = map_row[["jags_name"]],
         component         = spec[["component"]],
         term              = term,
         source            = spec[["source"]],
@@ -515,6 +555,48 @@
   )
 
   return(list(catalog = catalog, entries = entries))
+}
+
+
+.brma_parameter_catalog_formula_quantity <- function(
+    catalog, map_row, coordinates, semantic_component) {
+
+  fitted_scale  <- unique(coordinates[["fitted_scale"]])
+  display_scale <- unique(coordinates[["display_scale"]])
+  if (length(fitted_scale) != 1L || length(display_scale) != 1L) {
+    stop(
+      "Grouped formula coefficient coordinates have inconsistent scale ",
+      "metadata. Refit the model with the current RoBMA/BayesTools build.",
+      call. = FALSE
+    )
+  }
+
+  out <- data.frame(
+    quantity_id       = paste0("RoBMA::formula_", map_row[["encoded_name"]]),
+    canonical_name    = map_row[["jags_name"]],
+    provider          = "RoBMA",
+    namespace         = map_row[["formula_parameter"]],
+    role              = "formula_coefficient_group",
+    formula_parameter = map_row[["formula_parameter"]],
+    term              = map_row[["term"]],
+    component         = semantic_component,
+    display_label     = map_row[["term"]],
+    fitted_scale      = fitted_scale,
+    display_scale     = display_scale,
+    status            = "derived",
+    fixed_value       = NA_real_,
+    internal          = FALSE,
+    stringsAsFactors  = FALSE,
+    check.names       = FALSE
+  )
+  out[["extraction_key"]] <- I(list(list(
+    type              = "robma_formula_group",
+    dependencies      = coordinates[["canonical_name"]],
+    formula_parameter = map_row[["formula_parameter"]],
+    term              = map_row[["term"]]
+  )))
+  out <- out[, names(catalog[["quantities"]]), drop = FALSE]
+  return(out)
 }
 
 
