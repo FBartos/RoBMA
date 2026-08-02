@@ -288,10 +288,7 @@ scenario_text <- function(name, code) {
   )
   snapshotter <- get_snapshotter()
   if (is.null(snapshotter) || is.null(snapshotter$file)) {
-    stop(
-      "scenario_plot() must run through tools/test-scenario.R or testthat::test_file().",
-      call. = FALSE
-    )
+    return(NULL)
   }
 
   return(snapshotter)
@@ -318,14 +315,28 @@ scenario_text <- function(name, code) {
 }
 
 
-# Render a plot expression on vdiffr's device and compare it with a tracked SVG.
+# Draw interactively, and compare with a tracked SVG when run as a scenario test.
 scenario_plot <- function(name, code) {
+
+  config         <- .scenario_config()
+  name           <- .scenario_validate_name(name, "plot")
+  expr           <- substitute(code)
+  eval_env       <- parent.frame()
+  is_interactive <- .scenario_is_interactive()
+  snapshotter    <- .scenario_snapshot_context()
+  if (is.null(snapshotter)) {
+    if (!is_interactive) {
+      stop(
+        "scenario_plot() must run through tools/test-scenario.R or testthat::test_file().",
+        call. = FALSE
+      )
+    }
+    .scenario_evaluate_plot(expr, eval_env)
+    return(invisible(NULL))
+  }
 
   testthat::skip_if_not_installed("vdiffr")
 
-  config      <- .scenario_config()
-  name        <- .scenario_validate_name(name, "plot")
-  snapshotter <- .scenario_snapshot_context()
   if (!identical(snapshotter$file, config[["name"]])) {
     stop(
       "Scenario '", config[["name"]], "' must be stored in 'test-",
@@ -348,14 +359,12 @@ scenario_plot <- function(name, code) {
     return(invisible(NULL))
   }
 
-  expr     <- substitute(code)
-  eval_env <- parent.frame()
   figure <- function() {
 
     # vdiffr closes its temporary device, so its par settings cannot leak.
     .scenario_evaluate_plot(expr, eval_env, restore_par = FALSE)
   }
-  if (.scenario_is_interactive()) {
+  if (is_interactive) {
     .scenario_evaluate_plot(expr, eval_env)
   }
 

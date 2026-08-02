@@ -1,4 +1,4 @@
-## version 4.1.0 (IN PROGRESS)
+## version 4.1.1 (IN PROGRESS)
 ### Features
 - adds `metafor::forest()` support for `brma` objects and `as_metafor_forest()` for preparing RoBMA forest-plot data.
 - adds `brma.mv()` for normal-likelihood meta-analysis with known sampling
@@ -34,6 +34,8 @@
 - adds maintainer analysis scenarios with automatic fit caching and tracked
   text and visual baselines, plus representative prior and multivariate visual
   regression coverage.
+- allows interactive `scenario_plot()` calls outside a scenario runner to draw
+  directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
 - requires BayesTools 0.3.1.10 and R 4.3.0 for point-prior monitoring, exact

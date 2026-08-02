@@ -168,6 +168,33 @@ test_that("scenario plot evaluation restores base graphics parameters", {
 })
 
 
+test_that("scenario_plot draws once outside a scenario runner", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env   <- environment(scenario_plot)
+  helper_names <- c(
+    ".scenario_is_interactive",
+    ".scenario_snapshot_context"
+  )
+  old_helpers <- mget(helper_names, envir = helper_env, inherits = FALSE)
+  on.exit(list2env(old_helpers, envir = helper_env), add = TRUE)
+  assign(".scenario_is_interactive", function() TRUE, envir = helper_env)
+  assign(".scenario_snapshot_context", function() NULL, envir = helper_env)
+  draws <- 0L
+
+  scenario_start("unit", root = root, create_missing = TRUE)
+  .with_temp_plot_device({
+    scenario_plot("manual-plot", {
+      draws <- draws + 1L
+      graphics::plot(1:3, 1:3)
+    })
+  })
+
+  expect_identical(draws, 1L)
+})
+
+
 test_that("scenario_plot delegates plot comparison to vdiffr", {
 
   skip_if_not_installed("vdiffr")
