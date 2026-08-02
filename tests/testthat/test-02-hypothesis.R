@@ -231,7 +231,11 @@ test_that("hypothesis alias rewriting preserves trailing level-reference backtic
     parameter  = "mu_alloc"
   )
 
-  expect_equal(rewritten, "mu_alloc > mu_alloc[random]")
+  expect_s3_class(rewritten, "BayesTools_hypothesis_ast")
+  expect_equal(
+    BayesTools::hypothesis_render(rewritten),
+    "mu_alloc > `mu_alloc[random]`"
+  )
 })
 
 
@@ -1136,11 +1140,14 @@ test_that("marginal means hypothesis BFs use alternative-conditioned marginals",
     expect_equal(call[["density_method"]], "KDE")
   }
   expect_equal(
-    vapply(captured, `[[`, character(1), "hypothesis"),
+    vapply(captured, function(call) {
+      expect_s3_class(call[["hypothesis"]], "BayesTools_hypothesis_ast")
+      BayesTools::hypothesis_render(call[["hypothesis"]])
+    }, character(1)),
     c(
-      "mu_alloc[alternate] > 0",
-      "mu_alloc[alternate] = 0",
-      "mu_alloc[alternate] > 0"
+      "`mu_alloc[alternate]` > 0",
+      "`mu_alloc[alternate]` = 0",
+      "`mu_alloc[alternate]` > 0"
     )
   )
 })

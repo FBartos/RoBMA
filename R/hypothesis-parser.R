@@ -1,6 +1,9 @@
 .hypothesis_brma_point_refs <- function(hypothesis, parameter,
                                         require_direct = TRUE) {
 
+  if (inherits(hypothesis, "BayesTools_hypothesis_ast")) {
+    hypothesis <- BayesTools::hypothesis_render(hypothesis)
+  }
   refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = hypothesis,
     allow_compound = TRUE

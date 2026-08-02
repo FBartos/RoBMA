@@ -232,6 +232,7 @@ hypothesis.brma <- function(object, hypothesis,
     .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()")
   }
 
+  hypothesis <- BayesTools::hypothesis_parse(hypothesis)
   selected <- .hypothesis_brma_select_parameter(
     object     = object,
     hypothesis = hypothesis,
@@ -413,7 +414,7 @@ hypothesis.brma <- function(object, hypothesis,
   prior_values     <- as.numeric(prior[["samples"]][, 1L])
 
   point_refs <- BayesTools::hypothesis_parse_point_reference(
-    hypothesis     = hypothesis,
+    hypothesis     = BayesTools::hypothesis_render(hypothesis),
     allow_compound = TRUE
   )
   if (nrow(point_refs) > 0L) {

@@ -27,6 +27,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     caller  = "hypothesis.marginal_means()"
   )
 
+  hypothesis <- BayesTools::hypothesis_parse(hypothesis)
   selected <- .hypothesis_marginal_means_select_parameter(
     object     = object,
     hypothesis = hypothesis,

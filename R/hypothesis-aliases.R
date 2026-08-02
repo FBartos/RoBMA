@@ -2,52 +2,45 @@
                                               component) {
 
   component <- .parameter_component_normalize(component)
-  catalog   <- .brma_parameter_catalog(object)
-
-  roots <- .hypothesis_brma_symbol_roots(hypothesis)
-  roots <- unique(roots[nzchar(roots)])
-  if (length(roots) == 0L) {
-    stop("Hypothesis must reference a model parameter.", call. = FALSE)
-  }
-
-  matches <- lapply(roots, function(root) {
-    rows <- catalog[catalog[["alias"]] == root, , drop = FALSE]
-    if (!identical(component, "auto")) {
-      rows <- rows[rows[["component"]] == component, , drop = FALSE]
-    }
-    rows
-  })
-  matches <- do.call(rbind, matches)
-  if (is.null(matches) || nrow(matches) == 0L) {
+  metadata  <- .brma_parameter_catalog_metadata(object)
+  ast       <- .hypothesis_brma_ast(hypothesis)
+  resolved  <- BayesTools::hypothesis_resolve(
+    ast       = ast,
+    catalog   = metadata[["catalog"]],
+    component = if (identical(component, "auto")) NULL else component
+  )
+  quantity_ids <- unique(resolved[["occurrences"]][["quantity_id"]])
+  entries <- metadata[["entries"]][
+    metadata[["entries"]][["quantity_id"]] %in% quantity_ids,
+    ,
+    drop = FALSE
+  ]
+  if (nrow(entries) != length(quantity_ids)) {
     stop(
-      "Could not infer a model parameter from the hypothesis. Available ",
-      "quantities are: ", .brma_parameter_available(catalog, component),
-      ".",
+      "Resolved hypothesis metadata are unavailable. Refit the model with ",
+      "the current RoBMA/BayesTools build.",
       call. = FALSE
     )
   }
-
-  known <- matches[["parameter"]]
-  known <- unique(known)
-
-  if (length(known) == 1L) {
-    aliases <- .hypothesis_brma_aliases_for_catalog_parameter(catalog, known)
-    component <- unique(matches[["component"]][matches[["parameter"]] == known])
-    return(list(
-      parameter = known,
-      aliases   = aliases,
-      component = component[1L]
-    ))
-  }
-
-  if (length(known) > 1L) {
+  if (length(quantity_ids) > 1L) {
     stop(
       "Hypothesis references multiple model parameters (",
-      paste(known, collapse = ", "),
+      paste(unique(entries[["parameter"]]), collapse = ", "),
       "). Set 'component' to 'mods'/'location', 'scale', or 'bias'.",
       call. = FALSE
     )
   }
+
+  entry   <- entries[1L, , drop = FALSE]
+  aliases <- as.list(rep(entry[["parameter"]], length(entry[["aliases"]][[1L]])))
+  names(aliases) <- entry[["aliases"]][[1L]]
+  aliases[[entry[["parameter"]]]] <- entry[["parameter"]]
+  return(list(
+    parameter  = entry[["parameter"]],
+    aliases    = aliases,
+    component  = entry[["component"]],
+    resolution = resolved
+  ))
 }
 
 
@@ -125,144 +118,25 @@
 
 .hypothesis_brma_rewrite <- function(hypothesis, aliases, parameter) {
 
-  rewritten <- vapply(hypothesis, function(text) {
-    text <- .hypothesis_brma_normalize_level_references(text)
-    symbols <- .hypothesis_brma_symbols_normalized(text)
-    symbols <- symbols[order(nchar(symbols), decreasing = TRUE)]
-
-    for (symbol in symbols) {
-      ref <- .hypothesis_brma_level_ref(symbol)
-      if (!is.null(ref)) {
-        root <- ref[["parameter"]]
-        if (!is.null(aliases[[root]]) && identical(aliases[[root]], parameter)) {
-          replacement <- paste0(aliases[[root]], "[", ref[["level"]], "]")
-          text <- gsub(
-            paste0("`", symbol, "`"),
-            paste0("`", replacement, "`"),
-            text,
-            fixed = TRUE
-          )
-        }
-      } else if (!is.null(aliases[[symbol]]) &&
-                 identical(aliases[[symbol]], parameter)) {
-        text <- .hypothesis_brma_replace_symbol(
-          text        = text,
-          symbol      = symbol,
-          replacement = aliases[[symbol]]
-        )
-      }
-    }
-
-    .hypothesis_brma_unquote_level_references(text)
-  }, character(1), USE.NAMES = FALSE)
-
-  return(rewritten)
-}
-
-
-.hypothesis_brma_unquote_level_references <- function(text) {
-
-  gsub("`([^`]+\\[[^`]+\\])`", "\\1", text, perl = TRUE)
-}
-
-
-.hypothesis_brma_replace_symbol <- function(text, symbol, replacement) {
-
-  n_delimiters <- nchar(text, type = "bytes") -
-    nchar(gsub("`", "", text, fixed = TRUE), type = "bytes")
-  pieces <- strsplit(text, "`", fixed = TRUE)[[1L]]
-  expected_length <- n_delimiters + 1L
-  if (length(pieces) < expected_length) {
-    pieces <- c(pieces, rep("", expected_length - length(pieces)))
-  }
-  if (length(pieces) == 0L) {
-    return(text)
-  }
-
-  for (i in seq_along(pieces)) {
-    if (i %% 2L == 0L) {
-      if (identical(pieces[[i]], symbol)) {
-        pieces[[i]] <- replacement
-      }
-      next
-    }
-
-    pieces[[i]] <- gsub(
-      paste0("(?<![A-Za-z0-9._])", BayesTools::JAGS_regex_escape(symbol),
-             "(?![A-Za-z0-9._])"),
-      replacement,
-      pieces[[i]],
-      perl = TRUE
-    )
-  }
-
-  paste(pieces, collapse = "`")
-}
-
-
-.hypothesis_brma_normalize_level_references <- function(text) {
-
-  return(BayesTools::hypothesis_normalize_level_references(text))
-}
-
-
-.hypothesis_brma_symbols <- function(hypothesis) {
-
-  text <- .hypothesis_brma_normalize_level_references(hypothesis)
-  .hypothesis_brma_symbols_normalized(text)
-}
-
-
-.hypothesis_brma_symbols_normalized <- function(text) {
-
-  sides <- unlist(strsplit(text, "\\s+[Vv][Ss]\\s+", perl = TRUE),
-                  use.names = FALSE)
-
-  symbols <- character()
-  for (side in sides) {
-    parsed <- try(parse(text = side, keep.source = FALSE), silent = TRUE)
-    if (inherits(parsed, "try-error")) {
-      next
-    }
-    for (expr in parsed) {
-      symbols <- c(symbols, all.names(expr, functions = TRUE, unique = TRUE))
-    }
-  }
-
-  blocked <- c(
-    "(", "+", "-", "*", "/", "^", "<", "<=", ">", ">=", "=", "==", "!=",
-    "&", "|", "!", "abs", "exp", "log", "sqrt", "plogis", "qlogis",
-    "Inf", "NaN", "NA", "TRUE", "FALSE"
-  )
-
-  unique(setdiff(symbols, blocked))
+  ast <- .hypothesis_brma_ast(hypothesis)
+  mapping <- unlist(aliases, use.names = TRUE)
+  mapping <- mapping[mapping == parameter & names(mapping) != mapping]
+  roots   <- BayesTools::hypothesis_symbols(ast)
+  mapping <- mapping[names(mapping) %in% roots]
+  return(BayesTools::hypothesis_rewrite(ast, mapping))
 }
 
 
 .hypothesis_brma_symbol_roots <- function(hypothesis) {
 
-  symbols <- unique(unlist(
-    lapply(hypothesis, .hypothesis_brma_symbols),
-    use.names = FALSE
-  ))
-  roots <- vapply(symbols, function(symbol) {
-    ref <- .hypothesis_brma_level_ref(symbol)
-    if (is.null(ref)) symbol else ref[["parameter"]]
-  }, character(1))
-
-  return(roots)
+  return(BayesTools::hypothesis_symbols(.hypothesis_brma_ast(hypothesis)))
 }
 
 
-.hypothesis_brma_level_ref <- function(symbol) {
+.hypothesis_brma_ast <- function(hypothesis) {
 
-  ref <- BayesTools::hypothesis_parse_level_reference(symbol)
-  if (nrow(ref) != 1L || !isTRUE(ref[["direct"]][[1L]])) {
-    return(NULL)
+  if (inherits(hypothesis, "BayesTools_hypothesis_ast")) {
+    return(hypothesis)
   }
-
-  list(
-    parameter = ref[["parameter"]][[1L]],
-    level     = ref[["level"]][[1L]]
-  )
+  return(BayesTools::hypothesis_parse(hypothesis))
 }
