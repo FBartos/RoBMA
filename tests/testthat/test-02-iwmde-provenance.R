@@ -244,6 +244,9 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
   missing_plan           <- plan_fields
   missing_plan[["rows"]] <- NULL
   expect_error(.iwmde_new_plan(missing_plan), "missing required")
+  missing_plan <- plan_fields
+  missing_plan[["prior_ordinates"]] <- NULL
+  expect_error(.iwmde_new_plan(missing_plan), "missing required")
 
   density_fields <- list(
     x                 = c(0, 1),

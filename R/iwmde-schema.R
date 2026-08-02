@@ -26,7 +26,8 @@
     plan,
     c(
       "schema_version", "target", "outputs", "control", "row_budget", "method",
-      "density_method", "source_fingerprint", "status", "rows"
+      "density_method", "source_fingerprint", "prior_ordinates",
+      "ordinate_warnings", "status", "rows"
     ),
     "iwmde_plan"
   )
@@ -57,7 +58,9 @@
   }
   if (!is.list(plan[["target"]]) || !is.list(plan[["outputs"]]) ||
       !is.list(plan[["control"]]) || !is.list(plan[["rows"]]) ||
-      !is.list(plan[["source_fingerprint"]])) {
+      !is.list(plan[["source_fingerprint"]]) ||
+      !is.list(plan[["prior_ordinates"]]) ||
+      !is.character(plan[["ordinate_warnings"]])) {
     stop("Internal iwmde_plan has an invalid structural field.", call. = FALSE)
   }
   if (identical(plan[["status"]], "ok")) {
