@@ -81,6 +81,8 @@ skip_refit_if_cached("brma.mv")
 
 test_that("brma.mv fits known-V backend smoke models", {
 
+  skip_if_fit_not_active("brma.mv_latent")
+
   smoke <- .brma_mv_smoke_data()
   dat      <- smoke[["dat"]]
   V        <- smoke[["V"]]
@@ -217,6 +219,7 @@ test_that("brma.mv fits extended known-V backend smoke models", {
   skip_if_not_certification(
     "These redundant known-V parameterizations are certification coverage."
   )
+  skip_if_fit_not_active("brma.mv_block_mvn_random_sampled")
 
   smoke <- .brma_mv_smoke_data()
   dat   <- smoke[["dat"]]
@@ -866,6 +869,7 @@ test_that("brma.mv fits structurally regularized singular V", {
 
 test_that("brma.mv fits fixed-effect known-V model with random = NULL", {
 
+  skip_if_fit_not_active("brma.mv_block_mvn_fixed_random_null")
   skip_if_not_installed("metafor")
 
   smoke <- .brma_mv_smoke_data()
@@ -918,9 +922,10 @@ test_that("brma.mv fits fixed-effect known-V model with random = NULL", {
   )
 })
 
-test_that("brma.mv fits v14 metafor parity models", {
+test_that("brma.mv fits v14 Konstantopoulos CS parity model", {
 
   skip_if_not_certification("These high-draw parity fits are release evidence.")
+  skip_if_fit_not_active("brma.mv_v14_konstantopoulos2011_cs")
   skip_if_not_installed("metadat")
   skip_if_not_installed("metafor")
 
@@ -958,6 +963,15 @@ test_that("brma.mv fits v14 metafor parity models", {
       data    = dat_konstantopoulos
     )
   )
+})
+
+
+test_that("brma.mv fits v14 Assink nested parity model", {
+
+  skip_if_not_certification("These high-draw parity fits are release evidence.")
+  skip_if_fit_not_active("brma.mv_v14_assink2016_nested")
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
 
   data("dat.assink2016", package = "metadat")
   dat_assink <- dat.assink2016
@@ -1004,6 +1018,15 @@ test_that("brma.mv fits v14 metafor parity models", {
       V       = V_assink
     )
   )
+})
+
+
+test_that("brma.mv fits v14 Ishak HAR parity model", {
+
+  skip_if_not_certification("These high-draw parity fits are release evidence.")
+  skip_if_fit_not_active("brma.mv_v14_ishak2007_har")
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
 
   data("dat.ishak2007", package = "metadat")
   dat_ishak <- dat.ishak2007
@@ -1078,6 +1101,15 @@ test_that("brma.mv fits v14 metafor parity models", {
       V       = V_ishak
     )
   )
+})
+
+
+test_that("brma.mv fits v14 Begg treatment parity model", {
+
+  skip_if_not_certification("These high-draw parity fits are release evidence.")
+  skip_if_fit_not_active("brma.mv_v14_begg1989_study_treatment")
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
 
   data("dat.begg1989", package = "metadat")
   dat_begg <- dat.begg1989

@@ -5,11 +5,15 @@ if (!exists("GENERATE_REFERENCE_FILES")) {
   GENERATE_REFERENCE_FILES <- FALSE
 }
 
-FIT_CACHE_SCHEMA_VERSION <- 6L
+FIT_CACHE_SCHEMA_VERSION <- 7L
 FIT_CACHE_METADATA_FIELDS <- c(
   "schema_version",
   "name",
   "saved_at",
+  "robma_version",
+  "bayestools_version",
+  "r_version",
+  "jags_version",
   "fit_class",
   "source_file",
   "source_file_md5",
@@ -95,12 +99,7 @@ test_glmm_fit_settings <- function() {
 # is a shared cache root; each profile always receives its own subdirectory.
 test_files_root <- Sys.getenv("ROBMA_TEST_FILES_DIR")
 if (test_files_root == "") {
-  on_cran <- get("on_cran", envir = asNamespace("testthat"), inherits = FALSE)
-  test_files_root <- if (on_cran()) {
-    file.path(tempdir(), "RoBMA_test_files")
-  } else {
-    file.path(.common_functions_dir(), "test_files")
-  }
+  test_files_root <- file.path(.common_functions_dir(), "test_files")
 }
 test_files_dir <- .test_profile_cache_dir(test_files_root)
 
@@ -545,6 +544,23 @@ active_fit_catalog <- function() {
   catalog <- fit_catalog()
   if (!is_certification_profile()) {
     catalog <- catalog[catalog[["profile"]] == "standard", , drop = FALSE]
+  }
+
+  active_fits <- Sys.getenv("ROBMA_TEST_ACTIVE_FITS", unset = "")
+  if (nzchar(active_fits)) {
+    requested <- if (identical(active_fits, "__none__")) {
+      character()
+    } else {
+      strsplit(active_fits, ",", fixed = TRUE)[[1L]]
+    }
+    unknown <- setdiff(requested, catalog[["name"]])
+    if (length(unknown) > 0L) {
+      stop(
+        "Unknown active cached fit: ", paste(unknown, collapse = ", "),
+        call. = FALSE
+      )
+    }
+    catalog <- catalog[catalog[["name"]] %in% requested, , drop = FALSE]
   }
 
   return(catalog)
@@ -1016,15 +1032,56 @@ bayestools_backend_fingerprint <- function(
 }
 
 
+.fit_cache_versions_cache <- new.env(parent = emptyenv())
+
+
+fit_cache_versions <- function() {
+
+  if (exists("versions", envir = .fit_cache_versions_cache, inherits = FALSE)) {
+    return(get("versions", envir = .fit_cache_versions_cache, inherits = FALSE))
+  }
+  source_root <- .fit_cache_source_root()
+  description <- if (is.na(source_root)) {
+    ""
+  } else {
+    file.path(source_root, "DESCRIPTION")
+  }
+  robma_version <- if (file.exists(description)) {
+    unname(read.dcf(description, fields = "Version")[1L, 1L])
+  } else {
+    as.character(utils::packageVersion("RoBMA"))
+  }
+  jags_version <- tryCatch(
+    as.character(rjags::jags.version()),
+    error = function(error) NA_character_
+  )
+
+  versions <- list(
+    robma_version      = robma_version,
+    bayestools_version = as.character(utils::packageVersion("BayesTools")),
+    r_version          = paste(R.version$major, R.version$minor, sep = "."),
+    jags_version       = jags_version
+  )
+  assign("versions", versions, envir = .fit_cache_versions_cache)
+
+  return(versions)
+}
+
+
 fit_cache_metadata <- function(name, fit, info = NULL) {
 
   entry       <- fit_catalog_entry(name)
   source_file <- if (is.null(entry)) NA_character_ else entry[["source_file"]]
+  versions    <- fit_cache_versions()
 
   metadata <- list(
     schema_version                 = FIT_CACHE_SCHEMA_VERSION,
     name                           = name,
     saved_at                       = format(Sys.time(), usetz = TRUE),
+    robma_version                  = versions[["robma_version"]],
+    bayestools_version             = versions[["bayestools_version"]],
+    r_version                      = versions[["r_version"]],
+    jags_version                   = versions[["jags_version"]],
     fit_class                      = class(fit),
     source_file                    = source_file,
     source_file_md5                = source_file_md5(source_file),
@@ -1182,6 +1239,19 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
     if (is.null(metadata[["name"]]) || !identical(metadata[["name"]], name)) {
       messages <- c(messages, "metadata name mismatch")
     }
+    versions <- fit_cache_versions()
+    version_messages <- c(
+      robma_version      = "RoBMA version changed",
+      bayestools_version = "BayesTools version changed",
+      r_version          = "R version changed",
+      jags_version       = "JAGS version changed"
+    )
+    for (field in names(version_messages)) {
+      if (is.null(metadata[[field]]) ||
+          !identical(metadata[[field]], versions[[field]])) {
+        messages <- c(messages, unname(version_messages[[field]]))
+      }
+    }
     if (is.null(metadata[["source_file"]]) ||
         !identical(metadata[["source_file"]], entry[["source_file"]])) {
       messages <- c(messages, "metadata source file mismatch")
@@ -1319,9 +1389,12 @@ skip_if_no_fits <- function() {
   }
 }
 
-skip_if_missing_fits <- function(names) {
+skip_if_missing_fits <- function(names, active_only = TRUE) {
 
-  missing <- setdiff(names, list_fits(validate = TRUE))
+  missing <- setdiff(
+    names,
+    list_fits(validate = TRUE, active_only = active_only)
+  )
   if (length(missing) > 0) {
     if (exists(".announce_existing_visual_snapshots", mode = "function")) {
       .announce_existing_visual_snapshots()
@@ -1632,10 +1705,10 @@ as.list.lazy_cached_objects <- function(x, ...) {
 clean_cached_fits <- function(name) {
 
   if (!missing(name)) {
-    fit_names <- catalog_group_fits(name, active_only = FALSE)
-    if (length(fit_names) == 0) {
-      fit_names <- name
-    }
+    fit_names <- unique(unlist(lapply(name, function(value) {
+      selected <- catalog_group_fits(value, active_only = FALSE)
+      if (length(selected) == 0L) value else selected
+    }), use.names = FALSE))
     for (fit_name in fit_names) {
       paths <- unlist(fit_cache_paths(fit_name), use.names = FALSE)
       paths <- paths[file.exists(paths)]

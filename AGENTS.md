@@ -75,8 +75,9 @@ prediction, visualization, and diagnostics.
   minutes on the reference machine.
 - Expensive numerical certification belongs in the certification profile and is
   reserved for feature certification and major releases.
-- Stop a certification run approaching two hours. Split it into independently
-  runnable pieces and retain cases with a high evidence-to-runtime ratio.
+- Limit each independently runnable certification case to one hour. There is no
+  total certification limit; release certification may run all cases in
+  sequence.
 - Prefer focused tests during development. Do not repeatedly run the full suite
   without a concrete reason.
 - Preserve human-verified `vdiffr` snapshots. Never replace meaningful visual
@@ -141,9 +142,10 @@ devtools::test(reporter = "llm")
 devtools::check()
 ```
 
-Use `Rscript tools/test-profile.R standard` for the ordinary suite and
-`Rscript tools/test-profile.R certification` only when exhaustive numerical
-evidence is warranted.
+Use `Rscript tools/test-profile.R refresh-standard` only when cached fits are
+missing or stale, then `Rscript tools/test-profile.R standard` for the ordinary
+suite. Use `Rscript tools/test-profile.R certification --list` to select an
+expensive numerical certification case.
 
 ## R Code Style
 

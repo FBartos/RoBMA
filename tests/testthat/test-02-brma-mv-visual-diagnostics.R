@@ -91,7 +91,24 @@ test_that("v14 brma.mv funnel diagnostics return data and render", {
     .expect_mv_plot_points(outcome_data, fit_brma, paste(name, "outcome funnel"))
     .expect_mv_plot_points(residual_data, fit_brma, paste(name, "residual funnel"))
 
-    if (.mv_visual_should_render(name)) {
+    if (name %in% mv_visual_render_fit_names) {
+      expect_vdiffr_snapshot("brma_mv_ishak_funnel_base", function() {
+        funnel(
+          fit_brma,
+          residual    = FALSE,
+          max_samples = 100
+        )
+      })
+      expect_vdiffr_snapshot(
+        "brma_mv_ishak_funnel_ggplot",
+        funnel(
+          fit_brma,
+          residual    = FALSE,
+          plot_type   = "ggplot",
+          max_samples = 100
+        )
+      )
+    } else if (.mv_visual_should_render(name)) {
       .with_temp_plot_device(expect_silent(funnel(
         fit_brma,
         residual    = FALSE,
@@ -133,7 +150,24 @@ test_that("v14 brma.mv Q-Q diagnostics use rstandard residuals", {
     expect_equal(qq_data[["x"]], sort(qq_data[["x"]]), info = name)
     expect_equal(qq_data[["y"]], sort(qq_data[["y"]]), info = name)
 
-    if (.mv_visual_should_render(name)) {
+    if (name %in% mv_visual_render_fit_names) {
+      expect_vdiffr_snapshot("brma_mv_ishak_qq_base", function() {
+        suppressWarnings(qqnorm(
+          fit_brma,
+          type        = "rstandard",
+          max_samples = 100
+        ))
+      })
+      expect_vdiffr_snapshot(
+        "brma_mv_ishak_qq_ggplot",
+        suppressWarnings(qqnorm(
+          fit_brma,
+          type        = "rstandard",
+          plot_type   = "ggplot",
+          max_samples = 100
+        ))
+      )
+    } else if (.mv_visual_should_render(name)) {
       .with_temp_plot_device(expect_silent(suppressWarnings(qqnorm(
         fit_brma,
         type        = "rstandard",
@@ -172,7 +206,11 @@ test_that("v14 brma.mv forest adapters return data and render", {
                 info = name)
     expect_false(forest_data[["addpred"]], info = name)
 
-    if (.mv_visual_should_render(name)) {
+    if (name %in% mv_visual_render_fit_names) {
+      expect_vdiffr_snapshot("brma_mv_ishak_forest", function() {
+        metafor::forest(fit_brma, addpred = FALSE)
+      })
+    } else if (.mv_visual_should_render(name)) {
       .with_temp_plot_device(expect_silent(metafor::forest(
         fit_brma,
         addpred = FALSE
@@ -286,21 +324,44 @@ test_that("v14 brma.mv regplot diagnostics cover moderator models", {
     expect_equal(nrow(regplot_data[["pi"]]), expected_band_rows, info = label)
     expect_equal(nrow(regplot_data[["si"]]), expected_band_rows, info = label)
 
-    .with_temp_plot_device(expect_silent(regplot(
-      fit_brma,
-      mod         = case[["mod"]],
-      pi          = TRUE,
-      si          = TRUE,
-      max_samples = 100
-    )))
-    expect_true(.is_ggplot(regplot(
-      fit_brma,
-      mod         = case[["mod"]],
-      pi          = TRUE,
-      si          = TRUE,
-      plot_type   = "ggplot",
-      max_samples = 100
-    )))
+    if (case[["name"]] %in% mv_visual_render_fit_names) {
+      expect_vdiffr_snapshot("brma_mv_ishak_regplot_base", function() {
+        regplot(
+          fit_brma,
+          mod         = case[["mod"]],
+          pi          = TRUE,
+          si          = TRUE,
+          max_samples = 100
+        )
+      })
+      expect_vdiffr_snapshot(
+        "brma_mv_ishak_regplot_ggplot",
+        regplot(
+          fit_brma,
+          mod         = case[["mod"]],
+          pi          = TRUE,
+          si          = TRUE,
+          plot_type   = "ggplot",
+          max_samples = 100
+        )
+      )
+    } else {
+      .with_temp_plot_device(expect_silent(regplot(
+        fit_brma,
+        mod         = case[["mod"]],
+        pi          = TRUE,
+        si          = TRUE,
+        max_samples = 100
+      )))
+      expect_true(.is_ggplot(regplot(
+        fit_brma,
+        mod         = case[["mod"]],
+        pi          = TRUE,
+        si          = TRUE,
+        plot_type   = "ggplot",
+        max_samples = 100
+      )))
+    }
   }
 })
 

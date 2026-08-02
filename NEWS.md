@@ -25,6 +25,16 @@
 - adds `include_auxiliary` to all fitted-model `as_draws*()` methods; the
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
+### Testing and development
+- separates cached-fit refresh from the standard regression profile, keeps the
+  cached standard suite under a hard 15-minute budget, and restores caches in
+  CI using fitting-source and backend fingerprints.
+- splits numerical certification into independently runnable one-hour cases
+  without a total certification limit.
+- adds maintainer analysis scenarios with automatic fit caching and tracked
+  text and visual baselines, plus representative prior and multivariate visual
+  regression coverage.
+
 ### Breaking changes
 - requires BayesTools 0.3.1.10 and R 4.3.0 for point-prior monitoring, exact
   zero-dimensional marginal likelihoods, the multivariate random-effect

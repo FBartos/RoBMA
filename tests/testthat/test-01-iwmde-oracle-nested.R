@@ -46,7 +46,7 @@ test_that("nested models support IWMDE bridge oracles", {
   skip_if_missing_fits(c(
     "brma.mv_block_mvn",
     "brma.mv_block_mvn_fixed_random_null"
-  ))
+  ), active_only = FALSE)
   fit_known_v_full <- add_marglik(load_fit("brma.mv_block_mvn"))
   fit_known_v_null <- add_marglik(load_fit(
     "brma.mv_block_mvn_fixed_random_null"

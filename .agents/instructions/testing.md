@@ -23,15 +23,20 @@ Do not use repeated full-suite runs as an iteration loop.
 ## Test Profiles
 
 - `Rscript tools/test-profile.R standard`: routine unit, integration,
-  representative metafor, and human-reviewed visual tests; maximum 15 minutes
-  on the reference machine.
-- `Rscript tools/test-profile.R certification`: expensive numerical oracles,
-  high-draw fits, redundant diagnostics, and extended visual cases.
-- `Rscript tools/test-profile.R release`: clean standard and certification
-  runs followed by `devtools::check()`.
+  representative metafor, and human-reviewed visual tests using an already
+  valid fit cache; maximum 15 minutes on the reference machine. It never fits
+  models.
+- `Rscript tools/test-profile.R refresh-standard`: create only missing or stale
+  standard cached fits. Use `--clean` only for an intentional full refresh.
+- `Rscript tools/test-profile.R certification --list`: list independently
+  runnable expensive numerical and extended-regression cases. Run named cases
+  by appending their names; omitting names runs every case in sequence.
+- `Rscript tools/test-profile.R release`: refresh standard fits, run the
+  standard suite, run all certification cases, then call `devtools::check()`.
 
-Stop certification near two hours. Split slow work by feature or filter and
-remove low-information repetition before rerunning.
+Every certification case has a hard one-hour limit. Certification has no total
+limit because cases execute in separate processes and can be selected or rerun
+independently.
 
 ## Test Organization
 
@@ -53,12 +58,18 @@ evidence.
 
 Standard and certification caches are isolated below
 `ROBMA_TEST_FILES_DIR`, or under `tests/testthat/test_files/` by default.
-Cache validity includes the fitting test hash, cache-affecting RoBMA source,
-BayesTools' backend fingerprint, and required attached results.
+Cache validity includes RoBMA, BayesTools, R, and JAGS versions; the fitting
+test hash; cache-affecting RoBMA source; BayesTools' backend fingerprint; and
+required attached results.
 
-Regenerate only affected fits after fitting, prior/data input, native
-likelihood, or JAGS changes. Do not invalidate fits for unrelated plotting,
-summary, documentation, or post-fit changes.
+Regenerate only affected fits with `refresh-standard` after fitting, prior/data
+input, native likelihood, or JAGS changes. Do not invalidate fits for unrelated
+plotting, summary, documentation, or post-fit changes.
+
+CI restores the standard cache using a key derived from cache-affecting package
+sources, fitting tests, R/JAGS versions, and the BayesTools backend fingerprint.
+It refreshes missing or stale entries before running the strictly cached
+standard profile. Certification caches remain local or release-worker assets.
 
 Relevant controls are `ROBMA_TEST_PROFILE`, `ROBMA_TEST_FILES_DIR`,
 `ROBMA_TEST_SKIP_REFIT`, and `ROBMA_TEST_FORCE_REFIT`.
@@ -76,6 +87,10 @@ Relevant controls are `ROBMA_TEST_PROFILE`, `ROBMA_TEST_FILES_DIR`,
   the implementation or old expectation is wrong and involve the maintainer
   before changing a verified baseline.
 - Do not add redundant matrices, samples, fits, or assertions for coverage alone.
+
+The evidence inventory in `tests/testthat/REGRESSION-COVERAGE.md` records the
+representative oracle and visual coverage expected for public post-fit methods.
+Update it when a method changes tier or loses an oracle.
 
 ## Visual Regression
 

@@ -141,12 +141,17 @@ test_that("test cache roots isolate profiles", {
 
 .valid_metadata_for_catalog_entry <- function(name) {
 
-  entry <- fit_catalog_entry(name)
+  entry    <- fit_catalog_entry(name)
+  versions <- fit_cache_versions()
 
   return(list(
     schema_version                 = FIT_CACHE_SCHEMA_VERSION,
     name                           = name,
     saved_at                       = "synthetic",
+    robma_version                  = versions[["robma_version"]],
+    bayestools_version             = versions[["bayestools_version"]],
+    r_version                      = versions[["r_version"]],
+    jags_version                   = versions[["jags_version"]],
     fit_class                      = entry[["class"]],
     source_file                    = entry[["source_file"]],
     source_file_md5                = source_file_md5(entry[["source_file"]]),
@@ -304,6 +309,21 @@ test_that("in-memory fit caches are synchronized with save and clean", {
     clean_cached_fits(name)
     expect_false(exists(name, envir = .fit_object_cache, inherits = FALSE))
     expect_false(exists(name, envir = .info_object_cache, inherits = FALSE))
+
+    fit_names <- c("bcg_meta-analysis", "bcg_meta-regression")
+    for (fit_name in fit_names) {
+      save_fit(
+        fit_name,
+        .fake_fit_for_catalog_entry(fit_name),
+        .fake_info_for_catalog_entry(fit_name)
+      )
+    }
+    clean_cached_fits(fit_names)
+    expect_false(any(file.exists(vapply(
+      fit_names,
+      function(fit_name) fit_cache_paths(fit_name)[["fit"]],
+      character(1)
+    ))))
   })
 })
 
@@ -555,6 +575,21 @@ test_that("cache validation rejects corrupted synthetic metadata", {
     info = "valid synthetic metadata passes without cache files"
   )
   expect_identical(names(metadata), FIT_CACHE_METADATA_FIELDS)
+  expect_identical(
+    metadata[["robma_version"]],
+    as.character(utils::packageVersion("RoBMA"))
+  )
+  expect_identical(
+    metadata[["bayestools_version"]],
+    as.character(utils::packageVersion("BayesTools"))
+  )
+  expect_identical(
+    metadata[["r_version"]],
+    paste(R.version$major, R.version$minor, sep = ".")
+  )
+  expect_true(
+    is.na(metadata[["jags_version"]]) || nzchar(metadata[["jags_version"]])
+  )
 
   invalid_metadata <- validate_cached_fit(
     name        = name,
@@ -591,6 +626,29 @@ test_that("cache validation rejects corrupted synthetic metadata", {
   )
   expect_true("cache metadata fields changed" %in% missing_schema_problems)
   expect_true("cache schema changed" %in% missing_schema_problems)
+
+  version_messages <- c(
+    robma_version      = "RoBMA version changed",
+    bayestools_version = "BayesTools version changed",
+    r_version          = "R version changed",
+    jags_version       = "JAGS version changed"
+  )
+  for (field in names(version_messages)) {
+    stale_version <- metadata
+    stale_version[[field]] <- "stale-version"
+    expect_true(
+      unname(version_messages[[field]]) %in% validate_cached_fit(
+        name         = name,
+        fit          = fit,
+        info         = info,
+        metadata     = stale_version,
+        check_source = FALSE,
+        check_files  = FALSE,
+        deep         = TRUE
+      ),
+      info = field
+    )
+  }
 
   unexpected_field <- metadata
   unexpected_field[["obsolete"]] <- TRUE

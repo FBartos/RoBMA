@@ -1,5 +1,7 @@
 context("Prior plotting")
 
+source(testthat::test_path("helper-visuals.R"))
+
 test_data <- data.frame(
   effect     = c(0.10, 0.25, 0.15, 0.30, 0.05),
   std_err    = sqrt(c(0.04, 0.06, 0.05, 0.08, 0.03)),
@@ -53,6 +55,14 @@ test_that("plot_prior plots outcome priors from only_priors objects", {
   .with_temp_plot_device(
     expect_silent(plot_prior(priors, parameter = "mu"))
   )
+
+  expect_vdiffr_snapshot("plot_prior_outcome_base", function() {
+    plot_prior(priors, parameter = "mu")
+  })
+  expect_vdiffr_snapshot(
+    "plot_prior_outcome_ggplot",
+    plot_prior(priors, parameter = "mu", plot_type = "ggplot")
+  )
 })
 
 test_that("plot_prior selects moderator and scale priors", {
@@ -97,6 +107,11 @@ test_that("plot_prior selects moderator and scale priors", {
 
   expect_equal(.ggplot_x_range(default_plot), .ggplot_x_range(standardized_plot))
   expect_gt(diff(.ggplot_x_range(raw_plot)), diff(.ggplot_x_range(standardized_plot)))
+
+  expect_vdiffr_snapshot(
+    "plot_prior_moderator_standardized",
+    standardized_plot
+  )
 
   scale_priors <- suppressWarnings(BMA(
     yi = effect, sei = std_err,
@@ -403,6 +418,8 @@ test_that("plot_prior handles publication-bias prior components", {
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "bias",  silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "omega", silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "PET",   silent = TRUE)))
+
+  expect_vdiffr_snapshot("plot_prior_selection_omega", omega_plot)
 })
 
 test_that("only_priors objects print and plot via prior methods", {

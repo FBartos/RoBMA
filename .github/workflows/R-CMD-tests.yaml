@@ -75,6 +75,25 @@ jobs:
             any::devtools
             any::posterior
 
+      - name: Compute standard-fit cache key
+        id: fit-cache-key
+        shell: pwsh
+        run: |
+          $key = Rscript tools/test-cache-key.R standard
+          "key=$key" >> $env:GITHUB_OUTPUT
+
+      - name: Restore standard fitted models
+        uses: actions/cache@v4
+        with:
+          path: tests/testthat/test_files/standard
+          key: ${{ runner.os }}-r-${{ matrix.config.r }}-robma-${{ steps.fit-cache-key.outputs.key }}
+          restore-keys: |
+            ${{ runner.os }}-r-${{ matrix.config.r }}-robma-standard-
+
+      - name: Refresh missing or stale fitted models
+        run: |
+          Rscript tools/test-profile.R refresh-standard
+
       - name: Run Unit Tests
         run: |
-          Rscript tools/test-profile.R standard --clean
+          Rscript tools/test-profile.R standard
