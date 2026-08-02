@@ -234,36 +234,342 @@
   component <- .parameter_component_normalize(component)
   BayesTools::check_char(parameter, argument, check_length = 1, allow_NA = FALSE)
 
-  catalog <- .brma_parameter_catalog(object)
-  matches <- catalog[catalog[["alias"]] == parameter, , drop = FALSE]
-  if (!identical(component, "auto")) {
-    matches <- matches[matches[["component"]] == component, , drop = FALSE]
-  }
-
-  if (nrow(matches) == 0L) {
+  if (is.null(object[["fit"]])) {
+    catalog <- .brma_parameter_catalog_unfitted(object)
+    matches <- catalog[catalog[["alias"]] == parameter, , drop = FALSE]
+    if (!identical(component, "auto")) {
+      matches <- matches[matches[["component"]] == component, , drop = FALSE]
+    }
+    if (nrow(matches) == 0L) {
+      stop(
+        "The specified ", argument, " '", parameter, "' is not available. ",
+        "Available quantities are: ",
+        .brma_parameter_available(catalog, component), ".",
+        call. = FALSE
+      )
+    }
+    selected <- unique(matches[["parameter"]])
+    if (length(selected) == 1L) {
+      return(as.list(matches[1L, , drop = FALSE]))
+    }
+    quantities <- unique(paste0(
+      "'", matches[["parameter"]], "' (", matches[["component"]], ")"
+    ))
     stop(
-      "The specified ", argument, " '", parameter, "' is not available. ",
-      "Available quantities are: ",
-      .brma_parameter_available(catalog, component), ".",
+      "Parameter '", parameter, "' is ambiguous across quantities: ",
+      paste(quantities, collapse = ", "),
+      ". Set 'component' or use the full parameter name.",
       call. = FALSE
     )
   }
 
-  selected <- unique(matches[["parameter"]])
-  if (length(selected) == 1L) {
-    return(as.list(matches[1L, , drop = FALSE]))
-  }
-
-  quantities <- unique(paste0("'", matches[["parameter"]], "' (", matches[["component"]], ")"))
-  stop(
-    "Parameter '", parameter, "' is ambiguous across quantities: ",
-    paste(quantities, collapse = ", "),
-    ". Set 'component' or use the full parameter name.",
-    call. = FALSE
+  metadata <- .brma_parameter_catalog_metadata(object)
+  selection <- BayesTools::parameter_catalog_resolve(
+    catalog   = metadata[["catalog"]],
+    alias     = parameter,
+    component = if (identical(component, "auto")) NULL else component
   )
+  entry <- metadata[["entries"]][
+    metadata[["entries"]][["quantity_id"]] == selection[["quantity_id"]],
+    ,
+    drop = FALSE
+  ]
+  if (nrow(entry) != 1L) {
+    stop(
+      "Resolved parameter metadata are unavailable. Refit the model with the ",
+      "current RoBMA/BayesTools build.",
+      call. = FALSE
+    )
+  }
+  out <- as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE])
+  out[["selection"]] <- selection
+  return(out)
 }
 
 .brma_parameter_catalog <- function(object) {
+
+  if (is.null(object[["fit"]])) {
+    return(.brma_parameter_catalog_unfitted(object))
+  }
+
+  entries <- .brma_parameter_catalog_metadata(object)[["entries"]]
+  rows <- lapply(seq_len(nrow(entries)), function(i) {
+    aliases <- entries[["aliases"]][[i]]
+    data.frame(
+      alias             = aliases,
+      parameter         = entries[["parameter"]][[i]],
+      component         = entries[["component"]][[i]],
+      term              = entries[["term"]][[i]],
+      source            = entries[["source"]][[i]],
+      formula_parameter = entries[["formula_parameter"]][[i]],
+      quantity_id       = entries[["quantity_id"]][[i]],
+      stringsAsFactors  = FALSE,
+      check.names       = FALSE
+    )
+  })
+  out <- do.call(rbind, rows)
+  out <- unique(out)
+  rownames(out) <- NULL
+  return(out)
+}
+
+
+.brma_parameter_catalog_metadata <- function(object) {
+
+  .brma_validate_fit_contract(
+    object,
+    requires = c(
+      "name_encoding",
+      "formula_name_map",
+      "formula_design",
+      "parameter_registry",
+      "parameter_catalog"
+    )
+  )
+  catalog    <- BayesTools::parameter_catalog(object[["fit"]])
+  quantities <- catalog[["quantities"]]
+  entries    <- list()
+  aliases    <- list()
+  extension_quantities <- list()
+
+  add_entry <- function(quantity, parameter, component, term, source,
+                        formula_parameter, entry_aliases) {
+    entry_aliases <- unique(entry_aliases[
+      !is.na(entry_aliases) & nzchar(entry_aliases)
+    ])
+    entry <- data.frame(
+      quantity_id       = quantity[["quantity_id"]],
+      parameter         = parameter,
+      component         = component,
+      term              = term,
+      source            = source,
+      formula_parameter = formula_parameter,
+      role              = quantity[["role"]],
+      status            = quantity[["status"]],
+      fixed_value       = quantity[["fixed_value"]],
+      stringsAsFactors  = FALSE,
+      check.names       = FALSE
+    )
+    entry[["aliases"]] <- I(list(entry_aliases))
+    entries[[length(entries) + 1L]] <<- entry
+    aliases[[length(aliases) + 1L]] <<- data.frame(
+      alias       = entry_aliases,
+      quantity_id = quantity[["quantity_id"]],
+      namespace   = component,
+      component   = component,
+      stringsAsFactors = FALSE
+    )
+    invisible(NULL)
+  }
+
+  public <- !quantities[["internal"]]
+  add_ordinary <- function(parameter, component, term, source, entry_aliases) {
+    rows <- which(public & quantities[["canonical_name"]] == parameter)
+    if (length(rows) == 1L) {
+      add_entry(
+        quantity          = as.list(quantities[rows, , drop = FALSE]),
+        parameter         = parameter,
+        component         = component,
+        term              = term,
+        source            = source,
+        formula_parameter = NA_character_,
+        entry_aliases     = entry_aliases
+      )
+    }
+  }
+  if (!.is_mods(object) && !.is_random(object)) {
+    add_ordinary("mu", "mods", "mu", "outcome", c("mu", "effect"))
+  }
+  if (!.is_scale(object)) {
+    add_ordinary(
+      "tau", "scale", "tau", "outcome", c("tau", "heterogeneity")
+    )
+  }
+  if (.is_multilevel(object)) {
+    add_ordinary("rho", "scale", "rho", "outcome", "rho")
+  }
+
+  formula_specs <- list()
+  if (.is_mods(object) || .is_random(object)) {
+    formula_specs[["mu"]] <- list(
+      component = "mods",
+      source    = if (.is_random(object)) "location" else "mods"
+    )
+  }
+  if (.is_scale(object)) {
+    scale_specs <- .data_scale_component_specs(object[["data"]])
+    for (scale_spec in scale_specs) {
+      formula_specs[[scale_spec[["parameter"]]]] <- list(
+        component  = "scale",
+        source     = "scale",
+        scale_spec = scale_spec,
+        single     = length(scale_specs) == 1L
+      )
+    }
+  }
+  for (formula_parameter in names(formula_specs)) {
+    spec <- formula_specs[[formula_parameter]]
+    rows <- which(
+      public &
+        quantities[["formula_parameter"]] == formula_parameter &
+        quantities[["role"]] == "fixed_coefficient"
+    )
+    for (row in rows) {
+      quantity <- as.list(quantities[row, , drop = FALSE])
+      term     <- quantity[["term"]]
+      entry_aliases <- c(quantity[["canonical_name"]], term)
+      if (identical(formula_parameter, "mu") && identical(term, "intercept")) {
+        entry_aliases <- c(entry_aliases, "mu", "effect", "intercept")
+      }
+      if (identical(spec[["component"]], "scale") &&
+          identical(term, "intercept")) {
+        scale_spec <- spec[["scale_spec"]]
+        if (isTRUE(spec[["single"]]) &&
+            identical(formula_parameter, "log_tau")) {
+          entry_aliases <- c(
+            entry_aliases, "log_tau_intercept", "tau", "heterogeneity",
+            "intercept"
+          )
+        } else {
+          entry_aliases <- c(
+            entry_aliases,
+            scale_spec[["display_name"]],
+            scale_spec[["aliases"]],
+            paste0(scale_spec[["aliases"]], "_intercept")
+          )
+        }
+      }
+      add_entry(
+        quantity          = quantity,
+        parameter         = quantity[["canonical_name"]],
+        component         = spec[["component"]],
+        term              = term,
+        source            = spec[["source"]],
+        formula_parameter = formula_parameter,
+        entry_aliases     = entry_aliases
+      )
+    }
+  }
+
+  if (.is_random(object)) {
+    rows <- which(
+      public & quantities[["status"]] == "derived" &
+        startsWith(quantities[["role"]], "random_")
+    )
+    for (row in rows) {
+      quantity <- as.list(quantities[row, , drop = FALSE])
+      base_aliases <- catalog[["aliases"]][["alias"]][
+        catalog[["aliases"]][["quantity_id"]] == quantity[["quantity_id"]]
+      ]
+      add_entry(
+        quantity          = quantity,
+        parameter         = quantity[["display_label"]],
+        component         = "random",
+        term              = quantity[["display_label"]],
+        source            = "random",
+        formula_parameter = quantity[["formula_parameter"]],
+        entry_aliases     = c(
+          quantity[["canonical_name"]], quantity[["display_label"]],
+          quantity[["term"]], sub("^random_", "", quantity[["role"]]),
+          base_aliases
+        )
+      )
+    }
+  }
+
+  bias_parameters <- .brma_parameter_catalog_bias_parameters(object)
+  for (parameter in bias_parameters) {
+    quantity <- .brma_parameter_catalog_bias_quantity(
+      catalog   = catalog,
+      parameter = parameter
+    )
+    extension_quantities[[length(extension_quantities) + 1L]] <- quantity
+    add_entry(
+      quantity          = as.list(quantity),
+      parameter         = parameter,
+      component         = "bias",
+      term              = parameter,
+      source            = "bias",
+      formula_parameter = NA_character_,
+      entry_aliases     = switch(
+        parameter,
+        omega = c("omega", "weightfunction"),
+        parameter
+      )
+    )
+  }
+
+  entries <- do.call(rbind, entries)
+  rownames(entries) <- NULL
+  extension_aliases <- do.call(rbind, aliases)
+  extension_quantities <- if (length(extension_quantities) == 0L) {
+    catalog[["quantities"]][FALSE, , drop = FALSE]
+  } else {
+    do.call(rbind, extension_quantities)
+  }
+  catalog <- BayesTools::parameter_catalog_extend(
+    catalog    = catalog,
+    quantities = extension_quantities,
+    aliases    = extension_aliases,
+    provider   = "RoBMA"
+  )
+
+  return(list(catalog = catalog, entries = entries))
+}
+
+
+.brma_parameter_catalog_bias_parameters <- function(object) {
+
+  prior <- object[["priors"]][["outcome"]][["bias"]]
+  if (is.null(prior)) {
+    return(character())
+  }
+  priors <- if (BayesTools::is.prior.mixture(prior)) unclass(prior) else list(prior)
+  out <- "bias"
+  if (any(vapply(priors, .prior_has_selection, logical(1)))) {
+    out <- c(out, "omega")
+  }
+  if (any(vapply(priors, BayesTools::is.prior.PET, logical(1)))) {
+    out <- c(out, "PET")
+  }
+  if (any(vapply(priors, BayesTools::is.prior.PEESE, logical(1)))) {
+    out <- c(out, "PEESE")
+  }
+  return(out)
+}
+
+
+.brma_parameter_catalog_bias_quantity <- function(catalog, parameter) {
+
+  out <- data.frame(
+    quantity_id       = paste0("RoBMA::bias_", tolower(parameter)),
+    canonical_name    = parameter,
+    provider          = "RoBMA",
+    namespace         = "bias",
+    role              = "publication_bias_component",
+    formula_parameter = "",
+    term              = parameter,
+    component         = "bias",
+    display_label     = parameter,
+    fitted_scale      = "fitted_original",
+    display_scale     = "original",
+    status            = "derived",
+    fixed_value       = NA_real_,
+    internal          = FALSE,
+    stringsAsFactors  = FALSE,
+    check.names       = FALSE
+  )
+  out[["extraction_key"]] <- I(list(list(
+    type         = "robma_bias_component",
+    dependencies = "bias",
+    parameter    = parameter
+  )))
+  out <- out[, names(catalog[["quantities"]]), drop = FALSE]
+  return(out)
+}
+
+
+.brma_parameter_catalog_unfitted <- function(object) {
 
   rows <- list()
   outcome_priors <- object[["priors"]][["outcome"]]
