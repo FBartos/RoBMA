@@ -10,6 +10,11 @@
 ^tests/testthat/test_files$
 ^tests/testthat/_snaps$
 ^tests/testthat/Rplots\.pdf$
+^tests/scenarios/test-.*\.[Rr]$
+^tests/scenarios/cache$
+^tests/scenarios/results$
+^tests/scenarios/_snaps$
+^tests/scenarios/README\.md$
 ^-$
 ^Rplots\.pdf$
 ^cran-check-decision-log\.md$

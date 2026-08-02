@@ -24,6 +24,7 @@ models/MetaRegression/*
 Rplots.pdf
 *.new.svg
 /tests/testthat/test_files
+/tests/scenarios/cache
 knowledge-base/
 /.StatsVault
 /resources
