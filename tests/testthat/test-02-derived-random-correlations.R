@@ -45,7 +45,9 @@ source(testthat::test_path("common-functions.R"))
     mu = seq_along(rho),
     mu__xREx__study_rho = rho
   )
-  coda::mcmc.list(coda::mcmc(values))
+  out <- coda::mcmc.list(coda::mcmc(values))
+  class(out) <- c("BayesTools_fit", class(out))
+  return(out)
 }
 
 .derived_correlation_matrix <- function(draws, draw, n_columns) {
@@ -263,6 +265,12 @@ test_that("multiple compact blocks preserve block-local order across chains", {
 
 test_that("default draws derive public matrices while raw draws stay compact", {
 
+  testthat::local_mocked_bindings(
+    JAGS_validate_fit_contract = function(...) invisible(TRUE),
+    JAGS_materialize_draws = function(fit, ...) fit,
+    .package = "BayesTools"
+  )
+
   fit <- .derived_correlation_mcmc()
   attr(fit, "formula_design") <- list(
     mu = list(random_effects = list(.derived_random_term()))
@@ -278,6 +286,12 @@ test_that("default draws derive public matrices while raw draws stay compact", {
 })
 
 test_that("all public draw converters retain scalar correlation semantics", {
+
+  testthat::local_mocked_bindings(
+    JAGS_validate_fit_contract = function(...) invisible(TRUE),
+    JAGS_materialize_draws = function(fit, ...) fit,
+    .package = "BayesTools"
+  )
 
   fit <- .derived_correlation_mcmc()
   attr(fit, "formula_design") <- list(
@@ -313,6 +327,12 @@ test_that("all public draw converters retain scalar correlation semantics", {
 
 test_that("compiled CAR metadata drives public correlation reconstruction", {
 
+  testthat::local_mocked_bindings(
+    JAGS_validate_fit_contract = function(...) invisible(TRUE),
+    JAGS_materialize_draws = function(fit, ...) fit,
+    .package = "BayesTools"
+  )
+
   dat <- data.frame(
     yi    = seq(-0.2, 0.3, length.out = 6L),
     study = rep(c("s1", "s2"), each = 3L),
@@ -332,6 +352,7 @@ test_that("compiled CAR metadata drives public correlation reconstruction", {
   values <- cbind(mu = seq_along(rho), rho)
   colnames(values)[[2L]] <- term[["correlation"]][["rho_name"]]
   fit <- coda::mcmc.list(coda::mcmc(values))
+  class(fit) <- c("BayesTools_fit", class(fit))
   attr(fit, "formula_design") <- list(
     mu = list(random_effects = list(term))
   )

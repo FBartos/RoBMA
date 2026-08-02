@@ -9,30 +9,33 @@ context("BayesTools parameter catalog contract")
       "BayesTools::mu_f_1",
       "BayesTools::mu_f_2",
       "BayesTools::log_tau_x",
+      "BayesTools::PET",
       "BayesTools::random_sd_study_intercept"
     ),
     canonical_name    = c(
-      "mu_x", "mu_f[1]", "mu_f[2]", "log_tau_x",
+      "mu_x", "mu_f[1]", "mu_f[2]", "log_tau_x", "PET",
       "random_sd_study_intercept"
     ),
     provider          = "BayesTools",
-    namespace         = c("mu", "mu", "mu", "log_tau", "mu"),
+    namespace         = c("mu", "mu", "mu", "log_tau", "model", "mu"),
     role              = c(
       "fixed_coefficient", "fixed_coefficient", "fixed_coefficient",
-      "fixed_coefficient", "random_sd"
+      "fixed_coefficient", "parameter", "random_sd"
     ),
-    formula_parameter = c("mu", "mu", "mu", "log_tau", "mu"),
-    term              = c("x", "f", "f", "x", "intercept"),
+    formula_parameter = c("mu", "mu", "mu", "log_tau", "", "mu"),
+    term              = c("x", "f", "f", "x", "", "intercept"),
     component         = c(
-      "mu_x", "mu_f[1]", "mu_f[2]", "log_tau_x", "intercept"
+      "mu_x", "mu_f[1]", "mu_f[2]", "log_tau_x", "", "intercept"
     ),
     display_label     = c(
-      "mu_x", "mu_f[1]", "mu_f[2]", "log_tau_x",
+      "mu_x", "mu_f[1]", "mu_f[2]", "log_tau_x", "PET",
       "sd(study,intercept)"
     ),
     fitted_scale      = "fitted_original",
     display_scale     = "original",
-    status            = c("sampled", "sampled", "sampled", "sampled", "derived"),
+    status            = c(
+      "sampled", "sampled", "sampled", "sampled", "sampled", "derived"
+    ),
     fixed_value       = NA_real_,
     internal          = FALSE,
     stringsAsFactors  = FALSE,
@@ -43,10 +46,12 @@ context("BayesTools parameter catalog contract")
     function(name) list(type = "coordinate", dependencies = name)
   ))
   aliases <- data.frame(
-    alias       = c("f", "f"),
-    quantity_id = c("BayesTools::mu_f_1", "BayesTools::mu_f_2"),
-    namespace   = c("mu", "mu"),
-    component   = c("mu_f[1]", "mu_f[2]"),
+    alias       = c("f", "f", "PET"),
+    quantity_id = c(
+      "BayesTools::mu_f_1", "BayesTools::mu_f_2", "BayesTools::PET"
+    ),
+    namespace   = c("mu", "mu", "model"),
+    component   = c("mu_f[1]", "mu_f[2]", ""),
     stringsAsFactors = FALSE
   )
   out <- list(
@@ -94,7 +99,9 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   object <- list(
     data   = data,
     fit    = structure(list(sentinel = TRUE), class = "BayesTools_fit"),
-    priors = list(outcome = list())
+    priors = list(outcome = list(
+      bias = BayesTools::prior_PET("normal", list(mean = 0, sd = 1))
+    ))
   )
   checked <- NULL
   testthat::local_mocked_bindings(
@@ -119,6 +126,7 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   mods    <- .brma_parameter_select_entry(object, "x", component = "mods")
   scale   <- .brma_parameter_select_entry(object, "x", component = "scale")
   factor  <- .brma_parameter_select_entry(object, "f", component = "mods")
+  pet     <- .brma_parameter_select_entry(object, "PET", component = "bias")
 
   expect_setequal(
     checked,
@@ -138,6 +146,10 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   expect_identical(
     factor[["selection"]][["quantities"]][["role"]],
     "formula_coefficient_group"
+  )
+  expect_identical(
+    pet[["selection"]][["quantities"]][["provider"]],
+    "BayesTools"
   )
   expect_s3_class(mods[["selection"]], "BayesTools_parameter_selection")
   expect_error(

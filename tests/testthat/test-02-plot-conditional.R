@@ -25,6 +25,14 @@ test_that("plot.brma forwards conditional parameter for RoBMA objects", {
   calls <- list()
 
   testthat::local_mocked_bindings(
+    .brma_parameter_select = function(object, parameter, ...) parameter,
+    .brma_parameter_select_entry = function(object, parameter, ...) {
+      list(parameter = parameter, component = "mods")
+    },
+    .package = "RoBMA"
+  )
+
+  testthat::local_mocked_bindings(
     as_mixed_posteriors = function(model, parameters, conditional = NULL,
                                    transform_scaled = FALSE, ...) {
       calls[["as_mixed_posteriors"]] <<- list(

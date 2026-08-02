@@ -77,6 +77,11 @@ test_that("PET-PEESE plot requests location and mixed bias posterior", {
   calls <- list()
 
   testthat::local_mocked_bindings(
+    .brma_parameter_select = function(object, parameter, ...) parameter,
+    .package = "RoBMA"
+  )
+
+  testthat::local_mocked_bindings(
     as_mixed_posteriors = function(model, parameters, ...) {
       calls[["as_mixed_posteriors"]] <<- list(parameters = parameters)
 
@@ -110,6 +115,16 @@ test_that("PET-PEESE plot requests location and mixed bias posterior", {
 test_that("generic posterior plot requests mixed bias posterior", {
 
   calls <- list()
+
+  testthat::local_mocked_bindings(
+    .brma_parameter_select = function(object, parameter, ...) {
+      if (identical(parameter, "weightfunction")) "omega" else parameter
+    },
+    .brma_parameter_select_entry = function(object, parameter, ...) {
+      list(parameter = parameter, component = "bias")
+    },
+    .package = "RoBMA"
+  )
 
   testthat::local_mocked_bindings(
     as_mixed_posteriors = function(model, parameters, conditional = NULL, ...) {

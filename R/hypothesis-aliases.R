@@ -4,10 +4,24 @@
   component <- .parameter_component_normalize(component)
   metadata  <- .brma_parameter_catalog_metadata(object)
   ast       <- .hypothesis_brma_ast(hypothesis)
-  resolved  <- BayesTools::hypothesis_resolve(
-    ast       = ast,
-    catalog   = metadata[["catalog"]],
-    component = if (identical(component, "auto")) NULL else component
+  resolved <- tryCatch(
+    BayesTools::hypothesis_resolve(
+      ast       = ast,
+      catalog   = metadata[["catalog"]],
+      component = if (identical(component, "auto")) NULL else component
+    ),
+    BayesTools_parameter_ambiguous = function(error) {
+      candidates <- metadata[["entries"]][
+        metadata[["entries"]][["quantity_id"]] %in%
+          error[["candidates"]][["quantity_id"]],
+        ,
+        drop = FALSE
+      ]
+      if (length(unique(candidates[["parameter"]])) > 1L) {
+        .hypothesis_brma_stop_multiple_parameters(candidates)
+      }
+      stop(error)
+    }
   )
   quantity_ids <- unique(resolved[["occurrences"]][["quantity_id"]])
   entries <- metadata[["entries"]][
@@ -23,12 +37,7 @@
     )
   }
   if (length(quantity_ids) > 1L) {
-    stop(
-      "Hypothesis references multiple model parameters (",
-      paste(unique(entries[["parameter"]]), collapse = ", "),
-      "). Set 'component' to 'mods'/'location', 'scale', or 'bias'.",
-      call. = FALSE
-    )
+    .hypothesis_brma_stop_multiple_parameters(entries)
   }
 
   entry   <- entries[1L, , drop = FALSE]
@@ -42,6 +51,17 @@
     entry      = as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE]),
     resolution = resolved
   ))
+}
+
+
+.hypothesis_brma_stop_multiple_parameters <- function(entries) {
+
+  stop(
+    "Hypothesis references multiple model parameters (",
+    paste(unique(entries[["parameter"]]), collapse = ", "),
+    "). Set 'component' to 'mods'/'location', 'scale', or 'bias'.",
+    call. = FALSE
+  )
 }
 
 

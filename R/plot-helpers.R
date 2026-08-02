@@ -519,11 +519,26 @@
 
   bias_parameters <- .brma_parameter_catalog_bias_parameters(object)
   for (parameter in bias_parameters) {
-    quantity <- .brma_parameter_catalog_bias_quantity(
-      catalog   = catalog,
-      parameter = parameter
+    quantity_rows <- which(
+      public & quantities[["canonical_name"]] == parameter
     )
-    extension_quantities[[length(extension_quantities) + 1L]] <- quantity
+    if (length(quantity_rows) > 1L) {
+      stop(
+        "Fitted publication-bias metadata for '", parameter,
+        "' are ambiguous. Refit the model with the current ",
+        "RoBMA/BayesTools build.",
+        call. = FALSE
+      )
+    }
+    if (length(quantity_rows) == 1L) {
+      quantity <- quantities[quantity_rows, , drop = FALSE]
+    } else {
+      quantity <- .brma_parameter_catalog_bias_quantity(
+        catalog   = catalog,
+        parameter = parameter
+      )
+      extension_quantities[[length(extension_quantities) + 1L]] <- quantity
+    }
     add_entry(
       quantity          = as.list(quantity),
       parameter         = parameter,

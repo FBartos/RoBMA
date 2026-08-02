@@ -1,4 +1,4 @@
-## version 4.1.1 (IN PROGRESS)
+## version 4.1.2 (IN PROGRESS)
 ### Features
 - adds `metafor::forest()` support for `brma` objects and `as_metafor_forest()` for preparing RoBMA forest-plot data.
 - adds `brma.mv()` for normal-likelihood meta-analysis with known sampling
@@ -38,10 +38,12 @@
   directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.10 and R 4.3.0 for point-prior monitoring, exact
-  zero-dimensional marginal likelihoods, the multivariate random-effect
-  backend, scalable diagonal marginal-variance interface, and structural prior-
-  ordinate classification.
+- requires BayesTools 0.3.1.12 and R 4.3.0 for the multivariate random-effect
+  backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
+  scalable diagonal marginal variances, versioned fitted-formula identities,
+  deterministic draw geometry, metadata-only parameter catalogs, hypothesis
+  ASTs, structural prior-ordinate classification, and exact induced formula-
+  coefficient prior densities.
 - requires loo 2.10.0 internally while preserving RoBMA's released numeric
   `compare.loo` matrix and printing contract.
 - removes transitional pre-release known-`V`, dense random-correlation, and
@@ -69,6 +71,26 @@
   in posterior summaries, and zero-dimensional marginal likelihoods are exact.
 - treats constant log-likelihood draws from fully fixed models as exact LOO
   importance ratios instead of reporting spurious infinite Pareto diagnostics.
+- delegates fitted formula identities, parameter resolution, hypothesis parsing,
+  and original-scale coefficient prior ordinates to their versioned BayesTools
+  contracts, including grouped factor terms and overlapping component aliases.
+- materializes deterministic and latent-only fitted draws from persisted chain
+  geometry and structural values while keeping private backend anchors out of
+  public posterior output.
+- resolves formula-prior intercept precedence and supports omitting a complete
+  formula-prior branch while continuing to reject ambiguous partial omission.
+- binds cached marginal likelihoods to the fitted target, canonicalizes outcome
+  identities, and preserves structured interpretation and diagnostic failures.
+- aligns weighted heterogeneity, known-`R` scale prediction, rank-deficient VIF,
+  influence, deleted-tau, and leverage diagnostics with their fitted posterior
+  and model-averaged estimands.
+- defines exact forest, funnel, and regplot prediction targets and intervals,
+  including new-group random-effect semantics, pointwise predictive contours,
+  current `metafor` compatibility, and consistent base/ggplot rendering.
+- honors explicit zplot axes and cutpoints while preserving histogram-method
+  delegation.
+- calibrates grouped qCMDE/IWMDE thinning and stabilizes extreme beta-binomial
+  log ratios without changing valid boundary behavior.
 - aligns same-data `brma.mv()` response prediction with `brma()` semantics by
   using fixed means and marginal known-`V` plus random-effect covariance instead
   of conditioning on fitted random effects.
