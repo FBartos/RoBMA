@@ -210,9 +210,9 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
       double dens_sum = 0;
       for (int k = 0; k < K; ++k) {
         const int cell = s + S * k;
-        dens_sum += Rf_dnorm4(
-          z_p[ell] * sei_p[k], mean_p[cell], sd_p[cell], false
-        ) * sei_p[k];
+        dens_sum += std::exp(cpp_selnorm_affine_normal_lpdf(
+          z_p[ell], sei_p[k], mean_p[cell], sd_p[cell]
+        ));
       }
       out_p[s + S * ell] = dens_sum / K;
     }
@@ -608,8 +608,8 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
 
         for (int k = 0; k < K; ++k) {
           const int cell = s + S * k;
-          double log_density = Rf_dnorm4(
-            z_p[ell] * sei_p[k], mean_p[cell], sd_p[cell], true
+          double log_density = cpp_selnorm_affine_normal_lpdf(
+            z_p[ell], sei_p[k], mean_p[cell], sd_p[cell]
           );
 
           log_density -= log_norm[cell];
@@ -617,14 +617,14 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
             log_density += log_observed_weight;
           }
 
-          dens_sum += std::exp(log_density) * sei_p[k];
+          dens_sum += std::exp(log_density);
         }
       } else {
         for (int k = 0; k < K; ++k) {
           const int cell = s + S * k;
-          dens_sum += Rf_dnorm4(
-            z_p[ell] * sei_p[k], mean_p[cell], sd_p[cell], false
-          ) * sei_p[k];
+          dens_sum += std::exp(cpp_selnorm_affine_normal_lpdf(
+            z_p[ell], sei_p[k], mean_p[cell], sd_p[cell]
+          ));
         }
       }
 

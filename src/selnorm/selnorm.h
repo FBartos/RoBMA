@@ -30,6 +30,11 @@ bool selnorm_is_descending_step_partition(const double *z_lower,
                                           const double *z_upper,
                                           int n_bins);
 
+double cpp_selnorm_normal_lpdf(double x, double mean, double sd);
+
+double cpp_selnorm_affine_normal_lpdf(double z, double sei, double mean,
+                                      double sd);
+
 double cpp_selnorm_kernel_lpdf(
   double y,
   double mu_num,

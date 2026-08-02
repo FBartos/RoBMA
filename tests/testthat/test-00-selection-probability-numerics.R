@@ -104,3 +104,120 @@ test_that("native central interval probabilities are not projected", {
   expect_true(is.nan(native_log_probability(NaN, sd, lower, upper)))
   expect_true(is.nan(native_log_probability(mean, Inf, lower, upper)))
 })
+
+
+test_that("selected-normal likelihood preserves representable extreme scores", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  spec   <- .test_step_spec(0, 1)
+  omega  <- matrix(1, nrow = 1L, ncol = spec[["n_bins"]])
+  actual <- .selnorm_kernel_loglik_matrix(
+    yi             = 1e308,
+    mu_num         = matrix(-1e308, nrow = 1L),
+    sigma_num      = matrix(1e308, nrow = 1L),
+    sei            = 1,
+    omega          = omega,
+    selection_spec = spec
+  )
+  expected <- stats::dnorm(2, log = TRUE) - log(1e308)
+
+  expect_equal(actual[1L, 1L], expected, tolerance = 1e-12)
+})
+
+
+test_that("selected-normal fails closed for score-collapsed STEP bins", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  spec   <- .test_step_spec(0, 1)
+  mean   <- matrix(1, nrow = 1L)
+  sd     <- matrix(1, nrow = 1L)
+  sei    <- 1e-310
+  omega  <- matrix(c(0, 1, 0, 0), nrow = 1L)
+  actual <- .selnorm_kernel_log_norm_matrix(
+    mean           = mean,
+    sd             = sd,
+    sei            = sei,
+    omega          = omega,
+    selection_spec = spec
+  )
+  moments <- .selnorm_kernel_moments_matrix(
+    mean           = mean,
+    sd             = sd,
+    sei            = sei,
+    omega          = omega,
+    selection_spec = spec
+  )
+
+  expect_true(is.nan(actual[1L, 1L]))
+  expect_true(all(is.nan(unlist(moments))))
+})
+
+
+test_that("selected-normal RNG avoids division-first score coordinates", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  S              <- 32L
+  spec           <- .test_step_spec(0, 1)
+  omega          <- matrix(rep(c(1, 0, 0, 0), each = S), nrow = S)
+  expected_lower <- spec[["z_lower"]][1L] * 1e-310
+
+  set.seed(8041)
+  actual <- .selnorm_kernel_rng_matrix(
+    mean           = matrix(1, nrow = S),
+    sd             = matrix(1, nrow = S),
+    sei            = 1e-310,
+    omega          = omega,
+    selection_spec = spec
+  )
+
+  expect_true(all(is.finite(actual)))
+  expect_true(all(actual[, 1L] >= expected_lower))
+})
+
+
+test_that("selected-normal threshold and z-density use affine scores", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  skip_if_not(.has_native_zplot_density(selection = TRUE))
+  skip_if_not(.has_native_zplot_threshold())
+
+  spec       <- .test_step_spec(0, 1)
+  omega      <- matrix(1, nrow = 1L, ncol = spec[["n_bins"]])
+  mean       <- matrix(-1e308, nrow = 1L)
+  sd         <- matrix(1e308, nrow = 1L)
+  sei        <- 1e308
+  expected_p <- stats::pnorm(-2, mean = -1, sd = 1) +
+    stats::pnorm(2, mean = -1, sd = 1, lower.tail = FALSE)
+  expected_d <- stats::dnorm(2, mean = -1, sd = 1)
+
+  for (kernel_mode in c(SELKERNEL_NORMAL, SELKERNEL_STEP)) {
+    selection <- spec
+    selection[["omega"]]       <- omega
+    selection[["alpha"]]       <- 0
+    selection[["phack_kind"]]  <- 0L
+    selection[["kernel_mode"]] <- kernel_mode
+
+    threshold <- .zplot_selnorm_threshold_summary(
+      z_threshold       = 2,
+      mean              = mean,
+      sd                = sd,
+      sei               = sei,
+      selection_context = selection,
+      extrapolate       = FALSE
+    )
+    density <- .zplot_selnorm_density_matrix(
+      z_sequence        = 2,
+      mean              = mean,
+      sd                = sd,
+      sei               = sei,
+      selection_context = selection,
+      extrapolate       = FALSE
+    )
+
+    expect_equal(threshold[["EDR"]], expected_p, tolerance = 1e-12)
+    expect_equal(density[1L, 1L], expected_d, tolerance = 1e-12)
+  }
+})

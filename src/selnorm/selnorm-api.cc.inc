@@ -1,3 +1,27 @@
+double cpp_selnorm_normal_lpdf(double x, double mean, double sd)
+{
+  if (!(sd > 0) || !std::isfinite(sd) || !std::isfinite(mean) ||
+      std::isnan(x)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const double score = stable_normal_score(x, mean, sd);
+  return dnorm(score, 0, 1, true) - std::log(sd);
+}
+
+double cpp_selnorm_affine_normal_lpdf(double z, double sei, double mean,
+                                      double sd)
+{
+  if (!(sei > 0) || !std::isfinite(sei) ||
+      !(sd > 0) || !std::isfinite(sd) || !std::isfinite(mean) ||
+      std::isnan(z)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const double score = stable_affine_score(z, sei, mean, sd);
+  return dnorm(score, 0, 1, true) + std::log(sei) - std::log(sd);
+}
+
 double cpp_selnorm_kernel_lpdf(
   double y,
   double mu_num,
@@ -38,7 +62,9 @@ double cpp_selnorm_kernel_lpdf(
 
   const double signed_y       = data.effect_sign * y;
   const double signed_mu_num  = data.effect_sign * mu_num;
-  double log_lik = dnorm(signed_y, signed_mu_num, sigma_num, true);
+  double log_lik = cpp_selnorm_normal_lpdf(
+    signed_y, signed_mu_num, sigma_num
+  );
 
   if (mode == SELKERNEL_NORMAL) {
     return weight * log_lik;
@@ -49,11 +75,12 @@ double cpp_selnorm_kernel_lpdf(
   }
 
   const double signed_mu_norm = data.effect_sign * mu_norm;
-  const double mean_z         = signed_mu_norm / sei;
-  const double sd_z           = sigma_norm / sei;
-
+  double mean_z = 0;
+  double sd_z   = 1;
   double log_beta = -INFINITY;
   if (use_phack) {
+    mean_z  = signed_mu_norm / sei;
+    sd_z    = sigma_norm / sei;
     log_beta = phack_log_beta(alpha, q, data, mean_z, sd_z);
     const double z = signed_y / sei;
     const double log_r = phack_log_kernel_weight(
@@ -147,8 +174,12 @@ double cpp_selnorm_kernel_log_norm(
     return std::numeric_limits<double>::quiet_NaN();
   }
 
-  const double mean_z = data.effect_sign * mean / sei;
-  const double sd_z   = sd / sei;
+  double mean_z = 0;
+  double sd_z   = 1;
+  if (use_phack) {
+    mean_z = data.effect_sign * mean / sei;
+    sd_z   = sd / sei;
+  }
   double log_normalizer = 0;
 
   if (kernel_mode == SELKERNEL_STEP ||
@@ -395,6 +426,12 @@ void cpp_selnorm_kernel_moments(
   }
 
   const double signed_mean = data.effect_sign * mean;
+  if (!std::isfinite(step_log_normalizer_score_space(
+        omega, data, signed_mean, sd, sei, omega_stride
+      ))) {
+    return;
+  }
+
   double denom;
   double signed_first;
   double signed_second;
@@ -480,13 +517,17 @@ double cpp_selnorm_kernel_threshold(
     return std::numeric_limits<double>::quiet_NaN();
   }
 
-  const double q_upper = z_threshold * sei;
-  const double q_lower = -q_upper;
+  const double upper_score = stable_affine_score(
+    z_threshold, sei, mean, sd
+  );
+  const double lower_score = stable_affine_score(
+    -z_threshold, sei, mean, sd
+  );
 
   if (kernel_mode == SELKERNEL_NORMAL) {
     *inverse_weight = 1;
-    return pnorm(q_upper, mean, sd, false, false) +
-      pnorm(q_lower, mean, sd, true, false);
+    return pnorm(upper_score, 0, 1, false, false) +
+      pnorm(lower_score, 0, 1, true, false);
   }
 
   const bool use_phack = (kernel_mode == SELKERNEL_PHACK_POWER ||
@@ -496,16 +537,15 @@ double cpp_selnorm_kernel_threshold(
   }
   if (kernel_mode == SELKERNEL_PHACK_POWER) {
     *inverse_weight = 1;
-    return pnorm(q_upper, mean, sd, false, false) +
-      pnorm(q_lower, mean, sd, true, false);
+    return pnorm(upper_score, 0, 1, false, false) +
+      pnorm(lower_score, 0, 1, true, false);
   }
 
   if (validate_omega && !validate_omega_values(omega, data, omega_stride)) {
     return std::numeric_limits<double>::quiet_NaN();
   }
 
-  const double mean_z = data.effect_sign * mean / sei;
-  const double sd_z   = sd / sei;
+  const double signed_mean = data.effect_sign * mean;
 
   if (data.trusted_step_partition && data.telescope_probabilities) {
     double upper_prob;
@@ -519,7 +559,7 @@ double cpp_selnorm_kernel_threshold(
           omega, data,
           q_upper_z, upper_signed_lower_tail,
           q_lower_z, lower_signed_lower_tail,
-          mean_z, sd_z, omega_stride,
+          signed_mean, sd, sei, omega_stride,
           &upper_prob, &lower_prob, inverse_weight
         )) {
       const double probability = upper_prob + lower_prob;
@@ -537,7 +577,7 @@ double cpp_selnorm_kernel_threshold(
         data.effect_sign == 1 ? false : true,
         -data.effect_sign * z_threshold,
         data.effect_sign == 1 ? true : false,
-        mean_z, sd_z, omega_stride, data.trusted_step_partition,
+        signed_mean, sd, sei, omega_stride, data.trusted_step_partition,
         &upper_prob, &lower_prob, inverse_weight
       )) {
     const double probability = upper_prob + lower_prob;
@@ -590,23 +630,23 @@ double cpp_selnorm_kernel_rng(
     return std::numeric_limits<double>::quiet_NaN();
   }
 
-  const double mean_z = data.effect_sign * mean / sei;
-  const double sd_z   = sd / sei;
+  const double signed_mean = data.effect_sign * mean;
 
   if (data.trusted_step_partition && data.telescope_probabilities) {
     bool ok = false;
-    const double z = step_rng_trusted_partition(
-      omega, data, mean_z, sd_z, u_bin, u_interval, omega_stride, &ok
+    const double score = step_rng_trusted_partition(
+      omega, data, signed_mean, sd, sei, u_bin, u_interval,
+      omega_stride, &ok
     );
     if (ok) {
-      return data.effect_sign * z * sei;
+      return std::fma(data.effect_sign * score, sd, mean);
     }
   }
 
-  const double z = step_rng_logspace(
-    omega, data, mean_z, sd_z, u_bin, u_interval, omega_stride,
+  const double score = step_rng_logspace(
+    omega, data, signed_mean, sd, sei, u_bin, u_interval, omega_stride,
     data.trusted_step_partition
   );
 
-  return data.effect_sign * z * sei;
+  return std::fma(data.effect_sign * score, sd, mean);
 }

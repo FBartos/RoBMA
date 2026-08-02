@@ -306,21 +306,30 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
                                        const SelNormKernelData &data,
                                        double q1_z, bool q1_signed_lower_tail,
                                        double q2_z, bool q2_signed_lower_tail,
-                                       double mean_z, double sd_z,
+                                       double signed_mean, double sd,
+                                       double sei,
                                        int omega_stride,
                                        double *p1, double *p2,
                                        double *inverse_weight)
 {
+  if (!std::isfinite(step_log_normalizer_score_space(
+        omega, data, signed_mean, sd, sei, omega_stride
+      ))) {
+    return false;
+  }
+
   const double q_z[2] = {q1_z, q2_z};
   const bool signed_lower_tail[2] = {
     q1_signed_lower_tail, q2_signed_lower_tail
   };
+  double q_score[2];
   double tail_q[2];
   double cdf_q[2];
 
   for (int i = 0; i < 2; ++i) {
-    tail_q[i] = tail_at(q_z[i], mean_z, sd_z);
-    cdf_q[i]  = cdf_at(q_z[i], mean_z, sd_z);
+    q_score[i] = stable_affine_score(q_z[i], sei, signed_mean, sd);
+    tail_q[i]  = tail_at(q_score[i], 0, 1);
+    cdf_q[i]   = cdf_at(q_score[i], 0, 1);
     if (!std::isfinite(tail_q[i]) || !std::isfinite(cdf_q[i])) {
       return false;
     }
@@ -340,8 +349,11 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
       continue;
     }
 
-    const double diff          = w_left - w_right;
-    const double tail_boundary = tail_at(data.z_lower[b], mean_z, sd_z);
+    const double diff = w_left - w_right;
+    const double boundary_score = stable_affine_score(
+      data.z_lower[b], sei, signed_mean, sd
+    );
+    const double tail_boundary = tail_at(boundary_score, 0, 1);
     const double norm_contrib  = diff * tail_boundary;
     normalizer += norm_contrib;
     norm_abs   += std::abs(norm_contrib);
@@ -389,15 +401,18 @@ bool step_cdf_pair_logspace(const double *omega,
                             const SelNormKernelData &data,
                             double q1_z, bool q1_signed_lower_tail,
                             double q2_z, bool q2_signed_lower_tail,
-                            double mean_z, double sd_z,
+                            double signed_mean, double sd, double sei,
                             int omega_stride,
                             bool trusted_partition,
                             double *p1, double *p2,
                             double *inverse_weight)
 {
-  const double q_z[2] = {q1_z, q2_z};
   const bool signed_lower_tail[2] = {
     q1_signed_lower_tail, q2_signed_lower_tail
+  };
+  const double q_score[2] = {
+    stable_affine_score(q1_z, sei, signed_mean, sd),
+    stable_affine_score(q2_z, sei, signed_mean, sd)
   };
   double log_mass[2] = {-INFINITY, -INFINITY};
   double log_denom   = -INFINITY;
@@ -414,10 +429,20 @@ bool step_cdf_pair_logspace(const double *omega,
     }
 
     if (w > 0) {
-      const double lower = trusted_partition ? data.z_lower[last] : data.z_lower[b];
-      const double upper = data.z_upper[b];
+      const double lower_z = trusted_partition ?
+        data.z_lower[last] : data.z_lower[b];
+      const double upper_z = data.z_upper[b];
+      const double lower = stable_affine_score(
+        lower_z, sei, signed_mean, sd
+      );
+      const double upper = stable_affine_score(
+        upper_z, sei, signed_mean, sd
+      );
+      if (std::isnan(lower) || std::isnan(upper) || !(lower < upper)) {
+        return false;
+      }
       const double log_w = std::log(w);
-      const double log_prob = interval_log_prob(lower, upper, mean_z, sd_z);
+      const double log_prob = interval_log_prob(lower, upper, 0, 1);
 
       if (log_prob != -INFINITY) {
         log_denom = add_logspace(log_denom, log_w + log_prob);
@@ -425,11 +450,11 @@ bool step_cdf_pair_logspace(const double *omega,
 
       for (int i = 0; i < 2; ++i) {
         const double mass_lower = signed_lower_tail[i] ?
-          lower : std::max(lower, q_z[i]);
+          lower : std::max(lower, q_score[i]);
         const double mass_upper = signed_lower_tail[i] ?
-          std::min(upper, q_z[i]) : upper;
+          std::min(upper, q_score[i]) : upper;
         const double log_requested = interval_log_prob(
-          mass_lower, mass_upper, mean_z, sd_z
+          mass_lower, mass_upper, 0, 1
         );
 
         if (log_requested != -INFINITY) {
@@ -515,7 +540,7 @@ void step_moments_partition(const double *omega,
 
 double step_rng_trusted_partition(const double *omega,
                                   const SelNormKernelData &data,
-                                  double mean_z, double sd_z,
+                                  double signed_mean, double sd, double sei,
                                   double u_bin, double u_interval,
                                   int omega_stride,
                                   bool *ok)
@@ -538,10 +563,14 @@ double step_rng_trusted_partition(const double *omega,
 
     if (w > 0) {
       bool interval_ok = true;
-      const double group_lower = data.z_lower[last];
-      const double group_upper = data.z_upper[b];
+      const double group_lower = stable_affine_score(
+        data.z_lower[last], sei, signed_mean, sd
+      );
+      const double group_upper = stable_affine_score(
+        data.z_upper[b], sei, signed_mean, sd
+      );
       const double prob = trusted_interval_prob(
-        group_lower, group_upper, mean_z, sd_z, &interval_ok
+        group_lower, group_upper, 0, 1, &interval_ok
       );
       if (!interval_ok) {
         return std::numeric_limits<double>::quiet_NaN();
@@ -582,14 +611,14 @@ double step_rng_trusted_partition(const double *omega,
   return truncated_normal_quantile(
     lower[static_cast<size_t>(selected)],
     upper[static_cast<size_t>(selected)],
-    mean_z,
-    sd_z,
+    0,
+    1,
     u_interval
   );
 }
 
 double step_rng_logspace(const double *omega, const SelNormKernelData &data,
-                         double mean_z, double sd_z,
+                         double signed_mean, double sd, double sei,
                          double u_bin, double u_interval,
                          int omega_stride, bool trusted_partition)
 {
@@ -610,11 +639,21 @@ double step_rng_logspace(const double *omega, const SelNormKernelData &data,
     }
 
     if (w > 0) {
-      const double group_lower = trusted_partition ?
+      const double lower_z = trusted_partition ?
         data.z_lower[last] : data.z_lower[b];
-      const double group_upper = data.z_upper[b];
+      const double upper_z = data.z_upper[b];
+      const double group_lower = stable_affine_score(
+        lower_z, sei, signed_mean, sd
+      );
+      const double group_upper = stable_affine_score(
+        upper_z, sei, signed_mean, sd
+      );
+      if (std::isnan(group_lower) || std::isnan(group_upper) ||
+          !(group_lower < group_upper)) {
+        return std::numeric_limits<double>::quiet_NaN();
+      }
       const double lm = std::log(w) + interval_log_prob(
-        group_lower, group_upper, mean_z, sd_z
+        group_lower, group_upper, 0, 1
       );
       if (lm != -INFINITY) {
         log_mass.push_back(lm);
@@ -657,8 +696,8 @@ double step_rng_logspace(const double *omega, const SelNormKernelData &data,
   return truncated_normal_quantile(
     lower[static_cast<size_t>(selected)],
     upper[static_cast<size_t>(selected)],
-    mean_z,
-    sd_z,
+    0,
+    1,
     u_interval
   );
 }
