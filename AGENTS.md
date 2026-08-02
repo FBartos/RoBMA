@@ -1,81 +1,174 @@
 # AGENTS.md
 
-This file provides guidance to coding assistants when working with code in this repository.
-
-In all interactions be extremely concise and sacrifice grammar for the sake of concision.
+Guidance for coding assistants working in RoBMA. Be extremely concise.
 
 ## Package Overview
 
-RoBMA (Robust Bayesian Meta-Analysis) provides a framework for Bayesian meta-analysis, including model estimation, prior specification, model comparison, prediction, summaries, visualizations, and diagnostics. 
-The package fits single and model-averaged meta-analytic, meta-regression, multilevel, publication bias adjusted, and generalized linear mixed models, with optional components for effect presence, heterogeneity, moderation, and publication bias.
-BMA and RoBMA use Bayesian model averaging to combine competing models, weight inference by posterior model probabilities, and test model components using Bayes factors.
-Users can specify prior distributions for effect sizes, heterogeneity, publication bias, including selection models and PET-PEESE, and moderators.
+RoBMA provides Bayesian meta-analysis, model averaging, publication-bias
+adjustment, meta-regression, multilevel and multivariate models, GLMMs,
+prediction, visualization, and diagnostics.
 
-- **Backend**: JAGS (via `runjags`/`rjags`) with custom C++ module for specialized distributions
-- **Core Dependency**: `BayesTools` (handles priors, plotting, diagnostics, and generic Bayesian infrastructure)
-- **Estimation**: JAGS product-space fitting.
+- Backend: JAGS through `runjags`/`rjags`, plus focused native kernels.
+- Core dependency: BayesTools for generic Bayesian infrastructure.
+- Estimation: JAGS product-space fitting.
+- System requirement: JAGS 4.3.1 or newer.
 
-**System Requirement**: JAGS 4.3.1+ must be installed (https://mcmc-jags.sourceforge.io/)
+## Numerical and Engineering Guardrails
 
-## Supplementary Instructions
+### Numerical Faithfulness
 
-Additional detailed instructions are available in `.agents/instructions/`:
+- Correct inference-changing numerical errors; do not pursue arbitrary
+  machine-level perfection.
+- Implement the statistical model as specified. Never silently alter user
+  inputs or computed values with epsilons, clamping, covariance repair, or
+  similar heuristics.
+- Invalid inputs must fail clearly. Mathematically valid boundary cases must
+  retain their defined behavior.
+- Prefer established implementations from base R, BayesTools, JAGS, or standard
+  numerical libraries.
+- Support statistically meaningful extreme cases. Do not promise correctness
+  for every representable binary64 input unless the public API requires it.
+- Base numerical warnings on structural or provenance information where
+  possible. Do not infer prior densities from posterior samples.
+- Use independent references, analytic identities, or human-verified results
+  for numerical tests. Do not test an implementation against the same
+  unverified calculation.
 
-Treat [engineer-mode.md](.agents/instructions/engineer-mode.md) as the default engineering prelude for repository work. If the runtime cannot literally prepend that file before every user prompt, read it at session start; after compaction/resume or when unsure, re-read it before planning or editing non-trivial changes.
+### Complexity Budget
 
-- [r-development.md](.agents/instructions/r-development.md) - R coding standards and conventions
-- [testing.md](.agents/instructions/testing.md) - Unit testing workflow and cache system
-- [vignettes.md](.agents/instructions/vignettes.md) - Vignette writing and pre-computation patterns
-- [posterior-samples.md](.agents/instructions/posterior-samples.md) - Effect direction handling and core computation functions
-- [helper-functions.md](.agents/instructions/helper-functions.md) - Internal helper functions for data access
-- [metafor-comparison-tests.md](.agents/instructions/metafor-comparison-tests.md) - Testing against metafor reference
-- [test-file-template.md](.agents/instructions/test-file-template.md) - Template for test-02-*.R files
-- [s3-class-naming.md](.agents/instructions/s3-class-naming.md) - S3 class naming conventions
-- [use-normal-subdispatch.md](.agents/instructions/use-normal-subdispatch.md) - Selected-normal `use_normal` routing
-- [bias-indicator-extraction.md](.agents/instructions/bias-indicator-extraction.md) - RoBMA bias model identification from posterior
-- [predict-newdata-workaround.md](.agents/instructions/predict-newdata-workaround.md) - Outcome requirements for predict.brma() with newdata
-- [sampling-bias-parameter.md](.agents/instructions/sampling-bias-parameter.md) - sampling_bias parameter pattern for RoBMA/bPET/bPEESE/bselmodel
-- [r-package-plotting-architecture.md](.agents/instructions/r-package-plotting-architecture.md) - Plotting architecture for base/ggplot/as_data methods
-- [r-visual-testing-vdiffr.md](.agents/instructions/r-visual-testing-vdiffr.md) - Visual regression testing patterns
-- [brma-mv-conditioning-depths.md](.agents/instructions/brma-mv-conditioning-depths.md) - `brma.mv()` conditioning depths, known-`V`/known-`R` predictive targets, LOO/WAIC/marglik consistency
-- [workflow.md](.agents/instructions/workflow.md) - Repository workflow expectations
-- [engineer-mode.md](.agents/instructions/engineer-mode.md) - Senior engineering judgment for larger changes
+- Prefer the smallest boring implementation that solves the observed problem.
+- Do not add general exact-arithmetic, arbitrary-precision, or binary64
+  emulation subsystems.
+- Native C/C++ is justified only by JAGS integration, statistical correctness,
+  or a substantial measured performance benefit.
+- Before adding native code, abstractions, or source files, verify that existing
+  R, BayesTools, JAGS, or package infrastructure cannot solve the problem
+  cleanly.
+- Avoid parallel implementations, duplicated numerical paths, speculative
+  extensibility, and abstractions serving one simple call site.
+- Generic Bayesian functionality belongs in BayesTools. RoBMA contains
+  meta-analysis-specific integration.
+- Remove superseded machinery when replacing an implementation, subject to
+  task scope and maintainer approval.
 
-Read these files when working on the corresponding areas.
-When updating these instructions, first verify referenced files/functions with the current tree. Put maintainer-intent questions in `.agents/instructions-decisions.md` instead of guessing.
+### Compatibility and Release Notes
+
+- During development of an unreleased patch version, do not preserve
+  compatibility with earlier iterations of that same unreleased code. Replace
+  inferior architecture completely; do not add migrations, deprecated aliases,
+  schema adapters, or compatibility layers.
+- For functionality present in a released version, prefer backward-compatible
+  changes.
+- If released architecture prevents a clean solution or appears short-sighted,
+  ask the maintainer whether to preserve compatibility or make a breaking
+  change. Never assume either choice.
+- When feature implementation on a branch is complete, increment the package
+  patch version and update `NEWS.md` in the same feature change.
+- Write `NEWS.md` for the final branch state that will be squashed into the
+  future release. Do not describe intermediate revisions of unreleased features.
+
+### Testing Budget
+
+- Add the smallest high-information regression test proving correctness. Do not
+  add tests merely to increase coverage.
+- The standard unit, integration, and visual suite must target at most 15
+  minutes on the reference machine.
+- Expensive numerical certification belongs in the certification profile and is
+  reserved for feature certification and major releases.
+- Stop a certification run approaching two hours. Split it into independently
+  runnable pieces and retain cases with a high evidence-to-runtime ratio.
+- Prefer focused tests during development. Do not repeatedly run the full suite
+  without a concrete reason.
+- Preserve human-verified `vdiffr` snapshots. Never replace meaningful visual
+  comparisons with superficial render-only assertions.
+- Do not weaken, skip, regenerate, or loosen an existing regression expectation
+  merely to make a changed implementation pass.
+
+### Engineering Behavior
+
+- Before non-trivial work, state consequential assumptions and success
+  criteria. Do not narrate obvious assumptions.
+- Use a short visible plan for multi-step work; revise it when evidence changes.
+- When requirements, code, tests, or documentation conflict, name the conflict
+  and seek or record a decision instead of guessing.
+- Push back with concrete correctness, complexity, maintenance, or runtime
+  costs. Propose the simpler alternative and follow the maintainer's decision.
+- Establish a simple correct implementation or reference before optimizing.
+  Preserve behavior while optimizing and measure performance claims.
+- Distinguish dead code introduced by the current change from unrelated
+  existing code. Remove the former; do not remove the latter without approval.
+- State uncertainty, verification performed, and verification omitted. Never
+  present incomplete evidence as completion.
+
+### Change Discipline
+
+- Make focused, reviewable commits with informative messages.
+- Commit related code, tests, and documentation together. Avoid documentation-
+  only progress commits.
+- Do not refactor unrelated code while fixing a numerical issue.
+- For ambiguous statistical or architectural choices, stop and record the
+  issue, impact, alternatives, and recommendation in
+  `.agents/instructions-decisions.md`; do not guess.
+- Before finishing, review the diff for unnecessary files, abstractions,
+  compatibility layers, tests, and native code.
+
+## Detailed Instructions
+
+Read only the guide relevant to the files being changed:
+
+- [testing.md](.agents/instructions/testing.md): test profiles, cached fits,
+  metafor comparisons, and visual regression.
+- [selected-normal.md](.agents/instructions/selected-normal.md): posterior
+  direction and selection-kernel routing.
+- [multivariate-targets.md](.agents/instructions/multivariate-targets.md):
+  `brma.mv()` predictive and covariance target semantics.
+- [plotting.md](.agents/instructions/plotting.md): plot data/rendering separation
+  and publication-bias display semantics.
+- [vignettes.md](.agents/instructions/vignettes.md): vignette structure, caching,
+  style, and citations.
+
+Do not load all guides by default. Before changing an instruction, verify every
+referenced file and function against the current tree. Put unresolved maintainer
+choices in `.agents/instructions-decisions.md`.
 
 ## Development Commands
 
 ```r
-devtools::load_all()              # Load during development
-devtools::document()              # Update roxygen2 documentation
-devtools::test(reporter = "llm")                  # Run all tests
-devtools::test(filter = "topic", reporter = "llm")  # Run specific topic tests
-devtools::check()                 # Full R CMD check
+devtools::load_all()
+devtools::document()
+devtools::test(filter = "topic", reporter = "llm")
+devtools::test(reporter = "llm")
+devtools::check()
 ```
 
-**Testing Note**: Always use testthat LLM reporting for unit tests (`reporter = "llm"`; or set `AGENT=1` if a wrapper cannot pass `reporter`). Long-running model fits are cached. 
-Run `devtools::test(filter = "01-", reporter = "llm")` first to generate cached fits, then use `devtools::test(filter = "topic", reporter = "llm")` for faster iteration.
-Use `Rscript tools/test-profile.R standard` for the ordinary <=15-minute suite and
-`Rscript tools/test-profile.R certification` only for exhaustive numerical evidence.
+Use `Rscript tools/test-profile.R standard` for the ordinary suite and
+`Rscript tools/test-profile.R certification` only when exhaustive numerical
+evidence is warranted.
 
-## Code Style
+## R Code Style
 
-- **Naming**: `snake_case` for functions, arguments, variables
-- **Assignment**: Always use `<-`, never `=`
-- **Indentation**: 2 spaces, no tabs
-- **Booleans**: Always `TRUE`/`FALSE`, never `T`/`F`
-- **Package calls**: Use explicit `::` notation (e.g., `BayesTools::check_bool()`), never `library()`
+- Use `snake_case` names and `<-` assignment.
+- Use two-space indentation and no tabs.
+- Use `TRUE`/`FALSE`, never `T`/`F`.
+- Do not use `|>` or `%>%`; name intermediate results.
+- Qualify non-base calls with `::` in package source. Vignettes may attach
+  packages for user-facing examples.
+- Prefer clear code over forced vectorization; use `vapply()` for type-stable
+  atomic iteration and loops when clearer.
+- Use existing BayesTools validators and RoBMA access helpers instead of direct
+  object-internal access.
+- Never call `setwd()` in package code or write to user directories without
+  permission.
 
-### Vertical Alignment (Required)
+Align assignment arrows in sequences:
 
-Align assignment arrows `<-` in sequences:
 ```r
 is_multilevel     <- .is_multilevel(x)
 is_weightfunction <- .is_weightfunction(x)
 ```
 
-Align function arguments when spanning multiple lines:
+Align named arguments in multiline calls:
+
 ```r
 result <- my_function(
   first_arg  = value1,
@@ -83,93 +176,65 @@ result <- my_function(
 )
 ```
 
-Leave an empty line after opening brace `{` in function definitions.
+Leave an empty line after an opening brace in function definitions.
 
 ## Architecture
 
-### Class Hierarchy
-- **brma**: Base class for single-model fits (`brma()`, `bselmodel()`, `bPET()`, `bPEESE()`)
-- **RoBMA**: Extends brma for ensemble model averaging: `class(x) <- c("RoBMA", "brma")`
-- S3 dispatch gives RoBMA all brma methods automatically; override only what differs
+### Classes and Interfaces
 
-### JAGS Behavior for Publication Bias Models
+- `brma`: base class.
+- `brma.norm`, `brma.glmm`, `brma.mv`: likelihood/model specializations.
+- `RoBMA`: product-space model averaging, extending `brma`.
+- Wrapper classes prepend their class, for example
+  `c("BMA.norm", "RoBMA", "brma")` and
+  `c("BMA.glmm", "RoBMA", "brma.glmm", "brma")`.
 
-**Critical insight**: selection-model post-processing is driven by `bias_indicator` and `.selection_context()`, not by direct `omega` checks.
+Primary interfaces are `brma()`, `brma.norm()`, `brma.glmm()`, `brma.mv()`,
+`bselmodel()`, `bPET()`, `bPEESE()`, `RoBMA()`, `BMA()`, `BMA.norm()`, and
+`BMA.glmm()`.
 
-This means:
-- When `is_weightfunction = TRUE`, use the selected-normal helpers (`.outcome_pdf.selnorm()`, `.outcome_cdf.selnorm()`, `.outcome_rng.selnorm()`) with a `.selection_context()`.
-- `.selection_context()` sets `kernel_mode = SELKERNEL_NORMAL` for posterior rows from non-selection bias branches.
-- Do not infer branch type from `omega`; use `.extract_use_normal()`.
+For objects returned by S3 methods, follow the existing result-object family.
+For method-specific results, prefer `<generic>.<input_class>` and define
+matching `print.<result_class>` or `summary.<result_class>` methods. Preserve
+meaningful underlying classes such as `data.frame`; do not introduce a second
+naming convention for an existing family.
 
-**bias_indicator column**: For RoBMA (mixture priors), posterior samples contain `bias_indicator` column (1-indexed) tracking which bias model generated each sample. Use `.extract_use_normal()` for robust detection.
+Use `component` in post-fit public APIs to distinguish model parts. Normalize
+`component = "mods"` and `component = "location"` through shared helpers; use
+`component = "bias"` for publication-bias parameters. Retain released
+`parameter_mods` and `parameter_scale` plotting arguments through 4.x. Reserve
+`type` for output or prediction kind.
 
-**PET/PEESE coefficients**: JAGS sets PET = 0 and PEESE = 0 for non-PET/PEESE samples. Adding `PET * sei` for all samples is correct (0 contributes nothing).
+### Selection Models
 
-### GLMM Limitations
+Selection post-processing is driven by `bias_indicator` and
+`.selection_context()`, not by direct `omega` inspection. Use
+`.extract_use_normal()` for posterior-row routing. Selected-normal PDF, CDF, and
+RNG callers must pass the context. PET and PEESE coefficients are zero in
+inactive product-space branches, so their offsets may be added for all rows.
 
-Weightfunction publication bias priors are **not supported** for GLMM outcomes:
-- Binomial (`brma.glmm()` with OR) - no weightfunction
-- Poisson (`brma.glmm()` with IRR) - no weightfunction
+Publication-bias weight functions are unsupported for binomial and Poisson
+GLMMs.
 
-### Component Separation
-- **BayesTools**: Generic Bayesian infrastructure (input validation via `check_XXX()`, JAGS settings, plotting)
-- **RoBMA**: Meta-analysis-specific logic (ensemble construction, model averaging, publication bias)
-- If a feature is generic (not meta-analysis specific), it belongs in BayesTools
+### Source Ownership
 
-### Public API Naming
-- Use `component` for user-facing disambiguation between model parts in post-fit APIs (`plot()`, diagnostics, priors, `hypothesis()`, `fitted()`), not `parameter_target` or `target`.
-- For parameter-selection APIs, accept `component = "mods"` and `component = "location"` interchangeably for the location/moderator parameter namespace; use `component = "bias"` for publication-bias parameters; normalize through shared component helpers.
-- Keep released `parameter_mods` and `parameter_scale` plotting arguments working through the 4.x cycle; prefer `parameter` + `component` in new docs/examples.
-- Reserve `type` for output/prediction kind. Do not change current `predict()` component behavior only for naming consistency.
+- Input: `R/input-data.R`, `R/input-priors*.R`, `R/input-object.R`.
+- Fitting: `R/fit.R` and model constructors.
+- Posterior evaluation: `R/evaluate.R`, `R/pdf*.R`, `R/cdf.R`, `R/rng.R`.
+- Outcome access: `R/outcome-helpers.R`.
+- Selection routing: `R/selection-mapping.R`.
+- Native R interface: `R/distributions.R`.
 
-### Main User Interfaces
-- `brma()`, `brma.norm()`, `brma.glmm()`, `bselmodel()`, `bPET()`, `bPEESE()` - Primary single-model fitting functions for simple models (mostly complete by now, closely matching metafor specification, use `brma` class)
-- `RoBMA()` - Primary ensemble fitting function with publication bias adjustment
-- `BMA()`, `BMA.norm()` - Model-averaging without publication bias (wrapper, omits `model_type`)
-- `BMA.glmm()` - Model-averaging for GLMM (binomial/Poisson) without publication bias
+The focused JAGS extension lives in `src/distributions/`; shared selected-normal
+kernels live in `src/selnorm/`; R-native registrations live in `src/init.c` and
+`src/r-*.cc`; module registration lives in `src/RoBMA.cc`. Update matching
+`Makevars*` files when adding native sources.
 
-### Class Hierarchy (Extended)
+## Documentation and CRAN
 
-Classes are layered for S3 method dispatch:
-- **brma**: Base class for all Bayesian meta-analysis
-- **brma.norm** / **brma.glmm**: Likelihood type (normal vs GLMM)
-- **RoBMA**: Indicates mixture priors (model-averaging via product space)
-- **Wrapper classes prepend**: `c("BMA.norm", "RoBMA", "brma")`, `c("BMA.glmm", "RoBMA", "brma.glmm", "brma")`
-
-### Key Current Files
-- input handling in `R/input-data.R`,  `R/input-priors.R`,  `R/input-object.R`
-- model specification in `R/fit.R`
-- posterior evaluation in `R/evaluate.R`, `R/pdf.R`, `R/cdf.R`, `R/rng.R`
-- native interface helpers in `R/distributions.R`
-- selection-kernel mapping in `R/selection-mapping.R`
-
-
-### JAGS Extension (src/)
-Custom C++ JAGS module with weighted likelihoods and selected-normal publication-bias distributions:
-- `src/distributions/` - Custom JAGS distributions (`DWN`, `DWB`, `DWP`, `DSELNORM*`)
-- `src/selnorm/` - Selected-normal native kernels shared by JAGS and R-native calls
-- `src/r-*.cc` and `src/init.c` - R-native likelihood/plotting helper registration
-- `src/RoBMA.cc` - Module registration
-
-When adding JAGS distributions or native kernels: implement under the matching `src/` subdirectory, register JAGS distributions in `src/RoBMA.cc`, register R-callable routines in `src/init.c`, and update all `Makevars*` files.
-
-## Documentation
-
-- Use roxygen2 with `@title`, `@description`, `@param`, `@return`, `@examples`, `@export`
-- Use `\insertCite{key}{RoBMA}` for literature references
-- Internal functions (starting with `.`) need brief header comments
-
-## Testing
-
-- Framework: testthat in `tests/testthat/`
-- Reporter: always use `LlmReporter` for unit tests (`reporter = "llm"` or `AGENT=1`)
-- Files numbered `test-XX-topic.R` for execution order
-- Wrap computationally intensive tests with `skip_on_cran()`
-
-## CRAN Compliance
-
-- Minimize dependencies; prefer base R or BayesTools utilities
-- No tidyverse (maintain low dependency footprint)
-- Never write to user directories without permission
-- Always use `::` for package functions
-
+- Use roxygen2 for exported functions and `\insertCite{key}{RoBMA}` for package
+  documentation. Vignettes use Pandoc citations instead.
+- Keep dependencies minimal; do not add tidyverse dependencies.
+- Use `skip_on_cran()` for computationally intensive tests.
+- Never regenerate reference output or visual snapshots without maintainer
+  review.
