@@ -94,6 +94,19 @@
     return(plan)
   }
 
+  boundary_reason <- .iwmde_known_v_tau_zero_boundary_reason(
+    context        = context,
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    values         = plan[["outputs"]][["requested_values"]]
+  )
+  if (!is.null(boundary_reason)) {
+    plan[["status"]] <- "unsupported"
+    plan[["reason"]] <- boundary_reason
+    plan[["rows"]]   <- .iwmde_plan_empty_rows()
+    return(plan)
+  }
+
   posterior_values <- .iwmde_parameter_values(
     context        = context,
     parameter      = parameter,

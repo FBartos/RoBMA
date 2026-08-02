@@ -847,7 +847,7 @@
 
   if (identical(basis[["scale_update"]], "tau")) {
     tau_value <- values[grid_index]
-    valid     <- valid & tau_value > 0
+    valid     <- valid & tau_value >= 0
     tau_total <- matrix(tau_value, nrow = length(row_index), ncol = K)
   } else {
     tau_total <- tau_total[row_index, , drop = FALSE]

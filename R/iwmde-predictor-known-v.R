@@ -63,7 +63,7 @@
     byrow = TRUE
   ) - setup[["mu"]]
   log_lik <- matrix(-Inf, nrow = G, ncol = S)
-  valid   <- is.finite(values) & values > 0
+  valid   <- is.finite(values) & values >= 0
 
   for (g in which(valid)) {
     candidate_log_lik <- numeric(S)

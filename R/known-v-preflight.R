@@ -66,6 +66,53 @@
 }
 
 
+# Explain when non-focal variance leaves a tau-zero known-V ordinate singular.
+.iwmde_known_v_tau_zero_boundary_reason <- function(
+    context, parameter, parameter_spec, values) {
+
+  data <- context[["data"]]
+  if (!identical(parameter, "tau") ||
+      !identical(parameter_spec[["type"]], "primitive") ||
+      !any(values == 0, na.rm = TRUE) ||
+      !.is_data_known_v(data)) {
+    return(NULL)
+  }
+
+  known_V <- .data_known_v_data(data)
+  singular_blocks <- Filter(function(block) {
+    .known_v_is_singular(block[["covariance"]])
+  }, .known_v_correlated_blocks(known_V))
+  if (length(singular_blocks) == 0L) {
+    return(NULL)
+  }
+
+  K <- .known_v_nrow(known_V)
+  regularized_rows <- if (.is_data_random(data)) {
+    .brma_mv_regularized_variance_rows(context[["object"]], K = K)
+  } else {
+    rep(FALSE, K)
+  }
+  invalid_blocks <- Filter(function(block) {
+    index <- block[["index"]]
+    !.known_v_nullspace_is_regularized(
+      covariance       = block[["covariance"]],
+      regularized_rows = regularized_rows[index]
+    )
+  }, singular_blocks)
+  if (length(invalid_blocks) == 0L) {
+    return(NULL)
+  }
+
+  return(paste0(
+    "the tau = 0 likelihood is degenerate for singular known-V dependency ",
+    "block(s) at retained rows ",
+    paste(.known_v_block_labels(invalid_blocks), collapse = ", "),
+    " because no non-focal integrated variance regularizes every null ",
+    "direction"
+  ))
+}
+
+
 # Format retained-row labels for known-V dependency blocks.
 .known_v_block_labels <- function(blocks) {
 
