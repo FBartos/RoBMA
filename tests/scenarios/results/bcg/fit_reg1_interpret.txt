@@ -1,0 +1,3 @@
+Bayesian Mixed-Effect Model (k = 13).
+Pooled effect: mean log risk ratio = -0.703, 95% CrI [-1.075, -0.336].
+Pooled heterogeneity: mean tau = 0.578, 95% CrI [0.353, 0.912].
