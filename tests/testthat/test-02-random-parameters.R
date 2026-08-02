@@ -348,9 +348,7 @@ test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", 
     (transform[["output_transforms"]][[target_i]] != "identity" ||
        any(transform[["source_transforms"]][dependencies[["source"]]] !=
              "identity"))
-  if (!nonlinear_joint) {
-    skip("Cached fit does not contain a nonlinear joint scale transform.")
-  }
+  expect_true(nonlinear_joint)
 
   kde <- hypothesis(
     fit,
