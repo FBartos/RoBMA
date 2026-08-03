@@ -76,7 +76,8 @@ marginal_means <- function(object, ...) {
 #' (default \code{"adaptive"}), \code{normalization_points} (default
 #' \code{NULL}, resolved to \code{max(50, n_points)}), and
 #' \code{normalization_prob} (default \code{0.999}). \code{max_samples}
-#' defaults to \code{500} for stored density curves and \code{Inf} for point
+#' defaults to \code{500} for stored qCMDE density curves, \code{1000} for
+#' stored IWMDE density curves, and \code{Inf} for point
 #' ordinates. Point ordinates adapt deterministically from
 #' \code{initial_samples} until the relative-MCSE target and all BF-grade
 #' reliability gates pass, all eligible rows are used, or a finite
@@ -539,8 +540,9 @@ print.summary.marginal_means.brma <- function(x, ...) {
 #' but is more sensitive to its fitted conditional weights.
 #' @param density_control named list of qCMDE/IWMDE density-estimation settings.
 #' Supported entries are \code{n_points} (default \code{100}),
-#' \code{max_samples} (default \code{500}), \code{initial_samples} (default
-#' \code{500}), \code{target_relative_mcse} (default \code{0.05}),
+#' \code{max_samples} (default \code{500} for qCMDE and \code{1000} for
+#' IWMDE), \code{initial_samples} (default \code{500}),
+#' \code{target_relative_mcse} (default \code{0.05}),
 #' \code{display_grid} (default \code{"adaptive"}),
 #' \code{normalization_points} (default \code{NULL}, resolved to
 #' \code{max(50, n_points)}), and \code{normalization_prob} (default

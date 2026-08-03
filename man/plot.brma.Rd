@@ -108,7 +108,8 @@ RoBMA does not infer a coefficient transformation from posterior draws.}
 
 \item{density_control}{named list of density-estimation settings. Supported
 entries are \code{n_points} (default \code{100}), \code{max_samples}
-(default \code{500}), \code{initial_samples} (default \code{500}),
+(default \code{500} for qCMDE and \code{1000} for IWMDE),
+\code{initial_samples} (default \code{500}),
 \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 (default \code{"adaptive"}), \code{normalization_points} (default
 \code{NULL}, resolved to \code{max(50, n_points)}), and

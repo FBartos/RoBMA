@@ -30,38 +30,39 @@ test_that("plot.brma clears stale posterior density before qCMDE attach", {
 })
 
 
-test_that("plot.brma qCMDE reaches diagnostics with marginalized random SDs", {
+test_that("plot.brma qCMDE supports marginalized random SDs", {
 
   fit <- try(load_fit("brma.mv_block_mvn_random", validate = FALSE), silent = TRUE)
   if (inherits(fit, "try-error")) {
     skip("Raw cached fit unavailable: brma.mv_block_mvn_random")
   }
 
+  captured <- NULL
   testthat::local_mocked_bindings(
     plot_posterior = function(samples, parameter, ...) {
+
+      captured <<- list(samples = samples, parameter = parameter)
       return(structure(list(), class = "mock_plot"))
     },
     .package = "BayesTools"
   )
 
-  error <- tryCatch(
-    plot(
-      fit,
-      parameter       = "mu",
-      plot_type       = "ggplot",
-      density_method  = "qCMDE",
-      density_control = list(n_points = 20, max_samples = 20)
-    ),
-    error = identity
+  out <- plot(
+    fit,
+    parameter       = "mu",
+    plot_type       = "ggplot",
+    density_method  = "qCMDE",
+    density_control = list(n_points = 20, max_samples = 20)
+  )
+  posterior_density <- attr(
+    captured[["samples"]][[captured[["parameter"]]]],
+    "posterior_density",
+    exact = TRUE
   )
 
-  expect_s3_class(error, "error")
-  expect_match(conditionMessage(error), "rejected by diagnostics")
-  expect_false(grepl(
-    "Missing posterior column",
-    conditionMessage(error),
-    fixed = TRUE
-  ))
+  expect_s3_class(out, "mock_plot")
+  expect_equal(posterior_density[["method"]], "q_grid_cmde")
+  expect_true(all(is.finite(posterior_density[["y"]])))
 })
 
 

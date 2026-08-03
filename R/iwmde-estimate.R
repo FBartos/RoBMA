@@ -636,6 +636,7 @@
   }
   bf_diagnostics <- .iwmde_density_bf_diagnostics(density, bf_values)
   active_key_counts <- .iwmde_plan_active_key_counts(execution[["row_states"]])
+  plot_scale_diagnostics <- .iwmde_density_plot_scale_diagnostics(density)
 
   diagnostics <- list(
     integral                    = plot_integral,
@@ -732,6 +733,12 @@
     max_mcse                    = .iwmde_max_or_na(density[["mcse"]]),
     max_relative_mcse           =
       .iwmde_max_or_na(density[["relative_mcse"]]),
+    plot_scale_relative_mcse    =
+      plot_scale_diagnostics[["relative_mcse"]],
+    min_plot_scale_ess          =
+      plot_scale_diagnostics[["min_ess"]],
+    max_plot_scale_weight_share =
+      plot_scale_diagnostics[["max_weight_share"]],
     plot_integral_mcse          = density[["integral_mcse"]],
     plot_integral_relative_mcse = density[["integral_relative_mcse"]],
     batch_size                  = density[["batch_size"]],
@@ -792,4 +799,34 @@
     out[["kde"]]       <- kde
   }
   return(out)
+}
+
+
+.iwmde_density_plot_scale_diagnostics <- function(density) {
+
+  y                <- density[["y"]]
+  mcse             <- density[["mcse"]]
+  ess              <- density[["ess"]]
+  max_weight_share <- density[["max_weight_share"]]
+  peak_density <- .iwmde_max_or_na(y)
+  if (!is.finite(peak_density) || peak_density <= 0) {
+    return(list(
+      relative_mcse    = NA_real_,
+      min_ess          = NA_real_,
+      max_weight_share = NA_real_
+    ))
+  }
+
+  density_ratio <- y / peak_density
+  visible       <- density_ratio > 0
+
+  return(list(
+    relative_mcse    = .iwmde_max_or_na(mcse) / peak_density,
+    min_ess          = if (any(visible)) {
+      min(ess[visible] / density_ratio[visible]^2)
+    } else {
+      NA_real_
+    },
+    max_weight_share = .iwmde_max_or_na(max_weight_share * density_ratio)
+  ))
 }

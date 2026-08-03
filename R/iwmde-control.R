@@ -17,7 +17,13 @@
   )
   defaults <- list(
     n_points             = 100L,
-    max_samples          = if (identical(purpose, "density")) 500L else Inf,
+    max_samples          = if (!identical(purpose, "density")) {
+      Inf
+    } else if (identical(density_method, "IWMDE")) {
+      1000L
+    } else {
+      500L
+    },
     initial_samples      = 500L,
     target_relative_mcse = .05,
     normalization_points = NULL,

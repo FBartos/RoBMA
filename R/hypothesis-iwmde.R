@@ -420,10 +420,14 @@
   }
 
   expr <- side[["expr"]]
-  if (is.null(expr) || length(expr) == 0L || is.na(expr[[1L]])) {
+  if (is.null(expr) || length(expr) == 0L) {
     return(FALSE)
   }
-  expr <- as.character(expr[[1L]])
+  expr <- as.character(expr)
+  if (length(expr) == 0L || is.na(expr[[1L]])) {
+    return(FALSE)
+  }
+  expr <- expr[[1L]]
 
   label     <- record[["label"]]
   parameter <- record[["parameter"]]

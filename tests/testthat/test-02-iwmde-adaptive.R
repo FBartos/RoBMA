@@ -22,10 +22,12 @@ source(testthat::test_path("common-functions.R"))
 
 test_that("density and ordinate controls have separate row policies", {
 
-  density  <- .density_control_normalize("qCMDE", purpose = "density")
-  ordinate <- .density_control_normalize("qCMDE", purpose = "ordinate")
+  density_qcmde <- .density_control_normalize("qCMDE", purpose = "density")
+  density_iwmde <- .density_control_normalize("IWMDE", purpose = "density")
+  ordinate      <- .density_control_normalize("qCMDE", purpose = "ordinate")
 
-  expect_equal(density[["max_samples"]], 500L)
+  expect_equal(density_qcmde[["max_samples"]], 500L)
+  expect_equal(density_iwmde[["max_samples"]], 1000L)
   expect_equal(ordinate[["max_samples"]], Inf)
   expect_equal(ordinate[["initial_samples"]], 500L)
   expect_equal(ordinate[["target_relative_mcse"]], .05)

@@ -319,14 +319,12 @@
     ))
   }
 
-  relative_mcse <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("max_relative_mcse", "relative_mcse", "bf_relative_mcse")
-  )
+  metrics       <- .iwmde_density_plot_scale_metrics(diagnostics)
+  relative_mcse <- metrics[["relative_mcse"]]
   if (!is.finite(relative_mcse) || relative_mcse < 0 ||
       relative_mcse >= .iwmde_density_max_relative_mcse()) {
     return(paste0(
-      "density relative MCSE is ",
+      "density plot-scale MCSE is ",
       .iwmde_percent(relative_mcse),
       " (maximum allowed ",
       .iwmde_percent(.iwmde_density_max_relative_mcse()),
@@ -334,26 +332,21 @@
     ))
   }
 
-  ess <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("min_ess", "ess", "bf_ess")
-  )
+  ess <- metrics[["ess"]]
   min_ess <- .iwmde_density_min_ess(estimator_rows)
   if (!is.finite(ess) || ess < min_ess) {
     return(paste0(
-      "density effective sample size is ", .iwmde_count(ess),
+      "density plot-scale effective sample size is ",
+      .iwmde_count(ess),
       " (minimum ", .iwmde_count(min_ess), ")"
     ))
   }
 
-  max_weight_share <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("max_weight_share", "bf_max_weight_share")
-  )
+  max_weight_share <- metrics[["max_weight_share"]]
   if (!is.finite(max_weight_share) ||
       max_weight_share >= .iwmde_density_max_weight_share()) {
     return(paste0(
-      "largest density importance weight contributes ",
+      "largest plot-scale density importance weight contributes ",
       .iwmde_percent(max_weight_share),
       " (maximum allowed ",
       .iwmde_percent(.iwmde_density_max_weight_share()),
@@ -386,15 +379,13 @@
     ))
   }
 
-  relative_mcse <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("max_relative_mcse", "relative_mcse", "bf_relative_mcse")
-  )
+  metrics       <- .iwmde_density_plot_scale_metrics(diagnostics)
+  relative_mcse <- metrics[["relative_mcse"]]
   if (is.finite(relative_mcse) &&
       relative_mcse >= .iwmde_density_warning_relative_mcse() &&
       relative_mcse < .iwmde_density_max_relative_mcse()) {
     warnings <- c(warnings, paste0(
-      "Density relative MCSE is ",
+      "Density plot-scale MCSE is ",
       .iwmde_percent(relative_mcse),
       " (warning threshold ",
       .iwmde_percent(.iwmde_density_warning_relative_mcse()),
@@ -404,17 +395,14 @@
     ))
   }
 
-  ess <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("min_ess", "ess", "bf_ess")
-  )
+  ess <- metrics[["ess"]]
   min_ess <- .iwmde_density_min_ess(estimator_rows)
   warning_min_ess <- .iwmde_density_warning_min_ess(estimator_rows)
   if (is.finite(ess) &&
       ess >= min_ess &&
       ess < warning_min_ess) {
     warnings <- c(warnings, paste0(
-      "Density effective sample size is ",
+      "Density plot-scale effective sample size is ",
       .iwmde_count(ess),
       " (warning threshold ",
       .iwmde_count(warning_min_ess),
@@ -424,15 +412,12 @@
     ))
   }
 
-  max_weight_share <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("max_weight_share", "bf_max_weight_share")
-  )
+  max_weight_share <- metrics[["max_weight_share"]]
   if (is.finite(max_weight_share) &&
       max_weight_share >= .iwmde_density_warning_weight_share() &&
       max_weight_share < .iwmde_density_max_weight_share()) {
     warnings <- c(warnings, paste0(
-      "Largest density importance weight contributes ",
+      "Largest plot-scale density importance weight contributes ",
       .iwmde_percent(max_weight_share),
       " (warning threshold ",
       .iwmde_percent(.iwmde_density_warning_weight_share()),
@@ -443,6 +428,25 @@
   }
 
   return(warnings)
+}
+
+
+.iwmde_density_plot_scale_metrics <- function(diagnostics) {
+
+  return(list(
+    relative_mcse    = .iwmde_diagnostic_scalar(
+      diagnostics,
+      "plot_scale_relative_mcse"
+    ),
+    ess              = .iwmde_diagnostic_scalar(
+      diagnostics,
+      "min_plot_scale_ess"
+    ),
+    max_weight_share = .iwmde_diagnostic_scalar(
+      diagnostics,
+      "max_plot_scale_weight_share"
+    )
+  ))
 }
 
 

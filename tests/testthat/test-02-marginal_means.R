@@ -84,9 +84,12 @@ smoke_samples <- test_profile_value(250L, 1000L)
   list(
     estimator                         = estimator,
     max_relative_mcse                 = .01,
+    plot_scale_relative_mcse          = .01,
     min_finite_terms                  = 100L,
     min_ess                           = 100,
+    min_plot_scale_ess                = 100,
     max_weight_share                  = .10,
+    max_plot_scale_weight_share       = .10,
     row_drop_fraction                 = 0,
     active_mass                       = 1,
     final_normalization_integral      = 1,

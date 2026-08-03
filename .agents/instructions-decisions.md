@@ -57,3 +57,20 @@ remove the item.
 - Recommendation: define quadrature order, convergence checks, failure behavior,
   and boundary handling before changing the implementation.
 - Decision:
+
+## Density-Plot Reliability Scale
+
+- Issue: qCMDE/IWMDE plot reliability currently applies relative MCSE, ESS,
+  and importance-weight limits independently at every display-grid point. The
+  BCG regression plots are rejected because of the 0.999-quantile tails even
+  though absolute uncertainty there is less than 4% of the plotted peak.
+- Impact: valid central density curves can be unavailable or emit alarming
+  warnings solely because negligible tail ordinates have high relative error.
+- Alternatives: increase the default row budget until every tail passes, retain
+  the current gate, or judge density-curve reliability by absolute error and
+  weight influence relative to the plotted peak while retaining raw pointwise
+  diagnostics.
+- Recommendation: use plot-scale metrics for density-curve gates, keep raw
+  pointwise metrics in diagnostics, and leave strict requested-ordinate Bayes
+  factor gates unchanged. Use 1,000 rows for IWMDE curves and 500 for qCMDE.
+- Decision:
