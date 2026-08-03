@@ -1,5 +1,7 @@
-## version 4.1.3 (IN PROGRESS)
+## version 4.1.4 (IN PROGRESS)
 ### Features
+- re-exports `loo::loo_model_weights()` and adds a `brma` method that computes
+  stacking or pseudo-BMA weights directly from compatible stored LOO results.
 - adds `metafor::forest()` support for `brma` objects and `as_metafor_forest()` for preparing RoBMA forest-plot data.
 - adds `brma.mv()` for normal-likelihood meta-analysis with known sampling
   covariance matrices, including latent, whitened, and block-MVN known-`V`
@@ -63,6 +65,9 @@
   fitted-design aggregation.
 
 ### Fixes
+- reports an actionable error when additional models are passed to
+  `loo_weights()`, clarifying the distinction between single-model PSIS
+  importance weights and the new `loo_model_weights()` method across models.
 - evaluates qCMDE/IWMDE density-curve relative MCSE, effective sample size,
   and importance-weight concentration over the empirical 5%--95% bulk, records
   the 5% and 95% tail checkpoints, and retains a whole-curve absolute MCSE

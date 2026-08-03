@@ -239,7 +239,7 @@ test_that("log_lik, LOO, weights, diagnostics, and WAIC are available for produc
   }
 })
 
-test_that("loo_compare compares BMA and RoBMA product-space fits on the same data", {
+test_that("LOO comparison and model weights support product-space fits", {
 
   product_names <- c("dat.lehmann2018_BMA.norm", "dat.lehmann2018_RoBMA")
   skip_if_missing_fits(product_names)
@@ -253,6 +253,14 @@ test_that("loo_compare compares BMA and RoBMA product-space fits on the same dat
   expect_equal(nrow(out), 2)
   expect_true("elpd_diff" %in% colnames(out))
   expect_true("se_diff" %in% colnames(out))
+
+  model_weights <- suppressWarnings(loo_model_weights(
+    fits[["dat.lehmann2018_BMA.norm"]],
+    fits[["dat.lehmann2018_RoBMA"]]
+  ))
+  expect_length(model_weights, 2L)
+  expect_equal(sum(model_weights), 1, tolerance = 1e-12)
+  expect_true(all(model_weights >= 0 & model_weights <= 1))
 })
 
 

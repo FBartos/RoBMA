@@ -157,6 +157,7 @@ reference:
   - loo.brma
   - loo_compare.brma
   - loo_compare.loo
+  - loo_model_weights.brma
   - loo_weights.brma
   - check_loo.brma
   - add_waic.brma

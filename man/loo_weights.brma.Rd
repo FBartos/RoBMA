@@ -26,5 +26,12 @@ Extract the normalized Pareto smoothed importance sampling
 \details{
 LOO must first be computed with
 \code{object <- add_loo(object, unit = unit)}. This method extracts the
-stored PSIS object and does not compute LOO.
+stored PSIS object and does not compute LOO. It does not compute weights
+across models. For predictive model weights, use
+\code{loo_model_weights(model_1, model_2)}; for a model comparison table,
+use \code{loo_compare(model_1, model_2)}.
+}
+\seealso{
+\code{\link{loo.brma}}, \code{\link{loo_compare.brma}},
+\code{\link{loo_model_weights.brma}}
 }

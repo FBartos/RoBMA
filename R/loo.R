@@ -17,6 +17,15 @@
 
 
 # ---------------------------------------------------------------------------- #
+# Re-export loo generics
+# ---------------------------------------------------------------------------- #
+
+#' @importFrom loo loo_model_weights
+#' @export
+loo::loo_model_weights
+
+
+# ---------------------------------------------------------------------------- #
 # add_loo generic and method
 # ---------------------------------------------------------------------------- #
 
@@ -698,6 +707,118 @@ loo_compare.loo <- function(x, ..., unit = "estimate") {
 
 
 # ---------------------------------------------------------------------------- #
+# loo_model_weights method
+# ---------------------------------------------------------------------------- #
+
+#' @title Predictive Model Weights for brma Objects
+#'
+#' @description Compute stacking or pseudo-BMA weights from LOO results already
+#' stored in multiple \code{brma} objects.
+#'
+#' @param x a \code{brma} model object (the first model to weight).
+#' @param ... additional \code{brma} model objects or RoBMA-targeted
+#'   \code{psis_loo} objects.
+#' @param unit output/deletion unit used when extracting stored LOO results from
+#'   \code{brma} objects.
+#' @param method weighting method; \code{"stacking"} or \code{"pseudobma"}.
+#' @param optim_method,optim_control optimization method and controls for
+#'   stacking. See \code{\link[loo]{loo_model_weights}}.
+#' @param BB,BB_n,alpha Bayesian-bootstrap controls for pseudo-BMA weighting.
+#'   See \code{\link[loo]{loo_model_weights}}.
+#' @param r_eff_list optional relative effective sample sizes. Retained for the
+#'   upstream interface and ignored when stored \code{psis_loo} objects are
+#'   supplied.
+#' @param cores number of cores passed to \code{loo::loo_model_weights()}.
+#'
+#' @details Each \code{brma} object must first be updated with
+#' \code{object <- add_loo(object, unit = unit)}. All models must use the same
+#' outcome data, deletion \code{unit}, and likelihood target. RoBMA validates
+#' these targets before delegating to \code{loo::loo_model_weights()}.
+#'
+#' Model names are derived from the supplied model expressions. See
+#' \code{\link[loo]{loo_model_weights}} for details about stacking, pseudo-BMA,
+#' and pseudo-BMA+.
+#'
+#' @return A named numeric vector containing one predictive weight per model.
+#'
+#' @seealso \code{\link{add_loo}}, \code{\link{loo.brma}},
+#'   \code{\link{loo_compare.brma}}, \code{\link[loo]{loo_model_weights}}
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'
+#'   fit_bias <- RoBMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'   fit_nobias <- BMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'
+#'   fit_bias   <- add_loo(fit_bias)
+#'   fit_nobias <- add_loo(fit_nobias)
+#'
+#'   loo_model_weights(fit_bias, fit_nobias)
+#' }
+#' }
+#'
+#' @export
+#' @exportS3Method loo::loo_model_weights
+loo_model_weights.brma <- function(
+    x, ..., unit = "estimate", method = c("stacking", "pseudobma"),
+    optim_method = "BFGS", optim_control = list(), BB = TRUE, BB_n = 1000,
+    alpha = 1, r_eff_list = NULL, cores = getOption("mc.cores", 1)) {
+
+  unit   <- .normalize_unit(unit)
+  dots   <- list(...)
+  models <- c(list(x), dots)
+
+  if (length(models) < 2L) {
+    stop("At least two models are required for predictive model weights.",
+         call. = FALSE)
+  }
+
+  loo_objects <- lapply(models, function(model) {
+    if (inherits(model, "brma")) {
+      return(loo.brma(model, unit = unit))
+    }
+    if (inherits(model, "psis_loo")) {
+      return(model)
+    }
+    stop("All arguments must be brma or psis_loo objects.", call. = FALSE)
+  })
+
+  model_call        <- match.call(expand.dots = FALSE)
+  model_expressions <- c(
+    list(model_call[["x"]]),
+    as.list(model_call[["..."]])
+  )
+  model_names <- vapply(model_expressions, deparse1, character(1))
+  dot_names   <- names(dots)
+  named_dots  <- which(!is.na(dot_names) & nzchar(dot_names))
+  if (length(named_dots) > 0L) {
+    model_names[named_dots + 1L] <- dot_names[named_dots]
+  }
+  names(loo_objects) <- model_names
+
+  .check_loo_compare_targets(loo_objects)
+  loo_model_weights_fun <- get(
+    "loo_model_weights.default",
+    envir    = asNamespace("loo"),
+    inherits = FALSE
+  )
+
+  return(loo_model_weights_fun(
+    x             = loo_objects,
+    method        = method,
+    optim_method  = optim_method,
+    optim_control = optim_control,
+    BB            = BB,
+    BB_n          = BB_n,
+    alpha         = alpha,
+    r_eff_list    = r_eff_list,
+    cores         = cores
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # waic generic and extraction method
 # ---------------------------------------------------------------------------- #
 
@@ -760,15 +881,32 @@ loo_weights <- function(object, ...) UseMethod("loo_weights")
 #'
 #' @details LOO must first be computed with
 #' \code{object <- add_loo(object, unit = unit)}. This method extracts the
-#' stored PSIS object and does not compute LOO.
+#' stored PSIS object and does not compute LOO. It does not compute weights
+#' across models. For predictive model weights, use
+#' \code{loo_model_weights(model_1, model_2)}; for a model comparison table,
+#' use \code{loo_compare(model_1, model_2)}.
 #'
 #' @return An \code{S x K} matrix for estimate-unit LOO, or \code{S x G}
 #' matrix for cluster-unit LOO, with posterior samples in rows and LOO targets
 #' in columns. Columns are normalized to sum to one.
 #'
+#' @seealso \code{\link{loo.brma}}, \code{\link{loo_compare.brma}},
+#'   \code{\link{loo_model_weights.brma}}
+#'
 #' @aliases loo_weights
 #' @exportS3Method
 loo_weights.brma <- function(object, unit = "estimate", ...) {
+
+  if (inherits(unit, c("brma", "loo"))) {
+    stop(
+      "loo_weights() extracts PSIS importance weights from one brma model; ",
+      "it does not compute weights across models. Use ",
+      "loo_model_weights(model_1, model_2) for predictive ",
+      "model weights, or loo_compare(model_1, model_2) to compare models.",
+      call. = FALSE
+    )
+  }
+
   # extract loo
   loo_result <- loo.brma(object, unit = unit)
 
