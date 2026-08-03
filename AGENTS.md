@@ -110,6 +110,8 @@ prediction, visualization, and diagnostics.
 - For ambiguous statistical or architectural choices, stop and record the
   issue, impact, alternatives, and recommendation in
   `.agents/instructions-decisions.md`; do not guess.
+- Place agent-authored investigation reports and other temporary work artifacts
+  under `.agents/tmp/`, not in the package root.
 - Before finishing, review the diff for unnecessary files, abstractions,
   compatibility layers, tests, and native code.
 
