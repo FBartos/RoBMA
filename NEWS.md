@@ -1,4 +1,4 @@
-## version 4.1.2 (IN PROGRESS)
+## version 4.1.3 (IN PROGRESS)
 ### Features
 - adds `metafor::forest()` support for `brma` objects and `as_metafor_forest()` for preparing RoBMA forest-plot data.
 - adds `brma.mv()` for normal-likelihood meta-analysis with known sampling
@@ -63,6 +63,14 @@
   fitted-design aggregation.
 
 ### Fixes
+- evaluates qCMDE/IWMDE density-curve relative MCSE, effective sample size,
+  and importance-weight concentration over the empirical 5%--95% bulk, records
+  the 5% and 95% tail checkpoints, and retains a whole-curve absolute MCSE
+  safeguard relative to the density peak. Extreme display endpoints remain
+  available in raw diagnostics but no longer reject an otherwise reliable
+  curve; requested Bayes-factor ordinates keep their strict local gates.
+- accepts symbol-valued primitive hypothesis AST nodes when attaching
+  qCMDE/IWMDE warning records from the current BayesTools contract.
 - shortens qCMDE/IWMDE relative-MCSE and effective-sample-size warnings to
   report only the observed diagnostic value instead of repeating policy
   thresholds.

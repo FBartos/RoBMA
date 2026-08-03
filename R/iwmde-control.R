@@ -265,6 +265,12 @@
 }
 
 
+.iwmde_density_tail_probabilities <- function() {
+
+  return(c(.05, .95))
+}
+
+
 .iwmde_density_max_relative_mcse <- function() {
 
   return(.25)

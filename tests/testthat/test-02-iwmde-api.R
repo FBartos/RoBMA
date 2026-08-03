@@ -586,8 +586,9 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
   diagnostics <- list(
     estimator                         = "q_grid_cmde",
     plot_scale_relative_mcse          = .01,
-    min_plot_scale_ess                = 80,
-    max_plot_scale_weight_share       = .05,
+    bulk_max_relative_mcse            = .01,
+    bulk_min_ess                      = 80,
+    bulk_max_weight_share             = .05,
     max_relative_mcse                 = .01,
     min_finite_terms                  = 80L,
     min_ess                           = 80,
@@ -637,7 +638,7 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
   )
   diagnostics[["n_estimator_rows"]] <- 600
   diagnostics[["n_active_state_keys"]] <- 2
-  diagnostics[["min_ess"]] <- 120
+  diagnostics[["bulk_min_ess"]] <- 120
 
   diagnostics[["max_quadrature_relative_change"]] <- .03
   expect_null(.iwmde_diagnostics_density_failure_reason(diagnostics))
@@ -654,27 +655,38 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
 })
 
 
-test_that("density diagnostics judge MCSE on the visible plot scale", {
+test_that("density gates use bulk and 5/95 tail checkpoints", {
 
-  plot_scale <- .iwmde_density_plot_scale_diagnostics(list(
-    y                = c(1, .01),
-    mcse             = c(.02, .01),
-    ess              = c(400, 4),
-    max_weight_share = c(.01, .40)
-  ))
-  expect_equal(plot_scale[["relative_mcse"]], .02)
-  expect_equal(plot_scale[["min_ess"]], 400)
-  expect_equal(plot_scale[["max_weight_share"]], .01)
+  density <- list(
+    x                = c(-4, -1.645, 0, 1.645, 4),
+    y                = c(.001, .10, 1, .10, .001),
+    mcse             = c(.03, .008, .01, .008, .03),
+    relative_mcse    = c(30, .08, .01, .08, 30),
+    ess              = c(2, 120, 400, 120, 2),
+    max_weight_share = c(.70, .04, .01, .04, .70)
+  )
+  curve <- .iwmde_density_curve_diagnostics(
+    density            = density,
+    tail_probabilities = c(.05, .95),
+    tail_values        = c(-1.645, 1.645)
+  )
 
-  diagnostics <- list(
+  expect_equal(.iwmde_density_tail_probabilities(), c(.05, .95))
+  expect_equal(curve[["plot_scale_relative_mcse"]], .03)
+  expect_equal(curve[["bulk_max_relative_mcse"]], .08)
+  expect_equal(curve[["bulk_min_ess"]], 120)
+  expect_equal(curve[["bulk_max_weight_share"]], .04)
+  expect_equal(curve[["tail_evaluation_x"]], c(-1.645, 1.645))
+  expect_equal(curve[["tail_relative_mcse"]], c(.08, .08))
+  expect_equal(curve[["tail_ess"]], c(120, 120))
+  expect_equal(curve[["tail_max_weight_share"]], c(.04, .04))
+
+  diagnostics <- c(list(
     estimator                       = "q_grid_cmde",
-    plot_scale_relative_mcse        = .04,
-    min_plot_scale_ess              = 300,
-    max_plot_scale_weight_share     = .03,
-    max_relative_mcse               = .45,
+    max_relative_mcse               = 30,
     min_finite_terms                = 500L,
-    min_ess                         = 5,
-    max_weight_share                = .40,
+    min_ess                         = 2,
+    max_weight_share                = .70,
     n_estimator_rows                = 500L,
     n_active_state_keys             = 1L,
     active_mass                     = 1,
@@ -685,7 +697,7 @@ test_that("density diagnostics judge MCSE on the visible plot scale", {
     max_ordinate_relative_change    = 0,
     max_normalizer_relative_change  = 0,
     max_quadrature_relative_change  = NA_real_
-  )
+  ), curve)
 
   expect_null(.iwmde_diagnostics_density_failure_reason(diagnostics))
   expect_length(.iwmde_diagnostics_density_warning(diagnostics), 0L)
@@ -695,25 +707,46 @@ test_that("density diagnostics judge MCSE on the visible plot scale", {
     .iwmde_diagnostics_density_warning(diagnostics),
     "plot-scale MCSE"
   )
-
   diagnostics[["plot_scale_relative_mcse"]] <- .30
   expect_match(
     .iwmde_diagnostics_density_failure_reason(diagnostics),
     "plot-scale MCSE"
   )
+  diagnostics[["plot_scale_relative_mcse"]] <- .03
 
-  diagnostics[["plot_scale_relative_mcse"]] <- .04
-  diagnostics[["min_plot_scale_ess"]] <- 5
+  diagnostics[["bulk_max_relative_mcse"]] <- .12
   expect_match(
-    .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "plot-scale effective sample size"
+    .iwmde_diagnostics_density_warning(diagnostics),
+    "bulk relative MCSE"
   )
-
-  diagnostics[["min_plot_scale_ess"]] <- 300
-  diagnostics[["max_plot_scale_weight_share"]] <- .40
+  diagnostics[["bulk_max_relative_mcse"]] <- .30
   expect_match(
     .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "plot-scale density importance weight"
+    "bulk relative MCSE"
+  )
+  diagnostics[["bulk_max_relative_mcse"]] <- .08
+
+  diagnostics[["bulk_min_ess"]] <- 80
+  expect_match(
+    .iwmde_diagnostics_density_warning(diagnostics),
+    "bulk effective sample size"
+  )
+  diagnostics[["bulk_min_ess"]] <- 40
+  expect_match(
+    .iwmde_diagnostics_density_failure_reason(diagnostics),
+    "bulk effective sample size"
+  )
+  diagnostics[["bulk_min_ess"]] <- 120
+
+  diagnostics[["bulk_max_weight_share"]] <- .12
+  expect_match(
+    .iwmde_diagnostics_density_warning(diagnostics),
+    "bulk density importance weight"
+  )
+  diagnostics[["bulk_max_weight_share"]] <- .30
+  expect_match(
+    .iwmde_diagnostics_density_failure_reason(diagnostics),
+    "bulk density importance weight"
   )
 })
 
@@ -1116,6 +1149,16 @@ test_that("IWMDE keeps adjacent representable coordinates distinct", {
   )
   expect_true(any(grid == adjacent_value))
   expect_false(any(grid == value))
+
+  clustered_values <- c(.Machine$double.eps, 2 * .Machine$double.eps)
+  clustered_grid <- .iwmde_include_display_values(
+    grid    = c(0, 1, 2),
+    values  = clustered_values,
+    xlim    = c(0, 2),
+    support = c(0, 2)
+  )
+  expect_length(clustered_grid, 3L)
+  expect_true(all(clustered_values %in% clustered_grid))
 })
 
 
@@ -1156,8 +1199,17 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
       bf_max_log_ratio    = 0,
       n_estimator_rows    = 500,
       plot_scale_relative_mcse    = .01,
-      min_plot_scale_ess          = 120,
-      max_plot_scale_weight_share = .05,
+      bulk_probability_range      = c(.05, .95),
+      bulk_x_range                = c(-1, 1),
+      bulk_max_relative_mcse      = .01,
+      bulk_min_ess                = 120,
+      bulk_max_weight_share       = .05,
+      tail_probabilities          = c(.05, .95),
+      tail_target_x               = c(-1, 1),
+      tail_evaluation_x           = c(-1, 1),
+      tail_relative_mcse          = c(.01, .01),
+      tail_ess                    = c(120, 120),
+      tail_max_weight_share       = c(.05, .05),
       active_mass         = 1,
       final_normalization_integral = 1,
       normalization_relative_error = 0,
@@ -1237,7 +1289,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "2")
-  expect_equal(provenance[["algorithm_version"]], "5")
+  expect_equal(provenance[["algorithm_version"]], "6")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -1329,8 +1381,17 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
         bf_max_log_ratio    = 0,
         n_estimator_rows    = 500,
         plot_scale_relative_mcse    = .01,
-        min_plot_scale_ess          = 120,
-        max_plot_scale_weight_share = .05,
+        bulk_probability_range      = c(.05, .95),
+        bulk_x_range                = c(-1, 1),
+        bulk_max_relative_mcse      = .01,
+        bulk_min_ess                = 120,
+        bulk_max_weight_share       = .05,
+        tail_probabilities          = c(.05, .95),
+        tail_target_x               = c(-1, 1),
+        tail_evaluation_x           = c(-1, 1),
+        tail_relative_mcse          = c(.01, .01),
+        tail_ess                    = c(120, 120),
+        tail_max_weight_share       = c(.05, .05),
         active_mass         = 1,
         final_normalization_integral = 1,
         normalization_relative_error = 0,
@@ -2002,6 +2063,30 @@ test_that("IWMDE plan freezes finite baseline row contract", {
   drop_positions <- 2L
   changed_plan <- make_plan()
   expect_false(identical(changed_plan[["plan_key"]], plan[["plan_key"]]))
+
+  density_plan <- .iwmde_plan(
+    context         = context,
+    parameter       = "mu",
+    density_method  = "qCMDE",
+    density_control = list(
+      n_points             = 20,
+      max_samples          = 21,
+      normalization_points = 20
+    ),
+    outputs         = "density",
+    parameter_spec  = list(type = "primitive")
+  )
+  expected_tail <- stats::quantile(
+    seq_len(25),
+    probs = c(.05, .95),
+    names = FALSE,
+    type  = 8
+  )
+  expect_equal(density_plan[["grids"]][["tail_probabilities"]], c(.05, .95))
+  expect_equal(density_plan[["grids"]][["tail_values"]], expected_tail)
+  expect_true(all(
+    expected_tail %in% density_plan[["grids"]][["display_grid"]]
+  ))
 
   drop_positions <- 1:2
   unsupported_plan <- make_plan()

@@ -636,7 +636,11 @@
   }
   bf_diagnostics <- .iwmde_density_bf_diagnostics(density, bf_values)
   active_key_counts <- .iwmde_plan_active_key_counts(execution[["row_states"]])
-  plot_scale_diagnostics <- .iwmde_density_plot_scale_diagnostics(density)
+  curve_diagnostics <- .iwmde_density_curve_diagnostics(
+    density            = density,
+    tail_probabilities = plan[["grids"]][["tail_probabilities"]],
+    tail_values        = plan[["grids"]][["tail_values"]]
+  )
 
   diagnostics <- list(
     integral                    = plot_integral,
@@ -734,11 +738,25 @@
     max_relative_mcse           =
       .iwmde_max_or_na(density[["relative_mcse"]]),
     plot_scale_relative_mcse    =
-      plot_scale_diagnostics[["relative_mcse"]],
-    min_plot_scale_ess          =
-      plot_scale_diagnostics[["min_ess"]],
-    max_plot_scale_weight_share =
-      plot_scale_diagnostics[["max_weight_share"]],
+      curve_diagnostics[["plot_scale_relative_mcse"]],
+    bulk_probability_range      =
+      curve_diagnostics[["bulk_probability_range"]],
+    bulk_x_range                = curve_diagnostics[["bulk_x_range"]],
+    bulk_max_relative_mcse      =
+      curve_diagnostics[["bulk_max_relative_mcse"]],
+    bulk_min_ess                = curve_diagnostics[["bulk_min_ess"]],
+    bulk_max_weight_share       =
+      curve_diagnostics[["bulk_max_weight_share"]],
+    tail_probabilities          =
+      curve_diagnostics[["tail_probabilities"]],
+    tail_target_x               = curve_diagnostics[["tail_target_x"]],
+    tail_evaluation_x           =
+      curve_diagnostics[["tail_evaluation_x"]],
+    tail_relative_mcse          =
+      curve_diagnostics[["tail_relative_mcse"]],
+    tail_ess                    = curve_diagnostics[["tail_ess"]],
+    tail_max_weight_share       =
+      curve_diagnostics[["tail_max_weight_share"]],
     plot_integral_mcse          = density[["integral_mcse"]],
     plot_integral_relative_mcse = density[["integral_relative_mcse"]],
     batch_size                  = density[["batch_size"]],
@@ -802,31 +820,73 @@
 }
 
 
-.iwmde_density_plot_scale_diagnostics <- function(density) {
+.iwmde_density_curve_diagnostics <- function(density, tail_probabilities,
+                                              tail_values) {
 
-  y                <- density[["y"]]
-  mcse             <- density[["mcse"]]
-  ess              <- density[["ess"]]
-  max_weight_share <- density[["max_weight_share"]]
-  peak_density <- .iwmde_max_or_na(y)
-  if (!is.finite(peak_density) || peak_density <= 0) {
-    return(list(
-      relative_mcse    = NA_real_,
-      min_ess          = NA_real_,
-      max_weight_share = NA_real_
-    ))
+  empty <- list(
+    plot_scale_relative_mcse = NA_real_,
+    bulk_probability_range   = c(NA_real_, NA_real_),
+    bulk_x_range             = c(NA_real_, NA_real_),
+    bulk_max_relative_mcse   = NA_real_,
+    bulk_min_ess             = NA_real_,
+    bulk_max_weight_share    = NA_real_,
+    tail_probabilities       = c(NA_real_, NA_real_),
+    tail_target_x            = c(NA_real_, NA_real_),
+    tail_evaluation_x        = c(NA_real_, NA_real_),
+    tail_relative_mcse       = c(NA_real_, NA_real_),
+    tail_ess                 = c(NA_real_, NA_real_),
+    tail_max_weight_share    = c(NA_real_, NA_real_)
+  )
+
+  tail_probabilities <- as.numeric(tail_probabilities)
+  tail_values        <- as.numeric(tail_values)
+  if (length(tail_probabilities) != 2L ||
+      length(tail_values) != 2L ||
+      any(!is.finite(tail_probabilities)) ||
+      any(!is.finite(tail_values)) ||
+      tail_probabilities[1L] >= tail_probabilities[2L] ||
+      tail_values[1L] > tail_values[2L]) {
+    return(empty)
   }
 
-  density_ratio <- y / peak_density
-  visible       <- density_ratio > 0
+  x                <- density[["x"]]
+  y                <- density[["y"]]
+  mcse             <- density[["mcse"]]
+  relative_mcse    <- density[["relative_mcse"]]
+  ess              <- density[["ess"]]
+  max_weight_share <- density[["max_weight_share"]]
+  peak_density     <- .iwmde_max_or_na(y)
+  if (length(x) == 0L || !is.finite(peak_density) || peak_density <= 0) {
+    return(empty)
+  }
+
+  bulk <- x >= tail_values[1L] & x <= tail_values[2L]
+  if (!any(bulk)) {
+    return(empty)
+  }
+  tail_index <- vapply(tail_values, function(value) {
+    which.min(abs(x - value))
+  }, integer(1))
+
+  bulk_ess <- ess[bulk]
+  bulk_ess <- bulk_ess[is.finite(bulk_ess)]
 
   return(list(
-    relative_mcse    = .iwmde_max_or_na(mcse) / peak_density,
-    min_ess          = if (any(visible)) {
-      min(ess[visible] / density_ratio[visible]^2)
-    } else {
+    plot_scale_relative_mcse = .iwmde_max_or_na(mcse) / peak_density,
+    bulk_probability_range   = range(tail_probabilities),
+    bulk_x_range             = range(tail_values),
+    bulk_max_relative_mcse   = .iwmde_max_or_na(relative_mcse[bulk]),
+    bulk_min_ess             = if (length(bulk_ess) == 0L) {
       NA_real_
+    } else {
+      min(bulk_ess)
     },
-    max_weight_share = .iwmde_max_or_na(max_weight_share * density_ratio)
+    bulk_max_weight_share    = .iwmde_max_or_na(max_weight_share[bulk]),
+    tail_probabilities       = tail_probabilities,
+    tail_target_x            = tail_values,
+    tail_evaluation_x        = x[tail_index],
+    tail_relative_mcse       = relative_mcse[tail_index],
+    tail_ess                 = ess[tail_index],
+    tail_max_weight_share    = max_weight_share[tail_index]
   ))
 }

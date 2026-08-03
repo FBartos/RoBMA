@@ -83,6 +83,10 @@ marginal_means <- function(object, ...) {
 #' reliability gates pass, all eligible rows are used, or a finite
 #' \code{max_samples} cap is reached. The normalization entries are used with
 #' \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+#' Curve diagnostics apply local reliability gates over the empirical 5--95
+#' percent bulk, report the 5 and 95 percent tail checkpoints, and retain a
+#' whole-curve absolute MCSE safeguard relative to the density peak. Point
+#' ordinates retain separate strict local diagnostics.
 #' qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
 #' random-formula models and for derived semantic random-effect quantities.
 #' @inheritParams predict.brma
@@ -547,7 +551,10 @@ print.summary.marginal_means.brma <- function(x, ...) {
 #' \code{normalization_points} (default \code{NULL}, resolved to
 #' \code{max(50, n_points)}), and \code{normalization_prob} (default
 #' \code{0.999}). \code{initial_samples} and \code{target_relative_mcse} are
-#' point-ordinate controls and do not alter this fixed-budget plot. Supplying
+#' point-ordinate controls and do not alter this fixed-budget plot. Curve
+#' diagnostics use the empirical 5--95 percent bulk, report the 5 and 95
+#' percent tail checkpoints, and retain a whole-curve absolute MCSE safeguard
+#' relative to the density peak. Supplying
 #' \code{density_control} forces
 #' recomputation for the plotted marginal means instead of reusing stored
 #' densities. Increase row and normalization budgets when diagnostics report

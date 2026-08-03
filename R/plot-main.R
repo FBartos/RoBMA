@@ -60,6 +60,11 @@
 #' controls and do not alter this fixed-budget density plot. The normalization
 #' entries are used with
 #' \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+#' Curve diagnostics apply local relative-MCSE, effective-sample-size, and
+#' contribution-concentration gates over the empirical 5--95 percent bulk and
+#' record the 5 and 95 percent tail checkpoints. The entire display retains an
+#' absolute MCSE safeguard relative to the density peak. Requested point
+#' ordinates used for Bayes factors retain separate strict local diagnostics.
 #' Increase the row and normalization budgets and compare results when density
 #' diagnostics report low effective sample size, concentrated contributions,
 #' dropped rows, or unstable normalization.

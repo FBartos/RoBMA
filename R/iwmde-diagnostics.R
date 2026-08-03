@@ -319,13 +319,26 @@
     ))
   }
 
-  metrics       <- .iwmde_density_plot_scale_metrics(diagnostics)
-  relative_mcse <- metrics[["relative_mcse"]]
-  if (!is.finite(relative_mcse) || relative_mcse < 0 ||
-      relative_mcse >= .iwmde_density_max_relative_mcse()) {
+  metrics <- .iwmde_density_curve_metrics(diagnostics)
+  plot_scale_relative_mcse <- metrics[["plot_scale_relative_mcse"]]
+  if (!is.finite(plot_scale_relative_mcse) ||
+      plot_scale_relative_mcse < 0 ||
+      plot_scale_relative_mcse >= .iwmde_density_max_relative_mcse()) {
     return(paste0(
       "density plot-scale MCSE is ",
-      .iwmde_percent(relative_mcse),
+      .iwmde_percent(plot_scale_relative_mcse),
+      " (maximum allowed ",
+      .iwmde_percent(.iwmde_density_max_relative_mcse()),
+      ")"
+    ))
+  }
+
+  bulk_relative_mcse <- metrics[["bulk_relative_mcse"]]
+  if (!is.finite(bulk_relative_mcse) || bulk_relative_mcse < 0 ||
+      bulk_relative_mcse >= .iwmde_density_max_relative_mcse()) {
+    return(paste0(
+      "density bulk relative MCSE is ",
+      .iwmde_percent(bulk_relative_mcse),
       " (maximum allowed ",
       .iwmde_percent(.iwmde_density_max_relative_mcse()),
       ")"
@@ -336,7 +349,7 @@
   min_ess <- .iwmde_density_min_ess(estimator_rows)
   if (!is.finite(ess) || ess < min_ess) {
     return(paste0(
-      "density plot-scale effective sample size is ",
+      "density bulk effective sample size is ",
       .iwmde_count(ess),
       " (minimum ", .iwmde_count(min_ess), ")"
     ))
@@ -346,7 +359,7 @@
   if (!is.finite(max_weight_share) ||
       max_weight_share >= .iwmde_density_max_weight_share()) {
     return(paste0(
-      "largest plot-scale density importance weight contributes ",
+      "largest bulk density importance weight contributes ",
       .iwmde_percent(max_weight_share),
       " (maximum allowed ",
       .iwmde_percent(.iwmde_density_max_weight_share()),
@@ -379,14 +392,30 @@
     ))
   }
 
-  metrics       <- .iwmde_density_plot_scale_metrics(diagnostics)
-  relative_mcse <- metrics[["relative_mcse"]]
-  if (is.finite(relative_mcse) &&
-      relative_mcse >= .iwmde_density_warning_relative_mcse() &&
-      relative_mcse < .iwmde_density_max_relative_mcse()) {
+  metrics <- .iwmde_density_curve_metrics(diagnostics)
+  plot_scale_relative_mcse <- metrics[["plot_scale_relative_mcse"]]
+  if (is.finite(plot_scale_relative_mcse) &&
+      plot_scale_relative_mcse >=
+        .iwmde_density_warning_relative_mcse() &&
+      plot_scale_relative_mcse < .iwmde_density_max_relative_mcse()) {
     warnings <- c(warnings, paste0(
       "Density plot-scale MCSE is ",
-      .iwmde_percent(relative_mcse),
+      .iwmde_percent(plot_scale_relative_mcse),
+      " (warning threshold ",
+      .iwmde_percent(.iwmde_density_warning_relative_mcse()),
+      "; rejection threshold ",
+      .iwmde_percent(.iwmde_density_max_relative_mcse()),
+      ")."
+    ))
+  }
+
+  bulk_relative_mcse <- metrics[["bulk_relative_mcse"]]
+  if (is.finite(bulk_relative_mcse) &&
+      bulk_relative_mcse >= .iwmde_density_warning_relative_mcse() &&
+      bulk_relative_mcse < .iwmde_density_max_relative_mcse()) {
+    warnings <- c(warnings, paste0(
+      "Density bulk relative MCSE is ",
+      .iwmde_percent(bulk_relative_mcse),
       " (warning threshold ",
       .iwmde_percent(.iwmde_density_warning_relative_mcse()),
       "; rejection threshold ",
@@ -402,7 +431,7 @@
       ess >= min_ess &&
       ess < warning_min_ess) {
     warnings <- c(warnings, paste0(
-      "Density plot-scale effective sample size is ",
+      "Density bulk effective sample size is ",
       .iwmde_count(ess),
       " (warning threshold ",
       .iwmde_count(warning_min_ess),
@@ -417,7 +446,7 @@
       max_weight_share >= .iwmde_density_warning_weight_share() &&
       max_weight_share < .iwmde_density_max_weight_share()) {
     warnings <- c(warnings, paste0(
-      "Largest plot-scale density importance weight contributes ",
+      "Largest bulk density importance weight contributes ",
       .iwmde_percent(max_weight_share),
       " (warning threshold ",
       .iwmde_percent(.iwmde_density_warning_weight_share()),
@@ -431,20 +460,24 @@
 }
 
 
-.iwmde_density_plot_scale_metrics <- function(diagnostics) {
+.iwmde_density_curve_metrics <- function(diagnostics) {
 
   return(list(
-    relative_mcse    = .iwmde_diagnostic_scalar(
+    plot_scale_relative_mcse = .iwmde_diagnostic_scalar(
       diagnostics,
       "plot_scale_relative_mcse"
     ),
-    ess              = .iwmde_diagnostic_scalar(
+    bulk_relative_mcse = .iwmde_diagnostic_scalar(
       diagnostics,
-      "min_plot_scale_ess"
+      "bulk_max_relative_mcse"
+    ),
+    ess = .iwmde_diagnostic_scalar(
+      diagnostics,
+      "bulk_min_ess"
     ),
     max_weight_share = .iwmde_diagnostic_scalar(
       diagnostics,
-      "max_plot_scale_weight_share"
+      "bulk_max_weight_share"
     )
   ))
 }

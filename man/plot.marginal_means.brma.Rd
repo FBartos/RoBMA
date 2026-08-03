@@ -71,7 +71,10 @@ IWMDE), \code{initial_samples} (default \code{500}),
 \code{normalization_points} (default \code{NULL}, resolved to
 \code{max(50, n_points)}), and \code{normalization_prob} (default
 \code{0.999}). \code{initial_samples} and \code{target_relative_mcse} are
-point-ordinate controls and do not alter this fixed-budget plot. Supplying
+point-ordinate controls and do not alter this fixed-budget plot. Curve
+diagnostics use the empirical 5--95 percent bulk, report the 5 and 95
+percent tail checkpoints, and retain a whole-curve absolute MCSE safeguard
+relative to the density peak. Supplying
 \code{density_control} forces
 recomputation for the plotted marginal means instead of reusing stored
 densities. Increase row and normalization budgets when diagnostics report

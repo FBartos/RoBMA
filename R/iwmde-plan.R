@@ -246,6 +246,12 @@
   evaluation_values <- requested_values
 
   continuous_values <- posterior_values[continuous_rows]
+  tail_probabilities <- NULL
+  tail_values        <- NULL
+  if (isTRUE(plan[["outputs"]][["need_density"]])) {
+    tail_probabilities <- .iwmde_density_tail_probabilities()
+    tail_values        <- .iwmde_density_tail_values(continuous_values)
+  }
   density_xlim <- .iwmde_include_plot_values(
     xlim    = xlim,
     values  = requested_values,
@@ -257,12 +263,12 @@
       xlim        = density_xlim,
       n_points    = plan[["control"]][["n_points"]],
       transform   = transform,
-      values      = c(continuous_values, requested_values),
+      values      = c(continuous_values, requested_values, tail_values),
       grid_method = plan[["control"]][["display_grid"]]
     )
     display_grid <- .iwmde_include_display_values(
       grid    = display_grid,
-      values  = requested_values,
+      values  = c(requested_values, tail_values),
       xlim    = density_xlim,
       support = support
     )
@@ -305,6 +311,8 @@
     display_grid       = display_grid,
     requested_values   = requested_values,
     evaluation_values  = evaluation_values,
+    tail_probabilities = tail_probabilities,
+    tail_values        = tail_values,
     normalization_grid = normalization_grid
   )
   return(plan)
@@ -660,6 +668,8 @@
     ),
     requested_values = grids[["requested_values"]],
     evaluation_values = grids[["evaluation_values"]],
+    tail_probabilities = grids[["tail_probabilities"]],
+    tail_values = grids[["tail_values"]],
     normalization_grid = if (is.null(normalization_grid)) {
       NULL
     } else {

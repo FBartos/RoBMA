@@ -85,6 +85,10 @@ ordinates. Point ordinates adapt deterministically from
 reliability gates pass, all eligible rows are used, or a finite
 \code{max_samples} cap is reached. The normalization entries are used with
 \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+Curve diagnostics apply local reliability gates over the empirical 5--95
+percent bulk, report the 5 and 95 percent tail checkpoints, and retain a
+whole-curve absolute MCSE safeguard relative to the density peak. Point
+ordinates retain separate strict local diagnostics.
 qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
 random-formula models and for derived semantic random-effect quantities.}
 

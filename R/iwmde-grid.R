@@ -34,6 +34,22 @@
 }
 
 
+.iwmde_density_tail_values <- function(values) {
+
+  values <- values[is.finite(values)]
+  if (length(values) == 0L) {
+    return(c(NA_real_, NA_real_))
+  }
+
+  return(stats::quantile(
+    values,
+    probs = .iwmde_density_tail_probabilities(),
+    names = FALSE,
+    type  = 8
+  ))
+}
+
+
 .iwmde_open_finite_support <- function(xlim, support) {
 
   offset <- .iwmde_interior_offsets(xlim, support)
@@ -290,11 +306,20 @@
     return(grid)
   }
 
+  protected <- rep(FALSE, length(grid))
   for (value in sort(unique(values))) {
-    if (any(grid == value)) {
+    existing <- which(grid == value)
+    if (length(existing) > 0L) {
+      protected[existing[[1L]]] <- TRUE
       next
     }
-    grid[which.min(abs(grid - value))] <- value
+    candidates <- which(!protected)
+    if (length(candidates) == 0L) {
+      break
+    }
+    index            <- candidates[which.min(abs(grid[candidates] - value))]
+    grid[index]      <- value
+    protected[index] <- TRUE
   }
 
   return(sort(unique(grid)))
