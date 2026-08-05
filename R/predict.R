@@ -1062,7 +1062,8 @@ if (random_mv && type == "estimate" &&
     context    = context,
     samples    = outcome_samples,
     title      = .response_prediction_title(outcome_type, as_measure),
-    parameters = .conditional_effect_parameters(object)
+    parameters = .conditional_effect_parameters(object),
+    effect     = !is.element(outcome_type, c("bin", "pois")) || as_measure
   ))
 
 }
