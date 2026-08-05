@@ -185,6 +185,9 @@
   fitted-scale random design instead of reusing the fitted design.
 - computes deleted-row location-scale influence heterogeneity with the package's
   within-draw RMS target.
+- recovers sparse valid binomial and Poisson GLMM likelihood columns with a
+  convergence-checked prior-CDF quadrature fallback when AGHQ cannot certify
+  them.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

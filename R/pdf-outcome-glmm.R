@@ -3,6 +3,16 @@
 # ============================================================================ #
 
 
+.poisson_log_kernel <- function(x, log_lambda) {
+
+  if (x == 0L) {
+    return(-exp(log_lambda))
+  }
+
+  return(x * log_lambda - exp(log_lambda))
+}
+
+
 
 # ---------------------------------------------------------------------------- #
 # .outcome_pdf.binom
@@ -17,8 +27,7 @@
   use_aghq   <- missing(n_theta) && missing(n_pi)
   prior_spec <- .glmm_aghq_prior_spec(prior_pi, "bin")
   if (use_aghq) {
-    .glmm_aghq_require_default(prior_spec, "bin")
-    out <- .glmm_binom_aghq(
+    return(.glmm_binom_marginal(
       ai          = ai,
       ci          = ci,
       n1i         = n1i,
@@ -26,9 +35,9 @@
       mu_samples  = mu_samples,
       tau_within  = tau_within,
       weights     = weights,
+      prior_pi    = prior_pi,
       prior_spec  = prior_spec
-    )
-    return(.glmm_aghq_value(out))
+    ))
   }
 
   if (!.has_native_glmm("bin")) {
@@ -273,8 +282,7 @@
   use_aghq   <- missing(n_theta) && missing(n_pi)
   prior_spec <- .glmm_aghq_prior_spec(prior_pi, "bin")
   if (use_aghq) {
-    .glmm_aghq_require_default(prior_spec, "bin", row_sum = TRUE)
-    out <- .glmm_binom_aghq(
+    return(.glmm_binom_marginal(
       ai          = ai,
       ci          = ci,
       n1i         = n1i,
@@ -282,10 +290,10 @@
       mu_samples  = mu_samples,
       tau_within  = tau_within,
       weights     = weights,
+      prior_pi    = prior_pi,
       prior_spec  = prior_spec,
       row_sum     = TRUE
-    )
-    return(.glmm_aghq_value(out))
+    ))
   }
 
   if (!.has_native_glmm_row_sum("bin")) {
@@ -348,8 +356,7 @@
   use_aghq   <- missing(n_theta) && missing(n_phi)
   prior_spec <- .glmm_aghq_prior_spec(prior_phi, "pois")
   if (use_aghq) {
-    .glmm_aghq_require_default(prior_spec, "pois")
-    out <- .glmm_pois_aghq(
+    return(.glmm_pois_marginal(
       x1i        = x1i,
       x2i        = x2i,
       t1i        = t1i,
@@ -357,9 +364,9 @@
       mu_samples = mu_samples,
       tau_within = tau_within,
       weights    = weights,
+      prior_phi  = prior_phi,
       prior_spec = prior_spec
-    )
-    return(.glmm_aghq_value(out))
+    ))
   }
 
   if (!.has_native_glmm("pois")) {
@@ -415,8 +422,7 @@
   use_aghq   <- missing(n_theta) && missing(n_phi)
   prior_spec <- .glmm_aghq_prior_spec(prior_phi, "pois")
   if (use_aghq) {
-    .glmm_aghq_require_default(prior_spec, "pois", row_sum = TRUE)
-    out <- .glmm_pois_aghq(
+    return(.glmm_pois_marginal(
       x1i        = x1i,
       x2i        = x2i,
       t1i        = t1i,
@@ -424,10 +430,10 @@
       mu_samples = mu_samples,
       tau_within = tau_within,
       weights    = weights,
+      prior_phi  = prior_phi,
       prior_spec = prior_spec,
       row_sum    = TRUE
-    )
-    return(.glmm_aghq_value(out))
+    ))
   }
 
   if (!.has_native_glmm_row_sum("pois")) {
@@ -567,8 +573,8 @@
     log_lambda1 <- sweep(half_effect, 2, phi_expanded + log_t1i[k], "+")
     log_lambda2 <- sweep(-half_effect, 2, phi_expanded + log_t2i[k], "+")
 
-    log_lik_grid <- x1i[k] * log_lambda1 - exp(log_lambda1) - log_factorial_x1[k] +
-                    x2i[k] * log_lambda2 - exp(log_lambda2) - log_factorial_x2[k]
+    log_lik_grid <- .poisson_log_kernel(x1i[k], log_lambda1) - log_factorial_x1[k] +
+                    .poisson_log_kernel(x2i[k], log_lambda2) - log_factorial_x2[k]
     log_lik_grid <- weights[k] * log_lik_grid
 
     log_terms <- sweep(log_lik_grid, 2, log_weights, "+")

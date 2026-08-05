@@ -354,18 +354,18 @@ test_that("ordinary wrappers require AGHQ-supported default priors", {
   expected_pois <- .glmm_aghq_value(pois_raw)
 
   expect_equal(
-    .outcome_pdf.binom(
+    as.numeric(.outcome_pdf.binom(
       7L, 3L, 24L, 21L, matrix(0.35), matrix(0.7), prior_pi
-    ),
-    expected_bin,
+    )),
+    as.numeric(expected_bin),
     tolerance = 1e-12,
     info = "default binomial wrapper AGHQ dispatch"
   )
   expect_equal(
-    .outcome_pdf.pois(
+    as.numeric(.outcome_pdf.pois(
       7L, 11L, 15, 18, matrix(0.35), matrix(0.6), prior_phi
-    ),
-    expected_pois,
+    )),
+    as.numeric(expected_pois),
     tolerance = 1e-12,
     info = "default Poisson wrapper AGHQ dispatch"
   )
@@ -391,7 +391,8 @@ test_that("ordinary wrappers require AGHQ-supported default priors", {
     attr(bin_sum, "glmm_aghq_diagnostics"),
     c(
       "max_order", "max_change", "max_mode_iterations", "order_counts",
-      "exact_count"
+      "exact_count", "grid_columns", "grid_max_theta_order",
+      "grid_max_nuisance_order", "grid_max_change"
     ),
     info = "binomial wrapper diagnostics"
   )
@@ -399,7 +400,8 @@ test_that("ordinary wrappers require AGHQ-supported default priors", {
     attr(pois_sum, "glmm_aghq_diagnostics"),
     c(
       "max_order", "max_change", "max_mode_iterations", "order_counts",
-      "exact_count"
+      "exact_count", "grid_columns", "grid_max_theta_order",
+      "grid_max_nuisance_order", "grid_max_change"
     ),
     info = "Poisson wrapper diagnostics"
   )
@@ -450,6 +452,63 @@ test_that("ordinary wrappers require AGHQ-supported default priors", {
 })
 
 
+test_that("ordinary AGHQ recovers only failed observations", {
+
+  prior <- BayesTools::prior("beta", list(1.5, 2.5))
+  control <- .glmm_aghq_control(
+    orders      = c(5L, 9L, 13L),
+    tolerance   = 1e-15,
+    consecutive = 2L
+  )
+  args <- list(
+    ai          = c(0L, 7L),
+    ci          = c(0L, 3L),
+    n1i         = c(1L, 24L),
+    n2i         = c(1L, 21L),
+    mu_samples  = matrix(c(0, 0.35), nrow = 1),
+    tau_within  = matrix(c(0, 0.7), nrow = 1),
+    weights     = NULL,
+    prior_pi    = prior,
+    prior_spec  = .glmm_aghq_prior_spec(prior, "bin"),
+    control     = control
+  )
+
+  pointwise <- do.call(.glmm_binom_marginal, args)
+  summed <- do.call(
+    .glmm_binom_marginal,
+    c(args, list(row_sum = TRUE))
+  )
+  expected_second <- .binom_aghq_oracle(
+    a = 7L, c = 3L, n1 = 24L, n2 = 21L,
+    mu = 0.35, tau = 0.7, alpha = 1.5, beta = 2.5
+  )
+  diagnostics <- attr(pointwise, "glmm_aghq_diagnostics")
+
+  expect_equal(pointwise[1L, 2L], expected_second, tolerance = 2e-6,
+               info = "failed observation uses independently checked grid")
+  expect_identical(diagnostics[["grid_columns"]], 2L,
+                   info = "the exact first observation does not fall back")
+  expect_equal(as.numeric(summed), rowSums(pointwise), tolerance = 1e-12,
+               info = "pointwise and sum routes share recovered values")
+})
+
+
+test_that("AGHQ recovery does not catch unrelated errors", {
+
+  expect_error(
+    .glmm_aghq_dispatch(
+      S             = 1L,
+      K             = 1L,
+      outcome_type  = "pois",
+      evaluate_aghq = function(k) stop("unrelated programming error"),
+      evaluate_grid = function(k) stop("fallback must not run"),
+      row_sum       = FALSE
+    ),
+    "unrelated programming error"
+  )
+})
+
+
 test_that("Poisson AGHQ handles extreme predictors without split exponentiation", {
 
   skip_on_cran()
@@ -477,6 +536,39 @@ test_that("Poisson AGHQ handles extreme predictors without split exponentiation"
               info = "finite result when separate exponentials would overflow")
   expect_equal(out[["value"]][1, 1], expected, tolerance = 1e-6,
                info = "stable extreme-predictor reference integral")
+})
+
+
+test_that("fixed Poisson grids preserve finite combined log rates", {
+
+  prior <- BayesTools::prior("point", list(-750))
+  args <- list(
+    x1i        = 1L,
+    x2i        = 0L,
+    t1i        = 1,
+    t2i        = 1,
+    mu_samples = matrix(1500),
+    tau_within = matrix(0),
+    prior_phi  = prior,
+    n_theta    = 15L,
+    n_phi      = 1L
+  )
+
+  expect_equal(do.call(.outcome_pdf.pois, args)[1L, 1L], -1,
+               tolerance = 1e-12, info = "native combined-log-rate kernel")
+  expect_equal(do.call(.outcome_pdf.pois_r, args)[1L, 1L], -1,
+               tolerance = 1e-12, info = "R combined-log-rate reference")
+})
+
+
+test_that("unstable high-order Hermite rules fail structurally", {
+
+  rules <- .glmm_aghq_control()[["rules"]][["nodes"]]
+  expect_identical(length(rules[[length(rules)]]), 49L)
+  expect_error(
+    .gauss_hermite_nodes(65L),
+    "Gauss-Hermite weights are numerically unstable at order 65"
+  )
 })
 
 

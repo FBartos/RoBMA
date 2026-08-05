@@ -77,6 +77,26 @@ static void log_inv_logit_pair_glmm(double eta, double *log_p, double *log_q)
   }
 }
 
+static double poisson_log_kernel_glmm(int x, double log_lambda)
+{
+  if (std::isnan(log_lambda)) {
+    return NA_REAL;
+  }
+  if (log_lambda == INFINITY) {
+    return -INFINITY;
+  }
+  if (log_lambda == -INFINITY) {
+    return x == 0 ? 0.0 : -INFINITY;
+  }
+
+  const double lambda = std::exp(log_lambda);
+  if (std::isinf(lambda)) {
+    return -INFINITY;
+  }
+
+  return (x == 0 ? 0.0 : x * log_lambda) - lambda;
+}
+
 static void validate_common_glmm(SEXP mu_samples, SEXP tau_within,
                                  SEXP theta_grid, SEXP log_theta_weights,
                                  int *S, int *K, int *n_theta)
@@ -174,33 +194,24 @@ static double pois_marginal_loglik_scalar(
   int x1i, int x2i, double log_t1i, double log_t2i,
   double log_factorial, double mu, double tau, double weight, const double *theta,
   const double *log_phi, const double *grid_weights, int n_theta, int n_phi,
-  std::vector<double> &terms, std::vector<double> &half_effect,
-  std::vector<double> &exp_half_effect,
-  std::vector<double> &exp_neg_half_effect)
+  std::vector<double> &terms, std::vector<double> &half_effect)
 {
   int grid_index = 0;
 
   for (int t = 0; t < n_theta; ++t) {
-    half_effect[t]         = 0.5 * (mu + tau * theta[t]);
-    exp_half_effect[t]     = std::exp(half_effect[t]);
-    exp_neg_half_effect[t] = std::exp(-half_effect[t]);
+    half_effect[t] = 0.5 * (mu + tau * theta[t]);
   }
 
   for (int p = 0; p < n_phi; ++p) {
     const double base_log_lambda_1 = log_phi[p] + log_t1i;
     const double base_log_lambda_2 = log_phi[p] + log_t2i;
-    const double base_lambda_1     = std::exp(base_log_lambda_1);
-    const double base_lambda_2     = std::exp(base_log_lambda_2);
-
     for (int t = 0; t < n_theta; ++t) {
       const double log_lambda_1 = base_log_lambda_1 + half_effect[t];
       const double log_lambda_2 = base_log_lambda_2 - half_effect[t];
-      const double lambda_1     = base_lambda_1 * exp_half_effect[t];
-      const double lambda_2     = base_lambda_2 * exp_neg_half_effect[t];
 
       const double log_lik =
-        x1i * log_lambda_1 - lambda_1 +
-        x2i * log_lambda_2 - lambda_2 -
+        poisson_log_kernel_glmm(x1i, log_lambda_1) +
+        poisson_log_kernel_glmm(x2i, log_lambda_2) -
         log_factorial;
 
       terms[grid_index] = weight * log_lik + grid_weights[grid_index];
@@ -432,8 +443,6 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
   std::vector<double> terms(static_cast<size_t>(n_phi) * static_cast<size_t>(n_theta));
   std::vector<double> grid_weights(static_cast<size_t>(n_phi) * static_cast<size_t>(n_theta));
   std::vector<double> half_effect(static_cast<size_t>(n_theta));
-  std::vector<double> exp_half_effect(static_cast<size_t>(n_theta));
-  std::vector<double> exp_neg_half_effect(static_cast<size_t>(n_theta));
 
   for (int k = 0; k < K; ++k) {
     const int x1_k = x1i_p[k];
@@ -459,25 +468,18 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
 
       for (int t = 0; t < n_theta; ++t) {
         half_effect[t] = 0.5 * (mu_s + tau_s * theta_p[t]);
-        exp_half_effect[t] = std::exp(half_effect[t]);
-        exp_neg_half_effect[t] = std::exp(-half_effect[t]);
       }
 
       for (int p = 0; p < n_phi; ++p) {
         const double base_log_lambda_1 = log_phi_p[p + n_phi * k] + log_t1;
         const double base_log_lambda_2 = log_phi_p[p + n_phi * k] + log_t2;
-        const double base_lambda_1     = std::exp(base_log_lambda_1);
-        const double base_lambda_2     = std::exp(base_log_lambda_2);
-
         for (int t = 0; t < n_theta; ++t) {
           const double log_lambda_1 = base_log_lambda_1 + half_effect[t];
           const double log_lambda_2 = base_log_lambda_2 - half_effect[t];
-          const double lambda_1     = base_lambda_1 * exp_half_effect[t];
-          const double lambda_2     = base_lambda_2 * exp_neg_half_effect[t];
 
           const double log_lik =
-            x1_k * log_lambda_1 - lambda_1 +
-            x2_k * log_lambda_2 - lambda_2 -
+            poisson_log_kernel_glmm(x1_k, log_lambda_1) +
+            poisson_log_kernel_glmm(x2_k, log_lambda_2) -
             log_factorial;
 
           terms[grid_index] = weight_k * log_lik + grid_weights[grid_index];
@@ -629,8 +631,6 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik_row_sum(
   const int n_grid = n_phi * n_theta;
   std::vector<double> terms(static_cast<size_t>(n_grid));
   std::vector<double> half_effect(static_cast<size_t>(n_theta));
-  std::vector<double> exp_half_effect(static_cast<size_t>(n_theta));
-  std::vector<double> exp_neg_half_effect(static_cast<size_t>(n_theta));
   std::vector<double> log_t1(static_cast<size_t>(K));
   std::vector<double> log_t2(static_cast<size_t>(K));
   std::vector<double> log_factorial(static_cast<size_t>(K));
@@ -661,8 +661,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik_row_sum(
         mu_p[s + S * k], tau_p[s + S * k], weight_k, theta_p,
         log_phi_p + n_phi * k,
         grid_weights.data() + static_cast<size_t>(k) * static_cast<size_t>(n_grid),
-        n_theta, n_phi, terms, half_effect,
-        exp_half_effect, exp_neg_half_effect
+        n_theta, n_phi, terms, half_effect
       );
     }
     out_p[s] = row_sum;
@@ -989,8 +988,6 @@ extern "C" SEXP RoBMA_glmm_pois_cluster_loglik(SEXP x1i, SEXP x2i,
   std::vector<double> gamma_terms(static_cast<size_t>(n_gamma));
   std::vector<double> cluster_terms(static_cast<size_t>(S) * static_cast<size_t>(n_gamma));
   std::vector<double> half_effect(static_cast<size_t>(n_theta));
-  std::vector<double> exp_half_effect(static_cast<size_t>(n_theta));
-  std::vector<double> exp_neg_half_effect(static_cast<size_t>(n_theta));
   std::vector<double> log_t1(static_cast<size_t>(K));
   std::vector<double> log_t2(static_cast<size_t>(K));
   std::vector<double> log_factorial(static_cast<size_t>(K));
@@ -1032,8 +1029,7 @@ extern "C" SEXP RoBMA_glmm_pois_cluster_loglik(SEXP x1i, SEXP x2i,
             mu_node, tau_within_p[s + S * k], weight_k, theta_p,
             log_phi_p + n_phi * k,
             grid_weights.data() + static_cast<size_t>(k) * static_cast<size_t>(n_grid),
-            n_theta, n_phi, terms, half_effect,
-            exp_half_effect, exp_neg_half_effect
+            n_theta, n_phi, terms, half_effect
           );
           cluster_terms[s + S * j] += marginal_loglik;
         }
@@ -1236,8 +1232,6 @@ extern "C" SEXP RoBMA_glmm_pois_cluster_loglik_row_sum(
   std::vector<double> gamma_terms(static_cast<size_t>(n_gamma));
   std::vector<double> cluster_terms(static_cast<size_t>(S) * static_cast<size_t>(n_gamma));
   std::vector<double> half_effect(static_cast<size_t>(n_theta));
-  std::vector<double> exp_half_effect(static_cast<size_t>(n_theta));
-  std::vector<double> exp_neg_half_effect(static_cast<size_t>(n_theta));
   std::vector<double> log_t1(static_cast<size_t>(K));
   std::vector<double> log_t2(static_cast<size_t>(K));
   std::vector<double> log_factorial(static_cast<size_t>(K));
@@ -1279,8 +1273,7 @@ extern "C" SEXP RoBMA_glmm_pois_cluster_loglik_row_sum(
             mu_node, tau_within_p[s + S * k], weight_k, theta_p,
             log_phi_p + n_phi * k,
             grid_weights.data() + static_cast<size_t>(k) * static_cast<size_t>(n_grid),
-            n_theta, n_phi, terms, half_effect,
-            exp_half_effect, exp_neg_half_effect
+            n_theta, n_phi, terms, half_effect
           );
           cluster_terms[s + S * j] += marginal_loglik;
         }

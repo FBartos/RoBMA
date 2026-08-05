@@ -520,6 +520,13 @@
   nodes   <- sqrt(2) * nodes_raw
   weights <- weights_raw / sqrt(pi)
 
+  if (any(!is.finite(weights)) || any(weights <= 0)) {
+    stop(
+      "Gauss-Hermite weights are numerically unstable at order ", n, ".",
+      call. = FALSE
+    )
+  }
+
   # Verify: weights should sum to 1
   # (The raw weights sum to √π because μ₀ = √π and Σ v_{1i}² = 1 for orthonormal eigenvectors)
 
