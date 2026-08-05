@@ -212,6 +212,8 @@
   compound affine point expressions from coherent prior and posterior draws.
 - limits hypothesis discovery to supported estimators and syntax, and retains
   only qCMDE/IWMDE ordinates and diagnostics matching the current request.
+- rejects unnamed, duplicate, nonnumeric, or non-finite qCMDE/IWMDE linear
+  target weights before removing exact zero coefficients.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

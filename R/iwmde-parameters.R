@@ -107,22 +107,40 @@
     return(NULL)
   }
   if (is.data.frame(weights)) {
+    if (!all(vapply(weights, is.numeric, logical(1)))) {
+      stop("Linear target weights must be numeric.", call. = FALSE)
+    }
     weights <- as.matrix(weights)
   }
   if (is.matrix(weights)) {
     if (nrow(weights) != 1L) {
-      return(NULL)
+      stop("Linear target weights must contain exactly one row.", call. = FALSE)
     }
     weights <- weights[1, ]
+  }
+  if (!is.numeric(weights)) {
+    stop("Linear target weights must be numeric.", call. = FALSE)
   }
   weight_names <- names(weights)
   weights <- as.numeric(weights)
   names(weights) <- weight_names
-  if (is.null(names(weights)) || any(names(weights) == "")) {
-    return(NULL)
+  if (is.null(names(weights)) || anyNA(names(weights)) ||
+      any(names(weights) == "")) {
+    stop("Linear target weights must be fully named.", call. = FALSE)
+  }
+  duplicate_names <- unique(names(weights)[duplicated(names(weights))])
+  if (length(duplicate_names) > 0L) {
+    stop(
+      "Linear target weights contain duplicate parameter name(s): ",
+      paste(duplicate_names, collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  if (any(!is.finite(weights))) {
+    stop("Linear target weights must all be finite.", call. = FALSE)
   }
 
-  keep <- is.finite(weights) & weights != 0
+  keep <- weights != 0
   weights <- weights[keep]
 
   return(weights)
