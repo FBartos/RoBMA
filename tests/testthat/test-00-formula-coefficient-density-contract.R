@@ -88,6 +88,7 @@ test_that("nonlinear joint coefficient transforms fail qCMDE/IWMDE closed", {
     target            = "log_tau_intercept",
     target_i          = 1L,
     transform = list(
+      target_scale = "original",
       matrix = matrix(
         c(1, -2),
         nrow = 1L,
@@ -102,6 +103,10 @@ test_that("nonlinear joint coefficient transforms fail qCMDE/IWMDE closed", {
       ),
       output_transforms = c(log_tau_intercept = "exp")
     )
+  )
+  class(target[["transform"]]) <- c(
+    "BayesTools_formula_coefficient_transform",
+    "list"
   )
   density <- structure(list(sentinel = TRUE), class = "prior_linear_density")
   testthat::local_mocked_bindings(
@@ -122,4 +127,70 @@ test_that("nonlinear joint coefficient transforms fail qCMDE/IWMDE closed", {
     "unsupported_formula_transform"
   )
   expect_match(observed[["parameter_spec"]][["reason"]], "nonlinear joint")
+})
+
+
+test_that("certified exp-affine coefficients use coherent KDE draws", {
+
+  transform <- list(
+    target_scale = "original",
+    matrix = matrix(
+      c(1, -2),
+      nrow = 1L,
+      dimnames = list(
+        "log_tau_intercept",
+        c("log_tau_intercept", "log_tau_x")
+      )
+    ),
+    source_transforms = c(
+      log_tau_intercept = "log",
+      log_tau_x         = "identity"
+    ),
+    output_transforms = c(log_tau_intercept = "exp")
+  )
+  class(transform) <- c(
+    "BayesTools_formula_coefficient_transform",
+    "list"
+  )
+  target <- list(
+    target    = "log_tau_intercept",
+    target_i  = 1L,
+    transform = transform
+  )
+  target[["route"]] <- .hypothesis_brma_formula_transform_route(target)
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    transform_prior_samples = function(...) {
+      cbind(log_tau_intercept = c(.1, .2, .4))
+    },
+    hypothesis_BF = function(posterior, prior, ...) {
+      captured <<- list(posterior = posterior, prior = prior)
+      "ok"
+    },
+    .package = "BayesTools"
+  )
+
+  result <- .hypothesis_brma_formula_draws(
+    object      = list(fit = structure(list(), class = "BayesTools_fit")),
+    samples     = list(log_tau_intercept = c(.15, .25, .35)),
+    hypothesis  = BayesTools::hypothesis_parse("log_tau_intercept = 0.2"),
+    parameter   = "log_tau_intercept",
+    target_info = target,
+    logBF       = FALSE,
+    BF01        = FALSE,
+    seed        = 1,
+    n_samples   = 3L,
+    columns     = "default"
+  )
+
+  expect_identical(result, "ok")
+  expect_identical(
+    captured[["posterior"]][["log_tau_intercept"]],
+    c(.15, .25, .35)
+  )
+  expect_identical(
+    captured[["prior"]][["log_tau_intercept"]],
+    c(.1, .2, .4)
+  )
+  expect_identical(target[["route"]][["type"]], "exp_affine")
 })

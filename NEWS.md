@@ -205,6 +205,9 @@
   priors now fail explicitly at input.
 - rejects ambiguous marginal-means hypothesis aliases instead of silently
   resolving a canonical name to a different moderator coefficient.
+- evaluates certified `exp(affine)` formula-coefficient point hypotheses from
+  coherent transformed prior and posterior draws under KDE, while continuing
+  to reject unsupported nonlinear qCMDE/IWMDE routes.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

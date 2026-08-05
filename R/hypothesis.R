@@ -254,6 +254,10 @@ hypothesis.brma <- function(object, hypothesis,
     selected                  = selected,
     standardized_coefficients = standardized_coefficients
   )
+  if (!is.null(coefficient_target)) {
+    coefficient_target[["route"]] <-
+      .hypothesis_brma_formula_transform_route(coefficient_target)
+  }
 
   if (identical(selected[["component"]], "random")) {
     return(.hypothesis_brma_random(
@@ -280,6 +284,33 @@ hypothesis.brma <- function(object, hypothesis,
     transform_scaled = !standardized_coefficients,
     n_prior_samples  = n_samples
   )
+  if (!is.null(coefficient_target) &&
+      identical(coefficient_target[["route"]][["type"]], "exp_affine")) {
+    if (!identical(density_method, "KDE")) {
+      stop(
+        "The fitted exp(affine) coefficient transform for '", parameter,
+        "' is supported only with density_method = 'KDE'. qCMDE/IWMDE ",
+        "ordinates require an exact linear fitted-scale map.",
+        call. = FALSE
+      )
+    }
+    return(.hypothesis_brma_formula_draws(
+      object      = object,
+      samples     = samples,
+      hypothesis  = hypothesis,
+      parameter   = parameter,
+      target_info = coefficient_target,
+      logBF       = logBF,
+      BF01        = BF01,
+      seed        = seed,
+      n_samples   = n_samples,
+      columns     = columns
+    ))
+  }
+  if (!is.null(coefficient_target) &&
+      identical(coefficient_target[["route"]][["type"]], "unsupported")) {
+    stop(coefficient_target[["route"]][["reason"]], call. = FALSE)
+  }
   if (!is.null(coefficient_target)) {
     coefficient_target <- .hypothesis_brma_formula_prior_target(
       object      = object,
@@ -498,6 +529,10 @@ hypothesis.brma <- function(object, hypothesis,
 .hypothesis_brma_formula_prior_target <- function(
     object, samples, hypothesis, target_info) {
 
+  if (is.null(target_info[["route"]])) {
+    target_info[["route"]] <-
+      .hypothesis_brma_formula_transform_route(target_info)
+  }
   prior_density <- BayesTools::JAGS_formula_prior_density(
     fit          = object[["fit"]],
     parameter    = target_info[["formula_parameter"]],
@@ -522,27 +557,11 @@ hypothesis.brma <- function(object, hypothesis,
     }
   }
 
-  transform <- target_info[["transform"]]
-  target_i  <- target_info[["target_i"]]
-  weights   <- transform[["matrix"]][target_i, ]
-  weights   <- weights[weights != 0]
-  source_transforms <- transform[["source_transforms"]][names(weights)]
-  output_transform  <- transform[["output_transforms"]][[
-    target_info[["target"]]
-  ]]
-  identity <- all(source_transforms == "identity") &&
-    identical(output_transform, "identity")
-  unit_target <- length(weights) == 1L &&
-    identical(names(weights), target_info[["target"]]) &&
-    identical(unname(weights), 1)
-  ordinary_unit_identity <- identity && unit_target
-  log_unit_identity <- unit_target &&
-    identical(source_transforms, stats::setNames("log", names(weights))) &&
-    identical(output_transform, "exp")
-
-  parameter_spec <- if (ordinary_unit_identity || log_unit_identity) {
+  route   <- target_info[["route"]]
+  weights <- route[["weights"]]
+  parameter_spec <- if (identical(route[["type"]], "identity")) {
     list(type = "primitive", prior_density = prior_density)
-  } else if (identity) {
+  } else if (identical(route[["type"]], "affine")) {
     list(type = "linear", weights = weights, prior_density = prior_density)
   } else {
     list(
@@ -558,6 +577,109 @@ hypothesis.brma <- function(object, hypothesis,
   target_info[["prior_density"]] <- prior_density
   target_info[["parameter_spec"]] <- parameter_spec
   return(target_info)
+}
+
+
+.hypothesis_brma_formula_transform_route <- function(target_info) {
+
+  transform <- target_info[["transform"]]
+  target    <- target_info[["target"]]
+  if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
+      !identical(transform[["target_scale"]], "original")) {
+    return(list(
+      type   = "unsupported",
+      reason = paste0(
+        "The fitted coefficient transform for '", target,
+        "' lacks the certified structural metadata required for hypothesis testing."
+      )
+    ))
+  }
+
+  target_i <- target_info[["target_i"]]
+  weights  <- transform[["matrix"]][target_i, ]
+  weights  <- weights[weights != 0]
+  if (length(weights) == 0L) {
+    return(list(
+      type   = "unsupported",
+      reason = paste0(
+        "The fitted coefficient '", target,
+        "' is structurally fixed and has no posterior hypothesis route."
+      )
+    ))
+  }
+  source_transforms <- transform[["source_transforms"]][names(weights)]
+  output_transform  <- transform[["output_transforms"]][[target]]
+  unit_target <- length(weights) == 1L &&
+    identical(names(weights), target) &&
+    identical(unname(weights), 1)
+  ordinary_identity <- unit_target &&
+    identical(unname(source_transforms), "identity") &&
+    identical(output_transform, "identity")
+  log_identity <- unit_target &&
+    identical(unname(source_transforms), "log") &&
+    identical(output_transform, "exp")
+  if (ordinary_identity || log_identity) {
+    return(list(type = "identity", weights = weights))
+  }
+  if (all(source_transforms == "identity") &&
+      identical(output_transform, "identity")) {
+    return(list(type = "affine", weights = weights))
+  }
+  if (all(source_transforms %in% c("identity", "log")) &&
+      identical(output_transform, "exp")) {
+    return(list(type = "exp_affine", weights = weights))
+  }
+
+  list(
+    type   = "unsupported",
+    reason = paste0(
+      "The fitted nonlinear joint coefficient transform for '", target,
+      "' is not supported by hypothesis()."
+    )
+  )
+}
+
+
+.hypothesis_brma_formula_draws <- function(
+    object, samples, hypothesis, parameter, target_info, logBF, BF01, seed,
+    n_samples, columns) {
+
+  target <- target_info[["target"]]
+  if (!target %in% names(samples)) {
+    stop("Transformed posterior draws for '", target, "' are unavailable.",
+         call. = FALSE)
+  }
+  prior <- BayesTools::transform_prior_samples(
+    fit       = object[["fit"]],
+    n_samples = n_samples,
+    seed      = seed
+  )
+  if (is.null(colnames(prior)) || !target %in% colnames(prior)) {
+    stop("Transformed prior draws for '", target, "' are unavailable.",
+         call. = FALSE)
+  }
+
+  posterior_values <- as.numeric(samples[[target]])
+  prior_values     <- as.numeric(prior[, target])
+  if (length(posterior_values) < 2L || length(prior_values) < 2L ||
+      any(!is.finite(posterior_values)) || any(!is.finite(prior_values))) {
+    stop("Finite transformed prior and posterior draws are required for '",
+         target, "'.", call. = FALSE)
+  }
+  posterior <- stats::setNames(data.frame(posterior_values), parameter)
+  prior     <- stats::setNames(data.frame(prior_values), parameter)
+
+  BayesTools::hypothesis_BF(
+    posterior      = posterior,
+    prior          = prior,
+    hypothesis     = hypothesis,
+    parameter      = parameter,
+    logBF          = logBF,
+    BF01           = BF01,
+    seed           = seed,
+    columns        = columns,
+    density_method = "KDE"
+  )
 }
 
 #' @rdname hypothesis
