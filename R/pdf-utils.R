@@ -505,20 +505,32 @@
   H[cbind(i, i + 1)] <- b
   H[cbind(i + 1, i)] <- b
 
-  # Eigendecomposition
-  eig <- eigen(H, symmetric = TRUE)
-
-  # Nodes are eigenvalues
-  # Weights: w_i = μ₀ * (first component of eigenvector i)²
-  # where μ₀ = ∫ exp(-x²) dx = √π
-  nodes_raw   <- eig$values
-  weights_raw <- sqrt(pi) * eig$vectors[1, ]^2
+  # Nodes are eigenvalues. Dense eigensolvers can return exact zeros for the
+  # small first components of otherwise accurate eigenvectors, so compute the
+  # corresponding Christoffel weights from the orthonormal Hermite recurrence.
+  nodes_raw <- eigen(H, symmetric = TRUE, only.values = TRUE)$values
 
   # Transform for standard normal N(0,1):
   # ∫ f(z) φ(z) dz = (1/√π) ∫ f(√2 u) exp(-u²) du ≈ (1/√π) Σ w_i f(√2 u_i)
-  # So: nodes = √2 * raw_nodes, weights = raw_weights / √π
-  nodes   <- sqrt(2) * nodes_raw
-  weights <- weights_raw / sqrt(pi)
+  # So: nodes = √2 * raw_nodes. For standard-normal orthonormal Hermite
+  # polynomials p_k, the normalized weight at node x_i is
+  #   1 / sum_{k=0}^{n-1} p_k(x_i)^2.
+  nodes               <- sqrt(2) * nodes_raw
+  polynomial_previous <- rep(1, n)
+  weight_denominator  <- polynomial_previous^2
+  if (n > 1L) {
+    polynomial         <- nodes
+    weight_denominator <- weight_denominator + polynomial^2
+    for (degree in seq_len(n - 2L)) {
+      polynomial_next     <- (
+        nodes * polynomial - sqrt(degree) * polynomial_previous
+      ) / sqrt(degree + 1)
+      weight_denominator  <- weight_denominator + polynomial_next^2
+      polynomial_previous <- polynomial
+      polynomial          <- polynomial_next
+    }
+  }
+  weights <- 1 / weight_denominator
 
   if (any(!is.finite(weights)) || any(weights <= 0)) {
     stop(

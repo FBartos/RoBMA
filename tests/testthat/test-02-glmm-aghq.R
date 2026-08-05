@@ -628,14 +628,10 @@ test_that("fixed Poisson grids preserve finite combined log rates", {
 })
 
 
-test_that("unstable high-order Hermite rules fail structurally", {
+test_that("AGHQ production refinement remains capped at order 49", {
 
   rules <- .glmm_aghq_control()[["rules"]][["nodes"]]
   expect_identical(length(rules[[length(rules)]]), 49L)
-  expect_error(
-    .gauss_hermite_nodes(65L),
-    "Gauss-Hermite weights are numerically unstable at order 65"
-  )
 })
 
 
