@@ -126,6 +126,9 @@ test_that("all single-model classes fit fixed effect and heterogeneity priors", 
     measure                   = "OR",
     prior_effect              = effect_null,
     prior_heterogeneity       = tau_null,
+    prior_baserate            = BayesTools::prior(
+      "point", parameters = list(location = 0.4)
+    ),
     prior_unit_information_sd = 1,
     chains                    = settings[["chains"]],
     sample                    = settings[["sample"]],
@@ -140,7 +143,35 @@ test_that("all single-model classes fit fixed effect and heterogeneity priors", 
   save_fit(
     "fixed_null_brma_glmm",
     fit_glmm,
-    info = list(mu = 0, tau = 0)
+    info = list(mu = 0, tau = 0, baserate = 0.4)
+  )
+
+  fit_glmm_pois <- brma.glmm(
+    x1i                       = c(3, 4, 5),
+    x2i                       = c(2, 3, 4),
+    t1i                       = c(10, 12, 14),
+    t2i                       = c(10, 12, 14),
+    measure                   = "IRR",
+    prior_effect              = effect_null,
+    prior_heterogeneity       = tau_null,
+    prior_lograte             = BayesTools::prior(
+      "point", parameters = list(location = -1)
+    ),
+    prior_unit_information_sd = 1,
+    chains                    = settings[["chains"]],
+    sample                    = settings[["sample"]],
+    burnin                    = settings[["burnin"]],
+    adapt                     = settings[["adapt"]],
+    seed                      = settings[["seed"]],
+    silent                    = settings[["silent"]],
+    convergence_checks        = settings[["convergence_checks"]]
+  )
+  fit_glmm_pois <- .add_fixed_model_diagnostics(fit_glmm_pois)
+  expect_s3_class(fit_glmm_pois, "brma.glmm")
+  save_fit(
+    "fixed_null_brma_glmm_pois",
+    fit_glmm_pois,
+    info = list(mu = 0, tau = 0, lograte = -1)
   )
 
   fit_PET <- bPET(

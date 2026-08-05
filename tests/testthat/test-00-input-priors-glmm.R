@@ -71,6 +71,21 @@ test_that("Binomial GLMM baserate point priors exclude endpoints", {
 })
 
 
+test_that("GLMM nuisance priors reject non-point discrete distributions", {
+
+  discrete <- BayesTools::prior("bernoulli", parameters = list(probability = 0.5))
+
+  expect_error(
+    .assign_prior.baserate(discrete),
+    "Non-point discrete priors are not supported for 'baserate'"
+  )
+  expect_error(
+    .assign_prior.lograte(discrete, test_data_pois),
+    "Non-point discrete priors are not supported for 'prior_lograte'"
+  )
+})
+
+
 test_that("Binomial nuisance quadrature does not clip representable tails", {
 
   prior_pi <- BayesTools::prior("beta", parameters = list(alpha = 0.01, beta = 1))

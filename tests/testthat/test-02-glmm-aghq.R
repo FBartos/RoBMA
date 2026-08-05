@@ -3,9 +3,11 @@ context("Adaptive GLMM quadrature")
 
 # Independently integrate the binomial GLMM over theta and the base rate.
 .binom_aghq_oracle <- function(a, c, n1, n2, mu, tau, alpha, beta,
-                               weight = 1) {
+                               weight = 1, lower = 0, upper = 1) {
 
   log_coefficient <- lchoose(n1, a) + lchoose(n2, c)
+  prior_mass <- stats::pbeta(upper, alpha, beta) -
+    stats::pbeta(lower, alpha, beta)
   integrate_theta <- function(theta) {
 
     vapply(theta, function(theta_value) {
@@ -18,10 +20,10 @@ context("Adaptive GLMM quadrature")
             log_coefficient +
               a * log(p1) + (n1 - a) * log1p(-p1) +
               c * log(p2) + (n2 - c) * log1p(-p2)
-          )) * stats::dbeta(pi0, alpha, beta)
+          )) * stats::dbeta(pi0, alpha, beta) / prior_mass
         },
-        lower         = 0,
-        upper         = 1,
+        lower         = lower,
+        upper         = upper,
         subdivisions  = 1000L,
         rel.tol       = 1e-10,
         stop.on.error = TRUE
@@ -46,8 +48,11 @@ context("Adaptive GLMM quadrature")
 
 # Independently integrate the Poisson GLMM over theta and the log base rate.
 .pois_aghq_oracle <- function(x1, x2, t1, t2, mu, tau, mean, sd,
-                              weight = 1) {
+                              weight = 1, lower = mean - 10 * sd,
+                              upper = mean + 10 * sd) {
 
+  prior_mass <- stats::pnorm(upper, mean, sd) -
+    stats::pnorm(lower, mean, sd)
   integrate_theta <- function(theta) {
 
     vapply(theta, function(theta_value) {
@@ -59,10 +64,10 @@ context("Adaptive GLMM quadrature")
           exp(weight * (
             stats::dpois(x1, lambda1, log = TRUE) +
               stats::dpois(x2, lambda2, log = TRUE)
-          )) * stats::dnorm(phi, mean, sd)
+          )) * stats::dnorm(phi, mean, sd) / prior_mass
         },
-        lower         = mean - 10 * sd,
-        upper         = mean + 10 * sd,
+        lower         = lower,
+        upper         = upper,
         subdivisions  = 1000L,
         rel.tol       = 1e-10,
         stop.on.error = TRUE
@@ -337,7 +342,7 @@ test_that("joint Poisson AGHQ matches independent integration and row sums", {
 })
 
 
-test_that("ordinary wrappers require AGHQ-supported default priors", {
+test_that("ordinary wrappers dispatch supported nuisance priors", {
 
   prior_pi  <- BayesTools::prior("beta", list(1.5, 2.5))
   prior_phi <- BayesTools::prior("normal", list(-1, 1.3))
@@ -427,20 +432,16 @@ test_that("ordinary wrappers require AGHQ-supported default priors", {
               info = "truncated log-rate prior is outside certified AGHQ")
   expect_null(.glmm_aghq_prior_spec(truncated_pi, "bin"),
               info = "truncated baserate prior is outside certified AGHQ")
-  expect_error(
+  expect_true(is.finite(
     .outcome_pdf.pois(
       7L, 11L, 15, 18, matrix(0.35), matrix(0.6), truncated_phi
-    ),
-    "requires an untruncated normal 'prior_phi'",
-    info = "unsupported default Poisson quadrature fails explicitly"
-  )
-  expect_error(
+    )[1L, 1L]
+  ), info = "truncated Poisson prior uses refined prior-CDF quadrature")
+  expect_true(is.finite(
     .outcome_pdf.binom(
       7L, 3L, 24L, 21L, matrix(0.35), matrix(0.7), truncated_pi
-    ),
-    "requires an untruncated beta 'prior_pi'",
-    info = "unsupported default binomial quadrature fails explicitly"
-  )
+    )[1L, 1L]
+  ), info = "truncated binomial prior uses refined prior-CDF quadrature")
   expect_true(is.finite(.outcome_pdf.pois(
     7L, 11L, 15, 18, matrix(0.35), matrix(0.6), truncated_phi,
     n_theta = 7L, n_phi = 9L
@@ -490,6 +491,72 @@ test_that("ordinary AGHQ recovers only failed observations", {
                    info = "the exact first observation does not fall back")
   expect_equal(as.numeric(summed), rowSums(pointwise), tolerance = 1e-12,
                info = "pointwise and sum routes share recovered values")
+})
+
+
+test_that("point nuisance priors collapse their quadrature dimension", {
+
+  prior_pi  <- BayesTools::prior("point", list(0.4))
+  prior_phi <- BayesTools::prior("point", list(-1))
+  bin <- .outcome_pdf.binom(
+    7L, 3L, 24L, 21L, matrix(0.35), matrix(0), prior_pi
+  )
+  pois <- .outcome_pdf.pois(
+    7L, 11L, 15, 18, matrix(0.35), matrix(0), prior_phi
+  )
+  expected_bin <- stats::dbinom(
+    7L, 24L, stats::plogis(stats::qlogis(0.4) + 0.35 / 2), log = TRUE
+  ) + stats::dbinom(
+    3L, 21L, stats::plogis(stats::qlogis(0.4) - 0.35 / 2), log = TRUE
+  )
+  expected_pois <- stats::dpois(
+    7L, 15 * exp(-1 + 0.35 / 2), log = TRUE
+  ) + stats::dpois(
+    11L, 18 * exp(-1 - 0.35 / 2), log = TRUE
+  )
+
+  expect_equal(bin[1L, 1L], expected_bin, tolerance = 1e-12)
+  expect_equal(pois[1L, 1L], expected_pois, tolerance = 1e-12)
+  expect_identical(
+    attr(bin, "glmm_aghq_diagnostics")[["grid_max_nuisance_order"]],
+    1L
+  )
+  expect_identical(
+    attr(pois, "glmm_aghq_diagnostics")[["grid_max_nuisance_order"]],
+    1L
+  )
+})
+
+
+test_that("truncated nuisance priors match independent integration", {
+
+  prior_pi <- BayesTools::prior(
+    "beta", list(1.5, 2.5), truncation = list(0.1, 0.9)
+  )
+  prior_phi <- BayesTools::prior(
+    "normal", list(-1, 1.3), truncation = list(-3, 2)
+  )
+  bin <- .outcome_pdf.binom(
+    7L, 3L, 24L, 21L, matrix(0.35), matrix(0.7), prior_pi
+  )
+  pois <- .outcome_pdf.pois(
+    7L, 11L, 15, 18, matrix(0.35), matrix(0.6), prior_phi
+  )
+  expected_bin <- .binom_aghq_oracle(
+    a = 7L, c = 3L, n1 = 24L, n2 = 21L,
+    mu = 0.35, tau = 0.7, alpha = 1.5, beta = 2.5,
+    lower = 0.1, upper = 0.9
+  )
+  expected_pois <- .pois_aghq_oracle(
+    x1 = 7L, x2 = 11L, t1 = 15, t2 = 18,
+    mu = 0.35, tau = 0.6, mean = -1, sd = 1.3,
+    lower = -3, upper = 2
+  )
+
+  expect_equal(bin[1L, 1L], expected_bin, tolerance = 2e-6,
+               info = "truncated beta prior")
+  expect_equal(pois[1L, 1L], expected_pois, tolerance = 2e-6,
+               info = "truncated normal prior")
 })
 
 

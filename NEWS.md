@@ -200,6 +200,9 @@
 - handles every finite constant log-likelihood column with exact uniform LOO
   importance ratios and zero Pareto-k diagnostics while retaining ordinary
   PSIS diagnostics for varying columns.
+- evaluates accepted continuous, truncated, and point GLMM nuisance priors in
+  post-fit likelihood diagnostics; unsupported non-point discrete nuisance
+  priors now fail explicitly at input.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

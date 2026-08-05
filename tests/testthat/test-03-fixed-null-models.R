@@ -9,6 +9,7 @@ fixed_model_names <- c(
   "fixed_nonzero_brma",
   "fixed_nonzero_brma_mv",
   "fixed_null_brma_glmm",
+  "fixed_null_brma_glmm_pois",
   "fixed_null_bPET",
   "fixed_null_bPEESE",
   "fixed_null_bselmodel"
@@ -55,7 +56,10 @@ test_that("fixed mu and tau remain available to downstream methods", {
 
 test_that("zero-dimensional marginal likelihoods are exact", {
 
-  exact_names <- setdiff(fixed_model_names, "fixed_null_brma_glmm")
+  exact_names <- setdiff(
+    fixed_model_names,
+    c("fixed_null_brma_glmm", "fixed_null_brma_glmm_pois")
+  )
   skip_if_missing_fits(exact_names)
 
   for (name in exact_names) {

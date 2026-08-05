@@ -197,13 +197,22 @@
 }
 
 
-.glmm_grid_refine <- function(evaluate, outcome_type, observation, control) {
+.glmm_grid_refine <- function(evaluate, outcome_type, observation, control,
+                              theta_active = TRUE, nuisance_active = TRUE) {
 
-  theta_orders    <- control[["theta_orders"]]
-  nuisance_orders <- control[["nuisance_orders"]]
+  theta_orders <- if (theta_active) {
+    control[["theta_orders"]]
+  } else {
+    1L
+  }
+  nuisance_orders <- if (nuisance_active) {
+    control[["nuisance_orders"]]
+  } else {
+    1L
+  }
   consecutive     <- control[["consecutive"]]
-  theta_index     <- consecutive + 1L
-  nuisance_index  <- consecutive + 1L
+  theta_index     <- if (theta_active) consecutive + 1L else 1L
+  nuisance_index  <- if (nuisance_active) consecutive + 1L else 1L
   cache            <- new.env(parent = emptyenv())
 
   value_at <- function(theta_index, nuisance_index) {
@@ -221,18 +230,26 @@
 
   repeat {
     current <- value_at(theta_index, nuisance_index)
-    theta_changes <- vapply(seq_len(consecutive), function(offset) {
-      .glmm_grid_change(
-        value_at(theta_index - offset + 1L, nuisance_index),
-        value_at(theta_index - offset, nuisance_index)
-      )
-    }, numeric(1))
-    nuisance_changes <- vapply(seq_len(consecutive), function(offset) {
-      .glmm_grid_change(
-        value_at(theta_index, nuisance_index - offset + 1L),
-        value_at(theta_index, nuisance_index - offset)
-      )
-    }, numeric(1))
+    theta_changes <- if (theta_active) {
+      vapply(seq_len(consecutive), function(offset) {
+        .glmm_grid_change(
+          value_at(theta_index - offset + 1L, nuisance_index),
+          value_at(theta_index - offset, nuisance_index)
+        )
+      }, numeric(1))
+    } else {
+      0
+    }
+    nuisance_changes <- if (nuisance_active) {
+      vapply(seq_len(consecutive), function(offset) {
+        .glmm_grid_change(
+          value_at(theta_index, nuisance_index - offset + 1L),
+          value_at(theta_index, nuisance_index - offset)
+        )
+      }, numeric(1))
+    } else {
+      0
+    }
     theta_ok    <- all(theta_changes <= control[["tolerance"]])
     nuisance_ok <- all(nuisance_changes <= control[["tolerance"]])
 
@@ -245,10 +262,10 @@
       ))
     }
 
-    if (!theta_ok) {
+    if (theta_active && !theta_ok) {
       theta_index <- theta_index + 1L
     }
-    if (!nuisance_ok) {
+    if (nuisance_active && !nuisance_ok) {
       nuisance_index <- nuisance_index + 1L
     }
     if (theta_index > length(theta_orders) ||
@@ -275,7 +292,7 @@
 }
 
 
-.glmm_aghq_dispatch <- function(S, K, outcome_type, evaluate_aghq,
+.glmm_aghq_dispatch <- function(S, K, outcome_type, evaluate_aghq = NULL,
                                 evaluate_grid, row_sum = FALSE) {
 
   value               <- matrix(NA_real_, nrow = S, ncol = K)
@@ -290,15 +307,19 @@
   grid_max_change     <- 0
 
   for (k in seq_len(K)) {
-    aghq <- tryCatch(
-      evaluate_aghq(k),
-      error = function(condition) {
-        if (!.glmm_aghq_numerical_failure(condition, outcome_type)) {
-          stop(condition)
+    aghq <- if (is.null(evaluate_aghq)) {
+      NULL
+    } else {
+      tryCatch(
+        evaluate_aghq(k),
+        error = function(condition) {
+          if (!.glmm_aghq_numerical_failure(condition, outcome_type)) {
+            stop(condition)
+          }
+          return(NULL)
         }
-        return(NULL)
-      }
-    )
+      )
+    }
 
     if (is.null(aghq)) {
       grid                    <- evaluate_grid(k)
@@ -431,22 +452,25 @@
     prior_spec, row_sum = FALSE, control = .glmm_aghq_control(),
     grid_control = .glmm_grid_control()) {
 
-  .glmm_aghq_require_default(prior_spec, "bin")
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
 
-  evaluate_aghq <- function(k) {
-    .glmm_binom_aghq(
-      ai          = ai[k],
-      ci          = ci[k],
-      n1i         = n1i[k],
-      n2i         = n2i[k],
-      mu_samples  = mu_samples[, k, drop = FALSE],
-      tau_within  = tau_within[, k, drop = FALSE],
-      weights     = if (is.null(weights)) NULL else weights[k],
-      prior_spec  = prior_spec,
-      control     = control
-    )
+  evaluate_aghq <- NULL
+  if (!is.null(prior_spec)) {
+    .glmm_aghq_require_default(prior_spec, "bin")
+    evaluate_aghq <- function(k) {
+      .glmm_binom_aghq(
+        ai          = ai[k],
+        ci          = ci[k],
+        n1i         = n1i[k],
+        n2i         = n2i[k],
+        mu_samples  = mu_samples[, k, drop = FALSE],
+        tau_within  = tau_within[, k, drop = FALSE],
+        weights     = if (is.null(weights)) NULL else weights[k],
+        prior_spec  = prior_spec,
+        control     = control
+      )
+    }
   }
   evaluate_grid <- function(k) {
     .glmm_grid_refine(
@@ -464,9 +488,11 @@
           n_pi        = n_nuisance
         )
       },
-      outcome_type = "bin",
-      observation  = k,
-      control      = grid_control
+      outcome_type    = "bin",
+      observation     = k,
+      control         = grid_control,
+      theta_active    = any(tau_within[, k] != 0),
+      nuisance_active = !BayesTools::is.prior.point(prior_pi)
     )
   }
 
@@ -486,22 +512,25 @@
     prior_spec, row_sum = FALSE, control = .glmm_aghq_control(),
     grid_control = .glmm_grid_control()) {
 
-  .glmm_aghq_require_default(prior_spec, "pois")
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
 
-  evaluate_aghq <- function(k) {
-    .glmm_pois_aghq(
-      x1i        = x1i[k],
-      x2i        = x2i[k],
-      t1i        = t1i[k],
-      t2i        = t2i[k],
-      mu_samples = mu_samples[, k, drop = FALSE],
-      tau_within = tau_within[, k, drop = FALSE],
-      weights    = if (is.null(weights)) NULL else weights[k],
-      prior_spec = prior_spec,
-      control    = control
-    )
+  evaluate_aghq <- NULL
+  if (!is.null(prior_spec)) {
+    .glmm_aghq_require_default(prior_spec, "pois")
+    evaluate_aghq <- function(k) {
+      .glmm_pois_aghq(
+        x1i        = x1i[k],
+        x2i        = x2i[k],
+        t1i        = t1i[k],
+        t2i        = t2i[k],
+        mu_samples = mu_samples[, k, drop = FALSE],
+        tau_within = tau_within[, k, drop = FALSE],
+        weights    = if (is.null(weights)) NULL else weights[k],
+        prior_spec = prior_spec,
+        control    = control
+      )
+    }
   }
   evaluate_grid <- function(k) {
     .glmm_grid_refine(
@@ -519,9 +548,11 @@
           n_phi      = n_nuisance
         )
       },
-      outcome_type = "pois",
-      observation  = k,
-      control      = grid_control
+      outcome_type    = "pois",
+      observation     = k,
+      control         = grid_control,
+      theta_active    = any(tau_within[, k] != 0),
+      nuisance_active = !BayesTools::is.prior.point(prior_phi)
     )
   }
 

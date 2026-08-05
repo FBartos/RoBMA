@@ -449,6 +449,7 @@ fit_catalog <- function() {
       "fixed_nonzero_brma",
       "fixed_nonzero_brma_mv",
       "fixed_null_brma_glmm",
+      "fixed_null_brma_glmm_pois",
       "fixed_null_bPET",
       "fixed_null_bPEESE",
       "fixed_null_bselmodel"
@@ -458,12 +459,13 @@ fit_catalog <- function() {
       "brma.norm",
       "brma.mv",
       "brma.glmm",
+      "brma.glmm",
       "bPET",
       "bPEESE",
       "bselmodel"
     ),
-    family = c("norm", "norm", "norm", "glmm", "norm", "norm", "norm"),
-    source_file = rep("test-01-fixed-null-models.R", 7),
+    family = c("norm", "norm", "norm", "glmm", "glmm", "norm", "norm", "norm"),
+    source_file = rep("test-01-fixed-null-models.R", 8),
     has_metafor = FALSE,
     has_waic = FALSE,
     tier = "core",
@@ -473,7 +475,8 @@ fit_catalog <- function() {
       c("normal", "fixed", "null", "exact_marglik"),
       c("normal", "fixed", "nonzero_tau", "exact_marglik"),
       c("brma.mv", "normal", "known_v", "fixed", "nonzero_tau", "exact_marglik"),
-      c("glmm", "binomial", "fixed", "null"),
+      c("glmm", "binomial", "fixed", "null", "point_nuisance"),
+      c("glmm", "poisson", "fixed", "null", "point_nuisance"),
       c("normal", "PET", "fixed", "null", "exact_marglik"),
       c("normal", "PEESE", "fixed", "null", "exact_marglik"),
       c("normal", "selection", "fixed", "null", "exact_marglik")
@@ -519,6 +522,7 @@ fit_catalog <- function() {
     "fixed_nonzero_brma",
     "fixed_nonzero_brma_mv",
     "fixed_null_brma_glmm",
+    "fixed_null_brma_glmm_pois",
     "fixed_null_bPET",
     "fixed_null_bPEESE",
     "fixed_null_bselmodel"
