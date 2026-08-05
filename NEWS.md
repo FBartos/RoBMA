@@ -164,6 +164,8 @@
   method, settings, target, source object, and value are compatible.
 - increases the `metafor::rma.glmm()` optimizer budget in the GLMM parity
   vignette so full vignette builds are reproducible without changing results.
+- rejects unused arguments to multivariate pooled-heterogeneity methods instead
+  of silently ignoring misspelled controls.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

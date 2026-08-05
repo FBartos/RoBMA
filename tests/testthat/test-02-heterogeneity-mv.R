@@ -186,6 +186,32 @@ test_that("brma.mv heterogeneity resolves aliases and component errors", {
 })
 
 
+test_that("brma.mv pooled heterogeneity validates forwarded arguments", {
+
+  object <- .brma_mv_heterogeneity_named_object()
+  posterior_samples <- .brma_mv_two_component_allocation_posterior(
+    first_sd      = c(0.20, 0.25),
+    second_sd     = c(0.30, 0.35),
+    first_column  = "mu__xREx__Study_effects_intercept",
+    second_column = "mu__xREx__Effect_effects_intercept"
+  )
+
+  expect_no_error(pooled_heterogeneity(
+    object,
+    component          = "Study effects",
+    .posterior_samples = posterior_samples
+  ))
+  expect_error(
+    pooled_heterogeneity(
+      object,
+      component          = "Study effects",
+      posterior_sample   = posterior_samples
+    ),
+    "Unused argument.*posterior_sample"
+  )
+})
+
+
 test_that("brma.mv pooled heterogeneity uses RMS row aggregation", {
 
   samples <- matrix(c(1, 3, 5, 7), nrow = 2, byrow = TRUE)

@@ -18,7 +18,13 @@
          call. = FALSE)
   }
 
-  dots              <- list(...)
+  dots <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = ".posterior_samples",
+    caller  = "pooled_heterogeneity.brma()"
+  )
+
   posterior_samples <- .get_posterior_samples(
     object[["fit"]],
     dots[[".posterior_samples"]]
