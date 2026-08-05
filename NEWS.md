@@ -214,6 +214,9 @@
   only qCMDE/IWMDE ordinates and diagnostics matching the current request.
 - rejects unnamed, duplicate, nonnumeric, or non-finite qCMDE/IWMDE linear
   target weights before removing exact zero coefficients.
+- fails qCMDE/IWMDE construction when a selected row lacks a finite baseline,
+  certified normalizer, or normalized proposal density; mathematically exact
+  zero ordinates remain valid `-Inf` log-density contributions.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

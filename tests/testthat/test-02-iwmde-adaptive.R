@@ -215,7 +215,7 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
     n_candidate_rows                  = 500L,
     n_evaluated_rows                  = 500L,
     n_normalized_rows                 = 500L,
-    row_drop_fraction                 = .02,
+    row_drop_fraction                 = 0,
     normalization_relative_error      = .001,
     ordinate_relative_change          = .002,
     max_quadrature_relative_change    = .003,
@@ -287,9 +287,9 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
   expect_equal(out[["stability_rejection_threshold"]], .10)
   expect_equal(out[["quadrature_warning_threshold"]], .025)
   expect_equal(out[["quadrature_rejection_threshold"]], .05)
-  expect_equal(out[["row_drop_fraction"]], .02)
-  expect_equal(out[["warning_row_drop_fraction"]], .05)
-  expect_equal(out[["rejection_row_drop_fraction"]], .10)
+  expect_equal(out[["row_drop_fraction"]], 0)
+  expect_equal(out[["warning_row_drop_fraction"]], 0)
+  expect_equal(out[["rejection_row_drop_fraction"]], 0)
   expect_equal(out[["warning_relative_mcse"]], .05)
   expect_equal(out[["rejection_relative_mcse"]], .25)
   expect_true(out[["precision_target_met"]])
@@ -297,6 +297,13 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
   expect_equal(out[["n_weight_fallbacks"]], 1L)
   expect_match(out[["weight_fallback_reasons"]], "singular_covariance=1")
   expect_equal(out[["status"]], "ok")
+  expect_match(
+    .iwmde_diagnostics_row_loss_failure_reason(
+      diagnostics = list(row_drop_fraction = .Machine$double.eps),
+      estimator   = "iwmde"
+    ),
+    "dropped"
+  )
 })
 
 

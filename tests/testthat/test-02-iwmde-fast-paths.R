@@ -285,7 +285,7 @@ test_that("IWMDE rejects invalid Chen log weights", {
       replacement       = NULL,
       n_candidate_rows = 2L
     ),
-    "positive-infinite or undefined"
+    "target 'mu'.*posterior row 2.*proposal-density construction"
   )
 })
 
@@ -726,7 +726,7 @@ test_that("qCMDE point ordinates are stable under doubled integration budget", {
 })
 
 
-test_that("qCMDE dropped normalizer rows keep target denominator", {
+test_that("qCMDE fails the target when refinement cannot normalize a row", {
 
   grid <- seq(0, 1, length.out = 101)
   normalization_grid <- list(
@@ -748,26 +748,163 @@ test_that("qCMDE dropped normalizer rows keep target denominator", {
     .package = "RoBMA"
   )
 
+  failure <- tryCatch(
+    .iwmde_density_grid(
+      context            = list(),
+      parameter          = "mu",
+      display_grid       = grid,
+      normalization_grid = normalization_grid,
+      transform          = .iwmde_parameter_transform(c(-Inf, Inf)),
+      row_states         = row_states,
+      active_mass        = .6,
+      replacement        = list(type = "scalar")
+    ),
+    iwmde_construction_error = function(e) e
+  )
+  expect_s3_class(failure, "iwmde_construction_error")
+  expect_equal(failure[["target"]], "mu")
+  expect_equal(failure[["posterior_rows"]], 2L)
+  expect_equal(failure[["stage"]], "conditional-density normalization")
+  expect_match(failure[["detail"]], "no finite positive normalizer")
+})
+
+
+test_that("qCMDE retains certified zero-density ordinates", {
+
+  normalization_values <- seq(-3, 3, length.out = 101)
+  normalization_grid <- list(
+    x            = normalization_values,
+    z            = normalization_values,
+    log_jacobian = rep(0, length(normalization_values))
+  )
+
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid = function(context, parameter, values, row_states,
+                                 replacement) {
+
+      out <- matrix(
+        stats::dnorm(values, log = TRUE),
+        nrow = length(values),
+        ncol = length(row_states)
+      )
+      out[values == 5, ] <- -Inf
+      out
+    },
+    .package = "RoBMA"
+  )
+
   density <- .iwmde_density_grid(
     context            = list(),
     parameter          = "mu",
-    display_grid       = grid,
+    display_grid       = 5,
     normalization_grid = normalization_grid,
     transform          = .iwmde_parameter_transform(c(-Inf, Inf)),
-    row_states         = row_states,
-    active_mass        = .6,
+    row_states         = rep(list(list()), 20),
+    active_mass        = 1,
     replacement        = list(type = "scalar")
   )
 
-  final_width <- diff(density[["normalization_range"]])
-  expect_equal(.iwmde_trapz(density[["x"]], density[["y"]]), .3 / final_width,
-               tolerance = 1e-10)
-  expect_equal(density[["y"]], rep(.3 / final_width, length(grid)),
-               tolerance = 1e-10)
-  expect_equal(density[["n_candidate_rows"]], 2L)
-  expect_equal(density[["n_normalized_rows"]], 1L)
-  expect_equal(density[["n_dropped_normalizer"]], 1L)
-  expect_equal(density[["row_drop_fraction"]], .5)
+  expect_identical(density[["y"]], 0)
+  expect_equal(density[["n_normalized_rows"]], 20L)
+  expect_equal(density[["n_dropped_normalizer"]], 0L)
+})
+
+
+test_that("qCMDE rejects malformed joint-density grids atomically", {
+
+  normalization_values <- seq(-1, 1, length.out = 21)
+  normalization_grid <- list(
+    x            = normalization_values,
+    z            = normalization_values,
+    log_jacobian = rep(0, length(normalization_values))
+  )
+
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid = function(context, parameter, values, row_states,
+                                 replacement) {
+      matrix(0, nrow = length(values), ncol = 1L)
+    },
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    .iwmde_density_grid(
+      context            = list(),
+      parameter          = "mu",
+      display_grid       = 0,
+      normalization_grid = normalization_grid,
+      transform          = .iwmde_parameter_transform(c(-Inf, Inf)),
+      row_states         = list(list(), list()),
+      active_mass        = 1,
+      replacement        = list(type = "scalar")
+    ),
+    "target 'mu'.*joint-density grid evaluation.*invalid matrix"
+  )
+})
+
+
+test_that("qCMDE refinement waits for an all-finite certified pair", {
+
+  refinement <- .iwmde_qcmde_select_refinement(
+    log_q_display = matrix(0, nrow = 1L, ncol = 2L),
+    log_normalizer_sequence = list(
+      c(0, 0),
+      c(0, -Inf),
+      c(0, 0),
+      c(0, 0)
+    ),
+    active_mass = 1,
+    denominator = 2L
+  )
+
+  expect_equal(refinement[["final_index"]], 3L)
+  expect_equal(refinement[["validation_index"]], 4L)
+})
+
+
+test_that("qCMDE fails when the validation normalizer is non-finite", {
+
+  normalization_values <- seq(-1, 1, length.out = 21)
+  normalization_grid <- list(
+    x            = normalization_values,
+    z            = normalization_values,
+    log_jacobian = rep(0, length(normalization_values))
+  )
+  normalizer_call <- 0L
+
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid = function(context, parameter, values, row_states,
+                                 replacement) {
+      matrix(0, nrow = length(values), ncol = length(row_states))
+    },
+    .iwmde_log_trapz_columns = function(x, log_y) {
+      normalizer_call <<- normalizer_call + 1L
+      if (normalizer_call == 3L) c(0, -Inf) else c(0, 0)
+    },
+    .iwmde_qcmde_select_refinement = function(...) {
+      list(
+        pilot_index        = 1L,
+        final_index        = 2L,
+        validation_index   = 3L,
+        n_refinement_steps = 1L
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    .iwmde_density_grid(
+      context            = list(),
+      parameter          = "mu",
+      display_grid       = 0,
+      normalization_grid = normalization_grid,
+      transform          = .iwmde_parameter_transform(c(-Inf, Inf)),
+      row_states         = list(list(), list()),
+      active_mass        = 1,
+      replacement        = list(type = "scalar")
+    ),
+    "target 'mu'.*posterior row 2.*normalization validation"
+  )
 })
 
 
@@ -916,7 +1053,7 @@ test_that("IWMDE density reports raw support mass without scaling the curve", {
 })
 
 
-test_that("IWMDE dropped weight rows keep target denominator", {
+test_that("IWMDE fails the target on a non-finite proposal density", {
 
   grid <- seq(0, 1, length.out = 101)
   normalization_grid <- list(
@@ -944,35 +1081,29 @@ test_that("IWMDE dropped weight rows keep target denominator", {
     .package = "RoBMA"
   )
 
-  density <- .iwmde_density_iwmde(
-    context            = list(),
-    parameter          = "mu",
-    parameter_spec     = list(type = "primitive"),
-    display_grid       = grid,
-    row_states         = row_states,
-    active_rows        = 1:2,
-    active_values      = c(.25, .75),
-    weight_rows        = 1:2,
-    weight_values      = c(.25, .75),
-    support            = c(0, 1),
-    active_mass        = 1,
-    replacement        = list(type = "scalar"),
-    normalization_grid = normalization_grid
+  failure <- tryCatch(
+    .iwmde_density_iwmde(
+      context            = list(),
+      parameter          = "mu",
+      parameter_spec     = list(type = "primitive"),
+      display_grid       = grid,
+      row_states         = row_states,
+      active_rows        = 1:2,
+      active_values      = c(.25, .75),
+      weight_rows        = 1:2,
+      weight_values      = c(.25, .75),
+      support            = c(0, 1),
+      active_mass        = 1,
+      replacement        = list(type = "scalar"),
+      normalization_grid = normalization_grid
+    ),
+    iwmde_construction_error = function(e) e
   )
-
-  expect_equal(.iwmde_trapz(density[["x"]], density[["y"]]), .25,
-               tolerance = 1e-10)
-  expect_equal(density[["y"]], rep(.25, length(grid)), tolerance = 1e-10)
-  expect_equal(
-    density[["support_grid_normalization_integral"]],
-    .25,
-    tolerance = 1e-10
-  )
-  expect_equal(density[["normalization_mass_ratio"]], 4, tolerance = 1e-10)
-  expect_equal(density[["n_candidate_rows"]], 2L)
-  expect_equal(density[["n_normalized_rows"]], 1L)
-  expect_equal(density[["n_dropped_weight"]], 1L)
-  expect_equal(density[["row_drop_fraction"]], .5)
+  expect_s3_class(failure, "iwmde_construction_error")
+  expect_equal(failure[["target"]], "mu")
+  expect_equal(failure[["posterior_rows"]], 2L)
+  expect_equal(failure[["stage"]], "proposal-density construction")
+  expect_match(failure[["detail"]], "zero or non-finite")
 })
 
 

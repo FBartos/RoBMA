@@ -488,8 +488,8 @@
   warnings <- character()
   row_loss <- .iwmde_diagnostics_row_loss_fraction(diagnostics)
   if (is.finite(row_loss)) {
-    warning_tolerance <- .iwmde_bf_mass_warning_tolerance(estimator)
-    fail_tolerance    <- .iwmde_bf_mass_fail_tolerance(estimator)
+    warning_tolerance <- .iwmde_row_loss_warning_tolerance(estimator)
+    fail_tolerance    <- .iwmde_row_loss_fail_tolerance(estimator)
     if (row_loss > warning_tolerance &&
         row_loss <= fail_tolerance) {
       warnings <- c(warnings, paste0(
@@ -621,8 +621,8 @@
 
   row_loss <- .iwmde_diagnostics_row_loss_fraction(diagnostics)
   if (is.finite(row_loss)) {
-    warning_tolerance <- .iwmde_bf_mass_warning_tolerance(estimator)
-    fail_tolerance    <- .iwmde_bf_mass_fail_tolerance(estimator)
+    warning_tolerance <- .iwmde_row_loss_warning_tolerance(estimator)
+    fail_tolerance    <- .iwmde_row_loss_fail_tolerance(estimator)
     if (row_loss > warning_tolerance &&
         row_loss <= fail_tolerance) {
       warnings <- c(warnings, paste0(
@@ -759,7 +759,7 @@
     return(NULL)
   }
 
-  fail_tolerance <- .iwmde_bf_mass_fail_tolerance(estimator)
+  fail_tolerance <- .iwmde_row_loss_fail_tolerance(estimator)
   if (row_loss > fail_tolerance) {
     return(paste0(
       .iwmde_estimator_label(estimator),

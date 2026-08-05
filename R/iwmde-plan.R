@@ -127,16 +127,61 @@
     return(plan)
   }
 
-  posterior_values <- .iwmde_parameter_values(
-    context        = context,
-    parameter      = parameter,
-    parameter_spec = parameter_spec
+  posterior_values <- tryCatch(
+    .iwmde_parameter_values(
+      context        = context,
+      parameter      = parameter,
+      parameter_spec = parameter_spec
+    ),
+    error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) {
+        stop(e)
+      }
+      .iwmde_stop_construction_failure(
+        estimator = plan[["method"]],
+        parameter = parameter,
+        rows      = integer(),
+        stage     = "target-draw evaluation",
+        detail    = conditionMessage(e)
+      )
+    }
   )
+  if (!is.numeric(posterior_values) ||
+      length(posterior_values) != nrow(context[["posterior_samples"]])) {
+    .iwmde_stop_construction_failure(
+      estimator = plan[["method"]],
+      parameter = parameter,
+      rows      = integer(),
+      stage     = "target-draw evaluation",
+      detail    = "the target draw vector has an invalid length or type"
+    )
+  }
   finite <- is.finite(posterior_values)
   condition_rows <- .iwmde_parameter_condition_rows(
     context        = context,
     parameter_spec = parameter_spec
   )
+  if (!is.logical(condition_rows) ||
+      length(condition_rows) != length(posterior_values) ||
+      anyNA(condition_rows)) {
+    .iwmde_stop_construction_failure(
+      estimator = plan[["method"]],
+      parameter = parameter,
+      rows      = integer(),
+      stage     = "target-condition validation",
+      detail    = "the target conditioning mask has an invalid length or type"
+    )
+  }
+  invalid_target_rows <- which(condition_rows & !finite)
+  if (length(invalid_target_rows) > 0L) {
+    .iwmde_stop_construction_failure(
+      estimator = plan[["method"]],
+      parameter = parameter,
+      rows      = invalid_target_rows,
+      stage     = "target-draw validation",
+      detail    = "a conditioned target draw was not finite"
+    )
+  }
   finite_rows <- finite & condition_rows
   if (!any(finite_rows)) {
     plan[["status"]] <- "unsupported"
@@ -333,49 +378,54 @@
 .iwmde_plan_baseline_contract <- function(context, plan, candidate_rows,
                                           candidate_values) {
 
-  n_candidate <- length(candidate_rows)
-  empty <- function(reason) {
-    finite_baseline <- rep(FALSE, n_candidate)
-    return(list(
-      status           = "unsupported",
-      reason           = reason,
-      row_states       = list(),
-      baseline_log_q   = rep(NA_real_, n_candidate),
-      finite_baseline  = finite_baseline,
-      estimator_rows   = integer(),
-      estimator_values = numeric(),
-      n_dropped_log_q  = n_candidate,
-      baseline_rows_hash = .iwmde_hash("iwmde_baseline_rows", list(
-        rows   = integer(),
-        finite = finite_baseline
-      ))
-    ))
-  }
-
   row_states <- .iwmde_row_states(
     context        = context,
     rows           = candidate_rows,
     parameter      = plan[["target"]][["parameter"]],
-    parameter_spec = plan[["execution_spec"]]
+    parameter_spec = plan[["execution_spec"]],
+    estimator      = plan[["method"]]
   )
 
-  baseline_log_q <- vapply(row_states, function(state) {
-    state[["baseline_log_q"]]
-  }, numeric(1))
+  baseline_log_q <- tryCatch(
+    vapply(row_states, function(state) {
+      state[["baseline_log_q"]]
+    }, numeric(1)),
+    error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) {
+        stop(e)
+      }
+      .iwmde_stop_construction_failure(
+        estimator = plan[["method"]],
+        parameter = plan[["target"]][["parameter"]],
+        rows      = candidate_rows,
+        stage     = "baseline joint-density evaluation",
+        detail    = conditionMessage(e)
+      )
+    }
+  )
   finite_baseline <- is.finite(baseline_log_q)
-  .iwmde_validate_row_states(row_states[finite_baseline])
+  if (!all(finite_baseline)) {
+    .iwmde_stop_construction_failure(
+      estimator = plan[["method"]],
+      parameter = plan[["target"]][["parameter"]],
+      rows      = candidate_rows[!finite_baseline],
+      stage     = "baseline joint-density evaluation",
+      detail    = "the baseline joint log density was not finite"
+    )
+  }
+  .iwmde_validate_row_states(row_states)
 
   return(list(
     status           = "ok",
     reason           = NULL,
-    row_states       = row_states[finite_baseline],
+    row_states       = row_states,
     baseline_log_q   = baseline_log_q,
     finite_baseline  = finite_baseline,
-    estimator_rows   = candidate_rows[finite_baseline],
-    estimator_values = candidate_values[finite_baseline],
-    n_dropped_log_q  = sum(!finite_baseline),
+    estimator_rows   = candidate_rows,
+    estimator_values = candidate_values,
+    n_dropped_log_q  = 0L,
     baseline_rows_hash = .iwmde_hash("iwmde_baseline_rows", list(
-      rows   = candidate_rows[finite_baseline],
+      rows   = candidate_rows,
       finite = finite_baseline
     ))
   ))

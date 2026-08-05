@@ -1408,7 +1408,8 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
   ordinate_calls <- 0L
 
   testthat::local_mocked_bindings(
-    .iwmde_row_states = function(context, rows, parameter, parameter_spec) {
+    .iwmde_row_states = function(context, rows, parameter, parameter_spec,
+                                 estimator = NULL) {
 
       lapply(rows, function(row) {
         .iwmde_new_row_state(list(
@@ -1790,7 +1791,7 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
 })
 
 
-test_that("qCMDE and IWMDE row-loss thresholds warn before failing", {
+test_that("qCMDE and IWMDE reject any estimator row loss", {
 
   ordinate <- function(estimator, n_candidate_rows, n_normalized_rows) {
 
@@ -1828,32 +1829,18 @@ test_that("qCMDE and IWMDE row-loss thresholds warn before failing", {
     )
   }
 
-  qcmde_warn <- ordinate("q_grid_cmde", 100, 97)
-  expect_true(.iwmde_posterior_ordinate_supports_bf(qcmde_warn))
-  expect_true(any(grepl(
-    "qCMDE.*dropped.*3%.*2.5%.*5%",
-    .iwmde_posterior_ordinate_warnings(qcmde_warn)
-  )))
-
-  qcmde_fail <- ordinate("q_grid_cmde", 100, 94)
+  qcmde_fail <- ordinate("q_grid_cmde", 100, 99)
   expect_false(.iwmde_posterior_ordinate_supports_bf(qcmde_fail))
   expect_match(
     .iwmde_posterior_ordinate_failure_reasons(qcmde_fail),
-    "qCMDE.*dropped.*6%.*5%"
+    "qCMDE.*dropped.*1%.*0%"
   )
 
-  iwmde_warn <- ordinate("iwmde", 100, 94)
-  expect_true(.iwmde_posterior_ordinate_supports_bf(iwmde_warn))
-  expect_true(any(grepl(
-    "IWMDE.*dropped.*6%.*5%.*10%",
-    .iwmde_posterior_ordinate_warnings(iwmde_warn)
-  )))
-
-  iwmde_fail <- ordinate("iwmde", 100, 89)
+  iwmde_fail <- ordinate("iwmde", 100, 99)
   expect_false(.iwmde_posterior_ordinate_supports_bf(iwmde_fail))
   expect_match(
     .iwmde_posterior_ordinate_failure_reasons(iwmde_fail),
-    "IWMDE.*dropped.*11%.*10%"
+    "IWMDE.*dropped.*1%.*0%"
   )
 })
 
@@ -2010,7 +1997,7 @@ test_that("IWMDE row thinning does not stratify product states", {
 })
 
 
-test_that("IWMDE plan freezes finite baseline row contract", {
+test_that("IWMDE plan fails the target on a non-finite baseline row", {
 
   context <- list(
     posterior_samples = matrix(
@@ -2028,16 +2015,23 @@ test_that("IWMDE plan freezes finite baseline row contract", {
     flat_prior_list = list()
   )
   drop_positions <- 1L
+  condition_rows <- rep(TRUE, nrow(context[["posterior_samples"]]))
 
   testthat::local_mocked_bindings(
     .iwmde_row_states = function(context, rows, parameter = NULL,
-                                 parameter_spec = NULL) {
+                                 parameter_spec = NULL, estimator = NULL) {
 
       lapply(seq_along(rows), function(i) {
-        .iwmde_new_row_state(list(
-          baseline_log_q = if (i %in% drop_positions) -Inf else 0
-        ))
+        baseline_log_q <- if (i %in% drop_positions) -Inf else 0
+        if (is.finite(baseline_log_q)) {
+          .iwmde_new_row_state(list(baseline_log_q = baseline_log_q))
+        } else {
+          list(baseline_log_q = baseline_log_q)
+        }
       })
+    },
+    .iwmde_parameter_condition_rows = function(context, parameter_spec) {
+      condition_rows
     },
     .package = "RoBMA"
   )
@@ -2059,16 +2053,33 @@ test_that("IWMDE plan freezes finite baseline row contract", {
     )
   }
 
+  expect_error(
+    make_plan(),
+    "qCMDE construction failed.*target 'mu'.*posterior row.*baseline joint-density"
+  )
+
+  drop_positions <- integer()
+  context[["posterior_samples"]][3L, "mu"] <- NA_real_
+  expect_error(
+    make_plan(),
+    "target 'mu'.*posterior row 3.*target-draw validation"
+  )
+  condition_rows[[3L]] <- FALSE
+  expect_equal(make_plan()[["status"]], "ok")
+  context[["posterior_samples"]][3L, "mu"] <- 3
+  condition_rows[[3L]] <- TRUE
+
+  drop_positions <- integer()
   plan <- make_plan()
   expect_equal(plan[["status"]], "ok")
   expect_equal(plan[["rows"]][["n_denominator_rows"]], 21L)
   expect_equal(plan[["rows"]][["n_candidate_rows"]], 21L)
-  expect_equal(plan[["rows"]][["n_estimator_rows"]], 20L)
-  expect_equal(plan[["rows"]][["n_dropped_log_q"]], 1L)
-  expect_equal(length(plan[["rows"]][["row_states"]]), 20L)
+  expect_equal(plan[["rows"]][["n_estimator_rows"]], 21L)
+  expect_equal(plan[["rows"]][["n_dropped_log_q"]], 0L)
+  expect_equal(length(plan[["rows"]][["row_states"]]), 21L)
   expect_equal(
     plan[["rows"]][["estimator_rows"]],
-    plan[["rows"]][["candidate_rows"]][-1L]
+    plan[["rows"]][["candidate_rows"]]
   )
 
   execution <- .iwmde_plan_row_execution(
@@ -2077,11 +2088,7 @@ test_that("IWMDE plan freezes finite baseline row contract", {
   )
   expect_equal(execution[["active_rows"]], plan[["rows"]][["estimator_rows"]])
   expect_equal(execution[["n_candidate_rows"]], 21L)
-  expect_equal(execution[["n_dropped_log_q"]], 1L)
-
-  drop_positions <- 2L
-  changed_plan <- make_plan()
-  expect_false(identical(changed_plan[["plan_key"]], plan[["plan_key"]]))
+  expect_equal(execution[["n_dropped_log_q"]], 0L)
 
   density_plan <- .iwmde_plan(
     context         = context,
@@ -2108,14 +2115,7 @@ test_that("IWMDE plan freezes finite baseline row contract", {
   ))
 
   drop_positions <- 1:2
-  unsupported_plan <- make_plan()
-  expect_equal(unsupported_plan[["status"]], "unsupported")
-  expect_match(
-    unsupported_plan[["reason"]],
-    "fewer than 20 finite baseline log-q"
-  )
-  expect_equal(unsupported_plan[["rows"]][["n_denominator_rows"]], 21L)
-  expect_equal(unsupported_plan[["rows"]][["n_estimator_rows"]], 19L)
+  expect_error(make_plan(), "posterior rows .*baseline joint-density")
 })
 
 

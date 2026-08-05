@@ -784,7 +784,7 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
   testthat::local_mocked_bindings(
     .iwmde_context = minimal_context,
     .iwmde_row_states = function(context, rows, parameter = NULL,
-                                 parameter_spec = NULL) {
+                                 parameter_spec = NULL, estimator = NULL) {
 
       lapply(rows, function(row) {
         .iwmde_new_row_state(list(baseline_log_q = 0))
@@ -962,7 +962,7 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
     )
   }
   row_states_mock <- function(context, rows, parameter = NULL,
-                              parameter_spec = NULL) {
+                              parameter_spec = NULL, estimator = NULL) {
 
     lapply(rows, function(row) {
       .iwmde_new_row_state(list(baseline_log_q = 0))

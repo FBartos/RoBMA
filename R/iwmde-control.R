@@ -253,6 +253,18 @@
 }
 
 
+.iwmde_row_loss_warning_tolerance <- function(estimator) {
+
+  return(0)
+}
+
+
+.iwmde_row_loss_fail_tolerance <- function(estimator) {
+
+  return(0)
+}
+
+
 .iwmde_density_min_estimator_rows <- function() {
 
   return(300)

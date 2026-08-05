@@ -3,16 +3,113 @@
 # ============================================================================ #
 
 .iwmde_row_states <- function(context, rows, parameter = NULL,
-                              parameter_spec = NULL) {
+                              parameter_spec = NULL, estimator = NULL) {
 
   lapply(rows, function(row) {
-    .iwmde_row_state(
-      context        = context,
-      row_index      = row,
-      parameter      = parameter,
-      parameter_spec = parameter_spec
+    tryCatch(
+      .iwmde_row_state(
+        context        = context,
+        row_index      = row,
+        parameter      = parameter,
+        parameter_spec = parameter_spec
+      ),
+      error = function(e) {
+        if (inherits(e, "iwmde_construction_error") || is.null(estimator)) {
+          stop(e)
+        }
+        .iwmde_stop_construction_failure(
+          estimator = estimator,
+          parameter = parameter,
+          rows      = row,
+          stage     = "baseline joint-density evaluation",
+          detail    = conditionMessage(e)
+        )
+      }
     )
   })
+}
+
+
+.iwmde_stop_construction_failure <- function(estimator, parameter, rows,
+                                             stage, detail = NULL) {
+
+  estimator_label <- if (identical(estimator, "q_grid_cmde") ||
+                         identical(estimator, "qCMDE")) {
+    "qCMDE"
+  } else {
+    "IWMDE"
+  }
+  rows <- unique(as.integer(rows))
+  row_text <- if (length(rows) == 0L) {
+    "an unknown posterior row"
+  } else {
+    shown <- utils::head(rows, 8L)
+    suffix <- if (length(rows) > length(shown)) {
+      paste0(" (and ", length(rows) - length(shown), " more)")
+    } else {
+      ""
+    }
+    paste0(
+      "posterior row", if (length(rows) == 1L) " " else "s ",
+      paste(shown, collapse = ", "), suffix
+    )
+  }
+  detail_text <- if (!is.null(detail) && nzchar(as.character(detail)[[1L]])) {
+    paste0(
+      ": ",
+      sub("[.]+$", "", gsub("[\r\n\t]+", " ", as.character(detail)[[1L]]))
+    )
+  } else {
+    ""
+  }
+
+  message <- paste0(
+    estimator_label, " construction failed for target '", parameter,
+    "' at ", row_text, " during ", stage, detail_text, "."
+  )
+  condition <- structure(
+    list(
+      message        = message,
+      call           = NULL,
+      estimator      = estimator,
+      target         = parameter,
+      posterior_rows = rows,
+      stage          = stage,
+      detail         = detail
+    ),
+    class = c("iwmde_construction_error", "error", "condition")
+  )
+  stop(condition)
+}
+
+
+.iwmde_validate_log_grid <- function(log_q_grid, estimator, parameter, rows,
+                                     n_values, stage) {
+
+  if (!is.numeric(log_q_grid) || !is.matrix(log_q_grid) ||
+      nrow(log_q_grid) != n_values || ncol(log_q_grid) != length(rows)) {
+    .iwmde_stop_construction_failure(
+      estimator = estimator,
+      parameter = parameter,
+      rows      = rows,
+      stage     = stage,
+      detail    = "joint log-density evaluation returned an invalid matrix"
+    )
+  }
+
+  invalid <- is.na(log_q_grid) | log_q_grid == Inf
+  if (any(invalid)) {
+    bad_columns <- unique(which(invalid, arr.ind = TRUE)[, "col"])
+    .iwmde_stop_construction_failure(
+      estimator = estimator,
+      parameter = parameter,
+      rows      = rows[bad_columns],
+      stage     = stage,
+      detail    = "joint log density was undefined or positive-infinite"
+    )
+  }
+
+  invisible(log_q_grid)
 }
 .iwmde_likelihood_mode <- function(parameter, parameter_spec = NULL,
                                    context = NULL) {
@@ -283,8 +380,15 @@
   max_weight_share <- numeric(n_display)
   n_input_rows     <- length(row_states)
   n_candidate_rows <- as.integer(n_candidate_rows[[1L]])
-  if (!is.finite(n_candidate_rows) || n_candidate_rows < n_input_rows) {
-    n_candidate_rows <- n_input_rows
+  if (!is.finite(n_candidate_rows) || n_candidate_rows != n_input_rows ||
+      length(estimator_rows) != n_input_rows) {
+    .iwmde_stop_construction_failure(
+      estimator = "q_grid_cmde",
+      parameter = parameter,
+      rows      = estimator_rows,
+      stage     = "row-contract validation",
+      detail    = "candidate rows, estimator rows, and row states are inconsistent"
+    )
   }
   normalizer_plan  <- .iwmde_qcmde_normalizer_plan(
     normalization_grid = normalization_grid,
@@ -294,12 +398,34 @@
   pilot_grid       <- normalizer_plan[["pilot_grid"]]
   all_grid         <- normalizer_plan[["all_grid"]]
   q_grid           <- c(display_grid, all_grid[["x"]])
-  log_q_grid       <- .iwmde_log_q_grid(
-    context     = context,
-    parameter   = parameter,
-    values      = q_grid,
-    row_states  = row_states,
-    replacement = replacement
+  log_q_grid <- tryCatch(
+    .iwmde_log_q_grid(
+      context     = context,
+      parameter   = parameter,
+      values      = q_grid,
+      row_states  = row_states,
+      replacement = replacement
+    ),
+    error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) {
+        stop(e)
+      }
+      .iwmde_stop_construction_failure(
+        estimator = "q_grid_cmde",
+        parameter = parameter,
+        rows      = estimator_rows,
+        stage     = "joint-density grid evaluation",
+        detail    = conditionMessage(e)
+      )
+    }
+  )
+  .iwmde_validate_log_grid(
+    log_q_grid = log_q_grid,
+    estimator  = "q_grid_cmde",
+    parameter  = parameter,
+    rows       = estimator_rows,
+    n_values   = length(q_grid),
+    stage      = "joint-density grid evaluation"
   )
   quadrature_change <- attr(
     log_q_grid,
@@ -345,6 +471,27 @@
   initial_finite <- is.finite(initial_log_normalizer)
   final_finite   <- is.finite(final_log_normalizer)
   validation_finite <- is.finite(validation_log_normalizer)
+  if (any(!final_finite)) {
+    .iwmde_stop_construction_failure(
+      estimator = "q_grid_cmde",
+      parameter = parameter,
+      rows      = estimator_rows[!final_finite],
+      stage     = "conditional-density normalization",
+      detail    = paste0(
+        "no finite positive normalizer was obtained after ",
+        normalizer_plan[["n_refinement_steps"]], " refinement step(s)"
+      )
+    )
+  }
+  if (any(!validation_finite)) {
+    .iwmde_stop_construction_failure(
+      estimator = "q_grid_cmde",
+      parameter = parameter,
+      rows      = estimator_rows[!validation_finite],
+      stage     = "conditional-density normalization validation",
+      detail    = "the validation grid did not produce a finite positive normalizer"
+    )
+  }
   pilot_y        <- .iwmde_qcmde_pilot_density(
     log_q_display  = log_q_display,
     log_normalizer = initial_log_normalizer,
@@ -552,18 +699,40 @@
   max_weight_share <- numeric(n_display)
   n_input_rows     <- length(row_states)
   n_candidate_rows <- as.integer(n_candidate_rows[[1L]])
-  if (!is.finite(n_candidate_rows) || n_candidate_rows < n_input_rows) {
-    n_candidate_rows <- n_input_rows
+  if (!is.finite(n_candidate_rows) || n_candidate_rows != n_input_rows ||
+      length(active_rows) != n_input_rows ||
+      length(active_values) != n_input_rows) {
+    .iwmde_stop_construction_failure(
+      estimator = "iwmde",
+      parameter = parameter,
+      rows      = active_rows,
+      stage     = "row-contract validation",
+      detail    = "candidate rows, active values, and row states are inconsistent"
+    )
   }
-  weight           <- .iwmde_chen_log_weight(
-    context        = context,
-    parameter      = parameter,
-    parameter_spec = parameter_spec,
-    active_rows    = active_rows,
-    active_values  = active_values,
-    weight_rows    = weight_rows,
-    weight_values  = weight_values,
-    support        = support
+  weight <- tryCatch(
+    .iwmde_chen_log_weight(
+      context        = context,
+      parameter      = parameter,
+      parameter_spec = parameter_spec,
+      active_rows    = active_rows,
+      active_values  = active_values,
+      weight_rows    = weight_rows,
+      weight_values  = weight_values,
+      support        = support
+    ),
+    error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) {
+        stop(e)
+      }
+      .iwmde_stop_construction_failure(
+        estimator = "iwmde",
+        parameter = parameter,
+        rows      = active_rows,
+        stage     = "proposal-density construction",
+        detail    = conditionMessage(e)
+      )
+    }
   )
   weight_fallbacks <- list(
     count   = if (is.null(weight[["fallback_count"]])) {
@@ -588,15 +757,28 @@
     }
   )
   raw_log_weight    <- weight[["log_weight"]]
-  if (anyNA(raw_log_weight) || any(raw_log_weight == Inf)) {
-    stop(
-      "IWMDE weight estimation produced positive-infinite or undefined log weights.",
-      call. = FALSE
+  if (!is.numeric(raw_log_weight) ||
+      length(raw_log_weight) != length(active_rows)) {
+    .iwmde_stop_construction_failure(
+      estimator = "iwmde",
+      parameter = parameter,
+      rows      = active_rows,
+      stage     = "proposal-density construction",
+      detail    = "the proposal log-density vector has an invalid length or type"
     )
   }
-  keep_rows         <- is.finite(raw_log_weight)
+  keep_rows <- is.finite(raw_log_weight)
+  if (any(!keep_rows)) {
+    .iwmde_stop_construction_failure(
+      estimator = "iwmde",
+      parameter = parameter,
+      rows      = active_rows[!keep_rows],
+      stage     = "proposal-density construction",
+      detail    = "the normalized proposal density was zero or non-finite at an evaluation row"
+    )
+  }
   contribution_rows <- active_rows[keep_rows]
-  n_dropped_weight  <- sum(!keep_rows)
+  n_dropped_weight  <- 0L
   row_states        <- row_states[keep_rows]
   log_weight        <- raw_log_weight[keep_rows]
   n_normalized_rows <- length(log_weight)
@@ -654,12 +836,34 @@
   } else {
     display_grid
   }
-  log_q_grid <- .iwmde_log_q_grid(
-    context     = context,
-    parameter   = parameter,
-    values      = q_grid,
-    row_states  = row_states,
-    replacement = replacement
+  log_q_grid <- tryCatch(
+    .iwmde_log_q_grid(
+      context     = context,
+      parameter   = parameter,
+      values      = q_grid,
+      row_states  = row_states,
+      replacement = replacement
+    ),
+    error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) {
+        stop(e)
+      }
+      .iwmde_stop_construction_failure(
+        estimator = "iwmde",
+        parameter = parameter,
+        rows      = contribution_rows,
+        stage     = "joint-density ordinate evaluation",
+        detail    = conditionMessage(e)
+      )
+    }
+  )
+  .iwmde_validate_log_grid(
+    log_q_grid = log_q_grid,
+    estimator  = "iwmde",
+    parameter  = parameter,
+    rows       = contribution_rows,
+    n_values   = length(q_grid),
+    stage      = "joint-density ordinate evaluation"
   )
   quadrature_change <- attr(
     log_q_grid,

@@ -158,6 +158,10 @@
   }
 
   for (index in seq.int(2L, n_sequence - 1L)) {
+    if (!all(is.finite(log_normalizer_sequence[[index]])) ||
+        !all(is.finite(log_normalizer_sequence[[index + 1L]]))) {
+      next
+    }
     candidate_y <- .iwmde_qcmde_density_from_normalizer(
       log_q_display  = log_q_display,
       log_normalizer = log_normalizer_sequence[[index]],

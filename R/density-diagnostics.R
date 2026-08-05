@@ -208,6 +208,8 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   )
   stability_warning <- .iwmde_bf_mass_warning_tolerance(estimator)
   stability_rejection <- .iwmde_bf_mass_fail_tolerance(estimator)
+  row_loss_warning <- .iwmde_row_loss_warning_tolerance(estimator)
+  row_loss_rejection <- .iwmde_row_loss_fail_tolerance(estimator)
 
   data.frame(
     schema_version = .iwmde_public_character(
@@ -280,8 +282,8 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     rejection_min_ess = policy[["min_ess"]],
     warning_max_weight_share = policy[["warn_weight_share"]],
     rejection_max_weight_share = policy[["max_weight_share"]],
-    warning_row_drop_fraction = stability_warning,
-    rejection_row_drop_fraction = stability_rejection,
+    warning_row_drop_fraction = row_loss_warning,
+    rejection_row_drop_fraction = row_loss_rejection,
     hard_cap = .iwmde_public_numeric(diagnostics[["hard_cap"]]),
     hard_cap_reached = .iwmde_public_logical(
       diagnostics[["hard_cap_reached"]]

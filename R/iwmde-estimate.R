@@ -445,16 +445,6 @@
     .iwmde_cache_set(diagnostic_cache, cache_key, out)
     return(out)
   }
-  if (min(density[["finite_terms"]]) == 0L) {
-    out <- .iwmde_unsupported(
-      parameter,
-      paste0("at least one IWMDE ", .iwmde_plan_output_label(output),
-             " had no finite importance terms")
-    )
-    .iwmde_cache_set(diagnostic_cache, cache_key, out)
-    return(out)
-  }
-
   out <- .iwmde_plan_diagnostic_result(
     plan      = plan,
     output    = output,

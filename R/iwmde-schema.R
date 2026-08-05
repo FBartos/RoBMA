@@ -111,7 +111,7 @@
   }
   baseline_log_q <- state[["baseline_log_q"]]
   if (!is.numeric(baseline_log_q) || length(baseline_log_q) != 1L ||
-      is.na(baseline_log_q)) {
+      !is.finite(baseline_log_q)) {
     stop("Internal IWMDE row state has an invalid baseline log density.",
          call. = FALSE)
   }
