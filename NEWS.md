@@ -217,6 +217,9 @@
 - fails qCMDE/IWMDE construction when a selected row lacks a finite baseline,
   certified normalizer, or normalized proposal density; mathematically exact
   zero ordinates remain valid `-Inf` log-density contributions.
+- computes marginal means through the public BayesTools BF-free route when
+  inclusion Bayes factors are disabled, retaining supported no-intercept and
+  structurally fixed marginal cells.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

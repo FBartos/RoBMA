@@ -217,18 +217,16 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     parameters = parameters
   )
 
-  inference <- suppressWarnings(BayesTools::as_marginal_inference(
+  inference <- suppressWarnings(.marginal_means_inference(
     model                = object[["fit"]],
-    marginal_parameters  = parameters,
-    parameters           = parameters,
-    conditional_list     = conditional_list,
-    conditional_rule     = "OR",
-    formula              = formula,
-    null_hypothesis      = null_hypothesis,
-    normal_approximation = FALSE,
-    n_samples            = n_samples,
-    silent               = TRUE,
-    force_plots          = TRUE
+    marginal_parameters = parameters,
+    parameters          = parameters,
+    conditional_list    = conditional_list,
+    conditional_rule    = "OR",
+    formula             = formula,
+    null_hypothesis     = null_hypothesis,
+    n_samples           = n_samples,
+    bf                  = bf
   ))
 
   available_parameters <- Reduce(
@@ -295,6 +293,91 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   }
 
   return(output)
+}
+
+
+.marginal_means_inference <- function(
+    model, marginal_parameters, parameters, conditional_list,
+    conditional_rule, formula, null_hypothesis, n_samples, bf) {
+
+  out <- BayesTools::as_marginal_inference(
+    model                 = model,
+    marginal_parameters  = marginal_parameters,
+    parameters           = parameters,
+    conditional_list     = conditional_list,
+    conditional_rule     = conditional_rule,
+    formula              = formula,
+    null_hypothesis      = null_hypothesis,
+    normal_approximation = FALSE,
+    n_samples            = n_samples,
+    silent               = TRUE,
+    force_plots          = TRUE,
+    density_method       = "KDE",
+    compute_BF           = FALSE
+  )
+
+  available <- intersect(
+    marginal_parameters,
+    intersect(names(out[["averaged"]]), names(out[["conditional"]]))
+  )
+  for (parameter in available) {
+    out[["inference"]][[parameter]] <- .marginal_means_inclusion_bf(
+      posterior       = out[["conditional"]][[parameter]],
+      null_hypothesis = null_hypothesis,
+      compute          = bf
+    )
+  }
+
+  return(out)
+}
+
+
+.marginal_means_inclusion_bf <- function(posterior, null_hypothesis, compute) {
+
+  if (!isTRUE(compute)) {
+    if (is.list(posterior)) {
+      unavailable <- as.list(rep(NA_real_, length(posterior)))
+      return(stats::setNames(unavailable, names(posterior)))
+    }
+    return(NA_real_)
+  }
+
+  if (!is.list(posterior)) {
+    return(.marginal_means_inclusion_bf_one(posterior, null_hypothesis))
+  }
+  out <- lapply(seq_along(posterior), function(i) {
+
+    child <- posterior[[i]]
+    class(child) <- unique(c(class(child), "marginal_posterior"))
+    .marginal_means_inclusion_bf_one(child, null_hypothesis)
+  })
+  names(out) <- names(posterior)
+  return(out)
+}
+
+
+.marginal_means_inclusion_bf_one <- function(posterior, null_hypothesis) {
+
+  tryCatch(
+    BayesTools::Savage_Dickey_BF(
+      posterior       = posterior,
+      null_hypothesis = null_hypothesis,
+      silent          = TRUE,
+      density_method  = "KDE"
+    ),
+    error = function(error) {
+      if (!grepl("declared point mass at the exact null", conditionMessage(error),
+                 fixed = TRUE)) {
+        stop(error)
+      }
+      value <- NA_real_
+      attr(value, "warnings") <- paste0(
+        "The marginal mean is structurally fixed at the null hypothesis; ",
+        "its inclusion Bayes factor is undefined."
+      )
+      return(value)
+    }
+  )
 }
 
 
