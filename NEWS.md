@@ -188,6 +188,9 @@
 - recovers sparse valid binomial and Poisson GLMM likelihood columns with a
   convergence-checked prior-CDF quadrature fallback when AGHQ cannot certify
   them.
+- samples qCMDE/IWMDE posterior rows globally and pools Chen proposals by
+  mathematical support, preserving empirical product-state weights without
+  enumerating nuisance model states.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

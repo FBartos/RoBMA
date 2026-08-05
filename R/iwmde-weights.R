@@ -162,16 +162,8 @@
     rows           = weight_rows,
     parameter_spec = parameter_spec
   )
-  active_keys  <- paste(
-    .iwmde_chen_row_active_keys(context, active_rows),
-    .iwmde_chen_support_keys(active_supports),
-    sep = "||"
-  )
-  weight_keys  <- paste(
-    .iwmde_chen_row_active_keys(context, weight_rows),
-    .iwmde_chen_support_keys(weight_supports),
-    sep = "||"
-  )
+  active_keys  <- .iwmde_chen_support_keys(active_supports)
+  weight_keys  <- .iwmde_chen_support_keys(weight_supports)
   out          <- rep(-Inf, length(active_values))
   methods      <- character()
   partitions   <- list()
@@ -334,31 +326,6 @@
     reason  = unique(fallback_reason[fallback_index]),
     reasons = reason_counts
   ))
-}
-
-
-.iwmde_chen_row_active_keys <- function(context, rows) {
-
-  if (is.null(context[["posterior_samples"]]) || length(rows) == 0L) {
-    return(rep("all", length(rows)))
-  }
-  samples <- context[["posterior_samples"]]
-
-  vapply(rows, function(row) {
-    if (!is.finite(row) || row < 1L || row > nrow(samples)) {
-      return("all")
-    }
-
-    row_values <- samples[row, , drop = FALSE]
-    if (is.data.frame(row_values)) {
-      row_values <- as.list(row_values[1L, , drop = FALSE])
-    } else {
-      row_values <- as.list(row_values[1L, ])
-      names(row_values) <- colnames(samples)
-    }
-
-    .iwmde_active_key(context, row_values)
-  }, character(1))
 }
 
 

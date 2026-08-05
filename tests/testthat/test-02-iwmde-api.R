@@ -1991,6 +1991,25 @@ test_that("IWMDE row thinning is deterministic and equally spaced", {
 })
 
 
+test_that("IWMDE row thinning does not stratify product states", {
+
+  rows     <- seq_len(10000L)
+  state    <- rep("common", length(rows))
+  state[5001L] <- "rare"
+  expected <- rows[.thin_sample_rows(length(rows), 1000L)]
+  stratified <- rows[.thin_sample_rows_by_group(state, 1000L)]
+
+  expect_equal(
+    .iwmde_select_active_rows(rows = rows, max_samples = 1000L),
+    expected
+  )
+  expect_equal(length(expected), 1000L)
+  expect_false(5001L %in% expected)
+  expect_true(5001L %in% stratified)
+  expect_false("context" %in% names(formals(.iwmde_select_active_rows)))
+})
+
+
 test_that("IWMDE plan freezes finite baseline row contract", {
 
   context <- list(

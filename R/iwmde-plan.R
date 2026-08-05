@@ -173,8 +173,7 @@
   if (length(candidate_rows) > plan[["row_budget"]]) {
     candidate_rows <- .iwmde_select_active_rows(
       rows        = candidate_rows,
-      max_samples = plan[["row_budget"]],
-      context     = context
+      max_samples = plan[["row_budget"]]
     )
   }
 

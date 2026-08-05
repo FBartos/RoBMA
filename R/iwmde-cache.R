@@ -164,23 +164,13 @@
 }
 
 
-.iwmde_select_active_rows <- function(rows, max_samples, context = NULL) {
+.iwmde_select_active_rows <- function(rows, max_samples) {
 
   if (length(rows) <= max_samples) {
     return(rows)
   }
 
-  selected <- NULL
-  if (!is.null(context) && length(context[["indicator_names"]]) > 0L) {
-    samples <- context[["posterior_samples"]]
-    group <- vapply(rows, function(row) {
-      .iwmde_active_key(context, samples[row, ])
-    }, character(1))
-    selected <- .thin_sample_rows_by_group(group, max_samples)
-  }
-  if (is.null(selected)) {
-    selected <- .thin_sample_rows(length(rows), max_samples)
-  }
+  selected <- .thin_sample_rows(length(rows), max_samples)
 
   return(rows[selected])
 }

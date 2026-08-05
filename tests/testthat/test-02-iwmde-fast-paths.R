@@ -1032,7 +1032,7 @@ test_that("Chen weights dispatch by row-specific support", {
 })
 
 
-test_that("Chen weights dispatch by bias branch before omega values", {
+test_that("Chen proposal pooling ignores nuisance product states", {
 
   supports <- matrix(
     rep(c(0, 1), 4L),
@@ -1087,18 +1087,12 @@ test_that("Chen weights dispatch by bias branch before omega values", {
     support        = c(0, 1)
   )
 
-  expect_length(calls, 2L)
-  expect_equal(calls[[1L]][["active_rows"]], 1:2)
-  expect_equal(calls[[1L]][["weight_rows"]], 1:2)
-  expect_equal(calls[[2L]][["active_rows"]], 3:4)
-  expect_equal(calls[[2L]][["weight_rows"]], 3:4)
-  expect_equal(weight[["log_weight"]], c(1, 1, 3, 3))
-  expect_equal(weight[["method"]], "chen_mixed(branch_1,branch_3)")
-  expect_length(weight[["partitions"]], 2L)
-  expect_equal(
-    vapply(weight[["partitions"]], `[[`, character(1), "method"),
-    c("branch_1", "branch_3")
-  )
+  expect_length(calls, 1L)
+  expect_equal(calls[[1L]][["active_rows"]], 1:4)
+  expect_equal(calls[[1L]][["weight_rows"]], 1:4)
+  expect_equal(weight[["log_weight"]], rep(1, 4L))
+  expect_equal(weight[["method"]], "branch_1")
+  expect_length(weight[["partitions"]], 1L)
 })
 
 
