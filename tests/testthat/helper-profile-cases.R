@@ -237,11 +237,15 @@ certification_cases <- function() {
         "brma.mv_block_mvn_mods",
         "brma.mv_block_mvn_random_mods_scale"
       ),
-      test_filter = multivariate_filter,
+      test_filter = paste(multivariate_filter, "02-iwmde-api", sep = "|"),
       required_tests = rbind(
         .required_tests(
           "test-03-loo.R",
           "brma.mv known-V fits expose conditional estimate-unit LOO and WAIC"
+        ),
+        .required_tests(
+          "test-02-iwmde-api.R",
+          "known-V marginalized allocation weights stay in global IWMDE state"
         ),
         .random_parameter_required_tests()
       )
