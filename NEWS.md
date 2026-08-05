@@ -177,6 +177,8 @@
 - supplies `metafor` forest shade/dist styles with a deterministic density from
   the actual posterior predictive draws instead of a Normal reconstruction from
   interval endpoints.
+- makes certification workers fail when required numerical evidence is missing,
+  skipped, duplicated, or executes without a passing expectation.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

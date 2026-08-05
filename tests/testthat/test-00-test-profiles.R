@@ -54,6 +54,29 @@ test_that("certification cases partition expensive evidence", {
     expect_true(nzchar(case[["test_filter"]]), info = name)
     expect_true(any(grepl(case[["test_filter"]], test_stems)), info = name)
     expect_true(all(case[["fit_sources"]] %in% test_files), info = name)
+    required_tests <- case[["required_tests"]]
+    expect_s3_class(required_tests, "data.frame")
+    expect_gt(nrow(required_tests), 0L)
+    expect_identical(names(required_tests), c("file", "test"), info = name)
+    expect_false(anyDuplicated(required_tests) > 0L, info = name)
+    expect_true(all(required_tests[["file"]] %in% test_files), info = name)
+    for (i in seq_len(nrow(required_tests))) {
+      required_file <- required_tests[["file"]][[i]]
+      required_test <- required_tests[["test"]][[i]]
+      required_stem <- sub(
+        "^test-", "", sub("\\.[Rr]$", "", required_file)
+      )
+      expect_true(grepl(case[["test_filter"]], required_stem), info = name)
+      source_lines <- readLines(
+        testthat::test_path(required_file),
+        warn = FALSE
+      )
+      declaration <- paste0("test_that(\"", required_test, "\"")
+      expect_true(
+        any(grepl(declaration, source_lines, fixed = TRUE)),
+        info = paste(name, required_file, required_test)
+      )
+    }
     fit_names <- certification_case_fit_names(name, catalog = catalog)
     fit_sources <- catalog[["source_file"]][match(fit_names, catalog[["name"]])]
     expect_true(all(fit_sources %in% case[["fit_sources"]]), info = name)
@@ -82,6 +105,66 @@ test_that("certification cases partition expensive evidence", {
   iwmde_names    <- certification_case_fit_names("iwmde-qcmde")
   expect_true(all(smoke_group %in% extended_names))
   expect_true(all(smoke_group %in% iwmde_names))
+  expect_true(all(c(
+    "nielweise2008_glmm_effect_null",
+    "nielweise2008_glmm",
+    "dat.lehmann2018-3PSM_effect_null",
+    "dat.lehmann2018-3PSM"
+  ) %in% iwmde_names))
+})
+
+
+test_that("certification evidence requires one executed passing result", {
+
+  required <- .required_tests("test-required.R", "required evidence")
+  successful <- data.frame(
+    file    = c("test-required.R", "test-unrelated.R"),
+    test    = c("required evidence", "expected unrelated skip"),
+    skipped = c(FALSE, TRUE),
+    passed  = c(2L, 0L),
+    stringsAsFactors = FALSE
+  )
+
+  expect_true(isTRUE(validate_certification_evidence(
+    successful,
+    required,
+    "synthetic"
+  )))
+  expect_error(
+    validate_certification_evidence(
+      successful[0L, , drop = FALSE],
+      required,
+      "synthetic"
+    ),
+    "observed 0"
+  )
+
+  renamed <- successful
+  renamed[["test"]][[1L]] <- "renamed evidence"
+  expect_error(
+    validate_certification_evidence(renamed, required, "synthetic"),
+    "observed 0"
+  )
+
+  skipped <- successful
+  skipped[["skipped"]][[1L]] <- TRUE
+  expect_error(
+    validate_certification_evidence(skipped, required, "synthetic"),
+    "skipped required test"
+  )
+
+  zero <- successful
+  zero[["passed"]][[1L]] <- 0L
+  expect_error(
+    validate_certification_evidence(zero, required, "synthetic"),
+    "no passing expectations"
+  )
+
+  duplicated <- rbind(successful[1L, ], successful[1L, ])
+  expect_error(
+    validate_certification_evidence(duplicated, required, "synthetic"),
+    "observed 2"
+  )
 })
 
 

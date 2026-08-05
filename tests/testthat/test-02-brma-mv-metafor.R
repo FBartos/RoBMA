@@ -16,6 +16,16 @@ mv_metafor_fit_names <- c(
   "brma.mv_v14_begg1989_study_treatment"
 )
 
+.mv_active_metafor_fit_names <- function(names = mv_metafor_fit_names) {
+
+  names <- intersect(names, active_fit_catalog()[["name"]])
+  if (length(names) == 0L) {
+    testthat::skip("No fixtures for this metafor parity check are active.")
+  }
+
+  return(names)
+}
+
 fits <- lazy_fits(c(mv_fixed_metafor_fit_name, mv_known_r_metafor_fit_name,
                     mv_metafor_fit_names),
                   validate = FALSE)
@@ -214,7 +224,8 @@ test_that("known-R brma.mv rstandard and VIF track metafor references", {
 
 test_that("v14 brma.mv fixed effects match metafor references", {
 
-  skip_if_missing_fits(mv_metafor_fit_names)
+  fit_names <- .mv_active_metafor_fit_names()
+  skip_if_missing_fits(fit_names)
 
   cases <- list(
     list(
@@ -242,6 +253,7 @@ test_that("v14 brma.mv fixed effects match metafor references", {
       tolerance = 0.05
     )
   )
+  cases <- Filter(function(case) case[["name"]] %in% fit_names, cases)
 
   for (case in cases) {
     name     <- case[["name"]]
@@ -265,7 +277,8 @@ test_that("v14 brma.mv fixed effects match metafor references", {
 
 test_that("v14 brma.mv heterogeneity components match metafor references", {
 
-  skip_if_missing_fits(mv_metafor_fit_names)
+  fit_names <- .mv_active_metafor_fit_names()
+  skip_if_missing_fits(fit_names)
 
   cases <- list(
     list(
@@ -353,6 +366,7 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
       tolerance = 0.06
     )
   )
+  cases <- Filter(function(case) case[["name"]] %in% fit_names, cases)
 
   for (case in cases) {
     name     <- case[["name"]]
@@ -370,7 +384,8 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
 
 test_that("v14 brma.mv heterogeneity component selectors expose expected names", {
 
-  skip_if_missing_fits(mv_metafor_fit_names)
+  fit_names <- .mv_active_metafor_fit_names()
+  skip_if_missing_fits(fit_names)
 
   expected <- list(
     brma.mv_v14_konstantopoulos2011_cs        = "district",
@@ -379,7 +394,7 @@ test_that("v14 brma.mv heterogeneity component selectors expose expected names",
     brma.mv_v14_begg1989_study_treatment      = c("study", "treatment")
   )
 
-  for (name in mv_metafor_fit_names) {
+  for (name in fit_names) {
     fit_brma <- fits[[name]]
     out_all  <- summary_heterogeneity(fit_brma, component = "all")
 
@@ -406,7 +421,12 @@ test_that("v14 brma.mv heterogeneity component selectors expose expected names",
 
 test_that("v14 brma.mv random-covariance parameters match metafor references", {
 
-  skip_if_missing_fits(mv_metafor_fit_names)
+  fit_names <- .mv_active_metafor_fit_names(c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_ishak2007_har",
+    "brma.mv_v14_begg1989_study_treatment"
+  ))
+  skip_if_missing_fits(fit_names)
 
   cases <- list(
     list(
@@ -428,6 +448,7 @@ test_that("v14 brma.mv random-covariance parameters match metafor references", {
       tolerance = 1e-12
     )
   )
+  cases <- Filter(function(case) case[["name"]] %in% fit_names, cases)
 
   for (case in cases) {
     name     <- case[["name"]]
@@ -445,7 +466,8 @@ test_that("v14 brma.mv random-covariance parameters match metafor references", {
 
 test_that("v14 brma.mv fixed fitted values and residuals match metafor references", {
 
-  skip_if_missing_fits(mv_metafor_fit_names)
+  fit_names <- .mv_active_metafor_fit_names()
+  skip_if_missing_fits(fit_names)
 
   tolerances <- c(
     brma.mv_v14_konstantopoulos2011_cs        = 0.05,
@@ -454,7 +476,7 @@ test_that("v14 brma.mv fixed fitted values and residuals match metafor reference
     brma.mv_v14_begg1989_study_treatment      = 0.05
   )
 
-  for (name in mv_metafor_fit_names) {
+  for (name in fit_names) {
     fit_brma    <- fits[[name]]
     fit_metafor <- .mv_metafor(name)
     tolerance   <- tolerances[[name]]
@@ -497,11 +519,12 @@ test_that("v14 brma.mv fixed fitted values and residuals match metafor reference
 
 test_that("explicit brma.mv new-effect predictions track metafor targets", {
 
-  skip_if_missing_fits(c(
+  fit_names <- .mv_active_metafor_fit_names(c(
     "brma.mv_v14_konstantopoulos2011_cs",
     "brma.mv_v14_assink2016_nested",
     "brma.mv_v14_ishak2007_har"
   ))
+  skip_if_missing_fits(fit_names)
 
   predict_rma <- getS3method(
     "predict",
@@ -538,6 +561,7 @@ test_that("explicit brma.mv new-effect predictions track metafor targets", {
       tolerance = c(mean = .75, lower = 1.75, upper = 1.75)
     )
   )
+  cases <- Filter(function(case) case[["name"]] %in% fit_names, cases)
 
   for (case in cases) {
     name     <- case[["name"]]
@@ -578,7 +602,8 @@ test_that("explicit brma.mv new-effect predictions track metafor targets", {
 
 test_that("v14 brma.mv ranef components track metafor references", {
 
-  skip_if_missing_fits(mv_metafor_fit_names)
+  fit_names <- .mv_active_metafor_fit_names()
+  skip_if_missing_fits(fit_names)
 
   cases <- list(
     list(
@@ -619,6 +644,7 @@ test_that("v14 brma.mv ranef components track metafor references", {
       tolerance         = 0.08
     )
   )
+  cases <- Filter(function(case) case[["name"]] %in% fit_names, cases)
 
   for (case in cases) {
     name        <- case[["name"]]
@@ -656,7 +682,8 @@ test_that("v14 brma.mv ranef components track metafor references", {
 
 test_that("v14 brma.mv ranef, blup, and true_effects use consistent targets", {
 
-  skip_if_missing_fits(mv_metafor_fit_names)
+  fit_names <- .mv_active_metafor_fit_names()
+  skip_if_missing_fits(fit_names)
 
   expected_components <- list(
     brma.mv_v14_konstantopoulos2011_cs        = "district",
@@ -665,7 +692,7 @@ test_that("v14 brma.mv ranef, blup, and true_effects use consistent targets", {
     brma.mv_v14_begg1989_study_treatment      = c("study", "treatment")
   )
 
-  for (name in mv_metafor_fit_names) {
+  for (name in fit_names) {
     fit_brma  <- fits[[name]]
     posterior <- .mv_posterior_subset(fit_brma, n = 300)
 
@@ -721,9 +748,10 @@ test_that("v14 brma.mv ranef, blup, and true_effects use consistent targets", {
 
 test_that("v14 brma.mv hatvalues track metafor leverages", {
 
-  skip_if_missing_fits(mv_metafor_fit_names)
+  fit_names <- .mv_active_metafor_fit_names()
+  skip_if_missing_fits(fit_names)
 
-  for (name in mv_metafor_fit_names) {
+  for (name in fit_names) {
     fit_brma    <- fits[[name]]
     fit_metafor <- .mv_metafor(name)
 

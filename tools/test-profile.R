@@ -60,7 +60,7 @@ run_tests <- function(filter = NULL) {
     test_args[["filter"]] <- filter
   }
 
-  do.call(devtools::test, test_args)
+  return(do.call(devtools::test, test_args))
 }
 
 
@@ -145,7 +145,12 @@ run_certification_worker <- function(name) {
   }
 
   set_active_fits(fit_names)
-  run_tests(case[["test_filter"]])
+  results <- run_tests(case[["test_filter"]])
+  validate_certification_evidence(
+    results        = results,
+    required_tests = case[["required_tests"]],
+    case_name      = name
+  )
 
   elapsed <- proc.time()[["elapsed"]] - started
   message(

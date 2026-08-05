@@ -279,6 +279,10 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
       "brma.mv_block_mvn_3lvl_scale_top",
       "brma.mv_block_mvn_3lvl_scale_bottom"
     )
+    mv_names <- intersect(mv_names, active_fit_catalog()[["name"]])
+    if (length(mv_names) == 0L) {
+      testthat::skip("No known-V LOO fixtures are active in this case.")
+    }
   }
   skip_if_missing_fits(mv_names)
 
@@ -367,6 +371,10 @@ test_that("v14 brma.mv metafor fixtures cache usable estimate-unit LOO", {
     "brma.mv_v14_ishak2007_har",
     "brma.mv_v14_begg1989_study_treatment"
   )
+  mv_names <- intersect(mv_names, active_fit_catalog()[["name"]])
+  if (length(mv_names) == 0L) {
+    testthat::skip("No v14 LOO fixtures are active in this case.")
+  }
   skip_if_missing_fits(mv_names)
 
   for (name in mv_names) {

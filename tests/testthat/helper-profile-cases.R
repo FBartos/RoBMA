@@ -1,6 +1,129 @@
 CERTIFICATION_CASE_TIMEOUT_SECONDS <- 60 * 60
 
 
+.required_tests <- function(file, test) {
+
+  data.frame(
+    file             = rep(file, length(test)),
+    test             = test,
+    stringsAsFactors = FALSE
+  )
+}
+
+
+.iwmde_fast_required_tests <- function() {
+
+  .required_tests(
+    "test-02-iwmde-fast-paths.R",
+    c(
+      "IWMDE batched q evaluation matches scalar fallback",
+      "IWMDE predictor fast path matches scalar fallback",
+      "IWMDE normal quadratic fast path matches scalar fallback"
+    )
+  )
+}
+
+
+.v14_metafor_required_tests <- function(include_random = TRUE,
+                                         include_new_effect = TRUE) {
+
+  tests <- c(
+    "v14 brma.mv fixed effects match metafor references",
+    "v14 brma.mv heterogeneity components match metafor references",
+    "v14 brma.mv heterogeneity component selectors expose expected names",
+    "v14 brma.mv fixed fitted values and residuals match metafor references",
+    "v14 brma.mv ranef components track metafor references",
+    "v14 brma.mv ranef, blup, and true_effects use consistent targets",
+    "v14 brma.mv hatvalues track metafor leverages"
+  )
+  if (include_random) {
+    tests <- c(
+      tests,
+      "v14 brma.mv random-covariance parameters match metafor references"
+    )
+  }
+  if (include_new_effect) {
+    tests <- c(
+      tests,
+      "explicit brma.mv new-effect predictions track metafor targets"
+    )
+  }
+
+  return(.required_tests("test-02-brma-mv-metafor.R", tests))
+}
+
+
+.random_parameter_required_tests <- function(include_overlay = FALSE) {
+
+  tests <- c(
+    "random catalog matches summaries across structures",
+    "random plots and MCMC diagnostics use semantic draws",
+    "random directional hypotheses use induced joint priors",
+    "random point hypotheses follow quantity-specific policy"
+  )
+  if (include_overlay) {
+    tests <- c(
+      tests,
+      "random prior overlays and diagnostic labels are semantic"
+    )
+  }
+
+  return(.required_tests("test-02-random-parameters.R", tests))
+}
+
+
+validate_certification_evidence <- function(results, required_tests,
+                                            case_name) {
+
+  if (is.null(required_tests) || nrow(required_tests) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  results <- as.data.frame(results)
+  required_columns <- c("file", "test", "skipped", "passed")
+  missing_columns  <- setdiff(required_columns, names(results))
+  if (length(missing_columns) > 0L) {
+    stop(
+      "Certification results are missing required columns: ",
+      paste(missing_columns, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  for (i in seq_len(nrow(required_tests))) {
+    file <- required_tests[["file"]][[i]]
+    test <- required_tests[["test"]][[i]]
+    matches <- which(results[["file"]] == file & results[["test"]] == test)
+    label <- paste0(file, " :: ", test)
+
+    if (length(matches) != 1L) {
+      stop(
+        "Certification case '", case_name, "' requires exactly one result for ",
+        label, ", but observed ", length(matches), ".",
+        call. = FALSE
+      )
+    }
+    if (isTRUE(results[["skipped"]][[matches]])) {
+      stop(
+        "Certification case '", case_name, "' skipped required test ", label,
+        ".",
+        call. = FALSE
+      )
+    }
+    if (is.na(results[["passed"]][[matches]]) ||
+        results[["passed"]][[matches]] < 1L) {
+      stop(
+        "Certification case '", case_name,
+        "' recorded no passing expectations for required test ", label, ".",
+        call. = FALSE
+      )
+    }
+  }
+
+  return(invisible(TRUE))
+}
+
+
 certification_cases <- function() {
 
   multivariate_filter <- paste0(
@@ -21,6 +144,10 @@ certification_cases <- function() {
         "00-(covariance-factorization|known-v-joint-loglik|",
         "selection-kernel.*|selection-probability-numerics)|",
         "02-(distributions|glmm-aghq)"
+      ),
+      required_tests = .required_tests(
+        "test-00-covariance-factorization.R",
+        "covariance sampling factor preserves singular covariance"
       )
     ),
     "normal-models" = list(
@@ -38,9 +165,16 @@ certification_cases <- function() {
         "test-01-vif-parity.R"
       ),
       test_filter = paste0(
-        "02-(dfbetas|forest|funnel|hatvalues|influence|marginal_means|",
+        "02-(dfbetas|forest|funnel|hatvalues|influence|iwmde-fast-paths|marginal_means|",
         "plot.*|predict|qqnorm|radial|regplot|residuals|summary.*|vif)|",
         "03-(bridgesampling|loo|zplot)"
+      ),
+      required_tests = rbind(
+        .required_tests(
+          "test-02-iwmde-fast-paths.R",
+          "multilevel weightfunction formula path matches scalar fallback"
+        ),
+        .iwmde_fast_required_tests()
       )
     ),
     "glmm-models" = list(
@@ -54,8 +188,12 @@ certification_cases <- function() {
       ),
       test_filter = paste0(
         "02-(dfbetas|distributions|forest|funnel|glmm-aghq|hatvalues|",
-        "influence|marginal_means|predict|qqnorm|residuals|summary.*|vif)|",
+        "influence|iwmde-fast-paths|marginal_means|predict|qqnorm|residuals|summary.*|vif)|",
         "03-(bridgesampling|loo)"
+      ),
+      required_tests = .required_tests(
+        "test-02-iwmde-fast-paths.R",
+        "IWMDE batched q evaluation matches scalar fallback"
       )
     ),
     "multivariate-core" = list(
@@ -71,7 +209,11 @@ certification_cases <- function() {
         "brma.mv_block_mvn_fixed_random_null",
         "brma.mv_block_mvn_random"
       ),
-      test_filter = multivariate_filter
+      test_filter = multivariate_filter,
+      required_tests = .required_tests(
+        "test-03-loo.R",
+        "brma.mv known-V fits expose conditional estimate-unit LOO and WAIC"
+      )
     ),
     "multivariate-extended" = list(
       description = paste(
@@ -95,7 +237,14 @@ certification_cases <- function() {
         "brma.mv_block_mvn_mods",
         "brma.mv_block_mvn_random_mods_scale"
       ),
-      test_filter = multivariate_filter
+      test_filter = multivariate_filter,
+      required_tests = rbind(
+        .required_tests(
+          "test-03-loo.R",
+          "brma.mv known-V fits expose conditional estimate-unit LOO and WAIC"
+        ),
+        .random_parameter_required_tests()
+      )
     ),
     "multivariate-singular" = list(
       description = paste(
@@ -107,31 +256,48 @@ certification_cases <- function() {
         "brma.mv_singular_regularized_whitened",
         "brma.mv_singular_regularized_block_mvn"
       ),
-      test_filter = multivariate_filter
+      test_filter = multivariate_filter,
+      required_tests = .required_tests(
+        "test-02-summary.R",
+        "summary.brma returns a stable object contract"
+      )
     ),
     "multivariate-parity-cs" = list(
       description = "Metafor parity for the Konstantopoulos CS model.",
       fit_sources = "test-01-brma.mv.R",
       fit_names = "brma.mv_v14_konstantopoulos2011_cs",
-      test_filter = multivariate_filter
+      test_filter = multivariate_filter,
+      required_tests = rbind(
+        .v14_metafor_required_tests(),
+        .random_parameter_required_tests(include_overlay = TRUE)
+      )
     ),
     "multivariate-parity-nested" = list(
       description = "Metafor parity for the Assink nested model.",
       fit_sources = "test-01-brma.mv.R",
       fit_names = "brma.mv_v14_assink2016_nested",
-      test_filter = multivariate_filter
+      test_filter = multivariate_filter,
+      required_tests = .v14_metafor_required_tests(include_random = FALSE)
     ),
     "multivariate-parity-har" = list(
       description = "Metafor parity for the Ishak HAR model.",
       fit_sources = "test-01-brma.mv.R",
       fit_names = "brma.mv_v14_ishak2007_har",
-      test_filter = multivariate_filter
+      test_filter = multivariate_filter,
+      required_tests = rbind(
+        .v14_metafor_required_tests(),
+        .random_parameter_required_tests()
+      )
     ),
     "multivariate-parity-treatment" = list(
       description = "Metafor parity for the Begg treatment CS model.",
       fit_sources = "test-01-brma.mv.R",
       fit_names = "brma.mv_v14_begg1989_study_treatment",
-      test_filter = multivariate_filter
+      test_filter = multivariate_filter,
+      required_tests = rbind(
+        .v14_metafor_required_tests(include_new_effect = FALSE),
+        .random_parameter_required_tests(include_overlay = TRUE)
+      )
     ),
     "iwmde-qcmde" = list(
       description = paste(
@@ -139,6 +305,8 @@ certification_cases <- function() {
         "oracles."
       ),
       fit_sources = c(
+        "test-01-brma.glmm.R",
+        "test-01-bselmodel.R",
         "test-01-brma.mv.R",
         "test-01-iwmde-oracle-nested.R"
       ),
@@ -148,7 +316,9 @@ certification_cases <- function() {
         "brma.mv_block_mvn",
         "brma.mv_block_mvn_random",
         "brma.mv_block_mvn_fixed_random_null",
+        "nielweise2008_glmm",
         "nielweise2008_glmm_effect_null",
+        "dat.lehmann2018-3PSM",
         "dat.lehmann2018-3PSM_effect_null",
         "iwmde_known_v_tau_full",
         "iwmde_known_v_tau_null"
@@ -156,6 +326,20 @@ certification_cases <- function() {
       test_filter = paste0(
         "02-(hypothesis|iwmde.*|marginal_means|random-parameters)|",
         "03-(bridgesampling|loo)"
+      ),
+      required_tests = rbind(
+        .required_tests(
+          "test-02-iwmde-oracles.R",
+          c(
+            "qCMDE matches GLMM and both estimators match selection bridge factors",
+            "qCMDE and IWMDE match the known-V tau boundary bridge factor"
+          )
+        ),
+        .iwmde_fast_required_tests(),
+        .required_tests(
+          "test-03-loo.R",
+          "brma.mv known-V fits expose conditional estimate-unit LOO and WAIC"
+        )
       )
     )
   )

@@ -10,6 +10,19 @@ source(testthat::test_path("common-functions.R"))
   "brma.mv_v14_begg1989_study_treatment"
 )
 
+.active_random_parameter_fit_names <- function() {
+
+  names <- intersect(
+    .random_parameter_fit_names,
+    active_fit_catalog()[["name"]]
+  )
+  if (length(names) == 0L) {
+    testthat::skip("No semantic random-parameter fixtures are active.")
+  }
+
+  return(names)
+}
+
 .random_parameter_hypothesis <- function(label, operator_left, value,
                                          operator_right) {
 
@@ -32,9 +45,10 @@ source(testthat::test_path("common-functions.R"))
 
 test_that("random catalog matches summaries across structures", {
 
-  skip_if_missing_fits(.random_parameter_fit_names)
+  fit_names <- .active_random_parameter_fit_names()
+  skip_if_missing_fits(fit_names)
 
-  for (name in .random_parameter_fit_names) {
+  for (name in fit_names) {
     fit      <- load_fit(name, validate = FALSE)
     bundle   <- .brma_random_parameter_bundle(fit)
     summary  <- summary(fit, random_effects = "standard")
@@ -94,9 +108,10 @@ test_that("ordinary plots and hypotheses ignore unrelated random priors", {
 
 test_that("random plots and MCMC diagnostics use semantic draws", {
 
-  skip_if_missing_fits(.random_parameter_fit_names)
+  fit_names <- .active_random_parameter_fit_names()
+  skip_if_missing_fits(fit_names)
 
-  for (name in .random_parameter_fit_names) {
+  for (name in fit_names) {
     fit   <- load_fit(name, validate = FALSE)
     specs <- .brma_random_parameter_bundle(fit)[["specs"]]
     label <- specs[["label"]][1L]
@@ -114,24 +129,27 @@ test_that("random plots and MCMC diagnostics use semantic draws", {
     )
   }
 
-  fit <- load_fit("brma.mv_v14_konstantopoulos2011_cs", validate = FALSE)
-  for (type in c("density", "autocorrelation")) {
-    expect_s3_class(
-      plot_diagnostic(
-        fit, parameter = "rho(district)", component = "random",
-        type = type, plot_type = "ggplot"
-      ),
-      "ggplot"
-    )
+  if ("brma.mv_v14_konstantopoulos2011_cs" %in% fit_names) {
+    fit <- load_fit("brma.mv_v14_konstantopoulos2011_cs", validate = FALSE)
+    for (type in c("density", "autocorrelation")) {
+      expect_s3_class(
+        plot_diagnostic(
+          fit, parameter = "rho(district)", component = "random",
+          type = type, plot_type = "ggplot"
+        ),
+        "ggplot"
+      )
+    }
   }
 })
 
 test_that("random directional hypotheses use induced joint priors", {
 
-  skip_if_missing_fits(.random_parameter_fit_names)
+  fit_names <- .active_random_parameter_fit_names()
+  skip_if_missing_fits(fit_names)
 
-  for (i in seq_along(.random_parameter_fit_names)) {
-    name     <- .random_parameter_fit_names[[i]]
+  for (i in seq_along(fit_names)) {
+    name     <- fit_names[[i]]
     fit      <- load_fit(name, validate = FALSE)
     selected <- .brma_random_parameter_bundle(fit)
     label    <- selected[["specs"]][["label"]][1L]
@@ -152,76 +170,85 @@ test_that("random directional hypotheses use induced joint priors", {
 
 test_that("random point hypotheses follow quantity-specific policy", {
 
-  skip_if_missing_fits(.random_parameter_fit_names)
+  fit_names <- .active_random_parameter_fit_names()
+  skip_if_missing_fits(fit_names)
 
-  fit_cs <- load_fit("brma.mv_v14_konstantopoulos2011_cs", validate = FALSE)
-  expect_s3_class(
-    hypothesis(
-      fit_cs,
-      .random_parameter_hypothesis("rho(district)", "=", 0.5, "!="),
-      component = "random", n_samples = 2000, seed = 21
-    ),
-    "BayesTools_hypothesis_BF"
-  )
-
-  fit_har <- load_fit("brma.mv_v14_ishak2007_har", validate = FALSE)
-  expect_error(
-    hypothesis(
-      fit_har,
-      .random_parameter_hypothesis(
-        "sd(time[1] | study)", "=", 0.2, "!="
+  if ("brma.mv_v14_konstantopoulos2011_cs" %in% fit_names) {
+    fit_cs <- load_fit("brma.mv_v14_konstantopoulos2011_cs", validate = FALSE)
+    expect_s3_class(
+      hypothesis(
+        fit_cs,
+        .random_parameter_hypothesis("rho(district)", "=", 0.5, "!="),
+        component = "random", n_samples = 2000, seed = 21
       ),
-      component = "random", n_samples = 1000, seed = 22
-    ),
-    "derived component SD"
-  )
+      "BayesTools_hypothesis_BF"
+    )
+  }
 
-  fit_mixed <- load_fit(
-    "brma.mv_v14_begg1989_study_treatment",
-    validate = FALSE
-  )
-  mixed_quantities <- hypothesis_quantities(fit_mixed)
-  mixed_rho <- mixed_quantities[
-    mixed_quantities[["alias"]] == "rho(study)" &
-      mixed_quantities[["component"]] == "random",
-    ,
-    drop = FALSE
-  ]
-  expect_false(any(mixed_rho[["point_test"]]))
-  expect_false(any(mixed_rho[["direction_test"]]))
-  expect_true(all(grepl("fixed by the fitted model", mixed_rho[["reason"]],
-                        fixed = TRUE)))
-  expect_error(
-    hypothesis(
-      fit_mixed,
-      .random_parameter_hypothesis("rho(study)", "=", 0, "!="),
-      component = "random", n_samples = 1000, seed = 23
-    ),
-    "derived pairwise correlation"
-  )
+  if ("brma.mv_v14_ishak2007_har" %in% fit_names) {
+    fit_har <- load_fit("brma.mv_v14_ishak2007_har", validate = FALSE)
+    expect_error(
+      hypothesis(
+        fit_har,
+        .random_parameter_hypothesis(
+          "sd(time[1] | study)", "=", 0.2, "!="
+        ),
+        component = "random", n_samples = 1000, seed = 22
+      ),
+      "derived component SD"
+    )
+  }
 
-  fit_alloc <- load_fit("brma.mv_block_mvn_random_scale", validate = FALSE)
-  expect_error(
-    hypothesis(
-      fit_alloc,
-      .random_parameter_hypothesis(
-        "var_frac(total: study)", "=", 0, ">"
+  if ("brma.mv_v14_begg1989_study_treatment" %in% fit_names) {
+    fit_mixed <- load_fit(
+      "brma.mv_v14_begg1989_study_treatment",
+      validate = FALSE
+    )
+    mixed_quantities <- hypothesis_quantities(fit_mixed)
+    mixed_rho <- mixed_quantities[
+      mixed_quantities[["alias"]] == "rho(study)" &
+        mixed_quantities[["component"]] == "random",
+      ,
+      drop = FALSE
+    ]
+    expect_false(any(mixed_rho[["point_test"]]))
+    expect_false(any(mixed_rho[["direction_test"]]))
+    expect_true(all(grepl("fixed by the fitted model", mixed_rho[["reason"]],
+                          fixed = TRUE)))
+    expect_error(
+      hypothesis(
+        fit_mixed,
+        .random_parameter_hypothesis("rho(study)", "=", 0, "!="),
+        component = "random", n_samples = 1000, seed = 23
       ),
-      component = "random", n_samples = 1000, seed = 24
-    ),
-    "support boundary"
-  )
-  expect_error(
-    hypothesis(
-      fit_alloc,
-      .random_parameter_hypothesis(
-        "var_frac(total: study)", ">", 0.5, "<"
+      "derived pairwise correlation"
+    )
+  }
+
+  if ("brma.mv_block_mvn_random_scale" %in% fit_names) {
+    fit_alloc <- load_fit("brma.mv_block_mvn_random_scale", validate = FALSE)
+    expect_error(
+      hypothesis(
+        fit_alloc,
+        .random_parameter_hypothesis(
+          "var_frac(total: study)", "=", 0, ">"
+        ),
+        component = "random", n_samples = 1000, seed = 24
       ),
-      component = "random", density_method = "qCMDE",
-      n_samples = 1000, seed = 25
-    ),
-    "not available for semantic random-effect quantities"
-  )
+      "support boundary"
+    )
+    expect_error(
+      hypothesis(
+        fit_alloc,
+        .random_parameter_hypothesis(
+          "var_frac(total: study)", ">", 0.5, "<"
+        ),
+        component = "random", density_method = "qCMDE",
+        n_samples = 1000, seed = 25
+      ),
+      "not available for semantic random-effect quantities"
+    )
+  }
 })
 
 test_that("random influence matches weighted scalar moment oracles", {
@@ -382,30 +409,39 @@ test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", 
 
 test_that("random prior overlays and diagnostic labels are semantic", {
 
-  skip_if_missing_fits(c(
+  fit_names <- intersect(c(
     "brma.mv_v14_begg1989_study_treatment",
     "brma.mv_v14_konstantopoulos2011_cs"
-  ))
-  fixed <- load_fit(
-    "brma.mv_v14_begg1989_study_treatment",
-    validate = FALSE
-  )
-  expect_error(
-    plot(
-      fixed,
-      parameter = "rho(study)", component = "random", prior = TRUE,
-      plot_type = "ggplot"
-    ),
-    "prior-density overlay is not available for fixed random-effect quantity"
-  )
+  ), active_fit_catalog()[["name"]])
+  if (length(fit_names) == 0L) {
+    testthat::skip("No random-prior overlay fixtures are active.")
+  }
+  skip_if_missing_fits(fit_names)
 
-  cs <- load_fit("brma.mv_v14_konstantopoulos2011_cs", validate = FALSE)
-  diagnostic <- plot_diagnostic_density(
-    cs,
-    parameter = "rho(district)", component = "random",
-    plot_type = "ggplot"
-  )
-  expect_identical(diagnostic[["labels"]][["title"]], "rho(district)")
+  if ("brma.mv_v14_begg1989_study_treatment" %in% fit_names) {
+    fixed <- load_fit(
+      "brma.mv_v14_begg1989_study_treatment",
+      validate = FALSE
+    )
+    expect_error(
+      plot(
+        fixed,
+        parameter = "rho(study)", component = "random", prior = TRUE,
+        plot_type = "ggplot"
+      ),
+      "prior-density overlay is not available for fixed random-effect quantity"
+    )
+  }
+
+  if ("brma.mv_v14_konstantopoulos2011_cs" %in% fit_names) {
+    cs <- load_fit("brma.mv_v14_konstantopoulos2011_cs", validate = FALSE)
+    diagnostic <- plot_diagnostic_density(
+      cs,
+      parameter = "rho(district)", component = "random",
+      plot_type = "ggplot"
+    )
+    expect_identical(diagnostic[["labels"]][["title"]], "rho(district)")
+  }
 })
 
 test_that("random DFBETAS zero-variance handling is cellwise", {

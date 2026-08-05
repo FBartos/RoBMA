@@ -2386,6 +2386,18 @@ test_that("IWMDE inverse-gamma auxiliary matrix sync reuses active states", {
 })
 
 
+.iwmde_active_cases <- function(cases) {
+
+  active_names <- active_fit_catalog()[["name"]]
+  cases <- Filter(function(case) case[[1L]] %in% active_names, cases)
+  if (length(cases) == 0L) {
+    testthat::skip("No fixtures for this certification matrix are active.")
+  }
+
+  return(cases)
+}
+
+
 test_that("IWMDE batched q evaluation matches scalar fallback", {
 
   skip_if_not_certification(
@@ -2411,6 +2423,7 @@ test_that("IWMDE batched q evaluation matches scalar fallback", {
       list(type = "linear", weights = c(mu_intercept = 1, mu_ablat = 1))
     )
   )
+  cases <- .iwmde_active_cases(cases)
 
   for (case in cases) {
     .expect_iwmde_batch_equals_scalar(
@@ -2446,6 +2459,7 @@ test_that("IWMDE predictor fast path matches scalar fallback", {
       list(type = "linear", weights = c(mu_intercept = 1, mu_ablat = 1))
     )
   )
+  cases <- .iwmde_active_cases(cases)
 
   for (case in cases) {
     .expect_iwmde_predictor_fast_equals_scalar(
@@ -2474,6 +2488,7 @@ test_that("IWMDE normal quadratic fast path matches scalar fallback", {
     list("dat.lehmann2018-3PSM_neg", "mu", NULL),
     list("konstantopoulos2011_3lvl", "mu", NULL)
   )
+  cases <- .iwmde_active_cases(cases)
 
   for (case in cases) {
     .expect_iwmde_normal_quadratic_equals_scalar(
