@@ -122,6 +122,35 @@ test_that("known-V marginal variance samples use the diagonal backend", {
 })
 
 
+test_that("model-averaged funnel tau uses within-draw RMS heterogeneity", {
+
+  tau_total <- rbind(
+    c(1, 3, 5),
+    c(2, 4, 8)
+  )
+  object <- list(
+    fit    = list(),
+    data   = list(scale = data.frame(), outcome = data.frame(yi = 1:3)),
+    priors = list(scale = list())
+  )
+  posterior_samples <- matrix(0, nrow = nrow(tau_total), ncol = 1L)
+
+  testthat::local_mocked_bindings(
+    .evaluate.brma.tau = function(...) list(tau_total = tau_total),
+    .is_scale = function(object) FALSE,
+    .is_multilevel = function(object) FALSE,
+    .fixed_tau_prior_value = function(priors) NULL,
+    .fixed_rho_prior_value = function(priors) NULL,
+    .package = "RoBMA"
+  )
+
+  expect_equal(
+    .funnel_tau_samples(object, posterior_samples),
+    sqrt(rowMeans(tau_total^2))
+  )
+})
+
+
 # list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")

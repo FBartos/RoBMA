@@ -383,7 +383,7 @@
     fixed_rho         = .fixed_rho_prior_value(x[["priors"]])
   )
 
-  return(rowMeans(tau_result[["tau_total"]]))
+  return(.brma_mv_rms_sd_samples(tau_result[["tau_total"]]))
 }
 
 

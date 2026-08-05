@@ -170,6 +170,8 @@
   predictions as in model fitting and rejects inconsistent duplicate totals.
 - returns raw binomial and Poisson response predictions as count samples without
   effect-size transformation metadata.
+- uses within-draw RMS heterogeneity consistently for model-averaged funnel
+  contours.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting
