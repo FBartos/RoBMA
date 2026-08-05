@@ -402,7 +402,7 @@ test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", 
         n_samples = 1000L,
         seed      = 32
       ),
-      "nonlinear joint transform"
+      "supported only with density_method = 'KDE'"
     )
   }
 })
