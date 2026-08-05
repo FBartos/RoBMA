@@ -194,6 +194,9 @@
 - computes qCMDE/IWMDE MCSE and effective sample sizes from chain-ordered,
   design-weighted estimator contributions, including unsampled posterior rows
   as zero contributions under finite row budgets.
+- removes structurally inactive random-effect coordinates from marginal-
+  likelihood replay when every corresponding standard deviation is fixed at
+  zero, restoring exact zero-dimensional results.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

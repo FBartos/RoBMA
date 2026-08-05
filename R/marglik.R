@@ -115,6 +115,15 @@ add_marglik.brma <- function(object, ...) {
     effect_direction = .data_effect_direction(data)
   )
   fit_formula_args <- .create_jags_formula_args(data = data, priors = priors)
+  bridge_setup <- .marglik_fixed_zero_random_setup(
+    object           = object,
+    fit              = fit,
+    fit_priors       = fit_priors,
+    fit_formula_args = fit_formula_args
+  )
+  fit              <- bridge_setup[["fit"]]
+  fit_priors       <- bridge_setup[["fit_priors"]]
+  fit_formula_args <- bridge_setup[["fit_formula_args"]]
   bridge_sd_source_spec <- .marglik_bridge_sd_source_spec(
     add_parameters = fit_formula_args[["add_parameters"]],
     fit            = fit,
@@ -148,12 +157,147 @@ add_marglik.brma <- function(object, ...) {
     is_PEESE                 = .is_priors_PEESE(priors),
     is_weightfunction        = .is_priors_weightfunction(priors),
     fixed_tau                = .fixed_tau_prior_value(priors),
-    fixed_rho                = .fixed_rho_prior_value(priors),
+    fixed_rho                = bridge_setup[["fixed_rho"]],
     effect_direction         = .data_effect_direction(data),
     outcome_type             = .data_outcome_type(data)
   )
 
   return(marglik)
+}
+
+
+# Remove bridge coordinates that are provably irrelevant because their SD
+# ancestor is point-fixed at zero. The fitted object is copied before its
+# formula-design replay metadata are changed.
+.marglik_fixed_zero_random_setup <- function(object, fit, fit_priors,
+                                              fit_formula_args) {
+
+  fixed_tau <- .fixed_tau_prior_value(object[["priors"]])
+  fixed_rho <- .fixed_rho_prior_value(object[["priors"]])
+
+  if (.is_data_multilevel(object[["data"]]) &&
+      !is.null(fixed_tau) && identical(fixed_tau, 0)) {
+    fit_priors <- fit_priors[setdiff(names(fit_priors), c("gamma", "rho"))]
+    if (is.null(fixed_rho)) {
+      fixed_rho <- 0
+    }
+  }
+
+  if (!.is_data_random(object[["data"]])) {
+    return(list(
+      fit              = fit,
+      fit_priors       = fit_priors,
+      fit_formula_args = fit_formula_args,
+      fixed_rho        = fixed_rho
+    ))
+  }
+
+  formula_design <- attr(fit, "formula_design", exact = TRUE)
+  mu_design      <- formula_design[["mu"]]
+  if (!.marglik_formula_random_effects_fixed_zero(
+    design = mu_design,
+    data   = object[["data"]]
+  )) {
+    return(list(
+      fit              = fit,
+      fit_priors       = fit_priors,
+      fit_formula_args = fit_formula_args,
+      fixed_rho        = fixed_rho
+    ))
+  }
+
+  fixed_formula <- mu_design[["formula"]]
+  attr(fixed_formula, "random_terms")      <- NULL
+  attr(fixed_formula, "random_components") <- NULL
+  environment(fixed_formula) <- environment(
+    fit_formula_args[["formula_list"]][["mu"]]
+  )
+
+  fixed_design <- BayesTools::JAGS_formula(
+    formula       = fixed_formula,
+    parameter     = "mu",
+    data          = fit_formula_args[["formula_data_list"]][["mu"]],
+    prior_list    = fit_formula_args[["formula_prior_list"]][["mu"]],
+    formula_scale = fit_formula_args[["formula_scale_list"]][["mu"]]
+  )[["formula_design"]]
+
+  formula_design[["mu"]] <- fixed_design
+  attr(fit, "formula_design") <- formula_design
+
+  fit_formula_args[["formula_list"]][["mu"]] <- fixed_formula
+  fit_formula_args[["formula_random_prior_list"]][["mu"]] <- NULL
+  fit_formula_args[["formula_random_effects_compile_list"]][["mu"]] <- NULL
+
+  return(list(
+    fit              = fit,
+    fit_priors       = fit_priors,
+    fit_formula_args = fit_formula_args,
+    fixed_rho        = fixed_rho
+  ))
+}
+
+
+.marglik_formula_random_effects_fixed_zero <- function(design, data) {
+
+  if (is.null(design) || length(design[["random_effects"]]) == 0L) {
+    return(FALSE)
+  }
+
+  prior_list <- design[["prior_list"]]
+  K          <- nrow(data[["outcome"]])
+  all(vapply(
+    design[["random_effects"]],
+    .marglik_random_effect_fixed_zero,
+    logical(1),
+    data       = data,
+    prior_list = prior_list,
+    K          = K
+  ))
+}
+
+
+.marglik_random_effect_fixed_zero <- function(term, data, prior_list, K) {
+
+  binding <- term[["sd_binding"]]
+  if (is.null(binding)) {
+    return(FALSE)
+  }
+
+  source <- binding[["source"]]
+  if (!is.null(source)) {
+    values <- .random_sd_source_fixed_values(
+      source     = source,
+      data       = data,
+      prior_list = prior_list,
+      K          = K
+    )
+    return(!is.null(values) && all(values == 0))
+  }
+
+  sources <- binding[["sources_by_column"]]
+  if (length(sources) > 0L) {
+    fixed_zero <- vapply(sources, function(column_source) {
+      values <- .random_sd_source_fixed_values(
+        source     = column_source,
+        data       = data,
+        prior_list = prior_list,
+        K          = K
+      )
+      !is.null(values) && all(values == 0)
+    }, logical(1))
+    return(all(fixed_zero))
+  }
+
+  parameters <- term[["sd_parameter_names"]]
+  parameters <- parameters[!is.na(parameters) & nzchar(parameters)]
+  if (length(parameters) == 0L) {
+    return(FALSE)
+  }
+
+  all(vapply(parameters, function(parameter) {
+    values <- .prior_fixed_values(prior_list[[parameter]])
+    !is.null(values) && all(values == 0)
+  }, logical(1)))
 }
 
 
@@ -609,6 +753,10 @@ add_marglik.brma <- function(object, ...) {
 .marglik_get_cluster_effects <- function(parameters, tau_between, cluster) {
 
   K <- ncol(tau_between)
+
+  if (is.null(parameters[["gamma"]]) && all(tau_between == 0)) {
+    return(matrix(0, nrow = 1L, ncol = K))
+  }
 
   # extract gamma samples (vector of length n_clusters)
   # BayesTools returns gamma as a vector
