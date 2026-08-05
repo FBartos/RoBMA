@@ -1520,6 +1520,140 @@ test_that("known-R row multipliers reach random prediction consumers", {
     ncol = ncol(row_sd)
   )
   expect_equal(random_draws, expected_draws, tolerance = 1e-12)
+
+  expect_error(
+    predict(
+      object,
+      newdata            = data.frame(row = 1:2),
+      type               = "terms.scale",
+      quiet              = TRUE,
+      .posterior_samples = posterior_samples
+    ),
+    "Known-R.*grouping"
+  )
+  mapped_scale <- predict(
+    object,
+    newdata = data.frame(
+      estimate = factor(c("e1", "e3"), levels = levels(dat[["estimate"]]))
+    ),
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  expect_equal(
+    unname(as.matrix(mapped_scale[["estimate"]])),
+    row_sd[, c(1L, 3L), drop = FALSE],
+    tolerance = 1e-12
+  )
+})
+
+
+test_that("random-slope terms.scale replays the prediction design", {
+
+  dat <- data.frame(
+    yi    = c(0.10, 0.20, 0.30, 0.40),
+    x     = c(0, 1, 0, 1),
+    study = c("s1", "s1", "s2", "s2")
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.04, nrow(dat)),
+    random                    = ~ diag(1 + x | study),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  term <- .fitted_formula_design(
+    object,
+    "mu",
+    required = TRUE
+  )[["random_effects"]][[1L]]
+  posterior_samples <- matrix(
+    c(
+      0.20, 0.30,
+      0.25, 0.35
+    ),
+    nrow     = 2L,
+    byrow    = TRUE,
+    dimnames = list(NULL, term[["sd_parameter_names"]])
+  )
+  new_x <- c(0, 2)
+  new_z <- (new_x - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  expected <- sqrt(
+    posterior_samples[, 1L]^2 +
+      tcrossprod(posterior_samples[, 2L]^2, new_z^2)
+  )
+
+  synthetic_groups <- predict(
+    object,
+    newdata            = data.frame(x = new_x),
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )[["study"]]
+  same_group <- predict(
+    object,
+    newdata            = data.frame(x = new_x, study = c("s1", "s1")),
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )[["study"]]
+  different_groups <- predict(
+    object,
+    newdata            = data.frame(x = new_x, study = c("s1", "s2")),
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )[["study"]]
+
+  expect_equal(unname(as.matrix(synthetic_groups)), expected,
+               tolerance = 1e-12)
+  expect_equal(unname(as.matrix(same_group)), expected,
+               tolerance = 1e-12)
+  expect_equal(unname(as.matrix(different_groups)), expected,
+               tolerance = 1e-12)
+  expect_error(
+    predict(
+      object,
+      newdata            = data.frame(study = c("s1", "s2")),
+      type               = "terms.scale",
+      quiet              = TRUE,
+      .posterior_samples = posterior_samples
+    ),
+    "random-effect.*x"
+  )
+
+  slope_only <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.04, nrow(dat)),
+    random                    = ~ diag(0 + x | study),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  slope_term <- .fitted_formula_design(
+    slope_only,
+    "mu",
+    required = TRUE
+  )[["random_effects"]][[1L]]
+  slope_samples <- matrix(
+    c(0.30, 0.40),
+    ncol     = 1L,
+    dimnames = list(NULL, slope_term[["sd_parameter_names"]])
+  )
+  fitted_z <- (dat[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  expected_fitted <- tcrossprod(slope_samples[, 1L], abs(fitted_z))
+  fitted_scale <- predict(
+    slope_only,
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = slope_samples
+  )[["study"]]
+
+  expect_equal(unname(as.matrix(fitted_scale)), expected_fitted,
+               tolerance = 1e-12)
 })
 
 

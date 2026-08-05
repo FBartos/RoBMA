@@ -181,6 +181,8 @@
   skipped, duplicated, or executes without a passing expectation.
 - applies known-R row-variance multipliers consistently to scale predictions,
   random-effect draws, BLUPs, and pooled heterogeneity.
+- evaluates random-slope `terms.scale` predictions from each explicit new row's
+  fitted-scale random design instead of reusing the fitted design.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

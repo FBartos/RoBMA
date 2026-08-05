@@ -361,9 +361,10 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       bias_adjusted  = bias_adjusted,
       include_scale  = type != "terms",
       include_random = is_random_object && is_brma_mv_object &&
-        type %in% c("estimate", "response"),
+        (type %in% c("estimate", "response") ||
+           (type == "terms.scale" && !.is_scale(object))),
       include_random_metadata = is_random_object && is_brma_mv_object &&
-        type == "terms.scale"
+        type == "terms.scale" && .is_scale(object)
     )
 
   }
@@ -608,7 +609,9 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       scale_samples <- .brma_mv_random_heterogeneity_components(
         object            = object,
         posterior_samples = posterior_samples,
-        K                 = context[["K_original"]]
+        K                 = context[["K_original"]],
+        data              = new_data,
+        new_levels        = if (context[["same_data"]]) NULL else "sample"
       )
       scale_samples <- lapply(scale_samples, function(samples) {
         colnames(samples) <- paste0("tau[", seq_len(ncol(samples)), "]")

@@ -516,11 +516,12 @@ test_that("brma.mv random covariance adapter prefers compiled priors", {
   testthat::local_mocked_bindings(
     random_effects_marginal_vcov = function(
         fit, parameter, data, posterior_samples, prior_list, blocks,
-        diagonal_only) {
+        new_levels, diagonal_only) {
 
       captured <<- list(
         prior_list    = prior_list,
         blocks        = blocks,
+        new_levels    = new_levels,
         diagonal_only = diagonal_only
       )
       sentinel
@@ -538,6 +539,7 @@ test_that("brma.mv random covariance adapter prefers compiled priors", {
   expect_identical(out, sentinel)
   expect_identical(captured[["prior_list"]], compiled_priors)
   expect_identical(captured[["blocks"]], "study")
+  expect_null(captured[["new_levels"]])
   expect_true(captured[["diagonal_only"]])
 })
 

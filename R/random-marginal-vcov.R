@@ -9,7 +9,8 @@
 
 
 .brma_mv_random_effects_marginal_vcov <- function(
-    object, posterior_samples, blocks = NULL, diagonal_only = FALSE) {
+    object, posterior_samples, blocks = NULL, diagonal_only = FALSE,
+    data = object[["data"]], new_levels = NULL) {
 
   formula_fit <- .posterior_formula_fit(
     fit               = object[["fit"]],
@@ -19,7 +20,7 @@
   formula_design <- if (.is_scale(object)) {
     .predict_known_v_formula_design_with_row_source_values(
       object = object,
-      data   = object[["data"]]
+      data   = data
     )
   } else {
     .fitted_formula_design(object, "mu", required = TRUE)
@@ -37,10 +38,11 @@
   return(BayesTools::random_effects_marginal_vcov(
     fit               = formula_fit,
     parameter         = "mu",
-    data              = object[["data"]][["location"]],
+    data              = data[["location"]],
     posterior_samples = posterior_samples,
     prior_list        = location_priors,
     blocks            = blocks,
+    new_levels        = new_levels,
     diagonal_only     = diagonal_only
   ))
 }

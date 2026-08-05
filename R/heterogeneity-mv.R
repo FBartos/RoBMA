@@ -836,7 +836,9 @@
 
 .brma_mv_random_heterogeneity_components <- function(object,
                                                      posterior_samples,
-                                                     K) {
+                                                     K,
+                                                     data = object[["data"]],
+                                                     new_levels = NULL) {
 
   formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
   terms          <- formula_design[["random_effects"]]
@@ -851,23 +853,37 @@
   )
 
   out <- lapply(terms, function(term) {
-    samples <- tryCatch(
-      .random_effect_term_sd_samples(
-        term              = term,
-        posterior_samples = posterior_samples,
-        K                 = K,
-        source_samples    = source_samples
-      ),
-      error = function(e) {
-        .brma_mv_random_block_row_sd_samples(
-          object            = object,
+    if (.brma_mv_random_term_is_pure_intercept(term)) {
+      samples <- tryCatch(
+        .random_effect_term_sd_samples(
+          term              = term,
           posterior_samples = posterior_samples,
-          block             = term[["block_name"]],
           K                 = K,
-          original_error    = e
-        )
-      }
-    )
+          source_samples    = source_samples
+        ),
+        error = function(e) {
+          .brma_mv_random_block_row_sd_samples(
+            object            = object,
+            posterior_samples = posterior_samples,
+            block             = term[["block_name"]],
+            K                 = K,
+            data              = data,
+            new_levels        = new_levels,
+            original_error    = e
+          )
+        }
+      )
+    } else {
+      samples <- .brma_mv_random_block_row_sd_samples(
+        object            = object,
+        posterior_samples = posterior_samples,
+        block             = term[["block_name"]],
+        K                 = K,
+        data              = data,
+        new_levels        = new_levels,
+        original_error    = NULL
+      )
+    }
     .expand_brma_mv_heterogeneity_samples(
       samples = samples,
       S       = nrow(posterior_samples),
@@ -877,6 +893,24 @@
   names(out) <- vapply(terms, `[[`, character(1), "block_name")
 
   return(out)
+}
+
+
+.brma_mv_random_term_is_pure_intercept <- function(term) {
+
+  if (.random_effect_term_has_known_group_covariance(term) ||
+      .marginalized_random_effect_has_row_multiplier(term)) {
+    return(FALSE)
+  }
+
+  term_formula <- term[["term_formula"]]
+  if (!inherits(term_formula, "formula")) {
+    return(FALSE)
+  }
+  formula_terms <- stats::terms(term_formula)
+
+  identical(attr(formula_terms, "intercept"), 1L) &&
+    length(attr(formula_terms, "term.labels")) == 0L
 }
 
 
@@ -923,21 +957,29 @@
 }
 
 
-.brma_mv_random_block_row_sd_samples <- function(object, posterior_samples,
-                                                 block, K, original_error) {
+.brma_mv_random_block_row_sd_samples <- function(
+    object, posterior_samples, block, K, data = object[["data"]],
+    new_levels = NULL, original_error = NULL) {
 
   random_vcov <- tryCatch(
     .brma_mv_random_effects_marginal_vcov(
       object            = object,
       posterior_samples = posterior_samples,
       blocks            = block,
+      data              = data,
+      new_levels        = new_levels,
       diagonal_only     = TRUE
     ),
     error = function(e) {
+      direct_message <- if (is.null(original_error)) {
+        "the random design requires row-marginal covariance evaluation"
+      } else {
+        paste0("direct SD evaluation failed: ", conditionMessage(original_error))
+      }
       stop(
-        "Cannot evaluate heterogeneity component '", block, "'. Direct SD ",
-        "evaluation failed: ", conditionMessage(original_error),
-        "; marginal covariance fallback failed: ", conditionMessage(e),
+        "Cannot evaluate heterogeneity component '", block, "': ",
+        direct_message, "; marginal covariance evaluation failed: ",
+        conditionMessage(e),
         call. = FALSE
       )
     }
