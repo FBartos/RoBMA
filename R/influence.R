@@ -198,7 +198,7 @@ influence.brma <- function(model, ...) {
 # .influence_tau_del
 # ---------------------------------------------------------------------------- #
 #
-# PSIS leave-one-out aggregate tau estimates for influence diagnostics.
+# PSIS leave-one-out pooled heterogeneity estimates for influence diagnostics.
 #
 .influence_tau_del <- function(model, weights = NULL) {
 
@@ -251,7 +251,9 @@ influence.brma <- function(model, ...) {
 
   K <- ncol(tau_samples)
   if (K > 1L) {
-    tau_deleted <- (rowSums(tau_samples) - tau_samples) / (K - 1L)
+    tau_deleted <- sqrt(
+      (rowSums(tau_samples^2) - tau_samples^2) / (K - 1L)
+    )
   } else {
     tau_deleted <- tau_samples
   }

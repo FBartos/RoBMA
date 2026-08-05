@@ -183,6 +183,8 @@
   random-effect draws, BLUPs, and pooled heterogeneity.
 - evaluates random-slope `terms.scale` predictions from each explicit new row's
   fitted-scale random design instead of reusing the fitted design.
+- computes deleted-row location-scale influence heterogeneity with the package's
+  within-draw RMS target.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

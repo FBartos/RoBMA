@@ -128,7 +128,7 @@ test_that("symmetric inverse uses a relative numerical-rank threshold", {
   expect_equal(.symmetric_ginv(x), diag(c(1, 1e12)), tolerance = 1e-12)
 })
 
-test_that("PSIS tau deletion helper aggregates remaining scale rows", {
+test_that("PSIS tau deletion helper uses within-draw RMS", {
 
   tau_samples <- matrix(
     c(
@@ -151,13 +151,19 @@ test_that("PSIS tau deletion helper aggregates remaining scale rows", {
   )
 
   deleted_tau <- cbind(
+    sqrt(rowMeans(tau_samples[, -1, drop = FALSE]^2)),
+    sqrt(rowMeans(tau_samples[, -2, drop = FALSE]^2)),
+    sqrt(rowMeans(tau_samples[, -3, drop = FALSE]^2))
+  )
+  expected <- colSums(weights * deleted_tau)
+  arithmetic <- cbind(
     rowMeans(tau_samples[, -1, drop = FALSE]),
     rowMeans(tau_samples[, -2, drop = FALSE]),
     rowMeans(tau_samples[, -3, drop = FALSE])
   )
-  expected <- colSums(weights * deleted_tau)
 
   expect_equal(.influence_tau_del_from_samples(tau_samples, weights), expected)
+  expect_false(isTRUE(all.equal(expected, colSums(weights * arithmetic))))
 })
 
 test_that("influence mv branch uses fixed-location availability guard", {
@@ -295,7 +301,7 @@ for_each_case(influence_metafor_cases(), function(case) {
   })
 })
 
-test_that("Influence tau.del for location-scale models uses aggregate deleted tau", {
+test_that("Influence tau.del for location-scale models uses deleted-row RMS", {
 
   name <- "bangertdrowns2004_location-scale"
   skip_if_missing_fits(name)
@@ -313,7 +319,9 @@ test_that("Influence tau.del for location-scale models uses aggregate deleted ta
   )
   tau_samples <- tau_result[["tau_total"]]
   weights     <- loo_weights(fit_brma)
-  deleted_tau <- (rowSums(tau_samples) - tau_samples) / (ncol(tau_samples) - 1L)
+  deleted_tau <- sqrt(
+    (rowSums(tau_samples^2) - tau_samples^2) / (ncol(tau_samples) - 1L)
+  )
   expected    <- colSums(weights * deleted_tau)
 
   inf_brma <- suppressWarnings(influence(fit_brma))
