@@ -377,6 +377,238 @@
 }
 
 
+# Locate the unique mode of a strictly log-concave one-dimensional kernel.
+.glmm_point_mode <- function(gradient, n, outcome_type, observation) {
+
+  lower <- rep(-1, n)
+  upper <- rep(1, n)
+  for (iteration in seq_len(20L)) {
+    lower_gradient <- gradient(lower)
+    upper_gradient <- gradient(upper)
+    lower_bad      <- !is.finite(lower_gradient) | lower_gradient < 0
+    upper_bad      <- !is.finite(upper_gradient) | upper_gradient > 0
+    if (!any(lower_bad | upper_bad)) {
+      break
+    }
+    lower[lower_bad] <- 2 * lower[lower_bad]
+    upper[upper_bad] <- 2 * upper[upper_bad]
+  }
+
+  lower_gradient <- gradient(lower)
+  upper_gradient <- gradient(upper)
+  failed <- !is.finite(lower_gradient) | !is.finite(upper_gradient) |
+    lower_gradient < 0 | upper_gradient > 0
+  if (any(failed)) {
+    label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
+    stop(
+      label, " AGHQ mode failed at sample ", which(failed)[1L],
+      ", observation ", observation, ".",
+      call. = FALSE
+    )
+  }
+
+  for (iteration in seq_len(55L)) {
+    midpoint   <- 0.5 * (lower + upper)
+    move_lower <- gradient(midpoint) > 0
+    lower[move_lower]  <- midpoint[move_lower]
+    upper[!move_lower] <- midpoint[!move_lower]
+  }
+  return(0.5 * (lower + upper))
+}
+
+
+# Refine existing standard-normal Hermite rules after mode centering/scaling.
+.glmm_point_aghq_refine <- function(log_density, gradient, negative_hessian,
+                                    n, outcome_type, observation, control) {
+
+  mode    <- .glmm_point_mode(gradient, n, outcome_type, observation)
+  hessian <- negative_hessian(mode)
+  label   <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
+  if (any(!is.finite(hessian) | hessian <= 0)) {
+    stop(
+      label, " AGHQ mode failed at sample ",
+      which(!is.finite(hessian) | hessian <= 0)[1L],
+      ", observation ", observation, ".",
+      call. = FALSE
+    )
+  }
+
+  rules          <- control[["rules"]]
+  tolerance      <- control[["tolerance"]]
+  consecutive    <- control[["consecutive"]]
+  result          <- rep(NA_real_, n)
+  accepted_order  <- integer(n)
+  accepted_change <- numeric(n)
+  below_count     <- integer(n)
+  previous        <- NULL
+  last_change     <- rep(Inf, n)
+
+  for (i in seq_along(rules[["nodes"]])) {
+    nodes <- rules[["nodes"]][[i]]
+    theta <- mode + tcrossprod(1 / sqrt(hessian), nodes)
+    terms <- log_density(theta) + matrix(
+      0.5 * nodes^2 + rules[["log_weights"]][[i]],
+      nrow = n,
+      ncol = length(nodes),
+      byrow = TRUE
+    )
+    current <- 0.5 * log(2 * base::pi) - 0.5 * log(hessian) +
+      .rowLogSumExps(terms)
+
+    if (!is.null(previous)) {
+      last_change <- abs(current - previous)
+      same        <- current == previous
+      last_change[!is.na(same) & same] <- 0
+      below_count <- ifelse(
+        is.finite(last_change) & last_change <= tolerance,
+        below_count + 1L,
+        0L
+      )
+      accept <- is.na(result) & below_count >= consecutive
+      result[accept]          <- current[accept]
+      accepted_order[accept]  <- length(nodes)
+      accepted_change[accept] <- last_change[accept]
+    }
+    previous <- current
+    if (!anyNA(result)) {
+      break
+    }
+  }
+
+  if (anyNA(result)) {
+    failed <- which(is.na(result))[1L]
+    stop(
+      label, " AGHQ failed to converge at sample ", failed,
+      ", observation ", observation, " (order ", length(nodes),
+      ", change ", format(last_change[failed], digits = 8), ").",
+      call. = FALSE
+    )
+  }
+
+  orders       <- vapply(rules[["nodes"]], length, integer(1))
+  order_counts <- as.integer(table(factor(accepted_order, levels = orders)))
+  names(order_counts) <- as.character(orders)
+  return(list(
+    value               = matrix(result, ncol = 1L),
+    max_order           = max(accepted_order),
+    max_change          = max(accepted_change),
+    max_mode_iterations = 55L,
+    order_counts        = order_counts,
+    exact_count         = 0L
+  ))
+}
+
+
+# One-dimensional adaptive quadrature for a fixed binomial base rate.
+.glmm_binom_point_aghq <- function(ai, ci, n1i, n2i, mu_samples, tau_within,
+                                   weights, pi, observation = 1L,
+                                   control = .glmm_aghq_control()) {
+
+  mu     <- as.numeric(mu_samples[, 1L])
+  tau    <- as.numeric(tau_within[, 1L])
+  weight <- if (is.null(weights)) 1 else .glmm_likelihood_weights(weights, 1L)
+  logit_pi <- stats::qlogis(pi)
+
+  gradient <- function(theta) {
+    effect <- mu + tau * theta
+    p1     <- stats::plogis(logit_pi + 0.5 * effect)
+    p2     <- stats::plogis(logit_pi - 0.5 * effect)
+    weight * 0.5 * tau * ((ai - n1i * p1) - (ci - n2i * p2)) - theta
+  }
+  negative_hessian <- function(theta) {
+    effect <- mu + tau * theta
+    p1     <- stats::plogis(logit_pi + 0.5 * effect)
+    p2     <- stats::plogis(logit_pi - 0.5 * effect)
+    1 + weight * 0.25 * tau^2 *
+      (n1i * p1 * (1 - p1) + n2i * p2 * (1 - p2))
+  }
+  log_density <- function(theta) {
+    effect <- mu + tau * theta
+    eta1   <- logit_pi + 0.5 * effect
+    eta2   <- logit_pi - 0.5 * effect
+    log_likelihood <- lchoose(n1i, ai) + lchoose(n2i, ci) +
+      (if (ai == 0L) 0 else ai * stats::plogis(eta1, log.p = TRUE)) +
+      (if (n1i - ai == 0L) 0 else (n1i - ai) * stats::plogis(
+        eta1, lower.tail = FALSE, log.p = TRUE
+      )) +
+      (if (ci == 0L) 0 else ci * stats::plogis(eta2, log.p = TRUE)) +
+      (if (n2i - ci == 0L) 0 else (n2i - ci) * stats::plogis(
+        eta2, lower.tail = FALSE, log.p = TRUE
+      ))
+    weight * log_likelihood + stats::dnorm(theta, log = TRUE)
+  }
+
+  return(.glmm_point_aghq_refine(
+    log_density      = log_density,
+    gradient         = gradient,
+    negative_hessian = negative_hessian,
+    n                = length(mu),
+    outcome_type     = "bin",
+    observation      = observation,
+    control          = control
+  ))
+}
+
+
+# One-dimensional adaptive quadrature for a fixed Poisson log base rate.
+.glmm_pois_point_aghq <- function(x1i, x2i, t1i, t2i, mu_samples, tau_within,
+                                  weights, phi, observation = 1L,
+                                  control = .glmm_aghq_control()) {
+
+  mu     <- as.numeric(mu_samples[, 1L])
+  tau    <- as.numeric(tau_within[, 1L])
+  weight <- if (is.null(weights)) 1 else .glmm_likelihood_weights(weights, 1L)
+  log_t1 <- log(t1i)
+  log_t2 <- log(t2i)
+
+  rates <- function(theta) {
+    effect <- mu + tau * theta
+    list(
+      log_lambda1 = log_t1 + phi + 0.5 * effect,
+      log_lambda2 = log_t2 + phi - 0.5 * effect
+    )
+  }
+  gradient <- function(theta) {
+    rate <- rates(theta)
+    out    <- -theta
+    active <- tau != 0
+    out[active] <- weight * 0.5 * tau[active] * (
+      (x1i - exp(rate[["log_lambda1"]][active])) -
+        (x2i - exp(rate[["log_lambda2"]][active]))
+    ) - theta[active]
+    return(out)
+  }
+  negative_hessian <- function(theta) {
+    rate <- rates(theta)
+    out    <- rep(1, length(theta))
+    active <- tau != 0
+    out[active] <- 1 + weight * 0.25 * tau[active]^2 * (
+      exp(rate[["log_lambda1"]][active]) +
+        exp(rate[["log_lambda2"]][active])
+    )
+    return(out)
+  }
+  log_density <- function(theta) {
+    rate <- rates(theta)
+    log_likelihood <-
+      x1i * rate[["log_lambda1"]] - exp(rate[["log_lambda1"]]) +
+      x2i * rate[["log_lambda2"]] - exp(rate[["log_lambda2"]]) -
+      lgamma(x1i + 1) - lgamma(x2i + 1)
+    weight * log_likelihood + stats::dnorm(theta, log = TRUE)
+  }
+
+  return(.glmm_point_aghq_refine(
+    log_density      = log_density,
+    gradient         = gradient,
+    negative_hessian = negative_hessian,
+    n                = length(mu),
+    outcome_type     = "pois",
+    observation      = observation,
+    control          = control
+  ))
+}
+
+
 # Native binomial AGHQ dispatch. Returns values and convergence diagnostics.
 .glmm_binom_aghq <- function(ai, ci, n1i, n2i, mu_samples, tau_within,
                              weights, prior_spec, row_sum = FALSE,
@@ -471,6 +703,22 @@
         control     = control
       )
     }
+  } else if (BayesTools::is.prior.point(prior_pi)) {
+    pi <- prior_pi[["parameters"]][["location"]]
+    evaluate_aghq <- function(k) {
+      .glmm_binom_point_aghq(
+        ai          = ai[k],
+        ci          = ci[k],
+        n1i         = n1i[k],
+        n2i         = n2i[k],
+        mu_samples  = mu_samples[, k, drop = FALSE],
+        tau_within  = tau_within[, k, drop = FALSE],
+        weights     = if (is.null(weights)) NULL else weights[k],
+        pi          = pi,
+        observation = k,
+        control     = control
+      )
+    }
   }
   evaluate_grid <- function(k) {
     .glmm_grid_refine(
@@ -528,6 +776,22 @@
         tau_within = tau_within[, k, drop = FALSE],
         weights    = if (is.null(weights)) NULL else weights[k],
         prior_spec = prior_spec,
+        control    = control
+      )
+    }
+  } else if (BayesTools::is.prior.point(prior_phi)) {
+    phi <- prior_phi[["parameters"]][["location"]]
+    evaluate_aghq <- function(k) {
+      .glmm_pois_point_aghq(
+        x1i        = x1i[k],
+        x2i        = x2i[k],
+        t1i        = t1i[k],
+        t2i        = t2i[k],
+        mu_samples = mu_samples[, k, drop = FALSE],
+        tau_within = tau_within[, k, drop = FALSE],
+        weights    = if (is.null(weights)) NULL else weights[k],
+        phi        = phi,
+        observation = k,
         control    = control
       )
     }

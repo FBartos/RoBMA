@@ -161,39 +161,6 @@ test_that("cluster-unit GLMM likelihood requires certified nested quadrature", {
 })
 
 
-test_that("fitted GLMM methods support point nuisance priors", {
-
-  fit_names <- c("bcg_glmm", "nielweise2008_glmm")
-  skip_if_missing_fits(fit_names)
-
-  fit_bin <- fits[[fit_names[[1L]]]]
-  fit_bin[["priors"]][["outcome"]][["pi"]] <- BayesTools::prior_factor(
-    "point", list(location = 0.5), contrast = "independent"
-  )
-  fit_bin[["loo"]]  <- NULL
-  fit_bin[["waic"]] <- NULL
-
-  fit_pois <- fits[[fit_names[[2L]]]]
-  fit_pois[["priors"]][["outcome"]][["phi"]] <- BayesTools::prior_factor(
-    "point", list(location = -1), contrast = "independent"
-  )
-  fit_pois[["loo"]]  <- NULL
-  fit_pois[["waic"]] <- NULL
-
-  for (fit_brma in list(fit_bin, fit_pois)) {
-    log_lik <- log_lik(fit_brma)
-    expect_true(is.matrix(log_lik))
-    expect_true(all(is.finite(log_lik)))
-
-    fit_loo <- suppressWarnings(add_loo(fit_brma))
-    expect_s3_class(loo(fit_loo), "loo")
-
-    fit_waic <- suppressWarnings(add_waic(fit_brma))
-    expect_s3_class(waic(fit_waic), "waic")
-  }
-})
-
-
 test_that("loo_compare rejects fewer than two models", {
 
   # get one brma fit

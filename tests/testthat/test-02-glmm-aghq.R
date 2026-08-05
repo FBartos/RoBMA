@@ -518,13 +518,152 @@ test_that("point nuisance priors collapse their quadrature dimension", {
   expect_equal(bin[1L, 1L], expected_bin, tolerance = 1e-12)
   expect_equal(pois[1L, 1L], expected_pois, tolerance = 1e-12)
   expect_identical(
-    attr(bin, "glmm_aghq_diagnostics")[["grid_max_nuisance_order"]],
-    1L
+    attr(bin, "glmm_aghq_diagnostics")[["grid_columns"]],
+    integer(0)
   )
   expect_identical(
-    attr(pois, "glmm_aghq_diagnostics")[["grid_max_nuisance_order"]],
-    1L
+    attr(pois, "glmm_aghq_diagnostics")[["grid_columns"]],
+    integer(0)
   )
+})
+
+
+test_that("point nuisance AGHQ centers active heterogeneity integrals", {
+
+  scaled_integral <- function(log_kernel, negative_hessian) {
+    mode <- stats::optimize(
+      log_kernel,
+      interval = c(-12, 12),
+      maximum  = TRUE,
+      tol      = 1e-12
+    )
+    hessian <- negative_hessian(mode[["maximum"]])
+    scaled <- stats::integrate(
+      function(z) {
+        exp(
+          log_kernel(mode[["maximum"]] + z / sqrt(hessian)) -
+            mode[["objective"]]
+        ) / sqrt(hessian)
+      },
+      lower         = -Inf,
+      upper         = Inf,
+      subdivisions  = 2000L,
+      rel.tol       = 1e-11,
+      stop.on.error = TRUE
+    )[["value"]]
+    mode[["objective"]] + log(scaled)
+  }
+
+  a   <- 505L
+  c   <- 499L
+  n1  <- 88391L
+  n2  <- 88391L
+  mu  <- -0.6308474
+  tau <- 0.373213
+  pi  <- 0.5
+  bin_log_kernel <- function(theta) {
+    effect <- mu + tau * theta
+    stats::dbinom(
+      a, n1, stats::plogis(stats::qlogis(pi) + 0.5 * effect), log = TRUE
+    ) + stats::dbinom(
+      c, n2, stats::plogis(stats::qlogis(pi) - 0.5 * effect), log = TRUE
+    ) + stats::dnorm(theta, log = TRUE)
+  }
+  bin_hessian <- function(theta) {
+    effect <- mu + tau * theta
+    p1     <- stats::plogis(stats::qlogis(pi) + 0.5 * effect)
+    p2     <- stats::plogis(stats::qlogis(pi) - 0.5 * effect)
+    1 + 0.25 * tau^2 * (n1 * p1 * (1 - p1) + n2 * p2 * (1 - p2))
+  }
+  bin <- .glmm_binom_point_aghq(
+    a, c, n1, n2, matrix(mu), matrix(tau), NULL, pi
+  )
+  expected_bin <- scaled_integral(bin_log_kernel, bin_hessian)
+
+  x1  <- 7L
+  x2  <- 11L
+  t1  <- 15
+  t2  <- 18
+  mu  <- 0.35
+  tau <- 0.6
+  phi <- -1
+  pois_log_kernel <- function(theta) {
+    effect  <- mu + tau * theta
+    lambda1 <- t1 * exp(phi + 0.5 * effect)
+    lambda2 <- t2 * exp(phi - 0.5 * effect)
+    stats::dpois(x1, lambda1, log = TRUE) +
+      stats::dpois(x2, lambda2, log = TRUE) +
+      stats::dnorm(theta, log = TRUE)
+  }
+  pois_hessian <- function(theta) {
+    effect  <- mu + tau * theta
+    lambda1 <- t1 * exp(phi + 0.5 * effect)
+    lambda2 <- t2 * exp(phi - 0.5 * effect)
+    1 + 0.25 * tau^2 * (lambda1 + lambda2)
+  }
+  pois <- .glmm_pois_point_aghq(
+    x1, x2, t1, t2, matrix(mu), matrix(tau), NULL, phi
+  )
+
+  expect_equal(
+    bin[["value"]][1L, 1L],
+    expected_bin,
+    tolerance = 1e-7,
+    info = "sharp BCG posterior row"
+  )
+  expect_equal(
+    pois[["value"]][1L, 1L],
+    scaled_integral(pois_log_kernel, pois_hessian),
+    tolerance = 1e-7,
+    info = "Poisson active-heterogeneity row"
+  )
+  expect_lte(bin[["max_order"]], 13L)
+  expect_lte(pois[["max_order"]], 13L)
+})
+
+
+test_that("point nuisance AGHQ fails when refinement cannot certify accuracy", {
+
+  control <- .glmm_aghq_control(
+    orders      = c(5L, 9L, 13L),
+    tolerance   = 1e-15,
+    consecutive = 2L
+  )
+  expect_error(
+    .glmm_binom_point_aghq(
+      4L, 11L, 123L, 139L,
+      matrix(-0.3614195), matrix(1.45076), NULL, 0.5,
+      control = control
+    ),
+    "Binomial AGHQ failed to converge at sample 1, observation 1",
+    info = "capped refinement does not silently accept the last rule"
+  )
+})
+
+
+test_that("a fitted point-baserate GLMM supports log-likelihood criteria", {
+
+  prior_baserate <- BayesTools::prior_factor(
+    "point",
+    list(location = 0.05),
+    contrast = "independent"
+  )
+  fit <- brma.glmm(
+    ai = c(4L, 6L, 3L), bi = c(119L, 300L, 228L),
+    ci = c(11L, 29L, 11L), di = c(128L, 274L, 209L),
+    measure = "OR", prior_baserate = prior_baserate,
+    chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
+    seed = 42, silent = TRUE
+  )
+  log_lik <- log_lik(fit)
+  fit_loo <- suppressWarnings(add_loo(fit))
+  fit_waic <- suppressWarnings(add_waic(fit))
+
+  expect_gt(fit[["summary"]]["tau", "Mean"], 0)
+  expect_identical(dim(log_lik), c(100L, 3L))
+  expect_true(all(is.finite(log_lik)))
+  expect_s3_class(loo(fit_loo), "loo")
+  expect_s3_class(waic(fit_waic), "waic")
 })
 
 
