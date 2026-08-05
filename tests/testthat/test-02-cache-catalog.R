@@ -509,6 +509,7 @@ test_that("fit catalog is internally consistent", {
       "fixed_nonzero_brma",
       "fixed_nonzero_brma_mv",
       "fixed_null_brma_glmm",
+      "fixed_null_brma_glmm_pois",
       "fixed_null_bPET",
       "fixed_null_bPEESE",
       "fixed_null_bselmodel"
