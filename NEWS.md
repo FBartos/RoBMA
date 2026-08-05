@@ -197,6 +197,9 @@
 - removes structurally inactive random-effect coordinates from marginal-
   likelihood replay when every corresponding standard deviation is fixed at
   zero, restoring exact zero-dimensional results.
+- handles every finite constant log-likelihood column with exact uniform LOO
+  importance ratios and zero Pareto-k diagnostics while retaining ordinary
+  PSIS diagnostics for varying columns.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

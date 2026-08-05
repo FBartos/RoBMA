@@ -100,10 +100,11 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 #' RoBMA stores target metadata so comparisons can reject mismatched data,
 #' unit, or conditioning-depth targets.
-#' Models whose log-likelihood has no posterior variation, such as fully fixed
-#' point-prior models, use their exact constant importance ratios. Their Pareto
-#' diagnostics are recorded as zero instead of attempting an undefined
-#' generalized-Pareto fit to identical tail values.
+#' Each finite log-likelihood column observed to be constant across posterior
+#' draws uses exact uniform importance ratios. Such columns bypass relative-ESS
+#' and generalized-Pareto fitting, including when other columns vary. Their
+#' Pareto-k diagnostic is recorded as the sentinel zero, meaning constant
+#' ratios with no tail instability rather than an estimated Pareto shape.
 #'
 #' \strong{Important for model comparison:} When comparing models via
 #' \code{\link[loo]{loo_compare}}, the selection is based on expected
@@ -154,34 +155,34 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   # determine number of cores based on `parallel` and package options
   cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
 
-  deterministic <- .is_deterministic_log_lik(log_lik)
+  deterministic <- .deterministic_log_lik_columns(log_lik)
 
   # compute relative effective sample sizes if not provided
   if (is.null(r_eff)) {
-    if (deterministic) {
-      r_eff <- rep(1, ncol(log_lik))
-    } else {
+    r_eff <- rep(1, ncol(log_lik))
+    if (any(!deterministic)) {
       # loo::relative_eff expects exp(log_lik) with chain_id for matrix input
       chain_id <- .loo_chain_id(object[["fit"]], n_samples = nrow(log_lik))
 
-      r_eff <- loo::relative_eff(exp(log_lik), chain_id = chain_id, cores = cores)
+      r_eff[!deterministic] <- loo::relative_eff(
+        exp(log_lik[, !deterministic, drop = FALSE]),
+        chain_id = chain_id,
+        cores    = cores
+      )
     }
   }
+  r_eff <- .loo_prepare_r_eff(
+    r_eff         = r_eff,
+    n_units       = ncol(log_lik),
+    deterministic = deterministic
+  )
 
-  # call loo on the log-likelihood matrix
-  loo_result <- if (deterministic) {
-    suppressWarnings(loo::loo(
-      log_lik,
-      r_eff     = r_eff,
-      save_psis = TRUE,
-      cores     = cores
-    ))
-  } else {
-    loo::loo(log_lik, r_eff = r_eff, save_psis = TRUE, cores = cores)
-  }
-  if (deterministic) {
-    loo_result <- .set_deterministic_loo_diagnostics(loo_result)
-  }
+  loo_result <- .loo_with_deterministic_columns(
+    log_lik       = log_lik,
+    r_eff         = r_eff,
+    deterministic = deterministic,
+    cores         = cores
+  )
   loo_result <- .add_loo_target_metadata(
     object             = loo_result,
     unit               = target[["unit"]],
@@ -200,31 +201,205 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
 }
 
 
-.is_deterministic_log_lik <- function(log_lik) {
+.deterministic_log_lik_columns <- function(log_lik) {
 
   if (!is.matrix(log_lik) || nrow(log_lik) == 0L) {
-    return(FALSE)
+    return(rep(FALSE, if (is.matrix(log_lik)) ncol(log_lik) else 0L))
   }
 
-  return(all(vapply(seq_len(ncol(log_lik)), function(i) {
+  return(vapply(seq_len(ncol(log_lik)), function(i) {
     column <- log_lik[, i]
-    isTRUE(all(column == column[[1L]]))
-  }, logical(1))))
+    all(is.finite(column)) && isTRUE(all(column == column[[1L]]))
+  }, logical(1)))
 }
 
 
-.set_deterministic_loo_diagnostics <- function(loo_result) {
+.loo_prepare_r_eff <- function(r_eff, n_units, deterministic) {
 
-  n_units  <- nrow(loo_result[["pointwise"]])
-  pareto_k <- rep(0, n_units)
+  if (isTRUE(all(is.na(r_eff)))) {
+    r_eff <- rep(1, n_units)
+  } else if (length(r_eff) == 1L) {
+    r_eff <- rep(r_eff, n_units)
+  } else if (length(r_eff) != n_units) {
+    stop("'r_eff' must have one value or one value per observation.",
+         call. = FALSE)
+  }
+  r_eff[deterministic] <- 1
 
-  loo_result[["diagnostics"]][["pareto_k"]] <- pareto_k
-  loo_result[["pointwise"]][, "influence_pareto_k"] <- pareto_k
-  if (!is.null(loo_result[["psis_object"]][["diagnostics"]])) {
-    loo_result[["psis_object"]][["diagnostics"]][["pareto_k"]] <- pareto_k
+  return(r_eff)
+}
+
+
+.loo_with_deterministic_columns <- function(log_lik, r_eff, deterministic,
+                                            cores) {
+
+  if (!any(deterministic)) {
+    return(loo::loo(
+      log_lik,
+      r_eff     = r_eff,
+      save_psis = TRUE,
+      cores     = cores
+    ))
   }
 
-  return(loo_result)
+  variable <- which(!deterministic)
+  variable_result <- NULL
+  if (length(variable) > 0L) {
+    variable_result <- loo::loo(
+      log_lik[, variable, drop = FALSE],
+      r_eff     = r_eff[variable],
+      save_psis = TRUE,
+      cores     = cores
+    )
+  }
+
+  .loo_combine_deterministic_columns(
+    variable_result = variable_result,
+    log_lik         = log_lik,
+    r_eff           = r_eff,
+    deterministic   = deterministic
+  )
+}
+
+
+.loo_combine_deterministic_columns <- function(variable_result, log_lik,
+                                               r_eff, deterministic) {
+
+  n_samples  <- nrow(log_lik)
+  n_units    <- ncol(log_lik)
+  exact      <- which(deterministic)
+  variable   <- which(!deterministic)
+  unit_names <- colnames(log_lik)
+  pointwise_names <- c(
+    "elpd_loo", "mcse_elpd_loo", "p_loo", "looic",
+    "influence_pareto_k"
+  )
+
+  pointwise <- matrix(
+    NA_real_,
+    nrow     = n_units,
+    ncol     = length(pointwise_names),
+    dimnames = list(unit_names, pointwise_names)
+  )
+  if (length(variable) > 0L) {
+    pointwise[variable, ] <- variable_result[["pointwise"]]
+  }
+  if (length(exact) > 0L) {
+    constant <- log_lik[1L, exact]
+    pointwise[exact, ] <- cbind(
+      elpd_loo           = constant,
+      mcse_elpd_loo      = 0,
+      p_loo              = 0,
+      looic              = -2 * constant,
+      influence_pareto_k = 0
+    )
+  }
+
+  diagnostics <- list(
+    pareto_k = rep(0, n_units),
+    n_eff    = rep(n_samples, n_units),
+    r_eff    = r_eff
+  )
+  if (length(variable) > 0L) {
+    variable_diagnostics <- variable_result[["diagnostics"]]
+    diagnostics[["pareto_k"]][variable] <-
+      variable_diagnostics[["pareto_k"]]
+    diagnostics[["n_eff"]][variable] <- variable_diagnostics[["n_eff"]]
+    diagnostics[["r_eff"]][variable] <- variable_diagnostics[["r_eff"]]
+  }
+
+  psis <- .loo_combine_psis(
+    variable_result = variable_result,
+    log_lik         = log_lik,
+    diagnostics     = diagnostics,
+    deterministic   = deterministic
+  )
+
+  estimates <- .loo_estimates_from_pointwise(pointwise)
+  result <- list(
+    estimates   = estimates,
+    pointwise   = pointwise,
+    diagnostics = diagnostics,
+    psis_object = psis,
+    elpd_loo    = estimates["elpd_loo", "Estimate"],
+    p_loo       = estimates["p_loo", "Estimate"],
+    looic       = estimates["looic", "Estimate"],
+    se_elpd_loo = estimates["elpd_loo", "SE"],
+    se_p_loo    = estimates["p_loo", "SE"],
+    se_looic    = estimates["looic", "SE"]
+  )
+  attr(result, "dims") <- c(n_samples, n_units)
+  class(result) <- c("psis_loo", "importance_sampling_loo", "loo")
+
+  return(result)
+}
+
+
+.loo_combine_psis <- function(variable_result, log_lik, diagnostics,
+                              deterministic) {
+
+  n_samples  <- nrow(log_lik)
+  n_units    <- ncol(log_lik)
+  exact      <- which(deterministic)
+  variable   <- which(!deterministic)
+  unit_names <- colnames(log_lik)
+
+  log_weights <- matrix(
+    NA_real_,
+    nrow     = n_samples,
+    ncol     = n_units,
+    dimnames = list(NULL, unit_names)
+  )
+  norm_const_log <- rep(NA_real_, n_units)
+  tail_len       <- integer(n_units)
+
+  if (length(variable) > 0L) {
+    variable_psis <- variable_result[["psis_object"]]
+    log_weights[, variable] <- variable_psis[["log_weights"]]
+    norm_const_log[variable] <- attr(
+      variable_psis,
+      "norm_const_log",
+      exact = TRUE
+    )
+    tail_len[variable] <- attr(variable_psis, "tail_len", exact = TRUE)
+  }
+  if (length(exact) > 0L) {
+    log_weights[, exact]  <- 0
+    norm_const_log[exact] <- log(n_samples)
+  }
+  if (!is.null(unit_names)) {
+    names(norm_const_log) <- unit_names
+    names(tail_len)       <- unit_names
+  }
+
+  psis <- list(
+    log_weights = log_weights,
+    diagnostics = diagnostics
+  )
+  attr(psis, "norm_const_log") <- norm_const_log
+  attr(psis, "tail_len")       <- tail_len
+  attr(psis, "r_eff")          <- diagnostics[["r_eff"]]
+  attr(psis, "dims")           <- c(n_samples, n_units)
+  attr(psis, "method")         <- "psis"
+  class(psis) <- c("psis", "importance_sampling", "list")
+
+  return(psis)
+}
+
+
+.loo_estimates_from_pointwise <- function(pointwise) {
+
+  n_units <- nrow(pointwise)
+  estimate_names <- c("elpd_loo", "p_loo", "looic")
+  estimate <- colSums(pointwise[, estimate_names, drop = FALSE])
+  standard_error <- vapply(estimate_names, function(name) {
+    sqrt(n_units * stats::var(pointwise[, name]))
+  }, numeric(1))
+
+  estimates <- cbind(Estimate = estimate, SE = standard_error)
+  rownames(estimates) <- estimate_names
+
+  return(estimates)
 }
 
 
