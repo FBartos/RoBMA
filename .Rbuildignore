@@ -50,5 +50,3 @@ _pkgdown.yml
 ^tools$
 ^\.claude$
 ^\.git$
-^RMA_MV_.*\.(md|html)$
-^ROBMA_KNOWN_R_MARGINALIZATION_.*\.md$
