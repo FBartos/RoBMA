@@ -1617,6 +1617,10 @@ lazy_fits <- function(names = list_fits(), validate = TRUE) {
   if (validate) {
     skip_if_missing_fits(names)
   }
+  names <- intersect(
+    names,
+    list_fits(validate = FALSE, active_only = TRUE)
+  )
 
   return(lazy_cached_objects(
     names,
@@ -1629,6 +1633,10 @@ lazy_infos <- function(names = list_fits(), validate = TRUE) {
   if (validate) {
     skip_if_missing_fits(names)
   }
+  names <- intersect(
+    names,
+    list_fits(validate = FALSE, active_only = TRUE)
+  )
 
   return(lazy_cached_objects(
     names,

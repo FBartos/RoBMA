@@ -223,3 +223,34 @@ test_that("fit-source prerequisites may use inactive cached fits", {
   expect_true(observed[["validate"]])
   expect_false(observed[["active_only"]])
 })
+
+
+test_that("raw lazy caches expose only active-profile fits", {
+
+  helper_env    <- environment(lazy_fits)
+  old_list_fits <- get("list_fits", envir = helper_env, inherits = TRUE)
+  observed      <- list()
+  on.exit(assign("list_fits", old_list_fits, envir = helper_env), add = TRUE)
+  assign(
+    "list_fits",
+    function(validate = TRUE, active_only = TRUE, ...) {
+      observed[[length(observed) + 1L]] <<- c(
+        validate    = validate,
+        active_only = active_only
+      )
+      "active"
+    },
+    envir = helper_env
+  )
+
+  fits  <- lazy_fits(c("active", "inactive"), validate = FALSE)
+  infos <- lazy_infos(c("inactive", "active"), validate = FALSE)
+
+  expect_identical(names(fits), "active")
+  expect_identical(names(infos), "active")
+  expect_length(observed, 2L)
+  for (call in observed) {
+    expect_false(call[["validate"]])
+    expect_true(call[["active_only"]])
+  }
+})

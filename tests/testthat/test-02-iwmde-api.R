@@ -10,6 +10,9 @@ source(testthat::test_path("helper-iwmde.R"))
 
 .load_raw_fit_or_skip <- function(name) {
 
+  if (!name %in% list_fits(validate = FALSE, active_only = TRUE)) {
+    skip(paste0("Raw cached fit unavailable for the active profile: ", name))
+  }
   fit <- try(load_fit(name, validate = FALSE), silent = TRUE)
   if (inherits(fit, "try-error")) {
     skip(paste0("Raw cached fit unavailable: ", name))
