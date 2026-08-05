@@ -374,3 +374,32 @@
     class = c("BayesTools_posterior_ordinates", "list")
   ))
 }
+
+
+.iwmde_posterior_ordinate_keep_values <- function(posterior_ordinate, values) {
+
+  entries <- .iwmde_posterior_ordinate_entries(posterior_ordinate)
+  if (length(entries) == 0L || length(values) == 0L) {
+    return(NULL)
+  }
+
+  keep <- vapply(entries, function(entry) {
+
+    any(vapply(values, function(value) {
+
+      .iwmde_ordinate_value_matches(entry, value)
+    }, logical(1)))
+  }, logical(1))
+  entries <- entries[keep]
+  if (length(entries) == 0L) {
+    return(NULL)
+  }
+  if (length(entries) == 1L) {
+    return(entries[[1L]])
+  }
+
+  return(structure(
+    list(status = "ok", ordinates = entries),
+    class = c("BayesTools_posterior_ordinates", "list")
+  ))
+}

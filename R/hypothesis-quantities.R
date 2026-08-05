@@ -28,11 +28,52 @@ hypothesis_quantities.brma <- function(object, ...) {
   catalog <- .brma_parameter_catalog(object)
   catalog <- catalog[catalog[["component"]] != "bias", , drop = FALSE]
   out <- catalog[, c("alias", "parameter", "component", "term"), drop = FALSE]
-  out[["bracket"]] <- paste0(out[["parameter"]], "[level]")
-  out <- .hypothesis_quantities_add_eligibility(
-    out,
-    point_test_methods = "KDE, qCMDE, IWMDE"
+  metadata <- if (!is.null(object[["fit"]])) {
+    .brma_parameter_catalog_metadata(object)[["entries"]]
+  } else {
+    NULL
+  }
+  keys <- if ("quantity_id" %in% names(catalog)) {
+    catalog[["quantity_id"]]
+  } else {
+    paste(catalog[["parameter"]], catalog[["component"]], sep = "\r")
+  }
+  unique_rows <- match(unique(keys), keys)
+  routes <- lapply(unique_rows, function(i) {
+
+    entry <- if (is.null(metadata) ||
+                 !"quantity_id" %in% names(catalog)) {
+      NULL
+    } else {
+      entry_i <- match(catalog[["quantity_id"]][[i]], metadata[["quantity_id"]])
+      if (is.na(entry_i)) NULL else as.list(metadata[entry_i, , drop = FALSE])
+    }
+    .hypothesis_quantities_brma_route(
+      object = object,
+      row    = catalog[i, , drop = FALSE],
+      entry  = entry
+    )
+  })
+  routes <- routes[match(keys, unique(keys))]
+  out[["bracket"]] <- vapply(seq_along(routes), function(i) {
+
+    if (routes[[i]][["bracket"]]) {
+      paste0(out[["parameter"]][[i]], "[level]")
+    } else {
+      NA_character_
+    }
+  }, character(1))
+  out[["point_test"]] <- vapply(routes, `[[`, logical(1), "point_test")
+  out[["direction_test"]] <- vapply(
+    routes, `[[`, logical(1), "direction_test"
   )
+  out[["point_test_methods"]] <- vapply(
+    routes, `[[`, character(1), "point_test_methods"
+  )
+  out[["direction_test_methods"]] <- vapply(
+    routes, `[[`, character(1), "direction_test_methods"
+  )
+  out[["reason"]] <- vapply(routes, `[[`, character(1), "reason")
   is_random <- out[["component"]] == "random"
   if (any(is_random)) {
     bundle <- .brma_random_parameter_bundle(object)
@@ -75,6 +116,78 @@ hypothesis_quantities.brma <- function(object, ...) {
 }
 
 
+.hypothesis_quantities_brma_route <- function(object, row, entry = NULL) {
+
+  point_methods <- c("KDE", "qCMDE", "IWMDE")
+  if (inherits(object, "brma.glmm")) {
+    point_methods <- setdiff(point_methods, "IWMDE")
+  }
+  out <- list(
+    bracket               = !is.null(entry) &&
+      identical(entry[["role"]], "formula_coefficient_group"),
+    point_test             = TRUE,
+    direction_test         = TRUE,
+    point_test_methods     = paste(point_methods, collapse = ", "),
+    direction_test_methods = "KDE, normal",
+    reason                 = ""
+  )
+
+  fixed_value <- if (is.null(entry)) NULL else entry[["fixed_value"]]
+  fixed <- !is.null(entry) && (
+    identical(entry[["status"]], "fixed") ||
+      (length(fixed_value) == 1L && is.finite(fixed_value))
+  )
+  if (fixed) {
+    out[["point_test"]]             <- FALSE
+    out[["direction_test"]]         <- FALSE
+    out[["point_test_methods"]]     <- ""
+    out[["direction_test_methods"]] <- ""
+    out[["reason"]] <- paste0(
+      "The quantity is fixed by the fitted model; posterior hypothesis ",
+      "tests are undefined."
+    )
+    return(out)
+  }
+  formula_parameter <- if (is.null(entry)) NULL else entry[["formula_parameter"]]
+  if (is.null(entry) || identical(row[["component"]], "random") ||
+      identical(entry[["role"]], "formula_coefficient_group") ||
+      length(formula_parameter) != 1L || is.na(formula_parameter) ||
+      !nzchar(formula_parameter)) {
+    return(out)
+  }
+
+  selected <- list(
+    parameter = row[["parameter"]],
+    component = row[["component"]],
+    entry     = entry
+  )
+  target <- .hypothesis_brma_formula_coefficient_target(
+    object                    = object,
+    selected                  = selected,
+    standardized_coefficients = FALSE
+  )
+  if (is.null(target)) {
+    return(out)
+  }
+  route <- .hypothesis_brma_formula_transform_route(target)
+  if (route[["type"]] %in% c("identity", "affine")) {
+    return(out)
+  }
+  if (identical(route[["type"]], "exp_affine")) {
+    out[["point_test_methods"]]     <- "KDE"
+    out[["direction_test_methods"]] <- "KDE"
+    return(out)
+  }
+
+  out[["point_test"]]             <- FALSE
+  out[["direction_test"]]         <- FALSE
+  out[["point_test_methods"]]     <- ""
+  out[["direction_test_methods"]] <- ""
+  out[["reason"]]                 <- route[["reason"]]
+  return(out)
+}
+
+
 #' @rdname hypothesis_quantities
 #' @export
 hypothesis_quantities.marginal_means.brma <- function(object, ...) {
@@ -90,14 +203,39 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
     parameter  = term_map[["parameter"]],
     component  = "marginal_means",
     term       = term_map[["term"]],
-    bracket    = paste0(term_map[["parameter"]], "[level]"),
+    bracket    = NA_character_,
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
   out <- .hypothesis_quantities_add_eligibility(
     out,
-    point_test_methods = "KDE, qCMDE, IWMDE"
+    point_test_methods = if (inherits(object[["source_object"]], "brma.glmm")) {
+      "KDE, qCMDE"
+    } else {
+      "KDE, qCMDE, IWMDE"
+    }
   )
+  out[["direction_test_methods"]] <- "KDE"
+  for (i in seq_len(nrow(out))) {
+    samples <- object[["inference"]][["conditional"]][[out[["parameter"]][[i]]]]
+    if (is.list(samples)) {
+      out[["bracket"]][[i]] <- paste0(out[["parameter"]][[i]], "[level]")
+    } else {
+      values <- as.numeric(samples)
+      values <- values[is.finite(values)]
+      fixed <- length(values) > 0L && all(values == values[[1L]])
+      if (fixed) {
+        out[["point_test"]][[i]]             <- FALSE
+        out[["direction_test"]][[i]]         <- FALSE
+        out[["point_test_methods"]][[i]]     <- ""
+        out[["direction_test_methods"]][[i]] <- ""
+        out[["reason"]][[i]] <- paste0(
+          "The quantity is fixed by the fitted model; posterior hypothesis ",
+          "tests are undefined."
+        )
+      }
+    }
+  }
   rownames(out) <- NULL
   return(out)
 }

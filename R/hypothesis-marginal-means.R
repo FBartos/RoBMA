@@ -241,6 +241,12 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
   context        <- .iwmde_context(source_object)
   estimate_cache <- .iwmde_estimate_cache()
+  samples <- object[["inference"]][["conditional"]][[parameter]]
+  object[["inference"]][["conditional"]][[parameter]] <-
+    .hypothesis_brma_keep_requested_ordinates(
+      posterior  = samples,
+      point_refs = point_refs
+    )
 
   for (i in seq_len(nrow(point_refs))) {
     object <- .hypothesis_marginal_means_attach_iwmde_ref(

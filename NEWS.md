@@ -210,6 +210,8 @@
   to reject unsupported nonlinear qCMDE/IWMDE routes.
 - rewrites vector hypothesis aliases independently and supports certified
   compound affine point expressions from coherent prior and posterior draws.
+- limits hypothesis discovery to supported estimators and syntax, and retains
+  only qCMDE/IWMDE ordinates and diagnostics matching the current request.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

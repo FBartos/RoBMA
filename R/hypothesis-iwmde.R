@@ -12,6 +12,10 @@
   if (nrow(point_refs) == 0L) {
     return(posterior)
   }
+  posterior <- .hypothesis_brma_keep_requested_ordinates(
+    posterior  = posterior,
+    point_refs = point_refs
+  )
 
   .iwmde_check_point_ordinate_supported(object, density_method)
 
@@ -84,6 +88,34 @@
         density_method       = density_method
       )
     }
+  }
+
+  return(posterior)
+}
+
+
+.hypothesis_brma_keep_requested_ordinates <- function(posterior, point_refs) {
+
+  if (!is.list(posterior)) {
+    values <- point_refs[["value"]][is.na(point_refs[["level"]])]
+    attr(posterior, "posterior_ordinate") <-
+      .iwmde_posterior_ordinate_keep_values(
+        attr(posterior, "posterior_ordinate", exact = TRUE),
+        values
+      )
+    return(posterior)
+  }
+
+  attr(posterior, "posterior_ordinate") <- NULL
+  for (level in names(posterior)) {
+    values <- point_refs[["value"]][
+      !is.na(point_refs[["level"]]) & point_refs[["level"]] == level
+    ]
+    attr(posterior[[level]], "posterior_ordinate") <-
+      .iwmde_posterior_ordinate_keep_values(
+        attr(posterior[[level]], "posterior_ordinate", exact = TRUE),
+        values
+      )
   }
 
   return(posterior)
