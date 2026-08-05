@@ -652,7 +652,9 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
   addpoly_args <- forest_data[["addpoly_args"]]
   addpoly_args[["rows"]]      <- row
   addpoly_args[["predstyle"]] <- predstyle
-  addpoly_args[["mlab"]]      <- if (is.null(mlab)) "Pooled Effect" else mlab
+  if (!is.null(mlab)) {
+    addpoly_args[["mlab"]] <- mlab
+  }
 
   if (!is.null(predlim)) {
     addpoly_args[["predlim"]] <- predlim

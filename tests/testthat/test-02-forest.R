@@ -103,6 +103,37 @@ test_that("forest detects compiled random-slope ambiguity", {
   expect_true(.forest_prediction_design_is_ambiguous(slope_only))
 })
 
+
+test_that("forest rendering preserves prediction labels unless overridden", {
+
+  forest_data <- list(
+    addpoly_args = list(mlab = "Predicted Effect")
+  )
+  merged <- .forest_addpoly_args(
+    forest_data = forest_data,
+    dots        = list(),
+    mlab        = NULL,
+    row         = -1,
+    predstyle   = "bar",
+    predlim     = NULL,
+    border      = NULL,
+    constarea   = NULL
+  )
+  overridden <- .forest_addpoly_args(
+    forest_data = forest_data,
+    dots        = list(),
+    mlab        = "Custom prediction",
+    row         = -1,
+    predstyle   = "bar",
+    predlim     = NULL,
+    border      = NULL,
+    constarea   = NULL
+  )
+
+  expect_identical(merged[["mlab"]], "Predicted Effect")
+  expect_identical(overridden[["mlab"]], "Custom prediction")
+})
+
 # list cached fits lazily
 skip_if_no_fits()
 fit_names <- list_fits()

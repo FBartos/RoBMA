@@ -172,6 +172,8 @@
   effect-size transformation metadata.
 - uses within-draw RMS heterogeneity consistently for model-averaged funnel
   contours.
+- preserves moderator-specific forest labels unless `mlab` is explicitly
+  overridden.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting
