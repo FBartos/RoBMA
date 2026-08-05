@@ -5,6 +5,56 @@ source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
 
+test_that("random-slope regplot variance replays its prediction grid", {
+
+  dat <- data.frame(
+    yi    = c(0.10, 0.20, 0.30, 0.40),
+    x     = c(0, 1, 0, 1),
+    study = c("s1", "s1", "s2", "s2")
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.04, nrow(dat)),
+    mods                      = ~ x,
+    scale                     = ~ x,
+    random                    = ~ diag(1 + x | study),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_samples <- matrix(
+    c(
+      0.20, 0,      0.25, 0.75,
+      0.30, log(2), 0.40, 0.60
+    ),
+    nrow     = 2L,
+    byrow    = TRUE,
+    dimnames = list(NULL, c(
+      "log_tau_intercept",
+      "log_tau_x",
+      "mu__xRE_ALLOCx_allocation__weight[1]",
+      "mu__xRE_ALLOCx_allocation__weight[2]"
+    ))
+  )
+  grid_data <- data.frame(x = c(0, 1))
+
+  tau <- rbind(c(0.20, 0.20), c(0.30, 0.60))
+  z   <- (grid_data[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  allocation <- rbind(c(0.50, 1.50), c(0.80, 1.20))
+  expected <- tau * sqrt(
+    allocation[, 1L] + tcrossprod(allocation[, 2L], z^2)
+  )
+
+  out <- .regplot_mv_random_sd_samples(
+    x                 = object,
+    newdata           = grid_data,
+    posterior_samples = posterior_samples
+  )
+
+  expect_equal(unname(out), unname(expected), tolerance = 1e-12)
+})
+
 # list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")

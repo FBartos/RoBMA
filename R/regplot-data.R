@@ -531,35 +531,39 @@
     return(NULL)
   }
 
-  location_data   <- .regplot_add_random_prediction_columns(x, newdata)
-  location_priors <- attr(x[["fit"]], "prior_list")
-  if (is.null(location_priors)) {
-    location_priors <- x[["priors"]][["location"]]
-  }
+  location_data <- .regplot_add_random_prediction_columns(x, newdata)
 
   design         <- .fitted_formula_design(x, "mu", required = TRUE)
   sampled_blocks <- .formula_design_sampled_random_effect_blocks(design)
   variance       <- matrix(0, nrow = nrow(posterior_samples), ncol = nrow(newdata))
 
   if (length(sampled_blocks) > 0L) {
+    prediction_data <- .prepare_newdata(
+      object         = x,
+      newdata        = location_data,
+      type           = "estimate",
+      include_random = TRUE
+    )
     prediction <- tryCatch(
-      BayesTools::JAGS_predict_formula(
-        fit             = .posterior_formula_fit(
-          fit               = x[["fit"]],
-          posterior_samples = posterior_samples,
-          formula_design    = TRUE
-        ),
-        formula         = .create_fit_formula_list(data = x[["data"]], parameter = "location"),
-        parameter       = "mu",
-        data            = location_data,
-        prior_list      = location_priors,
-        formula_target  = "marginal",
-        blocks          = sampled_blocks,
-        marginal_method = "covariance",
-        new_levels      = "sample"
+      .brma_mv_random_effects_marginal_vcov(
+        object            = x,
+        posterior_samples = posterior_samples,
+        blocks            = sampled_blocks,
+        diagonal_only     = TRUE,
+        data              = prediction_data,
+        new_levels        = "sample"
       ),
       error = function(e) {
-        if (grepl("row-indexed external SD source", conditionMessage(e), fixed = TRUE) &&
+        row_source_error <- grepl(
+          "row-indexed external SD source",
+          conditionMessage(e),
+          fixed = TRUE
+        ) || grepl(
+          "posterior-indexed row source",
+          conditionMessage(e),
+          fixed = TRUE
+        )
+        if (row_source_error &&
             .regplot_mv_random_intercept_only(x)) {
           return(NULL)
         }
@@ -574,20 +578,11 @@
         posterior_samples = posterior_samples
       ))
     } else {
-      vcov_samples <- prediction[["vcov"]][["samples"]]
-      if (length(dim(vcov_samples)) != 3L ||
-          dim(vcov_samples)[1L] != nrow(posterior_samples) ||
-          dim(vcov_samples)[2L] != nrow(newdata) ||
-          dim(vcov_samples)[3L] != nrow(newdata)) {
-        stop("Random-effect covariance samples have inconsistent dimensions.",
-             call. = FALSE)
-      }
-
-      sampled_variance <- t(vapply(
-        seq_len(dim(vcov_samples)[1L]),
-        function(s) diag(vcov_samples[s, , ]),
-        numeric(nrow(newdata))
-      ))
+      sampled_variance <- .brma_mv_validate_random_marginal_variance_samples(
+        random_vcov = prediction,
+        S           = nrow(posterior_samples),
+        K           = nrow(newdata)
+      )
       sampled_variance <- .regplot_validate_variance(
         sampled_variance,
         "Sampled random-effect variance"
