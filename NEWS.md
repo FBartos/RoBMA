@@ -203,6 +203,8 @@
 - evaluates accepted continuous, truncated, and point GLMM nuisance priors in
   post-fit likelihood diagnostics; unsupported non-point discrete nuisance
   priors now fail explicitly at input.
+- rejects ambiguous marginal-means hypothesis aliases instead of silently
+  resolving a canonical name to a different moderator coefficient.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

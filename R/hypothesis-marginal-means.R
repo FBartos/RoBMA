@@ -105,12 +105,12 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
 
 .hypothesis_marginal_means_select_parameter <- function(object, hypothesis,
-                                                        parameter) {
+                                                         parameter) {
 
-  aliases <- .hypothesis_marginal_means_aliases(object)
+  alias_catalog <- .hypothesis_marginal_means_alias_catalog(object)
   if (!is.null(parameter)) {
     selected <- .marginal_means_select_parameter(object, parameter)[["parameter"]]
-    aliases <- .hypothesis_brma_aliases_for_parameter(aliases, selected)
+    aliases <- .hypothesis_marginal_means_aliases(alias_catalog, selected)
     return(list(parameter = selected, aliases = aliases))
   }
 
@@ -121,13 +121,25 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
          call. = FALSE)
   }
 
-  matches <- lapply(roots, function(root) aliases[[root]])
-  known <- unlist(matches[!vapply(matches, is.null, logical(1))],
-                  use.names = FALSE)
+  matches <- lapply(roots, function(root) {
+
+    unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
+  })
+  ambiguous <- lengths(matches) > 1L
+  if (any(ambiguous)) {
+    root <- roots[ambiguous][[1L]]
+    stop(
+      "Marginal-means alias '", root, "' is ambiguous (",
+      paste(matches[[which(ambiguous)[[1L]]]], collapse = ", "),
+      "). Specify 'parameter' using an internal parameter name.",
+      call. = FALSE
+    )
+  }
+  known <- unlist(matches[lengths(matches) == 1L], use.names = FALSE)
   known <- unique(known)
 
   if (length(known) == 1L) {
-    aliases <- .hypothesis_brma_aliases_for_parameter(aliases, known)
+    aliases <- .hypothesis_marginal_means_aliases(alias_catalog, known)
     return(list(parameter = known, aliases = aliases))
   }
 
@@ -142,29 +154,55 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
   stop(
     "Could not infer a marginal-means parameter from the hypothesis. ",
-    "Available quantities are: ", .hypothesis_brma_available_aliases(aliases),
+    "Available quantities are: ",
+    paste0("'", sort(unique(alias_catalog[["alias"]])), "'", collapse = ", "),
     ".",
     call. = FALSE
   )
 }
 
 
-.hypothesis_marginal_means_aliases <- function(object) {
+.hypothesis_marginal_means_alias_catalog <- function(object) {
 
   term_map <- object[["term_map"]]
-  aliases  <- list()
+  rows     <- list()
 
   for (i in seq_len(nrow(term_map))) {
     parameter <- term_map[["parameter"]][[i]]
     term      <- term_map[["term"]][[i]]
 
-    aliases[[parameter]] <- parameter
+    aliases <- parameter
     if (!is.null(term) && nzchar(term)) {
-      aliases[[term]] <- parameter
-      aliases[[.formula_design_display_names(term)]] <- parameter
+      aliases <- c(aliases, term, .formula_design_display_names(term))
     }
+    rows[[length(rows) + 1L]] <- data.frame(
+      alias      = unique(aliases),
+      parameter  = parameter,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  }
+  intercept <- term_map[["parameter"]][term_map[["term"]] == "intercept"]
+  if (length(intercept) == 1L) {
+    rows[[length(rows) + 1L]] <- data.frame(
+      alias      = "mu",
+      parameter  = intercept,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
   }
 
+  aliases <- unique(do.call(rbind, rows))
+  rownames(aliases) <- NULL
+  return(aliases)
+}
+
+
+.hypothesis_marginal_means_aliases <- function(alias_catalog, parameter) {
+
+  rows <- alias_catalog[alias_catalog[["parameter"]] == parameter, , drop = FALSE]
+  aliases <- as.list(rows[["parameter"]])
+  names(aliases) <- rows[["alias"]]
   return(aliases)
 }
 

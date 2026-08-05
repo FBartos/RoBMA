@@ -104,3 +104,34 @@ test_that("RoBMA no longer owns hypothesis expression parsing", {
   )
   expect_false(any(present))
 })
+
+
+test_that("marginal-means aliases never silently resolve collisions", {
+
+  object <- list(term_map = data.frame(
+    term      = c("intercept", "mu"),
+    parameter = c("mu_intercept", "mu_mu"),
+    label     = c("intercept", "mu"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  ))
+  hypothesis <- BayesTools::hypothesis_parse("mu > 0")
+
+  expect_error(
+    .hypothesis_marginal_means_select_parameter(object, hypothesis, NULL),
+    "alias 'mu' is ambiguous.*Specify 'parameter'"
+  )
+
+  intercept <- .hypothesis_marginal_means_select_parameter(
+    object,
+    hypothesis,
+    parameter = "mu"
+  )
+  moderator <- .hypothesis_marginal_means_select_parameter(
+    object,
+    hypothesis,
+    parameter = "mu_mu"
+  )
+  expect_identical(intercept[["parameter"]], "mu_intercept")
+  expect_identical(moderator[["parameter"]], "mu_mu")
+})
