@@ -134,6 +134,47 @@ test_that("forest rendering preserves prediction labels unless overridden", {
   expect_identical(overridden[["mlab"]], "Custom prediction")
 })
 
+
+test_that("forest predictive distributions retain actual draw geometry", {
+
+  draws <- matrix(c(-4, -2, -1, -.5, 0, .2, .4, 2, 5), ncol = 1L)
+  reference <- stats::density(as.numeric(draws), n = 512L)
+  preddist <- .forest_prediction_distribution(
+    prediction_samples = draws,
+    pi.lb              = -2.5,
+    pi.ub              = 3.5,
+    level              = .95
+  )
+
+  expect_named(preddist, c("x", "density", "pi.lb", "pi.ub", "level"))
+  expect_equal(preddist[["x"]], unname(reference[["x"]]))
+  expect_equal(preddist[["density"]], unname(reference[["y"]]))
+  expect_identical(preddist[["pi.lb"]], -2.5)
+  expect_identical(preddist[["pi.ub"]], 3.5)
+  expect_identical(preddist[["level"]], 95)
+  expect_null(.forest_prediction_distribution(
+    prediction_samples = rep(1, 5),
+    pi.lb              = 1,
+    pi.ub              = 1,
+    level              = .95
+  ))
+
+  expect_error(
+    .forest_addpoly_args(
+      forest_data = list(addpoly_args = list()),
+      dots        = list(),
+      mlab        = NULL,
+      row         = -1,
+      predstyle   = "shade",
+      predlim     = NULL,
+      border      = NULL,
+      constarea   = NULL
+    ),
+    "at least two distinct posterior predictive draws",
+    fixed = TRUE
+  )
+})
+
 # list cached fits lazily
 skip_if_no_fits()
 fit_names <- list_fits()
@@ -252,7 +293,14 @@ test_that("as_metafor_forest returns metafor-ready vector arguments", {
     out[["addpoly_args"]][["x"]],
     out[["prediction"]][["estimate"]]
   )
-  expect_true(is.finite(attributes(out[["addpoly_args"]][["pi.lb"]])[["se"]]))
+  preddist <- out[["addpoly_args"]][["preddist"]]
+  expect_named(preddist, c("x", "density", "pi.lb", "pi.ub", "level"))
+  expect_equal(preddist[["pi.lb"]], out[["prediction"]][["pi.lb"]])
+  expect_equal(preddist[["pi.ub"]], out[["prediction"]][["pi.ub"]])
+  expect_true(all(is.finite(preddist[["x"]])))
+  expect_true(all(is.finite(preddist[["density"]])))
+  expect_null(attr(out[["addpoly_args"]][["pi.lb"]], "dist"))
+  expect_null(attr(out[["addpoly_args"]][["pi.lb"]], "se"))
   expect_identical(out[["addpoly_args"]][["rows"]], -1)
   expect_identical(out[["addpoly_args"]][["predstyle"]], "bar")
   expect_identical(out[["addpoly_args"]][["mlab"]], "Pooled Effect")

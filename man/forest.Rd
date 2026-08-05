@@ -106,9 +106,10 @@ fixed location at one explicit prediction row and the prediction interval
 uses \code{\link{predict.brma}} with \code{type = "estimate"} for that same
 row. For intercept-only models the adapter creates an unambiguous one-row
 design automatically. For \pkg{metafor}'s \code{predstyle = "shade"} and
-\code{predstyle = "dist"}, the displayed predictive distribution uses
-metafor's normal approximation implied by the posterior prediction interval
-endpoints.
+\code{predstyle = "dist"}, the adapter supplies a deterministic kernel
+density estimate computed from those posterior predictive draws. The
+displayed prediction-interval endpoints remain the posterior quantiles
+returned by \code{predict.brma()}.
 
 Additional study-level columns can be added with metafor's \code{ilab}
 interface. When supplied to \code{as_metafor_forest()} or to

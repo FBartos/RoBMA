@@ -174,6 +174,9 @@
   contours.
 - preserves moderator-specific forest labels unless `mlab` is explicitly
   overridden.
+- supplies `metafor` forest shade/dist styles with a deterministic density from
+  the actual posterior predictive draws instead of a Normal reconstruction from
+  interval endpoints.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

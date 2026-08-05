@@ -202,17 +202,16 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
         quiet         = TRUE
       )
     )
-    prediction_effect <- .forest_summary_row(
-      predict.brma(
-        object        = x,
-        newdata       = prediction_data,
-        type          = "estimate",
-        probs         = probs,
-        bias_adjusted = bias_adjusted,
-        conditional   = conditional,
-        quiet         = TRUE
-      )
+    prediction_effect_samples <- predict.brma(
+      object        = x,
+      newdata       = prediction_data,
+      type          = "estimate",
+      probs         = probs,
+      bias_adjusted = bias_adjusted,
+      conditional   = conditional,
+      quiet         = TRUE
     )
+    prediction_effect <- .forest_summary_row(prediction_effect_samples)
     prediction <- prediction_terms
     prediction[["pi.lb"]] <- prediction_effect[["ci.lb"]]
     prediction[["pi.ub"]] <- prediction_effect[["ci.ub"]]
@@ -248,18 +247,17 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
     mlab      = summary_mlab
   )
   if (addpred) {
-    prediction_se <- .forest_prediction_se(
-      pi.lb = prediction[["pi.lb"]],
-      pi.ub = prediction[["pi.ub"]],
-      level = level
+    prediction_distribution <- .forest_prediction_distribution(
+      prediction_samples = prediction_effect_samples,
+      pi.lb              = prediction[["pi.lb"]],
+      pi.ub              = prediction[["pi.ub"]],
+      level              = level
     )
-    pi_lb <- prediction[["pi.lb"]]
-    attr(pi_lb, "level") <- 1 - level
-    attr(pi_lb, "dist")  <- "norm"
-    attr(pi_lb, "se")    <- prediction_se
-
-    addpoly_args[["pi.lb"]] <- pi_lb
+    addpoly_args[["pi.lb"]] <- prediction[["pi.lb"]]
     addpoly_args[["pi.ub"]] <- prediction[["pi.ub"]]
+    if (!is.null(prediction_distribution)) {
+      addpoly_args[["preddist"]] <- prediction_distribution
+    }
   }
   addpoly_args <- .forest_addpoly_shared_args(addpoly_args, forest_args)
 
@@ -335,9 +333,10 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
 #' uses \code{\link{predict.brma}} with \code{type = "estimate"} for that same
 #' row. For intercept-only models the adapter creates an unambiguous one-row
 #' design automatically. For \pkg{metafor}'s \code{predstyle = "shade"} and
-#' \code{predstyle = "dist"}, the displayed predictive distribution uses
-#' metafor's normal approximation implied by the posterior prediction interval
-#' endpoints.
+#' \code{predstyle = "dist"}, the adapter supplies a deterministic kernel
+#' density estimate computed from those posterior predictive draws. The
+#' displayed prediction-interval endpoints remain the posterior quantiles
+#' returned by \code{predict.brma()}.
 #'
 #' Additional study-level columns can be added with metafor's \code{ilab}
 #' interface. When supplied to \code{as_metafor_forest()} or to
@@ -517,16 +516,32 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
 }
 
 
-.forest_prediction_se <- function(pi.lb, pi.ub, level) {
+.forest_prediction_distribution <- function(prediction_samples, pi.lb, pi.ub,
+                                            level) {
 
-  crit <- stats::qnorm(1 - (1 - level) / 2)
-  se   <- (pi.ub - pi.lb) / (2 * crit)
-
-  if (!is.finite(se) || se <= 0) {
-    return(NA_real_)
+  draws <- as.numeric(as.matrix(prediction_samples))
+  if (length(draws) == 0L || any(!is.finite(draws))) {
+    stop("Forest predictive draws must be finite and non-empty.", call. = FALSE)
+  }
+  if (diff(range(draws)) == 0) {
+    return(NULL)
   }
 
-  return(se)
+  density <- stats::density(draws, n = 512L)
+  if (any(!is.finite(density[["x"]])) ||
+      any(!is.finite(density[["y"]])) ||
+      any(density[["y"]] < 0)) {
+    stop("Could not construct a finite forest predictive density.",
+         call. = FALSE)
+  }
+
+  return(list(
+    x       = unname(density[["x"]]),
+    density = unname(density[["y"]]),
+    pi.lb   = pi.lb,
+    pi.ub   = pi.ub,
+    level   = 100 * level
+  ))
 }
 
 
@@ -608,7 +623,7 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
       "x", "vi", "sei", "ci.lb", "ci.ub", "level",
       "addfit", "addpred", "predstyle", "mlab", "row", "predlim",
       "border", "constarea", "bias_adjusted", "conditional", "as_data",
-      "newdata"
+      "newdata", "preddist"
     )
   )
   if (length(reserved) > 0L) {
@@ -654,6 +669,14 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
   addpoly_args[["predstyle"]] <- predstyle
   if (!is.null(mlab)) {
     addpoly_args[["mlab"]] <- mlab
+  }
+  if (predstyle %in% c("shade", "dist") &&
+      is.null(addpoly_args[["preddist"]])) {
+    stop(
+      "'predstyle = ", predstyle, "' requires at least two distinct ",
+      "posterior predictive draws.",
+      call. = FALSE
+    )
   }
 
   if (!is.null(predlim)) {
