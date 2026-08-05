@@ -1432,6 +1432,97 @@ test_that("marginalized brma.mv ranef uses Gaussian BLUP component", {
   )
 })
 
+
+test_that("known-R row multipliers reach random prediction consumers", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"))
+  )
+  known_R <- diag(c(4, 9, 16))
+  dimnames(known_R) <- list(levels(dat[["estimate"]]),
+                            levels(dat[["estimate"]]))
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.01, nrow(dat)),
+    random                    = ~ 1 | estimate,
+    R                         = known_R,
+    Rscale                    = "none",
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  term <- .data_marginalized_random_effects(object[["data"]])[[1L]]
+  sd_name <- term[["sd_parameter_names"]][[1L]]
+  posterior_samples <- matrix(
+    c(
+      0, 0.20,
+      0, 0.30
+    ),
+    nrow     = 2L,
+    byrow    = TRUE,
+    dimnames = list(NULL, c("mu", sd_name))
+  )
+
+  row_sd <- tcrossprod(
+    posterior_samples[, sd_name],
+    sqrt(c(4, 9, 16))
+  )
+  row_variance <- row_sd^2
+  expected_blup <- row_variance / (row_variance + 0.01) *
+    matrix(dat[["yi"]], nrow = 2L, ncol = 3L, byrow = TRUE)
+
+  scale <- predict(
+    object,
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  pooled <- pooled_heterogeneity(
+    object,
+    .posterior_samples = posterior_samples
+  )
+  estimate <- predict(
+    object,
+    type               = "estimate",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  random_effect <- ranef(
+    object,
+    component          = "estimate",
+    .posterior_samples = posterior_samples
+  )
+
+  expect_equal(unname(as.matrix(scale[["estimate"]])), row_sd,
+               tolerance = 1e-12)
+  expect_equal(
+    unname(as.matrix(pooled)),
+    matrix(sqrt(rowMeans(row_sd^2)), ncol = 1L),
+    tolerance = 1e-12
+  )
+  expect_equal(unname(as.matrix(estimate)), expected_blup,
+               tolerance = 1e-12)
+  expect_equal(unname(as.matrix(random_effect)), expected_blup,
+               tolerance = 1e-12)
+
+  set.seed(1905)
+  random_draws <- .predict_known_v_marginalized_random_draws(
+    object            = object,
+    data              = object[["data"]],
+    posterior_samples = posterior_samples
+  )
+  set.seed(1905)
+  expected_draws <- row_sd * matrix(
+    stats::rnorm(length(row_sd)),
+    nrow = nrow(row_sd),
+    ncol = ncol(row_sd)
+  )
+  expect_equal(random_draws, expected_draws, tolerance = 1e-12)
+})
+
+
 test_that("random-formula brma.mv terms.scale returns random SD components", {
 
   object  <- .brma_mv_prior_object(random = TRUE)

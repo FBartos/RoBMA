@@ -251,15 +251,15 @@
       source_samples    = source_samples,
       fitted_K          = fitted_K
     )
-    sd_samples <- .expand_brma_mv_heterogeneity_samples(
-      samples = sd_samples,
-      S       = S,
-      K       = K
+    term_variance <- .marginalized_random_effect_variance_samples(
+      term       = term,
+      sd_samples = sd_samples,
+      K          = K
     )
     draws <- draws + .predict_known_v_marginalized_random_term_draws(
       term       = term,
       data       = data,
-      sd_samples = sd_samples
+      sd_samples = sqrt(term_variance)
     )
   }
 

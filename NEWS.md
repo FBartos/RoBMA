@@ -179,6 +179,8 @@
   interval endpoints.
 - makes certification workers fail when required numerical evidence is missing,
   skipped, duplicated, or executes without a passing expectation.
+- applies known-R row-variance multipliers consistently to scale predictions,
+  random-effect draws, BLUPs, and pooled heterogeneity.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

@@ -930,7 +930,11 @@
       K                 = K,
       source_samples    = source_samples
     )
-    term_variance <- .expand_random_effect_variance(term_sd^2, S = S, K = K)
+    term_variance <- .marginalized_random_effect_variance_samples(
+      term       = term,
+      sd_samples = term_sd,
+      K          = K
+    )
     contribution  <- matrix(0, nrow = S, ncol = K)
 
     for (block in block_data) {
@@ -962,24 +966,6 @@
   names(out) <- vapply(terms, `[[`, character(1), "block_name")
 
   return(out)
-}
-
-
-.expand_random_effect_variance <- function(variance, S, K) {
-
-  if (nrow(variance) != S) {
-    stop("Random-effect variance draw count does not match posterior samples.",
-         call. = FALSE)
-  }
-  if (ncol(variance) == 1L) {
-    return(matrix(variance[, 1L], nrow = S, ncol = K))
-  }
-  if (ncol(variance) == K) {
-    return(variance)
-  }
-
-  stop("Random-effect variance must be scalar or row-wise.",
-       call. = FALSE)
 }
 
 

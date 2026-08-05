@@ -883,12 +883,19 @@
 .random_effect_term_sd_samples <- function(term, posterior_samples, K,
                                            source_samples = NULL) {
 
-  .marginalized_random_effect_sd_samples(
+  sd_samples <- .marginalized_random_effect_sd_samples(
     term              = term,
     posterior_samples = posterior_samples,
     K                 = K,
     source_samples    = source_samples
   )
+  variance <- .marginalized_random_effect_variance_samples(
+    term       = term,
+    sd_samples = sd_samples,
+    K          = K
+  )
+
+  return(sqrt(variance))
 }
 
 
