@@ -41,3 +41,13 @@
   rownames(out) <- NULL
   return(out)
 }
+
+
+.hypothesis_brma_has_compound_point <- function(hypothesis) {
+
+  refs <- BayesTools::hypothesis_parse_point_reference(
+    hypothesis     = BayesTools::hypothesis_render(hypothesis),
+    allow_compound = TRUE
+  )
+  nrow(refs) > 0L && any(!refs[["direct"]])
+}

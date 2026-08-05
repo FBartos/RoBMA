@@ -208,6 +208,8 @@
 - evaluates certified `exp(affine)` formula-coefficient point hypotheses from
   coherent transformed prior and posterior draws under KDE, while continuing
   to reject unsupported nonlinear qCMDE/IWMDE routes.
+- rewrites vector hypothesis aliases independently and supports certified
+  compound affine point expressions from coherent prior and posterior draws.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

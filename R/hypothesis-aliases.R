@@ -142,9 +142,23 @@
   ast <- .hypothesis_brma_ast(hypothesis)
   mapping <- unlist(aliases, use.names = TRUE)
   mapping <- mapping[mapping == parameter & names(mapping) != mapping]
-  roots   <- BayesTools::hypothesis_symbols(ast)
-  mapping <- mapping[names(mapping) %in% roots]
-  return(BayesTools::hypothesis_rewrite(ast, mapping))
+  statements <- BayesTools::hypothesis_render(ast)
+  if (length(statements) == 1L) {
+    roots   <- BayesTools::hypothesis_symbols(ast)
+    mapping <- mapping[names(mapping) %in% roots]
+    return(BayesTools::hypothesis_rewrite(ast, mapping))
+  }
+
+  rewritten <- vapply(statements, function(statement) {
+
+    statement_ast <- BayesTools::hypothesis_parse(statement)
+    roots <- BayesTools::hypothesis_symbols(statement_ast)
+    statement_mapping <- mapping[names(mapping) %in% roots]
+    BayesTools::hypothesis_render(
+      BayesTools::hypothesis_rewrite(statement_ast, statement_mapping)
+    )
+  }, character(1))
+  return(BayesTools::hypothesis_parse(unname(rewritten)))
 }
 
 

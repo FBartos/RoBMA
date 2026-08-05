@@ -135,3 +135,32 @@ test_that("marginal-means aliases never silently resolve collisions", {
   expect_identical(intercept[["parameter"]], "mu_intercept")
   expect_identical(moderator[["parameter"]], "mu_mu")
 })
+
+
+test_that("hypothesis aliases are rewritten independently by statement", {
+
+  rewritten <- .hypothesis_brma_rewrite(
+    hypothesis = BayesTools::hypothesis_parse(c("effect > 0", "mu < 0")),
+    aliases    = list(effect = "mu", mu = "mu"),
+    parameter  = "mu"
+  )
+
+  expect_identical(
+    BayesTools::hypothesis_render(rewritten),
+    c("mu > 0", "mu < 0")
+  )
+})
+
+
+test_that("compound point detection is explicit", {
+
+  expect_true(.hypothesis_brma_has_compound_point(
+    BayesTools::hypothesis_parse("2 * mu = 0")
+  ))
+  expect_false(.hypothesis_brma_has_compound_point(
+    BayesTools::hypothesis_parse("mu = 0")
+  ))
+  expect_false(.hypothesis_brma_has_compound_point(
+    BayesTools::hypothesis_parse("2 * mu > 0")
+  ))
+})

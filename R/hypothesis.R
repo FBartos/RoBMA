@@ -258,6 +258,7 @@ hypothesis.brma <- function(object, hypothesis,
     coefficient_target[["route"]] <-
       .hypothesis_brma_formula_transform_route(coefficient_target)
   }
+  compound_point <- .hypothesis_brma_has_compound_point(hypothesis)
 
   if (identical(selected[["component"]], "random")) {
     return(.hypothesis_brma_random(
@@ -285,16 +286,35 @@ hypothesis.brma <- function(object, hypothesis,
     n_prior_samples  = n_samples
   )
   if (!is.null(coefficient_target) &&
-      identical(coefficient_target[["route"]][["type"]], "exp_affine")) {
+      identical(coefficient_target[["route"]][["type"]], "unsupported")) {
+    stop(coefficient_target[["route"]][["reason"]], call. = FALSE)
+  }
+  scalar_identity <- is.null(coefficient_target) &&
+    parameter %in% names(samples) &&
+    inherits(samples[[parameter]], "mixed_posteriors.simple")
+  use_coherent_draws <-
+    (!is.null(coefficient_target) &&
+       identical(coefficient_target[["route"]][["type"]], "exp_affine")) ||
+    compound_point
+  if (compound_point && is.null(coefficient_target) && !scalar_identity) {
+    stop(
+      "Compound point hypotheses are supported only for scalar one-to-one ",
+      "parameters or formula coefficients with a certified identity, affine, ",
+      "or exp(affine) map.",
+      call. = FALSE
+    )
+  }
+  if (use_coherent_draws) {
     if (!identical(density_method, "KDE")) {
       stop(
-        "The fitted exp(affine) coefficient transform for '", parameter,
-        "' is supported only with density_method = 'KDE'. qCMDE/IWMDE ",
-        "ordinates require an exact linear fitted-scale map.",
+        "The requested transformed or compound point hypothesis for '",
+        parameter, "' is supported only with density_method = 'KDE'. ",
+        "qCMDE/IWMDE ordinates support only direct parameter or level point ",
+        "hypotheses with an exact linear fitted-scale map.",
         call. = FALSE
       )
     }
-    return(.hypothesis_brma_formula_draws(
+    return(.hypothesis_brma_coherent_draws(
       object      = object,
       samples     = samples,
       hypothesis  = hypothesis,
@@ -306,10 +326,6 @@ hypothesis.brma <- function(object, hypothesis,
       n_samples   = n_samples,
       columns     = columns
     ))
-  }
-  if (!is.null(coefficient_target) &&
-      identical(coefficient_target[["route"]][["type"]], "unsupported")) {
-    stop(coefficient_target[["route"]][["reason"]], call. = FALSE)
   }
   if (!is.null(coefficient_target)) {
     coefficient_target <- .hypothesis_brma_formula_prior_target(
@@ -640,11 +656,11 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 
-.hypothesis_brma_formula_draws <- function(
+.hypothesis_brma_coherent_draws <- function(
     object, samples, hypothesis, parameter, target_info, logBF, BF01, seed,
     n_samples, columns) {
 
-  target <- target_info[["target"]]
+  target <- if (is.null(target_info)) parameter else target_info[["target"]]
   if (!target %in% names(samples)) {
     stop("Transformed posterior draws for '", target, "' are unavailable.",
          call. = FALSE)

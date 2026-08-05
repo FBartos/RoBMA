@@ -170,7 +170,7 @@ test_that("certified exp-affine coefficients use coherent KDE draws", {
     .package = "BayesTools"
   )
 
-  result <- .hypothesis_brma_formula_draws(
+  result <- .hypothesis_brma_coherent_draws(
     object      = list(fit = structure(list(), class = "BayesTools_fit")),
     samples     = list(log_tau_intercept = c(.15, .25, .35)),
     hypothesis  = BayesTools::hypothesis_parse("log_tau_intercept = 0.2"),
