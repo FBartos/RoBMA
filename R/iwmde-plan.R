@@ -393,6 +393,7 @@
     candidate_rows    = integer(),
     candidate_values  = numeric(),
     continuous_values = numeric(),
+    population_rows   = integer(),
     estimator_rows    = integer(),
     estimator_values  = numeric(),
     row_states        = list(),
@@ -453,6 +454,7 @@
     candidate_rows    = candidate_rows,
     candidate_values  = candidate_values,
     continuous_values = continuous_values,
+    population_rows   = which(finite_rows),
     estimator_rows    = baseline_contract[["estimator_rows"]],
     estimator_values  = baseline_contract[["estimator_values"]],
     row_states        = baseline_contract[["row_states"]],
@@ -574,6 +576,7 @@
     posterior_dim   = dim(samples),
     posterior_names = .iwmde_hash("iwmde_columns", colnames(samples)),
     posterior_values = .iwmde_hash("iwmde_posterior_draws", samples),
+    chain_id          = .iwmde_hash("iwmde_chain_id", context[["chain_id"]]),
     data             = .iwmde_hash("iwmde_data", context[["data"]]),
     priors           = .iwmde_hash("iwmde_priors", context[["priors"]]),
     selection_spec   = .iwmde_hash(

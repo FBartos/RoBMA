@@ -191,6 +191,9 @@
 - samples qCMDE/IWMDE posterior rows globally and pools Chen proposals by
   mathematical support, preserving empirical product-state weights without
   enumerating nuisance model states.
+- computes qCMDE/IWMDE MCSE and effective sample sizes from chain-ordered,
+  design-weighted estimator contributions, including unsampled posterior rows
+  as zero contributions under finite row budgets.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

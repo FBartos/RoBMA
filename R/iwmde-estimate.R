@@ -518,6 +518,8 @@
   out <- list(
     active_rows      = rows[["estimator_rows"]],
     active_values    = rows[["estimator_values"]],
+    population_rows  = rows[["population_rows"]],
+    chain_id         = context[["chain_id"]][rows[["population_rows"]]],
     row_states       = rows[["row_states"]],
     baseline_log_q   = rows[["baseline_log_q"]],
     n_dropped_log_q  = rows[["n_dropped_log_q"]],
@@ -559,6 +561,9 @@
       normalization_grid = plan[["grids"]][["normalization_grid"]],
       transform          = plan[["support"]][["transform"]],
       row_states         = execution[["row_states"]],
+      estimator_rows     = execution[["active_rows"]],
+      population_rows    = execution[["population_rows"]],
+      chain_id           = execution[["chain_id"]],
       active_mass        = plan[["rows"]][["active_mass"]],
       replacement        = plan[["replacement"]],
       n_candidate_rows   = execution[["n_candidate_rows"]]
@@ -572,6 +577,8 @@
       row_states         = execution[["row_states"]],
       active_rows        = execution[["active_rows"]],
       active_values      = execution[["active_values"]],
+      population_rows    = execution[["population_rows"]],
+      chain_id           = execution[["chain_id"]],
       weight_rows        = execution[["active_rows"]],
       weight_values      = execution[["active_values"]],
       support            = plan[["support"]][["support"]],

@@ -199,6 +199,67 @@ test_that("IWMDE density aggregation matches row-wise reference", {
 })
 
 
+test_that("IWMDE contributions retain design weights and chain order", {
+
+  population_rows <- seq_len(200L)
+  chain_id        <- rep(1:2, each = 100L)
+  active_per_batch <- c(0:9, 9:0)
+  contribution_rows <- unlist(lapply(seq_along(active_per_batch), function(i) {
+    offset <- (i - 1L) * 10L
+    offset + seq_len(active_per_batch[[i]])
+  }))
+
+  density <- .iwmde_density_aggregate(
+    log_terms         = matrix(0, nrow = 1L,
+                               ncol = length(contribution_rows)),
+    active_mass       = length(contribution_rows) / length(population_rows),
+    denominator       = length(contribution_rows),
+    contribution_rows = contribution_rows,
+    population_rows  = population_rows,
+    chain_id         = chain_id
+  )
+  contributions <- density[["contributions"]]
+  mcse          <- .iwmde_batch_mcse(contributions)
+  batch_means   <- active_per_batch / 10
+  expected_mcse <- stats::sd(batch_means) / sqrt(length(batch_means))
+  contribution_variance <- stats::var(as.numeric(
+    seq_along(population_rows) %in% contribution_rows
+  ))
+  expected_ess <- length(contribution_rows) / max(
+    1,
+    length(population_rows) * expected_mcse^2 / contribution_variance
+  )
+
+  expect_equal(as.numeric(contributions),
+               as.numeric(population_rows %in% contribution_rows))
+  expect_equal(rowMeans(contributions), density[["y"]])
+  expect_equal(density[["y"]], .45)
+  expect_equal(mcse[["batch_size"]], 10L)
+  expect_equal(mcse[["n_batches"]], 20L)
+  expect_equal(mcse[["mcse"]], expected_mcse)
+  expect_equal(mcse[["ess"]], expected_ess)
+
+  thinned <- .iwmde_density_aggregate(
+    log_terms         = matrix(0, nrow = 1L, ncol = 20L),
+    active_mass       = .4,
+    denominator       = 20L,
+    contribution_rows = seq(2L, 40L, by = 2L),
+    population_rows  = seq_len(100L),
+    chain_id         = rep(1L, 100L)
+  )
+  expect_equal(thinned[["y"]], .4)
+  expect_equal(
+    unname(thinned[["contributions"]][1L, seq(2L, 40L, by = 2L)]),
+    rep(2, 20L)
+  )
+
+  alternating <- matrix(rep(c(0, 1), 50L), nrow = 1L)
+  alternating_mcse <- .iwmde_batch_mcse(alternating)
+  expect_equal(alternating_mcse[["mcse"]], 0)
+  expect_equal(alternating_mcse[["ess"]], 50)
+})
+
+
 test_that("IWMDE rejects invalid Chen log weights", {
 
   testthat::local_mocked_bindings(

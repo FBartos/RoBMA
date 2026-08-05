@@ -270,6 +270,9 @@
 .iwmde_density_grid <- function(context, parameter, display_grid,
                                 normalization_grid, transform, row_states,
                                 active_mass, replacement,
+                                estimator_rows = seq_along(row_states),
+                                population_rows = estimator_rows,
+                                chain_id = rep(1L, length(population_rows)),
                                 n_candidate_rows = length(row_states)) {
 
   n_display        <- length(display_grid)
@@ -362,6 +365,7 @@
   log_q_final    <- log_q_final[, keep_rows, drop = FALSE]
   log_normalizer <- final_log_normalizer[keep_rows]
   row_states     <- row_states[keep_rows]
+  estimator_rows <- estimator_rows[keep_rows]
   normalizer_change <- .iwmde_qcmde_normalizer_change(
     initial_log_normalizer = final_log_normalizer,
     final_log_normalizer   = validation_log_normalizer
@@ -425,9 +429,12 @@
   }
 
   density_terms <- .iwmde_density_aggregate(
-    log_terms   = sweep(log_q_display, 2L, log_normalizer, "-"),
-    active_mass = active_mass,
-    denominator = n_candidate_rows
+    log_terms         = sweep(log_q_display, 2L, log_normalizer, "-"),
+    active_mass       = active_mass,
+    denominator       = n_candidate_rows,
+    contribution_rows = estimator_rows,
+    population_rows  = population_rows,
+    chain_id         = chain_id
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
@@ -437,6 +444,7 @@
   contributions    <- density_terms[["contributions"]]
 
   mcse_data      <- .iwmde_batch_mcse(contributions)
+  ess            <- mcse_data[["ess"]]
   integral_mcse  <- .iwmde_integral_mcse(contributions, display_grid)
   norm_y_initial <- .iwmde_normalization_density(
     log_q_norm         = log_q_initial,
@@ -531,6 +539,8 @@
                                  display_grid, row_states, active_rows,
                                  active_values, weight_rows, weight_values,
                                  support, active_mass, replacement,
+                                 population_rows = active_rows,
+                                 chain_id = rep(1L, length(population_rows)),
                                  normalization_grid = NULL,
                                  n_candidate_rows = length(row_states)) {
 
@@ -585,6 +595,7 @@
     )
   }
   keep_rows         <- is.finite(raw_log_weight)
+  contribution_rows <- active_rows[keep_rows]
   n_dropped_weight  <- sum(!keep_rows)
   row_states        <- row_states[keep_rows]
   log_weight        <- raw_log_weight[keep_rows]
@@ -675,8 +686,11 @@
       log_weight,
       "+"
     ),
-    active_mass = active_mass,
-    denominator = n_candidate_rows
+    active_mass       = active_mass,
+    denominator       = n_candidate_rows,
+    contribution_rows = contribution_rows,
+    population_rows   = population_rows,
+    chain_id          = chain_id
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
@@ -695,6 +709,7 @@
   )
 
   mcse_data     <- .iwmde_batch_mcse(contributions)
+  ess           <- mcse_data[["ess"]]
   integral_mcse <- .iwmde_integral_mcse(contributions, display_grid)
 
   return(list(

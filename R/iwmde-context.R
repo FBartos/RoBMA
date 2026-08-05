@@ -8,6 +8,10 @@
   if (is.null(colnames(posterior_samples))) {
     stop("Posterior samples must have column names.", call. = FALSE)
   }
+  chain_id <- .iwmde_chain_id(
+    fit       = object[["fit"]],
+    n_samples = nrow(posterior_samples)
+  )
 
   data   <- object[["data"]]
   priors <- object[["priors"]]
@@ -17,6 +21,7 @@
     data              = data,
     priors            = priors,
     posterior_samples = posterior_samples,
+    chain_id          = chain_id,
     flat_prior_list   = attr(object[["fit"]], "prior_list"),
     selection_spec     = .iwmde_selection_spec(data, priors),
     formula_fit        = object[["fit"]],
@@ -32,6 +37,25 @@
 
   class(context) <- "iwmde_context"
   return(.iwmde_context_ensure_caches(context))
+}
+
+
+.iwmde_chain_id <- function(fit, n_samples) {
+
+  if (is.null(fit) || length(fit) == 0L) {
+    return(rep(1L, n_samples))
+  }
+
+  geometry <- BayesTools::JAGS_draw_geometry(fit)
+  chain_lengths <- geometry[["chains"]][["iterations"]]
+  if (geometry[["total_draws"]] != n_samples) {
+    stop(
+      "Posterior chain metadata does not match the materialized draws.",
+      call. = FALSE
+    )
+  }
+
+  return(rep(geometry[["chain_order"]], chain_lengths))
 }
 
 
@@ -81,6 +105,9 @@
   }
   if (is.null(context[["indicator_names"]])) {
     context[["indicator_names"]] <- character()
+  }
+  if (is.null(context[["chain_id"]])) {
+    context[["chain_id"]] <- rep(1L, nrow(context[["posterior_samples"]]))
   }
   if (is.null(context[["priors"]])) {
     context[["priors"]] <- list()
