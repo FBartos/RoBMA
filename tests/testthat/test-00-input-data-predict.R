@@ -213,6 +213,60 @@ test_that(".prepare_newdata inserts dummy outcomes only when the response is unu
   expect_equal(response[["outcome"]][["sei"]], c(0.1, 0.2))
 })
 
+
+test_that(".prepare_newdata accepts binomial cells for every prediction mode", {
+
+  fit <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i,
+    data = test_data_glmm, only_data = TRUE
+  )
+  cells <- data.frame(
+    ai = c(2L, 3L),
+    bi = c(8L, 9L),
+    ci = c(1L, 4L),
+    di = c(9L, 8L)
+  )
+
+  for (type in c("terms", "estimate", "response")) {
+    result <- RoBMA:::.prepare_newdata(
+      object  = fit,
+      newdata = cells,
+      type    = type
+    )
+
+    expect_equal(result[["outcome"]][["ai"]], cells[["ai"]], info = type)
+    expect_equal(result[["outcome"]][["ci"]], cells[["ci"]], info = type)
+    expect_equal(result[["outcome"]][["n1i"]], c(10L, 12L), info = type)
+    expect_equal(result[["outcome"]][["n2i"]], c(10L, 12L), info = type)
+  }
+})
+
+
+test_that(".prepare_newdata rejects inconsistent binomial cells and totals", {
+
+  fit <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i,
+    data = test_data_glmm, only_data = TRUE
+  )
+  newdata <- data.frame(
+    ai  = c(2L, 3L),
+    bi  = c(8L, 9L),
+    ci  = c(1L, 4L),
+    di  = c(9L, 8L),
+    n1i = c(10L, 99L),
+    n2i = c(10L, 12L)
+  )
+
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      object  = fit,
+      newdata = newdata,
+      type    = "response"
+    ),
+    "n1i.*ai [+] bi"
+  )
+})
+
 test_that(".prepare_newdata rejects missing required variables", {
 
   fit_norm <- brma.norm(

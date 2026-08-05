@@ -166,6 +166,8 @@
   vignette so full vignette builds are reproducible without changing results.
 - rejects unused arguments to multivariate pooled-heterogeneity methods instead
   of silently ignoring misspelled controls.
+- accepts the same four-cell binomial count representation in explicit
+  predictions as in model fitting and rejects inconsistent duplicate totals.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

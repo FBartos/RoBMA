@@ -818,6 +818,81 @@ NULL
 }
 
 
+# Internal helper to validate and canonicalize binomial arm counts.
+.canonicalize_binomial_counts <- function(ai, bi = NULL, ci = NULL, di = NULL,
+                                          n1i = NULL, n2i = NULL,
+                                          skip_validation = FALSE) {
+
+  if (is.null(ai)) {
+    stop(
+      "For GLMM models, provide either (ai, bi, ci, di) or ",
+      "(ai, ci, n1i, n2i).",
+      call. = FALSE
+    )
+  }
+
+  k          <- length(ai)
+  count_args <- list(ai = ai, bi = bi, ci = ci, di = di, n1i = n1i, n2i = n2i)
+  for (arg_name in names(count_args)) {
+    if (!is.null(count_args[[arg_name]])) {
+      BayesTools::check_int(
+        count_args[[arg_name]], arg_name,
+        check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0
+      )
+    }
+  }
+
+  has_cells  <- !is.null(ci) && !is.null(bi) && !is.null(di)
+  has_totals <- !is.null(ci) && !is.null(n1i) && !is.null(n2i)
+
+  if (!has_cells && !has_totals) {
+    stop(
+      "For GLMM models, provide either (ai, bi, ci, di) or ",
+      "(ai, ci, n1i, n2i).",
+      call. = FALSE
+    )
+  }
+
+  if (!is.null(n1i) && any(ai > n1i, na.rm = TRUE)) {
+    stop("Invalid data: some values of 'bi' (= n1i - ai) are negative.", call. = FALSE)
+  }
+  if (!is.null(n2i) && any(ci > n2i, na.rm = TRUE)) {
+    stop("Invalid data: some values of 'di' (= n2i - ci) are negative.", call. = FALSE)
+  }
+
+  if (!is.null(bi) && !is.null(n1i) && any(n1i != ai + bi, na.rm = TRUE)) {
+    stop("The provided 'n1i' values must equal 'ai + bi' when both are supplied.", call. = FALSE)
+  }
+  if (!is.null(di) && !is.null(n2i) && any(n2i != ci + di, na.rm = TRUE)) {
+    stop("The provided 'n2i' values must equal 'ci + di' when both are supplied.", call. = FALSE)
+  }
+
+  if (!is.null(bi)) {
+    n1i <- ai + bi
+  }
+  if (!is.null(di)) {
+    n2i <- ci + di
+  }
+
+  if (!skip_validation) {
+    if (any(n1i <= 0, na.rm = TRUE)) {
+      stop("Invalid data: 'n1i' must contain positive arm totals.", call. = FALSE)
+    }
+    if (any(n2i <= 0, na.rm = TRUE)) {
+      stop("Invalid data: 'n2i' must contain positive arm totals.", call. = FALSE)
+    }
+  }
+
+  return(list(
+    ai  = ai,
+    ci  = ci,
+    n1i = n1i,
+    n2i = n2i,
+    k   = k
+  ))
+}
+
+
 # Internal function to extract and validate outcome variables for binomial GLMM models
 # Handles ai, bi, ci, di, n1i, n2i, weights, cluster, slab (for measure = "OR")
 #
@@ -844,58 +919,20 @@ NULL
   n1i <- .get_variable(.call, data, .envir, "n1i", allow_NULL = TRUE)
   n2i <- .get_variable(.call, data, .envir, "n2i", allow_NULL = TRUE)
 
-  ### Determine input format and validate
-
-  # Determine k from first available variable
-  if (!is.null(ai)) {
-    k <- length(ai)
-  } else {
-    stop("For GLMM models, provide either (ai, bi, ci, di) or (ai, ci, n1i, n2i).", call. = FALSE)
-  }
-
-  count_args <- list(ai = ai, bi = bi, ci = ci, di = di, n1i = n1i, n2i = n2i)
-  for (arg_name in names(count_args)) {
-    if (!is.null(count_args[[arg_name]])) {
-      BayesTools::check_int(
-        count_args[[arg_name]], arg_name,
-        check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0
-      )
-    }
-  }
-
-  has_cells  <- !is.null(ci) && !is.null(bi) && !is.null(di)
-  has_totals <- !is.null(ci) && !is.null(n1i) && !is.null(n2i)
-
-  if (!has_cells && !has_totals) {
-    stop("For GLMM models, provide either (ai, bi, ci, di) or (ai, ci, n1i, n2i).", call. = FALSE)
-  }
-
-  if (!is.null(n1i) && any(ai > n1i, na.rm = TRUE))
-    stop("Invalid data: some values of 'bi' (= n1i - ai) are negative.", call. = FALSE)
-  if (!is.null(n2i) && any(ci > n2i, na.rm = TRUE))
-    stop("Invalid data: some values of 'di' (= n2i - ci) are negative.", call. = FALSE)
-
-  if (!is.null(bi) && !is.null(n1i) && any(n1i != ai + bi, na.rm = TRUE))
-    stop("The provided 'n1i' values must equal 'ai + bi' when both are supplied.", call. = FALSE)
-  if (!is.null(di) && !is.null(n2i) && any(n2i != ci + di, na.rm = TRUE))
-    stop("The provided 'n2i' values must equal 'ci + di' when both are supplied.", call. = FALSE)
-
-  if (!is.null(bi)) {
-    n1i <- ai + bi
-  }
-  if (!is.null(di)) {
-    n2i <- ci + di
-  }
-
-  bi <- n1i - ai
-  di <- n2i - ci
-
-  if (!skip_validation) {
-    if (any(n1i <= 0, na.rm = TRUE))
-      stop("Invalid data: 'n1i' must contain positive arm totals.", call. = FALSE)
-    if (any(n2i <= 0, na.rm = TRUE))
-      stop("Invalid data: 'n2i' must contain positive arm totals.", call. = FALSE)
-  }
+  counts <- .canonicalize_binomial_counts(
+    ai              = ai,
+    bi              = bi,
+    ci              = ci,
+    di              = di,
+    n1i             = n1i,
+    n2i             = n2i,
+    skip_validation = skip_validation
+  )
+  ai  <- counts[["ai"]]
+  ci  <- counts[["ci"]]
+  n1i <- counts[["n1i"]]
+  n2i <- counts[["n2i"]]
+  k   <- counts[["k"]]
 
   # Extract and validate common optional variables (weights, cluster, slab)
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "ai")
@@ -2109,15 +2146,38 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     }
 
   } else if (outcome_type == "bin") {
-    if (type == "response") {
-      .prepare_newdata_stop_missing(newdata, c("n1i", "n2i"))
+    count_names      <- c("ai", "bi", "ci", "di", "n1i", "n2i")
+    provided_counts  <- intersect(count_names, names(newdata))
+    totals_available <- all(c("n1i", "n2i") %in% provided_counts)
+
+    if (length(provided_counts) == 0L && type != "response") {
+      newdata <- .prepare_newdata_add_missing(
+        newdata = newdata,
+        cols    = c("ai", "ci", "n1i", "n2i"),
+        value   = 0L,
+        n       = n_new
+      )
+    } else {
+      if (totals_available) {
+        newdata <- .prepare_newdata_add_missing(
+          newdata = newdata,
+          cols    = c("ai", "ci"),
+          value   = 0L,
+          n       = n_new
+        )
+      }
+
+      count_args <- lapply(count_names, function(name) {
+        if (name %in% names(newdata)) newdata[[name]] else NULL
+      })
+      names(count_args) <- count_names
+      count_args[["skip_validation"]] <- TRUE
+      counts <- do.call(.canonicalize_binomial_counts, count_args)
+
+      for (name in c("ai", "ci", "n1i", "n2i")) {
+        newdata[[name]] <- counts[[name]]
+      }
     }
-    newdata <- .prepare_newdata_add_missing(
-      newdata = newdata,
-      cols    = c("ai", "ci", "n1i", "n2i"),
-      value   = 0L,
-      n       = n_new
-    )
 
   } else if (outcome_type == "pois") {
     if (type == "response") {
