@@ -684,6 +684,48 @@ test_that("Mods formula attribute can be evaluated in clean environment", {
 })
 
 
+test_that("Persisted formula metadata does not retain caller frames", {
+
+  make_object <- function(payload_size) {
+
+    local({
+      unrelated_payload <- raw(payload_size)
+      temp_var <- c(100, 200, 300, 400, 500)
+
+      brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ temp_var,
+        data      = test_data_mods,
+        only_data = TRUE
+      )
+    })
+  }
+
+  baseline <- make_object(0L)
+  payload  <- make_object(5e6L)
+
+  expect_lt(
+    abs(length(serialize(payload, NULL)) - length(serialize(baseline, NULL))),
+    10000L
+  )
+  expect_identical(
+    environment(attr(payload[["data"]][["mods"]], "formula")),
+    baseenv()
+  )
+  expect_identical(
+    attr(attr(payload[["data"]][["mods"]], "terms"), ".Environment"),
+    baseenv()
+  )
+
+  model_frame <- stats::model.frame(
+    attr(payload[["data"]][["mods"]], "formula"),
+    data = payload[["data"]][["mods"]]
+  )
+  expect_equal(model_frame[["temp_var"]], c(100, 200, 300, 400, 500))
+})
+
+
 test_that("Mods handles formula with LHS (with warning)", {
 
   skip_on_cran()

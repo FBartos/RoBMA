@@ -93,6 +93,60 @@ test_that("brma.mv stores and decomposes known V", {
 })
 
 
+test_that("multivariate random formula metadata is detached", {
+
+  object <- local({
+    unrelated_payload <- raw(5e6L)
+    moderator <- c(-1, 0, 1)
+    study     <- factor(seq_len(3L))
+
+    brma.mv(
+      yi        = c(-0.1, 0, 0.1),
+      V         = diag(0.1, 3L),
+      mods      = ~ moderator,
+      random    = ~ 1 | study,
+      measure   = "GEN",
+      only_data = TRUE
+    )
+  })
+
+  environments <- list()
+  collect_environments <- function(x) {
+    if (is.environment(x)) {
+      return(invisible(NULL))
+    }
+    if (inherits(x, "formula")) {
+      environments[[length(environments) + 1L]] <<- environment(x)
+    }
+    if (inherits(x, "terms")) {
+      environments[[length(environments) + 1L]] <<- attr(x, ".Environment")
+    }
+    if (is.list(x)) {
+      for (value in x) {
+        collect_environments(value)
+      }
+    }
+    metadata <- attributes(x)
+    if (!is.null(metadata)) {
+      for (name in setdiff(names(metadata), c("names", "class", "row.names", ".Environment"))) {
+        collect_environments(attr(x, name, exact = TRUE))
+      }
+    }
+    invisible(NULL)
+  }
+  collect_environments(object[["data"]])
+
+  expect_gt(length(environments), 2L)
+  expect_true(all(vapply(
+    environments,
+    identical,
+    logical(1),
+    y = baseenv()
+  )))
+  expect_lt(length(serialize(object, NULL)), 1e6L)
+})
+
+
 test_that("brma.mv supports list V input", {
 
   V1 <- matrix(c(0.04, 0.01, 0.01, 0.09), nrow = 2)

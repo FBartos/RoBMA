@@ -437,6 +437,7 @@ NULL
       data_random = data_random
     )
   )
+  data_list <- .check_and_list_data.detach_formula_environments(data_list)
 
   class(data_list) <- "RoBMA_data"
   attr(data_list, "outcome_type")                       <- outcome_type
@@ -2002,7 +2003,7 @@ NULL
 .create_formula_from_names <- function(col_names) {
 
   if (length(col_names) == 0) {
-    return(~ 1)
+    return(stats::as.formula("~ 1", env = baseenv()))
   }
 
   # Backtick names that need protection (contain spaces, special chars, etc.)
@@ -2016,7 +2017,47 @@ NULL
 
   # Create formula string and convert to formula
   formula_str <- paste("~", paste(col_names_safe, collapse = " + "))
-  return(stats::as.formula(formula_str))
+  return(stats::as.formula(formula_str, env = baseenv()))
+}
+
+
+# Detach persisted formula metadata from caller evaluation frames. Predictor
+# values have already been materialized in data frames at this boundary, so
+# retaining caller environments only serializes unrelated session objects.
+.check_and_list_data.detach_formula_environments <- function(x) {
+
+  if (is.environment(x)) {
+    return(x)
+  }
+
+  if (inherits(x, "formula")) {
+    environment(x) <- baseenv()
+  }
+  if (inherits(x, "terms")) {
+    attr(x, ".Environment") <- baseenv()
+  }
+
+  if (is.list(x)) {
+    for (i in seq_along(x)) {
+      x[i] <- list(.check_and_list_data.detach_formula_environments(x[[i]]))
+    }
+  }
+
+  metadata <- attributes(x)
+  if (!is.null(metadata)) {
+    metadata_names <- intersect(
+      names(metadata),
+      c("formula", "formula_yi", "terms", "random_terms",
+        "random_components", "random_effects")
+    )
+    for (name in metadata_names) {
+      attr(x, name) <- .check_and_list_data.detach_formula_environments(
+        attr(x, name, exact = TRUE)
+      )
+    }
+  }
+
+  return(x)
 }
 
 
