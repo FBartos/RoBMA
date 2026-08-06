@@ -21,11 +21,14 @@ skip_if_not_installed("bridgesampling")
 
 .expect_exact_fixed_zero_marglik <- function(fit, expected) {
 
-  fit    <- add_marglik(fit)
-  bridge <- bridge_sampler(fit)
+  fit     <- add_marglik(fit)
+  marglik <- fit[["marglik"]]
+  error   <- tryCatch(bridge_sampler(fit), error = identity)
 
-  expect_identical(bridge[["aggregation"]][["rule"]], "exact_zero_dimensional")
-  expect_identical(bridge[["aggregation"]][["n_repetitions"]], 0L)
+  expect_identical(marglik[["aggregation"]][["rule"]], "exact_zero_dimensional")
+  expect_identical(marglik[["aggregation"]][["n_repetitions"]], 0L)
+  expect_s3_class(error, "RoBMA_exact_marglik_no_bridge")
+  expect_match(conditionMessage(error), "evaluated exactly")
   expect_equal(logml(fit), expected, tolerance = 1e-12)
 }
 
@@ -153,9 +156,10 @@ test_that("fixed-zero marginalized random effects preserve sampled fixed effects
   expect_silent(fit <- add_marglik(fit))
   expect_true(is.finite(logml(fit)))
   expect_identical(
-    bridge_sampler(fit)[["aggregation"]][["rule"]],
+    fit[["marglik"]][["aggregation"]][["rule"]],
     "median_finite_logml"
   )
+  expect_s3_class(bridge_sampler(fit), "bridge")
 })
 
 

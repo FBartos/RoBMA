@@ -63,16 +63,20 @@ test_that("zero-dimensional marginal likelihoods are exact", {
   skip_if_missing_fits(exact_names)
 
   for (name in exact_names) {
-    fit    <- load_fit(name, validate = FALSE)
-    bridge <- bridge_sampler(fit)
+    fit     <- load_fit(name, validate = FALSE)
+    marglik <- fit[["marglik"]]
+    error   <- tryCatch(bridge_sampler(fit), error = identity)
 
-    expect_s3_class(bridge, "BayesTools_marglik")
+    expect_s3_class(error, "RoBMA_exact_marglik_no_bridge", info = name)
+    expect_match(conditionMessage(error), "evaluated exactly", info = name)
     expect_identical(
-      bridge[["aggregation"]][["rule"]],
+      marglik[["aggregation"]][["rule"]],
       "exact_zero_dimensional",
       info = name
     )
-    expect_identical(bridge[["aggregation"]][["n_repetitions"]], 0L, info = name)
+    expect_identical(marglik[["aggregation"]][["n_repetitions"]], 0L, info = name)
+    expect_identical(error[["reason"]], "exact_zero_dimensional", info = name)
+    expect_equal(error[["logml"]], logml(fit), info = name)
   }
 
   for (name in c(

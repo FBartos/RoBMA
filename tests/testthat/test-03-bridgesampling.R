@@ -29,14 +29,21 @@ info          <- lazy_infos(marglik_names, validate = FALSE)
 }
 
 # ---------------------------------------------------------------------------- #
-# bridge_sampler function works with all model types
+# bridge_sampler returns the upstream object for bridge-backed model types
 # ---------------------------------------------------------------------------- #
 
-test_that("bridge_sampler extracts bridge sampling object", {
+test_that("bridge_sampler extracts raw bridge sampling objects", {
 
   for (name in marglik_names) {
-    # the marginal likelihood inherits the correct class
-    expect_s3_class(bridge_sampler(fits[[name]]), "BayesTools_marglik")
+    marglik  <- fits[[name]][["marglik"]]
+    upstream <- marglik[["diagnostics"]][["upstream"]]
+    if (!inherits(upstream, "bridge")) {
+      next
+    }
+
+    bridge <- bridge_sampler(fits[[name]])
+    expect_s3_class(bridge, "bridge", info = name)
+    expect_silent(bridgesampling::error_measures(bridge))
   }
 })
 
@@ -151,8 +158,9 @@ test_that("v14 brma.mv metafor fixtures cache usable marginal likelihoods", {
     bridge   <- bridge_sampler(fit_brma)
     target   <- attr(bridge, "RoBMA_target", exact = TRUE)
 
-    mcse <- .bridge_mcse(bridge)
-    expect_s3_class(bridge, "BayesTools_marglik", info = name)
+    mcse <- .bridge_mcse(fit_brma[["marglik"]])
+    expect_s3_class(bridge, "bridge", info = name)
+    expect_silent(bridgesampling::error_measures(bridge))
     expect_true(is.finite(logml(fit_brma)), info = name)
     expect_true(is.finite(mcse), info = name)
     expect_true(mcse < 1, info = name)

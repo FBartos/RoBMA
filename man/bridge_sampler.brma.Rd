@@ -12,8 +12,8 @@
 \item{...}{additional arguments (currently not used).}
 }
 \value{
-A \code{"BayesTools_marglik"} object containing the bridge-sampling
-result and diagnostics.
+An object of class \code{"bridge"} as returned by
+\code{\link[bridgesampling]{bridge_sampler}}.
 }
 \description{
 Extract the marginal likelihood bridge sampling object from
@@ -21,15 +21,20 @@ a brma model. The marginal likelihood must first be computed using
 \code{\link{add_marglik}}.
 }
 \details{
-This function extracts the bridge sampling object that was previously
-computed and stored using \code{\link{add_marglik}}. If the marginal
-likelihood has not been computed, an error is thrown.
+This function extracts the raw \pkg{bridgesampling} object underlying the
+marginal-likelihood result stored by \code{\link{add_marglik}}. If the
+marginal likelihood has not been computed, an error is thrown.
 Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
 and \code{RoBMA}) do not expose bridge-sampling marginal likelihoods.
 
+Some fixed null models have no free parameters. Their marginal likelihood is
+evaluated exactly, so no bridge-sampling object exists. Calling this method for
+such a fit raises an error of class
+\code{"RoBMA_exact_marglik_no_bridge"}; use \code{\link{logml.brma}} to
+retrieve the exact log marginal likelihood.
+
 For Bayesian model comparison, pass the fitted \code{brma} objects to
-\code{\link{bf}} or \code{\link{post_prob}}. The returned aggregate is not
-a raw \pkg{bridgesampling} bridge object.
+\code{\link{bf}} or \code{\link{post_prob}}.
 }
 \examples{
 \dontrun{

@@ -121,18 +121,21 @@ bridgesampling::bayes_factor
 #' @param ... additional arguments (currently not used).
 #'
 #' @details
-#' This function extracts the bridge sampling object that was previously
-#' computed and stored using \code{\link{add_marglik}}. If the marginal
-#' likelihood has not been computed, an error is thrown.
+#' This function extracts the raw \pkg{bridgesampling} object underlying the
+#' marginal-likelihood result stored by \code{\link{add_marglik}}. If the
+#' marginal likelihood has not been computed, an error is thrown.
 #' Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
 #' and \code{RoBMA}) do not expose bridge-sampling marginal likelihoods.
 #'
-#' For Bayesian model comparison, pass the fitted \code{brma} objects to
-#' \code{\link{bf}} or \code{\link{post_prob}}. The returned aggregate is not
-#' a raw \pkg{bridgesampling} bridge object.
+#' Fully fixed models can have a zero-dimensional marginal likelihood evaluated
+#' exactly. Such fits have no bridge-sampling object, so this method raises a
+#' \code{RoBMA_exact_marglik_no_bridge} error; use \code{\link{logml}} to
+#' retrieve their exact log marginal likelihood. For Bayesian model comparison,
+#' pass fitted \code{brma} objects directly to \code{\link{bf}} or
+#' \code{\link{post_prob}}.
 #'
-#' @return A \code{"BayesTools_marglik"} object containing the bridge-sampling
-#' result and diagnostics.
+#' @return An object of class \code{"bridge"} as returned by
+#' \code{\link[bridgesampling]{bridge_sampler}}.
 #'
 #' @seealso \code{\link{add_marglik}}, \code{\link[bridgesampling]{bridge_sampler}},
 #' \code{\link{logml.brma}}, \code{\link{bf.brma}}, \code{\link{post_prob.brma}}
@@ -153,7 +156,28 @@ bridgesampling::bayes_factor
 #' @export
 #' @exportS3Method bridgesampling::bridge_sampler
 bridge_sampler.brma <- function(samples, ...) {
-  if (inherits(samples, "RoBMA")) {
+  marglik <- .brma_stored_marglik(samples)
+  if (inherits(marglik, "bridge")) {
+    return(marglik)
+  }
+
+  upstream <- marglik[["diagnostics"]][["upstream"]]
+  if (!inherits(upstream, "bridge")) {
+    .brma_stop_bridge_unavailable(marglik)
+  }
+
+  target <- attr(marglik, "RoBMA_target", exact = TRUE)
+  if (!is.null(target)) {
+    attr(upstream, "RoBMA_target") <- target
+  }
+
+  return(upstream)
+}
+
+
+.brma_stored_marglik <- function(object) {
+
+  if (inherits(object, "RoBMA")) {
     stop(
       "Marginal likelihood is not available for product-space ",
       "model-averaging objects (BMA.norm, BMA.glmm, RoBMA).",
@@ -161,13 +185,58 @@ bridge_sampler.brma <- function(samples, ...) {
     )
   }
 
-  if (is.null(samples[["marglik"]])) {
-    stop("Marginal likelihood has not been computed. Call 'object <- add_marglik(object)' first.",
+  marglik <- object[["marglik"]]
+  if (is.null(marglik)) {
+    stop(
+      "Marginal likelihood has not been computed. Call ",
+      "'object <- add_marglik(object)' first.",
       call. = FALSE
     )
   }
 
-  return(samples[["marglik"]])
+  return(marglik)
+}
+
+
+.brma_stop_bridge_unavailable <- function(marglik) {
+
+  is_exact <- identical(
+    marglik[["aggregation"]][["rule"]],
+    "exact_zero_dimensional"
+  )
+  message <- if (is_exact) {
+    paste0(
+      "No bridge-sampling object exists because the zero-dimensional ",
+      "marginal likelihood was evaluated exactly. Use 'logml()' to retrieve ",
+      "the exact log marginal likelihood."
+    )
+  } else {
+    paste0(
+      "The stored marginal-likelihood result does not contain a raw ",
+      "bridge-sampling object. Recompute it with 'add_marglik()'."
+    )
+  }
+  condition_class <- if (is_exact) {
+    c(
+      "RoBMA_exact_marglik_no_bridge",
+      "RoBMA_bridge_unavailable",
+      "error",
+      "condition"
+    )
+  } else {
+    c("RoBMA_bridge_unavailable", "error", "condition")
+  }
+  condition <- structure(
+    list(
+      message = message,
+      call    = NULL,
+      reason  = if (is_exact) "exact_zero_dimensional" else "missing_upstream",
+      logml   = marglik[["logml"]]
+    ),
+    class = condition_class
+  )
+
+  stop(condition)
 }
 
 
@@ -205,8 +274,8 @@ bridge_sampler.brma <- function(samples, ...) {
 #' @export
 #' @exportS3Method bridgesampling::logml
 logml.brma <- function(x, ...) {
-  bridge <- bridge_sampler.brma(x)
-  return(bridge$logml)
+  marglik <- .brma_stored_marglik(x)
+  return(marglik$logml)
 }
 
 
@@ -284,8 +353,8 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
 
   # compute log marginal likelihoods (this will error if add_marglik not called)
   logml_values <- c(
-    bridge_sampler.brma(x)$logml,
-    vapply(models[-1], function(obj) bridge_sampler.brma(obj)$logml, 0)
+    .brma_stored_marglik(x)$logml,
+    vapply(models[-1], function(obj) .brma_stored_marglik(obj)$logml, 0)
   )
 
   return(.post_prob_from_logml(
@@ -353,8 +422,8 @@ bf.brma <- function(x1, x2, log = FALSE, ...) {
   .check_brma_compare_targets(list(x1, x2), "bf()")
 
   # compute log marginal likelihoods
-  logml1 <- bridge_sampler.brma(x1)$logml
-  logml2 <- bridge_sampler.brma(x2)$logml
+  logml1 <- .brma_stored_marglik(x1)$logml
+  logml2 <- .brma_stored_marglik(x2)$logml
 
   return(.bf_from_logml(
     logml1 = logml1,
