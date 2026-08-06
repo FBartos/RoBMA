@@ -60,7 +60,9 @@ dat_konstantopoulos <- dat.konstantopoulos2011
 fit1_brma <- brma.mv(
   yi = yi, V = vi, measure = "SMD",
   random = ~ cs(school | district),
-  data = dat_konstantopoulos, seed = 1
+  data = dat_konstantopoulos, seed = 1,
+  chains = 4, adapt = 2000, burnin = 5000, sample = 30000,
+  parallel = TRUE, autofit = TRUE
 )
 
 data("dat.assink2016", package = "metadat")
@@ -110,7 +112,9 @@ fit3_brma <- brma.mv(
   prior_effect              = NULL,
   prior_mods                = ishak_time_prior,
   prior_unit_information_sd = ishak_unit_information_sd,
-  data = dat_ishak, seed = 3
+  data = dat_ishak, seed = 3,
+  chains = 4, adapt = 5000, burnin = 10000, sample = 30000,
+  parallel = TRUE, autofit = TRUE
 )
 
 data("dat.begg1989", package = "metadat")
@@ -193,7 +197,9 @@ The `cs(school | district)` term estimates one shared heterogeneity standard dev
 fit1_brma <- brma.mv(
   yi = yi, V = vi, measure = "SMD",
   random = ~ cs(school | district),
-  data = dat_konstantopoulos, seed = 1
+  data = dat_konstantopoulos, seed = 1,
+  chains = 4, adapt = 2000, burnin = 5000, sample = 30000,
+  parallel = TRUE, autofit = TRUE
 )
 ```
 
@@ -319,7 +325,9 @@ fit3_brma <- brma.mv(
     contrast     = "independent"
   ),
   prior_unit_information_sd = ishak_unit_information_sd,
-  data = dat_ishak, seed = 3
+  data = dat_ishak, seed = 3,
+  chains = 4, adapt = 5000, burnin = 10000, sample = 30000,
+  parallel = TRUE, autofit = TRUE
 )
 ```
 
