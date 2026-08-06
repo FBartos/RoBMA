@@ -486,14 +486,13 @@
     ))
   }
 
-  mixed_ordinate <- identical(output, "ordinate") &&
-    plan[["rows"]][["point_mass_total"]] > 0
-  conditioned_rows <- if (mixed_ordinate) {
+  mixed_output <- plan[["rows"]][["point_mass_total"]] > 0
+  conditioned_rows <- if (mixed_output) {
     execution[["population_rows"]]
   } else {
     NULL
   }
-  conditioned_chain_id <- if (mixed_ordinate) {
+  conditioned_chain_id <- if (mixed_output) {
     execution[["conditioned_chain_id"]]
   } else {
     NULL

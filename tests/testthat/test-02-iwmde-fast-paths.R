@@ -350,50 +350,60 @@ test_that("IWMDE row sampling uncertainty is separate and compact", {
 })
 
 
-test_that("mixed ordinates batch the full conditioned chain sequence", {
+test_that("mixed estimates batch the full conditioned chain sequence", {
 
-  conditioned_rows <- seq_len(32L)
-  conditioned_chain_id <- rep(1:2, each = 16L)
-  active_rows <- c(seq_len(8L), 16L + seq_len(8L))
+  set.seed(20260806)
+  conditioned_rows <- seq_len(4000L)
+  conditioned_chain_id <- rep(1:4, each = 1000L)
+  active_rows <- unlist(lapply(0:3, function(chain) {
+    chain * 1000L + sort(sample.int(1000L, 50L))
+  }))
 
   density <- .iwmde_density_aggregate(
-    log_terms               = matrix(log(2), nrow = 1L, ncol = 16L),
-    active_mass             = .5,
-    denominator             = 16L,
-    contribution_rows       = active_rows,
+    log_terms                = matrix(0, nrow = 1L, ncol = 200L),
+    active_mass              = .05,
+    denominator              = 200L,
+    contribution_rows        = active_rows,
     sampling_population_rows = active_rows,
-    chain_id                = conditioned_chain_id[active_rows],
-    expected_chain_ids      = 1:2,
-    conditioned_rows        = conditioned_rows,
-    conditioned_chain_id    = conditioned_chain_id
+    chain_id                 = conditioned_chain_id[active_rows],
+    expected_chain_ids       = 1:4,
+    conditioned_rows         = conditioned_rows,
+    conditioned_chain_id     = conditioned_chain_id
   )
   conditional_mcse <- .iwmde_batch_mcse(density[["contributions"]])
   mixture_contributions <- density[["mcmc_contributions"]]
   mixture_mcse <- .iwmde_batch_mcse(mixture_contributions)
 
-  expect_equal(density[["y"]], 1)
+  expect_equal(density[["y"]], .05)
   expect_equal(rowMeans(mixture_contributions), density[["y"]])
-  expect_equal(as.numeric(mixture_contributions[, active_rows]), rep(2, 16L))
+  expect_equal(
+    as.numeric(mixture_contributions[, active_rows]),
+    rep(1, 200L)
+  )
   expect_equal(
     as.numeric(mixture_contributions[, -active_rows]),
-    rep(0, 16L)
+    rep(0, 3800L)
   )
   expect_equal(attr(mixture_contributions, "chain_id"), conditioned_chain_id)
   expect_equal(conditional_mcse[["mcse"]], 0)
-  expect_gt(mixture_mcse[["mcse"]], 0)
+  expect_equal(
+    mixture_mcse[["relative_mcse"]],
+    sqrt(.95 / 200),
+    tolerance = .005
+  )
   expect_equal(mixture_mcse[["uncertainty_scope"]], "full_conditioned_rows")
   expect_equal(mixture_mcse[["uncertainty_status"]], "available")
 
   partial <- .iwmde_density_aggregate(
-    log_terms               = matrix(log(2), nrow = 1L, ncol = 8L),
-    active_mass             = .5,
-    denominator             = 8L,
-    contribution_rows       = active_rows[seq_len(8L)],
+    log_terms                = matrix(0, nrow = 1L, ncol = 100L),
+    active_mass              = .05,
+    denominator              = 100L,
+    contribution_rows        = active_rows[seq_len(100L)],
     sampling_population_rows = active_rows,
-    chain_id                = conditioned_chain_id[active_rows[seq_len(8L)]],
-    expected_chain_ids      = 1:2,
-    conditioned_rows        = conditioned_rows,
-    conditioned_chain_id    = conditioned_chain_id
+    chain_id                 = conditioned_chain_id[active_rows[seq_len(100L)]],
+    expected_chain_ids       = 1:4,
+    conditioned_rows         = conditioned_rows,
+    conditioned_chain_id     = conditioned_chain_id
   )
   partial_mcse <- .iwmde_batch_mcse(partial[["mcmc_contributions"]])
 
@@ -405,11 +415,11 @@ test_that("mixed ordinates batch the full conditioned chain sequence", {
     "unavailable_incomplete_active_census"
   )
   expect_equal(partial_mcse[["uncertainty_status"]], "unavailable")
-  expect_match(partial_mcse[["uncertainty_reason"]], "8 of 16 active")
+  expect_match(partial_mcse[["uncertainty_reason"]], "100 of 200 active")
 })
 
 
-test_that("partial mixed qCMDE ordinates remain uncertified", {
+test_that("partial mixed qCMDE density curves remain uncertified", {
 
   grid <- seq(0, 1, length.out = 21L)
   conditioned_rows <- seq_len(80L)
@@ -458,6 +468,61 @@ test_that("partial mixed qCMDE ordinates remain uncertified", {
   )
   expect_equal(density[["mcmc_uncertainty_status"]], "unavailable")
   expect_equal(density[["sampling_fraction"]], .5)
+})
+
+
+test_that("mixed density estimators receive the full conditioned chain", {
+
+  captured <- NULL
+  conditioned_rows <- seq_len(4000L)
+  conditioned_chain_id <- rep(1:4, each = 1000L)
+
+  testthat::local_mocked_bindings(
+    .iwmde_density_grid = function(...) {
+      captured <<- list(...)
+      list(y = 1)
+    },
+    .iwmde_new_density_result = function(fields, estimator) fields,
+    .package = "RoBMA"
+  )
+
+  plan <- list(
+    method      = "q_grid_cmde",
+    rows        = list(
+      point_mass_total = .95,
+      active_mass      = .05
+    ),
+    grids       = list(
+      display_grid       = 0,
+      normalization_grid = list(x = c(0, 1))
+    ),
+    target      = list(parameter = "mu"),
+    support     = list(transform = NULL),
+    replacement = NULL
+  )
+  execution <- list(
+    row_states               = list(list()),
+    active_rows              = 1L,
+    sampling_population_rows = 1L,
+    population_rows          = conditioned_rows,
+    chain_id                 = 1L,
+    expected_chain_ids       = 1:4,
+    conditioned_chain_id     = conditioned_chain_id,
+    n_candidate_rows         = 1L
+  )
+
+  .iwmde_execute_plan_estimator(
+    context   = list(),
+    plan      = plan,
+    output    = "density",
+    execution = execution
+  )
+
+  expect_equal(captured[["conditioned_rows"]], conditioned_rows)
+  expect_equal(
+    captured[["conditioned_chain_id"]],
+    conditioned_chain_id
+  )
 })
 
 
