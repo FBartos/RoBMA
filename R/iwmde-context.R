@@ -59,10 +59,49 @@
 }
 
 
+.iwmde_capability <- function(object = NULL, data = NULL,
+                              density_method = NULL) {
+
+  if (!is.null(object) && !is.null(object[["data"]])) {
+    data <- object[["data"]]
+  }
+  if (!is.null(data) && .is_data_random(data) &&
+      !.is_data_known_v(data)) {
+    return(list(
+      available = FALSE,
+      reason    = paste0(
+        "qCMDE/IWMDE is not implemented for brma.mv() random-formula ",
+        "models without known V yet."
+      )
+    ))
+  }
+  if (!is.null(density_method)) {
+    density_method <- .density_method_normalize(density_method)
+    is_glmm        <- inherits(object, "brma.glmm") ||
+      (!is.null(data) &&
+        isTRUE(.data_outcome_type(data) %in% c("bin", "pois")))
+    if (is_glmm && identical(density_method, "IWMDE")) {
+      return(list(
+        available = FALSE,
+        reason    = paste0(
+          "IWMDE density estimation is unavailable for binomial and ",
+          "Poisson GLMMs because their high-dimensional conditional weights ",
+          "do not meet the bridge-sampling certification tolerance. Use ",
+          "density_method = 'qCMDE'."
+        )
+      ))
+    }
+  }
+
+  return(list(available = TRUE, reason = ""))
+}
+
+
 .check_iwmde_available <- function(object, caller) {
 
-  if (.is_random(object) && !.is_data_known_v(object[["data"]])) {
-    .check_random_formula_postfit_deferred(object, caller)
+  capability <- .iwmde_capability(object = object)
+  if (!capability[["available"]]) {
+    stop(caller, ": ", capability[["reason"]], call. = FALSE)
   }
 
   return(invisible(TRUE))
@@ -77,14 +116,12 @@
     data <- object[["data"]]
   }
 
-  if (is.null(data) || !.is_data_random(data)) {
-    return(NULL)
-  }
-  if (.is_data_known_v(data)) {
+  capability <- .iwmde_capability(object = object, data = data)
+  if (capability[["available"]]) {
     return(NULL)
   }
 
-  "qCMDE/IWMDE is not implemented for brma.mv() random-formula models yet."
+  return(capability[["reason"]])
 }
 
 

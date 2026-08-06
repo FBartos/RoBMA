@@ -118,10 +118,8 @@ hypothesis_quantities.brma <- function(object, ...) {
 
 .hypothesis_quantities_brma_route <- function(object, row, entry = NULL) {
 
-  point_methods <- c("KDE", "qCMDE", "IWMDE")
-  if (inherits(object, "brma.glmm")) {
-    point_methods <- setdiff(point_methods, "IWMDE")
-  }
+  likelihood_aware <- .hypothesis_quantities_iwmde_capability(object)
+  point_methods     <- c("KDE", likelihood_aware[["methods"]])
   out <- list(
     bracket               = !is.null(entry) &&
       identical(entry[["role"]], "formula_coefficient_group"),
@@ -129,7 +127,7 @@ hypothesis_quantities.brma <- function(object, ...) {
     direction_test         = TRUE,
     point_test_methods     = paste(point_methods, collapse = ", "),
     direction_test_methods = "KDE, normal",
-    reason                 = ""
+    reason                 = likelihood_aware[["reason"]]
   )
 
   fixed_value <- if (is.null(entry)) NULL else entry[["fixed_value"]]
@@ -191,6 +189,31 @@ hypothesis_quantities.brma <- function(object, ...) {
 }
 
 
+.hypothesis_quantities_iwmde_capability <- function(object) {
+
+  methods      <- c("qCMDE", "IWMDE")
+  capabilities <- lapply(methods, function(density_method) {
+
+    .iwmde_capability(
+      object         = object,
+      density_method = density_method
+    )
+  })
+  available <- vapply(capabilities, `[[`, logical(1), "available")
+  reasons   <- unique(vapply(
+    capabilities[!available],
+    `[[`,
+    character(1),
+    "reason"
+  ))
+
+  return(list(
+    methods = methods[available],
+    reason  = paste(reasons, collapse = " ")
+  ))
+}
+
+
 #' @rdname hypothesis_quantities
 #' @export
 hypothesis_quantities.marginal_means.brma <- function(object, ...) {
@@ -234,14 +257,17 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
     }
   }
   out <- do.call(rbind, rows)
+  likelihood_aware <- .hypothesis_quantities_iwmde_capability(
+    object[["source_object"]]
+  )
   out <- .hypothesis_quantities_add_eligibility(
     out,
-    point_test_methods = if (inherits(object[["source_object"]], "brma.glmm")) {
-      "KDE, qCMDE"
-    } else {
-      "KDE, qCMDE, IWMDE"
-    }
+    point_test_methods = paste(
+      c("KDE", likelihood_aware[["methods"]]),
+      collapse = ", "
+    )
   )
+  out[["reason"]] <- likelihood_aware[["reason"]]
   out[["direction_test_methods"]] <- "KDE"
   for (i in seq_len(nrow(out))) {
     values <- as.numeric(samples[[i]])

@@ -13,6 +13,13 @@ test_that("hypothesis discovery reports fitted transform routes", {
   )
   expect_identical(direct[["point_test_methods"]], "KDE, qCMDE")
   expect_false(direct[["bracket"]])
+  expect_identical(
+    direct[["reason"]],
+    .iwmde_capability(
+      object         = structure(list(), class = c("brma.glmm", "brma")),
+      density_method = "IWMDE"
+    )[["reason"]]
+  )
 
   grouped_entry <- direct_entry
   grouped_entry[["role"]] <- "formula_coefficient_group"
@@ -51,6 +58,83 @@ test_that("hypothesis discovery reports fitted transform routes", {
   )
   expect_false(fixed[["point_test"]])
   expect_false(fixed[["direction_test"]])
+})
+
+
+test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
+
+  data <- structure(list(), random = TRUE)
+  object <- structure(
+    list(data = data),
+    class = c("brma.mv", "brma")
+  )
+  testthat::local_mocked_bindings(
+    .brma_parameter_catalog = function(object) {
+
+      data.frame(
+        alias      = "mu",
+        parameter = "mu",
+        component = "mods",
+        term       = "intercept",
+        stringsAsFactors = FALSE
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  capability <- .iwmde_capability(
+    object         = object,
+    density_method = "qCMDE"
+  )
+  out <- hypothesis_quantities(object)
+
+  expect_false(capability[["available"]])
+  expect_identical(out[["point_test_methods"]], "KDE")
+  expect_identical(out[["reason"]], capability[["reason"]])
+  expect_error(
+    .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()"),
+    capability[["reason"]],
+    fixed = TRUE
+  )
+
+  known_v_object <- object
+  attr(known_v_object[["data"]], "known_V") <- TRUE
+  expect_true(.iwmde_capability(
+    object         = known_v_object,
+    density_method = "qCMDE"
+  )[["available"]])
+  expect_invisible(
+    .check_iwmde_available(known_v_object, "qCMDE/IWMDE hypothesis()")
+  )
+})
+
+
+test_that("marginal discovery shares its source-model IWMDE capability", {
+
+  data <- structure(list(), random = TRUE)
+  source_object <- structure(
+    list(data = data),
+    class = c("brma.mv", "brma")
+  )
+  object <- structure(list(
+    term_map = data.frame(
+      term      = "intercept",
+      parameter = "mu_intercept"
+    ),
+    inference = list(conditional = list(
+      mu_intercept = c(-1, 0, 1)
+    )),
+    source_object = source_object
+  ), class = "marginal_means.brma")
+
+  capability <- .iwmde_capability(
+    object         = source_object,
+    density_method = "IWMDE"
+  )
+  out <- hypothesis_quantities(object)
+
+  expect_identical(out[["point_test_methods"]], "KDE")
+  expect_identical(out[["reason"]], capability[["reason"]])
 })
 
 

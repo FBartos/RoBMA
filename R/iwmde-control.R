@@ -307,24 +307,24 @@
 # Whether likelihood-aware density estimation supports this model and estimator.
 .iwmde_density_method_supported <- function(object, density_method) {
 
-  density_method <- .density_method_normalize(density_method)
-  return(!(
-    inherits(object, "brma.glmm") && identical(density_method, "IWMDE")
-  ))
+  capability <- .iwmde_capability(
+    object         = object,
+    density_method = density_method
+  )
+
+  return(capability[["available"]])
 }
 
 
 # Fail before an uncertified estimator can enter any public result.
 .iwmde_check_density_method_supported <- function(object, density_method) {
 
-  if (!.iwmde_density_method_supported(object, density_method)) {
-    stop(
-      "IWMDE density estimation is unavailable for binomial and ",
-      "Poisson GLMMs because their high-dimensional conditional weights do ",
-      "not meet the bridge-sampling certification tolerance. Use ",
-      "density_method = 'qCMDE'.",
-      call. = FALSE
-    )
+  capability <- .iwmde_capability(
+    object         = object,
+    density_method = density_method
+  )
+  if (!capability[["available"]]) {
+    stop(capability[["reason"]], call. = FALSE)
   }
 
   invisible(TRUE)
@@ -346,20 +346,13 @@
 .iwmde_check_context_density_method_supported <- function(context,
                                                            density_method) {
 
-  density_method <- .density_method_normalize(density_method)
-  if (is.null(context[["data"]])) {
-    return(invisible(TRUE))
-  }
-  outcome_type <- .data_outcome_type(context[["data"]])
-  if (outcome_type %in% c("bin", "pois") &&
-      identical(density_method, "IWMDE")) {
-    stop(
-      "IWMDE density estimation is unavailable for binomial and ",
-      "Poisson GLMMs because their high-dimensional conditional weights do ",
-      "not meet the bridge-sampling certification tolerance. Use ",
-      "density_method = 'qCMDE'.",
-      call. = FALSE
-    )
+  capability <- .iwmde_capability(
+    object         = context[["object"]],
+    data           = context[["data"]],
+    density_method = density_method
+  )
+  if (!capability[["available"]]) {
+    stop(capability[["reason"]], call. = FALSE)
   }
 
   invisible(TRUE)
