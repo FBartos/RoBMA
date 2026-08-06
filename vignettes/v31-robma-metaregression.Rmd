@@ -82,7 +82,8 @@ fit_RoBMA <- RoBMA(
   mods = ~ measure + age,
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
-  data = Andrews2021_z, parallel = TRUE, seed = 1
+  data = Andrews2021_z, parallel = TRUE, seed = 1,
+  adapt = 5000, burnin = 3000, sample = 15000
 )
 
 vignette_cache_save(cached_fits)
@@ -255,7 +256,8 @@ fit_RoBMA <- RoBMA(
   mods = ~ measure + age,
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
-  data = Andrews2021_z, parallel = TRUE, seed = 1
+  data = Andrews2021_z, parallel = TRUE, seed = 1,
+  adapt = 5000, burnin = 3000, sample = 15000
 )
 ```
 ```{r}
