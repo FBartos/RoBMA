@@ -285,44 +285,166 @@ test_that("default draws derive public matrices while raw draws stay compact", {
                          fixed = TRUE)))
 })
 
-test_that("all public draw converters retain scalar correlation semantics", {
+test_that("all public draw converters reconstruct sampled CS and HAR matrices", {
 
+  calls <- list()
+  cs <- .derived_random_term(
+    structure = "cs",
+    block_name = "study"
+  )
+  har <- .derived_random_term(
+    structure = "har",
+    block_name = "lab"
+  )
+  cs[["correlation"]][["sample_name"]] <- paste0(
+    cs[["correlation"]][["rho_name"]], "_z"
+  )
+  har[["correlation"]][["sample_name"]] <- paste0(
+    har[["correlation"]][["rho_name"]], "_z"
+  )
+  public <- coda::mcmc.list(coda::mcmc(
+    cbind(mu = 1:3),
+    start = 5,
+    thin  = 2
+  ))
+  internal_values <- cbind(
+    cs_rho  = c(-0.2, 0, 0.3),
+    har_rho = c(0.4, 0.6, 0.8)
+  )
+  requested_names <- c(
+    cs[["correlation"]][["rho_name"]],
+    har[["correlation"]][["rho_name"]]
+  )
+  colnames(internal_values) <- requested_names
+  internal <- coda::mcmc.list(coda::mcmc(
+    internal_values,
+    start = 5,
+    thin  = 2
+  ))
   testthat::local_mocked_bindings(
     JAGS_validate_fit_contract = function(...) invisible(TRUE),
-    JAGS_materialize_draws = function(fit, ...) fit,
+    JAGS_materialize_draws = function(fit, parameters = NULL,
+                                      include_internal = FALSE) {
+
+      calls[[length(calls) + 1L]] <<- list(
+        parameters       = parameters,
+        include_internal = include_internal
+      )
+      if (is.null(parameters)) {
+        return(public)
+      }
+      chain <- internal[[1L]]
+      mcpar <- coda::mcpar(chain)
+      return(coda::mcmc.list(coda::mcmc(
+        as.matrix(chain)[, parameters, drop = FALSE],
+        start = mcpar[[1L]],
+        end   = mcpar[[2L]],
+        thin  = mcpar[[3L]]
+      )))
+    },
     .package = "BayesTools"
   )
 
-  fit <- .derived_correlation_mcmc()
+  fit <- public
+  class(fit) <- c("BayesTools_fit", class(fit))
   attr(fit, "formula_design") <- list(
-    mu = list(random_effects = list(.derived_random_term()))
+    mu = list(random_effects = list(cs, har))
   )
   object <- structure(list(fit = fit), class = "brma")
-  correlation_names <- unlist(lapply(seq_len(3L), function(column) {
-    paste0(
-      "mu__xREx__study_xRE_CORx_R[",
-      seq_len(3L), ",", column, "]"
-    )
-  }), use.names = FALSE)
+  cs_names <- RoBMA:::.brma_derived_random_correlation_names(
+    RoBMA:::.brma_derived_random_correlation_spec(cs)
+  )
+  har_names <- RoBMA:::.brma_derived_random_correlation_names(
+    RoBMA:::.brma_derived_random_correlation_spec(har)
+  )
+  compact_names <- unique(c(
+    requested_names,
+    cs[["correlation"]][["sample_name"]],
+    har[["correlation"]][["sample_name"]]
+  ))
   converters <- list(
-    as_draws        = as_draws,
-    as_draws_array  = as_draws_array,
-    as_draws_df     = as_draws_df,
-    as_draws_list   = as_draws_list,
-    as_draws_matrix = as_draws_matrix
+    as_draws        = RoBMA::as_draws,
+    as_draws_array  = RoBMA::as_draws_array,
+    as_draws_df     = RoBMA::as_draws_df,
+    as_draws_list   = RoBMA::as_draws_list,
+    as_draws_matrix = RoBMA::as_draws_matrix,
+    as_draws_rvars  = RoBMA::as_draws_rvars
   )
   for (converter in names(converters)) {
     converted <- converters[[converter]](object)
-    expect_true(
-      all(correlation_names %in% posterior::variables(converted)),
+    matrix_draws <- posterior::as_draws_matrix(converted)
+    variables    <- posterior::variables(matrix_draws)
+    expect_true(all(c(cs_names, har_names) %in% variables), info = converter)
+    expect_false(any(compact_names %in% variables), info = converter)
+    expect_equal(
+      matrix(as.matrix(matrix_draws)[1L, cs_names], nrow = 3L),
+      matrix(c(1, -0.2, -0.2, -0.2, 1, -0.2, -0.2, -0.2, 1),
+             nrow = 3L),
+      tolerance = 0,
+      info = converter
+    )
+    expect_equal(
+      matrix(as.matrix(matrix_draws)[1L, har_names], nrow = 3L),
+      0.4^abs(outer(seq_len(3L), seq_len(3L), "-")),
+      tolerance = 0,
       info = converter
     )
   }
 
-  rvars <- as_draws_rvars(object)
-  correlation_base <- "mu__xREx__study_xRE_CORx_R"
-  expect_true(correlation_base %in% names(rvars))
-  expect_identical(dim(rvars[[correlation_base]]), c(3L, 3L))
+  expect_length(calls, 2L * length(converters))
+  for (i in seq_along(converters)) {
+    public_call   <- calls[[2L * i - 1L]]
+    internal_call <- calls[[2L * i]]
+    expect_null(public_call[["parameters"]])
+    expect_false(public_call[["include_internal"]])
+    expect_identical(internal_call[["parameters"]], requested_names)
+    expect_true(internal_call[["include_internal"]])
+  }
+})
+
+test_that("fixed scalar correlations do not materialize internal coordinates", {
+
+  calls <- list()
+  fixed <- .derived_random_term(
+    structure    = "cs",
+    sample_fixed = 0.25
+  )
+  public <- coda::mcmc.list(coda::mcmc(cbind(mu = 1:3)))
+  testthat::local_mocked_bindings(
+    JAGS_validate_fit_contract = function(...) invisible(TRUE),
+    JAGS_materialize_draws = function(fit, parameters = NULL,
+                                      include_internal = FALSE) {
+
+      calls[[length(calls) + 1L]] <<- list(
+        parameters       = parameters,
+        include_internal = include_internal
+      )
+      if (!is.null(parameters)) {
+        stop("Fixed correlations must not request internal coordinates.")
+      }
+      public
+    },
+    .package = "BayesTools"
+  )
+
+  fit <- public
+  class(fit) <- c("BayesTools_fit", class(fit))
+  attr(fit, "formula_design") <- list(
+    mu = list(random_effects = list(fixed))
+  )
+  object   <- structure(list(fit = fit), class = "brma")
+  observed <- as.matrix(RoBMA::as_draws_matrix(object))
+  expected <- as.matrix(RoBMA:::.brma_append_derived_random_correlation(
+    public,
+    fixed
+  )[[1L]])
+
+  expect_identical(colnames(observed), colnames(expected))
+  expect_identical(dim(observed), dim(expected))
+  expect_equal(as.numeric(observed), as.numeric(expected), tolerance = 0)
+  expect_length(calls, 1L)
+  expect_null(calls[[1L]][["parameters"]])
+  expect_false(calls[[1L]][["include_internal"]])
 })
 
 test_that("compiled CAR metadata drives public correlation reconstruction", {

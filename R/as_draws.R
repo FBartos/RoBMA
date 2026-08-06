@@ -59,7 +59,8 @@
 #' covariance parameters, derived correlation matrices, allocation weights,
 #' model indicators, and likelihood parameters remain available.
 #' Scalar-structure random-effect correlation matrices are reconstructed from
-#' compact rho draws on demand. Conversion fails before allocating them when
+#' compact rho draws on demand; those compact internal coordinates are never
+#' returned. Conversion fails before allocating the dense matrices when
 #' their combined draw-by-matrix size exceeds
 #' `getOption("RoBMA.max_derived_correlation_cells", 2e7)`. Increase this option
 #' explicitly when the dense public matrices are required. Use
@@ -135,14 +136,109 @@ NULL
     }
     design[["random_effects"]]
   }), recursive = FALSE)
+  compact_names <- .brma_random_correlation_coordinate_names(random_terms)
+  mcmc_list <- .brma_materialize_random_correlation_coordinates(
+    x            = x,
+    mcmc_list    = mcmc_list,
+    random_terms = random_terms
+  )
   .brma_check_derived_random_correlation_budget(
     random_terms = random_terms,
     mcmc_list    = mcmc_list
   )
   return(.brma_append_derived_random_correlation_terms(
-    mcmc_list    = mcmc_list,
-    random_terms = random_terms
+    mcmc_list      = mcmc_list,
+    random_terms   = random_terms,
+    omit_variables = compact_names
   ))
+}
+
+
+# Return the compact coordinates used to derive public scalar correlations.
+.brma_random_correlation_coordinate_names <- function(random_terms) {
+
+  names <- unlist(lapply(random_terms, function(random_term) {
+    spec <- .brma_derived_random_correlation_spec(random_term)
+    if (is.null(spec)) {
+      return(character())
+    }
+    correlation <- spec[["random_term"]][["correlation"]]
+    if (!is.list(correlation)) {
+      return(character())
+    }
+    c(correlation[["rho_name"]], correlation[["sample_name"]])
+  }), use.names = FALSE)
+  names <- names[is.character(names) & !is.na(names) & nzchar(names)]
+
+  return(unique(names))
+}
+
+
+# Materialize only missing sampled rho coordinates needed for reconstruction.
+.brma_materialize_random_correlation_coordinates <- function(x, mcmc_list,
+                                                              random_terms) {
+
+  variables <- colnames(as.matrix(mcmc_list[[1L]]))
+  parameters <- unlist(lapply(random_terms, function(random_term) {
+    spec <- .brma_derived_random_correlation_spec(random_term)
+    if (is.null(spec) || spec[["n_columns"]] == 1L) {
+      return(character())
+    }
+    correlation <- spec[["random_term"]][["correlation"]]
+    if (!is.list(correlation) || !is.null(correlation[["sample_fixed"]])) {
+      return(character())
+    }
+    candidates <- unique(c(
+      correlation[["rho_name"]],
+      correlation[["sample_name"]]
+    ))
+    candidates <- candidates[
+      is.character(candidates) & !is.na(candidates) & nzchar(candidates)
+    ]
+    if (any(candidates %in% variables)) {
+      return(character())
+    }
+    correlation[["rho_name"]]
+  }), use.names = FALSE)
+  parameters <- unique(parameters[
+    is.character(parameters) & !is.na(parameters) & nzchar(parameters)
+  ])
+  if (length(parameters) == 0L) {
+    return(mcmc_list)
+  }
+
+  internal <- BayesTools::JAGS_materialize_draws(
+    x[["fit"]],
+    parameters       = parameters,
+    include_internal = TRUE
+  )
+  if (length(internal) != length(mcmc_list)) {
+    stop(
+      "Internal random-correlation draws disagree with the public draw geometry.",
+      call. = FALSE
+    )
+  }
+  chains <- lapply(seq_along(mcmc_list), function(chain_i) {
+    public_chain   <- mcmc_list[[chain_i]]
+    internal_chain <- internal[[chain_i]]
+    if (nrow(public_chain) != nrow(internal_chain) ||
+        !identical(coda::mcpar(public_chain), coda::mcpar(internal_chain))) {
+      stop(
+        "Internal random-correlation draws disagree with the public draw geometry.",
+        call. = FALSE
+      )
+    }
+    values <- cbind(as.matrix(public_chain), as.matrix(internal_chain))
+    mcpar  <- coda::mcpar(public_chain)
+    coda::mcmc(
+      values,
+      start = mcpar[[1L]],
+      end   = mcpar[[2L]],
+      thin  = mcpar[[3L]]
+    )
+  })
+
+  return(coda::mcmc.list(chains))
 }
 
 
@@ -295,8 +391,8 @@ NULL
 
 
 # Reconstruct scalar correlation matrices with one copy per chain.
-.brma_append_derived_random_correlation_terms <- function(mcmc_list,
-                                                          random_terms) {
+.brma_append_derived_random_correlation_terms <- function(
+    mcmc_list, random_terms, omit_variables = character()) {
 
   specs <- lapply(random_terms, .brma_derived_random_correlation_spec)
   specs <- specs[!vapply(specs, is.null, logical(1))]
@@ -322,6 +418,10 @@ NULL
       specs     = specs,
       derived   = derived
     ), drop = FALSE]
+    combined <- combined[
+      , !colnames(combined) %in% omit_variables,
+      drop = FALSE
+    ]
     mcpar <- coda::mcpar(chain)
     coda::mcmc(
       combined,

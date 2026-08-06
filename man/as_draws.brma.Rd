@@ -105,7 +105,8 @@ Cholesky factors, and prior-parameterization variables are omitted. Public
 covariance parameters, derived correlation matrices, allocation weights,
 model indicators, and likelihood parameters remain available.
 Scalar-structure random-effect correlation matrices are reconstructed from
-compact rho draws on demand. Conversion fails before allocating them when
+compact rho draws on demand; those compact internal coordinates are never
+returned. Conversion fails before allocating the dense matrices when
 their combined draw-by-matrix size exceeds
 \code{getOption("RoBMA.max_derived_correlation_cells", 2e7)}. Increase this option
 explicitly when the dense public matrices are required. Use
