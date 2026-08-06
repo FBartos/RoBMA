@@ -41,7 +41,9 @@ brma.mv(
   convergence_checks = set_convergence_checks(),
   seed = NULL,
   silent,
-  ...
+  ...,
+  vi = NULL,
+  sei = NULL
 )
 }
 \arguments{
@@ -178,6 +180,12 @@ constructors use \code{RoBMA.get_option("silent")}.}
 \item{...}{additional advanced arguments. Fitting functions reject unused
 arguments; currently recognized internal arguments include \code{only_data},
 \code{only_priors}, \code{is_JASP}, and \code{is_JASP_prefix}.}
+
+\item{vi}{a vector of sampling variances. Either \code{vi} or \code{sei} must be
+supplied for normal models.}
+
+\item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
+supplied for normal models.}
 }
 \value{
 A fitted object of class \code{c("brma.mv", "brma.norm", "brma")}.
@@ -223,9 +231,8 @@ The latent known-\code{V} backend is unavailable for other singular \code{V} mat
 use \code{"auto"}, \code{"whitened"}, or \code{"block_mvn"}. Unsupported configurations
 fail before fitting rather than invoking a degenerate-normal likelihood.
 As a convenience for diagonal known-\code{V} inputs, \code{brma.mv()} also accepts
-hidden \code{vi} or \code{sei} arguments through \code{...} when \code{V} is omitted; these are
-converted to \code{diag(vi)} or \code{diag(sei^2)}. Do not supply \code{V} together with
-\code{vi} or \code{sei}.
+named \code{vi} or \code{sei} arguments when \code{V} is omitted; these are converted to
+\code{diag(vi)} or \code{diag(sei^2)}. Do not supply \code{V} together with \code{vi} or \code{sei}.
 
 The \code{random} argument uses BayesTools
 \link[=random_effect_formula_tags]{random-effect formula structure tags}.

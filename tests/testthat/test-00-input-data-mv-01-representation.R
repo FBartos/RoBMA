@@ -388,7 +388,7 @@ test_that("known-V base covariance requires canonical inputs", {
 })
 
 
-test_that("brma.mv supports hidden vi and sei diagonal known-V input", {
+test_that("brma.mv supports vi and sei diagonal known-V input", {
 
   vi <- c(0.04, 0.09, 0.16)
 
@@ -435,7 +435,7 @@ test_that("brma.mv supports hidden vi and sei diagonal known-V input", {
       measure   = "GEN",
       only_data = TRUE
     ),
-    "Use only one of 'V' and hidden 'vi'/'sei'"
+    "Use only one of 'V' and 'vi'/'sei'"
   )
   expect_error(
     brma.mv(
@@ -962,7 +962,7 @@ test_that("brma.mv drops diagonal-NA rows before known-V validation", {
 })
 
 
-test_that("brma.mv validates hidden vi and sei after row selection", {
+test_that("brma.mv validates vi and sei after row selection", {
 
   yi     <- c(0.10, 0.20, 0.30)
   subset <- c(TRUE, FALSE, TRUE)

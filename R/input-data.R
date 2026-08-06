@@ -785,11 +785,11 @@ NULL
   has_sei <- !is.null(sei)
 
   if (has_V && (has_vi || has_sei)) {
-    stop("Use only one of 'V' and hidden 'vi'/'sei' inputs in brma.mv().",
+    stop("Use only one of 'V' and 'vi'/'sei' inputs in brma.mv().",
          call. = FALSE)
   }
   if (!has_V && !has_vi && !has_sei) {
-    stop("For brma.mv(), provide 'V' or hidden diagonal input 'vi'/'sei'.",
+    stop("For brma.mv(), provide 'V' or diagonal input 'vi'/'sei'.",
          call. = FALSE)
   }
   if (has_V) {
@@ -830,7 +830,7 @@ NULL
 
   if (!is.numeric(x) || !is.null(dim(x)) || length(x) != k) {
     stop(
-      "Hidden brma.mv() input '", name,
+      "brma.mv() input '", name,
       "' must be a numeric vector with the same length as 'yi'.",
       call. = FALSE
     )
@@ -855,20 +855,20 @@ NULL
   if (!is.null(vi)) {
     vi <- vi[keep_rows]
     if (any(!is.finite(vi)) || any(vi <= 0)) {
-      stop("Hidden brma.mv() input 'vi' must contain positive finite values.",
+      stop("brma.mv() input 'vi' must contain positive finite values.",
            call. = FALSE)
     }
   }
   if (!is.null(sei)) {
     sei <- sei[keep_rows]
     if (any(!is.finite(sei)) || any(sei <= 0)) {
-      stop("Hidden brma.mv() input 'sei' must contain positive finite values.",
+      stop("brma.mv() input 'sei' must contain positive finite values.",
            call. = FALSE)
     }
   }
   if (!is.null(vi) && !is.null(sei)) {
     if (any(!.sampling_variance_matches_se(vi, sei))) {
-      stop("Hidden brma.mv() inputs 'vi' and 'sei' must be consistent.",
+      stop("brma.mv() inputs 'vi' and 'sei' must be consistent.",
            call. = FALSE)
     }
   }
@@ -876,7 +876,7 @@ NULL
     represented_vi <- sei^2
     if (any(!is.finite(represented_vi)) || any(represented_vi <= 0)) {
       stop(
-        "Hidden brma.mv() input 'sei' must have positive finite squared ",
+        "brma.mv() input 'sei' must have positive finite squared ",
         "sampling variances.",
         call. = FALSE
       )

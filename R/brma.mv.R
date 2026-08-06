@@ -51,9 +51,8 @@
 #' use `"auto"`, `"whitened"`, or `"block_mvn"`. Unsupported configurations
 #' fail before fitting rather than invoking a degenerate-normal likelihood.
 #' As a convenience for diagonal known-`V` inputs, `brma.mv()` also accepts
-#' hidden `vi` or `sei` arguments through `...` when `V` is omitted; these are
-#' converted to `diag(vi)` or `diag(sei^2)`. Do not supply `V` together with
-#' `vi` or `sei`.
+#' named `vi` or `sei` arguments when `V` is omitted; these are converted to
+#' `diag(vi)` or `diag(sei^2)`. Do not supply `V` together with `vi` or `sei`.
 #'
 #' The `random` argument uses BayesTools
 #' [random-effect formula structure tags][random_effect_formula_tags].
@@ -194,7 +193,8 @@ brma.mv <- function(
     convergence_checks = set_convergence_checks(),
 
     # additional settings
-    seed = NULL, silent, ...
+    seed = NULL, silent, ...,
+    vi = NULL, sei = NULL
     ) {
 
   matched_call_unevaluated            <- match.call(expand.dots = FALSE)
@@ -220,9 +220,8 @@ brma.mv <- function(
     c("auto", "latent", "whitened", "block_mvn")
   )
   dots <- .validate_constructor_dots(
-    dots          = dots,
-    caller        = "brma.mv()",
-    allowed_extra = c("vi", "sei")
+    dots   = dots,
+    caller = "brma.mv()"
   )
 
   object <- .createObject(
