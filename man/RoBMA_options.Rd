@@ -34,7 +34,7 @@ The available options are:
 \item{\code{autocompute.loo}}{whether to automatically compute LOO (default \code{FALSE})}
 \item{\code{autocompute.waic}}{whether to automatically compute WAIC (default \code{FALSE})}
 \item{\code{autocompute.marglik}}{whether to automatically compute marginal likelihood (default \code{FALSE})}
-\item{\code{cluster_likelihood.n_gamma}}{number of Gauss-Hermite nodes used for cluster-unit log-likelihoods (default \code{15})}
+\item{\code{cluster_likelihood.n_gamma}}{number of Gauss-Hermite nodes used for ordinary cluster-unit log-likelihoods (default \code{15}); selected-normal cluster likelihoods use a certified 7, 15, and 31 node ladder}
 \item{\code{default_UISD.effect}}{default scaling of the unit information standard deviation for the effect size parameter (default \code{0.5})}
 \item{\code{default_UISD.heterogeneity}}{default scaling of the unit information standard deviation for the heterogeneity parameter (default \code{0.25})}
 \item{\code{default_UISD.mods}}{default scaling of the unit information standard deviation for the moderators (default \code{0.25})}

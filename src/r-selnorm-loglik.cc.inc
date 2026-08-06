@@ -55,7 +55,6 @@ extern "C" SEXP RoBMA_norm_cluster_loglik(
     weights, gamma_grid, log_gamma_weights, &args.S, &args.K, &args.G,
     &args.n_gamma
   );
-
   args.selected          = false;
   args.yi                = REAL(yi);
   args.sei               = REAL(sei);
@@ -90,7 +89,6 @@ extern "C" SEXP RoBMA_norm_cluster_loglik_row_sum(
     weights, gamma_grid, log_gamma_weights, &args.S, &args.K, &args.G,
     &args.n_gamma
   );
-
   args.selected          = false;
   args.yi                = REAL(yi);
   args.sei               = REAL(sei);
@@ -129,6 +127,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_loglik(
     weights, gamma_grid, log_gamma_weights, &args.S, &args.K, &args.G,
     &args.n_gamma
   );
+  validate_selnorm_cluster_quadrature_rules(args.n_gamma);
 
   check_real(omega, "omega");
   check_real(alpha, "alpha");
@@ -220,6 +219,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_loglik_row_sum(
     weights, gamma_grid, log_gamma_weights, &args.S, &args.K, &args.G,
     &args.n_gamma
   );
+  validate_selnorm_cluster_quadrature_rules(args.n_gamma);
 
   check_real(omega, "omega");
   check_real(alpha, "alpha");
@@ -311,6 +311,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_location_grid(
     weights, gamma_grid, log_gamma_weights, &args.S, &args.K, &args.G,
     &args.n_gamma
   );
+  validate_selnorm_cluster_quadrature_rules(args.n_gamma);
 
   check_real(mu_basis, "mu_basis");
   check_real(current, "current");
@@ -368,6 +369,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_location_grid(
   const int G_values = Rf_length(values);
   SEXP out = PROTECT(Rf_allocMatrix(REALSXP, G_values, args.S));
   SEXP sensitivity = PROTECT(Rf_allocMatrix(REALSXP, G_values, args.S));
+  SEXP quadrature_order = PROTECT(Rf_allocMatrix(INTSXP, G_values, args.S));
 
   args.selected          = true;
   args.yi                = REAL(yi);
@@ -401,8 +403,9 @@ extern "C" SEXP RoBMA_selnorm_cluster_location_grid(
   const double *basis_p          = REAL(mu_basis);
   double *out_p                  = REAL(out);
   double *sensitivity_p          = REAL(sensitivity);
+  int *quadrature_order_p        = INTEGER(quadrature_order);
 
-  std::vector<double> gamma_terms(static_cast<size_t>(args.n_gamma));
+  std::vector<double> gamma_terms(31);
 
   for (int s = 0; s < args.S; ++s) {
     for (int g_value = 0; g_value < G_values; ++g_value) {
@@ -410,28 +413,36 @@ extern "C" SEXP RoBMA_selnorm_cluster_location_grid(
       if (!std::isfinite(delta)) {
         out_p[g_value + G_values * s] = NA_REAL;
         sensitivity_p[g_value + G_values * s] = NA_REAL;
+        quadrature_order_p[g_value + G_values * s] = NA_INTEGER;
         continue;
       }
 
       double row_sum = 0.0;
       double row_sensitivity = 0.0;
+      int row_order = 15;
       int cluster_offset = 0;
       for (int g = 0; g < args.G; ++g) {
         const int cluster_n = args.cluster_size[g];
-        row_sum += norm_cluster_adaptive_log_integral(
-          args, s, cluster_offset, cluster_n, basis_p, delta, gamma_terms,
-          &row_sensitivity
+        const NormClusterIntegral integral = norm_cluster_adaptive_log_integral(
+          args, s, g, cluster_offset, cluster_n, basis_p, delta, gamma_terms
         );
+        row_sum += integral.value;
+        row_sensitivity = std::max(
+          row_sensitivity, integral.relative_change
+        );
+        row_order = std::max(row_order, integral.order);
         cluster_offset += cluster_n;
       }
 
       out_p[g_value + G_values * s] = row_sum;
       sensitivity_p[g_value + G_values * s] = row_sensitivity;
+      quadrature_order_p[g_value + G_values * s] = row_order;
     }
   }
 
   Rf_setAttrib(out, Rf_install("quadrature_relative_change"), sensitivity);
+  Rf_setAttrib(out, Rf_install("quadrature_order"), quadrature_order);
 
-  UNPROTECT(2);
+  UNPROTECT(3);
   return out;
 }

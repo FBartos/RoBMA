@@ -2560,8 +2560,7 @@ test_that("negative-direction multilevel selected-normal location grid matches q
     basis             = basis,
     current           = current,
     values            = values,
-    selection_context = selection_context,
-    n_gamma           = n_gamma
+    selection_context = selection_context
   )
   reference <- matrix(NA_real_, nrow = length(values), ncol = S)
   for (s in seq_len(S)) {
@@ -2591,9 +2590,13 @@ test_that("negative-direction multilevel selected-normal location grid matches q
   expect_true(is.matrix(fast))
   expect_equal(dim(fast), dim(reference))
   quadrature_change <- attr(fast, "quadrature_relative_change", exact = TRUE)
+  quadrature_order <- attr(fast, "quadrature_order", exact = TRUE)
   expect_equal(dim(quadrature_change), dim(fast))
   expect_true(all(is.finite(quadrature_change)))
+  expect_equal(dim(quadrature_order), dim(fast))
+  expect_true(all(quadrature_order %in% c(15L, 31L)))
   attr(fast, "quadrature_relative_change") <- NULL
+  attr(fast, "quadrature_order") <- NULL
   expect_equal(fast, reference, tolerance = 1e-7)
 })
 

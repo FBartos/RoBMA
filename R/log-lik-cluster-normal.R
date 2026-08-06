@@ -123,7 +123,6 @@
                                              selection_context = NULL,
                                              n_gamma = NULL) {
 
-  n_gamma <- .log_lik_cluster_norm_n_gamma(is_weightfunction, n_gamma)
   if (.has_native_norm_cluster_quadrature(selection = is_weightfunction)) {
     return(.log_lik_cluster_norm_quadrature_native(
       setup             = setup,
@@ -133,6 +132,12 @@
       selection_context = selection_context,
       n_gamma           = n_gamma
     ))
+  }
+  if (is_weightfunction) {
+    stop(
+      "Certified selected-normal cluster quadrature requires the native RoBMA kernel.",
+      call. = FALSE
+    )
   }
 
   return(.log_lik_cluster_norm_quadrature_r(
@@ -160,8 +165,12 @@
                                                     selection_context = NULL,
                                                     n_gamma = NULL) {
 
-  n_gamma <- .log_lik_cluster_norm_n_gamma(is_weightfunction, n_gamma)
-  gh      <- .gauss_hermite_nodes(n_gamma)
+  gh      <- if (is_weightfunction) {
+    .selnorm_cluster_quadrature_rules()
+  } else {
+    n_gamma <- .log_lik_cluster_norm_n_gamma(n_gamma)
+    .gauss_hermite_nodes(n_gamma)
+  }
   cluster <- .cluster_indices_flatten(setup[["cluster"]])
   weights <- if (is.null(setup[["weights"]])) {
     NULL
@@ -229,7 +238,6 @@
                                                  selection_context = NULL,
                                                  n_gamma = NULL) {
 
-  n_gamma <- .log_lik_cluster_norm_n_gamma(is_weightfunction, n_gamma)
   if (!.has_native_norm_loglik_row_sum(
     selection = is_weightfunction,
     cluster   = TRUE
@@ -244,7 +252,12 @@
     )))
   }
 
-  gh      <- .gauss_hermite_nodes(n_gamma)
+  gh      <- if (is_weightfunction) {
+    .selnorm_cluster_quadrature_rules()
+  } else {
+    n_gamma <- .log_lik_cluster_norm_n_gamma(n_gamma)
+    .gauss_hermite_nodes(n_gamma)
+  }
   cluster <- .cluster_indices_flatten(setup[["cluster"]])
   weights <- if (is.null(setup[["weights"]])) {
     NULL
@@ -309,8 +322,7 @@
 
 .log_lik_cluster_selnorm_location_grid <- function(setup, yi, sei, basis,
                                                    current, values,
-                                                   selection_context,
-                                                   n_gamma = .get_selnorm_adaptive_n_gamma()) {
+                                                   selection_context) {
 
   if (!.has_native_selnorm_cluster_location_grid()) {
     return(NULL)
@@ -319,7 +331,7 @@
     return(NULL)
   }
 
-  gh      <- .gauss_hermite_nodes(n_gamma)
+  gh      <- .selnorm_cluster_quadrature_rules()
   cluster <- .cluster_indices_flatten(setup[["cluster"]])
   native_static <- BayesTools::selection_native_static_args(selection_context)
   weights <- if (is.null(setup[["weights"]])) {
@@ -450,21 +462,23 @@
 }
 
 
-.log_lik_cluster_norm_n_gamma <- function(is_weightfunction, n_gamma = NULL) {
+.log_lik_cluster_norm_n_gamma <- function(n_gamma = NULL) {
 
   if (!is.null(n_gamma)) {
     BayesTools::check_int(n_gamma, "n_gamma", lower = 3)
     return(as.integer(n_gamma))
   }
-  if (isTRUE(is_weightfunction)) {
-    return(.get_selnorm_adaptive_n_gamma())
-  }
-
   return(.get_cluster_likelihood_n_gamma())
 }
 
 
-.get_selnorm_adaptive_n_gamma <- function() {
+.selnorm_cluster_quadrature_rules <- function() {
 
-  return(min(7L, .get_cluster_likelihood_n_gamma()))
+  orders <- c(7L, 15L, 31L)
+  rules  <- lapply(orders, .gauss_hermite_nodes)
+
+  return(list(
+    nodes       = unlist(lapply(rules, `[[`, "nodes"), use.names = FALSE),
+    log_weights = unlist(lapply(rules, `[[`, "log_weights"), use.names = FALSE)
+  ))
 }
