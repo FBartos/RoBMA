@@ -173,7 +173,9 @@ plot_weightfunction.brma  <- function(
 #'
 #' @details The plot shows observed \code{yi} values against \code{sei}. PET
 #' regression uses \eqn{\mu + PET \cdot se_i}; PEESE regression uses
-#' \eqn{\mu + PEESE \cdot se_i^2}, with the fitted effect direction.
+#' \eqn{\mu + PEESE \cdot se_i^2}, with the fitted effect direction. Models
+#' with moderators are not supported because the fitted curve depends on the
+#' moderator values at which it is evaluated.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -215,6 +217,9 @@ plot_pet_peese.brma  <- function(
 
   if (!(.is_PET(x) || .is_PEESE(x))) {
     stop("'plot_pet_peese' is available only for models with a PET or PEESE component.", call. = FALSE)
+  }
+  if (.is_mods(x)) {
+    stop("'plot_pet_peese' is not available for models with moderators.", call. = FALSE)
   }
 
   ### obtain posterior samples in the plotting format

@@ -57,7 +57,9 @@ of the prior distribution respectively.}
 \details{
 The plot shows observed \code{yi} values against \code{sei}. PET
 regression uses \eqn{\mu + PET \cdot se_i}; PEESE regression uses
-\eqn{\mu + PEESE \cdot se_i^2}, with the fitted effect direction.
+\eqn{\mu + PEESE \cdot se_i^2}, with the fitted effect direction. Models
+with moderators are not supported because the fitted curve depends on the
+moderator values at which it is evaluated.
 }
 \examples{
 \dontrun{

@@ -112,6 +112,18 @@ test_that("PET-PEESE plot requests location and mixed bias posterior", {
   expect_equal(calls[["plot_posterior"]][["parameter"]], "PETPEESE")
 })
 
+test_that("PET-PEESE plot rejects moderator-dependent curves", {
+
+  fit <- mock_bias_mixture_fit()
+  attr(fit[["data"]], "mods") <- TRUE
+
+  expect_error(
+    plot_pet_peese(fit, show_data = FALSE),
+    "not available for models with moderators",
+    fixed = TRUE
+  )
+})
+
 test_that("generic posterior plot requests mixed bias posterior", {
 
   calls <- list()
