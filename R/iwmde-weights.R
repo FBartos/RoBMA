@@ -640,6 +640,13 @@
     ))
   }
 
+  .iwmde_chen_preflight_boundary_columns(
+    context     = context,
+    columns     = columns,
+    active_rows = active_rows,
+    weight_rows = weight_rows
+  )
+
   fit_values  <- matrix(NA_real_, nrow = length(weight_rows), ncol = length(columns))
   eval_values <- matrix(NA_real_, nrow = length(active_rows), ncol = length(columns))
   colnames(fit_values)  <- columns
@@ -714,6 +721,58 @@
     eval    = eval_values,
     columns = columns
   ))
+}
+
+
+.iwmde_chen_preflight_boundary_columns <- function(context, columns,
+                                                    active_rows, weight_rows) {
+
+  omega_coordinates <- if (!is.null(context[["selection_spec"]])) {
+    context[["selection_spec"]][["jags_omega"]]
+  } else {
+    character()
+  }
+  boundary_columns <- columns[
+    columns == "rho" |
+      vapply(columns, function(column) {
+        .iwmde_parameter_matches_coordinate(column, omega_coordinates)
+      }, logical(1))
+  ]
+  if (length(boundary_columns) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  samples <- context[["posterior_samples"]]
+  for (column in boundary_columns) {
+    raw_fit <- .iwmde_parameter_column_values(
+      context   = context,
+      samples   = samples[weight_rows, , drop = FALSE],
+      parameter = column
+    )
+    raw_eval <- .iwmde_parameter_column_values(
+      context   = context,
+      samples   = samples[active_rows, , drop = FALSE],
+      parameter = column
+    )
+    raw_values <- c(raw_fit, raw_eval)
+    if (all(is.finite(raw_values)) && length(unique(raw_values)) == 1L) {
+      next
+    }
+
+    transformed <- .iwmde_chen_transform_conditioning_column(
+      context     = context,
+      fit_values  = raw_fit,
+      eval_values = raw_eval,
+      column      = column
+    )
+    if (any(!is.finite(transformed[["fit"]]))) {
+      .iwmde_chen_conditional_stop(
+        "conditioning fit columns contain non-finite transformed values"
+      )
+    }
+  }
+
+  return(invisible(TRUE))
 }
 
 
