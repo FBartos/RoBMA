@@ -162,9 +162,8 @@ hypothesis_quantities.brma <- function(object, ...) {
     entry     = entry
   )
   target <- .hypothesis_brma_formula_coefficient_target(
-    object                    = object,
-    selected                  = selected,
-    standardized_coefficients = FALSE
+    object   = object,
+    selected = selected
   )
   if (is.null(target)) {
     return(out)

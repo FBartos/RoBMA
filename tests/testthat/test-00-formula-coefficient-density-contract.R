@@ -59,9 +59,8 @@ test_that("transformed coefficient hypotheses use exact structural weights", {
   )
 
   target <- .hypothesis_brma_formula_coefficient_target(
-    object                    = object,
-    selected                  = selected,
-    standardized_coefficients = FALSE
+    object   = object,
+    selected = selected
   )
   target <- .hypothesis_brma_formula_prior_target(
     object      = object,
@@ -333,5 +332,142 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
       ))
     ),
     "cannot mix point and region"
+  )
+})
+
+
+test_that("unit log-intercepts retain primitive qCMDE/IWMDE semantics", {
+
+  transform <- list(
+    schema_version             = 1L,
+    formula_design_version     = 3L,
+    parameter_registry_version = 3L,
+    parameter                  = "log_tau",
+    target_scale               = "original",
+    source_names               = "log_tau_intercept",
+    target_names               = "log_tau_intercept",
+    matrix = matrix(
+      1,
+      nrow = 1L,
+      dimnames = list("log_tau_intercept", "log_tau_intercept")
+    ),
+    source_transforms = c(log_tau_intercept = "log"),
+    output_transforms = c(log_tau_intercept = "exp"),
+    dependencies = data.frame(
+      target      = "log_tau_intercept",
+      source      = "log_tau_intercept",
+      coefficient = 1,
+      stringsAsFactors = FALSE
+    ),
+    sources = data.frame(),
+    targets = data.frame()
+  )
+  class(transform) <- c(
+    "BayesTools_formula_coefficient_transform",
+    "list"
+  )
+  target <- list(
+    formula_parameter = "log_tau",
+    target            = "log_tau_intercept",
+    target_i          = 1L,
+    transform         = transform
+  )
+  target[["route"]] <- .hypothesis_brma_formula_transform_route(target)
+
+  expect_identical(target[["route"]][["type"]], "identity")
+  expect_identical(
+    target[["route"]][["weights"]],
+    c(log_tau_intercept = 1)
+  )
+  expect_identical(target[["route"]][["support"]], c(0, Inf))
+
+  density <- structure(list(sentinel = TRUE), class = "prior_linear_density")
+  observed_values <- numeric()
+  testthat::local_mocked_bindings(
+    JAGS_formula_prior_density = function(...) density,
+    prior_density_ordinate = function(density, value) {
+      observed_values <<- c(observed_values, value)
+      list(exact = TRUE)
+    },
+    .package = "BayesTools"
+  )
+  target <- .hypothesis_brma_formula_prior_target(
+    object      = list(fit = structure(list(), class = "BayesTools_fit")),
+    samples     = list(),
+    hypothesis  = BayesTools::hypothesis_parse("log_tau_intercept = 1.5"),
+    target_info = target
+  )
+
+  expect_identical(observed_values, 1.5)
+  expect_identical(target[["parameter_spec"]][["type"]], "primitive")
+  expect_identical(
+    target[["parameter_spec"]][["prior_density"]],
+    density
+  )
+})
+
+
+test_that("log-intercept support applies on the standardized route", {
+
+  transform <- list(
+    schema_version             = 1L,
+    formula_design_version     = 3L,
+    parameter_registry_version = 3L,
+    parameter                  = "log_tau",
+    target_scale               = "original",
+    source_names               = "log_tau_intercept",
+    target_names               = "log_tau_intercept",
+    matrix = matrix(
+      1,
+      nrow = 1L,
+      dimnames = list("log_tau_intercept", "log_tau_intercept")
+    ),
+    source_transforms = c(log_tau_intercept = "log"),
+    output_transforms = c(log_tau_intercept = "exp"),
+    dependencies = data.frame(),
+    sources = data.frame(),
+    targets = data.frame()
+  )
+  class(transform) <- c(
+    "BayesTools_formula_coefficient_transform",
+    "list"
+  )
+  selected <- list(
+    parameter = "log_tau_intercept",
+    component = "scale",
+    entry     = list(formula_parameter = "log_tau")
+  )
+  testthat::local_mocked_bindings(
+    JAGS_formula_coefficient_transform = function(...) transform,
+    .package = "BayesTools"
+  )
+  target <- .hypothesis_brma_formula_coefficient_target(
+    object   = list(fit = structure(list(), class = "BayesTools_fit")),
+    selected = selected
+  )
+  target[["route"]] <- .hypothesis_brma_formula_transform_route(target)
+
+  zero <- .hypothesis_brma_point_refs(
+    BayesTools::hypothesis_parse("log_tau_intercept = 0"),
+    "log_tau_intercept"
+  )
+  negative <- .hypothesis_brma_point_refs(
+    BayesTools::hypothesis_parse("log_tau_intercept = -1"),
+    "log_tau_intercept"
+  )
+  positive <- .hypothesis_brma_point_refs(
+    BayesTools::hypothesis_parse("log_tau_intercept = 1"),
+    "log_tau_intercept"
+  )
+  expect_error(
+    .hypothesis_brma_check_formula_point_support(zero, target),
+    "outside or on the boundary"
+  )
+  expect_error(
+    .hypothesis_brma_check_formula_point_support(negative, target),
+    "outside or on the boundary"
+  )
+  expect_invisible(
+    .hypothesis_brma_check_formula_point_support(positive, target)
   )
 })

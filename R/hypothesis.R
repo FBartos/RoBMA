@@ -260,9 +260,8 @@ hypothesis.brma <- function(object, hypothesis,
     parameter  = parameter
   )
   coefficient_target <- .hypothesis_brma_formula_coefficient_target(
-    object                    = object,
-    selected                  = selected,
-    standardized_coefficients = standardized_coefficients
+    object   = object,
+    selected = selected
   )
   if (!is.null(coefficient_target)) {
     coefficient_target[["route"]] <-
@@ -271,6 +270,9 @@ hypothesis.brma <- function(object, hypothesis,
       point_refs  = point_refs,
       target_info = coefficient_target
     )
+    if (standardized_coefficients) {
+      coefficient_target <- NULL
+    }
   }
 
   if (identical(selected[["component"]], "random")) {
@@ -495,11 +497,10 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 .hypothesis_brma_formula_coefficient_target <- function(
-    object, selected, standardized_coefficients) {
+    object, selected) {
 
   entry <- selected[["entry"]]
-  if (standardized_coefficients ||
-      selected[["component"]] %in% c("random", "bias") ||
+  if (selected[["component"]] %in% c("random", "bias") ||
       is.null(entry) ||
       identical(entry[["role"]], "formula_coefficient_group")) {
     return(NULL)
