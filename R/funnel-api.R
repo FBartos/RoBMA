@@ -37,7 +37,8 @@ funnel <- function(x, ...) UseMethod("funnel")
 #'   \item \code{"rstandard"}: Internally standardized residuals using
 #'     \code{\link{rstandard.brma}}. Only available for normal outcome models.
 #'   \item \code{"outcome"}: Raw outcome residuals from
-#'     \code{\link{residuals.brma}} with \code{type = "outcome"}.
+#'     \code{\link{residuals.brma}} with \code{type = "outcome"}. Its funnel
+#'     bands are descriptive sampling-error-only reference bands.
 #' }
 #' Only used when funnel is in residual mode.
 #' @param unit output unit for residual mode. Only \code{"estimate"} is
@@ -105,15 +106,17 @@ funnel <- function(x, ...) UseMethod("funnel")
 #'
 #' \strong{Residual mode} (models with moderators or scale regression):
 #' Displays residuals on the x-axis and standard errors on the
-#' y-axis. The funnel region represents the central 95\% region of
-#' \eqn{N(0, \mathrm{SE}^2)}. With \code{type = "LOO-PIT"}, the plotted
-#' residuals and standard errors are the raw-scale LOO predictive companions
-#' returned by \code{\link{rstudent.brma}}; the PIT-normalized \code{z} values
-#' are used by \code{\link{qqnorm.brma}} and influence diagnostics. With
+#' y-axis. The funnel region is bounded by the 0.025 and 0.975 normal quantiles
+#' times the displayed standard error. It is a descriptive reference band, not
+#' a posterior-predictive coverage interval. With \code{type = "LOO-PIT"}, the
+#' plotted residuals and standard errors are the raw-scale LOO predictive
+#' companions returned by \code{\link{rstudent.brma}}; the PIT-normalized
+#' \code{z} values are used by \code{\link{qqnorm.brma}} and influence
+#' diagnostics. With
 #' \code{type = "rstandard"}, the plotted values are internally standardized
 #' residual companions from \code{\link{rstandard.brma}}. With
-#' \code{type = "outcome"}, these are raw outcome residuals. Under a correctly
-#' specified model, most points should fall within this region.
+#' \code{type = "outcome"}, these are raw outcome residuals and the band uses
+#' sampling error only; it does not incorporate fitted heterogeneity.
 #'
 #' The \code{type} argument controls how residuals are computed in residual
 #' mode. See \code{\link{residuals.brma}} for details on each type.
@@ -125,7 +128,8 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' LOO-PIT residual mode is unavailable because the fitted predictive
 #' distribution is discrete and no discrete PIT convention has been defined.
 #' Use \code{type = "outcome"} for a descriptive effect-size-scale residual
-#' funnel when needed.
+#' funnel when needed. Its sampling-error-only bands are not exact diagnostics
+#' for the fitted count likelihood.
 #'
 #' @return If \code{as_data = TRUE}, \code{funnel.brma} returns a list with the
 #' data used for plotting, including the plotted points, funnel polygons,

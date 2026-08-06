@@ -37,10 +37,10 @@ With \code{unit = "estimate"}, LOO-CV is computed with one contribution per
 effect-size estimate. For binomial and Poisson models, each pair of counts
 (ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
 one contribution.
-Estimate-unit GLMM log-likelihoods require an untruncated beta baserate prior
-for binomial models or an untruncated normal log-rate prior for Poisson
-models. Point, truncated, and other nuisance-prior families are rejected
-because the certified adaptive quadrature does not cover them.
+Estimate-unit GLMM log-likelihoods support point and accepted continuous
+nuisance-prior families, including truncated beta baserate and truncated
+normal log-rate priors. Nonpoint discrete nuisance priors are rejected when
+the model input is validated.
 
 With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 per cluster. For unweighted normal models without selection this uses the

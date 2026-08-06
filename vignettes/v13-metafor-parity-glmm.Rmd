@@ -144,9 +144,11 @@ The Poisson model corresponds to @bagos2009mixed and uses event counts and expos
 
 ## Other Inference Helpers
 
-All inference helpers available for any other `brma()` fit work the same way for a `brma.glmm()` fit.
-Meta-regression via `mods`, multilevel structures via `cluster`, location-scale models via `scale`, posterior summaries, plots, predictions, residuals, influence, and LOO comparisons all carry over.
-See the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette for the full walkthrough and the [*Multilevel Meta-Analysis*](v10-metafor-parity-multilevel.html) vignette for the multilevel extension; the only thing that changes here is the count-based input and the auxiliary baseline-rate prior.
+GLMM fits support meta-regression via `mods`, multilevel structures via `cluster`, location-scale models via `scale`, posterior summaries, plots, and predictions.
+Raw outcome residuals are available on the derived effect-size scale, but standardized residuals and LOO-PIT diagnostics are unavailable until a discrete PIT convention is defined.
+Estimate-unit `log_lik()`, LOO, and WAIC support accepted point and continuous nuisance priors; cluster-unit likelihood diagnostics remain unavailable.
+Standalone `covratio()` and `dfbetas()` diagnostics are supported, whereas the combined `influence()` summary is not.
+See the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette for the general workflow and the [*Multilevel Meta-Analysis*](v10-metafor-parity-multilevel.html) vignette for multilevel structure.
 
 
 ## References

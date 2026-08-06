@@ -60,6 +60,9 @@ Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
 residuals properly account for estimation uncertainty and leverage without
 requiring explicit hat matrix computation. Binomial and Poisson GLMMs are
 unavailable until a discrete PIT convention is defined.
+Use \code{residuals(type = "outcome")} only for descriptive raw
+effect-size-scale residuals; it is not a standardized count-likelihood
+diagnostic.
 For correlated known-\code{V} \code{brma.mv()} models, the PIT and companion
 residual moments are computed from the Schur-complement conditional
 predictive distribution used by estimate-unit LOO.

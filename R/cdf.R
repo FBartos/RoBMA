@@ -4,15 +4,12 @@
 #
 # These functions compute pointwise CDF values F(yi | theta) for each
 # observation and posterior sample. The target-specific estimate-unit CDF is
-# used for LOO-PIT residuals via probability integral transformation.
+# used for LOO-PIT residuals via probability integral transformation. It is
+# defined only for continuous normal outcome models; no discrete GLMM PIT
+# convention has been selected.
 #
 # Parallels the structure of pdf.R but returns CDF values instead of
 # density values.
-#
-# Note: For binomial and Poisson models, each "observation" consists of a pair
-# of data points (ai+ci or x1i+x2i) that together define a single effect size
-# estimate. The CDF is computed using the implied normal approximation for the
-# effect size (log-OR or log-IRR).
 #
 # ============================================================================ #
 
@@ -92,71 +89,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .outcome_cdf.binom
-# ---------------------------------------------------------------------------- #
-#
-# Compute pointwise CDF values for binomial outcome models.
-#
-# For binomial outcome models, we use a normal approximation based on the
-# implied log-odds ratio effect size and its approximate sampling variance.
-# This approach is consistent with how metafor computes residuals for GLMM.
-#
-# The scalar residual is computed on the approximate log-odds-ratio scale:
-#   y_i ~ N(mu_i, tau_within_i^2 + sigma_i^2)
-# where sigma_i is the approximate sampling SE from the cell counts.
-#
-# @param yi               numeric vector of length K; approximate log-OR effect sizes
-# @param sei              numeric vector of length K; approximate sampling SEs
-# @param mu_samples       S x K matrix of log-odds ratio samples
-# @param tau_within       S x K matrix of estimate-level heterogeneity samples
-#
-# @return S x K matrix of CDF values (one per estimate)
-#
-# ---------------------------------------------------------------------------- #
-.outcome_cdf.binom <- function(yi, sei, mu_samples, tau_within) {
-  return(.outcome_cdf.norm(
-    yi         = yi,
-    mu_samples = mu_samples,
-    tau_within = tau_within,
-    sei        = sei
-  ))
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .outcome_cdf.pois
-# ---------------------------------------------------------------------------- #
-#
-# Compute pointwise CDF values for Poisson outcome models.
-#
-# For Poisson outcome models, we use a normal approximation based on the
-# implied log incidence rate ratio effect size and its approximate sampling
-# variance. This is consistent with how metafor computes residuals for GLMM.
-#
-# The scalar residual is computed on the approximate log-incidence-rate-ratio
-# scale:
-#   y_i ~ N(mu_i, tau_within_i^2 + sigma_i^2)
-# where sigma_i is the approximate sampling SE from the counts.
-#
-# @param yi               numeric vector of length K; approximate log-IRR effect sizes
-# @param sei              numeric vector of length K; approximate sampling SEs
-# @param mu_samples       S x K matrix of log-IRR samples
-# @param tau_within       S x K matrix of estimate-level heterogeneity samples
-#
-# @return S x K matrix of CDF values (one per estimate)
-#
-# ---------------------------------------------------------------------------- #
-.outcome_cdf.pois <- function(yi, sei, mu_samples, tau_within) {
-  return(.outcome_cdf.norm(
-    yi         = yi,
-    mu_samples = mu_samples,
-    tau_within = tau_within,
-    sei        = sei
-  ))
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .cdf.brma
 # ---------------------------------------------------------------------------- #
 #
@@ -184,6 +116,13 @@
 
   ### input validation
   conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
+  if (.outcome_type(object) != "norm") {
+    stop(
+      "Internal CDF evaluation is unavailable for binomial or Poisson GLMMs ",
+      "because a discrete PIT convention has not been defined.",
+      call. = FALSE
+    )
+  }
   if (.is_data_known_v(object[["data"]])) {
     if (conditioning_depth == "estimate") {
       cdf_vals <- .cdf_lik_estimate.brma(object)
@@ -303,26 +242,6 @@
 
     }
 
-  } else if (outcome_type == "bin") {
-
-    # binomial CDF using normal approximation
-    cdf_vals <- .outcome_cdf.binom(
-      yi         = yi,
-      sei        = sei,
-      mu_samples = mu_samples,
-      tau_within = tau_within_samples
-    )
-
-  } else if (outcome_type == "pois") {
-
-    # Poisson CDF using normal approximation
-    cdf_vals <- .outcome_cdf.pois(
-      yi         = yi,
-      sei        = sei,
-      mu_samples = mu_samples,
-      tau_within = tau_within_samples
-    )
-
   } else {
 
     stop("Unsupported outcome type for CDF computation.", call. = FALSE)
@@ -352,6 +271,14 @@
 #
 # ---------------------------------------------------------------------------- #
 .cdf_lik_estimate.brma <- function(object, setup = NULL) {
+
+  if (.outcome_type(object) != "norm") {
+    stop(
+      "Estimate-unit CDF evaluation is unavailable for binomial or Poisson ",
+      "GLMMs because a discrete PIT convention has not been defined.",
+      call. = FALSE
+    )
+  }
 
   if (is.null(setup)) {
     setup <- .estimate_likelihood_setup.brma(object)
@@ -410,24 +337,6 @@
         lower.tail = lower_tail
       )
     }
-
-  } else if (outcome_type == "bin") {
-
-    cdf_vals <- .outcome_cdf.binom(
-      yi         = yi,
-      sei        = sei,
-      mu_samples = mu_samples,
-      tau_within = tau_within
-    )
-
-  } else if (outcome_type == "pois") {
-
-    cdf_vals <- .outcome_cdf.pois(
-      yi         = yi,
-      sei        = sei,
-      mu_samples = mu_samples,
-      tau_within = tau_within
-    )
 
   } else {
 

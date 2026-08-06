@@ -30,9 +30,14 @@ grouping-only identifiers are synthesized as row-specific new levels;
 known-\code{R} grouping identifiers must be supplied. Outcome columns are
 optional for \code{type = "terms"} unless PET/PEESE bias terms are included
 via \code{bias_adjusted = FALSE}. Missing values are rejected; prediction
-never drops rows silently. For known-\code{V} \code{brma.mv()} response
-prediction, explicit \code{newdata} also requires a new sampling covariance
-matrix.}
+never drops rows silently. Binomial GLMM response predictions require arm
+totals \code{n1i} and \code{n2i}; these can be supplied directly, together
+with event counts \code{ai} and \code{ci}, or through the four cell counts
+\code{ai}, \code{bi}, \code{ci}, and \code{di}. Supplied cells and totals
+must agree. Poisson GLMM response predictions require exposures \code{t1i}
+and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
+known-\code{V} \code{brma.mv()} response prediction, explicit
+\code{newdata} also requires a new sampling covariance matrix.}
 
 \item{V_new}{optional sampling covariance matrix for explicit
 \code{newdata} response predictions from known-\code{V} \code{brma.mv()}

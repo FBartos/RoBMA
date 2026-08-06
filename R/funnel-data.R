@@ -209,9 +209,8 @@
   }
   K <- length(se)
 
-  # compute funnel region - NO tau incorporation for residual funnel
-  # for residuals, the expected distribution is N(0, se^2)
-  # so bounds are +/- 1.96 * se
+  # Compute a descriptive sampling-error reference region. Residual funnels do
+  # not incorporate tau and the bounds are not posterior-predictive intervals.
   # se_range determines the axis ticks
   se_range    <- pretty(c(0, max(se)))
 
@@ -226,7 +225,7 @@
   # generate sequence strictly within ylim for clean polygons
   se_sequence_clipped <- seq(min(ylim), max(ylim), length.out = 100)
 
-  # funnel bounds are quantiles of N(0, se^2) -> qnorm(p) * se
+  # Reference bounds use qnorm(p) * se.
   ci_left  <- stats::qnorm(0.025) * se_sequence_clipped
   ci_right <- stats::qnorm(0.975) * se_sequence_clipped
 

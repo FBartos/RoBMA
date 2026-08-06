@@ -7,6 +7,22 @@ source(testthat::test_path("helper-metafor.R"))
 
 REFERENCE_DIR <<- testthat::test_path("..", "results", "residuals")
 
+test_that("internal CDF routes reject discrete GLMM approximations", {
+
+  for (outcome_type in c("bin", "pois")) {
+    data <- list()
+    attr(data, "outcome_type") <- outcome_type
+    object <- list(data = data)
+
+    expect_error(.cdf.brma(object), "discrete PIT convention")
+    expect_error(
+      .cdf_lik_estimate.brma(object),
+      "discrete PIT convention"
+    )
+  }
+})
+
+
 skip_if_no_fits()
 skip_if_not_installed("metafor")
 

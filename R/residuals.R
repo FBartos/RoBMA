@@ -492,8 +492,11 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 #' residuals should approximately follow a standard normal distribution.
 #'
 #' This function is only available for normal outcome models without selection
-#' (weightfunction) bias adjustment. For other model types, use
-#' \code{\link{rstudent.brma}} which uses LOO-PIT.
+#' (weightfunction) bias adjustment. Selection models can use
+#' \code{\link{rstudent.brma}}, which uses LOO-PIT. Standardized residuals are
+#' unavailable for binomial and Poisson GLMMs because a discrete PIT convention
+#' has not been defined. Use \code{residuals(type = "outcome")} only when a
+#' descriptive raw effect-size-scale residual is appropriate.
 #'
 #' @return A data frame with columns:
 #' \itemize{
@@ -550,7 +553,10 @@ rstandard.brma <- function(model, unit = "estimate",
   if (outcome_type != "norm") {
     stop(
       "rstandard is only available for normal outcome models. ",
-      "Use rstudent() for GLMM models.",
+      "Standardized residuals are unavailable for binomial or Poisson GLMMs ",
+      "because a discrete PIT convention has not been defined. Use ",
+      "residuals(type = 'outcome') only for descriptive raw effect-size-scale ",
+      "residuals.",
       call. = FALSE
     )
   }
@@ -632,6 +638,9 @@ rstandard.brma <- function(model, unit = "estimate",
 #' residuals properly account for estimation uncertainty and leverage without
 #' requiring explicit hat matrix computation. Binomial and Poisson GLMMs are
 #' unavailable until a discrete PIT convention is defined.
+#' Use \code{residuals(type = "outcome")} only for descriptive raw
+#' effect-size-scale residuals; it is not a standardized count-likelihood
+#' diagnostic.
 #' For correlated known-\code{V} \code{brma.mv()} models, the PIT and companion
 #' residual moments are computed from the Schur-complement conditional
 #' predictive distribution used by estimate-unit LOO.
@@ -984,7 +993,7 @@ rstudent.brma <- function(model, unit = "estimate",
 # Unlike traditional standardized residuals, LOO-PIT residuals:
 # - Account for estimation uncertainty (integrate over posterior)
 # - Account for leverage (PSIS effectively removes yi from posterior)
-# - Work for all model types (selection models, GLMMs)
+# - Work for continuous normal outcomes, including selection models
 #
 # @param object brma object.
 #

@@ -401,18 +401,41 @@ test_that("Funnel plot for full-draw GLMM model remains stable", {
   )
 })
 
-test_that("GLMM meta-regression rejects residual funnel without a PIT convention", {
-
-  skip_if_not_full_visuals("GLMM meta-regression duplicates the default GLMM funnel visual.")
+test_that("GLMM meta-regression exposes only a descriptive raw residual funnel", {
 
   name <- "bcg_glmm_reg"
   skip_if_missing_fits(name)
 
-  fit_brma <- fits[[name]]
+  fit_brma          <- fits[[name]]
+  expected_residual <- residuals(fit_brma, type = "outcome")
+  expected_se       <- .outcome_data_sei(fit_brma)
 
   expect_error(
     .test_funnel(fit_brma, plot_type = "ggplot"),
     "discrete PIT convention"
+  )
+
+  funnel_data <- .test_funnel(
+    fit_brma,
+    plot_type = "ggplot",
+    type      = "outcome",
+    as_data   = TRUE,
+    xlim      = c(-100, 100),
+    ylim      = c(0, max(expected_se))
+  )
+
+  expect_equal(
+    unname(funnel_data[["points"]][["x"]]),
+    unname(expected_residual)
+  )
+  expect_equal(funnel_data[["points"]][["y"]], expected_se)
+  expect_equal(
+    funnel_data[["funnel_edge1"]][["x"]],
+    stats::qnorm(0.025) * funnel_data[["funnel_edge1"]][["y"]]
+  )
+  expect_equal(
+    funnel_data[["funnel_edge2"]][["x"]],
+    stats::qnorm(0.975) * funnel_data[["funnel_edge2"]][["y"]]
   )
 })
 
