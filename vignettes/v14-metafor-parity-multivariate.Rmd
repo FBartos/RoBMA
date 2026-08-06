@@ -69,6 +69,7 @@ V_assink   <- metafor::vcalc(
   vi, cluster = study, type = deltype, obs = esid,
   rho = c(0.7, 0.5), data = dat_assink
 )
+V_assink[lower.tri(V_assink)] <- t(V_assink)[lower.tri(V_assink)]
 
 fit2_brma <- brma.mv(
   yi = yi, V = V_assink, measure = "SMD",
@@ -94,6 +95,7 @@ V_ishak <- metafor::vcalc(
   vi, cluster = study, time1 = time,
   phi = 0.97, data = dat_ishak
 )
+V_ishak[lower.tri(V_ishak)] <- t(V_ishak)[lower.tri(V_ishak)]
 ishak_unit_information_sd <- estimate_unit_information_sd(sei = sqrt(14.3), ni = 15)
 ishak_time_prior <- BayesTools::prior_factor(
   distribution = "normal",
@@ -206,7 +208,7 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 
 The `dat.assink2016` dataset from the `metadat` package contains standardized mean differences from 17 studies on recidivism and mental health among delinquent juveniles.
 Most studies contributed multiple estimates for different delinquent behaviors, so the example needs both a working sampling covariance matrix and random effect specification.
-The `metafor::vcalc()` call constructs a working sampling covariance matrix from the effect-size variances, study labels, delinquency type, and effect-size identifiers.
+The `metafor::vcalc()` call constructs a working sampling covariance matrix from the effect-size variances, study labels, delinquency type, and effect-size identifiers. We copy its upper triangle to the lower triangle because floating-point evaluation can otherwise leave the two triangles microscopically different.
 
 ```{r data-assink}
 data("dat.assink2016", package = "metadat")
@@ -215,6 +217,7 @@ V_assink   <- metafor::vcalc(
   vi, cluster = study, type = deltype, obs = esid,
   rho = c(0.7, 0.5), data = dat_assink
 )
+V_assink[lower.tri(V_assink)] <- t(V_assink)[lower.tri(V_assink)]
 head(dat_assink)
 ```
 
@@ -258,7 +261,7 @@ The first heterogeneity table summarizes the shared `study/esid` heterogeneity a
 
 The `dat.ishak2007` dataset from the `metadat` package contains results from 46 studies of deep-brain stimulation for Parkinson's disease.
 Negative mean differences indicate improvements in UPDRS motor-function scores, and repeated follow-up measurements within studies motivate a temporal correlation model.
-The data are first reshaped to long format, and `metafor::vcalc()` uses a working autocorrelation of `0.97` for the sampling errors.
+The data are first reshaped to long format, and `metafor::vcalc()` uses a working autocorrelation of `0.97` for the sampling errors. We again copy the upper triangle to construct the exactly symmetric covariance matrix required by `brma.mv()`.
 
 ```{r data-ishak}
 data("dat.ishak2007", package = "metadat")
@@ -278,6 +281,7 @@ V_ishak <- metafor::vcalc(
   vi, cluster = study, time1 = time,
   phi = 0.97, data = dat_ishak
 )
+V_ishak[lower.tri(V_ishak)] <- t(V_ishak)[lower.tri(V_ishak)]
 head(dat_ishak)
 ```
 
