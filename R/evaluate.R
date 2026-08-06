@@ -903,7 +903,7 @@
     byrow = TRUE
   ) - bias_offset - mu_samples
   if (by_block) {
-    out <- setNames(
+    out <- stats::setNames(
       lapply(block_names, function(block) {
         matrix(0, nrow = S, ncol = K)
       }),
