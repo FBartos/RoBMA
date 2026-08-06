@@ -1342,7 +1342,7 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
 })
 
 
-test_that("marginal_means rejects IWMDE BFs with poor ordinate diagnostics", {
+test_that("same-sample diagnostics warn without suppressing finite ordinates", {
 
   posterior_ordinate <- list(
     value       = 0,
@@ -1352,25 +1352,29 @@ test_that("marginal_means rejects IWMDE BFs with poor ordinate diagnostics", {
       relative_mcse       = 2,
       finite_terms        = 20,
       ess                 = 10,
-      max_weight_share    = .2
+      max_weight_share    = .2,
+      active_mass         = 1,
+      support_grid_normalization_integral = 1,
+      normalization_relative_error = 0,
+      normalization_mass_ratio = 1
     )
   )
 
-  expect_false(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
+  expect_true(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
+  expect_match(
+    .iwmde_posterior_ordinate_warnings(posterior_ordinate),
+    "relative MCSE"
+  )
   posterior_ordinate[["diagnostics"]][["relative_mcse"]] <- 1
   posterior_ordinate[["diagnostics"]][["ess"]] <- 10
-  expect_false(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
+  expect_true(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
   posterior_ordinate[["diagnostics"]][["relative_mcse"]] <- .1
   posterior_ordinate[["diagnostics"]][["ess"]] <- 2
-  expect_false(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
+  expect_true(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
   posterior_ordinate[["diagnostics"]][["ess"]] <- 50
   posterior_ordinate[["diagnostics"]][["max_weight_share"]] <- .95
-  expect_false(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
+  expect_true(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
   posterior_ordinate[["diagnostics"]][["max_weight_share"]] <- .2
-  posterior_ordinate[["diagnostics"]][["active_mass"]] <- 1
-  posterior_ordinate[["diagnostics"]][["support_grid_normalization_integral"]] <- 1
-  posterior_ordinate[["diagnostics"]][["normalization_relative_error"]] <- 0
-  posterior_ordinate[["diagnostics"]][["normalization_mass_ratio"]] <- 1
   expect_true(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
   posterior_ordinate[["diagnostics"]][["support_grid_normalization_integral"]] <- .70
   posterior_ordinate[["diagnostics"]][["normalization_relative_error"]] <- .30
@@ -1429,10 +1433,17 @@ test_that("marginal_means rejects IWMDE BFs with poor ordinate diagnostics", {
       bf_max_weight_share = .2,
       bf_max_log_ratio    = 1,
       estimator           = "iwmde",
-      weight_method       = "test"
+      weight_method       = "test",
+      active_mass         = 1,
+      support_grid_normalization_integral = 1,
+      normalization_relative_error = 0,
+      normalization_mass_ratio = 1
     )
   )
-  expect_null(.iwmde_posterior_ordinate_attribute(diagnostic, "IWMDE"))
+  expect_true(is.list(.iwmde_posterior_ordinate_attribute(
+    diagnostic,
+    "IWMDE"
+  )))
 })
 
 

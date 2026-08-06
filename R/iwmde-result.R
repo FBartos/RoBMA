@@ -4,13 +4,13 @@
 
 .iwmde_schema_version <- function() {
 
-  return("3")
+  return("4")
 }
 
 
 .iwmde_algorithm_version <- function() {
 
-  return("10")
+  return("11")
 }
 
 
@@ -51,7 +51,7 @@
   keep <- c(
     "n_points",
     "max_samples",
-    "initial_samples",
+    "samples",
     "target_relative_mcse",
     "normalization_points",
     "normalization_prob",
@@ -87,13 +87,9 @@
 .iwmde_diagnostic_policy <- function() {
 
   return(list(
-    max_relative_mcse = .iwmde_bf_max_relative_mcse(),
     warn_relative_mcse = .iwmde_bf_warning_relative_mcse(),
-    min_ess           = .iwmde_bf_min_ess(),
     warn_min_ess      = .iwmde_bf_warning_min_ess(),
-    max_weight_share  = .iwmde_bf_max_weight_share(),
     warn_weight_share = .iwmde_bf_warning_weight_share(),
-    min_finite_terms  = .iwmde_bf_min_finite_terms(),
     warn_min_finite_terms = .iwmde_bf_warning_min_finite_terms(),
     qcmde_warn        = .iwmde_bf_mass_warning_tolerance("q_grid_cmde"),
     qcmde_fail        = .iwmde_bf_mass_fail_tolerance("q_grid_cmde"),

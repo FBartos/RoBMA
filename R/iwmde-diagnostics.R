@@ -65,60 +65,6 @@
     return("posterior ordinate is zero or non-finite")
   }
 
-  relative_mcse <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("relative_mcse", "bf_relative_mcse")
-  )
-  if (!is.finite(relative_mcse) || relative_mcse < 0 ||
-      relative_mcse >= .iwmde_bf_max_relative_mcse()) {
-    return(paste0(
-      "relative MCSE is ",
-      .iwmde_percent(relative_mcse),
-      " (maximum allowed ",
-      .iwmde_percent(.iwmde_bf_max_relative_mcse()),
-      ")"
-    ))
-  }
-
-  finite_terms <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("finite_terms", "bf_finite_terms")
-  )
-  if (!is.finite(finite_terms) ||
-      finite_terms < .iwmde_bf_min_finite_terms()) {
-    return(paste0(
-      "only ", .iwmde_count(finite_terms),
-      " finite importance terms are available (minimum ",
-      .iwmde_count(.iwmde_bf_min_finite_terms()), ")"
-    ))
-  }
-
-  ess <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("ess", "bf_ess")
-  )
-  if (!is.finite(ess) || ess < .iwmde_bf_min_ess()) {
-    return(paste0(
-      "effective sample size is ", .iwmde_count(ess),
-      " (minimum ", .iwmde_count(.iwmde_bf_min_ess()), ")"
-    ))
-  }
-
-  max_weight_share <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("max_weight_share", "bf_max_weight_share")
-  )
-  if (!is.finite(max_weight_share) ||
-      max_weight_share >= .iwmde_bf_max_weight_share()) {
-    return(paste0(
-      "largest importance weight contributes ",
-      .iwmde_percent(max_weight_share),
-      " (maximum allowed ",
-      .iwmde_percent(.iwmde_bf_max_weight_share()),
-      ")"
-    ))
-  }
-
   if (identical(estimator, "q_grid_cmde")) {
     mass_reason <- .iwmde_diagnostics_mass_failure_reason(
       diagnostics = diagnostics,
@@ -142,26 +88,6 @@
   )
   if (!is.null(quadrature_reason)) {
     return(quadrature_reason)
-  }
-
-  sampling_relative_mcse <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("sampling_relative_mcse", "bf_sampling_relative_mcse")
-  )
-  has_sampling_diagnostic <- any(c(
-    "sampling_relative_mcse",
-    "bf_sampling_relative_mcse"
-  ) %in% names(diagnostics))
-  if (has_sampling_diagnostic &&
-      (!is.finite(sampling_relative_mcse) || sampling_relative_mcse < 0 ||
-       sampling_relative_mcse >= .iwmde_bf_max_relative_mcse())) {
-    return(paste0(
-      "finite-population row-sampling relative error is ",
-      .iwmde_percent(sampling_relative_mcse),
-      " (maximum allowed ",
-      .iwmde_percent(.iwmde_bf_max_relative_mcse()),
-      ")"
-    ))
   }
 
   return(NULL)
@@ -587,6 +513,19 @@
 }
 
 
+.iwmde_fixed_sample_precision_action <- function(diagnostics) {
+
+  if (isTRUE(diagnostics[["all_rows_used"]])) {
+    return(" Obtain more posterior draws to improve precision.")
+  }
+
+  return(paste0(
+    " Increase 'density_control$samples' or use Inf for the eligible-row ",
+    "census."
+  ))
+}
+
+
 .iwmde_diagnostics_bf_warning <- function(diagnostics) {
 
   estimator <- diagnostics[["estimator"]]
@@ -599,6 +538,7 @@
   }
 
   warnings <- character()
+  precision_action <- .iwmde_fixed_sample_precision_action(diagnostics)
 
   ordinate_warnings <- diagnostics[["ordinate_warnings"]]
   if (!is.null(ordinate_warnings)) {
@@ -613,9 +553,27 @@
     diagnostics,
     c("relative_mcse", "bf_relative_mcse")
   )
-  if (is.finite(relative_mcse) &&
-      relative_mcse >= .iwmde_bf_warning_relative_mcse() &&
-      relative_mcse < .iwmde_bf_max_relative_mcse()) {
+  target_relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    "target_relative_mcse"
+  )
+  if (is.finite(target_relative_mcse) && !is.finite(relative_mcse)) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      " relative MCSE is unavailable; treat the fixed-sample ordinate as ",
+      "imprecise.", precision_action
+    ))
+  } else if (is.finite(target_relative_mcse) &&
+             relative_mcse > target_relative_mcse) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      " relative MCSE is ",
+      .iwmde_percent(relative_mcse),
+      ", above the requested target of ",
+      .iwmde_percent(target_relative_mcse), ".", precision_action
+    ))
+  } else if (is.finite(relative_mcse) &&
+             relative_mcse >= .iwmde_bf_warning_relative_mcse()) {
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " relative MCSE is ",
@@ -627,9 +585,24 @@
     diagnostics,
     c("sampling_relative_mcse", "bf_sampling_relative_mcse")
   )
-  if (is.finite(sampling_relative_mcse) &&
-      sampling_relative_mcse >= .iwmde_bf_warning_relative_mcse() &&
-      sampling_relative_mcse < .iwmde_bf_max_relative_mcse()) {
+  if (is.finite(target_relative_mcse) &&
+      !is.finite(sampling_relative_mcse)) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      " finite-population row-sampling relative error is unavailable; ",
+      "treat the fixed-sample ordinate as imprecise.", precision_action
+    ))
+  } else if (is.finite(target_relative_mcse) &&
+             sampling_relative_mcse > target_relative_mcse) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      " finite-population row-sampling relative error is ",
+      .iwmde_percent(sampling_relative_mcse),
+      ", above the requested target of ",
+      .iwmde_percent(target_relative_mcse), ".", precision_action
+    ))
+  } else if (is.finite(sampling_relative_mcse) &&
+             sampling_relative_mcse >= .iwmde_bf_warning_relative_mcse()) {
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " finite-population row-sampling relative error is ",
@@ -642,7 +615,6 @@
     c("finite_terms", "bf_finite_terms")
   )
   if (is.finite(finite_terms) &&
-      finite_terms >= .iwmde_bf_min_finite_terms() &&
       finite_terms < .iwmde_bf_warning_min_finite_terms()) {
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
@@ -650,9 +622,7 @@
       .iwmde_count(finite_terms),
       " finite importance terms",
       " (warning threshold ",
-      .iwmde_count(.iwmde_bf_warning_min_finite_terms()),
-      "; BF rejection threshold ",
-      .iwmde_count(.iwmde_bf_min_finite_terms()), ")."
+      .iwmde_count(.iwmde_bf_warning_min_finite_terms()), ")."
     ))
   }
 
@@ -660,9 +630,7 @@
     diagnostics,
     c("ess", "bf_ess")
   )
-  if (is.finite(ess) &&
-      ess >= .iwmde_bf_min_ess() &&
-      ess < .iwmde_bf_warning_min_ess()) {
+  if (is.finite(ess) && ess < .iwmde_bf_warning_min_ess()) {
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " effective sample size is ",
@@ -675,17 +643,13 @@
     c("max_weight_share", "bf_max_weight_share")
   )
   if (is.finite(max_weight_share) &&
-      max_weight_share >= .iwmde_bf_warning_weight_share() &&
-      max_weight_share < .iwmde_bf_max_weight_share()) {
+      max_weight_share >= .iwmde_bf_warning_weight_share()) {
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " largest importance weight contributes ",
       .iwmde_percent(max_weight_share),
       " (warning threshold ",
-      .iwmde_percent(.iwmde_bf_warning_weight_share()),
-      "; BF rejection threshold ",
-      .iwmde_percent(.iwmde_bf_max_weight_share()),
-      ")."
+      .iwmde_percent(.iwmde_bf_warning_weight_share()), ")."
     ))
   }
 

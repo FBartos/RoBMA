@@ -91,24 +91,24 @@ the inverse log/affine scale, where the prior and posterior Jacobians cancel;
 calls mixing point and region statements must be evaluated separately.}
 
 \item{density_control}{named list of qCMDE/IWMDE tuning settings. Supported
-entries are \code{n_points} (default \code{100}), \code{max_samples}
-(default \code{Inf} for point ordinates), \code{initial_samples} (default
-\code{500}), \code{target_relative_mcse} (default \code{0.05}),
+entries are \code{n_points} (default \code{100}), \code{samples} (the fixed
+posterior-row sample size, default \code{500}; use \code{Inf} for the
+eligible-row census), \code{target_relative_mcse} (default \code{0.05}),
 \code{normalization_points} (default \code{NULL}, resolved to
 \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999}),
-and \code{display_grid} (default \code{"adaptive"}). Point ordinates use
-deterministic increasing row budgets, beginning at \code{initial_samples},
-until the precision target and every BF-grade reliability gate are met,
-every eligible row is used, or the \code{max_samples} hard cap is reached.
+and \code{display_grid} (default \code{"adaptive"}). Point ordinates use one
+state-independent simple random sample selected before ordinate contributions
+are evaluated. A finite estimate is returned independently of its sample
+diagnostics. If the fixed sample does not meet the precision target, a
+warning recommends increasing \code{samples} or using the census; if the
+census does not meet the target, obtain more posterior draws.
 \code{display_grid} is immaterial for
-point-only requests. If all rows are used without meeting the target, obtain
-more posterior draws before reporting a precise Bayes factor. Increase
+point-only requests. Increase
 \code{normalization_points} and \code{normalization_prob} to check numerical
 support coverage. A point ordinate warns at relative MCSE at least 5 percent,
 ESS below 100, maximum contribution share at least 20 percent, or fewer than
-100 finite contributions. It is rejected at relative MCSE at least 25
-percent, ESS below 20, maximum share at least 50 percent, or fewer than 20
-finite contributions. qCMDE ordinate movement warns above 2.5 percent and is
+100 finite contributions. These same-sample diagnostics do not suppress a
+finite fixed-design estimate. qCMDE ordinate movement warns above 2.5 percent and is
 rejected above 5 percent; IWMDE normalization error warns above 5 percent and
 is rejected above 10 percent. Adaptive-quadrature sensitivity warns above
 2.5 percent and is rejected above 5 percent.}

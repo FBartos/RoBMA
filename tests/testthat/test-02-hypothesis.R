@@ -96,7 +96,8 @@ test_that("qCMDE factor point guards use display aliases", {
       value                    = 0,
       conditional              = NULL,
       n_points                 = 20,
-      max_samples              = 10,
+      samples                  = 20,
+      target_relative_mcse     = .05,
       normalization_points     = 10,
       normalization_prob       = .99,
       density_method           = "qCMDE"
@@ -207,7 +208,8 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
     value                = 0,
     conditional          = NULL,
     n_points             = 20,
-    max_samples          = 20,
+    samples              = 20,
+    target_relative_mcse = .05,
     normalization_points = 20,
     normalization_prob   = .99,
     density_method       = "qCMDE"
@@ -441,8 +443,7 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     density_method            = "qCMDE",
     density_control           = list(
       n_points             = 60,
-      max_samples          = 5000,
-      initial_samples      = 5000,
+      samples              = 5000,
       normalization_points = 100
     ),
     n_samples                 = 1000
@@ -454,9 +455,8 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     columns                   = "all",
     density_method            = "IWMDE",
     density_control           = list(
-      n_points        = 60,
-      max_samples     = 5000,
-      initial_samples = 5000
+      n_points = 60,
+      samples  = 5000
     ),
     n_samples                 = 1000
   )
@@ -1284,8 +1284,7 @@ test_that("factor-level PET moderator point null agrees with bridge oracle", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 60,
-      max_samples          = 2000,
-      initial_samples      = 2000,
+      samples              = 2000,
       normalization_points = 100
     ),
     n_samples       = 1000
@@ -1296,9 +1295,8 @@ test_that("factor-level PET moderator point null agrees with bridge oracle", {
     columns         = "all",
     density_method  = "IWMDE",
     density_control = list(
-      n_points        = 60,
-      max_samples     = 2000,
-      initial_samples = 2000
+      n_points = 60,
+      samples  = 2000
     ),
     n_samples       = 1000
   )

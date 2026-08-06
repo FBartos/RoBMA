@@ -12,19 +12,17 @@
   )
   purpose <- match.arg(purpose)
   allowed_names <- c(
-    "n_points", "max_samples", "initial_samples", "target_relative_mcse",
+    "n_points", "max_samples", "samples", "target_relative_mcse",
     "normalization_points", "normalization_prob", "display_grid"
   )
   defaults <- list(
     n_points             = 100L,
-    max_samples          = if (!identical(purpose, "density")) {
-      Inf
-    } else if (identical(density_method, "IWMDE")) {
+    max_samples          = if (identical(density_method, "IWMDE")) {
       1000L
     } else {
       500L
     },
-    initial_samples      = 500L,
+    samples              = 500L,
     target_relative_mcse = .05,
     normalization_points = NULL,
     normalization_prob   = .999,
@@ -79,11 +77,7 @@
     lower = 20
   )
   .iwmde_check_max_samples(defaults[["max_samples"]])
-  BayesTools::check_int(
-    defaults[["initial_samples"]],
-    "density_control$initial_samples",
-    lower = 20
-  )
+  .iwmde_check_ordinate_samples(defaults[["samples"]])
   BayesTools::check_real(
     defaults[["target_relative_mcse"]],
     "density_control$target_relative_mcse",
@@ -97,17 +91,6 @@
       "'density_control$target_relative_mcse' must be higher than 0.",
       call. = FALSE
     )
-  }
-  if (is.finite(defaults[["max_samples"]]) &&
-      defaults[["initial_samples"]] > defaults[["max_samples"]]) {
-    if (all(c("initial_samples", "max_samples") %in% control_names)) {
-      stop(
-        "'density_control$initial_samples' cannot exceed ",
-        "'density_control$max_samples'.",
-        call. = FALSE
-      )
-    }
-    defaults[["initial_samples"]] <- as.integer(defaults[["max_samples"]])
   }
   BayesTools::check_int(
     defaults[["normalization_points"]],
@@ -179,9 +162,19 @@
 }
 
 
-.iwmde_bf_max_relative_mcse <- function() {
+.iwmde_check_ordinate_samples <- function(samples) {
 
-  return(.25)
+  if (length(samples) != 1L || is.na(samples) ||
+      (!is.finite(samples) && !identical(as.numeric(samples), Inf)) ||
+      (is.finite(samples) &&
+       (samples < 20 || samples != as.integer(samples)))) {
+    stop(
+      "'density_control$samples' must be an integer at least 20 or Inf.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
 }
 
 
@@ -191,21 +184,9 @@
 }
 
 
-.iwmde_bf_min_ess <- function() {
-
-  return(20)
-}
-
-
 .iwmde_bf_warning_min_ess <- function() {
 
   return(100)
-}
-
-
-.iwmde_bf_max_weight_share <- function() {
-
-  return(.50)
 }
 
 
@@ -218,12 +199,6 @@
 .iwmde_bf_warning_min_finite_terms <- function() {
 
   return(100)
-}
-
-
-.iwmde_bf_min_finite_terms <- function() {
-
-  return(20)
 }
 
 

@@ -1318,8 +1318,8 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
   ))
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
-  expect_equal(provenance[["schema_version"]], "3")
-  expect_equal(provenance[["algorithm_version"]], "10")
+  expect_equal(provenance[["schema_version"]], "4")
+  expect_equal(provenance[["algorithm_version"]], "11")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -1810,9 +1810,9 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
 
   expect_true(.iwmde_posterior_ordinate_supports_bf(ordinate))
   expect_true("qCMDE relative MCSE is 17.3%" %in% warnings)
-  expect_true(any(grepl("uses only\\s+60.*finite importance terms.*100.*20", warnings)))
+  expect_true(any(grepl("uses only\\s+60.*finite importance terms.*100", warnings)))
   expect_true("qCMDE effective sample size is 67.8" %in% warnings)
-  expect_true(any(grepl("largest importance weight.*30%.*20%.*50%", warnings)))
+  expect_true(any(grepl("largest importance weight.*30%.*20%", warnings)))
 
   diagnostics[["estimator"]] <- "iwmde"
   warnings <- .iwmde_diagnostics_bf_warning(diagnostics)
@@ -2085,7 +2085,7 @@ test_that("IWMDE plan fails the target on a non-finite baseline row", {
       density_method  = "qCMDE",
       density_control = list(
         n_points             = 20,
-        max_samples          = 21,
+        samples              = 21,
         normalization_points = 20
       ),
       outputs         = "ordinate",

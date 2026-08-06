@@ -7,29 +7,30 @@
 #' or, for IWMDE, uncertainty from estimating its conditional weight function.
 #'
 #' @details
-#' Point ordinates evaluate deterministic increasing posterior-row budgets,
-#' beginning with `initial_samples`, until `target_relative_mcse` and every
-#' BF-grade reliability gate pass, all eligible rows are used, or the
-#' `max_samples` hard cap is reached. The table records the achieved budget,
-#' `hard_cap_reached`, `all_rows_used`, adaptation steps, whether the precision
-#' target was met, and whether the final ordinate passed every BF-grade gate.
-#' Finite row budgets use a reproducible nested simple random sample without
-#' replacement. For a purely continuous ordinate, `relative_mcse` and `ess`
+#' Point ordinates evaluate one fixed posterior-row sample whose size is chosen
+#' by `samples` before any ordinate contributions are computed. Precision,
+#' effective-sample-size, and contribution-concentration diagnostics never
+#' determine whether that finite estimate is returned. An unmet
+#' `target_relative_mcse` produces a warning; increase `samples` or set it to
+#' `Inf` to use every eligible row. The
+#' table records the requested and achieved sample sizes, `all_rows_used`,
+#' whether the precision target was met, and whether the ordinate passed the
+#' independent numerical-stability gates. Finite row budgets use a reproducible
+#' simple random sample
+#' without replacement. For a purely continuous ordinate, `relative_mcse` and `ess`
 #' describe the selected continuous posterior-row sequence. For a mixed
 #' point/continuous ordinate evaluated on every active continuous row, they use
 #' the full conditioned-chain sequence, with zero contributions for inactive
 #' rows, and therefore include uncertainty in the active/product-space indicator
 #' mass. When only a subset of active rows is evaluated, these MCMC diagnostics
 #' are unavailable. `sampling_relative_mcse` separately estimates
-#' finite-population row-sampling uncertainty with its sampling fraction. Every
-#' available precision check must pass before adaptive evaluation can stop.
+#' finite-population row-sampling uncertainty with its sampling fraction.
 #'
 #' The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 #' below 100, the largest contribution share is at least 20 percent, or fewer
-#' than 100 finite contributions remain. It rejects an ordinate when relative
-#' MCSE is at least 25 percent, ESS is below 20, the largest contribution share
-#' is at least 50 percent, or fewer than 20 finite contributions remain. The
-#' corresponding thresholds are returned as columns rather than being implicit.
+#' than 100 finite contributions remain. These same-sample diagnostics do not
+#' reject a finite fixed-design estimate. Their warning thresholds are returned
+#' as columns rather than being implicit.
 #'
 #' qCMDE's full method diagnostics distinguish `pilot_normalization_integral`
 #' from `final_normalization_integral`; IWMDE uses
@@ -49,12 +50,13 @@
 #' computed point ordinate. Columns identify the estimator, parameter, requested
 #' and evaluated values, schema/source provenance, row counts, active mass,
 #' relative MCSE, ESS, largest contribution share, finite terms, normalization
-#' and quadrature checks, adaptive-budget state, policy thresholds, weight
+#' and quadrature checks, fixed-sampling state, policy thresholds, weight
 #' fallbacks, status, and warnings.
 #'
 #' The exact columns, in order, are `schema_version`, `algorithm_version`,
 #' `source_fingerprint`, `estimator`, `density_method`, `parameter`, `level`,
-#' `requested_value`, `evaluation_value`, `achieved_row_budget`, `eligible_rows`,
+#' `requested_value`, `evaluation_value`, `requested_samples`,
+#' `achieved_row_budget`, `eligible_rows`,
 #' `evaluated_rows`, `finite_terms`, `active_mass`, `relative_mcse`,
 #' `sampling_relative_mcse`,
 #' `sampling_fraction`, `mcmc_uncertainty_scope`,
@@ -64,11 +66,9 @@
 #' `quadrature_relative_change`, `target_relative_mcse`,
 #' `stability_warning_threshold`, `stability_rejection_threshold`,
 #' `quadrature_warning_threshold`, `quadrature_rejection_threshold`,
-#' `warning_relative_mcse`, `rejection_relative_mcse`,
-#' `warning_min_finite_terms`, `rejection_min_finite_terms`, `warning_min_ess`,
-#' `rejection_min_ess`, `warning_max_weight_share`,
-#' `rejection_max_weight_share`, `hard_cap`, `hard_cap_reached`,
-#' `all_rows_used`, `adaptation_steps`, `target_met`, `precision_target_met`,
+#' `warning_relative_mcse`, `warning_min_finite_terms`, `warning_min_ess`,
+#' `warning_max_weight_share`, `all_rows_used`, `target_met`,
+#' `precision_target_met`,
 #' `sampling_target_met`, `bf_grade_met`, `n_weight_fallbacks`,
 #' `weight_fallback_reasons`, `status`, and `warnings`.
 #'
@@ -234,6 +234,9 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     evaluation_value = .iwmde_public_numeric(
       diagnostics[["evaluation_value"]]
     ),
+    requested_samples = .iwmde_public_numeric(
+      diagnostics[["requested_samples"]]
+    ),
     achieved_row_budget = .iwmde_public_integer_any(
       diagnostics,
       c("achieved_row_budget", "n_candidate_rows")
@@ -289,22 +292,10 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     quadrature_warning_threshold = policy[["quadrature_warn"]],
     quadrature_rejection_threshold = policy[["quadrature_fail"]],
     warning_relative_mcse = policy[["warn_relative_mcse"]],
-    rejection_relative_mcse = policy[["max_relative_mcse"]],
     warning_min_finite_terms = policy[["warn_min_finite_terms"]],
-    rejection_min_finite_terms = policy[["min_finite_terms"]],
     warning_min_ess = policy[["warn_min_ess"]],
-    rejection_min_ess = policy[["min_ess"]],
     warning_max_weight_share = policy[["warn_weight_share"]],
-    rejection_max_weight_share = policy[["max_weight_share"]],
-    hard_cap = .iwmde_public_numeric(diagnostics[["hard_cap"]]),
-    hard_cap_reached = .iwmde_public_logical(
-      diagnostics[["hard_cap_reached"]]
-    ),
     all_rows_used = .iwmde_public_logical(diagnostics[["all_rows_used"]]),
-    adaptation_steps = .iwmde_public_integer_any(
-      diagnostics,
-      "n_steps"
-    ),
     target_met = .iwmde_public_logical(diagnostics[["target_met"]]),
     precision_target_met = .iwmde_public_logical(
       diagnostics[["precision_target_met"]]
@@ -335,7 +326,8 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     source_fingerprint = character(), estimator = character(),
     density_method = character(), parameter = character(), level = character(),
     requested_value = numeric(), evaluation_value = numeric(),
-    achieved_row_budget = integer(), eligible_rows = integer(),
+    requested_samples = numeric(), achieved_row_budget = integer(),
+    eligible_rows = integer(),
     evaluated_rows = integer(), finite_terms = integer(), active_mass = numeric(),
     relative_mcse = numeric(), sampling_relative_mcse = numeric(),
     sampling_fraction = numeric(), mcmc_uncertainty_scope = character(),
@@ -348,13 +340,10 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     stability_rejection_threshold = numeric(),
     quadrature_warning_threshold = numeric(),
     quadrature_rejection_threshold = numeric(),
-    warning_relative_mcse = numeric(),
-    rejection_relative_mcse = numeric(), warning_min_finite_terms = numeric(),
-    rejection_min_finite_terms = numeric(), warning_min_ess = numeric(),
-    rejection_min_ess = numeric(), warning_max_weight_share = numeric(),
-    rejection_max_weight_share = numeric(), hard_cap = numeric(),
-    hard_cap_reached = logical(), all_rows_used = logical(),
-    adaptation_steps = integer(), target_met = logical(),
+    warning_relative_mcse = numeric(), warning_min_finite_terms = numeric(),
+    warning_min_ess = numeric(), warning_max_weight_share = numeric(),
+    all_rows_used = logical(),
+    target_met = logical(),
     precision_target_met = logical(), sampling_target_met = logical(),
     bf_grade_met = logical(),
     n_weight_fallbacks = integer(), weight_fallback_reasons = character(),

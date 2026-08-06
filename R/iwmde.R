@@ -8,7 +8,7 @@
 # - iwmde-parameter-diagnostics.R: parameter diagnostic orchestration
 # - iwmde-cache.R: estimator caches, target keys, and row selection
 # - iwmde-control.R: controls and reliability thresholds
-# - iwmde-estimate.R: estimator facade and adaptive ordinate evaluation
+# - iwmde-estimate.R: estimator facade and fixed-budget ordinate evaluation
 # - iwmde-schema.R: plan, row-state, density, and diagnostic schemas
 # - iwmde-diagnostics.R: reliability decisions and presentation helpers
 # - iwmde-parameters.R: parameter specs, active components, and focal priors

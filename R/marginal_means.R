@@ -72,23 +72,25 @@ marginal_means <- function(object, ...) {
 #' computed from conditional marginal means, even when \code{type} excludes
 #' \code{"conditional"}.
 #' @param density_control named list of density-estimation settings. Supported
-#' entries are \code{n_points} (default \code{100}), \code{max_samples},
-#' \code{initial_samples} (default \code{500}),
+#' entries are \code{n_points} (default \code{100}), \code{max_samples} for
+#' density curves, \code{samples} for point ordinates (default \code{500}),
 #' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 #' (default \code{"adaptive"}), \code{normalization_points} (default
 #' \code{NULL}, resolved to \code{max(50, n_points)}), and
 #' \code{normalization_prob} (default \code{0.999}). \code{max_samples}
-#' defaults to \code{500} for stored qCMDE density curves, \code{1000} for
-#' stored IWMDE density curves, and \code{Inf} for point
-#' ordinates. Point ordinates adapt deterministically from
-#' \code{initial_samples} until the relative-MCSE target and all BF-grade
-#' reliability gates pass, all eligible rows are used, or a finite
-#' \code{max_samples} cap is reached. The normalization entries are used with
+#' defaults to \code{500} for stored qCMDE density curves and \code{1000} for
+#' stored IWMDE density curves. Point ordinates use one fixed state-independent
+#' simple random sample chosen before contributions are evaluated. Sample
+#' diagnostics do not decide whether a finite ordinate is returned. An unmet
+#' relative-MCSE target produces a warning; increase \code{samples} or use
+#' \code{Inf} for the census. The
+#' normalization entries are used with
 #' \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
 #' Curve diagnostics apply local reliability gates over the empirical 5--95
 #' percent bulk, report the 5 and 95 percent tail checkpoints, and retain a
 #' whole-curve absolute MCSE safeguard relative to the density peak. Point
-#' ordinates retain separate strict local diagnostics.
+#' ordinates retain separate numerical-stability gates; their sample precision,
+#' effective-sample-size, and contribution-concentration checks are warnings.
 #' qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
 #' random-formula models and for derived semantic random-effect quantities.
 #' @inheritParams predict.brma
@@ -630,12 +632,13 @@ print.summary.marginal_means.brma <- function(x, ...) {
 #' @param density_control named list of qCMDE/IWMDE density-estimation settings.
 #' Supported entries are \code{n_points} (default \code{100}),
 #' \code{max_samples} (default \code{500} for qCMDE and \code{1000} for
-#' IWMDE), \code{initial_samples} (default \code{500}),
+#' IWMDE density curves), \code{samples} (default \code{500} for point
+#' ordinates),
 #' \code{target_relative_mcse} (default \code{0.05}),
 #' \code{display_grid} (default \code{"adaptive"}),
 #' \code{normalization_points} (default \code{NULL}, resolved to
 #' \code{max(50, n_points)}), and \code{normalization_prob} (default
-#' \code{0.999}). \code{initial_samples} and \code{target_relative_mcse} are
+#' \code{0.999}). \code{samples} and \code{target_relative_mcse} are
 #' point-ordinate controls and do not alter this fixed-budget plot. Curve
 #' diagnostics use the empirical 5--95 percent bulk, report the 5 and 95
 #' percent tail checkpoints, and retain a whole-curve absolute MCSE safeguard

@@ -230,27 +230,29 @@ It can be seriously inaccurate at one-sided boundaries and at posterior ordinate
 | Setting | Default | Role |
 |:--|:--|:--|
 | `n_points` | `100` | Number of plotted density points; also determines the default initial normalization-grid size. |
-| `max_samples` | `500` for curves; `Inf` for point ordinates | Maximum eligible posterior rows evaluated. A finite point-ordinate value is a hard cap. |
-| `initial_samples` | `500` | Initial deterministic row budget for an adaptive point ordinate. |
-| `target_relative_mcse` | `0.05` | Point-ordinate adaptation target for relative Monte Carlo error. |
+| `max_samples` | `500` for qCMDE curves; `1,000` for IWMDE curves | Maximum eligible posterior rows evaluated for a density curve. |
+| `samples` | `500` | Fixed eligible-row sample for a point ordinate; use `Inf` for the census. |
+| `target_relative_mcse` | `0.05` | Warning target for point-ordinate relative Monte Carlo error. |
 | `normalization_points` | `NULL` | Initial hidden normalization-grid size; `NULL` resolves to `max(50, n_points)`. |
 | `normalization_prob` | `0.999` | Central posterior probability used to seed the hidden normalization range; qCMDE refines and extends that range. |
 | `display_grid` | `"adaptive"` | Adaptive or uniform placement of plotted points; it is immaterial for a point-only hypothesis. |
 
-Density curves use the fixed `max_samples = 500` plotting budget.
-Point ordinates instead evaluate deterministic increasing budgets, beginning at `initial_samples`, until the precision target and every BF-grade reliability gate are met, all eligible rows are used, or a finite `max_samples` hard cap is reached.
-This adaptive sequence does not add random subsampling variation between repeated calls.
+Density curves use the estimator-specific `max_samples` plotting budget.
+Point ordinates instead select one reproducible, state-independent simple random sample before any ordinate contribution is evaluated.
+This fixed design preserves the empirical product-state mixture in expectation and avoids making the sample size depend on the observed contributions.
+The estimate remains available independently of those sample diagnostics.
+If the sample does not meet the precision target, a warning recommends increasing `samples` or using `Inf`; if the census still misses the target, obtain more posterior draws.
 
 The estimator diagnostics distinguish the eligible row count, achieved budget, evaluated and retained rows, active mixture mass, relative Monte Carlo error, effective sample size (ESS), largest contribution share, finite contribution count, dropped rows, and normalization stability.
 The method-specific records use `pilot_normalization_integral` and `final_normalization_integral` for qCMDE and `support_grid_normalization_integral` for IWMDE.
 The public `density_diagnostics()` table reports this normalization check as `normalization_relative_error` and separately identifies the active `stability_metric`: qCMDE checks posterior-ordinate movement, whereas IWMDE checks normalization mass.
-The diagnostics also report `hard_cap_reached`, `all_rows_used`, whether the precision target and all BF-grade gates were met, and any IWMDE weight fallback and its reason.
+The diagnostics also report `requested_samples`, `all_rows_used`, whether the precision target and independent numerical-stability gates were met, and any IWMDE weight fallback and its reason.
 
 Point-ordinate reliability warnings are issued when relative MCSE is at least 5%, ESS is below 100, the largest contribution share is at least 20%, or fewer than 100 finite contributions remain.
-An ordinate is rejected when relative MCSE is at least 25%, ESS is below 20, the largest contribution share is at least 50%, or fewer than 20 finite contributions remain.
+These same-sample diagnostics never decide whether a finite fixed-design estimate is returned.
 qCMDE posterior-ordinate movement warns above 2.5% and rejects above 5%; IWMDE normalization error warns above 5% and rejects above 10%.
 Adaptive-quadrature sensitivity warns above 2.5% and rejects above 5%.
-Warnings therefore indicate an estimate that passed the hard gates but deserves a sensitivity analysis.
+Warnings indicate an estimate that deserves a sensitivity analysis; only non-finite ordinates and independent numerical-stability failures make the result unavailable.
 
 For point-null results, `error%(BF)` (stored as `BF_error`) is a conditional Monte Carlo error estimate obtained from batches of posterior-ordinate contributions.
 It is not a complete standard error.
@@ -272,7 +274,7 @@ bf_tighter <- hypothesis(
   hypothesis      = "mu != 0 vs mu = 0",
   logBF           = TRUE,
   density_method  = "qCMDE",
-  density_control = list(target_relative_mcse = 0.025)
+  density_control = list(samples = 1000, target_relative_mcse = 0.025)
 )
 
 bf_finer_grid <- hypothesis(
@@ -281,6 +283,7 @@ bf_finer_grid <- hypothesis(
   logBF           = TRUE,
   density_method  = "qCMDE",
   density_control = list(
+    samples              = 1000,
     target_relative_mcse = 0.025,
     normalization_points = 200,
     normalization_prob   = 0.9999
@@ -292,7 +295,7 @@ bf_iwmde_check <- hypothesis(
   hypothesis      = "mu != 0 vs mu = 0",
   logBF           = TRUE,
   density_method  = "IWMDE",
-  density_control = list(target_relative_mcse = 0.025)
+  density_control = list(samples = 1000, target_relative_mcse = 0.025)
 )
 ```
 

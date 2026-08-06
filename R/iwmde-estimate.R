@@ -35,12 +35,13 @@
     warning(paste(ordinate_warnings, collapse = " "), call. = FALSE)
   }
   .iwmde_check_context_density_method_supported(context, density_method)
-  if (identical(outputs, "ordinate")) {
-    out <- .iwmde_estimate_adaptive_ordinate(
+  if ("ordinate" %in% outputs) {
+    out <- .iwmde_estimate_fixed_ordinate(
       context         = context,
       parameter       = parameter,
       density_method  = density_method,
       density_control = density_control,
+      outputs         = outputs,
       values          = values,
       parameter_spec  = parameter_spec,
       metadata        = metadata,
@@ -68,114 +69,69 @@
 }
 
 
-.iwmde_estimate_adaptive_ordinate <- function(
+.iwmde_estimate_fixed_ordinate <- function(
     context, parameter, density_method, density_control, values,
-    parameter_spec = NULL, metadata = NULL, cache = NULL) {
+    parameter_spec = NULL, metadata = NULL, cache = NULL,
+    outputs = "ordinate") {
 
   control <- .iwmde_density_control_resolve(
     density_method  = density_method,
     density_control = density_control,
     purpose         = "ordinate"
   )
-  hard_cap <- control[["max_samples"]]
-  budget   <- min(control[["initial_samples"]], hard_cap)
-  history  <- list()
+  plan <- .iwmde_plan(
+    context         = context,
+    parameter       = parameter,
+    density_method  = density_method,
+    density_control = control,
+    outputs         = outputs,
+    values          = values,
+    parameter_spec  = parameter_spec,
+    metadata        = metadata
+  )
+  out <- .iwmde_estimate_from_plan(
+    context = context,
+    plan    = plan,
+    cache   = cache
+  )
 
-  repeat {
-    plan <- .iwmde_plan(
-      context         = context,
-      parameter       = parameter,
-      density_method  = density_method,
-      density_control = control,
-      outputs         = "ordinate",
-      values          = values,
-      parameter_spec  = parameter_spec,
-      metadata        = metadata,
-      row_budget      = as.integer(budget)
-    )
-    out <- .iwmde_estimate_from_plan(
-      context = context,
-      plan    = plan,
-      cache   = cache
-    )
-
-    diagnostic <- out[["diagnostics"]][["ordinate"]]
-    metrics    <- .iwmde_adaptation_metrics(diagnostic)
-    eligible   <- length(plan[["rows"]][["continuous_rows"]])
-    achieved   <- plan[["rows"]][["n_candidate_rows"]]
-    if (!is.finite(eligible) || eligible < 1L) {
-      eligible <- achieved
-    }
-    effective_cap <- min(hard_cap, eligible)
-    precision_target_met <- is.finite(metrics[["relative_mcse"]]) &&
-      metrics[["relative_mcse"]] <= control[["target_relative_mcse"]]
-    sampling_target_met <- is.finite(metrics[["sampling_relative_mcse"]]) &&
-      metrics[["sampling_relative_mcse"]] <=
-        control[["target_relative_mcse"]]
-    bf_grade_met <- is.null(.iwmde_diagnostics_bf_failure_reason(
-      diagnostic[["diagnostics"]]
-    ))
-    target_met <- precision_target_met && sampling_target_met && bf_grade_met
-    all_rows_used <- is.finite(eligible) && achieved >= eligible
-    hard_cap_reached <- is.finite(hard_cap) && hard_cap < eligible &&
-      achieved >= hard_cap
-
-    history[[length(history) + 1L]] <- data.frame(
-      requested_row_budget = as.integer(budget),
-      evaluated_rows       = as.integer(achieved),
-      relative_mcse        = metrics[["relative_mcse"]],
-      sampling_relative_mcse = metrics[["sampling_relative_mcse"]],
-      ess                  = metrics[["ess"]],
-      max_weight_share     = metrics[["max_weight_share"]],
-      precision_target_met = precision_target_met,
-      sampling_target_met  = sampling_target_met,
-      bf_grade_met         = bf_grade_met,
-      stringsAsFactors     = FALSE
-    )
-
-    exhausted <- all_rows_used || hard_cap_reached ||
-      !is.finite(effective_cap) || achieved >= effective_cap
-    if (target_met || exhausted || !identical(diagnostic[["status"]], "ok")) {
-      break
-    }
-
-    next_budget <- .iwmde_next_row_budget(
-      current              = budget,
-      relative_mcse        = max(
-        metrics[["relative_mcse"]],
-        metrics[["sampling_relative_mcse"]]
-      ),
-      target_relative_mcse = control[["target_relative_mcse"]],
-      cap                  = effective_cap
-    )
-    if (!is.finite(next_budget) || next_budget <= budget) {
-      break
-    }
-    budget <- next_budget
+  diagnostic <- out[["diagnostics"]][["ordinate"]]
+  metrics    <- .iwmde_ordinate_precision_metrics(diagnostic)
+  eligible   <- length(plan[["rows"]][["continuous_rows"]])
+  achieved   <- plan[["rows"]][["n_candidate_rows"]]
+  if (!is.finite(eligible) || eligible < 1L) {
+    eligible <- achieved
   }
+  precision_target_met <- is.finite(metrics[["relative_mcse"]]) &&
+    metrics[["relative_mcse"]] <= control[["target_relative_mcse"]]
+  sampling_target_met <- is.finite(metrics[["sampling_relative_mcse"]]) &&
+    metrics[["sampling_relative_mcse"]] <=
+      control[["target_relative_mcse"]]
+  bf_grade_met <- is.null(.iwmde_diagnostics_bf_failure_reason(
+    diagnostic[["diagnostics"]]
+  ))
+  all_rows_used <- is.finite(eligible) && achieved >= eligible
+  target_met <- precision_target_met && sampling_target_met && bf_grade_met
 
-  adaptation <- list(
-    adaptive             = TRUE,
-    initial_row_budget   = control[["initial_samples"]],
+  sampling_design <- list(
+    fixed_budget         = TRUE,
+    requested_samples    = control[["samples"]],
     achieved_row_budget  = as.integer(achieved),
     eligible_rows        = as.integer(eligible),
-    hard_cap             = hard_cap,
-    hard_cap_reached     = hard_cap_reached,
     all_rows_used        = all_rows_used,
     target_relative_mcse = control[["target_relative_mcse"]],
     precision_target_met = precision_target_met,
     sampling_target_met  = sampling_target_met,
     bf_grade_met         = bf_grade_met,
-    target_met           = target_met,
-    n_steps              = length(history),
-    history              = do.call(rbind, history)
+    target_met           = target_met
   )
+  out <- .iwmde_estimate_attach_sampling_design(out, sampling_design)
 
-  return(.iwmde_estimate_attach_adaptation(out, adaptation))
+  return(out)
 }
 
 
-.iwmde_adaptation_metrics <- function(diagnostic) {
+.iwmde_ordinate_precision_metrics <- function(diagnostic) {
 
   diagnostics <- diagnostic[["diagnostics"]]
   if (!is.list(diagnostics)) {
@@ -204,29 +160,14 @@
 }
 
 
-.iwmde_next_row_budget <- function(current, relative_mcse,
-                                    target_relative_mcse, cap) {
-
-  growth <- 2
-  if (is.finite(relative_mcse) && relative_mcse > 0 &&
-      is.finite(target_relative_mcse) && target_relative_mcse > 0) {
-    projected <- 1.2 * (relative_mcse / target_relative_mcse)^2
-    growth    <- min(4, max(1.5, projected))
-  }
-  next_budget <- max(current + 20, ceiling(current * growth))
-
-  return(min(as.integer(next_budget), cap))
-}
-
-
-.iwmde_estimate_attach_adaptation <- function(estimate, adaptation) {
+.iwmde_estimate_attach_sampling_design <- function(estimate, sampling_design) {
 
   diagnostic <- estimate[["diagnostics"]][["ordinate"]]
   if (is.list(diagnostic)) {
-    diagnostic[["adaptation"]] <- adaptation
+    diagnostic[["sampling_design"]] <- sampling_design
     if (is.list(diagnostic[["diagnostics"]])) {
-      for (name in setdiff(names(adaptation), "history")) {
-        diagnostic[["diagnostics"]][[name]] <- adaptation[[name]]
+      for (name in names(sampling_design)) {
+        diagnostic[["diagnostics"]][[name]] <- sampling_design[[name]]
       }
     }
     estimate[["diagnostics"]][["ordinate"]] <- diagnostic
@@ -238,16 +179,20 @@
   )) {
     ordinate <- estimate[[ordinate_name]]
     if (is.list(ordinate) && is.list(ordinate[["diagnostics"]])) {
-      for (name in setdiff(names(adaptation), "history")) {
-        ordinate[["diagnostics"]][[name]] <- adaptation[[name]]
+      for (name in names(sampling_design)) {
+        ordinate[["diagnostics"]][[name]] <- sampling_design[[name]]
       }
-      ordinate[["diagnostics"]][["adaptation_history"]] <-
-        adaptation[["history"]]
+      warnings <- .iwmde_diagnostics_bf_warning(ordinate[["diagnostics"]])
+      if (length(warnings) == 0L) {
+        ordinate[["diagnostics"]][["warning"]] <- NULL
+      } else {
+        ordinate[["diagnostics"]][["warning"]] <- warnings
+      }
       estimate[[ordinate_name]] <- ordinate
     }
   }
 
-  estimate[["adaptation"]] <- adaptation
+  estimate[["sampling_design"]] <- sampling_design
 
   return(estimate)
 }

@@ -1,7 +1,6 @@
 .hypothesis_brma_attach_iwmde <- function(object, posterior, parameter,
                                           parameter_label, hypothesis,
-                                          conditional, n_points, max_samples,
-                                          initial_samples,
+                                          conditional, n_points, samples,
                                           target_relative_mcse,
                                           normalization_points,
                                           normalization_prob, density_method,
@@ -61,8 +60,7 @@
         value                    = ref[["value"]],
         conditional              = conditional,
         n_points                 = n_points,
-        max_samples              = max_samples,
-        initial_samples          = initial_samples,
+        samples                  = samples,
         target_relative_mcse     = target_relative_mcse,
         normalization_points     = normalization_points,
         normalization_prob       = normalization_prob,
@@ -80,8 +78,7 @@
         value                = ref[["value"]],
         conditional          = conditional,
         n_points             = n_points,
-        max_samples          = max_samples,
-        initial_samples      = initial_samples,
+        samples              = samples,
         target_relative_mcse = target_relative_mcse,
         normalization_points = normalization_points,
         normalization_prob   = normalization_prob,
@@ -124,8 +121,8 @@
 
 .hypothesis_brma_attach_iwmde_scalar <- function(
     posterior, raw_posterior, context, estimate_cache, parameter,
-    parameter_label, value, conditional, n_points, max_samples,
-    initial_samples, target_relative_mcse, normalization_points,
+    parameter_label, value, conditional, n_points, samples,
+    target_relative_mcse, normalization_points,
     normalization_prob, density_method, parameter_spec = NULL) {
 
   if (is.list(raw_posterior) || is.list(posterior)) {
@@ -162,8 +159,7 @@
     density_method  = density_method,
     density_control = list(
       n_points             = n_points,
-      max_samples          = max_samples,
-      initial_samples      = initial_samples,
+      samples              = samples,
       target_relative_mcse = target_relative_mcse,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
@@ -207,7 +203,7 @@
 
 .hypothesis_brma_attach_iwmde_level <- function(
     posterior, raw_posterior, context, estimate_cache, parameter, level,
-    value, conditional, n_points, max_samples, initial_samples,
+    value, conditional, n_points, samples,
     target_relative_mcse, normalization_points, normalization_prob,
     density_method) {
 
@@ -250,8 +246,7 @@
     density_method  = density_method,
     density_control = list(
       n_points             = n_points,
-      max_samples          = max_samples,
-      initial_samples      = initial_samples,
+      samples              = samples,
       target_relative_mcse = target_relative_mcse,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
@@ -320,7 +315,7 @@
     if (!is.null(diagnostic_reason) && nzchar(diagnostic_reason)) {
       reason <- diagnostic_reason
     } else {
-      reason <- "failed BF-grade diagnostics"
+      reason <- "failed qCMDE/IWMDE numerical diagnostics"
     }
   }
 

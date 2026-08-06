@@ -4,8 +4,7 @@
 
 .iwmde_plan <- function(context, parameter, density_method, density_control,
                         outputs = c("density", "ordinate"), values = NULL,
-                        parameter_spec = NULL, metadata = NULL,
-                        row_budget = NULL) {
+                        parameter_spec = NULL, metadata = NULL) {
 
   context        <- .iwmde_context_ensure_caches(context)
   density_method <- .density_method_normalize_precomputed(density_method)
@@ -17,7 +16,7 @@
   density_control <- .iwmde_density_control_resolve(
     density_method  = density_method,
     density_control = density_control,
-    purpose         = if (identical(outputs, "ordinate")) {
+    purpose         = if ("ordinate" %in% outputs) {
       "ordinate"
     } else {
       "density"
@@ -29,13 +28,10 @@
       density_control[["n_points"]]
     )
   }
-  if (!is.null(row_budget)) {
-    BayesTools::check_int(row_budget, "row_budget", lower = 20)
-  }
-  row_budget <- if (is.null(row_budget)) {
-    density_control[["max_samples"]]
+  row_budget <- if ("ordinate" %in% outputs) {
+    density_control[["samples"]]
   } else {
-    min(row_budget, density_control[["max_samples"]])
+    density_control[["max_samples"]]
   }
 
   values <- as.numeric(values)

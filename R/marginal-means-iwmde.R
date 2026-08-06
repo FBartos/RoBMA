@@ -81,15 +81,27 @@
     display_grid         = display_grid
   )
   if (is.null(ordinate_control)) {
-    ordinate_control_list <- density_control_list
+    ordinate_control_list <- .density_control_normalize(
+      density_method  = density_method,
+      density_control = list(
+        n_points             = n_points,
+        normalization_points = normalization_points,
+        normalization_prob   = normalization_prob
+      ),
+      purpose         = "ordinate"
+    )
   } else {
-    ordinate_control_list <- ordinate_control
-    if (is.null(ordinate_control_list[["normalization_points"]])) {
-      ordinate_control_list[["normalization_points"]] <- max(
-        50L,
-        ordinate_control_list[["n_points"]]
-      )
-    }
+    ordinate_control_list <- .density_control_normalize(
+      density_method  = density_method,
+      density_control = ordinate_control,
+      purpose         = "ordinate"
+    )
+  }
+  if (is.null(ordinate_control_list[["normalization_points"]])) {
+    ordinate_control_list[["normalization_points"]] <- max(
+      50L,
+      ordinate_control_list[["n_points"]]
+    )
   }
   ordinate_control_list[["display_grid"]] <- "ordinate"
   include_values       <- NULL
@@ -348,7 +360,7 @@
     c(
       "n_points",
       "max_samples",
-      "initial_samples",
+      "samples",
       "target_relative_mcse",
       "normalization_points",
       "normalization_prob",

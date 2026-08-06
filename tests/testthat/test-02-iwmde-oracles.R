@@ -284,8 +284,7 @@ test_that("qCMDE matches GLMM and both estimators match selection bridge factors
         density_method  = density_method,
         density_control = list(
           n_points             = 40,
-          initial_samples      = 2000,
-          max_samples          = 2000,
+          samples              = 2000,
           normalization_points = 80
         ),
         n_samples = 1000
@@ -348,8 +347,7 @@ test_that("qCMDE and IWMDE match the known-V tau boundary bridge factor", {
       density_method  = density_method,
       density_control = list(
         n_points             = 60,
-        initial_samples      = 240,
-        max_samples          = 240,
+        samples              = 240,
         normalization_points = 120,
         normalization_prob   = .9999
       ),
