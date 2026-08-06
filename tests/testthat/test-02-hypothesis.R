@@ -677,15 +677,13 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
     n_samples       = 1000
   )
 
-  expect_error(
-    hypothesis(
-      mm_qcmde,
-      "alloc[alternate] > alloc[random]",
-      columns = "all",
-      seed    = 11
-    ),
-    "different conditional posterior subsets"
+  level_bf <- hypothesis(
+    mm_qcmde,
+    "alloc[alternate] > alloc[random]",
+    columns = "all",
+    seed    = 11
   )
+  expect_equal(level_bf[["method"]], "prior-posterior odds")
   point_bf <- hypothesis(
     mm_qcmde,
     "alloc[random] = 0",
@@ -1059,7 +1057,7 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
 })
 
 
-test_that("marginal means hypothesis BFs use alternative-conditioned marginals", {
+test_that("marginal means hypotheses select averaged or conditioned marginals", {
 
   make_parameter <- function(label) {
 
@@ -1093,7 +1091,9 @@ test_that("marginal means hypothesis BFs use alternative-conditioned marginals",
       check.names      = FALSE,
       stringsAsFactors = FALSE
     ),
-    density_method = "KDE"
+    density_method = "KDE",
+    model_averaged = TRUE,
+    source_object  = structure(list(), class = c("RoBMA", "brma"))
   )
   class(object) <- "marginal_means.brma"
 
@@ -1130,10 +1130,12 @@ test_that("marginal means hypothesis BFs use alternative-conditioned marginals",
     "Unused argument.*'type'"
   )
 
-  for (call in captured) {
+  expected_types <- c("averaged", "conditional", "averaged")
+  for (i in seq_along(captured)) {
+    call <- captured[[i]]
     expect_identical(
       call[["posterior"]][["conditional"]],
-      object[["inference"]][["conditional"]]
+      object[["inference"]][[expected_types[[i]]]]
     )
     expect_equal(call[["parameter"]], "mu_alloc")
     expect_equal(call[["density_method"]], "KDE")

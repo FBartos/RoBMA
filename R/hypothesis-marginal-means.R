@@ -4,7 +4,12 @@
 #' the hypothesis expression.
 #' @details Marginal-means hypotheses are specified on the fitted
 #' linear-predictor scale. Display transformations stored by
-#' \code{marginal_means()} do not transform hypothesis constants.
+#' \code{marginal_means()} do not transform hypothesis constants. Single-model
+#' hypotheses and model-averaged region hypotheses use averaged marginal draws.
+#' Model-averaged point-null hypotheses use alternative-conditioned draws to
+#' avoid null atoms in averaged marginals. Hypotheses that mix point and region
+#' events, and point hypotheses spanning multiple factor levels, are not
+#' supported.
 #'
 #' @export
 hypothesis.marginal_means.brma <- function(object, hypothesis,
@@ -43,6 +48,11 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     aliases    = selected[["aliases"]],
     parameter  = parameter
   )
+  route <- .hypothesis_marginal_means_route(
+    object     = object,
+    hypothesis = hypothesis,
+    parameter  = parameter
+  )
 
   density_method       <- .marginal_means_density_method(object, density_method)
   precomputed_density <- density_method %in% c("qCMDE", "IWMDE")
@@ -63,6 +73,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       parameter       = parameter,
       parameter_label = parameter_label,
       hypothesis      = hypothesis,
+      inference_type  = route[["inference_type"]],
       density_method  = density_method,
       density_control = density_control
     )
@@ -73,13 +84,14 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   }
 
   inference <- object[["inference"]]
-  if (is.null(inference[["conditional"]])) {
+  if (is.null(inference[[route[["inference_type"]]]])) {
     stop(
-      "'marginal_means' object does not contain alternative-conditioned ",
-      "marginal means.",
+      "'marginal_means' object does not contain ",
+      route[["inference_type"]], " marginal means.",
       call. = FALSE
     )
   }
+  inference[["conditional"]] <- inference[[route[["inference_type"]]]]
   class(inference) <- unique(c(class(inference), "marginal_inference"))
 
   out <- BayesTools::hypothesis_BF(
@@ -101,6 +113,85 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   }
 
   return(out)
+}
+
+
+.hypothesis_marginal_means_route <- function(object, hypothesis, parameter) {
+
+  statement_routes <- vapply(
+    hypothesis[["statements"]],
+    function(statement) {
+
+      types <- c(
+        statement[["left"]][["type"]],
+        statement[["right"]][["type"]]
+      )
+      if (all(types == "region")) {
+        return("region")
+      }
+      if (all(types %in% c("point", "not_point"))) {
+        return("point")
+      }
+
+      stop(
+        "Marginal-means hypotheses cannot mix point and region events. ",
+        "Use a pure point-null or a pure region hypothesis.",
+        call. = FALSE
+      )
+    },
+    character(1)
+  )
+  if (length(unique(statement_routes)) != 1L) {
+    stop(
+      "A marginal-means hypothesis request cannot mix point-null and region ",
+      "statements.",
+      call. = FALSE
+    )
+  }
+
+  route <- statement_routes[[1L]]
+  if (identical(route, "point")) {
+    levels <- unique(.hypothesis_marginal_means_ast_levels(
+      hypothesis = hypothesis,
+      parameter  = parameter
+    ))
+    if (length(levels) > 1L) {
+      stop(
+        "Point hypotheses spanning multiple marginal-means levels are not ",
+        "supported because the levels need not share one conditioning event.",
+        call. = FALSE
+      )
+    }
+  }
+
+  model_averaged <- isTRUE(object[["model_averaged"]]) ||
+    inherits(object[["source_object"]], "RoBMA")
+  inference_type <- if (model_averaged && identical(route, "point")) {
+    "conditional"
+  } else {
+    "averaged"
+  }
+
+  return(list(route = route, inference_type = inference_type))
+}
+
+
+.hypothesis_marginal_means_ast_levels <- function(hypothesis, parameter) {
+
+  find_levels <- function(node) {
+
+    if (!is.list(node)) {
+      return(character())
+    }
+    if (identical(node[["type"]], "level_reference") &&
+        identical(node[["parameter"]], parameter)) {
+      return(as.character(node[["level"]]))
+    }
+
+    return(unlist(lapply(node, find_levels), use.names = FALSE))
+  }
+
+  return(find_levels(hypothesis[["statements"]]))
 }
 
 
@@ -209,7 +300,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
 .hypothesis_marginal_means_attach_iwmde <- function(
     object, parameter, parameter_label, hypothesis, density_method,
-    density_control) {
+    density_control, inference_type = "conditional") {
 
   point_refs <- .hypothesis_brma_point_refs(hypothesis, parameter)
   if (nrow(point_refs) == 0L) {
@@ -220,7 +311,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     object          = object,
     parameter       = parameter,
     parameter_label = parameter_label,
-    point_refs      = point_refs
+    point_refs      = point_refs,
+    inference_type  = inference_type
   )
 
   source_object <- object[["source_object"]]
@@ -241,8 +333,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
   context        <- .iwmde_context(source_object)
   estimate_cache <- .iwmde_estimate_cache()
-  samples <- object[["inference"]][["conditional"]][[parameter]]
-  object[["inference"]][["conditional"]][[parameter]] <-
+  samples <- object[["inference"]][[inference_type]][[parameter]]
+  object[["inference"]][[inference_type]][[parameter]] <-
     .hypothesis_brma_keep_requested_ordinates(
       posterior  = samples,
       point_refs = point_refs
@@ -255,6 +347,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       estimate_cache      = estimate_cache,
       parameter           = parameter,
       ref                 = point_refs[i, , drop = FALSE],
+      inference_type      = inference_type,
       density_method      = density_method,
       density_control     = density_control
     )
@@ -265,9 +358,9 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
 
 .hypothesis_marginal_means_check_point_refs <- function(
-    object, parameter, parameter_label, point_refs) {
+    object, parameter, parameter_label, point_refs, inference_type) {
 
-  samples <- object[["inference"]][["conditional"]][[parameter]]
+  samples <- object[["inference"]][[inference_type]][[parameter]]
   for (i in seq_len(nrow(point_refs))) {
     ref <- point_refs[i, , drop = FALSE]
     if (is.na(ref[["level"]]) && is.list(samples)) {
@@ -322,14 +415,14 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
 
 .hypothesis_marginal_means_attach_iwmde_ref <- function(
-    object, context, estimate_cache, parameter, ref, density_method,
-    density_control) {
+    object, context, estimate_cache, parameter, ref, inference_type,
+    density_method, density_control) {
 
-  samples <- object[["inference"]][["conditional"]][[parameter]]
+  samples <- object[["inference"]][[inference_type]][[parameter]]
   if (is.null(samples)) {
     stop(
-      "'marginal_means' object does not contain alternative-conditioned ",
-      "samples for '", parameter, "'.",
+      "'marginal_means' object does not contain ", inference_type,
+      " samples for '", parameter, "'.",
       call. = FALSE
     )
   }
@@ -350,7 +443,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   specs <- .iwmde_marginal_means_specs(
     marginal_means_object = object,
     parameter             = parameter,
-    type                  = "conditional",
+    type                  = inference_type,
     levels                = if (is.na(level)) NULL else level
   )
   if (length(specs) != 1L) {
@@ -415,7 +508,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     level   = level,
     sample  = sample
   )
-  object[["inference"]][["conditional"]][[parameter]] <- samples
+  object[["inference"]][[inference_type]][[parameter]] <- samples
 
   return(object)
 }

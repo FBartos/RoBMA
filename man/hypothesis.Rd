@@ -152,7 +152,12 @@ expressions, for example \code{"mu = 0"}, \code{"year > 0"}, or
 \details{
 Marginal-means hypotheses are specified on the fitted
 linear-predictor scale. Display transformations stored by
-\code{marginal_means()} do not transform hypothesis constants.
+\code{marginal_means()} do not transform hypothesis constants. Single-model
+hypotheses and model-averaged region hypotheses use averaged marginal draws.
+Model-averaged point-null hypotheses use alternative-conditioned draws to
+avoid null atoms in averaged marginals. Hypotheses that mix point and region
+events, and point hypotheses spanning multiple factor levels, are not
+supported.
 
 For a continuous focal parameter \eqn{\theta}, nuisance parameters
 \eqn{\xi}, and an unnormalized joint posterior kernel
