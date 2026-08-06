@@ -409,7 +409,7 @@
   list(
     fit       = fit,
     parameter = selected[["entry"]][["parameter"]],
-    label     = selected[["entry"]][["term"]]
+    label     = selected[["spec"]][["label"]]
   )
 }
 
