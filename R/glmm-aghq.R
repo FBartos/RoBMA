@@ -186,14 +186,12 @@
 
 .glmm_grid_change <- function(current, previous) {
 
-  same  <- current == previous
-  delta <- abs(current - previous)
-  delta[!is.na(same) & same] <- 0
-  if (anyNA(delta)) {
+  finite <- is.finite(current) & is.finite(previous)
+  if (!all(finite)) {
     return(Inf)
   }
 
-  return(max(delta))
+  return(max(abs(current - previous)))
 }
 
 
@@ -542,9 +540,11 @@
       .rowLogSumExps(terms)
 
     if (!is.null(previous)) {
-      last_change <- abs(current - previous)
-      same        <- current == previous
-      last_change[!is.na(same) & same] <- 0
+      finite_pair <- is.finite(current) & is.finite(previous)
+      last_change <- rep(Inf, n)
+      last_change[finite_pair] <- abs(
+        current[finite_pair] - previous[finite_pair]
+      )
       below_count <- ifelse(
         is.finite(last_change) & last_change <= tolerance,
         below_count + 1L,

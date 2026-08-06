@@ -673,6 +673,44 @@ test_that("point nuisance AGHQ fails when refinement cannot certify accuracy", {
 })
 
 
+test_that("GLMM refinements reject persistent non-finite ordinates", {
+
+  grid_control <- .glmm_grid_control(
+    theta_orders    = c(3L, 5L, 7L),
+    nuisance_orders = c(3L, 5L, 7L),
+    consecutive     = 2L
+  )
+  expect_error(
+    .glmm_grid_refine(
+      evaluate     = function(theta_order, nuisance_order) -Inf,
+      outcome_type = "bin",
+      observation  = 1L,
+      control      = grid_control
+    ),
+    "prior-CDF quadrature failed to converge",
+    info = "equal non-finite grid ordinates are numerical failure"
+  )
+
+  point_control <- .glmm_aghq_control(
+    orders      = c(3L, 5L, 7L),
+    consecutive = 2L
+  )
+  expect_error(
+    .glmm_point_aghq_refine(
+      log_density      = function(theta) theta * 0 - Inf,
+      gradient         = function(theta) theta * 0,
+      negative_hessian = function(theta) theta * 0 + 1,
+      n                = 1L,
+      outcome_type     = "bin",
+      observation      = 1L,
+      control          = point_control
+    ),
+    "AGHQ failed to converge",
+    info = "equal non-finite point-prior ordinates are numerical failure"
+  )
+})
+
+
 test_that("a fitted point-baserate GLMM supports log-likelihood criteria", {
 
   prior_baserate <- BayesTools::prior_factor(
