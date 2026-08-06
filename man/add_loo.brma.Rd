@@ -87,6 +87,9 @@ draws uses exact uniform importance ratios. Such columns bypass relative-ESS
 and generalized-Pareto fitting, including when other columns vary. Their
 Pareto-k diagnostic is recorded as the sentinel zero, meaning constant
 ratios with no tail instability rather than an estimated Pareto shape.
+Finite varying columns are centered by a column-specific constant before
+relative-ESS and PSIS evaluation. The offset is restored exactly afterward,
+preserving the LOO target while avoiding probability-scale underflow.
 
 \strong{Important for model comparison:} When comparing models via
 \code{\link[loo]{loo_compare}}, the selection is based on expected

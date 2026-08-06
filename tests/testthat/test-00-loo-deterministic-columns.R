@@ -29,13 +29,85 @@ test_that("user-supplied relative ESS is exact for deterministic columns", {
     c(1, 0.50, 1)
   )
   expect_equal(
-    .loo_prepare_r_eff(rep(NA_real_, 3), 3, deterministic),
+    .loo_prepare_r_eff(rep(NA_real_, 3), 3, rep(TRUE, 3)),
     rep(1, 3)
+  )
+  expect_error(
+    .loo_prepare_r_eff(rep(NA_real_, 3), 3, deterministic),
+    "finite and positive",
+    fixed = TRUE
   )
   expect_error(
     .loo_prepare_r_eff(c(0.5, 0.5), 3, deterministic),
     "one value per observation",
     fixed = TRUE
+  )
+})
+
+
+test_that("finite varying LOO columns are invariant to extreme log offsets", {
+
+  n_samples <- 1200L
+  chain_id  <- rep(1:2, each = n_samples / 2L)
+  ordinary  <- -1 + 0.01 * sin(seq_len(n_samples))
+  baseline  <- 1e-6 * seq_len(n_samples)
+  log_lik <- cbind(
+    ordinary = ordinary,
+    extreme  = baseline - 1000
+  )
+  ordinary_scale <- cbind(
+    ordinary = ordinary,
+    extreme  = baseline
+  )
+  centered <- .loo_center_finite_columns(log_lik)
+  r_eff <- loo::relative_eff(
+    exp(centered[["log_lik"]]),
+    chain_id = chain_id
+  )
+
+  expect_true(all(is.finite(r_eff) & r_eff > 0))
+  expect_lt(r_eff[[2L]], 0.01)
+  expect_error(
+    .loo_prepare_r_eff(c(r_eff[[1L]], NA_real_), 2L, c(FALSE, FALSE)),
+    "finite and positive",
+    fixed = TRUE
+  )
+
+  result <- .loo_with_deterministic_columns(
+    log_lik       = log_lik,
+    r_eff         = r_eff,
+    deterministic = c(FALSE, FALSE),
+    cores         = 1
+  )
+  reference <- .loo_with_deterministic_columns(
+    log_lik       = ordinary_scale,
+    r_eff         = r_eff,
+    deterministic = c(FALSE, FALSE),
+    cores         = 1
+  )
+
+  expect_equal(
+    result[["pointwise"]]["extreme", "elpd_loo"] + 1000,
+    reference[["pointwise"]]["extreme", "elpd_loo"]
+  )
+  expect_equal(
+    result[["pointwise"]]["extreme", "looic"] - 2000,
+    reference[["pointwise"]]["extreme", "looic"]
+  )
+  expect_equal(
+    result[["pointwise"]][, c(
+      "mcse_elpd_loo", "p_loo", "influence_pareto_k"
+    )],
+    reference[["pointwise"]][, c(
+      "mcse_elpd_loo", "p_loo", "influence_pareto_k"
+    )]
+  )
+  expect_true(is.finite(
+    result[["pointwise"]]["extreme", "mcse_elpd_loo"]
+  ))
+  expect_equal(
+    exp(stats::weights(result[["psis_object"]])),
+    exp(stats::weights(reference[["psis_object"]]))
   )
 })
 

@@ -105,6 +105,9 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' and generalized-Pareto fitting, including when other columns vary. Their
 #' Pareto-k diagnostic is recorded as the sentinel zero, meaning constant
 #' ratios with no tail instability rather than an estimated Pareto shape.
+#' Finite varying columns are centered by a column-specific constant before
+#' relative-ESS and PSIS evaluation. The offset is restored exactly afterward,
+#' preserving the LOO target while avoiding probability-scale underflow.
 #'
 #' \strong{Important for model comparison:} When comparing models via
 #' \code{\link[loo]{loo_compare}}, the selection is based on expected
@@ -163,9 +166,12 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
     if (any(!deterministic)) {
       # loo::relative_eff expects exp(log_lik) with chain_id for matrix input
       chain_id <- .loo_chain_id(object[["fit"]], n_samples = nrow(log_lik))
+      relative_log_lik <- .loo_center_finite_columns(
+        log_lik[, !deterministic, drop = FALSE]
+      )[["log_lik"]]
 
       r_eff[!deterministic] <- loo::relative_eff(
-        exp(log_lik[, !deterministic, drop = FALSE]),
+        exp(relative_log_lik),
         chain_id = chain_id,
         cores    = cores
       )
@@ -216,17 +222,43 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
 
 .loo_prepare_r_eff <- function(r_eff, n_units, deterministic) {
 
-  if (isTRUE(all(is.na(r_eff)))) {
-    r_eff <- rep(1, n_units)
-  } else if (length(r_eff) == 1L) {
+  if (length(r_eff) == 1L) {
     r_eff <- rep(r_eff, n_units)
   } else if (length(r_eff) != n_units) {
     stop("'r_eff' must have one value or one value per observation.",
          call. = FALSE)
   }
   r_eff[deterministic] <- 1
+  invalid <- !deterministic & (!is.finite(r_eff) | r_eff <= 0)
+  if (any(invalid)) {
+    stop(
+      "'r_eff' must be finite and positive for every varying observation.",
+      call. = FALSE
+    )
+  }
 
   return(r_eff)
+}
+
+
+.loo_center_finite_columns <- function(log_lik) {
+
+  offsets <- rep(0, ncol(log_lik))
+  names(offsets) <- colnames(log_lik)
+  finite <- vapply(seq_len(ncol(log_lik)), function(i) {
+    all(is.finite(log_lik[, i]))
+  }, logical(1))
+  if (any(finite)) {
+    offsets[finite] <- apply(log_lik[, finite, drop = FALSE], 2L, max)
+    log_lik[, finite] <- sweep(
+      log_lik[, finite, drop = FALSE],
+      MARGIN = 2L,
+      STATS  = offsets[finite],
+      FUN    = "-"
+    )
+  }
+
+  return(list(log_lik = log_lik, offsets = offsets))
 }
 
 
@@ -234,22 +266,31 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
                                             cores) {
 
   if (!any(deterministic)) {
-    return(loo::loo(
-      log_lik,
+    centered <- .loo_center_finite_columns(log_lik)
+    result <- loo::loo(
+      centered[["log_lik"]],
       r_eff     = r_eff,
       save_psis = TRUE,
       cores     = cores
-    ))
+    )
+    return(.loo_restore_log_lik_offsets(result, centered[["offsets"]]))
   }
 
   variable <- which(!deterministic)
   variable_result <- NULL
   if (length(variable) > 0L) {
+    centered <- .loo_center_finite_columns(
+      log_lik[, variable, drop = FALSE]
+    )
     variable_result <- loo::loo(
-      log_lik[, variable, drop = FALSE],
+      centered[["log_lik"]],
       r_eff     = r_eff[variable],
       save_psis = TRUE,
       cores     = cores
+    )
+    variable_result <- .loo_restore_log_lik_offsets(
+      variable_result,
+      centered[["offsets"]]
     )
   }
 
@@ -259,6 +300,44 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
     r_eff           = r_eff,
     deterministic   = deterministic
   )
+}
+
+
+.loo_restore_log_lik_offsets <- function(result, offsets) {
+
+  if (length(offsets) == 0L || all(offsets == 0)) {
+    return(result)
+  }
+
+  pointwise <- result[["pointwise"]]
+  if (length(offsets) != nrow(pointwise)) {
+    stop("LOO offset dimensions are inconsistent.", call. = FALSE)
+  }
+  pointwise[, "elpd_loo"] <- pointwise[, "elpd_loo"] + offsets
+  pointwise[, "looic"]    <- pointwise[, "looic"] - 2 * offsets
+  result[["pointwise"]]   <- pointwise
+
+  psis <- result[["psis_object"]]
+  psis[["log_weights"]] <- sweep(
+    psis[["log_weights"]],
+    MARGIN = 2L,
+    STATS  = offsets,
+    FUN    = "-"
+  )
+  attr(psis, "norm_const_log") <-
+    attr(psis, "norm_const_log", exact = TRUE) - offsets
+  result[["psis_object"]] <- psis
+
+  estimates <- .loo_estimates_from_pointwise(pointwise)
+  result[["estimates"]]   <- estimates
+  result[["elpd_loo"]]    <- estimates["elpd_loo", "Estimate"]
+  result[["p_loo"]]       <- estimates["p_loo", "Estimate"]
+  result[["looic"]]       <- estimates["looic", "Estimate"]
+  result[["se_elpd_loo"]] <- estimates["elpd_loo", "SE"]
+  result[["se_p_loo"]]    <- estimates["p_loo", "SE"]
+  result[["se_looic"]]    <- estimates["looic", "SE"]
+
+  return(result)
 }
 
 
