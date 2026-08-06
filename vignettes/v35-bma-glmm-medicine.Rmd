@@ -67,7 +67,7 @@ fit_BMA <- BMA.glmm(
   slab = study_names, measure = "OR",
   prior_informed_field    = "medicine",
   prior_informed_subfield = "Acute Respiratory Infections",
-  seed = 1, parallel = TRUE
+  seed = 1, parallel = TRUE, autofit = TRUE
 )
 
 vignette_cache_save(cached_fits)
@@ -109,7 +109,7 @@ fit_BMA <- BMA.glmm(
   slab = study_names, measure = "OR",
   prior_informed_field    = "medicine",
   prior_informed_subfield = "Acute Respiratory Infections",
-  seed = 1, parallel = TRUE
+  seed = 1, parallel = TRUE, autofit = TRUE
 )
 ```
 with `prior_informed_field = "medicine"` and `prior_informed_subfield = "Acute Respiratory Infections"` corresponding to the $\mu \sim T(0,0.48,3)$ and $\tau \sim InvGamma(1.67, 0.45)$ informed prior distributions on the log-odds-ratio scale (see `?prior_informed` for more details regarding the informed prior distributions).
