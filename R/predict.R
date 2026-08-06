@@ -361,10 +361,7 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       bias_adjusted  = bias_adjusted,
       include_scale  = type != "terms",
       include_random = is_random_object && is_brma_mv_object &&
-        (type %in% c("estimate", "response") ||
-           (type == "terms.scale" && !.is_scale(object))),
-      include_random_metadata = is_random_object && is_brma_mv_object &&
-        type == "terms.scale" && .is_scale(object)
+        type %in% c("estimate", "response", "terms.scale")
     )
 
   }
@@ -597,27 +594,17 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
   new_data          <- context[["new_data"]]
   posterior_samples <- context[["posterior_samples"]]
   if (context[["random_mv"]]) {
-    if (.is_data_scale(new_data)) {
-      scale_samples <- .evaluate.brma.scale_terms(
-        fit               = object[["fit"]],
-        data              = new_data,
-        priors            = context[["priors"]],
-        posterior_samples = posterior_samples,
-        as_list           = TRUE
-      )
-    } else {
-      scale_samples <- .brma_mv_random_heterogeneity_components(
-        object            = object,
-        posterior_samples = posterior_samples,
-        K                 = context[["K_original"]],
-        data              = new_data,
-        new_levels        = if (context[["same_data"]]) NULL else "sample"
-      )
-      scale_samples <- lapply(scale_samples, function(samples) {
-        colnames(samples) <- paste0("tau[", seq_len(ncol(samples)), "]")
-        samples
-      })
-    }
+    scale_samples <- .brma_mv_random_heterogeneity_components(
+      object            = object,
+      posterior_samples = posterior_samples,
+      K                 = context[["K_original"]],
+      data              = new_data,
+      new_levels        = if (context[["same_data"]]) NULL else "sample"
+    )
+    scale_samples <- lapply(scale_samples, function(samples) {
+      colnames(samples) <- paste0("tau[", seq_len(ncol(samples)), "]")
+      samples
+    })
     out <- lapply(names(scale_samples), function(component) {
       .new_brma_samples(
         samples  = scale_samples[[component]],

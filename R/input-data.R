@@ -2427,14 +2427,11 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 # @param bias_adjusted Whether PET/PEESE terms should be omitted.
 # @param include_scale Whether to replay the fitted scale formula.
 # @param include_random Whether to replay the fitted random formula.
-# @param include_random_metadata Whether fitted random-component metadata is
-#   needed without replaying random-level variables.
 #
 # @return A data list equivalent to `object[["data"]]` but for `newdata`
 .prepare_newdata <- function(object, newdata, type, bias_adjusted = FALSE,
                              include_scale = type != "terms",
-                             include_random = FALSE,
-                             include_random_metadata = FALSE) {
+                             include_random = FALSE) {
 
   # extract settings from the original fitted object's data attributes
   original_data <- object[["data"]]
@@ -2505,10 +2502,6 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   } else {
     random_formula_arg <- NULL
   }
-  random_effects_metadata <- NULL
-  if (include_random_metadata && !include_random) {
-    random_effects_metadata <- .prepare_newdata_random_formula_arg(original_data)
-  }
 
   # add cluster structure for multilevel predictions
   if (.is_multilevel(object)) {
@@ -2573,8 +2566,7 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     standardize_continuous_predictors = standardize_continuous_predictors,
     effect_direction                  = effect_direction,
     skip_validation                   = TRUE,
-    allow_na_drop                     = FALSE,
-    random_effects_metadata           = random_effects_metadata
+    allow_na_drop                     = FALSE
   )
 
   return(new_data)

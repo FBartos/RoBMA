@@ -847,13 +847,23 @@
          call. = FALSE)
   }
 
-  source_samples <- .brma_mv_scale_source_samples(
-    object            = object,
-    posterior_samples = posterior_samples
+  pure_intercepts <- vapply(
+    terms,
+    .brma_mv_random_term_is_pure_intercept,
+    logical(1)
   )
+  source_samples <- NULL
+  if (.is_scale(object) && any(pure_intercepts)) {
+    source_samples <- .brma_mv_scale_source_samples(
+      object            = object,
+      posterior_samples = posterior_samples,
+      data              = data
+    )
+  }
 
-  out <- lapply(terms, function(term) {
-    if (.brma_mv_random_term_is_pure_intercept(term)) {
+  out <- lapply(seq_along(terms), function(i) {
+    term <- terms[[i]]
+    if (pure_intercepts[[i]]) {
       samples <- tryCatch(
         .random_effect_term_sd_samples(
           term              = term,
@@ -933,20 +943,21 @@
 }
 
 
-.brma_mv_scale_source_samples <- function(object, posterior_samples) {
+.brma_mv_scale_source_samples <- function(object, posterior_samples,
+                                          data = object[["data"]]) {
 
   if (!.is_scale(object)) {
     return(NULL)
   }
 
-  scale_specs <- .data_scale_component_specs(object[["data"]])
+  scale_specs <- .data_scale_component_specs(data)
   if (length(scale_specs) == 0L) {
     return(NULL)
   }
 
   scale_samples <- .evaluate.brma.scale_terms(
     fit               = object[["fit"]],
-    data              = object[["data"]],
+    data              = data,
     priors            = object[["priors"]],
     posterior_samples = posterior_samples,
     as_list           = TRUE

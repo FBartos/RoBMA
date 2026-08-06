@@ -1657,6 +1657,193 @@ test_that("random-slope terms.scale replays the prediction design", {
 })
 
 
+test_that("scale-bound random slopes use row-effective prediction SDs", {
+
+  dat <- data.frame(
+    yi    = c(0.10, 0.20, 0.30, 0.40),
+    x     = c(0, 1, 0, 1),
+    w     = c(-1, -1, 1, 1),
+    study = c("s1", "s1", "s2", "s2")
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.04, nrow(dat)),
+    random                    = ~ diag(0 + x | study),
+    scale                     = ~ w,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_samples <- matrix(
+    c(0.20, log(2)),
+    nrow     = 1L,
+    dimnames = list(NULL, c("log_tau_intercept", "log_tau_w"))
+  )
+  newdata <- data.frame(
+    x = c(0.5, 1.5),
+    w = c(0, 1)
+  )
+  new_x <- (newdata[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  expected <- matrix(
+    0.20 * exp(log(2) * newdata[["w"]]) * abs(new_x),
+    nrow = 1L
+  )
+
+  scale <- predict(
+    object,
+    newdata            = newdata,
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+
+  expect_equal(names(scale), "study")
+  expect_equal(unname(as.matrix(scale[["study"]])), expected,
+               tolerance = 1e-12)
+  expect_error(
+    predict(
+      object,
+      newdata            = data.frame(w = c(0, 1)),
+      type               = "terms.scale",
+      quiet              = TRUE,
+      .posterior_samples = posterior_samples
+    ),
+    "random-effect.*x"
+  )
+})
+
+
+test_that("scale-bound random factors replay their prediction design", {
+
+  dat <- data.frame(
+    yi    = seq(0.1, 0.6, by = 0.1),
+    arm   = factor(rep(c("A", "B", "C"), 2L)),
+    w     = rep(c(0, 1), each = 3L),
+    study = rep(c("s1", "s2"), each = 3L)
+  )
+  object <- brma.mv(
+    yi                             = yi,
+    V                              = diag(0.04, nrow(dat)),
+    random                         = ~ diag(1 + arm | study),
+    scale                          = ~ w,
+    data                           = dat,
+    measure                        = "GEN",
+    set_contrast_factor_predictors = "treatment",
+    prior_unit_information_sd      = 1,
+    only_priors                    = TRUE
+  )
+  term <- .fitted_formula_design(
+    object,
+    "mu",
+    required = TRUE
+  )[["random_effects"]][[1L]]
+  allocation_name <- term[["sd_binding"]][["allocations"]][[1L]][[
+    "weight_name"
+  ]]
+  posterior_samples <- matrix(
+    c(0.25, 0, rep(1 / 3, 3L)),
+    nrow = 1L,
+    dimnames = list(
+      NULL,
+      c(
+        "log_tau_intercept",
+        "log_tau_w",
+        paste0(allocation_name, "[", 1:3, "]")
+      )
+    )
+  )
+  newdata <- data.frame(
+    arm = factor(c("A", "B", "C"), levels = levels(dat[["arm"]])),
+    w   = 0
+  )
+  expected <- matrix(0.25 * c(1, sqrt(2), sqrt(2)), nrow = 1L)
+
+  scale <- predict(
+    object,
+    newdata            = newdata,
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+
+  expect_equal(unname(as.matrix(scale[["study"]])), expected,
+               tolerance = 1e-12)
+})
+
+
+test_that("terms.scale keeps sampled and scale-bound random blocks", {
+
+  dat <- data.frame(
+    yi   = c(0.10, 0.20, 0.30, 0.40, 0.15, 0.25),
+    vi   = c(0.04, 0.05, 0.06, 0.07, 0.02, 0.03),
+    type = factor(
+      c("RCT", "RCT", "RCT", "cohort", "cohort", "cohort"),
+      levels = c("RCT", "cohort")
+    )
+  )
+  dat[["study"]]   <- factor(seq_len(nrow(dat)))
+  dat[["cohort"]]  <- as.numeric(dat[["type"]] == "cohort")
+  dat[["bias_id"]] <- factor("cohort_bias")
+  object <- brma.mv(
+    yi = yi,
+    V  = vi,
+    random = list(
+      coh_bias    = ~ diag(0 + cohort | bias_id),
+      ran_effects = ~ 1 | study
+    ),
+    scale = list(ran_effects = ~ type),
+    data                           = dat,
+    known_v_parameterization       = "block_mvn",
+    measure                        = "GEN",
+    prior_unit_information_sd      = 1,
+    only_priors                    = TRUE
+  )
+  terms <- .fitted_formula_design(
+    object,
+    "mu",
+    required = TRUE
+  )[["random_effects"]]
+  coh_bias_term <- terms[[which(vapply(
+    terms,
+    function(term) identical(term[["block_name"]], "coh_bias"),
+    logical(1)
+  ))]]
+  posterior_samples <- matrix(
+    c(0.40, 0.20, log(2)),
+    nrow = 1L,
+    dimnames = list(
+      NULL,
+      c(
+        coh_bias_term[["sd_parameter_names"]],
+        "log_tau_ran_effects_intercept",
+        "log_tau_ran_effects_type"
+      )
+    )
+  )
+  cohort_z <- (dat[["cohort"]] - mean(dat[["cohort"]])) /
+    stats::sd(dat[["cohort"]])
+  expected_coh_bias <- matrix(0.40 * abs(cohort_z), nrow = 1L)
+  expected_ran_effects <- matrix(
+    c(rep(0.20, 3L), rep(0.40, 3L)),
+    nrow = 1L
+  )
+
+  scale <- predict(
+    object,
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+
+  expect_equal(names(scale), c("coh_bias", "ran_effects"))
+  expect_equal(unname(as.matrix(scale[["coh_bias"]])), expected_coh_bias,
+               tolerance = 1e-12)
+  expect_equal(unname(as.matrix(scale[["ran_effects"]])),
+               expected_ran_effects, tolerance = 1e-12)
+})
+
+
 test_that("random-formula brma.mv terms.scale returns random SD components", {
 
   object  <- .brma_mv_prior_object(random = TRUE)
