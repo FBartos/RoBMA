@@ -759,7 +759,7 @@ if (outcome_type == "norm" && same_data && bias_adjusted && (is_PET || is_PEESE)
 # on them instead of replacing them by the ordinary Gaussian block shortcut.
 multilevel_blup     <- NULL
 use_multilevel_blup <- is_multilevel && outcome_type == "norm" && same_data &&
-  !is_weightfunction
+  type == "estimate" && !is_weightfunction
 
 if (use_multilevel_blup) {
   multilevel_blup <- .evaluate.brma.multilevel_blup.norm(
