@@ -528,6 +528,7 @@
     active_values    = rows[["estimator_values"]],
     population_rows  = rows[["population_rows"]],
     sampling_population_rows = rows[["continuous_rows"]],
+    conditioned_chain_id = context_chain_id[rows[["population_rows"]]],
     chain_id         = context_chain_id[rows[["estimator_rows"]]],
     expected_chain_ids = rows[["chain_coverage"]][["expected_chain_ids"]],
     row_states       = rows[["row_states"]],
@@ -557,6 +558,19 @@
     ))
   }
 
+  mixed_ordinate <- identical(output, "ordinate") &&
+    plan[["rows"]][["point_mass_total"]] > 0
+  conditioned_rows <- if (mixed_ordinate) {
+    execution[["population_rows"]]
+  } else {
+    NULL
+  }
+  conditioned_chain_id <- if (mixed_ordinate) {
+    execution[["conditioned_chain_id"]]
+  } else {
+    NULL
+  }
+
   if (identical(plan[["method"]], "q_grid_cmde")) {
     if (is.null(plan[["grids"]][["normalization_grid"]])) {
       return(.iwmde_unsupported(
@@ -575,6 +589,8 @@
       population_rows    = execution[["sampling_population_rows"]],
       chain_id           = execution[["chain_id"]],
       expected_chain_ids = execution[["expected_chain_ids"]],
+      conditioned_rows   = conditioned_rows,
+      conditioned_chain_id = conditioned_chain_id,
       active_mass        = plan[["rows"]][["active_mass"]],
       replacement        = plan[["replacement"]],
       n_candidate_rows   = execution[["n_candidate_rows"]]
@@ -591,6 +607,8 @@
       population_rows    = execution[["sampling_population_rows"]],
       chain_id           = execution[["chain_id"]],
       expected_chain_ids = execution[["expected_chain_ids"]],
+      conditioned_rows   = conditioned_rows,
+      conditioned_chain_id = conditioned_chain_id,
       weight_rows        = execution[["active_rows"]],
       weight_values      = execution[["active_values"]],
       support            = plan[["support"]][["support"]],

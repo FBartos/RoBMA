@@ -373,6 +373,8 @@
                                 population_rows = estimator_rows,
                                 chain_id = rep(1L, length(estimator_rows)),
                                 expected_chain_ids = unique(chain_id),
+                                conditioned_rows = NULL,
+                                conditioned_chain_id = NULL,
                                 n_candidate_rows = length(row_states)) {
 
   n_display        <- length(display_grid)
@@ -597,14 +599,16 @@
     contribution_rows = estimator_rows,
     sampling_population_rows = population_rows,
     chain_id = chain_id[match(estimator_rows, selected_rows)],
-    expected_chain_ids = expected_chain_ids
+    expected_chain_ids = expected_chain_ids,
+    conditioned_rows = conditioned_rows,
+    conditioned_chain_id = conditioned_chain_id
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
   max_log_ratio    <- density_terms[["max_log_ratio"]]
   ess              <- density_terms[["ess"]]
   max_weight_share <- density_terms[["max_weight_share"]]
-  contributions    <- density_terms[["contributions"]]
+  contributions    <- density_terms[["mcmc_contributions"]]
 
   mcse_data      <- .iwmde_batch_mcse(contributions)
   ess            <- mcse_data[["ess"]]
@@ -713,6 +717,8 @@
                                  population_rows = active_rows,
                                  chain_id = rep(1L, length(active_rows)),
                                  expected_chain_ids = unique(chain_id),
+                                 conditioned_rows = NULL,
+                                 conditioned_chain_id = NULL,
                                  normalization_grid = NULL,
                                  n_candidate_rows = length(row_states)) {
 
@@ -931,14 +937,16 @@
     contribution_rows = contribution_rows,
     sampling_population_rows = population_rows,
     chain_id = chain_id[match(contribution_rows, active_rows)],
-    expected_chain_ids = expected_chain_ids
+    expected_chain_ids = expected_chain_ids,
+    conditioned_rows = conditioned_rows,
+    conditioned_chain_id = conditioned_chain_id
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
   max_log_ratio    <- density_terms[["max_log_ratio"]]
   ess              <- density_terms[["ess"]]
   max_weight_share <- density_terms[["max_weight_share"]]
-  contributions    <- density_terms[["contributions"]]
+  contributions    <- density_terms[["mcmc_contributions"]]
 
   normalization <- .iwmde_iwmde_normalization(
     normalization_grid = normalization_grid,

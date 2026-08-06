@@ -6,7 +6,9 @@
                                      contribution_rows = NULL,
                                      sampling_population_rows = NULL,
                                      chain_id = NULL,
-                                     expected_chain_ids = NULL) {
+                                     expected_chain_ids = NULL,
+                                     conditioned_rows = NULL,
+                                     conditioned_chain_id = NULL) {
 
   if (!is.matrix(log_terms)) {
     log_terms <- as.matrix(log_terms)
@@ -115,6 +117,13 @@
   attr(contributions, "target")       <- y
 
   sampling_error <- .iwmde_sampling_mcse(contributions)
+  mcmc_contributions <- .iwmde_mcmc_contributions(
+    contributions           = contributions,
+    active_population_rows  = sampling_population_rows,
+    conditioned_rows        = conditioned_rows,
+    conditioned_chain_id    = conditioned_chain_id,
+    active_mass             = active_mass
+  )
 
   return(list(
     y                        = y,
@@ -123,11 +132,92 @@
     ess                      = ess,
     max_weight_share         = max_weight_share,
     contributions            = contributions,
+    mcmc_contributions       = mcmc_contributions,
     sampling_mcse            = sampling_error[["mcse"]],
     sampling_relative_mcse   = sampling_error[["relative_mcse"]],
     sampling_fraction        = sampling_error[["sampling_fraction"]],
     sampling_uncertainty_type = "finite_population_srswor"
   ))
+}
+
+
+.iwmde_mcmc_contributions <- function(contributions, active_population_rows,
+                                      conditioned_rows, conditioned_chain_id,
+                                      active_mass) {
+
+  if (is.null(conditioned_rows) && is.null(conditioned_chain_id)) {
+    return(contributions)
+  }
+  if (is.null(conditioned_rows) || is.null(conditioned_chain_id) ||
+      length(conditioned_rows) == 0L ||
+      length(conditioned_rows) != length(conditioned_chain_id) ||
+      length(unique(conditioned_rows)) != length(conditioned_rows) ||
+      anyNA(conditioned_rows) || anyNA(conditioned_chain_id)) {
+    stop("Invalid conditioned-chain metadata for IWMDE contributions.",
+         call. = FALSE)
+  }
+
+  contribution_rows <- attr(
+    contributions,
+    "contribution_rows",
+    exact = TRUE
+  )
+  expected_chain_ids <- attr(
+    contributions,
+    "expected_chain_ids",
+    exact = TRUE
+  )
+  if (length(active_population_rows) == 0L ||
+      length(unique(active_population_rows)) !=
+        length(active_population_rows) ||
+      anyNA(match(active_population_rows, conditioned_rows)) ||
+      anyNA(match(contribution_rows, active_population_rows)) ||
+      length(expected_chain_ids) == 0L ||
+      anyNA(match(conditioned_chain_id, expected_chain_ids))) {
+    stop("Invalid active-state metadata for IWMDE contributions.",
+         call. = FALSE)
+  }
+
+  has_active_census <- length(contribution_rows) ==
+    length(active_population_rows) &&
+    !anyNA(match(active_population_rows, contribution_rows))
+  if (!has_active_census) {
+    attr(contributions, "mcmc_uncertainty_scope") <-
+      "unavailable_incomplete_active_census"
+    attr(contributions, "mcmc_uncertainty_reason") <- paste0(
+      "mixed point/continuous ordinate evaluated ",
+      length(contribution_rows), " of ", length(active_population_rows),
+      " active posterior rows"
+    )
+    return(contributions)
+  }
+
+  empirical_active_mass <- length(active_population_rows) /
+    length(conditioned_rows)
+  tolerance <- sqrt(.Machine$double.eps)
+  if (!is.finite(active_mass) || active_mass <= 0 ||
+      abs(active_mass - empirical_active_mass) > tolerance) {
+    stop("Inconsistent active mass for IWMDE contributions.", call. = FALSE)
+  }
+
+  full_contributions <- matrix(
+    0,
+    nrow = nrow(contributions),
+    ncol = length(conditioned_rows)
+  )
+  active_positions <- match(contribution_rows, conditioned_rows)
+  full_contributions[, active_positions] <- contributions / active_mass
+  attr(full_contributions, "chain_id") <- conditioned_chain_id
+  attr(full_contributions, "expected_chain_ids") <- expected_chain_ids
+  attr(full_contributions, "target") <- attr(
+    contributions,
+    "target",
+    exact = TRUE
+  )
+  attr(full_contributions, "mcmc_uncertainty_scope") <-
+    "full_conditioned_rows"
+
+  return(full_contributions)
 }
 
 
@@ -172,8 +262,9 @@
 }
 
 
-# Batch diagnostics here describe only the selected posterior-row sequence.
-# They are not a full-chain MCSE/ESS when a finite row budget is used.
+# Batch diagnostics describe the contribution sequence supplied by the caller.
+# Mixed point/continuous ordinates supply the full conditioned chain sequence;
+# other estimates supply the selected continuous-row sequence.
 .iwmde_batch_mcse <- function(contributions) {
 
   n <- ncol(contributions)
@@ -199,6 +290,31 @@
       length(expected_chain_ids) == 0L || anyNA(expected_chain_ids)) {
     stop("Invalid chain IDs for IWMDE contributions.", call. = FALSE)
   }
+  uncertainty_scope <- attr(
+    contributions,
+    "mcmc_uncertainty_scope",
+    exact = TRUE
+  )
+  if (is.null(uncertainty_scope)) {
+    uncertainty_scope <- "selected_continuous_rows_only"
+  }
+  unavailable_reason <- attr(
+    contributions,
+    "mcmc_uncertainty_reason",
+    exact = TRUE
+  )
+  if (!is.null(unavailable_reason)) {
+    return(list(
+      mcse          = rep(NA_real_, nrow(contributions)),
+      relative_mcse = rep(NA_real_, nrow(contributions)),
+      ess           = rep(NA_real_, nrow(contributions)),
+      batch_size    = NA_integer_,
+      n_batches     = 0L,
+      uncertainty_scope = uncertainty_scope,
+      uncertainty_status = "unavailable",
+      uncertainty_reason = unavailable_reason
+    ))
+  }
   missing_chain_ids <- expected_chain_ids[
     is.na(match(expected_chain_ids, unique(chain_id)))
   ]
@@ -212,7 +328,7 @@
       uncertainty_scope = "unavailable_missing_selected_chain",
       uncertainty_status = "unavailable",
       uncertainty_reason = paste0(
-        "selected SRS contains no rows from fitted chain(s): ",
+        "MCMC contribution sequence contains no rows from fitted chain(s): ",
         paste(missing_chain_ids, collapse = ", ")
       )
     ))
@@ -224,9 +340,9 @@
       ess           = kish_ess,
       batch_size    = NA_integer_,
       n_batches     = 0L,
-      uncertainty_scope = "selected_continuous_rows_only",
+      uncertainty_scope = uncertainty_scope,
       uncertainty_status = "partial",
-      uncertainty_reason = "fewer than four selected continuous rows"
+      uncertainty_reason = "fewer than four MCMC contribution rows"
     ))
   }
 
@@ -246,7 +362,8 @@
       uncertainty_scope = "unavailable_insufficient_chain_batches",
       uncertainty_status = "unavailable",
       uncertainty_reason = paste0(
-        "selected SRS provides fewer than two complete batches for fitted ",
+        "MCMC contribution sequence provides fewer than two complete batches ",
+        "for fitted ",
         "chain(s): ", paste(insufficient_chain_ids, collapse = ", ")
       )
     ))
@@ -258,9 +375,9 @@
       ess           = kish_ess,
       batch_size    = batch_size,
       n_batches     = n_batches,
-      uncertainty_scope = "selected_continuous_rows_only",
+      uncertainty_scope = uncertainty_scope,
       uncertainty_status = "partial",
-      uncertainty_reason = "fewer than two selected-row batches"
+      uncertainty_reason = "fewer than two complete contribution batches"
     ))
   }
 
@@ -301,7 +418,7 @@
     ess           = ess,
     batch_size    = batch_size,
     n_batches     = n_batches,
-    uncertainty_scope = "selected_continuous_rows_only",
+    uncertainty_scope = uncertainty_scope,
     uncertainty_status = "available",
     uncertainty_reason = NULL
   ))
@@ -336,6 +453,22 @@
   )
   if (!is.null(expected_chain_ids)) {
     attr(integrals, "expected_chain_ids") <- expected_chain_ids
+  }
+  uncertainty_scope <- attr(
+    contributions,
+    "mcmc_uncertainty_scope",
+    exact = TRUE
+  )
+  if (!is.null(uncertainty_scope)) {
+    attr(integrals, "mcmc_uncertainty_scope") <- uncertainty_scope
+  }
+  uncertainty_reason <- attr(
+    contributions,
+    "mcmc_uncertainty_reason",
+    exact = TRUE
+  )
+  if (!is.null(uncertainty_reason)) {
+    attr(integrals, "mcmc_uncertainty_reason") <- uncertainty_reason
   }
   attr(integrals, "target") <- .iwmde_trapz(
     x,

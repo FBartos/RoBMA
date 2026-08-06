@@ -209,8 +209,11 @@
     stop("Internal IWMDE density result has invalid finite-term counts.",
          call. = FALSE)
   }
-  if (any(!is.finite(density[["ess"]])) || any(density[["ess"]] < 0) ||
-      any(density[["ess"]] > finite_terms + sqrt(.Machine$double.eps))) {
+  unavailable_ess <- all(is.na(density[["ess"]]))
+  invalid_available_ess <- any(!is.finite(density[["ess"]])) ||
+    any(density[["ess"]] < 0) ||
+    any(density[["ess"]] > finite_terms + sqrt(.Machine$double.eps))
+  if (!unavailable_ess && invalid_available_ess) {
     stop("Internal IWMDE density result has invalid effective sample sizes.",
          call. = FALSE)
   }
@@ -240,7 +243,10 @@
                  "finite_population_srswor") ||
       !density[["mcmc_uncertainty_scope"]] %in% c(
         "selected_continuous_rows_only",
-        "unavailable_missing_selected_chain"
+        "full_conditioned_rows",
+        "unavailable_incomplete_active_census",
+        "unavailable_missing_selected_chain",
+        "unavailable_insufficient_chain_batches"
       ) ||
       !density[["mcmc_uncertainty_status"]] %in%
         c("available", "partial", "unavailable") ||
@@ -251,8 +257,7 @@
     stop("Internal IWMDE density result has invalid uncertainty metadata.",
          call. = FALSE)
   }
-  if (identical(density[["mcmc_uncertainty_scope"]],
-                "unavailable_missing_selected_chain") &&
+  if (startsWith(density[["mcmc_uncertainty_scope"]], "unavailable_") &&
       (!identical(density[["mcmc_uncertainty_status"]], "unavailable") ||
        is.null(density[["mcmc_uncertainty_reason"]]) ||
        any(!is.na(c(
@@ -261,6 +266,11 @@
          density[["ess"]]
        ))))) {
     stop("Internal IWMDE density result has inconsistent chain uncertainty.",
+         call. = FALSE)
+  }
+  if (unavailable_ess &&
+      !identical(density[["mcmc_uncertainty_status"]], "unavailable")) {
+    stop("Internal IWMDE density result has unavailable effective sample sizes.",
          call. = FALSE)
   }
   scalar_counts <- c(

@@ -350,6 +350,117 @@ test_that("IWMDE row sampling uncertainty is separate and compact", {
 })
 
 
+test_that("mixed ordinates batch the full conditioned chain sequence", {
+
+  conditioned_rows <- seq_len(32L)
+  conditioned_chain_id <- rep(1:2, each = 16L)
+  active_rows <- c(seq_len(8L), 16L + seq_len(8L))
+
+  density <- .iwmde_density_aggregate(
+    log_terms               = matrix(log(2), nrow = 1L, ncol = 16L),
+    active_mass             = .5,
+    denominator             = 16L,
+    contribution_rows       = active_rows,
+    sampling_population_rows = active_rows,
+    chain_id                = conditioned_chain_id[active_rows],
+    expected_chain_ids      = 1:2,
+    conditioned_rows        = conditioned_rows,
+    conditioned_chain_id    = conditioned_chain_id
+  )
+  conditional_mcse <- .iwmde_batch_mcse(density[["contributions"]])
+  mixture_contributions <- density[["mcmc_contributions"]]
+  mixture_mcse <- .iwmde_batch_mcse(mixture_contributions)
+
+  expect_equal(density[["y"]], 1)
+  expect_equal(rowMeans(mixture_contributions), density[["y"]])
+  expect_equal(as.numeric(mixture_contributions[, active_rows]), rep(2, 16L))
+  expect_equal(
+    as.numeric(mixture_contributions[, -active_rows]),
+    rep(0, 16L)
+  )
+  expect_equal(attr(mixture_contributions, "chain_id"), conditioned_chain_id)
+  expect_equal(conditional_mcse[["mcse"]], 0)
+  expect_gt(mixture_mcse[["mcse"]], 0)
+  expect_equal(mixture_mcse[["uncertainty_scope"]], "full_conditioned_rows")
+  expect_equal(mixture_mcse[["uncertainty_status"]], "available")
+
+  partial <- .iwmde_density_aggregate(
+    log_terms               = matrix(log(2), nrow = 1L, ncol = 8L),
+    active_mass             = .5,
+    denominator             = 8L,
+    contribution_rows       = active_rows[seq_len(8L)],
+    sampling_population_rows = active_rows,
+    chain_id                = conditioned_chain_id[active_rows[seq_len(8L)]],
+    expected_chain_ids      = 1:2,
+    conditioned_rows        = conditioned_rows,
+    conditioned_chain_id    = conditioned_chain_id
+  )
+  partial_mcse <- .iwmde_batch_mcse(partial[["mcmc_contributions"]])
+
+  expect_true(all(is.na(partial_mcse[["mcse"]])))
+  expect_true(all(is.na(partial_mcse[["relative_mcse"]])))
+  expect_true(all(is.na(partial_mcse[["ess"]])))
+  expect_equal(
+    partial_mcse[["uncertainty_scope"]],
+    "unavailable_incomplete_active_census"
+  )
+  expect_equal(partial_mcse[["uncertainty_status"]], "unavailable")
+  expect_match(partial_mcse[["uncertainty_reason"]], "8 of 16 active")
+})
+
+
+test_that("partial mixed qCMDE ordinates remain uncertified", {
+
+  grid <- seq(0, 1, length.out = 21L)
+  conditioned_rows <- seq_len(80L)
+  conditioned_chain_id <- rep(1:2, each = 40L)
+  active_rows <- c(seq(1L, 39L, by = 2L), seq(41L, 79L, by = 2L))
+  estimator_rows <- active_rows[seq_len(20L)]
+
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid = function(context, parameter, values, row_states,
+                                 replacement) {
+      matrix(0, nrow = length(values), ncol = length(row_states))
+    },
+    .package = "RoBMA"
+  )
+
+  density <- .iwmde_density_grid(
+    context            = list(),
+    parameter          = "mu",
+    display_grid       = grid,
+    normalization_grid = list(
+      x            = grid,
+      z            = grid,
+      log_jacobian = rep(0, length(grid))
+    ),
+    transform          = .iwmde_parameter_transform(c(0, 1)),
+    row_states         = rep(list(list()), 20L),
+    active_mass        = .5,
+    replacement        = list(type = "scalar"),
+    estimator_rows     = estimator_rows,
+    population_rows    = active_rows,
+    chain_id           = conditioned_chain_id[estimator_rows],
+    expected_chain_ids = 1:2,
+    conditioned_rows   = conditioned_rows,
+    conditioned_chain_id = conditioned_chain_id
+  )
+  density <- .iwmde_new_density_result(
+    fields    = density,
+    estimator = "q_grid_cmde"
+  )
+
+  expect_true(all(is.na(density[["mcse"]])))
+  expect_true(all(is.na(density[["ess"]])))
+  expect_equal(
+    density[["mcmc_uncertainty_scope"]],
+    "unavailable_incomplete_active_census"
+  )
+  expect_equal(density[["mcmc_uncertainty_status"]], "unavailable")
+  expect_equal(density[["sampling_fraction"]], .5)
+})
+
+
 test_that("IWMDE rejects invalid Chen log weights", {
 
   testthat::local_mocked_bindings(

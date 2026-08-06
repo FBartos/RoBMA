@@ -326,6 +326,88 @@ test_that("adaptive ordinates recover per-chain batch coverage", {
 })
 
 
+test_that("adaptive mixed ordinates require the active-row census", {
+
+  conditioned_rows <- seq_len(80L)
+  conditioned_chain_id <- rep(1:2, each = 40L)
+  active_rows <- c(seq(1L, 39L, by = 2L), seq(41L, 79L, by = 2L))
+  scopes <- character()
+
+  testthat::local_mocked_bindings(
+    .iwmde_plan = function(context, parameter, density_method,
+                           density_control, outputs, values,
+                           parameter_spec, metadata, row_budget) {
+      list(
+        row_budget = row_budget,
+        rows = list(
+          continuous_rows = active_rows,
+          n_candidate_rows = row_budget
+        )
+      )
+    },
+    .iwmde_estimate_from_plan = function(context, plan, cache = NULL) {
+      row_budget <- plan[["row_budget"]]
+      selected_rows <- active_rows[seq_len(row_budget)]
+      density <- .iwmde_density_aggregate(
+        log_terms               = matrix(log(2), nrow = 1L, ncol = row_budget),
+        active_mass             = .5,
+        denominator             = row_budget,
+        contribution_rows       = selected_rows,
+        sampling_population_rows = active_rows,
+        chain_id                = conditioned_chain_id[selected_rows],
+        expected_chain_ids      = 1:2,
+        conditioned_rows        = conditioned_rows,
+        conditioned_chain_id    = conditioned_chain_id
+      )
+      mcse <- .iwmde_batch_mcse(density[["mcmc_contributions"]])
+      scopes <<- c(scopes, mcse[["uncertainty_scope"]])
+
+      list(
+        diagnostics = list(ordinate = list(
+          status = "ok",
+          diagnostics = .iwmde_adaptive_test_diagnostics(
+            row_budget    = row_budget,
+            relative_mcse = mcse[["relative_mcse"]][[1L]],
+            ess           = mcse[["ess"]][[1L]],
+            sampling_relative_mcse =
+              density[["sampling_relative_mcse"]][[1L]]
+          )
+        )),
+        posterior_ordinate = list(diagnostics = list())
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  estimate <- .iwmde_estimate_adaptive_ordinate(
+    context         = list(),
+    parameter       = "mu",
+    density_method  = "qCMDE",
+    density_control = list(
+      initial_samples      = 20L,
+      max_samples          = 40L,
+      target_relative_mcse = .05
+    ),
+    values          = 0
+  )
+
+  expect_equal(
+    estimate[["adaptation"]][["history"]][["requested_row_budget"]],
+    c(20L, 40L)
+  )
+  expect_equal(
+    estimate[["adaptation"]][["history"]][["precision_target_met"]],
+    c(FALSE, TRUE)
+  )
+  expect_equal(
+    scopes,
+    c("unavailable_incomplete_active_census", "full_conditioned_rows")
+  )
+  expect_true(estimate[["adaptation"]][["target_met"]])
+  expect_true(estimate[["adaptation"]][["all_rows_used"]])
+})
+
+
 test_that("density_diagnostics exposes compact BF-grade diagnostics", {
 
   diagnostics <- list(
