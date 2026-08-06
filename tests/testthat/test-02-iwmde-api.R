@@ -665,6 +665,8 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     y                = c(.001, .10, 1, .10, .001),
     mcse             = c(.03, .008, .01, .008, .03),
     relative_mcse    = c(30, .08, .01, .08, 30),
+    sampling_mcse    = c(.03, .008, .01, .008, .03),
+    sampling_relative_mcse = c(30, .08, .01, .08, 30),
     ess              = c(2, 120, 400, 120, 2),
     max_weight_share = c(.70, .04, .01, .04, .70)
   )
@@ -676,7 +678,9 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
 
   expect_equal(.iwmde_density_tail_probabilities(), c(.05, .95))
   expect_equal(curve[["plot_scale_relative_mcse"]], .03)
+  expect_equal(curve[["plot_scale_sampling_relative_mcse"]], .03)
   expect_equal(curve[["bulk_max_relative_mcse"]], .08)
+  expect_equal(curve[["bulk_max_sampling_relative_mcse"]], .08)
   expect_equal(curve[["bulk_min_ess"]], 120)
   expect_equal(curve[["bulk_max_weight_share"]], .04)
   expect_equal(curve[["tail_evaluation_x"]], c(-1.645, 1.645))
@@ -687,6 +691,7 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
   diagnostics <- c(list(
     estimator                       = "q_grid_cmde",
     max_relative_mcse               = 30,
+    max_sampling_relative_mcse      = 30,
     min_finite_terms                = 500L,
     min_ess                         = 2,
     max_weight_share                = .70,
@@ -704,6 +709,30 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
 
   expect_null(.iwmde_diagnostics_density_failure_reason(diagnostics))
   expect_length(.iwmde_diagnostics_density_warning(diagnostics), 0L)
+
+  diagnostics[["plot_scale_sampling_relative_mcse"]] <- .12
+  expect_match(
+    .iwmde_diagnostics_density_warning(diagnostics),
+    "plot-scale finite-population sampling MCSE"
+  )
+  diagnostics[["plot_scale_sampling_relative_mcse"]] <- .30
+  expect_match(
+    .iwmde_diagnostics_density_failure_reason(diagnostics),
+    "plot-scale finite-population sampling MCSE"
+  )
+  diagnostics[["plot_scale_sampling_relative_mcse"]] <- .03
+
+  diagnostics[["bulk_max_sampling_relative_mcse"]] <- .12
+  expect_match(
+    .iwmde_diagnostics_density_warning(diagnostics),
+    "bulk finite-population sampling relative MCSE"
+  )
+  diagnostics[["bulk_max_sampling_relative_mcse"]] <- .30
+  expect_match(
+    .iwmde_diagnostics_density_failure_reason(diagnostics),
+    "bulk finite-population sampling relative MCSE"
+  )
+  diagnostics[["bulk_max_sampling_relative_mcse"]] <- .08
 
   diagnostics[["plot_scale_relative_mcse"]] <- .12
   expect_match(
@@ -1292,7 +1321,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "3")
-  expect_equal(provenance[["algorithm_version"]], "9")
+  expect_equal(provenance[["algorithm_version"]], "10")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")

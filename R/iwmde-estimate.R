@@ -767,11 +767,15 @@
     mcmc_uncertainty_reason     = density[["mcmc_uncertainty_reason"]],
     plot_scale_relative_mcse    =
       curve_diagnostics[["plot_scale_relative_mcse"]],
+    plot_scale_sampling_relative_mcse =
+      curve_diagnostics[["plot_scale_sampling_relative_mcse"]],
     bulk_probability_range      =
       curve_diagnostics[["bulk_probability_range"]],
     bulk_x_range                = curve_diagnostics[["bulk_x_range"]],
     bulk_max_relative_mcse      =
       curve_diagnostics[["bulk_max_relative_mcse"]],
+    bulk_max_sampling_relative_mcse =
+      curve_diagnostics[["bulk_max_sampling_relative_mcse"]],
     bulk_min_ess                = curve_diagnostics[["bulk_min_ess"]],
     bulk_max_weight_share       =
       curve_diagnostics[["bulk_max_weight_share"]],
@@ -856,9 +860,11 @@
 
   empty <- list(
     plot_scale_relative_mcse = NA_real_,
+    plot_scale_sampling_relative_mcse = NA_real_,
     bulk_probability_range   = c(NA_real_, NA_real_),
     bulk_x_range             = c(NA_real_, NA_real_),
     bulk_max_relative_mcse   = NA_real_,
+    bulk_max_sampling_relative_mcse = NA_real_,
     bulk_min_ess             = NA_real_,
     bulk_max_weight_share    = NA_real_,
     tail_probabilities       = c(NA_real_, NA_real_),
@@ -884,6 +890,8 @@
   y                <- density[["y"]]
   mcse             <- density[["mcse"]]
   relative_mcse    <- density[["relative_mcse"]]
+  sampling_mcse    <- density[["sampling_mcse"]]
+  sampling_relative_mcse <- density[["sampling_relative_mcse"]]
   ess              <- density[["ess"]]
   max_weight_share <- density[["max_weight_share"]]
   peak_density     <- .iwmde_max_or_na(y)
@@ -904,9 +912,13 @@
 
   return(list(
     plot_scale_relative_mcse = .iwmde_max_or_na(mcse) / peak_density,
+    plot_scale_sampling_relative_mcse =
+      .iwmde_max_or_na(sampling_mcse) / peak_density,
     bulk_probability_range   = range(tail_probabilities),
     bulk_x_range             = range(tail_values),
     bulk_max_relative_mcse   = .iwmde_max_or_na(relative_mcse[bulk]),
+    bulk_max_sampling_relative_mcse =
+      .iwmde_max_or_na(sampling_relative_mcse[bulk]),
     bulk_min_ess             = if (length(bulk_ess) == 0L) {
       NA_real_
     } else {

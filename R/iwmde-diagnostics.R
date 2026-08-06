@@ -340,20 +340,33 @@
   }
 
   metrics <- .iwmde_density_curve_metrics(diagnostics)
-  sampling_relative_mcse <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("max_sampling_relative_mcse", "sampling_relative_mcse")
-  )
-  has_sampling_diagnostic <- any(c(
-    "max_sampling_relative_mcse",
-    "sampling_relative_mcse"
-  ) %in% names(diagnostics))
-  if (has_sampling_diagnostic &&
-      (!is.finite(sampling_relative_mcse) || sampling_relative_mcse < 0 ||
-       sampling_relative_mcse >= .iwmde_density_max_relative_mcse())) {
+  plot_scale_sampling_mcse <-
+    metrics[["plot_scale_sampling_relative_mcse"]]
+  has_plot_scale_sampling <-
+    "plot_scale_sampling_relative_mcse" %in% names(diagnostics)
+  if (has_plot_scale_sampling &&
+      (!is.finite(plot_scale_sampling_mcse) ||
+      plot_scale_sampling_mcse < 0 ||
+      plot_scale_sampling_mcse >= .iwmde_density_max_relative_mcse())) {
     return(paste0(
-      "density finite-population row-sampling relative error is ",
-      .iwmde_percent(sampling_relative_mcse),
+      "density plot-scale finite-population sampling MCSE is ",
+      .iwmde_percent(plot_scale_sampling_mcse),
+      " (maximum allowed ",
+      .iwmde_percent(.iwmde_density_max_relative_mcse()),
+      ")"
+    ))
+  }
+  bulk_sampling_relative_mcse <-
+    metrics[["bulk_sampling_relative_mcse"]]
+  has_bulk_sampling <-
+    "bulk_max_sampling_relative_mcse" %in% names(diagnostics)
+  if (has_bulk_sampling &&
+      (!is.finite(bulk_sampling_relative_mcse) ||
+      bulk_sampling_relative_mcse < 0 ||
+      bulk_sampling_relative_mcse >= .iwmde_density_max_relative_mcse())) {
+    return(paste0(
+      "density bulk finite-population sampling relative MCSE is ",
+      .iwmde_percent(bulk_sampling_relative_mcse),
       " (maximum allowed ",
       .iwmde_percent(.iwmde_density_max_relative_mcse()),
       ")"
@@ -432,16 +445,31 @@
   }
 
   metrics <- .iwmde_density_curve_metrics(diagnostics)
-  sampling_relative_mcse <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("max_sampling_relative_mcse", "sampling_relative_mcse")
-  )
-  if (is.finite(sampling_relative_mcse) &&
-      sampling_relative_mcse >= .iwmde_density_warning_relative_mcse() &&
-      sampling_relative_mcse < .iwmde_density_max_relative_mcse()) {
+  plot_scale_sampling_mcse <-
+    metrics[["plot_scale_sampling_relative_mcse"]]
+  if (is.finite(plot_scale_sampling_mcse) &&
+      plot_scale_sampling_mcse >=
+        .iwmde_density_warning_relative_mcse() &&
+      plot_scale_sampling_mcse < .iwmde_density_max_relative_mcse()) {
     warnings <- c(warnings, paste0(
-      "Density finite-population row-sampling relative error is ",
-      .iwmde_percent(sampling_relative_mcse),
+      "Density plot-scale finite-population sampling MCSE is ",
+      .iwmde_percent(plot_scale_sampling_mcse),
+      " (warning threshold ",
+      .iwmde_percent(.iwmde_density_warning_relative_mcse()),
+      "; rejection threshold ",
+      .iwmde_percent(.iwmde_density_max_relative_mcse()),
+      ")."
+    ))
+  }
+  bulk_sampling_relative_mcse <-
+    metrics[["bulk_sampling_relative_mcse"]]
+  if (is.finite(bulk_sampling_relative_mcse) &&
+      bulk_sampling_relative_mcse >=
+        .iwmde_density_warning_relative_mcse() &&
+      bulk_sampling_relative_mcse < .iwmde_density_max_relative_mcse()) {
+    warnings <- c(warnings, paste0(
+      "Density bulk finite-population sampling relative MCSE is ",
+      .iwmde_percent(bulk_sampling_relative_mcse),
       " (warning threshold ",
       .iwmde_percent(.iwmde_density_warning_relative_mcse()),
       "; rejection threshold ",
@@ -523,9 +551,17 @@
       diagnostics,
       "plot_scale_relative_mcse"
     ),
+    plot_scale_sampling_relative_mcse = .iwmde_diagnostic_scalar(
+      diagnostics,
+      "plot_scale_sampling_relative_mcse"
+    ),
     bulk_relative_mcse = .iwmde_diagnostic_scalar(
       diagnostics,
       "bulk_max_relative_mcse"
+    ),
+    bulk_sampling_relative_mcse = .iwmde_diagnostic_scalar(
+      diagnostics,
+      "bulk_max_sampling_relative_mcse"
     ),
     ess = .iwmde_diagnostic_scalar(
       diagnostics,
