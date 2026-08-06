@@ -521,11 +521,20 @@
   support
 }
 
-.brma_random_parameter_point_test_reason <- function(spec) {
+.brma_random_parameter_point_test_reason <- function(
+    spec, prior = NULL, source_prior = NULL) {
 
   type   <- spec[["summary_type"]]
   source <- spec[["source_parameter"]]
   label  <- spec[["label"]]
+  if (.brma_random_parameter_prior_has_atom(prior) ||
+      .brma_random_parameter_prior_has_atom(source_prior)) {
+    return(paste0(
+      "Point-null Bayes factors are not available for random-effect quantity '",
+      label, "' because its induced prior/posterior contains a point mass. ",
+      "Use a region or directional hypothesis."
+    ))
+  }
   if (type %in% c("cor", "rho") &&
       (is.na(source) || !nzchar(source))) {
     return(paste0(
@@ -542,6 +551,26 @@
   }
 
   ""
+}
+
+.brma_random_parameter_prior_has_atom <- function(prior) {
+
+  if (is.null(prior) || !BayesTools::is.prior(prior)) {
+    return(FALSE)
+  }
+  if (BayesTools::is.prior.point(prior)) {
+    return(TRUE)
+  }
+  if (BayesTools::is.prior.mixture(prior) ||
+      BayesTools::is.prior.spike_and_slab(prior)) {
+    return(any(vapply(
+      prior,
+      .brma_random_parameter_prior_has_atom,
+      logical(1)
+    )))
+  }
+
+  return(FALSE)
 }
 
 .brma_random_parameter_prior_density <- function(samples, support,

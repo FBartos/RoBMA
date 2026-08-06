@@ -80,8 +80,14 @@ hypothesis_quantities.brma <- function(object, ...) {
     specs  <- bundle[["specs"]]
     index <- match(out[["parameter"]][is_random], specs[["parameter"]])
     reasons <- vapply(index, function(i) {
+      source_prior <- .brma_random_parameter_source_prior(
+        object,
+        specs[["source_parameter"]][i]
+      )
       .brma_random_parameter_point_test_reason(
-        as.list(specs[i, , drop = FALSE])
+        spec         = as.list(specs[i, , drop = FALSE]),
+        prior        = bundle[["priors"]][[specs[["parameter"]][i]]],
+        source_prior = source_prior
       )
     }, character(1))
     out[["bracket"]][is_random]                <- NA_character_

@@ -452,7 +452,9 @@ hypothesis.brma <- function(object, hypothesis,
       )
     }
     reason <- .brma_random_parameter_point_test_reason(
-      posterior[["spec"]]
+      spec         = posterior[["spec"]],
+      prior        = posterior[["prior"]],
+      source_prior = posterior[["source_prior"]]
     )
     if (nzchar(reason)) {
       stop(reason, call. = FALSE)
