@@ -306,6 +306,11 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   if (nrow(point_refs) == 0L) {
     return(object)
   }
+  samples <- object[["inference"]][[inference_type]][[parameter]]
+  point_refs <- .hypothesis_marginal_means_resolve_singleton_levels(
+    samples    = samples,
+    point_refs = point_refs
+  )
 
   .hypothesis_marginal_means_check_point_refs(
     object          = object,
@@ -333,7 +338,6 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
   context        <- .iwmde_context(source_object)
   estimate_cache <- .iwmde_estimate_cache()
-  samples <- object[["inference"]][[inference_type]][[parameter]]
   object[["inference"]][[inference_type]][[parameter]] <-
     .hypothesis_brma_keep_requested_ordinates(
       posterior  = samples,
@@ -354,6 +358,23 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   }
 
   return(object)
+}
+
+
+.hypothesis_marginal_means_resolve_singleton_levels <- function(
+    samples, point_refs) {
+
+  missing_level <- is.na(point_refs[["level"]])
+  if (!is.list(samples) || length(samples) != 1L || !any(missing_level)) {
+    return(point_refs)
+  }
+  level <- names(samples)
+  if (length(level) != 1L || is.na(level) || !nzchar(level)) {
+    return(point_refs)
+  }
+  point_refs[["level"]][missing_level] <- level
+
+  return(point_refs)
 }
 
 

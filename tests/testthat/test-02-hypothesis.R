@@ -113,7 +113,7 @@ test_that("qCMDE factor point guards use display aliases", {
           class = c("RoBMA", "brma")
         ),
         inference      = list(
-          conditional = list(mu_alloc = list(random = 0))
+          conditional = list(mu_alloc = list(random = 0, systematic = 1))
         )
       ),
       parameter       = "mu_alloc",
@@ -1332,6 +1332,48 @@ test_that("qCMDE requires direct point-null expressions", {
       n_samples       = 1000
     ),
     "direct parameter or level reference"
+  )
+})
+
+
+test_that("qCMDE/IWMDE infer the sole marginal-means factor level", {
+
+  captured_level <- NULL
+  object <- list(
+    source_object = structure(
+      list(fit = list()),
+      class = "brma"
+    ),
+    inference = list(
+      conditional = list(mu_alloc = list(random = stats::rnorm(20)))
+    )
+  )
+  testthat::local_mocked_bindings(
+    .check_iwmde_available = function(...) invisible(TRUE),
+    .iwmde_check_point_ordinate_supported = function(...) invisible(TRUE),
+    .iwmde_context = function(...) list(),
+    .hypothesis_marginal_means_attach_iwmde_ref = function(
+        object, ref, ...) {
+
+      captured_level <<- ref[["level"]]
+      object
+    },
+    .package = "RoBMA"
+  )
+
+  out <- .hypothesis_marginal_means_attach_iwmde(
+    object          = object,
+    parameter       = "mu_alloc",
+    parameter_label = "alloc",
+    hypothesis      = "mu_alloc = 0",
+    density_method  = "qCMDE",
+    density_control = list()
+  )
+
+  expect_identical(captured_level, "random")
+  expect_named(
+    out[["inference"]][["conditional"]][["mu_alloc"]],
+    "random"
   )
 })
 
