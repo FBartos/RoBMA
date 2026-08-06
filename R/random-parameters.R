@@ -77,7 +77,7 @@
   samples <- BayesTools::JAGS_estimates_table(
     fit                     = fit,
     keep_parameters         = "random_effects",
-    random_effects_summary  = "standard",
+    random_effects_summary  = "full",
     random_effects_metadata = TRUE,
     remove_inclusion        = TRUE,
     remove_diagnostics      = TRUE,
@@ -468,8 +468,30 @@
                                            source_prior = NULL) {
 
   type <- spec[["summary_type"]]
-  support <- if (type %in% c("sd", "sd_total", "sd_multiplier")) {
+  support <- if (type %in% c("sd", "sd_total")) {
     c(0, Inf)
+  } else if (identical(type, "sd_multiplier")) {
+    metadata <- if (is.null(prior)) NULL else
+      attr(prior, "random_allocation_metadata", exact = TRUE)
+    scale <- metadata[["scale"]]
+    if (identical(scale, "mean_variance")) {
+      n_targets <- metadata[["n_targets"]]
+      if (!is.numeric(n_targets) || length(n_targets) != 1L ||
+          is.na(n_targets) || n_targets < 1) {
+        stop(
+          "SD-multiplier metadata are missing a valid allocation target count.",
+          call. = FALSE
+        )
+      }
+      c(0, sqrt(n_targets))
+    } else if (identical(scale, "total_variance")) {
+      c(0, 1)
+    } else {
+      stop(
+        "SD-multiplier metadata are missing a canonical allocation scale.",
+        call. = FALSE
+      )
+    }
   } else if (type %in% c("rho", "cor")) {
     c(-1, 1)
   } else if (identical(type, "var_frac")) {

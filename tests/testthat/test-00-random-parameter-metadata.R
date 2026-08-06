@@ -180,4 +180,30 @@ test_that("random-parameter metadata preserves derived and semantic support", {
                                    source_prior = simplex),
     c(0, 1)
   )
+
+  multiplier <- make_random_metadata_prior(
+    "sd_multiplier", "sd_mult(allocation: study)"
+  )
+  attr(multiplier, "random_allocation_metadata") <- list(
+    scale     = "mean_variance",
+    n_targets = 4L
+  )
+  expect_equal(
+    .brma_random_parameter_support(
+      list(summary_type = "sd_multiplier"),
+      prior = multiplier
+    ),
+    c(0, 2)
+  )
+  attr(multiplier, "random_allocation_metadata") <- list(
+    scale     = "total_variance",
+    n_targets = 4L
+  )
+  expect_equal(
+    .brma_random_parameter_support(
+      list(summary_type = "sd_multiplier"),
+      prior = multiplier
+    ),
+    c(0, 1)
+  )
 })

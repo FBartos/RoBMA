@@ -51,14 +51,14 @@ test_that("random catalog matches summaries across structures", {
   for (name in fit_names) {
     fit      <- load_fit(name, validate = FALSE)
     bundle   <- .brma_random_parameter_bundle(fit)
-    summary  <- summary(fit, random_effects = "standard")
+    summary  <- summary(fit)
     quantity <- hypothesis_quantities(fit)
     random_quantity <- quantity[quantity[["component"]] == "random", , drop = FALSE]
 
     expect_true(nrow(bundle[["specs"]]) > 0L, info = name)
     expect_true(all(
-      bundle[["specs"]][["label"]] %in%
-        rownames(summary[["estimates_random"]])
+      rownames(summary[["estimates_random"]]) %in%
+        bundle[["specs"]][["label"]]
     ), info = name)
     expect_setequal(
       bundle[["specs"]][["parameter"]],
