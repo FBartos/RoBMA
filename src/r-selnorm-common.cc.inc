@@ -387,7 +387,6 @@ double funnel_selected_cdf_zero_se(double q, int s, const FunnelSeContext &ctx)
 
 void funnel_prepare_se_context(FunnelSeContext *ctx)
 {
-  const SelNormKernelData &data = *ctx->data;
   const double se2 = ctx->se * ctx->se;
 
   ctx->location.assign(static_cast<size_t>(ctx->S), 0);
