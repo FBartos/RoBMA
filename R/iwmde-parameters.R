@@ -312,7 +312,7 @@
 
 .iwmde_max_or_na <- function(x) {
 
-  x <- x[is.finite(x)]
+  x <- x[!is.na(x)]
   if (length(x) == 0L) {
     return(NA_real_)
   }

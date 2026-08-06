@@ -931,6 +931,39 @@ test_that("qCMDE refinement waits for an all-finite certified pair", {
 })
 
 
+test_that("qCMDE refinement preserves infinite relative changes", {
+
+  density_call <- 0L
+  testthat::local_mocked_bindings(
+    .iwmde_qcmde_density_from_normalizer = function(...) {
+      density_call <<- density_call + 1L
+      switch(
+        as.character(density_call),
+        "1" = c(0, 100),
+        "2" = c(1, 101),
+        c(1, 101)
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  refinement <- .iwmde_qcmde_select_refinement(
+    log_q_display          = matrix(0, nrow = 2L, ncol = 1L),
+    log_normalizer_sequence = rep(list(0), 4L),
+    active_mass             = 1,
+    denominator             = 1L
+  )
+
+  change <- .iwmde_qcmde_ordinate_change(
+    pilot_y = c(0, 100),
+    final_y = c(1, 101)
+  )
+  expect_identical(.iwmde_max_or_na(change[["relative"]]), Inf)
+  expect_equal(refinement[["final_index"]], 3L)
+  expect_equal(refinement[["validation_index"]], 4L)
+})
+
+
 test_that("qCMDE fails when the validation normalizer is non-finite", {
 
   normalization_values <- seq(-1, 1, length.out = 21)
