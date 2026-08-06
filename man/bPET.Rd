@@ -100,15 +100,18 @@ functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
 
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used.}
+priors. If omitted or \code{NULL}, default priors are used. This argument can be
+specified only when \code{mods} is specified.}
 
 \item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used.}
+priors. If omitted or \code{NULL}, default priors are used. This argument can be
+specified only when \code{scale} is specified.}
 
 \item{prior_heterogeneity_allocation}{prior distribution for the fraction of
 heterogeneity allocated to the cluster-level component in multilevel models
-(\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}.}
+(\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}. This argument
+can be specified only when \code{cluster} is specified.}
 
 \item{prior_bias}{PET regression-coefficient prior created by
 \code{prior_PET()}. If omitted or \code{NULL}, the default is a Cauchy prior

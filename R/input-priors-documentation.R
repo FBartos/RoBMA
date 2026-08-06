@@ -21,13 +21,16 @@
 #' functions, explicit `NULL` or `FALSE` sets a spike at zero.
 #' @param prior_mods prior distribution for the moderators (\eqn{\beta}) parameters.
 #' A single prior applies to all terms; a named list can specify term-specific
-#' priors. If omitted or `NULL`, default priors are used.
+#' priors. If omitted or `NULL`, default priors are used. This argument can be
+#' specified only when `mods` is specified.
 #' @param prior_scale prior distribution for the scale (\eqn{\delta}) parameters.
 #' A single prior applies to all terms; a named list can specify term-specific
-#' priors. If omitted or `NULL`, default priors are used.
+#' priors. If omitted or `NULL`, default priors are used. This argument can be
+#' specified only when `scale` is specified.
 #' @param prior_heterogeneity_allocation prior distribution for the fraction of
 #' heterogeneity allocated to the cluster-level component in multilevel models
-#' (\eqn{\rho}). If omitted or `NULL`, defaults to `Beta(1, 1)`.
+#' (\eqn{\rho}). If omitted or `NULL`, defaults to `Beta(1, 1)`. This argument
+#' can be specified only when `cluster` is specified.
 #' @param prior_baserate prior distribution for the estimate-specific midpoint
 #' base-rate probability in binomial GLMM models (`measure = "OR"`). If omitted
 #' or `NULL`, defaults to independent `Beta(1, 1)` priors. Point priors must lie
@@ -428,12 +431,15 @@ NULL
 #' heterogeneity component(s).
 #' @param prior_mods prior distribution(s) for alternative moderator
 #' components. A single prior applies to all terms; a named list can specify
-#' term-specific components.
+#' term-specific components. This argument can be specified only when `mods` is
+#' specified.
 #' @param prior_scale prior distribution(s) for alternative scale-regression
 #' components. A single prior applies to all terms; a named list can specify
-#' term-specific components.
+#' term-specific components. This argument can be specified only when `scale`
+#' is specified.
 #' @param prior_heterogeneity_allocation prior distribution(s) for the
-#' alternative cluster-level heterogeneity allocation component(s).
+#' alternative cluster-level heterogeneity allocation component(s). This
+#' argument can be specified only when `cluster` is specified.
 #' @param prior_bias prior distribution(s) for alternative publication-bias
 #' component(s), such as weight functions, PET, or PEESE.
 #'
@@ -453,12 +459,14 @@ NULL
 #' heterogeneity component(s).
 #' @param prior_mods_null prior distribution(s) for null moderator components.
 #' A single prior applies to all terms; a named list can specify term-specific
-#' components.
+#' components. This argument can be specified only when `mods` is specified.
 #' @param prior_scale_null prior distribution(s) for null scale-regression
 #' components. A single prior applies to all terms; a named list can specify
-#' term-specific components.
+#' term-specific components. This argument can be specified only when `scale`
+#' is specified.
 #' @param prior_heterogeneity_allocation_null prior distribution(s) for the
-#' null cluster-level heterogeneity allocation component(s).
+#' null cluster-level heterogeneity allocation component(s). This argument can
+#' be specified only when `cluster` is specified.
 #' @param prior_bias_null prior distribution(s) for null publication-bias
 #' component(s), usually `prior_none()`. See
 #' \code{\link{publication_bias_prior_specification}}.

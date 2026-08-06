@@ -193,6 +193,22 @@
 }
 
 ### prior specification functions
+.check_component_prior_presence <- function(supplied, present, argument, component) {
+
+  if (isTRUE(supplied) && !isTRUE(present)) {
+    stop(
+      gettextf(
+        "The '%1$s' argument can be used only when '%2$s' is specified.",
+        argument,
+        component
+      ),
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
 .check_and_list_priors.brma <- function(
     prior_effect, prior_heterogeneity,
     prior_mods, prior_scale,
@@ -216,6 +232,24 @@
   .check_prior_informed_subfield(prior_informed_field, prior_informed_subfield)
   .check_prior_specification_conflict(prior_unit_information_sd, prior_informed_field)
   .check_glmm_nuisance_prior_match(data, prior_baserate, prior_lograte)
+  .check_component_prior_presence(
+    supplied  = !missing(prior_mods),
+    present   = .is_data_mods(data),
+    argument  = "prior_mods",
+    component = "mods"
+  )
+  .check_component_prior_presence(
+    supplied  = !missing(prior_scale),
+    present   = .is_data_scale(data),
+    argument  = "prior_scale",
+    component = "scale"
+  )
+  .check_component_prior_presence(
+    supplied  = !missing(prior_heterogeneity_allocation),
+    present   = .is_data_multilevel(data),
+    argument  = "prior_heterogeneity_allocation",
+    component = "cluster"
+  )
   if (!missing(steps))
     BayesTools::check_real(steps, "steps", lower = 0, upper = 1, allow_bound = FALSE, check_length = FALSE, allow_NA = FALSE)
 
@@ -377,6 +411,42 @@
   .check_prior_informed_subfield(prior_informed_field, prior_informed_subfield)
   .check_prior_specification_conflict(prior_unit_information_sd, prior_informed_field)
   .check_glmm_nuisance_prior_match(data, prior_baserate, prior_lograte)
+  .check_component_prior_presence(
+    supplied  = !missing(prior_mods),
+    present   = .is_data_mods(data),
+    argument  = "prior_mods",
+    component = "mods"
+  )
+  .check_component_prior_presence(
+    supplied  = !missing(prior_mods_null),
+    present   = .is_data_mods(data),
+    argument  = "prior_mods_null",
+    component = "mods"
+  )
+  .check_component_prior_presence(
+    supplied  = !missing(prior_scale),
+    present   = .is_data_scale(data),
+    argument  = "prior_scale",
+    component = "scale"
+  )
+  .check_component_prior_presence(
+    supplied  = !missing(prior_scale_null),
+    present   = .is_data_scale(data),
+    argument  = "prior_scale_null",
+    component = "scale"
+  )
+  .check_component_prior_presence(
+    supplied  = !missing(prior_heterogeneity_allocation),
+    present   = .is_data_multilevel(data),
+    argument  = "prior_heterogeneity_allocation",
+    component = "cluster"
+  )
+  .check_component_prior_presence(
+    supplied  = !missing(prior_heterogeneity_allocation_null),
+    present   = .is_data_multilevel(data),
+    argument  = "prior_heterogeneity_allocation_null",
+    component = "cluster"
+  )
   if (!missing(model_type))
     BayesTools::check_char(model_type, "model_type", allow_values = c("2w", "6w", "PP", "PSMA"))
 

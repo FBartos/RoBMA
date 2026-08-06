@@ -107,11 +107,13 @@ functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
 
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used.}
+priors. If omitted or \code{NULL}, default priors are used. This argument can be
+specified only when \code{mods} is specified.}
 
 \item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used.}
+priors. If omitted or \code{NULL}, default priors are used. This argument can be
+specified only when \code{scale} is specified.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}

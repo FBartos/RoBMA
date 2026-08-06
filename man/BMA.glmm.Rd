@@ -123,14 +123,17 @@ heterogeneity component(s).}
 
 \item{prior_mods}{prior distribution(s) for alternative moderator
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{mods} is
+specified.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{scale}
+is specified.}
 
 \item{prior_heterogeneity_allocation}{prior distribution(s) for the
-alternative cluster-level heterogeneity allocation component(s).}
+alternative cluster-level heterogeneity allocation component(s). This
+argument can be specified only when \code{cluster} is specified.}
 
 \item{prior_baserate}{prior distribution for the estimate-specific midpoint
 base-rate probability in binomial GLMM models (\code{measure = "OR"}). If omitted
@@ -150,14 +153,16 @@ heterogeneity component(s).}
 
 \item{prior_mods_null}{prior distribution(s) for null moderator components.
 A single prior applies to all terms; a named list can specify term-specific
-components.}
+components. This argument can be specified only when \code{mods} is specified.}
 
 \item{prior_scale_null}{prior distribution(s) for null scale-regression
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{scale}
+is specified.}
 
 \item{prior_heterogeneity_allocation_null}{prior distribution(s) for the
-null cluster-level heterogeneity allocation component(s).}
+null cluster-level heterogeneity allocation component(s). This argument can
+be specified only when \code{cluster} is specified.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}

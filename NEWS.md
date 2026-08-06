@@ -73,6 +73,9 @@
   matching the names already used by the maintainer scenarios.
 - resets base-graphics overlay mode around interactive `scenario_plot()`
   evaluations so consecutive scenario figures do not draw over one another.
+- rejects explicitly supplied moderator, scale-regression, and multilevel
+  heterogeneity-allocation priors when the corresponding model component is
+  absent, instead of silently discarding them.
 - checks product-space model indicators by default through BayesTools'
   label-invariant state-occupancy diagnostics; `set_autofit_control()` and
   `set_convergence_checks()` retain an explicit opt-out and parameter routing,
