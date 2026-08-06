@@ -737,6 +737,79 @@ test_that("a fitted point-baserate GLMM supports log-likelihood criteria", {
 })
 
 
+test_that("boundary-concentrated beta priors support likelihood criteria", {
+
+  fit <- brma.glmm(
+    ai             = c(0L, 0L, 1L),
+    bi             = c(1L, 10L, 9L),
+    ci             = c(0L, 1L, 0L),
+    di             = c(1L, 9L, 10L),
+    measure        = "OR",
+    prior_baserate = BayesTools::prior("beta", list(0.1, 0.1)),
+    chains         = 1L,
+    sample         = 100L,
+    burnin         = 100L,
+    adapt          = 100L,
+    seed           = 42L,
+    silent         = TRUE
+  )
+  log_lik <- log_lik(fit)
+  fit_loo <- suppressWarnings(add_loo(fit))
+  fit_waic <- suppressWarnings(add_waic(fit))
+
+  expect_identical(dim(log_lik), c(100L, 3L))
+  expect_true(all(is.finite(log_lik)))
+  expect_s3_class(loo(fit_loo), "loo")
+  expect_s3_class(waic(fit_waic), "waic")
+})
+
+
+test_that("boundary-matched beta quadrature integrates the normalized prior", {
+
+  interval_mass <- function(alpha, beta, lower, upper) {
+
+    if (lower == 0) {
+      return(stats::pbeta(upper, alpha, beta))
+    }
+    if (upper == 1) {
+      return(stats::pbeta(lower, alpha, beta, lower.tail = FALSE))
+    }
+    return(stats::pbeta(upper, alpha, beta) -
+             stats::pbeta(lower, alpha, beta))
+  }
+  expected_zero_probability <- function(alpha, beta, lower, upper) {
+
+    moment <- exp(lbeta(alpha, beta + 2) - lbeta(alpha, beta))
+    return(moment *
+      interval_mass(alpha, beta + 2, lower, upper) /
+      interval_mass(alpha, beta, lower, upper))
+  }
+
+  cases <- list(
+    list(alpha = 0.01, beta = 0.01, lower = 0, upper = 1),
+    list(alpha = 0.01, beta = 2.5, lower = 0, upper = 0.9),
+    list(alpha = 2.5, beta = 0.01, lower = 0.1, upper = 1)
+  )
+  for (case in cases) {
+    prior_pi <- BayesTools::prior(
+      "beta",
+      list(case[["alpha"]], case[["beta"]]),
+      truncation = list(case[["lower"]], case[["upper"]])
+    )
+    observed <- .outcome_pdf.binom(
+      0L, 0L, 1L, 1L, matrix(0), matrix(0), prior_pi,
+      n_theta = 1L, n_pi = 25L
+    )[1L, 1L]
+    expected <- log(expected_zero_probability(
+      case[["alpha"]], case[["beta"]],
+      case[["lower"]], case[["upper"]]
+    ))
+
+    expect_equal(observed, expected, tolerance = 1e-11)
+  }
+})
+
+
 test_that("truncated nuisance priors match independent integration", {
 
   prior_pi <- BayesTools::prior(

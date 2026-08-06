@@ -45,6 +45,7 @@ Imports:
     parallel,
     runjags,
     rjags,
+    statmod,
     stats,
     graphics,
     mvtnorm,

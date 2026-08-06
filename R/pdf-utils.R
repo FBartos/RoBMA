@@ -358,6 +358,76 @@
 }
 
 
+.glmm_beta_prior_grid <- function(prior, n) {
+
+  if (!identical(prior[["distribution"]], "beta")) {
+    return(NULL)
+  }
+
+  lower <- as.numeric(prior[["truncation"]][["lower"]])
+  upper <- as.numeric(prior[["truncation"]][["upper"]])
+  if (lower > 0 && upper < 1) {
+    return(NULL)
+  }
+
+  alpha <- as.numeric(prior[["parameters"]][["alpha"]])
+  beta  <- as.numeric(prior[["parameters"]][["beta"]])
+
+  if (lower == 0 && upper == 1) {
+    rule <- statmod::gauss.quad.prob(
+      n     = n,
+      dist  = "beta",
+      alpha = alpha,
+      beta  = beta
+    )
+    out <- list(
+      grid        = rule[["nodes"]],
+      log_weights = log(rule[["weights"]])
+    )
+  } else {
+    # Match the beta density at each support boundary. The remaining density is
+    # smooth and is carried explicitly in the quadrature weights below.
+    left_exponent  <- if (lower == 0) alpha - 1 else 0
+    right_exponent <- if (upper == 1) beta - 1 else 0
+    rule <- statmod::gauss.quad(
+      n     = n,
+      kind  = "jacobi",
+      alpha = right_exponent,
+      beta  = left_exponent
+    )
+
+    half_width <- (upper - lower) / 2
+    nodes      <- lower + half_width * (rule[["nodes"]] + 1)
+    log_mass   <- if (lower == 0) {
+      stats::pbeta(upper, alpha, beta, log.p = TRUE)
+    } else {
+      stats::pbeta(lower, alpha, beta, lower.tail = FALSE, log.p = TRUE)
+    }
+    log_residual <- stats::dbeta(nodes, alpha, beta, log = TRUE) -
+      log_mass -
+      left_exponent * log1p(rule[["nodes"]]) -
+      right_exponent * log1p(-rule[["nodes"]])
+
+    out <- list(
+      grid        = nodes,
+      log_weights = log(rule[["weights"]]) + log(half_width) + log_residual
+    )
+  }
+
+  if (anyNA(out[["grid"]]) || any(!is.finite(out[["grid"]])) ||
+      any(out[["grid"]] <= 0 | out[["grid"]] >= 1) ||
+      anyNA(out[["log_weights"]]) ||
+      any(!is.finite(out[["log_weights"]]))) {
+    stop(
+      "Beta baserate quadrature failed to produce finite interior nodes and weights.",
+      call. = FALSE
+    )
+  }
+
+  return(out)
+}
+
+
 .glmm_prior_quantile_grid <- function(prior, n) {
 
   key <- .glmm_prior_grid_key(prior, n)
@@ -399,7 +469,10 @@
     return(get(key, envir = .glmm_binom_logit_pi_grid_cache, inherits = FALSE))
   }
 
-  pi_grid <- .glmm_prior_quantile_grid(prior = prior_pi, n = n_pi)
+  pi_grid <- .glmm_beta_prior_grid(prior = prior_pi, n = n_pi)
+  if (is.null(pi_grid)) {
+    pi_grid <- .glmm_prior_quantile_grid(prior = prior_pi, n = n_pi)
+  }
 
   pi_nodes <- pi_grid[["grid"]]
   if (any(pi_nodes <= 0 | pi_nodes >= 1)) {

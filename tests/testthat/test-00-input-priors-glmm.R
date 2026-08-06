@@ -86,24 +86,49 @@ test_that("GLMM nuisance priors reject non-point discrete distributions", {
 })
 
 
-test_that("Binomial nuisance quadrature does not clip representable tails", {
+test_that("Binomial nuisance quadrature matches beta support boundaries", {
 
-  prior_pi <- BayesTools::prior("beta", parameters = list(alpha = 0.01, beta = 1))
-  pi_nodes <- as.numeric(BayesTools::quant(
-    prior_pi,
-    .gauss_legendre_nodes(17L)[["nodes"]]
+  priors <- list(
+    full  = BayesTools::prior("beta", list(0.01, 0.01)),
+    lower = BayesTools::prior("beta", list(0.01, 2.5),
+                              truncation = list(0, 0.9)),
+    upper = BayesTools::prior("beta", list(2.5, 0.01),
+                              truncation = list(0.1, 1))
+  )
+
+  for (prior_pi in priors) {
+    grid <- .glmm_binom_logit_pi_grid(
+      ai       = 0L,
+      ci       = 0L,
+      n1i      = 1L,
+      n2i      = 1L,
+      prior_pi = prior_pi,
+      n_pi     = 75L
+    )
+    nodes <- stats::plogis(grid[["grid"]][, 1L])
+
+    expect_true(all(nodes > 0 & nodes < 1))
+    expect_equal(sum(exp(grid[["log_weights"]][, 1L])), 1,
+                 tolerance = 1e-10)
+  }
+
+  interior <- BayesTools::prior(
+    "beta", list(0.01, 0.01), truncation = list(0.1, 0.9)
+  )
+  probabilities <- .gauss_legendre_nodes(17L)[["nodes"]]
+  expected      <- stats::qlogis(as.numeric(
+    BayesTools::quant(interior, probabilities)
   ))
   grid <- .glmm_binom_logit_pi_grid(
     ai       = 0L,
     ci       = 0L,
     n1i      = 1L,
     n2i      = 1L,
-    prior_pi = prior_pi,
+    prior_pi = interior,
     n_pi     = 17L
   )
 
-  expect_true(min(pi_nodes) < .Machine$double.eps)
-  expect_identical(grid[["grid"]][, 1L], stats::qlogis(pi_nodes))
+  expect_identical(grid[["grid"]][, 1L], expected)
 })
 
 

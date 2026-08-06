@@ -200,6 +200,9 @@
 - recovers sparse valid binomial and Poisson GLMM likelihood columns with a
   convergence-checked prior-CDF quadrature fallback when AGHQ cannot certify
   them.
+- evaluates boundary-concentrated and endpoint-truncated beta baserate priors
+  with boundary-matched quadrature, preventing valid sparse GLMM fits from
+  failing in `log_lik()`, LOO, and WAIC.
 - samples qCMDE/IWMDE rows uniformly without replacement from all eligible
   continuous active posterior rows, preserving the fitted product-state mass
   without enumerating nuisance model states or forcing rare-state inclusion.
