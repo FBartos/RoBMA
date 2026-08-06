@@ -22,7 +22,8 @@
 #' @param parallel logical. Whether to extend chains in parallel.
 #' @param cores integer. Number of cores to use when \code{parallel = TRUE}.
 #' @param silent logical. Whether to suppress JAGS output during extension.
-#' @param seed optional seed used before extending.
+#' @param seed retained for compatibility. Existing chains cannot be coherently
+#'   reseeded during continuation, so any non-\code{NULL} value is rejected.
 #' @param evaluate unsupported; included for compatibility with
 #'   \code{\link[stats]{update}}.
 #'
@@ -34,6 +35,10 @@
 #' supported by this method. For \code{brma.mv()} objects, the stored \code{V},
 #' \code{R}, known-\code{V} backend, and marginalized random-effect metadata are
 #' preserved because the fitted model structure is reused.
+#'
+#' Extensions continue the random-number generator state stored by JAGS. They
+#' cannot be restarted from a new seed without changing the meaning of chain
+#' continuation.
 #'
 #' Named \code{NULL} elements in \code{autofit_control} and
 #' \code{convergence_checks} explicitly disable or clear the corresponding
@@ -62,6 +67,12 @@ update.brma <- function(
   }
   if (!isTRUE(evaluate)) {
     stop("update.brma() does not support 'evaluate = FALSE'.", call. = FALSE)
+  }
+  if (!is.null(seed)) {
+    stop(
+      "update.brma() cannot reseed an existing JAGS fit; omit 'seed' to continue the stored chain RNG state.",
+      call. = FALSE
+    )
   }
 
   dots <- list(...)

@@ -49,7 +49,8 @@ after extension (\code{"all"}) or dropped with a warning (\code{"drop"}).}
 
 \item{silent}{logical. Whether to suppress JAGS output during extension.}
 
-\item{seed}{optional seed used before extending.}
+\item{seed}{retained for compatibility. Existing chains cannot be coherently
+reseeded during continuation, so any non-\code{NULL} value is rejected.}
 
 \item{evaluate}{unsupported; included for compatibility with
 \code{\link[stats]{update}}.}
@@ -68,6 +69,10 @@ burn-in. Prior, data, and model-structure updates are intentionally not
 supported by this method. For \code{brma.mv()} objects, the stored \code{V},
 \code{R}, known-\code{V} backend, and marginalized random-effect metadata are
 preserved because the fitted model structure is reused.
+
+Extensions continue the random-number generator state stored by JAGS. They
+cannot be restarted from a new seed without changing the meaning of chain
+continuation.
 
 Named \code{NULL} elements in \code{autofit_control} and
 \code{convergence_checks} explicitly disable or clear the corresponding

@@ -667,8 +667,7 @@
       autofit_control    = autofit_control,
       parallel           = fit_control[["parallel"]],
       cores              = fit_control[["cores"]],
-      silent             = fit_control[["silent"]],
-      seed               = fit_control[["seed"]]
+      silent             = fit_control[["silent"]]
     )
 
   }

@@ -73,6 +73,9 @@
   matching the names already used by the maintainer scenarios.
 - resets base-graphics overlay mode around interactive `scenario_plot()`
   evaluations so consecutive scenario figures do not draw over one another.
+- extends existing fits through the supported BayesTools continuation contract,
+  preserving each JAGS chain's stored random-number generator state;
+  `update.brma(seed = ...)` now rejects attempts to reseed a continuation.
 - rejects explicitly supplied moderator, scale-regression, and multilevel
   heterogeneity-allocation priors when the corresponding model component is
   absent, instead of silently discarding them.
