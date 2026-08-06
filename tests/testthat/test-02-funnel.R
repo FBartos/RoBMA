@@ -562,22 +562,22 @@ test_that("Funnel plot for selection meta-regression renders residual view", {
   })
 })
 
-test_that("Outcome funnel for selection meta-regression thins all samples equally", {
+test_that("Outcome funnel rejects selection meta-regression", {
 
   skip_if_missing_fits("dat.lehmann2018-3PSMreg")
 
   fit_brma <- fits[["dat.lehmann2018-3PSMreg"]]
-  funnel_data <- suppressWarnings(.test_funnel(
-    fit_brma,
-    residual               = FALSE,
-    sampling_bias          = TRUE,
-    sampling_heterogeneity = TRUE,
-    max_samples            = 20,
-    as_data                = TRUE
-  ))
-
-  expect_true(is.list(funnel_data))
-  expect_true(all(c("points", "funnel") %in% names(funnel_data)))
+  expect_error(
+    .test_funnel(
+      fit_brma,
+      residual               = FALSE,
+      sampling_bias          = TRUE,
+      sampling_heterogeneity = TRUE,
+      max_samples            = 20,
+      as_data                = TRUE
+    ),
+    "not supported.*location or scale predictors"
+  )
 })
 
 test_that("Funnel plot allows descriptive known-V brma.mv outcome and residual modes", {

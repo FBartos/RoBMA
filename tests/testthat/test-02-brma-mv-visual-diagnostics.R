@@ -72,12 +72,27 @@ test_that("v14 brma.mv funnel diagnostics return data and render", {
   for (name in mv_visual_fit_names) {
     fit_brma <- fits[[name]]
 
-    outcome_data <- funnel(
-      fit_brma,
-      residual    = FALSE,
-      as_data     = TRUE,
-      max_samples = 100
-    )
+    has_predictors <- .is_mods(fit_brma) || .is_scale(fit_brma)
+    if (has_predictors) {
+      expect_error(
+        funnel(
+          fit_brma,
+          residual    = FALSE,
+          as_data     = TRUE,
+          max_samples = 100
+        ),
+        "not supported.*location or scale predictors",
+        info = name
+      )
+      outcome_data <- NULL
+    } else {
+      outcome_data <- funnel(
+        fit_brma,
+        residual    = FALSE,
+        as_data     = TRUE,
+        max_samples = 100
+      )
+    }
     residual_data <- funnel(
       fit_brma,
       residual    = TRUE,
@@ -86,12 +101,16 @@ test_that("v14 brma.mv funnel diagnostics return data and render", {
       max_samples = 100
     )
 
-    .expect_mv_components(outcome_data, expected_components, name)
     .expect_mv_components(residual_data, expected_components, name)
-    .expect_mv_plot_points(outcome_data, fit_brma, paste(name, "outcome funnel"))
     .expect_mv_plot_points(residual_data, fit_brma, paste(name, "residual funnel"))
+    if (!is.null(outcome_data)) {
+      .expect_mv_components(outcome_data, expected_components, name)
+      .expect_mv_plot_points(
+        outcome_data, fit_brma, paste(name, "outcome funnel")
+      )
+    }
 
-    if (name %in% mv_visual_render_fit_names) {
+    if (name %in% mv_visual_render_fit_names && !has_predictors) {
       expect_vdiffr_snapshot("brma_mv_ishak_funnel_base", function() {
         funnel(
           fit_brma,
@@ -111,12 +130,14 @@ test_that("v14 brma.mv funnel diagnostics return data and render", {
     } else if (.mv_visual_should_render(name)) {
       .with_temp_plot_device(expect_silent(funnel(
         fit_brma,
-        residual    = FALSE,
+        residual    = has_predictors,
+        type        = "rstandard",
         max_samples = 100
       )))
       expect_true(.is_ggplot(funnel(
         fit_brma,
-        residual    = FALSE,
+        residual    = has_predictors,
+        type        = "rstandard",
         plot_type   = "ggplot",
         max_samples = 100
       )))

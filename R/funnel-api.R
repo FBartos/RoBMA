@@ -25,7 +25,9 @@ funnel <- function(x, ...) UseMethod("funnel")
 #'     regression, displays observed effect sizes against the fitted sampling
 #'     distribution funnel; for models with moderators or scale regression,
 #'     automatically uses residual mode.
-#'   \item \code{FALSE}: explicitly requests outcome mode.
+#'   \item \code{FALSE}: explicitly requests outcome mode. This is available
+#'     only for intercept-only models without scale regression; models with
+#'     location or scale predictors must use residual mode.
 #'   \item \code{TRUE}: explicitly requests residual mode, displaying residuals
 #'     on the x-axis and using \code{type} to determine how those residuals are
 #'     computed.
@@ -217,6 +219,16 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   } else {
     BayesTools::check_bool(residual, "residual")
     is_residual <- residual
+  }
+
+  if (!is_residual && (is_mods || is_scale)) {
+    stop(
+      "Outcome-mode funnel plots are not supported for models with location ",
+      "or scale predictors because their fitted location or heterogeneity is ",
+      "study-specific. Use 'residual = TRUE' (or omit 'residual') to plot a ",
+      "residual funnel.",
+      call. = FALSE
+    )
   }
 
   # generate funnel data based on mode
