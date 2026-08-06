@@ -197,6 +197,32 @@
 }
 
 
+.glmm_grid_nonconvergence_condition <- function(
+    outcome_type, observation, theta_changes, nuisance_changes) {
+
+  label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
+  message <- paste0(
+    label, " prior-CDF quadrature failed to converge at observation ",
+    observation, ". Last theta changes: ",
+    paste(format(theta_changes, digits = 4), collapse = ", "),
+    "; last nuisance changes: ",
+    paste(format(nuisance_changes, digits = 4), collapse = ", "), "."
+  )
+
+  return(structure(
+    list(
+      message          = message,
+      call             = NULL,
+      outcome_type     = outcome_type,
+      observation      = observation,
+      theta_changes    = theta_changes,
+      nuisance_changes = nuisance_changes
+    ),
+    class = c("RoBMA_glmm_grid_nonconvergence", "error", "condition")
+  ))
+}
+
+
 .glmm_grid_refine <- function(evaluate, outcome_type, observation, control,
                               theta_active = TRUE, nuisance_active = TRUE) {
 
@@ -270,15 +296,12 @@
     }
     if (theta_index > length(theta_orders) ||
         nuisance_index > length(nuisance_orders)) {
-      label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
-      stop(
-        label, " prior-CDF quadrature failed to converge at observation ",
-        observation, ". Last theta changes: ",
-        paste(format(theta_changes, digits = 4), collapse = ", "),
-        "; last nuisance changes: ",
-        paste(format(nuisance_changes, digits = 4), collapse = ", "), ".",
-        call. = FALSE
-      )
+      stop(.glmm_grid_nonconvergence_condition(
+        outcome_type     = outcome_type,
+        observation      = observation,
+        theta_changes    = theta_changes,
+        nuisance_changes = nuisance_changes
+      ))
     }
   }
 }
@@ -286,12 +309,10 @@
 
 .glmm_grid_numerical_failure <- function(condition, outcome_type) {
 
-  label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
-  pattern <- paste0(
-    "^", label,
-    " prior-CDF quadrature failed to converge at observation [0-9]+[.]"
+  return(
+    inherits(condition, "RoBMA_glmm_grid_nonconvergence") &&
+      identical(condition[["outcome_type"]], outcome_type)
   )
-  return(grepl(pattern, conditionMessage(condition), perl = TRUE))
 }
 
 

@@ -808,7 +808,22 @@ test_that("fitted truncated-nuisance GLMMs support likelihood criteria", {
 })
 
 
-test_that("AGHQ recovery does not catch unrelated errors", {
+test_that("quadrature recovery catches only its classed failures", {
+
+  grid_failure <- .glmm_grid_nonconvergence_condition(
+    outcome_type     = "bin",
+    observation      = 7L,
+    theta_changes    = c(2e-5, 3e-6),
+    nuisance_changes = c(4e-7, 5e-8)
+  )
+  expect_true(.glmm_grid_numerical_failure(grid_failure, "bin"))
+  expect_false(.glmm_grid_numerical_failure(grid_failure, "pois"))
+  expect_identical(grid_failure[["observation"]], 7L)
+  expect_equal(grid_failure[["theta_changes"]], c(2e-5, 3e-6))
+  expect_match(
+    conditionMessage(grid_failure),
+    "^Binomial prior-CDF quadrature failed to converge at observation 7[.]"
+  )
 
   expect_error(
     .glmm_aghq_dispatch(
@@ -820,6 +835,23 @@ test_that("AGHQ recovery does not catch unrelated errors", {
       row_sum       = FALSE
     ),
     "unrelated programming error"
+  )
+
+  matching_plain_error <- conditionMessage(grid_failure)
+  testthat::local_mocked_bindings(
+    .outcome_pdf.binom = function(...) stop(matching_plain_error),
+    .package = "RoBMA"
+  )
+  prior_pi <- BayesTools::prior(
+    "beta", list(1.5, 2.5), truncation = list(0.1, 0.9)
+  )
+  expect_error(
+    .glmm_binom_marginal(
+      ai = 1L, ci = 1L, n1i = 10L, n2i = 10L,
+      mu_samples = matrix(0), tau_within = matrix(0.5),
+      weights = NULL, prior_pi = prior_pi, prior_spec = NULL
+    ),
+    "observation 7"
   )
 })
 
