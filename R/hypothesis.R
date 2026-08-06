@@ -837,6 +837,44 @@ hypothesis.brma <- function(object, hypothesis,
       out        = out,
       hypothesis = original_hypothesis
     )
+    out <- .hypothesis_brma_exp_affine_restore_density_scale(
+      out        = out,
+      hypothesis = original_hypothesis
+    )
+  }
+
+  return(out)
+}
+
+
+.hypothesis_brma_exp_affine_restore_density_scale <- function(
+    out, hypothesis) {
+
+  density_columns <- intersect(c("prior", "posterior"), names(out))
+  if (length(density_columns) == 0L) {
+    return(out)
+  }
+  points <- vapply(hypothesis[["statements"]], function(statement) {
+
+    values <- vapply(c("left", "right"), function(side_name) {
+      statement[[side_name]][["value"]]
+    }, numeric(1))
+    if (!isTRUE(all.equal(values[[1L]], values[[2L]])) ||
+        !is.finite(values[[1L]]) || values[[1L]] <= 0) {
+      stop(
+        "Internal error: exp(affine) point-density scales are invalid.",
+        call. = FALSE
+      )
+    }
+
+    values[[1L]]
+  }, numeric(1))
+  if (nrow(out) != length(points)) {
+    stop("Internal error: transformed density rows are misaligned.",
+         call. = FALSE)
+  }
+  for (column in density_columns) {
+    out[[column]] <- out[[column]] / points
   }
 
   return(out)
