@@ -348,7 +348,7 @@ test_that("no-intercept random formulas expose only fitted location terms", {
   )
   expect_error(
     hypothesis(fit, "mu > 0 vs mu < 0", component = "mods"),
-    "Could not infer a model parameter"
+    "No public parameter quantity matches 'mu'"
   )
 })
 

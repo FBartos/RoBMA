@@ -420,6 +420,14 @@
       ,
       drop = FALSE
     ]
+    if (!.fitted_formula_has_intercept(
+        object, formula_parameter, required = TRUE)) {
+      fixed_rows <- fixed_rows[
+        fixed_rows[["term"]] != "intercept",
+        ,
+        drop = FALSE
+      ]
+    }
     for (row in seq_len(nrow(fixed_rows))) {
       map_row <- fixed_rows[row, , drop = FALSE]
       term    <- map_row[["term"]]
