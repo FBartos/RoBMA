@@ -58,7 +58,8 @@ fit_BMA <- BMA(
   prior_informed_field    = "medicine",
   prior_informed_subfield = "Oral Health",
   data = Poulsen2006, slab = study,
-  seed = 1, parallel = TRUE
+  seed = 1, parallel = TRUE,
+  burnin = 3000, sample = 12000
 )
 
 fit_RoBMA <- RoBMA(
@@ -66,7 +67,8 @@ fit_RoBMA <- RoBMA(
   prior_informed_field    = "medicine",
   prior_informed_subfield = "Oral Health",
   data = Poulsen2006, slab = study,
-  seed = 1, parallel = TRUE
+  seed = 1, parallel = TRUE,
+  burnin = 3000, sample = 12000
 )
 
 vignette_cache_save(cached_fits)
