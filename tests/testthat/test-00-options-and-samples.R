@@ -88,11 +88,26 @@ test_that("fitting constructors inherit silent option when omitted", {
 })
 
 
-test_that("convergence checks expose only active thresholds", {
+test_that("convergence checks expose BayesTools routing controls", {
 
   checks <- set_convergence_checks()
 
-  expect_true(all(c("max_Rhat", "min_ESS", "max_error", "max_SD_error") %in% names(checks)))
+  expect_true(all(c(
+    "max_Rhat", "min_ESS", "max_error", "max_SD_error",
+    "check_indicators", "monitor", "allow_not_assessable"
+  ) %in% names(checks)))
+  expect_false(checks[["check_indicators"]])
+  expect_null(checks[["monitor"]])
+  expect_false(checks[["allow_not_assessable"]])
+
+  routed <- set_convergence_checks(
+    check_indicators     = TRUE,
+    monitor              = c("mu", "tau"),
+    allow_not_assessable = TRUE
+  )
+  expect_true(routed[["check_indicators"]])
+  expect_identical(routed[["monitor"]], c("mu", "tau"))
+  expect_true(routed[["allow_not_assessable"]])
   expect_false("remove_failed" %in% names(checks))
   expect_false("balance_probability" %in% names(checks))
   expect_error(set_convergence_checks(remove_failed = TRUE), "unused argument")

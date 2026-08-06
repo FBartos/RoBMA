@@ -265,6 +265,13 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' @param max_SD_error maximum value of the proportion of MCMC error
 #' of the estimated SD of the parameter.
 #' Defaults to \code{NULL}.
+#' @param check_indicators whether model indicator variables should be included
+#' in convergence checks. Defaults to \code{FALSE}.
+#' @param monitor optional character vector selecting the parameters used for
+#' convergence checks. A base name selects all indexed elements. Defaults to
+#' \code{NULL}, which checks every eligible non-indicator parameter.
+#' @param allow_not_assessable whether requested sampled parameters with
+#' undefined diagnostics may be ignored. Defaults to \code{FALSE}.
 #' @param max_time list with the time and unit specifying the maximum
 #' autofitting process per model. Passed to \link[base]{difftime} function
 #' (possible units are \code{"secs"}, \code{"mins"}, \code{"hours"},
@@ -289,7 +296,8 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 #' \code{max_SD_error}, \code{max_time}, \code{restarts}, and
 #' \code{max_extend} can be set to \code{NULL}; \code{sample_extend} must be a
-#' positive integer.
+#' positive integer. The routing controls are delegated to
+#' \code{BayesTools::JAGS_check_convergence()}.
 #' Thresholds can be disabled with \code{NULL}; otherwise \code{max_Rhat} must be
 #' at least 1, \code{min_ESS} and \code{max_error} must be nonnegative, and
 #' \code{max_SD_error} must be between 0 and 1.
@@ -325,11 +333,12 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' @return \code{set_autofit_control} returns a list of autofit control settings
 #' including \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 #' \code{max_SD_error}, \code{max_time}, \code{sample_extend},
-#' \code{restarts}, \code{max_extend}, and delegated
-#' \code{check_indicators}.
+#' \code{restarts}, \code{max_extend}, \code{check_indicators},
+#' \code{monitor}, and \code{allow_not_assessable}.
 #' \code{set_convergence_checks} returns a list with convergence thresholds
 #' \code{max_Rhat}, \code{min_ESS}, \code{max_error}, \code{max_SD_error},
-#' and delegated \code{check_indicators}.
+#' \code{check_indicators}, \code{monitor}, and
+#' \code{allow_not_assessable}.
 #'
 #' @export set_autofit_control
 #' @export set_convergence_checks
@@ -340,7 +349,7 @@ for (option_name in names(.RoBMA_option_schema)) {
 NULL
 
 #' @rdname RoBMA_control
-set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10, max_extend = 10){
+set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10, max_extend = 10, check_indicators = FALSE, monitor = NULL, allow_not_assessable = FALSE){
 
   autofit_settings <- list(
     max_Rhat      = max_Rhat,
@@ -350,20 +359,26 @@ set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     max_time      = max_time,
     sample_extend = sample_extend,
     restarts      = restarts,
-    max_extend    = max_extend
+    max_extend          = max_extend,
+    check_indicators     = check_indicators,
+    monitor              = monitor,
+    allow_not_assessable = allow_not_assessable
   )
   autofit_settings <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_settings, call = "Checking 'autofit_control':\n\t")
 
   return(autofit_settings)
 }
 #' @rdname RoBMA_control
-set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL){
+set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, check_indicators = FALSE, monitor = NULL, allow_not_assessable = FALSE){
 
   convergence_checks <- list(
     max_Rhat     = max_Rhat,
     min_ESS      = min_ESS,
     max_error    = max_error,
-    max_SD_error = max_SD_error
+    max_SD_error         = max_SD_error,
+    check_indicators     = check_indicators,
+    monitor              = monitor,
+    allow_not_assessable = allow_not_assessable
   )
   # allows NULL arguments so it can be used in this way too
   convergence_checks <- .check_and_list_convergence_checks(convergence_checks)
@@ -459,7 +474,23 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     max_extend <- old_autofit_control[["max_extend"]]
   }
 
-  new_autofit_control <- set_autofit_control(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts, max_extend = max_extend)
+  check_indicators <- if(!is.null(autofit_control[["check_indicators"]])) {
+    autofit_control[["check_indicators"]]
+  } else {
+    isTRUE(old_autofit_control[["check_indicators"]])
+  }
+  monitor <- if(!is.null(autofit_control[["monitor"]])) {
+    autofit_control[["monitor"]]
+  } else {
+    old_autofit_control[["monitor"]]
+  }
+  allow_not_assessable <- if(!is.null(autofit_control[["allow_not_assessable"]])) {
+    autofit_control[["allow_not_assessable"]]
+  } else {
+    isTRUE(old_autofit_control[["allow_not_assessable"]])
+  }
+
+  new_autofit_control <- set_autofit_control(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts, max_extend = max_extend, check_indicators = check_indicators, monitor = monitor, allow_not_assessable = allow_not_assessable)
   new_autofit_control <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_control = new_autofit_control)
 
   return(new_autofit_control)
@@ -486,7 +517,22 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   }else{
     max_SD_error <- old_convergence_checks[["max_SD_error"]]
   }
-  new_convergence_checks <- set_convergence_checks(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error)
+  check_indicators <- if(!is.null(convergence_checks[["check_indicators"]])) {
+    convergence_checks[["check_indicators"]]
+  } else {
+    isTRUE(old_convergence_checks[["check_indicators"]])
+  }
+  monitor <- if(!is.null(convergence_checks[["monitor"]])) {
+    convergence_checks[["monitor"]]
+  } else {
+    old_convergence_checks[["monitor"]]
+  }
+  allow_not_assessable <- if(!is.null(convergence_checks[["allow_not_assessable"]])) {
+    convergence_checks[["allow_not_assessable"]]
+  } else {
+    isTRUE(old_convergence_checks[["allow_not_assessable"]])
+  }
+  new_convergence_checks <- set_convergence_checks(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, check_indicators = check_indicators, monitor = monitor, allow_not_assessable = allow_not_assessable)
   new_convergence_checks <- .check_and_list_convergence_checks(new_convergence_checks)
 
   return(new_convergence_checks)

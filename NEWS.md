@@ -73,6 +73,9 @@
   matching the names already used by the maintainer scenarios.
 - resets base-graphics overlay mode around interactive `scenario_plot()`
   evaluations so consecutive scenario figures do not draw over one another.
+- exposes and honors BayesTools convergence routing through
+  `set_autofit_control()` and `set_convergence_checks()`, allowing checks to
+  target the parameters that are assessable for a fitted model.
 - reports an actionable error when additional models are passed to
   `loo_weights()`, clarifying the distinction between single-model PSIS
   importance weights and the new `loo_model_weights()` method across models.

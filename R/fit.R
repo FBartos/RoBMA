@@ -695,10 +695,13 @@
       fit            = fit,
       prior_list     = attr(fit, "prior_list"),
       add_parameters = .convergence_structural_parameters(priors),
-      max_Rhat       = convergence_checks[["max_Rhat"]],
-      min_ESS        = convergence_checks[["min_ESS"]],
-      max_error      = convergence_checks[["max_error"]],
-      max_SD_error   = convergence_checks[["max_SD_error"]]
+      max_Rhat             = convergence_checks[["max_Rhat"]],
+      min_ESS              = convergence_checks[["min_ESS"]],
+      max_error            = convergence_checks[["max_error"]],
+      max_SD_error         = convergence_checks[["max_SD_error"]],
+      check_indicators     = isTRUE(convergence_checks[["check_indicators"]]),
+      monitor              = convergence_checks[["monitor"]],
+      allow_not_assessable = isTRUE(convergence_checks[["allow_not_assessable"]])
     )
     warnings  <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
     converged <- check_fit

@@ -14,14 +14,20 @@ set_autofit_control(
   max_time = list(time = 60, unit = "mins"),
   sample_extend = 1000,
   restarts = 10,
-  max_extend = 10
+  max_extend = 10,
+  check_indicators = FALSE,
+  monitor = NULL,
+  allow_not_assessable = FALSE
 )
 
 set_convergence_checks(
   max_Rhat = 1.05,
   min_ESS = 500,
   max_error = NULL,
-  max_SD_error = NULL
+  max_SD_error = NULL,
+  check_indicators = FALSE,
+  monitor = NULL,
+  allow_not_assessable = FALSE
 )
 }
 \arguments{
@@ -55,16 +61,27 @@ model fails to initialize. Defaults to \code{10}.}
 
 \item{max_extend}{number of times after which the automatic fitting function is stopped.
 Defaults to \code{10}.}
+
+\item{check_indicators}{whether model indicator variables should be included
+in convergence checks. Defaults to \code{FALSE}.}
+
+\item{monitor}{optional character vector selecting the parameters used for
+convergence checks. A base name selects all indexed elements. Defaults to
+\code{NULL}, which checks every eligible non-indicator parameter.}
+
+\item{allow_not_assessable}{whether requested sampled parameters with
+undefined diagnostics may be ignored. Defaults to \code{FALSE}.}
 }
 \value{
 \code{set_autofit_control} returns a list of autofit control settings
 including \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 \code{max_SD_error}, \code{max_time}, \code{sample_extend},
-\code{restarts}, \code{max_extend}, and delegated
-\code{check_indicators}.
+\code{restarts}, \code{max_extend}, \code{check_indicators},
+\code{monitor}, and \code{allow_not_assessable}.
 \code{set_convergence_checks} returns a list with convergence thresholds
 \code{max_Rhat}, \code{min_ESS}, \code{max_error}, \code{max_SD_error},
-and delegated \code{check_indicators}.
+\code{check_indicators}, \code{monitor}, and
+\code{allow_not_assessable}.
 }
 \description{
 \code{set_autofit_control} and \code{set_convergence_checks} control settings for the
@@ -81,7 +98,8 @@ The convergence checks determine the quality standards that fitted models must m
 Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 \code{max_SD_error}, \code{max_time}, \code{restarts}, and
 \code{max_extend} can be set to \code{NULL}; \code{sample_extend} must be a
-positive integer.
+positive integer. The routing controls are delegated to
+\code{BayesTools::JAGS_check_convergence()}.
 Thresholds can be disabled with \code{NULL}; otherwise \code{max_Rhat} must be
 at least 1, \code{min_ESS} and \code{max_error} must be nonnegative, and
 \code{max_SD_error} must be between 0 and 1.

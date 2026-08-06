@@ -62,6 +62,9 @@ fit <- RoBMA(
   yi = d, sei = se, measure = "SMD", cluster = study,
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
+  convergence_checks  = set_convergence_checks(
+    monitor = c("mu", "tau", "rho", "gamma", "omega")
+  ),
   adapt = 5000, burnin = 5000, sample = 20000,
   parallel  = TRUE, seed = 1, data = Johnides2025
 )
@@ -70,6 +73,9 @@ fit_simple <- RoBMA(
   yi = d, sei = se, measure = "SMD",
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
+  convergence_checks  = set_convergence_checks(
+    monitor = c("mu", "tau", "omega")
+  ),
   adapt = 5000, burnin = 5000, sample = 20000,
   parallel  = TRUE, seed = 1, data = Johnides2025
 )
