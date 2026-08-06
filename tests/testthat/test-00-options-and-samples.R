@@ -119,6 +119,49 @@ test_that("convergence checks expose BayesTools routing controls", {
   expect_error(set_convergence_checks(balance_probability = FALSE), "unused argument")
 })
 
+test_that("targeted convergence controls retain product-space indicator checks", {
+
+  set.seed(45)
+  chain_1 <- cbind(
+    mu = stats::rnorm(200),
+    mu_indicator = 0,
+    mu_inclusion = 0
+  )
+  chain_2 <- cbind(
+    mu = stats::rnorm(200),
+    mu_indicator = 1,
+    mu_inclusion = 1
+  )
+  fit <- list(
+    mcmc = coda::mcmc.list(
+      coda::mcmc(chain_1),
+      coda::mcmc(chain_2)
+    ),
+    summary.pars = list(mutate = NULL)
+  )
+  class(fit) <- "runjags"
+  attr(fit, "prior_list") <- list(mu = BayesTools::prior_spike_and_slab(
+    BayesTools::prior("normal", list(0, 1)),
+    prior_inclusion = BayesTools::prior("beta", list(1, 1))
+  ))
+
+  checked <- RoBMA:::.recheck_brma_fit(list(
+    fit    = fit,
+    priors = list(),
+    convergence_checks = set_convergence_checks(
+      max_Rhat         = 1.05,
+      min_ESS          = NULL,
+      max_error        = NULL,
+      max_SD_error     = NULL,
+      check_indicators = TRUE,
+      monitor          = "mu"
+    )
+  ))
+
+  expect_false(checked[["converged"]])
+  expect_match(checked[["warnings"]], "indicator|not assessable|R-hat")
+})
+
 test_that("control updates distinguish missing and explicit indicator settings", {
 
   old_autofit <- set_autofit_control()

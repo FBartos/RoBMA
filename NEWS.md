@@ -40,7 +40,7 @@
   directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.13 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.15 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
@@ -75,7 +75,8 @@
   evaluations so consecutive scenario figures do not draw over one another.
 - checks product-space model indicators by default through BayesTools'
   label-invariant state-occupancy diagnostics; `set_autofit_control()` and
-  `set_convergence_checks()` retain an explicit opt-out and parameter routing.
+  `set_convergence_checks()` retain an explicit opt-out and parameter routing,
+  and targeted monitor selections no longer suppress eligible indicators.
 - reports an actionable error when additional models are passed to
   `loo_weights()`, clarifying the distinction between single-model PSIS
   importance weights and the new `loo_model_weights()` method across models.

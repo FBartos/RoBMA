@@ -268,6 +268,9 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' @param check_indicators whether model indicator variables should be included
 #' in convergence checks. Binary indicators are checked as state occupancies
 #' and categorical indicators are checked separately for every observed state.
+#' Eligible indicators remain included when \code{monitor} selects a narrower
+#' parameter set; auxiliary inclusion-probability coordinates remain excluded
+#' unless requested explicitly.
 #' Defaults to \code{TRUE}.
 #' @param monitor optional character vector selecting the parameters used for
 #' convergence checks. A base name selects all indexed elements. Defaults to
