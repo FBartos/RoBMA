@@ -40,7 +40,7 @@
   directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.12 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.13 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
@@ -188,12 +188,13 @@
 - recovers sparse valid binomial and Poisson GLMM likelihood columns with a
   convergence-checked prior-CDF quadrature fallback when AGHQ cannot certify
   them.
-- samples qCMDE/IWMDE posterior rows globally and pools Chen proposals by
-  mathematical support, preserving empirical product-state weights without
-  enumerating nuisance model states.
-- computes qCMDE/IWMDE MCSE and effective sample sizes from chain-ordered,
-  design-weighted estimator contributions, including unsampled posterior rows
-  as zero contributions under finite row budgets.
+- samples qCMDE/IWMDE rows uniformly without replacement from all eligible
+  continuous active posterior rows, preserving the fitted product-state mass
+  without enumerating nuisance model states or forcing rare-state inclusion.
+- separates finite-population row-sampling uncertainty from selected-row MCMC
+  MCSE and effective sample size, requires both precision checks for adaptive
+  stopping, and makes MCMC diagnostics unavailable when a sample omits a fitted
+  chain instead of reporting false precision.
 - removes structurally inactive random-effect coordinates from marginal-
   likelihood replay when every corresponding standard deviation is fixed at
   zero, restoring exact zero-dimensional results.
@@ -225,9 +226,9 @@
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting
   requirement, method selection, tuning controls, reliability diagnostics,
   unsupported targets, sensitivity workflow, and normal-approximation limits.
-- clarifies that qCMDE/IWMDE `BF_error` is a conditional Monte Carlo error and
-  that prior-ordinate and IWMDE weight-estimation uncertainty are outside its
-  scope.
+- clarifies the separate posterior-row sampling and selected-row MCMC errors;
+  prior-ordinate and IWMDE proposal-weight estimation uncertainty remain
+  outside `BF_error`.
 
 ## version 4.0.0
 ### Breaking changes
