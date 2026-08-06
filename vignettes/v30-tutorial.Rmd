@@ -104,7 +104,8 @@ fit_RoBMA <- RoBMA(
   prior_effect                 = prior_effect_361,
   prior_heterogeneity          = prior_heterogeneity_361,
   prior_bias                   = prior_bias_361,
-  data = dfz, seed = 1, parallel = TRUE
+  data = dfz, seed = 1, parallel = TRUE,
+  burnin = 3000, sample = 8000
 )
 
 fit_RoBMA2 <- RoBMA(
@@ -340,7 +341,8 @@ fit_RoBMA <- RoBMA(
   prior_effect                 = prior_effect_361,
   prior_heterogeneity          = prior_heterogeneity_361,
   prior_bias                   = prior_bias_361,
-  data = dfz, seed = 1, parallel = TRUE
+  data = dfz, seed = 1, parallel = TRUE,
+  burnin = 3000, sample = 8000
 )
 ```
 This step used to take some time depending on your CPU.
