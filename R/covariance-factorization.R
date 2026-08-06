@@ -42,18 +42,27 @@
     "positive_definite"
   }
 
+  # A covariance accepted as positive semidefinite can have tiny signed
+  # eigensolver artifacts in its null space. Preserve the submitted covariance
+  # and normalize only the spectral representation used to construct factors.
+  spectral_values <- decomposition[["values"]]
+  if (!identical(status, "indefinite")) {
+    spectral_values[abs(spectral_values) <= tolerance] <- 0
+  }
+
   structure(
     list(
-      covariance          = covariance,
-      eigenvalues         = values,
+      covariance           = covariance,
+      eigenvalues          = values,
       decomposition_values = decomposition[["values"]],
-      eigenvectors        = decomposition[["vectors"]],
-      rank_one_factor     = rank_one_factor,
-      scale               = scale,
-      psd_tolerance       = tolerance,
-      pd_tolerance        = tolerance,
-      singular            = !identical(status, "positive_definite"),
-      status              = status
+      spectral_values      = spectral_values,
+      eigenvectors         = decomposition[["vectors"]],
+      rank_one_factor      = rank_one_factor,
+      scale                = scale,
+      psd_tolerance        = tolerance,
+      pd_tolerance         = tolerance,
+      singular             = !identical(status, "positive_definite"),
+      status               = status
     ),
     class = c("brma_covariance_factorization", "list")
   )
@@ -136,7 +145,7 @@
     return(chol_factor)
   }
 
-  values <- factorization[["decomposition_values"]]
+  values  <- factorization[["spectral_values"]]
   if (any(values < 0)) {
     return(NULL)
   }

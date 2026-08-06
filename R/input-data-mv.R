@@ -469,7 +469,7 @@
     idx       <- covariance_blocks[[b]][["index"]]
     V_block   <- covariance_blocks[[b]][["covariance"]]
     factorization <- .covariance_factorization(V_block)
-    values        <- factorization[["decomposition_values"]]
+    values        <- factorization[["spectral_values"]]
     if (!.covariance_is_positive_semidefinite(factorization)) {
       stop("Known-V whitening covariance is not positive semidefinite.",
            call. = FALSE)
@@ -621,19 +621,19 @@
   residual_variance <- alpha * diagonal
   latent_covariance <- V_block - diag(residual_variance, nrow = block_size)
   eig  <- .covariance_factorization(latent_covariance)
-  keep <- eig[["decomposition_values"]] > 0
+  values <- eig[["spectral_values"]]
+  keep   <- values > 0
 
   if (!.covariance_is_positive_semidefinite(eig)) {
     stop("Known-V decomposition failed; V - D is not positive semidefinite.",
          call. = FALSE)
   }
-  if (any(eig[["decomposition_values"]] < 0)) {
+  if (any(values < 0)) {
     stop("Known-V decomposition produced negative eigenvalues.", call. = FALSE)
   }
-
   if (any(keep)) {
     B <- eig[["eigenvectors"]][, keep, drop = FALSE] %*%
-      diag(sqrt(eig[["decomposition_values"]][keep]), nrow = sum(keep))
+      diag(sqrt(values[keep]), nrow = sum(keep))
   } else {
     B <- matrix(numeric(0), nrow = block_size, ncol = 0L)
   }
@@ -645,7 +645,7 @@
     B                            = B,
     effective_residual_fraction  = alpha,
     max_reconstruction_error     = max(abs(reconstruction - V_block)),
-    min_latent_eigenvalue        = min(eig[["decomposition_values"]]),
+    min_latent_eigenvalue        = min(values),
     reduced                      = reduced
   ))
 }
