@@ -7,7 +7,6 @@
 \method{predict}{brma}(
   object,
   newdata = NULL,
-  V_new = NULL,
   type = "terms",
   as_measure = TRUE,
   output_measure = NULL,
@@ -16,6 +15,7 @@
   bias_adjusted = FALSE,
   quiet = FALSE,
   conditional = FALSE,
+  V_new = NULL,
   ...
 )
 }
@@ -38,12 +38,6 @@ must agree. Poisson GLMM response predictions require exposures \code{t1i}
 and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 known-\code{V} \code{brma.mv()} response prediction, explicit
 \code{newdata} also requires a new sampling covariance matrix.}
-
-\item{V_new}{optional sampling covariance matrix for explicit
-\code{newdata} response predictions from known-\code{V} \code{brma.mv()}
-models. May be a square matrix or a list of block covariance matrices whose
-total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
-rows is not supported.}
 
 \item{type}{type of prediction to be performed. Options are:
 \itemize{
@@ -119,6 +113,12 @@ RoBMA product-space objects. For location predictions, samples are conditioned
 on the effect component; for \code{type = "terms.scale"}, samples are
 conditioned on the heterogeneity component. Conditional samples are flattened
 to one chain after subsetting posterior rows.}
+
+\item{V_new}{optional sampling covariance matrix for explicit
+\code{newdata} response predictions from known-\code{V} \code{brma.mv()}
+models. May be a square matrix or a list of block covariance matrices whose
+total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
+rows is not supported.}
 
 \item{...}{additional arguments}
 }

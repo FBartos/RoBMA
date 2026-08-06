@@ -21,11 +21,6 @@
 #'   and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 #'   known-\code{V} \code{brma.mv()} response prediction, explicit
 #'   \code{newdata} also requires a new sampling covariance matrix.
-#' @param V_new optional sampling covariance matrix for explicit
-#' \code{newdata} response predictions from known-\code{V} \code{brma.mv()}
-#' models. May be a square matrix or a list of block covariance matrices whose
-#' total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
-#' rows is not supported.
 #' @param type type of prediction to be performed. Options are:
 #' \itemize{
 #'   \item{\code{"terms"} (alias: \code{"marginal"}): Fixed-effect parameters only (mu).
@@ -91,6 +86,11 @@
 #' to one chain after subsetting posterior rows.
 #' @param quiet logical; whether to suppress informational messages about
 #' prediction scale and bias adjustment.
+#' @param V_new optional sampling covariance matrix for explicit
+#' \code{newdata} response predictions from known-\code{V} \code{brma.mv()}
+#' models. May be a square matrix or a list of block covariance matrices whose
+#' total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
+#' rows is not supported.
 #'
 #' @details
 #' \strong{Type hierarchy:}
@@ -184,8 +184,7 @@
 #' related functions.
 #' @seealso [pooled_effect()], [pooled_heterogeneity()], [blup()]
 #' @export
-predict.brma <- function(object, newdata = NULL, V_new = NULL,
-                         type = "terms",
+predict.brma <- function(object, newdata = NULL, type = "terms",
                          as_measure = TRUE,
                          output_measure = NULL,
                          transform = NULL,
@@ -193,6 +192,7 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
                          bias_adjusted = FALSE,
                          quiet = FALSE,
                          conditional = FALSE,
+                         V_new = NULL,
                          ...){
 
   context <- .predict_brma_context(

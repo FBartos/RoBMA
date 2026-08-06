@@ -154,6 +154,23 @@ test_that("Wrapper functions have correct interface", {
 })
 
 
+test_that("predict preserves the released positional type argument", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+
+  set.seed(481)
+  positional <- predict(fit_brma, NULL, "response")
+  set.seed(481)
+  named <- predict(fit_brma, newdata = NULL, type = "response")
+
+  expect_identical(names(formals(predict.brma))[3L], "type")
+  expect_equal(positional, named, tolerance = 0)
+})
+
+
 test_that("pooled_effect aggregates fitted-design location draws directly", {
 
   name <- "bcg_meta-regression"
