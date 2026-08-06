@@ -188,12 +188,19 @@ certification_cases <- function() {
       ),
       test_filter = paste0(
         "02-(dfbetas|distributions|forest|funnel|glmm-aghq|hatvalues|",
-        "influence|iwmde-fast-paths|marginal_means|predict|qqnorm|residuals|summary.*|vif)|",
+        "influence|iwmde-fast-paths|iwmde-glmm-local|marginal_means|predict|",
+        "qqnorm|residuals|summary.*|vif)|",
         "03-(bridgesampling|loo)"
       ),
-      required_tests = .required_tests(
-        "test-02-iwmde-fast-paths.R",
-        "IWMDE batched q evaluation matches scalar fallback"
+      required_tests = rbind(
+        .required_tests(
+          "test-02-iwmde-fast-paths.R",
+          "IWMDE batched q evaluation matches scalar fallback"
+        ),
+        .required_tests(
+          "test-02-iwmde-glmm-local.R",
+          "IWMDE conditions multilevel GLMM rows on sampled local states"
+        )
       )
     ),
     "multivariate-core" = list(
@@ -246,6 +253,10 @@ certification_cases <- function() {
         .required_tests(
           "test-02-iwmde-api.R",
           "known-V marginalized allocation weights stay in global IWMDE state"
+        ),
+        .required_tests(
+          "test-02-random-parameters.R",
+          "IWMDE disables focal prior delta for sampled random SD rows"
         ),
         .random_parameter_required_tests()
       )

@@ -32,9 +32,13 @@ test_that("plot.brma clears stale posterior density before qCMDE attach", {
 
 test_that("plot.brma qCMDE supports marginalized random SDs", {
 
-  fit <- try(load_fit("brma.mv_block_mvn_random", validate = FALSE), silent = TRUE)
+  fit_name <- "brma.mv_block_mvn_random"
+  if (!fit_name %in% list_fits(validate = FALSE, active_only = TRUE)) {
+    skip(paste0("Raw cached fit unavailable for the active profile: ", fit_name))
+  }
+  fit <- try(load_fit(fit_name, validate = FALSE), silent = TRUE)
   if (inherits(fit, "try-error")) {
-    skip("Raw cached fit unavailable: brma.mv_block_mvn_random")
+    skip(paste0("Raw cached fit unavailable: ", fit_name))
   }
 
   captured <- NULL

@@ -172,3 +172,39 @@ test_that("Poisson GLMM q-grid retains local states and matches scalar", {
     nuisance_parameter = "phi"
   )
 })
+
+
+test_that("IWMDE conditions multilevel GLMM rows on sampled local states", {
+
+  fit_name <- "bcg_BMA.glmm_3lvl_location_scale"
+  skip_if_missing_fits(fit_name)
+
+  context   <- .iwmde_context(load_fit(fit_name, validate = FALSE))
+  samples   <- context[["posterior_samples"]]
+  parameter <- "mu_year"
+  rows      <- which(is.finite(samples[, parameter]) & samples[, parameter] != 0)
+  rows      <- head(rows, 3L)
+
+  expect_gt(length(rows), 0L)
+
+  row_states  <- .iwmde_row_states(context, rows, parameter)
+  replacement <- .iwmde_replacement_spec(context, parameter)
+
+  for (i in seq_along(rows)) {
+    state <- row_states[[i]]
+    expect_equal(state[["likelihood_mode"]], "conditional")
+    expect_equal(state[["state_scope"]], "local")
+    expect_true(all(c("gamma", "theta") %in% names(state[["prior_list"]])))
+    expect_true(any(c("pi", "phi") %in% names(state[["prior_list"]])))
+    expect_true(is.finite(state[["baseline_log_lik"]]))
+
+    log_q <- .iwmde_log_q_replacement(
+      context     = context,
+      state       = state,
+      parameter   = parameter,
+      value       = samples[rows[i], parameter],
+      replacement = replacement
+    )
+    expect_equal(log_q, state[["baseline_log_q"]], tolerance = 1e-8)
+  }
+})

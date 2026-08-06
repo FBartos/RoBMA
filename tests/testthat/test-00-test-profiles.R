@@ -102,6 +102,7 @@ test_that("certification cases partition expensive evidence", {
     "brma.mv_block_mvn_random"
   )
   extended_names <- certification_case_fit_names("multivariate-extended")
+  glmm_names     <- certification_case_fit_names("glmm-models")
   iwmde_names    <- certification_case_fit_names("iwmde-qcmde")
   expect_true(all(smoke_group %in% extended_names))
   expect_true(all(smoke_group %in% iwmde_names))
@@ -111,6 +112,8 @@ test_that("certification cases partition expensive evidence", {
     "dat.lehmann2018-3PSM_effect_null",
     "dat.lehmann2018-3PSM"
   ) %in% iwmde_names))
+  expect_true("brma.mv_block_mvn_random_scale" %in% extended_names)
+  expect_true("bcg_BMA.glmm_3lvl_location_scale" %in% glmm_names)
 })
 
 

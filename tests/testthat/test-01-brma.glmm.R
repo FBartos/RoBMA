@@ -9,7 +9,10 @@ skip_refit_if_cached("brma.glmm")
 fit_settings <- test_glmm_fit_settings()
 
 ### Uses examples from the metafor package
-test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
+test_that("brma.glmm fits a binomial metafor-reference model", {
+
+  skip_if_fit_not_active("bcg_glmm")
+
   ### fit generalized meta-analytic model to difference in two proportions
   data(dat.bcg, package = "metadat")
   fit_simple.metafor <- metafor::rma.glmm(measure = "OR", ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg, model = "UM.FS")
@@ -26,9 +29,15 @@ test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
   fit_simple.brma <- suppressWarnings(add_loo(fit_simple.brma))
   save_fit("bcg_glmm", fit_simple.brma, info = list(metafor = fit_simple.metafor))
   expect_s3_class(fit_simple.brma, "brma.glmm")
+})
 
+
+test_that("brma.glmm fits a binomial metafor-reference meta-regression", {
+
+  skip_if_fit_not_active("bcg_glmm_reg")
 
   ### fit generalized meta-regression
+  data(dat.bcg, package = "metadat")
   fit_reg.metafor <- suppressWarnings(metafor::rma.glmm(measure = "OR", ai = tpos, bi = tneg, ci = cpos, di = cneg, mods = ~ alloc, data = dat.bcg, model = "UM.FS"))
 
   # using RoBMA package
@@ -43,7 +52,12 @@ test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
   fit_reg.brma <- suppressWarnings(add_loo(fit_reg.brma))
   save_fit("bcg_glmm_reg", fit_reg.brma, info = list(mods = c("alloc"), metafor = fit_reg.metafor))
   expect_s3_class(fit_reg.brma, "brma.glmm")
+})
 
+
+test_that("brma.glmm fits a Poisson metafor-reference model", {
+
+  skip_if_fit_not_active("nielweise2008_glmm")
 
   ### fit generalized meta-analytic model to difference in two rations
   data(dat.nielweise2008, package = "metadat")
@@ -65,6 +79,7 @@ test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
 test_that("brma.glmm handles multilevel scale regression model", {
 
   skip_if_fit_not_active("bcg_glmm_3lvl_scale")
+
   # using RoBMA package
   data(dat.bcg, package = "metadat")
   fit_simple.brma <- brma.glmm(

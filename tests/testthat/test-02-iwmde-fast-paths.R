@@ -106,26 +106,6 @@ test_that("IWMDE identifies sampled random SD focal parameters", {
 })
 
 
-test_that("IWMDE disables focal prior delta for sampled random SD rows", {
-
-  .skip_if_missing_raw_fits("brma.mv_block_mvn_random_scale")
-
-  context   <- .iwmde_context(load_fit("brma.mv_block_mvn_random_scale", validate = FALSE))
-  parameter <- "log_tau_intercept"
-  if (!parameter %in% colnames(context[["posterior_samples"]])) {
-    skip("brma.mv random-scale fixture does not contain log_tau_intercept.")
-  }
-  rows <- which(is.finite(context[["posterior_samples"]][, parameter]))
-  rows <- head(rows, 3L)
-
-  expect_gt(length(rows), 0L)
-  for (row in rows) {
-    state <- .iwmde_row_state(context, row, parameter)
-    expect_false(state[["use_focal_prior_delta"]])
-  }
-})
-
-
 test_that("IWMDE density aggregation matches row-wise reference", {
 
   log_terms <- matrix(c(
