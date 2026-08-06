@@ -51,8 +51,9 @@ one new true effect. Defaults to \code{FALSE}.}
 \item{predstyle}{character; prediction interval style passed to
 \code{\link[metafor]{addpoly.default}}. Defaults to \code{"line"}.}
 
-\item{mlab}{label for the pooled-effect summary row. Defaults to
-\code{"Pooled Effect"}.}
+\item{mlab}{label for the summary row. Defaults to \code{"Pooled Effect"}
+for a pooled summary and \code{"Predicted Effect"} when \code{newdata}
+requests a moderator-specific prediction.}
 
 \item{row}{numeric row position for the pooled-effect summary polygon.
 Defaults to \code{-1}.}

@@ -299,8 +299,9 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
 #'   \code{addpred = TRUE}. See \code{as_metafor_forest()}.
 #' @param predstyle character; prediction interval style passed to
 #'   \code{\link[metafor]{addpoly.default}}. Defaults to \code{"line"}.
-#' @param mlab label for the pooled-effect summary row. Defaults to
-#'   \code{"Pooled Effect"}.
+#' @param mlab label for the summary row. Defaults to \code{"Pooled Effect"}
+#'   for a pooled summary and \code{"Predicted Effect"} when \code{newdata}
+#'   requests a moderator-specific prediction.
 #' @param row numeric row position for the pooled-effect summary polygon.
 #'   Defaults to \code{-1}.
 #' @param level credible/confidence level in percent. Defaults to \code{95}.
