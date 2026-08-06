@@ -106,7 +106,7 @@ fit_RE_Wang2025 <- brma(
 fit_RoBMA_Wang2025 <- RoBMA(
   yi = g, sei = se, measure = "SMD",
   data = Wang2025,
-  sample = 10000, burnin = 5000, adapt = 5000,
+  sample = 20000, burnin = 10000, adapt = 10000,
   chains = 5, parallel = TRUE, seed = 1
 )
 
@@ -398,7 +398,7 @@ fit_RE_Wang2025 <- brma(
 fit_RoBMA_Wang2025 <- RoBMA(
   yi = g, sei = se, measure = "SMD",
   data = Wang2025,
-  sample = 10000, burnin = 5000, adapt = 5000,
+  sample = 20000, burnin = 10000, adapt = 10000,
   chains = 5, parallel = TRUE, seed = 1)
 ```
 
