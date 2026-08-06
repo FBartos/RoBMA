@@ -318,8 +318,7 @@ test_that("IWMDE density surfaces aggregate fallback diagnostics", {
   )
   execution <- list(
     active_rows     = 1:2,
-    row_states      = list(list(active_key = "all"), list(active_key = "all")),
-    n_dropped_log_q = 0L
+    row_states      = list(list(active_key = "all"), list(active_key = "all"))
   )
   diagnostic <- .iwmde_plan_diagnostic_result(
     plan      = plan,

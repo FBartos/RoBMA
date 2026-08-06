@@ -377,14 +377,7 @@
                                 conditioned_chain_id = NULL,
                                 n_candidate_rows = length(row_states)) {
 
-  n_display        <- length(display_grid)
-  y                <- numeric(n_display)
-  finite_terms     <- integer(n_display)
-  max_log_ratio    <- numeric(n_display)
-  ess              <- numeric(n_display)
-  max_weight_share <- numeric(n_display)
   n_input_rows     <- length(row_states)
-  selected_rows    <- estimator_rows
   n_candidate_rows <- as.integer(n_candidate_rows[[1L]])
   if (!is.finite(n_candidate_rows) || n_candidate_rows != n_input_rows ||
       length(estimator_rows) != n_input_rows) {
@@ -512,85 +505,11 @@
     active_mass    = active_mass,
     denominator    = n_candidate_rows
   )
-  keep_rows      <- final_finite
-  log_q_display  <- log_q_display[, keep_rows, drop = FALSE]
-  log_q_initial  <- log_q_initial[, keep_rows, drop = FALSE]
-  log_q_final    <- log_q_final[, keep_rows, drop = FALSE]
-  log_normalizer <- final_log_normalizer[keep_rows]
-  row_states     <- row_states[keep_rows]
-  estimator_rows <- estimator_rows[keep_rows]
+  log_normalizer <- final_log_normalizer
   normalizer_change <- .iwmde_qcmde_normalizer_change(
     initial_log_normalizer = final_log_normalizer,
     final_log_normalizer   = validation_log_normalizer
   )
-  n_normalized_rows <- length(log_normalizer)
-  n_dropped_rows    <- max(0L, n_candidate_rows - n_normalized_rows)
-
-  if (length(log_normalizer) == 0L) {
-    return(list(
-      x                      = display_grid,
-      y                      = y,
-      finite_terms           = rep(0L, n_display),
-      max_log_ratio          = rep(Inf, n_display),
-      ess                    = rep(0, n_display),
-      max_weight_share       = rep(1, n_display),
-      mcse                   = rep(NA_real_, n_display),
-      relative_mcse          = rep(NA_real_, n_display),
-      sampling_mcse          = rep(NA_real_, n_display),
-      sampling_relative_mcse = rep(NA_real_, n_display),
-      sampling_fraction      = if (length(population_rows) == 0L) {
-        1
-      } else {
-        length(estimator_rows) / length(population_rows)
-      },
-      sampling_uncertainty_type = "finite_population_srswor",
-      mcmc_uncertainty_scope = "selected_continuous_rows_only",
-      mcmc_uncertainty_status = "unavailable",
-      mcmc_uncertainty_reason = "no normalized continuous contributions",
-      log_normalizer         = log_normalizer,
-      pilot_log_normalizer   = initial_log_normalizer[keep_rows],
-      n_normalized_rows      = 0L,
-      n_candidate_rows       = n_candidate_rows,
-      n_evaluated_rows       = n_input_rows,
-      n_dropped_rows         = n_dropped_rows,
-      row_drop_fraction      = .iwmde_row_drop_fraction(
-        n_candidate_rows  = n_candidate_rows,
-        n_normalized_rows = 0L
-      ),
-      normalization_points              = length(final_grid[["x"]]),
-      normalization_range               = range(final_grid[["x"]]),
-      normalization_initial_points      = length(pilot_grid[["x"]]),
-      normalization_initial_range       = range(pilot_grid[["x"]]),
-      pilot_normalization_integral      = NA_real_,
-      final_normalization_integral      = NA_real_,
-      normalization_relative_error      = NA_real_,
-      normalization_scale               = transform[["type"]],
-      normalization_mass_ratio          = NA_real_,
-      pilot_y                           = pilot_y,
-      validation_y                      = validation_y,
-      ordinate_relative_change          = rep(NA_real_, n_display),
-      ordinate_log_change               = rep(NA_real_, n_display),
-      pilot_ordinate_relative_change    = rep(NA_real_, n_display),
-      pilot_ordinate_log_change         = rep(NA_real_, n_display),
-      max_normalizer_relative_change    = normalizer_change[["max"]],
-      max_quadrature_relative_change    = quadrature_change,
-      p95_normalizer_relative_change    = normalizer_change[["p95"]],
-      median_normalizer_relative_change = normalizer_change[["median"]],
-      normalization_refined_points      = length(final_grid[["x"]]),
-      normalization_refined_range       = range(final_grid[["x"]]),
-      n_rescued_normalizer              = sum(!initial_finite & final_finite),
-      n_dropped_normalizer              = sum(!final_finite),
-      n_initial_dropped_normalizer      = sum(!initial_finite),
-      n_validation_dropped_normalizer   = sum(final_finite & !validation_finite),
-      n_refinement_steps                = normalizer_plan[["n_refinement_steps"]],
-      integral_mcse                     = NA_real_,
-      integral_relative_mcse            = NA_real_,
-      batch_size                        = NA_integer_,
-      n_batches                         = 0L,
-      estimator                         = "q_grid_cmde",
-      weight_method                     = "conditional_grid"
-    ))
-  }
 
   density_terms <- .iwmde_density_aggregate(
     log_terms         = sweep(log_q_display, 2L, log_normalizer, "-"),
@@ -598,7 +517,7 @@
     denominator       = n_candidate_rows,
     contribution_rows = estimator_rows,
     sampling_population_rows = population_rows,
-    chain_id = chain_id[match(estimator_rows, selected_rows)],
+    chain_id = chain_id,
     expected_chain_ids = expected_chain_ids,
     conditioned_rows = conditioned_rows,
     conditioned_chain_id = conditioned_chain_id
@@ -664,15 +583,9 @@
     mcmc_uncertainty_status  = mcse_data[["uncertainty_status"]],
     mcmc_uncertainty_reason  = mcse_data[["uncertainty_reason"]],
     log_normalizer         = log_normalizer,
-    pilot_log_normalizer   = initial_log_normalizer[keep_rows],
-    n_normalized_rows      = n_normalized_rows,
+    pilot_log_normalizer   = initial_log_normalizer,
     n_candidate_rows       = n_candidate_rows,
     n_evaluated_rows       = n_input_rows,
-    n_dropped_rows         = n_dropped_rows,
-    row_drop_fraction      = .iwmde_row_drop_fraction(
-      n_candidate_rows  = n_candidate_rows,
-      n_normalized_rows = n_normalized_rows
-    ),
     normalization_points              = length(final_grid[["x"]]),
     normalization_range               = range(final_grid[["x"]]),
     normalization_initial_points      = length(pilot_grid[["x"]]),
@@ -697,9 +610,7 @@
     normalization_refined_points      = length(final_grid[["x"]]),
     normalization_refined_range       = range(final_grid[["x"]]),
     n_rescued_normalizer              = sum(!initial_finite & final_finite),
-    n_dropped_normalizer              = sum(!final_finite),
     n_initial_dropped_normalizer      = sum(!initial_finite),
-    n_validation_dropped_normalizer   = sum(final_finite & !validation_finite),
     n_refinement_steps                = normalizer_plan[["n_refinement_steps"]],
     integral_mcse                     = integral_mcse[["mcse"]],
     integral_relative_mcse            = integral_mcse[["relative_mcse"]],
@@ -722,12 +633,6 @@
                                  normalization_grid = NULL,
                                  n_candidate_rows = length(row_states)) {
 
-  n_display        <- length(display_grid)
-  y                <- numeric(n_display)
-  finite_terms     <- integer(n_display)
-  max_log_ratio    <- numeric(n_display)
-  ess              <- numeric(n_display)
-  max_weight_share <- numeric(n_display)
   n_input_rows     <- length(row_states)
   n_candidate_rows <- as.integer(n_candidate_rows[[1L]])
   if (!is.finite(n_candidate_rows) || n_candidate_rows != n_input_rows ||
@@ -798,78 +703,18 @@
       detail    = "the proposal log-density vector has an invalid length or type"
     )
   }
-  keep_rows <- is.finite(raw_log_weight)
-  if (any(!keep_rows)) {
+  finite_weight <- is.finite(raw_log_weight)
+  if (any(!finite_weight)) {
     .iwmde_stop_construction_failure(
       estimator = "iwmde",
       parameter = parameter,
-      rows      = active_rows[!keep_rows],
+      rows      = active_rows[!finite_weight],
       stage     = "proposal-density construction",
       detail    = "the normalized proposal density was zero or non-finite at an evaluation row"
     )
   }
-  contribution_rows <- active_rows[keep_rows]
-  n_dropped_weight  <- 0L
-  row_states        <- row_states[keep_rows]
-  log_weight        <- raw_log_weight[keep_rows]
-  n_normalized_rows <- length(log_weight)
-  n_dropped_rows    <- max(0L, n_candidate_rows - n_normalized_rows)
-
-  if (length(log_weight) == 0L) {
-    return(list(
-      x                      = display_grid,
-      y                      = y,
-      finite_terms           = rep(0L, n_display),
-      max_log_ratio          = rep(Inf, n_display),
-      ess                    = rep(0, n_display),
-      max_weight_share       = rep(1, n_display),
-      mcse                   = rep(NA_real_, n_display),
-      relative_mcse          = rep(NA_real_, n_display),
-      sampling_mcse          = rep(NA_real_, n_display),
-      sampling_relative_mcse = rep(NA_real_, n_display),
-      sampling_fraction      = if (length(population_rows) == 0L) {
-        1
-      } else {
-        length(active_rows) / length(population_rows)
-      },
-      sampling_uncertainty_type = "finite_population_srswor",
-      mcmc_uncertainty_scope = "selected_continuous_rows_only",
-      mcmc_uncertainty_status = "unavailable",
-      mcmc_uncertainty_reason = "no normalized continuous contributions",
-      log_normalizer         = numeric(),
-      n_normalized_rows      = 0L,
-      n_candidate_rows       = n_candidate_rows,
-      n_evaluated_rows       = n_input_rows,
-      n_dropped_rows         = n_dropped_rows,
-      row_drop_fraction      = .iwmde_row_drop_fraction(
-        n_candidate_rows  = n_candidate_rows,
-        n_normalized_rows = 0L
-      ),
-      normalization_points              = 0L,
-      normalization_range               = c(NA_real_, NA_real_),
-      support_grid_normalization_integral = NA_real_,
-      normalization_relative_error      = NA_real_,
-      normalization_scale               = NA_character_,
-      normalization_mass_ratio          = NA_real_,
-      max_normalizer_relative_change    = NA_real_,
-      max_quadrature_relative_change    = NA_real_,
-      median_normalizer_relative_change = NA_real_,
-      normalization_refined_points      = 0L,
-      normalization_refined_range       = c(NA_real_, NA_real_),
-      n_dropped_weight                  = n_dropped_weight,
-      weight_partitions                 = weight[["partitions"]],
-      n_weight_fallbacks                 = weight_fallbacks[["count"]],
-      n_weight_fallback_rows             = weight_fallbacks[["rows"]],
-      weight_fallback_from               = weight_fallbacks[["from"]],
-      weight_fallback_reasons            = weight_fallbacks[["reasons"]],
-      integral_mcse                     = NA_real_,
-      integral_relative_mcse            = NA_real_,
-      batch_size                        = NA_integer_,
-      n_batches                         = 0L,
-      estimator                         = "iwmde",
-      weight_method                     = weight[["method"]]
-    ))
-  }
+  contribution_rows <- active_rows
+  log_weight        <- raw_log_weight
 
   has_normalization_grid <- !is.null(normalization_grid) &&
     length(normalization_grid[["x"]]) >= 2L
@@ -915,9 +760,13 @@
   if (is.null(quadrature_change)) {
     quadrature_change <- NA_real_
   }
-  log_q_display <- log_q_grid[seq_len(n_display), , drop = FALSE]
+  log_q_display <- log_q_grid[seq_along(display_grid), , drop = FALSE]
   log_q_norm <- if (has_normalization_grid) {
-    log_q_grid[n_display + seq_along(normalization_grid[["x"]]), , drop = FALSE]
+    log_q_grid[
+      length(display_grid) + seq_along(normalization_grid[["x"]]),
+      ,
+      drop = FALSE
+    ]
   } else {
     NULL
   }
@@ -936,7 +785,7 @@
     denominator       = n_candidate_rows,
     contribution_rows = contribution_rows,
     sampling_population_rows = population_rows,
-    chain_id = chain_id[match(contribution_rows, active_rows)],
+    chain_id = chain_id,
     expected_chain_ids = expected_chain_ids,
     conditioned_rows = conditioned_rows,
     conditioned_chain_id = conditioned_chain_id
@@ -979,14 +828,8 @@
     mcmc_uncertainty_status  = mcse_data[["uncertainty_status"]],
     mcmc_uncertainty_reason  = mcse_data[["uncertainty_reason"]],
     log_normalizer         = numeric(),
-    n_normalized_rows      = n_normalized_rows,
     n_candidate_rows       = n_candidate_rows,
     n_evaluated_rows       = n_input_rows,
-    n_dropped_rows         = n_dropped_rows,
-    row_drop_fraction      = .iwmde_row_drop_fraction(
-      n_candidate_rows  = n_candidate_rows,
-      n_normalized_rows = n_normalized_rows
-    ),
     normalization_points              = normalization[["points"]],
     normalization_range               = normalization[["range"]],
     support_grid_normalization_integral = normalization[["integral"]],
@@ -1000,7 +843,6 @@
     median_normalizer_relative_change = NA_real_,
     normalization_refined_points      = 0L,
     normalization_refined_range       = c(NA_real_, NA_real_),
-    n_dropped_weight                  = n_dropped_weight,
     weight_partitions                 = weight[["partitions"]],
     n_weight_fallbacks                 = weight_fallbacks[["count"]],
     n_weight_fallback_rows             = weight_fallbacks[["rows"]],

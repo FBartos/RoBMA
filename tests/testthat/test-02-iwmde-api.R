@@ -600,7 +600,6 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
     final_normalization_integral      = 1,
     normalization_relative_error      = 0,
     normalization_mass_ratio          = 1,
-    row_drop_fraction                 = 0,
     max_ordinate_relative_change      = .06,
     max_normalizer_relative_change    = .06,
     max_quadrature_relative_change    = NA_real_
@@ -701,7 +700,6 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     final_normalization_integral    = 1,
     normalization_relative_error    = 0,
     normalization_mass_ratio        = 1,
-    row_drop_fraction               = 0,
     max_ordinate_relative_change    = 0,
     max_normalizer_relative_change  = 0,
     max_quadrature_relative_change  = NA_real_
@@ -1823,60 +1821,6 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
 })
 
 
-test_that("qCMDE and IWMDE reject any estimator row loss", {
-
-  ordinate <- function(estimator, n_candidate_rows, n_normalized_rows) {
-
-    row_drop_fraction <- .iwmde_row_drop_fraction(
-      n_candidate_rows  = n_candidate_rows,
-      n_normalized_rows = n_normalized_rows
-    )
-
-    BayesTools::posterior_ordinate_attribute(
-      value          = 0,
-      ordinate       = .4,
-      method         = estimator,
-      density_method = if (identical(estimator, "q_grid_cmde")) {
-        "qCMDE"
-      } else {
-        "IWMDE"
-      },
-      diagnostics    = list(
-        evaluation_value       = 0,
-        relative_mcse          = .1,
-        finite_terms           = n_normalized_rows,
-        ess                    = 30,
-        max_weight_share       = .2,
-        active_mass            = 1,
-        normalization_relative_error = 0,
-        ordinate_relative_change = 0,
-        max_normalizer_relative_change = 0,
-        normalization_range    = c(-1, 1),
-        n_candidate_rows       = n_candidate_rows,
-        n_normalized_rows      = n_normalized_rows,
-        row_drop_fraction      = row_drop_fraction,
-        estimator              = estimator,
-        weight_method          = "test"
-      )
-    )
-  }
-
-  qcmde_fail <- ordinate("q_grid_cmde", 100, 99)
-  expect_false(.iwmde_posterior_ordinate_supports_bf(qcmde_fail))
-  expect_match(
-    .iwmde_posterior_ordinate_failure_reasons(qcmde_fail),
-    "qCMDE.*dropped.*1%.*0%"
-  )
-
-  iwmde_fail <- ordinate("iwmde", 100, 99)
-  expect_false(.iwmde_posterior_ordinate_supports_bf(iwmde_fail))
-  expect_match(
-    .iwmde_posterior_ordinate_failure_reasons(iwmde_fail),
-    "IWMDE.*dropped.*1%.*0%"
-  )
-})
-
-
 test_that("old IWMDE variant labels are rejected", {
 
   .skip_if_missing_raw_fits(c("bcg_meta-analysis", "bcg_meta-regression2"))
@@ -2173,7 +2117,6 @@ test_that("IWMDE plan fails the target on a non-finite baseline row", {
   expect_equal(plan[["rows"]][["n_denominator_rows"]], 21L)
   expect_equal(plan[["rows"]][["n_candidate_rows"]], 21L)
   expect_equal(plan[["rows"]][["n_estimator_rows"]], 21L)
-  expect_equal(plan[["rows"]][["n_dropped_log_q"]], 0L)
   expect_equal(length(plan[["rows"]][["row_states"]]), 21L)
   expect_equal(
     plan[["rows"]][["estimator_rows"]],
@@ -2186,7 +2129,6 @@ test_that("IWMDE plan fails the target on a non-finite baseline row", {
   )
   expect_equal(execution[["active_rows"]], plan[["rows"]][["estimator_rows"]])
   expect_equal(execution[["n_candidate_rows"]], 21L)
-  expect_equal(execution[["n_dropped_log_q"]], 0L)
 
   density_plan <- .iwmde_plan(
     context         = context,

@@ -432,14 +432,6 @@
     plan            = plan,
     execution_cache = execution_cache
   )
-  if (length(execution[["active_rows"]]) < 20L) {
-    out <- .iwmde_unsupported(
-      parameter,
-      "fewer than 20 finite baseline log-q values"
-    )
-    .iwmde_cache_set(diagnostic_cache, cache_key, out)
-    return(out)
-  }
 
   density <- .iwmde_execute_plan_estimator(
     context   = context,
@@ -450,14 +442,6 @@
   if (identical(density[["status"]], "unsupported")) {
     .iwmde_cache_set(diagnostic_cache, cache_key, density)
     return(density)
-  }
-  if (density[["n_normalized_rows"]] < 20L) {
-    out <- .iwmde_unsupported(
-      parameter,
-      "fewer than 20 rows had finite conditional normalizers"
-    )
-    .iwmde_cache_set(diagnostic_cache, cache_key, out)
-    return(out)
   }
   out <- .iwmde_plan_diagnostic_result(
     plan      = plan,
@@ -533,7 +517,6 @@
     expected_chain_ids = rows[["chain_coverage"]][["expected_chain_ids"]],
     row_states       = rows[["row_states"]],
     baseline_log_q   = rows[["baseline_log_q"]],
-    n_dropped_log_q  = rows[["n_dropped_log_q"]],
     n_candidate_rows = rows[["n_denominator_rows"]]
   )
   if (!is.null(execution_cache)) {
@@ -722,19 +705,14 @@
     normalization_refined_range =
       density[["normalization_refined_range"]],
     n_rescued_normalizer        = density[["n_rescued_normalizer"]],
-    n_dropped_normalizer        = density[["n_dropped_normalizer"]],
     n_initial_dropped_normalizer =
       density[["n_initial_dropped_normalizer"]],
-    n_validation_dropped_normalizer =
-      density[["n_validation_dropped_normalizer"]],
     n_refinement_steps          = density[["n_refinement_steps"]],
     active_mass                 = rows[["active_mass"]],
     n_candidate_rows            = rows[["n_candidate_rows"]],
     n_denominator_rows          = rows[["n_denominator_rows"]],
     n_estimator_rows            = rows[["n_estimator_rows"]],
     n_evaluated_rows            = density[["n_evaluated_rows"]],
-    n_dropped_rows              = density[["n_dropped_rows"]],
-    row_drop_fraction           = density[["row_drop_fraction"]],
     n_active                    = length(execution[["active_rows"]]),
     n_active_state_keys         = length(active_key_counts),
     min_active_state_rows       = if (length(active_key_counts) == 0L) {
@@ -743,8 +721,6 @@
       min(active_key_counts)
     },
     n_total                     = rows[["n_total"]],
-    n_dropped_log_q             = execution[["n_dropped_log_q"]],
-    n_dropped_weight            = density[["n_dropped_weight"]],
     weight_partitions           = density[["weight_partitions"]],
     n_weight_fallbacks          = if (is.null(density[["n_weight_fallbacks"]])) {
       0L
@@ -768,7 +744,6 @@
     },
     max_log_ratio               = density[["max_log_ratio"]],
     min_finite_terms            = min(density[["finite_terms"]]),
-    n_normalized_rows           = density[["n_normalized_rows"]],
     min_ess                     = min(density[["ess"]]),
     max_weight_share            = max(density[["max_weight_share"]]),
     max_mcse                    = .iwmde_max_or_na(density[["mcse"]]),

@@ -153,8 +153,7 @@
     "sampling_relative_mcse", "sampling_fraction",
     "sampling_uncertainty_type", "mcmc_uncertainty_scope",
     "mcmc_uncertainty_status", "mcmc_uncertainty_reason", "n_candidate_rows",
-    "n_evaluated_rows", "n_normalized_rows", "n_dropped_rows",
-    "row_drop_fraction", "normalization_points", "normalization_range",
+    "n_evaluated_rows", "normalization_points", "normalization_range",
     "normalization_relative_error", "normalization_scale",
     "normalization_mass_ratio", "max_normalizer_relative_change",
     "max_quadrature_relative_change", "median_normalizer_relative_change",
@@ -274,9 +273,8 @@
          call. = FALSE)
   }
   scalar_counts <- c(
-    "n_candidate_rows", "n_evaluated_rows", "n_normalized_rows",
-    "n_dropped_rows", "normalization_points", "normalization_refined_points",
-    "n_batches"
+    "n_candidate_rows", "n_evaluated_rows", "normalization_points",
+    "normalization_refined_points", "n_batches"
   )
   if (!all(vapply(density[scalar_counts], function(value) {
     is.numeric(value) && length(value) == 1L && is.finite(value) &&
@@ -285,19 +283,8 @@
     stop("Internal IWMDE density result has an invalid row count.",
          call. = FALSE)
   }
-  if (density[["n_normalized_rows"]] > density[["n_evaluated_rows"]] ||
-      density[["n_evaluated_rows"]] > density[["n_candidate_rows"]] ||
-      density[["n_dropped_rows"]] !=
-        density[["n_candidate_rows"]] - density[["n_normalized_rows"]]) {
+  if (density[["n_evaluated_rows"]] != density[["n_candidate_rows"]]) {
     stop("Internal IWMDE density result has inconsistent row counts.",
-         call. = FALSE)
-  }
-  if (!is.numeric(density[["row_drop_fraction"]]) ||
-      length(density[["row_drop_fraction"]]) != 1L ||
-      !is.finite(density[["row_drop_fraction"]]) ||
-      density[["row_drop_fraction"]] < 0 ||
-      density[["row_drop_fraction"]] > 1) {
-    stop("Internal IWMDE density result has an invalid row-drop fraction.",
          call. = FALSE)
   }
   if (!is.character(density[["estimator"]]) ||
@@ -361,16 +348,14 @@
       "pilot_y", "validation_y", "ordinate_relative_change",
       "ordinate_log_change", "pilot_ordinate_relative_change",
       "pilot_ordinate_log_change", "p95_normalizer_relative_change",
-      "n_rescued_normalizer", "n_dropped_normalizer",
-      "n_initial_dropped_normalizer", "n_validation_dropped_normalizer",
+      "n_rescued_normalizer", "n_initial_dropped_normalizer",
       "n_refinement_steps"
     )
   } else {
     c(
       "log_normalizer", "support_grid_normalization_integral",
-      "n_dropped_weight", "weight_partitions", "n_weight_fallbacks",
-      "n_weight_fallback_rows", "weight_fallback_from",
-      "weight_fallback_reasons"
+      "weight_partitions", "n_weight_fallbacks", "n_weight_fallback_rows",
+      "weight_fallback_from", "weight_fallback_reasons"
     )
   }
   .iwmde_validate_required_fields(
@@ -412,9 +397,9 @@
     if (!is.numeric(density[["log_normalizer"]]) ||
         !is.numeric(density[["pilot_log_normalizer"]]) ||
         length(density[["log_normalizer"]]) !=
-          density[["n_normalized_rows"]] ||
+          density[["n_evaluated_rows"]] ||
         length(density[["pilot_log_normalizer"]]) !=
-          density[["n_normalized_rows"]]) {
+          density[["n_evaluated_rows"]]) {
       stop(
         "Internal qCMDE density result has invalid normalizer vectors.",
         call. = FALSE
@@ -426,8 +411,7 @@
     }
     qcmde_count_fields <- c(
       "normalization_initial_points", "n_rescued_normalizer",
-      "n_dropped_normalizer", "n_initial_dropped_normalizer",
-      "n_validation_dropped_normalizer", "n_refinement_steps"
+      "n_initial_dropped_normalizer", "n_refinement_steps"
     )
     if (!all(vapply(density[qcmde_count_fields], function(value) {
       is.numeric(value) && length(value) == 1L && is.finite(value) &&
@@ -453,7 +437,7 @@
     }
   } else {
     iwmde_count_fields <- c(
-      "n_dropped_weight", "n_weight_fallbacks", "n_weight_fallback_rows"
+      "n_weight_fallbacks", "n_weight_fallback_rows"
     )
     if (!all(vapply(density[iwmde_count_fields], function(value) {
       is.numeric(value) && length(value) == 1L && is.finite(value) &&

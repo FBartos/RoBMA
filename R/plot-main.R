@@ -67,7 +67,7 @@
 #' ordinates used for Bayes factors retain separate strict local diagnostics.
 #' Increase the row and normalization budgets and compare results when density
 #' diagnostics report low effective sample size, concentrated contributions,
-#' dropped rows, or unstable normalization.
+#' or unstable normalization.
 #' @param dots_prior list of additional graphical arguments
 #' to be passed to the plotting function of the prior
 #' distribution. Supported arguments are \code{lwd},

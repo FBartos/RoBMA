@@ -164,7 +164,6 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
     finite_terms              = 100,
     ess                       = 100,
     max_weight_share          = .10,
-    row_drop_fraction         = 0,
     active_mass               = 1,
     final_normalization_integral = 1,
     support_grid_normalization_integral = 1,

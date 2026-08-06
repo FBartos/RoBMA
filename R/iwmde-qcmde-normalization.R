@@ -320,19 +320,6 @@
 }
 
 
-.iwmde_row_drop_fraction <- function(n_candidate_rows, n_normalized_rows) {
-
-  n_candidate_rows  <- as.numeric(n_candidate_rows)[1]
-  n_normalized_rows <- as.numeric(n_normalized_rows)[1]
-  if (!is.finite(n_candidate_rows) || n_candidate_rows <= 0 ||
-      !is.finite(n_normalized_rows) || n_normalized_rows < 0) {
-    return(NA_real_)
-  }
-
-  return(min(1, max(0, 1 - n_normalized_rows / n_candidate_rows)))
-}
-
-
 .iwmde_log_trapz_columns <- function(x, log_y) {
 
   log_y <- as.matrix(log_y)

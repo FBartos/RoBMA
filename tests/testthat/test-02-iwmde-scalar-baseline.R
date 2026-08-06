@@ -301,7 +301,7 @@ test_that("scalar joint-density failures identify the exact posterior row", {
     bad_value <- -Inf
     density   <- evaluate()
     expect_true(is.finite(density[["y"]][[1L]]))
-    expect_equal(density[["n_normalized_rows"]], 2L)
+    expect_equal(density[["n_evaluated_rows"]], 2L)
   }
 })
 

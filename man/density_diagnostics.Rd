@@ -25,8 +25,8 @@ fallbacks, status, and warnings.
 The exact columns, in order, are \code{schema_version}, \code{algorithm_version},
 \code{source_fingerprint}, \code{estimator}, \code{density_method}, \code{parameter}, \code{level},
 \code{requested_value}, \code{evaluation_value}, \code{achieved_row_budget}, \code{eligible_rows},
-\code{evaluated_rows}, \code{retained_rows}, \code{finite_terms}, \code{row_drop_fraction},
-\code{active_mass}, \code{relative_mcse}, \code{sampling_relative_mcse},
+\code{evaluated_rows}, \code{finite_terms}, \code{active_mass}, \code{relative_mcse},
+\code{sampling_relative_mcse},
 \code{sampling_fraction}, \code{mcmc_uncertainty_scope},
 \code{sampling_uncertainty_type}, \code{ess}, \code{max_weight_share},
 \code{normalization_relative_error}, \code{stability_metric},
@@ -37,8 +37,7 @@ The exact columns, in order, are \code{schema_version}, \code{algorithm_version}
 \code{warning_relative_mcse}, \code{rejection_relative_mcse},
 \code{warning_min_finite_terms}, \code{rejection_min_finite_terms}, \code{warning_min_ess},
 \code{rejection_min_ess}, \code{warning_max_weight_share},
-\code{rejection_max_weight_share}, \code{warning_row_drop_fraction},
-\code{rejection_row_drop_fraction}, \code{hard_cap}, \code{hard_cap_reached},
+\code{rejection_max_weight_share}, \code{hard_cap}, \code{hard_cap_reached},
 \code{all_rows_used}, \code{adaptation_steps}, \code{target_met}, \code{precision_target_met},
 \code{sampling_target_met}, \code{bf_grade_met}, \code{n_weight_fallbacks},
 \code{weight_fallback_reasons}, \code{status}, and \code{warnings}.
@@ -57,20 +56,22 @@ BF-grade reliability gate pass, all eligible rows are used, or the
 \code{hard_cap_reached}, \code{all_rows_used}, adaptation steps, whether the precision
 target was met, and whether the final ordinate passed every BF-grade gate.
 Finite row budgets use a reproducible nested simple random sample without
-replacement. \code{relative_mcse} and \code{ess} describe only the selected continuous
-posterior-row sequence. They exclude uncertainty in the active/product-space
-indicator mass. \code{sampling_relative_mcse} separately estimates
-finite-population row-sampling uncertainty with its sampling fraction. Both
-precision checks must pass before adaptive evaluation can stop.
+replacement. For a purely continuous ordinate, \code{relative_mcse} and \code{ess}
+describe the selected continuous posterior-row sequence. For a mixed
+point/continuous ordinate evaluated on every active continuous row, they use
+the full conditioned-chain sequence, with zero contributions for inactive
+rows, and therefore include uncertainty in the active/product-space indicator
+mass. When only a subset of active rows is evaluated, these MCMC diagnostics
+are unavailable. \code{sampling_relative_mcse} separately estimates
+finite-population row-sampling uncertainty with its sampling fraction. Every
+available precision check must pass before adaptive evaluation can stop.
 
 The reliability policy warns when relative MCSE is at least 5 percent, ESS is
-below 100, the largest contribution share is at least 20 percent, fewer than
-100 finite contributions remain, or row loss exceeds the estimator-specific
-warning threshold. It rejects an ordinate when relative MCSE is at least 25
-percent, ESS is below 20, the largest contribution share is at least 50
-percent, fewer than 20 finite contributions remain, or row loss exceeds its
-rejection threshold. The corresponding thresholds are returned as columns
-rather than being implicit.
+below 100, the largest contribution share is at least 20 percent, or fewer
+than 100 finite contributions remain. It rejects an ordinate when relative
+MCSE is at least 25 percent, ESS is below 20, the largest contribution share
+is at least 50 percent, or fewer than 20 finite contributions remain. The
+corresponding thresholds are returned as columns rather than being implicit.
 
 qCMDE's full method diagnostics distinguish \code{pilot_normalization_integral}
 from \code{final_normalization_integral}; IWMDE uses

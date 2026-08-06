@@ -78,7 +78,7 @@ relative to the density peak. Supplying
 \code{density_control} forces
 recomputation for the plotted marginal means instead of reusing stored
 densities. Increase row and normalization budgets when diagnostics report
-concentrated contributions, dropped rows, or unstable normalization.}
+concentrated contributions or unstable normalization.}
 
 \item{...}{additional graphical arguments passed to
 \code{BayesTools::plot_marginal()}.}

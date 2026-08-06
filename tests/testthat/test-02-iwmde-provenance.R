@@ -266,9 +266,6 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
     mcmc_uncertainty_reason = NULL,
     n_candidate_rows  = 100L,
     n_evaluated_rows  = 100L,
-    n_normalized_rows = 100L,
-    n_dropped_rows    = 0L,
-    row_drop_fraction = 0,
     normalization_points = 50L,
     normalization_range  = c(-3, 3),
     normalization_relative_error = 0,
@@ -299,9 +296,7 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
     pilot_ordinate_log_change      = c(0, 0),
     p95_normalizer_relative_change = 0,
     n_rescued_normalizer           = 0L,
-    n_dropped_normalizer           = 0L,
     n_initial_dropped_normalizer   = 0L,
-    n_validation_dropped_normalizer = 0L,
     n_refinement_steps              = 0L
   )
   expect_s3_class(
@@ -352,7 +347,7 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
     "effective sample sizes"
   )
   invalid_counts                       <- density_fields
-  invalid_counts[["n_normalized_rows"]] <- 101L
+  invalid_counts[["n_evaluated_rows"]] <- 101L
   expect_error(
     .iwmde_new_density_result(invalid_counts),
     "inconsistent row counts"
@@ -404,12 +399,10 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
     "ordinate_relative_change", "ordinate_log_change",
     "pilot_ordinate_relative_change", "pilot_ordinate_log_change",
     "p95_normalizer_relative_change", "n_rescued_normalizer",
-    "n_dropped_normalizer", "n_initial_dropped_normalizer",
-    "n_validation_dropped_normalizer", "n_refinement_steps"
+    "n_initial_dropped_normalizer", "n_refinement_steps"
   )
   iwmde_fields[qcmde_only] <- NULL
   iwmde_fields[["support_grid_normalization_integral"]] <- 1
-  iwmde_fields[["n_dropped_weight"]]        <- 0L
   iwmde_fields[["weight_partitions"]]       <- list()
   iwmde_fields[["n_weight_fallbacks"]]      <- 0L
   iwmde_fields[["n_weight_fallback_rows"]]  <- 0L

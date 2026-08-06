@@ -119,14 +119,6 @@
     ))
   }
 
-  row_loss_reason <- .iwmde_diagnostics_row_loss_failure_reason(
-    diagnostics = diagnostics,
-    estimator   = estimator
-  )
-  if (!is.null(row_loss_reason)) {
-    return(row_loss_reason)
-  }
-
   if (identical(estimator, "q_grid_cmde")) {
     mass_reason <- .iwmde_diagnostics_mass_failure_reason(
       diagnostics = diagnostics,
@@ -195,14 +187,6 @@
   reason <- .iwmde_diagnostics_density_sample_failure_reason(density_diagnostics)
   if (!is.null(reason)) {
     return(reason)
-  }
-
-  row_loss_reason <- .iwmde_diagnostics_row_loss_failure_reason(
-    diagnostics = density_diagnostics,
-    estimator   = estimator
-  )
-  if (!is.null(row_loss_reason)) {
-    return(row_loss_reason)
   }
 
   mass_reason <- .iwmde_diagnostics_mass_failure_reason(
@@ -318,7 +302,7 @@
 
   estimator_rows <- .iwmde_diagnostic_scalar_any(
     diagnostics,
-    c("n_estimator_rows", "n_normalized_rows", "n_evaluated_rows")
+    c("n_estimator_rows", "n_evaluated_rows")
   )
   n_active_state_keys <- .iwmde_diagnostic_scalar(
     diagnostics,
@@ -428,7 +412,7 @@
   warnings <- character()
   estimator_rows <- .iwmde_diagnostic_scalar_any(
     diagnostics,
-    c("n_estimator_rows", "n_normalized_rows", "n_evaluated_rows")
+    c("n_estimator_rows", "n_evaluated_rows")
   )
   if (is.finite(estimator_rows) &&
       estimator_rows < .iwmde_density_warning_min_estimator_rows()) {
@@ -578,26 +562,6 @@
 .iwmde_diagnostics_density_mass_warning <- function(diagnostics, estimator) {
 
   warnings <- character()
-  row_loss <- .iwmde_diagnostics_row_loss_fraction(diagnostics)
-  if (is.finite(row_loss)) {
-    warning_tolerance <- .iwmde_row_loss_warning_tolerance(estimator)
-    fail_tolerance    <- .iwmde_row_loss_fail_tolerance(estimator)
-    if (row_loss > warning_tolerance &&
-        row_loss <= fail_tolerance) {
-      warnings <- c(warnings, paste0(
-        .iwmde_estimator_label(estimator),
-        " dropped ",
-        .iwmde_percent(row_loss),
-        " of target rows during density estimation",
-        " (warning threshold ",
-        .iwmde_percent(warning_tolerance),
-        "; rejection threshold ",
-        .iwmde_percent(fail_tolerance),
-        ")."
-      ))
-    }
-  }
-
   normalization_error <- .iwmde_diagnostics_stability_relative_error(
     diagnostics = diagnostics,
     estimator   = estimator
@@ -725,26 +689,6 @@
     ))
   }
 
-  row_loss <- .iwmde_diagnostics_row_loss_fraction(diagnostics)
-  if (is.finite(row_loss)) {
-    warning_tolerance <- .iwmde_row_loss_warning_tolerance(estimator)
-    fail_tolerance    <- .iwmde_row_loss_fail_tolerance(estimator)
-    if (row_loss > warning_tolerance &&
-        row_loss <= fail_tolerance) {
-      warnings <- c(warnings, paste0(
-        .iwmde_estimator_label(estimator),
-        " dropped ",
-        .iwmde_percent(row_loss),
-        " of target rows during density estimation",
-        " (warning threshold ",
-        .iwmde_percent(warning_tolerance),
-        "; BF rejection threshold ",
-        .iwmde_percent(fail_tolerance),
-        ")."
-      ))
-    }
-  }
-
   normalization_error <- .iwmde_diagnostics_stability_relative_error(
     diagnostics = diagnostics,
     estimator   = estimator
@@ -855,57 +799,6 @@
   }
 
   return(quadrature_change)
-}
-
-
-.iwmde_diagnostics_row_loss_failure_reason <- function(diagnostics, estimator) {
-
-  row_loss <- .iwmde_diagnostics_row_loss_fraction(diagnostics)
-  if (!is.finite(row_loss)) {
-    return(NULL)
-  }
-
-  fail_tolerance <- .iwmde_row_loss_fail_tolerance(estimator)
-  if (row_loss > fail_tolerance) {
-    return(paste0(
-      .iwmde_estimator_label(estimator),
-      " dropped ",
-      .iwmde_percent(row_loss),
-      " of target rows during density estimation",
-      " (maximum allowed ",
-      .iwmde_percent(fail_tolerance),
-      ")"
-    ))
-  }
-
-  return(NULL)
-}
-
-
-.iwmde_diagnostics_row_loss_fraction <- function(diagnostics) {
-
-  row_loss <- .iwmde_diagnostic_scalar(diagnostics, "row_drop_fraction")
-  if (is.finite(row_loss) && row_loss >= 0) {
-    return(min(1, row_loss))
-  }
-
-  n_candidate_rows <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("n_candidate_rows", "n_active")
-  )
-  n_normalized_rows <- .iwmde_diagnostic_scalar(
-    diagnostics,
-    "n_normalized_rows"
-  )
-  if (!is.finite(n_candidate_rows) || n_candidate_rows <= 0 ||
-      !is.finite(n_normalized_rows) || n_normalized_rows < 0) {
-    return(NA_real_)
-  }
-
-  return(.iwmde_row_drop_fraction(
-    n_candidate_rows  = n_candidate_rows,
-    n_normalized_rows = n_normalized_rows
-  ))
 }
 
 

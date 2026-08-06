@@ -125,7 +125,7 @@ absolute MCSE safeguard relative to the density peak. Requested point
 ordinates used for Bayes factors retain separate strict local diagnostics.
 Increase the row and normalization budgets and compare results when density
 diagnostics report low effective sample size, concentrated contributions,
-dropped rows, or unstable normalization.}
+or unstable normalization.}
 
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias

@@ -262,38 +262,6 @@
     candidate_rows   = candidate_rows,
     candidate_values = candidate_values
   )
-  if (!identical(baseline_contract[["status"]], "ok")) {
-    plan[["status"]] <- "unsupported"
-    plan[["reason"]] <- baseline_contract[["reason"]]
-    plan[["rows"]] <- .iwmde_plan_rows(
-      posterior_values  = posterior_values,
-      finite_rows       = finite_rows,
-      component         = component,
-      continuous_rows   = continuous_rows,
-      candidate_rows    = candidate_rows,
-      candidate_values  = candidate_values,
-      continuous_values = posterior_values[continuous_rows],
-      baseline_contract = baseline_contract,
-      chain_coverage     = chain_coverage
-    )
-    return(plan)
-  }
-  if (length(baseline_contract[["estimator_rows"]]) < 20L) {
-    plan[["status"]] <- "unsupported"
-    plan[["reason"]] <- "fewer than 20 finite baseline log-q values"
-    plan[["rows"]] <- .iwmde_plan_rows(
-      posterior_values  = posterior_values,
-      finite_rows       = finite_rows,
-      component         = component,
-      continuous_rows   = continuous_rows,
-      candidate_rows    = candidate_rows,
-      candidate_values  = candidate_values,
-      continuous_values = posterior_values[continuous_rows],
-      baseline_contract = baseline_contract,
-      chain_coverage     = chain_coverage
-    )
-    return(plan)
-  }
 
   support <- .iwmde_parameter_support(
     context        = context,
@@ -445,18 +413,14 @@
   .iwmde_validate_row_states(row_states)
 
   return(list(
-    status           = "ok",
-    reason           = NULL,
     row_states       = row_states,
     baseline_log_q   = baseline_log_q,
-    finite_baseline  = finite_baseline,
     estimator_rows   = candidate_rows,
     estimator_values = candidate_values,
-    n_dropped_log_q  = 0L,
-    baseline_rows_hash = .iwmde_hash("iwmde_baseline_rows", list(
-      rows   = candidate_rows,
-      finite = finite_baseline
-    ))
+    baseline_rows_hash = .iwmde_hash(
+      "iwmde_baseline_rows",
+      candidate_rows
+    )
   ))
 }
 
@@ -477,13 +441,11 @@
     estimator_values  = numeric(),
     row_states        = list(),
     baseline_log_q    = numeric(),
-    finite_baseline   = logical(),
     n_denominator_rows = 0L,
     n_estimator_rows  = 0L,
-    n_dropped_log_q   = 0L,
     baseline_rows_hash = .iwmde_hash(
       "iwmde_baseline_rows",
-      list(rows = integer(), finite = logical())
+      integer()
     ),
     active_mass       = NA_real_,
     point_masses      = data.frame(x = numeric(), mass = numeric()),
@@ -511,18 +473,15 @@
     point_masses <- data.frame(x = numeric(), mass = numeric())
   }
   if (is.null(baseline_contract)) {
-    finite_baseline <- rep(TRUE, length(candidate_rows))
     baseline_contract <- list(
       row_states       = list(),
       baseline_log_q   = rep(NA_real_, length(candidate_rows)),
-      finite_baseline  = finite_baseline,
       estimator_rows   = candidate_rows,
       estimator_values = candidate_values,
-      n_dropped_log_q  = 0L,
-      baseline_rows_hash = .iwmde_hash("iwmde_baseline_rows", list(
-        rows   = candidate_rows,
-        finite = finite_baseline
-      ))
+      baseline_rows_hash = .iwmde_hash(
+        "iwmde_baseline_rows",
+        candidate_rows
+      )
     )
   }
 
@@ -540,10 +499,8 @@
     estimator_values  = baseline_contract[["estimator_values"]],
     row_states        = baseline_contract[["row_states"]],
     baseline_log_q    = baseline_contract[["baseline_log_q"]],
-    finite_baseline   = baseline_contract[["finite_baseline"]],
     n_denominator_rows = length(candidate_rows),
     n_estimator_rows  = length(baseline_contract[["estimator_rows"]]),
-    n_dropped_log_q   = baseline_contract[["n_dropped_log_q"]],
     baseline_rows_hash = baseline_contract[["baseline_rows_hash"]],
     chain_coverage     = chain_coverage,
     active_mass       = mean(component[["active"]][finite_rows]),
@@ -738,7 +695,6 @@
     n_candidate_rows     = rows[["n_candidate_rows"]],
     n_denominator_rows   = rows[["n_denominator_rows"]],
     n_estimator_rows     = rows[["n_estimator_rows"]],
-    n_dropped_log_q      = rows[["n_dropped_log_q"]],
     n_continuous_rows    = length(rows[["continuous_rows"]]),
     active_mass          = rows[["active_mass"]],
     point_mass_total     = rows[["point_mass_total"]],

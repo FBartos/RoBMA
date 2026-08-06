@@ -14,20 +14,22 @@
 #' `hard_cap_reached`, `all_rows_used`, adaptation steps, whether the precision
 #' target was met, and whether the final ordinate passed every BF-grade gate.
 #' Finite row budgets use a reproducible nested simple random sample without
-#' replacement. `relative_mcse` and `ess` describe only the selected continuous
-#' posterior-row sequence. They exclude uncertainty in the active/product-space
-#' indicator mass. `sampling_relative_mcse` separately estimates
-#' finite-population row-sampling uncertainty with its sampling fraction. Both
-#' precision checks must pass before adaptive evaluation can stop.
+#' replacement. For a purely continuous ordinate, `relative_mcse` and `ess`
+#' describe the selected continuous posterior-row sequence. For a mixed
+#' point/continuous ordinate evaluated on every active continuous row, they use
+#' the full conditioned-chain sequence, with zero contributions for inactive
+#' rows, and therefore include uncertainty in the active/product-space indicator
+#' mass. When only a subset of active rows is evaluated, these MCMC diagnostics
+#' are unavailable. `sampling_relative_mcse` separately estimates
+#' finite-population row-sampling uncertainty with its sampling fraction. Every
+#' available precision check must pass before adaptive evaluation can stop.
 #'
 #' The reliability policy warns when relative MCSE is at least 5 percent, ESS is
-#' below 100, the largest contribution share is at least 20 percent, fewer than
-#' 100 finite contributions remain, or row loss exceeds the estimator-specific
-#' warning threshold. It rejects an ordinate when relative MCSE is at least 25
-#' percent, ESS is below 20, the largest contribution share is at least 50
-#' percent, fewer than 20 finite contributions remain, or row loss exceeds its
-#' rejection threshold. The corresponding thresholds are returned as columns
-#' rather than being implicit.
+#' below 100, the largest contribution share is at least 20 percent, or fewer
+#' than 100 finite contributions remain. It rejects an ordinate when relative
+#' MCSE is at least 25 percent, ESS is below 20, the largest contribution share
+#' is at least 50 percent, or fewer than 20 finite contributions remain. The
+#' corresponding thresholds are returned as columns rather than being implicit.
 #'
 #' qCMDE's full method diagnostics distinguish `pilot_normalization_integral`
 #' from `final_normalization_integral`; IWMDE uses
@@ -53,8 +55,8 @@
 #' The exact columns, in order, are `schema_version`, `algorithm_version`,
 #' `source_fingerprint`, `estimator`, `density_method`, `parameter`, `level`,
 #' `requested_value`, `evaluation_value`, `achieved_row_budget`, `eligible_rows`,
-#' `evaluated_rows`, `retained_rows`, `finite_terms`, `row_drop_fraction`,
-#' `active_mass`, `relative_mcse`, `sampling_relative_mcse`,
+#' `evaluated_rows`, `finite_terms`, `active_mass`, `relative_mcse`,
+#' `sampling_relative_mcse`,
 #' `sampling_fraction`, `mcmc_uncertainty_scope`,
 #' `sampling_uncertainty_type`, `ess`, `max_weight_share`,
 #' `normalization_relative_error`, `stability_metric`,
@@ -65,8 +67,7 @@
 #' `warning_relative_mcse`, `rejection_relative_mcse`,
 #' `warning_min_finite_terms`, `rejection_min_finite_terms`, `warning_min_ess`,
 #' `rejection_min_ess`, `warning_max_weight_share`,
-#' `rejection_max_weight_share`, `warning_row_drop_fraction`,
-#' `rejection_row_drop_fraction`, `hard_cap`, `hard_cap_reached`,
+#' `rejection_max_weight_share`, `hard_cap`, `hard_cap_reached`,
 #' `all_rows_used`, `adaptation_steps`, `target_met`, `precision_target_met`,
 #' `sampling_target_met`, `bf_grade_met`, `n_weight_fallbacks`,
 #' `weight_fallback_reasons`, `status`, and `warnings`.
@@ -216,8 +217,6 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   )
   stability_warning <- .iwmde_bf_mass_warning_tolerance(estimator)
   stability_rejection <- .iwmde_bf_mass_fail_tolerance(estimator)
-  row_loss_warning <- .iwmde_row_loss_warning_tolerance(estimator)
-  row_loss_rejection <- .iwmde_row_loss_fail_tolerance(estimator)
 
   data.frame(
     schema_version = .iwmde_public_character(
@@ -247,15 +246,10 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
       diagnostics,
       c("n_evaluated_rows", "n_candidate_rows")
     ),
-    retained_rows = .iwmde_public_integer_any(
-      diagnostics,
-      c("n_normalized_rows", "n_estimator_rows")
-    ),
     finite_terms = .iwmde_public_integer_any(
       diagnostics,
       "finite_terms"
     ),
-    row_drop_fraction = .iwmde_diagnostics_row_loss_fraction(diagnostics),
     active_mass = .iwmde_public_numeric(diagnostics[["active_mass"]]),
     relative_mcse = .iwmde_public_numeric(diagnostics[["relative_mcse"]]),
     sampling_relative_mcse = .iwmde_public_numeric(
@@ -302,8 +296,6 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     rejection_min_ess = policy[["min_ess"]],
     warning_max_weight_share = policy[["warn_weight_share"]],
     rejection_max_weight_share = policy[["max_weight_share"]],
-    warning_row_drop_fraction = row_loss_warning,
-    rejection_row_drop_fraction = row_loss_rejection,
     hard_cap = .iwmde_public_numeric(diagnostics[["hard_cap"]]),
     hard_cap_reached = .iwmde_public_logical(
       diagnostics[["hard_cap_reached"]]
@@ -344,8 +336,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     density_method = character(), parameter = character(), level = character(),
     requested_value = numeric(), evaluation_value = numeric(),
     achieved_row_budget = integer(), eligible_rows = integer(),
-    evaluated_rows = integer(), retained_rows = integer(), finite_terms = integer(),
-    row_drop_fraction = numeric(), active_mass = numeric(),
+    evaluated_rows = integer(), finite_terms = integer(), active_mass = numeric(),
     relative_mcse = numeric(), sampling_relative_mcse = numeric(),
     sampling_fraction = numeric(), mcmc_uncertainty_scope = character(),
     sampling_uncertainty_type = character(), ess = numeric(),
@@ -361,9 +352,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     rejection_relative_mcse = numeric(), warning_min_finite_terms = numeric(),
     rejection_min_finite_terms = numeric(), warning_min_ess = numeric(),
     rejection_min_ess = numeric(), warning_max_weight_share = numeric(),
-    rejection_max_weight_share = numeric(),
-    warning_row_drop_fraction = numeric(),
-    rejection_row_drop_fraction = numeric(), hard_cap = numeric(),
+    rejection_max_weight_share = numeric(), hard_cap = numeric(),
     hard_cap_reached = logical(), all_rows_used = logical(),
     adaptation_steps = integer(), target_met = logical(),
     precision_target_met = logical(), sampling_target_met = logical(),

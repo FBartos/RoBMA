@@ -16,7 +16,6 @@ source(testthat::test_path("common-functions.R"))
     bf_max_weight_share          = max_weight_share,
     bf_ordinate_relative_change  = 0,
     max_quadrature_relative_change = 0,
-    row_drop_fraction            = 0,
     estimator                    = "q_grid_cmde"
   ))
 }
@@ -419,11 +418,9 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
     active_mass                       = 1,
     n_candidate_rows                  = 500L,
     n_evaluated_rows                  = 500L,
-    n_normalized_rows                 = 500L,
-    row_drop_fraction                 = 0,
     sampling_relative_mcse            = .02,
     sampling_fraction                 = .5,
-    mcmc_uncertainty_scope            = "selected_continuous_rows_only",
+    mcmc_uncertainty_scope            = "full_conditioned_rows",
     mcmc_uncertainty_status           = "available",
     mcmc_uncertainty_reason           = NULL,
     sampling_uncertainty_type         = "finite_population_srswor",
@@ -474,7 +471,7 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
     "schema_version", "algorithm_version", "source_fingerprint", "estimator",
     "density_method", "parameter", "level", "requested_value",
     "evaluation_value", "achieved_row_budget", "eligible_rows",
-    "evaluated_rows", "retained_rows", "finite_terms", "row_drop_fraction",
+    "evaluated_rows", "finite_terms",
     "active_mass", "relative_mcse", "sampling_relative_mcse",
     "sampling_fraction", "mcmc_uncertainty_scope",
     "sampling_uncertainty_type", "ess", "max_weight_share",
@@ -486,8 +483,7 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
     "warning_relative_mcse", "rejection_relative_mcse",
     "warning_min_finite_terms", "rejection_min_finite_terms",
     "warning_min_ess", "rejection_min_ess", "warning_max_weight_share",
-    "rejection_max_weight_share", "warning_row_drop_fraction",
-    "rejection_row_drop_fraction", "hard_cap", "hard_cap_reached",
+    "rejection_max_weight_share", "hard_cap", "hard_cap_reached",
     "all_rows_used", "adaptation_steps", "target_met",
     "precision_target_met", "sampling_target_met", "bf_grade_met",
     "n_weight_fallbacks",
@@ -501,7 +497,7 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
   expect_equal(out[["sampling_fraction"]], .5)
   expect_equal(
     out[["mcmc_uncertainty_scope"]],
-    "selected_continuous_rows_only"
+    "full_conditioned_rows"
   )
   expect_true(out[["sampling_target_met"]])
   expect_equal(out[["stability_metric"]], "normalization_relative_error")
@@ -509,9 +505,6 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
   expect_equal(out[["stability_rejection_threshold"]], .10)
   expect_equal(out[["quadrature_warning_threshold"]], .025)
   expect_equal(out[["quadrature_rejection_threshold"]], .05)
-  expect_equal(out[["row_drop_fraction"]], 0)
-  expect_equal(out[["warning_row_drop_fraction"]], 0)
-  expect_equal(out[["rejection_row_drop_fraction"]], 0)
   expect_equal(out[["warning_relative_mcse"]], .05)
   expect_equal(out[["rejection_relative_mcse"]], .25)
   expect_true(out[["precision_target_met"]])
@@ -519,13 +512,6 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
   expect_equal(out[["n_weight_fallbacks"]], 1L)
   expect_match(out[["weight_fallback_reasons"]], "singular_covariance=1")
   expect_equal(out[["status"]], "ok")
-  expect_match(
-    .iwmde_diagnostics_row_loss_failure_reason(
-      diagnostics = list(row_drop_fraction = .Machine$double.eps),
-      estimator   = "iwmde"
-    ),
-    "dropped"
-  )
 })
 
 
@@ -605,7 +591,6 @@ test_that("point-BF policy enforces adaptive quadrature stability", {
     finite_terms                    = 500L,
     ess                             = 250,
     max_weight_share                = .01,
-    row_drop_fraction               = 0,
     ordinate_relative_change        = .001,
     max_quadrature_relative_change  = .03
   )

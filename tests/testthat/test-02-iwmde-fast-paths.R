@@ -541,7 +541,7 @@ test_that("qCMDE density normalization is row-wise and mass preserving", {
                tolerance = 1e-10)
   expect_equal(density[["pilot_y"]], rep(.6 / pilot_width, length(grid)),
                tolerance = 1e-10)
-  expect_equal(density[["n_normalized_rows"]], 2L)
+  expect_equal(density[["n_evaluated_rows"]], 2L)
 })
 
 
@@ -1006,8 +1006,7 @@ test_that("qCMDE retains certified zero-density ordinates", {
   )
 
   expect_identical(density[["y"]], 0)
-  expect_equal(density[["n_normalized_rows"]], 20L)
-  expect_equal(density[["n_dropped_normalizer"]], 0L)
+  expect_equal(density[["n_evaluated_rows"]], 20L)
 })
 
 
@@ -1242,7 +1241,6 @@ test_that("qCMDE BF gate rejects validation movement despite perfect mass", {
     normalization_relative_error = 0,
     active_mass            = 1,
     normalization_mass_ratio = 1,
-    row_drop_fraction      = 0,
     ordinate_relative_change = .06,
     max_normalizer_relative_change = 0
   )
