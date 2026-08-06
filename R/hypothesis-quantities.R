@@ -197,16 +197,40 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
     allowed = character(),
     caller  = "hypothesis_quantities()"
   )
-  term_map <- object[["term_map"]]
-  out <- data.frame(
-    alias      = term_map[["term"]],
-    parameter  = term_map[["parameter"]],
-    component  = "marginal_means",
-    term       = term_map[["term"]],
-    bracket    = NA_character_,
-    stringsAsFactors = FALSE,
-    check.names = FALSE
-  )
+  term_map    <- object[["term_map"]]
+  conditional <- object[["inference"]][["conditional"]]
+  rows        <- list()
+  samples     <- list()
+  row_i       <- 0L
+  for (i in seq_len(nrow(term_map))) {
+
+    parameter_samples <- conditional[[term_map[["parameter"]][[i]]]]
+    if (is.list(parameter_samples)) {
+      level_names <- names(parameter_samples)
+      if (is.null(level_names) || length(level_names) != length(parameter_samples) ||
+          any(!nzchar(level_names))) {
+        stop(
+          "Grouped marginal means must have non-empty level names.",
+          call. = FALSE
+        )
+      }
+      for (level_i in seq_along(parameter_samples)) {
+        row_i <- row_i + 1L
+        rows[[row_i]] <- .hypothesis_quantities_marginal_row(
+          term_map[i, , drop = FALSE],
+          level = level_names[[level_i]]
+        )
+        samples[[row_i]] <- parameter_samples[[level_i]]
+      }
+    } else {
+      row_i <- row_i + 1L
+      rows[[row_i]] <- .hypothesis_quantities_marginal_row(
+        term_map[i, , drop = FALSE]
+      )
+      samples[[row_i]] <- parameter_samples
+    }
+  }
+  out <- do.call(rbind, rows)
   out <- .hypothesis_quantities_add_eligibility(
     out,
     point_test_methods = if (inherits(object[["source_object"]], "brma.glmm")) {
@@ -217,27 +241,41 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
   )
   out[["direction_test_methods"]] <- "KDE"
   for (i in seq_len(nrow(out))) {
-    samples <- object[["inference"]][["conditional"]][[out[["parameter"]][[i]]]]
-    if (is.list(samples)) {
-      out[["bracket"]][[i]] <- paste0(out[["parameter"]][[i]], "[level]")
-    } else {
-      values <- as.numeric(samples)
-      values <- values[is.finite(values)]
-      fixed <- length(values) > 0L && all(values == values[[1L]])
-      if (fixed) {
-        out[["point_test"]][[i]]             <- FALSE
-        out[["direction_test"]][[i]]         <- FALSE
-        out[["point_test_methods"]][[i]]     <- ""
-        out[["direction_test_methods"]][[i]] <- ""
-        out[["reason"]][[i]] <- paste0(
-          "The quantity is fixed by the fitted model; posterior hypothesis ",
-          "tests are undefined."
-        )
-      }
+    values <- as.numeric(samples[[i]])
+    values <- values[is.finite(values)]
+    fixed <- length(values) > 0L && all(values == values[[1L]])
+    if (fixed) {
+      out[["point_test"]][[i]]             <- FALSE
+      out[["direction_test"]][[i]]         <- FALSE
+      out[["point_test_methods"]][[i]]     <- ""
+      out[["direction_test_methods"]][[i]] <- ""
+      out[["reason"]][[i]] <- paste0(
+        "The quantity is fixed by the fitted model; posterior hypothesis ",
+        "tests are undefined."
+      )
     }
   }
   rownames(out) <- NULL
   return(out)
+}
+
+
+.hypothesis_quantities_marginal_row <- function(term_row, level = NULL) {
+
+  parameter <- term_row[["parameter"]][[1L]]
+  return(data.frame(
+    alias      = term_row[["term"]][[1L]],
+    parameter  = parameter,
+    component  = "marginal_means",
+    term       = term_row[["term"]][[1L]],
+    bracket    = if (is.null(level)) {
+      NA_character_
+    } else {
+      paste0(parameter, "[", level, "]")
+    },
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  ))
 }
 
 

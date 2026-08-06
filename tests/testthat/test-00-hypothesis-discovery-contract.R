@@ -53,7 +53,7 @@ test_that("hypothesis discovery reports fitted transform routes", {
 })
 
 
-test_that("marginal-means discovery reserves brackets for grouped levels", {
+test_that("marginal-means discovery reports selectable levels", {
 
   object <- structure(list(
     term_map = data.frame(
@@ -72,8 +72,67 @@ test_that("marginal-means discovery reserves brackets for grouped levels", {
   grouped <- out[out[["parameter"]] == "mu_group", , drop = FALSE]
 
   expect_true(all(is.na(scalar[["bracket"]])))
-  expect_true(all(grouped[["bracket"]] == "mu_group[level]"))
+  expect_identical(grouped[["bracket"]], c("mu_group[a]", "mu_group[b]"))
   expect_identical(unique(out[["point_test_methods"]]), "KDE, qCMDE")
+})
+
+
+test_that("marginal-means discovery rejects a fixed no-intercept scalar", {
+
+  object <- structure(list(
+    term_map = data.frame(
+      term      = "intercept",
+      parameter = "mu_intercept"
+    ),
+    inference = list(conditional = list(
+      mu_intercept = list(intercept = matrix(0, nrow = 1L, ncol = 20L))
+    )),
+    source_object = structure(list(), class = "brma")
+  ), class = "marginal_means.brma")
+
+  out <- hypothesis_quantities(object)
+
+  expect_identical(out[["bracket"]], "mu_intercept[intercept]")
+  expect_false(out[["point_test"]])
+  expect_false(out[["direction_test"]])
+  expect_identical(out[["point_test_methods"]], "")
+  expect_identical(out[["direction_test_methods"]], "")
+  expect_match(out[["reason"]], "fixed by the fitted model")
+})
+
+
+test_that("marginal-means discovery keeps sampled siblings of a fixed level", {
+
+  object <- structure(list(
+    term_map = data.frame(
+      term      = "x",
+      parameter = "mu_x"
+    ),
+    inference = list(conditional = list(
+      mu_x = list(
+        `-1SD` = c(-1, -2, -3),
+        `0SD`  = c(0, 0, 0),
+        `1SD`  = c(1, 2, 3)
+      )
+    )),
+    source_object = structure(list(), class = "brma")
+  ), class = "marginal_means.brma")
+
+  out <- hypothesis_quantities(object)
+  fixed <- out[["bracket"]] == "mu_x[0SD]"
+
+  expect_identical(
+    out[["bracket"]],
+    c("mu_x[-1SD]", "mu_x[0SD]", "mu_x[1SD]")
+  )
+  expect_identical(out[["point_test"]], c(TRUE, FALSE, TRUE))
+  expect_identical(out[["direction_test"]], c(TRUE, FALSE, TRUE))
+  expect_identical(
+    out[["point_test_methods"]][!fixed],
+    rep("KDE, qCMDE, IWMDE", 2L)
+  )
+  expect_identical(out[["point_test_methods"]][fixed], "")
+  expect_match(out[["reason"]][fixed], "fixed by the fitted model")
 })
 
 
