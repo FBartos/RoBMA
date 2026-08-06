@@ -901,17 +901,29 @@ hypothesis.brma <- function(object, hypothesis,
     stop("Internal error: transformed hypothesis result rows are misaligned.",
          call. = FALSE)
   }
+  result_label <- function(statement, side_name) {
+
+    implicit_equality <- !isTRUE(statement[["explicit"]]) &&
+      identical(statement[["left"]][["type"]], "point")
+    if (implicit_equality) {
+      side_name <- switch(side_name, left = "right", right = "left")
+    }
+
+    statement[[side_name]][["label"]]
+  }
   if ("Alternative" %in% names(out)) {
     out[["Alternative"]] <- vapply(
       statements,
-      function(statement) statement[["left"]][["label"]],
+      result_label,
+      side_name = "left",
       character(1)
     )
   }
   if ("Null" %in% names(out)) {
     out[["Null"]] <- vapply(
       statements,
-      function(statement) statement[["right"]][["label"]],
+      result_label,
+      side_name = "right",
       character(1)
     )
   }

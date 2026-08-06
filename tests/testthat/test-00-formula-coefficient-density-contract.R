@@ -249,8 +249,8 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
     captured[["hypothesis"]][["statements"]][[1L]][["left"]][["value"]],
     log(.2)
   )
-  expect_identical(result[["Alternative"]], "log_tau_intercept = 0.2")
-  expect_identical(result[["Null"]], "log_tau_intercept != 0.2")
+  expect_identical(result[["Alternative"]], "log_tau_intercept != 0.2")
+  expect_identical(result[["Null"]], "log_tau_intercept = 0.2")
   expect_identical(attr(result, "hypothesis_ast"),
                    BayesTools::hypothesis_parse("log_tau_intercept = 0.2"))
   expect_equal(attr(result, "parsed")[[1L]][["left"]][["value"]], .2)
@@ -469,5 +469,75 @@ test_that("log-intercept support applies on the standardized route", {
   )
   expect_invisible(
     .hypothesis_brma_check_formula_point_support(positive, target)
+  )
+})
+
+
+test_that("implicit exp-affine equality preserves the Bayes factor orientation", {
+
+  parameter <- "log_tau_intercept"
+  probabilities <- (seq_len(2001L) - 0.5) / 2001
+  posterior <- stats::setNames(
+    data.frame(stats::qnorm(probabilities, mean = -1.2, sd = 0.3)),
+    parameter
+  )
+  prior <- stats::setNames(
+    data.frame(stats::qnorm(probabilities, mean = -1.6, sd = 0.5)),
+    parameter
+  )
+
+  evaluate <- function(statement) {
+
+    original <- BayesTools::hypothesis_parse(statement)
+    transformed <- .hypothesis_brma_exp_affine_log_hypothesis(original)
+    out <- BayesTools::hypothesis_BF(
+      posterior      = posterior,
+      prior          = prior,
+      hypothesis     = transformed,
+      parameter      = parameter,
+      seed           = 1,
+      density_method = "KDE"
+    )
+    .hypothesis_brma_restore_hypothesis_labels(
+      out        = out,
+      hypothesis = original
+    )
+  }
+
+  implicit_equal <- evaluate("log_tau_intercept = 0.2")
+  explicit_not_equal <- evaluate(
+    "log_tau_intercept != 0.2 vs log_tau_intercept = 0.2"
+  )
+  explicit_equal <- evaluate(
+    "log_tau_intercept = 0.2 vs log_tau_intercept != 0.2"
+  )
+
+  expect_identical(
+    implicit_equal["Alternative"],
+    explicit_not_equal["Alternative"]
+  )
+  expect_identical(implicit_equal["Null"], explicit_not_equal["Null"])
+  expect_identical(
+    implicit_equal[["Alternative"]],
+    "log_tau_intercept != 0.2"
+  )
+  expect_identical(implicit_equal[["Null"]], "log_tau_intercept = 0.2")
+  expect_identical(
+    explicit_equal[["Alternative"]],
+    "log_tau_intercept = 0.2"
+  )
+  expect_identical(
+    explicit_equal[["Null"]],
+    "log_tau_intercept != 0.2"
+  )
+  expect_equal(
+    attr(implicit_equal, "raw_BF"),
+    attr(explicit_not_equal, "raw_BF"),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    attr(implicit_equal, "raw_BF") * attr(explicit_equal, "raw_BF"),
+    1,
+    tolerance = 1e-12
   )
 })
