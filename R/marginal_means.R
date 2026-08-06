@@ -270,7 +270,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     source_object            = object
   )
 
-  class(output) <- "marginal_means.brma"
+  class(output) <- c("marginal_means.brma", "marginal_means")
 
   if (precompute_density) {
     output <- .marginal_means_attach_iwmde(

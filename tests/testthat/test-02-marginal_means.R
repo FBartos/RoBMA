@@ -884,7 +884,7 @@ test_that("marginal_means stores BayesTools marginal inference", {
     n_samples = smoke_samples
   )
 
-  expect_identical(class(mm), "marginal_means.brma")
+  expect_identical(class(mm), c("marginal_means.brma", "marginal_means"))
   expect_named(mm, c(
     "inference", "parameters", "term_map", "formula", "null_hypothesis",
     "n_samples", "conditional_rule", "input_measure", "effect_transform",
