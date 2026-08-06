@@ -51,18 +51,22 @@
 - removes transitional pre-release known-`V`, dense random-correlation, and
   BayesTools capability fallback paths; multivariate fits now use only the
   current canonical backend metadata and typed conditions.
-- removes the previous `marginal_means.brma(normal_approximation)` argument;
+- removes the released `marginal_means.brma(normal_approximation)` argument;
   marginal-means Bayes factors now use posterior ordinates from KDE/qCMDE/IWMDE
   routes instead of the removed normal-approximation switch.
-- simplifies the unreleased marginal-means density contract: plot and hypothesis
+- simplifies the marginal-means density contract: plot and hypothesis
   methods inherit the stored density method unless explicitly overridden,
   `bf = FALSE` skips qCMDE/IWMDE ordinate precomputation, and single-model
   objects reject explicit conditional density precomputation.
-- removes the unreleased `logLik.brma()` method. Use `log_lik()` for pointwise
+- removes the released `logLik.brma()` method. Use `log_lik()` for pointwise
   posterior log-likelihood draws; `AIC()` and `BIC()` now fail explicitly.
 - removes the unreleased logical aggregate prediction mode. Explicit prediction
   rows now each represent one new true effect; use `pooled_effect()` for direct
   fitted-design aggregation.
+- corrects the `BMA.glmm()` factor-contrast default from treatment coding to
+  mean-difference coding, matching the other BMA/RoBMA constructors. This can
+  change moderator coefficient interpretation for calls that did not specify
+  `set_contrast_factor_predictors` explicitly.
 
 ### Fixes
 - permits mixed-case scenario artifact names such as `mu_BF_comparison`,
@@ -106,8 +110,9 @@
   current `metafor` compatibility, and consistent base/ggplot rendering.
 - honors explicit zplot axes and cutpoints while preserving histogram-method
   delegation.
-- calibrates grouped qCMDE/IWMDE thinning and stabilizes extreme beta-binomial
-  log ratios without changing valid boundary behavior.
+- uses one global nested simple-random sample for qCMDE/IWMDE and
+  model-averaged funnel calculations, preserving empirical product-state
+  weights without enumerating or forcibly retaining rare states.
 - aligns same-data `brma.mv()` response prediction with `brma()` semantics by
   using fixed means and marginal known-`V` plus random-effect covariance instead
   of conditioning on fitted random effects.
@@ -139,8 +144,9 @@
   boundary nulls no longer distort row-normalizer grids.
 - makes qCMDE BF diagnostics use final-vs-validation ordinate movement instead
   of same-grid normalization mass.
-- keeps qCMDE/IWMDE row denominators fixed when row normalizers or Chen weights
-  fail, reporting dropped rows instead of redistributing their mass.
+- fails qCMDE/IWMDE estimation when any selected row lacks a valid normalizer,
+  proposal density, or finite contribution instead of silently dropping the
+  row or replacing its contribution by zero.
 - freezes finite baseline row eligibility in qCMDE/IWMDE plans, cache keys, and
   diagnostics so denominator rows and estimator rows are reported separately.
 - conditions GLMM qCMDE/IWMDE ordinates on sampled estimate-level effects and
@@ -195,9 +201,11 @@
   continuous active posterior rows, preserving the fitted product-state mass
   without enumerating nuisance model states or forcing rare-state inclusion.
 - separates finite-population row-sampling uncertainty from selected-row MCMC
-  MCSE and effective sample size, requires both precision checks for adaptive
-  stopping, and makes MCMC diagnostics unavailable when a sample omits a fitted
-  chain instead of reporting false precision.
+  MCSE and effective sample size, requires per-chain batch coverage, and makes
+  MCMC diagnostics unavailable when a sample omits a fitted chain. Mixed
+  point/continuous ordinates adapt to a full active-row census and then batch
+  the full conditioned chain with inactive rows represented by zero
+  contributions, including product-state mass uncertainty and covariance.
 - removes structurally inactive random-effect coordinates from marginal-
   likelihood replay when every corresponding standard deviation is fixed at
   zero, restoring exact zero-dimensional results.
@@ -209,11 +217,14 @@
   priors now fail explicitly at input.
 - rejects ambiguous marginal-means hypothesis aliases instead of silently
   resolving a canonical name to a different moderator coefficient.
-- evaluates certified `exp(affine)` formula-coefficient point hypotheses from
-  coherent transformed prior and posterior draws under KDE, while continuing
-  to reject unsupported nonlinear qCMDE/IWMDE routes.
-- rewrites vector hypothesis aliases independently and supports certified
-  compound affine point expressions from coherent prior and posterior draws.
+- evaluates certified `exp(affine)` formula-coefficient hypotheses under KDE
+  only for structurally atom-free, unconditional scalar targets. Point
+  equalities are evaluated on the inverse log/affine scale, where the Jacobian
+  cancels; nonpositive nulls, compound point expressions, and nonlinear
+  qCMDE/IWMDE routes fail clearly.
+- rewrites vector hypothesis aliases independently while limiting point-null
+  syntax to direct parameters and levels so product-space atoms and
+  conditioning metadata cannot be discarded.
 - limits hypothesis discovery to supported estimators and syntax, and retains
   only qCMDE/IWMDE ordinates and diagnostics matching the current request.
 - rejects unnamed, duplicate, nonnumeric, or non-finite qCMDE/IWMDE linear
@@ -224,6 +235,20 @@
 - computes marginal means through the public BayesTools BF-free route when
   inclusion Bayes factors are disabled, retaining supported no-intercept and
   structurally fixed marginal cells.
+- preserves the released secondary `marginal_means` result class and the
+  released positional `type` argument of `predict.brma()` while adding the
+  named `V_new` covariance argument.
+- returns genuine upstream `bridge` objects from `bridge_sampler()` for
+  bridge-backed fits; exact zero-dimensional fits retain exact `logml()`, Bayes
+  factors, and posterior probabilities and report clearly that no bridge object
+  exists.
+- reconstructs sampled CS/HAR random-effect correlations in every public
+  `as_draws*()` format while keeping compact backend coordinates private.
+- detaches persisted formula and terms environments after their variables have
+  been materialized, preventing fitted objects and vignette caches from
+  retaining unrelated caller workspaces.
+- uses nested qCMDE normalization grids and removes superseded row-drop recovery
+  machinery, reducing repeated work and simplifying the fail-closed estimator.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting
