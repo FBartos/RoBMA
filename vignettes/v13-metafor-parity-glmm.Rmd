@@ -60,7 +60,8 @@ data("dat.bcg", package = "metadat")
 
 fit1_brma <- brma.glmm(
   ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
-  data = dat.bcg, seed = 1
+  data = dat.bcg, seed = 1,
+  sample = 15000, burnin = 3000
 )
 
 vignette_cache_save(cached_fits)
@@ -111,7 +112,8 @@ The matching Bayesian fit takes the same count columns and `measure = "OR"`.
 ```{r fit1-brma, eval = FALSE}
 fit1_brma <- brma.glmm(
   ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
-  data = dat.bcg, seed = 1
+  data = dat.bcg, seed = 1,
+  sample = 15000, burnin = 3000
 )
 ```
 
