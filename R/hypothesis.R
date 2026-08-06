@@ -707,8 +707,7 @@ hypothesis.brma <- function(object, hypothesis,
   }
   sample <- samples[[target]]
   if (is.null(sample) ||
-      !inherits(sample, "mixed_posteriors.simple") ||
-      inherits(sample, "mixed_posteriors.mixture")) {
+      !inherits(sample, "mixed_posteriors.simple")) {
     stop(
       "Nonlinear fitted-scale KDE hypotheses require a certified scalar ",
       "mixed posterior.",
