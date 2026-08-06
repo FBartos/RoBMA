@@ -13,7 +13,9 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' For intercept-only models without scale regression, the default outcome mode
 #' displays observed effect sizes against the fitted sampling distribution. For
 #' models with location or scale moderators, the default residual mode displays
-#' residuals against a standard-error funnel.
+#' residuals against a standard-error funnel. For GLMMs, outcome-mode contours
+#' are instead a descriptive normal effect-size approximation and are not
+#' coverage intervals from the fitted discrete likelihood.
 #'
 #' @param x a fitted brma object
 #' @param residual whether to use residual mode. Defaults to not specified,
@@ -124,7 +126,14 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' ignored in residual mode.
 #'
 #' For GLMM models, outcome-mode observed effect sizes are computed from the raw
-#' frequency data using formulas equivalent to \code{metafor::escalc}.
+#' frequency data using formulas equivalent to \code{metafor::escalc}. Their
+#' contours use the corresponding continuity-corrected effect-size estimates
+#' and approximate standard errors in a normal reference calculation. The
+#' default x-axis label and a warning identify this as a descriptive
+#' approximation; it is not a coverage interval from the fitted binomial or
+#' Poisson likelihood. Exact discrete-likelihood coverage cannot be indexed by
+#' a scalar standard error alone because it also depends on arm totals or
+#' exposures and nuisance rates.
 #' LOO-PIT residual mode is unavailable because the fitted predictive
 #' distribution is discrete and no discrete PIT convention has been defined.
 #' Use \code{type = "outcome"} for a descriptive effect-size-scale residual
@@ -133,7 +142,10 @@ funnel <- function(x, ...) UseMethod("funnel")
 #'
 #' @return If \code{as_data = TRUE}, \code{funnel.brma} returns a list with the
 #' data used for plotting, including the plotted points, funnel polygons,
-#' plotting limits, labels, and reference line. Otherwise, it returns
+#' plotting limits, labels, and reference line. GLMM outcome-mode data also
+#' contain an \code{approximation} record identifying the descriptive normal
+#' effect-size approximation and stating that it is not fitted discrete-
+#' likelihood coverage. Otherwise, it returns
 #' \code{NULL} invisibly if \code{plot_type = "base"} or a ggplot object if
 #' \code{plot_type = "ggplot"}.
 #'

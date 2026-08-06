@@ -151,6 +151,63 @@ test_that("model-averaged funnel tau uses within-draw RMS heterogeneity", {
 })
 
 
+test_that("GLMM outcome funnels disclose their descriptive approximation", {
+
+  data <- list(outcome = data.frame(ai = c(1, 2), ci = c(2, 1)))
+  attr(data, "outcome_type") <- "bin"
+  object <- structure(list(data = data), class = c("brma.glmm", "brma"))
+  pooled <- .new_brma_samples(
+    samples  = matrix(rep(.25, 4), ncol = 1L,
+                      dimnames = list(NULL, "mu")),
+    n_chains = 1L,
+    n_iter   = 4L,
+    title    = ""
+  )
+
+  testthat::local_mocked_bindings(
+    .is_weightfunction    = function(object) FALSE,
+    .is_PET               = function(object) FALSE,
+    .is_PEESE             = function(object) FALSE,
+    .effect_direction     = function(object) "positive",
+    .outcome_data_yi      = function(object) c(-.1, .1),
+    .outcome_data_sei     = function(object) c(.2, .3),
+    pooled_effect         = function(object) pooled,
+    .get_funnel_tau       = function(object) .1,
+    .get_funnel_quantiles = function(x, se_sequence, ...) {
+      list(
+        lower = rep(-1, length(se_sequence)),
+        upper = rep(1, length(se_sequence)),
+        mid   = rep(.25, length(se_sequence))
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  expect_warning(
+    funnel_data <- .funnel_data_outcome(
+      x                      = object,
+      sampling_heterogeneity = TRUE,
+      sampling_bias          = TRUE,
+      max_samples            = 1000,
+      dots                   = .set_dots_funnel(list())
+    ),
+    "descriptive normal effect-size approximation"
+  )
+  expect_identical(
+    funnel_data[["xlab"]],
+    "Observed Effect Size (Descriptive Normal Approximation)"
+  )
+  expect_identical(
+    funnel_data[["approximation"]],
+    list(
+      method                              = "normal_effect_size_approximation",
+      descriptive                         = TRUE,
+      fitted_discrete_likelihood_coverage = FALSE
+    )
+  )
+})
+
+
 # list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
@@ -397,7 +454,7 @@ test_that("Funnel plot for full-draw GLMM model remains stable", {
   # there is no funnel plot for metafor
   expect_vdiffr_snapshot(
     "funnel_glmm_ggplot",
-    .test_funnel(fit_brma, plot_type = "ggplot")
+    suppressWarnings(.test_funnel(fit_brma, plot_type = "ggplot"))
   )
 })
 

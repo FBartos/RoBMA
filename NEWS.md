@@ -252,6 +252,9 @@
   retaining unrelated caller workspaces.
 - uses nested qCMDE normalization grids and removes superseded row-drop recovery
   machinery, reducing repeated work and simplifying the fail-closed estimator.
+- marks GLMM outcome-mode funnel contours as descriptive normal effect-size
+  approximations in warnings, plot labels, and returned metadata instead of
+  implying coverage under the fitted discrete likelihood.
 
 ### Documentation
 - documents the qCMDE/IWMDE estimating equations, Savage-Dickey nesting

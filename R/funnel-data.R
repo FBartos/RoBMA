@@ -25,6 +25,16 @@
   is_PET            <- .is_PET(x)
   is_PEESE          <- .is_PEESE(x)
   effect_direction  <- .effect_direction(x)
+  is_glmm            <- .outcome_type(x) %in% c("bin", "pois")
+
+  if (is_glmm) {
+    warning(
+      "GLMM outcome-mode funnel contours are a descriptive normal ",
+      "effect-size approximation; they are not coverage intervals from ",
+      "the fitted discrete likelihood.",
+      call. = FALSE
+    )
+  }
 
   # get observed effect sizes (yi) - these go on the x-axis
   yi <- .outcome_data_yi(x)
@@ -52,8 +62,13 @@
     se_range <- pretty(dots[["ylim"]])
   }
 
-  # set axis labels - using "Observed Effect Size" for outcome mode
-  xlab <- if (!is.null(dots[["xlab"]])) dots[["xlab"]] else "Observed Effect Size"
+  # set axis labels - mark the GLMM effect-size approximation explicitly
+  default_xlab <- if (is_glmm) {
+    "Observed Effect Size (Descriptive Normal Approximation)"
+  } else {
+    "Observed Effect Size"
+  }
+  xlab <- if (!is.null(dots[["xlab"]])) dots[["xlab"]] else default_xlab
   ylab <- if (!is.null(dots[["ylab"]])) dots[["ylab"]] else "Standard Error"
 
   # set data for reference line
@@ -143,7 +158,7 @@
     y = c(min(ylim), min(ylim), max(ylim), max(ylim))
   )
 
-  return(list(
+  out <- list(
     points       = df_points,
     funnel       = df_funnel,
     funnel_edge1 = df_funnel_edge1,
@@ -156,7 +171,16 @@
     xlab         = xlab,
     ylab         = ylab,
     refline      = df_refline
-  ))
+  )
+  if (is_glmm) {
+    out[["approximation"]] <- list(
+      method                              = "normal_effect_size_approximation",
+      descriptive                         = TRUE,
+      fitted_discrete_likelihood_coverage = FALSE
+    )
+  }
+
+  return(out)
 }
 
 
