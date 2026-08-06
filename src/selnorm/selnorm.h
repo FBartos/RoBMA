@@ -97,22 +97,6 @@ void cpp_selnorm_kernel_log_tail_pair(
   bool validate_omega = true
 );
 
-double cpp_selnorm_kernel_cdf_with_log_norm(
-  double q,
-  double mean,
-  double sd,
-  double sei,
-  const double *omega,
-  double alpha,
-  int phack_kind,
-  int kernel_mode,
-  const SelNormKernelData &data,
-  double log_normalizer,
-  int omega_stride = 1,
-  bool lower_tail = true,
-  bool validate_omega = true
-);
-
 void cpp_selnorm_kernel_moments(
   double mean,
   double sd,

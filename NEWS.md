@@ -172,6 +172,9 @@
   effect-size transformation metadata.
 - uses within-draw RMS heterogeneity consistently for model-averaged funnel
   contours.
+- normalizes selected-normal funnel and regression-plot CDF tails jointly,
+  preventing valid low-standard-error contours from failing due to separately
+  rounded normalization masses.
 - preserves moderator-specific forest labels unless `mlab` is explicitly
   overridden.
 - supplies `metafor` forest shade/dist styles with a deterministic density from

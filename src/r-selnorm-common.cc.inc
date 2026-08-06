@@ -325,7 +325,6 @@ struct FunnelSeContext {
   const SelNormKernelData *data;
   std::vector<double> location;
   std::vector<double> total_sd;
-  std::vector<double> log_norm;
   std::vector<char> zero_sd;
   std::vector<char> weighted;
 };
@@ -337,8 +336,8 @@ double funnel_selected_cdf_zero_se(double q, int s, const FunnelSeContext &ctx)
   const double mean = data.effect_sign * ctx.mu[s];
   const double sd = ctx.total_sd[static_cast<size_t>(s)];
   const double q_signed = data.effect_sign * q;
-  double denom = 0;
-  double mass = 0;
+  double requested_mass  = 0;
+  double complement_mass = 0;
 
   for (int b = 0; b < data.n_bins; ++b) {
     const double z_lower = data.z_lower[b];
@@ -360,21 +359,30 @@ double funnel_selected_cdf_zero_se(double q, int s, const FunnelSeContext &ctx)
       continue;
     }
 
-    const double bin_mass = funnel_interval_prob(lower, upper, mean, sd);
     const double weight = omega_s[static_cast<size_t>(ctx.S) * b];
-    denom += weight * bin_mass;
-
-    const double selected_mass = data.effect_sign == 1 ?
-      funnel_interval_prob(lower, std::min(upper, q_signed), mean, sd) :
-      funnel_interval_prob(std::max(lower, q_signed), upper, mean, sd);
-    mass += weight * selected_mass;
+    if (data.effect_sign == 1) {
+      requested_mass += weight * funnel_interval_prob(
+        lower, std::min(upper, q_signed), mean, sd
+      );
+      complement_mass += weight * funnel_interval_prob(
+        std::max(lower, q_signed), upper, mean, sd
+      );
+    } else {
+      requested_mass += weight * funnel_interval_prob(
+        std::max(lower, q_signed), upper, mean, sd
+      );
+      complement_mass += weight * funnel_interval_prob(
+        lower, std::min(upper, q_signed), mean, sd
+      );
+    }
   }
 
-  if (!(denom > 0)) {
+  const double total_mass = requested_mass + complement_mass;
+  if (!(total_mass > 0) || !std::isfinite(total_mass)) {
     return NA_REAL;
   }
 
-  return clamp_probability_value(mass / denom);
+  return clamp_probability_value(requested_mass / total_mass);
 }
 
 void funnel_prepare_se_context(FunnelSeContext *ctx)
@@ -384,7 +392,6 @@ void funnel_prepare_se_context(FunnelSeContext *ctx)
 
   ctx->location.assign(static_cast<size_t>(ctx->S), 0);
   ctx->total_sd.assign(static_cast<size_t>(ctx->S), 0);
-  ctx->log_norm.assign(static_cast<size_t>(ctx->S), 0);
   ctx->zero_sd.assign(static_cast<size_t>(ctx->S), 0);
   ctx->weighted.assign(static_cast<size_t>(ctx->S), 0);
 
@@ -400,24 +407,6 @@ void funnel_prepare_se_context(FunnelSeContext *ctx)
     ctx->zero_sd[si]  = total_sd == 0;
     ctx->weighted[si] = ctx->is_weightfunction[s] != 0 && !ctx->zero_sd[si];
 
-    if (ctx->weighted[si] && ctx->se > 0) {
-      if ((*ctx->row_active_phack)[si]) {
-        ctx->log_norm[si] = std::numeric_limits<double>::quiet_NaN();
-      } else {
-        ctx->log_norm[si] = cpp_selnorm_kernel_log_norm(
-          location,
-          total_sd,
-          ctx->se,
-          ctx->omega + s,
-          (*ctx->row_alpha)[si],
-          (*ctx->row_phack)[si],
-          (*ctx->row_mode)[si],
-          data,
-          ctx->S,
-          false
-        );
-      }
-    }
   }
 }
 
@@ -437,7 +426,7 @@ double funnel_model_averaged_cdf_native(double q, const FunnelSeContext &ctx)
       } else if ((*ctx.row_active_phack)[si]) {
         cdf_s = NA_REAL;
       } else {
-        cdf_s = cpp_selnorm_kernel_cdf_with_log_norm(
+        cdf_s = cpp_selnorm_kernel_cdf(
           q,
           ctx.location[si],
           ctx.total_sd[si],
@@ -447,7 +436,6 @@ double funnel_model_averaged_cdf_native(double q, const FunnelSeContext &ctx)
           (*ctx.row_phack)[si],
           (*ctx.row_mode)[si],
           *ctx.data,
-          ctx.log_norm[si],
           ctx.S,
           true,
           false

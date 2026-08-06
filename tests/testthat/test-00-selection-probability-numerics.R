@@ -60,6 +60,109 @@ test_that("native zero-SE funnel retains remote-tail interval mass", {
 })
 
 
+test_that("native funnel CDF uses structurally matched tail masses", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  skip_if_not(.has_native_funnel_model_averaged_quantiles(list(
+    selection = list()
+  )))
+
+  make_setup <- function(mu, tau, lower_weight) {
+
+    prior <- BayesTools::prior_weightfunction(
+      side    = "one-sided",
+      steps   = .025,
+      weights = BayesTools::wf_fixed(c(1, lower_weight))
+    )
+    selection <- .selection_spec(
+      priors           = list(outcome = list(bias = prior)),
+      yi               = .20,
+      sei              = .10,
+      effect_direction = "positive",
+      signed_data      = FALSE
+    )
+    selection[["omega"]]                   <- matrix(c(1, lower_weight), nrow = 1L)
+    selection[["alpha"]]                   <- 0
+    selection[["phack_kind"]]              <- 0L
+    selection[["kernel_mode"]]             <- SELKERNEL_STEP
+    selection[["use_normal"]]              <- FALSE
+    selection[["has_phack"]]               <- FALSE
+    selection[["telescope_probabilities"]] <- TRUE
+
+    return(list(
+      mu                = mu,
+      tau               = tau,
+      PET               = 0,
+      PEESE             = 0,
+      is_weightfunction = TRUE,
+      selection         = selection
+    ))
+  }
+
+  selected_quantile <- function(p, mu, tau, se, lower_weight) {
+
+    sd       <- sqrt(tau^2 + se^2)
+    cut      <- stats::qnorm(.975) * se
+    cut_prob <- stats::pnorm(cut, mean = mu, sd = sd)
+    total    <- lower_weight * cut_prob + 1 - cut_prob
+    target   <- p * total
+
+    if (target <= lower_weight * cut_prob) {
+      return(stats::qnorm(target / lower_weight, mean = mu, sd = sd))
+    }
+
+    return(stats::qnorm(
+      cut_prob + target - lower_weight * cut_prob,
+      mean = mu,
+      sd   = sd
+    ))
+  }
+
+  cases <- list(
+    list(
+      mu           = 0.077382373995749,
+      tau          = 0.360189673816798,
+      se           = 0,
+      lower_weight = 0.500377518771078
+    ),
+    list(
+      mu           = 0.0182293024488417,
+      tau          = 0.313440158972955,
+      se           = 0.00808080808080808,
+      lower_weight = 0.477068312576876
+    )
+  )
+
+  for (case in cases) {
+    setup <- make_setup(
+      mu           = case[["mu"]],
+      tau          = case[["tau"]],
+      lower_weight = case[["lower_weight"]]
+    )
+    actual <- .funnel_model_averaged_quantiles_native(
+      se_sequence      = case[["se"]],
+      setup            = setup,
+      effect_direction = "positive"
+    )
+    expected <- vapply(c(.025, .975, .5), function(p) {
+      selected_quantile(
+        p            = p,
+        mu           = case[["mu"]],
+        tau          = case[["tau"]],
+        se           = case[["se"]],
+        lower_weight = case[["lower_weight"]]
+      )
+    }, numeric(1))
+
+    expect_equal(
+      unname(unlist(actual, use.names = FALSE)),
+      expected,
+      tolerance = 1e-10
+    )
+  }
+})
+
+
 test_that("native central interval probabilities are not projected", {
 
   skip_if_not(.has_native_selnorm_kernel())

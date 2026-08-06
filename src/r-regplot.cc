@@ -173,7 +173,6 @@ static double regplot_selnorm_mixture_cdf_cached(
   const std::vector<int> &row_phack,
   const std::vector<int> &row_mode,
   const std::vector<bool> &row_active_phack,
-  const std::vector<double> &row_log_norm,
   const SelNormKernelData &data,
   int S)
 {
@@ -186,7 +185,7 @@ static double regplot_selnorm_mixture_cdf_cached(
     } else if (row_active_phack[static_cast<size_t>(s)]) {
       cdf_s = NA_REAL;
     } else {
-      cdf_s = cpp_selnorm_kernel_cdf_with_log_norm(
+      cdf_s = cpp_selnorm_kernel_cdf(
         q,
         mean[s],
         sd[s],
@@ -196,7 +195,6 @@ static double regplot_selnorm_mixture_cdf_cached(
         row_phack[static_cast<size_t>(s)],
         row_mode[static_cast<size_t>(s)],
         data,
-        row_log_norm[static_cast<size_t>(s)],
         S,
         true,
         false
@@ -500,33 +498,9 @@ extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
   for (int k = 0; k < K; ++k) {
     const double *mean_k = mean_p + static_cast<size_t>(S) * static_cast<size_t>(k);
     const double *sd_k   = sd_p   + static_cast<size_t>(S) * static_cast<size_t>(k);
-    std::vector<double> row_log_norm(static_cast<size_t>(S), 0);
-
-    for (int s = 0; s < S; ++s) {
-      if (sd_k[s] == 0) {
-        continue;
-      }
-      if (row_active_phack[static_cast<size_t>(s)]) {
-        row_log_norm[static_cast<size_t>(s)] =
-          std::numeric_limits<double>::quiet_NaN();
-        continue;
-      }
-      row_log_norm[static_cast<size_t>(s)] = cpp_selnorm_kernel_log_norm(
-        mean_k[s],
-        sd_k[s],
-        se_p,
-        omega_p + s,
-        row_alpha[static_cast<size_t>(s)],
-        row_phack[static_cast<size_t>(s)],
-        row_mode[static_cast<size_t>(s)],
-        data,
-        S,
-        false
-      );
-    }
 
     auto cdf_fun = [mean_k, sd_k, se_p, omega_p, &row_alpha, &row_phack,
-                    &row_mode, &row_active_phack, &row_log_norm,
+                    &row_mode, &row_active_phack,
                     &data, S](double q_val) {
       return regplot_selnorm_mixture_cdf_cached(
         q_val,
@@ -538,7 +512,6 @@ extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
         row_phack,
         row_mode,
         row_active_phack,
-        row_log_norm,
         data,
         S
       );

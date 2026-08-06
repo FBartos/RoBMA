@@ -198,61 +198,6 @@ bool step_log_tail_pair_logspace(const double *omega,
   );
 }
 
-double step_cdf_logspace_with_log_norm(const double *omega,
-                                       const SelNormKernelData &data,
-                                       double q_score, double mean, double sd,
-                                       double sei,
-                                       int omega_stride,
-                                       bool signed_lower_tail,
-                                       bool trusted_partition,
-                                       double log_denom)
-{
-  if (!std::isfinite(log_denom)) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  double log_lower_mass = -INFINITY;
-  double log_upper_mass = -INFINITY;
-
-  for (int b = 0; b < data.n_bins; ) {
-    const double w = omega_at(omega, b + 1, omega_stride);
-    int last = b;
-
-    if (trusted_partition) {
-      while (last + 1 < data.n_bins &&
-             omega_at(omega, last + 2, omega_stride) == w) {
-        ++last;
-      }
-    }
-
-    if (w > 0) {
-      const double lower_z = trusted_partition ?
-        data.z_lower[last] : data.z_lower[b];
-      const double upper_z = data.z_upper[b];
-      const double lower   = stable_affine_score(lower_z, sei, mean, sd);
-      const double upper   = stable_affine_score(upper_z, sei, mean, sd);
-      const double log_w = std::log(w);
-      if (std::isnan(lower) || std::isnan(upper) || !(lower < upper) ||
-          !add_weighted_standard_normal_interval(
-            lower, std::min(upper, q_score), log_w, &log_lower_mass
-          ) ||
-          !add_weighted_standard_normal_interval(
-            std::max(lower, q_score), upper, log_w, &log_upper_mass
-          )) {
-        return std::numeric_limits<double>::quiet_NaN();
-      }
-    } else if (w < 0 || std::isnan(w)) {
-      return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    b = trusted_partition ? last + 1 : b + 1;
-  }
-
-  const double log_requested_mass = signed_lower_tail ?
-    log_lower_mass : log_upper_mass;
-  return probability_from_log_ratio(log_requested_mass, log_denom);
-}
-
 bool step_moments_trusted_telescoping(const double *omega,
                                       const SelNormKernelData &data,
                                       double signed_mean, double sd,
