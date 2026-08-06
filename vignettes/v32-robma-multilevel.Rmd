@@ -62,7 +62,7 @@ fit <- RoBMA(
   yi = d, sei = se, measure = "SMD", cluster = study,
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
-  adapt = 5000, burnin = 5000, sample = 10000,
+  adapt = 5000, burnin = 5000, sample = 20000,
   parallel  = TRUE, seed = 1, data = Johnides2025
 )
 
@@ -70,7 +70,7 @@ fit_simple <- RoBMA(
   yi = d, sei = se, measure = "SMD",
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
-  adapt = 5000, burnin = 5000, sample = 10000,
+  adapt = 5000, burnin = 5000, sample = 20000,
   parallel  = TRUE, seed = 1, data = Johnides2025
 )
 
@@ -133,7 +133,7 @@ fit <- RoBMA(
   yi = d, sei = se, measure = "SMD", cluster = study,
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
-  adapt = 5000, burnin = 5000, sample = 10000, 
+  adapt = 5000, burnin = 5000, sample = 20000, 
   parallel  = TRUE, seed = 1, data = Johnides2025
 )
 ```
@@ -155,9 +155,6 @@ Each row displays the prior probability, posterior probability after observing t
 
 In our example, the inclusion BF for the effect is 0.927, indicating weak evidence against an effect. 
 The inclusion BF for heterogeneity and publication bias are reported as `Inf`, i.e., beyond the numerical precision of the estimation algorithm (> 10⁶), indicating extreme evidence for both components.
-
-We also notice a warning about the effective sample size (ESS) being below the set target.
-The difference is, however, not substantial, and we can safely ignore it.
 
 ### Model-Averaged Estimates
 
@@ -210,7 +207,7 @@ fit_simple <- RoBMA(
   yi = d, sei = se, measure = "SMD", 
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
-  adapt = 5000, burnin = 5000, sample = 10000, 
+  adapt = 5000, burnin = 5000, sample = 20000, 
   parallel  = TRUE, seed = 1, data = Johnides2025
 )
 ```
