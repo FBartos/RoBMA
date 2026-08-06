@@ -326,6 +326,27 @@ test_that("IWMDE row sampling uncertainty is separate and compact", {
   expect_match(missed_chain_mcse[["uncertainty_reason"]], "chain\\(s\\): 2")
   expect_true(is.finite(missed_chain[["y"]]))
   expect_true(is.finite(missed_chain[["sampling_mcse"]]))
+
+  sparse_chain <- matrix(seq_len(101L), nrow = 1L)
+  attr(sparse_chain, "chain_id") <- c(1L, rep(2L, 100L))
+  attr(sparse_chain, "expected_chain_ids") <- c(1L, 2L)
+  attr(sparse_chain, "target") <- rowMeans(sparse_chain)
+  sparse_chain_mcse <- .iwmde_batch_mcse(sparse_chain)
+
+  expect_true(all(is.na(sparse_chain_mcse[["mcse"]])))
+  expect_true(all(is.na(sparse_chain_mcse[["relative_mcse"]])))
+  expect_true(all(is.na(sparse_chain_mcse[["ess"]])))
+  expect_equal(
+    sparse_chain_mcse[["uncertainty_scope"]],
+    "unavailable_insufficient_chain_batches"
+  )
+  expect_equal(sparse_chain_mcse[["uncertainty_status"]], "unavailable")
+  expect_match(
+    sparse_chain_mcse[["uncertainty_reason"]],
+    "fewer than two complete batches.*chain\\(s\\): 1"
+  )
+  expect_equal(sparse_chain_mcse[["batch_size"]], 2L)
+  expect_equal(sparse_chain_mcse[["n_batches"]], 50L)
 })
 
 

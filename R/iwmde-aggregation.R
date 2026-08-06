@@ -235,6 +235,22 @@
   batch_size   <- max(2L, floor(sqrt(min(chain_length))))
   chain_batches <- floor(chain_length / batch_size)
   n_batches     <- sum(chain_batches)
+  insufficient_chain_ids <- names(chain_batches)[chain_batches < 2L]
+  if (length(insufficient_chain_ids) > 0L) {
+    return(list(
+      mcse          = rep(NA_real_, nrow(contributions)),
+      relative_mcse = rep(NA_real_, nrow(contributions)),
+      ess           = rep(NA_real_, nrow(contributions)),
+      batch_size    = batch_size,
+      n_batches     = n_batches,
+      uncertainty_scope = "unavailable_insufficient_chain_batches",
+      uncertainty_status = "unavailable",
+      uncertainty_reason = paste0(
+        "selected SRS provides fewer than two complete batches for fitted ",
+        "chain(s): ", paste(insufficient_chain_ids, collapse = ", ")
+      )
+    ))
+  }
   if (n_batches < 2L) {
     return(list(
       mcse          = rep(NA_real_, nrow(contributions)),

@@ -257,6 +257,75 @@ test_that("adaptive ordinates do not stop on selected-row MCSE alone", {
 })
 
 
+test_that("adaptive ordinates recover per-chain batch coverage", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_plan = function(context, parameter, density_method,
+                           density_control, outputs, values,
+                           parameter_spec, metadata, row_budget) {
+      list(
+        row_budget = row_budget,
+        rows = list(
+          continuous_rows = seq_len(100L),
+          n_candidate_rows = row_budget
+        )
+      )
+    },
+    .iwmde_estimate_from_plan = function(context, plan, cache = NULL) {
+      row_budget <- plan[["row_budget"]]
+      chain_one_rows <- if (row_budget < 40L) 3L else 4L
+      contributions <- matrix(1, nrow = 1L, ncol = row_budget)
+      attr(contributions, "chain_id") <- c(
+        rep(1L, chain_one_rows),
+        rep(2L, row_budget - chain_one_rows)
+      )
+      attr(contributions, "expected_chain_ids") <- c(1L, 2L)
+      attr(contributions, "target") <- 1
+      mcse <- .iwmde_batch_mcse(contributions)
+
+      list(
+        diagnostics = list(ordinate = list(
+          status = "ok",
+          diagnostics = .iwmde_adaptive_test_diagnostics(
+            row_budget    = row_budget,
+            relative_mcse = mcse[["relative_mcse"]][[1L]],
+            ess           = mcse[["ess"]][[1L]]
+          )
+        )),
+        posterior_ordinate = list(diagnostics = list())
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  estimate <- .iwmde_estimate_adaptive_ordinate(
+    context         = list(),
+    parameter       = "mu",
+    density_method  = "qCMDE",
+    density_control = list(
+      initial_samples      = 20L,
+      max_samples          = 100L,
+      target_relative_mcse = .05
+    ),
+    values          = 0
+  )
+
+  expect_equal(
+    estimate[["adaptation"]][["history"]][["requested_row_budget"]],
+    c(20L, 40L)
+  )
+  expect_equal(
+    estimate[["adaptation"]][["history"]][["precision_target_met"]],
+    c(FALSE, TRUE)
+  )
+  expect_equal(
+    estimate[["adaptation"]][["history"]][["bf_grade_met"]],
+    c(FALSE, TRUE)
+  )
+  expect_true(estimate[["adaptation"]][["target_met"]])
+})
+
+
 test_that("density_diagnostics exposes compact BF-grade diagnostics", {
 
   diagnostics <- list(
