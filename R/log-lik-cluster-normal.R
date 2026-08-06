@@ -34,14 +34,16 @@
       valid_denom    <- is.finite(denom) & denom > 0
 
       if (any(valid_denom)) {
-        rows      <- valid_rows[valid_denom]
-        inv_use   <- inv_diag[valid_denom, , drop = FALSE]
-        rank_use  <- rank_valid[valid_denom, , drop = FALSE]
-        res_use   <- residual_valid[valid_denom, , drop = FALSE]
-        denom_use <- denom[valid_denom]
-        log_det   <- rowSums(log(diagonal[rows, , drop = FALSE])) + log(denom_use)
-        quad      <- rowSums(res_use^2 * inv_use) -
-          rowSums(rank_use * res_use * inv_use)^2 / denom_use
+        rows              <- valid_rows[valid_denom]
+        inv_use           <- inv_diag[valid_denom, , drop = FALSE]
+        rank_use          <- rank_valid[valid_denom, , drop = FALSE]
+        res_use           <- residual_valid[valid_denom, , drop = FALSE]
+        denom_use         <- denom[valid_denom]
+        log_det           <- rowSums(log(diagonal[rows, , drop = FALSE])) + log(denom_use)
+        projection        <- rowSums(rank_use * res_use * inv_use) / denom_use
+        adjusted_residual <- res_use -
+          sweep(rank_use, 1L, projection, "*")
+        quad              <- rowSums(adjusted_residual^2 * inv_use) + projection^2
 
         log_lik[rows, g] <- -0.5 * (length(idx) * log(2 * pi) + log_det + quad)
       }
@@ -100,9 +102,10 @@
     ))
   }
 
-  log_det <- sum(log(diagonal)) + log(denom)
-  quad    <- sum(residual^2 * inv_diag) -
-    sum(rank_one * residual * inv_diag)^2 / denom
+  log_det            <- sum(log(diagonal)) + log(denom)
+  projection         <- sum(rank_one * residual * inv_diag) / denom
+  adjusted_residual  <- residual - projection * rank_one
+  quad               <- sum(adjusted_residual^2 * inv_diag) + projection^2
 
   return(-0.5 * (length(x) * log(2 * pi) + log_det + quad))
 }
