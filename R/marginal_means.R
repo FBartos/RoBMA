@@ -34,6 +34,8 @@ marginal_means <- function(object, ...) {
 #'
 #' @description Computes estimated marginal means for a fitted \code{brma}
 #' object with moderators using \code{BayesTools::as_marginal_inference()}.
+#' Alternative-conditioned marginal means condition on the union of every
+#' nonzero formula coefficient contributing to the corresponding output cell.
 #'
 #' @param object a fitted \code{brma} object with moderators.
 #' @param null_hypothesis point null hypothesis used for inclusion Bayes
@@ -778,17 +780,10 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
 # Build BayesTools conditional-list specification for marginal means.
 .marginal_means_conditional_list <- function(terms, parameters) {
 
-  intercept_parameter <- parameters[terms == "intercept"]
-
-  conditional_list <- lapply(seq_along(parameters), function(i) {
-
-    c(
-      if (length(intercept_parameter) > 0L && terms[i] != "intercept") {
-        intercept_parameter
-      },
-      parameters[i]
-    )
-  })
+  # A marginal cell can depend on lower-order and interaction coefficients
+  # beyond the coefficient naming its displayed term. BayesTools applies this
+  # candidate list per cell and removes coefficients with zero linear weight.
+  conditional_list <- rep(list(parameters), length(terms))
   names(conditional_list) <- parameters
 
   return(conditional_list)

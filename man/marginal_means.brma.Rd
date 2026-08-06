@@ -107,6 +107,8 @@ contain \code{density_diagnostics}, \code{ordinate_diagnostics},
 \description{
 Computes estimated marginal means for a fitted \code{brma}
 object with moderators using \code{BayesTools::as_marginal_inference()}.
+Alternative-conditioned marginal means condition on the union of every
+nonzero formula coefficient contributing to the corresponding output cell.
 }
 \examples{
 \dontrun{
