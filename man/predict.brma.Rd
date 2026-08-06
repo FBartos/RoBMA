@@ -148,13 +148,12 @@ For existing normal observations, \code{type = "estimate"} reports the
 conditional BLUP mean \eqn{E(\theta_i \mid y_i, \mu_i, \tau_i)} for each
 posterior draw. It is therefore an empirical-Bayes summary, not a draw from
 the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
-\code{brma.mv()} random-formula models, fitted-level sampled random effects
-are added to the fixed location and the result is titled conditional true
-effects. Random-effect blocks compiled as marginalized contribute Gaussian
-BLUP means for existing-data estimate predictions. Existing-data response
-predictions instead use the fixed-location mean and marginal draws from every
-random component before adding sampling noise. Explicit new rows use the same
-marginal random-component target and never reuse fitted BLUP draws.
+\code{brma.mv()} random-formula models, every fitted random-effect block
+contributes its Gaussian conditional mean, irrespective of whether the block
+was sampled or marginalized during fitting. Existing-data response predictions
+instead use the fixed-location mean and marginal draws from every random
+component before adding sampling noise. Explicit new rows use the same marginal
+random-component target and never reuse fitted BLUP draws.
 
 For RoBMA product-space objects, conditional posterior predictions subset
 posterior rows according to model indicators. This removes the original

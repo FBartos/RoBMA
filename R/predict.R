@@ -104,13 +104,12 @@
 #' conditional BLUP mean \eqn{E(\theta_i \mid y_i, \mu_i, \tau_i)} for each
 #' posterior draw. It is therefore an empirical-Bayes summary, not a draw from
 #' the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
-#' \code{brma.mv()} random-formula models, fitted-level sampled random effects
-#' are added to the fixed location and the result is titled conditional true
-#' effects. Random-effect blocks compiled as marginalized contribute Gaussian
-#' BLUP means for existing-data estimate predictions. Existing-data response
-#' predictions instead use the fixed-location mean and marginal draws from every
-#' random component before adding sampling noise. Explicit new rows use the same
-#' marginal random-component target and never reuse fitted BLUP draws.
+#' \code{brma.mv()} random-formula models, every fitted random-effect block
+#' contributes its Gaussian conditional mean, irrespective of whether the block
+#' was sampled or marginalized during fitting. Existing-data response predictions
+#' instead use the fixed-location mean and marginal draws from every random
+#' component before adding sampling noise. Explicit new rows use the same marginal
+#' random-component target and never reuse fitted BLUP draws.
 #'
 #' For RoBMA product-space objects, conditional posterior predictions subset
 #' posterior rows according to model indicators. This removes the original
@@ -698,26 +697,12 @@ mu_samples <- .evaluate.brma.mu(
   posterior_samples = posterior_samples,
   priors            = priors
 )
-if (random_mv && type == "estimate") {
-  random_contribution <- if (same_data) {
-    .evaluate.brma.random_effects(
-      fit               = object[["fit"]],
-      data              = new_data,
-      priors            = priors,
-      posterior_samples = posterior_samples,
-      same_data         = TRUE,
-      required          = TRUE,
-      formula_target    = "conditional",
-      blocks            = .data_sampled_random_effect_blocks(object[["data"]]),
-      object            = object
-    )
-  } else {
-    .predict_brma_mv_new_effect_random_draws(
-      object            = object,
-      data              = new_data,
-      posterior_samples = posterior_samples
-    )
-  }
+if (random_mv && type == "estimate" && !same_data) {
+  random_contribution <- .predict_brma_mv_new_effect_random_draws(
+    object            = object,
+    data              = new_data,
+    posterior_samples = posterior_samples
+  )
   mu_samples <- mu_samples + random_contribution
 }
 
@@ -791,17 +776,14 @@ if (is_multilevel) {
 }
 
 if (random_mv && type == "estimate" &&
-    outcome_type == "norm" && same_data && is_known_v &&
-    .data_has_marginalized_random_effects(new_data)) {
-  marginalized_blup <- .evaluate.brma.mv_marginalized_random_blup.norm(
+    outcome_type == "norm" && same_data && is_known_v) {
+  random_blup <- .evaluate.brma.mv_random_blup.norm(
     object            = object,
     mu_samples        = mu_samples,
     posterior_samples = posterior_samples,
     bias_offset       = blup_bias_offset
   )
-  if (length(marginalized_blup) > 0L) {
-    mu_samples <- mu_samples + Reduce(`+`, marginalized_blup)
-  }
+  mu_samples <- mu_samples + random_blup
 }
 
 

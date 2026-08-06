@@ -65,10 +65,10 @@ deviations from the fixed effects.}
 representing within-cluster deviations from the cluster means.}
 }
 
-For \code{brma.mv()} random-formula models, decomposes by random-effect
-block. Sampled blocks use fitted latent random effects; blocks compiled as
-marginalized use Gaussian BLUP means. If there is only one block and
-\code{simplify = TRUE}, returns a single \code{brma_samples} object.
+For \code{brma.mv()} random-formula models, decomposes the Gaussian
+conditional means by random-effect block. The result is invariant to whether
+each block was sampled or marginalized during fitting. If there is only one
+block and \code{simplify = TRUE}, returns a single \code{brma_samples} object.
 }
 \examples{
 \dontrun{

@@ -778,10 +778,10 @@ ranef <- function(object, ...) {
 #'     representing within-cluster deviations from the cluster means.}
 #' }
 #'
-#' For \code{brma.mv()} random-formula models, decomposes by random-effect
-#' block. Sampled blocks use fitted latent random effects; blocks compiled as
-#' marginalized use Gaussian BLUP means. If there is only one block and
-#' \code{simplify = TRUE}, returns a single \code{brma_samples} object.
+#' For \code{brma.mv()} random-formula models, decomposes the Gaussian
+#' conditional means by random-effect block. The result is invariant to whether
+#' each block was sampled or marginalized during fitting. If there is only one
+#' block and \code{simplify = TRUE}, returns a single \code{brma_samples} object.
 #'
 #' @return A \code{brma_samples} object for a single selected/simplified
 #' component, or a named list of \code{brma_samples} objects for decomposed
@@ -980,18 +980,6 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   labels   <- .get_estimate_labels(object)
   K        <- ncol(terms_samples)
 
-  sampled_components <- .evaluate.brma.random_effects_components(
-    object            = object,
-    data              = data,
-    posterior_samples = posterior_samples,
-    same_data         = TRUE
-  )
-  sampled_total <- .sum_random_effect_components(
-    components = sampled_components,
-    S          = nrow(posterior_samples),
-    K          = K
-  )
-
   bias_offset <- NULL
   if (bias_adjusted && (.is_PET(object) || .is_PEESE(object))) {
     bias_offset <- .evaluate.brma.bias_offset(
@@ -1006,16 +994,15 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     )
   }
 
-  marginalized_components <- .evaluate.brma.mv_marginalized_random_blup.norm(
-    object                 = object,
-    mu_samples             = unclass(terms_samples),
-    sampled_random_samples = sampled_total,
-    posterior_samples      = posterior_samples,
-    bias_offset            = bias_offset
+  components <- .evaluate.brma.mv_random_blup.norm(
+    object            = object,
+    mu_samples        = unclass(terms_samples),
+    posterior_samples = posterior_samples,
+    bias_offset       = bias_offset,
+    by_block          = TRUE
   )
 
-  components <- c(sampled_components, marginalized_components)
-  design     <- .fitted_formula_design(object, "mu", required = TRUE)
+  design <- .fitted_formula_design(object, "mu", required = TRUE)
   block_order <- vapply(
     design[["random_effects"]],
     `[[`,
@@ -1137,16 +1124,6 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     use.names = FALSE
   )
   flat
-}
-
-
-.sum_random_effect_components <- function(components, S, K) {
-
-  if (length(components) == 0L) {
-    return(matrix(0, nrow = S, ncol = K))
-  }
-
-  Reduce(`+`, components)
 }
 
 

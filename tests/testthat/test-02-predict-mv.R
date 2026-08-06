@@ -1342,7 +1342,7 @@ test_that("random-formula brma.mv ranef decomposes random blocks", {
   expect_equal(names(location_component), names(out[["location"]]))
 })
 
-test_that("marginalized brma.mv ranef uses Gaussian BLUP component", {
+test_that("same-data random BLUP is compilation-invariant for one block", {
 
   dat <- data.frame(
     yi     = c(0.10, 0.20, 0.30, 0.40),
@@ -1357,16 +1357,39 @@ test_that("marginalized brma.mv ranef uses Gaussian BLUP component", {
     ),
     nrow = 4
   )
-  object <- brma.mv(
-    yi                        = yi,
-    V                         = V,
-    data                      = dat,
-    random                    = ~ 1 | effect,
-    known_v_parameterization  = "block_mvn",
-    measure                   = "GEN",
-    prior_unit_information_sd = 1,
-    only_priors               = TRUE
+  make_object <- function(marginalize_estimate_level) {
+    brma.mv(
+      yi                         = yi,
+      V                          = V,
+      data                       = dat,
+      random                     = ~ 1 | effect,
+      known_v_parameterization   = "block_mvn",
+      measure                    = "GEN",
+      prior_unit_information_sd  = 1,
+      marginalize_estimate_level = marginalize_estimate_level,
+      only_priors                = TRUE
+    )
+  }
+  marginalized   <- make_object(TRUE)
+  sampled        <- make_object(FALSE)
+  sampled_design <- .fitted_formula_design(
+    sampled,
+    "mu",
+    required = TRUE
   )
+  random_term <- sampled_design[["random_effects"]][[1L]]
+  block_name  <- random_term[["block_name"]]
+  sd_name     <- random_term[["sd_parameter_names"]][[1L]]
+  expect_identical(
+    vapply(
+      .data_marginalized_random_effects(marginalized[["data"]]),
+      `[[`,
+      character(1),
+      "block_name"
+    ),
+    block_name
+  )
+  expect_length(.data_marginalized_random_effects(sampled[["data"]]), 0L)
   posterior_samples <- matrix(
     c(
       0.05, 0.20,
@@ -1374,62 +1397,251 @@ test_that("marginalized brma.mv ranef uses Gaussian BLUP component", {
     ),
     nrow = 2,
     byrow = TRUE,
-    dimnames = list(NULL, c("mu", "mu__xREx__effect_intercept"))
+    dimnames = list(NULL, c("mu", sd_name))
   )
 
-  terms    <- as.matrix(predict(
-    object,
-    type               = "terms",
-    quiet              = TRUE,
-    .posterior_samples = posterior_samples
-  ))
-  estimate <- as.matrix(predict(
-    object,
-    type               = "estimate",
-    quiet              = TRUE,
-    .posterior_samples = posterior_samples
-  ))
-  out <- ranef(
-    object,
-    .posterior_samples = posterior_samples
-  )
-  out_list <- ranef(
-    object,
-    simplify          = FALSE,
-    .posterior_samples = posterior_samples
-  )
+  evaluate_object <- function(object) {
+    list(
+      terms = as.matrix(predict(
+        object,
+        type               = "terms",
+        quiet              = TRUE,
+        .posterior_samples = posterior_samples
+      )),
+      estimate = as.matrix(predict(
+        object,
+        type               = "estimate",
+        quiet              = TRUE,
+        .posterior_samples = posterior_samples
+      )),
+      ranef = ranef(
+        object,
+        .posterior_samples = posterior_samples
+      ),
+      ranef_list = ranef(
+        object,
+        simplify          = FALSE,
+        .posterior_samples = posterior_samples
+      )
+    )
+  }
+  marginalized_result <- evaluate_object(marginalized)
+  sampled_result      <- evaluate_object(sampled)
 
-  tau <- matrix(
-    posterior_samples[, "mu__xREx__effect_intercept"],
-    nrow = nrow(posterior_samples),
-    ncol = nrow(dat)
-  )
-  expected <- .evaluate.brma.known_v_blup.norm(
-    mu_samples = terms,
-    tau_within = tau,
-    yi         = dat[["yi"]],
-    known_V    = .data_known_v_data(object[["data"]])
-  ) - terms
+  expected <- matrix(0, nrow = nrow(posterior_samples), ncol = nrow(dat))
+  for (draw_i in seq_len(nrow(posterior_samples))) {
+    tau_sq <- posterior_samples[draw_i, sd_name]^2
+    Q      <- diag(tau_sq, nrow(dat))
+    weights <- solve(
+      V + Q,
+      dat[["yi"]] - posterior_samples[draw_i, "mu"]
+    )
+    expected[draw_i, ] <- Q %*% weights
+  }
 
-  expect_brma_samples_matrix(out, nrow(dat), "marginalized ranef")
-  expect_type(out_list, "list")
-  expect_named(out_list, "location")
-  expect_equal(names(out_list[["location"]]), "effect")
+  expect_brma_samples_matrix(
+    marginalized_result[["ranef"]],
+    nrow(dat),
+    "marginalized ranef"
+  )
+  expect_type(marginalized_result[["ranef_list"]], "list")
+  expect_named(marginalized_result[["ranef_list"]], "location")
   expect_equal(
-    unname(as.matrix(out)),
+    names(marginalized_result[["ranef_list"]][["location"]]),
+    "effect"
+  )
+  expect_equal(
+    unname(as.matrix(marginalized_result[["ranef"]])),
     unname(expected),
     tolerance = 1e-12
   )
   expect_equal(
-    unname(as.matrix(out_list[["location"]][["effect"]])),
+    unname(as.matrix(
+      marginalized_result[["ranef_list"]][["location"]][["effect"]]
+    )),
     unname(expected),
     tolerance = 1e-12
   )
   expect_equal(
-    unname(estimate - terms),
+    unname(
+      marginalized_result[["estimate"]] - marginalized_result[["terms"]]
+    ),
     unname(expected),
     tolerance = 1e-12
   )
+  expect_equal(
+    unname(sampled_result[["estimate"]]),
+    unname(marginalized_result[["estimate"]]),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(as.matrix(sampled_result[["ranef"]])),
+    unname(as.matrix(marginalized_result[["ranef"]])),
+    tolerance = 1e-12
+  )
+
+  original_adapter <- .brma_mv_random_effects_marginal_vcov
+  adapter_blocks   <- list()
+  testthat::local_mocked_bindings(
+    .brma_mv_random_effects_marginal_vcov = function(
+        object, posterior_samples, blocks = NULL, diagonal_only = FALSE,
+        data = object[["data"]], new_levels = NULL) {
+      adapter_blocks[[length(adapter_blocks) + 1L]] <<- blocks
+      original_adapter(
+        object            = object,
+        posterior_samples = posterior_samples,
+        blocks            = blocks,
+        diagonal_only     = diagonal_only,
+        data              = data,
+        new_levels        = new_levels
+      )
+    },
+    .package = "RoBMA"
+  )
+  chunked_total <- .evaluate.brma.mv_random_blup.norm(
+    object            = sampled,
+    mu_samples        = sampled_result[["terms"]],
+    posterior_samples = posterior_samples,
+    max_bytes         = .known_v_covariance_peak_bytes(1L, nrow(dat))
+  )
+
+  expect_equal(unname(chunked_total), unname(expected), tolerance = 1e-12)
+  expect_length(adapter_blocks, nrow(posterior_samples))
+  expect_true(all(vapply(
+    adapter_blocks,
+    identical,
+    logical(1),
+    block_name
+  )))
+})
+
+
+test_that("same-data random BLUP preserves analytic block components", {
+
+  dat <- data.frame(
+    yi     = c(1, 2, 3, 4),
+    study  = factor(c("s1", "s1", "s2", "s2")),
+    effect = factor(paste0("e", 1:4))
+  )
+  V <- diag(c(1, 2, 1.5, 2.5))
+  make_object <- function(marginalize_estimate_level) {
+    brma.mv(
+      yi                         = yi,
+      V                          = V,
+      data                       = dat,
+      random                     = list(
+        study  = ~ 1 | study,
+        effect = ~ 1 | effect
+      ),
+      measure                    = "GEN",
+      prior_unit_information_sd  = 1,
+      marginalize_estimate_level = marginalize_estimate_level,
+      only_priors                = TRUE
+    )
+  }
+  marginalized <- make_object(TRUE)
+  sampled      <- make_object(FALSE)
+  design       <- .fitted_formula_design(sampled, "mu", required = TRUE)
+  block_names  <- vapply(
+    design[["random_effects"]],
+    `[[`,
+    character(1),
+    "block_name"
+  )
+  sd_names <- vapply(
+    design[["random_effects"]],
+    function(term) term[["sd_parameter_names"]][[1L]],
+    character(1)
+  )
+  names(sd_names) <- block_names
+  expect_identical(
+    vapply(
+      .data_marginalized_random_effects(marginalized[["data"]]),
+      `[[`,
+      character(1),
+      "block_name"
+    ),
+    "effect"
+  )
+  expect_identical(
+    .data_sampled_random_effect_blocks(marginalized[["data"]]),
+    "study"
+  )
+  expect_length(.data_marginalized_random_effects(sampled[["data"]]), 0L)
+  expect_identical(
+    .data_sampled_random_effect_blocks(sampled[["data"]]),
+    block_names
+  )
+  posterior_samples <- matrix(
+    c(0, 1, 2),
+    nrow     = 1L,
+    dimnames = list(NULL, c("mu", unname(sd_names)))
+  )
+
+  Z_study <- outer(dat[["study"]], dat[["study"]], "==")
+  storage.mode(Z_study) <- "double"
+  Q <- list(
+    study  = posterior_samples[1L, sd_names[["study"]]]^2 * Z_study,
+    effect = diag(
+      posterior_samples[1L, sd_names[["effect"]]]^2,
+      nrow(dat)
+    )
+  )
+  weights  <- solve(V + Q[["study"]] + Q[["effect"]], dat[["yi"]])
+  expected <- lapply(Q, function(Q_block) {
+    matrix(Q_block %*% weights, nrow = 1L)
+  })
+
+  evaluate_object <- function(object) {
+    list(
+      terms = as.matrix(predict(
+        object,
+        type               = "terms",
+        quiet              = TRUE,
+        .posterior_samples = posterior_samples
+      )),
+      estimate = as.matrix(predict(
+        object,
+        type               = "estimate",
+        quiet              = TRUE,
+        .posterior_samples = posterior_samples
+      )),
+      ranef = ranef(
+        object,
+        simplify          = FALSE,
+        .posterior_samples = posterior_samples
+      )[["location"]]
+    )
+  }
+  marginalized_result <- evaluate_object(marginalized)
+  sampled_result      <- evaluate_object(sampled)
+
+  expect_identical(names(sampled_result[["ranef"]]), block_names)
+  for (block in block_names) {
+    expect_equal(
+      unname(as.matrix(sampled_result[["ranef"]][[block]])),
+      unname(expected[[block]]),
+      tolerance = 1e-12
+    )
+  }
+  expected_total <- Reduce(`+`, expected)
+  expect_equal(
+    unname(sampled_result[["estimate"]] - sampled_result[["terms"]]),
+    unname(expected_total),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(marginalized_result[["estimate"]]),
+    unname(sampled_result[["estimate"]]),
+    tolerance = 1e-12
+  )
+  for (block in block_names) {
+    expect_equal(
+      unname(as.matrix(marginalized_result[["ranef"]][[block]])),
+      unname(as.matrix(sampled_result[["ranef"]][[block]])),
+      tolerance = 1e-12
+    )
+  }
 })
 
 

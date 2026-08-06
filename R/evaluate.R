@@ -824,71 +824,37 @@
 }
 
 
-.evaluate.brma.random_effects_components <- function(object, data = object[["data"]],
-                                                     posterior_samples = NULL,
-                                                     same_data = TRUE) {
+# Gaussian conditional means for fitted random-formula blocks:
+#   E(u_b | y, beta, G) = Q_b (V + sum_b Q_b)^-1 (y - X beta - bias).
+# This target is deliberately independent of whether a block was sampled or
+# marginalized during compilation.
+.evaluate.brma.mv_random_blup.norm <- function(object, mu_samples,
+                                               posterior_samples = NULL,
+                                               bias_offset = NULL,
+                                               by_block = FALSE,
+                                               max_bytes = NULL) {
 
-  posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
-  formula_design    <- if (.is_scale(object)) {
-    .predict_known_v_formula_design_with_row_source_values(
-      object = object,
-      data   = data
-    )
-  } else {
-    .fitted_formula_design(object, "mu", required = TRUE)
-  }
-  sampled_blocks <- .formula_design_sampled_random_effect_blocks(formula_design)
-  if (length(sampled_blocks) == 0L) {
-    return(list())
-  }
-
-  out <- lapply(sampled_blocks, function(block) {
-    .evaluate.brma.random_effects(
-      fit               = object[["fit"]],
-      data              = data,
-      priors            = object[["priors"]],
-      posterior_samples = posterior_samples,
-      same_data         = same_data,
-      required          = TRUE,
-      formula_target    = "conditional",
-      blocks            = block,
-      object            = object
-    )
-  })
-  names(out) <- sampled_blocks
-
-  return(out)
-}
-
-
-.evaluate.brma.mv_marginalized_random_blup.norm <- function(object, mu_samples,
-                                                            sampled_random_samples = NULL,
-                                                            posterior_samples = NULL,
-                                                            bias_offset = NULL) {
-
-  data  <- object[["data"]]
-  terms <- .data_marginalized_random_effects(data)
-  if (length(terms) == 0L) {
-    return(list())
+  data <- object[["data"]]
+  if (!.is_data_random(data)) {
+    stop("brma.mv random-effect BLUPs require a random-formula model.",
+         call. = FALSE)
   }
   if (!.is_data_known_v(data)) {
-    stop("Marginalized brma.mv random-effect BLUPs require known-V metadata.",
+    stop("brma.mv random-effect BLUPs require known-V metadata.",
          call. = FALSE)
   }
 
   posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
   S                 <- nrow(posterior_samples)
   K                 <- nrow(data[["outcome"]])
+  BayesTools::check_bool(by_block, "by_block")
 
   if (!identical(dim(mu_samples), c(S, K))) {
     stop("'mu_samples' must have dimensions posterior draw x observation.",
          call. = FALSE)
   }
-  if (is.null(sampled_random_samples)) {
-    sampled_random_samples <- matrix(0, nrow = S, ncol = K)
-  } else if (!identical(dim(sampled_random_samples), c(S, K))) {
-    stop("'sampled_random_samples' must have dimensions posterior draw x observation.",
-         call. = FALSE)
+  if (!is.numeric(mu_samples) || any(!is.finite(mu_samples))) {
+    stop("'mu_samples' must contain only finite values.", call. = FALSE)
   }
   if (is.null(bias_offset)) {
     bias_offset <- matrix(0, nrow = S, ncol = K)
@@ -896,74 +862,160 @@
     stop("'bias_offset' must have dimensions posterior draw x observation.",
          call. = FALSE)
   }
+  if (!is.numeric(bias_offset) || any(!is.finite(bias_offset))) {
+    stop("'bias_offset' must contain only finite values.", call. = FALSE)
+  }
+
+  formula_design <- if (.is_scale(object)) {
+    .predict_known_v_formula_design_with_row_source_values(
+      object = object,
+      data   = data
+    )
+  } else {
+    .fitted_formula_design(object, "mu", required = TRUE)
+  }
+  random_terms <- formula_design[["random_effects"]]
+  if (length(random_terms) == 0L) {
+    stop("Random-formula metadata contains no random-effect blocks.",
+         call. = FALSE)
+  }
+  block_names <- vapply(
+    random_terms,
+    `[[`,
+    character(1),
+    "block_name"
+  )
+  if (anyDuplicated(block_names)) {
+    stop("Random-formula block names must be unique.", call. = FALSE)
+  }
 
   known_V <- .data_known_v_data(data)
   if (.known_v_nrow(known_V) != K) {
     stop("Known-V covariance dimensions do not match fitted rows.",
          call. = FALSE)
   }
+  base_covariance <- .known_v_materialize(known_V)
 
-  block_data <- .known_v_blocks(known_V)
-  .known_v_validate_dependency_blocks(
-    lapply(block_data, `[[`, "index"),
-    K
-  )
-
-  source_samples <- .predict_known_v_newdata_marginalized_source_samples(
-    object            = object,
-    data              = data,
-    posterior_samples = posterior_samples
-  )
-  total_variance <- .evaluate_marginalized_random_variance(
-    data              = data,
-    posterior_samples = posterior_samples,
-    K                 = K,
-    source_samples    = source_samples
-  )
-  residual <- matrix(data[["outcome"]][["yi"]], nrow = S, ncol = K, byrow = TRUE) -
-    bias_offset - mu_samples - sampled_random_samples
-
-  out <- lapply(terms, function(term) {
-    term_sd <- .marginalized_random_effect_sd_samples(
-      term              = term,
-      posterior_samples = posterior_samples,
-      K                 = K,
-      source_samples    = source_samples
+  residual <- matrix(
+    data[["outcome"]][["yi"]],
+    nrow  = S,
+    ncol  = K,
+    byrow = TRUE
+  ) - bias_offset - mu_samples
+  if (by_block) {
+    out <- setNames(
+      lapply(block_names, function(block) {
+        matrix(0, nrow = S, ncol = K)
+      }),
+      block_names
     )
-    term_variance <- .marginalized_random_effect_variance_samples(
-      term       = term,
-      sd_samples = term_sd,
-      K          = K
-    )
-    contribution  <- matrix(0, nrow = S, ncol = K)
+  } else {
+    out <- matrix(0, nrow = S, ncol = K)
+  }
 
-    for (block in block_data) {
-      idx     <- block[["index"]]
-      V_block <- block[["covariance"]]
-      for (s in seq_len(S)) {
-        covariance <- V_block
-        diag(covariance) <- diag(covariance) + total_variance[s, idx]
-        chol_covariance <- .covariance_cholesky(
-          .covariance_factorization(covariance)
+  extract_covariance <- function(random_vcov, n_draws, expected_blocks,
+                                 block_label) {
+
+    covariance_samples <- random_vcov[["samples"]]
+    expected_dim       <- c(n_draws, K, K)
+    included_blocks    <- random_vcov[["metadata"]][["included_blocks"]]
+    if (!is.numeric(covariance_samples) ||
+        !identical(dim(covariance_samples), expected_dim) ||
+        any(!is.finite(covariance_samples)) ||
+        !identical(included_blocks, expected_blocks)) {
+      stop(
+        "Random-effect covariance samples for ", block_label, " must be a ",
+        "finite draw x row x row array for the requested blocks, in order.",
+        call. = FALSE
+      )
+    }
+    covariance_samples
+  }
+
+  chunks <- .known_v_covariance_chunk_indices(
+    S         = S,
+    K         = K,
+    max_bytes = max_bytes
+  )
+
+  for (rows in chunks) {
+    posterior_chunk <- posterior_samples[rows, , drop = FALSE]
+    total_vcov      <- .brma_mv_random_effects_marginal_vcov(
+      object            = object,
+      posterior_samples = posterior_chunk,
+      blocks            = block_names,
+      diagonal_only     = FALSE,
+      data              = data,
+      new_levels        = "error"
+    )
+    total_covariance <- extract_covariance(
+      random_vcov     = total_vcov,
+      n_draws         = length(rows),
+      expected_blocks = block_names,
+      block_label     = "all blocks"
+    )
+
+    weights <- matrix(0, nrow = length(rows), ncol = K)
+    for (draw_i in seq_along(rows)) {
+      marginal_covariance <- base_covariance +
+        total_covariance[draw_i, , ]
+      chol_covariance <- tryCatch(
+        chol(marginal_covariance),
+        error = function(e) NULL
+      )
+      if (is.null(chol_covariance)) {
+        stop(
+          "Cannot solve brma.mv random-effect BLUP covariance; ",
+          "the marginal covariance is not positive definite.",
+          call. = FALSE
         )
-        if (is.null(chol_covariance)) {
-          stop(
-            "Cannot solve marginalized random-effect BLUP covariance block; ",
-            "covariance is not positive definite.",
-            call. = FALSE
-          )
-        }
-        weights <- backsolve(
-          chol_covariance,
-          forwardsolve(t(chol_covariance), residual[s, idx])
-        )
-        contribution[s, idx] <- term_variance[s, idx] * weights
       }
+      weights[draw_i, ] <- backsolve(
+        chol_covariance,
+        forwardsolve(t(chol_covariance), residual[rows[draw_i], ])
+      )
     }
 
-    contribution
-  })
-  names(out) <- vapply(terms, `[[`, character(1), "block_name")
+    if (!by_block) {
+      for (draw_i in seq_along(rows)) {
+        out[rows[draw_i], ] <-
+          total_covariance[draw_i, , ] %*% weights[draw_i, ]
+      }
+      next
+    }
+
+    if (length(block_names) == 1L) {
+      block <- block_names[[1L]]
+      for (draw_i in seq_along(rows)) {
+        out[[block]][rows[draw_i], ] <-
+          total_covariance[draw_i, , ] %*% weights[draw_i, ]
+      }
+      next
+    }
+
+    rm(total_covariance, total_vcov)
+
+    for (block in block_names) {
+      block_vcov <- .brma_mv_random_effects_marginal_vcov(
+        object            = object,
+        posterior_samples = posterior_chunk,
+        blocks            = block,
+        diagonal_only     = FALSE,
+        data              = data,
+        new_levels        = "error"
+      )
+      block_covariance <- extract_covariance(
+        random_vcov     = block_vcov,
+        n_draws         = length(rows),
+        expected_blocks = block,
+        block_label     = paste0("block '", block, "'")
+      )
+      for (draw_i in seq_along(rows)) {
+        out[[block]][rows[draw_i], ] <-
+          block_covariance[draw_i, , ] %*% weights[draw_i, ]
+      }
+    }
+  }
 
   return(out)
 }
