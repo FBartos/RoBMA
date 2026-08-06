@@ -91,27 +91,65 @@ test_that("fitting constructors inherit silent option when omitted", {
 test_that("convergence checks expose BayesTools routing controls", {
 
   checks <- set_convergence_checks()
+  autofit <- set_autofit_control()
 
   expect_true(all(c(
     "max_Rhat", "min_ESS", "max_error", "max_SD_error",
     "check_indicators", "monitor", "allow_not_assessable"
   ) %in% names(checks)))
-  expect_false(checks[["check_indicators"]])
+  expect_true(checks[["check_indicators"]])
+  expect_true(autofit[["check_indicators"]])
   expect_null(checks[["monitor"]])
   expect_false(checks[["allow_not_assessable"]])
 
   routed <- set_convergence_checks(
-    check_indicators     = TRUE,
+    check_indicators     = FALSE,
     monitor              = c("mu", "tau"),
     allow_not_assessable = TRUE
   )
-  expect_true(routed[["check_indicators"]])
+  expect_false(routed[["check_indicators"]])
+  expect_false(set_autofit_control(
+    check_indicators = FALSE
+  )[["check_indicators"]])
   expect_identical(routed[["monitor"]], c("mu", "tau"))
   expect_true(routed[["allow_not_assessable"]])
   expect_false("remove_failed" %in% names(checks))
   expect_false("balance_probability" %in% names(checks))
   expect_error(set_convergence_checks(remove_failed = TRUE), "unused argument")
   expect_error(set_convergence_checks(balance_probability = FALSE), "unused argument")
+})
+
+test_that("control updates distinguish missing and explicit indicator settings", {
+
+  old_autofit <- set_autofit_control()
+  old_autofit[["check_indicators"]] <- NULL
+  expect_true(RoBMA:::.update_autofit_control(
+    old_autofit,
+    list()
+  )[["check_indicators"]])
+  expect_false(RoBMA:::.update_autofit_control(
+    set_autofit_control(check_indicators = FALSE),
+    list()
+  )[["check_indicators"]])
+  expect_false(RoBMA:::.update_autofit_control(
+    set_autofit_control(),
+    list(check_indicators = FALSE)
+  )[["check_indicators"]])
+
+  old_checks <- set_convergence_checks()
+  old_checks[["check_indicators"]] <- NULL
+  expect_true(RoBMA:::.update_convergence_checks(
+    old_checks,
+    list()
+  )[["check_indicators"]])
+  expect_false(RoBMA:::.update_convergence_checks(
+    set_convergence_checks(check_indicators = FALSE),
+    list()
+  )[["check_indicators"]])
+  expect_false(RoBMA:::.update_convergence_checks(
+    set_convergence_checks(),
+    list(check_indicators = FALSE)
+  )[["check_indicators"]])
 })
 
 

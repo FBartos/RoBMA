@@ -15,7 +15,7 @@ set_autofit_control(
   sample_extend = 1000,
   restarts = 10,
   max_extend = 10,
-  check_indicators = FALSE,
+  check_indicators = TRUE,
   monitor = NULL,
   allow_not_assessable = FALSE
 )
@@ -25,7 +25,7 @@ set_convergence_checks(
   min_ESS = 500,
   max_error = NULL,
   max_SD_error = NULL,
-  check_indicators = FALSE,
+  check_indicators = TRUE,
   monitor = NULL,
   allow_not_assessable = FALSE
 )
@@ -63,11 +63,13 @@ model fails to initialize. Defaults to \code{10}.}
 Defaults to \code{10}.}
 
 \item{check_indicators}{whether model indicator variables should be included
-in convergence checks. Defaults to \code{FALSE}.}
+in convergence checks. Binary indicators are checked as state occupancies
+and categorical indicators are checked separately for every observed state.
+Defaults to \code{TRUE}.}
 
 \item{monitor}{optional character vector selecting the parameters used for
 convergence checks. A base name selects all indexed elements. Defaults to
-\code{NULL}, which checks every eligible non-indicator parameter.}
+\code{NULL}, which checks every eligible parameter.}
 
 \item{allow_not_assessable}{whether requested sampled parameters with
 undefined diagnostics may be ignored. Defaults to \code{FALSE}.}

@@ -38,7 +38,7 @@ NeedsCompilation: yes
 Depends:
     R (>= 4.3.0)
 Imports:
-    BayesTools (>= 0.3.1.13),
+    BayesTools (>= 0.3.1.14),
     bridgesampling,
     loo (>= 2.10.0),
     MASS,
