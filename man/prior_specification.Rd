@@ -29,13 +29,15 @@ can be specified only when \code{cluster} is specified.}
 
 \item{prior_baserate}{prior distribution for the estimate-specific midpoint
 base-rate probability in binomial GLMM models (\code{measure = "OR"}). If omitted
-or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors. Point priors must lie
-strictly inside \verb{(0, 1)}.}
+or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors. Only beta and point
+priors are supported; beta priors may be truncated within \verb{[0, 1]}, and point
+priors must lie strictly inside \verb{(0, 1)}.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
 log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a
 data-based unit-information normal prior is used independently for each
-estimate.}
+estimate. Only normal and point priors are supported; normal priors may be
+truncated.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}

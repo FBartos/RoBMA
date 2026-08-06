@@ -33,12 +33,14 @@
 #' can be specified only when `cluster` is specified.
 #' @param prior_baserate prior distribution for the estimate-specific midpoint
 #' base-rate probability in binomial GLMM models (`measure = "OR"`). If omitted
-#' or `NULL`, defaults to independent `Beta(1, 1)` priors. Point priors must lie
-#' strictly inside `(0, 1)`.
+#' or `NULL`, defaults to independent `Beta(1, 1)` priors. Only beta and point
+#' priors are supported; beta priors may be truncated within `[0, 1]`, and point
+#' priors must lie strictly inside `(0, 1)`.
 #' @param prior_lograte prior distribution for the estimate-specific midpoint
 #' log-rate in Poisson GLMM models (`measure = "IRR"`). If omitted or `NULL`, a
 #' data-based unit-information normal prior is used independently for each
-#' estimate.
+#' estimate. Only normal and point priors are supported; normal priors may be
+#' truncated.
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 #' Cannot be used together with `prior_informed_field`.
 #' @param rescale_priors numeric. A scaling factor for supported prior distributions.

@@ -71,18 +71,98 @@ test_that("Binomial GLMM baserate point priors exclude endpoints", {
 })
 
 
-test_that("GLMM nuisance priors reject non-point discrete distributions", {
+test_that("GLMM nuisance priors reject unsupported families before fitting", {
 
   discrete <- BayesTools::prior("bernoulli", parameters = list(probability = 0.5))
 
   expect_error(
     .assign_prior.baserate(discrete),
-    "Non-point discrete priors are not supported for 'baserate'"
+    "Non-point discrete priors are not supported for 'prior_baserate'"
   )
   expect_error(
     .assign_prior.lograte(discrete, test_data_pois),
     "Non-point discrete priors are not supported for 'prior_lograte'"
   )
+
+  unsupported <- list(
+    BayesTools::prior("gamma", list(shape = 2, rate = 1)),
+    BayesTools::prior("lognormal", list(meanlog = 0, sdlog = 1)),
+    BayesTools::prior("invgamma", list(shape = 2, scale = 1))
+  )
+  for (prior in unsupported) {
+    expect_error(
+      .assign_prior.baserate(prior),
+      paste0("Only point and beta priors.*'", prior[["distribution"]], "'")
+    )
+    expect_error(
+      .assign_prior.lograte(prior, test_data_pois),
+      paste0("Only point and normal priors.*'", prior[["distribution"]], "'")
+    )
+  }
+
+  expect_error(
+    brma.glmm(
+      ai = ai, bi = bi, ci = ci, di = di,
+      data = test_data_bin, measure = "OR",
+      prior_baserate = BayesTools::prior(
+        "normal", list(0.5, 0.2), truncation = list(0, 1)
+      ),
+      only_priors = TRUE
+    ),
+    "Only point and beta priors.*post-fit likelihood diagnostics.*'normal'"
+  )
+  expect_error(
+    BMA.glmm(
+      x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+      data = test_data_pois, measure = "IRR",
+      prior_lograte = BayesTools::prior("lognormal", list(0, 1)),
+      only_priors = TRUE
+    ),
+    "Only point and normal priors.*post-fit likelihood diagnostics.*'lognormal'"
+  )
+})
+
+
+test_that("accepted GLMM nuisance priors feed the post-fit likelihood route", {
+
+  bin_priors <- list(
+    BayesTools::prior("point", list(location = 0.4)),
+    BayesTools::prior("beta", list(1.5, 2.5)),
+    BayesTools::prior(
+      "beta", list(1.5, 2.5), truncation = list(0.1, 0.9)
+    )
+  )
+  pois_priors <- list(
+    BayesTools::prior("point", list(location = -1)),
+    BayesTools::prior("normal", list(-1, 1.3)),
+    BayesTools::prior(
+      "normal", list(-1, 1.3), truncation = list(-3, 2)
+    )
+  )
+
+  for (prior_baserate in bin_priors) {
+    prior_pi <- brma.glmm(
+      ai = ai, bi = bi, ci = ci, di = di,
+      data = test_data_bin, measure = "OR",
+      prior_baserate = prior_baserate, only_priors = TRUE
+    )[["priors"]][["outcome"]][["pi"]]
+    log_lik <- .outcome_pdf.binom(
+      4L, 3L, 20L, 20L, matrix(0.2), matrix(0.4), prior_pi
+    )
+    expect_true(is.finite(log_lik[1L, 1L]))
+  }
+
+  for (prior_lograte in pois_priors) {
+    prior_phi <- BMA.glmm(
+      x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+      data = test_data_pois, measure = "IRR",
+      prior_lograte = prior_lograte, only_priors = TRUE
+    )[["priors"]][["outcome"]][["phi"]]
+    log_lik <- .outcome_pdf.pois(
+      4L, 3L, 20, 21, matrix(0.2), matrix(0.4), prior_phi
+    )
+    expect_true(is.finite(log_lik[1L, 1L]))
+  }
 })
 
 

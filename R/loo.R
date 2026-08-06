@@ -55,10 +55,9 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' effect-size estimate. For binomial and Poisson models, each pair of counts
 #' (ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
 #' one contribution.
-#' Estimate-unit GLMM log-likelihoods support point and accepted continuous
-#' nuisance-prior families, including truncated beta baserate and truncated
-#' normal log-rate priors. Nonpoint discrete nuisance priors are rejected when
-#' the model input is validated.
+#' Estimate-unit GLMM log-likelihoods support point or beta baserate priors and
+#' point or normal log-rate priors, including their supported truncations.
+#' Other nuisance-prior families are rejected when the model input is validated.
 #'
 #' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 #' per cluster. For unweighted normal models without selection this uses the
@@ -699,10 +698,10 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' For correlated known-\code{V} \code{brma.mv()} models, estimate-unit columns
 #' are Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}. Their row sum
 #' is not presented as a full joint likelihood.
-#' Estimate-unit GLMM draws support point and accepted continuous nuisance-prior
-#' families, including truncated beta baserate and truncated normal log-rate
-#' priors. Nonpoint discrete nuisance priors are rejected when the model input
-#' is validated. Cluster-unit GLMM draws are unavailable until certified nested
+#' Estimate-unit GLMM draws support point or beta baserate priors and point or
+#' normal log-rate priors, including their supported truncations. Other
+#' nuisance-prior families are rejected when the model input is validated.
+#' Cluster-unit GLMM draws are unavailable until certified nested
 #' adaptive quadrature is implemented.
 #'
 #' @return An \eqn{S \times K} or \eqn{S \times G} matrix of pointwise

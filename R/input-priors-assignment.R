@@ -717,19 +717,36 @@
   }
 
   # check the user specified prior distribution
-  prior <- .check_prior.restricted_01(prior, prior_name = "baserate")
+  prior <- .check_prior.simple_or_point(
+    prior,
+    prior_name = "prior_baserate"
+  )
   if (BayesTools::is.prior.discrete(prior) &&
       !BayesTools::is.prior.point(prior)) {
     stop(
-      "Non-point discrete priors are not supported for 'baserate'; use a ",
-      "point or continuous prior.",
+      "Non-point discrete priors are not supported for 'prior_baserate'; use ",
+      "a point or beta prior.",
       call. = FALSE
     )
   }
+  if (!BayesTools::is.prior.point(prior) &&
+      !identical(prior[["distribution"]], "beta")) {
+    stop(
+      "Only point and beta priors are supported for 'prior_baserate' because ",
+      "post-fit likelihood diagnostics require certified nuisance integration; ",
+      "received '", prior[["distribution"]], "'.",
+      call. = FALSE
+    )
+  }
+
+  prior <- .check_prior.restricted_01(
+    prior,
+    prior_name = "prior_baserate"
+  )
   if (BayesTools::is.prior.point(prior) &&
       (mean(prior) <= 0 || mean(prior) >= 1)) {
     stop(
-      "Point prior distribution for 'baserate' must be strictly within (0, 1).",
+      "Point prior distribution for 'prior_baserate' must be strictly within (0, 1).",
       call. = FALSE
     )
   }
@@ -758,7 +775,16 @@
       !BayesTools::is.prior.point(prior)) {
     stop(
       "Non-point discrete priors are not supported for 'prior_lograte'; use ",
-      "a point or continuous prior.",
+      "a point or normal prior.",
+      call. = FALSE
+    )
+  }
+  if (!BayesTools::is.prior.point(prior) &&
+      !identical(prior[["distribution"]], "normal")) {
+    stop(
+      "Only point and normal priors are supported for 'prior_lograte' because ",
+      "post-fit likelihood diagnostics require certified nuisance integration; ",
+      "received '", prior[["distribution"]], "'.",
       call. = FALSE
     )
   }
