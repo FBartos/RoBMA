@@ -152,15 +152,27 @@ test_that("hypothesis aliases are rewritten independently by statement", {
 })
 
 
-test_that("compound point detection is explicit", {
+test_that("point-null references must be direct", {
 
-  expect_true(.hypothesis_brma_has_compound_point(
-    BayesTools::hypothesis_parse("2 * mu = 0")
-  ))
-  expect_false(.hypothesis_brma_has_compound_point(
-    BayesTools::hypothesis_parse("mu = 0")
-  ))
-  expect_false(.hypothesis_brma_has_compound_point(
-    BayesTools::hypothesis_parse("2 * mu > 0")
-  ))
+  expect_error(
+    .hypothesis_brma_point_refs(
+      BayesTools::hypothesis_parse("2 * mu = 0"),
+      parameter = "mu"
+    ),
+    "direct parameter or level reference"
+  )
+  expect_equal(
+    .hypothesis_brma_point_refs(
+      BayesTools::hypothesis_parse("mu = 0"),
+      parameter = "mu"
+    )[["value"]],
+    0
+  )
+  expect_equal(
+    nrow(.hypothesis_brma_point_refs(
+      BayesTools::hypothesis_parse("2 * mu > 0"),
+      parameter = "mu"
+    )),
+    0L
+  )
 })

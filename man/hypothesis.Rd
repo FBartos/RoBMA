@@ -82,8 +82,13 @@ the stored source model. Matching is case-insensitive. qCMDE/IWMDE ordinates
 use the exact fitted-to-original structural coefficient map and induced
 prior density stored by BayesTools. qCMDE/IWMDE supports exact linear maps.
 For nonlinear joint maps, such as an exponentiated intercept that also
-depends on varying slopes, use \code{density_method = "KDE"} or
-\code{standardized_coefficients = TRUE}.}
+depends on varying slopes, KDE point and directional hypotheses are available
+only when structural metadata certifies an atom-free, unconditional scalar
+target and the point is inside the open transformed support. Alternatively,
+use \code{standardized_coefficients = TRUE}. Compound point expressions are
+not supported. Certified \code{exp(affine)} point equalities are evaluated on
+the inverse log/affine scale, where the prior and posterior Jacobians cancel;
+calls mixing point and region statements must be evaluated separately.}
 
 \item{density_control}{named list of qCMDE/IWMDE tuning settings. Supported
 entries are \code{n_points} (default \code{100}), \code{max_samples}
@@ -122,9 +127,10 @@ infers the component when possible. Use \code{"mods"} (alias
 \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
 terms used in multiple model components. The random component supports
 interval and directional hypotheses for semantic standard deviation,
-correlation, and allocation quantities. Point-null hypotheses are available
-only when the induced prior and transformation define a coherent point
-density. Publication-bias parameters are not supported.}
+correlation, and allocation quantities. Point-null hypotheses require a
+direct parameter or level reference. Certified \code{exp(affine)}
+fitted-scale hypotheses are available with KDE only for atom-free,
+unconditional scalar targets. Publication-bias parameters are not supported.}
 
 \item{standardized_coefficients}{whether moderator and scale coefficients
 are tested on the standardized predictor scale. Defaults to \code{FALSE}.}

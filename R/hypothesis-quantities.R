@@ -176,6 +176,10 @@ hypothesis_quantities.brma <- function(object, ...) {
   if (identical(route[["type"]], "exp_affine")) {
     out[["point_test_methods"]]     <- "KDE"
     out[["direction_test_methods"]] <- "KDE"
+    out[["reason"]] <- paste0(
+      "KDE requires runtime structural certification of an atom-free, ",
+      "unconditional scalar target."
+    )
     return(out)
   }
 

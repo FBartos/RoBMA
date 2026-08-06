@@ -20,8 +20,8 @@
   if (isTRUE(require_direct) && any(!refs[["direct"]])) {
     unsupported <- refs[["hypothesis"]][!refs[["direct"]]][1L]
     stop(
-      "qCMDE/IWMDE ordinates require direct parameter or ",
-      "level point hypotheses; unsupported point expression in: '",
+      "Point-null hypotheses require a direct parameter or level reference; ",
+      "unsupported point expression in: '",
       unsupported, "'.",
       call. = FALSE
     )
@@ -40,14 +40,4 @@
   out <- unique(refs[, c("symbol", "level", "value"), drop = FALSE])
   rownames(out) <- NULL
   return(out)
-}
-
-
-.hypothesis_brma_has_compound_point <- function(hypothesis) {
-
-  refs <- BayesTools::hypothesis_parse_point_reference(
-    hypothesis     = BayesTools::hypothesis_render(hypothesis),
-    allow_compound = TRUE
-  )
-  nrow(refs) > 0L && any(!refs[["direct"]])
 }

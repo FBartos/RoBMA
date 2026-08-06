@@ -39,6 +39,7 @@ test_that("hypothesis discovery reports fitted transform routes", {
   )
   expect_identical(transformed[["point_test_methods"]], "KDE")
   expect_identical(transformed[["direction_test_methods"]], "KDE")
+  expect_match(transformed[["reason"]], "atom-free, unconditional")
 
   fixed_entry <- direct_entry
   fixed_entry[["status"]]      <- "fixed"

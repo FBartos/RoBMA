@@ -121,9 +121,10 @@ hypothesis.default <- function(object, ...) {
 #' \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
 #' terms used in multiple model components. The random component supports
 #' interval and directional hypotheses for semantic standard deviation,
-#' correlation, and allocation quantities. Point-null hypotheses are available
-#' only when the induced prior and transformation define a coherent point
-#' density. Publication-bias parameters are not supported.
+#' correlation, and allocation quantities. Point-null hypotheses require a
+#' direct parameter or level reference. Certified \code{exp(affine)}
+#' fitted-scale hypotheses are available with KDE only for atom-free,
+#' unconditional scalar targets. Publication-bias parameters are not supported.
 #' @param standardized_coefficients whether moderator and scale coefficients
 #' are tested on the standardized predictor scale. Defaults to \code{FALSE}.
 #' @param conditional whether to use the conditional posterior for product-space
@@ -156,8 +157,13 @@ hypothesis.default <- function(object, ...) {
 #' use the exact fitted-to-original structural coefficient map and induced
 #' prior density stored by BayesTools. qCMDE/IWMDE supports exact linear maps.
 #' For nonlinear joint maps, such as an exponentiated intercept that also
-#' depends on varying slopes, use \code{density_method = "KDE"} or
-#' \code{standardized_coefficients = TRUE}.
+#' depends on varying slopes, KDE point and directional hypotheses are available
+#' only when structural metadata certifies an atom-free, unconditional scalar
+#' target and the point is inside the open transformed support. Alternatively,
+#' use \code{standardized_coefficients = TRUE}. Compound point expressions are
+#' not supported. Certified \code{exp(affine)} point equalities are evaluated on
+#' the inverse log/affine scale, where the prior and posterior Jacobians cancel;
+#' calls mixing point and region statements must be evaluated separately.
 #' @param density_control named list of qCMDE/IWMDE tuning settings. Supported
 #' entries are \code{n_points} (default \code{100}), \code{max_samples}
 #' (default \code{Inf} for point ordinates), \code{initial_samples} (default
@@ -249,6 +255,10 @@ hypothesis.brma <- function(object, hypothesis,
     aliases    = selected[["aliases"]],
     parameter  = parameter
   )
+  point_refs <- .hypothesis_brma_point_refs(
+    hypothesis = hypothesis,
+    parameter  = parameter
+  )
   coefficient_target <- .hypothesis_brma_formula_coefficient_target(
     object                    = object,
     selected                  = selected,
@@ -257,8 +267,11 @@ hypothesis.brma <- function(object, hypothesis,
   if (!is.null(coefficient_target)) {
     coefficient_target[["route"]] <-
       .hypothesis_brma_formula_transform_route(coefficient_target)
+    .hypothesis_brma_check_formula_point_support(
+      point_refs  = point_refs,
+      target_info = coefficient_target
+    )
   }
-  compound_point <- .hypothesis_brma_has_compound_point(hypothesis)
 
   if (identical(selected[["component"]], "random")) {
     return(.hypothesis_brma_random(
@@ -289,37 +302,24 @@ hypothesis.brma <- function(object, hypothesis,
       identical(coefficient_target[["route"]][["type"]], "unsupported")) {
     stop(coefficient_target[["route"]][["reason"]], call. = FALSE)
   }
-  scalar_identity <- is.null(coefficient_target) &&
-    parameter %in% names(samples) &&
-    inherits(samples[[parameter]], "mixed_posteriors.simple")
-  use_coherent_draws <-
-    (!is.null(coefficient_target) &&
-       identical(coefficient_target[["route"]][["type"]], "exp_affine")) ||
-    compound_point
-  if (compound_point && is.null(coefficient_target) && !scalar_identity) {
-    stop(
-      "Compound point hypotheses are supported only for scalar one-to-one ",
-      "parameters or formula coefficients with a certified identity, affine, ",
-      "or exp(affine) map.",
-      call. = FALSE
-    )
-  }
-  if (use_coherent_draws) {
+  if (!is.null(coefficient_target) &&
+      identical(coefficient_target[["route"]][["type"]], "exp_affine")) {
     if (!identical(density_method, "KDE")) {
       stop(
-        "The requested transformed or compound point hypothesis for '",
+        "The requested nonlinear fitted-scale hypothesis for '",
         parameter, "' is supported only with density_method = 'KDE'. ",
         "qCMDE/IWMDE ordinates support only direct parameter or level point ",
         "hypotheses with an exact linear fitted-scale map.",
         call. = FALSE
       )
     }
-    return(.hypothesis_brma_coherent_draws(
+    return(.hypothesis_brma_exp_affine_kde(
       object      = object,
       samples     = samples,
       hypothesis  = hypothesis,
       parameter   = parameter,
       target_info = coefficient_target,
+      conditional = conditional,
       logBF       = logBF,
       BF01        = BF01,
       seed        = seed,
@@ -634,8 +634,15 @@ hypothesis.brma <- function(object, hypothesis,
   log_identity <- unit_target &&
     identical(unname(source_transforms), "log") &&
     identical(output_transform, "exp")
-  if (ordinary_identity || log_identity) {
+  if (ordinary_identity) {
     return(list(type = "identity", weights = weights))
+  }
+  if (log_identity) {
+    return(list(
+      type    = "identity",
+      weights = weights,
+      support = c(0, Inf)
+    ))
   }
   if (all(source_transforms == "identity") &&
       identical(output_transform, "identity")) {
@@ -643,7 +650,11 @@ hypothesis.brma <- function(object, hypothesis,
   }
   if (all(source_transforms %in% c("identity", "log")) &&
       identical(output_transform, "exp")) {
-    return(list(type = "exp_affine", weights = weights))
+    return(list(
+      type    = "exp_affine",
+      weights = weights,
+      support = c(0, Inf)
+    ))
   }
 
   list(
@@ -656,11 +667,119 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 
-.hypothesis_brma_coherent_draws <- function(
-    object, samples, hypothesis, parameter, target_info, logBF, BF01, seed,
-    n_samples, columns) {
+.hypothesis_brma_check_formula_point_support <- function(point_refs,
+                                                         target_info) {
 
-  target <- if (is.null(target_info)) parameter else target_info[["target"]]
+  support <- target_info[["route"]][["support"]]
+  if (nrow(point_refs) == 0L || is.null(support)) {
+    return(invisible(TRUE))
+  }
+  values <- point_refs[["value"]]
+  outside_or_boundary <-
+    !is.finite(values) |
+    (is.finite(support[[1L]]) & values <= support[[1L]]) |
+    (is.finite(support[[2L]]) & values >= support[[2L]])
+  if (any(outside_or_boundary)) {
+    stop(
+      "Point-null value ", values[which(outside_or_boundary)[[1L]]],
+      " is outside or on the boundary of the open support for transformed ",
+      "coefficient '", target_info[["target"]], "'.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+.hypothesis_brma_exp_affine_certify <- function(samples, target,
+                                                conditional) {
+
+  if (isTRUE(conditional)) {
+    stop(
+      "Nonlinear fitted-scale KDE hypotheses are unavailable for conditional ",
+      "product-space posteriors.",
+      call. = FALSE
+    )
+  }
+  sample <- samples[[target]]
+  if (is.null(sample) ||
+      !inherits(sample, "mixed_posteriors.simple") ||
+      inherits(sample, "mixed_posteriors.mixture")) {
+    stop(
+      "Nonlinear fitted-scale KDE hypotheses require a certified scalar ",
+      "mixed posterior.",
+      call. = FALSE
+    )
+  }
+  sample_conditional <- attr(sample, "conditional", exact = TRUE)
+  condition_key      <- attr(sample, "condition_key", exact = TRUE)
+  resolved_event     <- attr(sample, "resolved_condition_event", exact = TRUE)
+  unconditional <- is.character(sample_conditional) &&
+    length(sample_conditional) == 0L &&
+    identical(condition_key, "<averaged>") &&
+    inherits(resolved_event, "BayesTools_condition_event") &&
+    is.character(resolved_event[["conditional"]]) &&
+    length(resolved_event[["conditional"]]) == 0L &&
+    identical(resolved_event[["condition_key"]], "<averaged>")
+  if (!unconditional) {
+    stop(
+      "Nonlinear fitted-scale KDE hypotheses require structural evidence for ",
+      "an unconditional posterior.",
+      call. = FALSE
+    )
+  }
+
+  atoms <- attr(sample, "posterior_atoms", exact = TRUE)
+  atom_free <- inherits(atoms, "BayesTools_posterior_atoms") &&
+    isTRUE(atoms[["declared"]]) &&
+    is.matrix(atoms[["locations"]]) &&
+    nrow(atoms[["locations"]]) == 0L &&
+    is.numeric(atoms[["mass"]]) &&
+    length(atoms[["mass"]]) == 0L
+  if (!atom_free) {
+    stop(
+      "Nonlinear fitted-scale KDE hypotheses require structural evidence that ",
+      "the posterior is atom-free.",
+      call. = FALSE
+    )
+  }
+
+  prior_densities <- attr(samples, "prior_densities", exact = TRUE)
+  prior_density   <- prior_densities[[target]]
+  prior_points    <- prior_density[["points"]]
+  prior_atom_free <- inherits(prior_density, "prior_density") &&
+    is.data.frame(prior_points) &&
+    all(c("x", "p") %in% names(prior_points)) &&
+    nrow(prior_points) == 0L
+  if (!prior_atom_free) {
+    stop(
+      "Nonlinear fitted-scale KDE hypotheses require structural evidence that ",
+      "the prior is atom-free.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+.hypothesis_brma_exp_affine_kde <- function(
+    object, samples, hypothesis, parameter, target_info, conditional, logBF,
+    BF01, seed, n_samples, columns) {
+
+  if (is.null(target_info) ||
+      !identical(target_info[["route"]][["type"]], "exp_affine")) {
+    stop("Internal error: the exp(affine) hypothesis route was not certified.",
+         call. = FALSE)
+  }
+  target <- target_info[["target"]]
+  .hypothesis_brma_exp_affine_certify(
+    samples     = samples,
+    target      = target,
+    conditional = conditional
+  )
+  route_kind <- .hypothesis_brma_exp_affine_route_kind(hypothesis)
   if (!target %in% names(samples)) {
     stop("Transformed posterior draws for '", target, "' are unavailable.",
          call. = FALSE)
@@ -682,10 +801,25 @@ hypothesis.brma <- function(object, hypothesis,
     stop("Finite transformed prior and posterior draws are required for '",
          target, "'.", call. = FALSE)
   }
+  original_hypothesis <- hypothesis
+  if (identical(route_kind, "point")) {
+    if (any(posterior_values <= 0) || any(prior_values <= 0)) {
+      stop(
+        "Positive transformed prior and posterior draws are required for ",
+        "exp(affine) point hypotheses.",
+        call. = FALSE
+      )
+    }
+    posterior_values <- log(posterior_values)
+    prior_values     <- log(prior_values)
+    hypothesis <- .hypothesis_brma_exp_affine_log_hypothesis(
+      hypothesis = hypothesis
+    )
+  }
   posterior <- stats::setNames(data.frame(posterior_values), parameter)
   prior     <- stats::setNames(data.frame(prior_values), parameter)
 
-  BayesTools::hypothesis_BF(
+  out <- BayesTools::hypothesis_BF(
     posterior      = posterior,
     prior          = prior,
     hypothesis     = hypothesis,
@@ -696,6 +830,110 @@ hypothesis.brma <- function(object, hypothesis,
     columns        = columns,
     density_method = "KDE"
   )
+  if (identical(route_kind, "point")) {
+    out <- .hypothesis_brma_restore_hypothesis_labels(
+      out        = out,
+      hypothesis = original_hypothesis
+    )
+  }
+
+  return(out)
+}
+
+
+.hypothesis_brma_exp_affine_route_kind <- function(hypothesis) {
+
+  statements <- hypothesis[["statements"]]
+  side_types <- unlist(lapply(statements, function(statement) {
+    c(statement[["left"]][["type"]], statement[["right"]][["type"]])
+  }), use.names = FALSE)
+  point_side <- side_types %in% c("point", "not_point")
+  if (any(point_side) && any(!point_side)) {
+    stop(
+      "exp(affine) hypotheses cannot mix point and region statements. ",
+      "Evaluate point and directional hypotheses in separate calls.",
+      call. = FALSE
+    )
+  }
+
+  if (any(point_side)) "point" else "region"
+}
+
+
+.hypothesis_brma_exp_affine_log_hypothesis <- function(hypothesis) {
+
+  statements <- hypothesis[["statements"]]
+  transformed <- vapply(statements, function(statement) {
+
+    sides <- lapply(c("left", "right"), function(side_name) {
+      side <- statement[[side_name]]
+      operator <- switch(
+        side[["type"]],
+        point     = "=",
+        not_point = "!=",
+        stop("Internal error: expected a direct point statement.",
+             call. = FALSE)
+      )
+      expression <- side[["expression"]][["source"]]
+      if (!is.character(expression) || length(expression) != 1L ||
+          !nzchar(expression)) {
+        stop("Internal error: direct point expression source is unavailable.",
+             call. = FALSE)
+      }
+      paste(expression, operator, sprintf("%.17g", log(side[["value"]])))
+    })
+    if (isTRUE(statement[["explicit"]])) {
+      paste(sides[[1L]], "vs", sides[[2L]])
+    } else {
+      sides[[1L]]
+    }
+  }, character(1))
+
+  BayesTools::hypothesis_parse(transformed)
+}
+
+
+.hypothesis_brma_restore_hypothesis_labels <- function(out, hypothesis) {
+
+  statements <- hypothesis[["statements"]]
+  if (nrow(out) != length(statements)) {
+    stop("Internal error: transformed hypothesis result rows are misaligned.",
+         call. = FALSE)
+  }
+  if ("Alternative" %in% names(out)) {
+    out[["Alternative"]] <- vapply(
+      statements,
+      function(statement) statement[["left"]][["label"]],
+      character(1)
+    )
+  }
+  if ("Null" %in% names(out)) {
+    out[["Null"]] <- vapply(
+      statements,
+      function(statement) statement[["right"]][["label"]],
+      character(1)
+    )
+  }
+  parsed <- attr(out, "parsed", exact = TRUE)
+  if (!is.list(parsed) || length(parsed) != length(statements)) {
+    stop("Internal error: transformed hypothesis metadata are misaligned.",
+         call. = FALSE)
+  }
+  for (i in seq_along(statements)) {
+    statement <- statements[[i]]
+    parsed[[i]][["input"]]    <- statement[["source"]]
+    parsed[[i]][["explicit"]] <- statement[["explicit"]]
+    for (side_name in c("left", "right")) {
+      side <- statement[[side_name]]
+      parsed[[i]][[side_name]][["type"]]  <- side[["type"]]
+      parsed[[i]][[side_name]][["label"]] <- side[["label"]]
+      parsed[[i]][[side_name]][["value"]] <- side[["value"]]
+    }
+  }
+  attr(out, "parsed")         <- parsed
+  attr(out, "hypothesis_ast") <- hypothesis
+
+  return(out)
 }
 
 #' @rdname hypothesis

@@ -130,7 +130,7 @@ test_that("nonlinear joint coefficient transforms fail qCMDE/IWMDE closed", {
 })
 
 
-test_that("certified exp-affine coefficients use coherent KDE draws", {
+test_that("exp-affine KDE requires continuous unconditional structure", {
 
   transform <- list(
     target_scale = "original",
@@ -158,24 +158,79 @@ test_that("certified exp-affine coefficients use coherent KDE draws", {
     transform = transform
   )
   target[["route"]] <- .hypothesis_brma_formula_transform_route(target)
+  condition_event <- structure(list(
+    conditional      = character(),
+    conditional_rule = "AND",
+    families         = list(),
+    condition_key    = "<averaged>"
+  ), class = "BayesTools_condition_event")
+  atoms <- structure(list(
+    declared               = TRUE,
+    locations              = matrix(
+      numeric(), nrow = 0L, ncol = 1L,
+      dimnames = list(NULL, "log_tau_intercept")
+    ),
+    mass                   = numeric(),
+    source                 = "single_model_structure",
+    component_probabilities = 1
+  ), class = c("BayesTools_posterior_atoms", "list"))
+  posterior <- structure(
+    c(.15, .25, .35),
+    class                    = c("mixed_posteriors.simple", "mixed_posteriors"),
+    conditional              = character(),
+    condition_key            = "<averaged>",
+    resolved_condition_event = condition_event,
+    posterior_atoms          = atoms
+  )
+  prior_density <- structure(list(
+    points = data.frame(x = numeric(), p = numeric())
+  ), class = c("prior_linear_density", "prior_density"))
+  samples <- structure(
+    list(log_tau_intercept = posterior),
+    prior_densities = list(log_tau_intercept = prior_density)
+  )
   captured <- NULL
   testthat::local_mocked_bindings(
     transform_prior_samples = function(...) {
       cbind(log_tau_intercept = c(.1, .2, .4))
     },
-    hypothesis_BF = function(posterior, prior, ...) {
-      captured <<- list(posterior = posterior, prior = prior)
-      "ok"
+    hypothesis_BF = function(posterior, prior, hypothesis, ...) {
+      captured <<- list(
+        posterior  = posterior,
+        prior      = prior,
+        hypothesis = hypothesis
+      )
+      parsed <- list(list(
+        input = "log_tau_intercept = -1.6094379124341003",
+        left  = list(
+          type = "point", label = "log_tau_intercept = -1.6094379124341003",
+          expr = as.name("log_tau_intercept"),
+          expression = as.name("log_tau_intercept"),
+          value = log(.2)
+        ),
+        right = list(
+          type = "not_point", label = "log_tau_intercept != -1.6094379124341003",
+          expr = as.name("log_tau_intercept"),
+          expression = as.name("log_tau_intercept"),
+          value = log(.2)
+        ),
+        explicit = FALSE
+      ))
+      structure(data.frame(
+        Alternative = "log_tau_intercept = -1.6094379124341003",
+        Null        = "log_tau_intercept != -1.6094379124341003"
+      ), hypothesis_ast = hypothesis, parsed = parsed)
     },
     .package = "BayesTools"
   )
 
-  result <- .hypothesis_brma_coherent_draws(
+  result <- .hypothesis_brma_exp_affine_kde(
     object      = list(fit = structure(list(), class = "BayesTools_fit")),
-    samples     = list(log_tau_intercept = c(.15, .25, .35)),
+    samples     = samples,
     hypothesis  = BayesTools::hypothesis_parse("log_tau_intercept = 0.2"),
     parameter   = "log_tau_intercept",
     target_info = target,
+    conditional = FALSE,
     logBF       = FALSE,
     BF01        = FALSE,
     seed        = 1,
@@ -183,14 +238,100 @@ test_that("certified exp-affine coefficients use coherent KDE draws", {
     columns     = "default"
   )
 
-  expect_identical(result, "ok")
-  expect_identical(
+  expect_equal(
     captured[["posterior"]][["log_tau_intercept"]],
-    c(.15, .25, .35)
+    log(c(.15, .25, .35))
   )
-  expect_identical(
+  expect_equal(
     captured[["prior"]][["log_tau_intercept"]],
-    c(.1, .2, .4)
+    log(c(.1, .2, .4))
+  )
+  expect_equal(
+    captured[["hypothesis"]][["statements"]][[1L]][["left"]][["value"]],
+    log(.2)
+  )
+  expect_identical(result[["Alternative"]], "log_tau_intercept = 0.2")
+  expect_identical(result[["Null"]], "log_tau_intercept != 0.2")
+  expect_identical(attr(result, "hypothesis_ast"),
+                   BayesTools::hypothesis_parse("log_tau_intercept = 0.2"))
+  expect_equal(attr(result, "parsed")[[1L]][["left"]][["value"]], .2)
+  expect_identical(
+    attr(result, "parsed")[[1L]][["left"]][["label"]],
+    "log_tau_intercept = 0.2"
   )
   expect_identical(target[["route"]][["type"]], "exp_affine")
+  expect_false(exists(
+    ".hypothesis_brma_coherent_draws",
+    envir    = asNamespace("RoBMA"),
+    inherits = FALSE
+  ))
+
+  refs_zero <- .hypothesis_brma_point_refs(
+    BayesTools::hypothesis_parse("log_tau_intercept = 0"),
+    "log_tau_intercept"
+  )
+  refs_one <- .hypothesis_brma_point_refs(
+    BayesTools::hypothesis_parse("log_tau_intercept = 1"),
+    "log_tau_intercept"
+  )
+  expect_error(
+    .hypothesis_brma_check_formula_point_support(refs_zero, target),
+    "outside or on the boundary"
+  )
+  expect_invisible(
+    .hypothesis_brma_check_formula_point_support(refs_one, target)
+  )
+
+  atomic_samples <- samples
+  atomic_atoms <- atoms
+  atomic_atoms[["locations"]] <- matrix(
+    0, nrow = 1L, ncol = 1L,
+    dimnames = list("location", "log_tau_intercept")
+  )
+  atomic_atoms[["mass"]] <- 0.25
+  attr(atomic_samples[["log_tau_intercept"]], "posterior_atoms") <-
+    atomic_atoms
+  expect_error(
+    .hypothesis_brma_exp_affine_certify(
+      atomic_samples, "log_tau_intercept", FALSE
+    ),
+    "posterior is atom-free"
+  )
+  unproven_samples <- samples
+  attr(unproven_samples[["log_tau_intercept"]], "conditional") <- NULL
+  attr(
+    unproven_samples[["log_tau_intercept"]],
+    "resolved_condition_event"
+  ) <- NULL
+  expect_error(
+    .hypothesis_brma_exp_affine_certify(
+      unproven_samples, "log_tau_intercept", FALSE
+    ),
+    "structural evidence for an unconditional posterior"
+  )
+  atomic_prior_samples <- samples
+  attr(atomic_prior_samples, "prior_densities")[[
+    "log_tau_intercept"
+  ]][["points"]] <- data.frame(x = 0, p = 0.25)
+  expect_error(
+    .hypothesis_brma_exp_affine_certify(
+      atomic_prior_samples, "log_tau_intercept", FALSE
+    ),
+    "prior is atom-free"
+  )
+  expect_error(
+    .hypothesis_brma_exp_affine_certify(
+      samples, "log_tau_intercept", TRUE
+    ),
+    "conditional product-space"
+  )
+  expect_error(
+    .hypothesis_brma_exp_affine_route_kind(
+      BayesTools::hypothesis_parse(c(
+        "log_tau_intercept = 0.2",
+        "log_tau_intercept > 0.2"
+      ))
+    ),
+    "cannot mix point and region"
+  )
 })

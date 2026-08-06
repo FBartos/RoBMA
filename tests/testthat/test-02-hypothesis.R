@@ -1332,6 +1332,87 @@ test_that("qCMDE requires direct point-null expressions", {
       ),
       n_samples       = 1000
     ),
-    "direct parameter or level point hypotheses"
+    "direct parameter or level reference"
+  )
+})
+
+
+test_that("compound point nulls cannot bypass declared atoms", {
+
+  fit_name <- "dat.lehmann2018_RoBMA"
+  if (!fit_name %in% list_fits(validate = FALSE, active_only = TRUE)) {
+    skip("Raw product-space fit is unavailable.")
+  }
+  fit <- load_fit(fit_name, validate = FALSE)
+
+  expect_error(
+    hypothesis(
+      fit,
+      "mu = 0",
+      density_method = "KDE",
+      n_samples      = 200
+    ),
+    "declared point mass"
+  )
+  expect_error(
+    hypothesis(
+      fit,
+      "2 * mu = 0",
+      density_method = "KDE",
+      n_samples      = 200
+    ),
+    "direct parameter or level reference"
+  )
+})
+
+
+test_that("certified exp-affine KDE respects its open support", {
+
+  fit_name <- "bangertdrowns2004_location-scale"
+  if (!fit_name %in% list_fits(validate = FALSE, active_only = TRUE)) {
+    skip("Raw location-scale fit is unavailable.")
+  }
+  fit <- load_fit(fit_name, validate = FALSE)
+
+  point <- hypothesis(
+    fit,
+    "log_tau_intercept = 0.2",
+    component      = "scale",
+    density_method = "KDE",
+    n_samples      = 500,
+    seed           = 1
+  )
+  direction <- hypothesis(
+    fit,
+    "log_tau_intercept > 0.2",
+    component      = "scale",
+    density_method = "KDE",
+    n_samples      = 500,
+    seed           = 1
+  )
+
+  expect_s3_class(point, "BayesTools_hypothesis_BF")
+  expect_s3_class(direction, "BayesTools_hypothesis_BF")
+  expect_true(is.finite(attr(point, "raw_BF")))
+  expect_true(is.finite(attr(direction, "raw_BF")))
+  expect_error(
+    hypothesis(
+      fit,
+      "log_tau_intercept = 0",
+      component      = "scale",
+      density_method = "KDE",
+      n_samples      = 500
+    ),
+    "outside or on the boundary"
+  )
+  expect_error(
+    hypothesis(
+      fit,
+      "log_tau_intercept = -1",
+      component      = "scale",
+      density_method = "KDE",
+      n_samples      = 500
+    ),
+    "outside or on the boundary"
   )
 })
