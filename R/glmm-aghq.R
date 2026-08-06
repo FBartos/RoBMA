@@ -284,6 +284,71 @@
 }
 
 
+.glmm_grid_numerical_failure <- function(condition, outcome_type) {
+
+  label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
+  pattern <- paste0(
+    "^", label,
+    " prior-CDF quadrature failed to converge at observation [0-9]+[.]"
+  )
+  return(grepl(pattern, conditionMessage(condition), perl = TRUE))
+}
+
+
+# Refine difficult prior-CDF integrals one posterior row at a time. This keeps
+# the high-order rules confined to the rows that need them.
+.glmm_grid_refine_rows <- function(evaluate, n, outcome_type, observation,
+                                   control, theta_active = TRUE,
+                                   nuisance_active = TRUE) {
+
+  if (length(theta_active) == 1L) {
+    theta_active <- rep(theta_active, n)
+  }
+
+  value            <- numeric(n)
+  theta_order      <- integer(n)
+  nuisance_order   <- integer(n)
+  max_change       <- numeric(n)
+  for (s in seq_len(n)) {
+    refined <- .glmm_grid_refine(
+      evaluate = function(n_theta, n_nuisance) {
+        evaluate(s, n_theta, n_nuisance)
+      },
+      outcome_type    = outcome_type,
+      observation     = observation,
+      control         = control,
+      theta_active    = theta_active[s],
+      nuisance_active = nuisance_active
+    )
+    value[s]          <- refined[["value"]]
+    theta_order[s]    <- refined[["theta_order"]]
+    nuisance_order[s] <- refined[["nuisance_order"]]
+    max_change[s]     <- refined[["max_change"]]
+  }
+
+  return(list(
+    value          = value,
+    theta_order    = max(theta_order),
+    nuisance_order = max(nuisance_order),
+    max_change     = max(max_change)
+  ))
+}
+
+
+.glmm_grid_recovery_control <- function(control) {
+
+  return(.glmm_grid_control(
+    theta_orders = sort(unique(c(
+      control[["theta_orders"]],
+      65L, 81L, 99L, 129L, 161L, 201L, 257L
+    ))),
+    nuisance_orders = control[["nuisance_orders"]],
+    tolerance       = control[["tolerance"]],
+    consecutive     = control[["consecutive"]]
+  ))
+}
+
+
 .glmm_aghq_numerical_failure <- function(condition, outcome_type) {
 
   label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
@@ -721,27 +786,54 @@
     }
   }
   evaluate_grid <- function(k) {
-    .glmm_grid_refine(
-      evaluate = function(n_theta, n_nuisance) {
-        .outcome_pdf.binom(
-          ai          = ai[k],
-          ci          = ci[k],
-          n1i         = n1i[k],
-          n2i         = n2i[k],
-          mu_samples  = mu_samples[, k, drop = FALSE],
-          tau_within  = tau_within[, k, drop = FALSE],
-          prior_pi    = prior_pi,
-          weights     = if (is.null(weights)) NULL else weights[k],
-          n_theta     = n_theta,
-          n_pi        = n_nuisance
-        )
-      },
+    evaluate_full <- function(n_theta, n_nuisance) {
+      .outcome_pdf.binom(
+        ai          = ai[k],
+        ci          = ci[k],
+        n1i         = n1i[k],
+        n2i         = n2i[k],
+        mu_samples  = mu_samples[, k, drop = FALSE],
+        tau_within  = tau_within[, k, drop = FALSE],
+        prior_pi    = prior_pi,
+        weights     = if (is.null(weights)) NULL else weights[k],
+        n_theta     = n_theta,
+        n_pi        = n_nuisance
+      )
+    }
+    tryCatch(.glmm_grid_refine(
+      evaluate        = evaluate_full,
       outcome_type    = "bin",
       observation     = k,
       control         = grid_control,
       theta_active    = any(tau_within[, k] != 0),
       nuisance_active = !BayesTools::is.prior.point(prior_pi)
-    )
+    ), error = function(condition) {
+      if (!.glmm_grid_numerical_failure(condition, "bin")) {
+        stop(condition)
+      }
+      .glmm_grid_refine_rows(
+        evaluate = function(s, n_theta, n_nuisance) {
+          .outcome_pdf.binom(
+            ai          = ai[k],
+            ci          = ci[k],
+            n1i         = n1i[k],
+            n2i         = n2i[k],
+            mu_samples  = mu_samples[s, k, drop = FALSE],
+            tau_within  = tau_within[s, k, drop = FALSE],
+            prior_pi    = prior_pi,
+            weights     = if (is.null(weights)) NULL else weights[k],
+            n_theta     = n_theta,
+            n_pi        = n_nuisance
+          )
+        },
+        n               = S,
+        outcome_type    = "bin",
+        observation     = k,
+        control         = .glmm_grid_recovery_control(grid_control),
+        theta_active    = tau_within[, k] != 0,
+        nuisance_active = !BayesTools::is.prior.point(prior_pi)
+      )
+    })
   }
 
   return(.glmm_aghq_dispatch(
@@ -797,27 +889,54 @@
     }
   }
   evaluate_grid <- function(k) {
-    .glmm_grid_refine(
-      evaluate = function(n_theta, n_nuisance) {
-        .outcome_pdf.pois(
-          x1i        = x1i[k],
-          x2i        = x2i[k],
-          t1i        = t1i[k],
-          t2i        = t2i[k],
-          mu_samples = mu_samples[, k, drop = FALSE],
-          tau_within = tau_within[, k, drop = FALSE],
-          prior_phi  = prior_phi,
-          weights    = if (is.null(weights)) NULL else weights[k],
-          n_theta    = n_theta,
-          n_phi      = n_nuisance
-        )
-      },
+    evaluate_full <- function(n_theta, n_nuisance) {
+      .outcome_pdf.pois(
+        x1i        = x1i[k],
+        x2i        = x2i[k],
+        t1i        = t1i[k],
+        t2i        = t2i[k],
+        mu_samples = mu_samples[, k, drop = FALSE],
+        tau_within = tau_within[, k, drop = FALSE],
+        prior_phi  = prior_phi,
+        weights    = if (is.null(weights)) NULL else weights[k],
+        n_theta    = n_theta,
+        n_phi      = n_nuisance
+      )
+    }
+    tryCatch(.glmm_grid_refine(
+      evaluate        = evaluate_full,
       outcome_type    = "pois",
       observation     = k,
       control         = grid_control,
       theta_active    = any(tau_within[, k] != 0),
       nuisance_active = !BayesTools::is.prior.point(prior_phi)
-    )
+    ), error = function(condition) {
+      if (!.glmm_grid_numerical_failure(condition, "pois")) {
+        stop(condition)
+      }
+      .glmm_grid_refine_rows(
+        evaluate = function(s, n_theta, n_nuisance) {
+          .outcome_pdf.pois(
+            x1i        = x1i[k],
+            x2i        = x2i[k],
+            t1i        = t1i[k],
+            t2i        = t2i[k],
+            mu_samples = mu_samples[s, k, drop = FALSE],
+            tau_within = tau_within[s, k, drop = FALSE],
+            prior_phi  = prior_phi,
+            weights    = if (is.null(weights)) NULL else weights[k],
+            n_theta    = n_theta,
+            n_phi      = n_nuisance
+          )
+        },
+        n               = S,
+        outcome_type    = "pois",
+        observation     = k,
+        control         = .glmm_grid_recovery_control(grid_control),
+        theta_active    = tau_within[, k] != 0,
+        nuisance_active = !BayesTools::is.prior.point(prior_phi)
+      )
+    })
   }
 
   return(.glmm_aghq_dispatch(

@@ -8,7 +8,7 @@ context("Adaptive GLMM quadrature")
   log_coefficient <- lchoose(n1, a) + lchoose(n2, c)
   prior_mass <- stats::pbeta(upper, alpha, beta) -
     stats::pbeta(lower, alpha, beta)
-  integrate_theta <- function(theta) {
+  log_integrate_theta <- function(theta) {
 
     vapply(theta, function(theta_value) {
       effect <- mu + tau * theta_value
@@ -29,20 +29,36 @@ context("Adaptive GLMM quadrature")
         stop.on.error = TRUE
       )[["value"]]
 
-      inner * stats::dnorm(theta_value)
+      log(inner) + stats::dnorm(theta_value, log = TRUE)
     }, numeric(1))
   }
 
+  mode <- stats::optimize(
+    log_integrate_theta,
+    interval = c(-12, 12),
+    maximum  = TRUE,
+    tol      = 1e-12
+  )
+  step      <- 1e-4
+  curvature <- -(
+    log_integrate_theta(mode[["maximum"]] + step) -
+      2 * mode[["objective"]] +
+      log_integrate_theta(mode[["maximum"]] - step)
+  ) / step^2
   value <- stats::integrate(
-    integrate_theta,
-    lower         = -9,
-    upper         = 9,
+    function(z) {
+      exp(log_integrate_theta(
+        mode[["maximum"]] + z / sqrt(curvature)
+      ) - mode[["objective"]]) / sqrt(curvature)
+    },
+    lower         = -Inf,
+    upper         = Inf,
     subdivisions  = 1000L,
     rel.tol       = 1e-9,
     stop.on.error = TRUE
   )[["value"]]
 
-  return(log(value))
+  return(mode[["objective"]] + log(value))
 }
 
 
@@ -53,7 +69,7 @@ context("Adaptive GLMM quadrature")
 
   prior_mass <- stats::pnorm(upper, mean, sd) -
     stats::pnorm(lower, mean, sd)
-  integrate_theta <- function(theta) {
+  log_integrate_theta <- function(theta) {
 
     vapply(theta, function(theta_value) {
       effect <- mu + tau * theta_value
@@ -73,20 +89,36 @@ context("Adaptive GLMM quadrature")
         stop.on.error = TRUE
       )[["value"]]
 
-      inner * stats::dnorm(theta_value)
+      log(inner) + stats::dnorm(theta_value, log = TRUE)
     }, numeric(1))
   }
 
+  mode <- stats::optimize(
+    log_integrate_theta,
+    interval = c(-12, 12),
+    maximum  = TRUE,
+    tol      = 1e-12
+  )
+  step      <- 1e-4
+  curvature <- -(
+    log_integrate_theta(mode[["maximum"]] + step) -
+      2 * mode[["objective"]] +
+      log_integrate_theta(mode[["maximum"]] - step)
+  ) / step^2
   value <- stats::integrate(
-    integrate_theta,
-    lower         = -9,
-    upper         = 9,
+    function(z) {
+      exp(log_integrate_theta(
+        mode[["maximum"]] + z / sqrt(curvature)
+      ) - mode[["objective"]]) / sqrt(curvature)
+    },
+    lower         = -Inf,
+    upper         = Inf,
     subdivisions  = 1000L,
     rel.tol       = 1e-9,
     stop.on.error = TRUE
   )[["value"]]
 
-  return(log(value))
+  return(mode[["objective"]] + log(value))
 }
 
 
@@ -696,6 +728,83 @@ test_that("truncated nuisance priors match independent integration", {
                info = "truncated beta prior")
   expect_equal(pois[1L, 1L], expected_pois, tolerance = 2e-6,
                info = "truncated normal prior")
+})
+
+
+test_that("truncated nuisance recovery certifies sharp theta integrals", {
+
+  prior_pi <- BayesTools::prior(
+    "beta", list(1.5, 2.5), truncation = list(0.1, 0.9)
+  )
+  bin <- .outcome_pdf.binom(
+    6L, 29L, 306L, 303L,
+    matrix(-0.4289519), matrix(1.018359), prior_pi
+  )
+  expected_bin <- .binom_aghq_oracle(
+    a = 6L, c = 29L, n1 = 306L, n2 = 303L,
+    mu = -0.4289519, tau = 1.018359,
+    alpha = 1.5, beta = 2.5, lower = 0.1, upper = 0.9
+  )
+
+  prior_phi <- BayesTools::prior(
+    "normal", list(-1, 1.3), truncation = list(-3, 2)
+  )
+  pois <- .outcome_pdf.pois(
+    7L, 11L, 18, 21,
+    matrix(-0.2936048), matrix(0.9191402), prior_phi
+  )
+  expected_pois <- .pois_aghq_oracle(
+    x1 = 7L, x2 = 11L, t1 = 18, t2 = 21,
+    mu = -0.2936048, tau = 0.9191402,
+    mean = -1, sd = 1.3, lower = -3, upper = 2
+  )
+
+  expect_equal(bin[1L, 1L], expected_bin, tolerance = 2e-6)
+  expect_equal(pois[1L, 1L], expected_pois, tolerance = 2e-6)
+  expect_gt(
+    attr(bin, "glmm_aghq_diagnostics")[["grid_max_theta_order"]],
+    49L
+  )
+  expect_gt(
+    attr(pois, "glmm_aghq_diagnostics")[["grid_max_theta_order"]],
+    49L
+  )
+})
+
+
+test_that("fitted truncated-nuisance GLMMs support likelihood criteria", {
+
+  fit_bin <- brma.glmm(
+    ai = c(4L, 6L, 3L), bi = c(119L, 300L, 228L),
+    ci = c(11L, 29L, 11L), di = c(128L, 274L, 209L),
+    measure = "OR",
+    prior_baserate = BayesTools::prior(
+      "beta", list(1.5, 2.5), truncation = list(0.1, 0.9)
+    ),
+    chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
+    seed = 123L, silent = TRUE
+  )
+  fit_pois <- brma.glmm(
+    x1i = c(0L, 3L, 7L), x2i = c(0L, 4L, 11L),
+    t1i = c(20, 15, 18), t2i = c(22, 19, 21),
+    measure = "IRR",
+    prior_lograte = BayesTools::prior(
+      "normal", list(-1, 1.3), truncation = list(-3, 2)
+    ),
+    chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
+    seed = 123L, silent = TRUE
+  )
+
+  for (fit in list(binomial = fit_bin, Poisson = fit_pois)) {
+    log_lik <- log_lik(fit)
+    fit_loo <- suppressWarnings(add_loo(fit))
+    fit_waic <- suppressWarnings(add_waic(fit))
+
+    expect_identical(dim(log_lik), c(100L, 3L))
+    expect_true(all(is.finite(log_lik)))
+    expect_s3_class(loo(fit_loo), "loo")
+    expect_s3_class(waic(fit_waic), "waic")
+  }
 })
 
 
