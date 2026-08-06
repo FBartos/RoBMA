@@ -667,15 +667,24 @@ test_that("Funnel plot for BMA.norm meta-regression renders base output", {
 # Test: BMA.glmm Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for BMA.glmm model renders base output", {
+test_that("BMA.glmm funnel respects the discrete PIT policy", {
 
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
   skip_if_missing_fits(name)
 
   fit_brma <- fits[[name]]
 
+  expect_error(
+    .test_funnel(fit_brma, plot_type = "base"),
+    "discrete PIT convention"
+  )
+
   expect_vdiffr_snapshot("funnel_BMA.glmm", function() {
-    suppressWarnings(.test_funnel(fit_brma, plot_type = "base"))
+    suppressWarnings(.test_funnel(
+      fit_brma,
+      plot_type = "base",
+      type      = "outcome"
+    ))
   })
 })
 
