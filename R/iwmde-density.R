@@ -621,10 +621,10 @@
   ))
 }
 
-.iwmde_density_iwmde <- function(context, parameter, parameter_spec,
-                                 display_grid, row_states, active_rows,
-                                 active_values, weight_rows, weight_values,
-                                 support, active_mass, replacement,
+.iwmde_density_iwmde <- function(context, parameter, display_grid,
+                                 row_states, active_rows,
+                                 active_values, proposal_weight,
+                                 active_mass, replacement,
                                  population_rows = active_rows,
                                  chain_id = rep(1L, length(active_rows)),
                                  expected_chain_ids = unique(chain_id),
@@ -646,30 +646,7 @@
       detail    = "candidate rows, active values, and row states are inconsistent"
     )
   }
-  weight <- tryCatch(
-    .iwmde_chen_log_weight(
-      context        = context,
-      parameter      = parameter,
-      parameter_spec = parameter_spec,
-      active_rows    = active_rows,
-      active_values  = active_values,
-      weight_rows    = weight_rows,
-      weight_values  = weight_values,
-      support        = support
-    ),
-    error = function(e) {
-      if (inherits(e, "iwmde_construction_error")) {
-        stop(e)
-      }
-      .iwmde_stop_construction_failure(
-        estimator = "iwmde",
-        parameter = parameter,
-        rows      = active_rows,
-        stage     = "proposal-density construction",
-        detail    = conditionMessage(e)
-      )
-    }
-  )
+  weight <- proposal_weight
   weight_fallbacks <- list(
     count   = if (is.null(weight[["fallback_count"]])) {
       0L

@@ -528,25 +528,15 @@ test_that("mixed density estimators receive the full conditioned chain", {
 
 test_that("IWMDE rejects invalid Chen log weights", {
 
-  testthat::local_mocked_bindings(
-    .iwmde_chen_log_weight = function(...) {
-      list(log_weight = c(0, Inf), method = "test")
-    },
-    .package = "RoBMA"
-  )
-
   expect_error(
     .iwmde_density_iwmde(
       context          = list(),
       parameter        = "mu",
-      parameter_spec   = list(),
       display_grid     = 0,
       row_states       = list(list(), list()),
       active_rows      = 1:2,
       active_values    = c(0, 1),
-      weight_rows      = 1:2,
-      weight_values    = c(0, 1),
-      support           = c(-Inf, Inf),
+      proposal_weight  = list(log_weight = c(0, Inf), method = "test"),
       active_mass       = 1,
       replacement       = NULL,
       n_candidate_rows = 2L
@@ -719,20 +709,6 @@ test_that("qCMDE and IWMDE match conjugate normal-normal posterior oracle", {
         ncol = length(row_states)
       )
     },
-    .iwmde_chen_log_weight = function(context, parameter, parameter_spec,
-                                      active_rows, active_values,
-                                      weight_rows, weight_values, support) {
-
-      list(
-        log_weight = stats::dnorm(
-          active_values,
-          mean = posterior_mean,
-          sd   = posterior_sd,
-          log  = TRUE
-        ),
-        method = "oracle_posterior"
-      )
-    },
     .package = "RoBMA"
   )
 
@@ -760,14 +736,19 @@ test_that("qCMDE and IWMDE match conjugate normal-normal posterior oracle", {
   iwmde <- .iwmde_density_iwmde(
     context            = list(),
     parameter          = "mu",
-    parameter_spec     = list(type = "primitive"),
     display_grid       = display_grid,
     row_states         = row_states,
     active_rows        = seq_along(active_values),
     active_values      = active_values,
-    weight_rows        = seq_along(active_values),
-    weight_values      = active_values,
-    support            = c(-Inf, Inf),
+    proposal_weight    = list(
+      log_weight = stats::dnorm(
+        active_values,
+        mean = posterior_mean,
+        sd   = posterior_sd,
+        log  = TRUE
+      ),
+      method = "oracle_posterior"
+    ),
     active_mass        = 1,
     replacement        = list(type = "scalar"),
     normalization_grid = normalization_grid
@@ -830,20 +811,6 @@ test_that("qCMDE and IWMDE match correlated linear-contrast normal oracle", {
         ncol = length(row_states)
       )
     },
-    .iwmde_chen_log_weight = function(context, parameter, parameter_spec,
-                                      active_rows, active_values,
-                                      weight_rows, weight_values, support) {
-
-      list(
-        log_weight = stats::dnorm(
-          active_values,
-          mean = target_mean,
-          sd   = target_sd,
-          log  = TRUE
-        ),
-        method = "oracle_linear_contrast"
-      )
-    },
     .package = "RoBMA"
   )
 
@@ -871,14 +838,19 @@ test_that("qCMDE and IWMDE match correlated linear-contrast normal oracle", {
   iwmde <- .iwmde_density_iwmde(
     context            = list(),
     parameter          = "mu_intercept - .5 * mu_ablat",
-    parameter_spec     = spec,
     display_grid       = display_grid,
     row_states         = row_states,
     active_rows        = seq_along(active_values),
     active_values      = active_values,
-    weight_rows        = seq_along(active_values),
-    weight_values      = active_values,
-    support            = c(-Inf, Inf),
+    proposal_weight    = list(
+      log_weight = stats::dnorm(
+        active_values,
+        mean = target_mean,
+        sd   = target_sd,
+        log  = TRUE
+      ),
+      method = "oracle_linear_contrast"
+    ),
     active_mass        = 1,
     replacement        = spec,
     normalization_grid = normalization_grid
@@ -1331,12 +1303,6 @@ test_that("IWMDE density reports raw support mass without scaling the curve", {
   )
 
   testthat::local_mocked_bindings(
-    .iwmde_chen_log_weight = function(context, parameter, parameter_spec,
-                                      active_rows, active_values,
-                                      weight_rows, weight_values, support) {
-
-      list(log_weight = rep(log(.5), length(active_values)), method = "mock")
-    },
     .iwmde_log_q_grid = function(context, parameter, values, row_states,
                                  replacement) {
 
@@ -1348,14 +1314,14 @@ test_that("IWMDE density reports raw support mass without scaling the curve", {
   density <- .iwmde_density_iwmde(
     context            = list(),
     parameter          = "mu",
-    parameter_spec     = list(type = "primitive"),
     display_grid       = grid,
     row_states         = row_states,
     active_rows        = 1:2,
     active_values      = c(.25, .75),
-    weight_rows        = 1:2,
-    weight_values      = c(.25, .75),
-    support            = c(0, 1),
+    proposal_weight    = list(
+      log_weight = rep(log(.5), 2L),
+      method     = "mock"
+    ),
     active_mass        = 1,
     replacement        = list(type = "scalar"),
     normalization_grid = normalization_grid
@@ -1389,12 +1355,6 @@ test_that("IWMDE fails the target on a non-finite proposal density", {
   )
 
   testthat::local_mocked_bindings(
-    .iwmde_chen_log_weight = function(context, parameter, parameter_spec,
-                                      active_rows, active_values,
-                                      weight_rows, weight_values, support) {
-
-      list(log_weight = c(log(.5), -Inf), method = "mock")
-    },
     .iwmde_log_q_grid = function(context, parameter, values, row_states,
                                  replacement) {
 
@@ -1407,14 +1367,14 @@ test_that("IWMDE fails the target on a non-finite proposal density", {
     .iwmde_density_iwmde(
       context            = list(),
       parameter          = "mu",
-      parameter_spec     = list(type = "primitive"),
       display_grid       = grid,
       row_states         = row_states,
       active_rows        = 1:2,
       active_values      = c(.25, .75),
-      weight_rows        = 1:2,
-      weight_values      = c(.25, .75),
-      support            = c(0, 1),
+      proposal_weight    = list(
+        log_weight = c(log(.5), -Inf),
+        method     = "mock"
+      ),
       active_mass        = 1,
       replacement        = list(type = "scalar"),
       normalization_grid = normalization_grid

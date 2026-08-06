@@ -464,11 +464,52 @@
     baseline_log_q   = rows[["baseline_log_q"]],
     n_candidate_rows = rows[["n_denominator_rows"]]
   )
+  if (identical(plan[["method"]], "iwmde")) {
+    out[["proposal_weight"]] <- .iwmde_plan_proposal_weight(
+      context         = context,
+      plan            = plan,
+      active_rows     = out[["active_rows"]],
+      active_values   = out[["active_values"]],
+      proposal_rows   = rows[["continuous_rows"]],
+      proposal_values = rows[["continuous_values"]]
+    )
+  }
   if (!is.null(execution_cache)) {
     assign(key, out, envir = execution_cache)
   }
 
   return(out)
+}
+
+
+.iwmde_plan_proposal_weight <- function(context, plan, active_rows,
+                                         active_values, proposal_rows,
+                                         proposal_values) {
+
+  tryCatch(
+    .iwmde_chen_log_weight(
+      context        = context,
+      parameter      = plan[["target"]][["parameter"]],
+      parameter_spec = plan[["execution_spec"]],
+      active_rows    = active_rows,
+      active_values  = active_values,
+      weight_rows    = proposal_rows,
+      weight_values  = proposal_values,
+      support        = plan[["support"]][["support"]]
+    ),
+    error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) {
+        stop(e)
+      }
+      .iwmde_stop_construction_failure(
+        estimator = "iwmde",
+        parameter = plan[["target"]][["parameter"]],
+        rows      = proposal_rows,
+        stage     = "proposal-density construction",
+        detail    = conditionMessage(e)
+      )
+    }
+  )
 }
 
 
@@ -526,7 +567,6 @@
     density <- .iwmde_density_iwmde(
       context            = context,
       parameter          = plan[["target"]][["parameter"]],
-      parameter_spec     = plan[["execution_spec"]],
       display_grid       = display_grid,
       row_states         = execution[["row_states"]],
       active_rows        = execution[["active_rows"]],
@@ -536,9 +576,7 @@
       expected_chain_ids = execution[["expected_chain_ids"]],
       conditioned_rows   = conditioned_rows,
       conditioned_chain_id = conditioned_chain_id,
-      weight_rows        = execution[["active_rows"]],
-      weight_values      = execution[["active_values"]],
-      support            = plan[["support"]][["support"]],
+      proposal_weight    = execution[["proposal_weight"]],
       active_mass        = plan[["rows"]][["active_mass"]],
       replacement        = plan[["replacement"]],
       normalization_grid = plan[["grids"]][["normalization_grid"]],

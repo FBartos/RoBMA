@@ -231,6 +231,29 @@
     return(plan)
   }
 
+  continuous_values <- posterior_values[continuous_rows]
+  if (all(continuous_values == continuous_values[[1L]])) {
+    plan[["status"]] <- "unsupported"
+    plan[["reason"]] <- "active samples have zero variance"
+    plan[["rows"]]   <- .iwmde_plan_empty_rows()
+    return(plan)
+  }
+
+  support <- .iwmde_parameter_support(
+    context        = context,
+    parameter      = parameter,
+    rows           = continuous_rows,
+    parameter_spec = parameter_spec
+  )
+  transform <- .iwmde_parameter_transform(support)
+  xlim <- .iwmde_plot_range(posterior_values[finite_rows], support)
+  if (!all(is.finite(xlim)) || xlim[1] >= xlim[2]) {
+    plan[["status"]] <- "unsupported"
+    plan[["reason"]] <- "could not construct a finite plotting range"
+    plan[["rows"]]   <- .iwmde_plan_empty_rows()
+    return(plan)
+  }
+
   candidate_rows <- continuous_rows
   if (length(candidate_rows) > plan[["row_budget"]]) {
     candidate_rows <- .nested_srs_rows(
@@ -245,34 +268,12 @@
   )
 
   candidate_values <- posterior_values[candidate_rows]
-  if (all(candidate_values == candidate_values[[1L]])) {
-    plan[["status"]] <- "unsupported"
-    plan[["reason"]] <- "active samples have zero variance"
-    plan[["rows"]]   <- .iwmde_plan_empty_rows()
-    return(plan)
-  }
-
   baseline_contract <- .iwmde_plan_baseline_contract(
     context          = context,
     plan             = plan,
     candidate_rows   = candidate_rows,
     candidate_values = candidate_values
   )
-
-  support <- .iwmde_parameter_support(
-    context        = context,
-    parameter      = parameter,
-    rows           = candidate_rows,
-    parameter_spec = parameter_spec
-  )
-  transform <- .iwmde_parameter_transform(support)
-  xlim <- .iwmde_plot_range(posterior_values[finite_rows], support)
-  if (!all(is.finite(xlim)) || xlim[1] >= xlim[2]) {
-    plan[["status"]] <- "unsupported"
-    plan[["reason"]] <- "could not construct a finite plotting range"
-    plan[["rows"]]   <- .iwmde_plan_empty_rows()
-    return(plan)
-  }
 
   requested_values <- plan[["outputs"]][["requested_values"]]
   requested_values <- requested_values[
@@ -281,7 +282,6 @@
   ]
   evaluation_values <- requested_values
 
-  continuous_values <- posterior_values[continuous_rows]
   tail_probabilities <- NULL
   tail_values        <- NULL
   if (isTRUE(plan[["outputs"]][["need_density"]])) {

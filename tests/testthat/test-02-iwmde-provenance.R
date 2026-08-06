@@ -88,7 +88,7 @@ test_that("request keys carry schema and algorithm versions", {
   )
 
   expect_equal(request[["schema_version"]], "4")
-  expect_equal(request[["algorithm_version"]], "11")
+  expect_equal(request[["algorithm_version"]], "12")
 
   testthat::local_mocked_bindings(
     .iwmde_algorithm_version = function() "changed",
@@ -526,7 +526,7 @@ test_that("plan keys carry schema and algorithm versions", {
   payload <- .iwmde_plan_key_payload(plan)
 
   expect_equal(payload[["schema_version"]], "4")
-  expect_equal(payload[["algorithm_version"]], "11")
+  expect_equal(payload[["algorithm_version"]], "12")
   expect_identical(
     payload[["prior_ordinates"]],
     .iwmde_compact_nulls(prior_ordinates)

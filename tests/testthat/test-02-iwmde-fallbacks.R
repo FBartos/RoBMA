@@ -237,19 +237,6 @@ test_that("IWMDE density surfaces aggregate fallback diagnostics", {
   )
 
   testthat::local_mocked_bindings(
-    .iwmde_chen_log_weight = function(...) {
-
-      list(
-        log_weight       = rep(log(.5), 2L),
-        method           = "chen_marginal_normal",
-        fallback_from    = "chen_conditional_normal",
-        fallback_reason  = "singular covariance",
-        fallback_count   = 1L,
-        fallback_rows    = 2L,
-        fallback_reasons = c("singular covariance" = 1L),
-        partitions       = list()
-      )
-    },
     .iwmde_log_q_grid = function(context, parameter, values, row_states,
                                  replacement) {
 
@@ -261,14 +248,20 @@ test_that("IWMDE density surfaces aggregate fallback diagnostics", {
   density <- .iwmde_density_iwmde(
     context            = list(),
     parameter          = "mu",
-    parameter_spec     = list(type = "primitive"),
     display_grid       = grid,
     row_states         = row_states,
     active_rows        = 1:2,
     active_values      = c(.25, .75),
-    weight_rows        = 1:2,
-    weight_values      = c(.25, .75),
-    support            = c(0, 1),
+    proposal_weight    = list(
+      log_weight       = rep(log(.5), 2L),
+      method           = "chen_marginal_normal",
+      fallback_from    = "chen_conditional_normal",
+      fallback_reason  = "singular covariance",
+      fallback_count   = 1L,
+      fallback_rows    = 2L,
+      fallback_reasons = c("singular covariance" = 1L),
+      partitions       = list()
+    ),
     active_mass        = 1,
     replacement        = list(type = "scalar"),
     normalization_grid = normalization_grid

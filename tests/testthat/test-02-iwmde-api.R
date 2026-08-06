@@ -1319,7 +1319,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "4")
-  expect_equal(provenance[["algorithm_version"]], "11")
+  expect_equal(provenance[["algorithm_version"]], "12")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -1960,6 +1960,152 @@ test_that("IWMDE row sampling is reproducible, nested, and RNG-local", {
     .nested_srs_rows(rows = rows, max_samples = 10),
     out10
   )
+})
+
+
+test_that("IWMDE structural support uses the full continuous population", {
+
+  context <- list(
+    posterior_samples = matrix(
+      seq_len(25),
+      ncol     = 1L,
+      dimnames = list(NULL, "mu")
+    ),
+    object = list(
+      fit        = list(),
+      likelihood = list(family = "normal"),
+      data       = list(measure = "GEN")
+    ),
+    data            = list(),
+    priors          = list(),
+    flat_prior_list = list()
+  )
+  support_rows <- integer()
+
+  testthat::local_mocked_bindings(
+    .iwmde_parameter_support = function(context, parameter, rows,
+                                         parameter_spec = NULL) {
+
+      support_rows <<- rows
+      c(-Inf, Inf)
+    },
+    .iwmde_row_states = function(context, rows, parameter = NULL,
+                                 parameter_spec = NULL, estimator = NULL) {
+
+      lapply(rows, function(row) {
+        .iwmde_new_row_state(list(baseline_log_q = 0))
+      })
+    },
+    .package = "RoBMA"
+  )
+
+  plan <- .iwmde_plan(
+    context         = context,
+    parameter       = "mu",
+    density_method  = "IWMDE",
+    density_control = list(
+      n_points             = 20,
+      max_samples          = 20,
+      normalization_points = 20
+    ),
+    outputs         = "density",
+    parameter_spec  = list(type = "primitive")
+  )
+
+  expect_equal(support_rows, seq_len(25L))
+  expect_equal(plan[["rows"]][["continuous_rows"]], seq_len(25L))
+  expect_length(plan[["rows"]][["estimator_rows"]], 20L)
+})
+
+
+test_that("IWMDE fits full-population proposal weights once per execution", {
+
+  proposal_calls <- 0L
+  captured       <- NULL
+  context <- list(
+    posterior_samples = matrix(
+      seq_len(8L),
+      ncol     = 1L,
+      dimnames = list(NULL, "mu")
+    ),
+    chain_id = rep(1L, 8L)
+  )
+  plan <- list(
+    method         = "iwmde",
+    target         = list(parameter = "mu"),
+    execution_spec = list(type = "primitive"),
+    support        = list(support = c(-Inf, Inf)),
+    rows = list(
+      estimator_rows    = c(2L, 5L, 8L),
+      estimator_values  = c(2, 5, 8),
+      continuous_rows   = seq_len(8L),
+      continuous_values = seq_len(8L),
+      population_rows   = seq_len(8L),
+      chain_coverage     = list(expected_chain_ids = 1L),
+      row_states         = rep(list(list(baseline_log_q = 0)), 3L),
+      baseline_log_q     = rep(0, 3L),
+      n_denominator_rows = 3L
+    )
+  )
+
+  testthat::local_mocked_bindings(
+    .iwmde_chen_log_weight = function(context, parameter, parameter_spec,
+                                      active_rows, active_values,
+                                      weight_rows, weight_values, support) {
+
+      proposal_calls <<- proposal_calls + 1L
+      captured <<- list(
+        active_rows   = active_rows,
+        active_values = active_values,
+        weight_rows   = weight_rows,
+        weight_values = weight_values
+      )
+      list(log_weight = rep(0, length(active_rows)), method = "mock")
+    },
+    .package = "RoBMA"
+  )
+
+  cache <- new.env(parent = emptyenv())
+  first <- .iwmde_plan_row_execution(context, plan, cache)
+  again <- .iwmde_plan_row_execution(context, plan, cache)
+
+  expect_identical(first, again)
+  expect_equal(proposal_calls, 1L)
+  expect_equal(captured[["active_rows"]], c(2L, 5L, 8L))
+  expect_equal(captured[["active_values"]], c(2, 5, 8))
+  expect_equal(captured[["weight_rows"]], seq_len(8L))
+  expect_equal(captured[["weight_values"]], seq_len(8L))
+})
+
+
+test_that("fixed full-population proposals retain exact SRS design means", {
+
+  values          <- c(-4, -1, 0, 1, 4)
+  density_ratios  <- c(8, 2, 1, 3, 10)
+  full_weight     <- stats::dnorm(values, mean(values), stats::sd(values))
+  contributions   <- density_ratios * full_weight
+  census           <- mean(contributions)
+  samples          <- utils::combn(
+    seq_along(values),
+    3L,
+    simplify = FALSE
+  )
+
+  fixed_estimates <- vapply(samples, function(rows) {
+    mean(contributions[rows])
+  }, numeric(1))
+  refitted_estimates <- vapply(samples, function(rows) {
+    sample_weight <- stats::dnorm(
+      values[rows],
+      mean(values[rows]),
+      stats::sd(values[rows])
+    )
+    mean(density_ratios[rows] * sample_weight)
+  }, numeric(1))
+
+  expect_equal(mean(fixed_estimates), census, tolerance = 1e-14)
+  expect_equal(census, 0.3485871, tolerance = 1e-7)
+  expect_gt(abs(mean(refitted_estimates) / census - 1), .30)
 })
 
 
