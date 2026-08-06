@@ -931,6 +931,31 @@ test_that("qCMDE refinement waits for an all-finite certified pair", {
 })
 
 
+test_that("qCMDE refinement grids are nested", {
+
+  z <- seq(-2, 2, length.out = 100L)
+  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
+  sequence <- .iwmde_qcmde_grid_sequence(
+    normalization_grid = .iwmde_qcmde_grid_from_z(z, transform),
+    transform          = transform
+  )
+
+  expect_length(sequence, 4L)
+  for (index in seq_len(length(sequence) - 1L)) {
+    expect_true(all(sequence[[index]][["z"]] %in%
+                      sequence[[index + 1L]][["z"]]))
+  }
+
+  plan <- .iwmde_qcmde_normalizer_plan(
+    normalization_grid = .iwmde_qcmde_grid_from_z(z, transform),
+    transform          = transform
+  )
+  expect_identical(plan[["all_grid"]][["z"]],
+                   plan[["final_grid"]][["z"]])
+  expect_lt(length(plan[["all_grid"]][["z"]]), 400L)
+})
+
+
 test_that("qCMDE refinement preserves infinite relative changes", {
 
   density_call <- 0L

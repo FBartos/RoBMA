@@ -77,18 +77,25 @@
   out    <- vector("list", max_refinement_steps + 1L)
   out[[1L]] <- .iwmde_qcmde_grid_from_z(z, transform)
 
+  final_extension <- width * .iwmde_qcmde_extension_fraction(max_refinement_steps)
+  final_points    <- .iwmde_qcmde_refinement_points(
+    n_base = n_base,
+    step   = max_refinement_steps
+  )
+  final_z <- sort(unique(c(
+    z,
+    seq(
+      min(z) - final_extension,
+      max(z) + final_extension,
+      length.out = final_points
+    )
+  )))
+
   for (step in seq_len(max_refinement_steps)) {
     extension <- width * .iwmde_qcmde_extension_fraction(step)
-    n_points  <- .iwmde_qcmde_refinement_points(
-      n_base = n_base,
-      step   = step
-    )
-    z_step <- seq(
-      min(z) - extension,
-      max(z) + extension,
-      length.out = n_points
-    )
-    z_step <- sort(unique(c(z, z_step)))
+    lower     <- min(z) - extension
+    upper     <- max(z) + extension
+    z_step    <- final_z[final_z >= lower & final_z <= upper]
     out[[step + 1L]] <- .iwmde_qcmde_grid_from_z(z_step, transform)
   }
 
