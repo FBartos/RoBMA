@@ -831,6 +831,18 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     ))
   }
 
+  if (is_multilevel && .outcome_type(object) == "norm" &&
+      !.is_weightfunction(object)) {
+    return(.ranef_brma_multilevel_normal(
+      object        = object,
+      bias_adjusted = bias_adjusted,
+      probs         = probs,
+      component     = component,
+      simplify      = simplify,
+      dots          = dots
+    ))
+  }
+
   # get BLUPs (fixed + all random effects)
   blup_samples <- predict.brma(
     object        = object,
@@ -951,6 +963,109 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       data       = data
     ))
   }
+}
+
+
+.ranef_brma_multilevel_normal <- function(
+    object, bias_adjusted, probs, component, simplify, dots) {
+
+  .check_unused_dots(
+    dots    = dots,
+    allowed = c("conditional", ".posterior_samples"),
+    caller  = "ranef.brma()"
+  )
+  conditional <- dots[["conditional"]]
+  if (is.null(conditional)) {
+    conditional <- FALSE
+  }
+
+  context <- .predict_brma_context(
+    object         = object,
+    newdata        = NULL,
+    V_new          = NULL,
+    type           = "estimate",
+    as_measure     = TRUE,
+    output_measure = NULL,
+    transform      = NULL,
+    probs          = probs,
+    bias_adjusted  = bias_adjusted,
+    quiet          = TRUE,
+    conditional    = conditional,
+    dots           = list(.posterior_samples = dots[[".posterior_samples"]])
+  )
+  scale_state    <- .predict_brma_scale_state(context)
+  location_state <- .predict_brma_location_state(context, scale_state)
+  components     <- location_state[["multilevel_blup"]]
+
+  if (is.null(components)) {
+    stop("The exact multilevel normal BLUP components are unavailable.",
+         call. = FALSE)
+  }
+
+  labels          <- .get_estimate_labels(object)
+  cluster         <- context[["new_data"]][["outcome"]][["cluster"]]
+  cluster_labels  <- .get_cluster_labels(object)[as.character(cluster)]
+  cluster_labels  <- unname(cluster_labels)
+  cluster_missing <- is.na(cluster_labels)
+  cluster_labels[cluster_missing] <- as.character(cluster[cluster_missing])
+  if (any(duplicated(cluster_labels))) {
+    cluster_names <- paste0(cluster_labels, "|", labels)
+  } else {
+    cluster_names <- cluster_labels
+  }
+
+  colnames(components[["cluster"]]) <- paste0(
+    "u_cluster[", cluster_names, "]"
+  )
+  colnames(components[["estimate"]]) <- paste0(
+    "u_estimate[", labels, "]"
+  )
+
+  out <- list(
+    cluster = .new_brma_samples(
+      samples  = components[["cluster"]],
+      n_chains = context[["n_chains"]],
+      n_iter   = context[["n_iter"]],
+      title    = "Cluster-Level Random Effects:",
+      probs    = probs,
+      data     = context[["new_data"]]
+    ),
+    estimate = .new_brma_samples(
+      samples  = components[["estimate"]],
+      n_chains = context[["n_chains"]],
+      n_iter   = context[["n_iter"]],
+      title    = "Estimate-Level Random Effects:",
+      probs    = probs,
+      data     = context[["new_data"]]
+    )
+  )
+
+  parameters <- if (conditional) {
+    .conditional_effect_parameters(object)
+  } else {
+    NULL
+  }
+  out <- .condition_prediction_samples(
+    object            = object,
+    samples           = out,
+    conditional       = conditional,
+    parameters        = parameters,
+    posterior_samples = context[["posterior_samples"]],
+    quiet             = TRUE
+  )
+
+  n_chains <- attr(out[[1L]], "nchains")
+  n_iter   <- attr(out[[1L]], "niter")
+  return(.select_ranef_components(
+    components = out,
+    component  = component,
+    simplify   = simplify,
+    labels     = labels,
+    n_chains   = n_chains,
+    n_iter     = n_iter,
+    probs      = probs,
+    data       = context[["new_data"]]
+  ))
 }
 
 
