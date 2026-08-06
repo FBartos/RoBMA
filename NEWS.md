@@ -14,10 +14,11 @@
   estimation for supported `plot()`, `hypothesis()`/`bf_hypothesis()`,
   `marginal_means()`, and `hypothesis.marginal_means()` workflows via
   `density_method`.
-- adds adaptive deterministic row budgets and stricter BF-grade reliability
-  gates to qCMDE/IWMDE point ordinates, with compact public diagnostics via
+- adds fixed, user-controlled simple-random posterior-row samples for
+  qCMDE/IWMDE ordinates, with compact public diagnostics via
   `density_diagnostics()` and method-neutral `RoBMA_density_diagnostics` /
-  `RoBMA_density_ordinate_error` classes.
+  `RoBMA_density_ordinate_error` classes. Diagnostics quantify uncertainty but
+  never adaptively change the estimator's posterior-row sample.
 - adds RoBMA-owned schema/version provenance to precomputed qCMDE/IWMDE density
   and ordinate attributes.
 - adds `log_lik()` for pointwise posterior log-likelihood draws used by LOO and
@@ -76,6 +77,9 @@
 - extends existing fits through the supported BayesTools continuation contract,
   preserving each JAGS chain's stored random-number generator state;
   `update.brma(seed = ...)` now rejects attempts to reseed a continuation.
+- lets named `NULL` values explicitly clear nullable convergence/autofit
+  thresholds and targeted monitors during `update()`, while omitted controls
+  continue to inherit their fitted values.
 - rejects explicitly supplied moderator, scale-regression, and multilevel
   heterogeneity-allocation priors when the corresponding model component is
   absent, instead of silently discarding them.
@@ -123,6 +127,12 @@
 - uses one global nested simple-random sample for qCMDE/IWMDE and
   model-averaged funnel calculations, preserving empirical product-state
   weights without enumerating or forcibly retaining rare states.
+- fits IWMDE proposals to the full eligible posterior population and samples
+  only the expensive contribution evaluations, preserving the sampling target
+  while avoiding repeated proposal fits. Boundary-risk Chen fallbacks are
+  preflighted before constructing the full nuisance matrix.
+- evaluates nested qCMDE integration grids incrementally and stops after the
+  first certified refinement pair, reusing all previously evaluated nodes.
 - aligns same-data `brma.mv()` response prediction with `brma()` semantics by
   using fixed means and marginal known-`V` plus random-effect covariance instead
   of conditioning on fitted random effects.
@@ -163,8 +173,8 @@
   baserates or log-rates, then averages over posterior rows instead of using a
   prior-scale nuisance grid inside the density estimator.
 - replaces ordinary estimate-unit GLMM fixed-grid integration with native joint
-  adaptive quadrature and errors explicitly for unsupported truncated nuisance
-  priors instead of silently using an inaccurate fallback.
+  adaptive quadrature and a convergence-checked prior-CDF fallback for
+  supported truncated nuisance priors.
 - rejects cluster-unit GLMM log-likelihood, LOO, and WAIC until certified nested
   adaptive quadrature is available; estimate-unit GLMM diagnostics remain
   supported.
@@ -191,6 +201,9 @@
 - normalizes selected-normal funnel and regression-plot CDF tails jointly,
   preventing valid low-standard-error contours from failing due to separately
   rounded normalization masses.
+- certifies selected-normal cluster integrals by successive 7-, 15-, and
+  31-node quadrature rules and fails explicitly when the requested accuracy is
+  not established, replacing heuristic curvature fallbacks.
 - preserves moderator-specific forest labels unless `mlab` is explicitly
   overridden.
 - supplies `metafor` forest shade/dist styles with a deterministic density from
@@ -222,12 +235,16 @@
 - removes structurally inactive random-effect coordinates from marginal-
   likelihood replay when every corresponding standard deviation is fixed at
   zero, restoring exact zero-dimensional results.
+- prunes individually fixed-zero random-formula blocks and independent latent
+  coordinates from bridge proposals while reconstructing their structural zero
+  values in the target.
 - handles every finite constant log-likelihood column with exact uniform LOO
   importance ratios and zero Pareto-k diagnostics while retaining ordinary
   PSIS diagnostics for varying columns.
-- evaluates accepted continuous, truncated, and point GLMM nuisance priors in
-  post-fit likelihood diagnostics; unsupported non-point discrete nuisance
-  priors now fail explicitly at input.
+- restricts binomial GLMM baserate priors to point or beta families and Poisson
+  GLMM log-rate priors to point or normal families, including their supported
+  truncations, so every accepted nuisance prior has a certified post-fit
+  likelihood route.
 - rejects ambiguous marginal-means hypothesis aliases instead of silently
   resolving a canonical name to a different moderator coefficient.
 - evaluates certified `exp(affine)` formula-coefficient hypotheses under KDE
@@ -235,6 +252,9 @@
   equalities are evaluated on the inverse log/affine scale, where the Jacobian
   cancels; nonpositive nulls, compound point expressions, and nonlinear
   qCMDE/IWMDE routes fail clearly.
+- rejects random-parameter point hypotheses when the declared transformed
+  prior contains an atom, while retaining coherent region and directional
+  hypotheses.
 - rewrites vector hypothesis aliases independently while limiting point-null
   syntax to direct parameters and levels so product-space atoms and
   conditioning metadata cannot be discarded.
@@ -262,6 +282,22 @@
   retaining unrelated caller workspaces.
 - uses nested qCMDE normalization grids and removes superseded row-drop recovery
   machinery, reducing repeated work and simplifying the fail-closed estimator.
+- treats eigensolver null-space artifacts inside the certified covariance
+  backward-error envelope as zero only in spectral factor representations,
+  preserving valid low-rank known-`V` inputs without modifying submitted
+  covariances.
+- evaluates diagonal-plus-rank-one Gaussian quadratic forms through a stable
+  positive-sum identity, avoiding cancellation near singular covariance
+  boundaries.
+- keeps parser-only prediction placeholders out of formula data and retains
+  coherent `vi`/`sei` views from `V_new`, so missing formula predictors fail
+  rather than being silently evaluated at zero.
+- derives ordinary multilevel `ranef()` cluster and estimate components from
+  one joint Gaussian BLUP solve instead of mixing analytic totals with sampled
+  latent components.
+- rejects moderator-dependent PET/PEESE curves and outcome-mode funnels with
+  location or scale predictors, where a single unconditional curve is not a
+  fitted estimand.
 - marks GLMM outcome-mode funnel contours as descriptive normal effect-size
   approximations in warnings, plot labels, and returned metadata instead of
   implying coverage under the fitted discrete likelihood.
