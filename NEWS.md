@@ -1,4 +1,4 @@
-## version 4.1.4 (IN PROGRESS)
+## version 4.1.5 (IN PROGRESS)
 ### Features
 - re-exports `loo::loo_model_weights()` and adds a `brma` method that computes
   stacking or pseudo-BMA weights directly from compatible stored LOO results.
@@ -65,6 +65,10 @@
   fitted-design aggregation.
 
 ### Fixes
+- permits mixed-case scenario artifact names such as `mu_BF_comparison`,
+  matching the names already used by the maintainer scenarios.
+- resets base-graphics overlay mode around interactive `scenario_plot()`
+  evaluations so consecutive scenario figures do not draw over one another.
 - reports an actionable error when additional models are passed to
   `loo_weights()`, clarifying the distinction between single-model PSIS
   importance weights and the new `loo_model_weights()` method across models.

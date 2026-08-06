@@ -168,7 +168,7 @@ test_that("scenario plot evaluation restores base graphics parameters", {
 })
 
 
-test_that("scenario_plot draws once outside a scenario runner", {
+test_that("scenario_plot accepts mixed-case names and draws once", {
 
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
@@ -181,17 +181,25 @@ test_that("scenario_plot draws once outside a scenario runner", {
   on.exit(list2env(old_helpers, envir = helper_env), add = TRUE)
   assign(".scenario_is_interactive", function() TRUE, envir = helper_env)
   assign(".scenario_snapshot_context", function() NULL, envir = helper_env)
-  draws <- 0L
+  state <- new.env(parent = emptyenv())
+  state[["draws"]] <- 0L
 
   scenario_start("unit", root = root, create_missing = TRUE)
   .with_temp_plot_device({
-    scenario_plot("manual-plot", {
-      draws <- draws + 1L
+    graphics::plot(1:3, 1:3)
+    graphics::par(new = TRUE)
+    scenario_plot("mu_BF_comparison", {
+      state[["entry_new"]] <- graphics::par("new")
+      state[["draws"]] <- state[["draws"]] + 1L
       graphics::plot(1:3, 1:3)
+      graphics::par(new = TRUE)
     })
+    state[["exit_new"]] <- graphics::par("new")
   })
 
-  expect_identical(draws, 1L)
+  expect_identical(state[["draws"]], 1L)
+  expect_false(state[["entry_new"]])
+  expect_false(state[["exit_new"]])
 })
 
 

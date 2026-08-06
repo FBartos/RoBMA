@@ -77,10 +77,10 @@ if (!exists(".write_canonical_svg", mode = "function")) {
 .scenario_validate_name <- function(name, type = "artifact") {
 
   valid <- is.character(name) && length(name) == 1L && !is.na(name) &&
-    grepl("^[a-z0-9][a-z0-9._-]*$", name) && !endsWith(name, ".")
+    grepl("^[A-Za-z0-9][A-Za-z0-9._-]*$", name) && !endsWith(name, ".")
   if (!valid) {
     stop(
-      "Scenario ", type, " names must use lowercase letters, numbers, ",
+      "Scenario ", type, " names must use letters, numbers, ",
       "underscores, hyphens, and internal periods.",
       call. = FALSE
     )
@@ -300,7 +300,11 @@ scenario_text <- function(name, code) {
   if (restore_par) {
     old_par <- graphics::par(no.readonly = TRUE)
     old_par[["new"]] <- NULL
-    on.exit(graphics::par(old_par), add = TRUE)
+    graphics::par(new = FALSE)
+    on.exit({
+      graphics::par(old_par)
+      graphics::par(new = FALSE)
+    }, add = TRUE)
   }
 
   value <- eval(expr, envir = envir)
