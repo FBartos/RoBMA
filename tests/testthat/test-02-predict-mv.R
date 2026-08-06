@@ -193,6 +193,45 @@ test_that("known-V newdata response predictions require and validate V_new", {
 })
 
 
+test_that("known-V response newdata replays sampling-scale formulas from V_new", {
+
+  dat <- data.frame(
+    yi  = c(.10, .20, .30),
+    sei = c(.20, .25, .30)
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(dat[["sei"]]^2),
+    scale                     = ~ sei,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  V_new <- diag(c(.04, .09))
+  posterior_samples <- matrix(
+    c(.10, .20, 0, .20, .30, 0),
+    nrow     = 2L,
+    byrow    = TRUE,
+    dimnames = list(NULL, c("mu", "log_tau_intercept", "log_tau_sei"))
+  )
+
+  set.seed(25)
+  response <- predict(
+    object,
+    newdata            = data.frame(row = 1:2),
+    V_new              = V_new,
+    type               = "response",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+
+  expect_brma_samples_matrix(response, 2L, "known-V sampling-scale response")
+  expect_equal(attr(response, "data")[["scale"]][["sei"]], c(.20, .30))
+  expect_equal(attr(response, "data")[["outcome"]][["sei"]], c(.20, .30))
+})
+
+
 test_that("known-V prediction compares supplied sampling scales row-wise", {
 
   expect_silent(.predict_known_v_newdata_check_variance(
@@ -214,7 +253,18 @@ test_that("known-V prediction compares supplied sampling scales row-wise", {
     V_new   = diag(c(1e-300, 1e300))
   )
   expect_identical(actual[["vi"]], c(1e-300, 1e300))
-  expect_false("sei" %in% names(actual))
+  expect_identical(actual[["sei"]], c(1e-150, 1e150))
+
+  expect_error(
+    .predict_known_v_newdata_add_vi(
+      newdata = data.frame(
+        vi  = c(.04, .05),
+        sei = c(.20, .30)
+      ),
+      V_new = diag(c(.04, .05))
+    ),
+    "must match diag\\(V_new\\)"
+  )
 })
 
 

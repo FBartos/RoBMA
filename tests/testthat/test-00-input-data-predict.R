@@ -214,6 +214,94 @@ test_that(".prepare_newdata inserts dummy outcomes only when the response is unu
 })
 
 
+test_that("newdata parser placeholders do not satisfy fitted formulas", {
+
+  fit_mods <- brma.norm(
+    yi = yi, sei = sei, mods = ~ sei,
+    data = test_data_norm, only_data = TRUE
+  )
+  fit_scale <- brma.norm(
+    yi = yi, sei = sei, scale = ~ sei,
+    data = test_data_norm, only_data = TRUE
+  )
+  fit_counts <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i, mods = ~ ai,
+    data = test_data_glmm, only_data = TRUE
+  )
+  mv_data <- data.frame(
+    yi    = c(.10, .20, .30),
+    sei   = c(.20, .25, .30),
+    study = c("s1", "s2", "s3")
+  )
+  fit_random <- brma.mv(
+    yi                        = yi,
+    V                         = diag(mv_data[["sei"]]^2),
+    random                    = ~ diag(0 + sei | study),
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      fit_mods, data.frame(row = 1:2), type = "terms"
+    ),
+    "moderator variables. Missing: sei",
+    fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      fit_scale, data.frame(row = 1:2), type = "terms.scale"
+    ),
+    "scale variables. Missing: sei",
+    fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      fit_random, data.frame(row = 1:2), type = "estimate",
+      include_random = TRUE
+    ),
+    "random-effect variables. Missing: sei",
+    fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      fit_counts, data.frame(row = 1:2), type = "terms"
+    ),
+    "moderator variables. Missing: ai",
+    fixed = TRUE
+  )
+
+  supplied <- data.frame(sei = c(.20, .30))
+  expect_no_error(RoBMA:::.prepare_newdata(
+    fit_mods, supplied, type = "terms"
+  ))
+  expect_no_error(RoBMA:::.prepare_newdata(
+    fit_scale, supplied, type = "terms.scale"
+  ))
+  expect_no_error(RoBMA:::.prepare_newdata(
+    fit_random, supplied, type = "estimate", include_random = TRUE
+  ))
+})
+
+
+test_that("newdata rejects internal parser placeholder collisions", {
+
+  fit <- brma.norm(
+    yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
+  )
+  collision <- data.frame(row = 1:2)
+  collision[[".RoBMA_newdata_parser_yi"]] <- 0
+
+  expect_error(
+    RoBMA:::.prepare_newdata(fit, collision, type = "terms"),
+    "reserved for internal prediction parsing",
+    fixed = TRUE
+  )
+})
+
+
 test_that(".prepare_newdata accepts binomial cells for every prediction mode", {
 
   fit <- brma.glmm(

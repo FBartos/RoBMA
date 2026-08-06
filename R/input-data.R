@@ -2207,16 +2207,55 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 }
 
 
-# Internal helper to add placeholder columns that are not used by prediction.
-.prepare_newdata_add_missing <- function(newdata, cols, value, n) {
+# Parser placeholders keep the shared data-input path usable without making
+# absent outcome variables visible to fitted moderator, scale, or random
+# formulas. The namespace is reserved so user data cannot shadow a placeholder.
+.prepare_newdata_placeholder_name <- function(name) {
 
-  for (col in cols) {
-    if (!col %in% names(newdata)) {
-      newdata[[col]] <- rep(value, n)
-    }
+  return(paste0(".RoBMA_newdata_parser_", name))
+}
+
+
+.prepare_newdata_reject_placeholder_columns <- function(newdata) {
+
+  reserved <- startsWith(names(newdata), ".RoBMA_newdata_parser_")
+  if (any(reserved)) {
+    stop(
+      "The 'newdata' contains a column reserved for internal prediction parsing: ",
+      paste(names(newdata)[reserved], collapse = ", "), ".",
+      call. = FALSE
+    )
   }
 
+  invisible(TRUE)
+}
+
+
+.prepare_newdata_add_placeholder <- function(newdata, name, value, n) {
+
+  placeholder <- .prepare_newdata_placeholder_name(name)
+  if (length(value) == 1L) {
+    value <- rep(value, n)
+  } else if (length(value) != n) {
+    stop("Internal error: prediction placeholder length mismatch.", call. = FALSE)
+  }
+  newdata[[placeholder]] <- value
   return(newdata)
+}
+
+
+.prepare_newdata_parser_column <- function(newdata, name) {
+
+  if (name %in% names(newdata)) {
+    return(name)
+  }
+
+  placeholder <- .prepare_newdata_placeholder_name(name)
+  if (placeholder %in% names(newdata)) {
+    return(placeholder)
+  }
+
+  return(NULL)
 }
 
 
@@ -2241,12 +2280,14 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   n_new        <- nrow(newdata)
 
   if (outcome_type == "norm") {
-    newdata <- .prepare_newdata_add_missing(
-      newdata = newdata,
-      cols    = "yi",
-      value   = 0,
-      n       = n_new
-    )
+    if (!"yi" %in% names(newdata)) {
+      newdata <- .prepare_newdata_add_placeholder(
+        newdata = newdata,
+        name    = "yi",
+        value   = 0,
+        n       = n_new
+      )
+    }
 
     if (!("sei" %in% names(newdata) || "vi" %in% names(newdata))) {
       if (.prepare_newdata_needs_norm_sei(object, type, bias_adjusted)) {
@@ -2256,7 +2297,12 @@ print.RoBMA_data <- function(x, n = 6, ...) {
           call. = FALSE
         )
       }
-      newdata[["sei"]] <- rep(0, n_new)
+      newdata <- .prepare_newdata_add_placeholder(
+        newdata = newdata,
+        name    = "sei",
+        value   = 0,
+        n       = n_new
+      )
     }
 
   } else if (outcome_type == "bin") {
@@ -2265,31 +2311,39 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     totals_available <- all(c("n1i", "n2i") %in% provided_counts)
 
     if (length(provided_counts) == 0L && type != "response") {
-      newdata <- .prepare_newdata_add_missing(
-        newdata = newdata,
-        cols    = c("ai", "ci", "n1i", "n2i"),
-        value   = 0L,
-        n       = n_new
-      )
-    } else {
-      if (totals_available) {
-        newdata <- .prepare_newdata_add_missing(
+      for (name in c("ai", "ci", "n1i", "n2i")) {
+        newdata <- .prepare_newdata_add_placeholder(
           newdata = newdata,
-          cols    = c("ai", "ci"),
+          name    = name,
           value   = 0L,
           n       = n_new
         )
       }
-
+    } else {
       count_args <- lapply(count_names, function(name) {
-        if (name %in% names(newdata)) newdata[[name]] else NULL
+        if (name %in% names(newdata)) {
+          return(newdata[[name]])
+        }
+        if (totals_available && name %in% c("ai", "ci")) {
+          return(rep(0L, n_new))
+        }
+        return(NULL)
       })
       names(count_args) <- count_names
       count_args[["skip_validation"]] <- TRUE
       counts <- do.call(.canonicalize_binomial_counts, count_args)
 
       for (name in c("ai", "ci", "n1i", "n2i")) {
-        newdata[[name]] <- counts[[name]]
+        if (name %in% provided_counts) {
+          newdata[[name]] <- counts[[name]]
+        } else {
+          newdata <- .prepare_newdata_add_placeholder(
+            newdata = newdata,
+            name    = name,
+            value   = counts[[name]],
+            n       = n_new
+          )
+        }
       }
     }
 
@@ -2297,12 +2351,16 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     if (type == "response") {
       .prepare_newdata_stop_missing(newdata, c("t1i", "t2i"))
     }
-    newdata <- .prepare_newdata_add_missing(
-      newdata = newdata,
-      cols    = c("x1i", "x2i", "t1i", "t2i"),
-      value   = 0,
-      n       = n_new
-    )
+    for (name in c("x1i", "x2i", "t1i", "t2i")) {
+      if (!name %in% names(newdata)) {
+        newdata <- .prepare_newdata_add_placeholder(
+          newdata = newdata,
+          name    = name,
+          value   = 0,
+          n       = n_new
+        )
+      }
+    }
   }
 
   return(newdata)
@@ -2310,32 +2368,37 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 
 
 # Internal helper to construct outcome arguments for `.check_and_list_data`.
-.prepare_newdata_outcome_call_args <- function(outcome_type, newdata) {
+.prepare_newdata_outcome_call_args <- function(outcome_type, newdata,
+                                               prefer_vi = FALSE) {
 
   if (outcome_type == "norm") {
-    call_args <- list(yi = quote(yi))
+    call_args <- list(
+      yi = as.name(.prepare_newdata_parser_column(newdata, "yi"))
+    )
 
-    if ("sei" %in% names(newdata)) {
-      call_args[["sei"]] <- quote(sei)
+    sampling_names <- if (prefer_vi && "vi" %in% names(newdata)) {
+      "vi"
     } else {
-      call_args[["vi"]] <- quote(vi)
+      c("vi", "sei")
+    }
+    for (name in sampling_names) {
+      column <- .prepare_newdata_parser_column(newdata, name)
+      if (!is.null(column)) {
+        call_args[[name]] <- as.name(column)
+      }
     }
 
   } else if (outcome_type == "bin") {
-    call_args <- list(
-      ai  = quote(ai),
-      ci  = quote(ci),
-      n1i = quote(n1i),
-      n2i = quote(n2i)
-    )
+    call_args <- lapply(c("ai", "ci", "n1i", "n2i"), function(name) {
+      as.name(.prepare_newdata_parser_column(newdata, name))
+    })
+    names(call_args) <- c("ai", "ci", "n1i", "n2i")
 
   } else if (outcome_type == "pois") {
-    call_args <- list(
-      x1i = quote(x1i),
-      x2i = quote(x2i),
-      t1i = quote(t1i),
-      t2i = quote(t2i)
-    )
+    call_args <- lapply(c("x1i", "x2i", "t1i", "t2i"), function(name) {
+      as.name(.prepare_newdata_parser_column(newdata, name))
+    })
+    names(call_args) <- c("x1i", "x2i", "t1i", "t2i")
   }
 
   return(call_args)
@@ -2515,6 +2578,7 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   extra_env                         <- list()
 
   newdata <- .prepare_newdata_as_data_frame(newdata)
+  .prepare_newdata_reject_placeholder_columns(newdata)
   newdata <- .prepare_newdata_outcome(
     object        = object,
     newdata       = newdata,
@@ -2532,7 +2596,11 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   # add outcome arguments based on outcome_type
   call_args <- c(
     call_args,
-    .prepare_newdata_outcome_call_args(outcome_type, newdata)
+    .prepare_newdata_outcome_call_args(
+      outcome_type = outcome_type,
+      newdata      = newdata,
+      prefer_vi    = .is_data_known_v(original_data) && type == "response"
+    )
   )
 
   # add mods formula if this is a regression model

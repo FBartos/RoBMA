@@ -26,9 +26,7 @@
   }
 
   newdata[["vi"]] <- diag_v
-  if ("sei" %in% names(newdata)) {
-    newdata[["sei"]] <- NULL
-  }
+  newdata[["sei"]] <- sqrt(diag_v)
 
   return(newdata)
 }
