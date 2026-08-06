@@ -27,8 +27,9 @@ likelihood has not been computed, an error is thrown.
 Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
 and \code{RoBMA}) do not expose bridge-sampling marginal likelihoods.
 
-The returned object can be used for Bayesian model comparison via
-\code{\link{bf}} and \code{\link{post_prob}}.
+For Bayesian model comparison, pass the fitted \code{brma} objects to
+\code{\link{bf}} or \code{\link{post_prob}}. The returned aggregate is not
+a raw \pkg{bridgesampling} bridge object.
 }
 \examples{
 \dontrun{

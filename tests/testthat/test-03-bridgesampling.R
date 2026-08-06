@@ -205,12 +205,12 @@ test_that("effect-direction reversals preserve marginal likelihood", {
   fit1 <- fits[["dat.lehmann2018-PET"]]
   fit2 <- fits[["dat.lehmann2018-PET_neg"]]
 
-  expect_equal(bridgesampling::bf(bridge_sampler(fit2), bridge_sampler(fit1))$bf, 1, tolerance = 0.01)
+  expect_equal(exp(logml(fit2) - logml(fit1)), 1, tolerance = 0.01)
 
   fit1 <- fits[["dat.lehmann2018-3PSM"]]
   fit2 <- fits[["dat.lehmann2018-3PSM_neg"]]
 
-  expect_equal(bridgesampling::bf(bridge_sampler(fit2), bridge_sampler(fit1))$bf, 1, tolerance = 0.01)
+  expect_equal(exp(logml(fit2) - logml(fit1)), 1, tolerance = 0.01)
 })
 
 test_that("logml returns scalar log marginal likelihood, can be applied to both bridge and brma", {
