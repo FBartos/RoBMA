@@ -692,6 +692,61 @@ test_that("known V retains exact rank-one dependency blocks", {
 })
 
 
+test_that("known V accepts general low-rank covariance without modification", {
+
+  B <- matrix(
+    c(
+      1.3709584471466685, -0.5646981713960887,
+      0.3631284113373392, 0.6328626049610404,
+      0.4042683231409990, -0.1061245160914840,
+      1.5115219974389389, -0.0946590384130976
+    ),
+    nrow = 4L,
+    ncol = 2L
+  )
+  V <- tcrossprod(B)
+
+  expect_warning(
+    validated <- .known_v_as_matrix(V),
+    "positive semidefinite"
+  )
+  expect_identical(validated, V)
+
+  prior_positive <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 0.10)
+  )
+  expect_warning(
+    object <- brma.mv(
+      yi                        = c(0.10, 0.20, 0.30, 0.40),
+      V                         = V,
+      prior_heterogeneity       = prior_positive,
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    ),
+    "positive semidefinite"
+  )
+  known_V <- .data_known_v_data(object[["data"]])
+
+  expect_identical(.known_v_materialize(known_V), V)
+  expect_identical(.known_v_effective_backend(known_V), "block_mvn")
+
+  covariance <- .known_v_marginal_covariance_samples_raw(
+    object            = object,
+    posterior_samples = matrix(numeric(0), nrow = 1L, ncol = 0L),
+    known_V           = known_V,
+    K                 = nrow(V)
+  )
+  expect_equal(
+    unname(covariance[1L, , ]),
+    unname(V + diag(0.10^2, nrow(V))),
+    tolerance = 0
+  )
+})
+
+
 test_that("known V rejects adjacent-above-one correlations", {
 
   V <- matrix(
@@ -716,6 +771,23 @@ test_that("known V rejects adjacent-above-one correlations", {
   )
   expect_error(
     .known_v_newdata_prepare(mixed, k = 5L),
+    "positive semidefinite"
+  )
+})
+
+
+test_that("known V rejects pairwise-bounded indefinite matrices", {
+
+  V <- matrix(-0.75, nrow = 3L, ncol = 3L)
+  diag(V) <- 1
+
+  expect_true(.known_v_covariance_within_pairwise_bounds(V))
+  expect_error(
+    .known_v_as_matrix(V),
+    "positive semidefinite"
+  )
+  expect_error(
+    .known_v_newdata_prepare(V, k = 3L),
     "positive semidefinite"
   )
 })

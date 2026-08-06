@@ -650,7 +650,18 @@
 }
 
 
-# Classify exact dependency blocks without modifying the supplied covariance.
+# Check the necessary pairwise covariance bounds on the supplied matrix.
+.known_v_covariance_within_pairwise_bounds <- function(covariance) {
+
+  scale        <- sqrt(diag(covariance))
+  bound        <- tcrossprod(scale)
+  off_diagonal <- lower.tri(covariance)
+
+  return(all(abs(covariance[off_diagonal]) <= bound[off_diagonal]))
+}
+
+
+# Classify dependency blocks without modifying the supplied covariance.
 .known_v_covariance_classification <- function(V) {
 
   positive_variance <- diag(V) > 0
@@ -663,13 +674,18 @@
   singular   <- any(!positive_variance)
 
   for (index in indices) {
-    block               <- covariance[index, index, drop = FALSE]
-    input_factorization <- .covariance_factorization(block, strict = TRUE)
+    block           <- covariance[index, index, drop = FALSE]
+    rank_one_factor <- .covariance_exact_rank_one_factor(block)
+    if (!.known_v_covariance_within_pairwise_bounds(block)) {
+      return(list(positive_semidefinite = FALSE, singular = TRUE))
+    }
+
+    input_factorization <- .covariance_factorization(block)
     if (!.covariance_is_positive_semidefinite(input_factorization)) {
       return(list(positive_semidefinite = FALSE, singular = TRUE))
     }
 
-    factorization <- if (!is.null(.covariance_exact_rank_one_factor(block))) {
+    factorization <- if (!is.null(rank_one_factor)) {
       input_factorization
     } else {
       .covariance_factorization(stats::cov2cor(block))
