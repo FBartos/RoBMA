@@ -1,6 +1,32 @@
 context("Selection kernel")
 skip_on_cran()
 
+test_that("selection reference weights are structural convergence parameters", {
+
+  prior_bias <- BayesTools::prior_weightfunction(
+    side    = "one-sided",
+    steps   = c(.025, .05),
+    weights = BayesTools::wf_cumulative(c(1, 1, 1))
+  )
+
+  object <- bselmodel(
+    yi          = c(.1, .2, .3),
+    sei         = c(.1, .1, .1),
+    measure     = "SMD",
+    prior_bias  = prior_bias,
+    only_priors = TRUE,
+    silent      = TRUE
+  )
+
+  expect_identical(
+    .convergence_structural_parameters(object[["priors"]]),
+    c("omega[1]", "omega[0,0.025]")
+  )
+
+  object[["priors"]][["outcome"]][["bias"]] <- NULL
+  expect_length(.convergence_structural_parameters(object[["priors"]]), 0L)
+})
+
 test_that("selection model fit data and syntax use only the selected-normal kernel", {
 
   prior_bias <- BayesTools::prior_weightfunction(

@@ -692,12 +692,13 @@
 
     has_posterior <- TRUE
     check_fit     <- BayesTools::JAGS_check_convergence(
-      fit          = fit,
-      prior_list   = attr(fit, "prior_list"),
-      max_Rhat     = convergence_checks[["max_Rhat"]],
-      min_ESS      = convergence_checks[["min_ESS"]],
-      max_error    = convergence_checks[["max_error"]],
-      max_SD_error = convergence_checks[["max_SD_error"]]
+      fit            = fit,
+      prior_list     = attr(fit, "prior_list"),
+      add_parameters = .convergence_structural_parameters(priors),
+      max_Rhat       = convergence_checks[["max_Rhat"]],
+      min_ESS        = convergence_checks[["min_ESS"]],
+      max_error      = convergence_checks[["max_error"]],
+      max_SD_error   = convergence_checks[["max_SD_error"]]
     )
     warnings  <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
     converged <- check_fit
@@ -764,6 +765,29 @@
     return(any(sapply(priors[["outcome"]][["bias"]], .prior_is_selection_kernel)))
 
   return(.prior_is_selection_kernel(priors[["outcome"]][["bias"]]))
+}
+.convergence_structural_parameters <- function(priors) {
+
+  if (!.is_priors_weightfunction(priors)) {
+    return(character())
+  }
+
+  bias_priors <- .selection_bias_priors(priors)
+  has_selection <- vapply(
+    bias_priors,
+    .prior_has_selection,
+    logical(1)
+  )
+  p_cuts <- BayesTools::weightfunctions_mapping(
+    prior_list = bias_priors[has_selection],
+    cuts_only  = TRUE,
+    one_sided  = TRUE
+  )
+
+  public_reference <- paste0(
+    "omega[", p_cuts[[1L]], ",", p_cuts[[2L]], "]"
+  )
+  return(c("omega[1]", public_reference))
 }
 .is_priors_bias           <- function(priors) {
   return(.is_priors_PET(priors) || .is_priors_PEESE(priors) || .is_priors_weightfunction(priors))

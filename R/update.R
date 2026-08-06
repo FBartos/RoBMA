@@ -202,12 +202,13 @@ update.brma <- function(
   }
 
   check_fit <- BayesTools::JAGS_check_convergence(
-    fit          = fit,
-    prior_list   = prior_list,
-    max_Rhat     = object[["convergence_checks"]][["max_Rhat"]],
-    min_ESS      = object[["convergence_checks"]][["min_ESS"]],
-    max_error    = object[["convergence_checks"]][["max_error"]],
-    max_SD_error = object[["convergence_checks"]][["max_SD_error"]]
+    fit            = fit,
+    prior_list     = prior_list,
+    add_parameters = .convergence_structural_parameters(object[["priors"]]),
+    max_Rhat       = object[["convergence_checks"]][["max_Rhat"]],
+    min_ESS        = object[["convergence_checks"]][["min_ESS"]],
+    max_error      = object[["convergence_checks"]][["max_error"]],
+    max_SD_error   = object[["convergence_checks"]][["max_SD_error"]]
   )
 
   fit[["converged"]]     <- check_fit
