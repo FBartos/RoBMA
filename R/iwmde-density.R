@@ -31,7 +31,8 @@
 
 
 .iwmde_stop_construction_failure <- function(estimator, parameter, rows,
-                                             stage, detail = NULL) {
+                                             stage, detail = NULL,
+                                             chain_coverage = NULL) {
 
   estimator_label <- if (identical(estimator, "q_grid_cmde") ||
                          identical(estimator, "qCMDE")) {
@@ -75,7 +76,8 @@
       target         = parameter,
       posterior_rows = rows,
       stage          = stage,
-      detail         = detail
+      detail         = detail,
+      chain_coverage = chain_coverage
     ),
     class = c("iwmde_construction_error", "error", "condition")
   )
@@ -370,6 +372,7 @@
                                 estimator_rows = seq_along(row_states),
                                 population_rows = estimator_rows,
                                 chain_id = rep(1L, length(estimator_rows)),
+                                expected_chain_ids = unique(chain_id),
                                 n_candidate_rows = length(row_states)) {
 
   n_display        <- length(display_grid)
@@ -540,6 +543,8 @@
       },
       sampling_uncertainty_type = "finite_population_srswor",
       mcmc_uncertainty_scope = "selected_continuous_rows_only",
+      mcmc_uncertainty_status = "unavailable",
+      mcmc_uncertainty_reason = "no normalized continuous contributions",
       log_normalizer         = log_normalizer,
       pilot_log_normalizer   = initial_log_normalizer[keep_rows],
       n_normalized_rows      = 0L,
@@ -591,7 +596,8 @@
     denominator       = n_candidate_rows,
     contribution_rows = estimator_rows,
     sampling_population_rows = population_rows,
-    chain_id = chain_id[match(estimator_rows, selected_rows)]
+    chain_id = chain_id[match(estimator_rows, selected_rows)],
+    expected_chain_ids = expected_chain_ids
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
@@ -651,6 +657,8 @@
     sampling_uncertainty_type =
       density_terms[["sampling_uncertainty_type"]],
     mcmc_uncertainty_scope   = mcse_data[["uncertainty_scope"]],
+    mcmc_uncertainty_status  = mcse_data[["uncertainty_status"]],
+    mcmc_uncertainty_reason  = mcse_data[["uncertainty_reason"]],
     log_normalizer         = log_normalizer,
     pilot_log_normalizer   = initial_log_normalizer[keep_rows],
     n_normalized_rows      = n_normalized_rows,
@@ -704,6 +712,7 @@
                                  support, active_mass, replacement,
                                  population_rows = active_rows,
                                  chain_id = rep(1L, length(active_rows)),
+                                 expected_chain_ids = unique(chain_id),
                                  normalization_grid = NULL,
                                  n_candidate_rows = length(row_states)) {
 
@@ -819,6 +828,8 @@
       },
       sampling_uncertainty_type = "finite_population_srswor",
       mcmc_uncertainty_scope = "selected_continuous_rows_only",
+      mcmc_uncertainty_status = "unavailable",
+      mcmc_uncertainty_reason = "no normalized continuous contributions",
       log_normalizer         = numeric(),
       n_normalized_rows      = 0L,
       n_candidate_rows       = n_candidate_rows,
@@ -919,7 +930,8 @@
     denominator       = n_candidate_rows,
     contribution_rows = contribution_rows,
     sampling_population_rows = population_rows,
-    chain_id = chain_id[match(contribution_rows, active_rows)]
+    chain_id = chain_id[match(contribution_rows, active_rows)],
+    expected_chain_ids = expected_chain_ids
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
@@ -956,6 +968,8 @@
     sampling_uncertainty_type =
       density_terms[["sampling_uncertainty_type"]],
     mcmc_uncertainty_scope   = mcse_data[["uncertainty_scope"]],
+    mcmc_uncertainty_status  = mcse_data[["uncertainty_status"]],
+    mcmc_uncertainty_reason  = mcse_data[["uncertainty_reason"]],
     log_normalizer         = numeric(),
     n_normalized_rows      = n_normalized_rows,
     n_candidate_rows       = n_candidate_rows,

@@ -151,7 +151,8 @@
     "schema_version", "x", "y", "finite_terms", "max_log_ratio", "ess",
     "max_weight_share", "mcse", "relative_mcse", "sampling_mcse",
     "sampling_relative_mcse", "sampling_fraction",
-    "sampling_uncertainty_type", "mcmc_uncertainty_scope", "n_candidate_rows",
+    "sampling_uncertainty_type", "mcmc_uncertainty_scope",
+    "mcmc_uncertainty_status", "mcmc_uncertainty_reason", "n_candidate_rows",
     "n_evaluated_rows", "n_normalized_rows", "n_dropped_rows",
     "row_drop_fraction", "normalization_points", "normalization_range",
     "normalization_relative_error", "normalization_scale",
@@ -237,9 +238,29 @@
       density[["sampling_fraction"]] > 1 ||
       !identical(density[["sampling_uncertainty_type"]],
                  "finite_population_srswor") ||
-      !identical(density[["mcmc_uncertainty_scope"]],
-                 "selected_continuous_rows_only")) {
+      !density[["mcmc_uncertainty_scope"]] %in% c(
+        "selected_continuous_rows_only",
+        "unavailable_missing_selected_chain"
+      ) ||
+      !density[["mcmc_uncertainty_status"]] %in%
+        c("available", "partial", "unavailable") ||
+      !(is.null(density[["mcmc_uncertainty_reason"]]) ||
+        (is.character(density[["mcmc_uncertainty_reason"]]) &&
+         length(density[["mcmc_uncertainty_reason"]]) == 1L &&
+         nzchar(density[["mcmc_uncertainty_reason"]])))) {
     stop("Internal IWMDE density result has invalid uncertainty metadata.",
+         call. = FALSE)
+  }
+  if (identical(density[["mcmc_uncertainty_scope"]],
+                "unavailable_missing_selected_chain") &&
+      (!identical(density[["mcmc_uncertainty_status"]], "unavailable") ||
+       is.null(density[["mcmc_uncertainty_reason"]]) ||
+       any(!is.na(c(
+         density[["mcse"]],
+         density[["relative_mcse"]],
+         density[["ess"]]
+       ))))) {
+    stop("Internal IWMDE density result has inconsistent chain uncertainty.",
          call. = FALSE)
   }
   scalar_counts <- c(

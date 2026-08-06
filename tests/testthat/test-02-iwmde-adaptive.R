@@ -273,6 +273,8 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
     sampling_relative_mcse            = .02,
     sampling_fraction                 = .5,
     mcmc_uncertainty_scope            = "selected_continuous_rows_only",
+    mcmc_uncertainty_status           = "available",
+    mcmc_uncertainty_reason           = NULL,
     sampling_uncertainty_type         = "finite_population_srswor",
     normalization_relative_error      = .001,
     ordinate_relative_change          = .002,

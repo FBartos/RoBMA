@@ -5,7 +5,8 @@
 .iwmde_density_aggregate <- function(log_terms, active_mass, denominator,
                                      contribution_rows = NULL,
                                      sampling_population_rows = NULL,
-                                     chain_id = NULL) {
+                                     chain_id = NULL,
+                                     expected_chain_ids = NULL) {
 
   if (!is.matrix(log_terms)) {
     log_terms <- as.matrix(log_terms)
@@ -35,11 +36,16 @@
         call. = FALSE
       )
     }
+    if (is.null(expected_chain_ids)) {
+      expected_chain_ids <- unique(chain_id)
+    }
     if (length(contribution_rows) != ncol(log_terms) ||
         length(unique(contribution_rows)) != length(contribution_rows) ||
         length(unique(sampling_population_rows)) !=
           length(sampling_population_rows) ||
         length(chain_id) != length(contribution_rows) || anyNA(chain_id) ||
+        length(expected_chain_ids) == 0L || anyNA(expected_chain_ids) ||
+        anyNA(match(chain_id, expected_chain_ids)) ||
         anyNA(match(contribution_rows, sampling_population_rows))) {
       stop("Invalid IWMDE contribution-sampling metadata.", call. = FALSE)
     }
@@ -50,6 +56,7 @@
     contribution_rows        <- seq_len(ncol(log_terms))
     sampling_population_rows <- contribution_rows
     chain_id                 <- rep(1L, ncol(log_terms))
+    expected_chain_ids       <- 1L
   }
 
   n_grid           <- nrow(log_terms)
@@ -100,6 +107,7 @@
   }
 
   attr(contributions, "chain_id")                 <- chain_id
+  attr(contributions, "expected_chain_ids")       <- expected_chain_ids
   attr(contributions, "contribution_rows")        <- contribution_rows
   attr(contributions, "sampling_population_size") <-
     length(sampling_population_rows)
@@ -175,6 +183,40 @@
   positive_sq <- contribution_sq > 0
   kish_ess[positive_sq] <- contribution_sum[positive_sq]^2 /
     contribution_sq[positive_sq]
+  chain_id <- attr(contributions, "chain_id", exact = TRUE)
+  if (is.null(chain_id)) {
+    chain_id <- rep(1L, n)
+  }
+  expected_chain_ids <- attr(
+    contributions,
+    "expected_chain_ids",
+    exact = TRUE
+  )
+  if (is.null(expected_chain_ids)) {
+    expected_chain_ids <- unique(chain_id)
+  }
+  if (length(chain_id) != n || anyNA(chain_id) ||
+      length(expected_chain_ids) == 0L || anyNA(expected_chain_ids)) {
+    stop("Invalid chain IDs for IWMDE contributions.", call. = FALSE)
+  }
+  missing_chain_ids <- expected_chain_ids[
+    is.na(match(expected_chain_ids, unique(chain_id)))
+  ]
+  if (length(missing_chain_ids) > 0L) {
+    return(list(
+      mcse          = rep(NA_real_, nrow(contributions)),
+      relative_mcse = rep(NA_real_, nrow(contributions)),
+      ess           = rep(NA_real_, nrow(contributions)),
+      batch_size    = NA_integer_,
+      n_batches     = 0L,
+      uncertainty_scope = "unavailable_missing_selected_chain",
+      uncertainty_status = "unavailable",
+      uncertainty_reason = paste0(
+        "selected SRS contains no rows from fitted chain(s): ",
+        paste(missing_chain_ids, collapse = ", ")
+      )
+    ))
+  }
   if (n < 4L) {
     return(list(
       mcse          = rep(NA_real_, nrow(contributions)),
@@ -182,17 +224,12 @@
       ess           = kish_ess,
       batch_size    = NA_integer_,
       n_batches     = 0L,
-      uncertainty_scope = "selected_continuous_rows_only"
+      uncertainty_scope = "selected_continuous_rows_only",
+      uncertainty_status = "partial",
+      uncertainty_reason = "fewer than four selected continuous rows"
     ))
   }
 
-  chain_id <- attr(contributions, "chain_id", exact = TRUE)
-  if (is.null(chain_id)) {
-    chain_id <- rep(1L, n)
-  }
-  if (length(chain_id) != n || anyNA(chain_id)) {
-    stop("Invalid chain IDs for IWMDE contributions.", call. = FALSE)
-  }
   chain_rows   <- split(seq_len(n), factor(chain_id, levels = unique(chain_id)))
   chain_length <- vapply(chain_rows, length, integer(1))
   batch_size   <- max(2L, floor(sqrt(min(chain_length))))
@@ -205,7 +242,9 @@
       ess           = kish_ess,
       batch_size    = batch_size,
       n_batches     = n_batches,
-      uncertainty_scope = "selected_continuous_rows_only"
+      uncertainty_scope = "selected_continuous_rows_only",
+      uncertainty_status = "partial",
+      uncertainty_reason = "fewer than two selected-row batches"
     ))
   }
 
@@ -246,7 +285,9 @@
     ess           = ess,
     batch_size    = batch_size,
     n_batches     = n_batches,
-    uncertainty_scope = "selected_continuous_rows_only"
+    uncertainty_scope = "selected_continuous_rows_only",
+    uncertainty_status = "available",
+    uncertainty_reason = NULL
   ))
 }
 
@@ -271,6 +312,14 @@
   integrals <- matrix(integrals[finite], nrow = 1L)
   if (!is.null(chain_id)) {
     attr(integrals, "chain_id") <- chain_id[finite]
+  }
+  expected_chain_ids <- attr(
+    contributions,
+    "expected_chain_ids",
+    exact = TRUE
+  )
+  if (!is.null(expected_chain_ids)) {
+    attr(integrals, "expected_chain_ids") <- expected_chain_ids
   }
   attr(integrals, "target") <- .iwmde_trapz(
     x,

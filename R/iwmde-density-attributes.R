@@ -224,6 +224,10 @@
       diagnostics[["sampling_uncertainty_type"]],
     mcmc_uncertainty_scope            =
       diagnostics[["mcmc_uncertainty_scope"]],
+    mcmc_uncertainty_status           =
+      diagnostics[["mcmc_uncertainty_status"]],
+    mcmc_uncertainty_reason           =
+      diagnostics[["mcmc_uncertainty_reason"]],
     BF_error_percent                  = diagnostics[["bf_error_percent"]],
     finite_terms                      = diagnostics[["bf_finite_terms"]],
     ess                               = diagnostics[["bf_ess"]],

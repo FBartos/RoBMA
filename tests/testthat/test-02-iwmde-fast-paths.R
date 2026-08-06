@@ -302,6 +302,30 @@ test_that("IWMDE row sampling uncertainty is separate and compact", {
     alternating_mcse[["uncertainty_scope"]],
     "selected_continuous_rows_only"
   )
+  expect_equal(alternating_mcse[["uncertainty_status"]], "available")
+  expect_null(alternating_mcse[["uncertainty_reason"]])
+
+  missed_chain <- .iwmde_density_aggregate(
+    log_terms         = matrix(log(seq_len(20L)), nrow = 1L),
+    active_mass       = 1,
+    denominator       = 20L,
+    contribution_rows = seq_len(20L),
+    sampling_population_rows = seq_len(100L),
+    chain_id          = rep(1L, 20L),
+    expected_chain_ids = c(1L, 2L)
+  )
+  missed_chain_mcse <- .iwmde_batch_mcse(missed_chain[["contributions"]])
+  expect_true(all(is.na(missed_chain_mcse[["mcse"]])))
+  expect_true(all(is.na(missed_chain_mcse[["relative_mcse"]])))
+  expect_true(all(is.na(missed_chain_mcse[["ess"]])))
+  expect_equal(
+    missed_chain_mcse[["uncertainty_scope"]],
+    "unavailable_missing_selected_chain"
+  )
+  expect_equal(missed_chain_mcse[["uncertainty_status"]], "unavailable")
+  expect_match(missed_chain_mcse[["uncertainty_reason"]], "chain\\(s\\): 2")
+  expect_true(is.finite(missed_chain[["y"]]))
+  expect_true(is.finite(missed_chain[["sampling_mcse"]]))
 })
 
 

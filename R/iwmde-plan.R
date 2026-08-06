@@ -207,6 +207,27 @@
   }
 
   continuous_rows <- which(component[["active"]] & finite_rows)
+  chain_coverage <- .iwmde_plan_chain_coverage(
+    context       = context,
+    eligible_rows = continuous_rows,
+    selected_rows = continuous_rows
+  )
+  missing_chains <- chain_coverage[["expected_chain_ids"]][
+    chain_coverage[["eligible_chain_counts"]] == 0L
+  ]
+  if (length(missing_chains) > 0L) {
+    .iwmde_stop_construction_failure(
+      estimator = plan[["method"]],
+      parameter = parameter,
+      rows      = integer(),
+      stage     = "chain-coverage validation",
+      detail    = paste0(
+        "no eligible continuous row remains in fitted chain(s): ",
+        paste(missing_chains, collapse = ", ")
+      ),
+      chain_coverage = chain_coverage
+    )
+  }
   if (length(continuous_rows) < 20L) {
     plan[["status"]] <- "unsupported"
     plan[["reason"]] <- "fewer than 20 continuous active samples"
@@ -221,6 +242,11 @@
       max_samples = plan[["row_budget"]]
     )
   }
+  chain_coverage <- .iwmde_plan_chain_coverage(
+    context       = context,
+    eligible_rows = continuous_rows,
+    selected_rows = candidate_rows
+  )
 
   candidate_values <- posterior_values[candidate_rows]
   if (all(candidate_values == candidate_values[[1L]])) {
@@ -247,7 +273,8 @@
       candidate_rows    = candidate_rows,
       candidate_values  = candidate_values,
       continuous_values = posterior_values[continuous_rows],
-      baseline_contract = baseline_contract
+      baseline_contract = baseline_contract,
+      chain_coverage     = chain_coverage
     )
     return(plan)
   }
@@ -262,7 +289,8 @@
       candidate_rows    = candidate_rows,
       candidate_values  = candidate_values,
       continuous_values = posterior_values[continuous_rows],
-      baseline_contract = baseline_contract
+      baseline_contract = baseline_contract,
+      chain_coverage     = chain_coverage
     )
     return(plan)
   }
@@ -336,7 +364,8 @@
     candidate_rows    = candidate_rows,
     candidate_values  = candidate_values,
     continuous_values = continuous_values,
-    baseline_contract = baseline_contract
+    baseline_contract = baseline_contract,
+    chain_coverage     = chain_coverage
   )
   plan[["support"]] <- list(
     x_lower   = support[1],
@@ -474,7 +503,8 @@
                              candidate_rows = integer(),
                              candidate_values = numeric(),
                              continuous_values = numeric(),
-                             baseline_contract = NULL) {
+                             baseline_contract = NULL,
+                             chain_coverage = NULL) {
 
   point_masses <- component[["point_masses"]]
   if (is.null(point_masses)) {
@@ -515,6 +545,7 @@
     n_estimator_rows  = length(baseline_contract[["estimator_rows"]]),
     n_dropped_log_q   = baseline_contract[["n_dropped_log_q"]],
     baseline_rows_hash = baseline_contract[["baseline_rows_hash"]],
+    chain_coverage     = chain_coverage,
     active_mass       = mean(component[["active"]][finite_rows]),
     point_masses      = point_masses,
     point_mass_total  = sum(point_masses[["mass"]]),
@@ -528,6 +559,35 @@
       n_estimator_rows   = length(baseline_contract[["estimator_rows"]]),
       baseline_rows_hash = baseline_contract[["baseline_rows_hash"]]
     )
+  ))
+}
+
+
+.iwmde_plan_chain_coverage <- function(context, eligible_rows,
+                                       selected_rows = eligible_rows) {
+
+  chain_id <- context[["chain_id"]]
+  if (is.null(chain_id)) {
+    chain_id <- rep(1L, nrow(context[["posterior_samples"]]))
+  }
+  if (length(chain_id) != nrow(context[["posterior_samples"]]) ||
+      anyNA(chain_id)) {
+    stop("Invalid fitted-chain metadata for IWMDE.", call. = FALSE)
+  }
+  expected_chain_ids <- unique(chain_id)
+  chain_counts <- function(rows) {
+    counts <- tabulate(
+      match(chain_id[rows], expected_chain_ids),
+      nbins = length(expected_chain_ids)
+    )
+    names(counts) <- as.character(expected_chain_ids)
+    counts
+  }
+
+  return(list(
+    expected_chain_ids    = expected_chain_ids,
+    eligible_chain_counts = chain_counts(eligible_rows),
+    selected_chain_counts = chain_counts(selected_rows)
   ))
 }
 
@@ -682,6 +742,7 @@
     n_continuous_rows    = length(rows[["continuous_rows"]]),
     active_mass          = rows[["active_mass"]],
     point_mass_total     = rows[["point_mass_total"]],
+    chain_coverage       = rows[["chain_coverage"]],
     selected_rows_hash   =
       rows[["row_thinning_policy"]][["selected_rows_hash"]],
     baseline_rows_hash   = rows[["baseline_rows_hash"]],

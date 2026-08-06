@@ -529,6 +529,7 @@
     population_rows  = rows[["population_rows"]],
     sampling_population_rows = rows[["continuous_rows"]],
     chain_id         = context_chain_id[rows[["estimator_rows"]]],
+    expected_chain_ids = rows[["chain_coverage"]][["expected_chain_ids"]],
     row_states       = rows[["row_states"]],
     baseline_log_q   = rows[["baseline_log_q"]],
     n_dropped_log_q  = rows[["n_dropped_log_q"]],
@@ -573,6 +574,7 @@
       estimator_rows     = execution[["active_rows"]],
       population_rows    = execution[["sampling_population_rows"]],
       chain_id           = execution[["chain_id"]],
+      expected_chain_ids = execution[["expected_chain_ids"]],
       active_mass        = plan[["rows"]][["active_mass"]],
       replacement        = plan[["replacement"]],
       n_candidate_rows   = execution[["n_candidate_rows"]]
@@ -588,6 +590,7 @@
       active_values      = execution[["active_values"]],
       population_rows    = execution[["sampling_population_rows"]],
       chain_id           = execution[["chain_id"]],
+      expected_chain_ids = execution[["expected_chain_ids"]],
       weight_rows        = execution[["active_rows"]],
       weight_values      = execution[["active_values"]],
       support            = plan[["support"]][["support"]],
@@ -760,6 +763,8 @@
     sampling_fraction           = density[["sampling_fraction"]],
     sampling_uncertainty_type   = density[["sampling_uncertainty_type"]],
     mcmc_uncertainty_scope      = density[["mcmc_uncertainty_scope"]],
+    mcmc_uncertainty_status     = density[["mcmc_uncertainty_status"]],
+    mcmc_uncertainty_reason     = density[["mcmc_uncertainty_reason"]],
     plot_scale_relative_mcse    =
       curve_diagnostics[["plot_scale_relative_mcse"]],
     bulk_probability_range      =

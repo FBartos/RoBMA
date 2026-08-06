@@ -1292,7 +1292,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "3")
-  expect_equal(provenance[["algorithm_version"]], "8")
+  expect_equal(provenance[["algorithm_version"]], "9")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -2002,6 +2002,62 @@ test_that("IWMDE row sampling does not force nuisance product states", {
   expect_true(all(selected %in% rows))
   expect_true(5001L %in% stratified)
   expect_false("context" %in% names(formals(.iwmde_select_active_rows)))
+})
+
+
+test_that("IWMDE fails when an eligible population omits a fitted chain", {
+
+  context <- list(
+    posterior_samples = matrix(
+      seq_len(50L),
+      ncol     = 1L,
+      dimnames = list(NULL, "mu")
+    ),
+    chain_id = rep(1:2, each = 25L),
+    object = list(
+      fit        = list(),
+      likelihood = list(family = "normal"),
+      data       = list(measure = "GEN")
+    ),
+    data            = list(),
+    priors          = list(),
+    flat_prior_list = list()
+  )
+  testthat::local_mocked_bindings(
+    .iwmde_parameter_components = function(...) {
+      list(
+        active         = c(rep(TRUE, 25L), rep(FALSE, 25L)),
+        point_masses   = data.frame(x = numeric(), mass = numeric()),
+        point_location = rep(NA_real_, 50L)
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  failure <- tryCatch(
+    .iwmde_plan(
+      context         = context,
+      parameter       = "mu",
+      density_method  = "qCMDE",
+      density_control = list(n_points = 20, max_samples = 20),
+      outputs         = "ordinate",
+      values          = 0,
+      parameter_spec  = list(type = "primitive")
+    ),
+    iwmde_construction_error = identity
+  )
+
+  expect_s3_class(failure, "iwmde_construction_error")
+  expect_equal(failure[["stage"]], "chain-coverage validation")
+  expect_equal(
+    failure[["chain_coverage"]][["expected_chain_ids"]],
+    1:2
+  )
+  expect_equal(
+    unname(failure[["chain_coverage"]][["eligible_chain_counts"]]),
+    c(25L, 0L)
+  )
+  expect_match(conditionMessage(failure), "fitted chain\\(s\\): 2")
 })
 
 
