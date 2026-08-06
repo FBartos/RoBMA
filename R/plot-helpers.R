@@ -420,8 +420,13 @@
       ,
       drop = FALSE
     ]
-    if (!.fitted_formula_has_intercept(
-        object, formula_parameter, required = TRUE)) {
+    formula_design <- BayesTools::JAGS_formula_design(
+      object[["fit"]], formula_parameter
+    )
+    if (!is.null(formula_design) &&
+        !.fitted_formula_has_intercept(
+          object, formula_parameter, required = TRUE
+        )) {
       fixed_rows <- fixed_rows[
         fixed_rows[["term"]] != "intercept",
         ,
