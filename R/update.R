@@ -35,6 +35,11 @@
 #' \code{R}, known-\code{V} backend, and marginalized random-effect metadata are
 #' preserved because the fitted model structure is reused.
 #'
+#' Named \code{NULL} elements in \code{autofit_control} and
+#' \code{convergence_checks} explicitly disable or clear the corresponding
+#' nullable setting. Omitted elements, a top-level \code{NULL}, and an empty
+#' \code{list()} inherit the setting stored in \code{object}.
+#'
 #' @examples \dontrun{
 #' fit <- update(fit, sample_extend = 1000)
 #' fit <- update(fit, slab = paste("Study", seq_len(nobs(fit))))

@@ -438,27 +438,27 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 .update_autofit_control <- function(old_autofit_control, autofit_control){
 
-  if(!is.null(autofit_control[["max_Rhat"]])){
+  if("max_Rhat" %in% names(autofit_control)){
     max_Rhat <- autofit_control[["max_Rhat"]]
   }else{
     max_Rhat <- old_autofit_control[["max_Rhat"]]
   }
-  if(!is.null(autofit_control[["min_ESS"]])){
+  if("min_ESS" %in% names(autofit_control)){
     min_ESS <- autofit_control[["min_ESS"]]
   }else{
     min_ESS <- old_autofit_control[["min_ESS"]]
   }
-  if(!is.null(autofit_control[["max_error"]])){
+  if("max_error" %in% names(autofit_control)){
     max_error <- autofit_control[["max_error"]]
   }else{
     max_error <- old_autofit_control[["max_error"]]
   }
-  if(!is.null(autofit_control[["max_SD_error"]])){
+  if("max_SD_error" %in% names(autofit_control)){
     max_SD_error <- autofit_control[["max_SD_error"]]
   }else{
     max_SD_error <- old_autofit_control[["max_SD_error"]]
   }
-  if(!is.null(autofit_control[["max_time"]])){
+  if("max_time" %in% names(autofit_control)){
     max_time <- autofit_control[["max_time"]]
   }else{
     max_time <- old_autofit_control[["max_time"]]
@@ -468,12 +468,12 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   }else{
     sample_extend <- old_autofit_control[["sample_extend"]]
   }
-  if(!is.null(autofit_control[["restarts"]])){
+  if("restarts" %in% names(autofit_control)){
     restarts <- autofit_control[["restarts"]]
   }else{
     restarts <- old_autofit_control[["restarts"]]
   }
-  if(!is.null(autofit_control[["max_extend"]])){
+  if("max_extend" %in% names(autofit_control)){
     max_extend <- autofit_control[["max_extend"]]
   }else{
     max_extend <- old_autofit_control[["max_extend"]]
@@ -486,7 +486,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   } else {
     isTRUE(old_autofit_control[["check_indicators"]])
   }
-  monitor <- if(!is.null(autofit_control[["monitor"]])) {
+  monitor <- if("monitor" %in% names(autofit_control)) {
     autofit_control[["monitor"]]
   } else {
     old_autofit_control[["monitor"]]
@@ -504,22 +504,22 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 .update_convergence_checks <- function(old_convergence_checks, convergence_checks){
 
-  if(!is.null(convergence_checks[["max_Rhat"]])){
+  if("max_Rhat" %in% names(convergence_checks)){
     max_Rhat <- convergence_checks[["max_Rhat"]]
   }else{
     max_Rhat <- old_convergence_checks[["max_Rhat"]]
   }
-  if(!is.null(convergence_checks[["min_ESS"]])){
+  if("min_ESS" %in% names(convergence_checks)){
     min_ESS <- convergence_checks[["min_ESS"]]
   }else{
     min_ESS <- old_convergence_checks[["min_ESS"]]
   }
-  if(!is.null(convergence_checks[["max_error"]])){
+  if("max_error" %in% names(convergence_checks)){
     max_error <- convergence_checks[["max_error"]]
   }else{
     max_error <- old_convergence_checks[["max_error"]]
   }
-  if(!is.null(convergence_checks[["max_SD_error"]])){
+  if("max_SD_error" %in% names(convergence_checks)){
     max_SD_error <- convergence_checks[["max_SD_error"]]
   }else{
     max_SD_error <- old_convergence_checks[["max_SD_error"]]
@@ -531,7 +531,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   } else {
     isTRUE(old_convergence_checks[["check_indicators"]])
   }
-  monitor <- if(!is.null(convergence_checks[["monitor"]])) {
+  monitor <- if("monitor" %in% names(convergence_checks)) {
     convergence_checks[["monitor"]]
   } else {
     old_convergence_checks[["monitor"]]

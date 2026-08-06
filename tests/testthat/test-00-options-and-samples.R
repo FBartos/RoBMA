@@ -196,6 +196,85 @@ test_that("control updates distinguish missing and explicit indicator settings",
 })
 
 
+test_that("control updates distinguish absent and explicitly null settings", {
+
+  old_autofit <- set_autofit_control(
+    max_Rhat     = 1.01,
+    min_ESS      = 1000,
+    max_error    = 0.01,
+    max_SD_error = 0.02,
+    max_time     = list(time = 2, unit = "hours"),
+    restarts     = 4,
+    max_extend   = 5,
+    monitor      = c("mu", "tau")
+  )
+  expect_equal(
+    RoBMA:::.update_autofit_control(old_autofit, NULL),
+    old_autofit
+  )
+  expect_equal(
+    RoBMA:::.update_autofit_control(old_autofit, list()),
+    old_autofit
+  )
+
+  cleared_autofit <- RoBMA:::.update_autofit_control(
+    old_autofit,
+    list(
+      max_Rhat     = NULL,
+      min_ESS      = NULL,
+      max_error    = NULL,
+      max_SD_error = NULL,
+      max_time     = NULL,
+      restarts     = NULL,
+      max_extend   = NULL,
+      monitor      = NULL
+    )
+  )
+  for (setting in c(
+    "max_Rhat", "min_ESS", "max_error", "max_SD_error", "max_time",
+    "restarts", "max_extend", "monitor"
+  )) {
+    expect_null(cleared_autofit[[setting]], info = setting)
+  }
+  expect_identical(
+    cleared_autofit[["sample_extend"]],
+    old_autofit[["sample_extend"]]
+  )
+
+  old_checks <- set_convergence_checks(
+    max_Rhat     = 1.01,
+    min_ESS      = 1000,
+    max_error    = 0.01,
+    max_SD_error = 0.02,
+    monitor      = c("mu", "tau")
+  )
+  expect_equal(
+    RoBMA:::.update_convergence_checks(old_checks, NULL),
+    old_checks
+  )
+  expect_equal(
+    RoBMA:::.update_convergence_checks(old_checks, list()),
+    old_checks
+  )
+
+  cleared_checks <- RoBMA:::.update_convergence_checks(
+    old_checks,
+    list(
+      max_Rhat     = NULL,
+      min_ESS      = NULL,
+      max_error    = NULL,
+      max_SD_error = NULL,
+      monitor      = NULL
+    )
+  )
+  for (setting in c(
+    "max_Rhat", "min_ESS", "max_error", "max_SD_error", "monitor"
+  )) {
+    expect_null(cleared_checks[[setting]], info = setting)
+  }
+})
+
+
 test_that("brma_samples metadata must match sample rows", {
 
   expect_error(
