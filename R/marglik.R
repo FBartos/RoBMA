@@ -158,6 +158,7 @@ add_marglik.brma <- function(object, ...) {
     is_weightfunction        = .is_priors_weightfunction(priors),
     fixed_tau                = .fixed_tau_prior_value(priors),
     fixed_rho                = bridge_setup[["fixed_rho"]],
+    fixed_zero_random        = bridge_setup[["fixed_zero_random"]],
     effect_direction         = .data_effect_direction(data),
     outcome_type             = .data_outcome_type(data)
   )
@@ -185,10 +186,11 @@ add_marglik.brma <- function(object, ...) {
 
   if (!.is_data_random(object[["data"]])) {
     return(list(
-      fit              = fit,
-      fit_priors       = fit_priors,
-      fit_formula_args = fit_formula_args,
-      fixed_rho        = fixed_rho
+      fit               = fit,
+      fit_priors        = fit_priors,
+      fit_formula_args  = fit_formula_args,
+      fixed_rho         = fixed_rho,
+      fixed_zero_random = FALSE
     ))
   }
 
@@ -199,10 +201,11 @@ add_marglik.brma <- function(object, ...) {
     data   = object[["data"]]
   )) {
     return(list(
-      fit              = fit,
-      fit_priors       = fit_priors,
-      fit_formula_args = fit_formula_args,
-      fixed_rho        = fixed_rho
+      fit               = fit,
+      fit_priors        = fit_priors,
+      fit_formula_args  = fit_formula_args,
+      fixed_rho         = fixed_rho,
+      fixed_zero_random = FALSE
     ))
   }
 
@@ -229,10 +232,11 @@ add_marglik.brma <- function(object, ...) {
   fit_formula_args[["formula_random_effects_compile_list"]][["mu"]] <- NULL
 
   return(list(
-    fit              = fit,
-    fit_priors       = fit_priors,
-    fit_formula_args = fit_formula_args,
-    fixed_rho        = fixed_rho
+    fit               = fit,
+    fit_priors        = fit_priors,
+    fit_formula_args  = fit_formula_args,
+    fixed_rho         = fixed_rho,
+    fixed_zero_random = TRUE
   ))
 }
 
@@ -483,7 +487,8 @@ add_marglik.brma <- function(object, ...) {
     is_mods, is_scale, is_multilevel, is_weights,
     is_known_v, is_PET, is_PEESE, is_weightfunction, effect_direction,
     outcome_type, is_random = FALSE, model_data = NULL,
-    bridge_context = NULL, fixed_tau = NULL, fixed_rho = NULL) {
+    bridge_context = NULL, fixed_tau = NULL, fixed_rho = NULL,
+    fixed_zero_random = FALSE) {
 
   ### extract number of observations
   K <- data[["K"]]
@@ -571,6 +576,7 @@ add_marglik.brma <- function(object, ...) {
         data                     = data,
         model_data               = model_data,
         bridge_context           = bridge_context,
+        fixed_zero_random        = fixed_zero_random,
         mu_samples               = mu_samples,
         tau_within_samples       = tau_within_samples,
         is_random                = is_random,
@@ -907,6 +913,7 @@ add_marglik.brma <- function(object, ...) {
 
 .marglik_known_v_norm_log_lik <- function(parameters, data, model_data,
                                           bridge_context,
+                                          fixed_zero_random,
                                           mu_samples, tau_within_samples,
                                           is_random, is_weightfunction,
                                           effect_direction, K) {
@@ -921,6 +928,7 @@ add_marglik.brma <- function(object, ...) {
     parameters         = parameters,
     model_data         = model_data,
     bridge_context     = bridge_context,
+    fixed_zero_random  = fixed_zero_random,
     tau_within_samples = tau_within_samples,
     is_random          = is_random,
     K                  = K
@@ -980,9 +988,12 @@ add_marglik.brma <- function(object, ...) {
 
 .marglik_known_v_extra_variance <- function(parameters, model_data,
                                             bridge_context,
-                                            tau_within_samples, is_random, K) {
+                                            tau_within_samples, is_random, K,
+                                            fixed_zero_random = FALSE) {
 
-  extra_variance <- if (is_random) {
+  extra_variance <- if (isTRUE(fixed_zero_random)) {
+    matrix(0, nrow = 1L, ncol = K)
+  } else if (is_random) {
     if (is.null(model_data)) {
       stop(
         "Random-formula known-V bridge likelihood requires model metadata.",
