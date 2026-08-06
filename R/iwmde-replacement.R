@@ -795,27 +795,24 @@
       likelihood_mode = state[["likelihood_mode"]],
       row             = likelihood_row
     )
-    if (!is.finite(log_lik)) {
-      return(-Inf)
-    }
-
+    log_lik <- .iwmde_scalar_log_density(log_lik)
     focal_log_prior <- .iwmde_focal_log_prior(
       prior     = state[["focal_prior"]],
       value     = value,
       parameter = parameter
     )
-    if (!is.finite(focal_log_prior)) {
-      return(-Inf)
-    }
-
-    log_prior <- state[["baseline_log_prior"]] +
-      focal_log_prior - state[["baseline_focal_log_prior"]]
+    focal_log_prior <- .iwmde_scalar_log_density(focal_log_prior)
+    baseline_log_prior <- .iwmde_scalar_log_density(
+      state[["baseline_log_prior"]]
+    )
+    baseline_focal_log_prior <- .iwmde_scalar_log_density(
+      state[["baseline_focal_log_prior"]]
+    )
+    log_prior <- baseline_log_prior +
+      focal_log_prior - baseline_focal_log_prior
     out <- log_lik + log_prior
-    if (!is.finite(out)) {
-      return(-Inf)
-    }
 
-    return(out)
+    return(.iwmde_scalar_log_density(out))
   }
 
   return(.iwmde_log_q_state(

@@ -110,6 +110,201 @@ test_that("IWMDE marginal likelihood does not mask internal errors", {
   )
 })
 
+test_that("IWMDE scalar evaluators preserve zeros and expose invalid results", {
+
+  data <- list(outcome = data.frame(yi = 0, sei = 1))
+  attr(data, "outcome_type")     <- "norm"
+  attr(data, "effect_direction") <- "positive"
+  context <- list(
+    object = list(fit = list()),
+    data   = data
+  )
+  active_setup <- list(
+    fit_data          = list(),
+    priors            = list(),
+    is_PET            = FALSE,
+    is_PEESE          = FALSE,
+    is_weightfunction = FALSE
+  )
+  conditional_value <- 0
+  marginal_value    <- 0
+  full_prior_value  <- 0
+  focal_prior_value <- 0
+
+  testthat::local_mocked_bindings(
+    .log_posterior = function(...) conditional_value,
+    .iwmde_log_likelihood_parameters_marginal_internal = function(...) {
+      marginal_value
+    },
+    .resolve_fixed_prior_row = function(row, prior_list) row
+  )
+  testthat::local_mocked_bindings(
+    JAGS_marglik_priors = function(...) full_prior_value,
+    is.prior.none       = function(...) FALSE,
+    lpdf                = function(...) focal_prior_value,
+    .package            = "BayesTools"
+  )
+
+  evaluate <- function(value) {
+    conditional_value <<- value
+    marginal_value    <<- value
+    full_prior_value  <<- value
+    focal_prior_value <<- value
+
+    list(
+      conditional = .iwmde_log_likelihood_parameters(
+        context      = context,
+        parameters   = list(mu = 0, tau = 1),
+        active_setup = active_setup
+      ),
+      marginal = .iwmde_log_likelihood_parameters(
+        context         = context,
+        parameters      = list(mu = 0, tau = 1),
+        active_setup    = active_setup,
+        likelihood_mode = "marginal"
+      ),
+      full_prior = .iwmde_log_prior_row(
+        row        = c(mu = 0),
+        prior_list = list(mu = structure(list(), class = "mock_prior"))
+      ),
+      focal_prior = .iwmde_focal_log_prior(
+        prior = structure(list(), class = "mock_prior"),
+        value = 0
+      )
+    )
+  }
+
+  exact_zero <- evaluate(-Inf)
+  expect_true(all(vapply(exact_zero, identical, logical(1), -Inf)))
+
+  missing <- evaluate(NA_real_)
+  expect_true(all(vapply(missing, function(value) {
+    is.na(value) && !is.nan(value)
+  }, logical(1))))
+
+  undefined <- evaluate(NaN)
+  expect_true(all(vapply(undefined, is.nan, logical(1))))
+
+  positive_infinite <- evaluate(Inf)
+  expect_true(all(vapply(positive_infinite, identical, logical(1), Inf)))
+
+  for (invalid in list("invalid", c(0, 1), matrix(0, nrow = 1L))) {
+    result <- evaluate(invalid)
+    expect_true(all(vapply(result, identical, logical(1), NA_real_)))
+  }
+})
+
+test_that("scalar joint-density failures identify the exact posterior row", {
+
+  source_kind <- "likelihood"
+  bad_value   <- 0
+
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid_predictor_batch = function(...) NULL,
+    .iwmde_log_q_grid_glmm_conditional_batch = function(...) NULL,
+    .iwmde_log_q_grid_batch = function(...) NULL,
+    .iwmde_replace_parameters = function(context, state, parameter, value,
+                                         row, replacement) {
+
+      parameters              <- state[["parameters"]]
+      parameters[[parameter]] <- value
+      list(
+        valid                 = TRUE,
+        row                   = row,
+        parameters            = parameters,
+        use_focal_prior_delta = state[["use_focal_prior_delta"]]
+      )
+    },
+    .iwmde_log_likelihood_parameters = function(context, parameters,
+                                                active_setup,
+                                                likelihood_mode,
+                                                row) {
+
+      if (identical(source_kind, "likelihood") &&
+          parameters[["marker"]] == 2 && parameters[["mu"]] == 5) {
+        return(bad_value)
+      }
+      return(0)
+    },
+    .iwmde_log_prior_row = function(row, prior_list) {
+
+      if (identical(source_kind, "full prior") &&
+          row[["marker"]] == 2 && row[["mu"]] == 5) {
+        return(bad_value)
+      }
+      return(0)
+    },
+    .iwmde_focal_log_prior = function(prior, value, parameter = NULL) {
+
+      if (identical(source_kind, "focal prior") &&
+          prior[["marker"]] == 2 && value == 5) {
+        return(bad_value)
+      }
+      return(0)
+    }
+  )
+
+  normalization_values <- seq(-3, 3, length.out = 101)
+  normalization_grid <- list(
+    x            = normalization_values,
+    z            = normalization_values,
+    log_jacobian = rep(0, length(normalization_values))
+  )
+  make_states <- function(use_focal_prior_delta) {
+    lapply(seq_len(2L), function(i) {
+      list(
+        row_index                = c(7L, 19L)[[i]],
+        row                      = c(mu = 0, marker = i),
+        parameters               = list(mu = 0, marker = i),
+        active_setup             = list(),
+        likelihood_mode          = "conditional",
+        state_scope              = "local",
+        prior_list               = list(),
+        focal_prior              = list(marker = i),
+        baseline_log_prior       = 0,
+        baseline_focal_log_prior = 0,
+        use_focal_prior_delta    = use_focal_prior_delta
+      )
+    })
+  }
+  evaluate <- function() {
+    row_states <- make_states(identical(source_kind, "focal prior"))
+    .iwmde_density_grid(
+      context            = list(),
+      parameter          = "mu",
+      display_grid       = 5,
+      normalization_grid = normalization_grid,
+      transform          = .iwmde_parameter_transform(c(-Inf, Inf)),
+      row_states         = row_states,
+      active_mass        = 1,
+      replacement        = list(type = "scalar"),
+      estimator_rows     = c(7L, 19L),
+      population_rows    = c(7L, 19L),
+      chain_id           = c(1L, 1L)
+    )
+  }
+
+  for (source in c("likelihood", "full prior", "focal prior")) {
+    source_kind <- source
+    for (invalid in list(NA_real_, NaN, Inf, "invalid", c(0, 1))) {
+      bad_value <- invalid
+      failure <- tryCatch(
+        evaluate(),
+        iwmde_construction_error = function(e) e
+      )
+      expect_s3_class(failure, "iwmde_construction_error")
+      expect_equal(failure[["target"]], "mu")
+      expect_equal(failure[["posterior_rows"]], 19L)
+      expect_equal(failure[["stage"]], "joint-density grid evaluation")
+    }
+
+    bad_value <- -Inf
+    density   <- evaluate()
+    expect_true(is.finite(density[["y"]][[1L]]))
+    expect_equal(density[["n_normalized_rows"]], 2L)
+  }
+})
+
 test_that("IWMDE active-branch wrappers call localized likelihood helpers", {
 
   data <- list(outcome = data.frame(yi = 0, sei = 1))

@@ -151,6 +151,16 @@
 }
 
 
+.iwmde_scalar_log_density <- function(value) {
+
+  if (!is.numeric(value) || length(value) != 1L || !is.null(dim(value))) {
+    return(NA_real_)
+  }
+
+  return(as.numeric(value))
+}
+
+
 .iwmde_log_q_state <- function(context, row, active_setup, parameters,
                                prior_list, likelihood_mode) {
 
@@ -171,17 +181,13 @@
     likelihood_mode = likelihood_mode,
     row             = likelihood_row
   )
-  if (!is.finite(log_lik)) {
-    return(-Inf)
-  }
-
-  log_prior <- .iwmde_log_prior_row(row, prior_list)
+  log_lik   <- .iwmde_scalar_log_density(log_lik)
+  log_prior <- .iwmde_scalar_log_density(
+    .iwmde_log_prior_row(row, prior_list)
+  )
   out       <- log_lik + log_prior
-  if (!is.finite(out)) {
-    return(-Inf)
-  }
 
-  return(out)
+  return(.iwmde_scalar_log_density(out))
 }
 
 
@@ -215,11 +221,7 @@
     effect_direction  = .data_effect_direction(context[["data"]]),
     outcome_type      = .data_outcome_type(context[["data"]])
   )
-  if (length(log_lik) != 1L || !is.finite(log_lik)) {
-    return(-Inf)
-  }
-
-  return(as.numeric(log_lik))
+  return(.iwmde_scalar_log_density(log_lik))
 }
 
 
@@ -240,11 +242,7 @@
       active_setup = active_setup
     )
   }
-  if (length(log_lik) != 1L || !is.finite(log_lik)) {
-    return(-Inf)
-  }
-
-  return(as.numeric(log_lik))
+  return(.iwmde_scalar_log_density(log_lik))
 }
 
 
@@ -338,11 +336,7 @@
     prior_list = prior_list
   )
   log_prior <- BayesTools::JAGS_marglik_priors(row, prior_list)
-  if (length(log_prior) != 1L || !is.finite(log_prior)) {
-    return(-Inf)
-  }
-
-  return(as.numeric(log_prior))
+  return(.iwmde_scalar_log_density(log_prior))
 }
 
 
@@ -353,11 +347,7 @@
     values    = value,
     parameter = parameter
   )
-  if (length(out) != 1L || is.na(out[[1L]])) {
-    return(NA_real_)
-  }
-
-  return(as.numeric(out[[1L]]))
+  return(.iwmde_scalar_log_density(out))
 }
 
 
@@ -378,10 +368,7 @@
 
   return(vapply(values, function(value) {
     out <- BayesTools::lpdf(prior, value)
-    if (length(out) != 1L || is.na(out[[1L]])) {
-      return(NA_real_)
-    }
-    return(as.numeric(out[[1L]]))
+    return(.iwmde_scalar_log_density(out))
   }, numeric(1)))
 }
 
