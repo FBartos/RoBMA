@@ -366,6 +366,124 @@
 }
 
 
+.iwmde_qcmde_evaluate_grid_sequence <- function(
+    context, parameter, display_grid, normalizer_plan, row_states,
+    replacement, estimator_rows, active_mass, denominator) {
+
+  grid_sequence <- normalizer_plan[["grid_sequence"]]
+  all_grid       <- normalizer_plan[["all_grid"]]
+  n_states       <- length(row_states)
+  log_q_all      <- matrix(
+    NA_real_,
+    nrow = length(all_grid[["x"]]),
+    ncol = n_states
+  )
+  evaluated      <- rep(FALSE, nrow(log_q_all))
+  log_q_sequence <- vector("list", length(grid_sequence))
+  log_normalizer_sequence <- vector("list", length(grid_sequence))
+  quadrature_changes <- numeric()
+  log_q_display      <- NULL
+  last_index         <- 0L
+
+  evaluate_values <- function(values) {
+
+    log_q <- tryCatch(
+      .iwmde_log_q_grid(
+        context     = context,
+        parameter   = parameter,
+        values      = values,
+        row_states  = row_states,
+        replacement = replacement
+      ),
+      error = function(e) {
+        if (inherits(e, "iwmde_construction_error")) {
+          stop(e)
+        }
+        .iwmde_stop_construction_failure(
+          estimator = "q_grid_cmde",
+          parameter = parameter,
+          rows      = estimator_rows,
+          stage     = "joint-density grid evaluation",
+          detail    = conditionMessage(e)
+        )
+      }
+    )
+    .iwmde_validate_log_grid(
+      log_q_grid = log_q,
+      estimator  = "q_grid_cmde",
+      parameter  = parameter,
+      rows       = estimator_rows,
+      n_values   = length(values),
+      stage      = "joint-density grid evaluation"
+    )
+
+    return(log_q)
+  }
+
+  for (index in seq_along(grid_sequence)) {
+    grid      <- grid_sequence[[index]]
+    grid_rows <- grid[["all_index"]]
+    new_rows  <- grid_rows[!evaluated[grid_rows]]
+    new_x     <- all_grid[["x"]][new_rows]
+    values    <- if (index == 1L) c(display_grid, new_x) else new_x
+
+    if (length(values) > 0L) {
+      log_q_new <- evaluate_values(values)
+      quadrature_change <- attr(
+        log_q_new,
+        "max_quadrature_relative_change",
+        exact = TRUE
+      )
+      if (is.numeric(quadrature_change) &&
+          length(quadrature_change) == 1L && !is.na(quadrature_change)) {
+        quadrature_changes <- c(quadrature_changes, quadrature_change)
+      }
+
+      if (index == 1L) {
+        display_rows <- seq_along(display_grid)
+        log_q_display <- log_q_new[display_rows, , drop = FALSE]
+        new_value_rows <- length(display_grid) + seq_along(new_rows)
+        log_q_all[new_rows, ] <- log_q_new[new_value_rows, , drop = FALSE]
+      } else {
+        log_q_all[new_rows, ] <- log_q_new
+      }
+      evaluated[new_rows] <- TRUE
+    }
+
+    log_q_sequence[[index]] <- log_q_all[grid_rows, , drop = FALSE]
+    log_normalizer_sequence[[index]] <- .iwmde_log_trapz_columns(
+      x     = grid[["z"]],
+      log_y = log_q_sequence[[index]] + grid[["log_jacobian"]]
+    )
+    last_index <- index
+
+    if (index >= 3L && .iwmde_qcmde_refinement_pair_converged(
+      log_q_display          = log_q_display,
+      candidate_normalizer   = log_normalizer_sequence[[index - 1L]],
+      validation_normalizer  = log_normalizer_sequence[[index]],
+      active_mass            = active_mass,
+      denominator            = denominator
+    )) {
+      break
+    }
+  }
+
+  evaluated_sequence <- seq_len(last_index)
+  quadrature_change  <- if (length(quadrature_changes) > 0L) {
+    max(quadrature_changes)
+  } else {
+    NA_real_
+  }
+
+  return(list(
+    log_q_display           = log_q_display,
+    log_q_sequence          = log_q_sequence[evaluated_sequence],
+    log_normalizer_sequence = log_normalizer_sequence[evaluated_sequence],
+    quadrature_change       = quadrature_change
+  ))
+}
+
+
 .iwmde_density_grid <- function(context, parameter, display_grid,
                                 normalization_grid, transform, row_states,
                                 active_mass, replacement,
@@ -393,60 +511,24 @@
     normalization_grid = normalization_grid,
     transform          = transform
   )
-  final_grid       <- normalizer_plan[["final_grid"]]
-  pilot_grid       <- normalizer_plan[["pilot_grid"]]
-  all_grid         <- normalizer_plan[["all_grid"]]
-  q_grid           <- c(display_grid, all_grid[["x"]])
-  log_q_grid <- tryCatch(
-    .iwmde_log_q_grid(
-      context     = context,
-      parameter   = parameter,
-      values      = q_grid,
-      row_states  = row_states,
-      replacement = replacement
-    ),
-    error = function(e) {
-      if (inherits(e, "iwmde_construction_error")) {
-        stop(e)
-      }
-      .iwmde_stop_construction_failure(
-        estimator = "q_grid_cmde",
-        parameter = parameter,
-        rows      = estimator_rows,
-        stage     = "joint-density grid evaluation",
-        detail    = conditionMessage(e)
-      )
-    }
+  evaluation <- .iwmde_qcmde_evaluate_grid_sequence(
+    context          = context,
+    parameter        = parameter,
+    display_grid     = display_grid,
+    normalizer_plan  = normalizer_plan,
+    row_states       = row_states,
+    replacement      = replacement,
+    estimator_rows   = estimator_rows,
+    active_mass      = active_mass,
+    denominator      = n_candidate_rows
   )
-  .iwmde_validate_log_grid(
-    log_q_grid = log_q_grid,
-    estimator  = "q_grid_cmde",
-    parameter  = parameter,
-    rows       = estimator_rows,
-    n_values   = length(q_grid),
-    stage      = "joint-density grid evaluation"
-  )
-  quadrature_change <- attr(
-    log_q_grid,
-    "max_quadrature_relative_change",
-    exact = TRUE
-  )
-  if (is.null(quadrature_change)) {
-    quadrature_change <- NA_real_
-  }
-  all_grid_rows    <- length(display_grid) + seq_along(all_grid[["x"]])
-  log_q_display    <- log_q_grid[seq_along(display_grid), , drop = FALSE]
-  log_q_all        <- log_q_grid[all_grid_rows, , drop = FALSE]
-  log_q_sequence   <- lapply(normalizer_plan[["grid_sequence"]], function(grid) {
-    log_q_all[grid[["all_index"]], , drop = FALSE]
-  })
-  log_normalizer_sequence <- lapply(seq_along(log_q_sequence), function(i) {
-    grid <- normalizer_plan[["grid_sequence"]][[i]]
-    .iwmde_log_trapz_columns(
-      x     = grid[["z"]],
-      log_y = log_q_sequence[[i]] + grid[["log_jacobian"]]
-    )
-  })
+  log_q_display           <- evaluation[["log_q_display"]]
+  log_q_sequence          <- evaluation[["log_q_sequence"]]
+  log_normalizer_sequence <- evaluation[["log_normalizer_sequence"]]
+  quadrature_change       <- evaluation[["quadrature_change"]]
+  normalizer_plan[["grid_sequence"]] <- normalizer_plan[["grid_sequence"]][
+    seq_along(log_q_sequence)
+  ]
   refinement <- .iwmde_qcmde_select_refinement(
     log_q_display           = log_q_display,
     log_normalizer_sequence = log_normalizer_sequence,

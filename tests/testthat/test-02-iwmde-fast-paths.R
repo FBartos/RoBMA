@@ -1124,6 +1124,189 @@ test_that("qCMDE refinement grids are nested", {
 })
 
 
+test_that("qCMDE evaluates only refinement nodes needed for certification", {
+
+  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
+  normalization_grid <- .iwmde_qcmde_grid_from_z(
+    z         = seq(-2, 2, length.out = 50L),
+    transform = transform
+  )
+  plan <- .iwmde_qcmde_normalizer_plan(
+    normalization_grid = normalization_grid,
+    transform          = transform
+  )
+  display_grid <- 7
+  row_states   <- list(list(), list())
+  evaluated_values <- list()
+
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid = function(context, parameter, values, row_states,
+                                 replacement) {
+
+      evaluated_values[[length(evaluated_values) + 1L]] <<- values
+      matrix(
+        stats::dnorm(values, log = TRUE),
+        nrow = length(values),
+        ncol = length(row_states)
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  incremental <- .iwmde_qcmde_evaluate_grid_sequence(
+    context         = list(),
+    parameter       = "mu",
+    display_grid    = display_grid,
+    normalizer_plan = plan,
+    row_states      = row_states,
+    replacement     = list(type = "scalar"),
+    estimator_rows  = seq_along(row_states),
+    active_mass     = 1,
+    denominator     = length(row_states)
+  )
+
+  eager_log_q_display <- matrix(
+    stats::dnorm(display_grid, log = TRUE),
+    nrow = length(display_grid),
+    ncol = length(row_states)
+  )
+  eager_log_q_all <- matrix(
+    stats::dnorm(plan[["all_grid"]][["x"]], log = TRUE),
+    nrow = length(plan[["all_grid"]][["x"]]),
+    ncol = length(row_states)
+  )
+  eager_log_q_sequence <- lapply(plan[["grid_sequence"]], function(grid) {
+    eager_log_q_all[grid[["all_index"]], , drop = FALSE]
+  })
+  eager_log_normalizer_sequence <- lapply(
+    seq_along(eager_log_q_sequence),
+    function(index) {
+      grid <- plan[["grid_sequence"]][[index]]
+      .iwmde_log_trapz_columns(
+        x     = grid[["z"]],
+        log_y = eager_log_q_sequence[[index]] + grid[["log_jacobian"]]
+      )
+    }
+  )
+  eager_refinement <- .iwmde_qcmde_select_refinement(
+    log_q_display           = eager_log_q_display,
+    log_normalizer_sequence = eager_log_normalizer_sequence,
+    active_mass             = 1,
+    denominator             = length(row_states)
+  )
+  incremental_refinement <- .iwmde_qcmde_select_refinement(
+    log_q_display           = incremental[["log_q_display"]],
+    log_normalizer_sequence = incremental[["log_normalizer_sequence"]],
+    active_mass             = 1,
+    denominator             = length(row_states)
+  )
+
+  grid_sizes <- vapply(
+    plan[["grid_sequence"]],
+    function(grid) length(grid[["x"]]),
+    integer(1)
+  )
+  expect_identical(grid_sizes, c(50L, 113L, 133L, 175L))
+  expect_identical(
+    vapply(evaluated_values, length, integer(1)),
+    c(length(display_grid) + grid_sizes[[1L]], diff(grid_sizes[1:3]))
+  )
+  expect_length(incremental[["log_q_sequence"]], 3L)
+  expect_equal(
+    incremental[["log_q_sequence"]],
+    eager_log_q_sequence[seq_len(3L)],
+    tolerance = 0
+  )
+  expect_equal(
+    incremental[["log_normalizer_sequence"]],
+    eager_log_normalizer_sequence[seq_len(3L)],
+    tolerance = 0
+  )
+  expect_identical(incremental_refinement, eager_refinement)
+
+  unused_final_x <- setdiff(
+    plan[["grid_sequence"]][[4L]][["x"]],
+    plan[["grid_sequence"]][[3L]][["x"]]
+  )
+  expect_length(unused_final_x, grid_sizes[[4L]] - grid_sizes[[3L]])
+  expect_false(any(unused_final_x %in% unlist(evaluated_values)))
+
+  incremental_final_index <- incremental_refinement[["final_index"]]
+  eager_final_index       <- eager_refinement[["final_index"]]
+  incremental_normalizer  <- incremental[["log_normalizer_sequence"]]
+  incremental_normalizer  <- incremental_normalizer[[incremental_final_index]]
+  incremental_y <- .iwmde_qcmde_density_from_normalizer(
+    log_q_display  = incremental[["log_q_display"]],
+    log_normalizer = incremental_normalizer,
+    active_mass    = 1,
+    denominator    = length(row_states)
+  )
+  eager_y <- .iwmde_qcmde_density_from_normalizer(
+    log_q_display  = eager_log_q_display,
+    log_normalizer = eager_log_normalizer_sequence[[eager_final_index]],
+    active_mass    = 1,
+    denominator    = length(row_states)
+  )
+  expect_equal(incremental_y, eager_y, tolerance = 0)
+})
+
+
+test_that("qCMDE exhausts uncertified grids and preserves infinite diagnostics", {
+
+  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
+  normalization_grid <- .iwmde_qcmde_grid_from_z(
+    z         = seq(-2, 2, length.out = 20L),
+    transform = transform
+  )
+  plan <- .iwmde_qcmde_normalizer_plan(
+    normalization_grid = normalization_grid,
+    transform          = transform
+  )
+  evaluated_values <- list()
+
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid = function(context, parameter, values, row_states,
+                                 replacement) {
+
+      evaluated_values[[length(evaluated_values) + 1L]] <<- values
+      out <- matrix(
+        stats::dnorm(values, log = TRUE),
+        nrow = length(values),
+        ncol = length(row_states)
+      )
+      if (length(evaluated_values) == 2L) {
+        attr(out, "max_quadrature_relative_change") <- Inf
+      }
+      out
+    },
+    .iwmde_qcmde_refinement_pair_converged = function(...) FALSE,
+    .package = "RoBMA"
+  )
+
+  evaluation <- .iwmde_qcmde_evaluate_grid_sequence(
+    context         = list(),
+    parameter       = "mu",
+    display_grid    = 7,
+    normalizer_plan = plan,
+    row_states      = list(list()),
+    replacement     = list(type = "scalar"),
+    estimator_rows  = 1L,
+    active_mass     = 1,
+    denominator     = 1L
+  )
+
+  normalization_values <- unlist(evaluated_values, use.names = FALSE)[-1L]
+  expect_length(evaluation[["log_q_sequence"]], length(plan[["grid_sequence"]]))
+  expect_equal(
+    sort(normalization_values),
+    plan[["all_grid"]][["x"]],
+    tolerance = 0
+  )
+  expect_length(unique(normalization_values), length(normalization_values))
+  expect_identical(evaluation[["quadrature_change"]], Inf)
+})
+
+
 test_that("qCMDE refinement preserves infinite relative changes", {
 
   density_call <- 0L

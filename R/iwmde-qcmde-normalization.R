@@ -165,29 +165,13 @@
   }
 
   for (index in seq.int(2L, n_sequence - 1L)) {
-    if (!all(is.finite(log_normalizer_sequence[[index]])) ||
-        !all(is.finite(log_normalizer_sequence[[index + 1L]]))) {
-      next
-    }
-    candidate_y <- .iwmde_qcmde_density_from_normalizer(
-      log_q_display  = log_q_display,
-      log_normalizer = log_normalizer_sequence[[index]],
-      active_mass    = active_mass,
-      denominator    = denominator
-    )
-    validation_y <- .iwmde_qcmde_density_from_normalizer(
-      log_q_display  = log_q_display,
-      log_normalizer = log_normalizer_sequence[[index + 1L]],
-      active_mass    = active_mass,
-      denominator    = denominator
-    )
-    change <- .iwmde_qcmde_ordinate_change(
-      pilot_y = candidate_y,
-      final_y = validation_y
-    )
-    max_change <- .iwmde_max_or_na(change[["relative"]])
-    if (is.finite(max_change) &&
-        max_change <= .iwmde_qcmde_refinement_target()) {
+    if (.iwmde_qcmde_refinement_pair_converged(
+      log_q_display          = log_q_display,
+      candidate_normalizer   = log_normalizer_sequence[[index]],
+      validation_normalizer  = log_normalizer_sequence[[index + 1L]],
+      active_mass            = active_mass,
+      denominator            = denominator
+    )) {
       return(list(
         pilot_index        = index - 1L,
         final_index        = index,
@@ -203,6 +187,39 @@
     validation_index   = n_sequence,
     n_refinement_steps = n_sequence - 2L
   ))
+}
+
+
+.iwmde_qcmde_refinement_pair_converged <- function(
+    log_q_display, candidate_normalizer, validation_normalizer,
+    active_mass, denominator) {
+
+  if (!all(is.finite(candidate_normalizer)) ||
+      !all(is.finite(validation_normalizer))) {
+    return(FALSE)
+  }
+  candidate_y <- .iwmde_qcmde_density_from_normalizer(
+    log_q_display  = log_q_display,
+    log_normalizer = candidate_normalizer,
+    active_mass    = active_mass,
+    denominator    = denominator
+  )
+  validation_y <- .iwmde_qcmde_density_from_normalizer(
+    log_q_display  = log_q_display,
+    log_normalizer = validation_normalizer,
+    active_mass    = active_mass,
+    denominator    = denominator
+  )
+  change <- .iwmde_qcmde_ordinate_change(
+    pilot_y = candidate_y,
+    final_y = validation_y
+  )
+  max_change <- .iwmde_max_or_na(change[["relative"]])
+
+  return(
+    is.finite(max_change) &&
+      max_change <= .iwmde_qcmde_refinement_target()
+  )
 }
 
 
