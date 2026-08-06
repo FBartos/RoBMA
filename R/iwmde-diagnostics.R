@@ -152,6 +152,26 @@
     return(quadrature_reason)
   }
 
+  sampling_relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("sampling_relative_mcse", "bf_sampling_relative_mcse")
+  )
+  has_sampling_diagnostic <- any(c(
+    "sampling_relative_mcse",
+    "bf_sampling_relative_mcse"
+  ) %in% names(diagnostics))
+  if (has_sampling_diagnostic &&
+      (!is.finite(sampling_relative_mcse) || sampling_relative_mcse < 0 ||
+       sampling_relative_mcse >= .iwmde_bf_max_relative_mcse())) {
+    return(paste0(
+      "finite-population row-sampling relative error is ",
+      .iwmde_percent(sampling_relative_mcse),
+      " (maximum allowed ",
+      .iwmde_percent(.iwmde_bf_max_relative_mcse()),
+      ")"
+    ))
+  }
+
   return(NULL)
 }
 
@@ -320,6 +340,25 @@
   }
 
   metrics <- .iwmde_density_curve_metrics(diagnostics)
+  sampling_relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_sampling_relative_mcse", "sampling_relative_mcse")
+  )
+  has_sampling_diagnostic <- any(c(
+    "max_sampling_relative_mcse",
+    "sampling_relative_mcse"
+  ) %in% names(diagnostics))
+  if (has_sampling_diagnostic &&
+      (!is.finite(sampling_relative_mcse) || sampling_relative_mcse < 0 ||
+       sampling_relative_mcse >= .iwmde_density_max_relative_mcse())) {
+    return(paste0(
+      "density finite-population row-sampling relative error is ",
+      .iwmde_percent(sampling_relative_mcse),
+      " (maximum allowed ",
+      .iwmde_percent(.iwmde_density_max_relative_mcse()),
+      ")"
+    ))
+  }
   plot_scale_relative_mcse <- metrics[["plot_scale_relative_mcse"]]
   if (!is.finite(plot_scale_relative_mcse) ||
       plot_scale_relative_mcse < 0 ||
@@ -393,6 +432,23 @@
   }
 
   metrics <- .iwmde_density_curve_metrics(diagnostics)
+  sampling_relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_sampling_relative_mcse", "sampling_relative_mcse")
+  )
+  if (is.finite(sampling_relative_mcse) &&
+      sampling_relative_mcse >= .iwmde_density_warning_relative_mcse() &&
+      sampling_relative_mcse < .iwmde_density_max_relative_mcse()) {
+    warnings <- c(warnings, paste0(
+      "Density finite-population row-sampling relative error is ",
+      .iwmde_percent(sampling_relative_mcse),
+      " (warning threshold ",
+      .iwmde_percent(.iwmde_density_warning_relative_mcse()),
+      "; rejection threshold ",
+      .iwmde_percent(.iwmde_density_max_relative_mcse()),
+      ")."
+    ))
+  }
   plot_scale_relative_mcse <- metrics[["plot_scale_relative_mcse"]]
   if (is.finite(plot_scale_relative_mcse) &&
       plot_scale_relative_mcse >=
@@ -564,6 +620,20 @@
       .iwmde_estimator_label(estimator),
       " relative MCSE is ",
       .iwmde_percent(relative_mcse)
+    ))
+  }
+
+  sampling_relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("sampling_relative_mcse", "bf_sampling_relative_mcse")
+  )
+  if (is.finite(sampling_relative_mcse) &&
+      sampling_relative_mcse >= .iwmde_bf_warning_relative_mcse() &&
+      sampling_relative_mcse < .iwmde_bf_max_relative_mcse()) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      " finite-population row-sampling relative error is ",
+      .iwmde_percent(sampling_relative_mcse)
     ))
   }
 
@@ -1077,6 +1147,14 @@
     .iwmde_density_index_value(density, "pilot_ordinate_log_change", index)
   out[["bf_mcse"]]             <- .iwmde_density_index_value(density, "mcse", index)
   out[["bf_relative_mcse"]]    <- .iwmde_density_index_value(density, "relative_mcse", index)
+  if (!is.null(density[["sampling_mcse"]])) {
+    out[["bf_sampling_mcse"]] <-
+      .iwmde_density_index_value(density, "sampling_mcse", index)
+  }
+  if (!is.null(density[["sampling_relative_mcse"]])) {
+    out[["bf_sampling_relative_mcse"]] <-
+      .iwmde_density_index_value(density, "sampling_relative_mcse", index)
+  }
   out[["bf_finite_terms"]]     <- as.integer(.iwmde_density_index_value(density, "finite_terms", index))
   out[["bf_ess"]]              <- .iwmde_density_index_value(density, "ess", index)
   out[["bf_max_weight_share"]] <- .iwmde_density_index_value(density, "max_weight_share", index)

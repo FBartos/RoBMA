@@ -149,7 +149,9 @@
 
   common_fields <- c(
     "schema_version", "x", "y", "finite_terms", "max_log_ratio", "ess",
-    "max_weight_share", "mcse", "relative_mcse", "n_candidate_rows",
+    "max_weight_share", "mcse", "relative_mcse", "sampling_mcse",
+    "sampling_relative_mcse", "sampling_fraction",
+    "sampling_uncertainty_type", "mcmc_uncertainty_scope", "n_candidate_rows",
     "n_evaluated_rows", "n_normalized_rows", "n_dropped_rows",
     "row_drop_fraction", "normalization_points", "normalization_range",
     "normalization_relative_error", "normalization_scale",
@@ -179,7 +181,7 @@
   n_values <- length(density[["x"]])
   vector_fields <- c(
     "y", "finite_terms", "max_log_ratio", "ess", "max_weight_share",
-    "mcse", "relative_mcse"
+    "mcse", "relative_mcse", "sampling_mcse", "sampling_relative_mcse"
   )
   valid_lengths <- vapply(
     vector_fields,
@@ -222,8 +224,22 @@
     all(is.na(value) | (is.finite(value) & value >= 0))
   }
   if (!nonnegative_or_na(density[["mcse"]]) ||
-      !nonnegative_or_na(density[["relative_mcse"]])) {
+      !nonnegative_or_na(density[["relative_mcse"]]) ||
+      !nonnegative_or_na(density[["sampling_mcse"]]) ||
+      !nonnegative_or_na(density[["sampling_relative_mcse"]])) {
     stop("Internal IWMDE density result has invalid Monte Carlo errors.",
+         call. = FALSE)
+  }
+  if (!is.numeric(density[["sampling_fraction"]]) ||
+      length(density[["sampling_fraction"]]) != 1L ||
+      !is.finite(density[["sampling_fraction"]]) ||
+      density[["sampling_fraction"]] < 0 ||
+      density[["sampling_fraction"]] > 1 ||
+      !identical(density[["sampling_uncertainty_type"]],
+                 "finite_population_srswor") ||
+      !identical(density[["mcmc_uncertainty_scope"]],
+                 "selected_continuous_rows_only")) {
+    stop("Internal IWMDE density result has invalid uncertainty metadata.",
          call. = FALSE)
   }
   scalar_counts <- c(

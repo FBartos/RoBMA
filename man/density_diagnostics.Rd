@@ -26,7 +26,9 @@ The exact columns, in order, are \code{schema_version}, \code{algorithm_version}
 \code{source_fingerprint}, \code{estimator}, \code{density_method}, \code{parameter}, \code{level},
 \code{requested_value}, \code{evaluation_value}, \code{achieved_row_budget}, \code{eligible_rows},
 \code{evaluated_rows}, \code{retained_rows}, \code{finite_terms}, \code{row_drop_fraction},
-\code{active_mass}, \code{relative_mcse}, \code{ess}, \code{max_weight_share},
+\code{active_mass}, \code{relative_mcse}, \code{sampling_relative_mcse},
+\code{sampling_fraction}, \code{mcmc_uncertainty_scope},
+\code{sampling_uncertainty_type}, \code{ess}, \code{max_weight_share},
 \code{normalization_relative_error}, \code{stability_metric},
 \code{stability_relative_error}, \code{ordinate_relative_change},
 \code{quadrature_relative_change}, \code{target_relative_mcse},
@@ -38,8 +40,8 @@ The exact columns, in order, are \code{schema_version}, \code{algorithm_version}
 \code{rejection_max_weight_share}, \code{warning_row_drop_fraction},
 \code{rejection_row_drop_fraction}, \code{hard_cap}, \code{hard_cap_reached},
 \code{all_rows_used}, \code{adaptation_steps}, \code{target_met}, \code{precision_target_met},
-\code{bf_grade_met}, \code{n_weight_fallbacks}, \code{weight_fallback_reasons}, \code{status},
-and \code{warnings}.
+\code{sampling_target_met}, \code{bf_grade_met}, \code{n_weight_fallbacks},
+\code{weight_fallback_reasons}, \code{status}, and \code{warnings}.
 }
 \description{
 Extracts the compact reliability diagnostics attached to a
@@ -54,6 +56,12 @@ BF-grade reliability gate pass, all eligible rows are used, or the
 \code{max_samples} hard cap is reached. The table records the achieved budget,
 \code{hard_cap_reached}, \code{all_rows_used}, adaptation steps, whether the precision
 target was met, and whether the final ordinate passed every BF-grade gate.
+Finite row budgets use a reproducible nested simple random sample without
+replacement. \code{relative_mcse} and \code{ess} describe only the selected continuous
+posterior-row sequence. They exclude uncertainty in the active/product-space
+indicator mass. \code{sampling_relative_mcse} separately estimates
+finite-population row-sampling uncertainty with its sampling fraction. Both
+precision checks must pass before adaptive evaluation can stop.
 
 The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 below 100, the largest contribution share is at least 20 percent, fewer than

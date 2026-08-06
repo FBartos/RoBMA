@@ -4,13 +4,13 @@
 
 .iwmde_schema_version <- function() {
 
-  return("2")
+  return("3")
 }
 
 
 .iwmde_algorithm_version <- function() {
 
-  return("7")
+  return("8")
 }
 
 

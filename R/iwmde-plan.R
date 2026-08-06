@@ -462,6 +462,7 @@
     n_candidate_rows  = 0L,
     n_total           = 0L,
     row_thinning_policy = list(
+      method             = "nested_srswor",
       selected_rows_hash = .iwmde_hash("iwmde_rows", integer())
     )
   ))
@@ -520,6 +521,7 @@
     n_candidate_rows  = length(candidate_rows),
     n_total           = sum(finite_rows),
     row_thinning_policy = list(
+      method              = "nested_srswor",
       selected_rows_hash = .iwmde_hash("iwmde_rows", candidate_rows),
       n_continuous_rows  = length(continuous_rows),
       n_selected_rows    = length(candidate_rows),

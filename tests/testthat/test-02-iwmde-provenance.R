@@ -87,8 +87,8 @@ test_that("request keys carry schema and algorithm versions", {
     target_key     = "primitive|mu"
   )
 
-  expect_equal(request[["schema_version"]], "2")
-  expect_equal(request[["algorithm_version"]], "7")
+  expect_equal(request[["schema_version"]], "3")
+  expect_equal(request[["algorithm_version"]], "8")
 
   testthat::local_mocked_bindings(
     .iwmde_algorithm_version = function() "changed",
@@ -257,6 +257,11 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
     max_weight_share  = c(.02, .03),
     mcse              = c(.01, .01),
     relative_mcse     = c(.025, .033),
+    sampling_mcse          = c(.005, .005),
+    sampling_relative_mcse = c(.0125, .0165),
+    sampling_fraction      = .5,
+    sampling_uncertainty_type = "finite_population_srswor",
+    mcmc_uncertainty_scope = "selected_continuous_rows_only",
     n_candidate_rows  = 100L,
     n_evaluated_rows  = 100L,
     n_normalized_rows = 100L,
@@ -526,8 +531,8 @@ test_that("plan keys carry schema and algorithm versions", {
   )
   payload <- .iwmde_plan_key_payload(plan)
 
-  expect_equal(payload[["schema_version"]], "2")
-  expect_equal(payload[["algorithm_version"]], "7")
+  expect_equal(payload[["schema_version"]], "3")
+  expect_equal(payload[["algorithm_version"]], "8")
   expect_identical(
     payload[["prior_ordinates"]],
     .iwmde_compact_nulls(prior_ordinates)

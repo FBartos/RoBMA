@@ -1291,8 +1291,8 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
   ))
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
-  expect_equal(provenance[["schema_version"]], "2")
-  expect_equal(provenance[["algorithm_version"]], "7")
+  expect_equal(provenance[["schema_version"]], "3")
+  expect_equal(provenance[["algorithm_version"]], "8")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -1967,34 +1967,39 @@ test_that("density_control validates public density settings", {
   )
 })
 
-test_that("IWMDE row thinning is deterministic and equally spaced", {
+test_that("IWMDE row sampling is reproducible, nested, and RNG-local", {
 
   rows <- seq(2L, 80L, by = 2L)
   set.seed(123)
   old_seed <- .Random.seed
+  old_kind <- RNGkind()
 
-  out <- .iwmde_select_active_rows(rows = rows, max_samples = 10)
+  out10 <- .iwmde_select_active_rows(rows = rows, max_samples = 10)
+  out20 <- .iwmde_select_active_rows(rows = rows, max_samples = 20)
 
-  expect_equal(out, rows[unique(round(seq(1, length(rows), length.out = 10)))])
+  expect_length(out10, 10L)
+  expect_length(out20, 20L)
+  expect_true(all(out10 %in% out20))
+  expect_true(is.unsorted(out10) == FALSE)
   expect_identical(.Random.seed, old_seed)
-  expect_equal(.iwmde_select_active_rows(rows = rows, max_samples = 10), out)
+  expect_identical(RNGkind(), old_kind)
+  expect_equal(
+    .iwmde_select_active_rows(rows = rows, max_samples = 10),
+    out10
+  )
 })
 
 
-test_that("IWMDE row thinning does not stratify product states", {
+test_that("IWMDE row sampling does not force nuisance product states", {
 
   rows     <- seq_len(10000L)
   state    <- rep("common", length(rows))
   state[5001L] <- "rare"
-  expected <- rows[.thin_sample_rows(length(rows), 1000L)]
   stratified <- rows[.thin_sample_rows_by_group(state, 1000L)]
+  selected <- .iwmde_select_active_rows(rows = rows, max_samples = 1000L)
 
-  expect_equal(
-    .iwmde_select_active_rows(rows = rows, max_samples = 1000L),
-    expected
-  )
-  expect_equal(length(expected), 1000L)
-  expect_false(5001L %in% expected)
+  expect_equal(length(selected), 1000L)
+  expect_true(all(selected %in% rows))
   expect_true(5001L %in% stratified)
   expect_false("context" %in% names(formals(.iwmde_select_active_rows)))
 })
@@ -2119,6 +2124,29 @@ test_that("IWMDE plan fails the target on a non-finite baseline row", {
 
   drop_positions <- 1:2
   expect_error(make_plan(), "posterior rows .*baseline joint-density")
+})
+
+
+test_that("IWMDE row plans keep population mass separate from SRS rows", {
+
+  component <- list(
+    active       = c(TRUE, FALSE, TRUE, FALSE, TRUE, FALSE),
+    point_masses = data.frame(x = numeric(), mass = numeric())
+  )
+  rows <- .iwmde_plan_rows(
+    posterior_values = seq_len(6L),
+    finite_rows      = rep(TRUE, 6L),
+    component        = component,
+    continuous_rows  = c(1L, 3L, 5L),
+    candidate_rows   = c(1L, 5L),
+    candidate_values = c(1, 5),
+    continuous_values = c(1, 3, 5)
+  )
+
+  expect_equal(rows[["active_mass"]], .5)
+  expect_equal(rows[["continuous_rows"]], c(1L, 3L, 5L))
+  expect_equal(rows[["n_denominator_rows"]], 2L)
+  expect_equal(rows[["candidate_rows"]], c(1L, 5L))
 })
 
 

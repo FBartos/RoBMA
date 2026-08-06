@@ -150,7 +150,8 @@ test_that("IWMDE density aggregation matches row-wise reference", {
   expect_equal(fast[["max_log_ratio"]], max_log_ratio)
   expect_equal(fast[["ess"]], ess)
   expect_equal(fast[["max_weight_share"]], max_weight_share)
-  expect_equal(fast[["contributions"]], contributions)
+  expect_equal(as.numeric(fast[["contributions"]]), as.numeric(contributions))
+  expect_equal(fast[["sampling_mcse"]], rep(0, nrow(log_terms)))
 
   padded <- .iwmde_density_aggregate(
     log_terms   = matrix(log(2), nrow = 1L),
@@ -179,64 +180,128 @@ test_that("IWMDE density aggregation matches row-wise reference", {
 })
 
 
-test_that("IWMDE contributions retain design weights and chain order", {
+test_that("IWMDE row sampling uncertainty is separate and compact", {
 
-  population_rows <- seq_len(200L)
-  chain_id        <- rep(1:2, each = 100L)
-  active_per_batch <- c(0:9, 9:0)
-  contribution_rows <- unlist(lapply(seq_along(active_per_batch), function(i) {
-    offset <- (i - 1L) * 10L
-    offset + seq_len(active_per_batch[[i]])
-  }))
+  population_rows   <- seq_len(100000L)
+  contribution_rows <- seq(100L, 10000L, length.out = 100L)
+  contribution_rows <- unique(as.integer(round(contribution_rows)))
+  values            <- seq_len(length(contribution_rows))
+  chain_id          <- rep(1:2, length.out = length(contribution_rows))
 
   density <- .iwmde_density_aggregate(
-    log_terms         = matrix(0, nrow = 1L,
-                               ncol = length(contribution_rows)),
-    active_mass       = length(contribution_rows) / length(population_rows),
+    log_terms         = matrix(log(values), nrow = 1L),
+    active_mass       = 1,
     denominator       = length(contribution_rows),
     contribution_rows = contribution_rows,
-    population_rows  = population_rows,
+    sampling_population_rows = population_rows,
     chain_id         = chain_id
   )
   contributions <- density[["contributions"]]
-  mcse          <- .iwmde_batch_mcse(contributions)
-  batch_means   <- active_per_batch / 10
-  expected_mcse <- stats::sd(batch_means) / sqrt(length(batch_means))
-  contribution_variance <- stats::var(as.numeric(
-    seq_along(population_rows) %in% contribution_rows
-  ))
-  expected_ess <- length(contribution_rows) / max(
-    1,
-    length(population_rows) * expected_mcse^2 / contribution_variance
+  expected_sampling_mcse <- sqrt(
+    (1 - length(contribution_rows) / length(population_rows)) *
+      stats::var(values) / length(contribution_rows)
   )
 
-  expect_equal(as.numeric(contributions),
-               as.numeric(population_rows %in% contribution_rows))
+  expect_equal(as.numeric(contributions), as.numeric(values))
   expect_equal(rowMeans(contributions), density[["y"]])
-  expect_equal(density[["y"]], .45)
-  expect_equal(mcse[["batch_size"]], 10L)
-  expect_equal(mcse[["n_batches"]], 20L)
-  expect_equal(mcse[["mcse"]], expected_mcse)
-  expect_equal(mcse[["ess"]], expected_ess)
+  expect_equal(density[["sampling_mcse"]], expected_sampling_mcse)
+  expect_equal(
+    density[["sampling_relative_mcse"]],
+    expected_sampling_mcse / mean(values)
+  )
+  expect_equal(density[["sampling_fraction"]], .001)
+  expect_lt(as.numeric(object.size(contributions)), 10000)
 
-  thinned <- .iwmde_density_aggregate(
+  census <- .iwmde_density_aggregate(
     log_terms         = matrix(0, nrow = 1L, ncol = 20L),
     active_mass       = .4,
     denominator       = 20L,
-    contribution_rows = seq(2L, 40L, by = 2L),
-    population_rows  = seq_len(100L),
-    chain_id         = rep(1L, 100L)
+    contribution_rows = seq_len(20L),
+    sampling_population_rows = seq_len(20L),
+    chain_id         = rep(1L, 20L)
   )
-  expect_equal(thinned[["y"]], .4)
-  expect_equal(
-    unname(thinned[["contributions"]][1L, seq(2L, 40L, by = 2L)]),
-    rep(2, 20L)
+  expect_equal(census[["y"]], .4)
+  expect_equal(census[["sampling_mcse"]], 0)
+  expect_equal(census[["sampling_fraction"]], 1)
+
+  one_row_census <- .iwmde_density_aggregate(
+    log_terms         = matrix(log(2), nrow = 1L),
+    active_mass       = .4,
+    denominator       = 1L,
+    contribution_rows = 7L,
+    sampling_population_rows = 7L,
+    chain_id          = 1L
+  )
+  expect_equal(one_row_census[["y"]], .8)
+  expect_equal(one_row_census[["sampling_mcse"]], 0)
+  expect_equal(one_row_census[["sampling_relative_mcse"]], 0)
+
+  for (m in c(20L, 80L)) {
+    constant <- .iwmde_density_aggregate(
+      log_terms         = matrix(log(3), nrow = 1L, ncol = m),
+      active_mass       = .4,
+      denominator       = m,
+      contribution_rows = seq_len(m),
+      sampling_population_rows = seq_len(100L),
+      chain_id          = rep(1L, m)
+    )
+    expect_equal(constant[["y"]], 1.2)
+    expect_equal(constant[["sampling_mcse"]], 0)
+  }
+
+  finite_population <- c(1, 3, 6, 10)
+  srs_estimates <- apply(
+    utils::combn(seq_along(finite_population), 2L),
+    2L,
+    function(sample_rows) {
+      sampled <- .iwmde_density_aggregate(
+        log_terms         = matrix(
+          log(finite_population[sample_rows]),
+          nrow = 1L
+        ),
+        active_mass       = 1,
+        denominator       = length(sample_rows),
+        contribution_rows = sample_rows,
+        sampling_population_rows = seq_along(finite_population),
+        chain_id          = rep(1L, length(sample_rows))
+      )
+
+      sampled[["y"]]
+    }
+  )
+  expect_equal(mean(srs_estimates), mean(finite_population))
+
+  expect_error(
+    .iwmde_density_aggregate(
+      log_terms         = matrix(0, nrow = 1L, ncol = 20L),
+      active_mass       = 1,
+      denominator       = 100L,
+      contribution_rows = seq_len(20L),
+      sampling_population_rows = seq_len(100L),
+      chain_id          = rep(1L, 20L)
+    ),
+    "selected-row denominator"
+  )
+  expect_error(
+    .iwmde_density_aggregate(
+      log_terms         = matrix(0, nrow = 1L, ncol = 20L),
+      active_mass       = 1,
+      denominator       = 10L,
+      contribution_rows = seq_len(20L),
+      sampling_population_rows = seq_len(100L),
+      chain_id          = rep(1L, 20L)
+    ),
+    "selected-row denominator"
   )
 
   alternating <- matrix(rep(c(0, 1), 50L), nrow = 1L)
   alternating_mcse <- .iwmde_batch_mcse(alternating)
   expect_equal(alternating_mcse[["mcse"]], 0)
   expect_equal(alternating_mcse[["ess"]], 50)
+  expect_equal(
+    alternating_mcse[["uncertainty_scope"]],
+    "selected_continuous_rows_only"
+  )
 })
 
 

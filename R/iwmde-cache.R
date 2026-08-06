@@ -170,7 +170,30 @@
     return(rows)
   }
 
-  selected <- .thin_sample_rows(length(rows), max_samples)
+  positions <- seq_along(rows)
+  seed <- sum(
+    (as.double(rows) %% 104729) * ((positions %% 997) + 1)
+  )
+  seed <- as.integer(seed %% (.Machine$integer.max - 1)) + 1L
+
+  rng_kind <- RNGkind()
+  has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (has_seed) {
+    old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  }
+  on.exit({
+    do.call(RNGkind, as.list(rng_kind))
+    if (has_seed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+
+  RNGkind("Mersenne-Twister", "Inversion", "Rejection")
+  set.seed(seed)
+  permutation <- sample.int(length(rows), length(rows), replace = FALSE)
+  selected    <- sort(permutation[seq_len(as.integer(max_samples))])
 
   return(rows[selected])
 }

@@ -369,7 +369,7 @@
                                 active_mass, replacement,
                                 estimator_rows = seq_along(row_states),
                                 population_rows = estimator_rows,
-                                chain_id = rep(1L, length(population_rows)),
+                                chain_id = rep(1L, length(estimator_rows)),
                                 n_candidate_rows = length(row_states)) {
 
   n_display        <- length(display_grid)
@@ -379,6 +379,7 @@
   ess              <- numeric(n_display)
   max_weight_share <- numeric(n_display)
   n_input_rows     <- length(row_states)
+  selected_rows    <- estimator_rows
   n_candidate_rows <- as.integer(n_candidate_rows[[1L]])
   if (!is.finite(n_candidate_rows) || n_candidate_rows != n_input_rows ||
       length(estimator_rows) != n_input_rows) {
@@ -530,6 +531,15 @@
       max_weight_share       = rep(1, n_display),
       mcse                   = rep(NA_real_, n_display),
       relative_mcse          = rep(NA_real_, n_display),
+      sampling_mcse          = rep(NA_real_, n_display),
+      sampling_relative_mcse = rep(NA_real_, n_display),
+      sampling_fraction      = if (length(population_rows) == 0L) {
+        1
+      } else {
+        length(estimator_rows) / length(population_rows)
+      },
+      sampling_uncertainty_type = "finite_population_srswor",
+      mcmc_uncertainty_scope = "selected_continuous_rows_only",
       log_normalizer         = log_normalizer,
       pilot_log_normalizer   = initial_log_normalizer[keep_rows],
       n_normalized_rows      = 0L,
@@ -580,8 +590,8 @@
     active_mass       = active_mass,
     denominator       = n_candidate_rows,
     contribution_rows = estimator_rows,
-    population_rows  = population_rows,
-    chain_id         = chain_id
+    sampling_population_rows = population_rows,
+    chain_id = chain_id[match(estimator_rows, selected_rows)]
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
@@ -635,6 +645,12 @@
     max_weight_share       = max_weight_share,
     mcse                   = mcse_data[["mcse"]],
     relative_mcse          = mcse_data[["relative_mcse"]],
+    sampling_mcse            = density_terms[["sampling_mcse"]],
+    sampling_relative_mcse   = density_terms[["sampling_relative_mcse"]],
+    sampling_fraction        = density_terms[["sampling_fraction"]],
+    sampling_uncertainty_type =
+      density_terms[["sampling_uncertainty_type"]],
+    mcmc_uncertainty_scope   = mcse_data[["uncertainty_scope"]],
     log_normalizer         = log_normalizer,
     pilot_log_normalizer   = initial_log_normalizer[keep_rows],
     n_normalized_rows      = n_normalized_rows,
@@ -687,7 +703,7 @@
                                  active_values, weight_rows, weight_values,
                                  support, active_mass, replacement,
                                  population_rows = active_rows,
-                                 chain_id = rep(1L, length(population_rows)),
+                                 chain_id = rep(1L, length(active_rows)),
                                  normalization_grid = NULL,
                                  n_candidate_rows = length(row_states)) {
 
@@ -794,6 +810,15 @@
       max_weight_share       = rep(1, n_display),
       mcse                   = rep(NA_real_, n_display),
       relative_mcse          = rep(NA_real_, n_display),
+      sampling_mcse          = rep(NA_real_, n_display),
+      sampling_relative_mcse = rep(NA_real_, n_display),
+      sampling_fraction      = if (length(population_rows) == 0L) {
+        1
+      } else {
+        length(active_rows) / length(population_rows)
+      },
+      sampling_uncertainty_type = "finite_population_srswor",
+      mcmc_uncertainty_scope = "selected_continuous_rows_only",
       log_normalizer         = numeric(),
       n_normalized_rows      = 0L,
       n_candidate_rows       = n_candidate_rows,
@@ -893,8 +918,8 @@
     active_mass       = active_mass,
     denominator       = n_candidate_rows,
     contribution_rows = contribution_rows,
-    population_rows   = population_rows,
-    chain_id          = chain_id
+    sampling_population_rows = population_rows,
+    chain_id = chain_id[match(contribution_rows, active_rows)]
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
@@ -925,6 +950,12 @@
     max_weight_share       = max_weight_share,
     mcse                   = mcse_data[["mcse"]],
     relative_mcse          = mcse_data[["relative_mcse"]],
+    sampling_mcse            = density_terms[["sampling_mcse"]],
+    sampling_relative_mcse   = density_terms[["sampling_relative_mcse"]],
+    sampling_fraction        = density_terms[["sampling_fraction"]],
+    sampling_uncertainty_type =
+      density_terms[["sampling_uncertainty_type"]],
+    mcmc_uncertainty_scope   = mcse_data[["uncertainty_scope"]],
     log_normalizer         = numeric(),
     n_normalized_rows      = n_normalized_rows,
     n_candidate_rows       = n_candidate_rows,

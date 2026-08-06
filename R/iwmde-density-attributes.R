@@ -216,6 +216,14 @@
     evaluation_value                  = diagnostics[["bf_evaluation_value"]],
     mcse                              = diagnostics[["bf_mcse"]],
     relative_mcse                     = diagnostics[["bf_relative_mcse"]],
+    sampling_mcse                     = diagnostics[["bf_sampling_mcse"]],
+    sampling_relative_mcse            =
+      diagnostics[["bf_sampling_relative_mcse"]],
+    sampling_fraction                 = diagnostics[["sampling_fraction"]],
+    sampling_uncertainty_type         =
+      diagnostics[["sampling_uncertainty_type"]],
+    mcmc_uncertainty_scope            =
+      diagnostics[["mcmc_uncertainty_scope"]],
     BF_error_percent                  = diagnostics[["bf_error_percent"]],
     finite_terms                      = diagnostics[["bf_finite_terms"]],
     ess                               = diagnostics[["bf_ess"]],
@@ -271,6 +279,7 @@
     prior_ordinates                   = diagnostics[["prior_ordinates"]],
     ordinate_warnings                 = diagnostics[["ordinate_warnings"]]
   )
+  ordinate_diagnostics <- .iwmde_compact_nulls(ordinate_diagnostics)
   ordinate_warning <- .iwmde_diagnostics_bf_warning(ordinate_diagnostics)
   if (length(ordinate_warning) > 0L) {
     ordinate_diagnostics[["warning"]] <- ordinate_warning

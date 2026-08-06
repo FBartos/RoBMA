@@ -5,10 +5,12 @@ source(testthat::test_path("common-functions.R"))
 
 .iwmde_adaptive_test_diagnostics <- function(row_budget, relative_mcse,
                                              ess = row_budget,
-                                             max_weight_share = 1 / row_budget) {
+                                             max_weight_share = 1 / row_budget,
+                                             sampling_relative_mcse = 0) {
 
   return(list(
     bf_relative_mcse             = relative_mcse,
+    bf_sampling_relative_mcse    = sampling_relative_mcse,
     bf_finite_terms              = row_budget,
     bf_ess                       = ess,
     bf_max_weight_share          = max_weight_share,
@@ -203,6 +205,58 @@ test_that("adaptive qCMDE continues until budget-rescuable BF gates pass", {
 })
 
 
+test_that("adaptive ordinates do not stop on selected-row MCSE alone", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_plan = function(context, parameter, density_method,
+                           density_control, outputs, values,
+                           parameter_spec, metadata, row_budget) {
+      list(
+        row_budget = row_budget,
+        rows = list(
+          continuous_rows = seq_len(100L),
+          n_candidate_rows = row_budget
+        )
+      )
+    },
+    .iwmde_estimate_from_plan = function(context, plan, cache = NULL) {
+      sampling_error <- if (plan[["row_budget"]] < 80L) .20 else .04
+      list(
+        diagnostics = list(ordinate = list(
+          status = "ok",
+          diagnostics = .iwmde_adaptive_test_diagnostics(
+            row_budget = plan[["row_budget"]],
+            relative_mcse = .01,
+            sampling_relative_mcse = sampling_error
+          )
+        )),
+        posterior_ordinate = list(diagnostics = list())
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  estimate <- .iwmde_estimate_adaptive_ordinate(
+    context         = list(),
+    parameter       = "mu",
+    density_method  = "qCMDE",
+    density_control = list(
+      initial_samples      = 20L,
+      max_samples          = 100L,
+      target_relative_mcse = .05
+    ),
+    values          = 0
+  )
+
+  expect_equal(
+    estimate[["adaptation"]][["history"]][["requested_row_budget"]],
+    c(20L, 80L)
+  )
+  expect_true(estimate[["adaptation"]][["sampling_target_met"]])
+  expect_true(estimate[["adaptation"]][["target_met"]])
+})
+
+
 test_that("density_diagnostics exposes compact BF-grade diagnostics", {
 
   diagnostics <- list(
@@ -216,6 +270,10 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
     n_evaluated_rows                  = 500L,
     n_normalized_rows                 = 500L,
     row_drop_fraction                 = 0,
+    sampling_relative_mcse            = .02,
+    sampling_fraction                 = .5,
+    mcmc_uncertainty_scope            = "selected_continuous_rows_only",
+    sampling_uncertainty_type         = "finite_population_srswor",
     normalization_relative_error      = .001,
     ordinate_relative_change          = .002,
     max_quadrature_relative_change    = .003,
@@ -228,6 +286,7 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
     n_steps                           = 1L,
     target_met                        = TRUE,
     precision_target_met              = TRUE,
+    sampling_target_met               = TRUE,
     bf_grade_met                      = TRUE,
     n_weight_fallbacks                = 1L,
     weight_fallback_reasons           = c(singular_covariance = 1L),
@@ -263,7 +322,9 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
     "density_method", "parameter", "level", "requested_value",
     "evaluation_value", "achieved_row_budget", "eligible_rows",
     "evaluated_rows", "retained_rows", "finite_terms", "row_drop_fraction",
-    "active_mass", "relative_mcse", "ess", "max_weight_share",
+    "active_mass", "relative_mcse", "sampling_relative_mcse",
+    "sampling_fraction", "mcmc_uncertainty_scope",
+    "sampling_uncertainty_type", "ess", "max_weight_share",
     "normalization_relative_error", "stability_metric",
     "stability_relative_error", "ordinate_relative_change",
     "quadrature_relative_change", "target_relative_mcse",
@@ -275,13 +336,21 @@ test_that("density_diagnostics exposes compact BF-grade diagnostics", {
     "rejection_max_weight_share", "warning_row_drop_fraction",
     "rejection_row_drop_fraction", "hard_cap", "hard_cap_reached",
     "all_rows_used", "adaptation_steps", "target_met",
-    "precision_target_met", "bf_grade_met", "n_weight_fallbacks",
+    "precision_target_met", "sampling_target_met", "bf_grade_met",
+    "n_weight_fallbacks",
     "weight_fallback_reasons", "status", "warnings"
   ))
   expect_equal(nrow(out), 1L)
   expect_equal(out[["estimator"]], "iwmde")
   expect_equal(out[["achieved_row_budget"]], 500L)
   expect_equal(out[["relative_mcse"]], .03)
+  expect_equal(out[["sampling_relative_mcse"]], .02)
+  expect_equal(out[["sampling_fraction"]], .5)
+  expect_equal(
+    out[["mcmc_uncertainty_scope"]],
+    "selected_continuous_rows_only"
+  )
+  expect_true(out[["sampling_target_met"]])
   expect_equal(out[["stability_metric"]], "normalization_relative_error")
   expect_equal(out[["stability_warning_threshold"]], .05)
   expect_equal(out[["stability_rejection_threshold"]], .10)
@@ -379,6 +448,7 @@ test_that("point-BF policy enforces adaptive quadrature stability", {
   diagnostics <- list(
     estimator                       = "q_grid_cmde",
     relative_mcse                   = .01,
+    sampling_relative_mcse          = .01,
     finite_terms                    = 500L,
     ess                             = 250,
     max_weight_share                = .01,

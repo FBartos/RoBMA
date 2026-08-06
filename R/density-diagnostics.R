@@ -13,6 +13,12 @@
 #' `max_samples` hard cap is reached. The table records the achieved budget,
 #' `hard_cap_reached`, `all_rows_used`, adaptation steps, whether the precision
 #' target was met, and whether the final ordinate passed every BF-grade gate.
+#' Finite row budgets use a reproducible nested simple random sample without
+#' replacement. `relative_mcse` and `ess` describe only the selected continuous
+#' posterior-row sequence. They exclude uncertainty in the active/product-space
+#' indicator mass. `sampling_relative_mcse` separately estimates
+#' finite-population row-sampling uncertainty with its sampling fraction. Both
+#' precision checks must pass before adaptive evaluation can stop.
 #'
 #' The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 #' below 100, the largest contribution share is at least 20 percent, fewer than
@@ -48,7 +54,9 @@
 #' `source_fingerprint`, `estimator`, `density_method`, `parameter`, `level`,
 #' `requested_value`, `evaluation_value`, `achieved_row_budget`, `eligible_rows`,
 #' `evaluated_rows`, `retained_rows`, `finite_terms`, `row_drop_fraction`,
-#' `active_mass`, `relative_mcse`, `ess`, `max_weight_share`,
+#' `active_mass`, `relative_mcse`, `sampling_relative_mcse`,
+#' `sampling_fraction`, `mcmc_uncertainty_scope`,
+#' `sampling_uncertainty_type`, `ess`, `max_weight_share`,
 #' `normalization_relative_error`, `stability_metric`,
 #' `stability_relative_error`, `ordinate_relative_change`,
 #' `quadrature_relative_change`, `target_relative_mcse`,
@@ -60,8 +68,8 @@
 #' `rejection_max_weight_share`, `warning_row_drop_fraction`,
 #' `rejection_row_drop_fraction`, `hard_cap`, `hard_cap_reached`,
 #' `all_rows_used`, `adaptation_steps`, `target_met`, `precision_target_met`,
-#' `bf_grade_met`, `n_weight_fallbacks`, `weight_fallback_reasons`, `status`,
-#' and `warnings`.
+#' `sampling_target_met`, `bf_grade_met`, `n_weight_fallbacks`,
+#' `weight_fallback_reasons`, `status`, and `warnings`.
 #'
 #' @examples \dontrun{
 #' result <- hypothesis(
@@ -250,6 +258,18 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     row_drop_fraction = .iwmde_diagnostics_row_loss_fraction(diagnostics),
     active_mass = .iwmde_public_numeric(diagnostics[["active_mass"]]),
     relative_mcse = .iwmde_public_numeric(diagnostics[["relative_mcse"]]),
+    sampling_relative_mcse = .iwmde_public_numeric(
+      diagnostics[["sampling_relative_mcse"]]
+    ),
+    sampling_fraction = .iwmde_public_numeric(
+      diagnostics[["sampling_fraction"]]
+    ),
+    mcmc_uncertainty_scope = .iwmde_public_character(
+      diagnostics[["mcmc_uncertainty_scope"]]
+    ),
+    sampling_uncertainty_type = .iwmde_public_character(
+      diagnostics[["sampling_uncertainty_type"]]
+    ),
     ess = .iwmde_public_numeric(diagnostics[["ess"]]),
     max_weight_share = .iwmde_public_numeric(
       diagnostics[["max_weight_share"]]
@@ -297,6 +317,9 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     precision_target_met = .iwmde_public_logical(
       diagnostics[["precision_target_met"]]
     ),
+    sampling_target_met = .iwmde_public_logical(
+      diagnostics[["sampling_target_met"]]
+    ),
     bf_grade_met = .iwmde_public_logical(diagnostics[["bf_grade_met"]]),
     n_weight_fallbacks = .iwmde_public_integer_any(
       diagnostics,
@@ -323,7 +346,10 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     achieved_row_budget = integer(), eligible_rows = integer(),
     evaluated_rows = integer(), retained_rows = integer(), finite_terms = integer(),
     row_drop_fraction = numeric(), active_mass = numeric(),
-    relative_mcse = numeric(), ess = numeric(), max_weight_share = numeric(),
+    relative_mcse = numeric(), sampling_relative_mcse = numeric(),
+    sampling_fraction = numeric(), mcmc_uncertainty_scope = character(),
+    sampling_uncertainty_type = character(), ess = numeric(),
+    max_weight_share = numeric(),
     normalization_relative_error = numeric(),
     stability_metric = character(), stability_relative_error = numeric(),
     ordinate_relative_change = numeric(), quadrature_relative_change = numeric(),
@@ -340,7 +366,8 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     rejection_row_drop_fraction = numeric(), hard_cap = numeric(),
     hard_cap_reached = logical(), all_rows_used = logical(),
     adaptation_steps = integer(), target_met = logical(),
-    precision_target_met = logical(), bf_grade_met = logical(),
+    precision_target_met = logical(), sampling_target_met = logical(),
+    bf_grade_met = logical(),
     n_weight_fallbacks = integer(), weight_fallback_reasons = character(),
     status = character(), warnings = character(), stringsAsFactors = FALSE
   )

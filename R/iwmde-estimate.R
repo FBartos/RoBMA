@@ -109,10 +109,13 @@
     effective_cap <- min(hard_cap, eligible)
     precision_target_met <- is.finite(metrics[["relative_mcse"]]) &&
       metrics[["relative_mcse"]] <= control[["target_relative_mcse"]]
+    sampling_target_met <- is.finite(metrics[["sampling_relative_mcse"]]) &&
+      metrics[["sampling_relative_mcse"]] <=
+        control[["target_relative_mcse"]]
     bf_grade_met <- is.null(.iwmde_diagnostics_bf_failure_reason(
       diagnostic[["diagnostics"]]
     ))
-    target_met <- precision_target_met && bf_grade_met
+    target_met <- precision_target_met && sampling_target_met && bf_grade_met
     all_rows_used <- is.finite(eligible) && achieved >= eligible
     hard_cap_reached <- is.finite(hard_cap) && hard_cap < eligible &&
       achieved >= hard_cap
@@ -121,9 +124,11 @@
       requested_row_budget = as.integer(budget),
       evaluated_rows       = as.integer(achieved),
       relative_mcse        = metrics[["relative_mcse"]],
+      sampling_relative_mcse = metrics[["sampling_relative_mcse"]],
       ess                  = metrics[["ess"]],
       max_weight_share     = metrics[["max_weight_share"]],
       precision_target_met = precision_target_met,
+      sampling_target_met  = sampling_target_met,
       bf_grade_met         = bf_grade_met,
       stringsAsFactors     = FALSE
     )
@@ -136,7 +141,10 @@
 
     next_budget <- .iwmde_next_row_budget(
       current              = budget,
-      relative_mcse        = metrics[["relative_mcse"]],
+      relative_mcse        = max(
+        metrics[["relative_mcse"]],
+        metrics[["sampling_relative_mcse"]]
+      ),
       target_relative_mcse = control[["target_relative_mcse"]],
       cap                  = effective_cap
     )
@@ -156,6 +164,7 @@
     all_rows_used        = all_rows_used,
     target_relative_mcse = control[["target_relative_mcse"]],
     precision_target_met = precision_target_met,
+    sampling_target_met  = sampling_target_met,
     bf_grade_met         = bf_grade_met,
     target_met           = target_met,
     n_steps              = length(history),
@@ -177,6 +186,11 @@
     relative_mcse = .iwmde_diagnostic_scalar_any(
       diagnostics,
       c("bf_relative_mcse", "relative_mcse")
+    ),
+    sampling_relative_mcse = .iwmde_diagnostic_scalar_any(
+      diagnostics,
+      c("bf_sampling_relative_mcse", "max_sampling_relative_mcse",
+        "sampling_relative_mcse")
     ),
     ess = .iwmde_diagnostic_scalar_any(
       diagnostics,
@@ -504,12 +518,17 @@
   }
 
   rows <- plan[["rows"]]
+  context_chain_id <- context[["chain_id"]]
+  if (is.null(context_chain_id)) {
+    context_chain_id <- rep(1L, nrow(context[["posterior_samples"]]))
+  }
 
   out <- list(
     active_rows      = rows[["estimator_rows"]],
     active_values    = rows[["estimator_values"]],
     population_rows  = rows[["population_rows"]],
-    chain_id         = context[["chain_id"]][rows[["population_rows"]]],
+    sampling_population_rows = rows[["continuous_rows"]],
+    chain_id         = context_chain_id[rows[["estimator_rows"]]],
     row_states       = rows[["row_states"]],
     baseline_log_q   = rows[["baseline_log_q"]],
     n_dropped_log_q  = rows[["n_dropped_log_q"]],
@@ -552,7 +571,7 @@
       transform          = plan[["support"]][["transform"]],
       row_states         = execution[["row_states"]],
       estimator_rows     = execution[["active_rows"]],
-      population_rows    = execution[["population_rows"]],
+      population_rows    = execution[["sampling_population_rows"]],
       chain_id           = execution[["chain_id"]],
       active_mass        = plan[["rows"]][["active_mass"]],
       replacement        = plan[["replacement"]],
@@ -567,7 +586,7 @@
       row_states         = execution[["row_states"]],
       active_rows        = execution[["active_rows"]],
       active_values      = execution[["active_values"]],
-      population_rows    = execution[["population_rows"]],
+      population_rows    = execution[["sampling_population_rows"]],
       chain_id           = execution[["chain_id"]],
       weight_rows        = execution[["active_rows"]],
       weight_values      = execution[["active_values"]],
@@ -734,6 +753,13 @@
     max_mcse                    = .iwmde_max_or_na(density[["mcse"]]),
     max_relative_mcse           =
       .iwmde_max_or_na(density[["relative_mcse"]]),
+    max_sampling_mcse           =
+      .iwmde_max_or_na(density[["sampling_mcse"]]),
+    max_sampling_relative_mcse  =
+      .iwmde_max_or_na(density[["sampling_relative_mcse"]]),
+    sampling_fraction           = density[["sampling_fraction"]],
+    sampling_uncertainty_type   = density[["sampling_uncertainty_type"]],
+    mcmc_uncertainty_scope      = density[["mcmc_uncertainty_scope"]],
     plot_scale_relative_mcse    =
       curve_diagnostics[["plot_scale_relative_mcse"]],
     bulk_probability_range      =
@@ -785,6 +811,9 @@
       bf_diagnostics[["bf_pilot_ordinate_log_change"]],
     bf_mcse                     = bf_diagnostics[["bf_mcse"]],
     bf_relative_mcse            = bf_diagnostics[["bf_relative_mcse"]],
+    bf_sampling_mcse            = bf_diagnostics[["bf_sampling_mcse"]],
+    bf_sampling_relative_mcse   =
+      bf_diagnostics[["bf_sampling_relative_mcse"]],
     bf_error_percent            = bf_diagnostics[["bf_error_percent"]],
     bf_finite_terms             = bf_diagnostics[["bf_finite_terms"]],
     bf_ess                      = bf_diagnostics[["bf_ess"]],
