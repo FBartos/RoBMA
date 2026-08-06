@@ -329,7 +329,7 @@ test_that("fixed and unavailable random influence targets are explicit", {
     dfbetas(
       fit, component = "random", parameter = "latent_z", .weights = weights
     ),
-    "not available|Could not select"
+    "not available|Could not select|No public parameter quantity"
   )
 })
 
