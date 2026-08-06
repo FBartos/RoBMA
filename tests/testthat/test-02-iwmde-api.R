@@ -2003,8 +2003,8 @@ test_that("IWMDE row sampling is reproducible, nested, and RNG-local", {
   old_seed <- .Random.seed
   old_kind <- RNGkind()
 
-  out10 <- .iwmde_select_active_rows(rows = rows, max_samples = 10)
-  out20 <- .iwmde_select_active_rows(rows = rows, max_samples = 20)
+  out10 <- .nested_srs_rows(rows = rows, max_samples = 10)
+  out20 <- .nested_srs_rows(rows = rows, max_samples = 20)
 
   expect_length(out10, 10L)
   expect_length(out20, 20L)
@@ -2013,24 +2013,29 @@ test_that("IWMDE row sampling is reproducible, nested, and RNG-local", {
   expect_identical(.Random.seed, old_seed)
   expect_identical(RNGkind(), old_kind)
   expect_equal(
-    .iwmde_select_active_rows(rows = rows, max_samples = 10),
+    .nested_srs_rows(rows = rows, max_samples = 10),
     out10
   )
 })
 
 
-test_that("IWMDE row sampling does not force nuisance product states", {
+test_that("nested row sampling is independent of product-state labels", {
 
   rows     <- seq_len(10000L)
   state    <- rep("common", length(rows))
-  state[5001L] <- "rare"
-  stratified <- rows[.thin_sample_rows_by_group(state, 1000L)]
-  selected <- .iwmde_select_active_rows(rows = rows, max_samples = 1000L)
+  selected <- .nested_srs_rows(rows = rows, max_samples = 1000L)
+  omitted  <- setdiff(rows, selected)[[1L]]
+  state[omitted] <- "rare"
 
   expect_equal(length(selected), 1000L)
   expect_true(all(selected %in% rows))
-  expect_true(5001L %in% stratified)
-  expect_false("context" %in% names(formals(.iwmde_select_active_rows)))
+  expect_false(omitted %in% selected)
+  expect_false("rare" %in% state[selected])
+  expect_identical(
+    .nested_srs_rows(rows = rows, max_samples = 1000L),
+    selected
+  )
+  expect_false("group" %in% names(formals(.nested_srs_rows)))
 })
 
 

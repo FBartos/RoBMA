@@ -274,9 +274,9 @@
     stop("Invalid 'bias_indicator' values in posterior samples.", call. = FALSE)
   }
 
-  selected_rows <- .funnel_subsample_rows(
-    bias_indicator = bias_indicator,
-    max_samples    = max_samples
+  selected_rows <- .nested_srs_rows(
+    rows        = seq_len(nrow(posterior_samples)),
+    max_samples = max_samples
   )
   if (!is.null(selected_rows)) {
     posterior_samples <- posterior_samples[selected_rows, , drop = FALSE]
@@ -316,24 +316,6 @@
     bias_indicator        = bias_indicator,
     is_weightfunction     = !use_normal,
     selection             = selection
-  ))
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .funnel_subsample_rows
-# ---------------------------------------------------------------------------- #
-#
-# Deterministically thin posterior rows for plotting while preserving bias-model
-# proportions. Model-averaged funnel contours are visual summaries, and using
-# every row from large MCMC fits makes root finding unnecessarily expensive.
-#
-# ---------------------------------------------------------------------------- #
-.funnel_subsample_rows <- function(bias_indicator, max_samples) {
-
-  return(.thin_sample_rows_by_group(
-    group       = bias_indicator,
-    max_samples = max_samples
   ))
 }
 

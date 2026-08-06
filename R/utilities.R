@@ -548,58 +548,38 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   ))))
 }
 
-.thin_sample_rows_by_group <- function(group, max_samples) {
+.nested_srs_rows <- function(rows, max_samples) {
 
-  n_samples <- length(group)
-  if (is.infinite(max_samples) || n_samples <= max_samples) {
-    return(NULL)
-  }
-  if (anyNA(group)) {
-    stop("'group' must not contain missing values.", call. = FALSE)
+  if (length(rows) <= max_samples) {
+    return(rows)
   }
 
-  max_samples <- as.integer(max_samples)
-  group       <- factor(group)
-  group_rows  <- split(seq_len(n_samples), group)
-  group_n     <- as.integer(vapply(group_rows, length, integer(1)))
-  raw_n       <- group_n / n_samples * max_samples
-  selected_n  <- floor(raw_n)
-  remaining   <- max_samples - sum(selected_n)
+  positions <- seq_along(rows)
+  seed <- sum(
+    (as.double(rows) %% 104729) * ((positions %% 997) + 1)
+  )
+  seed <- as.integer(seed %% (.Machine$integer.max - 1)) + 1L
 
-  while (remaining > 0L && any(selected_n < group_n)) {
-    available  <- which(selected_n < group_n)
-    remainders <- raw_n - selected_n
-    add_to     <- available[which.max(remainders[available])]
-    selected_n[add_to] <- selected_n[add_to] + 1L
-    remaining          <- remaining - 1L
+  rng_kind <- RNGkind()
+  has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (has_seed) {
+    old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   }
-
-  if (max_samples >= length(group_n) && any(selected_n == 0L)) {
-    for (i in which(selected_n == 0L)) {
-      donors <- which(selected_n > 1L)
-      if (length(donors) == 0L) {
-        break
-      }
-      donor <- donors[which.max(selected_n[donors])]
-      selected_n[donor] <- selected_n[donor] - 1L
-      selected_n[i]     <- 1L
+  on.exit({
+    do.call(RNGkind, as.list(rng_kind))
+    if (has_seed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
     }
-  }
+  }, add = TRUE)
 
-  rows <- integer(0)
-  for (i in seq_along(group_rows)) {
-    if (selected_n[i] == 0L) {
-      next
-    }
-    selected <- group_rows[[i]][round(seq(
-      from       = 1,
-      to         = length(group_rows[[i]]),
-      length.out = selected_n[i]
-    ))]
-    rows     <- c(rows, selected)
-  }
+  RNGkind("Mersenne-Twister", "Inversion", "Rejection")
+  set.seed(seed)
+  permutation <- sample.int(length(rows), length(rows), replace = FALSE)
+  selected    <- sort(permutation[seq_len(as.integer(max_samples))])
 
-  return(sort(unique(rows)))
+  return(rows[selected])
 }
 
 .check_plot_numeric <- function(x, argument, check_length = NULL,

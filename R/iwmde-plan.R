@@ -237,7 +237,7 @@
 
   candidate_rows <- continuous_rows
   if (length(candidate_rows) > plan[["row_budget"]]) {
-    candidate_rows <- .iwmde_select_active_rows(
+    candidate_rows <- .nested_srs_rows(
       rows        = candidate_rows,
       max_samples = plan[["row_budget"]]
     )

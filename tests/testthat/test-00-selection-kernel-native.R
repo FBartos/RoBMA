@@ -412,7 +412,7 @@ test_that("native funnel model-averaged quantiles reject active p-hacking", {
   )
 })
 
-test_that("funnel max_samples helpers validate and stratify rows", {
+test_that("funnel max_samples uses a global nested simple random sample", {
 
   bias_indicator <- c(rep(1L, 5000), rep(2L, 3000), rep(3L, 2000))
 
@@ -431,18 +431,18 @@ test_that("funnel max_samples helpers validate and stratify rows", {
   expect_null(.thin_sample_rows(1000, 1000))
   expect_null(.thin_sample_rows(100, Inf))
 
-  rows <- .funnel_subsample_rows(
-    bias_indicator = bias_indicator,
-    max_samples    = 1000
-  )
-
-  expect_equal(rows, .funnel_subsample_rows(bias_indicator, 1000))
+  rows <- .nested_srs_rows(seq_along(bias_indicator), 1000)
+  expect_equal(rows, .nested_srs_rows(seq_along(bias_indicator), 1000))
   expect_equal(length(rows), 1000)
-  expect_equal(as.integer(table(bias_indicator[rows])), c(500L, 300L, 200L))
-  expect_equal(rows, .thin_sample_rows_by_group(bias_indicator, 1000))
-  expect_null(.funnel_subsample_rows(bias_indicator, Inf))
-
-  rare_group <- c(1L, rep(2L, 9999))
-  rare_rows  <- .thin_sample_rows_by_group(rare_group, 1000)
-  expect_true(1L %in% rare_group[rare_rows])
+  expect_true(all(
+    rows %in% .nested_srs_rows(seq_along(bias_indicator), 2000)
+  ))
+  expect_equal(
+    as.integer(table(factor(bias_indicator[rows], levels = 1:3))),
+    c(485L, 323L, 192L)
+  )
+  expect_equal(
+    .nested_srs_rows(seq_along(bias_indicator), Inf),
+    seq_along(bias_indicator)
+  )
 })
