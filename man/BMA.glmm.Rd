@@ -89,11 +89,14 @@ constructors with GLMM raw-count input, each weight powers the paired
 two-arm likelihood for one study.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
-location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}
+and supports explicit columns and standard formula operators. Precompute
+transformed predictors as columns in \code{data}; inline calls such as \code{I()},
+\code{poly()}, spline constructors, and user functions are not supported.}
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}

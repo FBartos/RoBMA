@@ -752,29 +752,41 @@ test_that("Mods handles formula with LHS (with warning)", {
 })
 
 
-test_that("Mods accepts inline transformations in formula", {
+test_that("Fixed and scale formulas reject calls that cannot be replayed", {
 
   skip_on_cran()
 
-  result <- brma.norm(
-    yi   = effect,
-    sei  = std_err,
-    mods = ~ I(mod_cont - 2) + I(mod_cont^2),
-    data = test_data_mods,
-    only_data = TRUE
-  )[["data"]]
+  custom_transform <- function(x) x^2
 
-  expect_true(!is.null(result$mods))
-  expect_equal(nrow(result$mods), 5)
-
-  # Check that transformations are correctly applied (as.numeric to strip AsIs class)
-  expect_equal(as.numeric(result$mods$`I(mod_cont - 2)`), test_data_mods$mod_cont - 2)
-  expect_equal(as.numeric(result$mods$`I(mod_cont^2)`), test_data_mods$mod_cont^2)
-
-  # Check formula attribute preserves transformations
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ I(mod_cont - 2) + I(mod_cont^2)")
+  expect_error(
+    brma.norm(
+      yi        = effect,
+      sei       = std_err,
+      mods      = ~ I(mod_cont^2),
+      data      = test_data_mods,
+      only_data = TRUE
+    ),
+    "Unsupported call.*Precompute transformed predictors"
+  )
+  expect_error(
+    brma.norm(
+      yi        = effect,
+      sei       = std_err,
+      scale     = ~ stats::poly(mod_cont, degree = 2),
+      data      = test_data_mods,
+      only_data = TRUE
+    ),
+    "Unsupported call.*Precompute transformed predictors"
+  )
+  expect_error(
+    brma.norm(
+      yi        = effect ~ custom_transform(mod_cont),
+      sei       = std_err,
+      data      = test_data_mods,
+      only_data = TRUE
+    ),
+    "Unsupported call.*Precompute transformed predictors"
+  )
 })
 
 
@@ -840,25 +852,34 @@ test_that("yi formula auto-converts character moderators to factor", {
 })
 
 
-test_that("Mods accepts data$column syntax", {
+test_that("Fixed formulas require literal data-column names", {
 
   skip_on_cran()
 
-  # Using $ syntax directly
+  expect_error(
+    brma.norm(
+      yi        = test_data_mods$effect,
+      sei       = test_data_mods$std_err,
+      mods      = ~ test_data_mods$mod_cont,
+      only_data = TRUE
+    ),
+    "Unsupported call.*Precompute transformed predictors"
+  )
+
+  nonstandard_data <- data.frame(
+    yi                = c(0.1, 0.2, 0.3),
+    sei               = c(0.1, 0.1, 0.1),
+    "moderator value" = c(1, 2, 3),
+    check.names       = FALSE
+  )
   result <- brma.norm(
-    yi   = test_data_mods$effect,
-    sei  = test_data_mods$std_err,
-    mods = ~ test_data_mods$mod_cont,
+    yi        = yi,
+    sei       = sei,
+    mods      = ~ `moderator value`,
+    data      = nonstandard_data,
     only_data = TRUE
   )[["data"]]
-
-  expect_true(!is.null(result$mods))
-  expect_equal(nrow(result$mods), 5)
-
-  # Check formula attribute
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ test_data_mods$mod_cont")
+  expect_equal(result[["mods"]][["moderator value"]], c(1, 2, 3))
 })
 
 

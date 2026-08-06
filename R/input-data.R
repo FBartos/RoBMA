@@ -36,10 +36,13 @@
 #' @param ni an optional vector of sample sizes. Used for `measure = "GEN"` or
 #' when estimating the unit information standard deviation.
 #' @param mods an optional matrix, data.frame, or formula specifying
-#' location moderators (meta-regressors). Formula input is evaluated in `data`.
+#' location moderators (meta-regressors). Formula input is evaluated in `data`
+#' and supports explicit columns and standard formula operators. Precompute
+#' transformed predictors as columns in `data`; inline calls such as `I()`,
+#' `poly()`, spline constructors, and user functions are not supported.
 #' @param scale an optional matrix, data.frame, or formula specifying
 #' scale predictors for location-scale models. Formula input is evaluated in
-#' `data`.
+#' `data` and follows the same explicit-column formula grammar as `mods`.
 #' @param random an optional formula or list of formulas specifying
 #' BayesTools random-effect terms for `brma.mv()`. Use
 #' [random-effect formula structure tags][random_effect_formula_tags] such as
@@ -474,6 +477,69 @@ NULL
 }
 
 
+# Fixed and scale formulas are later compiled by BayesTools::JAGS_formula().
+# Validate its deliberately narrow replay grammar before model.frame() can
+# materialize an input design that the fitting backend cannot reproduce.
+.check_and_list_data.validate_fixed_formula <- function(formula, name) {
+
+  if (!inherits(formula, "formula")) {
+    stop("Internal error: 'formula' must be a formula.", call. = FALSE)
+  }
+
+  validate_expression <- function(expression) {
+
+    if (is.symbol(expression)) {
+      if (identical(as.character(expression), ".")) {
+        stop(
+          "Unsupported term '.' in the '", name,
+          "' formula. List each data column explicitly.",
+          call. = FALSE
+        )
+      }
+      return(invisible(TRUE))
+    }
+
+    if (is.numeric(expression) && length(expression) == 1L &&
+        is.finite(expression) && expression %in% c(0, 1)) {
+      return(invisible(TRUE))
+    }
+
+    if (is.call(expression)) {
+      call_name <- if (is.symbol(expression[[1L]])) {
+        as.character(expression[[1L]])
+      } else {
+        ""
+      }
+
+      if (call_name %in% c("+", "-", "*", ":", "/", "^", "(")) {
+        for (argument in as.list(expression)[-1L]) {
+          validate_expression(argument)
+        }
+        return(invisible(TRUE))
+      }
+
+      expression_label <- paste(deparse(expression), collapse = " ")
+      stop(
+        "Unsupported call '", expression_label, "' in the '", name,
+        "' formula. Precompute transformed predictors as columns in 'data' ",
+        "and reference those columns by name.",
+        call. = FALSE
+      )
+    }
+
+    stop(
+      "Unsupported expression '", paste(deparse(expression), collapse = " "),
+      "' in the '", name, "' formula. Use literal data-column names.",
+      call. = FALSE
+    )
+  }
+
+  rhs_index <- if (length(formula) == 3L) 3L else 2L
+  validate_expression(formula[[rhs_index]])
+  invisible(TRUE)
+}
+
+
 # Internal function to extract and validate outcome variables for normal likelihood models
 # Handles yi, vi/sei, ni, weights, cluster, slab, and yi as formula
 #
@@ -504,6 +570,7 @@ NULL
   if (inherits(yi, "formula")) {
 
     formula_yi <- yi
+    .check_and_list_data.validate_fixed_formula(yi, "yi")
 
     # Check that mods is not also specified (would be ambiguous)
     mods_check <- .get_variable(.call, data, .envir, "mods", allow_NULL = TRUE)
@@ -624,6 +691,7 @@ NULL
   if (inherits(yi, "formula")) {
 
     formula_yi <- yi
+    .check_and_list_data.validate_fixed_formula(yi, "yi")
 
     mods_check <- .get_variable(.call, data, .envir, "mods", allow_NULL = TRUE)
     if (!is.null(mods_check)) {
@@ -1102,6 +1170,8 @@ NULL
       original_formula <- predictors
     }
 
+    .check_and_list_data.validate_fixed_formula(predictors, name)
+
     # Create model frame from formula
     if (!is.null(data) && is.data.frame(data)) {
       mf <- try(
@@ -1449,7 +1519,10 @@ NULL
 .check_and_list_data.formula_rhs <- function(formula) {
 
   rhs_index <- if (length(formula) == 3L) 3L else 2L
-  paste(deparse(formula[[rhs_index]], width.cutoff = 500L), collapse = " ")
+  paste(
+    deparse(formula[[rhs_index]], width.cutoff = 500L, backtick = TRUE),
+    collapse = " "
+  )
 }
 
 .check_and_list_data.random_validate_terms <- function(terms) {

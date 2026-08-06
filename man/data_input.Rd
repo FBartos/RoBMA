@@ -40,11 +40,14 @@ two-arm likelihood for one study.}
 when estimating the unit information standard deviation.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
-location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}
+and supports explicit columns and standard formula operators. Precompute
+transformed predictors as columns in \code{data}; inline calls such as \code{I()},
+\code{poly()}, spline constructors, and user functions are not supported.}
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.}
 
 \item{random}{an optional formula or list of formulas specifying
 BayesTools random-effect terms for \code{brma.mv()}. Use
