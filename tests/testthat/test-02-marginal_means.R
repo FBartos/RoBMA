@@ -132,6 +132,35 @@ test_that("plot.marginal_means warns on unused dots", {
 })
 
 
+test_that("lines.marginal_means adds posterior densities", {
+
+  emm      <- .marginal_means_test_object()
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    plot_marginal = function(...) {
+      captured <<- list(...)
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- lines(
+    emm,
+    "alloc",
+    plot_type = "ggplot",
+    lty       = 2
+  )
+
+  expect_s3_class(out, "mock_plot")
+  expect_true(captured[["add"]])
+  expect_identical(captured[["parameter"]], "mu_alloc")
+  expect_error(
+    lines(emm, parameter = "alloc", prior = TRUE),
+    "adds posterior densities only"
+  )
+})
+
+
 test_that("marginal_means print contracts preserve the original objects", {
 
   emm <- .marginal_means_test_object()

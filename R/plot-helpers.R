@@ -333,7 +333,8 @@
   extension_quantities <- list()
 
   add_entry <- function(quantity, parameter, component, term, source,
-                        formula_parameter, entry_aliases) {
+                        formula_parameter, entry_aliases,
+                        entry_components = character()) {
     entry_aliases <- unique(entry_aliases[
       !is.na(entry_aliases) & nzchar(entry_aliases)
     ])
@@ -352,13 +353,18 @@
     )
     entry[["aliases"]] <- I(list(entry_aliases))
     entries[[length(entries) + 1L]] <<- entry
-    aliases[[length(aliases) + 1L]] <<- data.frame(
-      alias       = entry_aliases,
-      quantity_id = quantity[["quantity_id"]],
-      namespace   = component,
-      component   = component,
-      stringsAsFactors = FALSE
+    alias_rows <- expand.grid(
+      alias             = entry_aliases,
+      component         = unique(c(component, entry_components)),
+      stringsAsFactors  = FALSE,
+      KEEP.OUT.ATTRS     = FALSE
     )
+    alias_rows[["quantity_id"]] <- quantity[["quantity_id"]]
+    alias_rows[["namespace"]]   <- component
+    aliases[[length(aliases) + 1L]] <<- alias_rows[
+      , c("alias", "quantity_id", "namespace", "component"),
+      drop = FALSE
+    ]
     invisible(NULL)
   }
 
@@ -499,7 +505,11 @@
         term              = term,
         source            = spec[["source"]],
         formula_parameter = formula_parameter,
-        entry_aliases     = entry_aliases
+        entry_aliases     = entry_aliases,
+        entry_components  = .brma_parameter_catalog_formula_components(
+          object    = object,
+          parameter = map_row[["jags_name"]]
+        )
       )
     }
   }
@@ -583,6 +593,37 @@
   )
 
   return(list(catalog = catalog, entries = entries))
+}
+
+
+.brma_parameter_catalog_formula_components <- function(object, parameter) {
+
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  prior      <- prior_list[[parameter]]
+  components <- attr(prior, "factor_cell_names", exact = TRUE)
+  if (is.character(components) && length(components) > 0L &&
+      all(!is.na(components) & nzchar(components))) {
+    return(components)
+  }
+
+  level_names <- attr(prior, "level_names", exact = TRUE)
+  if (is.character(level_names) && length(level_names) > 0L &&
+      all(!is.na(level_names) & nzchar(level_names))) {
+    return(level_names)
+  }
+  if (!is.list(level_names) || length(level_names) == 0L ||
+      is.null(names(level_names)) || any(!nzchar(names(level_names)))) {
+    return(character())
+  }
+  cells <- expand.grid(
+    level_names,
+    KEEP.OUT.ATTRS   = FALSE,
+    stringsAsFactors = FALSE
+  )
+  components <- apply(cells, 1L, function(x) {
+    paste0(names(level_names), "=", as.character(x), collapse = ", ")
+  })
+  return(components)
 }
 
 

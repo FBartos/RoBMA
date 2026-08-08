@@ -103,6 +103,9 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
       bias = BayesTools::prior_PET("normal", list(mean = 0, sd = 1))
     ))
   )
+  factor_prior <- BayesTools::prior("normal", list(mean = 0, sd = 1))
+  attr(factor_prior, "factor_cell_names") <- c("A", "B", "C")
+  attr(object[["fit"]], "prior_list") <- list(mu_f = factor_prior)
   checked <- NULL
   testthat::local_mocked_bindings(
     JAGS_validate_fit_contract = function(fit, requires) {
@@ -146,6 +149,16 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   expect_identical(
     factor[["selection"]][["quantities"]][["role"]],
     "formula_coefficient_group"
+  )
+  factor_hypothesis <- .hypothesis_brma_select_parameter(
+    object     = object,
+    hypothesis = "f[B] > f[C]",
+    component  = "auto"
+  )
+  expect_identical(factor_hypothesis[["parameter"]], "mu_f")
+  expect_setequal(
+    unique(factor_hypothesis[["resolution"]][["occurrences"]][["level"]]),
+    c("B", "C")
   )
   expect_identical(
     pet[["selection"]][["quantities"]][["provider"]],

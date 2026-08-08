@@ -129,3 +129,42 @@ test_that("single-model point hypotheses use averaged marginal draws", {
   expect_equal(hypothesis(object, "alloc[A] = 0"), "ok")
   expect_identical(captured, object[["inference"]][["averaged"]])
 })
+
+
+test_that("single-model marginal hypotheses share one averaged posterior", {
+
+  object <- .marginal_means_route_test_object(model_averaged = FALSE)
+
+  mixed <- .hypothesis_marginal_means_route(
+    object     = object,
+    hypothesis = BayesTools::hypothesis_parse(
+      "mu_alloc[A] > 0 vs mu_alloc[A] = 0"
+    ),
+    parameter  = "mu_alloc"
+  )
+  cross_level_point <- .hypothesis_marginal_means_route(
+    object     = object,
+    hypothesis = BayesTools::hypothesis_parse(
+      "mu_alloc[A] - mu_alloc[B] = 0"
+    ),
+    parameter  = "mu_alloc"
+  )
+  mixed_statements <- .hypothesis_marginal_means_route(
+    object     = object,
+    hypothesis = BayesTools::hypothesis_parse(c(
+      "mu_alloc[A] = 0",
+      "mu_alloc[A] > 0"
+    )),
+    parameter  = "mu_alloc"
+  )
+
+  expect_identical(mixed, list(route = "mixed", inference_type = "averaged"))
+  expect_identical(
+    cross_level_point,
+    list(route = "point", inference_type = "averaged")
+  )
+  expect_identical(
+    mixed_statements,
+    list(route = "mixed", inference_type = "averaged")
+  )
+})

@@ -80,6 +80,73 @@ test_that("transformed coefficient hypotheses use exact structural weights", {
 })
 
 
+test_that("transformed coefficient plots use exact structural weights", {
+
+  transform <- list(
+    schema_version = 1L,
+    target_scale   = "original",
+    source_names   = c("mu_intercept", "mu_x"),
+    target_names   = c("mu_intercept", "mu_x"),
+    matrix = rbind(
+      mu_intercept = c(mu_intercept = 1, mu_x = -2),
+      mu_x         = c(mu_intercept = 0, mu_x = 0.5)
+    ),
+    source_transforms = c(mu_intercept = "identity", mu_x = "identity"),
+    output_transforms = c(mu_intercept = "identity", mu_x = "identity")
+  )
+  class(transform) <- c("BayesTools_formula_coefficient_transform", "list")
+  testthat::local_mocked_bindings(
+    JAGS_formula_coefficient_transform = function(...) transform,
+    .package = "BayesTools"
+  )
+  entry <- list(
+    component         = "mods",
+    role              = "fixed_coefficient",
+    formula_parameter = "mu"
+  )
+
+  observed <- .plot_brma_formula_parameter_spec(
+    object                    = list(
+      fit = structure(list(), class = "BayesTools_fit")
+    ),
+    parameter                 = "mu_x",
+    parameter_entry           = entry,
+    standardized_coefficients = FALSE
+  )
+  standardized <- .plot_brma_formula_parameter_spec(
+    object                    = list(
+      fit = structure(list(), class = "BayesTools_fit")
+    ),
+    parameter                 = "mu_x",
+    parameter_entry           = entry,
+    standardized_coefficients = TRUE
+  )
+
+  expect_identical(observed[["type"]], "linear")
+  expect_identical(observed[["weights"]], c(mu_x = 0.5))
+  expect_null(standardized)
+})
+
+
+test_that("ordinary parameters retain legacy density-scale alignment", {
+
+  entry <- list(
+    component         = "mods",
+    role              = "fixed_coefficient",
+    formula_parameter = NA_character_
+  )
+
+  observed <- .plot_brma_formula_parameter_spec(
+    object                    = list(),
+    parameter                 = "mu",
+    parameter_entry           = entry,
+    standardized_coefficients = FALSE
+  )
+
+  expect_null(observed)
+})
+
+
 test_that("nonlinear joint coefficient transforms fail qCMDE/IWMDE closed", {
 
   target <- list(

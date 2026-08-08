@@ -373,6 +373,48 @@ test_that("plot.brma forwards qCMDE density on the fitted coefficient scale", {
 })
 
 
+test_that("plot.brma uses exact original-scale coefficient targets", {
+
+  captured                <- NULL
+  captured_parameter_spec <- NULL
+  estimate                <- .mock_iwmde_estimate_success()
+  testthat::local_mocked_bindings(
+    .iwmde_estimate = function(..., parameter_spec) {
+      captured_parameter_spec <<- parameter_spec
+      estimate(..., parameter_spec = parameter_spec)
+    },
+    .package = "RoBMA"
+  )
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+      captured <<- list(samples = samples, parameter = parameter, dots = list(...))
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- plot(
+    fits[["bcg_meta-regression"]],
+    parameter_mods   = "year",
+    plot_type        = "ggplot",
+    density_method   = "qCMDE",
+    density_control  = list(n_points = 20, max_samples = 20)
+  )
+
+  plotted_samples   <- captured[["samples"]][[captured[["parameter"]]]]
+  posterior_density <- attr(plotted_samples, "posterior_density")
+
+  expect_s3_class(out, "mock_plot")
+  expect_identical(captured_parameter_spec[["type"]], "linear")
+  expect_equal(
+    range(posterior_density[["x"]]),
+    range(as.numeric(plotted_samples)),
+    tolerance = 1e-12
+  )
+  expect_equal(captured[["dots"]][["density_method"]], "precomputed")
+})
+
+
 test_that("plot.brma forwards attached qCMDE/IWMDE densities for factor terms", {
 
   skip_if_missing_fits("bcg_meta-regression2")

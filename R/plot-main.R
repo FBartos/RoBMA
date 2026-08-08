@@ -282,6 +282,12 @@ lines.brma <- function(
       sample_parameter = sample_parameter
     )
     if (.density_method_uses_precomputed(density_method)) {
+      parameter_spec <- .plot_brma_formula_parameter_spec(
+        object                    = x,
+        parameter                 = parameter,
+        parameter_entry           = parameter_entry,
+        standardized_coefficients = standardized_coefficients
+      )
       samples <- .plot_brma_attach_iwmde(
         object                  = x,
         samples                 = samples,
@@ -293,7 +299,8 @@ lines.brma <- function(
         normalization_points    = density_control[["normalization_points"]],
         normalization_prob      = density_control[["normalization_prob"]],
         density_method          = density_method,
-        display_grid            = density_control[["display_grid"]]
+        display_grid            = density_control[["display_grid"]],
+        parameter_spec          = parameter_spec
       )
     }
   }
@@ -356,7 +363,7 @@ lines.brma <- function(
                                     n_points, max_samples,
                                     normalization_points,
                                     normalization_prob, density_method,
-                                    display_grid) {
+                                    display_grid, parameter_spec = NULL) {
 
   if (is.null(normalization_points)) {
     normalization_points <- max(50L, n_points)
@@ -394,6 +401,12 @@ lines.brma <- function(
   if (is.null(plotted_samples)) {
     return(samples)
   }
+  exact_parameter_spec <- !is.null(parameter_spec)
+  if (!exact_parameter_spec) {
+    parameter_spec <- list(type = "primitive")
+  }
+  parameter_spec[["conditional"]]      <- conditional
+  parameter_spec[["conditional_rule"]] <- "AND"
 
   estimate <- .iwmde_estimate(
     context         = context,
@@ -407,11 +420,7 @@ lines.brma <- function(
       display_grid         = display_grid
     ),
     outputs        = "density",
-    parameter_spec = list(
-      type             = "primitive",
-      conditional      = conditional,
-      conditional_rule = "AND"
-    ),
+    parameter_spec = parameter_spec,
     metadata       = .iwmde_posterior_metadata(
       samples   = samples[[sample_parameter]],
       parameter = parameter
@@ -424,17 +433,56 @@ lines.brma <- function(
   if (identical(diagnostic[["status"]], "ok") &&
       !is.null(estimate[["posterior_density"]])) {
     posterior_density <- estimate[["posterior_density"]]
-    posterior_density <- .plot_brma_align_iwmde_density(
-      posterior_density = posterior_density,
-      raw_samples       = diagnostic[["samples"]],
-      plotted_samples   = plotted_samples
-    )
+    if (!exact_parameter_spec) {
+      posterior_density <- .plot_brma_align_iwmde_density(
+        posterior_density = posterior_density,
+        raw_samples       = diagnostic[["samples"]],
+        plotted_samples   = plotted_samples
+      )
+    }
     if (!is.null(posterior_density)) {
-      attr(samples[[sample_parameter]], "posterior_density") <- posterior_density
+      attr(samples[[sample_parameter]], "posterior_density") <-
+        posterior_density
     }
   }
 
   return(samples)
+}
+
+
+.plot_brma_formula_parameter_spec <- function(
+    object, parameter, parameter_entry, standardized_coefficients) {
+
+  if (standardized_coefficients) {
+    return(NULL)
+  }
+  target <- .hypothesis_brma_formula_coefficient_target(
+    object = object,
+    selected = list(
+      parameter = parameter,
+      component = parameter_entry[["component"]],
+      entry     = parameter_entry
+    )
+  )
+  if (is.null(target)) {
+    return(NULL)
+  }
+  route <- .hypothesis_brma_formula_transform_route(target)
+  if (identical(route[["type"]], "identity")) {
+    return(list(type = "primitive"))
+  }
+  if (identical(route[["type"]], "affine")) {
+    return(list(type = "linear", weights = route[["weights"]]))
+  }
+  if (!is.null(route[["reason"]])) {
+    stop(route[["reason"]], call. = FALSE)
+  }
+  stop(
+    "qCMDE/IWMDE does not support the fitted nonlinear joint transform for '",
+    parameter, "'. Use density_method = 'KDE' or ",
+    "standardized_coefficients = TRUE.",
+    call. = FALSE
+  )
 }
 
 

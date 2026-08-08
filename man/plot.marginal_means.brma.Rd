@@ -2,6 +2,7 @@
 % Please edit documentation in R/marginal_means.R
 \name{plot.marginal_means.brma}
 \alias{plot.marginal_means.brma}
+\alias{lines.marginal_means.brma}
 \title{Plot Estimated Marginal Means}
 \usage{
 \method{plot}{marginal_means.brma}(
@@ -15,8 +16,11 @@
   transform = NULL,
   density_method = NULL,
   density_control = NULL,
+  add = FALSE,
   ...
 )
+
+\method{lines}{marginal_means.brma}(x, parameter, prior = FALSE, ...)
 }
 \arguments{
 \item{x}{a \code{marginal_means.brma} object.}
@@ -81,6 +85,9 @@ recomputation for the plotted marginal means instead of reusing stored
 densities. Increase row and normalization budgets when diagnostics report
 concentrated contributions or unstable normalization.}
 
+\item{add}{whether to add the densities to an existing plot. This is used by
+\code{lines.marginal_means.brma()} and defaults to \code{FALSE}.}
+
 \item{...}{additional graphical arguments passed to
 \code{BayesTools::plot_marginal()}.}
 }
@@ -91,4 +98,9 @@ if \code{plot_type = "ggplot"}.
 \description{
 Plots estimated marginal means stored in a
 \code{marginal_means.brma} object using \code{BayesTools::plot_marginal()}.
+}
+\details{
+\code{lines.marginal_means.brma()} adds posterior densities to an
+existing base plot. With \code{plot_type = "ggplot"}, it returns ggplot2
+layer(s) that can be added to a marginal-means plot with \code{+}.
 }

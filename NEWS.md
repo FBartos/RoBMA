@@ -70,6 +70,11 @@
   `set_contrast_factor_predictors` explicitly.
 
 ### Fixes
+- restores named factor-level resolution in fitted-model hypotheses and permits
+  mixed point/region marginal-means hypotheses when all events use the same
+  single-model averaged posterior.
+- adds marginal-means `lines()` overlays and routes qCMDE/IWMDE coefficient
+  plots through the exact fitted-to-original structural transform.
 - permits mixed-case scenario artifact names such as `mu_BF_comparison`,
   matching the names already used by the maintainer scenarios.
 - resets base-graphics overlay mode around interactive `scenario_plot()`

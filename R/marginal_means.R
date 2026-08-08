@@ -615,6 +615,8 @@ print.summary.marginal_means.brma <- function(x, ...) {
 #' means.
 #' @param prior whether the marginal prior distribution should be added to the
 #' plot. Defaults to \code{FALSE}.
+#' @param add whether to add the densities to an existing plot. This is used by
+#' \code{lines.marginal_means.brma()} and defaults to \code{FALSE}.
 #' @param plot_type whether to use base R graphics (\code{"base"}) or ggplot2
 #' (\code{"ggplot"}). Defaults to \code{"base"}.
 #' @param dots_prior list of additional graphical arguments passed to the prior
@@ -660,10 +662,11 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
                                      dots_prior = NULL,
                                      output_measure = NULL, transform = NULL,
                                      density_method = NULL,
-                                     density_control = NULL, ...) {
+                                     density_control = NULL, add = FALSE, ...) {
 
   type <- .marginal_means_type(object = x, type = type)
   BayesTools::check_bool(prior, "prior")
+  BayesTools::check_bool(add, "add")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   density_control_requested <- !is.null(density_control)
   density_method <- .marginal_means_density_method(x, density_method)
@@ -678,7 +681,7 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   .warn_unused_dots(
     dots    = dots_raw,
     allowed = .plot_dots_allowed(),
-    caller  = "plot.marginal_means()"
+    caller  = if (add) "lines.marginal_means()" else "plot.marginal_means()"
   )
   dots_raw <- .keep_allowed_dots(dots_raw, .plot_dots_allowed())
 
@@ -745,6 +748,7 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   args$transformation_settings  <- FALSE
   args$par_name                 <- dots[["xlab"]]
   args$dots_prior               <- dots_prior
+  args$add                      <- add
   args$density_method           <- if (
     .density_method_uses_precomputed(density_method)
   ) "precomputed" else "KDE"
@@ -756,6 +760,33 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   } else if (plot_type == "ggplot") {
     return(plot)
   }
+}
+
+
+#' @details \code{lines.marginal_means.brma()} adds posterior densities to an
+#' existing base plot. With \code{plot_type = "ggplot"}, it returns ggplot2
+#' layer(s) that can be added to a marginal-means plot with \code{+}.
+#'
+#' @rdname plot.marginal_means.brma
+#' @export
+lines.marginal_means.brma <- function(x, parameter, prior = FALSE, ...) {
+
+  BayesTools::check_bool(prior, "prior")
+  if (isTRUE(prior)) {
+    stop(
+      "'lines.marginal_means.brma' adds posterior densities only; use ",
+      "'plot.marginal_means.brma(..., prior = TRUE)' for prior overlays.",
+      call. = FALSE
+    )
+  }
+
+  plot.marginal_means.brma(
+    x         = x,
+    parameter = parameter,
+    prior     = FALSE,
+    add       = TRUE,
+    ...
+  )
 }
 
 

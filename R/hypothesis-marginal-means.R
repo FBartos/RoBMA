@@ -7,9 +7,10 @@
 #' \code{marginal_means()} do not transform hypothesis constants. Single-model
 #' hypotheses and model-averaged region hypotheses use averaged marginal draws.
 #' Model-averaged point-null hypotheses use alternative-conditioned draws to
-#' avoid null atoms in averaged marginals. Hypotheses that mix point and region
-#' events, and point hypotheses spanning multiple factor levels, are not
-#' supported.
+#' avoid null atoms in averaged marginals. For model-averaged objects,
+#' hypotheses that mix point and region events, and point hypotheses spanning
+#' multiple factor levels, are not supported. Single-model hypotheses use one
+#' common averaged posterior and may combine these events.
 #'
 #' @export
 hypothesis.marginal_means.brma <- function(object, hypothesis,
@@ -118,6 +119,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
 .hypothesis_marginal_means_route <- function(object, hypothesis, parameter) {
 
+  model_averaged <- isTRUE(object[["model_averaged"]]) ||
+    inherits(object[["source_object"]], "RoBMA")
   statement_routes <- vapply(
     hypothesis[["statements"]],
     function(statement) {
@@ -133,24 +136,33 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
         return("point")
       }
 
-      stop(
-        "Marginal-means hypotheses cannot mix point and region events. ",
-        "Use a pure point-null or a pure region hypothesis.",
-        call. = FALSE
-      )
+      if (model_averaged) {
+        stop(
+          "Model-averaged marginal-means hypotheses cannot mix point and ",
+          "region events because they require different posterior ",
+          "conditioning. Use a pure point-null or a pure region hypothesis.",
+          call. = FALSE
+        )
+      }
+      return("mixed")
     },
     character(1)
   )
-  if (length(unique(statement_routes)) != 1L) {
+  if (model_averaged && length(unique(statement_routes)) != 1L) {
     stop(
-      "A marginal-means hypothesis request cannot mix point-null and region ",
-      "statements.",
+      "A model-averaged marginal-means hypothesis request cannot mix ",
+      "point-null and region statements because they require different ",
+      "posterior conditioning.",
       call. = FALSE
     )
   }
 
-  route <- statement_routes[[1L]]
-  if (identical(route, "point")) {
+  route <- if (length(unique(statement_routes)) == 1L) {
+    statement_routes[[1L]]
+  } else {
+    "mixed"
+  }
+  if (model_averaged && identical(route, "point")) {
     levels <- unique(.hypothesis_marginal_means_ast_levels(
       hypothesis = hypothesis,
       parameter  = parameter
@@ -164,8 +176,6 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     }
   }
 
-  model_averaged <- isTRUE(object[["model_averaged"]]) ||
-    inherits(object[["source_object"]], "RoBMA")
   inference_type <- if (model_averaged && identical(route, "point")) {
     "conditional"
   } else {
