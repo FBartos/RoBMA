@@ -1,0 +1,4 @@
+                    Alternative:                  Null:      BF error%(BF)
+mu_ablat  mu_ablat < -0.01730933           mu_ablat = 0 175.528         NA
+mu_ablat1 mu_ablat > -0.01730933           mu_ablat = 0   9.369         NA
+mu_ablat2 mu_ablat < -0.01730933 mu_ablat > -0.01730933  18.735      2.643

@@ -102,13 +102,13 @@ are evaluated. A finite estimate is returned independently of its sample
 diagnostics. If the fixed sample does not meet the precision target, a
 warning recommends increasing \code{samples} or using the census; if the
 census does not meet the target, obtain more posterior draws.
-\code{display_grid} is immaterial for
-point-only requests. Increase
+\code{display_grid} is immaterial for point-only requests. Increase
 \code{normalization_points} and \code{normalization_prob} to check numerical
 support coverage. A point ordinate warns at relative MCSE at least 5 percent,
 ESS below 100, maximum contribution share at least 20 percent, or fewer than
 100 finite contributions. These same-sample diagnostics do not suppress a
-finite fixed-design estimate. qCMDE ordinate movement warns above 2.5 percent and is
+finite fixed-design estimate. qCMDE ordinate movement warns above 2.5
+percent and is
 rejected above 5 percent; IWMDE normalization error warns above 5 percent and
 is rejected above 10 percent. Adaptive-quadrature sensitivity warns above
 2.5 percent and is rejected above 5 percent.}

@@ -55,8 +55,9 @@ determine whether that finite estimate is returned. An unmet
 \code{target_relative_mcse} produces a warning; increase \code{samples} or set it to
 \code{Inf} to use every eligible row. The
 table records the requested and achieved sample sizes, \code{all_rows_used},
-whether the precision target was met, and whether the ordinate passed every
-independent numerical-stability gate. Finite row budgets use a reproducible simple random sample
+whether the precision target was met, and whether the ordinate passed the
+independent numerical-stability gates. Finite row budgets use a reproducible
+simple random sample
 without replacement. For a purely continuous ordinate, \code{relative_mcse} and \code{ess}
 describe the selected continuous posterior-row sequence. For a mixed
 point/continuous ordinate evaluated on every active continuous row, they use
@@ -64,8 +65,7 @@ the full conditioned-chain sequence, with zero contributions for inactive
 rows, and therefore include uncertainty in the active/product-space indicator
 mass. When only a subset of active rows is evaluated, these MCMC diagnostics
 are unavailable. \code{sampling_relative_mcse} separately estimates
-finite-population row-sampling uncertainty with its sampling fraction. Every
-available precision check is reported without selecting estimates by its value.
+finite-population row-sampling uncertainty with its sampling fraction.
 
 The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 below 100, the largest contribution share is at least 20 percent, or fewer

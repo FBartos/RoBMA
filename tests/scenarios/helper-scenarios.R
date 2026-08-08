@@ -102,7 +102,9 @@ if (!exists(".write_canonical_svg", mode = "function")) {
 
 # Start one scenario. An environment variable set by tools/test-scenario.R can
 # force regeneration even when the scenario file keeps its local flag FALSE.
-scenario_start <- function(name, regenerate = NULL,
+# SHOW_SCENARIO_OUTPUT controls whether scenario_text()/scenario_plot() echo
+# tables and figures while developing; leave FALSE for quiet test runs.
+scenario_start <- function(name, regenerate = NULL, show_output = NULL,
                            root = .scenario_helpers_dir,
                            create_missing = NULL, width = 150L) {
 
@@ -128,6 +130,21 @@ scenario_start <- function(name, regenerate = NULL,
   regenerate <- .scenario_validate_flag(regenerate, "regenerate")
   regenerate <- regenerate || env_regenerate
 
+  caller_show_output <- get0(
+    "SHOW_SCENARIO_OUTPUT",
+    envir      = parent.frame(),
+    inherits   = TRUE,
+    ifnotfound = FALSE
+  )
+  caller_show_output <- .scenario_validate_flag(
+    caller_show_output,
+    "SHOW_SCENARIO_OUTPUT"
+  )
+  if (is.null(show_output)) {
+    show_output <- caller_show_output
+  }
+  show_output <- .scenario_validate_flag(show_output, "show_output")
+
   if (is.null(create_missing)) {
     create_missing <- !.scenario_on_ci() || regenerate
   }
@@ -145,6 +162,7 @@ scenario_start <- function(name, regenerate = NULL,
     cache_dir      = file.path(root, "cache", name),
     results_dir    = file.path(root, "results", name),
     regenerate     = regenerate,
+    show_output    = show_output,
     create_missing = create_missing,
     width          = as.integer(width)
   )
@@ -247,7 +265,7 @@ scenario_text <- function(name, code) {
     value <- eval(expr, envir = parent.frame()),
     type = "output"
   )
-  if (.scenario_is_interactive() && length(output) > 0L) {
+  if (isTRUE(config[["show_output"]]) && length(output) > 0L) {
     writeLines(output)
   }
 
@@ -319,17 +337,18 @@ scenario_text <- function(name, code) {
 }
 
 
-# Draw interactively, and compare with a tracked SVG when run as a scenario test.
+# Draw when SHOW_SCENARIO_OUTPUT is TRUE, and compare with a tracked SVG when
+# run as a scenario test.
 scenario_plot <- function(name, code) {
 
-  config         <- .scenario_config()
-  name           <- .scenario_validate_name(name, "plot")
-  expr           <- substitute(code)
-  eval_env       <- parent.frame()
-  is_interactive <- .scenario_is_interactive()
-  snapshotter    <- .scenario_snapshot_context()
+  config      <- .scenario_config()
+  name        <- .scenario_validate_name(name, "plot")
+  expr        <- substitute(code)
+  eval_env    <- parent.frame()
+  show_output <- isTRUE(config[["show_output"]])
+  snapshotter <- .scenario_snapshot_context()
   if (is.null(snapshotter)) {
-    if (!is_interactive) {
+    if (!show_output && !.scenario_is_interactive()) {
       stop(
         "scenario_plot() must run through tools/test-scenario.R or testthat::test_file().",
         call. = FALSE
@@ -368,7 +387,7 @@ scenario_plot <- function(name, code) {
     # vdiffr closes its temporary device, so its par settings cannot leak.
     .scenario_evaluate_plot(expr, eval_env, restore_par = FALSE)
   }
-  if (is_interactive) {
+  if (show_output) {
     .scenario_evaluate_plot(expr, eval_env)
   }
 

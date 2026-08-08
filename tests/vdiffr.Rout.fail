@@ -1,0 +1,225 @@
+Environment:
+- vdiffr-svg-engine: 2.0
+- vdiffr: 1.0.9
+
+
+Failed doppelganger: fit-simple-qqnorm (C:\R-Packages\RoBMA\tests\scenarios\_snaps/bcg/fit-simple-qqnorm.svg)
+
+< before                                                                        
+> after                                                                         
+@@ 140,7 / 140,7 @@                                                             
+  </g>                                                                          
+  <g clip-path='url(#cpNDE5LjA0fDY4OS43Nnw1OS4wNHw1MDIuNTY=)'>                  
+< <polygon points='443.55,471.29 479.30,416.78 499.92,385.34 515.85,361.95 529.6
+: 0,342.79 542.24,326.17 554.40,311.33 566.56,297.94 579.20,285.35 592.95,273.10
+:  608.88,260.49 629.50,245.67 665.25,219.97 665.25,91.79 629.50,146.59 608.88,1
+: 78.19 592.95,201.52 579.20,220.35 566.56,236.21 554.40,250.26 542.24,263.21 52
+: 9.60,275.48 515.85,287.66 499.92,300.73 479.30,316.44 443.55,343.68 ' style='s
+: troke-width: 0.75; stroke: none; fill: #D9D9D9;' />                           
+> <polygon points='443.55,471.07 479.30,417.49 499.92,386.59 515.85,363.38 529.6
+: 0,344.17 542.24,327.50 554.40,312.62 566.56,299.02 579.20,286.26 592.95,273.95
+:  608.88,261.18 629.50,246.12 665.25,220.00 665.25,94.37 629.50,147.79 608.88,1
+: 78.59 592.95,201.40 579.20,220.17 566.56,236.26 554.40,250.71 542.24,263.90 52
+: 9.60,276.55 515.85,288.87 499.92,301.90 479.30,317.39 443.55,344.25 ' style='s
+: troke-width: 0.75; stroke: none; fill: #D9D9D9;' />                           
+< <polyline points='443.55,471.29 479.30,416.78 499.92,385.34 515.85,361.95 529.
+: 60,342.79 542.24,326.17 554.40,311.33 566.56,297.94 579.20,285.35 592.95,273.1
+: 0 608.88,260.49 629.50,245.67 665.25,219.97 ' style='stroke-width: 0.75; strok
+: e-dasharray: 1.00,3.00;' />                                                   
+> <polyline points='443.55,471.07 479.30,417.49 499.92,386.59 515.85,363.38 529.
+: 60,344.17 542.24,327.50 554.40,312.62 566.56,299.02 579.20,286.26 592.95,273.9
+: 5 608.88,261.18 629.50,246.12 665.25,220.00 ' style='stroke-width: 0.75; strok
+: e-dasharray: 1.00,3.00;' />                                                   
+< <polyline points='443.55,343.68 479.30,316.44 499.92,300.73 515.85,287.66 529.
+: 60,275.48 542.24,263.21 554.40,250.26 566.56,236.21 579.20,220.35 592.95,201.5
+: 2 608.88,178.19 629.50,146.59 665.25,91.79 ' style='stroke-width: 0.75; stroke
+: -dasharray: 1.00,3.00;' />                                                    
+> <polyline points='443.55,344.25 479.30,317.39 499.92,301.90 515.85,288.87 529.
+: 60,276.55 542.24,263.90 554.40,250.71 566.56,236.26 579.20,220.17 592.95,201.4
+: 0 608.88,178.59 629.50,147.79 665.25,94.37 ' style='stroke-width: 0.75; stroke
+: -dasharray: 1.00,3.00;' />                                                    
+  <line x1='419.04' y1='428.64' x2='689.76' y2='132.96' style='stroke-width: 0.7
+  5;' />                                                                        
+  <circle cx='542.24' cy='296.16' r='2.70' style='stroke-width: 0.75; fill: #A6A
+  6A6;' />                                                                      
+
+
+Failed doppelganger: fit-simple-qqnorm (C:\R-Packages\RoBMA\tests\scenarios\_snaps/bcg/fit-simple-qqnorm.svg)
+
+< before                                                                        
+> after                                                                         
+@@ 140,7 / 140,7 @@                                                             
+  </g>                                                                          
+  <g clip-path='url(#cpNDE5LjA0fDY4OS43Nnw1OS4wNHw1MDIuNTY=)'>                  
+< <polygon points='443.55,471.29 479.30,416.78 499.92,385.34 515.85,361.95 529.6
+: 0,342.79 542.24,326.17 554.40,311.33 566.56,297.94 579.20,285.35 592.95,273.10
+:  608.88,260.49 629.50,245.67 665.25,219.97 665.25,91.79 629.50,146.59 608.88,1
+: 78.19 592.95,201.52 579.20,220.35 566.56,236.21 554.40,250.26 542.24,263.21 52
+: 9.60,275.48 515.85,287.66 499.92,300.73 479.30,316.44 443.55,343.68 ' style='s
+: troke-width: 0.75; stroke: none; fill: #D9D9D9;' />                           
+> <polygon points='443.55,467.74 479.30,414.63 499.92,384.00 515.85,361.34 529.6
+: 0,342.63 542.24,326.66 554.40,312.37 566.56,299.00 579.20,286.19 592.95,273.80
+:  608.88,260.66 629.50,245.17 665.25,218.31 665.25,90.58 629.50,145.27 608.88,1
+: 76.81 592.95,200.17 579.20,219.22 566.56,235.42 554.40,250.09 542.24,263.58 52
+: 9.60,276.24 515.85,288.31 499.92,300.72 479.30,314.78 443.55,339.17 ' style='s
+: troke-width: 0.75; stroke: none; fill: #D9D9D9;' />                           
+< <polyline points='443.55,471.29 479.30,416.78 499.92,385.34 515.85,361.95 529.
+: 60,342.79 542.24,326.17 554.40,311.33 566.56,297.94 579.20,285.35 592.95,273.1
+: 0 608.88,260.49 629.50,245.67 665.25,219.97 ' style='stroke-width: 0.75; strok
+: e-dasharray: 1.00,3.00;' />                                                   
+> <polyline points='443.55,467.74 479.30,414.63 499.92,384.00 515.85,361.34 529.
+: 60,342.63 542.24,326.66 554.40,312.37 566.56,299.00 579.20,286.19 592.95,273.8
+: 0 608.88,260.66 629.50,245.17 665.25,218.31 ' style='stroke-width: 0.75; strok
+: e-dasharray: 1.00,3.00;' />                                                   
+< <polyline points='443.55,343.68 479.30,316.44 499.92,300.73 515.85,287.66 529.
+: 60,275.48 542.24,263.21 554.40,250.26 566.56,236.21 579.20,220.35 592.95,201.5
+: 2 608.88,178.19 629.50,146.59 665.25,91.79 ' style='stroke-width: 0.75; stroke
+: -dasharray: 1.00,3.00;' />                                                    
+> <polyline points='443.55,339.17 479.30,314.78 499.92,300.72 515.85,288.31 529.
+: 60,276.24 542.24,263.58 554.40,250.09 566.56,235.42 579.20,219.22 592.95,200.1
+: 7 608.88,176.81 629.50,145.27 665.25,90.58 ' style='stroke-width: 0.75; stroke
+: -dasharray: 1.00,3.00;' />                                                    
+  <line x1='419.04' y1='428.64' x2='689.76' y2='132.96' style='stroke-width: 0.7
+  5;' />                                                                        
+  <circle cx='542.24' cy='296.16' r='2.70' style='stroke-width: 0.75; fill: #A6A
+  6A6;' />                                                                      
+
+
+Failed doppelganger: mu-bf-comparison (C:\R-Packages\RoBMA\tests\scenarios\_snaps/bcg/mu-bf-comparison.svg)
+
+< before                                                                        
+> after                                                                         
+@@ 26,10 / 26,10 @@                                                             
+  </defs>                                                                       
+  <g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>                  
+< <line x1='89.55' y1='464.85' x2='269.91' y2='485.32' style='stroke-width: 0.75
+: ;' />                                                                         
+> <line x1='89.55' y1='464.84' x2='269.91' y2='485.32' style='stroke-width: 0.75
+: ;' />                                                                         
+  <line x1='282.15' y1='481.04' x2='466.65' y2='296.13' style='stroke-width: 0.7
+  5;' />                                                                        
+  <line x1='476.56' y1='285.69' x2='661.57' y2='80.81' style='stroke-width: 0.75
+  ;' />                                                                         
+< <circle cx='82.40' cy='464.04' r='2.70' style='stroke-width: 0.75;' />        
+> <circle cx='82.40' cy='464.03' r='2.70' style='stroke-width: 0.75;' />        
+  <circle cx='277.07' cy='486.13' r='2.70' style='stroke-width: 0.75;' />       
+< <circle cx='471.73' cy='291.03' r='2.70' style='stroke-width: 0.75;' />       
+> <circle cx='471.73' cy='291.04' r='2.70' style='stroke-width: 0.75;' />       
+  <circle cx='666.40' cy='75.47' r='2.70' style='stroke-width: 0.75;' />        
+  </g>                                                                          
+@@ 46,5 / 46,5 @@                                                               
+  <line x1='59.04' y1='440.84' x2='59.04' y2='82.82' style='stroke-width: 0.75;'
+   />                                                                           
+  <line x1='59.04' y1='440.84' x2='51.84' y2='440.84' style='stroke-width: 0.75;
+  ' />                                                                          
+< <line x1='59.04' y1='369.24' x2='51.84' y2='369.24' style='stroke-width: 0.75;
+: ' />                                                                          
+> <line x1='59.04' y1='369.23' x2='51.84' y2='369.23' style='stroke-width: 0.75;
+: ' />                                                                          
+  <line x1='59.04' y1='297.63' x2='51.84' y2='297.63' style='stroke-width: 0.75;
+  ' />                                                                          
+  <line x1='59.04' y1='226.03' x2='51.84' y2='226.03' style='stroke-width: 0.75;
+  ' />                                                                          
+@@ 52,5 / 52,5 @@                                                               
+  <line x1='59.04' y1='82.82' x2='51.84' y2='82.82' style='stroke-width: 0.75;' 
+  />                                                                            
+  <text transform='translate(41.76,440.84) rotate(-90)' text-anchor='middle' sty
+  le='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='
+  spacingAndGlyphs'>0</text>                                                    
+< <text transform='translate(41.76,369.24) rotate(-90)' text-anchor='middle' sty
+: le='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='
+: spacingAndGlyphs'>2</text>                                                    
+> <text transform='translate(41.76,369.23) rotate(-90)' text-anchor='middle' sty
+: le='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='
+: spacingAndGlyphs'>2</text>                                                    
+  <text transform='translate(41.76,297.63) rotate(-90)' text-anchor='middle' sty
+  le='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='
+  spacingAndGlyphs'>4</text>                                                    
+  <text transform='translate(41.76,226.03) rotate(-90)' text-anchor='middle' sty
+  le='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='
+  spacingAndGlyphs'>6</text>                                                    
+@@ 62,5 / 62,5 @@                                                               
+  </g>                                                                          
+  <g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>                  
+< <polyline points='90.19,464.68 284.85,486.85 479.52,295.41 674.19,79.11 ' styl
+: e='stroke-width: 0.75; stroke-dasharray: 4.00,4.00;' />                       
+> <polyline points='90.19,464.68 284.85,486.85 479.52,295.41 674.19,79.10 ' styl
+: e='stroke-width: 0.75; stroke-dasharray: 4.00,4.00;' />                       
+  <polyline points='97.97,463.48 292.64,486.05 487.31,292.83 681.97,87.10 ' styl
+  e='stroke-width: 0.75; stroke-dasharray: 1.00,3.00;' />                       
+  <polyline points='105.76,467.09 300.43,487.37 495.09,247.95 689.76,-251.17 ' s
+  tyle='stroke-width: 0.75; stroke-dasharray: 1.00,3.00,4.00,3.00;' />          
+
+
+Failed doppelganger: tau-bf-comparison (C:\R-Packages\RoBMA\tests\scenarios\_snaps/bcg/tau-bf-comparison.svg)
+
+< before                                                                        
+> after                                                                         
+@@ 42,17 / 42,17 @@                                                             
+  <text x='549.60' y='528.48' text-anchor='middle' style='font-size: 12.00px; fo
+  nt-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.4</te
+  xt>                                                                           
+  <text x='666.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; fo
+  nt-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.5</te
+  xt>                                                                           
+< <line x1='59.04' y1='478.18' x2='59.04' y2='128.80' style='stroke-width: 0.75;
+: ' />                                                                          
+> <line x1='59.04' y1='478.18' x2='59.04' y2='128.81' style='stroke-width: 0.75;
+: ' />                                                                          
+  <line x1='59.04' y1='478.18' x2='51.84' y2='478.18' style='stroke-width: 0.75;
+  ' />                                                                          
+  <line x1='59.04' y1='408.30' x2='51.84' y2='408.30' style='stroke-width: 0.75;
+  ' />                                                                          
+  <line x1='59.04' y1='338.43' x2='51.84' y2='338.43' style='stroke-width: 0.75;
+  ' />                                                                          
+< <line x1='59.04' y1='268.55' x2='51.84' y2='268.55' style='stroke-width: 0.75;
+: ' />                                                                          
+> <line x1='59.04' y1='268.56' x2='51.84' y2='268.56' style='stroke-width: 0.75;
+: ' />                                                                          
+  <line x1='59.04' y1='198.68' x2='51.84' y2='198.68' style='stroke-width: 0.75;
+  ' />                                                                          
+< <line x1='59.04' y1='128.80' x2='51.84' y2='128.80' style='stroke-width: 0.75;
+: ' />                                                                          
+> <line x1='59.04' y1='128.81' x2='51.84' y2='128.81' style='stroke-width: 0.75;
+: ' />                                                                          
+  <text transform='translate(41.76,478.18) rotate(-90)' text-anchor='middle' sty
+  le='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='
+  spacingAndGlyphs'>0</text>                                                    
+  <text transform='translate(41.76,408.30) rotate(-90)' text-anchor='middle' sty
+  le='font-size: 12.00px; font-family: sans;' textLength='13.35px' lengthAdjust=
+  'spacingAndGlyphs'>10</text>                                                  
+  <text transform='translate(41.76,338.43) rotate(-90)' text-anchor='middle' sty
+  le='font-size: 12.00px; font-family: sans;' textLength='13.35px' lengthAdjust=
+  'spacingAndGlyphs'>20</text>                                                  
+< <text transform='translate(41.76,268.55) rotate(-90)' text-anchor='middle' sty
+: le='font-size: 12.00px; font-family: sans;' textLength='13.35px' lengthAdjust=
+: 'spacingAndGlyphs'>30</text>                                                  
+> <text transform='translate(41.76,268.56) rotate(-90)' text-anchor='middle' sty
+: le='font-size: 12.00px; font-family: sans;' textLength='13.35px' lengthAdjust=
+: 'spacingAndGlyphs'>30</text>                                                  
+  <text transform='translate(41.76,198.68) rotate(-90)' text-anchor='middle' sty
+  le='font-size: 12.00px; font-family: sans;' textLength='13.35px' lengthAdjust=
+  'spacingAndGlyphs'>40</text>                                                  
+< <text transform='translate(41.76,128.80) rotate(-90)' text-anchor='middle' sty
+: le='font-size: 12.00px; font-family: sans;' textLength='13.35px' lengthAdjust=
+: 'spacingAndGlyphs'>50</text>                                                  
+> <text transform='translate(41.76,128.81) rotate(-90)' text-anchor='middle' sty
+: le='font-size: 12.00px; font-family: sans;' textLength='13.35px' lengthAdjust=
+: 'spacingAndGlyphs'>50</text>                                                  
+  <polygon points='59.04,502.56 689.76,502.56 689.76,59.04 59.04,59.04 ' style='
+  stroke-width: 0.75; fill: none;' />                                           
+  <text x='374.40' y='557.28' text-anchor='middle' style='font-size: 12.00px; fo
+  nt-family: sans;' textLength='49.38px' lengthAdjust='spacingAndGlyphs'>tau0_se
+  q</text>                                                                      
+@@ 60,5 / 60,5 @@                                                               
+  </g>                                                                          
+  <g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>                  
+< <polyline points='105.76,74.98 397.76,450.86 689.76,486.26 ' style='stroke-wid
+: th: 0.75; stroke-dasharray: 4.00,4.00;' />                                    
+> <polyline points='105.76,74.99 397.76,450.86 689.76,486.27 ' style='stroke-wid
+: th: 0.75; stroke-dasharray: 4.00,4.00;' />                                    
+  <polyline points='129.12,75.53 421.12,450.65 713.12,486.16 ' style='stroke-wid
+  th: 0.75; stroke-dasharray: 1.00,3.00;' />                                    
+  <polyline points='152.48,428.79 444.48,465.93 736.48,484.55 ' style='stroke-wi
+  dth: 0.75; stroke-dasharray: 1.00,3.00,4.00,3.00;' />                         
+

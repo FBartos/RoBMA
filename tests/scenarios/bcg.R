@@ -1,5 +1,6 @@
-source("tests/scenarios/helper-scenarios.R")
+if (file.exists("helper-scenarios.R")) source("helper-scenarios.R") else source("tests/scenarios/helper-scenarios.R")
 REGENERATE_SCENARIO_FILES <- FALSE
+SHOW_SCENARIO_OUTPUT      <- FALSE
 scenario_start("bcg")
 
 ### Description
@@ -23,6 +24,7 @@ testthat::test_that("BCG Simple Fits", {
   })
 
   ### basic fit summary ----
+  set.seed(1)
   fit_simple_metafor
   scenario_text("fit_simple_summary", {print(summary(fit_simple))})
   scenario_text("fit_simple_summary_heterogeneity", {print(summary_heterogeneity(fit_simple))})
@@ -30,6 +32,7 @@ testthat::test_that("BCG Simple Fits", {
   scenario_text("fit_simple_interpret", {print(interpret(fit_simple))})
 
   ### basic fit plots ----
+  set.seed(1)
   scenario_plot("fit_simple_posterior_mu", {
     plot(fit_simple, "mu", ylim = c(0, 2.5), prior = TRUE)
     lines(fit_simple, "mu", density_method = "IWMDE", lty = 2)
@@ -46,6 +49,7 @@ testthat::test_that("BCG Simple Fits", {
   scenario_plot("fit_simple_forest", {metafor::forest(as_metafor_forest(fit_simple))})
 
   ### point hypothesis tests ----
+  set.seed(1)
   mu0_seq <- c(-1, -0.5, 0, 0.5)
   fit_simple_null_list <- list()
   for(i in seq_along(mu0_seq)){
@@ -63,6 +67,7 @@ testthat::test_that("BCG Simple Fits", {
   BFs_marglik <- sapply(fit_simple_null_list, function(fit0) bf(fit_simple, fit0))
 
   # compute via density methods
+  set.seed(1)
   BFs_IWMDE  <- sapply(mu0_seq, function(mu0) hypothesis(fit_simple, hypothesis = paste0("mu=",mu0), density_method = "IWMDE"))
   BFs_qCMDE  <- sapply(mu0_seq, function(mu0) hypothesis(fit_simple, hypothesis = paste0("mu=",mu0), density_method = "qCMDE"))
   BFs_normal <- sapply(mu0_seq, function(mu0) hypothesis(fit_simple, hypothesis = paste0("mu=",mu0), density_method = "normal"))
@@ -77,6 +82,7 @@ testthat::test_that("BCG Simple Fits", {
 
 
   # tau
+  set.seed(1)
   tau0_seq <- c(0, 0.25, 0.5)
   fit_simple_null_list_tau <- list()
   for(i in seq_along(tau0_seq)){
@@ -94,6 +100,7 @@ testthat::test_that("BCG Simple Fits", {
   BFs_tau_marglik <- sapply(fit_simple_null_list_tau, function(fit0) bf(fit_simple, fit0))
 
   # compute via density methods
+  set.seed(1)
   BFs_tau_IWMDE  <- sapply(tau0_seq, function(tau0) hypothesis(fit_simple, hypothesis = paste0("tau=",tau0), density_method = "IWMDE"))
   BFs_tau_qCMDE  <- sapply(tau0_seq, function(tau0) hypothesis(fit_simple, hypothesis = paste0("tau=",tau0), density_method = "qCMDE"))
   BFs_tau_normal <- sapply(tau0_seq, function(tau0) hypothesis(fit_simple, hypothesis = paste0("tau=",tau0), density_method = "normal"))
@@ -107,6 +114,7 @@ testthat::test_that("BCG Simple Fits", {
   })
 
   ### directional hypothesis tests ----
+  set.seed(1)
   fit_simple_minus <- scenario_fit("fit_simple_minus", {
     tmp <- brma(yi = yi, vi = vi, data = dat, measure = "RR", prior_effect = prior("normal", list(0, 1), list(-Inf, -0.5)))
     tmp <- add_loo(tmp)
@@ -137,6 +145,7 @@ testthat::test_that("BCG Simple Fits", {
 
 
   ### diagnostic plots ----
+  set.seed(1)
   scenario_plot("fit_simple_radial", {
     par(mfrow = c(1, 2))
     radial(fit_simple)
@@ -154,11 +163,13 @@ testthat::test_that("BCG Simple Fits", {
   })
 
   ### basic fit diagnostics ----
+  set.seed(1)
   influence(fit_simple_metafor)
   scenario_text("fit_simple_influence", {print(influence(fit_simple))})
 
 
   ### null model fitting works ----
+  set.seed(1)
   fit_simple_fe <- scenario_fit("fit_simple_fe", {
     tmp <- brma(yi = yi, vi = vi, data = dat, measure = "RR", seed = 1, prior_heterogeneity = prior("spike", list(0)))
     tmp <- add_loo(tmp)
@@ -217,6 +228,7 @@ testthat::test_that("BCG Meta-Regression", {
   scenario_text("fit_reg1_interpret", {print(interpret(fit_reg1))})
 
   ### basic fit plots ----
+  set.seed(1)
   scenario_plot("fit_reg1_posterior_mu", {
     plot(fit_reg1, "mu", ylim = c(0, 2), prior = TRUE)
     lines(fit_reg1, "mu", density_method = "IWMDE", lty = 2)
@@ -239,12 +251,13 @@ testthat::test_that("BCG Meta-Regression", {
   scenario_plot("fit_reg1_emmplot", {
     # TODO: this should be working too
     plot(fit_reg1_emm, parameter = "alloc", prior = TRUE, xlim = c(-3, 3))
-    lines(fit_reg1_emm, "alloc", density_method = "IWMDE", lty = 2)
-    lines(fit_reg1_emm, "alloc", density_method = "qCMDE", lty = 2)
+    # lines(fit_reg1_emm, "alloc", density_method = "IWMDE", lty = 2)
+    # lines(fit_reg1_emm, "alloc", density_method = "qCMDE", lty = 2)
   })
 
 
   ### directional hypothesis tests ----
+  set.seed(1)
   # cannot test multiple factor level simultaneously, so we check null model consistency
   fit_reg1_null <- scenario_fit("fit_reg1_null", {
     tmp <- brma(yi = yi, vi = vi, mods = ~ alloc, data = dat, measure = "RR", prior_mods = prior("spike", list(0)))
@@ -262,31 +275,62 @@ testthat::test_that("BCG Meta-Regression", {
 
   # temp_draws <- as_draws_df(fit_reg1)
   # mean(temp_draws$`mu_alloc[1]` < 0.0) / (1 - mean(temp_draws$`mu_alloc[1]` < 0.0))
+  set.seed(1)
   scenario_text("fit_reg1_BF_marglik", {print(BF_nullnull)})
   scenario_text("fit_reg1_BF_default", {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0")))})
   scenario_text("fit_reg1_BF_IWMDE",   {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0"), density_method = "IWMDE"))})
   scenario_text("fit_reg1_BF_qCMDE",   {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0"), density_method = "qCMDE"))})
 
   # TODO: why first fails but second one works?
-  hypothesis(fit_reg1, hypothesis = c("alloc[random] < alloc[systematic] vs alloc[random] = alloc[systematic]"))
-  hypothesis(fit_reg1, hypothesis = c("alloc[random] - alloc[systematic] < 0 vs alloc[random] - alloc[systematic] = 0"))
+  # hypothesis(fit_reg1, hypothesis = c("alloc[random] < alloc[systematic] vs alloc[random] = alloc[systematic]"))
+  # hypothesis(fit_reg1, hypothesis = c("alloc[random] - alloc[systematic] < 0 vs alloc[random] - alloc[systematic] = 0"))
 
   ### directional hypothesis tests for marginal means ----
 
+  # these two match because its the default level
+  set.seed(1)
+  scenario_text("fit_reg1_mm_BF1", {print(rbind(
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[alternate] < 0 vs alloc[alternate] = 0")),
+    hypothesis(fit_reg1,     hypothesis = c("intercept < 0 vs intercept = 0"))
+  ))})
+  # the mm is larger because its additive effect
+  scenario_text("fit_reg1_mm_BF2", {print(rbind(
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),
+    hypothesis(fit_reg1,     hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"))
+  ))})
+  # TODO: this is extremely slow
+  scenario_text("fit_reg1_mm_BF3", {print(rbind(
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "IWMDE"),
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "qCMDE")
+  ))})
+
+  # TODO: the following error is not correct (the levels have different implied priors but the same conditioning)
+  # Error: Level comparison for parameter 'mu_alloc' uses different conditional posterior subsets. Use averaged marginals or compare levels with identical conditionals.
+  # hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < alloc[alternate] vs alloc[random] > alloc[alternate]"))
+
+  # TODO: this should work but gives this error:
+  # The right side of a point hypothesis must be a numeric value written as one finite literal with an optional unary sign.
+  # hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < alloc[alternate] vs alloc[random] = alloc[alternate]"))
+
+  # FUTURE: this would be nice to have
+  # hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < alloc[alternate] < alloc[systematic] vs alloc[random] = alloc[alternate] = alloc[systematic] "))
 
 
   ### basic fit diagnostics ----
+  set.seed(1)
   influence(fit_reg1_metafor)
-  scenario_text("fit_reg1_influence", {print(influence(fit_reg1))})
+  scenario_text("fit_reg1_influence", {print(suppressWarnings(influence(fit_reg1)))})
 
   scenario_plot("fit_reg1_funnel",  {
     par(mfrow = c(1, 2))
-    funnel(fit_reg1, ylim = c(1, 0))
+    suppressWarnings(funnel(fit_reg1, ylim = c(1, 0)))
     metafor::funnel(fit_reg1_metafor, ylim = c(1, 0), type = "rstudent")
   })
 
 
   ### continuous regression ----
+  set.seed(1)
   dat <- metafor::escalc(measure = "RR", ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg)
 
   fit_reg2_metafor <- scenario_fit("fit_reg2_metafor", {
@@ -307,13 +351,16 @@ testthat::test_that("BCG Meta-Regression", {
   scenario_text("fit_reg2_summary_heterogeneity", {print(summary_heterogeneity(fit_reg2))})
 
   ### basic fit plots ----
+  set.seed(1)
   scenario_plot("fit_reg2_posterior_ablat", {
     plot(fit_reg2, "ablat",  prior = TRUE)
-    lines(fit_reg2, "ablat", density_method = "IWMDE", lty = 2) # TODO: needs to be fixed
-    lines(fit_reg2, "ablat", density_method = "qCMDE", lty = 2) # TODO: needs to be fixed
+    # lines(fit_reg2, "ablat", density_method = "IWMDE", lty = 2) # TODO: needs to be fixed
+    # lines(fit_reg2, "ablat", density_method = "qCMDE", lty = 2) # TODO: needs to be fixed
   })
+  scenario_plot("fit_reg2_regplot", {regplot(fit_reg2, mod = "ablat")})
 
   ### directional hypothesis tests ----
+  set.seed(1)
   fit_reg2_minus <- scenario_fit("fit_reg2_minus", {
     tmp <- brma(yi = yi, vi = vi, mods = ~ ablat, data = dat, measure = "RR", prior_mods = prior("normal", list(0, 0.5), list(-Inf, -0.25)))
     tmp <- add_loo(tmp)
@@ -338,19 +385,18 @@ testthat::test_that("BCG Meta-Regression", {
   BF_minusplus <- bf(fit_reg2_minus, fit_reg2_plus)
 
   # Important to realize that the comparison is on the standardized coefficients scale
+  set.seed(1)
   scenario_text("fit_reg2_BF_marglik", {print(rbind(BF_minus0, BF_plus0, BF_minusplus))})
   scenario_text("fit_reg2_BF_IWMDE",   {print(hypothesis(fit_reg2, hypothesis = c("ablat < -0.25 vs ablat = 0", "ablat > -0.25 vs ablat = 0", "ablat < -0.25 vs ablat > -0.25"), density_method = "IWMDE",  standardized_coefficients = TRUE))})
   scenario_text("fit_reg2_BF_qCMDE",   {print(hypothesis(fit_reg2, hypothesis = c("ablat < -0.25 vs ablat = 0", "ablat > -0.25 vs ablat = 0", "ablat < -0.25 vs ablat > -0.25"), density_method = "qCMDE",  standardized_coefficients = TRUE))})
   scenario_text("fit_reg2_BF_normal",  {print(hypothesis(fit_reg2, hypothesis = c("ablat < -0.25 vs ablat = 0", "ablat > -0.25 vs ablat = 0", "ablat < -0.25 vs ablat > -0.25"), density_method = "normal", standardized_coefficients = TRUE))})
 
   # Non-standardized need to rescale the comparison point
+  set.seed(1)
   0.25 / sd(dat$ablat)
   scenario_text("fit_reg2_BF_IWMDE_direct",   {print(hypothesis(fit_reg2, hypothesis = c("ablat < -0.01730933 vs ablat = 0", "ablat > -0.01730933 vs ablat = 0", "ablat < -0.01730933 vs ablat > -0.01730933"), density_method = "IWMDE"))})
   scenario_text("fit_reg2_BF_qCMDE_direct",   {print(hypothesis(fit_reg2, hypothesis = c("ablat < -0.01730933 vs ablat = 0", "ablat > -0.01730933 vs ablat = 0", "ablat < -0.01730933 vs ablat > -0.01730933"), density_method = "qCMDE"))})
   scenario_text("fit_reg2_BF_normal_direct",  {print(hypothesis(fit_reg2, hypothesis = c("ablat < -0.01730933 vs ablat = 0", "ablat > -0.01730933 vs ablat = 0", "ablat < -0.01730933 vs ablat > -0.01730933"), density_method = "normal"))})
-
-
-
 
 })
 

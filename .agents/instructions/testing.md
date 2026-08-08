@@ -116,7 +116,8 @@ snapshot logic in individual scenarios.
 Run one with `Rscript tools/test-scenario.R <name>`. Set
 `REGENERATE_SCENARIO_FILES <- TRUE` in the scenario, or pass `--regenerate`, to
 refit its models and replace all exercised text and plot baselines. Review every
-resulting diff.
+resulting diff. Set `SHOW_SCENARIO_OUTPUT <- TRUE` only while developing to echo
+tables and draw figures; leave it `FALSE` for quiet test runs.
 
 Fit caches under `tests/scenarios/cache/` are local and ignored. Text baselines
 under `results/` and vdiffr SVGs under `_snaps/` are committed. Missing
