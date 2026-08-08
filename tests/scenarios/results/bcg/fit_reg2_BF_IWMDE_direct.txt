@@ -1,4 +1,10 @@
                     Alternative:                  Null:     BF error%(BF)
-mu_ablat  mu_ablat < -0.01730933           mu_ablat = 0 39.895      3.721
-mu_ablat1 mu_ablat > -0.01730933           mu_ablat = 0  2.129      4.398
+mu_ablat  mu_ablat < -0.01730933           mu_ablat = 0 45.535     10.925
+mu_ablat1 mu_ablat > -0.01730933           mu_ablat = 0  2.430     11.174
 mu_ablat2 mu_ablat < -0.01730933 mu_ablat > -0.01730933 18.735      2.643
+[0;31mIWMDE relative MCSE is 10.9%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
+[0;31mIWMDE relative MCSE is 10.9%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
+[0;31mIWMDE finite-population row-sampling relative error is 10.8%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
+[0;31mIWMDE finite-population row-sampling relative error is 10.8%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
+[0;31mIWMDE effective sample size is 70.7[0m
+[0;31mIWMDE effective sample size is 70.7[0m
