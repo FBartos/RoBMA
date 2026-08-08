@@ -1814,6 +1814,22 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
   expect_true("qCMDE effective sample size is 67.8" %in% warnings)
   expect_true(any(grepl("largest importance weight.*30%.*20%", warnings)))
 
+  targeted <- diagnostics
+  targeted[["target_relative_mcse"]]   <- .05
+  targeted[["sampling_relative_mcse"]] <- .12
+  targeted[["all_rows_used"]]          <- FALSE
+  warnings <- .iwmde_diagnostics_bf_warning(targeted)
+  expect_true(paste0(
+    "qCMDE relative MCSE is 17.3%. Higher precision can be obtained by ",
+    "increasing the number of evaluated posterior samples via the ",
+    "'density_control' argument."
+  ) %in% warnings)
+  expect_true(any(grepl(paste0(
+    "qCMDE finite-population row-sampling relative error is\\s+12%\\. ",
+    "Higher precision can be obtained by increasing the number of evaluated ",
+    "posterior samples via the 'density_control' argument\\."
+  ), warnings)))
+
   diagnostics[["estimator"]] <- "iwmde"
   warnings <- .iwmde_diagnostics_bf_warning(diagnostics)
   expect_true("IWMDE relative MCSE is 17.3%" %in% warnings)
@@ -1850,20 +1866,18 @@ test_that("unused dots warn in cleaned density interfaces", {
   expect_warning(
     plot(
       load_fit("bcg_meta-analysis", validate = FALSE),
-      parameter       = "mu",
-      density_method  = "qCMDE",
-      density_control = list(n_points = 20, max_samples = 20),
-      iwmde_n_points  = 20
+      parameter      = "mu",
+      density_method = "KDE",
+      iwmde_n_points = 20
     ),
     "Unused argument.*iwmde_n_points"
   )
   expect_warning(
     marginal_means(
       load_fit("bcg_meta-regression2", validate = FALSE),
-      n_samples          = 1000,
-      density_method     = "qCMDE",
-      density_control    = list(n_points = 20, max_samples = 20),
-      iwmde_max_samples  = 20
+      n_samples         = 1000,
+      density_method    = "KDE",
+      iwmde_max_samples = 20
     ),
     "Unused argument.*iwmde_max_samples"
   )

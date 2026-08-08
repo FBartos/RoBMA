@@ -11,12 +11,19 @@
       component = if (identical(component, "auto")) NULL else component
     ),
     BayesTools_parameter_ambiguous = function(error) {
-      candidates <- metadata[["entries"]][
-        metadata[["entries"]][["quantity_id"]] %in%
-          error[["candidates"]][["quantity_id"]],
-        ,
-        drop = FALSE
-      ]
+      ambiguity <- .brma_parameter_catalog_group_ambiguity(
+        entries      = metadata[["entries"]],
+        quantity_ids = error[["candidates"]][["quantity_id"]],
+        component    = component
+      )
+      if (!is.null(ambiguity[["component"]])) {
+        return(BayesTools::hypothesis_resolve(
+          ast       = ast,
+          catalog   = metadata[["catalog"]],
+          component = ambiguity[["component"]]
+        ))
+      }
+      candidates <- ambiguity[["candidates"]]
       if (length(unique(candidates[["parameter"]])) > 1L) {
         .hypothesis_brma_stop_multiple_parameters(candidates)
       }
@@ -24,19 +31,26 @@
     }
   )
   quantity_ids <- unique(resolved[["occurrences"]][["quantity_id"]])
-  entries <- metadata[["entries"]][
-    metadata[["entries"]][["quantity_id"]] %in% quantity_ids,
-    ,
-    drop = FALSE
-  ]
-  if (nrow(entries) != length(quantity_ids)) {
+  entries <- .brma_parameter_catalog_entries_for_quantities(
+    entries      = metadata[["entries"]],
+    quantity_ids = quantity_ids
+  )
+  covered <- vapply(quantity_ids, function(quantity_id) {
+    any(entries[["quantity_id"]] == quantity_id) ||
+      any(vapply(
+        entries[["member_quantity_ids"]],
+        function(members) quantity_id %in% members,
+        logical(1)
+      ))
+  }, logical(1))
+  if (!all(covered)) {
     stop(
       "Resolved hypothesis metadata are unavailable. Refit the model with ",
       "the current RoBMA/BayesTools build.",
       call. = FALSE
     )
   }
-  if (length(quantity_ids) > 1L) {
+  if (nrow(entries) > 1L) {
     .hypothesis_brma_stop_multiple_parameters(entries)
   }
 

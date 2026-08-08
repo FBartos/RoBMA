@@ -3,43 +3,26 @@ context("BayesTools hypothesis AST contract")
 
 test_that("fitted hypotheses resolve and rewrite the parsed AST", {
 
-  quantities <- data.frame(
-    quantity_id       = "BayesTools::mu_x",
+  quantities <- BayesTools:::.bt_parameter_catalog_quantity(
     canonical_name    = "mu_x",
-    provider          = "BayesTools",
     namespace         = "mu",
     role              = "fixed_coefficient",
     formula_parameter = "mu",
     term              = "x",
     component         = "mods",
-    display_label     = "mu_x",
-    fitted_scale      = "fitted_original",
     display_scale     = "original",
     status            = "sampled",
-    fixed_value       = NA_real_,
-    internal          = FALSE,
-    stringsAsFactors  = FALSE,
-    check.names       = FALSE
+    extraction_key    = list(
+      type         = "registry",
+      dependencies = "mu_x"
+    )
   )
-  quantities[["extraction_key"]] <- I(list(list(
-    type         = "registry",
-    dependencies = "mu_x"
-  )))
-  aliases <- data.frame(
-    alias       = c("x", "mu_x"),
-    quantity_id = "BayesTools::mu_x",
-    namespace   = "mods",
-    component   = "mods",
-    stringsAsFactors = FALSE
+  catalog <- BayesTools:::.bt_parameter_catalog_new(
+    quantities = quantities,
+    aliases    = BayesTools:::.bt_parameter_catalog_aliases(quantities)
   )
-  catalog <- list(
-    schema_version = 1L,
-    quantities     = quantities,
-    aliases        = aliases
-  )
-  class(catalog) <- c("BayesTools_parameter_catalog", "list")
   entries <- data.frame(
-    quantity_id       = "BayesTools::mu_x",
+    quantity_id       = quantities[["quantity_id"]],
     parameter         = "mu_x",
     component         = "mods",
     term              = "x",
@@ -52,6 +35,7 @@ test_that("fitted hypotheses resolve and rewrite the parsed AST", {
     check.names       = FALSE
   )
   entries[["aliases"]] <- I(list(c("x", "mu_x")))
+  entries[["member_quantity_ids"]] <- I(list(character()))
   ast <- BayesTools::hypothesis_parse("x > abs(x)")
   testthat::local_mocked_bindings(
     .brma_parameter_catalog_metadata = function(object) {

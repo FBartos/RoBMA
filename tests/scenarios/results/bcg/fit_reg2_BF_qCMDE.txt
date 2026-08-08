@@ -2,9 +2,9 @@
 mu_ablat  mu_ablat < -0.25     mu_ablat = 0 46.549      9.126
 mu_ablat1 mu_ablat > -0.25     mu_ablat = 0  2.485      9.422
 mu_ablat2 mu_ablat < -0.25 mu_ablat > -0.25 18.735      2.643
-[0;31mqCMDE relative MCSE is 9.12%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
-[0;31mqCMDE relative MCSE is 9.12%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
-[0;31mqCMDE finite-population row-sampling relative error is 9.47%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
-[0;31mqCMDE finite-population row-sampling relative error is 9.47%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
+[0;31mqCMDE relative MCSE is 9.12%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE relative MCSE is 9.12%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 9.47%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 9.47%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
 [0;31mqCMDE effective sample size is 88.9[0m
 [0;31mqCMDE effective sample size is 88.9[0m

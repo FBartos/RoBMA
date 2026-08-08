@@ -1391,7 +1391,8 @@ test_that("same-sample diagnostics warn without suppressing finite ordinates", {
 
   expect_true(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
   expect_match(
-    .iwmde_posterior_ordinate_warnings(posterior_ordinate),
+    paste(.iwmde_posterior_ordinate_warnings(posterior_ordinate),
+          collapse = " "),
     "relative MCSE"
   )
   posterior_ordinate[["diagnostics"]][["relative_mcse"]] <- 1

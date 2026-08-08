@@ -1161,7 +1161,7 @@ test_that("marginal means hypothesis density methods use public names", {
 })
 
 
-test_that("marginal means hypothesis inherits and can override stored density method", {
+test_that("marginal means region hypotheses use KDE with stored density methods", {
 
   posterior <- list(
     mu_alloc = structure(
@@ -1206,7 +1206,7 @@ test_that("marginal means hypothesis inherits and can override stored density me
     ),
     "ok"
   )
-  expect_equal(captured, c("precomputed", "KDE"))
+  expect_equal(captured, c("KDE", "KDE"))
 })
 
 

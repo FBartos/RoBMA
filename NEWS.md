@@ -41,7 +41,7 @@
   directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.15 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.16 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
@@ -70,11 +70,18 @@
   `set_contrast_factor_predictors` explicitly.
 
 ### Fixes
-- restores named factor-level resolution in fitted-model hypotheses and permits
-  mixed point/region marginal-means hypotheses when all events use the same
-  single-model averaged posterior.
+- restores named factor-level resolution in fitted-model hypotheses through
+  BayesTools' semantic factor catalog while retaining a single RoBMA-owned
+  whole-term target for product-space inference, and recognizes native sampled
+  or structural random-effect quantities. It also permits mixed
+  point/region marginal-means hypotheses when all events use the same
+  single-model averaged posterior and avoids density-ordinate work for pure
+  region hypotheses.
 - adds marginal-means `lines()` overlays and routes qCMDE/IWMDE coefficient
   plots through the exact fitted-to-original structural transform.
+- makes fixed-budget qCMDE/IWMDE precision warnings explain how to request more
+  evaluated posterior samples without presenting the diagnostic target as an
+  adaptive stopping rule.
 - permits mixed-case scenario artifact names such as `mu_BF_comparison`,
   matching the names already used by the maintainer scenarios.
 - resets base-graphics overlay mode around interactive `scenario_plot()`

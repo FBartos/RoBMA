@@ -55,8 +55,10 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     parameter  = parameter
   )
 
-  density_method       <- .marginal_means_density_method(object, density_method)
-  precomputed_density <- density_method %in% c("qCMDE", "IWMDE")
+  density_method      <- .marginal_means_density_method(object, density_method)
+  estimated_ordinate  <- density_method %in% c("qCMDE", "IWMDE") &&
+    nrow(.hypothesis_brma_point_refs(hypothesis, parameter)) > 0L
+  precomputed_density <- estimated_ordinate
   if (precomputed_density) {
     density_control <- .hypothesis_marginal_means_density_control(
       object          = object,
@@ -80,8 +82,20 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     )
     density_method <- "precomputed"
   } else if (!is.null(density_control)) {
-    stop("'density_control' is only used when 'density_method' is ",
-         "'qCMDE' or 'IWMDE'.", call. = FALSE)
+    if (density_method %in% c("qCMDE", "IWMDE")) {
+      .density_control_normalize(
+        density_method  = density_method,
+        density_control = density_control,
+        purpose         = "ordinate"
+      )
+    } else {
+      stop("'density_control' is only used when 'density_method' is ",
+           "'qCMDE' or 'IWMDE'.", call. = FALSE)
+    }
+  }
+
+  if (!estimated_ordinate && density_method %in% c("qCMDE", "IWMDE")) {
+    density_method <- "KDE"
   }
 
   inference <- object[["inference"]]

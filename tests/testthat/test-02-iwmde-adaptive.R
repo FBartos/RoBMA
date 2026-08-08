@@ -197,7 +197,7 @@ test_that("fixed-budget diagnostics never select ordinate availability", {
     paste(.iwmde_posterior_ordinate_warnings(
       estimate_imprecise[["posterior_ordinate"]]
     ), collapse = " "),
-    "density_control$samples",
+    "via the 'density_control' argument",
     fixed = TRUE
   )
 })
@@ -248,7 +248,7 @@ test_that("fixed-budget census imprecision warns to obtain more draws", {
     paste(.iwmde_posterior_ordinate_warnings(
       estimate[["posterior_ordinate"]]
     ), collapse = " "),
-    "more posterior draws",
+    "increasing the number of posterior draws",
     fixed = TRUE
   )
 })

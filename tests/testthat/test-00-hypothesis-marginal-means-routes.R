@@ -94,6 +94,40 @@ test_that("cross-level region hypotheses use direct averaged odds", {
 })
 
 
+test_that("cross-level region counts ignore density sample budgets", {
+
+  object <- .marginal_means_route_test_object(model_averaged = TRUE)
+  hypothesis_text <- "alloc[A] > alloc[B]"
+
+  kde <- hypothesis(
+    object,
+    hypothesis_text,
+    columns = "all",
+    seed    = 913
+  )
+  iwmde <- hypothesis(
+    object,
+    hypothesis_text,
+    density_method  = "IWMDE",
+    density_control = list(samples = 20),
+    columns         = "all",
+    seed            = 913
+  )
+  qcmde <- hypothesis(
+    object,
+    hypothesis_text,
+    density_method  = "qCMDE",
+    density_control = list(samples = 20),
+    columns         = "all",
+    seed            = 913
+  )
+
+  expect_identical(iwmde, kde)
+  expect_identical(qcmde, kde)
+  expect_equal(kde[["posterior"]], 3, tolerance = 1e-12)
+})
+
+
 test_that("marginal-means point routes fail closed when events are incoherent", {
 
   object <- .marginal_means_route_test_object(model_averaged = TRUE)
@@ -167,4 +201,35 @@ test_that("single-model marginal hypotheses share one averaged posterior", {
     mixed_statements,
     list(route = "mixed", inference_type = "averaged")
   )
+})
+
+
+test_that("cross-level point densities ignore child-level ordinates", {
+
+  object <- .marginal_means_route_test_object(model_averaged = FALSE)
+  hypothesis_text <- "alloc[A] - alloc[B] = 0"
+  baseline <- suppressWarnings(hypothesis(
+    object,
+    hypothesis_text,
+    columns = "all",
+    seed    = 819
+  ))
+
+  levels <- object[["inference"]][["averaged"]][["mu_alloc"]]
+  attr(levels[["A"]], "posterior_ordinate") <- list(
+    value = 0, ordinate = 1e-12, method = "bogus-child-A"
+  )
+  attr(levels[["B"]], "posterior_ordinate") <- list(
+    value = 0, ordinate = 1e12, method = "bogus-child-B"
+  )
+  object[["inference"]][["averaged"]][["mu_alloc"]] <- levels
+  perturbed <- suppressWarnings(hypothesis(
+    object,
+    hypothesis_text,
+    columns = "all",
+    seed    = 819
+  ))
+
+  expect_identical(perturbed, baseline)
+  expect_identical(baseline[["method"]], "kernel Savage-Dickey")
 })

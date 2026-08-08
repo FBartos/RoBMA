@@ -516,12 +516,15 @@
 .iwmde_fixed_sample_precision_action <- function(diagnostics) {
 
   if (isTRUE(diagnostics[["all_rows_used"]])) {
-    return(" Obtain more posterior draws to improve precision.")
+    return(paste0(
+      " Higher precision can be obtained by increasing the number of ",
+      "posterior draws."
+    ))
   }
 
   return(paste0(
-    " Increase 'density_control$samples' or use Inf for the eligible-row ",
-    "census."
+    " Higher precision can be obtained by increasing the number of evaluated ",
+    "posterior samples via the 'density_control' argument."
   ))
 }
 
@@ -568,9 +571,7 @@
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " relative MCSE is ",
-      .iwmde_percent(relative_mcse),
-      ", above the requested target of ",
-      .iwmde_percent(target_relative_mcse), ".", precision_action
+      .iwmde_percent(relative_mcse), ".", precision_action
     ))
   } else if (is.finite(relative_mcse) &&
              relative_mcse >= .iwmde_bf_warning_relative_mcse()) {
@@ -597,9 +598,7 @@
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " finite-population row-sampling relative error is ",
-      .iwmde_percent(sampling_relative_mcse),
-      ", above the requested target of ",
-      .iwmde_percent(target_relative_mcse), ".", precision_action
+      .iwmde_percent(sampling_relative_mcse), ".", precision_action
     ))
   } else if (is.finite(sampling_relative_mcse) &&
              sampling_relative_mcse >= .iwmde_bf_warning_relative_mcse()) {

@@ -264,10 +264,27 @@
   }
 
   metadata <- .brma_parameter_catalog_metadata(object)
-  selection <- BayesTools::parameter_catalog_resolve(
-    catalog   = metadata[["catalog"]],
-    alias     = parameter,
-    component = if (identical(component, "auto")) NULL else component
+  selection <- tryCatch(
+    BayesTools::parameter_catalog_resolve(
+      catalog   = metadata[["catalog"]],
+      alias     = parameter,
+      component = if (identical(component, "auto")) NULL else component
+    ),
+    BayesTools_parameter_ambiguous = function(error) {
+      ambiguity <- .brma_parameter_catalog_group_ambiguity(
+        entries      = metadata[["entries"]],
+        quantity_ids = error[["candidates"]][["quantity_id"]],
+        component    = component
+      )
+      if (!is.null(ambiguity[["component"]])) {
+        return(BayesTools::parameter_catalog_resolve(
+          catalog   = metadata[["catalog"]],
+          alias     = parameter,
+          component = ambiguity[["component"]]
+        ))
+      }
+      stop(error)
+    }
   )
   entry <- metadata[["entries"]][
     metadata[["entries"]][["quantity_id"]] == selection[["quantity_id"]],
@@ -334,7 +351,7 @@
 
   add_entry <- function(quantity, parameter, component, term, source,
                         formula_parameter, entry_aliases,
-                        entry_components = character()) {
+                        member_quantity_ids = character()) {
     entry_aliases <- unique(entry_aliases[
       !is.na(entry_aliases) & nzchar(entry_aliases)
     ])
@@ -352,15 +369,15 @@
       check.names       = FALSE
     )
     entry[["aliases"]] <- I(list(entry_aliases))
+    entry[["member_quantity_ids"]] <- I(list(unique(member_quantity_ids)))
     entries[[length(entries) + 1L]] <<- entry
-    alias_rows <- expand.grid(
-      alias             = entry_aliases,
-      component         = unique(c(component, entry_components)),
-      stringsAsFactors  = FALSE,
-      KEEP.OUT.ATTRS     = FALSE
+    alias_rows <- data.frame(
+      alias       = entry_aliases,
+      quantity_id = rep(quantity[["quantity_id"]], length(entry_aliases)),
+      namespace   = rep(component, length(entry_aliases)),
+      component   = rep(component, length(entry_aliases)),
+      stringsAsFactors = FALSE
     )
-    alias_rows[["quantity_id"]] <- quantity[["quantity_id"]]
-    alias_rows[["namespace"]]   <- component
     aliases[[length(aliases) + 1L]] <<- alias_rows[
       , c("alias", "quantity_id", "namespace", "component"),
       drop = FALSE
@@ -442,40 +459,6 @@
     for (row in seq_len(nrow(fixed_rows))) {
       map_row <- fixed_rows[row, , drop = FALSE]
       term    <- map_row[["term"]]
-      coordinate_rows <- which(
-        public &
-          quantities[["formula_parameter"]] == formula_parameter &
-          quantities[["role"]] == "fixed_coefficient" &
-          sub("\\[.*$", "", quantities[["canonical_name"]]) ==
-            map_row[["jags_name"]]
-      )
-      if (length(coordinate_rows) == 0L) {
-        stop(
-          "Fitted coefficient metadata for formula parameter '",
-          formula_parameter, "' and term '", term,
-          "' are incomplete. Refit the model with the current ",
-          "RoBMA/BayesTools build.",
-          call. = FALSE
-        )
-      }
-      if (length(coordinate_rows) == 1L) {
-        quantity <- quantities[coordinate_rows, , drop = FALSE]
-      } else {
-        quantity <- .brma_parameter_catalog_formula_quantity(
-          catalog            = catalog,
-          map_row            = map_row,
-          coordinates        = quantities[coordinate_rows, , drop = FALSE],
-          semantic_component = spec[["component"]]
-        )
-        extension_quantities[[length(extension_quantities) + 1L]] <- quantity
-        catalog[["aliases"]] <- catalog[["aliases"]][
-          !catalog[["aliases"]][["quantity_id"]] %in%
-            quantities[["quantity_id"]][coordinate_rows],
-          ,
-          drop = FALSE
-        ]
-      }
-      quantity <- as.list(quantity)
       entry_aliases <- c(map_row[["jags_name"]], term)
       if (identical(formula_parameter, "mu") && identical(term, "intercept")) {
         entry_aliases <- c(entry_aliases, "mu", "effect", "intercept")
@@ -498,6 +481,37 @@
           )
         }
       }
+      entry_aliases <- unique(entry_aliases)
+      coordinate_rows <- which(
+        public &
+          quantities[["formula_parameter"]] == formula_parameter &
+          quantities[["role"]] == "fixed_coefficient" &
+          sub("\\[.*$", "", quantities[["canonical_name"]]) ==
+            map_row[["jags_name"]]
+      )
+      if (length(coordinate_rows) == 0L) {
+        stop(
+          "Fitted coefficient metadata for formula parameter '",
+          formula_parameter, "' and term '", term,
+          "' are incomplete. Refit the model with the current ",
+          "RoBMA/BayesTools build.",
+          call. = FALSE
+        )
+      }
+      if (length(coordinate_rows) == 1L) {
+        quantity <- quantities[coordinate_rows, , drop = FALSE]
+        member_quantity_ids <- character()
+      } else {
+        quantity <- .brma_parameter_catalog_formula_quantity(
+          catalog            = catalog,
+          map_row            = map_row,
+          coordinates        = quantities[coordinate_rows, , drop = FALSE],
+          semantic_component = spec[["component"]]
+        )
+        extension_quantities[[length(extension_quantities) + 1L]] <- quantity
+        member_quantity_ids <- quantities[["quantity_id"]][coordinate_rows]
+      }
+      quantity <- as.list(quantity)
       add_entry(
         quantity          = quantity,
         parameter         = map_row[["jags_name"]],
@@ -506,17 +520,14 @@
         source            = spec[["source"]],
         formula_parameter = formula_parameter,
         entry_aliases     = entry_aliases,
-        entry_components  = .brma_parameter_catalog_formula_components(
-          object    = object,
-          parameter = map_row[["jags_name"]]
-        )
+        member_quantity_ids = member_quantity_ids
       )
     }
   }
 
   if (.is_random(object)) {
     rows <- which(
-      public & quantities[["status"]] == "derived" &
+      public & quantities[["status"]] != "unavailable" &
         startsWith(quantities[["role"]], "random_")
     )
     for (row in rows) {
@@ -596,34 +607,39 @@
 }
 
 
-.brma_parameter_catalog_formula_components <- function(object, parameter) {
+.brma_parameter_catalog_entries_for_quantities <- function(entries,
+                                                            quantity_ids) {
 
-  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
-  prior      <- prior_list[[parameter]]
-  components <- attr(prior, "factor_cell_names", exact = TRUE)
-  if (is.character(components) && length(components) > 0L &&
-      all(!is.na(components) & nzchar(components))) {
-    return(components)
-  }
-
-  level_names <- attr(prior, "level_names", exact = TRUE)
-  if (is.character(level_names) && length(level_names) > 0L &&
-      all(!is.na(level_names) & nzchar(level_names))) {
-    return(level_names)
-  }
-  if (!is.list(level_names) || length(level_names) == 0L ||
-      is.null(names(level_names)) || any(!nzchar(names(level_names)))) {
-    return(character())
-  }
-  cells <- expand.grid(
-    level_names,
-    KEEP.OUT.ATTRS   = FALSE,
-    stringsAsFactors = FALSE
+  direct <- entries[["quantity_id"]] %in% quantity_ids
+  grouped <- vapply(
+    entries[["member_quantity_ids"]],
+    function(members) any(members %in% quantity_ids),
+    logical(1)
   )
-  components <- apply(cells, 1L, function(x) {
-    paste0(names(level_names), "=", as.character(x), collapse = ", ")
-  })
-  return(components)
+  return(entries[direct | grouped, , drop = FALSE])
+}
+
+
+.brma_parameter_catalog_group_ambiguity <- function(entries, quantity_ids,
+                                                     component) {
+
+  candidates <- .brma_parameter_catalog_entries_for_quantities(
+    entries      = entries,
+    quantity_ids = quantity_ids
+  )
+  grouped <- candidates[
+    candidates[["role"]] == "formula_coefficient_group",
+    ,
+    drop = FALSE
+  ]
+  retry_component <- if (identical(component, "auto") &&
+                         nrow(candidates) == 1L && nrow(grouped) == 1L) {
+    grouped[["component"]]
+  } else {
+    NULL
+  }
+
+  return(list(candidates = candidates, component = retry_component))
 }
 
 
@@ -635,6 +651,18 @@
   if (length(fitted_scale) != 1L || length(display_scale) != 1L) {
     stop(
       "Grouped formula coefficient coordinates have inconsistent scale ",
+      "metadata. Refit the model with the current RoBMA/BayesTools build.",
+      call. = FALSE
+    )
+  }
+  dependencies <- unique(unlist(lapply(
+    coordinates[["extraction_key"]],
+    function(key) key[["dependencies"]]
+  ), use.names = FALSE))
+  if (!is.character(dependencies) || length(dependencies) == 0L ||
+      anyNA(dependencies) || any(!nzchar(dependencies))) {
+    stop(
+      "Grouped formula coefficient cells have invalid BayesTools extraction ",
       "metadata. Refit the model with the current RoBMA/BayesTools build.",
       call. = FALSE
     )
@@ -660,7 +688,7 @@
   )
   out[["extraction_key"]] <- I(list(list(
     type              = "robma_formula_group",
-    dependencies      = coordinates[["canonical_name"]],
+    dependencies      = dependencies,
     formula_parameter = map_row[["formula_parameter"]],
     term              = map_row[["term"]]
   )))

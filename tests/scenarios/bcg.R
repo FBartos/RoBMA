@@ -305,14 +305,13 @@ testthat::test_that("BCG Meta-Regression", {
     hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "qCMDE")
   ))})
 
-  # This region comparison now uses averaged marginals and is covered by a
-  # focused regression test.
-  scenario_text("fit_reg1_mm_BF2", {print(rbind(
-    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),
-    hypothesis(fit_reg1,     hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"))
-  ))})
-  # TODO: this does not change anything?
-  hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < alloc[alternate] vs alloc[random] > alloc[alternate]"))
+  set.seed(1)
+  scenario_text("fit_reg1_mm_BF4", {print(
+    hypothesis(
+      fit_reg1_emm,
+      hypothesis = "alloc[random] < alloc[alternate] vs alloc[random] > alloc[alternate]"
+    )
+  )})
 
   # FUTURE:
   # Symbolic right-hand-side equality is a pending grammar/atom-semantics

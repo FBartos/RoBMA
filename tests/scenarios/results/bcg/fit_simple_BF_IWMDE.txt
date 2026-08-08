@@ -2,9 +2,9 @@
 mu     mu < -0.5    mu = 0 144.508     13.657
 mu1    mu > -0.5    mu = 0  10.704     13.799
 mu2    mu < -0.5 mu > -0.5  13.501      2.337
-[0;31mIWMDE relative MCSE is 13.7%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
-[0;31mIWMDE relative MCSE is 13.7%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
-[0;31mIWMDE finite-population row-sampling relative error is   12%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
-[0;31mIWMDE finite-population row-sampling relative error is   12%, above the requested target of    5%. Increase 'density_control$samples' or use Inf for the eligible-row census.[0m
+[0;31mIWMDE relative MCSE is 13.7%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mIWMDE relative MCSE is 13.7%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mIWMDE finite-population row-sampling relative error is   12%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mIWMDE finite-population row-sampling relative error is   12%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
 [0;31mIWMDE effective sample size is 47.4[0m
 [0;31mIWMDE effective sample size is 47.4[0m

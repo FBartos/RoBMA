@@ -13,7 +13,7 @@ remove the item.
 - Recommendation: review intended differences manually, make stochastic
   snapshots deterministic, and accept only verified baselines. Do not hide
   differences with broad coordinate tolerances.
-- Decision:
+- Decision: I will review them
 
 ## Cached Vignette Fits
 
@@ -23,7 +23,7 @@ remove the item.
   rebuild.
 - Recommendation: regenerate one vignette cache at a time with current RoBMA and
   BayesTools. Do not add an in-memory migration for stale fitted objects.
-- Decision:
+- Decision: let's fully ignore vignette work till we are fully finished with all other work. I will explicitly say when we should deal with vignettes
 
 ## Cross-Level Point Equalities
 
@@ -46,26 +46,12 @@ remove the item.
   reject qCMDE/IWMDE for this compound target until its joint replacement and
   prior-ordinate route is certified. Keep model-averaged marginal means
   fail-closed because their levels can require different conditioning events.
-- Decision:
-
-## Fixed qCMDE/IWMDE Ordinate Budget
-
-- Issue: the review replaced contribution-dependent adaptive row stopping with
-  one state-independent fixed sample of 500 rows. This preserves a valid
-  simple-random-sampling design, but exposes substantially higher MCSE in the
-  BCG regression. On the 15,000-row `ablat = 0` ordinate, IWMDE MCSE was 10.9%,
-  8.28%, 6.13%, 5.20%, and 3.79% for 500, 1,000, 2,000, 4,000, and all rows;
-  qCMDE MCSE was 9.12%, 7.67%, 5.55%, 4.94%, and 3.73%. Corresponding elapsed
-  times were 5.7/2.9, 7.1/4.6, 9.0/8.9, 15.6/20.8, and 83/157 seconds for
-  IWMDE/qCMDE.
-- Impact: raising the public default to 4,000 multiplies representative runtime
-  by roughly 3--7 and still leaves IWMDE just above the 5% target. Using all
-  rows removes row-sampling error but costs 1.4--2.6 minutes per ordinate here.
-  Restoring adaptive stopping would make the chosen sample size depend on the
-  evaluated contributions and undo the reviewed sampling design.
-- Recommendation: retain the public 500-row default and its explicit warning.
-  Give the BCG scenario an explicit larger fixed budget (or the all-row census
-  when it is intended as numerical certification) after choosing its acceptable
-  runtime, then review the changed text baselines. Do not restore the old
-  adaptive loop.
+- Investigation: the explicit difference briefly worked in commit `e348346b`
+  because that implementation accepted compound KDE point expressions after
+  checking only that the result looked scalar. Commit `114ac376` replaced it
+  with the current fail-closed rule after showing that a derived expression
+  could bypass declared product-space atoms. The single-model marginal-means
+  route remains supported because both levels share one averaged, atom-free
+  posterior. The fitted-model route was therefore removed for correctness, not
+  lost accidentally during catalog work.
 - Decision:
