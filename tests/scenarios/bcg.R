@@ -249,11 +249,9 @@ testthat::test_that("BCG Meta-Regression", {
 
   scenario_plot("fit_reg1_regplot", {regplot(fit_reg1, mod = "alloc")})
   scenario_plot("fit_reg1_emmplot", {
-    # The overlay methods now work; retain the reviewed snapshot until the
-    # qCMDE/IWMDE overlay is accepted in a visual-baseline review.
     plot(fit_reg1_emm, parameter = "alloc", prior = TRUE, xlim = c(-3, 3))
-    # lines(fit_reg1_emm, "alloc", density_method = "IWMDE", lty = 2)
-    # lines(fit_reg1_emm, "alloc", density_method = "qCMDE", lty = 2)
+    lines(fit_reg1_emm, "alloc", density_method = "IWMDE", lty = 2)
+    lines(fit_reg1_emm, "alloc", density_method = "qCMDE", lty = 2)
   })
 
 
@@ -278,12 +276,11 @@ testthat::test_that("BCG Meta-Regression", {
   # mean(temp_draws$`mu_alloc[1]` < 0.0) / (1 - mean(temp_draws$`mu_alloc[1]` < 0.0))
   set.seed(1)
   scenario_text("fit_reg1_BF_marglik", {print(BF_nullnull)})
-  # Named factor levels now resolve. Re-enable these text baselines after the
-  # fixed ordinate-budget decision in .agents/instructions-decisions.md.
-  #scenario_text("fit_reg1_BF_default", {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0")))})
-  #scenario_text("fit_reg1_BF_IWMDE",   {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0"), density_method = "IWMDE"))})
-  #scenario_text("fit_reg1_BF_qCMDE",   {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0"), density_method = "qCMDE"))})
+  scenario_text("fit_reg1_BF_default", {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0")))})
+  scenario_text("fit_reg1_BF_IWMDE",   {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0"), density_method = "IWMDE"))})
+  scenario_text("fit_reg1_BF_qCMDE",   {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0"), density_method = "qCMDE"))})
 
+  # FUTURE:
   # Cross-level point equality is a pending grammar/atom-semantics decision;
   # see .agents/instructions-decisions.md.
   # hypothesis(fit_reg1, hypothesis = c("alloc[random] < alloc[systematic] vs alloc[random] = alloc[systematic]"))
@@ -292,28 +289,32 @@ testthat::test_that("BCG Meta-Regression", {
   ### directional hypothesis tests for marginal means ----
 
   # these two match because its the default level
-  # Single-model mixed point/region hypotheses now use averaged marginals.
-  # Re-enable these baselines with the fixed ordinate-budget decision.
-  # set.seed(1)
-  # scenario_text("fit_reg1_mm_BF1", {print(rbind(
-  #   hypothesis(fit_reg1_emm, hypothesis = c("alloc[alternate] < 0 vs alloc[alternate] = 0")),
-  #   hypothesis(fit_reg1,     hypothesis = c("intercept < 0 vs intercept = 0"))
-  # ))})
+  set.seed(1)
+  scenario_text("fit_reg1_mm_BF1", {print(rbind(
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[alternate] < 0 vs alloc[alternate] = 0")),
+    hypothesis(fit_reg1,     hypothesis = c("intercept < 0 vs intercept = 0"))
+  ))})
   # the mm is larger because its additive effect
-  # scenario_text("fit_reg1_mm_BF2", {print(rbind(
-  #   hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),
-  #   hypothesis(fit_reg1,     hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"))
-  # ))})
-  # scenario_text("fit_reg1_mm_BF3", {print(rbind(
-  #   hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),
-  #   hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "IWMDE"),
-  #   hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "qCMDE")
-  # ))})
+  scenario_text("fit_reg1_mm_BF2", {print(rbind(
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),
+    hypothesis(fit_reg1,     hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"))
+  ))})
+  scenario_text("fit_reg1_mm_BF3", {print(rbind(
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "IWMDE"),
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "qCMDE")
+  ))})
 
   # This region comparison now uses averaged marginals and is covered by a
   # focused regression test.
-  # hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < alloc[alternate] vs alloc[random] > alloc[alternate]"))
+  scenario_text("fit_reg1_mm_BF2", {print(rbind(
+    hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),
+    hypothesis(fit_reg1,     hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"))
+  ))})
+  # TODO: this does not change anything?
+  hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < alloc[alternate] vs alloc[random] > alloc[alternate]"))
 
+  # FUTURE:
   # Symbolic right-hand-side equality is a pending grammar/atom-semantics
   # decision; see .agents/instructions-decisions.md.
   # hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < alloc[alternate] vs alloc[random] = alloc[alternate]"))
@@ -359,10 +360,8 @@ testthat::test_that("BCG Meta-Regression", {
   set.seed(1)
   scenario_plot("fit_reg2_posterior_ablat", {
     plot(fit_reg2, "ablat",  prior = TRUE)
-    # Exact original-scale IWMDE/qCMDE overlays now work. Retain the reviewed
-    # snapshot until the overlays are accepted in a visual-baseline review.
-    # lines(fit_reg2, "ablat", density_method = "IWMDE", lty = 2)
-    # lines(fit_reg2, "ablat", density_method = "qCMDE", lty = 2)
+    lines(fit_reg2, "ablat", density_method = "IWMDE", lty = 2)
+    lines(fit_reg2, "ablat", density_method = "qCMDE", lty = 2)
   })
   scenario_plot("fit_reg2_regplot", {regplot(fit_reg2, mod = "ablat")})
 
