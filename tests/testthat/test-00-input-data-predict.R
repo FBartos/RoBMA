@@ -330,6 +330,54 @@ test_that(".prepare_newdata accepts binomial cells for every prediction mode", {
 })
 
 
+test_that(".prepare_newdata accepts GLMM response sampling sizes without events", {
+
+  fit_bin <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i,
+    data = test_data_glmm, only_data = TRUE
+  )
+  bin_totals <- data.frame(
+    n1i = c(10L, 12L),
+    n2i = c(11L, 13L)
+  )
+  bin_result <- RoBMA:::.prepare_newdata(
+    object  = fit_bin,
+    newdata = bin_totals,
+    type    = "response"
+  )
+
+  expect_equal(bin_result[["outcome"]]["n1i"], bin_totals["n1i"])
+  expect_equal(bin_result[["outcome"]]["n2i"], bin_totals["n2i"])
+  expect_equal(bin_result[["outcome"]][["ai"]], c(0L, 0L))
+  expect_equal(bin_result[["outcome"]][["ci"]], c(0L, 0L))
+
+  poisson_data <- data.frame(
+    x1i = c(2L, 3L),
+    x2i = c(1L, 4L),
+    t1i = c(10, 12),
+    t2i = c(11, 13)
+  )
+  fit_pois <- brma.glmm(
+    x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+    data = poisson_data, measure = "IRR", only_data = TRUE
+  )
+  exposures <- data.frame(
+    t1i = c(20, 22),
+    t2i = c(21, 23)
+  )
+  pois_result <- RoBMA:::.prepare_newdata(
+    object  = fit_pois,
+    newdata = exposures,
+    type    = "response"
+  )
+
+  expect_equal(pois_result[["outcome"]]["t1i"], exposures["t1i"])
+  expect_equal(pois_result[["outcome"]]["t2i"], exposures["t2i"])
+  expect_equal(pois_result[["outcome"]][["x1i"]], c(0, 0))
+  expect_equal(pois_result[["outcome"]][["x2i"]], c(0, 0))
+})
+
+
 test_that(".prepare_newdata rejects inconsistent binomial cells and totals", {
 
   fit <- brma.glmm(

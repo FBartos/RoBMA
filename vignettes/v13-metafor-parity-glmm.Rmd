@@ -145,8 +145,10 @@ The Poisson model corresponds to @bagos2009mixed and uses event counts and expos
 ## Other Inference Helpers
 
 GLMM fits support meta-regression via `mods`, multilevel structures via `cluster`, location-scale models via `scale`, posterior summaries, plots, and predictions.
-Raw outcome residuals are available on the derived effect-size scale, but standardized residuals and LOO-PIT diagnostics are unavailable until a discrete PIT convention is defined.
-Estimate-unit `log_lik()`, LOO, and WAIC support accepted point and continuous nuisance priors; cluster-unit likelihood diagnostics remain unavailable.
+Binomial response predictions accept arm totals alone (`n1i`, `n2i`), optional event counts with those totals (`ai`, `ci`, `n1i`, `n2i`), or four-cell counts (`ai`, `bi`, `ci`, `di`); Poisson response predictions require exposures (`t1i`, `t2i`) and accept optional event counts (`x1i`, `x2i`).
+Raw outcome residuals are available on the derived effect-size scale, but Pearson and internally standardized residuals are unavailable for GLMMs.
+LOO-PIT diagnostics are also unavailable until a discrete PIT convention is defined.
+Estimate-unit `log_lik()`, LOO, and WAIC support point or beta baserate priors and point or normal log-rate priors, including supported truncations; cluster-unit likelihood diagnostics remain unavailable.
 Standalone `covratio()` and `dfbetas()` diagnostics are supported, whereas the combined `influence()` summary is not.
 See the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette for the general workflow and the [*Multilevel Meta-Analysis*](v10-metafor-parity-multilevel.html) vignette for multilevel structure.
 

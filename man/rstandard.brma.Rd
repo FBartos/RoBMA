@@ -68,10 +68,11 @@ residuals should approximately follow a standard normal distribution.
 
 This function is only available for normal outcome models without selection
 (weightfunction) bias adjustment. Selection models can use
-\code{\link{rstudent.brma}}, which uses LOO-PIT. Standardized residuals are
-unavailable for binomial and Poisson GLMMs because a discrete PIT convention
-has not been defined. Use \code{residuals(type = "outcome")} only when a
-descriptive raw effect-size-scale residual is appropriate.
+\code{\link{rstudent.brma}}, which uses LOO-PIT. Internally standardized
+residuals are unavailable for binomial and Poisson GLMMs because no
+count-likelihood standardization has been implemented. Use
+\code{residuals(type = "outcome")} only when a descriptive raw
+effect-size-scale residual is appropriate.
 }
 \examples{
 \dontrun{
