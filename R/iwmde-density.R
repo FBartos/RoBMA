@@ -609,11 +609,23 @@
   max_log_ratio    <- density_terms[["max_log_ratio"]]
   ess              <- density_terms[["ess"]]
   max_weight_share <- density_terms[["max_weight_share"]]
-  contributions    <- density_terms[["mcmc_contributions"]]
+  contributions      <- density_terms[["contributions"]]
+  mcmc_contributions <- density_terms[["mcmc_contributions"]]
 
-  mcse_data      <- .iwmde_batch_mcse(contributions)
+  mcse_data <- .iwmde_mixture_mcse(
+    contributions      = contributions,
+    mcmc_contributions = mcmc_contributions,
+    active_mass_error  = density_terms[["active_mass_error"]],
+    active_mass        = active_mass
+  )
   ess            <- mcse_data[["ess"]]
-  integral_mcse  <- .iwmde_integral_mcse(contributions, display_grid)
+  integral_mcse  <- .iwmde_integral_mcse(
+    contributions      = contributions,
+    mcmc_contributions = mcmc_contributions,
+    x                  = display_grid,
+    active_mass_error  = density_terms[["active_mass_error"]],
+    active_mass        = active_mass
+  )
   norm_y_initial <- .iwmde_normalization_density(
     log_q_norm         = log_q_initial,
     log_normalizer     = log_normalizer,
@@ -656,6 +668,15 @@
     max_weight_share       = max_weight_share,
     mcse                   = mcse_data[["mcse"]],
     relative_mcse          = mcse_data[["relative_mcse"]],
+    active_branch_mcse     = mcse_data[["active_branch_mcse"]],
+    active_branch_relative_mcse =
+      mcse_data[["active_branch_relative_mcse"]],
+    active_mass_mcse       = mcse_data[["active_mass_mcse"]],
+    active_mass_relative_mcse =
+      mcse_data[["active_mass_relative_mcse"]],
+    active_mass_component_mcse =
+      mcse_data[["active_mass_component_mcse"]],
+    mixture_mcse_type      = mcse_data[["mixture_mcse_type"]],
     sampling_mcse            = density_terms[["sampling_mcse"]],
     sampling_relative_mcse   = density_terms[["sampling_relative_mcse"]],
     sampling_fraction        = density_terms[["sampling_fraction"]],
@@ -854,7 +875,8 @@
   max_log_ratio    <- density_terms[["max_log_ratio"]]
   ess              <- density_terms[["ess"]]
   max_weight_share <- density_terms[["max_weight_share"]]
-  contributions    <- density_terms[["mcmc_contributions"]]
+  contributions      <- density_terms[["contributions"]]
+  mcmc_contributions <- density_terms[["mcmc_contributions"]]
 
   normalization <- .iwmde_iwmde_normalization(
     normalization_grid = normalization_grid,
@@ -865,9 +887,20 @@
     denominator        = n_candidate_rows
   )
 
-  mcse_data     <- .iwmde_batch_mcse(contributions)
+  mcse_data <- .iwmde_mixture_mcse(
+    contributions      = contributions,
+    mcmc_contributions = mcmc_contributions,
+    active_mass_error  = density_terms[["active_mass_error"]],
+    active_mass        = active_mass
+  )
   ess           <- mcse_data[["ess"]]
-  integral_mcse <- .iwmde_integral_mcse(contributions, display_grid)
+  integral_mcse <- .iwmde_integral_mcse(
+    contributions      = contributions,
+    mcmc_contributions = mcmc_contributions,
+    x                  = display_grid,
+    active_mass_error  = density_terms[["active_mass_error"]],
+    active_mass        = active_mass
+  )
 
   return(list(
     x                      = display_grid,
@@ -878,6 +911,15 @@
     max_weight_share       = max_weight_share,
     mcse                   = mcse_data[["mcse"]],
     relative_mcse          = mcse_data[["relative_mcse"]],
+    active_branch_mcse     = mcse_data[["active_branch_mcse"]],
+    active_branch_relative_mcse =
+      mcse_data[["active_branch_relative_mcse"]],
+    active_mass_mcse       = mcse_data[["active_mass_mcse"]],
+    active_mass_relative_mcse =
+      mcse_data[["active_mass_relative_mcse"]],
+    active_mass_component_mcse =
+      mcse_data[["active_mass_component_mcse"]],
+    mixture_mcse_type      = mcse_data[["mixture_mcse_type"]],
     sampling_mcse            = density_terms[["sampling_mcse"]],
     sampling_relative_mcse   = density_terms[["sampling_relative_mcse"]],
     sampling_fraction        = density_terms[["sampling_fraction"]],

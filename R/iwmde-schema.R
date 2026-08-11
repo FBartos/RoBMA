@@ -151,6 +151,10 @@
     "schema_version", "x", "y", "finite_terms", "max_log_ratio", "ess",
     "max_weight_share", "mcse", "relative_mcse", "sampling_mcse",
     "sampling_relative_mcse", "sampling_fraction",
+    "active_branch_mcse", "active_branch_relative_mcse",
+    "active_mass_mcse", "active_mass_relative_mcse",
+    "active_mass_component_mcse",
+    "mixture_mcse_type",
     "sampling_uncertainty_type", "mcmc_uncertainty_scope",
     "mcmc_uncertainty_status", "mcmc_uncertainty_reason", "n_candidate_rows",
     "n_evaluated_rows", "normalization_points", "normalization_range",
@@ -181,7 +185,9 @@
   n_values <- length(density[["x"]])
   vector_fields <- c(
     "y", "finite_terms", "max_log_ratio", "ess", "max_weight_share",
-    "mcse", "relative_mcse", "sampling_mcse", "sampling_relative_mcse"
+    "mcse", "relative_mcse", "sampling_mcse", "sampling_relative_mcse",
+    "active_branch_mcse", "active_branch_relative_mcse",
+    "active_mass_component_mcse"
   )
   valid_lengths <- vapply(
     vector_fields,
@@ -229,7 +235,16 @@
   if (!nonnegative_or_na(density[["mcse"]]) ||
       !nonnegative_or_na(density[["relative_mcse"]]) ||
       !nonnegative_or_na(density[["sampling_mcse"]]) ||
-      !nonnegative_or_na(density[["sampling_relative_mcse"]])) {
+      !nonnegative_or_na(density[["sampling_relative_mcse"]]) ||
+      !nonnegative_or_na(density[["active_branch_mcse"]]) ||
+      !nonnegative_or_na(density[["active_branch_relative_mcse"]]) ||
+      !nonnegative_or_na(density[["active_mass_component_mcse"]]) ||
+      !is.numeric(density[["active_mass_mcse"]]) ||
+      length(density[["active_mass_mcse"]]) != 1L ||
+      !nonnegative_or_na(density[["active_mass_mcse"]]) ||
+      !is.numeric(density[["active_mass_relative_mcse"]]) ||
+      length(density[["active_mass_relative_mcse"]]) != 1L ||
+      !nonnegative_or_na(density[["active_mass_relative_mcse"]])) {
     stop("Internal IWMDE density result has invalid Monte Carlo errors.",
          call. = FALSE)
   }
@@ -240,10 +255,18 @@
       density[["sampling_fraction"]] > 1 ||
       !identical(density[["sampling_uncertainty_type"]],
                  "finite_population_srswor") ||
+      !is.character(density[["mixture_mcse_type"]]) ||
+      length(density[["mixture_mcse_type"]]) != 1L ||
+      is.na(density[["mixture_mcse_type"]]) ||
+      !density[["mixture_mcse_type"]] %in% c(
+        "selected_continuous_rows_batch_means",
+        "full_conditioned_chain_batch_means",
+        "worst_correlation_delta_upper_bound"
+      ) ||
       !density[["mcmc_uncertainty_scope"]] %in% c(
         "selected_continuous_rows_only",
+        "selected_active_rows_with_mass_bound",
         "full_conditioned_rows",
-        "unavailable_incomplete_active_census",
         "unavailable_missing_selected_chain",
         "unavailable_insufficient_chain_batches"
       ) ||

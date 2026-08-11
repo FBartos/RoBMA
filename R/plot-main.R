@@ -352,7 +352,7 @@ lines.brma <- function(
   if (.effect_output_requested(plot_transform)) {
     args$transformation           <- .effect_plot_transformation(plot_transform)
     args$transformation_arguments <- NULL
-    args$transformation_settings  <- FALSE
+    args$transformation_settings  <- TRUE
   }
 
   # suppress messages about transformations

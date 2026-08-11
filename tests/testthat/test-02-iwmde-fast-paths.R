@@ -391,41 +391,68 @@ test_that("mixed estimates batch the full conditioned chain sequence", {
     sqrt(.95 / 200),
     tolerance = .005
   )
+  expect_equal(
+    density[["active_mass_error"]][["relative_mcse"]],
+    mixture_mcse[["relative_mcse"]]
+  )
   expect_equal(mixture_mcse[["uncertainty_scope"]], "full_conditioned_rows")
   expect_equal(mixture_mcse[["uncertainty_status"]], "available")
 
+  partial_rows <- active_rows[c(
+    seq_len(25L),
+    50L + seq_len(25L),
+    100L + seq_len(25L),
+    150L + seq_len(25L)
+  )]
+  partial_log_terms <- log(rep(c(.5, 1, 1.5, 2), 25L))
   partial <- .iwmde_density_aggregate(
-    log_terms                = matrix(0, nrow = 1L, ncol = 100L),
+    log_terms                = matrix(partial_log_terms, nrow = 1L),
     active_mass              = .05,
     denominator              = 100L,
-    contribution_rows        = active_rows[seq_len(100L)],
+    contribution_rows        = partial_rows,
     sampling_population_rows = active_rows,
-    chain_id                 = conditioned_chain_id[active_rows[seq_len(100L)]],
+    chain_id                 = conditioned_chain_id[partial_rows],
     expected_chain_ids       = 1:4,
     conditioned_rows         = conditioned_rows,
     conditioned_chain_id     = conditioned_chain_id
   )
-  partial_mcse <- .iwmde_batch_mcse(partial[["mcmc_contributions"]])
+  partial_mcse <- .iwmde_mixture_mcse(
+    contributions      = partial[["contributions"]],
+    mcmc_contributions = partial[["mcmc_contributions"]],
+    active_mass_error  = partial[["active_mass_error"]],
+    active_mass        = .05
+  )
 
-  expect_true(all(is.na(partial_mcse[["mcse"]])))
-  expect_true(all(is.na(partial_mcse[["relative_mcse"]])))
-  expect_true(all(is.na(partial_mcse[["ess"]])))
+  expect_true(all(is.finite(partial_mcse[["mcse"]])))
+  expect_true(all(is.finite(partial_mcse[["relative_mcse"]])))
+  expect_true(all(is.finite(partial_mcse[["ess"]])))
+  expect_gt(partial_mcse[["active_branch_mcse"]], 0)
+  expect_gt(partial_mcse[["active_mass_component_mcse"]], 0)
+  expect_equal(
+    partial_mcse[["mcse"]],
+    partial_mcse[["active_branch_mcse"]] +
+      partial_mcse[["active_mass_component_mcse"]]
+  )
   expect_equal(
     partial_mcse[["uncertainty_scope"]],
-    "unavailable_incomplete_active_census"
+    "selected_active_rows_with_mass_bound"
   )
-  expect_equal(partial_mcse[["uncertainty_status"]], "unavailable")
-  expect_match(partial_mcse[["uncertainty_reason"]], "100 of 200 active")
+  expect_equal(partial_mcse[["uncertainty_status"]], "available")
+  expect_null(partial_mcse[["uncertainty_reason"]])
+  expect_equal(
+    partial_mcse[["mixture_mcse_type"]],
+    "worst_correlation_delta_upper_bound"
+  )
 })
 
 
-test_that("partial mixed qCMDE density curves remain uncertified", {
+test_that("partial mixed qCMDE curves receive conservative diagnostics", {
 
   grid <- seq(0, 1, length.out = 21L)
   conditioned_rows <- seq_len(80L)
   conditioned_chain_id <- rep(1:2, each = 40L)
   active_rows <- c(seq(1L, 39L, by = 2L), seq(41L, 79L, by = 2L))
-  estimator_rows <- active_rows[seq_len(20L)]
+  estimator_rows <- active_rows[c(seq_len(10L), 20L + seq_len(10L))]
 
   testthat::local_mocked_bindings(
     .iwmde_log_q_grid = function(context, parameter, values, row_states,
@@ -460,13 +487,43 @@ test_that("partial mixed qCMDE density curves remain uncertified", {
     estimator = "q_grid_cmde"
   )
 
-  expect_true(all(is.na(density[["mcse"]])))
-  expect_true(all(is.na(density[["ess"]])))
+  continuous_density <- .iwmde_density_grid(
+    context            = list(),
+    parameter          = "mu",
+    display_grid       = grid,
+    normalization_grid = list(
+      x            = grid,
+      z            = grid,
+      log_jacobian = rep(0, length(grid))
+    ),
+    transform          = .iwmde_parameter_transform(c(0, 1)),
+    row_states         = rep(list(list()), 20L),
+    active_mass        = 1,
+    replacement        = list(type = "scalar"),
+    estimator_rows     = estimator_rows,
+    population_rows    = active_rows,
+    chain_id           = conditioned_chain_id[estimator_rows],
+    expected_chain_ids = 1:2
+  )
+  # At an atom location the continuous ordinate remains alpha * f_c; the
+  # complementary atom probability is not added to density height.
+  expect_equal(density[["y"]], .5 * continuous_density[["y"]])
+  expect_true(all(is.finite(density[["mcse"]])))
+  expect_true(all(is.finite(density[["ess"]])))
+  expect_equal(
+    density[["mcse"]],
+    density[["active_branch_mcse"]] +
+      density[["active_mass_component_mcse"]]
+  )
   expect_equal(
     density[["mcmc_uncertainty_scope"]],
-    "unavailable_incomplete_active_census"
+    "selected_active_rows_with_mass_bound"
   )
-  expect_equal(density[["mcmc_uncertainty_status"]], "unavailable")
+  expect_equal(density[["mcmc_uncertainty_status"]], "available")
+  expect_equal(
+    density[["mixture_mcse_type"]],
+    "worst_correlation_delta_upper_bound"
+  )
   expect_equal(density[["sampling_fraction"]], .5)
 })
 

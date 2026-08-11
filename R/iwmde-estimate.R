@@ -107,10 +107,14 @@
   sampling_target_met <- is.finite(metrics[["sampling_relative_mcse"]]) &&
     metrics[["sampling_relative_mcse"]] <=
       control[["target_relative_mcse"]]
-  bf_grade_met <- is.null(.iwmde_diagnostics_bf_failure_reason(
+  numerical_grade_met <- is.null(.iwmde_diagnostics_bf_failure_reason(
     diagnostic[["diagnostics"]]
   ))
   all_rows_used <- is.finite(eligible) && achieved >= eligible
+  bf_grade_met <- numerical_grade_met && !identical(
+    diagnostic[["diagnostics"]][["mixture_mcse_type"]],
+    "worst_correlation_delta_upper_bound"
+  )
   target_met <- precision_target_met && sampling_target_met && bf_grade_met
 
   sampling_design <- list(
@@ -731,6 +735,15 @@
     max_mcse                    = .iwmde_max_or_na(density[["mcse"]]),
     max_relative_mcse           =
       .iwmde_max_or_na(density[["relative_mcse"]]),
+    max_active_branch_mcse      =
+      .iwmde_max_or_na(density[["active_branch_mcse"]]),
+    max_active_branch_relative_mcse =
+      .iwmde_max_or_na(density[["active_branch_relative_mcse"]]),
+    active_mass_mcse            = density[["active_mass_mcse"]],
+    active_mass_relative_mcse   = density[["active_mass_relative_mcse"]],
+    max_active_mass_component_mcse =
+      .iwmde_max_or_na(density[["active_mass_component_mcse"]]),
+    mixture_mcse_type           = density[["mixture_mcse_type"]],
     max_sampling_mcse           =
       .iwmde_max_or_na(density[["sampling_mcse"]]),
     max_sampling_relative_mcse  =
@@ -795,6 +808,12 @@
       bf_diagnostics[["bf_pilot_ordinate_log_change"]],
     bf_mcse                     = bf_diagnostics[["bf_mcse"]],
     bf_relative_mcse            = bf_diagnostics[["bf_relative_mcse"]],
+    bf_active_branch_mcse       =
+      bf_diagnostics[["bf_active_branch_mcse"]],
+    bf_active_branch_relative_mcse =
+      bf_diagnostics[["bf_active_branch_relative_mcse"]],
+    bf_active_mass_component_mcse =
+      bf_diagnostics[["bf_active_mass_component_mcse"]],
     bf_sampling_mcse            = bf_diagnostics[["bf_sampling_mcse"]],
     bf_sampling_relative_mcse   =
       bf_diagnostics[["bf_sampling_relative_mcse"]],

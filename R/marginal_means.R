@@ -745,7 +745,7 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   args$n_points                 <- 1000
   args$transformation           <- .effect_plot_transformation(effect_transform)
   args$transformation_arguments <- NULL
-  args$transformation_settings  <- FALSE
+  args$transformation_settings  <- TRUE
   args$par_name                 <- dots[["xlab"]]
   args$dots_prior               <- dots_prior
   args$add                      <- add

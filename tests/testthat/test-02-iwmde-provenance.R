@@ -87,8 +87,8 @@ test_that("request keys carry schema and algorithm versions", {
     target_key     = "primitive|mu"
   )
 
-  expect_equal(request[["schema_version"]], "5")
-  expect_equal(request[["algorithm_version"]], "13")
+  expect_equal(request[["schema_version"]], "6")
+  expect_equal(request[["algorithm_version"]], "14")
 
   testthat::local_mocked_bindings(
     .iwmde_algorithm_version = function() "changed",
@@ -256,6 +256,12 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
     max_weight_share  = c(.02, .03),
     mcse              = c(.01, .01),
     relative_mcse     = c(.025, .033),
+    active_branch_mcse = c(.01, .01),
+    active_branch_relative_mcse = c(.025, .033),
+    active_mass_mcse = 0,
+    active_mass_relative_mcse = 0,
+    active_mass_component_mcse = c(0, 0),
+    mixture_mcse_type = "selected_continuous_rows_batch_means",
     sampling_mcse          = c(.005, .005),
     sampling_relative_mcse = c(.0125, .0165),
     sampling_fraction      = .5,
@@ -344,6 +350,12 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
   expect_error(
     .iwmde_new_density_result(invalid_ess),
     "effective sample sizes"
+  )
+  invalid_mixture_type <- density_fields
+  invalid_mixture_type[["mixture_mcse_type"]] <- "independent_components"
+  expect_error(
+    .iwmde_new_density_result(invalid_mixture_type),
+    "invalid uncertainty metadata"
   )
   invalid_counts                       <- density_fields
   invalid_counts[["n_evaluated_rows"]] <- 101L
@@ -525,8 +537,8 @@ test_that("plan keys carry schema and algorithm versions", {
   )
   payload <- .iwmde_plan_key_payload(plan)
 
-  expect_equal(payload[["schema_version"]], "5")
-  expect_equal(payload[["algorithm_version"]], "13")
+  expect_equal(payload[["schema_version"]], "6")
+  expect_equal(payload[["algorithm_version"]], "14")
   expect_identical(
     payload[["prior_ordinates"]],
     .iwmde_compact_nulls(prior_ordinates)

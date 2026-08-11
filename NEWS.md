@@ -59,7 +59,7 @@
   directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.20 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.21 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
@@ -89,6 +89,9 @@
   `set_contrast_factor_predictors` explicitly.
 
 ### Fixes
+- treats `xlim` as a displayed-scale range for transformed posterior and
+  marginal-means plots, so `EXP` prior curves extend toward zero instead of
+  starting at an exponentiated fitted-scale limit.
 - lets `ylim2` and `ylab2` control the secondary point-mass probability axis,
   keeps its mapping fixed across prior and posterior `lines()` overlays from
   multiple objects, and warns when an overlay falls outside the active limits
@@ -273,11 +276,13 @@
   continuous active posterior rows, preserving the fitted product-state mass
   without enumerating nuisance model states or forcing rare-state inclusion.
 - separates finite-population row-sampling uncertainty from selected-row MCMC
-  MCSE and effective sample size, requires per-chain batch coverage, and makes
-  MCMC diagnostics unavailable when a sample omits a fitted chain. Mixed
-  point/continuous ordinates adapt to a full active-row census and then batch
-  the full conditioned chain with inactive rows represented by zero
-  contributions, including product-state mass uncertainty and covariance.
+  MCSE and effective sample size and requires per-chain batch coverage. Mixed
+  point/continuous estimates may subsample the active rows: they report the
+  selected active-branch MCSE and the complete indicator-chain active-mass
+  MCSE separately and use their worst-correlation delta upper bound on the
+  unconditional density scale. A full active-row census still batches the
+  complete conditioned chain, including active-mass covariance, and is
+  required for strict Bayes-factor precision grading.
 - removes structurally inactive random-effect coordinates from marginal-
   likelihood replay when every corresponding standard deviation is fixed at
   zero, restoring exact zero-dimensional results.

@@ -131,6 +131,33 @@ test_that("plot.marginal_means warns on unused dots", {
   )
 })
 
+test_that("plot.marginal_means treats limits as transformed settings", {
+
+  emm                       <- .marginal_means_test_object()
+  emm[["input_measure"]]    <- "RR"
+  emm[["effect_transform"]] <- .effect_output_setup_measure("RR")
+  captured                  <- NULL
+  testthat::local_mocked_bindings(
+    plot_marginal = function(...) {
+      captured <<- list(...)
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- plot(
+    emm,
+    parameter = "alloc",
+    transform = "EXP",
+    xlim      = c(0, 2),
+    plot_type = "ggplot"
+  )
+
+  expect_s3_class(out, "mock_plot")
+  expect_true(captured[["transformation_settings"]])
+  expect_equal(captured[["xlim"]], c(0, 2))
+})
+
 
 test_that("lines.marginal_means adds posterior densities", {
 

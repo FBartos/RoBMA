@@ -124,6 +124,13 @@
     conditioned_chain_id    = conditioned_chain_id,
     active_mass             = active_mass
   )
+  active_mass_error <- .iwmde_active_mass_mcse(
+    active_population_rows = sampling_population_rows,
+    conditioned_rows       = conditioned_rows,
+    conditioned_chain_id   = conditioned_chain_id,
+    expected_chain_ids     = expected_chain_ids,
+    active_mass             = active_mass
+  )
 
   return(list(
     y                        = y,
@@ -133,6 +140,7 @@
     max_weight_share         = max_weight_share,
     contributions            = contributions,
     mcmc_contributions       = mcmc_contributions,
+    active_mass_error        = active_mass_error,
     sampling_mcse            = sampling_error[["mcse"]],
     sampling_relative_mcse   = sampling_error[["relative_mcse"]],
     sampling_fraction        = sampling_error[["sampling_fraction"]],
@@ -181,23 +189,18 @@
   has_active_census <- length(contribution_rows) ==
     length(active_population_rows) &&
     !anyNA(match(active_population_rows, contribution_rows))
-  if (!has_active_census) {
-    attr(contributions, "mcmc_uncertainty_scope") <-
-      "unavailable_incomplete_active_census"
-    attr(contributions, "mcmc_uncertainty_reason") <- paste0(
-      "mixed point/continuous ordinate evaluated ",
-      length(contribution_rows), " of ", length(active_population_rows),
-      " active posterior rows"
-    )
-    return(contributions)
-  }
-
   empirical_active_mass <- length(active_population_rows) /
     length(conditioned_rows)
   tolerance <- sqrt(.Machine$double.eps)
   if (!is.finite(active_mass) || active_mass <= 0 ||
       abs(active_mass - empirical_active_mass) > tolerance) {
     stop("Inconsistent active mass for IWMDE contributions.", call. = FALSE)
+  }
+
+  if (!has_active_census) {
+    attr(contributions, "mcmc_uncertainty_scope") <-
+      "selected_active_rows_with_mass_bound"
+    return(contributions)
   }
 
   full_contributions <- matrix(
@@ -218,6 +221,56 @@
     "full_conditioned_rows"
 
   return(full_contributions)
+}
+
+
+# Estimate uncertainty in the empirical active mass from the complete binary
+# product-space indicator sequence. In atom-free estimates the active mass is
+# identically one and this component is exactly zero.
+.iwmde_active_mass_mcse <- function(active_population_rows, conditioned_rows,
+                                    conditioned_chain_id, expected_chain_ids,
+                                    active_mass) {
+
+  if (is.null(conditioned_rows) && is.null(conditioned_chain_id)) {
+    return(list(
+      mcse               = 0,
+      relative_mcse      = 0,
+      uncertainty_status = "not_applicable",
+      uncertainty_reason = NULL
+    ))
+  }
+  if (is.null(conditioned_rows) || is.null(conditioned_chain_id) ||
+      length(conditioned_rows) == 0L ||
+      length(conditioned_rows) != length(conditioned_chain_id) ||
+      length(unique(conditioned_rows)) != length(conditioned_rows) ||
+      anyNA(conditioned_rows) || anyNA(conditioned_chain_id) ||
+      length(expected_chain_ids) == 0L || anyNA(expected_chain_ids) ||
+      anyNA(match(conditioned_chain_id, expected_chain_ids)) ||
+      anyNA(match(active_population_rows, conditioned_rows))) {
+    stop("Invalid active-mass chain metadata for IWMDE contributions.",
+         call. = FALSE)
+  }
+
+  indicator <- matrix(0, nrow = 1L, ncol = length(conditioned_rows))
+  indicator[, match(active_population_rows, conditioned_rows)] <- 1
+  empirical_active_mass <- mean(indicator)
+  tolerance <- sqrt(.Machine$double.eps)
+  if (!is.finite(active_mass) || active_mass <= 0 ||
+      abs(active_mass - empirical_active_mass) > tolerance) {
+    stop("Inconsistent active mass for IWMDE contributions.", call. = FALSE)
+  }
+
+  attr(indicator, "chain_id")           <- conditioned_chain_id
+  attr(indicator, "expected_chain_ids") <- expected_chain_ids
+  attr(indicator, "target")             <- active_mass
+  out <- .iwmde_batch_mcse(indicator)
+
+  return(list(
+    mcse               = out[["mcse"]][[1L]],
+    relative_mcse      = out[["relative_mcse"]][[1L]],
+    uncertainty_status = out[["uncertainty_status"]],
+    uncertainty_reason = out[["uncertainty_reason"]]
+  ))
 }
 
 
@@ -425,20 +478,113 @@
 }
 
 
-.iwmde_integral_mcse <- function(contributions, x) {
+# For p = alpha * f_c, the first-order MCMC error is
+# alpha * (f_c_hat - f_c) + f_c * (alpha_hat - alpha). With a partial active-row
+# sample the cross-lag covariance is not identified, so Cauchy-Schwarz gives the
+# conservative standard-error bound SE_active + |f_c_hat| * SE_alpha. The SRSWOR
+# finite-population error is reported separately and is not added here because
+# the selected-row sequence MCSE already diagnoses the estimator actually used.
+.iwmde_mixture_mcse <- function(contributions, mcmc_contributions,
+  active_mass_error, active_mass) {
 
-  n <- ncol(contributions)
-  if (n < 4L) {
-    return(list(mcse = NA_real_, relative_mcse = NA_real_))
+  active_branch <- .iwmde_batch_mcse(contributions)
+  requested_scope <- attr(
+    mcmc_contributions,
+    "mcmc_uncertainty_scope",
+    exact = TRUE
+  )
+  if (is.null(requested_scope)) {
+    requested_scope <- "selected_continuous_rows_only"
   }
+
+  target <- attr(contributions, "target", exact = TRUE)
+  if (is.null(target)) {
+    target <- rowMeans(contributions)
+  }
+  active_mass_mcse <- active_mass_error[["mcse"]]
+  active_mass_relative_mcse <- active_mass_error[["relative_mcse"]]
+  active_mass_component_mcse <- rep(NA_real_, length(target))
+  if (is.finite(active_mass) && active_mass > 0 &&
+      is.finite(active_mass_mcse)) {
+    active_mass_component_mcse <- abs(target / active_mass) *
+      active_mass_mcse
+  }
+  positive <- is.finite(target) & target > 0
+
+  if (identical(requested_scope, "full_conditioned_rows")) {
+    primary <- .iwmde_batch_mcse(mcmc_contributions)
+    mixture_mcse_type <- "full_conditioned_chain_batch_means"
+  } else if (identical(
+      requested_scope,
+      "selected_active_rows_with_mass_bound"
+    )) {
+    primary <- active_branch
+    primary[["uncertainty_scope"]] <- requested_scope
+    mixture_mcse_type <- "worst_correlation_delta_upper_bound"
+
+    available <- identical(
+      active_branch[["uncertainty_status"]],
+      "available"
+    ) && all(is.finite(active_branch[["mcse"]])) &&
+      all(is.finite(active_mass_component_mcse))
+    if (available) {
+      primary[["mcse"]] <- active_branch[["mcse"]] +
+        active_mass_component_mcse
+      primary[["relative_mcse"]] <- rep(NA_real_, length(target))
+      primary[["relative_mcse"]][positive] <-
+        primary[["mcse"]][positive] / target[positive]
+      primary[["uncertainty_status"]] <- "available"
+      primary[["uncertainty_reason"]] <- NULL
+    } else {
+      primary[["mcse"]]          <- rep(NA_real_, length(target))
+      primary[["relative_mcse"]] <- rep(NA_real_, length(target))
+      mass_status <- active_mass_error[["uncertainty_status"]]
+      primary[["uncertainty_status"]] <- if (
+        identical(active_branch[["uncertainty_status"]], "partial") ||
+        identical(mass_status, "partial")
+      ) {
+        "partial"
+      } else {
+        "unavailable"
+      }
+      reasons <- c(
+        active_branch[["uncertainty_reason"]],
+        active_mass_error[["uncertainty_reason"]]
+      )
+      reasons <- unique(reasons[!is.na(reasons) & nzchar(reasons)])
+      primary[["uncertainty_reason"]] <- if (length(reasons) == 0L) {
+        "active-branch or active-mass MCSE is unavailable"
+      } else {
+        paste(reasons, collapse = "; ")
+      }
+    }
+  } else {
+    primary <- active_branch
+    mixture_mcse_type <- "selected_continuous_rows_batch_means"
+  }
+
+  primary[["active_branch_mcse"]] <- active_branch[["mcse"]]
+  primary[["active_branch_relative_mcse"]] <-
+    active_branch[["relative_mcse"]]
+  primary[["active_mass_mcse"]] <- active_mass_mcse
+  primary[["active_mass_relative_mcse"]] <- active_mass_relative_mcse
+  primary[["active_mass_component_mcse"]] <-
+    active_mass_component_mcse
+  primary[["mixture_mcse_type"]] <- mixture_mcse_type
+
+  return(primary)
+}
+
+
+.iwmde_integral_contributions <- function(contributions, x) {
 
   integrals <- .iwmde_trapz_columns(
     x = x,
     y = contributions
   )
   finite <- is.finite(integrals)
-  if (sum(finite) < 4L) {
-    return(list(mcse = NA_real_, relative_mcse = NA_real_))
+  if (!any(finite)) {
+    return(NULL)
   }
 
   chain_id <- attr(contributions, "chain_id", exact = TRUE)
@@ -474,7 +620,28 @@
     x,
     attr(contributions, "target", exact = TRUE)
   )
-  mcse_data <- .iwmde_batch_mcse(integrals)
+
+  return(integrals)
+}
+
+
+.iwmde_integral_mcse <- function(contributions, mcmc_contributions, x,
+                                 active_mass_error, active_mass) {
+
+  active_integrals <- .iwmde_integral_contributions(contributions, x)
+  mcmc_integrals <- .iwmde_integral_contributions(
+    mcmc_contributions,
+    x
+  )
+  if (is.null(active_integrals) || is.null(mcmc_integrals)) {
+    return(list(mcse = NA_real_, relative_mcse = NA_real_))
+  }
+  mcse_data <- .iwmde_mixture_mcse(
+    contributions        = active_integrals,
+    mcmc_contributions   = mcmc_integrals,
+    active_mass_error    = active_mass_error,
+    active_mass          = active_mass
+  )
 
   return(list(
     mcse          = mcse_data[["mcse"]][[1L]],

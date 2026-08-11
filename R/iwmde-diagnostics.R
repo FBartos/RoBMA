@@ -309,7 +309,11 @@
 
   ess <- metrics[["ess"]]
   min_ess <- .iwmde_density_min_ess(estimator_rows)
-  if (!is.finite(ess) || ess < min_ess) {
+  partial_mixture_bound <- identical(
+    diagnostics[["mcmc_uncertainty_scope"]],
+    "selected_active_rows_with_mass_bound"
+  )
+  if (!is.finite(ess) || (ess < min_ess && !partial_mixture_bound)) {
     return(paste0(
       "density bulk effective sample size is ",
       .iwmde_count(ess),
@@ -421,7 +425,20 @@
   ess <- metrics[["ess"]]
   min_ess <- .iwmde_density_min_ess(estimator_rows)
   warning_min_ess <- .iwmde_density_warning_min_ess(estimator_rows)
-  if (is.finite(ess) &&
+  partial_mixture_bound <- identical(
+    diagnostics[["mcmc_uncertainty_scope"]],
+    "selected_active_rows_with_mass_bound"
+  )
+  if (partial_mixture_bound && is.finite(ess) && ess < min_ess) {
+    warnings <- c(warnings, paste0(
+      "Selected active-row density bulk effective sample size is ",
+      .iwmde_count(ess),
+      " (usual rejection threshold ",
+      .iwmde_count(min_ess),
+      "); the curve is retained because its conservative mixture-scale MCSE ",
+      "passes the quantitative density checks."
+    ))
+  } else if (is.finite(ess) &&
       ess >= min_ess &&
       ess < warning_min_ess) {
     warnings <- c(warnings, paste0(
@@ -542,6 +559,17 @@
 
   warnings <- character()
   precision_action <- .iwmde_fixed_sample_precision_action(diagnostics)
+
+  if (identical(
+      diagnostics[["mixture_mcse_type"]],
+      "worst_correlation_delta_upper_bound"
+    )) {
+    warnings <- c(warnings, paste0(
+      "Mixed point/continuous MCMC uncertainty uses the selected active-row ",
+      "MCSE plus a worst-correlation delta bound for active-mass uncertainty; ",
+      "the full-mixture chain covariance is not directly certified."
+    ))
+  }
 
   ordinate_warnings <- diagnostics[["ordinate_warnings"]]
   if (!is.null(ordinate_warnings)) {
@@ -998,6 +1026,9 @@
     bf_pilot_ordinate_log_change      = NA_real_,
     bf_mcse             = NA_real_,
     bf_relative_mcse    = NA_real_,
+    bf_active_branch_mcse = NA_real_,
+    bf_active_branch_relative_mcse = NA_real_,
+    bf_active_mass_component_mcse = NA_real_,
     bf_error_percent    = NA_real_,
     bf_finite_terms     = NA_integer_,
     bf_ess              = NA_real_,
@@ -1039,6 +1070,20 @@
     .iwmde_density_index_value(density, "pilot_ordinate_log_change", index)
   out[["bf_mcse"]]             <- .iwmde_density_index_value(density, "mcse", index)
   out[["bf_relative_mcse"]]    <- .iwmde_density_index_value(density, "relative_mcse", index)
+  out[["bf_active_branch_mcse"]] <-
+    .iwmde_density_index_value(density, "active_branch_mcse", index)
+  out[["bf_active_branch_relative_mcse"]] <-
+    .iwmde_density_index_value(
+      density,
+      "active_branch_relative_mcse",
+      index
+    )
+  out[["bf_active_mass_component_mcse"]] <-
+    .iwmde_density_index_value(
+      density,
+      "active_mass_component_mcse",
+      index
+    )
   if (!is.null(density[["sampling_mcse"]])) {
     out[["bf_sampling_mcse"]] <-
       .iwmde_density_index_value(density, "sampling_mcse", index)

@@ -6,7 +6,9 @@ source(testthat::test_path("common-functions.R"))
 .iwmde_fixed_test_diagnostics <- function(row_budget, relative_mcse,
                                           ess = row_budget,
                                           max_weight_share = 1 / row_budget,
-                                          sampling_relative_mcse = 0) {
+                                          sampling_relative_mcse = 0,
+                                          mixture_mcse_type =
+                                            "selected_continuous_rows_batch_means") {
 
   return(list(
     bf_relative_mcse             = relative_mcse,
@@ -16,6 +18,7 @@ source(testthat::test_path("common-functions.R"))
     bf_max_weight_share          = max_weight_share,
     bf_ordinate_relative_change  = 0,
     max_quadrature_relative_change = 0,
+    mixture_mcse_type              = mixture_mcse_type,
     estimator                    = "q_grid_cmde"
   ))
 }
@@ -65,6 +68,65 @@ test_that("density curves and ordinates share the samples control", {
       purpose = "ordinate"
     ),
     "unrecognized setting",
+    fixed = TRUE
+  )
+})
+
+
+test_that("partial mixed ordinates are usable but not strict BF grade", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_plan = function(context, parameter, density_method,
+                           density_control, outputs, values,
+                           parameter_spec, metadata) {
+      list(
+        rows = list(
+          continuous_rows = seq_len(100L),
+          n_candidate_rows = 20L
+        )
+      )
+    },
+    .iwmde_estimate_from_plan = function(context, plan, cache = NULL) {
+      diagnostics <- .iwmde_fixed_test_diagnostics(
+        row_budget        = 20L,
+        relative_mcse     = .04,
+        mixture_mcse_type = "worst_correlation_delta_upper_bound"
+      )
+      list(
+        diagnostics = list(ordinate = list(
+          status      = "ok",
+          diagnostics = diagnostics
+        )),
+        posterior_ordinate = list(
+          value       = 0,
+          ordinate    = 1,
+          diagnostics = diagnostics
+        )
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  estimate <- .iwmde_estimate_fixed_ordinate(
+    context         = list(),
+    parameter       = "mu",
+    density_method  = "qCMDE",
+    density_control = list(
+      samples              = 20L,
+      target_relative_mcse = .05
+    ),
+    values          = 0
+  )
+
+  expect_true(is.list(estimate[["posterior_ordinate"]]))
+  expect_true(estimate[["sampling_design"]][["precision_target_met"]])
+  expect_false(estimate[["sampling_design"]][["bf_grade_met"]])
+  expect_false(estimate[["sampling_design"]][["target_met"]])
+  expect_match(
+    paste(.iwmde_posterior_ordinate_warnings(
+      estimate[["posterior_ordinate"]]
+    ), collapse = " "),
+    "full-mixture chain covariance is not directly certified",
     fixed = TRUE
   )
 })
@@ -310,6 +372,10 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
     ess                               = 250,
     max_weight_share                  = .02,
     active_mass                       = 1,
+    active_branch_relative_mcse       = .02,
+    active_mass_relative_mcse         = .01,
+    mixture_mcse_type                 =
+      "full_conditioned_chain_batch_means",
     n_candidate_rows                  = 500L,
     n_evaluated_rows                  = 500L,
     sampling_relative_mcse            = .02,
@@ -365,7 +431,9 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
     "evaluation_value", "requested_samples", "achieved_row_budget",
     "eligible_rows",
     "evaluated_rows", "finite_terms",
-    "active_mass", "relative_mcse", "sampling_relative_mcse",
+    "active_mass", "relative_mcse", "active_branch_relative_mcse",
+    "active_mass_relative_mcse", "mixture_mcse_type",
+    "sampling_relative_mcse",
     "sampling_fraction", "mcmc_uncertainty_scope",
     "sampling_uncertainty_type", "ess", "max_weight_share",
     "normalization_relative_error", "stability_metric",
@@ -385,6 +453,12 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
   expect_equal(out[["requested_samples"]], 500)
   expect_equal(out[["achieved_row_budget"]], 500L)
   expect_equal(out[["relative_mcse"]], .03)
+  expect_equal(out[["active_branch_relative_mcse"]], .02)
+  expect_equal(out[["active_mass_relative_mcse"]], .01)
+  expect_equal(
+    out[["mixture_mcse_type"]],
+    "full_conditioned_chain_batch_means"
+  )
   expect_equal(out[["sampling_relative_mcse"]], .02)
   expect_equal(out[["sampling_fraction"]], .5)
   expect_equal(

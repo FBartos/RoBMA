@@ -69,11 +69,15 @@ BayesTools normal approximation for point-null hypotheses on fitted
 \code{brma} objects. \code{"qCMDE"} and \code{"IWMDE"} attach RoBMA
 likelihood-aware posterior ordinates for direct point-null hypotheses and
 propagate their \code{BF_error} estimates printed as \code{error\%(BF)}.
-\code{BF_error} is a conditional Monte Carlo error estimate for the computed
-posterior ordinate, not a complete standard error. It excludes uncertainty
-in the prior ordinate and, for IWMDE, uncertainty from estimating the
-conditional weight function. Use \code{density_diagnostics()} to inspect the
-attached computation and reliability diagnostics. For
+\code{BF_error} is a Monte Carlo diagnostic for the computed posterior
+ordinate, not a complete standard error. For a subsampled mixed posterior it
+is a worst-correlation delta upper bound combining the selected active-row
+and complete indicator-chain components. It excludes uncertainty in the
+prior ordinate and, for IWMDE, uncertainty from estimating the conditional
+weight function. At a location that is also a posterior atom, qCMDE/IWMDE
+reports the continuous ordinate; the atom probability is a separate discrete
+mass. Use \code{density_diagnostics()} to inspect the attached computation and
+reliability diagnostics. For
 \code{marginal_means.brma} objects, \code{"normal"} is not supported. Their
 default \code{NULL} reuses the density method stored by
 \code{marginal_means()}; explicitly request \code{"KDE"} to override it.

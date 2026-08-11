@@ -17,20 +17,35 @@
 #' whether the precision target was met, and whether the ordinate passed the
 #' independent numerical-stability gates. Finite row budgets use a reproducible
 #' simple random sample
-#' without replacement. For a purely continuous ordinate, `relative_mcse` and `ess`
-#' describe the selected continuous posterior-row sequence. For a mixed
+#' without replacement. For a purely continuous ordinate, `relative_mcse` and
+#' `ess` describe the selected continuous posterior-row sequence. For a mixed
 #' point/continuous ordinate evaluated on every active continuous row, they use
 #' the full conditioned-chain sequence, with zero contributions for inactive
-#' rows, and therefore include uncertainty in the active/product-space indicator
-#' mass. When only a subset of active rows is evaluated, these MCMC diagnostics
-#' are unavailable. `sampling_relative_mcse` separately estimates
-#' finite-population row-sampling uncertainty with its sampling fraction.
+#' rows, and therefore include active-mass uncertainty and its covariance with
+#' continuous contributions. With a subset of active rows,
+#' `active_branch_relative_mcse` describes the selected active-row contribution
+#' sequence and `active_mass_relative_mcse` comes from the complete binary
+#' indicator chain. `relative_mcse` is their conservative worst-correlation
+#' delta upper bound on the unconditional density scale. It is suitable as a
+#' descriptive precision diagnostic but does not certify the unobserved
+#' full-mixture covariance, so `bf_grade_met` remains false.
+#' `sampling_relative_mcse` separately reports the exact finite-population
+#' simple-random-sampling component conditional on the fitted rows. It is not
+#' added to the selected-row sequence MCSE, which already describes the actual
+#' selected estimator sequence.
+#'
+#' These fields concern the continuous density ordinate. At a location that is
+#' also a posterior atom, the atom probability remains a separate discrete mass
+#' and is never added to the density ordinate.
 #'
 #' The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 #' below 100, the largest contribution share is at least 20 percent, or fewer
 #' than 100 finite contributions remain. These same-sample diagnostics do not
 #' reject a finite fixed-design estimate. Their warning thresholds are returned
-#' as columns rather than being implicit.
+#' as columns rather than being implicit. For a descriptive mixed density curve
+#' using the conservative partial-row bound, a finite ESS below the usual curve
+#' rejection threshold is retained as a warning when the quantitative
+#' mixture-scale MCSE checks pass.
 #'
 #' qCMDE's full method diagnostics distinguish `pilot_normalization_integral`
 #' from `final_normalization_integral`; IWMDE uses
@@ -58,7 +73,8 @@
 #' `requested_value`, `evaluation_value`, `requested_samples`,
 #' `achieved_row_budget`, `eligible_rows`,
 #' `evaluated_rows`, `finite_terms`, `active_mass`, `relative_mcse`,
-#' `sampling_relative_mcse`,
+#' `active_branch_relative_mcse`, `active_mass_relative_mcse`,
+#' `mixture_mcse_type`, `sampling_relative_mcse`,
 #' `sampling_fraction`, `mcmc_uncertainty_scope`,
 #' `sampling_uncertainty_type`, `ess`, `max_weight_share`,
 #' `normalization_relative_error`, `stability_metric`,
@@ -255,6 +271,15 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     ),
     active_mass = .iwmde_public_numeric(diagnostics[["active_mass"]]),
     relative_mcse = .iwmde_public_numeric(diagnostics[["relative_mcse"]]),
+    active_branch_relative_mcse = .iwmde_public_numeric(
+      diagnostics[["active_branch_relative_mcse"]]
+    ),
+    active_mass_relative_mcse = .iwmde_public_numeric(
+      diagnostics[["active_mass_relative_mcse"]]
+    ),
+    mixture_mcse_type = .iwmde_public_character(
+      diagnostics[["mixture_mcse_type"]]
+    ),
     sampling_relative_mcse = .iwmde_public_numeric(
       diagnostics[["sampling_relative_mcse"]]
     ),
@@ -329,7 +354,9 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     requested_samples = numeric(), achieved_row_budget = integer(),
     eligible_rows = integer(),
     evaluated_rows = integer(), finite_terms = integer(), active_mass = numeric(),
-    relative_mcse = numeric(), sampling_relative_mcse = numeric(),
+    relative_mcse = numeric(), active_branch_relative_mcse = numeric(),
+    active_mass_relative_mcse = numeric(),
+    mixture_mcse_type = character(), sampling_relative_mcse = numeric(),
     sampling_fraction = numeric(), mcmc_uncertainty_scope = character(),
     sampling_uncertainty_type = character(), ess = numeric(),
     max_weight_share = numeric(),

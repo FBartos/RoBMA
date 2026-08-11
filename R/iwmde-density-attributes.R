@@ -216,6 +216,16 @@
     evaluation_value                  = diagnostics[["bf_evaluation_value"]],
     mcse                              = diagnostics[["bf_mcse"]],
     relative_mcse                     = diagnostics[["bf_relative_mcse"]],
+    active_branch_mcse                =
+      diagnostics[["bf_active_branch_mcse"]],
+    active_branch_relative_mcse       =
+      diagnostics[["bf_active_branch_relative_mcse"]],
+    active_mass_mcse                  = diagnostics[["active_mass_mcse"]],
+    active_mass_relative_mcse         =
+      diagnostics[["active_mass_relative_mcse"]],
+    active_mass_component_mcse        =
+      diagnostics[["bf_active_mass_component_mcse"]],
+    mixture_mcse_type                 = diagnostics[["mixture_mcse_type"]],
     sampling_mcse                     = diagnostics[["bf_sampling_mcse"]],
     sampling_relative_mcse            =
       diagnostics[["bf_sampling_relative_mcse"]],

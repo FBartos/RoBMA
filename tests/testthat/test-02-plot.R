@@ -191,6 +191,7 @@ test_that("plot.brma transforms coefficients and heterogeneity intercepts", {
   expect_identical(captured[["parameter"]], "log_tau_ni100")
   expect_equal(transformation[["fun"]](c(0, log(2))), c(1, 2))
   expect_equal(transformation[["jac"]](c(0, log(2))), c(1, 2))
+  expect_true(captured[["dots"]][["transformation_settings"]])
   expect_identical(
     captured[["dots"]][["par_name"]],
     "Heterogeneity: ni100 (multiplicative scale)"

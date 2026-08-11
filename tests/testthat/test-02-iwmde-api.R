@@ -766,6 +766,14 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     .iwmde_diagnostics_density_failure_reason(diagnostics),
     "bulk effective sample size"
   )
+  diagnostics[["mcmc_uncertainty_scope"]] <-
+    "selected_active_rows_with_mass_bound"
+  expect_null(.iwmde_diagnostics_density_failure_reason(diagnostics))
+  expect_match(
+    .iwmde_diagnostics_density_warning(diagnostics),
+    "Selected active-row density bulk effective sample size"
+  )
+  diagnostics[["mcmc_uncertainty_scope"]] <- NULL
   diagnostics[["bulk_min_ess"]] <- 120
 
   diagnostics[["bulk_max_weight_share"]] <- .12
@@ -1318,8 +1326,8 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
   ))
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
-  expect_equal(provenance[["schema_version"]], "5")
-  expect_equal(provenance[["algorithm_version"]], "13")
+  expect_equal(provenance[["schema_version"]], "6")
+  expect_equal(provenance[["algorithm_version"]], "14")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
