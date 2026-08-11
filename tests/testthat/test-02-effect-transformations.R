@@ -257,6 +257,44 @@ test_that("non-core measures are not converted across measures", {
   )
 })
 
+test_that("scale-regression plot coefficients can use EXP", {
+
+  data <- data.frame()
+  attr(data, "measure") <- "SMD"
+  object <- list(data = data)
+  entry  <- list(
+    component         = "scale",
+    term              = "ni100",
+    formula_parameter = "log_tau",
+    role              = "fixed_coefficient"
+  )
+
+  info           <- .plot_output_setup(
+    object          = object,
+    parameter       = "log_tau_ni100",
+    parameter_entry = entry,
+    transform       = "EXP"
+  )
+  transformation <- info[["transformation"]]
+
+  expect_true(info[["active"]])
+  expect_identical(info[["label"]], "multiplicative scale")
+  expect_equal(transformation[["fun"]](c(0, log(2))), c(1, 2))
+  expect_equal(transformation[["inv"]](c(1, 2)), c(0, log(2)))
+  expect_equal(transformation[["jac"]](c(0, log(2))), c(1, 2))
+
+  entry[["term"]] <- "intercept"
+  expect_error(
+    .plot_output_setup(
+      object          = object,
+      parameter       = "log_tau_intercept",
+      parameter_entry = entry,
+      transform       = "EXP"
+    ),
+    "scale-regression coefficients"
+  )
+})
+
 test_that("plot transformations use BayesTools forward Jacobian convention", {
 
   original_x    <- c(-1, 0, 1)

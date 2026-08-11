@@ -342,8 +342,26 @@
 
   transform <- .normalize_effect_transform(transform, allow_log = TRUE)
 
+  formula_parameter     <- parameter_entry[["formula_parameter"]]
+  has_formula_parameter <- (
+    is.character(formula_parameter) &&
+    length(formula_parameter) == 1L &&
+    !is.na(formula_parameter) &&
+    nzchar(formula_parameter)
+  )
+  is_formula_coef       <- (
+    identical(parameter_entry[["role"]], "fixed_coefficient") ||
+    identical(parameter_entry[["role"]], "formula_coefficient_group")
+  )
+
   is_effect_intercept <- .is_effect_location_parameter(parameter)
   is_location_coef    <- identical(parameter_entry[["component"]], "mods")
+  is_scale_coef       <- (
+    identical(parameter_entry[["component"]], "scale") &&
+    is_formula_coef &&
+    has_formula_parameter &&
+    !identical(parameter_entry[["term"]], "intercept")
+  )
   is_scale_intercept  <- (
     identical(parameter_entry[["component"]], "scale") &&
     identical(parameter_entry[["term"]], "intercept")
@@ -358,10 +376,24 @@
   }
 
   if (identical(transform, "EXP")) {
+    if (is_scale_coef) {
+      return(list(
+        input_measure  = .measure(object),
+        output_measure = .measure(object),
+        transform      = transform,
+        requested      = TRUE,
+        active         = TRUE,
+        transformation = .exp_effect_transformation(),
+        label          = "multiplicative scale",
+        note           = NULL
+      ))
+    }
+
     if (!is_effect_intercept && !is_location_coef) {
       stop(
-        "transform = 'EXP' is only available for effect-size location and ",
-        "meta-regression coefficients.",
+        "transform = 'EXP' is only available for effect-size location, ",
+        "location meta-regression coefficients, and scale-regression ",
+        "coefficients.",
         call. = FALSE
       )
     }

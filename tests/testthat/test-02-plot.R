@@ -180,6 +180,24 @@ test_that("plot.brma transforms coefficients and heterogeneity intercepts", {
 
   out <- plot(
     fits[["bangertdrowns2004_location-scale"]],
+    parameter = "ni100",
+    component = "scale",
+    transform = "EXP",
+    plot_type = "ggplot"
+  )
+  transformation <- captured[["dots"]][["transformation"]]
+
+  expect_s3_class(out, "mock_plot")
+  expect_identical(captured[["parameter"]], "log_tau_ni100")
+  expect_equal(transformation[["fun"]](c(0, log(2))), c(1, 2))
+  expect_equal(transformation[["jac"]](c(0, log(2))), c(1, 2))
+  expect_identical(
+    captured[["dots"]][["par_name"]],
+    "Heterogeneity: ni100 (multiplicative scale)"
+  )
+
+  out <- plot(
+    fits[["bangertdrowns2004_location-scale"]],
     parameter                 = "intercept",
     component                 = "scale",
     standardized_coefficients = TRUE,
