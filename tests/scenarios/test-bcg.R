@@ -370,6 +370,8 @@ testthat::test_that("BCG Meta-Regression", {
     lines(fit_reg2, "ablat", density_method = "qCMDE", lty = 2)
   })
   scenario_plot("fit_reg2_regplot", {regplot(fit_reg2, mod = "ablat")})
+  scenario_plot("fit_reg2_regplot_si",  {regplot(fit_reg2, mod = "ablat", si = TRUE)})
+  scenario_plot("fit_reg2_regplot_si2", {regplot(fit_reg2, mod = "ablat", si = TRUE, sei = 0.1)})
 
   ### directional hypothesis tests ----
   set.seed(1)

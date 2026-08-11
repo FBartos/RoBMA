@@ -1,0 +1,6 @@
+                                         Alternative:                                       Null:    BF error%(BF)
+mu_alloc      mu_alloc[random] < mu_alloc[systematic] mu_alloc[random] - mu_alloc[systematic] = 0 1.597         NA
+mu_alloc1 mu_alloc[random] - mu_alloc[systematic] < 0 mu_alloc[random] - mu_alloc[systematic] = 0 1.597         NA
+mu_alloc2     mu_alloc[random] < mu_alloc[systematic] mu_alloc[random] - mu_alloc[systematic] = 0 1.661      1.087
+mu_alloc3 mu_alloc[random] - mu_alloc[systematic] < 0 mu_alloc[random] - mu_alloc[systematic] = 0 1.661      1.087
+mu_alloc4     mu_alloc[random] < mu_alloc[systematic] mu_alloc[random] - mu_alloc[systematic] = 0 1.601      0.974
