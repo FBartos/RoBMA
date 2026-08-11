@@ -160,3 +160,46 @@ test_that("point-null references must be direct", {
     0L
   )
 })
+
+
+test_that("only cross-level point contrasts bypass the direct guard", {
+
+  contrast <- BayesTools::hypothesis_parse(paste(
+    "mu_alloc[random] < mu_alloc[systematic] vs",
+    "mu_alloc[random] = mu_alloc[systematic]"
+  ))
+  expect_true(.hypothesis_brma_level_contrast_candidate(
+    contrast,
+    parameter = "mu_alloc"
+  ))
+  expect_false(.hypothesis_brma_level_contrast_candidate(
+    BayesTools::hypothesis_parse("2 * mu = 0"),
+    parameter = "mu"
+  ))
+  expect_false(.hypothesis_brma_level_contrast_candidate(
+    BayesTools::hypothesis_parse("mu_alloc[random] + 0 = 0"),
+    parameter = "mu_alloc"
+  ))
+  expect_false(.hypothesis_brma_level_contrast_candidate(
+    BayesTools::hypothesis_parse(
+      "mu_alloc[random] = other_alloc[systematic]"
+    ),
+    parameter = "mu_alloc"
+  ))
+
+  expect_error(
+    .hypothesis_brma_level_contrast_BF(
+      object          = structure(list(), class = c("RoBMA", "brma")),
+      posterior       = NULL,
+      hypothesis      = contrast,
+      parameter       = "mu_alloc",
+      density_method  = "KDE",
+      density_control = NULL,
+      logBF           = FALSE,
+      BF01            = FALSE,
+      seed            = NULL,
+      columns         = NULL
+    ),
+    "only for a single fitted model"
+  )
+})

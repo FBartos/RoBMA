@@ -55,6 +55,42 @@ test_that("random-slope regplot variance replays its prediction grid", {
   expect_equal(unname(out), unname(expected), tolerance = 1e-12)
 })
 
+
+test_that("regplot prediction precision follows or overrides precision moderators", {
+
+  vi <- c(0.01, 0.04)
+  vi_grid <- .regplot_prediction_precision(
+    newdata       = data.frame(vi = vi),
+    mod_name      = "vi",
+    n_pred        = length(vi),
+    default_sei   = 1,
+    reference_sei = NULL
+  )
+  expect_equal(vi_grid[["sei"]], sqrt(vi))
+  expect_equal(vi_grid[["newdata"]][["vi"]], vi)
+
+  sei <- c(0.1, 0.2)
+  sei_grid <- .regplot_prediction_precision(
+    newdata       = data.frame(sei = sei),
+    mod_name      = "sei",
+    n_pred        = length(sei),
+    default_sei   = 1,
+    reference_sei = NULL
+  )
+  expect_equal(sei_grid[["sei"]], sei)
+  expect_equal(sei_grid[["newdata"]][["sei"]], sei)
+
+  override <- .regplot_prediction_precision(
+    newdata       = data.frame(year = 1:2, vi = vi),
+    mod_name      = "year",
+    n_pred        = length(vi),
+    default_sei   = 1,
+    reference_sei = 0.3
+  )
+  expect_equal(override[["sei"]], rep(0.3, length(vi)))
+  expect_equal(override[["newdata"]][["vi"]], rep(0.3^2, length(vi)))
+})
+
 # list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
@@ -274,6 +310,30 @@ test_that("Regression plot for multilevel model renders fitted moderator", {
   })
 
   expect_s3_class(.test_regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
+
+  plot_data <- .test_regplot(
+    fit_brma,
+    mod      = mod,
+    si       = TRUE,
+    as_data  = TRUE
+  )
+  expect_equal(plot_data[["sei"]], sqrt(plot_data[["pred"]][["x"]]))
+  expect_true(all(is.finite(plot_data[["si"]][["lower"]])))
+  expect_true(all(is.finite(plot_data[["si"]][["upper"]])))
+  expect_error(
+    .test_regplot(fit_brma, mod = mod, sei = 0.1),
+    "cannot be supplied"
+  )
+
+  sei_grid <- c(0.1, 0.2)
+  sei_newdata <- .regplot_add_dummy_outcome(
+    x       = fit_brma,
+    newdata = data.frame(sei = sei_grid),
+    n_pred  = length(sei_grid),
+    sei     = 1
+  )
+  expect_equal(sei_newdata[["sei"]], sei_grid)
+  expect_equal(sei_newdata[["vi"]], sei_grid^2)
 })
 
 # ============================================================================ #

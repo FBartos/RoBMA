@@ -523,12 +523,91 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
     ),
     n_samples       = 1000
   )
+  contrast <- paste(
+    "alloc[random] < alloc[systematic] vs",
+    "alloc[random] = alloc[systematic]"
+  )
+  contrast_explicit <- paste(
+    "alloc[random] - alloc[systematic] < 0 vs",
+    "alloc[random] - alloc[systematic] = 0"
+  )
+  contrast_kde <- hypothesis(
+    fit,
+    contrast,
+    density_method = "KDE",
+    columns        = "all",
+    seed           = 11,
+    n_samples      = 1000
+  )
+  contrast_explicit_kde <- hypothesis(
+    fit,
+    contrast_explicit,
+    density_method = "KDE",
+    columns        = "all",
+    seed           = 11,
+    n_samples      = 1000
+  )
+  contrast_qcmde <- hypothesis(
+    fit,
+    contrast,
+    density_method  = "qCMDE",
+    density_control = list(
+      n_points             = 40,
+      max_samples          = 120,
+      normalization_points = 50
+    ),
+    columns   = "all",
+    seed      = 11,
+    n_samples = 1000
+  )
+  contrast_iwmde <- hypothesis(
+    fit,
+    contrast,
+    density_method  = "IWMDE",
+    density_control = list(
+      n_points             = 40,
+      max_samples          = 120,
+      normalization_points = 50
+    ),
+    columns   = "all",
+    seed      = 11,
+    n_samples = 1000
+  )
+  baseline_contrast_qcmde <- hypothesis(
+    fit,
+    paste(
+      "alloc[random] < alloc[alternate] vs",
+      "alloc[random] = alloc[alternate]"
+    ),
+    density_method  = "qCMDE",
+    density_control = list(
+      n_points             = 40,
+      max_samples          = 120,
+      normalization_points = 50
+    ),
+    columns   = "all",
+    seed      = 11,
+    n_samples = 1000
+  )
 
   expect_equal(level_bf[["method"]], "prior-posterior odds")
   expect_true(is.finite(attr(level_bf, "raw_BF")))
   expect_true(is.finite(level_bf[["BF_error"]]))
   expect_true(all(point_bf[["method"]] == "Savage-Dickey (precomputed)"))
   expect_true(all(is.finite(point_bf[["BF_error"]])))
+  expect_equal(
+    attr(contrast_kde, "raw_BF"),
+    attr(contrast_explicit_kde, "raw_BF"),
+    tolerance = 1e-12
+  )
+  expect_identical(contrast_qcmde[["method"]], "transitive Savage-Dickey")
+  expect_identical(contrast_iwmde[["method"]], "transitive Savage-Dickey")
+  expect_true(is.finite(attr(contrast_qcmde, "raw_BF")))
+  expect_true(is.finite(attr(contrast_iwmde, "raw_BF")))
+  expect_true(is.finite(attr(baseline_contrast_qcmde, "raw_BF")))
+  expect_true(is.finite(contrast_qcmde[["BF_error"]]))
+  expect_true(is.finite(contrast_iwmde[["BF_error"]]))
+  expect_true(is.finite(baseline_contrast_qcmde[["BF_error"]]))
   expect_error(
     hypothesis(
       fit,

@@ -342,12 +342,12 @@ test_that("native regplot selection intervals match R reference", {
   set.seed(131)
   S            <- 15L
   K            <- 4L
-  se           <- .14
+  se           <- seq(.11, .17, length.out = K)
   probs        <- c(.025, .975)
   mean_samples <- matrix(rnorm(S * K, 0, .35), nrow = S, ncol = K)
   sd_samples   <- matrix(runif(S * K, .02, .30), nrow = S, ncol = K)
   sd_samples[c(3, 11)] <- sqrt(.Machine$double.eps) / 10
-  spec         <- .test_step_spec(yi = seq_len(K) / 10, sei = rep(se, K))
+  spec         <- .test_step_spec(yi = seq_len(K) / 10, sei = se)
 
   selection <- spec
   selection[["omega"]]       <- matrix(

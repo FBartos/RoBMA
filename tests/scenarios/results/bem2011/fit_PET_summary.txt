@@ -2,11 +2,11 @@
 Bayesian Random-Effects PET Model (k = 9)
 
 Estimates
-      Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-mu  -0.015 0.162 -0.391 0.016 0.212     0.01052          0.065  250 1.022
-tau  0.039 0.033  0.001 0.031 0.121     0.00054          0.016 3806 1.001
+      Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+mu  -0.009 0.159 -0.369 0.021 0.214     0.00514          0.032   962 1.003
+tau  0.039 0.033  0.001 0.031 0.122     0.00028          0.008 14429 1.002
 
 Publication Bias
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
-PET 2.297 1.692 0.112 1.935 6.311     0.11179          0.066 247 1.023
+PET 2.234 1.660 0.105 1.879 6.042     0.05612          0.034 897 1.003
 

@@ -117,24 +117,17 @@ test_that("scenario_text rejects missing baselines when creation is disabled", {
 })
 
 
-test_that("scenario_text replays captured output interactively", {
+test_that("scenario_text replays captured output when requested", {
 
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
-  helper_env      <- environment(scenario_text)
-  old_interactive <- get(".scenario_is_interactive", envir = helper_env)
-  on.exit(assign(
-    ".scenario_is_interactive",
-    old_interactive,
-    envir = helper_env
-  ), add = TRUE)
-  assign(
-    ".scenario_is_interactive",
-    function() TRUE,
-    envir = helper_env
-  )
 
-  scenario_start("unit", root = root, create_missing = TRUE)
+  scenario_start(
+    "unit",
+    root           = root,
+    show_output    = TRUE,
+    create_missing = TRUE
+  )
   expect_output(
     scenario_text("visible", print("interactive output")),
     '[1] "interactive output"',
@@ -173,18 +166,19 @@ test_that("scenario_plot accepts mixed-case names and draws once", {
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   helper_env   <- environment(scenario_plot)
-  helper_names <- c(
-    ".scenario_is_interactive",
-    ".scenario_snapshot_context"
-  )
+  helper_names <- ".scenario_snapshot_context"
   old_helpers <- mget(helper_names, envir = helper_env, inherits = FALSE)
   on.exit(list2env(old_helpers, envir = helper_env), add = TRUE)
-  assign(".scenario_is_interactive", function() TRUE, envir = helper_env)
   assign(".scenario_snapshot_context", function() NULL, envir = helper_env)
   state <- new.env(parent = emptyenv())
   state[["draws"]] <- 0L
 
-  scenario_start("unit", root = root, create_missing = TRUE)
+  scenario_start(
+    "unit",
+    root           = root,
+    show_output    = TRUE,
+    create_missing = TRUE
+  )
   .with_temp_plot_device({
     graphics::plot(1:3, 1:3)
     graphics::par(new = TRUE)
@@ -212,26 +206,9 @@ test_that("scenario_plot delegates plot comparison to vdiffr", {
     root           = testthat::test_path(),
     create_missing = TRUE
   )
-  helper_env      <- environment(scenario_plot)
-  old_interactive <- get(".scenario_is_interactive", envir = helper_env)
-  on.exit(assign(
-    ".scenario_is_interactive",
-    old_interactive,
-    envir = helper_env
-  ), add = TRUE)
-  assign(
-    ".scenario_is_interactive",
-    function() TRUE,
-    envir = helper_env
-  )
-  draws <- new.env(parent = emptyenv())
-  draws[["count"]] <- 0L
-
   .with_temp_plot_device({
     scenario_plot("simple-base-plot", {
-      draws[["count"]] <- draws[["count"]] + 1L
       graphics::plot(1:3, 1:3, xlab = "x", ylab = "y")
     })
   })
-  expect_gte(draws[["count"]], 2L)
 })
