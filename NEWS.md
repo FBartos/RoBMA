@@ -1,5 +1,9 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- warns when `hypothesis()` uses the full product-space ensemble for a
+  parameter with both null and alternative components because `conditional`
+  was omitted; explicitly set `conditional = FALSE` to retain the full-ensemble
+  test without the warning, or `conditional = TRUE` to test only active models.
 - supports atom-free pairwise point contrasts across levels of one fitted model,
   including symbolic equalities and KDE, qCMDE, or IWMDE inference for fitted
   and marginal-means hypotheses, and accepts equivalent constant-left scalar

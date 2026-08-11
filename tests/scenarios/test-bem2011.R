@@ -140,3 +140,102 @@ testthat::test_that("Bem simple models", {
   })
 
 })
+
+testthat::test_that("Bem BMA models", {
+  set.seed(1)
+
+  data(Bem2011, package = "RoBMA")
+
+  fit_BMA <- scenario_fit("fit_BMA", {
+    tmp <- BMA(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_RoBMA <- scenario_fit("fit_RoBMA", {
+    tmp <- RoBMA(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1,
+                 adapt = 5000, burnin = 5000, sample = 20000)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_BMA_con <- scenario_fit("fit_BMA_con", {
+    tmp <- BMA(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1,
+               prior_effect_null = FALSE)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_RoBMA_con <- scenario_fit("fit_RoBMA_con", {
+    tmp <- RoBMA(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1,
+                 prior_effect_null = FALSE,
+                 adapt = 5000, burnin = 5000, sample = 20000)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+
+  ### simple summary ----
+  scenario_text("fit_BMA_summary",   {summary(fit_BMA)})
+  scenario_text("fit_RoBMA_summary", {summary(fit_RoBMA)})
+  scenario_text("fit_BMA_summary_con",   {summary(fit_BMA_con)})
+  scenario_text("fit_RoBMA_summary_con", {summary(fit_RoBMA_con)})
+  scenario_text("fit_BMA_summary_con2",   {summary(fit_BMA, conditional = TRUE)})
+  scenario_text("fit_RoBMA_summary_con2", {summary(fit_RoBMA, conditional = TRUE)})
+
+  scenario_text("fit_BMA_summary_models",   {summary_models(fit_BMA)})
+  scenario_text("fit_RoBMA_summary_models", {summary_models(fit_RoBMA)})
+
+
+  ### basic fit plots ----
+  set.seed(1)
+  scenario_plot("fit_average_posterior_mu", {
+    plot(fit_BMA, "mu", ylim = c(0, 12.5), xlim = c(-0.5, 0.5), prior = TRUE)
+    lines(fit_BMA, "mu", density_method = "IWMDE", lty = 2)
+
+    # TODO: the probability scaling of the spike is incorrect
+    # (the spike is scaled according to the RoBMA's density rather than the already plotted BMA prior's density)
+    lines(fit_RoBMA, "mu", col = "blue")
+    lines(fit_RoBMA, "mu", density_method = "qCMDE", lty = 2, col = "blue",
+          density_control = list(samples = Inf))
+  })
+
+  scenario_plot("fit_conditional_posterior_mu", {
+    plot(fit_BMA, "mu", ylim = c(0, 12.5), xlim = c(-0.5, 0.5), prior = TRUE, conditional = TRUE)
+    lines(fit_BMA, "mu", density_method = "IWMDE", lty = 2, conditional = TRUE)
+
+    lines(fit_RoBMA, "mu", col = "blue", conditional = TRUE)
+    lines(fit_RoBMA, "mu", density_method = "qCMDE", lty = 2, col = "blue",
+          density_control = list(samples = Inf), conditional = TRUE)
+  })
+
+  ### bias specific plots ----
+  set.seed(1)
+  scenario_plot("fit_RoBMA_weight", {plot_weightfunction(fit_RoBMA)})
+  scenario_plot("fit_RoBMA_PET",    {plot_pet_peese(fit_RoBMA, ylim = c(-1, 5), xlim = c(0, 1))})
+
+  ### fit specific plots ----
+  set.seed(1)
+  z_fit_BMA   <- as_zplot(fit_BMA)
+  z_fit_RoBMA <- as_zplot(fit_RoBMA)
+
+  scenario_plot("zplot_averaged", {
+    hist(z_fit_RoBMA, from = -4)
+
+    lines(z_fit_BMA)
+    lines(z_fit_RoBMA, col = "blue")
+  })
+
+  set.seed(1)
+  scenario_plot("funnel_BMA",   {funnel(fit_BMA)})
+  scenario_plot("funnel_RoBMA", {funnel(fit_RoBMA)})
+
+  set.seed(1)
+  scenario_plot("qqnorm_BMA",   {qqnorm(fit_BMA)})
+  scenario_plot("qqnorm_RoBMA", {qqnorm(fit_RoBMA)})
+
+  ### hypotheses ----
+  fit_BMA_con
+
+  hypothesis(fit_BMA, hypothesis = "mu=0.2", density_method = "IWMDE")
+  hypothesis(fit_BMA, hypothesis = "mu>0.2", density_method = "IWMDE")
+
+
+
+})

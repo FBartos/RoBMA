@@ -137,7 +137,11 @@ unconditional scalar targets. Publication-bias parameters are not supported.}
 are tested on the standardized predictor scale. Defaults to \code{FALSE}.}
 
 \item{conditional}{whether to use the conditional posterior for product-space
-model-averaging objects. Defaults to \code{FALSE}.}
+model-averaging objects. Defaults to \code{FALSE}. When this argument is
+omitted and the selected parameter has both null and alternative components,
+a warning notes that the full ensemble is used. Pass \code{FALSE} explicitly
+to retain that test without the warning, or \code{TRUE} to test only models
+where the parameter is active.}
 
 \item{n_samples}{number of prior samples/grid points used by BayesTools for
 deterministic marginal prior densities.}

@@ -44,6 +44,92 @@ source(testthat::test_path("common-functions.R"))
 }
 
 
+test_that("hypothesis warns only for omitted conditioning on null-component ensembles", {
+
+  null_prior <- BayesTools::prior(
+    "spike",
+    parameters = list(location = 0)
+  )
+  alternative_prior <- BayesTools::prior(
+    "normal",
+    parameters = list(mean = 0, sd = 1)
+  )
+  mixture_prior <- BayesTools::prior_mixture(
+    prior_list = list(null_prior, alternative_prior),
+    is_null    = c(TRUE, FALSE)
+  )
+  alternative_only_prior <- BayesTools::prior_mixture(
+    prior_list = list(alternative_prior),
+    is_null    = FALSE
+  )
+  make_object <- function(prior, classes) {
+
+    fit <- list(dummy = TRUE)
+    attr(fit, "prior_list") <- list(mu = prior)
+    structure(list(fit = fit), class = classes)
+  }
+  product_space_object <- make_object(
+    mixture_prior,
+    c("BMA.norm", "RoBMA", "brma")
+  )
+  alternative_only_object <- make_object(
+    alternative_only_prior,
+    c("BMA.norm", "RoBMA", "brma")
+  )
+  single_model_object <- make_object(mixture_prior, "brma")
+  warning_message <- paste0(
+    "Model-averaged coefficient test: this hypothesis uses the full ensemble ",
+    "for mu, including models where mu is fixed by its null component. To test ",
+    "the hypothesis only within models where mu is active, use conditional = TRUE."
+  )
+
+  testthat::local_mocked_bindings(
+    .hypothesis_brma_select_parameter = function(...) {
+      list(
+        parameter = "mu",
+        aliases   = list(mu = "mu"),
+        component = "outcome",
+        entry     = list()
+      )
+    },
+    .hypothesis_brma_formula_coefficient_target = function(...) NULL,
+    .brma_as_mixed_posteriors = function(...) {
+      stop("downstream sentinel", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+
+  capture_warnings <- function(object, ...) {
+
+    observed <- character()
+    expect_error(
+      withCallingHandlers(
+        hypothesis.brma(object, "mu > 0", ...),
+        warning = function(condition) {
+          observed <<- c(observed, conditionMessage(condition))
+          invokeRestart("muffleWarning")
+        }
+      ),
+      "downstream sentinel",
+      fixed = TRUE
+    )
+    observed
+  }
+
+  expect_identical(capture_warnings(product_space_object), warning_message)
+  expect_length(
+    capture_warnings(product_space_object, conditional = FALSE),
+    0L
+  )
+  expect_length(
+    capture_warnings(product_space_object, conditional = TRUE),
+    0L
+  )
+  expect_length(capture_warnings(alternative_only_object), 0L)
+  expect_length(capture_warnings(single_model_object), 0L)
+})
+
+
 .hypothesis_expect_bridge_agreement <- function(result, null, full,
                                                 hard_tolerance          = 0.05,
                                                 uncertainty_multiplier = 3,
@@ -1567,7 +1653,8 @@ test_that("compound point nulls cannot bypass declared atoms", {
       fit,
       "mu = 0",
       density_method = "KDE",
-      n_samples      = 200
+      n_samples      = 200,
+      conditional    = FALSE
     ),
     "declared point mass"
   )
@@ -1576,7 +1663,8 @@ test_that("compound point nulls cannot bypass declared atoms", {
       fit,
       "2 * mu = 0",
       density_method = "KDE",
-      n_samples      = 200
+      n_samples      = 200,
+      conditional    = FALSE
     ),
     "direct parameter or level reference"
   )

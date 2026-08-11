@@ -128,7 +128,11 @@ hypothesis.default <- function(object, ...) {
 #' @param standardized_coefficients whether moderator and scale coefficients
 #' are tested on the standardized predictor scale. Defaults to \code{FALSE}.
 #' @param conditional whether to use the conditional posterior for product-space
-#' model-averaging objects. Defaults to \code{FALSE}.
+#' model-averaging objects. Defaults to \code{FALSE}. When this argument is
+#' omitted and the selected parameter has both null and alternative components,
+#' a warning notes that the full ensemble is used. Pass \code{FALSE} explicitly
+#' to retain that test without the warning, or \code{TRUE} to test only models
+#' where the parameter is active.
 #' @param logBF whether to display the Bayes factor on the log scale.
 #' @param BF01 whether to display the inverse Bayes factor.
 #' @param seed optional seed used by BayesTools for sampled prior quantities.
@@ -201,6 +205,8 @@ hypothesis.brma <- function(object, hypothesis,
                             n_samples = 10000,
                             columns = "default", ...) {
 
+  conditional_omitted <- missing(conditional)
+
   if (is.null(object[["fit"]]) || length(object[["fit"]]) == 0L) {
     stop("'hypothesis' requires a fitted brma object.", call. = FALSE)
   }
@@ -251,6 +257,27 @@ hypothesis.brma <- function(object, hypothesis,
     parameter = parameter
   )
   .hypothesis_brma_check_supported_component(selected[["component"]])
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  if (conditional_omitted && .is_RoBMA(object) &&
+      parameter %in% names(prior_list) &&
+      BayesTools::is.prior.mixture(prior_list[[parameter]])) {
+    prior_components <- attr(
+      prior_list[[parameter]],
+      "components",
+      exact = TRUE
+    )
+    if (any(prior_components == "null") &&
+        any(prior_components == "alternative")) {
+      warning(
+        "Model-averaged coefficient test: this hypothesis uses the full ",
+        "ensemble for ", parameter, ", including models where ",
+        parameter, " is fixed by its null component. To test the ",
+        "hypothesis only within models where ", parameter,
+        " is active, use conditional = TRUE.",
+        call. = FALSE
+      )
+    }
+  }
   hypothesis <- .hypothesis_brma_rewrite(
     hypothesis = hypothesis,
     aliases    = selected[["aliases"]],
