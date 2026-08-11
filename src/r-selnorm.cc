@@ -10,6 +10,7 @@
 #include <limits>
 #include <vector>
 
+#include "plot-root.h"
 #include "selnorm/selnorm.h"
 
 extern "C" double Rf_dnorm4(double, double, double, int);

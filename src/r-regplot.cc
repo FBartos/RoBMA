@@ -9,6 +9,7 @@
 #include <limits>
 #include <vector>
 
+#include "plot-root.h"
 #include "selnorm/selnorm.h"
 
 static int regplot_matrix_nrow(SEXP x, const char *name)
@@ -212,14 +213,14 @@ static double regplot_mixture_quantile(double p, const double *mean,
                                        CdfFun cdf_fun)
 {
   bool all_zero_sd = true;
+  bool all_positive_sd = true;
   double lower = INFINITY;
   double upper = -INFINITY;
   double step = 0;
 
   for (int s = 0; s < S; ++s) {
-    if (sd[s] != 0) {
-      all_zero_sd = false;
-    }
+    all_zero_sd     = all_zero_sd && sd[s] == 0;
+    all_positive_sd = all_positive_sd && sd[s] > 0;
 
     const double spread = sd[s];
     lower = std::min(lower, mean[s] - 10 * spread);
@@ -235,6 +236,8 @@ static double regplot_mixture_quantile(double p, const double *mean,
   if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper) {
     return NA_REAL;
   }
+
+  const double tolerance = RoBMA::plot_root_tolerance(lower, upper, step);
 
   double lower_value = cdf_fun(lower) - p;
   double upper_value = cdf_fun(upper) - p;
@@ -265,6 +268,24 @@ static double regplot_mixture_quantile(double p, const double *mean,
 
   if (lower_value >= 0 || upper_value < 0) {
     return NA_REAL;
+  }
+
+  // Continuous mixtures have a unique root and do not need exact
+  // generalized-inverse bisection. Atomic mixtures retain the exact path.
+  if (all_positive_sd) {
+    const double root = RoBMA::plot_brent_root(
+      [cdf_fun, p](double q) {
+        return cdf_fun(q) - p;
+      },
+      lower,
+      upper,
+      lower_value,
+      upper_value,
+      tolerance
+    );
+    if (std::isfinite(root)) {
+      return root;
+    }
   }
 
   while (true) {

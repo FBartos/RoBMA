@@ -424,6 +424,25 @@ test_that("native funnel quantiles preserve continuous scales and atomic jumps",
   expect_identical(atomic[["mid"]], 0)
 })
 
+test_that("native regplot quantiles preserve subnormal continuous scales", {
+
+  skip_if_not(.has_native_regplot_mixture())
+
+  tiny_sd <- 1e-310
+  probs   <- c(.025, .975)
+  out     <- .regplot_mixture_interval_quantiles(
+    mean_samples = matrix(0, nrow = 2L),
+    sd_samples   = matrix(tiny_sd, nrow = 2L),
+    probs        = probs
+  )
+
+  expect_equal(
+    c(out[["lower"]], out[["upper"]]) / tiny_sd,
+    stats::qnorm(probs),
+    tolerance = 1e-12
+  )
+})
+
 test_that("native funnel model-averaged quantiles reject active p-hacking", {
 
   skip_if_not(.has_native_selnorm_kernel())
