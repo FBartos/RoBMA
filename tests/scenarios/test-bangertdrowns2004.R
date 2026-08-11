@@ -185,6 +185,23 @@ testthat::test_that("Bangertdrowns location-scale models", {
     metafor_scale = sqrt(exp(predict(metafor_ls, newscale = newdata$ni100)[["pred"]]))
   )})
 
+  ### prediction comparisons ----
+  brma_terms       <- colMeans(predict(fit_ls, type = "terms", quiet = TRUE))
+  brma_estimate    <- colMeans(predict(fit_ls, type = "estimate", quiet = TRUE))
+  brma_ranef       <- colMeans(ranef(fit_ls))
+  metafor_terms    <- predict(metafor_ls)[["pred"]]
+  metafor_estimate <- metafor::blup(metafor_ls)[["pred"]]
+  metafor_ranef    <- metafor_estimate - metafor_terms
+  scenario_plot("fit_ls_prediction_agreement", {
+    par(mfrow = c(1, 3))
+    plot(metafor_terms, brma_terms - metafor_terms, main = "Location", xlab = "metafor", ylab = "RoBMA - metafor", ylim = c(-0.1, 0.1), pch = 16)
+    abline(h = 0, lty = 2)
+    plot(metafor_estimate, brma_estimate - metafor_estimate, main = "BLUP", xlab = "metafor", ylab = "RoBMA - metafor", ylim = c(-0.1, 0.1), pch = 16)
+    abline(h = 0, lty = 2)
+    plot(metafor_ranef, brma_ranef - metafor_ranef, main = "Random effect", xlab = "metafor", ylab = "RoBMA - metafor", ylim = c(-0.1, 0.1), pch = 16)
+    abline(h = 0, lty = 2)
+  })
+
   ### simple summary ----
   set.seed(1)
   scenario_text("fit_BMA_summary", {summary(fit_BMA)})
