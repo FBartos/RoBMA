@@ -424,5 +424,63 @@ testthat::test_that("BCG Meta-Regression", {
   scenario_text("fit_reg2_BF_qCMDE_direct",   {hypothesis(fit_reg2, hypothesis = c("ablat < -0.01730933 vs ablat = 0", "ablat > -0.01730933 vs ablat = 0", "ablat < -0.01730933 vs ablat > -0.01730933"), density_method = "qCMDE")})
   scenario_text("fit_reg2_BF_normal_direct",  {hypothesis(fit_reg2, hypothesis = c("ablat < -0.01730933 vs ablat = 0", "ablat > -0.01730933 vs ablat = 0", "ablat < -0.01730933 vs ablat > -0.01730933"), density_method = "normal")})
 
+
+  ### regression with an interaction ----
+  fit_reg3_metafor <- scenario_fit("fit_reg3_metafor", {
+    metafor::rma(yi = yi, vi = vi, mods = ~ alloc * ablat, data = dat, method = "REML")
+  })
+
+  fit_reg3 <- scenario_fit("fit_reg3", {
+    tmp <- brma(yi = yi, vi = vi, mods = ~ alloc * ablat, data = dat, measure = "RR", seed = 2)
+    tmp <- suppressWarnings(add_loo(tmp))
+    tmp <- add_marglik(tmp)
+    return(tmp)
+  })
+
+  fit_reg3_summary <- summary(fit_reg3)
+  scenario_text("fit_reg3_summary", {fit_reg3_summary})
+  scenario_text("fit_reg3_coefficient_comparison", {data.frame(
+    term    = rownames(fit_reg3_summary[["estimates_mods"]]),
+    RoBMA   = fit_reg3_summary[["estimates_mods"]][, "Mean"],
+    metafor = as.numeric(stats::coef(fit_reg3_metafor))
+  )})
+
+  fit_reg3_emm <- marginal_means(fit_reg3)
+  scenario_text("fit_reg3_marginal_means", {fit_reg3_emm})
+
+  ### interaction hypothesis tests ----
+  # Compare the interaction estimates across allocation groups.
+  set.seed(1)
+  fit_reg3_hypotheses       <- hypothesis(fit_reg3, hypothesis = c("alloc:ablat[random] < 0", "alloc:ablat[random] = 0", "alloc:ablat[random] < alloc:ablat[systematic]"))
+  fit_reg3_hypotheses_IWMDE <- hypothesis(fit_reg3, hypothesis = c("alloc:ablat[random] < 0", "alloc:ablat[random] = 0", "alloc:ablat[random] < alloc:ablat[systematic]"), density_method = "IWMDE")
+  scenario_text("fit_reg3_interaction_hypotheses", cbind(
+    fit_reg3_hypotheses,
+    fit_reg3_hypotheses_IWMDE[,3:4]
+  ))
+
+  ### direct predictions ----
+  newdata <- expand.grid(
+    alloc          = levels(factor(dat$alloc)),
+    ablat          = c(15, 35, 55),
+    KEEP.OUT.ATTRS = FALSE
+  )
+  newmods <- stats::model.matrix(~ alloc * ablat, data = newdata)[, -1, drop = FALSE]
+  scenario_text("fit_reg3_prediction_comparison", {data.frame(
+    newdata,
+    RoBMA   = data.frame(predict(fit_reg3, newdata = newdata, type = "terms"))[,"Mean"],
+    metafor = predict(fit_reg3_metafor, newmods = newmods)[["pred"]]
+  )})
+
+  ### marginal means ----
+  marginal_draws    <- fit_reg3_emm[["inference"]][["averaged"]][["mu_alloc__xXx__ablat"]]
+  marginal_newdata  <- attr(marginal_draws, "data")
+  marginal_newdata$ablat <- mean(dat$ablat) + marginal_newdata$ablat * stats::sd(dat$ablat)
+  marginal_newmods       <- stats::model.matrix(~ alloc * ablat, data = marginal_newdata)[, -1, drop = FALSE]
+  scenario_text("fit_reg3_marginal_means_comparison", {data.frame(
+    marginal_newdata,
+    RoBMA   = vapply(marginal_draws, mean, numeric(1)),
+    metafor = predict(fit_reg3_metafor, newmods = marginal_newmods)[["pred"]]
+  )})
+
 })
 

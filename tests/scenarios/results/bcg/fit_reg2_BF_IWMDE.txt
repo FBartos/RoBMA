@@ -1,7 +1,7 @@
-              Alternative:            Null:     BF error%(BF)
-mu_ablat  mu_ablat < -0.25     mu_ablat = 0 45.535     10.925
-mu_ablat1 mu_ablat > -0.25     mu_ablat = 0  2.430     11.174
-mu_ablat2 mu_ablat < -0.25 mu_ablat > -0.25 18.735      2.643
+  Alternative:         Null:     BF error%(BF)
+ ablat < -0.25     ablat = 0 45.535     10.925
+ ablat > -0.25     ablat = 0  2.430     11.174
+ ablat < -0.25 ablat > -0.25 18.735      2.643
 [0;31mIWMDE relative MCSE is 10.9%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
 [0;31mIWMDE relative MCSE is 10.9%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
 [0;31mIWMDE finite-population row-sampling relative error is 10.8%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m

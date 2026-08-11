@@ -1,0 +1,4 @@
+                                               Alternative                                           Null        BF BF_error        BF BF_error
+alloc:ablat                        alloc:ablat[random] < 0                       alloc:ablat[random] >= 0 3.1465011 2.513269 3.2160641 2.513313
+alloc:ablat1                      alloc:ablat[random] != 0                        alloc:ablat[random] = 0 0.6564465       NA 0.6909412 5.663795
+alloc:ablat2 alloc:ablat[random] < alloc:ablat[systematic] alloc:ablat[random] >= alloc:ablat[systematic] 1.3946161 2.324537 1.4080697 2.324579
