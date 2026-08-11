@@ -5,7 +5,8 @@
                                           normalization_points,
                                           normalization_prob, density_method,
                                           n_samples,
-                                          parameter_spec = NULL) {
+                                          parameter_spec = NULL,
+                                          level_parameter_specs = list()) {
 
   point_refs <- .hypothesis_brma_point_refs(hypothesis, parameter)
   if (nrow(point_refs) == 0L) {
@@ -82,7 +83,8 @@
         target_relative_mcse = target_relative_mcse,
         normalization_points = normalization_points,
         normalization_prob   = normalization_prob,
-        density_method       = density_method
+        density_method       = density_method,
+        parameter_spec       = level_parameter_specs[[ref[["level"]]]]
       )
     }
   }
@@ -205,7 +207,7 @@
     posterior, raw_posterior, context, estimate_cache, parameter, level,
     value, conditional, n_points, samples,
     target_relative_mcse, normalization_points, normalization_prob,
-    density_method) {
+    density_method, parameter_spec = NULL) {
 
   if (!is.list(posterior) || !level %in% names(posterior)) {
     stop("Hypothesis references unknown level '", level,
@@ -215,8 +217,16 @@
     stop("Raw posterior for level '", level, "' is unavailable.",
          call. = FALSE)
   }
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "unsupported_formula_transform")) {
+    stop(parameter_spec[["reason"]], call. = FALSE)
+  }
 
-  weights <- attr(raw_posterior[[level]], "linear_weights", exact = TRUE)
+  weights <- if (is.null(parameter_spec)) {
+    attr(raw_posterior[[level]], "linear_weights", exact = TRUE)
+  } else {
+    parameter_spec[["weights"]]
+  }
   linear_weights <- .iwmde_linear_weights(weights)
   if (is.null(linear_weights) || length(linear_weights) == 0L) {
     reason <- if (is.null(linear_weights)) {
@@ -233,13 +243,32 @@
 
   raw_values     <- as.numeric(raw_posterior[[level]])
   display_values <- as.numeric(posterior[[level]])
-  if (!.plot_brma_same_sample_scale(raw_values, display_values)) {
+  if (is.null(parameter_spec) &&
+      !.plot_brma_same_sample_scale(raw_values, display_values)) {
     stop(
       "Could not align qCMDE/IWMDE ordinate for '", parameter, "[", level,
       "]' to the displayed scale.",
       call. = FALSE
     )
   }
+  if (is.null(parameter_spec)) {
+    parameter_spec <- list(
+      type          = "linear",
+      weights       = weights,
+      prior_density = attr(
+        raw_posterior[[level]],
+        "prior_density",
+        exact = TRUE
+      )
+    )
+  }
+  parameter_spec[["conditional"]] <- if (is.null(conditional)) {
+    attr(raw_posterior[[level]], "effective_conditional", exact = TRUE)
+  } else {
+    conditional
+  }
+  parameter_spec[["conditional_rule"]] <- "AND"
+
   estimate <- .iwmde_estimate(
     context         = context,
     parameter       = paste0(parameter, "[", level, "]"),
@@ -254,21 +283,7 @@
     ),
     outputs        = "ordinate",
     values         = value,
-    parameter_spec = list(
-      type             = "linear",
-      weights          = weights,
-      prior_density    = attr(
-        raw_posterior[[level]],
-        "prior_density",
-        exact = TRUE
-      ),
-      conditional      = if (is.null(conditional)) {
-        attr(raw_posterior[[level]], "effective_conditional", exact = TRUE)
-      } else {
-        conditional
-      },
-      conditional_rule = "AND"
-    ),
+    parameter_spec = parameter_spec,
     metadata       = .iwmde_posterior_metadata(
       samples   = posterior[[level]],
       parameter = parameter,

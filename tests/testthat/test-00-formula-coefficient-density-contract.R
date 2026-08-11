@@ -80,6 +80,68 @@ test_that("transformed coefficient hypotheses use exact structural weights", {
 })
 
 
+test_that("factor-level hypotheses resolve exact transformed coordinates", {
+
+  transform <- list(
+    schema_version = 1L,
+    target_scale   = "original",
+    source_names   = "mu_alloc__xXx__ablat[1]",
+    target_names   = "mu_alloc__xXx__ablat[1]",
+    matrix = matrix(
+      0.25,
+      nrow = 1L,
+      dimnames = list(
+        "mu_alloc__xXx__ablat[1]",
+        "mu_alloc__xXx__ablat[1]"
+      )
+    ),
+    source_transforms = stats::setNames(
+      "identity", "mu_alloc__xXx__ablat[1]"
+    ),
+    output_transforms = stats::setNames(
+      "identity", "mu_alloc__xXx__ablat[1]"
+    )
+  )
+  class(transform) <- c("BayesTools_formula_coefficient_transform", "list")
+  selected <- list(
+    component = "mods",
+    entry = list(
+      role              = "formula_coefficient_group",
+      formula_parameter = "mu"
+    ),
+    resolution = list(occurrences = data.frame(
+      level          = "random",
+      canonical_name = "mu_alloc__xXx__ablat[1]",
+      stringsAsFactors = FALSE
+    ))
+  )
+  point_refs <- data.frame(level = "random", value = 0)
+  testthat::local_mocked_bindings(
+    JAGS_formula_coefficient_transform = function(...) transform,
+    .package = "BayesTools"
+  )
+
+  target <- .hypothesis_brma_formula_coefficient_level_targets(
+    object     = list(
+      fit = structure(list(), class = "BayesTools_fit")
+    ),
+    selected   = selected,
+    point_refs = point_refs
+  )
+
+  expect_named(target, "random")
+  expect_identical(
+    target[["random"]][["target"]],
+    "mu_alloc__xXx__ablat[1]"
+  )
+  expect_identical(target[["random"]][["route"]][["type"]], "affine")
+  expect_identical(
+    target[["random"]][["route"]][["weights"]],
+    c("mu_alloc__xXx__ablat[1]" = 0.25)
+  )
+})
+
+
 test_that("transformed coefficient plots use exact structural weights", {
 
   transform <- list(
@@ -607,4 +669,55 @@ test_that("implicit exp-affine equality preserves the Bayes factor orientation",
     1,
     tolerance = 1e-12
   )
+})
+
+
+test_that("hypothesis results restore public interaction labels", {
+
+  probabilities <- (seq_len(2001L) - 0.5) / 2001
+  posterior <- stats::setNames(
+    data.frame(stats::qnorm(probabilities, mean = -0.2, sd = 0.8)),
+    "mu_interaction"
+  )
+  prior <- stats::setNames(
+    data.frame(stats::qnorm(probabilities)),
+    "mu_interaction"
+  )
+  out <- BayesTools::hypothesis_BF(
+    posterior  = posterior,
+    prior      = prior,
+    hypothesis = c("mu_interaction < 0", "mu_interaction < 1"),
+    parameter  = "mu_interaction"
+  )
+  raw_BF <- attr(out, "raw_BF", exact = TRUE)
+
+  display_hypothesis <- BayesTools::hypothesis_parse(c(
+    "alloc:ablat[random] < 0",
+    "alloc:ablat[random] < alloc:ablat[systematic]"
+  ))
+  out <- .hypothesis_brma_restore_hypothesis_labels(
+    out             = out,
+    hypothesis      = display_hypothesis,
+    parameter_label = "alloc:ablat"
+  )
+
+  expect_identical(out[["Alternative"]], c(
+    "alloc:ablat[random] < 0",
+    "alloc:ablat[random] < alloc:ablat[systematic]"
+  ))
+  expect_identical(out[["Null"]], c(
+    "alloc:ablat[random] >= 0",
+    "alloc:ablat[random] >= alloc:ablat[systematic]"
+  ))
+  expect_identical(rownames(out), c("alloc:ablat", "alloc:ablat1"))
+  expect_false(attr(out, "rownames", exact = TRUE))
+  expect_identical(attr(out, "raw_BF", exact = TRUE), raw_BF)
+  expect_identical(
+    attr(out, "hypothesis_ast", exact = TRUE),
+    display_hypothesis
+  )
+  printed <- capture.output(print(out))
+  expect_true(any(grepl("alloc:ablat[random] < 0", printed, fixed = TRUE)))
+  expect_false(any(grepl("alloc:ablat1", printed, fixed = TRUE)))
+  expect_false(any(grepl("mu_interaction", printed, fixed = TRUE)))
 })

@@ -1,5 +1,9 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- lets `hypothesis()` use unquoted formula interaction references such as
+  `alloc:ablat[random]`, evaluates factor-level qCMDE/IWMDE point hypotheses
+  on the exact displayed coefficient scale, and prints public hypothesis
+  labels without redundant row names after internal parameter resolution.
 - adds `as.data.frame()` and `data.frame()` summary coercion for individual
   `brma_samples` results. Multi-component results return a long data frame with
   component and parameter identifiers; `as.data.frame(format = "list")`

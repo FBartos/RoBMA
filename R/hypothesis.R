@@ -249,7 +249,8 @@ hypothesis.brma <- function(object, hypothesis,
     .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()")
   }
 
-  hypothesis <- BayesTools::hypothesis_parse(hypothesis)
+  hypothesis         <- BayesTools::hypothesis_parse(hypothesis)
+  display_hypothesis <- hypothesis
   selected <- .hypothesis_brma_select_parameter(
     object     = object,
     hypothesis = hypothesis,
@@ -300,6 +301,12 @@ hypothesis.brma <- function(object, hypothesis,
     object   = object,
     selected = selected
   )
+  coefficient_level_targets <-
+    .hypothesis_brma_formula_coefficient_level_targets(
+      object     = object,
+      selected   = selected,
+      point_refs = point_refs
+    )
   if (!is.null(coefficient_target)) {
     coefficient_target[["route"]] <-
       .hypothesis_brma_formula_transform_route(coefficient_target)
@@ -311,9 +318,12 @@ hypothesis.brma <- function(object, hypothesis,
       coefficient_target <- NULL
     }
   }
+  if (standardized_coefficients) {
+    coefficient_level_targets <- list()
+  }
 
   if (identical(selected[["component"]], "random")) {
-    return(.hypothesis_brma_random(
+    out <- .hypothesis_brma_random(
       object                    = object,
       parameter                 = parameter,
       hypothesis                = hypothesis,
@@ -325,6 +335,11 @@ hypothesis.brma <- function(object, hypothesis,
       density_method            = density_method,
       n_samples                 = n_samples,
       columns                   = columns
+    )
+    return(.hypothesis_brma_restore_hypothesis_labels(
+      out             = out,
+      hypothesis      = display_hypothesis,
+      parameter_label = parameter_label
     ))
   }
 
@@ -352,7 +367,7 @@ hypothesis.brma <- function(object, hypothesis,
         call. = FALSE
       )
     }
-    return(.hypothesis_brma_exp_affine_kde(
+    out <- .hypothesis_brma_exp_affine_kde(
       object      = object,
       samples     = samples,
       hypothesis  = hypothesis,
@@ -364,6 +379,11 @@ hypothesis.brma <- function(object, hypothesis,
       seed        = seed,
       n_samples   = n_samples,
       columns     = columns
+    )
+    return(.hypothesis_brma_restore_hypothesis_labels(
+      out             = out,
+      hypothesis      = display_hypothesis,
+      parameter_label = parameter_label
     ))
   }
   if (!is.null(coefficient_target)) {
@@ -376,6 +396,20 @@ hypothesis.brma <- function(object, hypothesis,
     prior_densities <- attr(samples, "prior_densities", exact = TRUE)
     prior_densities[[parameter]] <- coefficient_target[["prior_density"]]
     attr(samples, "prior_densities") <- prior_densities
+  }
+  for (level in names(coefficient_level_targets)) {
+    coefficient_level_targets[[level]] <-
+      .hypothesis_brma_formula_prior_target(
+        object       = object,
+        samples      = samples,
+        hypothesis   = hypothesis,
+        target_info  = coefficient_level_targets[[level]],
+        point_values = point_refs[["value"]][
+          !is.na(point_refs[["level"]]) &
+            point_refs[["level"]] == level
+        ],
+        force_linear = TRUE
+      )
   }
   density_sample_parameter <- .plot_brma_density_sample_parameter(
     samples          = samples,
@@ -392,9 +426,15 @@ hypothesis.brma <- function(object, hypothesis,
   if (!is.null(coefficient_target)) {
     attr(posterior, "prior_density") <- coefficient_target[["prior_density"]]
   }
+  for (level in names(coefficient_level_targets)) {
+    if (is.list(posterior) && level %in% names(posterior)) {
+      attr(posterior[[level]], "prior_density") <-
+        coefficient_level_targets[[level]][["prior_density"]]
+    }
+  }
 
   if (level_contrast) {
-    return(.hypothesis_brma_level_contrast_BF(
+    out <- .hypothesis_brma_level_contrast_BF(
       object                    = object,
       posterior                 = posterior,
       hypothesis                = hypothesis,
@@ -406,6 +446,11 @@ hypothesis.brma <- function(object, hypothesis,
       BF01                      = BF01,
       seed                      = seed,
       columns                   = columns
+    )
+    return(.hypothesis_brma_restore_hypothesis_labels(
+      out             = out,
+      hypothesis      = display_hypothesis,
+      parameter_label = parameter_label
     ))
   }
 
@@ -428,7 +473,12 @@ hypothesis.brma <- function(object, hypothesis,
         NULL
       } else {
         coefficient_target[["parameter_spec"]]
-      }
+      },
+      level_parameter_specs    = lapply(
+        coefficient_level_targets,
+        `[[`,
+        "parameter_spec"
+      )
     )
   }
 
@@ -453,6 +503,12 @@ hypothesis.brma <- function(object, hypothesis,
       posterior = posterior
     )
   }
+
+  out <- .hypothesis_brma_restore_hypothesis_labels(
+    out             = out,
+    hypothesis      = display_hypothesis,
+    parameter_label = parameter_label
+  )
 
   return(out)
 }
@@ -597,8 +653,93 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 
+.hypothesis_brma_formula_coefficient_level_targets <- function(
+    object, selected, point_refs) {
+
+  entry  <- selected[["entry"]]
+  levels <- unique(point_refs[["level"]][!is.na(point_refs[["level"]])])
+  if (selected[["component"]] %in% c("random", "bias") ||
+      is.null(entry) ||
+      !identical(entry[["role"]], "formula_coefficient_group") ||
+      length(levels) == 0L) {
+    return(list())
+  }
+
+  formula_parameter <- entry[["formula_parameter"]]
+  if (is.null(formula_parameter) || length(formula_parameter) != 1L ||
+      is.na(formula_parameter) || !nzchar(formula_parameter)) {
+    return(list())
+  }
+  transform <- BayesTools::JAGS_formula_coefficient_transform(
+    fit          = object[["fit"]],
+    parameter    = formula_parameter,
+    target_scale = "original"
+  )
+  if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
+      !identical(transform[["schema_version"]], 1L)) {
+    stop(
+      "Formula coefficient transformation metadata are unsupported. Refit ",
+      "the model with the current BayesTools version.",
+      call. = FALSE
+    )
+  }
+
+  occurrences <- selected[["resolution"]][["occurrences"]]
+  out <- lapply(levels, function(level) {
+    level_occurrences <- occurrences[
+      !is.na(occurrences[["level"]]) & occurrences[["level"]] == level,
+      ,
+      drop = FALSE
+    ]
+    target <- unique(level_occurrences[["canonical_name"]])
+    if (length(target) != 1L) {
+      stop(
+        "Resolved formula coefficient level '", level,
+        "' is ambiguous in the fitted parameter catalog.",
+        call. = FALSE
+      )
+    }
+    target_i <- match(target, transform[["target_names"]])
+    if (is.na(target_i)) {
+      catalog  <- BayesTools::parameter_catalog(object[["fit"]])
+      quantity <- catalog[["quantities"]][
+        catalog[["quantities"]][["quantity_id"]] %in%
+          unique(level_occurrences[["quantity_id"]]),
+        ,
+        drop = FALSE
+      ]
+      fixed <- nrow(quantity) == 1L &&
+        (identical(quantity[["status"]], "fixed") ||
+           is.finite(quantity[["fixed_value"]]))
+      if (fixed) {
+        return(NULL)
+      }
+      stop(
+        "Resolved formula coefficient '", target,
+        "' is absent from the fitted coefficient transformation.",
+        call. = FALSE
+      )
+    }
+    target_info <- list(
+      formula_parameter = formula_parameter,
+      target            = target,
+      target_i          = target_i,
+      transform         = transform
+    )
+    target_info[["route"]] <-
+      .hypothesis_brma_formula_transform_route(target_info)
+    target_info
+  })
+  names(out) <- levels
+  out <- out[!vapply(out, is.null, logical(1))]
+
+  return(out)
+}
+
+
 .hypothesis_brma_formula_prior_target <- function(
-    object, samples, hypothesis, target_info) {
+    object, samples, hypothesis, target_info, point_values = NULL,
+    force_linear = FALSE) {
 
   if (is.null(target_info[["route"]])) {
     target_info[["route"]] <-
@@ -611,12 +752,15 @@ hypothesis.brma <- function(object, hypothesis,
     target_scale = "original",
     context      = attr(samples, "prior_density_context", exact = TRUE)
   )
-  refs <- .hypothesis_brma_point_refs(
-    hypothesis,
-    target_info[["target"]],
-    require_direct = FALSE
-  )
-  for (value in refs[["value"]]) {
+  if (is.null(point_values)) {
+    refs <- .hypothesis_brma_point_refs(
+      hypothesis,
+      target_info[["target"]],
+      require_direct = FALSE
+    )
+    point_values <- refs[["value"]]
+  }
+  for (value in point_values) {
     ordinate <- BayesTools::prior_density_ordinate(prior_density, value)
     if (!isTRUE(ordinate[["exact"]])) {
       stop(
@@ -630,9 +774,10 @@ hypothesis.brma <- function(object, hypothesis,
 
   route   <- target_info[["route"]]
   weights <- route[["weights"]]
-  parameter_spec <- if (identical(route[["type"]], "identity")) {
+  parameter_spec <- if (identical(route[["type"]], "identity") &&
+                        !force_linear) {
     list(type = "primitive", prior_density = prior_density)
-  } else if (identical(route[["type"]], "affine")) {
+  } else if (route[["type"]] %in% c("identity", "affine")) {
     list(type = "linear", weights = weights, prior_density = prior_density)
   } else {
     list(
@@ -988,7 +1133,12 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 
-.hypothesis_brma_restore_hypothesis_labels <- function(out, hypothesis) {
+.hypothesis_brma_restore_hypothesis_labels <- function(
+    out, hypothesis, parameter_label = NULL) {
+
+  if (!is.data.frame(out)) {
+    return(out)
+  }
 
   statements <- hypothesis[["statements"]]
   if (nrow(out) != length(statements)) {
@@ -1039,6 +1189,21 @@ hypothesis.brma <- function(object, hypothesis,
   }
   attr(out, "parsed")         <- parsed
   attr(out, "hypothesis_ast") <- hypothesis
+
+  if (!is.null(parameter_label)) {
+    old_rownames  <- rownames(out)
+    new_rownames  <- make.unique(rep(parameter_label, nrow(out)), sep = "")
+    rownames(out) <- new_rownames
+
+    warnings <- attr(out, "warnings", exact = TRUE)
+    if (!is.null(warnings) && !is.null(names(warnings))) {
+      warning_rows <- match(names(warnings), old_rownames)
+      matched      <- !is.na(warning_rows)
+      names(warnings)[matched] <- new_rownames[warning_rows[matched]]
+      attr(out, "warnings") <- warnings
+    }
+  }
+  attr(out, "rownames") <- FALSE
 
   return(out)
 }

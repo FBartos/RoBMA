@@ -310,6 +310,102 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
 })
 
 
+test_that("factor-level ordinates use exact displayed-scale specifications", {
+
+  diagnostics <- list(
+    estimator                 = "q_grid_cmde",
+    relative_mcse             = .01,
+    finite_terms              = 100,
+    ess                       = 100,
+    max_weight_share          = .10,
+    active_mass               = 1,
+    final_normalization_integral = 1,
+    support_grid_normalization_integral = 1,
+    ordinate_relative_change  = 0
+  )
+  ordinate <- list(
+    value            = 0,
+    ordinate         = 1,
+    method           = "q_grid_cmde",
+    density_method   = "qCMDE",
+    diagnostics      = diagnostics,
+    iwmde_provenance = list(request_key = "display-scale")
+  )
+  posterior     <- list(random = c(2, 4, 6))
+  raw_posterior <- list(random = c(1, 2, 3))
+  attr(raw_posterior[["random"]], "linear_weights") <-
+    c(mu_interaction = 1)
+  raw_prior     <- BayesTools:::.prior_linear_density_point(0)
+  display_prior <- BayesTools:::.prior_linear_density_point(0)
+  attr(raw_posterior[["random"]], "prior_density") <- raw_prior
+  captured_parameter_spec <- NULL
+  testthat::local_mocked_bindings(
+    .iwmde_estimate = function(..., parameter_spec) {
+      captured_parameter_spec <<- parameter_spec
+      list(
+        diagnostics        = list(ordinate = list(status = "ok")),
+        posterior_ordinate = ordinate
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  out <- .hypothesis_brma_attach_iwmde_level(
+    posterior            = posterior,
+    raw_posterior        = raw_posterior,
+    context              = list(),
+    estimate_cache       = .iwmde_estimate_cache(),
+    parameter            = "mu_interaction",
+    level                = "random",
+    value                = 0,
+    conditional          = NULL,
+    n_points             = 20,
+    samples              = 20,
+    target_relative_mcse = .05,
+    normalization_points = 20,
+    normalization_prob   = .99,
+    density_method       = "qCMDE",
+    parameter_spec       = list(
+      type          = "linear",
+      weights       = c(mu_interaction = 2),
+      prior_density = display_prior
+    )
+  )
+
+  expect_identical(
+    captured_parameter_spec[["weights"]],
+    c(mu_interaction = 2)
+  )
+  expect_identical(
+    captured_parameter_spec[["prior_density"]],
+    display_prior
+  )
+  expect_identical(
+    attr(out[["random"]], "posterior_ordinate")[["iwmde_provenance"]][["request_key"]],
+    "display-scale"
+  )
+  expect_error(
+    .hypothesis_brma_attach_iwmde_level(
+      posterior            = posterior,
+      raw_posterior        = raw_posterior,
+      context              = list(),
+      estimate_cache       = .iwmde_estimate_cache(),
+      parameter            = "mu_interaction",
+      level                = "random",
+      value                = 0,
+      conditional          = NULL,
+      n_points             = 20,
+      samples              = 20,
+      target_relative_mcse = .05,
+      normalization_points = 20,
+      normalization_prob   = .99,
+      density_method       = "qCMDE"
+    ),
+    "displayed scale"
+  )
+})
+
+
 test_that("hypothesis alias rewriting preserves trailing level-reference backticks", {
 
   rewritten <- .hypothesis_brma_rewrite(
