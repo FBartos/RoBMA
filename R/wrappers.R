@@ -276,8 +276,8 @@ pooled_effect <- function(object, ...) {
 
 #' @title Pooled Effect Size for brma Objects
 #'
-#' @description Computes the pooled (aggregated) effect size estimate
-#' from a fitted brma object by averaging across the moderator model matrix.
+#' @description Computes the pooled effect and prediction interval at the
+#' average expanded moderator design of a fitted brma object.
 #'
 #' @param object a fitted brma object
 #' @param bias_adjusted whether to adjust for publication bias. Defaults to
@@ -292,18 +292,24 @@ pooled_effect <- function(object, ...) {
 #' @param ... reserved for internal posterior-sample reuse.
 #'
 #' @details
-#' This function evaluates the fixed-location model over the fitted moderator
-#' design and averages those posterior draws directly.
+#' This function evaluates the fixed-location model at the average expanded
+#' moderator design. Because the location predictor is linear in its design,
+#' this equals averaging its fitted-design posterior draws directly.
 #'
 #' For meta-regression models, the pooled effect averages the effect size
 #' estimate across moderator levels proportionately to the levels observed
 #' in the data. This provides an estimate representative of the sample of
 #' studies.
 #'
-#' For models without moderators, this returns the single mu parameter.
+#' For models without moderators, this returns the single mu parameter. The
+#' prediction interval is for one new true effect at the same average location,
+#' scale, and random-effect design. It therefore uses
+#' \code{pooled_heterogeneity()}, not the observed-design RMS heterogeneity
+#' reported by \code{summary_heterogeneity()}.
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
-#' displays a summary table. Use \code{summary()} to obtain the summary table directly.
+#' displays a one-row summary table whose \code{PI} columns contain posterior
+#' prediction quantiles. Use \code{summary()} to obtain the table directly.
 #' The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
@@ -373,6 +379,20 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
   samples <- matrix(rowMeans(mu_samples), ncol = 1L)
   colnames(samples) <- "mu"
 
+  tau_samples <- .pooled_heterogeneity_total_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  prediction_samples <- matrix(
+    stats::rnorm(
+      n    = nrow(samples),
+      mean = samples[, 1L],
+      sd   = tau_samples[, 1L]
+    ),
+    ncol     = 1L,
+    dimnames = list(NULL, "mu")
+  )
+
   chain_info <- .brma_samples_chain_info(
     fit       = object[["fit"]],
     n_samples = nrow(posterior_samples)
@@ -383,17 +403,14 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
     transform      = transform
   )
   out <- .new_effect_brma_samples(
-    samples          = samples,
-    n_chains         = chain_info[["n_chains"]],
-    n_iter           = chain_info[["n_iter"]],
-    title            = if (conditional) {
-      "Conditional Pooled Effect Size"
-    } else {
-      "Pooled Effect Size"
-    },
-    probs            = probs,
-    data             = NULL,
-    effect_transform = effect_transform
+    samples            = samples,
+    n_chains           = chain_info[["n_chains"]],
+    n_iter             = chain_info[["n_iter"]],
+    title              = "Pooled Effect Size",
+    probs              = probs,
+    data               = NULL,
+    effect_transform   = effect_transform,
+    prediction_samples = prediction_samples
   )
   return(.condition_prediction_samples(
     object            = object,
@@ -430,9 +447,8 @@ pooled_heterogeneity <- function(object, ...) {
 
 #' @title Pooled Heterogeneity for brma Objects
 #'
-#' @description Computes the pooled (aggregated) heterogeneity estimate (tau)
-#' from a fitted brma object by pooling heterogeneity variances across the
-#' scale model matrix.
+#' @description Computes heterogeneity (tau) at the average expanded scale and
+#' random-effect design of a fitted brma object.
 #'
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior distribution to be displayed.
@@ -446,10 +462,10 @@ pooled_heterogeneity <- function(object, ...) {
 #' @param ... reserved for internal posterior-sample forwarding.
 #'
 #' @details
-#' For location-scale models (with scale regression), the pooled heterogeneity
-#' is the square root of the average observation-specific heterogeneity
-#' variance, \eqn{\sqrt{mean(\tau_i^2)}} over the fitted scale design. Public
-#' \code{predict(..., type = "terms.scale")} calls remain row-specific.
+#' For location-scale models, the function averages the fitted log-scale linear
+#' predictor and then applies the inverse link. This is heterogeneity at the
+#' average expanded scale design, rather than RMS heterogeneity across observed
+#' rows. Use \code{summary_heterogeneity()} for the latter.
 #'
 #' For models without scale regression, this returns the single tau parameter.
 #'
@@ -459,10 +475,10 @@ pooled_heterogeneity <- function(object, ...) {
 #' For \code{brma.mv()} random-formula models, \code{component = "all"}
 #' returns one \code{brma_samples} object when there is a single heterogeneity
 #' component and a named list when there are multiple components.
-#' \code{component = "total"} computes the variance-additive row-level total
-#' \eqn{\sqrt{\sum_j \tau_{ij}^2}} and returns its root-mean-square value
-#' across rows. Shared allocation nodes can be selected with the same
-#' component aliases as \code{summary_heterogeneity()}.
+#' \code{component = "total"} computes the variance-additive total at the
+#' average random-effect design. Random slopes are evaluated as
+#' \eqn{\bar q^T G \bar q}; known-\eqn{R} group multipliers are averaged over
+#' the fitted rows for the one-study marginal variance target.
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
 #' displays a summary table. For decomposed \code{brma.mv()} models, a named
@@ -491,6 +507,11 @@ pooled_heterogeneity <- function(object, ...) {
 pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
                                       conditional = FALSE, component = "all",
                                       ...) {
+  BayesTools::check_bool(conditional, "conditional")
+  if (conditional && !.is_RoBMA(object)) {
+    stop("'conditional' pooled heterogeneity is available only for RoBMA objects.",
+         call. = FALSE)
+  }
   if (inherits(object, "brma.mv")) {
     return(
       .pooled_heterogeneity_brma_mv(
@@ -505,31 +526,72 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
 
   .check_univariate_heterogeneity_component(component)
 
-  scale_samples <- predict.brma(
-    object      = object,
-    newdata     = NULL,
-    type        = "terms.scale",
-    probs       = probs,
-    conditional = conditional,
-    quiet       = TRUE,
-    ...
+  dots <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = ".posterior_samples",
+    caller  = "pooled_heterogeneity.brma()"
   )
-  samples <- matrix(sqrt(rowMeans(as.matrix(scale_samples)^2)), ncol = 1L)
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    dots[[".posterior_samples"]]
+  )
+  samples <- .pooled_heterogeneity_total_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
   colnames(samples) <- "tau"
 
+  chain_info <- .brma_samples_chain_info(
+    fit       = object[["fit"]],
+    n_samples = nrow(posterior_samples)
+  )
   out <- .new_brma_samples(
     samples  = samples,
-    n_chains = attr(scale_samples, "nchains"),
-    n_iter   = attr(scale_samples, "niter"),
-    title    = if (conditional) {
-      "Conditional Pooled Heterogeneity"
-    } else {
-      "Pooled Heterogeneity"
-    },
+    n_chains = chain_info[["n_chains"]],
+    n_iter   = chain_info[["n_iter"]],
+    title    = "Pooled Heterogeneity",
     probs    = probs,
     data     = NULL
   )
-  return(out)
+  return(.condition_prediction_samples(
+    object            = object,
+    samples           = out,
+    conditional       = conditional,
+    parameters        = .conditional_heterogeneity_parameters(object),
+    posterior_samples = posterior_samples,
+    quiet             = TRUE
+  ))
+}
+
+
+.pooled_heterogeneity_total_samples <- function(object, posterior_samples) {
+
+  if (inherits(object, "brma.mv")) {
+    components <- .pooled_brma_mv_heterogeneity_components(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
+    return(.total_brma_mv_heterogeneity_samples(components))
+  }
+
+  tau_result <- .evaluate.brma.pooled_tau(
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (.is_scale(object)) {
+      .create_fit_formula_list(data = object[["data"]], "scale")
+    } else {
+      NULL
+    },
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = .is_scale(object),
+    is_multilevel     = .is_multilevel(object),
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
+  )
+
+  return(tau_result[["tau_total"]])
 }
 
 

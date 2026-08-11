@@ -63,47 +63,6 @@ test_that("forest level normalization accepts documented percent values", {
 })
 
 
-test_that("forest detects compiled random-slope ambiguity", {
-
-  dat <- data.frame(
-    yi    = c(.1, .2, .3),
-    x     = c(0, 1, 2),
-    study = c("s1", "s2", "s3")
-  )
-  intercept <- brma.mv(
-    yi                        = yi,
-    V                         = diag(c(.04, .05, .06)),
-    random                    = ~ 1 | study,
-    data                      = dat,
-    measure                   = "GEN",
-    prior_unit_information_sd = 1,
-    only_priors               = TRUE
-  )
-  slope <- brma.mv(
-    yi                        = yi,
-    V                         = diag(c(.04, .05, .06)),
-    random                    = ~ us(1 + x | study),
-    data                      = dat,
-    measure                   = "GEN",
-    prior_unit_information_sd = 1,
-    only_priors               = TRUE
-  )
-  slope_only <- brma.mv(
-    yi                        = yi,
-    V                         = diag(c(.04, .05, .06)),
-    random                    = ~ us(0 + x | study),
-    data                      = dat,
-    measure                   = "GEN",
-    prior_unit_information_sd = 1,
-    only_priors               = TRUE
-  )
-
-  expect_false(.forest_prediction_design_is_ambiguous(intercept))
-  expect_true(.forest_prediction_design_is_ambiguous(slope))
-  expect_true(.forest_prediction_design_is_ambiguous(slope_only))
-})
-
-
 test_that("forest rendering preserves prediction labels unless overridden", {
 
   forest_data <- list(
@@ -173,6 +132,49 @@ test_that("forest predictive distributions retain actual draw geometry", {
     "at least two distinct posterior predictive draws",
     fixed = TRUE
   )
+})
+
+
+test_that("forest uses the pooled average design when newdata is omitted", {
+
+  dat <- data.frame(
+    yi = c(0.1, 0.2, 0.3),
+    vi = rep(0.04, 3),
+    x  = c(-1, 0, 2)
+  )
+  object <- brma(
+    yi                        = yi,
+    vi                        = vi,
+    mods                      = ~ x,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_draws <- cbind(
+    mu_intercept = c(0.1, 0.2, 0.3, 0.4),
+    mu_x         = c(-0.2, 0.1, 0.2, -0.1),
+    tau          = c(0.1, 0.2, 0.3, 0.4)
+  )
+  testthat::local_mocked_bindings(
+    .get_posterior_samples = function(fit, posterior_samples = NULL) {
+      if (is.null(posterior_samples)) posterior_samples <- posterior_draws
+      return(posterior_samples)
+    },
+    .package = "RoBMA"
+  )
+
+  set.seed(531)
+  expected <- .forest_summary_row(pooled_effect(
+    object,
+    .posterior_samples = posterior_draws
+  ))
+  set.seed(531)
+  out <- as_metafor_forest(object, addpred = TRUE)
+
+  expect_equal(out[["pooled"]], expected, tolerance = 1e-14)
+  expect_equal(out[["prediction"]], expected, tolerance = 1e-14)
+  expect_identical(out[["addpoly_args"]][["mlab"]], "Pooled Effect")
 })
 
 # list cached fits lazily
@@ -284,11 +286,11 @@ test_that("as_metafor_forest returns metafor-ready vector arguments", {
   expect_true(
     all(is.finite(unlist(out[["pooled"]][
       1,
-      c("estimate", "ci.lb", "ci.ub")
+      c("estimate", "ci.lb", "ci.ub", "pi.lb", "pi.ub")
     ])))
   )
   expect_true(all(is.finite(unlist(out[["prediction"]]))))
-  expect_true(all(is.na(out[["pooled"]][c("pi.lb", "pi.ub")])))
+  expect_equal(out[["prediction"]], out[["pooled"]], tolerance = 0)
   expect_equal(
     out[["addpoly_args"]][["x"]],
     out[["prediction"]][["estimate"]]
@@ -380,6 +382,7 @@ test_that("forest prediction uses one explicit moderator row throughout", {
     quiet   = TRUE
   ))
   set.seed(91)
+  invisible(pooled_effect(fit))
   expected_effect <- .forest_summary_row(predict(
     fit,
     newdata = newdata,
@@ -400,11 +403,15 @@ test_that("forest prediction uses one explicit moderator row throughout", {
   expect_equal(out[["prediction"]][["pi.ub"]], expected_effect[["ci.ub"]])
   expect_equal(out[["addpoly_args"]][["x"]], expected_terms[["estimate"]])
   expect_identical(out[["addpoly_args"]][["mlab"]], "Predicted Effect")
-  expect_error(
-    as_metafor_forest(fit, addpred = TRUE),
-    "requires one explicit 'newdata' row",
-    fixed = TRUE
-  )
+
+  set.seed(92)
+  expected_pooled <- .forest_summary_row(pooled_effect(fit))
+  set.seed(92)
+  pooled_out <- as_metafor_forest(fit, addpred = TRUE)
+  expect_equal(pooled_out[["pooled"]], expected_pooled, tolerance = 0)
+  expect_equal(pooled_out[["prediction"]], expected_pooled, tolerance = 0)
+  expect_identical(pooled_out[["addpoly_args"]][["mlab"]], "Pooled Effect")
+
   expect_error(
     as_metafor_forest(
       fit,

@@ -169,8 +169,8 @@
   of conditioning on fitted random effects.
 - requires `V_new` for explicit known-`V` response predictions, rejects unseen
   known-`R` levels without an `R_new` interface, and makes forest prediction
-  intervals target exactly one explicit new true effect when the design is
-  ambiguous.
+  intervals target the pooled average design when `newdata` is omitted or
+  exactly one explicit new true effect when it is supplied.
 - supports singular positive-semidefinite `V` when compiled priors or
   marginalized random effects structurally regularize every null direction;
   invalid negative eigenvalues now fail input validation instead of being
@@ -186,8 +186,10 @@
   fingerprint before reuse.
 - makes LOO/WAIC outcome fingerprints explicitly versioned and independent of
   the R serialization writer version, and refreshes affected precomputed fits.
-- reports location-scale pooled heterogeneity as posterior RMS heterogeneity,
-  matching multivariate RMS semantics.
+- evaluates `pooled_heterogeneity()` at the average expanded scale and random
+  design and adds the corresponding prediction-interval columns to
+  `pooled_effect()`; observed-design summaries, funnel plots, radial plots, and
+  influence diagnostics retain their within-draw RMS heterogeneity targets.
 - hardens known-`V` estimate log-likelihood sums, diagnostics, funnel variance
   extraction, qCMDE/IWMDE random-SD handling, and `brma.mv()` target metadata
   regressions.

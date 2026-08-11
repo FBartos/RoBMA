@@ -140,10 +140,11 @@
 #' }
 #' Simple `brma.mv()` models with scalar heterogeneity report the usual `tau`
 #' summary. Random-formula models instead report component-specific standard
-#' deviation, correlation, and allocation summaries; use
-#' `summary_heterogeneity(component = ...)` or
-#' `pooled_heterogeneity(component = ...)` for absolute component `tau`/`tau2`
-#' summaries. General known-`V` models do not report scalar I2/H2.
+#' deviation, correlation, and allocation summaries.
+#' `summary_heterogeneity(component = ...)` describes component heterogeneity
+#' over the observed design, whereas `pooled_heterogeneity(component = ...)`
+#' evaluates absolute component heterogeneity at the average expanded random
+#' design. General known-`V` models do not report scalar I2/H2.
 #'
 #' @return A fitted object of class `c("brma.mv", "brma.norm", "brma")`.
 #' The advanced internal `only_data = TRUE` path returns checked data before

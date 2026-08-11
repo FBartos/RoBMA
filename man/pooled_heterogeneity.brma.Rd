@@ -36,15 +36,14 @@ obtain the summary table directly. The samples can be converted to
 \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
-Computes the pooled (aggregated) heterogeneity estimate (tau)
-from a fitted brma object by pooling heterogeneity variances across the
-scale model matrix.
+Computes heterogeneity (tau) at the average expanded scale and
+random-effect design of a fitted brma object.
 }
 \details{
-For location-scale models (with scale regression), the pooled heterogeneity
-is the square root of the average observation-specific heterogeneity
-variance, \eqn{\sqrt{mean(\tau_i^2)}} over the fitted scale design. Public
-\code{predict(..., type = "terms.scale")} calls remain row-specific.
+For location-scale models, the function averages the fitted log-scale linear
+predictor and then applies the inverse link. This is heterogeneity at the
+average expanded scale design, rather than RMS heterogeneity across observed
+rows. Use \code{summary_heterogeneity()} for the latter.
 
 For models without scale regression, this returns the single tau parameter.
 
@@ -54,10 +53,10 @@ For multilevel (3-level) models, the returned tau is the total heterogeneity:
 For \code{brma.mv()} random-formula models, \code{component = "all"}
 returns one \code{brma_samples} object when there is a single heterogeneity
 component and a named list when there are multiple components.
-\code{component = "total"} computes the variance-additive row-level total
-\eqn{\sqrt{\sum_j \tau_{ij}^2}} and returns its root-mean-square value
-across rows. Shared allocation nodes can be selected with the same
-component aliases as \code{summary_heterogeneity()}.
+\code{component = "total"} computes the variance-additive total at the
+average random-effect design. Random slopes are evaluated as
+\eqn{\bar q^T G \bar q}; known-\eqn{R} group multipliers are averaged over
+the fitted rows for the one-study marginal variance target.
 }
 \examples{
 \dontrun{

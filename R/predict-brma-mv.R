@@ -329,7 +329,8 @@
 }
 
 
-.predict_known_v_formula_design_with_row_source_values <- function(object, data) {
+.predict_known_v_formula_design_with_row_source_values <- function(
+    object, data, pooled = FALSE) {
 
   formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
   if (!.is_scale(object)) {
@@ -338,7 +339,8 @@
 
   values <- .predict_known_v_tau_source_values_function(
     object = object,
-    data   = data
+    data   = data,
+    pooled = pooled
   )
   formula_design[["random_effects"]] <- lapply(
     formula_design[["random_effects"]],
@@ -350,7 +352,8 @@
 }
 
 
-.predict_known_v_tau_source_values_function <- function(object, data) {
+.predict_known_v_tau_source_values_function <- function(
+    object, data, pooled = FALSE) {
 
   fit          <- object[["fit"]]
   model_data   <- data
@@ -378,6 +381,13 @@
         source_names      = source_name
       )
       values <- source_samples[[source_name]]
+      if (pooled) {
+        values <- matrix(
+          exp(rowMeans(log(values))),
+          nrow = nrow(values),
+          ncol = 1L
+        )
+      }
       if (ncol(values) != n_rows) {
         stop(
           "Known-V row SD source '", source_name, "' evaluated to ",

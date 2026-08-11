@@ -348,6 +348,30 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .evaluate.brma.log_tau
+# ---------------------------------------------------------------------------- #
+
+.evaluate.brma.log_tau <- function(fit, scale_data, scale_formula,
+                                    scale_priors, posterior_samples) {
+
+  scale_priors <- .repair_formula_prior_list(
+    prior_list = scale_priors,
+    parameter  = "log_tau"
+  )
+
+  # BayesTools returns K x S; RoBMA prediction samples use S x K.
+  return(t(BayesTools::JAGS_evaluate_formula(
+    fit            = .posterior_formula_fit(fit, posterior_samples),
+    formula        = scale_formula,
+    parameter      = "log_tau",
+    data           = scale_data,
+    prior_list     = scale_priors,
+    formula_target = "fixed"
+  )))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .evaluate.brma.tau
 # ---------------------------------------------------------------------------- #
 #
@@ -389,21 +413,13 @@
   ### compute tau samples based on model type
   if (is_scale) {
 
-    scale_priors <- .repair_formula_prior_list(
-      prior_list = scale_priors,
-      parameter  = "log_tau"
+    log_tau_samples <- .evaluate.brma.log_tau(
+      fit               = fit,
+      scale_data        = scale_data,
+      scale_formula     = scale_formula,
+      scale_priors      = scale_priors,
+      posterior_samples = posterior_samples
     )
-
-    # scale regression: evaluate log_tau formula then exponentiate
-    # BayesTools::JAGS_evaluate_formula returns K x S matrix, we need S x K
-    log_tau_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit            = .posterior_formula_fit(fit, posterior_samples),
-      formula        = scale_formula,
-      parameter      = "log_tau",
-      data           = scale_data,
-      prior_list     = scale_priors,
-      formula_target = "fixed"
-    ))
     tau_samples <- exp(log_tau_samples)
 
   } else {
@@ -453,6 +469,79 @@
     rho           = rho_samples,
     is_multilevel = is_multilevel,
     context       = "Posterior heterogeneity"
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.pooled_tau
+# ---------------------------------------------------------------------------- #
+#
+# Evaluate heterogeneity at the average expanded scale design. For a log-scale
+# regression this averages the linear predictor before applying exp(), rather
+# than averaging observation-level standard deviations or variances.
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.pooled_tau <- function(
+    fit, scale_data, scale_formula, scale_priors, is_scale, is_multilevel,
+    posterior_samples = NULL, fixed_tau = NULL, fixed_rho = NULL) {
+
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  S                 <- nrow(posterior_samples)
+
+  if (is_scale) {
+    log_tau_samples <- .evaluate.brma.log_tau(
+      fit               = fit,
+      scale_data        = scale_data,
+      scale_formula     = scale_formula,
+      scale_priors      = scale_priors,
+      posterior_samples = posterior_samples
+    )
+    tau_samples <- matrix(
+      exp(rowMeans(log_tau_samples)),
+      nrow = S,
+      ncol = 1L
+    )
+  } else {
+    if (!is.null(fixed_tau)) {
+      tau_samples <- matrix(fixed_tau, nrow = S, ncol = 1L)
+    } else {
+      tau_parameter <- .extract_indexed_parameter_samples(
+        posterior_samples = posterior_samples,
+        parameter         = "tau",
+        required          = FALSE
+      )
+      if (is.null(tau_parameter)) {
+        if (!any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
+          stop("Missing posterior tau columns.", call. = FALSE)
+        }
+        tau_samples <- matrix(0, nrow = S, ncol = 1L)
+      } else if (ncol(tau_parameter) == 1L) {
+        tau_samples <- matrix(tau_parameter[, 1L], nrow = S, ncol = 1L)
+      } else {
+        stop(
+          "Pooled heterogeneity requires a scalar tau or a scale formula.",
+          call. = FALSE
+        )
+      }
+    }
+  }
+
+  rho_samples <- if (is_multilevel) {
+    .posterior_or_fixed_scalar(
+      posterior_samples = posterior_samples,
+      parameter         = "rho",
+      fixed_value       = fixed_rho
+    )
+  } else {
+    NULL
+  }
+
+  return(.heterogeneity_components(
+    tau_total     = tau_samples,
+    rho           = rho_samples,
+    is_multilevel = is_multilevel,
+    context       = "Pooled posterior heterogeneity"
   ))
 }
 

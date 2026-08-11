@@ -43,23 +43,29 @@ effect component for RoBMA product-space objects. Defaults to \code{FALSE}.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
-displays a summary table. Use \code{summary()} to obtain the summary table directly.
+displays a one-row summary table whose \code{PI} columns contain posterior
+prediction quantiles. Use \code{summary()} to obtain the table directly.
 The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
-Computes the pooled (aggregated) effect size estimate
-from a fitted brma object by averaging across the moderator model matrix.
+Computes the pooled effect and prediction interval at the
+average expanded moderator design of a fitted brma object.
 }
 \details{
-This function evaluates the fixed-location model over the fitted moderator
-design and averages those posterior draws directly.
+This function evaluates the fixed-location model at the average expanded
+moderator design. Because the location predictor is linear in its design,
+this equals averaging its fitted-design posterior draws directly.
 
 For meta-regression models, the pooled effect averages the effect size
 estimate across moderator levels proportionately to the levels observed
 in the data. This provides an estimate representative of the sample of
 studies.
 
-For models without moderators, this returns the single mu parameter.
+For models without moderators, this returns the single mu parameter. The
+prediction interval is for one new true effect at the same average location,
+scale, and random-effect design. It therefore uses
+\code{pooled_heterogeneity()}, not the observed-design RMS heterogeneity
+reported by \code{summary_heterogeneity()}.
 }
 \examples{
 \dontrun{

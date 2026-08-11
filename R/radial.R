@@ -313,11 +313,9 @@ galbraith.brma <- function(x, ...) {
   ci.lb      <- mu_summary["mu", as.character(probs[1])]
   ci.ub      <- mu_summary["mu", as.character(probs[2])]
 
-  # get heterogeneity estimate
-  tau_samples <- pooled_heterogeneity(x)
-  tau_summary <- summary(tau_samples)
-  tau         <- tau_summary["tau", "Mean"]
-  tau2        <- tau^2
+  # retain the observed-design RMS heterogeneity used for common radial scaling
+  tau  <- .get_funnel_tau(x)
+  tau2 <- tau^2
 
   # compute precision and standardized values
   wi <- vi + tau2

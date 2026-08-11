@@ -459,21 +459,29 @@
 
 .new_effect_brma_samples <- function(samples, n_chains, n_iter, title,
                                      probs = c(.025, .975), data = NULL,
-                                     effect_transform = NULL) {
+                                     effect_transform = NULL,
+                                     prediction_samples = NULL) {
 
   if (!is.null(effect_transform)) {
     samples <- .transform_effect_matrix(samples, effect_transform)
-    title   <- .effect_output_title(title, effect_transform)
+    if (!is.null(prediction_samples)) {
+      prediction_samples <- .transform_effect_matrix(
+        prediction_samples,
+        effect_transform
+      )
+    }
+    title <- .effect_output_title(title, effect_transform)
   }
 
   return(.new_brma_samples(
-    samples          = samples,
-    n_chains         = n_chains,
-    n_iter           = n_iter,
-    title            = title,
-    probs            = probs,
-    data             = data,
-    effect_transform = effect_transform
+    samples            = samples,
+    n_chains           = n_chains,
+    n_iter             = n_iter,
+    title              = title,
+    probs              = probs,
+    data               = data,
+    effect_transform   = effect_transform,
+    prediction_samples = prediction_samples
   ))
 }
 

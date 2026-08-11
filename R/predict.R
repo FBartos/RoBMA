@@ -1200,14 +1200,19 @@ if (random_mv && type == "estimate" &&
   }
 
   metadata <- attr(samples, "brma_mv_prediction_target", exact = TRUE)
+  prediction_samples <- attr(samples, "prediction_samples", exact = TRUE)
+  if (!is.null(prediction_samples)) {
+    prediction_samples <- prediction_samples[keep, , drop = FALSE]
+  }
   out <- .new_brma_samples(
-    samples          = sample_matrix,
-    n_chains         = 1L,
-    n_iter           = nrow(sample_matrix),
-    title            = paste("Conditional", attr(samples, "title")),
-    probs            = attr(samples, "probs"),
-    data             = attr(samples, "data"),
-    effect_transform = attr(samples, "effect_transform")
+    samples            = sample_matrix,
+    n_chains           = 1L,
+    n_iter             = nrow(sample_matrix),
+    title              = paste("Conditional", attr(samples, "title")),
+    probs              = attr(samples, "probs"),
+    data               = attr(samples, "data"),
+    effect_transform   = attr(samples, "effect_transform"),
+    prediction_samples = prediction_samples
   )
   if (!is.null(metadata)) {
     attr(out, "brma_mv_prediction_target") <- metadata

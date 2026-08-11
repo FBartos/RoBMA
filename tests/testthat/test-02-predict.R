@@ -300,7 +300,9 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
       object     = fit_brma,
       parameters = .conditional_effect_parameters(fit_brma)
     )
+    set.seed(247)
     pooled_effect_averaged <- pooled_effect(fit_brma)
+    set.seed(247)
     pooled_effect_cond     <- expect_silent(
       pooled_effect(fit_brma, conditional = TRUE)
     )
@@ -322,6 +324,15 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
       unname(as.matrix(pooled_effect_cond)),
       unname(as.matrix(pooled_effect_averaged)[effect_rows, , drop = FALSE]),
       info = paste(name, "pooled_effect conditional rows")
+    )
+    expect_equal(
+      unname(attr(pooled_effect_cond, "prediction_samples")),
+      unname(attr(pooled_effect_averaged, "prediction_samples")[
+        effect_rows,
+        ,
+        drop = FALSE
+      ]),
+      info = paste(name, "pooled prediction conditional rows")
     )
     expect_equal(
       unname(as.matrix(pooled_effect_cond)),
@@ -348,15 +359,13 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
   pooled_het_cond     <- expect_silent(
     pooled_heterogeneity(fit_brma, conditional = TRUE)
   )
-  scale_cond <- expect_silent(
-    predict(
-      fit_brma,
-      newdata     = NULL,
-      type        = "terms.scale",
-      conditional = TRUE,
-      quiet       = TRUE
-    )
-  )
+  expect_silent(predict(
+    fit_brma,
+    newdata     = NULL,
+    type        = "terms.scale",
+    conditional = TRUE,
+    quiet       = TRUE
+  ))
   expect_message(
     predict(
       fit_brma,
@@ -375,8 +384,15 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
   )
   expect_equal(
     unname(as.matrix(pooled_het_cond)),
-    unname(matrix(sqrt(rowMeans(as.matrix(scale_cond)^2)), ncol = 1L)),
-    info = "pooled_heterogeneity matches conditional RMS scale"
+    unname(.pooled_heterogeneity_total_samples(
+      object            = fit_brma,
+      posterior_samples = .get_posterior_samples(fit_brma[["fit"]])[
+        heterogeneity_rows,
+        ,
+        drop = FALSE
+      ]
+    )),
+    info = "pooled_heterogeneity matches conditional average scale design"
   )
   expect_equal(
     unname(summary(pooled_het_cond)["tau", "Mean"]),

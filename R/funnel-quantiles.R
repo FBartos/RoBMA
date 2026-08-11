@@ -19,10 +19,13 @@
     return(.get_funnel_tau_known_v(object))
   }
 
-  # use pooled_heterogeneity to get mean tau
-  tau_samples <- pooled_heterogeneity(object)
-  tau_summary <- summary(tau_samples)
-  return(tau_summary["tau", "Mean"])
+  posterior_samples <- .get_posterior_samples(object[["fit"]])
+  tau_samples <- .overall_heterogeneity_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+
+  return(mean(tau_samples))
 }
 
 
@@ -32,6 +35,21 @@
   tau_samples    <- sqrt(rowMeans(extra_variance))
 
   return(mean(tau_samples))
+}
+
+
+.overall_heterogeneity_samples <- function(object, posterior_samples) {
+
+  if (inherits(object, "brma.mv")) {
+    components <- .brma_mv_heterogeneity_components(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
+    total <- .total_brma_mv_heterogeneity_samples(components)
+    return(.brma_mv_rms_sd_samples(total))
+  }
+
+  return(.funnel_tau_samples(object, posterior_samples))
 }
 
 

@@ -32,10 +32,10 @@ arguments are also stored in \code{addpoly_args}. This includes
 for one new true effect. Defaults to \code{FALSE}.}
 
 \item{newdata}{optional one-row prediction design used when
-\code{addpred = TRUE}. Required when moderators, scale predictors,
-non-scalar random structures, or known-\code{R} components make the target
-ambiguous. Each row passed to \code{predict.brma()} is one new true effect;
-the forest adapter accepts exactly one because it draws one summary polygon.}
+\code{addpred = TRUE}. When omitted, the interval is evaluated at the
+average expanded design using \code{pooled_effect()}. When supplied, each
+row passed to \code{predict.brma()} is one new true effect; the forest
+adapter accepts exactly one because it draws one summary polygon.}
 
 \item{bias_adjusted}{logical; whether pooled and prediction summaries should
 adjust for publication bias. Defaults to \code{TRUE}.}

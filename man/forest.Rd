@@ -102,15 +102,16 @@ API instead of constructing a fake metafor model object. The observed study
 rows are shown as usual Wald intervals based on the supplied effect sizes
 and standard errors. The model summary row uses the posterior mean and
 credible interval from \code{\link{pooled_effect}}. When
-\code{addpred = TRUE}, the displayed center and credible interval use the
-fixed location at one explicit prediction row and the prediction interval
-uses \code{\link{predict.brma}} with \code{type = "estimate"} for that same
-row. For intercept-only models the adapter creates an unambiguous one-row
-design automatically. For \pkg{metafor}'s \code{predstyle = "shade"} and
+\code{addpred = TRUE} without \code{newdata}, the displayed center, credible
+interval, and prediction interval use the average-design target returned by
+\code{\link{pooled_effect}}. With explicit \code{newdata}, all three refer
+to that one prediction row and the prediction interval uses
+\code{\link{predict.brma}} with \code{type = "estimate"}. For
+\pkg{metafor}'s \code{predstyle = "shade"} and
 \code{predstyle = "dist"}, the adapter supplies a deterministic kernel
 density estimate computed from those posterior predictive draws. The
-displayed prediction-interval endpoints remain the posterior quantiles
-returned by \code{predict.brma()}.
+displayed prediction-interval endpoints remain the posterior quantiles of
+the corresponding predictive draws.
 
 Additional study-level columns can be added with metafor's \code{ilab}
 interface. When supplied to \code{as_metafor_forest()} or to

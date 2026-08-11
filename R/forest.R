@@ -18,10 +18,10 @@
 #' @param addpred logical; whether to compute a posterior prediction interval
 #'   for one new true effect. Defaults to \code{FALSE}.
 #' @param newdata optional one-row prediction design used when
-#'   \code{addpred = TRUE}. Required when moderators, scale predictors,
-#'   non-scalar random structures, or known-\code{R} components make the target
-#'   ambiguous. Each row passed to \code{predict.brma()} is one new true effect;
-#'   the forest adapter accepts exactly one because it draws one summary polygon.
+#'   \code{addpred = TRUE}. When omitted, the interval is evaluated at the
+#'   average expanded design using \code{pooled_effect()}. When supplied, each
+#'   row passed to \code{predict.brma()} is one new true effect; the forest
+#'   adapter accepts exactly one because it draws one summary polygon.
 #' @param bias_adjusted logical; whether pooled and prediction summaries should
 #'   adjust for publication bias. Defaults to \code{TRUE}.
 #' @param conditional logical; whether to return conditional posterior
@@ -78,19 +78,7 @@ as_metafor_forest <- function(x, ...) {
 }
 
 
-.forest_prediction_data <- function(x, newdata) {
-
-  if (is.null(newdata)) {
-    if (.forest_prediction_design_is_ambiguous(x)) {
-      stop(
-        "'addpred = TRUE' requires one explicit 'newdata' row for models ",
-        "with moderators, scale predictors, random slopes/structures, or ",
-        "known-R components.",
-        call. = FALSE
-      )
-    }
-    return(data.frame(.RoBMA_prediction_row = 1L))
-  }
+.forest_prediction_data <- function(newdata) {
 
   newdata <- .prepare_newdata_as_data_frame(newdata)
   if (nrow(newdata) != 1L) {
@@ -99,34 +87,6 @@ as_metafor_forest <- function(x, ...) {
   }
 
   return(newdata)
-}
-
-
-.forest_prediction_design_is_ambiguous <- function(x) {
-
-  if (.is_mods(x) || .is_scale(x)) {
-    return(TRUE)
-  }
-  formula_design <- .fitted_formula_design(x, "mu", required = FALSE)
-  terms <- formula_design[["random_effects"]]
-  if (is.null(terms)) {
-    terms <- .data_random_effect_terms(x[["data"]])
-  }
-  if (length(terms) == 0L) {
-    return(FALSE)
-  }
-
-  any(vapply(terms, function(term) {
-    n_columns         <- term[["n_columns"]]
-    model_terms       <- term[["model_terms"]]
-    non_intercept     <- !is.null(model_terms) &&
-      any(!model_terms %in% "intercept")
-    unresolved_design <- is.null(model_terms) && is.null(n_columns)
-    .random_effect_term_has_known_group_covariance(term) ||
-      non_intercept ||
-      (!is.null(n_columns) && n_columns > 1L) ||
-      unresolved_design
-  }, logical(1)))
 }
 
 
@@ -174,47 +134,56 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
     studies[["likelihood_weight"]] <- .outcome_data_weights(x)
   }
 
-  pooled <- .forest_summary_row(
-    pooled_effect(
-      object        = x,
-      probs         = probs,
-      bias_adjusted = bias_adjusted,
-      conditional   = conditional
-    )
+  pooled_samples <- pooled_effect(
+    object        = x,
+    probs         = probs,
+    bias_adjusted = bias_adjusted,
+    conditional   = conditional
   )
-
-  pooled[["pi.lb"]] <- NA_real_
-  pooled[["pi.ub"]] <- NA_real_
+  pooled <- .forest_summary_row(pooled_samples)
 
   prediction   <- NULL
   summary_row  <- pooled
   summary_mlab <- "Pooled Effect"
   if (addpred) {
-    prediction_data <- .forest_prediction_data(x, newdata)
-    prediction_terms <- .forest_summary_row(
-      predict.brma(
+    if (is.null(newdata)) {
+      prediction                <- pooled
+      prediction_effect_samples <- attr(
+        pooled_samples,
+        "prediction_samples",
+        exact = TRUE
+      )
+      if (is.null(prediction_effect_samples)) {
+        stop("Pooled effect samples do not contain predictive draws.",
+             call. = FALSE)
+      }
+    } else {
+      prediction_data <- .forest_prediction_data(newdata)
+      prediction_terms <- .forest_summary_row(
+        predict.brma(
+          object        = x,
+          newdata       = prediction_data,
+          type          = "terms",
+          probs         = probs,
+          bias_adjusted = bias_adjusted,
+          conditional   = conditional,
+          quiet         = TRUE
+        )
+      )
+      prediction_effect_samples <- predict.brma(
         object        = x,
         newdata       = prediction_data,
-        type          = "terms",
+        type          = "estimate",
         probs         = probs,
         bias_adjusted = bias_adjusted,
         conditional   = conditional,
         quiet         = TRUE
       )
-    )
-    prediction_effect_samples <- predict.brma(
-      object        = x,
-      newdata       = prediction_data,
-      type          = "estimate",
-      probs         = probs,
-      bias_adjusted = bias_adjusted,
-      conditional   = conditional,
-      quiet         = TRUE
-    )
-    prediction_effect <- .forest_summary_row(prediction_effect_samples)
-    prediction <- prediction_terms
-    prediction[["pi.lb"]] <- prediction_effect[["ci.lb"]]
-    prediction[["pi.ub"]] <- prediction_effect[["ci.ub"]]
+      prediction_effect <- .forest_summary_row(prediction_effect_samples)
+      prediction <- prediction_terms
+      prediction[["pi.lb"]] <- prediction_effect[["ci.lb"]]
+      prediction[["pi.ub"]] <- prediction_effect[["ci.ub"]]
+    }
     summary_row  <- prediction
     summary_mlab <- if (is.null(newdata)) "Pooled Effect" else "Predicted Effect"
   }
@@ -329,15 +298,16 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
 #' rows are shown as usual Wald intervals based on the supplied effect sizes
 #' and standard errors. The model summary row uses the posterior mean and
 #' credible interval from \code{\link{pooled_effect}}. When
-#' \code{addpred = TRUE}, the displayed center and credible interval use the
-#' fixed location at one explicit prediction row and the prediction interval
-#' uses \code{\link{predict.brma}} with \code{type = "estimate"} for that same
-#' row. For intercept-only models the adapter creates an unambiguous one-row
-#' design automatically. For \pkg{metafor}'s \code{predstyle = "shade"} and
+#' \code{addpred = TRUE} without \code{newdata}, the displayed center, credible
+#' interval, and prediction interval use the average-design target returned by
+#' \code{\link{pooled_effect}}. With explicit \code{newdata}, all three refer
+#' to that one prediction row and the prediction interval uses
+#' \code{\link{predict.brma}} with \code{type = "estimate"}. For
+#' \pkg{metafor}'s \code{predstyle = "shade"} and
 #' \code{predstyle = "dist"}, the adapter supplies a deterministic kernel
 #' density estimate computed from those posterior predictive draws. The
-#' displayed prediction-interval endpoints remain the posterior quantiles
-#' returned by \code{predict.brma()}.
+#' displayed prediction-interval endpoints remain the posterior quantiles of
+#' the corresponding predictive draws.
 #'
 #' Additional study-level columns can be added with metafor's \code{ilab}
 #' interface. When supplied to \code{as_metafor_forest()} or to
@@ -510,8 +480,19 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
     estimate = summary_table[1L, "Mean"],
     ci.lb    = summary_table[1L, 3L],
     ci.ub    = summary_table[1L, 4L],
+    pi.lb    = NA_real_,
+    pi.ub    = NA_real_,
     stringsAsFactors = FALSE
   )
+  pi_columns <- grep("^PI ", colnames(summary_table), value = TRUE)
+  if (length(pi_columns) > 0L) {
+    if (length(pi_columns) != 2L) {
+      stop("Forest prediction intervals require exactly two PI quantiles.",
+           call. = FALSE)
+    }
+    out[["pi.lb"]] <- summary_table[1L, pi_columns[[1L]]]
+    out[["pi.ub"]] <- summary_table[1L, pi_columns[[2L]]]
+  }
 
   return(out)
 }

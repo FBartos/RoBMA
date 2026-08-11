@@ -323,10 +323,11 @@ its deletion target is a joint dependency block, not an independent row.
 }
 Simple \code{brma.mv()} models with scalar heterogeneity report the usual \code{tau}
 summary. Random-formula models instead report component-specific standard
-deviation, correlation, and allocation summaries; use
-\code{summary_heterogeneity(component = ...)} or
-\code{pooled_heterogeneity(component = ...)} for absolute component \code{tau}/\code{tau2}
-summaries. General known-\code{V} models do not report scalar I2/H2.
+deviation, correlation, and allocation summaries.
+\code{summary_heterogeneity(component = ...)} describes component heterogeneity
+over the observed design, whereas \code{pooled_heterogeneity(component = ...)}
+evaluates absolute component heterogeneity at the average expanded random
+design. General known-\code{V} models do not report scalar I2/H2.
 }
 
 \examples{

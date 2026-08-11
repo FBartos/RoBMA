@@ -33,6 +33,9 @@
 #' @param data optional data associated with the predictions (e.g., for
 #' non-aggregated predictions)
 #' @param effect_transform optional effect-size transformation metadata
+#' @param prediction_samples optional posterior predictive samples with the
+#' same dimensions as \code{samples}. When supplied, their posterior quantiles
+#' are appended as prediction-interval columns by \code{summary()}.
 #'
 #' @return An object of class \code{brma_samples} which inherits from
 #' \code{matrix}.
@@ -40,7 +43,8 @@
 #' @noRd
 .new_brma_samples <- function(samples, n_chains, n_iter, title,
                               probs = c(.025, .975), data = NULL,
-                              effect_transform = NULL) {
+                              effect_transform = NULL,
+                              prediction_samples = NULL) {
 
   # ensure samples is a matrix with proper column names
   if (!is.matrix(samples)) {
@@ -58,6 +62,21 @@
          call. = FALSE)
   }
 
+  if (!is.null(prediction_samples)) {
+    if (!is.matrix(prediction_samples)) {
+      prediction_samples <- as.matrix(prediction_samples)
+    }
+    if (!is.numeric(prediction_samples) ||
+        !identical(dim(prediction_samples), dim(samples)) ||
+        any(!is.finite(prediction_samples))) {
+      stop(
+        "'prediction_samples' must be a finite numeric matrix with the same dimensions as 'samples'.",
+        call. = FALSE
+      )
+    }
+    colnames(prediction_samples) <- colnames(samples)
+  }
+
   # add attributes for MCMC structure
   attr(samples, "nchains") <- n_chains
   attr(samples, "niter")   <- n_iter
@@ -66,6 +85,10 @@
   attr(samples, "title")    <- title
   attr(samples, "probs")    <- probs
   attr(samples, "data")     <- data
+
+  if (!is.null(prediction_samples)) {
+    attr(samples, "prediction_samples") <- prediction_samples
+  }
 
   if (!is.null(effect_transform)) {
     attr(samples, "effect_transform") <- effect_transform
@@ -172,6 +195,27 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
       dots
     )
   )
+
+  prediction_samples <- attr(object, "prediction_samples", exact = TRUE)
+  if (!is.null(prediction_samples)) {
+    prediction_table <- BayesTools::ensemble_estimates_table(
+      samples    = asplit(prediction_samples, 2),
+      parameters = colnames(object),
+      probs      = probs,
+      title      = attr(object, "title")
+    )
+    quantile_columns <- utils::tail(
+      colnames(prediction_table),
+      length(probs)
+    )
+    for (column in quantile_columns) {
+      summary_table[[paste("PI", column)]] <- prediction_table[[column]]
+    }
+    attr(summary_table, "type") <- c(
+      attr(summary_table, "type"),
+      rep("estimate", length(quantile_columns))
+    )
+  }
 
   class(summary_table) <- c("summary.brma_samples", class(summary_table))
  

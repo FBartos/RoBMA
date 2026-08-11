@@ -1761,7 +1761,10 @@ test_that("known-R row multipliers reach random prediction consumers", {
                tolerance = 1e-12)
   expect_equal(
     unname(as.matrix(pooled)),
-    matrix(sqrt(rowMeans(row_sd^2)), ncol = 1L),
+    matrix(
+      posterior_samples[, sd_name] * sqrt(mean(diag(known_R))),
+      ncol = 1L
+    ),
     tolerance = 1e-12
   )
   expect_equal(unname(as.matrix(estimate)), expected_blup,

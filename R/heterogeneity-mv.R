@@ -29,41 +29,20 @@
     object[["fit"]],
     dots[[".posterior_samples"]]
   )
-  components <- .brma_mv_heterogeneity_components(
-    object            = object,
-    posterior_samples = posterior_samples
-  )
-  allocation_samples <- .brma_mv_allocation_sample_lists(
+  components <- .pooled_brma_mv_heterogeneity_components(
     object            = object,
     posterior_samples = posterior_samples
   )
 
   component <- .normalize_brma_mv_heterogeneity_component(component)
   if (identical(component, "all")) {
-    replaced_components <- .brma_mv_allocation_replaced_components(
-      allocation_samples
-    )
-    selected <- components[!names(components) %in% replaced_components]
-    selected <- c(allocation_samples, selected)
+    selected <- components
   } else {
-    allocation_component <- if (identical(component, "total")) {
-      NULL
-    } else {
-      .match_brma_mv_allocation_summary_component(
-        component            = component,
-        allocation_summaries = allocation_samples
-      )
-    }
-    if (!is.null(allocation_component)) {
-      selected <- allocation_samples[allocation_component]
-    } else {
-      selected <- .select_brma_mv_heterogeneity_components(
-        components            = components,
-        component             = component,
-        object                = object,
-        extra_component_names = names(allocation_samples)
-      )
-    }
+    selected <- .select_brma_mv_heterogeneity_components(
+      components = components,
+      component  = component,
+      object     = object
+    )
   }
 
   chain_info <- .brma_samples_chain_info(
@@ -72,7 +51,8 @@
   )
 
   out <- lapply(names(selected), function(name) {
-    samples <- .pooled_brma_mv_heterogeneity_samples(selected[[name]])
+    samples <- selected[[name]]
+    colnames(samples) <- "tau"
     .new_brma_samples(
       samples  = samples,
       n_chains = chain_info[["n_chains"]],
@@ -104,44 +84,168 @@
 }
 
 
-.pooled_brma_mv_heterogeneity_samples <- function(samples) {
-
-  if (is.matrix(samples)) {
-    samples <- matrix(.brma_mv_rms_sd_samples(samples), ncol = 1L)
-    colnames(samples) <- "tau"
-    return(samples)
-  }
-
-  if (is.list(samples) && length(samples) > 0L) {
-    sample_name <- .pooled_brma_mv_heterogeneity_sample_name(samples)
-    samples <- matrix(samples[[sample_name]], ncol = 1L)
-    colnames(samples) <- "tau"
-    return(samples)
-  }
-
-  stop("Heterogeneity samples must be a posterior-draw matrix.",
-       call. = FALSE)
-}
-
-
-.pooled_brma_mv_heterogeneity_sample_name <- function(samples) {
-
-  if ("tau" %in% names(samples)) {
-    return("tau")
-  }
-
-  total_names <- grep("^sd_total\\(", names(samples), value = TRUE)
-  if (length(total_names) > 0L) {
-    return(total_names[[1L]])
-  }
-
-  names(samples)[[1L]]
-}
-
-
 .brma_mv_rms_sd_samples <- function(tau_samples) {
 
   sqrt(rowMeans(tau_samples^2))
+}
+
+
+.pooled_brma_mv_heterogeneity_components <- function(
+    object, posterior_samples = NULL) {
+
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    posterior_samples
+  )
+
+  if (!.is_random(object)) {
+    tau_result <- .evaluate.brma.pooled_tau(
+      fit               = object[["fit"]],
+      scale_data        = object[["data"]][["scale"]],
+      scale_formula     = if (.is_scale(object)) {
+        .create_fit_formula_list(data = object[["data"]], "scale")
+      } else {
+        NULL
+      },
+      scale_priors      = object[["priors"]][["scale"]],
+      is_scale          = .is_scale(object),
+      is_multilevel     = FALSE,
+      posterior_samples = posterior_samples,
+      fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+      fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
+    )
+    return(list(tau = tau_result[["tau_total"]]))
+  }
+
+  formula_design <- .brma_mv_pooled_formula_design(object)
+  blocks <- unique(vapply(
+    formula_design[["random_effects"]],
+    `[[`,
+    character(1),
+    "block_name"
+  ))
+  location_priors <- attr(object[["fit"]], "prior_list")
+  if (is.null(location_priors)) {
+    location_priors <- formula_design[["prior_list"]]
+  }
+  if (is.null(location_priors)) {
+    location_priors <- object[["priors"]][["location"]]
+  }
+
+  out <- lapply(blocks, function(block) {
+    # Pass the compiled design directly so the synthetic expanded row is not
+    # reconstructed from a raw moderator row.
+    random_vcov <- BayesTools::random_effects_marginal_vcov(
+      fit               = formula_design,
+      parameter         = formula_design[["parameter"]],
+      posterior_samples = posterior_samples,
+      prior_list        = location_priors,
+      blocks            = block,
+      diagonal_only     = TRUE
+    )
+    variance <- .brma_mv_validate_random_marginal_variance_samples(
+      random_vcov = random_vcov,
+      S           = nrow(posterior_samples),
+      K           = 1L
+    )
+    matrix(sqrt(variance[, 1L]), ncol = 1L)
+  })
+  names(out) <- blocks
+
+  return(out)
+}
+
+
+.brma_mv_pooled_formula_design <- function(object) {
+
+  formula_design <- if (.is_scale(object)) {
+    .predict_known_v_formula_design_with_row_source_values(
+      object = object,
+      data   = object[["data"]],
+      pooled = TRUE
+    )
+  } else {
+    .fitted_formula_design(object, "mu", required = TRUE)
+  }
+
+  terms <- formula_design[["random_effects"]]
+  if (length(terms) == 0L) {
+    stop("Pooled random heterogeneity requires random-effect metadata.",
+         call. = FALSE)
+  }
+
+  for (i in seq_along(terms)) {
+    term         <- terms[[i]]
+    model_matrix <- term[["model_matrix"]]
+    if (!is.matrix(model_matrix) || !is.numeric(model_matrix) ||
+        nrow(model_matrix) < 1L || any(!is.finite(model_matrix))) {
+      stop(
+        "Pooled random heterogeneity requires a finite fitted random design.",
+        call. = FALSE
+      )
+    }
+
+    pooled_matrix <- matrix(
+      colMeans(model_matrix),
+      nrow     = 1L,
+      ncol     = ncol(model_matrix),
+      dimnames = list("pooled", colnames(model_matrix))
+    )
+    attr(pooled_matrix, "assign") <- attr(model_matrix, "assign")
+
+    group_map <- 1L
+    group_covariance <- term[["group_covariance"]]
+    if (is.list(group_covariance) &&
+        identical(group_covariance[["type"]], "known")) {
+      kernel       <- group_covariance[["kernel"]]
+      fitted_group <- term[["group_map"]]
+      if (!is.matrix(kernel) || nrow(kernel) != ncol(kernel) ||
+          any(!is.finite(kernel)) || any(diag(kernel) < 0) ||
+          !is.numeric(fitted_group) ||
+          length(fitted_group) != nrow(model_matrix) ||
+          anyNA(fitted_group) || any(!is.finite(fitted_group)) ||
+          any(fitted_group != as.integer(fitted_group)) ||
+          any(fitted_group < 1L | fitted_group > nrow(kernel))) {
+        stop("Known-R pooled heterogeneity metadata are invalid.",
+             call. = FALSE)
+      }
+      fitted_multiplier <- diag(kernel)[fitted_group]
+      pooled_multiplier <- mean(fitted_multiplier)
+      positive_groups   <- which(diag(kernel) > 0)
+      if (pooled_multiplier == 0) {
+        pooled_matrix[] <- 0
+      } else if (length(positive_groups) == 0L) {
+        stop("Known-R pooled heterogeneity has no positive marginal variance.",
+             call. = FALSE)
+      } else {
+        group_map     <- positive_groups[[1L]]
+        pooled_matrix <- pooled_matrix * sqrt(
+          pooled_multiplier / diag(kernel)[group_map]
+        )
+      }
+    }
+
+    term[["model_matrix"]] <- pooled_matrix
+    term[["group_map"]]    <- group_map
+    terms[[i]]              <- term
+  }
+
+  formula_design[["random_effects"]] <- terms
+  fixed_matrix <- formula_design[["model_matrix"]]
+  if (is.matrix(fixed_matrix) && nrow(fixed_matrix) > 0L) {
+    formula_design[["model_matrix"]] <- matrix(
+      colMeans(fixed_matrix),
+      nrow     = 1L,
+      ncol     = ncol(fixed_matrix),
+      dimnames = list("pooled", colnames(fixed_matrix))
+    )
+  }
+  source_data <- formula_design[["source_data"]]
+  if (is.data.frame(source_data) && nrow(source_data) > 0L) {
+    formula_design[["source_data"]] <- source_data[1L, , drop = FALSE]
+  }
+
+  return(formula_design)
 }
 
 
