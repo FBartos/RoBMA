@@ -1,25 +1,117 @@
 # ---------------------------------------------------------------------------- #
+# .regplot_formula_designs
+# ---------------------------------------------------------------------------- #
+#
+# Return the fixed location and scale formula designs that can supply plotting
+# moderators. Location designs are listed first to preserve the released
+# numeric moderator indexing when a scale formula reuses or adds predictors.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_formula_designs <- function(x) {
+
+  parameters <- character()
+  if (.is_mods(x)) {
+    parameters <- "mu"
+  }
+  if (.is_scale(x)) {
+    parameters <- c(
+      parameters,
+      .data_scale_formula_parameters(x[["data"]])
+    )
+  }
+  parameters <- unique(parameters)
+
+  designs <- lapply(parameters, function(parameter) {
+    .fitted_formula_design(x, parameter, required = TRUE)
+  })
+  names(designs) <- parameters
+
+  return(designs)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_predictor_info
+# ---------------------------------------------------------------------------- #
+#
+# Combine user-facing predictor metadata across the location and scale
+# formulas. A predictor shared by both components is represented once.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_predictor_info <- function(x) {
+
+  designs <- .regplot_formula_designs(x)
+  predictor_names <- unique(unlist(lapply(designs, function(design) {
+    design[["predictors"]]
+  }), use.names = FALSE))
+
+  out <- lapply(predictor_names, function(predictor) {
+    matching <- designs[vapply(designs, function(design) {
+      predictor %in% design[["predictors"]]
+    }, logical(1))]
+    parameter <- names(matching)[1L]
+    design    <- matching[[1L]]
+
+    predictor_data <- design[["source_data"]][[predictor]]
+    if (is.null(predictor_data)) {
+      source <- .fitted_formula_source(parameter, x[["data"]])
+      source_data <- if (identical(source, "scale")) {
+        .fitted_scale_spec(x[["data"]], parameter)[["data"]]
+      } else {
+        x[["data"]][[source]]
+      }
+      predictor_data <- source_data[[predictor]]
+    }
+    if (is.null(predictor_data)) {
+      stop(
+        "Fitted moderator data for '", predictor, "' are missing.",
+        call. = FALSE
+      )
+    }
+
+    predictor_type <- design[["predictor_types"]][[predictor]]
+    predictor_levels <- design[["xlevels"]][[predictor]]
+    if (identical(predictor_type, "factor") ||
+        is.factor(predictor_data) || is.character(predictor_data)) {
+      predictor_type <- "categorical"
+      if (is.null(predictor_levels)) {
+        predictor_levels <- levels(factor(predictor_data))
+      }
+      predictor_data <- factor(
+        predictor_data,
+        levels = predictor_levels
+      )
+    } else {
+      predictor_type <- "continuous"
+    }
+
+    list(
+      type   = predictor_type,
+      data   = predictor_data,
+      levels = predictor_levels
+    )
+  })
+  names(out) <- predictor_names
+
+  return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .regplot_get_moderator
 # ---------------------------------------------------------------------------- #
 #
 # Identify and validate the moderator variable for plotting.
 #
-# @param x     brma object
-# @param mod   index or name of moderator (NULL for auto-detect)
+# @param mod            index or name of moderator (NULL for auto-detect)
+# @param predictor_info combined location/scale predictor metadata
 #
 # @return list with name, type, and data for the moderator
 #
 # ---------------------------------------------------------------------------- #
-.regplot_get_moderator <- function(x, mod) {
+.regplot_get_moderator <- function(mod, predictor_info) {
 
-  mods_data <- x[["data"]][["mods"]]
-  design    <- .fitted_formula_design(x, "mu", required = TRUE)
-
-  if (is.null(mods_data)) {
-    stop("No moderator data found in the model.", call. = FALSE)
-  }
-
-  mod_names <- design[["predictors"]]
+  mod_names <- names(predictor_info)
 
   if (is.null(mod)) {
     # auto-detect: use single moderator or error if multiple
@@ -50,29 +142,10 @@
          call. = FALSE)
   }
 
-  # extract moderator data and determine type
-  mod_values <- mods_data[[mod_name]]
-  predictor_type <- design[["predictor_types"]][[mod_name]]
-
-  if (identical(predictor_type, "factor") ||
-      is.factor(mod_values) || is.character(mod_values)) {
-    mod_type <- "categorical"
-    mod_values <- factor(
-      mod_values,
-      levels = if (!is.null(design[["xlevels"]][[mod_name]])) {
-        design[["xlevels"]][[mod_name]]
-      } else {
-        levels(factor(mod_values))
-      }
-    )
-  } else {
-    mod_type <- "continuous"
-  }
-
   return(list(
     name = mod_name,
-    type = mod_type,
-    data = mod_values
+    type = predictor_info[[mod_name]][["type"]],
+    data = predictor_info[[mod_name]][["data"]]
   ))
 }
 
@@ -84,20 +157,17 @@
 # Identify and validate a grouping moderator for interaction displays.
 #
 # ---------------------------------------------------------------------------- #
-.regplot_get_by <- function(x, by, mod_name) {
-
-  mods_data <- x[["data"]][["mods"]]
-  design    <- .fitted_formula_design(x, "mu", required = TRUE)
+.regplot_get_by <- function(x, by, mod_name, predictor_info) {
 
   if (is.null(by)) {
-    by <- .regplot_detect_interaction_by(x, mod_name)
+    by <- .regplot_detect_interaction_by(x, mod_name, predictor_info)
   }
 
   if (is.null(by)) {
     return(NULL)
   }
 
-  mod_names <- design[["predictors"]]
+  mod_names <- names(predictor_info)
 
   if (!is.character(by) || length(by) != 1L) {
     stop("'by' must be NULL or a single moderator name.", call. = FALSE)
@@ -111,28 +181,10 @@
          call. = FALSE)
   }
 
-  by_values <- mods_data[[by]]
-  predictor_type <- design[["predictor_types"]][[by]]
-
-  if (identical(predictor_type, "factor") ||
-      is.factor(by_values) || is.character(by_values)) {
-    by_type <- "categorical"
-    by_values <- factor(
-      by_values,
-      levels = if (!is.null(design[["xlevels"]][[by]])) {
-        design[["xlevels"]][[by]]
-      } else {
-        levels(factor(by_values))
-      }
-    )
-  } else {
-    by_type <- "continuous"
-  }
-
   return(list(
     name = by,
-    type = by_type,
-    data = by_values
+    type = predictor_info[[by]][["type"]],
+    data = predictor_info[[by]][["data"]]
   ))
 }
 
@@ -145,20 +197,15 @@
 # the plotted moderator.
 #
 # ---------------------------------------------------------------------------- #
-.regplot_detect_interaction_by <- function(x, mod_name) {
+.regplot_detect_interaction_by <- function(x, mod_name, predictor_info) {
 
-  mods_data <- x[["data"]][["mods"]]
-
-  if (is.null(mods_data)) {
-    return(NULL)
-  }
-
-  term_labels <- .fitted_formula_terms(
-    object            = x,
-    parameter         = "mu",
-    include_intercept = FALSE,
-    display           = TRUE
-  )
+  designs <- .regplot_formula_designs(x)
+  term_labels <- unlist(lapply(designs, function(design) {
+    terms <- design[["model_terms"]]
+    terms <- terms[terms != "intercept"]
+    .formula_design_display_names(terms)
+  }), use.names = FALSE)
+  term_labels <- unique(term_labels)
   term_labels <- term_labels[grepl(":", term_labels, fixed = TRUE)]
 
   if (length(term_labels) == 0L) {
@@ -176,7 +223,7 @@
     }
   }
 
-  candidates <- unique(candidates[candidates %in% names(mods_data)])
+  candidates <- unique(candidates[candidates %in% names(predictor_info)])
 
   if (length(candidates) == 0L) {
     return(NULL)
@@ -232,11 +279,8 @@
 # x-axis; an optional `by` moderator expands the grid into interaction lines.
 #
 # ---------------------------------------------------------------------------- #
-.regplot_prediction_grid <- function(x, mod_name, mod_type, mod_data,
-                                     by_info, at, digits) {
-
-  mods_data <- x[["data"]][["mods"]]
-  design    <- .fitted_formula_design(x, "mu", required = TRUE)
+.regplot_prediction_grid <- function(mod_name, mod_type, mod_data,
+                                     by_info, at, digits, predictor_info) {
 
   if (mod_type == "continuous") {
     if (is.null(at)) {
@@ -279,7 +323,7 @@
   n_pred       <- nrow(grid)
   newdata_list <- list()
 
-  for (nm in design[["predictors"]]) {
+  for (nm in names(predictor_info)) {
     if (nm == mod_name) {
       if (mod_type == "continuous") {
         newdata_list[[nm]] <- x_values[grid[["x_id"]]]
@@ -296,13 +340,9 @@
         )
       }
     } else {
-      other_vals <- mods_data[[nm]]
+      other_vals <- predictor_info[[nm]][["data"]]
       if (is.factor(other_vals) || is.character(other_vals)) {
-        other_levels <- if (!is.null(design[["xlevels"]][[nm]])) {
-          design[["xlevels"]][[nm]]
-        } else {
-          levels(factor(other_vals))
-        }
+        other_levels <- predictor_info[[nm]][["levels"]]
         newdata_list[[nm]] <- factor(
           rep(other_levels[1], n_pred),
           levels = other_levels
@@ -840,6 +880,7 @@
 #
 # ---------------------------------------------------------------------------- #
 .regplot_data <- function(x, mod_name, mod_type, mod_data, by_info,
+                          predictor_info,
                           pred, ci, pi, si, level, at, digits, psize, plim,
                           transf, xlim, ylim, xlab, ylab, refline,
                           sampling_bias, max_samples, reference_sei, dots) {
@@ -865,13 +906,13 @@
   }
 
   prediction_grid <- .regplot_prediction_grid(
-    x         = x,
-    mod_name  = mod_name,
-    mod_type  = mod_type,
-    mod_data  = mod_data,
-    by_info   = by_info,
-    at        = at,
-    digits    = digits
+    mod_name       = mod_name,
+    mod_type       = mod_type,
+    mod_data       = mod_data,
+    by_info        = by_info,
+    at             = at,
+    digits         = digits,
+    predictor_info = predictor_info
   )
   grid   <- prediction_grid[["grid"]]
   groups <- prediction_grid[["groups"]]

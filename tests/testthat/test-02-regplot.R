@@ -261,6 +261,38 @@ test_that("Regression plot thins location-scale prediction intervals", {
   expect_true(all(is.finite(regplot_data[["pi"]][["upper"]])))
 })
 
+test_that("Regression plot supports scale-only moderators", {
+
+  name <- "dat.lehmann2018_BMA.norm_scale"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  regplot_data <- .test_regplot(
+    fit_brma,
+    mod         = "Preregistered",
+    si          = TRUE,
+    as_data     = TRUE,
+    max_samples = 200
+  )
+
+  expect_identical(regplot_data[["mod_name"]], "Preregistered")
+  expect_equal(
+    regplot_data[["pred"]][["y"]],
+    rep(regplot_data[["pred"]][["y"]][1L], nrow(regplot_data[["pred"]]))
+  )
+  expect_equal(
+    regplot_data[["ci"]][["lower"]],
+    rep(regplot_data[["ci"]][["lower"]][1L], nrow(regplot_data[["ci"]]))
+  )
+  expect_equal(
+    regplot_data[["ci"]][["upper"]],
+    rep(regplot_data[["ci"]][["upper"]][1L], nrow(regplot_data[["ci"]]))
+  )
+  si_width <- regplot_data[["si"]][["upper"]] -
+    regplot_data[["si"]][["lower"]]
+  expect_gt(diff(range(si_width)), 0)
+})
+
 test_that("Regression plot supports pointwise brma.mv random-formula PI and SI", {
 
   name <- "brma.mv_block_mvn_random_mods_scale"

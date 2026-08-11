@@ -6,11 +6,11 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @title Regression Plot (Bubble Plot) for brma Object
 #'
 #' @description \code{regplot.brma} creates a regression plot (also known as
-#' bubble plot) for a fitted brma object with moderators. The plot displays
-#' observed effect sizes against a moderator variable, with point sizes
-#' proportional to study precision.
+#' bubble plot) for a fitted brma object with location or scale moderators. The
+#' plot displays observed effect sizes against a moderator variable, with point
+#' sizes proportional to study precision.
 #'
-#' @param x a fitted brma object with moderators
+#' @param x a fitted brma object with location or scale moderators
 #' @param mod index or name of the moderator variable to plot on the x-axis.
 #' If not specified and only one moderator is present, that moderator is used.
 #' If multiple moderators are present, this argument is required.
@@ -105,6 +105,9 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' For continuous moderators, predictions are computed across the observed
 #' range of the moderator. For categorical moderators (factors), predictions
 #' are computed at each factor level with optional jittering of points.
+#' A moderator that appears only in the scale formula produces a constant mean
+#' prediction while prediction and sampling intervals reflect its effect on
+#' heterogeneity.
 #'
 #' The \code{by} argument allows displaying separate regression lines for
 #' different levels of a second moderator, useful for visualizing interactions.
@@ -197,8 +200,9 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   if (!is.null(targs))
     stop("The 'targs' argument is not yet implemented.", call. = FALSE)
 
-  # check that model has moderators
-  if (!.is_mods(x)) {
+  # check that model has location or scale moderators
+  predictor_info <- .regplot_predictor_info(x)
+  if (length(predictor_info) == 0L) {
     stop("regplot requires a model with moderators. ",
          "Use funnel() for intercept-only models.", call. = FALSE)
   }
@@ -207,7 +211,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   dots <- .set_dots_regplot(...)
 
   # identify the moderator to plot
-  mod_info <- .regplot_get_moderator(x, mod)
+  mod_info <- .regplot_get_moderator(mod, predictor_info)
   mod_name <- mod_info$name
   mod_type <- mod_info$type
   mod_data <- mod_info$data
@@ -230,34 +234,35 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   }
 
   # identify grouping variable (explicit or auto-detected interaction)
-  by_info <- .regplot_get_by(x, by, mod_name)
+  by_info <- .regplot_get_by(x, by, mod_name, predictor_info)
 
   # generate plot data
   regplot_data <- .regplot_data(
-    x             = x,
-    mod_name      = mod_name,
-    mod_type      = mod_type,
-    mod_data      = mod_data,
-    by_info       = by_info,
-    pred          = pred,
-    ci            = ci,
-    pi            = pi,
-    si            = si,
-    level         = level,
-    at            = at,
-    digits        = digits,
-    psize         = psize,
-    plim          = plim,
-    transf        = transf,
-    xlim          = xlim,
-    ylim          = ylim,
-    xlab          = xlab,
-    ylab          = ylab,
-    refline       = refline,
-    sampling_bias = sampling_bias,
-    max_samples   = max_samples,
-    reference_sei = sei,
-    dots          = dots
+    x              = x,
+    mod_name       = mod_name,
+    mod_type       = mod_type,
+    mod_data       = mod_data,
+    by_info        = by_info,
+    predictor_info = predictor_info,
+    pred           = pred,
+    ci             = ci,
+    pi             = pi,
+    si             = si,
+    level          = level,
+    at             = at,
+    digits         = digits,
+    psize          = psize,
+    plim           = plim,
+    transf         = transf,
+    xlim           = xlim,
+    ylim           = ylim,
+    xlab           = xlab,
+    ylab           = ylab,
+    refline        = refline,
+    sampling_bias  = sampling_bias,
+    max_samples    = max_samples,
+    reference_sei  = sei,
+    dots           = dots
   )
 
   # allow data return for programmatic access

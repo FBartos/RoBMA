@@ -36,7 +36,7 @@
 )
 }
 \arguments{
-\item{x}{a fitted brma object with moderators}
+\item{x}{a fitted brma object with location or scale moderators}
 
 \item{mod}{index or name of the moderator variable to plot on the x-axis.
 If not specified and only one moderator is present, that moderator is used.
@@ -149,9 +149,9 @@ If \code{as_data = TRUE}, returns a list with plot data components.
 }
 \description{
 \code{regplot.brma} creates a regression plot (also known as
-bubble plot) for a fitted brma object with moderators. The plot displays
-observed effect sizes against a moderator variable, with point sizes
-proportional to study precision.
+bubble plot) for a fitted brma object with location or scale moderators. The
+plot displays observed effect sizes against a moderator variable, with point
+sizes proportional to study precision.
 }
 \details{
 The regression plot (bubble plot) is a standard visualization for
@@ -168,6 +168,9 @@ meta-regression results. It displays:
 For continuous moderators, predictions are computed across the observed
 range of the moderator. For categorical moderators (factors), predictions
 are computed at each factor level with optional jittering of points.
+A moderator that appears only in the scale formula produces a constant mean
+prediction while prediction and sampling intervals reflect its effect on
+heterogeneity.
 
 The \code{by} argument allows displaying separate regression lines for
 different levels of a second moderator, useful for visualizing interactions.

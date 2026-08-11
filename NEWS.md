@@ -83,6 +83,9 @@
 - makes `regplot(mod = "vi")` and `regplot(mod = "sei")` preserve the
   prediction-grid precision, derive the matching standard error or variance,
   and use pointwise precision in sampling intervals
+- lets `regplot()` use moderators that appear only in a scale formula, showing
+  a constant location effect with heterogeneity-dependent prediction and
+  sampling intervals
 - restores named factor-level resolution in fitted-model hypotheses through
   BayesTools' semantic factor catalog while retaining a single RoBMA-owned
   whole-term target for product-space inference, and recognizes native sampled
