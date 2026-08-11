@@ -372,6 +372,58 @@ test_that("native funnel model-averaged quantiles match R fallback", {
   }
 })
 
+test_that("native funnel quantiles preserve continuous scales and atomic jumps", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  skip_if_not(.has_native_funnel_model_averaged_quantiles(list(
+    selection = list()
+  )))
+
+  S         <- 2L
+  tiny_sd   <- 1e-310
+  spec      <- .test_step_spec(c(.08, .20), c(.09, .14))
+  selection <- spec
+  selection[["omega"]]       <- matrix(1, nrow = S, ncol = spec[["n_bins"]])
+  selection[["alpha"]]       <- rep(0, S)
+  selection[["phack_kind"]]  <- rep(0L, S)
+  selection[["kernel_mode"]] <- rep(SELKERNEL_NORMAL, S)
+  selection[["use_normal"]]  <- rep(TRUE, S)
+  selection[["has_phack"]]   <- FALSE
+
+  continuous_setup <- list(
+    mu                = rep(0, S),
+    tau               = rep(tiny_sd, S),
+    PET               = rep(0, S),
+    PEESE             = rep(0, S),
+    is_weightfunction = rep(FALSE, S),
+    selection         = selection
+  )
+  continuous <- .funnel_model_averaged_quantiles_native(
+    se_sequence      = 0,
+    setup            = continuous_setup,
+    effect_direction = "positive"
+  )
+
+  expect_equal(
+    c(continuous[["lower"]], continuous[["upper"]]) / tiny_sd,
+    stats::qnorm(c(.025, .975)),
+    tolerance = 1e-12
+  )
+  expect_identical(continuous[["mid"]], 0)
+
+  atomic_setup <- continuous_setup
+  atomic_setup[["mu"]]  <- c(0, 10)
+  atomic_setup[["tau"]] <- c(0, 1)
+  atomic <- .funnel_model_averaged_quantiles_native(
+    se_sequence      = 0,
+    setup            = atomic_setup,
+    effect_direction = "positive"
+  )
+
+  expect_identical(atomic[["lower"]], 0)
+  expect_identical(atomic[["mid"]], 0)
+})
+
 test_that("native funnel model-averaged quantiles reject active p-hacking", {
 
   skip_if_not(.has_native_selnorm_kernel())

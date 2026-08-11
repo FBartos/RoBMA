@@ -77,6 +77,9 @@
   `set_contrast_factor_predictors` explicitly.
 
 ### Fixes
+- accelerates native funnel-contour inversion for continuous posterior mixtures
+  with a machine-relative Brent solve while retaining exact generalized-inverse
+  bisection whenever the mixture contains an atomic component.
 - makes `regplot(mod = "vi")` and `regplot(mod = "sei")` preserve the
   prediction-grid precision, derive the matching standard error or variance,
   and use pointwise precision in sampling intervals
