@@ -99,18 +99,42 @@ testthat::test_that("Bangertdrowns location-scale models", {
   set.seed(1)
   scenario_plot("fit_posterior_tau", {
     plot(fit_simple, "tau", ylim = c(0, 10), xlim = c(0.0, 0.6), prior = TRUE)
-    lines(fit_simple, "tau", density_method = "IWMDE", lty = 2)
+    lines(fit_simple, "tau", density_method = "qCMDE", lty = 2)
 
     lines(fit_l, "tau", col = "blue")
-    lines(fit_l, "tau", density_method = "IWMDE", lty = 2, col = "blue")
+    lines(fit_l, "tau", density_method = "qCMDE", lty = 2, col = "blue")
 
-    lines(fit_s, "tau", col = "red")
-    # FUTURE: would be nice to have
-    # lines(fit_s, "tau", density_method = "qCMDE", lty = 2, col = "red")
+    # need to use `standardized_coefficients = TRUE`, otherwise its the intercept estimate at ni100 = 0
+    lines(fit_s, "tau", col = "red", standardized_coefficients = TRUE)
+    lines(fit_s, "tau", density_method = "qCMDE", lty = 2, col = "red", standardized_coefficients = TRUE, density_control = list(samples = 2500))
 
-    lines(fit_ls, "tau", col = "green")
-    # FUTURE: would be nice to have
-    # lines(fit_ls, "tau", density_method = "qCMDE", lty = 2, col = "green")
+    lines(fit_ls, "tau", col = "green", standardized_coefficients = TRUE)
+    lines(fit_ls, "tau", density_method = "qCMDE", lty = 2, col = "green", standardized_coefficients = TRUE, density_control = list(samples = 2500))
+  })
+
+  set.seed(1)
+  scenario_plot("fit_posterior_mods", {
+    plot(fit_l, "ni100", ylim = c(0, 20), xlim = c(-0.5, 0.5), prior = TRUE)
+    lines(fit_l, "ni100", density_method = "IWMDE", lty = 2)
+
+    lines(fit_ls, "ni100", col = "blue", component = "mods")
+    lines(fit_ls, "ni100", density_method = "IWMDE", lty = 2, col = "blue", component = "mods")
+  })
+
+  set.seed(1)
+  scenario_plot("fit_posterior_scale", {
+    par(mfrow = c(1, 2))
+    plot(fit_s, "ni100", ylim = c(0, 2), xlim = c(-1, 1), prior = TRUE)
+    lines(fit_s, "ni100", density_method = "IWMDE", lty = 2)
+
+    lines(fit_ls, "ni100", col = "blue", component = "scale")
+    lines(fit_ls, "ni100", density_method = "IWMDE", lty = 2, col = "blue", component = "scale")
+
+    plot(fit_s, "ni100", ylim = c(0, 3), xlim = c(0, 3), prior = TRUE, transform = "EXP")
+    lines(fit_s, "ni100", density_method = "IWMDE", lty = 2, transform = "EXP")
+
+    lines(fit_ls, "ni100", col = "blue", component = "scale", transform = "EXP")
+    lines(fit_ls, "ni100", density_method = "IWMDE", lty = 2, col = "blue", component = "scale", transform = "EXP")
   })
 
   ### regression plots ----
