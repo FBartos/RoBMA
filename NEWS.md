@@ -50,12 +50,13 @@
   directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.16 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.19 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
   ASTs, structural prior-ordinate classification, and exact induced formula-
-  coefficient prior densities.
+  coefficient prior densities, as well as consistent base posterior-overlay
+  spike scaling.
 - requires loo 2.10.0 internally while preserving RoBMA's released numeric
   `compare.loo` matrix and printing contract.
 - removes transitional pre-release known-`V`, dense random-correlation, and
@@ -79,6 +80,8 @@
   `set_contrast_factor_predictors` explicitly.
 
 ### Fixes
+- keeps spike probabilities on the active base plot's density scale when
+  `lines.brma()` overlays posterior distributions from another fitted object
 - accelerates native funnel-contour and regression-plot interval inversion for
   continuous posterior mixtures with a shared machine-relative Brent solve,
   while retaining exact generalized-inverse bisection whenever the mixture
