@@ -210,6 +210,7 @@ static double regplot_selnorm_mixture_cdf_cached(
 template <typename CdfFun>
 static double regplot_mixture_quantile(double p, const double *mean,
                                        const double *sd, int S,
+                                       bool full_support,
                                        CdfFun cdf_fun)
 {
   bool all_zero_sd = true;
@@ -270,9 +271,10 @@ static double regplot_mixture_quantile(double p, const double *mean,
     return NA_REAL;
   }
 
-  // Continuous mixtures have a unique root and do not need exact
-  // generalized-inverse bisection. Atomic mixtures retain the exact path.
-  if (all_positive_sd) {
+  // Full-support continuous mixtures have a unique root and do not need exact
+  // generalized-inverse bisection. Atoms and selection gaps retain the exact
+  // path.
+  if (all_positive_sd && full_support) {
     const double root = RoBMA::plot_brent_root(
       [cdf_fun, p](double q) {
         return cdf_fun(q) - p;
@@ -313,11 +315,45 @@ static double regplot_normal_mixture_quantile(double p, const double *mean,
                                               const double *sd, int S)
 {
   return regplot_mixture_quantile(
-    p, mean, sd, S,
+    p, mean, sd, S, true,
     [mean, sd, S](double q) {
       return regplot_normal_mixture_cdf(q, mean, sd, S);
     }
   );
+}
+
+static bool regplot_selection_mixture_has_full_support(
+  const double *omega,
+  const std::vector<int> &row_mode,
+  const std::vector<bool> &row_active_phack,
+  int S,
+  int B)
+{
+  for (int s = 0; s < S; ++s) {
+    const int mode = row_mode[static_cast<size_t>(s)];
+    if (mode == SELKERNEL_NORMAL ||
+        (mode == SELKERNEL_PHACK_POWER &&
+         !row_active_phack[static_cast<size_t>(s)])) {
+      return true;
+    }
+  }
+
+  for (int b = 0; b < B; ++b) {
+    bool bin_has_support = false;
+    for (int s = 0; s < S; ++s) {
+      const int mode = row_mode[static_cast<size_t>(s)];
+      if ((mode == SELKERNEL_STEP || mode == SELKERNEL_STEP_PHACK_POWER) &&
+          omega[s + S * b] > 0) {
+        bin_has_support = true;
+        break;
+      }
+    }
+    if (!bin_has_support) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 static SEXP regplot_interval_result(int K, std::vector<double> &lower,
@@ -516,6 +552,10 @@ extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
     );
   }
 
+  const bool full_support = regplot_selection_mixture_has_full_support(
+    omega_p, row_mode, row_active_phack, S, B
+  );
+
   for (int k = 0; k < K; ++k) {
     const double *mean_k = mean_p + static_cast<size_t>(S) * static_cast<size_t>(k);
     const double *sd_k   = sd_p   + static_cast<size_t>(S) * static_cast<size_t>(k);
@@ -539,10 +579,10 @@ extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
     };
 
     lower[static_cast<size_t>(k)] = regplot_mixture_quantile(
-      p_lower, mean_k, sd_k, S, cdf_fun
+      p_lower, mean_k, sd_k, S, full_support, cdf_fun
     );
     upper[static_cast<size_t>(k)] = regplot_mixture_quantile(
-      p_upper, mean_k, sd_k, S, cdf_fun
+      p_upper, mean_k, sd_k, S, full_support, cdf_fun
     );
   }
 

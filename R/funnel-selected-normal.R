@@ -63,7 +63,11 @@
     step <- step * 2
   }
 
-  if (all(spread > 0)) {
+  full_support <- .plot_selection_mixture_has_full_support(
+    selection_context = setup[["selection"]],
+    selected_rows      = setup[["is_weightfunction"]]
+  )
+  if (all(spread > 0) && full_support) {
     tolerance <- max(
       .Machine$double.xmin,
       .Machine$double.eps * max(abs(lower), abs(upper), step)

@@ -450,6 +450,40 @@ double funnel_model_averaged_cdf_native(double q, const FunnelSeContext &ctx)
   return cdf_sum / static_cast<double>(ctx.S);
 }
 
+bool funnel_mixture_has_full_support(const FunnelSeContext &ctx)
+{
+  for (int s = 0; s < ctx.S; ++s) {
+    const size_t si = static_cast<size_t>(s);
+    if (!ctx.weighted[si]) {
+      return true;
+    }
+
+    const int mode = (*ctx.row_mode)[si];
+    if (mode == SELKERNEL_NORMAL ||
+        (mode == SELKERNEL_PHACK_POWER && !(*ctx.row_active_phack)[si])) {
+      return true;
+    }
+  }
+
+  for (int b = 0; b < ctx.data->n_bins; ++b) {
+    bool bin_has_support = false;
+    for (int s = 0; s < ctx.S; ++s) {
+      const size_t si = static_cast<size_t>(s);
+      const int mode = (*ctx.row_mode)[si];
+      if ((mode == SELKERNEL_STEP || mode == SELKERNEL_STEP_PHACK_POWER) &&
+          ctx.omega[s + ctx.S * b] > 0) {
+        bin_has_support = true;
+        break;
+      }
+    }
+    if (!bin_has_support) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 double funnel_model_averaged_quantile_native(double p,
                                              const FunnelSeContext &ctx,
                                              double previous,
@@ -555,9 +589,10 @@ double funnel_model_averaged_quantile_native(double p,
     return NA_REAL;
   }
 
-  // Continuous mixtures have a unique root and do not need exact
-  // generalized-inverse bisection. Atomic mixtures retain the exact path.
-  if (all_positive_sd) {
+  // Full-support continuous mixtures have a unique root and do not need exact
+  // generalized-inverse bisection. Atoms and selection gaps retain the exact
+  // path.
+  if (all_positive_sd && funnel_mixture_has_full_support(ctx)) {
     const double tolerance = RoBMA::plot_root_tolerance(
       global_lower,
       global_upper,

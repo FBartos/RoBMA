@@ -488,6 +488,66 @@ test_that("plot quantile inversion returns the generalized inverse", {
 })
 
 
+test_that("selected plot quantiles return the left edge of CDF plateaus", {
+
+  spec      <- .test_two_sided_step_spec(0, 1)
+  selection <- spec
+  selection[["omega"]]       <- matrix(c(1, 1, 0, 1, 1), nrow = 1L)
+  selection[["alpha"]]       <- 0
+  selection[["phack_kind"]]  <- 0L
+  selection[["kernel_mode"]] <- SELKERNEL_STEP
+  selection[["use_normal"]]  <- FALSE
+  selection[["has_phack"]]   <- FALSE
+
+  setup <- list(
+    mu                = 0,
+    tau               = 1,
+    PET               = 0,
+    PEESE             = 0,
+    is_weightfunction = TRUE,
+    selection         = selection
+  )
+  boundary <- spec[["z_lower"]][3L]
+
+  expect_false(.plot_selection_mixture_has_full_support(selection, TRUE))
+  expect_equal(
+    .funnel_model_averaged_quantile(1, .5, setup, "positive"),
+    boundary,
+    tolerance = 1e-14
+  )
+
+  regplot_r <- .regplot_selection_mixture_interval_quantiles_r(
+    mean_samples     = matrix(0, nrow = 1L),
+    sd_samples       = matrix(1, nrow = 1L),
+    se               = 1,
+    probs            = c(.5, .975),
+    setup            = setup[c("is_weightfunction", "selection")],
+    effect_direction = "positive"
+  )
+  expect_equal(regplot_r[["lower"]], boundary, tolerance = 1e-14)
+
+  if (.has_native_regplot_selection_mixture()) {
+    regplot_native <- .regplot_selnorm_mixture_interval_quantiles(
+      mean_samples      = matrix(0, nrow = 1L),
+      sd_samples        = matrix(1, nrow = 1L),
+      se                = 1,
+      probs             = c(.5, .975),
+      selection_context = selection
+    )
+    expect_equal(regplot_native[["lower"]], boundary, tolerance = 1e-14)
+  }
+
+  if (.has_native_funnel_model_averaged_quantiles(setup)) {
+    funnel_native <- .funnel_model_averaged_quantiles_native(
+      se_sequence      = 1,
+      setup            = setup,
+      effect_direction = "positive"
+    )
+    expect_equal(funnel_native[["mid"]], boundary, tolerance = 1e-14)
+  }
+})
+
+
 test_that("plot quantile inversion fails without a valid CDF bracket", {
 
   expect_error(

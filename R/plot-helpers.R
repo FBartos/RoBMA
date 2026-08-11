@@ -19,6 +19,18 @@
 }
 
 
+.plot_selection_mixture_has_full_support <- function(selection_context,
+                                                     selected_rows) {
+
+  if (is.null(selection_context) || any(!selected_rows)) {
+    return(TRUE)
+  }
+
+  omega <- selection_context[["omega"]][selected_rows, , drop = FALSE]
+  return(all(colSums(omega > 0) > 0))
+}
+
+
 .check_and_select_plot_parameter <- function(parameter, parameter_mods,
                                              parameter_scale, object,
                                              component = "auto") {
