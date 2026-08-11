@@ -156,19 +156,23 @@ testthat::test_that("Bangertdrowns location-scale models", {
     metafor::regplot(metafor_ls, mod = "ni100", ylim = c(-1, 1.5)) # Cannot draw prediction interval for the given model.
   })
 
-})
-
-testthat::test_that("Bangertdrowns location-scale models with BMA", {
+  ### BMA location-scale model ----
   set.seed(1)
-
-  data(dat.bangertdrowns2004, package = "metadat")
-  dat.bangertdrowns2004$ni100 <- dat.bangertdrowns2004$ni / 100
 
   fit_BMA <- scenario_fit("fit_BMA", {
     tmp <- suppressWarnings(BMA(yi = yi, vi = vi, mods = ~ ni100, scale = ~ ni100, data = dat.bangertdrowns2004, measure = "SMD", seed = 1))
     tmp <- add_loo(tmp)
     return(tmp)
   })
+
+  # condition on an active effect; heterogeneity is active in every model
+  models_BMA <- summary_models(fit_BMA, type = "individual")[["individual"]]
+  probs_BMA  <- models_BMA[["post_prob"]][models_BMA[["Effect"]] != "Spike(0)"]
+  probs_BMA  <- probs_BMA / sum(probs_BMA)
+  scenario_text("fit_BMA_probability_comparison", {data.frame(
+    BMA     = probs_BMA,
+    marglik = post_prob(fit_simple, fit_l, fit_s, fit_ls)
+  )})
 
   ### simple summary ----
   set.seed(1)
