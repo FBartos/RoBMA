@@ -157,3 +157,57 @@ testthat::test_that("Bangertdrowns location-scale models", {
   })
 
 })
+
+testthat::test_that("Bangertdrowns location-scale models with BMA", {
+  set.seed(1)
+
+  data(dat.bangertdrowns2004, package = "metadat")
+  dat.bangertdrowns2004$ni100 <- dat.bangertdrowns2004$ni / 100
+
+  fit_BMA <- scenario_fit("fit_BMA", {
+    tmp <- suppressWarnings(BMA(yi = yi, vi = vi, mods = ~ ni100, scale = ~ ni100, data = dat.bangertdrowns2004, measure = "SMD", seed = 1))
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+
+  ### simple summary ----
+  set.seed(1)
+  scenario_text("fit_BMA_summary", {summary(fit_BMA)})
+  scenario_text("fit_BMA_effect",  {pooled_effect(fit_BMA)})
+  scenario_text("fit_BMA_heterogeneity", {pooled_heterogeneity(fit_BMA)})
+
+  ### basic fit plots ----
+  set.seed(1)
+  scenario_plot("fit_BMA_posterior_mu", {
+    plot(fit_BMA, "mu", ylim = c(0, 10), xlim = c(-0.2, 0.6), prior = TRUE)
+    lines(fit_BMA, "mu", density_method = "qCMDE", lty = 2)
+  })
+
+  set.seed(1)
+  scenario_plot("fit_BMA_posterior_tau", {
+    plot(fit_BMA, "tau", ylim = c(0, 10), xlim = c(0.0, 0.6), prior = TRUE, standardized_coefficients = TRUE)
+    lines(fit_BMA, "tau", density_method = "qCMDE", lty = 2, standardized_coefficients = TRUE)
+  })
+
+  set.seed(1)
+  scenario_plot("fit_BMA_posterior_mods", {
+    plot(fit_BMA, "ni100", ylim = c(0, 20), xlim = c(-0.5, 0.5), prior = TRUE, component = "mods")
+    lines(fit_BMA, "ni100", density_method = "IWMDE", lty = 2, component = "mods")
+  })
+
+  set.seed(1)
+  scenario_plot("fit_BMA_posterior_scale", {
+    plot(fit_BMA, "ni100", ylim = c(0, 2), xlim = c(-1, 1), prior = TRUE, component = "scale")
+    lines(fit_BMA, "ni100", density_method = "IWMDE", lty = 2, component = "scale")
+  })
+
+  ### regression plots ----
+  set.seed(1)
+  scenario_plot("fit_BMA_regplot",  {regplot(fit_BMA, mod = "ni100", pi = TRUE, si = TRUE, ylim = c(-1, 1.5))})
+
+  ### diagnostic plots ----
+  set.seed(1)
+  scenario_plot("fit_BMA_funnel",  funnel(fit_BMA))
+  scenario_plot("fit_BMA_qqnorm",  qqnorm(fit_BMA))
+
+})
