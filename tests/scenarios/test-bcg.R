@@ -281,11 +281,13 @@ testthat::test_that("BCG Meta-Regression", {
   scenario_text("fit_reg1_BF_IWMDE",   {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0"), density_method = "IWMDE"))})
   scenario_text("fit_reg1_BF_qCMDE",   {print(hypothesis(fit_reg1, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0", "alloc[random] < 0 vs alloc[random] > 0"), density_method = "qCMDE"))})
 
-  # FUTURE:
-  # Cross-level point equality is a pending grammar/atom-semantics decision;
-  # see .agents/instructions-decisions.md.
-  # hypothesis(fit_reg1, hypothesis = c("alloc[random] < alloc[systematic] vs alloc[random] = alloc[systematic]"))
-  # hypothesis(fit_reg1, hypothesis = c("alloc[random] - alloc[systematic] < 0 vs alloc[random] - alloc[systematic] = 0"))
+  scenario_text("fit_reg1_BF_cross_level", {print(rbind(
+    hypothesis(fit_reg1, hypothesis = "alloc[random] < alloc[systematic] vs alloc[random] = alloc[systematic]"),
+    hypothesis(fit_reg1, hypothesis = "alloc[random] - alloc[systematic] < 0 vs alloc[random] - alloc[systematic] = 0"),
+    hypothesis(fit_reg1, hypothesis = "alloc[random] < alloc[systematic] vs alloc[random] = alloc[systematic]", density_method = "IWMDE"),
+    hypothesis(fit_reg1, hypothesis = "alloc[random] < alloc[systematic] vs alloc[random] = alloc[systematic]", density_method = "qCMDE"),
+    hypothesis(fit_reg1, hypothesis = "alloc[random] < alloc[alternate] vs alloc[random] = alloc[alternate]", density_method = "qCMDE")
+  ))})
 
   ### directional hypothesis tests for marginal means ----
 
@@ -309,10 +311,12 @@ testthat::test_that("BCG Meta-Regression", {
     hypothesis(fit_reg1_emm, hypothesis = "alloc[random] < alloc[alternate] vs alloc[random] > alloc[alternate]")
   )})
 
-  # FUTURE:
-  # Symbolic right-hand-side equality is a pending grammar/atom-semantics
-  # decision; see .agents/instructions-decisions.md.
-  # hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < alloc[alternate] vs alloc[random] = alloc[alternate]"))
+  scenario_text("fit_reg1_mm_BF5", {print(rbind(
+    hypothesis(fit_reg1_emm, hypothesis = "alloc[random] < alloc[alternate] vs alloc[random] = alloc[alternate]"),
+    hypothesis(fit_reg1_emm, hypothesis = "alloc[random] - alloc[alternate] < 0 vs alloc[random] - alloc[alternate] = 0"),
+    hypothesis(fit_reg1_emm, hypothesis = "alloc[random] < alloc[alternate] vs alloc[random] = alloc[alternate]", density_method = "IWMDE"),
+    hypothesis(fit_reg1_emm, hypothesis = "alloc[random] < alloc[alternate] vs alloc[random] = alloc[alternate]", density_method = "qCMDE")
+  ))})
 
   # FUTURE: this would be nice to have
   # hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < alloc[alternate] < alloc[systematic] vs alloc[random] = alloc[alternate] = alloc[systematic] "))
