@@ -4,7 +4,7 @@
 
 .iwmde_schema_version <- function() {
 
-  return("4")
+  return("5")
 }
 
 
@@ -50,7 +50,6 @@
 
   keep <- c(
     "n_points",
-    "max_samples",
     "samples",
     "target_relative_mcse",
     "normalization_points",

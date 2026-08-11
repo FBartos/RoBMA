@@ -53,7 +53,7 @@ test_that("qCMDE matches the conditional-normal random-effects oracle", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 40,
-      max_samples          = 500,
+      samples              = 500,
       normalization_points = 101,
       normalization_prob   = .9999
     )
@@ -175,13 +175,13 @@ test_that("known-V posterior ordinate and marginal likelihood are exact", {
   controls <- list(
     qCMDE = list(
       n_points             = 60,
-      max_samples          = 40,
+      samples              = 40,
       normalization_points = 101,
       normalization_prob   = .9999
     ),
     IWMDE = list(
       n_points             = 60,
-      max_samples          = 240,
+      samples              = 240,
       normalization_points = 200,
       normalization_prob   = .9999
     )

@@ -55,7 +55,7 @@ testthat::test_that("Bem simple models", {
     lines(fit_3PSM, "mu", density_method = "IWMDE", lty = 2, col = "blue")
 
     lines(fit_PET, "mu", col = "red")
-    lines(fit_PET, "mu", density_method = "qCMDE", lty = 2, col = "red", density_control = list(max_samples = 2000))
+    lines(fit_PET, "mu", density_method = "qCMDE", lty = 2, col = "red", density_control = list(samples = 2000))
   })
 
   ### bias specific plots ----

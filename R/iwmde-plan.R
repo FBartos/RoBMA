@@ -28,11 +28,7 @@
       density_control[["n_points"]]
     )
   }
-  row_budget <- if ("ordinate" %in% outputs) {
-    density_control[["samples"]]
-  } else {
-    density_control[["max_samples"]]
-  }
+  row_budget <- density_control[["samples"]]
 
   values <- as.numeric(values)
   values <- values[is.finite(values)]

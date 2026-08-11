@@ -72,14 +72,14 @@ marginal_means <- function(object, ...) {
 #' computed from conditional marginal means, even when \code{type} excludes
 #' \code{"conditional"}.
 #' @param density_control named list of density-estimation settings. Supported
-#' entries are \code{n_points} (default \code{100}), \code{max_samples} for
-#' density curves, \code{samples} for point ordinates (default \code{500}),
+#' entries are \code{n_points} (default \code{100}), \code{samples} for density
+#' curves and point ordinates,
 #' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 #' (default \code{"adaptive"}), \code{normalization_points} (default
 #' \code{NULL}, resolved to \code{max(50, n_points)}), and
-#' \code{normalization_prob} (default \code{0.999}). \code{max_samples}
-#' defaults to \code{500} for stored qCMDE density curves and \code{1000} for
-#' stored IWMDE density curves. Point ordinates use one fixed state-independent
+#' \code{normalization_prob} (default \code{0.999}). \code{samples} defaults
+#' to \code{500} for qCMDE density curves and point ordinates and \code{1000}
+#' for IWMDE density curves. Point ordinates use one fixed state-independent
 #' simple random sample chosen before contributions are evaluated. Sample
 #' diagnostics do not decide whether a finite ordinate is returned. An unmet
 #' relative-MCSE target produces a warning; increase \code{samples} or use
@@ -281,7 +281,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
       object                  = object,
       marginal_means_object   = output,
       n_points                = density_control[["n_points"]],
-      max_samples             = density_control[["max_samples"]],
+      sample_budget           = density_control[["samples"]],
       normalization_points    = density_control[["normalization_points"]],
       normalization_prob      = density_control[["normalization_prob"]],
       density_method          = density_method,
@@ -633,15 +633,15 @@ print.summary.marginal_means.brma <- function(x, ...) {
 #' but is more sensitive to its fitted conditional weights.
 #' @param density_control named list of qCMDE/IWMDE density-estimation settings.
 #' Supported entries are \code{n_points} (default \code{100}),
-#' \code{max_samples} (default \code{500} for qCMDE and \code{1000} for
-#' IWMDE density curves), \code{samples} (default \code{500} for point
-#' ordinates),
+#' \code{samples} (default \code{500} for qCMDE and \code{1000} for
+#' IWMDE density curves),
 #' \code{target_relative_mcse} (default \code{0.05}),
 #' \code{display_grid} (default \code{"adaptive"}),
 #' \code{normalization_points} (default \code{NULL}, resolved to
 #' \code{max(50, n_points)}), and \code{normalization_prob} (default
-#' \code{0.999}). \code{samples} and \code{target_relative_mcse} are
-#' point-ordinate controls and do not alter this fixed-budget plot. Curve
+#' \code{0.999}). \code{samples} controls the fixed posterior-row budget for
+#' the density curve. \code{target_relative_mcse} is a point-ordinate
+#' diagnostic target and does not alter this fixed-budget plot. Curve
 #' diagnostics use the empirical 5--95 percent bulk, report the 5 and 95
 #' percent tail checkpoints, and retain a whole-curve absolute MCSE safeguard
 #' relative to the density peak. Supplying

@@ -72,14 +72,14 @@ high-dimensional conditional weights did not meet the bridge-sampling
 certification tolerance. Use qCMDE for GLMM density curves and Bayes factors.}
 
 \item{density_control}{named list of density-estimation settings. Supported
-entries are \code{n_points} (default \code{100}), \code{max_samples} for
-density curves, \code{samples} for point ordinates (default \code{500}),
+entries are \code{n_points} (default \code{100}), \code{samples} for density
+curves and point ordinates,
 \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 (default \code{"adaptive"}), \code{normalization_points} (default
 \code{NULL}, resolved to \code{max(50, n_points)}), and
-\code{normalization_prob} (default \code{0.999}). \code{max_samples}
-defaults to \code{500} for stored qCMDE density curves and \code{1000} for
-stored IWMDE density curves. Point ordinates use one fixed state-independent
+\code{normalization_prob} (default \code{0.999}). \code{samples} defaults
+to \code{500} for qCMDE density curves and point ordinates and \code{1000}
+for IWMDE density curves. Point ordinates use one fixed state-independent
 simple random sample chosen before contributions are evaluated. Sample
 diagnostics do not decide whether a finite ordinate is returned. An unmet
 relative-MCSE target produces a warning; increase \code{samples} or use

@@ -466,7 +466,6 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     }
     keep <- c(
       "n_points",
-      "max_samples",
       "samples",
       "target_relative_mcse",
       "display_grid"

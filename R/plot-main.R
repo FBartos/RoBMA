@@ -49,16 +49,16 @@
 #' requested display coordinate, use `standardized_coefficients = TRUE`;
 #' RoBMA does not infer a coefficient transformation from posterior draws.
 #' @param density_control named list of density-estimation settings. Supported
-#' entries are \code{n_points} (default \code{100}), \code{max_samples}
+#' entries are \code{n_points} (default \code{100}), \code{samples}
 #' (default \code{500} for qCMDE and \code{1000} for IWMDE density curves),
-#' \code{samples} (default \code{500} for point ordinates),
 #' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 #' (default \code{"adaptive"}), \code{normalization_points} (default
 #' \code{NULL}, resolved to \code{max(50, n_points)}), and
 #' \code{normalization_prob} (default \code{0.999}).
-#' \code{samples} and \code{target_relative_mcse} are point-ordinate
-#' controls and do not alter this fixed-budget density plot. The normalization
-#' entries are used with
+#' \code{samples} controls the fixed posterior-row budget for the density
+#' curve. \code{target_relative_mcse} is a point-ordinate diagnostic target and
+#' does not alter this fixed-budget density plot. The normalization entries are
+#' used with
 #' \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
 #' Curve diagnostics apply local relative-MCSE, effective-sample-size, and
 #' contribution-concentration gates over the empirical 5--95 percent bulk and
@@ -295,7 +295,7 @@ lines.brma <- function(
         sample_parameter        = density_sample_parameter,
         conditional             = if (conditional) parameter else NULL,
         n_points                = density_control[["n_points"]],
-        max_samples             = density_control[["max_samples"]],
+        sample_budget           = density_control[["samples"]],
         normalization_points    = density_control[["normalization_points"]],
         normalization_prob      = density_control[["normalization_prob"]],
         density_method          = density_method,
@@ -360,7 +360,7 @@ lines.brma <- function(
 
 .plot_brma_attach_iwmde <- function(object, samples, parameter, sample_parameter,
                                     conditional,
-                                    n_points, max_samples,
+                                    n_points, sample_budget,
                                     normalization_points,
                                     normalization_prob, density_method,
                                     display_grid, parameter_spec = NULL) {
@@ -383,7 +383,7 @@ lines.brma <- function(
       sample_parameter     = sample_parameter,
       conditional          = conditional,
       n_points             = n_points,
-      max_samples          = max_samples,
+      sample_budget        = sample_budget,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
       density_method       = density_method,
@@ -414,7 +414,7 @@ lines.brma <- function(
     density_method  = density_method,
     density_control = list(
       n_points             = n_points,
-      max_samples          = max_samples,
+      samples              = sample_budget,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
       display_grid         = display_grid
@@ -499,7 +499,7 @@ lines.brma <- function(
 
 .plot_brma_attach_iwmde_factor <- function(object, samples, parameter,
                                            sample_parameter, conditional,
-                                           n_points, max_samples,
+                                           n_points, sample_budget,
                                            normalization_points,
                                            normalization_prob,
                                            density_method, display_grid,
@@ -575,7 +575,7 @@ lines.brma <- function(
       density_method  = density_method,
       density_control = list(
         n_points             = n_points,
-        max_samples          = max_samples,
+        samples              = sample_budget,
         normalization_points = normalization_points,
         normalization_prob   = normalization_prob,
         display_grid         = display_grid
@@ -633,7 +633,7 @@ lines.brma <- function(
       density_method  = density_method,
       density_control = list(
         n_points             = n_points,
-        max_samples          = max_samples,
+        samples              = sample_budget,
         normalization_points = normalization_points,
         normalization_prob   = normalization_prob,
         display_grid         = display_grid

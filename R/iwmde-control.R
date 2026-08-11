@@ -12,17 +12,17 @@
   )
   purpose <- match.arg(purpose)
   allowed_names <- c(
-    "n_points", "max_samples", "samples", "target_relative_mcse",
+    "n_points", "samples", "target_relative_mcse",
     "normalization_points", "normalization_prob", "display_grid"
   )
   defaults <- list(
     n_points             = 100L,
-    max_samples          = if (identical(density_method, "IWMDE")) {
+    samples              = if (identical(purpose, "density") &&
+                               identical(density_method, "IWMDE")) {
       1000L
     } else {
       500L
     },
-    samples              = 500L,
     target_relative_mcse = .05,
     normalization_points = NULL,
     normalization_prob   = .999,
@@ -76,8 +76,7 @@
     "density_control$n_points",
     lower = 20
   )
-  .iwmde_check_max_samples(defaults[["max_samples"]])
-  .iwmde_check_ordinate_samples(defaults[["samples"]])
+  .iwmde_check_samples(defaults[["samples"]])
   BayesTools::check_real(
     defaults[["target_relative_mcse"]],
     "density_control$target_relative_mcse",
@@ -146,23 +145,7 @@
 }
 
 
-.iwmde_check_max_samples <- function(max_samples) {
-
-  if (length(max_samples) != 1L || is.na(max_samples) ||
-      (!is.finite(max_samples) && !identical(as.numeric(max_samples), Inf)) ||
-      (is.finite(max_samples) &&
-       (max_samples < 20 || max_samples != as.integer(max_samples)))) {
-    stop(
-      "'density_control$max_samples' must be an integer at least 20 or Inf.",
-      call. = FALSE
-    )
-  }
-
-  invisible(TRUE)
-}
-
-
-.iwmde_check_ordinate_samples <- function(samples) {
+.iwmde_check_samples <- function(samples) {
 
   if (length(samples) != 1L || is.na(samples) ||
       (!is.finite(samples) && !identical(as.numeric(samples), Inf)) ||

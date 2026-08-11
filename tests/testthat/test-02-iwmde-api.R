@@ -62,7 +62,7 @@ test_that("IWMDE plan marks non-known-V random-formula contexts unsupported", {
     context         = context,
     parameter       = "mu",
     density_method  = "qCMDE",
-    density_control = list(n_points = 20, max_samples = 20),
+    density_control = list(n_points = 20, samples = 20),
     outputs         = "density",
     parameter_spec  = list(type = "primitive")
   )
@@ -534,7 +534,7 @@ test_that("known-V marginalized random SDs stay in global IWMDE state", {
     sample_parameter     = density_sample_parameter,
     conditional          = NULL,
     n_points             = 20,
-    max_samples          = 20,
+    sample_budget        = 20,
     normalization_points = 20,
     normalization_prob   = .999,
     density_method       = "qCMDE",
@@ -1196,7 +1196,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   density_control <- list(
     n_points             = 20,
-    max_samples          = 30,
+    samples              = 30,
     normalization_points = 40,
     normalization_prob   = .95,
     display_grid         = "adaptive"
@@ -1318,7 +1318,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
   ))
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
-  expect_equal(provenance[["schema_version"]], "4")
+  expect_equal(provenance[["schema_version"]], "5")
   expect_equal(provenance[["algorithm_version"]], "13")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
@@ -1360,7 +1360,7 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
 
   density_control <- list(
     n_points             = 20,
-    max_samples          = 20,
+    samples              = 20,
     normalization_points = 20,
     normalization_prob   = .95,
     display_grid         = "adaptive"
@@ -1889,7 +1889,7 @@ test_that("density_control validates public density settings", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 20,
-      max_samples          = 30,
+      samples              = 30,
       normalization_points = 40,
       normalization_prob   = .95,
       display_grid         = "uniform"
@@ -1897,13 +1897,17 @@ test_that("density_control validates public density settings", {
   )
 
   expect_equal(valid[["n_points"]], 20)
-  expect_equal(valid[["max_samples"]], 30)
+  expect_equal(valid[["samples"]], 30)
   expect_equal(valid[["normalization_points"]], 40)
   expect_equal(valid[["normalization_prob"]], .95)
   expect_equal(valid[["display_grid"]], "uniform")
   expect_error(
     .density_control_normalize("qCMDE", list(unknown = 1)),
     "unrecognized"
+  )
+  expect_error(
+    .density_control_normalize("qCMDE", list(max_samples = 30)),
+    "unrecognized setting.*'max_samples'"
   )
   expect_error(
     .density_control_normalize("qCMDE", list(20)),
@@ -1928,13 +1932,13 @@ test_that("density_control validates public density settings", {
     )
   )
   expect_equal(valid_iwmde[["n_points"]], 100)
-  expect_equal(valid_iwmde[["max_samples"]], 1000)
+  expect_equal(valid_iwmde[["samples"]], 1000)
   expect_equal(valid_iwmde[["normalization_points"]], 40)
   expect_equal(valid_iwmde[["normalization_prob"]], .95)
   mm_iwmde <- .hypothesis_marginal_means_density_control(
     object = list(density_settings = list(
       n_points             = 20,
-      max_samples          = 30,
+      samples              = 30,
       normalization_points = 40,
       normalization_prob   = .95,
       display_grid         = "uniform"
@@ -2019,7 +2023,7 @@ test_that("IWMDE structural support uses the full continuous population", {
     density_method  = "IWMDE",
     density_control = list(
       n_points             = 20,
-      max_samples          = 20,
+      samples              = 20,
       normalization_points = 20
     ),
     outputs         = "density",
@@ -2177,7 +2181,7 @@ test_that("IWMDE fails when an eligible population omits a fitted chain", {
       context         = context,
       parameter       = "mu",
       density_method  = "qCMDE",
-      density_control = list(n_points = 20, max_samples = 20),
+      density_control = list(n_points = 20, samples = 20),
       outputs         = "ordinate",
       values          = 0,
       parameter_spec  = list(type = "primitive")
@@ -2296,7 +2300,7 @@ test_that("IWMDE plan fails the target on a non-finite baseline row", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 20,
-      max_samples          = 21,
+      samples              = 21,
       normalization_points = 20
     ),
     outputs         = "density",

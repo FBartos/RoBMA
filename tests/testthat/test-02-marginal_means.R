@@ -295,7 +295,7 @@ test_that("marginal_means attaches BF ordinates for averaged density targets", {
     object                = structure(list(), class = "brma"),
     marginal_means_object = emm,
     n_points              = 20,
-    max_samples           = 20,
+    sample_budget         = 20,
     normalization_points  = 20,
     normalization_prob    = .99,
     density_method        = "qCMDE",
@@ -358,7 +358,7 @@ test_that("marginal means qCMDE/IWMDE attach checks availability directly", {
       object                = structure(list(), class = "brma"),
       marginal_means_object = emm,
       n_points              = 20,
-      max_samples           = 20,
+      sample_budget         = 20,
       normalization_points  = 20,
       normalization_prob    = .99,
       density_method        = "qCMDE",
@@ -468,7 +468,7 @@ test_that("marginal_means plot computes missing explicit qCMDE densities", {
       provenance
     },
     .marginal_means_attach_iwmde = function(object, marginal_means_object,
-                                            n_points, max_samples,
+                                            n_points, sample_budget,
                                             normalization_points,
                                             normalization_prob, density_method,
                                             display_grid, null_hypothesis,
@@ -719,7 +719,7 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
       provenance
     },
     .marginal_means_attach_iwmde = function(object, marginal_means_object,
-                                            n_points, max_samples,
+                                            n_points, sample_budget,
                                             normalization_points,
                                             normalization_prob, density_method,
                                             display_grid, null_hypothesis,
@@ -754,7 +754,7 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
       parameter       = "alloc",
       plot_type       = "ggplot",
       density_method  = "IWMDE",
-      density_control = list(n_points = 20, max_samples = 20)
+      density_control = list(n_points = 20, samples = 20)
     ),
     "because 'density_control' was supplied"
   )
@@ -802,7 +802,7 @@ test_that("marginal_means plot errors when explicit IWMDE density is unavailable
       provenance
     },
     .marginal_means_attach_iwmde = function(object, marginal_means_object,
-                                            n_points, max_samples,
+                                            n_points, sample_budget,
                                             normalization_points,
                                             normalization_prob, density_method,
                                             display_grid, null_hypothesis,
@@ -821,7 +821,7 @@ test_that("marginal_means plot errors when explicit IWMDE density is unavailable
         parameter       = "alloc",
         plot_type       = "ggplot",
         density_method  = "IWMDE",
-        density_control = list(n_points = 20, max_samples = 20)
+        density_control = list(n_points = 20, samples = 20)
       ),
       "IWMDE density was unavailable"
     ),
@@ -895,7 +895,7 @@ test_that("GLMM IWMDE marginal means are rejected before estimation", {
     marginal_means(
       fit,
       density_method  = "IWMDE",
-      density_control = list(n_points = 20, max_samples = 20),
+      density_control = list(n_points = 20, samples = 20),
       bf              = FALSE,
       n_samples       = 100
     ),
@@ -1012,7 +1012,7 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
     n_samples         = test_profile_value(250L, 1000L),
     bf                = TRUE,
     density_method    = "qCMDE",
-    density_control   = list(n_points = 20, max_samples = 20)
+    density_control   = list(n_points = 20, samples = 20)
   )
 
   expect_named(mm, c(
@@ -1136,7 +1136,7 @@ test_that("marginal_means restricts qCMDE precomputation targets", {
     parameter       = "Preregistered",
     type            = "conditional",
     levels          = "Not Pre-Registered",
-    density_control = list(n_points = 20, max_samples = 20)
+    density_control = list(n_points = 20, samples = 20)
   )
 
   averaged_density <- attr(
@@ -1186,7 +1186,7 @@ test_that("marginal_means computes BF ordinates when density target is averaged"
     parameter       = "alloc",
     type            = "averaged",
     levels          = "alternate",
-    density_control = list(n_points = 20, max_samples = 20)
+    density_control = list(n_points = 20, samples = 20)
   )
 
   averaged_density <- attr(
@@ -1228,7 +1228,7 @@ test_that("marginal_means IWMDE ordinates do not expand plot densities", {
     n_samples        = test_profile_value(250L, 1000L),
     bf               = TRUE,
     density_method   = "qCMDE",
-    density_control  = list(n_points = 20, max_samples = 20)
+    density_control  = list(n_points = 20, samples = 20)
   )
 
   conditional_density <- attr(
@@ -1265,7 +1265,7 @@ test_that("marginal_means skips qCMDE ordinates when BFs are hidden", {
     n_samples         = test_profile_value(250L, 1000L),
     bf                = FALSE,
     density_method    = "qCMDE",
-    density_control   = list(n_points = 20, max_samples = 20)
+    density_control   = list(n_points = 20, samples = 20)
   )
 
   posterior_ordinate <- attr(
@@ -1291,8 +1291,8 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
   .local_mock_marginal_means_iwmde_success(omit_ordinate_levels = "systematic")
 
   density_control <- test_profile_value(
-    standard      = list(n_points = 40, max_samples = 50),
-    certification = list(n_points = 80, max_samples = 200)
+    standard      = list(n_points = 40, samples = 50),
+    certification = list(n_points = 80, samples = 200)
   )
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],

@@ -56,7 +56,7 @@ test_that("plot.brma qCMDE supports marginalized random SDs", {
     parameter       = "mu",
     plot_type       = "ggplot",
     density_method  = "qCMDE",
-    density_control = list(n_points = 20, max_samples = 20)
+    density_control = list(n_points = 20, samples = 20)
   )
   posterior_density <- attr(
     captured[["samples"]][[captured[["parameter"]]]],
@@ -264,7 +264,7 @@ test_that("plot.brma forwards attached qCMDE posterior density", {
     parameter          = "mu",
     plot_type          = "ggplot",
     density_method     = "qCMDE",
-    density_control    = list(n_points = 20, max_samples = 20)
+    density_control    = list(n_points = 20, samples = 20)
   )
 
   posterior_density <- attr(captured[["samples"]][["mu"]], "posterior_density")
@@ -296,7 +296,7 @@ test_that("plot.brma forwards attached IWMDE posterior density", {
     parameter          = "mu",
     plot_type          = "ggplot",
     density_method     = "IWMDE",
-    density_control    = list(n_points = 20, max_samples = 50)
+    density_control    = list(n_points = 20, samples = 50)
   )
 
   posterior_density <- attr(captured[["samples"]][["mu"]], "posterior_density")
@@ -332,7 +332,7 @@ test_that("plot.brma fails closed when an explicit estimator is rejected", {
       parameter       = "mu",
       plot_type       = "ggplot",
       density_method  = "qCMDE",
-      density_control = list(n_points = 20, max_samples = 20)
+      density_control = list(n_points = 20, samples = 20)
     ),
     "rejected by diagnostics: sentinel diagnostic rejection",
     fixed = TRUE
@@ -358,7 +358,7 @@ test_that("plot.brma forwards qCMDE density on the fitted coefficient scale", {
     standardized_coefficients = TRUE,
     plot_type                 = "ggplot",
     density_method            = "qCMDE",
-    density_control           = list(n_points = 20, max_samples = 20)
+    density_control           = list(n_points = 20, samples = 20)
   )
 
   plotted_samples   <- captured[["samples"]][[captured[["parameter"]]]]
@@ -398,7 +398,7 @@ test_that("plot.brma uses exact original-scale coefficient targets", {
     parameter_mods   = "year",
     plot_type        = "ggplot",
     density_method   = "qCMDE",
-    density_control  = list(n_points = 20, max_samples = 20)
+    density_control  = list(n_points = 20, samples = 20)
   )
 
   plotted_samples   <- captured[["samples"]][[captured[["parameter"]]]]
@@ -420,10 +420,10 @@ test_that("plot.brma forwards attached qCMDE/IWMDE densities for factor terms", 
   skip_if_missing_fits("bcg_meta-regression2")
 
   for (case in list(
-    list(method = "qCMDE", max_samples = 20L, standardized = FALSE),
-    list(method = "IWMDE", max_samples = 50L, standardized = FALSE),
-    list(method = "qCMDE", max_samples = 20L, standardized = TRUE),
-    list(method = "IWMDE", max_samples = 50L, standardized = TRUE)
+    list(method = "qCMDE", samples = 20L, standardized = FALSE),
+    list(method = "IWMDE", samples = 50L, standardized = FALSE),
+    list(method = "qCMDE", samples = 20L, standardized = TRUE),
+    list(method = "IWMDE", samples = 50L, standardized = TRUE)
   )) {
     captured <- NULL
     .local_mock_iwmde_estimate_success()
@@ -443,8 +443,8 @@ test_that("plot.brma forwards attached qCMDE/IWMDE densities for factor terms", 
         density_method            = case[["method"]],
         standardized_coefficients = case[["standardized"]],
         density_control           = list(
-          n_points    = 20,
-          max_samples = case[["max_samples"]]
+          n_points = 20,
+          samples  = case[["samples"]]
         )
       ),
       NA
@@ -472,10 +472,10 @@ test_that("plot.brma forwards qCMDE/IWMDE densities for single-column factor ter
   skip_if_missing_fits("dat.lehmann2018_RoBMA_mods")
 
   for (case in list(
-    list(method = "qCMDE", max_samples = 20L, conditional = FALSE),
-    list(method = "IWMDE", max_samples = 50L, conditional = FALSE),
-    list(method = "qCMDE", max_samples = 20L, conditional = TRUE),
-    list(method = "IWMDE", max_samples = 50L, conditional = TRUE)
+    list(method = "qCMDE", samples = 20L, conditional = FALSE),
+    list(method = "IWMDE", samples = 50L, conditional = FALSE),
+    list(method = "qCMDE", samples = 20L, conditional = TRUE),
+    list(method = "IWMDE", samples = 50L, conditional = TRUE)
   )) {
     captured <- NULL
     .local_mock_iwmde_estimate_success()
@@ -495,8 +495,8 @@ test_that("plot.brma forwards qCMDE/IWMDE densities for single-column factor ter
         plot_type       = "ggplot",
         density_method  = case[["method"]],
         density_control = list(
-          n_points    = 20,
-          max_samples = case[["max_samples"]]
+          n_points = 20,
+          samples  = case[["samples"]]
         )
       ),
       NA
@@ -567,7 +567,7 @@ test_that("plot.brma forwards fitted-scale densities under BayesTools aliases", 
         standardized_coefficients = TRUE,
         plot_type                = "ggplot",
         density_method           = "qCMDE",
-        density_control          = list(n_points = 20, max_samples = 20)
+        density_control          = list(n_points = 20, samples = 20)
       ),
       NA
     )
@@ -621,7 +621,7 @@ test_that("plot.brma forwards attached qCMDE density for PET and PEESE parameter
       parameter         = case[["parameter"]],
       plot_type         = "ggplot",
       density_method    = "qCMDE",
-      density_control   = list(n_points = 20, max_samples = 20)
+      density_control   = list(n_points = 20, samples = 20)
     )
 
     density_source <- if (!is.null(captured[["samples"]][[case[["parameter"]]]])) {

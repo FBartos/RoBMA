@@ -87,7 +87,7 @@ test_that("request keys carry schema and algorithm versions", {
     target_key     = "primitive|mu"
   )
 
-  expect_equal(request[["schema_version"]], "4")
+  expect_equal(request[["schema_version"]], "5")
   expect_equal(request[["algorithm_version"]], "13")
 
   testthat::local_mocked_bindings(
@@ -146,7 +146,7 @@ test_that("semantic request keys do not depend on achieved plan budgets", {
     method            = "q_grid_cmde",
     target_key        = "primitive|mu",
     plan_key          = "budget-500",
-    density_control   = list(max_samples = Inf),
+    density_control   = list(samples = Inf),
     source_fingerprint = list(posterior_values = "draws")
   )
   final <- .iwmde_provenance_request(
@@ -154,7 +154,7 @@ test_that("semantic request keys do not depend on achieved plan budgets", {
     method            = "q_grid_cmde",
     target_key        = "primitive|mu",
     plan_key          = "budget-2000",
-    density_control   = list(max_samples = Inf),
+    density_control   = list(samples = Inf),
     source_fingerprint = list(posterior_values = "draws")
   )
 
@@ -525,7 +525,7 @@ test_that("plan keys carry schema and algorithm versions", {
   )
   payload <- .iwmde_plan_key_payload(plan)
 
-  expect_equal(payload[["schema_version"]], "4")
+  expect_equal(payload[["schema_version"]], "5")
   expect_equal(payload[["algorithm_version"]], "13")
   expect_identical(
     payload[["prior_ordinates"]],

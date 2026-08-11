@@ -52,7 +52,7 @@
 
 
 .marginal_means_attach_iwmde <- function(object, marginal_means_object,
-                                         n_points, max_samples,
+                                         n_points, sample_budget,
                                          normalization_points,
                                          normalization_prob, density_method,
                                          display_grid, null_hypothesis,
@@ -75,7 +75,7 @@
   ordinate_diagnostics <- list()
   density_control_list <- list(
     n_points             = n_points,
-    max_samples          = max_samples,
+    samples              = sample_budget,
     normalization_points = normalization_points,
     normalization_prob   = normalization_prob,
     display_grid         = display_grid
@@ -190,7 +190,7 @@
   marginal_means_object[["ordinate_diagnostics"]] <- ordinate_diagnostics
   marginal_means_object[["density_settings"]] <- list(
     n_points             = n_points,
-    max_samples          = max_samples,
+    samples              = sample_budget,
     normalization_points = normalization_points,
     normalization_prob   = normalization_prob,
     density_method       = density_method,
@@ -359,7 +359,6 @@
   control <- settings[intersect(
     c(
       "n_points",
-      "max_samples",
       "samples",
       "target_relative_mcse",
       "normalization_points",
@@ -769,7 +768,7 @@
       object                = source_object,
       marginal_means_object = x,
       n_points              = density_control[["n_points"]],
-      max_samples           = density_control[["max_samples"]],
+      sample_budget         = density_control[["samples"]],
       normalization_points  = density_control[["normalization_points"]],
       normalization_prob    = density_control[["normalization_prob"]],
       density_method        = density_method,

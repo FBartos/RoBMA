@@ -420,7 +420,7 @@ test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", 
         density_method  = method,
         density_control = list(
           n_points             = 30L,
-          max_samples          = 40L,
+          samples              = 40L,
           normalization_points = 40L
         ),
         n_samples = 1000L,

@@ -68,15 +68,15 @@ but is more sensitive to its fitted conditional weights.}
 
 \item{density_control}{named list of qCMDE/IWMDE density-estimation settings.
 Supported entries are \code{n_points} (default \code{100}),
-\code{max_samples} (default \code{500} for qCMDE and \code{1000} for
-IWMDE density curves), \code{samples} (default \code{500} for point
-ordinates),
+\code{samples} (default \code{500} for qCMDE and \code{1000} for
+IWMDE density curves),
 \code{target_relative_mcse} (default \code{0.05}),
 \code{display_grid} (default \code{"adaptive"}),
 \code{normalization_points} (default \code{NULL}, resolved to
 \code{max(50, n_points)}), and \code{normalization_prob} (default
-\code{0.999}). \code{samples} and \code{target_relative_mcse} are
-point-ordinate controls and do not alter this fixed-budget plot. Curve
+\code{0.999}). \code{samples} controls the fixed posterior-row budget for
+the density curve. \code{target_relative_mcse} is a point-ordinate
+diagnostic target and does not alter this fixed-budget plot. Curve
 diagnostics use the empirical 5--95 percent bulk, report the 5 and 95
 percent tail checkpoints, and retain a whole-curve absolute MCSE safeguard
 relative to the density peak. Supplying

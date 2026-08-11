@@ -21,17 +21,33 @@ source(testthat::test_path("common-functions.R"))
 }
 
 
-test_that("density and ordinate controls have separate row policies", {
+test_that("density curves and ordinates share the samples control", {
 
   density_qcmde <- .density_control_normalize("qCMDE", purpose = "density")
   density_iwmde <- .density_control_normalize("IWMDE", purpose = "density")
   ordinate      <- .density_control_normalize("qCMDE", purpose = "ordinate")
 
-  expect_equal(density_qcmde[["max_samples"]], 500L)
-  expect_equal(density_iwmde[["max_samples"]], 1000L)
+  expect_equal(density_qcmde[["samples"]], 500L)
+  expect_equal(density_iwmde[["samples"]], 1000L)
   expect_equal(ordinate[["samples"]], 500L)
   expect_equal(ordinate[["target_relative_mcse"]], .05)
   expect_equal(.iwmde_bf_warning_relative_mcse(), .05)
+  expect_equal(
+    .density_control_normalize(
+      "qCMDE",
+      list(samples = 80),
+      purpose = "density"
+    )[["samples"]],
+    80
+  )
+  expect_equal(
+    .density_control_normalize(
+      "qCMDE",
+      list(samples = 80),
+      purpose = "ordinate"
+    )[["samples"]],
+    80
+  )
 
   expect_error(
     .density_control_normalize(

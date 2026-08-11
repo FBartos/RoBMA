@@ -230,15 +230,14 @@ It can be seriously inaccurate at one-sided boundaries and at posterior ordinate
 | Setting | Default | Role |
 |:--|:--|:--|
 | `n_points` | `100` | Number of plotted density points; also determines the default initial normalization-grid size. |
-| `max_samples` | `500` for qCMDE curves; `1,000` for IWMDE curves | Maximum eligible posterior rows evaluated for a density curve. |
-| `samples` | `500` | Fixed eligible-row sample for a point ordinate; use `Inf` for the census. |
+| `samples` | `500` for qCMDE curves and point ordinates; `1,000` for IWMDE curves | Maximum eligible posterior rows evaluated; use `Inf` for the census. |
 | `target_relative_mcse` | `0.05` | Warning target for point-ordinate relative Monte Carlo error. |
 | `normalization_points` | `NULL` | Initial hidden normalization-grid size; `NULL` resolves to `max(50, n_points)`. |
 | `normalization_prob` | `0.999` | Central posterior probability used to seed the hidden normalization range; qCMDE refines and extends that range. |
 | `display_grid` | `"adaptive"` | Adaptive or uniform placement of plotted points; it is immaterial for a point-only hypothesis. |
 
-Density curves use the estimator-specific `max_samples` plotting budget.
-Point ordinates instead select one reproducible, state-independent simple random sample before any ordinate contribution is evaluated.
+Density curves and point ordinates both use the `samples` budget.
+Point ordinates select one reproducible, state-independent simple random sample before any ordinate contribution is evaluated.
 This fixed design preserves the empirical product-state mixture in expectation and avoids making the sample size depend on the observed contributions.
 The estimate remains available independently of those sample diagnostics.
 If the sample does not meet the precision target, a warning recommends increasing `samples` or using `Inf`; if the census still misses the target, obtain more posterior draws.
@@ -318,9 +317,9 @@ We compare the two estimators for the average effect (`mu`) and the between-stud
 par(mfrow = c(2, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 
 plot(fit_simple, parameter = "mu",  prior = TRUE, density_method = "KDE",   main = "mu: KDE",   xlim = c(-1.8, 0.6))
-plot(fit_simple, parameter = "mu",  prior = TRUE, density_method = "qCMDE", density_control = list(max_samples = 1000L), main = "mu: qCMDE", xlim = c(-1.8, 0.6))
+plot(fit_simple, parameter = "mu",  prior = TRUE, density_method = "qCMDE", density_control = list(samples = 1000L), main = "mu: qCMDE", xlim = c(-1.8, 0.6))
 plot(fit_simple, parameter = "tau", prior = TRUE, density_method = "KDE",   main = "tau: KDE",   xlim = c(0, 1.2))
-plot(fit_simple, parameter = "tau", prior = TRUE, density_method = "qCMDE", density_control = list(max_samples = 1000L), main = "tau: qCMDE", xlim = c(0, 1.2))
+plot(fit_simple, parameter = "tau", prior = TRUE, density_method = "qCMDE", density_control = list(samples = 1000L), main = "tau: qCMDE", xlim = c(0, 1.2))
 ```
 
 The qCMDE curves are visibly smoother on both panels, but otherwise track the KDE summary in shape and location.
@@ -527,7 +526,7 @@ The final non-executed call shows the corresponding qCMDE plot once the targeted
 par(mfrow = c(1, 3), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 
 plot(fit_meta_reg, parameter = "ablat", prior = TRUE, density_method = "KDE",   main = "KDE",   xlim = c(-0.08, 0.03))
-plot(fit_meta_reg, parameter = "ablat", prior = TRUE, density_method = "qCMDE", density_control = list(max_samples = 2000L), main = "qCMDE", xlim = c(-0.08, 0.03))
+plot(fit_meta_reg, parameter = "ablat", prior = TRUE, density_method = "qCMDE", density_control = list(samples = 2000L), main = "qCMDE", xlim = c(-0.08, 0.03))
 plot(emm_meta_reg_default, parameter = "alloc", prior = TRUE, main = "alloc means: KDE",   xlim = c(-1.6, 0.3))
 ```
 

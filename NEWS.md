@@ -19,7 +19,9 @@
   `marginal_means()`, and `hypothesis.marginal_means()` workflows via
   `density_method`.
 - adds fixed, user-controlled simple-random posterior-row samples for
-  qCMDE/IWMDE ordinates, with compact public diagnostics via
+  qCMDE/IWMDE density curves and point ordinates through the shared
+  `density_control$samples` setting. Density-control lists reject unknown
+  settings. Compact public diagnostics are available via
   `density_diagnostics()` and method-neutral `RoBMA_density_diagnostics` /
   `RoBMA_density_ordinate_error` classes. Diagnostics quantify uncertainty but
   never adaptively change the estimator's posterior-row sample.

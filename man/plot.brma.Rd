@@ -107,16 +107,16 @@ requested display coordinate, use \code{standardized_coefficients = TRUE};
 RoBMA does not infer a coefficient transformation from posterior draws.}
 
 \item{density_control}{named list of density-estimation settings. Supported
-entries are \code{n_points} (default \code{100}), \code{max_samples}
+entries are \code{n_points} (default \code{100}), \code{samples}
 (default \code{500} for qCMDE and \code{1000} for IWMDE density curves),
-\code{samples} (default \code{500} for point ordinates),
 \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 (default \code{"adaptive"}), \code{normalization_points} (default
 \code{NULL}, resolved to \code{max(50, n_points)}), and
 \code{normalization_prob} (default \code{0.999}).
-\code{samples} and \code{target_relative_mcse} are point-ordinate
-controls and do not alter this fixed-budget density plot. The normalization
-entries are used with
+\code{samples} controls the fixed posterior-row budget for the density
+curve. \code{target_relative_mcse} is a point-ordinate diagnostic target and
+does not alter this fixed-budget density plot. The normalization entries are
+used with
 \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
 Curve diagnostics apply local relative-MCSE, effective-sample-size, and
 contribution-concentration gates over the empirical 5--95 percent bulk and

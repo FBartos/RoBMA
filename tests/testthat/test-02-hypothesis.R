@@ -136,7 +136,7 @@ test_that("qCMDE/IWMDE hypotheses guard non-known-V random-formula objects upfro
       object,
       "mu = 0",
       density_method  = "qCMDE",
-      density_control = list(n_points = 20, max_samples = 20)
+      density_control = list(n_points = 20, samples = 20)
     ),
     "qCMDE/IWMDE hypothesis\\(\\).*random-formula"
   )
@@ -468,7 +468,7 @@ test_that("qCMDE point-null ordinates agree with bridge oracle and report error"
     density_method            = "qCMDE",
     density_control           = list(
       n_points             = 40,
-      max_samples          = 120,
+      samples              = 120,
       normalization_points = 50
     ),
     n_samples                 = 1000,
@@ -523,7 +523,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 40,
-      max_samples          = 120,
+      samples              = 120,
       normalization_points = 50
     ),
     n_samples       = 1000
@@ -558,7 +558,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 40,
-      max_samples          = 120,
+      samples              = 120,
       normalization_points = 50
     ),
     columns   = "all",
@@ -571,7 +571,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
     density_method  = "IWMDE",
     density_control = list(
       n_points             = 40,
-      max_samples          = 120,
+      samples              = 120,
       normalization_points = 50
     ),
     columns   = "all",
@@ -587,7 +587,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 40,
-      max_samples          = 120,
+      samples              = 120,
       normalization_points = 50
     ),
     columns   = "all",
@@ -629,7 +629,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
       density_method  = "qCMDE",
       density_control = list(
         n_points             = 40,
-        max_samples          = 120,
+        samples              = 120,
         normalization_points = 50
       ),
       n_samples       = 1000
@@ -643,7 +643,7 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
       density_method  = "qCMDE",
       density_control = list(
         n_points             = 40,
-        max_samples          = 120,
+        samples              = 120,
         normalization_points = 50
       ),
       n_samples       = 1000
@@ -667,7 +667,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 30,
-      max_samples          = 240,
+      samples              = 240,
       normalization_points = 60
     ),
     n_samples       = 10000
@@ -679,7 +679,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
     density_method  = "IWMDE",
     density_control = list(
       n_points             = 30,
-      max_samples          = 240,
+      samples              = 240,
       normalization_points = 80
     ),
     n_samples       = 10000
@@ -697,7 +697,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
       bf      = bf_tau_zero,
       control = list(
         n_points             = 30,
-        max_samples          = 240,
+        samples              = 240,
         normalization_points = 60
       )
     ),
@@ -705,7 +705,7 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
       bf      = bf_tau_zero_iwmde,
       control = list(
         n_points             = 30,
-        max_samples          = 240,
+        samples              = 240,
         normalization_points = 80
       )
     )
@@ -764,7 +764,7 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 40,
-      max_samples          = 240,
+      samples              = 240,
       normalization_points = 50
     ),
     n_samples       = 1000
@@ -836,7 +836,7 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
     density_method = "qCMDE",
     density_control = list(
       n_points             = 40,
-      max_samples          = 240,
+      samples              = 240,
       normalization_points = 50
     )
   )
@@ -961,7 +961,7 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 20,
-      max_samples          = 20,
+      samples              = 20,
       normalization_points = 20
     )
   )
@@ -986,7 +986,7 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
     density_method  = "qCMDE",
     density_control = list(
       n_points             = 20,
-      max_samples          = 20,
+      samples              = 20,
       normalization_points = 20
     )
   )
@@ -1502,7 +1502,7 @@ test_that("qCMDE requires direct point-null expressions", {
       density_method  = "qCMDE",
       density_control = list(
         n_points             = 40,
-        max_samples          = 120,
+        samples              = 120,
         normalization_points = 50
       ),
       n_samples       = 1000
