@@ -11,9 +11,10 @@ test_that("loo_weights rejects additional models with an actionable error", {
 })
 
 
-.make_loo_model_weights_fixture <- function(shift, data_hash = "same-data") {
+.make_loo_model_weights_fixture <- function(shift, data_hash = "same-data",
+                                            n_draws = 200L) {
 
-  draws <- seq(-1.5, 1.5, length.out = 200)
+  draws <- seq(-1.5, 1.5, length.out = n_draws)
   y     <- c(-0.5, 0, 0.75, 1)
   log_lik <- vapply(y, function(observation) {
     stats::dnorm(observation, mean = draws + shift, sd = 1, log = TRUE)
@@ -62,6 +63,38 @@ test_that("loo_model_weights delegates stored brma LOO results", {
   expect_equal(
     loo::loo_model_weights(fit_1, fit_2, method = "stacking"),
     expected_stacking
+  )
+})
+
+
+test_that("loo_model_weights accepts unequal posterior draw counts", {
+
+  loo_1 <- .make_loo_model_weights_fixture(0, n_draws = 200L)
+  loo_2 <- .make_loo_model_weights_fixture(0.3, n_draws = 300L)
+  fit_1 <- structure(list(stored_loo = loo_1), class = "brma")
+  fit_2 <- structure(list(stored_loo = loo_2), class = "brma")
+
+  testthat::local_mocked_bindings(
+    loo.brma = function(x, unit = "estimate", ...) x[["stored_loo"]],
+    .package = "RoBMA"
+  )
+
+  lpd_point <- cbind(
+    fit_1 = loo_1[["pointwise"]][, "elpd_loo"],
+    fit_2 = loo_2[["pointwise"]][, "elpd_loo"]
+  )
+  expected_stacking <- loo::stacking_weights(lpd_point)
+  names(expected_stacking) <- colnames(lpd_point)
+  expect_equal(
+    loo_model_weights(fit_1, fit_2, method = "stacking"),
+    expected_stacking
+  )
+
+  expected_pseudobma <- loo::pseudobma_weights(lpd_point, BB = FALSE)
+  names(expected_pseudobma) <- colnames(lpd_point)
+  expect_equal(
+    loo_model_weights(fit_1, fit_2, method = "pseudobma", BB = FALSE),
+    expected_pseudobma
   )
 })
 

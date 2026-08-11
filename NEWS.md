@@ -5,7 +5,8 @@
   and marginal-means hypotheses, and accepts equivalent constant-left scalar
   relations such as `0 > theta` and `0 = theta`
 - re-exports `loo::loo_model_weights()` and adds a `brma` method that computes
-  stacking or pseudo-BMA weights directly from compatible stored LOO results.
+  stacking or pseudo-BMA weights directly from compatible stored LOO results,
+  including models fitted with different numbers of posterior draws.
 - adds `metafor::forest()` support for `brma` objects and `as_metafor_forest()` for preparing RoBMA forest-plot data.
 - adds `brma.mv()` for normal-likelihood meta-analysis with known sampling
   covariance matrices, including latent, whitened, and block-MVN known-`V`

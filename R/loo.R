@@ -1051,6 +1051,45 @@ loo_model_weights.brma <- function(
   names(loo_objects) <- model_names
 
   .check_loo_compare_targets(loo_objects)
+
+  draw_counts   <- vapply(
+    loo_objects, function(object) dim(object)[[1L]], integer(1)
+  )
+  target_counts <- vapply(
+    loo_objects, function(object) dim(object)[[2L]], integer(1)
+  )
+
+  # TODO: Once https://github.com/stan-dev/loo/issues/389 is fixed and the
+  # corresponding loo release is required, remove this unequal-draw workaround
+  # and delegate all cases to loo_model_weights.default().
+  if (length(unique(draw_counts)) > 1L &&
+      length(unique(target_counts)) == 1L) {
+    method <- match.arg(method)
+    lpd_point <- vapply(
+      loo_objects,
+      function(object) object[["pointwise"]][, "elpd_loo"],
+      numeric(target_counts[[1L]])
+    )
+
+    if (method == "stacking") {
+      weights <- loo::stacking_weights(
+        lpd_point     = lpd_point,
+        optim_method  = optim_method,
+        optim_control = optim_control
+      )
+    } else {
+      weights <- loo::pseudobma_weights(
+        lpd_point = lpd_point,
+        BB        = BB,
+        BB_n      = BB_n,
+        alpha     = alpha
+      )
+    }
+    names(weights) <- names(loo_objects)
+
+    return(weights)
+  }
+
   loo_model_weights_fun <- get(
     "loo_model_weights.default",
     envir    = asNamespace("loo"),
