@@ -102,6 +102,21 @@
 }
 
 
+# Add a result class to a list of brma_samples objects so list-level methods can
+# preserve its component structure.
+.new_brma_samples_list <- function(x) {
+
+  if (!is.list(x) || is.matrix(x)) {
+    stop("Internal error: expected a list of brma_samples results.",
+         call. = FALSE)
+  }
+
+  class(x) <- unique(c("brma_samples_list", class(x), "list"))
+
+  return(x)
+}
+
+
 # Derive valid chain metadata for brma_samples objects.
 .brma_samples_chain_info <- function(fit = NULL, n_samples) {
 
@@ -249,6 +264,199 @@ print.summary.brma_samples <- function(x, probs = NULL, ...) {
   cat("\n")
   print(x)
   cat("\n")
+
+  return(invisible(x))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# Data-frame coercion
+# ---------------------------------------------------------------------------- #
+
+#' @title Convert brma_samples Results to Data Frames
+#'
+#' @description Converts a \code{brma_samples} result to the posterior summary
+#' table displayed by \code{print()}. Multi-component results are returned in
+#' long form with component and parameter identifiers. Printed quantile labels
+#' such as \code{0.025} and \code{PI 0.025} are returned as the syntactic column
+#' names \code{CI_0.025} and \code{PI_0.025}, respectively.
+#'
+#' @param x a \code{brma_samples} object or multi-component
+#' \code{brma_samples_list} result
+#' @param row.names \code{NULL} or a character vector giving the row names for
+#' the resulting data frame. Custom row names are unsupported when
+#' \code{format = "list"}.
+#' @param optional logical; passed to the final data-frame coercion method.
+#' @param format for multi-component results, whether to return a single
+#' \code{"long"} data frame or a named, possibly nested \code{"list"} with a
+#' plain data frame at each leaf. Defaults to \code{"long"}.
+#' @param stringsAsFactors logical; accepted for compatibility with
+#' \code{data.frame()} and otherwise ignored.
+#' @param ... additional arguments passed to \code{summary.brma_samples()}
+#'
+#' @return For an individual \code{brma_samples} object, a plain
+#' \code{data.frame} containing the displayed posterior summary statistics.
+#' For a \code{brma_samples_list}, a long data frame by default or, with
+#' \code{format = "list"}, a named, possibly nested list of such data frames.
+#'
+#' @export
+as.data.frame.brma_samples <- function(x, row.names = NULL, optional = FALSE,
+                                       ...) {
+
+  summary_table <- summary.brma_samples(x, ...)
+  output <- as.data.frame(
+    summary_table,
+    row.names = row.names,
+    optional  = optional
+  )
+  output <- .brma_samples_data_frame_names(output)
+  output <- data.frame(output, check.names = FALSE)
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.brma_samples
+#' @export
+as.data.frame.brma_samples_list <- function(
+    x, row.names = NULL, optional = FALSE, format = c("long", "list"),
+    stringsAsFactors = FALSE, ...) {
+
+  format <- match.arg(format)
+  if (identical(format, "list")) {
+    if (!is.null(row.names)) {
+      stop(
+        "'row.names' is unsupported when format = 'list'.",
+        call. = FALSE
+      )
+    }
+    return(.brma_samples_list_as_data_frames(x, ...))
+  }
+
+  output <- .brma_samples_list_as_long_data_frame(x, ...)
+  output <- as.data.frame(
+    output,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
+}
+
+
+.brma_samples_data_frame_names <- function(x) {
+
+  column_names <- names(x)
+  is_prediction_interval <- startsWith(column_names, "PI ")
+  quantile_labels <- ifelse(
+    is_prediction_interval,
+    substring(column_names, 4L),
+    column_names
+  )
+  is_credible_interval <- !is_prediction_interval &
+    !is.na(suppressWarnings(as.numeric(quantile_labels)))
+
+  interval_columns <- is_credible_interval | is_prediction_interval
+  interval_names <- paste0(
+    ifelse(is_prediction_interval, "PI_", "CI_"),
+    quantile_labels
+  )
+  column_names[interval_columns] <- make.names(
+    interval_names[interval_columns],
+    unique = TRUE
+  )
+  names(x) <- column_names
+
+  return(x)
+}
+
+
+.brma_samples_list_as_long_data_frame <- function(x, ...) {
+
+  tables <- .brma_samples_list_flatten_data_frames(x, ...)
+  if (length(tables) == 0L) {
+    return(data.frame(
+      component = character(),
+      parameter = character()
+    ))
+  }
+
+  return(do.call(rbind, tables))
+}
+
+
+.brma_samples_list_flatten_data_frames <- function(x, ..., path = character()) {
+
+  output          <- list()
+  component_names <- names(x)
+  if (is.null(component_names)) {
+    component_names <- rep("", length(x))
+  }
+
+  for (i in seq_along(x)) {
+    component_name <- component_names[[i]]
+    if (!nzchar(component_name)) {
+      component_name <- as.character(i)
+    }
+    component_path <- c(path, component_name)
+    component      <- x[[i]]
+
+    if (inherits(component, "brma_samples")) {
+      table <- as.data.frame(component, ...)
+      parameter <- rownames(table)
+      if (is.null(parameter)) {
+        parameter <- as.character(seq_len(nrow(table)))
+      }
+      table <- data.frame(
+        component = rep(paste(component_path, collapse = "/"), nrow(table)),
+        parameter = parameter,
+        table,
+        row.names   = NULL,
+        check.names = FALSE
+      )
+      output[[length(output) + 1L]] <- table
+      next
+    }
+
+    if (is.list(component) && !is.matrix(component)) {
+      nested <- .brma_samples_list_flatten_data_frames(
+        component,
+        ...,
+        path = component_path
+      )
+      output <- c(output, nested)
+      next
+    }
+
+    stop("Internal error: invalid component in a brma_samples result list.",
+         call. = FALSE)
+  }
+
+  return(output)
+}
+
+
+.brma_samples_list_as_data_frames <- function(x, ...) {
+
+  lapply(unclass(x), function(component) {
+    if (inherits(component, "brma_samples")) {
+      return(as.data.frame(component, ...))
+    }
+    if (is.list(component) && !is.matrix(component)) {
+      return(.brma_samples_list_as_data_frames(component, ...))
+    }
+    stop("Internal error: invalid component in a brma_samples result list.",
+         call. = FALSE)
+  })
+}
+
+
+# Keep list printing unchanged while suppressing the implementation class.
+#' @export
+#' @noRd
+print.brma_samples_list <- function(x, ...) {
+
+  print(unclass(x), ...)
 
   return(invisible(x))
 }

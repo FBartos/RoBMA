@@ -92,6 +92,8 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
   )
 
   observed <- ranef.brma(object, simplify = FALSE)
+  observed_table  <- as.data.frame(observed)
+  observed_tables <- as.data.frame(observed, format = "list")
 
   expected_cluster  <- matrix(0, nrow = S, ncol = K)
   expected_estimate <- matrix(0, nrow = S, ncol = K)
@@ -110,6 +112,27 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
   }
 
   expect_equal(blup_calls, 1L)
+  expect_s3_class(observed, "brma_samples_list")
+  expect_s3_class(observed_table, "data.frame")
+  expect_setequal(
+    observed_table[["component"]],
+    names(observed)
+  )
+  expect_named(observed_tables, names(observed))
+  expect_true(all(vapply(observed_tables, is.data.frame, logical(1))))
+  for (component in names(observed)) {
+    expect_identical(
+      observed_tables[[component]],
+      as.data.frame(observed[[component]])
+    )
+  }
+  expect_identical(
+    data.frame(observed),
+    data.frame(observed_table)
+  )
+  expect_false(any(grepl("attr\\(,\\\"class\\\"\\)", capture.output(
+    print(observed)
+  ))))
   expect_equal(
     unname(as.matrix(observed[["cluster"]])),
     expected_cluster,

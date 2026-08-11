@@ -329,6 +329,67 @@ test_that("brma_samples chain info preserves only balanced chains", {
 })
 
 
+test_that("nested brma_samples results preserve their summary-table structure", {
+
+  study <- .new_brma_samples(
+    samples  = matrix(
+      1:8,
+      nrow     = 4L,
+      dimnames = list(NULL, c("study 1", "study 2"))
+    ),
+    n_chains = 1L,
+    n_iter   = 4L,
+    title    = "Study effects"
+  )
+  estimate <- .new_brma_samples(
+    samples  = matrix(
+      9:16,
+      nrow     = 4L,
+      dimnames = list(NULL, c("estimate 1", "estimate 2"))
+    ),
+    n_chains = 1L,
+    n_iter   = 4L,
+    title    = "Estimate effects"
+  )
+  result <- .new_brma_samples_list(list(
+    location = list(study = study, estimate = estimate),
+    scale    = list(study = study)
+  ))
+
+  long_table <- as.data.frame(result)
+  tables     <- as.data.frame(result, format = "list")
+
+  expect_s3_class(result, "brma_samples_list")
+  expect_s3_class(long_table, "data.frame")
+  expect_setequal(
+    long_table[["component"]],
+    c("location/study", "location/estimate", "scale/study")
+  )
+  expect_true(all(long_table[["parameter"]] %in% c(
+    "study 1", "study 2", "estimate 1", "estimate 2"
+  )))
+  expect_identical(
+    names(long_table),
+    c("component", "parameter", "Mean", "Median", "CI_0.025", "CI_0.975")
+  )
+  expect_identical(data.frame(result), data.frame(long_table))
+  expect_named(tables, c("location", "scale"))
+  expect_named(tables[["location"]], c("study", "estimate"))
+  expect_identical(
+    tables[["location"]][["study"]],
+    as.data.frame(study)
+  )
+  expect_identical(
+    tables[["location"]][["estimate"]],
+    as.data.frame(estimate)
+  )
+  expect_identical(
+    tables[["scale"]][["study"]],
+    as.data.frame(study)
+  )
+})
+
+
 test_that("posterior model indicators must be exact integers", {
 
   samples <- matrix(

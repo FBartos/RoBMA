@@ -160,6 +160,35 @@ test_that("brma.mv heterogeneity resolves aliases and component errors", {
   )
 
   expect_named(all_components, names(components))
+  for (component in all_components) {
+    component_df <- as.data.frame(component)
+    expect_identical(
+      names(component_df),
+      c("Mean", "Median", "CI_0.025", "CI_0.975")
+    )
+    expect_equal(
+      unname(as.matrix(component_df)),
+      unname(as.matrix(as.data.frame(summary(component)))),
+      tolerance = 0
+    )
+  }
+  component_table  <- as.data.frame(all_components)
+  component_tables <- as.data.frame(all_components, format = "list")
+  expect_s3_class(all_components, "brma_samples_list")
+  expect_s3_class(component_table, "data.frame")
+  expect_named(
+    component_table[1:2],
+    c("component", "parameter")
+  )
+  expect_setequal(component_table[["component"]], names(all_components))
+  expect_true(all(component_table[["parameter"]] == "tau"))
+  expect_type(component_tables, "list")
+  expect_named(component_tables, names(all_components))
+  expect_true(all(vapply(component_tables, is.data.frame, logical(1))))
+  expect_identical(
+    data.frame(all_components),
+    data.frame(component_table)
+  )
   expect_equal(
     unname(as.matrix(study)),
     matrix(c(0.20, 0.25), ncol = 1),

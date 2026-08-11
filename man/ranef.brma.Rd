@@ -39,7 +39,9 @@ this method.}
 \value{
 A \code{brma_samples} object for a single selected/simplified
 component, or a named list of \code{brma_samples} objects for decomposed
-\code{component = "all"} output.
+\code{component = "all"} output. Use \code{as.data.frame()} to obtain the
+displayed summary table in long form, or
+\code{as.data.frame(format = "list")} to retain separate component tables.
 }
 \description{
 Extracts random effect deviations from a fitted brma object.

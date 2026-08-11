@@ -80,6 +80,10 @@
     )
   }
 
+  if (is.list(out) && !is.matrix(out)) {
+    out <- .new_brma_samples_list(out)
+  }
+
   return(out)
 }
 

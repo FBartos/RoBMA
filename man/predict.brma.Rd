@@ -128,10 +128,12 @@ A \code{brma_samples} object containing posterior samples. For
 returns a named list of component-specific \code{brma_samples} objects.
 When printed, each \code{brma_samples} object displays a summary table via
 \code{BayesTools::ensemble_estimates_table}. The underlying samples matrix
-can be accessed directly (the object inherits from matrix) or via
-\code{summary()} to obtain the summary table. The samples can also be
-converted to \pkg{posterior} draws formats using \code{as_draws()} and
-related functions.
+can be accessed directly because the object inherits from matrix. Use
+\code{summary()} or \code{as.data.frame()} to obtain the summary table. For
+multi-component results, the data frame contains component and parameter
+identifiers; use \code{as.data.frame(format = "list")} to retain separate
+tables. The samples can also be converted to \pkg{posterior} draws formats
+using \code{as_draws()} and related functions.
 }
 \description{
 \code{predict.brma} predicts values

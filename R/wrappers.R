@@ -309,7 +309,8 @@ pooled_effect <- function(object, ...) {
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
 #' displays a one-row summary table whose \code{PI} columns contain posterior
-#' prediction quantiles. Use \code{summary()} to obtain the table directly.
+#' prediction quantiles. Use \code{summary()} or \code{as.data.frame()} to
+#' obtain the table directly.
 #' The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
@@ -482,9 +483,12 @@ pooled_heterogeneity <- function(object, ...) {
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
 #' displays a summary table. For decomposed \code{brma.mv()} models, a named
-#' list of \code{brma_samples} objects is returned. Use \code{summary()} to
-#' obtain the summary table directly. The samples can be converted to
-#' \pkg{posterior} draws formats using \code{as_draws()}.
+#' list of \code{brma_samples} objects is returned. Use \code{summary()} on an
+#' individual object or \code{as.data.frame()} on the complete result to obtain
+#' a summary data frame with component and parameter identifiers. Use
+#' \code{as.data.frame(format = "list")} to retain separate component tables.
+#' The samples can be converted to \pkg{posterior} draws formats using
+#' \code{as_draws()}.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -658,7 +662,8 @@ blup <- function(object, ...) {
 #' empirical-Bayes true-effect summaries with one column per estimate. For
 #' existing normal data, these are conditional BLUP means, not simulated
 #' latent-effect draws. When printed, displays a summary table. Use
-#' \code{summary()} to obtain the summary table directly. The samples can be
+#' \code{summary()} or \code{as.data.frame()} to obtain the summary table
+#' directly. The samples can be
 #' converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
@@ -740,7 +745,8 @@ true_effects <- function(object, ...) {
 #' empirical-Bayes true-effect summaries with one column per estimate. For
 #' existing normal data, these are conditional BLUP means, not simulated
 #' latent-effect draws. When printed, displays a summary table. Use
-#' \code{summary()} to obtain the summary table directly. The samples can be
+#' \code{summary()} or \code{as.data.frame()} to obtain the summary table
+#' directly. The samples can be
 #' converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
@@ -847,7 +853,9 @@ ranef <- function(object, ...) {
 #'
 #' @return A \code{brma_samples} object for a single selected/simplified
 #' component, or a named list of \code{brma_samples} objects for decomposed
-#' \code{component = "all"} output.
+#' \code{component = "all"} output. Use \code{as.data.frame()} to obtain the
+#' displayed summary table in long form, or
+#' \code{as.data.frame(format = "list")} to retain separate component tables.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -1236,7 +1244,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     if (isTRUE(simplify) && length(flat) == 1L) {
       return(flat[[1L]])
     }
-    return(components)
+    return(.new_brma_samples_list(components))
   }
 
   if (component == "total") {
@@ -1257,7 +1265,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     if (isTRUE(simplify) && length(selected) == 1L) {
       return(selected[[1L]])
     }
-    return(selected)
+    return(.new_brma_samples_list(selected))
   }
 
   block_matches <- which(names(flat) == component)
@@ -1322,7 +1330,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     if (isTRUE(simplify) && length(components) == 1L) {
       return(components[[1L]])
     }
-    return(components)
+    return(.new_brma_samples_list(components))
   }
 
   if (component == "total") {

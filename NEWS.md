@@ -1,5 +1,11 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- adds `as.data.frame()` and `data.frame()` summary coercion for individual
+  `brma_samples` results. Multi-component results return a long data frame with
+  component and parameter identifiers; `as.data.frame(format = "list")`
+  retains the named, possibly nested table structure. Credible- and prediction-
+  interval columns use syntactic names such as `CI_0.025` and `PI_0.025` while
+  printed summaries retain their compact quantile labels.
 - extends posterior `plot()` and `lines()` transformations: `EXP` now applies
   to individual log-scale ratio meta-regression coefficients and to
   scale-regression coefficients as multiplicative changes in heterogeneity,

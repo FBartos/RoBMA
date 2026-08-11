@@ -30,6 +30,7 @@ test_that("pooled effect summaries include prediction intervals", {
     .posterior_samples = posterior_samples
   )
   estimates <- summary(pooled)
+  estimates_df <- as.data.frame(estimates)
 
   expect_equal(
     unname(attr(pooled, "prediction_samples")),
@@ -37,6 +38,60 @@ test_that("pooled effect summaries include prediction intervals", {
     tolerance = 0
   )
   expect_true(all(c("PI 0.025", "PI 0.975") %in% colnames(estimates)))
+  pooled_df <- as.data.frame(pooled)
+  expect_identical(
+    names(pooled_df),
+    c("Mean", "Median", "CI_0.025", "CI_0.975", "PI_0.025", "PI_0.975")
+  )
+  expect_identical(data.frame(pooled), pooled_df)
+  expect_equal(
+    unname(as.matrix(pooled_df)),
+    unname(as.matrix(estimates_df)),
+    tolerance = 0
+  )
+  expect_identical(
+    names(as.data.frame(pooled, probs = c(.05, .95))),
+    c("Mean", "Median", "CI_0.05", "CI_0.95", "PI_0.05", "PI_0.95")
+  )
+  pooled_draws <- as.matrix(RoBMA::as_draws_matrix(pooled))
+  expect_equal(
+    as.vector(pooled_draws),
+    as.vector(as.matrix(pooled)),
+    tolerance = 0
+  )
+
+  custom_probs <- c(.6, .125, .9)
+  custom_pooled <- pooled_effect(
+    object,
+    probs              = custom_probs,
+    .posterior_samples = posterior_samples
+  )
+  custom_summary <- summary(custom_pooled)
+  custom_df      <- as.data.frame(custom_pooled)
+  expect_identical(
+    names(custom_summary),
+    c("Mean", "Median", "0.6", "0.125", "0.9",
+      "PI 0.6", "PI 0.125", "PI 0.9")
+  )
+  expect_identical(
+    names(custom_df),
+    c("Mean", "Median", "CI_0.6", "CI_0.125", "CI_0.9",
+      "PI_0.6", "PI_0.125", "PI_0.9")
+  )
+  expect_identical(data.frame(custom_pooled), custom_df)
+  expect_equal(
+    unname(as.numeric(custom_df[1L, paste0("CI_", custom_probs)])),
+    unname(stats::quantile(as.matrix(custom_pooled)[, 1L], custom_probs)),
+    tolerance = 0
+  )
+  expect_equal(
+    unname(as.numeric(custom_df[1L, paste0("PI_", custom_probs)])),
+    unname(stats::quantile(
+      attr(custom_pooled, "prediction_samples")[, 1L],
+      custom_probs
+    )),
+    tolerance = 0
+  )
   expect_equal(
     unname(as.numeric(estimates["mu", c("PI 0.025", "PI 0.975")])),
     unname(stats::quantile(expected_prediction[, 1L], c(0.025, 0.975))),
@@ -102,5 +157,21 @@ test_that("pooled heterogeneity evaluates the average scale design", {
   )
 
   expect_equal(unname(as.matrix(pooled)), unname(expected), tolerance = 1e-12)
+  pooled_df  <- as.data.frame(pooled)
+  row_tau_df <- as.data.frame(row_tau)
+  expect_identical(names(pooled_df), c("Mean", "Median", "CI_0.025", "CI_0.975"))
+  expect_identical(data.frame(pooled), pooled_df)
+  expect_equal(
+    unname(as.matrix(pooled_df)),
+    unname(as.matrix(as.data.frame(summary(pooled)))),
+    tolerance = 0
+  )
+  expect_identical(names(row_tau_df), c("Mean", "Median", "CI_0.025", "CI_0.975"))
+  expect_identical(data.frame(row_tau), row_tau_df)
+  expect_equal(
+    unname(as.matrix(row_tau_df)),
+    unname(as.matrix(as.data.frame(summary(row_tau)))),
+    tolerance = 0
+  )
   expect_false(isTRUE(all.equal(unname(expected), unname(rms))))
 })

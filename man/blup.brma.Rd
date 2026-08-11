@@ -44,7 +44,8 @@ A \code{brma_samples} object containing posterior draws of BLUP or
 empirical-Bayes true-effect summaries with one column per estimate. For
 existing normal data, these are conditional BLUP means, not simulated
 latent-effect draws. When printed, displays a summary table. Use
-\code{summary()} to obtain the summary table directly. The samples can be
+\code{summary()} or \code{as.data.frame()} to obtain the summary table
+directly. The samples can be
 converted to \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{

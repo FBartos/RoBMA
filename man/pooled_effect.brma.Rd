@@ -44,7 +44,8 @@ effect component for RoBMA product-space objects. Defaults to \code{FALSE}.}
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
 displays a one-row summary table whose \code{PI} columns contain posterior
-prediction quantiles. Use \code{summary()} to obtain the table directly.
+prediction quantiles. Use \code{summary()} or \code{as.data.frame()} to
+obtain the table directly.
 The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{

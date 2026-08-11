@@ -31,9 +31,12 @@ variance-additive total heterogeneity.}
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
 displays a summary table. For decomposed \code{brma.mv()} models, a named
-list of \code{brma_samples} objects is returned. Use \code{summary()} to
-obtain the summary table directly. The samples can be converted to
-\pkg{posterior} draws formats using \code{as_draws()}.
+list of \code{brma_samples} objects is returned. Use \code{summary()} on an
+individual object or \code{as.data.frame()} on the complete result to obtain
+a summary data frame with component and parameter identifiers. Use
+\code{as.data.frame(format = "list")} to retain separate component tables.
+The samples can be converted to \pkg{posterior} draws formats using
+\code{as_draws()}.
 }
 \description{
 Computes heterogeneity (tau) at the average expanded scale and
