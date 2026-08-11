@@ -267,6 +267,38 @@ test_that("known V must be symmetric and is never silently changed", {
 })
 
 
+test_that("known V accepts numerical symmetry from metafor vcalc", {
+
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  data("dat.assink2016", package = "metadat")
+  V_assink <- metafor::vcalc(
+    vi,
+    cluster = study,
+    type    = deltype,
+    obs     = esid,
+    rho     = c(0.7, 0.5),
+    data    = dat.assink2016
+  )
+  V_original <- V_assink
+
+  expect_true(isSymmetric(V_assink))
+  expect_false(identical(V_assink, t(V_assink)))
+  expect_no_error(
+    brma.mv(
+      yi        = yi,
+      V         = V_assink,
+      measure   = "SMD",
+      random    = ~ 1 | study / esid,
+      data      = dat.assink2016,
+      only_data = TRUE
+    )
+  )
+  expect_identical(V_assink, V_original)
+})
+
+
 test_that("V_new list input rejects empty blocks", {
 
   expect_error(

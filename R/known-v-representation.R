@@ -471,7 +471,7 @@
 
 .known_v_check_symmetric <- function(V_matrix, arg) {
 
-  if (any(V_matrix != t(V_matrix))) {
+  if (!isSymmetric(V_matrix, check.attributes = FALSE)) {
     stop(arg, " must be symmetric.", call. = FALSE)
   }
 
