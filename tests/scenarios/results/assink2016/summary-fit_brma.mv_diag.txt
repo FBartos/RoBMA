@@ -1,0 +1,16 @@
+
+Bayesian Multivariate Random-Effects Model (k = 100)
+Known-V backend: diagonal (selected: whitened; requested: auto)
+
+Location
+           Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept 0.411 0.114 0.178 0.412 0.632     0.00350          0.031 1066 1.001
+
+Random
+                                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd_total(random_total)             0.540 0.071 0.421 0.532 0.702     0.00198          0.028 1312 1.004
+esid:study: sd(intercept)          0.334 0.041 0.260 0.332 0.420     0.00050          0.012 6839 1.001
+study: sd(intercept)               0.419 0.084 0.282 0.410 0.608     0.00252          0.030 1119 1.005
+var_frac(random_total: esid_study) 0.400 0.106 0.206 0.394 0.616     0.00270          0.025 1585 1.006
+var_frac(random_total: study)      0.600 0.106 0.384 0.606 0.794     0.00270          0.025 1585 1.006
+
