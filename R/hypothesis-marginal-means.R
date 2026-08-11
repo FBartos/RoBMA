@@ -120,7 +120,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       call. = FALSE
     )
   }
-  if (level_contrast && precomputed_density) {
+  if (level_contrast) {
     return(.hypothesis_brma_level_contrast_BF(
       object          = object[["source_object"]],
       posterior       = inference[[route[["inference_type"]]]][[parameter]],

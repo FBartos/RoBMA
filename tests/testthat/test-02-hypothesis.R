@@ -513,7 +513,12 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
   )
   point_bf <- hypothesis(
     fit,
-    c("alloc[random] = 0", "alloc[random] = 0.01"),
+    c(
+      "alloc[random] = 0",
+      "alloc[random] = 0.01",
+      "0 > alloc[random] vs 0 = alloc[random]",
+      "alloc[random] < 0 vs alloc[random] = 0"
+    ),
     columns         = "all",
     density_method  = "qCMDE",
     density_control = list(
@@ -593,8 +598,17 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
   expect_equal(level_bf[["method"]], "prior-posterior odds")
   expect_true(is.finite(attr(level_bf, "raw_BF")))
   expect_true(is.finite(level_bf[["BF_error"]]))
-  expect_true(all(point_bf[["method"]] == "Savage-Dickey (precomputed)"))
+  expect_true(all(
+    point_bf[["method"]][1:2] == "Savage-Dickey (precomputed)"
+  ))
+  expect_true(all(
+    point_bf[["method"]][3:4] == "transitive Savage-Dickey"
+  ))
   expect_true(all(is.finite(point_bf[["BF_error"]])))
+  expect_equal(
+    attr(point_bf, "raw_BF")[3L],
+    attr(point_bf, "raw_BF")[4L]
+  )
   expect_equal(
     attr(contrast_kde, "raw_BF"),
     attr(contrast_explicit_kde, "raw_BF"),
@@ -789,6 +803,32 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
   expect_equal(point_bf_default[["method"]], "Savage-Dickey (precomputed)")
 
   mm_kde <- marginal_means(fit, n_samples = 1000)
+  contrast_kde <- hypothesis(
+    mm_kde,
+    paste(
+      "alloc[random] < alloc[alternate] vs",
+      "alloc[random] = alloc[alternate]"
+    ),
+    columns        = "all",
+    density_method = "KDE",
+    seed           = 11
+  )
+  contrast_explicit_kde <- hypothesis(
+    mm_kde,
+    paste(
+      "alloc[random] - alloc[alternate] < 0 vs",
+      "alloc[random] - alloc[alternate] = 0"
+    ),
+    columns        = "all",
+    density_method = "KDE",
+    seed           = 11
+  )
+  expect_equal(
+    attr(contrast_kde, "raw_BF"),
+    attr(contrast_explicit_kde, "raw_BF"),
+    tolerance = 1e-12
+  )
+
   point_bf_kde <- hypothesis(
     mm_kde,
     "alloc[alternate] = 0",
@@ -1237,6 +1277,63 @@ test_that("marginal means hypothesis density methods use public names", {
 
   expect_false("type" %in% names(formals(hypothesis.marginal_means.brma)))
   expect_null(formals(hypothesis.marginal_means.brma)[["density_method"]])
+})
+
+
+test_that("marginal means routes level-contrast KDE through the certified target", {
+
+  level_posterior <- structure(
+    list(
+      random    = seq(-1, 1, length.out = 20),
+      alternate = seq(-0.5, 1.5, length.out = 20)
+    ),
+    class     = c("marginal_posterior.factor", "list"),
+    parameter = "mu_alloc"
+  )
+  posterior <- list(mu_alloc = level_posterior)
+  object <- list(
+    inference = structure(
+      list(
+        averaged    = posterior,
+        conditional = posterior,
+        inference   = list()
+      ),
+      class = c("marginal_inference", "list")
+    ),
+    term_map = data.frame(
+      term             = "alloc",
+      parameter        = "mu_alloc",
+      label            = "alloc",
+      stringsAsFactors = FALSE
+    ),
+    density_method = "KDE",
+    source_object  = structure(list(fit = list()), class = "brma")
+  )
+  class(object) <- "marginal_means.brma"
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    .hypothesis_brma_level_contrast_BF = function(...) {
+
+      captured <<- list(...)
+      return("ok")
+    },
+    .package = "RoBMA"
+  )
+
+  out <- hypothesis(
+    object,
+    paste(
+      "alloc[random] < alloc[alternate] vs",
+      "alloc[random] = alloc[alternate]"
+    ),
+    density_method = "KDE"
+  )
+
+  expect_equal(out, "ok")
+  expect_identical(captured[["density_method"]], "KDE")
+  expect_identical(captured[["posterior"]], level_posterior)
+  expect_s3_class(captured[["hypothesis"]], "BayesTools_hypothesis_ast")
 })
 
 

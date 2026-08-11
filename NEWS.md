@@ -2,7 +2,8 @@
 ### Features
 - supports atom-free pairwise point contrasts across levels of one fitted model,
   including symbolic equalities and KDE, qCMDE, or IWMDE inference for fitted
-  and marginal-means hypotheses
+  and marginal-means hypotheses, and accepts equivalent constant-left scalar
+  relations such as `0 > theta` and `0 = theta`
 - re-exports `loo::loo_model_weights()` and adds a `brma` method that computes
   stacking or pseudo-BMA weights directly from compatible stored LOO results.
 - adds `metafor::forest()` support for `brma` objects and `as_metafor_forest()` for preparing RoBMA forest-plot data.
