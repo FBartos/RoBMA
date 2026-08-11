@@ -143,6 +143,99 @@ test_that("plot.brma uses parameter x-axis labels by default", {
 })
 
 
+test_that("plot.brma transforms coefficients and heterogeneity intercepts", {
+
+  skip_if_missing_fits(c(
+    "bcg_meta-regression",
+    "bangertdrowns2004_location-scale"
+  ))
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+
+      captured <<- list(samples = samples, parameter = parameter, dots = list(...))
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- plot(
+    fits[["bcg_meta-regression"]],
+    parameter = "ablat",
+    component = "mods",
+    transform = "EXP",
+    plot_type = "ggplot"
+  )
+  transformation <- captured[["dots"]][["transformation"]]
+
+  expect_s3_class(out, "mock_plot")
+  expect_identical(captured[["parameter"]], "mu_ablat")
+  expect_equal(transformation[["fun"]](c(0, log(2))), c(1, 2))
+  expect_equal(transformation[["jac"]](c(0, log(2))), c(1, 2))
+  expect_identical(
+    captured[["dots"]][["par_name"]],
+    "Effect Size: ablat (risk ratio)"
+  )
+
+  out <- plot(
+    fits[["bangertdrowns2004_location-scale"]],
+    parameter                 = "intercept",
+    component                 = "scale",
+    standardized_coefficients = TRUE,
+    transform                 = "LOG",
+    plot_type                 = "ggplot"
+  )
+  transformation <- captured[["dots"]][["transformation"]]
+
+  expect_s3_class(out, "mock_plot")
+  expect_identical(captured[["parameter"]], "log_tau_intercept")
+  expect_equal(transformation[["fun"]](c(.5, 1, 2)), log(c(.5, 1, 2)))
+  expect_equal(transformation[["jac"]](c(.5, 1, 2)), c(2, 1, .5))
+  expect_identical(
+    captured[["dots"]][["par_name"]],
+    "Heterogeneity (log scale)"
+  )
+})
+
+
+test_that("plot.brma limits parameter-specific transformations", {
+
+  skip_if_missing_fits(c("bcg_meta-analysis", "bcg_meta-regression"))
+
+  expect_error(
+    plot(
+      fits[["bcg_meta-regression"]],
+      parameter      = "ablat",
+      component      = "mods",
+      output_measure = "OR"
+    ),
+    "output_measure"
+  )
+  expect_error(
+    plot(
+      fits[["bcg_meta-regression"]],
+      parameter = "ablat",
+      component = "mods",
+      transform = "LOG"
+    ),
+    "positive heterogeneity intercepts"
+  )
+  expect_error(
+    plot(fits[["bcg_meta-analysis"]], parameter = "tau", transform = "EXP"),
+    "meta-regression coefficients"
+  )
+  expect_error(
+    plot(fits[["bcg_meta-analysis"]], parameter = "mu", transform = "LOG"),
+    "positive heterogeneity intercepts"
+  )
+  expect_error(
+    plot(fits[["bcg_meta-analysis"]], parameter = "tau", transform = "LOG"),
+    "positive heterogeneity intercepts"
+  )
+})
+
+
 test_that("plot.brma component disambiguates shared location-scale terms", {
 
   skip_if_missing_fits("dat.lehmann2018_RoBMA_3lvl_mods_scale")

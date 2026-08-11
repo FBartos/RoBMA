@@ -68,6 +68,13 @@
 #' Increase the row and normalization budgets and compare results when density
 #' diagnostics report low effective sample size, concentrated contributions,
 #' or unstable normalization.
+#' @param transform optional plotting transformation. \code{"EXP"} exponentiates
+#' effect-size location and individual meta-regression coefficients for fitted
+#' log-scale OR, RR, HR, and IRR models. \code{"LOG"} displays a positive
+#' heterogeneity intercept on the log scale. The transformation is applied to
+#' KDE and precomputed qCMDE/IWMDE densities with the corresponding Jacobian.
+#' For automatically unscaled scale-formula intercepts, use
+#' \code{standardized_coefficients = TRUE} with qCMDE/IWMDE.
 #' @param dots_prior list of additional graphical arguments
 #' to be passed to the plotting function of the prior
 #' distribution. Supported arguments are \code{lwd},
@@ -226,22 +233,16 @@ lines.brma <- function(
     component        = component,
     object           = x
   )
-  effect_transform <- .effect_output_setup(
-    object         = x,
-    output_measure = output_measure,
-    transform      = transform
+  parameter_entry <- .brma_parameter_select_entry(x, parameter)
+  plot_transform  <- .plot_output_setup(
+    object          = x,
+    parameter       = parameter,
+    parameter_entry = parameter_entry,
+    output_measure  = output_measure,
+    transform       = transform
   )
-  if (.effect_output_requested(effect_transform) &&
-      !.is_effect_location_parameter(parameter)) {
-    stop(
-      "'output_measure' and 'transform' are only available for effect-size ",
-      "location parameters ('mu' or the meta-regression intercept).",
-      call. = FALSE
-    )
-  }
 
   ### obtain posterior samples in the plotting format
-  parameter_entry <- .brma_parameter_select_entry(x, parameter)
   is_random       <- identical(parameter_entry[["component"]], "random")
   random_label    <- NULL
   if (is_random) {
@@ -311,7 +312,7 @@ lines.brma <- function(
   dots_prior <- .set_dots_prior(dots_prior)
   if (is.null(dots[["par_name"]])) {
     dots[["par_name"]] <- if (is_random) random_label else
-      .plot_parameter_label(parameter, effect_transform)
+      .plot_parameter_label(parameter, plot_transform)
   }
 
   # prepare the argument call
@@ -340,8 +341,8 @@ lines.brma <- function(
     }
     "KDE"
   }
-  if (.effect_output_requested(effect_transform)) {
-    args$transformation           <- .effect_plot_transformation(effect_transform)
+  if (.effect_output_requested(plot_transform)) {
+    args$transformation           <- .effect_plot_transformation(plot_transform)
     args$transformation_arguments <- NULL
     args$transformation_settings  <- FALSE
   }

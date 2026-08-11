@@ -1106,15 +1106,33 @@
   }
 
   if (grepl("^mu_", parameter)) {
-    return(paste0("Effect Size: ", .summary_parameter_label(sub("^mu_", "", parameter))))
+    label <- paste0(
+      "Effect Size: ",
+      .summary_parameter_label(sub("^mu_", "", parameter))
+    )
+    if (.effect_output_active(effect_transform)) {
+      label <- paste0(label, " (", effect_transform[["label"]], ")")
+    }
+    return(label)
   }
 
   if (parameter %in% c("tau", "log_tau_intercept")) {
-    return("Heterogeneity")
+    label <- "Heterogeneity"
+    if (.effect_output_active(effect_transform)) {
+      label <- paste0(label, " (", effect_transform[["label"]], ")")
+    }
+    return(label)
   }
 
   if (grepl("^log_tau_", parameter)) {
-    return(paste0("Heterogeneity: ", .summary_parameter_label(sub("^log_tau_", "", parameter))))
+    label <- paste0(
+      "Heterogeneity: ",
+      .summary_parameter_label(sub("^log_tau_", "", parameter))
+    )
+    if (.effect_output_active(effect_transform)) {
+      label <- paste0(label, " (", effect_transform[["label"]], ")")
+    }
+    return(label)
   }
 
   label <- switch(

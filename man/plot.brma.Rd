@@ -76,9 +76,13 @@ Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
 fitted measure. Use \code{transform = "EXP"} for ratio-scale output from
 log-scale measures.}
 
-\item{transform}{optional display transformation. Currently \code{"EXP"}
-exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
-and \code{"IRR"}.}
+\item{transform}{optional plotting transformation. \code{"EXP"} exponentiates
+effect-size location and individual meta-regression coefficients for fitted
+log-scale OR, RR, HR, and IRR models. \code{"LOG"} displays a positive
+heterogeneity intercept on the log scale. The transformation is applied to
+KDE and precomputed qCMDE/IWMDE densities with the corresponding Jacobian.
+For automatically unscaled scale-formula intercepts, use
+\code{standardized_coefficients = TRUE} with qCMDE/IWMDE.}
 
 \item{plot_type}{whether to use a base plot \code{"base"}
 or ggplot2 \code{"ggplot"} for plotting. Defaults to

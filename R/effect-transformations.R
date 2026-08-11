@@ -80,7 +80,7 @@
   return(measure_key)
 }
 
-.normalize_effect_transform <- function(transform) {
+.normalize_effect_transform <- function(transform, allow_log = FALSE) {
 
   if (is.null(transform)) {
     return("identity")
@@ -95,9 +95,17 @@
     ID       = "identity",
     EXP      = "EXP"
   )
+  if (allow_log) {
+    transform_map <- c(transform_map, LOG = "LOG")
+  }
   if (!transform_key %in% names(transform_map)) {
+    available <- if (allow_log) {
+      "'EXP', 'LOG', and 'identity'"
+    } else {
+      "'EXP' and 'identity'"
+    }
     stop(
-      "Unknown 'transform'. Available options are 'EXP' and 'identity'.",
+      "Unknown 'transform'. Available options are ", available, ".",
       call. = FALSE
     )
   }
@@ -120,6 +128,15 @@
     fun = exp,
     inv = log,
     jac = exp
+  ))
+}
+
+.log_plot_transformation <- function() {
+
+  return(list(
+    fun = log,
+    inv = exp,
+    jac = function(x) 1 / x
   ))
 }
 
@@ -318,6 +335,70 @@
   )
 
   return(output)
+}
+
+.plot_output_setup <- function(object, parameter, parameter_entry,
+                               output_measure = NULL, transform = NULL) {
+
+  transform <- .normalize_effect_transform(transform, allow_log = TRUE)
+
+  is_effect_intercept <- .is_effect_location_parameter(parameter)
+  is_location_coef    <- identical(parameter_entry[["component"]], "mods")
+  is_scale_intercept  <- (
+    identical(parameter_entry[["component"]], "scale") &&
+    identical(parameter_entry[["term"]], "intercept")
+  )
+
+  if (!is.null(output_measure) && !is_effect_intercept) {
+    stop(
+      "'output_measure' is only available for effect-size location parameters ",
+      "('mu' or the meta-regression intercept).",
+      call. = FALSE
+    )
+  }
+
+  if (identical(transform, "EXP")) {
+    if (!is_effect_intercept && !is_location_coef) {
+      stop(
+        "transform = 'EXP' is only available for effect-size location and ",
+        "meta-regression coefficients.",
+        call. = FALSE
+      )
+    }
+
+    return(.effect_output_setup(
+      object         = object,
+      output_measure = output_measure,
+      transform      = transform
+    ))
+  }
+
+  if (identical(transform, "LOG")) {
+    if (!is_scale_intercept) {
+      stop(
+        "transform = 'LOG' is only available for positive heterogeneity ",
+        "intercepts.",
+        call. = FALSE
+      )
+    }
+
+    return(list(
+      input_measure  = .measure(object),
+      output_measure = .measure(object),
+      transform      = transform,
+      requested      = TRUE,
+      active         = TRUE,
+      transformation = .log_plot_transformation(),
+      label          = "log scale",
+      note           = NULL
+    ))
+  }
+
+  return(.effect_output_setup(
+    object         = object,
+    output_measure = output_measure,
+    transform      = transform
+  ))
 }
 
 .effect_output_requested <- function(effect_transform) {

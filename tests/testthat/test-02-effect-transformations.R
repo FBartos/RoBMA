@@ -228,6 +228,13 @@ test_that("EXP is explicit for log-scale ratio output", {
     ),
     "EXP"
   )
+  expect_error(
+    .effect_output_setup_measure(
+      input_measure = "RR",
+      transform     = "LOG"
+    ),
+    "Unknown 'transform'"
+  )
 })
 
 test_that("non-core measures are not converted across measures", {
@@ -276,6 +283,27 @@ test_that("plot transformations use BayesTools forward Jacobian convention", {
   expect_equal(
     density_y,
     1 / transformed_x,
+    tolerance = sqrt(.Machine$double.eps)
+  )
+
+  positive_x         <- c(.5, 1, 2)
+  log_transformation <- .log_plot_transformation()
+  expect_equal(
+    log_transformation[["jac"]](positive_x),
+    1 / positive_x,
+    tolerance = sqrt(.Machine$double.eps)
+  )
+  expect_warning(
+    density_y <- BayesTools:::.density.prior_transformation_y(
+      x              = log(positive_x),
+      y              = rep(1, length(positive_x)),
+      transformation = log_transformation
+    ),
+    NA
+  )
+  expect_equal(
+    density_y,
+    positive_x,
     tolerance = sqrt(.Machine$double.eps)
   )
 })
@@ -343,6 +371,51 @@ test_that("precomputed posterior densities use EXP plot Jacobian", {
     expect_equal(plot_data[["points1"]][["x"]], exp(point_mass_x))
     expect_equal(plot_data[["points1"]][["y"]], .2)
   }
+})
+
+test_that("precomputed posterior densities use LOG plot Jacobian", {
+
+  raw_x          <- c(.5, 1, 2, 4)
+  raw_y          <- c(.1, .4, .3, .05)
+  sample         <- c(.6, 1.2, 2.5, 3)
+  point_mass_x   <- 2.25
+  transformation <- .log_plot_transformation()
+  plot_data_samples_simple <- get(
+    ".plot_data_samples.simple",
+    envir    = asNamespace("BayesTools"),
+    inherits = FALSE
+  )
+
+  sample_with_density <- sample
+  attr(sample_with_density, "prior_list") <- list(BayesTools::prior(
+    "normal",
+    parameters = list(mean = 0, sd = 1)
+  ))
+  attr(sample_with_density, "models_ind") <- rep(1L, length(sample_with_density))
+  attr(sample_with_density, "posterior_density") <-
+    BayesTools::posterior_density_attribute(
+      x              = raw_x,
+      y              = raw_y,
+      method         = "q_grid_cmde",
+      density_method = "qCMDE",
+      point_masses   = data.frame(x = point_mass_x, mass = .2)
+    )
+
+  plot_data <- plot_data_samples_simple(
+    samples                  = list(log_tau_intercept = sample_with_density),
+    parameter                = "log_tau_intercept",
+    n_points                 = 20,
+    transformation           = transformation,
+    transformation_arguments = NULL,
+    transformation_settings  = FALSE,
+    density_method           = "precomputed"
+  )
+
+  expect_equal(plot_data[["density"]][["x"]], log(raw_x))
+  expect_equal(plot_data[["density"]][["y"]], raw_y * raw_x)
+  expect_equal(plot_data[["density"]][["samples"]], log(sample))
+  expect_equal(plot_data[["points1"]][["x"]], log(point_mass_x))
+  expect_equal(plot_data[["points1"]][["y"]], .2)
 })
 
 test_that("transformed brma_samples preserve posterior draw integration", {

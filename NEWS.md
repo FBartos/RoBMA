@@ -1,5 +1,9 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- extends posterior `plot()` and `lines()` transformations: `EXP` now applies
+  to individual log-scale ratio meta-regression coefficients and `LOG` to
+  positive heterogeneity intercepts; KDE, qCMDE, and IWMDE curves use the exact
+  change-of-variable Jacobian.
 - warns when `hypothesis()` uses the full product-space ensemble for a
   parameter with both null and alternative components because `conditional`
   was omitted; explicitly set `conditional = FALSE` to retain the full-ensemble
