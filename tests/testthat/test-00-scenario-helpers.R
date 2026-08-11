@@ -71,22 +71,18 @@ test_that("scenario_text adds, compares, and regenerates tracked output", {
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
 
   scenario_start("unit", root = root, create_missing = TRUE, width = 80L)
-  value <- scenario_text("summary", {
-    print(data.frame(value = 1:2))
-    invisible(42L)
-  })
+  expected_value <- data.frame(value = 1:2)
+  value <- scenario_text("summary", expected_value)
   path <- file.path(root, "results", "unit", "summary.txt")
 
-  expect_identical(value, 42L)
+  expect_identical(value, expected_value)
   expect_true(file.exists(path))
   expect_equal(readLines(path, warn = FALSE), c("  value", "1     1", "2     2"))
 
-  scenario_text("summary", {
-    print(data.frame(value = 1:2))
-    invisible(42L)
-  })
+  explicit_value <- scenario_text("summary", print(expected_value))
+  expect_identical(explicit_value, expected_value)
   expect_failure(
-    scenario_text("summary", print("changed")),
+    scenario_text("summary", "changed"),
     "Scenario text.*changed"
   )
 
@@ -96,7 +92,7 @@ test_that("scenario_text adds, compares, and regenerates tracked output", {
     regenerate     = TRUE,
     create_missing = TRUE
   )
-  scenario_text("summary", print("changed"))
+  scenario_text("summary", "changed")
   expect_equal(readLines(path, warn = FALSE), "[1] \"changed\"")
 })
 
@@ -108,7 +104,7 @@ test_that("scenario_text rejects missing baselines when creation is disabled", {
 
   scenario_start("unit", root = root, create_missing = FALSE)
   expect_failure(
-    scenario_text("missing", print("output")),
+    scenario_text("missing", "output"),
     "Missing locked scenario text"
   )
   expect_false(file.exists(file.path(
@@ -129,7 +125,7 @@ test_that("scenario_text replays captured output when requested", {
     create_missing = TRUE
   )
   expect_output(
-    scenario_text("visible", print("interactive output")),
+    scenario_text("visible", "interactive output"),
     '[1] "interactive output"',
     fixed = TRUE
   )
