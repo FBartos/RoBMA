@@ -255,6 +255,18 @@ testthat::test_that("BCG Meta-Regression", {
     lines(fit_reg1_emm, "alloc", density_method = "qCMDE", lty = 2)
   })
 
+  # with transformation
+  scenario_plot("fit_reg1_posterior_alloc_exp", {
+    # TODO: the prior line is cut at 0? (prbly BT issue with transformation -- even without expl. limit it starts quite late
+    plot(fit_reg1, "alloc", ylim = c(0, 2), prior = TRUE, transform = "EXP", xlim = c(0, 4))
+    lines(fit_reg1, "alloc", density_method = "IWMDE", lty = 2, transform = "EXP")
+  })
+
+  scenario_plot("fit_reg1_emmplot_exp", {
+    plot(fit_reg1_emm, "alloc", ylim = c(0, 5), prior = TRUE, transform = "EXP", xlim = c(0, 2))
+    lines(fit_reg1_emm, "alloc", density_method = "IWMDE", lty = 2, transform = "EXP")
+  })
+
 
   ### directional hypothesis tests ----
   set.seed(1)
