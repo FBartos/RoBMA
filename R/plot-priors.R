@@ -32,11 +32,16 @@
 #' @inheritParams predict.brma
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2
 #' \code{"ggplot"} for plotting. Defaults to \code{"base"}.
-#' @param ... additional arguments passed to the prior plotting method.
+#' @param ... additional arguments passed to the prior plotting method. For
+#' mixed continuous and point priors, \code{ylim} controls the density axis,
+#' \code{ylim2} controls the probability-mass axis, and \code{ylab2} controls
+#' its label.
 #'
 #' @details \code{output_measure} and \code{transform} transform the prior
 #' plotting scale only for effect-size location priors (\code{"mu"} or the
-#' meta-regression intercept).
+#' meta-regression intercept). For base plots, the probability mapping created
+#' by \code{plot_prior()} is reused by subsequent posterior
+#' \code{lines.brma()} calls, including overlays from other fitted objects.
 #'
 #' @return \code{plot_prior} returns either \code{NULL} invisibly if
 #' \code{plot_type = "base"} or a \code{ggplot2} object if

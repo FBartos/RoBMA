@@ -85,10 +85,13 @@
 #' @param ... list of additional graphical arguments
 #' to be passed to the plotting function. Supported arguments
 #' are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
-#' \code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
+#' \code{xlab}, \code{ylab}, \code{ylab2}, \code{main}, \code{xlim},
+#' \code{ylim}, and \code{ylim2}
 #' to adjust the line thickness, line type, line color, fill color,
-#' x-label, y-label, title, x-axis range, and y-axis range
-#' respectively.
+#' x-label, density-axis label, probability-axis label, title, x-axis range,
+#' density-axis range, and probability-axis range respectively. Set
+#' \code{ylim2} on the initial \code{plot()} call; subsequent base
+#' \code{lines()} calls reuse that probability mapping.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -146,7 +149,10 @@ plot.brma <- function(
 #' @details \code{lines.brma()} adds the posterior density to an existing base
 #' plot. With \code{plot_type = "ggplot"}, it returns ggplot2 layer(s) that can
 #' be added to a \code{plot.brma(..., plot_type = "ggplot")} object with
-#' \code{+}.
+#' \code{+}. For base plots containing point masses, the initial
+#' \code{plot.brma()} call establishes the secondary probability axis and
+#' \code{lines.brma()} reuses it across fitted objects. An overlaid point mass
+#' outside the initial \code{ylim2} is clipped with a warning.
 #'
 #' @rdname plot.brma
 #' @export

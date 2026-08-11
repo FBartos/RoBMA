@@ -58,7 +58,7 @@
   directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.19 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.20 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
@@ -88,8 +88,9 @@
   `set_contrast_factor_predictors` explicitly.
 
 ### Fixes
-- keeps spike probabilities on the active base plot's density scale when
-  `lines.brma()` overlays posterior distributions from another fitted object
+- lets `ylim2` and `ylab2` control the secondary point-mass probability axis,
+  keeps its mapping fixed across prior and posterior `lines()` overlays from
+  multiple objects, and warns when an overlay falls outside the active limits
 - accelerates native funnel-contour and regression-plot interval inversion for
   continuous posterior mixtures with a shared machine-relative Brent solve,
   while retaining exact generalized-inverse bisection whenever the mixture

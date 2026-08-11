@@ -36,6 +36,11 @@ test_data <- data.frame(
   range(x_values, finite = TRUE)
 }
 
+test_that("posterior plots accept secondary probability-axis controls", {
+
+  expect_true(all(c("ylim2", "ylab2") %in% .plot_dots_allowed()))
+})
+
 test_that("plot_prior plots outcome priors from only_priors objects", {
 
   skip_on_cran()
@@ -47,6 +52,15 @@ test_that("plot_prior plots outcome priors from only_priors objects", {
 
   expect_true(.is_ggplot(plot_prior(priors, parameter = "mu",  plot_type = "ggplot")))
   expect_true(.is_ggplot(plot_prior(priors, parameter = "tau", plot_type = "ggplot")))
+
+  probability_plot <- plot_prior(
+    priors,
+    parameter = "mu",
+    plot_type = "ggplot",
+    ylim      = c(0, 12.5),
+    ylim2     = c(0, 1)
+  )
+  expect_equal(attr(probability_plot, "scale_y2"), 15.4)
 
   plots <- plot_prior(priors, parameter = c("mu", "tau"), plot_type = "ggplot")
   expect_named(plots, c("mu", "tau"))

@@ -316,6 +316,32 @@ test_that("lines.brma forwards posterior overlays", {
   )
 })
 
+test_that("plot.brma forwards secondary probability-axis controls", {
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+      captured <<- list(parameter = parameter, dots = list(...))
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- plot(
+    fits[["bcg_meta-analysis"]],
+    parameter = "mu",
+    plot_type = "ggplot",
+    ylim      = c(0, 12.5),
+    ylim2     = c(0, 1),
+    ylab2     = "Probability mass"
+  )
+
+  expect_s3_class(out, "mock_plot")
+  expect_equal(captured[["dots"]][["ylim"]], c(0, 12.5))
+  expect_equal(captured[["dots"]][["ylim2"]], c(0, 1))
+  expect_identical(captured[["dots"]][["ylab2"]], "Probability mass")
+})
+
 
 test_that("plot.brma uses KDE by default", {
 

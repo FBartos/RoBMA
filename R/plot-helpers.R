@@ -974,8 +974,8 @@
 .plot_dots_allowed <- function() {
 
   return(c(
-    "lwd", "lty", "col", "col.fill", "xlab", "ylab", "main",
-    "xlim", "ylim", "par_name", "legend", "legend_title",
+    "lwd", "lty", "col", "col.fill", "xlab", "ylab", "ylab2", "main",
+    "xlim", "ylim", "ylim2", "par_name", "legend", "legend_title",
     "legend_labels", "legend_position", "cex", "cex.axis",
     "cex.lab", "cex.main", "col.axis", "col.lab", "col.main",
     "las", "bty", "xaxs", "yaxs", "axes", "xaxt", "yaxt",

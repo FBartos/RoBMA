@@ -27,7 +27,10 @@ plot_prior(x, ...)
 \item{x}{a \code{brma}, \code{BMA}, or \code{RoBMA} object, or a prior
 distribution object.}
 
-\item{...}{additional arguments passed to the prior plotting method.}
+\item{...}{additional arguments passed to the prior plotting method. For
+mixed continuous and point priors, \code{ylim} controls the density axis,
+\code{ylim2} controls the probability-mass axis, and \code{ylab2} controls
+its label.}
 
 \item{plot_type}{whether to use a base plot \code{"base"} or ggplot2
 \code{"ggplot"} for plotting. Defaults to \code{"base"}.}
@@ -85,7 +88,9 @@ This is especially useful for objects created with \code{only_priors = TRUE}.
 \details{
 \code{output_measure} and \code{transform} transform the prior
 plotting scale only for effect-size location priors (\code{"mu"} or the
-meta-regression intercept).
+meta-regression intercept). For base plots, the probability mapping created
+by \code{plot_prior()} is reused by subsequent posterior
+\code{lines.brma()} calls, including overlays from other fitted objects.
 }
 \examples{
 \dontrun{
