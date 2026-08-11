@@ -61,7 +61,9 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' when \code{si = TRUE}; the mean prediction is unchanged.
 #' @param sei single positive numeric value used as the reference standard
 #' error for sampling-bias and sampling-interval calculations. Defaults to the
-#' median observed standard error.
+#' median observed standard error. When \code{mod = "sei"} or \code{mod =
+#' "vi"}, the plotted moderator supplies the pointwise standard error and an
+#' explicit \code{sei} override is not allowed.
 #' @param max_samples maximum number of posterior samples used for prediction
 #' summaries and interval bands. Defaults to \code{10000}. Use \code{Inf} to
 #' use all posterior samples.
@@ -209,6 +211,12 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   mod_name <- mod_info$name
   mod_type <- mod_info$type
   mod_data <- mod_info$data
+  if (mod_name %in% c("sei", "vi") && !is.null(sei)) {
+    stop(
+      "'sei' cannot be supplied when the plotted moderator is 'sei' or 'vi'.",
+      call. = FALSE
+    )
+  }
   if (mod_type == "categorical" && !is.null(at)) {
     stop("'at' is only available for continuous moderators.", call. = FALSE)
   }

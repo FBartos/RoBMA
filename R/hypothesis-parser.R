@@ -41,3 +41,28 @@
   rownames(out) <- NULL
   return(out)
 }
+
+
+.hypothesis_brma_level_contrast_candidate <- function(hypothesis,
+                                                       parameter) {
+
+  refs <- BayesTools::hypothesis_parse_point_reference(
+    hypothesis     = BayesTools::hypothesis_render(hypothesis),
+    allow_compound = TRUE
+  )
+  if (nrow(refs) == 0L || !any(!refs[["direct"]])) {
+    return(FALSE)
+  }
+
+  occurrences <- BayesTools::hypothesis_symbols(
+    hypothesis,
+    occurrences = TRUE
+  )
+  if (nrow(occurrences) == 0L ||
+      any(is.na(occurrences[["level"]])) ||
+      any(occurrences[["parameter"]] != parameter)) {
+    return(FALSE)
+  }
+
+  return(length(unique(occurrences[["level"]])) == 2L)
+}

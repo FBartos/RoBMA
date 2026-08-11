@@ -54,11 +54,23 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     hypothesis = hypothesis,
     parameter  = parameter
   )
+  level_contrast <- .hypothesis_brma_level_contrast_candidate(
+    hypothesis = hypothesis,
+    parameter  = parameter
+  )
 
-  density_method      <- .marginal_means_density_method(object, density_method)
-  estimated_ordinate  <- density_method %in% c("qCMDE", "IWMDE") &&
-    nrow(.hypothesis_brma_point_refs(hypothesis, parameter)) > 0L
-  precomputed_density <- estimated_ordinate
+  density_method           <- .marginal_means_density_method(
+    object,
+    density_method
+  )
+  requested_density_method <- density_method
+  estimated_ordinate        <- density_method %in% c("qCMDE", "IWMDE") &&
+    (level_contrast || nrow(.hypothesis_brma_point_refs(
+      hypothesis     = hypothesis,
+      parameter      = parameter,
+      require_direct = !level_contrast
+    )) > 0L)
+  precomputed_density       <- estimated_ordinate
   if (precomputed_density) {
     density_control <- .hypothesis_marginal_means_density_control(
       object          = object,
@@ -71,15 +83,17 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
         density_control[["n_points"]]
       )
     }
-    object <- .hypothesis_marginal_means_attach_iwmde(
-      object          = object,
-      parameter       = parameter,
-      parameter_label = parameter_label,
-      hypothesis      = hypothesis,
-      inference_type  = route[["inference_type"]],
-      density_method  = density_method,
-      density_control = density_control
-    )
+    if (!level_contrast) {
+      object <- .hypothesis_marginal_means_attach_iwmde(
+        object          = object,
+        parameter       = parameter,
+        parameter_label = parameter_label,
+        hypothesis      = hypothesis,
+        inference_type  = route[["inference_type"]],
+        density_method  = density_method,
+        density_control = density_control
+      )
+    }
     density_method <- "precomputed"
   } else if (!is.null(density_control)) {
     if (density_method %in% c("qCMDE", "IWMDE")) {
@@ -105,6 +119,20 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       route[["inference_type"]], " marginal means.",
       call. = FALSE
     )
+  }
+  if (level_contrast && precomputed_density) {
+    return(.hypothesis_brma_level_contrast_BF(
+      object          = object[["source_object"]],
+      posterior       = inference[[route[["inference_type"]]]][[parameter]],
+      hypothesis      = hypothesis,
+      parameter       = parameter,
+      density_method  = requested_density_method,
+      density_control = density_control,
+      logBF           = logBF,
+      BF01            = BF01,
+      seed            = seed,
+      columns         = columns
+    ))
   }
   inference[["conditional"]] <- inference[[route[["inference_type"]]]]
   class(inference) <- unique(c(class(inference), "marginal_inference"))

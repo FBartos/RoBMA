@@ -411,8 +411,14 @@
   outcome_type <- .outcome_type(x)
 
   if (outcome_type == "norm") {
-    newdata[["yi"]]  <- rep(0, n_pred)
-    newdata[["sei"]] <- rep(sei, n_pred)
+    newdata[["yi"]] <- rep(0, n_pred)
+    if ("vi" %in% names(newdata)) {
+      newdata[["sei"]] <- sqrt(newdata[["vi"]])
+    } else if ("sei" %in% names(newdata)) {
+      newdata[["vi"]] <- newdata[["sei"]]^2
+    } else {
+      newdata[["sei"]] <- if (length(sei) == 1L) rep(sei, n_pred) else sei
+    }
   } else if (outcome_type == "bin") {
     newdata[["ai"]]  <- rep(0, n_pred)
     newdata[["ci"]]  <- rep(0, n_pred)
@@ -426,6 +432,45 @@
   }
 
   return(newdata)
+}
+
+
+.regplot_prediction_precision <- function(newdata, mod_name, n_pred,
+                                          default_sei, reference_sei) {
+
+  if (identical(mod_name, "vi") ||
+      (is.null(reference_sei) && "vi" %in% names(newdata))) {
+    vi <- newdata[["vi"]]
+    if (!is.numeric(vi) || length(vi) != n_pred ||
+        any(!is.finite(vi)) || any(vi < 0)) {
+      stop("Prediction variances must be finite and non-negative.", call. = FALSE)
+    }
+    sei <- sqrt(vi)
+  } else if (identical(mod_name, "sei") ||
+             (is.null(reference_sei) && "sei" %in% names(newdata))) {
+    sei <- newdata[["sei"]]
+  } else {
+    sei <- rep(
+      if (is.null(reference_sei)) default_sei else reference_sei,
+      n_pred
+    )
+  }
+  if (!is.numeric(sei) || length(sei) != n_pred ||
+      any(!is.finite(sei)) || any(sei < 0)) {
+    stop("Prediction standard errors must be finite and non-negative.",
+         call. = FALSE)
+  }
+
+  if (!mod_name %in% c("sei", "vi") && !is.null(reference_sei)) {
+    if ("vi" %in% names(newdata)) {
+      newdata[["vi"]] <- sei^2
+    }
+    if ("sei" %in% names(newdata)) {
+      newdata[["sei"]] <- sei
+    }
+  }
+
+  return(list(newdata = newdata, sei = sei))
 }
 
 
@@ -832,12 +877,22 @@
   groups <- prediction_grid[["groups"]]
   n_pred <- nrow(grid)
 
-  prediction_se <- if (sampling_bias) se_rep else 0
+  prediction_precision <- .regplot_prediction_precision(
+    newdata       = prediction_grid[["newdata"]],
+    mod_name      = mod_name,
+    n_pred        = n_pred,
+    default_sei   = se_rep,
+    reference_sei = reference_sei
+  )
+  prediction_grid[["newdata"]] <- prediction_precision[["newdata"]]
+  grid_sei <- prediction_precision[["sei"]]
+  precision_moderator <- mod_name %in% c("sei", "vi")
+  prediction_sei <- if (sampling_bias || precision_moderator) grid_sei else 0
   newdata <- .regplot_add_dummy_outcome(
     x       = x,
     newdata = prediction_grid[["newdata"]],
     n_pred  = n_pred,
-    sei     = prediction_se
+    sei     = prediction_sei
   )
 
   posterior_samples <- .get_posterior_samples(x[["fit"]])
@@ -916,14 +971,20 @@
   }
 
   if (si) {
-    sd_si <- .root_sum_squares(tau_total, se_rep)
+    sampling_sei <- matrix(
+      grid_sei,
+      nrow  = nrow(tau_total),
+      ncol  = ncol(tau_total),
+      byrow = TRUE
+    )
+    sd_si <- .root_sum_squares(tau_total, sampling_sei)
 
     if (sampling_bias && .is_weightfunction(x)) {
       si_bounds <- .regplot_selection_mixture_interval_quantiles(
         x                 = x,
         mean_samples      = pred_samples,
         sd_samples        = sd_si,
-        se                = se_rep,
+        se                = grid_sei,
         probs             = probs,
         posterior_samples = posterior_samples
       )
@@ -1094,6 +1155,6 @@
     by_type  = if (!is.null(by_info)) by_info[["type"]] else NULL,
     groups   = groups,
     levels   = if (mod_type == "categorical") levels(mod_data) else NULL,
-    sei      = se_rep
+    sei      = if (length(unique(grid_sei)) == 1L) grid_sei[[1L]] else grid_sei
   ))
 }

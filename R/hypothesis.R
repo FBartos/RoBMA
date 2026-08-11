@@ -160,8 +160,9 @@ hypothesis.default <- function(object, ...) {
 #' depends on varying slopes, KDE point and directional hypotheses are available
 #' only when structural metadata certifies an atom-free, unconditional scalar
 #' target and the point is inside the open transformed support. Alternatively,
-#' use \code{standardized_coefficients = TRUE}. Compound point expressions are
-#' not supported. Certified \code{exp(affine)} point equalities are evaluated on
+#' use \code{standardized_coefficients = TRUE}. Atom-free pairwise contrasts
+#' across levels of one single-model factor are supported. Certified
+#' \code{exp(affine)} point equalities are evaluated on
 #' the inverse log/affine scale, where the prior and posterior Jacobians cancel;
 #' calls mixing point and region statements must be evaluated separately.
 #' @param density_control named list of qCMDE/IWMDE tuning settings. Supported
@@ -255,9 +256,14 @@ hypothesis.brma <- function(object, hypothesis,
     aliases    = selected[["aliases"]],
     parameter  = parameter
   )
-  point_refs <- .hypothesis_brma_point_refs(
+  level_contrast <- .hypothesis_brma_level_contrast_candidate(
     hypothesis = hypothesis,
     parameter  = parameter
+  )
+  point_refs <- .hypothesis_brma_point_refs(
+    hypothesis     = hypothesis,
+    parameter      = parameter,
+    require_direct = !level_contrast
   )
   coefficient_target <- .hypothesis_brma_formula_coefficient_target(
     object   = object,
@@ -354,6 +360,22 @@ hypothesis.brma <- function(object, hypothesis,
   )
   if (!is.null(coefficient_target)) {
     attr(posterior, "prior_density") <- coefficient_target[["prior_density"]]
+  }
+
+  if (level_contrast) {
+    return(.hypothesis_brma_level_contrast_BF(
+      object                    = object,
+      posterior                 = posterior,
+      hypothesis                = hypothesis,
+      parameter                 = parameter,
+      standardized_coefficients = standardized_coefficients,
+      density_method            = density_method,
+      density_control           = density_control,
+      logBF                     = logBF,
+      BF01                      = BF01,
+      seed                      = seed,
+      columns                   = columns
+    ))
   }
 
   if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {

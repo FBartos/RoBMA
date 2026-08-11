@@ -1,5 +1,8 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- supports atom-free pairwise point contrasts across levels of one fitted model,
+  including symbolic equalities and KDE, qCMDE, or IWMDE inference for fitted
+  and marginal-means hypotheses
 - re-exports `loo::loo_model_weights()` and adds a `brma` method that computes
   stacking or pseudo-BMA weights directly from compatible stored LOO results.
 - adds `metafor::forest()` support for `brma` objects and `as_metafor_forest()` for preparing RoBMA forest-plot data.
@@ -70,6 +73,9 @@
   `set_contrast_factor_predictors` explicitly.
 
 ### Fixes
+- makes `regplot(mod = "vi")` and `regplot(mod = "sei")` preserve the
+  prediction-grid precision, derive the matching standard error or variance,
+  and use pointwise precision in sampling intervals
 - restores named factor-level resolution in fitted-model hypotheses through
   BayesTools' semantic factor catalog while retaining a single RoBMA-owned
   whole-term target for product-space inference, and recognizes native sampled

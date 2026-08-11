@@ -80,9 +80,16 @@
     posterior_samples = posterior_samples
   )
   effect_direction <- .effect_direction(x)
+  if (!is.numeric(se) || !length(se) %in% c(1L, ncol(mean_samples)) ||
+      any(!is.finite(se)) || any(se <= 0)) {
+    stop(
+      "Selection-model regression-plot standard errors must be positive and ",
+      "have length one or one value per prediction.",
+      call. = FALSE
+    )
+  }
 
   if (!is.null(setup[["selection"]]) &&
-      se > 0 &&
       .has_native_regplot_selection_mixture()) {
     return(.regplot_selnorm_mixture_interval_quantiles(
       mean_samples      = mean_samples,
@@ -112,6 +119,21 @@
     selection_context,
     ".regplot_selection_mixture_interval_quantiles()"
   )
+  if (length(se) > 1L) {
+    intervals <- lapply(seq_len(ncol(mean_samples)), function(i) {
+      .regplot_selnorm_mixture_interval_quantiles(
+        mean_samples      = mean_samples[, i, drop = FALSE],
+        sd_samples        = sd_samples[, i, drop = FALSE],
+        se                = se[[i]],
+        probs             = probs,
+        selection_context = selection_context
+      )
+    })
+    return(list(
+      lower = vapply(intervals, `[[`, numeric(1), "lower"),
+      upper = vapply(intervals, `[[`, numeric(1), "upper")
+    ))
+  }
   native_static <- BayesTools::selection_native_static_args(selection_context)
 
   return(.Call(
@@ -148,12 +170,13 @@
   upper <- numeric(ncol(mean_samples))
 
   for (i in seq_len(ncol(mean_samples))) {
+    se_i <- if (length(se) == 1L) se else se[[i]]
     cdf_fun <- function(q) {
       .regplot_selection_mixture_cdf(
         q                = q,
         mean             = mean_samples[, i],
         sd               = sd_samples[, i],
-        se               = se,
+        se               = se_i,
         setup            = setup,
         effect_direction = effect_direction
       )

@@ -85,8 +85,9 @@ For nonlinear joint maps, such as an exponentiated intercept that also
 depends on varying slopes, KDE point and directional hypotheses are available
 only when structural metadata certifies an atom-free, unconditional scalar
 target and the point is inside the open transformed support. Alternatively,
-use \code{standardized_coefficients = TRUE}. Compound point expressions are
-not supported. Certified \code{exp(affine)} point equalities are evaluated on
+use \code{standardized_coefficients = TRUE}. Atom-free pairwise contrasts
+across levels of one single-model factor are supported. Certified
+\code{exp(affine)} point equalities are evaluated on
 the inverse log/affine scale, where the prior and posterior Jacobians cancel;
 calls mixing point and region statements must be evaluated separately.}
 

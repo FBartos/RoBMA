@@ -109,7 +109,9 @@ when \code{si = TRUE}; the mean prediction is unchanged.}
 
 \item{sei}{single positive numeric value used as the reference standard
 error for sampling-bias and sampling-interval calculations. Defaults to the
-median observed standard error.}
+median observed standard error. When \code{mod = "sei"} or \code{mod =
+"vi"}, the plotted moderator supplies the pointwise standard error and an
+explicit \code{sei} override is not allowed.}
 
 \item{max_samples}{maximum number of posterior samples used for prediction
 summaries and interval bands. Defaults to \code{10000}. Use \code{Inf} to
