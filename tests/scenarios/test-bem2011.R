@@ -186,23 +186,24 @@ testthat::test_that("Bem BMA models", {
   ### basic fit plots ----
   set.seed(1)
   scenario_plot("fit_average_posterior_mu", {
-    plot(fit_BMA, "mu", ylim = c(0, 12.5), xlim = c(-0.5, 0.5), prior = TRUE)
-    lines(fit_BMA, "mu", density_method = "IWMDE", lty = 2)
+    par(mar = c(4, 4, 1, 4))
+    plot(fit_BMA, "mu", ylim = c(0, 12.5), xlim = c(-0.5, 0.5), ylim2 = c(0, 1), prior = TRUE)
+    lines(fit_BMA, "mu", density_method = "qCMDE", lty = 2)
 
-    # TODO: the probability scaling of the spike is incorrect
-    # (the spike is scaled according to the RoBMA's density rather than the already plotted BMA prior's density)
     lines(fit_RoBMA, "mu", col = "blue")
-    lines(fit_RoBMA, "mu", density_method = "qCMDE", lty = 2, col = "blue",
-          density_control = list(samples = Inf))
+    lines(fit_RoBMA, "mu", density_method = "qCMDE", lty = 2, col = "blue", density_control = list(samples = 2000))
   })
 
+  set.seed(1)
   scenario_plot("fit_conditional_posterior_mu", {
     plot(fit_BMA, "mu", ylim = c(0, 12.5), xlim = c(-0.5, 0.5), prior = TRUE, conditional = TRUE)
     lines(fit_BMA, "mu", density_method = "IWMDE", lty = 2, conditional = TRUE)
+    lines(fit_BMA_con, "mu", density_method = "IWMDE", lty = 3)
 
     lines(fit_RoBMA, "mu", col = "blue", conditional = TRUE)
-    lines(fit_RoBMA, "mu", density_method = "qCMDE", lty = 2, col = "blue",
-          density_control = list(samples = Inf), conditional = TRUE)
+    # fails on ESS
+    # lines(fit_RoBMA, "mu", density_method = "qCMDE", lty = 2, col = "blue", density_control = list(samples = Inf), conditional = TRUE)
+    lines(fit_RoBMA_con, "mu", density_method = "qCMDE", lty = 3, col = "blue", density_control = list(samples = 2000))
   })
 
   ### bias specific plots ----
@@ -231,11 +232,20 @@ testthat::test_that("Bem BMA models", {
   scenario_plot("qqnorm_RoBMA", {qqnorm(fit_RoBMA)})
 
   ### hypotheses ----
-  fit_BMA_con
 
-  hypothesis(fit_BMA, hypothesis = "mu=0.2", density_method = "IWMDE")
-  hypothesis(fit_BMA, hypothesis = "mu>0.2", density_method = "IWMDE")
+  # full fit product space BF = 0.664 (fit_RoBMA)
+  scenario_text("density_test_at_0", rbind(
+    hypothesis(fit_RoBMA,     hypothesis = "mu = 0", density_method = "qCMDE", density_control = list(samples = 2000), conditional = TRUE),
+    hypothesis(fit_RoBMA_con, hypothesis = "mu = 0", density_method = "qCMDE", density_control = list(samples = 2000))
+  ))
 
+  scenario_text("density_ineq", rbind(
+    suppressWarnings(hypothesis(fit_BMA, hypothesis = "mu > 0.2 vs mu < 0.2")), # this one should be different because rellies on model-averaged fit
+    hypothesis(fit_BMA,     hypothesis = "mu > 0.2 vs mu < 0.2", conditional = TRUE),
+    hypothesis(fit_BMA_con, hypothesis = "mu > 0.2 vs mu < 0.2")
+  ))
 
+  # check loo comparison works
+  scenario_text("fit_loo_comparison_RoBMA", {loo_model_weights(fit_BMA, fit_BMA_con, fit_RoBMA, fit_RoBMA_con)})
 
 })

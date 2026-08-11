@@ -1,0 +1,26 @@
+
+Robust Bayesian Model-Averaged Random-Effects Model (k = 9)
+
+Component Inclusion
+                 Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Effect                 0.500       0.399        0.664                5.050
+Heterogeneity          0.500       0.146        0.171                2.077
+Publication Bias       0.500       0.932       13.717                5.149
+
+Estimates
+     Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+mu  0.044 0.090 -0.096 0.000 0.219     0.00271          0.030  1112 1.004
+tau 0.008 0.028  0.000 0.000 0.102     0.00026          0.009 11991 1.000
+
+Publication Bias
+                   Mean    SD 0.025   0.5  0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+omega[0,0.025]    1.000 0.000 1.000 1.000  1.000          NA             NA   NA    NA
+omega[0.025,0.05] 0.934 0.172 0.338 1.000  1.000     0.00186          0.011 8624 1.001
+omega[0.05,0.5]   0.780 0.374 0.010 1.000  1.000     0.00560          0.015 4459 1.001
+omega[0.5,0.95]   0.767 0.390 0.007 1.000  1.000     0.00601          0.015 4199 1.001
+omega[0.95,0.975] 0.786 0.373 0.007 1.000  1.000     0.00551          0.015 4601 1.001
+omega[0.975,1]    0.804 0.371 0.007 1.000  1.000     0.00488          0.013 5839 1.001
+PET               0.758 1.160 0.000 0.000  3.086     0.02843          0.025 1712 1.005
+PEESE             5.818 9.342 0.000 0.000 25.435     0.17493          0.019 2887 1.000
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+
