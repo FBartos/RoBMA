@@ -174,6 +174,17 @@ testthat::test_that("Bangertdrowns location-scale models", {
     marglik = post_prob(fit_simple, fit_l, fit_s, fit_ls)
   )})
 
+  ### direct predictions ----
+  newdata <- data.frame(ni100 = c(0.5, 1, 2), vi = c(0.01, 0.04, 0.09))
+  scenario_text("fit_prediction_comparison", {data.frame(
+    BMA_terms     = summary(predict(fit_BMA, newdata = newdata, type = "terms",       quiet = TRUE))[, "Mean"],
+    brma_terms    = summary(predict(fit_ls, newdata = newdata, type = "terms",       quiet = TRUE))[, "Mean"],
+    metafor_terms = predict(metafor_ls, newmods = newdata$ni100)[["pred"]],
+    BMA_scale     = summary(predict(fit_BMA, newdata = newdata, type = "terms.scale", quiet = TRUE))[, "Mean"],
+    brma_scale    = summary(predict(fit_ls, newdata = newdata, type = "terms.scale", quiet = TRUE))[, "Mean"],
+    metafor_scale = sqrt(exp(predict(metafor_ls, newscale = newdata$ni100)[["pred"]]))
+  )})
+
   ### simple summary ----
   set.seed(1)
   scenario_text("fit_BMA_summary", {summary(fit_BMA)})
