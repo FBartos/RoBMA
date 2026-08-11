@@ -2,7 +2,7 @@ if (file.exists("helper-scenarios.R")) source("helper-scenarios.R") else source(
 REGENERATE_SCENARIO_FILES <- FALSE
 SHOW_SCENARIO_OUTPUT      <- FALSE
 scenario_start("bcg")
-# testthat::test_file("tests/scenarios/bcg.R")
+# testthat::test_file("tests/scenarios/test-bcg.R")
 
 ### Description
 # use the bcg dataset to fully test the feature suit for standard meta-analysis and meta-regressions

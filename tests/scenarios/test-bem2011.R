@@ -2,10 +2,10 @@ if (file.exists("helper-scenarios.R")) source("helper-scenarios.R") else source(
 REGENERATE_SCENARIO_FILES <- FALSE
 SHOW_SCENARIO_OUTPUT      <- FALSE
 scenario_start("bem2011")
-# testthat::test_file("tests/scenarios/bem2011.R")
+# testthat::test_file("tests/scenarios/test-bem2011.R")
 
 ### Description
-# use the bcg dataset to fully test the feature suit for publication bias-adjusted meta-analysis
+# use the bem dataset to fully test the feature suit for publication bias-adjusted meta-analysis
 
 testthat::test_that("Bem simple models", {
   set.seed(1)
