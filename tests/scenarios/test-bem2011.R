@@ -37,13 +37,13 @@ testthat::test_that("Bem simple models", {
   })
 
   ### simple summary ----
-  scenario_text("fit_simple_summary", {print(summary(fit_simple))})
-  scenario_text("fit_3PSM_summary", {print(summary(fit_3PSM))})
-  scenario_text("fit_PET_summary", {print(summary(fit_PET))})
+  scenario_text("fit_simple_summary", {summary(fit_simple)})
+  scenario_text("fit_3PSM_summary", {summary(fit_3PSM)})
+  scenario_text("fit_PET_summary", {summary(fit_PET)})
 
   # simple model comparison
-  scenario_text("fit_bf_comparison", {print(post_prob(fit_simple, fit_3PSM, fit_PET))})
-  scenario_text("fit_loo_comparison", {print(loo_model_weights(fit_simple, fit_3PSM, fit_PET))})
+  scenario_text("fit_bf_comparison", {post_prob(fit_simple, fit_3PSM, fit_PET)})
+  scenario_text("fit_loo_comparison", {loo_model_weights(fit_simple, fit_3PSM, fit_PET)})
 
   ### basic fit plots ----
   set.seed(1)
@@ -78,26 +78,14 @@ testthat::test_that("Bem simple models", {
   })
 
   set.seed(1)
-  scenario_plot("funnel_simple", {
-    funnel(fit_simple)
-  })
-  scenario_plot("funnel_3PSM", {
-    funnel(fit_3PSM)
-  })
-  scenario_plot("funnel_PET", {
-    funnel(fit_PET)
-  })
+  scenario_plot("funnel_simple", {funnel(fit_simple)})
+  scenario_plot("funnel_3PSM", {funnel(fit_3PSM)})
+  scenario_plot("funnel_PET", {funnel(fit_PET)})
 
   set.seed(1)
-  scenario_plot("qqnorm_simple", {
-    qqnorm(fit_simple)
-  })
-  scenario_plot("qqnorm_3PSM", {
-    qqnorm(fit_3PSM)
-  })
-  scenario_plot("qqnorm_PET", {
-    qqnorm(fit_PET)
-  })
+  scenario_plot("qqnorm_simple", {qqnorm(fit_simple)})
+  scenario_plot("qqnorm_3PSM", {qqnorm(fit_3PSM)})
+  scenario_plot("qqnorm_PET", {qqnorm(fit_PET)})
 
   ### point hypothesis tests for publication bias adjustment ----
   set.seed(1)

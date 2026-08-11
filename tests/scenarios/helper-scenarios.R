@@ -250,21 +250,28 @@ scenario_fit <- function(name, code) {
 }
 
 
-# Capture a deliberately printed result and lock it to a tracked text file.
+# Capture a result as R would print it at the top level and lock the output to a
+# tracked text file.
 scenario_text <- function(name, code) {
 
   config <- .scenario_config()
   name   <- .scenario_validate_name(name, "text")
   path   <- file.path(config[["results_dir"]], paste0(name, ".txt"))
   expr   <- substitute(code)
-  value  <- NULL
+  result <- NULL
 
   old_options <- options(width = config[["width"]])
   on.exit(options(old_options), add = TRUE)
   output <- capture.output(
-    value <- eval(expr, envir = parent.frame()),
+    {
+      result <- withVisible(eval(expr, envir = parent.frame()))
+      if (result[["visible"]]) {
+        print(result[["value"]])
+      }
+    },
     type = "output"
   )
+  value <- result[["value"]]
   if (isTRUE(config[["show_output"]]) && length(output) > 0L) {
     writeLines(output)
   }

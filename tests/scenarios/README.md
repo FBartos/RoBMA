@@ -25,7 +25,7 @@ testthat::test_that("BCG analysis remains stable", {
   })
 
   scenario_text("summary", {
-    print(summary(fit))
+    summary(fit)
   })
 
   scenario_plot("forest", {
@@ -41,13 +41,14 @@ Scenario and artifact names may use ASCII letters in either case, numbers,
 underscores, hyphens, and internal periods.
 
 Each fit cache records its normalized fitting call and refits automatically when
-that call changes. Set `SHOW_SCENARIO_OUTPUT <- TRUE` while developing so
-`scenario_text()` echoes captured output and `scenario_plot()` draws on the
-active graphics device; leave it `FALSE` for quiet `test_file()` /
-`tools/test-scenario.R` runs. Outside a scenario test runner, `scenario_plot()`
-still draws when output is enabled (or when the session is interactive) and
-stops there; runner-backed calls also perform the vdiffr comparison. Base
-graphics parameters are restored after each drawn evaluation, so settings such
-as `par(mar = ...)` do not leak into subsequent plots. Base graphics overlay
-mode is reset before and after each drawn block, preventing one scenario figure
-from being drawn over the previous figure.
+that call changes. `scenario_text()` automatically prints a visible returned
+value, so summary and table calls do not need an explicit `print()`. Set
+`SHOW_SCENARIO_OUTPUT <- TRUE` while developing so captured text is echoed and
+`scenario_plot()` draws on the active graphics device; leave it `FALSE` for
+quiet `test_file()` / `tools/test-scenario.R` runs. Outside a scenario test
+runner, `scenario_plot()` still draws when output is enabled (or when the
+session is interactive) and stops there; runner-backed calls also perform the
+vdiffr comparison. Base graphics parameters are restored after each drawn
+evaluation, so settings such as `par(mar = ...)` do not leak into subsequent
+plots. Base graphics overlay mode is reset before and after each drawn block,
+preventing one scenario figure from being drawn over the previous figure.

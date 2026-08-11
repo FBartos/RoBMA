@@ -44,6 +44,8 @@
 - adds maintainer analysis scenarios with automatic fit caching and tracked
   text and visual baselines, plus representative prior and multivariate visual
   regression coverage.
+- lets `scenario_text()` automatically print visible returned values, removing
+  the need for explicit `print()` calls around summaries and tables.
 - allows interactive `scenario_plot()` calls outside a scenario runner to draw
   directly without requiring a vdiffr snapshot context.
 
