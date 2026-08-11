@@ -2,6 +2,7 @@ if (file.exists("helper-scenarios.R")) source("helper-scenarios.R") else source(
 REGENERATE_SCENARIO_FILES <- FALSE
 SHOW_SCENARIO_OUTPUT      <- FALSE
 scenario_start("bcg")
+# testthat::test_file("tests/scenarios/bcg.R")
 
 ### Description
 # use the bcg dataset to fully test the feature suit for standard meta-analysis and meta-regressions
@@ -304,13 +305,8 @@ testthat::test_that("BCG Meta-Regression", {
     hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "IWMDE"),
     hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "qCMDE")
   ))})
-
-  set.seed(1)
   scenario_text("fit_reg1_mm_BF4", {print(
-    hypothesis(
-      fit_reg1_emm,
-      hypothesis = "alloc[random] < alloc[alternate] vs alloc[random] > alloc[alternate]"
-    )
+    hypothesis(fit_reg1_emm, hypothesis = "alloc[random] < alloc[alternate] vs alloc[random] > alloc[alternate]")
   )})
 
   # FUTURE:

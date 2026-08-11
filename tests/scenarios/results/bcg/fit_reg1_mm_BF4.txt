@@ -1,2 +1,2 @@
                                    Alternative:                                  Null:    BF error%(BF)
-mu_alloc mu_alloc[random] < mu_alloc[alternate] mu_alloc[random] > mu_alloc[alternate] 5.022      2.717
+mu_alloc mu_alloc[random] < mu_alloc[alternate] mu_alloc[random] > mu_alloc[alternate] 4.788      2.717

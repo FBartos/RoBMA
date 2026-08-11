@@ -1,0 +1,2 @@
+fit_simple   fit_3PSM    fit_PET 
+ 0.1784775  0.2936616  0.5278610 
