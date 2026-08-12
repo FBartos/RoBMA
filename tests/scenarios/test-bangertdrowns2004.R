@@ -80,6 +80,22 @@ testthat::test_that("Bangertdrowns location-scale models", {
   scenario_text("fit_bf_comparison",  {post_prob(fit_simple, fit_l, fit_s, fit_ls)})
   scenario_text("fit_loo_comparison", {loo_model_weights(fit_simple, fit_l, fit_s, fit_ls)})
 
+  ### location-scale hypothesis tests ----
+  # A zero coefficient is invariant to coefficient standardization.
+  scenario_text("fit_slope_BF_comparison", {data.frame(
+    coefficient = c("scale", "scale | location", "location | scale"),
+    marglik     = c(
+      bf(fit_s, fit_simple)[["bf"]],
+      bf(fit_ls, fit_l)[["bf"]],
+      bf(fit_ls, fit_s)[["bf"]]
+    ),
+    hypothesis  = c(
+      hypothesis(fit_s,  "ni100 = 0", component = "scale")[["BF"]],
+      hypothesis(fit_ls, "ni100 = 0", component = "scale")[["BF"]],
+      hypothesis(fit_ls, "ni100 = 0", component = "mods")[["BF"]]
+    )
+  )})
+
   ### numerical diagnostic comparisons ----
   fit_l_rstudent          <- suppressWarnings(rstudent(fit_l))
   fit_l_dfbetas           <- suppressWarnings(dfbetas(fit_l))
