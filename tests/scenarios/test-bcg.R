@@ -168,6 +168,68 @@ testthat::test_that("BCG Simple Fits", {
   influence(fit_simple_metafor)
   scenario_text("fit_simple_influence", {influence(fit_simple)})
 
+  ### likelihood weights ----
+  # Integer likelihood weights are equivalent to repeating the corresponding
+  # likelihood contribution.
+  likelihood_weights             <- rep(1L, nrow(dat))
+  likelihood_weights[c(4, 8, 12)] <- c(3L, 10L, 4L)
+  dat_duplicated                 <- dat[rep(seq_len(nrow(dat)), likelihood_weights), ]
+
+  fit_simple_weighted <- scenario_fit("fit_simple_weighted", {
+    tmp <- brma(yi = yi, vi = vi, weights = likelihood_weights, data = dat, measure = "RR", seed = 3)
+    tmp <- suppressWarnings(add_loo(tmp))
+    return(tmp)
+  })
+  fit_simple_duplicated <- scenario_fit("fit_simple_duplicated", {
+    brma(yi = yi, vi = vi, data = dat_duplicated, measure = "RR", seed = 4)
+  })
+  # metafor's custom weights are not likelihood weights, so retain both its
+  # weighted and duplicated-data fits for comparison.
+  fit_simple_weighted_metafor <- scenario_fit("fit_simple_weighted_metafor", {
+    metafor::rma(yi = yi, vi = vi, weights = likelihood_weights, data = dat, method = "REML")
+  })
+  fit_simple_duplicated_metafor <- scenario_fit("fit_simple_duplicated_metafor", {
+    metafor::rma(yi = yi, vi = vi, data = dat_duplicated, method = "REML")
+  })
+
+  scenario_text("fit_simple_weighted_comparison", {data.frame(
+    RoBMA              = coef(fit_simple),
+    RoBMA_weighted     = coef(fit_simple_weighted),
+    RoBMA_duplicated   = coef(fit_simple_duplicated),
+    metafor            = c(stats::coef(fit_simple_metafor), sqrt(fit_simple_metafor[["tau2"]])),
+    metafor_weighted   = c(stats::coef(fit_simple_weighted_metafor), sqrt(fit_simple_weighted_metafor[["tau2"]])),
+    metafor_duplicated = c(stats::coef(fit_simple_duplicated_metafor), sqrt(fit_simple_duplicated_metafor[["tau2"]]))
+  )})
+
+  fit_simple_influence                  <- suppressWarnings(influence(fit_simple))[["inf"]]
+  fit_simple_weighted_influence         <- suppressWarnings(influence(fit_simple_weighted))[["inf"]]
+  fit_simple_influence_metafor          <- metafor::influence.rma.uni(fit_simple_metafor)[["inf"]]
+  fit_simple_weighted_influence_metafor <- metafor::influence.rma.uni(fit_simple_weighted_metafor)[["inf"]]
+  scenario_text("fit_simple_weighted_dffits", {data.frame(
+    study            = seq_len(nrow(dat)),
+    weight           = likelihood_weights,
+    RoBMA            = fit_simple_influence[["dffits"]],
+    RoBMA_weighted   = fit_simple_weighted_influence[["dffits"]],
+    metafor          = fit_simple_influence_metafor[["dffits"]],
+    metafor_weighted = fit_simple_weighted_influence_metafor[["dffits"]]
+  )})
+  scenario_text("fit_simple_weighted_cooks", {data.frame(
+    study            = seq_len(nrow(dat)),
+    weight           = likelihood_weights,
+    RoBMA            = fit_simple_influence[["cook.d"]],
+    RoBMA_weighted   = fit_simple_weighted_influence[["cook.d"]],
+    metafor          = fit_simple_influence_metafor[["cook.d"]],
+    metafor_weighted = fit_simple_weighted_influence_metafor[["cook.d"]]
+  )})
+  scenario_text("fit_simple_weighted_hatvalues", {data.frame(
+    study            = seq_len(nrow(dat)),
+    weight           = likelihood_weights,
+    RoBMA            = fit_simple_influence[["hat"]],
+    RoBMA_weighted   = fit_simple_weighted_influence[["hat"]],
+    metafor          = fit_simple_influence_metafor[["hat"]],
+    metafor_weighted = fit_simple_weighted_influence_metafor[["hat"]]
+  )})
+
 
   ### null model fitting works ----
   set.seed(1)
