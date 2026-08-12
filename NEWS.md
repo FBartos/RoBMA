@@ -97,6 +97,10 @@
   mean-difference coding, matching the other BMA/RoBMA constructors. This can
   change moderator coefficient interpretation for calls that did not specify
   `set_contrast_factor_predictors` explicitly.
+- reports `cooks.distance()` as the unscaled squared posterior Mahalanobis
+  distance, following metafor's chi-square-based meta-analytic convention.
+  Values were previously divided by the fixed-effect model rank and therefore
+  increase by that rank when it exceeds one.
 
 ### Fixes
 - treats `xlim` as a displayed-scale range for transformed posterior and

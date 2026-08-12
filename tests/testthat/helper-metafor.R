@@ -954,8 +954,8 @@ expect_influence_matches_metafor <- function(case) {
                          info = paste(name, "rstudent"))
   testthat::expect_true(all(is.finite(inf_brma$inf$dffits[rows])),
                         info = paste(name, "dffits finite"))
-  testthat::expect_true(all(is.finite(inf_brma$inf$cook.d[rows])),
-                        info = paste(name, "cook.d finite"))
+  testthat::expect_equal(inf_metafor$inf$cook.d[rows], inf_brma$inf$cook.d[rows],
+                         tolerance = tol, info = paste(name, "cook.d"))
 
   if (oracle == "equal") {
     testthat::expect_equal(inf_metafor$inf$cov.r[rows], inf_brma$inf$cov.r[rows],

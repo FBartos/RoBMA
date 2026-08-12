@@ -80,6 +80,70 @@ testthat::test_that("Bangertdrowns location-scale models", {
   scenario_text("fit_bf_comparison",  {post_prob(fit_simple, fit_l, fit_s, fit_ls)})
   scenario_text("fit_loo_comparison", {loo_model_weights(fit_simple, fit_l, fit_s, fit_ls)})
 
+  ### numerical diagnostic comparisons ----
+  fit_l_rstudent          <- suppressWarnings(rstudent(fit_l))
+  fit_l_dfbetas           <- suppressWarnings(dfbetas(fit_l))
+  fit_l_influence_metafor <- metafor::influence.rma.uni(metafor_l)
+  fit_l_dfbetas_metafor   <- metafor::dfbetas.rma.uni(metafor_l)
+
+  # This denser single-moderator model provides a less regularization-sensitive
+  # comparison than the sparse allocation-by-ablat interaction in the BCG data.
+  fit_l_diagnostics_robma <- list(
+    "Residuals"           = residuals(fit_l),
+    "Rstandard (z)"       = rstandard(fit_l)[["z"]],
+    "Rstudent (z)"        = fit_l_rstudent[["z"]],
+    "Hat values"          = hatvalues(fit_l),
+    "DFBETAS"             = as.numeric(as.matrix(fit_l_dfbetas)),
+    "DFFITS"              = suppressWarnings(dffits(fit_l)),
+    "Cook's distance"     = suppressWarnings(cooks.distance(fit_l)),
+    "COVRATIO"            = suppressWarnings(covratio(fit_l))
+  )
+  fit_l_diagnostics_metafor <- list(
+    "Residuals"           = metafor::residuals.rma(metafor_l),
+    "Rstandard (z)"       = metafor::rstandard.rma.uni(metafor_l)[["z"]],
+    "Rstudent (z)"        = metafor::rstudent.rma.uni(metafor_l)[["z"]],
+    "Hat values"          = metafor::hatvalues.rma.uni(metafor_l),
+    "DFBETAS"             = unlist(unclass(fit_l_dfbetas_metafor)[seq_len(ncol(fit_l_dfbetas))], use.names = FALSE),
+    "DFFITS"              = fit_l_influence_metafor[["inf"]][["dffits"]],
+    "Cook's distance"     = fit_l_influence_metafor[["inf"]][["cook.d"]],
+    "COVRATIO"            = fit_l_influence_metafor[["inf"]][["cov.r"]]
+  )
+  scenario_plot("fit_l_diagnostic_comparison", {
+    layout(matrix(
+      c(1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 7, 8, 8, 8),
+      nrow = 3, byrow = TRUE
+    ))
+    par(mar = c(3.2, 3.2, 2, 0.5), mgp = c(1.9, 0.6, 0))
+    for (diagnostic in names(fit_l_diagnostics_robma)) {
+      metafor_value <- as.numeric(fit_l_diagnostics_metafor[[diagnostic]])
+      robma_value   <- as.numeric(fit_l_diagnostics_robma[[diagnostic]])
+
+      difference     <- robma_value - metafor_value
+      keep           <- is.finite(metafor_value) & is.finite(difference)
+      metafor_sd     <- stats::sd(metafor_value[keep])
+      agreement_band <- 0.1 * metafor_sd
+      y_limit        <- 1.05 * max(metafor_sd, max(abs(difference[keep])))
+      plot(
+        metafor_value[keep], difference[keep],
+        main = diagnostic, xlab = "metafor", ylab = "RoBMA - metafor",
+        ylim = c(-y_limit, y_limit), type = "n"
+      )
+      rect(
+        par("usr")[[1]], -agreement_band,
+        par("usr")[[2]],  agreement_band,
+        col = "grey90", border = NA
+      )
+      abline(h = 0, lty = 2, col = "grey50")
+      points(metafor_value[keep], difference[keep], pch = 19, cex = 0.7)
+      if (identical(diagnostic, names(fit_l_diagnostics_robma)[[1]])) {
+        legend(
+          "topleft", legend = "band: ±0.1 SD(x)",
+          fill = "grey90", border = NA, bty = "n", cex = 0.7
+        )
+      }
+    }
+  })
+
   ### basic fit plots ----
   set.seed(1)
   scenario_plot("fit_posterior_mu", {

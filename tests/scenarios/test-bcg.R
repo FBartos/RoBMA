@@ -458,6 +458,85 @@ testthat::test_that("BCG Meta-Regression", {
     fit_reg3_hypotheses_IWMDE[,3:4]
   ))
 
+  ### numerical diagnostic comparisons ----
+  fit_reg3_rstudent          <- suppressWarnings(rstudent(fit_reg3))
+  fit_reg3_dfbetas           <- suppressWarnings(dfbetas(fit_reg3))
+  fit_reg3_influence_metafor <- metafor::influence.rma.uni(fit_reg3_metafor)
+  fit_reg3_dfbetas_metafor   <- metafor::dfbetas.rma.uni(fit_reg3_metafor)
+
+  # RoBMA standardizes continuous moderators before forming interactions.
+  dat_scaled       <- dat
+  dat_scaled$ablat <- as.numeric(scale(dat_scaled$ablat))
+  fit_reg3_vif_metafor <- metafor::rma(yi = yi, vi = vi, mods = ~ alloc * ablat, data = dat_scaled, method = "REML")
+  fit_reg3_vif_metafor <- metafor::vif(fit_reg3_vif_metafor, btt = list(alloc = 2:3, ablat = 4, interaction = 5:6))[["vif"]]
+  fit_reg3_vif_metafor <- vapply(fit_reg3_vif_metafor, function(x) x[["sif"]], numeric(1))
+  fit_reg3_vif_robma   <- vif(fit_reg3, posterior_correlation = FALSE)[["vif"]]
+  scenario_text("fit_reg3_vif_comparison", {data.frame(
+    term    = fit_reg3_vif_robma[["term"]],
+    RoBMA   = fit_reg3_vif_robma[["GVIF^(1/(2*df))"]],
+    metafor = unname(fit_reg3_vif_metafor)
+  )})
+
+  # These are visual comparisons, not identities: RoBMA's studentized and
+  # influence diagnostics use posterior/PSIS rather than classical deletion.
+  # The sparse allocation-by-ablat groups also make classical deletion unstable,
+  # whereas RoBMA's priors regularize the deleted interaction estimates.
+  fit_reg3_diagnostics_robma <- list(
+    "Residuals"           = residuals(fit_reg3),
+    "Rstandard (z)"       = rstandard(fit_reg3)[["z"]],
+    "Rstudent (z)"        = fit_reg3_rstudent[["z"]],
+    "Hat values"          = hatvalues(fit_reg3),
+    "DFBETAS"             = as.numeric(as.matrix(fit_reg3_dfbetas)),
+    "DFFITS"              = suppressWarnings(dffits(fit_reg3)),
+    "Cook's distance"     = suppressWarnings(cooks.distance(fit_reg3)),
+    "COVRATIO"            = suppressWarnings(covratio(fit_reg3))
+  )
+  fit_reg3_diagnostics_metafor <- list(
+    "Residuals"           = metafor::residuals.rma(fit_reg3_metafor),
+    "Rstandard (z)"       = metafor::rstandard.rma.uni(fit_reg3_metafor)[["z"]],
+    "Rstudent (z)"        = metafor::rstudent.rma.uni(fit_reg3_metafor)[["z"]],
+    "Hat values"          = metafor::hatvalues.rma.uni(fit_reg3_metafor),
+    "DFBETAS"             = unlist(unclass(fit_reg3_dfbetas_metafor)[seq_len(ncol(fit_reg3_dfbetas))], use.names = FALSE),
+    "DFFITS"              = fit_reg3_influence_metafor[["inf"]][["dffits"]],
+    "Cook's distance"     = fit_reg3_influence_metafor[["inf"]][["cook.d"]],
+    "COVRATIO"            = fit_reg3_influence_metafor[["inf"]][["cov.r"]]
+  )
+  scenario_plot("fit_reg3_diagnostic_comparison", {
+    layout(matrix(
+      c(1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 7, 8, 8, 8),
+      nrow = 3, byrow = TRUE
+    ))
+    par(mar = c(3.2, 3.2, 2, 0.5), mgp = c(1.9, 0.6, 0))
+    for (diagnostic in names(fit_reg3_diagnostics_robma)) {
+      metafor_value <- as.numeric(fit_reg3_diagnostics_metafor[[diagnostic]])
+      robma_value   <- as.numeric(fit_reg3_diagnostics_robma[[diagnostic]])
+
+      difference     <- robma_value - metafor_value
+      keep           <- is.finite(metafor_value) & is.finite(difference)
+      metafor_sd     <- stats::sd(metafor_value[keep])
+      agreement_band <- 0.1 * metafor_sd
+      y_limit        <- 1.05 * max(metafor_sd, max(abs(difference[keep])))
+      plot(
+        metafor_value[keep], difference[keep],
+        main = diagnostic, xlab = "metafor", ylab = "RoBMA - metafor",
+        ylim = c(-y_limit, y_limit), type = "n"
+      )
+      rect(
+        par("usr")[[1]], -agreement_band,
+        par("usr")[[2]],  agreement_band,
+        col = "grey90", border = NA
+      )
+      abline(h = 0, lty = 2, col = "grey50")
+      points(metafor_value[keep], difference[keep], pch = 19, cex = 0.7)
+      if (identical(diagnostic, names(fit_reg3_diagnostics_robma)[[1]])) {
+        legend(
+          "topleft", legend = "band: ±0.1 SD(x)",
+          fill = "grey90", border = NA, bty = "n", cex = 0.7
+        )
+      }
+    }
+  })
+
   ### direct predictions ----
   newdata <- expand.grid(
     alloc          = levels(factor(dat$alloc)),

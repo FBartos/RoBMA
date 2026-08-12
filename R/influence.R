@@ -85,14 +85,12 @@ influence.brma <- function(model, ...) {
   if (inherits(model, "brma.mv")) {
     fit_samples <- .influence_fit_samples(model)
     dffits_val  <- .dffits_internal(fit_samples, loo_wts)
-    X           <- .get_model_matrix(model)
-    P           <- qr(X)[["rank"]]
-    cook_val    <- .cooks.distance_internal(fit_samples, loo_wts, P)
-    cov_val  <- covratio.brma(model, .weights = loo_wts)
-    cov_note <- attr(cov_val, "note")
-    cov_val  <- as.numeric(cov_val)
-    dfb_val  <- dfbetas.brma(model, .weights = loo_wts)
-    dfb_note <- attr(dfb_val, "note")
+    cook_val    <- .cooks.distance_internal(fit_samples, loo_wts)
+    cov_val     <- covratio.brma(model, .weights = loo_wts)
+    cov_note    <- attr(cov_val, "note")
+    cov_val     <- as.numeric(cov_val)
+    dfb_val     <- dfbetas.brma(model, .weights = loo_wts)
+    dfb_note    <- attr(dfb_val, "note")
 
     inf_df <- data.frame(
       rstudent = rstudent_val,
@@ -138,11 +136,8 @@ influence.brma <- function(model, ...) {
   }
 
   # Cook's Distance
-  # Need P (number of coefficients)
   if (outcome_type == "norm" && !is_weightfunction) {
-    X        <- .get_model_matrix(model)
-    P        <- qr(X)[["rank"]]
-    cook_val <- .cooks.distance_internal(fit_samples, loo_wts, P)
+    cook_val <- .cooks.distance_internal(fit_samples, loo_wts)
   }
 
   # COVRATIO

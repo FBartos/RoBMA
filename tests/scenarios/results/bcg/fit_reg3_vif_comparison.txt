@@ -1,0 +1,4 @@
+         term    RoBMA  metafor
+1       alloc 1.030287 1.029308
+2       ablat 2.115956 2.120434
+3 alloc:ablat 1.479326 1.474179

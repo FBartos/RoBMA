@@ -37,13 +37,14 @@ test_that("PSIS fitted-value influence helpers match direct calculations", {
   expected_dffits <- (full_fit - diag(loo_fit)) / sqrt(diag(loo_var))
   expected_cook_delta <- sweep(loo_fit, 2, full_fit, "-")
   expected_cook_delta <- -expected_cook_delta
+  # Meta-analytic Cook's distance is the unscaled squared Mahalanobis distance.
   expected_cook <- rowSums(
     (expected_cook_delta %*% .symmetric_ginv(stats::cov(fit_samples))) *
       expected_cook_delta
-  ) / 2
+  )
 
   expect_equal(.dffits_internal(fit_samples, weights), expected_dffits)
-  expect_equal(unname(.cooks.distance_internal(fit_samples, weights, P = 2)),
+  expect_equal(unname(.cooks.distance_internal(fit_samples, weights)),
                expected_cook)
 })
 
@@ -78,8 +79,8 @@ test_that("influence diagnostics retain tiny non-zero posterior variation", {
     tolerance = 1e-9
   )
   expect_equal(
-    unname(.cooks.distance_internal(transformed, weights, P = 3)),
-    unname(.cooks.distance_internal(fit_samples, weights, P = 3)),
+    unname(.cooks.distance_internal(transformed, weights)),
+    unname(.cooks.distance_internal(fit_samples, weights)),
     tolerance = 1e-9
   )
 
