@@ -30,6 +30,12 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' bridge sampling and store the result in the object.
 #'
 #' @param object a brma model object.
+#' @param parallel whether bridge-density evaluations run in parallel. The
+#' default, \code{NULL}, inherits the setting used to fit \code{object}.
+#' @param cores number of bridge-sampling worker processes. The default,
+#' \code{NULL}, inherits the fitted core count and is capped by
+#' \code{RoBMA.get_option("max_cores")}. It is used only when
+#' \code{parallel = TRUE}.
 #' @param ... additional arguments (currently not used).
 #'
 #' @details
@@ -73,10 +79,15 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #'
 #' @aliases add_marglik
 #' @export
-add_marglik.brma <- function(object, ...) {
+add_marglik.brma <- function(object, parallel = NULL, cores = NULL, ...) {
 
   .check_marglik_available(object, "add_marglik()")
-  marglik <- .marglik(object)
+  parallel_control <- .marglik_parallel_control(
+    object   = object,
+    parallel = parallel,
+    cores    = cores
+  )
+  marglik <- .marglik(object, cores = parallel_control[["cores"]])
   if (inherits(marglik, "error")) {
     stop(conditionMessage(marglik), call. = FALSE)
   }
@@ -98,7 +109,7 @@ add_marglik.brma <- function(object, ...) {
 # @return A `BayesTools_marglik` object.
 #
 # @keywords internal
-.marglik <- function(object) {
+.marglik <- function(object, cores = 1L) {
 
   data   <- object[["data"]]
   priors <- object[["priors"]]
@@ -144,7 +155,9 @@ add_marglik.brma <- function(object, ...) {
     formula_random_effects_compile_list = .optional_jags_list(fit_formula_args[["formula_random_effects_compile_list"]]),
     add_parameters                      = .optional_jags_character(bridge_sd_source_spec[["parameters"]]),
     add_bounds                          = bridge_sd_source_spec[["bounds"]],
-    bridge_context                      = .marglik_needs_bridge_context(data),
+    bridge_context                      = if (.marglik_needs_bridge_context(data)) "nodes" else FALSE,
+    cores                               = cores,
+    packages                            = .marglik_bridge_packages(fit, cores),
     # additional arguments passed to .log_posterior via ...
     is_mods                  = .is_data_mods(data),
     is_scale                 = .is_data_scale(data),
@@ -164,6 +177,47 @@ add_marglik.brma <- function(object, ...) {
   )
 
   return(marglik)
+}
+
+
+.marglik_parallel_control <- function(object, parallel = NULL, cores = NULL) {
+
+  fit_control <- object[["fit_control"]]
+  if (is.null(parallel)) {
+    parallel <- fit_control[["parallel"]]
+    if (is.null(parallel)) {
+      parallel <- FALSE
+    }
+  }
+  BayesTools::check_bool(parallel, "parallel", allow_NA = FALSE)
+
+  if (is.null(cores)) {
+    cores <- fit_control[["cores"]]
+    if (is.null(cores)) {
+      cores <- RoBMA.get_option("max_cores")
+    }
+  }
+  BayesTools::check_int(cores, "cores", lower = 1, allow_NA = FALSE)
+
+  max_cores <- as.integer(RoBMA.get_option("max_cores"))
+  cores <- if (isTRUE(parallel)) {
+    min(as.integer(cores), max_cores)
+  } else {
+    1L
+  }
+
+  list(parallel = isTRUE(parallel), cores = cores)
+}
+
+
+.marglik_bridge_packages <- function(fit, cores) {
+
+  if (cores <= 1L) {
+    return(NULL)
+  }
+
+  packages <- c("BayesTools", "RoBMA", attr(fit, "required_packages"))
+  unique(packages[!is.na(packages) & nzchar(packages)])
 }
 
 

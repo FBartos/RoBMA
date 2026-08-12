@@ -5,10 +5,18 @@
 \alias{add_marglik}
 \title{Add Marginal Likelihood to brma Objects}
 \usage{
-\method{add_marglik}{brma}(object, ...)
+\method{add_marglik}{brma}(object, parallel = NULL, cores = NULL, ...)
 }
 \arguments{
 \item{object}{a brma model object.}
+
+\item{parallel}{whether bridge-density evaluations run in parallel. The
+default, \code{NULL}, inherits the setting used to fit \code{object}.}
+
+\item{cores}{number of bridge-sampling worker processes. The default,
+\code{NULL}, inherits the fitted core count and is capped by
+\code{RoBMA.get_option("max_cores")}. It is used only when
+\code{parallel = TRUE}.}
 
 \item{...}{additional arguments (currently not used).}
 }

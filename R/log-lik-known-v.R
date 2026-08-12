@@ -149,16 +149,51 @@
   block_data        <- .known_v_dependency_block_data(data, K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
+  block_sizes       <- lengths(block_indices)
+  singleton_blocks  <- which(block_sizes == 1L)
+  dependent_blocks  <- which(block_sizes > 1L)
+  rank_one_factors  <- lapply(dependent_blocks, function(block) {
+    .covariance_exact_rank_one_factor(block_covariances[[block]])
+  })
+  names(rank_one_factors) <- as.character(dependent_blocks)
 
   extra_variance <- .known_v_extra_variance_from_setup(setup)
 
   log_lik <- matrix(NA_real_, nrow = S, ncol = K)
+  if (length(singleton_blocks) > 0L) {
+    singleton_indices <- vapply(
+      singleton_blocks,
+      function(block) block_indices[[block]][[1L]],
+      integer(1L)
+    )
+    sampling_variance <- vapply(
+      singleton_blocks,
+      function(block) block_covariances[[block]][1L, 1L],
+      numeric(1L)
+    )
+    variance <- sweep(
+      extra_variance[, singleton_indices, drop = FALSE],
+      MARGIN = 2L,
+      STATS  = sampling_variance,
+      FUN    = "+"
+    )
+    residual <- sweep(
+      mu_samples[, singleton_indices, drop = FALSE],
+      MARGIN = 2L,
+      STATS  = yi[singleton_indices],
+      FUN    = "-"
+    )
+    log_lik[, singleton_indices] <- -0.5 * (
+      log(2 * pi * variance) + residual^2 / variance
+    )
+  }
+
   for (s in seq_len(S)) {
-    for (block in seq_along(block_indices)) {
+    for (block in dependent_blocks) {
       idx              <- block_indices[[block]]
       block_covariance <- block_covariances[[block]]
-      rank_one_factor  <- .covariance_exact_rank_one_factor(block_covariance)
-      if (length(idx) > 1L && !is.null(rank_one_factor)) {
+      rank_one_factor  <- rank_one_factors[[as.character(block)]]
+      if (!is.null(rank_one_factor)) {
         distribution <- .known_v_diagonal_rank_one_conditional(
           yi       = yi[idx],
           mu       = mu_samples[s, idx],
@@ -233,6 +268,9 @@
   block_data        <- .known_v_dependency_block_data(data, K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
+  rank_one_factors  <- lapply(block_covariances, function(covariance) {
+    .covariance_exact_rank_one_factor(covariance)
+  })
   extra_variance    <- .known_v_extra_variance_from_setup(setup)
   log_lik           <- numeric(S)
 
@@ -240,7 +278,7 @@
     for (block in seq_along(block_indices)) {
       idx              <- block_indices[[block]]
       block_covariance <- block_covariances[[block]]
-      rank_one_factor  <- .covariance_exact_rank_one_factor(block_covariance)
+      rank_one_factor  <- rank_one_factors[[block]]
       if (length(idx) > 1L && !is.null(rank_one_factor)) {
         log_lik[[s]] <- log_lik[[s]] + .known_v_diagonal_rank_one_log_density(
           y         = yi[idx],
@@ -335,6 +373,9 @@
   block_data        <- .known_v_dependency_block_data(data, K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
+  rank_one_factors  <- lapply(block_covariances, function(covariance) {
+    .covariance_exact_rank_one_factor(covariance)
+  })
   extra_variance    <- .known_v_extra_variance_from_setup(setup)
 
   cdf       <- matrix(NA_real_, nrow = S, ncol = K)
@@ -347,7 +388,7 @@
     for (block in seq_along(block_indices)) {
       idx              <- block_indices[[block]]
       block_covariance <- block_covariances[[block]]
-      rank_one_factor  <- .covariance_exact_rank_one_factor(block_covariance)
+      rank_one_factor  <- rank_one_factors[[block]]
       if (length(idx) > 1L && !is.null(rank_one_factor)) {
         distribution <- .known_v_diagonal_rank_one_conditional(
           yi       = yi[idx],

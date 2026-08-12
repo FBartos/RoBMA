@@ -1,5 +1,10 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- speeds exact marginal-likelihood and LOO post-processing for multivariate
+  models: `add_marglik()` inherits or overrides the fitted parallel/core
+  settings and uses the nodes-only BayesTools bridge context without changing
+  the marginalized parameterization, while diagonal known-`V` estimate-level
+  log likelihoods are vectorized and invariant block factors are cached.
 - lets `hypothesis()` use unquoted formula interaction references such as
   `alloc:ablat[random]`, evaluates factor-level qCMDE/IWMDE point hypotheses
   on the exact displayed coefficient scale, and prints public hypothesis
