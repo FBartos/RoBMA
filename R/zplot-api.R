@@ -352,10 +352,45 @@ plot.zplot_brma <- function(x, plot_type = "base",
   dots <- list(...)
 
   # get line values first so we can set ylim
-  ymax <- 0
+  ymax                <- 0
+  lines_fit           <- NULL
+  lines_extrapolation <- NULL
+
+  computational_args <- c(
+    "x", "probs", "max_samples", "plot_ci", "extrapolate", "from", "to",
+    "by", "length.out", "as_data"
+  )
+  pair_overrides <- any(c(
+    names(dots), names(dots_fit), names(dots_extrapolation)
+  ) %in% computational_args)
+  if (plot_fit && plot_extrapolation && !pair_overrides) {
+    z_sequence <- .zplot_bins(
+      priors     = x[["priors"]],
+      from       = from,
+      to         = to,
+      by         = by.lines,
+      length.out = length.out.lines,
+      type       = "dens"
+    )
+    paired_density <- .zplot_density_pair(
+      object      = x,
+      z_sequence  = z_sequence,
+      max_samples = max_samples
+    )
+    lines_fit <- .zplot_density_data(
+      z_sequence = z_sequence,
+      z_density  = paired_density[["fitted"]],
+      probs      = probs
+    )
+    lines_extrapolation <- .zplot_density_data(
+      z_sequence = z_sequence,
+      z_density  = paired_density[["extrapolated"]],
+      probs      = probs
+    )
+  }
 
   # 1. Fit lines (Fitted model - with bias)
-  if (plot_fit) {
+  if (plot_fit && is.null(lines_fit)) {
     dots_fit <- if(!is.null(dots_fit)) dots_fit else list()
     lines_fit <- do.call(lines.zplot_brma, .zplot_deduplicate_call_args(c(
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
@@ -367,7 +402,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
   }
 
   # 2. Extrapolation lines (unbiased zplot density)
-  if (plot_extrapolation) {
+  if (plot_extrapolation && is.null(lines_extrapolation)) {
     # prepare extrapolation dots with default blue color
     dots_extrapolation <- if(!is.null(dots_extrapolation)) dots_extrapolation else list()
     lines_extrapolation <- do.call(lines.zplot_brma, .zplot_deduplicate_call_args(c(
@@ -378,6 +413,16 @@ plot.zplot_brma <- function(x, plot_type = "base",
       dots_extrapolation, dots
     )))
     ymax <- max(c(ymax, lines_extrapolation$y, if (plot_ci) lines_extrapolation$y_uCI))
+  }
+  if (plot_fit) {
+    ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
+  }
+  if (plot_extrapolation) {
+    ymax <- max(c(
+      ymax,
+      lines_extrapolation$y,
+      if (plot_ci) lines_extrapolation$y_uCI
+    ))
   }
 
   # 3. Create histogram base
@@ -659,6 +704,17 @@ hist.zplot_brma <- function(x, plot_type = "base",
 }
 
 
+.zplot_density_data <- function(z_sequence, z_density, probs) {
+
+  return(data.frame(
+    x     = z_sequence,
+    y     = colMeans(z_density),
+    y_lCI = apply(z_density, 2, stats::quantile, probs = probs[1]),
+    y_uCI = apply(z_density, 2, stats::quantile, probs = probs[2])
+  ))
+}
+
+
 # ---------------------------------------------------------------------------- #
 # lines.zplot_brma
 # ---------------------------------------------------------------------------- #
@@ -726,11 +782,10 @@ lines.zplot_brma <- function(x, plot_type = "base",
      extrapolate = extrapolate
   )
 
-  df_density <- data.frame(
-    x     = z_sequence,
-    y     = colMeans(z_density),
-    y_lCI = apply(z_density, 2, stats::quantile, probs = probs[1]),
-    y_uCI = apply(z_density, 2, stats::quantile, probs = probs[2])
+  df_density <- .zplot_density_data(
+    z_sequence = z_sequence,
+    z_density  = z_density,
+    probs      = probs
   )
 
   # return data if requested

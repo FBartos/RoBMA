@@ -64,6 +64,113 @@ test_that("known-V joint log-likelihood uses block MVN density", {
 })
 
 
+test_that("diagonal known-V estimate log-likelihood is exactly vectorized", {
+
+  sampling_variance <- c(.04, .09, .16, .25)
+  V <- diag(sampling_variance)
+  data <- list(outcome = data.frame(
+    yi  = c(.10, -.20, .30, -.40),
+    sei = sqrt(sampling_variance)
+  ))
+  attr(data, "known_V") <- TRUE
+  attr(data, "known_V_data") <- .known_v_prepare(
+    V                         = V,
+    keep_rows                 = rep(TRUE, nrow(V)),
+    known_v_parameterization  = "block_mvn",
+    known_v_residual_fraction = NULL
+  )
+  attr(data, "random") <- FALSE
+
+  mu <- matrix(
+    c(.02, -.10, .06, -.16, .04, -.12, .08, -.18, .06, -.14, .10, -.20),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  tau <- matrix(
+    c(.05, .08, .04, .06, .06, .09, .05, .07, .07, .10, .06, .08),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  setup <- list(
+    outcome_type      = "norm",
+    is_weightfunction = FALSE,
+    weights           = NULL,
+    data              = data,
+    K                 = 4L,
+    S                 = 3L,
+    yi                = data[["outcome"]][["yi"]],
+    mu                = mu,
+    tau_within        = tau,
+    effect_direction  = "positive",
+    posterior_samples = matrix(numeric(0), nrow = 3L, ncol = 0L),
+    marginalized_random_source_samples = NULL
+  )
+
+  expected <- matrix(NA_real_, nrow = 3L, ncol = 4L)
+  for (s in seq_len(nrow(expected))) {
+    for (k in seq_len(ncol(expected))) {
+      variance <- sampling_variance[[k]] + tau[s, k]^2
+      residual <- data[["outcome"]][["yi"]][[k]] - mu[s, k]
+      expected[s, k] <- -0.5 * (
+        log(2 * pi * variance) + residual^2 / variance
+      )
+    }
+  }
+
+  expect_identical(
+    .log_lik_known_v_estimate_target_from_setup(setup),
+    expected
+  )
+})
+
+
+test_that("native covariance plan returns exact Schur conditional densities", {
+
+  y <- c(0.1, -0.2, 0.3, -0.1, 0.05)
+  mean <- c(0.02, -0.03, 0.08, -0.04, 0.01)
+  sampling_covariance <- matrix(0, nrow = 5L, ncol = 5L)
+  sampling_covariance[1:3, 1:3] <- matrix(
+    c(0.08, 0.02, 0.01, 0.02, 0.09, 0.015, 0.01, 0.015, 0.07),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  sampling_covariance[4:5, 4:5] <- matrix(
+    c(0.06, 0.012, 0.012, 0.05),
+    nrow = 2L
+  )
+  extra_variance <- c(0.01, 0.02, 0.015, 0.025, 0.018)
+  blocks <- list(1:3, 4:5)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(),
+    blocks,
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    list(),
+    as.double(extra_variance),
+    PACKAGE = "RoBMA"
+  )
+  expected <- numeric(length(y))
+  for (idx in blocks) {
+    covariance <- sampling_covariance[idx, idx, drop = FALSE] +
+      diag(extra_variance[idx], nrow = length(idx))
+    expected[idx] <- .log_lik_known_v_component_conditional(
+      yi         = y[idx],
+      mu         = mean[idx],
+      covariance = covariance
+    )
+  }
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+
 test_that("rank-one known V retains sub-ULP diagonal variance", {
 
   V    <- matrix(1, nrow = 2L, ncol = 2L)

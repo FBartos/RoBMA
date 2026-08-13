@@ -198,6 +198,37 @@ bool step_log_tail_pair_logspace(const double *omega,
   );
 }
 
+bool step_log_tail_pair_from_plan(
+  double q_score,
+  const double *lower_score,
+  const double *upper_score,
+  const double *log_weight,
+  int n_groups,
+  double *log_lower,
+  double *log_upper)
+{
+  double log_lower_mass = -INFINITY;
+  double log_upper_mass = -INFINITY;
+
+  for (int g = 0; g < n_groups; ++g) {
+    const double lower = lower_score[g];
+    const double upper = upper_score[g];
+    const double log_w = log_weight[g];
+    if (!add_weighted_standard_normal_interval(
+          lower, std::min(upper, q_score), log_w, &log_lower_mass
+        ) ||
+        !add_weighted_standard_normal_interval(
+          std::max(lower, q_score), upper, log_w, &log_upper_mass
+        )) {
+      return false;
+    }
+  }
+
+  return normalize_log_tail_pair(
+    log_lower_mass, log_upper_mass, log_lower, log_upper
+  );
+}
+
 bool step_moments_trusted_telescoping(const double *omega,
                                       const SelNormKernelData &data,
                                       double signed_mean, double sd,

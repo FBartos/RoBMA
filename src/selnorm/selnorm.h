@@ -35,6 +35,10 @@ double cpp_selnorm_normal_lpdf(double x, double mean, double sd);
 double cpp_selnorm_affine_normal_lpdf(double z, double sei, double mean,
                                       double sd);
 
+double cpp_selnorm_affine_normal_lpdf_log_scale(
+  double z, double sei, double mean, double sd, double log_scale
+);
+
 double cpp_selnorm_kernel_lpdf(
   double y,
   double mu_num,
@@ -79,6 +83,33 @@ double cpp_selnorm_kernel_cdf(
   int omega_stride = 1,
   bool lower_tail = true,
   bool validate_omega = true
+);
+
+bool cpp_selnorm_step_cdf_plan(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  const SelNormKernelData &data,
+  double *lower_score,
+  double *upper_score,
+  double *log_weight,
+  int *n_groups,
+  int omega_stride = 1,
+  bool validate_omega = true
+);
+
+double cpp_selnorm_step_cdf_from_plan(
+  double q,
+  double mean,
+  double sd,
+  double sei,
+  const SelNormKernelData &data,
+  const double *lower_score,
+  const double *upper_score,
+  const double *log_weight,
+  int n_groups,
+  bool lower_tail = true
 );
 
 void cpp_selnorm_kernel_log_tail_pair(

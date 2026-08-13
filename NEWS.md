@@ -1,5 +1,43 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- speeds exact selected-normal plotting without reducing posterior draws or
+  plot grids: `zplot()` reuses invariant affine-density terms and evaluates
+  fitted and extrapolated curves together when their predictive target is
+  shared; `funnel()` and selection-model `regplot()` cache invariant step-bin
+  CDF plans; and `regplot()` batches prediction-specific standard errors and
+  reuses exact neighboring quantile roots with the original global fallback.
+- converts numerically symmetric known sampling covariance matrices once to an
+  exactly symmetric representation at input validation, so fitting,
+  prediction, LOO, and bridge sampling use the same covariance values.
+- speeds exact marginal-likelihood and LOO post-processing for multivariate
+  models: `add_marglik()` inherits or overrides the fitted parallel/core
+  settings and uses the nodes-only BayesTools bridge context without changing
+  the marginalized parameterization, while diagonal known-`V` estimate-level
+  log likelihoods are vectorized and invariant block factors are cached.
+- exactly marginalizes sampled Gaussian location random effects in
+  `brma.mv()` bridge targets as draw-specific `ZGZ'`, retaining every SD,
+  allocation, correlation parameter, and prior. Validated covariance factors
+  and reusable native covariance plans compile invariant geometry checks,
+  retain per-state covariance and scale validation, avoid materializing
+  structural zeros, pass only draw-varying factor state after setup, and use
+  exact low-rank likelihood algebra where applicable. Eligible correlated
+  known-`V` blocks additionally reuse an exact fixed-covariance eigensystem and
+  evaluate low-rank updates with determinant/Woodbury identities; all other
+  states retain the dense Cholesky path. Non-Gaussian selection likelihoods
+  retain the joint latent target. General correlated known-`V` LOO blocks reuse
+  the same plan without changing their Schur target.
+- exactly integrates the standardized effects fitted by the legacy `cluster`
+  argument for Gaussian marginal likelihoods, retaining heterogeneity, its
+  allocation, row-specific scale regression, weights, and all associated
+  priors through diagonal-plus-cluster-rank-one likelihood algebra.
+- validates and resolves prepared known-`V` metadata once during bridge setup
+  instead of repeating invariant representation checks for every bridge state.
+- compiles scalar marginalized random-effect variance plans used by known-`V`
+  bridge likelihoods, with the complete generic evaluator retained for
+  row-indexed and other non-scalar SD sources.
+- exposes bridge `repetitions`, `method`, `maxiter`, and `silent` controls from
+  `add_marglik()`. Parallel settings default to the fitted model settings, and
+  effective sample sizes are always obtained from the fitted chains.
 - lets `hypothesis()` use unquoted formula interaction references such as
   `alloc:ablat[random]`, evaluates factor-level qCMDE/IWMDE point hypotheses
   on the exact displayed coefficient scale, and prints public hypothesis

@@ -323,6 +323,116 @@
   ))
 }
 
+.zplot_selnorm_density_pair <- function(z_sequence, mean, sd, sei,
+                                         selection_context) {
+
+  .selection_require_step_evaluable(selection_context, ".zplot_density_pair()")
+
+  if (!.has_native_zplot_density(selection = TRUE)) {
+    stop("The native selected-normal zplot density kernel is not loaded.", call. = FALSE)
+  }
+  native_static <- BayesTools::selection_native_static_args(selection_context)
+
+  return(.Call(
+    "RoBMA_selnorm_zcurve_density_matrix",
+    .native_numeric_vector(z_sequence),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_vector(sei),
+    .native_numeric_matrix(selection_context[["omega"]]),
+    .native_numeric_vector(selection_context[["alpha"]]),
+    .native_integer_vector(selection_context[["phack_kind"]]),
+    .native_integer_vector(selection_context[["kernel_mode"]]),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    c(FALSE, TRUE),
+    native_static[["telescope_probabilities"]],
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.zplot_density_pair <- function(object, z_sequence, max_samples) {
+
+  posterior_samples <- .get_posterior_samples(object[["fit"]])
+  selected_ind      <- .thin_sample_rows(nrow(posterior_samples), max_samples)
+  if (!is.null(selected_ind)) {
+    posterior_samples <- posterior_samples[selected_ind, , drop = FALSE]
+  }
+
+  predictive_fit <- .zplot_predictive_components(
+    object            = object,
+    posterior_samples = posterior_samples,
+    extrapolate       = FALSE
+  )
+  predictive_extrapolated <- .zplot_predictive_components(
+    object            = object,
+    posterior_samples = posterior_samples,
+    extrapolate       = TRUE
+  )
+  selection <- .zplot_selection_context(
+    object            = object,
+    posterior_samples = posterior_samples,
+    is_weightfunction = .is_weightfunction(object)
+  )
+
+  same_predictive <- identical(predictive_fit, predictive_extrapolated)
+  if (same_predictive && !is.null(selection)) {
+    S        <- nrow(predictive_fit[["mu"]])
+    K        <- ncol(predictive_fit[["mu"]])
+    sei_mat  <- matrix(predictive_fit[["sei"]], nrow = S, ncol = K, byrow = TRUE)
+    total_sd <- .root_sum_squares(predictive_fit[["tau_within"]], sei_mat)
+
+    return(.zplot_selnorm_density_pair(
+      z_sequence        = z_sequence,
+      mean              = predictive_fit[["mu"]],
+      sd                = total_sd,
+      sei               = predictive_fit[["sei"]],
+      selection_context = selection
+    ))
+  }
+
+  if (same_predictive && is.null(selection)) {
+    density <- .zplot_density_vectorized(
+      z_sequence       = z_sequence,
+      mu_samples       = predictive_fit[["mu"]],
+      tau_within       = predictive_fit[["tau_within"]],
+      sei              = predictive_fit[["sei"]],
+      selection        = NULL,
+      extrapolate      = FALSE,
+      effect_direction = .effect_direction(object)
+    )
+    return(list(fitted = density, extrapolated = density))
+  }
+
+  return(list(
+    fitted = .zplot_density_vectorized(
+      z_sequence       = z_sequence,
+      mu_samples       = predictive_fit[["mu"]],
+      tau_within       = predictive_fit[["tau_within"]],
+      sei              = predictive_fit[["sei"]],
+      selection        = selection,
+      extrapolate      = FALSE,
+      effect_direction = .effect_direction(object)
+    ),
+    extrapolated = .zplot_density_vectorized(
+      z_sequence       = z_sequence,
+      mu_samples       = predictive_extrapolated[["mu"]],
+      tau_within       = predictive_extrapolated[["tau_within"]],
+      sei              = predictive_extrapolated[["sei"]],
+      selection        = selection,
+      extrapolate      = TRUE,
+      effect_direction = .effect_direction(object)
+    )
+  ))
+}
+
 .zplot_density_vectorized <- function(z_sequence, mu_samples, tau_within,
                                        sei, selection, extrapolate,
                                        effect_direction) {

@@ -196,6 +196,7 @@
   }
 
   .known_v_check_symmetric(V_matrix, "'V'")
+  V_matrix <- .known_v_exact_symmetrize(V_matrix)
 
   diagonal <- diag(V_matrix)
   if (any(diagonal <= 0)) {
@@ -479,6 +480,24 @@
 }
 
 
+.known_v_exact_symmetrize <- function(V_matrix) {
+
+  if (identical(V_matrix, t(V_matrix))) {
+    return(V_matrix)
+  }
+
+  upper <- upper.tri(V_matrix)
+  midpoint <- rowMeans(cbind(
+    V_matrix[upper],
+    t(V_matrix)[upper]
+  ))
+  V_matrix[upper] <- midpoint
+  V_matrix[lower.tri(V_matrix)] <- t(V_matrix)[lower.tri(V_matrix)]
+
+  V_matrix
+}
+
+
 .known_v_blockdiag <- function(blocks, arg = "V") {
 
   sizes <- vapply(blocks, nrow, integer(1))
@@ -625,6 +644,7 @@
     stop("'V_new' must contain only finite non-missing values.", call. = FALSE)
   }
   .known_v_check_symmetric(V_new, "'V_new'")
+  V_new <- .known_v_exact_symmetrize(V_new)
   if (any(diag(V_new) < 0)) {
     stop("The diagonal of 'V_new' must contain non-negative variances.",
          call. = FALSE)

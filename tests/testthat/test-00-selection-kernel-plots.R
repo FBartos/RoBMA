@@ -218,6 +218,38 @@ test_that("native zplot density matches selected-normal R reference", {
       tolerance = 1e-12
     )
   }
+
+  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  total_sd <- sqrt(tau^2 + sei_mat^2)
+  paired   <- .zplot_selnorm_density_pair(
+    z_sequence        = z_values,
+    mean              = mu,
+    sd                = total_sd,
+    sei               = sei,
+    selection_context = selection
+  )
+  expect_identical(
+    paired[["fitted"]],
+    .zplot_selnorm_density_matrix(
+      z_sequence        = z_values,
+      mean              = mu,
+      sd                = total_sd,
+      sei               = sei,
+      selection_context = selection,
+      extrapolate       = FALSE
+    )
+  )
+  expect_identical(
+    paired[["extrapolated"]],
+    .zplot_selnorm_density_matrix(
+      z_sequence        = z_values,
+      mean              = mu,
+      sd                = total_sd,
+      sei               = sei,
+      selection_context = selection,
+      extrapolate       = TRUE
+    )
+  )
 })
 
 
