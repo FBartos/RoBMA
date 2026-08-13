@@ -5,6 +5,10 @@
   are assembled from every active random-effect coordinate at each state,
   with no diagonal bounds, covariance repair, or altered likelihood; dense
   latent systems retain the LAPACK route.
+- extends the exact sparse latent solver through independently factored
+  correlated sampling-covariance blocks. Cholesky whitening propagates the
+  complete structural active set, so nested and crossed random effects retain
+  every covariance contribution without materializing a dense latent system.
 - consumes BayesTools' compact exact bridge factor-state contract so invariant
   random-effect designs, group maps, and known group kernels are validated once
   while every draw-varying coefficient factor and row scale retains full

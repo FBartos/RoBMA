@@ -98,6 +98,7 @@ struct BlockPlan {
   std::vector<int> index;
   std::vector<LowRankGroup> low_rank_groups;
   std::vector<std::vector<int>> active_columns;
+  std::vector<std::vector<int>> sparse_factor_active_columns;
   std::vector<std::vector<int>> active_pair_positions;
   std::vector<int> sparse_column_pointers;
   std::vector<int> sparse_row_indices;
@@ -111,6 +112,7 @@ struct BlockPlan {
   bool sparse_assembly_eligible;
   bool sparse_factor_candidate;
   bool sparse_factor_eligible;
+  bool sparse_factor_block_base;
   bool block_base_eligible;
   bool spectral_eligible;
   bool root_eligible;
@@ -168,16 +170,19 @@ cholmod_sparse sparse_matrix_view(BlockPlan &block)
   return matrix;
 }
 
-void compile_sparse_latent_pattern(BlockPlan &block)
+void compile_sparse_latent_pattern(
+    BlockPlan &block,
+    const std::vector<std::vector<int>> &active_columns)
 {
   const int rank = block.rank;
+  block.sparse_factor_active_columns = active_columns;
   std::vector<std::vector<int>> rows_by_column(
     static_cast<size_t>(rank)
   );
   for (int column = 0; column < rank; ++column) {
     rows_by_column[static_cast<size_t>(column)].push_back(column);
   }
-  for (const std::vector<int> &columns : block.active_columns) {
+  for (const std::vector<int> &columns : active_columns) {
     for (size_t column_i = 0; column_i < columns.size(); ++column_i) {
       std::vector<int> &rows = rows_by_column[static_cast<size_t>(
         columns[column_i]
@@ -208,11 +213,11 @@ void compile_sparse_latent_pattern(BlockPlan &block)
     static_cast<int>(block.sparse_row_indices.size());
   block.sparse_values.resize(block.sparse_row_indices.size());
 
-  block.active_pair_positions.resize(block.active_columns.size());
+  block.active_pair_positions.resize(active_columns.size());
   for (size_t observation = 0;
-       observation < block.active_columns.size();
+       observation < active_columns.size();
        ++observation) {
-    const std::vector<int> &columns = block.active_columns[observation];
+    const std::vector<int> &columns = active_columns[observation];
     std::vector<int> &positions = block.active_pair_positions[observation];
     positions.reserve(columns.size() * (columns.size() + 1) / 2);
     for (size_t column_i = 0; column_i < columns.size(); ++column_i) {
@@ -527,24 +532,11 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
   out.root_eligible = compatible;
   out.low_rank_eligible = sampling_diagonal && compatible && rank < size;
   out.sparse_assembly_eligible = out.low_rank_eligible;
-  out.sparse_factor_candidate = sampling_diagonal && compatible && rank > 0;
+  out.sparse_factor_candidate = false;
   out.sparse_factor_eligible = false;
+  out.sparse_factor_block_base = false;
   out.sparse_factor = nullptr;
-  if (out.sparse_factor_candidate) {
-    compile_sparse_latent_pattern(out);
-    const size_t dense_entries = static_cast<size_t>(rank) *
-      static_cast<size_t>(rank + 1) / 2;
-    out.sparse_factor_candidate =
-      out.sparse_row_indices.size() < dense_entries;
-    if (!out.sparse_factor_candidate) {
-      out.active_pair_positions.clear();
-      out.sparse_column_pointers.clear();
-      out.sparse_row_indices.clear();
-      out.sparse_diagonal_positions.clear();
-      out.sparse_values.clear();
-    }
-  }
-  if (!sampling_diagonal && compatible && rank < size) {
+  if (!sampling_diagonal && compatible && rank > 0) {
     std::vector<int> component(static_cast<size_t>(size), -1);
     std::vector<std::vector<int>> sampling_components;
     for (int seed = 0; seed < size; ++seed) {
@@ -604,7 +596,7 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
       }
     }
   }
-  out.block_base_eligible = out.sampling_blocks.size() > 1;
+  out.block_base_eligible = out.sampling_blocks.size() > 1 && rank < size;
   out.spectral_eligible = !sampling_diagonal && compatible && rank < size &&
     !out.block_base_eligible;
   if (out.spectral_eligible) {
@@ -634,6 +626,46 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     );
     if (info != 0) {
       Rf_error("Known-V sampling covariance eigendecomposition failed.");
+    }
+  }
+  if (sampling_diagonal && compatible && rank > 0) {
+    compile_sparse_latent_pattern(out, out.active_columns);
+  } else if (out.sampling_blocks.size() > 1) {
+    std::vector<std::vector<int>> transformed_active_columns(
+      static_cast<size_t>(size)
+    );
+    for (const SamplingBlock &sampling_block : out.sampling_blocks) {
+      std::vector<int> cumulative_columns;
+      for (int local : sampling_block.local_rows) {
+        cumulative_columns.insert(
+          cumulative_columns.end(),
+          out.active_columns[static_cast<size_t>(local)].begin(),
+          out.active_columns[static_cast<size_t>(local)].end()
+        );
+        std::sort(cumulative_columns.begin(), cumulative_columns.end());
+        cumulative_columns.erase(
+          std::unique(cumulative_columns.begin(), cumulative_columns.end()),
+          cumulative_columns.end()
+        );
+        transformed_active_columns[static_cast<size_t>(local)] =
+          cumulative_columns;
+      }
+    }
+    out.sparse_factor_block_base = true;
+    compile_sparse_latent_pattern(out, transformed_active_columns);
+  }
+  if (!out.sparse_values.empty()) {
+    const size_t dense_entries = static_cast<size_t>(rank) *
+      static_cast<size_t>(rank + 1) / 2;
+    out.sparse_factor_candidate =
+      out.sparse_row_indices.size() < dense_entries;
+    if (!out.sparse_factor_candidate) {
+      out.sparse_factor_active_columns.clear();
+      out.active_pair_positions.clear();
+      out.sparse_column_pointers.clear();
+      out.sparse_row_indices.clear();
+      out.sparse_diagonal_positions.clear();
+      out.sparse_values.clear();
     }
   }
   return out;
@@ -694,6 +726,7 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
   size_t max_block_size = 0;
   size_t max_rank = 0;
   size_t max_dense_rank = 0;
+  size_t max_base_rhs_size = 0;
   std::vector<int> membership(static_cast<size_t>(n), -1);
   for (R_xlen_t block_i = 0; block_i < XLENGTH(block_indices); ++block_i) {
     BlockPlan block = make_block_plan(
@@ -716,6 +749,13 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
       max_dense_rank = std::max(
         max_dense_rank,
         static_cast<size_t>(block.rank)
+      );
+    }
+    for (const SamplingBlock &sampling_block : block.sampling_blocks) {
+      max_base_rhs_size = std::max(
+        max_base_rhs_size,
+        sampling_block.local_rows.size() *
+          static_cast<size_t>(block.rank + 1)
       );
     }
     plan->blocks.push_back(block);
@@ -757,7 +797,7 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
   plan->low_rank_work.resize(max_block_size * max_rank);
   plan->small_matrix_work.resize(max_dense_rank * max_dense_rank);
   plan->rhs_work.resize(max_rank);
-  plan->base_rhs_work.resize(max_block_size * (max_rank + 1));
+  plan->base_rhs_work.resize(max_base_rhs_size);
   return plan;
 }
 
@@ -1264,7 +1304,7 @@ bool sparse_factor_log_likelihood(
       diagonal[static_cast<size_t>(observation)];
     const double weighted_residual =
       residual[static_cast<size_t>(observation)] * inverse_variance;
-    const std::vector<int> &columns = block.active_columns[
+    const std::vector<int> &columns = block.sparse_factor_active_columns[
       static_cast<size_t>(observation)
     ];
     const std::vector<int> &positions = block.active_pair_positions[
@@ -1369,7 +1409,8 @@ bool low_rank_block_log_likelihood(
     const double *extra,
     double *value)
 {
-  if (!block.low_rank_eligible && !block.sparse_factor_eligible) {
+  if (!block.low_rank_eligible &&
+      !(block.sparse_factor_eligible && !block.sparse_factor_block_base)) {
     return false;
   }
   const int size = static_cast<int>(block.index.size());
@@ -1396,7 +1437,7 @@ bool low_rank_block_log_likelihood(
   }
 
   double *U = fill_low_rank_factor(plan, block, factors);
-  if (sparse_factor_log_likelihood(
+  if (!block.sparse_factor_block_base && sparse_factor_log_likelihood(
       plan,
       block,
       size,
@@ -1442,13 +1483,14 @@ bool low_rank_block_log_likelihood(
 
 bool block_base_low_rank_log_likelihood(
     CovariancePlan &plan,
-    const BlockPlan &block,
+    BlockPlan &block,
     const std::vector<CovarianceFactor> &factors,
     const double *mean,
     const double *extra,
     double *value)
 {
-  if (!block.block_base_eligible) {
+  if (!block.block_base_eligible &&
+      !(block.sparse_factor_eligible && block.sparse_factor_block_base)) {
     return false;
   }
   const int size = static_cast<int>(block.index.size());
@@ -1523,6 +1565,23 @@ bool block_base_low_rank_log_likelihood(
     }
   }
 
+  if (block.sparse_factor_block_base && sparse_factor_log_likelihood(
+      plan,
+      block,
+      size,
+      rank,
+      diagonal,
+      residual,
+      U,
+      log_determinant,
+      base_quadratic,
+      value
+    )) {
+    return true;
+  }
+  if (!block.block_base_eligible) {
+    return false;
+  }
   return diagonal_low_rank_log_likelihood(
     plan,
     size,
@@ -1775,7 +1834,10 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   int root_dense_blocks = 0;
   int dense_blocks = 0;
   for (const BlockPlan &block : plan->blocks) {
-    if (block.sparse_factor_eligible) {
+    if (block.sparse_factor_eligible && block.sparse_factor_block_base) {
+      ++block_base_blocks;
+      ++sparse_factor_blocks;
+    } else if (block.sparse_factor_eligible) {
       ++low_rank_blocks;
       sparse_assembly_blocks += block.sparse_assembly_eligible ? 1 : 0;
       ++sparse_factor_blocks;

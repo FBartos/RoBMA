@@ -834,6 +834,76 @@ test_that("native covariance plan uses exact block-base Woodbury algebra", {
   expect_equal(actual, expected, tolerance = 1e-12)
 })
 
+test_that("native sparse factor supports correlated sampling blocks", {
+
+  K <- 8L
+  y <- sin(seq(0.15, 1.2, length.out = K))
+  mean <- seq(-0.04, 0.05, length.out = K)
+  sampling_covariance <- matrix(0, nrow = K, ncol = K)
+  for (block_i in seq_len(K / 2L)) {
+    index <- 2L * (block_i - 1L) + 1:2
+    sampling_covariance[index, index] <- matrix(
+      c(0.06, 0.012, 0.012, 0.08),
+      nrow = 2L
+    )
+  }
+  make_factor <- function(group_map, standard_deviation) {
+
+    list(
+      type = "group",
+      model_matrix = matrix(1, nrow = K, ncol = 1L),
+      group_map = group_map,
+      coefficient_covariance = matrix(standard_deviation^2),
+      coefficient_factor = matrix(standard_deviation)
+    )
+  }
+  parent_map <- rep(1:2, each = K / 2L)
+  child_map <- seq_len(K)
+  crossed_map <- rep(1:2, length.out = K)
+  factors <- list(
+    make_factor(parent_map, 0.30),
+    make_factor(child_map, 0.20),
+    make_factor(crossed_map, 0.15)
+  )
+  extra_variance <- seq(0.004, 0.011, length.out = K)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    factors,
+    list(seq_len(K)),
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    lapply(factors, .marglik_covariance_factor_state),
+    extra_variance,
+    PACKAGE = "RoBMA"
+  )
+  random_covariance <-
+    0.30^2 * outer(parent_map, parent_map, "==") +
+    0.20^2 * diag(K) +
+    0.15^2 * outer(crossed_map, crossed_map, "==")
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + random_covariance +
+      diag(extra_variance)
+  )
+
+  expect_gt(
+    length(unique(parent_map)) + length(unique(child_map)) +
+      length(unique(crossed_map)),
+    K
+  )
+  expect_identical(attr(plan, "block_base_blocks"), 1L)
+  expect_identical(attr(plan, "sparse_factor_blocks"), 1L)
+  expect_identical(attr(plan, "root_dense_blocks"), 0L)
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
 test_that("block-base Woodbury falls back exactly for singular base blocks", {
 
   K <- 4L
