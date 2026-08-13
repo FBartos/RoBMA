@@ -1,5 +1,8 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- caches exact Cholesky factors, log determinants, and precision diagonals for
+  fixed sampling-covariance blocks, reusing them in zero-extra-variance bridge
+  and LOO states while nonzero states retain their per-state factorization.
 - reuses exact Matrix/CHOLMOD symbolic factorizations for structurally sparse
   latent Gaussian systems in known-`V` marginal likelihoods. Numeric values
   are assembled from every active random-effect coordinate at each state,

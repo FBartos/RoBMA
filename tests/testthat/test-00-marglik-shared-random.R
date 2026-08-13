@@ -675,6 +675,7 @@ test_that("native sparse factor supports more latent groups than observations", 
   expect_identical(attr(plan, "root_dense_blocks"), 0L)
   expect_equal(actual, expected, tolerance = 1e-12)
   expect_equal(conditional_actual, conditional_expected, tolerance = 1e-12)
+
 })
 
 test_that("native Woodbury quadratic remains stable for explained residuals", {
@@ -879,6 +880,52 @@ test_that("native covariance plan uses exact block-base Woodbury algebra", {
   expect_identical(attr(plan, "dense_blocks"), 0L)
   expect_equal(actual, expected, tolerance = 1e-12)
   expect_equal(conditional_actual, conditional_expected, tolerance = 1e-12)
+
+  zero_extra <- double(K)
+  zero_covariance <- sampling_covariance + random_covariance
+  zero_precision <- solve(zero_covariance)
+  zero_precision_residual <- drop(zero_precision %*% (y - mean))
+  zero_expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = zero_covariance
+  )
+  zero_conditional_expected <- 0.5 * (
+    log(diag(zero_precision)) - log(2 * pi) -
+      zero_precision_residual^2 / diag(zero_precision)
+  )
+  zero_actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    zero_extra,
+    PACKAGE = "RoBMA"
+  )
+  zero_conditional_actual <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    zero_extra,
+    PACKAGE = "RoBMA"
+  )
+  repeated_actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    extra_variance,
+    PACKAGE = "RoBMA"
+  )
+
+  expect_equal(zero_actual, zero_expected, tolerance = 1e-12)
+  expect_equal(
+    zero_conditional_actual,
+    zero_conditional_expected,
+    tolerance = 1e-12
+  )
+  expect_identical(repeated_actual, actual)
 })
 
 test_that("native sparse factor supports correlated sampling blocks", {

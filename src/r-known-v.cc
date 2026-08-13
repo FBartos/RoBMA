@@ -92,6 +92,10 @@ struct LowRankGroup {
 struct SamplingBlock {
   std::vector<int> local_rows;
   std::vector<double> covariance;
+  std::vector<double> factor;
+  std::vector<double> precision_diagonal;
+  double log_determinant;
+  bool factor_eligible;
 };
 
 struct BlockPlan {
@@ -577,7 +581,7 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     if (sampling_components.size() > 1) {
       out.sampling_blocks.reserve(sampling_components.size());
       for (const std::vector<int> &local_rows : sampling_components) {
-        SamplingBlock sampling_block;
+        SamplingBlock sampling_block = {};
         sampling_block.local_rows = local_rows;
         const int block_size = static_cast<int>(local_rows.size());
         sampling_block.covariance.resize(
@@ -595,6 +599,44 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
               row + block_size * column
             )] = sampling[global_row + n * global_column];
           }
+        }
+        sampling_block.factor = sampling_block.covariance;
+        int info = 0;
+        F77_CALL(dpotrf)(
+          "L",
+          &block_size,
+          sampling_block.factor.data(),
+          &block_size,
+          &info FCONE
+        );
+        sampling_block.factor_eligible = info == 0;
+        if (sampling_block.factor_eligible) {
+          sampling_block.log_determinant = 0.0;
+          for (int row = 0; row < block_size; ++row) {
+            sampling_block.log_determinant += 2.0 * std::log(
+              sampling_block.factor[static_cast<size_t>(
+                row + block_size * row
+              )]
+            );
+          }
+          std::vector<double> precision = sampling_block.factor;
+          F77_CALL(dpotri)(
+            "L", &block_size, precision.data(), &block_size, &info FCONE
+          );
+          sampling_block.factor_eligible = info == 0;
+          if (sampling_block.factor_eligible) {
+            sampling_block.precision_diagonal.resize(
+              static_cast<size_t>(block_size)
+            );
+            for (int row = 0; row < block_size; ++row) {
+              sampling_block.precision_diagonal[static_cast<size_t>(row)] =
+                precision[static_cast<size_t>(row + block_size * row)];
+            }
+          }
+        }
+        if (!sampling_block.factor_eligible) {
+          sampling_block.factor.clear();
+          sampling_block.precision_diagonal.clear();
         }
         out.sampling_blocks.push_back(sampling_block);
       }
@@ -1598,15 +1640,33 @@ bool block_base_low_rank_log_likelihood(
   const int rhs_columns = rank + 1;
   for (const SamplingBlock &sampling_block : block.sampling_blocks) {
     const int block_size = static_cast<int>(sampling_block.local_rows.size());
-    std::copy(
-      sampling_block.covariance.begin(),
-      sampling_block.covariance.end(),
-      covariance
-    );
+    bool fixed_base = sampling_block.factor_eligible;
     for (int row = 0; row < block_size; ++row) {
       const int local = sampling_block.local_rows[static_cast<size_t>(row)];
       const int global = block.index[static_cast<size_t>(local)];
-      covariance[static_cast<size_t>(row + block_size * row)] += extra[global];
+      fixed_base = fixed_base && extra[global] == 0.0;
+    }
+    if (fixed_base) {
+      std::copy(
+        sampling_block.factor.begin(),
+        sampling_block.factor.end(),
+        covariance
+      );
+      log_determinant += sampling_block.log_determinant;
+    } else {
+      std::copy(
+        sampling_block.covariance.begin(),
+        sampling_block.covariance.end(),
+        covariance
+      );
+    }
+    for (int row = 0; row < block_size; ++row) {
+      const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+      const int global = block.index[static_cast<size_t>(local)];
+      if (!fixed_base) {
+        covariance[static_cast<size_t>(row + block_size * row)] +=
+          extra[global];
+      }
       base_rhs[static_cast<size_t>(row)] = residual[
         static_cast<size_t>(local)
       ];
@@ -1617,17 +1677,19 @@ bool block_base_low_rank_log_likelihood(
       }
     }
 
-    int info = 0;
-    F77_CALL(dpotrf)(
-      "L", &block_size, covariance, &block_size, &info FCONE
-    );
-    if (info != 0) {
-      return false;
-    }
-    for (int row = 0; row < block_size; ++row) {
-      log_determinant += 2.0 * std::log(covariance[static_cast<size_t>(
-        row + block_size * row
-      )]);
+    if (!fixed_base) {
+      int info = 0;
+      F77_CALL(dpotrf)(
+        "L", &block_size, covariance, &block_size, &info FCONE
+      );
+      if (info != 0) {
+        return false;
+      }
+      for (int row = 0; row < block_size; ++row) {
+        log_determinant += 2.0 * std::log(covariance[static_cast<size_t>(
+          row + block_size * row
+        )]);
+      }
     }
     F77_CALL(dtrsm)(
       "L", "L", "N", "N", &block_size, &rhs_columns, &one,
@@ -2124,15 +2186,32 @@ bool block_base_low_rank_conditional_log_likelihood(
   const int rhs_columns = rank + 1;
   for (const SamplingBlock &sampling_block : block.sampling_blocks) {
     const int block_size = static_cast<int>(sampling_block.local_rows.size());
-    std::copy(
-      sampling_block.covariance.begin(),
-      sampling_block.covariance.end(),
-      covariance
-    );
+    bool fixed_base = sampling_block.factor_eligible;
     for (int row = 0; row < block_size; ++row) {
       const int local = sampling_block.local_rows[static_cast<size_t>(row)];
       const int global = block.index[static_cast<size_t>(local)];
-      covariance[static_cast<size_t>(row + block_size * row)] += extra[global];
+      fixed_base = fixed_base && extra[global] == 0.0;
+    }
+    if (fixed_base) {
+      std::copy(
+        sampling_block.factor.begin(),
+        sampling_block.factor.end(),
+        covariance
+      );
+    } else {
+      std::copy(
+        sampling_block.covariance.begin(),
+        sampling_block.covariance.end(),
+        covariance
+      );
+    }
+    for (int row = 0; row < block_size; ++row) {
+      const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+      const int global = block.index[static_cast<size_t>(local)];
+      if (!fixed_base) {
+        covariance[static_cast<size_t>(row + block_size * row)] +=
+          extra[global];
+      }
       base_rhs[static_cast<size_t>(row)] = residual[
         static_cast<size_t>(local)
       ];
@@ -2144,11 +2223,13 @@ bool block_base_low_rank_conditional_log_likelihood(
     }
 
     int info = 0;
-    F77_CALL(dpotrf)(
-      "L", &block_size, covariance, &block_size, &info FCONE
-    );
-    if (info != 0) {
-      return false;
+    if (!fixed_base) {
+      F77_CALL(dpotrf)(
+        "L", &block_size, covariance, &block_size, &info FCONE
+      );
+      if (info != 0) {
+        return false;
+      }
     }
     F77_CALL(dtrsm)(
       "L", "L", "N", "N", &block_size, &rhs_columns, &one,
@@ -2180,15 +2261,25 @@ bool block_base_low_rank_conditional_log_likelihood(
         )];
       }
     }
-    F77_CALL(dpotri)("L", &block_size, covariance, &block_size, &info FCONE);
-    if (info != 0) {
-      return false;
-    }
-    for (int row = 0; row < block_size; ++row) {
-      const int local = sampling_block.local_rows[static_cast<size_t>(row)];
-      base_precision_diagonal[static_cast<size_t>(local)] = covariance[
-        static_cast<size_t>(row + block_size * row)
-      ];
+    if (fixed_base) {
+      for (int row = 0; row < block_size; ++row) {
+        const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+        base_precision_diagonal[static_cast<size_t>(local)] =
+          sampling_block.precision_diagonal[static_cast<size_t>(row)];
+      }
+    } else {
+      F77_CALL(dpotri)(
+        "L", &block_size, covariance, &block_size, &info FCONE
+      );
+      if (info != 0) {
+        return false;
+      }
+      for (int row = 0; row < block_size; ++row) {
+        const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+        base_precision_diagonal[static_cast<size_t>(local)] = covariance[
+          static_cast<size_t>(row + block_size * row)
+        ];
+      }
     }
   }
 
