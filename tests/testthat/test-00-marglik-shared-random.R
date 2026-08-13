@@ -500,6 +500,51 @@ test_that("native covariance plan reuses exact low-rank group geometry", {
   expect_equal(updated_actual, updated_expected, tolerance = 1e-12)
 })
 
+test_that("native Woodbury quadratic remains stable for explained residuals", {
+
+  K <- 12L
+  direction <- seq(-1, 1, length.out = K)
+  direction <- direction / sqrt(sum(direction ^ 2))
+  orthogonal <- rep(c(-1, 1), length.out = K)
+  orthogonal <- orthogonal -
+    sum(orthogonal * direction) * direction
+  orthogonal <- orthogonal / sqrt(sum(orthogonal ^ 2))
+  random_root <- 1e6 * direction
+  y <- 0.7 * random_root + 0.25 * orthogonal
+  factor <- list(
+    type                   = "group",
+    model_matrix           = matrix(random_root, ncol = 1L),
+    group_map              = rep(1L, K),
+    coefficient_covariance = matrix(1, nrow = 1L, ncol = 1L),
+    coefficient_factor     = matrix(1, nrow = 1L, ncol = 1L)
+  )
+  sampling_covariance <- diag(1, nrow = K)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    list(seq_len(K)),
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    double(K),
+    list(.marglik_covariance_factor_state(factor)),
+    double(K),
+    PACKAGE = "RoBMA"
+  )
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = double(K),
+    covariance = sampling_covariance + tcrossprod(random_root)
+  )
+
+  expect_identical(attr(plan, "low_rank_blocks"), 1L)
+  expect_equal(actual, expected, tolerance = 1e-5)
+})
+
 test_that("native covariance plan uses exact spectral Woodbury blocks", {
 
   y <- c(0.1, -0.2, 0.3, 0.05, -0.1, 0.2, -0.05, 0.15)

@@ -1,10 +1,12 @@
 #include <R_ext/Error.h>
+#include <R_ext/BLAS.h>
 #include <R_ext/Lapack.h>
 #include <Rinternals.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <vector>
 
 #ifndef FCONE
@@ -734,7 +736,7 @@ bool diagonal_low_rank_log_likelihood(
     int size,
     int rank,
     const double *diagonal,
-    const double *residual,
+    double *residual,
     const double *U,
     double log_determinant,
     double base_quadratic,
@@ -794,7 +796,30 @@ bool diagonal_low_rank_log_likelihood(
     adjustment += rhs[static_cast<size_t>(row)] *
       rhs[static_cast<size_t>(row)];
   }
-  const double quadratic = base_quadratic - adjustment;
+  double quadratic = base_quadratic - adjustment;
+  const double cancellation_bound =
+    static_cast<double>(size + rank + 1) *
+    std::numeric_limits<double>::epsilon() *
+    (std::abs(base_quadratic) + std::abs(adjustment));
+  if (!(quadratic > cancellation_bound)) {
+    const int one = 1;
+    F77_CALL(dtrsv)(
+      "L", "T", "N", &rank, small, &rank, rhs, &one FCONE FCONE FCONE
+    );
+
+    const double minus_one = -1.0;
+    const double plus_one = 1.0;
+    F77_CALL(dgemv)(
+      "N", &size, &rank, &minus_one, U, &size, rhs, &one,
+      &plus_one, residual, &one FCONE
+    );
+    quadratic = F77_CALL(ddot)(&rank, rhs, &one, rhs, &one);
+    for (int observation = 0; observation < size; ++observation) {
+      const double transformed = residual[static_cast<size_t>(observation)];
+      quadratic += transformed * transformed /
+        diagonal[static_cast<size_t>(observation)];
+    }
+  }
   if (!std::isfinite(log_determinant) || !std::isfinite(quadratic)) {
     Rf_error("Known-V bridge Woodbury likelihood is not finite.");
   }

@@ -1,5 +1,8 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- stabilizes exact Woodbury quadratic forms when cancellation can dominate the
+  usual subtraction, switching to the algebraically identical
+  residual-plus-penalty evaluation without clamping or covariance repair.
 - speeds exact selected-normal plotting without reducing posterior draws or
   plot grids: `zplot()` reuses invariant affine-density terms and evaluates
   fitted and extrapolated curves together when their predictive target is
