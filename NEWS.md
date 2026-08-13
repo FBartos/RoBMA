@@ -1,5 +1,10 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- reuses exact Matrix/CHOLMOD symbolic factorizations for structurally sparse
+  latent Gaussian systems in known-`V` marginal likelihoods. Numeric values
+  are assembled from every active random-effect coordinate at each state,
+  with no diagonal bounds, covariance repair, or altered likelihood; dense
+  latent systems retain the LAPACK route.
 - consumes BayesTools' compact exact bridge factor-state contract so invariant
   random-effect designs, group maps, and known group kernels are validated once
   while every draw-varying coefficient factor and row scale retains full

@@ -1,4 +1,5 @@
 #' @importFrom graphics hist lines
+#' @importFrom Matrix Cholesky
 #' @importFrom stats AIC BIC coef cooks.distance dfbetas fitted hatvalues influence model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update vcov
 #' @importFrom utils capture.output getS3method
 NULL

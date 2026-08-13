@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 4.1.0.31
+Version: 4.1.0.32
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -42,6 +42,7 @@ Imports:
     bridgesampling,
     loo (>= 2.10.0),
     MASS,
+    Matrix (>= 1.6-2),
     parallel,
     runjags,
     rjags,
@@ -69,6 +70,7 @@ Suggests:
     rmarkdown,
     covr
 LinkingTo:
+    Matrix,
     mvtnorm
 RdMacros: Rdpack
 VignetteBuilder: knitr
