@@ -1,5 +1,10 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- consumes BayesTools' compact exact bridge factor-state contract so invariant
+  random-effect designs, group maps, and known group kernels are validated once
+  while every draw-varying coefficient factor and row scale retains full
+  support validation; the generic full covariance-factor contract remains
+  available.
 - evaluates exact low-rank random-effect updates that connect otherwise
   independent known sampling-covariance blocks by factoring those base blocks
   separately and applying block-whitened Woodbury algebra. The reusable plan

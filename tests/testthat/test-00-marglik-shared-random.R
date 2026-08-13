@@ -806,6 +806,74 @@ test_that("compiled factor validation retains changing-value checks", {
   )
 })
 
+test_that("compact bridge factor states retain the exact covariance contract", {
+
+  K <- 4L
+  coefficient_factor <- matrix(c(0.4, 0.1, 0, 0.3), nrow = 2L)
+  factor_plan <- list(
+    type = "row_group",
+    model_matrix = cbind(1, c(-1, 0, 1, 2)),
+    group_map = c(1L, 1L, 2L, 2L)
+  )
+  contract_id <- new.env(parent = emptyenv())
+  context <- list(marginalized_random = list(mu = list(
+    representation = "factor_state",
+    contract_id = contract_id,
+    row_blocks = list(1:2, 3:4),
+    factor_plans = list(factor_plan),
+    factor_states = list(list(
+      coefficient_factor = coefficient_factor,
+      row_scale = c(0.8, 1.1, 0.9, 1.2)
+    ))
+  )))
+  cache <- new.env(parent = emptyenv())
+
+  first <- .marglik_bridge_random_covariance(
+    bridge_context = context,
+    K = K,
+    validation_cache = cache
+  )
+  updated <- context
+  updated_factor <- matrix(c(0.25, -0.04, 0, 0.2), nrow = 2L)
+  updated$marginalized_random$mu$factor_states[[1L]]$coefficient_factor <-
+    updated_factor
+  second <- .marglik_bridge_random_covariance(
+    bridge_context = updated,
+    K = K,
+    validation_cache = cache
+  )
+
+  expect_identical(first$representation, "factor")
+  expect_identical(second$factors[[1L]]$model_matrix, factor_plan$model_matrix)
+  expect_identical(second$factors[[1L]]$coefficient_factor, updated_factor)
+  expect_null(second$factors[[1L]]$coefficient_covariance)
+
+  invalid <- updated
+  invalid$marginalized_random$mu$factor_states[[1L]]$row_scale[[2L]] <- -1
+  expect_error(
+    .marglik_bridge_random_covariance(
+      bridge_context = invalid,
+      K = K,
+      validation_cache = cache
+    ),
+    "row scale is invalid",
+    fixed = TRUE
+  )
+
+  changed_contract <- updated
+  changed_contract$marginalized_random$mu$contract_id <-
+    new.env(parent = emptyenv())
+  expect_error(
+    .marglik_bridge_random_covariance(
+      bridge_context = changed_contract,
+      K = K,
+      validation_cache = cache
+    ),
+    "contract changed",
+    fixed = TRUE
+  )
+})
+
 test_that("native low-rank plan supports row-specific external scales", {
 
   y <- c(0.1, -0.1, 0.2, -0.2, 0.05, 0.15)
@@ -996,6 +1064,7 @@ test_that("marglik requests every fitted sampled random block", {
 
   expect_length(expected, 1L)
   expect_identical(setup$blocks$mu, expected)
+  expect_true(setup$request$mu$factor_state)
   expect_identical(setup$dependency_blocks, list(1:2, 3L, 4L))
   expect_identical(setup$diagnostics$included, expected)
   expect_true(setup$diagnostics$exact)

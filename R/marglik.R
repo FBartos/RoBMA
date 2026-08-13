@@ -688,7 +688,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     request = list(
       mu = list(
         blocks = sampled_blocks,
-        row_blocks = dependency_blocks
+        row_blocks = dependency_blocks,
+        factor_state = TRUE
       )
     ),
     dependency_blocks = dependency_blocks,
@@ -1581,6 +1582,13 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       validation_cache = validation_cache
     ))
   }
+  if (identical(representation, "factor_state")) {
+    return(.marglik_bridge_random_covariance_states(
+      value            = value,
+      K                = K,
+      validation_cache = validation_cache
+    ))
+  }
   if (!identical(representation, "dense")) {
     stop(
       "Bridge-marginalized random-effect covariance has an unknown representation.",
@@ -1595,6 +1603,131 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     representation = "dense",
     covariance = covariance
   )
+}
+
+
+.marglik_bridge_random_covariance_states <- function(
+    value, K, validation_cache = NULL) {
+
+  contract_id <- value[["contract_id"]]
+  if (!is.environment(contract_id)) {
+    stop(
+      "Bridge-marginalized random-effect factor-state contract is missing its identity.",
+      call. = FALSE
+    )
+  }
+  process_id <- Sys.getpid()
+  cached <- if (is.environment(validation_cache)) {
+    validation_cache[["factor_state_validation"]]
+  } else {
+    NULL
+  }
+  if (!is.null(cached) && identical(cached[["process_id"]], process_id)) {
+    if (!identical(contract_id, cached[["contract_id"]])) {
+      stop(
+        "Bridge-marginalized random-effect factor-state contract changed between evaluations.",
+        call. = FALSE
+      )
+    }
+    return(list(
+      representation = "factor",
+      row_blocks = cached[["row_blocks"]],
+      factors = .marglik_validate_random_covariance_factor_states(
+        states    = value[["factor_states"]],
+        templates = cached[["factors"]],
+        K         = K
+      )
+    ))
+  }
+
+  factor_plans  <- value[["factor_plans"]]
+  factor_states <- value[["factor_states"]]
+  if (!is.list(factor_plans) || length(factor_plans) == 0L ||
+      !is.list(factor_states) ||
+      length(factor_states) != length(factor_plans)) {
+    stop(
+      "Bridge-marginalized random-effect factor-state contract is invalid.",
+      call. = FALSE
+    )
+  }
+  factors <- Map(c, factor_plans, factor_states)
+  validated <- .marglik_bridge_random_covariance_factors(
+    value = list(
+      row_blocks = value[["row_blocks"]],
+      factors = factors
+    ),
+    K = K,
+    validation_cache = NULL
+  )
+  if (is.environment(validation_cache)) {
+    validation_cache[["factor_state_validation"]] <- list(
+      process_id = process_id,
+      contract_id = contract_id,
+      row_blocks = validated[["row_blocks"]],
+      factors = validated[["factors"]]
+    )
+  }
+
+  validated
+}
+
+
+.marglik_validate_random_covariance_factor_states <- function(
+    states, templates, K) {
+
+  if (!is.list(states) || length(states) != length(templates)) {
+    stop(
+      "Bridge-marginalized random-effect covariance factor states changed between evaluations.",
+      call. = FALSE
+    )
+  }
+
+  out <- vector("list", length(states))
+  for (factor_i in seq_along(states)) {
+    state    <- states[[factor_i]]
+    template <- templates[[factor_i]]
+    type     <- template[["type"]]
+    expected_names <- c(
+      "coefficient_factor",
+      if (identical(type, "row_group")) "row_scale" else character()
+    )
+    if (!is.list(state) || !identical(names(state), expected_names)) {
+      stop(
+        "Bridge-marginalized random-effect covariance factor state structure changed between evaluations.",
+        call. = FALSE
+      )
+    }
+    n_columns <- ncol(template[["model_matrix"]])
+    coefficient_factor <- state[["coefficient_factor"]]
+    if (!is.matrix(coefficient_factor) ||
+        !is.numeric(coefficient_factor) ||
+        !identical(dim(coefficient_factor), c(n_columns, n_columns)) ||
+        anyNA(coefficient_factor) || any(!is.finite(coefficient_factor))) {
+      stop(
+        "Bridge-marginalized random-effect coefficient factor is invalid.",
+        call. = FALSE
+      )
+    }
+
+    value <- template
+    value[["coefficient_factor"]] <- coefficient_factor
+    value[["coefficient_covariance"]] <- NULL
+    if (identical(type, "row_group")) {
+      row_scale <- state[["row_scale"]]
+      if (!is.numeric(row_scale) || length(row_scale) != K ||
+          anyNA(row_scale) || any(!is.finite(row_scale)) ||
+          any(row_scale < 0)) {
+        stop(
+          "Bridge-marginalized random-effect row scale is invalid.",
+          call. = FALSE
+        )
+      }
+      value[["row_scale"]] <- as.double(row_scale)
+    }
+    out[[factor_i]] <- value
+  }
+
+  out
 }
 
 
