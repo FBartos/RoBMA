@@ -95,11 +95,13 @@ struct SamplingBlock {
 struct BlockPlan {
   std::vector<int> index;
   std::vector<LowRankGroup> low_rank_groups;
+  std::vector<std::vector<int>> active_columns;
   std::vector<SamplingBlock> sampling_blocks;
   std::vector<double> sampling_eigenvalues;
   std::vector<double> sampling_eigenvectors;
   int rank;
   bool low_rank_eligible;
+  bool sparse_assembly_eligible;
   bool block_base_eligible;
   bool spectral_eligible;
   bool root_eligible;
@@ -386,8 +388,25 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     }
   }
   out.rank = rank;
+  out.active_columns.resize(static_cast<size_t>(size));
+  for (const LowRankGroup &group : out.low_rank_groups) {
+    const int q = factors[static_cast<size_t>(group.factor)].n_columns;
+    for (int local : group.local_rows) {
+      std::vector<int> &columns = out.active_columns[
+        static_cast<size_t>(local)
+      ];
+      for (int root_column = 0; root_column < q; ++root_column) {
+        columns.push_back(group.column_offset + root_column);
+      }
+    }
+  }
+  for (std::vector<int> &columns : out.active_columns) {
+    std::sort(columns.begin(), columns.end());
+    columns.erase(std::unique(columns.begin(), columns.end()), columns.end());
+  }
   out.root_eligible = compatible;
   out.low_rank_eligible = sampling_diagonal && compatible && rank < size;
+  out.sparse_assembly_eligible = out.low_rank_eligible;
   if (!sampling_diagonal && compatible && rank < size) {
     std::vector<int> component(static_cast<size_t>(size), -1);
     std::vector<std::vector<int>> sampling_components;
@@ -858,7 +877,7 @@ bool root_dense_block_log_likelihood(
   return true;
 }
 
-bool diagonal_low_rank_log_likelihood(
+bool finish_low_rank_log_likelihood(
     CovariancePlan &plan,
     int size,
     int rank,
@@ -869,38 +888,8 @@ bool diagonal_low_rank_log_likelihood(
     double base_quadratic,
     double *value)
 {
-  if (rank == 0) {
-    const double log_two_pi = 1.837877066409345483560659472811;
-    *value = -0.5 * (
-      static_cast<double>(size) * log_two_pi +
-      log_determinant +
-      base_quadratic
-    );
-    return true;
-  }
-
   double *small = plan.small_matrix_work.data();
   double *rhs = plan.rhs_work.data();
-  std::fill(small, small + static_cast<size_t>(rank * rank), 0.0);
-  std::fill(rhs, rhs + static_cast<size_t>(rank), 0.0);
-  for (int column = 0; column < rank; ++column) {
-    for (int row = 0; row < rank; ++row) {
-      double entry = row == column ? 1.0 : 0.0;
-      for (int observation = 0; observation < size; ++observation) {
-        entry += U[static_cast<size_t>(observation + size * row)] *
-          U[static_cast<size_t>(observation + size * column)] /
-          diagonal[static_cast<size_t>(observation)];
-      }
-      small[static_cast<size_t>(row + rank * column)] = entry;
-    }
-    for (int observation = 0; observation < size; ++observation) {
-      rhs[static_cast<size_t>(column)] +=
-        U[static_cast<size_t>(observation + size * column)] *
-        residual[static_cast<size_t>(observation)] /
-        diagonal[static_cast<size_t>(observation)];
-    }
-  }
-
   int info = 0;
   F77_CALL(dpotrf)("L", &rank, small, &rank, &info FCONE);
   if (info != 0) {
@@ -959,6 +948,118 @@ bool diagonal_low_rank_log_likelihood(
   return true;
 }
 
+bool diagonal_low_rank_log_likelihood(
+    CovariancePlan &plan,
+    int size,
+    int rank,
+    const double *diagonal,
+    double *residual,
+    const double *U,
+    double log_determinant,
+    double base_quadratic,
+    double *value)
+{
+  if (rank == 0) {
+    const double log_two_pi = 1.837877066409345483560659472811;
+    *value = -0.5 * (
+      static_cast<double>(size) * log_two_pi +
+      log_determinant +
+      base_quadratic
+    );
+    return true;
+  }
+
+  double *small = plan.small_matrix_work.data();
+  double *rhs = plan.rhs_work.data();
+  std::fill(small, small + static_cast<size_t>(rank * rank), 0.0);
+  std::fill(rhs, rhs + static_cast<size_t>(rank), 0.0);
+  for (int column = 0; column < rank; ++column) {
+    for (int row = 0; row < rank; ++row) {
+      double entry = row == column ? 1.0 : 0.0;
+      for (int observation = 0; observation < size; ++observation) {
+        entry += U[static_cast<size_t>(observation + size * row)] *
+          U[static_cast<size_t>(observation + size * column)] /
+          diagonal[static_cast<size_t>(observation)];
+      }
+      small[static_cast<size_t>(row + rank * column)] = entry;
+    }
+    for (int observation = 0; observation < size; ++observation) {
+      rhs[static_cast<size_t>(column)] +=
+        U[static_cast<size_t>(observation + size * column)] *
+        residual[static_cast<size_t>(observation)] /
+        diagonal[static_cast<size_t>(observation)];
+    }
+  }
+
+  return finish_low_rank_log_likelihood(
+    plan,
+    size,
+    rank,
+    diagonal,
+    residual,
+    U,
+    log_determinant,
+    base_quadratic,
+    value
+  );
+}
+
+bool sparse_diagonal_low_rank_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    int size,
+    int rank,
+    const double *diagonal,
+    double *residual,
+    const double *U,
+    double log_determinant,
+    double base_quadratic,
+    double *value)
+{
+  double *small = plan.small_matrix_work.data();
+  double *rhs = plan.rhs_work.data();
+  std::fill(small, small + static_cast<size_t>(rank * rank), 0.0);
+  std::fill(rhs, rhs + static_cast<size_t>(rank), 0.0);
+  for (int column = 0; column < rank; ++column) {
+    small[static_cast<size_t>(column + rank * column)] = 1.0;
+  }
+  for (int observation = 0; observation < size; ++observation) {
+    const double inverse_variance = 1.0 /
+      diagonal[static_cast<size_t>(observation)];
+    const double weighted_residual =
+      residual[static_cast<size_t>(observation)] * inverse_variance;
+    const std::vector<int> &columns = block.active_columns[
+      static_cast<size_t>(observation)
+    ];
+    for (size_t column_i = 0; column_i < columns.size(); ++column_i) {
+      const int column = columns[column_i];
+      const double column_value = U[static_cast<size_t>(
+        observation + size * column
+      )];
+      rhs[static_cast<size_t>(column)] +=
+        column_value * weighted_residual;
+      for (size_t row_i = column_i; row_i < columns.size(); ++row_i) {
+        const int row = columns[row_i];
+        small[static_cast<size_t>(row + rank * column)] +=
+          U[static_cast<size_t>(observation + size * row)] *
+          column_value * inverse_variance;
+      }
+    }
+  }
+
+  return finish_low_rank_log_likelihood(
+    plan,
+    size,
+    rank,
+    diagonal,
+    residual,
+    U,
+    log_determinant,
+    base_quadratic,
+    value
+  );
+}
+
 bool low_rank_block_log_likelihood(
     CovariancePlan &plan,
     const BlockPlan &block,
@@ -994,6 +1095,20 @@ bool low_rank_block_log_likelihood(
   }
 
   double *U = fill_low_rank_factor(plan, block, factors);
+  if (block.sparse_assembly_eligible) {
+    return sparse_diagonal_low_rank_log_likelihood(
+      plan,
+      block,
+      size,
+      rank,
+      diagonal,
+      residual,
+      U,
+      log_determinant,
+      base_quadratic,
+      value
+    );
+  }
   return diagonal_low_rank_log_likelihood(
     plan,
     size,
@@ -1335,6 +1450,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   SEXP pointer = PROTECT(R_MakeExternalPtr(plan, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(pointer, finalize_plan, TRUE);
   int low_rank_blocks = 0;
+  int sparse_assembly_blocks = 0;
   int block_base_blocks = 0;
   int spectral_blocks = 0;
   int root_dense_blocks = 0;
@@ -1342,6 +1458,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   for (const BlockPlan &block : plan->blocks) {
     if (block.low_rank_eligible) {
       ++low_rank_blocks;
+      sparse_assembly_blocks += block.sparse_assembly_eligible ? 1 : 0;
     } else if (block.block_base_eligible) {
       ++block_base_blocks;
     } else if (block.spectral_eligible) {
@@ -1352,6 +1469,9 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     }
   }
   SEXP low_rank_blocks_sexp = PROTECT(Rf_ScalarInteger(low_rank_blocks));
+  SEXP sparse_assembly_blocks_sexp = PROTECT(Rf_ScalarInteger(
+    sparse_assembly_blocks
+  ));
   SEXP block_base_blocks_sexp = PROTECT(Rf_ScalarInteger(block_base_blocks));
   SEXP spectral_blocks_sexp = PROTECT(Rf_ScalarInteger(spectral_blocks));
   SEXP root_dense_blocks_sexp = PROTECT(Rf_ScalarInteger(root_dense_blocks));
@@ -1368,6 +1488,11 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   );
   Rf_setAttrib(
     pointer,
+    Rf_install("sparse_assembly_blocks"),
+    sparse_assembly_blocks_sexp
+  );
+  Rf_setAttrib(
+    pointer,
     Rf_install("block_base_blocks"),
     block_base_blocks_sexp
   );
@@ -1381,7 +1506,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     Rf_install("dense_blocks"),
     dense_blocks_sexp
   );
-  UNPROTECT(6);
+  UNPROTECT(7);
   return pointer;
 }
 

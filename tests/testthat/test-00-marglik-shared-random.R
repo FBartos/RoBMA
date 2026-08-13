@@ -500,6 +500,59 @@ test_that("native covariance plan reuses exact low-rank group geometry", {
   expect_equal(updated_actual, updated_expected, tolerance = 1e-12)
 })
 
+test_that("native covariance plan assembles sparse nested latent geometry", {
+
+  K <- 12L
+  y <- seq(-0.2, 0.35, length.out = K)
+  mean <- seq(0.03, -0.02, length.out = K)
+  sampling_variance <- seq(0.04, 0.095, length.out = K)
+  parent_map <- rep(1:2, each = 6L)
+  child_map <- rep(1:4, each = 3L)
+  parent_factor <- list(
+    type = "group",
+    model_matrix = matrix(1, nrow = K, ncol = 1L),
+    group_map = parent_map,
+    coefficient_covariance = matrix(0.3^2),
+    coefficient_factor = matrix(0.3)
+  )
+  child_factor <- list(
+    type = "group",
+    model_matrix = matrix(1, nrow = K, ncol = 1L),
+    group_map = child_map,
+    coefficient_covariance = matrix(0.2^2),
+    coefficient_factor = matrix(0.2)
+  )
+  factors <- list(parent_factor, child_factor)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    diag(sampling_variance),
+    factors,
+    list(seq_len(K)),
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    lapply(factors, .marglik_covariance_factor_state),
+    double(K),
+    PACKAGE = "RoBMA"
+  )
+  random_covariance <-
+    0.3^2 * outer(parent_map, parent_map, "==") +
+    0.2^2 * outer(child_map, child_map, "==")
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = diag(sampling_variance) + random_covariance
+  )
+
+  expect_identical(attr(plan, "low_rank_blocks"), 1L)
+  expect_identical(attr(plan, "sparse_assembly_blocks"), 1L)
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
 test_that("native Woodbury quadratic remains stable for explained residuals", {
 
   K <- 12L

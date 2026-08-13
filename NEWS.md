@@ -5,6 +5,10 @@
   while every draw-varying coefficient factor and row scale retains full
   support validation; the generic full covariance-factor contract remains
   available.
+- compiles the active latent coordinates of each observation and assembles
+  exact diagonal-base Woodbury systems only over their structural nonzeros,
+  substantially reducing repeated work for nested and crossed random effects
+  without dropping latent coordinates or covariance parameters.
 - evaluates exact low-rank random-effect updates that connect otherwise
   independent known sampling-covariance blocks by factoring those base blocks
   separately and applying block-whitened Woodbury algebra. The reusable plan
