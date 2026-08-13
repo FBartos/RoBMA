@@ -10,6 +10,11 @@
   random-effect designs in linear rather than quadratic time in the number of
   coefficients. The native evaluator verifies every structural zero before
   taking this route and retains the general dense multiplication otherwise.
+- caches the exact fixed random-effect basis and sampling-precision
+  cross-products for eligible known-group covariance blocks with diagonal
+  coefficient factors. Marginal likelihood and conditional LOO reuse this
+  cache while nonzero state-specific sampling variances and general covariance
+  structures retain the existing complete evaluators.
 - caches exact Cholesky factors, log determinants, and precision diagonals for
   fixed sampling-covariance blocks, reusing them in zero-extra-variance bridge
   and LOO states while nonzero states retain their per-state factorization.

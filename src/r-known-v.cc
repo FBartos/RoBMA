@@ -137,8 +137,13 @@ struct BlockPlan {
   std::vector<double> sampling_eigenvectors;
   std::vector<std::vector<int>> markov_rows_by_level;
   std::vector<double> markov_loading;
+  std::vector<double> fixed_known_group_basis;
+  std::vector<double> fixed_known_group_crossproduct;
+  std::vector<double> fixed_known_group_precision;
+  double fixed_known_group_log_determinant;
   int markov_factor;
   int rank;
+  bool fixed_known_group_eligible;
   bool markov_eligible;
   bool low_rank_eligible;
   bool sparse_assembly_eligible;
@@ -189,6 +194,7 @@ struct CovariancePlan {
   std::vector<double> markov_rhs_work;
   std::vector<double> markov_solution_work;
   std::vector<double> markov_variance_work;
+  std::vector<double> scale_work;
 };
 
 cholmod_sparse sparse_matrix_view(BlockPlan &block)
@@ -559,6 +565,72 @@ PlanFactor make_plan_factor(const CovarianceFactor &factor, int n)
   return out;
 }
 
+void compile_fixed_known_group_basis(
+    BlockPlan &block,
+    const double *sampling,
+    int n,
+    const std::vector<PlanFactor> &factors)
+{
+  const int size = static_cast<int>(block.index.size());
+  const int rank = block.rank;
+  const PlanFactor &factor = factors.front();
+  block.fixed_known_group_basis.assign(
+    static_cast<size_t>(size * rank),
+    0.0
+  );
+  for (const LowRankGroup &group : block.low_rank_groups) {
+    for (int local : group.local_rows) {
+      const int global = block.index[static_cast<size_t>(local)];
+      const int group_index = factor.group_map[static_cast<size_t>(global)] - 1;
+      const double group_loading = factor.group_factor[static_cast<size_t>(
+        group_index + factor.n_groups * group.group_factor_column
+      )];
+      for (int coefficient = 0;
+           coefficient < factor.n_columns;
+           ++coefficient) {
+        block.fixed_known_group_basis[static_cast<size_t>(
+          local + size * (group.column_offset + coefficient)
+        )] = factor.model_matrix[static_cast<size_t>(
+          global + n * coefficient
+        )] * group_loading;
+      }
+    }
+  }
+
+  block.fixed_known_group_precision.resize(static_cast<size_t>(size));
+  block.fixed_known_group_log_determinant = 0.0;
+  std::vector<double> weighted_basis = block.fixed_known_group_basis;
+  for (int local = 0; local < size; ++local) {
+    const int global = block.index[static_cast<size_t>(local)];
+    const double variance = sampling[global + n * global];
+    if (!(variance > 0.0) || !std::isfinite(variance)) {
+      block.fixed_known_group_basis.clear();
+      block.fixed_known_group_precision.clear();
+      return;
+    }
+    block.fixed_known_group_precision[static_cast<size_t>(local)] =
+      1.0 / variance;
+    block.fixed_known_group_log_determinant += std::log(variance);
+    const double inverse_root = 1.0 / std::sqrt(variance);
+    for (int column = 0; column < rank; ++column) {
+      weighted_basis[static_cast<size_t>(
+        local + size * column
+      )] *= inverse_root;
+    }
+  }
+
+  block.fixed_known_group_crossproduct.resize(
+    static_cast<size_t>(rank * rank)
+  );
+  const double one = 1.0;
+  const double zero = 0.0;
+  F77_CALL(dsyrk)(
+    "L", "T", &rank, &size, &one, weighted_basis.data(), &size,
+    &zero, block.fixed_known_group_crossproduct.data(), &rank FCONE FCONE
+  );
+  block.fixed_known_group_eligible = true;
+}
+
 BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
                           const std::vector<PlanFactor> &factors)
 {
@@ -669,6 +741,7 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     columns.erase(std::unique(columns.begin(), columns.end()), columns.end());
   }
   out.markov_eligible = false;
+  out.fixed_known_group_eligible = false;
   out.markov_factor = -1;
   if (sampling_diagonal && factors.size() == 1 &&
       out.low_rank_groups.size() == 1) {
@@ -851,6 +924,11 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     if (info != 0) {
       Rf_error("Known-V sampling covariance eigendecomposition failed.");
     }
+  }
+  if (sampling_diagonal && factors.size() == 1 && rank > 0 && rank < size &&
+      factors.front().type == KNOWN_GROUP_FACTOR &&
+      factors.front().coefficient_structure == DIAGONAL_COEFFICIENT) {
+    compile_fixed_known_group_basis(out, sampling, n, factors);
   }
   if (sampling_diagonal && compatible && rank > 0) {
     out.precision_active_columns = out.active_columns;
@@ -1037,6 +1115,7 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
   plan->low_rank_work.resize(max_block_size * max_rank);
   plan->small_matrix_work.resize(max_dense_rank * max_dense_rank);
   plan->rhs_work.resize(max_rank);
+  plan->scale_work.resize(max_rank);
   plan->base_rhs_work.resize(max_base_rhs_size);
   return plan;
 }
@@ -2240,6 +2319,201 @@ bool markov_block_conditional_log_likelihood(
   return true;
 }
 
+bool fixed_known_group_block_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *value)
+{
+  if (!block.fixed_known_group_eligible) {
+    return false;
+  }
+  const int size = static_cast<int>(block.index.size());
+  const int rank = block.rank;
+  for (int local = 0; local < size; ++local) {
+    const int global = block.index[static_cast<size_t>(local)];
+    if (extra[global] != 0.0) {
+      return false;
+    }
+  }
+
+  const CovarianceFactor &factor = factors.front();
+  double *scales = plan.scale_work.data();
+  for (const LowRankGroup &group : block.low_rank_groups) {
+    for (int coefficient = 0;
+         coefficient < factor.n_columns;
+         ++coefficient) {
+      scales[static_cast<size_t>(group.column_offset + coefficient)] =
+        factor.coefficient_factor[static_cast<size_t>(
+          coefficient + factor.n_columns * coefficient
+        )];
+    }
+  }
+
+  double *residual = plan.residual_work.data();
+  double *precision_residual = plan.diagonal_work.data();
+  for (int local = 0; local < size; ++local) {
+    const int global = block.index[static_cast<size_t>(local)];
+    residual[static_cast<size_t>(local)] = plan.y[static_cast<size_t>(
+      global
+    )] - mean[global];
+    if (!std::isfinite(residual[static_cast<size_t>(local)])) {
+      Rf_error("Known-V bridge residuals must be finite.");
+    }
+    precision_residual[static_cast<size_t>(local)] =
+      residual[static_cast<size_t>(local)] *
+      block.fixed_known_group_precision[static_cast<size_t>(local)];
+  }
+
+  const double one = 1.0;
+  const double zero = 0.0;
+  const int increment = 1;
+  double *rhs = plan.rhs_work.data();
+  F77_CALL(dgemv)(
+    "T", &size, &rank, &one, block.fixed_known_group_basis.data(),
+    &size, precision_residual, &increment, &zero, rhs, &increment FCONE
+  );
+  for (int column = 0; column < rank; ++column) {
+    rhs[static_cast<size_t>(column)] *= scales[static_cast<size_t>(column)];
+  }
+
+  double *small = plan.small_matrix_work.data();
+  for (int column = 0; column < rank; ++column) {
+    for (int row = column; row < rank; ++row) {
+      small[static_cast<size_t>(row + rank * column)] =
+        block.fixed_known_group_crossproduct[static_cast<size_t>(
+          row + rank * column
+        )] * scales[static_cast<size_t>(row)] *
+        scales[static_cast<size_t>(column)];
+    }
+    small[static_cast<size_t>(column + rank * column)] += 1.0;
+  }
+  int info = 0;
+  F77_CALL(dpotrf)("L", &rank, small, &rank, &info FCONE);
+  if (info != 0) {
+    return false;
+  }
+  double log_determinant = block.fixed_known_group_log_determinant;
+  for (int column = 0; column < rank; ++column) {
+    log_determinant += 2.0 * std::log(small[static_cast<size_t>(
+      column + rank * column
+    )]);
+  }
+  F77_CALL(dpotrs)(
+    "L", &rank, &increment, small, &rank, rhs, &rank, &info FCONE
+  );
+  if (info != 0) {
+    return false;
+  }
+
+  for (int column = 0; column < rank; ++column) {
+    scales[static_cast<size_t>(column)] *= rhs[static_cast<size_t>(column)];
+  }
+  const double minus_one = -1.0;
+  F77_CALL(dgemv)(
+    "N", &size, &rank, &minus_one, block.fixed_known_group_basis.data(),
+    &size, scales, &increment, &one, residual, &increment FCONE
+  );
+  double quadratic = F77_CALL(ddot)(
+    &rank, rhs, &increment, rhs, &increment
+  );
+  for (int local = 0; local < size; ++local) {
+    const double current = residual[static_cast<size_t>(local)];
+    quadratic += current * current *
+      block.fixed_known_group_precision[static_cast<size_t>(local)];
+  }
+  if (!std::isfinite(log_determinant) || !std::isfinite(quadratic)) {
+    Rf_error("Known-V fixed-basis likelihood is not finite.");
+  }
+  const double log_two_pi = 1.837877066409345483560659472811;
+  *value = -0.5 * (
+    static_cast<double>(size) * log_two_pi + log_determinant + quadratic
+  );
+  return true;
+}
+
+bool fixed_known_group_block_conditional_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *output)
+{
+  double ignored = 0.0;
+  if (!fixed_known_group_block_log_likelihood(
+      plan,
+      block,
+      factors,
+      mean,
+      extra,
+      &ignored
+    )) {
+    return false;
+  }
+
+  const int size = static_cast<int>(block.index.size());
+  const int rank = block.rank;
+  const CovarianceFactor &factor = factors.front();
+  double *transformed_basis = plan.low_rank_work.data();
+  std::copy(
+    block.fixed_known_group_basis.begin(),
+    block.fixed_known_group_basis.end(),
+    transformed_basis
+  );
+  for (const LowRankGroup &group : block.low_rank_groups) {
+    for (int coefficient = 0;
+         coefficient < factor.n_columns;
+         ++coefficient) {
+      const int column = group.column_offset + coefficient;
+      const double scale = factor.coefficient_factor[static_cast<size_t>(
+        coefficient + factor.n_columns * coefficient
+      )];
+      for (int local = 0; local < size; ++local) {
+        transformed_basis[static_cast<size_t>(
+          local + size * column
+        )] *= scale;
+      }
+    }
+  }
+
+  const double one = 1.0;
+  double *small = plan.small_matrix_work.data();
+  F77_CALL(dtrsm)(
+    "R", "L", "T", "N", &size, &rank, &one, small, &rank,
+    transformed_basis, &size FCONE FCONE FCONE FCONE
+  );
+  const double log_two_pi = 1.837877066409345483560659472811;
+  for (int local = 0; local < size; ++local) {
+    const double precision = block.fixed_known_group_precision[
+      static_cast<size_t>(local)
+    ];
+    double adjustment = 0.0;
+    for (int column = 0; column < rank; ++column) {
+      const double current = transformed_basis[static_cast<size_t>(
+        local + size * column
+      )];
+      adjustment += current * current;
+    }
+    const double precision_diagonal = precision -
+      precision * precision * adjustment;
+    const double precision_residual = precision *
+      plan.residual_work[static_cast<size_t>(local)];
+    if (!(precision_diagonal > 0.0) ||
+        !std::isfinite(precision_diagonal) ||
+        !std::isfinite(precision_residual)) {
+      return false;
+    }
+    output[block.index[static_cast<size_t>(local)]] = 0.5 * (
+      std::log(precision_diagonal) - log_two_pi -
+      precision_residual * precision_residual / precision_diagonal
+    );
+  }
+  return true;
+}
+
 double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
                            const std::vector<CovarianceFactor> &factors,
                            SEXP extra_variance)
@@ -2258,6 +2532,13 @@ double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
   for (BlockPlan &block : plan.blocks) {
     double block_value = 0.0;
     if (!markov_block_log_likelihood(
+      plan,
+      block,
+      factors,
+      mean_values,
+      extra_values,
+      &block_value
+    ) && !fixed_known_group_block_log_likelihood(
       plan,
       block,
       factors,
@@ -2828,6 +3109,13 @@ SEXP plan_conditional_log_likelihood(
         mean_values,
         extra_values,
         output_values
+      ) || fixed_known_group_block_conditional_log_likelihood(
+        plan,
+        block,
+        factors,
+        mean_values,
+        extra_values,
+        output_values
       ) || diagonal_low_rank_conditional_log_likelihood(
         plan,
         block,
@@ -2925,6 +3213,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   R_RegisterCFinalizerEx(pointer, finalize_plan, TRUE);
   int low_rank_blocks = 0;
   int markov_blocks = 0;
+  int fixed_known_group_blocks = 0;
   int sparse_assembly_blocks = 0;
   int sparse_factor_blocks = 0;
   int block_base_blocks = 0;
@@ -2934,6 +3223,8 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   for (const BlockPlan &block : plan->blocks) {
     if (block.markov_eligible) {
       ++markov_blocks;
+    } else if (block.fixed_known_group_eligible) {
+      ++fixed_known_group_blocks;
     } else if (block.sparse_factor_eligible && block.sparse_factor_block_base) {
       ++block_base_blocks;
       ++sparse_factor_blocks;
@@ -2955,6 +3246,9 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   }
   SEXP low_rank_blocks_sexp = PROTECT(Rf_ScalarInteger(low_rank_blocks));
   SEXP markov_blocks_sexp = PROTECT(Rf_ScalarInteger(markov_blocks));
+  SEXP fixed_known_group_blocks_sexp = PROTECT(Rf_ScalarInteger(
+    fixed_known_group_blocks
+  ));
   SEXP sparse_assembly_blocks_sexp = PROTECT(Rf_ScalarInteger(
     sparse_assembly_blocks
   ));
@@ -2969,6 +3263,11 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     pointer,
     Rf_install("markov_blocks"),
     markov_blocks_sexp
+  );
+  Rf_setAttrib(
+    pointer,
+    Rf_install("fixed_known_group_blocks"),
+    fixed_known_group_blocks_sexp
   );
   Rf_setAttrib(
     pointer,
@@ -3005,7 +3304,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     Rf_install("dense_blocks"),
     dense_blocks_sexp
   );
-  UNPROTECT(9);
+  UNPROTECT(10);
   return pointer;
 }
 

@@ -1589,6 +1589,122 @@ test_that("native plan factors repeated-observation known group covariance", {
   expect_equal(actual, expected, tolerance = 1e-12)
 })
 
+test_that("native known group cache preserves diagonal coefficient models", {
+
+  set.seed(811L)
+  n <- 12L
+  y <- stats::rnorm(n)
+  mean <- seq(-0.2, 0.15, length.out = n)
+  sampling_variance <- seq(0.04, 0.09, length.out = n)
+  Z <- cbind(1, seq(-1, 1, length.out = n))
+  group_map <- rep(1:3, each = 4L)
+  group_covariance <- matrix(
+    c(1.2, 0.3, 0.1, 0.3, 0.9, -0.2, 0.1, -0.2, 1.1),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  coefficient_factor <- diag(c(0, 0.35))
+  factor <- list(
+    type = "known_group",
+    model_matrix = Z,
+    group_map = group_map,
+    group_covariance = group_covariance,
+    coefficient_structure = "diagonal",
+    coefficient_factor = coefficient_factor
+  )
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    diag(sampling_variance),
+    list(factor),
+    list(seq_len(n)),
+    PACKAGE = "RoBMA"
+  )
+  state <- list(list(coefficient_factor = coefficient_factor))
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    state,
+    double(n),
+    PACKAGE = "RoBMA"
+  )
+  actual_conditional <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    state,
+    double(n),
+    PACKAGE = "RoBMA"
+  )
+  random_covariance <-
+    group_covariance[group_map, group_map, drop = FALSE] *
+    tcrossprod(Z %*% coefficient_factor)
+  covariance <- diag(sampling_variance) + random_covariance
+  precision <- solve(covariance)
+  precision_residual <- drop(precision %*% (y - mean))
+  expected_conditional <- 0.5 * (
+    log(diag(precision)) - log(2 * pi) -
+      precision_residual^2 / diag(precision)
+  )
+
+  expect_identical(attr(plan, "fixed_known_group_blocks"), 1L)
+  expect_equal(
+    actual,
+    .marglik_mvn_log_density(y, mean, covariance),
+    tolerance = 1e-12
+  )
+  expect_equal(actual_conditional, expected_conditional, tolerance = 1e-12)
+
+  extra_variance <- seq(0.001, 0.012, length.out = n)
+  fallback <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    state,
+    extra_variance,
+    PACKAGE = "RoBMA"
+  )
+  expect_equal(
+    fallback,
+    .marglik_mvn_log_density(
+      y,
+      mean,
+      covariance + diag(extra_variance)
+    ),
+    tolerance = 1e-12
+  )
+
+  correlated_sampling <- diag(sampling_variance)
+  correlated_sampling[1L, 2L] <- 0.01
+  correlated_sampling[2L, 1L] <- 0.01
+  fallback_plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    correlated_sampling,
+    list(factor),
+    list(seq_len(n)),
+    PACKAGE = "RoBMA"
+  )
+  expect_identical(attr(fallback_plan, "fixed_known_group_blocks"), 0L)
+  expect_equal(
+    .Call(
+      "RoBMA_known_v_covariance_plan_loglik",
+      fallback_plan,
+      as.double(mean),
+      state,
+      double(n),
+      PACKAGE = "RoBMA"
+    ),
+    .marglik_mvn_log_density(
+      y,
+      mean,
+      correlated_sampling + random_covariance
+    ),
+    tolerance = 1e-12
+  )
+})
+
 test_that("marglik requests every fitted sampled random block", {
 
   dat <- data.frame(
