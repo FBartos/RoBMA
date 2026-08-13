@@ -99,6 +99,7 @@ struct BlockPlan {
   std::vector<LowRankGroup> low_rank_groups;
   std::vector<std::vector<int>> active_columns;
   std::vector<std::vector<int>> sparse_factor_active_columns;
+  std::vector<std::vector<int>> precision_active_columns;
   std::vector<std::vector<int>> active_pair_positions;
   std::vector<int> sparse_column_pointers;
   std::vector<int> sparse_row_indices;
@@ -148,6 +149,9 @@ struct CovariancePlan {
   std::vector<double> small_matrix_work;
   std::vector<double> rhs_work;
   std::vector<double> base_rhs_work;
+  std::vector<double> conditional_rhs_work;
+  std::vector<double> conditional_base_work;
+  std::vector<double> unit_diagonal_work;
 };
 
 cholmod_sparse sparse_matrix_view(BlockPlan &block)
@@ -629,12 +633,27 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     }
   }
   if (sampling_diagonal && compatible && rank > 0) {
+    out.precision_active_columns = out.active_columns;
     compile_sparse_latent_pattern(out, out.active_columns);
   } else if (out.sampling_blocks.size() > 1) {
     std::vector<std::vector<int>> transformed_active_columns(
       static_cast<size_t>(size)
     );
+    out.precision_active_columns.resize(static_cast<size_t>(size));
     for (const SamplingBlock &sampling_block : out.sampling_blocks) {
+      std::vector<int> block_columns;
+      for (int local : sampling_block.local_rows) {
+        block_columns.insert(
+          block_columns.end(),
+          out.active_columns[static_cast<size_t>(local)].begin(),
+          out.active_columns[static_cast<size_t>(local)].end()
+        );
+      }
+      std::sort(block_columns.begin(), block_columns.end());
+      block_columns.erase(
+        std::unique(block_columns.begin(), block_columns.end()),
+        block_columns.end()
+      );
       std::vector<int> cumulative_columns;
       for (int local : sampling_block.local_rows) {
         cumulative_columns.insert(
@@ -649,6 +668,8 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
         );
         transformed_active_columns[static_cast<size_t>(local)] =
           cumulative_columns;
+        out.precision_active_columns[static_cast<size_t>(local)] =
+          block_columns;
       }
     }
     out.sparse_factor_block_base = true;
@@ -660,7 +681,6 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     out.sparse_factor_candidate =
       out.sparse_row_indices.size() < dense_entries;
     if (!out.sparse_factor_candidate) {
-      out.sparse_factor_active_columns.clear();
       out.active_pair_positions.clear();
       out.sparse_column_pointers.clear();
       out.sparse_row_indices.clear();
@@ -1271,21 +1291,56 @@ bool sparse_diagonal_low_rank_log_likelihood(
   );
 }
 
-bool sparse_factor_log_likelihood(
+void assemble_dense_latent_system(
+    CovariancePlan &plan,
+    const std::vector<std::vector<int>> &active_columns,
+    int size,
+    int rank,
+    const double *diagonal,
+    const double *residual,
+    const double *U)
+{
+  double *small = plan.small_matrix_work.data();
+  double *rhs = plan.rhs_work.data();
+  std::fill(small, small + static_cast<size_t>(rank * rank), 0.0);
+  std::fill(rhs, rhs + static_cast<size_t>(rank), 0.0);
+  for (int column = 0; column < rank; ++column) {
+    small[static_cast<size_t>(column + rank * column)] = 1.0;
+  }
+  for (int observation = 0; observation < size; ++observation) {
+    const double inverse_variance = 1.0 /
+      diagonal[static_cast<size_t>(observation)];
+    const double weighted_residual =
+      residual[static_cast<size_t>(observation)] * inverse_variance;
+    const std::vector<int> &columns = active_columns[
+      static_cast<size_t>(observation)
+    ];
+    for (size_t column_i = 0; column_i < columns.size(); ++column_i) {
+      const int column = columns[column_i];
+      const double column_value = U[static_cast<size_t>(
+        observation + size * column
+      )];
+      rhs[static_cast<size_t>(column)] +=
+        column_value * weighted_residual;
+      for (size_t row_i = column_i; row_i < columns.size(); ++row_i) {
+        const int row = columns[row_i];
+        small[static_cast<size_t>(row + rank * column)] +=
+          U[static_cast<size_t>(observation + size * row)] *
+          column_value * inverse_variance;
+      }
+    }
+  }
+}
+
+bool factor_sparse_latent_system(
     CovariancePlan &plan,
     BlockPlan &block,
     int size,
     int rank,
     const double *diagonal,
-    double *residual,
-    const double *U,
-    double log_determinant,
-    double base_quadratic,
-    double *value)
+    const double *residual,
+    const double *U)
 {
-  if (!block.sparse_factor_eligible) {
-    return false;
-  }
   std::fill(
     block.sparse_values.begin(),
     block.sparse_values.end(),
@@ -1336,8 +1391,35 @@ bool sparse_factor_log_likelihood(
     ) || block.sparse_factor->minor < static_cast<size_t>(rank)) {
     return false;
   }
+  return true;
+}
+
+bool sparse_factor_log_likelihood(
+    CovariancePlan &plan,
+    BlockPlan &block,
+    int size,
+    int rank,
+    const double *diagonal,
+    double *residual,
+    const double *U,
+    double log_determinant,
+    double base_quadratic,
+    double *value)
+{
+  if (!block.sparse_factor_eligible || !factor_sparse_latent_system(
+      plan,
+      block,
+      size,
+      rank,
+      diagonal,
+      residual,
+      U
+    )) {
+    return false;
+  }
   log_determinant += M_cholmod_factor_ldetA(block.sparse_factor);
 
+  double *rhs = plan.rhs_work.data();
   cholmod_dense rhs_dense = {};
   rhs_dense.nrow = static_cast<size_t>(rank);
   rhs_dense.ncol = 1;
@@ -1729,6 +1811,473 @@ double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
   return log_likelihood;
 }
 
+bool factor_dense_latent_system(
+    CovariancePlan &plan,
+    const std::vector<std::vector<int>> &active_columns,
+    int size,
+    int rank,
+    const double *diagonal,
+    const double *residual,
+    const double *U)
+{
+  assemble_dense_latent_system(
+    plan,
+    active_columns,
+    size,
+    rank,
+    diagonal,
+    residual,
+    U
+  );
+  int info = 0;
+  F77_CALL(dpotrf)(
+    "L",
+    &rank,
+    plan.small_matrix_work.data(),
+    &rank,
+    &info FCONE
+  );
+  return info == 0;
+}
+
+bool solve_latent_system(
+    CovariancePlan &plan,
+    BlockPlan &block,
+    int rank,
+    int n_rhs,
+    bool sparse,
+    double *rhs)
+{
+  if (!sparse) {
+    int info = 0;
+    F77_CALL(dpotrs)(
+      "L",
+      &rank,
+      &n_rhs,
+      plan.small_matrix_work.data(),
+      &rank,
+      rhs,
+      &rank,
+      &info FCONE
+    );
+    return info == 0;
+  }
+
+  cholmod_dense rhs_dense = {};
+  rhs_dense.nrow = static_cast<size_t>(rank);
+  rhs_dense.ncol = static_cast<size_t>(n_rhs);
+  rhs_dense.nzmax = static_cast<size_t>(rank) *
+    static_cast<size_t>(n_rhs);
+  rhs_dense.d = static_cast<size_t>(rank);
+  rhs_dense.x = rhs;
+  rhs_dense.z = nullptr;
+  rhs_dense.xtype = CHOLMOD_REAL;
+  rhs_dense.dtype = CHOLMOD_DOUBLE;
+  cholmod_dense *solution = M_cholmod_solve(
+    CHOLMOD_A,
+    block.sparse_factor,
+    &rhs_dense,
+    &plan.cholmod_common_state
+  );
+  if (solution == nullptr) {
+    return false;
+  }
+  std::copy(
+    static_cast<const double *>(solution->x),
+    static_cast<const double *>(solution->x) + rhs_dense.nzmax,
+    rhs
+  );
+  M_cholmod_free_dense(&solution, &plan.cholmod_common_state);
+  return true;
+}
+
+bool finish_conditional_block(
+    const BlockPlan &block,
+    int size,
+    int rank,
+    const std::vector<std::vector<int>> &active_columns,
+    const double *base_precision_diagonal,
+    const double *base_precision_residual,
+    const double *precision_factor,
+    const double *solutions,
+    double *output)
+{
+  // Q = B^-1 - C K^-1 C' and Qr = B^-1 r - C K^-1 h.
+  const double *latent_residual_solution = solutions;
+  const double log_two_pi = 1.837877066409345483560659472811;
+  for (int observation = 0; observation < size; ++observation) {
+    const double *precision_solution = solutions +
+      static_cast<size_t>((observation + 1) * rank);
+    double residual_correction = 0.0;
+    double diagonal_correction = 0.0;
+    for (int column : active_columns[static_cast<size_t>(observation)]) {
+      const double precision_value = precision_factor[static_cast<size_t>(
+        observation + size * column
+      )];
+      residual_correction += precision_value *
+        latent_residual_solution[static_cast<size_t>(column)];
+      diagonal_correction += precision_value *
+        precision_solution[static_cast<size_t>(column)];
+    }
+    const double precision_diagonal =
+      base_precision_diagonal[static_cast<size_t>(observation)] -
+      diagonal_correction;
+    const double cancellation_bound =
+      static_cast<double>(rank + 2) *
+      std::numeric_limits<double>::epsilon() *
+      (std::abs(base_precision_diagonal[static_cast<size_t>(observation)]) +
+       std::abs(diagonal_correction));
+    const double precision_residual =
+      base_precision_residual[static_cast<size_t>(observation)] -
+      residual_correction;
+    if (!(precision_diagonal > cancellation_bound) ||
+        !std::isfinite(precision_residual)) {
+      return false;
+    }
+    output[block.index[static_cast<size_t>(observation)]] = 0.5 * (
+      std::log(precision_diagonal) - log_two_pi -
+      precision_residual * precision_residual / precision_diagonal
+    );
+  }
+  return true;
+}
+
+bool diagonal_low_rank_conditional_log_likelihood(
+    CovariancePlan &plan,
+    BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *output)
+{
+  if (!block.low_rank_eligible &&
+      !(block.sparse_factor_eligible && !block.sparse_factor_block_base)) {
+    return false;
+  }
+  const int size = static_cast<int>(block.index.size());
+  const int rank = block.rank;
+  double *diagonal = plan.diagonal_work.data();
+  double *residual = plan.residual_work.data();
+  for (int observation = 0; observation < size; ++observation) {
+    const int global = block.index[static_cast<size_t>(observation)];
+    const double variance = plan.sampling_covariance[static_cast<size_t>(
+      global + plan.n * global
+    )] + extra[global];
+    if (!(variance > 0.0) || !std::isfinite(variance) ||
+        !std::isfinite(mean[global])) {
+      return false;
+    }
+    diagonal[static_cast<size_t>(observation)] = variance;
+    residual[static_cast<size_t>(observation)] =
+      plan.y[static_cast<size_t>(global)] - mean[global];
+  }
+  if (rank == 0) {
+    const double log_two_pi = 1.837877066409345483560659472811;
+    for (int observation = 0; observation < size; ++observation) {
+      const double variance = diagonal[static_cast<size_t>(observation)];
+      const double value = residual[static_cast<size_t>(observation)];
+      output[block.index[static_cast<size_t>(observation)]] = -0.5 * (
+        log_two_pi + std::log(variance) + value * value / variance
+      );
+    }
+    return true;
+  }
+
+  double *U = fill_low_rank_factor(plan, block, factors);
+  bool sparse = false;
+  bool factored = false;
+  if (block.sparse_factor_eligible && !block.sparse_factor_block_base) {
+    factored = factor_sparse_latent_system(
+      plan,
+      block,
+      size,
+      rank,
+      diagonal,
+      residual,
+      U
+    );
+    sparse = factored;
+  }
+  if (!factored && block.low_rank_eligible) {
+    factored = factor_dense_latent_system(
+      plan,
+      block.active_columns,
+      size,
+      rank,
+      diagonal,
+      residual,
+      U
+    );
+    sparse = false;
+  }
+  if (!factored) {
+    return false;
+  }
+
+  const size_t system_size = static_cast<size_t>(rank) *
+    static_cast<size_t>(size + 1);
+  plan.conditional_rhs_work.resize(system_size);
+  double *systems = plan.conditional_rhs_work.data();
+  std::copy(
+    plan.rhs_work.begin(),
+    plan.rhs_work.begin() + rank,
+    systems
+  );
+  std::fill(
+    systems + rank,
+    systems + system_size,
+    0.0
+  );
+  for (int observation = 0; observation < size; ++observation) {
+    const double inverse_variance = 1.0 /
+      diagonal[static_cast<size_t>(observation)];
+    for (int column : block.precision_active_columns[
+        static_cast<size_t>(observation)
+      ]) {
+      systems[static_cast<size_t>(
+        column + rank * (observation + 1)
+      )] = U[static_cast<size_t>(observation + size * column)] *
+        inverse_variance;
+    }
+  }
+  if (!solve_latent_system(
+      plan,
+      block,
+      rank,
+      size + 1,
+      sparse,
+      systems
+    )) {
+    return false;
+  }
+
+  plan.conditional_base_work.resize(
+    static_cast<size_t>(size) * static_cast<size_t>(rank)
+  );
+  double *precision_factor = plan.conditional_base_work.data();
+  std::fill(
+    precision_factor,
+    precision_factor +
+      static_cast<size_t>(size) * static_cast<size_t>(rank),
+    0.0
+  );
+  for (int observation = 0; observation < size; ++observation) {
+    const double inverse_variance = 1.0 /
+      diagonal[static_cast<size_t>(observation)];
+    for (int column : block.precision_active_columns[
+        static_cast<size_t>(observation)
+      ]) {
+      precision_factor[static_cast<size_t>(
+        observation + size * column
+      )] = U[static_cast<size_t>(observation + size * column)] *
+        inverse_variance;
+    }
+    residual[static_cast<size_t>(observation)] *= inverse_variance;
+    diagonal[static_cast<size_t>(observation)] = inverse_variance;
+  }
+  return finish_conditional_block(
+    block,
+    size,
+    rank,
+    block.precision_active_columns,
+    diagonal,
+    residual,
+    precision_factor,
+    systems,
+    output
+  );
+}
+
+bool block_base_low_rank_conditional_log_likelihood(
+    CovariancePlan &plan,
+    BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *output)
+{
+  if (!block.block_base_eligible &&
+      !(block.sparse_factor_eligible && block.sparse_factor_block_base)) {
+    return false;
+  }
+  const int size = static_cast<int>(block.index.size());
+  const int rank = block.rank;
+  double *base_precision_diagonal = plan.diagonal_work.data();
+  double *residual = plan.residual_work.data();
+  double *U = fill_low_rank_factor(plan, block, factors);
+  double *covariance = plan.covariance_work.data();
+  double *base_rhs = plan.base_rhs_work.data();
+  plan.conditional_base_work.resize(
+    static_cast<size_t>(size) * static_cast<size_t>(rank + 1)
+  );
+  double *base_precision = plan.conditional_base_work.data();
+  for (int local = 0; local < size; ++local) {
+    const int global = block.index[static_cast<size_t>(local)];
+    if (!std::isfinite(mean[global])) {
+      return false;
+    }
+    residual[static_cast<size_t>(local)] =
+      plan.y[static_cast<size_t>(global)] - mean[global];
+  }
+
+  const double one = 1.0;
+  const int rhs_columns = rank + 1;
+  for (const SamplingBlock &sampling_block : block.sampling_blocks) {
+    const int block_size = static_cast<int>(sampling_block.local_rows.size());
+    std::copy(
+      sampling_block.covariance.begin(),
+      sampling_block.covariance.end(),
+      covariance
+    );
+    for (int row = 0; row < block_size; ++row) {
+      const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+      const int global = block.index[static_cast<size_t>(local)];
+      covariance[static_cast<size_t>(row + block_size * row)] += extra[global];
+      base_rhs[static_cast<size_t>(row)] = residual[
+        static_cast<size_t>(local)
+      ];
+      for (int column = 0; column < rank; ++column) {
+        base_rhs[static_cast<size_t>(
+          row + block_size * (column + 1)
+        )] = U[static_cast<size_t>(local + size * column)];
+      }
+    }
+
+    int info = 0;
+    F77_CALL(dpotrf)(
+      "L", &block_size, covariance, &block_size, &info FCONE
+    );
+    if (info != 0) {
+      return false;
+    }
+    F77_CALL(dtrsm)(
+      "L", "L", "N", "N", &block_size, &rhs_columns, &one,
+      covariance, &block_size, base_rhs, &block_size
+      FCONE FCONE FCONE FCONE
+    );
+    // The first solve gives L^-1[r,U]; the second gives B^-1[r,U].
+    for (int row = 0; row < block_size; ++row) {
+      const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+      residual[static_cast<size_t>(local)] = base_rhs[static_cast<size_t>(row)];
+      for (int column = 0; column < rank; ++column) {
+        U[static_cast<size_t>(local + size * column)] = base_rhs[
+          static_cast<size_t>(row + block_size * (column + 1))
+        ];
+      }
+    }
+    F77_CALL(dtrsm)(
+      "L", "L", "T", "N", &block_size, &rhs_columns, &one,
+      covariance, &block_size, base_rhs, &block_size
+      FCONE FCONE FCONE FCONE
+    );
+    for (int row = 0; row < block_size; ++row) {
+      const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+      for (int column = 0; column <= rank; ++column) {
+        base_precision[static_cast<size_t>(
+          local + size * column
+        )] = base_rhs[static_cast<size_t>(
+          row + block_size * column
+        )];
+      }
+    }
+    F77_CALL(dpotri)("L", &block_size, covariance, &block_size, &info FCONE);
+    if (info != 0) {
+      return false;
+    }
+    for (int row = 0; row < block_size; ++row) {
+      const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+      base_precision_diagonal[static_cast<size_t>(local)] = covariance[
+        static_cast<size_t>(row + block_size * row)
+      ];
+    }
+  }
+
+  plan.unit_diagonal_work.resize(static_cast<size_t>(size));
+  std::fill(
+    plan.unit_diagonal_work.begin(),
+    plan.unit_diagonal_work.end(),
+    1.0
+  );
+  const double *unit_diagonal = plan.unit_diagonal_work.data();
+  bool sparse = false;
+  bool factored = false;
+  if (block.sparse_factor_eligible && block.sparse_factor_block_base) {
+    factored = factor_sparse_latent_system(
+      plan,
+      block,
+      size,
+      rank,
+      unit_diagonal,
+      residual,
+      U
+    );
+    sparse = factored;
+  }
+  if (!factored && block.block_base_eligible) {
+    factored = factor_dense_latent_system(
+      plan,
+      block.sparse_factor_active_columns,
+      size,
+      rank,
+      unit_diagonal,
+      residual,
+      U
+    );
+    sparse = false;
+  }
+  if (!factored) {
+    return false;
+  }
+
+  const size_t system_size = static_cast<size_t>(rank) *
+    static_cast<size_t>(size + 1);
+  plan.conditional_rhs_work.resize(system_size);
+  double *systems = plan.conditional_rhs_work.data();
+  std::copy(
+    plan.rhs_work.begin(),
+    plan.rhs_work.begin() + rank,
+    systems
+  );
+  std::fill(
+    systems + rank,
+    systems + system_size,
+    0.0
+  );
+  for (int observation = 0; observation < size; ++observation) {
+    for (int column : block.precision_active_columns[
+        static_cast<size_t>(observation)
+      ]) {
+      systems[static_cast<size_t>(
+        column + rank * (observation + 1)
+      )] = base_precision[static_cast<size_t>(
+        observation + size * (column + 1)
+      )];
+    }
+  }
+  if (!solve_latent_system(
+      plan,
+      block,
+      rank,
+      size + 1,
+      sparse,
+      systems
+    )) {
+    return false;
+  }
+
+  return finish_conditional_block(
+    block,
+    size,
+    rank,
+    block.precision_active_columns,
+    base_precision_diagonal,
+    base_precision,
+    base_precision + size,
+    systems,
+    output
+  );
+}
+
 SEXP plan_conditional_log_likelihood(
     CovariancePlan &plan, SEXP mean,
     const std::vector<CovarianceFactor> &factors,
@@ -1747,7 +2296,24 @@ SEXP plan_conditional_log_likelihood(
   SEXP output = PROTECT(Rf_allocVector(REALSXP, plan.n));
   double *output_values = REAL(output);
   const double log_two_pi = 1.837877066409345483560659472811;
-  for (const BlockPlan &block : plan.blocks) {
+  for (BlockPlan &block : plan.blocks) {
+    if (diagonal_low_rank_conditional_log_likelihood(
+        plan,
+        block,
+        factors,
+        mean_values,
+        extra_values,
+        output_values
+      ) || block_base_low_rank_conditional_log_likelihood(
+        plan,
+        block,
+        factors,
+        mean_values,
+        extra_values,
+        output_values
+      )) {
+      continue;
+    }
     const int size = static_cast<int>(block.index.size());
     double *covariance = plan.covariance_work.data();
     double *precision_residual = plan.residual_work.data();

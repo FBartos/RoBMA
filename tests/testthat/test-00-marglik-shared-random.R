@@ -547,11 +547,26 @@ test_that("native covariance plan assembles sparse nested latent geometry", {
     mean = mean,
     covariance = diag(sampling_variance) + random_covariance
   )
+  precision <- solve(diag(sampling_variance) + random_covariance)
+  precision_residual <- drop(precision %*% (y - mean))
+  conditional_expected <- 0.5 * (
+    log(diag(precision)) - log(2 * pi) -
+      precision_residual^2 / diag(precision)
+  )
+  conditional_actual <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    lapply(factors, .marglik_covariance_factor_state),
+    double(K),
+    PACKAGE = "RoBMA"
+  )
 
   expect_identical(attr(plan, "low_rank_blocks"), 1L)
   expect_identical(attr(plan, "sparse_assembly_blocks"), 1L)
   expect_identical(attr(plan, "sparse_factor_blocks"), 1L)
   expect_equal(actual, expected, tolerance = 1e-12)
+  expect_equal(conditional_actual, conditional_expected, tolerance = 1e-12)
 
   updated_factors <- factors
   updated_factors[[1L]]$coefficient_factor <- matrix(0.22)
@@ -637,6 +652,20 @@ test_that("native sparse factor supports more latent groups than observations", 
     mean = mean,
     covariance = diag(sampling_variance) + random_covariance
   )
+  precision <- solve(diag(sampling_variance) + random_covariance)
+  precision_residual <- drop(precision %*% (y - mean))
+  conditional_expected <- 0.5 * (
+    log(diag(precision)) - log(2 * pi) -
+      precision_residual^2 / diag(precision)
+  )
+  conditional_actual <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    lapply(factors, .marglik_covariance_factor_state),
+    double(K),
+    PACKAGE = "RoBMA"
+  )
 
   expect_gt(
     length(unique(parent_map)) + length(unique(child_map)),
@@ -645,6 +674,7 @@ test_that("native sparse factor supports more latent groups than observations", 
   expect_identical(attr(plan, "sparse_factor_blocks"), 1L)
   expect_identical(attr(plan, "root_dense_blocks"), 0L)
   expect_equal(actual, expected, tolerance = 1e-12)
+  expect_equal(conditional_actual, conditional_expected, tolerance = 1e-12)
 })
 
 test_that("native Woodbury quadratic remains stable for explained residuals", {
@@ -826,12 +856,29 @@ test_that("native covariance plan uses exact block-base Woodbury algebra", {
     covariance = sampling_covariance + random_covariance +
       diag(extra_variance)
   )
+  covariance <- sampling_covariance + random_covariance +
+    diag(extra_variance)
+  precision <- solve(covariance)
+  precision_residual <- drop(precision %*% (y - mean))
+  conditional_expected <- 0.5 * (
+    log(diag(precision)) - log(2 * pi) -
+      precision_residual^2 / diag(precision)
+  )
+  conditional_actual <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    extra_variance,
+    PACKAGE = "RoBMA"
+  )
 
   expect_identical(attr(plan, "low_rank_blocks"), 0L)
   expect_identical(attr(plan, "block_base_blocks"), 1L)
   expect_identical(attr(plan, "spectral_blocks"), 0L)
   expect_identical(attr(plan, "dense_blocks"), 0L)
   expect_equal(actual, expected, tolerance = 1e-12)
+  expect_equal(conditional_actual, conditional_expected, tolerance = 1e-12)
 })
 
 test_that("native sparse factor supports correlated sampling blocks", {
@@ -892,6 +939,22 @@ test_that("native sparse factor supports correlated sampling blocks", {
     covariance = sampling_covariance + random_covariance +
       diag(extra_variance)
   )
+  covariance <- sampling_covariance + random_covariance +
+    diag(extra_variance)
+  precision <- solve(covariance)
+  precision_residual <- drop(precision %*% (y - mean))
+  conditional_expected <- 0.5 * (
+    log(diag(precision)) - log(2 * pi) -
+      precision_residual^2 / diag(precision)
+  )
+  conditional_actual <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    lapply(factors, .marglik_covariance_factor_state),
+    extra_variance,
+    PACKAGE = "RoBMA"
+  )
 
   expect_gt(
     length(unique(parent_map)) + length(unique(child_map)) +
@@ -902,6 +965,7 @@ test_that("native sparse factor supports correlated sampling blocks", {
   expect_identical(attr(plan, "sparse_factor_blocks"), 1L)
   expect_identical(attr(plan, "root_dense_blocks"), 0L)
   expect_equal(actual, expected, tolerance = 1e-12)
+  expect_equal(conditional_actual, conditional_expected, tolerance = 1e-12)
 })
 
 test_that("block-base Woodbury falls back exactly for singular base blocks", {

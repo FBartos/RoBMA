@@ -9,6 +9,10 @@
   correlated sampling-covariance blocks. Cholesky whitening propagates the
   complete structural active set, so nested and crossed random effects retain
   every covariance contribution without materializing a dense latent system.
+- applies the same exact diagonal- and block-base Woodbury plans to known-`V`
+  LOO conditional densities. The native evaluator computes only `Q(y - mu)`
+  and `diag(Q)` from dense or sparse latent solves, with full-covariance
+  inversion retained as the numerical and unsupported-structure fallback.
 - consumes BayesTools' compact exact bridge factor-state contract so invariant
   random-effect designs, group maps, and known group kernels are validated once
   while every draw-varying coefficient factor and row scale retains full
