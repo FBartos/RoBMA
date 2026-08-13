@@ -626,6 +626,113 @@ test_that("native covariance plan uses exact spectral Woodbury blocks", {
   expect_equal(fallback, fallback_expected, tolerance = 1e-12)
 })
 
+test_that("native covariance plan uses exact block-base Woodbury algebra", {
+
+  K <- 12L
+  y <- sin(seq(0.2, 2.4, length.out = K))
+  mean <- seq(-0.05, 0.06, length.out = K)
+  sampling_covariance <- matrix(0, nrow = K, ncol = K)
+  sampling_block <- matrix(
+    c(
+      0.08, 0.012, 0.006, 0.004,
+      0.012, 0.07, 0.009, 0.005,
+      0.006, 0.009, 0.06, 0.008,
+      0.004, 0.005, 0.008, 0.05
+    ),
+    nrow = 4L,
+    byrow = TRUE
+  )
+  for (block_i in seq_len(3L)) {
+    index <- 4L * (block_i - 1L) + seq_len(4L)
+    sampling_covariance[index, index] <- block_i * sampling_block
+  }
+  group_map <- rep(1:2, length.out = K)
+  coefficient_factor <- matrix(0.25, nrow = 1L, ncol = 1L)
+  factor <- list(
+    type = "group",
+    model_matrix = matrix(1, nrow = K, ncol = 1L),
+    group_map = group_map,
+    coefficient_covariance = tcrossprod(coefficient_factor),
+    coefficient_factor = coefficient_factor
+  )
+  extra_variance <- seq(0.005, 0.016, length.out = K)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    list(seq_len(K)),
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    extra_variance,
+    PACKAGE = "RoBMA"
+  )
+  random_covariance <- outer(group_map, group_map, "==") * 0.25^2
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + random_covariance +
+      diag(extra_variance)
+  )
+
+  expect_identical(attr(plan, "low_rank_blocks"), 0L)
+  expect_identical(attr(plan, "block_base_blocks"), 1L)
+  expect_identical(attr(plan, "spectral_blocks"), 0L)
+  expect_identical(attr(plan, "dense_blocks"), 0L)
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+test_that("block-base Woodbury falls back exactly for singular base blocks", {
+
+  K <- 4L
+  y <- c(0.1, -0.2, 0.3, -0.1)
+  sampling_covariance <- matrix(0, nrow = K, ncol = K)
+  sampling_covariance[1:2, 1:2] <- 0.05
+  sampling_covariance[3:4, 3:4] <- 0.08
+  Z <- cbind(
+    1,
+    c(1, -1, 0, 0),
+    c(0, 0, 1, -1)
+  )
+  coefficient_factor <- diag(c(0.2, 0.3, 0.25))
+  factor <- list(
+    type = "group",
+    model_matrix = Z,
+    group_map = rep(1L, K),
+    coefficient_covariance = tcrossprod(coefficient_factor),
+    coefficient_factor = coefficient_factor
+  )
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    list(seq_len(K)),
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    double(K),
+    list(.marglik_covariance_factor_state(factor)),
+    double(K),
+    PACKAGE = "RoBMA"
+  )
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = double(K),
+    covariance = sampling_covariance + tcrossprod(Z %*% coefficient_factor)
+  )
+
+  expect_identical(attr(plan, "block_base_blocks"), 1L)
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
 test_that("compiled factor validation retains changing-value checks", {
 
   K <- 4L

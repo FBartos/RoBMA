@@ -1,5 +1,10 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- evaluates exact low-rank random-effect updates that connect otherwise
+  independent known sampling-covariance blocks by factoring those base blocks
+  separately and applying block-whitened Woodbury algebra. The reusable plan
+  retains exact dense-Cholesky fallback for singular base blocks and avoids a
+  redundant global eigendecomposition.
 - routes covariance factors whose latent width is not below the observation
   dimension through exact BLAS root products and observation-space Cholesky,
   avoiding entry-by-entry `ZGZ'` reconstruction while retaining the dense

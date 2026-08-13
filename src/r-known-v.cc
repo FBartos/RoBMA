@@ -87,13 +87,20 @@ struct LowRankGroup {
   std::vector<int> local_rows;
 };
 
+struct SamplingBlock {
+  std::vector<int> local_rows;
+  std::vector<double> covariance;
+};
+
 struct BlockPlan {
   std::vector<int> index;
   std::vector<LowRankGroup> low_rank_groups;
+  std::vector<SamplingBlock> sampling_blocks;
   std::vector<double> sampling_eigenvalues;
   std::vector<double> sampling_eigenvectors;
   int rank;
   bool low_rank_eligible;
+  bool block_base_eligible;
   bool spectral_eligible;
   bool root_eligible;
 };
@@ -110,6 +117,7 @@ struct CovariancePlan {
   std::vector<double> low_rank_work;
   std::vector<double> small_matrix_work;
   std::vector<double> rhs_work;
+  std::vector<double> base_rhs_work;
 };
 
 std::vector<CovarianceFactor> covariance_factors(SEXP factors, int n)
@@ -380,7 +388,69 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
   out.rank = rank;
   out.root_eligible = compatible;
   out.low_rank_eligible = sampling_diagonal && compatible && rank < size;
-  out.spectral_eligible = !sampling_diagonal && compatible && rank < size;
+  if (!sampling_diagonal && compatible && rank < size) {
+    std::vector<int> component(static_cast<size_t>(size), -1);
+    std::vector<std::vector<int>> sampling_components;
+    for (int seed = 0; seed < size; ++seed) {
+      if (component[static_cast<size_t>(seed)] != -1) {
+        continue;
+      }
+      const int component_id = static_cast<int>(sampling_components.size());
+      std::vector<int> pending(1, seed);
+      component[static_cast<size_t>(seed)] = component_id;
+      std::vector<int> local_rows;
+      while (!pending.empty()) {
+        const int current_local = pending.back();
+        pending.pop_back();
+        local_rows.push_back(current_local);
+        const int current_global = out.index[
+          static_cast<size_t>(current_local)
+        ];
+        for (int candidate = 0; candidate < size; ++candidate) {
+          if (component[static_cast<size_t>(candidate)] != -1) {
+            continue;
+          }
+          const int candidate_global = out.index[
+            static_cast<size_t>(candidate)
+          ];
+          if (sampling[current_global + n * candidate_global] != 0.0) {
+            component[static_cast<size_t>(candidate)] = component_id;
+            pending.push_back(candidate);
+          }
+        }
+      }
+      std::sort(local_rows.begin(), local_rows.end());
+      sampling_components.push_back(local_rows);
+    }
+    if (sampling_components.size() > 1) {
+      out.sampling_blocks.reserve(sampling_components.size());
+      for (const std::vector<int> &local_rows : sampling_components) {
+        SamplingBlock sampling_block;
+        sampling_block.local_rows = local_rows;
+        const int block_size = static_cast<int>(local_rows.size());
+        sampling_block.covariance.resize(
+          static_cast<size_t>(block_size * block_size)
+        );
+        for (int column = 0; column < block_size; ++column) {
+          const int global_column = out.index[static_cast<size_t>(
+            local_rows[static_cast<size_t>(column)]
+          )];
+          for (int row = 0; row < block_size; ++row) {
+            const int global_row = out.index[static_cast<size_t>(
+              local_rows[static_cast<size_t>(row)]
+            )];
+            sampling_block.covariance[static_cast<size_t>(
+              row + block_size * column
+            )] = sampling[global_row + n * global_column];
+          }
+        }
+        out.sampling_blocks.push_back(sampling_block);
+      }
+    }
+  }
+  out.block_base_eligible = out.sampling_blocks.size() > 1;
+  out.spectral_eligible = !sampling_diagonal && compatible && rank < size &&
+    !out.block_base_eligible;
   if (out.spectral_eligible) {
     out.sampling_eigenvectors.resize(static_cast<size_t>(size * size));
     out.sampling_eigenvalues.resize(static_cast<size_t>(size));
@@ -497,6 +567,7 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
   plan->low_rank_work.resize(max_block_size * max_rank);
   plan->small_matrix_work.resize(max_rank * max_rank);
   plan->rhs_work.resize(max_rank);
+  plan->base_rhs_work.resize(max_block_size * (max_rank + 1));
   return plan;
 }
 
@@ -936,6 +1007,102 @@ bool low_rank_block_log_likelihood(
   );
 }
 
+bool block_base_low_rank_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *value)
+{
+  if (!block.block_base_eligible) {
+    return false;
+  }
+  const int size = static_cast<int>(block.index.size());
+  const int rank = block.rank;
+  double *diagonal = plan.diagonal_work.data();
+  double *residual = plan.residual_work.data();
+  double *U = fill_low_rank_factor(plan, block, factors);
+  double *covariance = plan.covariance_work.data();
+  double *base_rhs = plan.base_rhs_work.data();
+  std::fill(diagonal, diagonal + size, 1.0);
+  for (int local = 0; local < size; ++local) {
+    const int global = block.index[static_cast<size_t>(local)];
+    if (!std::isfinite(mean[global])) {
+      return false;
+    }
+    residual[static_cast<size_t>(local)] =
+      plan.y[static_cast<size_t>(global)] - mean[global];
+  }
+
+  double log_determinant = 0.0;
+  double base_quadratic = 0.0;
+  const double one = 1.0;
+  const int rhs_columns = rank + 1;
+  for (const SamplingBlock &sampling_block : block.sampling_blocks) {
+    const int block_size = static_cast<int>(sampling_block.local_rows.size());
+    std::copy(
+      sampling_block.covariance.begin(),
+      sampling_block.covariance.end(),
+      covariance
+    );
+    for (int row = 0; row < block_size; ++row) {
+      const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+      const int global = block.index[static_cast<size_t>(local)];
+      covariance[static_cast<size_t>(row + block_size * row)] += extra[global];
+      base_rhs[static_cast<size_t>(row)] = residual[
+        static_cast<size_t>(local)
+      ];
+      for (int column = 0; column < rank; ++column) {
+        base_rhs[static_cast<size_t>(
+          row + block_size * (column + 1)
+        )] = U[static_cast<size_t>(local + size * column)];
+      }
+    }
+
+    int info = 0;
+    F77_CALL(dpotrf)(
+      "L", &block_size, covariance, &block_size, &info FCONE
+    );
+    if (info != 0) {
+      return false;
+    }
+    for (int row = 0; row < block_size; ++row) {
+      log_determinant += 2.0 * std::log(covariance[static_cast<size_t>(
+        row + block_size * row
+      )]);
+    }
+    F77_CALL(dtrsm)(
+      "L", "L", "N", "N", &block_size, &rhs_columns, &one,
+      covariance, &block_size, base_rhs, &block_size
+      FCONE FCONE FCONE FCONE
+    );
+    for (int row = 0; row < block_size; ++row) {
+      const int local = sampling_block.local_rows[static_cast<size_t>(row)];
+      const double transformed_residual = base_rhs[static_cast<size_t>(row)];
+      residual[static_cast<size_t>(local)] = transformed_residual;
+      base_quadratic += transformed_residual * transformed_residual;
+      for (int column = 0; column < rank; ++column) {
+        U[static_cast<size_t>(local + size * column)] = base_rhs[
+          static_cast<size_t>(row + block_size * (column + 1))
+        ];
+      }
+    }
+  }
+
+  return diagonal_low_rank_log_likelihood(
+    plan,
+    size,
+    rank,
+    diagonal,
+    residual,
+    U,
+    log_determinant,
+    base_quadratic,
+    value
+  );
+}
+
 bool spectral_block_log_likelihood(
     CovariancePlan &plan,
     const BlockPlan &block,
@@ -1029,6 +1196,13 @@ double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
   for (const BlockPlan &block : plan.blocks) {
     double block_value = 0.0;
     if (!low_rank_block_log_likelihood(
+      plan,
+      block,
+      factors,
+      mean_values,
+      extra_values,
+      &block_value
+    ) && !block_base_low_rank_log_likelihood(
       plan,
       block,
       factors,
@@ -1161,20 +1335,27 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   SEXP pointer = PROTECT(R_MakeExternalPtr(plan, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(pointer, finalize_plan, TRUE);
   int low_rank_blocks = 0;
+  int block_base_blocks = 0;
   int spectral_blocks = 0;
   int root_dense_blocks = 0;
+  int dense_blocks = 0;
   for (const BlockPlan &block : plan->blocks) {
-    low_rank_blocks += block.low_rank_eligible ? 1 : 0;
-    spectral_blocks += block.spectral_eligible ? 1 : 0;
-    root_dense_blocks += block.root_eligible &&
-      !block.low_rank_eligible && !block.spectral_eligible ? 1 : 0;
+    if (block.low_rank_eligible) {
+      ++low_rank_blocks;
+    } else if (block.block_base_eligible) {
+      ++block_base_blocks;
+    } else if (block.spectral_eligible) {
+      ++spectral_blocks;
+    } else {
+      ++dense_blocks;
+      root_dense_blocks += block.root_eligible ? 1 : 0;
+    }
   }
   SEXP low_rank_blocks_sexp = PROTECT(Rf_ScalarInteger(low_rank_blocks));
+  SEXP block_base_blocks_sexp = PROTECT(Rf_ScalarInteger(block_base_blocks));
   SEXP spectral_blocks_sexp = PROTECT(Rf_ScalarInteger(spectral_blocks));
   SEXP root_dense_blocks_sexp = PROTECT(Rf_ScalarInteger(root_dense_blocks));
-  SEXP dense_blocks_sexp = PROTECT(Rf_ScalarInteger(
-    static_cast<int>(plan->blocks.size()) - low_rank_blocks - spectral_blocks
-  ));
+  SEXP dense_blocks_sexp = PROTECT(Rf_ScalarInteger(dense_blocks));
   Rf_setAttrib(
     pointer,
     Rf_install("root_dense_blocks"),
@@ -1187,6 +1368,11 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   );
   Rf_setAttrib(
     pointer,
+    Rf_install("block_base_blocks"),
+    block_base_blocks_sexp
+  );
+  Rf_setAttrib(
+    pointer,
     Rf_install("spectral_blocks"),
     spectral_blocks_sexp
   );
@@ -1195,7 +1381,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     Rf_install("dense_blocks"),
     dense_blocks_sexp
   );
-  UNPROTECT(5);
+  UNPROTECT(6);
   return pointer;
 }
 
