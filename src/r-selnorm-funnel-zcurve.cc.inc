@@ -205,13 +205,24 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
   const double *sei_p  = REAL(sei);
   double *out_p        = REAL(out);
 
+  std::vector<double> log_scale(static_cast<size_t>(S) * static_cast<size_t>(K));
+  for (int k = 0; k < K; ++k) {
+    const double log_sei = std::log(sei_p[k]);
+    for (int s = 0; s < S; ++s) {
+      const int cell = s + S * k;
+      log_scale[static_cast<size_t>(cell)] =
+        log_sei - std::log(sd_p[cell]);
+    }
+  }
+
   for (int ell = 0; ell < L; ++ell) {
     for (int s = 0; s < S; ++s) {
       double dens_sum = 0;
       for (int k = 0; k < K; ++k) {
         const int cell = s + S * k;
-        dens_sum += std::exp(cpp_selnorm_affine_normal_lpdf(
-          z_p[ell], sei_p[k], mean_p[cell], sd_p[cell]
+        dens_sum += std::exp(cpp_selnorm_affine_normal_lpdf_log_scale(
+          z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
+          log_scale[static_cast<size_t>(cell)]
         ));
       }
       out_p[s + S * ell] = dens_sum / K;
@@ -288,7 +299,6 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
   if (Rf_length(kernel_mode) != 1 && Rf_length(kernel_mode) != S) {
     Rf_error("'kernel_mode' must have length 1 or one value per posterior sample.");
   }
-
   const int n_segments = Rf_length(segment_step_bin);
   if (Rf_length(segment_phack_region) != n_segments ||
       Rf_length(segment_bounds) != n_segments + 1) {
@@ -454,8 +464,22 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   check_real(segment_bounds, "segment_bounds");
   check_integer(segment_step_bin, "segment_step_bin");
   check_integer(segment_phack_region, "segment_phack_region");
-  check_logical(extrapolate, "extrapolate");
+  if (TYPEOF(extrapolate) != LGLSXP) {
+    Rf_error("'extrapolate' must be logical.");
+  }
   check_logical(telescope_probabilities, "telescope_probabilities");
+
+  const bool paired = Rf_length(extrapolate) == 2;
+  if (Rf_length(extrapolate) != 1 && !paired) {
+    Rf_error("'extrapolate' must have length one or request the fitted/extrapolated pair.");
+  }
+  if (paired &&
+      (LOGICAL(extrapolate)[0] != FALSE || LOGICAL(extrapolate)[1] != TRUE)) {
+    Rf_error("A paired density request must be c(FALSE, TRUE).");
+  }
+  if (!paired && LOGICAL(extrapolate)[0] == NA_LOGICAL) {
+    Rf_error("'extrapolate' must not be missing.");
+  }
 
   const int S = matrix_nrow(mean, "mean");
   const int K = matrix_ncol(mean, "mean");
@@ -501,7 +525,37 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     Rf_error("Segment arrays have incompatible lengths.");
   }
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, L));
+  int n_protect = 0;
+  SEXP out          = R_NilValue;
+  SEXP fitted       = R_NilValue;
+  SEXP extrapolated = R_NilValue;
+  double *out_p          = NULL;
+  double *fitted_p       = NULL;
+  double *extrapolated_p = NULL;
+
+  if (paired) {
+    fitted = PROTECT(Rf_allocMatrix(REALSXP, S, L));
+    ++n_protect;
+    extrapolated = PROTECT(Rf_allocMatrix(REALSXP, S, L));
+    ++n_protect;
+    out = PROTECT(Rf_allocVector(VECSXP, 2));
+    ++n_protect;
+    SET_VECTOR_ELT(out, 0, fitted);
+    SET_VECTOR_ELT(out, 1, extrapolated);
+
+    SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+    ++n_protect;
+    SET_STRING_ELT(names, 0, Rf_mkChar("fitted"));
+    SET_STRING_ELT(names, 1, Rf_mkChar("extrapolated"));
+    Rf_setAttrib(out, R_NamesSymbol, names);
+
+    fitted_p       = REAL(fitted);
+    extrapolated_p = REAL(extrapolated);
+  } else {
+    out = PROTECT(Rf_allocMatrix(REALSXP, S, L));
+    ++n_protect;
+    out_p = REAL(out);
+  }
 
   SelNormKernelData data;
   set_kernel_data(
@@ -520,7 +574,6 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   const int *phack_kind_p  = INTEGER(phack_kind);
   const int *kernel_mode_p = INTEGER(kernel_mode);
   const bool extrapolate_b = LOGICAL(extrapolate)[0] == TRUE;
-  double *out_p            = REAL(out);
 
   validate_omega_matrix(omega_p, S, B);
 
@@ -553,9 +606,13 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   }
 
   std::vector<double> log_norm(S * K, 0);
+  std::vector<double> log_scale(S * K);
   for (int k = 0; k < K; ++k) {
+    const double log_sei = std::log(sei_p[k]);
     for (int s = 0; s < S; ++s) {
       const int cell = s + S * k;
+      log_scale[static_cast<size_t>(cell)] =
+        log_sei - std::log(sd_p[cell]);
 
       if (row_active_phack[static_cast<size_t>(s)]) {
         log_norm[cell] = std::numeric_limits<double>::quiet_NaN();
@@ -577,7 +634,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   }
 
   std::vector<int> z_bin(L, 1);
-  if (any_step && !extrapolate_b) {
+  if (any_step && (!extrapolate_b || paired)) {
     for (int ell = 0; ell < L; ++ell) {
       z_bin[static_cast<size_t>(ell)] = z_step_bin(
         data.effect_sign * z_p[ell], data
@@ -588,7 +645,51 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   for (int ell = 0; ell < L; ++ell) {
     for (int s = 0; s < S; ++s) {
       if (row_active_phack[static_cast<size_t>(s)]) {
-        out_p[s + S * ell] = std::numeric_limits<double>::quiet_NaN();
+        const double missing = std::numeric_limits<double>::quiet_NaN();
+        if (paired) {
+          fitted_p[s + S * ell]       = missing;
+          extrapolated_p[s + S * ell] = missing;
+        } else {
+          out_p[s + S * ell] = missing;
+        }
+        continue;
+      }
+
+      if (paired) {
+        double fitted_sum       = 0;
+        double extrapolated_sum = 0;
+
+        if (row_use_step[static_cast<size_t>(s)]) {
+          const int bin  = z_bin[static_cast<size_t>(ell)];
+          const double w = omega_p[s + S * (bin - 1)];
+          const bool positive_weight = w > 0;
+          const double log_observed_weight = positive_weight ? std::log(w) : 0;
+
+          for (int k = 0; k < K; ++k) {
+            const int cell = s + S * k;
+            double log_density = cpp_selnorm_affine_normal_lpdf_log_scale(
+              z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
+              log_scale[static_cast<size_t>(cell)]
+            );
+            log_density -= log_norm[cell];
+            extrapolated_sum += std::exp(log_density);
+            if (positive_weight) {
+              fitted_sum += std::exp(log_density + log_observed_weight);
+            }
+          }
+        } else {
+          for (int k = 0; k < K; ++k) {
+            const int cell = s + S * k;
+            fitted_sum += std::exp(cpp_selnorm_affine_normal_lpdf_log_scale(
+              z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
+              log_scale[static_cast<size_t>(cell)]
+            ));
+          }
+          extrapolated_sum = fitted_sum;
+        }
+
+        fitted_p[s + S * ell]       = fitted_sum / K;
+        extrapolated_p[s + S * ell] = extrapolated_sum / K;
         continue;
       }
 
@@ -608,8 +709,9 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
 
         for (int k = 0; k < K; ++k) {
           const int cell = s + S * k;
-          double log_density = cpp_selnorm_affine_normal_lpdf(
-            z_p[ell], sei_p[k], mean_p[cell], sd_p[cell]
+          double log_density = cpp_selnorm_affine_normal_lpdf_log_scale(
+            z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
+            log_scale[static_cast<size_t>(cell)]
           );
 
           log_density -= log_norm[cell];
@@ -622,8 +724,9 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
       } else {
         for (int k = 0; k < K; ++k) {
           const int cell = s + S * k;
-          dens_sum += std::exp(cpp_selnorm_affine_normal_lpdf(
-            z_p[ell], sei_p[k], mean_p[cell], sd_p[cell]
+          dens_sum += std::exp(cpp_selnorm_affine_normal_lpdf_log_scale(
+            z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
+            log_scale[static_cast<size_t>(cell)]
           ));
         }
       }
@@ -632,6 +735,6 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     }
   }
 
-  UNPROTECT(1);
+  UNPROTECT(n_protect);
   return out;
 }

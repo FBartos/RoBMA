@@ -1,5 +1,11 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- speeds exact selected-normal plotting without reducing posterior draws or
+  plot grids: `zplot()` reuses invariant affine-density terms and evaluates
+  fitted and extrapolated curves together when their predictive target is
+  shared; `funnel()` and selection-model `regplot()` cache invariant step-bin
+  CDF plans; and `regplot()` batches prediction-specific standard errors and
+  reuses exact neighboring quantile roots with the original global fallback.
 - converts numerically symmetric known sampling covariance matrices once to an
   exactly symmetric representation at input validation, so fitting,
   prediction, LOO, and bridge sampling use the same covariance values.

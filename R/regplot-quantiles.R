@@ -125,21 +125,6 @@
     selection_context,
     ".regplot_selection_mixture_interval_quantiles()"
   )
-  if (length(se) > 1L) {
-    intervals <- lapply(seq_len(ncol(mean_samples)), function(i) {
-      .regplot_selnorm_mixture_interval_quantiles(
-        mean_samples      = mean_samples[, i, drop = FALSE],
-        sd_samples        = sd_samples[, i, drop = FALSE],
-        se                = se[[i]],
-        probs             = probs,
-        selection_context = selection_context
-      )
-    })
-    return(list(
-      lower = vapply(intervals, `[[`, numeric(1), "lower"),
-      upper = vapply(intervals, `[[`, numeric(1), "upper")
-    ))
-  }
   native_static <- BayesTools::selection_native_static_args(selection_context)
 
   return(.Call(

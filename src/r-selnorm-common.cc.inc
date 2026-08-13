@@ -327,6 +327,11 @@ struct FunnelSeContext {
   std::vector<double> total_sd;
   std::vector<char> zero_sd;
   std::vector<char> weighted;
+  std::vector<char> step_plan_valid;
+  std::vector<int> step_plan_groups;
+  std::vector<double> step_lower_score;
+  std::vector<double> step_upper_score;
+  std::vector<double> step_log_weight;
 };
 
 double funnel_selected_cdf_zero_se(double q, int s, const FunnelSeContext &ctx)
@@ -393,6 +398,14 @@ void funnel_prepare_se_context(FunnelSeContext *ctx)
   ctx->total_sd.assign(static_cast<size_t>(ctx->S), 0);
   ctx->zero_sd.assign(static_cast<size_t>(ctx->S), 0);
   ctx->weighted.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->step_plan_valid.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->step_plan_groups.assign(static_cast<size_t>(ctx->S), 0);
+  const int n_bins = ctx->data->n_bins;
+  const size_t plan_size = static_cast<size_t>(ctx->S) *
+    static_cast<size_t>(n_bins);
+  ctx->step_lower_score.assign(plan_size, 0);
+  ctx->step_upper_score.assign(plan_size, 0);
+  ctx->step_log_weight.assign(plan_size, 0);
 
   for (int s = 0; s < ctx->S; ++s) {
     const size_t si = static_cast<size_t>(s);
@@ -405,6 +418,28 @@ void funnel_prepare_se_context(FunnelSeContext *ctx)
     ctx->total_sd[si] = total_sd;
     ctx->zero_sd[si]  = total_sd == 0;
     ctx->weighted[si] = ctx->is_weightfunction[s] != 0 && !ctx->zero_sd[si];
+
+    const int mode = (*ctx->row_mode)[si];
+    if (ctx->weighted[si] && ctx->se > 0 &&
+        !(*ctx->row_active_phack)[si] &&
+        (mode == SELKERNEL_STEP || mode == SELKERNEL_STEP_PHACK_POWER)) {
+      const size_t offset = si * static_cast<size_t>(n_bins);
+      int n_groups = 0;
+      ctx->step_plan_valid[si] = cpp_selnorm_step_cdf_plan(
+        location,
+        total_sd,
+        ctx->se,
+        ctx->omega + s,
+        *ctx->data,
+        ctx->step_lower_score.data() + offset,
+        ctx->step_upper_score.data() + offset,
+        ctx->step_log_weight.data() + offset,
+        &n_groups,
+        ctx->S,
+        false
+      );
+      ctx->step_plan_groups[si] = n_groups;
+    }
 
   }
 }
@@ -424,6 +459,20 @@ double funnel_model_averaged_cdf_native(double q, const FunnelSeContext &ctx)
         cdf_s = funnel_selected_cdf_zero_se(q, s, ctx);
       } else if ((*ctx.row_active_phack)[si]) {
         cdf_s = NA_REAL;
+      } else if (ctx.step_plan_valid[si]) {
+        const size_t offset = si * static_cast<size_t>(ctx.data->n_bins);
+        cdf_s = cpp_selnorm_step_cdf_from_plan(
+          q,
+          ctx.location[si],
+          ctx.total_sd[si],
+          ctx.se,
+          *ctx.data,
+          ctx.step_lower_score.data() + offset,
+          ctx.step_upper_score.data() + offset,
+          ctx.step_log_weight.data() + offset,
+          ctx.step_plan_groups[si],
+          true
+        );
       } else {
         cdf_s = cpp_selnorm_kernel_cdf(
           q,

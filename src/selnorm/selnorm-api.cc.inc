@@ -12,6 +12,14 @@ double cpp_selnorm_normal_lpdf(double x, double mean, double sd)
 double cpp_selnorm_affine_normal_lpdf(double z, double sei, double mean,
                                       double sd)
 {
+  return cpp_selnorm_affine_normal_lpdf_log_scale(
+    z, sei, mean, sd, std::log(sei) - std::log(sd)
+  );
+}
+
+double cpp_selnorm_affine_normal_lpdf_log_scale(
+  double z, double sei, double mean, double sd, double log_scale)
+{
   if (!(sei > 0) || !std::isfinite(sei) ||
       !(sd > 0) || !std::isfinite(sd) || !std::isfinite(mean) ||
       std::isnan(z)) {
@@ -19,7 +27,7 @@ double cpp_selnorm_affine_normal_lpdf(double z, double sei, double mean,
   }
 
   const double score = stable_affine_score(z, sei, mean, sd);
-  return dnorm(score, 0, 1, true) + std::log(sei) - std::log(sd);
+  return dnorm(score, 0, 1, true) + log_scale;
 }
 
 double cpp_selnorm_kernel_lpdf(
@@ -228,6 +236,112 @@ double cpp_selnorm_kernel_cdf(
     return std::numeric_limits<double>::quiet_NaN();
   }
   return probability_from_log_ratio(log_probability, 0);
+}
+
+bool cpp_selnorm_step_cdf_plan(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  const SelNormKernelData &data,
+  double *lower_score,
+  double *upper_score,
+  double *log_weight,
+  int *n_groups,
+  int omega_stride,
+  bool validate_omega)
+{
+  *n_groups = 0;
+  if (!(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei) ||
+      !std::isfinite(mean) ||
+      !(data.effect_sign == 1 || data.effect_sign == -1) ||
+      (validate_omega &&
+       !validate_omega_values(omega, data, omega_stride))) {
+    return false;
+  }
+
+  const double signed_mean = data.effect_sign * mean;
+  for (int b = 0; b < data.n_bins; ) {
+    const double w = omega_at(omega, b + 1, omega_stride);
+    int last = b;
+
+    if (data.trusted_step_partition) {
+      while (last + 1 < data.n_bins &&
+             omega_at(omega, last + 2, omega_stride) == w) {
+        ++last;
+      }
+    }
+
+    if (w > 0) {
+      const double lower_z = data.trusted_step_partition ?
+        data.z_lower[last] : data.z_lower[b];
+      const double upper_z = data.z_upper[b];
+      const double lower = stable_affine_score(
+        lower_z, sei, signed_mean, sd
+      );
+      const double upper = stable_affine_score(
+        upper_z, sei, signed_mean, sd
+      );
+      if (std::isnan(lower) || std::isnan(upper) || !(lower < upper)) {
+        return false;
+      }
+
+      const int group = *n_groups;
+      lower_score[group] = lower;
+      upper_score[group] = upper;
+      log_weight[group]  = std::log(w);
+      ++(*n_groups);
+    } else if (w < 0 || std::isnan(w)) {
+      return false;
+    }
+
+    b = data.trusted_step_partition ? last + 1 : b + 1;
+  }
+
+  return *n_groups > 0;
+}
+
+double cpp_selnorm_step_cdf_from_plan(
+  double q,
+  double mean,
+  double sd,
+  double sei,
+  const SelNormKernelData &data,
+  const double *lower_score,
+  const double *upper_score,
+  const double *log_weight,
+  int n_groups,
+  bool lower_tail)
+{
+  if (!(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei) ||
+      !std::isfinite(mean) || std::isnan(q) || n_groups < 1 ||
+      !(data.effect_sign == 1 || data.effect_sign == -1)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const double signed_q    = data.effect_sign * q;
+  const double signed_mean = data.effect_sign * mean;
+  const double q_score     = stable_normal_score(
+    signed_q, signed_mean, sd
+  );
+  double signed_log_lower;
+  double signed_log_upper;
+  if (!step_log_tail_pair_from_plan(
+        q_score, lower_score, upper_score, log_weight, n_groups,
+        &signed_log_lower, &signed_log_upper
+      )) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const double log_lower = data.effect_sign == 1 ?
+    signed_log_lower : signed_log_upper;
+  const double log_upper = data.effect_sign == 1 ?
+    signed_log_upper : signed_log_lower;
+  return probability_from_log_ratio(
+    lower_tail ? log_lower : log_upper, 0
+  );
 }
 
 void cpp_selnorm_kernel_log_tail_pair(
