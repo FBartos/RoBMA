@@ -95,6 +95,7 @@ struct BlockPlan {
   int rank;
   bool low_rank_eligible;
   bool spectral_eligible;
+  bool root_eligible;
 };
 
 struct CovariancePlan {
@@ -377,6 +378,7 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     }
   }
   out.rank = rank;
+  out.root_eligible = compatible;
   out.low_rank_eligible = sampling_diagonal && compatible && rank < size;
   out.spectral_eligible = !sampling_diagonal && compatible && rank < size;
   if (out.spectral_eligible) {
@@ -629,26 +631,9 @@ void fill_dense_block(
   }
 }
 
-double dense_block_log_likelihood(
-    CovariancePlan &plan,
-    const BlockPlan &block,
-    const std::vector<CovarianceFactor> &factors,
-    const double *mean,
-    const double *extra)
+double cholesky_block_log_likelihood(int size, double *covariance,
+                                     double *residual)
 {
-  const int size = static_cast<int>(block.index.size());
-  double *covariance = plan.covariance_work.data();
-  double *residual = plan.residual_work.data();
-  fill_dense_block(
-    plan,
-    block,
-    factors,
-    mean,
-    extra,
-    covariance,
-    residual
-  );
-
   int info = 0;
   F77_CALL(dpotrf)("L", &size, covariance, &size, &info FCONE);
   if (info != 0) {
@@ -676,6 +661,28 @@ double dense_block_log_likelihood(
     log_determinant +
     quadratic
   );
+}
+
+double dense_block_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra)
+{
+  const int size = static_cast<int>(block.index.size());
+  double *covariance = plan.covariance_work.data();
+  double *residual = plan.residual_work.data();
+  fill_dense_block(
+    plan,
+    block,
+    factors,
+    mean,
+    extra,
+    covariance,
+    residual
+  );
+  return cholesky_block_log_likelihood(size, covariance, residual);
 }
 
 double *fill_low_rank_factor(
@@ -729,6 +736,55 @@ double *fill_low_rank_factor(
     }
   }
   return U;
+}
+
+bool root_dense_block_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *value)
+{
+  if (!block.root_eligible) {
+    return false;
+  }
+  const int size = static_cast<int>(block.index.size());
+  double *covariance = plan.covariance_work.data();
+  double *residual = plan.residual_work.data();
+  for (int col = 0; col < size; ++col) {
+    const int global_col = block.index[static_cast<size_t>(col)];
+    for (int row = 0; row < size; ++row) {
+      const int global_row = block.index[static_cast<size_t>(row)];
+      double base = plan.sampling_covariance[static_cast<size_t>(
+        global_row + plan.n * global_col
+      )];
+      if (row == col) {
+        base += extra[global_row];
+      }
+      if (!std::isfinite(base)) {
+        Rf_error("Known-V bridge covariance base must be finite.");
+      }
+      covariance[static_cast<size_t>(row + size * col)] = base;
+    }
+    if (!std::isfinite(mean[global_col])) {
+      Rf_error("Known-V bridge means must be finite.");
+    }
+    residual[static_cast<size_t>(col)] =
+      plan.y[static_cast<size_t>(global_col)] - mean[global_col];
+  }
+
+  double *U = fill_low_rank_factor(plan, block, factors);
+  const int rank = block.rank;
+  if (rank > 0) {
+    const double one = 1.0;
+    F77_CALL(dsyrk)(
+      "L", "N", &size, &rank, &one, U, &size, &one,
+      covariance, &size FCONE FCONE
+    );
+  }
+  *value = cholesky_block_log_likelihood(size, covariance, residual);
+  return true;
 }
 
 bool diagonal_low_rank_log_likelihood(
@@ -986,6 +1042,13 @@ double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
       mean_values,
       extra_values,
       &block_value
+    ) && !root_dense_block_log_likelihood(
+      plan,
+      block,
+      factors,
+      mean_values,
+      extra_values,
+      &block_value
     )) {
       block_value = dense_block_log_likelihood(
         plan,
@@ -1099,15 +1162,24 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   R_RegisterCFinalizerEx(pointer, finalize_plan, TRUE);
   int low_rank_blocks = 0;
   int spectral_blocks = 0;
+  int root_dense_blocks = 0;
   for (const BlockPlan &block : plan->blocks) {
     low_rank_blocks += block.low_rank_eligible ? 1 : 0;
     spectral_blocks += block.spectral_eligible ? 1 : 0;
+    root_dense_blocks += block.root_eligible &&
+      !block.low_rank_eligible && !block.spectral_eligible ? 1 : 0;
   }
   SEXP low_rank_blocks_sexp = PROTECT(Rf_ScalarInteger(low_rank_blocks));
   SEXP spectral_blocks_sexp = PROTECT(Rf_ScalarInteger(spectral_blocks));
+  SEXP root_dense_blocks_sexp = PROTECT(Rf_ScalarInteger(root_dense_blocks));
   SEXP dense_blocks_sexp = PROTECT(Rf_ScalarInteger(
     static_cast<int>(plan->blocks.size()) - low_rank_blocks - spectral_blocks
   ));
+  Rf_setAttrib(
+    pointer,
+    Rf_install("root_dense_blocks"),
+    root_dense_blocks_sexp
+  );
   Rf_setAttrib(
     pointer,
     Rf_install("low_rank_blocks"),
@@ -1123,7 +1195,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     Rf_install("dense_blocks"),
     dense_blocks_sexp
   );
-  UNPROTECT(4);
+  UNPROTECT(5);
   return pointer;
 }
 

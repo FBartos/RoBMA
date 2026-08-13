@@ -794,6 +794,7 @@ test_that("native dense plan supports known group covariance and random slopes",
   )
 
   expect_identical(attr(plan, "low_rank_blocks"), 0L)
+  expect_identical(attr(plan, "root_dense_blocks"), 1L)
   expect_identical(attr(plan, "dense_blocks"), 1L)
   expect_equal(actual, expected, tolerance = 1e-12)
 })

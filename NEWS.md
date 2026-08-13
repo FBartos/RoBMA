@@ -1,5 +1,9 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- routes covariance factors whose latent width is not below the observation
+  dimension through exact BLAS root products and observation-space Cholesky,
+  avoiding entry-by-entry `ZGZ'` reconstruction while retaining the dense
+  fallback for covariance sources without a root contract.
 - stabilizes exact Woodbury quadratic forms when cancellation can dominate the
   usual subtraction, switching to the algebraically identical
   residual-plus-penalty evaluation without clamping or covariance repair.
