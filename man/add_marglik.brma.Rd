@@ -5,7 +5,16 @@
 \alias{add_marglik}
 \title{Add Marginal Likelihood to brma Objects}
 \usage{
-\method{add_marglik}{brma}(object, parallel = NULL, cores = NULL, ...)
+\method{add_marglik}{brma}(
+  object,
+  parallel = NULL,
+  cores = NULL,
+  repetitions = 1L,
+  method = c("normal", "warp3"),
+  maxiter = 10000L,
+  silent = TRUE,
+  ...
+)
 }
 \arguments{
 \item{object}{a brma model object.}
@@ -18,7 +27,16 @@ default, \code{NULL}, inherits the setting used to fit \code{object}.}
 \code{RoBMA.get_option("max_cores")}. It is used only when
 \code{parallel = TRUE}.}
 
-\item{...}{additional arguments (currently not used).}
+\item{repetitions}{number of independent bridge-sampling repetitions.}
+
+\item{method}{bridge transformation; either \code{"normal"} or
+\code{"warp3"}.}
+
+\item{maxiter}{maximum number of bridge iterations per repetition.}
+
+\item{silent}{whether bridge-sampling progress is suppressed.}
+
+\item{...}{reserved for future use.}
 }
 \value{
 The brma object with the marginal likelihood result stored in
@@ -41,10 +59,20 @@ the log marginal likelihood is evaluated exactly at those fixed values;
 no bridge-sampling repetitions are required.
 For \code{brma.mv()} known-\code{V} objects, bridge sampling evaluates the
 joint likelihood corresponding to the fitted known-\code{V} backend, not the
-conditional estimate-wise target used by LOO/WAIC diagnostics. Known
-\code{R} enters through the latent random-effect prior for sampled
-random-effect blocks and through diagonal marginalized row variance for
-supported marginalized known-\code{R} blocks.
+conditional estimate-wise target used by LOO/WAIC diagnostics. Sampled
+Gaussian location random-effect blocks are integrated exactly during bridge
+evaluation as their draw-specific \eqn{ZGZ'} covariance. Their SD,
+allocation, and correlation parameters remain bridge coordinates; only the
+standardized latent effects are removed. This is a reparameterization of the
+same marginal-likelihood target, not a likelihood approximation. Fitted
+estimate-level marginalized blocks remain in the diagonal row variance.
+For Gaussian models fitted with the legacy code{cluster} argument, the
+standardized cluster effects are likewise integrated exactly. The bridge
+retains total heterogeneity and its allocation while evaluating the implied
+diagonal-plus-cluster-rank-one covariance, including row-specific scale
+regression and likelihood weights.
+Selection likelihoods retain the fitted joint latent parameterization because
+they are not Gaussian in the shared random effects.
 }
 \examples{
 \dontrun{

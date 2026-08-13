@@ -124,6 +124,53 @@ test_that("diagonal known-V estimate log-likelihood is exactly vectorized", {
 })
 
 
+test_that("native covariance plan returns exact Schur conditional densities", {
+
+  y <- c(0.1, -0.2, 0.3, -0.1, 0.05)
+  mean <- c(0.02, -0.03, 0.08, -0.04, 0.01)
+  sampling_covariance <- matrix(0, nrow = 5L, ncol = 5L)
+  sampling_covariance[1:3, 1:3] <- matrix(
+    c(0.08, 0.02, 0.01, 0.02, 0.09, 0.015, 0.01, 0.015, 0.07),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  sampling_covariance[4:5, 4:5] <- matrix(
+    c(0.06, 0.012, 0.012, 0.05),
+    nrow = 2L
+  )
+  extra_variance <- c(0.01, 0.02, 0.015, 0.025, 0.018)
+  blocks <- list(1:3, 4:5)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(),
+    blocks,
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    list(),
+    as.double(extra_variance),
+    PACKAGE = "RoBMA"
+  )
+  expected <- numeric(length(y))
+  for (idx in blocks) {
+    covariance <- sampling_covariance[idx, idx, drop = FALSE] +
+      diag(extra_variance[idx], nrow = length(idx))
+    expected[idx] <- .log_lik_known_v_component_conditional(
+      yi         = y[idx],
+      mu         = mean[idx],
+      covariance = covariance
+    )
+  }
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+
 test_that("rank-one known V retains sub-ULP diagonal variance", {
 
   V    <- matrix(1, nrow = 2L, ncol = 2L)

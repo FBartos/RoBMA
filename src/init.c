@@ -146,6 +146,21 @@ extern SEXP RoBMA_selnorm_kernel_loglik_matrix(SEXP yi, SEXP mu_num,
 extern SEXP RoBMA_norm_loglik_row_sum(SEXP yi, SEXP mu_samples,
                                       SEXP tau_within, SEXP sei,
                                       SEXP weights);
+extern SEXP RoBMA_known_v_block_mvn_loglik(SEXP y, SEXP mean,
+                                             SEXP sampling_covariance,
+                                             SEXP random_covariance_blocks,
+                                             SEXP block_indices,
+                                             SEXP extra_variance);
+extern SEXP RoBMA_known_v_covariance_plan_create(SEXP y,
+                                                  SEXP sampling_covariance,
+                                                  SEXP random_covariance_factors,
+                                                  SEXP block_indices);
+extern SEXP RoBMA_known_v_covariance_plan_loglik(SEXP pointer, SEXP mean,
+                                                  SEXP random_covariance_factors,
+                                                  SEXP extra_variance);
+extern SEXP RoBMA_known_v_covariance_plan_conditional_loglik(
+    SEXP pointer, SEXP mean, SEXP random_covariance_factors,
+    SEXP extra_variance);
 extern SEXP RoBMA_selnorm_kernel_loglik_row_sum(SEXP yi, SEXP mu_num,
                                                 SEXP sigma_num,
                                                 SEXP mu_norm,
@@ -416,6 +431,10 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_regplot_selnorm_mixture_interval", (DL_FUNC) &RoBMA_regplot_selnorm_mixture_interval, 18},
     {"RoBMA_selnorm_kernel_loglik_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_loglik_matrix, 22},
     {"RoBMA_norm_loglik_row_sum", (DL_FUNC) &RoBMA_norm_loglik_row_sum, 5},
+    {"RoBMA_known_v_block_mvn_loglik", (DL_FUNC) &RoBMA_known_v_block_mvn_loglik, 6},
+    {"RoBMA_known_v_covariance_plan_create", (DL_FUNC) &RoBMA_known_v_covariance_plan_create, 4},
+    {"RoBMA_known_v_covariance_plan_loglik", (DL_FUNC) &RoBMA_known_v_covariance_plan_loglik, 4},
+    {"RoBMA_known_v_covariance_plan_conditional_loglik", (DL_FUNC) &RoBMA_known_v_covariance_plan_conditional_loglik, 4},
     {"RoBMA_selnorm_kernel_loglik_row_sum", (DL_FUNC) &RoBMA_selnorm_kernel_loglik_row_sum, 22},
     {"RoBMA_norm_cluster_loglik", (DL_FUNC) &RoBMA_norm_cluster_loglik, 10},
     {"RoBMA_norm_cluster_loglik_row_sum", (DL_FUNC) &RoBMA_norm_cluster_loglik_row_sum, 10},

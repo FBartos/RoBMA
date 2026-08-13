@@ -1,0 +1,967 @@
+test_that("shared Gaussian bridge covariance matches exact known-V likelihoods", {
+
+  dat <- data.frame(
+    yi = c(0.10, -0.20, 0.15, 0.05),
+    study = factor(c("s1", "s1", "s2", "s3"))
+  )
+  V <- matrix(
+    c(
+      0.04, 0.01, 0, 0,
+      0.01, 0.09, 0, 0,
+      0, 0, 0.05, 0.012,
+      0, 0, 0.012, 0.06
+    ),
+    nrow = 4L,
+    byrow = TRUE
+  )
+  random_covariance <- 0.3^2 * outer(dat$study, dat$study, "==")
+  bridge_context <- structure(
+    list(
+      nodes = numeric(),
+      marginalized_random = list(
+        mu = list(covariance = random_covariance)
+      )
+    ),
+    class = c(
+      "BayesTools_bridge_marginal_context",
+      "BayesTools_bridge_context",
+      "list"
+    )
+  )
+
+  for (backend in c("block_mvn", "whitened")) {
+    object <- brma.mv(
+      yi = yi,
+      V = V,
+      random = ~ 1 | study,
+      data = dat,
+      measure = "GEN",
+      known_v_parameterization = backend,
+      marginalize_estimate_level = FALSE,
+      prior_unit_information_sd = 1,
+      only_priors = TRUE
+    )
+    fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+    fit_data <- .marglik_add_random_covariance_bridge_data(
+      fit_data = fit_data,
+      model_data = object[["data"]],
+      marginalizing = TRUE,
+      dependency_blocks = list(1:2, 3:4)
+    )
+    actual <- .log_posterior(
+      parameters = list(mu = 0),
+      data = fit_data,
+      is_mods = FALSE,
+      is_scale = FALSE,
+      is_random = TRUE,
+      is_multilevel = FALSE,
+      is_weights = FALSE,
+      is_known_v = TRUE,
+      is_PET = FALSE,
+      is_PEESE = FALSE,
+      is_weightfunction = FALSE,
+      effect_direction = "positive",
+      outcome_type = "norm",
+      model_data = object[["data"]],
+      bridge_context = bridge_context
+    )
+    expected <- .marglik_mvn_log_density(
+      y = dat$yi,
+      mean = rep(0, nrow(dat)),
+      covariance = V + random_covariance
+    )
+
+    expect_equal(actual, expected, tolerance = 1e-12, info = backend)
+  }
+})
+
+test_that("latent known-V bridge conditions on sampling effects and integrates random effects", {
+
+  dat <- data.frame(
+    yi = c(0.10, -0.20, 0.15),
+    study = factor(c("s1", "s1", "s2"))
+  )
+  V <- matrix(
+    c(
+      0.04, 0.01, 0,
+      0.01, 0.09, 0.012,
+      0, 0.012, 0.05
+    ),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  object <- brma.mv(
+    yi = yi,
+    V = V,
+    random = ~ 1 | study,
+    data = dat,
+    measure = "GEN",
+    known_v_parameterization = "latent",
+    known_v_residual_fraction = 0.5,
+    marginalize_estimate_level = FALSE,
+    prior_unit_information_sd = 1,
+    only_priors = TRUE
+  )
+  known_V <- .data_known_v_data(object[["data"]])
+  sampling_z <- seq_len(.known_v_rank(known_V)) / 10
+  parameters <- list(mu = 0, sampling_z = sampling_z)
+  random_covariance <- 0.25^2 * outer(dat$study, dat$study, "==")
+  bridge_context <- structure(
+    list(
+      nodes = numeric(),
+      marginalized_random = list(
+        mu = list(covariance = random_covariance)
+      )
+    ),
+    class = c(
+      "BayesTools_bridge_marginal_context",
+      "BayesTools_bridge_context",
+      "list"
+    )
+  )
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+  fit_data <- .marglik_add_random_covariance_bridge_data(
+    fit_data = fit_data,
+    model_data = object[["data"]],
+    marginalizing = TRUE,
+    dependency_blocks = list(1:2, 3L)
+  )
+  conditional_mean <- as.numeric(.marglik_get_sampling_dependency(
+    parameters = parameters,
+    model_data = object[["data"]],
+    effect_direction = "positive",
+    K = nrow(dat)
+  ))
+  conditional_covariance <- diag(.known_v_residual_variance(known_V)) +
+    random_covariance
+
+  actual <- .log_posterior(
+    parameters = parameters,
+    data = fit_data,
+    is_mods = FALSE,
+    is_scale = FALSE,
+    is_random = TRUE,
+    is_multilevel = FALSE,
+    is_weights = FALSE,
+    is_known_v = TRUE,
+    is_PET = FALSE,
+    is_PEESE = FALSE,
+    is_weightfunction = FALSE,
+    effect_direction = "positive",
+    outcome_type = "norm",
+    model_data = object[["data"]],
+    bridge_context = bridge_context
+  )
+  expected <- .marglik_mvn_log_density(
+    y = dat$yi,
+    mean = conditional_mean,
+    covariance = conditional_covariance
+  )
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+test_that("latent known-V sampling coordinates are integrated exactly", {
+
+  dat <- data.frame(yi = c(0.10, -0.20, 0.15))
+  V <- matrix(
+    c(
+      0.04, 0.01, 0,
+      0.01, 0.09, 0.012,
+      0, 0.012, 0.05
+    ),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  object <- brma.mv(
+    yi = yi,
+    V = V,
+    random = NULL,
+    data = dat,
+    measure = "GEN",
+    known_v_parameterization = "latent",
+    marginalize_estimate_level = FALSE,
+    prior_unit_information_sd = 1,
+    only_priors = TRUE
+  )
+  fit_priors <- .create_fit_priors(object[["data"]], object[["priors"]])
+  setup <- .marglik_sampling_latent_setup(
+    data       = object[["data"]],
+    priors     = object[["priors"]],
+    fit_priors = fit_priors
+  )
+
+  expect_true(setup[["marginalized"]])
+  expect_false("sampling_z" %in% names(setup[["fit_priors"]]))
+  expect_identical(
+    setup[["diagnostics"]][["included"]],
+    paste0("sampling_z[", seq_len(nrow(V)), "]")
+  )
+
+  dependency_blocks <- .marglik_random_dependency_blocks(
+    model_data                   = object[["data"]],
+    formula_design               = NULL,
+    blocks                       = character(),
+    sampling_latent_marginalized = TRUE
+  )
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+  fit_data <- .marglik_add_random_covariance_bridge_data(
+    fit_data                    = fit_data,
+    model_data                  = object[["data"]],
+    marginalizing              = TRUE,
+    sampling_latent_marginalized = TRUE,
+    dependency_blocks          = dependency_blocks
+  )
+  tau <- 0.12
+  actual <- .log_posterior(
+    parameters = list(mu = 0, tau = tau),
+    data = fit_data,
+    is_mods = FALSE,
+    is_scale = FALSE,
+    is_random = FALSE,
+    is_multilevel = FALSE,
+    is_weights = FALSE,
+    is_known_v = TRUE,
+    is_PET = FALSE,
+    is_PEESE = FALSE,
+    is_weightfunction = FALSE,
+    effect_direction = "positive",
+    outcome_type = "norm",
+    model_data = object[["data"]],
+    sampling_latent_marginalized = TRUE
+  )
+  expected <- .marglik_mvn_log_density(
+    y = dat$yi,
+    mean = rep(0, nrow(dat)),
+    covariance = V + diag(tau^2, nrow(dat))
+  )
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+test_that("compiled marginalized variance plan matches generic evaluation", {
+
+  dat <- data.frame(
+    yi    = c(0.10, -0.20, 0.15, 0.05),
+    study = factor(c("s1", "s1", "s2", "s3")),
+    esid  = factor(seq_len(4L))
+  )
+  object <- brma.mv(
+    yi = yi,
+    V = diag(rep(0.04, nrow(dat))),
+    random = ~ 1 | study / esid,
+    data = dat,
+    measure = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors = TRUE
+  )
+  plan <- .marglik_marginalized_variance_plan(object[["data"]])
+  expect_length(plan$terms, 1L)
+
+  sd_name <- plan$terms[[1L]]$parameter
+  nodes <- stats::setNames(0.35, sd_name)
+  context <- structure(
+    list(nodes = nodes),
+    class = c("BayesTools_bridge_nodes_context", "BayesTools_bridge_context", "list")
+  )
+  compiled <- .marglik_evaluate_marginalized_variance_plan(
+    plan           = plan,
+    bridge_context = context,
+    K              = nrow(dat)
+  )
+  generic <- .evaluate_marginalized_random_variance(
+    data = object[["data"]],
+    posterior_samples = matrix(
+      nodes,
+      nrow = 1L,
+      dimnames = list(NULL, names(nodes))
+    )
+  )
+
+  expect_equal(compiled, generic, tolerance = 0)
+  expect_error(
+    .marglik_evaluate_marginalized_variance_plan(
+      plan           = plan,
+      bridge_context = structure(
+        list(nodes = numeric()),
+        class = c("BayesTools_bridge_nodes_context", "BayesTools_bridge_context", "list")
+      ),
+      K              = nrow(dat)
+    ),
+    "missing marginalized random-effect SD node",
+    fixed = TRUE
+  )
+})
+
+test_that("native factor likelihood equals independently materialized ZGZ'", {
+
+  dat <- data.frame(
+    yi = c(0.10, -0.20, 0.15, 0.05, -0.10),
+    study = factor(c("s1", "s1", "s1", "s2", "s2"))
+  )
+  V <- matrix(0, nrow = 5L, ncol = 5L)
+  V[1:3, 1:3] <- matrix(
+    c(0.04, 0.01, 0, 0.01, 0.09, 0.02, 0, 0.02, 0.06),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  V[4:5, 4:5] <- matrix(c(0.05, 0.01, 0.01, 0.07), nrow = 2L)
+  object <- brma.mv(
+    yi = yi,
+    V = V,
+    random = ~ 1 | study,
+    data = dat,
+    measure = "GEN",
+    known_v_parameterization = "block_mvn",
+    marginalize_estimate_level = FALSE,
+    prior_unit_information_sd = 1,
+    only_priors = TRUE
+  )
+  Z <- cbind(1, c(-1, 0, 1, 0.5, -0.5))
+  G <- matrix(c(0.16, 0.03, 0.03, 0.09), nrow = 2L)
+  G_factor <- t(chol(G))
+  G <- tcrossprod(G_factor)
+  group_map <- c(1L, 1L, 1L, 2L, 2L)
+  random_covariance <- (outer(group_map, group_map, "==") * 1) *
+    tcrossprod(Z %*% G, Z)
+  bridge_context <- structure(
+    list(
+      nodes = numeric(),
+      marginalized_random = list(
+        mu = list(
+          representation = "factor",
+          row_blocks = list(1:3, 4:5),
+          factors = list(list(
+            type = "group",
+            model_matrix = Z,
+            group_map = group_map,
+            coefficient_covariance = G,
+            coefficient_factor = G_factor
+          ))
+        )
+      )
+    ),
+    class = c(
+      "BayesTools_bridge_marginal_context",
+      "BayesTools_bridge_context",
+      "list"
+    )
+  )
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+  fit_data <- .marglik_add_random_covariance_bridge_data(
+    fit_data = fit_data,
+    model_data = object[["data"]],
+    marginalizing = TRUE,
+    dependency_blocks = list(1:3, 4:5)
+  )
+
+  actual <- .log_posterior(
+    parameters = list(mu = 0),
+    data = fit_data,
+    is_mods = FALSE,
+    is_scale = FALSE,
+    is_random = TRUE,
+    is_multilevel = FALSE,
+    is_weights = FALSE,
+    is_known_v = TRUE,
+    is_PET = FALSE,
+    is_PEESE = FALSE,
+    is_weightfunction = FALSE,
+    effect_direction = "positive",
+    outcome_type = "norm",
+    model_data = object[["data"]],
+    bridge_context = bridge_context
+  )
+  expected <- .marglik_mvn_log_density(
+    y = dat$yi,
+    mean = rep(0, nrow(dat)),
+    covariance = V + random_covariance
+  )
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+test_that("native known-group factor equals independently materialized covariance", {
+
+  y <- c(0.1, -0.2, 0.3, 0.05)
+  mean <- c(0.02, 0.02, -0.01, -0.01)
+  sampling_covariance <- diag(c(0.04, 0.05, 0.06, 0.07))
+  group_map <- c(2L, 1L, 3L, 2L)
+  group_covariance <- matrix(
+    c(1, 0.3, 0.1, 0.3, 1.5, 0.2, 0.1, 0.2, 0.8),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  Z <- matrix(c(1, 0.5, 1.5, -0.5), ncol = 1L)
+  sd <- 0.4
+  coefficient_factor <- matrix(sd, nrow = 1L, ncol = 1L)
+  coefficient_covariance <- tcrossprod(coefficient_factor)
+  factor <- list(
+    type = "known_group",
+    model_matrix = Z,
+    group_map = group_map,
+    group_covariance = group_covariance,
+    coefficient_covariance = coefficient_covariance,
+    coefficient_factor = coefficient_factor
+  )
+  actual <- .Call(
+    "RoBMA_known_v_block_mvn_loglik",
+    as.double(y),
+    as.double(mean),
+    sampling_covariance,
+    list(factor),
+    list(seq_along(y)),
+    double(length(y)),
+    PACKAGE = "RoBMA"
+  )
+  random_covariance <-
+    group_covariance[group_map, group_map, drop = FALSE] *
+    tcrossprod(as.numeric(Z) * sd)
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + random_covariance
+  )
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+test_that("native covariance plan reuses exact low-rank group geometry", {
+
+  y <- c(0.1, -0.2, 0.3, 0.05, -0.1, 0.2, -0.05, 0.15)
+  mean <- seq(-0.03, 0.04, length.out = length(y))
+  sampling_covariance <- diag(seq(0.04, 0.075, length.out = length(y)))
+  Z <- cbind(1, seq(-1, 1, length.out = length(y)))
+  group_map <- rep(1:2, each = 4L)
+  coefficient_factor <- matrix(c(0.4, 0.1, 0, 0.3), nrow = 2L)
+  coefficient_covariance <- tcrossprod(coefficient_factor)
+  factor <- list(
+    type = "group",
+    model_matrix = Z,
+    group_map = group_map,
+    coefficient_covariance = coefficient_covariance,
+    coefficient_factor = coefficient_factor
+  )
+  blocks <- list(1:4, 5:8)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    blocks,
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    double(length(y)),
+    PACKAGE = "RoBMA"
+  )
+  same_group <- outer(group_map, group_map, "==") * 1
+  random_covariance <- same_group * tcrossprod(Z %*% coefficient_covariance, Z)
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + random_covariance
+  )
+
+  expect_identical(attr(plan, "low_rank_blocks"), 2L)
+  expect_identical(attr(plan, "dense_blocks"), 0L)
+  expect_equal(actual, expected, tolerance = 1e-12)
+
+  updated_factor <- factor
+  updated_factor$coefficient_factor <- matrix(
+    c(0.25, -0.04, 0, 0.2),
+    nrow = 2L
+  )
+  updated_factor$coefficient_covariance <- tcrossprod(
+    updated_factor$coefficient_factor
+  )
+  updated_actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(updated_factor)),
+    double(length(y)),
+    PACKAGE = "RoBMA"
+  )
+  updated_random_covariance <- same_group * tcrossprod(
+    Z %*% updated_factor$coefficient_covariance,
+    Z
+  )
+  updated_expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + updated_random_covariance
+  )
+
+  expect_equal(updated_actual, updated_expected, tolerance = 1e-12)
+})
+
+test_that("native covariance plan uses exact spectral Woodbury blocks", {
+
+  y <- c(0.1, -0.2, 0.3, 0.05, -0.1, 0.2, -0.05, 0.15)
+  mean <- seq(-0.03, 0.04, length.out = length(y))
+  base_block <- matrix(
+    c(
+      0.08, 0.012, 0.006, 0.004,
+      0.012, 0.07, 0.009, 0.005,
+      0.006, 0.009, 0.06, 0.008,
+      0.004, 0.005, 0.008, 0.05
+    ),
+    nrow = 4L,
+    byrow = TRUE
+  )
+  sampling_covariance <- matrix(0, nrow = length(y), ncol = length(y))
+  sampling_covariance[1:4, 1:4] <- base_block
+  sampling_covariance[5:8, 5:8] <- 1.2 * base_block
+  Z <- matrix(1, nrow = length(y), ncol = 1L)
+  group_map <- rep(1:2, each = 4L)
+  coefficient_factor <- matrix(0.3, nrow = 1L, ncol = 1L)
+  factor <- list(
+    type = "group",
+    model_matrix = Z,
+    group_map = group_map,
+    coefficient_covariance = tcrossprod(coefficient_factor),
+    coefficient_factor = coefficient_factor
+  )
+  blocks <- list(1:4, 5:8)
+  extra_variance <- rep(c(0.01, 0.02), each = 4L)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    blocks,
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    extra_variance,
+    PACKAGE = "RoBMA"
+  )
+  same_group <- outer(group_map, group_map, "==") * 1
+  random_covariance <- same_group * tcrossprod(
+    Z %*% factor$coefficient_covariance,
+    Z
+  )
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + random_covariance +
+      diag(extra_variance)
+  )
+
+  expect_identical(attr(plan, "low_rank_blocks"), 0L)
+  expect_identical(attr(plan, "spectral_blocks"), 2L)
+  expect_identical(attr(plan, "dense_blocks"), 0L)
+  expect_equal(actual, expected, tolerance = 1e-12)
+
+  varying_extra <- extra_variance
+  varying_extra[[2L]] <- 0.011
+  fallback <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    varying_extra,
+    PACKAGE = "RoBMA"
+  )
+  fallback_expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + random_covariance +
+      diag(varying_extra)
+  )
+  expect_equal(fallback, fallback_expected, tolerance = 1e-12)
+})
+
+test_that("compiled factor validation retains changing-value checks", {
+
+  K <- 4L
+  coefficient_factor <- matrix(c(0.4, 0.1, 0, 0.3), nrow = 2L)
+  factor <- list(
+    type = "group",
+    model_matrix = cbind(1, c(-1, 0, 1, 2)),
+    group_map = c(1L, 1L, 2L, 2L),
+    coefficient_covariance = tcrossprod(coefficient_factor),
+    coefficient_factor = coefficient_factor
+  )
+  context <- list(marginalized_random = list(mu = list(
+    representation = "factor",
+    row_blocks = list(1:2, 3:4),
+    factors = list(factor)
+  )))
+  cache <- new.env(parent = emptyenv())
+
+  first <- .marglik_bridge_random_covariance(
+    bridge_context   = context,
+    K                = K,
+    validation_cache = cache
+  )
+  updated_factor <- factor
+  updated_factor$coefficient_factor <- matrix(
+    c(0.25, -0.04, 0, 0.2),
+    nrow = 2L
+  )
+  updated_factor$coefficient_covariance <- tcrossprod(
+    updated_factor$coefficient_factor
+  )
+  updated <- context
+  updated$marginalized_random$mu$factors[[1L]] <- updated_factor
+  second <- .marglik_bridge_random_covariance(
+    bridge_context   = updated,
+    K                = K,
+    validation_cache = cache
+  )
+
+  expect_equal(
+    second$factors[[1L]]$coefficient_covariance,
+    updated_factor$coefficient_covariance,
+    tolerance = 0
+  )
+  expect_identical(second$row_blocks, first$row_blocks)
+
+  asymmetric <- updated
+  asymmetric_factor <- asymmetric$marginalized_random$mu$factors[[1L]]
+  asymmetric_factor$coefficient_covariance[1L, 2L] <- 0.123
+  asymmetric$marginalized_random$mu$factors[[1L]] <- asymmetric_factor
+  expect_error(
+    .marglik_bridge_random_covariance(
+      bridge_context   = asymmetric,
+      K                = K,
+      validation_cache = cache
+    ),
+    "must be symmetric",
+    fixed = TRUE
+  )
+
+  changed_blocks <- updated
+  changed_blocks$marginalized_random$mu$row_blocks <- list(1:3, 4L)
+  expect_error(
+    .marglik_bridge_random_covariance(
+      bridge_context   = changed_blocks,
+      K                = K,
+      validation_cache = cache
+    ),
+    "row blocks changed",
+    fixed = TRUE
+  )
+})
+
+test_that("native low-rank plan supports row-specific external scales", {
+
+  y <- c(0.1, -0.1, 0.2, -0.2, 0.05, 0.15)
+  mean <- rep(0.02, length(y))
+  sampling_covariance <- diag(seq(0.03, 0.055, length.out = length(y)))
+  Z <- cbind(1, seq(-0.5, 0.5, length.out = length(y)))
+  group_map <- rep(1:2, each = 3L)
+  row_scale <- c(0.8, 1.1, 0.9, 1.2, 0.7, 1.05)
+  coefficient_factor <- matrix(c(0.3, 0.05, 0, 0.2), nrow = 2L)
+  coefficient_covariance <- tcrossprod(coefficient_factor)
+  factor <- list(
+    type = "row_group",
+    model_matrix = Z,
+    group_map = group_map,
+    row_scale = row_scale,
+    coefficient_covariance = coefficient_covariance,
+    coefficient_factor = coefficient_factor
+  )
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    list(1:3, 4:6),
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    double(length(y)),
+    PACKAGE = "RoBMA"
+  )
+  scaled_Z <- Z * row_scale
+  random_covariance <- (outer(group_map, group_map, "==") * 1) *
+    tcrossprod(scaled_Z %*% coefficient_covariance, scaled_Z)
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + random_covariance
+  )
+
+  expect_identical(attr(plan, "low_rank_blocks"), 2L)
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+test_that("native dense plan supports known group covariance and random slopes", {
+
+  y <- c(0.1, -0.2, 0.3, 0.05, -0.1, 0.15)
+  mean <- rep(c(0.02, -0.01), each = 3L)
+  sampling_covariance <- diag(seq(0.04, 0.065, length.out = length(y)))
+  Z <- cbind(1, seq(-1, 1, length.out = length(y)))
+  group_map <- c(1L, 1L, 2L, 2L, 3L, 3L)
+  group_covariance <- matrix(
+    c(1, 0.3, 0.1, 0.3, 1.2, 0.2, 0.1, 0.2, 0.8),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  coefficient_factor <- matrix(c(0.35, 0.08, 0, 0.25), nrow = 2L)
+  coefficient_covariance <- tcrossprod(coefficient_factor)
+  factor <- list(
+    type = "known_group",
+    model_matrix = Z,
+    group_map = group_map,
+    group_covariance = group_covariance,
+    coefficient_covariance = coefficient_covariance,
+    coefficient_factor = coefficient_factor
+  )
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    list(seq_along(y)),
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    double(length(y)),
+    PACKAGE = "RoBMA"
+  )
+  random_covariance <-
+    group_covariance[group_map, group_map, drop = FALSE] *
+    tcrossprod(Z %*% coefficient_covariance, Z)
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + random_covariance
+  )
+
+  expect_identical(attr(plan, "low_rank_blocks"), 0L)
+  expect_identical(attr(plan, "dense_blocks"), 1L)
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+test_that("native plan factors repeated-observation known group covariance", {
+
+  y <- c(0.1, -0.2, 0.3, 0.05, -0.1, 0.15, -0.05, 0.2)
+  mean <- seq(-0.02, 0.05, length.out = length(y))
+  sampling_covariance <- diag(seq(0.04, 0.075, length.out = length(y)))
+  Z <- cbind(1, seq(-1, 1, length.out = length(y)))
+  group_map <- rep(1:2, each = 4L)
+  group_covariance <- matrix(c(1, 0.3, 0.3, 1.2), nrow = 2L)
+  coefficient_factor <- matrix(c(0.35, 0.08, 0, 0.25), nrow = 2L)
+  coefficient_covariance <- tcrossprod(coefficient_factor)
+  factor <- list(
+    type = "known_group",
+    model_matrix = Z,
+    group_map = group_map,
+    group_covariance = group_covariance,
+    coefficient_covariance = coefficient_covariance,
+    coefficient_factor = coefficient_factor
+  )
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    list(seq_along(y)),
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
+    double(length(y)),
+    PACKAGE = "RoBMA"
+  )
+  random_covariance <-
+    group_covariance[group_map, group_map, drop = FALSE] *
+    tcrossprod(Z %*% coefficient_covariance, Z)
+  expected <- .marglik_mvn_log_density(
+    y = y,
+    mean = mean,
+    covariance = sampling_covariance + random_covariance
+  )
+
+  expect_identical(attr(plan, "low_rank_blocks"), 1L)
+  expect_identical(attr(plan, "dense_blocks"), 0L)
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+test_that("marglik requests every fitted sampled random block", {
+
+  dat <- data.frame(
+    yi = c(0.10, -0.20, 0.15, 0.05),
+    study = factor(c("s1", "s1", "s2", "s3")),
+    esid = factor(seq_len(4L))
+  )
+  object <- brma.mv(
+    yi = yi,
+    V = diag(rep(0.04, nrow(dat))),
+    random = ~ 1 | study / esid,
+    data = dat,
+    measure = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors = TRUE
+  )
+  formula_args <- .create_jags_formula_args(
+    data = object[["data"]],
+    priors = object[["priors"]]
+  )
+  mu_design <- BayesTools::JAGS_formula(
+    formula = formula_args$formula_list$mu,
+    parameter = "mu",
+    data = formula_args$formula_data_list$mu,
+    prior_list = formula_args$formula_prior_list$mu,
+    formula_scale = formula_args$formula_scale_list$mu,
+    prior_random = formula_args$formula_random_prior_list$mu,
+    random_effects_compile = formula_args$formula_random_effects_compile_list$mu
+  )$formula_design
+  fit <- list()
+  attr(fit, "formula_design") <- list(mu = mu_design)
+  setup <- .marglik_bridge_random_marginalization(
+    object = object,
+    fit = fit,
+    fixed_zero_random = FALSE
+  )
+  expected <- .formula_design_sampled_random_effect_blocks(
+    mu_design
+  )
+
+  expect_length(expected, 1L)
+  expect_identical(setup$blocks$mu, expected)
+  expect_identical(setup$dependency_blocks, list(1:2, 3L, 4L))
+  expect_identical(setup$diagnostics$included, expected)
+  expect_true(setup$diagnostics$exact)
+  expect_equal(
+    setup$diagnostics$skipped$reason,
+    "already marginalized by the fitted likelihood"
+  )
+})
+
+test_that("marglik accepts every brma.mv random covariance structure", {
+
+  dat <- data.frame(
+    yi = c(0.10, 0.20, 0.30, 0.40),
+    study = c("s1", "s1", "s2", "s2"),
+    x = c(0, 1, 0, 1),
+    out = c("a", "b", "a", "b"),
+    time = c(1, 2, 1, 2)
+  )
+  formulas <- list(
+    id   = ~ id(1 | study),
+    diag = ~ diag(1 + x | study),
+    us   = ~ us(1 + x | study),
+    cs   = ~ cs(out | study),
+    hcs  = ~ hcs(out | study),
+    ar1  = ~ ar1(time | study),
+    har  = ~ har(time | study),
+    car  = ~ car(time | study)
+  )
+
+  for (structure in names(formulas)) {
+    object <- brma.mv(
+      yi = yi,
+      V = diag(rep(0.04, nrow(dat))),
+      random = formulas[[structure]],
+      data = dat,
+      measure = "GEN",
+      prior_unit_information_sd = 1,
+      marginalize_estimate_level = FALSE,
+      only_priors = TRUE
+    )
+    formula_args <- .create_jags_formula_args(
+      data = object[["data"]],
+      priors = object[["priors"]]
+    )
+    mu_design <- BayesTools::JAGS_formula(
+      formula = formula_args$formula_list$mu,
+      parameter = "mu",
+      data = formula_args$formula_data_list$mu,
+      prior_list = formula_args$formula_prior_list$mu,
+      formula_scale = formula_args$formula_scale_list$mu,
+      prior_random = formula_args$formula_random_prior_list$mu,
+      random_effects_compile =
+        formula_args$formula_random_effects_compile_list$mu
+    )$formula_design
+    fit <- list()
+    attr(fit, "formula_design") <- list(mu = mu_design)
+    setup <- .marglik_bridge_random_marginalization(
+      object = object,
+      fit = fit,
+      fixed_zero_random = FALSE
+    )
+
+    expect_identical(
+      setup$blocks$mu,
+      .formula_design_sampled_random_effect_blocks(mu_design),
+      info = structure
+    )
+    expect_true(setup$diagnostics$exact, info = structure)
+  }
+})
+
+test_that("marglik accepts sampled random intercepts with known group covariance", {
+
+  dat <- data.frame(
+    yi = c(0.10, 0.20, 0.30, 0.40),
+    study = c("s1", "s1", "s2", "s2")
+  )
+  R <- matrix(
+    c(1, 0.35, 0.35, 1),
+    nrow = 2L,
+    dimnames = list(c("s1", "s2"), c("s1", "s2"))
+  )
+  object <- brma.mv(
+    yi = yi,
+    V = diag(rep(0.04, nrow(dat))),
+    random = ~ 1 | study,
+    R = list(study = R),
+    data = dat,
+    measure = "GEN",
+    prior_unit_information_sd = 1,
+    marginalize_estimate_level = FALSE,
+    only_priors = TRUE
+  )
+  formula_args <- .create_jags_formula_args(
+    data = object[["data"]],
+    priors = object[["priors"]]
+  )
+  mu_design <- BayesTools::JAGS_formula(
+    formula = formula_args$formula_list$mu,
+    parameter = "mu",
+    data = formula_args$formula_data_list$mu,
+    prior_list = formula_args$formula_prior_list$mu,
+    formula_scale = formula_args$formula_scale_list$mu,
+    prior_random = formula_args$formula_random_prior_list$mu,
+    random_effects_compile =
+      formula_args$formula_random_effects_compile_list$mu
+  )$formula_design
+  fit <- list()
+  attr(fit, "formula_design") <- list(mu = mu_design)
+  setup <- .marglik_bridge_random_marginalization(
+    object = object,
+    fit = fit,
+    fixed_zero_random = FALSE
+  )
+
+  expect_identical(
+    setup$blocks$mu,
+    .formula_design_sampled_random_effect_blocks(mu_design)
+  )
+  expect_identical(setup$dependency_blocks, list(seq_len(nrow(dat))))
+  expect_true(setup$diagnostics$exact)
+})

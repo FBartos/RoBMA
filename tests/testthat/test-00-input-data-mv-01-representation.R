@@ -286,7 +286,7 @@ test_that("known V accepts numerical symmetry from metafor vcalc", {
   expect_true(isSymmetric(V_assink))
   expect_false(identical(V_assink, t(V_assink)))
   expect_no_error(
-    brma.mv(
+    object <- brma.mv(
       yi        = yi,
       V         = V_assink,
       measure   = "SMD",
@@ -296,6 +296,19 @@ test_that("known V accepts numerical symmetry from metafor vcalc", {
     )
   )
   expect_identical(V_assink, V_original)
+
+  stored <- .known_v_materialize(.data_known_v_data(object[["data"]]))
+  expect_identical(stored, t(stored))
+  expect_equal(stored, unclass(V_original), tolerance = 1e-15)
+  expect_identical(
+    stored,
+    unclass(.known_v_exact_symmetrize(V_original))
+  )
+
+  newdata <- .known_v_newdata_prepare(V_original, k = nrow(V_original))
+  stored_newdata <- .known_v_materialize(newdata)
+  expect_identical(stored_newdata, t(stored_newdata))
+  expect_identical(stored_newdata, stored)
 })
 
 

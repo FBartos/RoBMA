@@ -308,12 +308,13 @@ diagonal extra variance term \eqn{\tau^2 r_i} prepared by BayesTools.
 \item \code{dfbetas()} and \code{covratio()} use estimate-unit PSIS weights. With
 correlated known \code{V}, their interpretation is parameter influence under
 conditional estimate deletion, not independent-study deletion.
-\item \code{add_marglik()}/\code{bridge_sampler()} uses the full joint fitted
-likelihood corresponding to the selected known-\code{V} backend. It does not
-use the estimate-wise conditional target from LOO/WAIC. Known \code{R}
-enters this full joint target either through the latent random-effect
-prior for sampled blocks or through the diagonal marginalized
-known-\code{R} variance for supported marginalized blocks.
+\item \code{add_marglik()}/\code{bridge_sampler()} uses the full fitted likelihood
+corresponding to the selected known-\code{V} backend. It does not use the
+estimate-wise conditional target from LOO/WAIC. During bridge evaluation,
+sampled Gaussian location random effects are integrated exactly as
+\eqn{ZGZ'} while retaining every covariance parameter and prior; fitted
+diagonal marginalized blocks remain in the row variance. Selection
+likelihoods retain their joint latent parameterization.
 \item \code{hatvalues()}, marginal \code{rstandard()}, and \code{vif()} use a marginal
 GLS covariance target based on \verb{V + ZGZ'}, where formula random effects
 are marginalized through the BayesTools covariance metadata.
