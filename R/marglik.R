@@ -1687,8 +1687,14 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     state    <- states[[factor_i]]
     template <- templates[[factor_i]]
     type     <- template[["type"]]
+    coefficient_structure <- template[["coefficient_structure"]]
     expected_names <- c(
       "coefficient_factor",
+      if (identical(coefficient_structure, "markov")) c(
+        "coefficient_scale",
+        "markov_transition",
+        "markov_innovation_variance"
+      ) else character(),
       if (identical(type, "row_group")) "row_scale" else character()
     )
     if (!is.list(state) || !identical(names(state), expected_names)) {
@@ -1712,6 +1718,15 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     value <- template
     value[["coefficient_factor"]] <- coefficient_factor
     value[["coefficient_covariance"]] <- NULL
+    if (identical(coefficient_structure, "markov")) {
+      value <- c(
+        value,
+        .marglik_validate_random_covariance_markov_state(
+          state,
+          n_columns
+        )
+      )
+    }
     if (identical(type, "row_group")) {
       row_scale <- state[["row_scale"]]
       if (!is.numeric(row_scale) || length(row_scale) != K ||
@@ -1825,7 +1840,13 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   for (factor_i in seq_along(factors)) {
     factor   <- factors[[factor_i]]
     template <- templates[[factor_i]]
-    if (!is.list(factor) || !identical(factor[["type"]], template[["type"]])) {
+    factor_coefficient_structure <- factor[["coefficient_structure"]]
+    if (is.null(factor_coefficient_structure)) {
+      factor_coefficient_structure <- "dense"
+    }
+    if (!is.list(factor) || !identical(factor[["type"]], template[["type"]]) ||
+        !identical(factor_coefficient_structure,
+                   template[["coefficient_structure"]])) {
       stop(
         "Bridge-marginalized random-effect covariance factor structure changed between evaluations.",
         call. = FALSE
@@ -1886,8 +1907,18 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       type                   = type,
       model_matrix           = model_matrix,
       group_map              = group_map,
+      coefficient_structure  = template[["coefficient_structure"]],
       coefficient_factor     = coefficient_factor
     )
+    if (identical(template[["coefficient_structure"]], "markov")) {
+      value <- c(
+        value,
+        .marglik_validate_random_covariance_markov_state(
+          factor,
+          n_columns
+        )
+      )
+    }
     if (!is.null(coefficient_covariance)) {
       value[["coefficient_covariance"]] <- coefficient_covariance
     }
@@ -1907,6 +1938,35 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   out
+}
+
+
+.marglik_validate_random_covariance_markov_state <- function(factor,
+                                                              n_columns) {
+
+  coefficient_scale <- factor[["coefficient_scale"]]
+  transition <- factor[["markov_transition"]]
+  innovation <- factor[["markov_innovation_variance"]]
+  if (!is.numeric(coefficient_scale) ||
+      length(coefficient_scale) != n_columns ||
+      anyNA(coefficient_scale) || any(!is.finite(coefficient_scale)) ||
+      any(coefficient_scale < 0) ||
+      !is.numeric(transition) || length(transition) != n_columns - 1L ||
+      anyNA(transition) || any(!is.finite(transition)) ||
+      !is.numeric(innovation) || length(innovation) != n_columns - 1L ||
+      anyNA(innovation) || any(!is.finite(innovation)) ||
+      any(innovation <= 0)) {
+    stop(
+      "Bridge-marginalized random-effect Markov state is invalid.",
+      call. = FALSE
+    )
+  }
+
+  list(
+    coefficient_scale = as.double(coefficient_scale),
+    markov_transition = as.double(transition),
+    markov_innovation_variance = as.double(innovation)
+  )
 }
 
 
@@ -1947,6 +2007,19 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
   group_map <- as.integer(group_map)
   n_columns <- ncol(model_matrix)
+  coefficient_structure <- factor[["coefficient_structure"]]
+  if (is.null(coefficient_structure)) {
+    coefficient_structure <- "dense"
+  }
+  if (!is.character(coefficient_structure) ||
+      length(coefficient_structure) != 1L ||
+      is.na(coefficient_structure) ||
+      !coefficient_structure %in% c("dense", "diagonal", "markov")) {
+    stop(
+      "Bridge-marginalized random-effect coefficient structure is invalid.",
+      call. = FALSE
+    )
+  }
   coefficient_factor <- factor[["coefficient_factor"]]
   if (!is.matrix(coefficient_factor) || !is.numeric(coefficient_factor) ||
       !identical(dim(coefficient_factor), c(n_columns, n_columns)) ||
@@ -1973,8 +2046,16 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       type = type,
       model_matrix = model_matrix,
       group_map = group_map,
+      coefficient_structure = coefficient_structure,
       coefficient_factor = coefficient_factor
     )
+    if (identical(coefficient_structure, "markov")) {
+      markov_state <- .marglik_validate_random_covariance_markov_state(
+        factor,
+        n_columns
+      )
+      out <- c(out, markov_state)
+    }
     if (!is.null(coefficient_covariance)) {
       out[["coefficient_covariance"]] <- coefficient_covariance
     }
@@ -2007,6 +2088,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     model_matrix = model_matrix,
     group_map = group_map,
     group_covariance = group_covariance,
+    coefficient_structure = coefficient_structure,
     coefficient_factor = coefficient_factor
   )
   if (!is.null(coefficient_covariance)) {
@@ -2170,6 +2252,12 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   state <- list(
     coefficient_factor = factor[["coefficient_factor"]]
   )
+  if (identical(factor[["coefficient_structure"]], "markov")) {
+    state[["coefficient_scale"]] <- factor[["coefficient_scale"]]
+    state[["markov_transition"]] <- factor[["markov_transition"]]
+    state[["markov_innovation_variance"]] <-
+      factor[["markov_innovation_variance"]]
+  }
   if (identical(factor[["type"]], "row_group")) {
     state[["row_scale"]] <- factor[["row_scale"]]
   }

@@ -500,6 +500,150 @@ test_that("native covariance plan reuses exact low-rank group geometry", {
   expect_equal(updated_actual, updated_expected, tolerance = 1e-12)
 })
 
+test_that("native Markov plans match dense joint and conditional likelihoods", {
+
+  transition <- c(-0.45, -0.45, -0.45, 0.35, 0.6, 0.25, 0.7)
+  scale <- c(0, 0.2, 0.3, 0.15, 0.4, 0.25, 0.1, 0.35)
+  level <- c(8L, 1L, 4L, 4L, 6L, 2L)
+  loading <- c(1, -0.5, 1.2, 0.7, -1.1, 0.4)
+  row_scale <- c(1, 0.5, 1.3, 0, 0.8, 1.1)
+  n <- length(level)
+  q <- length(scale)
+  Z <- matrix(0, nrow = n, ncol = q)
+  Z[cbind(seq_len(n), level)] <- loading
+
+  correlation <- diag(q)
+  for (left in seq_len(q - 1L)) {
+    correlation_value <- 1
+    for (right in (left + 1L):q) {
+      correlation_value <- correlation_value * transition[[right - 1L]]
+      correlation[left, right] <- correlation_value
+      correlation[right, left] <- correlation_value
+    }
+  }
+  coefficient_factor <- t(chol(correlation)) * scale
+  sampling_covariance <- diag(seq(0.15, 0.3, length.out = n))
+  extra_variance <- seq(0.01, 0.04, length.out = n)
+  y <- c(0.2, -0.7, 0.4, 1.1, -0.3, 0.8)
+  mean <- c(-0.1, 0.2, 0, 0.15, -0.05, 0.1)
+  factor <- list(
+    type = "row_group",
+    model_matrix = Z,
+    group_map = rep.int(1L, n),
+    coefficient_structure = "markov",
+    coefficient_factor = coefficient_factor,
+    coefficient_scale = scale,
+    markov_transition = transition,
+    markov_innovation_variance = 1 - transition^2,
+    row_scale = row_scale
+  )
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    list(seq_len(n)),
+    PACKAGE = "RoBMA"
+  )
+  state <- .marglik_covariance_factor_state(factor)
+  actual_joint <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(state),
+    as.double(extra_variance),
+    PACKAGE = "RoBMA"
+  )
+  actual_conditional <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    list(state),
+    as.double(extra_variance),
+    PACKAGE = "RoBMA"
+  )
+  effective_Z <- Z * row_scale
+  covariance <- sampling_covariance + diag(extra_variance) +
+    tcrossprod(effective_Z %*% coefficient_factor)
+  root <- chol(covariance)
+  precision <- chol2inv(root)
+  residual <- y - mean
+  precision_residual <- as.vector(precision %*% residual)
+  expected_conditional <- 0.5 * (
+    log(diag(precision)) - log(2 * pi) -
+      precision_residual^2 / diag(precision)
+  )
+
+  expect_identical(attr(plan, "markov_blocks"), 1L)
+  expect_equal(
+    actual_joint,
+    .marglik_mvn_log_density(y, mean, covariance),
+    tolerance = 1e-13
+  )
+  expect_equal(actual_conditional, expected_conditional, tolerance = 1e-13)
+
+  correlated_sampling <- sampling_covariance
+  correlated_sampling[1L, 2L] <- 0.01
+  correlated_sampling[2L, 1L] <- 0.01
+  fallback_plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    correlated_sampling,
+    list(factor),
+    list(seq_len(n)),
+    PACKAGE = "RoBMA"
+  )
+  fallback_covariance <- correlated_sampling + diag(extra_variance) +
+    tcrossprod(effective_Z %*% coefficient_factor)
+  fallback_joint <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    fallback_plan,
+    as.double(mean),
+    list(state),
+    as.double(extra_variance),
+    PACKAGE = "RoBMA"
+  )
+
+  expect_identical(attr(fallback_plan, "markov_blocks"), 0L)
+  expect_equal(
+    fallback_joint,
+    .marglik_mvn_log_density(y, mean, fallback_covariance),
+    tolerance = 1e-13
+  )
+
+  dense_contribution <- diag(seq(0.005, 0.01, length.out = n))
+  multi_factor_plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    c(list(factor), list(list(
+      type = "dense",
+      covariance = dense_contribution
+    ))),
+    list(seq_len(n)),
+    PACKAGE = "RoBMA"
+  )
+  multi_factor_joint <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    multi_factor_plan,
+    as.double(mean),
+    list(state, list(covariance = dense_contribution)),
+    as.double(extra_variance),
+    PACKAGE = "RoBMA"
+  )
+
+  expect_identical(attr(multi_factor_plan, "markov_blocks"), 0L)
+  expect_equal(
+    multi_factor_joint,
+    .marglik_mvn_log_density(
+      y,
+      mean,
+      covariance + dense_contribution
+    ),
+    tolerance = 1e-13
+  )
+})
+
 test_that("native covariance plan assembles sparse nested latent geometry", {
 
   K <- 12L

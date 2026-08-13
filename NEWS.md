@@ -1,5 +1,11 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- evaluates eligible AR1, HAR, and CAR random-effect covariance blocks with an
+  exact linear-time Markov likelihood and tridiagonal conditional solver.
+  The route retains every covariance parameter and the complete coefficient
+  factor, supports missing and repeated states plus row-specific scales, and
+  falls back to the existing full covariance paths for correlated sampling
+  blocks or general random-effect designs.
 - caches exact Cholesky factors, log determinants, and precision diagonals for
   fixed sampling-covariance blocks, reusing them in zero-extra-variance bridge
   and LOO states while nonzero states retain their per-state factorization.

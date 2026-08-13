@@ -60,14 +60,24 @@ enum FactorType {
   KNOWN_GROUP_FACTOR
 };
 
+enum CoefficientStructure {
+  DENSE_COEFFICIENT,
+  DIAGONAL_COEFFICIENT,
+  MARKOV_COEFFICIENT
+};
+
 struct CovarianceFactor {
   FactorType type;
+  CoefficientStructure coefficient_structure;
   const double *covariance;
   const double *model_matrix;
   const int *group_map;
   const double *coefficient_factor;
   const double *group_covariance;
   const double *row_scale;
+  const double *coefficient_scale;
+  const double *markov_transition;
+  const double *markov_innovation_variance;
   int n_columns;
   int n_groups;
 };
@@ -78,6 +88,7 @@ struct PlanFactor {
   std::vector<int> group_map;
   std::vector<double> group_covariance;
   std::vector<double> group_factor;
+  CoefficientStructure coefficient_structure;
   int n_columns;
   int n_groups;
 };
@@ -112,7 +123,11 @@ struct BlockPlan {
   std::vector<SamplingBlock> sampling_blocks;
   std::vector<double> sampling_eigenvalues;
   std::vector<double> sampling_eigenvectors;
+  std::vector<std::vector<int>> markov_rows_by_level;
+  std::vector<double> markov_loading;
+  int markov_factor;
   int rank;
+  bool markov_eligible;
   bool low_rank_eligible;
   bool sparse_assembly_eligible;
   bool sparse_factor_candidate;
@@ -156,6 +171,12 @@ struct CovariancePlan {
   std::vector<double> conditional_rhs_work;
   std::vector<double> conditional_base_work;
   std::vector<double> unit_diagonal_work;
+  std::vector<double> markov_diagonal_work;
+  std::vector<double> markov_off_diagonal_work;
+  std::vector<double> markov_factor_work;
+  std::vector<double> markov_rhs_work;
+  std::vector<double> markov_solution_work;
+  std::vector<double> markov_variance_work;
 };
 
 cholmod_sparse sparse_matrix_view(BlockPlan &block)
@@ -176,6 +197,23 @@ cholmod_sparse sparse_matrix_view(BlockPlan &block)
   matrix.sorted = 1;
   matrix.packed = 1;
   return matrix;
+}
+
+SEXP optional_list_element(SEXP x, const char *name)
+{
+  if (TYPEOF(x) != VECSXP) {
+    Rf_error("Random covariance factors must be lists.");
+  }
+  SEXP names = Rf_getAttrib(x, R_NamesSymbol);
+  if (TYPEOF(names) != STRSXP || XLENGTH(names) != XLENGTH(x)) {
+    Rf_error("Random covariance factors must be named lists.");
+  }
+  for (R_xlen_t i = 0; i < XLENGTH(x); ++i) {
+    if (std::strcmp(CHAR(STRING_ELT(names, i)), name) == 0) {
+      return VECTOR_ELT(x, i);
+    }
+  }
+  return R_NilValue;
 }
 
 void compile_sparse_latent_pattern(
@@ -302,6 +340,64 @@ std::vector<CovarianceFactor> covariance_factors(SEXP factors, int n)
     value.group_map = INTEGER(group_map);
     value.coefficient_factor = REAL(coefficient_factor);
     value.n_columns = n_columns;
+    value.coefficient_structure = DENSE_COEFFICIENT;
+    SEXP coefficient_structure = optional_list_element(
+      factor,
+      "coefficient_structure"
+    );
+    if (coefficient_structure != R_NilValue) {
+      if (TYPEOF(coefficient_structure) != STRSXP ||
+          XLENGTH(coefficient_structure) != 1) {
+        Rf_error("Random covariance coefficient structure must be one string.");
+      }
+      const char *structure_value = CHAR(STRING_ELT(coefficient_structure, 0));
+      if (std::strcmp(structure_value, "diagonal") == 0) {
+        value.coefficient_structure = DIAGONAL_COEFFICIENT;
+      } else if (std::strcmp(structure_value, "markov") == 0) {
+        value.coefficient_structure = MARKOV_COEFFICIENT;
+      } else if (std::strcmp(structure_value, "dense") != 0) {
+        Rf_error("Unknown random covariance coefficient structure.");
+      }
+    }
+    if (value.coefficient_structure == MARKOV_COEFFICIENT) {
+      SEXP coefficient_scale = list_element(factor, "coefficient_scale");
+      SEXP transition = list_element(factor, "markov_transition");
+      SEXP innovation = list_element(
+        factor,
+        "markov_innovation_variance"
+      );
+      require_real_vector(
+        coefficient_scale,
+        n_columns,
+        "factor$coefficient_scale"
+      );
+      require_real_vector(
+        transition,
+        n_columns - 1,
+        "factor$markov_transition"
+      );
+      require_real_vector(
+        innovation,
+        n_columns - 1,
+        "factor$markov_innovation_variance"
+      );
+      value.coefficient_scale = REAL(coefficient_scale);
+      value.markov_transition = REAL(transition);
+      value.markov_innovation_variance = REAL(innovation);
+      for (int column = 0; column < n_columns; ++column) {
+        if (!std::isfinite(value.coefficient_scale[column]) ||
+            value.coefficient_scale[column] < 0.0) {
+          Rf_error("Random covariance Markov coefficient scales must be finite and non-negative.");
+        }
+      }
+      for (int column = 0; column < n_columns - 1; ++column) {
+        if (!std::isfinite(value.markov_transition[column]) ||
+            !std::isfinite(value.markov_innovation_variance[column]) ||
+            !(value.markov_innovation_variance[column] > 0.0)) {
+          Rf_error("Random covariance Markov transition state is invalid.");
+        }
+      }
+    }
 
     if (std::strcmp(type_value, "group") == 0) {
       value.type = GROUP_FACTOR;
@@ -389,6 +485,7 @@ PlanFactor make_plan_factor(const CovarianceFactor &factor, int n)
 {
   PlanFactor out = {};
   out.type = factor.type;
+  out.coefficient_structure = factor.coefficient_structure;
   out.n_columns = factor.n_columns;
   out.n_groups = factor.n_groups;
   if (factor.type == DENSE_FACTOR) {
@@ -536,6 +633,53 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
   for (std::vector<int> &columns : out.active_columns) {
     std::sort(columns.begin(), columns.end());
     columns.erase(std::unique(columns.begin(), columns.end()), columns.end());
+  }
+  out.markov_eligible = false;
+  out.markov_factor = -1;
+  if (sampling_diagonal && factors.size() == 1 &&
+      out.low_rank_groups.size() == 1) {
+    const LowRankGroup &group = out.low_rank_groups.front();
+    const PlanFactor &factor = factors[static_cast<size_t>(group.factor)];
+    if ((factor.type == GROUP_FACTOR || factor.type == ROW_GROUP_FACTOR) &&
+        factor.coefficient_structure == MARKOV_COEFFICIENT &&
+        group.local_rows.size() == static_cast<size_t>(size)) {
+      out.markov_rows_by_level.resize(
+        static_cast<size_t>(factor.n_columns)
+      );
+      out.markov_loading.resize(static_cast<size_t>(size));
+      bool one_state_per_row = true;
+      for (int local = 0; local < size; ++local) {
+        const int global = out.index[static_cast<size_t>(local)];
+        int level = -1;
+        double loading = 0.0;
+        for (int column = 0; column < factor.n_columns; ++column) {
+          const double value = factor.model_matrix[static_cast<size_t>(
+            global + n * column
+          )];
+          if (value != 0.0) {
+            if (level != -1) {
+              one_state_per_row = false;
+              break;
+            }
+            level = column;
+            loading = value;
+          }
+        }
+        if (!one_state_per_row || level == -1) {
+          one_state_per_row = false;
+          break;
+        }
+        out.markov_rows_by_level[static_cast<size_t>(level)].push_back(local);
+        out.markov_loading[static_cast<size_t>(local)] = loading;
+      }
+      if (one_state_per_row) {
+        out.markov_factor = group.factor;
+        out.markov_eligible = true;
+      } else {
+        out.markov_rows_by_level.clear();
+        out.markov_loading.clear();
+      }
+    }
   }
   out.root_eligible = compatible;
   out.low_rank_eligible = sampling_diagonal && compatible && rank < size;
@@ -893,6 +1037,7 @@ std::vector<CovarianceFactor> covariance_states(
     SEXP state = VECTOR_ELT(states, static_cast<R_xlen_t>(factor_i));
     CovarianceFactor value = {};
     value.type = stored.type;
+    value.coefficient_structure = stored.coefficient_structure;
     value.n_columns = stored.n_columns;
     value.n_groups = stored.n_groups;
 
@@ -923,6 +1068,46 @@ std::vector<CovarianceFactor> covariance_states(
     value.model_matrix = stored.model_matrix.data();
     value.group_map = stored.group_map.data();
     value.coefficient_factor = coefficient_values;
+
+    if (stored.coefficient_structure == MARKOV_COEFFICIENT) {
+      SEXP coefficient_scale = list_element(state, "coefficient_scale");
+      SEXP transition = list_element(state, "markov_transition");
+      SEXP innovation = list_element(
+        state,
+        "markov_innovation_variance"
+      );
+      require_real_vector(
+        coefficient_scale,
+        stored.n_columns,
+        "factor_state$coefficient_scale"
+      );
+      require_real_vector(
+        transition,
+        stored.n_columns - 1,
+        "factor_state$markov_transition"
+      );
+      require_real_vector(
+        innovation,
+        stored.n_columns - 1,
+        "factor_state$markov_innovation_variance"
+      );
+      value.coefficient_scale = REAL(coefficient_scale);
+      value.markov_transition = REAL(transition);
+      value.markov_innovation_variance = REAL(innovation);
+      for (int column = 0; column < stored.n_columns; ++column) {
+        if (!std::isfinite(value.coefficient_scale[column]) ||
+            value.coefficient_scale[column] < 0.0) {
+          Rf_error("Known-V Markov coefficient scales must be finite and non-negative.");
+        }
+      }
+      for (int column = 0; column < stored.n_columns - 1; ++column) {
+        if (!std::isfinite(value.markov_transition[column]) ||
+            !std::isfinite(value.markov_innovation_variance[column]) ||
+            !(value.markov_innovation_variance[column] > 0.0)) {
+          Rf_error("Known-V Markov transition state is invalid.");
+        }
+      }
+    }
 
     if (stored.type == ROW_GROUP_FACTOR) {
       SEXP row_scale = list_element(state, "row_scale");
@@ -1814,6 +1999,196 @@ bool spectral_block_log_likelihood(
   );
 }
 
+bool markov_block_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *value)
+{
+  if (!block.markov_eligible) {
+    return false;
+  }
+  const CovarianceFactor &factor = factors[static_cast<size_t>(
+    block.markov_factor
+  )];
+  const int q = factor.n_columns;
+  double state_mean = 0.0;
+  double state_variance = 1.0;
+  double log_likelihood = 0.0;
+  const double log_two_pi = 1.837877066409345483560659472811;
+  for (int level = 0; level < q; ++level) {
+    if (level > 0) {
+      const double transition = factor.markov_transition[level - 1];
+      state_mean *= transition;
+      state_variance = transition * transition * state_variance +
+        factor.markov_innovation_variance[level - 1];
+      if (!(state_variance > 0.0) || !std::isfinite(state_variance)) {
+        return false;
+      }
+    }
+    for (int local : block.markov_rows_by_level[static_cast<size_t>(level)]) {
+      const int global = block.index[static_cast<size_t>(local)];
+      const double observation_variance = plan.sampling_covariance[
+        static_cast<size_t>(global + plan.n * global)
+      ] + extra[global];
+      if (!(observation_variance > 0.0) ||
+          !std::isfinite(observation_variance) ||
+          !std::isfinite(mean[global])) {
+        return false;
+      }
+      double loading = block.markov_loading[static_cast<size_t>(local)] *
+        factor.coefficient_scale[level];
+      if (factor.type == ROW_GROUP_FACTOR) {
+        loading *= factor.row_scale[global];
+      }
+      const double residual = plan.y[static_cast<size_t>(global)] -
+        mean[global] - loading * state_mean;
+      const double innovation_variance = observation_variance +
+        loading * loading * state_variance;
+      if (!(innovation_variance > 0.0) ||
+          !std::isfinite(innovation_variance) ||
+          !std::isfinite(residual)) {
+        return false;
+      }
+      log_likelihood += -0.5 * (
+        log_two_pi + std::log(innovation_variance) +
+        residual * residual / innovation_variance
+      );
+      state_mean += state_variance * loading * residual /
+        innovation_variance;
+      state_variance *= observation_variance / innovation_variance;
+      if (!(state_variance > 0.0) || !std::isfinite(state_mean)) {
+        return false;
+      }
+    }
+  }
+  *value = log_likelihood;
+  return true;
+}
+
+bool markov_block_conditional_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *output)
+{
+  if (!block.markov_eligible) {
+    return false;
+  }
+  const CovarianceFactor &factor = factors[static_cast<size_t>(
+    block.markov_factor
+  )];
+  const int q = factor.n_columns;
+  plan.markov_diagonal_work.assign(static_cast<size_t>(q), 0.0);
+  plan.markov_off_diagonal_work.assign(
+    static_cast<size_t>(q - 1),
+    0.0
+  );
+  plan.markov_rhs_work.assign(static_cast<size_t>(q), 0.0);
+  double *diagonal = plan.markov_diagonal_work.data();
+  double *off_diagonal = plan.markov_off_diagonal_work.data();
+  double *rhs = plan.markov_rhs_work.data();
+  double *observation_variance = plan.diagonal_work.data();
+  double *observation_loading = plan.low_rank_work.data();
+  double *observation_residual = plan.residual_work.data();
+  diagonal[0] = 1.0;
+  for (int level = 1; level < q; ++level) {
+    const double transition = factor.markov_transition[level - 1];
+    const double innovation = factor.markov_innovation_variance[level - 1];
+    const double inverse_innovation = 1.0 / innovation;
+    diagonal[level - 1] += transition * transition * inverse_innovation;
+    diagonal[level] += inverse_innovation;
+    off_diagonal[level - 1] = -transition * inverse_innovation;
+  }
+  for (int level = 0; level < q; ++level) {
+    for (int local : block.markov_rows_by_level[static_cast<size_t>(level)]) {
+      const int global = block.index[static_cast<size_t>(local)];
+      const double variance = plan.sampling_covariance[
+        static_cast<size_t>(global + plan.n * global)
+      ] + extra[global];
+      if (!(variance > 0.0) || !std::isfinite(variance) ||
+          !std::isfinite(mean[global])) {
+        return false;
+      }
+      double loading = block.markov_loading[static_cast<size_t>(local)] *
+        factor.coefficient_scale[level];
+      if (factor.type == ROW_GROUP_FACTOR) {
+        loading *= factor.row_scale[global];
+      }
+      const double residual = plan.y[static_cast<size_t>(global)] - mean[global];
+      const double inverse_variance = 1.0 / variance;
+      diagonal[level] += loading * loading * inverse_variance;
+      rhs[level] += loading * residual * inverse_variance;
+      observation_variance[local] = variance;
+      observation_loading[local] = loading;
+      observation_residual[local] = residual;
+    }
+  }
+
+  plan.markov_factor_work.resize(static_cast<size_t>(q - 1));
+  double *subdiagonal_factor = plan.markov_factor_work.data();
+  if (!(diagonal[0] > 0.0) || !std::isfinite(diagonal[0])) {
+    return false;
+  }
+  for (int level = 1; level < q; ++level) {
+    subdiagonal_factor[level - 1] =
+      off_diagonal[level - 1] / diagonal[level - 1];
+    diagonal[level] -= subdiagonal_factor[level - 1] *
+      off_diagonal[level - 1];
+    if (!(diagonal[level] > 0.0) || !std::isfinite(diagonal[level])) {
+      return false;
+    }
+  }
+
+  plan.markov_solution_work.assign(rhs, rhs + q);
+  double *solution = plan.markov_solution_work.data();
+  for (int level = 1; level < q; ++level) {
+    solution[level] -= subdiagonal_factor[level - 1] * solution[level - 1];
+  }
+  solution[q - 1] /= diagonal[q - 1];
+  for (int level = q - 2; level >= 0; --level) {
+    solution[level] = solution[level] / diagonal[level] -
+      subdiagonal_factor[level] * solution[level + 1];
+  }
+
+  plan.markov_variance_work.resize(static_cast<size_t>(q));
+  double *posterior_variance = plan.markov_variance_work.data();
+  posterior_variance[q - 1] = 1.0 / diagonal[q - 1];
+  for (int level = q - 2; level >= 0; --level) {
+    posterior_variance[level] = 1.0 / diagonal[level] +
+      subdiagonal_factor[level] * subdiagonal_factor[level] *
+      posterior_variance[level + 1];
+  }
+
+  const double log_two_pi = 1.837877066409345483560659472811;
+  for (int level = 0; level < q; ++level) {
+    for (int local : block.markov_rows_by_level[static_cast<size_t>(level)]) {
+      const double variance = observation_variance[local];
+      const double loading = observation_loading[local];
+      const double residual = observation_residual[local];
+      const double precision_loading = loading / variance;
+      const double precision_diagonal = 1.0 / variance -
+        precision_loading * precision_loading * posterior_variance[level];
+      const double precision_residual = residual / variance -
+        precision_loading * solution[level];
+      if (!(precision_diagonal > 0.0) ||
+          !std::isfinite(precision_diagonal) ||
+          !std::isfinite(precision_residual)) {
+        return false;
+      }
+      output[block.index[static_cast<size_t>(local)]] = 0.5 * (
+        std::log(precision_diagonal) - log_two_pi -
+        precision_residual * precision_residual / precision_diagonal
+      );
+    }
+  }
+  return true;
+}
+
 double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
                            const std::vector<CovarianceFactor> &factors,
                            SEXP extra_variance)
@@ -1831,7 +2206,14 @@ double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
   double log_likelihood = 0.0;
   for (BlockPlan &block : plan.blocks) {
     double block_value = 0.0;
-    if (!low_rank_block_log_likelihood(
+    if (!markov_block_log_likelihood(
+      plan,
+      block,
+      factors,
+      mean_values,
+      extra_values,
+      &block_value
+    ) && !low_rank_block_log_likelihood(
       plan,
       block,
       factors,
@@ -2388,7 +2770,14 @@ SEXP plan_conditional_log_likelihood(
   double *output_values = REAL(output);
   const double log_two_pi = 1.837877066409345483560659472811;
   for (BlockPlan &block : plan.blocks) {
-    if (diagonal_low_rank_conditional_log_likelihood(
+    if (markov_block_conditional_log_likelihood(
+        plan,
+        block,
+        factors,
+        mean_values,
+        extra_values,
+        output_values
+      ) || diagonal_low_rank_conditional_log_likelihood(
         plan,
         block,
         factors,
@@ -2484,6 +2873,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   SEXP pointer = PROTECT(R_MakeExternalPtr(plan, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(pointer, finalize_plan, TRUE);
   int low_rank_blocks = 0;
+  int markov_blocks = 0;
   int sparse_assembly_blocks = 0;
   int sparse_factor_blocks = 0;
   int block_base_blocks = 0;
@@ -2491,7 +2881,9 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   int root_dense_blocks = 0;
   int dense_blocks = 0;
   for (const BlockPlan &block : plan->blocks) {
-    if (block.sparse_factor_eligible && block.sparse_factor_block_base) {
+    if (block.markov_eligible) {
+      ++markov_blocks;
+    } else if (block.sparse_factor_eligible && block.sparse_factor_block_base) {
       ++block_base_blocks;
       ++sparse_factor_blocks;
     } else if (block.sparse_factor_eligible) {
@@ -2511,6 +2903,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     }
   }
   SEXP low_rank_blocks_sexp = PROTECT(Rf_ScalarInteger(low_rank_blocks));
+  SEXP markov_blocks_sexp = PROTECT(Rf_ScalarInteger(markov_blocks));
   SEXP sparse_assembly_blocks_sexp = PROTECT(Rf_ScalarInteger(
     sparse_assembly_blocks
   ));
@@ -2521,6 +2914,11 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   SEXP spectral_blocks_sexp = PROTECT(Rf_ScalarInteger(spectral_blocks));
   SEXP root_dense_blocks_sexp = PROTECT(Rf_ScalarInteger(root_dense_blocks));
   SEXP dense_blocks_sexp = PROTECT(Rf_ScalarInteger(dense_blocks));
+  Rf_setAttrib(
+    pointer,
+    Rf_install("markov_blocks"),
+    markov_blocks_sexp
+  );
   Rf_setAttrib(
     pointer,
     Rf_install("root_dense_blocks"),
@@ -2556,7 +2954,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     Rf_install("dense_blocks"),
     dense_blocks_sexp
   );
-  UNPROTECT(8);
+  UNPROTECT(9);
   return pointer;
 }
 
