@@ -157,20 +157,26 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   # determine number of cores based on `parallel` and package options
   cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
 
-  deterministic <- .deterministic_log_lik_columns(log_lik)
+  deterministic     <- .deterministic_log_lik_columns(log_lik)
+  variable          <- !deterministic
+  centered_variable <- NULL
+  if (any(variable)) {
+    variable_log_lik <- if (all(variable)) {
+      log_lik
+    } else {
+      log_lik[, variable, drop = FALSE]
+    }
+    centered_variable <- .loo_center_finite_columns(variable_log_lik)
+  }
 
   # compute relative effective sample sizes if not provided
   if (is.null(r_eff)) {
     r_eff <- rep(1, ncol(log_lik))
-    if (any(!deterministic)) {
+    if (any(variable)) {
       # loo::relative_eff expects exp(log_lik) with chain_id for matrix input
       chain_id <- .loo_chain_id(object[["fit"]], n_samples = nrow(log_lik))
-      relative_log_lik <- .loo_center_finite_columns(
-        log_lik[, !deterministic, drop = FALSE]
-      )[["log_lik"]]
-
-      r_eff[!deterministic] <- loo::relative_eff(
-        exp(relative_log_lik),
+      r_eff[variable] <- loo::relative_eff(
+        exp(centered_variable[["log_lik"]]),
         chain_id = chain_id,
         cores    = cores
       )
@@ -183,10 +189,11 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   )
 
   loo_result <- .loo_with_deterministic_columns(
-    log_lik       = log_lik,
-    r_eff         = r_eff,
-    deterministic = deterministic,
-    cores         = cores
+    log_lik           = log_lik,
+    r_eff             = r_eff,
+    deterministic     = deterministic,
+    cores             = cores,
+    centered_variable = centered_variable
   )
   loo_result <- .add_loo_target_metadata(
     object             = loo_result,
@@ -262,10 +269,13 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
 
 
 .loo_with_deterministic_columns <- function(log_lik, r_eff, deterministic,
-                                            cores) {
+                                            cores, centered_variable = NULL) {
 
   if (!any(deterministic)) {
-    centered <- .loo_center_finite_columns(log_lik)
+    centered <- centered_variable
+    if (is.null(centered)) {
+      centered <- .loo_center_finite_columns(log_lik)
+    }
     result <- loo::loo(
       centered[["log_lik"]],
       r_eff     = r_eff,
@@ -278,9 +288,12 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   variable <- which(!deterministic)
   variable_result <- NULL
   if (length(variable) > 0L) {
-    centered <- .loo_center_finite_columns(
-      log_lik[, variable, drop = FALSE]
-    )
+    centered <- centered_variable
+    if (is.null(centered)) {
+      centered <- .loo_center_finite_columns(
+        log_lik[, variable, drop = FALSE]
+      )
+    }
     variable_result <- loo::loo(
       centered[["log_lik"]],
       r_eff     = r_eff[variable],

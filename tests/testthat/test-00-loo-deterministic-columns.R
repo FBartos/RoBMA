@@ -112,6 +112,39 @@ test_that("finite varying LOO columns are invariant to extreme log offsets", {
 })
 
 
+test_that("precomputed centering gives the unchanged exact LOO result", {
+
+  set.seed(321)
+  log_lik <- cbind(
+    exact     = rep(-2, 1000L),
+    variable1 = stats::rnorm(1000L, -1, 0.2),
+    variable2 = stats::rnorm(1000L, -3, 0.5)
+  )
+  deterministic <- .deterministic_log_lik_columns(log_lik)
+  variable      <- !deterministic
+  centered <- .loo_center_finite_columns(
+    log_lik[, variable, drop = FALSE]
+  )
+  r_eff <- c(1, 0.8, 0.9)
+
+  result <- .loo_with_deterministic_columns(
+    log_lik           = log_lik,
+    r_eff             = r_eff,
+    deterministic     = deterministic,
+    cores             = 1,
+    centered_variable = centered
+  )
+  reference <- .loo_with_deterministic_columns(
+    log_lik       = log_lik,
+    r_eff         = r_eff,
+    deterministic = deterministic,
+    cores         = 1
+  )
+
+  expect_identical(result, reference)
+})
+
+
 test_that("mixed deterministic LOO columns have exact saved diagnostics", {
 
   set.seed(123)

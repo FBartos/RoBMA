@@ -22,6 +22,9 @@
   LOO conditional densities. The native evaluator computes only `Q(y - mu)`
   and `diag(Q)` from dense or sparse latent solves, with full-covariance
   inversion retained as the numerical and unsupported-structure fallback.
+- reuses the exactly centered varying log-likelihood matrix in `add_loo()` for
+  relative effective sample sizes and PSIS instead of constructing the same
+  matrix twice, reducing transient memory without changing either calculation.
 - consumes BayesTools' compact exact bridge factor-state contract so invariant
   random-effect designs, group maps, and known group kernels are validated once
   while every draw-varying coefficient factor and row scale retains full
