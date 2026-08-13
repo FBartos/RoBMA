@@ -66,6 +66,18 @@ enum CoefficientStructure {
   MARKOV_COEFFICIENT
 };
 
+void require_diagonal_coefficient_factor(const double *factor, int size,
+                                         const char *name)
+{
+  for (int column = 0; column < size; ++column) {
+    for (int row = 0; row < size; ++row) {
+      if (row != column && factor[row + size * column] != 0.0) {
+        Rf_error("'%s' must be exactly diagonal.", name);
+      }
+    }
+  }
+}
+
 struct CovarianceFactor {
   FactorType type;
   CoefficientStructure coefficient_structure;
@@ -397,6 +409,12 @@ std::vector<CovarianceFactor> covariance_factors(SEXP factors, int n)
           Rf_error("Random covariance Markov transition state is invalid.");
         }
       }
+    } else if (value.coefficient_structure == DIAGONAL_COEFFICIENT) {
+      require_diagonal_coefficient_factor(
+        value.coefficient_factor,
+        value.n_columns,
+        "factor$coefficient_factor"
+      );
     }
 
     if (std::strcmp(type_value, "group") == 0) {
@@ -438,6 +456,22 @@ double design_covariance(const CovarianceFactor &factor, int row, int col,
 {
   const int q = factor.n_columns;
   double value = 0.0;
+  if (factor.coefficient_structure == DIAGONAL_COEFFICIENT) {
+    for (int coefficient = 0; coefficient < q; ++coefficient) {
+      const double scale = factor.coefficient_factor[
+        coefficient + q * coefficient
+      ];
+      const double row_value =
+        factor.model_matrix[row + n * coefficient] * scale;
+      const double col_value =
+        factor.model_matrix[col + n * coefficient] * scale;
+      value += row_value * col_value;
+    }
+    if (factor.type == ROW_GROUP_FACTOR) {
+      value *= factor.row_scale[row] * factor.row_scale[col];
+    }
+    return value;
+  }
   for (int root = 0; root < q; ++root) {
     double row_value = 0.0;
     double col_value = 0.0;
@@ -1069,6 +1103,14 @@ std::vector<CovarianceFactor> covariance_states(
     value.group_map = stored.group_map.data();
     value.coefficient_factor = coefficient_values;
 
+    if (stored.coefficient_structure == DIAGONAL_COEFFICIENT) {
+      require_diagonal_coefficient_factor(
+        coefficient_values,
+        stored.n_columns,
+        "factor_state$coefficient_factor"
+      );
+    }
+
     if (stored.coefficient_structure == MARKOV_COEFFICIENT) {
       SEXP coefficient_scale = list_element(state, "coefficient_scale");
       SEXP transition = list_element(state, "markov_transition");
@@ -1265,13 +1307,22 @@ double *fill_low_rank_factor(
         )];
       }
       for (int root_column = 0; root_column < q; ++root_column) {
-        double transformed = 0.0;
-        for (int coefficient = 0; coefficient < q; ++coefficient) {
-          transformed += factor.model_matrix[
-            global + plan.n * coefficient
+        double transformed;
+        if (factor.coefficient_structure == DIAGONAL_COEFFICIENT) {
+          transformed = factor.model_matrix[
+            global + plan.n * root_column
           ] * factor.coefficient_factor[
-            coefficient + q * root_column
+            root_column + q * root_column
           ];
+        } else {
+          transformed = 0.0;
+          for (int coefficient = 0; coefficient < q; ++coefficient) {
+            transformed += factor.model_matrix[
+              global + plan.n * coefficient
+            ] * factor.coefficient_factor[
+              coefficient + q * root_column
+            ];
+          }
         }
         transformed *= row_scale * group_scale;
         if (!std::isfinite(transformed)) {

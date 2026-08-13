@@ -6,6 +6,10 @@
   factor, supports missing and repeated states plus row-specific scales, and
   falls back to the existing full covariance paths for correlated sampling
   blocks or general random-effect designs.
+- uses the exact diagonal coefficient-factor contract to construct transformed
+  random-effect designs in linear rather than quadratic time in the number of
+  coefficients. The native evaluator verifies every structural zero before
+  taking this route and retains the general dense multiplication otherwise.
 - caches exact Cholesky factors, log determinants, and precision diagonals for
   fixed sampling-covariance blocks, reusing them in zero-extra-variance bridge
   and LOO states while nonzero states retain their per-state factorization.

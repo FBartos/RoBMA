@@ -500,6 +500,101 @@ test_that("native covariance plan reuses exact low-rank group geometry", {
   expect_equal(updated_actual, updated_expected, tolerance = 1e-12)
 })
 
+test_that("native diagonal coefficient plans preserve the full covariance", {
+
+  set.seed(701L)
+  n <- 12L
+  q <- 5L
+  y <- stats::rnorm(n)
+  mean <- seq(-0.1, 0.15, length.out = n)
+  sampling_covariance <- diag(seq(0.06, 0.12, length.out = n))
+  Z <- matrix(stats::rnorm(n * q), nrow = n)
+  group_map <- rep(1:2, each = n / 2L)
+  row_scale <- c(0, seq(0.5, 1.5, length.out = n - 1L))
+  scale <- c(0, 0.1, 0.25, 0.4, 0.7)
+  coefficient_factor <- diag(scale, q)
+  factor <- list(
+    type = "row_group",
+    model_matrix = Z,
+    group_map = group_map,
+    row_scale = row_scale,
+    coefficient_structure = "diagonal",
+    coefficient_factor = coefficient_factor
+  )
+  blocks <- list(seq_len(n / 2L), (n / 2L + 1L):n)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(factor),
+    blocks,
+    PACKAGE = "RoBMA"
+  )
+  state <- list(.marglik_covariance_factor_state(factor))
+  actual_joint <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    state,
+    double(n),
+    PACKAGE = "RoBMA"
+  )
+  actual_conditional <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    state,
+    double(n),
+    PACKAGE = "RoBMA"
+  )
+  effective_Z <- Z * row_scale
+  covariance <- sampling_covariance +
+    outer(group_map, group_map, "==") *
+      tcrossprod(effective_Z %*% coefficient_factor)
+  precision <- solve(covariance)
+  precision_residual <- drop(precision %*% (y - mean))
+  expected_conditional <- 0.5 * (
+    log(diag(precision)) - log(2 * pi) -
+      precision_residual^2 / diag(precision)
+  )
+
+  expect_equal(
+    actual_joint,
+    .marglik_mvn_log_density(y, mean, covariance),
+    tolerance = 1e-13
+  )
+  expect_equal(actual_conditional, expected_conditional, tolerance = 1e-13)
+
+  invalid_factor <- factor
+  invalid_factor$coefficient_factor[2L, 1L] <- 0.01
+  expect_error(
+    .Call(
+      "RoBMA_known_v_covariance_plan_create",
+      as.double(y),
+      sampling_covariance,
+      list(invalid_factor),
+      blocks,
+      PACKAGE = "RoBMA"
+    ),
+    "must be exactly diagonal",
+    fixed = TRUE
+  )
+  invalid_state <- state
+  invalid_state[[1L]]$coefficient_factor[2L, 1L] <- 0.01
+  expect_error(
+    .Call(
+      "RoBMA_known_v_covariance_plan_loglik",
+      plan,
+      as.double(mean),
+      invalid_state,
+      double(n),
+      PACKAGE = "RoBMA"
+    ),
+    "must be exactly diagonal",
+    fixed = TRUE
+  )
+})
+
 test_that("native Markov plans match dense joint and conditional likelihoods", {
 
   transition <- c(-0.45, -0.45, -0.45, 0.35, 0.6, 0.25, 0.7)
