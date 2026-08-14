@@ -121,6 +121,21 @@ test_that("diagonal known-V estimate log-likelihood is exactly vectorized", {
     .log_lik_known_v_estimate_target_from_setup(setup),
     expected
   )
+  expect_equal(
+    .log_lik_known_v_joint_sum_from_setup(setup),
+    rowSums(expected),
+    tolerance = 1e-13
+  )
+
+  block_data <- .known_v_dependency_block_data(data, setup[["K"]])
+  plan <- .known_v_covariance_plan(
+    yi = setup[["yi"]],
+    block_indices = lapply(block_data, `[[`, "index"),
+    block_covariances = lapply(block_data, `[[`, "covariance"),
+    selected_blocks = seq_along(block_data)
+  )[["plan"]]
+  expect_identical(attr(plan, "low_rank_blocks"), 0L)
+  expect_identical(attr(plan, "root_dense_blocks"), 4L)
 })
 
 

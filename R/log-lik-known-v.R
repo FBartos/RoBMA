@@ -162,11 +162,11 @@
     logical(1L)
   )]
   general_blocks <- setdiff(dependent_blocks, rank_one_blocks)
-  general_plan <- .known_v_general_conditional_plan(
+  general_plan <- .known_v_covariance_plan(
     yi                = yi,
     block_indices     = block_indices,
     block_covariances = block_covariances,
-    general_blocks    = general_blocks
+    selected_blocks   = general_blocks
   )
 
   extra_variance <- .known_v_extra_variance_from_setup(setup)
@@ -231,15 +231,15 @@
 }
 
 
-.known_v_general_conditional_plan <- function(
-    yi, block_indices, block_covariances, general_blocks) {
+.known_v_covariance_plan <- function(
+    yi, block_indices, block_covariances, selected_blocks) {
 
-  if (length(general_blocks) == 0L) {
+  if (length(selected_blocks) == 0L) {
     return(NULL)
   }
 
-  selected_indices <- block_indices[general_blocks]
-  selected_covariances <- block_covariances[general_blocks]
+  selected_indices <- block_indices[selected_blocks]
+  selected_covariances <- block_covariances[selected_blocks]
   block_sizes <- lengths(selected_indices)
   global_indices <- as.integer(unlist(selected_indices, use.names = FALSE))
   local_blocks <- vector("list", length(block_sizes))
@@ -315,36 +315,39 @@
   block_data        <- .known_v_dependency_block_data(data, K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
-  rank_one_factors  <- lapply(block_covariances, function(covariance) {
-    .covariance_exact_rank_one_factor(covariance)
-  })
-  extra_variance    <- .known_v_extra_variance_from_setup(setup)
-  log_lik           <- numeric(S)
+  joint_plan <- .known_v_covariance_plan(
+    yi                = yi,
+    block_indices     = block_indices,
+    block_covariances = block_covariances,
+    selected_blocks   = seq_along(block_indices)
+  )
+  plan_indices   <- joint_plan[["global_indices"]]
+  extra_variance <- .known_v_extra_variance_from_setup(setup)
+  log_lik        <- numeric(S)
 
   for (s in seq_len(S)) {
-    for (block in seq_along(block_indices)) {
-      idx              <- block_indices[[block]]
-      block_covariance <- block_covariances[[block]]
-      rank_one_factor  <- rank_one_factors[[block]]
-      if (length(idx) > 1L && !is.null(rank_one_factor)) {
-        log_lik[[s]] <- log_lik[[s]] + .known_v_diagonal_rank_one_log_density(
-          y         = yi[idx],
-          mean      = mu_samples[s, idx],
-          diagonal  = extra_variance[s, idx],
-          rank_one  = rank_one_factor,
-          context   = "joint likelihood"
-        )
-      } else {
-        covariance <- block_covariance +
-          diag(extra_variance[s, idx], nrow = length(idx))
-        log_lik[[s]] <- log_lik[[s]] + .marglik_mvn_log_density(
-          y          = yi[idx],
-          mean       = mu_samples[s, idx],
-          covariance = covariance,
-          context    = "joint likelihood"
-        )
+    log_lik[[s]] <- tryCatch(
+      .Call(
+        "RoBMA_known_v_covariance_plan_loglik",
+        joint_plan[["plan"]],
+        as.double(mu_samples[s, plan_indices]),
+        list(),
+        as.double(extra_variance[s, plan_indices]),
+        PACKAGE = "RoBMA"
+      ),
+      error = function(error) {
+        for (block in seq_along(block_indices)) {
+          idx <- block_indices[[block]]
+          covariance <- block_covariances[[block]] +
+            diag(extra_variance[s, idx], nrow = length(idx))
+          .known_v_chol_covariance(
+            covariance = covariance,
+            context    = "joint likelihood"
+          )
+        }
+        stop(conditionMessage(error), call. = FALSE)
       }
-    }
+    )
   }
 
   return(log_lik)

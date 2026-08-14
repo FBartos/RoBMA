@@ -1501,7 +1501,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       known_V          = known_V,
       mu_samples       = mu_samples,
       extra_variance   = extra_variance,
-      effect_direction = effect_direction
+      effect_direction = effect_direction,
+      covariance_plan_cache = covariance_plan_cache
     ))
   }
 
@@ -2499,52 +2500,24 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 .marglik_known_v_block_mvn_log_lik_sum <- function(model_data, known_V,
                                                    mu_samples,
                                                    extra_variance,
-                                                   effect_direction) {
+                                                   effect_direction,
+                                                   covariance_plan_cache) {
 
-  yi      <- model_data[["outcome"]][["yi"]]
-  log_lik <- 0
+  yi <- model_data[["outcome"]][["yi"]]
 
   if (effect_direction == "negative") {
     yi <- -yi
   }
 
-  independent <- .known_v_independent_indices(known_V)
-  if (length(independent) > 0L) {
-    variance <- .known_v_diagonal(known_V)[independent] +
-      as.numeric(extra_variance[1L, independent])
-    log_lik <- log_lik + sum(stats::dnorm(
-      x    = yi[independent],
-      mean = as.numeric(mu_samples[1L, independent]),
-      sd   = sqrt(variance),
-      log  = TRUE
-    ))
-  }
-
-  covariance_blocks <- .known_v_correlated_blocks(known_V)
-  for (b in seq_along(covariance_blocks)) {
-    idx              <- covariance_blocks[[b]][["index"]]
-    block_covariance <- covariance_blocks[[b]][["covariance"]]
-    rank_one_factor  <- .covariance_exact_rank_one_factor(block_covariance)
-    if (!is.null(rank_one_factor)) {
-      log_lik <- log_lik + .known_v_diagonal_rank_one_log_density(
-        y        = yi[idx],
-        mean     = as.numeric(mu_samples[1L, idx]),
-        diagonal = as.numeric(extra_variance[1L, idx]),
-        rank_one = rank_one_factor,
-        context  = "bridge"
-      )
-    } else {
-      covariance <- block_covariance +
-        diag(as.numeric(extra_variance[1L, idx]), nrow = length(idx))
-      log_lik <- log_lik + .marglik_mvn_log_density(
-        y          = yi[idx],
-        mean       = as.numeric(mu_samples[1L, idx]),
-        covariance = covariance
-      )
-    }
-  }
-
-  return(log_lik)
+  .marglik_covariance_plan_loglik(
+    cache = covariance_plan_cache,
+    y = as.double(yi),
+    mean = as.double(mu_samples[1L, ]),
+    sampling_covariance = .marglik_known_v_covariance_matrix(known_V),
+    random_covariance_factors = list(),
+    block_indices = lapply(.known_v_blocks(known_V), `[[`, "index"),
+    extra_variance = as.double(extra_variance[1L, ])
+  )
 }
 
 

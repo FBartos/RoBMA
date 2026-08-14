@@ -752,7 +752,8 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     }
   }
   out.root_eligible = compatible;
-  out.low_rank_eligible = sampling_diagonal && compatible && rank < size;
+  out.low_rank_eligible = sampling_diagonal && compatible && rank > 0 &&
+    rank < size;
   out.sparse_assembly_eligible = out.low_rank_eligible;
   out.sparse_factor_candidate = false;
   out.sparse_factor_eligible = false;
