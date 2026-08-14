@@ -1592,6 +1592,15 @@ bool diagonal_low_rank_log_likelihood(
   );
 }
 
+void assemble_dense_latent_system(
+    CovariancePlan &plan,
+    const std::vector<std::vector<int>> &active_columns,
+    int size,
+    int rank,
+    const double *diagonal,
+    const double *residual,
+    const double *U);
+
 bool sparse_diagonal_low_rank_log_likelihood(
     CovariancePlan &plan,
     const BlockPlan &block,
@@ -1604,36 +1613,15 @@ bool sparse_diagonal_low_rank_log_likelihood(
     double base_quadratic,
     double *value)
 {
-  double *small = plan.small_matrix_work.data();
-  double *rhs = plan.rhs_work.data();
-  std::fill(small, small + static_cast<size_t>(rank * rank), 0.0);
-  std::fill(rhs, rhs + static_cast<size_t>(rank), 0.0);
-  for (int column = 0; column < rank; ++column) {
-    small[static_cast<size_t>(column + rank * column)] = 1.0;
-  }
-  for (int observation = 0; observation < size; ++observation) {
-    const double inverse_variance = 1.0 /
-      diagonal[static_cast<size_t>(observation)];
-    const double weighted_residual =
-      residual[static_cast<size_t>(observation)] * inverse_variance;
-    const std::vector<int> &columns = block.active_columns[
-      static_cast<size_t>(observation)
-    ];
-    for (size_t column_i = 0; column_i < columns.size(); ++column_i) {
-      const int column = columns[column_i];
-      const double column_value = U[static_cast<size_t>(
-        observation + size * column
-      )];
-      rhs[static_cast<size_t>(column)] +=
-        column_value * weighted_residual;
-      for (size_t row_i = column_i; row_i < columns.size(); ++row_i) {
-        const int row = columns[row_i];
-        small[static_cast<size_t>(row + rank * column)] +=
-          U[static_cast<size_t>(observation + size * row)] *
-          column_value * inverse_variance;
-      }
-    }
-  }
+  assemble_dense_latent_system(
+    plan,
+    block.active_columns,
+    size,
+    rank,
+    diagonal,
+    residual,
+    U
+  );
 
   return finish_low_rank_log_likelihood(
     plan,
