@@ -3,4 +3,5 @@ Method: stacking
            weight
 fit_simple 0.000 
 fit_3PSM   0.000 
-fit_PET    1.000 
+fit_PET    0.999 
+fit_PEESE  0.001 

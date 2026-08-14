@@ -1,4 +1,4 @@
-    Alternative:    Null:    BF error%(BF)
-mu      mu > 0.2 mu < 0.2 3.373      1.642
-mu1     mu > 0.2 mu < 0.2 1.280      1.642
-mu2     mu > 0.2 mu < 0.2 1.268      1.643
+ Alternative:    Null:    BF error%(BF)
+     mu > 0.2 mu < 0.2 3.373      1.642
+     mu > 0.2 mu < 0.2 1.280      1.642
+     mu > 0.2 mu < 0.2 1.268      1.643

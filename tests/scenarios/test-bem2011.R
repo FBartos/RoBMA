@@ -15,6 +15,7 @@ testthat::test_that("Bem simple models", {
   fit_simple_metafor <- metafor::rma(yi = d, sei = se, data = Bem2011, method = "ML")
   fit_3PSM_metafor   <- metafor::selmodel(fit_simple_metafor, type = "step", steps = c(0.025))
   fit_PET_metafor    <- metafor::rma(yi = d, sei = se, mods = ~ se, data = Bem2011, method = "ML")
+  fit_PEESE_metafor  <- metafor::rma(yi = d, sei = se, mods = ~ I(se^2), data = Bem2011, method = "ML")
 
   fit_simple <- scenario_fit("fit_simple", {
     tmp <- brma(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1)
@@ -35,15 +36,23 @@ testthat::test_that("Bem simple models", {
     tmp <- add_marglik(tmp)
     return(tmp)
   })
+  fit_PEESE <- scenario_fit("fit_PEESE", {
+    tmp <- bPEESE(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1,
+                  sample = 20000, adapt = 5000, burnin = 5000)
+    tmp <- add_loo(tmp)
+    tmp <- add_marglik(tmp)
+    return(tmp)
+  })
 
   ### simple summary ----
   scenario_text("fit_simple_summary", {summary(fit_simple)})
   scenario_text("fit_3PSM_summary", {summary(fit_3PSM)})
   scenario_text("fit_PET_summary", {summary(fit_PET)})
+  scenario_text("fit_PEESE_summary", {summary(fit_PEESE)})
 
   # simple model comparison
-  scenario_text("fit_bf_comparison", {post_prob(fit_simple, fit_3PSM, fit_PET)})
-  scenario_text("fit_loo_comparison", {loo_model_weights(fit_simple, fit_3PSM, fit_PET)})
+  scenario_text("fit_bf_comparison", {post_prob(fit_simple, fit_3PSM, fit_PET, fit_PEESE)})
+  scenario_text("fit_loo_comparison", {loo_model_weights(fit_simple, fit_3PSM, fit_PET, fit_PEESE)})
 
   ### basic fit plots ----
   set.seed(1)
@@ -62,6 +71,7 @@ testthat::test_that("Bem simple models", {
   set.seed(1)
   scenario_plot("fit_weight", {plot_weightfunction(fit_3PSM)})
   scenario_plot("fit_PET", {plot_pet_peese(fit_PET, ylim = c(-1, 5), xlim = c(0, 1))})
+  scenario_plot("fit_PEESE", {plot_pet_peese(fit_PEESE, ylim = c(-0.5, 1), xlim = c(0, 0.2))})
 
   ### fit specific plots ----
   set.seed(1)
@@ -145,6 +155,8 @@ testthat::test_that("Bem BMA models", {
   set.seed(1)
 
   data(Bem2011, package = "RoBMA")
+  Bem2011_reverse   <- Bem2011
+  Bem2011_reverse$d <- -Bem2011_reverse$d
 
   fit_BMA <- scenario_fit("fit_BMA", {
     tmp <- BMA(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1)
@@ -156,6 +168,10 @@ testthat::test_that("Bem BMA models", {
                  adapt = 5000, burnin = 5000, sample = 20000)
     tmp <- add_loo(tmp)
     return(tmp)
+  })
+  fit_RoBMA_reverse <- scenario_fit("fit_RoBMA_reverse", {
+    RoBMA(yi = d, sei = se, data = Bem2011_reverse, measure = "SMD", effect_direction = "negative", seed = 1,
+          adapt = 5000, burnin = 5000, sample = 20000)
   })
   fit_BMA_con <- scenario_fit("fit_BMA_con", {
     tmp <- BMA(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1,
@@ -181,6 +197,27 @@ testthat::test_that("Bem BMA models", {
 
   scenario_text("fit_BMA_summary_models",   {summary_models(fit_BMA)})
   scenario_text("fit_RoBMA_summary_models", {summary_models(fit_RoBMA)})
+
+  ### effect direction symmetry ----
+  fit_RoBMA_reverse_coef       <- coef(fit_RoBMA_reverse)
+  fit_RoBMA_reverse_coef["mu"] <- -fit_RoBMA_reverse_coef["mu"]
+  scenario_text("fit_RoBMA_reverse_coefficients", {data.frame(
+    standard          = coef(fit_RoBMA),
+    reverse_corrected = fit_RoBMA_reverse_coef
+  )})
+  scenario_text("fit_RoBMA_reverse_fitted", {data.frame(
+    standard          = fitted(fit_RoBMA),
+    reverse_corrected = -fitted(fit_RoBMA_reverse)
+  )})
+
+  fit_RoBMA_models         <- summary_models(fit_RoBMA,         type = "individual")[["individual"]][["post_prob"]]
+  fit_RoBMA_reverse_models <- summary_models(fit_RoBMA_reverse, type = "individual")[["individual"]][["post_prob"]]
+  scenario_plot("fit_RoBMA_reverse_model_probabilities", {
+    plot(fit_RoBMA_models, fit_RoBMA_reverse_models,
+         xlim = c(0, 0.3), ylim = c(0, 0.3), pch = 16,
+         xlab = "Standard", ylab = "Reverse direction")
+    abline(a = 0, b = 1, lty = 2)
+  })
 
 
   ### basic fit plots ----

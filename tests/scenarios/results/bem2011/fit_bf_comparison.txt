@@ -1,2 +1,2 @@
-fit_simple   fit_3PSM    fit_PET 
- 0.1788837  0.2943299  0.5267864 
+fit_simple   fit_3PSM    fit_PET  fit_PEESE 
+ 0.1182684  0.1945953  0.3482831  0.3388532 
