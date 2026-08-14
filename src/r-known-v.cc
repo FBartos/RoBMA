@@ -3316,31 +3316,3 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik(
     extra_variance
   );
 }
-
-extern "C" SEXP RoBMA_known_v_block_mvn_loglik(
-    SEXP y,
-    SEXP mean,
-    SEXP sampling_covariance,
-    SEXP random_covariance_factors,
-    SEXP block_indices,
-    SEXP extra_variance)
-{
-  CovariancePlan *plan = make_plan(
-    y,
-    sampling_covariance,
-    random_covariance_factors,
-    block_indices
-  );
-  std::vector<CovarianceFactor> factors = covariance_states(
-    random_covariance_factors,
-    *plan
-  );
-  const double value = plan_log_likelihood(
-    *plan,
-    mean,
-    factors,
-    extra_variance
-  );
-  delete plan;
-  return Rf_ScalarReal(value);
-}

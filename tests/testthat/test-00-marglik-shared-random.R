@@ -404,13 +404,19 @@ test_that("native known-group factor equals independently materialized covarianc
     coefficient_covariance = coefficient_covariance,
     coefficient_factor = coefficient_factor
   )
-  actual <- .Call(
-    "RoBMA_known_v_block_mvn_loglik",
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
     as.double(y),
-    as.double(mean),
     sampling_covariance,
-    list(factor),
+    list(.marglik_covariance_factor_plan(factor)),
     list(seq_along(y)),
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_loglik",
+    plan,
+    as.double(mean),
+    list(.marglik_covariance_factor_state(factor)),
     double(length(y)),
     PACKAGE = "RoBMA"
   )
@@ -1300,7 +1306,7 @@ test_that("block-base Woodbury falls back exactly for singular base blocks", {
   expect_equal(actual, expected, tolerance = 1e-12)
 })
 
-test_that("compiled factor validation retains changing-value checks", {
+test_that("full factors normalize while retaining changing-value checks", {
 
   K <- 4L
   coefficient_factor <- matrix(c(0.4, 0.1, 0, 0.3), nrow = 2L)
@@ -1339,11 +1345,17 @@ test_that("compiled factor validation retains changing-value checks", {
     validation_cache = cache
   )
 
+  expect_identical(first$representation, "factor_state")
+  expect_identical(
+    second$factor_plans[[1L]],
+    first$factor_plans[[1L]]
+  )
   expect_equal(
-    second$factors[[1L]]$coefficient_covariance,
-    updated_factor$coefficient_covariance,
+    second$factor_states[[1L]]$coefficient_factor,
+    updated_factor$coefficient_factor,
     tolerance = 0
   )
+  expect_null(second$factor_states[[1L]]$coefficient_covariance)
   expect_identical(second$row_blocks, first$row_blocks)
 
   asymmetric <- updated
@@ -1438,41 +1450,46 @@ test_that("compact bridge factor states retain the exact covariance contract", {
   mean <- c(-0.1, 0.05, 0.2, -0.15)
   sampling_covariance <- diag(c(0.08, 0.07, 0.09, 0.06))
   extra_variance <- c(0.01, 0.02, 0.015, 0.005)
-  full_factor <- Map(
-    c,
-    second$factor_plans,
-    second$factor_states
+  full_context <- context
+  full_context$marginalized_random$mu <- list(
+    representation = "factor",
+    row_blocks = second$row_blocks,
+    factors = Map(
+      c,
+      second$factor_plans,
+      second$factor_states
+    )
   )
-  expected <- .marglik_covariance_plan_loglik(
-    cache = NULL,
+  normalized_full <- .marglik_bridge_random_covariance(
+    bridge_context = full_context,
+    K = K,
+    validation_cache = new.env(parent = emptyenv())
+  )
+  expect_identical(normalized_full, second)
+
+  scaled_design <- factor_plan$model_matrix *
+    second$factor_states[[1L]]$row_scale
+  same_group <- outer(factor_plan$group_map, factor_plan$group_map, "==")
+  random_covariance <- same_group * tcrossprod(
+    scaled_design %*% second$factor_states[[1L]]$coefficient_factor
+  )
+  expected <- .marglik_mvn_log_density(
     y = y,
     mean = mean,
-    sampling_covariance = sampling_covariance,
-    random_covariance_factors = full_factor,
-    block_indices = second$row_blocks,
-    extra_variance = extra_variance
+    covariance = sampling_covariance +
+      diag(extra_variance, nrow = K) + random_covariance
   )
   actual <- .marglik_covariance_plan_loglik(
     cache = new.env(parent = emptyenv()),
     y = y,
     mean = mean,
     sampling_covariance = sampling_covariance,
-    random_covariance_factors = second$factor_plans,
+    random_covariance_plans = second$factor_plans,
     random_covariance_states = second$factor_states,
     block_indices = second$row_blocks,
     extra_variance = extra_variance
   )
-  expect_equal(actual, expected, tolerance = 0)
-  adapted <- .marglik_covariance_plan_loglik(
-    cache = new.env(parent = emptyenv()),
-    y = y,
-    mean = mean,
-    sampling_covariance = sampling_covariance,
-    random_covariance_factors = full_factor,
-    block_indices = second$row_blocks,
-    extra_variance = extra_variance
-  )
-  expect_equal(adapted, expected, tolerance = 0)
+  expect_equal(actual, expected, tolerance = 1e-12)
 
   invalid <- updated
   invalid$marginalized_random$mu$factor_states[[1L]]$row_scale[[2L]] <- -1

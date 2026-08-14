@@ -1661,14 +1661,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     K = K,
     validation_cache = NULL
   )
-  validated_plans <- lapply(
-    validated[["factors"]],
-    .marglik_covariance_factor_plan
-  )
-  validated_states <- lapply(
-    validated[["factors"]],
-    .marglik_covariance_factor_state
-  )
+  validated_plans  <- validated[["factor_plans"]]
+  validated_states <- validated[["factor_states"]]
   if (is.environment(validation_cache)) {
     validation_cache[["factor_state_validation"]] <- list(
       process_id = process_id,
@@ -1788,14 +1782,14 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         call. = FALSE
       )
     }
-    return(list(
-      representation = "factor",
+    factors <- .marglik_validate_random_covariance_factor_values(
+      factors   = factors,
+      templates = cached[["factors"]],
+      K         = K
+    )
+    return(.marglik_canonical_random_covariance_factors(
       row_blocks = cached[["row_blocks"]],
-      factors = .marglik_validate_random_covariance_factor_values(
-        factors   = factors,
-        templates = cached[["factors"]],
-        K         = K
-      )
+      factors    = factors
     ))
   }
 
@@ -1842,10 +1836,20 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     )
   }
 
-  list(
-    representation = "factor",
+  .marglik_canonical_random_covariance_factors(
     row_blocks = row_blocks,
-    factors = factors
+    factors    = factors
+  )
+}
+
+
+.marglik_canonical_random_covariance_factors <- function(row_blocks, factors) {
+
+  list(
+    representation = "factor_state",
+    row_blocks      = row_blocks,
+    factor_plans    = lapply(factors, .marglik_covariance_factor_plan),
+    factor_states   = lapply(factors, .marglik_covariance_factor_state)
   )
 }
 
@@ -2191,8 +2195,10 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 
   block_indices <- data[["marglik_dependency_blocks"]]
   factor_representation <- !is.null(marginal_random_covariance) &&
-    marginal_random_covariance[["representation"]] %in%
-      c("factor", "factor_state")
+    identical(
+      marginal_random_covariance[["representation"]],
+      "factor_state"
+    )
   if (factor_representation) {
     random_indices <- marginal_random_covariance[["row_blocks"]]
     if (!is.null(block_indices) && !identical(block_indices, random_indices)) {
@@ -2217,94 +2223,66 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       call. = FALSE
     )
   }
-  random_covariance_factors <- if (factor_representation && identical(
-    marginal_random_covariance[["representation"]], "factor"
-  )) {
-    marginal_random_covariance[["factors"]]
-  } else if (factor_representation) {
+  random_covariance_plans <- if (factor_representation) {
     marginal_random_covariance[["factor_plans"]]
   } else if (!is.null(marginal_random_covariance)) {
-    list(list(
-      type = "dense",
-      covariance = marginal_random_covariance[["covariance"]]
-    ))
+    list(list(type = "dense"))
   } else {
     list()
   }
-  random_covariance_states <- if (factor_representation && identical(
-    marginal_random_covariance[["representation"]], "factor_state"
-  )) {
+  random_covariance_states <- if (factor_representation) {
     marginal_random_covariance[["factor_states"]]
+  } else if (!is.null(marginal_random_covariance)) {
+    list(list(covariance = marginal_random_covariance[["covariance"]]))
   } else {
-    NULL
+    list()
   }
 
   .marglik_covariance_plan_loglik(
-    cache                     = covariance_plan_cache,
-    y                         = as.double(yi),
-    mean                      = as.double(mu_samples[1L, ]),
-    sampling_covariance       = sampling_covariance,
-    random_covariance_factors = random_covariance_factors,
-    random_covariance_states  = random_covariance_states,
-    block_indices             = block_indices,
-    extra_variance            = as.double(extra_variance[1L, ])
+    cache                    = covariance_plan_cache,
+    y                        = as.double(yi),
+    mean                     = as.double(mu_samples[1L, ]),
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = random_covariance_plans,
+    random_covariance_states = random_covariance_states,
+    block_indices            = block_indices,
+    extra_variance           = as.double(extra_variance[1L, ])
   )
 }
 
 
 .marglik_covariance_plan_loglik <- function(
-    cache, y, mean, sampling_covariance, random_covariance_factors,
-    block_indices, extra_variance, random_covariance_states = NULL) {
+    cache, y, mean, sampling_covariance, random_covariance_plans,
+    random_covariance_states, block_indices, extra_variance) {
 
-  if (is.null(cache)) {
-    uncached_factors <- if (is.null(random_covariance_states)) {
-      random_covariance_factors
-    } else {
-      Map(c, random_covariance_factors, random_covariance_states)
-    }
-    return(.Call(
-      "RoBMA_known_v_block_mvn_loglik",
-      y,
-      mean,
-      sampling_covariance,
-      uncached_factors,
-      block_indices,
-      extra_variance,
-      PACKAGE = "RoBMA"
-    ))
-  }
-  if (!is.environment(cache)) {
+  if (!is.null(cache) && !is.environment(cache)) {
     stop("Known-V covariance plan cache must be an environment.",
          call. = FALSE)
   }
 
-  if (is.null(random_covariance_states)) {
-    random_covariance_states <- lapply(
-      random_covariance_factors,
-      .marglik_covariance_factor_state
-    )
-    random_covariance_factors <- lapply(
-      random_covariance_factors,
-      .marglik_covariance_factor_plan
-    )
-  }
-
   process_id <- Sys.getpid()
-  if (!identical(cache[["process_id"]], process_id) ||
-      is.null(cache[["plan"]])) {
-    cache[["plan"]] <- .Call(
+  rebuild_plan <- is.null(cache) ||
+    !identical(cache[["process_id"]], process_id) ||
+    is.null(cache[["plan"]])
+  if (rebuild_plan) {
+    plan <- .Call(
       "RoBMA_known_v_covariance_plan_create",
       y,
       sampling_covariance,
-      random_covariance_factors,
+      random_covariance_plans,
       block_indices,
       PACKAGE = "RoBMA"
     )
-    cache[["process_id"]] <- process_id
+    if (is.environment(cache)) {
+      cache[["plan"]]       <- plan
+      cache[["process_id"]] <- process_id
+    }
+  } else {
+    plan <- cache[["plan"]]
   }
   .Call(
     "RoBMA_known_v_covariance_plan_loglik",
-    cache[["plan"]],
+    plan,
     mean,
     random_covariance_states,
     extra_variance,
@@ -2510,13 +2488,14 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   .marglik_covariance_plan_loglik(
-    cache = covariance_plan_cache,
-    y = as.double(yi),
-    mean = as.double(mu_samples[1L, ]),
-    sampling_covariance = .marglik_known_v_covariance_matrix(known_V),
-    random_covariance_factors = list(),
-    block_indices = lapply(.known_v_blocks(known_V), `[[`, "index"),
-    extra_variance = as.double(extra_variance[1L, ])
+    cache                    = covariance_plan_cache,
+    y                        = as.double(yi),
+    mean                     = as.double(mu_samples[1L, ]),
+    sampling_covariance      = .marglik_known_v_covariance_matrix(known_V),
+    random_covariance_plans  = list(),
+    random_covariance_states = list(),
+    block_indices            = lapply(.known_v_blocks(known_V), `[[`, "index"),
+    extra_variance           = as.double(extra_variance[1L, ])
   )
 }
 

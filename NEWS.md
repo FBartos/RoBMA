@@ -37,9 +37,10 @@
 - consumes BayesTools' compact exact bridge factor-state contract so invariant
   random-effect designs, group maps, and known group kernels are validated once
   while every draw-varying coefficient factor and row scale retains full
-  support validation. The native covariance plan now consumes this immutable
-  geometry and dynamic state directly; the generic full covariance-factor and
-  dense contracts remain available.
+  support validation. Full covariance-factor inputs are retained and normalized
+  once to the same internal plan/state representation; the native evaluator
+  therefore consumes one immutable-geometry and dynamic-state contract while
+  the generic full-factor and dense interfaces remain available.
 - shares exact latent-system, fixed-known-group, and correlated sampling-block
   preparation between marginal-likelihood and conditional evaluators, and
   routes bridge block-MVN and post-fit joint known-`V` densities through the
