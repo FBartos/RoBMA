@@ -2307,13 +2307,12 @@ bool markov_block_conditional_log_likelihood(
   return true;
 }
 
-bool fixed_known_group_block_log_likelihood(
+bool prepare_fixed_known_group_block(
     CovariancePlan &plan,
     const BlockPlan &block,
     const std::vector<CovarianceFactor> &factors,
     const double *mean,
-    const double *extra,
-    double *value)
+    const double *extra)
 {
   if (!block.fixed_known_group_eligible) {
     return false;
@@ -2383,12 +2382,6 @@ bool fixed_known_group_block_log_likelihood(
   if (info != 0) {
     return false;
   }
-  double log_determinant = block.fixed_known_group_log_determinant;
-  for (int column = 0; column < rank; ++column) {
-    log_determinant += 2.0 * std::log(small[static_cast<size_t>(
-      column + rank * column
-    )]);
-  }
   F77_CALL(dpotrs)(
     "L", &rank, &increment, small, &rank, rhs, &rank, &info FCONE
   );
@@ -2404,6 +2397,39 @@ bool fixed_known_group_block_log_likelihood(
     "N", &size, &rank, &minus_one, block.fixed_known_group_basis.data(),
     &size, scales, &increment, &one, residual, &increment FCONE
   );
+  return true;
+}
+
+bool fixed_known_group_block_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *value)
+{
+  if (!prepare_fixed_known_group_block(
+      plan,
+      block,
+      factors,
+      mean,
+      extra
+    )) {
+    return false;
+  }
+
+  const int size = static_cast<int>(block.index.size());
+  const int rank = block.rank;
+  const int increment = 1;
+  const double *small = plan.small_matrix_work.data();
+  const double *rhs = plan.rhs_work.data();
+  const double *residual = plan.residual_work.data();
+  double log_determinant = block.fixed_known_group_log_determinant;
+  for (int column = 0; column < rank; ++column) {
+    log_determinant += 2.0 * std::log(small[static_cast<size_t>(
+      column + rank * column
+    )]);
+  }
   double quadratic = F77_CALL(ddot)(
     &rank, rhs, &increment, rhs, &increment
   );
@@ -2430,14 +2456,12 @@ bool fixed_known_group_block_conditional_log_likelihood(
     const double *extra,
     double *output)
 {
-  double ignored = 0.0;
-  if (!fixed_known_group_block_log_likelihood(
+  if (!prepare_fixed_known_group_block(
       plan,
       block,
       factors,
       mean,
-      extra,
-      &ignored
+      extra
     )) {
     return false;
   }
