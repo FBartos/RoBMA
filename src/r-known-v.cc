@@ -311,152 +311,6 @@ void compile_sparse_latent_pattern(
   }
 }
 
-std::vector<CovarianceFactor> covariance_factors(SEXP factors, int n)
-{
-  if (TYPEOF(factors) != VECSXP) {
-    Rf_error("Random covariance factors must be a list.");
-  }
-  std::vector<CovarianceFactor> out;
-  out.reserve(static_cast<size_t>(XLENGTH(factors)));
-  for (R_xlen_t i = 0; i < XLENGTH(factors); ++i) {
-    SEXP factor = VECTOR_ELT(factors, i);
-    SEXP type = list_element(factor, "type");
-    if (TYPEOF(type) != STRSXP || XLENGTH(type) != 1) {
-      Rf_error("Random covariance factor type must be one string.");
-    }
-    const char *type_value = CHAR(STRING_ELT(type, 0));
-    CovarianceFactor value = {};
-    if (std::strcmp(type_value, "dense") == 0) {
-      SEXP covariance = list_element(factor, "covariance");
-      require_real_square_matrix(covariance, n, "factor$covariance");
-      value.type = DENSE_FACTOR;
-      value.covariance = REAL(covariance);
-      out.push_back(value);
-      continue;
-    }
-
-    SEXP model_matrix = list_element(factor, "model_matrix");
-    if (TYPEOF(model_matrix) != REALSXP || !Rf_isMatrix(model_matrix)) {
-      Rf_error("Random covariance factor model matrix must be double.");
-    }
-    SEXP model_dimensions = Rf_getAttrib(model_matrix, R_DimSymbol);
-    const int n_columns = INTEGER(model_dimensions)[1];
-    if (INTEGER(model_dimensions)[0] != n || n_columns < 1) {
-      Rf_error("Random covariance factor model matrix has inconsistent dimensions.");
-    }
-    SEXP group_map = list_element(factor, "group_map");
-    if (TYPEOF(group_map) != INTSXP || XLENGTH(group_map) != n) {
-      Rf_error("Random covariance factor group mapping is invalid.");
-    }
-    SEXP coefficient_factor = list_element(factor, "coefficient_factor");
-    require_real_square_matrix(
-      coefficient_factor,
-      n_columns,
-      "factor$coefficient_factor"
-    );
-    value.model_matrix = REAL(model_matrix);
-    value.group_map = INTEGER(group_map);
-    value.coefficient_factor = REAL(coefficient_factor);
-    value.n_columns = n_columns;
-    value.coefficient_structure = DENSE_COEFFICIENT;
-    SEXP coefficient_structure = optional_list_element(
-      factor,
-      "coefficient_structure"
-    );
-    if (coefficient_structure != R_NilValue) {
-      if (TYPEOF(coefficient_structure) != STRSXP ||
-          XLENGTH(coefficient_structure) != 1) {
-        Rf_error("Random covariance coefficient structure must be one string.");
-      }
-      const char *structure_value = CHAR(STRING_ELT(coefficient_structure, 0));
-      if (std::strcmp(structure_value, "diagonal") == 0) {
-        value.coefficient_structure = DIAGONAL_COEFFICIENT;
-      } else if (std::strcmp(structure_value, "markov") == 0) {
-        value.coefficient_structure = MARKOV_COEFFICIENT;
-      } else if (std::strcmp(structure_value, "dense") != 0) {
-        Rf_error("Unknown random covariance coefficient structure.");
-      }
-    }
-    if (value.coefficient_structure == MARKOV_COEFFICIENT) {
-      SEXP coefficient_scale = list_element(factor, "coefficient_scale");
-      SEXP transition = list_element(factor, "markov_transition");
-      SEXP innovation = list_element(
-        factor,
-        "markov_innovation_variance"
-      );
-      require_real_vector(
-        coefficient_scale,
-        n_columns,
-        "factor$coefficient_scale"
-      );
-      require_real_vector(
-        transition,
-        n_columns - 1,
-        "factor$markov_transition"
-      );
-      require_real_vector(
-        innovation,
-        n_columns - 1,
-        "factor$markov_innovation_variance"
-      );
-      value.coefficient_scale = REAL(coefficient_scale);
-      value.markov_transition = REAL(transition);
-      value.markov_innovation_variance = REAL(innovation);
-      for (int column = 0; column < n_columns; ++column) {
-        if (!std::isfinite(value.coefficient_scale[column]) ||
-            value.coefficient_scale[column] < 0.0) {
-          Rf_error("Random covariance Markov coefficient scales must be finite and non-negative.");
-        }
-      }
-      for (int column = 0; column < n_columns - 1; ++column) {
-        if (!std::isfinite(value.markov_transition[column]) ||
-            !std::isfinite(value.markov_innovation_variance[column]) ||
-            !(value.markov_innovation_variance[column] > 0.0)) {
-          Rf_error("Random covariance Markov transition state is invalid.");
-        }
-      }
-    } else if (value.coefficient_structure == DIAGONAL_COEFFICIENT) {
-      require_diagonal_coefficient_factor(
-        value.coefficient_factor,
-        value.n_columns,
-        "factor$coefficient_factor"
-      );
-    }
-
-    if (std::strcmp(type_value, "group") == 0) {
-      value.type = GROUP_FACTOR;
-      out.push_back(value);
-      continue;
-    }
-    if (std::strcmp(type_value, "row_group") == 0) {
-      SEXP row_scale = list_element(factor, "row_scale");
-      require_real_vector(row_scale, n, "factor$row_scale");
-      value.type = ROW_GROUP_FACTOR;
-      value.row_scale = REAL(row_scale);
-      out.push_back(value);
-      continue;
-    }
-    if (std::strcmp(type_value, "known_group") != 0) {
-      Rf_error("Unknown random covariance factor type.");
-    }
-    SEXP group_covariance = list_element(factor, "group_covariance");
-    if (TYPEOF(group_covariance) != REALSXP ||
-        !Rf_isMatrix(group_covariance)) {
-      Rf_error("Known group covariance factor must be a double matrix.");
-    }
-    SEXP group_dimensions = Rf_getAttrib(group_covariance, R_DimSymbol);
-    const int n_groups = INTEGER(group_dimensions)[0];
-    if (n_groups < 1 || INTEGER(group_dimensions)[1] != n_groups) {
-      Rf_error("Known group covariance factor must be square.");
-    }
-    value.type = KNOWN_GROUP_FACTOR;
-    value.group_covariance = REAL(group_covariance);
-    value.n_groups = n_groups;
-    out.push_back(value);
-  }
-  return out;
-}
-
 double design_covariance(const CovarianceFactor &factor, int row, int col,
                          int n)
 {
@@ -521,26 +375,135 @@ double covariance_contribution(const CovarianceFactor &factor,
   return design_covariance(factor, row, col, n);
 }
 
-PlanFactor make_plan_factor(const CovarianceFactor &factor, int n)
+PlanFactor covariance_factor_plan(SEXP factor, int n)
 {
   PlanFactor out = {};
-  out.type = factor.type;
-  out.coefficient_structure = factor.coefficient_structure;
-  out.n_columns = factor.n_columns;
-  out.n_groups = factor.n_groups;
-  if (factor.type == DENSE_FACTOR) {
+  SEXP type = list_element(factor, "type");
+  if (TYPEOF(type) != STRSXP || XLENGTH(type) != 1) {
+    Rf_error("Random covariance factor type must be one string.");
+  }
+  const char *type_value = CHAR(STRING_ELT(type, 0));
+  if (std::strcmp(type_value, "dense") == 0) {
+    out.type = DENSE_FACTOR;
     return out;
   }
+
+  SEXP model_matrix = list_element(factor, "model_matrix");
+  if (TYPEOF(model_matrix) != REALSXP || !Rf_isMatrix(model_matrix)) {
+    Rf_error("Random covariance factor model matrix must be double.");
+  }
+  SEXP model_dimensions = Rf_getAttrib(model_matrix, R_DimSymbol);
+  out.n_columns = INTEGER(model_dimensions)[1];
+  if (INTEGER(model_dimensions)[0] != n || out.n_columns < 1) {
+    Rf_error("Random covariance factor model matrix has inconsistent dimensions.");
+  }
+  const double *model_values = REAL(model_matrix);
+  for (int i = 0; i < n * out.n_columns; ++i) {
+    if (!std::isfinite(model_values[i])) {
+      Rf_error("Random covariance factor model matrix must be finite.");
+    }
+  }
   out.model_matrix.assign(
-    factor.model_matrix,
-    factor.model_matrix + static_cast<size_t>(n * factor.n_columns)
+    model_values,
+    model_values + static_cast<size_t>(n * out.n_columns)
   );
-  out.group_map.assign(factor.group_map, factor.group_map + n);
-  if (factor.type == KNOWN_GROUP_FACTOR) {
+
+  SEXP group_map = list_element(factor, "group_map");
+  if (TYPEOF(group_map) != INTSXP || XLENGTH(group_map) != n) {
+    Rf_error("Random covariance factor group mapping is invalid.");
+  }
+  out.group_map.assign(INTEGER(group_map), INTEGER(group_map) + n);
+  for (int group : out.group_map) {
+    if (group < 1) {
+      Rf_error("Random covariance factor group mapping is invalid.");
+    }
+  }
+
+  out.coefficient_structure = DENSE_COEFFICIENT;
+  SEXP coefficient_structure = optional_list_element(
+    factor,
+    "coefficient_structure"
+  );
+  if (coefficient_structure != R_NilValue) {
+    if (TYPEOF(coefficient_structure) != STRSXP ||
+        XLENGTH(coefficient_structure) != 1) {
+      Rf_error("Random covariance coefficient structure must be one string.");
+    }
+    const char *structure_value = CHAR(STRING_ELT(coefficient_structure, 0));
+    if (std::strcmp(structure_value, "diagonal") == 0) {
+      out.coefficient_structure = DIAGONAL_COEFFICIENT;
+    } else if (std::strcmp(structure_value, "markov") == 0) {
+      out.coefficient_structure = MARKOV_COEFFICIENT;
+    } else if (std::strcmp(structure_value, "dense") != 0) {
+      Rf_error("Unknown random covariance coefficient structure.");
+    }
+  }
+  SEXP initial_coefficient_factor = optional_list_element(
+    factor,
+    "coefficient_factor"
+  );
+  if (initial_coefficient_factor != R_NilValue) {
+    require_real_square_matrix(
+      initial_coefficient_factor,
+      out.n_columns,
+      "factor$coefficient_factor"
+    );
+    if (out.coefficient_structure == DIAGONAL_COEFFICIENT) {
+      require_diagonal_coefficient_factor(
+        REAL(initial_coefficient_factor),
+        out.n_columns,
+        "factor$coefficient_factor"
+      );
+    }
+  }
+
+  if (std::strcmp(type_value, "group") == 0) {
+    out.type = GROUP_FACTOR;
+    return out;
+  }
+  if (std::strcmp(type_value, "row_group") == 0) {
+    out.type = ROW_GROUP_FACTOR;
+    return out;
+  }
+  if (std::strcmp(type_value, "known_group") != 0) {
+    Rf_error("Unknown random covariance factor type.");
+  }
+
+  SEXP group_covariance = list_element(factor, "group_covariance");
+  if (TYPEOF(group_covariance) != REALSXP ||
+      !Rf_isMatrix(group_covariance)) {
+    Rf_error("Known group covariance factor must be a double matrix.");
+  }
+  SEXP group_dimensions = Rf_getAttrib(group_covariance, R_DimSymbol);
+  out.n_groups = INTEGER(group_dimensions)[0];
+  if (out.n_groups < 1 ||
+      INTEGER(group_dimensions)[1] != out.n_groups) {
+    Rf_error("Known group covariance factor must be square.");
+  }
+  for (int group : out.group_map) {
+    if (group > out.n_groups) {
+      Rf_error("Known group covariance factor mapping is out of bounds.");
+    }
+  }
+  out.type = KNOWN_GROUP_FACTOR;
+  const double *group_values = REAL(group_covariance);
+  for (int i = 0; i < out.n_groups * out.n_groups; ++i) {
+    if (!std::isfinite(group_values[i])) {
+      Rf_error("Known group covariance factor must be finite.");
+    }
+  }
+  for (int column = 0; column < out.n_groups; ++column) {
+    for (int row = 0; row < out.n_groups; ++row) {
+      if (group_values[row + out.n_groups * column] !=
+          group_values[column + out.n_groups * row]) {
+        Rf_error("Known group covariance factor must be exactly symmetric.");
+      }
+    }
+  }
+  {
     out.group_covariance.assign(
-      factor.group_covariance,
-      factor.group_covariance +
-        static_cast<size_t>(factor.n_groups * factor.n_groups)
+      group_values,
+      group_values + static_cast<size_t>(out.n_groups * out.n_groups)
     );
     out.group_factor = out.group_covariance;
     int info = 0;
@@ -1003,10 +966,9 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
   if (TYPEOF(block_indices) != VECSXP || XLENGTH(block_indices) == 0) {
     Rf_error("Covariance block indices must be a non-empty list.");
   }
-  std::vector<CovarianceFactor> current = covariance_factors(
-    random_covariance_factors,
-    n
-  );
+  if (TYPEOF(random_covariance_factors) != VECSXP) {
+    Rf_error("Random covariance factor plans must be a list.");
+  }
 
   CovariancePlan *plan = new CovariancePlan();
   plan->n = n;
@@ -1037,9 +999,16 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
     }
   }
 
-  plan->factors.reserve(current.size());
-  for (const CovarianceFactor &factor : current) {
-    plan->factors.push_back(make_plan_factor(factor, n));
+  plan->factors.reserve(static_cast<size_t>(
+    XLENGTH(random_covariance_factors)
+  ));
+  for (R_xlen_t factor_i = 0;
+       factor_i < XLENGTH(random_covariance_factors);
+       ++factor_i) {
+    plan->factors.push_back(covariance_factor_plan(
+      VECTOR_ELT(random_covariance_factors, factor_i),
+      n
+    ));
   }
   size_t max_block_size = 0;
   size_t max_rank = 0;
@@ -3361,9 +3330,9 @@ extern "C" SEXP RoBMA_known_v_block_mvn_loglik(
     random_covariance_factors,
     block_indices
   );
-  std::vector<CovarianceFactor> factors = covariance_factors(
+  std::vector<CovarianceFactor> factors = covariance_states(
     random_covariance_factors,
-    plan->n
+    *plan
   );
   const double value = plan_log_likelihood(
     *plan,

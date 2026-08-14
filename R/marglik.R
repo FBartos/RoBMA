@@ -1630,11 +1630,12 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       )
     }
     return(list(
-      representation = "factor",
+      representation = "factor_state",
       row_blocks = cached[["row_blocks"]],
-      factors = .marglik_validate_random_covariance_factor_states(
+      factor_plans = cached[["factor_plans"]],
+      factor_states = .marglik_validate_random_covariance_factor_states(
         states    = value[["factor_states"]],
-        templates = cached[["factors"]],
+        templates = cached[["factor_plans"]],
         K         = K
       )
     ))
@@ -1659,16 +1660,29 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     K = K,
     validation_cache = NULL
   )
+  validated_plans <- lapply(
+    validated[["factors"]],
+    .marglik_covariance_factor_plan
+  )
+  validated_states <- lapply(
+    validated[["factors"]],
+    .marglik_covariance_factor_state
+  )
   if (is.environment(validation_cache)) {
     validation_cache[["factor_state_validation"]] <- list(
       process_id = process_id,
       contract_id = contract_id,
       row_blocks = validated[["row_blocks"]],
-      factors = validated[["factors"]]
+      factor_plans = validated_plans
     )
   }
 
-  validated
+  list(
+    representation = "factor_state",
+    row_blocks = validated[["row_blocks"]],
+    factor_plans = validated_plans,
+    factor_states = validated_states
+  )
 }
 
 
@@ -1688,7 +1702,9 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     template <- templates[[factor_i]]
     type     <- template[["type"]]
     coefficient_structure <- template[["coefficient_structure"]]
-    expected_names <- c(
+    expected_names <- if (identical(type, "dense")) {
+      "covariance"
+    } else c(
       "coefficient_factor",
       if (identical(coefficient_structure, "markov")) c(
         "coefficient_scale",
@@ -1703,6 +1719,15 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         call. = FALSE
       )
     }
+    if (identical(type, "dense")) {
+      out[[factor_i]] <- list(
+        covariance = .marglik_validate_random_covariance_matrix(
+          state[["covariance"]],
+          K
+        )
+      )
+      next
+    }
     n_columns <- ncol(template[["model_matrix"]])
     coefficient_factor <- state[["coefficient_factor"]]
     if (!is.matrix(coefficient_factor) ||
@@ -1715,9 +1740,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       )
     }
 
-    value <- template
-    value[["coefficient_factor"]] <- coefficient_factor
-    value[["coefficient_covariance"]] <- NULL
+    value <- list(coefficient_factor = coefficient_factor)
     if (identical(coefficient_structure, "markov")) {
       value <- c(
         value,
@@ -1873,6 +1896,12 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         call. = FALSE
       )
     }
+    if (!identical(model_matrix, template[["model_matrix"]])) {
+      stop(
+        "Bridge-marginalized random-effect design matrix changed between evaluations.",
+        call. = FALSE
+      )
+    }
     if (!is.numeric(group_map) || length(group_map) != K || anyNA(group_map) ||
         any(!is.finite(group_map)) || any(group_map != as.integer(group_map)) ||
         any(group_map < 1L)) {
@@ -1880,6 +1909,12 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
            call. = FALSE)
     }
     group_map <- as.integer(group_map)
+    if (!identical(group_map, template[["group_map"]])) {
+      stop(
+        "Bridge-marginalized random-effect group mapping changed between evaluations.",
+        call. = FALSE
+      )
+    }
     n_columns <- ncol(template[["model_matrix"]])
     coefficient_factor <- factor[["coefficient_factor"]]
     if (!is.matrix(coefficient_factor) || !is.numeric(coefficient_factor) ||
@@ -1932,7 +1967,17 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       }
       value[["row_scale"]] <- as.double(row_scale)
     } else if (identical(type, "known_group")) {
-      value[["group_covariance"]] <- factor[["group_covariance"]]
+      group_covariance <- .marglik_validate_random_covariance_matrix(
+        factor[["group_covariance"]],
+        nrow(template[["group_covariance"]])
+      )
+      if (!identical(group_covariance, template[["group_covariance"]])) {
+        stop(
+          "Bridge-marginalized known group covariance changed between evaluations.",
+          call. = FALSE
+        )
+      }
+      value[["group_covariance"]] <- group_covariance
     }
     out[[factor_i]] <- value
   }
@@ -2144,8 +2189,10 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   block_indices <- data[["marglik_dependency_blocks"]]
-  if (!is.null(marginal_random_covariance) &&
-      identical(marginal_random_covariance[["representation"]], "factor")) {
+  factor_representation <- !is.null(marginal_random_covariance) &&
+    marginal_random_covariance[["representation"]] %in%
+      c("factor", "factor_state")
+  if (factor_representation) {
     random_indices <- marginal_random_covariance[["row_blocks"]]
     if (!is.null(block_indices) && !identical(block_indices, random_indices)) {
       stop(
@@ -2169,10 +2216,12 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       call. = FALSE
     )
   }
-  random_covariance_factors <- if (!is.null(marginal_random_covariance) && identical(
+  random_covariance_factors <- if (factor_representation && identical(
     marginal_random_covariance[["representation"]], "factor"
   )) {
     marginal_random_covariance[["factors"]]
+  } else if (factor_representation) {
+    marginal_random_covariance[["factor_plans"]]
   } else if (!is.null(marginal_random_covariance)) {
     list(list(
       type = "dense",
@@ -2181,6 +2230,13 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   } else {
     list()
   }
+  random_covariance_states <- if (factor_representation && identical(
+    marginal_random_covariance[["representation"]], "factor_state"
+  )) {
+    marginal_random_covariance[["factor_states"]]
+  } else {
+    NULL
+  }
 
   .marglik_covariance_plan_loglik(
     cache                     = covariance_plan_cache,
@@ -2188,6 +2244,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     mean                      = as.double(mu_samples[1L, ]),
     sampling_covariance       = sampling_covariance,
     random_covariance_factors = random_covariance_factors,
+    random_covariance_states  = random_covariance_states,
     block_indices             = block_indices,
     extra_variance            = as.double(extra_variance[1L, ])
   )
@@ -2196,15 +2253,20 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 
 .marglik_covariance_plan_loglik <- function(
     cache, y, mean, sampling_covariance, random_covariance_factors,
-    block_indices, extra_variance) {
+    block_indices, extra_variance, random_covariance_states = NULL) {
 
   if (is.null(cache)) {
+    uncached_factors <- if (is.null(random_covariance_states)) {
+      random_covariance_factors
+    } else {
+      Map(c, random_covariance_factors, random_covariance_states)
+    }
     return(.Call(
       "RoBMA_known_v_block_mvn_loglik",
       y,
       mean,
       sampling_covariance,
-      random_covariance_factors,
+      uncached_factors,
       block_indices,
       extra_variance,
       PACKAGE = "RoBMA"
@@ -2213,6 +2275,17 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   if (!is.environment(cache)) {
     stop("Known-V covariance plan cache must be an environment.",
          call. = FALSE)
+  }
+
+  if (is.null(random_covariance_states)) {
+    random_covariance_states <- lapply(
+      random_covariance_factors,
+      .marglik_covariance_factor_state
+    )
+    random_covariance_factors <- lapply(
+      random_covariance_factors,
+      .marglik_covariance_factor_plan
+    )
   }
 
   process_id <- Sys.getpid()
@@ -2228,10 +2301,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     )
     cache[["process_id"]] <- process_id
   }
-  random_covariance_states <- lapply(
-    random_covariance_factors,
-    .marglik_covariance_factor_state
-  )
   .Call(
     "RoBMA_known_v_covariance_plan_loglik",
     cache[["plan"]],
@@ -2240,6 +2309,25 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     extra_variance,
     PACKAGE = "RoBMA"
   )
+}
+
+
+.marglik_covariance_factor_plan <- function(factor) {
+
+  if (identical(factor[["type"]], "dense")) {
+    return(list(type = "dense"))
+  }
+
+  plan <- factor[c(
+    "type",
+    "model_matrix",
+    "group_map",
+    "coefficient_structure"
+  )]
+  if (identical(factor[["type"]], "known_group")) {
+    plan[["group_covariance"]] <- factor[["group_covariance"]]
+  }
+  plan
 }
 
 

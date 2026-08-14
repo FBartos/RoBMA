@@ -1360,6 +1360,19 @@ test_that("compiled factor validation retains changing-value checks", {
     fixed = TRUE
   )
 
+  changed_design <- updated
+  changed_design$marginalized_random$mu$factors[[1L]]$model_matrix[1L, 2L] <-
+    0.5
+  expect_error(
+    .marglik_bridge_random_covariance(
+      bridge_context = changed_design,
+      K = K,
+      validation_cache = cache
+    ),
+    "design matrix changed",
+    fixed = TRUE
+  )
+
   changed_blocks <- updated
   changed_blocks$marginalized_random$mu$row_blocks <- list(1:3, 4L)
   expect_error(
@@ -1410,10 +1423,56 @@ test_that("compact bridge factor states retain the exact covariance contract", {
     validation_cache = cache
   )
 
-  expect_identical(first$representation, "factor")
-  expect_identical(second$factors[[1L]]$model_matrix, factor_plan$model_matrix)
-  expect_identical(second$factors[[1L]]$coefficient_factor, updated_factor)
-  expect_null(second$factors[[1L]]$coefficient_covariance)
+  expect_identical(first$representation, "factor_state")
+  expect_identical(
+    second$factor_plans[[1L]]$model_matrix,
+    factor_plan$model_matrix
+  )
+  expect_identical(
+    second$factor_states[[1L]]$coefficient_factor,
+    updated_factor
+  )
+  expect_null(second$factor_states[[1L]]$coefficient_covariance)
+
+  y <- c(-0.3, 0.1, 0.4, -0.2)
+  mean <- c(-0.1, 0.05, 0.2, -0.15)
+  sampling_covariance <- diag(c(0.08, 0.07, 0.09, 0.06))
+  extra_variance <- c(0.01, 0.02, 0.015, 0.005)
+  full_factor <- Map(
+    c,
+    second$factor_plans,
+    second$factor_states
+  )
+  expected <- .marglik_covariance_plan_loglik(
+    cache = NULL,
+    y = y,
+    mean = mean,
+    sampling_covariance = sampling_covariance,
+    random_covariance_factors = full_factor,
+    block_indices = second$row_blocks,
+    extra_variance = extra_variance
+  )
+  actual <- .marglik_covariance_plan_loglik(
+    cache = new.env(parent = emptyenv()),
+    y = y,
+    mean = mean,
+    sampling_covariance = sampling_covariance,
+    random_covariance_factors = second$factor_plans,
+    random_covariance_states = second$factor_states,
+    block_indices = second$row_blocks,
+    extra_variance = extra_variance
+  )
+  expect_equal(actual, expected, tolerance = 0)
+  adapted <- .marglik_covariance_plan_loglik(
+    cache = new.env(parent = emptyenv()),
+    y = y,
+    mean = mean,
+    sampling_covariance = sampling_covariance,
+    random_covariance_factors = full_factor,
+    block_indices = second$row_blocks,
+    extra_variance = extra_variance
+  )
+  expect_equal(adapted, expected, tolerance = 0)
 
   invalid <- updated
   invalid$marginalized_random$mu$factor_states[[1L]]$row_scale[[2L]] <- -1
