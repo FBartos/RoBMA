@@ -157,6 +157,9 @@ void compile_fixed_known_group_basis(
     int n,
     const std::vector<PlanFactor> &factors)
 {
+  // For Sigma = D + (Z L_R L_G)(Z L_R L_G)', cache the portion involving the
+  // fixed diagonal sampling covariance D and known group root L_R. The
+  // posterior-varying diagonal coefficient root L_G is applied at evaluation.
   const int size = static_cast<int>(block.index.size());
   const int rank = block.rank;
   const PlanFactor &factor = factors.front();
@@ -220,6 +223,9 @@ void compile_fixed_known_group_basis(
 BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
                           const std::vector<PlanFactor> &factors)
 {
+  // Build only exact representations supported by this block's structure.
+  // A route that is not eligible is evaluated by another exact route, ending
+  // in the dense Cholesky reference implementation.
   if (TYPEOF(index) != INTSXP || XLENGTH(index) == 0) {
     Rf_error("Each covariance block index must be a non-empty integer vector.");
   }
@@ -331,6 +337,8 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
   out.markov_factor = -1;
   if (sampling_diagonal && factors.size() == 1 &&
       out.low_rank_groups.size() == 1) {
+    // The state-space route requires one Markov state loading per row. More
+    // general designs remain valid but use the generic covariance algebra.
     const LowRankGroup &group = out.low_rank_groups.front();
     const PlanFactor &factor = factors[static_cast<size_t>(group.factor)];
     if ((factor.type == GROUP_FACTOR || factor.type == ROW_GROUP_FACTOR) &&
@@ -383,6 +391,9 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
   out.sparse_factor_block_base = false;
   out.sparse_factor = nullptr;
   if (!sampling_diagonal && compatible && rank > 0) {
+    // Disconnected components of the known sampling covariance form an exact
+    // block-diagonal base B. Random-effect columns may still connect them and
+    // are retained through the low-rank update U U'.
     std::vector<int> component(static_cast<size_t>(size), -1);
     std::vector<std::vector<int>> sampling_components;
     for (int seed = 0; seed < size; ++seed) {
@@ -484,6 +495,8 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
   out.spectral_eligible = !sampling_diagonal && compatible && rank < size &&
     !out.block_base_eligible;
   if (out.spectral_eligible) {
+    // Cache V = Q Lambda Q'. Evaluation can reuse it only when extra variance
+    // is a common diagonal shift, for which Q also diagonalizes V + c I.
     out.sampling_eigenvectors.resize(static_cast<size_t>(size * size));
     out.sampling_eigenvalues.resize(static_cast<size_t>(size));
     for (int column = 0; column < size; ++column) {
@@ -561,6 +574,8 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
     compile_sparse_latent_pattern(out, transformed_active_columns);
   }
   if (!out.sparse_values.empty()) {
+    // Sparse and dense latent systems are the same K = I + U' B^-1 U. Sparse
+    // storage is used only when its symbolic lower triangle is actually smaller.
     const size_t dense_entries = static_cast<size_t>(rank) *
       static_cast<size_t>(rank + 1) / 2;
     out.sparse_factor_candidate =
@@ -580,6 +595,8 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
                           SEXP random_covariance_factors,
                           SEXP block_indices)
 {
+  // Inputs are validated rather than repaired. In particular, the covariance
+  // must already be finite and exactly symmetric at this native boundary.
   const R_xlen_t n_xlen = XLENGTH(y);
   if (n_xlen > static_cast<R_xlen_t>(2147483647)) {
     Rf_error("Known-V covariance plan exceeds integer indexing limits.");
@@ -687,6 +704,8 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
       Rf_error("Known-V sparse latent solver could not be initialized.");
     }
     plan->cholmod_started = true;
+    // CHOLMOD's default diagonal bounding would alter K. Disable it so failure
+    // is reported or handled by an exact dense route, never by covariance repair.
     plan->cholmod_common_state.dbound = 0.0;
     plan->cholmod_common_state.final_ll = 1;
     for (BlockPlan &block : plan->blocks) {
@@ -731,6 +750,9 @@ std::vector<CovarianceFactor> covariance_states(
     SEXP states,
     const CovariancePlan &plan)
 {
+  // Bind posterior-varying roots, scales, and transitions to the immutable
+  // geometry stored in the plan. No coordinates are dropped or integrated a
+  // second time here.
   if (TYPEOF(states) != VECSXP ||
       XLENGTH(states) != static_cast<R_xlen_t>(plan.factors.size())) {
     Rf_error("Known-V covariance plan received inconsistent factor states.");

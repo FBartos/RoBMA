@@ -1,3 +1,8 @@
+// Shared selected-normal native argument contract. R matrices are column-major
+// S posterior rows by K observations; selection controls may be scalar or vary
+// by posterior row. These structures are non-owning call-lifetime views, and
+// validation preserves the R-level kernel semantics.
+
 int matrix_nrow(SEXP x, const char *name)
 {
   SEXP dim = Rf_getAttrib(x, R_DimSymbol);

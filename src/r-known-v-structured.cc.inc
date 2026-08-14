@@ -1,3 +1,7 @@
+// Structured exact specializations of the B + U U' Gaussian likelihood. Each
+// function returns false when its structural assumptions do not hold, allowing
+// the caller to retain the target through another exact representation.
+
 bool prepare_block_base_sampling_block(
     CovariancePlan &plan,
     const BlockPlan &block,
@@ -135,6 +139,8 @@ bool block_base_low_rank_log_likelihood(
     const double *extra,
     double *value)
 {
+  // Apply B^-1 independently to the disconnected sampling-covariance blocks,
+  // then retain all cross-block random-effect dependence through U U'.
   if (!block.block_base_eligible &&
       !(block.sparse_factor_eligible && block.sparse_factor_block_base)) {
     return false;
@@ -213,6 +219,8 @@ bool spectral_block_log_likelihood(
     const double *extra,
     double *value)
 {
+  // Orthogonal transformation by the cached eigenvectors turns the exact base
+  // V + c I into diagonal Lambda + c I. Non-constant shifts are declined.
   if (!block.spectral_eligible) {
     return false;
   }
@@ -288,6 +296,8 @@ bool markov_block_log_likelihood(
     const double *extra,
     double *value)
 {
+  // Exact Gaussian state-space recursion for the joint density. State updates
+  // integrate the shared Markov coefficients instead of sampling or fixing them.
   if (!block.markov_eligible) {
     return false;
   }
@@ -357,6 +367,9 @@ bool markov_block_conditional_log_likelihood(
     const double *extra,
     double *output)
 {
+  // The Markov prior gives a tridiagonal latent precision. Solving that system
+  // yields the exact observation precision diagonal and precision-weighted
+  // residual needed for leave-one-out conditional densities.
   if (!block.markov_eligible) {
     return false;
   }
@@ -477,6 +490,8 @@ bool prepare_fixed_known_group_block(
     const double *mean,
     const double *extra)
 {
+  // Reuse the fixed known-group basis only while the diagonal base is unchanged.
+  // Any extra variance invalidates this cache and is handled by a general path.
   if (!block.fixed_known_group_eligible) {
     return false;
   }

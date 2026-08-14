@@ -1,3 +1,8 @@
+// Observation-level GLMM entry points. Matrix and row-sum variants share the
+// same scalar likelihood: marginal functions integrate heterogeneity and
+// nuisance grids, whereas conditional functions hold the supplied nuisance
+// value fixed. Row sums change only the returned shape, not the target.
+
 extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
                                                   SEXP n1i, SEXP n2i,
                                                   SEXP mu_samples,

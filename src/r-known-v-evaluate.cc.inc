@@ -1,3 +1,7 @@
+// Evaluation dispatchers try exact specialized representations from cheapest
+// to most general. Returning false means "not applicable here" (or a recoverable
+// factorization failure), never permission to approximate the covariance.
+
 double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
                            const std::vector<CovarianceFactor> &factors,
                            SEXP extra_variance)
@@ -14,6 +18,8 @@ double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
 
   double log_likelihood = 0.0;
   for (BlockPlan &block : plan.blocks) {
+    // Ordering affects runtime only. The final dense Cholesky call evaluates
+    // the same block covariance when no specialization accepts the state.
     double block_value = 0.0;
     if (!markov_block_log_likelihood(
       plan,
@@ -162,7 +168,9 @@ bool finish_conditional_block(
     const double *solutions,
     double *output)
 {
-  // Q = B^-1 - C K^-1 C' and Qr = B^-1 r - C K^-1 h.
+  // Q = B^-1 - C K^-1 C' and Qr = B^-1 r - C K^-1 h. Each returned value is
+  // log p(y_i | y_-i, state), derived from the joint Gaussian precision; it is
+  // not an independent marginal observation likelihood.
   const double *latent_residual_solution = solutions;
   const double log_two_pi = 1.837877066409345483560659472811;
   for (int observation = 0; observation < size; ++observation) {
@@ -192,6 +200,8 @@ bool finish_conditional_block(
       residual_correction;
     if (!(precision_diagonal > cancellation_bound) ||
         !std::isfinite(precision_residual)) {
+      // Do not clamp a cancellation-damaged diagonal. Decline this route so the
+      // caller recomputes the same conditional density from the dense precision.
       return false;
     }
     output[block.index[static_cast<size_t>(observation)]] = 0.5 * (
@@ -502,6 +512,8 @@ SEXP plan_conditional_log_likelihood(
   double *output_values = REAL(output);
   const double log_two_pi = 1.837877066409345483560659472811;
   for (BlockPlan &block : plan.blocks) {
+    // Specialized conditional routes are exact precision identities. Dense
+    // Cholesky/inversion below is the target-preserving reference fallback.
     if (markov_block_conditional_log_likelihood(
         plan,
         block,

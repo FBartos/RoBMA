@@ -1,3 +1,7 @@
+// Exact Gaussian block likelihoods. The dense Cholesky implementation is the
+// reference; optimized routes represent Sigma = B + U U' and use equivalent
+// determinant-lemma/Woodbury algebra without modifying B, U, or the target.
+
 void fill_dense_block(
     CovariancePlan &plan,
     const BlockPlan &block,
@@ -163,6 +167,8 @@ bool root_dense_block_log_likelihood(
     const double *extra,
     double *value)
 {
+  // Materialize B + U U' directly. This avoids rebuilding each random-effect
+  // covariance contribution while retaining the ordinary dense factorization.
   if (!block.root_eligible) {
     return false;
   }
@@ -215,6 +221,8 @@ bool finish_low_rank_log_likelihood(
     double base_quadratic,
     double *value)
 {
+  // small is K = I + U' B^-1 U and rhs is U' B^-1 r. Thus
+  // log|Sigma| = log|B| + log|K| and r' Sigma^-1 r = r' B^-1 r - rhs' K^-1 rhs.
   double *small = plan.small_matrix_work.data();
   double *rhs = plan.rhs_work.data();
   int info = 0;
@@ -245,6 +253,8 @@ bool finish_low_rank_log_likelihood(
     std::numeric_limits<double>::epsilon() *
     (std::abs(base_quadratic) + std::abs(adjustment));
   if (!(quadratic > cancellation_bound)) {
+    // Re-evaluate the same quadratic as a sum of squares when subtraction loses
+    // precision. The bound chooses an algebraic form; it does not clamp a value.
     const int one = 1;
     F77_CALL(dtrsv)(
       "L", "T", "N", &rank, small, &rank, rhs, &one FCONE FCONE FCONE
@@ -490,6 +500,9 @@ bool sparse_factor_log_likelihood(
     double base_quadratic,
     double *value)
 {
+  // CHOLMOD factors the same latent K used by the dense Woodbury path. A
+  // recoverable sparse-factor failure returns false so the dispatcher can use
+  // an exact dense representation.
   if (!block.sparse_factor_eligible || !factor_sparse_latent_system(
       plan,
       block,
@@ -541,6 +554,7 @@ bool sparse_factor_log_likelihood(
     std::numeric_limits<double>::epsilon() *
     (std::abs(base_quadratic) + std::abs(adjustment));
   if (!(quadratic > cancellation_bound)) {
+    // Avoid cancellation by evaluating the equivalent residual sum of squares.
     const int one = 1;
     const double minus_one = -1.0;
     const double plus_one = 1.0;
@@ -575,6 +589,8 @@ bool low_rank_block_log_likelihood(
     const double *extra,
     double *value)
 {
+  // Route selection is purely computational: sparse K, dense K, and the final
+  // dense covariance fallback all evaluate the same Gaussian block density.
   if (!block.low_rank_eligible &&
       !(block.sparse_factor_eligible && !block.sparse_factor_block_base)) {
     return false;

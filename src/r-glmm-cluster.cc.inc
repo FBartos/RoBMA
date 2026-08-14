@@ -1,3 +1,8 @@
+// Cluster GLMM entry points. gamma is shared by every observation in a cluster,
+// so cell log likelihoods are summed before integrating over gamma. Integrating
+// cells separately would remove their dependence and change the model. Row-sum
+// variants sum exact cluster log integrals only after each cluster integration.
+
 extern "C" SEXP RoBMA_glmm_binom_cluster_loglik(SEXP ai, SEXP ci,
                                                  SEXP n1i, SEXP n2i,
                                                  SEXP mu_samples,

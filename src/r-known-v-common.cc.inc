@@ -1,3 +1,9 @@
+// The covariance plan separates model geometry, which is invariant across
+// bridge evaluations, from covariance states supplied by each posterior row.
+// The specialized representations below all encode the same covariance as the
+// dense reference path; eligibility flags select algebra, not a different
+// statistical target.
+
 void require_real_vector(SEXP x, R_xlen_t length, const char *name)
 {
   if (TYPEOF(x) != REALSXP || XLENGTH(x) != length) {
@@ -60,6 +66,8 @@ void require_diagonal_coefficient_factor(const double *factor, int size,
 }
 
 struct CovarianceFactor {
+  // Non-owning view of one posterior-row state. Pointers either refer to the R
+  // call or to immutable storage owned by CovariancePlan.
   FactorType type;
   CoefficientStructure coefficient_structure;
   const double *covariance;
@@ -76,6 +84,8 @@ struct CovarianceFactor {
 };
 
 struct PlanFactor {
+  // Owned model matrix, grouping, and known covariance geometry. None of these
+  // fields varies during bridge sampling.
   FactorType type;
   std::vector<double> model_matrix;
   std::vector<int> group_map;
@@ -103,6 +113,9 @@ struct SamplingBlock {
 };
 
 struct BlockPlan {
+  // Symbolic dependency information and factorizations compiled once per
+  // independent observation block. Numeric posterior state is never cached
+  // here unless it is mathematically invariant.
   std::vector<int> index;
   std::vector<LowRankGroup> low_rank_groups;
   std::vector<std::vector<int>> active_columns;

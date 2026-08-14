@@ -1,3 +1,9 @@
+// Native GLMM evaluators reproduce the R likelihood contracts in log space.
+// theta is the standard-normal heterogeneity node; logit_pi/log_phi are nuisance
+// integration grids. Observation weights form L(y | theta, nuisance)^weight,
+// while quadrature weights remain unscaled additive log weights. Boundary
+// probabilities and rates retain their mathematical limits without clamping.
+
 static int matrix_nrow_glmm(SEXP x, const char *name)
 {
   SEXP dim = Rf_getAttrib(x, R_DimSymbol);

@@ -1,3 +1,8 @@
+// Funnel summaries evaluate the posterior-row mixture distribution directly.
+// Zero total SD creates an exact atom, active weight functions use the selected-
+// normal CDF, and unweighted rows use the ordinary normal CDF. Quantiles retain
+// generalized-inverse semantics when atoms or selection gaps are present.
+
 int z_step_bin(double z, const SelNormKernelData &data)
 {
   for (int b = 0; b < data.n_bins; ++b) {
@@ -15,8 +20,9 @@ bool row_has_active_phack(int mode, double alpha, int phack_kind)
     mode == SELKERNEL_STEP_PHACK_POWER) && phack_kind > 0 && alpha > 0;
 }
 
-double clamp_probability_value(double x)
+double validated_probability_or_na(double x)
 {
+  // Never repair an out-of-range result: surface invalid kernel output as NA.
   return std::isfinite(x) && x >= 0 && x <= 1 ? x : NA_REAL;
 }
 
@@ -143,7 +149,7 @@ double funnel_selected_cdf_zero_se(double q, int s, const FunnelSeContext &ctx)
     return NA_REAL;
   }
 
-  return clamp_probability_value(requested_mass / total_mass);
+  return validated_probability_or_na(requested_mass / total_mass);
 }
 
 void funnel_prepare_se_context(FunnelSeContext *ctx)
@@ -249,7 +255,7 @@ double funnel_model_averaged_cdf_native(double q, const FunnelSeContext &ctx)
       cdf_s = pnorm(q, ctx.location[si], ctx.total_sd[si], true, false);
     }
 
-    cdf_sum += clamp_probability_value(cdf_s);
+    cdf_sum += validated_probability_or_na(cdf_s);
   }
 
   return cdf_sum / static_cast<double>(ctx.S);
@@ -325,6 +331,8 @@ double funnel_model_averaged_quantile_native(double p,
   bool using_previous = use_previous && std::isfinite(previous);
 
   if (using_previous) {
+    // The previous quantile only narrows the initial bracket. Failure retries
+    // the global bracket, and the root/generalized inverse itself is unchanged.
     step = std::max(1e-3, 0.05 * global_step);
     lower = previous - step;
     upper = previous + step;

@@ -1,3 +1,8 @@
+// Cluster selected-normal likelihoods integrate one Gaussian gamma shared by
+// all observations in a cluster. Unselected normal rows use the supplied fixed
+// Gaussian rule. Selection can displace and reshape gamma's posterior, so those
+// rows use mode-centered rules and explicitly certify successive rule agreement.
+
 struct NormClusterArgs {
   int S;
   int K;
@@ -221,6 +226,8 @@ double norm_cluster_start_mode(const NormClusterArgs &args, int s,
                                const double *basis, double delta,
                                double *curvature)
 {
+  // This Gaussian proxy supplies only a starting point and scale for mode
+  // search. The integral below always evaluates the selected-normal likelihood.
   double precision = 1.0;
   double numerator = 0.0;
 
@@ -514,6 +521,9 @@ NormClusterIntegral norm_cluster_adaptive_log_integral(
     );
   }
   const double curvature_step = 1e-3 * std::max(1.0, std::fabs(mode));
+  // Finite-difference curvature defines the quadrature coordinates, not an
+  // approximation to the target density. The 7/15/31 rules below evaluate the
+  // original integrand and fail explicitly if successive rules do not agree.
   const double value_plus = norm_cluster_mode_value(context, mode + curvature_step);
   const double value_minus = norm_cluster_mode_value(context, mode - curvature_step);
   const double curvature = -(value_plus - 2.0 * mode_value + value_minus) /
