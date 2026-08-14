@@ -131,6 +131,8 @@
       next
     }
 
+    # Vector and Dirichlet priors must be evaluated one posterior row at a
+    # time; their auxiliary coordinates are joint within a row.
     log_prior[positions] <- vapply(positions, function(position) {
       .iwmde_log_prior_row(
         valid_samples[position, ],
@@ -611,19 +613,44 @@
       }
     }
   } else if (identical(replacement[["type"]], "simplex_pair")) {
-    columns <- paste0(replacement[["parameter"]], "[", 1:2, "]")
-    index   <- replacement[["index"]]
-    other   <- 3L - index
-    target  <- values[grid_index]
-    valid   <- is.finite(target) & target >= 0 & target <= 1
+    columns           <- paste0(replacement[["parameter"]], "[", 1:2, "]")
+    auxiliary_columns <- replacement[["auxiliary_columns"]]
+    index             <- replacement[["index"]]
+    other             <- 3L - index
+    target            <- values[grid_index]
+    eta_sum           <- rowSums(samples[, auxiliary_columns, drop = FALSE])
+    valid             <- is.finite(target) & target >= 0 & target <= 1 &
+      is.finite(eta_sum) & eta_sum > 0
     samples[valid, columns[[index]]] <- target[valid]
     samples[valid, columns[[other]]] <- 1 - target[valid]
-    changed_parameters <- columns
+    samples[valid, auxiliary_columns[[index]]] <-
+      eta_sum[valid] * target[valid]
+    samples[valid, auxiliary_columns[[other]]] <-
+      eta_sum[valid] * (1 - target[valid])
+    changed_parameters <- c(columns, auxiliary_columns)
+  } else if (identical(replacement[["type"]], "random_component_sd")) {
+    target     <- values[grid_index]
+    multiplier <- .iwmde_random_component_sd_multiplier(
+      samples,
+      replacement[["factors"]]
+    )
+    source     <- replacement[["source_parameter"]]
+    valid      <- is.finite(target) & target >= 0 &
+      is.finite(multiplier) & multiplier > 0
+    samples[valid, source] <- target[valid] / multiplier[valid]
+    changed_parameters <- source
   } else if (parameter %in% sample_names) {
     samples[, parameter] <- values[grid_index]
     changed_parameters <- parameter
   }
   synced <- .iwmde_sync_invgamma_auxiliary_matrix(
+    context    = context,
+    samples    = samples,
+    parameters = changed_parameters
+  )
+  samples <- synced[["samples"]]
+  valid   <- valid & synced[["valid"]]
+  synced <- .iwmde_sync_random_allocation_sd_matrix(
     context    = context,
     samples    = samples,
     parameters = changed_parameters
@@ -652,7 +679,18 @@
 .iwmde_replace_row_for_value <- function(context, state, parameter, value,
                                          replacement) {
 
-  out <- function(row, valid = TRUE) {
+  out <- function(row, valid = TRUE, changed_parameters = character()) {
+
+    if (isTRUE(valid) && length(changed_parameters) > 0L) {
+      synced <- .iwmde_sync_random_allocation_sd_row(
+        context    = context,
+        row        = row,
+        parameters = changed_parameters
+      )
+      row   <- synced[["row"]]
+      valid <- synced[["valid"]]
+    }
+
     return(list(row = row, valid = valid))
   }
 
@@ -666,29 +704,211 @@
   }
 
   if (identical(replacement[["type"]], "simplex_pair")) {
-    columns <- paste0(replacement[["parameter"]], "[", 1:2, "]")
-    index   <- replacement[["index"]]
-    other   <- 3L - index
+    columns           <- paste0(replacement[["parameter"]], "[", 1:2, "]")
+    auxiliary_columns <- replacement[["auxiliary_columns"]]
+    index             <- replacement[["index"]]
+    other             <- 3L - index
     if (!is.finite(value) || value < 0 || value > 1 ||
-        !all(columns %in% names(state[["row"]]))) {
+        !all(c(columns, auxiliary_columns) %in% names(state[["row"]]))) {
       return(out(state[["row"]], valid = FALSE))
     }
-    row <- state[["row"]]
+    row     <- state[["row"]]
+    eta_sum <- sum(row[auxiliary_columns])
+    if (!is.finite(eta_sum) || eta_sum <= 0) {
+      return(out(row, valid = FALSE))
+    }
     row[[columns[[index]]]] <- value
     row[[columns[[other]]]] <- 1 - value
+    row[[auxiliary_columns[[index]]]] <- eta_sum * value
+    row[[auxiliary_columns[[other]]]] <- eta_sum * (1 - value)
 
-    return(out(row))
+    return(out(
+      row,
+      changed_parameters = c(columns, auxiliary_columns)
+    ))
+  }
+
+  if (identical(replacement[["type"]], "random_component_sd")) {
+    row <- state[["row"]]
+    multiplier <- .iwmde_random_component_sd_multiplier(
+      matrix(row, nrow = 1L, dimnames = list(NULL, names(row))),
+      replacement[["factors"]]
+    )
+    source <- replacement[["source_parameter"]]
+    if (!is.finite(value) || value < 0 || !is.finite(multiplier) ||
+        multiplier <= 0 || !source %in% names(row)) {
+      return(out(row, valid = FALSE))
+    }
+    row[[source]] <- value / multiplier
+    synced <- .iwmde_sync_replacement_row(
+      context    = context,
+      row        = row,
+      parameters = source
+    )
+
+    return(out(
+      synced[["row"]],
+      valid = synced[["valid"]]
+    ))
   }
 
   row <- state[["row"]]
   row[[parameter]] <- value
-  synced <- .iwmde_sync_invgamma_auxiliary_row(
+  synced <- .iwmde_sync_replacement_row(
     context    = context,
     row        = row,
     parameters = parameter
   )
 
-  return(out(synced[["row"]], valid = synced[["valid"]]))
+  return(out(
+    synced[["row"]],
+    valid = synced[["valid"]]
+  ))
+}
+
+
+.iwmde_sync_random_allocation_sd_matrix <- function(context, samples,
+                                                     parameters) {
+
+  samples <- as.matrix(samples)
+  valid   <- rep(TRUE, nrow(samples))
+  object  <- context[["object"]]
+  if (length(parameters) == 0L || is.null(object) ||
+      is.null(context[["data"]]) || !.is_data_random(context[["data"]])) {
+    return(list(samples = samples, valid = valid))
+  }
+
+  design <- .fitted_formula_design(object, "mu", required = FALSE)
+  terms  <- design[["random_effects"]]
+  if (length(terms) == 0L) {
+    return(list(samples = samples, valid = valid))
+  }
+
+  K <- nrow(context[["data"]][["outcome"]])
+  for (term in terms) {
+    if (!.marginalized_random_effect_has_allocation(term)) {
+      next
+    }
+
+    dependencies <- .iwmde_random_allocation_sd_dependencies(term)
+    if (length(intersect(parameters, dependencies)) == 0L) {
+      next
+    }
+
+    derived <- .marginalized_random_effect_allocated_sd_samples(
+      term              = term,
+      posterior_samples = samples,
+      K                 = K
+    )
+    columns <- .iwmde_random_allocation_sd_columns(
+      term      = term,
+      samples   = samples,
+      n_columns = ncol(derived)
+    )
+    if (length(columns) == 0L) {
+      next
+    }
+    if (length(columns) != ncol(derived) || anyNA(columns)) {
+      stop(
+        "Cannot synchronize allocation-derived random-effect SD columns for ",
+        "block '", term[["block_name"]], "'.",
+        call. = FALSE
+      )
+    }
+
+    finite <- rowSums(!is.finite(derived) | derived < 0) == 0L
+    valid  <- valid & finite
+    if (any(finite)) {
+      samples[finite, columns] <- derived[finite, , drop = FALSE]
+    }
+  }
+
+  return(list(samples = samples, valid = valid))
+}
+
+
+.iwmde_sync_random_allocation_sd_row <- function(context, row, parameters) {
+
+  synced <- .iwmde_sync_random_allocation_sd_matrix(
+    context    = context,
+    samples    = matrix(
+      as.numeric(row),
+      nrow     = 1L,
+      dimnames = list(NULL, names(row))
+    ),
+    parameters = parameters
+  )
+
+  return(list(
+    row   = synced[["samples"]][1L, ],
+    valid = synced[["valid"]][[1L]]
+  ))
+}
+
+
+.iwmde_sync_replacement_row <- function(context, row, parameters) {
+
+  synced <- .iwmde_sync_invgamma_auxiliary_row(
+    context    = context,
+    row        = row,
+    parameters = parameters
+  )
+  if (!isTRUE(synced[["valid"]])) {
+    return(synced)
+  }
+
+  .iwmde_sync_random_allocation_sd_row(
+    context    = context,
+    row        = synced[["row"]],
+    parameters = parameters
+  )
+}
+
+
+.iwmde_random_allocation_sd_dependencies <- function(term) {
+
+  allocation <- term[["sd_binding"]][["allocations"]][[1L]]
+  source     <- allocation[["source"]][["name"]]
+  factors    <- .marginalized_random_effect_allocation_factors(term)
+  factor_columns <- vapply(factors, function(factor) {
+    paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
+  }, character(1))
+
+  dependencies <- unique(c(source, factor_columns))
+
+  dependencies[!is.na(dependencies) & nzchar(dependencies)]
+}
+
+
+.iwmde_random_allocation_sd_columns <- function(term, samples, n_columns) {
+
+  parameters <- unique(term[["sd_parameter_names"]])
+  parameters <- parameters[!is.na(parameters) & nzchar(parameters)]
+  if (length(parameters) == n_columns &&
+      all(parameters %in% colnames(samples))) {
+    return(parameters)
+  }
+  if (length(parameters) == 1L && n_columns > 1L) {
+    indexed <- paste0(parameters, "[", seq_len(n_columns), "]")
+    if (all(indexed %in% colnames(samples))) {
+      return(indexed)
+    }
+  }
+
+  present <- parameters[parameters %in% colnames(samples)]
+  indexed_present <- if (length(parameters) == 1L) {
+    colnames(samples)[BayesTools::JAGS_indexed_parameter_columns(
+      columns   = colnames(samples),
+      parameter = parameters
+    )]
+  } else {
+    character()
+  }
+  if (length(c(present, indexed_present)) > 0L) {
+    return(NA_character_)
+  }
+
+  character()
 }
 
 
@@ -715,7 +935,7 @@
 
   row[linear[["active_columns"]]] <- row[linear[["active_columns"]]] +
     (value - linear[["current"]]) * linear[["coefficients"]]
-  synced <- .iwmde_sync_invgamma_auxiliary_row(
+  synced <- .iwmde_sync_replacement_row(
     context    = context,
     row        = row,
     parameters = linear[["active_columns"]]
@@ -873,7 +1093,10 @@
     ))
   }
 
-  if (identical(replacement[["type"]], "simplex_pair")) {
+  if (replacement[["type"]] %in% c(
+    "simplex_pair",
+    "random_component_sd"
+  )) {
     replaced <- .iwmde_replace_row_for_value(
       context     = context,
       state       = state,
@@ -903,12 +1126,21 @@
     name       <- replacement[["name"]]
     if (!is.null(parameters[[name]])) {
       parameters[[name]] <- value
-      synced <- .iwmde_sync_invgamma_auxiliary_row(
+      synced <- .iwmde_sync_replacement_row(
         context    = context,
         row        = row,
         parameters = name
       )
-      return(out(synced[["row"]], parameters, valid = synced[["valid"]]))
+      if (!isTRUE(synced[["valid"]])) {
+        return(out(synced[["row"]], parameters, valid = FALSE))
+      }
+      parameters <- .iwmde_row_parameters(
+        context      = context,
+        row          = synced[["row"]],
+        active_setup = state[["active_setup"]],
+        state_scope  = .iwmde_state_scope_value(state)
+      )
+      return(out(synced[["row"]], parameters))
     }
   }
 
@@ -918,16 +1150,25 @@
     index      <- replacement[["index"]]
     if (!is.null(parameters[[name]]) && length(parameters[[name]]) >= index) {
       parameters[[name]][index] <- value
-      synced <- .iwmde_sync_invgamma_auxiliary_row(
+      synced <- .iwmde_sync_replacement_row(
         context    = context,
         row        = row,
         parameters = parameter
       )
-      return(out(synced[["row"]], parameters, valid = synced[["valid"]]))
+      if (!isTRUE(synced[["valid"]])) {
+        return(out(synced[["row"]], parameters, valid = FALSE))
+      }
+      parameters <- .iwmde_row_parameters(
+        context      = context,
+        row          = synced[["row"]],
+        active_setup = state[["active_setup"]],
+        state_scope  = .iwmde_state_scope_value(state)
+      )
+      return(out(synced[["row"]], parameters))
     }
   }
 
-  synced <- .iwmde_sync_invgamma_auxiliary_row(
+  synced <- .iwmde_sync_replacement_row(
     context    = context,
     row        = row,
     parameters = parameter
@@ -980,7 +1221,7 @@
   # value while keeping the orthogonal complement fixed.
   row[linear[["active_columns"]]] <- row[linear[["active_columns"]]] +
     (value - linear[["current"]]) * linear[["coefficients"]]
-  synced <- .iwmde_sync_invgamma_auxiliary_row(
+  synced <- .iwmde_sync_replacement_row(
     context    = context,
     row        = row,
     parameters = linear[["active_columns"]]
@@ -1031,9 +1272,22 @@
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "simplex_pair")) {
     return(list(
-      type      = "simplex_pair",
-      parameter = parameter_spec[["parameter"]],
-      index     = parameter_spec[["index"]]
+      type              = "simplex_pair",
+      parameter         = parameter_spec[["parameter"]],
+      index             = parameter_spec[["index"]],
+      target_columns    = parameter_spec[["target_columns"]],
+      auxiliary_columns = parameter_spec[["auxiliary_columns"]]
+    ))
+  }
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "random_component_sd")) {
+    return(list(
+      type              = "random_component_sd",
+      source_parameter  = parameter_spec[["source_parameter"]],
+      factors           = parameter_spec[["factors"]],
+      target_columns    = parameter_spec[["target_columns"]],
+      factor_columns    = parameter_spec[["factor_columns"]],
+      auxiliary_columns = parameter_spec[["auxiliary_columns"]]
     ))
   }
 

@@ -356,7 +356,9 @@
 .iwmde_plan_parameter_spec <- function(parameter_spec) {
 
   fields <- c(
-    "type", "parameter", "weights", "index", "n_targets", "conditional",
+    "type", "parameter", "weights", "index", "n_targets",
+    "source_parameter", "factors", "target_columns", "factor_columns",
+    "auxiliary_columns", "conditioning_exclude", "conditional",
     "conditional_rule", "condition_key", "status", "reason"
   )
 
@@ -549,6 +551,12 @@
     "weights",
     "index",
     "n_targets",
+    "source_parameter",
+    "factors",
+    "target_columns",
+    "factor_columns",
+    "auxiliary_columns",
+    "conditioning_exclude",
     "conditional",
     "conditional_rule",
     "condition_key"
@@ -562,15 +570,19 @@
 .iwmde_plan_target <- function(parameter, parameter_spec, metadata, target_key) {
 
   target <- list(
-    type             = parameter_spec[["type"]],
-    parameter        = parameter,
-    target_key       = target_key,
-    status           = parameter_spec[["status"]],
-    reason           = parameter_spec[["reason"]],
-    conditional      = parameter_spec[["conditional"]],
-    conditional_rule = parameter_spec[["conditional_rule"]],
-    condition_key    = parameter_spec[["condition_key"]],
-    metadata         = .iwmde_target_provenance(metadata)
+    type                 = parameter_spec[["type"]],
+    parameter            = parameter,
+    target_key           = target_key,
+    status               = parameter_spec[["status"]],
+    reason               = parameter_spec[["reason"]],
+    conditional          = parameter_spec[["conditional"]],
+    conditional_rule     = parameter_spec[["conditional_rule"]],
+    condition_key        = parameter_spec[["condition_key"]],
+    target_columns       = parameter_spec[["target_columns"]],
+    factor_columns       = parameter_spec[["factor_columns"]],
+    auxiliary_columns    = parameter_spec[["auxiliary_columns"]],
+    conditioning_exclude = parameter_spec[["conditioning_exclude"]],
+    metadata             = .iwmde_target_provenance(metadata)
   )
   if (identical(parameter_spec[["type"]], "linear")) {
     target[["weights"]] <- .iwmde_plan_weights(parameter_spec[["weights"]])
@@ -579,6 +591,10 @@
     target[["source_parameter"]] <- parameter_spec[["parameter"]]
     target[["index"]]            <- parameter_spec[["index"]]
     target[["n_targets"]]        <- parameter_spec[["n_targets"]]
+  }
+  if (identical(parameter_spec[["type"]], "random_component_sd")) {
+    target[["source_parameter"]] <- parameter_spec[["source_parameter"]]
+    target[["factors"]]          <- parameter_spec[["factors"]]
   }
 
   return(.iwmde_compact_nulls(target))

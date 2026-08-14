@@ -781,15 +781,22 @@
 
   samples <- context[["posterior_samples"]]
   columns <- colnames(samples)
-  if (!is.null(parameter_spec) &&
-      identical(parameter_spec[["type"]], "linear")) {
+  if (!is.null(parameter_spec[["target_columns"]])) {
+    target_columns <- parameter_spec[["target_columns"]]
+  } else if (!is.null(parameter_spec) &&
+             identical(parameter_spec[["type"]], "linear")) {
     target_columns <- names(parameter_spec[["weights"]])
   } else {
     target_columns <- parameter
   }
+  conditioning_exclude <- parameter_spec[["conditioning_exclude"]]
+  if (is.null(conditioning_exclude)) {
+    conditioning_exclude <- character()
+  }
 
   candidates <- columns[
     !columns %in% target_columns &
+      !columns %in% conditioning_exclude &
       !columns %in% context[["indicator_names"]] &
       !vapply(columns, .iwmde_parameter_is_indicator, logical(1)) &
       !vapply(columns, .iwmde_parameter_is_local_latent, logical(1)) &

@@ -40,9 +40,10 @@
 #' Chen-style moment-matched IWMDE densities. qCMDE is preferred when its
 #' additional normalization cost is acceptable; IWMDE can be faster but is
 #' more sensitive to its fitted conditional weights. Matching is
-#' case-insensitive. For semantic random-effect quantities, qCMDE supports
-#' direct scalar fitted sources and two-component allocation fractions;
-#' nonlinear derived quantities remain KDE-only and IWMDE is unavailable.
+#' case-insensitive. For semantic random-effect quantities, qCMDE/IWMDE support
+#' direct scalar fitted sources, allocated component SDs backed by a scalar
+#' total SD, and two-component allocation fractions. Other nonlinear derived
+#' quantities remain KDE-only.
 #' qCMDE/IWMDE are not available for non-known-\code{V}
 #' \code{brma.mv()} random-formula models or
 #' selection-weightfunction coordinates requiring joint replacement. IWMDE is
@@ -274,14 +275,7 @@ lines.brma <- function(
     density_sample_parameter <- parameter
     random_label <- parameter_entry[["term"]]
     if (.density_method_uses_precomputed(density_method)) {
-      if (identical(density_method, "IWMDE")) {
-        stop(
-          "IWMDE plots are not available for semantic random-effect quantities. ",
-          "Use density_method = 'qCMDE' for supported direct quantities or 'KDE'.",
-          call. = FALSE
-        )
-      }
-      target <- .brma_random_parameter_qcmde_target(x, parameter)
+      target <- .brma_random_parameter_density_target(x, parameter)
       if (is.null(target[["parameter"]])) {
         stop(target[["reason"]], call. = FALSE)
       }

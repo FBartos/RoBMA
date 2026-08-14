@@ -72,6 +72,7 @@ test_that("IWMDE identifies sampled random SD focal parameters", {
     yi                         = yi,
     V                          = diag(rep(.04, 3L)),
     random                     = ~ 1 | study,
+    mods                       = ~ x,
     scale                      = ~ x,
     data                       = dat,
     measure                    = "GEN",
@@ -98,6 +99,14 @@ test_that("IWMDE identifies sampled random SD focal parameters", {
   expect_true(.iwmde_parameter_controls_sampled_random_sd(context, "log_tau_x"))
   expect_true(.iwmde_parameter_controls_sampled_random_sd(context, "tau[1]"))
   expect_false(.iwmde_parameter_controls_sampled_random_sd(context, "mu"))
+  expect_equal(
+    .iwmde_predictor_column_basis(
+      context = context,
+      column  = "mu_intercept",
+      state   = list(active_setup = list())
+    )[["mu_basis"]],
+    rep(1, 3L)
+  )
   expect_null(.iwmde_predictor_column_basis(
     context = context,
     column  = "tau",

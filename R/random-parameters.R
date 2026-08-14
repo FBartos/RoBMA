@@ -495,22 +495,17 @@
   ))
 }
 
-.brma_random_parameter_qcmde_target <- function(object, parameter) {
+.brma_random_parameter_density_target <- function(object, parameter) {
 
-  selected <- .brma_random_parameter_select(object, parameter)
-  source   <- selected[["spec"]][["source_parameter"]]
-  type     <- selected[["spec"]][["summary_type"]]
-  if (is.na(source) || !nzchar(source)) {
-    return(list(
-      reason = paste0(
-        "qCMDE plots are not available for derived random-effect quantity '",
-        selected[["spec"]][["label"]], "'. Use density_method = 'KDE'."
-      )
-    ))
-  }
-
+  selected  <- .brma_random_parameter_select(object, parameter)
+  source    <- selected[["spec"]][["source_parameter"]]
+  type      <- selected[["spec"]][["summary_type"]]
   posterior <- as.matrix(object[["fit"]][["mcmc"]])
-  if (source %in% colnames(posterior) &&
+  conditioning_exclude <- .brma_random_parameter_simplex_exclusions(
+    object,
+    posterior
+  )
+  if (!is.na(source) && nzchar(source) && source %in% colnames(posterior) &&
       isTRUE(all.equal(
         as.numeric(selected[["samples"]][, 1L]),
         as.numeric(posterior[, source]),
@@ -519,11 +514,15 @@
       ))) {
     return(list(
       parameter      = source,
-      parameter_spec = list(type = "primitive")
+      parameter_spec = list(
+        type                 = "primitive",
+        target_columns       = source,
+        conditioning_exclude = conditioning_exclude
+      )
     ))
   }
 
-  if (identical(type, "var_frac")) {
+  if (identical(type, "var_frac") && !is.na(source) && nzchar(source)) {
     metadata <- attr(
       selected[["prior"]],
       "random_allocation_metadata",
@@ -535,28 +534,170 @@
         is.numeric(index) && length(index) == 1L && !is.na(index) &&
         index %in% 1:2) {
       columns <- paste0(source, "[", 1:2, "]")
-      if (all(columns %in% colnames(posterior))) {
+      auxiliary_columns <- .iwmde_simplex_auxiliary_columns(source, 2L)
+      if (inherits(selected[["source_prior"]], "prior.simplex") &&
+          identical(selected[["source_prior"]][["distribution"]], "dirichlet") &&
+          all(c(columns, auxiliary_columns) %in% colnames(posterior))) {
         return(list(
           parameter      = columns[[index]],
           parameter_spec = list(
-            type       = "simplex_pair",
-            parameter  = source,
-            index      = as.integer(index),
-            n_targets  = 2L
+            type                 = "simplex_pair",
+            parameter            = source,
+            index                = as.integer(index),
+            n_targets            = 2L,
+            target_columns       = columns,
+            auxiliary_columns    = auxiliary_columns,
+            conditioning_exclude = columns
           )
         ))
       }
     }
   }
 
+  if (identical(type, "sd")) {
+    target <- .brma_random_parameter_component_density_target(
+      object               = object,
+      selected             = selected,
+      posterior            = posterior,
+      conditioning_exclude = conditioning_exclude
+    )
+    if (!is.null(target)) {
+      return(target)
+    }
+  }
+
   return(list(
     reason = paste0(
-      "qCMDE plots are not available for random-effect quantity '",
+      "qCMDE/IWMDE plots are not available for random-effect quantity '",
       selected[["spec"]][["label"]],
-      "' because it is not a direct scalar or two-component allocation coordinate. ",
+      "' because it has no supported scalar random-component coordinate. ",
       "Use density_method = 'KDE'."
     )
   ))
+}
+
+
+.brma_random_parameter_component_density_target <- function(
+    object, selected, posterior, conditioning_exclude) {
+
+  formula_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
+  term <- .brma_random_parameter_design_term(
+    formula_design,
+    selected[["spec"]]
+  )
+  if (is.null(term) || !.marginalized_random_effect_has_allocation(term)) {
+    return(NULL)
+  }
+
+  allocation <- term[["sd_binding"]][["allocations"]][[1L]]
+  source     <- allocation[["source"]]
+  factors    <- .marginalized_random_effect_allocation_factors(term)
+  if (!is.list(source) || !identical(source[["shape"]], "scalar") ||
+      length(factors) == 0L) {
+    return(NULL)
+  }
+
+  source_parameter <- source[["name"]]
+  factors          <- lapply(factors, .brma_random_parameter_density_factor)
+  if (!is.character(source_parameter) || length(source_parameter) != 1L ||
+      is.na(source_parameter) || !nzchar(source_parameter) ||
+      !source_parameter %in% colnames(posterior) ||
+      any(vapply(factors, is.null, logical(1)))) {
+    return(NULL)
+  }
+
+  factor_columns <- vapply(factors, function(factor) {
+    paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
+  }, character(1))
+  if (!all(factor_columns %in% colnames(posterior))) {
+    return(NULL)
+  }
+
+  multiplier <- tryCatch(
+    .iwmde_random_component_sd_multiplier(posterior, factors),
+    error = function(error) NULL
+  )
+  if (is.null(multiplier) || any(!is.finite(multiplier) | multiplier <= 0)) {
+    return(NULL)
+  }
+  target_values <- as.numeric(posterior[, source_parameter]) * multiplier
+  if (!isTRUE(all.equal(
+    as.numeric(selected[["samples"]][, 1L]),
+    target_values,
+    tolerance        = sqrt(.Machine$double.eps),
+    check.attributes = FALSE
+  ))) {
+    return(NULL)
+  }
+
+  auxiliary_columns <- unique(unlist(lapply(factors, function(factor) {
+    .iwmde_simplex_auxiliary_columns(
+      factor[["weight_name"]],
+      factor[["n_targets"]]
+    )
+  }), use.names = FALSE))
+
+  return(list(
+    parameter      = source_parameter,
+    parameter_spec = list(
+      type                 = "random_component_sd",
+      source_parameter     = source_parameter,
+      factors              = factors,
+      target_columns       = source_parameter,
+      factor_columns       = factor_columns,
+      auxiliary_columns    = auxiliary_columns,
+      conditioning_exclude = conditioning_exclude
+    )
+  ))
+}
+
+
+.brma_random_parameter_density_factor <- function(factor) {
+
+  fields <- c("weight_name", "index", "scale", "n_targets")
+  if (!is.list(factor) || !all(fields %in% names(factor))) {
+    return(NULL)
+  }
+
+  out <- factor[fields]
+  out[["index"]]     <- as.integer(out[["index"]])
+  out[["n_targets"]] <- as.integer(out[["n_targets"]])
+  valid <- is.character(out[["weight_name"]]) &&
+    length(out[["weight_name"]]) == 1L &&
+    !is.na(out[["weight_name"]]) && nzchar(out[["weight_name"]]) &&
+    length(out[["index"]]) == 1L && !is.na(out[["index"]]) &&
+    length(out[["n_targets"]]) == 1L && !is.na(out[["n_targets"]]) &&
+    out[["n_targets"]] >= 2L && out[["index"]] >= 1L &&
+    out[["index"]] <= out[["n_targets"]] &&
+    out[["scale"]] %in% c("mean_variance", "total_variance")
+
+  if (isTRUE(valid)) out else NULL
+}
+
+
+.brma_random_parameter_simplex_exclusions <- function(object, posterior) {
+
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  if (!is.list(prior_list) || length(prior_list) == 0L) {
+    return(character())
+  }
+
+  exclusions <- unlist(lapply(names(prior_list), function(parameter) {
+    prior <- prior_list[[parameter]]
+    if (!inherits(prior, "prior.simplex") ||
+        !identical(prior[["distribution"]], "dirichlet")) {
+      return(character())
+    }
+    n_targets <- length(prior[["parameters"]][["alpha"]])
+    columns   <- paste0(parameter, "[", seq_len(n_targets), "]")
+    if (n_targets < 2L || !all(columns %in% colnames(posterior))) {
+      return(character())
+    }
+
+    columns[[n_targets]]
+  }), use.names = FALSE)
+
+  unique(exclusions)
 }
 
 .brma_random_parameter_support <- function(spec, prior = NULL,

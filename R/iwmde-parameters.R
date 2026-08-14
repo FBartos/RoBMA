@@ -53,18 +53,85 @@
     source  <- parameter_spec[["parameter"]]
     index   <- parameter_spec[["index"]]
     columns <- paste0(source, "[", 1:2, "]")
+    auxiliary_columns <- .iwmde_simplex_auxiliary_columns(source, 2L)
     if (!is.character(source) || length(source) != 1L || is.na(source) ||
         !nzchar(source) || !is.numeric(index) || length(index) != 1L ||
         is.na(index) || !index %in% 1:2 ||
-        !all(columns %in% colnames(samples))) {
+        !identical(parameter, columns[[as.integer(index)]]) ||
+        !.iwmde_simplex_coordinates_valid(samples, source, 2L)) {
       return(list(
         status = "unsupported",
-        reason = "two-component simplex coordinates are unavailable"
+        reason = paste0(
+          "two-component simplex coordinates or their auxiliary-gamma ",
+          "coordinates are unavailable"
+        )
       ))
     }
-    parameter_spec[["index"]]     <- as.integer(index)
-    parameter_spec[["n_targets"]] <- 2L
-    parameter_spec[["status"]]    <- "ok"
+    parameter_spec[["index"]]             <- as.integer(index)
+    parameter_spec[["n_targets"]]         <- 2L
+    parameter_spec[["target_columns"]]    <- columns
+    parameter_spec[["auxiliary_columns"]] <- auxiliary_columns
+    parameter_spec[["status"]]            <- "ok"
+
+    return(parameter_spec)
+  }
+
+  if (identical(parameter_spec[["type"]], "random_component_sd")) {
+    source  <- parameter_spec[["source_parameter"]]
+    factors <- .iwmde_random_component_sd_factors(parameter_spec[["factors"]])
+    if (is.null(factors) || !is.character(source) || length(source) != 1L ||
+        is.na(source) || !nzchar(source) || !identical(parameter, source) ||
+        !source %in% colnames(samples)) {
+      return(list(
+        status = "unsupported",
+        reason = "allocated random-component SD coordinates are unavailable"
+      ))
+    }
+    factor_columns <- vapply(factors, function(factor) {
+      paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
+    }, character(1))
+    if (!all(factor_columns %in% colnames(samples))) {
+      return(list(
+        status = "unsupported",
+        reason = "allocated random-component SD factor coordinates are unavailable"
+      ))
+    }
+    simplex_valid <- vapply(factors, function(factor) {
+      .iwmde_simplex_coordinates_valid(
+        samples,
+        factor[["weight_name"]],
+        factor[["n_targets"]]
+      )
+    }, logical(1))
+    if (!all(simplex_valid)) {
+      return(list(
+        status = "unsupported",
+        reason = "simplex and auxiliary-gamma coordinates are inconsistent"
+      ))
+    }
+    multiplier <- tryCatch(
+      .iwmde_random_component_sd_multiplier(samples, factors),
+      error = function(error) NULL
+    )
+    if (is.null(multiplier) || any(!is.finite(multiplier) | multiplier <= 0)) {
+      return(list(
+        status = "unsupported",
+        reason = "allocated random-component SD multipliers must be positive"
+      ))
+    }
+    auxiliary_columns <- unique(unlist(lapply(factors, function(factor) {
+      .iwmde_simplex_auxiliary_columns(
+        factor[["weight_name"]],
+        factor[["n_targets"]]
+      )
+    }), use.names = FALSE))
+
+    parameter_spec[["factors"]]           <- factors
+    parameter_spec[["target_columns"]]    <- source
+    parameter_spec[["factor_columns"]]    <- factor_columns
+    parameter_spec[["auxiliary_columns"]] <- auxiliary_columns
+    parameter_spec[["source_parameter"]]  <- source
+    parameter_spec[["status"]]            <- "ok"
 
     return(parameter_spec)
   }
@@ -201,8 +268,99 @@
   if (identical(parameter_spec[["type"]], "linear")) {
     return(.iwmde_linear_values(context, samples, parameter_spec[["weights"]]))
   }
+  if (identical(parameter_spec[["type"]], "random_component_sd")) {
+    multiplier <- .iwmde_random_component_sd_multiplier(
+      samples,
+      parameter_spec[["factors"]]
+    )
+
+    return(as.numeric(samples[, parameter_spec[["source_parameter"]]]) *
+      multiplier)
+  }
 
   return(.iwmde_parameter_column_values(context, samples, parameter))
+}
+
+
+.iwmde_random_component_sd_multiplier <- function(samples, factors) {
+
+  factors <- .iwmde_random_component_sd_factors(factors)
+  if (is.null(factors)) {
+    stop("Allocated random-component SD factors are invalid.", call. = FALSE)
+  }
+
+  multiplier <- rep(1, nrow(samples))
+  for (factor in factors) {
+    column <- paste0(
+      factor[["weight_name"]],
+      "[", factor[["index"]], "]"
+    )
+    if (!column %in% colnames(samples)) {
+      stop(
+        "Allocated random-component SD factor column is missing: ",
+        column,
+        call. = FALSE
+      )
+    }
+    weight <- as.numeric(samples[, column])
+    if (identical(factor[["scale"]], "mean_variance")) {
+      weight <- factor[["n_targets"]] * weight
+    }
+    if (any(!is.finite(weight) | weight < 0)) {
+      stop("Allocated random-component SD weights are invalid.", call. = FALSE)
+    }
+    multiplier <- multiplier * sqrt(weight)
+  }
+
+  return(multiplier)
+}
+
+
+.iwmde_random_component_sd_factors <- function(factors) {
+
+  if (!is.list(factors) || length(factors) == 0L) {
+    return(NULL)
+  }
+
+  out <- lapply(factors, .brma_random_parameter_density_factor)
+  if (any(vapply(out, is.null, logical(1)))) {
+    return(NULL)
+  }
+
+  out
+}
+
+
+.iwmde_simplex_auxiliary_columns <- function(parameter, n_targets) {
+
+  paste0(
+    "prior_par_eta_",
+    parameter,
+    "[", seq_len(as.integer(n_targets)), "]"
+  )
+}
+
+
+.iwmde_simplex_coordinates_valid <- function(samples, parameter, n_targets) {
+
+  columns           <- paste0(parameter, "[", seq_len(n_targets), "]")
+  auxiliary_columns <- .iwmde_simplex_auxiliary_columns(parameter, n_targets)
+  if (!all(c(columns, auxiliary_columns) %in% colnames(samples))) {
+    return(FALSE)
+  }
+
+  eta_sum <- rowSums(samples[, auxiliary_columns, drop = FALSE])
+  if (any(!is.finite(eta_sum) | eta_sum <= 0)) {
+    return(FALSE)
+  }
+  expected <- samples[, auxiliary_columns, drop = FALSE] / eta_sum
+
+  isTRUE(all.equal(
+    unname(samples[, columns, drop = FALSE]),
+    unname(expected),
+    tolerance        = sqrt(.Machine$double.eps),
+    check.attributes = FALSE
+  ))
 }
 
 
@@ -815,6 +973,15 @@
       identical(parameter_spec[["type"]], "simplex_pair")) {
     return(matrix(
       c(0, 1),
+      nrow  = length(rows),
+      ncol  = 2L,
+      byrow = TRUE
+    ))
+  }
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "random_component_sd")) {
+    return(matrix(
+      c(0, Inf),
       nrow  = length(rows),
       ncol  = 2L,
       byrow = TRUE

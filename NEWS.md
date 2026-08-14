@@ -159,9 +159,12 @@
   WAIC.
 - adds semantic `component = "random"` parameter summaries, plots, MCMC
   diagnostics, and coherent interval/directional hypotheses for `brma.mv()`.
-- lets semantic multivariate random-effect plots use qCMDE for direct sampled
-  quantities and two-component allocation fractions, and draws exact
-  Beta marginal priors for Dirichlet allocation fractions.
+- lets semantic multivariate random-effect plots use qCMDE/IWMDE for direct
+  sampled quantities, scalar-total allocated component SDs, and two-component
+  allocation fractions, and draws exact Beta marginal priors for Dirichlet
+  allocation fractions.
+- routes the meta-regression location intercept through the exact constant
+  predictor basis used by qCMDE/IWMDE fast paths.
 - adds `include_auxiliary` to all fitted-model `as_draws*()` methods; the
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
@@ -332,7 +335,8 @@
   `pooled_effect()`; observed-design summaries, funnel plots, radial plots, and
   influence diagnostics retain their within-draw RMS heterogeneity targets.
 - hardens known-`V` estimate log-likelihood sums, diagnostics, funnel variance
-  extraction, qCMDE/IWMDE random-SD handling, and `brma.mv()` target metadata
+  extraction, qCMDE/IWMDE random-SD handling (including synchronized
+  allocation-derived component SDs), and `brma.mv()` target metadata
   regressions.
 - separates qCMDE display, evaluation, and integration grids so plot ranges and
   boundary nulls no longer distort row-normalizer grids.

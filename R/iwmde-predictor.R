@@ -217,7 +217,8 @@
   active_setup <- state[["active_setup"]]
   K            <- nrow(data[["outcome"]])
 
-  if (column == "mu" && !.is_data_mods(data)) {
+  if ((column == "mu" && !.is_data_mods(data)) ||
+      (column == "mu_intercept" && .is_data_mods(data))) {
     return(list(
       mu_basis      = rep(1, K),
       log_tau_basis = NULL,

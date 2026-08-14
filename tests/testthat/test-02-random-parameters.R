@@ -489,16 +489,231 @@ test_that("Dirichlet allocation priors use their exact beta marginals", {
   )
 })
 
+test_that("simplex density replacements preserve auxiliary-gamma coordinates", {
+
+  source            <- "mu_allocation"
+  columns           <- paste0(source, "[", 1:2, "]")
+  auxiliary_columns <- .iwmde_simplex_auxiliary_columns(source, 2L)
+  samples <- matrix(
+    c(
+      0.25, 0.75, 1, 3,
+      0.50, 0.50, 2, 2
+    ),
+    nrow = 2L,
+    byrow = TRUE,
+    dimnames = list(NULL, c(columns, auxiliary_columns))
+  )
+  context <- list(posterior_samples = samples)
+  spec <- .iwmde_parameter_spec(
+    context,
+    columns[[1L]],
+    list(type = "simplex_pair", parameter = source, index = 1L)
+  )
+  inconsistent <- samples
+  inconsistent[, columns[[1L]]] <- 0.4
+  inconsistent[, columns[[2L]]] <- 0.6
+  expect_identical(
+    .iwmde_parameter_spec(
+      list(posterior_samples = inconsistent),
+      columns[[1L]],
+      list(type = "simplex_pair", parameter = source, index = 1L)
+    )[["status"]],
+    "unsupported"
+  )
+  replacement <- .iwmde_replacement_spec(context, columns[[1L]], spec)
+  replaced <- .iwmde_replace_row_for_value(
+    context,
+    list(row = samples[1L, ]),
+    columns[[1L]],
+    0.4,
+    replacement
+  )
+
+  expect_equal(unname(replaced[["row"]][columns]), c(0.4, 0.6))
+  expect_equal(unname(replaced[["row"]][auxiliary_columns]), c(1.6, 2.4))
+
+  prior <- BayesTools::prior(
+    "dirichlet",
+    parameters = list(alpha = c(2, 3))
+  )
+  expected <- stats::dgamma(1.6, 2, 1, log = TRUE) +
+    stats::dgamma(2.4, 3, 1, log = TRUE)
+  expect_equal(
+    .iwmde_log_prior_row(replaced[["row"]], stats::setNames(list(prior), source)),
+    expected
+  )
+  prior_list <- stats::setNames(list(prior), source)
+  expect_equal(
+    .iwmde_replacement_log_prior(
+      parameter       = columns[[1L]],
+      values          = 0.4,
+      valid_samples   = samples,
+      valid_positions = 1:2,
+      candidates      = list(
+        state_index = 1:2,
+        grid_index  = c(1L, 1L)
+      ),
+      row_states = list(
+        list(use_focal_prior_delta = FALSE, prior_list = prior_list),
+        list(use_focal_prior_delta = FALSE, prior_list = prior_list)
+      ),
+      replacement = list(type = "simplex_pair")
+    ),
+    c(
+      stats::dgamma(1, 2, 1, log = TRUE) +
+        stats::dgamma(3, 3, 1, log = TRUE),
+      stats::dgamma(2, 2, 1, log = TRUE) +
+        stats::dgamma(2, 3, 1, log = TRUE)
+    )
+  )
+})
+
+test_that("allocation replacements synchronize derived random-effect SDs", {
+
+  dat <- data.frame(
+    yi    = c(.10, .20, .30, .40),
+    study = c("a", "a", "b", "b"),
+    esid  = c("a1", "a2", "b1", "b2")
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(.04, 4L)),
+    random                    = ~ 1 | study / esid,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  design     <- .fitted_formula_design(object, "mu")
+  allocation <- design[["random_allocations"]][["random_total"]]
+  source     <- allocation[["source"]][["name"]]
+  weights    <- paste0(allocation[["weight_name"]], "[", 1:2, "]")
+  components <- vapply(
+    design[["random_effects"]],
+    function(term) term[["sd_parameter_names"]][[1L]],
+    character(1)
+  )
+  samples <- matrix(
+    c(.8, .25, .75, 9, 9),
+    nrow = 1L,
+    dimnames = list(NULL, c(source, weights, components))
+  )
+  context <- list(object = object, data = object[["data"]])
+
+  synced <- .iwmde_sync_random_allocation_sd_matrix(
+    context    = context,
+    samples    = samples,
+    parameters = source
+  )
+  expect_true(synced[["valid"]])
+  expect_equal(
+    unname(synced[["samples"]][1L, components]),
+    .8 * sqrt(c(.25, .75))
+  )
+
+  samples[1L, weights] <- c(.4, .6)
+  synced <- .iwmde_sync_random_allocation_sd_matrix(
+    context    = context,
+    samples    = samples,
+    parameters = weights
+  )
+  expect_equal(
+    unname(synced[["samples"]][1L, components]),
+    .8 * sqrt(c(.4, .6))
+  )
+})
+
+test_that("allocated component SD targets retain their replacement structure", {
+
+  source  <- "mu_total_sd"
+  weight  <- "mu_allocation"
+  columns <- c(
+    source,
+    paste0(weight, "[", 1:2, "]"),
+    .iwmde_simplex_auxiliary_columns(weight, 2L)
+  )
+  samples <- matrix(
+    c(0.8, 0.25, 0.75, 1, 3),
+    nrow = 1L,
+    dimnames = list(NULL, columns)
+  )
+  context <- list(
+    posterior_samples = samples,
+    indicator_names   = character()
+  )
+  input_spec <- list(
+    type                 = "random_component_sd",
+    source_parameter     = source,
+    factors              = list(list(
+      weight_name = weight,
+      index       = 1L,
+      scale       = "mean_variance",
+      n_targets   = 2L
+    )),
+    target_columns       = source,
+    conditioning_exclude = paste0(weight, "[2]")
+  )
+  spec <- .iwmde_parameter_spec(context, source, input_spec)
+  replacement <- .iwmde_replacement_spec(context, source, spec)
+  replaced <- .iwmde_replace_row_for_value(
+    context,
+    list(row = samples[1L, ]),
+    source,
+    0.7,
+    replacement
+  )
+
+  expect_equal(
+    .iwmde_parameter_values(context, source, spec),
+    0.8 * sqrt(2 * 0.25)
+  )
+  expect_equal(replaced[["row"]][[source]], 0.7 / sqrt(2 * 0.25))
+  expect_equal(
+    .iwmde_chen_conditioning_columns(context, source, spec),
+    paste0(weight, "[1]")
+  )
+  expect_named(
+    .iwmde_plan_parameter_spec(spec),
+    c(
+      "type", "source_parameter", "factors", "target_columns",
+      "factor_columns", "auxiliary_columns", "conditioning_exclude", "status"
+    )
+  )
+})
+
 test_that("direct multivariate random quantities expose density targets", {
 
   skip_if_missing_fits("brma.mv_v14_assink2016_nested")
   fit <- load_fit("brma.mv_v14_assink2016_nested", validate = FALSE)
 
-  total  <- .brma_random_parameter_qcmde_target(fit, "sd_total(random_total)")
-  nested <- .brma_random_parameter_qcmde_target(fit, "var_frac(random_total: esid_study)")
-  study  <- .brma_random_parameter_qcmde_target(fit, "var_frac(random_total: study)")
+  total <- .brma_random_parameter_density_target(
+    fit,
+    "sd_total(random_total)"
+  )
+  nested_sd <- .brma_random_parameter_density_target(
+    fit,
+    "sd(intercept | esid:study)"
+  )
+  study_sd <- .brma_random_parameter_density_target(
+    fit,
+    "sd(intercept | study)"
+  )
+  nested <- .brma_random_parameter_density_target(
+    fit,
+    "var_frac(random_total: esid_study)"
+  )
+  study <- .brma_random_parameter_density_target(
+    fit,
+    "var_frac(random_total: study)"
+  )
 
   expect_identical(total[["parameter_spec"]][["type"]], "primitive")
+  expect_identical(
+    nested_sd[["parameter_spec"]][["type"]],
+    "random_component_sd"
+  )
+  expect_identical(nested_sd[["parameter_spec"]][["factors"]][[1L]][["index"]], 1L)
+  expect_identical(study_sd[["parameter_spec"]][["factors"]][[1L]][["index"]], 2L)
   expect_identical(nested[["parameter_spec"]][["type"]], "simplex_pair")
   expect_identical(nested[["parameter_spec"]][["index"]], 1L)
   expect_identical(study[["parameter_spec"]][["index"]], 2L)
@@ -513,14 +728,20 @@ test_that("direct multivariate random quantities expose density targets", {
   expect_equal(BayesTools::lpdf(prior, c(0.2, 0.5, 0.8)), rep(0, 3L))
   expect_null(attr(samples[[parameter]], "prior_density", exact = TRUE))
 
-  expect_error(
+  expect_s3_class(
     plot(
       fit,
-      "var_frac(random_total: esid_study)",
-      component      = "random",
-      density_method = "IWMDE"
+      "sd(intercept | study)",
+      component       = "random",
+      density_method  = "qCMDE",
+      density_control = list(
+        n_points             = 20L,
+        samples              = 300L,
+        normalization_points = 50L
+      ),
+      plot_type = "ggplot"
     ),
-    "IWMDE plots are not available for semantic random-effect quantities"
+    "ggplot"
   )
 
   context <- .iwmde_context(fit)
@@ -544,6 +765,11 @@ test_that("direct multivariate random quantities expose density targets", {
     replacement
   )
   expect_equal(unname(unlist(replaced[["row"]][columns])), c(0.37, 0.63))
+  eta_sum <- sum(state[["row"]][nested[["parameter_spec"]][["auxiliary_columns"]]])
+  expect_equal(
+    unname(unlist(replaced[["row"]][nested[["parameter_spec"]][["auxiliary_columns"]]])),
+    eta_sum * c(0.37, 0.63)
+  )
 })
 
 test_that("qCMDE plots a two-component multivariate allocation fraction", {

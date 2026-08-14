@@ -65,6 +65,21 @@
 .iwmde_target_key <- function(parameter, parameter_spec) {
 
   condition_key <- .iwmde_parameter_condition_key(parameter_spec)
+  structure_key <- unlist(lapply(c(
+    target    = "target_columns",
+    auxiliary = "auxiliary_columns",
+    exclude   = "conditioning_exclude"
+  ), function(field) {
+    values <- parameter_spec[[field]]
+    if (is.null(values) || length(values) == 0L) {
+      return(character())
+    }
+
+    paste(sort(as.character(values)), collapse = ",")
+  }), use.names = TRUE)
+  if (length(structure_key) > 0L) {
+    structure_key <- paste0(names(structure_key), "=", structure_key)
+  }
 
   if (identical(parameter_spec[["type"]], "linear")) {
     weights <- parameter_spec[["weights"]]
@@ -75,21 +90,47 @@
       .iwmde_key_number(weights)
     )
 
-    return(paste(c("linear", parts, condition_key), collapse = "|"))
+    return(paste(c("linear", parts, structure_key, condition_key), collapse = "|"))
   }
 
   if (identical(parameter_spec[["type"]], "simplex_pair")) {
-    return(paste(
+    return(paste(c(
       "simplex_pair",
       parameter_spec[["parameter"]],
       parameter_spec[["index"]],
-      condition_key,
-      sep = "|"
+      structure_key,
+      condition_key
+    ), collapse = "|"))
+  }
+
+  if (identical(parameter_spec[["type"]], "random_component_sd")) {
+    factors <- vapply(parameter_spec[["factors"]], function(factor) {
+      paste(
+        factor[["weight_name"]],
+        factor[["index"]],
+        factor[["scale"]],
+        factor[["n_targets"]],
+        sep = ":"
+      )
+    }, character(1))
+
+    return(paste(
+      c(
+        "random_component_sd",
+        parameter_spec[["source_parameter"]],
+        factors,
+        structure_key,
+        condition_key
+      ),
+      collapse = "|"
     ))
   }
 
   if (identical(parameter_spec[["type"]], "primitive")) {
-    return(paste(c("primitive", parameter, condition_key), collapse = "|"))
+    return(paste(
+      c("primitive", parameter, structure_key, condition_key),
+      collapse = "|"
+    ))
   }
 
   if (identical(parameter_spec[["status"]], "unsupported")) {
