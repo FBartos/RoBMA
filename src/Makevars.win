@@ -90,9 +90,23 @@ all: $(SHLIB)
 
 glmm-aghq.o: glmm-binomial-loglik.h
 
-r-glmm.o: glmm-binomial-loglik.h
+R_GLMM_INC = r-glmm-common.cc.inc \
+			 r-glmm-marginal.cc.inc \
+			 r-glmm-cluster.cc.inc
+
+r-glmm.o: $(R_GLMM_INC) glmm-binomial-loglik.h
+
+R_KNOWN_V_INC = r-known-v-common.cc.inc \
+				r-known-v-plan.cc.inc \
+				r-known-v-low-rank.cc.inc \
+				r-known-v-structured.cc.inc \
+				r-known-v-evaluate.cc.inc
+
+r-known-v.o: $(R_KNOWN_V_INC)
 
 R_SELNORM_INC = r-selnorm-common.cc.inc \
+				r-selnorm-funnel-common.cc.inc \
+				r-selnorm-cluster.cc.inc \
 				r-selnorm-loglik.cc.inc \
 				r-selnorm-kernel.cc.inc \
 				r-selnorm-funnel-zcurve.cc.inc
