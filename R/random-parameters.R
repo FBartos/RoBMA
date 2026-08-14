@@ -464,6 +464,101 @@
   attr(object[["fit"]], "prior_list", exact = TRUE)[[source_parameter]]
 }
 
+.brma_random_parameter_exact_prior <- function(selected) {
+
+  type         <- selected[["spec"]][["summary_type"]]
+  source_prior <- selected[["source_prior"]]
+  if (type %in% c("sd", "sd_total", "rho", "cor") &&
+      !is.null(source_prior) && BayesTools::is.prior(source_prior)) {
+    return(source_prior)
+  }
+  if (!identical(type, "var_frac") || is.null(source_prior) ||
+      !inherits(source_prior, "prior.simplex") ||
+      !identical(source_prior[["distribution"]], "dirichlet")) {
+    return(NULL)
+  }
+
+  alpha <- source_prior[["parameters"]][["alpha"]]
+  index <- attr(selected[["prior"]], "random_allocation_index", exact = TRUE)
+  if (!is.numeric(alpha) || any(!is.finite(alpha)) || any(alpha <= 0) ||
+      length(alpha) < 2L || !is.numeric(index) || length(index) != 1L ||
+      is.na(index) || index < 1L || index > length(alpha)) {
+    return(NULL)
+  }
+
+  return(BayesTools::prior(
+    "beta",
+    parameters = list(
+      alpha = alpha[[index]],
+      beta  = sum(alpha[-index])
+    )
+  ))
+}
+
+.brma_random_parameter_qcmde_target <- function(object, parameter) {
+
+  selected <- .brma_random_parameter_select(object, parameter)
+  source   <- selected[["spec"]][["source_parameter"]]
+  type     <- selected[["spec"]][["summary_type"]]
+  if (is.na(source) || !nzchar(source)) {
+    return(list(
+      reason = paste0(
+        "qCMDE plots are not available for derived random-effect quantity '",
+        selected[["spec"]][["label"]], "'. Use density_method = 'KDE'."
+      )
+    ))
+  }
+
+  posterior <- as.matrix(object[["fit"]][["mcmc"]])
+  if (source %in% colnames(posterior) &&
+      isTRUE(all.equal(
+        as.numeric(selected[["samples"]][, 1L]),
+        as.numeric(posterior[, source]),
+        tolerance       = 0,
+        check.attributes = FALSE
+      ))) {
+    return(list(
+      parameter      = source,
+      parameter_spec = list(type = "primitive")
+    ))
+  }
+
+  if (identical(type, "var_frac")) {
+    metadata <- attr(
+      selected[["prior"]],
+      "random_allocation_metadata",
+      exact = TRUE
+    )
+    index     <- attr(selected[["prior"]], "random_allocation_index", exact = TRUE)
+    n_targets <- metadata[["n_targets"]]
+    if (identical(as.integer(n_targets), 2L) &&
+        is.numeric(index) && length(index) == 1L && !is.na(index) &&
+        index %in% 1:2) {
+      columns <- paste0(source, "[", 1:2, "]")
+      if (all(columns %in% colnames(posterior))) {
+        return(list(
+          parameter      = columns[[index]],
+          parameter_spec = list(
+            type       = "simplex_pair",
+            parameter  = source,
+            index      = as.integer(index),
+            n_targets  = 2L
+          )
+        ))
+      }
+    }
+  }
+
+  return(list(
+    reason = paste0(
+      "qCMDE plots are not available for random-effect quantity '",
+      selected[["spec"]][["label"]],
+      "' because it is not a direct scalar or two-component allocation coordinate. ",
+      "Use density_method = 'KDE'."
+    )
+  ))
+}
+
 .brma_random_parameter_support <- function(spec, prior = NULL,
                                            source_prior = NULL) {
 
@@ -640,7 +735,11 @@
     class = c("BayesTools_posterior_support", "list")
   )
 
+  target_prior <- BayesTools::prior_none()
   if (prior) {
+    target_prior <- .brma_random_parameter_exact_prior(selected)
+  }
+  if (prior && is.null(target_prior)) {
     prior_selected <- .brma_random_parameter_select(
       object                    = object,
       parameter                 = parameter,
@@ -661,7 +760,9 @@
       )
     }
     attr(values, "prior_density") <- prior_density
+    target_prior <- BayesTools::prior_none()
   }
+  attr(values, "prior_list") <- target_prior
 
   class(values) <- c(
     "mixed_posteriors",
@@ -672,7 +773,7 @@
   out <- list(values)
   names(out) <- selected[["entry"]][["parameter"]]
   attr(out, "prior_list") <- stats::setNames(
-    list(BayesTools::prior_none()),
+    list(target_prior),
     selected[["entry"]][["parameter"]]
   )
   class(out) <- c("as_mixed_posteriors", "mixed_posteriors", "list")

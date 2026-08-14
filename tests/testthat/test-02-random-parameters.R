@@ -468,6 +468,107 @@ test_that("random prior overlays and diagnostic labels are semantic", {
   }
 })
 
+test_that("Dirichlet allocation priors use their exact beta marginals", {
+
+  summary_prior <- BayesTools::prior_none()
+  attr(summary_prior, "random_allocation_index") <- 2L
+  selected <- list(
+    spec         = list(summary_type = "var_frac"),
+    source_prior = BayesTools::prior(
+      "dirichlet",
+      parameters = list(alpha = c(2, 3, 5))
+    ),
+    prior        = summary_prior
+  )
+  prior <- .brma_random_parameter_exact_prior(selected)
+
+  expect_true(BayesTools::is.prior(prior))
+  expect_equal(
+    BayesTools::lpdf(prior, c(0.2, 0.4, 0.7)),
+    stats::dbeta(c(0.2, 0.4, 0.7), 3, 7, log = TRUE)
+  )
+})
+
+test_that("direct multivariate random quantities expose density targets", {
+
+  skip_if_missing_fits("brma.mv_v14_assink2016_nested")
+  fit <- load_fit("brma.mv_v14_assink2016_nested", validate = FALSE)
+
+  total  <- .brma_random_parameter_qcmde_target(fit, "sd_total(random_total)")
+  nested <- .brma_random_parameter_qcmde_target(fit, "var_frac(random_total: esid_study)")
+  study  <- .brma_random_parameter_qcmde_target(fit, "var_frac(random_total: study)")
+
+  expect_identical(total[["parameter_spec"]][["type"]], "primitive")
+  expect_identical(nested[["parameter_spec"]][["type"]], "simplex_pair")
+  expect_identical(nested[["parameter_spec"]][["index"]], 1L)
+  expect_identical(study[["parameter_spec"]][["index"]], 2L)
+
+  samples <- .brma_random_parameter_mixed_posterior(
+    fit,
+    "var_frac(random_total: esid_study)",
+    prior = TRUE
+  )
+  parameter <- names(samples)[[1L]]
+  prior     <- attr(samples, "prior_list", exact = TRUE)[[parameter]]
+  expect_equal(BayesTools::lpdf(prior, c(0.2, 0.5, 0.8)), rep(0, 3L))
+  expect_null(attr(samples[[parameter]], "prior_density", exact = TRUE))
+
+  expect_error(
+    plot(
+      fit,
+      "var_frac(random_total: esid_study)",
+      component      = "random",
+      density_method = "IWMDE"
+    ),
+    "IWMDE plots are not available for semantic random-effect quantities"
+  )
+
+  context <- .iwmde_context(fit)
+  columns <- paste0(nested[["parameter_spec"]][["parameter"]], "[", 1:2, "]")
+  state <- .iwmde_row_state(
+    context,
+    1L,
+    nested[["parameter"]],
+    nested[["parameter_spec"]]
+  )
+  replacement <- .iwmde_replacement_spec(
+    context,
+    nested[["parameter"]],
+    nested[["parameter_spec"]]
+  )
+  replaced <- .iwmde_replace_row_for_value(
+    context,
+    state,
+    nested[["parameter"]],
+    0.37,
+    replacement
+  )
+  expect_equal(unname(unlist(replaced[["row"]][columns])), c(0.37, 0.63))
+})
+
+test_that("qCMDE plots a two-component multivariate allocation fraction", {
+
+  skip_if_missing_fits("brma.mv_v14_assink2016_nested")
+  fit <- load_fit("brma.mv_v14_assink2016_nested", validate = FALSE)
+
+  expect_s3_class(
+    plot(
+      fit,
+      "var_frac(random_total: esid_study)",
+      component       = "random",
+      prior           = TRUE,
+      density_method  = "qCMDE",
+      density_control = list(
+        n_points             = 20L,
+        samples              = 300L,
+        normalization_points = 60L
+      ),
+      plot_type = "ggplot"
+    ),
+    "ggplot"
+  )
+})
+
 test_that("random DFBETAS zero-variance handling is cellwise", {
 
   skip_if_missing_fits("brma.mv_block_mvn_random_scale")

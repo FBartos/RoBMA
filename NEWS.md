@@ -111,6 +111,11 @@
   retains the named, possibly nested table structure. Credible- and prediction-
   interval columns use syntactic names such as `CI_0.025` and `PI_0.025` while
   printed summaries retain their compact quantile labels.
+- keeps known-`V` backend routing in summary metadata without printing this
+  implementation detail in ordinary `brma.mv()` summaries.
+- requests BayesTools' structured component labels for random-effect rows, so
+  both single- and multiple-component models print labels such as
+  `study: sd(intercept)` without downstream label rewriting.
 - extends posterior `plot()` and `lines()` transformations: `EXP` now applies
   to individual log-scale ratio meta-regression coefficients and to
   scale-regression coefficients as multiplicative changes in heterogeneity,
@@ -152,6 +157,9 @@
   WAIC.
 - adds semantic `component = "random"` parameter summaries, plots, MCMC
   diagnostics, and coherent interval/directional hypotheses for `brma.mv()`.
+- lets semantic multivariate random-effect plots use qCMDE for direct sampled
+  quantities and two-component allocation fractions, and draws exact
+  Beta marginal priors for Dirichlet allocation fractions.
 - adds `include_auxiliary` to all fitted-model `as_draws*()` methods; the
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
@@ -170,13 +178,13 @@
   directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.21 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.33 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
   ASTs, structural prior-ordinate classification, and exact induced formula-
-  coefficient prior densities, as well as consistent base posterior-overlay
-  spike scaling.
+  coefficient prior densities, structured random-effect component labels, and
+  consistent base posterior-overlay spike scaling.
 - requires loo 2.10.0 internally while preserving RoBMA's released numeric
   `compare.loo` matrix and printing contract.
 - removes transitional pre-release known-`V`, dense random-correlation, and

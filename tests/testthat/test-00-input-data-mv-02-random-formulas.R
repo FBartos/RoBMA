@@ -1473,11 +1473,6 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   expect_equal(known_v_backend[["known_v_parameterization_requested"]], "auto")
   expect_equal(known_v_backend[["known_v_parameterization"]], "whitened")
   expect_equal(known_v_backend[["known_v_effective_backend"]], "whitened")
-  expect_match(
-    .brma_mv_known_v_backend_label(known_v_backend),
-    "requested: auto",
-    fixed = TRUE
-  )
   marglik_metadata <- .brma_mv_marglik_target_metadata(known_v_object)
   expect_equal(marglik_metadata[["reported_target"]], "full joint fitted likelihood")
   expect_equal(marglik_metadata[["known_v_parameterization_requested"]], "auto")
@@ -1493,10 +1488,6 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   diagonal_backend <- .brma_mv_known_v_backend_metadata(diagonal_object)
   expect_equal(diagonal_backend[["known_v_parameterization"]], "whitened")
   expect_equal(diagonal_backend[["known_v_effective_backend"]], "diagonal")
-  expect_equal(
-    .brma_mv_known_v_backend_label(diagonal_backend),
-    "Known-V backend: diagonal (selected: whitened; requested: auto)"
-  )
 
   dffits_target <- .brma_mv_target_row("dffits()")
   expect_equal(dffits_target[["status"]], "implemented")

@@ -356,8 +356,8 @@
 .iwmde_plan_parameter_spec <- function(parameter_spec) {
 
   fields <- c(
-    "type", "parameter", "weights", "conditional", "conditional_rule",
-    "condition_key", "status", "reason"
+    "type", "parameter", "weights", "index", "n_targets", "conditional",
+    "conditional_rule", "condition_key", "status", "reason"
   )
 
   return(parameter_spec[intersect(fields, names(parameter_spec))])
@@ -547,6 +547,8 @@
     "type",
     "parameter",
     "weights",
+    "index",
+    "n_targets",
     "conditional",
     "conditional_rule",
     "condition_key"
@@ -572,6 +574,11 @@
   )
   if (identical(parameter_spec[["type"]], "linear")) {
     target[["weights"]] <- .iwmde_plan_weights(parameter_spec[["weights"]])
+  }
+  if (identical(parameter_spec[["type"]], "simplex_pair")) {
+    target[["source_parameter"]] <- parameter_spec[["parameter"]]
+    target[["index"]]            <- parameter_spec[["index"]]
+    target[["n_targets"]]        <- parameter_spec[["n_targets"]]
   }
 
   return(.iwmde_compact_nulls(target))

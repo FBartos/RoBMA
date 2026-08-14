@@ -40,10 +40,13 @@
 #' Chen-style moment-matched IWMDE densities. qCMDE is preferred when its
 #' additional normalization cost is acceptable; IWMDE can be faster but is
 #' more sensitive to its fitted conditional weights. Matching is
-#' case-insensitive. qCMDE/IWMDE are not available for non-known-\code{V}
-#' \code{brma.mv()} random-formula models, derived semantic random-effect
-#' quantities, or selection-weightfunction coordinates requiring joint
-#' replacement. IWMDE is also unavailable for binomial and Poisson GLMMs; use
+#' case-insensitive. For semantic random-effect quantities, qCMDE supports
+#' direct scalar fitted sources and two-component allocation fractions;
+#' nonlinear derived quantities remain KDE-only and IWMDE is unavailable.
+#' qCMDE/IWMDE are not available for non-known-\code{V}
+#' \code{brma.mv()} random-formula models or
+#' selection-weightfunction coordinates requiring joint replacement. IWMDE is
+#' also unavailable for binomial and Poisson GLMMs; use
 #' qCMDE for GLMM density plots. qCMDE/IWMDE densities are evaluated on the
 #' fitted coefficient coordinate. If automatic predictor scaling changes the
 #' requested display coordinate, use `standardized_coefficients = TRUE`;
@@ -261,13 +264,6 @@ lines.brma <- function(
         call. = FALSE
       )
     }
-    if (.density_method_uses_precomputed(density_method)) {
-      stop(
-        "qCMDE/IWMDE plots are not available for derived random-effect quantities. ",
-        "Use density_method = 'KDE'.",
-        call. = FALSE
-      )
-    }
     sample_parameter <- parameter
     samples <- .brma_random_parameter_mixed_posterior(
       object                    = x,
@@ -277,6 +273,33 @@ lines.brma <- function(
     )
     density_sample_parameter <- parameter
     random_label <- parameter_entry[["term"]]
+    if (.density_method_uses_precomputed(density_method)) {
+      if (identical(density_method, "IWMDE")) {
+        stop(
+          "IWMDE plots are not available for semantic random-effect quantities. ",
+          "Use density_method = 'qCMDE' for supported direct quantities or 'KDE'.",
+          call. = FALSE
+        )
+      }
+      target <- .brma_random_parameter_qcmde_target(x, parameter)
+      if (is.null(target[["parameter"]])) {
+        stop(target[["reason"]], call. = FALSE)
+      }
+      samples <- .plot_brma_attach_iwmde(
+        object               = x,
+        samples              = samples,
+        parameter            = target[["parameter"]],
+        sample_parameter     = density_sample_parameter,
+        conditional          = NULL,
+        n_points             = density_control[["n_points"]],
+        sample_budget        = density_control[["samples"]],
+        normalization_points = density_control[["normalization_points"]],
+        normalization_prob   = density_control[["normalization_prob"]],
+        density_method       = density_method,
+        display_grid         = density_control[["display_grid"]],
+        parameter_spec       = target[["parameter_spec"]]
+      )
+    }
   } else {
     sample_parameter <- .as_mixed_posteriors_parameters(x, parameter)
     samples <- .brma_as_mixed_posteriors(

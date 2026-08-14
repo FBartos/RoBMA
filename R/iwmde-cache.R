@@ -78,6 +78,16 @@
     return(paste(c("linear", parts, condition_key), collapse = "|"))
   }
 
+  if (identical(parameter_spec[["type"]], "simplex_pair")) {
+    return(paste(
+      "simplex_pair",
+      parameter_spec[["parameter"]],
+      parameter_spec[["index"]],
+      condition_key,
+      sep = "|"
+    ))
+  }
+
   if (identical(parameter_spec[["type"]], "primitive")) {
     return(paste(c("primitive", parameter, condition_key), collapse = "|"))
   }

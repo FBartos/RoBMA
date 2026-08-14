@@ -2,7 +2,7 @@ context("Summary")
 
 source(testthat::test_path("common-functions.R"))
 
-test_that("summary.brma prints known-V backend metadata", {
+test_that("summary.brma does not print known-V backend metadata", {
 
   section_names <- c(
     "inclusion_components",
@@ -30,12 +30,9 @@ test_that("summary.brma prints known-V backend metadata", {
 
   output <- capture.output(print(out))
 
-  expect_true(any(grepl(
-    "Known-V backend: block_mvn (requested: auto)",
-    output,
-    fixed = TRUE
-  )))
+  expect_false(any(grepl("Known-V backend", output, fixed = TRUE)))
 })
+
 
 skip_if_no_fits()
 fit_names <- list_fits()
@@ -201,18 +198,8 @@ expect_printed_summary <- function(summary_object, name) {
   expect_true(any(nzchar(output)), info = paste0("printed summary for '", name, "'"))
   expect_true(any(grepl("Bayesian", output, fixed = TRUE)),
               info = paste0("printed summary model name for '", name, "'"))
-  known_v_label <- .brma_mv_known_v_backend_label(summary_object[["known_v_backend"]])
-  expect_identical(
-    any(grepl("Known-V backend", output, fixed = TRUE)),
-    !is.null(known_v_label),
-    info = paste0("printed known-V backend for '", name, "'")
-  )
-  if (!is.null(known_v_label)) {
-    expect_true(
-      any(grepl(known_v_label, output, fixed = TRUE)),
-      info = paste0("printed known-V backend label for '", name, "'")
-    )
-  }
+  expect_false(any(grepl("Known-V backend", output, fixed = TRUE)),
+               info = paste0("printed known-V backend for '", name, "'"))
   expect_false(any(grepl("__xXx__", output, fixed = TRUE)),
                info = paste0("printed summary labels for '", name, "'"))
 }

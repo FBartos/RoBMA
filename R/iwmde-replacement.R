@@ -610,6 +610,15 @@
           )
       }
     }
+  } else if (identical(replacement[["type"]], "simplex_pair")) {
+    columns <- paste0(replacement[["parameter"]], "[", 1:2, "]")
+    index   <- replacement[["index"]]
+    other   <- 3L - index
+    target  <- values[grid_index]
+    valid   <- is.finite(target) & target >= 0 & target <= 1
+    samples[valid, columns[[index]]] <- target[valid]
+    samples[valid, columns[[other]]] <- 1 - target[valid]
+    changed_parameters <- columns
   } else if (parameter %in% sample_names) {
     samples[, parameter] <- values[grid_index]
     changed_parameters <- parameter
@@ -654,6 +663,21 @@
       value       = value,
       replacement = replacement
     ))
+  }
+
+  if (identical(replacement[["type"]], "simplex_pair")) {
+    columns <- paste0(replacement[["parameter"]], "[", 1:2, "]")
+    index   <- replacement[["index"]]
+    other   <- 3L - index
+    if (!is.finite(value) || value < 0 || value > 1 ||
+        !all(columns %in% names(state[["row"]]))) {
+      return(out(state[["row"]], valid = FALSE))
+    }
+    row <- state[["row"]]
+    row[[columns[[index]]]] <- value
+    row[[columns[[other]]]] <- 1 - value
+
+    return(out(row))
   }
 
   row <- state[["row"]]
@@ -849,6 +873,31 @@
     ))
   }
 
+  if (identical(replacement[["type"]], "simplex_pair")) {
+    replaced <- .iwmde_replace_row_for_value(
+      context     = context,
+      state       = state,
+      parameter   = parameter,
+      value       = value,
+      replacement = replacement
+    )
+    if (!isTRUE(replaced[["valid"]])) {
+      return(out(replaced[["row"]], state[["parameters"]], valid = FALSE))
+    }
+    parameters <- .iwmde_row_parameters(
+      context      = context,
+      row          = replaced[["row"]],
+      active_setup = state[["active_setup"]],
+      state_scope  = .iwmde_state_scope_value(state)
+    )
+
+    return(out(
+      row                   = replaced[["row"]],
+      parameters            = parameters,
+      use_focal_prior_delta = FALSE
+    ))
+  }
+
   if (identical(replacement[["type"]], "scalar")) {
     parameters <- state[["parameters"]]
     name       <- replacement[["name"]]
@@ -978,6 +1027,14 @@
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "linear")) {
     return(list(type = "linear", weights = parameter_spec[["weights"]]))
+  }
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "simplex_pair")) {
+    return(list(
+      type      = "simplex_pair",
+      parameter = parameter_spec[["parameter"]],
+      index     = parameter_spec[["index"]]
+    ))
   }
 
   data <- context[["data"]]

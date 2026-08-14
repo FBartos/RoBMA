@@ -225,6 +225,7 @@ summary.brma       <- function(
       keep_parameters         = "random_effects",
       transform_scaled        = !standardized_coefficients,
       random_effects_summary  = "standard",
+      random_effects_label    = "component",
       random_effects_metadata = TRUE,
       formula_prefix          = FALSE,
       title                   = "Random"
@@ -233,6 +234,7 @@ summary.brma       <- function(
       keep_parameters         = "random_effects",
       transform_scaled        = !standardized_coefficients,
       random_effects_summary  = "standard",
+      random_effects_label    = "component",
       random_effects_metadata = TRUE,
       formula_prefix          = FALSE,
       title                   = "Conditional Random"
@@ -297,11 +299,6 @@ print.summary.brma <- function(x, ...) {
   cat("\n")
   cat(x_print[["name"]])
   cat("\n")
-  known_v_label <- .brma_mv_known_v_backend_label(x_print[["known_v_backend"]])
-  if (!is.null(known_v_label)) {
-    cat(known_v_label)
-    cat("\n")
-  }
 
   for (type in c(
     "inclusion_components", "inclusion_mods", "inclusion_scale",
@@ -361,39 +358,9 @@ print.summary.brma <- function(x, ...) {
     return(list())
   }
 
-  random_names <- if ("Random name" %in% colnames(random)) {
-    as.character(random[["Random name"]])
-  } else {
-    rep("", nrow(random))
-  }
-
   out <- random[, estimate_cols, drop = FALSE]
-  rownames(out) <- .summary_brma_random_print_labels(
-    labels       = rownames(random),
-    random_names = random_names
-  )
 
   return(out)
-}
-
-.summary_brma_random_print_labels <- function(labels, random_names) {
-
-  has_name <- !is.na(random_names) & nzchar(random_names)
-  if (length(unique(random_names[has_name])) <= 1L) {
-    return(labels)
-  }
-
-  for (i in seq_along(labels)) {
-    if (!has_name[[i]]) {
-      next
-    }
-    label <- labels[[i]]
-    label <- sub("^sd\\((.*) \\| .*\\)$", "sd(\\1)", label)
-    label <- sub("^rho\\(.*\\)$", "rho", label)
-    labels[[i]] <- paste0(random_names[[i]], ": ", label)
-  }
-
-  return(labels)
 }
 
 #' @rdname summary.brma

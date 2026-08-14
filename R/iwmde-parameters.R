@@ -49,6 +49,26 @@
     return(parameter_spec)
   }
 
+  if (identical(parameter_spec[["type"]], "simplex_pair")) {
+    source  <- parameter_spec[["parameter"]]
+    index   <- parameter_spec[["index"]]
+    columns <- paste0(source, "[", 1:2, "]")
+    if (!is.character(source) || length(source) != 1L || is.na(source) ||
+        !nzchar(source) || !is.numeric(index) || length(index) != 1L ||
+        is.na(index) || !index %in% 1:2 ||
+        !all(columns %in% colnames(samples))) {
+      return(list(
+        status = "unsupported",
+        reason = "two-component simplex coordinates are unavailable"
+      ))
+    }
+    parameter_spec[["index"]]     <- as.integer(index)
+    parameter_spec[["n_targets"]] <- 2L
+    parameter_spec[["status"]]    <- "ok"
+
+    return(parameter_spec)
+  }
+
   if (!identical(parameter_spec[["type"]], "linear")) {
     return(list(status = "unsupported", reason = "unknown IWMDE parameter spec"))
   }
@@ -789,6 +809,15 @@
       context = context,
       rows    = rows,
       weights = parameter_spec[["weights"]]
+    ))
+  }
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "simplex_pair")) {
+    return(matrix(
+      c(0, 1),
+      nrow  = length(rows),
+      ncol  = 2L,
+      byrow = TRUE
     ))
   }
 
