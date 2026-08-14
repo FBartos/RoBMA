@@ -37,6 +37,13 @@ test_that("outcome hashes use a cross-version canonical encoding", {
     measure   = "GEN",
     only_data = TRUE
   )
+  unclustered_object <- brma(
+    yi        = c(0.1, -0.2, 0.3),
+    sei       = c(0.3, 0.4, 0.5),
+    weights   = c(1, 2, 3),
+    measure   = "GEN",
+    only_data = TRUE
+  )
   known_v_object <- brma.mv(
     yi        = c(0.1, 0.2, 0.3),
     V         = matrix(c(
@@ -49,15 +56,17 @@ test_that("outcome hashes use a cross-version canonical encoding", {
   )
 
   expect_identical(.get_outcome_hash(normal_object),
-                   "v1:048626303c301ec7")
+                   "v1:297cae5202260996")
   expect_identical(.get_outcome_hash(binomial_object),
-                   "v1:59842cf30feb47a0")
+                   "v1:3081885a00045b6b")
   expect_identical(.get_outcome_hash(poisson_object),
-                   "v1:2bc43cb622c4d2c0")
+                   "v1:3a9cb7d444143c10")
   expect_identical(.get_outcome_hash(clustered_object),
-                   "v1:3867d5a13ac04d2a")
+                   "v1:1cb5b0cd7ad933fb")
+  expect_identical(.get_outcome_hash(clustered_object),
+                   .get_outcome_hash(unclustered_object))
   expect_identical(.get_outcome_hash(known_v_object),
-                   "v1:4c17e1973256ec90")
+                   "v1:0fb2f0ab7e994106")
   expect_identical(
     .outcome_hash_bytes(list(value = -0)),
     .outcome_hash_bytes(list(value = 0))

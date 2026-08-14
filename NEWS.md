@@ -1,5 +1,7 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- treats cluster identifiers as model structure rather than outcome data when
+  validating marginal-likelihood and estimate-level LOO comparisons.
 - evaluates eligible AR1, HAR, and CAR random-effect covariance blocks with an
   exact linear-time Markov likelihood and tridiagonal conditional solver.
   The route retains every covariance parameter and the complete coefficient

@@ -298,7 +298,8 @@ logml.brma <- function(x, ...) {
 #' \code{x} and at least one additional \code{brma} model must be supplied.
 #' Non-\code{brma} objects in \code{...} are ignored with a warning. All retained
 #' models must be fitted to the same outcome target/data, including outcome type
-#' and, when present, weights and cluster identifiers.
+#' and, when present, likelihood weights. Cluster identifiers define model
+#' structure and are not part of the outcome-data identity.
 #'
 #' @return A named numeric vector with posterior model probabilities
 #' (i.e., which sum to one).
@@ -379,8 +380,9 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
 #' Computes the Bayes factor in favor of the model \code{x1} over the
 #' model \code{x2}. The marginal likelihoods must first be computed using
 #' \code{\link{add_marglik}}. Both models must be fitted to the same
-#' outcome target/data, including outcome type and, when present, weights and
-#' cluster identifiers.
+#' outcome target/data, including outcome type and, when present, likelihood
+#' weights. Cluster identifiers define model structure and are not part of the
+#' outcome-data identity.
 #'
 #' @return A list of class \code{"bf_default"} with components:
 #' \itemize{

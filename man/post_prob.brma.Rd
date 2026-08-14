@@ -32,7 +32,8 @@ The marginal likelihoods must first be computed using \code{\link{add_marglik}}.
 \code{x} and at least one additional \code{brma} model must be supplied.
 Non-\code{brma} objects in \code{...} are ignored with a warning. All retained
 models must be fitted to the same outcome target/data, including outcome type
-and, when present, weights and cluster identifiers.
+and, when present, likelihood weights. Cluster identifiers define model
+structure and are not part of the outcome-data identity.
 }
 \examples{
 \dontrun{

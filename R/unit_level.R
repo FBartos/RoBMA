@@ -220,13 +220,6 @@
     payload[["weights"]] <- unname(as.numeric(outcome_data[["weights"]]))
   }
 
-  if ("cluster" %in% names(outcome_data)) {
-    payload[["cluster"]] <- unname(as.integer(outcome_data[["cluster"]]))
-  }
-
-  if ("cluster_label" %in% names(outcome_data)) {
-    payload[["cluster_label"]] <- unname(as.character(outcome_data[["cluster_label"]]))
-  }
   if (.is_data_known_v(object[["data"]])) {
     known_V <- .data_known_v_data(object[["data"]])
     blocks  <- .known_v_correlated_blocks(known_V)
