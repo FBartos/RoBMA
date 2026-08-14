@@ -37,8 +37,15 @@
 - consumes BayesTools' compact exact bridge factor-state contract so invariant
   random-effect designs, group maps, and known group kernels are validated once
   while every draw-varying coefficient factor and row scale retains full
-  support validation; the generic full covariance-factor contract remains
-  available.
+  support validation. The native covariance plan now consumes this immutable
+  geometry and dynamic state directly; the generic full covariance-factor and
+  dense contracts remain available.
+- shares exact latent-system, fixed-known-group, and correlated sampling-block
+  preparation between marginal-likelihood and conditional evaluators, and
+  routes bridge block-MVN and post-fit joint known-`V` densities through the
+  same reusable native covariance plan. Independent R Cholesky and Schur
+  implementations remain as numerical references and invalid-covariance
+  diagnostics.
 - compiles the active latent coordinates of each observation and assembles
   exact diagonal-base Woodbury systems only over their structural nonzeros,
   substantially reducing repeated work for nested and crossed random effects
