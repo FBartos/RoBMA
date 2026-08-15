@@ -93,6 +93,11 @@ test_that("analytic normal cluster likelihood matches mvtnorm oracle", {
     yi    = yi,
     vi    = vi
   )
+  analytic_r <- .log_lik_cluster_norm_analytic_r(
+    setup = setup,
+    yi    = yi,
+    vi    = vi
+  )
   oracle <- matrix(NA_real_, nrow = S, ncol = length(setup[["cluster"]]))
   for (s in seq_len(S)) {
     for (g in seq_along(setup[["cluster"]])) {
@@ -110,6 +115,12 @@ test_that("analytic normal cluster likelihood matches mvtnorm oracle", {
   }
 
   expect_equal(analytic, oracle, tolerance = 1e-12)
+  expect_equal(analytic, analytic_r, tolerance = 1e-12)
+  expect_equal(
+    .log_lik_cluster_norm_analytic_sum(setup, yi, vi),
+    rowSums(oracle),
+    tolerance = 1e-12
+  )
 })
 
 

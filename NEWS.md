@@ -1,5 +1,9 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- evaluates normal multilevel cluster likelihoods with a native exact
+  diagonal-plus-rank-one kernel shared by log-likelihood, LOO, and density
+  paths. Invalid or unsupported inputs retain the existing R and full
+  covariance fallbacks.
 - accelerates qCMDE/IWMDE densities without changing their targets by grouping
   complete active states, evaluating prior densities with row boundaries
   preserved, and reusing exact diagonal or common-shift known-`V` likelihood

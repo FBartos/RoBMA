@@ -80,11 +80,11 @@
       yi                    <- -yi
     }
 
-    return(rowSums(.log_lik_cluster_norm_analytic(
+    return(.log_lik_cluster_norm_analytic_sum(
       setup = cluster_setup,
       yi    = yi,
       vi    = sei^2
-    )))
+    ))
   }
 
   if (outcome_type == "norm") {

@@ -13,6 +13,75 @@
 # ---------------------------------------------------------------------------- #
 .log_lik_cluster_norm_analytic <- function(setup, yi, vi) {
 
+  if (.has_native_norm_cluster_analytic()) {
+    native <- .log_lik_cluster_norm_analytic_native(
+      setup   = setup,
+      yi      = yi,
+      vi      = vi,
+      row_sum = FALSE
+    )
+    if (all(is.finite(native))) {
+      return(native)
+    }
+  }
+
+  return(.log_lik_cluster_norm_analytic_r(
+    setup = setup,
+    yi    = yi,
+    vi    = vi
+  ))
+}
+
+
+.log_lik_cluster_norm_analytic_sum <- function(setup, yi, vi) {
+
+  if (.has_native_norm_cluster_analytic(row_sum = TRUE)) {
+    native <- .log_lik_cluster_norm_analytic_native(
+      setup   = setup,
+      yi      = yi,
+      vi      = vi,
+      row_sum = TRUE
+    )
+    if (all(is.finite(native))) {
+      return(native)
+    }
+  }
+
+  log_lik <- .log_lik_cluster_norm_analytic_r(
+    setup = setup,
+    yi    = yi,
+    vi    = vi
+  )
+  return(.rowSums(log_lik, nrow(log_lik), ncol(log_lik)))
+}
+
+
+.log_lik_cluster_norm_analytic_native <- function(setup, yi, vi,
+                                                   row_sum = FALSE) {
+
+  cluster <- .cluster_indices_flatten(setup[["cluster"]])
+  symbol  <- if (isTRUE(row_sum)) {
+    "RoBMA_norm_cluster_analytic_loglik_row_sum"
+  } else {
+    "RoBMA_norm_cluster_analytic_loglik"
+  }
+
+  return(.Call(
+    symbol,
+    .native_numeric_vector(yi),
+    .native_numeric_vector(vi),
+    .native_numeric_matrix(setup[["mu"]]),
+    .native_numeric_matrix(setup[["tau_within"]]),
+    .native_numeric_matrix(setup[["tau_between"]]),
+    cluster[["index"]],
+    cluster[["size"]],
+    PACKAGE = "RoBMA"
+  ))
+}
+
+
+.log_lik_cluster_norm_analytic_r <- function(setup, yi, vi) {
+
   cluster_indices <- setup[["cluster"]]
   S               <- setup[["S"]]
   log_lik         <- matrix(NA_real_, nrow = S, ncol = length(cluster_indices))

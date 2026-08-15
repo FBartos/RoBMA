@@ -201,6 +201,18 @@
 }
 
 
+.has_native_norm_cluster_analytic <- function(row_sum = FALSE) {
+
+  symbol <- if (isTRUE(row_sum)) {
+    "RoBMA_norm_cluster_analytic_loglik_row_sum"
+  } else {
+    "RoBMA_norm_cluster_analytic_loglik"
+  }
+
+  return(is.loaded(symbol, PACKAGE = "RoBMA"))
+}
+
+
 .has_native_norm_loglik_row_sum <- function(selection = FALSE,
                                             cluster = FALSE) {
 

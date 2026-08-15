@@ -44,6 +44,46 @@ extern "C" SEXP RoBMA_norm_loglik_row_sum(
   return out;
 }
 
+extern "C" SEXP RoBMA_norm_cluster_analytic_loglik(
+  SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
+  SEXP cluster_index, SEXP cluster_size)
+{
+  NormClusterAnalyticArgs args;
+  validate_cluster_common_data(
+    yi, vi, "vi", mu_samples, tau_within, tau_between, cluster_index,
+    cluster_size, R_NilValue, &args.S, &args.K, &args.G
+  );
+  args.yi            = REAL(yi);
+  args.vi            = REAL(vi);
+  args.mu            = REAL(mu_samples);
+  args.tau_within    = REAL(tau_within);
+  args.tau_between   = REAL(tau_between);
+  args.cluster_index = INTEGER(cluster_index);
+  args.cluster_size  = INTEGER(cluster_size);
+
+  return norm_cluster_analytic_accumulate(args, false);
+}
+
+extern "C" SEXP RoBMA_norm_cluster_analytic_loglik_row_sum(
+  SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
+  SEXP cluster_index, SEXP cluster_size)
+{
+  NormClusterAnalyticArgs args;
+  validate_cluster_common_data(
+    yi, vi, "vi", mu_samples, tau_within, tau_between, cluster_index,
+    cluster_size, R_NilValue, &args.S, &args.K, &args.G
+  );
+  args.yi            = REAL(yi);
+  args.vi            = REAL(vi);
+  args.mu            = REAL(mu_samples);
+  args.tau_within    = REAL(tau_within);
+  args.tau_between   = REAL(tau_between);
+  args.cluster_index = INTEGER(cluster_index);
+  args.cluster_size  = INTEGER(cluster_size);
+
+  return norm_cluster_analytic_accumulate(args, true);
+}
+
 extern "C" SEXP RoBMA_norm_cluster_loglik(
   SEXP yi, SEXP sei, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
   SEXP cluster_index, SEXP cluster_size, SEXP weights, SEXP gamma_grid,

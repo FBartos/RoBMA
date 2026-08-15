@@ -30,6 +30,19 @@ struct NormClusterArgs {
   SelNormKernelData selection_data;
 };
 
+struct NormClusterAnalyticArgs {
+  int S;
+  int K;
+  int G;
+  const double *yi;
+  const double *vi;
+  const double *mu;
+  const double *tau_within;
+  const double *tau_between;
+  const int *cluster_index;
+  const int *cluster_size;
+};
+
 const int SELNORM_CLUSTER_RULE_7_OFFSET  = 0;
 const int SELNORM_CLUSTER_RULE_15_OFFSET = 7;
 const int SELNORM_CLUSTER_RULE_31_OFFSET = 22;
@@ -94,22 +107,19 @@ double norm_cluster_logsumexp(const std::vector<double> &terms, int n = -1)
   return term_max + std::log(term_sum);
 }
 
-void validate_cluster_common_norm(SEXP yi, SEXP sei, SEXP mu_samples,
-                                  SEXP tau_within, SEXP tau_between,
-                                  SEXP cluster_index, SEXP cluster_size,
-                                  SEXP weights, SEXP gamma_grid,
-                                  SEXP log_gamma_weights,
-                                  int *S, int *K, int *G, int *n_gamma)
+void validate_cluster_common_data(SEXP yi, SEXP sampling, const char *sampling_name,
+                                  SEXP mu_samples, SEXP tau_within,
+                                  SEXP tau_between, SEXP cluster_index,
+                                  SEXP cluster_size, SEXP weights,
+                                  int *S, int *K, int *G)
 {
   check_real(yi, "yi");
-  check_real(sei, "sei");
+  check_real(sampling, sampling_name);
   check_real(mu_samples, "mu_samples");
   check_real(tau_within, "tau_within");
   check_real(tau_between, "tau_between");
   check_integer(cluster_index, "cluster_index");
   check_integer(cluster_size, "cluster_size");
-  check_real(gamma_grid, "gamma_grid");
-  check_real(log_gamma_weights, "log_gamma_weights");
 
   if (weights != R_NilValue) {
     check_real(weights, "weights");
@@ -118,19 +128,15 @@ void validate_cluster_common_norm(SEXP yi, SEXP sei, SEXP mu_samples,
   *S = matrix_nrow(mu_samples, "mu_samples");
   *K = matrix_ncol(mu_samples, "mu_samples");
   *G = Rf_length(cluster_size);
-  *n_gamma = Rf_length(gamma_grid);
 
   validate_matrix_dims_named(tau_within, "tau_within", *S, *K, "mu_samples");
   validate_matrix_dims_named(tau_between, "tau_between", *S, *K, "mu_samples");
 
-  if (Rf_length(yi) != *K || Rf_length(sei) != *K) {
-    Rf_error("'yi' and 'sei' must have one value per observation.");
+  if (Rf_length(yi) != *K || Rf_length(sampling) != *K) {
+    Rf_error("'yi' and '%s' must have one value per observation.", sampling_name);
   }
   if (weights != R_NilValue && Rf_length(weights) != *K) {
     Rf_error("'weights' must have one value per observation.");
-  }
-  if (*n_gamma < 1 || Rf_length(log_gamma_weights) != *n_gamma) {
-    Rf_error("'gamma_grid' and 'log_gamma_weights' must have matching positive lengths.");
   }
 
   const int *cluster_index_p = INTEGER(cluster_index);
@@ -152,6 +158,107 @@ void validate_cluster_common_norm(SEXP yi, SEXP sei, SEXP mu_samples,
       Rf_error("'cluster_index' values must be between 1 and the number of observations.");
     }
   }
+}
+
+void validate_cluster_common_norm(SEXP yi, SEXP sei, SEXP mu_samples,
+                                  SEXP tau_within, SEXP tau_between,
+                                  SEXP cluster_index, SEXP cluster_size,
+                                  SEXP weights, SEXP gamma_grid,
+                                  SEXP log_gamma_weights,
+                                  int *S, int *K, int *G, int *n_gamma)
+{
+  validate_cluster_common_data(
+    yi, sei, "sei", mu_samples, tau_within, tau_between, cluster_index,
+    cluster_size, weights, S, K, G
+  );
+  check_real(gamma_grid, "gamma_grid");
+  check_real(log_gamma_weights, "log_gamma_weights");
+
+  *n_gamma = Rf_length(gamma_grid);
+  if (*n_gamma < 1 || Rf_length(log_gamma_weights) != *n_gamma) {
+    Rf_error("'gamma_grid' and 'log_gamma_weights' must have matching positive lengths.");
+  }
+}
+
+const double NORM_CLUSTER_LOG_2PI = std::log(2.0 * std::acos(-1.0));
+
+// Integrate a normal cluster effect exactly through the determinant lemma and
+// the stable residual-plus-projection form of the Sherman-Morrison quadratic.
+double norm_cluster_analytic_loglik(const NormClusterAnalyticArgs &args, int s,
+                                    int cluster_offset, int cluster_n)
+{
+  double log_det = 0.0;
+  double denom   = 1.0;
+  double score   = 0.0;
+
+  for (int m = 0; m < cluster_n; ++m) {
+    const int k = args.cluster_index[cluster_offset + m] - 1;
+    const int cell = s + args.S * k;
+    const double diagonal = args.vi[k] +
+      args.tau_within[cell] * args.tau_within[cell];
+    const double rank_one = args.tau_between[cell];
+    const double residual = args.yi[k] - args.mu[cell];
+    if (!std::isfinite(diagonal) || diagonal <= 0.0 ||
+        !std::isfinite(rank_one) || !std::isfinite(residual)) {
+      return NA_REAL;
+    }
+
+    const double inv_diagonal = 1.0 / diagonal;
+    log_det += std::log(diagonal);
+    denom   += rank_one * rank_one * inv_diagonal;
+    score   += rank_one * residual * inv_diagonal;
+  }
+  if (!std::isfinite(denom) || denom <= 0.0) {
+    return NA_REAL;
+  }
+
+  const double projection = score / denom;
+  double quadratic = projection * projection;
+  for (int m = 0; m < cluster_n; ++m) {
+    const int k = args.cluster_index[cluster_offset + m] - 1;
+    const int cell = s + args.S * k;
+    const double diagonal = args.vi[k] +
+      args.tau_within[cell] * args.tau_within[cell];
+    const double adjusted_residual = args.yi[k] - args.mu[cell] -
+      projection * args.tau_between[cell];
+    quadratic += adjusted_residual * adjusted_residual / diagonal;
+  }
+
+  const double out = -0.5 * (
+    cluster_n * NORM_CLUSTER_LOG_2PI + log_det + std::log(denom) + quadratic
+  );
+  return std::isfinite(out) ? out : NA_REAL;
+}
+
+SEXP norm_cluster_analytic_accumulate(const NormClusterAnalyticArgs &args,
+                                      bool row_sum)
+{
+  SEXP out = PROTECT(row_sum ?
+    Rf_allocVector(REALSXP, args.S) :
+    Rf_allocMatrix(REALSXP, args.S, args.G));
+  double *out_p = REAL(out);
+  if (row_sum) {
+    std::fill(out_p, out_p + args.S, 0.0);
+  }
+
+  int cluster_offset = 0;
+  for (int g = 0; g < args.G; ++g) {
+    const int cluster_n = args.cluster_size[g];
+    for (int s = 0; s < args.S; ++s) {
+      const double value = norm_cluster_analytic_loglik(
+        args, s, cluster_offset, cluster_n
+      );
+      if (row_sum) {
+        out_p[s] += value;
+      } else {
+        out_p[s + args.S * g] = value;
+      }
+    }
+    cluster_offset += cluster_n;
+  }
+
+  UNPROTECT(1);
+  return out;
 }
 
 double norm_cluster_cell_loglik(const NormClusterArgs &args, int s, int k,
