@@ -623,22 +623,38 @@
 
     } else {
 
-      location_data <- data.frame(row.names = seq_len(K))
-      mu_samples <- t(BayesTools::JAGS_evaluate_formula(
-        fit            = .posterior_formula_fit(
-          fit               = fit,
-          posterior_samples = posterior_samples,
-          formula_design    = FALSE
-        ),
-        formula        = stats::as.formula("~ 1"),
-        parameter      = "mu",
-        data           = location_data,
-        prior_list     = .repair_formula_prior_list(
-          prior_list = mods_priors,
-          parameter  = "mu"
-        ),
-        formula_target = "fixed"
-      ))
+      formula_priors  <- .repair_formula_prior_list(
+        prior_list = mods_priors,
+        parameter  = "mu"
+      )
+      intercept_prior <- formula_priors[["intercept"]]
+      intercept_name  <- BayesTools::JAGS_parameter_names(
+        "intercept",
+        formula_parameter = "mu"
+      )
+      if (!is.null(intercept_prior) &&
+          is.null(attr(intercept_prior, "multiply_by")) &&
+          intercept_name %in% colnames(posterior_samples)) {
+        mu_samples <- matrix(
+          posterior_samples[, intercept_name],
+          nrow = S,
+          ncol = K
+        )
+      } else {
+        location_data <- data.frame(row.names = seq_len(K))
+        mu_samples <- t(BayesTools::JAGS_evaluate_formula(
+          fit            = .posterior_formula_fit(
+            fit               = fit,
+            posterior_samples = posterior_samples,
+            formula_design    = FALSE
+          ),
+          formula        = stats::as.formula("~ 1"),
+          parameter      = "mu",
+          data           = location_data,
+          prior_list     = formula_priors,
+          formula_target = "fixed"
+        ))
+      }
     }
 
   }

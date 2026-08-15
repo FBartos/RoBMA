@@ -443,17 +443,19 @@
 
 
 .log_lik_posterior_setup <- function(fit, posterior_samples, data, priors,
-                                     unit, data_hash) {
+                                     unit, data_hash,
+                                     conditioned_random_effects = NULL) {
 
   .estimate_likelihood_setup_from_parts(
-    fit               = fit,
-    data              = data,
-    priors            = priors,
-    posterior_samples = posterior_samples,
-    unit              = unit,
-    data_hash         = data_hash,
-    bias_adjusted     = FALSE,
-    caller            = ".log_lik_posterior_setup()"
+    fit                        = fit,
+    data                       = data,
+    priors                     = priors,
+    posterior_samples          = posterior_samples,
+    unit                       = unit,
+    data_hash                  = data_hash,
+    bias_adjusted              = FALSE,
+    conditioned_random_effects = conditioned_random_effects,
+    caller                     = ".log_lik_posterior_setup()"
   )
 }
 
@@ -663,6 +665,7 @@
                                                   unit = "estimate",
                                                   data_hash = NULL,
                                                   bias_adjusted = FALSE,
+                                                  conditioned_random_effects = NULL,
                                                   caller = ".estimate_likelihood_setup_from_parts()") {
 
   unit              <- .normalize_unit(unit)
@@ -691,6 +694,14 @@
   if (unit == "cluster" && !is_multilevel) {
     stop("Cluster-unit log-likelihood is only available for multilevel models.",
          call. = FALSE)
+  }
+  if (!is.null(conditioned_random_effects) &&
+      !(unit == "estimate" && is_random)) {
+    stop(
+      "Precomputed conditioned random effects require an estimate-unit ",
+      "random-formula likelihood.",
+      call. = FALSE
+    )
   }
 
   tau_result <- if (is_random) {
@@ -731,7 +742,7 @@
     posterior_samples = posterior_samples,
     priors            = priors
   )
-  mu_random_samples <- matrix(0, nrow = nrow(mu_samples), ncol = K)
+  mu_random_samples <- NULL
 
   fit_data <- NULL
   if (is_multilevel || is_weightfunction) {
@@ -754,19 +765,39 @@
       posterior_samples = posterior_samples
     )
     mu_samples         <- mu_samples + cluster_effects
-    mu_random_samples <- mu_random_samples + cluster_effects
+    mu_random_samples <- cluster_effects
   }
   if (unit == "estimate" && is_random) {
-    random_effects <- .evaluate.brma.random_effects(
-      fit               = fit,
-      data              = data,
-      priors            = priors,
-      posterior_samples = posterior_samples,
-      same_data         = TRUE,
-      required          = TRUE
-    )
+    random_effects <- if (is.null(conditioned_random_effects)) {
+      .evaluate.brma.random_effects(
+        fit               = fit,
+        data              = data,
+        priors            = priors,
+        posterior_samples = posterior_samples,
+        same_data         = TRUE,
+        required          = TRUE
+      )
+    } else {
+      conditioned_random_effects <- as.matrix(conditioned_random_effects)
+      if (!identical(dim(conditioned_random_effects), c(nrow(mu_samples), K)) ||
+          any(!is.finite(conditioned_random_effects))) {
+        stop(
+          "Precomputed conditioned random effects must be a finite S x K matrix.",
+          call. = FALSE
+        )
+      }
+      conditioned_random_effects
+    }
     mu_samples         <- mu_samples + random_effects
-    mu_random_samples <- mu_random_samples + random_effects
+    mu_random_samples <- if (is.null(mu_random_samples)) {
+      random_effects
+    } else {
+      mu_random_samples + random_effects
+    }
+  }
+
+  if (is.null(mu_random_samples)) {
+    mu_random_samples <- matrix(0, nrow = nrow(mu_samples), ncol = K)
   }
 
   active_object <- list(

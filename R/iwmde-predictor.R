@@ -217,8 +217,7 @@
   active_setup <- state[["active_setup"]]
   K            <- nrow(data[["outcome"]])
 
-  if ((column == "mu" && !.is_data_mods(data)) ||
-      (column == "mu_intercept" && .is_data_mods(data))) {
+  if (column %in% c("mu", "mu_intercept")) {
     return(list(
       mu_basis      = rep(1, K),
       log_tau_basis = NULL,
@@ -1008,15 +1007,27 @@
       values    = values,
       parameter = parameter
     )
+    baseline_log_prior <- vapply(
+      row_states,
+      `[[`,
+      numeric(1),
+      "baseline_log_prior"
+    )
+    baseline_focal_log_prior <- vapply(
+      row_states,
+      `[[`,
+      numeric(1),
+      "baseline_focal_log_prior"
+    )
+    out <- sweep(
+      matrix(focal_log_prior, nrow = G, ncol = S),
+      2L,
+      baseline_log_prior,
+      "+"
+    )
+    out <- sweep(out, 2L, baseline_focal_log_prior, "-")
 
-    out <- numeric(G * S)
-    for (i in seq_along(row_states)) {
-      state <- row_states[[i]]
-      idx   <- (i - 1L) * G + seq_len(G)
-      out[idx] <- state[["baseline_log_prior"]] +
-        focal_log_prior - state[["baseline_focal_log_prior"]]
-    }
-    return(out)
+    return(as.numeric(out))
   }
 
   if (identical(replacement[["type"]], "linear")) {
@@ -1047,13 +1058,15 @@
     return(out)
   }
 
-  out[valid_positions] <- vapply(valid_positions, function(position) {
-    state <- row_states[[candidates[["state_index"]][position]]]
-    .iwmde_log_prior_row(
-      candidates[["samples"]][position, ],
-      state[["prior_list"]]
-    )
-  }, numeric(1))
+  out[valid_positions] <- .iwmde_replacement_log_prior(
+    parameter       = parameter,
+    values          = values,
+    valid_samples   = candidates[["samples"]][valid_positions, , drop = FALSE],
+    valid_positions = valid_positions,
+    candidates      = candidates,
+    row_states      = row_states,
+    replacement     = replacement
+  )
 
   return(out)
 }

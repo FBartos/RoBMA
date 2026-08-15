@@ -1,5 +1,15 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- accelerates qCMDE/IWMDE densities without changing their targets by grouping
+  complete active states, evaluating prior densities with row boundaries
+  preserved, and reusing exact diagonal or common-shift known-`V` likelihood
+  structure. Eligible scalar noncentered random-effect blocks reuse a validated
+  latent reconstruction plan instead of rebuilding formula predictions for
+  every adaptive-grid batch, and eligible intercept-only fixed locations are
+  replayed directly from their fitted coefficient column. Constant spectral
+  shifts avoid expanding invariant eigenvalue denominators across posterior
+  rows. Unsupported covariance, prior, formula-scaling, and random-effect
+  structures retain the complete formula/scalar/Cholesky routes.
 - treats cluster identifiers as model structure rather than outcome data when
   validating marginal-likelihood and estimate-level LOO comparisons.
 - evaluates eligible AR1, HAR, and CAR random-effect covariance blocks with an

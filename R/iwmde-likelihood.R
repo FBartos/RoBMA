@@ -38,11 +38,10 @@
   )
 
   if (.iwmde_uses_known_v_joint_likelihood(context)) {
-    return(.log_lik_known_v_joint_sum_from_posterior_samples(
-      fit               = context[["object"]][["fit"]],
+    return(.iwmde_log_lik_known_v_joint_sum_from_samples(
+      context           = context,
       posterior_samples = posterior_samples,
-      data              = context[["data"]],
-      priors            = active_setup[["priors"]],
+      active_setup      = active_setup,
       unit              = unit,
       data_hash         = data_hash
     ))
@@ -85,10 +84,9 @@
     random_effects_conditioning <- .iwmde_random_effects_conditioning_for_evaluated_mu(
       context
     )
-    return(.log_lik_known_v_joint_sum_from_evaluated_predictors(
-      fit                         = context[["object"]][["fit"]],
-      data                        = context[["data"]],
-      priors                      = active_setup[["priors"]],
+    return(.iwmde_log_lik_known_v_joint_sum_from_evaluated_predictors(
+      context                     = context,
+      active_setup                = active_setup,
       mu_samples                  = mu_samples,
       tau_within_samples          = tau_within_samples,
       tau_between_samples         = tau_between_samples,

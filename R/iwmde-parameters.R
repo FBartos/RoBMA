@@ -366,6 +366,17 @@
 
 .iwmde_parameter_column_values <- function(context, samples, parameter) {
 
+  if (parameter %in% colnames(samples)) {
+    components <- .iwmde_static_parameter_components(
+      context   = context,
+      parameter = parameter,
+      n         = nrow(samples)
+    )
+    if (!is.null(components) && all(components[["active"]])) {
+      return(as.numeric(samples[, parameter]))
+    }
+  }
+
   return(vapply(seq_len(nrow(samples)), function(i) {
     .iwmde_parameter_value_row(context, samples[i, ], parameter)
   }, numeric(1)))
@@ -997,21 +1008,21 @@
     ))
   }
 
-  samples <- context[["posterior_samples"]]
-  out     <- matrix(NA_real_, nrow = length(rows), ncol = 2L)
-
-  for (i in seq_along(rows)) {
-    row <- rows[[i]]
+  samples        <- context[["posterior_samples"]][rows, , drop = FALSE]
+  active_keys    <- .iwmde_active_keys_matrix(context, samples)
+  unique_keys    <- unique(active_keys)
+  first_rows     <- match(unique_keys, active_keys)
+  support_by_key <- t(vapply(seq_along(unique_keys), function(i) {
     prior <- .iwmde_focal_prior_cached(
       context    = context,
       parameter  = parameter,
-      row        = samples[row, ],
-      active_key = .iwmde_active_key(context, samples[row, ])
+      row        = samples[first_rows[[i]], ],
+      active_key = unique_keys[[i]]
     )
-    out[i, ] <- .iwmde_prior_support(prior)
-  }
+    .iwmde_prior_support(prior)
+  }, numeric(2)))
 
-  return(out)
+  return(support_by_key[match(active_keys, unique_keys), , drop = FALSE])
 }
 
 

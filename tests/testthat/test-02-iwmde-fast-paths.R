@@ -45,6 +45,250 @@ test_that("IWMDE numeric cache keys preserve represented coordinates", {
 })
 
 
+test_that("IWMDE extracts only statically continuous stored columns directly", {
+
+  samples <- cbind(
+    theta           = c(10, 20),
+    theta_indicator = c(1, 2)
+  )
+  context <- .iwmde_context_ensure_caches(list(
+    posterior_samples = samples,
+    flat_prior_list   = list(
+      theta = BayesTools::prior("normal", list(mean = 0, sd = 1))
+    ),
+    indicator_names = "theta_indicator"
+  ))
+
+  testthat::local_mocked_bindings(
+    .iwmde_parameter_value_row = function(...) {
+      stop("row dispatch should not be used", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+  expect_equal(
+    .iwmde_parameter_column_values(context, samples, "theta"),
+    samples[, "theta"]
+  )
+
+  context[["flat_prior_list"]][["theta"]] <- BayesTools::prior_mixture(list(
+    BayesTools::prior("point", list(location = 0)),
+    BayesTools::prior("normal", list(mean = 0, sd = 1))
+  ))
+  expect_error(
+    .iwmde_parameter_column_values(context, samples, "theta"),
+    "row dispatch should not be used"
+  )
+})
+
+
+test_that("IWMDE evaluates focal support once per active key", {
+
+  samples <- cbind(
+    theta           = seq_len(6L),
+    theta_indicator = c(1, 1, 2, 2, 1, 2)
+  )
+  context <- list(
+    posterior_samples = samples,
+    indicator_names   = "theta_indicator"
+  )
+  calls <- character()
+  testthat::local_mocked_bindings(
+    .iwmde_focal_prior_cached = function(context, parameter, row,
+                                          active_key) {
+
+      calls <<- c(calls, active_key)
+      BayesTools::prior("normal", list(mean = 0, sd = 1))
+    },
+    .package = "RoBMA"
+  )
+
+  supports <- .iwmde_parameter_row_supports(
+    context   = context,
+    parameter = "theta",
+    rows      = c(6L, 1L, 4L, 2L)
+  )
+
+  expect_length(calls, 2L)
+  expect_setequal(calls, c("theta_indicator=1", "theta_indicator=2"))
+  expect_equal(supports, matrix(c(-Inf, Inf), nrow = 4L, ncol = 2L,
+                                byrow = TRUE))
+})
+
+
+test_that("IWMDE focal-prior deltas preserve row-wise arithmetic", {
+
+  prior  <- BayesTools::prior("normal", list(mean = .2, sd = 1.3))
+  values <- c(-.5, 0, .75)
+  states <- lapply(seq_len(4L), function(i) {
+    list(
+      use_focal_prior_delta    = TRUE,
+      focal_prior              = prior,
+      baseline_log_prior       = i / 7,
+      baseline_focal_log_prior = -i / 11
+    )
+  })
+  expected <- unlist(lapply(states, function(state) {
+    state[["baseline_log_prior"]] +
+      BayesTools::lpdf(prior, values) -
+      state[["baseline_focal_log_prior"]]
+  }), use.names = FALSE)
+
+  observed <- .iwmde_predictor_log_prior(
+    context     = list(),
+    parameter   = "theta",
+    values      = values,
+    row_states  = states,
+    replacement = list(type = "scalar")
+  )
+
+  expect_identical(observed, expected)
+})
+
+
+test_that("known-V structured location changes match Cholesky reference", {
+
+  set.seed(27)
+  S        <- 5L
+  yi       <- c(.2, -.1, .4, .3, -.2)
+  mu       <- matrix(stats::rnorm(S * length(yi)), nrow = S)
+  mu_basis <- matrix(stats::rnorm(S * length(yi)), nrow = S)
+  context  <- list(predictor_cache = new.env(parent = emptyenv()))
+
+  diagonal_blocks <- lapply(seq_along(yi), function(i) {
+    list(index = i, covariance = matrix(.05 + i / 100, 1L, 1L))
+  })
+  diagonal_extra <- matrix(
+    stats::runif(S * length(yi), .01, .10),
+    nrow = S
+  )
+  diagonal <- .iwmde_normal_location_likelihood_change_known_v_structured(
+    context        = context,
+    yi             = yi,
+    mu             = mu,
+    mu_basis       = mu_basis,
+    block_data     = diagonal_blocks,
+    extra_variance = diagonal_extra
+  )
+  diagonal_reference <-
+    .iwmde_normal_location_likelihood_change_known_v_cholesky(
+      yi             = yi,
+      mu             = mu,
+      mu_basis       = mu_basis,
+      block_data     = diagonal_blocks,
+      extra_variance = diagonal_extra
+    )
+  expect_equal(diagonal, diagonal_reference, tolerance = 1e-12)
+
+  full_blocks <- list(
+    list(index = 1:3, covariance = matrix(
+      c(.20, .04, .02, .04, .18, .03, .02, .03, .16),
+      nrow = 3L
+    )),
+    list(index = 4:5, covariance = matrix(
+      c(.12, .03, .03, .14),
+      nrow = 2L
+    ))
+  )
+  shifts <- cbind(
+    matrix(seq(.01, .05, length.out = S), nrow = S, ncol = 3L),
+    matrix(seq(.02, .06, length.out = S), nrow = S, ncol = 2L)
+  )
+  full <- .iwmde_normal_location_likelihood_change_known_v_structured(
+    context        = context,
+    yi             = yi,
+    mu             = mu,
+    mu_basis       = mu_basis,
+    block_data     = full_blocks,
+    extra_variance = shifts
+  )
+  full_reference <- .iwmde_normal_location_likelihood_change_known_v_cholesky(
+    yi             = yi,
+    mu             = mu,
+    mu_basis       = mu_basis,
+    block_data     = full_blocks,
+    extra_variance = shifts
+  )
+  expect_equal(full, full_reference, tolerance = 1e-12)
+
+  noncommon <- shifts
+  noncommon[, 2L] <- noncommon[, 2L] + .01
+  expect_null(.iwmde_normal_location_likelihood_change_known_v_structured(
+    context        = context,
+    yi             = yi,
+    mu             = mu,
+    mu_basis       = mu_basis,
+    block_data     = full_blocks,
+    extra_variance = noncommon
+  ))
+})
+
+
+test_that("known-V common-shift likelihood matches the joint reference", {
+
+  set.seed(28)
+  S  <- 5L
+  yi <- c(.2, -.1, .4, .3, -.2)
+  V  <- matrix(0, nrow = length(yi), ncol = length(yi))
+  V[1:3, 1:3] <- matrix(
+    c(.20, .04, .02, .04, .18, .03, .02, .03, .16),
+    nrow = 3L
+  )
+  V[4:5, 4:5] <- matrix(c(.12, .03, .03, .14), nrow = 2L)
+  data <- data.frame(yi = yi)
+  attr(data, "known_V")      <- TRUE
+  attr(data, "known_V_data") <- .known_v_prepare(
+    V                         = V,
+    keep_rows                 = rep(TRUE, length(yi)),
+    known_v_parameterization  = "block_mvn",
+    known_v_residual_fraction = NULL
+  )
+
+  shifts <- cbind(
+    matrix(seq(.01, .05, length.out = S), nrow = S, ncol = 3L),
+    matrix(seq(.02, .06, length.out = S), nrow = S, ncol = 2L)
+  )
+  setup <- list(
+    outcome_type       = "norm",
+    is_weightfunction  = FALSE,
+    weights            = NULL,
+    data               = data,
+    posterior_samples  = matrix(numeric(), nrow = S, ncol = 0L),
+    K                  = length(yi),
+    S                  = S,
+    yi                 = yi,
+    mu                 = matrix(stats::rnorm(S * length(yi)), nrow = S),
+    tau_within         = sqrt(shifts),
+    effect_direction   = "positive"
+  )
+  context <- list(
+    data            = data,
+    predictor_cache = new.env(parent = emptyenv())
+  )
+
+  expect_equal(
+    .iwmde_log_lik_known_v_joint_sum_common_shift(context, setup),
+    .log_lik_known_v_joint_sum_from_setup(setup),
+    tolerance = 1e-12
+  )
+
+  invariant_shifts <- matrix(
+    c(.03, .03, .03, .04, .04),
+    nrow = S,
+    ncol = length(yi),
+    byrow = TRUE
+  )
+  setup[["tau_within"]] <- sqrt(invariant_shifts)
+  expect_equal(
+    .iwmde_log_lik_known_v_joint_sum_common_shift(context, setup),
+    .log_lik_known_v_joint_sum_from_setup(setup),
+    tolerance = 1e-12
+  )
+
+  setup[["tau_within"]][, 2L] <- setup[["tau_within"]][, 2L] + .01
+  expect_null(.iwmde_log_lik_known_v_joint_sum_common_shift(context, setup))
+})
+
+
 test_that("IWMDE adaptive-grid scaling preserves valid numeric states", {
 
   tiny <- c(
@@ -102,6 +346,16 @@ test_that("IWMDE identifies sampled random SD focal parameters", {
   expect_equal(
     .iwmde_predictor_column_basis(
       context = context,
+      column  = "mu_intercept",
+      state   = list(active_setup = list())
+    )[["mu_basis"]],
+    rep(1, 3L)
+  )
+  context_no_mods <- context
+  attr(context_no_mods[["data"]], "mods") <- FALSE
+  expect_equal(
+    .iwmde_predictor_column_basis(
+      context = context_no_mods,
       column  = "mu_intercept",
       state   = list(active_setup = list())
     )[["mu_basis"]],
@@ -452,6 +706,142 @@ test_that("mixed estimates batch the full conditioned chain sequence", {
     partial_mcse[["mixture_mcse_type"]],
     "worst_correlation_delta_upper_bound"
   )
+})
+
+
+test_that("IWMDE scalar latent random effects match formula reconstruction", {
+
+  dat <- data.frame(
+    yi    = c(.10, .20, .30, .40),
+    study = c("a", "a", "b", "c")
+  )
+  object <- brma.mv(
+    yi                         = yi,
+    V                          = diag(rep(.04, 4L)),
+    random                     = ~ 1 | study,
+    data                       = dat,
+    measure                    = "GEN",
+    prior_unit_information_sd  = 1,
+    marginalize_estimate_level = FALSE,
+    only_priors                = TRUE
+  )
+  term <- .fitted_formula_design(
+    object,
+    "mu",
+    required = TRUE
+  )[["random_effects"]][[1L]]
+  z_names <- paste0(
+    term[["parameter_stem"]],
+    "_xRE_Zx[",
+    seq_len(term[["n_groups"]]),
+    ",1]"
+  )
+  samples <- matrix(
+    c(
+      0.0, .5, 1, 2, 3,
+      0.1, 1.0, 4, 5, 6
+    ),
+    nrow = 2L,
+    byrow = TRUE,
+    dimnames = list(
+      NULL,
+      c("mu_intercept", term[["sd_parameter_names"]], z_names)
+    )
+  )
+  priors <- object[["priors"]]
+  attr(priors[["location"]][["intercept"]], "parameter") <- "mu"
+  context <- list(
+    object          = object,
+    data            = object[["data"]],
+    predictor_cache = new.env(parent = emptyenv())
+  )
+
+  formula_priors <- .repair_formula_prior_list(
+    prior_list = priors[["location"]],
+    parameter  = "mu"
+  )
+  direct_mu <- .evaluate.brma.mu(
+    fit               = object[["fit"]],
+    outcome_data      = object[["data"]][["outcome"]],
+    mods_data         = object[["data"]][["mods"]],
+    mods_formula      = NULL,
+    mods_priors       = priors[["location"]],
+    priors            = priors,
+    is_mods           = FALSE,
+    is_PET            = FALSE,
+    is_PEESE          = FALSE,
+    effect_direction  = "positive",
+    bias_adjusted     = TRUE,
+    K                 = nrow(dat),
+    posterior_samples = samples
+  )
+  formula_mu <- t(BayesTools::JAGS_evaluate_formula(
+    fit            = .posterior_formula_fit(
+      fit               = object[["fit"]],
+      posterior_samples = samples,
+      formula_design    = FALSE
+    ),
+    formula        = stats::as.formula("~ 1"),
+    parameter      = "mu",
+    data           = data.frame(row.names = seq_len(nrow(dat))),
+    prior_list     = formula_priors,
+    formula_target = "fixed"
+  ))
+  expect_identical(direct_mu, formula_mu)
+
+  fast <- .iwmde_conditioned_random_effects_from_latent(
+    context           = context,
+    posterior_samples = samples,
+    unit              = "estimate"
+  )
+  reference <- .evaluate.brma.random_effects(
+    fit               = object[["fit"]],
+    data              = object[["data"]],
+    priors            = priors,
+    posterior_samples = samples,
+    same_data         = TRUE,
+    required          = TRUE,
+    object            = object
+  )
+  expect_equal(fast, reference, tolerance = 1e-12)
+
+  fast_setup <- .log_lik_posterior_setup(
+    fit                        = object[["fit"]],
+    posterior_samples          = samples,
+    data                       = object[["data"]],
+    priors                     = priors,
+    unit                       = "estimate",
+    data_hash                  = NULL,
+    conditioned_random_effects = fast
+  )
+  reference_setup <- .log_lik_posterior_setup(
+    fit               = object[["fit"]],
+    posterior_samples = samples,
+    data              = object[["data"]],
+    priors            = priors,
+    unit              = "estimate",
+    data_hash         = NULL
+  )
+  expect_equal(fast_setup[["mu"]], reference_setup[["mu"]], tolerance = 1e-12)
+  expect_equal(
+    .log_lik_known_v_joint_sum_from_setup(fast_setup),
+    .log_lik_known_v_joint_sum_from_setup(reference_setup),
+    tolerance = 1e-12
+  )
+
+  coefficient_name <- paste0(term[["parameter_stem"]], "_xRE_COEFx[1,1]")
+  coefficient <- matrix(
+    0,
+    nrow     = nrow(samples),
+    ncol     = 1L,
+    dimnames = list(NULL, coefficient_name)
+  )
+  samples_with_coefficient <- cbind(samples, coefficient)
+  expect_null(.iwmde_conditioned_random_effects_from_latent(
+    context           = context,
+    posterior_samples = samples_with_coefficient,
+    unit              = "estimate"
+  ))
 })
 
 
@@ -3292,4 +3682,50 @@ test_that("known-V normal q-grid factors invariant blocks once", {
   expect_equal(dim(out), c(length(grid), length(row_states)))
   expect_equal(reused, out[nrow(out):1L, , drop = FALSE], tolerance = 1e-12)
   expect_equal(factor_calls, block_count)
+})
+
+
+test_that("known-V grouped baseline states match scalar construction", {
+
+  fit_name <- "brma.mv_block_mvn_random"
+  .skip_if_missing_raw_fits(fit_name)
+
+  fit             <- load_fit(fit_name, validate = FALSE)
+  parameter       <- "mu"
+  grouped_context <- .iwmde_context(fit)
+  scalar_context  <- .iwmde_context(fit)
+  spec            <- .iwmde_parameter_spec(grouped_context, parameter, NULL)
+  values          <- .iwmde_parameter_values(grouped_context, parameter, spec)
+  component       <- .iwmde_parameter_components(
+    grouped_context,
+    parameter,
+    spec
+  )
+  rows <- head(which(component[["active"]] & is.finite(values)), 5L)
+
+  grouped <- .iwmde_row_states_grouped_known_v(
+    context        = grouped_context,
+    rows           = rows,
+    parameter      = parameter,
+    parameter_spec = spec,
+    estimator      = "q_grid_cmde"
+  )
+  scalar <- .iwmde_row_states(
+    context        = scalar_context,
+    rows           = rows,
+    parameter      = parameter,
+    parameter_spec = spec,
+    estimator      = "q_grid_cmde"
+  )
+
+  fields <- c(
+    "row_index", "active_key", "baseline_log_lik", "baseline_log_prior",
+    "baseline_focal_log_prior", "use_focal_prior_delta", "baseline_log_q",
+    "likelihood_mode", "state_scope"
+  )
+  expect_equal(
+    lapply(grouped, `[`, fields),
+    lapply(scalar, `[`, fields),
+    tolerance = 1e-10
+  )
 })

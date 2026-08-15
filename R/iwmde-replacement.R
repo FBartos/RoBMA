@@ -114,13 +114,23 @@
   grid_index  <- candidates[["grid_index"]][valid_positions]
   log_prior   <- rep(NA_real_, length(valid_positions))
 
+  use_delta <- vapply(row_states, function(state) {
+    identical(replacement[["type"]], "scalar") &&
+      isTRUE(state[["use_focal_prior_delta"]])
+  }, logical(1))
+  prior_list      <- row_states[[1L]][["prior_list"]]
+  same_prior_list <- all(vapply(row_states, function(state) {
+    identical(state[["prior_list"]], prior_list)
+  }, logical(1)))
+  if (!any(use_delta[state_index]) && same_prior_list) {
+    return(.iwmde_log_prior_rows(valid_samples, prior_list))
+  }
+
   for (i in unique(state_index)) {
     positions <- which(state_index == i)
     state     <- row_states[[i]]
-    use_delta <- identical(replacement[["type"]], "scalar") &&
-      isTRUE(state[["use_focal_prior_delta"]])
 
-    if (use_delta) {
+    if (use_delta[i]) {
       focal_log_prior <- .iwmde_focal_log_prior_values(
         prior     = state[["focal_prior"]],
         values    = values[grid_index[positions]],
@@ -142,6 +152,23 @@
   }
 
   return(log_prior)
+}
+
+
+.iwmde_log_prior_rows <- function(samples, prior_list) {
+
+  if (length(prior_list) == 0L) {
+    return(numeric(nrow(samples)))
+  }
+
+  samples   <- .resolve_fixed_prior_sample_columns(samples, prior_list)
+  log_prior <- BayesTools::JAGS_marglik_priors_rows(samples, prior_list)
+  if (!is.numeric(log_prior) || length(log_prior) != nrow(samples) ||
+      !is.null(dim(log_prior))) {
+    stop("Batched IWMDE prior evaluation returned an invalid result.", call. = FALSE)
+  }
+
+  return(as.numeric(log_prior))
 }
 
 

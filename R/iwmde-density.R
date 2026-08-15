@@ -30,6 +30,154 @@
 }
 
 
+.iwmde_row_states_grouped_known_v <- function(context, rows,
+                                               parameter = NULL,
+                                               parameter_spec = NULL,
+                                               estimator = NULL) {
+
+  if (!.iwmde_marginal_likelihood_requires_row(context)) {
+    return(NULL)
+  }
+  likelihood_mode <- .iwmde_likelihood_mode(
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    context        = context
+  )
+  state_scope <- .iwmde_state_scope(
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    context        = context
+  )
+  if (!identical(likelihood_mode, "marginal") ||
+      !identical(state_scope, "global")) {
+    return(NULL)
+  }
+  if (length(rows) == 0L) {
+    return(list())
+  }
+
+  states <- lapply(rows, function(row) {
+    .iwmde_base_row_state(
+      context     = context,
+      row_index   = row,
+      state_scope = state_scope
+    )
+  })
+  state_keys <- vapply(states, function(state) {
+    paste(
+      state[["active_key"]],
+      likelihood_mode,
+      state_scope,
+      sep = "|"
+    )
+  }, character(1))
+  is_primitive <- is.null(parameter_spec) ||
+    identical(parameter_spec[["type"]], "primitive")
+  controls_random_sd <-
+    .iwmde_parameter_controls_sampled_random_sd(context, parameter)
+  unit <- if (.is_data_multilevel(context[["data"]])) {
+    "cluster"
+  } else {
+    "estimate"
+  }
+
+  for (key in unique(state_keys)) {
+    positions    <- which(state_keys == key)
+    group        <- states[positions]
+    first_state  <- group[[1L]]
+    prior_list   <- .iwmde_active_flat_prior_list(
+      context     = context,
+      row         = first_state[["row"]],
+      parameter   = parameter,
+      state_scope = state_scope
+    )
+    group_rows   <- vapply(group, `[[`, integer(1), "row_index")
+    log_prior    <- .iwmde_log_prior_rows(
+      context[["posterior_samples"]][group_rows, , drop = FALSE],
+      prior_list
+    )
+
+    if (is_primitive) {
+      focal_prior <- .iwmde_focal_prior(
+        context,
+        parameter,
+        first_state[["row"]]
+      )
+      focal_values <- vapply(group, function(state) {
+        value <- state[["row"]][[parameter]]
+        if (is.null(value) || length(value) != 1L) {
+          return(NA_real_)
+        }
+
+        as.numeric(value)
+      }, numeric(1))
+      baseline_focal_log_prior <- .iwmde_focal_log_prior_values(
+        prior     = focal_prior,
+        values    = focal_values,
+        parameter = parameter
+      )
+      use_focal_prior_delta_base <-
+        !.iwmde_parameter_is_eta(parameter) &&
+        !controls_random_sd &&
+        .iwmde_can_use_focal_prior_delta(focal_prior)
+      use_focal_prior_delta <-
+        rep(use_focal_prior_delta_base, length(group)) &
+        is.finite(baseline_focal_log_prior)
+    } else {
+      focal_prior                  <- NULL
+      baseline_focal_log_prior     <- rep(NA_real_, length(group))
+      use_focal_prior_delta        <- rep(FALSE, length(group))
+    }
+
+    log_lik <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(
+      context           = context,
+      posterior_samples = context[["posterior_samples"]][
+        group_rows,
+        ,
+        drop = FALSE
+      ],
+      active_setup      = first_state[["active_setup"]],
+      unit              = unit
+    )
+    if (!is.numeric(log_lik) || length(log_lik) != length(group)) {
+      stop(
+        "Grouped known-V likelihood returned an invalid row result.",
+        call. = FALSE
+      )
+    }
+
+    baseline_log_q <- log_lik + log_prior
+    finite         <- is.finite(baseline_log_q)
+    if (!all(finite)) {
+      .iwmde_stop_construction_failure(
+        estimator = estimator,
+        parameter = parameter,
+        rows      = group_rows[!finite],
+        stage     = "baseline joint-density evaluation",
+        detail    = "the baseline joint log density was not finite"
+      )
+    }
+
+    for (i in seq_along(group)) {
+      state <- group[[i]]
+      state[["prior_list"]]               <- prior_list
+      state[["baseline_log_lik"]]         <- log_lik[[i]]
+      state[["baseline_log_prior"]]       <- log_prior[[i]]
+      state[["focal_prior"]]              <- focal_prior
+      state[["baseline_focal_log_prior"]] <-
+        baseline_focal_log_prior[[i]]
+      state[["use_focal_prior_delta"]] <- use_focal_prior_delta[[i]]
+      state[["baseline_log_q"]]         <- baseline_log_q[[i]]
+      state[["likelihood_mode"]]        <- likelihood_mode
+      state[["state_scope"]]            <- state_scope
+      states[[positions[[i]]]]           <- .iwmde_new_row_state(state)
+    }
+  }
+
+  return(states)
+}
+
+
 .iwmde_stop_construction_failure <- function(estimator, parameter, rows,
                                              stage, detail = NULL,
                                              chain_coverage = NULL) {

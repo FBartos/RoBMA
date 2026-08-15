@@ -369,13 +369,22 @@
 .iwmde_plan_baseline_contract <- function(context, plan, candidate_rows,
                                           candidate_values) {
 
-  row_states <- .iwmde_row_states(
+  row_states <- .iwmde_row_states_grouped_known_v(
     context        = context,
     rows           = candidate_rows,
     parameter      = plan[["target"]][["parameter"]],
     parameter_spec = plan[["execution_spec"]],
     estimator      = plan[["method"]]
   )
+  if (is.null(row_states)) {
+    row_states <- .iwmde_row_states(
+      context        = context,
+      rows           = candidate_rows,
+      parameter      = plan[["target"]][["parameter"]],
+      parameter_spec = plan[["execution_spec"]],
+      estimator      = plan[["method"]]
+    )
+  }
 
   baseline_log_q <- tryCatch(
     vapply(row_states, function(state) {
