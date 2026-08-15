@@ -26,7 +26,50 @@ test_that("funnel line clipping preserves segment order", {
 })
 
 
-test_that("known-V funnel tau uses extra variance samples", {
+test_that("LOO-PIT funnels project normalized residuals by predictive scale", {
+
+  expected_z  <- c(1.25, -2)
+  expected_se <- c(.4, .8)
+  object      <- list()
+
+  testthat::local_mocked_bindings(
+    rstudent.brma = function(model, unit = "estimate", ...) {
+      data.frame(
+        resid = c(10, -10),
+        se    = expected_se,
+        z     = expected_z
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  loo_pit <- .funnel_data_residual(
+    x                  = object,
+    type               = "LOO-PIT",
+    unit               = "estimate",
+    conditioning_depth = "marginal",
+    dots               = .set_dots_funnel(list())
+  )
+  rstudent_alias <- .funnel_data_residual(
+    x                  = object,
+    type               = "rstudent",
+    unit               = "estimate",
+    conditioning_depth = "marginal",
+    dots               = .set_dots_funnel(list())
+  )
+
+  expect_equal(loo_pit[["points"]][["x"]], expected_z * expected_se)
+  expect_equal(loo_pit[["points"]][["y"]], expected_se)
+  expect_equal(
+    loo_pit[["points"]][["x"]] / loo_pit[["points"]][["y"]],
+    expected_z
+  )
+  expect_equal(rstudent_alias[["points"]], loo_pit[["points"]])
+  expect_identical(loo_pit[["xlab"]], "LOO-PIT Residual")
+})
+
+
+test_that("known-V radial tau uses extra variance samples", {
 
   V    <- matrix(c(.04, .01, .01, .09), nrow = 2L)
   data <- list(outcome = data.frame(yi = c(.10, .20), sei = sqrt(diag(V))))
@@ -48,7 +91,7 @@ test_that("known-V funnel tau uses extra variance samples", {
 
   expected <- mean(sqrt(rowMeans(extra_variance)))
 
-  expect_equal(.get_funnel_tau(object), expected)
+  expect_equal(.get_radial_tau(object), expected)
 })
 
 
@@ -122,7 +165,7 @@ test_that("known-V marginal variance samples use the diagonal backend", {
 })
 
 
-test_that("model-averaged funnel tau uses within-draw RMS heterogeneity", {
+test_that("radial tau uses within-draw RMS heterogeneity", {
 
   tau_total <- rbind(
     c(1, 3, 5),
@@ -145,8 +188,241 @@ test_that("model-averaged funnel tau uses within-draw RMS heterogeneity", {
   )
 
   expect_equal(
-    .funnel_tau_samples(object, posterior_samples),
+    .radial_tau_samples(object, posterior_samples),
     sqrt(rowMeans(tau_total^2))
+  )
+})
+
+
+test_that("outcome funnel eligibility requires row-invariant heterogeneity", {
+
+  posterior_samples <- matrix(
+    c(.1, .2, .3),
+    ncol = 1L,
+    dimnames = list(NULL, "mu")
+  )
+  object <- list(fit = list())
+
+  testthat::local_mocked_bindings(
+    .get_posterior_samples = function(fit, posterior_samples = NULL) {
+      posterior_samples
+    },
+    .funnel_row_heterogeneity_samples = function(object, posterior_samples) {
+      cbind(c(.2, .3, .4), c(.2, .3, .4))
+    },
+    .package = "RoBMA"
+  )
+
+  common <- .funnel_common_heterogeneity(object)
+  expect_true(common[["common"]])
+  expect_equal(common[["tau"]], c(.2, .3, .4))
+
+  testthat::local_mocked_bindings(
+    .funnel_row_heterogeneity_samples = function(object, posterior_samples) {
+      cbind(c(.2, .3, .4), c(.2, .35, .4))
+    },
+    .package = "RoBMA"
+  )
+
+  varying <- .funnel_common_heterogeneity(object)
+  expect_false(varying[["common"]])
+  expect_null(varying[["tau"]])
+})
+
+
+test_that("random-formula funnel eligibility uses row-marginal ZGZ variance", {
+
+  dat <- data.frame(
+    yi    = c(.1, .2, .3, .4),
+    study = c("s1", "s1", "s2", "s2"),
+    x     = c(0, 1, 2, 4)
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(.04, 4)),
+    data                      = dat,
+    random                    = ~ diag(1 + x | study),
+    known_v_parameterization  = "block_mvn",
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_samples <- rbind(
+    c(1, .5, .5),
+    c(2, .8, .2)
+  )
+  colnames(posterior_samples) <- c(
+    "mu__xRE_ALLOCx_allocation__total_sd",
+    "mu__xRE_ALLOCx_allocation__weight[1]",
+    "mu__xRE_ALLOCx_allocation__weight[2]"
+  )
+
+  heterogeneity <- .funnel_row_heterogeneity_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+
+  expect_false(all(heterogeneity == heterogeneity[, 1L]))
+  expect_false(.funnel_common_heterogeneity(
+    object            = object,
+    posterior_samples = posterior_samples
+  )[["common"]])
+})
+
+
+test_that("plug-in funnels average complete joint-model CDFs", {
+
+  posterior_samples <- cbind(
+    mu    = c(0, 2, 10, 14),
+    tau   = c(1, 3, 2, 4),
+    model = c(1, 1, 2, 2)
+  )
+  common_heterogeneity <- list(
+    posterior_samples = posterior_samples,
+    tau                = posterior_samples[, "tau"]
+  )
+
+  testthat::local_mocked_bindings(
+    .funnel_joint_model_groups = function(x, posterior_samples) {
+      posterior_samples[, "model"]
+    },
+    .funnel_setup_from_samples = function(
+        x, posterior_samples, tau_samples, sampling_heterogeneity,
+        sampling_bias, weights) {
+      list(
+        posterior_samples = posterior_samples,
+        tau                = tau_samples,
+        weights            = weights
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  setup <- .funnel_sampling_setup(
+    x                      = list(),
+    sampling_heterogeneity = TRUE,
+    sampling_bias          = TRUE,
+    max_samples            = 10,
+    estimand               = "plugin",
+    common_heterogeneity   = common_heterogeneity
+  )
+
+  expect_equal(unname(setup[["posterior_samples"]][, "mu"]), c(1, 12))
+  expect_equal(unname(setup[["tau"]]), c(2, 3))
+  expect_equal(unname(setup[["weights"]]), c(.5, .5))
+})
+
+
+test_that("weighted funnel CDF mixes models before inversion", {
+
+  setup <- list(
+    mu                = c(0, 2),
+    tau               = c(1, 1),
+    PET               = c(0, 0),
+    PEESE             = c(0, 0),
+    is_weightfunction = c(FALSE, FALSE),
+    selection         = NULL,
+    weights           = c(.75, .25)
+  )
+
+  actual <- .funnel_model_averaged_cdf(
+    q                = .5,
+    se               = .3,
+    setup            = setup,
+    effect_direction = "positive"
+  )
+  total_sd <- sqrt(1 + .3^2)
+  expected <- .75 * stats::pnorm(.5, 0, total_sd) +
+    .25 * stats::pnorm(.5, 2, total_sd)
+
+  expect_equal(actual, expected)
+})
+
+
+test_that("posterior-predictive contours integrate continuous uncertainty", {
+
+  plugin <- list(
+    mu                = 0,
+    tau               = .5,
+    PET               = 0,
+    PEESE             = 0,
+    is_weightfunction = FALSE,
+    selection         = NULL,
+    weights           = 1
+  )
+  posterior <- list(
+    mu                = c(-1, 1),
+    tau               = c(.5, .5),
+    PET               = c(0, 0),
+    PEESE             = c(0, 0),
+    is_weightfunction = c(FALSE, FALSE),
+    selection         = NULL,
+    weights           = NULL
+  )
+
+  plugin_quantiles <- .get_funnel_quantiles_from_setup(
+    se_sequence      = .2,
+    setup            = plugin,
+    effect_direction = "positive"
+  )
+  posterior_quantiles <- .get_funnel_quantiles_from_setup(
+    se_sequence      = .2,
+    setup            = posterior,
+    effect_direction = "positive"
+  )
+
+  expect_lt(posterior_quantiles[["lower"]], plugin_quantiles[["lower"]])
+  expect_gt(posterior_quantiles[["upper"]], plugin_quantiles[["upper"]])
+})
+
+
+test_that("funnel routes study-specific heterogeneity to residual mode", {
+
+  object <- structure(list(), class = "brma")
+  testthat::local_mocked_bindings(
+    .is_mods  = function(object) FALSE,
+    .is_scale = function(object) FALSE,
+    .funnel_common_heterogeneity = function(object, posterior_samples = NULL) {
+      list(common = FALSE)
+    },
+    .check_unit_conditioning_depth = function(...) invisible(TRUE),
+    .funnel_data_residual = function(...) list(mode = "residual"),
+    .package = "RoBMA"
+  )
+
+  expect_identical(funnel.brma(object, as_data = TRUE)[["mode"]], "residual")
+  expect_error(
+    funnel.brma(object, residual = FALSE, as_data = TRUE),
+    "common marginal heterogeneity"
+  )
+})
+
+
+test_that("bfunnel rejects targets without a common normal outcome scale", {
+
+  object <- structure(list(), class = "brma")
+  testthat::local_mocked_bindings(
+    .outcome_type = function(object) "norm",
+    .is_mods      = function(object) FALSE,
+    .is_scale     = function(object) FALSE,
+    .funnel_common_heterogeneity = function(object, posterior_samples = NULL) {
+      list(common = FALSE)
+    },
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    bfunnel.brma(object, as_data = TRUE),
+    "common marginal heterogeneity"
+  )
+
+  testthat::local_mocked_bindings(
+    .outcome_type = function(object) "bin",
+    .package = "RoBMA"
+  )
+  expect_error(
+    bfunnel.brma(object, as_data = TRUE),
+    "only for normal outcome models"
   )
 })
 
@@ -156,23 +432,11 @@ test_that("GLMM outcome funnels disclose their descriptive approximation", {
   data <- list(outcome = data.frame(ai = c(1, 2), ci = c(2, 1)))
   attr(data, "outcome_type") <- "bin"
   object <- structure(list(data = data), class = c("brma.glmm", "brma"))
-  pooled <- .new_brma_samples(
-    samples  = matrix(rep(.25, 4), ncol = 1L,
-                      dimnames = list(NULL, "mu")),
-    n_chains = 1L,
-    n_iter   = 4L,
-    title    = ""
-  )
 
   testthat::local_mocked_bindings(
-    .is_weightfunction    = function(object) FALSE,
-    .is_PET               = function(object) FALSE,
-    .is_PEESE             = function(object) FALSE,
     .effect_direction     = function(object) "positive",
     .outcome_data_yi      = function(object) c(-.1, .1),
     .outcome_data_sei     = function(object) c(.2, .3),
-    pooled_effect         = function(object) pooled,
-    .get_funnel_tau       = function(object) .1,
     .get_funnel_quantiles = function(x, se_sequence, ...) {
       list(
         lower = rep(-1, length(se_sequence)),
@@ -189,6 +453,8 @@ test_that("GLMM outcome funnels disclose their descriptive approximation", {
       sampling_heterogeneity = TRUE,
       sampling_bias          = TRUE,
       max_samples            = 1000,
+      estimand               = "plugin",
+      common_heterogeneity   = list(),
       dots                   = .set_dots_funnel(list())
     ),
     "descriptive normal effect-size approximation"
@@ -814,10 +1080,13 @@ test_that("Funnel plot data and argument validation are stable", {
   # --------------------------------------------------
 
   funnel_data <- .test_funnel(fit_brma, as_data = TRUE)
+  bfunnel_data <- bfunnel(fit_brma, as_data = TRUE, max_samples = 100)
 
   expect_true(is.list(funnel_data),
     info = "as_data = TRUE returns a list"
   )
+  expect_identical(funnel_data[["estimand"]], "plugin")
+  expect_identical(bfunnel_data[["estimand"]], "posterior_predictive")
 
   expected_components <- c(
     "points", "funnel", "funnel_edge1", "funnel_edge2",

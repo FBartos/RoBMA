@@ -20,17 +20,46 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
 #' @param max_samples maximum number of posterior samples for estimation.
 #' Defaults to 10000. Use \code{Inf} to use all posterior samples.
+#' @param conditioning_depth predictive conditioning depth. Options are
+#' \code{"marginal"} (default), which integrates all newly realized random
+#' effects; \code{"cluster"}, which retains fitted cluster effects and
+#' integrates within-cluster heterogeneity; and \code{"estimate"}, which
+#' retains each fitted latent true effect, integrates its posterior conditional
+#' uncertainty, and adds new sampling error. Cluster conditioning is available
+#' only for multilevel models.
 #' @param ... additional arguments (currently unused).
 #'
 #' @details
-#' Zplot analysis estimates the Expected Discovery Rate (EDR), the posterior
-#' mean probability that an exact replication would be statistically significant
-#' at the supplied threshold. This provides insight into the replicability of
-#' findings in a literature.
+#' Zplot is the pushforward into z-space of the design-conditional posterior
+#' predictive distribution. It retains the empirical mix of observed standard
+#' errors and moderators, evaluates one row-specific predictive distribution
+#' for each estimate, transforms each through \eqn{Z = Y / SE}, and averages
+#' the resulting densities with equal weight per estimate.
 #'
-#' The implementation uses extrapolation mode by default, which removes
-#' selection-model weights when evaluating the model-implied z-value density.
-#' PET/PEESE regression terms remain part of the fitted location model.
+#' The default marginal target integrates every latent effect that would be
+#' newly realized in a replicated literature. For a legacy multilevel model,
+#' the predictive variance before sampling error is the sum of between- and
+#' within-cluster heterogeneity. Cluster conditioning instead retains the fitted
+#' cluster effects and includes only within-cluster heterogeneity. Estimate
+#' conditioning uses the conditional true-effect means returned by
+#' \code{predict(type = "estimate")} and additionally integrates the posterior
+#' conditional variance of those latent effects before adding new sampling
+#' error. It therefore represents a posterior predictive replication of the
+#' same uncertain latent effects rather than a BLUP-mean plug-in distribution.
+#' Thus the marginal zplot collapses the row-specific slices of the marginal
+#' funnel target onto the common significance scale. Unlike LOO diagnostics,
+#' it is a full-posterior predictive projection and does not leave observations
+#' or clusters out when estimating model parameters.
+#'
+#' The Expected Discovery Rate (EDR) is the posterior average probability that
+#' a new outcome from the selected predictive target is statistically
+#' significant at the supplied threshold. It is therefore not an exact-repeat
+#' estimand unless \code{conditioning_depth = "estimate"} is requested.
+#'
+#' The EDR uses extrapolation mode: selection is removed from the row-specific
+#' predictive distributions, PET/PEESE regression offsets are omitted, and
+#' designs under a selection model are weighted by their inverse observation
+#' probabilities. The fitted plot curve retains the bias adjustments.
 #' Zplot diagnostics are available only for normal outcome models. GLMM
 #' objects are rejected because their raw likelihood is on a count scale while
 #' zplot diagnostics require observed effect-size z-statistics with standard
@@ -48,11 +77,13 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' \describe{
 #'   \item{estimates}{a list with posterior samples for \code{EDR} and
 #'     missing-study \code{weights}}
-#'   \item{data}{a list with \code{significance_level}, observed
-#'     \code{z}-statistics, \code{N_significant}, and \code{N_observed}}
+#'   \item{data}{a list with \code{significance_level},
+#'     \code{conditioning_depth}, observed \code{z}-statistics,
+#'     \code{N_significant}, and \code{N_observed}}
 #' }
 #'
-#' @seealso [summary.zplot_brma()], [plot.zplot_brma()], [hist.zplot_brma()]
+#' @seealso [summary.zplot_brma()], [plot.zplot_brma()], [hist.zplot_brma()],
+#'   [predict.brma()], [funnel.brma()], [regplot.brma()]
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -67,10 +98,13 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #'
 #' @aliases as_zplot
 #' @export
-as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975), max_samples = 10000, ...) {
+as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
+                          max_samples = 10000,
+                          conditioning_depth = "marginal", ...) {
 
   BayesTools::check_real(significance_level, "significance_level", lower = 0)
-  max_samples <- .normalize_max_samples(max_samples, "max_samples")
+  max_samples        <- .normalize_max_samples(max_samples, "max_samples")
+  conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
 
   if (.outcome_type(object) != "norm") {
     stop(
@@ -80,14 +114,20 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975), max_
     )
   }
 
-  # compute the main estimates (extrapolate = TRUE: unbiased power)
-  # This corresponds to "Expected Discovery Rate" if studies were exact replications
-  # but without publication bias
+  .check_unit_conditioning_depth(
+    object             = object,
+    unit               = "estimate",
+    conditioning_depth = conditioning_depth,
+    caller             = "as_zplot()"
+  )
+
+  # compute the bias-adjusted expected discovery rate for the selected target
   out_estimates <- .zplot_fun.brma(
-    object      = object,
-    z_threshold = significance_level,
-    max_samples = max_samples,
-    extrapolate = TRUE
+    object             = object,
+    z_threshold        = significance_level,
+    max_samples        = max_samples,
+    extrapolate        = TRUE,
+    conditioning_depth = conditioning_depth
   )
 
   # compute data summaries (observed z-stats)
@@ -103,9 +143,10 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975), max_
     ),
     data = list(
       significance_level = significance_level,
-      z                  = z,
-      N_significant      = sum(abs(z) > significance_level),
-      N_observed         = length(z)
+      conditioning_depth  = conditioning_depth,
+      z                   = z,
+      N_significant       = sum(abs(z) > significance_level),
+      N_observed          = length(z)
     )
   )
 
@@ -138,6 +179,8 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' This is separate from the plot-density \code{max_samples} argument accepted
 #' by \code{plot.zplot_brma()} through \code{...}. Defaults to 10000. Use
 #' \code{Inf} to use all posterior samples.
+#' @param conditioning_depth predictive conditioning depth passed to
+#' \code{as_zplot()}. Defaults to \code{"marginal"}.
 #' @param ... arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.
 #'
 #' @details When \code{object} already inherits from \code{zplot_brma},
@@ -160,12 +203,14 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' @aliases zplot
 #' @export
 zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
-                       summary_max_samples = 10000, ...) {
+                       summary_max_samples = 10000,
+                       conditioning_depth = "marginal", ...) {
 
   zplot_object <- as_zplot(
     object             = object,
     significance_level = significance_level,
-    max_samples        = summary_max_samples
+    max_samples        = summary_max_samples,
+    conditioning_depth = conditioning_depth
   )
 
   return(plot(zplot_object, ...))
@@ -223,12 +268,17 @@ summary.zplot_brma <- function(object, probs = c(.025, .975), ...) {
   )
 
   info_text <- sprintf(
-    "Estimated using %1$i estimates, %2$i significant (ODR = %3$.2f, 95%% CI [%4$.2f, %5$.2f]).",
+    paste0(
+      "Estimated using %1$i estimates, %2$i significant ",
+      "(ODR = %3$.2f, 95%% CI [%4$.2f, %5$.2f]); ",
+      "conditioning depth: %6$s)."
+    ),
     object$zplot$data[["N_observed"]],
     object$zplot$data[["N_significant"]],
     obs_proportion$estimate,
     obs_proportion$conf.int[1],
-    obs_proportion$conf.int[2]
+    obs_proportion$conf.int[2],
+    .zplot_stored_conditioning_depth(object)
   )
 
   # compute estimates
@@ -315,6 +365,9 @@ print.zplot_brma <- function(x, ...) {
 #' @param ... additional graphical parameters passed to components.
 #'
 #' @details
+#' All model-implied curves use the \code{conditioning_depth} stored by
+#' \code{as_zplot()}. Recreate the zplot object to change the predictive target.
+#'
 #' The plot displays two density curves:
 #' \describe{
 #'   \item{Fit (black)}{Model-implied density including publication bias adjustments.
@@ -373,9 +426,10 @@ plot.zplot_brma <- function(x, plot_type = "base",
       type       = "dens"
     )
     paired_density <- .zplot_density_pair(
-      object      = x,
-      z_sequence  = z_sequence,
-      max_samples = max_samples
+      object             = x,
+      z_sequence         = z_sequence,
+      max_samples        = max_samples,
+      conditioning_depth = .zplot_stored_conditioning_depth(x)
     )
     lines_fit <- .zplot_density_data(
       z_sequence = z_sequence,
@@ -739,6 +793,9 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' @param ... additional graphical parameters.
 #'
 #' @details
+#' The density uses the \code{conditioning_depth} stored by
+#' \code{as_zplot()}. Recreate the zplot object to change the predictive target.
+#'
 #' When \code{extrapolate = FALSE}, the density includes all bias adjustments
 #' (PET/PEESE regression, selection weights) representing the fitted model.
 #' When \code{extrapolate = TRUE}, bias adjustments are removed to show the
@@ -776,10 +833,11 @@ lines.zplot_brma <- function(x, plot_type = "base",
 
   # get densities from model
   z_density <- .zplot_fun.brma(
-     object      = x,
-     z_sequence  = z_sequence,
-     max_samples = max_samples,
-     extrapolate = extrapolate
+    object             = x,
+    z_sequence         = z_sequence,
+    max_samples        = max_samples,
+    extrapolate        = extrapolate,
+    conditioning_depth = .zplot_stored_conditioning_depth(x)
   )
 
   df_density <- .zplot_density_data(

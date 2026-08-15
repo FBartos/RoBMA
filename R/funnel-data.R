@@ -12,20 +12,20 @@
 # @param x                      brma object
 # @param sampling_heterogeneity logical; incorporate tau into funnel
 # @param sampling_bias          logical; incorporate bias into funnel
-# @param max_samples            maximum posterior samples for biased contours
+# @param max_samples            maximum posterior samples for Bayesian contours
+# @param estimand               plug-in or posterior-predictive construction
+# @param common_heterogeneity   validated common-heterogeneity setup
 # @param dots                   list of graphical parameters
 #
 # @return list with funnel plot data components
 #
 # ---------------------------------------------------------------------------- #
 .funnel_data_outcome <- function(x, sampling_heterogeneity, sampling_bias,
-                                 max_samples, dots) {
+                                 max_samples, estimand,
+                                 common_heterogeneity, dots) {
   # get model characteristics
-  is_weightfunction <- .is_weightfunction(x)
-  is_PET            <- .is_PET(x)
-  is_PEESE          <- .is_PEESE(x)
-  effect_direction  <- .effect_direction(x)
-  is_glmm            <- .outcome_type(x) %in% c("bin", "pois")
+  effect_direction <- .effect_direction(x)
+  is_glmm           <- .outcome_type(x) %in% c("bin", "pois")
 
   if (is_glmm) {
     warning(
@@ -39,20 +39,8 @@
   # get observed effect sizes (yi) - these go on the x-axis
   yi <- .outcome_data_yi(x)
 
-  # get pooled effect estimate - this is the funnel center
-  mu      <- pooled_effect(x)
-  mu_mean <- summary(mu)["mu", "Mean"]
-
   # get standard errors
   se <- .outcome_data_sei(x)
-  K  <- length(se)
-
-  # get tau for incorporating heterogeneity into sampling distribution
-  if (sampling_heterogeneity) {
-    tau <- .get_funnel_tau(x)
-  } else {
-    tau <- 0
-  }
 
   # compute standard-error plotting range
   se_range <- pretty(c(0, max(se)))
@@ -93,15 +81,12 @@
   ci_offsets_clipped <- .get_funnel_quantiles(
     x                      = x,
     se_sequence            = se_sequence_clipped,
-    mu                     = mu_mean,
-    tau                    = tau,
     sampling_heterogeneity = sampling_heterogeneity,
     sampling_bias          = sampling_bias,
-    is_weightfunction      = is_weightfunction,
-    is_PET                 = is_PET,
-    is_PEESE               = is_PEESE,
     effect_direction       = effect_direction,
-    max_samples            = max_samples
+    max_samples            = max_samples,
+    estimand               = estimand,
+    common_heterogeneity   = common_heterogeneity
   )
   ci_left  <- ci_offsets_clipped$lower
   ci_right <- ci_offsets_clipped$upper
@@ -170,7 +155,8 @@
     ylim         = ylim,
     xlab         = xlab,
     ylab         = ylab,
-    refline      = df_refline
+    refline      = df_refline,
+    estimand     = estimand
   )
   if (is_glmm) {
     out[["approximation"]] <- list(
@@ -213,8 +199,8 @@
     se  <- res_obj$se
   } else if (type == "LOO-PIT" || type == "rstudent") {
     res_obj <- rstudent.brma(x, unit = unit)
-    res <- res_obj$resid
     se  <- res_obj$se
+    res <- res_obj$z * se
   } else if (type == "outcome") {
     # raw outcome residuals
     res_obj <- residuals.brma(
@@ -258,7 +244,13 @@
   ci_right_clipped <- pmin(ci_right, max(xlim))
 
   # set axis labels
-  xlab <- if (!is.null(dots[["xlab"]])) dots[["xlab"]] else "Residual"
+  if (!is.null(dots[["xlab"]])) {
+    xlab <- dots[["xlab"]]
+  } else if (type == "LOO-PIT" || type == "rstudent") {
+    xlab <- "LOO-PIT Residual"
+  } else {
+    xlab <- "Residual"
+  }
   ylab <- if (!is.null(dots[["ylab"]])) dots[["ylab"]] else "Standard Error"
 
   # set data for reference line (residuals centered at 0 or user specified)

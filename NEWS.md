@@ -90,6 +90,22 @@
   shared; `funnel()` and selection-model `regplot()` cache invariant step-bin
   CDF plans; and `regplot()` batches prediction-specific standard errors and
   reuses exact neighboring quantile roots with the original global fallback.
+- defines the canonical zplot target as the marginal, empirical-design
+  posterior predictive distribution projected into z-space. The new
+  `conditioning_depth` argument retains the former multilevel behavior as
+  `"cluster"` and adds same-effect posterior prediction as `"estimate"`,
+  integrating the conditional posterior uncertainty of each fitted latent
+  effect rather than plugging in its BLUP mean; fitted selection and
+  inverse-probability extrapolation are applied at the selected depth.
+- makes `funnel()` a fast plug-in construction: continuous parameters are
+  estimated separately within every complete joint model, model-specific CDFs
+  are mixed by posterior model probability, and the mixture is inverted.
+  The new `bfunnel()` instead averages posterior-draw sampling CDFs before
+  inversion. Outcome funnels now require one common row-marginal heterogeneity
+  distribution, using the exact random-formula `ZGZ'` variance target; other
+  models default to LOO-PIT residual funnels whose plotted coordinates satisfy
+  `x / se = z` exactly and reduce to ordinary deleted residuals for a normal
+  LOO predictive distribution.
 - converts numerically symmetric known sampling covariance matrices once to an
   exactly symmetric representation at input validation, so fitting,
   prediction, LOO, and bridge sampling use the same covariance values.

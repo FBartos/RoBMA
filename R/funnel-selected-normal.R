@@ -18,7 +18,10 @@
   total_sd <- se_setup[["total_sd"]]
   location <- se_setup[["location"]]
   if (all(total_sd == 0)) {
-    return(unname(stats::quantile(location, probs = p, names = FALSE, type = 1)))
+    weights <- .funnel_setup_weights(setup)
+    order   <- order(location)
+    index   <- which(cumsum(weights[order]) >= p)[1L]
+    return(location[order[index]])
   }
 
   spread <- total_sd
@@ -273,7 +276,19 @@
   }
 
   cdf_values <- .plot_validate_cdf(cdf_values, "Model-averaged funnel")
-  return(mean(cdf_values))
+  weights <- .funnel_setup_weights(se_setup[["setup"]])
+  return(sum(weights * cdf_values))
+}
+
+
+.funnel_setup_weights <- function(setup) {
+
+  weights <- setup[["weights"]]
+  if (is.null(weights)) {
+    return(rep(1 / length(setup[["mu"]]), length(setup[["mu"]])))
+  }
+
+  return(weights / sum(weights))
 }
 
 

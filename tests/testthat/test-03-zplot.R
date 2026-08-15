@@ -41,6 +41,79 @@ zplot_smoke_samples <- test_profile_value(100L, 1000L)
   return(sum(diff(x) * (y[-length(y)] + y[-1L]) / 2))
 }
 
+.zplot_test_edr <- function(predictive, significance_level) {
+
+  S        <- nrow(predictive[["mu"]])
+  K        <- ncol(predictive[["mu"]])
+  sei      <- predictive[["sei"]]
+  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  total_sd <- .root_sum_squares(predictive[["tau_within"]], sei_mat)
+
+  return(rowMeans(
+    stats::pnorm(
+      matrix(significance_level * sei, nrow = S, ncol = K, byrow = TRUE),
+      mean       = predictive[["mu"]],
+      sd         = total_sd,
+      lower.tail = FALSE
+    ) +
+      stats::pnorm(
+        matrix(-significance_level * sei, nrow = S, ncol = K, byrow = TRUE),
+        mean       = predictive[["mu"]],
+        sd         = total_sd,
+        lower.tail = TRUE
+      )
+  ))
+}
+
+
+.zplot_test_conditional_variance <- function(Q, V) {
+
+  return(diag(Q - Q %*% solve(Q + V, Q)))
+}
+
+
+test_that("zplot Gaussian conditional variance matches covariance identities", {
+
+  Q <- matrix(c(
+    1.2, 0.4,
+    0.4, 0.8
+  ), nrow = 2, byrow = TRUE)
+  V <- matrix(c(
+    0.5, 0.15,
+    0.15, 0.7
+  ), nrow = 2, byrow = TRUE)
+
+  expect_equal(
+    .zplot_gaussian_conditional_variance(Q, V),
+    .zplot_test_conditional_variance(Q, V),
+    tolerance = 1e-12
+  )
+
+  singular_V <- matrix(0.3, nrow = 2, ncol = 2)
+  expect_equal(
+    .zplot_gaussian_conditional_variance(Q, singular_V),
+    .zplot_test_conditional_variance(Q, singular_V),
+    tolerance = 1e-12
+  )
+
+  tau_within  <- matrix(c(0.2, 0.4, 0.3, 0.5), nrow = 2, byrow = TRUE)
+  tau_between <- matrix(c(0.6, 0.7, 0.4, 0.8), nrow = 2, byrow = TRUE)
+  vi          <- c(0.1, 0.2)
+  observed <- .zplot_multilevel_conditional_variance(
+    tau_within  = tau_within,
+    tau_between = tau_between,
+    vi          = vi,
+    cluster     = c(1L, 1L)
+  )
+  expected <- matrix(NA_real_, nrow = 2, ncol = 2)
+  for (s in seq_len(nrow(expected))) {
+    Q_s <- diag(tau_within[s, ]^2) + tcrossprod(tau_between[s, ])
+    expected[s, ] <- .zplot_test_conditional_variance(Q_s, diag(vi))
+  }
+
+  expect_equal(observed, expected, tolerance = 1e-12)
+})
+
 
 test_that("zplot rejects GLMM fits early", {
 
@@ -64,6 +137,10 @@ test_that("zplot creates reusable objects and plots directly", {
 
   expect_s3_class(zp, "zplot_brma")
   expect_named(zp[["zplot"]], c("estimates", "data"))
+  expect_identical(
+    zp[["zplot"]][["data"]][["conditioning_depth"]],
+    "marginal"
+  )
   expect_true(.is_ggplot(.test_zplot(
     fit,
     plot_type           = "ggplot",
@@ -106,9 +183,9 @@ test_that("zplot allows descriptive known-V brma.mv displays", {
 })
 
 
-test_that("zplot known-V brma.mv uses estimate-target predictive components", {
+test_that("zplot known-V brma.mv uses marginal predictive components by default", {
 
-  name <- "brma.mv_block_mvn_random_scale"
+  name <- "brma.mv_block_mvn"
   skip_if_missing_fits(name)
 
   fit_brma          <- fits[[name]]
@@ -116,15 +193,16 @@ test_that("zplot known-V brma.mv uses estimate-target predictive components", {
   selected_rows     <- seq_len(min(25L, nrow(posterior_samples)))
   posterior_samples <- posterior_samples[selected_rows, , drop = FALSE]
 
-  setup <- .estimate_likelihood_setup_from_parts(
-    fit               = fit_brma[["fit"]],
-    data              = fit_brma[["data"]],
-    priors            = fit_brma[["priors"]],
-    posterior_samples = posterior_samples,
-    unit              = "estimate",
-    data_hash         = .get_outcome_hash(fit_brma),
-    bias_adjusted     = TRUE,
-    caller            = "test"
+  expected_mu <- predict.brma(
+    object             = fit_brma,
+    type               = "terms",
+    bias_adjusted      = TRUE,
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  expected_components <- .brma_mv_heterogeneity_components(
+    object            = fit_brma,
+    posterior_samples = posterior_samples
   )
   components <- .zplot_predictive_components(
     object            = fit_brma,
@@ -132,9 +210,266 @@ test_that("zplot known-V brma.mv uses estimate-target predictive components", {
     extrapolate       = TRUE
   )
 
-  expect_equal(components[["mu"]], setup[["mu"]])
-  expect_equal(components[["tau_within"]], .known_v_extra_sd_from_setup(setup))
-  expect_equal(components[["sei"]], setup[["selection_sei"]])
+  expect_equal(components[["mu"]], as.matrix(expected_mu))
+  expect_equal(
+    components[["tau_within"]],
+    .total_brma_mv_heterogeneity_samples(expected_components)
+  )
+  expect_equal(components[["sei"]], .outcome_data_sei(fit_brma))
+})
+
+
+test_that("zplot conditioning depths select the intended replication target", {
+
+  name <- "konstantopoulos2011_3lvl"
+  skip_if_missing_fits(name)
+
+  fit_brma          <- fits[[name]]
+  posterior_samples <- .get_posterior_samples(fit_brma[["fit"]])
+  max_samples       <- min(25L, nrow(posterior_samples))
+  selected_rows     <- .thin_sample_rows(nrow(posterior_samples), max_samples)
+  if (!is.null(selected_rows)) {
+    posterior_samples <- posterior_samples[selected_rows, , drop = FALSE]
+  }
+
+  marginal <- .zplot_predictive_components(
+    object             = fit_brma,
+    posterior_samples  = posterior_samples,
+    extrapolate        = TRUE,
+    conditioning_depth = "marginal"
+  )
+  cluster <- .zplot_predictive_components(
+    object             = fit_brma,
+    posterior_samples  = posterior_samples,
+    extrapolate        = TRUE,
+    conditioning_depth = "cluster"
+  )
+  estimate <- .zplot_predictive_components(
+    object             = fit_brma,
+    posterior_samples  = posterior_samples,
+    extrapolate        = TRUE,
+    conditioning_depth = "estimate"
+  )
+
+  tau_result <- .evaluate.brma.tau(
+    fit               = fit_brma[["fit"]],
+    scale_data        = fit_brma[["data"]][["scale"]],
+    scale_formula     = NULL,
+    scale_priors      = fit_brma[["priors"]][["scale"]],
+    is_scale          = FALSE,
+    is_multilevel     = TRUE,
+    K                 = nobs(fit_brma),
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(fit_brma[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(fit_brma[["priors"]])
+  )
+
+  expect_equal(marginal[["tau_within"]], tau_result[["tau_total"]])
+  expect_equal(cluster[["tau_within"]], tau_result[["tau_within"]])
+  expect_equal(
+    marginal[["tau_within"]]^2,
+    cluster[["tau_within"]]^2 + tau_result[["tau_between"]]^2
+  )
+  expected_estimate_variance <- matrix(
+    NA_real_,
+    nrow = nrow(posterior_samples),
+    ncol = nobs(fit_brma)
+  )
+  vi            <- .outcome_data_sei(fit_brma)^2
+  block_indices <- .get_multilevel_block_indices(
+    fit_brma[["data"]][["outcome"]][["cluster"]]
+  )
+  for (s in seq_len(nrow(posterior_samples))) {
+    for (idx in block_indices) {
+      Q_s <- diag(
+        tau_result[["tau_within"]][s, idx]^2,
+        nrow = length(idx),
+        ncol = length(idx)
+      ) +
+        tcrossprod(tau_result[["tau_between"]][s, idx])
+      expected_estimate_variance[s, idx] <-
+        .zplot_test_conditional_variance(Q_s, diag(vi[idx]))
+    }
+  }
+  expect_equal(
+    estimate[["tau_within"]]^2,
+    expected_estimate_variance,
+    tolerance = 1e-12
+  )
+  expect_true(all(estimate[["tau_within"]] > 0))
+  expect_true(all(estimate[["tau_within"]] <= marginal[["tau_within"]]))
+  expect_equal(marginal[["mu"]], as.matrix(predict.brma(
+    fit_brma,
+    type               = "terms",
+    bias_adjusted      = TRUE,
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )))
+  expect_equal(cluster[["mu"]], as.matrix(predict.brma(
+    fit_brma,
+    type               = "cluster",
+    bias_adjusted      = TRUE,
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )))
+  expect_equal(estimate[["mu"]], as.matrix(predict.brma(
+    fit_brma,
+    type               = "estimate",
+    bias_adjusted      = TRUE,
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )))
+
+  significance_level <- stats::qnorm(0.975)
+  zc_marginal         <- .test_as_zplot(
+    fit_brma,
+    significance_level = significance_level,
+    max_samples        = max_samples
+  )
+  zc_cluster          <- .test_as_zplot(
+    fit_brma,
+    significance_level = significance_level,
+    max_samples        = max_samples,
+    conditioning_depth = "cluster"
+  )
+  zc_estimate         <- .test_as_zplot(
+    fit_brma,
+    significance_level = significance_level,
+    max_samples        = max_samples,
+    conditioning_depth = "estimate"
+  )
+
+  expect_equal(
+    zc_marginal[["zplot"]][["estimates"]][["EDR"]],
+    .zplot_test_edr(marginal, significance_level)
+  )
+  expect_equal(
+    zc_cluster[["zplot"]][["estimates"]][["EDR"]],
+    .zplot_test_edr(cluster, significance_level)
+  )
+  expect_equal(
+    zc_estimate[["zplot"]][["estimates"]][["EDR"]],
+    .zplot_test_edr(estimate, significance_level)
+  )
+  expect_identical(
+    zc_marginal[["zplot"]][["data"]][["conditioning_depth"]],
+    "marginal"
+  )
+  expect_identical(
+    zc_cluster[["zplot"]][["data"]][["conditioning_depth"]],
+    "cluster"
+  )
+  expect_identical(
+    zc_estimate[["zplot"]][["data"]][["conditioning_depth"]],
+    "estimate"
+  )
+
+  legacy_zplot <- zc_cluster
+  legacy_zplot[["zplot"]][["data"]][["conditioning_depth"]] <- NULL
+  expect_identical(.zplot_stored_conditioning_depth(legacy_zplot), "cluster")
+})
+
+
+test_that("zplot estimate depth integrates ordinary conditional uncertainty", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  fit_brma          <- fits[[name]]
+  posterior_samples <- .get_posterior_samples(fit_brma[["fit"]])
+  posterior_samples <- posterior_samples[
+    seq_len(min(25L, nrow(posterior_samples))),
+    ,
+    drop = FALSE
+  ]
+  estimate <- .zplot_predictive_components(
+    object             = fit_brma,
+    posterior_samples  = posterior_samples,
+    extrapolate        = TRUE,
+    conditioning_depth = "estimate"
+  )
+  tau_result <- .zplot_tau_samples(
+    object            = fit_brma,
+    posterior_samples = posterior_samples
+  )
+  tau2     <- tau_result[["tau_within"]]^2
+  vi       <- .outcome_data_sei(fit_brma)^2
+  expected <- tau2 * matrix(vi, nrow = nrow(tau2), ncol = ncol(tau2),
+                            byrow = TRUE) /
+    sweep(tau2, 2L, vi, "+")
+
+  expect_equal(estimate[["tau_within"]]^2, expected, tolerance = 1e-12)
+  expect_true(all(estimate[["tau_within"]] > 0))
+})
+
+
+test_that("zplot estimate depth integrates known-V and random-formula uncertainty", {
+
+  fit_names <- c("brma.mv_block_mvn", "brma.mv_block_mvn_random")
+  skip_if_missing_fits(fit_names)
+
+  for (name in fit_names) {
+    fit_brma          <- fits[[name]]
+    posterior_samples <- .get_posterior_samples(fit_brma[["fit"]])
+    posterior_samples <- posterior_samples[
+      seq_len(min(5L, nrow(posterior_samples))),
+      ,
+      drop = FALSE
+    ]
+    estimate <- .zplot_predictive_components(
+      object             = fit_brma,
+      posterior_samples  = posterior_samples,
+      extrapolate        = TRUE,
+      conditioning_depth = "estimate"
+    )
+    V        <- .known_v_materialize(.data_known_v_data(fit_brma[["data"]]))
+    K        <- nobs(fit_brma)
+    expected <- matrix(NA_real_, nrow = nrow(posterior_samples), ncol = K)
+
+    if (.is_random(fit_brma)) {
+      random_vcov <- .brma_mv_random_effects_marginal_vcov(
+        object            = fit_brma,
+        posterior_samples = posterior_samples,
+        diagonal_only     = FALSE,
+        data              = fit_brma[["data"]],
+        new_levels        = "error"
+      )[["samples"]]
+      for (s in seq_len(nrow(expected))) {
+        expected[s, ] <- .zplot_test_conditional_variance(
+          random_vcov[s, , ],
+          V
+        )
+      }
+    } else {
+      tau_result <- .zplot_tau_samples(
+        object            = fit_brma,
+        posterior_samples = posterior_samples
+      )
+      for (s in seq_len(nrow(expected))) {
+        Q_s <- diag(tau_result[["tau_within"]][s, ]^2, nrow = K, ncol = K)
+        expected[s, ] <- .zplot_test_conditional_variance(Q_s, V)
+      }
+    }
+
+    expect_equal(
+      estimate[["tau_within"]]^2,
+      expected,
+      tolerance = 1e-10,
+      info = name
+    )
+  }
+})
+
+
+test_that("zplot validates cluster conditioning", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  expect_error(
+    .test_as_zplot(fits[[name]], conditioning_depth = "cluster"),
+    "only available for multilevel models"
+  )
 })
 
 
@@ -393,7 +728,9 @@ test_that("zplot for multilevel model renders base output", {
   name <- "konstantopoulos2011_3lvl"
   skip_if_missing_fits(name)
 
-  zc   <- .test_as_zplot(fits[[name]])
+  # Retain the human-reviewed snapshot of the former cluster-conditional
+  # default; the new marginal default is certified structurally above.
+  zc   <- .test_as_zplot(fits[[name]], conditioning_depth = "cluster")
 
   expect_vdiffr_snapshot("zplot_multilevel_base", function() {
     suppressMessages(.test_plot_zplot(zc, plot_type = "base", main = "Multilevel Model Zplot"))

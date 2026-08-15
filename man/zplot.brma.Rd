@@ -10,6 +10,7 @@
   object,
   significance_level = stats::qnorm(0.975),
   summary_max_samples = 10000,
+  conditioning_depth = "marginal",
   ...
 )
 
@@ -27,6 +28,9 @@ EDR and missing-study summaries stored in the generated zplot object.
 This is separate from the plot-density \code{max_samples} argument accepted
 by \code{plot.zplot_brma()} through \code{...}. Defaults to 10000. Use
 \code{Inf} to use all posterior samples.}
+
+\item{conditioning_depth}{predictive conditioning depth passed to
+\code{as_zplot()}. Defaults to \code{"marginal"}.}
 
 \item{...}{arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.}
 }

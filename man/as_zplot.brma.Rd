@@ -9,6 +9,7 @@
   object,
   significance_level = stats::qnorm(0.975),
   max_samples = 10000,
+  conditioning_depth = "marginal",
   ...
 )
 }
@@ -21,6 +22,14 @@ to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
 \item{max_samples}{maximum number of posterior samples for estimation.
 Defaults to 10000. Use \code{Inf} to use all posterior samples.}
 
+\item{conditioning_depth}{predictive conditioning depth. Options are
+\code{"marginal"} (default), which integrates all newly realized random
+effects; \code{"cluster"}, which retains fitted cluster effects and
+integrates within-cluster heterogeneity; and \code{"estimate"}, which
+retains each fitted latent true effect, integrates its posterior conditional
+uncertainty, and adds new sampling error. Cluster conditioning is available
+only for multilevel models.}
+
 \item{...}{additional arguments (currently unused).}
 }
 \value{
@@ -29,8 +38,9 @@ The input object with added class \code{"zplot_brma"} and a new
 \describe{
 \item{estimates}{a list with posterior samples for \code{EDR} and
 missing-study \code{weights}}
-\item{data}{a list with \code{significance_level}, observed
-\code{z}-statistics, \code{N_significant}, and \code{N_observed}}
+\item{data}{a list with \code{significance_level},
+\code{conditioning_depth}, observed \code{z}-statistics,
+\code{N_significant}, and \code{N_observed}}
 }
 }
 \description{
@@ -38,14 +48,36 @@ Transforms an estimated brma model into a zplot object
 that can be summarized and plotted to assess replicability.
 }
 \details{
-Zplot analysis estimates the Expected Discovery Rate (EDR), the posterior
-mean probability that an exact replication would be statistically significant
-at the supplied threshold. This provides insight into the replicability of
-findings in a literature.
+Zplot is the pushforward into z-space of the design-conditional posterior
+predictive distribution. It retains the empirical mix of observed standard
+errors and moderators, evaluates one row-specific predictive distribution
+for each estimate, transforms each through \eqn{Z = Y / SE}, and averages
+the resulting densities with equal weight per estimate.
 
-The implementation uses extrapolation mode by default, which removes
-selection-model weights when evaluating the model-implied z-value density.
-PET/PEESE regression terms remain part of the fitted location model.
+The default marginal target integrates every latent effect that would be
+newly realized in a replicated literature. For a legacy multilevel model,
+the predictive variance before sampling error is the sum of between- and
+within-cluster heterogeneity. Cluster conditioning instead retains the fitted
+cluster effects and includes only within-cluster heterogeneity. Estimate
+conditioning uses the conditional true-effect means returned by
+\code{predict(type = "estimate")} and additionally integrates the posterior
+conditional variance of those latent effects before adding new sampling
+error. It therefore represents a posterior predictive replication of the
+same uncertain latent effects rather than a BLUP-mean plug-in distribution.
+Thus the marginal zplot collapses the row-specific slices of the marginal
+funnel target onto the common significance scale. Unlike LOO diagnostics,
+it is a full-posterior predictive projection and does not leave observations
+or clusters out when estimating model parameters.
+
+The Expected Discovery Rate (EDR) is the posterior average probability that
+a new outcome from the selected predictive target is statistically
+significant at the supplied threshold. It is therefore not an exact-repeat
+estimand unless \code{conditioning_depth = "estimate"} is requested.
+
+The EDR uses extrapolation mode: selection is removed from the row-specific
+predictive distributions, PET/PEESE regression offsets are omitted, and
+designs under a selection model are weighted by their inverse observation
+probabilities. The fitted plot curve retains the bias adjustments.
 Zplot diagnostics are available only for normal outcome models. GLMM
 objects are rejected because their raw likelihood is on a count scale while
 zplot diagnostics require observed effect-size z-statistics with standard
@@ -72,5 +104,6 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 
 }
 \seealso{
-\code{\link[=summary.zplot_brma]{summary.zplot_brma()}}, \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}, \code{\link[=hist.zplot_brma]{hist.zplot_brma()}}
+\code{\link[=summary.zplot_brma]{summary.zplot_brma()}}, \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}, \code{\link[=hist.zplot_brma]{hist.zplot_brma()}},
+\code{\link[=predict.brma]{predict.brma()}}, \code{\link[=funnel.brma]{funnel.brma()}}, \code{\link[=regplot.brma]{regplot.brma()}}
 }

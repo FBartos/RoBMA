@@ -76,6 +76,9 @@ Plots a zplot visualization showing the histogram of
 observed z-statistics overlaid with model-implied densities.
 }
 \details{
+All model-implied curves use the \code{conditioning_depth} stored by
+\code{as_zplot()}. Recreate the zplot object to change the predictive target.
+
 The plot displays two density curves:
 \describe{
 \item{Fit (black)}{Model-implied density including publication bias adjustments.

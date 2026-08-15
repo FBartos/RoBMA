@@ -27,9 +27,11 @@
 #         Density mode: S x length(z_sequence) matrix of densities
 #
 .zplot_fun.brma <- function(object, z_threshold = NULL, z_sequence = NULL,
-                             max_samples = 10000, extrapolate = FALSE) {
+                             max_samples = 10000, extrapolate = FALSE,
+                             conditioning_depth = "marginal") {
 
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
+  conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
 
   ### extract model info
   is_weightfunction <- .is_weightfunction(object)
@@ -43,9 +45,10 @@
   }
 
   predictive <- .zplot_predictive_components(
-    object            = object,
-    posterior_samples = posterior_samples,
-    extrapolate       = extrapolate
+    object             = object,
+    posterior_samples  = posterior_samples,
+    extrapolate        = extrapolate,
+    conditioning_depth = conditioning_depth
   )
   mu_samples <- predictive[["mu"]]
   tau_within <- predictive[["tau_within"]]
@@ -90,30 +93,377 @@
 
 
 .zplot_predictive_components <- function(object, posterior_samples,
-                                         extrapolate) {
+                                         extrapolate,
+                                         conditioning_depth = "marginal",
+                                         predictive_heterogeneity = NULL) {
 
-  setup <- .estimate_likelihood_setup_from_parts(
-    fit               = object[["fit"]],
-    data              = object[["data"]],
-    priors            = object[["priors"]],
-    posterior_samples = posterior_samples,
-    unit              = "estimate",
-    data_hash         = .get_outcome_hash(object),
-    bias_adjusted     = extrapolate,
-    caller            = ".zplot_predictive_components()"
+  conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
+  .check_unit_conditioning_depth(
+    object             = object,
+    unit               = "estimate",
+    conditioning_depth = conditioning_depth,
+    caller             = ".zplot_predictive_components()"
   )
 
-  tau_within <- if (.is_data_known_v(setup[["data"]])) {
-    .known_v_extra_sd_from_setup(setup)
-  } else {
-    setup[["tau_within"]]
+  predict_type <- switch(conditioning_depth,
+    "marginal" = "terms",
+    "cluster"  = "cluster",
+    "estimate" = "estimate"
+  )
+  mu_samples <- predict.brma(
+    object             = object,
+    newdata            = NULL,
+    type               = predict_type,
+    bias_adjusted      = extrapolate,
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  mu_samples <- as.matrix(mu_samples)
+
+  if (is.null(predictive_heterogeneity)) {
+    predictive_heterogeneity <- .zplot_predictive_heterogeneity(
+      object             = object,
+      posterior_samples  = posterior_samples,
+      conditioning_depth = conditioning_depth
+    )
   }
 
   return(list(
-    mu         = setup[["mu"]],
-    tau_within = tau_within,
-    sei        = setup[["selection_sei"]]
+    mu         = mu_samples,
+    tau_within = predictive_heterogeneity,
+    sei        = .outcome_data_sei(object)
   ))
+}
+
+
+.zplot_stored_conditioning_depth <- function(object) {
+
+  conditioning_depth <- object[["zplot"]][["data"]][["conditioning_depth"]]
+  if (is.null(conditioning_depth)) {
+    conditioning_depth <- if (.is_multilevel(object)) "cluster" else "marginal"
+  }
+
+  return(.normalize_conditioning_depth(conditioning_depth))
+}
+
+
+.zplot_predictive_heterogeneity <- function(object, posterior_samples,
+                                            conditioning_depth) {
+
+  if (conditioning_depth == "estimate") {
+    conditional_variance <- .zplot_estimate_conditional_variance(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
+    return(sqrt(conditional_variance))
+  }
+
+  if (inherits(object, "brma.mv") && conditioning_depth == "marginal") {
+    components <- .brma_mv_heterogeneity_components(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
+    return(.total_brma_mv_heterogeneity_samples(components))
+  }
+
+  tau_result <- .zplot_tau_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+
+  if (conditioning_depth == "cluster") {
+    return(tau_result[["tau_within"]])
+  }
+
+  return(tau_result[["tau_total"]])
+}
+
+
+.zplot_tau_samples <- function(object, posterior_samples) {
+
+  K <- length(.outcome_data_sei(object))
+
+  return(.evaluate.brma.tau(
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (.is_scale(object)) {
+      .create_fit_formula_list(data = object[["data"]], "scale")
+    } else {
+      NULL
+    },
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = .is_scale(object),
+    is_multilevel     = .is_multilevel(object),
+    K                 = K,
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
+  ))
+}
+
+
+# Posterior conditional variance of the fitted latent true effects. The
+# corresponding conditional means are returned by predict(type = "estimate").
+.zplot_estimate_conditional_variance <- function(object, posterior_samples) {
+
+  if (inherits(object, "brma.mv") && .is_random(object)) {
+    return(.zplot_mv_random_conditional_variance(
+      object            = object,
+      posterior_samples = posterior_samples
+    ))
+  }
+
+  tau_result <- .zplot_tau_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  tau_within <- tau_result[["tau_within"]]
+  fit_vi     <- .outcome_data_sei(object)^2 / .outcome_data_weights(object)
+
+  if (.is_multilevel(object)) {
+    if (.is_weightfunction(object)) {
+      return(.zplot_independent_conditional_variance(tau_within, fit_vi))
+    }
+
+    return(.zplot_multilevel_conditional_variance(
+      tau_within  = tau_within,
+      tau_between = tau_result[["tau_between"]],
+      vi          = fit_vi,
+      cluster     = object[["data"]][["outcome"]][["cluster"]]
+    ))
+  }
+
+  if (.is_data_known_v(object[["data"]])) {
+    return(.zplot_known_v_conditional_variance(
+      tau_within = tau_within,
+      known_V    = .data_known_v_data(object[["data"]])
+    ))
+  }
+
+  return(.zplot_independent_conditional_variance(tau_within, fit_vi))
+}
+
+
+.zplot_independent_conditional_variance <- function(tau_within, vi) {
+
+  tau2       <- tau_within^2
+  vi_samples <- matrix(vi, nrow = nrow(tau_within), ncol = ncol(tau_within),
+                       byrow = TRUE)
+  denominator <- tau2 + vi_samples
+
+  if (any(!is.finite(denominator)) || any(denominator <= 0)) {
+    stop(
+      "Cannot evaluate the estimate-depth conditional variance from the fitted ",
+      "heterogeneity and sampling variances.",
+      call. = FALSE
+    )
+  }
+
+  return(tau2 * vi_samples / denominator)
+}
+
+
+.zplot_multilevel_conditional_variance <- function(tau_within, tau_between,
+                                                   vi, cluster) {
+
+  S             <- nrow(tau_within)
+  K             <- ncol(tau_within)
+  block_indices <- .get_multilevel_block_indices(cluster)
+  out           <- matrix(0, nrow = S, ncol = K)
+
+  for (s in seq_len(S)) {
+    for (idx in block_indices) {
+      within2     <- tau_within[s, idx]^2
+      denominator <- within2 + vi[idx]
+      if (any(!is.finite(denominator)) || any(denominator <= 0)) {
+        stop(
+          "Cannot evaluate the multilevel estimate-depth conditional variance.",
+          call. = FALSE
+        )
+      }
+
+      within_variance <- within2 * vi[idx] / denominator
+      gamma_variance  <- 1 / (
+        1 + sum(tau_between[s, idx]^2 / denominator)
+      )
+      gamma_loading  <- tau_between[s, idx] * vi[idx] / denominator
+
+      out[s, idx] <- within_variance + gamma_loading^2 * gamma_variance
+    }
+  }
+
+  return(out)
+}
+
+
+.zplot_known_v_conditional_variance <- function(tau_within, known_V) {
+
+  S <- nrow(tau_within)
+  K <- ncol(tau_within)
+  if (.known_v_nrow(known_V) != K) {
+    stop(
+      "Known-V covariance dimensions do not match the estimate-depth target.",
+      call. = FALSE
+    )
+  }
+
+  block_data <- .known_v_blocks(known_V)
+  .known_v_validate_dependency_blocks(
+    lapply(block_data, `[[`, "index"),
+    K
+  )
+
+  out <- matrix(0, nrow = S, ncol = K)
+  for (block in block_data) {
+    idx     <- block[["index"]]
+    V_block <- block[["covariance"]]
+
+    if (length(idx) == 1L) {
+      tau2       <- tau_within[, idx]^2
+      denominator <- tau2 + V_block[1L, 1L]
+      if (any(!is.finite(denominator)) || any(denominator <= 0)) {
+        stop(
+          "Cannot evaluate a known-V estimate-depth conditional variance block.",
+          call. = FALSE
+        )
+      }
+      out[, idx] <- tau2 * V_block[1L, 1L] / denominator
+      next
+    }
+
+    for (s in seq_len(S)) {
+      latent_covariance <- diag(
+        tau_within[s, idx]^2,
+        nrow = length(idx),
+        ncol = length(idx)
+      )
+      out[s, idx] <- .zplot_gaussian_conditional_variance(
+        latent_covariance   = latent_covariance,
+        sampling_covariance = V_block
+      )
+    }
+  }
+
+  return(out)
+}
+
+
+.zplot_mv_random_conditional_variance <- function(object, posterior_samples,
+                                                  max_bytes = NULL) {
+
+  known_V <- .data_known_v_data(object[["data"]])
+  K       <- nrow(object[["data"]][["outcome"]])
+  S       <- nrow(posterior_samples)
+  if (is.null(known_V) || .known_v_nrow(known_V) != K) {
+    stop(
+      "Random-formula brma.mv estimate-depth variance requires matching known-V metadata.",
+      call. = FALSE
+    )
+  }
+
+  sampling_covariance <- .known_v_materialize(known_V)
+  out                 <- matrix(0, nrow = S, ncol = K)
+  chunks              <- .known_v_covariance_chunk_indices(
+    S         = S,
+    K         = K,
+    max_bytes = max_bytes
+  )
+
+  for (rows in chunks) {
+    random_vcov <- .brma_mv_random_effects_marginal_vcov(
+      object            = object,
+      posterior_samples = posterior_samples[rows, , drop = FALSE],
+      diagonal_only     = FALSE,
+      data              = object[["data"]],
+      new_levels        = "error"
+    )
+    covariance_samples <- random_vcov[["samples"]]
+    expected_dim       <- c(length(rows), K, K)
+    if (!is.numeric(covariance_samples) ||
+        !identical(dim(covariance_samples), expected_dim) ||
+        any(!is.finite(covariance_samples))) {
+      stop(
+        "Random-effect covariance samples have inconsistent dimensions.",
+        call. = FALSE
+      )
+    }
+
+    for (draw_i in seq_along(rows)) {
+      out[rows[draw_i], ] <- .zplot_gaussian_conditional_variance(
+        latent_covariance   = matrix(
+          covariance_samples[draw_i, , ],
+          nrow = K,
+          ncol = K
+        ),
+        sampling_covariance = sampling_covariance
+      )
+    }
+  }
+
+  return(out)
+}
+
+
+# Diagonal of Q - Q (Q + V)^-1 Q. The covariance factorization policy treats
+# only eigensolver artifacts inside its backward-error envelope as null-space
+# values; materially indefinite conditional covariances fail.
+.zplot_gaussian_conditional_variance <- function(latent_covariance,
+                                                 sampling_covariance) {
+
+  if (!is.matrix(latent_covariance) ||
+      !is.matrix(sampling_covariance) ||
+      !identical(dim(latent_covariance), dim(sampling_covariance))) {
+    stop(
+      "Latent and sampling covariance matrices must have matching dimensions.",
+      call. = FALSE
+    )
+  }
+
+  marginal_covariance <- latent_covariance + sampling_covariance
+  chol_marginal <- tryCatch(
+    chol(marginal_covariance),
+    error = function(e) NULL
+  )
+  if (is.null(chol_marginal)) {
+    stop(
+      "Cannot solve the estimate-depth marginal covariance; it is not positive definite.",
+      call. = FALSE
+    )
+  }
+
+  solved <- backsolve(
+    chol_marginal,
+    forwardsolve(t(chol_marginal), latent_covariance)
+  )
+  reduction           <- latent_covariance %*% solved
+  conditional_variance <- diag(latent_covariance) - diag(reduction)
+  if (all(is.finite(conditional_variance)) &&
+      all(conditional_variance >= 0)) {
+    return(unname(conditional_variance))
+  }
+
+  conditional_covariance <- latent_covariance - reduction
+  conditional_factorization <- .covariance_factorization(
+    conditional_covariance
+  )
+  if (!.covariance_is_positive_semidefinite(conditional_factorization)) {
+    stop(
+      "The estimate-depth conditional latent covariance is not positive semidefinite.",
+      call. = FALSE
+    )
+  }
+
+  conditional_factor <- .covariance_sampling_factor(
+    conditional_factorization
+  )
+  if (is.null(conditional_factor)) {
+    stop(
+      "Cannot factor the estimate-depth conditional latent covariance.",
+      call. = FALSE
+    )
+  }
+
+  return(colSums(conditional_factor^2))
 }
 
 
@@ -358,7 +708,8 @@
   ))
 }
 
-.zplot_density_pair <- function(object, z_sequence, max_samples) {
+.zplot_density_pair <- function(object, z_sequence, max_samples,
+                                conditioning_depth = "marginal") {
 
   posterior_samples <- .get_posterior_samples(object[["fit"]])
   selected_ind      <- .thin_sample_rows(nrow(posterior_samples), max_samples)
@@ -367,14 +718,17 @@
   }
 
   predictive_fit <- .zplot_predictive_components(
-    object            = object,
-    posterior_samples = posterior_samples,
-    extrapolate       = FALSE
+    object             = object,
+    posterior_samples  = posterior_samples,
+    extrapolate        = FALSE,
+    conditioning_depth = conditioning_depth
   )
   predictive_extrapolated <- .zplot_predictive_components(
-    object            = object,
-    posterior_samples = posterior_samples,
-    extrapolate       = TRUE
+    object                      = object,
+    posterior_samples           = posterior_samples,
+    extrapolate                 = TRUE,
+    conditioning_depth          = conditioning_depth,
+    predictive_heterogeneity    = predictive_fit[["tau_within"]]
   )
   selection <- .zplot_selection_context(
     object            = object,

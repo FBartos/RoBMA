@@ -2,10 +2,10 @@
 # funnel-quantiles.R
 # ============================================================================ #
 
-# .get_funnel_tau
+# .get_radial_tau
 # ---------------------------------------------------------------------------- #
 #
-# Extract mean tau (heterogeneity) estimate from brma object for funnel plot.
+# Extract mean scalar tau (heterogeneity) estimate for the radial plot.
 #
 # For multilevel models, returns total tau (combining within and between components).
 #
@@ -13,14 +13,14 @@
 # @return numeric scalar representing the mean tau estimate
 #
 # ---------------------------------------------------------------------------- #
-.get_funnel_tau <- function(object) {
+.get_radial_tau <- function(object) {
 
   if (.is_data_known_v(object[["data"]])) {
-    return(.get_funnel_tau_known_v(object))
+    return(.get_radial_tau_known_v(object))
   }
 
   posterior_samples <- .get_posterior_samples(object[["fit"]])
-  tau_samples <- .overall_heterogeneity_samples(
+  tau_samples <- .radial_heterogeneity_samples(
     object            = object,
     posterior_samples = posterior_samples
   )
@@ -29,7 +29,7 @@
 }
 
 
-.get_funnel_tau_known_v <- function(object) {
+.get_radial_tau_known_v <- function(object) {
 
   extra_variance <- .known_v_extra_variance_samples(object)
   tau_samples    <- sqrt(rowMeans(extra_variance))
@@ -38,7 +38,7 @@
 }
 
 
-.overall_heterogeneity_samples <- function(object, posterior_samples) {
+.radial_heterogeneity_samples <- function(object, posterior_samples) {
 
   if (inherits(object, "brma.mv")) {
     components <- .brma_mv_heterogeneity_components(
@@ -49,7 +49,75 @@
     return(.brma_mv_rms_sd_samples(total))
   }
 
-  return(.funnel_tau_samples(object, posterior_samples))
+  return(.radial_tau_samples(object, posterior_samples))
+}
+
+
+# Determine whether the fitted model has one row-invariant marginal
+# heterogeneity distribution. For random-formula brma.mv models this evaluates
+# the same row-marginal ZGZ' variances used by prediction and bridge likelihoods.
+.funnel_common_heterogeneity <- function(object, posterior_samples = NULL) {
+
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    posterior_samples
+  )
+  tau <- .funnel_row_heterogeneity_samples(object, posterior_samples)
+
+  reference <- matrix(
+    tau[, 1L],
+    nrow = nrow(tau),
+    ncol = ncol(tau)
+  )
+  common <- all(tau == reference)
+
+  return(list(
+    common            = common,
+    posterior_samples = posterior_samples,
+    tau                = if (common) tau[, 1L] else NULL
+  ))
+}
+
+
+.funnel_row_heterogeneity_samples <- function(object, posterior_samples) {
+
+  if (.is_data_known_v(object[["data"]])) {
+    return(sqrt(.known_v_extra_variance_samples(
+      object            = object,
+      posterior_samples = posterior_samples
+    )))
+  }
+
+  if (inherits(object, "brma.mv")) {
+    components <- .brma_mv_heterogeneity_components(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
+    return(.total_brma_mv_heterogeneity_samples(components))
+  }
+
+  tau_result <- .evaluate.brma.tau(
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (.is_scale(object)) {
+      .create_fit_formula_list(data = object[["data"]], "scale")
+    } else {
+      NULL
+    },
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = .is_scale(object),
+    is_multilevel     = .is_multilevel(object),
+    K                 = nrow(object[["data"]][["outcome"]]),
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
+  )
+
+  return(.expand_brma_mv_heterogeneity_samples(
+    samples = tau_result[["tau_total"]],
+    S       = nrow(posterior_samples),
+    K       = nrow(object[["data"]][["outcome"]])
+  ))
 }
 
 
@@ -59,96 +127,70 @@
 #
 # Compute quantiles for funnel plot contours based on the sampling distribution.
 #
-# When sampling_bias = TRUE, posterior rows dispatch to their active bias model
-# and the contour is obtained by inverting the model-averaged CDF.
-#
-# When sampling_bias = FALSE: uses standard normal quantiles.
+# Plug-in contours use one conditional posterior-mean row per complete joint
+# model. Posterior-predictive contours use posterior rows directly. In both
+# cases the active bias model supplies the row CDF and the mixture is inverted.
 #
 # @param x                      brma object
 # @param se_sequence            numeric vector of SE values for funnel contours
-# @param mu                     numeric scalar of pooled effect estimate
-# @param tau                    numeric scalar of heterogeneity estimate
 # @param sampling_heterogeneity logical; whether to incorporate tau
 # @param sampling_bias          logical; whether to incorporate bias into sampling dist
-# @param is_weightfunction      logical; whether model has selection model
-# @param is_PET                 logical; whether model has PET adjustment
-# @param is_PEESE               logical; whether model has PEESE adjustment
 # @param effect_direction       character; "positive" or "negative"
+# @param max_samples             posterior-row budget for Bayesian contours
+# @param estimand                plug-in or posterior-predictive construction
+# @param common_heterogeneity    validated common-heterogeneity setup
 #
 # @return list with 'lower' and 'upper' quantile vectors
 #
 # ---------------------------------------------------------------------------- #
-.get_funnel_quantiles <- function(x, se_sequence, mu, tau,
+.get_funnel_quantiles <- function(x, se_sequence,
                                   sampling_heterogeneity, sampling_bias,
-                                  is_weightfunction, is_PET, is_PEESE,
-                                  effect_direction, max_samples) {
-  n_se   <- length(se_sequence)
-  sd_seq <- .root_sum_squares(se_sequence, tau)
+                                  effect_direction, max_samples, estimand,
+                                  common_heterogeneity) {
 
-  # default: standard normal quantiles centered at mu
-  if (!sampling_bias || (!is_weightfunction && !is_PET && !is_PEESE)) {
-    return(list(
-      lower = stats::qnorm(0.025, mean = mu, sd = sd_seq),
-      upper = stats::qnorm(0.975, mean = mu, sd = sd_seq),
-      mid   = rep(mu, n_se)
-    ))
-  }
-
-  if (!BayesTools::is.prior.mixture(x[["priors"]][["outcome"]][["bias"]])) {
-    if (is_PET || is_PEESE) {
-      return(.get_funnel_quantiles_PETPEESE_plugin(
-        x                = x,
-        se_sequence      = se_sequence,
-        mu               = mu,
-        sd_seq           = sd_seq,
-        is_PET           = is_PET,
-        is_PEESE         = is_PEESE,
-        effect_direction = effect_direction
-      ))
-    }
-  }
-
-  return(.get_funnel_quantiles_model_averaged(
+  setup <- .funnel_sampling_setup(
     x                      = x,
-    se_sequence            = se_sequence,
     sampling_heterogeneity = sampling_heterogeneity,
-    effect_direction       = effect_direction,
-    max_samples            = max_samples
+    sampling_bias          = sampling_bias,
+    max_samples            = max_samples,
+    estimand               = estimand,
+    common_heterogeneity   = common_heterogeneity
+  )
+
+  return(.get_funnel_quantiles_from_setup(
+    se_sequence      = se_sequence,
+    setup            = setup,
+    effect_direction = effect_direction
   ))
 }
 
 
-# ---------------------------------------------------------------------------- #
-# .get_funnel_quantiles_PETPEESE_plugin
-# ---------------------------------------------------------------------------- #
-#
-# Fast plug-in normal contours for single PET/PEESE priors.
-#
-# ---------------------------------------------------------------------------- #
-.get_funnel_quantiles_PETPEESE_plugin <- function(x, se_sequence, mu, sd_seq,
-                                                  is_PET, is_PEESE,
-                                                  effect_direction) {
+.get_funnel_quantiles_from_setup <- function(se_sequence, setup,
+                                             effect_direction) {
 
-  n_se              <- length(se_sequence)
-  posterior_samples <- .get_posterior_samples(x[["fit"]])
-  bias_shift        <- rep(0, n_se)
-  direction         <- ifelse(effect_direction == "negative", -1, 1)
+  if (length(setup[["mu"]]) == 1L &&
+      !any(setup[["is_weightfunction"]])) {
+    location <- vapply(
+      se_sequence,
+      .funnel_row_location,
+      numeric(1),
+      setup            = setup,
+      effect_direction = effect_direction
+    )
+    total_sd <- .root_sum_squares(se_sequence, setup[["tau"]])
+    lower    <- stats::qnorm(0.025, mean = location, sd = total_sd)
+    upper    <- stats::qnorm(0.975, mean = location, sd = total_sd)
+    lower[total_sd == 0] <- location[total_sd == 0]
+    upper[total_sd == 0] <- location[total_sd == 0]
 
-  if (is_PET && "PET" %in% colnames(posterior_samples)) {
-    PET_mean   <- mean(posterior_samples[, "PET"])
-    bias_shift <- bias_shift + direction * PET_mean * se_sequence
+    return(list(lower = lower, upper = upper, mid = location))
   }
 
-  if (is_PEESE && "PEESE" %in% colnames(posterior_samples)) {
-    PEESE_mean <- mean(posterior_samples[, "PEESE"])
-    bias_shift <- bias_shift + direction * PEESE_mean * se_sequence^2
-  }
-
-  mid   <- mu + bias_shift
-  lower <- stats::qnorm(0.025, mean = mid, sd = sd_seq)
-  upper <- stats::qnorm(0.975, mean = mid, sd = sd_seq)
-
-  return(list(lower = lower, upper = upper, mid = mid))
+  return(.get_funnel_quantiles_model_averaged(
+    se_sequence      = se_sequence,
+    setup            = setup,
+    effect_direction = effect_direction
+  ))
 }
 
 
@@ -156,28 +198,20 @@
 # .get_funnel_quantiles_model_averaged
 # ---------------------------------------------------------------------------- #
 #
-# Compute model-averaged funnel contours for publication-bias models.
+# Compute mixture funnel contours.
 #
-# Each posterior row dispatches to its active bias model:
+# Each plug-in model row or posterior row dispatches to its active bias model:
 # - no-bias rows use a normal CDF
 # - PET/PEESE rows use a normal CDF with the row-specific bias offset
 # - selection-model rows use the selected-normal CDF
 #
-# Quantiles are obtained from the averaged posterior-row CDF.
+# Quantiles are obtained from the weighted row CDF.
 #
 # @return list with 'lower', 'upper', and 'mid' quantile vectors
 #
 # ---------------------------------------------------------------------------- #
-.get_funnel_quantiles_model_averaged <- function(x, se_sequence,
-                                                 sampling_heterogeneity,
-                                                 effect_direction,
-                                                 max_samples = Inf) {
-
-  setup <- .funnel_model_averaged_setup(
-    x                      = x,
-    sampling_heterogeneity = sampling_heterogeneity,
-    max_samples            = max_samples
-  )
+.get_funnel_quantiles_model_averaged <- function(se_sequence, setup,
+                                                 effect_direction) {
 
   if (.has_native_funnel_model_averaged_quantiles(setup)) {
     return(.funnel_model_averaged_quantiles_native(
@@ -217,7 +251,7 @@
 
 .has_native_funnel_model_averaged_quantiles <- function(setup) {
 
-  if (is.null(setup[["selection"]])) {
+  if (is.null(setup[["selection"]]) || !is.null(setup[["weights"]])) {
     return(FALSE)
   }
 
@@ -267,17 +301,89 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .funnel_model_averaged_setup
+# .funnel_sampling_setup
 # ---------------------------------------------------------------------------- #
 #
-# Prepare posterior-row quantities for model-averaged funnel contours.
+# Prepare plug-in model rows or posterior rows for funnel contours.
 #
 # ---------------------------------------------------------------------------- #
-.funnel_model_averaged_setup <- function(x, sampling_heterogeneity,
-                                         max_samples = Inf) {
+.funnel_sampling_setup <- function(x, sampling_heterogeneity, sampling_bias,
+                                   max_samples, estimand,
+                                   common_heterogeneity) {
 
-  posterior_samples <- .get_posterior_samples(x[["fit"]])
-  priors_bias       <- x[["priors"]][["outcome"]][["bias"]]
+  estimand          <- match.arg(estimand, c("plugin", "posterior_predictive"))
+  posterior_samples <- common_heterogeneity[["posterior_samples"]]
+  tau_samples       <- common_heterogeneity[["tau"]]
+
+  if (estimand == "posterior_predictive") {
+    selected_rows <- .nested_srs_rows(
+      rows        = seq_len(nrow(posterior_samples)),
+      max_samples = max_samples
+    )
+    posterior_samples <- posterior_samples[selected_rows, , drop = FALSE]
+    tau_samples       <- tau_samples[selected_rows]
+
+    return(.funnel_setup_from_samples(
+      x                      = x,
+      posterior_samples      = posterior_samples,
+      tau_samples            = tau_samples,
+      sampling_heterogeneity = sampling_heterogeneity,
+      sampling_bias          = sampling_bias,
+      weights                = NULL
+    ))
+  }
+
+  groups     <- .funnel_joint_model_groups(x, posterior_samples)
+  group_rows <- split(seq_len(nrow(posterior_samples)), groups)
+  model_samples <- t(vapply(group_rows, function(rows) {
+
+    colMeans(posterior_samples[rows, , drop = FALSE])
+  }, numeric(ncol(posterior_samples))))
+  colnames(model_samples) <- colnames(posterior_samples)
+
+  model_tau <- vapply(group_rows, function(rows) {
+
+    mean(tau_samples[rows])
+  }, numeric(1))
+  model_weights <- lengths(group_rows) / nrow(posterior_samples)
+
+  return(.funnel_setup_from_samples(
+    x                      = x,
+    posterior_samples      = model_samples,
+    tau_samples            = model_tau,
+    sampling_heterogeneity = sampling_heterogeneity,
+    sampling_bias          = sampling_bias,
+    weights                = model_weights
+  ))
+}
+
+
+.funnel_joint_model_groups <- function(x, posterior_samples) {
+
+  components <- .summary_models_components(x)
+  if (length(components) == 0L) {
+    return(rep(1L, nrow(posterior_samples)))
+  }
+
+  indicators <- lapply(components, function(info) {
+
+    .summary_models_indicators(
+      posterior_samples = posterior_samples,
+      parameter         = info[["parameter"]],
+      prior             = info[["prior"]]
+    )
+  })
+  keys <- do.call(paste, c(indicators, sep = ":"))
+
+  return(match(keys, unique(keys)))
+}
+
+
+.funnel_setup_from_samples <- function(x, posterior_samples, tau_samples,
+                                       sampling_heterogeneity, sampling_bias,
+                                       weights) {
+
+  priors_bias <- x[["priors"]][["outcome"]][["bias"]]
 
   if (!BayesTools::is.prior.mixture(priors_bias)) {
     priors_bias <- list(priors_bias)
@@ -292,21 +398,11 @@
     stop("Invalid 'bias_indicator' values in posterior samples.", call. = FALSE)
   }
 
-  selected_rows <- .nested_srs_rows(
-    rows        = seq_len(nrow(posterior_samples)),
-    max_samples = max_samples
-  )
-  if (!is.null(selected_rows)) {
-    posterior_samples <- posterior_samples[selected_rows, , drop = FALSE]
-    bias_indicator    <- bias_indicator[selected_rows]
-  }
   S <- nrow(posterior_samples)
 
   mu_samples <- .funnel_mu_samples(x, posterior_samples)
 
-  if (sampling_heterogeneity) {
-    tau_samples <- .funnel_tau_samples(x, posterior_samples)
-  } else {
+  if (!sampling_heterogeneity) {
     tau_samples <- rep(0, S)
   }
 
@@ -316,10 +412,19 @@
   PET_samples[!branch_is_PET[bias_indicator]]     <- 0
   PEESE_samples[!branch_is_PEESE[bias_indicator]] <- 0
 
-  selection <- .selection_context(
-    object            = x,
-    posterior_samples = posterior_samples
-  )
+  if (!sampling_bias) {
+    PET_samples[]   <- 0
+    PEESE_samples[] <- 0
+  }
+
+  selection <- if (sampling_bias) {
+    .selection_context(
+      object            = x,
+      posterior_samples = posterior_samples
+    )
+  } else {
+    NULL
+  }
   use_normal <- if (is.null(selection)) {
     rep(TRUE, S)
   } else {
@@ -333,7 +438,8 @@
     PEESE                 = PEESE_samples,
     bias_indicator        = bias_indicator,
     is_weightfunction     = !use_normal,
-    selection             = selection
+    selection             = selection,
+    weights               = weights
   ))
 }
 
@@ -362,13 +468,13 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .funnel_tau_samples
+# .radial_tau_samples
 # ---------------------------------------------------------------------------- #
 #
-# Extract total heterogeneity samples for outcome-mode funnel contours.
+# Extract RMS total heterogeneity samples for the radial plot.
 #
 # ---------------------------------------------------------------------------- #
-.funnel_tau_samples <- function(x, posterior_samples) {
+.radial_tau_samples <- function(x, posterior_samples) {
 
   tau_result <- .evaluate.brma.tau(
     fit               = x[["fit"]],

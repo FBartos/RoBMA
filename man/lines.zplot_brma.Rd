@@ -56,6 +56,9 @@ if \code{as_data = TRUE}.
 Adds model-implied density lines to an existing zplot.
 }
 \details{
+The density uses the \code{conditioning_depth} stored by
+\code{as_zplot()}. Recreate the zplot object to change the predictive target.
+
 When \code{extrapolate = FALSE}, the density includes all bias adjustments
 (PET/PEESE regression, selection weights) representing the fitted model.
 When \code{extrapolate = TRUE}, bias adjustments are removed to show the

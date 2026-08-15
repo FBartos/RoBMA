@@ -7,27 +7,30 @@
 funnel <- function(x, ...) UseMethod("funnel")
 
 
-#' @title Funnel Plot for brma Object
+#' @name funnel
+#' @title Frequentist-Style and Bayesian Funnel Plots for brma Objects
 #'
-#' @description \code{funnel.brma} creates a funnel plot for a fitted brma object.
-#' For intercept-only models without scale regression, the default outcome mode
-#' displays observed effect sizes against the fitted sampling distribution. For
-#' models with location or scale moderators, the default residual mode displays
-#' residuals against a standard-error funnel. For GLMMs, outcome-mode contours
-#' are instead a descriptive normal effect-size approximation and are not
-#' coverage intervals from the fitted discrete likelihood.
+#' @description \code{funnel.brma} creates fast plug-in funnel contours.
+#' Continuous parameters are fixed at their within-model posterior means. For
+#' model-averaged fits, complete joint models retain their posterior model
+#' probabilities and their plug-in sampling CDFs are averaged before the
+#' contours are inverted. This makes the ordinary normal-model construction
+#' directly comparable to a conventional plug-in funnel such as
+#' \code{metafor::funnel(..., addtau2 = TRUE)}.
+#'
+#' \code{bfunnel.brma} instead averages the sampling CDF over posterior draws
+#' before inversion. It therefore incorporates continuous parameter uncertainty
+#' as well as model uncertainty.
 #'
 #' @param x a fitted brma object
 #' @param residual whether to use residual mode. Defaults to not specified,
 #' which means the function automatically determines the mode:
 #' \itemize{
-#'   \item not specified: For intercept-only models without scale
-#'     regression, displays observed effect sizes against the fitted sampling
-#'     distribution funnel; for models with moderators or scale regression,
-#'     automatically uses residual mode.
+#'   \item not specified: Displays outcomes only for intercept-only models with
+#'     one common marginal heterogeneity distribution. Otherwise it
+#'     automatically uses LOO-PIT residual mode.
 #'   \item \code{FALSE}: explicitly requests outcome mode. This is available
-#'     only for intercept-only models without scale regression; models with
-#'     location or scale predictors must use residual mode.
+#'     only for intercept-only models with common marginal heterogeneity.
 #'   \item \code{TRUE}: explicitly requests residual mode, displaying residuals
 #'     on the x-axis and using \code{type} to determine how those residuals are
 #'     computed.
@@ -61,9 +64,10 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' includes selection models (weightfunction), uses selected-normal quantiles.
 #' When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
 #' skew from these regression adjustments.
-#' @param max_samples maximum number of posterior samples used for
-#' model-averaged publication-bias funnel contours. Defaults to \code{10000}.
-#' Use \code{Inf} to use all posterior samples.
+#' @param max_samples maximum number of posterior draws used by
+#' \code{bfunnel()}. Defaults to \code{10000}; use \code{Inf} for all draws.
+#' \code{funnel()} uses all draws to estimate conditional plug-in values and
+#' posterior model probabilities, then evaluates only one CDF per joint model.
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2
 #' \code{"ggplot"} for plotting. Defaults to \code{"base"}.
 #' @param ... additional graphical arguments to customize the plot appearance:
@@ -90,33 +94,50 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' }
 #'
 #' @details
-#' The funnel plot has two modes. If \code{residual} is not specified, the mode
-#' is chosen automatically from the fitted model: intercept-only models without
-#' scale regression use outcome mode, whereas models with location or scale
-#' moderators use residual mode.
+#' The ordinary \code{funnel()} has outcome and residual modes. If
+#' \code{residual} is not specified, outcomes are used only when the fitted
+#' model is intercept-only and its marginal heterogeneity is identical across
+#' studies. The latter check uses fitted row-marginal random-effect variances,
+#' including complete \eqn{ZGZ'} contributions for \code{brma.mv()} random-
+#' formula models. All other models use residual mode.
 #'
-#' \strong{Outcome mode} (intercept-only models without scale regression):
+#' \strong{Outcome mode} (intercept-only models with common heterogeneity):
 #' Displays observed effect sizes on the x-axis and standard errors on the
 #' y-axis. The reference line follows the center of the fitted sampling
-#' distribution. When \code{sampling_bias = FALSE}, this center is the pooled
-#' effect; when PET/PEESE bias adjustment is incorporated, the center line can
-#' vary with the standard error. The funnel region represents the central 95\%
-#' region of the sampling distribution, optionally incorporating heterogeneity
-#' and publication bias.
+#' distribution. When \code{sampling_bias = FALSE}, this center is the plug-in
+#' mixture median (the pooled effect in a single model); when PET/PEESE bias
+#' adjustment is incorporated, the center line can vary with the standard
+#' error. The funnel region represents the central 95\%
+#' region of the plug-in sampling distribution, optionally incorporating
+#' heterogeneity and publication bias. Continuous parameters are replaced by
+#' posterior means separately within every complete joint model. The resulting
+#' model-specific CDFs are averaged with posterior model probabilities and only
+#' then inverted; neither parameters nor contour endpoints are averaged across
+#' models.
 #' For correlated known-\code{V} \code{brma.mv()} models, outcome-mode funnels
 #' are descriptive scalar-SE displays based on the diagonal of \code{V}; residual
 #' mode follows the fitted estimate-unit residual target.
 #'
+#' \code{bfunnel()} is available only for intercept-only normal models with
+#' common marginal heterogeneity. It averages the same sampling CDF over
+#' posterior draws and then inverts the averaged CDF. Thus it incorporates
+#' posterior uncertainty in the effect, heterogeneity, PET/PEESE coefficients,
+#' and selection parameters in addition to model uncertainty. For models
+#' without a common outcome-scale target, use the default LOO-PIT residual
+#' funnel from \code{funnel()}.
 #'
-#' \strong{Residual mode} (models with moderators or scale regression):
+#'
+#' \strong{Residual mode} (models without a common outcome-scale target):
 #' Displays residuals on the x-axis and standard errors on the
 #' y-axis. The funnel region is bounded by the 0.025 and 0.975 normal quantiles
 #' times the displayed standard error. It is a descriptive reference band, not
 #' a posterior-predictive coverage interval. With \code{type = "LOO-PIT"}, the
-#' plotted residuals and standard errors are the raw-scale LOO predictive
-#' companions returned by \code{\link{rstudent.brma}}; the PIT-normalized
-#' \code{z} values are used by \code{\link{qqnorm.brma}} and influence
-#' diagnostics. With
+#' plotted x-coordinate is the PIT-normalized \code{z} value returned by
+#' \code{\link{rstudent.brma}} multiplied by its LOO predictive standard
+#' deviation. Consequently, each plotted \code{x / se} is exactly its LOO-PIT
+#' \code{z}. This reduces to the ordinary raw deleted residual when the LOO
+#' predictive distribution is normal and extends the same funnel geometry to
+#' non-normal continuous predictive mixtures. With
 #' \code{type = "rstandard"}, the plotted values are internally standardized
 #' residual companions from \code{\link{rstandard.brma}}. With
 #' \code{type = "outcome"}, these are raw outcome residuals and the band uses
@@ -142,9 +163,11 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' funnel when needed. Its sampling-error-only bands are not exact diagnostics
 #' for the fitted count likelihood.
 #'
-#' @return If \code{as_data = TRUE}, \code{funnel.brma} returns a list with the
+#' @return If \code{as_data = TRUE}, \code{funnel.brma} and
+#' \code{bfunnel.brma} return a list with the
 #' data used for plotting, including the plotted points, funnel polygons,
-#' plotting limits, labels, and reference line. GLMM outcome-mode data also
+#' plotting limits, labels, reference line, and outcome-funnel estimand. GLMM
+#' outcome-mode data also
 #' contain an \code{approximation} record identifying the descriptive normal
 #' effect-size approximation and stating that it is not fitted discrete-
 #' likelihood coverage. Otherwise, it returns
@@ -166,6 +189,7 @@ funnel <- function(x, ...) UseMethod("funnel")
 #'
 #'   fit <- brma(yi = yi, vi = vi, data = dat, measure = "RR")
 #'   funnel(fit)
+#'   bfunnel(fit)
 #'   funnel(fit, pch = 19, col = "blue", bg = "lightblue")
 #'
 #'   fit_reg <- brma(
@@ -185,7 +209,7 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' }
 #'
 #' @seealso [residuals.brma()], [rstandard.brma()], [rstudent.brma()],
-#'   [predict.brma()]
+#'   [predict.brma()], [zplot.brma()]
 #' @aliases funnel
 #' @export
 #' @exportS3Method metafor::funnel
@@ -209,13 +233,18 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   dots <- .set_dots_funnel(dots)
 
   # get model characteristics
-  is_mods  <- .is_mods(x)
-  is_scale <- .is_scale(x)
+  is_mods              <- .is_mods(x)
+  is_scale             <- .is_scale(x)
+  common_heterogeneity <- NULL
 
   # determine mode: residual mode if mods/scale present, or if explicitly requested
 
   if (missing(residual)) {
     is_residual <- is_mods || is_scale
+    if (!is_residual) {
+      common_heterogeneity <- .funnel_common_heterogeneity(x)
+      is_residual          <- !common_heterogeneity[["common"]]
+    }
   } else {
     BayesTools::check_bool(residual, "residual")
     is_residual <- residual
@@ -229,6 +258,13 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
       "residual funnel.",
       call. = FALSE
     )
+  }
+
+  if (!is_residual && is.null(common_heterogeneity)) {
+    common_heterogeneity <- .funnel_common_heterogeneity(x)
+  }
+  if (!is_residual && !common_heterogeneity[["common"]]) {
+    .funnel_stop_no_common_heterogeneity("funnel()")
   }
 
   # generate funnel data based on mode
@@ -271,6 +307,8 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
       sampling_heterogeneity = sampling_heterogeneity,
       sampling_bias          = sampling_bias,
       max_samples            = max_samples,
+      estimand               = "plugin",
+      common_heterogeneity   = common_heterogeneity,
       dots                   = dots
     )
   }
@@ -287,4 +325,91 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     .funnel_plot_base(funnel_data, dots)
     return(invisible(NULL))
   }
+}
+
+
+#' @rdname funnel
+#' @export
+bfunnel <- function(x, ...) UseMethod("bfunnel")
+
+
+#' @rdname funnel
+#' @export
+bfunnel.default <- function(x, ...) {
+
+  stop("'bfunnel' is available only for fitted brma objects.", call. = FALSE)
+}
+
+
+#' @rdname funnel
+#' @export
+bfunnel.brma <- function(x, sampling_heterogeneity = TRUE,
+                         sampling_bias = TRUE, max_samples = 10000,
+                         plot_type = "base", ...) {
+
+  dots <- list(...)
+  .check_legacy_level_arg(dots, "bfunnel()")
+
+  BayesTools::check_bool(sampling_heterogeneity, "sampling_heterogeneity")
+  BayesTools::check_bool(sampling_bias, "sampling_bias")
+  BayesTools::check_char(
+    plot_type,
+    "plot_type",
+    allow_values = c("base", "ggplot")
+  )
+  max_samples <- .normalize_funnel_max_samples(max_samples)
+  dots        <- .set_dots_funnel(dots)
+
+  if (.outcome_type(x) != "norm") {
+    stop(
+      "'bfunnel()' is available only for normal outcome models because a ",
+      "scalar standard error does not index the fitted predictive ",
+      "distribution of a discrete outcome model.",
+      call. = FALSE
+    )
+  }
+  if (.is_mods(x) || .is_scale(x)) {
+    stop(
+      "'bfunnel()' requires an intercept-only model with common marginal ",
+      "heterogeneity. Use 'funnel()' for a LOO-PIT residual funnel.",
+      call. = FALSE
+    )
+  }
+
+  common_heterogeneity <- .funnel_common_heterogeneity(x)
+  if (!common_heterogeneity[["common"]]) {
+    .funnel_stop_no_common_heterogeneity("bfunnel()")
+  }
+
+  funnel_data <- .funnel_data_outcome(
+    x                      = x,
+    sampling_heterogeneity = sampling_heterogeneity,
+    sampling_bias          = sampling_bias,
+    max_samples            = max_samples,
+    estimand               = "posterior_predictive",
+    common_heterogeneity   = common_heterogeneity,
+    dots                   = dots
+  )
+
+  if (isTRUE(dots[["as_data"]])) {
+    return(funnel_data)
+  }
+
+  if (plot_type == "ggplot") {
+    return(.funnel_plot_ggplot(funnel_data, dots))
+  }
+
+  .funnel_plot_base(funnel_data, dots)
+  return(invisible(NULL))
+}
+
+
+.funnel_stop_no_common_heterogeneity <- function(caller) {
+
+  stop(
+    "'", caller, "' outcome contours require one common marginal ",
+    "heterogeneity distribution across studies. This model has study-specific ",
+    "marginal heterogeneity; use a LOO-PIT residual funnel with 'funnel()'.",
+    call. = FALSE
+  )
 }
