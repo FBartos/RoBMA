@@ -1,5 +1,10 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- accelerates qCMDE/IWMDE density estimates and hypothesis Bayes factors for
+  the multilevel heterogeneity allocation `rho` with an exact grid-aware
+  cluster likelihood that avoids expanding component matrices across grid
+  values. Other targets and unsupported model structures retain their existing
+  routes.
 - evaluates normal multilevel cluster likelihoods with a native exact
   diagonal-plus-rank-one kernel shared by log-likelihood, LOO, and density
   paths. Invalid or unsupported inputs retain the existing R and full

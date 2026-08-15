@@ -194,6 +194,9 @@ extern SEXP RoBMA_norm_cluster_analytic_loglik_row_sum(SEXP yi, SEXP vi,
                                                        SEXP tau_between,
                                                        SEXP cluster_index,
                                                        SEXP cluster_size);
+extern SEXP RoBMA_norm_cluster_analytic_rho_grid_loglik(
+    SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_total, SEXP rho,
+    SEXP cluster_index, SEXP cluster_size);
 extern SEXP RoBMA_norm_cluster_loglik_row_sum(SEXP yi, SEXP sei,
                                              SEXP mu_samples,
                                              SEXP tau_within,
@@ -446,6 +449,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_norm_cluster_loglik_row_sum", (DL_FUNC) &RoBMA_norm_cluster_loglik_row_sum, 10},
     {"RoBMA_norm_cluster_analytic_loglik", (DL_FUNC) &RoBMA_norm_cluster_analytic_loglik, 7},
     {"RoBMA_norm_cluster_analytic_loglik_row_sum", (DL_FUNC) &RoBMA_norm_cluster_analytic_loglik_row_sum, 7},
+    {"RoBMA_norm_cluster_analytic_rho_grid_loglik", (DL_FUNC) &RoBMA_norm_cluster_analytic_rho_grid_loglik, 7},
     {"RoBMA_selnorm_cluster_loglik", (DL_FUNC) &RoBMA_selnorm_cluster_loglik, 25},
     {"RoBMA_selnorm_cluster_loglik_row_sum", (DL_FUNC) &RoBMA_selnorm_cluster_loglik_row_sum, 25},
     {"RoBMA_selnorm_cluster_location_grid", (DL_FUNC) &RoBMA_selnorm_cluster_location_grid, 28},

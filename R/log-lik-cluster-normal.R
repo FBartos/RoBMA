@@ -80,6 +80,31 @@
 }
 
 
+.log_lik_cluster_norm_analytic_rho_grid_sum <- function(setup, yi, vi,
+                                                         rho) {
+
+  if (!is.loaded(
+    "RoBMA_norm_cluster_analytic_rho_grid_loglik",
+    PACKAGE = "RoBMA"
+  )) {
+    return(NULL)
+  }
+  cluster <- .cluster_indices_flatten(setup[["cluster"]])
+
+  return(.Call(
+    "RoBMA_norm_cluster_analytic_rho_grid_loglik",
+    .native_numeric_vector(yi),
+    .native_numeric_vector(vi),
+    .native_numeric_matrix(setup[["mu"]]),
+    .native_numeric_matrix(setup[["tau_total"]]),
+    .native_numeric_vector(rho),
+    cluster[["index"]],
+    cluster[["size"]],
+    PACKAGE = "RoBMA"
+  ))
+}
+
+
 .log_lik_cluster_norm_analytic_r <- function(setup, yi, vi) {
 
   cluster_indices <- setup[["cluster"]]

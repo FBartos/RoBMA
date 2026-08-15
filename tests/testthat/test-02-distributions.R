@@ -124,6 +124,60 @@ test_that("analytic normal cluster likelihood matches mvtnorm oracle", {
 })
 
 
+test_that("analytic rho-grid cluster likelihood matches mvtnorm oracle", {
+
+  S <- 3L
+  K <- 6L
+  setup <- list(
+    S         = S,
+    mu        = matrix(c(
+      -.10, .00, .05, .20, .30, .35,
+       .02, .08, .12, .18, .22, .28,
+      -.15, .04, .09, .13, .19, .25
+    ), nrow = S, byrow = TRUE),
+    tau_total = matrix(c(
+      .10, .14, .18, .22, .26, .30,
+      .12, .16, .20, .24, .28, .32,
+      .08, .15, .12, .25, .18, .35
+    ), nrow = S, byrow = TRUE),
+    cluster   = list(single = 1L, pair = c(2L, 4L),
+                     triple = c(3L, 5L, 6L))
+  )
+  yi  <- c(.04, .15, -.05, .30, .08, .18)
+  vi  <- c(.10, .12, .08, .20, .15, .11)^2
+  rho <- c(0, .37, 1)
+
+  analytic <- .log_lik_cluster_norm_analytic_rho_grid_sum(
+    setup = setup,
+    yi    = yi,
+    vi    = vi,
+    rho   = rho
+  )
+  oracle <- matrix(NA_real_, nrow = length(rho), ncol = S)
+  for (r in seq_along(rho)) {
+    for (s in seq_len(S)) {
+      oracle[r, s] <- sum(vapply(setup[["cluster"]], function(idx) {
+        tau_within  <- setup[["tau_total"]][s, idx] * sqrt(1 - rho[[r]])
+        tau_between <- setup[["tau_total"]][s, idx] * sqrt(rho[[r]])
+        covariance  <- diag(
+          vi[idx] + tau_within^2,
+          nrow = length(idx), ncol = length(idx)
+        ) + tcrossprod(tau_between)
+
+        mvtnorm::dmvnorm(
+          x     = yi[idx],
+          mean  = setup[["mu"]][s, idx],
+          sigma = covariance,
+          log   = TRUE
+        )
+      }, numeric(1)))
+    }
+  }
+
+  expect_equal(analytic, oracle, tolerance = 1e-12)
+})
+
+
 test_that("analytic normal cluster likelihood agrees with unweighted quadrature", {
 
   S <- 2L

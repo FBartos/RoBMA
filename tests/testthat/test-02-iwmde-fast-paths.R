@@ -2880,6 +2880,69 @@ test_that("formula predictors bypass the quadratic location path", {
 })
 
 
+test_that("normal cluster rho grid preserves boundaries and prior rows", {
+
+  S      <- 2L
+  values <- c(-.1, 0, .4, 1, 1.1)
+  data <- list(outcome = data.frame(
+    yi  = c(.02, .15, -.05, .30),
+    sei = c(.10, .12, .08, .20)
+  ))
+  attr(data, "outcome_type") <- "norm"
+  attr(data, "cluster")      <- TRUE
+  setup <- list(
+    mu = matrix(c(
+      -.04, .05, .12, .18,
+       .02, .08, .15, .22
+    ), nrow = S, byrow = TRUE),
+    tau_total = matrix(c(
+      .10, .14, .18, .22,
+      .12, .16, .20, .24
+    ), nrow = S, byrow = TRUE),
+    yi                = data[["outcome"]][["yi"]],
+    sei               = data[["outcome"]][["sei"]],
+    cluster           = list(a = c(1L, 3L), b = c(2L, 4L)),
+    is_weightfunction = FALSE,
+    weights           = NULL
+  )
+  row_states <- rep(list(list(active_setup = list())), S)
+  basis <- list(
+    scale_update   = "rho",
+    formula_mu     = FALSE,
+    formula_logtau = FALSE,
+    mu_basis       = NULL,
+    log_tau_basis  = NULL
+  )
+  prior <- matrix(seq_len(length(values) * S) / 100,
+                  nrow = length(values), ncol = S)
+
+  testthat::local_mocked_bindings(
+    .iwmde_predictor_log_prior = function(...) as.numeric(prior),
+    .package = "RoBMA"
+  )
+  observed <- .iwmde_log_q_grid_normal_cluster_rho_group(
+    context     = list(data = data),
+    parameter   = "rho",
+    values      = values,
+    row_states  = row_states,
+    replacement = list(type = "scalar"),
+    setup       = setup,
+    basis       = basis
+  )
+  valid <- values >= 0 & values <= 1
+  expected <- matrix(-Inf, nrow = length(values), ncol = S)
+  expected[valid, ] <- .log_lik_cluster_norm_analytic_rho_grid_sum(
+    setup = setup,
+    yi    = setup[["yi"]],
+    vi    = setup[["sei"]]^2,
+    rho   = values[valid]
+  )
+  expected <- expected + prior
+
+  expect_equal(observed, expected, tolerance = 1e-12)
+})
+
+
 test_that("negative-direction selected-normal normalizer change matches matrix reference", {
 
   prior <- BayesTools::prior_weightfunction(

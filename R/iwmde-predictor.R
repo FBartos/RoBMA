@@ -338,6 +338,17 @@
   if (.data_outcome_type(context[["data"]]) != "norm") {
     return(NULL)
   }
+  if (identical(basis[["scale_update"]], "rho")) {
+    return(.iwmde_log_q_grid_normal_cluster_rho_group(
+      context     = context,
+      parameter   = parameter,
+      values      = values,
+      row_states  = row_states,
+      replacement = replacement,
+      setup       = setup,
+      basis       = basis
+    ))
+  }
   if (identical(basis[["scale_update"]], "tau")) {
     return(.iwmde_log_q_grid_normal_known_v_tau_group(
       context     = context,
@@ -426,6 +437,56 @@
   log_q[!is.finite(delta)] <- -Inf
 
   return(matrix(log_q, nrow = G, ncol = S))
+}
+
+
+.iwmde_log_q_grid_normal_cluster_rho_group <- function(
+    context, parameter, values, row_states, replacement, setup, basis) {
+
+  if (!identical(parameter, "rho") ||
+      .is_data_known_v(context[["data"]]) ||
+      !.is_data_multilevel(context[["data"]]) ||
+      isTRUE(setup[["is_weightfunction"]]) ||
+      !is.null(setup[["weights"]]) ||
+      !identical(basis[["scale_update"]], "rho") ||
+      isTRUE(basis[["formula_mu"]]) ||
+      isTRUE(basis[["formula_logtau"]]) ||
+      !is.null(basis[["mu_basis"]]) ||
+      !is.null(basis[["log_tau_basis"]])) {
+    return(NULL)
+  }
+
+  G <- length(values)
+  S <- length(row_states)
+  log_prior <- .iwmde_predictor_log_prior(
+    context     = context,
+    parameter   = parameter,
+    values      = values,
+    row_states  = row_states,
+    replacement = replacement
+  )
+  if (is.null(log_prior) || length(log_prior) != G * S) {
+    return(NULL)
+  }
+
+  valid   <- is.finite(values) & values >= 0 & values <= 1
+  log_lik <- matrix(-Inf, nrow = G, ncol = S)
+  if (any(valid)) {
+    evaluated <- .log_lik_cluster_norm_analytic_rho_grid_sum(
+      setup = setup,
+      yi    = setup[["yi"]],
+      vi    = setup[["sei"]]^2,
+      rho   = values[valid]
+    )
+    if (!is.matrix(evaluated) ||
+        !identical(dim(evaluated), c(sum(valid), S)) ||
+        any(!is.finite(evaluated))) {
+      return(NULL)
+    }
+    log_lik[valid, ] <- evaluated
+  }
+
+  return(log_lik + matrix(log_prior, nrow = G, ncol = S))
 }
 
 

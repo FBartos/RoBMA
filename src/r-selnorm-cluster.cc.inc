@@ -39,6 +39,7 @@ struct NormClusterAnalyticArgs {
   const double *mu;
   const double *tau_within;
   const double *tau_between;
+  const double *tau_total;
   const int *cluster_index;
   const int *cluster_size;
 };
@@ -185,8 +186,12 @@ const double NORM_CLUSTER_LOG_2PI = std::log(2.0 * std::acos(-1.0));
 // Integrate a normal cluster effect exactly through the determinant lemma and
 // the stable residual-plus-projection form of the Sherman-Morrison quadratic.
 double norm_cluster_analytic_loglik(const NormClusterAnalyticArgs &args, int s,
-                                    int cluster_offset, int cluster_n)
+                                    int cluster_offset, int cluster_n,
+                                    double rho = NA_REAL)
 {
+  const bool allocation_grid = args.tau_total != 0;
+  const double one_minus_rho = allocation_grid ? 1.0 - rho : NA_REAL;
+  const double sqrt_rho      = allocation_grid ? std::sqrt(rho) : NA_REAL;
   double log_det = 0.0;
   double denom   = 1.0;
   double score   = 0.0;
@@ -194,12 +199,18 @@ double norm_cluster_analytic_loglik(const NormClusterAnalyticArgs &args, int s,
   for (int m = 0; m < cluster_n; ++m) {
     const int k = args.cluster_index[cluster_offset + m] - 1;
     const int cell = s + args.S * k;
-    const double diagonal = args.vi[k] +
-      args.tau_within[cell] * args.tau_within[cell];
-    const double rank_one = args.tau_between[cell];
+    const double tau_total = allocation_grid ?
+      args.tau_total[cell] : NA_REAL;
+    const double diagonal = allocation_grid ?
+      args.vi[k] + tau_total * tau_total * one_minus_rho :
+      args.vi[k] + args.tau_within[cell] * args.tau_within[cell];
+    const double rank_one = allocation_grid ?
+      tau_total * sqrt_rho : args.tau_between[cell];
     const double residual = args.yi[k] - args.mu[cell];
     if (!std::isfinite(diagonal) || diagonal <= 0.0 ||
-        !std::isfinite(rank_one) || !std::isfinite(residual)) {
+        !std::isfinite(rank_one) || !std::isfinite(residual) ||
+        (allocation_grid &&
+         (!std::isfinite(tau_total) || tau_total < 0.0))) {
       return NA_REAL;
     }
 
@@ -217,10 +228,14 @@ double norm_cluster_analytic_loglik(const NormClusterAnalyticArgs &args, int s,
   for (int m = 0; m < cluster_n; ++m) {
     const int k = args.cluster_index[cluster_offset + m] - 1;
     const int cell = s + args.S * k;
-    const double diagonal = args.vi[k] +
-      args.tau_within[cell] * args.tau_within[cell];
+    const double tau_total = allocation_grid ?
+      args.tau_total[cell] : NA_REAL;
+    const double diagonal = allocation_grid ?
+      args.vi[k] + tau_total * tau_total * one_minus_rho :
+      args.vi[k] + args.tau_within[cell] * args.tau_within[cell];
     const double adjusted_residual = args.yi[k] - args.mu[cell] -
-      projection * args.tau_between[cell];
+      projection * (allocation_grid ?
+        tau_total * sqrt_rho : args.tau_between[cell]);
     quadratic += adjusted_residual * adjusted_residual / diagonal;
   }
 
@@ -255,6 +270,31 @@ SEXP norm_cluster_analytic_accumulate(const NormClusterAnalyticArgs &args,
       }
     }
     cluster_offset += cluster_n;
+  }
+
+  UNPROTECT(1);
+  return out;
+}
+
+SEXP norm_cluster_analytic_rho_grid_accumulate(
+    const NormClusterAnalyticArgs &args, const double *rho, int n_rho)
+{
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, n_rho, args.S));
+  double *out_p = REAL(out);
+
+  for (int s = 0; s < args.S; ++s) {
+    for (int r = 0; r < n_rho; ++r) {
+      double row_sum = 0.0;
+      int cluster_offset = 0;
+      for (int g = 0; g < args.G; ++g) {
+        const int cluster_n = args.cluster_size[g];
+        row_sum += norm_cluster_analytic_loglik(
+          args, s, cluster_offset, cluster_n, rho[r]
+        );
+        cluster_offset += cluster_n;
+      }
+      out_p[r + n_rho * s] = row_sum;
+    }
   }
 
   UNPROTECT(1);

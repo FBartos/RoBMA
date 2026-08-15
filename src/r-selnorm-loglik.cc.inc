@@ -58,6 +58,7 @@ extern "C" SEXP RoBMA_norm_cluster_analytic_loglik(
   args.mu            = REAL(mu_samples);
   args.tau_within    = REAL(tau_within);
   args.tau_between   = REAL(tau_between);
+  args.tau_total     = 0;
   args.cluster_index = INTEGER(cluster_index);
   args.cluster_size  = INTEGER(cluster_size);
 
@@ -78,10 +79,43 @@ extern "C" SEXP RoBMA_norm_cluster_analytic_loglik_row_sum(
   args.mu            = REAL(mu_samples);
   args.tau_within    = REAL(tau_within);
   args.tau_between   = REAL(tau_between);
+  args.tau_total     = 0;
   args.cluster_index = INTEGER(cluster_index);
   args.cluster_size  = INTEGER(cluster_size);
 
   return norm_cluster_analytic_accumulate(args, true);
+}
+
+extern "C" SEXP RoBMA_norm_cluster_analytic_rho_grid_loglik(
+  SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_total, SEXP rho,
+  SEXP cluster_index, SEXP cluster_size)
+{
+  NormClusterAnalyticArgs args;
+  validate_cluster_common_data(
+    yi, vi, "vi", mu_samples, tau_total, tau_total, cluster_index,
+    cluster_size, R_NilValue, &args.S, &args.K, &args.G
+  );
+  check_real(rho, "rho");
+  const int n_rho = Rf_length(rho);
+  if (n_rho < 1) {
+    Rf_error("'rho' must contain at least one value.");
+  }
+  const double *rho_p = REAL(rho);
+  for (int r = 0; r < n_rho; ++r) {
+    if (!std::isfinite(rho_p[r]) || rho_p[r] < 0.0 || rho_p[r] > 1.0) {
+      Rf_error("'rho' must contain only finite values within [0, 1].");
+    }
+  }
+  args.yi            = REAL(yi);
+  args.vi            = REAL(vi);
+  args.mu            = REAL(mu_samples);
+  args.tau_within    = 0;
+  args.tau_between   = 0;
+  args.tau_total     = REAL(tau_total);
+  args.cluster_index = INTEGER(cluster_index);
+  args.cluster_size  = INTEGER(cluster_size);
+
+  return norm_cluster_analytic_rho_grid_accumulate(args, rho_p, n_rho);
 }
 
 extern "C" SEXP RoBMA_norm_cluster_loglik(
