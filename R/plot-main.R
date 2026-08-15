@@ -273,7 +273,7 @@ lines.brma <- function(
       prior                     = prior
     )
     density_sample_parameter <- parameter
-    random_label <- parameter_entry[["term"]]
+    random_label <- attr(samples, "random_parameter_label", exact = TRUE)
     if (.density_method_uses_precomputed(density_method)) {
       target <- .brma_random_parameter_density_target(x, parameter)
       if (is.null(target[["parameter"]])) {

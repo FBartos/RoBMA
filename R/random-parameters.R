@@ -917,6 +917,7 @@
     list(target_prior),
     selected[["entry"]][["parameter"]]
   )
+  attr(out, "random_parameter_label") <- selected[["spec"]][["label"]]
   class(out) <- c("as_mixed_posteriors", "mixed_posteriors", "list")
   out
 }
