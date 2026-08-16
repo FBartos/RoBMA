@@ -64,3 +64,31 @@ test_that("intercept-only outcome funnels and automatic residual routing remain"
     list(mode = "residual")
   )
 })
+
+
+test_that("funnel location supports canonical multivariate intercepts", {
+
+  data <- data.frame(
+    yi    = c(.1, .2),
+    study = c("a", "b")
+  )
+  object <- brma.mv(
+    yi          = yi,
+    V           = diag(c(.04, .09)),
+    random      = ~ 1 | study,
+    data        = data,
+    measure     = "SMD",
+    only_priors = TRUE,
+    silent      = TRUE
+  )
+  posterior_samples <- matrix(
+    c(.15, .25),
+    ncol     = 1L,
+    dimnames = list(NULL, "mu_intercept")
+  )
+
+  expect_equal(
+    .funnel_mu_samples(object, posterior_samples),
+    c(.15, .25)
+  )
+})

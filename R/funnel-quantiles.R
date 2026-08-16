@@ -435,17 +435,33 @@
 # ---------------------------------------------------------------------------- #
 .funnel_mu_samples <- function(x, posterior_samples) {
 
-  if (!.is_mods(x)) {
-    return(as.numeric(posterior_samples[, "mu"]))
-  }
-
-  mu_samples <- pooled_effect.brma(
-    object             = x,
-    bias_adjusted      = TRUE,
-    .posterior_samples = posterior_samples
+  data   <- x[["data"]]
+  priors <- x[["priors"]]
+  mu_samples <- .evaluate.brma.mu(
+    fit               = x[["fit"]],
+    outcome_data      = data[["outcome"]],
+    mods_data         = data[["mods"]],
+    mods_formula      = if (.is_mods(x)) {
+      .create_fit_formula_list(data = data, "mods")
+    } else {
+      NULL
+    },
+    mods_priors       = if (.is_random(x)) {
+      priors[["location"]]
+    } else {
+      priors[["mods"]]
+    },
+    priors            = priors,
+    is_mods           = .is_mods(x),
+    is_PET            = .is_PET(x),
+    is_PEESE          = .is_PEESE(x),
+    effect_direction  = .effect_direction(x),
+    bias_adjusted     = TRUE,
+    K                 = nrow(data[["outcome"]]),
+    posterior_samples = posterior_samples
   )
 
-  return(as.numeric(as.matrix(mu_samples)[, 1]))
+  return(rowMeans(mu_samples))
 }
 
 
