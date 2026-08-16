@@ -29,8 +29,8 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   fit_metafor_diag_no_study   <- metafor::rma.mv(yi, V_assink_diagonal, random = ~ 1 | id, data = dat.assink2016)
   fit_metafor_diag_no_effect  <- metafor::rma.mv(yi, V_assink_diagonal, random = ~ 1 | study, data = dat.assink2016)
   fit_metafor_diag_fixed      <- metafor::rma.mv(yi, V_assink_diagonal, data = dat.assink2016)
-  fit_metafor_reg      <- metafor::rma.mv(yi, V_assink, mods = ~ deltype, random = ~ 1 | study / esid, data = dat.assink2016)
-  fit_metafor_diag_reg <- metafor::rma.mv(yi, V_assink, mods = ~ deltype, random = ~ 1 | study / esid, data = dat.assink2016)
+  fit_metafor_reg      <- metafor::rma.mv(yi, V_assink,          mods = ~ deltype, random = ~ 1 | study / esid, data = dat.assink2016)
+  fit_metafor_diag_reg <- metafor::rma.mv(yi, V_assink_diagonal, mods = ~ deltype, random = ~ 1 | study / esid, data = dat.assink2016)
 
   fit_brma.mv <- scenario_fit("fit_brma.mv", {
     tmp <- brma.mv(yi = yi, V = V_assink, measure = "SMD", random = ~ 1 | study / esid, data = dat.assink2016, seed = 1)
@@ -157,8 +157,8 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   scenario_text("summary-fit_brma.mv_reg", summary(fit_brma.mv_reg))
 
   fit_metafor_diag_reg # the estimates are shrunk -- the original ones are quite large
-  scenario_text("summary-fit_brma.mv_diag_fixed", summary(fit_brma.mv_diag_reg))
-  scenario_text("summary-fit_brma_cluster_reg",   summary(fit_brma_cluster_reg))
+  scenario_text("summary-fit_brma.mv_diag_reg", summary(fit_brma.mv_diag_reg))
+  scenario_text("summary-fit_brma_cluster_reg", summary(fit_brma_cluster_reg))
 
   # model comparison equivalence
   scenario_text("model-fit-equivalent", cbind.data.frame(
@@ -326,7 +326,7 @@ testthat::test_that("Assink multivariate nested random-effects model", {
 
   scenario_text("pooled-effect-reg",          compare_preds_reg(fit_metafor_reg,      fit_brma.mv_reg))
   scenario_text("pooled-effect-diag-reg",     compare_preds_reg(fit_metafor_diag_reg, fit_brma.mv_diag_reg, fit_brma_cluster_reg))
-  scenario_text("pooled-effect-reg_pi",       compare_preds_reg_pi(fit_metafor_reg,      fit_brma.mv_reg))
+  scenario_text("pooled-effect-reg_pi",       compare_preds_reg_pi(fit_metafor_reg,      fit_brma.mv_reg)) # TODO examine
   scenario_text("pooled-effect-diag-reg_pi",  compare_preds_reg_pi(fit_metafor_diag_reg, fit_brma.mv_diag_reg, fit_brma_cluster_reg))
 
   ### marginal means ----

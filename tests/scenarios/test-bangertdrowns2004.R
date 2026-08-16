@@ -256,7 +256,7 @@ testthat::test_that("Bangertdrowns location-scale models", {
   metafor_estimate <- metafor::blup(metafor_ls)[["pred"]]
   metafor_ranef    <- metafor_estimate - metafor_terms
   scenario_plot("fit_ls_prediction_agreement", {
-    par(mfrow = c(1, 3))
+    par(mfrow = c(1, 3)) # TODO: these look incorrect
     scenario_agreement_plot(metafor_terms, brma_terms, "Location")
     scenario_agreement_plot(metafor_estimate, brma_estimate, "BLUP")
     scenario_agreement_plot(metafor_ranef, brma_ranef, "Random effect")

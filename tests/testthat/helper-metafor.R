@@ -168,7 +168,7 @@ expect_residuals_match_metafor <- function(case) {
   if (kind %in% c("multilevel", "multilevel_no_loo")) {
     metafor_conditional <- metafor_rstandard_conditional_mv(fit_metafor)
     brma_conditional    <- rstandard(fit_brma, conditioning_depth = "estimate")
-    brma_theta          <- colMeans(as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE)))
+    brma_theta          <- colMeans(as.matrix(predict(fit_brma, type = "blup", quiet = TRUE)))
     metafor_theta       <- fit_metafor[["yi"]] - metafor_conditional$resid
 
     testthat::expect_equal(as.vector(brma_theta), as.vector(metafor_theta),
@@ -311,10 +311,11 @@ expect_prediction_matches_metafor <- function(case) {
                            info = paste(name, "tau matches metafor"))
 
     theta_predict <- .sample_means(predict(fit_brma, type = "effect"))
+    theta_terms   <- .sample_means(predict(fit_brma, type = "terms"))
     theta_blup    <- .sample_means(blup(fit_brma))
     theta_true    <- .sample_means(true_effects(fit_brma))
-    testthat::expect_equal(theta_predict, theta_blup,
-                           info = paste(name, "predict effect matches blup"))
+    testthat::expect_equal(theta_predict, theta_terms, tolerance = 0.05,
+                           info = paste(name, "marginal true effects center on location"))
     testthat::expect_equal(theta_blup, theta_true,
                            info = paste(name, "true_effects match blup"))
     testthat::expect_equal(theta_blup, metafor::blup(fit_metafor)$pred,
