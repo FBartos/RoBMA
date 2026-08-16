@@ -494,12 +494,9 @@ test_that("plot quantile inversion returns the generalized inverse", {
     0
   )
   expect_identical(
-    testthat::with_mocked_bindings(
-      .funnel_bracketed_quantile_precomputed(.5, -1, 1, list()),
-      .funnel_model_averaged_cdf_precomputed = function(q, se_setup) {
-        step_cdf(q)
-      },
-      .package = "RoBMA"
+    .funnel_bracketed_quantile_precomputed(
+      .5, -1, 1, list(),
+      cdf_fun = function(q, se_setup) step_cdf(q)
     ),
     jump
   )
@@ -533,6 +530,7 @@ test_that("selected plot quantiles return the left edge of CDF plateaus", {
   selection[["kernel_mode"]] <- SELKERNEL_STEP
   selection[["use_normal"]]  <- FALSE
   selection[["has_phack"]]   <- FALSE
+  expect_true(selection[["telescope_probabilities"]])
 
   setup <- list(
     mu                = 0,
@@ -573,6 +571,21 @@ test_that("selected plot quantiles return the left edge of CDF plateaus", {
       caller             = "test"
     )
     expect_equal(regplot_native[, 1L], boundary, tolerance = 1e-14)
+
+    selection_fallback <- selection
+    selection_fallback[["telescope_probabilities"]] <- FALSE
+    selection_fallback[["native_cache"]] <- new.env(parent = emptyenv())
+    regplot_fallback <- .plot_mixture_quantiles_native(
+      mean_samples      = matrix(0, nrow = 1L),
+      sd_samples        = matrix(1, nrow = 1L),
+      se                = 1,
+      probs             = c(.5, .975),
+      weights           = 1,
+      selected_rows     = TRUE,
+      selection_context = selection_fallback,
+      caller            = "test"
+    )
+    expect_equal(regplot_native, regplot_fallback, tolerance = 1e-12)
   }
 
   if (.has_native_funnel_model_averaged_quantiles(setup)) {
@@ -605,26 +618,23 @@ test_that("plot quantile inversion fails without a valid CDF bracket", {
     "valid bracketed CDF"
   )
   expect_error(
-    testthat::with_mocked_bindings(
-      .funnel_bracketed_quantile_precomputed(.5, -1, 1, list()),
-      .funnel_model_averaged_cdf_precomputed = function(q, se_setup) .25,
-      .package = "RoBMA"
+    .funnel_bracketed_quantile_precomputed(
+      .5, -1, 1, list(),
+      cdf_fun = function(q, se_setup) .25
     ),
     "valid bracketed CDF"
   )
   expect_error(
-    testthat::with_mocked_bindings(
-      .funnel_bracketed_quantile_precomputed(.5, -1, 1, list()),
-      .funnel_model_averaged_cdf_precomputed = function(q, se_setup) .75,
-      .package = "RoBMA"
+    .funnel_bracketed_quantile_precomputed(
+      .5, -1, 1, list(),
+      cdf_fun = function(q, se_setup) .75
     ),
     "valid bracketed CDF"
   )
   expect_error(
-    testthat::with_mocked_bindings(
-      .funnel_bracketed_quantile_precomputed(.5, -1, 1, list()),
-      .funnel_model_averaged_cdf_precomputed = function(q, se_setup) .5,
-      .package = "RoBMA"
+    .funnel_bracketed_quantile_precomputed(
+      .5, -1, 1, list(),
+      cdf_fun = function(q, se_setup) .5
     ),
     "valid bracketed CDF"
   )

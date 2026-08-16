@@ -3,9 +3,13 @@
 - unifies plug-in funnel, Bayesian funnel, and regression-plot contour
   evaluation in one exact weighted posterior-mixture quantile engine. Normal,
   PET, PEESE, model-averaged, and selected-normal contours now share native
-  batching, neighboring-grid root reuse, atom and selection-gap semantics, and
-  a prepared selected-normal telescoping path with the log-space evaluator as
-  its numerical fallback.
+  batching, ordered multi-quantile root reuse, atom and selection-gap semantics,
+  and a prepared selected-normal telescoping path with the log-space evaluator
+  as its numerical fallback. Production plotting now uses this native engine
+  exclusively, while independent R implementations remain as test references.
+  Exact zero-weight selection plateaus are cached instead of repeatedly using
+  the log-space evaluator, and regression-plot sampling deviations are built
+  column-wise without allocating redundant full-size intermediate matrices.
 - accelerates qCMDE/IWMDE density estimates and hypothesis Bayes factors for
   the multilevel heterogeneity allocation `rho` with an exact grid-aware
   cluster likelihood that avoids expanding component matrices across grid

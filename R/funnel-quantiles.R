@@ -213,53 +213,11 @@
 .get_funnel_quantiles_model_averaged <- function(se_sequence, setup,
                                                  effect_direction) {
 
-  if (.has_native_funnel_model_averaged_quantiles(setup)) {
-    return(.funnel_model_averaged_quantiles_native(
-      se_sequence      = se_sequence,
-      setup            = setup,
-      effect_direction = effect_direction
-    ))
-  }
-
-  lower <- vapply(
-    se_sequence,
-    .funnel_model_averaged_quantile,
-    numeric(1),
-    p                = 0.025,
+  return(.funnel_model_averaged_quantiles_native(
+    se_sequence      = se_sequence,
     setup            = setup,
     effect_direction = effect_direction
-  )
-  upper <- vapply(
-    se_sequence,
-    .funnel_model_averaged_quantile,
-    numeric(1),
-    p                = 0.975,
-    setup            = setup,
-    effect_direction = effect_direction
-  )
-  mid <- vapply(
-    se_sequence,
-    .funnel_model_averaged_quantile,
-    numeric(1),
-    p                = 0.5,
-    setup            = setup,
-    effect_direction = effect_direction
-  )
-
-  return(list(lower = lower, upper = upper, mid = mid))
-}
-
-.has_native_funnel_model_averaged_quantiles <- function(setup) {
-
-  if (!is.null(setup[["selection"]]) &&
-      any(setup[["is_weightfunction"]])) {
-    return(is.loaded(
-      "RoBMA_plot_selnorm_mixture_quantiles",
-      PACKAGE = "RoBMA"
-    ))
-  }
-
-  return(is.loaded("RoBMA_plot_normal_mixture_quantiles", PACKAGE = "RoBMA"))
+  ))
 }
 
 .funnel_model_averaged_quantiles_native <- function(se_sequence, setup,
@@ -298,6 +256,29 @@
     upper = quantiles[, 2L],
     mid   = quantiles[, 3L]
   ))
+}
+
+
+.funnel_setup_weights <- function(setup) {
+
+  weights <- setup[["weights"]]
+  if (is.null(weights)) {
+    return(rep(1 / length(setup[["mu"]]), length(setup[["mu"]])))
+  }
+
+  return(weights / sum(weights))
+}
+
+
+.funnel_row_location <- function(se, setup, effect_direction) {
+
+  direction <- ifelse(effect_direction == "negative", -1, 1)
+
+  return(
+    setup[["mu"]] +
+      direction * setup[["PET"]] * se +
+      direction * setup[["PEESE"]] * se^2
+  )
 }
 
 

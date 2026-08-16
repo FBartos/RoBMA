@@ -26,7 +26,8 @@ double plot_brent_root(Function function,
                        double upper,
                        double lower_value,
                        double upper_value,
-                       double tolerance)
+                       double tolerance,
+                       double *root_value = NULL)
 {
   double previous       = lower;
   double current        = upper;
@@ -62,6 +63,9 @@ double plot_brent_root(Function function,
     );
     const double bisection_step = 0.5 * (bracket - current);
     if (current_value == 0 || std::fabs(bisection_step) < delta) {
+      if (root_value != NULL) {
+        *root_value = current_value;
+      }
       return current;
     }
 

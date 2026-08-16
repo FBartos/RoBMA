@@ -729,7 +729,7 @@ test_that("Regression plot confidence-level snapshots are stable", {
 
 test_that("native regplot mixture intervals match R fallback", {
 
-  skip_if_not(RoBMA:::.has_native_regplot_mixture())
+  skip_if_not(.has_native_regplot_mixture())
 
   set.seed(1024)
 
@@ -740,7 +740,7 @@ test_that("native regplot mixture intervals match R fallback", {
   mean_samples <- matrix(stats::rnorm(S * K), nrow = S, ncol = K)
   sd_samples   <- matrix(stats::runif(S * K, .05, 1.25), nrow = S, ncol = K)
 
-  expected <- RoBMA:::.regplot_mixture_interval_quantiles_r(
+  expected <- .regplot_mixture_interval_quantiles_r(
     mean_samples = mean_samples,
     sd_samples   = sd_samples,
     probs        = probs

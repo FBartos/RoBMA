@@ -1012,13 +1012,12 @@
   }
 
   if (si) {
-    sampling_sei <- matrix(
-      grid_sei,
-      nrow  = nrow(tau_total),
-      ncol  = ncol(tau_total),
-      byrow = TRUE
+    sd_si <- vapply(
+      seq_len(ncol(tau_total)),
+      function(i) .root_sum_squares(tau_total[, i], grid_sei[[i]]),
+      numeric(nrow(tau_total))
     )
-    sd_si <- .root_sum_squares(tau_total, sampling_sei)
+    sd_si <- matrix(sd_si, nrow = nrow(tau_total), ncol = ncol(tau_total))
 
     if (sampling_bias && .is_weightfunction(x)) {
       si_bounds <- .regplot_selection_mixture_interval_quantiles(

@@ -1,6 +1,19 @@
 # ============================================================================ #
-# funnel-selected-normal.R
+# Independent R reference for funnel selected-normal quantiles.
 # ============================================================================ #
+
+.has_native_funnel_model_averaged_quantiles <- function(setup) {
+
+  if (!is.null(setup[["selection"]]) &&
+      any(setup[["is_weightfunction"]])) {
+    return(is.loaded(
+      "RoBMA_plot_selnorm_mixture_quantiles",
+      PACKAGE = "RoBMA"
+    ))
+  }
+
+  return(is.loaded("RoBMA_plot_normal_mixture_quantiles", PACKAGE = "RoBMA"))
+}
 
 # .funnel_model_averaged_quantile
 # ---------------------------------------------------------------------------- #
@@ -511,10 +524,12 @@
 # Return inf{x: F(x) >= p} using a precomputed standard-error context.
 #
 # ---------------------------------------------------------------------------- #
-.funnel_bracketed_quantile_precomputed <- function(p, lower, upper, se_setup) {
+.funnel_bracketed_quantile_precomputed <- function(
+    p, lower, upper, se_setup,
+    cdf_fun = .funnel_model_averaged_cdf_precomputed) {
 
-  lower_cdf <- .funnel_model_averaged_cdf_precomputed(lower, se_setup)
-  upper_cdf <- .funnel_model_averaged_cdf_precomputed(upper, se_setup)
+  lower_cdf <- cdf_fun(lower, se_setup)
+  upper_cdf <- cdf_fun(upper, se_setup)
   if (!is.finite(lower_cdf) || !is.finite(upper_cdf) ||
       lower_cdf >= p || upper_cdf < p) {
     stop(
@@ -527,7 +542,7 @@
     if (mid <= lower || mid >= upper) {
       break
     }
-    mid_cdf <- .funnel_model_averaged_cdf_precomputed(mid, se_setup)
+    mid_cdf <- cdf_fun(mid, se_setup)
     if (!is.finite(mid_cdf)) {
       stop(
         "Funnel quantiles could not be computed from a valid bracketed CDF.",

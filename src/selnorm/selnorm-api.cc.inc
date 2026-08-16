@@ -326,11 +326,6 @@ bool cpp_selnorm_step_cdf_telescope_plan(
   }
 
   const double signed_mean = data.effect_sign * mean;
-  for (int b = 0; b < data.n_bins; ++b) {
-    if (!(omega_at(omega, b + 1, omega_stride) > 0)) {
-      return false;
-    }
-  }
   *omega_last = omega_at(omega, data.n_bins, omega_stride);
   *normalizer = *omega_last;
   double normalizer_abs = std::abs(*normalizer);

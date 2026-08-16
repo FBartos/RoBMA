@@ -459,7 +459,7 @@ test_that("shared native plot quantiles honor weights and arbitrary probabilitie
   mean_samples <- matrix(c(0, 2, -1, 3), nrow = 2L)
   sd_samples   <- matrix(c(.5, 1, .8, .4), nrow = 2L)
   weights      <- c(.75, .25)
-  probs        <- c(.1, .5, .9)
+  probs        <- c(.9, .1, .5, .5)
   actual <- .plot_mixture_quantiles_native(
     mean_samples = mean_samples,
     sd_samples   = sd_samples,
@@ -488,6 +488,7 @@ test_that("shared native plot quantiles honor weights and arbitrary probabilitie
   expected <- t(expected)
 
   expect_equal(actual, expected, tolerance = 1e-12)
+  expect_identical(actual[, 3L], actual[, 4L])
 
   atomic <- .plot_mixture_quantiles_native(
     mean_samples = matrix(c(0, 2), ncol = 1L),

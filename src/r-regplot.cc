@@ -186,6 +186,19 @@ bool plot_row_has_active_phack(int mode, double alpha, int phack_kind)
     mode == SELKERNEL_STEP_PHACK_POWER) && phack_kind > 0 && alpha > 0;
 }
 
+int plot_step_bin(double q, double se, const SelNormKernelData &data)
+{
+  const double signed_q = data.effect_sign * q;
+  for (int b = 0; b < data.n_bins; ++b) {
+    if (signed_q >= data.z_lower[b] * se &&
+        signed_q <= data.z_upper[b] * se) {
+      return b;
+    }
+  }
+
+  return signed_q > data.z_upper[0] * se ? 0 : data.n_bins - 1;
+}
+
 double plot_probability_or_na(double x)
 {
   return std::isfinite(x) && x >= 0 && x <= 1 ? x : NA_REAL;
@@ -228,10 +241,12 @@ struct PlotMixtureContext {
   const std::vector<bool> *row_active_phack;
   const SelNormKernelData *data;
   std::vector<char> telescope_plan_valid;
+  std::vector<char> telescope_has_zero;
   std::vector<double> telescope_boundary_tail;
   std::vector<double> telescope_omega_diff;
   std::vector<double> telescope_omega_last;
   std::vector<double> telescope_normalizer;
+  std::vector<double> telescope_gap_cdf;
   std::vector<char> log_plan_valid;
   std::vector<int> log_plan_groups;
   std::vector<double> log_lower_score;
@@ -254,10 +269,12 @@ void plot_prepare_selection(PlotMixtureContext *ctx)
     static_cast<size_t>(B);
 
   ctx->telescope_plan_valid.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->telescope_has_zero.assign(static_cast<size_t>(ctx->S), 0);
   ctx->telescope_boundary_tail.assign(boundary_size, 0);
   ctx->telescope_omega_diff.assign(boundary_size, 0);
   ctx->telescope_omega_last.assign(static_cast<size_t>(ctx->S), 0);
   ctx->telescope_normalizer.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->telescope_gap_cdf.assign(log_size, NA_REAL);
   ctx->log_plan_valid.assign(static_cast<size_t>(ctx->S), 0);
   ctx->log_plan_groups.assign(static_cast<size_t>(ctx->S), 0);
   ctx->log_lower_score.assign(log_size, 0);
@@ -274,6 +291,12 @@ void plot_prepare_selection(PlotMixtureContext *ctx)
     }
 
     const size_t boundary_offset = si * static_cast<size_t>(boundaries);
+    for (int b = 0; b < B; ++b) {
+      if (ctx->omega[s + ctx->S * b] == 0) {
+        ctx->telescope_has_zero[si] = 1;
+        break;
+      }
+    }
     double *boundary_tail = boundaries > 0 ?
       ctx->telescope_boundary_tail.data() + boundary_offset : NULL;
     double *omega_diff = boundaries > 0 ?
@@ -285,7 +308,7 @@ void plot_prepare_selection(PlotMixtureContext *ctx)
         &ctx->telescope_omega_last[si],
         &ctx->telescope_normalizer[si], ctx->S, false
       );
-    if (ctx->telescope_plan_valid[si]) {
+    if (ctx->telescope_plan_valid[si] && !ctx->telescope_has_zero[si]) {
       continue;
     }
 
@@ -299,6 +322,32 @@ void plot_prepare_selection(PlotMixtureContext *ctx)
       &n_groups, ctx->S, false
     );
     ctx->log_plan_groups[si] = n_groups;
+    if (ctx->telescope_plan_valid[si] && ctx->log_plan_valid[si]) {
+      for (int b = 0; b < B; ++b) {
+        if (ctx->omega[s + ctx->S * b] != 0) {
+          continue;
+        }
+        const double signed_lower = ctx->data->z_lower[b] * ctx->se;
+        const double signed_upper = ctx->data->z_upper[b] * ctx->se;
+        double signed_query;
+        if (std::isfinite(signed_lower) && std::isfinite(signed_upper)) {
+          signed_query = 0.5 * signed_lower + 0.5 * signed_upper;
+        } else if (std::isfinite(signed_lower)) {
+          signed_query = std::nextafter(signed_lower, INFINITY);
+        } else {
+          signed_query = std::nextafter(signed_upper, -INFINITY);
+        }
+        const double query = ctx->data->effect_sign * signed_query;
+        ctx->telescope_gap_cdf[log_offset + static_cast<size_t>(b)] =
+          cpp_selnorm_step_cdf_from_plan(
+            query, ctx->mean[s], ctx->sd[s], ctx->se, *ctx->data,
+            ctx->log_lower_score.data() + log_offset,
+            ctx->log_upper_score.data() + log_offset,
+            ctx->log_weight.data() + log_offset,
+            ctx->log_plan_groups[si], true
+          );
+      }
+    }
   }
 }
 
@@ -368,6 +417,16 @@ double plot_selected_cdf(double q, int s, const PlotMixtureContext &ctx)
 
   const int B = ctx.data->n_bins;
   if (ctx.telescope_plan_valid[si]) {
+    if (ctx.telescope_has_zero[si]) {
+      const int bin = plot_step_bin(q, ctx.se, *ctx.data);
+      if (ctx.omega[s + ctx.S * bin] == 0 && ctx.log_plan_valid[si]) {
+        const size_t log_offset = si * static_cast<size_t>(B);
+        return ctx.telescope_gap_cdf[
+          log_offset + static_cast<size_t>(bin)
+        ];
+      }
+    }
+
     const int boundaries = std::max(0, B - 1);
     const size_t offset = si * static_cast<size_t>(boundaries);
     const double *boundary_tail = boundaries > 0 ?
@@ -493,7 +552,9 @@ double plot_weighted_empirical_quantile(const PlotMixtureContext &ctx,
 }
 
 double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
-                             double previous, bool use_previous)
+                             double previous, bool use_previous,
+                             double floor, double floor_cdf, bool use_floor,
+                             double *quantile_cdf)
 {
   bool all_zero_sd = true;
   bool all_positive_sd = true;
@@ -513,7 +574,9 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
   }
 
   if (all_zero_sd) {
-    return plot_weighted_empirical_quantile(ctx, p);
+    const double quantile = plot_weighted_empirical_quantile(ctx, p);
+    *quantile_cdf = plot_mixture_cdf(quantile, ctx);
+    return quantile;
   }
   if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper ||
       !(step > 0)) {
@@ -524,26 +587,41 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
   const double global_upper = upper;
   const double global_step  = step;
   bool using_previous = use_previous && std::isfinite(previous);
-  if (using_previous) {
+  const bool using_floor = use_floor && std::isfinite(floor) &&
+    std::isfinite(floor_cdf);
+  if (using_floor && floor_cdf >= p) {
+    *quantile_cdf = floor_cdf;
+    return floor;
+  }
+
+  if (using_previous || using_floor) {
     step  = std::max(
       RoBMA::plot_root_tolerance(global_lower, global_upper, global_step),
       0.05 * global_step
     );
+  }
+  if (using_floor) {
+    lower = floor;
+    upper = using_previous ?
+      std::max(floor + step, previous + step) : global_upper;
+  } else if (using_previous) {
     lower = previous - step;
     upper = previous + step;
   }
 
-  double lower_value = plot_mixture_cdf(lower, ctx) - p;
+  double lower_value = using_floor ?
+    floor_cdf - p : plot_mixture_cdf(lower, ctx) - p;
   double upper_value = plot_mixture_cdf(upper, ctx) - p;
   if (!std::isfinite(lower_value) || !std::isfinite(upper_value)) {
     if (!using_previous) {
       return NA_REAL;
     }
     using_previous = false;
-    lower = global_lower;
+    lower = using_floor ? floor : global_lower;
     upper = global_upper;
     step  = global_step;
-    lower_value = plot_mixture_cdf(lower, ctx) - p;
+    lower_value = using_floor ?
+      floor_cdf - p : plot_mixture_cdf(lower, ctx) - p;
     upper_value = plot_mixture_cdf(upper, ctx) - p;
   }
 
@@ -553,6 +631,10 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
         break;
       }
       if (lower_value >= 0) {
+        if (using_floor) {
+          *quantile_cdf = floor_cdf;
+          return floor;
+        }
         lower -= step;
         lower_value = plot_mixture_cdf(lower, ctx) - p;
       }
@@ -574,10 +656,11 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
       return NA_REAL;
     }
     using_previous = false;
-    lower = global_lower;
+    lower = using_floor ? floor : global_lower;
     upper = global_upper;
     step  = global_step;
-    lower_value = plot_mixture_cdf(lower, ctx) - p;
+    lower_value = using_floor ?
+      floor_cdf - p : plot_mixture_cdf(lower, ctx) - p;
     upper_value = plot_mixture_cdf(upper, ctx) - p;
   }
 
@@ -590,13 +673,15 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
     const double tolerance = RoBMA::plot_root_tolerance(
       global_lower, global_upper, global_step
     );
+    double root_value = NA_REAL;
     const double root = RoBMA::plot_brent_root(
       [&ctx, p](double value) {
         return plot_mixture_cdf(value, ctx) - p;
       },
-      lower, upper, lower_value, upper_value, tolerance
+      lower, upper, lower_value, upper_value, tolerance, &root_value
     );
     if (std::isfinite(root)) {
+      *quantile_cdf = p + root_value;
       return root;
     }
   }
@@ -612,16 +697,19 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
     }
     if (mid_value >= 0) {
       upper = mid;
+      upper_value = mid_value;
     } else {
       lower = mid;
+      lower_value = mid_value;
     }
   }
+  *quantile_cdf = p + upper_value;
   return upper;
 }
 
 SEXP plot_mixture_quantile_matrix(SEXP mean, SEXP sd, SEXP probs,
                                   SEXP weights, PlotMixtureContext *ctx,
-                                  bool prepare_selection,
+                                  double weight_sum, bool prepare_selection,
                                   const double *se = NULL,
                                   int se_length = 0)
 {
@@ -630,10 +718,16 @@ SEXP plot_mixture_quantile_matrix(SEXP mean, SEXP sd, SEXP probs,
   const int P = Rf_length(probs);
   SEXP out = PROTECT(Rf_allocMatrix(REALSXP, K, P));
   std::vector<double> previous(static_cast<size_t>(P), NA_REAL);
+  std::vector<std::pair<double, int> > probability_order;
+  probability_order.reserve(static_cast<size_t>(P));
+  for (int j = 0; j < P; ++j) {
+    probability_order.push_back(std::make_pair(REAL(probs)[j], j));
+  }
+  std::sort(probability_order.begin(), probability_order.end());
 
   ctx->S          = S;
   ctx->weights    = REAL(weights);
-  ctx->weight_sum = plot_validate_weights(weights, S);
+  ctx->weight_sum = weight_sum;
   ctx->full_support = plot_mixture_has_full_support(*ctx);
   for (int k = 0; k < K; ++k) {
     ctx->mean = REAL(mean) + static_cast<size_t>(S) * static_cast<size_t>(k);
@@ -643,9 +737,21 @@ SEXP plot_mixture_quantile_matrix(SEXP mean, SEXP sd, SEXP probs,
       plot_prepare_selection(ctx);
     }
 
-    for (int j = 0; j < P; ++j) {
+    double quantile_floor = NA_REAL;
+    double floor_cdf      = NA_REAL;
+    double floor_prob     = NA_REAL;
+    for (int rank = 0; rank < P; ++rank) {
+      const int j = probability_order[static_cast<size_t>(rank)].second;
+      const double probability = REAL(probs)[j];
+      if (rank > 0 && probability == floor_prob) {
+        REAL(out)[k + K * j] = quantile_floor;
+        previous[static_cast<size_t>(j)] = quantile_floor;
+        continue;
+      }
+
       const double quantile = plot_mixture_quantile(
-        REAL(probs)[j], *ctx, previous[static_cast<size_t>(j)], k > 0
+        probability, *ctx, previous[static_cast<size_t>(j)], k > 0,
+        quantile_floor, floor_cdf, rank > 0, &floor_cdf
       );
       if (!std::isfinite(quantile)) {
         Rf_error(
@@ -654,6 +760,13 @@ SEXP plot_mixture_quantile_matrix(SEXP mean, SEXP sd, SEXP probs,
       }
       REAL(out)[k + K * j] = quantile;
       previous[static_cast<size_t>(j)] = quantile;
+      quantile_floor = quantile;
+      floor_prob     = probability;
+      if (!std::isfinite(floor_cdf)) {
+        Rf_error(
+          "Plot mixture quantiles could not be evaluated at the computed root."
+        );
+      }
     }
   }
 
@@ -669,7 +782,7 @@ extern "C" SEXP RoBMA_plot_normal_mixture_quantiles(
   int S, K;
   plot_validate_mean_sd(mean, sd, &S, &K);
   plot_validate_probs(probs);
-  plot_validate_weights(weights, S);
+  const double weight_sum = plot_validate_weights(weights, S);
 
   PlotMixtureContext ctx;
   ctx.se               = 0;
@@ -681,7 +794,7 @@ extern "C" SEXP RoBMA_plot_normal_mixture_quantiles(
   ctx.row_active_phack = NULL;
   ctx.data             = NULL;
   return plot_mixture_quantile_matrix(
-    mean, sd, probs, weights, &ctx, false
+    mean, sd, probs, weights, &ctx, weight_sum, false
   );
 }
 
@@ -696,7 +809,7 @@ extern "C" SEXP RoBMA_plot_selnorm_mixture_quantiles(
   int S, K;
   plot_validate_mean_sd(mean, sd, &S, &K);
   plot_validate_probs(probs);
-  plot_validate_weights(weights, S);
+  const double weight_sum = plot_validate_weights(weights, S);
   plot_check_real(se, "se");
   plot_check_integer(selected, "selected");
   plot_check_real(omega, "omega");
@@ -803,6 +916,7 @@ extern "C" SEXP RoBMA_plot_selnorm_mixture_quantiles(
   ctx.data             = &data;
 
   return plot_mixture_quantile_matrix(
-    mean, sd, probs, weights, &ctx, true, REAL(se), Rf_length(se)
+    mean, sd, probs, weights, &ctx, weight_sum, true,
+    REAL(se), Rf_length(se)
   );
 }
