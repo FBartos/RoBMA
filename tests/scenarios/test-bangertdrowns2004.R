@@ -240,23 +240,23 @@ testthat::test_that("Bangertdrowns location-scale models", {
   ### direct predictions ----
   newdata <- data.frame(ni100 = c(0.5, 1, 2), vi = c(0.01, 0.04, 0.09))
   scenario_text("fit_prediction_comparison", {data.frame(
-    BMA_terms     = summary(predict(fit_BMA, newdata = newdata, type = "terms",       quiet = TRUE))[, "Mean"],
-    brma_terms    = summary(predict(fit_ls, newdata = newdata, type = "terms",       quiet = TRUE))[, "Mean"],
+    BMA_terms     = summary(predict(fit_BMA, newdata = newdata, type = "terms"))[, "Mean"],
+    brma_terms    = summary(predict(fit_ls, newdata = newdata, type = "terms"))[, "Mean"],
     metafor_terms = predict(metafor_ls, newmods = newdata$ni100)[["pred"]],
-    BMA_scale     = summary(predict(fit_BMA, newdata = newdata, type = "terms.scale", quiet = TRUE))[, "Mean"],
-    brma_scale    = summary(predict(fit_ls, newdata = newdata, type = "terms.scale", quiet = TRUE))[, "Mean"],
+    BMA_scale     = summary(predict(fit_BMA, newdata = newdata, type = "terms.scale"))[, "Mean"],
+    brma_scale    = summary(predict(fit_ls, newdata = newdata, type = "terms.scale"))[, "Mean"],
     metafor_scale = sqrt(exp(predict(metafor_ls, newscale = newdata$ni100)[["pred"]]))
   )})
 
   ### prediction comparisons ----
-  brma_terms       <- colMeans(predict(fit_ls, type = "terms", quiet = TRUE))
-  brma_estimate    <- colMeans(predict(fit_ls, type = "estimate", quiet = TRUE))
+  brma_terms       <- data.frame(predict(fit_ls, type = "terms"))[["Mean"]]
+  brma_estimate    <- data.frame(predict(fit_ls, type = "estimate", conditioning_depth = "estimate"))[["Mean"]]
   brma_ranef       <- colMeans(ranef(fit_ls))
   metafor_terms    <- predict(metafor_ls)[["pred"]]
   metafor_estimate <- metafor::blup(metafor_ls)[["pred"]]
-  metafor_ranef    <- metafor_estimate - metafor_terms
+  metafor_ranef    <- metafor::ranef(metafor_ls)[["pred"]]
   scenario_plot("fit_ls_prediction_agreement", {
-    par(mfrow = c(1, 3)) # TODO: these look incorrect
+    par(mfrow = c(1, 3))
     scenario_agreement_plot(metafor_terms, brma_terms, "Location")
     scenario_agreement_plot(metafor_estimate, brma_estimate, "BLUP")
     scenario_agreement_plot(metafor_ranef, brma_ranef, "Random effect")
