@@ -278,7 +278,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
     pred_type <- switch(conditioning_depth,
       "marginal" = "terms",
       "cluster"  = "cluster",
-      "estimate" = "estimate"
+      "estimate" = "blup"
     )
 
     fitted_samples <- predict.brma(

@@ -44,7 +44,8 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
   )
   context <- list(
     object              = object,
-    type                = "estimate",
+    type                = "location",
+    conditioning_depth  = "estimate",
     same_data           = TRUE,
     new_data            = object[["data"]],
     known_V_new         = NULL,
@@ -196,7 +197,7 @@ test_that("selected-normal multilevel ranef retains sampled latent components", 
     },
     predict.brma = function(object, type, ...) {
       switch(type,
-        estimate = make_samples(fixed + cluster + estimate),
+        blup     = make_samples(fixed + cluster + estimate),
         terms    = make_samples(fixed),
         cluster  = make_samples(fixed + cluster)
       )

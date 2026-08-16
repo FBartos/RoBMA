@@ -161,6 +161,9 @@ posterior means separately within every complete joint model. The resulting
 model-specific CDFs are averaged with posterior model probabilities and only
 then inverted; neither parameters nor contour endpoints are averaged across
 models.
+For normal models, these contours use the marginal response target:
+heterogeneity represents newly realized latent effects and fitted study
+effects are not retained.
 For correlated known-\code{V} \code{brma.mv()} models, outcome-mode funnels
 are descriptive scalar-SE displays based on the diagonal of \code{V}; residual
 mode follows the fitted estimate-unit residual target.
@@ -200,9 +203,10 @@ contours use the corresponding continuity-corrected effect-size estimates
 and approximate standard errors in a normal reference calculation. The
 default x-axis label and a warning identify this as a descriptive
 approximation; it is not a coverage interval from the fitted binomial or
-Poisson likelihood. Exact discrete-likelihood coverage cannot be indexed by
-a scalar standard error alone because it also depends on arm totals or
-exposures and nuisance rates.
+Poisson likelihood and does not use the prior-nuisance marginal GLMM response
+target from \code{predict()}. Exact discrete-likelihood coverage cannot be
+indexed by a scalar standard error alone because it also depends on arm
+totals or exposures and nuisance rates.
 LOO-PIT residual mode is unavailable because the fitted predictive
 distribution is discrete and no discrete PIT convention has been defined.
 Use \code{type = "outcome"} for a descriptive effect-size-scale residual

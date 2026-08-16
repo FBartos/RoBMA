@@ -103,10 +103,11 @@ rows are shown as usual Wald intervals based on the supplied effect sizes
 and standard errors. The model summary row uses the posterior mean and
 credible interval from \code{\link{pooled_effect}}. When
 \code{addpred = TRUE} without \code{newdata}, the displayed center, credible
-interval, and prediction interval use the average-design target returned by
+interval, and marginal prediction interval use the average-design target returned by
 \code{\link{pooled_effect}}. With explicit \code{newdata}, all three refer
 to that one prediction row and the prediction interval uses
-\code{\link{predict.brma}} with \code{type = "estimate"}. For
+\code{\link{predict.brma}} with \code{type = "estimate"} and
+\code{conditioning_depth = "marginal"}. For
 \pkg{metafor}'s \code{predstyle = "shade"} and
 \code{predstyle = "dist"}, the adapter supplies a deterministic kernel
 density estimate computed from those posterior predictive draws. The

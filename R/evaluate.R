@@ -1498,6 +1498,61 @@
 }
 
 
+# Conditional simulation of the total fitted latent contribution in the legacy
+# multilevel normal model. The simulation identity preserves the shared
+# cluster-level dependence instead of drawing row-wise BLUP uncertainty.
+.evaluate.brma.multilevel_posterior.norm <- function(
+    mu_samples, tau_within, tau_between, yi, vi, cluster,
+    bias_offset = NULL) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have the same dimensions as 'mu_samples'.",
+         call. = FALSE)
+  }
+
+  block_indices <- .get_multilevel_block_indices(cluster)
+  prior_effect  <- matrix(0, nrow = S, ncol = K)
+  for (idx in block_indices) {
+    cluster_z <- stats::rnorm(S)
+    prior_effect[, idx] <-
+      tau_between[, idx, drop = FALSE] *
+        matrix(cluster_z, nrow = S, ncol = length(idx)) +
+      tau_within[, idx, drop = FALSE] *
+        matrix(stats::rnorm(S * length(idx)), nrow = S, ncol = length(idx))
+  }
+  prior_sampling <- matrix(
+    stats::rnorm(S * K),
+    nrow = S,
+    ncol = K
+  ) * matrix(sqrt(vi), nrow = S, ncol = K, byrow = TRUE)
+  residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
+    bias_offset - mu_samples
+  out <- prior_effect
+
+  for (s in seq_len(S)) {
+    for (idx in block_indices) {
+      innovation <- residual[s, idx] - prior_effect[s, idx] -
+        prior_sampling[s, idx]
+      weights <- .solve_diagonal_rank_one_block(
+        diagonal = vi[idx] + tau_within[s, idx]^2,
+        rank_one = tau_between[s, idx],
+        residual = innovation
+      )
+      cluster_adjustment <- tau_between[s, idx] *
+        sum(tau_between[s, idx] * weights)
+      out[s, idx] <- prior_effect[s, idx] +
+        tau_within[s, idx]^2 * weights + cluster_adjustment
+    }
+  }
+
+  return(out)
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .evaluate.brma.cluster_effects
 # ---------------------------------------------------------------------------- #
@@ -1645,8 +1700,10 @@
     # BLUP: empirical Bayes conditional means for existing observations
     # lambda = tau^2 / (tau^2 + se^2) ranges from 0 (strong shrinkage)
     # to 1 (weak shrinkage).
-    lambda <- tau_within^2
-    lambda <- lambda / sweep(lambda, 2, sei^2, "+")
+    lambda      <- tau_within^2
+    denominator <- sweep(lambda, 2, sei^2, "+")
+    lambda      <- lambda / denominator
+    lambda[denominator == 0] <- 0
 
     if (is.null(bias_offset)) {
       bias_offset <- matrix(0, nrow = S, ncol = K)
@@ -1671,6 +1728,136 @@
   }
 
   return(true_effects_samples)
+}
+
+
+# Exact conditional simulation for fitted independent latent effects observed
+# through a known sampling covariance V. For u ~ N(0, D) and e ~ N(0, V),
+# u + D(D + V)^-1(r - u - e) has the distribution u | r.
+.evaluate.brma.known_v_posterior.norm <- function(
+    mu_samples, tau_within, yi, known_V, bias_offset = NULL) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have the same dimensions as 'mu_samples'.",
+         call. = FALSE)
+  }
+  if (is.null(known_V) || .known_v_nrow(known_V) != K) {
+    stop("Known-V posterior prediction requires matching known-V metadata.",
+         call. = FALSE)
+  }
+
+  block_data <- .known_v_blocks(known_V)
+  .known_v_validate_dependency_blocks(lapply(block_data, `[[`, "index"), K)
+  prior_effect <- matrix(
+    stats::rnorm(S * K),
+    nrow = S,
+    ncol = K
+  ) * tau_within
+  prior_sampling <- .known_v_sampling_noise(known_V, S = S, K = K)
+  residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
+    bias_offset - mu_samples
+  out <- prior_effect
+
+  for (block in block_data) {
+    idx          <- block[["index"]]
+    n_block      <- length(idx)
+    V_block      <- block[["covariance"]]
+    tau_block    <- tau_within[, idx, drop = FALSE]
+    innovation   <- residual[, idx, drop = FALSE] -
+      prior_effect[, idx, drop = FALSE] -
+      prior_sampling[, idx, drop = FALSE]
+    constant_tau <- n_block == 1L ||
+      isTRUE(all(tau_block == tau_block[, 1L]))
+
+    if (n_block == 1L) {
+      tau2       <- tau_block[, 1L]^2
+      denominator <- tau2 + V_block[1L, 1L]
+      if (any(!is.finite(denominator) | denominator <= 0)) {
+        stop(
+          "Cannot solve known-V conditional posterior covariance block; ",
+          "covariance is not positive definite.",
+          call. = FALSE
+        )
+      }
+      out[, idx] <- prior_effect[, idx] +
+        tau2 * innovation[, 1L] / denominator
+      next
+    }
+
+    if (constant_tau) {
+      eigen_v     <- .covariance_factorization(V_block)
+      tau2        <- tau_block[, 1L]^2
+      denominator <- outer(tau2, eigen_v[["decomposition_values"]], "+")
+      if (any(!is.finite(denominator) | denominator <= 0)) {
+        stop(
+          "Cannot solve known-V conditional posterior covariance block; ",
+          "covariance is not positive definite.",
+          call. = FALSE
+        )
+      }
+      solved <- (innovation %*% eigen_v[["eigenvectors"]] / denominator) %*%
+        t(eigen_v[["eigenvectors"]])
+      out[, idx] <- prior_effect[, idx, drop = FALSE] + solved * tau2
+      next
+    }
+
+    for (s in seq_len(S)) {
+      tau2    <- tau_block[s, ]^2
+      M_block <- V_block
+      diag(M_block) <- diag(M_block) + tau2
+      chol_m <- .covariance_cholesky(.covariance_factorization(M_block))
+      if (is.null(chol_m)) {
+        stop(
+          "Cannot solve known-V conditional posterior covariance block; ",
+          "covariance is not positive definite.",
+          call. = FALSE
+        )
+      }
+      solved <- backsolve(
+        chol_m,
+        forwardsolve(t(chol_m), innovation[s, ])
+      )
+      out[s, idx] <- prior_effect[s, idx] + tau2 * solved
+    }
+  }
+
+  return(mu_samples + out)
+}
+
+
+# Draw fitted latent effects from their Gaussian conditional posterior. This is
+# deliberately separate from `.evaluate.brma.true_effects.norm()`, whose
+# same-data branch is the conditional mean used by fitted values and BLUPs.
+.evaluate.brma.true_effects_posterior.norm <- function(
+    mu_samples, tau_within, yi, sei, bias_offset = NULL) {
+
+  conditional_mean <- .evaluate.brma.true_effects.norm(
+    mu_samples  = mu_samples,
+    tau_within  = tau_within,
+    yi          = yi,
+    sei         = sei,
+    same_data   = TRUE,
+    bias_offset = bias_offset
+  )
+  tau2        <- tau_within^2
+  sampling_v  <- matrix(sei^2, nrow = nrow(tau_within),
+                        ncol = ncol(tau_within), byrow = TRUE)
+  denominator <- tau2 + sampling_v
+  conditional_v <- tau2 * sampling_v / denominator
+  zero_information <- denominator == 0
+  conditional_v[zero_information] <- 0
+
+  out <- conditional_mean + matrix(
+    stats::rnorm(length(conditional_v)),
+    nrow = nrow(conditional_v),
+    ncol = ncol(conditional_v)
+  ) * sqrt(conditional_v)
+
+  return(out)
 }
 
 

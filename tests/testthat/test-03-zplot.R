@@ -314,7 +314,7 @@ test_that("zplot conditioning depths select the intended replication target", {
   )))
   expect_equal(estimate[["mu"]], as.matrix(predict.brma(
     fit_brma,
-    type               = "estimate",
+    type               = "blup",
     bias_adjusted      = TRUE,
     quiet              = TRUE,
     .posterior_samples = posterior_samples

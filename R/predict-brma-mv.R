@@ -140,6 +140,94 @@
 }
 
 
+# Draw the total fitted random-formula contribution from its conditional
+# posterior. Sampled blocks are already posterior draws. The compiler permits
+# marginalization only for one-to-one diagonal blocks; draw those blocks
+# conditionally through the known-V Gaussian identity.
+.predict_brma_mv_random_posterior_draws <- function(
+    object, mu_samples, posterior_samples, bias_offset = NULL) {
+
+  data <- object[["data"]]
+  if (!.is_data_random(data) || !.is_data_known_v(data)) {
+    stop(
+      "brma.mv() fitted random-effect posterior prediction requires a ",
+      "random-formula model with known-V metadata.",
+      call. = FALSE
+    )
+  }
+
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    posterior_samples
+  )
+  S <- nrow(posterior_samples)
+  K <- nrow(data[["outcome"]])
+  if (!identical(dim(mu_samples), c(S, K))) {
+    stop("Random-effect posterior means have inconsistent dimensions.",
+         call. = FALSE)
+  }
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have dimensions posterior draw x observation.",
+         call. = FALSE)
+  }
+
+  sampled_blocks <- .data_sampled_random_effect_blocks(data)
+  sampled_effect <- matrix(0, nrow = S, ncol = K)
+  if (length(sampled_blocks) > 0L) {
+    sampled_effect <- .evaluate.brma.random_effects(
+      fit               = object[["fit"]],
+      data              = data,
+      priors            = object[["priors"]],
+      posterior_samples = posterior_samples,
+      same_data         = TRUE,
+      required          = TRUE,
+      formula_target    = "conditional",
+      blocks            = sampled_blocks,
+      object            = object
+    )
+  }
+
+  marginalized_terms <- .data_marginalized_random_effects(data)
+  if (length(marginalized_terms) == 0L) {
+    return(sampled_effect)
+  }
+
+  source_samples <- .predict_known_v_newdata_marginalized_source_samples(
+    object            = object,
+    data              = data,
+    posterior_samples = posterior_samples
+  )
+  marginalized_variance <- matrix(0, nrow = S, ncol = K)
+  for (term in marginalized_terms) {
+    sd_samples <- .marginalized_random_effect_sd_samples(
+      term              = term,
+      posterior_samples = posterior_samples,
+      K                 = K,
+      source_samples    = source_samples,
+      fitted_K          = K
+    )
+    marginalized_variance <- marginalized_variance +
+      .marginalized_random_effect_variance_samples(
+        term       = term,
+        sd_samples = sd_samples,
+        K          = K
+      )
+  }
+
+  conditional_effect <- .evaluate.brma.known_v_posterior.norm(
+    mu_samples  = mu_samples + sampled_effect,
+    tau_within  = sqrt(marginalized_variance),
+    yi          = data[["outcome"]][["yi"]],
+    known_V     = .data_known_v_data(data),
+    bias_offset = bias_offset
+  )
+
+  return(conditional_effect - mu_samples)
+}
+
+
 .predict_brma_mv_response_peak_bytes <- function(S, K) {
 
   # Conservatively cover the output slice, random and sampling components,
@@ -592,7 +680,8 @@
 }
 
 
-.predict_brma_attach_mv_metadata <- function(samples, object, type, same_data,
+.predict_brma_attach_mv_metadata <- function(samples, object, type,
+                                             conditioning_depth, same_data,
                                              random_mv,
                                              known_V_new = NULL) {
 
@@ -601,11 +690,12 @@
   }
 
   metadata <- .predict_brma_mv_metadata(
-    object      = object,
-    type        = type,
-    same_data   = same_data,
-    random_mv   = random_mv,
-    known_V_new = known_V_new
+    object             = object,
+    type               = type,
+    conditioning_depth = conditioning_depth,
+    same_data          = same_data,
+    random_mv          = random_mv,
+    known_V_new        = known_V_new
   )
 
   if (is.list(samples) && !is.matrix(samples)) {
@@ -620,46 +710,39 @@
 }
 
 
-.predict_brma_mv_metadata <- function(object, type, same_data, random_mv,
+.predict_brma_mv_metadata <- function(object, type, conditioning_depth,
+                                      same_data, random_mv,
                                       known_V_new = NULL) {
 
   formula_target <- switch(type,
     "terms"       = "fixed",
     "terms.scale" = "scale",
-    "cluster"     = "legacy_cluster",
-    "estimate"    = if (random_mv) {
-      if (same_data) "conditional" else "marginal"
-    } else {
-      "fixed_plus_heterogeneity"
-    },
-    "response"    = if (random_mv) {
-      "fixed"
-    } else {
-      "fixed_plus_heterogeneity"
-    },
+    "location"    = paste0("conditional_mean_", conditioning_depth),
+    "estimate"    = paste0("latent_effect_", conditioning_depth),
+    "response"    = paste0("observed_response_", conditioning_depth),
     NA_character_
   )
 
-  random_effect_target    <- "none"
+  random_effect_target   <- "none"
   random_effects_in_mean <- FALSE
-  mean_target             <- if (type %in% c("terms", "response")) {
-    "fixed_location"
-  } else {
-    formula_target
-  }
-  if (random_mv) {
-    if (type == "estimate") {
-      random_effect_target    <- if (same_data) "conditional_mean" else "marginal_sample"
-      random_effects_in_mean <- TRUE
-      mean_target             <- if (same_data) {
-        "fixed_plus_conditional_random_effects"
-      } else {
-        "fixed_plus_marginal_random_effects"
-      }
-    } else if (type == "response") {
-      random_effect_target <- "marginal_sample"
-    } else if (type == "terms") {
-      random_effect_target <- "excluded"
+  mean_target            <- "fixed_location"
+  if (random_mv && type == "terms") {
+    random_effect_target <- "excluded"
+  } else if (random_mv && type == "location") {
+    random_effect_target   <- "conditional_mean"
+    random_effects_in_mean <- TRUE
+    mean_target            <- "fixed_plus_conditional_random_effect_mean"
+  } else if (random_mv && type %in% c("estimate", "response")) {
+    random_effect_target <- if (conditioning_depth == "estimate") {
+      "conditional_posterior_sample"
+    } else {
+      "marginal_sample"
+    }
+    random_effects_in_mean <- conditioning_depth == "estimate"
+    mean_target <- if (conditioning_depth == "estimate") {
+      "fixed_plus_conditional_random_effect"
+    } else {
+      "fixed_location"
     }
   }
 
@@ -670,7 +753,7 @@
     } else if (!is.null(known_V_new)) {
       "V_new_plus_heterogeneity"
     } else if (random_mv && .is_data_known_v(object[["data"]]) && same_data) {
-      "known_V_plus_marginal_random_effect_generation"
+      paste0("known_V_plus_random_effect_", conditioning_depth)
     } else if (random_mv && .data_has_marginalized_random_effects(object[["data"]])) {
       "known_V_plus_marginalized_estimate_level_variance"
     } else if (.is_data_known_v(object[["data"]])) {
@@ -681,12 +764,14 @@
   }
 
   new_levels <- NA_character_
-  if (random_mv && type == "response" && !same_data) {
-    new_levels <- "marginal_new_effects"
-  } else if (random_mv && !same_data) {
+  if (random_mv && !same_data) {
     new_levels <- "marginal_new_effects"
   } else if (random_mv && same_data) {
-    new_levels <- if (type == "estimate") "existing_levels_only" else "marginal_fitted_design"
+    new_levels <- if (conditioning_depth == "estimate") {
+      "existing_levels_only"
+    } else {
+      "marginal_fitted_design"
+    }
   }
 
   return(list(
@@ -694,6 +779,7 @@
     class                      = "brma.mv",
     type                       = type,
     unit                       = "estimate",
+    conditioning_depth         = conditioning_depth,
     same_data                  = same_data,
     known_v                    = .is_data_known_v(object[["data"]]) || !is.null(known_V_new),
     random_formula             = random_mv,

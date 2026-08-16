@@ -28,8 +28,8 @@ arguments are also stored in \code{addpoly_args}. This includes
 
 \item{level}{credible/confidence level in percent. Defaults to \code{95}.}
 
-\item{addpred}{logical; whether to compute a posterior prediction interval
-for one new true effect. Defaults to \code{FALSE}.}
+\item{addpred}{logical; whether to compute a marginal posterior prediction
+interval for one new true effect. Defaults to \code{FALSE}.}
 
 \item{newdata}{optional one-row prediction design used when
 \code{addpred = TRUE}. When omitted, the interval is evaluated at the

@@ -1,6 +1,6 @@
 context("Multilevel prediction targets")
 
-test_that("same-data cluster and response targets retain latent cluster draws", {
+test_that("location conditioning is separate from predictive type", {
 
   n_draws <- 4L
   n_rows  <- 2L
@@ -16,7 +16,8 @@ test_that("same-data cluster and response targets retain latent cluster draws", 
 
   context <- list(
     object              = list(fit = structure(list(), class = "mock_fit")),
-    type                = "estimate",
+    type                = "location",
+    conditioning_depth  = "estimate",
     same_data           = TRUE,
     new_data            = list(mods = NULL),
     known_V_new         = NULL,
@@ -59,30 +60,23 @@ test_that("same-data cluster and response targets retain latent cluster draws", 
   estimate_state <- .predict_brma_location_state(context, scale_state)
   expect_equal(
     estimate_state[["mu"]],
-    fixed_location + blup_cluster,
-    info = "estimate predictions use the conditional cluster BLUP"
+    fixed_location + blup_cluster + blup_estimate,
+    info = "BLUP location includes the complete conditional mean"
   )
   expect_equal(
     estimate_state[["multilevel_blup"]][["estimate"]],
     blup_estimate
   )
 
-  for (target in c("cluster", "response")) {
-    context[["type"]] <- target
-    latent_state <- .predict_brma_location_state(context, scale_state)
+  context[["conditioning_depth"]] <- "cluster"
+  cluster_state <- .predict_brma_location_state(context, scale_state)
 
-    expect_null(
-      latent_state[["multilevel_blup"]],
-      info = paste(target, "does not use the BLUP shortcut")
-    )
-    expect_equal(
-      latent_state[["mu"]],
-      fixed_location + latent_cluster,
-      info = paste(target, "retains fitted latent cluster draws")
-    )
-    expect_true(
-      stats::var(latent_state[["mu"]][, 1L]) > 0,
-      info = paste(target, "retains cluster uncertainty across draws")
-    )
-  }
+  expect_null(cluster_state[["multilevel_blup"]])
+  expect_equal(cluster_state[["mu"]], fixed_location + latent_cluster)
+  expect_true(stats::var(cluster_state[["mu"]][, 1L]) > 0)
+
+  context[["type"]]               <- "response"
+  context[["conditioning_depth"]] <- "marginal"
+  marginal_state <- .predict_brma_location_state(context, scale_state)
+  expect_equal(marginal_state[["mu"]], fixed_location)
 })

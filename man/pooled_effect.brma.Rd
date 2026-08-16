@@ -63,8 +63,8 @@ in the data. This provides an estimate representative of the sample of
 studies.
 
 For models without moderators, this returns the single mu parameter. The
-prediction interval is for one new true effect at the same average location,
-scale, and random-effect design. It therefore uses
+prediction interval is marginal over one new true effect at the same average
+location, scale, and random-effect design. It therefore uses
 \code{pooled_heterogeneity()}, not the observed-design RMS heterogeneity
 reported by \code{summary_heterogeneity()}.
 }

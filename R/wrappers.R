@@ -205,7 +205,7 @@ fitted.brma <- function(object, unit = "estimate",
   pred_type <- switch(conditioning_depth,
     "marginal" = "terms",
     "cluster"  = "cluster",
-    "estimate" = "estimate"
+    "estimate" = "blup"
   )
 
   samples <- predict.brma(
@@ -302,8 +302,8 @@ pooled_effect <- function(object, ...) {
 #' studies.
 #'
 #' For models without moderators, this returns the single mu parameter. The
-#' prediction interval is for one new true effect at the same average location,
-#' scale, and random-effect design. It therefore uses
+#' prediction interval is marginal over one new true effect at the same average
+#' location, scale, and random-effect design. It therefore uses
 #' \code{pooled_heterogeneity()}, not the observed-design RMS heterogeneity
 #' reported by \code{summary_heterogeneity()}.
 #'
@@ -642,7 +642,9 @@ blup <- function(object, ...) {
 #'
 #' @details
 #' This function is a convenience wrapper around \code{predict.brma(...,
-#' type = "effect", newdata = NULL)}.
+#' type = "blup", newdata = NULL)}. Unlike \code{predict(..., type =
+#' "estimate", conditioning_depth = "estimate")}, it returns conditional
+#' location/BLUP means rather than adding conditional latent-effect uncertainty.
 #'
 #' For unweighted two-level normal models, true effects are computed using
 #' empirical Bayes shrinkage:
@@ -691,7 +693,7 @@ blup.brma <- function(object, bias_adjusted = FALSE,
   out <- predict.brma(
     object         = object,
     newdata        = NULL,
-    type           = "effect",
+    type           = "blup",
     output_measure = output_measure,
     transform      = transform,
     probs          = probs,
@@ -931,7 +933,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   blup_samples <- predict.brma(
     object        = object,
     newdata       = NULL,
-    type          = "estimate",
+    type          = "blup",
     probs         = probs,
     bias_adjusted = bias_adjusted,
     quiet         = TRUE,
@@ -1085,18 +1087,20 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   }
 
   context <- .predict_brma_context(
-    object         = object,
-    newdata        = NULL,
-    V_new          = NULL,
-    type           = "estimate",
-    as_measure     = TRUE,
-    output_measure = NULL,
-    transform      = NULL,
-    probs          = probs,
-    bias_adjusted  = bias_adjusted,
-    quiet          = TRUE,
-    conditional    = conditional,
-    dots           = list(.posterior_samples = dots[[".posterior_samples"]])
+    object                       = object,
+    newdata                      = NULL,
+    V_new                        = NULL,
+    type                         = "blup",
+    conditioning_depth           = "estimate",
+    conditioning_depth_specified = TRUE,
+    as_measure                   = TRUE,
+    output_measure               = NULL,
+    transform                    = NULL,
+    probs                        = probs,
+    bias_adjusted                = bias_adjusted,
+    quiet                        = TRUE,
+    conditional                  = conditional,
+    dots                         = list(.posterior_samples = dots[[".posterior_samples"]])
   )
   scale_state    <- .predict_brma_scale_state(context)
   location_state <- .predict_brma_location_state(context, scale_state)

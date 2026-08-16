@@ -15,8 +15,8 @@
 #'
 #' @param x a fitted brma object.
 #' @param level credible/confidence level in percent. Defaults to \code{95}.
-#' @param addpred logical; whether to compute a posterior prediction interval
-#'   for one new true effect. Defaults to \code{FALSE}.
+#' @param addpred logical; whether to compute a marginal posterior prediction
+#'   interval for one new true effect. Defaults to \code{FALSE}.
 #' @param newdata optional one-row prediction design used when
 #'   \code{addpred = TRUE}. When omitted, the interval is evaluated at the
 #'   average expanded design using \code{pooled_effect()}. When supplied, each
@@ -171,13 +171,14 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
         )
       )
       prediction_effect_samples <- predict.brma(
-        object        = x,
-        newdata       = prediction_data,
-        type          = "estimate",
-        probs         = probs,
-        bias_adjusted = bias_adjusted,
-        conditional   = conditional,
-        quiet         = TRUE
+        object             = x,
+        newdata            = prediction_data,
+        type               = "estimate",
+        conditioning_depth = "marginal",
+        probs              = probs,
+        bias_adjusted      = bias_adjusted,
+        conditional        = conditional,
+        quiet              = TRUE
       )
       prediction_effect <- .forest_summary_row(prediction_effect_samples)
       prediction <- prediction_terms
@@ -299,10 +300,11 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
 #' and standard errors. The model summary row uses the posterior mean and
 #' credible interval from \code{\link{pooled_effect}}. When
 #' \code{addpred = TRUE} without \code{newdata}, the displayed center, credible
-#' interval, and prediction interval use the average-design target returned by
+#' interval, and marginal prediction interval use the average-design target returned by
 #' \code{\link{pooled_effect}}. With explicit \code{newdata}, all three refer
 #' to that one prediction row and the prediction interval uses
-#' \code{\link{predict.brma}} with \code{type = "estimate"}. For
+#' \code{\link{predict.brma}} with \code{type = "estimate"} and
+#' \code{conditioning_depth = "marginal"}. For
 #' \pkg{metafor}'s \code{predstyle = "shade"} and
 #' \code{predstyle = "dist"}, the adapter supplies a deterministic kernel
 #' density estimate computed from those posterior predictive draws. The

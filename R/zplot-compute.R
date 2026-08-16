@@ -108,7 +108,7 @@
   predict_type <- switch(conditioning_depth,
     "marginal" = "terms",
     "cluster"  = "cluster",
-    "estimate" = "estimate"
+    "estimate" = "blup"
   )
   mu_samples <- predict.brma(
     object             = object,
@@ -203,7 +203,7 @@
 
 
 # Posterior conditional variance of the fitted latent true effects. The
-# corresponding conditional means are returned by predict(type = "estimate").
+# corresponding conditional means are returned by predict(type = "blup").
 .zplot_estimate_conditional_variance <- function(object, posterior_samples) {
 
   if (inherits(object, "brma.mv") && .is_random(object)) {

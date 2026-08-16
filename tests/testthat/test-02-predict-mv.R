@@ -477,7 +477,7 @@ test_that("cached brma.mv fitted wrappers agree with prediction targets", {
   for (name in model_names) {
     fit_brma <- fits[[name]]
     terms    <- as.matrix(predict(fit_brma, type = "terms", quiet = TRUE))
-    estimate <- as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE))
+    estimate <- as.matrix(predict(fit_brma, type = "blup", quiet = TRUE))
 
     expect_equal(
       unname(fitted(fit_brma)),
@@ -536,7 +536,7 @@ test_that("random-formula brma.mv estimate and response predictions use cached f
 
   expect_brma_samples_matrix(estimate, n_studies, "random brma.mv estimate")
   expect_brma_samples_matrix(response, n_studies, "random brma.mv response")
-  expect_equal(attr(estimate, "title"), "Conditional True Effects:")
+  expect_equal(attr(estimate, "title"), "True Effect Posterior Prediction:")
 })
 
 test_that("known-V random response draws combine generative components", {
@@ -1337,7 +1337,7 @@ test_that("random-formula brma.mv estimate separates fixed and random effects", 
   fit_brma <- fits[[name]]
 
   terms    <- as.matrix(predict(fit_brma, type = "terms", quiet = TRUE))
-  estimate <- as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE))
+  estimate <- as.matrix(predict(fit_brma, type = "blup", quiet = TRUE))
   random_components <- ranef(fit_brma, expand = TRUE)
   random            <- Reduce(`+`, lapply(random_components, as.matrix))
 
@@ -1369,7 +1369,7 @@ test_that("random-formula brma.mv ranef decomposes random blocks", {
   }
 
   terms    <- as.matrix(predict(fit_brma, type = "terms", quiet = TRUE))
-  estimate <- as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE))
+  estimate <- as.matrix(predict(fit_brma, type = "blup", quiet = TRUE))
   total    <- Reduce(`+`, lapply(out, as.matrix))
   total_component <- ranef(fit_brma, component = "total", expand = TRUE)
   study_component <- ranef(fit_brma, component = "study")
@@ -1469,7 +1469,7 @@ test_that("same-data random BLUP is compilation-invariant for one block", {
       )),
       estimate = as.matrix(predict(
         object,
-        type               = "estimate",
+        type               = "blup",
         quiet              = TRUE,
         .posterior_samples = posterior_samples
       )),
@@ -1657,7 +1657,7 @@ test_that("same-data random BLUP preserves analytic block components", {
       )),
       estimate = as.matrix(predict(
         object,
-        type               = "estimate",
+        type               = "blup",
         quiet              = TRUE,
         .posterior_samples = posterior_samples
       )),
@@ -1753,7 +1753,7 @@ test_that("known-R row multipliers reach random prediction consumers", {
   )
   estimate <- predict(
     object,
-    type               = "estimate",
+    type               = "blup",
     quiet              = TRUE,
     .posterior_samples = posterior_samples
   )
@@ -2161,7 +2161,7 @@ test_that("known-V estimate predictions use the full covariance BLUP", {
   for (name in names) {
     fit_brma <- fits[[name]]
 
-    theta <- as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE))
+    theta <- as.matrix(predict(fit_brma, type = "blup", quiet = TRUE))
     mu    <- as.matrix(predict(fit_brma, type = "terms", quiet = TRUE))
     tau   <- as.matrix(predict(fit_brma, type = "terms.scale", quiet = TRUE))
 

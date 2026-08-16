@@ -161,7 +161,8 @@ meta-regression results. It displays:
 \item Point sizes proportional to study precision (inverse variance)
 \item Prediction line showing the estimated regression relationship
 \item Confidence bands showing uncertainty in the mean prediction
-\item Optional prediction bands showing expected range of true effects
+\item Optional marginal prediction bands showing the expected range of new
+true effects
 \item Optional sampling interval bands showing expected range of observed outcomes
 }
 
@@ -171,6 +172,15 @@ are computed at each factor level with optional jittering of points.
 A moderator that appears only in the scale formula produces a constant mean
 prediction while prediction and sampling intervals reflect its effect on
 heterogeneity.
+Prediction intervals marginalize newly realized random effects. Sampling
+intervals use the corresponding marginal response distribution by also
+adding representative sampling error; evaluating a fitted moderator value
+does not condition these bands on its fitted latent effect.
+For binomial and Poisson GLMMs, prediction intervals retain this latent-effect
+interpretation, but sampling intervals are only descriptive normal
+approximations on the derived effect-size scale. They are not intervals from
+the fitted discrete likelihood and do not use the prior-nuisance marginal
+GLMM response target from \code{predict()}.
 
 The \code{by} argument allows displaying separate regression lines for
 different levels of a second moderator, useful for visualizing interactions.

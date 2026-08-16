@@ -272,6 +272,17 @@
   mean-difference coding, matching the other BMA/RoBMA constructors. This can
   change moderator coefficient interpretation for calls that did not specify
   `set_contrast_factor_predictors` explicitly.
+- gives `predict.brma()` one explicit two-axis contract across ordinary,
+  multilevel, multivariate, and GLMM models: `type` selects fixed terms, latent
+  effects, or observed responses, while the new `conditioning_depth` selects
+  marginal, fitted-cluster, or fitted-estimate prediction. Marginal is now the
+  default for both implicit fitted designs and equivalent explicit `newdata`;
+  estimate depth includes fitted latent posterior uncertainty, while `blup()`
+  and `fitted()` retain conditional means. This intentionally changes released
+  same-data `type = "estimate"` and clustered/GLMM `type = "response"`
+  predictive semantics. Marginal and cluster GLMM responses draw new nuisance
+  base rates/rates from their priors; estimate depth retains fitted posterior
+  nuisance rates.
 - reports `cooks.distance()` as the unscaled squared posterior Mahalanobis
   distance, following metafor's chi-square-based meta-analytic convention.
   Values were previously divided by the fixed-effect model rank and therefore
@@ -373,9 +384,6 @@
   preflighted before constructing the full nuisance matrix.
 - evaluates nested qCMDE integration grids incrementally and stops after the
   first certified refinement pair, reusing all previously evaluated nodes.
-- aligns same-data `brma.mv()` response prediction with `brma()` semantics by
-  using fixed means and marginal known-`V` plus random-effect covariance instead
-  of conditioning on fitted random effects.
 - requires `V_new` for explicit known-`V` response predictions, rejects unseen
   known-`R` levels without an `R_new` interface, and makes forest prediction
   intervals target the pooled average design when `newdata` is omitted or

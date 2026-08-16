@@ -16,6 +16,7 @@
   quiet = FALSE,
   conditional = FALSE,
   V_new = NULL,
+  conditioning_depth = "marginal",
   ...
 )
 }
@@ -23,7 +24,7 @@
 \item{object}{a fitted brma object}
 
 \item{newdata}{prediction data. Defaults to \code{NULL}, which predicts the
-observed rows. New-effect predictions require an explicit data frame or
+observed design rows. Marginal new-effect predictions may use an explicit data frame or
 named list with one row per target effect and every variable used by the
 requested fixed, scale, and random-effect designs. Missing ordinary
 grouping-only identifiers are synthesized as row-specific new levels;
@@ -41,30 +42,23 @@ known-\code{V} \code{brma.mv()} response prediction, explicit
 
 \item{type}{type of prediction to be performed. Options are:
 \itemize{
-\item{\code{"terms"} (alias: \code{"marginal"}): Fixed-effect parameters only (mu).
-Produces the mean effect size estimate at the given predictor levels,
-not accounting for random effects.}
-\item{\code{"cluster"}: Fixed effects plus legacy cluster-level random
-effects (mu + gamma). Only available for legacy multilevel (3-level)
-models.}
-\item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True
-effects (mu + gamma + theta). For existing normal data, returns posterior
-draws of conditional BLUP means, not simulated latent-effect draws.
-Existing \code{brma.mv()} random-formula models return conditional true
-effects at fitted random-effect levels. \code{brma.mv()} response
-predictions marginalize random-formula effects so they are comparable to
-ordinary \code{brma()} response predictions. Each explicit random-formula
-prediction row is a new true effect, marginal over all applicable random
-components; matching a fitted group label does not reuse its fitted BLUP.}
+\item{\code{"terms"} (alias: \code{"marginal"}): fixed location
+parameters only, \eqn{X\beta}.}
+\item{\code{"estimate"} (alias: \code{"effect"}): latent true effects.
+The random-effect distribution is selected by \code{conditioning_depth}.}
 \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
-Incorporates both heterogeneity and sampling variability. For known-\code{V}
-\code{brma.mv()} models, explicit \code{newdata} response predictions
-require a supplied new sampling covariance matrix.}
+Adds the outcome sampling distribution to the corresponding latent-effect
+target.}
 \item{\code{"terms.scale"}: Scale parameter (tau), incorporating scale
 regression if present. For \code{brma.mv()} random-formula models with
 scale formulas, returns a named list of component-specific
 \code{brma_samples} matrices.}
-}}
+}
+The released \code{"cluster"} and \code{"blup"} spellings are retained as
+compatibility shortcuts for conditional location samples: they fix
+\code{conditioning_depth = "cluster"} and \code{"estimate"}, respectively.
+Use \code{fitted()} or \code{blup()} when conditional means are the intended
+quantity.}
 
 \item{as_measure}{logical; whether to convert GLMM response predictions from
 simulated counts to continuity-corrected effect-size estimators (logOR for
@@ -120,6 +114,15 @@ models. May be a square matrix or a list of block covariance matrices whose
 total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
 rows is not supported.}
 
+\item{conditioning_depth}{random-effect conditioning depth for
+\code{type = "estimate"} and \code{"response"}. \code{"marginal"}
+(default) predicts new latent effects, \code{"cluster"} conditions on the
+fitted cluster effect and predicts a new estimate within that cluster, and
+\code{"estimate"} predicts the fitted latent effect. Cluster depth is
+available only for legacy multilevel models. Non-marginal prediction is
+currently restricted to \code{newdata = NULL}, where fitted identities are
+unambiguous.}
+
 \item{...}{additional arguments}
 }
 \value{
@@ -139,23 +142,37 @@ using \code{as_draws()} and related functions.
 \code{predict.brma} predicts values
 }
 \details{
-\strong{Type hierarchy:}
+Prediction has two independent axes. \code{type} selects the quantity:
+fixed location (\code{"terms"}), latent true effect (\code{"estimate"}), or
+observed outcome (\code{"response"}). \code{conditioning_depth} selects how
+much of the fitted random-effect hierarchy is retained. In the legacy model
+\eqn{y_{ij} = X_{ij}\beta + u_j + v_{ij} + \epsilon_{ij}}, the targets are:
 \itemize{
-\item{\code{"terms"}: mu (fixed effects only)}
-\item{\code{"cluster"}: mu + gamma (adds cluster-level random effect)}
-\item{\code{"estimate"}: mu + gamma + theta (adds estimate-level random effect)}
-\item{\code{"response"}: mu + gamma + theta + epsilon (adds sampling error)}
+\item{\code{"marginal"}: condition on neither \eqn{u_j} nor \eqn{v_{ij}};}
+\item{\code{"cluster"}: condition on fitted \eqn{u_j}, but draw a new
+\eqn{v_{ij}};}
+\item{\code{"estimate"}: draw the fitted latent effect from its posterior.}
 }
-For existing normal observations, \code{type = "estimate"} reports the
-conditional BLUP mean \eqn{E(\theta_i \mid y_i, \mu_i, \tau_i)} for each
-posterior draw. It is therefore an empirical-Bayes summary, not a draw from
-the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
-\code{brma.mv()} random-formula models, every fitted random-effect block
-contributes its Gaussian conditional mean, irrespective of whether the block
-was sampled or marginalized during fitting. Existing-data response predictions
-instead use the fixed-location mean and marginal draws from every random
-component before adding sampling noise. Explicit new rows use the same marginal
-random-component target and never reuse fitted BLUP draws.
+\code{type = "response"} adds \eqn{\epsilon} to the selected latent-effect
+target. For normal fitted effects this includes the conditional latent
+uncertainty, not only the BLUP mean. \code{blup()} and \code{fitted(...,
+conditioning_depth = "estimate")} remain the conditional-mean interfaces.
+
+\code{newdata} supplies design values and grouping identities; it does not
+select an estimand. Consequently, marginal prediction has the same law for
+\code{newdata = NULL} and an equivalent explicit design. Matching fitted
+grouping labels retains the requested dependence among new marginal draws
+but does not reuse fitted random effects. Cluster- and estimate-depth
+predictions require fitted identities and therefore currently reject
+explicit \code{newdata}.
+
+For binomial and Poisson GLMM response predictions, estimate depth uses the
+fitted posterior nuisance base rate \eqn{\pi_i} or rate \eqn{\phi_i}.
+Marginal and cluster depths describe a new estimate and therefore draw a new
+nuisance rate independently from its model prior. Those predictions contain
+a prior-predictive nuisance-rate component, which can dominate their width
+when the nuisance prior is diffuse; fitted \eqn{\pi_i}/\eqn{\phi_i} values are
+never silently reused for a marginal or cluster target.
 
 For RoBMA product-space objects, conditional posterior predictions subset
 posterior rows according to model indicators. This removes the original
@@ -176,11 +193,10 @@ raw future effect-size estimates with the supplied \code{sei}, not
 \code{sei / sqrt(weight)}.
 
 For known-\code{V} \code{brma.mv()} models, explicit \code{newdata}
-response prediction requires \code{V_new}. Non-random models draw from the
-new sampling covariance plus posterior heterogeneity. Random-formula models
-generate marginal random-effect contributions component-wise, then add
-\code{V} or \code{V_new} sampling noise and any marginalized estimate-level
-variance. Cross-covariance with observed rows is not supported. Explicit
+response prediction requires \code{V_new}. Random-formula models preserve
+the joint random-effect structure selected by \code{conditioning_depth} and
+then add \code{V} or \code{V_new} sampling noise. Cross-covariance with
+observed rows is not supported. Explicit
 \code{newdata} estimate/response predictions are not
 available for \code{brma.mv()} objects with marginalized known-\code{R}
 blocks, because their row multipliers are fitted-row metadata.

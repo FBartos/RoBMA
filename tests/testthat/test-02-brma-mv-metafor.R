@@ -704,7 +704,7 @@ test_that("v14 brma.mv ranef, blup, and true_effects use consistent targets", {
     ))
     estimate <- as.matrix(predict(
       fit_brma,
-      type               = "estimate",
+      type               = "blup",
       quiet              = TRUE,
       .posterior_samples = posterior
     ))

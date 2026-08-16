@@ -6,7 +6,7 @@
 #' @param probs quantiles of the posterior samples to be displayed when the
 #' returned `brma_samples` object is printed. Defaults to `c(.025, .975)`.
 #' @param newdata prediction data. Defaults to \code{NULL}, which predicts the
-#'   observed rows. New-effect predictions require an explicit data frame or
+#'   observed design rows. Marginal new-effect predictions may use an explicit data frame or
 #'   named list with one row per target effect and every variable used by the
 #'   requested fixed, scale, and random-effect designs. Missing ordinary
 #'   grouping-only identifiers are synthesized as row-specific new levels;
@@ -23,30 +23,31 @@
 #'   \code{newdata} also requires a new sampling covariance matrix.
 #' @param type type of prediction to be performed. Options are:
 #' \itemize{
-#'   \item{\code{"terms"} (alias: \code{"marginal"}): Fixed-effect parameters only (mu).
-#'   Produces the mean effect size estimate at the given predictor levels,
-#'   not accounting for random effects.}
-#'   \item{\code{"cluster"}: Fixed effects plus legacy cluster-level random
-#'   effects (mu + gamma). Only available for legacy multilevel (3-level)
-#'   models.}
-#'   \item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True
-#'   effects (mu + gamma + theta). For existing normal data, returns posterior
-#'   draws of conditional BLUP means, not simulated latent-effect draws.
-#'   Existing \code{brma.mv()} random-formula models return conditional true
-#'   effects at fitted random-effect levels. \code{brma.mv()} response
-#'   predictions marginalize random-formula effects so they are comparable to
-#'   ordinary \code{brma()} response predictions. Each explicit random-formula
-#'   prediction row is a new true effect, marginal over all applicable random
-#'   components; matching a fitted group label does not reuse its fitted BLUP.}
+#'   \item{\code{"terms"} (alias: \code{"marginal"}): fixed location
+#'   parameters only, \eqn{X\beta}.}
+#'   \item{\code{"estimate"} (alias: \code{"effect"}): latent true effects.
+#'   The random-effect distribution is selected by \code{conditioning_depth}.}
 #'   \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
-#'   Incorporates both heterogeneity and sampling variability. For known-\code{V}
-#'   \code{brma.mv()} models, explicit \code{newdata} response predictions
-#'   require a supplied new sampling covariance matrix.}
+#'   Adds the outcome sampling distribution to the corresponding latent-effect
+#'   target.}
 #'   \item{\code{"terms.scale"}: Scale parameter (tau), incorporating scale
 #'   regression if present. For \code{brma.mv()} random-formula models with
 #'   scale formulas, returns a named list of component-specific
 #'   \code{brma_samples} matrices.}
 #' }
+#' The released \code{"cluster"} and \code{"blup"} spellings are retained as
+#' compatibility shortcuts for conditional location samples: they fix
+#' \code{conditioning_depth = "cluster"} and \code{"estimate"}, respectively.
+#' Use \code{fitted()} or \code{blup()} when conditional means are the intended
+#' quantity.
+#' @param conditioning_depth random-effect conditioning depth for
+#'   \code{type = "estimate"} and \code{"response"}. \code{"marginal"}
+#'   (default) predicts new latent effects, \code{"cluster"} conditions on the
+#'   fitted cluster effect and predicts a new estimate within that cluster, and
+#'   \code{"estimate"} predicts the fitted latent effect. Cluster depth is
+#'   available only for legacy multilevel models. Non-marginal prediction is
+#'   currently restricted to \code{newdata = NULL}, where fitted identities are
+#'   unambiguous.
 #' @param as_measure logical; whether to convert GLMM response predictions from
 #' simulated counts to continuity-corrected effect-size estimators (logOR for
 #' binomial, logIRR for Poisson). Defaults to \code{TRUE}. Only relevant for
@@ -93,23 +94,37 @@
 #' rows is not supported.
 #'
 #' @details
-#' \strong{Type hierarchy:}
+#' Prediction has two independent axes. \code{type} selects the quantity:
+#' fixed location (\code{"terms"}), latent true effect (\code{"estimate"}), or
+#' observed outcome (\code{"response"}). \code{conditioning_depth} selects how
+#' much of the fitted random-effect hierarchy is retained. In the legacy model
+#' \eqn{y_{ij} = X_{ij}\beta + u_j + v_{ij} + \epsilon_{ij}}, the targets are:
 #' \itemize{
-#'   \item{\code{"terms"}: mu (fixed effects only)}
-#'   \item{\code{"cluster"}: mu + gamma (adds cluster-level random effect)}
-#'   \item{\code{"estimate"}: mu + gamma + theta (adds estimate-level random effect)}
-#'   \item{\code{"response"}: mu + gamma + theta + epsilon (adds sampling error)}
+#'   \item{\code{"marginal"}: condition on neither \eqn{u_j} nor \eqn{v_{ij}};}
+#'   \item{\code{"cluster"}: condition on fitted \eqn{u_j}, but draw a new
+#'   \eqn{v_{ij}};}
+#'   \item{\code{"estimate"}: draw the fitted latent effect from its posterior.}
 #' }
-#' For existing normal observations, \code{type = "estimate"} reports the
-#' conditional BLUP mean \eqn{E(\theta_i \mid y_i, \mu_i, \tau_i)} for each
-#' posterior draw. It is therefore an empirical-Bayes summary, not a draw from
-#' the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
-#' \code{brma.mv()} random-formula models, every fitted random-effect block
-#' contributes its Gaussian conditional mean, irrespective of whether the block
-#' was sampled or marginalized during fitting. Existing-data response predictions
-#' instead use the fixed-location mean and marginal draws from every random
-#' component before adding sampling noise. Explicit new rows use the same marginal
-#' random-component target and never reuse fitted BLUP draws.
+#' \code{type = "response"} adds \eqn{\epsilon} to the selected latent-effect
+#' target. For normal fitted effects this includes the conditional latent
+#' uncertainty, not only the BLUP mean. \code{blup()} and \code{fitted(...,
+#' conditioning_depth = "estimate")} remain the conditional-mean interfaces.
+#'
+#' \code{newdata} supplies design values and grouping identities; it does not
+#' select an estimand. Consequently, marginal prediction has the same law for
+#' \code{newdata = NULL} and an equivalent explicit design. Matching fitted
+#' grouping labels retains the requested dependence among new marginal draws
+#' but does not reuse fitted random effects. Cluster- and estimate-depth
+#' predictions require fitted identities and therefore currently reject
+#' explicit \code{newdata}.
+#'
+#' For binomial and Poisson GLMM response predictions, estimate depth uses the
+#' fitted posterior nuisance base rate \eqn{\pi_i} or rate \eqn{\phi_i}.
+#' Marginal and cluster depths describe a new estimate and therefore draw a new
+#' nuisance rate independently from its model prior. Those predictions contain
+#' a prior-predictive nuisance-rate component, which can dominate their width
+#' when the nuisance prior is diffuse; fitted \eqn{\pi_i}/\eqn{\phi_i} values are
+#' never silently reused for a marginal or cluster target.
 #'
 #' For RoBMA product-space objects, conditional posterior predictions subset
 #' posterior rows according to model indicators. This removes the original
@@ -130,11 +145,10 @@
 #' \code{sei / sqrt(weight)}.
 #'
 #' For known-\code{V} \code{brma.mv()} models, explicit \code{newdata}
-#' response prediction requires \code{V_new}. Non-random models draw from the
-#' new sampling covariance plus posterior heterogeneity. Random-formula models
-#' generate marginal random-effect contributions component-wise, then add
-#' \code{V} or \code{V_new} sampling noise and any marginalized estimate-level
-#' variance. Cross-covariance with observed rows is not supported. Explicit
+#' response prediction requires \code{V_new}. Random-formula models preserve
+#' the joint random-effect structure selected by \code{conditioning_depth} and
+#' then add \code{V} or \code{V_new} sampling noise. Cross-covariance with
+#' observed rows is not supported. Explicit
 #' \code{newdata} estimate/response predictions are not
 #' available for \code{brma.mv()} objects with marginalized known-\code{R}
 #' blocks, because their row multipliers are fitted-row metadata.
@@ -186,7 +200,6 @@
 #' @seealso [pooled_effect()], [pooled_heterogeneity()], [blup()]
 #' @export
 predict.brma <- function(object, newdata = NULL, type = "terms",
-                         conditioning_depth = "marginal",
                          as_measure = TRUE,
                          output_measure = NULL,
                          transform = NULL,
@@ -195,25 +208,26 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
                          quiet = FALSE,
                          conditional = FALSE,
                          V_new = NULL,
+                         conditioning_depth = "marginal",
                          ...){
 
   conditioning_depth_specified <- !missing(conditioning_depth)
 
   context <- .predict_brma_context(
-    object         = object,
-    newdata        = newdata,
-    V_new          = V_new,
-    type           = type,
-    conditioning_depth = conditioning_depth,
+    object                       = object,
+    newdata                      = newdata,
+    V_new                        = V_new,
+    type                         = type,
+    conditioning_depth           = conditioning_depth,
     conditioning_depth_specified = conditioning_depth_specified,
-    as_measure     = as_measure,
-    output_measure = output_measure,
-    transform      = transform,
-    probs          = probs,
-    bias_adjusted  = bias_adjusted,
-    quiet          = quiet,
-    conditional    = conditional,
-    dots           = list(...)
+    as_measure                   = as_measure,
+    output_measure               = output_measure,
+    transform                    = transform,
+    probs                        = probs,
+    bias_adjusted                = bias_adjusted,
+    quiet                        = quiet,
+    conditional                  = conditional,
+    dots                         = list(...)
   )
 
   type <- context[["type"]]
@@ -256,9 +270,9 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   ### create observed effects prediction
   if (type == "response") {
     return(.predict_brma_response(
-      context            = context,
-      mu_samples         = location_state[["mu"]],
-      tau_within_samples = scale_state[["within"]]
+      context        = context,
+      location_state = location_state,
+      scale_state    = scale_state
     ))
   }
 }
@@ -389,12 +403,11 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   }
 
   ### types of predictions
-  # terms:       fixed effects terms for the overall effect (mu) / incorporating mods if present
-  # cluster:     terms + cluster-level random effects (mu + gamma) - multilevel only
-  # terms.scale: fixed effects terms for the overall heterogeneity (tau) / incorporating scale if present
-  # estimate:    incorporating heterogeneity into terms to obtain the true effects
-  #              (via empirical Bayes for existing data, new random effect sampled for new data)
-  # response:    incorporating heterogeneity and sampling variability
+  # terms:       fixed location
+  # location:    conditional location mean selected by conditioning depth
+  # terms.scale: fitted heterogeneity parameters
+  # estimate:    latent true-effect draws selected by conditioning depth
+  # response:    estimate target plus outcome sampling variability
 
   ### dispatch between prediction on the current data vs. new data
   if (is.null(newdata)) {
@@ -555,12 +568,13 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   }
   out <- do.call(constructor, arguments)
   out <- .predict_brma_attach_mv_metadata(
-    samples     = out,
-    object      = context[["object"]],
-    type        = context[["type"]],
-    same_data   = context[["same_data"]],
-    random_mv   = context[["random_mv"]],
-    known_V_new = context[["known_V_new"]]
+    samples            = out,
+    object             = context[["object"]],
+    type               = context[["type"]],
+    conditioning_depth = context[["conditioning_depth"]],
+    same_data          = context[["same_data"]],
+    random_mv          = context[["random_mv"]],
+    known_V_new        = context[["known_V_new"]]
   )
 
   .condition_prediction_samples(
@@ -682,12 +696,13 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     })
     names(out) <- names(scale_samples)
     out <- .predict_brma_attach_mv_metadata(
-      samples     = out,
-      object      = object,
-      type        = context[["type"]],
-      same_data   = context[["same_data"]],
-      random_mv   = TRUE,
-      known_V_new = context[["known_V_new"]]
+      samples            = out,
+      object             = object,
+      type               = context[["type"]],
+      conditioning_depth = context[["conditioning_depth"]],
+      same_data          = context[["same_data"]],
+      random_mv          = TRUE,
+      known_V_new        = context[["known_V_new"]]
     )
     out <- .new_brma_samples_list(out)
     return(.condition_prediction_samples(
@@ -718,7 +733,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 .predict_brma_location_state <- function(context, scale_state) {
 
   object              <- context[["object"]]
-  type                <- context[["type"]]
+  conditioning_depth  <- context[["conditioning_depth"]]
   same_data           <- context[["same_data"]]
   new_data            <- context[["new_data"]]
   known_V_new         <- context[["known_V_new"]]
@@ -743,114 +758,141 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   tau_within_samples  <- scale_state[["within"]]
   tau_between_samples <- scale_state[["between"]]
 
-### get fixed location samples and add random-formula effects for true-effect targets
-mu_samples <- .evaluate.brma.mu(
-  fit               = object[["fit"]],
-  outcome_data      = outcome_data,
-  mods_data         = new_data[["mods"]],
-  mods_formula      = if (is_mods) .create_fit_formula_list(data = new_data, "mods") else NULL,
-  mods_priors       = if (is_random) priors[["location"]] else priors[["mods"]],
-  is_mods           = is_mods,
-  is_PET            = is_PET,
-  is_PEESE          = is_PEESE,
-  effect_direction  = effect_direction,
-  bias_adjusted     = bias_adjusted,
-  K                 = K_original,
-  posterior_samples = posterior_samples,
-  priors            = priors
-)
-if (random_mv && type == "estimate" && !same_data) {
-  random_contribution <- .predict_brma_mv_new_effect_random_draws(
-    object            = object,
-    data              = new_data,
-    posterior_samples = posterior_samples
-  )
-  mu_samples <- mu_samples + random_contribution
-}
-
-### include 3-level (cluster-level) random-effects using helper function
-# returns contribution matrix gamma[cluster] * tau_between for multilevel models
-# see .evaluate.brma.cluster_effects() in evaluate.R for details
-blup_vi <- NULL
-if (outcome_type == "norm") {
-    blup_vi <- outcome_data[["sei"]]^2
-    if (!is.null(known_V_new)) {
-      blup_vi <- .known_v_residual_variance(known_V_new)
-  } else if (is_known_v) {
-    blup_vi <- .data_known_v_data(new_data)[["residual_variance"]]
-  }
-  if (is_weights) {
-    blup_vi <- blup_vi / outcome_data[["weights"]]
-  }
-}
-
-blup_bias_offset <- NULL
-use_known_v_blup <- outcome_type == "norm" && same_data && is_known_v &&
-  !random_mv
-if (outcome_type == "norm" && same_data && bias_adjusted && (is_PET || is_PEESE)) {
-  blup_bias_offset <- .evaluate.brma.bias_offset(
+  fixed_mu <- .evaluate.brma.mu(
     fit               = object[["fit"]],
     outcome_data      = outcome_data,
+    mods_data         = new_data[["mods"]],
+    mods_formula      = if (is_mods) {
+      .create_fit_formula_list(data = new_data, "mods")
+    } else {
+      NULL
+    },
+    mods_priors       = if (is_random) priors[["location"]] else priors[["mods"]],
+    is_mods           = is_mods,
     is_PET            = is_PET,
     is_PEESE          = is_PEESE,
     effect_direction  = effect_direction,
-    K                 = K,
+    bias_adjusted     = bias_adjusted,
+    K                 = K_original,
     posterior_samples = posterior_samples,
     priors            = priors
   )
-}
 
-# Exact block BLUP applies when the Gaussian residual model matches the target.
-# For weightfunction models, gamma is sampled under the selected-data
-# likelihood; keep those draws and apply estimate-level shrinkage conditional
-# on them instead of replacing them by the ordinary Gaussian block shortcut.
-multilevel_blup     <- NULL
-use_multilevel_blup <- is_multilevel && outcome_type == "norm" && same_data &&
-  type == "estimate" && !is_weightfunction
+  blup_vi <- NULL
+  if (outcome_type == "norm") {
+    blup_vi <- outcome_data[["sei"]]^2
+    if (!is.null(known_V_new)) {
+      blup_vi <- .known_v_residual_variance(known_V_new)
+    } else if (is_known_v) {
+      blup_vi <- .data_known_v_data(new_data)[["residual_variance"]]
+    }
+    if (is_weights) {
+      blup_vi <- blup_vi / outcome_data[["weights"]]
+    }
+  }
 
-if (use_multilevel_blup) {
-  multilevel_blup <- .evaluate.brma.multilevel_blup.norm(
-    mu_samples  = mu_samples,
-    tau_within  = tau_within_samples,
-    tau_between = tau_between_samples,
-    yi          = outcome_data[["yi"]],
-    vi          = blup_vi,
-    cluster     = fit_data[["cluster"]],
-    bias_offset = blup_bias_offset
-  )
-}
+  blup_bias_offset <- NULL
+  if (outcome_type == "norm" && same_data && bias_adjusted &&
+      (is_PET || is_PEESE)) {
+    blup_bias_offset <- .evaluate.brma.bias_offset(
+      fit               = object[["fit"]],
+      outcome_data      = outcome_data,
+      is_PET            = is_PET,
+      is_PEESE          = is_PEESE,
+      effect_direction  = effect_direction,
+      K                 = K,
+      posterior_samples = posterior_samples,
+      priors            = priors
+    )
+  }
 
-if (is_multilevel) {
-  if (!is.null(multilevel_blup)) {
-    cluster_contribution <- multilevel_blup[["cluster"]]
-  } else {
-    cluster <- fit_data[["cluster"]]
+  mu_samples       <- fixed_mu
+  cluster_mu       <- fixed_mu
+  multilevel_blup  <- NULL
+  use_known_v_blup <- outcome_type == "norm" && same_data && is_known_v &&
+    !random_mv
+
+  needs_sampled_cluster <- is_multilevel &&
+    (conditioning_depth == "cluster" ||
+     (conditioning_depth == "estimate" &&
+      (outcome_type != "norm" || is_weightfunction)))
+  if (needs_sampled_cluster) {
     cluster_contribution <- .evaluate.brma.cluster_effects(
       fit               = object[["fit"]],
       tau_between       = tau_between_samples,
-      cluster           = cluster,
-      same_data         = same_data,
+      cluster           = fit_data[["cluster"]],
+      same_data         = TRUE,
       effect_direction  = effect_direction,
       posterior_samples = posterior_samples
     )
+    cluster_mu <- fixed_mu + cluster_contribution
   }
-  mu_samples <- mu_samples + cluster_contribution
-}
+  if (conditioning_depth == "cluster") {
+    mu_samples <- cluster_mu
+  }
 
-if (random_mv && type == "estimate" &&
-    outcome_type == "norm" && same_data && is_known_v) {
-  random_blup <- .evaluate.brma.mv_random_blup.norm(
-    object            = object,
-    mu_samples        = mu_samples,
-    posterior_samples = posterior_samples,
-    bias_offset       = blup_bias_offset
-  )
-  mu_samples <- mu_samples + random_blup
-}
+  if (conditioning_depth == "estimate") {
+    if (outcome_type == "norm" && context[["type"]] != "location") {
+      mu_samples <- cluster_mu
+    } else if (random_mv && outcome_type == "norm" && same_data && is_known_v) {
+      random_blup <- .evaluate.brma.mv_random_blup.norm(
+        object            = object,
+        mu_samples        = fixed_mu,
+        posterior_samples = posterior_samples,
+        bias_offset       = blup_bias_offset
+      )
+      mu_samples <- fixed_mu + random_blup
+    } else if (is_multilevel && outcome_type == "norm" && same_data &&
+               !is_weightfunction) {
+      multilevel_blup <- .evaluate.brma.multilevel_blup.norm(
+        mu_samples  = fixed_mu,
+        tau_within  = tau_within_samples,
+        tau_between = tau_between_samples,
+        yi          = outcome_data[["yi"]],
+        vi          = blup_vi,
+        cluster     = fit_data[["cluster"]],
+        bias_offset = blup_bias_offset
+      )
+      mu_samples <- fixed_mu + multilevel_blup[["cluster"]] +
+        multilevel_blup[["estimate"]]
+    } else {
+      mu_samples <- cluster_mu
+
+      if (outcome_type == "norm" && use_known_v_blup) {
+        mu_samples <- .evaluate.brma.known_v_blup.norm(
+          mu_samples  = mu_samples,
+          tau_within  = tau_within_samples,
+          yi          = outcome_data[["yi"]],
+          known_V     = .data_known_v_data(new_data),
+          bias_offset = blup_bias_offset
+        )
+      } else if (outcome_type == "norm") {
+        mu_samples <- .evaluate.brma.true_effects.norm(
+          mu_samples  = mu_samples,
+          tau_within  = tau_within_samples,
+          yi          = outcome_data[["yi"]],
+          sei         = sqrt(blup_vi),
+          same_data   = TRUE,
+          bias_offset = blup_bias_offset
+        )
+      } else {
+        mu_samples <- .evaluate.brma.true_effects.glmm(
+          fit               = object[["fit"]],
+          mu_samples        = mu_samples,
+          tau_within        = tau_within_samples,
+          same_data         = TRUE,
+          K                 = K,
+          posterior_samples = posterior_samples
+        )
+      }
+    }
+  }
 
 
   list(
     mu               = mu_samples,
+    fixed_mu          = fixed_mu,
+    cluster_mu        = cluster_mu,
     blup_vi          = blup_vi,
     blup_bias_offset = blup_bias_offset,
     multilevel_blup  = multilevel_blup,
@@ -861,8 +903,28 @@ if (random_mv && type == "estimate" &&
 
 .predict_brma_estimate <- function(context, location_state, scale_state) {
 
+  true_effects_samples <- .predict_brma_estimate_draws(
+    context        = context,
+    location_state = location_state,
+    scale_state    = scale_state
+  )
+  colnames(true_effects_samples) <- paste0(
+    "theta[", seq_len(context[["K"]]), "]"
+  )
+
+  .predict_brma_finalize(
+    context    = context,
+    samples    = true_effects_samples,
+    title      = "True Effect Posterior Prediction:",
+    parameters = .conditional_effect_parameters(context[["object"]])
+  )
+}
+
+
+.predict_brma_estimate_draws <- function(context, location_state, scale_state) {
+
   object               <- context[["object"]]
-  same_data            <- context[["same_data"]]
+  conditioning_depth   <- context[["conditioning_depth"]]
   new_data             <- context[["new_data"]]
   outcome_data         <- context[["outcome_data"]]
   outcome_type         <- context[["outcome_type"]]
@@ -870,68 +932,120 @@ if (random_mv && type == "estimate" &&
   K                    <- context[["K"]]
   random_mv            <- context[["random_mv"]]
   mu_samples           <- location_state[["mu"]]
-  multilevel_blup      <- location_state[["multilevel_blup"]]
-  use_known_v_blup     <- location_state[["use_known_v_blup"]]
+  fixed_mu             <- location_state[["fixed_mu"]]
   blup_vi              <- location_state[["blup_vi"]]
   blup_bias_offset     <- location_state[["blup_bias_offset"]]
   tau_within_samples   <- scale_state[["within"]]
+  tau_between_samples  <- scale_state[["between"]]
 
-  if (!is.null(multilevel_blup)) {
-    true_effects_samples <- mu_samples + multilevel_blup[["estimate"]]
-  } else if (random_mv) {
+  if (conditioning_depth == "marginal") {
+    if (random_mv) {
+      true_effects_samples <- fixed_mu +
+        .predict_brma_mv_new_effect_random_draws(
+          object            = object,
+          data              = new_data,
+          posterior_samples = posterior_samples
+        )
+    } else {
+      effect_mean <- fixed_mu
+      if (context[["is_multilevel"]]) {
+        effect_mean <- effect_mean + .evaluate.brma.cluster_effects(
+          fit               = object[["fit"]],
+          tau_between       = tau_between_samples,
+          cluster           = context[["fit_data"]][["cluster"]],
+          same_data         = FALSE,
+          effect_direction  = context[["effect_direction"]],
+          posterior_samples = posterior_samples
+        )
+      }
+      true_effects_samples <- if (outcome_type == "norm") {
+        .evaluate.brma.true_effects.norm(
+          mu_samples  = effect_mean,
+          tau_within  = tau_within_samples,
+          yi          = outcome_data[["yi"]],
+          sei         = sqrt(blup_vi),
+          same_data   = FALSE
+        )
+      } else {
+        .evaluate.brma.true_effects.glmm(
+          fit               = object[["fit"]],
+          mu_samples        = effect_mean,
+          tau_within        = tau_within_samples,
+          same_data         = FALSE,
+          K                 = K,
+          posterior_samples = posterior_samples
+        )
+      }
+    }
+  } else if (conditioning_depth == "cluster") {
+    true_effects_samples <- if (outcome_type == "norm") {
+      .evaluate.brma.true_effects.norm(
+        mu_samples  = mu_samples,
+        tau_within  = tau_within_samples,
+        yi          = outcome_data[["yi"]],
+        sei         = sqrt(blup_vi),
+        same_data   = FALSE
+      )
+    } else {
+      .evaluate.brma.true_effects.glmm(
+        fit               = object[["fit"]],
+        mu_samples        = mu_samples,
+        tau_within        = tau_within_samples,
+        same_data         = FALSE,
+        K                 = K,
+        posterior_samples = posterior_samples
+      )
+    }
+  } else if (outcome_type != "norm") {
     true_effects_samples <- mu_samples
-  } else if (use_known_v_blup) {
-    true_effects_samples <- .evaluate.brma.known_v_blup.norm(
-      mu_samples  = mu_samples,
+  } else if (random_mv) {
+    true_effects_samples <- fixed_mu +
+      .predict_brma_mv_random_posterior_draws(
+        object            = object,
+        mu_samples        = fixed_mu,
+        posterior_samples = posterior_samples,
+        bias_offset       = blup_bias_offset
+      )
+  } else if (context[["is_multilevel"]] &&
+             !context[["is_weightfunction"]]) {
+    true_effects_samples <- fixed_mu +
+      .evaluate.brma.multilevel_posterior.norm(
+        mu_samples  = fixed_mu,
+        tau_within  = tau_within_samples,
+        tau_between = tau_between_samples,
+        yi          = outcome_data[["yi"]],
+        vi          = blup_vi,
+        cluster     = context[["fit_data"]][["cluster"]],
+        bias_offset = blup_bias_offset
+      )
+  } else if (context[["is_known_v"]]) {
+    true_effects_samples <- .evaluate.brma.known_v_posterior.norm(
+      mu_samples  = fixed_mu,
       tau_within  = tau_within_samples,
       yi          = outcome_data[["yi"]],
       known_V     = .data_known_v_data(new_data),
       bias_offset = blup_bias_offset
     )
-  } else if (outcome_type == "norm") {
-    true_effects_samples <- .evaluate.brma.true_effects.norm(
-      mu_samples  = mu_samples,
+  } else {
+    true_effects_samples <- .evaluate.brma.true_effects_posterior.norm(
+      mu_samples  = if (context[["is_multilevel"]]) mu_samples else fixed_mu,
       tau_within  = tau_within_samples,
       yi          = outcome_data[["yi"]],
       sei         = sqrt(blup_vi),
-      same_data   = same_data,
       bias_offset = blup_bias_offset
-    )
-  } else {
-    true_effects_samples <- .evaluate.brma.true_effects.glmm(
-      fit               = object[["fit"]],
-      mu_samples        = mu_samples,
-      tau_within        = tau_within_samples,
-      same_data         = same_data,
-      K                 = K,
-      posterior_samples = posterior_samples
     )
   }
 
-  colnames(true_effects_samples) <- paste0("theta[", seq_len(K), "]")
-  title <- if (random_mv && same_data) {
-    "Conditional True Effects:"
-  } else if (same_data && outcome_type == "norm") {
-    "True Effects (BLUP Means):"
-  } else {
-    "True Effect Posterior Prediction:"
-  }
-  .predict_brma_finalize(
-    context    = context,
-    samples    = true_effects_samples,
-    title      = title,
-    parameters = .conditional_effect_parameters(object)
-  )
+  return(true_effects_samples)
 }
 
 
-.predict_brma_response <- function(
-    context, mu_samples, tau_within_samples) {
+.predict_brma_response <- function(context, location_state, scale_state) {
 
   object            <- context[["object"]]
   as_measure        <- context[["as_measure"]]
   bias_adjusted     <- context[["bias_adjusted"]]
-  same_data         <- context[["same_data"]]
+  conditioning_depth <- context[["conditioning_depth"]]
   new_data          <- context[["new_data"]]
   known_V_new       <- context[["known_V_new"]]
   priors            <- context[["priors"]]
@@ -941,33 +1055,25 @@ if (random_mv && type == "estimate" &&
   posterior_samples <- context[["posterior_samples"]]
   outcome_data      <- context[["outcome_data"]]
   K                 <- context[["K"]]
-  random_mv         <- context[["random_mv"]]
+  mu_samples        <- location_state[["mu"]]
+  tau_within_samples <- scale_state[["within"]]
 
   # different model types have different output structures
   if (is.element(outcome_type, c("bin", "pois"))) {
+
+    true_effects_samples <- .predict_brma_estimate_draws(
+      context        = context,
+      location_state = location_state,
+      scale_state    = scale_state
+    )
 
     if (as_measure) {
       .check_glmm_response_as_measure(outcome_type, outcome_data)
     }
 
-    # the estimate-level effects are not marginalized for GLMMs
-    # include the sampled random effects or marginalize over them for new data
-    # see .evaluate.brma.theta.glmm() in evaluate.R for details
-    theta_contribution <- .evaluate.brma.theta.glmm(
-      fit               = object[["fit"]],
-      tau_within        = tau_within_samples,
-      same_data         = same_data,
-      K                 = K,
-      posterior_samples = posterior_samples
-    )
-    mu_samples <- mu_samples + theta_contribution
-
     if (outcome_type == "bin") {
 
-      ### incorporate with base-rate using helper function
-      # Existing data use fitted pi[k]. Newdata samples new pi from the
-      # estimate-specific prior; reusing fitted pi[k] would index old studies.
-      if (same_data) {
+      if (conditioning_depth == "estimate") {
         if (K != nrow(object[["data"]][["outcome"]])) {
           stop("Existing-data GLMM response prediction has inconsistent K.",
                call. = FALSE)
@@ -987,7 +1093,7 @@ if (random_mv && type == "estimate" &&
 
       ### sample outcome using RNG helper
       outcome_samples <- .outcome_rng.binom(
-        mu_samples     = mu_samples,
+        mu_samples     = true_effects_samples,
         logit_baserate = logit_baserate,
         n1i            = outcome_data[["n1i"]],
         n2i            = outcome_data[["n2i"]]
@@ -995,10 +1101,7 @@ if (random_mv && type == "estimate" &&
 
     } else if (outcome_type == "pois") {
 
-      ### incorporate with log-rate using helper function
-      # Existing data use fitted phi[k]. Newdata samples new phi from the
-      # estimate-specific prior; reusing fitted phi[k] would index old studies.
-      if (same_data) {
+      if (conditioning_depth == "estimate") {
         if (K != nrow(object[["data"]][["outcome"]])) {
           stop("Existing-data GLMM response prediction has inconsistent K.",
                call. = FALSE)
@@ -1018,7 +1121,7 @@ if (random_mv && type == "estimate" &&
 
       ### sample outcome using RNG helper
       outcome_samples <- .outcome_rng.pois(
-        mu_samples = mu_samples,
+        mu_samples = true_effects_samples,
         log_phi    = log_phi,
         t1i        = outcome_data[["t1i"]],
         t2i        = outcome_data[["t2i"]]
@@ -1039,44 +1142,60 @@ if (random_mv && type == "estimate" &&
 
   } else if (outcome_type == "norm") {
 
-    # normal outcome models dispatch between:
-    # - bias_adjusted = TRUE: sample from unweighted normal (as if no bias)
-    # - bias_adjusted = FALSE with weightfunction: sample from selected-normal
-    # - bias_adjusted = FALSE without weightfunction: sample from unweighted normal
-    response_tau_within_samples <- tau_within_samples
-
     if (bias_adjusted || !is_weightfunction) {
 
-      if (random_mv && is_known_v) {
-        outcome_samples <- .predict_brma_mv_known_v_response_draws(
-          object            = object,
-          data              = new_data,
-          known_V           = if (!is.null(known_V_new)) {
-            known_V_new
-          } else {
-            .data_known_v_data(new_data)
-          },
-          mu_samples        = mu_samples,
-          posterior_samples = posterior_samples,
-          same_data         = same_data
-        )
-      } else if (is_known_v) {
+      true_effects_samples <- .predict_brma_estimate_draws(
+        context        = context,
+        location_state = location_state,
+        scale_state    = scale_state
+      )
+
+      zero_tau <- matrix(
+        0,
+        nrow = nrow(true_effects_samples),
+        ncol = ncol(true_effects_samples)
+      )
+      if (is_known_v) {
         outcome_samples <- .outcome_rng.norm_known_v(
-          mu_samples = mu_samples,
-          tau_within = response_tau_within_samples,
+          mu_samples = true_effects_samples,
+          tau_within = zero_tau,
           known_V    = if (!is.null(known_V_new)) known_V_new else .data_known_v_data(new_data)
         )
       } else {
-        # sample from unweighted normal distribution
-        # y[s,k] ~ N(mu[s,k], sqrt(tau_within[s,k]^2 + sei[k]^2))
         outcome_samples <- .outcome_rng.norm(
-          mu_samples = mu_samples,
-          tau_within = response_tau_within_samples,
+          mu_samples = true_effects_samples,
+          tau_within = zero_tau,
           sei        = outcome_data[["sei"]]
         )
       }
 
     } else {
+
+      response_mu  <- mu_samples
+      response_tau <- tau_within_samples
+      if (conditioning_depth == "marginal" && context[["is_multilevel"]]) {
+        response_mu <- response_mu + .evaluate.brma.cluster_effects(
+          fit               = object[["fit"]],
+          tau_between       = scale_state[["between"]],
+          cluster           = context[["fit_data"]][["cluster"]],
+          same_data         = FALSE,
+          effect_direction  = context[["effect_direction"]],
+          posterior_samples = posterior_samples
+        )
+      }
+      if (conditioning_depth == "estimate") {
+        true_effects_samples <- .predict_brma_estimate_draws(
+          context        = context,
+          location_state = location_state,
+          scale_state    = scale_state
+        )
+        response_mu  <- true_effects_samples
+        response_tau <- matrix(
+          0,
+          nrow = nrow(true_effects_samples),
+          ncol = ncol(true_effects_samples)
+        )
+      }
 
       selection_context <- .selection_context(
         object            = object,
@@ -1085,8 +1204,8 @@ if (random_mv && type == "estimate" &&
       )
 
       outcome_samples <- .outcome_rng.selnorm(
-        mu_samples        = mu_samples,
-        tau_within        = response_tau_within_samples,
+        mu_samples        = response_mu,
+        tau_within        = response_tau,
         sei               = outcome_data[["sei"]],
         selection_context = selection_context
       )

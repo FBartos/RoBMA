@@ -166,7 +166,7 @@
   predict_type <- switch(conditioning_depth,
     "marginal"  = "terms",
     "cluster"   = "cluster",
-    "estimate"  = "estimate"
+    "estimate"  = "blup"
   )
 
   mu_samples <- predict.brma(

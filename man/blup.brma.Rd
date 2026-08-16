@@ -55,7 +55,9 @@ fitted brma object. These correspond to Best Linear Unbiased Predictions
 }
 \details{
 This function is a convenience wrapper around \code{predict.brma(...,
-type = "effect", newdata = NULL)}.
+type = "blup", newdata = NULL)}. Unlike \code{predict(..., type =
+"estimate", conditioning_depth = "estimate")}, it returns conditional
+location/BLUP means rather than adding conditional latent-effect uncertainty.
 
 For unweighted two-level normal models, true effects are computed using
 empirical Bayes shrinkage:
