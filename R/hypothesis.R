@@ -249,7 +249,16 @@ hypothesis.brma <- function(object, hypothesis,
     .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()")
   }
 
-  hypothesis         <- BayesTools::hypothesis_parse(hypothesis)
+  parse_component <- .parameter_component_normalize(component)
+  hypothesis <- BayesTools::hypothesis_parse(
+    hypothesis = hypothesis,
+    catalog    = .brma_parameter_catalog_metadata(object)[["catalog"]],
+    component  = if (identical(parse_component, "auto")) {
+      NULL
+    } else {
+      parse_component
+    }
+  )
   display_hypothesis <- hypothesis
   selected <- .hypothesis_brma_select_parameter(
     object     = object,
@@ -333,8 +342,10 @@ hypothesis.brma <- function(object, hypothesis,
       BF01                      = BF01,
       seed                      = seed,
       density_method            = density_method,
+      density_control           = density_control,
       n_samples                 = n_samples,
-      columns                   = columns
+      columns                   = columns,
+      parameter_label           = parameter_label
     )
     return(.hypothesis_brma_restore_hypothesis_labels(
       out             = out,
@@ -515,7 +526,8 @@ hypothesis.brma <- function(object, hypothesis,
 
 .hypothesis_brma_random <- function(
     object, parameter, hypothesis, standardized_coefficients,
-    conditional, logBF, BF01, seed, density_method, n_samples, columns) {
+    conditional, logBF, BF01, seed, density_method, density_control = NULL,
+    n_samples, columns, parameter_label = parameter) {
 
   if (conditional) {
     stop(
@@ -524,13 +536,10 @@ hypothesis.brma <- function(object, hypothesis,
       call. = FALSE
     )
   }
-  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
-    stop(
-      "qCMDE/IWMDE hypotheses are not available for semantic random-effect ",
-      "quantities. Use density_method = 'KDE' or 'normal'.",
-      call. = FALSE
-    )
-  }
+  precomputed <- .density_method_uses_precomputed(
+    density_method,
+    allow_normal = TRUE
+  )
 
   posterior <- .brma_random_parameter_select(
     object                    = object,
@@ -560,29 +569,40 @@ hypothesis.brma <- function(object, hypothesis,
         call. = FALSE
       )
     }
+    target <- if (precomputed) {
+      .brma_random_parameter_density_target(object, parameter)
+    } else {
+      NULL
+    }
+    if (precomputed && is.null(target[["parameter"]])) {
+      stop(target[["reason"]], call. = FALSE)
+    }
     reason <- .brma_random_parameter_point_test_reason(
       spec         = posterior[["spec"]],
       prior        = posterior[["prior"]],
-      source_prior = posterior[["source_prior"]]
+      source_prior = posterior[["source_prior"]],
+      derived      = precomputed
     )
     if (nzchar(reason)) {
       stop(reason, call. = FALSE)
     }
 
-    support <- .brma_random_parameter_support(
-      posterior[["spec"]],
-      posterior[["prior"]],
-      posterior[["source_prior"]]
-    )
-    values <- point_refs[["value"]]
-    at_boundary <- (is.finite(support[1L]) & values <= support[1L]) |
-      (is.finite(support[2L]) & values >= support[2L])
-    if (any(at_boundary)) {
-      stop(
-        "Point-null Bayes factors at the support boundary are not available ",
-        "for random-effect quantity '", posterior[["entry"]][["term"]], "'.",
-        call. = FALSE
+    if (!precomputed) {
+      support <- .brma_random_parameter_support(
+        posterior[["spec"]],
+        posterior[["prior"]],
+        posterior[["source_prior"]]
       )
+      values <- point_refs[["value"]]
+      at_boundary <- (is.finite(support[1L]) & values <= support[1L]) |
+        (is.finite(support[2L]) & values >= support[2L])
+      if (any(at_boundary)) {
+        stop(
+          "Point-null Bayes factors at the support boundary are not available ",
+          "for random-effect quantity '", posterior[["entry"]][["term"]], "'.",
+          call. = FALSE
+        )
+      }
     }
   }
   if (length(unique(prior_values[is.finite(prior_values)])) < 2L) {
@@ -593,16 +613,77 @@ hypothesis.brma <- function(object, hypothesis,
     )
   }
 
-  BayesTools::hypothesis_BF(
-    posterior      = posterior_values,
-    prior          = prior_values,
+  if (!precomputed || nrow(point_refs) == 0L) {
+    return(BayesTools::hypothesis_BF(
+      posterior      = posterior_values,
+      prior          = prior_values,
+      hypothesis     = hypothesis,
+      parameter      = parameter,
+      logBF          = logBF,
+      BF01           = BF01,
+      seed           = seed,
+      columns        = columns,
+      density_method = if (precomputed) "KDE" else density_method
+    ))
+  }
+
+  samples <- .brma_random_parameter_mixed_posterior(
+    object                    = object,
+    parameter                 = parameter,
+    standardized_coefficients = standardized_coefficients,
+    prior                     = TRUE,
+    n_prior_samples           = n_samples,
+    seed                      = seed
+  )
+  marginal <- BayesTools::marginal_posterior(
+    samples       = samples,
+    parameter     = parameter,
+    prior_samples = TRUE,
+    use_formula   = FALSE,
+    n_samples     = n_samples
+  )
+  if (is.null(density_control[["normalization_points"]])) {
+    density_control[["normalization_points"]] <- max(
+      50L,
+      density_control[["n_points"]]
+    )
+  }
+  context        <- .iwmde_context(object)
+  estimate_cache <- .iwmde_estimate_cache()
+  for (value in unique(point_refs[["value"]])) {
+    marginal <- .hypothesis_brma_attach_iwmde_scalar(
+      posterior                = marginal,
+      raw_posterior            = marginal,
+      context                  = context,
+      estimate_cache           = estimate_cache,
+      parameter                = target[["parameter"]],
+      parameter_label          = parameter_label,
+      value                    = value,
+      conditional              = NULL,
+      n_points                 = density_control[["n_points"]],
+      samples                  = density_control[["samples"]],
+      target_relative_mcse     = density_control[["target_relative_mcse"]],
+      normalization_points     = density_control[["normalization_points"]],
+      normalization_prob       = density_control[["normalization_prob"]],
+      density_method           = density_method,
+      parameter_spec           = target[["parameter_spec"]]
+    )
+  }
+
+  out <- BayesTools::hypothesis_BF(
+    posterior      = marginal,
     hypothesis     = hypothesis,
     parameter      = parameter,
     logBF          = logBF,
     BF01           = BF01,
     seed           = seed,
     columns        = columns,
-    density_method = density_method
+    density_method = "precomputed"
+  )
+  .hypothesis_brma_append_iwmde_warnings(
+    table     = out,
+    posterior = marginal,
+    parameter = parameter
   )
 }
 

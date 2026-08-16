@@ -157,6 +157,49 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_loglik(
   ));
 }
 
+extern "C" SEXP RoBMA_known_v_covariance_plan_loglik_batch(
+    SEXP pointer,
+    SEXP means,
+    SEXP random_covariance_states,
+    SEXP extra_variances)
+{
+  CovariancePlan *plan = plan_pointer(pointer);
+  if (TYPEOF(means) != REALSXP || !Rf_isMatrix(means) ||
+      TYPEOF(extra_variances) != REALSXP || !Rf_isMatrix(extra_variances)) {
+    Rf_error("Known-V batched means and extra variances must be numeric matrices.");
+  }
+  SEXP mean_dim = Rf_getAttrib(means, R_DimSymbol);
+  SEXP extra_dim = Rf_getAttrib(extra_variances, R_DimSymbol);
+  if (INTEGER(mean_dim)[0] != plan->n ||
+      INTEGER(extra_dim)[0] != plan->n ||
+      INTEGER(mean_dim)[1] != INTEGER(extra_dim)[1]) {
+    Rf_error("Known-V batched likelihood matrices have inconsistent dimensions.");
+  }
+  if (TYPEOF(random_covariance_states) != VECSXP ||
+      XLENGTH(random_covariance_states) != INTEGER(mean_dim)[1]) {
+    Rf_error("Known-V batched random covariance states have inconsistent length.");
+  }
+
+  const int draws = INTEGER(mean_dim)[1];
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, draws));
+  const double *mean_values = REAL(means);
+  const double *extra_values = REAL(extra_variances);
+  for (int draw = 0; draw < draws; ++draw) {
+    std::vector<CovarianceFactor> states = covariance_states(
+      VECTOR_ELT(random_covariance_states, draw),
+      *plan
+    );
+    REAL(out)[draw] = plan_log_likelihood_values(
+      *plan,
+      mean_values + static_cast<size_t>(draw) * plan->n,
+      states,
+      extra_values + static_cast<size_t>(draw) * plan->n
+    );
+  }
+  UNPROTECT(1);
+  return out;
+}
+
 extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik(
     SEXP pointer,
     SEXP mean,

@@ -5,6 +5,14 @@
 .iwmde_log_lik_known_v_joint_sum_from_samples <- function(
     context, posterior_samples, active_setup, unit, data_hash = NULL) {
 
+  if (.iwmde_uses_known_v_random_marginal_likelihood(context)) {
+    return(.iwmde_log_lik_known_v_random_marginal_sum_from_samples(
+      context           = context,
+      posterior_samples = posterior_samples,
+      active_setup      = active_setup
+    ))
+  }
+
   conditioned_random_effects <- .iwmde_conditioned_random_effects_from_latent(
     context           = context,
     posterior_samples = posterior_samples,
@@ -28,6 +36,276 @@
   }
 
   return(.log_lik_known_v_joint_sum_from_setup(setup))
+}
+
+
+.iwmde_uses_known_v_random_marginal_likelihood <- function(context) {
+
+  data <- context[["data"]]
+
+  .is_data_known_v(data) && .is_data_random(data) &&
+    .data_outcome_type(data) == "norm" &&
+    !.is_priors_weightfunction(context[["priors"]])
+}
+
+
+.iwmde_log_lik_known_v_random_marginal_sum_from_samples <- function(
+    context, posterior_samples, active_setup) {
+
+  data <- context[["data"]]
+  if (!.iwmde_uses_known_v_random_marginal_likelihood(context)) {
+    stop(
+      "Marginal known-V random-effect likelihood is unavailable for this model.",
+      call. = FALSE
+    )
+  }
+
+  setup      <- .iwmde_known_v_random_marginal_setup(context)
+  mu_samples <- .iwmde_predictor_evaluate_fixed_mu(
+    context      = context,
+    active_setup = active_setup,
+    samples      = posterior_samples
+  )
+  random_factors <- .brma_mv_random_effects_marginal_factor_states(
+    object            = context[["object"]],
+    posterior_samples = posterior_samples,
+    blocks            = setup[["blocks"]],
+    row_blocks        = setup[["dependency_blocks"]],
+    data              = data
+  )
+
+  S <- nrow(posterior_samples)
+  K <- nrow(data[["outcome"]])
+  if (!identical(random_factors[["row_blocks"]],
+                 setup[["dependency_blocks"]]) ||
+      length(random_factors[["factor_states"]]) != S) {
+    stop(
+      "Marginal random-effect covariance returned invalid factor states.",
+      call. = FALSE
+    )
+  }
+
+  yi <- data[["outcome"]][["yi"]]
+  if (.data_effect_direction(data) == "negative") {
+    yi         <- -yi
+    mu_samples <- -mu_samples
+  }
+
+  return(.marglik_covariance_plan_loglik_batch(
+    cache                    = setup[["covariance_plan_cache"]],
+    y                        = as.double(yi),
+    means                    = mu_samples,
+    sampling_covariance      = setup[["sampling_covariance"]],
+    random_covariance_plans  = random_factors[["factor_plans"]],
+    random_covariance_states = random_factors[["factor_states"]],
+    block_indices            = setup[["dependency_blocks"]],
+    extra_variances          = matrix(0, nrow = S, ncol = K)
+  ))
+}
+
+
+.iwmde_known_v_random_marginal_setup <- function(context) {
+
+  cache <- context[["predictor_cache"]]
+  key   <- "known_v_random_marginal_setup"
+  if (exists(key, envir = cache, inherits = FALSE)) {
+    return(get(key, envir = cache, inherits = FALSE))
+  }
+
+  object         <- context[["object"]]
+  data           <- context[["data"]]
+  formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
+  terms          <- formula_design[["random_effects"]]
+  blocks <- vapply(terms, .random_effect_term_block_name, character(1))
+  if (length(blocks) == 0L || anyNA(blocks) || any(!nzchar(blocks)) ||
+      anyDuplicated(blocks)) {
+    stop(
+      "Marginal known-V likelihood requires named random-effect blocks.",
+      call. = FALSE
+    )
+  }
+
+  known_V <- .data_known_v_data(data)
+  setup <- list(
+    blocks              = blocks,
+    sampling_covariance = .marglik_known_v_covariance_matrix(known_V),
+    dependency_blocks   = .marglik_random_dependency_blocks(
+      model_data                   = data,
+      formula_design               = formula_design,
+      blocks                       = blocks,
+      sampling_latent_marginalized = TRUE
+    ),
+    covariance_plan_cache = new.env(parent = emptyenv())
+  )
+  assign(key, setup, envir = cache)
+
+  return(setup)
+}
+
+
+.iwmde_log_q_grid_known_v_random_allocation_group <- function(
+    context, parameter, values, row_states, replacement, active_setup) {
+
+  plan <- .iwmde_known_v_random_allocation_cluster_plan(
+    context     = context,
+    parameter   = parameter,
+    replacement = replacement
+  )
+  if (is.null(plan)) {
+    return(NULL)
+  }
+
+  rows <- vapply(row_states, `[[`, integer(1), "row_index")
+  samples <- context[["posterior_samples"]][rows, , drop = FALSE]
+  mu_samples <- .iwmde_predictor_evaluate_fixed_mu(
+    context      = context,
+    active_setup = active_setup,
+    samples      = samples
+  )
+  total_sd <- samples[, plan[["source_parameter"]]]
+  if (any(!is.finite(total_sd)) || any(total_sd < 0)) {
+    return(NULL)
+  }
+
+  data <- context[["data"]]
+  yi   <- data[["outcome"]][["yi"]]
+  if (.data_effect_direction(data) == "negative") {
+    yi         <- -yi
+    mu_samples <- -mu_samples
+  }
+
+  K <- nrow(data[["outcome"]])
+  S <- length(row_states)
+  rho <- if (plan[["target_is_cluster_fraction"]]) {
+    values
+  } else {
+    1 - values
+  }
+  valid   <- is.finite(rho) & rho >= 0 & rho <= 1
+  log_lik <- matrix(-Inf, nrow = length(values), ncol = S)
+  if (any(valid)) {
+    evaluated <- .log_lik_cluster_norm_analytic_rho_grid_sum(
+      setup = list(
+        mu        = mu_samples,
+        tau_total = matrix(total_sd, nrow = S, ncol = K),
+        cluster   = split(seq_len(K), plan[["cluster_map"]])
+      ),
+      yi  = yi,
+      vi  = plan[["sampling_variance"]],
+      rho = rho[valid]
+    )
+    if (!is.matrix(evaluated) ||
+        !identical(dim(evaluated), c(sum(valid), S)) ||
+        any(!is.finite(evaluated))) {
+      return(NULL)
+    }
+    log_lik[valid, ] <- evaluated
+  }
+
+  log_prior <- .iwmde_predictor_log_prior(
+    context     = context,
+    parameter   = parameter,
+    values      = values,
+    row_states  = row_states,
+    replacement = replacement
+  )
+  if (is.null(log_prior) || length(log_prior) != length(values) * S) {
+    return(NULL)
+  }
+
+  return(log_lik + matrix(log_prior, nrow = length(values), ncol = S))
+}
+
+
+.iwmde_known_v_random_allocation_cluster_plan <- function(
+    context, parameter, replacement) {
+
+  data <- context[["data"]]
+  if (!.iwmde_uses_known_v_random_marginal_likelihood(context) ||
+      .data_known_v_correlated(data) || .is_data_weights(data) ||
+      !identical(replacement[["type"]], "simplex_pair") ||
+      !identical(
+        parameter,
+        paste0(
+          replacement[["parameter"]],
+          "[", replacement[["index"]], "]"
+        )
+      )) {
+    return(NULL)
+  }
+
+  formula_design <- .fitted_formula_design(
+    context[["object"]],
+    "mu",
+    required = TRUE
+  )
+  terms <- formula_design[["random_effects"]]
+  K     <- nrow(data[["outcome"]])
+  if (length(terms) != 2L) {
+    return(NULL)
+  }
+
+  term_plan <- lapply(terms, function(term) {
+    factors <- if (.marginalized_random_effect_has_allocation(term)) {
+      .marginalized_random_effect_allocation_factors(term)
+    } else {
+      NULL
+    }
+    allocations <- term[["sd_binding"]][["allocations"]]
+    allocation  <- if (length(allocations) == 1L) allocations[[1L]] else NULL
+    model_matrix <- term[["model_matrix"]]
+    group_map    <- term[["group_map"]]
+    if (length(factors) != 1L ||
+        !identical(factors[[1L]][["weight_name"]],
+                   replacement[["parameter"]]) ||
+        !identical(factors[[1L]][["scale"]], "total_variance") ||
+        !identical(factors[[1L]][["n_targets"]], 2L) ||
+        !is.matrix(model_matrix) ||
+        !identical(dim(model_matrix), c(K, 1L)) ||
+        any(!is.finite(model_matrix)) || any(model_matrix != 1) ||
+        length(group_map) != K || anyNA(group_map) ||
+        any(group_map != as.integer(group_map)) || any(group_map < 1L) ||
+        .random_effect_term_has_known_group_covariance(term) ||
+        !is.list(allocation[["source"]]) ||
+        !identical(allocation[["source"]][["shape"]], "scalar")) {
+      return(NULL)
+    }
+    list(
+      index            = factors[[1L]][["index"]],
+      source_parameter = allocation[["source"]][["name"]],
+      group_map        = as.integer(group_map),
+      unique_groups    = !anyDuplicated(group_map)
+    )
+  })
+  if (any(vapply(term_plan, is.null, logical(1)))) {
+    return(NULL)
+  }
+  indices <- vapply(term_plan, `[[`, integer(1), "index")
+  sources <- vapply(term_plan, `[[`, character(1), "source_parameter")
+  unique_groups <- vapply(term_plan, `[[`, logical(1), "unique_groups")
+  if (!identical(sort(indices), 1:2) || length(unique(sources)) != 1L ||
+      sum(unique_groups) != 1L ||
+      !sources[[1L]] %in% colnames(context[["posterior_samples"]])) {
+    return(NULL)
+  }
+
+  cluster_term <- term_plan[[which(!unique_groups)]]
+  known_V      <- .marglik_known_v_covariance_matrix(
+    .data_known_v_data(data)
+  )
+  off_diagonal <- known_V
+  diag(off_diagonal) <- 0
+  if (any(off_diagonal != 0)) {
+    return(NULL)
+  }
+
+  list(
+    source_parameter           = sources[[1L]],
+    cluster_map                = cluster_term[["group_map"]],
+    target_is_cluster_fraction =
+      replacement[["index"]] == cluster_term[["index"]],
+    sampling_variance          = diag(known_V)
+  )
 }
 
 

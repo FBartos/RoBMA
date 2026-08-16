@@ -981,25 +981,13 @@
 
 .iwmde_predictor_evaluate_mu <- function(context, active_setup, samples) {
 
-  data         <- context[["data"]]
-  mods_formula <- context[["formula_inputs"]][["mods"]][["formula"]]
-
-  mu_samples <- .evaluate.brma.mu(
-    fit               = context[["object"]][["fit"]],
-    outcome_data      = data[["outcome"]],
-    mods_data         = data[["mods"]],
-    mods_formula      = mods_formula,
-    mods_priors       = active_setup[["priors"]][["mods"]],
-    is_mods           = .is_data_mods(data),
-    is_PET            = active_setup[["is_PET"]],
-    is_PEESE          = active_setup[["is_PEESE"]],
-    effect_direction  = .data_effect_direction(data),
-    bias_adjusted     = FALSE,
-    K                 = nrow(data[["outcome"]]),
-    posterior_samples = samples,
-    priors            = active_setup[["priors"]]
+  mu_samples <- .iwmde_predictor_evaluate_fixed_mu(
+    context      = context,
+    active_setup = active_setup,
+    samples      = samples
   )
 
+  data <- context[["data"]]
   if (.is_data_known_v(data) &&
       length(.data_effective_sampled_random_effect_terms(data)) > 0L) {
     mu_samples <- mu_samples + .evaluate.brma.random_effects(
@@ -1011,6 +999,35 @@
       required          = TRUE
     )
   }
+
+  return(mu_samples)
+}
+
+
+.iwmde_predictor_evaluate_fixed_mu <- function(context, active_setup, samples) {
+
+  data         <- context[["data"]]
+  mods_formula <- context[["formula_inputs"]][["mods"]][["formula"]]
+
+  mu_samples <- .evaluate.brma.mu(
+    fit               = context[["object"]][["fit"]],
+    outcome_data      = data[["outcome"]],
+    mods_data         = data[["mods"]],
+    mods_formula      = mods_formula,
+    mods_priors       = if (.is_data_random(data)) {
+      active_setup[["priors"]][["location"]]
+    } else {
+      active_setup[["priors"]][["mods"]]
+    },
+    is_mods           = .is_data_mods(data),
+    is_PET            = active_setup[["is_PET"]],
+    is_PEESE          = active_setup[["is_PEESE"]],
+    effect_direction  = .data_effect_direction(data),
+    bias_adjusted     = FALSE,
+    K                 = nrow(data[["outcome"]]),
+    posterior_samples = samples,
+    priors            = active_setup[["priors"]]
+  )
 
   return(mu_samples)
 }

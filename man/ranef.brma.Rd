@@ -10,6 +10,7 @@
   probs = c(0.025, 0.975),
   component = "all",
   simplify = TRUE,
+  expand = FALSE,
   ...
 )
 }
@@ -30,6 +31,11 @@ block name. Use \code{"total"} for the summed random-effect deviation.}
 \item{simplify}{whether \code{component = "all"} should return a single
 \code{brma_samples} object instead of a one-element list. Defaults to
 \code{TRUE}, matching standard 2-level \code{brma()} behavior.}
+
+\item{expand}{whether to repeat group-level random effects for every fitted
+observation. Defaults to \code{FALSE}, returning one column per unique
+grouping level, consistently with \code{metafor::ranef()}. Set to
+\code{TRUE} for observation-aligned output.}
 
 \item{...}{additional arguments forwarded to \code{\link{predict.brma}} for
 supported options such as \code{conditional}. \code{newdata}, \code{type},
@@ -56,8 +62,8 @@ effects (BLUPs) and the fixed-effect predictions:
 For standard (2-level) models, returns a single \code{brma_samples}
 object with the estimate-level random effects.
 
-For multilevel (3-level) models, returns a list with two observation-aligned
-\code{brma_samples} matrices, one column per estimate row:
+For multilevel (3-level) models, returns a list with two
+\code{brma_samples} matrices:
 \describe{
 \item{\code{cluster}}{Cluster-level random effects
 (\eqn{\gamma_j \cdot \tau_{between}}), representing between-cluster
@@ -71,6 +77,13 @@ For \code{brma.mv()} random-formula models, decomposes the Gaussian
 conditional means by random-effect block. The result is invariant to whether
 each block was sampled or marginalized during fitting. If there is only one
 block and \code{simplify = TRUE}, returns a single \code{brma_samples} object.
+Multiple blocks are returned in one flat list under their canonical fitted
+block names; no additional location layer or component-name prefix is added.
+Unique-level output is available when a block's contribution is constant
+within each grouping level. Random slopes and row-varying random-effect
+scales generally require \code{expand = TRUE}. Summed \code{component =
+"total"} output across multiple blocks also requires \code{expand = TRUE}
+because different blocks need not share grouping levels.
 }
 \examples{
 \dontrun{

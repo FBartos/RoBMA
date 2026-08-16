@@ -547,7 +547,8 @@
             n_targets            = 2L,
             target_columns       = columns,
             auxiliary_columns    = auxiliary_columns,
-            conditioning_exclude = columns
+            conditioning_exclude = columns,
+            prior_density        = .brma_random_parameter_exact_prior(selected)
           )
         ))
       }
@@ -758,7 +759,7 @@
 }
 
 .brma_random_parameter_point_test_reason <- function(
-    spec, prior = NULL, source_prior = NULL) {
+    spec, prior = NULL, source_prior = NULL, derived = FALSE) {
 
   type   <- spec[["summary_type"]]
   source <- spec[["source_parameter"]]
@@ -772,14 +773,14 @@
     ))
   }
   if (type %in% c("cor", "rho") &&
-      (is.na(source) || !nzchar(source))) {
+      (is.na(source) || !nzchar(source)) && !derived) {
     return(paste0(
       "Point-null Bayes factors are not available for derived pairwise ",
       "correlation '", label, "'."
     ))
   }
   if (identical(type, "sd") &&
-      (is.na(source) || !nzchar(source))) {
+      (is.na(source) || !nzchar(source)) && !derived) {
     return(paste0(
       "Point-null Bayes factors are not available for derived component SD '",
       label, "'."
@@ -875,6 +876,12 @@
     ),
     class = c("BayesTools_posterior_support", "list")
   )
+  if (!.brma_random_parameter_prior_has_atom(selected[["prior"]]) &&
+      !.brma_random_parameter_prior_has_atom(selected[["source_prior"]])) {
+    attr(values, "posterior_atoms") <- BayesTools::posterior_atom_attribute(
+      source = "RoBMA semantic random-effect prior"
+    )
+  }
 
   target_prior <- BayesTools::prior_none()
   if (prior) {

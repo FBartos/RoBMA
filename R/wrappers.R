@@ -822,6 +822,10 @@ ranef <- function(object, ...) {
 #' @param simplify whether \code{component = "all"} should return a single
 #' \code{brma_samples} object instead of a one-element list. Defaults to
 #' \code{TRUE}, matching standard 2-level \code{brma()} behavior.
+#' @param expand whether to repeat group-level random effects for every fitted
+#' observation. Defaults to \code{FALSE}, returning one column per unique
+#' grouping level, consistently with \code{metafor::ranef()}. Set to
+#' \code{TRUE} for observation-aligned output.
 #' @param ... additional arguments forwarded to \code{\link{predict.brma}} for
 #' supported options such as \code{conditional}. \code{newdata}, \code{type},
 #' \code{quiet}, \code{output_measure}, and \code{transform} are controlled by
@@ -835,8 +839,8 @@ ranef <- function(object, ...) {
 #' For standard (2-level) models, returns a single \code{brma_samples}
 #' object with the estimate-level random effects.
 #'
-#' For multilevel (3-level) models, returns a list with two observation-aligned
-#' \code{brma_samples} matrices, one column per estimate row:
+#' For multilevel (3-level) models, returns a list with two
+#' \code{brma_samples} matrices:
 #' \describe{
 #'   \item{\code{cluster}}{Cluster-level random effects
 #'     (\eqn{\gamma_j \cdot \tau_{between}}), representing between-cluster
@@ -850,6 +854,13 @@ ranef <- function(object, ...) {
 #' conditional means by random-effect block. The result is invariant to whether
 #' each block was sampled or marginalized during fitting. If there is only one
 #' block and \code{simplify = TRUE}, returns a single \code{brma_samples} object.
+#' Multiple blocks are returned in one flat list under their canonical fitted
+#' block names; no additional location layer or component-name prefix is added.
+#' Unique-level output is available when a block's contribution is constant
+#' within each grouping level. Random slopes and row-varying random-effect
+#' scales generally require \code{expand = TRUE}. Summed \code{component =
+#' "total"} output across multiple blocks also requires \code{expand = TRUE}
+#' because different blocks need not share grouping levels.
 #'
 #' @return A \code{brma_samples} object for a single selected/simplified
 #' component, or a named list of \code{brma_samples} objects for decomposed
@@ -877,8 +888,9 @@ ranef <- function(object, ...) {
 #' @export
 ranef.brma <- function(object, bias_adjusted = FALSE,
                        probs = c(.025, .975), component = "all",
-                       simplify = TRUE, ...) {
+                       simplify = TRUE, expand = FALSE, ...) {
 
+  BayesTools::check_bool(expand, "expand")
   dots <- list(...)
   if (!is.null(dots[["output_measure"]]) || !is.null(dots[["transform"]])) {
     stop(
@@ -897,6 +909,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       probs         = probs,
       component     = component,
       simplify      = simplify,
+      expand        = expand,
       ...
     ))
   }
@@ -909,6 +922,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       probs         = probs,
       component     = component,
       simplify      = simplify,
+      expand        = expand,
       dots          = dots
     ))
   }
@@ -961,6 +975,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       components = list(estimate = estimate_ranef),
       component  = component,
       simplify   = simplify,
+      expand     = expand,
       labels     = labels,
       n_chains   = n_chains,
       n_iter     = n_iter,
@@ -994,7 +1009,26 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     } else {
       cluster_names <- cluster_labels
     }
-    colnames(cluster_ranef_mat) <- paste0("u_cluster[", cluster_names, "]")
+    if (expand) {
+      colnames(cluster_ranef_mat) <- paste0("u_cluster[", cluster_names, "]")
+    } else {
+      cluster_levels         <- unique(cluster)
+      cluster_level_map      <- match(cluster, cluster_levels)
+      cluster_level_labels   <- .get_cluster_labels(object)[
+        as.character(cluster_levels)
+      ]
+      cluster_level_labels   <- unname(cluster_level_labels)
+      cluster_level_missing <- is.na(cluster_level_labels)
+      cluster_level_labels[cluster_level_missing] <- as.character(
+        cluster_levels[cluster_level_missing]
+      )
+      cluster_ranef_mat <- .ranef_unique_level_samples(
+        samples      = cluster_ranef_mat,
+        group_map    = cluster_level_map,
+        group_levels = cluster_level_labels,
+        block        = "cluster"
+      )
+    }
 
     cluster_ranef <- .new_brma_samples(
       samples  = cluster_ranef_mat,
@@ -1026,6 +1060,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       components = out,
       component  = component,
       simplify   = simplify,
+      expand     = expand,
       labels     = labels,
       n_chains   = n_chains,
       n_iter     = n_iter,
@@ -1037,7 +1072,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 
 
 .ranef_brma_multilevel_normal <- function(
-    object, bias_adjusted, probs, component, simplify, dots) {
+    object, bias_adjusted, probs, component, simplify, expand, dots) {
 
   .check_unused_dots(
     dots    = dots,
@@ -1084,9 +1119,28 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     cluster_names <- cluster_labels
   }
 
-  colnames(components[["cluster"]]) <- paste0(
-    "u_cluster[", cluster_names, "]"
-  )
+  if (expand) {
+    colnames(components[["cluster"]]) <- paste0(
+      "u_cluster[", cluster_names, "]"
+    )
+  } else {
+    cluster_levels         <- unique(cluster)
+    cluster_level_map      <- match(cluster, cluster_levels)
+    cluster_level_labels   <- .get_cluster_labels(object)[
+      as.character(cluster_levels)
+    ]
+    cluster_level_labels   <- unname(cluster_level_labels)
+    cluster_level_missing <- is.na(cluster_level_labels)
+    cluster_level_labels[cluster_level_missing] <- as.character(
+      cluster_levels[cluster_level_missing]
+    )
+    components[["cluster"]] <- .ranef_unique_level_samples(
+      samples      = components[["cluster"]],
+      group_map    = cluster_level_map,
+      group_levels = cluster_level_labels,
+      block        = "cluster"
+    )
+  }
   colnames(components[["estimate"]]) <- paste0(
     "u_estimate[", labels, "]"
   )
@@ -1130,6 +1184,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     components = out,
     component  = component,
     simplify   = simplify,
+    expand     = expand,
     labels     = labels,
     n_chains   = n_chains,
     n_iter     = n_iter,
@@ -1141,7 +1196,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 
 .ranef_brma_mv_random <- function(object, bias_adjusted = FALSE,
                                   probs = c(.025, .975), component = "all",
-                                  simplify = TRUE, ...) {
+                                  simplify = TRUE, expand = FALSE, ...) {
 
   dots              <- list(...)
   posterior_samples <- .get_posterior_samples(
@@ -1187,19 +1242,32 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     by_block          = TRUE
   )
 
-  design <- .fitted_formula_design(object, "mu", required = TRUE)
-  block_order <- vapply(
-    design[["random_effects"]],
+  design       <- .fitted_formula_design(object, "mu", required = TRUE)
+  random_terms <- design[["random_effects"]]
+  block_order  <- vapply(
+    random_terms,
     `[[`,
     character(1),
     "block_name"
   )
+  names(random_terms) <- block_order
   block_order <- block_order[block_order %in% names(components)]
   components  <- components[block_order]
 
   out <- lapply(names(components), function(block) {
     mat <- components[[block]]
-    colnames(mat) <- paste0("u_", block, "[", labels[seq_len(K)], "]")
+    if (expand) {
+      colnames(mat) <- paste0("u_", block, "[", labels[seq_len(K)], "]")
+    } else {
+      term <- random_terms[[block]]
+      .check_ranef_unique_level_term(term, block)
+      mat <- .ranef_unique_level_samples(
+        samples      = mat,
+        group_map    = term[["group_map"]],
+        group_levels = term[["group_levels"]],
+        block        = block
+      )
+    }
     .new_brma_samples(
       samples  = mat,
       n_chains = n_chains,
@@ -1211,10 +1279,11 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   })
   names(out) <- names(components)
 
-  return(.select_ranef_mv_components(
-    components = list(location = out),
+  return(.select_ranef_components(
+    components = out,
     component  = component,
     simplify   = simplify,
+    expand     = expand,
     labels     = labels,
     n_chains   = n_chains,
     n_iter     = n_iter,
@@ -1224,99 +1293,13 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 }
 
 
-.select_ranef_mv_components <- function(components, component = "all",
-                                        simplify = TRUE, labels, n_chains,
-                                        n_iter, probs, data) {
-
-  BayesTools::check_bool(simplify, "simplify")
-  if (is.null(component)) {
-    component <- "all"
-  }
-  if (!is.character(component) || length(component) != 1L ||
-      is.na(component) || !nzchar(component)) {
-    stop("'component' must be a single component name.", call. = FALSE)
-  }
-
-  component <- .normalize_ranef_mv_component(component)
-  flat      <- .flatten_ranef_mv_components(components)
-
-  if (component == "all") {
-    if (isTRUE(simplify) && length(flat) == 1L) {
-      return(flat[[1L]])
-    }
-    return(.new_brma_samples_list(components))
-  }
-
-  if (component == "total") {
-    total <- Reduce(`+`, lapply(flat, as.matrix))
-    colnames(total) <- paste0("u[", labels[seq_len(ncol(total))], "]")
-    return(.new_brma_samples(
-      samples  = total,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = "Random Effects:",
-      probs    = probs,
-      data     = data
-    ))
-  }
-
-  if (component %in% names(components)) {
-    selected <- components[[component]]
-    if (isTRUE(simplify) && length(selected) == 1L) {
-      return(selected[[1L]])
-    }
-    return(.new_brma_samples_list(selected))
-  }
-
-  block_matches <- which(names(flat) == component)
-  if (length(block_matches) == 1L) {
-    return(flat[[block_matches]])
-  }
-  if (length(block_matches) > 1L) {
-    stop(
-      "Random-effect component '", component, "' is ambiguous across ",
-      "model components. Select the parent component first.",
-      call. = FALSE
-    )
-  }
-
-  stop(
-    "Unknown random-effect component '", component, "'. Available components: ",
-    paste(unique(c(names(components), names(flat), "all", "total")),
-          collapse = ", "),
-    ".",
-    call. = FALSE
-  )
-}
-
-
-.normalize_ranef_mv_component <- function(component) {
-
-  if (component %in% c("mods", "mu")) {
-    return("location")
-  }
-
-  component
-}
-
-
-.flatten_ranef_mv_components <- function(components) {
-
-  flat <- unlist(components, recursive = FALSE, use.names = FALSE)
-  names(flat) <- unlist(
-    lapply(components, names),
-    recursive = FALSE,
-    use.names = FALSE
-  )
-  flat
-}
-
-
 .select_ranef_components <- function(components, component = "all",
-                                     simplify = TRUE, labels, n_chains,
+                                     simplify = TRUE, expand = FALSE,
+                                     labels, n_chains,
                                      n_iter, probs, data) {
 
   BayesTools::check_bool(simplify, "simplify")
+  BayesTools::check_bool(expand, "expand")
   if (is.null(component)) {
     component <- "all"
   }
@@ -1334,6 +1317,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   }
 
   if (component == "total") {
+    .check_ranef_total_expansion(components, expand)
     total <- Reduce(`+`, lapply(components, as.matrix))
     colnames(total) <- paste0("u[", labels[seq_len(ncol(total))], "]")
     return(.new_brma_samples(
@@ -1356,4 +1340,79 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   }
 
   return(components[[component]])
+}
+
+
+# Collapse observation-aligned random-effect samples to grouping levels.
+.ranef_unique_level_samples <- function(samples, group_map, group_levels,
+                                        block) {
+
+  group_map    <- as.integer(group_map)
+  group_levels <- as.character(group_levels)
+  n_groups     <- length(group_levels)
+  if (length(group_map) != ncol(samples) || n_groups < 1L ||
+      anyNA(group_map) || any(group_map < 1L | group_map > n_groups)) {
+    stop("Internal error: invalid random-effect grouping metadata.",
+         call. = FALSE)
+  }
+
+  level_rows <- match(seq_len(n_groups), group_map)
+  if (anyNA(level_rows)) {
+    stop("Internal error: random-effect grouping levels are missing fitted rows.",
+         call. = FALSE)
+  }
+
+  tolerance <- sqrt(.Machine$double.eps) * max(1, abs(samples))
+  for (group in seq_len(n_groups)) {
+    rows <- which(group_map == group)
+    if (length(rows) < 2L) {
+      next
+    }
+    reference  <- samples[, rows[[1L]]]
+    difference <- abs(sweep(samples[, rows, drop = FALSE], 1L, reference))
+    if (any(difference > tolerance)) {
+      stop(
+        "Unique-level random effects are unavailable for block '", block,
+        "' because it has row-specific contributions. Use 'expand = TRUE'.",
+        call. = FALSE
+      )
+    }
+  }
+
+  out <- samples[, level_rows, drop = FALSE]
+  colnames(out) <- paste0("u_", block, "[", group_levels, "]")
+  return(out)
+}
+
+
+# Require a random-intercept design for one-value-per-level output.
+.check_ranef_unique_level_term <- function(term, block) {
+
+  model_matrix <- term[["model_matrix"]]
+  is_intercept <- is.matrix(model_matrix) && ncol(model_matrix) == 1L &&
+    all(abs(model_matrix[, 1L] - 1) <= sqrt(.Machine$double.eps))
+  if (!is_intercept) {
+    stop(
+      "Unique-level random effects are unavailable for random-slope block '",
+      block, "'. Use 'expand = TRUE'.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+# Require common observation rows before summing multiple random-effect blocks.
+.check_ranef_total_expansion <- function(components, expand) {
+
+  if (!expand && length(components) > 1L) {
+    stop(
+      "'component = \"total\"' across multiple random-effect blocks requires ",
+      "'expand = TRUE'.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
 }

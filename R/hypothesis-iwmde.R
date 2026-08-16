@@ -338,7 +338,8 @@
 }
 
 
-.hypothesis_brma_append_iwmde_warnings <- function(table, posterior) {
+.hypothesis_brma_append_iwmde_warnings <- function(
+    table, posterior, parameter = NULL) {
 
   diagnostics <- .iwmde_collect_public_density_diagnostics(posterior)
   if (nrow(diagnostics) > 0L) {
@@ -348,6 +349,9 @@
   warning_records <- .iwmde_collect_posterior_ordinate_warning_records(posterior)
   if (nrow(warning_records) == 0L) {
     return(table)
+  }
+  if (!is.null(parameter)) {
+    warning_records[["parameter"]] <- parameter
   }
 
   existing <- attr(table, "warnings", exact = TRUE)

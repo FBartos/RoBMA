@@ -1,5 +1,8 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- simplifies `ranef()` output to a flat list keyed by canonical random-effect
+  block names and adds metafor-compatible `expand`, defaulting to one column
+  per unique grouping level; `expand = TRUE` retains observation-aligned output.
 - unifies plug-in funnel, Bayesian funnel, and regression-plot contour
   evaluation in one exact weighted posterior-mixture quantile engine. Normal,
   PET, PEESE, model-averaged, and selected-normal contours now share native
@@ -10,11 +13,13 @@
   Exact zero-weight selection plateaus are cached instead of repeatedly using
   the log-space evaluator, and regression-plot sampling deviations are built
   column-wise without allocating redundant full-size intermediate matrices.
-- accelerates qCMDE/IWMDE density estimates and hypothesis Bayes factors for
-  the multilevel heterogeneity allocation `rho` with an exact grid-aware
-  cluster likelihood that avoids expanding component matrices across grid
-  values. Other targets and unsupported model structures retain their existing
-  routes.
+- extends qCMDE/IWMDE density estimates and hypothesis Bayes factors to
+  supported semantic multivariate random-component quantities. Plotting and
+  hypothesis testing share the same target routing, allocation endpoints use
+  their exact Dirichlet auxiliary-gamma densities, and known-`V` formula random
+  effects are marginalized rather than conditioned on sampled latent effects.
+  Eligible diagonal two-level allocations retain the exact grid-aware cluster
+  likelihood; unsupported structures retain the complete covariance route.
 - evaluates normal multilevel cluster likelihoods with a native exact
   diagonal-plus-rank-one kernel shared by log-likelihood, LOO, and density
   paths. Invalid or unsupported inputs retain the existing R and full

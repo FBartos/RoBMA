@@ -2,14 +2,12 @@
 // to most general. Returning false means "not applicable here" (or a recoverable
 // factorization failure), never permission to approximate the covariance.
 
-double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
-                           const std::vector<CovarianceFactor> &factors,
-                           SEXP extra_variance)
+double plan_log_likelihood_values(
+    CovariancePlan &plan,
+    const double *mean_values,
+    const std::vector<CovarianceFactor> &factors,
+    const double *extra_values)
 {
-  require_real_vector(mean, plan.n, "mean");
-  require_real_vector(extra_variance, plan.n, "extra_variance");
-  const double *mean_values = REAL(mean);
-  const double *extra_values = REAL(extra_variance);
   for (int i = 0; i < plan.n; ++i) {
     if (!std::isfinite(extra_values[i]) || extra_values[i] < 0.0) {
       Rf_error("Known-V bridge extra variances must be finite and non-negative.");
@@ -75,6 +73,20 @@ double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
     log_likelihood += block_value;
   }
   return log_likelihood;
+}
+
+double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
+                           const std::vector<CovarianceFactor> &factors,
+                           SEXP extra_variance)
+{
+  require_real_vector(mean, plan.n, "mean");
+  require_real_vector(extra_variance, plan.n, "extra_variance");
+  return plan_log_likelihood_values(
+    plan,
+    REAL(mean),
+    factors,
+    REAL(extra_variance)
+  );
 }
 
 bool factor_dense_latent_system(

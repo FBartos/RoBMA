@@ -160,7 +160,8 @@
 
 
 .iwmde_log_q_state <- function(context, row, active_setup, parameters,
-                               prior_list, likelihood_mode) {
+                               prior_list, likelihood_mode,
+                               replacement = NULL) {
 
   likelihood_row <- if (identical(likelihood_mode, "marginal") &&
                         !.iwmde_marginal_likelihood_requires_row(context) &&
@@ -180,9 +181,20 @@
     row             = likelihood_row
   )
   log_lik   <- .iwmde_scalar_log_density(log_lik)
-  log_prior <- .iwmde_scalar_log_density(
+  log_prior <- if (is.null(replacement)) {
     .iwmde_log_prior_row(row, prior_list)
-  )
+  } else {
+    .iwmde_replacement_log_prior_rows(
+      samples = matrix(
+        as.numeric(row),
+        nrow     = 1L,
+        dimnames = list(NULL, names(row))
+      ),
+      prior_list  = prior_list,
+      replacement = replacement
+    )[[1L]]
+  }
+  log_prior <- .iwmde_scalar_log_density(log_prior)
   out       <- log_lik + log_prior
 
   return(.iwmde_scalar_log_density(out))

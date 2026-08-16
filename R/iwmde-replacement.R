@@ -123,7 +123,11 @@
     identical(state[["prior_list"]], prior_list)
   }, logical(1)))
   if (!any(use_delta[state_index]) && same_prior_list) {
-    return(.iwmde_log_prior_rows(valid_samples, prior_list))
+    return(.iwmde_replacement_log_prior_rows(
+      samples     = valid_samples,
+      prior_list  = prior_list,
+      replacement = replacement
+    ))
   }
 
   for (i in unique(state_index)) {
@@ -143,12 +147,49 @@
 
     # Vector and Dirichlet priors must be evaluated one posterior row at a
     # time; their auxiliary coordinates are joint within a row.
-    log_prior[positions] <- vapply(positions, function(position) {
-      .iwmde_log_prior_row(
-        valid_samples[position, ],
-        state[["prior_list"]]
-      )
-    }, numeric(1))
+    log_prior[positions] <- .iwmde_replacement_log_prior_rows(
+      samples     = valid_samples[positions, , drop = FALSE],
+      prior_list  = state[["prior_list"]],
+      replacement = replacement
+    )
+  }
+
+  return(log_prior)
+}
+
+
+.iwmde_replacement_log_prior_rows <- function(samples, prior_list,
+                                               replacement) {
+
+  if (!identical(replacement[["type"]], "simplex_pair")) {
+    return(.iwmde_log_prior_rows(samples, prior_list))
+  }
+
+  parameter <- replacement[["parameter"]]
+  prior     <- prior_list[[parameter]]
+  eta_names <- replacement[["auxiliary_columns"]]
+  if (is.null(prior) || !inherits(prior, "prior.simplex") ||
+      !identical(prior[["distribution"]], "dirichlet") ||
+      length(prior[["parameters"]][["alpha"]]) != 2L ||
+      !all(eta_names %in% colnames(samples))) {
+    stop(
+      "The simplex density target does not have its matching Dirichlet prior ",
+      "and auxiliary coordinates.",
+      call. = FALSE
+    )
+  }
+
+  log_prior <- .iwmde_log_prior_rows(
+    samples    = samples,
+    prior_list = prior_list[setdiff(names(prior_list), parameter)]
+  )
+  alpha <- prior[["parameters"]][["alpha"]]
+  for (i in seq_along(alpha)) {
+    eta     <- samples[, eta_names[[i]]]
+    invalid <- !is.finite(eta) | eta < 0
+    term    <- stats::dgamma(eta, shape = alpha[[i]], rate = 1, log = TRUE)
+    term[invalid] <- -Inf
+    log_prior <- log_prior + term
   }
 
   return(log_prior)
@@ -1092,7 +1133,8 @@
     active_setup    = state[["active_setup"]],
     parameters      = parameters,
     prior_list      = state[["prior_list"]],
-    likelihood_mode = state[["likelihood_mode"]]
+    likelihood_mode = state[["likelihood_mode"]],
+    replacement     = replacement
   ))
 }
 
