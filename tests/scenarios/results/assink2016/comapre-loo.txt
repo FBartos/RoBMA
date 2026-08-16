@@ -1,0 +1,7 @@
+Method: stacking
+------
+                      weight
+fit_brma.mv           0.254 
+fit_brma.mv_no_study  0.545 
+fit_brma.mv_no_effect 0.101 
+fit_brma.mv_fixed     0.100 

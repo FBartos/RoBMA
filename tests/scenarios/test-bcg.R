@@ -572,24 +572,7 @@ testthat::test_that("BCG Meta-Regression", {
     for (diagnostic in names(fit_reg3_diagnostics_robma)) {
       metafor_value <- as.numeric(fit_reg3_diagnostics_metafor[[diagnostic]])
       robma_value   <- as.numeric(fit_reg3_diagnostics_robma[[diagnostic]])
-
-      difference     <- robma_value - metafor_value
-      keep           <- is.finite(metafor_value) & is.finite(difference)
-      metafor_sd     <- stats::sd(metafor_value[keep])
-      agreement_band <- 0.1 * metafor_sd
-      y_limit        <- 1.05 * max(metafor_sd, max(abs(difference[keep])))
-      plot(
-        metafor_value[keep], difference[keep],
-        main = diagnostic, xlab = "metafor", ylab = "RoBMA - metafor",
-        ylim = c(-y_limit, y_limit), type = "n"
-      )
-      rect(
-        par("usr")[[1]], -agreement_band,
-        par("usr")[[2]],  agreement_band,
-        col = "grey90", border = NA
-      )
-      abline(h = 0, lty = 2, col = "grey50")
-      points(metafor_value[keep], difference[keep], pch = 19, cex = 0.7)
+      scenario_agreement_plot(metafor_value, robma_value, diagnostic)
       if (identical(diagnostic, names(fit_reg3_diagnostics_robma)[[1]])) {
         legend(
           "topleft", legend = "band: ±0.1 SD(x)",

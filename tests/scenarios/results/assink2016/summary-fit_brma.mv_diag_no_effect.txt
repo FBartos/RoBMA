@@ -1,0 +1,11 @@
+
+Bayesian Multivariate Random-Effects Model (k = 100)
+
+Location
+           Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+intercept 0.390 0.112 0.169 0.394 0.600     0.00957          0.085 138 1.036
+
+Random
+                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+study: sd(intercept) 0.445 0.079 0.312 0.439 0.623     0.00382          0.049 434 1.002
+

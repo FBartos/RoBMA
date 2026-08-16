@@ -1,12 +1,11 @@
 
 Bayesian Multivariate Random-Effects Model (k = 100)
-Known-V backend: whitened (requested: auto)
 
 Location
            Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
 intercept 0.258 0.094 0.083 0.256 0.450     0.00451          0.048 430 1.013
 
 Random
-                       Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-sd(intercept | study) 0.336 0.084 0.194 0.328 0.522     0.00238          0.028 1250 1.000
+                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+study: sd(intercept) 0.336 0.084 0.194 0.328 0.522     0.00238          0.028 1250 1.000
 

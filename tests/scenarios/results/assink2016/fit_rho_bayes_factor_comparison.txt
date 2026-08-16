@@ -1,0 +1,3 @@
+  rho density_brma_BF density_mv_diag_BF marglik_brma_BF marglik_mv_diag_BF
+1   0    2.234523e+13       1.992336e+13    2.035399e+13       2.037547e+13
+2   1    5.654378e+16       7.910658e+16              NA       7.286700e+16

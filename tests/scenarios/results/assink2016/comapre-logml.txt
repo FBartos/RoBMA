@@ -1,0 +1,5 @@
+                      [,1]
+fit_brma.mv           0.89
+fit_brma.mv_no_study  0.11
+fit_brma.mv_no_effect 0.00
+fit_brma.mv_fixed     0.00

@@ -25,13 +25,13 @@ testthat::test_that("Bangertdrowns location-scale models", {
     tmp <- add_marglik(tmp)
     return(tmp)
   })
-  fit_l <- scenario_fit("fit_l", {
+  fit_l  <- scenario_fit("fit_l", {
     tmp <- brma(yi = yi, vi = vi, mods = ~ ni100, data = dat.bangertdrowns2004, measure = "SMD", seed = 1)
     tmp <- add_loo(tmp)
     tmp <- add_marglik(tmp)
     return(tmp)
   })
-  fit_s <- scenario_fit("fit_s", {
+  fit_s  <- scenario_fit("fit_s", {
     tmp <- brma(yi = yi, vi = vi, scale = ~ ni100, data = dat.bangertdrowns2004, measure = "SMD", seed = 1)
     tmp <- add_loo(tmp)
     tmp <- add_marglik(tmp)
@@ -133,24 +133,7 @@ testthat::test_that("Bangertdrowns location-scale models", {
     for (diagnostic in names(fit_l_diagnostics_robma)) {
       metafor_value <- as.numeric(fit_l_diagnostics_metafor[[diagnostic]])
       robma_value   <- as.numeric(fit_l_diagnostics_robma[[diagnostic]])
-
-      difference     <- robma_value - metafor_value
-      keep           <- is.finite(metafor_value) & is.finite(difference)
-      metafor_sd     <- stats::sd(metafor_value[keep])
-      agreement_band <- 0.1 * metafor_sd
-      y_limit        <- 1.05 * max(metafor_sd, max(abs(difference[keep])))
-      plot(
-        metafor_value[keep], difference[keep],
-        main = diagnostic, xlab = "metafor", ylab = "RoBMA - metafor",
-        ylim = c(-y_limit, y_limit), type = "n"
-      )
-      rect(
-        par("usr")[[1]], -agreement_band,
-        par("usr")[[2]],  agreement_band,
-        col = "grey90", border = NA
-      )
-      abline(h = 0, lty = 2, col = "grey50")
-      points(metafor_value[keep], difference[keep], pch = 19, cex = 0.7)
+      scenario_agreement_plot(metafor_value, robma_value, diagnostic)
       if (identical(diagnostic, names(fit_l_diagnostics_robma)[[1]])) {
         legend(
           "topleft", legend = "band: ±0.1 SD(x)",
@@ -274,12 +257,9 @@ testthat::test_that("Bangertdrowns location-scale models", {
   metafor_ranef    <- metafor_estimate - metafor_terms
   scenario_plot("fit_ls_prediction_agreement", {
     par(mfrow = c(1, 3))
-    plot(metafor_terms, brma_terms - metafor_terms, main = "Location", xlab = "metafor", ylab = "RoBMA - metafor", ylim = c(-0.1, 0.1), pch = 16)
-    abline(h = 0, lty = 2)
-    plot(metafor_estimate, brma_estimate - metafor_estimate, main = "BLUP", xlab = "metafor", ylab = "RoBMA - metafor", ylim = c(-0.1, 0.1), pch = 16)
-    abline(h = 0, lty = 2)
-    plot(metafor_ranef, brma_ranef - metafor_ranef, main = "Random effect", xlab = "metafor", ylab = "RoBMA - metafor", ylim = c(-0.1, 0.1), pch = 16)
-    abline(h = 0, lty = 2)
+    scenario_agreement_plot(metafor_terms, brma_terms, "Location")
+    scenario_agreement_plot(metafor_estimate, brma_estimate, "BLUP")
+    scenario_agreement_plot(metafor_ranef, brma_ranef, "Random effect")
   })
 
   ### simple summary ----
