@@ -91,7 +91,8 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
     .package = "RoBMA"
   )
 
-  observed <- ranef.brma(object, simplify = FALSE)
+  observed <- ranef.brma(object, simplify = FALSE, expand = TRUE)
+  unique   <- ranef.brma(object, simplify = FALSE)
   observed_table  <- as.data.frame(observed)
   observed_tables <- as.data.frame(observed, format = "list")
 
@@ -111,7 +112,7 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
     }
   }
 
-  expect_equal(blup_calls, 1L)
+  expect_equal(blup_calls, 2L)
   expect_s3_class(observed, "brma_samples_list")
   expect_s3_class(observed_table, "data.frame")
   expect_setequal(
@@ -148,6 +149,21 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
       as.matrix(observed[["estimate"]])),
     expected_cluster + expected_estimate,
     tolerance = 1e-12
+  )
+  expect_equal(
+    unname(as.matrix(unique[["cluster"]])),
+    expected_cluster[, c(1L, 3L), drop = FALSE],
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(as.matrix(unique[["estimate"]])),
+    expected_estimate,
+    tolerance = 1e-12
+  )
+  expect_error(
+    ranef.brma(object, component = "total"),
+    "expand = TRUE",
+    fixed = TRUE
   )
 })
 
@@ -190,8 +206,111 @@ test_that("selected-normal multilevel ranef retains sampled latent components", 
     .package = "RoBMA"
   )
 
-  observed <- ranef.brma(object, simplify = FALSE)
+  observed <- ranef.brma(object, simplify = FALSE, expand = TRUE)
 
   expect_equal(unname(as.matrix(observed[["cluster"]])), cluster)
   expect_equal(unname(as.matrix(observed[["estimate"]])), estimate)
+})
+
+
+test_that("ranef unique-level output rejects row-varying contributions", {
+
+  samples <- matrix(
+    c(
+      1, 2, 1, 2,
+      3, 4, 3, 4
+    ),
+    nrow  = 2L,
+    byrow = TRUE
+  )
+  observed <- .ranef_unique_level_samples(
+    samples      = samples,
+    group_map    = c(1L, 2L, 1L, 2L),
+    group_levels = c("one", "two"),
+    block        = "study"
+  )
+
+  expect_equal(unname(observed), samples[, 1:2, drop = FALSE])
+  expect_identical(colnames(observed), c("u_study[one]", "u_study[two]"))
+
+  samples[, 3L] <- samples[, 3L] + 1
+  expect_error(
+    .ranef_unique_level_samples(
+      samples      = samples,
+      group_map    = c(1L, 2L, 1L, 2L),
+      group_levels = c("one", "two"),
+      block        = "study"
+    ),
+    "row-specific contributions",
+    fixed = TRUE
+  )
+})
+
+
+test_that("ranef unique-level output follows first fitted-row order", {
+
+  samples <- matrix(seq_len(8L), nrow = 2L)
+  observed <- .ranef_unique_level_samples(
+    samples      = samples,
+    group_map    = c(1L, 3L, 2L, 4L),
+    group_levels = c("one", "two", "three", "four"),
+    block        = "esid_study"
+  )
+
+  expect_equal(unname(observed), samples)
+  expect_identical(
+    colnames(observed),
+    paste0("u_esid_study[", c("one", "three", "two", "four"), "]")
+  )
+})
+
+
+test_that("ranef keeps any number of random-effect blocks flat", {
+
+  block_names <- c("site", "study", "outcome")
+  components  <- lapply(seq_along(block_names), function(i) {
+    .new_brma_samples(
+      samples  = matrix(i, nrow = 2L, ncol = 2L),
+      n_chains = 1L,
+      n_iter   = 2L,
+      title    = "Random Effects"
+    )
+  })
+  names(components) <- block_names
+
+  all_blocks <- .select_ranef_components(
+    components = components,
+    component  = "all",
+    simplify   = FALSE,
+    labels     = c("one", "two"),
+    n_chains   = 1L,
+    n_iter     = 2L,
+    probs      = c(.025, .975),
+    data       = NULL
+  )
+  site <- .select_ranef_components(
+    components = components,
+    component  = "site",
+    labels     = c("one", "two"),
+    n_chains   = 1L,
+    n_iter     = 2L,
+    probs      = c(.025, .975),
+    data       = NULL
+  )
+
+  expect_named(all_blocks, block_names)
+  expect_identical(site, components[["site"]])
+  expect_error(
+    .select_ranef_components(
+      components = components,
+      component  = "total",
+      labels     = c("one", "two"),
+      n_chains   = 1L,
+      n_iter     = 2L,
+      probs      = c(.025, .975),
+      data       = NULL
+    ),
+    "expand = TRUE",
+    fixed = TRUE
+  )
 })

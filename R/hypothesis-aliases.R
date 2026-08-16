@@ -68,6 +68,22 @@
 }
 
 
+.hypothesis_brma_select_statements <- function(object, hypothesis,
+                                               component) {
+
+  statements <- BayesTools::hypothesis_render(
+    .hypothesis_brma_ast(hypothesis)
+  )
+  lapply(statements, function(statement) {
+    .hypothesis_brma_select_parameter(
+      object     = object,
+      hypothesis = BayesTools::hypothesis_parse(statement),
+      component  = component
+    )
+  })
+}
+
+
 .hypothesis_brma_stop_multiple_parameters <- function(entries) {
 
   stop(

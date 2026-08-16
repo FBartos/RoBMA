@@ -324,3 +324,66 @@
 
   return(out)
 }
+
+
+.iwmde_posterior_ordinate_attributes <- function(
+    diagnostic, density_method, metadata = NULL, density_control = NULL) {
+
+  if (!identical(diagnostic[["status"]], "ok") ||
+      is.null(diagnostic[["iwmde"]])) {
+    return(list(accepted = NULL, rejected = NULL))
+  }
+  values <- .iwmde_sorted_ordinate_values(
+    diagnostic[["iwmde"]][["x"]]
+  )
+  entries <- lapply(values, function(value) {
+
+    selected <- .iwmde_select_ordinate_diagnostic(
+      diagnostic = diagnostic,
+      value      = value
+    )
+    .iwmde_posterior_ordinate_attribute(
+      diagnostic      = selected,
+      density_method  = density_method,
+      metadata        = metadata,
+      density_control = density_control,
+      allow_rejected  = TRUE
+    )
+  })
+  entries <- entries[!vapply(entries, is.null, logical(1))]
+  supported <- vapply(
+    entries,
+    .iwmde_posterior_ordinate_supports_bf,
+    logical(1)
+  )
+  accepted <- entries[supported]
+  rejected <- entries[!supported]
+
+  return(list(
+    accepted = .iwmde_posterior_ordinate_combine(accepted),
+    rejected = .iwmde_posterior_ordinate_combine(rejected)
+  ))
+}
+
+
+.iwmde_select_ordinate_diagnostic <- function(diagnostic, value) {
+
+  out <- diagnostic
+  bf_diagnostics <- .iwmde_density_bf_diagnostics(
+    density = diagnostic[["iwmde"]],
+    values  = value
+  )
+  out[["diagnostics"]][names(bf_diagnostics)] <- bf_diagnostics
+  prior_ordinates <- .iwmde_prior_ordinates_select(
+    prior_ordinates = diagnostic[["diagnostics"]][["prior_ordinates"]],
+    values          = value
+  )
+  out[["diagnostics"]][["prior_ordinates"]] <- prior_ordinates
+  out[["diagnostics"]][["ordinate_warnings"]] <-
+    .iwmde_ordinate_prior_warnings(
+      parameter       = diagnostic[["parameter"]],
+      prior_ordinates = prior_ordinates
+    )
+
+  return(out)
+}

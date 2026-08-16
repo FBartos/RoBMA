@@ -711,13 +711,15 @@ test_that("v14 brma.mv ranef, blup, and true_effects use consistent targets", {
     total <- as.matrix(ranef(
       fit_brma,
       component          = "total",
+      expand             = TRUE,
       .posterior_samples = posterior
     ))
     components <- ranef(
       fit_brma,
       simplify           = FALSE,
+      expand             = TRUE,
       .posterior_samples = posterior
-    )[["location"]]
+    )
 
     expect_equal(names(components), expected_components[[name]], info = name)
     expect_equal(

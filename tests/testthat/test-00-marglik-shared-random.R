@@ -432,6 +432,65 @@ test_that("native known-group factor equals independently materialized covarianc
   expect_equal(actual, expected, tolerance = 1e-12)
 })
 
+test_that("batched covariance-plan likelihood preserves draw-specific states", {
+
+  y <- c(0.1, -0.2, 0.3, 0.05)
+  sampling_covariance <- matrix(
+    c(
+      0.04, 0.01, 0, 0,
+      0.01, 0.05, 0, 0,
+      0, 0, 0.06, 0.015,
+      0, 0, 0.015, 0.07
+    ),
+    nrow = 4L,
+    byrow = TRUE
+  )
+  group_map <- c(1L, 1L, 2L, 2L)
+  factor <- list(
+    type                  = "group",
+    model_matrix          = matrix(1, nrow = 4L, ncol = 1L),
+    group_map             = group_map,
+    coefficient_structure = "diagonal",
+    coefficient_factor    = matrix(0.2, 1L, 1L)
+  )
+  means <- rbind(
+    c(0.02, 0.02, -0.01, -0.01),
+    c(-0.03, 0.01, 0.04, 0.02)
+  )
+  extra_variances <- rbind(
+    c(0, 0.01, 0, 0.02),
+    c(0.02, 0, 0.01, 0)
+  )
+  factors <- list(factor, factor)
+  factors[[2L]]$coefficient_factor <- matrix(0.4, 1L, 1L)
+  states <- lapply(factors, function(value) {
+    list(.marglik_covariance_factor_state(value))
+  })
+
+  actual <- .marglik_covariance_plan_loglik_batch(
+    cache                    = new.env(parent = emptyenv()),
+    y                        = y,
+    means                    = means,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(.marglik_covariance_factor_plan(factor)),
+    random_covariance_states = states,
+    block_indices            = list(1:2, 3:4),
+    extra_variances          = extra_variances
+  )
+  expected <- vapply(seq_len(nrow(means)), function(draw) {
+    random_covariance <- outer(group_map, group_map, "==") *
+      factors[[draw]]$coefficient_factor[[1L]]^2
+    .marglik_mvn_log_density(
+      y = y,
+      mean = means[draw, ],
+      covariance = sampling_covariance + random_covariance +
+        diag(extra_variances[draw, ])
+    )
+  }, numeric(1))
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
 test_that("native covariance plan reuses exact low-rank group geometry", {
 
   y <- c(0.1, -0.2, 0.3, 0.05, -0.1, 0.2, -0.05, 0.15)

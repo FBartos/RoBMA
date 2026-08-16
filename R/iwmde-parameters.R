@@ -1207,6 +1207,29 @@
 }
 
 
+.iwmde_sorted_ordinate_values <- function(values) {
+
+  values <- .iwmde_unique_ordinate_values(values)
+  if (length(values) == 0L) {
+    return(numeric())
+  }
+
+  return(sort(unname(values)))
+}
+
+
+.iwmde_prior_ordinates_select <- function(prior_ordinates, values) {
+
+  if (!is.list(prior_ordinates) || length(prior_ordinates) == 0L) {
+    return(list())
+  }
+  values <- .iwmde_unique_ordinate_values(values)
+  keys   <- names(values)
+
+  return(prior_ordinates[intersect(keys, names(prior_ordinates))])
+}
+
+
 # Represent a target whose deterministic prior density is unavailable.
 .iwmde_unknown_prior_ordinate <- function(value) {
 

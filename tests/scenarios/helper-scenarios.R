@@ -418,3 +418,34 @@ scenario_plot <- function(name, code) {
 
   return(invisible(NULL))
 }
+
+
+# Compare estimates against a reference on a common difference scale.
+scenario_agreement_plot <- function(reference, estimate, main = "") {
+
+  difference <- estimate - reference
+  keep       <- is.finite(reference) & is.finite(difference)
+  if (any(!keep)) {
+    warning(
+      sum(!keep), " removed due to non-numerical values",
+      immediate. = TRUE
+    )
+  }
+  band    <- 0.1 * stats::sd(reference[keep])
+  y_limit <- max(2 * band, 1.05 * abs(difference[keep]))
+
+  graphics::plot(
+    reference[keep], difference[keep],
+    main = main, xlab = "metafor", ylab = "RoBMA - metafor",
+    ylim = c(-y_limit, y_limit), type = "n"
+  )
+  graphics::rect(
+    graphics::par("usr")[[1L]], -band,
+    graphics::par("usr")[[2L]],  band,
+    col = "grey90", border = NA
+  )
+  graphics::abline(h = 0, lty = 2, col = "grey50")
+  graphics::points(reference[keep], difference[keep], pch = 19, cex = 0.7)
+
+  return(invisible(NULL))
+}

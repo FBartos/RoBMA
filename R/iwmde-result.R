@@ -10,7 +10,7 @@
 
 .iwmde_algorithm_version <- function() {
 
-  return("16")
+  return("17")
 }
 
 
@@ -179,7 +179,10 @@
     diagnostic[["target_key"]]
   }
   prior_ordinates <- if (identical(attribute, "ordinate") && is.list(plan)) {
-    plan[["prior_ordinates"]]
+    .iwmde_prior_ordinates_select(
+      prior_ordinates = plan[["prior_ordinates"]],
+      values          = value
+    )
   } else {
     NULL
   }
@@ -397,4 +400,26 @@
     list(status = "ok", ordinates = entries),
     class = c("BayesTools_posterior_ordinates", "list")
   ))
+}
+
+
+.iwmde_posterior_ordinate_combine <- function(entries) {
+
+  entries <- entries[!vapply(entries, is.null, logical(1))]
+  if (length(entries) == 0L) {
+    return(NULL)
+  }
+  if (length(entries) == 1L) {
+    return(entries[[1L]])
+  }
+
+  out <- NULL
+  for (entry in entries) {
+    out <- BayesTools::posterior_ordinate_append(
+      existing = out,
+      ordinate = entry
+    )
+  }
+
+  return(out)
 }

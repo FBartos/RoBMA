@@ -30,10 +30,9 @@
   }
   row_budget <- density_control[["samples"]]
 
-  values <- as.numeric(values)
-  values <- values[is.finite(values)]
+  values <- .iwmde_sorted_ordinate_values(values)
   ordinate_values <- if ("ordinate" %in% outputs && length(values) > 0L) {
-    values[[1L]]
+    values
   } else {
     NULL
   }

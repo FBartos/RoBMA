@@ -824,8 +824,8 @@ ranef <- function(object, ...) {
 #' \code{TRUE}, matching standard 2-level \code{brma()} behavior.
 #' @param expand whether to repeat group-level random effects for every fitted
 #' observation. Defaults to \code{FALSE}, returning one column per unique
-#' grouping level, consistently with \code{metafor::ranef()}. Set to
-#' \code{TRUE} for observation-aligned output.
+#' grouping level in first fitted-observation order, consistently with
+#' \code{metafor::ranef()}. Set to \code{TRUE} for observation-aligned output.
 #' @param ... additional arguments forwarded to \code{\link{predict.brma}} for
 #' supported options such as \code{conditional}. \code{newdata}, \code{type},
 #' \code{quiet}, \code{output_measure}, and \code{transform} are controlled by
@@ -1356,11 +1356,12 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
          call. = FALSE)
   }
 
-  level_rows <- match(seq_len(n_groups), group_map)
-  if (anyNA(level_rows)) {
+  group_order <- unique(group_map)
+  if (length(group_order) != n_groups) {
     stop("Internal error: random-effect grouping levels are missing fitted rows.",
          call. = FALSE)
   }
+  level_rows <- match(group_order, group_map)
 
   tolerance <- sqrt(.Machine$double.eps) * max(1, abs(samples))
   for (group in seq_len(n_groups)) {
@@ -1380,7 +1381,9 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   }
 
   out <- samples[, level_rows, drop = FALSE]
-  colnames(out) <- paste0("u_", block, "[", group_levels, "]")
+  colnames(out) <- paste0(
+    "u_", block, "[", group_levels[group_order], "]"
+  )
   return(out)
 }
 

@@ -52,7 +52,9 @@ object accepted by \code{BayesTools::hypothesis_BF()}.}
 
 \item{hypothesis}{character vector with scalar hypothesis statements. For
 \code{marginal_means.brma} objects, constants are specified on the fitted
-linear-predictor scale, even when the object stores a display transformation.}
+linear-predictor scale, even when the object stores a display transformation.
+Separate statements may reference different model parameters; each statement
+itself must resolve to one scalar model target.}
 
 \item{parameter}{optional marginal-means parameter/term used to disambiguate
 the hypothesis expression.}
@@ -103,8 +105,10 @@ eligible-row census), \code{target_relative_mcse} (default \code{0.05}),
 \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999}),
 and \code{display_grid} (default \code{"adaptive"}). Point ordinates use one
 state-independent simple random sample selected before ordinate contributions
-are evaluated. A finite estimate is returned independently of its sample
-diagnostics. If the fixed sample does not meet the precision target, a
+are evaluated. Multiple direct scalar point ordinates for one target share
+the same conditional-normalization pass while retaining separate diagnostics.
+A finite estimate is returned independently of its sample diagnostics. If the
+fixed sample does not meet the precision target, a
 warning recommends increasing \code{samples} or using the census; if the
 census does not meet the target, obtain more posterior draws.
 \code{display_grid} is immaterial for point-only requests. Increase

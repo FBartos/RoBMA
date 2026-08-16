@@ -48,45 +48,46 @@
   context        <- .iwmde_context(object)
   estimate_cache <- .iwmde_estimate_cache()
 
-  for (i in seq_len(nrow(point_refs))) {
+  scalar_rows <- is.na(point_refs[["level"]])
+  if (any(scalar_rows)) {
+    posterior <- .hypothesis_brma_attach_iwmde_scalar(
+      posterior                = posterior,
+      raw_posterior            = raw_posterior,
+      context                  = context,
+      estimate_cache           = estimate_cache,
+      parameter                = parameter,
+      parameter_label          = parameter_label,
+      value                    = unique(point_refs[["value"]][scalar_rows]),
+      conditional              = conditional,
+      n_points                 = n_points,
+      samples                  = samples,
+      target_relative_mcse     = target_relative_mcse,
+      normalization_points     = normalization_points,
+      normalization_prob       = normalization_prob,
+      density_method           = density_method,
+      parameter_spec           = parameter_spec
+    )
+  }
+
+  for (i in which(!scalar_rows)) {
     ref <- point_refs[i, , drop = FALSE]
-    if (is.na(ref[["level"]])) {
-      posterior <- .hypothesis_brma_attach_iwmde_scalar(
-        posterior                = posterior,
-        raw_posterior            = raw_posterior,
-        context                  = context,
-        estimate_cache           = estimate_cache,
-        parameter                = parameter,
-        parameter_label          = parameter_label,
-        value                    = ref[["value"]],
-        conditional              = conditional,
-        n_points                 = n_points,
-        samples                  = samples,
-        target_relative_mcse     = target_relative_mcse,
-        normalization_points     = normalization_points,
-        normalization_prob       = normalization_prob,
-        density_method           = density_method,
-        parameter_spec           = parameter_spec
-      )
-    } else {
-      posterior <- .hypothesis_brma_attach_iwmde_level(
-        posterior            = posterior,
-        raw_posterior        = raw_posterior,
-        context              = context,
-        estimate_cache       = estimate_cache,
-        parameter            = parameter,
-        level                = ref[["level"]],
-        value                = ref[["value"]],
-        conditional          = conditional,
-        n_points             = n_points,
-        samples              = samples,
-        target_relative_mcse = target_relative_mcse,
-        normalization_points = normalization_points,
-        normalization_prob   = normalization_prob,
-        density_method       = density_method,
-        parameter_spec       = level_parameter_specs[[ref[["level"]]]]
-      )
-    }
+    posterior <- .hypothesis_brma_attach_iwmde_level(
+      posterior            = posterior,
+      raw_posterior        = raw_posterior,
+      context              = context,
+      estimate_cache       = estimate_cache,
+      parameter            = parameter,
+      level                = ref[["level"]],
+      value                = ref[["value"]],
+      conditional          = conditional,
+      n_points             = n_points,
+      samples              = samples,
+      target_relative_mcse = target_relative_mcse,
+      normalization_points = normalization_points,
+      normalization_prob   = normalization_prob,
+      density_method       = density_method,
+      parameter_spec       = level_parameter_specs[[ref[["level"]]]]
+    )
   }
 
   return(posterior)
@@ -176,30 +177,64 @@
     ),
     cache          = estimate_cache
   )
-  diagnostic <- estimate[["diagnostics"]][["ordinate"]]
-
-  ordinate <- estimate[["posterior_ordinate"]]
-  if (is.null(ordinate)) {
-    .iwmde_stop_ordinate_unavailable(
-      message = paste0(
-        "Precomputed ", density_method,
-        " posterior ordinate is unavailable for '", parameter, " = ", value,
-        "': ", .hypothesis_brma_diagnostic_reason(diagnostic)
-      ),
-      estimate = estimate
+  marginal_parameter <- attr(posterior, "parameter", exact = TRUE)
+  values <- .iwmde_sorted_ordinate_values(value)
+  for (requested_value in values) {
+    ordinate <- .iwmde_posterior_ordinate_keep_values(
+      posterior_ordinate = estimate[["posterior_ordinate"]],
+      values             = requested_value
     )
+    if (is.null(ordinate)) {
+      .iwmde_stop_ordinate_unavailable(
+        message = paste0(
+          "Precomputed ", density_method,
+          " posterior ordinate is unavailable for '", parameter, " = ",
+          requested_value, "': ",
+          .hypothesis_brma_estimate_ordinate_reason(
+            estimate = estimate,
+            value    = requested_value
+          )
+        ),
+        estimate = estimate
+      )
+    }
+    if (is.character(marginal_parameter) &&
+        length(marginal_parameter) == 1L &&
+        !is.na(marginal_parameter) && nzchar(marginal_parameter)) {
+      ordinate[["parameter"]] <- marginal_parameter
+    }
+
+    existing <- .iwmde_posterior_ordinate_drop_value(
+      posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE),
+      value              = requested_value
+    )
+    attr(posterior, "posterior_ordinate") <-
+      BayesTools::posterior_ordinate_append(
+        existing = existing,
+        ordinate = ordinate
+      )
   }
 
-  existing <- .iwmde_posterior_ordinate_drop_value(
-    posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE),
-    value              = value
-  )
-  attr(posterior, "posterior_ordinate") <- BayesTools::posterior_ordinate_append(
-    existing = existing,
-    ordinate = ordinate
-  )
-
   return(posterior)
+}
+
+
+.hypothesis_brma_estimate_ordinate_reason <- function(estimate, value) {
+
+  rejected <- .iwmde_posterior_ordinate_keep_values(
+    posterior_ordinate = estimate[["rejected_posterior_ordinate"]],
+    values             = value
+  )
+  if (!is.null(rejected)) {
+    reason <- .iwmde_posterior_ordinate_bf_failure_reason(rejected)
+    if (!is.null(reason) && nzchar(reason)) {
+      return(reason)
+    }
+  }
+
+  return(.hypothesis_brma_diagnostic_reason(
+    estimate[["diagnostics"]][["ordinate"]]
+  ))
 }
 
 

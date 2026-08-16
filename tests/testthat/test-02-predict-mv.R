@@ -1338,8 +1338,8 @@ test_that("random-formula brma.mv estimate separates fixed and random effects", 
 
   terms    <- as.matrix(predict(fit_brma, type = "terms", quiet = TRUE))
   estimate <- as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE))
-  random_components <- ranef(fit_brma)
-  random            <- Reduce(`+`, lapply(random_components[["location"]], as.matrix))
+  random_components <- ranef(fit_brma, expand = TRUE)
+  random            <- Reduce(`+`, lapply(random_components, as.matrix))
 
   expect_equal(
     unname(estimate - terms),
@@ -1353,15 +1353,16 @@ test_that("random-formula brma.mv ranef decomposes random blocks", {
   name <- "brma.mv_block_mvn_random_scale"
   skip_if_missing_fits(name)
 
-  fit_brma <- fits[[name]]
-  out      <- ranef(fit_brma)
+  fit_brma   <- fits[[name]]
+  out        <- ranef(fit_brma, expand = TRUE)
+  unique_out <- ranef(fit_brma)
 
   expect_type(out, "list")
-  expect_named(out, "location")
-  expect_true(all(c("effect_study", "study") %in% names(out[["location"]])))
+  expect_named(out, c("effect_study", "study"))
+  expect_named(unique_out, names(out))
   for (component in c("effect_study", "study")) {
     expect_brma_samples_matrix(
-      out[["location"]][[component]],
+      out[[component]],
       nobs(fit_brma),
       paste(name, component, "ranef")
     )
@@ -1369,10 +1370,9 @@ test_that("random-formula brma.mv ranef decomposes random blocks", {
 
   terms    <- as.matrix(predict(fit_brma, type = "terms", quiet = TRUE))
   estimate <- as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE))
-  total    <- Reduce(`+`, lapply(out[["location"]], as.matrix))
-  total_component <- ranef(fit_brma, component = "total")
+  total    <- Reduce(`+`, lapply(out, as.matrix))
+  total_component <- ranef(fit_brma, component = "total", expand = TRUE)
   study_component <- ranef(fit_brma, component = "study")
-  location_component <- ranef(fit_brma, component = "location")
 
   expect_equal(
     unname(total),
@@ -1386,10 +1386,19 @@ test_that("random-formula brma.mv ranef decomposes random blocks", {
   )
   expect_equal(
     unname(as.matrix(study_component)),
-    unname(as.matrix(out[["location"]][["study"]])),
+    unname(as.matrix(unique_out[["study"]])),
     tolerance = 1e-12
   )
-  expect_equal(names(location_component), names(out[["location"]]))
+  expect_error(
+    ranef(fit_brma, component = "total"),
+    "expand = TRUE",
+    fixed = TRUE
+  )
+  expect_error(
+    ranef(fit_brma, component = "location"),
+    "Unknown random-effect component",
+    fixed = TRUE
+  )
 })
 
 test_that("same-data random BLUP is compilation-invariant for one block", {
@@ -1495,11 +1504,7 @@ test_that("same-data random BLUP is compilation-invariant for one block", {
     "marginalized ranef"
   )
   expect_type(marginalized_result[["ranef_list"]], "list")
-  expect_named(marginalized_result[["ranef_list"]], "location")
-  expect_equal(
-    names(marginalized_result[["ranef_list"]][["location"]]),
-    "effect"
-  )
+  expect_named(marginalized_result[["ranef_list"]], "effect")
   expect_equal(
     unname(as.matrix(marginalized_result[["ranef"]])),
     unname(expected),
@@ -1507,7 +1512,7 @@ test_that("same-data random BLUP is compilation-invariant for one block", {
   )
   expect_equal(
     unname(as.matrix(
-      marginalized_result[["ranef_list"]][["location"]][["effect"]]
+      marginalized_result[["ranef_list"]][["effect"]]
     )),
     unname(expected),
     tolerance = 1e-12
@@ -1659,8 +1664,9 @@ test_that("same-data random BLUP preserves analytic block components", {
       ranef = ranef(
         object,
         simplify          = FALSE,
+        expand            = TRUE,
         .posterior_samples = posterior_samples
-      )[["location"]]
+      )
     )
   }
   marginalized_result <- evaluate_object(marginalized)

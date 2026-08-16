@@ -486,23 +486,37 @@ test_that("Model-averaged multilevel ranef decomposes cluster and estimate effec
   skip_if_missing_fits(product_names)
 
   for (name in product_names) {
-    fit_brma  <- fits[[name]]
-    n_studies <- nobs(fit_brma)
-    out       <- ranef(fit_brma)
+    fit_brma   <- fits[[name]]
+    n_studies  <- nobs(fit_brma)
+    out        <- ranef(fit_brma, expand = TRUE)
+    unique_out <- ranef(fit_brma)
 
     expect_type(out, "list")
     expect_equal(names(out), c("cluster", "estimate"), info = name)
     expect_brma_samples_matrix(out[["cluster"]], n_studies, paste(name, "cluster ranef"))
     expect_brma_samples_matrix(out[["estimate"]], n_studies, paste(name, "estimate ranef"))
+    expect_type(unique_out, "list")
+    expect_equal(names(unique_out), c("cluster", "estimate"), info = name)
     expect_equal(
-      unname(as.matrix(ranef(fit_brma, component = "cluster"))),
+      ncol(unique_out[["cluster"]]),
+      length(unique(fit_brma[["data"]][["outcome"]][["cluster"]])),
+      info = paste(name, "unique cluster ranef")
+    )
+    expect_equal(ncol(unique_out[["estimate"]]), n_studies, info = name)
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "cluster", expand = TRUE))),
       unname(as.matrix(out[["cluster"]])),
       info = paste(name, "component cluster")
     )
     expect_equal(
-      unname(as.matrix(ranef(fit_brma, component = "total"))),
+      unname(as.matrix(ranef(fit_brma, component = "total", expand = TRUE))),
       unname(as.matrix(out[["cluster"]]) + as.matrix(out[["estimate"]])),
       info = paste(name, "component total")
+    )
+    expect_error(
+      ranef(fit_brma, component = "total"),
+      "expand = TRUE",
+      fixed = TRUE
     )
   }
 })

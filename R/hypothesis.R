@@ -116,6 +116,8 @@ hypothesis.default <- function(object, ...) {
 #' @param hypothesis character vector with scalar hypothesis statements. For
 #' \code{marginal_means.brma} objects, constants are specified on the fitted
 #' linear-predictor scale, even when the object stores a display transformation.
+#' Separate statements may reference different model parameters; each statement
+#' itself must resolve to one scalar model target.
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
 #' \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
@@ -181,8 +183,10 @@ hypothesis.default <- function(object, ...) {
 #' \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999}),
 #' and \code{display_grid} (default \code{"adaptive"}). Point ordinates use one
 #' state-independent simple random sample selected before ordinate contributions
-#' are evaluated. A finite estimate is returned independently of its sample
-#' diagnostics. If the fixed sample does not meet the precision target, a
+#' are evaluated. Multiple direct scalar point ordinates for one target share
+#' the same conditional-normalization pass while retaining separate diagnostics.
+#' A finite estimate is returned independently of its sample diagnostics. If the
+#' fixed sample does not meet the precision target, a
 #' warning recommends increasing \code{samples} or using the census; if the
 #' census does not meet the target, obtain more posterior draws.
 #' \code{display_grid} is immaterial for point-only requests. Increase
@@ -260,6 +264,31 @@ hypothesis.brma <- function(object, hypothesis,
     }
   )
   display_hypothesis <- hypothesis
+  statement_selections <- .hypothesis_brma_select_statements(
+    object     = object,
+    hypothesis = hypothesis,
+    component  = component
+  )
+  statement_keys <- vapply(statement_selections, function(selection) {
+    paste(selection[["component"]], selection[["parameter"]], sep = "\r")
+  }, character(1))
+  if (length(unique(statement_keys)) > 1L) {
+    return(.hypothesis_brma_multiple_parameters(
+      object                    = object,
+      hypothesis                = display_hypothesis,
+      selections                = statement_selections,
+      standardized_coefficients = standardized_coefficients,
+      conditional               = conditional,
+      conditional_omitted       = conditional_omitted,
+      logBF                     = logBF,
+      BF01                      = BF01,
+      seed                      = seed,
+      density_method            = density_method,
+      density_control           = density_control,
+      n_samples                 = n_samples,
+      columns                   = columns
+    ))
+  }
   selected <- .hypothesis_brma_select_parameter(
     object     = object,
     hypothesis = hypothesis,
@@ -524,6 +553,155 @@ hypothesis.brma <- function(object, hypothesis,
   return(out)
 }
 
+
+.hypothesis_brma_multiple_parameters <- function(
+    object, hypothesis, selections, standardized_coefficients, conditional,
+    conditional_omitted, logBF, BF01, seed, density_method, density_control,
+    n_samples, columns) {
+
+  components <- vapply(selections, `[[`, character(1), "component")
+  parameters <- vapply(selections, `[[`, character(1), "parameter")
+  keys       <- paste(components, parameters, sep = "\r")
+  group_keys <- unique(keys)
+  groups     <- lapply(group_keys, function(key) which(keys == key))
+  statements <- BayesTools::hypothesis_render(hypothesis)
+
+  for (component in unique(components)) {
+    .hypothesis_brma_check_supported_component(component)
+  }
+
+  results <- lapply(groups, function(rows) {
+
+    arguments <- list(
+      object                    = object,
+      hypothesis                = unname(statements[rows]),
+      component                 = components[[rows[[1L]]]],
+      standardized_coefficients = standardized_coefficients,
+      logBF                     = logBF,
+      BF01                      = BF01,
+      seed                      = seed,
+      density_method            = density_method,
+      density_control           = density_control,
+      n_samples                 = n_samples,
+      columns                   = columns
+    )
+    if (!conditional_omitted) {
+      arguments[["conditional"]] <- conditional
+    }
+
+    do.call(hypothesis.brma, arguments)
+  })
+
+  .hypothesis_brma_bind_parameter_results(
+    results    = results,
+    groups     = groups,
+    hypothesis = hypothesis
+  )
+}
+
+
+.hypothesis_brma_bind_parameter_results <- function(
+    results, groups, hypothesis) {
+
+  n_statements <- length(hypothesis[["statements"]])
+  group_sizes  <- vapply(groups, length, integer(1))
+  result_sizes <- vapply(results, nrow, integer(1))
+  valid_results <- vapply(
+    results,
+    inherits,
+    logical(1),
+    what = "BayesTools_hypothesis_BF"
+  )
+  same_columns <- vapply(
+    results,
+    function(result) identical(names(result), names(results[[1L]])),
+    logical(1)
+  )
+  if (length(results) == 0L || !all(valid_results) ||
+      !identical(group_sizes, result_sizes) ||
+      sum(group_sizes) != n_statements || !all(same_columns)) {
+    stop("Internal error: hypothesis parameter-group results are misaligned.",
+         call. = FALSE)
+  }
+
+  out <- do.call(rbind, results)
+  concatenated_rows <- unlist(groups, use.names = FALSE)
+  restore_order     <- order(concatenated_rows)
+
+  raw_BF <- unlist(lapply(results, function(result) {
+    attr(result, "raw_BF", exact = TRUE)
+  }), use.names = FALSE)
+  parsed <- unlist(lapply(results, function(result) {
+    attr(result, "parsed", exact = TRUE)
+  }), recursive = FALSE)
+  if (length(raw_BF) != n_statements || length(parsed) != n_statements) {
+    stop("Internal error: hypothesis parameter-group metadata are misaligned.",
+         call. = FALSE)
+  }
+
+  warnings <- list()
+  row_offset <- 0L
+  for (i in seq_along(results)) {
+    result <- results[[i]]
+    rows   <- row_offset + seq_len(nrow(result))
+    result_warnings <- attr(result, "warnings", exact = TRUE)
+    if (length(result_warnings) > 0L && !is.null(names(result_warnings))) {
+      warning_rows <- match(names(result_warnings), rownames(result))
+      matched      <- !is.na(warning_rows)
+      names(result_warnings)[matched] <- rownames(out)[rows[warning_rows[matched]]]
+    }
+    warnings[[i]] <- result_warnings
+    row_offset    <- row_offset + nrow(result)
+  }
+
+  bound_operator <- unlist(lapply(results, function(result) {
+    operator <- attr(result[["BF"]], "bound_operator", exact = TRUE)
+    if (is.null(operator)) {
+      return(rep(NA_character_, nrow(result)))
+    }
+    rep_len(as.character(operator), nrow(result))
+  }), use.names = FALSE)
+
+  out <- out[restore_order, , drop = FALSE]
+  attr(out, "raw_BF")         <- raw_BF[restore_order]
+  attr(out, "parsed")         <- parsed[restore_order]
+  attr(out, "hypothesis_ast") <- hypothesis
+  warnings <- .hypothesis_brma_unique_named_warnings(
+    unlist(warnings, use.names = TRUE)
+  )
+  if (length(warnings) > 0L && !is.null(names(warnings))) {
+    warning_rows <- match(names(warnings), rownames(out))
+    warnings <- c(
+      warnings[is.na(warning_rows)],
+      warnings[order(warning_rows, na.last = NA)]
+    )
+  }
+  attr(out, "warnings") <- warnings
+  attr(out[["BF"]], "bound_operator") <- bound_operator[restore_order]
+
+  footnotes <- unique(unlist(lapply(results, function(result) {
+    attr(result, "footnotes", exact = TRUE)
+  }), use.names = FALSE))
+  attr(out, "footnotes") <- if (length(footnotes) > 0L) footnotes else NULL
+
+  diagnostics <- lapply(results, function(result) {
+    attr(result, "density_diagnostics", exact = TRUE)
+  })
+  diagnostics <- diagnostics[vapply(
+    diagnostics,
+    function(diagnostic) is.data.frame(diagnostic) && nrow(diagnostic) > 0L,
+    logical(1)
+  )]
+  if (length(diagnostics) > 0L) {
+    attr(out, "density_diagnostics") <- do.call(rbind, diagnostics)
+  } else {
+    attr(out, "density_diagnostics") <- NULL
+  }
+  attr(out, "rownames") <- FALSE
+
+  return(out)
+}
+
 .hypothesis_brma_random <- function(
     object, parameter, hypothesis, standardized_coefficients,
     conditional, logBF, BF01, seed, density_method, density_control = NULL,
@@ -650,25 +828,23 @@ hypothesis.brma <- function(object, hypothesis,
   }
   context        <- .iwmde_context(object)
   estimate_cache <- .iwmde_estimate_cache()
-  for (value in unique(point_refs[["value"]])) {
-    marginal <- .hypothesis_brma_attach_iwmde_scalar(
-      posterior                = marginal,
-      raw_posterior            = marginal,
-      context                  = context,
-      estimate_cache           = estimate_cache,
-      parameter                = target[["parameter"]],
-      parameter_label          = parameter_label,
-      value                    = value,
-      conditional              = NULL,
-      n_points                 = density_control[["n_points"]],
-      samples                  = density_control[["samples"]],
-      target_relative_mcse     = density_control[["target_relative_mcse"]],
-      normalization_points     = density_control[["normalization_points"]],
-      normalization_prob       = density_control[["normalization_prob"]],
-      density_method           = density_method,
-      parameter_spec           = target[["parameter_spec"]]
-    )
-  }
+  marginal <- .hypothesis_brma_attach_iwmde_scalar(
+    posterior                = marginal,
+    raw_posterior            = marginal,
+    context                  = context,
+    estimate_cache           = estimate_cache,
+    parameter                = target[["parameter"]],
+    parameter_label          = parameter_label,
+    value                    = unique(point_refs[["value"]]),
+    conditional              = NULL,
+    n_points                 = density_control[["n_points"]],
+    samples                  = density_control[["samples"]],
+    target_relative_mcse     = density_control[["target_relative_mcse"]],
+    normalization_points     = density_control[["normalization_points"]],
+    normalization_prob       = density_control[["normalization_prob"]],
+    density_method           = density_method,
+    parameter_spec           = target[["parameter_spec"]]
+  )
 
   out <- BayesTools::hypothesis_BF(
     posterior      = marginal,

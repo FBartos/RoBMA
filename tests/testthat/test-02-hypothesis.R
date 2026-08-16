@@ -84,6 +84,7 @@ test_that("hypothesis warns only for omitted conditioning on null-component ense
   )
 
   testthat::local_mocked_bindings(
+    .brma_parameter_catalog_metadata = function(...) list(catalog = NULL),
     .hypothesis_brma_select_parameter = function(...) {
       list(
         parameter = "mu",
@@ -265,8 +266,13 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
     iwmde_provenance = list(request_key = "stale")
   )
   fresh <- stale
-  fresh[["iwmde_provenance"]] <- list(request_key = "fresh")
+  fresh[["parameter"]] <- "mu_source"
+  fresh[["iwmde_provenance"]] <- list(
+    request_key = "fresh",
+    target      = list(parameter = "mu_source")
+  )
   posterior <- stats::rnorm(50)
+  attr(posterior, "parameter") <- "mu"
   attr(posterior, "posterior_ordinate") <- stale
   raw_posterior <- as.numeric(posterior)
   prior_density <- BayesTools:::.prior_linear_density_point(0)
@@ -306,6 +312,11 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
   )
   expect_length(entries, 1L)
   expect_equal(entries[[1L]][["iwmde_provenance"]][["request_key"]], "fresh")
+  expect_identical(entries[[1L]][["parameter"]], "mu")
+  expect_identical(
+    entries[[1L]][["iwmde_provenance"]][["target"]][["parameter"]],
+    "mu_source"
+  )
   expect_identical(captured_parameter_spec[["prior_density"]], prior_density)
 })
 

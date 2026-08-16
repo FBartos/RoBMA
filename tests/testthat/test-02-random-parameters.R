@@ -718,6 +718,17 @@ test_that("direct multivariate random quantities expose density targets", {
   expect_identical(nested[["parameter_spec"]][["index"]], 1L)
   expect_identical(study[["parameter_spec"]][["index"]], 2L)
 
+  total_plot <- plot(
+    fit,
+    "sd_total(random_total)",
+    component = "random",
+    plot_type = "ggplot"
+  )
+  expect_identical(
+    total_plot$scales$get_scales("x")$name,
+    "sd_total(random_total)"
+  )
+
   samples <- .brma_random_parameter_mixed_posterior(
     fit,
     "var_frac(random_total: esid_study)",

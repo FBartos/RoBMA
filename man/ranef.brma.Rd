@@ -34,8 +34,8 @@ block name. Use \code{"total"} for the summed random-effect deviation.}
 
 \item{expand}{whether to repeat group-level random effects for every fitted
 observation. Defaults to \code{FALSE}, returning one column per unique
-grouping level, consistently with \code{metafor::ranef()}. Set to
-\code{TRUE} for observation-aligned output.}
+grouping level in first fitted-observation order, consistently with
+\code{metafor::ranef()}. Set to \code{TRUE} for observation-aligned output.}
 
 \item{...}{additional arguments forwarded to \code{\link{predict.brma}} for
 supported options such as \code{conditional}. \code{newdata}, \code{type},

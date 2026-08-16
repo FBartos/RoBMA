@@ -1154,8 +1154,16 @@ test_that("IWMDE preflights only ordinate outputs", {
     ),
     "prior density tends to zero"
   )
-  expect_length(captured_spec[["prior_ordinates"]], 1L)
-  expect_identical(captured_spec[["prior_ordinates"]][[1L]][["value"]], 0)
+  expect_length(captured_spec[["prior_ordinates"]], 2L)
+  expect_identical(
+    unname(vapply(
+      captured_spec[["prior_ordinates"]],
+      `[[`,
+      numeric(1),
+      "value"
+    )),
+    c(0, 1)
+  )
 })
 
 
@@ -1327,7 +1335,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "6")
-  expect_equal(provenance[["algorithm_version"]], "16")
+  expect_equal(provenance[["algorithm_version"]], "17")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")

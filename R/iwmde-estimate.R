@@ -15,11 +15,7 @@
   ))
   ordinate_values <- NULL
   if ("ordinate" %in% outputs) {
-    ordinate_values <- suppressWarnings(as.numeric(values))
-    ordinate_values <- ordinate_values[is.finite(ordinate_values)]
-    if (length(ordinate_values) > 0L) {
-      ordinate_values <- ordinate_values[[1L]]
-    }
+    ordinate_values <- .iwmde_sorted_ordinate_values(values)
   }
   parameter_spec <- .iwmde_prepare_prior_ordinates(
     context        = context,
@@ -96,40 +92,90 @@
   )
 
   diagnostic <- out[["diagnostics"]][["ordinate"]]
-  metrics    <- .iwmde_ordinate_precision_metrics(diagnostic)
   eligible   <- length(plan[["rows"]][["continuous_rows"]])
   achieved   <- plan[["rows"]][["n_candidate_rows"]]
   if (!is.finite(eligible) || eligible < 1L) {
     eligible <- achieved
   }
+  ordinate_entries <- c(
+    .iwmde_posterior_ordinate_entries(out[["posterior_ordinate"]]),
+    .iwmde_posterior_ordinate_entries(out[["rejected_posterior_ordinate"]])
+  )
+  if (length(ordinate_entries) == 0L) {
+    ordinate_entries <- list(diagnostic)
+  }
+  ordinate_designs <- lapply(ordinate_entries, function(entry) {
+    .iwmde_ordinate_sampling_design(
+      diagnostic = entry,
+      control    = control,
+      eligible   = eligible,
+      achieved   = achieved
+    )
+  })
+  names(ordinate_designs) <- vapply(ordinate_entries, function(entry) {
+    value <- .iwmde_ordinate_scalar(entry, "value")
+    if (is.finite(value)) .iwmde_key_number(value) else "diagnostic"
+  }, character(1))
+  sampling_design <- .iwmde_ordinate_sampling_design_aggregate(
+    ordinate_designs
+  )
+  out <- .iwmde_estimate_attach_sampling_design(
+    estimate         = out,
+    sampling_design  = sampling_design,
+    ordinate_designs = ordinate_designs
+  )
+
+  return(out)
+}
+
+
+.iwmde_ordinate_sampling_design <- function(diagnostic, control,
+                                             eligible, achieved) {
+
+  metrics <- .iwmde_ordinate_precision_metrics(diagnostic)
   precision_target_met <- is.finite(metrics[["relative_mcse"]]) &&
     metrics[["relative_mcse"]] <= control[["target_relative_mcse"]]
   sampling_target_met <- is.finite(metrics[["sampling_relative_mcse"]]) &&
     metrics[["sampling_relative_mcse"]] <=
       control[["target_relative_mcse"]]
-  numerical_grade_met <- is.null(.iwmde_diagnostics_bf_failure_reason(
-    diagnostic[["diagnostics"]]
-  ))
-  all_rows_used <- is.finite(eligible) && achieved >= eligible
+  numerical_grade_met <- if (!is.null(diagnostic[["ordinate"]])) {
+    is.null(.iwmde_posterior_ordinate_bf_failure_reason(diagnostic))
+  } else {
+    is.null(.iwmde_diagnostics_bf_failure_reason(
+      diagnostic[["diagnostics"]]
+    ))
+  }
   bf_grade_met <- numerical_grade_met && !identical(
     diagnostic[["diagnostics"]][["mixture_mcse_type"]],
     "worst_correlation_delta_upper_bound"
   )
-  target_met <- precision_target_met && sampling_target_met && bf_grade_met
 
-  sampling_design <- list(
+  return(list(
     fixed_budget         = TRUE,
     requested_samples    = control[["samples"]],
     achieved_row_budget  = as.integer(achieved),
     eligible_rows        = as.integer(eligible),
-    all_rows_used        = all_rows_used,
+    all_rows_used        = is.finite(eligible) && achieved >= eligible,
     target_relative_mcse = control[["target_relative_mcse"]],
     precision_target_met = precision_target_met,
     sampling_target_met  = sampling_target_met,
     bf_grade_met         = bf_grade_met,
-    target_met           = target_met
+    target_met           = precision_target_met && sampling_target_met &&
+      bf_grade_met
+  ))
+}
+
+
+.iwmde_ordinate_sampling_design_aggregate <- function(designs) {
+
+  out <- designs[[1L]]
+  fields <- c(
+    "all_rows_used", "precision_target_met", "sampling_target_met",
+    "bf_grade_met", "target_met"
   )
-  out <- .iwmde_estimate_attach_sampling_design(out, sampling_design)
+  for (field in fields) {
+    out[[field]] <- all(vapply(designs, `[[`, logical(1), field))
+  }
 
   return(out)
 }
@@ -164,7 +210,8 @@
 }
 
 
-.iwmde_estimate_attach_sampling_design <- function(estimate, sampling_design) {
+.iwmde_estimate_attach_sampling_design <- function(
+    estimate, sampling_design, ordinate_designs = list()) {
 
   diagnostic <- estimate[["diagnostics"]][["ordinate"]]
   if (is.list(diagnostic)) {
@@ -182,18 +229,28 @@
     "rejected_posterior_ordinate"
   )) {
     ordinate <- estimate[[ordinate_name]]
-    if (is.list(ordinate) && is.list(ordinate[["diagnostics"]])) {
-      for (name in names(sampling_design)) {
-        ordinate[["diagnostics"]][[name]] <- sampling_design[[name]]
-      }
-      warnings <- .iwmde_diagnostics_bf_warning(ordinate[["diagnostics"]])
-      if (length(warnings) == 0L) {
-        ordinate[["diagnostics"]][["warning"]] <- NULL
+    entries  <- .iwmde_posterior_ordinate_entries(ordinate)
+    for (i in seq_along(entries)) {
+      value <- .iwmde_ordinate_scalar(entries[[i]], "value")
+      key   <- if (is.finite(value)) .iwmde_key_number(value) else NULL
+      design <- if (!is.null(key) && key %in% names(ordinate_designs)) {
+        ordinate_designs[[key]]
       } else {
-        ordinate[["diagnostics"]][["warning"]] <- warnings
+        sampling_design
       }
-      estimate[[ordinate_name]] <- ordinate
+      for (name in names(design)) {
+        entries[[i]][["diagnostics"]][[name]] <- design[[name]]
+      }
+      warnings <- .iwmde_diagnostics_bf_warning(
+        entries[[i]][["diagnostics"]]
+      )
+      if (length(warnings) == 0L) {
+        entries[[i]][["diagnostics"]][["warning"]] <- NULL
+      } else {
+        entries[[i]][["diagnostics"]][["warning"]] <- warnings
+      }
     }
+    estimate[[ordinate_name]] <- .iwmde_posterior_ordinate_combine(entries)
   }
 
   estimate[["sampling_design"]] <- sampling_design
@@ -282,18 +339,29 @@
     )
   }
   if (!is.null(ordinate_diagnostic)) {
-    candidate_ordinate <- .iwmde_posterior_ordinate_attribute(
-      diagnostic      = ordinate_diagnostic,
-      density_method  = plan[["density_method"]],
-      density_control = plan[["control"]],
-      metadata        = plan[["target"]][["metadata"]],
-      allow_rejected  = TRUE
-    )
-    if (!is.null(candidate_ordinate) &&
-        .iwmde_posterior_ordinate_supports_bf(candidate_ordinate)) {
-      ordinate_attribute <- candidate_ordinate
+    if (length(plan[["grids"]][["requested_values"]]) <= 1L) {
+      candidate_ordinate <- .iwmde_posterior_ordinate_attribute(
+        diagnostic      = ordinate_diagnostic,
+        density_method  = plan[["density_method"]],
+        density_control = plan[["control"]],
+        metadata        = plan[["target"]][["metadata"]],
+        allow_rejected  = TRUE
+      )
+      if (!is.null(candidate_ordinate) &&
+          .iwmde_posterior_ordinate_supports_bf(candidate_ordinate)) {
+        ordinate_attribute <- candidate_ordinate
+      } else {
+        rejected_ordinate_attribute <- candidate_ordinate
+      }
     } else {
-      rejected_ordinate_attribute <- candidate_ordinate
+      candidate_ordinates <- .iwmde_posterior_ordinate_attributes(
+        diagnostic      = ordinate_diagnostic,
+        density_method  = plan[["density_method"]],
+        density_control = plan[["control"]],
+        metadata        = plan[["target"]][["metadata"]]
+      )
+      ordinate_attribute          <- candidate_ordinates[["accepted"]]
+      rejected_ordinate_attribute <- candidate_ordinates[["rejected"]]
     }
   }
 

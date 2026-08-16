@@ -9,6 +9,8 @@ Rscript tools/test-scenario.R <scenario>
 
 Use `--regenerate` to refit every wrapped model and replace every wrapped text
 and plot baseline exercised by the script. Review all resulting Git diffs.
+Use `scenario_agreement_plot()` for reference-versus-RoBMA difference plots so
+their finite-value filtering, agreement band, and axes stay consistent.
 
 Minimal scenario:
 
