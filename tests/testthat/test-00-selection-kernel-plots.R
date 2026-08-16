@@ -398,12 +398,15 @@ test_that("native regplot selection intervals match R reference", {
     selection         = selection
   )
 
-  native <- .regplot_selnorm_mixture_interval_quantiles(
+  native <- .plot_mixture_quantiles_native(
     mean_samples      = mean_samples,
     sd_samples        = sd_samples,
     se                = se,
     probs             = probs,
-    selection_context = selection
+    weights            = rep(1, S),
+    selected_rows      = setup[["is_weightfunction"]],
+    selection_context  = selection,
+    caller             = "test"
   )
   ref <- .regplot_selection_mixture_interval_quantiles_r(
     mean_samples     = mean_samples,
@@ -414,8 +417,8 @@ test_that("native regplot selection intervals match R reference", {
     effect_direction = "positive"
   )
 
-  expect_equal(native[["lower"]], ref[["lower"]], tolerance = 1e-5)
-  expect_equal(native[["upper"]], ref[["upper"]], tolerance = 1e-5)
+  expect_equal(native[, 1L], ref[["lower"]], tolerance = 1e-5)
+  expect_equal(native[, 2L], ref[["upper"]], tolerance = 1e-5)
 })
 
 test_that("plot quantiles retain tiny positive normal scales", {
@@ -559,14 +562,17 @@ test_that("selected plot quantiles return the left edge of CDF plateaus", {
   expect_equal(regplot_r[["lower"]], boundary, tolerance = 1e-14)
 
   if (.has_native_regplot_selection_mixture()) {
-    regplot_native <- .regplot_selnorm_mixture_interval_quantiles(
+    regplot_native <- .plot_mixture_quantiles_native(
       mean_samples      = matrix(0, nrow = 1L),
       sd_samples        = matrix(1, nrow = 1L),
       se                = 1,
       probs             = c(.5, .975),
-      selection_context = selection
+      weights            = 1,
+      selected_rows      = TRUE,
+      selection_context  = selection,
+      caller             = "test"
     )
-    expect_equal(regplot_native[["lower"]], boundary, tolerance = 1e-14)
+    expect_equal(regplot_native[, 1L], boundary, tolerance = 1e-14)
   }
 
   if (.has_native_funnel_model_averaged_quantiles(setup)) {
@@ -643,12 +649,15 @@ test_that("native selected-normal plot quantiles reject zero mass", {
   selection[["has_phack"]]   <- FALSE
 
   expect_error(
-    .regplot_selnorm_mixture_interval_quantiles(
+    .plot_mixture_quantiles_native(
       mean_samples      = matrix(0, nrow = S),
       sd_samples        = matrix(.20, nrow = S),
       se                = .10,
       probs             = c(.025, .975),
-      selection_context = selection
+      weights            = rep(1, S),
+      selected_rows      = rep(TRUE, S),
+      selection_context  = selection,
+      caller             = "test"
     ),
     "valid bracketed CDF"
   )

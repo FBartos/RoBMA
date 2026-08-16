@@ -1,5 +1,11 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- unifies plug-in funnel, Bayesian funnel, and regression-plot contour
+  evaluation in one exact weighted posterior-mixture quantile engine. Normal,
+  PET, PEESE, model-averaged, and selected-normal contours now share native
+  batching, neighboring-grid root reuse, atom and selection-gap semantics, and
+  a prepared selected-normal telescoping path with the log-space evaluator as
+  its numerical fallback.
 - accelerates qCMDE/IWMDE density estimates and hypothesis Bayes factors for
   the multilevel heterogeneity allocation `rho` with an exact grid-aware
   cluster likelihood that avoids expanding component matrices across grid

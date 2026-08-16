@@ -253,6 +253,7 @@ test_that("funnel and regplot selected CDF paths match non-telescoped fallback",
 
   selection_fallback <- selection
   selection_fallback[["telescope_probabilities"]] <- FALSE
+  selection_fallback[["native_cache"]] <- new.env(parent = emptyenv())
 
   setup <- list(
     mu                = seq(-.12, .20, length.out = S),
@@ -275,19 +276,25 @@ test_that("funnel and regplot selected CDF paths match non-telescoped fallback",
   sd_samples   <- matrix(runif(S * K, .08, .35), nrow = S)
 
   expect_equal(
-    .regplot_selnorm_mixture_interval_quantiles(
+    .plot_mixture_quantiles_native(
       mean_samples      = mean_samples,
       sd_samples        = sd_samples,
       se                = .13,
       probs             = c(.10, .90),
-      selection_context = selection
+      weights            = rep(1, S),
+      selected_rows      = rep(TRUE, S),
+      selection_context  = selection,
+      caller             = "test"
     ),
-    .regplot_selnorm_mixture_interval_quantiles(
+    .plot_mixture_quantiles_native(
       mean_samples      = mean_samples,
       sd_samples        = sd_samples,
       se                = .13,
       probs             = c(.10, .90),
-      selection_context = selection_fallback
+      weights            = rep(1, S),
+      selected_rows      = rep(TRUE, S),
+      selection_context  = selection_fallback,
+      caller             = "test"
     ),
     tolerance = 1e-8
   )
@@ -312,6 +319,7 @@ test_that("native funnel model-averaged quantiles match R fallback", {
 
     for (telescope_probabilities in c(TRUE, FALSE)) {
       selection <- spec
+      selection[["native_cache"]] <- new.env(parent = emptyenv())
       selection[["omega"]] <- omega[
         , seq_len(spec[["n_bins"]]), drop = FALSE
       ]
@@ -329,7 +337,8 @@ test_that("native funnel model-averaged quantiles match R fallback", {
         PET               = rnorm(S, 0, .03),
         PEESE             = rnorm(S, 0, .02),
         is_weightfunction = !selection[["use_normal"]],
-        selection         = selection
+        selection         = selection,
+        weights           = seq_len(S)
       )
       se_sequence <- c(0, .05, .13, .27)
 
@@ -441,6 +450,53 @@ test_that("native regplot quantiles preserve subnormal continuous scales", {
     stats::qnorm(probs),
     tolerance = 1e-12
   )
+})
+
+test_that("shared native plot quantiles honor weights and arbitrary probabilities", {
+
+  skip_if_not(.has_native_regplot_mixture())
+
+  mean_samples <- matrix(c(0, 2, -1, 3), nrow = 2L)
+  sd_samples   <- matrix(c(.5, 1, .8, .4), nrow = 2L)
+  weights      <- c(.75, .25)
+  probs        <- c(.1, .5, .9)
+  actual <- .plot_mixture_quantiles_native(
+    mean_samples = mean_samples,
+    sd_samples   = sd_samples,
+    probs        = probs,
+    weights      = weights,
+    caller       = "test"
+  )
+
+  expected <- vapply(seq_len(ncol(mean_samples)), function(k) {
+
+    vapply(probs, function(probability) {
+
+      stats::uniroot(
+        function(q) {
+          sum(weights * stats::pnorm(
+            q,
+            mean = mean_samples[, k],
+            sd   = sd_samples[, k]
+          )) - probability
+        },
+        interval = c(-20, 20),
+        tol      = .Machine$double.eps
+      )[["root"]]
+    }, numeric(1))
+  }, numeric(length(probs)))
+  expected <- t(expected)
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+
+  atomic <- .plot_mixture_quantiles_native(
+    mean_samples = matrix(c(0, 2), ncol = 1L),
+    sd_samples   = matrix(0, nrow = 2L),
+    probs        = c(.7, .8),
+    weights      = weights,
+    caller       = "test"
+  )
+  expect_identical(as.numeric(atomic), c(0, 2))
 })
 
 test_that("native funnel model-averaged quantiles reject active p-hacking", {

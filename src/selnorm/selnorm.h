@@ -99,6 +99,33 @@ bool cpp_selnorm_step_cdf_plan(
   bool validate_omega = true
 );
 
+bool cpp_selnorm_step_cdf_telescope_plan(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  const SelNormKernelData &data,
+  double *boundary_tail,
+  double *omega_diff,
+  double *omega_last,
+  double *normalizer,
+  int omega_stride = 1,
+  bool validate_omega = true
+);
+
+double cpp_selnorm_step_cdf_from_telescope_plan(
+  double q,
+  double mean,
+  double sd,
+  double sei,
+  const SelNormKernelData &data,
+  const double *boundary_tail,
+  const double *omega_diff,
+  double omega_last,
+  double normalizer,
+  bool lower_tail = true
+);
+
 double cpp_selnorm_step_cdf_from_plan(
   double q,
   double mean,

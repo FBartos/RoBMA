@@ -37,6 +37,7 @@ test_that("intercept-only outcome funnels and automatic residual routing remain"
   }
 
   testthat::local_mocked_bindings(
+    .funnel_common_heterogeneity = function(...) list(common = TRUE),
     .funnel_data_outcome = function(...) list(mode = "outcome"),
     .funnel_data_residual = function(...) list(mode = "residual"),
     .package = "RoBMA"

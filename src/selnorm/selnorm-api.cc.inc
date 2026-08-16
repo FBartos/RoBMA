@@ -302,6 +302,122 @@ bool cpp_selnorm_step_cdf_plan(
   return *n_groups > 0;
 }
 
+bool cpp_selnorm_step_cdf_telescope_plan(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  const SelNormKernelData &data,
+  double *boundary_tail,
+  double *omega_diff,
+  double *omega_last,
+  double *normalizer,
+  int omega_stride,
+  bool validate_omega)
+{
+  if (!(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei) ||
+      !std::isfinite(mean) || !data.trusted_step_partition ||
+      !data.telescope_probabilities || data.n_bins < 1 ||
+      !(data.effect_sign == 1 || data.effect_sign == -1) ||
+      (validate_omega &&
+       !validate_omega_values(omega, data, omega_stride))) {
+    return false;
+  }
+
+  const double signed_mean = data.effect_sign * mean;
+  for (int b = 0; b < data.n_bins; ++b) {
+    if (!(omega_at(omega, b + 1, omega_stride) > 0)) {
+      return false;
+    }
+  }
+  *omega_last = omega_at(omega, data.n_bins, omega_stride);
+  *normalizer = *omega_last;
+  double normalizer_abs = std::abs(*normalizer);
+
+  for (int b = 0; b < data.n_bins - 1; ++b) {
+    omega_diff[b] = omega_at(omega, b + 1, omega_stride) -
+      omega_at(omega, b + 2, omega_stride);
+    const double boundary_score = stable_affine_score(
+      data.z_lower[b], sei, signed_mean, sd
+    );
+    boundary_tail[b] = tail_at(boundary_score, 0, 1);
+    const double contribution = omega_diff[b] * boundary_tail[b];
+    *normalizer    += contribution;
+    normalizer_abs += std::abs(contribution);
+  }
+
+  return std::isfinite(*omega_last) && std::isfinite(*normalizer) &&
+    *normalizer > std::numeric_limits<double>::min() &&
+    *normalizer > 1e-8 * normalizer_abs;
+}
+
+double cpp_selnorm_step_cdf_from_telescope_plan(
+  double q,
+  double mean,
+  double sd,
+  double sei,
+  const SelNormKernelData &data,
+  const double *boundary_tail,
+  const double *omega_diff,
+  double omega_last,
+  double normalizer,
+  bool lower_tail)
+{
+  if (!(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei) ||
+      !std::isfinite(mean) || std::isnan(q) ||
+      !data.trusted_step_partition || !data.telescope_probabilities ||
+      data.n_bins < 1 || !(normalizer > 0) ||
+      !std::isfinite(normalizer) ||
+      !(data.effect_sign == 1 || data.effect_sign == -1)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const double signed_q    = data.effect_sign * q;
+  const double signed_mean = data.effect_sign * mean;
+  const double q_score     = stable_normal_score(
+    signed_q, signed_mean, sd
+  );
+  const double q_tail = tail_at(q_score, 0, 1);
+  const double q_cdf  = cdf_at(q_score, 0, 1);
+  if (!std::isfinite(q_tail) || !std::isfinite(q_cdf)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const bool signed_lower_tail = data.effect_sign == 1 ?
+    lower_tail : !lower_tail;
+  double requested = omega_last *
+    (signed_lower_tail ? q_cdf : q_tail);
+
+  for (int b = 0; b < data.n_bins - 1; ++b) {
+    const double boundary = data.z_lower[b] * sei;
+    double contribution;
+    if (signed_lower_tail) {
+      contribution = 0;
+      if (signed_q > boundary) {
+        const double interval = boundary_tail[b] - q_tail;
+        if (!(interval > 0)) {
+          return std::numeric_limits<double>::quiet_NaN();
+        }
+        contribution = omega_diff[b] * interval;
+      }
+    } else {
+      contribution = omega_diff[b] *
+        (signed_q >= boundary ? q_tail : boundary_tail[b]);
+    }
+    requested += contribution;
+  }
+
+  if (!std::isfinite(requested) || requested < 0 || requested > normalizer) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const double probability = requested / normalizer;
+  return std::isfinite(probability) && probability >= 0 && probability <= 1 ?
+    probability : std::numeric_limits<double>::quiet_NaN();
+}
+
 double cpp_selnorm_step_cdf_from_plan(
   double q,
   double mean,

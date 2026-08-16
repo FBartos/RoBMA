@@ -7,12 +7,63 @@
 # ---------------------------------------------------------------------------- #
 .has_native_regplot_mixture <- function() {
 
-  return(is.loaded("RoBMA_regplot_normal_mixture_interval", PACKAGE = "RoBMA"))
+  return(is.loaded("RoBMA_plot_normal_mixture_quantiles", PACKAGE = "RoBMA"))
 }
 
 .has_native_regplot_selection_mixture <- function() {
 
-  return(is.loaded("RoBMA_regplot_selnorm_mixture_interval", PACKAGE = "RoBMA"))
+  return(is.loaded("RoBMA_plot_selnorm_mixture_quantiles", PACKAGE = "RoBMA"))
+}
+
+
+.plot_mixture_quantiles_native <- function(mean_samples, sd_samples, probs,
+                                            weights, se = NULL,
+                                            selected_rows = NULL,
+                                            selection_context = NULL,
+                                            caller) {
+
+  mean_samples <- as.matrix(mean_samples)
+  sd_samples   <- as.matrix(sd_samples)
+  weights      <- as.numeric(weights)
+
+  if (is.null(selection_context) || !any(selected_rows)) {
+    return(.Call(
+      "RoBMA_plot_normal_mixture_quantiles",
+      .native_numeric_matrix(mean_samples),
+      .native_numeric_matrix(sd_samples),
+      .native_numeric_vector(probs),
+      .native_numeric_vector(weights),
+      PACKAGE = "RoBMA"
+    ))
+  }
+
+  .selection_require_step_evaluable(selection_context, caller)
+  native_static <- BayesTools::selection_native_static_args(selection_context)
+
+  return(.Call(
+    "RoBMA_plot_selnorm_mixture_quantiles",
+    .native_numeric_matrix(mean_samples),
+    .native_numeric_matrix(sd_samples),
+    .native_numeric_vector(se),
+    .native_numeric_vector(probs),
+    .native_numeric_vector(weights),
+    .native_integer_vector(selected_rows),
+    .native_numeric_matrix(selection_context[["omega"]]),
+    .native_numeric_vector(selection_context[["alpha"]]),
+    .native_integer_vector(selection_context[["phack_kind"]]),
+    .native_integer_vector(selection_context[["kernel_mode"]]),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    native_static[["telescope_probabilities"]],
+    PACKAGE = "RoBMA"
+  ))
 }
 
 
@@ -22,13 +73,14 @@
   sd_samples   <- as.matrix(sd_samples)
 
   if (.has_native_regplot_mixture()) {
-    return(.Call(
-      "RoBMA_regplot_normal_mixture_interval",
-      .native_numeric_matrix(mean_samples),
-      .native_numeric_matrix(sd_samples),
-      .native_numeric_vector(probs),
-      PACKAGE = "RoBMA"
-    ))
+    quantiles <- .plot_mixture_quantiles_native(
+      mean_samples = mean_samples,
+      sd_samples   = sd_samples,
+      probs        = probs,
+      weights      = rep(1, nrow(mean_samples)),
+      caller       = ".regplot_mixture_interval_quantiles()"
+    )
+    return(list(lower = quantiles[, 1L], upper = quantiles[, 2L]))
   }
 
   return(.regplot_mixture_interval_quantiles_r(
@@ -97,13 +149,17 @@
 
   if (!is.null(setup[["selection"]]) &&
       .has_native_regplot_selection_mixture()) {
-    return(.regplot_selnorm_mixture_interval_quantiles(
+    quantiles <- .plot_mixture_quantiles_native(
       mean_samples      = mean_samples,
       sd_samples        = sd_samples,
       se                = se,
       probs             = probs,
-      selection_context = setup[["selection"]]
-    ))
+      weights            = rep(1, nrow(mean_samples)),
+      selected_rows      = setup[["is_weightfunction"]],
+      selection_context  = setup[["selection"]],
+      caller             = ".regplot_selection_mixture_interval_quantiles()"
+    )
+    return(list(lower = quantiles[, 1L], upper = quantiles[, 2L]))
   }
 
   return(.regplot_selection_mixture_interval_quantiles_r(
@@ -115,42 +171,6 @@
     effect_direction = effect_direction
   ))
 }
-
-.regplot_selnorm_mixture_interval_quantiles <- function(mean_samples,
-                                                        sd_samples, se,
-                                                        probs,
-                                                        selection_context) {
-
-  .selection_require_step_evaluable(
-    selection_context,
-    ".regplot_selection_mixture_interval_quantiles()"
-  )
-  native_static <- BayesTools::selection_native_static_args(selection_context)
-
-  return(.Call(
-    "RoBMA_regplot_selnorm_mixture_interval",
-    .native_numeric_matrix(mean_samples),
-    .native_numeric_matrix(sd_samples),
-    .native_numeric_vector(se),
-    .native_numeric_vector(probs),
-    .native_numeric_matrix(selection_context[["omega"]]),
-    .native_numeric_vector(selection_context[["alpha"]]),
-    .native_integer_vector(selection_context[["phack_kind"]]),
-    .native_integer_vector(selection_context[["kernel_mode"]]),
-    native_static[["z_lower"]],
-    native_static[["z_upper"]],
-    native_static[["sign"]],
-    native_static[["phack_q"]],
-    native_static[["phack_z_source"]],
-    native_static[["phack_z_dest"]],
-    native_static[["segment_bounds"]],
-    native_static[["segment_step_bin"]],
-    native_static[["segment_phack_region"]],
-    native_static[["telescope_probabilities"]],
-    PACKAGE = "RoBMA"
-  ))
-}
-
 
 .regplot_selection_mixture_interval_quantiles_r <- function(mean_samples,
                                                             sd_samples, se,

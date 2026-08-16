@@ -251,51 +251,52 @@
 
 .has_native_funnel_model_averaged_quantiles <- function(setup) {
 
-  if (is.null(setup[["selection"]]) || !is.null(setup[["weights"]])) {
-    return(FALSE)
+  if (!is.null(setup[["selection"]]) &&
+      any(setup[["is_weightfunction"]])) {
+    return(is.loaded(
+      "RoBMA_plot_selnorm_mixture_quantiles",
+      PACKAGE = "RoBMA"
+    ))
   }
 
-  return(is.loaded("RoBMA_funnel_model_averaged_quantiles", PACKAGE = "RoBMA"))
+  return(is.loaded("RoBMA_plot_normal_mixture_quantiles", PACKAGE = "RoBMA"))
 }
 
 .funnel_model_averaged_quantiles_native <- function(se_sequence, setup,
                                                     effect_direction) {
 
-  selection <- setup[["selection"]]
-  if (any(setup[["is_weightfunction"]])) {
-    .selection_require_step_evaluable(
-      selection,
-      ".funnel_model_averaged_quantiles()"
-    )
-  }
+  S <- length(setup[["mu"]])
+  L <- length(se_sequence)
+  location <- vapply(
+    se_sequence,
+    .funnel_row_location,
+    numeric(S),
+    setup            = setup,
+    effect_direction = effect_direction
+  )
+  location <- matrix(location, nrow = S, ncol = L)
+  total_sd <- vapply(
+    se_sequence,
+    function(se) .root_sum_squares(setup[["tau"]], se),
+    numeric(S)
+  )
+  total_sd <- matrix(total_sd, nrow = S, ncol = L)
 
-  direction <- ifelse(effect_direction == "negative", -1L, 1L)
-  native_static <- BayesTools::selection_native_static_args(selection)
+  quantiles <- .plot_mixture_quantiles_native(
+    mean_samples      = location,
+    sd_samples        = total_sd,
+    se                = se_sequence,
+    probs             = c(0.025, 0.975, 0.5),
+    weights           = .funnel_setup_weights(setup),
+    selected_rows     = setup[["is_weightfunction"]],
+    selection_context = setup[["selection"]],
+    caller            = ".funnel_model_averaged_quantiles()"
+  )
 
-  return(.Call(
-    "RoBMA_funnel_model_averaged_quantiles",
-    .native_numeric_vector(se_sequence),
-    .native_numeric_vector(setup[["mu"]]),
-    .native_numeric_vector(setup[["tau"]]),
-    .native_numeric_vector(setup[["PET"]]),
-    .native_numeric_vector(setup[["PEESE"]]),
-    .native_integer_vector(setup[["is_weightfunction"]]),
-    .native_numeric_matrix(selection[["omega"]]),
-    .native_numeric_vector(selection[["alpha"]]),
-    .native_integer_vector(selection[["phack_kind"]]),
-    .native_integer_vector(selection[["kernel_mode"]]),
-    native_static[["z_lower"]],
-    native_static[["z_upper"]],
-    native_static[["sign"]],
-    native_static[["phack_q"]],
-    native_static[["phack_z_source"]],
-    native_static[["phack_z_dest"]],
-    native_static[["segment_bounds"]],
-    native_static[["segment_step_bin"]],
-    native_static[["segment_phack_region"]],
-    .native_integer_vector(direction),
-    native_static[["telescope_probabilities"]],
-    PACKAGE = "RoBMA"
+  return(list(
+    lower = quantiles[, 1L],
+    upper = quantiles[, 2L],
+    mid   = quantiles[, 3L]
   ))
 }
 
