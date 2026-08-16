@@ -12,7 +12,9 @@
   exclusively, while independent R implementations remain as test references.
   Exact zero-weight selection plateaus are cached instead of repeatedly using
   the log-space evaluator, and regression-plot sampling deviations are built
-  column-wise without allocating redundant full-size intermediate matrices.
+  column-wise without allocating redundant full-size intermediate matrices;
+  `zplot()` applies the same construction to predictive SD matrices and skips
+  duplicate predictive setup when fitted and extrapolated targets coincide.
 - extends qCMDE/IWMDE density estimates and hypothesis Bayes factors to
   supported semantic multivariate random-component quantities. Plotting and
   hypothesis testing share the same target routing, allocation endpoints use

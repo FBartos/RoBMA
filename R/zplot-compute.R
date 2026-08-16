@@ -474,14 +474,30 @@
 # Vectorized EDR computation for normal and selected-normal rows.
 #
 # ---------------------------------------------------------------------------- #
+.zplot_total_sd <- function(tau_within, sei) {
+
+  total_sd <- vapply(
+    seq_len(ncol(tau_within)),
+    function(i) .root_sum_squares(tau_within[, i], sei[[i]]),
+    numeric(nrow(tau_within))
+  )
+  total_sd <- matrix(
+    total_sd,
+    nrow     = nrow(tau_within),
+    ncol     = ncol(tau_within),
+    dimnames = dimnames(tau_within)
+  )
+
+  return(total_sd)
+}
+
 .zplot_threshold_vectorized <- function(z_threshold, mu_samples, tau_within,
                                          sei, selection, extrapolate,
                                          effect_direction) {
 
-  S         <- nrow(mu_samples)
-  K         <- ncol(mu_samples)
-  sei_mat   <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd  <- .root_sum_squares(tau_within, sei_mat)
+  S        <- nrow(mu_samples)
+  K        <- ncol(mu_samples)
+  total_sd <- .zplot_total_sd(tau_within, sei)
 
   if (!is.null(selection) && .has_native_zplot_threshold()) {
     return(.zplot_selnorm_threshold_summary(
@@ -723,13 +739,18 @@
     extrapolate        = FALSE,
     conditioning_depth = conditioning_depth
   )
-  predictive_extrapolated <- .zplot_predictive_components(
-    object                      = object,
-    posterior_samples           = posterior_samples,
-    extrapolate                 = TRUE,
-    conditioning_depth          = conditioning_depth,
-    predictive_heterogeneity    = predictive_fit[["tau_within"]]
-  )
+  has_location_bias <- .is_PET(object) || .is_PEESE(object)
+  if (has_location_bias) {
+    predictive_extrapolated <- .zplot_predictive_components(
+      object                      = object,
+      posterior_samples           = posterior_samples,
+      extrapolate                 = TRUE,
+      conditioning_depth          = conditioning_depth,
+      predictive_heterogeneity    = predictive_fit[["tau_within"]]
+    )
+  } else {
+    predictive_extrapolated <- predictive_fit
+  }
   selection <- .zplot_selection_context(
     object            = object,
     posterior_samples = posterior_samples,
@@ -738,10 +759,10 @@
 
   same_predictive <- identical(predictive_fit, predictive_extrapolated)
   if (same_predictive && !is.null(selection)) {
-    S        <- nrow(predictive_fit[["mu"]])
-    K        <- ncol(predictive_fit[["mu"]])
-    sei_mat  <- matrix(predictive_fit[["sei"]], nrow = S, ncol = K, byrow = TRUE)
-    total_sd <- .root_sum_squares(predictive_fit[["tau_within"]], sei_mat)
+    total_sd <- .zplot_total_sd(
+      predictive_fit[["tau_within"]],
+      predictive_fit[["sei"]]
+    )
 
     return(.zplot_selnorm_density_pair(
       z_sequence        = z_sequence,
@@ -791,10 +812,7 @@
                                        sei, selection, extrapolate,
                                        effect_direction) {
 
-  S           <- nrow(mu_samples)
-  K           <- ncol(mu_samples)
-  sei_mat     <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd    <- .root_sum_squares(tau_within, sei_mat)
+  total_sd <- .zplot_total_sd(tau_within, sei)
 
   if (is.null(selection)) {
     return(.zplot_normal_density_matrix(
