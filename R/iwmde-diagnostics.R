@@ -112,7 +112,11 @@
 
   reason <- .iwmde_diagnostics_density_sample_failure_reason(density_diagnostics)
   if (!is.null(reason)) {
-    return(reason)
+    return(paste0(
+      reason,
+      ". ",
+      .iwmde_density_sample_rejection_action(density_diagnostics)
+    ))
   }
 
   mass_reason <- .iwmde_diagnostics_mass_failure_reason(
@@ -143,9 +147,8 @@
       .iwmde_estimator_label(estimator),
       .iwmde_diagnostics_normalization_error_phrase(estimator),
       .iwmde_percent(normalization_error),
-      " (maximum allowed ",
-      .iwmde_percent(fail_tolerance),
-      ")"
+      ". Try increasing 'normalization_points' or setting ",
+      "'normalization_prob' closer to 1 in the 'density_control' argument"
     ))
   }
 
@@ -243,9 +246,7 @@
       .iwmde_count(estimator_rows),
       " estimator rows across ",
       .iwmde_count(n_active_state_keys),
-      " active states (minimum ",
-      .iwmde_count(.iwmde_density_min_estimator_rows()),
-      ")"
+      " active states"
     ))
   }
 
@@ -260,10 +261,7 @@
       plot_scale_sampling_mcse >= .iwmde_density_max_relative_mcse())) {
     return(paste0(
       "density plot-scale finite-population sampling MCSE is ",
-      .iwmde_percent(plot_scale_sampling_mcse),
-      " (maximum allowed ",
-      .iwmde_percent(.iwmde_density_max_relative_mcse()),
-      ")"
+      .iwmde_percent(plot_scale_sampling_mcse)
     ))
   }
   bulk_sampling_relative_mcse <-
@@ -276,10 +274,7 @@
       bulk_sampling_relative_mcse >= .iwmde_density_max_relative_mcse())) {
     return(paste0(
       "density bulk finite-population sampling relative MCSE is ",
-      .iwmde_percent(bulk_sampling_relative_mcse),
-      " (maximum allowed ",
-      .iwmde_percent(.iwmde_density_max_relative_mcse()),
-      ")"
+      .iwmde_percent(bulk_sampling_relative_mcse)
     ))
   }
   plot_scale_relative_mcse <- metrics[["plot_scale_relative_mcse"]]
@@ -288,10 +283,7 @@
       plot_scale_relative_mcse >= .iwmde_density_max_relative_mcse()) {
     return(paste0(
       "density plot-scale MCSE is ",
-      .iwmde_percent(plot_scale_relative_mcse),
-      " (maximum allowed ",
-      .iwmde_percent(.iwmde_density_max_relative_mcse()),
-      ")"
+      .iwmde_percent(plot_scale_relative_mcse)
     ))
   }
 
@@ -300,10 +292,7 @@
       bulk_relative_mcse >= .iwmde_density_max_relative_mcse()) {
     return(paste0(
       "density bulk relative MCSE is ",
-      .iwmde_percent(bulk_relative_mcse),
-      " (maximum allowed ",
-      .iwmde_percent(.iwmde_density_max_relative_mcse()),
-      ")"
+      .iwmde_percent(bulk_relative_mcse)
     ))
   }
 
@@ -316,8 +305,7 @@
   if (!is.finite(ess) || (ess < min_ess && !partial_mixture_bound)) {
     return(paste0(
       "density bulk effective sample size is ",
-      .iwmde_count(ess),
-      " (minimum ", .iwmde_count(min_ess), ")"
+      .iwmde_count(ess)
     ))
   }
 
@@ -326,14 +314,21 @@
       max_weight_share >= .iwmde_density_max_weight_share()) {
     return(paste0(
       "largest bulk density importance weight contributes ",
-      .iwmde_percent(max_weight_share),
-      " (maximum allowed ",
-      .iwmde_percent(.iwmde_density_max_weight_share()),
-      ")"
+      .iwmde_percent(max_weight_share)
     ))
   }
 
   return(NULL)
+}
+
+
+.iwmde_density_sample_rejection_action <- function(diagnostics) {
+
+  if (isTRUE(diagnostics[["all_rows_used"]])) {
+    return("Try fitting the model with more posterior draws")
+  }
+
+  return("Try a larger 'samples' value in the 'density_control' argument")
 }
 
 
@@ -748,9 +743,8 @@
     return(paste0(
       "adaptive quadrature sensitivity is ",
       .iwmde_percent(quadrature_change),
-      " (maximum allowed ",
-      .iwmde_percent(.iwmde_quadrature_fail_tolerance()),
-      ")"
+      ". Try another 'density_method' and inspect density_diagnostics() ",
+      "for details"
     ))
   }
 

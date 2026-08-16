@@ -177,6 +177,7 @@
     ),
     cache          = estimate_cache
   )
+  diagnostic <- estimate[["diagnostics"]][["ordinate"]]
   marginal_parameter <- attr(posterior, "parameter", exact = TRUE)
   values <- .iwmde_sorted_ordinate_values(value)
   for (requested_value in values) {
@@ -186,11 +187,11 @@
     )
     if (is.null(ordinate)) {
       .iwmde_stop_ordinate_unavailable(
-        message = paste0(
-          "Precomputed ", density_method,
-          " posterior ordinate is unavailable for '", parameter, " = ",
-          requested_value, "': ",
-          .hypothesis_brma_estimate_ordinate_reason(
+        message = .hypothesis_brma_iwmde_ordinate_failure_message(
+          density_method = density_method,
+          target         = paste0(parameter, " = ", requested_value),
+          diagnostic     = diagnostic,
+          reason         = .hypothesis_brma_estimate_ordinate_reason(
             estimate = estimate,
             value    = requested_value
           )
@@ -331,11 +332,11 @@
   ordinate <- estimate[["posterior_ordinate"]]
   if (is.null(ordinate)) {
     .iwmde_stop_ordinate_unavailable(
-      message = paste0(
-        "Precomputed ", density_method,
-        " posterior ordinate is unavailable for '", parameter, "[", level,
-        "] = ", value, "': ",
-        .hypothesis_brma_diagnostic_reason(diagnostic)
+      message = .hypothesis_brma_iwmde_ordinate_failure_message(
+        density_method = density_method,
+        target         = paste0(parameter, "[", level, "] = ", value),
+        diagnostic     = diagnostic,
+        reason         = .hypothesis_brma_diagnostic_reason(diagnostic)
       ),
       estimate = estimate
     )
@@ -352,6 +353,23 @@
   )
 
   return(posterior)
+}
+
+
+.hypothesis_brma_iwmde_ordinate_failure_message <- function(
+    density_method, target, diagnostic, reason) {
+
+  if (identical(diagnostic[["status"]], "ok")) {
+    return(paste0(
+      density_method, " posterior ordinate for '", target,
+      "' was rejected by diagnostics: ", reason
+    ))
+  }
+
+  return(paste0(
+    density_method, " posterior ordinate is unavailable for '", target,
+    "': ", reason
+  ))
 }
 
 

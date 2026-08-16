@@ -588,9 +588,9 @@
   }
 
   paste0(
-    "Precomputed posterior ordinate failed diagnostics (",
+    "Precomputed posterior ordinate was rejected by diagnostics: ",
     paste(reasons, collapse = "; "),
-    "); ",
+    ". ",
     "Savage-Dickey Bayes factor is not reported."
   )
 }
@@ -788,6 +788,21 @@
     parameter  = parameter
   )
   if (length(missing_levels) > 0L) {
+    rejection_reasons <- .marginal_means_iwmde_density_rejection_reasons(
+      object   = x,
+      selected = selected,
+      type     = type,
+      levels   = missing_levels
+    )
+    if (length(rejection_reasons) > 0L) {
+      stop(
+        density_method, " density was rejected by diagnostics for ",
+        "marginal-means level(s) ",
+        paste0("'", missing_levels, "'", collapse = ", "), ": ",
+        paste(rejection_reasons, collapse = "; "), ".",
+        call. = FALSE
+      )
+    }
     stop(
       density_method, " density was unavailable for marginal-means level(s): ",
       paste0("'", missing_levels, "'", collapse = ", "), ".",
@@ -796,6 +811,39 @@
   }
 
   return(x)
+}
+
+
+.marginal_means_iwmde_density_rejection_reasons <- function(
+    object, selected, type, levels) {
+
+  diagnostics <- object[["density_diagnostics"]][[type]]
+  if (!is.list(diagnostics) || length(diagnostics) == 0L) {
+    return(character())
+  }
+  specs <- .iwmde_marginal_means_specs(
+    marginal_means_object = object,
+    parameter             = selected[["term"]],
+    type                  = type,
+    levels                = levels
+  )
+  reasons <- vapply(names(specs), function(name) {
+    diagnostic <- diagnostics[[name]]
+    if (!is.list(diagnostic) ||
+        !identical(diagnostic[["status"]], "ok")) {
+      return("")
+    }
+    reason <- .iwmde_diagnostics_density_failure_reason(
+      diagnostic[["diagnostics"]]
+    )
+    if (is.null(reason) || length(reason) != 1L || is.na(reason)) {
+      return("")
+    }
+
+    return(as.character(reason))
+  }, character(1))
+
+  return(unique(reasons[nzchar(reasons)]))
 }
 
 

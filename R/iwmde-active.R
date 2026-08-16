@@ -619,11 +619,12 @@
   colnames(posterior_row) <- names(row)
 
   values <- BayesTools::JAGS_evaluate_formula(
-    fit        = .posterior_formula_fit(context[["formula_fit"]], posterior_row),
-    formula    = input[["formula"]],
-    parameter  = parameter,
-    data       = input[["data"]],
-    prior_list = input[["prior_list"]]
+    fit            = .posterior_formula_fit(context[["formula_fit"]], posterior_row),
+    formula        = input[["formula"]],
+    parameter      = parameter,
+    data           = input[["data"]],
+    prior_list     = input[["prior_list"]],
+    formula_target = "fixed"
   )
 
   return(as.numeric(values[, 1]))

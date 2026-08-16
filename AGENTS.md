@@ -101,6 +101,23 @@ prediction, visualization, and diagnostics.
 - State uncertainty, verification performed, and verification omitted. Never
   present incomplete evidence as completion.
 
+### User-Facing Diagnostic Messages
+
+- For a quantitative criterion that blocks a result, use: `<subject> was
+  rejected by diagnostics: <observed issue>. <action>.`
+- Report the observed metric and value, not the internal cutoff. Thresholds may
+  remain in non-blocking warnings and diagnostic objects or tables.
+- Give only a remedy that can address the failed criterion. Name the exact
+  public argument and setting; once a local sample census is exhausted,
+  recommend more upstream draws instead of a larger local sample budget.
+- Describe structurally unsupported or missing results as `unavailable`, not
+  `rejected by diagnostics`, and do not suggest irrelevant numerical tuning.
+- If no direct remedy exists, suggest a supported alternative or diagnostic
+  inspection without promising that it will fix the issue.
+- Quote R argument and setting names with single quotes in plain-text messages,
+  end conditions with a period, use `call. = FALSE`, and test the complete
+  user-facing message plus structural and quantitative branches.
+
 ### Change Discipline
 
 - Make focused, reviewable commits with informative messages.

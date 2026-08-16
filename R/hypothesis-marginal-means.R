@@ -563,9 +563,11 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   ordinate   <- estimate[["posterior_ordinate"]]
   if (is.null(ordinate)) {
     .iwmde_stop_ordinate_unavailable(
-      message = paste0(
-        density_method, " posterior ordinate is unavailable for '", label,
-        " = ", value, "': ", .hypothesis_brma_diagnostic_reason(diagnostic)
+      message = .hypothesis_brma_iwmde_ordinate_failure_message(
+        density_method = density_method,
+        target         = paste0(label, " = ", value),
+        diagnostic     = diagnostic,
+        reason         = .hypothesis_brma_diagnostic_reason(diagnostic)
       ),
       estimate = estimate
     )

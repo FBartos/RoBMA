@@ -836,6 +836,21 @@ test_that("marginal_means plot errors when explicit IWMDE density is unavailable
                                             parameter, type, levels, targeted,
                                             include_ordinates = TRUE) {
 
+      density_diagnostics <- .marginal_means_iwmde_density_diagnostics("iwmde")
+      density_diagnostics[["n_estimator_rows"]]    <- 500L
+      density_diagnostics[["n_active_state_keys"]] <- 1L
+      density_diagnostics[["bulk_min_ess"]]        <- 49.3
+      diagnostic <- list(
+        status      = "ok",
+        diagnostics = density_diagnostics
+      )
+      diagnostic_names <- paste0("alloc: ", levels)
+      marginal_means_object[["density_diagnostics"]][[type]] <-
+        stats::setNames(
+          rep(list(diagnostic), length(diagnostic_names)),
+          diagnostic_names
+        )
+
       return(marginal_means_object)
     },
     .package = "RoBMA"
@@ -850,7 +865,10 @@ test_that("marginal_means plot errors when explicit IWMDE density is unavailable
         density_method  = "IWMDE",
         density_control = list(n_points = 20, samples = 20)
       ),
-      "IWMDE density was unavailable"
+      paste0(
+        "IWMDE density was rejected by diagnostics.*",
+        "effective sample size is 49.3.*larger 'samples' value"
+      )
     ),
     "Computing IWMDE density"
   )

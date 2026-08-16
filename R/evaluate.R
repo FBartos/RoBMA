@@ -1155,15 +1155,16 @@
       parameter  = scale_spec[["parameter"]]
     )
     log_scale_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit        = .posterior_formula_fit(
+      fit            = .posterior_formula_fit(
         fit               = fit,
         posterior_samples = posterior_samples,
         formula_design    = FALSE
       ),
-      formula    = .create_fit_scale_formula(scale_spec[["formula"]]),
-      parameter  = scale_spec[["parameter"]],
-      data       = scale_spec[["data"]],
-      prior_list = scale_priors
+      formula        = .create_fit_scale_formula(scale_spec[["formula"]]),
+      parameter      = scale_spec[["parameter"]],
+      data           = scale_spec[["data"]],
+      prior_list     = scale_priors,
+      formula_target = "fixed"
     ))
     scale_samples <- exp(log_scale_samples)
     if (as_list) {

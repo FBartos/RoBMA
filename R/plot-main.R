@@ -952,15 +952,23 @@ lines.brma <- function(
 
 .plot_brma_iwmde_unavailable_message <- function(samples, density_method) {
 
-  reason <- .plot_brma_iwmde_unavailable_reason(samples)
-  if (is.null(reason)) {
+  details <- .plot_brma_iwmde_unavailable_reason(samples)
+  if (is.null(details)) {
     return(paste0(density_method, " density was not available."))
+  }
+  if (!isTRUE(details[["rejected"]])) {
+    return(paste0(
+      density_method,
+      " density was unavailable: ",
+      details[["reason"]],
+      "."
+    ))
   }
 
   return(paste0(
     density_method,
     " density was rejected by diagnostics: ",
-    reason,
+    details[["reason"]],
     "."
   ))
 }
@@ -977,7 +985,7 @@ lines.brma <- function(
     if (!identical(diagnostic[["status"]], "ok")) {
       reason <- diagnostic[["reason"]]
       if (length(reason) == 1L && !is.na(reason) && nzchar(reason)) {
-        return(reason)
+        return(list(reason = reason, rejected = FALSE))
       }
       next
     }
@@ -985,7 +993,7 @@ lines.brma <- function(
       diagnostic[["diagnostics"]]
     )
     if (!is.null(reason)) {
-      return(reason)
+      return(list(reason = reason, rejected = TRUE))
     }
   }
 

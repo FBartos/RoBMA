@@ -584,6 +584,37 @@ test_that("known-V marginalized allocation weights stay in global IWMDE state", 
 })
 
 
+test_that("known-V mixed meta-regressions evaluate fixed IWMDE predictors", {
+
+  dat <- data.frame(
+    yi    = c(.1, .2, .3, .4),
+    x     = c(0, 1, 0, 1),
+    study = factor(c("a", "a", "b", "b"))
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(.04, nrow(dat)),
+    mods                      = ~ x,
+    random                    = ~ 1 | study,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  input          <- .iwmde_formula_input(object[["data"]], object[["priors"]], "mods", "mu")
+  formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
+  row             <- c(mu_intercept = .25, mu_x = .5)
+  formula_fit     <- coda::as.mcmc(matrix(row, nrow = 1L, dimnames = list(NULL, names(row))))
+  attr(formula_fit, "formula_design") <- list(mu = formula_design)
+  attr(formula_fit, "formula_scale")  <- list(mu = formula_design[["formula_scale"]])
+
+  values   <- .iwmde_evaluate_formula_row_input(list(formula_fit = formula_fit), row, input, "mu")
+  expected <- row[["mu_intercept"]] + row[["mu_x"]] * as.numeric(scale(dat[["x"]]))
+
+  expect_equal(values, expected)
+})
+
+
 test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
 
   diagnostics <- list(
@@ -615,10 +646,10 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
     point_masses = NULL
   )
 
-  expect_match(
-    .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "qCMDE.*ordinate"
-  )
+  reason <- .iwmde_diagnostics_density_failure_reason(diagnostics)
+  expect_match(reason, "qCMDE.*ordinate")
+  expect_match(reason, "normalization_points.*normalization_prob")
+  expect_false(grepl("maximum allowed", reason, fixed = TRUE))
   expect_null(.iwmde_posterior_density_attribute(
     diagnostic     = diagnostic,
     density_method = "qCMDE"
@@ -634,10 +665,10 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
     .iwmde_diagnostics_density_warning(diagnostics)
   )))
   diagnostics[["n_active_state_keys"]] <- 2
-  expect_match(
-    .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "model-averaged density"
-  )
+  reason <- .iwmde_diagnostics_density_failure_reason(diagnostics)
+  expect_match(reason, "model-averaged density")
+  expect_match(reason, "larger 'samples' value", fixed = TRUE)
+  expect_false(grepl("minimum", reason, fixed = TRUE))
   diagnostics[["n_estimator_rows"]] <- 600
   diagnostics[["n_active_state_keys"]] <- 2
   diagnostics[["bulk_min_ess"]] <- 120
@@ -650,10 +681,10 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
   )))
 
   diagnostics[["max_quadrature_relative_change"]] <- .06
-  expect_match(
-    .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "quadrature"
-  )
+  reason <- .iwmde_diagnostics_density_failure_reason(diagnostics)
+  expect_match(reason, "quadrature")
+  expect_match(reason, "another 'density_method'", fixed = TRUE)
+  expect_false(grepl("maximum allowed", reason, fixed = TRUE))
 })
 
 
@@ -704,6 +735,17 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     max_normalizer_relative_change  = 0,
     max_quadrature_relative_change  = NA_real_
   ), curve)
+  expect_sample_rejection <- function(pattern) {
+
+    reason <- .iwmde_diagnostics_density_failure_reason(diagnostics)
+    expect_match(reason, pattern)
+    expect_true(endsWith(
+      reason,
+      "Try a larger 'samples' value in the 'density_control' argument"
+    ))
+    expect_false(grepl("minimum", reason, fixed = TRUE))
+    expect_false(grepl("maximum allowed", reason, fixed = TRUE))
+  }
 
   expect_null(.iwmde_diagnostics_density_failure_reason(diagnostics))
   expect_length(.iwmde_diagnostics_density_warning(diagnostics), 0L)
@@ -714,10 +756,7 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     "plot-scale finite-population sampling MCSE"
   )
   diagnostics[["plot_scale_sampling_relative_mcse"]] <- .30
-  expect_match(
-    .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "plot-scale finite-population sampling MCSE"
-  )
+  expect_sample_rejection("plot-scale finite-population sampling MCSE")
   diagnostics[["plot_scale_sampling_relative_mcse"]] <- .03
 
   diagnostics[["bulk_max_sampling_relative_mcse"]] <- .12
@@ -726,10 +765,7 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     "bulk finite-population sampling relative MCSE"
   )
   diagnostics[["bulk_max_sampling_relative_mcse"]] <- .30
-  expect_match(
-    .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "bulk finite-population sampling relative MCSE"
-  )
+  expect_sample_rejection("bulk finite-population sampling relative MCSE")
   diagnostics[["bulk_max_sampling_relative_mcse"]] <- .08
 
   diagnostics[["plot_scale_relative_mcse"]] <- .12
@@ -738,10 +774,7 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     "plot-scale MCSE"
   )
   diagnostics[["plot_scale_relative_mcse"]] <- .30
-  expect_match(
-    .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "plot-scale MCSE"
-  )
+  expect_sample_rejection("plot-scale MCSE")
   diagnostics[["plot_scale_relative_mcse"]] <- .03
 
   diagnostics[["bulk_max_relative_mcse"]] <- .12
@@ -750,10 +783,7 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     "bulk relative MCSE"
   )
   diagnostics[["bulk_max_relative_mcse"]] <- .30
-  expect_match(
-    .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "bulk relative MCSE"
-  )
+  expect_sample_rejection("bulk relative MCSE")
   diagnostics[["bulk_max_relative_mcse"]] <- .08
 
   diagnostics[["bulk_min_ess"]] <- 80
@@ -761,11 +791,35 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     .iwmde_diagnostics_density_warning(diagnostics),
     "bulk effective sample size"
   )
-  diagnostics[["bulk_min_ess"]] <- 40
+  diagnostics[["bulk_min_ess"]] <- 49.3
+  reason <- .iwmde_diagnostics_density_failure_reason(diagnostics)
+  expect_equal(
+    reason,
+    paste0(
+      "density bulk effective sample size is 49.3. Try a larger 'samples' ",
+      "value in the 'density_control' argument"
+    )
+  )
+  samples <- list()
+  attr(samples, "iwmde_diagnostics") <- list(list(
+    status      = "ok",
+    diagnostics = diagnostics
+  ))
+  expect_equal(
+    .plot_brma_iwmde_unavailable_message(samples, "qCMDE"),
+    paste0(
+      "qCMDE density was rejected by diagnostics: density bulk effective ",
+      "sample size is 49.3. Try a larger 'samples' value in the ",
+      "'density_control' argument."
+    )
+  )
+  diagnostics[["all_rows_used"]] <- TRUE
   expect_match(
     .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "bulk effective sample size"
+    "Try fitting the model with more posterior draws",
+    fixed = TRUE
   )
+  diagnostics[["all_rows_used"]] <- NULL
   diagnostics[["mcmc_uncertainty_scope"]] <-
     "selected_active_rows_with_mass_bound"
   expect_null(.iwmde_diagnostics_density_failure_reason(diagnostics))
@@ -782,10 +836,7 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     "bulk density importance weight"
   )
   diagnostics[["bulk_max_weight_share"]] <- .30
-  expect_match(
-    .iwmde_diagnostics_density_failure_reason(diagnostics),
-    "bulk density importance weight"
-  )
+  expect_sample_rejection("bulk density importance weight")
 })
 
 
@@ -1639,7 +1690,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
   expect_false(.iwmde_posterior_ordinate_supports_bf(qcmde_fail))
   expect_match(
     .iwmde_posterior_ordinate_failure_reasons(qcmde_fail),
-    "qCMDE.*ordinate.*6%.*5%"
+    "qCMDE.*ordinate.*6%.*normalization_points.*normalization_prob"
   )
 
   iwmde_warn <- ordinate("iwmde", .94)
@@ -1653,7 +1704,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
   expect_false(.iwmde_posterior_ordinate_supports_bf(iwmde_fail))
   expect_match(
     .iwmde_posterior_ordinate_failure_reasons(iwmde_fail),
-    "IWMDE.*11%.*10%"
+    "IWMDE.*11%.*normalization_points.*normalization_prob"
   )
 
   bf <- .iwmde_bf_append_warning(1, iwmde_warn)
@@ -1794,7 +1845,31 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
   )
   expect_match(
     .hypothesis_brma_diagnostic_reason(raw_diagnostic),
-    "qCMDE.*ordinate.*6%.*5%"
+    "qCMDE.*ordinate.*6%.*normalization_points.*normalization_prob"
+  )
+  expect_match(
+    .hypothesis_brma_iwmde_ordinate_failure_message(
+      density_method = "qCMDE",
+      target         = "mu = 0",
+      diagnostic     = raw_diagnostic,
+      reason         = .hypothesis_brma_diagnostic_reason(raw_diagnostic)
+    ),
+    paste0(
+      "qCMDE posterior ordinate for 'mu = 0' was rejected by diagnostics: ",
+      ".*normalization_points.*normalization_prob"
+    )
+  )
+  expect_equal(
+    .hypothesis_brma_iwmde_ordinate_failure_message(
+      density_method = "qCMDE",
+      target         = "mu = 0",
+      diagnostic     = list(status = "unsupported"),
+      reason         = "target is unsupported"
+    ),
+    paste0(
+      "qCMDE posterior ordinate is unavailable for 'mu = 0': ",
+      "target is unsupported"
+    )
   )
 })
 

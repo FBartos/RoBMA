@@ -566,8 +566,8 @@ test_that("point-BF policy enforces adaptive quadrature stability", {
   expect_null(.iwmde_diagnostics_bf_failure_reason(diagnostics))
 
   diagnostics[["max_quadrature_relative_change"]] <- .06
-  expect_match(
-    .iwmde_diagnostics_bf_failure_reason(diagnostics),
-    "quadrature sensitivity"
-  )
+  failure <- .iwmde_diagnostics_bf_failure_reason(diagnostics)
+  expect_match(failure, "quadrature sensitivity")
+  expect_match(failure, "another 'density_method'", fixed = TRUE)
+  expect_false(grepl("maximum allowed", failure, fixed = TRUE))
 })

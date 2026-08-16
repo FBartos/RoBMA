@@ -134,6 +134,7 @@ density_diagnostics.default <- function(object, ...) {
 
 .iwmde_stop_ordinate_unavailable <- function(message, estimate) {
 
+  message     <- paste0(sub("[.]+$", "", message), ".")
   ordinate    <- estimate[["rejected_posterior_ordinate"]]
   diagnostics <- .iwmde_collect_ordinate_density_diagnostics(ordinate)
   condition <- structure(

@@ -27,6 +27,8 @@
   model parameters and are evaluated through their corresponding density routes;
   direct scalar point ordinates sharing one target reuse a single
   conditional-normalization pass while retaining value-specific diagnostics.
+  Fixed moderator and scale predictors in mixed-formula models are now replayed
+  explicitly without conflating them with group-level contributions.
 - evaluates normal multilevel cluster likelihoods with a native exact
   diagonal-plus-rank-one kernel shared by log-likelihood, LOO, and density
   paths. Invalid or unsupported inputs retain the existing R and full
@@ -301,9 +303,13 @@
   region hypotheses.
 - adds marginal-means `lines()` overlays and routes qCMDE/IWMDE coefficient
   plots through the exact fitted-to-original structural transform.
-- makes fixed-budget qCMDE/IWMDE precision warnings explain how to request more
-  evaluated posterior samples without presenting the diagnostic target as an
-  adaptive stopping rule.
+- standardizes qCMDE/IWMDE diagnostic rejection messages across coefficient and
+  marginal-means plots and hypothesis tests. Rejections report the observed
+  issue without repeating the internal cutoff and recommend more evaluated
+  samples, more posterior draws, normalization controls, or another density
+  method as appropriate. Fixed-budget precision warnings explain how to request
+  more samples without presenting the diagnostic target as an adaptive stopping
+  rule.
 - permits mixed-case scenario artifact names such as `mu_BF_comparison`,
   matching the names already used by the maintainer scenarios.
 - resets base-graphics overlay mode around interactive `scenario_plot()`

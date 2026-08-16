@@ -186,6 +186,7 @@
 #' @seealso [pooled_effect()], [pooled_heterogeneity()], [blup()]
 #' @export
 predict.brma <- function(object, newdata = NULL, type = "terms",
+                         conditioning_depth = "marginal",
                          as_measure = TRUE,
                          output_measure = NULL,
                          transform = NULL,
@@ -196,11 +197,15 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
                          V_new = NULL,
                          ...){
 
+  conditioning_depth_specified <- !missing(conditioning_depth)
+
   context <- .predict_brma_context(
     object         = object,
     newdata        = newdata,
     V_new          = V_new,
     type           = type,
+    conditioning_depth = conditioning_depth,
+    conditioning_depth_specified = conditioning_depth_specified,
     as_measure     = as_measure,
     output_measure = output_measure,
     transform      = transform,
@@ -223,19 +228,23 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   }
   location_state <- .predict_brma_location_state(context, scale_state)
 
-  ### return cluster-level predictions if type = "cluster" is selected
-  # cluster incorporates fixed effects + cluster-level random effects (mu + gamma)
-  if (type == "cluster") {
-    # rename samples
+  if (type == "location") {
     mu_samples <- location_state[["mu"]]
-    colnames(mu_samples) <- paste0(
-      "mu_cluster[", seq_len(context[["K"]]), "]"
-    )
+    prefix <- if (context[["conditioning_depth"]] == "cluster") {
+      "mu_cluster"
+    } else {
+      "theta_blup"
+    }
+    colnames(mu_samples) <- paste0(prefix, "[", seq_len(context[["K"]]), "]")
 
     return(.predict_brma_finalize(
       context    = context,
       samples    = mu_samples,
-      title      = "Cluster-Level Posterior Prediction:",
+      title      = if (context[["conditioning_depth"]] == "cluster") {
+        "Cluster-Level Fitted Location:"
+      } else {
+        "True Effects (BLUP Means):"
+      },
       parameters = .conditional_effect_parameters(context[["object"]])
     ))
   }
@@ -256,7 +265,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 
 
 .predict_brma_context <- function(
-    object, newdata, V_new, type, as_measure, output_measure, transform,
+    object, newdata, V_new, type, conditioning_depth,
+    conditioning_depth_specified, as_measure, output_measure, transform,
     probs, bias_adjusted, quiet, conditional, dots) {
 
   .check_unused_dots(
@@ -265,16 +275,36 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     caller  = "predict.brma()"
   )
 
-  # normalize type aliases
+  requested_type <- type
   type <- match.arg(type, c("terms", "marginal", "cluster", "estimate", "effect", "blup",
                             "response", "outcome", "terms.scale"))
   type <- switch(type,
     "marginal" = "terms",
     "effect"   = "estimate",
-    "blup"     = "estimate",
+    "cluster"  = "location",
+    "blup"     = "location",
     "outcome"  = "response",
     type  # default: keep as is
   )
+  conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
+  if (requested_type == "cluster") {
+    if (conditioning_depth_specified && conditioning_depth != "cluster") {
+      stop(
+        "type = 'cluster' fixes conditioning_depth = 'cluster'.",
+        call. = FALSE
+      )
+    }
+    conditioning_depth <- "cluster"
+  }
+  if (requested_type == "blup") {
+    if (conditioning_depth_specified && conditioning_depth != "estimate") {
+      stop(
+        "type = 'blup' fixes conditioning_depth = 'estimate'.",
+        call. = FALSE
+      )
+    }
+    conditioning_depth <- "estimate"
+  }
 
   # input validation
   BayesTools::check_bool(as_measure, "as_measure")
@@ -296,6 +326,23 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     if (is.list(newdata) && !is.data.frame(newdata) && is.null(names(newdata))) {
       stop("'newdata' list must be named.", call. = FALSE)
     }
+  }
+
+  if (type %in% c("terms", "terms.scale") &&
+      conditioning_depth_specified && conditioning_depth != "marginal") {
+    stop(
+      "'conditioning_depth' is only available for type = 'estimate' or ",
+      "type = 'response'.",
+      call. = FALSE
+    )
+  }
+  if (!is.null(newdata) && conditioning_depth != "marginal" &&
+      type %in% c("location", "estimate", "response")) {
+    stop(
+      "Non-marginal predictions require fitted observation identities and ",
+      "are currently available only with newdata = NULL.",
+      call. = FALSE
+    )
   }
 
   known_v_newdata_response <- .is_data_known_v(object[["data"]]) &&
@@ -396,10 +443,20 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     )
   }
 
-  # check: cluster type requires multilevel model
-  if (type == "cluster" && !is_multilevel) {
-    stop("type = 'cluster' is only available for multilevel (3-level) models. ",
-         "Use type = 'terms' for non-multilevel models.", call. = FALSE)
+  if (conditioning_depth == "cluster" && !is_multilevel) {
+    stop(
+      "conditioning_depth = 'cluster' is only available for legacy ",
+      "multilevel (3-level) models.",
+      call. = FALSE
+    )
+  }
+  if (conditioning_depth == "cluster" && is_brma_mv_object && is_random_object) {
+    stop(
+      "conditioning_depth = 'cluster' is unavailable for brma.mv() ",
+      "random-formula models because their hierarchy need not define one ",
+      "distinguished cluster level.",
+      call. = FALSE
+    )
   }
 
   posterior_samples <- .get_posterior_samples(object[["fit"]], dots[[".posterior_samples"]])
@@ -446,6 +503,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   list(
     object              = object,
     type                = type,
+    requested_type      = requested_type,
+    conditioning_depth  = conditioning_depth,
     as_measure          = as_measure,
     probs               = probs,
     bias_adjusted       = bias_adjusted,
