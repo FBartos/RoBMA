@@ -740,18 +740,28 @@ rstudent.brma <- function(model, unit = "estimate",
     return(out)
   }
 
+  predictive_summary <- NULL
+  if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
+    predictive_summary <- .known_v_estimate_target_summary_from_setup(
+      setup      = setup,
+      components = c("log_lower", "log_upper", "mean", "variance")
+    )
+  }
+
   z <- .standardized_residuals_loopit(
-    object       = model,
-    psis_weights = psis_weights,
-    check        = FALSE,
-    setup        = setup
+    object             = model,
+    psis_weights       = psis_weights,
+    check              = FALSE,
+    setup              = setup,
+    predictive_summary = predictive_summary
   )
 
   moments <- .loo_predictive_moments_estimate(
-    object       = model,
-    setup        = setup,
-    psis_object  = psis_object,
-    psis_weights = psis_weights
+    object             = model,
+    setup              = setup,
+    psis_object        = psis_object,
+    psis_weights       = psis_weights,
+    predictive_summary = predictive_summary
   )
 
   resid <- moments[["resid"]]
@@ -784,6 +794,7 @@ rstudent.brma <- function(model, unit = "estimate",
 # @param setup        output from .estimate_likelihood_setup.brma().
 # @param psis_object  PSIS object from loo.
 # @param psis_weights optional normalized PSIS weights.
+# @param predictive_summary optional precomputed known-V conditional summary.
 #
 # @return list with numeric vectors resid and se.
 #
@@ -821,8 +832,9 @@ rstudent.brma <- function(model, unit = "estimate",
 }
 
 
-.loo_predictive_moments_estimate <- function(object, setup, psis_object,
-                                             psis_weights = NULL) {
+.loo_predictive_moments_estimate <- function(
+    object, setup, psis_object, psis_weights = NULL,
+    predictive_summary = NULL) {
 
   yi                <- setup[["yi"]]
   sei               <- setup[["sei"]]
@@ -841,10 +853,15 @@ rstudent.brma <- function(model, unit = "estimate",
   }
 
   if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
-    summary <- .known_v_estimate_target_summary_from_setup(setup)
+    if (is.null(predictive_summary)) {
+      predictive_summary <- .known_v_estimate_target_summary_from_setup(
+        setup      = setup,
+        components = c("mean", "variance")
+      )
+    }
     moments <- .weighted_predictive_moments(
-      mean     = summary[["mean"]],
-      variance = summary[["variance"]],
+      mean     = predictive_summary[["mean"]],
+      variance = predictive_summary[["variance"]],
       weights  = psis_weights
     )
 
@@ -996,14 +1013,16 @@ rstudent.brma <- function(model, unit = "estimate",
 # - Account for leverage (PSIS effectively removes yi from posterior)
 # - Work for continuous normal outcomes, including selection models
 #
-# @param object brma object.
+# @param object             brma object.
+# @param predictive_summary optional precomputed known-V conditional summary.
 #
 # @return If loo_only = TRUE, returns the psis_loo object.
 #         Otherwise, returns numeric vector of LOO-PIT residuals.
 #
 # ---------------------------------------------------------------------------- #
-.standardized_residuals_loopit <- function(object, psis_weights = NULL,
-                                           check = TRUE, setup = NULL) {
+.standardized_residuals_loopit <- function(
+    object, psis_weights = NULL, check = TRUE, setup = NULL,
+    predictive_summary = NULL) {
 
   # extract PSIS object and get normalized weights
   if (is.null(psis_weights)) {
@@ -1027,7 +1046,10 @@ rstudent.brma <- function(model, unit = "estimate",
     return(summary[["z"]])
   }
 
-  log_tails <- .loo_predictive_log_tails_estimate(setup)
+  log_tails <- .loo_predictive_log_tails_estimate(
+    setup              = setup,
+    predictive_summary = predictive_summary
+  )
   return(.loo_pit_z_from_log_tails(
     log_lower    = log_tails[["log_lower"]],
     log_upper    = log_tails[["log_upper"]],
@@ -1037,7 +1059,8 @@ rstudent.brma <- function(model, unit = "estimate",
 
 
 # Compute paired log tails for the normal estimate-unit LOO target.
-.loo_predictive_log_tails_estimate <- function(setup) {
+.loo_predictive_log_tails_estimate <- function(
+    setup, predictive_summary = NULL) {
 
   if (!identical(setup[["outcome_type"]], "norm")) {
     stop(
@@ -1048,8 +1071,13 @@ rstudent.brma <- function(model, unit = "estimate",
   }
 
   if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
-    summary <- .known_v_estimate_target_summary_from_setup(setup)
-    return(summary[c("log_lower", "log_upper")])
+    if (is.null(predictive_summary)) {
+      predictive_summary <- .known_v_estimate_target_summary_from_setup(
+        setup      = setup,
+        components = c("log_lower", "log_upper")
+      )
+    }
+    return(predictive_summary[c("log_lower", "log_upper")])
   }
 
   yi_mat <- matrix(

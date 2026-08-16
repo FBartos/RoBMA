@@ -191,6 +191,42 @@ struct CovariancePlan {
   std::vector<double> scale_work;
 };
 
+struct ConditionalOutput {
+  // Every conditional consumer is derived from the same two precision
+  // quantities. Callers request only the representations they need.
+  double *log_density;
+  double *residual;
+  double *variance;
+};
+
+bool store_conditional_output(
+    int index,
+    double precision_diagonal,
+    double precision_residual,
+    const ConditionalOutput &output)
+{
+  if (!(precision_diagonal > 0.0) ||
+      !std::isfinite(precision_diagonal) ||
+      !std::isfinite(precision_residual)) {
+    return false;
+  }
+
+  if (output.log_density != nullptr) {
+    const double log_two_pi = 1.837877066409345483560659472811;
+    output.log_density[index] = 0.5 * (
+      std::log(precision_diagonal) - log_two_pi -
+      precision_residual * precision_residual / precision_diagonal
+    );
+  }
+  if (output.residual != nullptr) {
+    output.residual[index] = precision_residual / precision_diagonal;
+  }
+  if (output.variance != nullptr) {
+    output.variance[index] = 1.0 / precision_diagonal;
+  }
+  return true;
+}
+
 cholmod_sparse sparse_matrix_view(BlockPlan &block)
 {
   cholmod_sparse matrix = {};

@@ -67,3 +67,34 @@ test_that("point plotting defaults respect overrides", {
   expect_equal(do.call(.set_dots_radial, custom)[names(custom)], custom)
   expect_equal(do.call(.set_dots_regplot, custom)[names(custom)], custom)
 })
+
+test_that("LOO-PIT Q-Q data request only standardized residual values", {
+
+  testthat::local_mocked_bindings(
+    residuals.brma = function(...) c(2, -1, 0.5),
+    rstudent.brma = function(...) {
+      stop("Q-Q data requested unused raw residual companions.")
+    },
+    .package = "RoBMA"
+  )
+
+  data <- .qqnorm_data(
+    x                  = structure(list(), class = "brma"),
+    type               = "rstudent",
+    unit               = "estimate",
+    conditioning_depth = "marginal",
+    envelope           = FALSE,
+    conf_level         = 95,
+    bonferroni         = FALSE,
+    reps               = 10,
+    smooth             = TRUE,
+    max_samples        = Inf,
+    xlim               = NULL,
+    ylim               = NULL,
+    xlab               = NULL,
+    ylab               = NULL,
+    dots               = list()
+  )
+
+  expect_equal(data[["y"]], c(-1, 0.5, 2))
+})

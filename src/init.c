@@ -156,9 +156,15 @@ extern SEXP RoBMA_known_v_covariance_plan_loglik(SEXP pointer, SEXP mean,
 extern SEXP RoBMA_known_v_covariance_plan_loglik_batch(
     SEXP pointer, SEXP means, SEXP random_covariance_states,
     SEXP extra_variances);
+extern SEXP RoBMA_known_v_covariance_plan_conditional_loglik_batch(
+    SEXP pointer, SEXP means, SEXP random_covariance_states,
+    SEXP extra_variances);
 extern SEXP RoBMA_known_v_covariance_plan_conditional_loglik(
-    SEXP pointer, SEXP mean, SEXP random_covariance_factors,
+    SEXP pointer, SEXP mean, SEXP random_covariance_states,
     SEXP extra_variance);
+extern SEXP RoBMA_known_v_covariance_plan_conditional_summary_batch(
+    SEXP pointer, SEXP means, SEXP random_covariance_states,
+    SEXP extra_variances);
 extern SEXP RoBMA_selnorm_kernel_loglik_row_sum(SEXP yi, SEXP mu_num,
                                                 SEXP sigma_num,
                                                 SEXP mu_norm,
@@ -431,6 +437,8 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_known_v_covariance_plan_loglik", (DL_FUNC) &RoBMA_known_v_covariance_plan_loglik, 4},
     {"RoBMA_known_v_covariance_plan_loglik_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_loglik_batch, 4},
     {"RoBMA_known_v_covariance_plan_conditional_loglik", (DL_FUNC) &RoBMA_known_v_covariance_plan_conditional_loglik, 4},
+    {"RoBMA_known_v_covariance_plan_conditional_loglik_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_conditional_loglik_batch, 4},
+    {"RoBMA_known_v_covariance_plan_conditional_summary_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_conditional_summary_batch, 4},
     {"RoBMA_selnorm_kernel_loglik_row_sum", (DL_FUNC) &RoBMA_selnorm_kernel_loglik_row_sum, 22},
     {"RoBMA_norm_cluster_loglik", (DL_FUNC) &RoBMA_norm_cluster_loglik, 10},
     {"RoBMA_norm_cluster_loglik_row_sum", (DL_FUNC) &RoBMA_norm_cluster_loglik_row_sum, 10},

@@ -89,6 +89,30 @@ double plan_log_likelihood(CovariancePlan &plan, SEXP mean,
   );
 }
 
+int require_batched_plan_inputs(
+    const CovariancePlan &plan,
+    SEXP means,
+    SEXP random_covariance_states,
+    SEXP extra_variances)
+{
+  if (TYPEOF(means) != REALSXP || !Rf_isMatrix(means) ||
+      TYPEOF(extra_variances) != REALSXP || !Rf_isMatrix(extra_variances)) {
+    Rf_error("Known-V batched means and extra variances must be numeric matrices.");
+  }
+  SEXP mean_dim = Rf_getAttrib(means, R_DimSymbol);
+  SEXP extra_dim = Rf_getAttrib(extra_variances, R_DimSymbol);
+  if (INTEGER(mean_dim)[0] != plan.n ||
+      INTEGER(extra_dim)[0] != plan.n ||
+      INTEGER(mean_dim)[1] != INTEGER(extra_dim)[1]) {
+    Rf_error("Known-V batched matrices have inconsistent dimensions.");
+  }
+  if (TYPEOF(random_covariance_states) != VECSXP ||
+      XLENGTH(random_covariance_states) != INTEGER(mean_dim)[1]) {
+    Rf_error("Known-V batched random covariance states have inconsistent length.");
+  }
+  return INTEGER(mean_dim)[1];
+}
+
 bool factor_dense_latent_system(
     CovariancePlan &plan,
     const std::vector<std::vector<int>> &active_columns,
@@ -178,13 +202,12 @@ bool finish_conditional_block(
     const double *base_precision_residual,
     const double *precision_factor,
     const double *solutions,
-    double *output)
+    const ConditionalOutput &output)
 {
-  // Q = B^-1 - C K^-1 C' and Qr = B^-1 r - C K^-1 h. Each returned value is
-  // log p(y_i | y_-i, state), derived from the joint Gaussian precision; it is
-  // not an independent marginal observation likelihood.
+  // Q = B^-1 - C K^-1 C' and Qr = B^-1 r - C K^-1 h. Conditional log density,
+  // residual, and variance are all derived from this same joint precision; none
+  // is an independent marginal observation target.
   const double *latent_residual_solution = solutions;
-  const double log_two_pi = 1.837877066409345483560659472811;
   for (int observation = 0; observation < size; ++observation) {
     const double *precision_solution = solutions +
       static_cast<size_t>((observation + 1) * rank);
@@ -216,21 +239,25 @@ bool finish_conditional_block(
       // caller recomputes the same conditional density from the dense precision.
       return false;
     }
-    output[block.index[static_cast<size_t>(observation)]] = 0.5 * (
-      std::log(precision_diagonal) - log_two_pi -
-      precision_residual * precision_residual / precision_diagonal
-    );
+    if (!store_conditional_output(
+        block.index[static_cast<size_t>(observation)],
+        precision_diagonal,
+        precision_residual,
+        output
+      )) {
+      return false;
+    }
   }
   return true;
 }
 
-bool diagonal_low_rank_conditional_log_likelihood(
+bool diagonal_low_rank_conditional_values(
     CovariancePlan &plan,
     BlockPlan &block,
     const std::vector<CovarianceFactor> &factors,
     const double *mean,
     const double *extra,
-    double *output)
+    const ConditionalOutput &output)
 {
   if (!block.low_rank_eligible &&
       !(block.sparse_factor_eligible && !block.sparse_factor_block_base)) {
@@ -254,13 +281,22 @@ bool diagonal_low_rank_conditional_log_likelihood(
       plan.y[static_cast<size_t>(global)] - mean[global];
   }
   if (rank == 0) {
-    const double log_two_pi = 1.837877066409345483560659472811;
+    const double two_pi = 6.283185307179586476925286766559;
     for (int observation = 0; observation < size; ++observation) {
       const double variance = diagonal[static_cast<size_t>(observation)];
       const double value = residual[static_cast<size_t>(observation)];
-      output[block.index[static_cast<size_t>(observation)]] = -0.5 * (
-        log_two_pi + std::log(variance) + value * value / variance
-      );
+      const int global = block.index[static_cast<size_t>(observation)];
+      if (output.log_density != nullptr) {
+        output.log_density[global] = -0.5 * (
+          std::log(two_pi * variance) + value * value / variance
+        );
+      }
+      if (output.residual != nullptr) {
+        output.residual[global] = value;
+      }
+      if (output.variance != nullptr) {
+        output.variance[global] = variance;
+      }
     }
     return true;
   }
@@ -370,13 +406,13 @@ bool diagonal_low_rank_conditional_log_likelihood(
   );
 }
 
-bool block_base_low_rank_conditional_log_likelihood(
+bool block_base_low_rank_conditional_values(
     CovariancePlan &plan,
     BlockPlan &block,
     const std::vector<CovarianceFactor> &factors,
     const double *mean,
     const double *extra,
-    double *output)
+    const ConditionalOutput &output)
 {
   if (!block.block_base_eligible &&
       !(block.sparse_factor_eligible && block.sparse_factor_block_base)) {
@@ -505,55 +541,91 @@ bool block_base_low_rank_conditional_log_likelihood(
   );
 }
 
-SEXP plan_conditional_log_likelihood(
-    CovariancePlan &plan, SEXP mean,
+void plan_conditional_values(
+    CovariancePlan &plan,
+    const double *mean_values,
     const std::vector<CovarianceFactor> &factors,
-    SEXP extra_variance)
+    const double *extra_values,
+    const ConditionalOutput &output)
 {
-  require_real_vector(mean, plan.n, "mean");
-  require_real_vector(extra_variance, plan.n, "extra_variance");
-  const double *mean_values = REAL(mean);
-  const double *extra_values = REAL(extra_variance);
   for (int i = 0; i < plan.n; ++i) {
     if (!std::isfinite(extra_values[i]) || extra_values[i] < 0.0) {
       Rf_error("Known-V extra variances must be finite and non-negative.");
     }
   }
 
-  SEXP output = PROTECT(Rf_allocVector(REALSXP, plan.n));
-  double *output_values = REAL(output);
-  const double log_two_pi = 1.837877066409345483560659472811;
   for (BlockPlan &block : plan.blocks) {
+    if (block.index.size() == 1) {
+      double *covariance = plan.covariance_work.data();
+      double *residual = plan.residual_work.data();
+      fill_dense_block(
+        plan,
+        block,
+        factors,
+        mean_values,
+        extra_values,
+        covariance,
+        residual
+      );
+      const double variance = covariance[0];
+      const double value = residual[0];
+      if (!(variance > 0.0) || !std::isfinite(variance) ||
+          !std::isfinite(value)) {
+        Rf_error("Known-V conditional covariance is not positive definite.");
+      }
+      const int global = block.index.front();
+      if (output.log_density != nullptr) {
+        const double two_pi = 6.283185307179586476925286766559;
+        output.log_density[global] = -0.5 * (
+          std::log(two_pi * variance) + value * value / variance
+        );
+      }
+      if (output.residual != nullptr) {
+        output.residual[global] = value;
+      }
+      if (output.variance != nullptr) {
+        output.variance[global] = variance;
+      }
+      continue;
+    }
+
     // Specialized conditional routes are exact precision identities. Dense
     // Cholesky/inversion below is the target-preserving reference fallback.
-    if (markov_block_conditional_log_likelihood(
+    if (markov_block_conditional_values(
         plan,
         block,
         factors,
         mean_values,
         extra_values,
-        output_values
-      ) || fixed_known_group_block_conditional_log_likelihood(
+        output
+      ) || fixed_known_group_block_conditional_values(
         plan,
         block,
         factors,
         mean_values,
         extra_values,
-        output_values
-      ) || diagonal_low_rank_conditional_log_likelihood(
+        output
+      ) || spectral_block_conditional_values(
         plan,
         block,
         factors,
         mean_values,
         extra_values,
-        output_values
-      ) || block_base_low_rank_conditional_log_likelihood(
+        output
+      ) || diagonal_low_rank_conditional_values(
         plan,
         block,
         factors,
         mean_values,
         extra_values,
-        output_values
+        output
+      ) || block_base_low_rank_conditional_values(
+        plan,
+        block,
+        factors,
+        mean_values,
+        extra_values,
+        output
       )) {
       continue;
     }
@@ -573,7 +645,6 @@ SEXP plan_conditional_log_likelihood(
     int info = 0;
     F77_CALL(dpotrf)("L", &size, covariance, &size, &info FCONE);
     if (info != 0) {
-      UNPROTECT(1);
       Rf_error("Known-V conditional covariance is not positive definite.");
     }
     const int one = 1;
@@ -588,12 +659,10 @@ SEXP plan_conditional_log_likelihood(
       &info FCONE
     );
     if (info != 0) {
-      UNPROTECT(1);
       Rf_error("Known-V conditional covariance solve failed.");
     }
     F77_CALL(dpotri)("L", &size, covariance, &size, &info FCONE);
     if (info != 0) {
-      UNPROTECT(1);
       Rf_error("Known-V conditional precision could not be computed.");
     }
     for (int local = 0; local < size; ++local) {
@@ -603,18 +672,38 @@ SEXP plan_conditional_log_likelihood(
       const double weighted_residual = precision_residual[
         static_cast<size_t>(local)
       ];
-      if (!(precision_diagonal > 0.0) ||
-          !std::isfinite(precision_diagonal) ||
-          !std::isfinite(weighted_residual)) {
-        UNPROTECT(1);
+      if (!store_conditional_output(
+          block.index[static_cast<size_t>(local)],
+          precision_diagonal,
+          weighted_residual,
+          output
+        )) {
         Rf_error("Known-V conditional precision is invalid.");
       }
-      output_values[block.index[static_cast<size_t>(local)]] = 0.5 * (
-        std::log(precision_diagonal) - log_two_pi -
-        weighted_residual * weighted_residual / precision_diagonal
-      );
     }
   }
+}
+
+SEXP plan_conditional_log_likelihood(
+    CovariancePlan &plan, SEXP mean,
+    const std::vector<CovarianceFactor> &factors,
+    SEXP extra_variance)
+{
+  require_real_vector(mean, plan.n, "mean");
+  require_real_vector(extra_variance, plan.n, "extra_variance");
+  SEXP output = PROTECT(Rf_allocVector(REALSXP, plan.n));
+  const ConditionalOutput destination = {
+    REAL(output),
+    nullptr,
+    nullptr
+  };
+  plan_conditional_values(
+    plan,
+    REAL(mean),
+    factors,
+    REAL(extra_variance),
+    destination
+  );
   UNPROTECT(1);
   return output;
 }

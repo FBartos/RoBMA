@@ -288,6 +288,76 @@ bool spectral_block_log_likelihood(
   );
 }
 
+bool spectral_block_conditional_values(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    const ConditionalOutput &output)
+{
+  // With no additional low-rank factors, the cached eigensystem gives the
+  // exact observation precision without forming V + c I. This preserves
+  // positive shifts that are smaller than an entry-wise ULP of V.
+  if (!block.spectral_eligible || block.rank != 0 || !factors.empty()) {
+    return false;
+  }
+  const int size = static_cast<int>(block.index.size());
+  const double shift = extra[block.index.front()];
+  if (!std::isfinite(shift) || shift < 0.0) {
+    return false;
+  }
+
+  double *inverse_variance = plan.diagonal_work.data();
+  double *transformed_residual = plan.residual_work.data();
+  for (int eigen = 0; eigen < size; ++eigen) {
+    const double variance = block.sampling_eigenvalues[
+      static_cast<size_t>(eigen)
+    ] + shift;
+    if (!(variance > 0.0) || !std::isfinite(variance)) {
+      return false;
+    }
+    inverse_variance[static_cast<size_t>(eigen)] = 1.0 / variance;
+    transformed_residual[static_cast<size_t>(eigen)] = 0.0;
+  }
+  for (int local = 0; local < size; ++local) {
+    const int global = block.index[static_cast<size_t>(local)];
+    if (extra[global] != shift || !std::isfinite(mean[global])) {
+      return false;
+    }
+    const double residual = plan.y[static_cast<size_t>(global)] - mean[global];
+    for (int eigen = 0; eigen < size; ++eigen) {
+      transformed_residual[static_cast<size_t>(eigen)] +=
+        block.sampling_eigenvectors[static_cast<size_t>(
+          local + size * eigen
+        )] * residual;
+    }
+  }
+
+  for (int local = 0; local < size; ++local) {
+    double precision_diagonal = 0.0;
+    double precision_residual = 0.0;
+    for (int eigen = 0; eigen < size; ++eigen) {
+      const double eigenvector = block.sampling_eigenvectors[
+        static_cast<size_t>(local + size * eigen)
+      ];
+      const double inverse = inverse_variance[static_cast<size_t>(eigen)];
+      precision_diagonal += eigenvector * eigenvector * inverse;
+      precision_residual += eigenvector *
+        transformed_residual[static_cast<size_t>(eigen)] * inverse;
+    }
+    if (!store_conditional_output(
+        block.index[static_cast<size_t>(local)],
+        precision_diagonal,
+        precision_residual,
+        output
+      )) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool markov_block_log_likelihood(
     CovariancePlan &plan,
     const BlockPlan &block,
@@ -359,13 +429,13 @@ bool markov_block_log_likelihood(
   return true;
 }
 
-bool markov_block_conditional_log_likelihood(
+bool markov_block_conditional_values(
     CovariancePlan &plan,
     const BlockPlan &block,
     const std::vector<CovarianceFactor> &factors,
     const double *mean,
     const double *extra,
-    double *output)
+    const ConditionalOutput &output)
 {
   // The Markov prior gives a tridiagonal latent precision. Solving that system
   // yields the exact observation precision diagonal and precision-weighted
@@ -458,7 +528,6 @@ bool markov_block_conditional_log_likelihood(
       posterior_variance[level + 1];
   }
 
-  const double log_two_pi = 1.837877066409345483560659472811;
   for (int level = 0; level < q; ++level) {
     for (int local : block.markov_rows_by_level[static_cast<size_t>(level)]) {
       const double variance = observation_variance[local];
@@ -469,15 +538,14 @@ bool markov_block_conditional_log_likelihood(
         precision_loading * precision_loading * posterior_variance[level];
       const double precision_residual = residual / variance -
         precision_loading * solution[level];
-      if (!(precision_diagonal > 0.0) ||
-          !std::isfinite(precision_diagonal) ||
-          !std::isfinite(precision_residual)) {
+      if (!store_conditional_output(
+          block.index[static_cast<size_t>(local)],
+          precision_diagonal,
+          precision_residual,
+          output
+        )) {
         return false;
       }
-      output[block.index[static_cast<size_t>(local)]] = 0.5 * (
-        std::log(precision_diagonal) - log_two_pi -
-        precision_residual * precision_residual / precision_diagonal
-      );
     }
   }
   return true;
@@ -626,13 +694,13 @@ bool fixed_known_group_block_log_likelihood(
   return true;
 }
 
-bool fixed_known_group_block_conditional_log_likelihood(
+bool fixed_known_group_block_conditional_values(
     CovariancePlan &plan,
     const BlockPlan &block,
     const std::vector<CovarianceFactor> &factors,
     const double *mean,
     const double *extra,
-    double *output)
+    const ConditionalOutput &output)
 {
   if (!prepare_fixed_known_group_block(
       plan,
@@ -675,7 +743,6 @@ bool fixed_known_group_block_conditional_log_likelihood(
     "R", "L", "T", "N", &size, &rank, &one, small, &rank,
     transformed_basis, &size FCONE FCONE FCONE FCONE
   );
-  const double log_two_pi = 1.837877066409345483560659472811;
   for (int local = 0; local < size; ++local) {
     const double precision = block.fixed_known_group_precision[
       static_cast<size_t>(local)
@@ -691,15 +758,14 @@ bool fixed_known_group_block_conditional_log_likelihood(
       precision * precision * adjustment;
     const double precision_residual = precision *
       plan.residual_work[static_cast<size_t>(local)];
-    if (!(precision_diagonal > 0.0) ||
-        !std::isfinite(precision_diagonal) ||
-        !std::isfinite(precision_residual)) {
+    if (!store_conditional_output(
+        block.index[static_cast<size_t>(local)],
+        precision_diagonal,
+        precision_residual,
+        output
+      )) {
       return false;
     }
-    output[block.index[static_cast<size_t>(local)]] = 0.5 * (
-      std::log(precision_diagonal) - log_two_pi -
-      precision_residual * precision_residual / precision_diagonal
-    );
   }
   return true;
 }

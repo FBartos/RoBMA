@@ -128,12 +128,14 @@ test_that("diagonal known-V estimate log-likelihood is exactly vectorized", {
   )
 
   block_data <- .known_v_dependency_block_data(data, setup[["K"]])
-  plan <- .known_v_covariance_plan(
-    yi = setup[["yi"]],
-    block_indices = lapply(block_data, `[[`, "index"),
-    block_covariances = lapply(block_data, `[[`, "covariance"),
-    selected_blocks = seq_along(block_data)
-  )[["plan"]]
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(setup[["yi"]]),
+    .marglik_known_v_covariance_matrix(.data_known_v_data(data)),
+    list(),
+    lapply(block_data, `[[`, "index"),
+    PACKAGE = "RoBMA"
+  )
   expect_identical(attr(plan, "low_rank_blocks"), 0L)
   expect_identical(attr(plan, "root_dense_blocks"), 4L)
 })
@@ -183,6 +185,55 @@ test_that("native covariance plan returns exact Schur conditional densities", {
   }
 
   expect_equal(actual, expected, tolerance = 1e-12)
+
+  means <- rbind(mean, mean + c(0.01, -0.02, 0.03, -0.01, 0.02))
+  extra_variances <- rbind(extra_variance, extra_variance * 1.25)
+  states <- rep(list(list()), nrow(means))
+  summary <- .marglik_covariance_plan_conditional_summary_batch(
+    cache                    = NULL,
+    y                        = y,
+    means                    = means,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = states,
+    block_indices            = blocks,
+    extra_variances          = extra_variances
+  )
+  actual_batch <- .marglik_covariance_plan_conditional_loglik_batch(
+    cache                    = NULL,
+    y                        = y,
+    means                    = means,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = states,
+    block_indices            = blocks,
+    extra_variances          = extra_variances
+  )
+  expected_residual <- expected_variance <- matrix(
+    NA_real_,
+    nrow = nrow(means),
+    ncol = length(y)
+  )
+  for (draw in seq_len(nrow(means))) {
+    for (idx in blocks) {
+      distribution <- .known_v_component_conditional_distribution(
+        yi         = y[idx],
+        mu         = means[draw, idx],
+        covariance = sampling_covariance[idx, idx, drop = FALSE] +
+          diag(extra_variances[draw, idx], nrow = length(idx))
+      )
+      expected_residual[draw, idx] <- distribution[["residual"]]
+      expected_variance[draw, idx] <- distribution[["variance"]]
+    }
+  }
+  expected_batch <- -0.5 * (
+    log(2 * pi * expected_variance) +
+      expected_residual^2 / expected_variance
+  )
+
+  expect_equal(summary[["residual"]], expected_residual, tolerance = 1e-12)
+  expect_equal(summary[["variance"]], expected_variance, tolerance = 1e-12)
+  expect_equal(actual_batch, expected_batch, tolerance = 1e-12)
 })
 
 
@@ -241,6 +292,29 @@ test_that("rank-one known V retains sub-ULP diagonal variance", {
   )
   expect_true(all(is.finite(distribution[["log_lower"]])))
   expect_true(all(is.finite(distribution[["log_upper"]])))
+
+  unequal_diagonal <- c(1e-18, 2e-18)
+  setup[["tau_within"]] <- matrix(sqrt(unequal_diagonal), nrow = 1L)
+  expected <- .known_v_diagonal_rank_one_conditional(
+    yi       = setup[["yi"]],
+    mu       = setup[["mu"]][1L, ],
+    diagonal = unequal_diagonal,
+    rank_one = c(1, 1)
+  )
+  distribution <- .known_v_estimate_target_summary_from_setup(
+    setup      = setup,
+    components = c("mean", "variance")
+  )
+  expect_equal(
+    distribution[["variance"]] / expected[["variance"]],
+    matrix(1, nrow = 1L, ncol = 2L),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    matrix(setup[["yi"]], nrow = 1L) - distribution[["mean"]],
+    matrix(expected[["residual"]], nrow = 1L),
+    tolerance = 1e-12
+  )
 
   projection <- .known_v_gls_projection_blocks(
     X              = matrix(1, nrow = 2L, ncol = 1L),

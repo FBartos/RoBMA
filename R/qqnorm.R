@@ -261,10 +261,11 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 #
 # ---------------------------------------------------------------------------- #
 .qqnorm_data <- function(x, type, unit, conditioning_depth, envelope, conf_level,
-                          bonferroni, reps, smooth, max_samples,
-                          xlim, ylim, xlab, ylab, dots) {
+                         bonferroni, reps, smooth, max_samples,
+                         xlim, ylim, xlab, ylab, dots) {
 
   # get standardized residuals
+  res_obj <- NULL
   if (type == "rstandard") {
     res_obj <- rstandard.brma(
       model              = x,
@@ -272,11 +273,15 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
       conditioning_depth = conditioning_depth,
       max_samples        = max_samples
     )
+    z <- res_obj$z
   } else {
     # type == "rstudent" or "LOO-PIT"
-    res_obj <- rstudent.brma(x, unit = unit)
+    z <- residuals.brma(
+      object = x,
+      type   = type,
+      unit   = unit
+    )
   }
-  z <- res_obj$z
   K <- length(z)
 
   # theoretical standard normal quantiles

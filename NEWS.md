@@ -82,9 +82,11 @@
 - shares exact latent-system, fixed-known-group, and correlated sampling-block
   preparation between marginal-likelihood and conditional evaluators, and
   routes bridge block-MVN and post-fit joint known-`V` densities through the
-  same reusable native covariance plan. Independent R Cholesky and Schur
-  implementations remain as numerical references and invalid-covariance
-  diagnostics.
+  same reusable native covariance plan. Estimate-level LOO-PIT residuals now
+  reuse one batched conditional summary for tails and moments, while `qqnorm()`
+  requests only the standardized residual values it displays. Independent R
+  Cholesky and Schur implementations remain as numerical references and
+  invalid-covariance diagnostics.
 - compiles the active latent coordinates of each observation and assembles
   exact diagonal-base Woodbury systems only over their structural nonzeros,
   substantially reducing repeated work for nested and crossed random effects

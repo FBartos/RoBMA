@@ -164,23 +164,12 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_loglik_batch(
     SEXP extra_variances)
 {
   CovariancePlan *plan = plan_pointer(pointer);
-  if (TYPEOF(means) != REALSXP || !Rf_isMatrix(means) ||
-      TYPEOF(extra_variances) != REALSXP || !Rf_isMatrix(extra_variances)) {
-    Rf_error("Known-V batched means and extra variances must be numeric matrices.");
-  }
-  SEXP mean_dim = Rf_getAttrib(means, R_DimSymbol);
-  SEXP extra_dim = Rf_getAttrib(extra_variances, R_DimSymbol);
-  if (INTEGER(mean_dim)[0] != plan->n ||
-      INTEGER(extra_dim)[0] != plan->n ||
-      INTEGER(mean_dim)[1] != INTEGER(extra_dim)[1]) {
-    Rf_error("Known-V batched likelihood matrices have inconsistent dimensions.");
-  }
-  if (TYPEOF(random_covariance_states) != VECSXP ||
-      XLENGTH(random_covariance_states) != INTEGER(mean_dim)[1]) {
-    Rf_error("Known-V batched random covariance states have inconsistent length.");
-  }
-
-  const int draws = INTEGER(mean_dim)[1];
+  const int draws = require_batched_plan_inputs(
+    *plan,
+    means,
+    random_covariance_states,
+    extra_variances
+  );
   SEXP out = PROTECT(Rf_allocVector(REALSXP, draws));
   const double *mean_values = REAL(means);
   const double *extra_values = REAL(extra_variances);
@@ -200,6 +189,44 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_loglik_batch(
   return out;
 }
 
+extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik_batch(
+    SEXP pointer,
+    SEXP means,
+    SEXP random_covariance_states,
+    SEXP extra_variances)
+{
+  CovariancePlan *plan = plan_pointer(pointer);
+  const int draws = require_batched_plan_inputs(
+    *plan,
+    means,
+    random_covariance_states,
+    extra_variances
+  );
+  SEXP output = PROTECT(Rf_allocMatrix(REALSXP, plan->n, draws));
+  const double *mean_values = REAL(means);
+  const double *extra_values = REAL(extra_variances);
+  for (int draw = 0; draw < draws; ++draw) {
+    std::vector<CovarianceFactor> states = covariance_states(
+      VECTOR_ELT(random_covariance_states, draw),
+      *plan
+    );
+    const ConditionalOutput destination = {
+      REAL(output) + static_cast<size_t>(draw) * plan->n,
+      nullptr,
+      nullptr
+    };
+    plan_conditional_values(
+      *plan,
+      mean_values + static_cast<size_t>(draw) * plan->n,
+      states,
+      extra_values + static_cast<size_t>(draw) * plan->n,
+      destination
+    );
+  }
+  UNPROTECT(1);
+  return output;
+}
+
 extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik(
     SEXP pointer,
     SEXP mean,
@@ -217,4 +244,51 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik(
     states,
     extra_variance
   );
+}
+
+extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_summary_batch(
+    SEXP pointer,
+    SEXP means,
+    SEXP random_covariance_states,
+    SEXP extra_variances)
+{
+  CovariancePlan *plan = plan_pointer(pointer);
+  const int draws = require_batched_plan_inputs(
+    *plan,
+    means,
+    random_covariance_states,
+    extra_variances
+  );
+  SEXP output = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP residual = PROTECT(Rf_allocMatrix(REALSXP, plan->n, draws));
+  SEXP variance = PROTECT(Rf_allocMatrix(REALSXP, plan->n, draws));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_STRING_ELT(names, 0, Rf_mkChar("residual"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("variance"));
+  SET_VECTOR_ELT(output, 0, residual);
+  SET_VECTOR_ELT(output, 1, variance);
+  Rf_setAttrib(output, R_NamesSymbol, names);
+
+  const double *mean_values = REAL(means);
+  const double *extra_values = REAL(extra_variances);
+  for (int draw = 0; draw < draws; ++draw) {
+    std::vector<CovarianceFactor> states = covariance_states(
+      VECTOR_ELT(random_covariance_states, draw),
+      *plan
+    );
+    const ConditionalOutput destination = {
+      nullptr,
+      REAL(residual) + static_cast<size_t>(draw) * plan->n,
+      REAL(variance) + static_cast<size_t>(draw) * plan->n
+    };
+    plan_conditional_values(
+      *plan,
+      mean_values + static_cast<size_t>(draw) * plan->n,
+      states,
+      extra_values + static_cast<size_t>(draw) * plan->n,
+      destination
+    );
+  }
+  UNPROTECT(4);
+  return output;
 }

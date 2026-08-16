@@ -97,6 +97,103 @@
 }
 
 
+.known_v_plan_block_data <- function(block_data, selected_blocks) {
+
+  selected_data    <- block_data[selected_blocks]
+  selected_indices <- lapply(selected_data, `[[`, "index")
+  global_indices   <- as.integer(unlist(selected_indices, use.names = FALSE))
+  block_sizes      <- lengths(selected_indices)
+  local_blocks     <- vector("list", length(block_sizes))
+  covariance       <- matrix(
+    0,
+    nrow = length(global_indices),
+    ncol = length(global_indices)
+  )
+  rank_one_factors <- lapply(selected_data, function(block) {
+    .covariance_exact_rank_one_factor(block[["covariance"]])
+  })
+  is_rank_one      <- !vapply(rank_one_factors, is.null, logical(1L))
+  if (any(is_rank_one) && !all(is_rank_one)) {
+    stop("Known-V covariance plan blocks mix incompatible representations.",
+         call. = FALSE)
+  }
+
+  offset <- 0L
+  for (block in seq_along(selected_data)) {
+    local_index <- offset + seq_len(block_sizes[[block]])
+    local_blocks[[block]] <- local_index
+    if (!is_rank_one[[block]]) {
+      covariance[local_index, local_index] <-
+        selected_data[[block]][["covariance"]]
+    }
+    offset <- offset + block_sizes[[block]]
+  }
+
+  if (all(is_rank_one)) {
+    # Treat an exact rank-one sampling block as a fixed low-rank factor. This
+    # is an algebraic representation of supplied V, not an added random term;
+    # it avoids losing row-specific sub-ULP diagonal variance in V + diag(d).
+    factor_plan  <- list(
+      type                  = "group",
+      model_matrix          = matrix(unlist(
+        rank_one_factors,
+        use.names = FALSE
+      ), ncol = 1L),
+      group_map             = rep.int(seq_along(block_sizes), block_sizes),
+      coefficient_structure = "diagonal"
+    )
+    factor_state  <- list(coefficient_factor = matrix(1, 1L, 1L))
+    factor_plans  <- list(factor_plan)
+    factor_states <- list(factor_state)
+  } else {
+    factor_plans  <- list()
+    factor_states <- list()
+  }
+
+  return(list(
+    global_indices  = global_indices,
+    block_indices   = local_blocks,
+    covariance      = covariance,
+    factor_plans    = factor_plans,
+    factor_states   = factor_states
+  ))
+}
+
+
+.known_v_plan_block_groups <- function(block_data, selected_blocks) {
+
+  is_rank_one <- vapply(selected_blocks, function(block) {
+    !is.null(.covariance_exact_rank_one_factor(
+      block_data[[block]][["covariance"]]
+    ))
+  }, logical(1L))
+  groups <- list(
+    selected_blocks[!is_rank_one],
+    selected_blocks[is_rank_one]
+  )
+
+  return(groups[lengths(groups) > 0L])
+}
+
+
+.known_v_rethrow_conditional_error <- function(
+    error, block_data, selected_blocks, extra_variance) {
+
+  for (s in seq_len(nrow(extra_variance))) {
+    for (block in block_data[selected_blocks]) {
+      idx <- block[["index"]]
+      covariance <- block[["covariance"]] +
+        diag(extra_variance[s, idx], nrow = length(idx))
+      .known_v_chol_covariance(
+        covariance = covariance,
+        context    = "conditional"
+      )
+    }
+  }
+  stop(conditionMessage(error), call. = FALSE)
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .log_lik_known_v_estimate_target_from_setup
 # ---------------------------------------------------------------------------- #
@@ -146,41 +243,22 @@
     stop("Known-V covariance metadata is inconsistent with the outcome data.",
          call. = FALSE)
   }
-  block_data        <- .known_v_dependency_block_data(data, K)
-  block_indices     <- lapply(block_data, `[[`, "index")
-  block_covariances <- lapply(block_data, `[[`, "covariance")
-  block_sizes       <- lengths(block_indices)
-  singleton_blocks  <- which(block_sizes == 1L)
-  dependent_blocks  <- which(block_sizes > 1L)
-  rank_one_factors  <- lapply(dependent_blocks, function(block) {
-    .covariance_exact_rank_one_factor(block_covariances[[block]])
-  })
-  names(rank_one_factors) <- as.character(dependent_blocks)
-  rank_one_blocks <- dependent_blocks[!vapply(
-    rank_one_factors,
-    is.null,
-    logical(1L)
-  )]
-  general_blocks <- setdiff(dependent_blocks, rank_one_blocks)
-  general_plan <- .known_v_covariance_plan(
-    yi                = yi,
-    block_indices     = block_indices,
-    block_covariances = block_covariances,
-    selected_blocks   = general_blocks
-  )
-
+  block_data     <- .known_v_dependency_block_data(data, K)
+  block_sizes    <- lengths(lapply(block_data, `[[`, "index"))
+  singleton      <- which(block_sizes == 1L)
+  dependent      <- which(block_sizes > 1L)
   extra_variance <- .known_v_extra_variance_from_setup(setup)
+  log_lik        <- matrix(NA_real_, nrow = S, ncol = K)
 
-  log_lik <- matrix(NA_real_, nrow = S, ncol = K)
-  if (length(singleton_blocks) > 0L) {
+  if (length(singleton) > 0L) {
     singleton_indices <- vapply(
-      singleton_blocks,
-      function(block) block_indices[[block]][[1L]],
+      singleton,
+      function(block) block_data[[block]][["index"]][[1L]],
       integer(1L)
     )
     sampling_variance <- vapply(
-      singleton_blocks,
-      function(block) block_covariances[[block]][1L, 1L],
+      singleton,
+      function(block) block_data[[block]][["covariance"]][1L, 1L],
       numeric(1L)
     )
     variance <- sweep(
@@ -189,6 +267,16 @@
       STATS  = sampling_variance,
       FUN    = "+"
     )
+    if (any(!is.finite(variance)) || any(variance <= 0)) {
+      invalid <- which(
+        !is.finite(variance) | variance <= 0,
+        arr.ind = TRUE
+      )[1L, ]
+      .known_v_chol_covariance(
+        covariance = matrix(variance[invalid[[1L]], invalid[[2L]]], 1L, 1L),
+        context    = "conditional"
+      )
+    }
     residual <- sweep(
       mu_samples[, singleton_indices, drop = FALSE],
       MARGIN = 2L,
@@ -200,70 +288,35 @@
     )
   }
 
-  for (s in seq_len(S)) {
-    if (!is.null(general_plan)) {
-      log_lik[s, general_plan[["global_indices"]]] <- .Call(
-        "RoBMA_known_v_covariance_plan_conditional_loglik",
-        general_plan[["plan"]],
-        as.double(mu_samples[s, general_plan[["global_indices"]]]),
-        list(),
-        as.double(extra_variance[s, general_plan[["global_indices"]]]),
-        PACKAGE = "RoBMA"
-      )
-    }
-    for (block in rank_one_blocks) {
-      idx              <- block_indices[[block]]
-      rank_one_factor  <- rank_one_factors[[as.character(block)]]
-      distribution <- .known_v_diagonal_rank_one_conditional(
-        yi       = yi[idx],
-        mu       = mu_samples[s, idx],
-        diagonal = extra_variance[s, idx],
-        rank_one = rank_one_factor
-      )
-      log_lik[s, idx] <- -0.5 * (
-        log(2 * pi * distribution[["variance"]]) +
-          distribution[["residual"]]^2 / distribution[["variance"]]
+  if (length(dependent) > 0L) {
+    for (blocks in .known_v_plan_block_groups(block_data, dependent)) {
+      plan_data <- .known_v_plan_block_data(block_data, blocks)
+      idx       <- plan_data[["global_indices"]]
+      states    <- rep(list(plan_data[["factor_states"]]), S)
+      log_lik[, idx] <- tryCatch(
+        .marglik_covariance_plan_conditional_loglik_batch(
+          cache                    = NULL,
+          y                        = as.double(yi[idx]),
+          means                    = mu_samples[, idx, drop = FALSE],
+          sampling_covariance      = plan_data[["covariance"]],
+          random_covariance_plans  = plan_data[["factor_plans"]],
+          random_covariance_states = states,
+          block_indices            = plan_data[["block_indices"]],
+          extra_variances          = extra_variance[, idx, drop = FALSE]
+        ),
+        error = function(error) {
+          .known_v_rethrow_conditional_error(
+            error           = error,
+            block_data      = block_data,
+            selected_blocks = blocks,
+            extra_variance  = extra_variance
+          )
+        }
       )
     }
   }
 
   return(log_lik)
-}
-
-
-.known_v_covariance_plan <- function(
-    yi, block_indices, block_covariances, selected_blocks) {
-
-  if (length(selected_blocks) == 0L) {
-    return(NULL)
-  }
-
-  selected_indices <- block_indices[selected_blocks]
-  selected_covariances <- block_covariances[selected_blocks]
-  block_sizes <- lengths(selected_indices)
-  global_indices <- as.integer(unlist(selected_indices, use.names = FALSE))
-  local_blocks <- vector("list", length(block_sizes))
-  covariance <- matrix(0, nrow = length(global_indices),
-                       ncol = length(global_indices))
-  offset <- 0L
-  for (block in seq_along(block_sizes)) {
-    local_index <- offset + seq_len(block_sizes[[block]])
-    local_blocks[[block]] <- local_index
-    covariance[local_index, local_index] <- selected_covariances[[block]]
-    offset <- offset + block_sizes[[block]]
-  }
-
-  list(
-    global_indices = global_indices,
-    plan = .Call(
-      "RoBMA_known_v_covariance_plan_create",
-      as.double(yi[global_indices]),
-      covariance,
-      list(),
-      local_blocks,
-      PACKAGE = "RoBMA"
-    )
-  )
 }
 
 
@@ -312,42 +365,83 @@
          call. = FALSE)
   }
 
-  block_data        <- .known_v_dependency_block_data(data, K)
-  block_indices     <- lapply(block_data, `[[`, "index")
-  block_covariances <- lapply(block_data, `[[`, "covariance")
-  joint_plan <- .known_v_covariance_plan(
-    yi                = yi,
-    block_indices     = block_indices,
-    block_covariances = block_covariances,
-    selected_blocks   = seq_along(block_indices)
-  )
-  plan_indices   <- joint_plan[["global_indices"]]
+  block_data     <- .known_v_dependency_block_data(data, K)
+  block_sizes    <- lengths(lapply(block_data, `[[`, "index"))
+  singleton      <- which(block_sizes == 1L)
+  dependent      <- which(block_sizes > 1L)
   extra_variance <- .known_v_extra_variance_from_setup(setup)
   log_lik        <- numeric(S)
 
-  for (s in seq_len(S)) {
-    log_lik[[s]] <- tryCatch(
-      .Call(
-        "RoBMA_known_v_covariance_plan_loglik",
-        joint_plan[["plan"]],
-        as.double(mu_samples[s, plan_indices]),
-        list(),
-        as.double(extra_variance[s, plan_indices]),
-        PACKAGE = "RoBMA"
-      ),
-      error = function(error) {
-        for (block in seq_along(block_indices)) {
-          idx <- block_indices[[block]]
-          covariance <- block_covariances[[block]] +
-            diag(extra_variance[s, idx], nrow = length(idx))
-          .known_v_chol_covariance(
-            covariance = covariance,
-            context    = "joint likelihood"
-          )
-        }
-        stop(conditionMessage(error), call. = FALSE)
-      }
+  if (length(singleton) > 0L) {
+    singleton_indices <- vapply(
+      singleton,
+      function(block) block_data[[block]][["index"]][[1L]],
+      integer(1L)
     )
+    sampling_variance <- vapply(
+      singleton,
+      function(block) block_data[[block]][["covariance"]][1L, 1L],
+      numeric(1L)
+    )
+    variance <- sweep(
+      extra_variance[, singleton_indices, drop = FALSE],
+      MARGIN = 2L,
+      STATS  = sampling_variance,
+      FUN    = "+"
+    )
+    residual <- sweep(
+      mu_samples[, singleton_indices, drop = FALSE],
+      MARGIN = 2L,
+      STATS  = yi[singleton_indices],
+      FUN    = "-"
+    )
+    if (any(!is.finite(variance)) || any(variance <= 0)) {
+      invalid <- which(
+        !is.finite(variance) | variance <= 0,
+        arr.ind = TRUE
+      )[1L, ]
+      .known_v_chol_covariance(
+        covariance = matrix(variance[invalid[[1L]], invalid[[2L]]], 1L, 1L),
+        context    = "joint likelihood"
+      )
+    }
+    log_lik <- rowSums(-0.5 * (
+      log(2 * pi * variance) + residual^2 / variance
+    ))
+  }
+
+  if (length(dependent) > 0L) {
+    for (blocks in .known_v_plan_block_groups(block_data, dependent)) {
+      plan_data <- .known_v_plan_block_data(block_data, blocks)
+      idx       <- plan_data[["global_indices"]]
+      states    <- rep(list(plan_data[["factor_states"]]), S)
+      log_lik <- log_lik + tryCatch(
+        .marglik_covariance_plan_loglik_batch(
+          cache                    = NULL,
+          y                        = as.double(yi[idx]),
+          means                    = mu_samples[, idx, drop = FALSE],
+          sampling_covariance      = plan_data[["covariance"]],
+          random_covariance_plans  = plan_data[["factor_plans"]],
+          random_covariance_states = states,
+          block_indices            = plan_data[["block_indices"]],
+          extra_variances          = extra_variance[, idx, drop = FALSE]
+        ),
+        error = function(error) {
+          for (s in seq_len(S)) {
+            for (block in block_data[blocks]) {
+              block_idx <- block[["index"]]
+              covariance <- block[["covariance"]] +
+                diag(extra_variance[s, block_idx], nrow = length(block_idx))
+              .known_v_chol_covariance(
+                covariance = covariance,
+                context    = "joint likelihood"
+              )
+            }
+          }
+          stop(conditionMessage(error), call. = FALSE)
+        }
+      )
+    }
   }
 
   return(log_lik)
@@ -363,7 +457,10 @@
 # ---------------------------------------------------------------------------- #
 .cdf_known_v_estimate_target_from_setup <- function(setup) {
 
-  summary <- .known_v_estimate_target_summary_from_setup(setup)
+  summary <- .known_v_estimate_target_summary_from_setup(
+    setup      = setup,
+    components = "cdf"
+  )
 
   return(summary[["cdf"]])
 }
@@ -377,7 +474,15 @@
 # dependency blocks use Schur-complement conditionals.
 #
 # ---------------------------------------------------------------------------- #
-.known_v_estimate_target_summary_from_setup <- function(setup) {
+.known_v_estimate_target_summary_from_setup <- function(
+    setup,
+    components = c("cdf", "log_lower", "log_upper", "mean", "variance")) {
+
+  components <- match.arg(
+    components,
+    c("cdf", "log_lower", "log_upper", "mean", "variance"),
+    several.ok = TRUE
+  )
 
   if (!identical(setup[["outcome_type"]], "norm")) {
     stop(
@@ -420,77 +525,123 @@
          call. = FALSE)
   }
 
-  block_data        <- .known_v_dependency_block_data(data, K)
-  block_indices     <- lapply(block_data, `[[`, "index")
-  block_covariances <- lapply(block_data, `[[`, "covariance")
-  rank_one_factors  <- lapply(block_covariances, function(covariance) {
-    .covariance_exact_rank_one_factor(covariance)
-  })
-  extra_variance    <- .known_v_extra_variance_from_setup(setup)
+  block_data     <- .known_v_dependency_block_data(data, K)
+  block_sizes    <- lengths(lapply(block_data, `[[`, "index"))
+  singleton      <- which(block_sizes == 1L)
+  dependent      <- which(block_sizes > 1L)
+  extra_variance <- .known_v_extra_variance_from_setup(setup)
+  residual       <- matrix(NA_real_, nrow = S, ncol = K)
+  variance       <- matrix(NA_real_, nrow = S, ncol = K)
 
-  cdf       <- matrix(NA_real_, nrow = S, ncol = K)
-  log_lower <- matrix(NA_real_, nrow = S, ncol = K)
-  log_upper <- matrix(NA_real_, nrow = S, ncol = K)
-  mean      <- matrix(NA_real_, nrow = S, ncol = K)
-  variance  <- matrix(NA_real_, nrow = S, ncol = K)
+  if (length(singleton) > 0L) {
+    singleton_indices <- vapply(
+      singleton,
+      function(block) block_data[[block]][["index"]][[1L]],
+      integer(1L)
+    )
+    sampling_variance <- vapply(
+      singleton,
+      function(block) block_data[[block]][["covariance"]][1L, 1L],
+      numeric(1L)
+    )
+    residual[, singleton_indices] <- -sweep(
+      mu_samples[, singleton_indices, drop = FALSE],
+      MARGIN = 2L,
+      STATS  = yi[singleton_indices],
+      FUN    = "-"
+    )
+    singleton_variance <- sweep(
+      extra_variance[, singleton_indices, drop = FALSE],
+      MARGIN = 2L,
+      STATS  = sampling_variance,
+      FUN    = "+"
+    )
+    if (any(!is.finite(singleton_variance)) ||
+        any(singleton_variance <= 0)) {
+      invalid <- which(
+        !is.finite(singleton_variance) | singleton_variance <= 0,
+        arr.ind = TRUE
+      )[1L, ]
+      .known_v_chol_covariance(
+        covariance = matrix(
+          singleton_variance[invalid[[1L]], invalid[[2L]]],
+          1L,
+          1L
+        ),
+        context    = "conditional"
+      )
+    }
+    variance[, singleton_indices] <- singleton_variance
+  }
 
-  for (s in seq_len(S)) {
-    for (block in seq_along(block_indices)) {
-      idx              <- block_indices[[block]]
-      block_covariance <- block_covariances[[block]]
-      rank_one_factor  <- rank_one_factors[[block]]
-      if (length(idx) > 1L && !is.null(rank_one_factor)) {
-        distribution <- .known_v_diagonal_rank_one_conditional(
-          yi       = yi[idx],
-          mu       = mu_samples[s, idx],
-          diagonal = extra_variance[s, idx],
-          rank_one = rank_one_factor
-        )
-      } else {
-        covariance <- block_covariance +
-          diag(extra_variance[s, idx], nrow = length(idx))
-        distribution <- .known_v_component_conditional_distribution(
-          yi         = yi[idx],
-          mu         = mu_samples[s, idx],
-          covariance = covariance
-        )
-      }
-      cdf[s, idx] <- stats::pnorm(
-        distribution[["residual"]],
-        mean       = 0,
-        sd         = sqrt(distribution[["variance"]]),
-        lower.tail = lower_tail
+  if (length(dependent) > 0L) {
+    for (blocks in .known_v_plan_block_groups(block_data, dependent)) {
+      plan_data   <- .known_v_plan_block_data(block_data, blocks)
+      idx         <- plan_data[["global_indices"]]
+      states      <- rep(list(plan_data[["factor_states"]]), S)
+      conditional <- tryCatch(
+        .marglik_covariance_plan_conditional_summary_batch(
+          cache                    = NULL,
+          y                        = as.double(yi[idx]),
+          means                    = mu_samples[, idx, drop = FALSE],
+          sampling_covariance      = plan_data[["covariance"]],
+          random_covariance_plans  = plan_data[["factor_plans"]],
+          random_covariance_states = states,
+          block_indices            = plan_data[["block_indices"]],
+          extra_variances          = extra_variance[, idx, drop = FALSE]
+        ),
+        error = function(error) {
+          .known_v_rethrow_conditional_error(
+            error           = error,
+            block_data      = block_data,
+            selected_blocks = blocks,
+            extra_variance  = extra_variance
+          )
+        }
       )
-      log_lower[s, idx] <- stats::pnorm(
-        distribution[["residual"]],
-        mean       = 0,
-        sd         = sqrt(distribution[["variance"]]),
-        lower.tail = lower_tail,
-        log.p      = TRUE
-      )
-      log_upper[s, idx] <- stats::pnorm(
-        distribution[["residual"]],
-        mean       = 0,
-        sd         = sqrt(distribution[["variance"]]),
-        lower.tail = !lower_tail,
-        log.p      = TRUE
-      )
-      mean[s, idx]     <- distribution[["mean"]]
-      variance[s, idx] <- distribution[["variance"]]
+      residual[, idx] <- conditional[["residual"]]
+      variance[, idx] <- conditional[["variance"]]
     }
   }
 
-  if (identical(setup[["effect_direction"]], "negative")) {
-    mean <- -mean
+  sd  <- sqrt(variance)
+  out <- list()
+
+  if ("cdf" %in% components) {
+    out[["cdf"]] <- stats::pnorm(
+      residual,
+      sd         = sd,
+      lower.tail = lower_tail
+    )
+  }
+  if ("log_lower" %in% components) {
+    out[["log_lower"]] <- stats::pnorm(
+      residual,
+      sd         = sd,
+      lower.tail = lower_tail,
+      log.p      = TRUE
+    )
+  }
+  if ("log_upper" %in% components) {
+    out[["log_upper"]] <- stats::pnorm(
+      residual,
+      sd         = sd,
+      lower.tail = !lower_tail,
+      log.p      = TRUE
+    )
+  }
+  if ("mean" %in% components) {
+    mean <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) - residual
+    if (identical(setup[["effect_direction"]], "negative")) {
+      mean <- -mean
+    }
+    out[["mean"]] <- mean
+  }
+  if ("variance" %in% components) {
+    out[["variance"]] <- variance
   }
 
-  return(list(
-    cdf       = cdf,
-    log_lower = log_lower,
-    log_upper = log_upper,
-    mean      = mean,
-    variance  = variance
-  ))
+  return(out)
 }
 
 
