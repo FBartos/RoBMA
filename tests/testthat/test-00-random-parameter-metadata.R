@@ -123,6 +123,66 @@ test_that("random-parameter sources are consumed from the BayesTools catalog", {
 })
 
 
+test_that("selected random extraction materializes only its catalog row", {
+
+  summaries <- list(
+    "(mu) study: sd(a)" = make_random_metadata_prior(
+      "sd", "study: sd(a)", block = "study", component = "a"
+    ),
+    "(mu) study: sd(b)" = make_random_metadata_prior(
+      "sd", "study: sd(b)", block = "study", component = "b"
+    )
+  )
+  mappings <- lapply(c("sd_a", "sd_b"), function(source) {
+    list(
+      role             = "random_sd",
+      owner_type       = "random_block",
+      owner_name       = "study",
+      quantity         = "sd",
+      arguments        = sub("sd_", "", source),
+      source_type      = "identity",
+      source_parameter = source,
+      source_prior     = source,
+      source_transform = "identity",
+      source_scale     = 1
+    )
+  })
+  quantities <- make_random_metadata_catalog(
+    summaries,
+    mappings
+  )[["quantities"]]
+  selection <- structure(
+    list(quantities = quantities[2L, , drop = FALSE]),
+    class = c("BayesTools_parameter_selection", "list")
+  )
+  fit <- coda::mcmc.list(coda::mcmc(matrix(1:6, ncol = 2L)))
+  extracted_ids <- character()
+  testthat::local_mocked_bindings(
+    parameter_catalog = function(...) {
+      stop("the full catalog must not be traversed")
+    },
+    parameter_draws = function(object, selection, ...) {
+      extracted_ids <<- c(
+        extracted_ids,
+        selection[["quantities"]][["canonical_name"]]
+      )
+      matrix(c(0.2, 0.3, 0.4), ncol = 1L)
+    },
+    parameter_transform = function(...) list(type = "identity"),
+    .package = "BayesTools"
+  )
+
+  out <- .brma_random_parameter_extract_fit(
+    fit,
+    selections = list(selection)
+  )
+
+  expect_identical(extracted_ids, "(mu) study: sd(b)")
+  expect_identical(colnames(out[["samples"]]), "(mu) study: sd(b)")
+  expect_identical(out[["specs"]][["source_parameter"]], "sd_b")
+})
+
+
 test_that("random-parameter metadata preserves semantic support", {
 
   simplex <- BayesTools::prior(

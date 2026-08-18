@@ -10,7 +10,8 @@
 
 .brma_random_parameter_bundle <- function(
     object, standardized_coefficients = FALSE, chains = FALSE,
-    prior = FALSE, n_prior_samples = 10000L, seed = NULL) {
+    prior = FALSE, n_prior_samples = 10000L, seed = NULL,
+    selections = NULL) {
 
   fit <- object[["fit"]]
   if (!.is_random(object) || is.null(fit)) {
@@ -33,7 +34,8 @@
         fit,
         coda::mcmc.list(coda::mcmc(raw_samples))
       ),
-      standardized_coefficients = standardized_coefficients
+      standardized_coefficients = standardized_coefficients,
+      selections                = selections
     )
     return(extracted)
   }
@@ -41,7 +43,8 @@
   if (!chains) {
     return(.brma_random_parameter_extract_fit(
       fit                       = fit,
-      standardized_coefficients = standardized_coefficients
+      standardized_coefficients = standardized_coefficients,
+      selections                = selections
     ))
   }
 
@@ -52,7 +55,8 @@
         fit,
         coda::mcmc.list(chain)
       ),
-      standardized_coefficients = standardized_coefficients
+      standardized_coefficients = standardized_coefficients,
+      selections                = selections
     )
   })
   specs <- extracted[[1L]][["specs"]]
@@ -80,16 +84,41 @@
 }
 
 .brma_random_parameter_extract_fit <- function(
-    fit, standardized_coefficients = FALSE) {
+    fit, standardized_coefficients = FALSE, selections = NULL) {
 
-  catalog    <- BayesTools::parameter_catalog(fit)
-  quantities <- catalog[["quantities"]]
-  supported  <- .brma_random_parameter_supported_quantities()
-  keep <- startsWith(quantities[["role"]], "random_") &
-    !quantities[["internal"]] &
-    quantities[["status"]] != "unavailable" &
-    quantities[["quantity"]] %in% supported
-  quantities <- quantities[keep, , drop = FALSE]
+  if (is.null(selections)) {
+    catalog    <- BayesTools::parameter_catalog(fit)
+    quantities <- catalog[["quantities"]]
+    supported  <- .brma_random_parameter_supported_quantities()
+    keep <- startsWith(quantities[["role"]], "random_") &
+      !quantities[["internal"]] &
+      quantities[["status"]] != "unavailable" &
+      quantities[["quantity"]] %in% supported
+    quantities <- quantities[keep, , drop = FALSE]
+    selections <- lapply(seq_len(nrow(quantities)), function(i) {
+      BayesTools::parameter_catalog_resolve(
+        catalog,
+        alias     = quantities[["canonical_name"]][i],
+        namespace = quantities[["namespace"]][i]
+      )
+    })
+  } else {
+    valid <- is.list(selections) && length(selections) > 0L &&
+      all(vapply(
+        selections,
+        inherits,
+        logical(1),
+        what = "BayesTools_parameter_selection"
+      ))
+    if (!valid) {
+      stop("Random-parameter selections are invalid.", call. = FALSE)
+    }
+    quantities <- do.call(rbind, lapply(
+      selections,
+      `[[`,
+      "quantities"
+    ))
+  }
   n_draws <- sum(vapply(coda::as.mcmc.list(fit), nrow, integer(1)))
   if (nrow(quantities) == 0L) {
     return(list(
@@ -103,13 +132,6 @@
   if (standardized_coefficients) {
     attr(extraction_fit, "formula_scale") <- list()
   }
-  selections <- lapply(seq_len(nrow(quantities)), function(i) {
-    BayesTools::parameter_catalog_resolve(
-      catalog,
-      alias     = quantities[["canonical_name"]][i],
-      namespace = quantities[["namespace"]][i]
-    )
-  })
   columns <- lapply(selections, function(selection) {
     as.matrix(BayesTools::parameter_draws(extraction_fit, selection))
   })
@@ -409,7 +431,8 @@
     chains                    = chains,
     prior                     = prior,
     n_prior_samples           = n_prior_samples,
-    seed                      = seed
+    seed                      = seed,
+    selections                = list(entry[["selection"]])
   )
   index <- match(entry[["parameter"]], bundle[["specs"]][["parameter"]])
   if (is.na(index)) {
