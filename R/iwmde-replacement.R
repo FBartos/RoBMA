@@ -373,15 +373,30 @@
     return(FALSE)
   }
 
-  affects_fixed_mu <- vapply(changed, function(column) {
-    column %in% c("mu", "PET", "PEESE") ||
-      identical(
-        .iwmde_predictor_formula_parameter(context, column),
-        "mu"
-      )
-  }, logical(1))
+  if (any(changed %in% c("mu", "PET", "PEESE"))) {
+    return(FALSE)
+  }
 
-  return(!any(affects_fixed_mu))
+  fit <- context[["formula_fit"]]
+  if (is.null(fit) && !is.null(context[["object"]])) {
+    fit <- context[["object"]][["fit"]]
+  }
+  if (is.null(fit) || !inherits(fit, "BayesTools_fit")) {
+    return(FALSE)
+  }
+
+  dependencies <- tryCatch(
+    BayesTools::JAGS_formula_coordinate_dependencies(
+      fit,
+      coordinates = unique(changed)
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(dependencies)) {
+    return(FALSE)
+  }
+
+  return(!any(dependencies[["formula_parameter"]] == "mu"))
 }
 
 

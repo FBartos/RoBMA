@@ -3000,14 +3000,17 @@ test_that("fixed formula coordinates materialize an exact location basis", {
   )
   columns <- c("mu_group[1]", "mu_group[2]")
   posterior_samples <- matrix(
-    c(-0.2, 0.5, 0.1, 0.8),
+    c(-0.2, 0.5, 1.1, 0.1, 0.8, 1.2),
     nrow = 2L,
     byrow = TRUE,
-    dimnames = list(NULL, columns)
+    dimnames = list(NULL, c(columns, "irrelevant"))
   )
   fit <- coda::mcmc(posterior_samples)
   class(fit) <- c("BayesTools_fit", class(fit))
-  attr(fit, "prior_list") <- formula_result$prior_list
+  attr(fit, "prior_list") <- c(
+    formula_result$prior_list,
+    list(irrelevant = BayesTools::prior("normal", list(mean = 0, sd = 1)))
+  )
   attr(fit, "formula_design") <- list(mu = formula_result$formula_design)
   fit <- BayesTools:::.bt_attach_parameter_map(fit)
   fit <- BayesTools:::.bt_attach_draw_geometry(fit)
@@ -3054,7 +3057,49 @@ test_that("fixed formula coordinates materialize an exact location basis", {
   ))
   expect_true(.iwmde_q_grid_fixed_mu_is_invariant(
     context,
-    list(changed_parameters = "mu__xREx__study_rho")
+    list(changed_parameters = "irrelevant")
+  ))
+})
+
+
+test_that("fixed-mu reuse follows persisted indirect formula dependencies", {
+
+  x_prior <- BayesTools::prior("normal", list(mean = 0, sd = 1))
+  attr(x_prior, "multiply_by") <- "tau"
+  formula_result <- BayesTools::JAGS_formula(
+    formula = ~ 0 + x,
+    parameter = "mu",
+    data = data.frame(x = c(-1, 1)),
+    prior_list = list(x = x_prior)
+  )
+  posterior_samples <- matrix(
+    c(0.2, 0.5, 1.1, -0.1, 0.8, 1.2),
+    nrow = 2L,
+    byrow = TRUE,
+    dimnames = list(NULL, c("mu_x", "tau", "irrelevant"))
+  )
+  fit <- coda::mcmc(posterior_samples)
+  class(fit) <- c("BayesTools_fit", class(fit))
+  attr(fit, "prior_list") <- c(
+    formula_result$prior_list,
+    list(
+      tau = BayesTools::prior("gamma", list(shape = 2, rate = 1)),
+      irrelevant = BayesTools::prior("normal", list(mean = 0, sd = 1))
+    )
+  )
+  attr(fit, "formula_design") <- list(mu = formula_result$formula_design)
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  fit <- BayesTools:::.bt_attach_fit_contract(fit)
+  context <- list(formula_fit = fit)
+
+  expect_false(.iwmde_q_grid_fixed_mu_is_invariant(
+    context,
+    list(changed_parameters = "tau")
+  ))
+  expect_true(.iwmde_q_grid_fixed_mu_is_invariant(
+    context,
+    list(changed_parameters = "irrelevant")
   ))
 })
 
