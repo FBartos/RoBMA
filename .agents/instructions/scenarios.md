@@ -95,16 +95,23 @@ Rscript tools/test-scenario.R <name>
 
 Use `--refit` to refit models and compare them against the locked outputs. Use
 `--update` to reuse valid fit caches and replace exercised outputs. The combined
-`--regenerate` shortcut performs both actions. Output updates also replace the
-timing baseline. Use `--update-timings` when only timings should be replaced.
+`--regenerate` shortcut performs both actions. Use `--update-timings` only to
+explicitly accept current timings, including slower timings.
 
 After sourcing `helper-scenarios.R`, `test_scenario()` runs all scenarios from
 an interactive session. Pass a regular-expression `filter` to select scenario
 names, for example `test_scenario(filter = "assink|bcg")`. By default, this
 reuses fit caches, suppresses artifact output, and compares without replacing
-locked baselines. Set `refit = TRUE`, `update = TRUE`, or
-`regenerate = TRUE` explicitly to change those behaviors. Set
-`update_timings = TRUE` to replace only timing baselines.
+text or plot baselines. Missing and faster timing measurements are maintained
+automatically. Set `refit = TRUE`, `update = TRUE`, or `regenerate = TRUE`
+explicitly to change fit or output behavior. Set `update_timings = TRUE` only
+to accept current timings even when they are slower.
+
+Call `review_scenario_snapshots()` after a run to review all cached table and
+figure candidates from the scenarios selected by the latest
+`test_scenario()`. An optional regular-expression `filter` further narrows that
+selection. The function uses testthat's one-by-one Accept, Reject, and Skip
+reviewer; skipped candidates remain available for another call.
 
 Sourcing a scenario file directly in an interactive session defaults to reusing
 fit caches, showing artifact output, and immediately creating or replacing text
@@ -115,14 +122,13 @@ human-reviewed artifacts. Missing baselines fail during `test_scenario()`, CLI,
 and non-interactive runs unless updating is explicitly enabled. With updating
 disabled, changed text is retained as `<name>.new.txt` and reported with
 testthat's colored value diff. Interactive `test_scenario()` runs finish all
-selected scenarios before listing the text mismatches and opening testthat's
-snapshot reviewer for one-by-one Accept, Reject, or Skip decisions. Accepted
-candidates replace the baseline, rejected candidates are removed, and skipped
-candidates remain cached. Direct plot comparison retains a changed
-`<name>.new.svg`. Rerun `test_scenario()` after review to confirm accepted
-changes. Run deferred review from the runner's exit path so an early scenario
-failure cannot bypass cached candidates. Non-interactive runs never prompt or
-accept changes.
+selected scenarios before listing the table and figure mismatches and opening
+the same combined reviewer. Accepted candidates replace the baseline, rejected
+candidates are removed, and skipped candidates remain cached. Direct plot
+comparison retains a changed `<name>.new.svg`. Rerun `test_scenario()` after
+review to confirm accepted changes. Run deferred review from the runner's exit
+path so an early scenario failure cannot bypass cached candidates.
+Non-interactive runs never prompt or accept changes.
 
 Scenario runs report committed text and SVG artifacts that are no longer
 referenced by the scenario. Never delete an orphan automatically.
@@ -143,14 +149,20 @@ their stored production times while text and plot calls use fresh times. Compare
 against the old timing baseline before replacing any timing, fit-cache, text, or
 plot artifact.
 
-Compare-only runs retain the current measurements in the ignored
-`<scenario>.new.tsv`. Direct interactive execution, output updates,
-regeneration, and explicit timing updates replace the baseline after comparison.
-`refit` alone remains compare-only. An update accepts the current measured time,
-including improvements and intentional slowdowns caused by a changed scenario
-specification; do not retain an automatic all-time minimum. Record R version and
-platform as informational provenance without automatically invalidating the
-baseline.
+Automatically add every available measurement whose timing row is absent from
+the baseline. Automatically replace an existing row only when its measured wall
+time is faster. Apply this maintenance in managed runs and as successful calls
+are executed line by line during direct interactive development. Do not infer a
+fit-production time from cache-loading time; an old fit cache without timing
+metadata remains unavailable until that fit is intentionally refitted.
+
+Retain slower current measurements in the ignored `<scenario>.new.tsv` and
+leave the faster baseline unchanged. Only explicit `update_timings = TRUE` or
+`--update-timings` may accept slower measurements, such as after intentionally
+tightening precision. Output updates, regeneration, and refitting do not imply
+consent to a slower baseline. Compare against the old baseline before applying
+automatic or explicit updates. Record R version and platform as informational
+provenance without automatically invalidating the baseline.
 
 Do not use output updating or regeneration merely to make a scenario pass.
 Replace baselines only when the maintainer explicitly requests, approves, or

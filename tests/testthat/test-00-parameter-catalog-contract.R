@@ -64,6 +64,21 @@ context("BayesTools parameter catalog contract")
       quantity_name = "sd",
       arguments     = "intercept",
       source_type   = "identity"
+    ),
+    quantity(
+      "random_cor_study_group", "mu", "random_correlation",
+      formula_parameter = "mu",
+      term              = "study",
+      display_label     = paste0(
+        "(mu) cor(group[sensitivity],group[specificity])"
+      ),
+      owner_type        = "random_block",
+      owner_name        = "study",
+      quantity_name     = "cor",
+      arguments         = c(
+        "group[sensitivity]", "group[specificity]"
+      ),
+      source_type       = "identity"
     )
   ))
   out <- BayesTools:::.bt_parameter_catalog_new(
@@ -202,6 +217,19 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
     "BayesTools"
   )
   expect_identical(random[["status"]], "sampled")
+  random_hypothesis <- BayesTools::hypothesis_parse(
+    "cor(group[sensitivity],group[specificity]) = 0",
+    catalog = resolved_catalog
+  )
+  selected_random_hypothesis <- .hypothesis_brma_select_parameter(
+    object     = object,
+    hypothesis = random_hypothesis,
+    component  = "random"
+  )
+  expect_identical(
+    selected_random_hypothesis[["parameter"]],
+    "random_cor_study_group"
+  )
   expect_s3_class(mods[["selection"]], "BayesTools_parameter_selection")
   expect_error(
     .brma_parameter_select_entry(object, "x"),

@@ -253,15 +253,9 @@ hypothesis.brma <- function(object, hypothesis,
     .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()")
   }
 
-  parse_component <- .parameter_component_normalize(component)
   hypothesis <- BayesTools::hypothesis_parse(
     hypothesis = hypothesis,
-    catalog    = .brma_parameter_catalog_metadata(object)[["catalog"]],
-    component  = if (identical(parse_component, "auto")) {
-      NULL
-    } else {
-      parse_component
-    }
+    catalog    = .brma_parameter_catalog_metadata(object)[["catalog"]]
   )
   display_hypothesis <- hypothesis
   statement_selections <- .hypothesis_brma_select_statements(

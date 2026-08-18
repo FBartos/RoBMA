@@ -9,8 +9,9 @@ Rscript tools/test-scenario.R <scenario>
 
 Use `--refit` to refit wrapped models while comparing against the locked
 outputs. Use `--update` to reuse valid fit caches and replace exercised text and
-plot, and timing baselines. `--regenerate` does both. Use `--update-timings` to
-replace only the timing baseline. Review all resulting Git diffs.
+plot baselines. `--regenerate` does both. Use `--update-timings` to explicitly
+accept current timings, including slower timings. Review all resulting Git
+diffs.
 Use `scenario_agreement_plot()` for reference-versus-RoBMA difference plots so
 their finite-value filtering, agreement band, and axes stay consistent. Set
 `reference_label` and `estimate_label` for comparisons that are not
@@ -18,8 +19,9 @@ metafor-versus-RoBMA.
 
 From an interactive session, source `helper-scenarios.R` and run all scenarios
 with `test_scenario()`. This reuses fit caches, suppresses artifact output, and
-compares without replacing locked baselines. Its `filter` is a regular
-expression matched against scenario names:
+compares without replacing text or plot baselines. Missing and faster timing
+measurements are maintained automatically. Its `filter` is a regular expression
+matched against scenario names:
 
 ```r
 source("tests/scenarios/helper-scenarios.R")
@@ -27,7 +29,16 @@ test_scenario()
 test_scenario(filter = "assink")
 test_scenario(filter = "assink|bcg")
 test_scenario(filter = "assink", refit = TRUE, update_timings = TRUE)
+review_scenario_snapshots()
+review_test_snapshots()
 ```
+
+`review_scenario_snapshots()` reopens all cached table and figure changes from
+the scenarios selected by the latest `test_scenario()` call. Its optional
+`filter` further narrows those scenario names. `review_test_snapshots()` opens
+testthat's native reviewer for ordinary snapshots under `tests/testthat/`; pass
+testthat's `files` selection when only one test or snapshot directory should be
+reviewed.
 
 Minimal scenario:
 
@@ -58,8 +69,8 @@ Fit caches under `cache/` are local and ignored. Text files under `results/`
 and SVG files under `_snaps/` are regression baselines. Per-scenario TSV files
 under `timings/` store wall times for every `scenario_fit()`, `scenario_text()`,
 and `scenario_plot()` call. All three baseline types must be committed. Missing
-baselines are added by direct interactive execution and rejected or warned
-about by managed comparison runs.
+text and plot baselines follow the snapshot workflow; missing timing rows are
+backfilled automatically by direct and managed execution.
 Scenario and artifact names may use ASCII letters in either case, numbers,
 underscores, hyphens, and internal periods.
 
@@ -77,12 +88,13 @@ output, so summary and table calls do not need an explicit `print()`. Message
 conditions emitted while evaluating the expression, such as fitting progress,
 are suppressed; warnings and errors remain visible. Changed text is stored as
 `<name>.new.txt` and reported with testthat's colored value diff. An interactive
-`test_scenario()` run collects all such mismatches, finishes the selected
-scenarios, and then opens testthat's snapshot reviewer for one-by-one visual
-Accept, Reject, or Skip decisions. Accepted candidates replace the baseline,
-rejected candidates are removed, and skipped candidates remain cached. Rerun
-`test_scenario()` after review to confirm accepted changes. The reviewer is also
-opened when a selected scenario stops early after caching a mismatch.
+`test_scenario()` run collects all table and figure mismatches, finishes the
+selected scenarios, and then opens testthat's snapshot reviewer for one-by-one
+visual Accept, Reject, or Skip decisions. Accepted candidates replace the
+baseline, rejected candidates are removed, and skipped candidates remain
+cached. Call `review_scenario_snapshots()` to reopen the cached candidates, and
+rerun `test_scenario()` after review to confirm accepted changes. The reviewer
+is also opened when a selected scenario stops early after caching a mismatch.
 Non-interactive runs retain candidates and fail without prompting.
 
 Use `test_scenario(update = TRUE)` or CLI `--update` only when a managed run
@@ -94,17 +106,20 @@ each reset the random seed to 1 before evaluating an artifact.
 
 Timing comparison is deferred until the complete scenario file finishes. One
 warning reports every call more than 20% slower than its baseline and an
-unweighted mean percentage regression across calls greater than 5%. A
-compare-only run writes the ignored candidate
-`timings/<scenario>.new.tsv`; it never changes the committed baseline. Output
-updates also update timings, while `update_timings = TRUE` / `--update-timings`
-updates timings alone. The old timing baseline is always compared first, so a
-regression is reported even when the fit cache, output snapshot, and timing
-baseline are replaced in the same run. An accepted update stores the measured
-time, whether it is faster after an optimization or intentionally slower after
-increasing precision; it is not an all-time minimum. `refit = TRUE` alone is
-compare-only. The TSV records R version and platform as review provenance but
-does not automatically invalidate timings.
+unweighted mean percentage regression across calls greater than 5%. Every
+successful run automatically adds missing timing rows and replaces existing
+rows only when the measured wall time is faster. This also happens while a
+scenario is executed line by line in an interactive session.
+
+Slower measurements never replace the baseline automatically. They remain in
+the ignored `timings/<scenario>.new.tsv` candidate. Set
+`update_timings = TRUE` or use `--update-timings` only to explicitly accept the
+current measurements, including an intentional slowdown after tightening
+precision. Output updates, regeneration, and refitting do not themselves grant
+that consent. The old timing baseline is always compared before any missing,
+faster, or explicitly accepted measurement is written. The TSV records R
+version and platform as review provenance but does not automatically invalidate
+timings.
 
 Base graphics parameters are restored after each drawn evaluation, so settings
 such as `par(mar = ...)` do not leak into subsequent plots. Base graphics

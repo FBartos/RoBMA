@@ -11,6 +11,29 @@ source(testthat::test_path("..", "scenarios", "helper-scenarios.R"))
 }
 
 
+test_that("nested helper sourcing reuses the runner state", {
+
+  helper_env <- environment(scenario_start)
+  nested_env <- new.env(parent = helper_env)
+  source(
+    normalizePath(
+      testthat::test_path("..", "scenarios", "helper-scenarios.R"),
+      winslash = "/",
+      mustWork = TRUE
+    ),
+    local = nested_env
+  )
+
+  expect_false(exists(
+    ".scenario_state", envir = nested_env, inherits = FALSE
+  ))
+  expect_identical(
+    get(".scenario_state", envir = nested_env, inherits = TRUE),
+    .scenario_state
+  )
+})
+
+
 test_that("scenario_fit invalidates changed calls and supports regeneration", {
 
   root <- .scenario_test_root()
@@ -121,7 +144,7 @@ test_that("scenario defaults distinguish direct and managed interactive runs", {
   expect_false(direct[["refit"]])
   expect_true(direct[["show_output"]])
   expect_true(direct[["update"]])
-  expect_true(direct[["update_timings"]])
+  expect_false(direct[["update_timings"]])
   expect_true(direct[["create_missing"]])
   direct_output <- capture.output({
     scenario_text("result", "old")
@@ -148,6 +171,53 @@ test_that("scenario defaults distinguish direct and managed interactive runs", {
   expect_false(managed[["create_missing"]])
   expect_failure(scenario_text("result", "managed"), "candidate is cached")
   expect_equal(readLines(path, warn = FALSE), '[1] "new"')
+})
+
+
+test_that("interactive timing backfills but requires consent for slowdowns", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env      <- environment(scenario_start)
+  old_interactive <- get(
+    ".scenario_is_interactive", envir = helper_env, inherits = FALSE
+  )
+  on.exit(assign(
+    ".scenario_is_interactive",
+    old_interactive,
+    envir = helper_env
+  ), add = TRUE)
+  old_runner <- Sys.getenv("ROBMA_SCENARIO_RUNNER", unset = NA_character_)
+  on.exit({
+    if (is.na(old_runner)) {
+      Sys.unsetenv("ROBMA_SCENARIO_RUNNER")
+    } else {
+      Sys.setenv(ROBMA_SCENARIO_RUNNER = old_runner)
+    }
+  }, add = TRUE)
+  Sys.unsetenv("ROBMA_SCENARIO_RUNNER")
+  assign(".scenario_is_interactive", function() TRUE, envir = helper_env)
+
+  scenario_start("unit", root = root)
+  .scenario_register_timing("text", "summary", 10)
+  timing_path    <- file.path(root, "timings", "unit.tsv")
+  candidate_path <- file.path(root, "timings", "unit.new.tsv")
+  expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 10)
+
+  expect_warning(
+    .scenario_register_timing("text", "summary", 12),
+    "average timing regression: 20.0%"
+  )
+  expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 10)
+  expect_equal(.scenario_read_timings(candidate_path)[["elapsed"]], 12)
+
+  scenario_start("unit", root = root, update_timings = TRUE)
+  expect_warning(
+    .scenario_register_timing("text", "summary", 12),
+    "average timing regression: 20.0%"
+  )
+  expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 12)
+  expect_false(file.exists(candidate_path))
 })
 
 
@@ -267,10 +337,7 @@ test_that("scenario_fit reuses cached production timing", {
     counter <- counter + 1L
     counter
   })
-  expect_warning(
-    .scenario_finalize_timing(),
-    "timing baseline is unavailable"
-  )
+  expect_no_warning(.scenario_finalize_timing())
   timing_path <- file.path(root, "timings", "unit.tsv")
   fit_metadata <- readRDS(file.path(
     root, "cache", "unit", "timed.timing.rds"
@@ -311,38 +378,48 @@ test_that("old fit caches require refitting before timing updates", {
     counter <- counter + 1L
     counter
   })
+  .scenario_register_timing("text", "summary", 2)
   expect_warning(
     .scenario_finalize_timing(),
     "cached fit predates valid timing metadata"
   )
 
   expect_identical(counter, 1L)
-  expect_false(file.exists(file.path(root, "timings", "unit.tsv")))
+  available <- .scenario_read_timings(file.path(root, "timings", "unit.tsv"))
+  expect_equal(available[c("type", "name", "elapsed")], data.frame(
+    type = "text", name = "summary", elapsed = 2
+  ))
 })
 
 
-test_that("scenario timings warn before accepted improvements or regressions", {
+test_that("scenario timings backfill and retain the fastest baseline", {
 
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
 
-  scenario_start("unit", root = root, update_timings = TRUE)
+  scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 10)
-  .scenario_register_timing("text", "summary", 10)
-  expect_warning(
-    .scenario_finalize_timing(),
-    "timing baseline is unavailable"
-  )
+  expect_no_warning(.scenario_finalize_timing())
   timing_path <- file.path(root, "timings", "unit.tsv")
+  expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 10)
 
-  scenario_start("unit", root = root, update_timings = TRUE)
+  scenario_start("unit", root = root)
+  .scenario_register_timing("fit", "model", 12.1)
+  .scenario_register_timing("text", "summary", 10)
+  expect_warning(.scenario_finalize_timing(), "fit/model: 12.100 s vs 10.000 s")
+  backfilled <- .scenario_read_timings(timing_path)
+  expect_equal(backfilled[["elapsed"]], c(10, 10))
+  expect_true(file.exists(file.path(root, "timings", "unit.new.tsv")))
+
+  scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 8)
   .scenario_register_timing("text", "summary", 8)
   expect_no_warning(.scenario_finalize_timing())
   improved <- .scenario_read_timings(timing_path)
   expect_equal(improved[["elapsed"]], c(8, 8))
+  expect_false(file.exists(file.path(root, "timings", "unit.new.tsv")))
 
-  scenario_start("unit", root = root, update_timings = TRUE)
+  scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 10)
   .scenario_register_timing("text", "summary", 8)
   warning_message <- character()
@@ -357,8 +434,20 @@ test_that("scenario timings warn before accepted improvements or regressions", {
   expect_match(warning_message, "fit/model: 10.000 s vs 8.000 s", fixed = TRUE)
   expect_match(warning_message, "threshold 20%", fixed = TRUE)
   expect_match(warning_message, "average timing regression: 12.5%", fixed = TRUE)
+  retained <- .scenario_read_timings(timing_path)
+  expect_equal(retained[["elapsed"]], c(8, 8))
+  expect_true(file.exists(file.path(root, "timings", "unit.new.tsv")))
+
+  scenario_start("unit", root = root, update_timings = TRUE)
+  .scenario_register_timing("fit", "model", 10)
+  .scenario_register_timing("text", "summary", 8)
+  expect_warning(
+    .scenario_finalize_timing(),
+    "average timing regression: 12.5%"
+  )
   accepted <- .scenario_read_timings(timing_path)
   expect_equal(accepted[["elapsed"]], c(10, 8))
+  expect_false(file.exists(file.path(root, "timings", "unit.new.tsv")))
 
   scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 10)
@@ -439,7 +528,7 @@ test_that("scenario_text seeds stochastic snapshots independently", {
 })
 
 
-test_that("scenario_text defers interactive review and applies decisions", {
+test_that("scenario review combines table and figure decisions", {
 
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
@@ -452,20 +541,20 @@ test_that("scenario_text defers interactive review and applies decisions", {
   state[["reviews"]] <- 0L
   assign(
     ".scenario_snapshot_review",
-    function(path) {
+    function(path, files = NULL) {
 
       state[["reviews"]] <- state[["reviews"]] + 1L
       candidates <- list.files(
         file.path(path, "_snaps"),
-        pattern    = "[.]new[.]txt$",
+        pattern    = "[.]new[.](txt|svg)$",
         recursive  = TRUE,
         full.names = TRUE
       )
-      accept <- candidates[grepl("accept[.]new[.]txt$", candidates)]
-      reject <- candidates[grepl("reject[.]new[.]txt$", candidates)]
+      accept <- candidates[grepl("accept.*[.]new[.](txt|svg)$", candidates)]
+      reject <- candidates[grepl("reject.*[.]new[.](txt|svg)$", candidates)]
       file.copy(
         accept,
-        sub("[.]new[.]txt$", ".txt", accept),
+        sub("[.]new[.]", ".", accept),
         overwrite = TRUE
       )
       unlink(accept)
@@ -484,6 +573,14 @@ test_that("scenario_text defers interactive review and applies decisions", {
   )
   scenario_text("accept", "old accept")
   scenario_text("reject", "old reject")
+  plot_path <- file.path(
+    root, "_snaps", "00-scenario-helpers", "accept-plot.svg"
+  )
+  .scenario_write_lines("old plot", plot_path)
+  .scenario_write_lines(
+    "new plot",
+    .scenario_candidate_path(plot_path)
+  )
   accept_path <- file.path(
     root, "results", "00-scenario-helpers", "accept.txt"
   )
@@ -504,15 +601,123 @@ test_that("scenario_text defers interactive review and applies decisions", {
   expect_equal(readLines(reject_path, warn = FALSE), '[1] "old reject"')
 
   changes <- expect_message(
-    .scenario_review_text_snapshots(root, "00-scenario-helpers"),
-    "Scenario text snapshot mismatches"
+    .scenario_review_snapshots(root, "00-scenario-helpers"),
+    "Scenario snapshot mismatches"
   )
   expect_identical(state[["reviews"]], 1L)
-  expect_equal(changes[["status"]], c("accepted", "rejected"))
+  expect_equal(
+    changes[c("type", "status")],
+    data.frame(
+      type   = c("table", "table", "figure"),
+      status = c("accepted", "rejected", "accepted")
+    )
+  )
   expect_equal(readLines(accept_path, warn = FALSE), '[1] "new accept"')
   expect_equal(readLines(reject_path, warn = FALSE), '[1] "old reject"')
+  expect_equal(readLines(plot_path, warn = FALSE), "new plot")
   expect_false(file.exists(.scenario_candidate_path(accept_path)))
   expect_false(file.exists(.scenario_candidate_path(reject_path)))
+  expect_false(file.exists(.scenario_candidate_path(plot_path)))
+})
+
+
+test_that("scenario review tolerates selected scenarios without candidates", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+
+  changes <- expect_message(
+    .scenario_review_snapshots(root, c("empty-one", "empty-two")),
+    "No cached scenario snapshots"
+  )
+  expect_equal(nrow(changes), 0L)
+})
+
+
+test_that("review_scenario_snapshots uses and filters the latest run", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env <- environment(review_scenario_snapshots)
+  old_review <- get(
+    ".scenario_review_snapshots",
+    envir    = helper_env,
+    inherits = FALSE
+  )
+  on.exit(assign(
+    ".scenario_review_snapshots",
+    old_review,
+    envir = helper_env
+  ), add = TRUE)
+  had_last_run <- exists(
+    "last_scenario_run", envir = .scenario_state, inherits = FALSE
+  )
+  if (had_last_run) {
+    old_last_run <- get(
+      "last_scenario_run", envir = .scenario_state, inherits = FALSE
+    )
+    on.exit(assign(
+      "last_scenario_run",
+      old_last_run,
+      envir = .scenario_state
+    ), add = TRUE)
+  } else {
+    on.exit(rm("last_scenario_run", envir = .scenario_state), add = TRUE)
+  }
+
+  state <- new.env(parent = emptyenv())
+  assign(
+    "last_scenario_run",
+    list(root = root, scenarios = c("alpha", "beta")),
+    envir = .scenario_state
+  )
+  assign(
+    ".scenario_review_snapshots",
+    function(root, scenarios, types = c("table", "figure")) {
+
+      state[["root"]]      <- root
+      state[["scenarios"]] <- scenarios
+      state[["types"]]     <- types
+      return(invisible(data.frame()))
+    },
+    envir = helper_env
+  )
+
+  review_scenario_snapshots(filter = "beta")
+  expect_identical(state[["root"]], root)
+  expect_identical(state[["scenarios"]], "beta")
+  expect_identical(state[["types"]], c("table", "figure"))
+})
+
+
+test_that("review_test_snapshots forwards testthat snapshot selection", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env   <- environment(review_test_snapshots)
+  helper_names <- c(".scenario_is_interactive", ".scenario_snapshot_review")
+  old_helpers  <- mget(helper_names, envir = helper_env, inherits = FALSE)
+  on.exit(list2env(old_helpers, envir = helper_env), add = TRUE)
+  state <- new.env(parent = emptyenv())
+  assign(".scenario_is_interactive", function() TRUE, envir = helper_env)
+  assign(
+    ".scenario_snapshot_review",
+    function(path, files = NULL) {
+
+      state[["path"]]  <- path
+      state[["files"]] <- files
+      return(TRUE)
+    },
+    envir = helper_env
+  )
+
+  reviewed <- review_test_snapshots(files = "test-plot/", root = root)
+  expect_true(reviewed)
+  expect_identical(
+    state[["path"]],
+    normalizePath(root, winslash = "/", mustWork = TRUE)
+  )
+  expect_identical(state[["files"]], "test-plot/")
 })
 
 
@@ -767,7 +972,7 @@ test_that("test_scenario filters scenario names and forwards run controls", {
     inherits = FALSE
   )
   old_review <- get(
-    ".scenario_review_text_snapshots",
+    "review_scenario_snapshots",
     envir    = helper_env,
     inherits = FALSE
   )
@@ -779,7 +984,7 @@ test_that("test_scenario filters scenario names and forwards run controls", {
   on.exit(assign(".scenario_test_file", old_test_file, envir = helper_env),
           add = TRUE)
   on.exit(assign(
-    ".scenario_review_text_snapshots",
+    "review_scenario_snapshots",
     old_review,
     envir = helper_env
   ), add = TRUE)
@@ -832,12 +1037,19 @@ test_that("test_scenario filters scenario names and forwards run controls", {
     envir = helper_env
   )
   assign(
-    ".scenario_review_text_snapshots",
-    function(root, scenarios) {
+    "review_scenario_snapshots",
+    function(filter = NULL, root = NULL) {
 
+      last_run <- get(
+        "last_scenario_run", envir = .scenario_state, inherits = FALSE
+      )
       state[["review"]] <- c(
         state[["review"]],
-        paste(basename(root), paste(scenarios, collapse = ","), sep = ":")
+        paste(
+          basename(last_run[["root"]]),
+          paste(last_run[["scenarios"]], collapse = ","),
+          sep = ":"
+        )
       )
       return(invisible(data.frame()))
     },

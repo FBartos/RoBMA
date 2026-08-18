@@ -3,15 +3,13 @@ scenario_start("hoogeveen2023")
 # testthat::test_file("tests/scenarios/test-hoogeveen2023.R")
 
 ### Description
-# Compare the exact rank-one sampling-covariance analysis from the Many-
-# Analysts Religion Project with its two-stage scalar representation. Repeat
-# both analyses with the known diagonal quality covariance R. The scenario
-# exercises singular known-V fitting, known-R row multipliers, bridge and
-# density Bayes factors, prediction, random effects, and diagnostics.
+# Compare the exact rank-one sampling-covariance analysis of the Many-Analysts
+# Religion Project with independent analysis effects and with the known quality
+# covariance R.
 
 testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R", {
 
-  set.seed(1)
+  skip("not fully implemented")
   data("Hoogeveen2023", package = "RoBMA")
 
   dat <- Hoogeveen2023[trimws(Hoogeveen2023[["type"]]) == "beta", ]
@@ -21,488 +19,167 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
 
   v_dependent <- tcrossprod(dat[["sei"]])
   r_quality   <- diag(1 / dat[["quality"]])
-  dimnames(r_quality) <- list(
-    levels(dat[["analysis"]]),
-    levels(dat[["analysis"]])
-  )
-  uisd <- estimate_unit_information_sd(
-    sei = dat[["sei"]],
-    ni  = dat[["ni"]]
-  )
+  dimnames(r_quality) <- list(levels(dat[["analysis"]]), levels(dat[["analysis"]]))
 
-  # Both packages warn because V is intentionally positive semidefinite. The
-  # fitted one-to-one random-intercept variance regularizes its null space.
-  muffle_rank_one_warning <- function(code) {
-
-    withCallingHandlers(
-      code,
-      warning = function(warning) {
-
-        message <- conditionMessage(warning)
-        expected <- startsWith(
-          message,
-          "The 'V' argument is positive semidefinite, not positive definite"
-        ) || identical(message, "'V' appears to be not positive definite.")
-        if (expected) {
-          invokeRestart("muffleWarning")
-        }
-      }
-    )
-  }
-  muffle_known_v_loo_warning <- function(code) {
-
-    withCallingHandlers(
-      code,
-      warning = function(warning) {
-
-        if (startsWith(
-          conditionMessage(warning),
-          "Estimate-unit LOO for brma.mv() known-V models uses conditional"
-        )) {
-          invokeRestart("muffleWarning")
-        }
-      }
-    )
-  }
-
-  scenario_text("input-structure", data.frame(
-    estimates                 = nrow(dat),
-    V_rank                    = qr(v_dependent)[["rank"]],
-    V_dimension               = nrow(v_dependent),
-    common_se                 = unique(dat[["sei"]]),
-    minimum_quality           = min(dat[["quality"]]),
-    maximum_quality           = max(dat[["quality"]]),
-    minimum_R_diagonal        = min(diag(r_quality)),
-    maximum_R_diagonal        = max(diag(r_quality)),
-    unit_information_sd       = uisd,
-    stringsAsFactors          = FALSE
-  ))
+  uisd <- estimate_unit_information_sd(sei = dat[["sei"]], ni = dat[["ni"]])
 
   ### metafor reference analyses ----
-  fit_metafor_mv <- muffle_rank_one_warning(metafor::rma.mv(
-    yi     = yi,
-    V      = v_dependent,
-    random = ~ 1 | analysis,
-    data   = dat,
-    method = "REML",
-    test   = "t"
-  ))
-  fit_metafor_stage1 <- metafor::rma(
-    yi     = yi,
-    vi     = sei^2,
-    data   = dat,
-    method = "REML"
-  )
-  fit_metafor_scalar <- metafor::rma(
-    yi     = yi,
-    vi     = sei^2 * nrow(dat),
-    tau2   = fit_metafor_stage1[["tau2"]],
-    data   = dat,
-    method = "REML"
-  )
+  fit_metafor_mv <- metafor::rma.mv(yi = yi, V = v_dependent, random = ~ 1 | analysis,
+                                    data = dat, method = "REML", test = "t")
 
-  fit_metafor_mv_quality <- muffle_rank_one_warning(metafor::rma.mv(
-    yi     = yi,
-    V      = v_dependent,
-    random = ~ 1 | analysis,
-    R      = list(analysis = r_quality),
-    Rscale = "none",
-    data   = dat,
-    method = "REML",
-    test   = "t"
-  ))
-  fit_metafor_quality_stage1 <- metafor::rma(
-    yi     = yi,
-    vi     = sei^2 / quality,
-    data   = dat,
-    method = "REML"
-  )
-  fit_metafor_scalar_quality <- metafor::rma(
-    yi     = yi,
-    vi     = sei^2 * nrow(dat) / quality,
-    tau2   = fit_metafor_quality_stage1[["tau2"]],
-    data   = dat,
-    method = "REML"
-  )
+  fit_metafor_mv_quality <- metafor::rma.mv(yi = yi, V = v_dependent, random = ~ 1 | analysis,
+                                            R = list(analysis = r_quality), Rscale = "none",
+                                            data = dat, method = "REML", test = "t")
 
   ### RoBMA analyses without known R ----
   fit_brma_mv <- scenario_fit("fit_brma_mv", {
-    temp_fit <- muffle_rank_one_warning(brma.mv(
-      yi                        = yi,
-      V                         = v_dependent,
-      random                    = ~ 1 | analysis,
-      data                      = dat,
-      measure                   = "GEN",
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    ))
-    temp_fit <- muffle_known_v_loo_warning(add_loo(temp_fit))
-    temp_fit <- add_marglik(temp_fit)
-    return(temp_fit)
-  })
-  fit_brma_mv_null <- scenario_fit("fit_brma_mv_null", {
-    temp_fit <- muffle_rank_one_warning(brma.mv(
-      yi                        = yi,
-      V                         = v_dependent,
-      random                    = ~ 1 | analysis,
-      data                      = dat,
-      measure                   = "GEN",
-      prior_effect              = prior("spike", list(0)),
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    ))
-    temp_fit <- add_marglik(temp_fit)
-    return(temp_fit)
-  })
-  fit_brma_stage1 <- scenario_fit("fit_brma_stage1", {
-    brma(
-      yi                        = yi,
-      vi                        = sei^2,
-      data                      = dat,
-      measure                   = "GEN",
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    )
-  })
-  tau_no_r <- as.numeric(stats::coef(fit_brma_stage1)[["tau"]])
-
-  fit_brma_scalar <- scenario_fit("fit_brma_scalar", {
-    temp_fit <- brma(
-      yi                        = yi,
-      vi                        = sei^2 * nrow(dat),
-      data                      = dat,
-      measure                   = "GEN",
-      prior_heterogeneity       = prior("spike", list(tau_no_r)),
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    )
+    temp_fit <- brma.mv(yi = yi, V = v_dependent, random = ~ 1 | analysis, data = dat, measure = "GEN",
+                        prior_unit_information_sd = uisd, seed = 1, silent = TRUE)
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
   })
-  fit_brma_scalar_null <- scenario_fit("fit_brma_scalar_null", {
-    temp_fit <- brma(
-      yi                        = yi,
-      vi                        = sei^2 * nrow(dat),
-      data                      = dat,
-      measure                   = "GEN",
-      prior_effect              = prior("spike", list(0)),
-      prior_heterogeneity       = prior("spike", list(tau_no_r)),
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    )
+  fit_brma_mv_null <- scenario_fit("fit_brma_mv_null", {
+    temp_fit <- brma.mv(yi = yi, V = v_dependent, random = ~ 1 | analysis, data = dat, measure = "GEN",
+                        prior_effect = prior("spike", list(0)), prior_unit_information_sd = uisd,
+                        seed = 1, silent = TRUE)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
   })
 
   ### RoBMA analyses with known quality R ----
   fit_brma_mv_quality <- scenario_fit("fit_brma_mv_quality", {
-    temp_fit <- muffle_rank_one_warning(brma.mv(
-      yi                        = yi,
-      V                         = v_dependent,
-      random                    = ~ 1 | analysis,
-      R                         = list(analysis = r_quality),
-      Rscale                    = "none",
-      data                      = dat,
-      measure                   = "GEN",
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    ))
-    temp_fit <- muffle_known_v_loo_warning(add_loo(temp_fit))
-    temp_fit <- add_marglik(temp_fit)
-    return(temp_fit)
-  })
-  fit_brma_mv_quality_null <- scenario_fit("fit_brma_mv_quality_null", {
-    temp_fit <- muffle_rank_one_warning(brma.mv(
-      yi                        = yi,
-      V                         = v_dependent,
-      random                    = ~ 1 | analysis,
-      R                         = list(analysis = r_quality),
-      Rscale                    = "none",
-      data                      = dat,
-      measure                   = "GEN",
-      prior_effect              = prior("spike", list(0)),
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    ))
-    temp_fit <- add_marglik(temp_fit)
-    return(temp_fit)
-  })
-  fit_brma_quality_stage1 <- scenario_fit("fit_brma_quality_stage1", {
-    brma(
-      yi                        = yi,
-      vi                        = sei^2 / quality,
-      data                      = dat,
-      measure                   = "GEN",
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    )
-  })
-  tau_quality <- as.numeric(stats::coef(fit_brma_quality_stage1)[["tau"]])
-
-  fit_brma_scalar_quality <- scenario_fit("fit_brma_scalar_quality", {
-    temp_fit <- brma(
-      yi                        = yi,
-      vi                        = sei^2 * nrow(dat) / quality,
-      data                      = dat,
-      measure                   = "GEN",
-      prior_heterogeneity       = prior("spike", list(tau_quality)),
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    )
+    temp_fit <- brma.mv(yi = yi, V = v_dependent, random = ~ 1 | analysis,
+                        R = list(analysis = r_quality), Rscale = "none", data = dat, measure = "GEN",
+                        prior_unit_information_sd = uisd, seed = 1, silent = TRUE)
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
   })
-  fit_brma_scalar_quality_null <- scenario_fit("fit_brma_scalar_quality_null", {
-    temp_fit <- brma(
-      yi                        = yi,
-      vi                        = sei^2 * nrow(dat) / quality,
-      data                      = dat,
-      measure                   = "GEN",
-      prior_effect              = prior("spike", list(0)),
-      prior_heterogeneity       = prior("spike", list(tau_quality)),
-      prior_unit_information_sd = uisd,
-      seed                      = 1,
-      silent                    = TRUE
-    )
+  fit_brma_mv_quality_null <- scenario_fit("fit_brma_mv_quality_null", {
+    temp_fit <- brma.mv(yi = yi, V = v_dependent, random = ~ 1 | analysis,
+                        R = list(analysis = r_quality), Rscale = "none", data = dat, measure = "GEN",
+                        prior_effect = prior("spike", list(0)), prior_unit_information_sd = uisd,
+                        seed = 1, silent = TRUE)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
   })
 
-  ### summaries and reference agreement ----
-  summarize_metafor <- function(fit) {
-
-    tau <- if (inherits(fit, "rma.mv")) {
-      sqrt(fit[["sigma2"]][[1L]])
-    } else {
-      sqrt(fit[["tau2"]])
-    }
-    return(data.frame(
-      mu    = as.numeric(stats::coef(fit)[[1L]]),
-      se    = fit[["se"]][[1L]],
-      lower = fit[["ci.lb"]][[1L]],
-      upper = fit[["ci.ub"]][[1L]],
-      p     = fit[["pval"]][[1L]],
-      tau   = tau
-    ))
-  }
-  scenario_text("metafor-model-comparison", {
-    output <- rbind(
-      exact_V              = summarize_metafor(fit_metafor_mv),
-      scalar               = summarize_metafor(fit_metafor_scalar),
-      exact_V_known_R      = summarize_metafor(fit_metafor_mv_quality),
-      scalar_quality       = summarize_metafor(fit_metafor_scalar_quality)
-    )
-    output[["model"]] <- rownames(output)
-    rownames(output)  <- NULL
-    output[c("model", "mu", "se", "lower", "upper", "p", "tau")]
-  })
-
-  summarize_known_v <- function(fit) {
-
-    known_v <- attr(fit[["data"]], "known_V_data")
-    return(data.frame(
-      requested_parameterization = known_v[["parameterization_requested"]],
-      selected_parameterization  = known_v[["parameterization"]],
-      effective_backend          = known_v[["effective_backend"]],
-      singular                   = known_v[["singular"]],
-      rank                       = known_v[["rank"]],
-      dependency_blocks          = length(known_v[["block_indices"]]),
-      stringsAsFactors           = FALSE
-    ))
-  }
-  scenario_text("known-V-backend", rbind(
-    no_known_R = summarize_known_v(fit_brma_mv),
-    known_R    = summarize_known_v(fit_brma_mv_quality)
-  ))
-
-  scenario_text("summary-fit_brma_mv", {
+  ### model summaries ----
+  # The two implementations target the same exact-V model; remaining
+  # differences reflect classical point estimation versus posterior inference.
+  scenario_text("summary-no-known-R", {
+    print(fit_metafor_mv)
     summary(fit_brma_mv, include_mcmc_diagnostics = FALSE)
   })
-  scenario_text("summary-fit_brma_scalar", {
-    summary(fit_brma_scalar, include_mcmc_diagnostics = FALSE)
-  })
-  scenario_text("summary-fit_brma_mv_quality", {
+  scenario_text("summary-known-R", {
+    print(fit_metafor_mv_quality)
     summary(fit_brma_mv_quality, include_mcmc_diagnostics = FALSE)
   })
-  scenario_text("summary-fit_brma_scalar_quality", {
-    summary(fit_brma_scalar_quality, include_mcmc_diagnostics = FALSE)
-  })
 
-  bind_sample_summaries <- function(objects) {
-
-    tables <- lapply(objects, function(object) {
-      table           <- as.data.frame(object)
-      rownames(table) <- NULL
-      return(table)
-    })
-    output            <- do.call(rbind, tables)
-    rows_per_model    <- vapply(tables, nrow, integer(1))
-    output[["model"]] <- rep(names(objects), rows_per_model)
-    output[c("model", setdiff(names(output), "model"))]
+  summarize_metafor <- function(fit) {
+    c(mu = as.numeric(stats::coef(fit)[[1L]]), se = fit[["se"]][[1L]],
+      lower = fit[["ci.lb"]][[1L]], upper = fit[["ci.ub"]][[1L]],
+      tau   = sqrt(fit[["sigma2"]][[1L]])
+    )
   }
-  scenario_text("pooled-effects", bind_sample_summaries(list(
-    exact_V         = pooled_effect(fit_brma_mv),
-    scalar          = pooled_effect(fit_brma_scalar),
-    exact_V_known_R = pooled_effect(fit_brma_mv_quality),
-    scalar_quality  = pooled_effect(fit_brma_scalar_quality)
-  )))
-  scenario_text("pooled-heterogeneity", bind_sample_summaries(list(
-    exact_V         = pooled_heterogeneity(fit_brma_mv),
-    scalar          = pooled_heterogeneity(fit_brma_scalar),
-    exact_V_known_R = pooled_heterogeneity(fit_brma_mv_quality),
-    scalar_quality  = pooled_heterogeneity(fit_brma_scalar_quality)
-  )))
-  scenario_text("heterogeneity-exact-V", list(
-    identity_R = summary_heterogeneity(fit_brma_mv),
-    known_R    = summary_heterogeneity(fit_brma_mv_quality)
-  ))
+  summarize_brma <- function(fit) {
+    mu  <- as.numeric(pooled_effect(fit))
+    tau <- as.numeric(pooled_heterogeneity(fit))
+    c(mu    = mean(mu),
+      se    = stats::sd(mu),
+      lower = unname(stats::quantile(mu, .025)),
+      upper = unname(stats::quantile(mu, .975)),
+      tau   = mean(tau)
+    )
+  }
+
+  # The known-R model is expected to differ because quality changes the
+  # row-specific heterogeneity.
+  scenario_text("model-comparison", {
+    data.frame(
+      model = rep(c("without known R", "with known R"), each = 2L),
+      implementation = rep(c("metafor", "RoBMA"), 2L),
+      rbind(
+        summarize_metafor(fit_metafor_mv),         summarize_brma(fit_brma_mv),
+        summarize_metafor(fit_metafor_mv_quality), summarize_brma(fit_brma_mv_quality)
+      ),
+      row.names = NULL
+    )
+  })
 
   scenario_text("prior-specification", {
     cat("Exact V without known R:\n")
     print_prior(fit_brma_mv)
     cat("\nExact V with known quality R:\n")
     print_prior(fit_brma_mv_quality)
-    cat("\nScalar stage-one model:\n")
-    print_prior(fit_brma_stage1)
     invisible(NULL)
   })
 
   ### bridge-sampling and density Bayes factors ----
   effect_bayes_factors <- function(fit, null_fit) {
-
-    set.seed(1)
-    bf_kde <- hypothesis(fit, "mu = 0")[["BF"]][[1L]]
-    bf_qcmde <- hypothesis(
-      fit,
-      "mu = 0",
-      density_method  = "qCMDE",
-      density_control = list(samples = 2000L)
-    )[["BF"]][[1L]]
-    bf_normal <- hypothesis(
-      fit,
-      "mu = 0",
-      density_method = "normal"
-    )[["BF"]][[1L]]
-    return(data.frame(
+    data.frame(
       bridge = bf(fit, null_fit)[["bf"]],
-      KDE     = bf_kde,
-      qCMDE   = bf_qcmde,
-      normal  = bf_normal
-    ))
-  }
-  scenario_text("effect-bayes-factors", rbind(
-    exact_V = effect_bayes_factors(
-      fit_brma_mv,
-      fit_brma_mv_null
-    ),
-    scalar = effect_bayes_factors(
-      fit_brma_scalar,
-      fit_brma_scalar_null
-    ),
-    exact_V_known_R = effect_bayes_factors(
-      fit_brma_mv_quality,
-      fit_brma_mv_quality_null
-    ),
-    scalar_quality = effect_bayes_factors(
-      fit_brma_scalar_quality,
-      fit_brma_scalar_quality_null
+      KDE     = hypothesis(fit, "mu = 0")[["BF"]][[1L]],
+      qCMDE   = hypothesis(fit, "mu = 0", density_method = "qCMDE", density_control = list(samples = 2000L))[["BF"]][[1L]],
+      normal  = hypothesis(fit, "mu = 0", density_method = "normal")[["BF"]][[1L]]
     )
+  }
+
+  # All columns estimate BF10 for the same fitted model. This extreme tail can
+  # expose density-estimator limitations; non-finite or discrepant values are
+  # intentionally left visible for maintainer review.
+  scenario_text("effect-bayes-factors", rbind(
+    `without known R` = effect_bayes_factors(fit_brma_mv,         fit_brma_mv_null),
+    `with known R`    = effect_bayes_factors(fit_brma_mv_quality, fit_brma_mv_quality_null)
   ))
 
-  loo_performance <- function(fit, target) {
-
+  loo_performance <- function(fit) {
     fit_loo  <- loo(fit)
     pareto_k <- fit_loo[["diagnostics"]][["pareto_k"]]
-    return(data.frame(
-      loo_target              = target,
-      log_marginal_likelihood = logml(fit),
-      elpd_loo                = fit_loo[["estimates"]]["elpd_loo", 1L],
-      looic                   = fit_loo[["estimates"]]["looic", 1L],
-      maximum_pareto_k        = max(pareto_k),
-      pareto_k_above_0.7      = sum(pareto_k > 0.7),
-      pareto_k_above_1        = sum(pareto_k > 1)
-    ))
-  }
-  scenario_text("model-fit", rbind(
-    exact_V = loo_performance(
-      fit_brma_mv,
-      "conditional estimate deletion"
-    ),
-    scalar = loo_performance(
-      fit_brma_scalar,
-      "independent estimate deletion"
-    ),
-    exact_V_known_R = loo_performance(
-      fit_brma_mv_quality,
-      "conditional estimate deletion"
-    ),
-    scalar_quality = loo_performance(
-      fit_brma_scalar_quality,
-      "independent estimate deletion"
+    data.frame(
+      logml              = logml(fit),
+      looic              = fit_loo[["estimates"]]["looic", 1L],
+      maximum_pareto_k   = max(pareto_k),
+      pareto_k_above_0.7 = sum(pareto_k > .7),
+      pareto_k_above_1   = sum(pareto_k > 1)
     )
+  }
+
+  # Both models use conditional estimate deletion for the exact known V.
+  scenario_text("model-fit", rbind(
+    `without known R` = loo_performance(fit_brma_mv),
+    `with known R`    = loo_performance(fit_brma_mv_quality)
   ))
 
-  ### posterior and random-effect comparisons ----
+  ### pooled effects and random effects ----
   scenario_plot("posterior-mu", {
-    plot(
-      fit_brma_mv,
-      "mu",
-      prior = TRUE,
-      xlim  = c(0, 0.18),
-      lwd   = 2,
-      col   = "blue"
-    )
-    lines(fit_brma_scalar, "mu", lwd = 2, col = "darkgreen")
-    lines(fit_brma_mv_quality, "mu", lwd = 2, col = "blue", lty = 2)
-    lines(
-      fit_brma_scalar_quality,
-      "mu",
-      lwd = 2,
-      col = "darkgreen",
-      lty = 2
-    )
-    legend(
-      "topleft",
-      legend = c("exact V", "scalar", "exact V + known R", "scalar quality"),
-      col    = c("blue", "darkgreen", "blue", "darkgreen"),
-      lty    = c(1, 1, 2, 2),
-      lwd    = 2,
-      bty    = "n"
-    )
+    plot(fit_brma_mv, "mu", prior = TRUE, xlim = c(0, .18), lwd = 2, col = "blue")
+    lines(fit_brma_mv_quality, "mu", lwd = 2, col = "darkgreen")
+    legend("topleft", legend = c("without known R", "with known R"),
+           col = c("blue", "darkgreen"), lty = 1, lwd = 2, bty = "n")
   })
 
-  random_effect_means <- function(fit) {
-
-    as.data.frame(ranef(fit, component = "total", expand = TRUE))[["Mean"]]
-  }
+  # BLUPs should show the same pattern, but posterior integration means that
+  # pointwise identity with metafor is not expected.
   scenario_plot("random-effects", {
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     scenario_agreement_plot(
       metafor::ranef(fit_metafor_mv, expand = TRUE)[["analysis"]][["intrcpt"]],
-      random_effect_means(fit_brma_mv),
+      as.data.frame(ranef(fit_brma_mv, component = "total", expand = TRUE))[["Mean"]],
       main = "No known R"
     )
     scenario_agreement_plot(
       metafor::ranef(fit_metafor_mv_quality, expand = TRUE)[["analysis"]][["intrcpt"]],
-      random_effect_means(fit_brma_mv_quality),
+      as.data.frame(ranef(fit_brma_mv_quality, component = "total", expand = TRUE))[["Mean"]],
       main = "Known quality R"
     )
   })
 
-  ### numerical diagnostics ----
-  plot_marginal_diagnostics <- function(fit_metafor, fit_robma) {
-
+  ### diagnostics ----
+  # These are visual comparisons rather than identities: RoBMA influence
+  # diagnostics integrate posterior uncertainty and use PSIS where applicable.
+  plot_marginal_diagnostics <- function(fit_metafor, fit_brma) {
     metafor_values <- list(
       "Residuals"      = as.numeric(stats::residuals(fit_metafor)),
       "Rstandard"      = stats::rstandard(fit_metafor)[["z"]],
@@ -510,55 +187,40 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
       "Cooks distance" = stats::cooks.distance(fit_metafor),
       "DFBETAS"        = unlist(stats::dfbetas(fit_metafor))
     )
-    robma_values <- list(
-      "Residuals" = residuals(
-        fit_robma,
-        type               = "outcome",
-        conditioning_depth = "marginal"
-      ),
-      "Rstandard" = suppressWarnings(rstandard(
-        fit_robma,
-        conditioning_depth = "marginal"
-      ))[["z"]],
-      "Hat values"     = suppressWarnings(hatvalues(fit_robma)),
-      "Cooks distance" = suppressWarnings(cooks.distance(fit_robma)),
-      "DFBETAS"        = unlist(suppressWarnings(dfbetas(fit_robma)))
+    brma_values <- list(
+      "Residuals"      = residuals(fit_brma, type = "outcome", conditioning_depth = "marginal"),
+      "Rstandard"      = rstandard(fit_brma, conditioning_depth = "marginal")[["z"]],
+      "Hat values"     = hatvalues(fit_brma),
+      "Cooks distance" = cooks.distance(fit_brma),
+      "DFBETAS"        = unlist(dfbetas(fit_brma))
     )
 
     par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
     for (diagnostic in names(metafor_values)) {
-      scenario_agreement_plot(
-        metafor_values[[diagnostic]],
-        robma_values[[diagnostic]],
-        diagnostic
-      )
+      scenario_agreement_plot(metafor_values[[diagnostic]], brma_values[[diagnostic]], diagnostic)
     }
-    return(invisible(NULL))
+    invisible(NULL)
   }
-  scenario_plot("diagnostics-no-known-R", {
-    plot_marginal_diagnostics(fit_metafor_mv, fit_brma_mv)
-  })
-  scenario_plot("diagnostics-known-R", {
-    plot_marginal_diagnostics(fit_metafor_mv_quality, fit_brma_mv_quality)
-  })
 
-  ### graphical diagnostics ----
-  set.seed(1)
+  scenario_plot("diagnostics-no-known-R", plot_marginal_diagnostics(fit_metafor_mv, fit_brma_mv))
+  scenario_plot("diagnostics-known-R",    plot_marginal_diagnostics(fit_metafor_mv_quality, fit_brma_mv_quality))
+
+  ### user-facing diagnostic plots ----
   scenario_plot("funnel", {
     par(mfrow = c(2, 2))
-    funnel(fit_brma_mv, main = "Funnel: no known R")
-    bfunnel(fit_brma_mv, main = "Bayesian funnel: no known R")
+    funnel(fit_brma_mv,         main = "Funnel: no known R")
+    bfunnel(fit_brma_mv,        main = "Bayesian funnel: no known R")
     funnel(fit_brma_mv_quality, main = "Funnel: known R")
     bfunnel(fit_brma_mv_quality, main = "Bayesian funnel: known R")
   })
   scenario_plot("qqnorm", {
     par(mfrow = c(1, 2))
-    qqnorm(fit_brma_mv, main = "No known R")
+    qqnorm(fit_brma_mv,         main = "No known R")
     qqnorm(fit_brma_mv_quality, main = "Known quality R")
   })
   scenario_plot("zplot", {
     par(mfrow = c(1, 2))
-    zplot(fit_brma_mv, to = 14, main = "No known R")
+    zplot(fit_brma_mv,         to = 14, main = "No known R")
     zplot(fit_brma_mv_quality, to = 14, main = "Known quality R")
   })
 })

@@ -104,6 +104,12 @@ Never auto-accept or auto-update snapshots. Structural `as_data = TRUE` tests
 supplement visual snapshots; they do not replace them. Ask the maintainer to
 review every intentional visual change.
 
+After sourcing `tests/scenarios/helper-scenarios.R`, call
+`review_test_snapshots()` to open testthat's native reviewer for ordinary text
+and figure candidates under `tests/testthat/`. Its optional `files` argument
+has the same test-name or trailing-slash directory semantics as
+`testthat::snapshot_review()`. Accept changes only after maintainer review.
+
 Set `ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS=TRUE` only during an explicit snapshot
 regeneration workflow.
 

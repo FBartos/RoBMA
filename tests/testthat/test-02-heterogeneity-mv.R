@@ -651,7 +651,7 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
 
   expect_named(allocation_summaries, "study")
   expect_true(
-    any(grepl("study: sd(time[1])",
+    any(grepl("sd(time[1])",
               rownames(allocation_summaries[["study"]][["estimates"]]),
               fixed = TRUE))
   )
@@ -671,6 +671,10 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
   expect_equal(
     allocation_summaries[["study"]][["estimates"]]["var_ratio(time[1])", "Mean"],
     0.75
+  )
+  expect_true(
+    "sd_ratio(time[1])" %in%
+      rownames(allocation_summaries[["study"]][["estimates"]])
   )
 })
 

@@ -411,6 +411,13 @@
     return(list())
   }
 
+  if (!is.null(object[["fit"]])) {
+    return(.brma_mv_allocation_catalog_sample_lists(
+      object            = object,
+      posterior_samples = posterior_samples
+    ))
+  }
+
   formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
   allocations    <- formula_design[["random_allocations"]]
   if (length(allocations) == 0L) {
@@ -488,6 +495,135 @@
 }
 
 
+.brma_mv_allocation_catalog_sample_lists <- function(object,
+                                                      posterior_samples) {
+
+  formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
+  allocations    <- formula_design[["random_allocations"]]
+  if (length(allocations) == 0L) {
+    return(list())
+  }
+
+  catalog    <- BayesTools::parameter_catalog(object[["fit"]])
+  quantities <- catalog[["quantities"]]
+  quantities <- quantities[
+    startsWith(quantities[["role"]], "random_") &
+      !quantities[["internal"]] &
+      quantities[["status"]] != "unavailable",
+    ,
+    drop = FALSE
+  ]
+  keys <- quantities[["extraction_key"]]
+  out          <- list()
+  aliases      <- list()
+  replacements <- list()
+
+  for (allocation in allocations) {
+    allocation <- .brma_mv_resolve_sd_component_allocation(
+      allocation     = allocation,
+      formula_design = formula_design
+    )
+    target <- allocation[["target"]]
+    if (!target %in% c("block", "sd_component")) {
+      next
+    }
+    if (identical(target, "block") &&
+        length(allocation[["terms"]]) <= 1L) {
+      next
+    }
+    if (identical(target, "sd_component") &&
+        length(allocation[["leaf_terms"]]) <= 1L) {
+      next
+    }
+
+    allocation_rows <- vapply(keys, function(key) {
+      identical(key[["allocation_label"]], allocation[["label"]])
+    }, logical(1))
+    component_rows <- rep(FALSE, nrow(quantities))
+    if (identical(target, "sd_component")) {
+      block <- .brma_mv_sd_component_allocation_block(allocation)
+      component_rows <- quantities[["owner_type"]] == "random_block" &
+        quantities[["quantity"]] %in% c("sd", "sd_ratio") &
+        vapply(keys, function(key) {
+          isTRUE(key[["allocation_derived"]])
+        }, logical(1)) &
+        vapply(keys, function(key) {
+          identical(key[["random_block"]], block)
+        }, logical(1))
+    }
+    selected <- quantities[allocation_rows | component_rows, , drop = FALSE]
+    if (nrow(selected) == 0L) {
+      next
+    }
+    order_group <- match(
+      selected[["quantity"]],
+      c(
+        "sd_total", "sd_common", "var_total", "var_common", "sd",
+        "var_prop", "var_ratio", "sd_ratio", "inclusion"
+      )
+    )
+    selected <- selected[order(order_group, na.last = TRUE), , drop = FALSE]
+
+    samples_list <- lapply(seq_len(nrow(selected)), function(i) {
+      selection <- BayesTools::parameter_catalog_resolve(
+        catalog   = catalog,
+        alias     = selected[["canonical_name"]][i],
+        namespace = selected[["namespace"]][i]
+      )
+      draws <- BayesTools::parameter_draws(
+        object[["fit"]],
+        selection,
+        model_samples = posterior_samples
+      )
+      as.numeric(draws[[1L]][, 1L])
+    })
+    names(samples_list) <- vapply(
+      selected[["display_label"]],
+      .brma_mv_random_quantity_display_label,
+      character(1)
+    )
+
+    name <- .brma_mv_allocation_summary_name(
+      allocation     = allocation,
+      formula_design = formula_design
+    )
+    out[[length(out) + 1L]] <- samples_list
+    names(out)[[length(out)]] <- name
+    aliases[[length(aliases) + 1L]] <- .brma_mv_allocation_summary_aliases(
+      name       = name,
+      allocation = allocation
+    )
+    names(aliases)[[length(aliases)]] <- name
+    replacements[[length(replacements) + 1L]] <-
+      if (identical(target, "sd_component")) {
+        terms <- as.character(allocation[["terms"]])
+        terms[!is.na(terms) & nzchar(terms)]
+      } else {
+        character(0)
+      }
+    names(replacements)[[length(replacements)]] <- name
+  }
+
+  if (length(out) == 0L) {
+    return(list())
+  }
+  original_names <- names(out)
+  names(out)          <- make.unique(original_names, sep = "_")
+  names(aliases)      <- names(out)
+  names(replacements) <- names(out)
+  attr(out, "component_aliases")      <- aliases
+  attr(out, "component_replacements") <- replacements
+
+  return(out)
+}
+
+
+.brma_mv_random_quantity_display_label <- function(label) {
+
+  sub("^\\([^)]*\\) ", "", label)
+}
+
+
 .brma_mv_resolve_sd_component_allocation <- function(allocation,
                                                     formula_design) {
 
@@ -528,12 +664,24 @@
                                                 K) {
 
   if (identical(allocation[["target"]], "sd_component")) {
+    blocks <- unique(vapply(
+      formula_design[["random_effects"]],
+      `[[`,
+      character(1),
+      "block_name"
+    ))
+    block_owner <- if (length(blocks) == 1L) {
+      ""
+    } else {
+      .brma_mv_sd_component_allocation_block(allocation)
+    }
     return(.brma_mv_sd_component_allocation_summary_samples(
       allocation        = allocation,
       term              = .brma_mv_sd_component_allocation_term(
         allocation     = allocation,
         formula_design = formula_design
       ),
+      block_owner       = block_owner,
       posterior_samples = posterior_samples,
       source_samples    = source_samples,
       K                 = K
@@ -626,6 +774,7 @@
 
 .brma_mv_sd_component_allocation_summary_samples <- function(allocation,
                                                             term = NULL,
+                                                            block_owner = NULL,
                                                             posterior_samples,
                                                             source_samples,
                                                             K) {
@@ -659,6 +808,9 @@
   weight_name <- allocation[["weight_name"]]
   labels      <- .brma_mv_sd_component_allocation_labels(allocation)
   block       <- .brma_mv_sd_component_allocation_block(allocation)
+  if (is.null(block_owner)) {
+    block_owner <- block
+  }
   leaf_index  <- allocation[["leaf_index_by_column"]]
   n_targets   <- allocation[["n_targets"]]
   scale       <- allocation[["scale"]]
@@ -697,7 +849,10 @@
                            variance_ratio)
     }
 
-    samples[[paste0(block, ": sd(", labels[[i]], ")")]] <- sd_samples
+    samples[[.brma_mv_allocation_parameter_name(
+      block_owner,
+      paste0("sd(", labels[[i]], ")")
+    )]] <- sd_samples
   }
 
   for (i in seq_along(labels)) {
@@ -711,6 +866,13 @@
       scale     = scale,
       n_targets = n_targets
     )
+    samples[[.brma_mv_allocation_parameter_name(
+      allocation_owner,
+      paste0("sd_ratio(", labels[[i]], ")")
+    )]] <- sqrt(samples[[.brma_mv_allocation_parameter_name(
+      allocation_owner,
+      paste0("var_ratio(", labels[[i]], ")")
+    )]])
   }
 
   samples

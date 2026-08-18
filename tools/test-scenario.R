@@ -4,7 +4,7 @@ args       <- commandArgs(trailingOnly = TRUE)
 regenerate <- "--regenerate" %in% args
 refit      <- regenerate || "--refit" %in% args
 update     <- regenerate || "--update" %in% args
-update_timings <- update || "--update-timings" %in% args
+update_timings <- "--update-timings" %in% args
 list_only  <- "--list" %in% args
 requested  <- setdiff(
   args,

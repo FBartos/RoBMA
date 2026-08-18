@@ -20,10 +20,11 @@
   `(formula) owner: quantity(parameter[level], ...)`, including `cor`, `sd`,
   `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`, `var_ratio`,
   and `sd_ratio`; backend coordinates are no longer accepted as public aliases.
-  A single top-level random component omits the redundant allocation-owner
-  prefix, so names such as `sd_total` and `var_prop(study)` work directly in
-  summaries, plots, density estimation, and hypotheses. Lists with two or more
-  unnamed random components use `component 1`, `component 2`, and so on.
+  A single random block omits its redundant owner prefix, so names such as
+  `cor(...)`, `sd_common`, and `var_ratio(...)` work directly in summaries,
+  plots, density estimation, and hypotheses; models with multiple blocks retain
+  block-qualified names. Lists with two or more unnamed random components use
+  `component 1`, `component 2`, and so on.
   Generated allocations retain stable internal identifiers independently of
   these public names. Random-effect formula, prior, vignette, and maintainer
   documentation now consistently distinguishes backend coordinates from public
@@ -34,7 +35,9 @@
   qCMDE/IWMDE. RoBMA delegates one-to-one random-parameter display transforms
   and their Jacobians to BayesTools, so plotting, hypotheses, and density
   estimation share the catalog's transform contract rather than maintaining
-  duplicate transform algebra.
+  duplicate transform algebra. Basic summaries report only quantities aligned
+  with prior specification, while `summary_heterogeneity()` retains aggregate
+  variances, allocation-derived component SDs, variance ratios, and SD ratios.
 - completes partial `prior_random()` specifications with RoBMA's usual
   UISD-scaled SD and variance-allocation defaults when the user supplies no
   scale architecture. Correlation defaults are delegated to BayesTools:

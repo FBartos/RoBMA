@@ -1,0 +1,12 @@
+type	name	elapsed	r_version	platform
+text	loo-model-weights	0.020000000	4.6.0	Windows/x86_64-w64-mingw32
+text	loo-performance	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
+text	metafor-comparison	0.640000000	4.6.0	Windows/x86_64-w64-mingw32
+text	model-fit	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
+text	random-component-bayes-factors	5.010000000	4.6.0	Windows/x86_64-w64-mingw32
+text	ranef-agreement	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma	0.310000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma-observation	0.060000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma-study	0.090000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-heterogeneity	0.130000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	ranef-comparison	0.000000000	4.6.0	Windows/x86_64-w64-mingw32

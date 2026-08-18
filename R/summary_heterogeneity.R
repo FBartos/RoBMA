@@ -103,11 +103,10 @@ summary_heterogeneity <- function(object, ...) {
 #' the user-facing path \code{"study/esid"}.
 #' For heterogeneous structured random effects, such as
 #' \code{random = ~ har(time | study)}, the allocation table reports
-#' \code{<allocation>: sd}, level-specific
-#' \code{<block>: sd(<parameter>[<level>])} rows, and
-#' \code{<allocation>: var_ratio(<parameter>[<level>])} rows for the
-#' heterogeneous standard-deviation
-#' components.
+#' the exhaustive semantic allocation family: aggregate SD and variance,
+#' level-specific component SDs, variance ratios, and SD ratios. A redundant
+#' block owner is omitted when the model contains one random block and retained
+#' when multiple blocks require disambiguation.
 #'
 #' @return A list of class \code{summary_heterogeneity.brma} containing:
 #' \itemize{

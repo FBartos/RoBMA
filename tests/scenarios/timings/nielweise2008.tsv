@@ -1,0 +1,15 @@
+type	name	elapsed	r_version	platform
+text	bf-effect	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect	0.030000000	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-EXP	0.030000000	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-heterogenity	0.020000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_BMA	0.250000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma	0.150000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-heterogenity	0.030000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-models-fit_BMA	0.070000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_BMA_forest	0.090000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_forest	0.120000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_funnel	0.030000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_posterior_mu	3.810000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_posterior_tau	3.330000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	residuals	0.050000000	4.6.0	Windows/x86_64-w64-mingw32

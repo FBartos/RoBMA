@@ -55,6 +55,9 @@ inclusion tables, common estimates, moderator estimates, scale estimates,
 publication-bias estimates, and optional conditional estimates. The printed
 form displays the non-empty tables. In meta-regressions with moderators, a
 location intercept fixed at zero is omitted; intercept-only models retain it.
+The random table reports the quantities aligned with prior specification;
+use \code{\link[=summary_heterogeneity]{summary_heterogeneity()}} for aggregate variances and the complete family
+of deterministic allocation transforms.
 }
 \description{
 \code{summary.brma} creates summary tables for a

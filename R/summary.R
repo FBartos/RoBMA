@@ -28,6 +28,9 @@
 #' publication-bias estimates, and optional conditional estimates. The printed
 #' form displays the non-empty tables. In meta-regressions with moderators, a
 #' location intercept fixed at zero is omitted; intercept-only models retain it.
+#' The random table reports the quantities aligned with prior specification;
+#' use [summary_heterogeneity()] for aggregate variances and the complete family
+#' of deterministic allocation transforms.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
