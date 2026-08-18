@@ -78,8 +78,8 @@ curves and point ordinates,
 (default \code{"adaptive"}), \code{normalization_points} (default
 \code{NULL}, resolved to \code{max(50, n_points)}), and
 \code{normalization_prob} (default \code{0.999}). \code{samples} defaults
-to \code{500} for qCMDE density curves and point ordinates and \code{1000}
-for IWMDE density curves. Point ordinates use one fixed state-independent
+to \code{500} for qCMDE and \code{1000} for IWMDE density curves and point
+ordinates. Point ordinates use one fixed state-independent
 simple random sample chosen before contributions are evaluated. Sample
 diagnostics do not decide whether a finite ordinate is returned. An unmet
 relative-MCSE target produces a warning; increase \code{samples} or use

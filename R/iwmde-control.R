@@ -17,7 +17,7 @@
   )
   defaults <- list(
     n_points             = 100L,
-    samples              = if (identical(purpose, "density")) {
+    samples              = if (identical(density_method, "IWMDE")) {
       1000L
     } else {
       500L

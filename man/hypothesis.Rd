@@ -99,8 +99,9 @@ calls mixing point and region statements must be evaluated separately.}
 
 \item{density_control}{named list of qCMDE/IWMDE tuning settings. Supported
 entries are \code{n_points} (default \code{100}), \code{samples} (the fixed
-posterior-row sample size, default \code{500}; use \code{Inf} for the
-eligible-row census), \code{target_relative_mcse} (default \code{0.05}),
+posterior-row sample size, default \code{500} for qCMDE and \code{1000} for
+IWMDE; use \code{Inf} for the eligible-row census),
+\code{target_relative_mcse} (default \code{0.05}),
 \code{normalization_points} (default \code{NULL}, resolved to
 \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999}),
 and \code{display_grid} (default \code{"adaptive"}). Point ordinates use one
