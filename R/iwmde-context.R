@@ -16,19 +16,18 @@
   data   <- object[["data"]]
   priors <- object[["priors"]]
   flat_prior_list <- attr(object[["fit"]], "prior_list")
-  lkj_pair_priors <- .iwmde_lkj_pair_prior_list(
-    fit               = object[["fit"]],
-    posterior_columns = colnames(posterior_samples)
+  internal_priors <- BayesTools::JAGS_formula_internal_coordinate_priors(
+    object[["fit"]]
   )
-  collisions <- intersect(names(flat_prior_list), names(lkj_pair_priors))
+  collisions <- intersect(names(flat_prior_list), names(internal_priors))
   if (length(collisions) > 0L) {
     stop(
-      "LKJ primitive prior names collide with fitted scalar priors: ",
+      "Internal formula-coordinate priors collide with fitted priors: ",
       paste(collisions, collapse = ", "), ".",
       call. = FALSE
     )
   }
-  flat_prior_list <- c(flat_prior_list, lkj_pair_priors)
+  flat_prior_list <- c(flat_prior_list, internal_priors)
 
   context <- list(
     object            = object,
@@ -52,38 +51,6 @@
 
   class(context) <- "iwmde_context"
   return(.iwmde_context_ensure_caches(context))
-}
-
-
-.iwmde_lkj_pair_prior_list <- function(fit, posterior_columns) {
-
-  formula_design <- attr(fit, "formula_design", exact = TRUE)
-  if (!is.list(formula_design)) {
-    return(list())
-  }
-  terms <- unlist(lapply(formula_design, `[[`, "random_effects"), recursive = FALSE)
-  out <- list()
-  for (term in terms) {
-    correlation <- term[["correlation"]]
-    if (!is.list(correlation) || !identical(correlation[["type"]], "lkj") ||
-        !identical(as.integer(term[["n_columns"]]), 2L)) {
-      next
-    }
-    primitive <- correlation[["primitive_names"]]
-    eta       <- correlation[["eta"]]
-    if (!is.character(primitive) || length(primitive) != 1L ||
-        is.na(primitive) || !nzchar(primitive) ||
-        !primitive %in% posterior_columns ||
-        !is.numeric(eta) || length(eta) != 1L || !is.finite(eta) || eta <= 0) {
-      next
-    }
-    out[[primitive]] <- BayesTools::prior(
-      "beta",
-      parameters = list(alpha = eta, beta = eta)
-    )
-  }
-
-  out
 }
 
 

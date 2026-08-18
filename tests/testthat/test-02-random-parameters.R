@@ -691,7 +691,15 @@ test_that("allocated component SD targets retain their replacement structure", {
   )
   context <- list(
     posterior_samples = samples,
-    indicator_names   = character()
+    indicator_names   = character(),
+    flat_prior_list   = stats::setNames(
+      list(BayesTools::prior(
+        "dirichlet",
+        parameters = list(alpha = c(1, 1))
+      )),
+      weight
+    ),
+    selection_spec = NULL
   )
   input_spec <- list(
     type                 = "random_component_sd",
