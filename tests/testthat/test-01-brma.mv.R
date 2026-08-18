@@ -199,8 +199,10 @@ test_that("brma.mv fits known-V backend smoke models", {
   expect_false(any(grepl("Random Components", block_random_output,
                          fixed = TRUE)))
   expect_true(any(block_random_output == "Random"))
-  expect_true(any(grepl("estimate: sd(intercept)", block_random_output,
+  expect_true(any(grepl("sd(intercept)", block_random_output,
                         fixed = TRUE)))
+  expect_false(any(grepl("estimate: sd(intercept)", block_random_output,
+                         fixed = TRUE)))
   fit_block_random <- suppressWarnings(add_loo(fit_block_random))
   fit_block_random <- suppressWarnings(add_waic(fit_block_random))
   expect_s3_class(fit_block_random[["loo"]][["estimate"]], "loo")
