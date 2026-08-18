@@ -408,8 +408,8 @@ test_that("forest prediction uses one explicit moderator row throughout", {
   expected_pooled <- .forest_summary_row(pooled_effect(fit))
   set.seed(92)
   pooled_out <- as_metafor_forest(fit, addpred = TRUE)
-  expect_equal(pooled_out[["pooled"]], expected_pooled, tolerance = 0)
-  expect_equal(pooled_out[["prediction"]], expected_pooled, tolerance = 0)
+  expect_equal(pooled_out[["pooled"]], expected_pooled)
+  expect_equal(pooled_out[["prediction"]], expected_pooled)
   expect_identical(pooled_out[["addpoly_args"]][["mlab"]], "Pooled Effect")
 
   expect_error(

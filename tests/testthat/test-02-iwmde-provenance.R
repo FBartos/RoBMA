@@ -61,6 +61,10 @@ test_that("IWMDE contexts retain one source fingerprint across sibling uses", {
     },
     .package = "RoBMA"
   )
+  testthat::local_mocked_bindings(
+    JAGS_formula_internal_coordinate_priors = function(fit) list(),
+    .package = "BayesTools"
+  )
   object <- list(
     fit        = structure(list(), prior_list = list()),
     data       = list(measure = "GEN"),
@@ -179,7 +183,6 @@ test_that("semantic request provenance does not construct posterior-row plans", 
     },
     .package = "RoBMA"
   )
-
   request <- .iwmde_request_provenance(
     context         = list(),
     parameter       = "mu",
