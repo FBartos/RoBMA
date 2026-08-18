@@ -191,9 +191,8 @@
     !anyNA(match(active_population_rows, contribution_rows))
   empirical_active_mass <- length(active_population_rows) /
     length(conditioned_rows)
-  tolerance <- sqrt(.Machine$double.eps)
   if (!is.finite(active_mass) || active_mass <= 0 ||
-      abs(active_mass - empirical_active_mass) > tolerance) {
+      active_mass != empirical_active_mass) {
     stop("Inconsistent active mass for IWMDE contributions.", call. = FALSE)
   }
 
@@ -254,9 +253,8 @@
   indicator <- matrix(0, nrow = 1L, ncol = length(conditioned_rows))
   indicator[, match(active_population_rows, conditioned_rows)] <- 1
   empirical_active_mass <- mean(indicator)
-  tolerance <- sqrt(.Machine$double.eps)
   if (!is.finite(active_mass) || active_mass <= 0 ||
-      abs(active_mass - empirical_active_mass) > tolerance) {
+      active_mass != empirical_active_mass) {
     stop("Inconsistent active mass for IWMDE contributions.", call. = FALSE)
   }
 
