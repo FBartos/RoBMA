@@ -17,7 +17,7 @@ test_that("Chen boundary preflight preserves fallback without full construction"
     indicator_names   = character(),
     selection_spec    = list(jags_omega = "omega"),
     priors            = list(),
-    flat_prior_list   = list(),
+    flat_prior_list   = list(mu = TRUE, PET = TRUE, rho = TRUE),
     formula_inputs    = list()
   )
   rows          <- seq_len(nrow(samples))
@@ -95,7 +95,7 @@ test_that("Chen boundary preflight retains constant-column semantics", {
     indicator_names   = character(),
     selection_spec    = list(jags_omega = "omega"),
     priors            = list(),
-    flat_prior_list   = list(),
+    flat_prior_list   = list(mu = TRUE, PET = TRUE, rho = TRUE),
     formula_inputs    = list()
   )
 
@@ -125,7 +125,7 @@ test_that("Chen boundary preflight does not reject evaluation-only boundaries", 
     indicator_names   = character(),
     selection_spec    = list(jags_omega = "omega"),
     priors            = list(),
-    flat_prior_list   = list(),
+    flat_prior_list   = list(mu = TRUE, PET = TRUE),
     formula_inputs    = list()
   )
 

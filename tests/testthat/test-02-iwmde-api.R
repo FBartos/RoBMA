@@ -2563,7 +2563,8 @@ test_that("IWMDE Chen conditional-normal weights error on failed conditioning", 
       tau = c(0.3, 0.4, 0.5, 0.6)
     ),
     indicator_names = character(),
-    selection_spec  = NULL
+    selection_spec  = NULL,
+    flat_prior_list = list(mu = TRUE, tau = TRUE)
   )
 
   expect_error(

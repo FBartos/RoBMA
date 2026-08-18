@@ -814,19 +814,73 @@
 
 .iwmde_chen_is_global_conditioning_column <- function(context, column) {
 
-  return(
-    column == "mu" ||
-      startsWith(column, "mu_") ||
-      grepl("^mu\\[[0-9]+\\]$", column) ||
-      column %in% c("tau", "log_tau", "rho", "PET", "PEESE") ||
-      startsWith(column, "tau_") ||
-      startsWith(column, "log_tau_") ||
-      .iwmde_parameter_is_weightfunction_coordinate(
-        parameter       = column,
-        context         = context,
-        include_private = FALSE
+  column %in% .iwmde_chen_global_conditioning_columns(context)
+}
+
+
+.iwmde_chen_global_conditioning_columns <- function(context) {
+
+  context <- .iwmde_context_ensure_caches(context)
+  cache   <- context[["prior_cache"]]
+  key     <- "chen_global_conditioning_columns"
+  if (exists(key, envir = cache, inherits = FALSE)) {
+    return(get(key, envir = cache, inherits = FALSE))
+  }
+
+  sample_columns <- colnames(context[["posterior_samples"]])
+  prior_list     <- context[["flat_prior_list"]]
+  columns <- unique(unlist(lapply(names(prior_list), function(parameter) {
+    prior <- prior_list[[parameter]]
+    if (BayesTools::is.prior(prior) &&
+        (BayesTools::is.prior.point(prior) ||
+         BayesTools::is.prior.none(prior))) {
+      return(character())
+    }
+    matches <- sample_columns == parameter |
+      BayesTools::JAGS_indexed_parameter_columns(
+        columns   = sample_columns,
+        parameter = parameter
       )
-  )
+    matched <- sample_columns[matches]
+    if (!inherits(prior, "prior.simplex")) {
+      return(matched)
+    }
+
+    alpha <- prior[["parameters"]][["alpha"]]
+    if (!is.numeric(alpha) || length(alpha) < 2L) {
+      stop(
+        "Simplex conditioning metadata are invalid for '", parameter, "'.",
+        call. = FALSE
+      )
+    }
+    expected <- paste0(parameter, "[", seq_along(alpha), "]")
+    if (!all(expected %in% sample_columns)) {
+      stop(
+        "Simplex conditioning coordinates are missing for '", parameter,
+        "'. Refit the model with the current RoBMA/BayesTools build.",
+        call. = FALSE
+      )
+    }
+
+    expected[-length(expected)]
+  }), use.names = FALSE))
+
+  selection_columns <- sample_columns[vapply(
+    sample_columns,
+    .iwmde_parameter_is_weightfunction_coordinate,
+    logical(1),
+    context         = context,
+    include_private = FALSE
+  )]
+  columns <- unique(c(columns, selection_columns))
+  columns <- columns[
+    !columns %in% context[["indicator_names"]] &
+      !vapply(columns, .iwmde_parameter_is_indicator, logical(1)) &
+      !vapply(columns, .iwmde_parameter_is_local_latent, logical(1))
+  ]
+  assign(key, columns, envir = cache)
+
+  return(columns)
 }
 
 

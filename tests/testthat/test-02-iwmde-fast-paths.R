@@ -2395,7 +2395,8 @@ test_that("Chen conditional-normal weights match bivariate normal oracle", {
   context <- list(
     posterior_samples = samples,
     indicator_names   = character(),
-    selection_spec    = NULL
+    selection_spec    = NULL,
+    flat_prior_list   = list(mu = TRUE, PET = TRUE)
   )
 
   weight <- .iwmde_chen_conditional_normal_log_weight(
@@ -2480,7 +2481,8 @@ test_that("logit conditional Chen weights are proper on original scale", {
   context <- list(
     posterior_samples = samples,
     indicator_names   = character(),
-    selection_spec    = NULL
+    selection_spec    = NULL,
+    flat_prior_list   = list(rho = TRUE, mu = TRUE)
   )
 
   grid <- seq(.001, .999, length.out = 2000)
@@ -2677,6 +2679,49 @@ test_that("IWMDE parameter filters use selection-specific JAGS names", {
   expect_equal(
     .iwmde_parameter_spec(context, "custom.omega+beta[1]")[["status"]],
     "unsupported"
+  )
+})
+
+
+test_that("Chen conditioning uses independent fitted prior coordinates", {
+
+  columns <- c(
+    "mu_intercept",
+    "allocation_sd",
+    "weight[1]",
+    "weight[2]",
+    "prior_par_eta_weight[1]",
+    "prior_par_eta_weight[2]",
+    "derived_random_sd",
+    "random_latent[1]"
+  )
+  context <- list(
+    posterior_samples = matrix(
+      seq_len(24L),
+      nrow     = 3L,
+      dimnames = list(NULL, columns)
+    ),
+    flat_prior_list = list(
+      mu_intercept = BayesTools::prior(
+        "normal",
+        parameters = list(mean = 0, sd = 1)
+      ),
+      allocation_sd = BayesTools::prior(
+        "normal",
+        parameters = list(mean = 0, sd = 1)
+      ),
+      weight = BayesTools::prior(
+        "dirichlet",
+        parameters = list(alpha = c(1, 1))
+      )
+    ),
+    indicator_names = character(),
+    selection_spec  = NULL
+  )
+
+  expect_identical(
+    .iwmde_chen_global_conditioning_columns(context),
+    c("mu_intercept", "allocation_sd", "weight[1]")
   )
 })
 
