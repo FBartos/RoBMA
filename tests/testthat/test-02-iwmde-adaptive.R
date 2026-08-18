@@ -30,7 +30,7 @@ test_that("density curves and ordinates share the samples control", {
   density_iwmde <- .density_control_normalize("IWMDE", purpose = "density")
   ordinate      <- .density_control_normalize("qCMDE", purpose = "ordinate")
 
-  expect_equal(density_qcmde[["samples"]], 500L)
+  expect_equal(density_qcmde[["samples"]], 1000L)
   expect_equal(density_iwmde[["samples"]], 1000L)
   expect_equal(ordinate[["samples"]], 500L)
   expect_equal(ordinate[["target_relative_mcse"]], .05)

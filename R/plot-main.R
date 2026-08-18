@@ -55,7 +55,7 @@
 #' RoBMA does not infer a coefficient transformation from posterior draws.
 #' @param density_control named list of density-estimation settings. Supported
 #' entries are \code{n_points} (default \code{100}), \code{samples}
-#' (default \code{500} for qCMDE and \code{1000} for IWMDE density curves),
+#' (default \code{1000} for density curves),
 #' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 #' (default \code{"adaptive"}), \code{normalization_points} (default
 #' \code{NULL}, resolved to \code{max(50, n_points)}), and

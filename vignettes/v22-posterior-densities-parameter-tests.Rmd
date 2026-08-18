@@ -230,7 +230,7 @@ It can be seriously inaccurate at one-sided boundaries and at posterior ordinate
 | Setting | Default | Role |
 |:--|:--|:--|
 | `n_points` | `100` | Number of plotted density points; also determines the default initial normalization-grid size. |
-| `samples` | `500` for qCMDE curves and point ordinates; `1,000` for IWMDE curves | Maximum eligible posterior rows evaluated; use `Inf` for the census. |
+| `samples` | `1,000` for density curves; `500` for point ordinates | Maximum eligible posterior rows evaluated; use `Inf` for the census. |
 | `target_relative_mcse` | `0.05` | Warning target for point-ordinate relative Monte Carlo error. |
 | `normalization_points` | `NULL` | Initial hidden normalization-grid size; `NULL` resolves to `max(50, n_points)`. |
 | `normalization_prob` | `0.999` | Central posterior probability used to seed the hidden normalization range; qCMDE refines and extends that range. |

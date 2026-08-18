@@ -68,8 +68,7 @@ but is more sensitive to its fitted conditional weights.}
 
 \item{density_control}{named list of qCMDE/IWMDE density-estimation settings.
 Supported entries are \code{n_points} (default \code{100}),
-\code{samples} (default \code{500} for qCMDE and \code{1000} for
-IWMDE density curves),
+\code{samples} (default \code{1000} for density curves),
 \code{target_relative_mcse} (default \code{0.05}),
 \code{display_grid} (default \code{"adaptive"}),
 \code{normalization_points} (default \code{NULL}, resolved to
