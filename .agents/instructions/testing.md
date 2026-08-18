@@ -1,7 +1,8 @@
 # Testing
 
-Use this guide for changes under `tests/testthat/`, `tests/scenarios/`, or the
-test runners under `tools/`.
+Use this guide for changes under `tests/testthat/` or the ordinary test-profile
+runners under `tools/`. For maintainer analysis scenarios under
+`tests/scenarios/` or `tools/test-scenario.R`, use `scenarios.md` instead.
 
 ## Development Workflow
 
@@ -105,23 +106,6 @@ review every intentional visual change.
 
 Set `ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS=TRUE` only during an explicit snapshot
 regeneration workflow.
-
-## Maintainer Scenarios
-
-Maintainer analysis scenarios live in `tests/scenarios/` and are excluded from
-routine package tests. Use `scenario_fit()`, `scenario_text()`, and
-`scenario_plot()` after `scenario_start()`; do not duplicate their cache or
-snapshot logic in individual scenarios.
-
-Run one with `Rscript tools/test-scenario.R <name>`. Set
-`REGENERATE_SCENARIO_FILES <- TRUE` in the scenario, or pass `--regenerate`, to
-refit its models and replace all exercised text and plot baselines. Review every
-resulting diff. Set `SHOW_SCENARIO_OUTPUT <- TRUE` only while developing to echo
-tables and draw figures; leave it `FALSE` for quiet test runs.
-
-Fit caches under `tests/scenarios/cache/` are local and ignored. Text baselines
-under `results/` and vdiffr SVGs under `_snaps/` are committed. Missing
-baselines may be created locally but must fail on CI.
 
 ## Final Verification
 

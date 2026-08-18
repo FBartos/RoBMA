@@ -52,9 +52,23 @@ explicit target. It must not replace the current estimate target in place.
 ## Diagnostics and Prediction
 
 Marginal covariance consumers use `M = V + ZGZ'`. Same-data
-`predict.brma.mv(type = "response")` generates sampling and random-effect
-components marginally; `type = "estimate"` remains the fitted latent-effect
-target. Explicit prediction rows represent new true effects.
+`predict.brma.mv()` follows the same two-axis contract as `brma()`:
+
+- `type = "terms"` returns fixed location, `type = "estimate"` returns latent
+  true-effect draws, and `type = "response"` adds sampling error;
+- `conditioning_depth = "marginal"` draws all applicable random effects anew,
+  irrespective of `newdata = NULL` versus an equivalent explicit design;
+- `conditioning_depth = "estimate"` draws fitted latent effects from their
+  conditional posterior, including conditional uncertainty rather than only
+  Gaussian BLUP means;
+- cluster depth is unavailable for arbitrary random formulas because their
+  hierarchy does not identify one canonical cluster level.
+
+`newdata` selects design and identity, not conditioning. Non-marginal explicit
+rows must be rejected unless fitted identities can be validated. Marginal
+matching labels preserve joint new-draw dependence and never reuse fitted BLUPs.
+Response prediction preserves full `V`/`V_new` and joint `ZGZ'` dependence.
+Conditional means remain available through `blup()` and `fitted()`.
 
 Keep target metadata in `attr(x, "RoBMA_target")`. LOO comparisons must reject
 mismatched data, unit, conditioning depth, or likelihood target. Known-`R`

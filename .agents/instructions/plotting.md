@@ -39,6 +39,17 @@ When delegating to `predict.brma()`, this maps to
 `bias_adjusted = !sampling_bias`. Preserve this semantic in funnel and
 regression plots. Selection branches must use `.selection_context()`.
 
+## Predictive Targets
+
+Use the prediction notation and two-axis contract in root `AGENTS.md`.
+Regression/forest prediction intervals, normal-model outcome-mode funnel
+contours, and default z-plots target marginal new effects or responses.
+GLMM funnel contours and regression sampling bands are explicitly descriptive
+normal effect-size approximations, not discrete response predictions.
+Residual-mode plots inherit the explicitly requested residual conditioning
+depth; LOO-PIT remains the deletion-conditioned LOO target. Do not infer
+conditioning from whether a plot evaluates fitted rows or an explicit grid.
+
 ## API and Verification
 
 Use `plot_type = "base"` or `"ggplot"` where both backends are available.
