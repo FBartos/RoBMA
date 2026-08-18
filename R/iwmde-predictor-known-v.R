@@ -154,7 +154,8 @@
       blocks                       = blocks,
       sampling_latent_marginalized = TRUE
     ),
-    covariance_plan_cache = new.env(parent = emptyenv())
+    covariance_plan_cache            = new.env(parent = emptyenv()),
+    group_iid_plan_cache             = new.env(parent = emptyenv())
   )
   assign(key, setup, envir = cache)
 
@@ -162,10 +163,10 @@
 }
 
 
-.iwmde_log_q_grid_known_v_random_allocation_group <- function(
+.iwmde_log_q_grid_known_v_random_group_iid <- function(
     context, parameter, values, row_states, replacement, active_setup) {
 
-  plan <- .iwmde_known_v_random_allocation_cluster_plan(
+  plan <- .iwmde_known_v_random_group_iid_plan(
     context     = context,
     parameter   = parameter,
     replacement = replacement
@@ -181,8 +182,8 @@
     active_setup = active_setup,
     samples      = samples
   )
-  total_sd <- samples[, plan[["source_parameter"]]]
-  if (any(!is.finite(total_sd)) || any(total_sd < 0)) {
+  source_sd <- samples[, plan[["source_parameter"]]]
+  if (any(!is.finite(source_sd)) || any(source_sd < 0)) {
     return(NULL)
   }
 
@@ -193,32 +194,19 @@
     mu_samples <- -mu_samples
   }
 
-  K <- nrow(data[["outcome"]])
   S <- length(row_states)
-  rho <- if (plan[["target_is_cluster_fraction"]]) {
-    values
-  } else {
-    1 - values
-  }
-  valid   <- is.finite(rho) & rho >= 0 & rho <= 1
-  log_lik <- matrix(-Inf, nrow = length(values), ncol = S)
-  if (any(valid)) {
-    evaluated <- .log_lik_cluster_norm_analytic_rho_grid_sum(
-      setup = list(
-        mu        = mu_samples,
-        tau_total = matrix(total_sd, nrow = S, ncol = K),
-        cluster   = split(seq_len(K), plan[["cluster_map"]])
-      ),
-      yi  = yi,
-      vi  = plan[["sampling_variance"]],
-      rho = rho[valid]
-    )
-    if (!is.matrix(evaluated) ||
-        !identical(dim(evaluated), c(sum(valid), S)) ||
-        any(!is.finite(evaluated))) {
-      return(NULL)
-    }
-    log_lik[valid, ] <- evaluated
+  log_lik <- .iwmde_log_lik_known_v_random_group_iid_grid(
+    context    = context,
+    plan       = plan,
+    values     = values,
+    samples    = samples,
+    source_sd  = source_sd,
+    mu_samples = mu_samples,
+    yi         = yi
+  )
+  if (!is.matrix(log_lik) ||
+      !identical(dim(log_lik), c(length(values), S))) {
+    return(NULL)
   }
 
   log_prior <- .iwmde_predictor_log_prior(
@@ -236,19 +224,114 @@
 }
 
 
-.iwmde_known_v_random_allocation_cluster_plan <- function(
+.iwmde_log_lik_known_v_random_group_iid_grid <- function(
+    context, plan, values, samples, source_sd, mu_samples, yi) {
+
+  S    <- nrow(samples)
+  G    <- length(values)
+  mode <- plan[["target_mode"]]
+  valid <- is.finite(values) & values >= 0
+  if (identical(mode, "proportion")) {
+    valid <- valid & values <= 1
+  }
+  out <- matrix(-Inf, nrow = G, ncol = S)
+  if (!any(valid)) {
+    return(out)
+  }
+  setup <- .iwmde_known_v_random_marginal_setup(context)
+  unique_factor  <- plan[["unique_factor"]]
+  grouped_factor <- setdiff(seq_len(2L), unique_factor)
+  group_map      <- plan[["group_maps"]][[grouped_factor]]
+  single_group_blocks <- vapply(
+    setup[["dependency_blocks"]],
+    function(index) length(unique(group_map[index])) == 1L,
+    logical(1)
+  )
+  if (!all(single_group_blocks)) {
+    return(NULL)
+  }
+
+  valid_values <- values[valid]
+  if (identical(mode, "proportion")) {
+    rho <- if (identical(
+      plan[["target_index"]],
+      plan[["cluster_weight_index"]]
+    )) valid_values else 1 - valid_values
+    total_variance <- (
+      source_sd * plan[["source_to_total_sd"]]
+    )^2
+    group_variances    <- outer(rho, total_variance)
+    diagonal_variances <- outer(1 - rho, total_variance)
+  } else {
+    weight_columns <- paste0(
+      plan[["weight_parameter"]],
+      "[", seq_len(2L), "]"
+    )
+    if (!all(weight_columns %in% colnames(samples))) {
+      return(NULL)
+    }
+    weights <- samples[, weight_columns, drop = FALSE]
+    if (any(!is.finite(weights)) || any(weights < 0)) {
+      return(NULL)
+    }
+    factor_scales <- matrix(0, nrow = 2L, ncol = S)
+    if (identical(mode, "source_sd")) {
+      for (factor in seq_len(2L)) {
+        factor_scales[factor, ] <-
+          sqrt(weights[, plan[["factor_indices"]][[factor]]]) *
+          plan[["source_to_total_sd"]]
+      }
+    } else if (identical(mode, "component_sd")) {
+      target_weight <- weights[, plan[["target_index"]]]
+      if (any(target_weight <= 0)) {
+        return(NULL)
+      }
+      for (factor in seq_len(2L)) {
+        factor_scales[factor, ] <- sqrt(
+          weights[, plan[["factor_indices"]][[factor]]] / target_weight
+        )
+      }
+    } else {
+      return(NULL)
+    }
+    group_variances <- outer(
+      valid_values^2,
+      factor_scales[grouped_factor, ]^2
+    )
+    diagonal_variances <- outer(
+      valid_values^2,
+      factor_scales[unique_factor, ]^2
+    )
+  }
+  evaluated <- .marglik_covariance_plan_group_iid_variance_grid_loglik(
+    cache                   = setup[["group_iid_plan_cache"]],
+    y                       = as.double(yi),
+    means                   = mu_samples,
+    sampling_covariance     = setup[["sampling_covariance"]],
+    block_indices           = setup[["dependency_blocks"]],
+    group_variances         = group_variances,
+    diagonal_variances      = diagonal_variances
+  )
+  if (!is.matrix(evaluated) ||
+      !identical(dim(evaluated), c(sum(valid), S)) ||
+      any(!is.finite(evaluated))) {
+    return(NULL)
+  }
+  out[valid, ] <- evaluated
+  return(out)
+}
+
+
+.iwmde_known_v_random_group_iid_plan <- function(
     context, parameter, replacement) {
 
   data <- context[["data"]]
   if (!.iwmde_uses_known_v_random_marginal_likelihood(context) ||
-      .data_known_v_correlated(data) || .is_data_weights(data) ||
-      !identical(replacement[["type"]], "simplex_pair") ||
-      !identical(
-        parameter,
-        paste0(
-          replacement[["parameter"]],
-          "[", replacement[["index"]], "]"
-        )
+      .is_data_weights(data) ||
+      !replacement[["type"]] %in% c(
+        "scalar",
+        "simplex_pair",
+        "random_component_sd"
       )) {
     return(NULL)
   }
@@ -275,9 +358,14 @@
     model_matrix <- term[["model_matrix"]]
     group_map    <- term[["group_map"]]
     if (length(factors) != 1L ||
-        !identical(factors[[1L]][["weight_name"]],
-                   replacement[["parameter"]]) ||
-        !identical(factors[[1L]][["scale"]], "total_variance") ||
+        !is.character(factors[[1L]][["weight_name"]]) ||
+        length(factors[[1L]][["weight_name"]]) != 1L ||
+        is.na(factors[[1L]][["weight_name"]]) ||
+        !nzchar(factors[[1L]][["weight_name"]]) ||
+        !factors[[1L]][["scale"]] %in% c(
+          "total_variance",
+          "mean_variance"
+        ) ||
         !identical(factors[[1L]][["n_targets"]], 2L) ||
         !is.matrix(model_matrix) ||
         !identical(dim(model_matrix), c(K, 1L)) ||
@@ -291,6 +379,8 @@
     }
     list(
       index            = factors[[1L]][["index"]],
+      weight_parameter = factors[[1L]][["weight_name"]],
+      scale            = factors[[1L]][["scale"]],
       source_parameter = allocation[["source"]][["name"]],
       group_map        = as.integer(group_map),
       unique_groups    = !anyDuplicated(group_map)
@@ -301,29 +391,64 @@
   }
   indices <- vapply(term_plan, `[[`, integer(1), "index")
   sources <- vapply(term_plan, `[[`, character(1), "source_parameter")
+  weights <- vapply(term_plan, `[[`, character(1), "weight_parameter")
+  scales  <- vapply(term_plan, `[[`, character(1), "scale")
   unique_groups <- vapply(term_plan, `[[`, logical(1), "unique_groups")
   if (!identical(sort(indices), 1:2) || length(unique(sources)) != 1L ||
+      length(unique(weights)) != 1L || length(unique(scales)) != 1L ||
+      !scales[[1L]] %in% c("total_variance", "mean_variance") ||
       sum(unique_groups) != 1L ||
       !sources[[1L]] %in% colnames(context[["posterior_samples"]])) {
     return(NULL)
   }
 
-  cluster_term <- term_plan[[which(!unique_groups)]]
-  known_V      <- .marglik_known_v_covariance_matrix(
-    .data_known_v_data(data)
-  )
-  off_diagonal <- known_V
-  diag(off_diagonal) <- 0
-  if (any(off_diagonal != 0)) {
+  target_mode  <- NULL
+  target_index <- NA_integer_
+  if (identical(replacement[["type"]], "scalar") &&
+      identical(parameter, sources[[1L]])) {
+    target_mode <- "source_sd"
+  } else if (identical(replacement[["type"]], "simplex_pair") &&
+      identical(replacement[["parameter"]], weights[[1L]]) &&
+      identical(replacement[["n_targets"]], 2L) &&
+      identical(
+        parameter,
+        paste0(weights[[1L]], "[", replacement[["index"]], "]")
+      )) {
+    target_mode  <- "proportion"
+    target_index <- as.integer(replacement[["index"]])
+  } else if (identical(replacement[["type"]], "random_component_sd")) {
+    factors <- replacement[["factors"]]
+    factor  <- if (length(factors) == 1L) factors[[1L]] else NULL
+    if (identical(replacement[["source_parameter"]], sources[[1L]]) &&
+        is.list(factor) &&
+        identical(factor[["weight_name"]], weights[[1L]]) &&
+        identical(factor[["scale"]], scales[[1L]]) &&
+        identical(factor[["n_targets"]], 2L) &&
+        factor[["index"]] %in% 1:2) {
+      target_mode  <- "component_sd"
+      target_index <- as.integer(factor[["index"]])
+    }
+  }
+  if (is.null(target_mode)) {
     return(NULL)
   }
 
+  grouped_factor <- which(!unique_groups)
+
   list(
-    source_parameter           = sources[[1L]],
-    cluster_map                = cluster_term[["group_map"]],
-    target_is_cluster_fraction =
-      replacement[["index"]] == cluster_term[["index"]],
-    sampling_variance          = diag(known_V)
+    source_parameter  = sources[[1L]],
+    weight_parameter  = weights[[1L]],
+    factor_indices    = indices,
+    target_mode       = target_mode,
+    target_index      = target_index,
+    unique_factor     = which(unique_groups),
+    group_maps        = lapply(term_plan, `[[`, "group_map"),
+    cluster_weight_index = indices[[grouped_factor]],
+    source_to_total_sd = if (identical(scales[[1L]], "mean_variance")) {
+      sqrt(2)
+    } else {
+      1
+    }
   )
 }
 

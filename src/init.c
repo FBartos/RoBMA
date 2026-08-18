@@ -156,6 +156,9 @@ extern SEXP RoBMA_known_v_covariance_plan_loglik(SEXP pointer, SEXP mean,
 extern SEXP RoBMA_known_v_covariance_plan_loglik_batch(
     SEXP pointer, SEXP means, SEXP random_covariance_states,
     SEXP extra_variances);
+extern SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
+    SEXP pointer, SEXP means, SEXP group_variances,
+    SEXP diagonal_variances);
 extern SEXP RoBMA_known_v_covariance_plan_location_quadratic_batch(
     SEXP pointer, SEXP means, SEXP bases,
     SEXP random_covariance_states, SEXP extra_variances);
@@ -439,6 +442,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_known_v_covariance_plan_create", (DL_FUNC) &RoBMA_known_v_covariance_plan_create, 4},
     {"RoBMA_known_v_covariance_plan_loglik", (DL_FUNC) &RoBMA_known_v_covariance_plan_loglik, 4},
     {"RoBMA_known_v_covariance_plan_loglik_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_loglik_batch, 4},
+    {"RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik", (DL_FUNC) &RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik, 4},
     {"RoBMA_known_v_covariance_plan_location_quadratic_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_location_quadratic_batch, 5},
     {"RoBMA_known_v_covariance_plan_conditional_loglik", (DL_FUNC) &RoBMA_known_v_covariance_plan_conditional_loglik, 4},
     {"RoBMA_known_v_covariance_plan_conditional_loglik_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_conditional_loglik_batch, 4},

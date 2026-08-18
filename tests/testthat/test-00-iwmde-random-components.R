@@ -178,12 +178,23 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
     data = list(outcome = data.frame(yi = yi))
   )
   testthat::local_mocked_bindings(
-    .iwmde_known_v_random_allocation_cluster_plan = function(...) {
+    .iwmde_known_v_random_group_iid_plan = function(...) {
       list(
-        source_parameter           = "tau",
-        cluster_map                = cluster_map,
-        target_is_cluster_fraction = TRUE,
-        sampling_variance          = vi
+        source_parameter   = "tau",
+        target_mode        = "proportion",
+        target_index       = 2L,
+        unique_factor      = 1L,
+        group_maps         = list(seq_along(cluster_map), cluster_map),
+        cluster_weight_index = 2L,
+        source_to_total_sd = 1,
+        factor_indices     = 1:2
+      )
+    },
+    .iwmde_known_v_random_marginal_setup = function(...) {
+      list(
+        sampling_covariance = diag(vi),
+        dependency_blocks   = unname(split(seq_along(cluster_map), cluster_map)),
+        group_iid_plan_cache = new.env(parent = emptyenv())
       )
     },
     .iwmde_predictor_evaluate_fixed_mu = function(...) mu_samples,
@@ -194,7 +205,7 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
     .package = "RoBMA"
   )
 
-  actual <- .iwmde_log_q_grid_known_v_random_allocation_group(
+  actual <- .iwmde_log_q_grid_known_v_random_group_iid(
     context      = context,
     parameter    = "rho[2]",
     values       = values,

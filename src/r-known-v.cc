@@ -189,6 +189,196 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_loglik_batch(
   return out;
 }
 
+extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
+    SEXP pointer,
+    SEXP means,
+    SEXP group_variances,
+    SEXP diagonal_variances)
+{
+  CovariancePlan *plan = plan_pointer(pointer);
+  if (TYPEOF(means) != REALSXP || !Rf_isMatrix(means) ||
+      TYPEOF(group_variances) != REALSXP ||
+      !Rf_isMatrix(group_variances) ||
+      TYPEOF(diagonal_variances) != REALSXP ||
+      !Rf_isMatrix(diagonal_variances)) {
+    Rf_error(
+      "Known-V group-IID grid inputs must be numeric matrices."
+    );
+  }
+  if (!plan->factors.empty()) {
+    Rf_error("Known-V group-IID grid plans cannot contain random factors.");
+  }
+  SEXP mean_dim = Rf_getAttrib(means, R_DimSymbol);
+  SEXP group_dim = Rf_getAttrib(group_variances, R_DimSymbol);
+  SEXP diagonal_dim = Rf_getAttrib(diagonal_variances, R_DimSymbol);
+  const int draws = INTEGER(mean_dim)[1];
+  const int grids = INTEGER(group_dim)[0];
+  if (INTEGER(mean_dim)[0] != plan->n ||
+      grids < 1 ||
+      INTEGER(group_dim)[1] != draws ||
+      INTEGER(diagonal_dim)[0] != grids ||
+      INTEGER(diagonal_dim)[1] != draws) {
+    Rf_error("Known-V group-IID grid inputs have inconsistent dimensions.");
+  }
+  const double *mean_values = REAL(means);
+  const double *group_values = REAL(group_variances);
+  const double *diagonal_values = REAL(diagonal_variances);
+  for (int index = 0; index < grids * draws; ++index) {
+    if (!std::isfinite(group_values[index]) || group_values[index] < 0.0 ||
+        !std::isfinite(diagonal_values[index]) ||
+        diagonal_values[index] < 0.0) {
+      Rf_error(
+        "Known-V group-IID variances must be finite and non-negative."
+      );
+    }
+  }
+
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, grids, draws));
+  std::fill(
+    REAL(out),
+    REAL(out) + static_cast<size_t>(grids) * static_cast<size_t>(draws),
+    0.0
+  );
+  size_t max_block_size = 0;
+  for (const BlockPlan &block : plan->blocks) {
+    max_block_size = std::max(max_block_size, block.index.size());
+  }
+  std::vector<double> sampling(max_block_size * max_block_size);
+  std::vector<double> eigenvectors(max_block_size * max_block_size);
+  std::vector<double> eigenvalues(max_block_size);
+  std::vector<double> group_loading(max_block_size);
+  std::vector<double> residual(max_block_size);
+  std::vector<double> transformed_residual(max_block_size);
+  std::vector<double> covariance(max_block_size * max_block_size);
+  const int lwork = std::max(1, 3 * static_cast<int>(max_block_size) - 1);
+  std::vector<double> eigen_work(static_cast<size_t>(lwork));
+  const double log_two_pi = 1.837877066409345483560659472811;
+
+  for (const BlockPlan &block : plan->blocks) {
+    const int size = static_cast<int>(block.index.size());
+    for (int column = 0; column < size; ++column) {
+      const int global_column = block.index[static_cast<size_t>(column)];
+      for (int row = 0; row < size; ++row) {
+        const int global_row = block.index[static_cast<size_t>(row)];
+        sampling[static_cast<size_t>(row + size * column)] =
+          plan->sampling_covariance[static_cast<size_t>(
+            global_row + plan->n * global_column
+          )];
+      }
+    }
+    std::copy(
+      sampling.begin(),
+      sampling.begin() + static_cast<size_t>(size * size),
+      eigenvectors.begin()
+    );
+    int info = 0;
+    F77_CALL(dsyev)(
+      "V", "L", &size, eigenvectors.data(), &size,
+      eigenvalues.data(), eigen_work.data(), &lwork, &info FCONE FCONE
+    );
+    if (info != 0) {
+      Rf_error("Known-V sampling covariance eigendecomposition failed.");
+    }
+    for (int eigen = 0; eigen < size; ++eigen) {
+      double loading = 0.0;
+      for (int row = 0; row < size; ++row) {
+        loading += eigenvectors[static_cast<size_t>(row + size * eigen)];
+      }
+      group_loading[static_cast<size_t>(eigen)] = loading;
+    }
+
+    for (int draw = 0; draw < draws; ++draw) {
+      const double *draw_mean = mean_values +
+        static_cast<size_t>(draw) * static_cast<size_t>(plan->n);
+      for (int row = 0; row < size; ++row) {
+        const int global = block.index[static_cast<size_t>(row)];
+        const double mean = draw_mean[global];
+        if (!std::isfinite(mean)) {
+          Rf_error("Known-V bridge means must be finite.");
+        }
+        residual[static_cast<size_t>(row)] =
+          plan->y[static_cast<size_t>(global)] - mean;
+      }
+      for (int eigen = 0; eigen < size; ++eigen) {
+        double value = 0.0;
+        for (int row = 0; row < size; ++row) {
+          value += eigenvectors[static_cast<size_t>(row + size * eigen)] *
+            residual[static_cast<size_t>(row)];
+        }
+        transformed_residual[static_cast<size_t>(eigen)] = value;
+      }
+
+      for (int grid = 0; grid < grids; ++grid) {
+        const size_t variance_index = static_cast<size_t>(grid) +
+          static_cast<size_t>(grids) * static_cast<size_t>(draw);
+        const double diagonal_variance = diagonal_values[variance_index];
+        const double group_variance = group_values[variance_index];
+
+        double log_determinant = 0.0;
+        double quadratic = 0.0;
+        double group_precision = 0.0;
+        double group_residual = 0.0;
+        bool use_dense_reference = false;
+        for (int eigen = 0; eigen < size; ++eigen) {
+          const double variance =
+            eigenvalues[static_cast<size_t>(eigen)] + diagonal_variance;
+          if (!(variance > 0.0) || !std::isfinite(variance)) {
+            use_dense_reference = true;
+            break;
+          }
+          const double loading = group_loading[static_cast<size_t>(eigen)];
+          const double transformed =
+            transformed_residual[static_cast<size_t>(eigen)];
+          log_determinant += std::log(variance);
+          quadratic += transformed * transformed / variance;
+          group_precision += loading * loading / variance;
+          group_residual += loading * transformed / variance;
+        }
+        const double update = 1.0 + group_variance * group_precision;
+        if (!(update > 0.0) || !std::isfinite(update)) {
+          use_dense_reference = true;
+        }
+
+        double block_log_likelihood = 0.0;
+        if (use_dense_reference) {
+          for (int column = 0; column < size; ++column) {
+            for (int row = 0; row < size; ++row) {
+              covariance[static_cast<size_t>(row + size * column)] =
+                sampling[static_cast<size_t>(row + size * column)] +
+                group_variance +
+                (row == column ? diagonal_variance : 0.0);
+            }
+          }
+          std::copy(
+            residual.begin(),
+            residual.begin() + static_cast<size_t>(size),
+            transformed_residual.begin()
+          );
+          block_log_likelihood = cholesky_block_log_likelihood(
+            size, covariance.data(), transformed_residual.data()
+          );
+        } else {
+          log_determinant += std::log(update);
+          quadratic -= group_variance * group_residual * group_residual /
+            update;
+          block_log_likelihood = -0.5 * (
+            static_cast<double>(size) * log_two_pi +
+            log_determinant + quadratic
+          );
+        }
+        REAL(out)[static_cast<size_t>(grid) +
+          static_cast<size_t>(grids) * static_cast<size_t>(draw)] +=
+          block_log_likelihood;
+      }
+    }
+  }
+
+  UNPROTECT(1);
+  return out;
+}
+
+
+
 extern "C" SEXP RoBMA_known_v_covariance_plan_location_quadratic_batch(
     SEXP pointer,
     SEXP means,

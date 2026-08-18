@@ -3214,7 +3214,7 @@ test_that("fixed-mu reuse follows persisted indirect formula dependencies", {
 test_that("known-V random predictor fallbacks remain marginal", {
 
   testthat::local_mocked_bindings(
-    .iwmde_log_q_grid_known_v_random_allocation_group = function(...) NULL,
+    .iwmde_log_q_grid_known_v_random_group_iid = function(...) NULL,
     .iwmde_predictor_setup = function(...) list(),
     .iwmde_predictor_update_basis = function(...) {
       list(formula_mu = TRUE)

@@ -203,8 +203,8 @@
   } else {
     "estimate"
   }
-  random_allocation_out <-
-    .iwmde_log_q_grid_known_v_random_allocation_group(
+  random_scalar_out <-
+    .iwmde_log_q_grid_known_v_random_group_iid(
       context      = context,
       parameter    = parameter,
       values       = values,
@@ -212,8 +212,8 @@
       replacement  = replacement,
       active_setup = active_setup
     )
-  if (is.matrix(random_allocation_out)) {
-    return(random_allocation_out)
+  if (is.matrix(random_scalar_out)) {
+    return(random_scalar_out)
   }
   setup <- .iwmde_predictor_setup(
     context      = context,

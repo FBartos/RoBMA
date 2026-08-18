@@ -491,6 +491,64 @@ test_that("batched covariance-plan likelihood preserves draw-specific states", {
   expect_equal(actual, expected, tolerance = 1e-12)
 })
 
+test_that("group-IID variance grid equals full-covariance likelihoods", {
+
+  y <- c(0.1, -0.2, 0.3, 0.05)
+  sampling_covariance <- matrix(
+    c(
+      0.06, 0.015, 0, 0,
+      0.015, 0.05, 0, 0,
+      0, 0, 0.08, 0.02,
+      0, 0, 0.02, 0.07
+    ),
+    nrow = 4L,
+    byrow = TRUE
+  )
+  group_maps <- list(c(1L, 1L, 2L, 2L), seq_len(4L))
+  means <- rbind(
+    c(0.02, 0.02, -0.01, -0.01),
+    c(-0.03, 0.01, 0.04, 0.02)
+  )
+  multipliers <- c(0, 0.6, 1.5)
+  group_variances <- outer(
+    multipliers^2,
+    c(0.3, 0.5)^2
+  )
+  diagonal_variances <- outer(
+    multipliers^2,
+    c(0.2, 0.4)^2
+  )
+
+  actual <- .marglik_covariance_plan_group_iid_variance_grid_loglik(
+    cache                    = new.env(parent = emptyenv()),
+    y                        = y,
+    means                    = means,
+    sampling_covariance      = sampling_covariance,
+    block_indices            = list(1:2, 3:4),
+    group_variances          = group_variances,
+    diagonal_variances       = diagonal_variances
+  )
+  expected <- vapply(seq_len(nrow(means)), function(draw) {
+    vapply(seq_along(multipliers), function(grid) {
+      covariance <- sampling_covariance
+      covariance <- covariance +
+        outer(group_maps[[1L]], group_maps[[1L]], "==") *
+        group_variances[grid, draw] +
+        diag(
+          diagonal_variances[grid, draw],
+          nrow = length(y)
+        )
+      .marglik_mvn_log_density(
+        y = y,
+        mean = means[draw, ],
+        covariance = covariance
+      )
+    }, numeric(1))
+  }, numeric(length(multipliers)))
+
+  expect_equal(actual, expected, tolerance = 2e-12)
+})
+
 test_that("native covariance plan reuses exact low-rank group geometry", {
 
   y <- c(0.1, -0.2, 0.3, 0.05, -0.1, 0.2, -0.05, 0.15)
