@@ -2452,15 +2452,73 @@ test_that("Chen Gaussian weights preserve represented small scales", {
 })
 
 
-test_that("Chen conditioning transforms do not clip support violations", {
+test_that("Chen conditioning transforms follow declared prior support", {
 
-  unit <- .iwmde_chen_transform_unit_interval(
-    c(0, 1, -.Machine$double.eps, 1 + .Machine$double.eps),
-    c(0, 1)
+  context <- list(
+    flat_prior_list = list(
+      arbitrary_beta = BayesTools::prior(
+        "beta",
+        parameters = list(alpha = 2, beta = 3)
+      ),
+      arbitrary_gamma = BayesTools::prior(
+        "gamma",
+        parameters = list(shape = 2, rate = 3)
+      ),
+      arbitrary_cor = BayesTools::prior(
+        "uniform",
+        parameters = list(a = -1, b = 1)
+      ),
+      upper = BayesTools::prior(
+        "normal",
+        parameters = list(mean = 0, sd = 1),
+        truncation = list(lower = -Inf, upper = 3)
+      ),
+      weight = BayesTools::prior(
+        "dirichlet",
+        parameters = list(alpha = c(1, 1))
+      ),
+      unrestricted = BayesTools::prior(
+        "normal",
+        parameters = list(mean = 0, sd = 1)
+      )
+    ),
+    selection_spec = NULL
   )
-  nonnegative <- .iwmde_chen_transform_nonnegative(
+  unit <- .iwmde_chen_transform_conditioning_column(
+    context,
+    c(0, 1, -.Machine$double.eps, 1 + .Machine$double.eps),
+    c(0, 1),
+    "arbitrary_beta"
+  )
+  nonnegative <- .iwmde_chen_transform_conditioning_column(
+    context,
     c(-.Machine$double.xmin, 0, .Machine$double.xmin),
-    0
+    0,
+    "arbitrary_gamma"
+  )
+  correlation <- .iwmde_chen_transform_conditioning_column(
+    context,
+    c(-0.5, 0, 0.5),
+    0,
+    "arbitrary_cor"
+  )
+  upper <- .iwmde_chen_transform_conditioning_column(
+    context,
+    c(2, 3, 4),
+    3,
+    "upper"
+  )
+  simplex <- .iwmde_chen_transform_conditioning_column(
+    context,
+    c(0.25, 0.75),
+    0.5,
+    "weight[1]"
+  )
+  unrestricted <- .iwmde_chen_transform_conditioning_column(
+    context,
+    c(-2, 2),
+    0,
+    "unrestricted"
   )
 
   expect_identical(unit[["fit"]], c(-Inf, Inf, NA_real_, NA_real_))
@@ -2468,6 +2526,10 @@ test_that("Chen conditioning transforms do not clip support violations", {
     nonnegative[["fit"]],
     c(NA_real_, 0, log1p(.Machine$double.xmin))
   )
+  expect_equal(correlation[["fit"]], stats::qlogis(c(0.25, 0.5, 0.75)))
+  expect_identical(upper[["fit"]], c(-log(2), 0, NA_real_))
+  expect_equal(simplex[["fit"]], stats::qlogis(c(0.25, 0.75)))
+  expect_identical(unrestricted[["fit"]], c(-2, 2))
 })
 
 

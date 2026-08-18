@@ -640,13 +640,6 @@
     ))
   }
 
-  .iwmde_chen_preflight_boundary_columns(
-    context     = context,
-    columns     = columns,
-    active_rows = active_rows,
-    weight_rows = weight_rows
-  )
-
   fit_values  <- matrix(NA_real_, nrow = length(weight_rows), ncol = length(columns))
   eval_values <- matrix(NA_real_, nrow = length(active_rows), ncol = length(columns))
   colnames(fit_values)  <- columns
@@ -721,58 +714,6 @@
     eval    = eval_values,
     columns = columns
   ))
-}
-
-
-.iwmde_chen_preflight_boundary_columns <- function(context, columns,
-                                                    active_rows, weight_rows) {
-
-  omega_coordinates <- if (!is.null(context[["selection_spec"]])) {
-    context[["selection_spec"]][["jags_omega"]]
-  } else {
-    character()
-  }
-  boundary_columns <- columns[
-    columns == "rho" |
-      vapply(columns, function(column) {
-        .iwmde_parameter_matches_coordinate(column, omega_coordinates)
-      }, logical(1))
-  ]
-  if (length(boundary_columns) == 0L) {
-    return(invisible(TRUE))
-  }
-
-  samples <- context[["posterior_samples"]]
-  for (column in boundary_columns) {
-    raw_fit <- .iwmde_parameter_column_values(
-      context   = context,
-      samples   = samples[weight_rows, , drop = FALSE],
-      parameter = column
-    )
-    raw_eval <- .iwmde_parameter_column_values(
-      context   = context,
-      samples   = samples[active_rows, , drop = FALSE],
-      parameter = column
-    )
-    raw_values <- c(raw_fit, raw_eval)
-    if (all(is.finite(raw_values)) && length(unique(raw_values)) == 1L) {
-      next
-    }
-
-    transformed <- .iwmde_chen_transform_conditioning_column(
-      context     = context,
-      fit_values  = raw_fit,
-      eval_values = raw_eval,
-      column      = column
-    )
-    if (any(!is.finite(transformed[["fit"]]))) {
-      .iwmde_chen_conditional_stop(
-        "conditioning fit columns contain non-finite transformed values"
-      )
-    }
-  }
-
-  return(invisible(TRUE))
 }
 
 
@@ -889,12 +830,6 @@
                                                       eval_values,
                                                       column) {
 
-  if (column == "tau" || startsWith(column, "tau_")) {
-    return(.iwmde_chen_transform_nonnegative(fit_values, eval_values))
-  }
-  if (column == "rho") {
-    return(.iwmde_chen_transform_unit_interval(fit_values, eval_values))
-  }
   omega_coordinates <- if (!is.null(context[["selection_spec"]])) {
     context[["selection_spec"]][["jags_omega"]]
   } else {
@@ -903,12 +838,30 @@
   if (.iwmde_parameter_matches_coordinate(column, omega_coordinates)) {
     return(.iwmde_chen_transform_omega(fit_values, eval_values))
   }
-  if (column == "log_tau" ||
-      startsWith(column, "log_tau_")) {
-    return(list(
-      fit  = as.numeric(fit_values),
-      eval = as.numeric(eval_values)
-    ))
+
+  support <- .iwmde_chen_conditioning_support(context, column)
+  if (!is.null(support)) {
+    if (all(is.finite(support))) {
+      return(.iwmde_chen_transform_bounded(
+        fit_values,
+        eval_values,
+        support
+      ))
+    }
+    if (is.finite(support[[1L]])) {
+      return(.iwmde_chen_transform_lower_bounded(
+        fit_values,
+        eval_values,
+        support[[1L]]
+      ))
+    }
+    if (is.finite(support[[2L]])) {
+      return(.iwmde_chen_transform_upper_bounded(
+        fit_values,
+        eval_values,
+        support[[2L]]
+      ))
+    }
   }
 
   return(list(
@@ -918,24 +871,73 @@
 }
 
 
-.iwmde_chen_transform_nonnegative <- function(fit_values, eval_values) {
+.iwmde_chen_conditioning_support <- function(context, column) {
+
+  prior_name <- .iwmde_parameter_prior_name(context, column)
+  if (is.null(prior_name)) {
+    return(NULL)
+  }
+  prior <- context[["flat_prior_list"]][[prior_name]]
+  if (inherits(prior, "prior.simplex")) {
+    return(c(0, 1))
+  }
+  if (BayesTools::is.prior.mixture(prior)) {
+    supports <- vapply(prior, .iwmde_prior_support, numeric(2))
+    same_support <- ncol(supports) > 0L && all(vapply(
+      seq_len(ncol(supports)),
+      function(i) identical(supports[, i], supports[, 1L]),
+      logical(1)
+    ))
+    if (!same_support) {
+      return(NULL)
+    }
+    return(supports[, 1L])
+  }
+  if (!BayesTools::is.prior(prior)) {
+    return(NULL)
+  }
+
+  .iwmde_prior_support(prior)
+}
+
+
+.iwmde_chen_transform_lower_bounded <- function(fit_values, eval_values,
+                                                lower) {
 
   fit  <- as.numeric(fit_values)
   eval <- as.numeric(eval_values)
-  fit[fit < 0]   <- NA_real_
-  eval[eval < 0] <- NA_real_
+  fit[fit < lower]   <- NA_real_
+  eval[eval < lower] <- NA_real_
 
   return(list(
-    fit  = log1p(fit),
-    eval = log1p(eval)
+    fit  = log1p(fit - lower),
+    eval = log1p(eval - lower)
   ))
 }
 
 
-.iwmde_chen_transform_unit_interval <- function(fit_values, eval_values) {
+.iwmde_chen_transform_upper_bounded <- function(fit_values, eval_values,
+                                                upper) {
 
   fit  <- as.numeric(fit_values)
   eval <- as.numeric(eval_values)
+  fit[fit > upper]   <- NA_real_
+  eval[eval > upper] <- NA_real_
+
+  return(list(
+    fit  = -log1p(upper - fit),
+    eval = -log1p(upper - eval)
+  ))
+}
+
+
+.iwmde_chen_transform_bounded <- function(fit_values, eval_values, support) {
+
+  lower <- support[[1L]]
+  upper <- support[[2L]]
+  width <- upper - lower
+  fit   <- (as.numeric(fit_values) - lower) / width
+  eval  <- (as.numeric(eval_values) - lower) / width
   fit[fit < 0 | fit > 1]     <- NA_real_
   eval[eval < 0 | eval > 1] <- NA_real_
 
@@ -954,8 +956,8 @@
   finite     <- all_values[is.finite(all_values)]
   if (length(finite) > 0L && min(finite) >= 0 &&
       max(finite) <= 1) {
-    return(.iwmde_chen_transform_unit_interval(fit, eval))
+    return(.iwmde_chen_transform_bounded(fit, eval, c(0, 1)))
   }
 
-  return(.iwmde_chen_transform_nonnegative(fit, eval))
+  return(.iwmde_chen_transform_lower_bounded(fit, eval, 0))
 }
