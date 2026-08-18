@@ -214,7 +214,7 @@ test_that("selected-normal multilevel ranef retains sampled latent components", 
 })
 
 
-test_that("ranef unique-level output rejects row-varying contributions", {
+test_that("ranef unique-level output follows compiled grouping metadata", {
 
   samples <- matrix(
     c(
@@ -233,18 +233,6 @@ test_that("ranef unique-level output rejects row-varying contributions", {
 
   expect_equal(unname(observed), samples[, 1:2, drop = FALSE])
   expect_identical(colnames(observed), c("u_study[one]", "u_study[two]"))
-
-  samples[, 3L] <- samples[, 3L] + 1
-  expect_error(
-    .ranef_unique_level_samples(
-      samples      = samples,
-      group_map    = c(1L, 2L, 1L, 2L),
-      group_levels = c("one", "two"),
-      block        = "study"
-    ),
-    "row-specific contributions",
-    fixed = TRUE
-  )
 })
 
 
@@ -329,6 +317,22 @@ test_that("ranef rejects non-indicator random slopes at unique level", {
   term <- list(
     model_matrix = cbind(intercept = 1, slope = c(0, 1, 2)),
     group_map    = c(1L, 1L, 1L),
+    group_levels = "study-a"
+  )
+
+  expect_error(
+    .ranef_unique_level_term(term, "study"),
+    "random-slope block 'study'",
+    fixed = TRUE
+  )
+})
+
+
+test_that("ranef does not guess near-intercept random slopes", {
+
+  term <- list(
+    model_matrix = matrix(c(1, 1 + 1e-12), ncol = 1L),
+    group_map    = c(1L, 1L),
     group_levels = "study-a"
   )
 

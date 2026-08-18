@@ -1370,23 +1370,6 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   }
   level_rows <- match(group_order, group_map)
 
-  tolerance <- sqrt(.Machine$double.eps) * max(1, abs(samples))
-  for (group in seq_len(n_groups)) {
-    rows <- which(group_map == group)
-    if (length(rows) < 2L) {
-      next
-    }
-    reference  <- samples[, rows[[1L]]]
-    difference <- abs(sweep(samples[, rows, drop = FALSE], 1L, reference))
-    if (any(difference > tolerance)) {
-      stop(
-        "Unique-level random effects are unavailable for block '", block,
-        "' because it has row-specific contributions. Use 'expand = TRUE'.",
-        call. = FALSE
-      )
-    }
-  }
-
   out <- samples[, level_rows, drop = FALSE]
   colnames(out) <- paste0(
     "u_", block, "[", group_levels[group_order], "]"
@@ -1399,8 +1382,9 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 .ranef_unique_level_term <- function(term, block) {
 
   model_matrix <- term[["model_matrix"]]
-  is_intercept <- is.matrix(model_matrix) && ncol(model_matrix) == 1L &&
-    all(abs(model_matrix[, 1L] - 1) <= sqrt(.Machine$double.eps))
+  is_intercept <- is.matrix(model_matrix) && is.numeric(model_matrix) &&
+    ncol(model_matrix) == 1L && all(is.finite(model_matrix)) &&
+    all(model_matrix[, 1L] == 1)
   if (is_intercept) {
     return(list(
       group_map    = term[["group_map"]],
