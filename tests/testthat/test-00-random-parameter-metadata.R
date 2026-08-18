@@ -81,12 +81,14 @@ test_that("random-parameter sources are consumed from the BayesTools catalog", {
   mapping <- function(role, owner_type, owner_name, quantity,
                       arguments = character(), source_type = "identity",
                       source_parameter = "", source_prior = "",
-                      source_transform = "identity", source_scale = 1) {
+                      source_transform = "identity", source_scale = 1,
+                      allocation_derived = FALSE) {
     list(
       role = role, owner_type = owner_type, owner_name = owner_name,
       quantity = quantity, arguments = arguments, source_type = source_type,
       source_parameter = source_parameter, source_prior = source_prior,
-      source_transform = source_transform, source_scale = source_scale
+      source_transform = source_transform, source_scale = source_scale,
+      allocation_derived = allocation_derived
     )
   }
   mappings <- list(
@@ -117,6 +119,7 @@ test_that("random-parameter sources are consumed from the BayesTools catalog", {
   )
   expect_equal(specs[["owner_name"]], c("total", "total", rep("study", 3L)))
   expect_identical(specs[["source_transform"]][4L], "fisher_z")
+  expect_false(any(specs[["allocation_derived"]]))
 })
 
 
@@ -217,7 +220,7 @@ test_that("random qCMDE targets retain stored semantic coordinates", {
       display_transform = list(type = "tanh"),
       label            = "study: cor"
     ),
-    samples = matrix(tanh(z), ncol = 1L)
+    samples = matrix(NA_real_, nrow = length(z), ncol = 1L)
   )
   testthat::local_mocked_bindings(
     .brma_random_parameter_select = function(...) selected,
@@ -256,7 +259,7 @@ test_that("bivariate LKJ correlations expose their scalar qCMDE coordinate", {
       display_transform = list(type = "affine", offset = -1, scale = 2),
       label            = "study: cor(group[sensitivity],group[specificity])"
     ),
-    samples = matrix(-1 + 2 * probability, ncol = 1L)
+    samples = matrix(NA_real_, nrow = length(probability), ncol = 1L)
   )
   testthat::local_mocked_bindings(
     .brma_random_parameter_select = function(...) selected,
@@ -302,7 +305,7 @@ test_that("variance aggregates expose squared-SD qCMDE coordinates", {
       display_transform = list(type = "square"),
       label            = "var_common"
     ),
-    samples = matrix(common_sd^2, ncol = 1L)
+    samples = matrix(NA_real_, nrow = length(common_sd), ncol = 1L)
   )
   testthat::local_mocked_bindings(
     .brma_random_parameter_select = function(...) selected,
@@ -353,14 +356,15 @@ test_that("random qCMDE targets support general simplex allocations", {
   selected <- list(
     spec = list(
       quantity          = "var_ratio",
-      source_type      = "one_to_one_transform",
+      evaluator         = "allocation",
+      source_type       = "one_to_one_transform",
       source_parameter = "allocation",
-      source_transform = "identity",
+      source_transform = "var_ratio",
       display_transform = list(type = "affine", offset = 0, scale = 3),
       label             = "allocation: var_ratio(study)",
       allocation_index  = 2L
     ),
-    samples      = matrix(3 * weights[, 2L], ncol = 1L),
+    samples      = matrix(NA_real_, nrow = nrow(weights), ncol = 1L),
     prior        = summary_prior,
     source_prior = source_prior,
     allocation_definition = list(
@@ -385,6 +389,84 @@ test_that("random qCMDE targets support general simplex allocations", {
     target[["display_transform"]],
     list(type = "affine", offset = 0, scale = 3)
   )
+})
+
+
+test_that("allocated component SD targets use declared catalog provenance", {
+
+  posterior <- cbind(
+    tau = c(0.5, 0.8),
+    `weight[1]` = c(0.25, 0.4),
+    `weight[2]` = c(0.75, 0.6),
+    `prior_par_eta_weight[1]` = c(1, 2),
+    `prior_par_eta_weight[2]` = c(3, 3)
+  )
+  allocation <- list(
+    target               = "sd_component",
+    source               = list(name = "tau", shape = "scalar"),
+    parent_factors       = list(),
+    weight_name          = "weight",
+    scale                = "mean_variance",
+    n_targets            = 2L,
+    leaf_index_by_column = 1:2
+  )
+  term <- list(
+    block_name         = "study",
+    group_label        = "study",
+    structure          = "diag",
+    sd_component_terms = c("a", "b"),
+    sd_binding = list(
+      true_allocation = TRUE,
+      allocations     = list(allocation)
+    )
+  )
+  fit <- structure(
+    list(mcmc = posterior),
+    formula_design = list(list(
+      parameter      = "mu",
+      random_effects = list(term)
+    ))
+  )
+  selected <- list(
+    spec = list(
+      quantity           = "sd",
+      evaluator          = "sd",
+      source_type        = "composite",
+      allocation_derived = TRUE,
+      formula_parameter  = "mu",
+      block              = "study",
+      grouping           = "",
+      random_component   = "a",
+      label              = "study: sd(a)",
+      display_transform  = NULL
+    ),
+    samples = matrix(NA_real_, nrow = nrow(posterior), ncol = 1L)
+  )
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_select = function(...) selected,
+    .package = "RoBMA"
+  )
+
+  target <- .brma_random_parameter_density_target(
+    list(fit = fit),
+    "study: sd(a)"
+  )
+  expect_identical(target[["parameter"]], "tau")
+  expect_identical(
+    target[["parameter_spec"]][["type"]],
+    "random_component_sd"
+  )
+  expect_identical(
+    target[["parameter_spec"]][["factor_columns"]],
+    "weight[1]"
+  )
+
+  selected[["spec"]][["allocation_derived"]] <- FALSE
+  unsupported <- .brma_random_parameter_density_target(
+    list(fit = fit),
+    "study: sd(a)"
+  )
+  expect_match(unsupported[["reason"]], "no supported scalar")
 })
 
 

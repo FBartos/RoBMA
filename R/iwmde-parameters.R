@@ -364,18 +364,11 @@
     return(FALSE)
   }
 
-  eta_sum <- rowSums(samples[, auxiliary_columns, drop = FALSE])
-  if (any(!is.finite(eta_sum) | eta_sum <= 0)) {
-    return(FALSE)
-  }
-  expected <- samples[, auxiliary_columns, drop = FALSE] / eta_sum
+  weights <- samples[, columns, drop = FALSE]
+  eta     <- samples[, auxiliary_columns, drop = FALSE]
 
-  isTRUE(all.equal(
-    unname(samples[, columns, drop = FALSE]),
-    unname(expected),
-    tolerance        = sqrt(.Machine$double.eps),
-    check.attributes = FALSE
-  ))
+  !any(!is.finite(weights) | weights < 0 | weights > 1) &&
+    !any(!is.finite(eta) | eta <= 0)
 }
 
 

@@ -140,6 +140,10 @@
     if (is.null(value) || length(value) != 1L || is.na(value)) NA_real_ else
       as.numeric(value)
   }
+  key_logical <- function(key, field) {
+    value <- key[[field]]
+    is.logical(value) && length(value) == 1L && !is.na(value) && value
+  }
   specs <- data.frame(
     parameter          = quantities[["canonical_name"]],
     label              = sub("^\\([^)]*\\) ", "", quantities[["canonical_name"]]),
@@ -162,6 +166,12 @@
     status             = quantities[["status"]],
     allocation_index   = vapply(keys, key_number, numeric(1), field = "index"),
     evaluator          = vapply(keys, key_string, character(1), field = "evaluator"),
+    allocation_derived = vapply(
+      keys,
+      key_logical,
+      logical(1),
+      field = "allocation_derived"
+    ),
     source_type        = quantities[["source_type"]],
     stringsAsFactors  = FALSE,
     check.names       = FALSE
@@ -201,6 +211,7 @@
     status            = character(),
     allocation_index  = numeric(),
     evaluator         = character(),
+    allocation_derived = logical(),
     arguments         = I(list()),
     source_type       = character(),
     source_parameter  = character(),
@@ -534,30 +545,11 @@
     object,
     posterior
   )
-  source_values <- if (!is.na(source) && nzchar(source) &&
-                       source %in% colnames(posterior)) {
-    as.numeric(posterior[, source])
-  } else {
-    NULL
-  }
   display_transform <- selected[["spec"]][["display_transform"]]
-  target_values <- if (is.null(source_values)) {
-    NULL
-  } else if (is.null(display_transform)) {
-    source_values
-  } else {
-    BayesTools::parameter_transform_forward(
-      source_values,
-      display_transform
-    )
-  }
   if (source_type %in% c("identity", "one_to_one_transform") &&
-      !is.null(target_values) && isTRUE(all.equal(
-      as.numeric(selected[["samples"]][, 1L]),
-      target_values,
-      tolerance        = sqrt(.Machine$double.eps),
-      check.attributes = FALSE
-    ))) {
+      !is.na(source) && nzchar(source) &&
+      source %in% colnames(posterior) &&
+      !is.null(display_transform)) {
     return(list(
       parameter      = source,
       parameter_spec = list(
@@ -570,6 +562,9 @@
   }
 
   if (type %in% c("var_prop", "var_ratio", "sd_ratio") &&
+      identical(selected[["spec"]][["evaluator"]], "allocation") &&
+      identical(selected[["spec"]][["source_transform"]], type) &&
+      source_type %in% c("identity", "one_to_one_transform") &&
       !is.na(source) && nzchar(source)) {
     metadata  <- selected[["allocation_definition"]]
     index     <- selected[["spec"]][["allocation_index"]]
@@ -589,16 +584,7 @@
       if (inherits(selected[["source_prior"]], "prior.simplex") &&
           identical(selected[["source_prior"]][["distribution"]], "dirichlet") &&
           !is.null(allocation_transform) &&
-          all(c(columns, auxiliary_columns) %in% colnames(posterior)) &&
-          isTRUE(all.equal(
-            as.numeric(selected[["samples"]][, 1L]),
-            BayesTools::parameter_transform_forward(
-              posterior[, columns[[index]]],
-              allocation_transform
-            ),
-            tolerance        = sqrt(.Machine$double.eps),
-            check.attributes = FALSE
-          ))) {
+          all(c(columns, auxiliary_columns) %in% colnames(posterior))) {
         return(list(
           parameter      = columns[[index]],
           parameter_spec = list(
@@ -645,9 +631,15 @@
     object, selected, posterior, conditioning_exclude) {
 
   formula_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
+  spec <- selected[["spec"]]
+  if (!identical(spec[["source_type"]], "composite") ||
+      !identical(spec[["evaluator"]], "sd") ||
+      !isTRUE(spec[["allocation_derived"]])) {
+    return(NULL)
+  }
   term <- .brma_random_parameter_design_term(
     formula_design,
-    selected[["spec"]]
+    spec
   )
   if (is.null(term) || !.marginalized_random_effect_has_allocation(term)) {
     return(NULL)
@@ -657,7 +649,7 @@
   source     <- allocation[["source"]]
   column     <- .brma_random_parameter_component_column(
     term,
-    selected[["spec"]]
+    spec
   )
   if (is.na(column)) {
     return(NULL)
@@ -687,20 +679,8 @@
     return(NULL)
   }
 
-  multiplier <- tryCatch(
-    .iwmde_random_component_sd_multiplier(posterior, factors),
-    error = function(error) NULL
-  )
-  if (is.null(multiplier) || any(!is.finite(multiplier) | multiplier <= 0)) {
-    return(NULL)
-  }
-  target_values <- as.numeric(posterior[, source_parameter]) * multiplier
-  if (!isTRUE(all.equal(
-    as.numeric(selected[["samples"]][, 1L]),
-    target_values,
-    tolerance        = sqrt(.Machine$double.eps),
-    check.attributes = FALSE
-  ))) {
+  if (any(!is.finite(posterior[, source_parameter]) |
+          posterior[, source_parameter] < 0)) {
     return(NULL)
   }
 
