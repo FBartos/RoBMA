@@ -560,6 +560,16 @@ test_that("simplex density replacements preserve auxiliary-gamma coordinates", {
       columns[[1L]],
       list(type = "simplex_pair", parameter = source, index = 1L)
     )[["status"]],
+    "ok"
+  )
+  outside_support <- samples
+  outside_support[, columns[[1L]]] <- 1.1
+  expect_identical(
+    .iwmde_parameter_spec(
+      list(posterior_samples = outside_support),
+      columns[[1L]],
+      list(type = "simplex_pair", parameter = source, index = 1L)
+    )[["status"]],
     "unsupported"
   )
   replacement <- .iwmde_replacement_spec(context, columns[[1L]], spec)
