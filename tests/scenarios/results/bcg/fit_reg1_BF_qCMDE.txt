@@ -1,3 +1,3 @@
       Alternative:             Null:    BF error%(BF)
- alloc[random] < 0 alloc[random] = 0 1.688      3.696
- alloc[random] < 0 alloc[random] > 0 4.958      2.717
+ alloc[random] < 0 alloc[random] = 0 1.699      3.697
+ alloc[random] < 0 alloc[random] > 0 5.022      2.717

@@ -1,5 +1,5 @@
                      Alternative:                            Null:    BF error%(BF)
  alloc[alternate] > alloc[random] alloc[alternate] = alloc[random] 1.652         NA
- 0                > alloc[random]                0 = alloc[random] 1.646         NA
+ 0                > alloc[random]                0 = alloc[random] 1.678         NA
  alloc[alternate] > alloc[random] alloc[alternate] = alloc[random] 1.672      3.603
- 0                > alloc[random]                0 = alloc[random] 1.661      3.693
+ 0                > alloc[random]                0 = alloc[random] 1.675      3.695
