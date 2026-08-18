@@ -63,17 +63,22 @@
       next
     }
 
-    valid_samples <- candidates[["samples"]][valid, , drop = FALSE]
-    active_setup  <- group_states[[1L]][["active_setup"]]
+    valid_positions <- which(valid)
+    valid_samples   <- candidates[["samples"]][valid, , drop = FALSE]
+    active_setup    <- group_states[[1L]][["active_setup"]]
     log_lik <- log_lik_fun(
       samples      = valid_samples,
-      active_setup = active_setup
+      active_setup = active_setup,
+      batch        = list(
+        candidates      = candidates,
+        valid_positions = valid_positions,
+        row_states      = group_states
+      )
     )
     if (is.null(log_lik)) {
       return(NULL)
     }
 
-    valid_positions <- which(valid)
     if (!is.numeric(log_lik) || length(log_lik) != length(valid_positions)) {
       warning(
         "Batched IWMDE likelihood returned an invalid length; falling back to scalar evaluation.",
@@ -122,11 +127,42 @@
   same_prior_list <- all(vapply(row_states, function(state) {
     identical(state[["prior_list"]], prior_list)
   }, logical(1)))
+  if (all(use_delta[state_index])) {
+    focal_prior      <- row_states[[1L]][["focal_prior"]]
+    same_focal_prior <- all(vapply(row_states, function(state) {
+      identical(state[["focal_prior"]], focal_prior)
+    }, logical(1)))
+    if (same_focal_prior) {
+      baseline_log_prior <- vapply(
+        row_states,
+        `[[`,
+        numeric(1),
+        "baseline_log_prior"
+      )
+      baseline_focal_log_prior <- vapply(
+        row_states,
+        `[[`,
+        numeric(1),
+        "baseline_focal_log_prior"
+      )
+      focal_log_prior <- .iwmde_focal_log_prior_values(
+        prior     = focal_prior,
+        values    = values,
+        parameter = parameter
+      )
+      return(
+        baseline_log_prior[state_index] +
+          focal_log_prior[grid_index] -
+          baseline_focal_log_prior[state_index]
+      )
+    }
+  }
   if (!any(use_delta[state_index]) && same_prior_list) {
     return(.iwmde_replacement_log_prior_rows(
       samples     = valid_samples,
       prior_list  = prior_list,
-      replacement = replacement
+      replacement = replacement,
+      evaluator   = row_states[[1L]][["prior_evaluator"]]
     ))
   }
 
@@ -150,7 +186,8 @@
     log_prior[positions] <- .iwmde_replacement_log_prior_rows(
       samples     = valid_samples[positions, , drop = FALSE],
       prior_list  = state[["prior_list"]],
-      replacement = replacement
+      replacement = replacement,
+      evaluator   = state[["prior_evaluator"]]
     )
   }
 
@@ -159,18 +196,34 @@
 
 
 .iwmde_replacement_log_prior_rows <- function(samples, prior_list,
-                                               replacement) {
+                                               replacement,
+                                               evaluator = NULL) {
 
   if (!identical(replacement[["type"]], "simplex_pair")) {
-    return(.iwmde_log_prior_rows(samples, prior_list))
+    return(.iwmde_log_prior_rows(samples, prior_list, evaluator = evaluator))
   }
 
   parameter <- replacement[["parameter"]]
-  prior     <- prior_list[[parameter]]
+  if (is.null(parameter)) {
+    candidates <- names(prior_list)[vapply(prior_list, function(prior) {
+      inherits(prior, "prior.simplex") &&
+        identical(prior[["distribution"]], "dirichlet")
+    }, logical(1))]
+    if (length(candidates) == 1L) {
+      parameter <- candidates[[1L]]
+    }
+  }
+  prior     <- if (is.null(parameter)) NULL else prior_list[[parameter]]
   eta_names <- replacement[["auxiliary_columns"]]
+  if (is.null(eta_names) && !is.null(prior)) {
+    eta_names <- .iwmde_simplex_auxiliary_columns(
+      parameter,
+      length(prior[["parameters"]][["alpha"]])
+    )
+  }
   if (is.null(prior) || !inherits(prior, "prior.simplex") ||
       !identical(prior[["distribution"]], "dirichlet") ||
-      length(prior[["parameters"]][["alpha"]]) != 2L ||
+      length(prior[["parameters"]][["alpha"]]) != length(eta_names) ||
       !all(eta_names %in% colnames(samples))) {
     stop(
       "The simplex density target does not have its matching Dirichlet prior ",
@@ -196,20 +249,52 @@
 }
 
 
-.iwmde_log_prior_rows <- function(samples, prior_list) {
+.iwmde_log_prior_rows <- function(samples, prior_list, evaluator = NULL) {
 
   if (length(prior_list) == 0L) {
     return(numeric(nrow(samples)))
   }
 
   samples   <- .resolve_fixed_prior_sample_columns(samples, prior_list)
-  log_prior <- BayesTools::JAGS_marglik_priors_rows(samples, prior_list)
+  if (is.null(evaluator)) {
+    evaluator <- BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list)
+  }
+  log_prior <- evaluator(samples)
   if (!is.numeric(log_prior) || length(log_prior) != nrow(samples) ||
       !is.null(dim(log_prior))) {
     stop("Batched IWMDE prior evaluation returned an invalid result.", call. = FALSE)
   }
 
   return(as.numeric(log_prior))
+}
+
+
+.iwmde_prior_rows_evaluator <- function(context, row, parameter, state_scope,
+                                        prior_list) {
+
+  context <- .iwmde_context_ensure_caches(context)
+  key <- paste(
+    .iwmde_active_key(context, row),
+    state_scope,
+    if (.iwmde_parameter_is_eta(parameter)) "eta" else "ordinary",
+    sep = "|"
+  )
+  cache <- context[["prior_cache"]]
+  if (exists(key, envir = cache, inherits = FALSE)) {
+    cached <- get(key, envir = cache, inherits = FALSE)
+    if (!identical(cached[["prior_list"]], prior_list)) {
+      stop("Cached IWMDE prior structure does not match its active branch.", call. = FALSE)
+    }
+    return(cached[["evaluator"]])
+  }
+
+  evaluator <- BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list)
+  assign(
+    key,
+    list(prior_list = prior_list, evaluator = evaluator),
+    envir = cache
+  )
+  return(evaluator)
 }
 
 
@@ -229,15 +314,74 @@
     row_states      = row_states,
     replacement     = replacement,
     likelihood_mode = "marginal",
-    log_lik_fun     = function(samples, active_setup) {
+    log_lik_fun     = function(samples, active_setup, batch) {
+      fixed_mu_samples <- .iwmde_q_grid_known_v_random_fixed_mu(
+        context      = context,
+        active_setup = active_setup,
+        unit         = unit,
+        batch        = batch
+      )
       .iwmde_log_lik_from_posterior_samples_sum_active_branch(
         context           = context,
         posterior_samples = samples,
         active_setup      = active_setup,
-        unit              = unit
+        unit              = unit,
+        fixed_mu_samples  = fixed_mu_samples
       )
     }
   ))
+}
+
+
+.iwmde_q_grid_known_v_random_fixed_mu <- function(
+    context, active_setup, unit, batch) {
+
+  if (!.iwmde_uses_known_v_random_marginal_likelihood(context) ||
+      !.iwmde_q_grid_fixed_mu_is_invariant(context, batch[["candidates"]])) {
+    return(NULL)
+  }
+
+  valid_positions <- batch[["valid_positions"]]
+  state_index <- batch[["candidates"]][["state_index"]][valid_positions]
+  row_states  <- batch[["row_states"]]
+  if (length(state_index) == 0L ||
+      anyNA(state_index) || any(state_index < 1L) ||
+      any(state_index > length(row_states))) {
+    return(NULL)
+  }
+
+  setup <- .iwmde_predictor_setup(
+    context      = context,
+    row_states   = row_states,
+    active_setup = active_setup,
+    unit         = unit
+  )
+  fixed_mu <- setup[["mu"]]
+  if (!is.matrix(fixed_mu) || nrow(fixed_mu) != length(row_states) ||
+      any(!is.finite(fixed_mu))) {
+    return(NULL)
+  }
+
+  return(fixed_mu[state_index, , drop = FALSE])
+}
+
+
+.iwmde_q_grid_fixed_mu_is_invariant <- function(context, candidates) {
+
+  changed <- candidates[["changed_parameters"]]
+  if (!is.character(changed) || length(changed) == 0L || anyNA(changed)) {
+    return(FALSE)
+  }
+
+  affects_fixed_mu <- vapply(changed, function(column) {
+    column %in% c("mu", "PET", "PEESE") ||
+      identical(
+        .iwmde_predictor_formula_parameter(context, column),
+        "mu"
+      )
+  }, logical(1))
+
+  return(!any(affects_fixed_mu))
 }
 
 
@@ -618,17 +762,30 @@
 .iwmde_build_replacement_samples <- function(context, parameter, values,
                                              row_states, replacement) {
 
-  sample_names <- colnames(context[["posterior_samples"]])
+  state_scope <- unique(vapply(
+    row_states,
+    .iwmde_state_scope_value,
+    character(1)
+  ))
+  source_samples <- context[["posterior_samples"]]
+  if (length(state_scope) == 1L && identical(state_scope, "global")) {
+    source_samples <- .iwmde_drop_local_latent_sample_columns(
+      source_samples,
+      context
+    )
+  }
+  sample_names <- colnames(source_samples)
   n_candidates <- length(values) * length(row_states)
 
   if (n_candidates == 0L) {
     samples <- matrix(NA_real_, nrow = n_candidates, ncol = length(sample_names))
     colnames(samples) <- sample_names
     return(list(
-      samples     = samples,
-      valid       = logical(n_candidates),
-      grid_index  = integer(n_candidates),
-      state_index = integer(n_candidates)
+      samples            = samples,
+      valid              = logical(n_candidates),
+      grid_index         = integer(n_candidates),
+      state_index        = integer(n_candidates),
+      changed_parameters = character()
     ))
   }
 
@@ -637,7 +794,7 @@
   row_index   <- vapply(row_states, function(state) {
     state[["row_index"]]
   }, integer(1))
-  samples <- context[["posterior_samples"]][
+  samples <- source_samples[
     row_index[state_index],
     sample_names,
     drop = FALSE
@@ -681,20 +838,31 @@
       }
     }
   } else if (identical(replacement[["type"]], "simplex_pair")) {
-    columns           <- paste0(replacement[["parameter"]], "[", 1:2, "]")
+    n_targets         <- replacement[["n_targets"]]
+    columns           <- paste0(
+      replacement[["parameter"]],
+      "[", seq_len(n_targets), "]"
+    )
     auxiliary_columns <- replacement[["auxiliary_columns"]]
     index             <- replacement[["index"]]
-    other             <- 3L - index
     target            <- values[grid_index]
     eta_sum           <- rowSums(samples[, auxiliary_columns, drop = FALSE])
+    other             <- setdiff(seq_len(n_targets), index)
+    other_eta_sum     <- rowSums(
+      samples[, auxiliary_columns[other], drop = FALSE]
+    )
     valid             <- is.finite(target) & target >= 0 & target <= 1 &
-      is.finite(eta_sum) & eta_sum > 0
+      is.finite(eta_sum) & eta_sum > 0 &
+      is.finite(other_eta_sum) & other_eta_sum > 0
     samples[valid, columns[[index]]] <- target[valid]
-    samples[valid, columns[[other]]] <- 1 - target[valid]
     samples[valid, auxiliary_columns[[index]]] <-
       eta_sum[valid] * target[valid]
-    samples[valid, auxiliary_columns[[other]]] <-
-      eta_sum[valid] * (1 - target[valid])
+    other_proportions <- samples[valid, auxiliary_columns[other], drop = FALSE] /
+      other_eta_sum[valid]
+    samples[valid, columns[other]] <-
+      other_proportions * (1 - target[valid])
+    samples[valid, auxiliary_columns[other]] <-
+      other_proportions * eta_sum[valid] * (1 - target[valid])
     changed_parameters <- c(columns, auxiliary_columns)
   } else if (identical(replacement[["type"]], "random_component_sd")) {
     target     <- values[grid_index]
@@ -725,21 +893,12 @@
   )
   samples <- synced[["samples"]]
   valid   <- valid & synced[["valid"]]
-  state_scope <- unique(vapply(
-    row_states,
-    .iwmde_state_scope_value,
-    character(1)
-  ))
-  if (length(state_scope) == 1L &&
-      identical(state_scope, "global")) {
-    samples <- .iwmde_drop_local_latent_sample_columns(samples)
-  }
-
   return(list(
-    samples     = samples,
-    valid       = valid,
-    grid_index  = grid_index,
-    state_index = state_index
+    samples            = samples,
+    valid              = valid,
+    grid_index         = grid_index,
+    state_index        = state_index,
+    changed_parameters = unique(changed_parameters)
   ))
 }
 
@@ -772,23 +931,31 @@
   }
 
   if (identical(replacement[["type"]], "simplex_pair")) {
-    columns           <- paste0(replacement[["parameter"]], "[", 1:2, "]")
+    n_targets         <- replacement[["n_targets"]]
+    columns           <- paste0(
+      replacement[["parameter"]],
+      "[", seq_len(n_targets), "]"
+    )
     auxiliary_columns <- replacement[["auxiliary_columns"]]
     index             <- replacement[["index"]]
-    other             <- 3L - index
+    other             <- setdiff(seq_len(n_targets), index)
     if (!is.finite(value) || value < 0 || value > 1 ||
         !all(c(columns, auxiliary_columns) %in% names(state[["row"]]))) {
       return(out(state[["row"]], valid = FALSE))
     }
     row     <- state[["row"]]
     eta_sum <- sum(row[auxiliary_columns])
-    if (!is.finite(eta_sum) || eta_sum <= 0) {
+    other_eta_sum <- sum(row[auxiliary_columns[other]])
+    if (!is.finite(eta_sum) || eta_sum <= 0 ||
+        !is.finite(other_eta_sum) || other_eta_sum <= 0) {
       return(out(row, valid = FALSE))
     }
+    other_proportions <- row[auxiliary_columns[other]] / other_eta_sum
     row[[columns[[index]]]] <- value
-    row[[columns[[other]]]] <- 1 - value
     row[[auxiliary_columns[[index]]]] <- eta_sum * value
-    row[[auxiliary_columns[[other]]]] <- eta_sum * (1 - value)
+    row[columns[other]] <- other_proportions * (1 - value)
+    row[auxiliary_columns[other]] <-
+      other_proportions * eta_sum * (1 - value)
 
     return(out(
       row,
@@ -937,7 +1104,10 @@
 
   allocation <- term[["sd_binding"]][["allocations"]][[1L]]
   source     <- allocation[["source"]][["name"]]
-  factors    <- .marginalized_random_effect_allocation_factors(term)
+  factors    <- .marginalized_random_effect_allocation_factors(
+    term,
+    all = TRUE
+  )
   factor_columns <- vapply(factors, function(factor) {
     paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
   }, character(1))
@@ -1153,6 +1323,15 @@
     ))
   }
 
+  if (is.null(state[["parameters"]])) {
+    state[["parameters"]] <- .iwmde_row_parameters(
+      context      = context,
+      row          = state[["row"]],
+      active_setup = state[["active_setup"]],
+      state_scope  = .iwmde_state_scope_value(state)
+    )
+  }
+
   if (identical(replacement[["type"]], "linear")) {
     return(.iwmde_replace_linear_parameters(
       context     = context,
@@ -1344,6 +1523,7 @@
       type              = "simplex_pair",
       parameter         = parameter_spec[["parameter"]],
       index             = parameter_spec[["index"]],
+      n_targets         = parameter_spec[["n_targets"]],
       target_columns    = parameter_spec[["target_columns"]],
       auxiliary_columns = parameter_spec[["auxiliary_columns"]]
     ))
@@ -1360,14 +1540,21 @@
     ))
   }
 
-  data <- context[["data"]]
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "primitive") &&
+      identical(parameter_spec[["target_columns"]], parameter) &&
+      parameter %in% colnames(context[["posterior_samples"]])) {
+    return(list(type = "scalar", name = parameter))
+  }
+
   if (.iwmde_parameter_is_eta(parameter)) {
     return(list(type = "fallback"))
   }
-  if (.is_data_mods(data) && startsWith(parameter, "mu_")) {
-    return(list(type = "fallback"))
-  }
-  if (.is_data_scale(data) && startsWith(parameter, "log_tau_")) {
+  formula_parameter <- .iwmde_predictor_formula_parameter(
+    context = context,
+    column  = parameter
+  )
+  if (isTRUE(formula_parameter %in% c("mu", "log_tau"))) {
     return(list(type = "fallback"))
   }
 

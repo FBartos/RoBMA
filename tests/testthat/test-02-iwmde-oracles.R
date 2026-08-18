@@ -320,7 +320,7 @@ test_that("GLMM IWMDE point Bayes factors are explicitly unsupported", {
       "mu = 0",
       density_method = "IWMDE"
     ),
-    "do not meet the bridge-sampling certification tolerance"
+    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$"
   )
 })
 

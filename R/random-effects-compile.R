@@ -981,6 +981,39 @@
     fitted_K          = fitted_K
   )
 
+  leaf_index <- allocation[["leaf_index_by_column"]]
+  if (identical(allocation[["target"]], "sd_component") &&
+      length(leaf_index) > 1L) {
+    if (ncol(base) != 1L) {
+      stop(
+        "Cannot recycle a non-scalar random-effect SD source over component allocations.",
+        call. = FALSE
+      )
+    }
+    allocated <- matrix(
+      base[, 1L],
+      nrow = nrow(base),
+      ncol = length(leaf_index)
+    )
+    for (column in seq_along(leaf_index)) {
+      factors <- .marginalized_random_effect_allocation_factors(
+        term,
+        column = column
+      )
+      for (factor in factors) {
+        multiplier <- .random_allocation_factor_samples(
+          factor            = factor,
+          posterior_samples = posterior_samples
+        )
+        allocated[, column] <- .recycle_rows(
+          allocated[, column, drop = FALSE],
+          multiplier
+        )
+      }
+    }
+    return(allocated)
+  }
+
   factors <- .marginalized_random_effect_allocation_factors(term)
   for (factor in factors) {
     multiplier <- .random_allocation_factor_samples(
@@ -994,7 +1027,8 @@
 }
 
 
-.marginalized_random_effect_allocation_factors <- function(term) {
+.marginalized_random_effect_allocation_factors <- function(
+    term, column = NULL, all = FALSE) {
 
   binding    <- term[["sd_binding"]]
   allocation <- binding[["allocations"]][[1L]]
@@ -1011,20 +1045,34 @@
   if (identical(target, "sd_component")) {
     factors    <- allocation[["parent_factors"]]
     leaf_index <- allocation[["leaf_index_by_column"]]
-    if (length(leaf_index) != 1L || is.na(leaf_index)) {
+    if (!is.null(column)) {
+      valid_column <- is.numeric(column) && length(column) == 1L &&
+        !is.na(column) && column == as.integer(column) &&
+        column >= 1L && column <= length(leaf_index)
+      if (!valid_column) {
+        stop("Invalid random-effect SD-component column.", call. = FALSE)
+      }
+      leaf_index <- leaf_index[[as.integer(column)]]
+    } else if (length(leaf_index) > 1L && isTRUE(all)) {
+      leaf_index <- unique(leaf_index)
+    }
+    if (length(leaf_index) == 0L || anyNA(leaf_index) ||
+        (length(leaf_index) != 1L && !isTRUE(all))) {
       stop(
         "Cannot evaluate marginalized random-effect SD-component allocation ",
         "for block '", term[["block_name"]], "'.",
         call. = FALSE
       )
     }
-    leaf_factor <- list(
-      weight_name = allocation[["weight_name"]],
-      index       = leaf_index[[1L]],
-      scale       = allocation[["scale"]],
-      n_targets   = allocation[["n_targets"]]
-    )
-    return(c(factors, list(leaf_factor)))
+    leaf_factors <- lapply(leaf_index, function(index) {
+      list(
+        weight_name = allocation[["weight_name"]],
+        index       = index,
+        scale       = allocation[["scale"]],
+        n_targets   = allocation[["n_targets"]]
+      )
+    })
+    return(c(factors, leaf_factors))
   }
 
   stop(

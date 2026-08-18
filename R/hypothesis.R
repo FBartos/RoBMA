@@ -600,9 +600,26 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 
+.hypothesis_brma_result_statements <- function(result) {
+
+  hypothesis <- attr(result, "hypothesis_ast", exact = TRUE)
+  if (!inherits(hypothesis, "BayesTools_hypothesis_ast") ||
+      !is.list(hypothesis[["statements"]]) ||
+      length(hypothesis[["statements"]]) == 0L) {
+    return(NULL)
+  }
+
+  hypothesis[["statements"]]
+}
+
+
 .hypothesis_brma_bind_parameter_results <- function(
     results, groups, hypothesis) {
 
+  if (length(results) == 0L) {
+    stop("Internal error: no hypothesis parameter-group results were produced.",
+         call. = FALSE)
+  }
   n_statements <- length(hypothesis[["statements"]])
   group_sizes  <- vapply(groups, length, integer(1))
   result_sizes <- vapply(results, nrow, integer(1))
@@ -617,8 +634,14 @@ hypothesis.brma <- function(object, hypothesis,
     function(result) identical(names(result), names(results[[1L]])),
     logical(1)
   )
-  if (length(results) == 0L || !all(valid_results) ||
+  result_statement_sizes <- vapply(results, function(result) {
+
+    statements <- .hypothesis_brma_result_statements(result)
+    if (is.null(statements)) -1L else length(statements)
+  }, integer(1))
+  if (!all(valid_results) ||
       !identical(group_sizes, result_sizes) ||
+      !identical(group_sizes, result_statement_sizes) ||
       sum(group_sizes) != n_statements || !all(same_columns)) {
     stop("Internal error: hypothesis parameter-group results are misaligned.",
          call. = FALSE)
@@ -631,10 +654,7 @@ hypothesis.brma <- function(object, hypothesis,
   raw_BF <- unlist(lapply(results, function(result) {
     attr(result, "raw_BF", exact = TRUE)
   }), use.names = FALSE)
-  parsed <- unlist(lapply(results, function(result) {
-    attr(result, "parsed", exact = TRUE)
-  }), recursive = FALSE)
-  if (length(raw_BF) != n_statements || length(parsed) != n_statements) {
+  if (length(raw_BF) != n_statements) {
     stop("Internal error: hypothesis parameter-group metadata are misaligned.",
          call. = FALSE)
   }
@@ -664,7 +684,6 @@ hypothesis.brma <- function(object, hypothesis,
 
   out <- out[restore_order, , drop = FALSE]
   attr(out, "raw_BF")         <- raw_BF[restore_order]
-  attr(out, "parsed")         <- parsed[restore_order]
   attr(out, "hypothesis_ast") <- hypothesis
   warnings <- .hypothesis_brma_unique_named_warnings(
     unlist(warnings, use.names = TRUE)
@@ -769,7 +788,8 @@ hypothesis.brma <- function(object, hypothesis,
       support <- .brma_random_parameter_support(
         posterior[["spec"]],
         posterior[["prior"]],
-        posterior[["source_prior"]]
+        posterior[["source_prior"]],
+        posterior[["allocation_definition"]]
       )
       values <- point_refs[["value"]]
       at_boundary <- (is.finite(support[1L]) & values <= support[1L]) |
@@ -843,7 +863,8 @@ hypothesis.brma <- function(object, hypothesis,
     normalization_points     = density_control[["normalization_points"]],
     normalization_prob       = density_control[["normalization_prob"]],
     density_method           = density_method,
-    parameter_spec           = target[["parameter_spec"]]
+    parameter_spec           = target[["parameter_spec"]],
+    display_transform        = target[["display_transform"]]
   )
 
   out <- BayesTools::hypothesis_BF(
@@ -1398,10 +1419,6 @@ hypothesis.brma <- function(object, hypothesis,
   }
 
   statements <- hypothesis[["statements"]]
-  if (nrow(out) != length(statements)) {
-    stop("Internal error: transformed hypothesis result rows are misaligned.",
-         call. = FALSE)
-  }
   result_label <- function(statement, side_name) {
 
     implicit_equality <- !isTRUE(statement[["explicit"]]) &&
@@ -1412,44 +1429,75 @@ hypothesis.brma <- function(object, hypothesis,
 
     statement[[side_name]][["label"]]
   }
-  if ("Alternative" %in% names(out)) {
-    out[["Alternative"]] <- vapply(
-      statements,
-      result_label,
-      side_name = "left",
-      character(1)
-    )
-  }
-  if ("Null" %in% names(out)) {
-    out[["Null"]] <- vapply(
-      statements,
-      result_label,
-      side_name = "right",
-      character(1)
-    )
-  }
-  parsed <- attr(out, "parsed", exact = TRUE)
-  if (!is.list(parsed) || length(parsed) != length(statements)) {
+  transformed_statements <- .hypothesis_brma_result_statements(out)
+  if (!is.list(transformed_statements) ||
+      length(transformed_statements) != length(statements)) {
     stop("Internal error: transformed hypothesis metadata are misaligned.",
          call. = FALSE)
   }
-  for (i in seq_along(statements)) {
-    statement <- statements[[i]]
-    parsed[[i]][["input"]]    <- statement[["source"]]
-    parsed[[i]][["explicit"]] <- statement[["explicit"]]
-    for (side_name in c("left", "right")) {
-      side <- statement[[side_name]]
-      parsed[[i]][[side_name]][["type"]]  <- side[["type"]]
-      parsed[[i]][[side_name]][["label"]] <- side[["label"]]
-      parsed[[i]][[side_name]][["value"]] <- side[["value"]]
-    }
+
+  transformed_left  <- vapply(
+    transformed_statements,
+    result_label,
+    side_name = "left",
+    character(1)
+  )
+  transformed_right <- vapply(
+    transformed_statements,
+    result_label,
+    side_name = "right",
+    character(1)
+  )
+  display_left       <- vapply(
+    statements,
+    result_label,
+    side_name = "left",
+    character(1)
+  )
+  display_right      <- vapply(
+    statements,
+    result_label,
+    side_name = "right",
+    character(1)
+  )
+  if (nrow(out) == length(statements)) {
+    statement_i <- seq_along(statements)
+  } else if (length(statements) == 1L) {
+    statement_i <- rep(1L, nrow(out))
+  } else if (all(c("Alternative", "Null") %in% names(out))) {
+    transformed_key <- paste(transformed_left, transformed_right, sep = "\r")
+    output_key      <- paste(out[["Alternative"]], out[["Null"]], sep = "\r")
+    statement_i     <- match(output_key, transformed_key)
+  } else if ("Alternative" %in% names(out)) {
+    statement_i <- match(out[["Alternative"]], transformed_left)
+  } else if ("Null" %in% names(out)) {
+    statement_i <- match(out[["Null"]], transformed_right)
+  } else {
+    statement_i <- rep(NA_integer_, nrow(out))
   }
-  attr(out, "parsed")         <- parsed
+  if (anyNA(statement_i)) {
+    stop("Internal error: transformed hypothesis result rows are misaligned.",
+         call. = FALSE)
+  }
+  if ("Alternative" %in% names(out)) {
+    out[["Alternative"]] <- display_left[statement_i]
+  }
+  if ("Null" %in% names(out)) {
+    out[["Null"]] <- display_right[statement_i]
+  }
+
   attr(out, "hypothesis_ast") <- hypothesis
 
   if (!is.null(parameter_label)) {
     old_rownames  <- rownames(out)
-    new_rownames  <- make.unique(rep(parameter_label, nrow(out)), sep = "")
+    bracket_start <- regexpr("[", old_rownames, fixed = TRUE)
+    suffix        <- rep("", length(old_rownames))
+    has_suffix    <- bracket_start > 0L
+    suffix[has_suffix] <- substring(
+      old_rownames[has_suffix],
+      bracket_start[has_suffix]
+    )
+    new_rownames  <- make.unique(paste0(parameter_label, suffix), sep = "")
     rownames(out) <- new_rownames
 
     warnings <- attr(out, "warnings", exact = TRUE)

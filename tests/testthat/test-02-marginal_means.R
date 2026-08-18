@@ -933,7 +933,7 @@ test_that("GLMM IWMDE marginal means are rejected before estimation", {
       bf             = TRUE,
       n_samples      = 100
     ),
-    "IWMDE density estimation is unavailable"
+    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$"
   )
 
   expect_error(
@@ -944,7 +944,7 @@ test_that("GLMM IWMDE marginal means are rejected before estimation", {
       bf              = FALSE,
       n_samples       = 100
     ),
-    "IWMDE density estimation is unavailable"
+    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$"
   )
 })
 

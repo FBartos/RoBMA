@@ -1,5 +1,13 @@
 # Internal semantic random-parameter extraction.
 
+.brma_random_parameter_supported_quantities <- function() {
+
+  c(
+    "sd", "sd_total", "var_total", "sd_common", "var_common",
+    "cor", "var_prop", "var_ratio", "sd_ratio"
+  )
+}
+
 .brma_random_parameter_bundle <- function(
     object, standardized_coefficients = FALSE, chains = FALSE,
     prior = FALSE, n_prior_samples = 10000L, seed = NULL) {
@@ -74,104 +82,104 @@
 .brma_random_parameter_extract_fit <- function(
     fit, standardized_coefficients = FALSE) {
 
-  samples <- BayesTools::JAGS_estimates_table(
-    fit                     = fit,
-    keep_parameters         = "random_effects",
-    random_effects_summary  = "full",
-    random_effects_metadata = TRUE,
-    remove_inclusion        = TRUE,
-    remove_diagnostics      = TRUE,
-    return_samples          = TRUE,
-    transform_scaled        = !standardized_coefficients
-  )
-  samples <- as.matrix(samples)
-  priors  <- attr(samples, "prior_list", exact = TRUE)
-  if (is.null(priors) || length(priors) == 0L || ncol(samples) == 0L) {
+  catalog    <- BayesTools::parameter_catalog(fit)
+  quantities <- catalog[["quantities"]]
+  supported  <- .brma_random_parameter_supported_quantities()
+  keep <- startsWith(quantities[["role"]], "random_") &
+    !quantities[["internal"]] &
+    quantities[["status"]] != "unavailable" &
+    quantities[["quantity"]] %in% supported
+  quantities <- quantities[keep, , drop = FALSE]
+  n_draws <- sum(vapply(coda::as.mcmc.list(fit), nrow, integer(1)))
+  if (nrow(quantities) == 0L) {
     return(list(
-      samples = matrix(numeric(), nrow = nrow(samples), ncol = 0L),
+      samples = matrix(numeric(), nrow = n_draws, ncol = 0L),
       specs   = .brma_random_parameter_empty_specs(),
       priors  = list()
     ))
   }
 
-  summary_type <- vapply(priors, function(prior) {
-    value <- attr(prior, "random_summary", exact = TRUE)
-    if (is.null(value)) NA_character_ else value
-  }, character(1))
-  keep <- summary_type %in% c(
-    "sd", "sd_total", "rho", "cor", "var_frac", "var_ratio",
-    "sd_multiplier"
-  )
-  priors <- priors[keep]
-  if (length(priors) == 0L) {
-    return(list(
-      samples = matrix(numeric(), nrow = nrow(samples), ncol = 0L),
-      specs   = .brma_random_parameter_empty_specs(),
-      priors  = list()
-    ))
+  extraction_fit <- fit
+  if (standardized_coefficients) {
+    attr(extraction_fit, "formula_scale") <- list()
   }
-
-  labels <- vapply(priors, function(prior) {
-    attr(prior, "random_summary_label", exact = TRUE)
-  }, character(1))
-  formula_parameters <- vapply(priors, function(prior) {
-    attr(prior, "parameter", exact = TRUE)
-  }, character(1))
-  parameters <- paste0("(", formula_parameters, ") ", labels)
-  columns    <- match(parameters, colnames(samples))
-  if (anyNA(columns)) {
-    missing <- parameters[is.na(columns)]
-    stop(
-      "Semantic random-effect draws are missing expected columns: ",
-      paste(missing, collapse = ", "), ".",
-      call. = FALSE
+  selections <- lapply(seq_len(nrow(quantities)), function(i) {
+    BayesTools::parameter_catalog_resolve(
+      catalog,
+      alias     = quantities[["canonical_name"]][i],
+      namespace = quantities[["namespace"]][i]
     )
-  }
-
-  samples             <- samples[, columns, drop = FALSE]
-  names(priors)       <- parameters
-  colnames(samples) <- parameters
-  specs             <- .brma_random_parameter_specs(priors)
-  specs[["source_parameter"]] <- .brma_random_parameter_source_names(
-    fit            = fit,
-    specs          = specs,
-    summary_priors = priors
+  })
+  columns <- lapply(selections, function(selection) {
+    as.matrix(BayesTools::parameter_draws(extraction_fit, selection))
+  })
+  samples <- do.call(cbind, columns)
+  colnames(samples) <- quantities[["canonical_name"]]
+  specs  <- .brma_random_parameter_specs(quantities)
+  specs[["display_transform"]] <- I(lapply(selections, function(selection) {
+    BayesTools::parameter_transform(extraction_fit, selection)
+  }))
+  priors <- stats::setNames(
+    rep(list(NULL), nrow(quantities)),
+    quantities[["canonical_name"]]
   )
 
   list(samples = samples, specs = specs, priors = priors)
 }
 
-.brma_random_parameter_specs <- function(priors) {
+.brma_random_parameter_specs <- function(quantities) {
 
-  attr_string <- function(prior, name) {
-    value <- attr(prior, name, exact = TRUE)
-    if (is.null(value) || length(value) == 0L) NA_character_ else as.character(value[[1L]])
+  keys <- quantities[["extraction_key"]]
+  key_string <- function(key, field) {
+    value <- key[[field]]
+    if (is.null(value) || length(value) != 1L || is.na(value)) "" else
+      as.character(value)
   }
-  attr_string_first <- function(prior, names) {
-    values <- vapply(names, function(name) attr_string(prior, name), character(1))
-    values <- values[!is.na(values) & nzchar(values)]
-    if (length(values) == 0L) NA_character_ else values[[1L]]
+  key_number <- function(key, field) {
+    value <- key[[field]]
+    if (is.null(value) || length(value) != 1L || is.na(value)) NA_real_ else
+      as.numeric(value)
   }
-
-  data.frame(
-    parameter         = names(priors),
-    label             = vapply(priors, attr_string, character(1), "random_summary_label"),
-    summary_type      = vapply(priors, attr_string, character(1), "random_summary"),
-    formula_parameter = vapply(priors, attr_string, character(1), "parameter"),
-    block             = vapply(
-      priors,
-      attr_string_first,
+  specs <- data.frame(
+    parameter          = quantities[["canonical_name"]],
+    label              = sub("^\\([^)]*\\) ", "", quantities[["canonical_name"]]),
+    formula_parameter  = quantities[["formula_parameter"]],
+    block              = vapply(keys, key_string, character(1), field = "random_block"),
+    grouping           = "",
+    structure          = "",
+    allocation         = vapply(
+      keys,
+      key_string,
       character(1),
-      names = c("random_factor", "random_block")
+      field = "allocation_label"
     ),
-    grouping          = vapply(priors, attr_string, character(1), "random_grouping_factor"),
-    structure         = vapply(priors, attr_string, character(1), "random_structure"),
-    allocation        = vapply(priors, attr_string, character(1), "random_allocation"),
-    random_component  = vapply(priors, attr_string, character(1), "random_component"),
-    source_parameter  = NA_character_,
+    random_component   = quantities[["component"]],
+    owner_type         = quantities[["owner_type"]],
+    owner_name         = quantities[["owner_name"]],
+    quantity           = quantities[["quantity"]],
+    scale_role         = quantities[["scale_role"]],
+    parent_quantity_id = quantities[["parent_quantity_id"]],
+    status             = quantities[["status"]],
+    allocation_index   = vapply(keys, key_number, numeric(1), field = "index"),
+    evaluator          = vapply(keys, key_string, character(1), field = "evaluator"),
+    source_type        = quantities[["source_type"]],
     stringsAsFactors  = FALSE,
     check.names       = FALSE
   )
+  specs[["arguments"]]         <- I(quantities[["arguments"]])
+  specs[["source_parameter"]]  <- vapply(
+    keys, key_string, character(1), field = "source_parameter"
+  )
+  specs[["source_prior_name"]] <- vapply(
+    keys, key_string, character(1), field = "source_prior"
+  )
+  specs[["source_transform"]]  <- vapply(
+    keys, key_string, character(1), field = "source_transform"
+  )
+  specs[["source_scale"]]      <- vapply(
+    keys, key_number, numeric(1), field = "source_scale"
+  )
+  specs
 }
 
 .brma_random_parameter_empty_specs <- function() {
@@ -179,105 +187,31 @@
   data.frame(
     parameter         = character(),
     label             = character(),
-    summary_type      = character(),
     formula_parameter = character(),
     block             = character(),
     grouping          = character(),
     structure         = character(),
     allocation        = character(),
     random_component  = character(),
+    owner_type        = character(),
+    owner_name        = character(),
+    quantity          = character(),
+    scale_role        = character(),
+    parent_quantity_id = character(),
+    status            = character(),
+    allocation_index  = numeric(),
+    evaluator         = character(),
+    arguments         = I(list()),
+    source_type       = character(),
     source_parameter  = character(),
+    source_prior_name = character(),
+    source_transform  = character(),
+    source_scale      = numeric(),
+    display_transform = I(list()),
     stringsAsFactors  = FALSE,
     check.names       = FALSE
   )
 }
-
-.brma_random_parameter_source_names <- function(
-    fit, specs, summary_priors) {
-
-  prior_list     <- attr(fit, "prior_list", exact = TRUE)
-  formula_design <- attr(fit, "formula_design", exact = TRUE)
-  prior_names    <- names(prior_list)
-  out            <- rep(NA_character_, nrow(specs))
-
-  if (length(prior_names) == 0L || nrow(specs) == 0L) {
-    return(out)
-  }
-
-  for (i in seq_len(nrow(specs))) {
-    spec          <- as.list(specs[i, , drop = FALSE])
-    summary_prior <- summary_priors[[spec[["parameter"]]]]
-    source        <- .brma_random_parameter_source_name(
-      spec           = spec,
-      summary_prior  = summary_prior,
-      prior_list     = prior_list,
-      formula_design = formula_design
-    )
-    if (length(source) == 1L && !is.na(source) && source %in% prior_names) {
-      out[i] <- source
-    }
-  }
-
-  out
-}
-
-
-.brma_random_parameter_source_name <- function(
-    spec, summary_prior, prior_list, formula_design) {
-
-  type <- spec[["summary_type"]]
-  if (type %in% c("var_frac", "var_ratio", "sd_multiplier")) {
-    metadata <- attr(
-      summary_prior,
-      "random_allocation_metadata",
-      exact = TRUE
-    )
-    return(.brma_random_parameter_unique_name(metadata[["weight_name"]]))
-  }
-
-  if (identical(type, "sd_total")) {
-    matches <- vapply(prior_list, function(prior) {
-      isTRUE(attr(prior, "random_sd_total", exact = TRUE)) &&
-        .brma_random_parameter_metadata_matches(
-          attr(prior, "parameter", exact = TRUE),
-          spec[["formula_parameter"]]
-        ) &&
-        .brma_random_parameter_metadata_matches(
-          attr(prior, "random_allocation", exact = TRUE),
-          spec[["allocation"]]
-        )
-    }, logical(1))
-    return(.brma_random_parameter_unique_name(names(prior_list)[matches]))
-  }
-
-  term <- .brma_random_parameter_design_term(formula_design, spec)
-  if (is.null(term)) {
-    return(NA_character_)
-  }
-
-  if (identical(type, "sd")) {
-    return(.brma_random_parameter_sd_source(term, spec))
-  }
-  if (identical(type, "rho")) {
-    correlation <- term[["correlation"]]
-    if (!is.list(correlation) || !identical(correlation[["type"]], "rho")) {
-      return(NA_character_)
-    }
-    if (!is.null(correlation[["sample_fixed"]])) {
-      return(NA_character_)
-    }
-    rho_scale <- correlation[["rho_scale"]]
-    if (!is.null(rho_scale) && !identical(rho_scale, "rho")) {
-      return(NA_character_)
-    }
-    candidates <- c(correlation[["rho_name"]], correlation[["sample_name"]])
-    candidates <- intersect(unique(candidates), names(prior_list))
-    return(.brma_random_parameter_unique_name(candidates))
-  }
-
-  NA_character_
-}
-
 
 .brma_random_parameter_design_term <- function(formula_design, spec) {
 
@@ -292,39 +226,81 @@
   }, formula_design)
   terms <- unlist(lapply(designs, `[[`, "random_effects"), recursive = FALSE)
   terms <- Filter(function(term) {
-    .brma_random_parameter_metadata_matches(
+    block_match <- .brma_random_parameter_metadata_matches(
       term[["block_name"]],
       spec[["block"]]
-    ) && .brma_random_parameter_metadata_matches(
-      term[["group_label"]],
-      spec[["grouping"]]
     )
+    grouping <- spec[["grouping"]]
+    grouping_match <- !is.character(grouping) || length(grouping) != 1L ||
+      is.na(grouping) || !nzchar(grouping) ||
+      .brma_random_parameter_metadata_matches(term[["group_label"]], grouping)
+    block_match && grouping_match
   }, terms)
 
   if (length(terms) == 1L) terms[[1L]] else NULL
 }
 
 
-.brma_random_parameter_sd_source <- function(term, spec) {
+.brma_random_parameter_design_allocation <- function(formula_design, spec) {
 
-  sources <- unique(term[["sd_parameter_names"]])
-  sources <- sources[!is.na(sources) & nzchar(sources)]
-  if (length(sources) == 1L) {
-    return(sources)
+  allocation_name <- spec[["allocation"]]
+  if (!is.list(formula_design) || !is.character(allocation_name) ||
+      length(allocation_name) != 1L || is.na(allocation_name) ||
+      !nzchar(allocation_name)) {
+    return(NULL)
   }
-  if (length(sources) == 0L) {
-    return(NA_character_)
+  designs <- Filter(function(design) {
+    .brma_random_parameter_metadata_matches(
+      design[["parameter"]],
+      spec[["formula_parameter"]]
+    )
+  }, formula_design)
+  design_allocations <- unlist(
+    lapply(designs, `[[`, "random_allocations"),
+    recursive = FALSE
+  )
+  terms <- unlist(lapply(designs, `[[`, "random_effects"), recursive = FALSE)
+  term_allocations <- unlist(lapply(terms, function(random_term) {
+    binding <- random_term[["sd_binding"]]
+    if (is.null(binding)) list() else binding[["allocations"]]
+  }), recursive = FALSE)
+  allocations <- c(term_allocations, design_allocations)
+  if (length(allocations) == 0L) {
+    return(NULL)
+  }
+  keys <- vapply(allocations, function(allocation) {
+    value <- allocation[["weight_name"]]
+    if (is.null(value)) "" else value
+  }, character(1))
+  allocations <- allocations[!duplicated(keys)]
+  matches <- vapply(allocations, function(allocation) {
+    identical(allocation[["label"]], allocation_name)
+  }, logical(1))
+
+  if (sum(matches) == 1L) allocations[[which(matches)]] else NULL
+}
+
+
+.brma_random_parameter_allocation_index <- function(spec, allocation) {
+
+  index <- spec[["allocation_index"]]
+  if (!is.numeric(index) || length(index) != 1L || is.na(index) ||
+      is.null(allocation)) {
+    return(NA_integer_)
+  }
+  n_targets <- allocation[["n_targets"]]
+  if (!is.numeric(n_targets) || length(n_targets) != 1L ||
+      is.na(n_targets) || n_targets < 1L) {
+    return(NA_integer_)
+  }
+  if (identical(spec[["quantity"]], "sd_ratio") && index > n_targets) {
+    index <- index - n_targets
+  }
+  if (index < 1L || index > n_targets) {
+    return(NA_integer_)
   }
 
-  leaves <- term[["sd_leaves"]]
-  terms  <- leaves[["leaf_terms"]]
-  if (is.null(terms) || is.null(names(terms))) {
-    return(NA_character_)
-  }
-  components <- unname(terms[sources])
-  components <- .brma_random_parameter_normalize_components(components, term)
-  matches    <- !is.na(components) & components == spec[["random_component"]]
-  .brma_random_parameter_unique_name(sources[matches])
+  as.integer(index)
 }
 
 
@@ -365,17 +341,9 @@
 }
 
 
-.brma_random_parameter_unique_name <- function(names) {
-
-  names <- unique(names)
-  names <- names[!is.na(names) & nzchar(names)]
-  if (length(names) == 1L) names else NA_character_
-}
-
 .brma_random_parameter_fit_with_samples <- function(fit, samples) {
 
-  fit[["mcmc"]] <- samples
-  fit
+  BayesTools::JAGS_with_draws(fit, samples)
 }
 
 .brma_random_parameter_diagnostic_fit <- function(
@@ -390,7 +358,8 @@
   support <- .brma_random_parameter_support(
     selected[["spec"]],
     selected[["prior"]],
-    selected[["source_prior"]]
+    selected[["source_prior"]],
+    selected[["allocation_definition"]]
   )
   diagnostic_prior <- BayesTools::prior(
     distribution = "normal",
@@ -439,117 +408,211 @@
       call. = FALSE
     )
   }
+  spec <- as.list(bundle[["specs"]][index, , drop = FALSE])
+  spec[["display_transform"]] <-
+    bundle[["specs"]][["display_transform"]][[index]]
+  formula_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
+  term <- .brma_random_parameter_design_term(formula_design, spec)
+  if (!is.null(term)) {
+    spec[["grouping"]] <- term[["group_label"]]
+    spec[["structure"]] <- term[["structure"]]
+  }
+  allocation_definition <- .brma_random_parameter_design_allocation(
+    formula_design,
+    spec
+  )
+  spec[["allocation_index"]] <- .brma_random_parameter_allocation_index(
+    spec,
+    allocation_definition
+  )
 
   list(
     entry        = entry,
-    spec         = as.list(bundle[["specs"]][index, , drop = FALSE]),
+    spec         = spec,
     samples      = if (chains) {
       bundle[["samples"]][, entry[["parameter"]], drop = FALSE]
     } else {
       bundle[["samples"]][, entry[["parameter"]], drop = FALSE]
     },
-    prior        = bundle[["priors"]][[entry[["parameter"]]]],
+    prior        = NULL,
     source_prior = .brma_random_parameter_source_prior(
       object,
-      bundle[["specs"]][["source_parameter"]][index]
-    )
+      spec
+    ),
+    allocation_definition = allocation_definition
   )
 }
 
-.brma_random_parameter_source_prior <- function(object, source_parameter) {
+.brma_random_parameter_source_prior <- function(object, spec) {
 
-  if (is.na(source_parameter) || !nzchar(source_parameter)) {
+  source_prior_name <- spec[["source_prior_name"]]
+  source_prior <- if (is.character(source_prior_name) &&
+                        length(source_prior_name) == 1L &&
+                        !is.na(source_prior_name) &&
+                        nzchar(source_prior_name)) attr(
+    object[["fit"]],
+    "prior_list",
+    exact = TRUE
+  )[[source_prior_name]] else NULL
+  if (!is.null(source_prior) ||
+      !identical(spec[["source_transform"]], "lkj2")) {
+    return(source_prior)
+  }
+  term <- .brma_random_parameter_design_term(
+    attr(object[["fit"]], "formula_design", exact = TRUE),
+    spec
+  )
+  eta <- term[["correlation"]][["eta"]]
+  if (!is.numeric(eta) || length(eta) != 1L || !is.finite(eta) || eta <= 0) {
     return(NULL)
   }
-  attr(object[["fit"]], "prior_list", exact = TRUE)[[source_parameter]]
+
+  BayesTools::prior("beta", parameters = list(alpha = eta, beta = eta))
 }
 
 .brma_random_parameter_exact_prior <- function(selected) {
 
-  type         <- selected[["spec"]][["summary_type"]]
+  type         <- selected[["spec"]][["quantity"]]
+  transform    <- selected[["spec"]][["source_transform"]]
   source_prior <- selected[["source_prior"]]
-  if (type %in% c("sd", "sd_total", "rho", "cor") &&
+  if (type %in% c("sd", "sd_total", "sd_common", "cor", "sd_ratio") &&
+      identical(transform, "identity") &&
       !is.null(source_prior) && BayesTools::is.prior(source_prior)) {
     return(source_prior)
   }
-  if (!identical(type, "var_frac") || is.null(source_prior) ||
+  if (identical(transform, "lkj2") &&
+      inherits(source_prior, "prior.simple") &&
+      identical(source_prior[["distribution"]], "beta") &&
+      identical(source_prior[["parameters"]][["alpha"]], 1) &&
+      identical(source_prior[["parameters"]][["beta"]], 1)) {
+    return(BayesTools::prior(
+      "uniform",
+      parameters = list(a = -1, b = 1)
+    ))
+  }
+  if (!identical(type, "var_prop")) {
+    return(NULL)
+  }
+
+  .brma_random_parameter_allocation_source_prior(selected)
+}
+
+.brma_random_parameter_allocation_source_prior <- function(selected) {
+
+  source_prior <- selected[["source_prior"]]
+  if (is.null(source_prior) ||
       !inherits(source_prior, "prior.simplex") ||
       !identical(source_prior[["distribution"]], "dirichlet")) {
     return(NULL)
   }
 
   alpha <- source_prior[["parameters"]][["alpha"]]
-  index <- attr(selected[["prior"]], "random_allocation_index", exact = TRUE)
+  index <- selected[["spec"]][["allocation_index"]]
   if (!is.numeric(alpha) || any(!is.finite(alpha)) || any(alpha <= 0) ||
       length(alpha) < 2L || !is.numeric(index) || length(index) != 1L ||
       is.na(index) || index < 1L || index > length(alpha)) {
     return(NULL)
   }
 
-  return(BayesTools::prior(
+  BayesTools::prior(
     "beta",
     parameters = list(
       alpha = alpha[[index]],
       beta  = sum(alpha[-index])
     )
-  ))
+  )
 }
 
 .brma_random_parameter_density_target <- function(object, parameter) {
 
   selected  <- .brma_random_parameter_select(object, parameter)
   source    <- selected[["spec"]][["source_parameter"]]
-  type      <- selected[["spec"]][["summary_type"]]
+  source_type <- selected[["spec"]][["source_type"]]
+  type      <- selected[["spec"]][["quantity"]]
   posterior <- as.matrix(object[["fit"]][["mcmc"]])
   conditioning_exclude <- .brma_random_parameter_simplex_exclusions(
     object,
     posterior
   )
-  if (!is.na(source) && nzchar(source) && source %in% colnames(posterior) &&
-      isTRUE(all.equal(
-        as.numeric(selected[["samples"]][, 1L]),
-        as.numeric(posterior[, source]),
-        tolerance       = 0,
-        check.attributes = FALSE
-      ))) {
+  source_values <- if (!is.na(source) && nzchar(source) &&
+                       source %in% colnames(posterior)) {
+    as.numeric(posterior[, source])
+  } else {
+    NULL
+  }
+  display_transform <- selected[["spec"]][["display_transform"]]
+  target_values <- if (is.null(source_values)) {
+    NULL
+  } else if (is.null(display_transform)) {
+    source_values
+  } else {
+    BayesTools::parameter_transform_forward(
+      source_values,
+      display_transform
+    )
+  }
+  if (source_type %in% c("identity", "one_to_one_transform") &&
+      !is.null(target_values) && isTRUE(all.equal(
+      as.numeric(selected[["samples"]][, 1L]),
+      target_values,
+      tolerance        = sqrt(.Machine$double.eps),
+      check.attributes = FALSE
+    ))) {
     return(list(
       parameter      = source,
       parameter_spec = list(
         type                 = "primitive",
         target_columns       = source,
         conditioning_exclude = conditioning_exclude
-      )
+      ),
+      display_transform = display_transform
     ))
   }
 
-  if (identical(type, "var_frac") && !is.na(source) && nzchar(source)) {
-    metadata <- attr(
-      selected[["prior"]],
-      "random_allocation_metadata",
-      exact = TRUE
-    )
-    index     <- attr(selected[["prior"]], "random_allocation_index", exact = TRUE)
+  if (type %in% c("var_prop", "var_ratio", "sd_ratio") &&
+      !is.na(source) && nzchar(source)) {
+    metadata  <- selected[["allocation_definition"]]
+    index     <- selected[["spec"]][["allocation_index"]]
     n_targets <- metadata[["n_targets"]]
-    if (identical(as.integer(n_targets), 2L) &&
-        is.numeric(index) && length(index) == 1L && !is.na(index) &&
-        index %in% 1:2) {
-      columns <- paste0(source, "[", 1:2, "]")
-      auxiliary_columns <- .iwmde_simplex_auxiliary_columns(source, 2L)
+    if (is.numeric(n_targets) && length(n_targets) == 1L &&
+        !is.na(n_targets) && n_targets >= 2L && is.numeric(index) &&
+        length(index) == 1L && !is.na(index) &&
+        index >= 1L && index <= n_targets) {
+      n_targets        <- as.integer(n_targets)
+      index            <- as.integer(index)
+      columns          <- paste0(source, "[", seq_len(n_targets), "]")
+      auxiliary_columns <- .iwmde_simplex_auxiliary_columns(
+        source,
+        n_targets
+      )
+      allocation_transform <- display_transform
       if (inherits(selected[["source_prior"]], "prior.simplex") &&
           identical(selected[["source_prior"]][["distribution"]], "dirichlet") &&
-          all(c(columns, auxiliary_columns) %in% colnames(posterior))) {
+          !is.null(allocation_transform) &&
+          all(c(columns, auxiliary_columns) %in% colnames(posterior)) &&
+          isTRUE(all.equal(
+            as.numeric(selected[["samples"]][, 1L]),
+            BayesTools::parameter_transform_forward(
+              posterior[, columns[[index]]],
+              allocation_transform
+            ),
+            tolerance        = sqrt(.Machine$double.eps),
+            check.attributes = FALSE
+          ))) {
         return(list(
           parameter      = columns[[index]],
           parameter_spec = list(
             type                 = "simplex_pair",
             parameter            = source,
-            index                = as.integer(index),
-            n_targets            = 2L,
+            index                = index,
+            n_targets            = n_targets,
             target_columns       = columns,
             auxiliary_columns    = auxiliary_columns,
             conditioning_exclude = columns,
-            prior_density        = .brma_random_parameter_exact_prior(selected)
-          )
+            prior_density        =
+              .brma_random_parameter_allocation_source_prior(selected)
+          ),
+          display_transform = allocation_transform
         ))
       }
     }
@@ -592,7 +655,17 @@
 
   allocation <- term[["sd_binding"]][["allocations"]][[1L]]
   source     <- allocation[["source"]]
-  factors    <- .marginalized_random_effect_allocation_factors(term)
+  column     <- .brma_random_parameter_component_column(
+    term,
+    selected[["spec"]]
+  )
+  if (is.na(column)) {
+    return(NULL)
+  }
+  factors <- .marginalized_random_effect_allocation_factors(
+    term,
+    column = column
+  )
   if (!is.list(source) || !identical(source[["shape"]], "scalar") ||
       length(factors) == 0L) {
     return(NULL)
@@ -653,6 +726,28 @@
 }
 
 
+.brma_random_parameter_component_column <- function(term, spec) {
+
+  components <- term[["sd_component_terms"]]
+  if (is.null(components)) {
+    leaves     <- term[["sd_leaves"]]
+    components <- leaves[["leaf_terms"]]
+  }
+  if (is.null(components)) {
+    return(NA_integer_)
+  }
+  components <- .brma_random_parameter_normalize_components(
+    unname(components),
+    term
+  )
+  matches <- which(
+    !is.na(components) & components == spec[["random_component"]]
+  )
+
+  if (length(matches) == 1L) as.integer(matches) else NA_integer_
+}
+
+
 .brma_random_parameter_density_factor <- function(factor) {
 
   fields <- c("weight_name", "index", "scale", "n_targets")
@@ -702,21 +797,24 @@
 }
 
 .brma_random_parameter_support <- function(spec, prior = NULL,
-                                           source_prior = NULL) {
+                                           source_prior = NULL,
+                                           allocation = NULL) {
 
-  type <- spec[["summary_type"]]
-  support <- if (type %in% c("sd", "sd_total")) {
+  type <- spec[["quantity"]]
+  support <- if (type %in% c(
+    "sd", "sd_total", "var_total", "sd_common", "var_common"
+  )) {
     c(0, Inf)
-  } else if (identical(type, "sd_multiplier")) {
-    metadata <- if (is.null(prior)) NULL else
-      attr(prior, "random_allocation_metadata", exact = TRUE)
-    scale <- metadata[["scale"]]
-    if (identical(scale, "mean_variance")) {
-      n_targets <- metadata[["n_targets"]]
+  } else if (identical(type, "sd_ratio")) {
+    scale <- if (is.null(allocation)) NULL else allocation[["scale"]]
+    if (is.null(allocation)) {
+      c(0, Inf)
+    } else if (identical(scale, "mean_variance")) {
+      n_targets <- allocation[["n_targets"]]
       if (!is.numeric(n_targets) || length(n_targets) != 1L ||
           is.na(n_targets) || n_targets < 1) {
         stop(
-          "SD-multiplier metadata are missing a valid allocation target count.",
+          "SD-ratio metadata are missing a valid allocation target count.",
           call. = FALSE
         )
       }
@@ -725,19 +823,17 @@
       c(0, 1)
     } else {
       stop(
-        "SD-multiplier metadata are missing a canonical allocation scale.",
+        "SD-ratio metadata are missing a canonical allocation scale.",
         call. = FALSE
       )
     }
-  } else if (type %in% c("rho", "cor")) {
+  } else if (identical(type, "cor")) {
     c(-1, 1)
-  } else if (identical(type, "var_frac")) {
+  } else if (identical(type, "var_prop")) {
     c(0, 1)
   } else if (identical(type, "var_ratio")) {
-    metadata <- if (is.null(prior)) NULL else
-      attr(prior, "random_allocation_metadata", exact = TRUE)
-    upper <- if (is.null(metadata[["n_targets"]])) Inf else
-      as.numeric(metadata[["n_targets"]])
+    upper <- if (is.null(allocation[["n_targets"]])) Inf else
+      as.numeric(allocation[["n_targets"]])
     c(0, upper)
   } else {
     c(-Inf, Inf)
@@ -748,6 +844,20 @@
     lower      <- truncation[["lower"]]
     upper      <- truncation[["upper"]]
     if (length(lower) == 1L && length(upper) == 1L) {
+      transform <- spec[["display_transform"]]
+      if (is.null(transform) ||
+          (identical(transform[["type"]], "square") && lower < 0)) {
+        return(support)
+      }
+      transformed <- BayesTools::parameter_transform_forward(
+        c(lower, upper),
+        transform
+      )
+      if (anyNA(transformed)) {
+        return(support)
+      }
+      lower <- min(transformed)
+      upper <- max(transformed)
       support <- c(
         max(support[1L], as.numeric(lower)),
         min(support[2L], as.numeric(upper))
@@ -761,7 +871,7 @@
 .brma_random_parameter_point_test_reason <- function(
     spec, prior = NULL, source_prior = NULL, derived = FALSE) {
 
-  type   <- spec[["summary_type"]]
+  type   <- spec[["quantity"]]
   source <- spec[["source_parameter"]]
   label  <- spec[["label"]]
   if (.brma_random_parameter_prior_has_atom(prior) ||
@@ -772,7 +882,7 @@
       "Use a region or directional hypothesis."
     ))
   }
-  if (type %in% c("cor", "rho") &&
+  if (identical(type, "cor") &&
       (is.na(source) || !nzchar(source)) && !derived) {
     return(paste0(
       "Point-null Bayes factors are not available for derived pairwise ",
@@ -864,7 +974,8 @@
   support <- .brma_random_parameter_support(
     selected[["spec"]],
     selected[["prior"]],
-    selected[["source_prior"]]
+    selected[["source_prior"]],
+    selected[["allocation_definition"]]
   )
   attr(values, "posterior_support") <- structure(
     list(

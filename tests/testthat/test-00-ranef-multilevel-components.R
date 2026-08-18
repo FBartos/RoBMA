@@ -266,6 +266,80 @@ test_that("ranef unique-level output follows first fitted-row order", {
 })
 
 
+test_that("ranef aligns indicator coefficients within grouping levels", {
+
+  term <- list(
+    model_matrix = matrix(
+      c(
+        1, 0,
+        0, 1,
+        1, 0,
+        0, 1,
+        1, 0
+      ),
+      ncol  = 2L,
+      byrow = TRUE
+    ),
+    group_map    = c(2L, 2L, 1L, 1L, 2L),
+    group_levels = c("study-a", "study-b"),
+    sd_leaves    = list(
+      leaf_terms_by_column = c(
+        "group[sensitivity]",
+        "group[specificity]"
+      )
+    )
+  )
+  samples <- matrix(
+    c(
+      1, 2, 3, 4, 1,
+      5, 6, 7, 8, 5
+    ),
+    nrow  = 2L,
+    byrow = TRUE
+  )
+
+  metadata <- .ranef_unique_level_term(term, "study")
+  observed <- .ranef_unique_level_samples(
+    samples      = samples,
+    group_map    = metadata[["group_map"]],
+    group_levels = metadata[["group_levels"]],
+    block        = "study"
+  )
+
+  expect_identical(metadata[["group_map"]], c(1L, 2L, 3L, 4L, 1L))
+  expect_equal(unname(observed), samples[, 1:4, drop = FALSE])
+  expect_identical(
+    colnames(observed),
+    paste0(
+      "u_study[",
+      c(
+        "group[sensitivity] | study-b",
+        "group[specificity] | study-b",
+        "group[sensitivity] | study-a",
+        "group[specificity] | study-a"
+      ),
+      "]"
+    )
+  )
+})
+
+
+test_that("ranef rejects non-indicator random slopes at unique level", {
+
+  term <- list(
+    model_matrix = cbind(intercept = 1, slope = c(0, 1, 2)),
+    group_map    = c(1L, 1L, 1L),
+    group_levels = "study-a"
+  )
+
+  expect_error(
+    .ranef_unique_level_term(term, "study"),
+    "random-slope block 'study'",
+    fixed = TRUE
+  )
+})
+
+
 test_that("ranef keeps any number of random-effect blocks flat", {
 
   block_names <- c("site", "study", "outcome")

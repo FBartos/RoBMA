@@ -205,7 +205,7 @@
   }
 
   keep <- startsWith(column_names, "(mu) ") &
-    !grepl("var_frac(", column_names, fixed = TRUE)
+    !grepl(": var_prop(", column_names, fixed = TRUE)
 
   if (!any(keep)) {
     if (require_mu_columns) {

@@ -26,7 +26,8 @@
 #' @return A list of class `summary.brma` with model name, optional RoBMA
 #' inclusion tables, common estimates, moderator estimates, scale estimates,
 #' publication-bias estimates, and optional conditional estimates. The printed
-#' form displays the non-empty tables.
+#' form displays the non-empty tables. In meta-regressions with moderators, a
+#' location intercept fixed at zero is omitted; intercept-only models retain it.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -116,6 +117,13 @@ summary.brma       <- function(
   estimates_common_conditional <- estimates_common_pair[["conditional"]]
 
   ### provide regression estimates for the effect size meta-regression
+  location_remove_parameters <- if (
+    .location_omit_fixed_zero_intercept(object)
+  ) {
+    "mu_intercept"
+  } else {
+    NULL
+  }
   estimates_mods_pair <- .summary_estimates_pair(
     enabled                  = is_mods || is_random,
     object                   = object,
@@ -127,6 +135,7 @@ summary.brma       <- function(
       transform_factors      = TRUE,
       transform_scaled       = !standardized_coefficients,
       keep_formulas          = "mu",
+      remove_parameters      = location_remove_parameters,
       random_effects_summary = "none",
       formula_prefix         = FALSE,
       title                  = if (is_scale || is_random) "Location" else "Meta-Regression"
@@ -135,6 +144,7 @@ summary.brma       <- function(
       transform_factors      = TRUE,
       transform_scaled       = !standardized_coefficients,
       keep_formulas          = "mu",
+      remove_parameters      = location_remove_parameters,
       random_effects_summary = "none",
       formula_prefix         = FALSE,
       title                  = if (is_scale || is_random) {
@@ -222,19 +232,17 @@ summary.brma       <- function(
     is_robma                 = is_robma,
     conditional              = conditional,
     main_args                = list(
-      keep_parameters         = "random_effects",
+      keep_parameters         = "random",
       transform_scaled        = !standardized_coefficients,
       random_effects_summary  = "standard",
-      random_effects_label    = "component",
       random_effects_metadata = TRUE,
       formula_prefix          = FALSE,
       title                   = "Random"
     ),
     conditional_args         = list(
-      keep_parameters         = "random_effects",
+      keep_parameters         = "random",
       transform_scaled        = !standardized_coefficients,
       random_effects_summary  = "standard",
-      random_effects_label    = "component",
       random_effects_metadata = TRUE,
       formula_prefix          = FALSE,
       title                   = "Conditional Random"

@@ -42,7 +42,7 @@ test_that("bridge_sampler extracts raw bridge sampling objects", {
     }
 
     bridge <- bridge_sampler(fits[[name]])
-    expect_s3_class(bridge, "bridge", info = name)
+    expect_true(inherits(bridge, "bridge"), info = name)
     expect_silent(bridgesampling::error_measures(bridge))
   }
 })

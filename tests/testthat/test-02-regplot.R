@@ -33,8 +33,8 @@ test_that("random-slope regplot variance replays its prediction grid", {
     dimnames = list(NULL, c(
       "log_tau_intercept",
       "log_tau_x",
-      "mu__xRE_ALLOCx_allocation__weight[1]",
-      "mu__xRE_ALLOCx_allocation__weight[2]"
+      "mu__xRE_ALLOCx_study_components__weight[1]",
+      "mu__xRE_ALLOCx_study_components__weight[2]"
     ))
   )
   grid_data <- data.frame(x = c(0, 1))

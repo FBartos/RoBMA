@@ -22,7 +22,8 @@
   }
 
   distribution <- prior[["distribution"]]
-  if (contrast != "treatment" && !distribution %in% c("spike", "mnormal", "mcauchy", "mt")) {
+  if (!contrast %in% c("treatment", "independent") &&
+      !distribution %in% c("spike", "mnormal", "mcauchy", "mt")) {
     distribution <- paste0("m", distribution)
   }
 
@@ -53,11 +54,11 @@
 }
 .term_default_factor_normal_prior      <- function(prior_sd, contrast, rescale_priors) {
 
-  if (contrast == "treatment") {
+  if (contrast %in% c("treatment", "independent")) {
     prior <- BayesTools::prior_factor(
       distribution = "normal",
       parameters   = list("mean" = 0, "sd" = prior_sd),
-      contrast     = "treatment"
+      contrast     = contrast
     )
   } else {
     prior <- BayesTools::prior_factor(
@@ -68,6 +69,63 @@
   }
 
   return(.rescale_prior_object(prior, rescale_priors))
+}
+.warn_default_independent_fixed_overspecification <- function(
+    formula_design, formula, explicit_prior_names, parameter, contrast) {
+
+  if (!identical(contrast, "independent")) {
+    return(invisible(FALSE))
+  }
+
+  model_terms      <- formula_design[["model_terms"]]
+  model_terms_type <- formula_design[["model_terms_type"]]
+  explicit_prior_names <- gsub(
+    ":", "__xXx__", explicit_prior_names, fixed = TRUE
+  )
+  default_factor_terms <- model_terms[
+    model_terms_type == "factor" &
+      !model_terms %in% explicit_prior_names
+  ]
+  if (length(default_factor_terms) == 0L) {
+    return(invisible(FALSE))
+  }
+
+  has_compiled_intercept <- "intercept" %in% model_terms
+  term_positions <- match(default_factor_terms, model_terms)
+  term_assign <- term_positions - as.integer(has_compiled_intercept)
+  selected_assign <- term_assign
+  has_formula_intercept <- attr(stats::terms(formula), "intercept") == 1L
+  if (has_formula_intercept) {
+    selected_assign <- c(0L, selected_assign)
+  }
+
+  model_matrix <- formula_design[["model_matrix"]]
+  selected <- formula_design[["assign"]] %in% selected_assign
+  affected_matrix <- model_matrix[, selected, drop = FALSE]
+  affected_rank <- qr(affected_matrix)[["rank"]]
+  if (affected_rank == ncol(affected_matrix)) {
+    return(invisible(FALSE))
+  }
+
+  remedy <- if (has_formula_intercept) {
+    paste0(
+      "Suppress the intercept with '", parameter,
+      " = ~ 0 + ...', use independent coding for at most one factor term, "
+    )
+  } else {
+    "Use independent coding for at most one factor term "
+  }
+  warning(
+    "The '", parameter,
+    "' formula is overspecified by default independent factor contrasts: ",
+    "the affected design has ", ncol(affected_matrix),
+    " columns but rank ", affected_rank, ". ",
+    remedy,
+    "or set identifiable contrasts with 'prior_", parameter, "'.",
+    call. = FALSE
+  )
+
+  invisible(TRUE)
 }
 .assign_prior_list.terms               <- function(
     prior_list, prior_intercept, parameter, measure, data, prior_unit_information_sd,
@@ -173,11 +231,12 @@
       }
 
       # transform the continuous prior distributions into prior distributions for factors
-      if (attr(data, "set_contrast_factor_predictors") == "treatment") {
+      if (attr(data, "set_contrast_factor_predictors") %in%
+          c("treatment", "independent")) {
         default_prior_factor <- BayesTools::prior_factor(
           distribution = default_prior_continuous[["distribution"]],
           parameters   = default_prior_continuous[["parameters"]],
-          contrast     = "treatment"
+          contrast     = attr(data, "set_contrast_factor_predictors")
         )
       } else {
         default_prior_factor <- BayesTools::prior_factor(
@@ -239,16 +298,26 @@
   }
 
   # list the priors into the default positions
+  explicit_prior_names <- names(prior_list)
   prior_list[["__default_continuous"]] <- default_prior_continuous
   prior_list[["__default_factor"]]     <- default_prior_factor
 
   ### use BayesTools::JAGS_formula to obtain the assigned list of priors
-  prior_list <- BayesTools::JAGS_formula(
+  formula <- attr(data[[parameter]], "formula")
+  formula_result <- BayesTools::JAGS_formula(
     parameter  = formula_parameter,
     data       = data[[parameter]],
-    formula    = attr(data[[parameter]], "formula"),
+    formula    = formula,
     prior_list = prior_list
-  )[["prior_list"]]
+  )
+  .warn_default_independent_fixed_overspecification(
+    formula_design       = formula_result[["formula_design"]],
+    formula              = formula,
+    explicit_prior_names = explicit_prior_names,
+    parameter            = parameter,
+    contrast             = attr(data, "set_contrast_factor_predictors")
+  )
+  prior_list <- formula_result[["prior_list"]]
   names(prior_list) <- BayesTools::format_parameter_names(
     parameters         = names(prior_list),
     formula_parameters = formula_parameter,

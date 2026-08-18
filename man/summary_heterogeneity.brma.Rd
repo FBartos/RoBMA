@@ -75,13 +75,16 @@ component variances are summed before summarizing \code{tau2}; \code{tau}
 is the square root of this variance draw.
 When a random-formula model uses a shared total-SD plus variance-allocation
 node, \code{component = "all"} also includes an allocation-node table with
-\code{tau}, \code{tau2}, and \code{var_frac(...)} rows. For nested formulas
+\code{tau}, \code{tau2}, and \code{<allocation>: var_prop(<block>)} rows.
+For nested formulas
 such as \code{random = ~ 1 | study / esid}, this table is displayed under
 the user-facing path \code{"study/esid"}.
 For heterogeneous structured random effects, such as
 \code{random = ~ har(time | study)}, the allocation table reports
-\code{sd_total(...)}, level-specific \code{sd(...)} rows, and
-\code{var_ratio(...)} rows for the heterogeneous standard-deviation
+\code{<allocation>: sd}, level-specific
+\code{<block>: sd(<parameter>[<level>])} rows, and
+\code{<allocation>: var_ratio(<parameter>[<level>])} rows for the
+heterogeneous standard-deviation
 components.
 }
 \examples{

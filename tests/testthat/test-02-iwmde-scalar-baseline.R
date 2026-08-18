@@ -226,10 +226,11 @@ test_that("scalar joint-density failures identify the exact posterior row", {
       }
       return(0)
     },
-    .iwmde_log_prior_row = function(row, prior_list) {
+    .iwmde_replacement_log_prior_rows = function(samples, prior_list,
+                                                  replacement) {
 
       if (identical(source_kind, "full prior") &&
-          row[["marker"]] == 2 && row[["mu"]] == 5) {
+          samples[1L, "marker"] == 2 && samples[1L, "mu"] == 5) {
         return(bad_value)
       }
       return(0)

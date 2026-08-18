@@ -189,6 +189,61 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_loglik_batch(
   return out;
 }
 
+extern "C" SEXP RoBMA_known_v_covariance_plan_location_quadratic_batch(
+    SEXP pointer,
+    SEXP means,
+    SEXP bases,
+    SEXP random_covariance_states,
+    SEXP extra_variances)
+{
+  CovariancePlan *plan = plan_pointer(pointer);
+  const int draws = require_batched_plan_inputs(
+    *plan,
+    means,
+    random_covariance_states,
+    extra_variances
+  );
+  if (TYPEOF(bases) != REALSXP || !Rf_isMatrix(bases)) {
+    Rf_error("Known-V location bases must be a numeric matrix.");
+  }
+  SEXP basis_dim = Rf_getAttrib(bases, R_DimSymbol);
+  if (INTEGER(basis_dim)[0] != plan->n ||
+      INTEGER(basis_dim)[1] != draws) {
+    Rf_error("Known-V location bases have inconsistent dimensions.");
+  }
+
+  SEXP output = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP linear = PROTECT(Rf_allocVector(REALSXP, draws));
+  SEXP quadratic = PROTECT(Rf_allocVector(REALSXP, draws));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_STRING_ELT(names, 0, Rf_mkChar("linear"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("quadratic"));
+  SET_VECTOR_ELT(output, 0, linear);
+  SET_VECTOR_ELT(output, 1, quadratic);
+  Rf_setAttrib(output, R_NamesSymbol, names);
+
+  const double *mean_values = REAL(means);
+  const double *basis_values = REAL(bases);
+  const double *extra_values = REAL(extra_variances);
+  for (int draw = 0; draw < draws; ++draw) {
+    std::vector<CovarianceFactor> states = covariance_states(
+      VECTOR_ELT(random_covariance_states, draw),
+      *plan
+    );
+    plan_location_quadratic_values(
+      *plan,
+      mean_values + static_cast<size_t>(draw) * plan->n,
+      basis_values + static_cast<size_t>(draw) * plan->n,
+      states,
+      extra_values + static_cast<size_t>(draw) * plan->n,
+      REAL(linear) + draw,
+      REAL(quadratic) + draw
+    );
+  }
+  UNPROTECT(4);
+  return output;
+}
+
 extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik_batch(
     SEXP pointer,
     SEXP means,

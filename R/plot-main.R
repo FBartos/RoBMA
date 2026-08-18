@@ -42,8 +42,9 @@
 #' more sensitive to its fitted conditional weights. Matching is
 #' case-insensitive. For semantic random-effect quantities, qCMDE/IWMDE support
 #' direct scalar fitted sources, allocated component SDs backed by a scalar
-#' total SD, and two-component allocation fractions. Other nonlinear derived
-#' quantities remain KDE-only.
+#' aggregate (`sd_total` or `sd_common`), and allocation proportions or ratios
+#' backed by a fitted simplex coordinate. Other nonlinear derived quantities
+#' remain KDE-only.
 #' qCMDE/IWMDE are not available for non-known-\code{V}
 #' \code{brma.mv()} random-formula models or
 #' selection-weightfunction coordinates requiring joint replacement. IWMDE is
@@ -291,7 +292,8 @@ lines.brma <- function(
         normalization_prob   = density_control[["normalization_prob"]],
         density_method       = density_method,
         display_grid         = density_control[["display_grid"]],
-        parameter_spec       = target[["parameter_spec"]]
+        parameter_spec       = target[["parameter_spec"]],
+        display_transform    = target[["display_transform"]]
       )
     }
   } else {
@@ -389,7 +391,8 @@ lines.brma <- function(
                                     n_points, sample_budget,
                                     normalization_points,
                                     normalization_prob, density_method,
-                                    display_grid, parameter_spec = NULL) {
+                                    display_grid, parameter_spec = NULL,
+                                    display_transform = NULL) {
 
   if (is.null(normalization_points)) {
     normalization_points <- max(50L, n_points)
@@ -459,6 +462,12 @@ lines.brma <- function(
   if (identical(diagnostic[["status"]], "ok") &&
       !is.null(estimate[["posterior_density"]])) {
     posterior_density <- estimate[["posterior_density"]]
+    if (!is.null(display_transform)) {
+      posterior_density <- .plot_brma_transform_iwmde_density(
+        posterior_density,
+        display_transform
+      )
+    }
     if (!exact_parameter_spec) {
       posterior_density <- .plot_brma_align_iwmde_density(
         posterior_density = posterior_density,
@@ -473,6 +482,47 @@ lines.brma <- function(
   }
 
   return(samples)
+}
+
+
+.plot_brma_transform_iwmde_density <- function(
+    posterior_density, display_transform) {
+
+  if (is.null(posterior_density)) {
+    return(NULL)
+  }
+  source_x <- posterior_density[["x"]]
+  jacobian <- BayesTools::parameter_transform_jacobian(
+    source_x,
+    display_transform
+  )
+  if (any(!is.finite(jacobian) | jacobian <= 0)) {
+    stop("Unsupported qCMDE/IWMDE display transform.", call. = FALSE)
+  }
+  posterior_density[["x"]] <- BayesTools::parameter_transform_forward(
+    source_x,
+    display_transform
+  )
+  posterior_density[["y"]] <- posterior_density[["y"]] / jacobian
+  point_masses <- posterior_density[["point_masses"]]
+  if (is.data.frame(point_masses) && nrow(point_masses) > 0L &&
+      "x" %in% names(point_masses)) {
+    point_masses[["x"]] <- BayesTools::parameter_transform_forward(
+      point_masses[["x"]],
+      display_transform
+    )
+    posterior_density[["point_masses"]] <- point_masses
+  }
+  if (is.unsorted(posterior_density[["x"]])) {
+    order <- order(posterior_density[["x"]])
+    posterior_density[["x"]] <- posterior_density[["x"]][order]
+    posterior_density[["y"]] <- posterior_density[["y"]][order]
+  }
+  if (length(posterior_density[["x"]]) > 1L &&
+      any(diff(posterior_density[["x"]]) <= 0)) {
+    stop("Unsupported qCMDE/IWMDE display transform.", call. = FALSE)
+  }
+  posterior_density
 }
 
 

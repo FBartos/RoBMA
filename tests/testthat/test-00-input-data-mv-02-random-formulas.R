@@ -28,16 +28,24 @@ test_that("brma.mv supports BayesTools random formulas and owns heterogeneity", 
   expect_null(attr(data[["location"]], "random_terms"))
   expect_match(
     paste(deparse(attr(data[["location"]], "formula")), collapse = " "),
-    "Component_1"
+    "component_1"
   )
   expect_equal(
     vapply(terms, `[[`, character(1), "block_name"),
-    c("Component_1", "Component_2")
+    c("component_1", "component_2")
   )
   expect_s3_class(object[["priors"]][["random"]], "prior_random")
   expect_equal(
     object[["priors"]][["random"]][["allocation"]][[1]][["terms"]],
-    c(Component_1 = "Component_1", Component_2 = "Component_2")
+    c(component_1 = "component_1", component_2 = "component_2")
+  )
+  expect_identical(
+    object[["priors"]][["random"]][["allocation"]][[1]][["display_name"]],
+    ""
+  )
+  expect_equal(
+    object[["priors"]][["random"]][["allocation"]][[1]][["component_names"]],
+    c("component 1", "component 2")
   )
   expect_false("mu" %in% names(object[["priors"]][["outcome"]]))
   expect_false("tau" %in% names(object[["priors"]][["outcome"]]))
@@ -51,7 +59,7 @@ test_that("brma.mv supports BayesTools random formulas and owns heterogeneity", 
   expect_s3_class(design, "BayesTools_formula_design")
   expect_equal(
     vapply(design[["random_effects"]], `[[`, character(1), "block_name"),
-    c("Component_1", "Component_2")
+    c("component_1", "component_2")
   )
 })
 
@@ -80,14 +88,18 @@ test_that("brma.mv names nested random lists deterministically", {
 
   expect_equal(
     block_names,
-    c("Component_1_school_district", "Component_1_district")
+    c("school_district", "district")
   )
   expect_equal(
     object[["priors"]][["random"]][["allocation"]][[1]][["terms"]],
     c(
-      school_district = "Component_1_school_district",
-      district        = "Component_1_district"
+      school_district = "school_district",
+      district        = "district"
     )
+  )
+  expect_identical(
+    object[["priors"]][["random"]][["allocation"]][[1]][["display_name"]],
+    ""
   )
 
   named <- brma.mv(
@@ -135,7 +147,7 @@ test_that("brma.mv names nested random lists deterministically", {
   )
   expect_equal(
     hierarchical_allocation[[2]][["parent"]][["allocation"]],
-    "random_total"
+    "heterogeneity"
   )
   expect_equal(
     hierarchical_allocation[[2]][["parent"]][["component"]],
@@ -264,16 +276,188 @@ test_that("brma.mv supports BayesTools random covariance shapes", {
     expect_s3_class(object[["priors"]][["random"]], "prior_random")
     expect_false("tau" %in% names(object[["priors"]][["outcome"]]))
 
+    design <- .fitted_formula_design(object, "mu", required = TRUE)
+    random_term <- design[["random_effects"]][[1L]]
     if (shapes[[shape]][["structure"]] %in% c("cs", "hcs", "ar1", "har", "car")) {
-      block_name <- names(object[["priors"]][["random"]][["blocks"]])[[1L]]
-      covariance <- object[["priors"]][["random"]][["blocks"]][[block_name]][["covariance"]]
-
-      expect_equal(covariance[["rho_scale"]], "rho")
-      expect_equal(covariance[["rho"]][["distribution"]], "beta")
-      expect_equal(covariance[["rho"]][["parameters"]][["alpha"]], 1)
-      expect_equal(covariance[["rho"]][["parameters"]][["beta"]], 1)
+      expected_lower <- if (identical(shapes[[shape]][["structure"]], "car")) 0 else -1
+      expect_equal(random_term[["correlation"]][["rho_scale"]], "rho")
+      expect_equal(
+        random_term[["correlation"]][["bounds"]],
+        c(lower = expected_lower, upper = 1)
+      )
+    }
+    if (identical(shapes[[shape]][["structure"]], "us") &&
+        random_term[["n_columns"]] > 1L) {
+      expect_equal(random_term[["correlation"]][["eta"]], 1)
     }
   }
+})
+
+
+test_that("partial prior_random specifications inherit RoBMA scale defaults", {
+
+  dat <- data.frame(
+    yi    = c(-0.2, 0.1, 0.3, 0.5),
+    group = factor(c("sensitivity", "specificity", "sensitivity", "specificity")),
+    study = factor(c("s1", "s1", "s2", "s2"))
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(0.04, 4)),
+    mods                      = ~ 0 + group,
+    random                    = ~ us(0 + group | study),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_mods                = BayesTools::prior_factor(
+      "normal",
+      list(mean = 0, sd = 1),
+      contrast = "independent"
+    ),
+    prior_heterogeneity       = BayesTools::prior_random(
+      study = BayesTools::random_block(
+        contrasts = c(group = "independent")
+      )
+    ),
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  random_prior <- object[["priors"]][["random"]]
+  expect_s3_class(random_prior, "prior_random")
+  expect_s3_class(random_prior[["allocation"]], "random_variance_allocation")
+  expect_equal(random_prior[["allocation"]][["target"]], "sd_component")
+  expect_equal(random_prior[["allocation"]][["scale"]], "mean_variance")
+  expect_equal(
+    random_prior[["blocks"]][["study"]][["contrasts"]],
+    c(group = "contr.independent")
+  )
+
+  random_term <- .fitted_formula_design(
+    object,
+    "mu",
+    required = TRUE
+  )[["random_effects"]][[1L]]
+  expect_equal(random_term[["n_columns"]], 2L)
+  expect_equal(random_term[["correlation"]][["eta"]], 1)
+})
+
+
+test_that("global independent contrasts propagate to random coefficients", {
+
+  dat <- data.frame(
+    yi    = c(-0.2, 0.1, 0.3, 0.5),
+    group = factor(c("sensitivity", "specificity", "sensitivity", "specificity")),
+    study = factor(c("s1", "s1", "s2", "s2"))
+  )
+  expect_no_warning(
+    object <- brma.mv(
+      yi                             = yi,
+      V                              = diag(rep(0.04, 4)),
+      mods                           = ~ 0 + group,
+      random                         = ~ us(0 + group | study),
+      set_contrast_factor_predictors = "independent",
+      prior_heterogeneity            = BayesTools::prior_random(),
+      data                           = dat,
+      measure                        = "GEN",
+      prior_unit_information_sd      = 1,
+      only_priors                    = TRUE
+    )
+  )
+
+  design      <- .fitted_formula_design(object, "mu", required = TRUE)
+  random_term <- design[["random_effects"]][[1L]]
+
+  expect_s3_class(
+    object[["priors"]][["mods"]][["group"]],
+    "prior.independent"
+  )
+  expect_null(
+    object[["priors"]][["random"]][["blocks"]][["study"]][["contrasts"]]
+  )
+  expect_equal(design[["contrast_matrices"]][["group"]], diag(2))
+  expect_equal(random_term[["contrast_matrices"]][["group"]], diag(2))
+  expect_equal(random_term[["n_columns"]], 2L)
+})
+
+
+test_that("default independent contrasts warn about overspecified formulas", {
+
+  dat <- data.frame(
+    yi    = seq(-0.2, 0.3, length.out = 6L),
+    vi    = rep(0.04, 6L),
+    group = factor(rep(c("a", "b"), 3L)),
+    site  = factor(rep(c("x", "y", "z"), each = 2L)),
+    study = factor(rep(c("s1", "s2", "s3"), each = 2L))
+  )
+  expect_warning(
+    brma.norm(
+      yi                             = yi,
+      sei                            = sqrt(vi),
+      mods                           = ~ group,
+      set_contrast_factor_predictors = "independent",
+      data                           = dat,
+      measure                        = "GEN",
+      prior_unit_information_sd      = 1,
+      only_priors                    = TRUE
+    ),
+    paste0(
+      "The 'mods' formula is overspecified by default independent factor ",
+      "contrasts: the affected design has 3 columns but rank 2. Suppress the ",
+      "intercept with 'mods = ~ 0 + ...', use independent coding for at most ",
+      "one factor term, or set identifiable contrasts with 'prior_mods'."
+    ),
+    fixed = TRUE
+  )
+  expect_warning(
+    brma.norm(
+      yi                             = yi,
+      sei                            = sqrt(vi),
+      mods                           = ~ 0 + group + site,
+      set_contrast_factor_predictors = "independent",
+      data                           = dat,
+      measure                        = "GEN",
+      prior_unit_information_sd      = 1,
+      only_priors                    = TRUE
+    ),
+    paste0(
+      "The 'mods' formula is overspecified by default independent factor ",
+      "contrasts: the affected design has 5 columns but rank 4. Use ",
+      "independent coding for at most one factor term or set identifiable ",
+      "contrasts with 'prior_mods'."
+    ),
+    fixed = TRUE
+  )
+
+  sd_prior <- BayesTools::prior(
+    "normal",
+    parameters = list(mean = 0, sd = 1),
+    truncation = list(lower = 0, upper = Inf)
+  )
+  expect_warning(
+    brma.mv(
+      yi                             = yi,
+      V                              = vi,
+      mods                           = ~ 0 + group,
+      random                         = ~ us(group | study),
+      set_contrast_factor_predictors = "independent",
+      prior_heterogeneity            = BayesTools::prior_random(
+        study = BayesTools::random_block(sd = sd_prior)
+      ),
+      data                           = dat,
+      measure                        = "GEN",
+      prior_unit_information_sd      = 1,
+      only_priors                    = TRUE
+    ),
+    paste0(
+      "Random-effect block 'study' is overspecified by inherited independent ",
+      "factor contrasts: the affected design has 3 columns but rank 2. ",
+      "Suppress that block's intercept with '0 +' in 'random', inherit ",
+      "independent coding for at most one factor term, or set identifiable ",
+      "block contrasts in 'prior_heterogeneity' with ",
+      "'random_block(contrasts = ...)'."
+    ),
+    fixed = TRUE
+  )
 })
 
 
@@ -535,8 +719,8 @@ test_that("brma.mv validates random formula edge cases", {
     yi                        = yi,
     V                         = diag(rep(0.04, 4)),
     scale                     = list(
-      "Component 1" = ~ x,
-      "Component 2" = ~ x
+      "component 1" = ~ x,
+      "component 2" = ~ x
     ),
     random                    = list(~ 1 | study, ~ 1 | x),
     data                      = dat,
@@ -546,33 +730,33 @@ test_that("brma.mv validates random formula edge cases", {
   )
   expect_equal(
     names(.data_scale_components(default_named_scale_random[["data"]])),
-    c("Component_1", "Component_2")
+    c("component_1", "component_2")
   )
   expect_equal(
     .data_scale_formula_sources(default_named_scale_random[["data"]]),
-    c(Component_1 = "tau_Component_1", Component_2 = "tau_Component_2")
+    c(component_1 = "tau_component_1", component_2 = "tau_component_2")
   )
 
   default_named_scale_prior <- brma.mv(
     yi                        = yi,
     V                         = diag(rep(0.04, 4)),
     scale                     = list(
-      "Component 1" = ~ x,
-      "Component 2" = ~ x
+      "component 1" = ~ x,
+      "component 2" = ~ x
     ),
     random                    = list(~ 1 | study, ~ 1 | x),
     data                      = dat,
     measure                   = "GEN",
     prior_scale               = list(
-      "Component 1" = list(x = scale_prior),
-      "Component 2" = list(x = scale_prior)
+      "component 1" = list(x = scale_prior),
+      "component 2" = list(x = scale_prior)
     ),
     prior_unit_information_sd = 1,
     only_priors               = TRUE
   )
   expect_equal(
     names(default_named_scale_prior[["priors"]][["scale"]]),
-    c("log_tau_Component_1", "log_tau_Component_2")
+    c("log_tau_component_1", "log_tau_component_2")
   )
 
   text_named_scale_prior <- brma.mv(
@@ -625,11 +809,11 @@ test_that("brma.mv validates random formula edge cases", {
   )
   expect_equal(
     vapply(plain_nested_effects[["terms"]], `[[`, character(1), "component_label"),
-    c("Component_1", "Component_1")
+    c("component_1", "component_1")
   )
   expect_equal(
     plain_nested_scale_random[["priors"]][["random"]][["allocation"]][[1]][["name"]],
-    "total"
+    "heterogeneity"
   )
   plain_nested_design <- .fitted_formula_design(
     plain_nested_scale_random,
@@ -656,7 +840,7 @@ test_that("brma.mv validates random formula edge cases", {
   expect_true(.summary_random_components_enabled(nested_scale_random))
   expect_equal(
     nested_scale_random[["priors"]][["random"]][["allocation"]][[1]][["name"]],
-    "total"
+    "heterogeneity"
   )
 
   expect_error(
@@ -1060,7 +1244,7 @@ test_that("brma.mv marginalizes nested estimate level with allocation child SD",
     "sampling_var\\[i\\] \\+ pow\\(mu__xREx__estimate_study_intercept,2\\)"
   )
   expect_false(grepl(
-    "pow(mu__xRE_ALLOCx_random_total__total_sd,2)",
+    "pow(mu__xRE_ALLOCx_heterogeneity__allocation_sd,2)",
     syntax,
     fixed = TRUE
   ))
@@ -1263,7 +1447,7 @@ test_that("brma.mv marginalized random scale applies allocation weights", {
   syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
   expect_match(
     syntax,
-    "sampling_var\\[i\\] \\+ pow\\(tau\\[i\\] \\* sqrt\\(mu__xRE_ALLOCx_total__weight\\[1\\]\\),2\\)"
+    "sampling_var\\[i\\] \\+ pow\\(tau\\[i\\] \\* sqrt\\(mu__xRE_ALLOCx_heterogeneity__weight\\[1\\]\\),2\\)"
   )
 
   posterior <- matrix(
@@ -1275,12 +1459,12 @@ test_that("brma.mv marginalized random scale applies allocation weights", {
     byrow    = TRUE,
     dimnames = list(NULL, c(
       paste0("tau[", 1:4, "]"),
-      "mu__xRE_ALLOCx_total__weight[1]",
-      "mu__xRE_ALLOCx_total__weight[2]"
+      "mu__xRE_ALLOCx_heterogeneity__weight[1]",
+      "mu__xRE_ALLOCx_heterogeneity__weight[2]"
     ))
   )
   expected <- posterior[, paste0("tau[", 1:4, "]"), drop = FALSE]^2 *
-    posterior[, "mu__xRE_ALLOCx_total__weight[1]"]
+    posterior[, "mu__xRE_ALLOCx_heterogeneity__weight[1]"]
 
   expect_equal(
     .evaluate_marginalized_random_variance(

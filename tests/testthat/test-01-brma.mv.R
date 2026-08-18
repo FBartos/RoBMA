@@ -356,7 +356,7 @@ test_that("brma.mv fits extended known-V backend smoke models", {
   expect_equal(known_R_term[["compile_mode"]], "sampled")
   expect_equal(known_R_term[["group_covariance"]][["scale"]], "none")
   expect_match(known_R_syntax, "_xRE_GROUP_Zx", fixed = TRUE)
-  expect_true(any(grepl("sd_multiplier(", known_R_output, fixed = TRUE)))
+  expect_true(any(grepl(": sd_ratio(", known_R_output, fixed = TRUE)))
   fit_known_R <- suppressWarnings(add_loo(fit_known_R))
   expect_s3_class(fit_known_R[["loo"]][["estimate"]], "loo")
   save_fit(
@@ -470,7 +470,7 @@ test_that("brma.mv fits extended known-V backend smoke models", {
                          fixed = TRUE)))
   expect_true(any(grepl("Scale", random_scale_output, fixed = TRUE)))
   expect_true(any(random_scale_output == "Random"))
-  expect_true(any(grepl("var_frac(", random_scale_output, fixed = TRUE)))
+  expect_true(any(grepl(": var_prop(", random_scale_output, fixed = TRUE)))
   fit_block_random_scale <- suppressWarnings(add_loo(fit_block_random_scale))
   expect_s3_class(fit_block_random_scale[["loo"]][["estimate"]], "loo")
   save_fit(
@@ -512,7 +512,7 @@ test_that("brma.mv fits extended known-V backend smoke models", {
   expect_true(any(grepl("(log_tau) x", rownames(fit_3lvl_scale_total[["summary"]]),
                         fixed = TRUE)))
   expect_match(scale_total_syntax, "tau\\[i\\] = exp\\(log_tau\\[i\\]\\)")
-  expect_match(scale_total_syntax, "mu__xRE_ALLOCx_total__weight", fixed = TRUE)
+  expect_match(scale_total_syntax, "mu__xRE_ALLOCx_heterogeneity__weight", fixed = TRUE)
   fit_3lvl_scale_total <- suppressWarnings(add_loo(fit_3lvl_scale_total))
   expect_s3_class(fit_3lvl_scale_total[["loo"]][["estimate"]], "loo")
   save_fit(
@@ -1140,8 +1140,8 @@ test_that("brma.mv fits v14 Begg treatment parity model", {
     parameters   = list(location = 0)
   )
   cs_zero <- BayesTools::random_covariance(
-    rho       = rho_zero,
-    rho_scale = "rho"
+    cor       = rho_zero,
+    cor_scale = "cor"
   )
   args <- .brma_mv_metafor_fit_args(seed = 4)
   fit4_brma <- brma.mv(

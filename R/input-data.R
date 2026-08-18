@@ -47,9 +47,13 @@
 #' BayesTools random-effect terms for `brma.mv()`. Use
 #' [random-effect formula structure tags][random_effect_formula_tags] such as
 #' `diag()`, `us()`/`un()`, `cs()`, `hcs()`, `ar1()`/`ar()`, `har()`, or
-#' `car()` inside the formula. Plain random-effect syntax is allowed only for
-#' random intercepts; random slopes require an explicit structure tag or the
-#' `||` diagonal shorthand.
+#' `car()` inside the formula. Plain `(expr | group)` syntax uses an
+#' unstructured random-coefficient block; `expr || group` uses a diagonal
+#' block. The coefficient-formula and structured-index tag families have
+#' different left-side semantics; see the linked documentation. A bare formula
+#' or unnamed one-entry list has no redundant component prefix. An explicitly
+#' named one-entry list retains its name; lists with two or more entries
+#' generate missing names as `component 1`, `component 2`, and so on.
 #' @param cluster an optional vector of cluster identifiers for multilevel
 #' meta-analysis.
 #' @param data an optional data frame containing the variables.
@@ -239,7 +243,7 @@ NULL
   # check additional input
   .check_measure(measure, class = class)
   BayesTools::check_bool(standardize_continuous_predictors, "standardize_continuous_predictors", allow_NA = FALSE)
-  BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c("treatment", "meandif", "orthonormal"), allow_NA = FALSE)
+  BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c("treatment", "meandif", "orthonormal", "independent"), allow_NA = FALSE)
   if (missing(effect_direction)) {
     effect_direction <- "positive"
   }
@@ -1450,7 +1454,10 @@ NULL
 .check_and_list_data.random_annotate_formula_component <- function(random_effects,
                                                                    random) {
 
-  if (!inherits(random, "formula")) {
+  is_single_formula <- inherits(random, "formula") ||
+    (is.list(random) && length(random) == 1L &&
+       inherits(random[[1L]], "formula"))
+  if (!is_single_formula) {
     return(random_effects)
   }
   if (length(random_effects[["components"]]) > 0L) {
@@ -1471,8 +1478,8 @@ NULL
     )
   }
 
-  component       <- "Component 1"
-  component_label <- "Component_1"
+  component       <- "component 1"
+  component_label <- "component_1"
   block_names     <- vapply(terms, `[[`, character(1), "block_name")
   for (i in seq_along(terms)) {
     terms[[i]][["component"]]             <- component

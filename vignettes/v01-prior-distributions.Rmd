@@ -376,9 +376,11 @@ mv_random_nested <- brma.mv(
 print_prior(mv_random_nested, parameter = "random")
 ```
 
-The output reports the total standard-deviation prior distribution, the allocation weights `w`, and the implied component standard deviations.
+The prior display writes the aggregate mathematically as `sigma_total`, followed by the allocation weights and implied component standard deviations.
 For this nested model, the two components are the estimate-within-study component (`esid_study`) and the study component (`study`).
-The allocation is on the variance scale, so `sigma_esid_study` and `sigma_study` are computed by multiplying `sigma_total` by the square root of the corresponding weight.
+The allocation is on the variance scale: each component SD is `sigma_total * sqrt(w[component])`, and the component variances sum to `sigma_total^2`.
+After fitting, the semantic catalog exposes the same quantities as `sd_total`, `var_total`, `var_prop(esid_study)`, and `var_prop(study)`.
+Because this model has one top-level random component, RoBMA suppresses its redundant owner prefix; these are also the names used in plots, density estimation, and hypotheses.
 
 Heterogeneous random-effect structures use the same idea inside a single block.
 For example, `hcs(outcome | study)` estimates one standard deviation per outcome level and one common correlation parameter:
@@ -394,10 +396,18 @@ mv_random_heterogeneous <- brma.mv(
 print_prior(mv_random_heterogeneous, parameter = "random")
 ```
 
-The printed output now shows `scale: mean_variance`.
-For a heterogeneous block with $q$ standard-deviation components and allocation weight $w_j$, the $j$th component standard deviation is `sigma_total * sqrt(q * w[j])`.
-Equal weights keep every component on the total-standard-deviation scale, while unequal weights move variance among the components without changing the average component variance.
-The block also receives the default `Beta(1, 1)` prior distribution on the common correlation parameter `rho`.
+The prior display now uses `sigma_common` and shows `scale: mean_variance`.
+For a heterogeneous block with $q$ standard-deviation components and allocation weight $w_j$, the $j$th component standard deviation is `sigma_common * sqrt(q * w[j])`.
+Equal weights make each component SD equal to the common scale, while unequal weights move variance among the components without changing the average component variance.
+After fitting, the allocation is exposed as `sd_common`, `var_common`, `var_ratio(outcome[level])`, and `sd_ratio(outcome[level])`.
+The block also receives a uniform prior on the complete valid raw-correlation interval, `(-1 / (K - 1), 1)`, where `K` is the number of outcome levels.
+This includes all negative correlations allowed by the HCS covariance matrix; it does not impose a hidden positive-correlation restriction.
+
+Here `hcs(outcome | study)` is a structure-owned index model: it creates one SD per observed `outcome` level and constrains all pairs to share one public `cor` parameter.
+It is different from an unstructured random-coefficient model such as `us(0 + outcome | study)`.
+The latter obtains its factor basis from random-block contrast metadata and estimates an unrestricted correlation matrix.
+Formula-random correlations use `cor` in summaries, plots, density estimation, and hypotheses; any compact backend `rho` coordinate is internal. This differs from the legacy `cluster` model's public heterogeneity-allocation parameter `rho`.
+See [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html#formula-semantics-and-random-effect-structures) for the full formula contract and a worked factor-level US specification.
 
 For custom random-effect prior distributions via `BayesTools::prior_random()`, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
 

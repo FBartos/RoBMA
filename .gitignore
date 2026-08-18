@@ -23,6 +23,8 @@ models/MetaRegression/*
 .RData
 Rplots.pdf
 *.new.svg
+/tests/scenarios/results/**/*.new.txt
+/tests/scenarios/timings/*.new.tsv
 /tests/testthat/test_files
 /tests/scenarios/cache
 knowledge-base/
@@ -42,3 +44,4 @@ CLAUDE.md
 # StatsVault local workspace and generated agent bridges
 .StatsVault/
 /tools/rma-mv-parity
+/.agents/tmp

@@ -29,7 +29,8 @@
                                                                     posterior_samples,
                                                                     active_setup,
                                                                     unit,
-                                                                    data_hash = NULL) {
+                                                                    data_hash = NULL,
+                                                                    fixed_mu_samples = NULL) {
 
   posterior_samples <- .iwmde_likelihood_posterior_samples(
     context      = context,
@@ -43,7 +44,8 @@
       posterior_samples = posterior_samples,
       active_setup      = active_setup,
       unit              = unit,
-      data_hash         = data_hash
+      data_hash         = data_hash,
+      fixed_mu_samples  = fixed_mu_samples
     ))
   }
 
@@ -192,7 +194,7 @@
       ),
       prior_list  = prior_list,
       replacement = replacement
-    )[[1L]]
+    )
   }
   log_prior <- .iwmde_scalar_log_density(log_prior)
   out       <- log_lik + log_prior

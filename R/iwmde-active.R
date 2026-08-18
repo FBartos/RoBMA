@@ -378,7 +378,10 @@
   }
 
   if (.marginalized_random_effect_has_allocation(term)) {
-    factors <- .marginalized_random_effect_allocation_factors(term)
+    factors <- .marginalized_random_effect_allocation_factors(
+      term,
+      all = TRUE
+    )
     columns <- c(columns, vapply(factors, function(factor) {
       paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
     }, character(1)))

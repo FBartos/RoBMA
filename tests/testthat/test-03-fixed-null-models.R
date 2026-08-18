@@ -67,7 +67,10 @@ test_that("zero-dimensional marginal likelihoods are exact", {
     marglik <- fit[["marglik"]]
     error   <- tryCatch(bridge_sampler(fit), error = identity)
 
-    expect_s3_class(error, "RoBMA_exact_marglik_no_bridge", info = name)
+    expect_true(
+      inherits(error, "RoBMA_exact_marglik_no_bridge"),
+      info = name
+    )
     expect_match(conditionMessage(error), "evaluated exactly", info = name)
     expect_identical(
       marglik[["aggregation"]][["rule"]],

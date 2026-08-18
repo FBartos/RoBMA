@@ -30,7 +30,7 @@
 #' @param include_auxiliary logical; whether to include raw backend auxiliary
 #' variables. Defaults to \code{FALSE}, returning the stable model-parameter
 #' schema. Set to \code{TRUE} to expose the non-private coordinates recorded
-#' by the fitted BayesTools parameter registry without adding RoBMA-derived
+#' by the fitted BayesTools parameter map without adding RoBMA-derived
 #' quantities.
 #' @param ... additional arguments passed to the corresponding
 #' \pkg{posterior} function.
@@ -55,15 +55,20 @@
 #' samples as a \code{mcmc.list} object and then using the corresponding
 #' \pkg{posterior} conversion function. By default, backend-private latent
 #' effects, known-\code{V} dependency factors, random-effect simulation and
-#' Cholesky factors, and prior-parameterization variables are omitted. Public
-#' covariance parameters, derived correlation matrices, allocation weights,
-#' model indicators, and likelihood parameters remain available.
+#' Cholesky factors, and prior-parameterization variables are omitted. Stable
+#' fitted coordinates such as covariance parameters, allocation weights, model
+#' indicators, and likelihood parameters remain available, together with
+#' derived correlation matrices. This export uses the coordinate view of the
+#' fitted parameter map, whereas summaries, plots, density estimation, and
+#' hypotheses use its semantic catalog view; draw-column names are not
+#' additional aliases for public quantities such as `sd_total`, `sd_common`, or
+#' `var_prop(...)`.
 #' Scalar-structure random-effect correlation matrices are reconstructed from
 #' compact rho draws on demand; those compact internal coordinates are never
 #' returned. Conversion fails before allocating the dense matrices when
 #' their combined draw-by-matrix size exceeds
 #' `getOption("RoBMA.max_derived_correlation_cells", 2e7)`. Increase this option
-#' explicitly when the dense public matrices are required. Use
+#' explicitly when the dense output matrices are required. Use
 #' Structural point-prior coordinates are returned as exact constant columns,
 #' with chain timing taken from the fitted draw geometry. Private backend
 #' anchors are never exposed. Use `include_auxiliary = TRUE` to skip RoBMA
@@ -110,7 +115,7 @@ NULL
 
   .brma_validate_fit_contract(
     x,
-    requires = c("parameter_registry", "draw_geometry")
+    requires = c("parameter_map", "draw_geometry")
   )
   mcmc_list <- BayesTools::JAGS_materialize_draws(x[["fit"]])
   if (include_auxiliary) {
@@ -122,7 +127,7 @@ NULL
 }
 
 
-# Reconstruct public scalar-structure correlation matrices from compact rho draws.
+# Reconstruct output scalar-structure correlation matrices from compact rho draws.
 .brma_append_derived_random_correlations <- function(x, mcmc_list) {
 
   formula_design <- attr(x[["fit"]], "formula_design", exact = TRUE)
@@ -306,23 +311,13 @@ NULL
   }
   n_columns        <- as.integer(n_columns)
   correlation_base <- paste0(parameter_stem, "_xRE_CORx_R")
-  correlation      <- random_term[["correlation"]]
-  anchor_names    <- unique(c(
-    random_term[["sd_parameter_names"]],
-    if (is.list(correlation)) correlation[["rho_name"]] else NULL,
-    if (is.list(correlation)) correlation[["sample_name"]] else NULL
-  ))
-  anchor_names <- anchor_names[
-    is.character(anchor_names) & !is.na(anchor_names) & nzchar(anchor_names)
-  ]
 
   return(list(
     random_term      = random_term,
     block_name       = random_term[["block_name"]],
     parameter_stem   = parameter_stem,
     n_columns        = n_columns,
-    correlation_base = correlation_base,
-    anchor_names     = anchor_names
+    correlation_base = correlation_base
   ))
 }
 
@@ -336,57 +331,6 @@ NULL
       seq_len(spec[["n_columns"]]), ",", column, "]"
     )
   }), use.names = FALSE))
-}
-
-
-# Locate the legacy block-local insertion point for derived matrix columns.
-.brma_derived_random_correlation_anchors <- function(variables, specs) {
-
-  anchors <- vapply(specs, function(spec) {
-    indexes <- unlist(lapply(spec[["anchor_names"]], function(anchor) {
-      which(variables == anchor | startsWith(variables, paste0(anchor, "[")))
-    }), use.names = FALSE)
-    if (length(indexes) == 0L) {
-      return(NA_integer_)
-    }
-    max(indexes)
-  }, integer(1))
-
-  for (i in which(is.na(anchors))) {
-    next_anchors     <- anchors[seq_along(anchors) > i & !is.na(anchors)]
-    previous_anchors <- anchors[seq_along(anchors) < i & !is.na(anchors)]
-    if (length(next_anchors) > 0L) {
-      anchors[[i]] <- min(next_anchors) - 1L
-    } else if (length(previous_anchors) > 0L) {
-      anchors[[i]] <- max(previous_anchors)
-    } else {
-      anchors[[i]] <- length(variables)
-    }
-  }
-
-  return(anchors)
-}
-
-
-# Interleave appended matrices at their legacy block-local monitor positions.
-.brma_derived_random_correlation_order <- function(variables, specs,
-                                                   derived) {
-
-  anchors <- .brma_derived_random_correlation_anchors(variables, specs)
-  after   <- vector("list", length(variables) + 1L)
-  offset  <- length(variables)
-  for (i in seq_along(specs)) {
-    indexes <- offset + seq_len(ncol(derived[[i]]))
-    after[[anchors[[i]] + 1L]] <- c(after[[anchors[[i]] + 1L]], indexes)
-    offset <- offset + ncol(derived[[i]])
-  }
-  order <- vector("list", length(variables) + 1L)
-  order[[1L]] <- after[[1L]]
-  for (i in seq_along(variables)) {
-    order[[i + 1L]] <- c(i, after[[i + 1L]])
-  }
-
-  return(unlist(order, use.names = FALSE))
 }
 
 
@@ -413,11 +357,6 @@ NULL
       )
     })
     combined <- do.call(cbind, c(list(values), derived))
-    combined <- combined[, .brma_derived_random_correlation_order(
-      variables = colnames(values),
-      specs     = specs,
-      derived   = derived
-    ), drop = FALSE]
     combined <- combined[
       , !colnames(combined) %in% omit_variables,
       drop = FALSE

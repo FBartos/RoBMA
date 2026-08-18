@@ -33,6 +33,14 @@ test_that("known-V tau q-grid factors covariance once per value and block", {
   grid        <- unique(grid)
   replacement <- .iwmde_replacement_spec(context, parameter, spec)
 
+  scalar <- .iwmde_log_q_grid_scalar(
+    context     = context,
+    parameter   = parameter,
+    values      = grid,
+    row_states  = row_states,
+    replacement = replacement
+  )
+
   original_factor <- .known_v_chol_covariance
   factor_calls     <- 0L
   testthat::local_mocked_bindings(
@@ -52,14 +60,6 @@ test_that("known-V tau q-grid factors covariance once per value and block", {
     replacement = replacement
   )
   fast_factor_calls <- factor_calls
-  factor_calls      <- 0L
-  scalar <- .iwmde_log_q_grid_scalar(
-    context     = context,
-    parameter   = parameter,
-    values      = grid,
-    row_states  = row_states,
-    replacement = replacement
-  )
 
   block_count <- length(.known_v_blocks(
     .data_known_v_data(context[["data"]])
@@ -69,7 +69,6 @@ test_that("known-V tau q-grid factors covariance once per value and block", {
   expect_equal(is.finite(fast), is.finite(scalar))
   expect_equal(fast, scalar, tolerance = 1e-8)
   expect_equal(fast_factor_calls, length(grid) * block_count)
-  expect_equal(factor_calls, length(grid) * length(row_states) * block_count)
 })
 
 

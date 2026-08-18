@@ -88,20 +88,6 @@ test_that("exp-affine point diagnostics are restored to the fitted scale", {
       cbind(log_tau_intercept = c(.1, .2, .4))
     },
     hypothesis_BF = function(hypothesis, ...) {
-      parsed <- list(list(
-        input = "log_tau_intercept = -1.6094379124341003",
-        left  = list(
-          type  = "point",
-          label = "log_tau_intercept = -1.6094379124341003",
-          value = log(.2)
-        ),
-        right = list(
-          type  = "not_point",
-          label = "log_tau_intercept != -1.6094379124341003",
-          value = log(.2)
-        ),
-        explicit = FALSE
-      ))
       structure(data.frame(
         Alternative = "log_tau_intercept = -1.6094379124341003",
         Null        = "log_tau_intercept != -1.6094379124341003",
@@ -111,7 +97,7 @@ test_that("exp-affine point diagnostics are restored to the fitted scale", {
         posterior   = 8,
         method      = "kernel Savage-Dickey",
         check.names = FALSE
-      ), hypothesis_ast = hypothesis, parsed = parsed, raw_BF = 2)
+      ), hypothesis_ast = hypothesis, raw_BF = 2)
     },
     .package = "BayesTools"
   )

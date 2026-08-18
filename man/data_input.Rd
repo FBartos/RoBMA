@@ -53,9 +53,13 @@ scale predictors for location-scale models. Formula input is evaluated in
 BayesTools random-effect terms for \code{brma.mv()}. Use
 \link[=random_effect_formula_tags]{random-effect formula structure tags} such as
 \code{diag()}, \code{us()}/\code{un()}, \code{cs()}, \code{hcs()}, \code{ar1()}/\code{ar()}, \code{har()}, or
-\code{car()} inside the formula. Plain random-effect syntax is allowed only for
-random intercepts; random slopes require an explicit structure tag or the
-\code{||} diagonal shorthand.}
+\code{car()} inside the formula. Plain \code{(expr | group)} syntax uses an
+unstructured random-coefficient block; \code{expr || group} uses a diagonal
+block. The coefficient-formula and structured-index tag families have
+different left-side semantics; see the linked documentation. A bare formula
+or unnamed one-entry list has no redundant component prefix. An explicitly
+named one-entry list retains its name; lists with two or more entries
+generate missing names as \verb{component 1}, \verb{component 2}, and so on.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}

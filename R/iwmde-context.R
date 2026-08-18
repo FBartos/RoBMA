@@ -15,6 +15,20 @@
 
   data   <- object[["data"]]
   priors <- object[["priors"]]
+  flat_prior_list <- attr(object[["fit"]], "prior_list")
+  lkj_pair_priors <- .iwmde_lkj_pair_prior_list(
+    fit               = object[["fit"]],
+    posterior_columns = colnames(posterior_samples)
+  )
+  collisions <- intersect(names(flat_prior_list), names(lkj_pair_priors))
+  if (length(collisions) > 0L) {
+    stop(
+      "LKJ primitive prior names collide with fitted scalar priors: ",
+      paste(collisions, collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  flat_prior_list <- c(flat_prior_list, lkj_pair_priors)
 
   context <- list(
     object            = object,
@@ -22,7 +36,7 @@
     priors            = priors,
     posterior_samples = posterior_samples,
     chain_id          = chain_id,
-    flat_prior_list   = attr(object[["fit"]], "prior_list"),
+    flat_prior_list   = flat_prior_list,
     selection_spec     = .iwmde_selection_spec(data, priors),
     formula_fit        = object[["fit"]],
     formula_inputs     = .iwmde_formula_inputs(data, priors),
@@ -31,12 +45,45 @@
     focal_prior_cache  = new.env(parent = emptyenv()),
     support_cache      = new.env(parent = emptyenv()),
     likelihood_cache   = new.env(parent = emptyenv()),
+    prior_cache        = new.env(parent = emptyenv()),
     row_cache          = new.env(parent = emptyenv()),
     predictor_cache    = new.env(parent = emptyenv())
   )
 
   class(context) <- "iwmde_context"
   return(.iwmde_context_ensure_caches(context))
+}
+
+
+.iwmde_lkj_pair_prior_list <- function(fit, posterior_columns) {
+
+  formula_design <- attr(fit, "formula_design", exact = TRUE)
+  if (!is.list(formula_design)) {
+    return(list())
+  }
+  terms <- unlist(lapply(formula_design, `[[`, "random_effects"), recursive = FALSE)
+  out <- list()
+  for (term in terms) {
+    correlation <- term[["correlation"]]
+    if (!is.list(correlation) || !identical(correlation[["type"]], "lkj") ||
+        !identical(as.integer(term[["n_columns"]]), 2L)) {
+      next
+    }
+    primitive <- correlation[["primitive_names"]]
+    eta       <- correlation[["eta"]]
+    if (!is.character(primitive) || length(primitive) != 1L ||
+        is.na(primitive) || !nzchar(primitive) ||
+        !primitive %in% posterior_columns ||
+        !is.numeric(eta) || length(eta) != 1L || !is.finite(eta) || eta <= 0) {
+      next
+    }
+    out[[primitive]] <- BayesTools::prior(
+      "beta",
+      parameters = list(alpha = eta, beta = eta)
+    )
+  }
+
+  out
 }
 
 
@@ -85,9 +132,7 @@
         available = FALSE,
         reason    = paste0(
           "IWMDE density estimation is unavailable for binomial and ",
-          "Poisson GLMMs because their high-dimensional conditional weights ",
-          "do not meet the bridge-sampling certification tolerance. Use ",
-          "density_method = 'qCMDE'."
+          "Poisson GLMMs. Use density_method = 'qCMDE'."
         )
       ))
     }
@@ -132,6 +177,7 @@
     "focal_prior_cache",
     "support_cache",
     "likelihood_cache",
+    "prior_cache",
     "row_cache",
     "predictor_cache"
   )

@@ -29,18 +29,54 @@
 
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
   if (identical(state_scope, "global")) {
-    samples <- .iwmde_drop_local_latent_sample_columns(samples)
+    samples <- .iwmde_drop_local_latent_sample_columns(samples, context)
   }
-  setup <- .iwmde_log_lik_posterior_setup_active_branch(
-    context           = context,
-    posterior_samples = samples,
-    active_setup      = active_setup,
-    unit              = unit,
-    data_hash         = NULL
-  )
+  setup <- if (.iwmde_uses_known_v_random_marginal_likelihood(context) &&
+               identical(unit, "estimate")) {
+    .iwmde_predictor_setup_known_v_random(
+      context           = context,
+      posterior_samples = samples,
+      active_setup      = active_setup,
+      unit              = unit
+    )
+  } else {
+    .iwmde_log_lik_posterior_setup_active_branch(
+      context           = context,
+      posterior_samples = samples,
+      active_setup      = active_setup,
+      unit              = unit,
+      data_hash         = NULL
+    )
+  }
 
   assign(key, setup, envir = context[["predictor_cache"]])
   return(setup)
+}
+
+
+.iwmde_predictor_setup_known_v_random <- function(
+    context, posterior_samples, active_setup, unit) {
+
+  posterior_samples <- .iwmde_likelihood_posterior_samples(
+    context      = context,
+    samples      = posterior_samples,
+    active_setup = active_setup
+  )
+  K <- nrow(context[["data"]][["outcome"]])
+
+  return(.log_lik_posterior_setup(
+    fit                        = context[["object"]][["fit"]],
+    posterior_samples          = posterior_samples,
+    data                       = context[["data"]],
+    priors                     = active_setup[["priors"]],
+    unit                       = unit,
+    data_hash                  = NULL,
+    conditioned_random_effects = matrix(
+      0,
+      nrow = nrow(posterior_samples),
+      ncol = K
+    )
+  ))
 }
 
 
@@ -94,6 +130,31 @@
     return(NULL)
   }
 
+  basis <- .iwmde_predictor_materialize_formula_basis(
+    context = context,
+    setup   = setup,
+    basis   = basis,
+    formula_mu_directions = if (isTRUE(basis[["formula_mu"]])) {
+      matrix(
+        1,
+        nrow     = nrow(setup[["mu"]]),
+        ncol     = 1L,
+        dimnames = list(NULL, parameter)
+      )
+    } else {
+      NULL
+    },
+    formula_logtau_directions = if (isTRUE(basis[["formula_logtau"]])) {
+      matrix(
+        1,
+        nrow     = nrow(setup[["mu"]]),
+        ncol     = 1L,
+        dimnames = list(NULL, parameter)
+      )
+    } else {
+      NULL
+    }
+  )
   basis <- .iwmde_predictor_expand_basis(
     basis = basis,
     S     = nrow(setup[["mu"]]),
@@ -114,10 +175,8 @@
   has_logtau                   <- FALSE
   has_formula_mu               <- FALSE
   has_formula_logtau           <- FALSE
-  formula_mu_columns          <- character()
-  formula_mu_coefficients     <- numeric()
-  formula_logtau_columns      <- character()
-  formula_logtau_coefficients <- numeric()
+  formula_mu_directions        <- matrix(0, nrow = S, ncol = 0L)
+  formula_logtau_directions    <- matrix(0, nrow = S, ncol = 0L)
   current                      <- numeric(S)
 
   for (i in seq_along(row_states)) {
@@ -153,26 +212,34 @@
       coefficient <- active_weights[[column]] / denominator
       if (isTRUE(column_basis[["formula_mu"]])) {
         has_formula_mu <- TRUE
-        if (column %in% formula_mu_columns) {
-          if (formula_mu_coefficients[[column]] != coefficient) {
-            return(NULL)
-          }
-        } else {
-          formula_mu_columns <- c(formula_mu_columns, column)
-          formula_mu_coefficients[[column]] <- coefficient
+        if (!column %in% colnames(formula_mu_directions)) {
+          formula_mu_directions <- cbind(
+            formula_mu_directions,
+            matrix(
+              0,
+              nrow     = S,
+              ncol     = 1L,
+              dimnames = list(NULL, column)
+            )
+          )
         }
+        formula_mu_directions[i, column] <- coefficient
         next
       }
       if (isTRUE(column_basis[["formula_logtau"]])) {
         has_formula_logtau <- TRUE
-        if (column %in% formula_logtau_columns) {
-          if (formula_logtau_coefficients[[column]] != coefficient) {
-            return(NULL)
-          }
-        } else {
-          formula_logtau_columns <- c(formula_logtau_columns, column)
-          formula_logtau_coefficients[[column]] <- coefficient
+        if (!column %in% colnames(formula_logtau_directions)) {
+          formula_logtau_directions <- cbind(
+            formula_logtau_directions,
+            matrix(
+              0,
+              nrow     = S,
+              ncol     = 1L,
+              dimnames = list(NULL, column)
+            )
+          )
         }
+        formula_logtau_directions[i, column] <- coefficient
         next
       }
 
@@ -196,18 +263,41 @@
     }
   }
 
-  return(list(
-    current                    = current,
-    mu_basis                   = if (has_mu) mu_basis else NULL,
-    log_tau_basis              = if (has_logtau) log_basis else NULL,
-    scale_update               = "none",
-    formula_mu                 = has_formula_mu,
-    formula_logtau             = has_formula_logtau,
-    formula_mu_columns         = if (has_formula_mu) formula_mu_columns else NULL,
-    formula_mu_coefficients    = if (has_formula_mu) formula_mu_coefficients else NULL,
-    formula_logtau_columns     = if (has_formula_logtau) formula_logtau_columns else NULL,
-    formula_logtau_coefficients = if (has_formula_logtau) formula_logtau_coefficients else NULL
-  ))
+  basis <- list(
+    current                   = current,
+    mu_basis                  = if (has_mu) mu_basis else NULL,
+    log_tau_basis             = if (has_logtau) log_basis else NULL,
+    scale_update              = "none",
+    formula_mu                = has_formula_mu,
+    formula_logtau            = has_formula_logtau,
+    formula_mu_columns        = if (has_formula_mu) {
+      colnames(formula_mu_directions)
+    } else {
+      NULL
+    },
+    formula_logtau_columns    = if (has_formula_logtau) {
+      colnames(formula_logtau_directions)
+    } else {
+      NULL
+    }
+  )
+  basis <- .iwmde_predictor_materialize_formula_basis(
+    context                    = context,
+    setup                      = setup,
+    basis                      = basis,
+    formula_mu_directions      = if (has_formula_mu) {
+      formula_mu_directions
+    } else {
+      NULL
+    },
+    formula_logtau_directions = if (has_formula_logtau) {
+      formula_logtau_directions
+    } else {
+      NULL
+    }
+  )
+
+  return(basis)
 }
 
 
@@ -217,23 +307,36 @@
   active_setup <- state[["active_setup"]]
   K            <- nrow(data[["outcome"]])
 
+  formula_parameter <- .iwmde_predictor_formula_parameter(
+    context = context,
+    column  = column
+  )
+  if (identical(formula_parameter, "mu")) {
+    return(list(
+      mu_basis           = NULL,
+      log_tau_basis      = NULL,
+      scale_update       = "none",
+      formula_mu         = TRUE,
+      formula_logtau     = FALSE,
+      formula_mu_columns = column
+    ))
+  }
+  if (identical(formula_parameter, "log_tau")) {
+    return(list(
+      mu_basis              = NULL,
+      log_tau_basis         = NULL,
+      scale_update          = "none",
+      formula_mu            = FALSE,
+      formula_logtau        = TRUE,
+      formula_logtau_columns = column
+    ))
+  }
+
   if (column %in% c("mu", "mu_intercept")) {
     return(list(
       mu_basis      = rep(1, K),
       log_tau_basis = NULL,
       scale_update  = "none"
-    ))
-  }
-
-  if (.is_data_mods(data) && startsWith(column, "mu_")) {
-    return(list(
-      mu_basis                = NULL,
-      log_tau_basis           = NULL,
-      scale_update            = "none",
-      formula_mu              = TRUE,
-      formula_logtau          = FALSE,
-      formula_mu_columns      = column,
-      formula_mu_coefficients = stats::setNames(1, column)
     ))
   }
 
@@ -274,18 +377,6 @@
     ))
   }
 
-  if (.is_data_scale(data) && startsWith(column, "log_tau_")) {
-    return(list(
-      mu_basis                     = NULL,
-      log_tau_basis                = NULL,
-      scale_update                 = "none",
-      formula_mu                   = FALSE,
-      formula_logtau               = TRUE,
-      formula_logtau_columns       = column,
-      formula_logtau_coefficients = stats::setNames(1, column)
-    ))
-  }
-
   if (column == "rho" && .is_data_multilevel(data)) {
     return(list(
       mu_basis      = NULL,
@@ -295,6 +386,93 @@
   }
 
   return(NULL)
+}
+
+
+.iwmde_predictor_formula_parameter <- function(context, column) {
+
+  cache <- context[["predictor_cache"]]
+  key   <- paste0("formula_parameter|", column)
+  if (is.environment(cache) &&
+      exists(key, envir = cache, inherits = FALSE)) {
+    return(get(key, envir = cache, inherits = FALSE)[["value"]])
+  }
+
+  fit <- context[["formula_fit"]]
+  if (is.null(fit) && !is.null(context[["object"]])) {
+    fit <- context[["object"]][["fit"]]
+  }
+  if (is.null(fit) || !inherits(fit, "BayesTools_fit")) {
+    return(NULL)
+  }
+  coordinates <- BayesTools::parameter_coordinates(fit)
+  matches <- coordinates[["coordinate_name"]] == column &
+    coordinates[["role"]] == "fixed_coefficient" &
+    !coordinates[["internal"]]
+  if (sum(matches) != 1L) {
+    parameter <- NULL
+  } else {
+    parameter <- coordinates[["formula_parameter"]][matches]
+    if (!parameter %in% c("mu", "log_tau")) {
+      parameter <- NULL
+    }
+  }
+  if (is.environment(cache)) {
+    assign(key, list(value = parameter), envir = cache)
+  }
+
+  return(parameter)
+}
+
+
+.iwmde_predictor_materialize_formula_basis <- function(
+    context, setup, basis, formula_mu_directions = NULL,
+    formula_logtau_directions = NULL) {
+
+  directions <- list(
+    mu      = formula_mu_directions,
+    log_tau = formula_logtau_directions
+  )
+  fit <- context[["formula_fit"]]
+  if (is.null(fit) && !is.null(context[["object"]])) {
+    fit <- context[["object"]][["fit"]]
+  }
+  for (formula_parameter in names(directions)) {
+    parameter_directions <- directions[[formula_parameter]]
+    if (is.null(parameter_directions)) {
+      next
+    }
+    result <- BayesTools::JAGS_formula_predictor_basis(
+      fit               = fit,
+      directions        = parameter_directions,
+      posterior_samples = setup[["posterior_samples"]]
+    )
+    if (!identical(result[["status"]], "affine")) {
+      basis[[paste0("formula_", formula_parameter, "_status")]] <-
+        result[["status"]]
+      basis[[paste0("formula_", formula_parameter, "_reason")]] <-
+        result[["reason"]]
+      next
+    }
+    if (!identical(result[["parameter"]], formula_parameter)) {
+      stop(
+        "Formula predictor basis owner does not match the selected model component.",
+        call. = FALSE
+      )
+    }
+    if (identical(formula_parameter, "mu")) {
+      basis[["mu_basis"]]           <- result[["basis"]]
+      basis[["formula_mu"]]         <- FALSE
+      basis[["formula_mu_columns"]] <- NULL
+      basis[["formula_mu_affine"]]  <- TRUE
+    } else {
+      basis[["log_tau_basis"]]          <- result[["basis"]]
+      basis[["formula_logtau"]]         <- FALSE
+      basis[["formula_logtau_columns"]] <- NULL
+    }
+  }
+
+  return(basis)
 }
 
 
@@ -424,7 +602,7 @@
   row_index  <- rep(seq_len(S), each = G)
   grid_index <- rep(seq_len(G), times = S)
   delta      <- values[grid_index] - basis[["current"]][row_index]
-  baseline   <- vapply(row_states, function(state) {
+  baseline <- vapply(row_states, function(state) {
     state[["baseline_log_lik"]]
   }, numeric(1))
   log_lik <- baseline[row_index] +

@@ -252,9 +252,9 @@ test_that("random-formula funnel eligibility uses row-marginal ZGZ variance", {
     c(2, .8, .2)
   )
   colnames(posterior_samples) <- c(
-    "mu__xRE_ALLOCx_allocation__total_sd",
-    "mu__xRE_ALLOCx_allocation__weight[1]",
-    "mu__xRE_ALLOCx_allocation__weight[2]"
+    "mu__xRE_ALLOCx_heterogeneity__allocation_sd",
+    "mu__xRE_ALLOCx_heterogeneity__weight[1]",
+    "mu__xRE_ALLOCx_heterogeneity__weight[2]"
   )
 
   heterogeneity <- .funnel_row_heterogeneity_samples(

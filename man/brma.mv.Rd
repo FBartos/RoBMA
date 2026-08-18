@@ -71,9 +71,13 @@ scale predictors for location-scale models. Formula input is evaluated in
 BayesTools random-effect terms for \code{brma.mv()}. Use
 \link[=random_effect_formula_tags]{random-effect formula structure tags} such as
 \code{diag()}, \code{us()}/\code{un()}, \code{cs()}, \code{hcs()}, \code{ar1()}/\code{ar()}, \code{har()}, or
-\code{car()} inside the formula. Plain random-effect syntax is allowed only for
-random intercepts; random slopes require an explicit structure tag or the
-\code{||} diagonal shorthand.}
+\code{car()} inside the formula. Plain \code{(expr | group)} syntax uses an
+unstructured random-coefficient block; \code{expr || group} uses a diagonal
+block. The coefficient-formula and structured-index tag families have
+different left-side semantics; see the linked documentation. A bare formula
+or unnamed one-entry list has no redundant component prefix. An explicitly
+named one-entry list retains its name; lists with two or more entries
+generate missing names as \verb{component 1}, \verb{component 2}, and so on.}
 
 \item{R}{optional known random-effect group covariance/correlation matrix,
 or a named list of matrices. Matrix row and column names identify grouping
@@ -103,7 +107,10 @@ functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
 
 \item{prior_heterogeneity}{prior distribution for the heterogeneity (\eqn{\tau})
 parameter. If omitted, a default prior is constructed. In single-model
-functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
+functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero. For
+\code{\link{brma.mv}} random-effect formulas, this can also be a partial or
+complete \code{\link{prior_random}} object; see
+\code{\link{random_effect_prior_specification}}.}
 
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
@@ -120,7 +127,13 @@ Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
 Defaults are constructor-specific and shown in each function usage. Single-model
-constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.}
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.
+Accepted values are \code{"treatment"}, \code{"meandif"}, \code{"orthonormal"}, and
+\code{"independent"}. Independent coding creates one coefficient per factor
+level. Random-coefficient blocks reuse the resolved fixed-factor contrast
+unless \code{random_block(contrasts = ...)} overrides it. A warning is issued
+when default or inherited independent contrasts make a fixed or random
+design overspecified.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
@@ -238,9 +251,20 @@ named \code{vi} or \code{sei} arguments when \code{V} is omitted; these are conv
 
 The \code{random} argument uses BayesTools
 \link[=random_effect_formula_tags]{random-effect formula structure tags}.
-Plain shorthand is accepted only for random intercepts such as
-\code{~ 1 | study} or nested intercepts such as \code{~ 1 | study/effect}; random
-slopes require an explicit structure tag or the \code{||} diagonal shorthand.
+Plain \code{(expr | group)} syntax creates an unstructured random-coefficient
+block, and \code{expr || group} creates a diagonal block. Therefore
+\code{~ 1 | study}, \code{~ 1 + x | study}, and nested forms such as
+\code{~ 1 | study/effect} are supported. The explicit \code{us()} / \code{un()}, \code{diag()},
+and \code{id()} tags use the same coefficient-formula semantics. The structured
+\code{cs()} / \code{hcs()}, \code{ar1()} / \code{ar()} / \code{har()}, and \code{car()} tags instead own
+their index basis; see the linked tag documentation before specifying factor
+slopes or index variables.
+A bare formula or unnamed one-entry list suppresses a redundant top-level
+component prefix. An explicitly named one-entry list retains its name; in
+lists with two or more entries, missing names become \verb{component 1},
+\verb{component 2}, and so on. Public random-effect quantities use semantic names
+such as \code{study: sd(intercept)}, \code{study: cor(x,y)}, \code{sd_total}, and
+\code{var_prop(study)} rather than backend coordinates.
 The optional \code{R} argument supplies known covariance or correlation matrices
 across random-effect grouping levels, following \code{metafor::rma.mv()} naming.
 \code{R} is separate from the known sampling covariance \code{V}: \code{V} describes

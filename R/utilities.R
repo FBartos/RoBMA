@@ -21,6 +21,7 @@
 #'   \item{\code{default_UISD.heterogeneity}}{default scaling of the unit information standard deviation for the heterogeneity parameter (default \code{0.25})}
 #'   \item{\code{default_UISD.mods}}{default scaling of the unit information standard deviation for the moderators (default \code{0.25})}
 #'   \item{\code{default_UISD.scale}}{default scaling of the unit information standard deviation for the scale parameter (default \code{0.5})}
+#'   \item{\code{default_lograte.sd}}{default standard deviation of the estimate-specific midpoint log-rate prior in Poisson GLMMs (default \code{1})}
 #'   \item{\code{default_informed_priors.mods}}{default scaling of informed priors for moderators (default \code{0.5})}
 #'   \item{\code{default_informed_priors.scale}}{default scaling of informed priors for the scale parameter (default \code{0.5})}
 #'   \item{\code{default_bias_weightfunction.alpha}}{default alpha for the weightfunction (default \code{1})}
@@ -190,6 +191,10 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   ),
   "default_UISD.scale" = list(
     default  = 1/2,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_lograte.sd" = list(
+    default  = 1,
     validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
   ),
   "default_informed_priors.mods" = list(

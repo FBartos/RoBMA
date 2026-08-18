@@ -9,11 +9,6 @@
       call. = FALSE
     )
   }
-  if (!inherits(object, "brma") || is.null(object[["fit"]])) {
-    stop("A fitted single-model brma object is required for this target.",
-         call. = FALSE)
-  }
-
   target <- BayesTools::hypothesis_level_contrast(
     posterior  = posterior,
     hypothesis = hypothesis,
@@ -24,6 +19,10 @@
     allow_normal = TRUE
   )
   if (precomputed) {
+    if (!inherits(object, "brma") || is.null(object[["fit"]])) {
+      stop("A fitted single-model brma object is required for this target.",
+           call. = FALSE)
+    }
     if (isTRUE(standardized_coefficients)) {
       stop(
         "Cross-level qCMDE/IWMDE hypotheses require coefficients on the ",

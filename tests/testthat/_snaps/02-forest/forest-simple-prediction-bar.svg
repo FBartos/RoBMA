@@ -126,9 +126,9 @@
 <text x='23.04' y='71.49' style='font-size: 12.00px; font-weight: bold; font-family: sans;' textLength='30.69px' lengthAdjust='spacingAndGlyphs'>Study</text>
 <text x='696.96' y='71.49' text-anchor='end' style='font-size: 12.00px; font-weight: bold; font-family: sans;' textLength='104.05px' lengthAdjust='spacingAndGlyphs'>Risk Ratio [95% CI]</text>
 <text x='696.96' y='457.11' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='86.74px' lengthAdjust='spacingAndGlyphs'>0.50 [0.35, 0.72]</text>
-<text x='696.96' y='481.21' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='70.05px' lengthAdjust='spacingAndGlyphs'>   [0.14, 1.73]</text>
-<rect x='327.47' y='475.41' width='67.04' height='6.11' style='stroke-width: 0.75; fill: #000000;' />
-<rect x='394.51' y='475.41' width='66.19' height='6.11' style='stroke-width: 0.75; fill: #000000;' />
+<text x='696.96' y='481.21' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='70.05px' lengthAdjust='spacingAndGlyphs'>   [0.15, 1.78]</text>
+<rect x='328.46' y='475.41' width='66.05' height='6.11' style='stroke-width: 0.75; fill: #000000;' />
+<rect x='394.51' y='475.41' width='67.96' height='6.11' style='stroke-width: 0.75; fill: #000000;' />
 <polygon points='375.07,454.36 394.51,449.78 413.67,454.36 394.51,458.94 ' style='stroke-width: 0.75; fill: #000000;' />
 <text x='23.04' y='457.11' style='font-size: 12.00px; font-family: sans;' textLength='71.39px' lengthAdjust='spacingAndGlyphs'>Pooled Effect</text>
 <text x='23.04' y='481.21' style='font-size: 12.00px; font-family: sans;' textLength='144.75px' lengthAdjust='spacingAndGlyphs'>Prediction Interval [95% PI]</text>

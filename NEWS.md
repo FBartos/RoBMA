@@ -1,9 +1,55 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- adds the `Hoogeveen2023` example data set with 106 analyst-team effect-size
+  estimates for the relation between religiosity and self-reported well-being.
+- allows `set_contrast_factor_predictors = "independent"` to define one fixed
+  coefficient per factor level and lets formula random effects inherit that
+  resolved basis when no `random_block(contrasts = ...)` override is supplied.
+  Fixed and random formulas warn before fitting when automatically independent
+  factor columns overspecify their design.
+- omits a location intercept fixed at zero from meta-regression summaries,
+  stored coefficients, marginal means, plotting, density estimation, and
+  hypotheses whenever moderators are present. Intercept-only models retain
+  their intercept.
+- adopts BayesTools' single authoritative formula-random `parameter_map`
+  throughout summaries, plotting, density estimation, and hypotheses. The
+  linked backend-coordinate, public-quantity, and alias tables are constructed,
+  versioned, stored, and validated together; RoBMA consumes the semantic
+  catalog and coordinate accessors as views of that one fitted contract. Public
+  names use
+  `(formula) owner: quantity(parameter[level], ...)`, including `cor`, `sd`,
+  `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`, `var_ratio`,
+  and `sd_ratio`; backend coordinates are no longer accepted as public aliases.
+  A single top-level random component omits the redundant allocation-owner
+  prefix, so names such as `sd_total` and `var_prop(study)` work directly in
+  summaries, plots, density estimation, and hypotheses. Lists with two or more
+  unnamed random components use `component 1`, `component 2`, and so on.
+  Generated allocations retain stable internal identifiers independently of
+  these public names. Random-effect formula, prior, vignette, and maintainer
+  documentation now consistently distinguishes backend coordinates from public
+  quantities and uses `cor`, `sd_total`, and `sd_common` according to their
+  fitted meanings. Hypothesis labels preserve semantic aliases and level
+  suffixes when one statement expands across factor levels, while cross-level
+  KDE contrasts no longer require the fitted-model context used only by
+  qCMDE/IWMDE. RoBMA delegates one-to-one random-parameter display transforms
+  and their Jacobians to BayesTools, so plotting, hypotheses, and density
+  estimation share the catalog's transform contract rather than maintaining
+  duplicate transform algebra.
+- completes partial `prior_random()` specifications with RoBMA's usual
+  UISD-scaled SD and variance-allocation defaults when the user supplies no
+  scale architecture. Correlation defaults are delegated to BayesTools:
+  `LKJ(1)` for US/UN and uniform priors over the complete admissible raw range
+  for CS/HCS, AR1/HAR, and CAR, including negative correlations whenever the
+  covariance structure permits them.
+- re-exports the complete RoBMA random-effect prior constructor interface from
+  BayesTools under `?prior_random`, with structure-owned covariance-tag
+  semantics and examples for block priors, LKJ correlations, variance
+  allocation, monitoring, new grouping levels, and external SD sources.
 - simplifies `ranef()` output to a flat list keyed by canonical random-effect
   block names and adds metafor-compatible `expand`, defaulting to one column
-  per unique grouping level in first fitted-row order; `expand = TRUE` retains
-  observation-aligned output.
+  per unique grouping-level contribution in first fitted-row order, including
+  observed grouping-level and indicator-coefficient combinations;
+  `expand = TRUE` retains observation-aligned output.
 - unifies plug-in funnel, Bayesian funnel, and regression-plot contour
   evaluation in one exact weighted posterior-mixture quantile engine. Normal,
   PET, PEESE, model-averaged, and selected-normal contours now share native
@@ -39,10 +85,28 @@
   structure. Eligible scalar noncentered random-effect blocks reuse a validated
   latent reconstruction plan instead of rebuilding formula predictions for
   every adaptive-grid batch, and eligible intercept-only fixed locations are
-  replayed directly from their fitted coefficient column. Constant spectral
-  shifts avoid expanding invariant eigenvalue denominators across posterior
-  rows. Unsupported covariance, prior, formula-scaling, and random-effect
-  structures retain the complete formula/scalar/Cholesky routes.
+  replayed directly from their fitted coefficient column. General fixed-formula
+  location targets now use BayesTools' exact persisted design and parameter-map
+  metadata to enter the same quadratic path, keeping fitted random effects
+  invariant. For marginal known-`V` random-formula models, the analytic
+  quadratic uses the exact factor-state covariance in each dependency block
+  instead of the sampling covariance alone.
+  Every catalog-declared random covariance, scale, and allocation target now
+  reuses its exact fixed predictor, strips local latent and group-coefficient
+  draws before forming grid candidates, and evaluates the marginalized
+  covariance through BayesTools' compiled factor contract. This applies to ID,
+  diagonal, US, CS/HCS, AR1/HAR/CAR, row-indexed, and known-group blocks; only
+  metadata-declared non-affine or unsupported targets retain the generic exact
+  evaluator.
+  Random-covariance factor states and prior-density evaluators are compiled
+  once and evaluated across posterior rows, avoiding repeated HCS/US
+  reconstruction and scalar prior dispatch without approximating or repairing
+  the fitted covariance or prior support. Metadata-declared nonlinear or
+  coupled targets retain the complete formula
+  evaluator. Constant spectral shifts avoid expanding invariant eigenvalue
+  denominators across posterior rows. Unsupported covariance, prior,
+  formula-scaling, and random-effect structures retain the complete
+  formula/scalar/Cholesky routes.
 - treats cluster identifiers as model structure rather than outcome data when
   validating marginal-likelihood and estimate-level LOO comparisons.
 - evaluates eligible AR1, HAR, and CAR random-effect covariance blocks with an
@@ -244,7 +308,13 @@
   directly without requiring a vdiffr snapshot context.
 
 ### Breaking changes
-- requires BayesTools 0.3.1.33 and R 4.3.0 for the multivariate random-effect
+- changes the default Poisson GLMM `prior_lograte` from a unit-dependent
+  data-based standard deviation to independent
+  `Normal(log(pooled crude rate), 1)` priors. The new
+  `RoBMA.options(default_lograte.sd = ...)` option controls this standard
+  deviation. This intentionally changes default Poisson GLMM fits and makes
+  prior informativeness invariant to the exposure-time unit.
+- requires BayesTools 0.3.1.37 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
@@ -289,6 +359,13 @@
   increase by that rank when it exceeds one.
 
 ### Fixes
+- exposes stored scalar random-effect coordinates consistently to plotting,
+  `lines()`, `hypothesis()`, and qCMDE/IWMDE. This includes raw, Fisher-z, and
+  bounded-logit structured correlations, bivariate LKJ correlations, shared
+  and allocated SDs, and Dirichlet allocation summaries with two or more
+  components. Independent factor coefficients now receive distinct default
+  plot colors, and multi-column SD allocations retain their column-specific
+  weights during density evaluation.
 - treats `xlim` as a displayed-scale range for transformed posterior and
   marginal-means plots, so `EXP` prior curves extend toward zero instead of
   starting at an exponentiated fitted-scale limit.

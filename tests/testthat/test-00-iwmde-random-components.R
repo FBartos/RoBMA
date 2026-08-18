@@ -31,6 +31,132 @@ test_that("simplex endpoint replacement preserves row-wise prior densities", {
   expect_true(all(is.finite(actual)))
 })
 
+test_that("simplex component replacement supports more than two targets", {
+
+  parameter <- "weight"
+  columns   <- paste0(parameter, "[", 1:3, "]")
+  eta       <- .iwmde_simplex_auxiliary_columns(parameter, 3L)
+  row <- c(theta = 0.2, stats::setNames(c(.2, .3, .5), columns),
+           stats::setNames(c(2, 3, 5), eta))
+  replacement <- list(
+    type              = "simplex_pair",
+    parameter         = parameter,
+    index             = 2L,
+    n_targets         = 3L,
+    auxiliary_columns = eta
+  )
+
+  replaced <- .iwmde_replace_row_for_value(
+    context     = list(object = NULL),
+    state       = list(row = row),
+    parameter   = columns[[2L]],
+    value       = 0.6,
+    replacement = replacement
+  )
+
+  expect_true(replaced[["valid"]])
+  expect_equal(unname(replaced[["row"]][columns]), c(.114285714, .6, .285714286))
+  expect_equal(sum(replaced[["row"]][eta]), sum(row[eta]))
+  expect_equal(
+    replaced[["row"]][eta[[1L]]] / replaced[["row"]][eta[[3L]]],
+    row[eta[[1L]]] / row[eta[[3L]]]
+  )
+
+  prior_list <- list(
+    theta  = BayesTools::prior("normal", list(mean = 0, sd = 1)),
+    weight = BayesTools::prior("dirichlet", list(alpha = c(1, 2, 3)))
+  )
+  samples <- matrix(
+    replaced[["row"]],
+    nrow = 1L,
+    dimnames = list(NULL, names(replaced[["row"]]))
+  )
+  expect_true(is.finite(.iwmde_replacement_log_prior_rows(
+    samples,
+    prior_list,
+    replacement
+  )))
+})
+
+test_that("component allocations apply their own leaf weights", {
+
+  posterior <- cbind(
+    tau    = c(.8, 1.2),
+    `weight[1]` = c(.25, .4),
+    `weight[2]` = c(.75, .6)
+  )
+  term <- list(
+    block_name = "study",
+    sd_binding = list(
+      true_allocation = TRUE,
+      allocations = list(list(
+        target               = "sd_component",
+        source               = list(name = "tau", shape = "scalar"),
+        parent_factors       = list(),
+        weight_name          = "weight",
+        scale                = "mean_variance",
+        n_targets            = 2L,
+        leaf_index_by_column = 1:2
+      ))
+    )
+  )
+
+  actual <- .marginalized_random_effect_allocated_sd_samples(
+    term,
+    posterior,
+    K = 2L
+  )
+
+  expect_equal(
+    unname(actual),
+    unname(posterior[, "tau"] *
+      sqrt(2 * posterior[, paste0("weight[", 1:2, "]")]))
+  )
+  expect_equal(
+    vapply(
+      .marginalized_random_effect_allocation_factors(term, all = TRUE),
+      `[[`,
+      integer(1),
+      "index"
+    ),
+    1:2
+  )
+})
+
+test_that("semantic density transformations apply their Jacobians", {
+
+  source_x <- c(-.5, 0, .5)
+  density <- list(
+    x = source_x,
+    y = c(.2, .4, .2),
+    point_masses = data.frame(x = .25, mass = .1)
+  )
+  transform <- list(type = "tanh")
+  actual <- .plot_brma_transform_iwmde_density(density, transform)
+
+  expect_equal(actual[["x"]], tanh(source_x))
+  expect_equal(actual[["y"]], density[["y"]] / (1 - tanh(source_x)^2))
+  expect_equal(actual[["point_masses"]][["x"]], tanh(.25))
+
+  ordinate <- list(
+    value            = .5,
+    evaluation_value = .5,
+    ordinate         = .3,
+    diagnostics      = list(mcse = .03, relative_mcse = .1),
+    iwmde_provenance = list(value = .5, evaluation_value = .5)
+  )
+  transformed <- .hypothesis_brma_transform_iwmde_ordinate(
+    ordinate,
+    transform
+  )
+  jacobian <- 1 - tanh(.5)^2
+
+  expect_equal(transformed[["value"]], tanh(.5))
+  expect_equal(transformed[["ordinate"]], .3 / jacobian)
+  expect_equal(transformed[["diagnostics"]][["mcse"]], .03 / jacobian)
+  expect_equal(transformed[["diagnostics"]][["relative_mcse"]], .1)
+})
+
 test_that("diagonal allocation grid equals the full marginal covariance", {
 
   yi <- c(0.1, -0.2, 0.3, 0.05)
@@ -97,11 +223,11 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
 test_that("semantic random qCMDE hypotheses use the plotting density target", {
 
   selected <- list(
-    entry = list(term = "study variance fraction"),
+    entry = list(term = "study variance proportion"),
     spec = list(
-      summary_type     = "var_frac",
+      quantity     = "var_prop",
       source_parameter = "rho",
-      label            = "var_frac(random_total: study)"
+      label            = "var_prop(study)"
     ),
     samples      = matrix(seq(0.01, 0.99, length.out = 100L), ncol = 1L),
     prior        = BayesTools::prior("beta", list(alpha = 1, beta = 1)),
@@ -266,9 +392,9 @@ test_that("batched ordinates retain value-specific diagnostics", {
 test_that("separate random targets share one hypothesis result", {
 
   hypothesis <- BayesTools::hypothesis_parse(c(
-    "`var_frac(random_total: study)` != 0 vs `var_frac(random_total: study)` = 0",
-    "`sd_total(random_total)` = 0",
-    "`var_frac(random_total: study)` != 1 vs `var_frac(random_total: study)` = 1"
+    "`var_prop(study)` != 0 vs `var_prop(study)` = 0",
+    "sd_total = 0",
+    "`var_prop(study)` != 1 vs `var_prop(study)` = 1"
   ))
   selections <- list(
     list(component = "random", parameter = "rho[2]"),
@@ -280,7 +406,7 @@ test_that("separate random targets share one hypothesis result", {
     hypothesis.brma = function(object, hypothesis, ...) {
 
       n <- length(hypothesis)
-      is_allocation <- grepl("var_frac", hypothesis[[1L]], fixed = TRUE)
+      is_allocation <- grepl("var_prop", hypothesis[[1L]], fixed = TRUE)
       out <- BayesTools::hypothesis_BF(
         posterior  = if (is_allocation) {
           seq(-1, 2, length.out = 101L)

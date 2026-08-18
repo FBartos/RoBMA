@@ -236,7 +236,7 @@ test_that("GLMM IWMDE point Bayes factors fail certification upfront", {
 
   expect_error(
     .iwmde_check_point_ordinate_supported(object, "IWMDE"),
-    "do not meet the bridge-sampling certification tolerance"
+    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$"
   )
   expect_invisible(
     .iwmde_check_point_ordinate_supported(object, "qCMDE")

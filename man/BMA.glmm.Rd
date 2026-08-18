@@ -143,9 +143,12 @@ priors must lie strictly inside \verb{(0, 1)}.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
 log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a
-data-based unit-information normal prior is used independently for each
-estimate. Only normal and point priors are supported; normal priors may be
-truncated.}
+normal prior centered at the pooled crude log-rate is used independently for
+each estimate. Its standard deviation defaults to \code{1} and can be changed via
+\code{RoBMA.options(default_lograte.sd = ...)}. Rescaling all person-times shifts
+the prior mean by the corresponding log conversion while leaving its
+standard deviation unchanged. Only normal and point priors are supported;
+normal priors may be truncated.}
 
 \item{prior_effect_null}{prior distribution(s) for the null effect
 component(s).}
@@ -171,7 +174,13 @@ Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
 Defaults are constructor-specific and shown in each function usage. Single-model
-constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.}
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.
+Accepted values are \code{"treatment"}, \code{"meandif"}, \code{"orthonormal"}, and
+\code{"independent"}. Independent coding creates one coefficient per factor
+level. Random-coefficient blocks reuse the resolved fixed-factor contrast
+unless \code{random_block(contrasts = ...)} overrides it. A warning is issued
+when default or inherited independent contrasts make a fixed or random
+design overspecified.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}

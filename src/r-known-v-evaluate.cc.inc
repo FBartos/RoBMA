@@ -113,6 +113,74 @@ int require_batched_plan_inputs(
   return INTEGER(mean_dim)[1];
 }
 
+void plan_location_quadratic_values(
+    CovariancePlan &plan,
+    const double *mean,
+    const double *basis,
+    const std::vector<CovarianceFactor> &factors,
+    const double *extra,
+    double *linear,
+    double *quadratic)
+{
+  double linear_value = 0.0;
+  double quadratic_value = 0.0;
+  for (BlockPlan &block : plan.blocks) {
+    const int size = static_cast<int>(block.index.size());
+    double *covariance = plan.covariance_work.data();
+    double *residual = plan.residual_work.data();
+    fill_dense_block(
+      plan,
+      block,
+      factors,
+      mean,
+      extra,
+      covariance,
+      residual
+    );
+
+    plan.conditional_rhs_work.resize(static_cast<size_t>(2 * size));
+    double *right_hand_sides = plan.conditional_rhs_work.data();
+    std::copy(residual, residual + size, right_hand_sides);
+    for (int local = 0; local < size; ++local) {
+      const int global = block.index[static_cast<size_t>(local)];
+      if (!std::isfinite(basis[global])) {
+        Rf_error("Known-V location bases must be finite.");
+      }
+      right_hand_sides[static_cast<size_t>(size + local)] = basis[global];
+    }
+
+    int info = 0;
+    F77_CALL(dpotrf)("L", &size, covariance, &size, &info FCONE);
+    if (info != 0) {
+      Rf_error("Known-V integrated covariance is not positive definite.");
+    }
+    const int n_rhs = 2;
+    F77_CALL(dpotrs)(
+      "L",
+      &size,
+      &n_rhs,
+      covariance,
+      &size,
+      right_hand_sides,
+      &size,
+      &info FCONE
+    );
+    if (info != 0) {
+      Rf_error("Known-V location quadratic solve failed.");
+    }
+    for (int local = 0; local < size; ++local) {
+      const int global = block.index[static_cast<size_t>(local)];
+      linear_value += basis[global] *
+        right_hand_sides[static_cast<size_t>(local)];
+      quadratic_value += basis[global] *
+        right_hand_sides[static_cast<size_t>(size + local)];
+    }
+  }
+
+  *linear = linear_value;
+  *quadratic = quadratic_value;
+}
+
 bool factor_dense_latent_system(
     CovariancePlan &plan,
     const std::vector<std::vector<int>> &active_columns,

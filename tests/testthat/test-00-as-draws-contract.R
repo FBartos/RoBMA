@@ -35,7 +35,7 @@ test_that("brma draw conversion delegates structural geometry to BayesTools", {
   public <- .brma_to_mcmc.list(object)
   raw    <- .brma_to_mcmc.list(object, include_auxiliary = TRUE)
 
-  expect_setequal(checked, c("parameter_registry", "draw_geometry"))
+  expect_setequal(checked, c("parameter_map", "draw_geometry"))
   expect_false(include_internal)
   expect_identical(
     colnames(as.matrix(public[[1L]])),

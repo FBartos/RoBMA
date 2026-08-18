@@ -18,7 +18,10 @@
 #' functions, explicit `NULL` or `FALSE` sets a spike at zero.
 #' @param prior_heterogeneity prior distribution for the heterogeneity (\eqn{\tau})
 #' parameter. If omitted, a default prior is constructed. In single-model
-#' functions, explicit `NULL` or `FALSE` sets a spike at zero.
+#' functions, explicit `NULL` or `FALSE` sets a spike at zero. For
+#' \code{\link{brma.mv}} random-effect formulas, this can also be a partial or
+#' complete \code{\link{prior_random}} object; see
+#' \code{\link{random_effect_prior_specification}}.
 #' @param prior_mods prior distribution for the moderators (\eqn{\beta}) parameters.
 #' A single prior applies to all terms; a named list can specify term-specific
 #' priors. If omitted or `NULL`, default priors are used. This argument can be
@@ -38,9 +41,12 @@
 #' priors must lie strictly inside `(0, 1)`.
 #' @param prior_lograte prior distribution for the estimate-specific midpoint
 #' log-rate in Poisson GLMM models (`measure = "IRR"`). If omitted or `NULL`, a
-#' data-based unit-information normal prior is used independently for each
-#' estimate. Only normal and point priors are supported; normal priors may be
-#' truncated.
+#' normal prior centered at the pooled crude log-rate is used independently for
+#' each estimate. Its standard deviation defaults to `1` and can be changed via
+#' `RoBMA.options(default_lograte.sd = ...)`. Rescaling all person-times shifts
+#' the prior mean by the corresponding log conversion while leaving its
+#' standard deviation unchanged. Only normal and point priors are supported;
+#' normal priors may be truncated.
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 #' Cannot be used together with `prior_informed_field`.
 #' @param rescale_priors numeric. A scaling factor for supported prior distributions.
@@ -52,6 +58,12 @@
 #' @param set_contrast_factor_predictors character. How to set contrast for factor predictors.
 #' Defaults are constructor-specific and shown in each function usage. Single-model
 #' constructors use `"treatment"`; model-averaging constructors use `"meandif"`.
+#' Accepted values are `"treatment"`, `"meandif"`, `"orthonormal"`, and
+#' `"independent"`. Independent coding creates one coefficient per factor
+#' level. Random-coefficient blocks reuse the resolved fixed-factor contrast
+#' unless `random_block(contrasts = ...)` overrides it. A warning is issued
+#' when default or inherited independent contrasts make a fixed or random
+#' design overspecified.
 #' @param prior_informed_field character. The field of the informed prior distributions.
 #' Omit to use the standard default prior specification; explicit `NULL` is invalid.
 #' @param prior_informed_subfield character. The subfield of the informed prior distributions.
@@ -179,29 +191,30 @@ NULL
 #' @name random_effect_prior_specification
 #'
 #' @description
-#' Random-effect prior distributions are used by \code{\link{brma.mv}} when
-#' `random` is supplied. The `random` formula describes the grouping variables,
-#' coefficient design, and covariance structure. The `prior_heterogeneity`
-#' argument supplies the standard-deviation, correlation, allocation, and
-#' monitoring policy for the parsed random-effect blocks.
+#' Random-effect prior distributions are used by \code{\link{brma.mv}} when a
+#' `random` formula is supplied. The formula and the prior have deliberately
+#' separate roles. The formula defines the random-effect design, grouping
+#' variables, and covariance family. The `prior_heterogeneity` argument defines
+#' the prior scale and can additionally customize correlations, variance
+#' allocation, monitoring, prediction, and computational parameterization.
 #'
-#' If `prior_heterogeneity` is omitted, RoBMA constructs a
-#' \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} object
-#' automatically. If it is an ordinary positive prior distribution, RoBMA uses
-#' it as the base standard-deviation prior distribution and keeps the default
-#' random-effect allocation rules. If it is a
-#' \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} object, it
-#' is used as the full random-effect prior specification.
+#' RoBMA constructs a complete random-effect prior when
+#' `prior_heterogeneity` is omitted. An ordinary positive prior distribution
+#' changes only the base random-effect standard-deviation prior. A
+#' \code{\link{prior_random}} object can either customize selected non-scale
+#' settings while inheriting RoBMA's scale defaults, or explicitly own the
+#' complete scale architecture.
 #'
 #' @param random an optional formula or list of formulas specifying
 #' BayesTools random-effect terms for \code{\link{brma.mv}}. See
-#' \code{\link{random_effect_formula_tags}} for the formula syntax.
+#' \code{\link{random_effect_formula_tags}} for the formula syntax, component
+#' naming rules, and public semantic parameter names.
 #' @param prior_heterogeneity prior distribution for residual heterogeneity.
-#' In random-formula \code{\link{brma.mv}} models, an ordinary positive prior
-#' distribution changes the base or total random-effect standard-deviation
-#' prior distribution; a
-#' \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} object
-#' replaces the full random-effect prior specification.
+#' In random-formula \code{\link{brma.mv}} models, omission constructs all
+#' defaults; an ordinary positive prior distribution replaces the base or
+#' aggregate random-effect SD prior while retaining automatic allocation and correlation
+#' defaults; and a \code{\link{prior_random}} object supplies partial or
+#' complete random-effect settings as described below.
 #' @param scale an optional formula or named list of formulas specifying
 #' location-scale predictors. With random-effect formulas, `scale` models the
 #' row-wise total random-effect standard deviation consumed by a random-effect
@@ -216,89 +229,202 @@ NULL
 #' RoBMA constructs the random-effect prior specification.
 #'
 #' @details
-#' ## Formula structure and component names
+#' ## Division of responsibility
 #'
-#' The `random` argument controls the random-effect design. Plain random
-#' intercept syntax, such as `random = ~ 1 | study`, defines one homogeneous
-#' random-effect block. Nested syntax, such as `random = ~ 1 | study / esid`,
-#' defines multiple blocks. Structure tags such as `cs()`, `hcs()`, `ar1()`,
-#' `har()`, and `us()` define random coefficients and covariance structures;
-#' see \code{\link{random_effect_formula_tags}}.
+#' The random-effect setup has three layers:
+#' \tabular{lll}{
+#' Input \tab Controls \tab Does not redefine \cr
+#' `random` \tab blocks, grouping, coefficient/index basis, covariance family \tab prior scale or prior family \cr
+#' ordinary `prior_heterogeneity` \tab base or aggregate random-effect SD prior \tab formula structure or automatic allocation \cr
+#' `prior_random(...)` \tab block overrides, covariance priors, allocation, and policies \tab the structure parsed from `random`
+#' }
 #'
-#' A named list of formulas defines top-level random-effect components:
+#' Plain `(expr | group)` syntax and `us()` / `un()` define unstructured
+#' random-coefficient blocks. `||` and `diag()` define independent
+#' random-coefficient blocks, while `id()` gives independent coefficients one
+#' shared SD. In these families, `1`, `0`, and `-1` control the random intercept;
+#' continuous slopes, factor slopes, and interactions are supported. Factor
+#' coding comes from the resolved contrast metadata, not from intercept syntax.
+#' Use `random_block(contrasts = ...)` when a block-specific factor basis is
+#' required.
+#'
+#' The `cs()`, `hcs()`, `ar1()` / `ar()`, `har()`, and `car()` families instead
+#' own a structure-specific index basis. Their left side supplies index
+#' variables rather than a coefficient formula, so these structures reject
+#' intercept controls and block contrast overrides. See
+#' \code{\link{random_effect_formula_tags}} for the complete formula and
+#' variable-type contract.
+#'
+#' Nested grouping syntax, such as `random = ~ 1 | study / esid`, creates
+#' multiple blocks. A formula list creates top-level components:
+#'
 #' \preformatted{
 #' random = list(
 #'   study   = ~ 1 | study,
 #'   outcome = ~ 1 | outcome
 #' )
 #' }
-#' These names are used by summaries and by component-specific `scale` models.
-#' For custom \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}}
-#' objects, match block overrides to the block names shown by
-#' `print_prior(fit, parameter = "random")`.
+#' A bare formula or unnamed one-entry list has no redundant public component
+#' prefix. An explicitly named one-entry list retains its name. In lists with
+#' two or more entries, missing names become `component 1`, `component 2`, and
+#' so on. Component names are used by summaries and by component-specific
+#' `scale` models. Block overrides in `prior_random()` must match the resolved
+#' block names, which can be inspected with
+#' `print_prior(object, parameter = "random")`.
 #'
-#' ## Default random-effect prior distributions
+#' ## Default standard-deviation prior
 #'
-#' RoBMA first constructs the base heterogeneity standard-deviation prior
-#' distribution as described in \code{\link{prior_specification}}. The base
-#' prior distribution follows the same `measure`, `ni`,
-#' `prior_unit_information_sd`, informed-prior, and `rescale_priors` rules as
-#' the scalar heterogeneity prior distribution.
+#' RoBMA first constructs the same base heterogeneity SD prior described in
+#' \code{\link{prior_specification}}. Under the standard UISD defaults,
+#' \deqn{\sigma_{\mathrm{base}} \sim
+#'       \mathrm{Normal}^{+}(0, \mathrm{UISD}/4).}
+#' The scale multiplier can be changed through
+#' `RoBMA.options(default_UISD.heterogeneity = ...)`. The same `measure`, `ni`,
+#' `prior_unit_information_sd`, informed-prior, and `rescale_priors` rules used
+#' for ordinary heterogeneity apply before the prior is assigned to the
+#' random-effect structure.
 #'
-#' The random-effect structure determines how this base prior distribution is
-#' used:
+#' Supplying an ordinary positive prior through `prior_heterogeneity` replaces
+#' this base prior only. RoBMA still determines whether it applies directly to
+#' one SD, to `sd_total` for a total-variance allocation, or to `sd_common` for
+#' a mean-variance allocation.
+#'
+#' ## Structure-specific defaults
+#'
+#' Let \eqn{K} denote the resolved number of random-coefficient columns for a
+#' coefficient structure or the number of index levels for an index structure.
+#' The formula family determines the number of marginal SDs and the default
+#' correlation prior:
+#' \tabular{llll}{
+#' Structure \tab Basis \tab Marginal SDs \tab Default correlation prior \cr
+#' `id()` \tab coefficients \tab one shared SD \tab none \cr
+#' `diag()` or `||` \tab coefficients \tab one per column \tab none \cr
+#' plain `|`, `us()` / `un()` \tab coefficients \tab one per column \tab `LKJ(1)` matrix \cr
+#' `cs()` \tab index levels \tab one shared SD \tab `Uniform(-1 / (K - 1), 1)` on raw `cor` \cr
+#' `hcs()` \tab index levels \tab one per level \tab `Uniform(-1 / (K - 1), 1)` on raw `cor` \cr
+#' `ar1()` / `ar()` \tab ordered index \tab one shared SD \tab `Uniform(-1, 1)` on raw `cor` \cr
+#' `har()` \tab ordered index \tab one per level \tab `Uniform(-1, 1)` on raw `cor` \cr
+#' `car()` \tab numeric coordinates \tab one shared SD \tab `Uniform(0, 1)` on raw `cor`
+#' }
+#'
+#' Correlation priors are added after the formula basis and \eqn{K} are
+#' resolved, and only when the block has more than one random coefficient. The
+#' CS/HCS lower bound is the exact positive-definiteness bound, so the default
+#' includes all admissible negative correlations. `LKJ(1)` is uniform over
+#' correlation matrices and does not favor positive correlations. In
+#' particular, `hcs(index | group)` has one common pairwise correlation, while
+#' `us(0 + index | group)` can estimate a different correlation for every pair
+#' of resolved coefficient columns.
+#'
+#' ## Automatic variance allocation
+#'
+#' RoBMA uses symmetric `Dirichlet(1, ..., 1)` priors whenever a variance scale
+#' must be divided. The allocation is hierarchical when the formula contains
+#' multiple top-level components, nested blocks, or heterogeneous blocks:
 #' \itemize{
-#'   \item A single homogeneous standard deviation receives the base prior
-#'   distribution directly.
-#'   \item Multiple homogeneous blocks share one total standard-deviation prior
-#'   distribution and a symmetric Dirichlet allocation prior distribution over
-#'   variance fractions. If \eqn{w_j} is a variance fraction, the component
-#'   standard deviation is \eqn{\sigma_j = \sigma_{\mathrm{total}}\sqrt{w_j}}.
-#'   \item A heterogeneous block with \eqn{q} standard-deviation components uses
-#'   a symmetric Dirichlet allocation prior distribution with
-#'   `scale = "mean_variance"`. If \eqn{w_j} is the allocation weight, the
-#'   component standard deviation is
-#'   \eqn{\sigma_j = \sigma_{\mathrm{total}}\sqrt{q w_j}}. Equal weights keep
-#'   each component on the total-standard-deviation scale.
+#'   \item A single homogeneous block receives the base SD prior directly.
+#'   \item A split across blocks or components uses
+#'   `scale = "total_variance"`. For child weight \eqn{w_j},
+#'   \deqn{\sigma_j = \sigma_{\mathrm{total}}\sqrt{w_j}, \qquad
+#'         \sum_j \sigma_j^2 = \sigma_{\mathrm{total}}^2.}
+#'   The public aggregate quantities are `sd_total` and `var_total`; components
+#'   are `var_prop(...)`.
+#'   \item A heterogeneous block, such as DIAG, US, HCS, or HAR with
+#'   \eqn{K > 1}, adds an SD-component allocation with
+#'   `scale = "mean_variance"`:
+#'   \deqn{\sigma_j = \sigma_{\mathrm{common}}\sqrt{K w_j}, \qquad
+#'         K^{-1}\sum_j \sigma_j^2 = \sigma_{\mathrm{common}}^2.}
+#'   The public aggregate quantities are `sd_common` and `var_common`;
+#'   components are `var_ratio(...)` and `sd_ratio(...)`.
 #' }
 #'
-#' The default correlation prior distributions depend on the formula structure:
-#' \tabular{lll}{
-#' Random-effect structure \tab SD parameters \tab Default correlation prior distribution \cr
-#' plain `1 | group`, `id()` \tab one shared SD \tab none \cr
-#' `diag()` or `||` \tab one SD per coefficient \tab none \cr
-#' `cs()`, `ar1()`, `car()` \tab one shared SD \tab `Beta(1, 1)` on raw \eqn{\rho} \cr
-#' `hcs()`, `har()` \tab one SD per coefficient \tab `Beta(1, 1)` on raw \eqn{\rho} \cr
-#' `us()` / `un()` \tab one SD per coefficient \tab `LKJ(1)` correlation matrix
+#' Consequently, the base prior always controls a clearly defined total or
+#' average variance scale; it is not independently copied to every SD when that
+#' would make the implied total variance grow with the number of components.
+#'
+#' ## Public random-effect parameter names
+#'
+#' BayesTools stores concrete coordinates, semantic quantities, and aliases in
+#' one versioned parameter map. RoBMA summaries, plots, density estimation, and
+#' hypotheses use its semantic catalog view.
+#' Canonical random-effect names have the form
+#' `(formula) owner: quantity(arguments)`; the formula prefix can be omitted
+#' when the remaining name is unambiguous. Parentheses contain coefficient or
+#' parameter names and square brackets contain factor or index levels. Examples
+#' include `study: sd(intercept)`,
+#' `study: cor(group[sensitivity],group[specificity])`, `sd_total`, and
+#' `var_prop(study)`.
+#' A custom `random_variance_allocation()` always requires a stable internal
+#' `name`; its `display_name` and `component_names` separately control these
+#' public owner and component labels.
+#'
+#' Formula-random correlations are always public `cor` quantities. Compact
+#' scalar `rho` coordinates and LKJ primitives are internal backend details,
+#' not aliases. This convention is distinct from the released legacy
+#' `cluster` interface, where `rho` remains the public variance-allocation
+#' parameter described in \code{\link{prior_specification}}.
+#'
+#' ## Ways to customize random-effect priors
+#'
+#' There are three increasingly explicit customization levels:
+#' \enumerate{
+#'   \item Supply an ordinary positive prior distribution to
+#'   `prior_heterogeneity`. This changes the base SD prior but preserves all
+#'   automatic allocations and default correlation priors.
+#'   \item Supply a partial `prior_random()` object containing only correlation,
+#'   contrast, monitoring, new-level prediction, or parameterization settings.
+#'   RoBMA supplies its base SD prior and every required variance allocation.
+#'   \item Supply a `prior_random()` object containing scale architecture. The
+#'   object is complete and RoBMA does not add or merge scale defaults.
 #' }
-#' Correlation prior distributions are only added when the resolved block has
-#' more than one random coefficient.
 #'
-#' ## Custom random-effect prior distributions
+#' A `prior_random()` object is partial only when all scale-defining fields are
+#' absent. The following fields make it complete: top-level or block-specific
+#' `sd`; `random_covariance(sd = ...)`; block `sd_source`; block `terms`
+#' containing term-specific SD overrides; or `allocation`. Once any of these is
+#' present, the user owns the entire scale architecture and must provide every
+#' required SD or allocation source.
 #'
-#' The simplest customization is to pass an ordinary positive prior distribution
-#' to `prior_heterogeneity`. RoBMA then keeps the default random-effect
-#' allocation and covariance rules but uses that prior distribution as the base
-#' standard-deviation prior distribution.
+#' For example, the following partial specification changes only the factor
+#' basis of block `study`:
+#' \preformatted{
+#' random_prior <- prior_random(
+#'   study = random_block(contrasts = c(group = "independent"))
+#' )
+#' }
+#' Combined with `random = ~ us(0 + group | study)`, this creates one
+#' correlated random coefficient per `group` level. RoBMA supplies the
+#' UISD-scaled `sd_common` and mean-variance Dirichlet allocation; BayesTools adds
+#' the default `LKJ(1)` correlation prior after resolving the coefficient count.
+#' No empty `random_covariance()` or manual allocation is needed.
 #'
-#' For full control, pass
-#' `prior_heterogeneity = BayesTools::prior_random(...)`. This can set global
-#' standard-deviation defaults, block-specific
-#' \code{\link[BayesTools:prior_random]{BayesTools::random_block()}} overrides,
-#' covariance prior distributions via
-#' \code{\link[BayesTools:prior_random]{BayesTools::random_covariance()}}, and
-#' total-standard-deviation allocations via
-#' \code{\link[BayesTools:prior_random]{BayesTools::random_variance_allocation()}}.
+#' A correlation-only customization is partial as well. Use
+#' `random_covariance(cor = prior_lkj(...))` for US/UN and
+#' `random_covariance(cor = ..., cor_scale = ...)` for CS/HCS, AR1/HAR, or CAR.
+#' An explicitly supplied scalar `cor` prior defaults to the Fisher-z scale;
+#' `cor_scale = "cor"` instead places it directly on the raw correlation, and
+#' `cor_scale = "logit"` uses a logit transform of the structure's admissible
+#' interval. The `structure` in the formula remains authoritative, and a
+#' conflicting covariance override is rejected.
+#'
+#' Complete specifications can define global SD defaults, block-specific
+#' \code{\link{random_block}} settings, term-specific SDs, external SD sources,
+#' and allocations built with \code{\link{random_variance_allocation}}. Use a
+#' complete specification when the desired scale hierarchy differs from
+#' RoBMA's automatic total/mean-variance allocation; do not add an SD merely to
+#' customize a correlation or contrast.
+#'
 #' The `parameterization` argument and block-specific overrides select
 #' `"noncentered"`, `"centered"`, or `"auto"` backend representations without
 #' changing the specified standard-deviation, allocation, or correlation prior
 #' distributions. Explicit centering requires strictly positive backend-owned
 #' standard-deviation coordinates; BayesTools rejects unsupported centered
 #' combinations and lets `"auto"` fall back to the noncentered representation.
-#' See \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} for the
-#' generic random-effect prior constructors and use
-#' \code{vignette("v14-metafor-parity-multivariate", package = "RoBMA")} for
-#' worked `brma.mv()` examples.
+#' Monitoring and new-level prediction settings similarly affect saved
+#' quantities and prediction policy, not the statistical prior. Keep latent
+#' effects monitored when bridge sampling or conditional prediction is needed.
+#' See \code{\link{prior_random}} for every constructor argument and complete
+#' examples.
 #'
 #' ## Location-scale random-effect models
 #'
@@ -308,16 +434,48 @@ NULL
 #' multiple top-level random-effect components, `scale` must be a named list
 #' whose names match the random-effect components. The random-effect allocation
 #' rules then split the row-wise standard-deviation source rather than a scalar
-#' total standard-deviation parameter.
+#' total SD parameter. The `prior_scale` argument controls the scale-regression
+#' coefficients. A custom `prior_random()` containing explicit SD architecture
+#' must agree with these row-shaped scale sources; incompatible sources are
+#' rejected rather than silently replaced.
+#'
+#' ## Inspecting the resolved priors
+#'
+#' The completed prior depends on the resolved formula columns and index levels.
+#' Use `only_priors = TRUE` to perform data, formula, and prior resolution
+#' without MCMC, then inspect the result with
+#' `print_prior(object, parameter = "random")`. The printed object shows the
+#' resolved block names, SD sources, allocation hierarchy, correlation priors,
+#' contrasts, and policies that will be used for fitting. Its mathematical
+#' `sigma_total` and `sigma_common` labels describe the prior architecture;
+#' fitted public selectors use `sd_total` and `sd_common`, respectively.
+#'
+#' @examples
+#' \dontrun{
+#' random_prior <- prior_random(
+#'   study = random_block(contrasts = c(group = "independent"))
+#' )
+#'
+#' priors <- brma.mv(
+#'   yi = yi, V = V, ni = ni,
+#'   mods = ~ 0 + group,
+#'   random = ~ us(0 + group | study),
+#'   prior_mods = group_prior,
+#'   prior_heterogeneity = random_prior,
+#'   data = dat, measure = "GEN",
+#'   only_priors = TRUE
+#' )
+#' print_prior(priors, parameter = "random")
+#' }
 #'
 #' @seealso
 #' \code{\link{prior_specification}},
 #' \code{\link{random_effect_formula_tags}},
 #' \code{\link{brma.mv}},
-#' \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}},
-#' \code{\link[BayesTools:prior_random]{BayesTools::random_block()}},
-#' \code{\link[BayesTools:prior_random]{BayesTools::random_covariance()}},
-#' \code{\link[BayesTools:prior_random]{BayesTools::random_variance_allocation()}}
+#' \code{\link{prior_random}},
+#' \code{\link{random_block}},
+#' \code{\link{random_covariance}},
+#' \code{\link{random_variance_allocation}}
 #'
 #' @aliases random_effect_prior_specification random_prior_specification
 NULL
@@ -823,25 +981,6 @@ NULL
 
   return(UISD)
 }
-
-# computes the unit information based on Poisson (rate) data
-# for IRR effect size with GLMM models
-.get_unit_information_sd.pois <- function(x1i, x2i, t1i, t2i) {
-
-  # Total events represents the Total Precision (Fisher Information) for the log-rate
-  total_events <- sum(x1i + x2i)
-
-  # Total person-time represents the Total Sample Size
-  total_time <- sum(t1i + t2i)
-
-  # UISD: sqrt(Total N / Total Precision)
-  # Derived from Fisher Information I(alpha) = lambda * t
-  # Unit variance approx 1/(lambda * 1_unit_time) -> SD = sqrt(1/lambda) -> sqrt(t/y)
-  UISD <- sqrt(total_time / total_events)
-
-  return(UISD)
-}
-
 
 #' @title Estimate Unit Information Standard Deviation
 #'

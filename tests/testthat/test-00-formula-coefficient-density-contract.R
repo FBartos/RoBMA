@@ -6,7 +6,7 @@ test_that("transformed coefficient hypotheses use exact structural weights", {
   transform <- list(
     schema_version             = 1L,
     formula_design_version     = 3L,
-    parameter_registry_version = 3L,
+    parameter_map_version = 1L,
     parameter                  = "mu",
     target_scale               = "original",
     source_names               = c("mu_intercept", "mu_x"),
@@ -328,26 +328,10 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
         prior      = prior,
         hypothesis = hypothesis
       )
-      parsed <- list(list(
-        input = "log_tau_intercept = -1.6094379124341003",
-        left  = list(
-          type = "point", label = "log_tau_intercept = -1.6094379124341003",
-          expr = as.name("log_tau_intercept"),
-          expression = as.name("log_tau_intercept"),
-          value = log(.2)
-        ),
-        right = list(
-          type = "not_point", label = "log_tau_intercept != -1.6094379124341003",
-          expr = as.name("log_tau_intercept"),
-          expression = as.name("log_tau_intercept"),
-          value = log(.2)
-        ),
-        explicit = FALSE
-      ))
       structure(data.frame(
         Alternative = "log_tau_intercept = -1.6094379124341003",
         Null        = "log_tau_intercept != -1.6094379124341003"
-      ), hypothesis_ast = hypothesis, parsed = parsed)
+      ), hypothesis_ast = hypothesis)
     },
     .package = "BayesTools"
   )
@@ -382,9 +366,13 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
   expect_identical(result[["Null"]], "log_tau_intercept = 0.2")
   expect_identical(attr(result, "hypothesis_ast"),
                    BayesTools::hypothesis_parse("log_tau_intercept = 0.2"))
-  expect_equal(attr(result, "parsed")[[1L]][["left"]][["value"]], .2)
+  expect_null(attr(result, "parsed", exact = TRUE))
+  expect_equal(
+    attr(result, "hypothesis_ast")$statements[[1L]][["left"]][["value"]],
+    .2
+  )
   expect_identical(
-    attr(result, "parsed")[[1L]][["left"]][["label"]],
+    attr(result, "hypothesis_ast")$statements[[1L]][["left"]][["label"]],
     "log_tau_intercept = 0.2"
   )
   expect_identical(target[["route"]][["type"]], "exp_affine")
@@ -470,7 +458,7 @@ test_that("unit log-intercepts retain primitive qCMDE/IWMDE semantics", {
   transform <- list(
     schema_version             = 1L,
     formula_design_version     = 3L,
-    parameter_registry_version = 3L,
+    parameter_map_version = 1L,
     parameter                  = "log_tau",
     target_scale               = "original",
     source_names               = "log_tau_intercept",
@@ -541,7 +529,7 @@ test_that("log-intercept support applies on the standardized route", {
   transform <- list(
     schema_version             = 1L,
     formula_design_version     = 3L,
-    parameter_registry_version = 3L,
+    parameter_map_version = 1L,
     parameter                  = "log_tau",
     target_scale               = "original",
     source_names               = "log_tau_intercept",

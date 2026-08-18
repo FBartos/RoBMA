@@ -115,6 +115,63 @@ test_that("IWMDE evaluates focal support once per active key", {
 })
 
 
+test_that("IWMDE linear supports vectorize the exact row-wise intersection", {
+
+  samples <- cbind(
+    theta = c(-.8, -.1, .4, 1.2),
+    phi   = c(.3, 1.1, 1.8, .6)
+  )
+  context <- .iwmde_context_ensure_caches(list(
+    posterior_samples = samples,
+    flat_prior_list = list(
+      theta = BayesTools::prior(
+        "normal",
+        list(mean = 0, sd = 1),
+        truncation = list(-1, 2)
+      ),
+      phi = BayesTools::prior(
+        "normal",
+        list(mean = 0, sd = 1),
+        truncation = list(0, 2.5)
+      )
+    ),
+    indicator_names = character()
+  ))
+  weights <- c(theta = 2, phi = -1)
+
+  expected <- matrix(NA_real_, nrow = nrow(samples), ncol = 2L)
+  for (row_i in seq_len(nrow(samples))) {
+    row <- samples[row_i, ]
+    current <- sum(row[names(weights)] * weights)
+    coefficients <- weights / sum(weights^2)
+    lower_bound <- -Inf
+    upper_bound <- Inf
+    for (parameter in names(weights)) {
+      support <- .iwmde_prior_support(
+        context[["flat_prior_list"]][[parameter]]
+      )
+      coefficient <- coefficients[[parameter]]
+      if (coefficient > 0) {
+        lower <- current + (support[1L] - row[[parameter]]) / coefficient
+        upper <- current + (support[2L] - row[[parameter]]) / coefficient
+      } else {
+        lower <- current + (support[2L] - row[[parameter]]) / coefficient
+        upper <- current + (support[1L] - row[[parameter]]) / coefficient
+      }
+      lower_bound <- max(lower_bound, lower)
+      upper_bound <- min(upper_bound, upper)
+    }
+    expected[row_i, ] <- c(lower_bound, upper_bound)
+  }
+
+  expect_equal(
+    .iwmde_linear_row_supports(context, seq_len(nrow(samples)), weights),
+    expected,
+    tolerance = 0
+  )
+})
+
+
 test_that("IWMDE focal-prior deltas preserve row-wise arithmetic", {
 
   prior  <- BayesTools::prior("normal", list(mean = .2, sd = 1.3))
@@ -706,6 +763,47 @@ test_that("mixed estimates batch the full conditioned chain sequence", {
     partial_mcse[["mixture_mcse_type"]],
     "worst_correlation_delta_upper_bound"
   )
+})
+
+
+test_that("IWMDE vectorizes a common focal-prior delta exactly", {
+
+  prior  <- BayesTools::prior("normal", list(mean = 0, sd = 1))
+  values <- c(-0.4, 0.1, 0.7)
+  baseline_values <- c(-0.2, 0.5)
+  baseline_log_prior <- c(-3.1, -2.4)
+  baseline_focal <- BayesTools::lpdf(prior, baseline_values)
+  row_states <- lapply(seq_along(baseline_values), function(i) {
+    list(
+      prior_list               = list(theta = prior),
+      focal_prior              = prior,
+      baseline_log_prior       = baseline_log_prior[[i]],
+      baseline_focal_log_prior = baseline_focal[[i]],
+      use_focal_prior_delta    = TRUE
+    )
+  })
+  candidates <- list(
+    state_index = rep(seq_along(row_states), each = length(values)),
+    grid_index  = rep(seq_along(values), times = length(row_states))
+  )
+  valid_positions <- seq_along(candidates[["state_index"]])
+  actual <- .iwmde_replacement_log_prior(
+    parameter       = "theta",
+    values          = values,
+    valid_samples   = matrix(0, nrow = length(valid_positions), ncol = 0L),
+    valid_positions = valid_positions,
+    candidates      = candidates,
+    row_states      = row_states,
+    replacement     = list(type = "scalar")
+  )
+  expected <- vapply(valid_positions, function(position) {
+    state <- candidates[["state_index"]][[position]]
+    grid  <- candidates[["grid_index"]][[position]]
+    baseline_log_prior[[state]] +
+      BayesTools::lpdf(prior, values[[grid]]) - baseline_focal[[state]]
+  }, numeric(1))
+
+  expect_equal(actual, expected, tolerance = 0)
 })
 
 
@@ -2851,7 +2949,7 @@ test_that("negative-direction PET and PEESE location fast paths match flipped li
 })
 
 
-test_that("formula predictors bypass the quadratic location path", {
+test_that("unmaterialized formula predictors bypass the quadratic location path", {
 
   data <- list(outcome = data.frame(yi = 0, sei = 1))
   attr(data, "outcome_type") <- "norm"
@@ -2877,6 +2975,453 @@ test_that("formula predictors bypass the quadratic location path", {
       basis       = basis
     ))
   }
+})
+
+
+test_that("fixed formula coordinates materialize an exact location basis", {
+
+  mods <- data.frame(
+    group = factor(
+      c("sensitivity", "specificity", "sensitivity", "specificity"),
+      levels = c("sensitivity", "specificity")
+    )
+  )
+  formula_result <- BayesTools::JAGS_formula(
+    formula = ~ 0 + group,
+    parameter = "mu",
+    data = mods,
+    prior_list = list(
+      group = BayesTools::prior_factor(
+        "normal",
+        list(mean = 0, sd = 1),
+        contrast = "independent"
+      )
+    )
+  )
+  columns <- c("mu_group[1]", "mu_group[2]")
+  posterior_samples <- matrix(
+    c(-0.2, 0.5, 0.1, 0.8),
+    nrow = 2L,
+    byrow = TRUE,
+    dimnames = list(NULL, columns)
+  )
+  fit <- coda::mcmc(posterior_samples)
+  class(fit) <- c("BayesTools_fit", class(fit))
+  attr(fit, "prior_list") <- formula_result$prior_list
+  attr(fit, "formula_design") <- list(mu = formula_result$formula_design)
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  fit <- BayesTools:::.bt_attach_fit_contract(fit)
+
+  data <- list(
+    outcome = data.frame(yi = rep(0, nrow(mods)), sei = rep(1, nrow(mods))),
+    mods    = mods
+  )
+  attr(data, "outcome_type") <- "norm"
+  context <- list(
+    data        = data,
+    formula_fit = fit
+  )
+  setup <- list(
+    posterior_samples = posterior_samples,
+    mu = matrix(0, nrow = nrow(posterior_samples), ncol = nrow(mods))
+  )
+  row_states <- lapply(seq_len(nrow(posterior_samples)), function(i) {
+    list(row_index = i, active_setup = list())
+  })
+
+  basis <- .iwmde_predictor_update_basis(
+    context     = context,
+    parameter   = "mu_group[1]",
+    row_states  = row_states,
+    replacement = list(type = "scalar"),
+    setup       = setup
+  )
+
+  expected <- matrix(
+    formula_result$formula_design$model_matrix[, "group1"],
+    nrow = nrow(posterior_samples),
+    ncol = nrow(mods),
+    byrow = TRUE
+  )
+  expect_false(isTRUE(basis[["formula_mu"]]))
+  expect_true(isTRUE(basis[["formula_mu_affine"]]))
+  expect_identical(basis[["current"]], posterior_samples[, "mu_group[1]"])
+  expect_identical(unname(basis[["mu_basis"]]), unname(expected))
+  expect_false(.iwmde_q_grid_fixed_mu_is_invariant(
+    context,
+    list(changed_parameters = "mu_group[1]")
+  ))
+  expect_true(.iwmde_q_grid_fixed_mu_is_invariant(
+    context,
+    list(changed_parameters = "mu__xREx__study_rho")
+  ))
+})
+
+
+test_that("known-V random predictor fallbacks remain marginal", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid_known_v_random_allocation_group = function(...) NULL,
+    .iwmde_predictor_setup = function(...) list(),
+    .iwmde_predictor_update_basis = function(...) {
+      list(formula_mu = TRUE)
+    },
+    .iwmde_log_q_grid_normal_location_group = function(...) NULL,
+    .iwmde_predictor_candidates = function(...) {
+      stop("conditional predictor fallback was evaluated", call. = FALSE)
+    },
+    .iwmde_uses_known_v_random_marginal_likelihood = function(...) TRUE,
+    .package = "RoBMA"
+  )
+
+  expect_null(.iwmde_log_q_grid_predictor_group(
+    context     = list(data = list()),
+    parameter   = "derived_fixed_target",
+    values      = 0,
+    row_states  = list(list(active_setup = list())),
+    replacement = list(type = "fallback")
+  ))
+})
+
+
+test_that("known-V formula random locations use the exact marginal quadratic", {
+
+  S <- 2L
+  K <- 4L
+  model_matrix <- rbind(
+    c(1, 0), c(0, 1), c(1, 0), c(0, 1)
+  )
+  group_map <- c(1L, 1L, 2L, 2L)
+  coefficient_factors <- list(
+    matrix(c(.7, .2, 0, .5), nrow = 2L, byrow = TRUE),
+    matrix(c(.4, -.1, 0, .8), nrow = 2L, byrow = TRUE)
+  )
+  factor_plans <- list(list(
+    type                  = "group",
+    model_matrix          = model_matrix,
+    group_map             = group_map,
+    coefficient_structure = "dense"
+  ))
+  factor_states <- lapply(coefficient_factors, function(factor) {
+    list(list(coefficient_factor = factor))
+  })
+  sampling_covariance <- matrix(0, nrow = K, ncol = K)
+  sampling_covariance[1:2, 1:2] <- matrix(c(.4, .1, .1, .5), 2L)
+  sampling_covariance[3:4, 3:4] <- matrix(c(.6, -.05, -.05, .3), 2L)
+  dependency_blocks <- list(1:2, 3:4)
+  fixed_mu <- rbind(
+    c(-.2, .5, .1, .4),
+    c(.3, -.1, .2, .6)
+  )
+  mu_basis <- rbind(
+    c(1, 0, 1, 0),
+    c(.8, .1, .9, -.1)
+  )
+  yi <- c(.1, .7, -.2, .9)
+  setup <- list(
+    S                 = S,
+    K                 = K,
+    effect_direction  = "positive",
+    posterior_samples = matrix(0, nrow = S, ncol = 0L)
+  )
+  random_setup <- list(
+    blocks              = "study",
+    dependency_blocks   = dependency_blocks,
+    sampling_covariance = sampling_covariance
+  )
+  random_factors <- list(
+    row_blocks    = dependency_blocks,
+    factor_plans  = factor_plans,
+    factor_states = factor_states
+  )
+
+  testthat::local_mocked_bindings(
+    .iwmde_known_v_random_marginal_setup = function(context) random_setup,
+    .brma_mv_random_effects_marginal_factor_states = function(...) {
+      random_factors
+    },
+    .package = "RoBMA"
+  )
+
+  actual <- .iwmde_normal_location_likelihood_change_known_v_random(
+    context  = list(object = list(), data = list()),
+    setup    = setup,
+    yi       = yi,
+    mu       = fixed_mu,
+    mu_basis = mu_basis
+  )
+  expected_linear    <- numeric(S)
+  expected_quadratic <- numeric(S)
+  for (s in seq_len(S)) {
+    coefficient_covariance <- tcrossprod(coefficient_factors[[s]])
+    for (index in dependency_blocks) {
+      design <- model_matrix[index, , drop = FALSE]
+      covariance <- sampling_covariance[index, index, drop = FALSE] +
+        design %*% coefficient_covariance %*% t(design)
+      residual <- yi[index] - fixed_mu[s, index]
+      expected_linear[[s]] <- expected_linear[[s]] + as.numeric(
+        crossprod(mu_basis[s, index], solve(covariance, residual))
+      )
+      expected_quadratic[[s]] <- expected_quadratic[[s]] + as.numeric(
+        crossprod(mu_basis[s, index], solve(covariance, mu_basis[s, index]))
+      )
+    }
+  }
+
+  expect_equal(actual[["linear"]], expected_linear, tolerance = 1e-12)
+  expect_equal(actual[["quadratic"]], expected_quadratic, tolerance = 1e-12)
+})
+
+
+test_that("known-V location quadratics cover every random factor contract", {
+
+  K <- 4L
+  S <- 2L
+  y <- c(.1, .7, -.2, .9)
+  means <- rbind(
+    c(-.2, .5, .1, .4),
+    c(.3, -.1, .2, .6)
+  )
+  bases <- rbind(
+    c(1, 0, 1, 0),
+    c(.8, .1, .9, -.1)
+  )
+  sampling_covariance <- matrix(
+    c(
+      .50, .08, .02, 0,
+      .08, .60, 0, .03,
+      .02, 0, .45, -.04,
+      0, .03, -.04, .55
+    ),
+    nrow = K,
+    byrow = TRUE
+  )
+  extra_variances <- rbind(
+    c(.02, .01, .03, .04),
+    c(.01, .03, .02, .01)
+  )
+  model_matrix <- rbind(
+    c(1, 0), c(0, 1), c(1, .5), c(.3, 1)
+  )
+  group_map <- as.integer(c(1, 1, 2, 2))
+  crossed_group_map <- as.integer(c(1, 2, 1, 2))
+
+  coefficient_factor <- function(scale, rho) {
+
+    correlation <- matrix(c(1, rho, rho, 1), nrow = 2L)
+    sweep(t(chol(correlation)), 1L, scale, "*")
+  }
+  markov_state <- function(scale, rho) {
+
+    list(
+      coefficient_factor              = coefficient_factor(scale, rho),
+      coefficient_scale               = scale,
+      markov_transition               = rho,
+      markov_innovation_variance       = 1 - rho^2
+    )
+  }
+  plan <- function(type, coefficient_structure = "dense",
+                   map = group_map, group_covariance = NULL) {
+
+    out <- list(
+      type                  = type,
+      model_matrix          = model_matrix,
+      group_map             = map,
+      coefficient_structure = coefficient_structure
+    )
+    if (!is.null(group_covariance)) {
+      out[["group_covariance"]] <- group_covariance
+    }
+    out
+  }
+
+  dense_roots <- list(
+    matrix(c(.15, .02, 0, .1, .03, 0, .12, -.01), nrow = K),
+    matrix(c(.08, 0, .02, .14, 0, .04, -.01, .1), nrow = K)
+  )
+  known_group_covariance <- matrix(c(1, .3, .3, 1.4), nrow = 2L)
+  cases <- list(
+    dense = list(
+      plans = list(list(type = "dense")),
+      states = lapply(dense_roots, function(root) {
+        list(list(covariance = tcrossprod(root)))
+      })
+    ),
+    id_diag = list(
+      plans = list(plan("group", "diagonal")),
+      states = list(
+        list(list(coefficient_factor = diag(c(.4, .7)))),
+        list(list(coefficient_factor = diag(c(.6, .3))))
+      )
+    ),
+    us_cs_hcs = list(
+      plans = list(plan("group", "dense")),
+      states = list(
+        list(list(coefficient_factor = coefficient_factor(c(.5, .7), .25))),
+        list(list(coefficient_factor = coefficient_factor(c(.4, .8), -.2)))
+      )
+    ),
+    ar_har_car = list(
+      plans = list(plan("group", "markov")),
+      states = list(
+        list(markov_state(c(.5, .7), .25)),
+        list(markov_state(c(.4, .8), -.2))
+      )
+    ),
+    row_scaled = list(
+      plans = list(plan("row_group", "dense")),
+      states = list(
+        list(list(
+          coefficient_factor = coefficient_factor(c(.5, .7), .25),
+          row_scale = c(.8, 1.1, .9, 1.2)
+        )),
+        list(list(
+          coefficient_factor = coefficient_factor(c(.4, .8), -.2),
+          row_scale = c(1.2, .7, 1, .9)
+        ))
+      )
+    ),
+    known_group = list(
+      plans = list(plan(
+        "known_group",
+        "dense",
+        map = crossed_group_map,
+        group_covariance = known_group_covariance
+      )),
+      states = list(
+        list(list(coefficient_factor = coefficient_factor(c(.5, .7), .25))),
+        list(list(coefficient_factor = coefficient_factor(c(.4, .8), -.2)))
+      )
+    )
+  )
+
+  covariance_contribution <- function(factor_plan, factor_state) {
+
+    if (identical(factor_plan[["type"]], "dense")) {
+      return(factor_state[["covariance"]])
+    }
+    root <- factor_plan[["model_matrix"]] %*%
+      factor_state[["coefficient_factor"]]
+    if (identical(factor_plan[["type"]], "row_group")) {
+      root <- root * factor_state[["row_scale"]]
+    }
+    covariance <- tcrossprod(root)
+    map <- factor_plan[["group_map"]]
+    if (identical(factor_plan[["type"]], "known_group")) {
+      covariance <- covariance * factor_plan[["group_covariance"]][
+        map,
+        map,
+        drop = FALSE
+      ]
+    } else {
+      covariance <- covariance * outer(map, map, "==")
+    }
+    covariance
+  }
+
+  for (case_name in names(cases)) {
+    case <- cases[[case_name]]
+    actual <- .marglik_covariance_plan_location_quadratic_batch(
+      cache                    = NULL,
+      y                        = y,
+      means                    = means,
+      bases                    = bases,
+      sampling_covariance      = sampling_covariance,
+      random_covariance_plans  = case[["plans"]],
+      random_covariance_states = case[["states"]],
+      block_indices            = list(seq_len(K)),
+      extra_variances          = extra_variances
+    )
+    expected_linear    <- numeric(S)
+    expected_quadratic <- numeric(S)
+    for (draw in seq_len(S)) {
+      covariance <- sampling_covariance + diag(extra_variances[draw, ])
+      for (factor_i in seq_along(case[["plans"]])) {
+        covariance <- covariance + covariance_contribution(
+          case[["plans"]][[factor_i]],
+          case[["states"]][[draw]][[factor_i]]
+        )
+      }
+      residual <- y - means[draw, ]
+      expected_linear[[draw]] <- as.numeric(crossprod(
+        bases[draw, ],
+        solve(covariance, residual)
+      ))
+      expected_quadratic[[draw]] <- as.numeric(crossprod(
+        bases[draw, ],
+        solve(covariance, bases[draw, ])
+      ))
+    }
+
+    expect_equal(
+      actual[["linear"]],
+      expected_linear,
+      tolerance = 2e-12,
+      info = case_name
+    )
+    expect_equal(
+      actual[["quadratic"]],
+      expected_quadratic,
+      tolerance = 2e-12,
+      info = case_name
+    )
+  }
+})
+
+
+test_that("metadata-declared non-affine formula locations retain evaluation", {
+
+  formula <- ~ 1
+  attr(formula, "log(intercept)") <- TRUE
+  formula_result <- BayesTools::JAGS_formula(
+    formula   = formula,
+    parameter = "mu",
+    data      = data.frame(row = 1:2),
+    prior_list = list(
+      intercept = BayesTools::prior(
+        "gamma",
+        list(shape = 2, rate = 1)
+      )
+    )
+  )
+  posterior_samples <- matrix(
+    c(0.5, 1.5),
+    ncol     = 1L,
+    dimnames = list(NULL, "mu_intercept")
+  )
+  fit <- coda::mcmc(posterior_samples)
+  class(fit) <- c("BayesTools_fit", class(fit))
+  attr(fit, "prior_list") <- formula_result$prior_list
+  attr(fit, "formula_design") <- list(mu = formula_result$formula_design)
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  fit <- BayesTools:::.bt_attach_fit_contract(fit)
+
+  data <- list(
+    outcome = data.frame(yi = c(0, 0), sei = c(1, 1))
+  )
+  attr(data, "outcome_type") <- "norm"
+  context <- list(data = data, formula_fit = fit)
+  setup <- list(
+    posterior_samples = posterior_samples,
+    mu                = matrix(0, nrow = 2L, ncol = 2L)
+  )
+  row_states <- lapply(seq_len(2L), function(i) {
+    list(row_index = i, active_setup = list())
+  })
+
+  basis <- .iwmde_predictor_update_basis(
+    context     = context,
+    parameter   = "mu_intercept",
+    row_states  = row_states,
+    replacement = list(type = "fallback"),
+    setup       = setup
+  )
+
+  expect_true(isTRUE(basis[["formula_mu"]]))
+  expect_identical(basis[["formula_mu_status"]], "non_affine")
+  expect_null(basis[["mu_basis"]])
 })
 
 
@@ -3191,8 +3736,9 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
 
   expect_false(is.null(basis))
 
-  expect_true(isTRUE(basis[["formula_mu"]]))
-  expect_null(.iwmde_log_q_grid_normal_location_group(
+  expect_false(isTRUE(basis[["formula_mu"]]))
+  expect_true(is.matrix(basis[["mu_basis"]]))
+  location_fast <- .iwmde_log_q_grid_normal_location_group(
     context     = context,
     parameter   = parameter,
     values      = grid_values,
@@ -3200,7 +3746,8 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
     replacement = replacement,
     setup       = setup,
     basis       = basis
-  ))
+  )
+  expect_true(is.matrix(location_fast))
   fast <- .iwmde_log_q_grid_predictor_group(
     context     = context,
     parameter   = parameter,
@@ -3451,7 +3998,7 @@ test_that("IWMDE batched q evaluation warns on invalid likelihood length", {
       row_states      = row_states,
       replacement     = list(type = "scalar"),
       likelihood_mode = "marginal",
-      log_lik_fun     = function(samples, active_setup) 0
+      log_lik_fun     = function(samples, active_setup, batch) 0
     ),
     "invalid length"
   )
@@ -3673,7 +4220,7 @@ test_that("IWMDE normal quadratic fast path matches scalar fallback", {
 })
 
 
-test_that("known-V normal q-grid factors invariant blocks once", {
+test_that("known-V normal q-grid caches invariant spectral blocks", {
 
   fit_name <- "brma.mv_block_mvn_fixed_random_null"
   .skip_if_missing_raw_fits(fit_name)
@@ -3710,16 +4257,15 @@ test_that("known-V normal q-grid factors invariant blocks once", {
   )
   grid <- seq(min(values[rows]), max(values[rows]), length.out = 20L)
 
-  original_factor <- .known_v_chol_covariance
-  factor_calls     <- 0L
-  testthat::local_mocked_bindings(
-    .known_v_chol_covariance = function(covariance, context) {
-
-      factor_calls <<- factor_calls + 1L
-      original_factor(covariance = covariance, context = context)
-    },
-    .package = "RoBMA"
+  predictor_cache <- context[["predictor_cache"]]
+  spectral_keys <- grep(
+    "^known_v_location_spectral_blocks\\|",
+    ls(envir = predictor_cache),
+    value = TRUE
   )
+  if (length(spectral_keys) > 0L) {
+    rm(list = spectral_keys, envir = predictor_cache)
+  }
 
   out <- .iwmde_log_q_grid_normal_location_group(
     context     = context,
@@ -3730,6 +4276,11 @@ test_that("known-V normal q-grid factors invariant blocks once", {
     setup       = setup,
     basis       = basis
   )
+  cached_keys <- grep(
+    "^known_v_location_spectral_blocks\\|",
+    ls(envir = predictor_cache),
+    value = TRUE
+  )
   reused <- .iwmde_log_q_grid_normal_location_group(
     context     = context,
     parameter   = parameter,
@@ -3739,12 +4290,17 @@ test_that("known-V normal q-grid factors invariant blocks once", {
     setup       = setup,
     basis       = basis
   )
+  reused_keys <- grep(
+    "^known_v_location_spectral_blocks\\|",
+    ls(envir = predictor_cache),
+    value = TRUE
+  )
 
-  block_count <- length(.known_v_blocks(.data_known_v_data(context[["data"]])))
   expect_true(is.matrix(out))
   expect_equal(dim(out), c(length(grid), length(row_states)))
   expect_equal(reused, out[nrow(out):1L, , drop = FALSE], tolerance = 1e-12)
-  expect_equal(factor_calls, block_count)
+  expect_length(cached_keys, 1L)
+  expect_identical(reused_keys, cached_keys)
 })
 
 

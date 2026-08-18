@@ -36,6 +36,8 @@ marginal_means <- function(object, ...) {
 #' object with moderators using \code{BayesTools::as_marginal_inference()}.
 #' Alternative-conditioned marginal means condition on the union of every
 #' nonzero formula coefficient contributing to the corresponding output cell.
+#' A location intercept fixed at zero is omitted whenever moderators are
+#' present.
 #'
 #' @param object a fitted \code{brma} object with moderators.
 #' @param null_hypothesis point null hypothesis used for inclusion Bayes
@@ -208,7 +210,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     formula_parameter = "mu"
   )
   parameter_setup  <- .marginal_means_drop_fixed_zero_intercept(
-    model      = object[["fit"]],
+    object     = object,
     formula    = formula,
     terms      = terms,
     parameters = parameters
@@ -385,27 +387,12 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 }
 
 
-.marginal_means_drop_fixed_zero_intercept <- function(model, formula, terms,
-                                                      parameters) {
+.marginal_means_drop_fixed_zero_intercept <- function(object, formula, terms,
+                                                       parameters) {
 
-  posterior_samples <- .get_posterior_samples(model)
-  posterior_names   <- colnames(posterior_samples)
-  prior_list        <- attr(model, "prior_list", exact = TRUE)
-  intercept_index   <- which(parameters == "mu_intercept")
-
+  intercept_index <- which(parameters == "mu_intercept")
   if (length(intercept_index) != 1L ||
-      .marginal_means_parameter_in_samples("mu_intercept", posterior_names)) {
-    return(list(
-      formula    = formula,
-      terms      = terms,
-      parameters = parameters
-    ))
-  }
-
-  intercept_prior <- prior_list[["mu_intercept"]]
-  if (is.null(intercept_prior) ||
-      !BayesTools::is.prior.point(intercept_prior) ||
-      !isTRUE(all.equal(as.numeric(mean(intercept_prior)), 0))) {
+      !.location_omit_fixed_zero_intercept(object)) {
     return(list(
       formula    = formula,
       terms      = terms,
@@ -423,13 +410,6 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     terms      = terms[keep],
     parameters = parameters[keep]
   ))
-}
-
-
-.marginal_means_parameter_in_samples <- function(parameter, posterior_names) {
-
-  parameter %in% posterior_names ||
-    any(startsWith(posterior_names, paste0(parameter, "[")))
 }
 
 

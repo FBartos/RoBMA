@@ -214,6 +214,9 @@ test_that("Binomial nuisance quadrature matches beta support boundaries", {
 
 test_that("Poisson GLMM lograte priors are assigned", {
 
+  old_lograte_sd <- RoBMA.get_option("default_lograte.sd")
+  on.exit(RoBMA.options(default_lograte.sd = old_lograte_sd), add = TRUE)
+
   result_default <- brma.glmm(
     x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
     data = test_data_pois, measure = "IRR",
@@ -221,6 +224,28 @@ test_that("Poisson GLMM lograte priors are assigned", {
   )[["priors"]]
 
   expect_equal(result_default$outcome$phi$distribution, "normal")
+  expected_lograte_mean <- log(sum(test_data_pois$x1i + test_data_pois$x2i) / sum(test_data_pois$t1i + test_data_pois$t2i))
+  expect_equal(result_default$outcome$phi$parameters$mean, expected_lograte_mean)
+  expect_equal(result_default$outcome$phi$parameters$sd, 1)
+
+  exposure_multiplier <- 12
+  test_data_pois_scaled <- transform(test_data_pois, t1i = t1i * exposure_multiplier, t2i = t2i * exposure_multiplier)
+  result_scaled <- brma.glmm(
+    x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+    data = test_data_pois_scaled, measure = "IRR",
+    prior_lograte = NULL, only_priors = TRUE
+  )[["priors"]]
+
+  expect_equal(result_scaled$outcome$phi$parameters$mean, result_default$outcome$phi$parameters$mean - log(exposure_multiplier))
+  expect_equal(result_scaled$outcome$phi$parameters$sd, result_default$outcome$phi$parameters$sd)
+
+  RoBMA.options(default_lograte.sd = 0.75)
+  result_option <- brma.glmm(
+    x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+    data = test_data_pois, measure = "IRR",
+    prior_lograte = NULL, only_priors = TRUE
+  )[["priors"]]
+  expect_equal(result_option$outcome$phi$parameters$sd, 0.75)
 
   custom_prior <- BayesTools::prior("normal", parameters = list(mean = 0, sd = 2))
   result_custom <- brma.glmm(

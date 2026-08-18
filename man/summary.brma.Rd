@@ -53,7 +53,8 @@ Defaults to \code{FALSE}.}
 A list of class \code{summary.brma} with model name, optional RoBMA
 inclusion tables, common estimates, moderator estimates, scale estimates,
 publication-bias estimates, and optional conditional estimates. The printed
-form displays the non-empty tables.
+form displays the non-empty tables. In meta-regressions with moderators, a
+location intercept fixed at zero is omitted; intercept-only models retain it.
 }
 \description{
 \code{summary.brma} creates summary tables for a

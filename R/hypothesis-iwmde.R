@@ -126,7 +126,8 @@
     posterior, raw_posterior, context, estimate_cache, parameter,
     parameter_label, value, conditional, n_points, samples,
     target_relative_mcse, normalization_points,
-    normalization_prob, density_method, parameter_spec = NULL) {
+    normalization_prob, density_method, parameter_spec = NULL,
+    display_transform = NULL) {
 
   if (is.list(raw_posterior) || is.list(posterior)) {
     stop(
@@ -155,6 +156,11 @@
   }
   parameter_spec[["conditional"]]      <- conditional
   parameter_spec[["conditional_rule"]] <- "AND"
+  source_value <- if (is.null(display_transform)) {
+    value
+  } else {
+    BayesTools::parameter_transform_inverse(value, display_transform)
+  }
 
   estimate <- .iwmde_estimate(
     context         = context,
@@ -169,7 +175,7 @@
       display_grid         = "ordinate"
     ),
     outputs        = "ordinate",
-    values         = value,
+    values         = source_value,
     parameter_spec = parameter_spec,
     metadata       = .iwmde_posterior_metadata(
       samples   = posterior,
@@ -179,12 +185,20 @@
   )
   diagnostic <- estimate[["diagnostics"]][["ordinate"]]
   marginal_parameter <- attr(posterior, "parameter", exact = TRUE)
-  values <- .iwmde_sorted_ordinate_values(value)
-  for (requested_value in values) {
+  values <- .iwmde_sorted_ordinate_values(source_value)
+  for (requested_source_value in values) {
     ordinate <- .iwmde_posterior_ordinate_keep_values(
       posterior_ordinate = estimate[["posterior_ordinate"]],
-      values             = requested_value
+      values             = requested_source_value
     )
+    requested_value <- if (is.null(display_transform)) {
+      requested_source_value
+    } else {
+      BayesTools::parameter_transform_forward(
+        requested_source_value,
+        display_transform
+      )
+    }
     if (is.null(ordinate)) {
       .iwmde_stop_ordinate_unavailable(
         message = .hypothesis_brma_iwmde_ordinate_failure_message(
@@ -193,10 +207,16 @@
           diagnostic     = diagnostic,
           reason         = .hypothesis_brma_estimate_ordinate_reason(
             estimate = estimate,
-            value    = requested_value
+            value    = requested_source_value
           )
         ),
         estimate = estimate
+      )
+    }
+    if (!is.null(display_transform)) {
+      ordinate <- .hypothesis_brma_transform_iwmde_ordinate(
+        ordinate,
+        display_transform
       )
     }
     if (is.character(marginal_parameter) &&
@@ -217,6 +237,64 @@
   }
 
   return(posterior)
+}
+
+
+.hypothesis_brma_transform_iwmde_ordinate <- function(
+    ordinate, display_transform) {
+
+  source_value <- ordinate[["value"]]
+  source_evaluation_value <- ordinate[["evaluation_value"]]
+  jacobian <- BayesTools::parameter_transform_jacobian(
+    source_evaluation_value,
+    display_transform
+  )
+  if (length(jacobian) != 1L || !is.finite(jacobian) || jacobian <= 0) {
+    stop("Unsupported qCMDE/IWMDE display transform.", call. = FALSE)
+  }
+  ordinate[["value"]] <- BayesTools::parameter_transform_forward(
+    ordinate[["value"]],
+    display_transform
+  )
+  ordinate[["evaluation_value"]] <- BayesTools::parameter_transform_forward(
+    ordinate[["evaluation_value"]],
+    display_transform
+  )
+  ordinate[["ordinate"]] <- ordinate[["ordinate"]] / jacobian
+  diagnostics <- ordinate[["diagnostics"]]
+  value_fields <- intersect(
+    c("evaluation_value"),
+    names(diagnostics)
+  )
+  for (field in value_fields) {
+    diagnostics[[field]] <- BayesTools::parameter_transform_forward(
+      diagnostics[[field]],
+      display_transform
+    )
+  }
+  density_fields <- intersect(
+    c(
+      "mcse", "active_branch_mcse", "sampling_mcse",
+      "pilot_ordinate", "validation_ordinate"
+    ),
+    names(diagnostics)
+  )
+  for (field in density_fields) {
+    diagnostics[[field]] <- diagnostics[[field]] / jacobian
+  }
+  ordinate[["diagnostics"]] <- diagnostics
+  provenance <- ordinate[["iwmde_provenance"]]
+  if (is.list(provenance)) {
+    for (field in intersect(c("value", "evaluation_value"), names(provenance))) {
+      provenance[[field]] <- BayesTools::parameter_transform_forward(
+        provenance[[field]],
+        display_transform
+      )
+    }
+    ordinate[["iwmde_provenance"]] <- provenance
+  }
+
+  ordinate
 }
 
 
@@ -458,28 +536,28 @@
 
 .hypothesis_brma_warning_point_rows <- function(table, record) {
 
-  parsed <- attr(table, "parsed", exact = TRUE)
-  if (is.null(parsed) || length(parsed) == 0L ||
-      nrow(table) %% length(parsed) != 0L) {
+  statements <- .hypothesis_brma_result_statements(table)
+  if (is.null(statements) || length(statements) == 0L ||
+      nrow(table) %% length(statements) != 0L) {
     point_labels <- .hypothesis_brma_warning_point_labels(table, record)
     return(.hypothesis_brma_table_rows_with_labels(table, point_labels))
   }
 
-  parsed_matches <- vapply(parsed, function(item) {
+  statement_matches <- vapply(statements, function(statement) {
 
     any(vapply(
-      list(item[["left"]], item[["right"]]),
+      list(statement[["left"]], statement[["right"]]),
       .hypothesis_brma_warning_side_matches,
       logical(1),
       record = record
     ))
   }, logical(1))
-  if (!any(parsed_matches)) {
+  if (!any(statement_matches)) {
     return(integer())
   }
 
-  n_quantities <- nrow(table) %/% length(parsed)
-  rows <- unlist(lapply(which(parsed_matches), function(i) {
+  n_quantities <- nrow(table) %/% length(statements)
+  rows <- unlist(lapply(which(statement_matches), function(i) {
 
     ((i - 1L) * n_quantities + 1L):(i * n_quantities)
   }), use.names = FALSE)
@@ -490,14 +568,14 @@
 
 .hypothesis_brma_warning_point_labels <- function(table, record) {
 
-  parsed <- attr(table, "parsed", exact = TRUE)
-  if (is.null(parsed) || length(parsed) == 0L) {
+  statements <- .hypothesis_brma_result_statements(table)
+  if (is.null(statements) || length(statements) == 0L) {
     return(character())
   }
 
-  labels <- unlist(lapply(parsed, function(item) {
+  labels <- unlist(lapply(statements, function(statement) {
 
-    sides <- list(item[["left"]], item[["right"]])
+    sides <- list(statement[["left"]], statement[["right"]])
     vapply(sides, function(side) {
 
       if (!.hypothesis_brma_warning_side_matches(side, record)) {
@@ -518,15 +596,23 @@
     return(FALSE)
   }
 
-  expr <- side[["expr"]]
-  if (is.null(expr) || length(expr) == 0L) {
+  expression <- side[["expression"]]
+  while (is.list(expression) &&
+         identical(expression[["type"]], "parentheses")) {
+    expression <- expression[["expression"]]
+  }
+  expr <- if (is.list(expression) &&
+              identical(expression[["type"]], "symbol")) {
+    expression[["name"]]
+  } else if (is.list(expression) &&
+             identical(expression[["type"]], "level_reference")) {
+    paste0(expression[["parameter"]], "[", expression[["level"]], "]")
+  } else {
+    NULL
+  }
+  if (is.null(expr) || length(expr) != 1L || is.na(expr) || !nzchar(expr)) {
     return(FALSE)
   }
-  expr <- as.character(expr)
-  if (length(expr) == 0L || is.na(expr[[1L]])) {
-    return(FALSE)
-  }
-  expr <- expr[[1L]]
 
   label     <- record[["label"]]
   parameter <- record[["parameter"]]

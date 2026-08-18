@@ -127,13 +127,13 @@ sd_prior <- BayesTools::prior(
   parameters = list(mean = 0, sd = begg_unit_information_sd),
   truncation = list(lower = 0, upper = Inf)
 )
-rho_zero <- BayesTools::prior(
+cor_zero <- BayesTools::prior(
   distribution = "spike",
   parameters = list(location = 0)
 )
 cs_zero <- BayesTools::random_covariance(
-  rho       = rho_zero,
-  rho_scale = "rho"
+  cor       = cor_zero,
+  cor_scale = "cor"
 )
 
 fit4_brma <- brma.mv(
@@ -163,6 +163,82 @@ The examples move from a simple three-level model to known sampling covariance m
 
 The first two examples rely on default prior distributions and the last two examples rely on unit-information-scaled prior distributions; see the [*Prior Distributions*](v01-prior-distributions.html) vignette for more details.
 For generic summaries, plots, and diagnostics that also apply to `brma.mv()` objects, see the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette.
+
+## Formula Semantics and Random-Effect Structures
+
+BayesTools deliberately separates a formula's intercept from its factor contrast.
+For fixed moderators, `prior_factor()` owns the factor basis.
+Consequently, `mods = ~ 0 + group` does not invoke base R's automatic full-indicator coding: it fixes the intercept structurally at zero while preserving the contrast selected by `prior_mods`.
+With `contrast = "independent"`, the result is one coefficient per `group` level.
+
+Random-effect formulas then divide into two families:
+
+| Structure syntax | Left-side role | Marginal SDs | Correlation |
+|---|---|---|---|
+| Plain bar, `us()` / `un()` | coefficient formula | one per generated coefficient | unrestricted LKJ correlation matrix |
+| Double bar, `diag()` | coefficient formula | one per generated coefficient | independent |
+| `id()` | coefficient formula | one shared SD | independent |
+| `cs()` | one or more discrete indices | one shared SD | one common pairwise correlation |
+| `hcs()` | one or more discrete indices | one per index level | one common pairwise correlation |
+| `ar1()` / `ar()` | one discrete ordered index | one shared SD | AR(1), `cor^abs(i - j)` |
+| `har()` | one discrete ordered index | one per index level | AR(1), `cor^abs(i - j)` |
+| `car()` | one numeric-distance coordinate | one shared SD | continuous AR(1), `cor^abs(t_i - t_j)` |
+
+For `id()`, `diag()`, and `us()`, `1`, `0`, and `-1` control the random intercept; continuous slopes, factor slopes, and interactions are coefficient-formula terms.
+A factor's random basis defaults to its already resolved contrast when the same factor is in the fixed model.
+Use `random_block(contrasts = ...)` to make the random basis explicit or to let it differ from the fixed basis.
+In particular, removing the random intercept does not itself request one coefficient per factor level.
+
+The structured `cs()`, `hcs()`, `ar1()`, and `har()` tags work differently.
+Their left side names index columns, so they reject `1`, `0`, `-1`, and `random_block(contrasts = ...)`.
+They accept factor, character, numeric/integer, or logical indices.
+Factor level order is preserved; otherwise sorted unique values define the levels and AR(1) order.
+`cs()` and `hcs()` can combine several index columns with `+`, whereas `ar1()` and `har()` require exactly one.
+`car()` requires one finite numeric/integer coordinate, or an ordered factor with numeric labels, because actual distances determine its correlation.
+
+A bare random formula and an unnamed one-entry formula list both represent one top-level component and therefore omit a redundant component prefix from public parameter names.
+An explicitly named one-entry list retains its name.
+For lists with two or more formulas, missing names are generated as `component 1`, `component 2`, and so on; explicit names are clearer when component-specific `scale` models are used.
+Within each component, public random-effect names follow `owner: quantity(arguments)`: parentheses contain coefficient names and square brackets contain their levels.
+The optional formula prefix is accepted when needed to disambiguate namespaces.
+
+This distinction matters for the sensitivity/specificity model motivating this interface.
+To estimate one group-level random deviation for each outcome and their unrestricted correlation, both level bases are stated explicitly:
+
+```{r coefficient-basis-example, eval = FALSE}
+group_prior <- BayesTools::prior_factor(
+  distribution = "normal",
+  parameters   = list(mean = 0, sd = 1),
+  contrast     = "independent"
+)
+random_prior <- BayesTools::prior_random(
+  study = BayesTools::random_block(
+    contrasts = c(group = "independent")
+  )
+)
+
+fit <- brma.mv(
+  yi = yi, V = vi, ni = out1 + out2,
+  mods   = ~ 0 + group,
+  random = ~ us(0 + group | study),
+  prior_effect              = NULL,
+  prior_mods                = group_prior,
+  prior_heterogeneity       = random_prior,
+  prior_unit_information_sd = 1,
+  data = dat, measure = "GEN", seed = 1
+)
+```
+
+Here the fixed `0 +` sets the average-effect intercept to zero, while the random `0 +` removes the random intercept.
+The two independent contrast declarations create one fixed and one random coefficient per `group` level.
+Because `random_prior` specifies no SD or variance allocation, RoBMA completes it with the usual UISD-scaled `sd_common` prior and a mean-variance Dirichlet allocation across the two random coefficients.
+Because no US correlation prior is supplied, BayesTools completes the block with `LKJ(1)` after its dimension is resolved.
+The resulting public catalog reports `study: sd(group[sensitivity])`, `study: sd(group[specificity])`, `sd_common`, `var_common`, the corresponding `var_ratio(...)` and `sd_ratio(...)` quantities, and `study: cor(group[sensitivity],group[specificity])`.
+These same semantic names select parameters in summaries, plots, density estimation, and hypotheses; internal LKJ construction coordinates are not public aliases.
+
+This is not interchangeable with `hcs(group | study)`.
+For two levels both models contain one correlation parameter, but HCS uses a structure-owned level basis and a scalar-correlation prior.
+With three or more levels, HCS constrains every pairwise correlation to be equal, whereas US estimates an unrestricted correlation matrix.
 
 ## Three-Level Model
 
@@ -204,7 +280,9 @@ fit1_brma <- brma.mv(
 ```
 
 `summary()` reports the pooled effect and the random-effect parameters monitored by the fitted Bayesian model.
-Here `sd(shared | district)` corresponds to the `metafor` package estimate of total heterogeneity and `rho(district)` corresponds to the compound-symmetric correlation.
+Here `district: sd` is the shared marginal heterogeneity SD corresponding to
+the `metafor` package variance component, and `district: cor` is the
+compound-symmetric correlation. It is not an `sd_total` allocation quantity.
 
 ```{r fit1-brma-summary}
 summary(fit1_brma, include_mcmc_diagnostics = FALSE)
@@ -384,13 +462,13 @@ sd_prior <- BayesTools::prior(
   parameters = list(mean = 0, sd = begg_unit_information_sd),
   truncation = list(lower = 0, upper = Inf)
 )
-rho_zero <- BayesTools::prior(
+cor_zero <- BayesTools::prior(
   distribution = "spike",
   parameters = list(location = 0)
 )
 cs_zero <- BayesTools::random_covariance(
-  rho       = rho_zero,
-  rho_scale = "rho"
+  cor       = cor_zero,
+  cor_scale = "cor"
 )
 
 fit4_brma <- brma.mv(

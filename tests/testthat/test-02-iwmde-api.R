@@ -848,14 +848,14 @@ test_that("primitive AST symbols match qCMDE/IWMDE warning records", {
     value     = 0,
     stringsAsFactors = FALSE
   )
-  side <- list(
-    type  = "point",
-    expr  = as.name("mu_intercept"),
-    value = 0
-  )
+  side <- BayesTools::hypothesis_parse(
+    "mu_intercept = 0"
+  )$statements[[1L]][["left"]]
 
   expect_true(.hypothesis_brma_warning_side_matches(side, record))
-  side[["expr"]] <- as.name("tau")
+  side <- BayesTools::hypothesis_parse(
+    "tau = 0"
+  )$statements[[1L]][["left"]]
   expect_false(.hypothesis_brma_warning_side_matches(side, record))
 })
 
@@ -1749,16 +1749,10 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     row.names   = c("theta", "theta1"),
     check.names = FALSE
   )
-  attr(table, "parsed") <- list(
-    list(
-      left  = list(type = "point", expr = "theta", value = 0, label = "theta = 0"),
-      right = list(type = "not_point", expr = "theta", value = 0, label = "theta != 0")
-    ),
-    list(
-      left  = list(type = "point", expr = "theta", value = 1, label = "theta = 1"),
-      right = list(type = "not_point", expr = "theta", value = 1, label = "theta != 1")
-    )
-  )
+  attr(table, "hypothesis_ast") <- BayesTools::hypothesis_parse(c(
+    "theta = 0",
+    "theta = 1"
+  ))
   table <- .hypothesis_brma_append_iwmde_warnings(
     table     = table,
     posterior = posterior
@@ -1772,7 +1766,11 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     row.names   = c("theta", "theta1"),
     check.names = FALSE
   )
-  attr(compact_table, "parsed") <- attr(table, "parsed", exact = TRUE)
+  attr(compact_table, "hypothesis_ast") <- attr(
+    table,
+    "hypothesis_ast",
+    exact = TRUE
+  )
   compact_table <- .hypothesis_brma_append_iwmde_warnings(
     table     = compact_table,
     posterior = posterior
@@ -1811,12 +1809,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     row.names   = c("mu[a]", "mu[b]"),
     check.names = FALSE
   )
-  attr(table, "parsed") <- list(
-    list(
-      left  = list(type = "point", expr = "mu", value = 0, label = "mu = 0"),
-      right = list(type = "not_point", expr = "mu", value = 0, label = "mu != 0")
-    )
-  )
+  attr(table, "hypothesis_ast") <- BayesTools::hypothesis_parse("mu = 0")
   table <- .hypothesis_brma_append_iwmde_warnings(
     table     = table,
     posterior = factor_posterior

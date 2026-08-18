@@ -246,7 +246,10 @@ test_that("fixed location coefficient extraction is strict only when requested",
     nrow     = 2,
     dimnames = list(
       NULL,
-      c("(mu) intercept", "(mu) x", "(mu) var_frac(block)", "(tau) intercept")
+      c(
+        "(mu) intercept", "(mu) x", "(mu) total: var_prop(block)",
+        "(tau) intercept"
+      )
     )
   )
 
@@ -518,7 +521,7 @@ test_that("VIF supports brma.mv random-formula marginal GLS covariance", {
   expect_equal(actual, expected, tolerance = 1e-10)
   expect_equal(colnames(post_cor), c("(mu) intercept", "(mu) x", "(mu) z"))
   expect_false(any(grepl("tau", colnames(post_cor), fixed = TRUE)))
-  expect_false(any(grepl("var_frac", colnames(post_cor), fixed = TRUE)))
+  expect_false(any(grepl(": var_prop(", colnames(post_cor), fixed = TRUE)))
   expect_equal(
     covariance_samples,
     .known_v_add_base_covariance(

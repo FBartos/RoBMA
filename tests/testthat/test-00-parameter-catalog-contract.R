@@ -6,11 +6,14 @@ context("BayesTools parameter catalog contract")
   quantity <- function(canonical_name, namespace, role,
                        formula_parameter = "", term = "", component = "",
                        display_label = canonical_name, status = "sampled",
-                       fixed_value = NA_real_, extraction_key = NULL) {
+                       fixed_value = NA_real_, extraction_key = NULL,
+                       owner_type = "",
+                       owner_name = "", quantity_name = "",
+                       arguments = character(), source_type = "none") {
 
     if (is.null(extraction_key)) {
       extraction_key <- list(
-        type         = "registry",
+        type         = "coordinate",
         dependencies = canonical_name
       )
     }
@@ -25,6 +28,11 @@ context("BayesTools parameter catalog contract")
       display_scale     = "original",
       status            = status,
       fixed_value       = fixed_value,
+      owner_type        = owner_type,
+      owner_name        = owner_name,
+      quantity          = quantity_name,
+      arguments         = arguments,
+      source_type       = source_type,
       extraction_key    = extraction_key
     )
   }
@@ -50,7 +58,12 @@ context("BayesTools parameter catalog contract")
     quantity("PET", "model", "parameter"),
     quantity(
       "random_sd_study_intercept", "mu", "random_sd", "mu", "intercept",
-      "intercept", "sd(study,intercept)"
+      "intercept", "(mu) study: sd(intercept)",
+      owner_type    = "random_block",
+      owner_name    = "study",
+      quantity_name = "sd",
+      arguments     = "intercept",
+      source_type   = "identity"
     )
   ))
   out <- BayesTools:::.bt_parameter_catalog_new(
@@ -126,7 +139,7 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   pet     <- .brma_parameter_select_entry(object, "PET", component = "bias")
   random  <- .brma_parameter_select_entry(
     object,
-    "sd(study,intercept)",
+    "study: sd(intercept)",
     component = "random"
   )
 
@@ -134,7 +147,7 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
     checked,
     c(
       "name_encoding", "formula_name_map", "formula_design",
-      "parameter_registry", "parameter_catalog"
+      "parameter_map"
     )
   )
   expect_true(any(catalog[["component"]] == "random"))

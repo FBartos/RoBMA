@@ -225,8 +225,26 @@ test_that("summary.brma prints known-R random-effect parameters", {
   output <- capture.output(print(out))
 
   expect_summary_contract(out, fits[[name]], name)
-  expect_true(any(grepl("sd_multiplier(", output, fixed = TRUE)))
+  expect_true(any(grepl(": sd_ratio(", output, fixed = TRUE)))
   expect_false(any(grepl("group_covariance", output, fixed = TRUE)))
+})
+
+
+test_that("summary.brma omits a fixed-zero intercept with moderators", {
+
+  name <- "brma.mv_v14_ishak2007_har"
+  skip_if_missing_fits(name)
+
+  out <- summary(fits[[name]], include_mcmc_diagnostics = FALSE)
+
+  expect_false(any(grepl(
+    "intercept",
+    rownames(out[["estimates_mods"]]),
+    ignore.case = TRUE,
+    fixed       = TRUE
+  )))
+  expect_true(any(grepl("time_factor", rownames(out[["estimates_mods"]]),
+                        fixed = TRUE)))
 })
 
 test_that("summary.brma options change table schema", {

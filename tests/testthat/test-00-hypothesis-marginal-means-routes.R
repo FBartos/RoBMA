@@ -3,13 +3,15 @@
   levels <- list(
     A = structure(
       a,
-      class          = c("marginal_posterior.simple", "numeric"),
-      linear_weights = c(a = 1, b = 0)
+      class           = c("marginal_posterior.simple", "numeric"),
+      linear_weights  = c(a = 1, b = 0),
+      posterior_atoms = BayesTools::posterior_atom_attribute()
     ),
     B = structure(
       b,
-      class          = c("marginal_posterior.simple", "numeric"),
-      linear_weights = c(a = 0, b = 1)
+      class           = c("marginal_posterior.simple", "numeric"),
+      linear_weights  = c(a = 0, b = 1),
+      posterior_atoms = BayesTools::posterior_atom_attribute()
     )
   )
   if (!is.null(condition_keys)) {
@@ -231,5 +233,43 @@ test_that("cross-level point densities ignore child-level ordinates", {
   ))
 
   expect_identical(perturbed, baseline)
-  expect_identical(baseline[["method"]], "kernel Savage-Dickey")
+  expect_identical(baseline[["method"]], "Savage-Dickey")
+})
+
+
+test_that("hypothesis labels retain expanded factor levels", {
+
+  display <- BayesTools::hypothesis_parse("Preregistered > 0")
+  transformed <- BayesTools::hypothesis_parse("mu_Preregistered > 0")
+  out <- data.frame(
+    Alternative = rep("mu_Preregistered > 0", 2L),
+    Null        = rep("mu_Preregistered <= 0", 2L),
+    BF          = c(2, 3),
+    row.names   = c(
+      "mu_Preregistered[Not Pre-Registered]",
+      "mu_Preregistered[Pre-Registered]"
+    ),
+    check.names = FALSE
+  )
+  attr(out, "hypothesis_ast") <- transformed
+
+  restored <- .hypothesis_brma_restore_hypothesis_labels(
+    out             = out,
+    hypothesis      = display,
+    parameter_label = "Preregistered"
+  )
+
+  expect_identical(
+    restored[["Alternative"]],
+    rep("Preregistered > 0", 2L)
+  )
+  expect_identical(restored[["Null"]], rep("Preregistered <= 0", 2L))
+  expect_identical(
+    rownames(restored),
+    c(
+      "Preregistered[Not Pre-Registered]",
+      "Preregistered[Pre-Registered]"
+    )
+  )
+  expect_identical(attr(restored, "hypothesis_ast", exact = TRUE), display)
 })

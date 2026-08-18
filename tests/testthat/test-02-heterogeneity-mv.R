@@ -94,9 +94,9 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
     nrow = 2,
     byrow = TRUE,
     dimnames = list(NULL, c(
-      "mu__xRE_ALLOCx_random_total__total_sd",
-      "mu__xRE_ALLOCx_random_total__weight[1]",
-      "mu__xRE_ALLOCx_random_total__weight[2]",
+      "mu__xRE_ALLOCx_heterogeneity__allocation_sd",
+      "mu__xRE_ALLOCx_heterogeneity__weight[1]",
+      "mu__xRE_ALLOCx_heterogeneity__weight[2]",
       "mu__xREx__esid_study_intercept",
       "mu__xREx__study_intercept"
     ))
@@ -120,9 +120,9 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
     second_sd
   )
   colnames(out) <- c(
-    "mu__xRE_ALLOCx_random_total__total_sd",
-    "mu__xRE_ALLOCx_random_total__weight[1]",
-    "mu__xRE_ALLOCx_random_total__weight[2]",
+    "mu__xRE_ALLOCx_heterogeneity__allocation_sd",
+    "mu__xRE_ALLOCx_heterogeneity__weight[1]",
+    "mu__xRE_ALLOCx_heterogeneity__weight[2]",
     first_column,
     second_column
   )
@@ -289,11 +289,6 @@ test_that("brma.mv summary heterogeneity reports shared allocation nodes", {
     component          = "study/esid",
     .posterior_samples = posterior_samples
   )
-  allocation_by_node <- summary_heterogeneity(
-    object,
-    component          = "random_total",
-    .posterior_samples = posterior_samples
-  )
   study <- summary_heterogeneity(
     object,
     component          = "study",
@@ -304,31 +299,38 @@ test_that("brma.mv summary heterogeneity reports shared allocation nodes", {
   expect_equal(
     rownames(summaries[["study/esid"]][["estimates"]]),
     c(
-      "tau",
-      "tau2",
-      "var_frac(random_total: esid_study)",
-      "var_frac(random_total: study)"
+      "sd_total",
+      "var_total",
+      "var_prop(esid_study)",
+      "var_prop(study)"
     )
   )
   expect_equal(
-    summaries[["study/esid"]][["estimates"]]["tau", "Mean"],
+    summaries[["study/esid"]][["estimates"]]["sd_total", "Mean"],
     mean(c(0.50, 0.80)),
     tolerance = 1e-12
   )
   expect_equal(
-    summaries[["study/esid"]][["estimates"]]["tau2", "Mean"],
+    summaries[["study/esid"]][["estimates"]]["var_total", "Mean"],
     mean(c(0.50^2, 0.80^2)),
     tolerance = 1e-12
   )
   expect_equal(
     summaries[["study/esid"]][["estimates"]][
-      "var_frac(random_total: esid_study)", "Mean"
+      "var_prop(esid_study)", "Mean"
     ],
     mean(c(0.64, 0.25)),
     tolerance = 1e-12
   )
   expect_s3_class(allocation, "summary_heterogeneity.brma")
-  expect_equal(allocation[["estimates"]], allocation_by_node[["estimates"]])
+  expect_error(
+    summary_heterogeneity(
+      object,
+      component          = "heterogeneity",
+      .posterior_samples = posterior_samples
+    ),
+    "Available components"
+  )
   expect_error(
     pooled_heterogeneity(
       object,
@@ -368,7 +370,7 @@ test_that("brma.mv heterogeneity reports ambiguous component aliases", {
   expect_error(
     pooled_heterogeneity(
       object,
-      component          = "Component 1",
+      component          = "component 1",
       .posterior_samples = posterior_samples
     ),
     "ambiguous"
@@ -401,7 +403,7 @@ test_that("brma.mv heterogeneity falls back to row-marginal random SDs", {
   allocation_samples <- matrix(
     c(0.50, 0.70),
     nrow = 2,
-    dimnames = list(NULL, "mu__xRE_ALLOCx_allocation__total_sd")
+    dimnames = list(NULL, "mu__xRE_ALLOCx_heterogeneity__allocation_sd")
   )
   expect_error(
     .random_effect_term_sd_samples(
@@ -409,7 +411,7 @@ test_that("brma.mv heterogeneity falls back to row-marginal random SDs", {
       posterior_samples = allocation_samples,
       K                 = nobs(object)
     ),
-    "SD-component allocation"
+    "missing posterior column"
   )
 
   components <- .brma_mv_heterogeneity_components(
@@ -573,7 +575,7 @@ test_that("HAR row-marginal heterogeneity scales to all posterior draws", {
     only_priors               = TRUE
   )
   posterior_samples <- cbind(
-    mu__xRE_ALLOCx_allocation__total_sd = rep(2, n_draws),
+    mu__xRE_ALLOCx_heterogeneity__allocation_sd = rep(2, n_draws),
     matrix(
       1 / n_rows,
       nrow = n_draws,
@@ -581,7 +583,7 @@ test_that("HAR row-marginal heterogeneity scales to all posterior draws", {
       dimnames = list(
         NULL,
         paste0(
-          "mu__xRE_ALLOCx_allocation__weight[",
+          "mu__xRE_ALLOCx_heterogeneity__weight[",
           seq_len(n_rows),
           "]"
         )
@@ -635,9 +637,9 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
     nrow = 2,
     byrow = TRUE,
     dimnames = list(NULL, c(
-      "mu__xRE_ALLOCx_allocation__total_sd",
-      "mu__xRE_ALLOCx_allocation__weight[1]",
-      "mu__xRE_ALLOCx_allocation__weight[2]"
+      "mu__xRE_ALLOCx_heterogeneity__allocation_sd",
+      "mu__xRE_ALLOCx_heterogeneity__weight[1]",
+      "mu__xRE_ALLOCx_heterogeneity__weight[2]"
     ))
   )
 
@@ -649,21 +651,25 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
 
   expect_named(allocation_summaries, "study")
   expect_true(
-    any(grepl("sd(time[1] | study)",
+    any(grepl("study: sd(time[1])",
               rownames(allocation_summaries[["study"]][["estimates"]]),
               fixed = TRUE))
   )
   expect_true(
-    any(grepl("var_ratio(allocation: time[2])",
+    any(grepl("var_ratio(time[2])",
               rownames(allocation_summaries[["study"]][["estimates"]]),
               fixed = TRUE))
   )
   expect_equal(
-    allocation_summaries[["study"]][["estimates"]]["sd_total(allocation)", "Mean"],
+    allocation_summaries[["study"]][["estimates"]]["sd_common", "Mean"],
     3
   )
   expect_equal(
-    allocation_summaries[["study"]][["estimates"]]["var_ratio(allocation: time[1])", "Mean"],
+    allocation_summaries[["study"]][["estimates"]]["var_common", "Mean"],
+    10
+  )
+  expect_equal(
+    allocation_summaries[["study"]][["estimates"]]["var_ratio(time[1])", "Mean"],
     0.75
   )
 })
@@ -706,12 +712,12 @@ test_that("brma.mv SD-component allocation summaries map row SD sources through 
   )
 
   expect_equal(
-    unname(samples[["sd(time[0] | study)"]]),
+    unname(samples[["study: sd(time[0])"]]),
     sqrt(mean(c(1, 2)^2) * (2 * .25)),
     tolerance = 1e-12
   )
   expect_equal(
-    unname(samples[["sd(time[1] | study)"]]),
+    unname(samples[["study: sd(time[1])"]]),
     sqrt(mean(c(10, 20)^2) * (2 * .75)),
     tolerance = 1e-12
   )
@@ -809,7 +815,7 @@ test_that("brma.mv summary heterogeneity returns absolute component summaries", 
   }
   for (component in names(allocation_summaries)) {
     expect_true(
-      any(grepl("var_frac(", rownames(summaries[[component]][["estimates"]]),
+      any(grepl(": var_prop(", rownames(summaries[[component]][["estimates"]]),
                 fixed = TRUE)),
       info = paste(name, component, "allocation summary")
     )

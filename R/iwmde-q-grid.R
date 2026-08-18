@@ -71,7 +71,7 @@
     row_states      = row_states,
     replacement     = replacement,
     likelihood_mode = "conditional",
-    log_lik_fun     = function(samples, active_setup) {
+    log_lik_fun     = function(samples, active_setup, batch) {
       .iwmde_glmm_conditional_log_likelihood_samples(
         context      = context,
         samples      = samples,
@@ -242,6 +242,9 @@
   )
   if (is.matrix(normal_out)) {
     return(normal_out)
+  }
+  if (.iwmde_uses_known_v_random_marginal_likelihood(context)) {
+    return(NULL)
   }
 
   candidates <- .iwmde_predictor_candidates(

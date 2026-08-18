@@ -91,10 +91,18 @@
       parameter   = parameter,
       state_scope = state_scope
     )
+    prior_evaluator <- .iwmde_prior_rows_evaluator(
+      context     = context,
+      row         = first_state[["row"]],
+      parameter   = parameter,
+      state_scope = state_scope,
+      prior_list  = prior_list
+    )
     group_rows   <- vapply(group, `[[`, integer(1), "row_index")
     log_prior    <- .iwmde_log_prior_rows(
       context[["posterior_samples"]][group_rows, , drop = FALSE],
-      prior_list
+      prior_list,
+      evaluator = prior_evaluator
     )
 
     if (is_primitive) {
@@ -161,6 +169,7 @@
     for (i in seq_along(group)) {
       state <- group[[i]]
       state[["prior_list"]]               <- prior_list
+      state[["prior_evaluator"]]          <- prior_evaluator
       state[["baseline_log_lik"]]         <- log_lik[[i]]
       state[["baseline_log_prior"]]       <- log_prior[[i]]
       state[["focal_prior"]]              <- focal_prior
@@ -351,13 +360,43 @@
 }
 
 
-.iwmde_drop_local_latent_sample_columns <- function(samples) {
+.iwmde_drop_local_latent_sample_columns <- function(samples, context = NULL) {
 
-  keep <- !vapply(
-    colnames(samples),
-    .iwmde_parameter_is_local_latent,
-    logical(1)
-  )
+  columns <- colnames(samples)
+  cache   <- if (is.list(context)) context[["predictor_cache"]] else NULL
+  key     <- "global_sample_columns"
+  cached  <- if (is.environment(cache) &&
+                   exists(key, envir = cache, inherits = FALSE)) {
+    get(key, envir = cache, inherits = FALSE)
+  } else {
+    NULL
+  }
+  if (is.list(cached) && identical(cached[["columns"]], columns)) {
+    keep <- cached[["keep"]]
+  } else {
+    keep <- !vapply(
+      columns,
+      .iwmde_parameter_is_local_latent,
+      logical(1)
+    )
+    fit <- if (is.list(context)) context[["formula_fit"]] else NULL
+    if (is.null(fit) && is.list(context) && !is.null(context[["object"]])) {
+      fit <- context[["object"]][["fit"]]
+    }
+    if (!is.null(fit) && inherits(fit, "BayesTools_fit")) {
+      coordinates <- BayesTools::parameter_coordinates(fit)
+      local_random <- coordinates[["coordinate_name"]][
+        coordinates[["role"]] %in% c(
+          "random_latent",
+          "random_group_coefficient"
+        )
+      ]
+      keep <- keep & !columns %in% local_random
+    }
+    if (is.environment(cache)) {
+      assign(key, list(columns = columns, keep = keep), envir = cache)
+    }
+  }
 
   return(samples[, keep, drop = FALSE])
 }
@@ -381,6 +420,12 @@
     row_index   = row_index,
     state_scope = state_scope
   )
+  base_state[["parameters"]] <- .iwmde_row_parameters(
+    context      = context,
+    row          = base_state[["row"]],
+    active_setup = base_state[["active_setup"]],
+    state_scope  = state_scope
+  )
   is_primitive    <- is.null(parameter_spec) ||
     identical(parameter_spec[["type"]], "primitive")
   prior_list <- .iwmde_active_flat_prior_list(
@@ -389,7 +434,22 @@
     parameter   = parameter,
     state_scope = state_scope
   )
-  log_prior <- .iwmde_log_prior_row(base_state[["row"]], prior_list)
+  prior_evaluator <- .iwmde_prior_rows_evaluator(
+    context     = context,
+    row         = base_state[["row"]],
+    parameter   = parameter,
+    state_scope = state_scope,
+    prior_list  = prior_list
+  )
+  log_prior <- .iwmde_log_prior_rows(
+    samples = matrix(
+      as.numeric(base_state[["row"]]),
+      nrow     = 1L,
+      dimnames = list(NULL, names(base_state[["row"]]))
+    ),
+    prior_list = prior_list,
+    evaluator  = prior_evaluator
+  )[[1L]]
   if (is_primitive) {
     focal_prior <- .iwmde_focal_prior(context, parameter, base_state[["row"]])
     baseline_focal_log_prior <- .iwmde_focal_log_prior(
@@ -414,6 +474,7 @@
   }
 
   base_state[["prior_list"]]               <- prior_list
+  base_state[["prior_evaluator"]]          <- prior_evaluator
   base_state[["baseline_log_lik"]]         <- baseline_log_lik
   base_state[["baseline_log_prior"]]       <- log_prior
   base_state[["focal_prior"]]              <- focal_prior
@@ -483,19 +544,12 @@
   row          <- context[["posterior_samples"]][row_index, ]
   active_key   <- .iwmde_active_key(context, row)
   active_setup <- .iwmde_active_setup(context, row, active_key)
-  parameters   <- .iwmde_row_parameters(
-    context      = context,
-    row          = row,
-    active_setup = active_setup,
-    state_scope  = state_scope
-  )
 
   state <- list(
     row_index        = row_index,
     row              = row,
     active_key       = active_key,
     active_setup     = active_setup,
-    parameters       = parameters,
     state_scope      = state_scope
   )
 

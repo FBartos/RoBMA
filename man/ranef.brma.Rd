@@ -32,10 +32,12 @@ block name. Use \code{"total"} for the summed random-effect deviation.}
 \code{brma_samples} object instead of a one-element list. Defaults to
 \code{TRUE}, matching standard 2-level \code{brma()} behavior.}
 
-\item{expand}{whether to repeat group-level random effects for every fitted
+\item{expand}{whether to repeat random-effect contributions for every fitted
 observation. Defaults to \code{FALSE}, returning one column per unique
-grouping level in first fitted-observation order, consistently with
-\code{metafor::ranef()}. Set to \code{TRUE} for observation-aligned output.}
+grouping-level contribution in first fitted-observation order, consistently
+with \code{metafor::ranef()}. Indicator-coded random coefficients retain one
+column per observed grouping-level and coefficient combination. Set to
+\code{TRUE} for observation-aligned output.}
 
 \item{...}{additional arguments forwarded to \code{\link{predict.brma}} for
 supported options such as \code{conditional}. \code{newdata}, \code{type},
@@ -80,7 +82,8 @@ block and \code{simplify = TRUE}, returns a single \code{brma_samples} object.
 Multiple blocks are returned in one flat list under their canonical fitted
 block names; no additional location layer or component-name prefix is added.
 Unique-level output is available when a block's contribution is constant
-within each grouping level. Random slopes and row-varying random-effect
+within each grouping level or observed grouping-level and indicator-
+coefficient combination. Other random slopes and row-varying random-effect
 scales generally require \code{expand = TRUE}. Summed \code{component =
 "total"} output across multiple blocks also requires \code{expand = TRUE}
 because different blocks need not share grouping levels.

@@ -98,6 +98,7 @@
       "simplex_pair",
       parameter_spec[["parameter"]],
       parameter_spec[["index"]],
+      parameter_spec[["n_targets"]],
       structure_key,
       condition_key
     ), collapse = "|"))

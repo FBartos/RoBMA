@@ -50,25 +50,40 @@
   }
 
   if (identical(parameter_spec[["type"]], "simplex_pair")) {
-    source  <- parameter_spec[["parameter"]]
-    index   <- parameter_spec[["index"]]
-    columns <- paste0(source, "[", 1:2, "]")
-    auxiliary_columns <- .iwmde_simplex_auxiliary_columns(source, 2L)
+    source    <- parameter_spec[["parameter"]]
+    index     <- parameter_spec[["index"]]
+    n_targets <- parameter_spec[["n_targets"]]
+    if (is.null(n_targets)) {
+      n_targets <- 2L
+    }
+    if (!is.numeric(n_targets) || length(n_targets) != 1L ||
+        is.na(n_targets) || n_targets < 2L) {
+      return(list(
+        status = "unsupported",
+        reason = "simplex target count is unavailable"
+      ))
+    }
+    n_targets        <- as.integer(n_targets)
+    columns          <- paste0(source, "[", seq_len(n_targets), "]")
+    auxiliary_columns <- .iwmde_simplex_auxiliary_columns(
+      source,
+      n_targets
+    )
     if (!is.character(source) || length(source) != 1L || is.na(source) ||
         !nzchar(source) || !is.numeric(index) || length(index) != 1L ||
-        is.na(index) || !index %in% 1:2 ||
+        is.na(index) || index < 1L || index > n_targets ||
         !identical(parameter, columns[[as.integer(index)]]) ||
-        !.iwmde_simplex_coordinates_valid(samples, source, 2L)) {
+        !.iwmde_simplex_coordinates_valid(samples, source, n_targets)) {
       return(list(
         status = "unsupported",
         reason = paste0(
-          "two-component simplex coordinates or their auxiliary-gamma ",
+          "simplex coordinates or their auxiliary-gamma ",
           "coordinates are unavailable"
         )
       ))
     }
     parameter_spec[["index"]]             <- as.integer(index)
-    parameter_spec[["n_targets"]]         <- 2L
+    parameter_spec[["n_targets"]]         <- n_targets
     parameter_spec[["target_columns"]]    <- columns
     parameter_spec[["auxiliary_columns"]] <- auxiliary_columns
     parameter_spec[["status"]]            <- "ok"
@@ -923,7 +938,10 @@
   }
 
   if (.marginalized_random_effect_has_allocation(term)) {
-    factors <- .marginalized_random_effect_allocation_factors(term)
+    factors <- .marginalized_random_effect_allocation_factors(
+      term,
+      all = TRUE
+    )
     columns <- c(columns, vapply(factors, function(factor) {
       paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
     }, character(1)))
@@ -1028,57 +1046,62 @@
 
 .iwmde_linear_row_supports <- function(context, rows, weights) {
 
-  samples <- context[["posterior_samples"]]
+  samples <- context[["posterior_samples"]][rows, , drop = FALSE]
+  current <- .iwmde_linear_values(context, samples, weights)
   out     <- matrix(NA_real_, nrow = length(rows), ncol = 2L)
+  finite  <- is.finite(current)
+  if (!any(finite)) {
+    return(out)
+  }
 
-  for (i in seq_along(rows)) {
-    row          <- samples[rows[[i]], ]
-    current      <- .iwmde_linear_value_row(context, row, weights)
-    active_names <- .iwmde_linear_active_columns(context, row, weights)
-
-    if (!is.finite(current)) {
-      out[i, ] <- c(NA_real_, NA_real_)
-      next
-    }
+  active_keys <- .iwmde_active_keys_matrix(context, samples)
+  for (active_key in unique(active_keys[finite])) {
+    positions <- which(finite & active_keys == active_key)
+    first_row <- samples[positions[[1L]], ]
+    active_names <- .iwmde_linear_active_columns(
+      context,
+      first_row,
+      weights
+    )
     if (length(active_names) == 0L) {
-      out[i, ] <- rep(current, 2L)
+      out[positions, ] <- current[positions]
       next
     }
 
     active_weights <- weights[active_names]
     denominator    <- sum(active_weights^2)
     if (!is.finite(denominator) || denominator <= 0) {
-      out[i, ] <- c(NA_real_, NA_real_)
       next
     }
 
     coefficients <- active_weights / denominator
-    row_lower    <- -Inf
-    row_upper    <- Inf
-
+    out[positions, 1L] <- -Inf
+    out[positions, 2L] <- Inf
+    group_samples <- samples[positions, , drop = FALSE]
     for (parameter in active_names) {
       coefficient <- coefficients[[parameter]]
-      state  <- .iwmde_focal_prior_state(context, parameter, row)
-      support <- .iwmde_prior_support(state[["prior"]])
-      value   <- .iwmde_parameter_value_row(context, row, parameter)
-
       if (!is.finite(coefficient) || coefficient == 0) {
         next
       }
-
+      state <- .iwmde_focal_prior_state(context, parameter, first_row)
+      support <- .iwmde_prior_support(state[["prior"]])
+      values <- .iwmde_parameter_column_values(
+        context,
+        group_samples,
+        parameter
+      )
       if (coefficient > 0) {
-        lower <- current + (support[1] - value) / coefficient
-        upper <- current + (support[2] - value) / coefficient
+        lower <- current[positions] + (support[1] - values) / coefficient
+        upper <- current[positions] + (support[2] - values) / coefficient
       } else {
-        lower <- current + (support[2] - value) / coefficient
-        upper <- current + (support[1] - value) / coefficient
+        lower <- current[positions] + (support[2] - values) / coefficient
+        upper <- current[positions] + (support[1] - values) / coefficient
       }
-
-      row_lower <- max(row_lower, lower)
-      row_upper <- min(row_upper, upper)
+      replace_lower <- lower > out[positions, 1L]
+      replace_upper <- upper < out[positions, 2L]
+      out[positions[replace_lower], 1L] <- lower[replace_lower]
+      out[positions[replace_upper], 2L] <- upper[replace_upper]
     }
-
-    out[i, ] <- c(row_lower, row_upper)
   }
 
   return(out)

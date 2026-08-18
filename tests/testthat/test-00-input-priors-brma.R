@@ -1080,6 +1080,13 @@ test_that("set_contrast_factor_predictors options are applied", {
     expect_true(any(grepl(contrast, class(result$mods[["mod_factor"]]))))
   }
 
+  result <- brma.norm(
+    yi = effect, sei = std_err, mods = ~ 0 + mod_factor, data = test_data,
+    measure = "SMD", set_contrast_factor_predictors = "independent",
+    only_priors = TRUE
+  )[["priors"]]
+  expect_s3_class(result$mods[["mod_factor"]], "prior.independent")
+
   expect_error(
     brma.norm(
       yi = effect, sei = std_err, mods = ~ mod_factor, data = test_data,

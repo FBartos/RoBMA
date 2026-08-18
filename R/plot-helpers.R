@@ -351,8 +351,7 @@
       "name_encoding",
       "formula_name_map",
       "formula_design",
-      "parameter_registry",
-      "parameter_catalog"
+      "parameter_map"
     )
   )
   catalog    <- BayesTools::parameter_catalog(object[["fit"]])
@@ -458,10 +457,13 @@
     formula_design <- BayesTools::JAGS_formula_design(
       object[["fit"]], formula_parameter
     )
+    omit_location_intercept <-
+      identical(formula_parameter, "mu") &&
+      .location_omit_fixed_zero_intercept(object)
     if (!is.null(formula_design) &&
-        !.fitted_formula_has_intercept(
+        (!.fitted_formula_has_intercept(
           object, formula_parameter, required = TRUE
-        )) {
+        ) || omit_location_intercept)) {
       fixed_rows <- fixed_rows[
         fixed_rows[["term"]] != "intercept",
         ,
@@ -540,7 +542,9 @@
   if (.is_random(object)) {
     rows <- which(
       public & quantities[["status"]] != "unavailable" &
-        startsWith(quantities[["role"]], "random_")
+        startsWith(quantities[["role"]], "random_") &
+        quantities[["quantity"]] %in%
+          .brma_random_parameter_supported_quantities()
     )
     for (row in rows) {
       quantity <- as.list(quantities[row, , drop = FALSE])
@@ -549,16 +553,12 @@
       ]
       add_entry(
         quantity          = quantity,
-        parameter         = quantity[["display_label"]],
+        parameter         = quantity[["canonical_name"]],
         component         = "random",
-        term              = quantity[["display_label"]],
+        term              = quantity[["canonical_name"]],
         source            = "random",
         formula_parameter = quantity[["formula_parameter"]],
-        entry_aliases     = c(
-          quantity[["canonical_name"]], quantity[["display_label"]],
-          quantity[["term"]], sub("^random_", "", quantity[["role"]]),
-          base_aliases
-        )
+        entry_aliases     = c(quantity[["canonical_name"]], base_aliases)
       )
     }
   }
@@ -687,6 +687,11 @@
     namespace         = map_row[["formula_parameter"]],
     role              = "formula_coefficient_group",
     formula_parameter = map_row[["formula_parameter"]],
+    owner_type        = "",
+    owner_name        = "",
+    quantity          = "",
+    scale_role        = "",
+    parent_quantity_id = "",
     term              = map_row[["term"]],
     component         = semantic_component,
     display_label     = map_row[["term"]],
@@ -695,9 +700,11 @@
     status            = "derived",
     fixed_value       = NA_real_,
     internal          = FALSE,
+    source_type       = "composite",
     stringsAsFactors  = FALSE,
     check.names       = FALSE
   )
+  out[["arguments"]] <- I(list(character()))
   out[["extraction_key"]] <- I(list(list(
     type              = "robma_formula_group",
     dependencies      = dependencies,
@@ -739,6 +746,11 @@
     namespace         = "bias",
     role              = "publication_bias_component",
     formula_parameter = "",
+    owner_type        = "",
+    owner_name        = "",
+    quantity          = "",
+    scale_role        = "",
+    parent_quantity_id = "",
     term              = parameter,
     component         = "bias",
     display_label     = parameter,
@@ -747,9 +759,11 @@
     status            = "derived",
     fixed_value       = NA_real_,
     internal          = FALSE,
+    source_type       = "composite",
     stringsAsFactors  = FALSE,
     check.names       = FALSE
   )
+  out[["arguments"]] <- I(list(character()))
   out[["extraction_key"]] <- I(list(list(
     type         = "robma_bias_component",
     dependencies = "bias",
@@ -790,7 +804,8 @@
 
   if (.is_mods(object) || .is_random(object)) {
     location_source <- if (.is_random(object)) "location" else "mods"
-    if (.fitted_formula_has_intercept(object, "mu", required = FALSE)) {
+    if (.fitted_formula_has_intercept(object, "mu", required = FALSE) &&
+        !.location_omit_fixed_zero_intercept(object)) {
       add("mu_intercept", "mods", "intercept",
           c("mu_intercept", "mu", "intercept"),
           source = location_source, formula_parameter = "mu")
@@ -874,9 +889,7 @@
           term              = spec[["label"]],
           aliases           = c(
             spec[["parameter"]],
-            spec[["label"]],
-            spec[["summary_type"]],
-            paste0("(", spec[["formula_parameter"]], ") ", spec[["label"]])
+            spec[["label"]]
           ),
           source            = "random",
           formula_parameter = spec[["formula_parameter"]]
@@ -1041,9 +1054,11 @@
 .get_samples_n_levels <- function(samples, parameter) {
 
   if (inherits(samples[[parameter]], "mixed_posteriors.factor")) {
-    if (attr(samples[[parameter]], "orthonormal") || attr(samples[[parameter]], "meandif")) {
+    if (isTRUE(attr(samples[[parameter]], "orthonormal")) ||
+        isTRUE(attr(samples[[parameter]], "meandif")) ||
+        isTRUE(attr(samples[[parameter]], "independent"))) {
       n_levels <- length(attr(samples[[parameter]], "level_names"))
-    } else if (attr(samples[[parameter]], "treatment")) {
+    } else if (isTRUE(attr(samples[[parameter]], "treatment"))) {
       n_levels <- length(attr(samples[[parameter]], "level_names")) - 1
     } else {
       n_levels <- 1

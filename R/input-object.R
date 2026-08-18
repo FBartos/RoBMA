@@ -266,19 +266,24 @@ NULL
 # (this differ from more customizable user facing summary function)
 .object_summary      <- function(object) {
 
+  remove_parameters <- c(
+    "theta",      # remove random-effects (estimate-level)
+    "gamma",      # remove random-effects (cluster-level)
+    "sampling_z", # remove known-V sampling dependency factors
+    "pi",         # remove baserate for OR models
+    "phi"          # remove lograte for IRR models
+  )
+  if (.location_omit_fixed_zero_intercept(object)) {
+    remove_parameters <- c(remove_parameters, "mu_intercept")
+  }
+
   # provide a simple summary
   estimates <- BayesTools::JAGS_estimates_table(
     fit               = object[["fit"]],
     transform_factors = TRUE,
     transform_scaled  = TRUE,
     remove_spike_0    = FALSE,
-    remove_parameters = c(
-      "theta", # remove random-effects (estimate-level)
-      "gamma", # remove random-effects (cluster-level)
-      "sampling_z", # remove known-V sampling dependency factors
-      "pi",    # remove baserate for OR models
-      "phi"    # remove lograte for IRR models
-    ),
+    remove_parameters = remove_parameters,
     random_effects_summary = "standard"
   )
 

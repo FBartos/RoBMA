@@ -323,10 +323,10 @@ test_that("random-formula brma.mv predict uses cached fit", {
 
   expect_brma_samples_matrix(terms, n_studies, "random brma.mv terms")
   expect_type(scale, "list")
-  expect_equal(names(scale), "Component 1")
-  expect_brma_samples_matrix(scale[["Component 1"]], n_studies, "random brma.mv terms.scale")
+  expect_equal(names(scale), "component 1")
+  expect_brma_samples_matrix(scale[["component 1"]], n_studies, "random brma.mv terms.scale")
   expect_equal(
-    colnames(scale[["Component 1"]]),
+    colnames(scale[["component 1"]]),
     paste0("tau[", seq_len(n_studies), "]")
   )
 })
@@ -443,7 +443,7 @@ test_that("random-formula brma.mv fitted scale summarizes list-valued prediction
                             conditional = FALSE, quiet = TRUE, ...) {
 
       if (identical(type, "terms.scale")) {
-        return(list("Component 1" = scale_samples))
+        return(list("component 1" = scale_samples))
       }
       if (identical(type, "terms")) {
         return(location_samples)
@@ -458,12 +458,12 @@ test_that("random-formula brma.mv fitted scale summarizes list-valued prediction
   all   <- fitted(object, component = "all")
 
   expect_type(scale, "list")
-  expect_equal(names(scale), "Component 1")
-  expect_equal(scale[["Component 1"]], .diagnostic_set_names(colMeans(scale_samples), object))
+  expect_equal(names(scale), "component 1")
+  expect_equal(scale[["component 1"]], .diagnostic_set_names(colMeans(scale_samples), object))
 
   expect_type(all[["scale"]], "list")
   expect_equal(all[["location"]], .diagnostic_set_names(colMeans(location_samples), object))
-  expect_equal(all[["scale"]][["Component 1"]], scale[["Component 1"]])
+  expect_equal(all[["scale"]][["component 1"]], scale[["component 1"]])
 })
 
 test_that("cached brma.mv fitted wrappers agree with prediction targets", {
@@ -652,8 +652,8 @@ test_that("random-formula brma.mv newdata estimate predictions use BayesTools ta
 
   scale <- predict(fit_brma, newdata = newdata_scale, type = "terms.scale", quiet = TRUE)
   expect_type(scale, "list")
-  expect_equal(names(scale), "Component 1")
-  expect_brma_samples_matrix(scale[["Component 1"]], nrow(newdata_scale), "random brma.mv newdata terms.scale")
+  expect_equal(names(scale), "component 1")
+  expect_brma_samples_matrix(scale[["component 1"]], nrow(newdata_scale), "random brma.mv newdata terms.scale")
 
   estimate <- predict(fit_brma, newdata = newdata_random, type = "estimate", quiet = TRUE)
   expect_brma_samples_matrix(

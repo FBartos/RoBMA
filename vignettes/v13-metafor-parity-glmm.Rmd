@@ -137,7 +137,9 @@ Beyond `mu` and `tau`, GLMM models include estimate-specific nuisance parameters
 For binomial outcomes (`measure = "OR"`), `logit(pi[i])` is the midpoint of the two arm logits before applying half of the study-specific log odds ratio to each arm.
 The default `prior_baserate = Beta(1, 1)` is placed independently on each `pi[i]`.
 For Poisson outcomes (`measure = "IRR"`), `phi[i]` is the midpoint of the two arm log incidence rates before applying half of the study-specific log incidence rate ratio to each arm.
-Because this midpoint log-rate is unbounded, there is no bounded flat default analogous to `Beta(1, 1)`, so the default `prior_lograte` is a proper data-based unit-information normal used independently for each `phi[i]`.
+Because this midpoint log-rate is unbounded, there is no bounded flat default analogous to `Beta(1, 1)`, so the default `prior_lograte` is a proper normal distribution centered at the pooled crude log-rate and used independently for each `phi[i]`.
+Its standard deviation defaults to `1`, matching the default IRR effect-prior scale, and can be changed with `RoBMA.options(default_lograte.sd = ...)`.
+The fixed standard deviation makes the default equivariant to exposure-unit changes: rescaling every person-time shifts the prior mean by the corresponding log conversion while retaining its informativeness.
 Thus the default nuisance-parameter prior distributions are exchangeable in the iid sense, but they are not hierarchical prior distributions with a learned common baseline-rate distribution.
 Both defaults can be overridden via the corresponding `prior_*` argument; see the [*Prior Distributions*](v01-prior-distributions.html) vignette.
 The Poisson model corresponds to @bagos2009mixed and uses event counts and exposure times (`x1i`, `t1i`, `x2i`, `t2i`) in place of the four-way count layout.

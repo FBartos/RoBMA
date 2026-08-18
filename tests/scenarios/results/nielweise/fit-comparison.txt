@@ -1,0 +1,5 @@
+                method       IRR IRR_lower IRR_upper       tau
+1        metafor UM.FS 0.6320767 0.4068151 0.9820701 0.3092275
+2            brma.glmm 0.6508531 0.3825907 1.0117574 0.3672660
+3    BMA.glmm averaged 0.7837362 0.4351867 1.0000000 0.2278336
+4 BMA.glmm conditional 0.6636644 0.4148770 0.9793080 0.3884411

@@ -6,6 +6,7 @@ test_that("RoBMA options expose only public options", {
   on.exit(do.call(RoBMA.options, old_options), add = TRUE)
 
   expect_true("silent" %in% names(old_options))
+  expect_equal(old_options[["default_lograte.sd"]], 1)
   expect_false("RoBMA_version" %in% names(old_options))
   expect_false("module_location" %in% names(old_options))
 
@@ -18,6 +19,7 @@ test_that("RoBMA options expose only public options", {
   expect_error(RoBMA.options(TRUE), "All options must be named")
   expect_error(RoBMA.options(silent = 1), "must be TRUE or FALSE")
   expect_error(RoBMA.options(max_cores = 0), "must be an integer")
+  expect_error(RoBMA.options(default_lograte.sd = 0), "must be > 0")
   expect_error(RoBMA.options(default_bias_PET.scale = expression(stop("boom"))), "finite number")
 
   updated <- RoBMA.options(max_cores = 1L)

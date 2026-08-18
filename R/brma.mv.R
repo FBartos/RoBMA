@@ -56,9 +56,20 @@
 #'
 #' The `random` argument uses BayesTools
 #' [random-effect formula structure tags][random_effect_formula_tags].
-#' Plain shorthand is accepted only for random intercepts such as
-#' `~ 1 | study` or nested intercepts such as `~ 1 | study/effect`; random
-#' slopes require an explicit structure tag or the `||` diagonal shorthand.
+#' Plain `(expr | group)` syntax creates an unstructured random-coefficient
+#' block, and `expr || group` creates a diagonal block. Therefore
+#' `~ 1 | study`, `~ 1 + x | study`, and nested forms such as
+#' `~ 1 | study/effect` are supported. The explicit `us()` / `un()`, `diag()`,
+#' and `id()` tags use the same coefficient-formula semantics. The structured
+#' `cs()` / `hcs()`, `ar1()` / `ar()` / `har()`, and `car()` tags instead own
+#' their index basis; see the linked tag documentation before specifying factor
+#' slopes or index variables.
+#' A bare formula or unnamed one-entry list suppresses a redundant top-level
+#' component prefix. An explicitly named one-entry list retains its name; in
+#' lists with two or more entries, missing names become `component 1`,
+#' `component 2`, and so on. Public random-effect quantities use semantic names
+#' such as `study: sd(intercept)`, `study: cor(x,y)`, `sd_total`, and
+#' `var_prop(study)` rather than backend coordinates.
 #' The optional `R` argument supplies known covariance or correlation matrices
 #' across random-effect grouping levels, following `metafor::rma.mv()` naming.
 #' `R` is separate from the known sampling covariance `V`: `V` describes

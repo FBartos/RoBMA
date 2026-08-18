@@ -291,7 +291,7 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "study/esid",
-      row       = "tau",
+      row       = "sd_total",
       expected  = function(m) sqrt(sum(m[["sigma2"]])),
       tolerance = 0.05
     ),
@@ -312,42 +312,42 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "study/esid",
-      row       = "var_frac(random_total: study)",
+      row       = "var_prop(study)",
       expected  = function(m) m[["sigma2"]][[1]] / sum(m[["sigma2"]]),
       tolerance = 0.08
     ),
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "study/esid",
-      row       = "var_frac(random_total: esid_study)",
+      row       = "var_prop(esid_study)",
       expected  = function(m) m[["sigma2"]][[2]] / sum(m[["sigma2"]]),
       tolerance = 0.08
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "sd(time[1] | study)",
+      row       = "study: sd(time[1])",
       expected  = function(m) sqrt(m[["tau2"]][[1]]),
       tolerance = 0.75
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "sd(time[2] | study)",
+      row       = "study: sd(time[2])",
       expected  = function(m) sqrt(m[["tau2"]][[2]]),
       tolerance = 0.75
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "sd(time[3] | study)",
+      row       = "study: sd(time[3])",
       expected  = function(m) sqrt(m[["tau2"]][[3]]),
       tolerance = 0.75
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "sd(time[4] | study)",
+      row       = "study: sd(time[4])",
       expected  = function(m) sqrt(m[["tau2"]][[4]]),
       tolerance = 1.10
     ),
@@ -431,19 +431,19 @@ test_that("v14 brma.mv random-covariance parameters match metafor references", {
   cases <- list(
     list(
       name      = "brma.mv_v14_konstantopoulos2011_cs",
-      row       = "rho(district)",
+      row       = "district: cor",
       expected  = function(m) m[["rho"]],
       tolerance = 0.12
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
-      row       = "rho(study)",
+      row       = "study: cor",
       expected  = function(m) m[["rho"]],
       tolerance = 0.12
     ),
     list(
       name      = "brma.mv_v14_begg1989_study_treatment",
-      row       = "rho(study)",
+      row       = "study: cor",
       expected  = function(m) m[["rho"]],
       tolerance = 1e-12
     )
@@ -658,8 +658,7 @@ test_that("v14 brma.mv ranef components track metafor references", {
       .posterior_samples = posterior
     ))
     expected <- metafor::ranef(
-      fit_metafor,
-      expand = TRUE
+      fit_metafor
     )[[case[["metafor_component"]]]][["intrcpt"]]
 
     expect_equal(length(observed), length(expected), info = name)

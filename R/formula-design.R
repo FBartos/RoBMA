@@ -45,7 +45,7 @@
       "name_encoding",
       "formula_name_map",
       "formula_design",
-      "parameter_registry"
+      "parameter_map"
     )
   )
   name_map <- BayesTools::JAGS_formula_name_map(object[["fit"]], parameter)
@@ -393,6 +393,38 @@
   }
 
   "intercept" %in% design[["model_terms"]]
+}
+
+
+# Return whether a fixed-zero location intercept should be omitted publicly.
+# Keep an intercept-only model visible even when its prior is a point at zero.
+.location_omit_fixed_zero_intercept <- function(object) {
+
+  if (!.is_mods(object)) {
+    return(FALSE)
+  }
+
+  moderator_terms <- .fitted_formula_terms(
+    object            = object,
+    parameter         = "mu",
+    include_intercept = FALSE,
+    display           = FALSE,
+    required          = FALSE
+  )
+  if (length(moderator_terms) == 0L) {
+    return(FALSE)
+  }
+
+  source          <- if (.is_random(object)) "location" else "mods"
+  intercept_prior <- object[["priors"]][[source]][["intercept"]]
+  if (is.null(intercept_prior) && !is.null(object[["fit"]])) {
+    prior_list      <- attr(object[["fit"]], "prior_list", exact = TRUE)
+    intercept_prior <- prior_list[["mu_intercept"]]
+  }
+
+  !is.null(intercept_prior) &&
+    BayesTools::is.prior.point(intercept_prior) &&
+    identical(as.numeric(mean(intercept_prior)), 0)
 }
 
 

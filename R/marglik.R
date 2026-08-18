@@ -2295,6 +2295,29 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 }
 
 
+.marglik_covariance_plan_location_quadratic_batch <- function(
+    cache, y, means, bases, sampling_covariance, random_covariance_plans,
+    random_covariance_states, block_indices, extra_variances) {
+
+  plan <- .marglik_covariance_plan_get(
+    cache                    = cache,
+    y                        = y,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = random_covariance_plans,
+    block_indices            = block_indices
+  )
+  .Call(
+    "RoBMA_known_v_covariance_plan_location_quadratic_batch",
+    plan,
+    t(means),
+    t(bases),
+    random_covariance_states,
+    t(extra_variances),
+    PACKAGE = "RoBMA"
+  )
+}
+
+
 .marglik_covariance_plan_conditional_loglik_batch <- function(
     cache, y, means, sampling_covariance, random_covariance_plans,
     random_covariance_states, block_indices, extra_variances) {

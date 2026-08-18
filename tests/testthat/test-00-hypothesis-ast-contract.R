@@ -1,7 +1,7 @@
 context("BayesTools hypothesis AST contract")
 
 
-test_that("fitted hypotheses resolve and rewrite the parsed AST", {
+test_that("fitted hypotheses resolve and rewrite the structured AST", {
 
   quantities <- BayesTools:::.bt_parameter_catalog_quantity(
     canonical_name    = "mu_x",
@@ -13,7 +13,7 @@ test_that("fitted hypotheses resolve and rewrite the parsed AST", {
     display_scale     = "original",
     status            = "sampled",
     extraction_key    = list(
-      type         = "registry",
+      type         = "coordinate",
       dependencies = "mu_x"
     )
   )

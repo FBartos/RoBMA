@@ -138,6 +138,8 @@ Read only the guide relevant to the files being changed:
 
 - [testing.md](.agents/instructions/testing.md): test profiles, cached fits,
   metafor comparisons, and visual regression.
+- [scenarios.md](.agents/instructions/scenarios.md): maintainer analysis
+  scenarios, caches, human-reviewed snapshots, and discrepancy escalation.
 - [selected-normal.md](.agents/instructions/selected-normal.md): posterior
   direction and selection-kernel routing.
 - [multivariate-targets.md](.agents/instructions/multivariate-targets.md):
@@ -200,6 +202,121 @@ result <- my_function(
 Leave an empty line after an opening brace in function definitions.
 
 ## Architecture
+
+### BayesTools Formula Semantics
+
+- BayesTools formula semantics are authoritative and intentionally differ from
+  ordinary `stats::model.matrix()` semantics. Factor contrasts are owned by
+  `prior_factor()` and persisted formula metadata, not selected by including or
+  omitting an intercept. Thus `mods = ~ 0 + group` with an independent factor
+  prior means a structural zero intercept plus one coefficient per `group`
+  level.
+- Keep the two BayesTools random-effect families distinct. `id()`, `diag()`,
+  and `us()` / `un()` use a general random-coefficient formula on the left of
+  `|`; plain `(expr | group)` is `us()` and `||` is `diag()`. In this family,
+  `1`, `0`, and `-1` control the random intercept, and continuous slopes,
+  factor slopes, and interactions are supported. `id()` uses one shared SD,
+  `diag()` uses one SD per independent coefficient, and `us()` estimates their
+  unstructured correlation matrix.
+- Factor coding in a random-coefficient block is owned by the concrete random
+  block, not by intercept syntax. By default it can reuse contrast metadata
+  already established for the same fixed factor; use
+  `random_block(contrasts = ...)` when the random basis must be explicit or
+  differ from the fixed basis. For example, `us(0 + group | study)` together
+  with `random_block(contrasts = c(group = "independent"))` gives one correlated
+  random coefficient per `group` level and no random intercept. `0 + group`
+  alone does not force level indicators.
+- `cs()` / `hcs()`, `ar1()` / `ar()` / `har()`, and `car()` are instead
+  structure-owned index specifications. `cs()` and `hcs()` accept one or more
+  discrete index columns; multiple columns form their observed interaction.
+  `ar1()` and `har()` accept exactly one discrete index column, whose factor
+  levels or sorted unique values determine order. These discrete structures
+  accept factor, character, numeric/integer, or logical data and persist the
+  resolved levels. `car()` accepts exactly one finite numeric/integer coordinate
+  or an ordered factor with numeric labels and uses actual distances.
+- Structure-owned index specifications reject explicit `1`, `0`, and `-1` and
+  do not accept `random_block(contrasts = ...)`. `hcs(index | group)` estimates
+  level-specific SDs and one common pairwise correlation; it is not a synonym
+  for `us(0 + index | group)`, whose correlation matrix is unrestricted.
+- RoBMA must consume BayesTools' parsed/compiled random-effect metadata for
+  column counts, level order, covariance ownership, prediction, and labels. Do
+  not independently reconstruct these with `stats::model.matrix()`, infer a
+  random basis from a fixed formula, or relabel coefficient-basis covariance as
+  level-basis covariance.
+- BayesTools persists one versioned `parameter_map()` with linked coordinate,
+  quantity, and alias tables. `parameter_coordinates()` is its concrete backend
+  view, keyed by `coordinate_name`; `parameter_catalog()` is its semantic
+  public view, keyed by `canonical_name`. RoBMA summaries, plotting, density
+  estimation, and hypotheses must resolve catalog quantities and obtain draws
+  through `parameter_draws()`. Never accept a coordinate as a public alias
+  merely because it is monitored.
+- Treat a `prior_random()` object with no global or block SD, SD source,
+  term-specific SD override, covariance-owned SD, or variance allocation as a
+  partial override. Complete its scale with RoBMA's ordinary UISD and allocation
+  rules while preserving the user's contrasts, covariance priors, and policies.
+  If any scale architecture is supplied, do not merge additional scale defaults.
+  Correlation defaults remain BayesTools-owned and must not be reconstructed in
+  RoBMA: omitted US/UN uses `LKJ(1)`, while omitted scalar correlations use the
+  complete structure-specific raw interval.
+- Public random-effect names use
+  `(formula) owner: quantity(arguments)`, with the formula prefix accepted as
+  an omission alias. Parentheses contain coefficient or parameter names and
+  square brackets contain factor or index levels. Use `cor`, never backend
+  `rho`; for example,
+  `study: cor(group[sensitivity],group[specificity])`. Total-variance
+  allocations expose `sd_total`, `var_total`, and `var_prop(...)`;
+  mean-variance allocations expose `sd_common`, `var_common`,
+  `var_ratio(...)`, and `sd_ratio(...)`.
+- A bare random formula or unnamed one-entry formula list suppresses a
+  redundant top-level component prefix; an explicitly named one-entry list
+  retains it. Lists with two or more entries generate missing names as
+  `component 1`, `component 2`, and so on. Generated allocations retain a
+  stable internal `name`, use `display_name = ""` when no public owner is
+  needed, and carry public `component_names` separately.
+- Internal LKJ primitives, compact scalar-correlation coordinates, allocation
+  weights, and covariance-construction dependencies remain coordinate-only map
+  entries and must not appear in semantic quantities or pass public plotting,
+  density, or hypothesis gates.
+- If current BayesTools code, documentation, or tests conflict with this
+  contract, repair the shared BayesTools implementation first. Do not add a
+  RoBMA-only formula parser or downstream compatibility workaround.
+
+### Predictive Quantities and Conditioning
+
+Use `y = X beta + u_cluster + u_estimate + epsilon` as the canonical legacy
+notation; random-formula models replace the two named effects by their fitted
+Gaussian blocks.
+
+- `type` selects the quantity: `"terms"` is `X beta`, `"estimate"` is a
+  latent true effect, and `"response"` adds the sampling distribution.
+- `conditioning_depth` independently selects retained fitted effects:
+  `"marginal"` conditions on none, `"cluster"` retains the fitted legacy
+  cluster effect and predicts a new estimate within it, and `"estimate"`
+  targets the fitted latent effect. Cluster depth is unavailable for arbitrary
+  `brma.mv()` random formulas because no unique cluster level exists.
+- Marginal is the canonical prediction default. `newdata` supplies design and
+  identity only; it never changes the estimand. Equivalent implicit and
+  explicit designs must have the same marginal law. Matching fitted group
+  labels preserves dependence among new draws but does not reuse fitted effects.
+- Non-marginal `newdata` must fail unless fitted identities are validated
+  unambiguously. Never silently fall back to marginal prediction.
+- At estimate depth, `type = "estimate"` includes fitted latent posterior
+  uncertainty; `blup()` and `fitted(..., conditioning_depth = "estimate")`
+  are the conditional-mean interfaces. `type = "response"` adds only the
+  sampling layer to the corresponding latent target.
+- For GLMM responses, estimate depth uses fitted posterior `pi`/`phi`;
+  marginal and cluster depths draw a new nuisance rate from its prior and are
+  therefore partly prior predictive. Document this whenever those targets are
+  exposed.
+- Normal-model funnel/sampling bands, regression/forest prediction intervals,
+  default z-plots, and default residual diagnostics use explicit marginal
+  targets. GLMM funnel and regression sampling bands are descriptive normal
+  effect-size approximations, not discrete response predictions, and must say
+  so. LOO and LOO-PIT retain their deletion-conditioned predictive-score
+  targets and must not be routed through generic response prediction.
+- Preserve full `V`/`V_new` sampling covariance and joint random-effect
+  dependence. Keep `unit` (output/deletion unit), `conditioning_depth`, and
+  `type` distinct in APIs and target metadata.
 
 ### Classes and Interfaces
 

@@ -1,6 +1,4 @@
 if (file.exists("helper-scenarios.R")) source("helper-scenarios.R") else source("tests/scenarios/helper-scenarios.R")
-REGENERATE_SCENARIO_FILES <- FALSE
-SHOW_SCENARIO_OUTPUT      <- FALSE
 scenario_start("bem2011")
 # testthat::test_file("tests/scenarios/test-bem2011.R")
 

@@ -256,9 +256,9 @@
 <text x='381.60' y='45.15' style='font-size: 12.00px; font-weight: bold; font-family: sans;' textLength='30.69px' lengthAdjust='spacingAndGlyphs'>Study</text>
 <text x='712.80' y='45.15' text-anchor='end' style='font-size: 12.00px; font-weight: bold; font-family: sans;' textLength='104.05px' lengthAdjust='spacingAndGlyphs'>Risk Ratio [95% CI]</text>
 <text x='712.80' y='493.15' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='86.74px' lengthAdjust='spacingAndGlyphs'>0.50 [0.35, 0.72]</text>
-<line x1='530.97' y1='490.40' x2='597.69' y2='490.40' style='stroke-width: 0.75; stroke-dasharray: 1.00,3.00;' />
-<line x1='530.97' y1='493.76' x2='530.97' y2='487.04' style='stroke-width: 0.75;' />
-<line x1='597.69' y1='493.76' x2='597.69' y2='487.04' style='stroke-width: 0.75;' />
+<line x1='530.83' y1='490.40' x2='598.21' y2='490.40' style='stroke-width: 0.75; stroke-dasharray: 1.00,3.00;' />
+<line x1='530.83' y1='493.76' x2='530.83' y2='487.04' style='stroke-width: 0.75;' />
+<line x1='598.21' y1='493.76' x2='598.21' y2='487.04' style='stroke-width: 0.75;' />
 <polygon points='554.77,490.40 564.53,485.36 574.15,490.40 564.53,495.44 ' style='stroke-width: 0.75; fill: #000000;' />
 <text x='381.60' y='493.15' style='font-size: 12.00px; font-family: sans;' textLength='71.39px' lengthAdjust='spacingAndGlyphs'>Pooled Effect</text>
 </g>

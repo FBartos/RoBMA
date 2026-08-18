@@ -1,6 +1,4 @@
 if (file.exists("helper-scenarios.R")) source("helper-scenarios.R") else source("tests/scenarios/helper-scenarios.R")
-REGENERATE_SCENARIO_FILES <- FALSE
-SHOW_SCENARIO_OUTPUT      <- FALSE
 scenario_start("assink2016")
 # testthat::test_file("tests/scenarios/test-assink2016.R")
 
@@ -197,8 +195,8 @@ testthat::test_that("Assink multivariate nested random-effects model", {
     plot(fit_brma_cluster, "rho", prior = TRUE)
     lines(fit_brma_cluster, "rho", density_method = "IWMDE", lty = 2)
 
-    lines(fit_brma.mv_diag, "var_frac(random_total: study)", col = "blue")
-    lines(fit_brma.mv_diag, "var_frac(random_total: study)", density_method = "qCMDE", col = "blue", lty = 2)
+    lines(fit_brma.mv_diag, "var_prop(study)", col = "blue")
+    lines(fit_brma.mv_diag, "var_prop(study)", density_method = "qCMDE", col = "blue", lty = 2)
   })
 
   set.seed(1)
@@ -221,51 +219,47 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   scenario_plot("fit.mv_posterior_random", {
     par(mfrow = c(2, 3))
 
-    plot(fit_brma.mv, "sd_total(random_total)", prior = TRUE)
-    lines(fit_brma.mv, "sd_total(random_total)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv, "sd_total", prior = TRUE)
+    lines(fit_brma.mv, "sd_total", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma.mv, "sd(intercept | study)", prior = TRUE)
-    # FUTURE: would be nice to have but not essential
-    # lines(fit_brma.mv, "sd(intercept | study)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv, "study: sd(intercept)", prior = TRUE)
+    lines(fit_brma.mv, "study: sd(intercept)", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma.mv, "sd(intercept | esid:study)", prior = TRUE)
-    # FUTURE: would be nice to have but not essential
-    # lines(fit_brma.mv, "sd(intercept | esid:study)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv, "esid_study: sd(intercept)", prior = TRUE)
+    lines(fit_brma.mv, "esid_study: sd(intercept)", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma.mv, "var_frac(random_total: esid_study)", prior = TRUE)
-    lines(fit_brma.mv, "var_frac(random_total: esid_study)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv, "var_prop(esid_study)", prior = TRUE)
+    lines(fit_brma.mv, "var_prop(esid_study)", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma.mv, "var_frac(random_total: study)", prior = TRUE)
-    lines(fit_brma.mv, "var_frac(random_total: study)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv, "var_prop(study)", prior = TRUE)
+    lines(fit_brma.mv, "var_prop(study)", density_method = "qCMDE", lty = 2)
   })
 
   set.seed(1)
   scenario_plot("fit.mv_diag_posterior_random", {
     par(mfrow = c(2, 3))
 
-    plot(fit_brma.mv_diag, "sd_total(random_total)", prior = TRUE)
-    lines(fit_brma.mv_diag, "sd_total(random_total)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv_diag, "sd_total", prior = TRUE)
+    lines(fit_brma.mv_diag, "sd_total", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma.mv_diag, "sd(intercept | study)", prior = TRUE)
-    # FUTURE: would be nice to have but not essential
-    # lines(fit_brma.mv, "sd(intercept | study)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv_diag, "study: sd(intercept)", prior = TRUE)
+    lines(fit_brma.mv_diag, "study: sd(intercept)", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma.mv_diag, "sd(intercept | esid:study)", prior = TRUE)
-    # FUTURE: would be nice to have but not essential
-    # lines(fit_brma.mv, "sd(intercept | esid:study)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv_diag, "esid_study: sd(intercept)", prior = TRUE)
+    lines(fit_brma.mv_diag, "esid_study: sd(intercept)", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma.mv_diag, "var_frac(random_total: esid_study)", prior = TRUE)
-    lines(fit_brma.mv_diag, "var_frac(random_total: esid_study)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv_diag, "var_prop(esid_study)", prior = TRUE)
+    lines(fit_brma.mv_diag, "var_prop(esid_study)", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma.mv_diag, "var_frac(random_total: study)", prior = TRUE)
-    lines(fit_brma.mv_diag, "var_frac(random_total: study)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma.mv_diag, "var_prop(study)", prior = TRUE)
+    lines(fit_brma.mv_diag, "var_prop(study)", density_method = "qCMDE", lty = 2)
   })
 
 
   ### hypothesis ----
   set.seed(1)
   BF_brma_rho    <- hypothesis(fit_brma_cluster, c("rho != 0 vs rho = 0", "rho != 1 vs rho = 1"), density_method = "qCMDE", density_control = list(samples = 2000))
-  BF_mv_diag_rho <- hypothesis(fit_brma.mv_diag, c("var_frac(random_total: study) != 0 vs var_frac(random_total: study) = 0", "var_frac(random_total: study) != 1 vs var_frac(random_total: study) = 1"), density_method = "qCMDE", density_control = list(samples = 2000))
+  BF_mv_diag_rho <- hypothesis(fit_brma.mv_diag, c("var_prop(study) != 0 vs var_prop(study) = 0", "var_prop(study) != 1 vs var_prop(study) = 1"), density_method = "qCMDE", density_control = list(samples = 2000))
   scenario_text("fit_rho_bayes_factor_comparison", data.frame(
     rho                = c(0, 1),
     density_brma_BF    = BF_brma_rho[["BF"]],
@@ -276,8 +270,8 @@ testthat::test_that("Assink multivariate nested random-effects model", {
 
   set.seed(1)
   BF_random      <- hypothesis(fit_brma.mv, c(
-    "var_frac(random_total: study) != 0 vs var_frac(random_total: study) = 0", "var_frac(random_total: study) != 1 vs var_frac(random_total: study) = 1",
-    "sd_total(random_total) = 0"
+    "var_prop(study) != 0 vs var_prop(study) = 0", "var_prop(study) != 1 vs var_prop(study) = 1",
+    "sd_total = 0"
     ),density_method = "qCMDE", density_control = list(samples = 2000))
   scenario_text("fit_random_bayes_factor_comparison", data.frame(
     hypothesis = c("rho != 0", "rho != 1", "sd != 0"),

@@ -567,16 +567,29 @@
   )
   total_variance <- rowMeans(total^2)
 
-  samples <- list(
-    tau  = sqrt(total_variance),
-    tau2 = total_variance
-  )
+  aggregate_quantities <- .brma_mv_allocation_aggregate_quantities(allocation)
+  allocation_owner <- .brma_mv_allocation_public_name(allocation)
+  samples <- list()
+  samples[[.brma_mv_allocation_parameter_name(
+    allocation_owner,
+    aggregate_quantities[["sd"]]
+  )]] <- sqrt(total_variance)
+  samples[[.brma_mv_allocation_parameter_name(
+    allocation_owner,
+    aggregate_quantities[["var"]]
+  )]] <- total_variance
 
   weight_name <- allocation[["weight_name"]]
   terms       <- allocation[["terms"]]
   labels      <- names(terms)
   if (is.null(labels)) {
     labels <- as.character(terms)
+  }
+  component_names <- allocation[["component_names"]]
+  if (is.character(component_names) &&
+      length(component_names) == length(labels) &&
+      !anyNA(component_names) && all(nzchar(component_names))) {
+    labels <- unname(component_names)
   }
   for (i in seq_along(terms)) {
     column <- paste0(weight_name, "[", i, "]")
@@ -591,11 +604,23 @@
         call. = FALSE
       )
     }
-    samples[[paste0("var_frac(", allocation[["label"]], ": ",
-                    labels[[i]], ")")]] <- weights
+    samples[[.brma_mv_allocation_parameter_name(
+      allocation_owner,
+      paste0("var_prop(", labels[[i]], ")")
+    )]] <- weights
   }
 
   samples
+}
+
+
+.brma_mv_allocation_aggregate_quantities <- function(allocation) {
+
+  if (identical(allocation[["scale"]], "mean_variance")) {
+    return(c(sd = "sd_common", var = "var_common"))
+  }
+
+  c(sd = "sd_total", var = "var_total")
 }
 
 
@@ -619,8 +644,17 @@
   )
   total_sd <- sqrt(rowMeans(total^2))
 
+  aggregate_quantities <- .brma_mv_allocation_aggregate_quantities(allocation)
+  allocation_owner <- .brma_mv_allocation_public_name(allocation)
   samples <- list()
-  samples[[paste0("sd_total(", allocation[["label"]], ")")]] <- total_sd
+  samples[[.brma_mv_allocation_parameter_name(
+    allocation_owner,
+    aggregate_quantities[["sd"]]
+  )]] <- total_sd
+  samples[[.brma_mv_allocation_parameter_name(
+    allocation_owner,
+    aggregate_quantities[["var"]]
+  )]] <- total_sd^2
 
   weight_name <- allocation[["weight_name"]]
   labels      <- .brma_mv_sd_component_allocation_labels(allocation)
@@ -663,14 +697,16 @@
                            variance_ratio)
     }
 
-    samples[[paste0("sd(", labels[[i]], " | ", block, ")")]] <- sd_samples
+    samples[[paste0(block, ": sd(", labels[[i]], ")")]] <- sd_samples
   }
 
   for (i in seq_along(labels)) {
     column <- paste0(weight_name, "[", i, "]")
     weights <- posterior_samples[, column]
-    samples[[paste0("var_ratio(", allocation[["label"]], ": ",
-                    labels[[i]], ")")]] <- .brma_mv_allocation_variance_ratio(
+    samples[[.brma_mv_allocation_parameter_name(
+      allocation_owner,
+      paste0("var_ratio(", labels[[i]], ")")
+    )]] <- .brma_mv_allocation_variance_ratio(
       weights   = weights,
       scale     = scale,
       n_targets = n_targets
@@ -778,6 +814,28 @@
 }
 
 
+.brma_mv_allocation_public_name <- function(allocation) {
+
+  display_name <- allocation[["display_name"]]
+  if (is.character(display_name) && length(display_name) == 1L &&
+      !is.na(display_name)) {
+    return(display_name)
+  }
+
+  allocation[["label"]]
+}
+
+
+.brma_mv_allocation_parameter_name <- function(owner, quantity) {
+
+  if (!nzchar(owner)) {
+    return(quantity)
+  }
+
+  paste0(owner, ": ", quantity)
+}
+
+
 .brma_mv_allocation_summary_name <- function(allocation, formula_design) {
 
   if (identical(allocation[["target"]], "sd_component")) {
@@ -852,9 +910,7 @@
 
   aliases <- c(
     name,
-    allocation[["label"]],
-    allocation[["total_name"]],
-    allocation[["weight_name"]]
+    .brma_mv_allocation_public_name(allocation)
   )
   if (identical(allocation[["target"]], "sd_component")) {
     aliases <- c(

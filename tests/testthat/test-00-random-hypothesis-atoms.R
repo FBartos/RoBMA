@@ -14,11 +14,11 @@ test_that("random semantic point hypotheses reject structural atoms", {
 
   selected <- function(values) {
     list(
-      entry = list(term = "variance fraction"),
+      entry = list(term = "variance proportion"),
       spec = list(
-        summary_type     = "var_frac",
+        quantity     = "var_prop",
         source_parameter = "rho",
-        label            = "var_frac(total: study)"
+        label            = "total: var_prop(study)"
       ),
       samples      = matrix(values, ncol = 1L),
       prior        = BayesTools::prior("beta", list(alpha = 1, beta = 1)),
@@ -88,24 +88,29 @@ test_that("hypothesis discovery suppresses atomic random point routes", {
   object <- structure(list(fit = fit), class = "brma")
   specs <- data.frame(
     parameter         = "theta",
-    label             = "var_frac(total: study)",
-    summary_type      = "var_frac",
+    label             = "total: var_prop(study)",
+    quantity      = "var_prop",
     formula_parameter = "tau",
     block             = NA_character_,
     grouping          = "study",
     structure         = NA_character_,
     allocation        = "total",
     random_component  = "study",
+    source_type       = "identity",
     source_parameter  = "rho",
+    source_prior_name = "rho",
+    source_transform  = "identity",
+    source_scale      = 1,
     stringsAsFactors  = FALSE
   )
+  specs[["display_transform"]] <- I(list(list(type = "identity")))
   testthat::local_mocked_bindings(
     .brma_parameter_catalog = function(object) {
       data.frame(
-        alias      = "var_frac(total: study)",
+        alias      = "total: var_prop(study)",
         parameter  = "theta",
         component  = "random",
-        term       = "variance fraction",
+        term       = "variance proportion",
         stringsAsFactors = FALSE
       )
     },

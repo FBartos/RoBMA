@@ -68,7 +68,7 @@ corresponding \pkg{posterior} conversion function.}
 \item{include_auxiliary}{logical; whether to include raw backend auxiliary
 variables. Defaults to \code{FALSE}, returning the stable model-parameter
 schema. Set to \code{TRUE} to expose the non-private coordinates recorded
-by the fitted BayesTools parameter registry without adding RoBMA-derived
+by the fitted BayesTools parameter map without adding RoBMA-derived
 quantities.}
 }
 \value{
@@ -101,15 +101,20 @@ For \code{brma} methods, conversion is performed by first extracting the MCMC
 samples as a \code{mcmc.list} object and then using the corresponding
 \pkg{posterior} conversion function. By default, backend-private latent
 effects, known-\code{V} dependency factors, random-effect simulation and
-Cholesky factors, and prior-parameterization variables are omitted. Public
-covariance parameters, derived correlation matrices, allocation weights,
-model indicators, and likelihood parameters remain available.
+Cholesky factors, and prior-parameterization variables are omitted. Stable
+fitted coordinates such as covariance parameters, allocation weights, model
+indicators, and likelihood parameters remain available, together with
+derived correlation matrices. This export uses the coordinate view of the
+fitted parameter map, whereas summaries, plots, density estimation, and
+hypotheses use its semantic catalog view; draw-column names are not
+additional aliases for public quantities such as \code{sd_total}, \code{sd_common}, or
+\code{var_prop(...)}.
 Scalar-structure random-effect correlation matrices are reconstructed from
 compact rho draws on demand; those compact internal coordinates are never
 returned. Conversion fails before allocating the dense matrices when
 their combined draw-by-matrix size exceeds
 \code{getOption("RoBMA.max_derived_correlation_cells", 2e7)}. Increase this option
-explicitly when the dense public matrices are required. Use
+explicitly when the dense output matrices are required. Use
 Structural point-prior coordinates are returned as exact constant columns,
 with chain timing taken from the fitted draw geometry. Private backend
 anchors are never exposed. Use \code{include_auxiliary = TRUE} to skip RoBMA

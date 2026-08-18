@@ -175,7 +175,7 @@ test_that("monitoring and quadratic expansion guards preserve the schema", {
   )
 })
 
-test_that("multiple compact blocks preserve block-local order across chains", {
+test_that("multiple compact blocks append derived matrices across chains", {
 
   study <- .derived_random_term(
     structure = "ar1",
@@ -225,11 +225,11 @@ test_that("multiple compact blocks preserve block-local order across chains", {
       "mu",
       study[["sd_parameter_names"]],
       study[["correlation"]][["rho_name"]],
-      study_names,
       lab[["sd_parameter_names"]],
       lab[["correlation"]][["rho_name"]],
-      lab_names,
-      "sigma"
+      "sigma",
+      study_names,
+      lab_names
     )
   )
   expect_identical(

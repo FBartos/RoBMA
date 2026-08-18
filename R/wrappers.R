@@ -824,10 +824,12 @@ ranef <- function(object, ...) {
 #' @param simplify whether \code{component = "all"} should return a single
 #' \code{brma_samples} object instead of a one-element list. Defaults to
 #' \code{TRUE}, matching standard 2-level \code{brma()} behavior.
-#' @param expand whether to repeat group-level random effects for every fitted
+#' @param expand whether to repeat random-effect contributions for every fitted
 #' observation. Defaults to \code{FALSE}, returning one column per unique
-#' grouping level in first fitted-observation order, consistently with
-#' \code{metafor::ranef()}. Set to \code{TRUE} for observation-aligned output.
+#' grouping-level contribution in first fitted-observation order, consistently
+#' with \code{metafor::ranef()}. Indicator-coded random coefficients retain one
+#' column per observed grouping-level and coefficient combination. Set to
+#' \code{TRUE} for observation-aligned output.
 #' @param ... additional arguments forwarded to \code{\link{predict.brma}} for
 #' supported options such as \code{conditional}. \code{newdata}, \code{type},
 #' \code{quiet}, \code{output_measure}, and \code{transform} are controlled by
@@ -859,7 +861,8 @@ ranef <- function(object, ...) {
 #' Multiple blocks are returned in one flat list under their canonical fitted
 #' block names; no additional location layer or component-name prefix is added.
 #' Unique-level output is available when a block's contribution is constant
-#' within each grouping level. Random slopes and row-varying random-effect
+#' within each grouping level or observed grouping-level and indicator-
+#' coefficient combination. Other random slopes and row-varying random-effect
 #' scales generally require \code{expand = TRUE}. Summed \code{component =
 #' "total"} output across multiple blocks also requires \code{expand = TRUE}
 #' because different blocks need not share grouping levels.
@@ -1263,12 +1266,12 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     if (expand) {
       colnames(mat) <- paste0("u_", block, "[", labels[seq_len(K)], "]")
     } else {
-      term <- random_terms[[block]]
-      .check_ranef_unique_level_term(term, block)
+      term     <- random_terms[[block]]
+      metadata <- .ranef_unique_level_term(term, block)
       mat <- .ranef_unique_level_samples(
         samples      = mat,
-        group_map    = term[["group_map"]],
-        group_levels = term[["group_levels"]],
+        group_map    = metadata[["group_map"]],
+        group_levels = metadata[["group_levels"]],
         block        = block
       )
     }
@@ -1392,13 +1395,24 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 }
 
 
-# Require a random-intercept design for one-value-per-level output.
-.check_ranef_unique_level_term <- function(term, block) {
+# Resolve the unique random-effect cells represented by a fitted block.
+.ranef_unique_level_term <- function(term, block) {
 
   model_matrix <- term[["model_matrix"]]
   is_intercept <- is.matrix(model_matrix) && ncol(model_matrix) == 1L &&
     all(abs(model_matrix[, 1L] - 1) <= sqrt(.Machine$double.eps))
-  if (!is_intercept) {
+  if (is_intercept) {
+    return(list(
+      group_map    = term[["group_map"]],
+      group_levels = term[["group_levels"]]
+    ))
+  }
+
+  is_indicator <- is.matrix(model_matrix) && is.numeric(model_matrix) &&
+    ncol(model_matrix) > 1L && all(is.finite(model_matrix)) &&
+    all(model_matrix == 0 | model_matrix == 1) &&
+    all(rowSums(model_matrix) == 1)
+  if (!is_indicator) {
     stop(
       "Unique-level random effects are unavailable for random-slope block '",
       block, "'. Use 'expand = TRUE'.",
@@ -1406,7 +1420,35 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     )
   }
 
-  invisible(TRUE)
+  coefficient_labels <- term[["sd_leaves"]][["leaf_terms_by_column"]]
+  if (!is.character(coefficient_labels) ||
+      length(coefficient_labels) != ncol(model_matrix) ||
+      anyNA(coefficient_labels) || any(!nzchar(coefficient_labels)) ||
+      anyDuplicated(coefficient_labels)) {
+    stop(
+      "Unique-level random effects are unavailable for block '", block,
+      "' because its semantic coefficient labels are missing. Use ",
+      "'expand = TRUE'.",
+      call. = FALSE
+    )
+  }
+
+  group_map         <- term[["group_map"]]
+  group_levels      <- term[["group_levels"]]
+  coefficient_index <- max.col(model_matrix, ties.method = "first")
+  cell_key          <- paste(group_map, coefficient_index, sep = ":")
+  cell_rows         <- !duplicated(cell_key)
+  cell_map          <- match(cell_key, cell_key[cell_rows])
+  cell_levels       <- paste0(
+    coefficient_labels[coefficient_index[cell_rows]],
+    " | ",
+    group_levels[group_map[cell_rows]]
+  )
+
+  return(list(
+    group_map    = cell_map,
+    group_levels = cell_levels
+  ))
 }
 
 

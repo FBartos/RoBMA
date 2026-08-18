@@ -7,52 +7,82 @@
 \code{brma.mv()} random-effect formulas use BayesTools random-effect formula
 structure tags to describe the covariance structure of random coefficients.
 These tags are formula specials parsed by
-\code{\link[BayesTools:random_effects_formula]{BayesTools::random_effects_formula()}}, not ordinary user-facing functions.
+\code{BayesTools::random_effects_formula()}, not ordinary user-facing functions.
 }
 \details{
 Use tags as bare names inside the \code{random} formula supplied to \code{brma.mv()},
 for example \code{random = ~ cs(comp | study)}.
 They are parsed from the formula call and are not called as normal R
 functions, so users should not write \code{RoBMA::cs()} or \code{BayesTools::cs()}.
-RoBMA forwards the formula to \code{\link[BayesTools:random_effects_formula]{BayesTools::random_effects_formula()}}, stores
+RoBMA forwards the formula to \code{BayesTools::random_effects_formula()}, stores
 the parsed BayesTools random-effect metadata, and uses that metadata for
 JAGS compilation, prior matching, prediction, and summary labels.
 
-Basic syntax is \code{random = ~ tag(term | group)}.
-The left side of \code{|} defines the random coefficient design and the right
-side defines the grouping factor.
-Plain random-intercept syntax, such as \code{random = ~ 1 | study}, is accepted
-for intercept-only blocks.
-Random slopes require an explicit structure tag, such as
-\code{random = ~ diag(1 + x | study)} or \code{random = ~ us(1 + x | study)}.
-The lme4-style \code{||} shorthand is accepted as a diagonal covariance shortcut.
+BayesTools distinguishes random-coefficient formulas from structured index
+specifications. For \code{id()}, \code{diag()}, and \code{us()} / \code{un()}, the left side of
+\code{|} is a coefficient formula. It can contain an intercept, continuous or
+factor slopes, and interactions. As in an ordinary random-slope formula,
+\code{1}, \code{0}, and \code{-1} include or remove the random intercept. Plain
+\code{(expr | group)} defaults to \code{us(expr | group)}, while \code{expr || group} is the
+diagonal shorthand.
+
+Factor coding inside a random-coefficient block is not selected by removing
+the intercept. BayesTools reuses an already established fixed-factor
+contrast by default and lets a
+\code{\link{random_block}} set an explicit block-specific basis through
+\code{contrasts}. For example, \code{us(0 + group | study)} together with
+\code{random_block(contrasts = c(group = "independent"))} creates one correlated
+random coefficient per \code{group} level and no random intercept. Without the
+independent contrast override, \code{0 + group} preserves the resolved contrast
+basis instead of forcing raw level indicators.
+
+In contrast, \code{cs()}, \code{hcs()}, \code{ar1()} / \code{ar()}, \code{har()}, and \code{car()} own a
+structure-specific index basis. Their left side names index columns rather
+than coefficients. These tags reject explicit \code{1}, \code{0}, and \code{-1}, and their
+blocks do not accept \code{random_block(contrasts = ...)}.
 
 Supported structure tags:
 \itemize{
-\item \code{id()}: identity covariance; random coefficients are independent
-with a common standard deviation.
-\item \code{diag()}: diagonal covariance; random coefficients are independent
-with coefficient-specific standard deviations.
-\item \code{us()} / \code{un()}: unstructured covariance; standard deviations and
-correlations are estimated freely.
-\item \code{cs()}: compound-symmetric covariance; coefficients share one
-standard deviation and one common correlation.
-\item \code{hcs()}: heterogeneous compound symmetry; coefficients have
-coefficient-specific standard deviations and one common correlation.
-\item \code{ar1()} / \code{ar()}: homogeneous autoregressive order-1 covariance;
-coefficients share one standard deviation and correlations decay as
-\eqn{\rho^{|i-j|}} over the ordered coefficient levels.
+\item \code{id()}: independent random-coefficient columns with one shared
+standard deviation.
+\item \code{diag()}: independent random-coefficient columns with one standard
+deviation per column. \code{||} is shorthand for this structure.
+\item \code{us()} / \code{un()}: one standard deviation per random-coefficient column
+and an unrestricted correlation matrix. Plain \code{|} syntax defaults to
+this structure.
+\item \code{cs()}: compound symmetry over one or more discrete index columns;
+index levels share one standard deviation and one common pairwise
+correlation.
+\item \code{hcs()}: heterogeneous compound symmetry over one or more discrete
+index columns; levels have separate standard deviations and one common
+pairwise correlation.
+\item \code{ar1()} / \code{ar()}: homogeneous autoregressive order-1 covariance over
+exactly one discrete index; levels share one standard deviation and
+correlations decay as \eqn{\mathrm{cor}^{|i-j|}} over the resolved order.
 \item \code{har()}: heterogeneous autoregressive order-1 covariance;
-coefficients have coefficient-specific standard deviations and AR(1)
-correlations.
+index levels have separate standard deviations and AR(1) correlations.
 \item \code{car()}: continuous-time autoregressive covariance; use exactly one
-untransformed time coordinate, as in \code{car(time | study)}, with
-correlations \eqn{\rho^d} based on absolute time distances. The
-correlation parameter is constrained to \eqn{[0, 1)}.
+finite numeric/integer coordinate or an ordered factor with numeric level
+labels, as in \code{car(time | study)}. Correlations are
+\eqn{\mathrm{cor}^d} based on actual absolute distances, and
+\eqn{\mathrm{cor}} is constrained to \eqn{[0, 1)}.
 \item \code{random()} / \code{re()}: explicit random-effect block wrapper. By
 default this uses an unstructured covariance, and it can be useful when
 specifying an explicit \code{name} for prior matching and summaries.
 }
+
+The discrete structured tags \code{cs()}, \code{hcs()}, \code{ar1()}, and \code{har()} accept
+factor, character, numeric/integer, or logical index columns. Existing factor
+level order is retained; otherwise sorted unique values determine the levels
+and, for AR(1), their order. \code{cs()} and \code{hcs()} may combine multiple columns
+with \code{+}; BayesTools forms the observed interaction in lexicographic order.
+\code{ar1()} and \code{har()} require exactly one index column.
+
+\code{hcs(index | group)} and \code{us(0 + index | group)} are different models even
+when both produce one standard deviation per displayed level. HCS constrains
+every pair to the same correlation. US estimates an unrestricted correlation
+matrix among the selected coefficient columns and its factor basis must be
+specified through contrast metadata when it matters.
 Alias tags are normalized before model compilation: \code{un()} to \code{us()},
 \code{ar()} to \code{ar1()}, and unqualified \code{random()} / \code{re()} to \code{us()} unless a
 covariance override changes the structure.
@@ -69,13 +99,13 @@ marginalized diagonal row-variance terms; other supported known-\code{R} blocks
 remain sampled.
 
 The scalar-correlation structures \code{cs()}, \code{hcs()}, \code{ar1()} / \code{ar()},
-\code{har()}, and \code{car()} use a default \code{Beta(1, 1)} prior distribution directly
-on the raw correlation parameter \eqn{\rho}. This default prior distribution
-is bounded to non-negative correlations. To allow negative correlations,
-supply an explicit \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} object with a
-\code{\link[BayesTools:prior_random]{BayesTools::random_covariance()}} prior on either the raw or Fisher-z scale.
+and \code{har()} use uniform defaults over their complete valid raw-correlation
+intervals: \verb{(-1 / (K - 1), 1)} for CS/HCS and \verb{(-1, 1)} for AR1/HAR, where
+\code{K} is the number of resolved index levels. CAR uses \code{Uniform(0, 1)} because
+its correlation-decay parameter is one-sided. These defaults therefore do
+not silently exclude negative correlations when the structure permits them.
 
-A named list of formulas defines top-level random-effect components:
+A list of formulas defines top-level random-effect components:
 
 \if{html}{\out{<div class="sourceCode r">}}\preformatted{random = list(
   study  = ~ cs(comp | study),
@@ -83,11 +113,32 @@ A named list of formulas defines top-level random-effect components:
 )
 }\if{html}{\out{</div>}}
 
-List names define component names used by RoBMA summaries and by
-component-specific scale models.
+A bare formula or unnamed one-entry list has no redundant user-facing
+component prefix. An explicitly named one-entry list retains its name. In a
+list with two or more formulas, missing names are generated as
+\verb{component 1}, \verb{component 2}, and so on. These component names are used by
+RoBMA summaries and by component-specific scale models.
 Explicit \verb{name =} arguments inside \code{random()} or \code{re()} define the final
-random-effect block name used by \code{BayesTools::prior_random()} block
+random-effect block name used by \code{prior_random()} block
 overrides.
+\subsection{Public parameter names}{
+
+BayesTools stores concrete coordinates, selectable semantic quantities, and
+aliases in one versioned parameter map. Random-effect canonical names use
+\verb{(formula) owner: quantity(arguments)}, with the formula prefix optional when
+the remaining name is unambiguous. Parentheses contain coefficient or
+parameter names and square brackets contain factor or index levels. Examples
+include \code{study: sd(intercept)} and
+\code{study: cor(group[sensitivity],group[specificity])}.
+
+Public correlations are named \code{cor}; compact scalar \code{rho} and LKJ
+construction coordinates remain internal. Automatic total-variance
+allocations expose \code{sd_total}, \code{var_total}, and \code{var_prop(...)}.
+Mean-variance allocations within heterogeneous blocks expose \code{sd_common},
+\code{var_common}, \code{var_ratio(...)}, and \code{sd_ratio(...)}. These semantic names are
+the supported selectors for summaries, plotting, density estimation, and
+hypotheses.
+}
 }
 \examples{
 \dontrun{
@@ -110,10 +161,30 @@ fit_network <- brma.mv(
   data    = dat,
   measure = "OR"
 )
+
+group_prior <- prior_factor(
+  distribution = "normal",
+  parameters   = list(mean = 0, sd = 1),
+  contrast     = "independent"
+)
+random_prior <- prior_random(
+  study = random_block(
+    contrasts = c(group = "independent")
+  )
+)
+fit_group <- brma.mv(
+  yi = yi, V = V, ni = ni,
+  mods = ~ 0 + group,
+  random = ~ us(0 + group | study),
+  prior_mods = group_prior,
+  prior_heterogeneity = random_prior,
+  data = dat, measure = "GEN",
+  prior_unit_information_sd = 1
+)
 }
 }
 \seealso{
 \code{\link[=brma.mv]{brma.mv()}}, \code{\link{random_effect_prior_specification}},
-\code{\link[BayesTools:random_effects_formula]{BayesTools::random_effects_formula()}},
-\code{\link[BayesTools:prior_random]{BayesTools::random_covariance()}}, \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}}
+\code{\link{prior_random}}, \code{\link{random_covariance}},
+\code{BayesTools::random_effects_formula()}
 }

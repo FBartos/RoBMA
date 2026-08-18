@@ -42,6 +42,12 @@ Fit caches under `tests/scenarios/cache/` are local and ignored. Never replace
 them with ordinary package-test caches or duplicate the cache logic in a
 scenario.
 
+Each fit cache has companion timing metadata for the successful fitting block,
+excluding cache serialization. A cache hit contributes that stored production
+time rather than RDS loading time. If timing metadata is unavailable, refit the
+cache before accepting a timing baseline; never substitute the cache-loading
+time.
+
 ## Human-Focused Snapshots
 
 - Use `scenario_text()` for output a user or maintainer would read: summaries,
@@ -67,6 +73,8 @@ scenario.
 - `scenario_text()` and `scenario_plot()` set the random seed to 1 internally.
   Do not add artifact-specific seeds unless the maintainer requests a different
   stochastic comparison.
+- `scenario_text()` suppresses message conditions emitted while evaluating its
+  expression, including fitting progress. Warnings and errors remain visible.
 
 Ordinary package line-width limits do not apply to scenario scripts. Preserve
 long calls, aligned comparison columns, compact one-line plot invocations, and
@@ -87,14 +95,16 @@ Rscript tools/test-scenario.R <name>
 
 Use `--refit` to refit models and compare them against the locked outputs. Use
 `--update` to reuse valid fit caches and replace exercised outputs. The combined
-`--regenerate` shortcut performs both actions.
+`--regenerate` shortcut performs both actions. Output updates also replace the
+timing baseline. Use `--update-timings` when only timings should be replaced.
 
 After sourcing `helper-scenarios.R`, `test_scenario()` runs all scenarios from
 an interactive session. Pass a regular-expression `filter` to select scenario
 names, for example `test_scenario(filter = "assink|bcg")`. By default, this
 reuses fit caches, suppresses artifact output, and compares without replacing
 locked baselines. Set `refit = TRUE`, `update = TRUE`, or
-`regenerate = TRUE` explicitly to change those behaviors.
+`regenerate = TRUE` explicitly to change those behaviors. Set
+`update_timings = TRUE` to replace only timing baselines.
 
 Sourcing a scenario file directly in an interactive session defaults to reusing
 fit caches, showing artifact output, and immediately creating or replacing text
@@ -103,13 +113,44 @@ and SVG baselines. Do not add control variables to scenario files.
 Text baselines under `results/` and SVGs under `_snaps/` are committed
 human-reviewed artifacts. Missing baselines fail during `test_scenario()`, CLI,
 and non-interactive runs unless updating is explicitly enabled. With updating
-disabled, changed text is retained as `<name>.new.txt`; an interactive scenario
-test shows the complete old and new outputs and asks whether to accept the
-candidate. Direct plot comparison retains a changed `<name>.new.svg`.
-Non-interactive runs never prompt or accept changes.
+disabled, changed text is retained as `<name>.new.txt` and reported with
+testthat's colored value diff. Interactive `test_scenario()` runs finish all
+selected scenarios before listing the text mismatches and opening testthat's
+snapshot reviewer for one-by-one Accept, Reject, or Skip decisions. Accepted
+candidates replace the baseline, rejected candidates are removed, and skipped
+candidates remain cached. Direct plot comparison retains a changed
+`<name>.new.svg`. Rerun `test_scenario()` after review to confirm accepted
+changes. Run deferred review from the runner's exit path so an early scenario
+failure cannot bypass cached candidates. Non-interactive runs never prompt or
+accept changes.
 
 Scenario runs report committed text and SVG artifacts that are no longer
 referenced by the scenario. Never delete an orphan automatically.
+
+## Performance Timings
+
+`scenario_fit()`, `scenario_text()`, and `scenario_plot()` record wall time in
+the tracked `timings/<scenario>.tsv` baseline. Text timing includes expression
+evaluation and captured printing. Plot timing includes the canonical assertion
+render but excludes any extra interactive preview and file comparison. Fit
+timing includes the full cached block, such as `add_loo()` and `add_marglik()`,
+but excludes cache reads and writes.
+
+After a complete managed scenario file, issue one warning that lists every call
+whose wall time increased by more than 20% and the unweighted mean percentage
+change across calls when it is a regression greater than 5%. Cached fits use
+their stored production times while text and plot calls use fresh times. Compare
+against the old timing baseline before replacing any timing, fit-cache, text, or
+plot artifact.
+
+Compare-only runs retain the current measurements in the ignored
+`<scenario>.new.tsv`. Direct interactive execution, output updates,
+regeneration, and explicit timing updates replace the baseline after comparison.
+`refit` alone remains compare-only. An update accepts the current measured time,
+including improvements and intentional slowdowns caused by a changed scenario
+specification; do not retain an automatic all-time minimum. Record R version and
+platform as informational provenance without automatically invalidating the
+baseline.
 
 Do not use output updating or regeneration merely to make a scenario pass.
 Replace baselines only when the maintainer explicitly requests, approves, or

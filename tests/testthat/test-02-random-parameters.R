@@ -3,6 +3,7 @@ context("Semantic random-effect parameters")
 source(testthat::test_path("common-functions.R"))
 
 .random_parameter_fit_names <- c(
+  "brma.mv_block_mvn_random",
   "brma.mv_block_mvn_random_scale",
   "brma.mv_block_mvn_known_R",
   "brma.mv_v14_konstantopoulos2011_cs",
@@ -57,8 +58,8 @@ test_that("random catalog matches summaries across structures", {
 
     expect_true(nrow(bundle[["specs"]]) > 0L, info = name)
     expect_true(all(
-      rownames(summary[["estimates_random"]]) %in%
-        bundle[["specs"]][["label"]]
+      bundle[["specs"]][["label"]] %in%
+        rownames(summary[["estimates_random"]])
     ), info = name)
     expect_setequal(
       bundle[["specs"]][["parameter"]],
@@ -77,6 +78,49 @@ test_that("random catalog matches summaries across structures", {
       info = name
     )
   }
+})
+
+test_that("standard random fixture crosses every semantic consumer boundary", {
+
+  skip_if_missing_fits("brma.mv_block_mvn_random")
+  fit <- load_fit("brma.mv_block_mvn_random", validate = FALSE)
+  bundle <- .brma_random_parameter_bundle(fit)
+  parameter <- "estimate: sd(intercept)"
+  index <- match(parameter, bundle[["specs"]][["label"]])
+
+  expect_false(is.na(index))
+  expect_identical(
+    bundle[["specs"]][["display_transform"]][[index]],
+    list(type = "identity")
+  )
+  expect_true(parameter %in% rownames(summary(fit)[["estimates_random"]]))
+  expect_true(parameter %in% hypothesis_quantities(fit)[["alias"]])
+  expect_identical(
+    .brma_random_parameter_density_target(fit, parameter)[["parameter_spec"]][["type"]],
+    "primitive"
+  )
+  expect_s3_class(
+    plot(
+      fit,
+      parameter = parameter,
+      component = "random",
+      prior = TRUE,
+      plot_type = "ggplot"
+    ),
+    "ggplot"
+  )
+  value <- stats::median(bundle[["samples"]][, index])
+  expect_s3_class(
+    hypothesis(
+      fit,
+      .random_parameter_hypothesis(parameter, ">", value, "<"),
+      component = "random",
+      density_method = "KDE",
+      n_samples = 500L,
+      seed = 29
+    ),
+    "BayesTools_hypothesis_BF"
+  )
 })
 
 test_that("ordinary plots and hypotheses ignore unrelated random priors", {
@@ -134,7 +178,7 @@ test_that("random plots and MCMC diagnostics use semantic draws", {
     for (type in c("density", "autocorrelation")) {
       expect_s3_class(
         plot_diagnostic(
-          fit, parameter = "rho(district)", component = "random",
+          fit, parameter = "district: cor", component = "random",
           type = type, plot_type = "ggplot"
         ),
         "ggplot"
@@ -178,7 +222,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
     expect_s3_class(
       hypothesis(
         fit_cs,
-        .random_parameter_hypothesis("rho(district)", "=", 0.5, "!="),
+        .random_parameter_hypothesis("district: cor", "=", 0.5, "!="),
         component = "random", n_samples = 2000, seed = 21
       ),
       "BayesTools_hypothesis_BF"
@@ -191,7 +235,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
       hypothesis(
         fit_har,
         .random_parameter_hypothesis(
-          "sd(time[1] | study)", "=", 0.2, "!="
+          "study: sd(time[1])", "=", 0.2, "!="
         ),
         component = "random", n_samples = 1000, seed = 22
       ),
@@ -206,7 +250,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
     )
     mixed_quantities <- hypothesis_quantities(fit_mixed)
     mixed_rho <- mixed_quantities[
-      mixed_quantities[["alias"]] == "rho(study)" &
+      mixed_quantities[["alias"]] == "treatment: cor" &
         mixed_quantities[["component"]] == "random",
       ,
       drop = FALSE
@@ -218,10 +262,10 @@ test_that("random point hypotheses follow quantity-specific policy", {
     expect_error(
       hypothesis(
         fit_mixed,
-        .random_parameter_hypothesis("rho(study)", "=", 0, "!="),
+        .random_parameter_hypothesis("treatment: cor", "=", 0, "!="),
         component = "random", n_samples = 1000, seed = 23
       ),
-      "derived pairwise correlation"
+      "contains a point mass"
     )
   }
 
@@ -231,22 +275,22 @@ test_that("random point hypotheses follow quantity-specific policy", {
       hypothesis(
         fit_alloc,
         .random_parameter_hypothesis(
-          "var_frac(total: study)", "=", 0, ">"
+          "var_prop(study)", "=", 0, ">"
         ),
         component = "random", n_samples = 1000, seed = 24
       ),
       "support boundary"
     )
-    expect_error(
+    expect_s3_class(
       hypothesis(
         fit_alloc,
         .random_parameter_hypothesis(
-          "var_frac(total: study)", ">", 0.5, "<"
+          "var_prop(study)", ">", 0.5, "<"
         ),
         component = "random", density_method = "qCMDE",
         n_samples = 1000, seed = 25
       ),
-      "not available for semantic random-effect quantities"
+      "BayesTools_hypothesis_BF"
     )
   }
 })
@@ -312,13 +356,13 @@ test_that("fixed and unavailable random influence targets are explicit", {
   dfb <- dfbetas(
     fit,
     component = "random",
-    parameter = "rho(study)",
+    parameter = "treatment: cor",
     .weights  = weights
   )
   covr <- covratio(
     fit,
     component = "random",
-    parameter = "rho(study)",
+    parameter = "treatment: cor",
     .weights  = weights
   )
   expect_true(all(is.nan(as.matrix(dfb))))
@@ -447,13 +491,13 @@ test_that("random prior overlays and diagnostic labels are semantic", {
       "brma.mv_v14_begg1989_study_treatment",
       validate = FALSE
     )
-    expect_error(
+    expect_s3_class(
       plot(
         fixed,
-        parameter = "rho(study)", component = "random", prior = TRUE,
+        parameter = "treatment: cor", component = "random", prior = TRUE,
         plot_type = "ggplot"
       ),
-      "prior-density overlay is not available for fixed random-effect quantity"
+      "ggplot"
     )
   }
 
@@ -461,24 +505,22 @@ test_that("random prior overlays and diagnostic labels are semantic", {
     cs <- load_fit("brma.mv_v14_konstantopoulos2011_cs", validate = FALSE)
     diagnostic <- plot_diagnostic_density(
       cs,
-      parameter = "rho(district)", component = "random",
+      parameter = "district: cor", component = "random",
       plot_type = "ggplot"
     )
-    expect_identical(diagnostic[["labels"]][["title"]], "rho(district)")
+    expect_identical(diagnostic[["labels"]][["title"]], "district: cor")
   }
 })
 
 test_that("Dirichlet allocation priors use their exact beta marginals", {
 
-  summary_prior <- BayesTools::prior_none()
-  attr(summary_prior, "random_allocation_index") <- 2L
   selected <- list(
-    spec         = list(summary_type = "var_frac"),
+    spec         = list(quantity = "var_prop", allocation_index = 2L),
     source_prior = BayesTools::prior(
       "dirichlet",
       parameters = list(alpha = c(2, 3, 5))
     ),
-    prior        = summary_prior
+    prior        = NULL
   )
   prior <- .brma_random_parameter_exact_prior(selected)
 
@@ -585,7 +627,7 @@ test_that("allocation replacements synchronize derived random-effect SDs", {
     only_priors               = TRUE
   )
   design     <- .fitted_formula_design(object, "mu")
-  allocation <- design[["random_allocations"]][["random_total"]]
+  allocation <- design[["random_allocations"]][["heterogeneity"]]
   source     <- allocation[["source"]][["name"]]
   weights    <- paste0(allocation[["weight_name"]], "[", 1:2, "]")
   components <- vapply(
@@ -688,23 +730,23 @@ test_that("direct multivariate random quantities expose density targets", {
 
   total <- .brma_random_parameter_density_target(
     fit,
-    "sd_total(random_total)"
+    "sd_total"
   )
   nested_sd <- .brma_random_parameter_density_target(
     fit,
-    "sd(intercept | esid:study)"
+    "esid_study: sd(intercept)"
   )
   study_sd <- .brma_random_parameter_density_target(
     fit,
-    "sd(intercept | study)"
+    "study: sd(intercept)"
   )
   nested <- .brma_random_parameter_density_target(
     fit,
-    "var_frac(random_total: esid_study)"
+    "var_prop(esid_study)"
   )
   study <- .brma_random_parameter_density_target(
     fit,
-    "var_frac(random_total: study)"
+    "var_prop(study)"
   )
 
   expect_identical(total[["parameter_spec"]][["type"]], "primitive")
@@ -720,18 +762,18 @@ test_that("direct multivariate random quantities expose density targets", {
 
   total_plot <- plot(
     fit,
-    "sd_total(random_total)",
+    "sd_total",
     component = "random",
     plot_type = "ggplot"
   )
   expect_identical(
     total_plot$scales$get_scales("x")$name,
-    "sd_total(random_total)"
+    "sd_total"
   )
 
   samples <- .brma_random_parameter_mixed_posterior(
     fit,
-    "var_frac(random_total: esid_study)",
+    "var_prop(esid_study)",
     prior = TRUE
   )
   parameter <- names(samples)[[1L]]
@@ -742,13 +784,13 @@ test_that("direct multivariate random quantities expose density targets", {
   expect_s3_class(
     plot(
       fit,
-      "sd(intercept | study)",
+      "study: sd(intercept)",
       component       = "random",
       density_method  = "qCMDE",
       density_control = list(
         n_points             = 20L,
-        samples              = 300L,
-        normalization_points = 50L
+        samples              = 5000L,
+        normalization_points = 200L
       ),
       plot_type = "ggplot"
     ),
@@ -783,7 +825,7 @@ test_that("direct multivariate random quantities expose density targets", {
   )
 })
 
-test_that("qCMDE plots a two-component multivariate allocation fraction", {
+test_that("qCMDE plots a two-component multivariate allocation proportion", {
 
   skip_if_missing_fits("brma.mv_v14_assink2016_nested")
   fit <- load_fit("brma.mv_v14_assink2016_nested", validate = FALSE)
@@ -791,7 +833,7 @@ test_that("qCMDE plots a two-component multivariate allocation fraction", {
   expect_s3_class(
     plot(
       fit,
-      "var_frac(random_total: esid_study)",
+      "var_prop(esid_study)",
       component       = "random",
       prior           = TRUE,
       density_method  = "qCMDE",

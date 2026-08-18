@@ -3,14 +3,23 @@
 # ============================================================================ #
 
 .iwmde_log_lik_known_v_joint_sum_from_samples <- function(
-    context, posterior_samples, active_setup, unit, data_hash = NULL) {
+    context, posterior_samples, active_setup, unit, data_hash = NULL,
+    fixed_mu_samples = NULL) {
 
   if (.iwmde_uses_known_v_random_marginal_likelihood(context)) {
     return(.iwmde_log_lik_known_v_random_marginal_sum_from_samples(
       context           = context,
       posterior_samples = posterior_samples,
-      active_setup      = active_setup
+      active_setup      = active_setup,
+      fixed_mu_samples  = fixed_mu_samples
     ))
+  }
+
+  if (!is.null(fixed_mu_samples)) {
+    stop(
+      "Precomputed fixed predictors require a marginal random-effect likelihood.",
+      call. = FALSE
+    )
   }
 
   conditioned_random_effects <- .iwmde_conditioned_random_effects_from_latent(
@@ -50,7 +59,7 @@
 
 
 .iwmde_log_lik_known_v_random_marginal_sum_from_samples <- function(
-    context, posterior_samples, active_setup) {
+    context, posterior_samples, active_setup, fixed_mu_samples = NULL) {
 
   data <- context[["data"]]
   if (!.iwmde_uses_known_v_random_marginal_likelihood(context)) {
@@ -60,12 +69,15 @@
     )
   }
 
-  setup      <- .iwmde_known_v_random_marginal_setup(context)
-  mu_samples <- .iwmde_predictor_evaluate_fixed_mu(
-    context      = context,
-    active_setup = active_setup,
-    samples      = posterior_samples
-  )
+  setup <- .iwmde_known_v_random_marginal_setup(context)
+  mu_samples <- fixed_mu_samples
+  if (is.null(mu_samples)) {
+    mu_samples <- .iwmde_predictor_evaluate_fixed_mu(
+      context      = context,
+      active_setup = active_setup,
+      samples      = posterior_samples
+    )
+  }
   random_factors <- .brma_mv_random_effects_marginal_factor_states(
     object            = context[["object"]],
     posterior_samples = posterior_samples,
@@ -76,6 +88,13 @@
 
   S <- nrow(posterior_samples)
   K <- nrow(data[["outcome"]])
+  if (!is.matrix(mu_samples) || !identical(dim(mu_samples), c(S, K)) ||
+      any(!is.finite(mu_samples))) {
+    stop(
+      "Marginal known-V likelihood received invalid fixed predictors.",
+      call. = FALSE
+    )
+  }
   if (!identical(random_factors[["row_blocks"]],
                  setup[["dependency_blocks"]]) ||
       length(random_factors[["factor_states"]]) != S) {
@@ -712,6 +731,16 @@
     return(NULL)
   }
 
+  if (.iwmde_uses_known_v_random_marginal_likelihood(context)) {
+    return(.iwmde_normal_location_likelihood_change_known_v_random(
+      context  = context,
+      setup    = setup,
+      yi       = yi,
+      mu       = mu,
+      mu_basis = mu_basis
+    ))
+  }
+
   block_data        <- .known_v_dependency_block_data(context[["data"]], K)
   block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
@@ -745,6 +774,60 @@
     mu_basis       = mu_basis,
     block_data     = block_data,
     extra_variance = extra_variance
+  ))
+}
+
+
+.iwmde_normal_location_likelihood_change_known_v_random <- function(
+    context, setup, yi, mu, mu_basis) {
+
+  random_setup <- .iwmde_known_v_random_marginal_setup(context)
+  random_factors <- .brma_mv_random_effects_marginal_factor_states(
+    object            = context[["object"]],
+    posterior_samples = setup[["posterior_samples"]],
+    blocks            = random_setup[["blocks"]],
+    row_blocks        = random_setup[["dependency_blocks"]],
+    data              = context[["data"]]
+  )
+
+  S <- setup[["S"]]
+  K <- setup[["K"]]
+  if (!identical(random_factors[["row_blocks"]],
+                 random_setup[["dependency_blocks"]]) ||
+      length(random_factors[["factor_states"]]) != S) {
+    return(NULL)
+  }
+
+  fixed_mu <- mu
+  sampling_covariance <- random_setup[["sampling_covariance"]]
+  block_indices       <- random_setup[["dependency_blocks"]]
+  factor_plans        <- random_factors[["factor_plans"]]
+  factor_states       <- random_factors[["factor_states"]]
+  if (any(!vapply(
+    factor_states,
+    function(states) {
+      is.list(states) && length(states) == length(factor_plans)
+    },
+    logical(1)
+  ))) {
+    return(NULL)
+  }
+
+  result <- .marglik_covariance_plan_location_quadratic_batch(
+    cache                    = random_setup[["covariance_plan_cache"]],
+    y                        = as.double(yi),
+    means                    = fixed_mu,
+    bases                    = mu_basis,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = factor_plans,
+    random_covariance_states = factor_states,
+    block_indices            = block_indices,
+    extra_variances          = matrix(0, nrow = S, ncol = K)
+  )
+
+  return(.iwmde_normal_location_likelihood_change_result(
+    linear    = result[["linear"]],
+    quadratic = result[["quadratic"]]
   ))
 }
 

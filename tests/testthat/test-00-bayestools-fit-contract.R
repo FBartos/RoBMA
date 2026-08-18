@@ -54,7 +54,7 @@ test_that("fitted formula identities come from the versioned name map", {
       "name_encoding",
       "formula_name_map",
       "formula_design",
-      "parameter_registry"
+      "parameter_map"
     )
   )
   expect_identical(

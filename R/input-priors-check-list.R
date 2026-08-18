@@ -129,8 +129,8 @@
   return(bias_type)
 }
 
-# helper function for defining unit information prior on lograte for IRR models
-.get_unit_information_lograte_prior   <- function(x1i, x2i, t1i, t2i) {
+# helper function for defining the default lograte prior for IRR models
+.get_default_lograte_prior            <- function(x1i, x2i, t1i, t2i) {
 
   if (anyNA(x1i) || anyNA(x2i) || anyNA(t1i) || anyNA(t2i)) {
     stop("Default 'prior_lograte' requires complete Poisson event counts and person-times.", call. = FALSE)
@@ -145,17 +145,14 @@
     stop("Default 'prior_lograte' requires positive finite total person-time.", call. = FALSE)
   }
 
-  # compute the unit information standard deviation from Poisson data
-  sigma_prior <- .get_unit_information_sd.pois(x1i, x2i, t1i, t2i)
-
   # compute the pooled crude log-rate for the mean
-  mu_prior     <- log(total_events / total_time)
-  if (!is.finite(mu_prior) || !is.finite(sigma_prior)) {
+  mu_prior <- log(total_events / total_time)
+  if (!is.finite(mu_prior)) {
     stop("Default 'prior_lograte' could not be computed from the supplied Poisson data.", call. = FALSE)
   }
 
   # define the prior object
-  prior <- BayesTools::prior_factor("normal", parameters = list(mean = mu_prior, sd = sigma_prior), contrast = "independent")
+  prior <- BayesTools::prior_factor("normal", parameters = list(mean = mu_prior, sd = RoBMA.get_option("default_lograte.sd")), contrast = "independent")
 
   return(prior)
 }
@@ -259,6 +256,8 @@
   is_random     <- .is_data_random(data)
   is_random_prior_heterogeneity <- !missing(prior_heterogeneity) &&
     .is_prior_random(prior_heterogeneity)
+  random_prior_needs_default_scale <- is_random_prior_heterogeneity &&
+    !.assign_prior.random_has_scale(prior_heterogeneity)
 
   if (is_random_prior_heterogeneity && !is_random) {
     stop(
@@ -273,7 +272,8 @@
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
       rescale_priors = rescale_priors
     )
-  if (is_random_prior_heterogeneity && .is_data_scale(data)) {
+  if (is_random_prior_heterogeneity &&
+      (.is_data_scale(data) || random_prior_needs_default_scale)) {
     prior_outcome[["tau"]] <- .assign_prior.simple(
       parameter = "heterogeneity", measure = measure,
       data = data, prior_unit_information_sd = prior_unit_information_sd,
@@ -342,7 +342,23 @@
 
   if (is_random) {
     prior_random <- if (is_random_prior_heterogeneity) {
-      prior_heterogeneity
+      if (random_prior_needs_default_scale) {
+        random_defaults <- .assign_prior.random(
+          prior      = prior_random_sd,
+          data       = data,
+          sd_sources = if (.is_data_scale(data)) {
+            .assign_prior.random_scale_sources(data)
+          } else {
+            NULL
+          }
+        )
+        .assign_prior.random_complete(
+          prior    = prior_heterogeneity,
+          defaults = random_defaults
+        )
+      } else {
+        prior_heterogeneity
+      }
     } else {
       .assign_prior.random(
         prior      = prior_random_sd,

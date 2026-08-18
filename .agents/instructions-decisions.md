@@ -18,7 +18,8 @@ remove the item.
 ## Cached Vignette Fits
 
 - Issue: the 16 committed cache directories under `models/` contain about
-  220 MB of fits created before BayesTools' current parameter registry.
+  220 MB of fits created before BayesTools' current coordinate-registry and
+  semantic-catalog contracts.
 - Impact: current summaries and plots reject them, preventing a normal vignette
   rebuild.
 - Recommendation: regenerate one vignette cache at a time with current RoBMA and

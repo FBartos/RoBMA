@@ -116,7 +116,10 @@ functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
 
 \item{prior_heterogeneity}{prior distribution for the heterogeneity (\eqn{\tau})
 parameter. If omitted, a default prior is constructed. In single-model
-functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
+functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero. For
+\code{\link{brma.mv}} random-effect formulas, this can also be a partial or
+complete \code{\link{prior_random}} object; see
+\code{\link{random_effect_prior_specification}}.}
 
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
@@ -141,16 +144,25 @@ priors must lie strictly inside \verb{(0, 1)}.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
 log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a
-data-based unit-information normal prior is used independently for each
-estimate. Only normal and point priors are supported; normal priors may be
-truncated.}
+normal prior centered at the pooled crude log-rate is used independently for
+each estimate. Its standard deviation defaults to \code{1} and can be changed via
+\code{RoBMA.options(default_lograte.sd = ...)}. Rescaling all person-times shifts
+the prior mean by the corresponding log conversion while leaving its
+standard deviation unchanged. Only normal and point priors are supported;
+normal priors may be truncated.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
 Defaults are constructor-specific and shown in each function usage. Single-model
-constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.}
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.
+Accepted values are \code{"treatment"}, \code{"meandif"}, \code{"orthonormal"}, and
+\code{"independent"}. Independent coding creates one coefficient per factor
+level. Random-coefficient blocks reuse the resolved fixed-factor contrast
+unless \code{random_block(contrasts = ...)} overrides it. A warning is issued
+when default or inherited independent contrasts make a fixed or random
+design overspecified.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
