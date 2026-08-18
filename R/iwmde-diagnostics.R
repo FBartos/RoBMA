@@ -147,8 +147,8 @@
       .iwmde_estimator_label(estimator),
       .iwmde_diagnostics_normalization_error_phrase(estimator),
       .iwmde_percent(normalization_error),
-      ". Try increasing 'normalization_points' or setting ",
-      "'normalization_prob' closer to 1 in the 'density_control' argument"
+      ". ",
+      .iwmde_diagnostics_mass_failure_action(diagnostics, estimator)
     ))
   }
 
@@ -319,6 +319,35 @@
   }
 
   return(NULL)
+}
+
+
+.iwmde_diagnostics_mass_failure_action <- function(diagnostics, estimator) {
+
+  sampling_relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    "sampling_relative_mcse"
+  )
+  target_relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    "target_relative_mcse"
+  )
+  sampling_limited <- identical(estimator, "iwmde") &&
+    !isTRUE(diagnostics[["all_rows_used"]]) &&
+    is.finite(sampling_relative_mcse) &&
+    is.finite(target_relative_mcse) &&
+    sampling_relative_mcse > target_relative_mcse
+  if (sampling_limited) {
+    return(paste0(
+      "Try increasing 'samples' in the 'density_control' argument or using ",
+      "'samples = Inf' for the eligible-row census"
+    ))
+  }
+
+  return(paste0(
+    "Try increasing 'normalization_points' or setting ",
+    "'normalization_prob' closer to 1 in the 'density_control' argument"
+  ))
 }
 
 

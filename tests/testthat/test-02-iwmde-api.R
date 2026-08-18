@@ -1707,6 +1707,20 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     "IWMDE.*11%.*normalization_points.*normalization_prob"
   )
 
+  iwmde_sampled_fail <- iwmde_fail
+  iwmde_sampled_fail[["diagnostics"]][["sampling_relative_mcse"]] <- .15
+  iwmde_sampled_fail[["diagnostics"]][["target_relative_mcse"]] <- .05
+  iwmde_sampled_fail[["diagnostics"]][["all_rows_used"]] <- FALSE
+  expect_match(
+    .iwmde_posterior_ordinate_failure_reasons(iwmde_sampled_fail),
+    "IWMDE.*11%.*samples.*samples = Inf"
+  )
+  iwmde_sampled_fail[["diagnostics"]][["all_rows_used"]] <- TRUE
+  expect_match(
+    .iwmde_posterior_ordinate_failure_reasons(iwmde_sampled_fail),
+    "IWMDE.*11%.*normalization_points.*normalization_prob"
+  )
+
   bf <- .iwmde_bf_append_warning(1, iwmde_warn)
   expect_true(any(grepl("IWMDE.*6%", attr(bf, "warnings"))))
 
