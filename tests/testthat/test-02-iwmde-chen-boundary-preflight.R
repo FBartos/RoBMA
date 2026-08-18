@@ -3,7 +3,7 @@
 # ============================================================================ #
 
 
-test_that("Chen boundary preflight preserves fallback without full construction", {
+test_that("Chen boundary fallback does not construct later columns", {
 
   samples <- cbind(
     mu         = c(-.4, -.1, .2, .5),
@@ -17,7 +17,16 @@ test_that("Chen boundary preflight preserves fallback without full construction"
     indicator_names   = character(),
     selection_spec    = list(jags_omega = "omega"),
     priors            = list(),
-    flat_prior_list   = list(mu = TRUE, PET = TRUE, rho = TRUE),
+    flat_prior_list   = list(
+      mu   = TRUE,
+      PET  = TRUE,
+      rho  = TRUE,
+      bias = BayesTools::prior_weightfunction(
+        side    = "one-sided",
+        steps   = .05,
+        weights = BayesTools::wf_cumulative(c(1, 1))
+      )
+    ),
     formula_inputs    = list()
   )
   rows          <- seq_len(nrow(samples))
@@ -77,7 +86,7 @@ test_that("Chen boundary preflight preserves fallback without full construction"
   )
   expect_identical(
     visited_columns,
-    c("rho", "rho", "omega[1]", "omega[1]", "omega[2]", "omega[2]")
+    c("omega[1]", "omega[1]", "omega[2]", "omega[2]")
   )
 })
 
@@ -125,7 +134,15 @@ test_that("Chen boundary preflight does not reject evaluation-only boundaries", 
     indicator_names   = character(),
     selection_spec    = list(jags_omega = "omega"),
     priors            = list(),
-    flat_prior_list   = list(mu = TRUE, PET = TRUE),
+    flat_prior_list   = list(
+      mu   = TRUE,
+      PET  = TRUE,
+      bias = BayesTools::prior_weightfunction(
+        side    = "one-sided",
+        steps   = .05,
+        weights = BayesTools::wf_cumulative(c(1, 1))
+      )
+    ),
     formula_inputs    = list()
   )
 
@@ -139,4 +156,52 @@ test_that("Chen boundary preflight does not reject evaluation-only boundaries", 
 
   expect_true(all(is.finite(conditioning[["fit"]])))
   expect_true(any(!is.finite(conditioning[["eval"]])))
+})
+
+
+test_that("Chen omega transforms use declared weight support", {
+
+  bounded_context <- list(
+    flat_prior_list = list(
+      bias = BayesTools::prior_weightfunction(
+        side    = "one-sided",
+        steps   = .05,
+        weights = BayesTools::wf_cumulative(c(1, 1))
+      )
+    ),
+    selection_spec = list(jags_omega = "omega")
+  )
+  nonnegative_context <- list(
+    flat_prior_list = list(
+      bias = BayesTools::prior_weightfunction(
+        side  = "one-sided",
+        steps = .05,
+        weights = BayesTools::wf_independent(
+          BayesTools::prior(
+            "gamma",
+            parameters = list(shape = 2, rate = 1)
+          )
+        )
+      )
+    ),
+    selection_spec = list(jags_omega = "omega")
+  )
+
+  bounded <- .iwmde_chen_transform_conditioning_column(
+    context     = bounded_context,
+    fit_values  = c(.25, .5),
+    eval_values = 1,
+    column      = "omega[2]"
+  )
+  nonnegative <- .iwmde_chen_transform_conditioning_column(
+    context     = nonnegative_context,
+    fit_values  = c(.25, .5),
+    eval_values = 1,
+    column      = "omega[2]"
+  )
+
+  expect_equal(bounded[["fit"]], stats::qlogis(c(.25, .5)))
+  expect_identical(bounded[["eval"]], Inf)
+  expect_equal(nonnegative[["fit"]], log1p(c(.25, .5)))
+  expect_identical(nonnegative[["eval"]], log(2))
 })

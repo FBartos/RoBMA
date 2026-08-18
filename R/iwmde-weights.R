@@ -640,6 +640,14 @@
     ))
   }
 
+  constrained <- vapply(
+    columns,
+    .iwmde_chen_conditioning_column_is_constrained,
+    logical(1),
+    context = context
+  )
+  columns <- columns[order(!constrained)]
+
   fit_values  <- matrix(NA_real_, nrow = length(weight_rows), ncol = length(columns))
   eval_values <- matrix(NA_real_, nrow = length(active_rows), ncol = length(columns))
   colnames(fit_values)  <- columns
@@ -670,6 +678,11 @@
       eval_values = raw_eval,
       column      = column
     )
+    if (any(!is.finite(transformed[["fit"]]))) {
+      .iwmde_chen_conditional_stop(
+        "conditioning fit columns contain non-finite transformed values"
+      )
+    }
     fit_values[, column]  <- transformed[["fit"]]
     eval_values[, column] <- transformed[["eval"]]
   }
@@ -684,12 +697,6 @@
       eval    = matrix(numeric(), nrow = length(active_rows), ncol = 0L),
       columns = character()
     ))
-  }
-
-  if (any(!is.finite(fit_values))) {
-    .iwmde_chen_conditional_stop(
-      "conditioning fit columns contain non-finite transformed values"
-    )
   }
 
   keep <- vapply(seq_along(columns), function(i) {
@@ -758,7 +765,6 @@
   column %in% .iwmde_chen_global_conditioning_columns(context)
 }
 
-
 .iwmde_chen_global_conditioning_columns <- function(context) {
 
   context <- .iwmde_context_ensure_caches(context)
@@ -770,23 +776,26 @@
 
   sample_columns <- colnames(context[["posterior_samples"]])
   prior_list     <- context[["flat_prior_list"]]
-  columns <- unique(unlist(lapply(names(prior_list), function(parameter) {
-    prior <- prior_list[[parameter]]
-    if (BayesTools::is.prior(prior) &&
-        (BayesTools::is.prior.point(prior) ||
-         BayesTools::is.prior.none(prior))) {
-      return(character())
-    }
-    matches <- sample_columns == parameter |
-      BayesTools::JAGS_indexed_parameter_columns(
-        columns   = sample_columns,
-        parameter = parameter
-      )
-    matched <- sample_columns[matches]
-    if (!inherits(prior, "prior.simplex")) {
-      return(matched)
+  columns <- sample_columns[vapply(sample_columns, function(column) {
+    prior_name <- .iwmde_parameter_prior_name(context, column)
+    if (is.null(prior_name)) {
+      return(FALSE)
     }
 
+    prior <- prior_list[[prior_name]]
+    !BayesTools::is.prior(prior) ||
+      (!BayesTools::is.prior.point(prior) &&
+       !BayesTools::is.prior.none(prior))
+  }, logical(1))]
+
+  simplex_names <- names(prior_list)[vapply(
+    prior_list,
+    inherits,
+    logical(1),
+    what = "prior.simplex"
+  )]
+  for (parameter in simplex_names) {
+    prior <- prior_list[[parameter]]
     alpha <- prior[["parameters"]][["alpha"]]
     if (!is.numeric(alpha) || length(alpha) < 2L) {
       stop(
@@ -803,8 +812,8 @@
       )
     }
 
-    expected[-length(expected)]
-  }), use.names = FALSE))
+    columns <- setdiff(columns, expected[[length(expected)]])
+  }
 
   selection_columns <- sample_columns[vapply(
     sample_columns,
@@ -836,7 +845,19 @@
     character()
   }
   if (.iwmde_parameter_matches_coordinate(column, omega_coordinates)) {
-    return(.iwmde_chen_transform_omega(fit_values, eval_values))
+    support <- .iwmde_chen_omega_support(context)
+    if (all(is.finite(support))) {
+      return(.iwmde_chen_transform_bounded(
+        fit_values,
+        eval_values,
+        support
+      ))
+    }
+    return(.iwmde_chen_transform_lower_bounded(
+      fit_values,
+      eval_values,
+      support[[1L]]
+    ))
   }
 
   support <- .iwmde_chen_conditioning_support(context, column)
@@ -878,6 +899,21 @@
     return(NULL)
   }
   prior <- context[["flat_prior_list"]][[prior_name]]
+  if (identical(prior_name, "bias") &&
+      column %in% c("PET", "PEESE")) {
+    predicate <- if (identical(column, "PET")) {
+      BayesTools::is.prior.PET
+    } else {
+      BayesTools::is.prior.PEESE
+    }
+    branches <- if (BayesTools::is.prior.mixture(prior)) prior else list(prior)
+    branches <- branches[vapply(branches, predicate, logical(1))]
+    if (length(branches) == 0L) {
+      return(NULL)
+    }
+    supports <- vapply(branches, .iwmde_prior_support, numeric(2))
+    return(c(min(supports[1L, ]), max(supports[2L, ])))
+  }
   if (inherits(prior, "prior.simplex")) {
     return(c(0, 1))
   }
@@ -898,6 +934,41 @@
   }
 
   .iwmde_prior_support(prior)
+}
+
+
+.iwmde_chen_conditioning_column_is_constrained <- function(column, context) {
+
+  omega_coordinates <- if (!is.null(context[["selection_spec"]])) {
+    context[["selection_spec"]][["jags_omega"]]
+  } else {
+    character()
+  }
+  if (.iwmde_parameter_matches_coordinate(column, omega_coordinates)) {
+    return(TRUE)
+  }
+
+  support <- .iwmde_chen_conditioning_support(context, column)
+  !is.null(support) && any(is.finite(support))
+}
+
+
+.iwmde_chen_omega_support <- function(context) {
+
+  prior <- context[["flat_prior_list"]][["bias"]]
+  if (is.null(prior)) {
+    return(c(0, Inf))
+  }
+
+  branches <- if (BayesTools::is.prior.mixture(prior)) prior else list(prior)
+  supports <- lapply(branches, function(branch) {
+    if (BayesTools::is.prior.weightfunction(branch)) {
+      return(.iwmde_prior_support(branch))
+    }
+    c(1, 1)
+  })
+  support_matrix <- do.call(cbind, supports)
+  c(min(support_matrix[1L, ]), max(support_matrix[2L, ]))
 }
 
 
@@ -945,19 +1016,4 @@
     fit  = stats::qlogis(fit),
     eval = stats::qlogis(eval)
   ))
-}
-
-
-.iwmde_chen_transform_omega <- function(fit_values, eval_values) {
-
-  fit  <- as.numeric(fit_values)
-  eval <- as.numeric(eval_values)
-  all_values <- c(fit, eval)
-  finite     <- all_values[is.finite(all_values)]
-  if (length(finite) > 0L && min(finite) >= 0 &&
-      max(finite) <= 1) {
-    return(.iwmde_chen_transform_bounded(fit, eval, c(0, 1)))
-  }
-
-  return(.iwmde_chen_transform_lower_bounded(fit, eval, 0))
 }
