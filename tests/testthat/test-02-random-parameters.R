@@ -57,9 +57,10 @@ test_that("random catalog matches summaries across structures", {
     random_quantity <- quantity[quantity[["component"]] == "random", , drop = FALSE]
 
     expect_true(nrow(bundle[["specs"]]) > 0L, info = name)
+    summary_labels <- rownames(summary[["estimates_random"]])
+    expect_true(length(summary_labels) > 0L, info = name)
     expect_true(all(
-      bundle[["specs"]][["label"]] %in%
-        rownames(summary[["estimates_random"]])
+      summary_labels %in% bundle[["specs"]][["label"]]
     ), info = name)
     expect_setequal(
       bundle[["specs"]][["parameter"]],

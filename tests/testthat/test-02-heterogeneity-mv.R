@@ -818,9 +818,10 @@ test_that("brma.mv summary heterogeneity returns absolute component summaries", 
     )
   }
   for (component in names(allocation_summaries)) {
-    expect_true(
-      any(grepl(": var_prop(", rownames(summaries[[component]][["estimates"]]),
-                fixed = TRUE)),
+    expect_true(all(
+      c("var_prop(effect_study)", "var_prop(study)") %in%
+        rownames(summaries[[component]][["estimates"]])
+    ),
       info = paste(name, component, "allocation summary")
     )
   }
