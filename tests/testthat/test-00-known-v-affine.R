@@ -331,6 +331,88 @@ test_that("invariant affine covariance uses the declared basis directly", {
 })
 
 
+test_that("invariant q-grids bypass candidate covariance reconstruction", {
+
+  sampling <- matrix(c(
+    0.5, 0.1, 0.0,
+    0.1, 0.6, 0.2,
+    0.0, 0.2, 0.7
+  ), nrow = 3L, byrow = TRUE)
+  basis <- tcrossprod(c(1, 0.5, -0.25))
+  update <- structure(
+    list(
+      family                = "affine",
+      coefficient_input     = "source",
+      coefficient_transform = list(type = "square"),
+      invariant_covariance  = list(
+        reference_coefficient = 0,
+        base_covariance       = matrix(0, 3L, 3L),
+        update_covariance     = basis
+      )
+    ),
+    class = c(
+      "BayesTools_random_effects_marginal_update_plan",
+      "list"
+    )
+  )
+  values <- c(0, 0.4, 0.8)
+  means <- rbind(c(0.1, -0.1, 0.2), c(-0.2, 0.3, 0.1))
+  outcome <- c(0.3, -0.4, 0.6)
+  row_states <- list(list(row_index = 1L), list(row_index = 2L))
+  context <- list(
+    posterior_samples = matrix(
+      c(0.2, 0.5),
+      ncol = 1L,
+      dimnames = list(NULL, "tau")
+    ),
+    data = list(outcome = data.frame(yi = outcome))
+  )
+  setup <- list(
+    sampling_covariance = sampling,
+    dependency_blocks   = list(1:3)
+  )
+  testthat::local_mocked_bindings(
+    .iwmde_uses_known_v_random_marginal_likelihood = function(...) TRUE,
+    .iwmde_known_v_random_marginal_setup = function(...) setup,
+    .iwmde_predictor_evaluate_fixed_mu = function(...) means,
+    .iwmde_predictor_log_prior = function(...) {
+      numeric(length(values) * length(row_states))
+    },
+    .iwmde_random_affine_replacement_samples = function(...) {
+      stop("candidate covariance reconstruction must not run", call. = FALSE)
+    },
+    .brma_mv_random_effects_marginal_vcov = function(...) {
+      stop("candidate covariance reconstruction must not run", call. = FALSE)
+    },
+    .data_effect_direction = function(...) "positive",
+    .is_data_weights = function(...) FALSE,
+    .package = "RoBMA"
+  )
+
+  observed <- .iwmde_log_q_grid_known_v_random_affine(
+    context      = context,
+    parameter    = "tau",
+    values       = values,
+    row_states   = row_states,
+    replacement  = list(type = "scalar", covariance_update = update),
+    active_setup = list()
+  )
+  expected <- matrix(NA_real_, nrow = length(values), ncol = nrow(means))
+  for (g in seq_along(values)) {
+    covariance <- sampling + values[[g]]^2 * basis
+    for (s in seq_len(nrow(means))) {
+      expected[g, s] <- .marglik_mvn_log_density(
+        y          = outcome,
+        mean       = means[s, ],
+        covariance = covariance
+      )
+    }
+  }
+
+  expect_equal(observed, expected, tolerance = 1e-12)
+})
+
+
 test_that("generalized affine routing requires sampling dependence", {
 
   expect_false(.iwmde_random_affine_has_sampling_dependence(list(
