@@ -351,14 +351,16 @@ test_that("brma.mv fits extended known-V backend smoke models", {
     fit_known_R,
     include_mcmc_diagnostics = FALSE
   )
-  known_R_output <- capture.output(print(known_R_summary))
   expect_s3_class(fit_known_R, "brma.mv")
   expect_true(.is_mods(fit_known_R))
   expect_true(.is_random(fit_known_R))
   expect_equal(known_R_term[["compile_mode"]], "sampled")
   expect_equal(known_R_term[["group_covariance"]][["scale"]], "none")
   expect_match(known_R_syntax, "_xRE_GROUP_Zx", fixed = TRUE)
-  expect_true(any(grepl(": sd_ratio(", known_R_output, fixed = TRUE)))
+  expect_identical(
+    rownames(known_R_summary[["estimates_random"]]),
+    "sd_ratio(intercept)"
+  )
   fit_known_R <- suppressWarnings(add_loo(fit_known_R))
   expect_s3_class(fit_known_R[["loo"]][["estimate"]], "loo")
   save_fit(
@@ -472,7 +474,10 @@ test_that("brma.mv fits extended known-V backend smoke models", {
                          fixed = TRUE)))
   expect_true(any(grepl("Scale", random_scale_output, fixed = TRUE)))
   expect_true(any(random_scale_output == "Random"))
-  expect_true(any(grepl(": var_prop(", random_scale_output, fixed = TRUE)))
+  expect_true(all(
+    c("var_prop(effect_study)", "var_prop(study)") %in%
+      rownames(random_scale_summary[["estimates_random"]])
+  ))
   fit_block_random_scale <- suppressWarnings(add_loo(fit_block_random_scale))
   expect_s3_class(fit_block_random_scale[["loo"]][["estimate"]], "loo")
   save_fit(
