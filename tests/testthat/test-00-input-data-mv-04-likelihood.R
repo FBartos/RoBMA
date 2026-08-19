@@ -820,7 +820,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       prior_unit_information_sd = 1,
       only_priors               = TRUE
     ),
-    "provisional"
+    "rank-deficient correlation structure"
   )
   expect_s3_class(general_positive, "brma.mv")
   expect_warning(
@@ -841,7 +841,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       prior_unit_information_sd = 1,
       only_priors               = TRUE
     ),
-    "provisional"
+    "rank-deficient correlation structure"
   )
   expect_equal(
     .brma_mv_fixed_integrated_variance(scale_positive, K = 3L),
@@ -968,7 +968,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
         prior_unit_information_sd = 1,
         only_priors               = TRUE
       ),
-      "provisional"
+      "rank-deficient correlation structure"
     )
     expect_s3_class(positive, "brma.mv")
   }
@@ -998,7 +998,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       prior_unit_information_sd  = 1,
       only_priors                = TRUE
     ),
-    "provisional"
+    "rank-deficient correlation structure"
   )
   expect_true(.data_has_marginalized_random_effects(marginalized[["data"]]))
 
@@ -1014,7 +1014,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       prior_unit_information_sd  = 1,
       only_priors                = TRUE
     ),
-    "provisional"
+    "rank-deficient correlation structure"
   )
   expect_true(.data_has_marginalized_random_effects(allocated[["data"]]))
 

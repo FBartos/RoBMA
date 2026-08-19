@@ -1073,7 +1073,7 @@ test_that("known-V preparation can suppress duplicate singular warnings", {
       known_v_residual_fraction_specified = FALSE,
       warn_singular                       = TRUE
     ),
-    "singular"
+    "rank-deficient correlation structure"
   )
   expect_silent(
     .known_v_prepare(
