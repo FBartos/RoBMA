@@ -45,6 +45,9 @@
   random-slope designs and known covariance kernels while combining expanded
   named or multi-entry components on the variance scale. Bare and unnamed
   one-entry formulas retain their concrete block names.
+  VIF posterior correlations now request fixed location coefficients directly
+  from BayesTools instead of filtering random quantities by their displayed
+  names.
 - completes partial `prior_random()` specifications with RoBMA's usual
   UISD-scaled SD and variance-allocation defaults when the user supplies no
   scale architecture. Correlation defaults are delegated to BayesTools:

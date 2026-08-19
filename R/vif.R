@@ -604,12 +604,13 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   # keep_formulas = "mu" extracts all mu-formula coefficients
   # return_samples = TRUE returns S x P matrix instead of summary
   samples_mat <- as.matrix(BayesTools::JAGS_estimates_table(
-    fit                = object[["fit"]],
-    keep_formulas      = "mu",
-    remove_diagnostics = TRUE,
-    transform_factors  = TRUE,
-    transform_scaled   = TRUE,
-    return_samples     = TRUE
+    fit                    = object[["fit"]],
+    keep_formulas          = "mu",
+    random_effects_summary = "none",
+    remove_diagnostics     = TRUE,
+    transform_factors      = TRUE,
+    transform_scaled       = TRUE,
+    return_samples         = TRUE
   ))
   samples_mat <- .diagnostic_fixed_location_coefficient_samples(
     samples_mat,

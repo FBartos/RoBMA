@@ -204,8 +204,7 @@
     return(samples_mat)
   }
 
-  keep <- startsWith(column_names, "(mu) ") &
-    !grepl(": var_prop(", column_names, fixed = TRUE)
+  keep <- startsWith(column_names, "(mu) ")
 
   if (!any(keep)) {
     if (require_mu_columns) {
