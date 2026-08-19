@@ -138,6 +138,26 @@ test_that("random discovery uses the authoritative likelihood-aware target", {
     ),
     "KDE"
   )
+  expect_identical(
+    .hypothesis_quantities_random_point_methods(
+      parameter          = "direct",
+      object             = object,
+      methods            = c("qCMDE", "IWMDE"),
+      direct_allowed     = c(direct = FALSE),
+      likelihood_allowed = c(direct = TRUE)
+    ),
+    "qCMDE, IWMDE"
+  )
+  expect_identical(
+    .hypothesis_quantities_random_point_methods(
+      parameter          = "derived",
+      object             = object,
+      methods            = c("qCMDE", "IWMDE"),
+      direct_allowed     = c(derived = FALSE),
+      likelihood_allowed = c(derived = TRUE)
+    ),
+    ""
+  )
 })
 
 

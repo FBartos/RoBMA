@@ -81,33 +81,51 @@ hypothesis_quantities.brma <- function(object, ...) {
     index <- match(out[["parameter"]][is_random], specs[["parameter"]])
     likelihood_aware <- .hypothesis_quantities_iwmde_capability(object)
     random_parameters <- unique(out[["parameter"]][is_random])
-    random_point_methods <- vapply(
-      random_parameters,
-      .hypothesis_quantities_random_point_methods,
-      character(1),
-      object  = object,
-      methods = likelihood_aware[["methods"]]
-    )
-    names(random_point_methods) <- random_parameters
-    reasons <- vapply(index, function(i) {
-      spec <- as.list(specs[i, , drop = FALSE])
-      source_prior <- .brma_random_parameter_source_prior(
-        object,
-        spec
-      )
-      .brma_random_parameter_point_test_reason(
+    random_routes <- lapply(random_parameters, function(parameter) {
+
+      i <- match(parameter, specs[["parameter"]])
+      spec         <- as.list(specs[i, , drop = FALSE])
+      source_prior <- .brma_random_parameter_source_prior(object, spec)
+      direct_reason <- .brma_random_parameter_point_test_reason(
         spec         = spec,
-        prior        = bundle[["priors"]][[specs[["parameter"]][i]]],
+        prior        = bundle[["priors"]][[parameter]],
         source_prior = source_prior
       )
-    }, character(1))
+      likelihood_reason <- .brma_random_parameter_point_test_reason(
+        spec         = spec,
+        prior        = bundle[["priors"]][[parameter]],
+        source_prior = source_prior,
+        derived      = TRUE
+      )
+      point_methods <- .hypothesis_quantities_random_point_methods(
+        parameter          = parameter,
+        object             = object,
+        methods            = likelihood_aware[["methods"]],
+        direct_allowed     = !nzchar(direct_reason),
+        likelihood_allowed = !nzchar(likelihood_reason)
+      )
+      list(
+        point_methods = point_methods,
+        reason        = if (nzchar(point_methods)) "" else direct_reason
+      )
+    })
+    names(random_routes) <- random_parameters
     out[["bracket"]][is_random]                <- NA_character_
-    out[["point_test"]][is_random]             <- !nzchar(reasons)
-    out[["point_test_methods"]][is_random]     <- ifelse(
-      nzchar(reasons), "", random_point_methods[out[["parameter"]][is_random]]
+    point_methods <- vapply(
+      random_routes[out[["parameter"]][is_random]],
+      `[[`,
+      character(1),
+      "point_methods"
     )
+    out[["point_test"]][is_random]             <- nzchar(point_methods)
+    out[["point_test_methods"]][is_random]     <- point_methods
     out[["direction_test_methods"]][is_random] <- "KDE, normal"
-    out[["reason"]][is_random]                 <- reasons
+    out[["reason"]][is_random] <- vapply(
+      random_routes[out[["parameter"]][is_random]],
+      `[[`,
+      character(1),
+      "reason"
+    )
 
     fixed <- vapply(index, function(i) {
       values <- bundle[["samples"]][, i]
@@ -134,7 +152,8 @@ hypothesis_quantities.brma <- function(object, ...) {
 
 
 .hypothesis_quantities_random_point_methods <- function(
-    parameter, object, methods) {
+    parameter, object, methods, direct_allowed = TRUE,
+    likelihood_allowed = TRUE) {
 
   target <- tryCatch(
     .brma_random_parameter_density_target(object, parameter),
@@ -145,7 +164,14 @@ hypothesis_quantities.brma <- function(object, ...) {
     length(target[["parameter"]]) == 1L &&
     !is.na(target[["parameter"]]) && nzchar(target[["parameter"]])
 
-  paste(c("KDE", if (supported) methods else character()), collapse = ", ")
+  paste(c(
+    if (isTRUE(unname(direct_allowed))) "KDE" else character(),
+    if (supported && isTRUE(unname(likelihood_allowed))) {
+      methods
+    } else {
+      character()
+    }
+  ), collapse = ", ")
 }
 
 
