@@ -362,6 +362,16 @@
   increase by that rank when it exceeds one.
 
 ### Fixes
+- preserves exact hypothesis AST ordinates through qCMDE/IWMDE routing,
+  including transformed random-effect quantities and long decimal null values.
+  Metadata-backed random quantities retain their semantic prior densities and
+  advertise only applicable density methods. Point tests whose public
+  transformation has a singular Jacobian at the requested value now fail
+  immediately with a structural explanation instead of entering numerical
+  density estimation.
+- gives allocation-derived random-component SD density plots a stable default
+  row budget while preserving explicit user budgets and the smaller direct-
+  coordinate fast path.
 - exposes stored scalar random-effect coordinates consistently to plotting,
   `lines()`, `hypothesis()`, and qCMDE/IWMDE. This includes raw, Fisher-z, and
   bounded-logit structured correlations, bivariate LKJ correlations, shared
