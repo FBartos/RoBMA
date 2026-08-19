@@ -40,7 +40,7 @@
     }
 
     point_refs <- BayesTools::hypothesis_parse_point_reference(
-      hypothesis     = BayesTools::hypothesis_render(target[["hypothesis"]]),
+      hypothesis     = target[["hypothesis"]],
       allow_compound = FALSE
     )
     values <- unique(point_refs[["value"]])

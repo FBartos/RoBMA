@@ -750,7 +750,7 @@ hypothesis.brma <- function(object, hypothesis,
   prior_values     <- as.numeric(prior[["samples"]][, 1L])
 
   point_refs <- BayesTools::hypothesis_parse_point_reference(
-    hypothesis     = BayesTools::hypothesis_render(hypothesis),
+    hypothesis     = hypothesis,
     allow_compound = TRUE
   )
   if (nrow(point_refs) > 0L) {

@@ -152,6 +152,11 @@ test_that("point-null references must be direct", {
     )[["value"]],
     0
   )
+  precise <- BayesTools::hypothesis_parse("mu = 0.701406683025")
+  expect_identical(
+    .hypothesis_brma_point_refs(precise, parameter = "mu")[["value"]],
+    precise[["statements"]][[1L]][["left"]][["value"]]
+  )
   expect_equal(
     nrow(.hypothesis_brma_point_refs(
       BayesTools::hypothesis_parse("2 * mu > 0"),

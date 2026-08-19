@@ -311,7 +311,7 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
     object                    = list(),
     parameter                 = "theta",
     hypothesis                = BayesTools::hypothesis_parse(c(
-      "theta != 0 vs theta = 0",
+      "theta != 0.701406683025 vs theta = 0.701406683025",
       "theta != 1 vs theta = 1"
     )),
     standardized_coefficients = FALSE,
@@ -333,7 +333,7 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
 
   expect_s3_class(out, "BayesTools_hypothesis_BF")
   expect_identical(attachment_calls, 1L)
-  expect_identical(attached_values, c(0, 1))
+  expect_identical(attached_values, c(0.701406683025, 1))
   expect_identical(used_density_method, "precomputed")
   expect_identical(reused_selected, selected)
   expect_identical(reused_prior, selected)
