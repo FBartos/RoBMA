@@ -296,7 +296,7 @@
 #' religiosity and well-being from \insertCite{hoogeveen2023many;textual}{RoBMA}
 #'
 #' @description The data set contains standardized effect-size estimates,
-#' standard errors, 95\% confidence interval bounds, sample sizes, effect-size
+#' standard errors, 95% confidence interval bounds, sample sizes, effect-size
 #' types, sequential analyst-team identifiers, and team-level characteristics
 #' describing psychological dependent-variable coding and self-reported
 #' methodological knowledge. The Many-Analysts Religion Project examined
@@ -307,8 +307,8 @@
 #' \describe{
 #'   \item{\code{yi}}{Standardized effect-size estimate.}
 #'   \item{\code{sei}}{Standard error of the effect-size estimate.}
-#'   \item{\code{lci}}{Lower bound of the reported 95\% confidence interval.}
-#'   \item{\code{uci}}{Upper bound of the reported 95\% confidence interval.}
+#'   \item{\code{lci}}{Lower bound of the reported 95% confidence interval.}
+#'   \item{\code{uci}}{Upper bound of the reported 95% confidence interval.}
 #'   \item{\code{ni}}{Analysis sample size.}
 #'   \item{\code{type}}{Reported effect-size type: standardized regression coefficient beta or Cohen's d.}
 #'   \item{\code{team}}{Sequential analyst-team identifier in this example.}
