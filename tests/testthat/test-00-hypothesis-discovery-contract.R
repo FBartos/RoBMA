@@ -109,6 +109,38 @@ test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
 })
 
 
+test_that("random discovery uses the authoritative likelihood-aware target", {
+
+  object <- structure(list(), class = "brma")
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_density_target = function(object, parameter) {
+      if (identical(parameter, "direct")) {
+        return(list(parameter = "rho_raw"))
+      }
+      list(reason = "unsupported")
+    },
+    .package = "RoBMA"
+  )
+
+  expect_identical(
+    .hypothesis_quantities_random_point_methods(
+      parameter = "direct",
+      object    = object,
+      methods   = c("qCMDE", "IWMDE")
+    ),
+    "KDE, qCMDE, IWMDE"
+  )
+  expect_identical(
+    .hypothesis_quantities_random_point_methods(
+      parameter = "derived",
+      object    = object,
+      methods   = c("qCMDE", "IWMDE")
+    ),
+    "KDE"
+  )
+})
+
+
 test_that("marginal discovery shares its source-model IWMDE capability", {
 
   data <- structure(list(), random = TRUE)
