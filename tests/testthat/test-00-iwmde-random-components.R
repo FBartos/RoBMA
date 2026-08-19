@@ -339,6 +339,52 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
   expect_identical(reused_prior, selected)
 })
 
+
+test_that("semantic random point hypotheses reject singular display boundaries", {
+
+  selected <- list(
+    entry = list(term = "var_common"),
+    spec = list(
+      quantity         = "var_common",
+      source_parameter = "tau",
+      label            = "var_common"
+    ),
+    samples      = matrix(seq(0.01, 0.99, length.out = 100L), ncol = 1L),
+    prior        = NULL,
+    source_prior = BayesTools::prior("uniform", list(a = 0, b = 1))
+  )
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_select = function(...) selected,
+    .brma_random_parameter_density_target = function(...) list(
+      parameter         = "tau",
+      parameter_spec    = list(type = "primitive"),
+      display_transform = list(type = "square")
+    ),
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    .hypothesis_brma_random(
+      object                    = list(),
+      parameter                 = "var_common",
+      hypothesis                = BayesTools::hypothesis_parse(
+        "var_common = 0"
+      ),
+      standardized_coefficients = FALSE,
+      conditional               = FALSE,
+      logBF                     = FALSE,
+      BF01                      = FALSE,
+      seed                      = 1,
+      density_method            = "qCMDE",
+      density_control           = list(),
+      n_samples                 = 100L,
+      columns                   = "default"
+    ),
+    "public transformation is singular at that support boundary",
+    fixed = TRUE
+  )
+})
+
 test_that("batched ordinates retain value-specific diagnostics", {
 
   values <- c(0, 1)

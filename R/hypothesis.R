@@ -769,6 +769,29 @@ hypothesis.brma <- function(object, hypothesis,
     if (precomputed && is.null(target[["parameter"]])) {
       stop(target[["reason"]], call. = FALSE)
     }
+    if (precomputed && !is.null(target[["display_transform"]])) {
+      source_values <- BayesTools::parameter_transform_inverse(
+        point_refs[["value"]],
+        target[["display_transform"]]
+      )
+      jacobian <- BayesTools::parameter_transform_jacobian(
+        source_values,
+        target[["display_transform"]]
+      )
+      singular <- !is.finite(source_values) | !is.finite(jacobian) |
+        jacobian <= 0
+      if (any(singular)) {
+        value <- point_refs[["value"]][which(singular)[[1L]]]
+        stop(
+          "Point-null Bayes factors are unavailable for random-effect ",
+          "quantity '", posterior[["entry"]][["term"]], "' at ", value,
+          " because its public transformation is singular at that support ",
+          "boundary. Use the corresponding directly modeled scale or a ",
+          "region hypothesis.",
+          call. = FALSE
+        )
+      }
+    }
     reason <- .brma_random_parameter_point_test_reason(
       spec         = posterior[["spec"]],
       prior        = posterior[["prior"]],
