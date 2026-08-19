@@ -304,7 +304,7 @@ test_that("invariant affine covariance uses the declared basis directly", {
   coefficients <- c(0, 0.2, 0.8)
   means <- rbind(c(0.1, -0.1, 0.2), c(-0.2, 0.3, 0.1))
   outcome <- c(0.3, -0.4, 0.6)
-  observed <- .iwmde_random_affine_log_likelihood_invariant(
+  observed <- .iwmde_random_affine_log_likelihood_chunk(
     base_covariance       = invariant$base_covariance,
     update_covariance     = invariant$update_covariance,
     reference_coefficient = invariant$reference_coefficient,

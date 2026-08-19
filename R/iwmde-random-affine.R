@@ -59,7 +59,7 @@
     K      = K
   )
   if (!is.null(invariant)) {
-    evaluated <- .iwmde_random_affine_log_likelihood_invariant(
+    evaluated <- .iwmde_random_affine_log_likelihood_chunk(
       base_covariance       = invariant[["base_covariance"]],
       update_covariance     = invariant[["update_covariance"]],
       reference_coefficient = invariant[["reference_coefficient"]],
@@ -247,13 +247,18 @@
     base_covariance, update_covariance, reference_coefficient, coefficients,
     means, outcome, blocks) {
 
-  S <- dim(base_covariance)[1L]
+  draw_specific <- length(dim(base_covariance)) == 3L
+  if (draw_specific != (length(dim(update_covariance)) == 3L)) {
+    return(NULL)
+  }
+  S <- nrow(means)
   G <- length(coefficients)
   out <- matrix(0, nrow = G, ncol = S)
-  invariant <- .iwmde_random_affine_covariance_invariant(
-    base_covariance,
-    update_covariance
-  )
+  invariant <- !draw_specific ||
+    .iwmde_random_affine_covariance_invariant(
+      base_covariance,
+      update_covariance
+    )
 
   for (block in blocks) {
     shared_plan <- NULL
@@ -310,38 +315,6 @@
 }
 
 
-.iwmde_random_affine_log_likelihood_invariant <- function(
-    base_covariance, update_covariance, reference_coefficient, coefficients,
-    means, outcome, blocks) {
-
-  S <- nrow(means)
-  G <- length(coefficients)
-  out <- matrix(0, nrow = G, ncol = S)
-  for (block in blocks) {
-    plan <- .known_v_affine_spectral_plan(
-      base_covariance = base_covariance[block, block, drop = FALSE],
-      update_covariance = update_covariance[block, block, drop = FALSE],
-      reference_coefficient = reference_coefficient
-    )
-    if (is.null(plan)) {
-      return(NULL)
-    }
-    for (s in seq_len(S)) {
-      value <- .known_v_affine_log_likelihood(
-        plan         = plan,
-        residual     = outcome[block] - means[s, block],
-        coefficients = coefficients
-      )
-      if (is.null(value)) {
-        return(NULL)
-      }
-      out[, s] <- out[, s] + value
-    }
-  }
-  out
-}
-
-
 .iwmde_random_affine_covariance_invariant <- function(base_covariance,
                                                        update_covariance) {
 
@@ -363,6 +336,9 @@
 
 .iwmde_random_affine_covariance_block <- function(x, draw, block) {
 
+  if (is.matrix(x)) {
+    return(x[block, block, drop = FALSE])
+  }
   matrix(
     x[draw, block, block],
     nrow = length(block),
