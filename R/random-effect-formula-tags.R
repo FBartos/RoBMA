@@ -125,11 +125,13 @@
 #'
 #' BayesTools stores concrete coordinates, selectable semantic quantities, and
 #' aliases in one versioned parameter map. Random-effect canonical names use
-#' `(formula) owner: quantity(arguments)`, with the formula prefix optional when
-#' the remaining name is unambiguous. Parentheses contain coefficient or
-#' parameter names and square brackets contain factor or index levels. Examples
-#' include `study: sd(intercept)` and
-#' `study: cor(group[sensitivity],group[specificity])`.
+#' `(formula) owner: quantity(arguments)`, with the formula prefix optional.
+#' Bare formulas and unnamed one-entry lists suppress the redundant owner;
+#' explicitly named one-entry lists and multi-component models retain it.
+#' Parentheses contain coefficient or parameter names and square brackets
+#' contain factor or index levels. Examples include `sd(intercept)`,
+#' `cor(group[sensitivity],group[specificity])`, and, when an owner is visible,
+#' `study: sd(intercept)`.
 #'
 #' Public correlations are named `cor`; compact scalar `rho` and LKJ
 #' construction coordinates remain internal. Automatic total-variance

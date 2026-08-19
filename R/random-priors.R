@@ -111,18 +111,18 @@
 #' Random-effect quantities are exposed through the semantic catalog view of
 #' BayesTools' fitted parameter map. Concrete posterior coordinates are a linked
 #' view of the same map and are not additional public names. Canonical names use
-#' `(formula) owner: quantity(arguments)`; RoBMA accepts
-#' omission of the formula prefix when the remaining name is unambiguous.
+#' `(formula) owner: quantity(arguments)`; RoBMA accepts omission of the
+#' formula prefix.
 #' Parentheses contain coefficient or parameter names and square brackets
-#' contain factor or index levels. Examples are
-#' `study: sd(intercept)`,
-#' `study: cor(group[sensitivity],group[specificity])`, `sd_total`, and
-#' `var_prop(study)`. Compact scalar-correlation and LKJ construction
-#' coordinates are backend details, not public aliases.
+#' contain factor or index levels. Examples are `sd(intercept)`,
+#' `cor(group[sensitivity],group[specificity])`, `study: sd(intercept)`,
+#' `sd_total`, and `var_prop(study)`. Compact scalar-correlation and LKJ
+#' construction coordinates are backend details, not public aliases.
 #'
-#' A single top-level random component omits a redundant component owner. For
-#' multiple components, public component names come from the formula list;
-#' missing names are generated as `component 1`, `component 2`, and so on.
+#' A bare formula or unnamed one-entry list omits a redundant component owner.
+#' An explicitly named one-entry list retains its owner. For multiple
+#' components, public component names come from the formula list; missing names
+#' are generated as `component 1`, `component 2`, and so on.
 #' Total-variance allocations expose `sd_total`, `var_total`, and
 #' `var_prop(...)`. Mean-variance allocations expose `sd_common`, `var_common`,
 #' `var_ratio(...)`, and `sd_ratio(...)`.

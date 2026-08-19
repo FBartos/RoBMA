@@ -76,10 +76,10 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   ### hypothesis ----
   set.seed(1)
   qcmde_control <- list(samples = 1000L)
-  bf_hyp_us   <- hypothesis(fit_brma_us,  "study: cor(group[sensitivity],group[specificity]) = 0")
-  bf_hyp_hcs  <- hypothesis(fit_brma_hcs, "study: cor = 0")
-  bf_hyp_us_qCMDE  <- hypothesis(fit_brma_us,  "study: cor(group[sensitivity],group[specificity]) = 0", density_method = "qCMDE", density_control = qcmde_control)
-  bf_hyp_hcs_qCMDE <- hypothesis(fit_brma_hcs, "study: cor = 0", density_method = "qCMDE", density_control = qcmde_control)
+  bf_hyp_us   <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0")
+  bf_hyp_hcs  <- hypothesis(fit_brma_hcs, "cor = 0")
+  bf_hyp_us_qCMDE  <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0", density_method = "qCMDE", density_control = qcmde_control)
+  bf_hyp_hcs_qCMDE <- hypothesis(fit_brma_hcs, "cor = 0", density_method = "qCMDE", density_control = qcmde_control)
   bf_hcs_hcs0  <- bf(fit_brma_hcs, fit_brma_hcs0)
   bf_us_diag   <- bf(fit_brma_us, fit_brma_diag)
 
@@ -109,11 +109,11 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   })
 
   scenario_plot("cor", {
-    plot(fit_brma_us, "study: cor(group[sensitivity],group[specificity])", prior = TRUE)
-    lines(fit_brma_us, "study: cor(group[sensitivity],group[specificity])", density_method = "qCMDE", lty = 2)
+    plot(fit_brma_us, "cor(group[sensitivity],group[specificity])", prior = TRUE)
+    lines(fit_brma_us, "cor(group[sensitivity],group[specificity])", density_method = "qCMDE", lty = 2)
 
-    lines(fit_brma_hcs, "study: cor(group[sensitivity],group[specificity])", col = "blue")
-    lines(fit_brma_hcs, "study: cor(group[sensitivity],group[specificity])", col = "blue", lty = 2, density_method = "qCMDE")
+    lines(fit_brma_hcs, "cor(group[sensitivity],group[specificity])", col = "blue")
+    lines(fit_brma_hcs, "cor(group[sensitivity],group[specificity])", col = "blue", lty = 2, density_method = "qCMDE")
   })
 
   # other random parameters
@@ -126,8 +126,8 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     plot(fit_brma_us, "sd_common", prior = TRUE)
     plot(fit_brma_us, "var_common", prior = TRUE)
 
-    plot(fit_brma_us, "study: sd(group[sensitivity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
-    plot(fit_brma_us, "study: sd(group[specificity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
+    plot(fit_brma_us, "sd(group[sensitivity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
+    plot(fit_brma_us, "sd(group[specificity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
 
     plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE) #TODO: these should allow analytical prior visualization
     plot(fit_brma_us, "var_ratio(group[specificity])", prior = TRUE) #TODO: these should allow analytical prior visualization
@@ -139,8 +139,8 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     plot(fit_brma_hcs, "sd_common", prior = TRUE)
     plot(fit_brma_hcs, "var_common", prior = TRUE)
 
-    plot(fit_brma_hcs, "study: sd(group[sensitivity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
-    plot(fit_brma_hcs, "study: sd(group[specificity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
+    plot(fit_brma_hcs, "sd(group[sensitivity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
+    plot(fit_brma_hcs, "sd(group[specificity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
 
     plot(fit_brma_hcs, "var_ratio(group[sensitivity])", prior = TRUE) #TODO: these should allow analytical prior visualization
     plot(fit_brma_hcs, "var_ratio(group[specificity])", prior = TRUE) #TODO: these should allow analytical prior visualization

@@ -326,18 +326,18 @@ named block-allocation components.
 Random-effect quantities are exposed through the semantic catalog view of
 BayesTools' fitted parameter map. Concrete posterior coordinates are a linked
 view of the same map and are not additional public names. Canonical names use
-\verb{(formula) owner: quantity(arguments)}; RoBMA accepts
-omission of the formula prefix when the remaining name is unambiguous.
+\verb{(formula) owner: quantity(arguments)}; RoBMA accepts omission of the
+formula prefix.
 Parentheses contain coefficient or parameter names and square brackets
-contain factor or index levels. Examples are
-\code{study: sd(intercept)},
-\code{study: cor(group[sensitivity],group[specificity])}, \code{sd_total}, and
-\code{var_prop(study)}. Compact scalar-correlation and LKJ construction
-coordinates are backend details, not public aliases.
+contain factor or index levels. Examples are \code{sd(intercept)},
+\code{cor(group[sensitivity],group[specificity])}, \code{study: sd(intercept)},
+\code{sd_total}, and \code{var_prop(study)}. Compact scalar-correlation and LKJ
+construction coordinates are backend details, not public aliases.
 
-A single top-level random component omits a redundant component owner. For
-multiple components, public component names come from the formula list;
-missing names are generated as \verb{component 1}, \verb{component 2}, and so on.
+A bare formula or unnamed one-entry list omits a redundant component owner.
+An explicitly named one-entry list retains its owner. For multiple
+components, public component names come from the formula list; missing names
+are generated as \verb{component 1}, \verb{component 2}, and so on.
 Total-variance allocations expose \code{sd_total}, \code{var_total}, and
 \code{var_prop(...)}. Mean-variance allocations expose \code{sd_common}, \code{var_common},
 \code{var_ratio(...)}, and \code{sd_ratio(...)}.

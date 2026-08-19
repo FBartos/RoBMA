@@ -20,11 +20,13 @@
   `(formula) owner: quantity(parameter[level], ...)`, including `cor`, `sd`,
   `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`, `var_ratio`,
   and `sd_ratio`; backend coordinates are no longer accepted as public aliases.
-  A single random block omits its redundant owner prefix, so names such as
-  `cor(...)`, `sd_common`, and `var_ratio(...)` work directly in summaries,
-  plots, density estimation, and hypotheses; models with multiple blocks retain
-  block-qualified names. Lists with two or more unnamed random components use
-  `component 1`, `component 2`, and so on.
+  A bare formula or unnamed one-entry list omits its redundant owner prefix, so
+  names such as `cor(...)`, `sd_common`, and `var_ratio(...)` work directly in
+  summaries, plots, density estimation, and hypotheses. Explicitly named
+  one-entry lists and models with multiple blocks retain block-qualified names.
+  Lists with two or more unnamed random components use `component 1`,
+  `component 2`, and so on. Redundant owner-prefixed spellings for bare single
+  blocks are no longer retained as compatibility aliases.
   Generated allocations retain stable internal identifiers independently of
   these public names. Random-effect formula, prior, vignette, and maintainer
   documentation now consistently distinguishes backend coordinates from public
@@ -43,8 +45,9 @@
   Random-formula `type = "terms.scale"` predictions now group exact row-wise
   leaf SDs only for authoritative user-facing formula components, preserving
   random-slope designs and known covariance kernels while combining expanded
-  named or multi-entry components on the variance scale. Bare and unnamed
-  one-entry formulas retain their concrete block names.
+  named or multi-entry components on the variance scale. Internally, bare and
+  unnamed one-entry formulas retain their concrete block identifiers for this
+  prediction routing without exposing them as public parameter-name owners.
   VIF posterior correlations now request fixed location coefficients directly
   from BayesTools instead of filtering random quantities by their displayed
   names.

@@ -348,12 +348,13 @@ NULL
 #' one versioned parameter map. RoBMA summaries, plots, density estimation, and
 #' hypotheses use its semantic catalog view.
 #' Canonical random-effect names have the form
-#' `(formula) owner: quantity(arguments)`; the formula prefix can be omitted
-#' when the remaining name is unambiguous. Parentheses contain coefficient or
-#' parameter names and square brackets contain factor or index levels. Examples
-#' include `study: sd(intercept)`,
-#' `study: cor(group[sensitivity],group[specificity])`, `sd_total`, and
-#' `var_prop(study)`.
+#' `(formula) owner: quantity(arguments)`; the formula prefix can be omitted.
+#' A bare formula or unnamed one-entry list also suppresses its redundant owner,
+#' while an explicitly named one-entry list or a multi-component model retains
+#' owners for disambiguation. Parentheses contain coefficient or parameter
+#' names and square brackets contain factor or index levels. Examples include
+#' `sd(intercept)`, `cor(group[sensitivity],group[specificity])`,
+#' `study: sd(intercept)`, `sd_total`, and `var_prop(study)`.
 #' A custom `random_variance_allocation()` always requires a stable internal
 #' `name`; its `display_name` and `component_names` separately control these
 #' public owner and component labels.

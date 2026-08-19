@@ -67,9 +67,11 @@
 #' A bare formula or unnamed one-entry list suppresses a redundant top-level
 #' component prefix. An explicitly named one-entry list retains its name; in
 #' lists with two or more entries, missing names become `component 1`,
-#' `component 2`, and so on. Public random-effect quantities use semantic names
-#' such as `study: sd(intercept)`, `study: cor(x,y)`, `sd_total`, and
-#' `var_prop(study)` rather than backend coordinates.
+#' `component 2`, and so on. A bare single block therefore uses semantic names
+#' such as `sd(intercept)` and `cor(x,y)`; explicitly named or multiple
+#' components retain owners, as in `study: sd(intercept)`. Allocation names
+#' include `sd_total` and `var_prop(study)`. None of these public names expose
+#' backend coordinates.
 #' The optional `R` argument supplies known covariance or correlation matrices
 #' across random-effect grouping levels, following `metafor::rma.mv()` naming.
 #' `R` is separate from the known sampling covariance `V`: `V` describes

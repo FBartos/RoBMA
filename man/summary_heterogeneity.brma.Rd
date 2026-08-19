@@ -83,8 +83,8 @@ For heterogeneous structured random effects, such as
 \code{random = ~ har(time | study)}, the allocation table reports
 the exhaustive semantic allocation family: aggregate SD and variance,
 level-specific component SDs, variance ratios, and SD ratios. A redundant
-block owner is omitted when the model contains one random block and retained
-when multiple blocks require disambiguation.
+block owner is omitted for a bare formula or unnamed one-entry list and
+retained for explicitly named one-entry lists and multiple components.
 }
 \examples{
 \dontrun{
