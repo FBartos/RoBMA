@@ -538,18 +538,10 @@
   points  <- data.frame(x = numeric(), mass = numeric())
 
   point_location <- rep(NA_real_, n)
-
-  for (i in seq_len(n)) {
-    state <- .iwmde_focal_prior_state(context, parameter, samples[i, ])
-    if (identical(state[["status"]], "unsupported")) {
-      active[i] <- FALSE
-    } else if (identical(state[["status"]], "point")) {
-      active[i]         <- FALSE
-      point_location[i] <- state[["location"]]
-    } else {
-      active[i] <- TRUE
-    }
-  }
+  states <- .iwmde_focal_prior_states(context, parameter)
+  active <- states[["status"]] == "continuous"
+  point_rows <- states[["status"]] == "point"
+  point_location[point_rows] <- states[["location"]][point_rows]
 
   points <- .iwmde_point_mass_table(point_location, denominator = n)
 
@@ -569,28 +561,17 @@
   active         <- rep(FALSE, n)
   point_location <- rep(NA_real_, n)
 
-  for (i in seq_len(n)) {
-    row         <- samples[i, ]
-    point_sum   <- 0
-    unsupported <- FALSE
-
-    for (parameter in names(weights)) {
-      state <- .iwmde_focal_prior_state(context, parameter, row)
-
-      if (identical(state[["status"]], "unsupported")) {
-        unsupported <- TRUE
-        break
-      } else if (identical(state[["status"]], "point")) {
-        point_sum <- point_sum + weights[[parameter]] * state[["location"]]
-      } else if (identical(state[["status"]], "continuous")) {
-        active[i] <- TRUE
-      }
-    }
-
-    if (!active[i] && !unsupported) {
-      point_location[i] <- point_sum
-    }
+  point_sum   <- numeric(n)
+  unsupported <- rep(FALSE, n)
+  for (parameter in names(weights)) {
+    states <- .iwmde_focal_prior_states(context, parameter)
+    active <- active | states[["status"]] == "continuous"
+    unsupported <- unsupported | states[["status"]] == "unsupported"
+    point_rows <- states[["status"]] == "point"
+    point_sum[point_rows] <- point_sum[point_rows] +
+      weights[[parameter]] * states[["location"]][point_rows]
   }
+  point_location[!active & !unsupported] <- point_sum[!active & !unsupported]
 
   points <- .iwmde_point_mass_table(point_location, denominator = n)
 
@@ -704,10 +685,40 @@
     return(rep(FALSE, nrow(samples)))
   }
 
-  return(vapply(seq_len(nrow(samples)), function(i) {
-    state <- .iwmde_focal_prior_state(context, parameter, samples[i, ])
-    identical(state[["status"]], "continuous")
-  }, logical(1)))
+  return(.iwmde_parameter_components(context, parameter)[["active"]])
+}
+
+
+.iwmde_focal_prior_states <- function(context, parameter) {
+
+  cache <- context[["row_cache"]]
+  key <- paste0("focal_prior_states|", parameter)
+  if (exists(key, envir = cache, inherits = FALSE)) {
+    return(get(key, envir = cache, inherits = FALSE))
+  }
+
+  samples     <- context[["posterior_samples"]]
+  active_keys <- .iwmde_active_keys(context)
+  unique_keys <- unique(active_keys)
+  first_rows  <- match(unique_keys, active_keys)
+  unique_states <- lapply(first_rows, function(row) {
+    .iwmde_focal_prior_state(context, parameter, samples[row, ])
+  })
+  status <- vapply(unique_states, `[[`, character(1), "status")
+  location <- vapply(unique_states, function(state) {
+    if (identical(state[["status"]], "point")) {
+      return(as.numeric(state[["location"]]))
+    }
+    return(NA_real_)
+  }, numeric(1))
+  state_index <- match(active_keys, unique_keys)
+  out <- list(
+    status   = status[state_index],
+    location = location[state_index]
+  )
+  assign(key, out, envir = cache)
+
+  return(out)
 }
 
 

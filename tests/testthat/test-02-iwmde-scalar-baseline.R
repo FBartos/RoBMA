@@ -41,6 +41,61 @@ test_that("IWMDE mixture indicators are validated before active-prior selection"
   )
 })
 
+test_that("IWMDE vectorized prior states preserve product-space components", {
+
+  samples <- cbind(
+    mu            = seq_len(6) / 10,
+    tau           = seq_len(6) / 20,
+    mu_indicator  = c(1, 2, 1, 2, 2, 1),
+    tau_indicator = c(1, 1, 2, 2, 1, 2)
+  )
+  context <- .iwmde_context_ensure_caches(list(
+    posterior_samples = samples,
+    indicator_names   = c("mu_indicator", "tau_indicator"),
+    flat_prior_list   = list(
+      mu = BayesTools::prior_mixture(list(
+        BayesTools::prior("normal", parameters = list(mean = 0, sd = 1)),
+        BayesTools::prior_none()
+      )),
+      tau = BayesTools::prior_mixture(list(
+        BayesTools::prior("spike", parameters = list(location = .5)),
+        BayesTools::prior("normal", parameters = list(mean = 0, sd = 1))
+      ))
+    )
+  ))
+
+  mu_component <- .iwmde_parameter_components(context, "mu")
+  expect_identical(mu_component[["active"]], samples[, "mu_indicator"] == 1)
+  expect_equal(
+    mu_component[["point_location"]],
+    ifelse(samples[, "mu_indicator"] == 2, 0, NA_real_)
+  )
+
+  linear_component <- .iwmde_parameter_components(
+    context,
+    "mu_plus_tau",
+    list(type = "linear", weights = c(mu = 1, tau = 2))
+  )
+  expect_identical(
+    linear_component[["active"]],
+    samples[, "mu_indicator"] == 1 | samples[, "tau_indicator"] == 2
+  )
+  expect_equal(
+    linear_component[["point_location"]],
+    ifelse(
+      samples[, "mu_indicator"] == 2 & samples[, "tau_indicator"] == 1,
+      1,
+      NA_real_
+    )
+  )
+  expect_identical(.iwmde_active_keys(context), .iwmde_active_keys(context))
+
+  invalid_context <- context
+  invalid_context[["posterior_samples"]][1, "mu_indicator"] <- 1.5
+  invalid_context[["row_cache"]] <- new.env(parent = emptyenv())
+  expect_error(.iwmde_active_keys(invalid_context), "integer-valued")
+})
+
 test_that("IWMDE likelihood does not mask internal errors", {
 
   data <- list(outcome = data.frame(yi = 0, sei = 1))

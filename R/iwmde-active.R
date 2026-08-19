@@ -55,6 +55,37 @@
 }
 
 
+.iwmde_active_keys <- function(context) {
+
+  cache <- context[["row_cache"]]
+  key   <- "active_keys"
+  if (exists(key, envir = cache, inherits = FALSE)) {
+    return(get(key, envir = cache, inherits = FALSE))
+  }
+
+  samples         <- context[["posterior_samples"]]
+  indicator_names <- context[["indicator_names"]]
+  if (length(indicator_names) == 0L) {
+    keys <- rep("all", nrow(samples))
+    assign(key, keys, envir = cache)
+    return(keys)
+  }
+
+  parts <- lapply(indicator_names, function(name) {
+    values <- if (name %in% colnames(samples)) {
+      .as_exact_model_indicator(samples[, name], name)
+    } else {
+      rep("NA", nrow(samples))
+    }
+    paste0(name, "=", values)
+  })
+  keys <- do.call(paste, c(parts, sep = "|"))
+  assign(key, keys, envir = cache)
+
+  return(keys)
+}
+
+
 .iwmde_active_nested_priors <- function(context, row) {
 
   priors <- context[["priors"]]
