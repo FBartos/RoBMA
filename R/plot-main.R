@@ -211,8 +211,6 @@ lines.brma <- function(
     density_control = NULL, component = "auto", add = FALSE, ...) {
 
   ### check user input
-  density_samples_omitted <- is.null(density_control) ||
-    (is.list(density_control) && is.null(density_control[["samples"]]))
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(prior, "prior")
   BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
@@ -281,11 +279,6 @@ lines.brma <- function(
       target <- .brma_random_parameter_density_target(x, parameter)
       if (is.null(target[["parameter"]])) {
         stop(target[["reason"]], call. = FALSE)
-      }
-      if (density_samples_omitted && identical(density_method, "qCMDE") &&
-          identical(target[["parameter_spec"]][["type"]],
-                    "random_component_sd")) {
-        density_control[["samples"]] <- 1000L
       }
       samples <- .plot_brma_attach_iwmde(
         object               = x,

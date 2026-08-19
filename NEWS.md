@@ -50,6 +50,9 @@
   names.
   Compact `ranef()` output for structure-owned index blocks now labels cells
   from the persisted index columns rather than their shared SD leaf.
+  Derived allocation-component density examples now state their required row
+  budgets explicitly; plotting no longer applies a hidden target-specific
+  qCMDE budget override.
 - completes partial `prior_random()` specifications with RoBMA's usual
   UISD-scaled SD and variance-allocation defaults when the user supplies no
   scale architecture. Correlation defaults are delegated to BayesTools:

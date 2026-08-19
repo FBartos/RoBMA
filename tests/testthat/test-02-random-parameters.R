@@ -815,6 +815,7 @@ test_that("direct multivariate random quantities expose density targets", {
       density_method  = "qCMDE",
       density_control = list(
         n_points             = 20L,
+        samples              = 1500L,
         normalization_points = 200L
       ),
       plot_type = "ggplot"

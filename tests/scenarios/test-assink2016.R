@@ -223,10 +223,10 @@ testthat::test_that("Assink multivariate nested random-effects model", {
     lines(fit_brma.mv, "sd_total", density_method = "qCMDE", lty = 2)
 
     plot(fit_brma.mv, "study: sd(intercept)", prior = TRUE)
-    lines(fit_brma.mv, "study: sd(intercept)", density_method = "qCMDE", lty = 2)
+    lines(fit_brma.mv, "study: sd(intercept)", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000L))
 
     plot(fit_brma.mv, "esid_study: sd(intercept)", prior = TRUE)
-    lines(fit_brma.mv, "esid_study: sd(intercept)", density_method = "qCMDE", lty = 2)
+    lines(fit_brma.mv, "esid_study: sd(intercept)", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000L))
 
     plot(fit_brma.mv, "var_prop(esid_study)", prior = TRUE)
     lines(fit_brma.mv, "var_prop(esid_study)", density_method = "qCMDE", lty = 2)
@@ -243,10 +243,10 @@ testthat::test_that("Assink multivariate nested random-effects model", {
     lines(fit_brma.mv_diag, "sd_total", density_method = "qCMDE", lty = 2)
 
     plot(fit_brma.mv_diag, "study: sd(intercept)", prior = TRUE)
-    lines(fit_brma.mv_diag, "study: sd(intercept)", density_method = "qCMDE", lty = 2)
+    lines(fit_brma.mv_diag, "study: sd(intercept)", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000L))
 
     plot(fit_brma.mv_diag, "esid_study: sd(intercept)", prior = TRUE)
-    lines(fit_brma.mv_diag, "esid_study: sd(intercept)", density_method = "qCMDE", lty = 2)
+    lines(fit_brma.mv_diag, "esid_study: sd(intercept)", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000L))
 
     plot(fit_brma.mv_diag, "var_prop(esid_study)", prior = TRUE)
     lines(fit_brma.mv_diag, "var_prop(esid_study)", density_method = "qCMDE", lty = 2)
