@@ -658,8 +658,14 @@ test_that("random-formula brma.mv newdata estimate predictions use BayesTools ta
 
   scale <- predict(fit_brma, newdata = newdata_scale, type = "terms.scale", quiet = TRUE)
   expect_type(scale, "list")
-  expect_equal(names(scale), "component 1")
-  expect_brma_samples_matrix(scale[["component 1"]], nrow(newdata_scale), "random brma.mv newdata terms.scale")
+  expect_equal(names(scale), c("effect_study", "study"))
+  for (component in names(scale)) {
+    expect_brma_samples_matrix(
+      scale[[component]],
+      nrow(newdata_scale),
+      paste("random brma.mv newdata terms.scale", component)
+    )
+  }
 
   estimate <- predict(fit_brma, newdata = newdata_random, type = "estimate", quiet = TRUE)
   expect_brma_samples_matrix(

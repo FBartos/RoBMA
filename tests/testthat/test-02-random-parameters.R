@@ -58,10 +58,17 @@ test_that("random catalog matches summaries across structures", {
 
     expect_true(nrow(bundle[["specs"]]) > 0L, info = name)
     summary_labels <- rownames(summary[["estimates_random"]])
-    expect_true(length(summary_labels) > 0L, info = name)
-    expect_true(all(
-      summary_labels %in% bundle[["specs"]][["label"]]
-    ), info = name)
+    summary_parameters <- attr(summary[["estimates_random"]], "parameters")
+    matched <- summary_parameters %in% bundle[["specs"]][["parameter"]]
+    expect_true(any(matched), info = name)
+    expect_equal(
+      summary_labels[matched],
+      bundle[["specs"]][["label"]][match(
+        summary_parameters[matched],
+        bundle[["specs"]][["parameter"]]
+      )],
+      info = name
+    )
     expect_setequal(
       bundle[["specs"]][["parameter"]],
       unique(random_quantity[["parameter"]])
