@@ -131,7 +131,9 @@ info <- lazy_infos(c(mv_fixed_metafor_fit_name, mv_known_r_metafor_fit_name,
 .mv_posterior_subset <- function(fit_brma, n = 600) {
 
   posterior_samples <- as.matrix(fit_brma[["fit"]][["mcmc"]])
-  posterior_samples[seq_len(min(n, nrow(posterior_samples))), , drop = FALSE]
+  rows <- .nested_srs_rows(seq_len(nrow(posterior_samples)), n)
+
+  posterior_samples[rows, , drop = FALSE]
 }
 
 test_that("fixed-effect brma.mv with random = NULL matches metafor", {
