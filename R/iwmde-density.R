@@ -497,7 +497,7 @@
 
   key <- paste(
     base_state[["row_index"]],
-    .iwmde_active_key(context, base_state[["row"]]),
+    base_state[["active_key"]],
     likelihood_mode,
     sep = "|"
   )
@@ -542,7 +542,7 @@
   }
 
   row          <- context[["posterior_samples"]][row_index, ]
-  active_key   <- .iwmde_active_key(context, row)
+  active_key   <- .iwmde_active_keys(context)[[row_index]]
   active_setup <- .iwmde_active_setup(context, row, active_key)
 
   state <- list(
