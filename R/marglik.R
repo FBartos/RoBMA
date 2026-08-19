@@ -63,7 +63,7 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' standardized latent effects are removed. This is a reparameterization of the
 #' same marginal-likelihood target, not a likelihood approximation. Fitted
 #' estimate-level marginalized blocks remain in the diagonal row variance.
-#' For Gaussian models fitted with the legacy code{cluster} argument, the
+#' For Gaussian models fitted with the legacy \code{cluster} argument, the
 #' standardized cluster effects are likewise integrated exactly. The bridge
 #' retains total heterogeneity and its allocation while evaluating the implied
 #' diagonal-plus-cluster-rank-one covariance, including row-specific scale
