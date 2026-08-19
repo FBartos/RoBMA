@@ -354,7 +354,10 @@ deviation, correlation, and allocation summaries.
 \code{summary_heterogeneity(component = ...)} describes component heterogeneity
 over the observed design, whereas \code{pooled_heterogeneity(component = ...)}
 evaluates absolute component heterogeneity at the average expanded random
-design. General known-\code{V} models do not report scalar I2/H2.
+design. Both report the fitted heterogeneity scale without fixed known-\code{R}
+group covariance multipliers; row-specific scale prediction and covariance
+consumers retain the full known \code{R}. General known-\code{V} models do not report
+scalar I2/H2.
 }
 
 \examples{

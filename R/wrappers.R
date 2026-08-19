@@ -305,7 +305,9 @@ pooled_effect <- function(object, ...) {
 #' prediction interval is marginal over one new true effect at the same average
 #' location, scale, and random-effect design. It therefore uses
 #' \code{pooled_heterogeneity()}, not the observed-design RMS heterogeneity
-#' reported by \code{summary_heterogeneity()}.
+#' reported by \code{summary_heterogeneity()}. For known-\eqn{R} random
+#' effects this is a unit-kernel reference interval; use \code{predict()} for
+#' an interval tied to a fitted group and its known covariance multiplier.
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
 #' displays a one-row summary table whose \code{PI} columns contain posterior
@@ -478,8 +480,11 @@ pooled_heterogeneity <- function(object, ...) {
 #' component and a named list when there are multiple components.
 #' \code{component = "total"} computes the variance-additive total at the
 #' average random-effect design. Random slopes are evaluated as
-#' \eqn{\bar q^T G \bar q}; known-\eqn{R} group multipliers are averaged over
-#' the fitted rows for the one-study marginal variance target.
+#' \eqn{\bar q^T G \bar q}. Known-\eqn{R} group covariance kernels are
+#' excluded because they are fixed offsets to, rather than fitted components
+#' of, the heterogeneity scale. Row-specific marginal standard deviations that
+#' include known \eqn{R} are available from
+#' \code{predict(type = "terms.scale")}.
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
 #' displays a summary table. For decomposed \code{brma.mv()} models, a named

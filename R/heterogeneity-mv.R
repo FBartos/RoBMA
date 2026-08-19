@@ -197,44 +197,13 @@
     )
     attr(pooled_matrix, "assign") <- attr(model_matrix, "assign")
 
-    group_map <- 1L
-    group_covariance <- term[["group_covariance"]]
-    if (is.list(group_covariance) &&
-        identical(group_covariance[["type"]], "known")) {
-      kernel       <- group_covariance[["kernel"]]
-      fitted_group <- term[["group_map"]]
-      if (!is.matrix(kernel) || nrow(kernel) != ncol(kernel) ||
-          any(!is.finite(kernel)) || any(diag(kernel) < 0) ||
-          !is.numeric(fitted_group) ||
-          length(fitted_group) != nrow(model_matrix) ||
-          anyNA(fitted_group) || any(!is.finite(fitted_group)) ||
-          any(fitted_group != as.integer(fitted_group)) ||
-          any(fitted_group < 1L | fitted_group > nrow(kernel))) {
-        stop("Known-R pooled heterogeneity metadata are invalid.",
-             call. = FALSE)
-      }
-      fitted_multiplier <- diag(kernel)[fitted_group]
-      pooled_multiplier <- mean(fitted_multiplier)
-      positive_groups   <- which(diag(kernel) > 0)
-      if (pooled_multiplier == 0) {
-        pooled_matrix[] <- 0
-      } else if (length(positive_groups) == 0L) {
-        stop("Known-R pooled heterogeneity has no positive marginal variance.",
-             call. = FALSE)
-      } else {
-        group_map     <- positive_groups[[1L]]
-        pooled_matrix <- pooled_matrix * sqrt(
-          pooled_multiplier / diag(kernel)[group_map]
-        )
-      }
-    }
-
     term[["model_matrix"]] <- pooled_matrix
-    term[["group_map"]]    <- group_map
+    term[["group_map"]]    <- 1L
     terms[[i]]              <- term
   }
 
   formula_design[["random_effects"]] <- terms
+  formula_design <- .brma_mv_remove_known_group_covariance(formula_design)
   fixed_matrix <- formula_design[["model_matrix"]]
   if (is.matrix(fixed_matrix) && nrow(fixed_matrix) > 0L) {
     formula_design[["model_matrix"]] <- matrix(
@@ -262,8 +231,9 @@
     dots[[".posterior_samples"]]
   )
   components <- .brma_mv_heterogeneity_components(
-    object            = object,
-    posterior_samples = posterior_samples
+    object                         = object,
+    posterior_samples              = posterior_samples,
+    include_known_group_covariance = FALSE
   )
   allocation_summaries <- .summary_heterogeneity_brma_mv_allocations(
     object            = object,
@@ -1119,8 +1089,9 @@
 }
 
 
-.brma_mv_heterogeneity_components <- function(object,
-                                              posterior_samples = NULL) {
+.brma_mv_heterogeneity_components <- function(
+    object, posterior_samples = NULL,
+    include_known_group_covariance = FALSE) {
 
   posterior_samples <- .get_posterior_samples(object[["fit"]],
                                               posterior_samples)
@@ -1128,9 +1099,10 @@
 
   if (.is_random(object)) {
     return(.brma_mv_random_heterogeneity_components(
-      object            = object,
-      posterior_samples = posterior_samples,
-      K                 = K
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      K                              = K,
+      include_known_group_covariance = include_known_group_covariance
     ))
   }
 
@@ -1164,7 +1136,8 @@
                                                      posterior_samples,
                                                      K,
                                                      data = object[["data"]],
-                                                     new_levels = NULL) {
+                                                     new_levels = NULL,
+                                                     include_known_group_covariance = TRUE) {
 
   formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
   terms          <- formula_design[["random_effects"]]
@@ -1199,25 +1172,27 @@
         ),
         error = function(e) {
           .brma_mv_random_block_row_sd_samples(
-            object            = object,
-            posterior_samples = posterior_samples,
-            block             = term[["block_name"]],
-            K                 = K,
-            data              = data,
-            new_levels        = new_levels,
-            original_error    = e
+            object                         = object,
+            posterior_samples              = posterior_samples,
+            block                          = term[["block_name"]],
+            K                              = K,
+            data                           = data,
+            new_levels                     = new_levels,
+            original_error                 = e,
+            include_known_group_covariance = include_known_group_covariance
           )
         }
       )
     } else {
       samples <- .brma_mv_random_block_row_sd_samples(
-        object            = object,
-        posterior_samples = posterior_samples,
-        block             = term[["block_name"]],
-        K                 = K,
-        data              = data,
-        new_levels        = new_levels,
-        original_error    = NULL
+        object                         = object,
+        posterior_samples              = posterior_samples,
+        block                          = term[["block_name"]],
+        K                              = K,
+        data                           = data,
+        new_levels                     = new_levels,
+        original_error                 = NULL,
+        include_known_group_covariance = include_known_group_covariance
       )
     }
     .expand_brma_mv_heterogeneity_samples(
@@ -1296,16 +1271,18 @@
 
 .brma_mv_random_block_row_sd_samples <- function(
     object, posterior_samples, block, K, data = object[["data"]],
-    new_levels = NULL, original_error = NULL) {
+    new_levels = NULL, original_error = NULL,
+    include_known_group_covariance = TRUE) {
 
   random_vcov <- tryCatch(
     .brma_mv_random_effects_marginal_vcov(
-      object            = object,
-      posterior_samples = posterior_samples,
-      blocks            = block,
-      data              = data,
-      new_levels        = new_levels,
-      diagonal_only     = TRUE
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      blocks                          = block,
+      data                            = data,
+      new_levels                      = new_levels,
+      diagonal_only                   = TRUE,
+      include_known_group_covariance = include_known_group_covariance
     ),
     error = function(e) {
       direct_message <- if (is.null(original_error)) {

@@ -58,8 +58,11 @@ returns one \code{brma_samples} object when there is a single heterogeneity
 component and a named list when there are multiple components.
 \code{component = "total"} computes the variance-additive total at the
 average random-effect design. Random slopes are evaluated as
-\eqn{\bar q^T G \bar q}; known-\eqn{R} group multipliers are averaged over
-the fitted rows for the one-study marginal variance target.
+\eqn{\bar q^T G \bar q}. Known-\eqn{R} group covariance kernels are
+excluded because they are fixed offsets to, rather than fitted components
+of, the heterogeneity scale. Row-specific marginal standard deviations that
+include known \eqn{R} are available from
+\code{predict(type = "terms.scale")}.
 }
 \examples{
 \dontrun{

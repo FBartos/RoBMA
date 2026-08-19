@@ -66,7 +66,9 @@ For models without moderators, this returns the single mu parameter. The
 prediction interval is marginal over one new true effect at the same average
 location, scale, and random-effect design. It therefore uses
 \code{pooled_heterogeneity()}, not the observed-design RMS heterogeneity
-reported by \code{summary_heterogeneity()}.
+reported by \code{summary_heterogeneity()}. For known-\eqn{R} random
+effects this is a unit-kernel reference interval; use \code{predict()} for
+an interval tied to a fitted group and its known covariance multiplier.
 }
 \examples{
 \dontrun{

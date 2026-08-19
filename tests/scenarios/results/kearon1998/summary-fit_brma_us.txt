@@ -1,0 +1,15 @@
+
+Bayesian Multivariate Mixed-Effect Model (k = 28)
+
+Location
+                     Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+group[sensitivity] -0.014 0.216 -0.424 -0.020 0.429     0.00550          0.025 1542 1.001
+group[specificity]  2.740 0.259  2.211  2.746 3.230     0.00548          0.021 2284 1.001
+
+Random
+                                             Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+cor(group[sensitivity],group[specificity]) -0.324 0.372 -0.923 -0.359 0.478     0.00848          0.023 1918 1.003
+sd_common                                   0.722 0.183  0.421  0.701 1.136     0.00389          0.021 2224 1.001
+var_ratio(group[sensitivity])               0.968 0.367  0.315  0.954 1.698     0.00710          0.019 2715 1.002
+var_ratio(group[specificity])               1.032 0.367  0.302  1.046 1.685     0.00710          0.019 2715 1.002
+

@@ -158,7 +158,10 @@
 #' `summary_heterogeneity(component = ...)` describes component heterogeneity
 #' over the observed design, whereas `pooled_heterogeneity(component = ...)`
 #' evaluates absolute component heterogeneity at the average expanded random
-#' design. General known-`V` models do not report scalar I2/H2.
+#' design. Both report the fitted heterogeneity scale without fixed known-`R`
+#' group covariance multipliers; row-specific scale prediction and covariance
+#' consumers retain the full known `R`. General known-`V` models do not report
+#' scalar I2/H2.
 #'
 #' @return A fitted object of class `c("brma.mv", "brma.norm", "brma")`.
 #' The advanced internal `only_data = TRUE` path returns checked data before

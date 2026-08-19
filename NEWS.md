@@ -521,8 +521,10 @@
   the R serialization writer version, and refreshes affected precomputed fits.
 - evaluates `pooled_heterogeneity()` at the average expanded scale and random
   design and adds the corresponding prediction-interval columns to
-  `pooled_effect()`; observed-design summaries, funnel plots, radial plots, and
-  influence diagnostics retain their within-draw RMS heterogeneity targets.
+  `pooled_effect()`; `summary_heterogeneity()` retains its within-draw RMS over
+  the observed fitted heterogeneity design. Both heterogeneity interfaces
+  exclude fixed known-`R` group covariance kernels, while funnel plots, radial
+  plots, and influence diagnostics retain row-marginal covariance targets.
 - hardens known-`V` estimate log-likelihood sums, diagnostics, funnel variance
   extraction, qCMDE/IWMDE random-SD handling (including synchronized
   allocation-derived component SDs), and `brma.mv()` target metadata
@@ -579,7 +581,9 @@
 - makes certification workers fail when required numerical evidence is missing,
   skipped, duplicated, or executes without a passing expectation.
 - applies known-R row-variance multipliers consistently to scale predictions,
-  random-effect draws, BLUPs, and pooled heterogeneity.
+  random-effect draws, BLUPs, and covariance-based diagnostics while keeping
+  pooled and summarized heterogeneity on the fitted covariance-parameter
+  scale.
 - evaluates random-slope `terms.scale` predictions from each explicit new row's
   fitted-scale random design instead of reusing the fitted design.
 - computes deleted-row location-scale influence heterogeneity with the package's

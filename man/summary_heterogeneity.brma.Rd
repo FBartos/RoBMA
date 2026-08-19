@@ -69,6 +69,11 @@ the partitioned I^2 follows the approach described in the metafor documentation.
 
 For \code{brma.mv()} models, the method reports absolute heterogeneity
 summaries (\code{tau}, \code{tau2}) for selected random-effect components.
+Known-\eqn{R} group covariance kernels are excluded from these summaries:
+they are fixed offsets applied after the fitted heterogeneity scale. They
+remain included in row-specific marginal standard deviations from
+\code{predict(type = "terms.scale")} and in covariance-based prediction and
+diagnostics.
 Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
 known-V covariance structures. For \code{component = "total"}, independent
 component variances are summed before summarizing \code{tau2}; \code{tau}

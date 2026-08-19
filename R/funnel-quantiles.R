@@ -42,8 +42,9 @@
 
   if (inherits(object, "brma.mv")) {
     components <- .brma_mv_heterogeneity_components(
-      object            = object,
-      posterior_samples = posterior_samples
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      include_known_group_covariance = TRUE
     )
     total <- .total_brma_mv_heterogeneity_samples(components)
     return(.brma_mv_rms_sd_samples(total))
@@ -90,8 +91,9 @@
 
   if (inherits(object, "brma.mv")) {
     components <- .brma_mv_heterogeneity_components(
-      object            = object,
-      posterior_samples = posterior_samples
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      include_known_group_covariance = TRUE
     )
     return(.total_brma_mv_heterogeneity_samples(components))
   }

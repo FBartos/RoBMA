@@ -1,0 +1,12 @@
+
+Heterogeneity Estimates (study):
+                               Mean Median 0.025 0.975
+sd_common                     0.722  0.701 0.421 1.136
+var_common                    0.555  0.492 0.177 1.290
+sd(group[sensitivity])        0.685  0.663 0.373 1.121
+sd(group[specificity])        0.731  0.699 0.295 1.350
+var_ratio(group[sensitivity]) 0.968  0.954 0.315 1.698
+var_ratio(group[specificity]) 1.032  1.046 0.302 1.685
+sd_ratio(group[sensitivity])  0.964  0.977 0.561 1.303
+sd_ratio(group[specificity])  0.997  1.023 0.549 1.298
+

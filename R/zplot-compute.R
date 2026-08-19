@@ -160,8 +160,9 @@
 
   if (inherits(object, "brma.mv") && conditioning_depth == "marginal") {
     components <- .brma_mv_heterogeneity_components(
-      object            = object,
-      posterior_samples = posterior_samples
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      include_known_group_covariance = TRUE
     )
     return(.total_brma_mv_heterogeneity_samples(components))
   }

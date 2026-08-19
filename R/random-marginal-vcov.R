@@ -10,7 +10,8 @@
 
 .brma_mv_random_effects_marginal_vcov <- function(
     object, posterior_samples, blocks = NULL, diagonal_only = FALSE,
-    data = object[["data"]], new_levels = NULL) {
+    data = object[["data"]], new_levels = NULL,
+    include_known_group_covariance = TRUE) {
 
   formula_fit <- .posterior_formula_fit(
     fit               = object[["fit"]],
@@ -24,6 +25,9 @@
     )
   } else {
     .fitted_formula_design(object, "mu", required = TRUE)
+  }
+  if (!include_known_group_covariance) {
+    formula_design <- .brma_mv_remove_known_group_covariance(formula_design)
   }
   attr(formula_fit, "formula_design") <- list(mu = formula_design)
 
@@ -83,4 +87,23 @@
     blocks            = blocks,
     row_blocks        = row_blocks
   ))
+}
+
+
+.brma_mv_remove_known_group_covariance <- function(formula_design) {
+
+  terms <- formula_design[["random_effects"]]
+  for (i in seq_along(terms)) {
+    if (!.random_effect_term_has_known_group_covariance(terms[[i]])) {
+      next
+    }
+
+    terms[[i]][["group_covariance"]]         <- NULL
+    terms[[i]][["marginal_variance_factor"]] <- NULL
+    terms[[i]][["row_multiplier"]]           <- NULL
+    terms[[i]][["row_multiplier_name"]]      <- NULL
+  }
+
+  formula_design[["random_effects"]] <- terms
+  return(formula_design)
 }

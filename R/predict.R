@@ -674,11 +674,12 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   posterior_samples <- context[["posterior_samples"]]
   if (context[["random_mv"]]) {
     scale_samples <- .brma_mv_random_heterogeneity_components(
-      object            = object,
-      posterior_samples = posterior_samples,
-      K                 = context[["K_original"]],
-      data              = new_data,
-      new_levels        = if (context[["same_data"]]) NULL else "sample"
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      K                              = context[["K_original"]],
+      data                           = new_data,
+      new_levels                     = if (context[["same_data"]]) NULL else "sample",
+      include_known_group_covariance = TRUE
     )
     scale_samples <- .predict_brma_random_scale_components(
       object        = object,

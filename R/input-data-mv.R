@@ -278,9 +278,7 @@
   warning(
     "The 'V' argument is positive semidefinite, not positive definite, ",
     "because at least one dependency block has a rank-deficient correlation ",
-    "structure. Acceptance is provisional until the fitted priors and ",
-    "compiled random effects confirm that every singular direction is ",
-    "regularized.",
+    "structure.",
     call.      = FALSE,
     immediate. = TRUE
   )

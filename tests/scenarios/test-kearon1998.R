@@ -60,34 +60,66 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   })
 
   ### model summaries ----
+  # TODO: the parameter summary order for the random effects should be
+  # - sd_common
+  # - var_ratio
+  # - cor
   fit_metafor_us
   scenario_text("summary-fit_brma_us",  summary(fit_brma_us))
   scenario_text("summary-fit_brma_hcs", summary(fit_brma_hcs))
   fit_metafor_diag
   scenario_text("summary-fit_brma_diag", summary(fit_brma_diag))
   scenario_text("summary-fit_brma_hcs0", summary(fit_brma_hcs0))
+  # TODO:
+  # this should allow as.data.frame and data.frame(summary_heterogeneity(fit_brma_us))
+  # similarly as we have for pooled_effect, pooled_heterogeneity
+  # with a leading column named component which is filled with "location", "random" etc... for different model fits
 
-  summary_heterogeneity(fit_brma_us)
-  summary(marginal_means(fit_brma_us))
-  summary(marginal_means(fit_brma_hcs))
-  summary(marginal_means(fit_brma_diag))
-  summary(marginal_means(fit_brma_hcs0))
+  # TODO:
+  # why is there no var(group[sensitivity]) and var(group[specificity]) reported?
+  # the order should be sd and then var for the individual parameters, i.e.,
+  # sd_common
+  # var_common
+  # sd(group[1])
+  # sd(group[2])
+  # var(group[1])
+  # var(group[2])
+  # sd_ratio(group[1])
+  # sd_ratio(group[2])
+  # var_ratio(group[1])
+  # var_ratio(group[2])
+  # TODO:
+  # this should allow as.data.frame and data.frame(summary_heterogeneity(fit_brma_us))
+  # similarly as we have for pooled_effect, pooled_heterogeneity
+  # with a leading column named component which is filled with the random components names
+  scenario_text("summary-het-us",  summary_heterogeneity(fit_brma_us))
+  scenario_text("summary-het-hcs", summary_heterogeneity(fit_brma_hcs))
+
+  # TODO:
+  # this should allow as.data.frame and data.frame(marginal_means(fit_brma_us))
+  # similarly as we have for pooled_effect, pooled_heterogeneity
+  scenario_text("marginal-means-us" ,summary(marginal_means(fit_brma_us)))
+  scenario_text("marginal-means-hcs" ,summary(marginal_means(fit_brma_hcs)))
+  scenario_text("marginal-means-diag" ,summary(marginal_means(fit_brma_diag)))
+  scenario_text("marginal-means-hcs0" ,summary(marginal_means(fit_brma_hcs0)))
 
   ### hypothesis ----
   set.seed(1)
   qcmde_control <- list(samples = 1000L)
-  bf_hyp_us   <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0")
-  bf_hyp_hcs  <- hypothesis(fit_brma_hcs, "cor = 0")
-  bf_hyp_us_qCMDE  <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0", density_method = "qCMDE", density_control = qcmde_control)
-  bf_hyp_hcs_qCMDE <- hypothesis(fit_brma_hcs, "cor = 0", density_method = "qCMDE", density_control = qcmde_control)
-  bf_hcs_hcs0  <- bf(fit_brma_hcs, fit_brma_hcs0)
-  bf_us_diag   <- bf(fit_brma_us, fit_brma_diag)
-
   anova(fit_metafor_us, fit_metafor_diag)
-  scenario_text("bridge_density_eq", data.frame(
-    bridge = c(bf_us_diag$bf, bf_hcs_hcs0$bf),
-    KDE    = c(bf_hyp_us$BF,  bf_hyp_hcs$BF),
-    qCMDE  = c(bf_hyp_us_qCMDE$BF,  bf_hyp_hcs_qCMDE$BF)))
+  scenario_text("bridge_density_eq", {
+    bf_hyp_us   <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0")
+    bf_hyp_hcs  <- hypothesis(fit_brma_hcs, "cor = 0")
+    bf_hyp_us_qCMDE  <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0", density_method = "qCMDE", density_control = qcmde_control)
+    bf_hyp_hcs_qCMDE <- hypothesis(fit_brma_hcs, "cor = 0", density_method = "qCMDE", density_control = qcmde_control)
+    bf_hcs_hcs0  <- bf(fit_brma_hcs, fit_brma_hcs0)
+    bf_us_diag   <- bf(fit_brma_us, fit_brma_diag)
+
+    data.frame(
+      bridge = c(bf_us_diag$bf, bf_hcs_hcs0$bf),
+      KDE    = c(bf_hyp_us$BF,  bf_hyp_hcs$BF),
+      qCMDE  = c(bf_hyp_us_qCMDE$BF,  bf_hyp_hcs_qCMDE$BF))
+  })
   scenario_text("bf_eq_1", bf(fit_brma_hcs0, fit_brma_diag))  # these models are equivalent
   scenario_text("bf_eq_0", bf(fit_brma_hcs, fit_brma_us))     # these models are equivalent
 
@@ -110,15 +142,14 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
 
   scenario_plot("cor", {
     plot(fit_brma_us, "cor(group[sensitivity],group[specificity])", prior = TRUE)
+    # TODO: this density is incorrect -- the posterior from qCMDE matches the prior above
     lines(fit_brma_us, "cor(group[sensitivity],group[specificity])", density_method = "qCMDE", lty = 2)
 
-    lines(fit_brma_hcs, "cor(group[sensitivity],group[specificity])", col = "blue")
-    lines(fit_brma_hcs, "cor(group[sensitivity],group[specificity])", col = "blue", lty = 2, density_method = "qCMDE")
+    lines(fit_brma_hcs, "cor", col = "blue")
+    lines(fit_brma_hcs, "cor", col = "blue", lty = 2, density_method = "qCMDE")
   })
 
   # other random parameters
-  summary_heterogeneity(fit_brma_us)
-  summary_heterogeneity(fit_brma_hcs)
 
   scenario_plot("random_us", {
     par(mfrow = c(3, 2)) # HERE extend

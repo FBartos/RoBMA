@@ -1,0 +1,9 @@
+Method: stacking
+------
+                         weight
+fit_brma_mv              0.917 
+fit_brma_mv_null         0.083 
+fit_brma_mv_quality      0.000 
+fit_brma_mv_quality_null 0.000 
+fit_brma_mv_rcor         0.000 
+fit_brma_mv_rcor_null    0.000 

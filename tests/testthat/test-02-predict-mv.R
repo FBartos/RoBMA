@@ -1713,7 +1713,7 @@ test_that("same-data random BLUP preserves analytic block components", {
 })
 
 
-test_that("known-R row multipliers reach random prediction consumers", {
+test_that("known-R multipliers affect covariance but not heterogeneity summaries", {
 
   dat <- data.frame(
     yi       = c(0.10, 0.20, 0.30),
@@ -1763,6 +1763,10 @@ test_that("known-R row multipliers reach random prediction consumers", {
     object,
     .posterior_samples = posterior_samples
   )
+  heterogeneity <- summary_heterogeneity(
+    object,
+    .posterior_samples = posterior_samples
+  )
   estimate <- predict(
     object,
     type               = "blup",
@@ -1779,10 +1783,13 @@ test_that("known-R row multipliers reach random prediction consumers", {
                tolerance = 1e-12)
   expect_equal(
     unname(as.matrix(pooled)),
-    matrix(
-      posterior_samples[, sd_name] * sqrt(mean(diag(known_R))),
-      ncol = 1L
-    ),
+    matrix(posterior_samples[, sd_name], ncol = 1L),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    heterogeneity[["estimates"]][c("tau", "tau2"), "Mean"],
+    c(mean(posterior_samples[, sd_name]),
+      mean(posterior_samples[, sd_name]^2)),
     tolerance = 1e-12
   )
   expect_equal(unname(as.matrix(estimate)), expected_blup,

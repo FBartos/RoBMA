@@ -1,0 +1,11 @@
+
+Bayesian Multivariate Random-Effects Model (k = 98)
+
+Location
+           Mean    SD 0.025   0.5 0.975
+intercept 0.136 0.012 0.113 0.135 0.159
+
+Random
+                     Mean    SD 0.025   0.5 0.975
+sd_ratio(intercept) 0.029 0.002 0.025 0.028 0.033
+
