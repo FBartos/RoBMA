@@ -47,6 +47,26 @@ make_random_metadata_catalog <- function(summaries, mappings) {
 }
 
 
+mock_random_marginal_update_plan <- function() {
+
+  plan <- structure(
+    list(
+      family = "unsupported",
+      reason = "metadata_target_fixture"
+    ),
+    class = c(
+      "BayesTools_random_effects_marginal_update_plan",
+      "list"
+    )
+  )
+  testthat::local_mocked_bindings(
+    random_effects_marginal_update_plan = function(...) plan,
+    .package = "BayesTools",
+    .env = parent.frame()
+  )
+}
+
+
 test_that("the random semantic interface exposes every public quantity", {
 
   expect_identical(
@@ -261,6 +281,7 @@ test_that("independent factor coefficients retain separate plot levels", {
 
 test_that("random qCMDE targets retain stored semantic coordinates", {
 
+  mock_random_marginal_update_plan()
   z <- c(-0.5, 0, 0.5)
   fit <- structure(
     list(mcmc = matrix(z, ncol = 1L, dimnames = list(NULL, "study_rho_z"))),
@@ -296,6 +317,7 @@ test_that("random qCMDE targets retain stored semantic coordinates", {
 
 test_that("bivariate LKJ correlations expose their scalar qCMDE coordinate", {
 
+  mock_random_marginal_update_plan()
   probability <- c(0.25, 0.5, 0.75)
   fit <- structure(
     list(mcmc = matrix(
@@ -341,6 +363,7 @@ test_that("bivariate LKJ correlations expose their scalar qCMDE coordinate", {
 
 test_that("variance aggregates expose squared-SD qCMDE coordinates", {
 
+  mock_random_marginal_update_plan()
   common_sd <- c(0.25, 0.5, 1)
   fit <- structure(
     list(mcmc = matrix(
@@ -384,6 +407,7 @@ test_that("variance aggregates expose squared-SD qCMDE coordinates", {
 
 test_that("random qCMDE targets support general simplex allocations", {
 
+  mock_random_marginal_update_plan()
   eta <- rbind(
     c(1, 2, 3),
     c(3, 1, 2),
@@ -454,6 +478,7 @@ test_that("random qCMDE targets support general simplex allocations", {
 
 test_that("allocated component SD targets use declared catalog provenance", {
 
+  mock_random_marginal_update_plan()
   posterior <- cbind(
     tau = c(0.5, 0.8),
     `weight[1]` = c(0.25, 0.4),
