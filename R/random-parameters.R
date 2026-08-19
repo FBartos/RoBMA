@@ -962,13 +962,16 @@
 
 .brma_random_parameter_mixed_posterior <- function(
     object, parameter, standardized_coefficients = FALSE,
-    prior = FALSE, n_prior_samples = 10000L, seed = NULL) {
+    prior = FALSE, n_prior_samples = 10000L, seed = NULL,
+    selected = NULL, prior_selected = NULL) {
 
-  selected <- .brma_random_parameter_select(
-    object                    = object,
-    parameter                 = parameter,
-    standardized_coefficients = standardized_coefficients
-  )
+  if (is.null(selected)) {
+    selected <- .brma_random_parameter_select(
+      object                    = object,
+      parameter                 = parameter,
+      standardized_coefficients = standardized_coefficients
+    )
+  }
   values <- unname(as.numeric(selected[["samples"]][, 1L]))
   attr(values, "sample_ind") <- FALSE
   attr(values, "models_ind") <- rep(1, length(values))
@@ -1002,14 +1005,16 @@
     target_prior <- .brma_random_parameter_exact_prior(selected)
   }
   if (prior && is.null(target_prior)) {
-    prior_selected <- .brma_random_parameter_select(
-      object                    = object,
-      parameter                 = parameter,
-      standardized_coefficients = standardized_coefficients,
-      prior                     = TRUE,
-      n_prior_samples           = n_prior_samples,
-      seed                      = seed
-    )
+    if (is.null(prior_selected)) {
+      prior_selected <- .brma_random_parameter_select(
+        object                    = object,
+        parameter                 = parameter,
+        standardized_coefficients = standardized_coefficients,
+        prior                     = TRUE,
+        n_prior_samples           = n_prior_samples,
+        seed                      = seed
+      )
+    }
     prior_density <- .brma_random_parameter_prior_density(
       prior_selected[["samples"]][, 1L],
       support = support

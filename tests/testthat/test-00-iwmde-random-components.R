@@ -259,12 +259,19 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
   )
   used_density_method <- NULL
   attachment_calls    <- 0L
+  reused_selected     <- NULL
+  reused_prior        <- NULL
   testthat::local_mocked_bindings(
     .brma_random_parameter_select = function(...) selected,
     .brma_random_parameter_density_target = function(...) {
       list(parameter = "rho[2]", parameter_spec = target_spec)
     },
-    .brma_random_parameter_mixed_posterior = function(...) list(theta = 1:3),
+    .brma_random_parameter_mixed_posterior = function(
+        ..., selected = NULL, prior_selected = NULL) {
+      reused_selected <<- selected
+      reused_prior    <<- prior_selected
+      list(theta = 1:3)
+    },
     .iwmde_context = function(...) list(),
     .iwmde_estimate_cache = function(...) new.env(parent = emptyenv()),
     .hypothesis_brma_attach_iwmde_scalar = function(
@@ -318,6 +325,8 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
   expect_identical(attachment_calls, 1L)
   expect_identical(attached_values, c(0, 1))
   expect_identical(used_density_method, "precomputed")
+  expect_identical(reused_selected, selected)
+  expect_identical(reused_prior, selected)
 })
 
 test_that("batched ordinates retain value-specific diagnostics", {

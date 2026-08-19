@@ -826,7 +826,9 @@ hypothesis.brma <- function(object, hypothesis,
     standardized_coefficients = standardized_coefficients,
     prior                     = TRUE,
     n_prior_samples           = n_samples,
-    seed                      = seed
+    seed                      = seed,
+    selected                  = posterior,
+    prior_selected            = prior
   )
   marginal <- BayesTools::marginal_posterior(
     samples       = samples,
