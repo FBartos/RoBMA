@@ -326,28 +326,28 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "study: sd(time[1])",
+      row       = "sd(time[1])",
       expected  = function(m) sqrt(m[["tau2"]][[1]]),
       tolerance = 0.75
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "study: sd(time[2])",
+      row       = "sd(time[2])",
       expected  = function(m) sqrt(m[["tau2"]][[2]]),
       tolerance = 0.75
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "study: sd(time[3])",
+      row       = "sd(time[3])",
       expected  = function(m) sqrt(m[["tau2"]][[3]]),
       tolerance = 0.75
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "study: sd(time[4])",
+      row       = "sd(time[4])",
       expected  = function(m) sqrt(m[["tau2"]][[4]]),
       tolerance = 1.10
     ),
@@ -437,7 +437,7 @@ test_that("v14 brma.mv random-covariance parameters match metafor references", {
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
-      row       = "study: cor",
+      row       = "cor",
       expected  = function(m) m[["rho"]],
       tolerance = 0.12
     ),

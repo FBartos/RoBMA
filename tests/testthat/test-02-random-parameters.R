@@ -243,7 +243,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
       hypothesis(
         fit_har,
         .random_parameter_hypothesis(
-          "study: sd(time[1])", "=", 0.2, "!="
+          "sd(time[1])", "=", 0.2, "!="
         ),
         component = "random", n_samples = 1000, seed = 22
       ),
