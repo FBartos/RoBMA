@@ -680,6 +680,10 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       data              = new_data,
       new_levels        = if (context[["same_data"]]) NULL else "sample"
     )
+    scale_samples <- .predict_brma_random_scale_components(
+      object        = object,
+      scale_samples = scale_samples
+    )
     scale_samples <- lapply(scale_samples, function(samples) {
       colnames(samples) <- paste0("tau[", seq_len(ncol(samples)), "]")
       samples
@@ -918,6 +922,57 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     title      = "True Effect Posterior Prediction:",
     parameters = .conditional_effect_parameters(context[["object"]])
   )
+}
+
+
+.predict_brma_random_scale_components <- function(object, scale_samples) {
+
+  terms <- .fitted_formula_design(
+    object,
+    "mu",
+    required = TRUE
+  )[["random_effects"]]
+  block_names <- vapply(terms, `[[`, character(1), "block_name")
+  if (!identical(names(scale_samples), block_names)) {
+    stop(
+      "Random-effect scale components do not match the fitted formula metadata.",
+      call. = FALSE
+    )
+  }
+  component_names   <- vapply(terms, `[[`, character(1), "component")
+  component_visible <- vapply(terms, function(term) {
+    visible <- term[["component_visible"]]
+    if (!is.logical(visible) || length(visible) != 1L || is.na(visible)) {
+      stop(
+        "Random-effect component visibility is unavailable in the fitted formula metadata.",
+        call. = FALSE
+      )
+    }
+    visible
+  }, logical(1))
+  if (anyNA(component_names) || any(!nzchar(component_names))) {
+    stop(
+      "Random-effect scale component names are unavailable in the fitted formula metadata.",
+      call. = FALSE
+    )
+  }
+
+  display_names <- ifelse(component_visible, component_names, block_names)
+  components <- unique(display_names)
+  out <- lapply(components, function(component) {
+    block_index <- which(display_names == component)
+    if (length(block_index) == 1L) {
+      return(scale_samples[[block_index]])
+    }
+    variance <- Reduce(
+      `+`,
+      lapply(scale_samples[block_index], function(samples) samples^2)
+    )
+    sqrt(variance)
+  })
+  names(out) <- components
+
+  return(out)
 }
 
 

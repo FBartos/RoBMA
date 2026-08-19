@@ -40,6 +40,11 @@
   independent stored prior. Basic summaries report only quantities aligned
   with prior specification, while `summary_heterogeneity()` retains aggregate
   variances, allocation-derived component SDs, variance ratios, and SD ratios.
+  Random-formula `type = "terms.scale"` predictions now group exact row-wise
+  leaf SDs only for authoritative user-facing formula components, preserving
+  random-slope designs and known covariance kernels while combining expanded
+  named or multi-entry components on the variance scale. Bare and unnamed
+  one-entry formulas retain their concrete block names.
 - completes partial `prior_random()` specifications with RoBMA's usual
   UISD-scaled SD and variance-allocation defaults when the user supplies no
   scale architecture. Correlation defaults are delegated to BayesTools:

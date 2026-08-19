@@ -323,12 +323,18 @@ test_that("random-formula brma.mv predict uses cached fit", {
 
   expect_brma_samples_matrix(terms, n_studies, "random brma.mv terms")
   expect_type(scale, "list")
-  expect_equal(names(scale), "component 1")
-  expect_brma_samples_matrix(scale[["component 1"]], n_studies, "random brma.mv terms.scale")
-  expect_equal(
-    colnames(scale[["component 1"]]),
-    paste0("tau[", seq_len(n_studies), "]")
-  )
+  expect_equal(names(scale), c("effect_study", "study"))
+  for (component in names(scale)) {
+    expect_brma_samples_matrix(
+      scale[[component]],
+      n_studies,
+      paste("random brma.mv terms.scale", component)
+    )
+    expect_equal(
+      colnames(scale[[component]]),
+      paste0("tau[", seq_len(n_studies), "]")
+    )
+  }
 })
 
 test_that("3-level location-scale brma.mv fixtures expose targeted SD components", {

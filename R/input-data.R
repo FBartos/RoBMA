@@ -1388,7 +1388,7 @@ NULL
         stop(message, call. = FALSE)
       }
     )
-    random_effects <- .check_and_list_data.random_annotate_formula_component(
+    .check_and_list_data.random_validate_formula_component(
       random_effects = random_effects,
       random         = random
     )
@@ -1451,22 +1451,25 @@ NULL
   invisible(TRUE)
 }
 
-.check_and_list_data.random_annotate_formula_component <- function(random_effects,
+.check_and_list_data.random_validate_formula_component <- function(random_effects,
                                                                    random) {
 
   is_single_formula <- inherits(random, "formula") ||
     (is.list(random) && length(random) == 1L &&
        inherits(random[[1L]], "formula"))
   if (!is_single_formula) {
-    return(random_effects)
-  }
-  if (length(random_effects[["components"]]) > 0L) {
-    return(random_effects)
+    return(invisible(TRUE))
   }
 
   terms <- random_effects[["terms"]]
   if (length(terms) == 0L) {
-    return(random_effects)
+    return(invisible(TRUE))
+  }
+  component_visible <- vapply(terms, function(term) {
+    isTRUE(term[["component_visible"]])
+  }, logical(1))
+  if (any(component_visible)) {
+    return(invisible(TRUE))
   }
   if (length(terms) > 1L &&
       !.check_and_list_data.random_is_plain_nested(random)) {
@@ -1478,24 +1481,7 @@ NULL
     )
   }
 
-  component       <- "component 1"
-  component_label <- "component_1"
-  block_names     <- vapply(terms, `[[`, character(1), "block_name")
-  for (i in seq_along(terms)) {
-    terms[[i]][["component"]]             <- component
-    terms[[i]][["component_label"]]       <- component_label
-    terms[[i]][["component_child_label"]] <- block_names[[i]]
-  }
-
-  components <- list(block_names)
-  names(components) <- component_label
-
-  random_effects[["terms"]]      <- terms
-  random_effects[["components"]] <- components
-  attr(random_effects[["formula"]], "random_terms")      <- terms
-  attr(random_effects[["formula"]], "random_components") <- components
-
-  random_effects
+  invisible(TRUE)
 }
 
 .check_and_list_data.random_is_plain_nested <- function(random) {
