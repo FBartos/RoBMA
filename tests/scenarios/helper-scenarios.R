@@ -1370,9 +1370,6 @@ scenario_plot <- function(name, code) {
       )
     }
 
-    set.seed(1)
-    .scenario_evaluate_plot(expr, eval_env)
-
     testthat::skip_if_not_installed("vdiffr")
     expected  <- file.path(
       config[["snapshots_dir"]],
@@ -1382,6 +1379,11 @@ scenario_plot <- function(name, code) {
     generated <- tempfile("robma-scenario-", fileext = ".svg")
     on.exit(unlink(generated), add = TRUE)
     .write_canonical_svg(figure, generated, name)
+
+    if (show_output) {
+      set.seed(1)
+      .scenario_evaluate_plot(expr, eval_env)
+    }
 
     if (!file.exists(expected) && !config[["create_missing"]] &&
         !config[["update"]]) {
@@ -1440,11 +1442,6 @@ scenario_plot <- function(name, code) {
     return(invisible(NULL))
   }
 
-  if (show_output) {
-    set.seed(1)
-    .scenario_evaluate_plot(expr, eval_env)
-  }
-
   writer <- function(plot, file, title = "") {
 
     .write_canonical_svg(plot, file, title)
@@ -1459,6 +1456,11 @@ scenario_plot <- function(name, code) {
     fig    = figure,
     writer = writer
   )
+
+  if (show_output) {
+    set.seed(1)
+    .scenario_evaluate_plot(expr, eval_env)
+  }
 
   return(invisible(NULL))
 }
@@ -1517,6 +1519,44 @@ scenario_agreement_plot <- function(reference, estimate, main = "",
   )
   graphics::abline(h = 0, lty = 2, col = "grey50")
   graphics::points(reference[keep], difference[keep], pch = 19, cex = 0.7)
+
+  return(invisible(NULL))
+}
+
+
+# Compare marginal diagnostics from a reference fit and a brma.mv fit.
+plot_marginal_diagnostics <- function(fit_reference, fit_brma) {
+
+  reference_values <- list(
+    "Residuals"      = as.numeric(stats::residuals(fit_reference)),
+    "Rstandard"      = stats::rstandard(fit_reference)[["z"]],
+    "Hat values"     = as.numeric(stats::hatvalues(fit_reference)),
+    "Cooks distance" = stats::cooks.distance(fit_reference),
+    "DFBETAS"        = unlist(stats::dfbetas(fit_reference))
+  )
+  brma_values <- list(
+    "Residuals"      = stats::residuals(
+      fit_brma,
+      type               = "outcome",
+      conditioning_depth = "marginal"
+    ),
+    "Rstandard"      = suppressWarnings(stats::rstandard(
+      fit_brma,
+      conditioning_depth = "marginal"
+    ))[["z"]],
+    "Hat values"     = suppressWarnings(stats::hatvalues(fit_brma)),
+    "Cooks distance" = stats::cooks.distance(fit_brma),
+    "DFBETAS"        = unlist(stats::dfbetas(fit_brma))
+  )
+
+  graphics::par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
+  for (diagnostic in names(reference_values)) {
+    scenario_agreement_plot(
+      reference_values[[diagnostic]],
+      brma_values[[diagnostic]],
+      main = diagnostic
+    )
+  }
 
   return(invisible(NULL))
 }
