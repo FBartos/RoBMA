@@ -238,7 +238,56 @@
   if (!any(valid)) {
     return(out)
   }
+  valid_values <- values[valid]
   setup <- .iwmde_known_v_random_marginal_setup(context)
+  if (identical(mode, "direct_sd")) {
+    variance_values <- tryCatch(
+      BayesTools::parameter_transform_forward(
+        valid_values,
+        plan[["coefficient_transform"]]
+      ),
+      error = function(error) NULL
+    )
+    if (!is.numeric(variance_values) ||
+        length(variance_values) != length(valid_values) ||
+        any(!is.finite(variance_values)) || any(variance_values < 0)) {
+      return(NULL)
+    }
+    variance <- outer(variance_values, rep(1, S))
+    if (isTRUE(plan[["unique_groups"]])) {
+      group_variances    <- matrix(0, nrow = nrow(variance), ncol = S)
+      diagonal_variances <- variance
+    } else {
+      group_map <- plan[["group_maps"]][[1L]]
+      single_group_blocks <- vapply(
+        setup[["dependency_blocks"]],
+        function(index) length(unique(group_map[index])) == 1L,
+        logical(1)
+      )
+      if (!all(single_group_blocks)) {
+        return(NULL)
+      }
+      group_variances    <- variance
+      diagonal_variances <- matrix(0, nrow = nrow(variance), ncol = S)
+    }
+    evaluated <- .marglik_covariance_plan_group_iid_variance_grid_loglik(
+      cache                = setup[["group_iid_plan_cache"]],
+      y                    = as.double(yi),
+      means                = mu_samples,
+      sampling_covariance  = setup[["sampling_covariance"]],
+      block_indices        = setup[["dependency_blocks"]],
+      group_variances      = group_variances,
+      diagonal_variances   = diagonal_variances
+    )
+    if (!is.matrix(evaluated) ||
+        !identical(dim(evaluated), c(sum(valid), S)) ||
+        any(!is.finite(evaluated))) {
+      return(NULL)
+    }
+    out[valid, ] <- evaluated
+    return(out)
+  }
+
   unique_factor  <- plan[["unique_factor"]]
   grouped_factor <- setdiff(seq_len(2L), unique_factor)
   group_map      <- plan[["group_maps"]][[grouped_factor]]
@@ -251,7 +300,6 @@
     return(NULL)
   }
 
-  valid_values <- values[valid]
   if (identical(mode, "proportion")) {
     rho <- if (identical(
       plan[["target_index"]],
@@ -343,6 +391,14 @@
   )
   terms <- formula_design[["random_effects"]]
   K     <- nrow(data[["outcome"]])
+  if (length(terms) == 1L) {
+    return(.iwmde_known_v_random_single_iid_plan(
+      term        = terms[[1L]],
+      parameter   = parameter,
+      replacement = replacement,
+      K           = K
+    ))
+  }
   if (length(terms) != 2L) {
     return(NULL)
   }
@@ -449,6 +505,42 @@
     } else {
       1
     }
+  )
+}
+
+
+.iwmde_known_v_random_single_iid_plan <- function(
+    term, parameter, replacement, K) {
+
+  update <- replacement[["covariance_update"]]
+  model_matrix <- term[["model_matrix"]]
+  group_map    <- term[["group_map"]]
+  source       <- update[["source_parameter"]]
+  if (!identical(replacement[["type"]], "scalar") ||
+      !inherits(update, "BayesTools_random_effects_marginal_update_plan") ||
+      !identical(update[["family"]], "affine") ||
+      !identical(update[["update"]], "scale") ||
+      !identical(update[["coefficient_input"]], "source") ||
+      is.null(update[["invariant_covariance"]]) ||
+      is.null(update[["coefficient_transform"]]) ||
+      !identical(parameter, source) ||
+      !identical(term[["n_columns"]], 1L) ||
+      !is.matrix(model_matrix) ||
+      !identical(dim(model_matrix), c(K, 1L)) ||
+      any(!is.finite(model_matrix)) || any(model_matrix != 1) ||
+      length(group_map) != K || anyNA(group_map) ||
+      any(group_map != as.integer(group_map)) || any(group_map < 1L) ||
+      .random_effect_term_has_known_group_covariance(term) ||
+      !identical(unique(term[["sd_parameter_names"]]), source)) {
+    return(NULL)
+  }
+
+  list(
+    source_parameter      = source,
+    coefficient_transform = update[["coefficient_transform"]],
+    target_mode           = "direct_sd",
+    group_maps            = list(as.integer(group_map)),
+    unique_groups         = !anyDuplicated(group_map)
   )
 }
 

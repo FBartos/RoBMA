@@ -369,59 +369,107 @@
     }
 
   } else if (conditioning_depth == "marginal") {
-    I_K <- diag(K)
-    chunk_info <- .known_v_apply_marginal_covariance_chunks(
-      object            = object,
-      posterior_samples = setup[["posterior_samples"]],
-      FUN               = function(covariance_samples, rows) {
-        for (j in seq_along(rows)) {
-          s          <- rows[j]
-          covariance <- covariance_samples[j, , ]
-          projection <- .known_v_gls_projection(
-            X          = X,
-            y          = yi,
-            covariance = covariance
-          )
-          residual <- projection[["residual"]]
-          A        <- I_K - projection[["H"]]
-          residual <- as.vector(A %*% yi)
-          residual[zero_residual_rows] <- 0
-          residual_factor <- A %*% projection[["covariance_factor"]]
-          se2      <- rowSums(residual_factor^2)
-          se2[zero_residual_rows] <- 0
-          se       <- .hat_variance_sd(
-            se2,
-            "Known-V marginal residual variance"
-          )
+    store_projection <- function(s, H, H_diag, M_diag, residual, se2) {
 
-          H_diag_samples[s, ] <<- diag(projection[["H"]])
-          M_diag_samples[s, ] <<- diag(projection[["covariance"]])
+      residual[zero_residual_rows] <- 0
+      se2[zero_residual_rows] <- 0
+      se <- .hat_variance_sd(
+        se2,
+        "Known-V marginal residual variance"
+      )
 
-          if (return_full_H) {
-            H_samples[s, , ] <<- projection[["H"]]
-          }
-          if (return_resid) {
-            if (summarize) {
-              resid_sum <<- resid_sum + residual
-            } else {
-              resid_samples[s, ] <<- residual
-            }
-          }
-          if (return_se) {
-            if (summarize) {
-              se_sum <<- se_sum + se
-            } else {
-              se_samples[s, ] <<- se
-            }
-          }
-          if (summarize && return_se && return_resid) {
-            z_s <- residual / se
-            z_s[residual == 0 & se == 0] <- 0
-            z_sum <<- z_sum + z_s
-          }
+      H_diag_samples[s, ] <<- H_diag
+      M_diag_samples[s, ] <<- M_diag
+      if (return_full_H) {
+        H_samples[s, , ] <<- H
+      }
+      if (return_resid) {
+        if (summarize) {
+          resid_sum <<- resid_sum + residual
+        } else {
+          resid_samples[s, ] <<- residual
         }
       }
+      if (return_se) {
+        if (summarize) {
+          se_sum <<- se_sum + se
+        } else {
+          se_samples[s, ] <<- se
+        }
+      }
+      if (summarize && return_se && return_resid) {
+        z_s <- residual / se
+        z_s[residual == 0 & se == 0] <- 0
+        z_sum <<- z_sum + z_s
+      }
+      invisible(NULL)
+    }
+
+    affine <- .known_v_random_affine_diagnostic_plan(
+      object            = object,
+      posterior_samples = setup[["posterior_samples"]],
+      known_V           = known_V
     )
+    if (!is.null(affine)) {
+      affine_gls_setup <- .known_v_affine_gls_projection_setup(
+        plan = affine[["plan"]],
+        X    = X,
+        y    = yi
+      )
+      for (s in seq_len(S)) {
+        projection <- .known_v_affine_gls_projection(
+          plan          = affine[["plan"]],
+          X             = X,
+          y             = yi,
+          coefficient   = affine[["coefficients"]][[s]],
+          return_full_H = return_full_H,
+          setup         = affine_gls_setup
+        )
+        if (is.null(projection)) {
+          stop("Known-V residual covariance is not positive definite.",
+               call. = FALSE)
+        }
+        store_projection(
+          s        = s,
+          H        = projection[["H"]],
+          H_diag   = projection[["H_diag"]],
+          M_diag   = projection[["covariance_diagonal"]],
+          residual = projection[["residual"]],
+          se2      = projection[["residual_variance"]]
+        )
+      }
+      chunk_info <- list(covariance_path = "affine_spectral")
+    } else {
+      I_K <- diag(K)
+      chunk_info <- .known_v_apply_marginal_covariance_chunks(
+        object            = object,
+        posterior_samples = setup[["posterior_samples"]],
+        FUN               = function(covariance_samples, rows) {
+          for (j in seq_along(rows)) {
+            s          <- rows[j]
+            covariance <- covariance_samples[j, , ]
+            projection <- .known_v_gls_projection(
+              X          = X,
+              y          = yi,
+              covariance = covariance
+            )
+            residual <- projection[["residual"]]
+            A        <- I_K - projection[["H"]]
+            residual <- as.vector(A %*% yi)
+            residual_factor <- A %*% projection[["covariance_factor"]]
+            se2      <- rowSums(residual_factor^2)
+            store_projection(
+              s        = s,
+              H        = projection[["H"]],
+              H_diag   = diag(projection[["H"]]),
+              M_diag   = diag(projection[["covariance"]]),
+              residual = residual,
+              se2      = se2
+            )
+          }
+        }
+      )
+    }
 
   } else {
     .check_cluster_unit_deferred("rstandard()", argument = "conditioning_depth")

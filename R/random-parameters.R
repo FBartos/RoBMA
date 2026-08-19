@@ -560,6 +560,10 @@
 .brma_random_parameter_density_target <- function(object, parameter) {
 
   selected  <- .brma_random_parameter_select(object, parameter)
+  covariance_update <- BayesTools::random_effects_marginal_update_plan(
+    object[["fit"]],
+    selected[["entry"]][["selection"]]
+  )
   source    <- selected[["spec"]][["source_parameter"]]
   source_type <- selected[["spec"]][["source_type"]]
   type      <- selected[["spec"]][["quantity"]]
@@ -578,7 +582,8 @@
       parameter_spec = list(
         type                 = "primitive",
         target_columns       = source,
-        conditioning_exclude = conditioning_exclude
+        conditioning_exclude = conditioning_exclude,
+        covariance_update    = covariance_update
       ),
       display_transform = display_transform
     ))
@@ -618,6 +623,7 @@
             target_columns       = columns,
             auxiliary_columns    = auxiliary_columns,
             conditioning_exclude = columns,
+            covariance_update    = covariance_update,
             prior_density        =
               .brma_random_parameter_allocation_source_prior(selected)
           ),
@@ -632,7 +638,8 @@
       object               = object,
       selected             = selected,
       posterior            = posterior,
-      conditioning_exclude = conditioning_exclude
+      conditioning_exclude = conditioning_exclude,
+      covariance_update    = covariance_update
     )
     if (!is.null(target)) {
       return(target)
@@ -651,7 +658,7 @@
 
 
 .brma_random_parameter_component_density_target <- function(
-    object, selected, posterior, conditioning_exclude) {
+    object, selected, posterior, conditioning_exclude, covariance_update) {
 
   formula_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
   spec <- selected[["spec"]]
@@ -723,7 +730,8 @@
       target_columns       = source_parameter,
       factor_columns       = factor_columns,
       auxiliary_columns    = auxiliary_columns,
-      conditioning_exclude = conditioning_exclude
+      conditioning_exclude = conditioning_exclude,
+      covariance_update    = covariance_update
     )
   ))
 }

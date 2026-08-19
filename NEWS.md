@@ -8,6 +8,15 @@
 - ignores scenario calls measured below 0.5 seconds when assessing per-call and
   average timing regressions, while retaining those measurements in timing
   baselines and candidates.
+- accelerates marginal known-covariance diagnostics and qCMDE/IWMDE density
+  evaluation for metadata-declared affine random covariance parameters. A
+  generalized spectral engine handles arbitrary dense sampling covariance
+  matrices exactly, while the existing native diagonal/grouped engine also
+  handles compiled one-column random components. Supported routes are selected
+  exclusively from BayesTools' persisted formula and parameter-map metadata;
+  non-affine or unsupported quantities retain the generic evaluator. The new
+  paths introduce no covariance repair, clamping, jitter, or numerical
+  affineness guesses.
 - adds the `Hoogeveen2023` example data set with 106 analyst-team effect-size
   estimates for the relation between religiosity and self-reported well-being.
 - allows `set_contrast_factor_predictors = "independent"` to define one fixed

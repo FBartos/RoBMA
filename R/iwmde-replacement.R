@@ -1528,38 +1528,50 @@
 .iwmde_replacement_spec <- function(context, parameter,
                                     parameter_spec = NULL) {
 
+  finish <- function(replacement) {
+
+    covariance_update <- parameter_spec[["covariance_update"]]
+    if (!is.null(covariance_update)) {
+      replacement[["covariance_update"]] <- covariance_update
+    }
+    replacement
+  }
+
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "linear")) {
-    return(list(type = "linear", weights = parameter_spec[["weights"]]))
+    return(finish(list(
+      type    = "linear",
+      weights = parameter_spec[["weights"]]
+    )))
   }
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "simplex_pair")) {
-    return(list(
+    return(finish(list(
       type              = "simplex_pair",
       parameter         = parameter_spec[["parameter"]],
       index             = parameter_spec[["index"]],
       n_targets         = parameter_spec[["n_targets"]],
       target_columns    = parameter_spec[["target_columns"]],
       auxiliary_columns = parameter_spec[["auxiliary_columns"]]
-    ))
+    )))
   }
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "random_component_sd")) {
-    return(list(
+    return(finish(list(
       type              = "random_component_sd",
       source_parameter  = parameter_spec[["source_parameter"]],
       factors           = parameter_spec[["factors"]],
       target_columns    = parameter_spec[["target_columns"]],
       factor_columns    = parameter_spec[["factor_columns"]],
       auxiliary_columns = parameter_spec[["auxiliary_columns"]]
-    ))
+    )))
   }
 
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "primitive") &&
       identical(parameter_spec[["target_columns"]], parameter) &&
       parameter %in% colnames(context[["posterior_samples"]])) {
-    return(list(type = "scalar", name = parameter))
+    return(finish(list(type = "scalar", name = parameter)))
   }
 
   if (.iwmde_parameter_is_eta(parameter)) {

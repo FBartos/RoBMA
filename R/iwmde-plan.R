@@ -358,7 +358,8 @@
     "type", "parameter", "weights", "index", "n_targets",
     "source_parameter", "factors", "target_columns", "factor_columns",
     "auxiliary_columns", "conditioning_exclude", "conditional",
-    "conditional_rule", "condition_key", "status", "reason"
+    "conditional_rule", "condition_key", "covariance_update", "status",
+    "reason"
   )
 
   return(parameter_spec[intersect(fields, names(parameter_spec))])
@@ -567,7 +568,8 @@
     "conditioning_exclude",
     "conditional",
     "conditional_rule",
-    "condition_key"
+    "condition_key",
+    "covariance_update"
   )
   parameter_spec <- parameter_spec[intersect(keep, names(parameter_spec))]
 
