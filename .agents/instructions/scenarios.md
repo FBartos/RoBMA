@@ -43,10 +43,12 @@ them with ordinary package-test caches or duplicate the cache logic in a
 scenario.
 
 Each fit cache has companion timing metadata for the successful fitting block,
-excluding cache serialization. A cache hit contributes that stored production
-time rather than RDS loading time. If timing metadata is unavailable, refit the
-cache before accepting a timing baseline; never substitute the cache-loading
-time.
+excluding cache serialization. Calls to unqualified `add_loo()` and
+`add_marglik()` inside the block are timed automatically and stored separately
+from the remaining model-fitting time; scenario files do not need timing
+wrappers. A cache hit contributes those stored production times rather than RDS
+loading time. If timing metadata is unavailable, refit the cache before
+accepting a timing baseline; never substitute the cache-loading time.
 
 ## Human-Focused Snapshots
 
@@ -138,9 +140,13 @@ referenced by the scenario. Never delete an orphan automatically.
 `scenario_fit()`, `scenario_text()`, and `scenario_plot()` record wall time in
 the tracked `timings/<scenario>.tsv` baseline. Text timing includes expression
 evaluation and captured printing. Plot timing includes the canonical assertion
-render but excludes any extra interactive preview and file comparison. Fit
-timing includes the full cached block, such as `add_loo()` and `add_marglik()`,
-but excludes cache reads and writes.
+render but excludes any extra interactive preview and file comparison. The
+`fit` timing includes the full cached block but excludes cache reads and writes.
+When the block directly calls unqualified `add_loo()` or `add_marglik()`, the
+same measurement also records `fit_model`, `fit_loo`, and `fit_marglik` rows.
+`fit_model` is the full block time remaining after the observed post-fit calls.
+The redundant total `fit` row remains useful as an end-to-end regression check
+but is excluded from the unweighted average when split rows are available.
 
 After a complete managed scenario file, issue one warning that lists every call
 whose wall time increased by more than 20% and the unweighted mean percentage

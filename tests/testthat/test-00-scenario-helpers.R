@@ -360,6 +360,85 @@ test_that("scenario_fit reuses cached production timing", {
 })
 
 
+test_that("scenario_fit automatically stores post-fit phase timings", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env <- environment(scenario_fit)
+  old_clock  <- get(".scenario_clock", envir = helper_env, inherits = FALSE)
+  on.exit(assign(".scenario_clock", old_clock, envir = helper_env), add = TRUE)
+  ticks <- c(0, 2, 5, 6, 10, 12)
+  assign(
+    ".scenario_clock",
+    function() {
+
+      value <- ticks[[1L]]
+      ticks <<- ticks[-1L]
+      value
+    },
+    envir = helper_env
+  )
+  counter <- 0L
+  original_add_loo <- function(object) {
+
+    object[["loo"]] <- TRUE
+    object
+  }
+  original_add_marglik <- function(object) {
+
+    object[["marglik"]] <- TRUE
+    object
+  }
+  add_loo     <- original_add_loo
+  add_marglik <- original_add_marglik
+
+  scenario_start(
+    "unit",
+    root           = root,
+    update_timings = TRUE,
+    create_missing = TRUE
+  )
+  first <- scenario_fit("phased", {
+    counter <- counter + 1L
+    fit <- list(value = counter)
+    fit <- add_loo(fit)
+    fit <- add_marglik(fit)
+    return(fit)
+  })
+  current <- .scenario_current_timings()
+  expect_no_warning(.scenario_finalize_timing())
+  metadata <- readRDS(file.path(
+    root, "cache", "unit", "phased.timing.rds"
+  ))
+
+  expect_identical(add_loo, original_add_loo)
+  expect_identical(add_marglik, original_add_marglik)
+  expect_identical(metadata[["version"]], 2L)
+  expect_equal(metadata[["elapsed"]], 12)
+  expect_equal(metadata[["phases"]], c(model = 5, loo = 3, marglik = 4))
+  expect_equal(current[c("type", "name", "elapsed")], data.frame(
+    type = c("fit", "fit_model", "fit_loo", "fit_marglik"),
+    name = rep("phased", 4L),
+    elapsed = c(12, 5, 3, 4)
+  ))
+
+  scenario_start("unit", root = root, create_missing = TRUE)
+  second <- scenario_fit("phased", {
+    counter <- counter + 1L
+    fit <- list(value = counter)
+    fit <- add_loo(fit)
+    fit <- add_marglik(fit)
+    return(fit)
+  })
+  cached <- .scenario_current_timings()
+  expect_no_warning(.scenario_finalize_timing())
+
+  expect_identical(counter, 1L)
+  expect_identical(second, first)
+  expect_equal(cached, current)
+})
+
+
 test_that("old fit caches require refitting before timing updates", {
 
   root <- .scenario_test_root()
@@ -470,6 +549,39 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   expect_no_warning(.scenario_finalize_timing())
   expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], c(10, 8))
   expect_true(file.exists(file.path(root, "timings", "unit.new.tsv")))
+})
+
+
+test_that("split fit timing averages exclude the redundant total", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+
+  scenario_start("unit", root = root)
+  .scenario_register_timing("fit", "model", 12)
+  .scenario_register_timing("fit_model", "model", 5)
+  .scenario_register_timing("fit_loo", "model", 3)
+  .scenario_register_timing("fit_marglik", "model", 4)
+  expect_no_warning(.scenario_finalize_timing())
+
+  scenario_start("unit", root = root)
+  .scenario_register_timing("fit", "model", 18)
+  .scenario_register_timing("fit_model", "model", 5.5)
+  .scenario_register_timing("fit_loo", "model", 3.3)
+  .scenario_register_timing("fit_marglik", "model", 4.4)
+  warning_message <- character()
+  withCallingHandlers(
+    .scenario_finalize_timing(),
+    warning = function(warning) {
+
+      warning_message <<- conditionMessage(warning)
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  expect_match(warning_message, "fit/model: 18.000 s vs 12.000 s", fixed = TRUE)
+  expect_match(warning_message, "average timing regression: 10.0%", fixed = TRUE)
+  expect_match(warning_message, "unweighted mean across 3 calls", fixed = TRUE)
 })
 
 

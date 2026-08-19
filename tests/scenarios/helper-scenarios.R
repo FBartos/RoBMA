@@ -259,21 +259,44 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     } else {
       NULL
     }
+    cached_phases <- if (is.list(fit_timing)) {
+      fit_timing[["phases"]]
+    } else {
+      NULL
+    }
+    valid_phases <- is.numeric(cached_phases) &&
+      !is.null(names(cached_phases)) &&
+      !anyNA(names(cached_phases)) &&
+      !any(!nzchar(names(cached_phases))) &&
+      !anyDuplicated(names(cached_phases)) &&
+      all(names(cached_phases) %in% c("model", "loo", "marglik")) &&
+      all(is.finite(cached_phases)) &&
+      all(cached_phases >= 0) &&
+      (length(cached_phases) == 0L ||
+       identical(names(cached_phases)[[1L]], "model"))
     valid_timing <- is.list(fit_timing) &&
-      identical(fit_timing[["version"]], 1L) &&
+      identical(fit_timing[["version"]], 2L) &&
       identical(fit_timing[["fit_call"]], fit_call) &&
       is.numeric(fit_timing[["elapsed"]]) &&
       length(fit_timing[["elapsed"]]) == 1L &&
       is.finite(fit_timing[["elapsed"]]) &&
-      fit_timing[["elapsed"]] >= 0
+      fit_timing[["elapsed"]] >= 0 &&
+      valid_phases
     if (valid_timing) {
-      .scenario_register_timing(
-        "fit", name, fit_timing[["elapsed"]], fit_timing[["provenance"]]
+      .scenario_register_fit_timings(
+        name       = name,
+        elapsed    = fit_timing[["elapsed"]],
+        phases     = fit_timing[["phases"]],
+        provenance = fit_timing[["provenance"]]
       )
     } else {
       .scenario_mark_timing_unavailable(
         "fit", name,
-        "the cached fit predates valid timing metadata; rerun with 'refit = TRUE'"
+        paste(
+          "the cached fit predates valid timing metadata with post-fit phases;",
+          "rerun with",
+          "'refit = TRUE'"
+        )
       )
     }
     return(fit)
@@ -289,23 +312,29 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     )
   }
 
-  started <- .scenario_clock()
-  fit     <- eval(expr, envir = parent.frame())
-  elapsed <- max(0, .scenario_clock() - started)
+  started    <- .scenario_clock()
+  evaluation <- .scenario_evaluate_fit(expr, envir = parent.frame())
+  elapsed    <- max(0, .scenario_clock() - started)
+  fit        <- evaluation[["fit"]]
+  phases     <- evaluation[["phases"]]
+  if (length(phases) > 0L) {
+    phases <- c(model = max(0, elapsed - sum(phases)), phases)
+  }
   provenance <- .scenario_timing_provenance()
   dir.create(config[["cache_dir"]], recursive = TRUE, showWarnings = FALSE)
   saveRDS(fit, paths[["fit"]])
   saveRDS(
     list(
-      version    = 1L,
+      version    = 2L,
       fit_call   = fit_call,
       elapsed    = elapsed,
+      phases     = phases,
       provenance = provenance
     ),
     paths[["timing"]]
   )
   .scenario_write_lines(fit_call, paths[["call"]])
-  .scenario_register_timing("fit", name, elapsed, provenance)
+  .scenario_register_fit_timings(name, elapsed, phases, provenance)
 
   return(fit)
 }
@@ -319,6 +348,95 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   writeLines(lines, connection, useBytes = TRUE)
 
   return(invisible(path))
+}
+
+
+.scenario_evaluate_fit <- function(expr, envir) {
+
+  phase_functions <- c(loo = "add_loo", marglik = "add_marglik")
+  collector <- new.env(parent = emptyenv())
+  collector[["elapsed"]] <- stats::setNames(numeric(), character())
+  bindings <- vector("list", length(phase_functions))
+  names(bindings) <- names(phase_functions)
+
+  for (phase in names(phase_functions)) {
+    function_name <- phase_functions[[phase]]
+    if (!exists(function_name, envir = envir, mode = "function",
+                inherits = TRUE)) {
+      next
+    }
+    bindings[[phase]] <- list(
+      name      = function_name,
+      local     = exists(function_name, envir = envir, inherits = FALSE),
+      value     = if (exists(function_name, envir = envir, inherits = FALSE)) {
+        get(function_name, envir = envir, inherits = FALSE)
+      } else {
+        NULL
+      },
+      original  = get(function_name, envir = envir, mode = "function",
+                      inherits = TRUE)
+    )
+  }
+  on.exit({
+    for (binding in rev(bindings)) {
+      if (is.null(binding)) {
+        next
+      }
+      if (binding[["local"]]) {
+        assign(binding[["name"]], binding[["value"]], envir = envir)
+      } else if (exists(binding[["name"]], envir = envir, inherits = FALSE)) {
+        rm(list = binding[["name"]], envir = envir)
+      }
+    }
+  }, add = TRUE)
+
+  for (phase in names(bindings)) {
+    binding <- bindings[[phase]]
+    if (is.null(binding)) {
+      next
+    }
+    wrapper <- local({
+      this_phase <- phase
+      original   <- binding[["original"]]
+      function(...) {
+
+        started <- .scenario_clock()
+        on.exit({
+          phase_elapsed <- max(0, .scenario_clock() - started)
+          elapsed <- collector[["elapsed"]]
+          if (!this_phase %in% names(elapsed)) {
+            elapsed[[this_phase]] <- 0
+          }
+          elapsed[[this_phase]] <- elapsed[[this_phase]] + phase_elapsed
+          collector[["elapsed"]] <- elapsed
+        }, add = TRUE)
+        original(...)
+      }
+    })
+    assign(binding[["name"]], wrapper, envir = envir)
+  }
+
+  fit <- eval(expr, envir = envir)
+  return(list(fit = fit, phases = collector[["elapsed"]]))
+}
+
+
+.scenario_register_fit_timings <- function(name, elapsed, phases,
+                                            provenance) {
+
+  .scenario_register_timing("fit", name, elapsed, provenance)
+  phase_types <- c(
+    model   = "fit_model",
+    loo     = "fit_loo",
+    marglik = "fit_marglik"
+  )
+  for (phase in names(phases)) {
+    .scenario_register_timing(
+      phase_types[[phase]], name, phases[[phase]], provenance
+    )
+  }
+
+  return(invisible(elapsed))
 }
 
 
@@ -378,9 +496,17 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 }
 
 
+.scenario_timing_types <- function() {
+
+  return(c(
+    "fit", "fit_model", "fit_loo", "fit_marglik", "text", "plot"
+  ))
+}
+
+
 .scenario_order_timings <- function(timings) {
 
-  type_order <- match(timings[["type"]], c("fit", "text", "plot"))
+  type_order <- match(timings[["type"]], .scenario_timing_types())
   timings <- timings[order(type_order, timings[["name"]]), , drop = FALSE]
   rownames(timings) <- NULL
   return(timings)
@@ -427,7 +553,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   timings[["r_version"]] <- as.character(timings[["r_version"]])
   timings[["platform"]]  <- as.character(timings[["platform"]])
   valid <- !is.na(timings[["type"]]) & !is.na(timings[["name"]]) &
-    timings[["type"]] %in% c("fit", "text", "plot") &
+    timings[["type"]] %in% .scenario_timing_types() &
     grepl("^[A-Za-z0-9][A-Za-z0-9._-]*$", timings[["name"]]) &
     !endsWith(timings[["name"]], ".") &
     is.finite(timings[["elapsed"]]) & timings[["elapsed"]] >= 0 &
@@ -532,11 +658,18 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   same_entries <- nrow(baseline) > 0L && nrow(unavailable) == 0L &&
     setequal(current_key, baseline_key)
   if (final && same_entries) {
-    baseline_elapsed <- baseline[["elapsed"]][match(current_key, baseline_key)]
+    split_fit_names <- current[["name"]][current[["type"]] == "fit_model"]
+    average_rows <- !(current[["type"]] == "fit" &
+      current[["name"]] %in% split_fit_names)
+    average_current <- current[average_rows, , drop = FALSE]
+    average_key <- .scenario_timing_key(average_current)
+    baseline_elapsed <- baseline[["elapsed"]][match(
+      average_key, baseline_key
+    )]
     percentage_change <- ifelse(
       baseline_elapsed == 0,
-      ifelse(current[["elapsed"]] == 0, 0, Inf),
-      100 * (current[["elapsed"]] / baseline_elapsed - 1)
+      ifelse(average_current[["elapsed"]] == 0, 0, Inf),
+      100 * (average_current[["elapsed"]] / baseline_elapsed - 1)
     )
     average_change <- mean(percentage_change)
     if (average_change > 5) {
@@ -625,7 +758,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 .scenario_register_timing <- function(type, name, elapsed,
                                       provenance = .scenario_timing_provenance()) {
 
-  type <- match.arg(type, c("fit", "text", "plot"))
+  type <- match.arg(type, .scenario_timing_types())
   name <- .scenario_validate_name(name, type)
   if (!is.numeric(elapsed) || length(elapsed) != 1L ||
       !is.finite(elapsed) || elapsed < 0) {
@@ -699,7 +832,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 
 .scenario_mark_timing_unavailable <- function(type, name, reason) {
 
-  type <- match.arg(type, c("fit", "text", "plot"))
+  type <- match.arg(type, .scenario_timing_types())
   name <- .scenario_validate_name(name, type)
   unavailable <- get(
     "timing_unavailable", envir = .scenario_state, inherits = FALSE
