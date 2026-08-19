@@ -24,6 +24,11 @@
     return(NULL)
   }
 
+  setup <- .iwmde_known_v_random_marginal_setup(context)
+  if (!.iwmde_random_affine_has_sampling_dependence(setup)) {
+    return(NULL)
+  }
+
   coefficients <- .iwmde_random_affine_coefficients(values, update)
   finite <- is.finite(values) & is.finite(coefficients)
   if (sum(finite) < 2L ||
@@ -55,7 +60,6 @@
     mu_samples <- -mu_samples
   }
 
-  setup <- .iwmde_known_v_random_marginal_setup(context)
   S     <- length(row_states)
   K     <- length(yi)
   out   <- matrix(-Inf, nrow = length(values), ncol = S)
@@ -133,6 +137,17 @@
   }
 
   out + matrix(log_prior, nrow = length(values), ncol = S)
+}
+
+
+.iwmde_random_affine_has_sampling_dependence <- function(setup) {
+
+  covariance <- setup[["sampling_covariance"]]
+  if (!is.matrix(covariance) || nrow(covariance) != ncol(covariance)) {
+    return(FALSE)
+  }
+  off_diagonal <- row(covariance) != col(covariance)
+  any(covariance[off_diagonal] != 0)
 }
 
 

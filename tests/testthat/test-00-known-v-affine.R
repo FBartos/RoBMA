@@ -281,3 +281,17 @@ test_that("direct grouped-scale grid matches dense Gaussian likelihoods", {
 
   expect_equal(observed, expected, tolerance = 1e-12)
 })
+
+
+test_that("generalized affine routing requires sampling dependence", {
+
+  expect_false(.iwmde_random_affine_has_sampling_dependence(list(
+    sampling_covariance = diag(c(0.1, 0.2, 0.3))
+  )))
+
+  covariance <- diag(c(0.1, 0.2, 0.3))
+  covariance[1L, 2L] <- covariance[2L, 1L] <- 0.04
+  expect_true(.iwmde_random_affine_has_sampling_dependence(list(
+    sampling_covariance = covariance
+  )))
+})
