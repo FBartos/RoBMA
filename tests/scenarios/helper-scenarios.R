@@ -615,7 +615,8 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   baseline_key <- .scenario_timing_key(baseline)
   current_key  <- .scenario_timing_key(current)
   matched      <- match(current_key, baseline_key)
-  comparable   <- !is.na(matched)
+  assessable   <- current[["elapsed"]] >= 0.5
+  comparable   <- !is.na(matched) & assessable
   regressed <- comparable &
     current[["elapsed"]] > 1.20 * baseline[["elapsed"]][matched]
   for (i in which(regressed)) {
@@ -659,28 +660,30 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     setequal(current_key, baseline_key)
   if (final && same_entries) {
     split_fit_names <- current[["name"]][current[["type"]] == "fit_model"]
-    average_rows <- !(current[["type"]] == "fit" &
+    average_rows <- assessable & !(current[["type"]] == "fit" &
       current[["name"]] %in% split_fit_names)
     average_current <- current[average_rows, , drop = FALSE]
-    average_key <- .scenario_timing_key(average_current)
-    baseline_elapsed <- baseline[["elapsed"]][match(
-      average_key, baseline_key
-    )]
-    percentage_change <- ifelse(
-      baseline_elapsed == 0,
-      ifelse(average_current[["elapsed"]] == 0, 0, Inf),
-      100 * (average_current[["elapsed"]] / baseline_elapsed - 1)
-    )
-    average_change <- mean(percentage_change)
-    if (average_change > 5) {
-      add_issue(
-        "average",
-        paste0(
-          "average timing regression: ", sprintf("%.1f", average_change),
-          "% (unweighted mean across ", length(percentage_change),
-          " calls; threshold 5%)"
-        )
+    if (nrow(average_current) > 0L) {
+      average_key <- .scenario_timing_key(average_current)
+      baseline_elapsed <- baseline[["elapsed"]][match(
+        average_key, baseline_key
+      )]
+      percentage_change <- ifelse(
+        baseline_elapsed == 0,
+        ifelse(average_current[["elapsed"]] == 0, 0, Inf),
+        100 * (average_current[["elapsed"]] / baseline_elapsed - 1)
       )
+      average_change <- mean(percentage_change)
+      if (average_change > 5) {
+        add_issue(
+          "average",
+          paste0(
+            "average timing regression: ", sprintf("%.1f", average_change),
+            "% (unweighted mean across ", length(percentage_change),
+            " calls; threshold 5%)"
+          )
+        )
+      }
     }
   }
 

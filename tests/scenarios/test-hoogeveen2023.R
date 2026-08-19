@@ -9,7 +9,6 @@ scenario_start("hoogeveen2023")
 
 testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R", {
 
-  skip("not fully implemented")
   data("Hoogeveen2023", package = "RoBMA")
 
   dat <- Hoogeveen2023[trimws(Hoogeveen2023[["type"]]) == "beta", ]

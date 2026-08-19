@@ -552,6 +552,36 @@ test_that("scenario timings backfill and retain the fastest baseline", {
 })
 
 
+test_that("scenario timing assessments ignore calls below half a second", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+
+  scenario_start("unit", root = root)
+  .scenario_register_timing("text", "quick", 0.1)
+  expect_no_warning(.scenario_finalize_timing())
+
+  scenario_start("unit", root = root)
+  .scenario_register_timing("text", "quick", 0.49)
+  expect_no_warning(.scenario_finalize_timing())
+  expect_equal(
+    .scenario_read_timings(file.path(root, "timings", "unit.tsv"))[["elapsed"]],
+    0.1
+  )
+  expect_equal(
+    .scenario_read_timings(file.path(root, "timings", "unit.new.tsv"))[["elapsed"]],
+    0.49
+  )
+
+  scenario_start("unit", root = root)
+  .scenario_register_timing("text", "quick", 0.5)
+  expect_warning(
+    .scenario_finalize_timing(),
+    "text/quick: 0.500 s vs 0.100 s"
+  )
+})
+
+
 test_that("split fit timing averages exclude the redundant total", {
 
   root <- .scenario_test_root()

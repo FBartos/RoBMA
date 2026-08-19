@@ -2,6 +2,6 @@
 1 without known R        metafor 0.1207 0.0114 0.0980 0.1433 0.0393
 2 without known R          RoBMA 0.1204 0.0117 0.0976 0.1435 0.0396
 3    with known R        metafor 0.1214 0.0115 0.0987 0.1441 0.0359
-4    with known R          RoBMA 0.1210 0.0115 0.0985 0.1438 0.0410
+4    with known R          RoBMA 0.1210 0.0115 0.0985 0.1438 0.0362
 5     with corr R        metafor 0.1358 0.0115 0.1130 0.1586 0.0281
-6     with corr R          RoBMA 0.1356 0.0117 0.1131 0.1589 0.0448
+6     with corr R          RoBMA 0.1356 0.0117 0.1131 0.1589 0.0284
