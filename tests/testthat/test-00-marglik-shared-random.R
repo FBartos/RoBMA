@@ -549,6 +549,43 @@ test_that("group-IID variance grid equals full-covariance likelihoods", {
   expect_equal(actual, expected, tolerance = 2e-12)
 })
 
+test_that("group-IID variance grids preserve residuals after dense fallback", {
+
+  y <- c(0.3, -0.2)
+  means <- rbind(c(0.05, -0.1))
+  sampling_covariance <- diag(c(0, 1))
+  group_variances <- matrix(c(0.5, 0.2, 0.4), ncol = 1L)
+  diagonal_variances <- matrix(c(0, 0.3, 0.1), ncol = 1L)
+
+  evaluate_grid <- function(order) {
+
+    .marglik_covariance_plan_group_iid_variance_grid_loglik(
+      cache                 = new.env(parent = emptyenv()),
+      y                     = y,
+      means                 = means,
+      sampling_covariance   = sampling_covariance,
+      block_indices         = list(seq_along(y)),
+      group_variances       = group_variances[order, , drop = FALSE],
+      diagonal_variances    = diagonal_variances[order, , drop = FALSE]
+    )
+  }
+  expected <- vapply(seq_len(nrow(group_variances)), function(grid) {
+
+    covariance <- sampling_covariance +
+      matrix(group_variances[grid, 1L], nrow = length(y), ncol = length(y)) +
+      diag(diagonal_variances[grid, 1L], nrow = length(y))
+    .marglik_mvn_log_density(
+      y          = y,
+      mean       = means[1L, ],
+      covariance = covariance
+    )
+  }, numeric(1))
+
+  expect_equal(evaluate_grid(seq_len(3L))[, 1L], expected, tolerance = 2e-12)
+  expect_equal(evaluate_grid(c(2L, 1L, 3L))[, 1L], expected[c(2L, 1L, 3L)],
+    tolerance = 2e-12)
+})
+
 test_that("native covariance plan reuses exact low-rank group geometry", {
 
   y <- c(0.1, -0.2, 0.3, 0.05, -0.1, 0.2, -0.05, 0.15)

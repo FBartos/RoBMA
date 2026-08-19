@@ -249,6 +249,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
   std::vector<double> group_loading(max_block_size);
   std::vector<double> residual(max_block_size);
   std::vector<double> transformed_residual(max_block_size);
+  std::vector<double> dense_residual(max_block_size);
   std::vector<double> covariance(max_block_size * max_block_size);
   const int lwork = std::max(1, 3 * static_cast<int>(max_block_size) - 1);
   std::vector<double> eigen_work(static_cast<size_t>(lwork));
@@ -352,10 +353,10 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
           std::copy(
             residual.begin(),
             residual.begin() + static_cast<size_t>(size),
-            transformed_residual.begin()
+            dense_residual.begin()
           );
           block_log_likelihood = cholesky_block_log_likelihood(
-            size, covariance.data(), transformed_residual.data()
+            size, covariance.data(), dense_residual.data()
           );
         } else {
           log_determinant += std::log(update);
