@@ -48,6 +48,8 @@
   VIF posterior correlations now request fixed location coefficients directly
   from BayesTools instead of filtering random quantities by their displayed
   names.
+  Compact `ranef()` output for structure-owned index blocks now labels cells
+  from the persisted index columns rather than their shared SD leaf.
 - completes partial `prior_random()` specifications with RoBMA's usual
   UISD-scaled SD and variance-allocation defaults when the user supplies no
   scale architecture. Correlation defaults are delegated to BayesTools:

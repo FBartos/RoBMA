@@ -431,7 +431,7 @@ test_that("v14 brma.mv random-covariance parameters match metafor references", {
   cases <- list(
     list(
       name      = "brma.mv_v14_konstantopoulos2011_cs",
-      row       = "district: cor",
+      row       = "cor",
       expected  = function(m) m[["rho"]],
       tolerance = 0.12
     ),

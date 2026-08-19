@@ -312,6 +312,35 @@ test_that("ranef aligns indicator coefficients within grouping levels", {
 })
 
 
+test_that("ranef uses structure-owned index labels for indicator cells", {
+
+  term <- list(
+    model_matrix = matrix(
+      c(1, 0, 0, 1, 1, 0),
+      ncol  = 2L,
+      byrow = TRUE
+    ),
+    group_map      = c(1L, 1L, 2L),
+    group_levels   = c("district-a", "district-b"),
+    contrast_owner = "structure",
+    column_names   = c("school1", "school2"),
+    sd_leaves      = list(leaf_terms_by_column = c("sd", "sd"))
+  )
+
+  metadata <- .ranef_unique_level_term(term, "district")
+
+  expect_identical(metadata[["group_map"]], c(1L, 2L, 3L))
+  expect_identical(
+    metadata[["group_levels"]],
+    c(
+      "school1 | district-a",
+      "school2 | district-a",
+      "school1 | district-b"
+    )
+  )
+})
+
+
 test_that("ranef rejects non-indicator random slopes at unique level", {
 
   term <- list(

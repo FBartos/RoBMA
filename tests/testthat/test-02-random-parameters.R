@@ -186,7 +186,7 @@ test_that("random plots and MCMC diagnostics use semantic draws", {
     for (type in c("density", "autocorrelation")) {
       expect_s3_class(
         plot_diagnostic(
-          fit, parameter = "district: cor", component = "random",
+          fit, parameter = "cor", component = "random",
           type = type, plot_type = "ggplot"
         ),
         "ggplot"
@@ -230,7 +230,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
     expect_s3_class(
       hypothesis(
         fit_cs,
-        .random_parameter_hypothesis("district: cor", "=", 0.5, "!="),
+        .random_parameter_hypothesis("cor", "=", 0.5, "!="),
         component = "random", n_samples = 2000, seed = 21
       ),
       "BayesTools_hypothesis_BF"
@@ -513,10 +513,10 @@ test_that("random prior overlays and diagnostic labels are semantic", {
     cs <- load_fit("brma.mv_v14_konstantopoulos2011_cs", validate = FALSE)
     diagnostic <- plot_diagnostic_density(
       cs,
-      parameter = "district: cor", component = "random",
+      parameter = "cor", component = "random",
       plot_type = "ggplot"
     )
-    expect_identical(diagnostic[["labels"]][["title"]], "district: cor")
+    expect_identical(diagnostic[["labels"]][["title"]], "cor")
   }
 })
 

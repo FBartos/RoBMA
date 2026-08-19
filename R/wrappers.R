@@ -1404,7 +1404,11 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     )
   }
 
-  coefficient_labels <- term[["sd_leaves"]][["leaf_terms_by_column"]]
+  coefficient_labels <- if (identical(term[["contrast_owner"]], "structure")) {
+    term[["column_names"]]
+  } else {
+    term[["sd_leaves"]][["leaf_terms_by_column"]]
+  }
   if (!is.character(coefficient_labels) ||
       length(coefficient_labels) != ncol(model_matrix) ||
       anyNA(coefficient_labels) || any(!nzchar(coefficient_labels)) ||
