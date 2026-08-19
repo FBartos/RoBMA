@@ -197,29 +197,6 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   })
 
   ### diagnostics ----
-  plot_marginal_diagnostics <- function(fit_metafor, fit_brma) {
-    metafor_values <- list(
-      "Residuals"      = as.numeric(stats::residuals(fit_metafor)),
-      "Rstandard"      = stats::rstandard(fit_metafor)[["z"]],
-      "Hat values"     = as.numeric(stats::hatvalues(fit_metafor)),
-      "Cooks distance" = stats::cooks.distance(fit_metafor),
-      "DFBETAS"        = unlist(stats::dfbetas(fit_metafor))
-    )
-    brma_values <- list(
-      "Residuals"      = residuals(fit_brma, type = "outcome", conditioning_depth = "marginal"),
-      "Rstandard"      = rstandard(fit_brma, conditioning_depth = "marginal")[["z"]],
-      "Hat values"     = hatvalues(fit_brma),
-      "Cooks distance" = cooks.distance(fit_brma),
-      "DFBETAS"        = unlist(dfbetas(fit_brma))
-    )
-
-    par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
-    for (diagnostic in names(metafor_values)) {
-      scenario_agreement_plot(metafor_values[[diagnostic]], brma_values[[diagnostic]], diagnostic)
-    }
-    invisible(NULL)
-  }
-
   scenario_plot("diagnostics-no-known-R", plot_marginal_diagnostics(fit_metafor_mv, fit_brma_mv))
   scenario_plot("diagnostics-known-R",    plot_marginal_diagnostics(fit_metafor_mv_quality, fit_brma_mv_quality))
   scenario_plot("diagnostics-cor-R",      plot_marginal_diagnostics(fit_metafor_mv_rcor,    fit_brma_mv_rcor))

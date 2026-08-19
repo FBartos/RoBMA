@@ -361,33 +361,6 @@ testthat::test_that("Assink multivariate nested random-effects model", {
 
 
   ### diagnostics ----
-  plot_marginal_diagnostics <- function(fit_metafor, fit_robma) {
-    metafor_values <- list(
-      "Residuals"      = as.numeric(stats::residuals(fit_metafor)),
-      "Rstandard"      = stats::rstandard(fit_metafor)[["z"]],
-      "Hat values"     = as.numeric(stats::hatvalues(fit_metafor)),
-      "Cooks distance" = cooks.distance(fit_metafor),
-      "DFBETAS"        = unlist(dfbetas(fit_metafor))
-    )
-
-    robma_values <- list(
-      "Residuals"      = residuals(fit_robma, type = "outcome", conditioning_depth = "marginal"),
-      "Rstandard"      = suppressWarnings(rstandard(fit_robma, conditioning_depth = "marginal"))[["z"]],
-      "Hat values"     = suppressWarnings(hatvalues(fit_robma)),
-      "Cooks distance" = cooks.distance(fit_robma),
-      "DFBETAS"        = unlist(dfbetas(fit_robma))
-    )
-
-    par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
-    for (diagnostic in names(metafor_values)) {
-      scenario_agreement_plot(
-        metafor_values[[diagnostic]], robma_values[[diagnostic]], diagnostic
-      )
-    }
-
-    return(invisible(NULL))
-  }
-
   scenario_plot("fit_mv_marginal_diagnostics",      {plot_marginal_diagnostics(fit_metafor, fit_brma.mv)})
   scenario_plot("fit_mv_diag_marginal_diagnostics", {plot_marginal_diagnostics(fit_metafor_diag, fit_brma.mv_diag)})
   scenario_plot("fit_mv_reg_marginal_diagnostics",  {plot_marginal_diagnostics(fit_metafor_reg, fit_brma.mv_reg)})

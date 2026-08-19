@@ -33,7 +33,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
-  })
+  }, cache_version = 2L)
   fit_brma_hcs <- scenario_fit("fit_brma_hcs", {
     temp_fit <- brma.mv(yi = yi, V = vi, ni = out1 + out2, mods = ~ 0 + group, random = ~ hcs(group | study),
                         set_contrast_factor_predictors = "independent",
@@ -41,7 +41,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
-  })
+  }, cache_version = 2L)
   fit_brma_diag <- scenario_fit("fit_brma_diag", {
     temp_fit <- brma.mv(yi = yi, V = vi, ni = out1 + out2, mods = ~ 0 + group, random = ~ diag(0 + group | study),
                         set_contrast_factor_predictors = "independent", prior_heterogeneity = random_prior_diag,
@@ -49,7 +49,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
-  })
+  }, cache_version = 2L)
   fit_brma_hcs0 <- scenario_fit("fit_brma_hcs0", {
     temp_fit <- brma.mv(yi = yi, V = vi, ni = out1 + out2, mods = ~ 0 + group, random = ~ hcs(group | study),
                         set_contrast_factor_predictors = "independent", prior_heterogeneity = random_prior_hcs0,
@@ -57,49 +57,28 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
-  })
+  }, cache_version = 2L)
 
   ### model summaries ----
-  # TODO: the parameter summary order for the random effects should be
-  # - sd_common
-  # - var_ratio
-  # - cor
   fit_metafor_us
   scenario_text("summary-fit_brma_us",  summary(fit_brma_us))
   scenario_text("summary-fit_brma_hcs", summary(fit_brma_hcs))
   fit_metafor_diag
   scenario_text("summary-fit_brma_diag", summary(fit_brma_diag))
   scenario_text("summary-fit_brma_hcs0", summary(fit_brma_hcs0))
-  # TODO:
-  # this should allow as.data.frame and data.frame(summary_heterogeneity(fit_brma_us))
-  # similarly as we have for pooled_effect, pooled_heterogeneity
-  # with a leading column named component which is filled with "location", "random" etc... for different model fits
 
-  # TODO:
-  # why is there no var(group[sensitivity]) and var(group[specificity]) reported?
-  # the order should be sd and then var for the individual parameters, i.e.,
-  # sd_common
-  # var_common
-  # sd(group[1])
-  # sd(group[2])
-  # var(group[1])
-  # var(group[2])
-  # sd_ratio(group[1])
-  # sd_ratio(group[2])
-  # var_ratio(group[1])
-  # var_ratio(group[2])
-  # TODO:
-  # this should allow as.data.frame and data.frame(summary_heterogeneity(fit_brma_us))
-  # similarly as we have for pooled_effect, pooled_heterogeneity
-  # with a leading column named component which is filled with the random components names
   scenario_text("summary-het-us",  summary_heterogeneity(fit_brma_us))
   scenario_text("summary-het-hcs", summary_heterogeneity(fit_brma_hcs))
 
-  # TODO:
-  # this should allow as.data.frame and data.frame(marginal_means(fit_brma_us))
-  # similarly as we have for pooled_effect, pooled_heterogeneity
-  scenario_text("marginal-means-us" ,summary(marginal_means(fit_brma_us)))
-  scenario_text("marginal-means-hcs" ,summary(marginal_means(fit_brma_hcs)))
+  # TODO: how is it possible that pooled heterogeneity is lover than any group level heterogeneity?
+  # explain this surprisning finding
+  # FIXED: pooling targets the average group contrast; its variance includes
+  # covariance, so the fitted negative correlation can make it smaller than
+  # either group-specific marginal variance.
+  pooled_heterogeneity(fit_brma_us)
+
+  scenario_text("marginal-means-us" ,  summary(marginal_means(fit_brma_us)))
+  scenario_text("marginal-means-hcs" , summary(marginal_means(fit_brma_hcs)))
   scenario_text("marginal-means-diag" ,summary(marginal_means(fit_brma_diag)))
   scenario_text("marginal-means-hcs0" ,summary(marginal_means(fit_brma_hcs0)))
 
@@ -142,7 +121,6 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
 
   scenario_plot("cor", {
     plot(fit_brma_us, "cor(group[sensitivity],group[specificity])", prior = TRUE)
-    # TODO: this density is incorrect -- the posterior from qCMDE matches the prior above
     lines(fit_brma_us, "cor(group[sensitivity],group[specificity])", density_method = "qCMDE", lty = 2)
 
     lines(fit_brma_hcs, "cor", col = "blue")
@@ -150,42 +128,59 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   })
 
   # other random parameters
-
   scenario_plot("random_us", {
     par(mfrow = c(3, 2)) # HERE extend
 
     plot(fit_brma_us, "sd_common", prior = TRUE)
-    plot(fit_brma_us, "var_common", prior = TRUE)
+    plot(fit_brma_us, "var_common", prior = TRUE, xlim = c(0, 2))
 
-    plot(fit_brma_us, "sd(group[sensitivity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
-    plot(fit_brma_us, "sd(group[specificity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
+    plot(fit_brma_us, "sd(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_us, "sd(group[specificity])", prior = TRUE)
 
-    plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE) #TODO: these should allow analytical prior visualization
-    plot(fit_brma_us, "var_ratio(group[specificity])", prior = TRUE) #TODO: these should allow analytical prior visualization
+    plot(fit_brma_us, "var(group[sensitivity])", xlim = c(0, 2), prior = TRUE)
+    plot(fit_brma_us, "var(group[specificity])", xlim = c(0, 2), prior = TRUE)
   })
 
-  scenario_plot("random_hcs", {
+  scenario_plot("random_us2", {
     par(mfrow = c(3, 2)) # HERE extend
 
+    plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_us, "var_ratio(group[specificity])", prior = TRUE)
+
+    # TODO: this figure is clearly incorrect (the density is forced to be lower than a constant (but it might be higher ofcourse))
+    plot(fit_brma_us, "sd_ratio(group[sensitivity])", prior = TRUE, xlim = c(0, 2))
+    plot(fit_brma_us, "sd_ratio(group[specificity])", prior = TRUE, xlim = c(0, 2))
+
+    # TODO: allow log transformation of var_ratio and sd_ratio parameters
+    plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE, transform = "LOG")
+    plot(fit_brma_us, "sd_ratio(group[specificity])", prior = TRUE, transform = "LOG")
+
+  })
+
+
+  scenario_plot("random_hcs", {
+    par(mfrow = c(3, 2))
+
     plot(fit_brma_hcs, "sd_common", prior = TRUE)
-    plot(fit_brma_hcs, "var_common", prior = TRUE)
+    plot(fit_brma_hcs, "var_common", prior = TRUE, xlim = c(0, 1.5), ylim = c(0, 5))
 
-    plot(fit_brma_hcs, "sd(group[sensitivity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
-    plot(fit_brma_hcs, "sd(group[specificity])", prior = TRUE)  #TODO: these should allow analytical prior visualization
+    plot(fit_brma_hcs, "sd(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_hcs, "sd(group[specificity])", prior = TRUE)
 
-    plot(fit_brma_hcs, "var_ratio(group[sensitivity])", prior = TRUE) #TODO: these should allow analytical prior visualization
-    plot(fit_brma_hcs, "var_ratio(group[specificity])", prior = TRUE) #TODO: these should allow analytical prior visualization
+    plot(fit_brma_hcs, "var_ratio(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_hcs, "sd_ratio(group[specificity])",  prior = TRUE) # TODO: annother issue here
   })
 
   ### random-effect comparisons ----
   ranef_metafor_us   <- metafor::ranef(fit_metafor_us)[[1L]]
   ranef_metafor_diag <- metafor::ranef(fit_metafor_diag)[[1L]]
-  ranef_brma_us      <- ranef(fit_brma_us)
-  ranef_brma_hcs     <- ranef(fit_brma_hcs)
-  ranef_brma_diag    <- ranef(fit_brma_diag)
-  ranef_brma_hcs0    <- ranef(fit_brma_hcs0)
 
   scenario_plot("ranef-structure-comparison", {
+    ranef_brma_us      <- ranef(fit_brma_us)
+    ranef_brma_hcs     <- ranef(fit_brma_hcs)
+    ranef_brma_diag    <- ranef(fit_brma_diag)
+    ranef_brma_hcs0    <- ranef(fit_brma_hcs0)
+
     par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
     # one of the groups is shrunk towards zero becuase the priors are too narrow for the data (systematic errors in first row)
     scenario_agreement_plot(ranef_metafor_us[["intrcpt"]],   as.data.frame(ranef_brma_us)[["Mean"]], "UN: RoBMA vs metafor")
@@ -196,33 +191,6 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
 
 
   ### diagnostics ----
-  plot_marginal_diagnostics <- function(fit_metafor, fit_robma) {
-    metafor_values <- list(
-      "Residuals"      = as.numeric(stats::residuals(fit_metafor)),
-      "Rstandard"      = stats::rstandard(fit_metafor)[["z"]],
-      "Hat values"     = as.numeric(stats::hatvalues(fit_metafor)),
-      "Cooks distance" = cooks.distance(fit_metafor),
-      "DFBETAS"        = unlist(dfbetas(fit_metafor))
-    )
-
-    robma_values <- list(
-      "Residuals"      = residuals(fit_robma, type = "outcome", conditioning_depth = "marginal"),
-      "Rstandard"      = suppressWarnings(rstandard(fit_robma, conditioning_depth = "marginal"))[["z"]],
-      "Hat values"     = suppressWarnings(hatvalues(fit_robma)),
-      "Cooks distance" = cooks.distance(fit_robma),
-      "DFBETAS"        = unlist(dfbetas(fit_robma))
-    )
-
-    par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
-    for (diagnostic in names(metafor_values)) {
-      scenario_agreement_plot(
-        metafor_values[[diagnostic]], robma_values[[diagnostic]], diagnostic
-      )
-    }
-
-    return(invisible(NULL))
-  }
-
   scenario_plot("marginal_diagnostics_us",   plot_marginal_diagnostics(fit_metafor_us, fit_brma_us))
   scenario_plot("marginal_diagnostics_diag", plot_marginal_diagnostics(fit_metafor_diag, fit_brma_diag))
   # the main differences bellow seem to be due to unstable loo
