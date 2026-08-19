@@ -35,16 +35,6 @@
       length(unique(coefficients[finite])) < 2L) {
     return(NULL)
   }
-  finite_rows <- which(finite)
-  anchor_rows <- finite_rows[c(
-    which.min(coefficients[finite]),
-    which.max(coefficients[finite])
-  )]
-  anchor_values <- values[anchor_rows]
-  anchor_coefficients <- coefficients[anchor_rows]
-  if (anchor_coefficients[[1L]] == anchor_coefficients[[2L]]) {
-    return(NULL)
-  }
 
   rows <- vapply(row_states, `[[`, integer(1), "row_index")
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
@@ -63,66 +53,98 @@
   S     <- length(row_states)
   K     <- length(yi)
   out   <- matrix(-Inf, nrow = length(values), ncol = S)
-  max_bytes <- .known_v_covariance_max_bytes()
-  chunk_bytes <- if (is.infinite(max_bytes)) Inf else max_bytes / 2
-  chunks <- .known_v_covariance_chunk_indices(
-    S         = S,
-    K         = K,
-    max_bytes = chunk_bytes
+  invariant <- .iwmde_random_affine_invariant_covariance(
+    update = update,
+    setup  = setup,
+    K      = K
   )
-
-  for (chunk in chunks) {
-    anchor_samples <- lapply(anchor_values, function(value) {
-      .iwmde_random_affine_replacement_samples(
-        context     = context,
-        parameter   = parameter,
-        value       = value,
-        row_states  = row_states[chunk],
-        replacement = replacement
-      )
-    })
-    if (any(vapply(anchor_samples, is.null, logical(1)))) {
-      return(NULL)
-    }
-    covariance <- lapply(anchor_samples, function(anchor_sample) {
-      result <- .brma_mv_random_effects_marginal_vcov(
-        object            = context[["object"]],
-        posterior_samples = anchor_sample
-      )
-      result[["samples"]]
-    })
-    expected_dim <- c(length(chunk), K, K)
-    valid_covariance <- vapply(covariance, function(value) {
-      is.array(value) && identical(dim(value), expected_dim) &&
-        all(is.finite(value))
-    }, logical(1))
-    if (!all(valid_covariance)) {
-      return(NULL)
-    }
-    coefficient_difference <-
-      anchor_coefficients[[2L]] - anchor_coefficients[[1L]]
-    update_covariance <-
-      (covariance[[2L]] - covariance[[1L]]) /
-      coefficient_difference
-    base_covariance <- covariance[[1L]]
-    for (j in seq_along(chunk)) {
-      base_covariance[j, , ] <-
-        base_covariance[j, , ] + setup[["sampling_covariance"]]
-    }
-    evaluated <- .iwmde_random_affine_log_likelihood_chunk(
-      base_covariance       = base_covariance,
-      update_covariance     = update_covariance,
-      reference_coefficient = anchor_coefficients[[1L]],
+  if (!is.null(invariant)) {
+    evaluated <- .iwmde_random_affine_log_likelihood_invariant(
+      base_covariance       = invariant[["base_covariance"]],
+      update_covariance     = invariant[["update_covariance"]],
+      reference_coefficient = invariant[["reference_coefficient"]],
       coefficients          = coefficients[finite],
-      means                 = mu_samples[chunk, , drop = FALSE],
+      means                 = mu_samples,
       outcome               = yi,
       blocks                = setup[["dependency_blocks"]]
     )
     if (!is.matrix(evaluated) ||
-        !identical(dim(evaluated), c(sum(finite), length(chunk)))) {
+        !identical(dim(evaluated), c(sum(finite), S))) {
       return(NULL)
     }
-    out[finite, chunk] <- evaluated
+    out[finite, ] <- evaluated
+  } else {
+    finite_rows <- which(finite)
+    anchor_rows <- finite_rows[c(
+      which.min(coefficients[finite]),
+      which.max(coefficients[finite])
+    )]
+    anchor_values <- values[anchor_rows]
+    anchor_coefficients <- coefficients[anchor_rows]
+    if (anchor_coefficients[[1L]] == anchor_coefficients[[2L]]) {
+      return(NULL)
+    }
+    max_bytes <- .known_v_covariance_max_bytes()
+    chunk_bytes <- if (is.infinite(max_bytes)) Inf else max_bytes / 2
+    chunks <- .known_v_covariance_chunk_indices(
+      S         = S,
+      K         = K,
+      max_bytes = chunk_bytes
+    )
+
+    for (chunk in chunks) {
+      anchor_samples <- lapply(anchor_values, function(value) {
+        .iwmde_random_affine_replacement_samples(
+          context     = context,
+          parameter   = parameter,
+          value       = value,
+          row_states  = row_states[chunk],
+          replacement = replacement
+        )
+      })
+      if (any(vapply(anchor_samples, is.null, logical(1)))) {
+        return(NULL)
+      }
+      covariance <- lapply(anchor_samples, function(anchor_sample) {
+        result <- .brma_mv_random_effects_marginal_vcov(
+          object            = context[["object"]],
+          posterior_samples = anchor_sample
+        )
+        result[["samples"]]
+      })
+      expected_dim <- c(length(chunk), K, K)
+      valid_covariance <- vapply(covariance, function(value) {
+        is.array(value) && identical(dim(value), expected_dim) &&
+          all(is.finite(value))
+      }, logical(1))
+      if (!all(valid_covariance)) {
+        return(NULL)
+      }
+      coefficient_difference <-
+        anchor_coefficients[[2L]] - anchor_coefficients[[1L]]
+      update_covariance <-
+        (covariance[[2L]] - covariance[[1L]]) /
+        coefficient_difference
+      base_covariance <- covariance[[1L]]
+      for (j in seq_along(chunk)) {
+        base_covariance[j, , ] <-
+          base_covariance[j, , ] + setup[["sampling_covariance"]]
+      }
+      evaluated <- .iwmde_random_affine_log_likelihood_chunk(
+        base_covariance       = base_covariance,
+        update_covariance     = update_covariance,
+        reference_coefficient = anchor_coefficients[[1L]],
+        coefficients          = coefficients[finite],
+        means                 = mu_samples[chunk, , drop = FALSE],
+        outcome               = yi,
+        blocks                = setup[["dependency_blocks"]]
+      )
+      if (!is.matrix(evaluated) ||
+          !identical(dim(evaluated), c(sum(finite), length(chunk)))) {
+        return(NULL)
+      }
+      out[finite, chunk] <- evaluated
+    }
   }
 
   log_prior <- .iwmde_predictor_log_prior(
@@ -137,6 +159,38 @@
   }
 
   out + matrix(log_prior, nrow = length(values), ncol = S)
+}
+
+
+.iwmde_random_affine_invariant_covariance <- function(update, setup, K) {
+
+  invariant <- update[["invariant_covariance"]]
+  if (!is.list(invariant) ||
+      !all(c(
+        "reference_coefficient", "base_covariance", "update_covariance"
+      ) %in% names(invariant))) {
+    return(NULL)
+  }
+  reference <- invariant[["reference_coefficient"]]
+  base      <- invariant[["base_covariance"]]
+  basis     <- invariant[["update_covariance"]]
+  sampling  <- setup[["sampling_covariance"]]
+  expected  <- c(K, K)
+  if (!is.numeric(reference) || length(reference) != 1L ||
+      !is.finite(reference) || !is.matrix(base) || !is.matrix(basis) ||
+      !is.matrix(sampling) || !identical(dim(base), expected) ||
+      !identical(dim(basis), expected) || !identical(dim(sampling), expected) ||
+      any(!is.finite(base)) || any(!is.finite(basis)) ||
+      any(!is.finite(sampling)) || !identical(base, t(base)) ||
+      !identical(basis, t(basis)) || !identical(sampling, t(sampling))) {
+    return(NULL)
+  }
+
+  list(
+    reference_coefficient = reference,
+    base_covariance       = base + sampling,
+    update_covariance     = basis
+  )
 }
 
 
@@ -241,6 +295,38 @@
       if (is.null(plan)) {
         return(NULL)
       }
+      value <- .known_v_affine_log_likelihood(
+        plan         = plan,
+        residual     = outcome[block] - means[s, block],
+        coefficients = coefficients
+      )
+      if (is.null(value)) {
+        return(NULL)
+      }
+      out[, s] <- out[, s] + value
+    }
+  }
+  out
+}
+
+
+.iwmde_random_affine_log_likelihood_invariant <- function(
+    base_covariance, update_covariance, reference_coefficient, coefficients,
+    means, outcome, blocks) {
+
+  S <- nrow(means)
+  G <- length(coefficients)
+  out <- matrix(0, nrow = G, ncol = S)
+  for (block in blocks) {
+    plan <- .known_v_affine_spectral_plan(
+      base_covariance = base_covariance[block, block, drop = FALSE],
+      update_covariance = update_covariance[block, block, drop = FALSE],
+      reference_coefficient = reference_coefficient
+    )
+    if (is.null(plan)) {
+      return(NULL)
+    }
+    for (s in seq_len(S)) {
       value <- .known_v_affine_log_likelihood(
         plan         = plan,
         residual     = outcome[block] - means[s, block],

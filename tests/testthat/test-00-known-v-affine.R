@@ -283,6 +283,54 @@ test_that("direct grouped-scale grid matches dense Gaussian likelihoods", {
 })
 
 
+test_that("invariant affine covariance uses the declared basis directly", {
+
+  sampling <- matrix(c(
+    0.5, 0.1, 0.0,
+    0.1, 0.6, 0.2,
+    0.0, 0.2, 0.7
+  ), nrow = 3L, byrow = TRUE)
+  basis <- tcrossprod(c(1, 0.5, -0.25))
+  update <- list(invariant_covariance = list(
+    reference_coefficient = 0,
+    base_covariance       = matrix(0, 3L, 3L),
+    update_covariance     = basis
+  ))
+  invariant <- .iwmde_random_affine_invariant_covariance(
+    update = update,
+    setup  = list(sampling_covariance = sampling),
+    K      = 3L
+  )
+  coefficients <- c(0, 0.2, 0.8)
+  means <- rbind(c(0.1, -0.1, 0.2), c(-0.2, 0.3, 0.1))
+  outcome <- c(0.3, -0.4, 0.6)
+  observed <- .iwmde_random_affine_log_likelihood_invariant(
+    base_covariance       = invariant$base_covariance,
+    update_covariance     = invariant$update_covariance,
+    reference_coefficient = invariant$reference_coefficient,
+    coefficients          = coefficients,
+    means                 = means,
+    outcome               = outcome,
+    blocks                = list(1:3)
+  )
+  expected <- matrix(NA_real_, nrow = length(coefficients), ncol = nrow(means))
+  for (g in seq_along(coefficients)) {
+    covariance <- sampling + coefficients[[g]] * basis
+    for (s in seq_len(nrow(means))) {
+      expected[g, s] <- .marglik_mvn_log_density(
+        y          = outcome,
+        mean       = means[s, ],
+        covariance = covariance
+      )
+    }
+  }
+
+  expect_equal(invariant$base_covariance, sampling)
+  expect_identical(invariant$update_covariance, basis)
+  expect_equal(observed, expected, tolerance = 1e-12)
+})
+
+
 test_that("generalized affine routing requires sampling dependence", {
 
   expect_false(.iwmde_random_affine_has_sampling_dependence(list(
