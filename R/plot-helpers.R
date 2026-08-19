@@ -1400,6 +1400,7 @@
 .select_print_prior_all <- function(object) {
 
   catalog  <- .brma_parameter_catalog(object)
+  catalog  <- catalog[catalog[["source"]] != "random", , drop = FALSE]
   catalog  <- catalog[!duplicated(catalog[["parameter"]]), , drop = FALSE]
   if (any(catalog[["source"]] == "bias" & catalog[["parameter"]] == "bias")) {
     catalog <- catalog[

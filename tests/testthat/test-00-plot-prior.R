@@ -347,6 +347,46 @@ test_that("plot_prior omits absent scalar scale priors for random brma.mv", {
   )
 })
 
+test_that("print_prior prints a fitted random specification only once", {
+
+  skip_on_cran()
+
+  mv_data <- data.frame(
+    effect  = test_data[["effect"]],
+    std_err = test_data[["std_err"]],
+    study   = c("s1", "s1", "s2", "s2", "s3"),
+    stringsAsFactors = FALSE
+  )
+
+  mv_priors <- brma.mv(
+    yi                        = effect,
+    V                         = diag(std_err^2),
+    random                    = ~ 1 | study,
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  catalog <- .brma_parameter_catalog(mv_priors)
+  random_entries <- catalog[rep(1L, 2L), , drop = FALSE]
+  random_entries[["alias"]] <-
+    c("(mu) sd(intercept)", "sd(intercept)")
+  random_entries[["parameter"]]         <- "(mu) sd(intercept)"
+  random_entries[["component"]]         <- "random"
+  random_entries[["term"]]              <- "(mu) sd(intercept)"
+  random_entries[["source"]]            <- "random"
+  random_entries[["formula_parameter"]] <- "mu"
+  catalog <- rbind(catalog, random_entries)
+  testthat::local_mocked_bindings(
+    .brma_parameter_catalog = function(object) catalog,
+    .package                = "RoBMA"
+  )
+
+  selected <- print_prior(mv_priors, silent = TRUE)
+  expect_s3_class(selected[["random"]], "prior_random")
+  expect_false("(mu) sd(intercept)" %in% names(selected))
+})
+
 test_that("plot_prior supports direct prior objects", {
 
   skip_on_cran()

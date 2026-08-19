@@ -35,7 +35,9 @@
   qCMDE/IWMDE. RoBMA delegates one-to-one random-parameter display transforms
   and their Jacobians to BayesTools, so plotting, hypotheses, and density
   estimation share the catalog's transform contract rather than maintaining
-  duplicate transform algebra. Basic summaries report only quantities aligned
+  duplicate transform algebra. `print_prior()` prints the structured random
+  prior once instead of treating each fitted semantic random quantity as an
+  independent stored prior. Basic summaries report only quantities aligned
   with prior specification, while `summary_heterogeneity()` retains aggregate
   variances, allocation-derived component SDs, variance ratios, and SD ratios.
 - completes partial `prior_random()` specifications with RoBMA's usual
