@@ -1153,7 +1153,7 @@ test_that("brma.mv rejects invalid and unsupported inputs", {
       prior_unit_information_sd = 1,
       only_data                 = TRUE
     ),
-    "provisional"
+    "rank-deficient correlation structure"
   )
   expect_s3_class(singular_data, "brma.mv")
   expect_true(.data_known_v_data(singular_data[["data"]])[["singular"]])
