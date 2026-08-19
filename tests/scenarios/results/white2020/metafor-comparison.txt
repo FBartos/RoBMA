@@ -1,0 +1,7 @@
+              model implementation intercept  study_SD observation_SD total_random_SD
+1 study+observation        metafor 0.1572631 0.1237238      0.2548147       0.2832634
+2 study+observation          RoBMA 0.1586831 0.1313852      0.2522429       0.2872296
+3             study        metafor 0.1759748 0.1821559             NA       0.1821559
+4             study          RoBMA 0.1767435 0.1880941             NA       0.1880941
+5       observation        metafor 0.1346785        NA      0.2843674       0.2843674
+6       observation          RoBMA 0.1342349        NA      0.2846720       0.2846720

@@ -1,0 +1,4 @@
+            mean_difference root_mean_square_error maximum_abs_difference correlation
+study                    NA                     NA                     NA          NA
+observation              NA                     NA                     NA          NA
+combined       -0.001207909            0.003599793             0.01523949   0.9998951
