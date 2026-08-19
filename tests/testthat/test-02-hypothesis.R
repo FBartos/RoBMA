@@ -600,26 +600,35 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
     "multiple model parameters"
   )
 
-  bf_mods <- hypothesis(
-    fit,
-    "Preregistered > 0",
-    component      = "mods",
-    density_method = "KDE",
-    n_samples      = 1000
+  expect_warning(
+    bf_mods <- hypothesis(
+      fit,
+      "Preregistered > 0",
+      component      = "mods",
+      density_method = "KDE",
+      n_samples      = 1000
+    ),
+    "full ensemble"
   )
-  bf_location <- hypothesis(
-    fit,
-    "Preregistered > 0",
-    component      = "location",
-    density_method = "KDE",
-    n_samples      = 1000
+  expect_warning(
+    bf_location <- hypothesis(
+      fit,
+      "Preregistered > 0",
+      component      = "location",
+      density_method = "KDE",
+      n_samples      = 1000
+    ),
+    "full ensemble"
   )
-  bf_scale <- hypothesis(
-    fit,
-    "Preregistered > 0",
-    component      = "scale",
-    density_method = "KDE",
-    n_samples      = 1000
+  expect_warning(
+    bf_scale <- hypothesis(
+      fit,
+      "Preregistered > 0",
+      component      = "scale",
+      density_method = "KDE",
+      n_samples      = 1000
+    ),
+    "full ensemble"
   )
 
   expect_s3_class(bf_mods, "BayesTools_hypothesis_BF")
