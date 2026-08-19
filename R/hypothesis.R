@@ -847,7 +847,7 @@ hypothesis.brma <- function(object, hypothesis,
   estimate_cache <- .iwmde_estimate_cache()
   marginal <- .hypothesis_brma_attach_iwmde_scalar(
     posterior                = marginal,
-    raw_posterior            = marginal,
+    raw_posterior            = samples[[parameter]],
     context                  = context,
     estimate_cache           = estimate_cache,
     parameter                = target[["parameter"]],

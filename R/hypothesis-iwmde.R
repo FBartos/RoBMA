@@ -153,6 +153,12 @@
       type          = "primitive",
       prior_density = attr(raw_posterior, "prior_density", exact = TRUE)
     )
+  } else if (is.null(parameter_spec[["prior_density"]])) {
+    parameter_spec[["prior_density"]] <- attr(
+      raw_posterior,
+      "prior_density",
+      exact = TRUE
+    )
   }
   parameter_spec[["conditional"]]      <- conditional
   parameter_spec[["conditional_rule"]] <- "AND"

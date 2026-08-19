@@ -261,6 +261,10 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
   attachment_calls    <- 0L
   reused_selected     <- NULL
   reused_prior        <- NULL
+  semantic_prior_density <- BayesTools::prior(
+    "uniform",
+    list(a = 0, b = 1)
+  )
   testthat::local_mocked_bindings(
     .brma_random_parameter_select = function(...) selected,
     .brma_random_parameter_density_target = function(...) {
@@ -270,16 +274,22 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
         ..., selected = NULL, prior_selected = NULL) {
       reused_selected <<- selected
       reused_prior    <<- prior_selected
-      list(theta = 1:3)
+      values <- 1:3
+      attr(values, "prior_density") <- semantic_prior_density
+      list(theta = values)
     },
     .iwmde_context = function(...) list(),
     .iwmde_estimate_cache = function(...) new.env(parent = emptyenv()),
     .hypothesis_brma_attach_iwmde_scalar = function(
-        posterior, value, parameter, parameter_spec, ...) {
+        posterior, raw_posterior, value, parameter, parameter_spec, ...) {
       attachment_calls <<- attachment_calls + 1L
       attached_values <<- c(attached_values, value)
       expect_identical(parameter, "rho[2]")
       expect_identical(parameter_spec, target_spec)
+      expect_identical(
+        attr(raw_posterior, "prior_density", exact = TRUE),
+        semantic_prior_density
+      )
       posterior
     },
     .hypothesis_brma_append_iwmde_warnings = function(table, ...) table,

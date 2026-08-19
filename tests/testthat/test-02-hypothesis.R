@@ -304,7 +304,8 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
     target_relative_mcse = .05,
     normalization_points = 20,
     normalization_prob   = .99,
-    density_method       = "qCMDE"
+    density_method       = "qCMDE",
+    parameter_spec       = list(type = "random_component_sd")
   )
 
   entries <- .iwmde_posterior_ordinate_entries(
@@ -318,6 +319,10 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
     "mu_source"
   )
   expect_identical(captured_parameter_spec[["prior_density"]], prior_density)
+  expect_identical(
+    captured_parameter_spec[["type"]],
+    "random_component_sd"
+  )
 })
 
 
