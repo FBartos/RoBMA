@@ -380,6 +380,8 @@
   increase by that rank when it exceeds one.
 
 ### Fixes
+- fixes validation of one-entry random-formula lists so plain nested grouping
+  formulas remain recognized after suppressing redundant component prefixes.
 - preserves exact hypothesis AST ordinates through qCMDE/IWMDE routing,
   including transformed random-effect quantities and long decimal null values.
   Metadata-backed random quantities retain their semantic prior densities and

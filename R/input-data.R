@@ -1486,7 +1486,8 @@ NULL
 
 .check_and_list_data.random_is_plain_nested <- function(random) {
 
-  rhs <- random[[if (length(random) == 3L) 3L else 2L]]
+  formula <- if (inherits(random, "formula")) random else random[[1L]]
+  rhs <- formula[[if (length(formula) == 3L) 3L else 2L]]
   while (is.call(rhs) && identical(rhs[[1L]], as.name("("))) {
     rhs <- rhs[[2L]]
   }
