@@ -240,9 +240,8 @@ test_that("summary.brma omits a fixed-zero intercept with moderators", {
 
   expect_false(any(grepl(
     "intercept",
-    rownames(out[["estimates_mods"]]),
-    ignore.case = TRUE,
-    fixed       = TRUE
+    tolower(rownames(out[["estimates_mods"]])),
+    fixed = TRUE
   )))
   expect_true(any(grepl("time_factor", rownames(out[["estimates_mods"]]),
                         fixed = TRUE)))
