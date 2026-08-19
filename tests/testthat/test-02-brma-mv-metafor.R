@@ -445,7 +445,7 @@ test_that("v14 brma.mv random-covariance parameters match metafor references", {
     ),
     list(
       name      = "brma.mv_v14_begg1989_study_treatment",
-      row       = "study: cor",
+      row       = "treatment: cor",
       expected  = function(m) m[["rho"]],
       tolerance = 1e-12
     )
