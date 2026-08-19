@@ -368,7 +368,7 @@
 .iwmde_plan_baseline_contract <- function(context, plan, candidate_rows,
                                           candidate_values) {
 
-  row_states <- .iwmde_row_states_grouped_known_v(
+  row_states <- .iwmde_row_states_grouped_marginal(
     context        = context,
     rows           = candidate_rows,
     parameter      = plan[["target"]][["parameter"]],

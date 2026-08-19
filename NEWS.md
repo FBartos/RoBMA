@@ -76,6 +76,9 @@
   model parameters and are evaluated through their corresponding density routes;
   direct scalar point ordinates sharing one target reuse a single
   conditional-normalization pass while retaining value-specific diagnostics.
+  Marginal posterior rows now use the same exact batched likelihood and prior
+  engine for ordinary, formula, selection, multilevel, and known-`V` models,
+  avoiding repeated scalar formula reconstruction during qCMDE/IWMDE setup.
   Fixed moderator and scale predictors in mixed-formula models are now replayed
   explicitly without conflating them with group-level contributions.
 - evaluates normal multilevel cluster likelihoods with a native exact

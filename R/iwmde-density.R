@@ -30,12 +30,12 @@
 }
 
 
-.iwmde_row_states_grouped_known_v <- function(context, rows,
+.iwmde_row_states_grouped_marginal <- function(context, rows,
                                                parameter = NULL,
                                                parameter_spec = NULL,
                                                estimator = NULL) {
 
-  if (!.iwmde_marginal_likelihood_requires_row(context)) {
+  if (!inherits(context, "iwmde_context")) {
     return(NULL)
   }
   likelihood_mode <- .iwmde_likelihood_mode(
@@ -149,7 +149,7 @@
     )
     if (!is.numeric(log_lik) || length(log_lik) != length(group)) {
       stop(
-        "Grouped known-V likelihood returned an invalid row result.",
+        "Grouped marginal likelihood returned an invalid row result.",
         call. = FALSE
       )
     }

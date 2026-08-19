@@ -4474,7 +4474,7 @@ test_that("known-V grouped baseline states match scalar construction", {
   )
   rows <- head(which(component[["active"]] & is.finite(values)), 5L)
 
-  grouped <- .iwmde_row_states_grouped_known_v(
+  grouped <- .iwmde_row_states_grouped_marginal(
     context        = grouped_context,
     rows           = rows,
     parameter      = parameter,
@@ -4499,4 +4499,57 @@ test_that("known-V grouped baseline states match scalar construction", {
     lapply(scalar, `[`, fields),
     tolerance = 1e-10
   )
+})
+
+
+test_that("ordinary marginal baseline states match scalar construction", {
+
+  fit_names  <- c("bcg_meta-analysis", "bcg_meta-regression")
+  parameters <- c("mu", "mu_ablat")
+  .skip_if_missing_raw_fits(fit_names)
+
+  for (i in seq_along(fit_names)) {
+    fit             <- load_fit(fit_names[[i]], validate = FALSE)
+    parameter       <- parameters[[i]]
+    grouped_context <- .iwmde_context(fit)
+    scalar_context  <- .iwmde_context(fit)
+    spec            <- .iwmde_parameter_spec(grouped_context, parameter, NULL)
+    values          <- .iwmde_parameter_values(
+      grouped_context,
+      parameter,
+      spec
+    )
+    component <- .iwmde_parameter_components(
+      grouped_context,
+      parameter,
+      spec
+    )
+    rows <- head(which(component[["active"]] & is.finite(values)), 5L)
+
+    grouped <- .iwmde_row_states_grouped_marginal(
+      context        = grouped_context,
+      rows           = rows,
+      parameter      = parameter,
+      parameter_spec = spec,
+      estimator      = "q_grid_cmde"
+    )
+    scalar <- .iwmde_row_states(
+      context        = scalar_context,
+      rows           = rows,
+      parameter      = parameter,
+      parameter_spec = spec,
+      estimator      = "q_grid_cmde"
+    )
+
+    fields <- c(
+      "row_index", "active_key", "baseline_log_lik", "baseline_log_prior",
+      "baseline_focal_log_prior", "use_focal_prior_delta", "baseline_log_q",
+      "likelihood_mode", "state_scope"
+    )
+    expect_equal(
+      lapply(grouped, `[`, fields),
+      lapply(scalar, `[`, fields),
+      tolerance = 1e-10
+    )
+  }
 })
