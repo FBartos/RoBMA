@@ -250,6 +250,11 @@ Leave an empty line after an opening brace in function definitions.
   estimation, and hypotheses must resolve catalog quantities and obtain draws
   through `parameter_draws()`. Never accept a coordinate as a public alias
   merely because it is monitored.
+- Random-effect density and marginal-diagnostic fast paths must consume
+  BayesTools' `random_effects_marginal_update_plan()`. Route only
+  metadata-declared affine families through exact covariance algebra; retain
+  the generic evaluator for factor, Markov, and unsupported families. Never
+  infer affineness from posterior draws or evaluated covariance candidates.
 - Treat a `prior_random()` object with no global or block SD, SD source,
   term-specific SD override, covariance-owned SD, or variance allocation as a
   partial override. Complete its scale with RoBMA's ordinary UISD and allocation
