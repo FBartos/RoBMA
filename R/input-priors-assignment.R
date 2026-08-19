@@ -95,19 +95,16 @@
   return(list(intercept = prior_effect))
 }
 
-.assign_prior.random                   <- function(prior, data, sd_sources = NULL) {
+.assign_prior.random                   <- function(prior, formula_design,
+                                                   sd_sources = NULL) {
 
-  random_effects <- attr(data[["location"]], "random_effects")
-  if (!inherits(random_effects, "BayesTools_random_effects") ||
-      length(random_effects[["terms"]]) == 0L) {
-    stop("Internal error: missing parsed random-effect object.", call. = FALSE)
+  if (!inherits(formula_design, "BayesTools_formula_design") ||
+      length(formula_design[["random_effects"]]) == 0L) {
+    stop("Internal error: missing compiled random-effect design.", call. = FALSE)
   }
 
-  terms      <- random_effects[["terms"]]
-  block_info <- .assign_prior.random_block_info(
-    terms = terms,
-    data  = data[["location"]]
-  )
+  terms      <- formula_design[["random_effects"]]
+  block_info <- .assign_prior.random_block_info(terms)
   allocation <- .assign_prior.random_allocation(
     terms           = terms,
     block_info      = block_info,
@@ -384,14 +381,11 @@
     return(invisible(TRUE))
   }
 
-  formula_design <- BayesTools::JAGS_formula(
-    formula       = .create_fit_formula_list(data = data, parameter = "location"),
-    parameter     = "mu",
-    data          = data[["location"]],
-    prior_list    = prior_location,
-    formula_scale = .data_standardize_continuous_predictors(data),
-    prior_random  = prior_random
-  )[["formula_design"]]
+  formula_design <- .compile_prior_random_formula_design(
+    data           = data,
+    prior_location = prior_location,
+    prior_random   = prior_random
+  )
 
   .warn_inherited_independent_random_overspecification(
     formula_design = formula_design,
@@ -407,6 +401,19 @@
   )
 
   invisible(TRUE)
+}
+
+.compile_prior_random_formula_design   <- function(data, prior_location,
+                                                   prior_random) {
+
+  BayesTools::JAGS_formula(
+    formula       = .create_fit_formula_list(data = data, parameter = "location"),
+    parameter     = "mu",
+    data          = data[["location"]],
+    prior_list    = prior_location,
+    formula_scale = .data_standardize_continuous_predictors(data),
+    prior_random  = prior_random
+  )[["formula_design"]]
 }
 
 .validate_prior_random_scale_sources   <- function(data, formula_design) {
@@ -503,17 +510,24 @@
     identical(source[["owned"]], FALSE)
 }
 
-.assign_prior.random_block_info        <- function(terms, data) {
+.assign_prior.random_block_info        <- function(terms) {
 
   lapply(terms, function(term) {
     structure   <- .assign_prior.random_structure(term)
-    n_columns   <- .assign_prior.random_n_columns(term, structure, data)
+    n_columns   <- term[["n_columns"]]
+    if (!is.numeric(n_columns) || length(n_columns) != 1L ||
+        is.na(n_columns) || n_columns < 1L || n_columns %% 1 != 0) {
+      stop(
+        "Internal error: compiled random-effect term is missing its column count.",
+        call. = FALSE
+      )
+    }
     homogeneous <- .assign_prior.random_homogeneous_sd(term, structure)
 
     list(
       block         = term[["block_name"]],
       structure     = structure,
-      n_columns     = n_columns,
+      n_columns     = as.integer(n_columns),
       heterogeneous = !homogeneous && n_columns > 1L
     )
   })
@@ -544,44 +558,6 @@
     us   = FALSE,
     FALSE
   )
-}
-
-.assign_prior.random_n_columns         <- function(term, structure, data) {
-
-  if (structure %in% c("cs", "hcs", "ar1", "har")) {
-    variables <- all.vars(term[["term_formula"]])
-    values <- lapply(variables, function(variable) {
-      if (!variable %in% names(data)) {
-        stop("Random-effect variable '", variable, "' is missing.", call. = FALSE)
-      }
-      .assign_prior.random_index_component(data[[variable]])
-    })
-    if (length(values) == 1L) {
-      return(nlevels(values[[1L]]))
-    }
-    return(nlevels(do.call(interaction, c(values, list(drop = TRUE)))))
-  }
-  if (structure == "car") {
-    variables <- all.vars(term[["term_formula"]])
-    if (length(variables) != 1L || !variables %in% names(data)) {
-      stop(
-        "CAR random-effect terms require exactly one time variable.",
-        call. = FALSE
-      )
-    }
-    return(length(unique(data[[variables]])))
-  }
-
-  model_matrix <- stats::model.matrix(term[["term_formula"]], data = data)
-  ncol(model_matrix)
-}
-
-.assign_prior.random_index_component   <- function(x) {
-
-  if (is.factor(x)) {
-    return(x)
-  }
-  factor(x, levels = sort(unique(x)))
 }
 
 .assign_prior.random_block_args        <- function(block_info, sds = list(),

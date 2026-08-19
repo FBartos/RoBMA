@@ -340,13 +340,33 @@
     prior_scale <- NULL
   }
 
+  prior_location <- .assign_prior.location(
+    prior_effect = prior_outcome[["mu"]],
+    prior_mods   = prior_mods,
+    data         = data
+  )
+
   if (is_random) {
+    preview_defaults <- BayesTools::prior_random(sd = prior_random_sd)
+    preview_prior <- if (is_random_prior_heterogeneity) {
+      .assign_prior.random_complete(
+        prior    = prior_heterogeneity,
+        defaults = preview_defaults
+      )
+    } else {
+      preview_defaults
+    }
+    random_formula_design <- .compile_prior_random_formula_design(
+      data           = data,
+      prior_location = prior_location,
+      prior_random   = preview_prior
+    )
     prior_random <- if (is_random_prior_heterogeneity) {
       if (random_prior_needs_default_scale) {
         random_defaults <- .assign_prior.random(
-          prior      = prior_random_sd,
-          data       = data,
-          sd_sources = if (.is_data_scale(data)) {
+          prior          = prior_random_sd,
+          formula_design = random_formula_design,
+          sd_sources     = if (.is_data_scale(data)) {
             .assign_prior.random_scale_sources(data)
           } else {
             NULL
@@ -361,9 +381,9 @@
       }
     } else {
       .assign_prior.random(
-        prior      = prior_random_sd,
-        data       = data,
-        sd_sources = if (.is_data_scale(data)) {
+        prior          = prior_random_sd,
+        formula_design = random_formula_design,
+        sd_sources     = if (.is_data_scale(data)) {
           .assign_prior.random_scale_sources(data)
         } else {
           NULL
@@ -375,11 +395,6 @@
     prior_random <- NULL
   }
 
-  prior_location <- .assign_prior.location(
-    prior_effect = prior_outcome[["mu"]],
-    prior_mods   = prior_mods,
-    data         = data
-  )
   if (is_random) {
     prior_outcome[["mu"]] <- NULL
     .validate_prior_random(

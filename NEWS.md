@@ -380,6 +380,9 @@
   increase by that rank when it exceeds one.
 
 ### Fixes
+- derives default random-effect allocation dimensions from BayesTools' compiled
+  random basis, including inherited and block-owned factor contrasts, instead
+  of independently reconstructing columns with base formula semantics.
 - fixes validation of one-entry random-formula lists so plain nested grouping
   formulas remain recognized after suppressing redundant component prefixes.
 - preserves exact hypothesis AST ordinates through qCMDE/IWMDE routing,

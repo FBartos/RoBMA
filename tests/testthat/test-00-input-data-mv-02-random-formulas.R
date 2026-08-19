@@ -380,6 +380,44 @@ test_that("global independent contrasts propagate to random coefficients", {
 })
 
 
+test_that("default random allocations use compiled contrast-owned dimensions", {
+
+  dat <- data.frame(
+    yi    = c(-0.2, 0.1, 0.3, 0.5),
+    group = factor(c("a", "b", "a", "b")),
+    study = factor(c("s1", "s1", "s2", "s2"))
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(0.04, 4)),
+    mods                      = ~ group,
+    random                    = ~ us(group | study),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_heterogeneity       = BayesTools::prior_random(
+      study = BayesTools::random_block(
+        contrasts = c(group = "independent")
+      )
+    ),
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  random_term <- .fitted_formula_design(
+    object,
+    "mu",
+    required = TRUE
+  )[["random_effects"]][[1L]]
+  allocation <- object[["priors"]][["random"]][["allocation"]]
+
+  expect_equal(random_term[["n_columns"]], 3L)
+  expect_equal(
+    allocation[["weights"]][["parameters"]][["alpha"]],
+    rep(1, random_term[["n_columns"]])
+  )
+})
+
+
 test_that("default independent contrasts warn about overspecified formulas", {
 
   dat <- data.frame(
