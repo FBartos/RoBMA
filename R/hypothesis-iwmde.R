@@ -167,6 +167,7 @@
   } else {
     BayesTools::parameter_transform_inverse(value, display_transform)
   }
+  source_keys <- vapply(source_value, .iwmde_key_number, character(1))
 
   estimate <- .iwmde_estimate(
     context         = context,
@@ -193,18 +194,15 @@
   marginal_parameter <- attr(posterior, "parameter", exact = TRUE)
   values <- .iwmde_sorted_ordinate_values(source_value)
   for (requested_source_value in values) {
+    requested_index <- match(
+      .iwmde_key_number(requested_source_value),
+      source_keys
+    )
+    requested_value <- value[[requested_index]]
     ordinate <- .iwmde_posterior_ordinate_keep_values(
       posterior_ordinate = estimate[["posterior_ordinate"]],
       values             = requested_source_value
     )
-    requested_value <- if (is.null(display_transform)) {
-      requested_source_value
-    } else {
-      BayesTools::parameter_transform_forward(
-        requested_source_value,
-        display_transform
-      )
-    }
     if (is.null(ordinate)) {
       .iwmde_stop_ordinate_unavailable(
         message = .hypothesis_brma_iwmde_ordinate_failure_message(
@@ -224,6 +222,7 @@
         ordinate,
         display_transform
       )
+      ordinate[["value"]] <- requested_value
     }
     if (is.character(marginal_parameter) &&
         length(marginal_parameter) == 1L &&

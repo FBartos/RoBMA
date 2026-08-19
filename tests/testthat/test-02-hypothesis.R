@@ -326,6 +326,61 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
 })
 
 
+test_that("transformed point attachment retains the exact requested value", {
+
+  requested <- 0.701406683025
+  source    <- sqrt(requested)
+  ordinate <- list(
+    status           = "ok",
+    value            = source,
+    evaluation_value = source,
+    ordinate         = 0.5,
+    method           = "q_grid_cmde",
+    density_method   = "qCMDE",
+    diagnostics      = list(evaluation_value = source)
+  )
+  class(ordinate) <- c("BayesTools_posterior_ordinate", "list")
+  posterior     <- stats::rnorm(50)
+  raw_posterior <- as.numeric(posterior)
+  attr(raw_posterior, "prior_density") <-
+    BayesTools:::.prior_linear_density_point(0)
+
+  testthat::local_mocked_bindings(
+    .iwmde_estimate = function(..., values) {
+      expect_identical(values, source)
+      list(
+        diagnostics        = list(ordinate = list(status = "ok")),
+        posterior_ordinate = ordinate
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  out <- .hypothesis_brma_attach_iwmde_scalar(
+    posterior            = posterior,
+    raw_posterior        = raw_posterior,
+    context              = list(),
+    estimate_cache       = .iwmde_estimate_cache(),
+    parameter            = "tau",
+    parameter_label      = "var_common",
+    value                = requested,
+    conditional          = NULL,
+    n_points             = 20,
+    samples              = 20,
+    target_relative_mcse = .05,
+    normalization_points = 20,
+    normalization_prob   = .99,
+    density_method       = "qCMDE",
+    display_transform    = list(type = "square")
+  )
+  attached <- attr(out, "posterior_ordinate", exact = TRUE)
+
+  expect_identical(attached[["value"]], requested)
+  expect_equal(attached[["evaluation_value"]], requested)
+  expect_equal(attached[["ordinate"]], 0.5 / (2 * source))
+})
+
+
 test_that("factor-level ordinates use exact displayed-scale specifications", {
 
   diagnostics <- list(
