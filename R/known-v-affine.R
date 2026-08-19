@@ -37,6 +37,9 @@
   }
   transformed <- forwardsolve(t(root), update_covariance)
   transformed <- t(forwardsolve(t(root), t(transformed)))
+  # The source is structurally symmetric; avoid separately rounded triangles.
+  transformed[lower.tri(transformed)] <-
+    t(transformed)[lower.tri(transformed)]
   decomposition <- tryCatch(
     eigen(transformed, symmetric = TRUE),
     error = function(e) NULL
