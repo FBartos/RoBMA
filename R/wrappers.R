@@ -410,6 +410,7 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
     n_chains           = chain_info[["n_chains"]],
     n_iter             = chain_info[["n_iter"]],
     title              = "Pooled Effect Size",
+    component          = "location",
     probs              = probs,
     data               = NULL,
     effect_transform   = effect_transform,
@@ -556,12 +557,13 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
     n_samples = nrow(posterior_samples)
   )
   out <- .new_brma_samples(
-    samples  = samples,
-    n_chains = chain_info[["n_chains"]],
-    n_iter   = chain_info[["n_iter"]],
-    title    = "Pooled Heterogeneity",
-    probs    = probs,
-    data     = NULL
+    samples   = samples,
+    n_chains  = chain_info[["n_chains"]],
+    n_iter    = chain_info[["n_iter"]],
+    title     = "Pooled Heterogeneity",
+    component = "heterogeneity",
+    probs     = probs,
+    data      = NULL
   )
   return(.condition_prediction_samples(
     object            = object,
@@ -973,12 +975,13 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     colnames(ranef_mat) <- paste0("u[", labels[seq_len(K)], "]")
 
     estimate_ranef <- .new_brma_samples(
-      samples  = ranef_mat,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = "Random Effects:",
-      probs    = probs,
-      data     = data
+      samples   = ranef_mat,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = "Random Effects:",
+      component = "random",
+      probs     = probs,
+      data      = data
     )
 
     return(.select_ranef_components(
@@ -1041,12 +1044,13 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     }
 
     cluster_ranef <- .new_brma_samples(
-      samples  = cluster_ranef_mat,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = "Cluster-Level Random Effects:",
-      probs    = probs,
-      data     = data
+      samples   = cluster_ranef_mat,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = "Cluster-Level Random Effects:",
+      component = "random/cluster",
+      probs     = probs,
+      data      = data
     )
 
     # estimate-level random effects: BLUP - cluster predictions
@@ -1054,12 +1058,13 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     colnames(estimate_ranef_mat) <- paste0("u_estimate[", labels[seq_len(K)], "]")
 
     estimate_ranef <- .new_brma_samples(
-      samples  = estimate_ranef_mat,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = "Estimate-Level Random Effects:",
-      probs    = probs,
-      data     = data
+      samples   = estimate_ranef_mat,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = "Estimate-Level Random Effects:",
+      component = "random/estimate",
+      probs     = probs,
+      data      = data
     )
 
     out <- list(
@@ -1159,20 +1164,22 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 
   out <- list(
     cluster = .new_brma_samples(
-      samples  = components[["cluster"]],
-      n_chains = context[["n_chains"]],
-      n_iter   = context[["n_iter"]],
-      title    = "Cluster-Level Random Effects:",
-      probs    = probs,
-      data     = context[["new_data"]]
+      samples   = components[["cluster"]],
+      n_chains  = context[["n_chains"]],
+      n_iter    = context[["n_iter"]],
+      title     = "Cluster-Level Random Effects:",
+      component = "random/cluster",
+      probs     = probs,
+      data      = context[["new_data"]]
     ),
     estimate = .new_brma_samples(
-      samples  = components[["estimate"]],
-      n_chains = context[["n_chains"]],
-      n_iter   = context[["n_iter"]],
-      title    = "Estimate-Level Random Effects:",
-      probs    = probs,
-      data     = context[["new_data"]]
+      samples   = components[["estimate"]],
+      n_chains  = context[["n_chains"]],
+      n_iter    = context[["n_iter"]],
+      title     = "Estimate-Level Random Effects:",
+      component = "random/estimate",
+      probs     = probs,
+      data      = context[["new_data"]]
     )
   )
 
@@ -1281,12 +1288,13 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       )
     }
     .new_brma_samples(
-      samples  = mat,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = paste0("Random Effects: ", block),
-      probs    = probs,
-      data     = data
+      samples   = mat,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = paste0("Random Effects: ", block),
+      component = paste("random", block, sep = "/"),
+      probs     = probs,
+      data      = data
     )
   })
   names(out) <- names(components)
@@ -1333,12 +1341,13 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     total <- Reduce(`+`, lapply(components, as.matrix))
     colnames(total) <- paste0("u[", labels[seq_len(ncol(total))], "]")
     return(.new_brma_samples(
-      samples  = total,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = "Random Effects:",
-      probs    = probs,
-      data     = data
+      samples   = total,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = "Random Effects:",
+      component = "random",
+      probs     = probs,
+      data      = data
     ))
   }
 

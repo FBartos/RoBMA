@@ -1,5 +1,13 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- standardizes RoBMA's printable structured result classes on `as.data.frame()`
+  and `data.frame()` coercion to one component-aware long data frame. This
+  covers model and heterogeneity summaries, posterior/prediction and pooled
+  results, marginal means, model-weight summaries, z-plots, VIFs, and influence
+  diagnostics; interval columns use stable `CI_` and `PI_` prefixes.
+- ignores scenario calls measured below 0.5 seconds when assessing per-call and
+  average timing regressions, while retaining those measurements in timing
+  baselines and candidates.
 - adds the `Hoogeveen2023` example data set with 106 analyst-team effect-size
   estimates for the relation between religiosity and self-reported well-being.
 - allows `set_contrast_factor_predictors = "independent"` to define one fixed
@@ -18,8 +26,9 @@
   catalog and coordinate accessors as views of that one fitted contract. Public
   names use
   `(formula) owner: quantity(parameter[level], ...)`, including `cor`, `sd`,
-  `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`, `var_ratio`,
-  and `sd_ratio`; backend coordinates are no longer accepted as public aliases.
+  `var`, `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`,
+  `var_ratio`, and `sd_ratio`; backend coordinates are no longer accepted as
+  public aliases.
   A bare formula or unnamed one-entry list omits its redundant owner prefix, so
   names such as `cor(...)`, `sd_common`, and `var_ratio(...)` work directly in
   summaries, plots, density estimation, and hypotheses. Explicitly named
@@ -41,7 +50,8 @@
   prior once instead of treating each fitted semantic random quantity as an
   independent stored prior. Basic summaries report only quantities aligned
   with prior specification, while `summary_heterogeneity()` retains aggregate
-  variances, allocation-derived component SDs, variance ratios, and SD ratios.
+  variances, allocation-derived component SDs and variances, variance ratios,
+  and SD ratios.
   Random-formula `type = "terms.scale"` predictions now group exact row-wise
   leaf SDs only for authoritative user-facing formula components, preserving
   random-slope designs and known covariance kernels while combining expanded
@@ -240,10 +250,11 @@
   states retain the dense Cholesky path. Non-Gaussian selection likelihoods
   retain the joint latent target. General correlated known-`V` LOO blocks reuse
   the same plan without changing their Schur target.
-- exactly integrates the standardized effects fitted by the legacy `cluster`
-  argument for Gaussian marginal likelihoods, retaining heterogeneity, its
-  allocation, row-specific scale regression, weights, and all associated
-  priors through diagonal-plus-cluster-rank-one likelihood algebra.
+- exactly integrates the standardized effects fitted by the specialized
+  `cluster` interface for Gaussian marginal likelihoods, retaining
+  heterogeneity, its allocation, row-specific scale regression, weights, and
+  all associated priors through diagonal-plus-cluster-rank-one likelihood
+  algebra.
 - validates and resolves prepared known-`V` metadata once during bridge setup
   instead of repeating invariant representation checks for every bridge state.
 - compiles scalar marginalized random-effect variance plans used by known-`V`
@@ -256,12 +267,6 @@
   `alloc:ablat[random]`, evaluates factor-level qCMDE/IWMDE point hypotheses
   on the exact displayed coefficient scale, and prints public hypothesis
   labels without redundant row names after internal parameter resolution.
-- adds `as.data.frame()` and `data.frame()` summary coercion for individual
-  `brma_samples` results. Multi-component results return a long data frame with
-  component and parameter identifiers; `as.data.frame(format = "list")`
-  retains the named, possibly nested table structure. Credible- and prediction-
-  interval columns use syntactic names such as `CI_0.025` and `PI_0.025` while
-  printed summaries retain their compact quantile labels.
 - keeps known-`V` backend routing in summary metadata without printing this
   implementation detail in ordinary `brma.mv()` summaries.
 - requests BayesTools' structured component labels for random-effect rows, so
@@ -318,6 +323,8 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Testing and development
+- centralizes multivariate marginal-diagnostic comparison plots in the shared
+  scenario helpers instead of redefining them in individual scenarios.
 - separates cached-fit refresh from the standard regression profile, keeps the
   cached standard suite under a hard 15-minute budget, and restores caches in
   CI using fitting-source and backend fingerprints.
@@ -383,6 +390,15 @@
   increase by that rank when it exceeds one.
 
 ### Fixes
+- renders the interactive `scenario_plot()` preview after its canonical SVG so
+  the completed figure remains visible in the RStudio graphics device.
+- completes random-allocation heterogeneity summaries with component variances
+  and correlations in semantic order.
+- uses exact BayesTools prior algebra for allocation-derived component SD and
+  variance-ratio plot overlays, preserves the integrable zero-boundary density
+  singularity for squared nonnegative scales, and rebuilds derived LKJ
+  Cholesky factors from candidate primitive coordinates so qCMDE likelihoods
+  vary with correlation.
 - derives default random-effect allocation dimensions from BayesTools' compiled
   random basis, including inherited and block-owned factor contrasts, instead
   of independently reconstructing columns with base formula semantics.

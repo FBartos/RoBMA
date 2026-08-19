@@ -283,3 +283,38 @@ print.covratio.brma <- function(x, ...) {
 
   return(invisible(x))
 }
+
+
+#' @title Convert COVRATIO Results to a Data Frame
+#'
+#' @description Converts a \code{covratio.brma} vector to a component-aware
+#' long data frame.
+#'
+#' @param x a \code{covratio.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns and a numeric \code{value} column.
+#'
+#' @export
+as.data.frame.covratio.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  table <- data.frame(
+    value       = as.numeric(x),
+    row.names   = names(x),
+    check.names = FALSE
+  )
+  output <- .output_table_as_long_data_frame(
+    table            = table,
+    component        = "covratio",
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}

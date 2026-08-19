@@ -116,6 +116,53 @@ print.summary_models.RoBMA <- function(x, ...) {
   return(invisible(x))
 }
 
+
+#' @title Convert Model-Weight Summaries to a Data Frame
+#'
+#' @description Converts every table displayed by a
+#' \code{summary_models.RoBMA} object to one component-aware long data frame.
+#'
+#' @param x a \code{summary_models.RoBMA} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns.
+#'
+#' @export
+as.data.frame.summary_models.RoBMA <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  if (identical(x[["type"]], "marginal")) {
+    tables <- lapply(names(x[["marginal"]]), function(component) {
+      .output_table_as_long_data_frame(
+        table            = x[["marginal"]][[component]],
+        component        = component,
+        stringsAsFactors = stringsAsFactors
+      )
+    })
+  } else {
+    table <- x[["individual"]]
+    tables <- list(.output_table_as_long_data_frame(
+      table            = table,
+      component        = "individual models",
+      parameter        = paste("model", seq_len(nrow(table))),
+      stringsAsFactors = stringsAsFactors
+    ))
+  }
+
+  output <- .output_bind_long_data_frames(
+    tables    = tables,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
+}
+
+
 # Extract top-level model components used by summary_models().
 .summary_models_components <- function(object) {
 

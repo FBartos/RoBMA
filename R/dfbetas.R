@@ -265,6 +265,36 @@ print.dfbetas.brma <- function(x, ...) {
 }
 
 
+#' @title Convert DFBETAS Results to a Data Frame
+#'
+#' @description Converts a \code{dfbetas.brma} object to a component-aware
+#' long data frame while retaining its displayed coefficient columns.
+#'
+#' @param x a \code{dfbetas.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns.
+#'
+#' @export
+as.data.frame.dfbetas.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- .output_table_as_long_data_frame(
+    table            = x,
+    component        = "dfbetas",
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .dfbetas_bias_samples
 # ---------------------------------------------------------------------------- #

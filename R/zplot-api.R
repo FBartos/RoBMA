@@ -37,7 +37,8 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' the resulting densities with equal weight per estimate.
 #'
 #' The default marginal target integrates every latent effect that would be
-#' newly realized in a replicated literature. For a legacy multilevel model,
+#' newly realized in a replicated literature. For a specialized multilevel
+#' model fitted with \code{cluster},
 #' the predictive variance before sampling error is the sum of between- and
 #' within-cluster heterogeneity. Cluster conditioning instead retains the fitted
 #' cluster effects and includes only within-cluster heterogeneity. Estimate
@@ -322,6 +323,54 @@ print.summary.zplot_brma <- function(x, ...) {
   cat("\n")
 
   return(invisible(x))
+}
+
+
+#' @title Convert Z-Plot Summaries to a Data Frame
+#'
+#' @description Converts the table displayed for a \code{zplot_brma} or
+#' \code{summary.zplot_brma} object to a component-aware long data frame.
+#' Printed quantile labels are returned as syntactic \code{CI_} column names.
+#'
+#' @param x a \code{zplot_brma} or \code{summary.zplot_brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... additional arguments passed to \code{summary()} for a
+#' \code{zplot_brma} object and otherwise unused.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns.
+#'
+#' @export
+as.data.frame.zplot_brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- as.data.frame.summary.zplot_brma(
+    x                = summary(x, ...),
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.zplot_brma
+#' @export
+as.data.frame.summary.zplot_brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- .output_table_as_long_data_frame(
+    table            = x[["estimates"]],
+    component        = "zplot",
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
 }
 
 

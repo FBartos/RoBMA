@@ -959,6 +959,7 @@ test_that("scenario_plot locks interactive plots and seeds each rendering", {
   state <- new.env(parent = emptyenv())
   state[["draws"]] <- 0L
   state[["random"]] <- numeric()
+  state[["preview_device"]] <- logical()
 
   scenario_start(
     "unit",
@@ -967,12 +968,17 @@ test_that("scenario_plot locks interactive plots and seeds each rendering", {
     create_missing = TRUE
   )
   .with_temp_plot_device({
+    preview_device <- grDevices::dev.cur()
     graphics::plot(1:3, 1:3)
     graphics::par(new = TRUE)
     scenario_plot("mu_BF_comparison", {
       state[["entry_new"]] <- graphics::par("new")
       state[["draws"]] <- state[["draws"]] + 1L
       state[["random"]] <- c(state[["random"]], stats::runif(1L))
+      state[["preview_device"]] <- c(
+        state[["preview_device"]],
+        identical(grDevices::dev.cur(), preview_device)
+      )
       graphics::plot(1:3, 1:3)
       graphics::par(new = TRUE)
     })
@@ -983,6 +989,7 @@ test_that("scenario_plot locks interactive plots and seeds each rendering", {
   expected_random <- stats::runif(1L)
   expect_identical(state[["draws"]], 2L)
   expect_equal(state[["random"]], rep(expected_random, 2L))
+  expect_identical(state[["preview_device"]], c(FALSE, TRUE))
   expect_false(state[["entry_new"]])
   expect_false(state[["exit_new"]])
   expect_true(file.exists(file.path(
@@ -1048,6 +1055,120 @@ test_that("scenario_agreement_plot validates and supports boundary cases", {
       scenario_agreement_plot(1, 1)
     })
   )
+})
+
+
+test_that("plot_marginal_diagnostics compares the shared marginal targets", {
+
+  state <- new.env(parent = emptyenv())
+  state[["plots"]] <- list()
+
+  local_mocked_s3_method(
+    "residuals", "scenario_diagnostic_fit",
+    function(object, ...) {
+
+      if (identical(object[["role"]], "estimate")) {
+        state[["residual_args"]] <- list(...)
+      }
+      return(object[["offset"]] + c(1, 2))
+    }
+  )
+  local_mocked_s3_method(
+    "rstandard", "scenario_diagnostic_fit",
+    function(model, ...) {
+
+      if (identical(model[["role"]], "estimate")) {
+        state[["rstandard_args"]] <- list(...)
+        warning("expected diagnostic warning")
+      }
+      return(list(z = model[["offset"]] + c(3, 4)))
+    }
+  )
+  local_mocked_s3_method(
+    "hatvalues", "scenario_diagnostic_fit",
+    function(model, ...) {
+
+      if (identical(model[["role"]], "estimate")) {
+        warning("expected diagnostic warning")
+      }
+      return(model[["offset"]] + c(5, 6))
+    }
+  )
+  local_mocked_s3_method(
+    "cooks.distance", "scenario_diagnostic_fit",
+    function(model, ...) model[["offset"]] + c(7, 8)
+  )
+  local_mocked_s3_method(
+    "dfbetas", "scenario_diagnostic_fit",
+    function(model, ...) matrix(model[["offset"]] + c(9, 10), ncol = 1L)
+  )
+
+  helper_env <- environment(plot_marginal_diagnostics)
+  old_agreement_plot <- get(
+    "scenario_agreement_plot",
+    envir    = helper_env,
+    inherits = FALSE
+  )
+  on.exit(assign(
+    "scenario_agreement_plot",
+    old_agreement_plot,
+    envir = helper_env
+  ), add = TRUE)
+  assign(
+    "scenario_agreement_plot",
+    function(reference, estimate, main = "", ...) {
+
+      state[["plots"]][[main]] <- list(
+        reference = reference,
+        estimate  = estimate
+      )
+      return(invisible(NULL))
+    },
+    envir = helper_env
+  )
+
+  reference <- structure(
+    list(role = "reference", offset = 0),
+    class = "scenario_diagnostic_fit"
+  )
+  estimate <- structure(
+    list(role = "estimate", offset = 10),
+    class = "scenario_diagnostic_fit"
+  )
+  expect_no_warning(.with_temp_plot_device({
+    value <- plot_marginal_diagnostics(reference, estimate)
+    state[["mfrow"]] <- graphics::par("mfrow")
+  }))
+
+  expect_null(value)
+  expect_identical(
+    names(state[["plots"]]),
+    c("Residuals", "Rstandard", "Hat values", "Cooks distance", "DFBETAS")
+  )
+  expected_reference <- list(
+    Residuals        = c(1, 2),
+    Rstandard        = c(3, 4),
+    `Hat values`     = c(5, 6),
+    `Cooks distance` = c(7, 8),
+    DFBETAS          = matrix(c(9, 10), ncol = 1L)
+  )
+  expect_equal(
+    lapply(state[["plots"]], `[[`, "reference"),
+    expected_reference
+  )
+  expect_equal(
+    lapply(state[["plots"]], `[[`, "estimate"),
+    lapply(expected_reference, function(x) x + 10)
+  )
+  expect_identical(
+    state[["residual_args"]],
+    list(type = "outcome", conditioning_depth = "marginal")
+  )
+  expect_identical(
+    state[["rstandard_args"]],
+    list(conditioning_depth = "marginal")
+  )
+  expect_identical(state[["mfrow"]], c(3L, 2L))
 })
 
 

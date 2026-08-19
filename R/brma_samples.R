@@ -28,6 +28,7 @@
 #' @param n_chains number of MCMC chains used in sampling
 #' @param n_iter number of iterations per chain (after thinning)
 #' @param title title for the summary table output
+#' @param component public component name used by data-frame coercion
 #' @param probs default quantiles for credible intervals. Defaults to
 #' \code{c(.025, .975)}
 #' @param data optional data associated with the predictions (e.g., for
@@ -42,6 +43,7 @@
 #'
 #' @noRd
 .new_brma_samples <- function(samples, n_chains, n_iter, title,
+                              component = "result",
                               probs = c(.025, .975), data = NULL,
                               effect_transform = NULL,
                               prediction_samples = NULL) {
@@ -54,6 +56,10 @@
   n_chains <- as.integer(n_chains)
   n_iter   <- as.integer(n_iter)
 
+  if (!is.character(component) || length(component) != 1L ||
+      is.na(component) || !nzchar(component)) {
+    stop("'component' must be one non-empty character value.", call. = FALSE)
+  }
   if (length(n_chains) != 1L || length(n_iter) != 1L ||
       is.na(n_chains) || is.na(n_iter) ||
       n_chains < 1L || n_iter < 1L ||
@@ -82,9 +88,10 @@
   attr(samples, "niter")   <- n_iter
 
   # add attributes for display
-  attr(samples, "title")    <- title
-  attr(samples, "probs")    <- probs
-  attr(samples, "data")     <- data
+  attr(samples, "title")     <- title
+  attr(samples, "component") <- component
+  attr(samples, "probs")     <- probs
+  attr(samples, "data")      <- data
 
   if (!is.null(prediction_samples)) {
     attr(samples, "prediction_samples") <- prediction_samples
@@ -233,6 +240,7 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
   }
 
   class(summary_table) <- c("summary.brma_samples", class(summary_table))
+  attr(summary_table, "component") <- .brma_samples_component(object)
  
   return(summary_table)
 }
@@ -276,13 +284,14 @@ print.summary.brma_samples <- function(x, probs = NULL, ...) {
 #' @title Convert brma_samples Results to Data Frames
 #'
 #' @description Converts a \code{brma_samples} result to the posterior summary
-#' table displayed by \code{print()}. Multi-component results are returned in
-#' long form with component and parameter identifiers. Printed quantile labels
+#' table displayed by \code{print()}. Results are returned in long form with
+#' component and parameter identifiers; multi-component paths use \code{/} as
+#' a separator. Printed quantile labels
 #' such as \code{0.025} and \code{PI 0.025} are returned as the syntactic column
 #' names \code{CI_0.025} and \code{PI_0.025}, respectively.
 #'
-#' @param x a \code{brma_samples} object or multi-component
-#' \code{brma_samples_list} result
+#' @param x a \code{brma_samples}, \code{summary.brma_samples}, or
+#' multi-component \code{brma_samples_list} result
 #' @param row.names \code{NULL} or a character vector giving the row names for
 #' the resulting data frame. Custom row names are unsupported when
 #' \code{format = "list"}.
@@ -290,27 +299,44 @@ print.summary.brma_samples <- function(x, probs = NULL, ...) {
 #' @param format for multi-component results, whether to return a single
 #' \code{"long"} data frame or a named, possibly nested \code{"list"} with a
 #' plain data frame at each leaf. Defaults to \code{"long"}.
-#' @param stringsAsFactors logical; accepted for compatibility with
-#' \code{data.frame()} and otherwise ignored.
+#' @param stringsAsFactors logical; passed to the output data frame.
 #' @param ... additional arguments passed to \code{summary.brma_samples()}
 #'
-#' @return For an individual \code{brma_samples} object, a plain
-#' \code{data.frame} containing the displayed posterior summary statistics.
+#' @return For an individual \code{brma_samples} object, a plain long
+#' \code{data.frame} containing the displayed posterior summary statistics and
+#' leading \code{component} and \code{parameter} columns.
 #' For a \code{brma_samples_list}, a long data frame by default or, with
 #' \code{format = "list"}, a named, possibly nested list of such data frames.
 #'
 #' @export
 as.data.frame.brma_samples <- function(x, row.names = NULL, optional = FALSE,
-                                       ...) {
+                                       stringsAsFactors = FALSE, ...) {
 
   summary_table <- summary.brma_samples(x, ...)
-  output <- as.data.frame(
-    summary_table,
-    row.names = row.names,
-    optional  = optional
+  output <- .output_table_as_long_data_frame(
+    table            = summary_table,
+    component        = .brma_samples_component(x),
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
   )
-  output <- .brma_samples_data_frame_names(output)
-  output <- data.frame(output, check.names = FALSE)
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.brma_samples
+#' @export
+as.data.frame.summary.brma_samples <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- .output_table_as_long_data_frame(
+    table            = x,
+    component        = .brma_samples_component(x),
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
 
   return(output)
 }
@@ -330,10 +356,18 @@ as.data.frame.brma_samples_list <- function(
         call. = FALSE
       )
     }
-    return(.brma_samples_list_as_data_frames(x, ...))
+    return(.brma_samples_list_as_data_frames(
+      x,
+      stringsAsFactors = stringsAsFactors,
+      ...
+    ))
   }
 
-  output <- .brma_samples_list_as_long_data_frame(x, ...)
+  output <- .brma_samples_list_as_long_data_frame(
+    x,
+    stringsAsFactors = stringsAsFactors,
+    ...
+  )
   output <- as.data.frame(
     output,
     row.names = row.names,
@@ -344,7 +378,7 @@ as.data.frame.brma_samples_list <- function(
 }
 
 
-.brma_samples_data_frame_names <- function(x) {
+.output_data_frame_names <- function(x) {
 
   column_names <- names(x)
   is_prediction_interval <- startsWith(column_names, "PI ")
@@ -368,6 +402,114 @@ as.data.frame.brma_samples_list <- function(
   names(x) <- column_names
 
   return(x)
+}
+
+
+.output_plain_data_frame <- function(x) {
+
+  if (is.data.frame(x)) {
+    class(x) <- "data.frame"
+    return(x)
+  }
+
+  return(as.data.frame(x, optional = TRUE))
+}
+
+
+.output_table_as_long_data_frame <- function(
+    table, component, parameter = NULL, row.names = NULL, optional = FALSE,
+    stringsAsFactors = FALSE) {
+
+  table <- .output_plain_data_frame(table)
+  table <- .output_data_frame_names(table)
+  if (is.null(parameter)) {
+    parameter <- rownames(table)
+  }
+  if (is.null(parameter)) {
+    parameter <- as.character(seq_len(nrow(table)))
+  }
+  if (length(parameter) != nrow(table)) {
+    stop("Internal error: output parameter labels do not match table rows.",
+         call. = FALSE)
+  }
+  if (length(component) == 1L) {
+    component <- rep(component, nrow(table))
+  }
+  if (!is.character(component) || length(component) != nrow(table) ||
+      anyNA(component) || any(!nzchar(component))) {
+    stop("Internal error: invalid output component labels.", call. = FALSE)
+  }
+
+  output <- data.frame(
+    component = component,
+    parameter = as.character(parameter),
+    table,
+    row.names        = NULL,
+    check.names      = FALSE,
+    stringsAsFactors = stringsAsFactors
+  )
+  output <- as.data.frame(
+    output,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
+}
+
+
+.output_bind_long_data_frames <- function(
+    tables, row.names = NULL, optional = FALSE) {
+
+  tables <- Filter(Negate(is.null), tables)
+  if (length(tables) == 0L) {
+    output <- data.frame(
+      component = character(),
+      parameter = character()
+    )
+  } else {
+    column_names <- unique(unlist(lapply(tables, names), use.names = FALSE))
+    tables <- lapply(tables, function(table) {
+      missing_names <- setdiff(column_names, names(table))
+      for (name in missing_names) {
+        table[[name]] <- rep(NA, nrow(table))
+      }
+      table[column_names]
+    })
+    output <- do.call(rbind, tables)
+    rownames(output) <- NULL
+  }
+
+  output <- as.data.frame(
+    output,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
+}
+
+
+.brma_samples_component <- function(x) {
+
+  component <- attr(x, "component", exact = TRUE)
+  if (!is.character(component) || length(component) != 1L ||
+      is.na(component) || !nzchar(component)) {
+    return("result")
+  }
+
+  return(component)
+}
+
+
+.brma_samples_list_leaf_component <- function(x, path) {
+
+  component <- .brma_samples_component(x)
+  if (!identical(component, "result")) {
+    return(component)
+  }
+
+  return(paste(path, collapse = "/"))
 }
 
 
@@ -403,17 +545,15 @@ as.data.frame.brma_samples_list <- function(
 
     if (inherits(component, "brma_samples")) {
       table <- as.data.frame(component, ...)
-      parameter <- rownames(table)
-      if (is.null(parameter)) {
-        parameter <- as.character(seq_len(nrow(table)))
-      }
-      table <- data.frame(
-        component = rep(paste(component_path, collapse = "/"), nrow(table)),
-        parameter = parameter,
-        table,
-        row.names   = NULL,
-        check.names = FALSE
+      table[["component"]] <- rep(
+        .brma_samples_list_leaf_component(component, component_path),
+        nrow(table)
       )
+      table <- table[c(
+        "component", "parameter",
+        setdiff(names(table), c("component", "parameter"))
+      )]
+      rownames(table) <- NULL
       output[[length(output) + 1L]] <- table
       next
     }
@@ -436,18 +576,45 @@ as.data.frame.brma_samples_list <- function(
 }
 
 
-.brma_samples_list_as_data_frames <- function(x, ...) {
+.brma_samples_list_as_data_frames <- function(
+    x, ..., path = character()) {
 
-  lapply(unclass(x), function(component) {
+  component_names <- names(x)
+  if (is.null(component_names)) {
+    component_names <- rep("", length(x))
+  }
+  output <- lapply(seq_along(x), function(i) {
+    component_name <- component_names[[i]]
+    if (!nzchar(component_name)) {
+      component_name <- as.character(i)
+    }
+    component_path <- c(path, component_name)
+    component      <- x[[i]]
     if (inherits(component, "brma_samples")) {
-      return(as.data.frame(component, ...))
+      table <- as.data.frame(component, ...)
+      table[["component"]] <- rep(
+        .brma_samples_list_leaf_component(component, component_path),
+        nrow(table)
+      )
+      table <- table[c(
+        "component", "parameter",
+        setdiff(names(table), c("component", "parameter"))
+      )]
+      return(table)
     }
     if (is.list(component) && !is.matrix(component)) {
-      return(.brma_samples_list_as_data_frames(component, ...))
+      return(.brma_samples_list_as_data_frames(
+        component,
+        ...,
+        path = component_path
+      ))
     }
     stop("Internal error: invalid component in a brma_samples result list.",
          call. = FALSE)
   })
+  names(output) <- component_names
+
+  return(output)
 }
 
 

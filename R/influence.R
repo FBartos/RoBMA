@@ -265,3 +265,43 @@ print.infl.brma <- function(x, digits = 3, ...) {
   .print_diagnostic_note(attr(x, "note"))
   invisible(x)
 }
+
+
+#' @title Convert Influence Results to a Data Frame
+#'
+#' @description Converts the influence and DFBETAS tables displayed by an
+#' \code{infl.brma} object to one component-aware long data frame.
+#'
+#' @param x an \code{infl.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns.
+#'
+#' @export
+as.data.frame.infl.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  tables <- list(
+    .output_table_as_long_data_frame(
+      table            = x[["inf"]],
+      component        = "influence",
+      stringsAsFactors = stringsAsFactors
+    ),
+    .output_table_as_long_data_frame(
+      table            = x[["dfbs"]],
+      component        = "dfbetas",
+      stringsAsFactors = stringsAsFactors
+    )
+  )
+  output <- .output_bind_long_data_frames(
+    tables    = tables,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
+}

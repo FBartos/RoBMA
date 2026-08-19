@@ -116,9 +116,18 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
   expect_equal(blup_calls, 2L)
   expect_s3_class(observed, "brma_samples_list")
   expect_s3_class(observed_table, "data.frame")
+  expected_components <- vapply(
+    observed,
+    .brma_samples_component,
+    character(1)
+  )
+  expect_setequal(
+    expected_components,
+    c("random/cluster", "random/estimate")
+  )
   expect_setequal(
     observed_table[["component"]],
-    names(observed)
+    expected_components
   )
   expect_named(observed_tables, names(observed))
   expect_true(all(vapply(observed_tables, is.data.frame, logical(1))))

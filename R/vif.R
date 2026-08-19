@@ -669,3 +669,58 @@ print.vif.brma <- function(x, digits = 3, ...) {
 
   return(invisible(x))
 }
+
+
+#' @title Convert VIF Results to a Data Frame
+#'
+#' @description Converts every table displayed by a \code{vif.brma} object to
+#' one component-aware long data frame.
+#'
+#' @param x a \code{vif.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns.
+#'
+#' @export
+as.data.frame.vif.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  vif_table <- x[["vif"]]
+  vif_parameter <- vif_table[["term"]]
+  if (all(vif_table[["df"]] == 1)) {
+    vif_table <- data.frame(
+      VIF         = vif_table[["GVIF"]],
+      check.names = FALSE
+    )
+  } else {
+    vif_table[["term"]] <- NULL
+  }
+  tables <- list(.output_table_as_long_data_frame(
+    table            = vif_table,
+    component        = "vif",
+    parameter        = vif_parameter,
+    stringsAsFactors = stringsAsFactors
+  ))
+
+  if (!is.null(x[["posterior_correlation"]])) {
+    posterior_correlation <- x[["posterior_correlation"]]
+    tables[[length(tables) + 1L]] <- .output_table_as_long_data_frame(
+      table            = posterior_correlation,
+      component        = "posterior correlation",
+      parameter        = rownames(posterior_correlation),
+      stringsAsFactors = stringsAsFactors
+    )
+  }
+
+  output <- .output_bind_long_data_frames(
+    tables    = tables,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
+}

@@ -571,6 +571,7 @@
 }
 
 .new_effect_brma_samples <- function(samples, n_chains, n_iter, title,
+                                     component = "location",
                                      probs = c(.025, .975), data = NULL,
                                      effect_transform = NULL,
                                      prediction_samples = NULL) {
@@ -591,6 +592,7 @@
     n_chains           = n_chains,
     n_iter             = n_iter,
     title              = title,
+    component          = component,
     probs              = probs,
     data               = data,
     effect_transform   = effect_transform,

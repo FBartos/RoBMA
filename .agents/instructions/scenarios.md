@@ -153,7 +153,9 @@ whose wall time increased by more than 20% and the unweighted mean percentage
 change across calls when it is a regression greater than 5%. Cached fits use
 their stored production times while text and plot calls use fresh times. Compare
 against the old timing baseline before replacing any timing, fit-cache, text, or
-plot artifact.
+plot artifact. Retain calls measured below 0.5 seconds in timing baselines and
+candidates, but exclude them from both per-call warnings and the mean regression
+assessment.
 
 Automatically add every available measurement whose timing row is absent from
 the baseline. Automatically replace an existing row only when its measured wall

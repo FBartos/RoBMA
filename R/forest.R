@@ -468,7 +468,7 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
 
 .forest_summary_row <- function(samples) {
 
-  summary_table <- as.data.frame(summary(samples))
+  summary_table <- .output_plain_data_frame(summary(samples))
   if (nrow(summary_table) != 1L) {
     stop("Expected a single-row posterior summary.", call. = FALSE)
   }

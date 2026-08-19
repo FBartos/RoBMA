@@ -377,17 +377,24 @@ test_that("nested brma_samples results preserve their summary-table structure", 
   expect_identical(data.frame(result), data.frame(long_table))
   expect_named(tables, c("location", "scale"))
   expect_named(tables[["location"]], c("study", "estimate"))
+  expected_location_study <- as.data.frame(study)
+  expected_location_study[["component"]] <- "location/study"
+  expected_location_estimate <- as.data.frame(estimate)
+  expected_location_estimate[["component"]] <- "location/estimate"
+  expected_scale_study <- as.data.frame(study)
+  expected_scale_study[["component"]] <- "scale/study"
+
   expect_identical(
     tables[["location"]][["study"]],
-    as.data.frame(study)
+    expected_location_study
   )
   expect_identical(
     tables[["location"]][["estimate"]],
-    as.data.frame(estimate)
+    expected_location_estimate
   )
   expect_identical(
     tables[["scale"]][["study"]],
-    as.data.frame(study)
+    expected_scale_study
   )
 })
 

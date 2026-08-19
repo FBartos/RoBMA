@@ -185,8 +185,8 @@ public owner and component labels.
 
 Formula-random correlations are always public \code{cor} quantities. Compact
 scalar \code{rho} coordinates and LKJ primitives are internal backend details,
-not aliases. This convention is distinct from the released legacy
-\code{cluster} interface, where \code{rho} remains the public variance-allocation
+not aliases. This convention is distinct from the specialized \code{cluster}
+interface, where \code{rho} remains the public variance-allocation
 parameter described in \code{\link{prior_specification}}.
 }
 

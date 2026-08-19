@@ -52,7 +52,7 @@ test_that("the random semantic interface exposes every public quantity", {
   expect_identical(
     .brma_random_parameter_supported_quantities(),
     c(
-      "sd", "sd_total", "var_total", "sd_common", "var_common",
+      "sd", "var", "sd_total", "var_total", "sd_common", "var_common",
       "cor", "var_prop", "var_ratio", "sd_ratio"
     )
   )

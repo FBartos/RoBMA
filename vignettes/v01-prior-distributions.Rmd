@@ -406,7 +406,7 @@ This includes all negative correlations allowed by the HCS covariance matrix; it
 Here `hcs(outcome | study)` is a structure-owned index model: it creates one SD per observed `outcome` level and constrains all pairs to share one public `cor` parameter.
 It is different from an unstructured random-coefficient model such as `us(0 + outcome | study)`.
 The latter obtains its factor basis from random-block contrast metadata and estimates an unrestricted correlation matrix.
-Formula-random correlations use `cor` in summaries, plots, density estimation, and hypotheses; any compact backend `rho` coordinate is internal. This differs from the legacy `cluster` model's public heterogeneity-allocation parameter `rho`.
+Formula-random correlations use `cor` in summaries, plots, density estimation, and hypotheses; any compact backend `rho` coordinate is internal. This differs from the specialized `brma(..., cluster = ...)` model's public heterogeneity-allocation parameter `rho`.
 See [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html#formula-semantics-and-random-effect-structures) for the full formula contract and a worked factor-level US specification.
 
 For custom random-effect prior distributions via `BayesTools::prior_random()`, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.

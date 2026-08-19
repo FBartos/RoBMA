@@ -332,37 +332,51 @@
 #' [random_effect_prior_specification()], [random_effect_formula_tags()],
 #' [prior()], [brma.mv()]
 #'
-#' @export
-prior_random <- BayesTools::prior_random
+#' @name prior_random
+NULL
+
 
 #' @rdname prior_random
+#' @importFrom BayesTools prior_random
 #' @export
-random_block <- BayesTools::random_block
+BayesTools::prior_random
 
 #' @rdname prior_random
+#' @importFrom BayesTools random_block
 #' @export
-random_variance_allocation <- BayesTools::random_variance_allocation
+BayesTools::random_block
 
 #' @rdname prior_random
+#' @importFrom BayesTools random_variance_allocation
 #' @export
-allocation_ref <- BayesTools::allocation_ref
+BayesTools::random_variance_allocation
 
 #' @rdname prior_random
+#' @importFrom BayesTools allocation_ref
 #' @export
-random_covariance <- BayesTools::random_covariance
+BayesTools::allocation_ref
 
 #' @rdname prior_random
+#' @importFrom BayesTools random_covariance
 #' @export
-prior_lkj <- BayesTools::prior_lkj
+BayesTools::random_covariance
 
 #' @rdname prior_random
+#' @importFrom BayesTools prior_lkj
 #' @export
-random_monitor <- BayesTools::random_monitor
+BayesTools::prior_lkj
 
 #' @rdname prior_random
+#' @importFrom BayesTools random_monitor
 #' @export
-random_new_levels <- BayesTools::random_new_levels
+BayesTools::random_monitor
 
 #' @rdname prior_random
+#' @importFrom BayesTools random_new_levels
 #' @export
-random_sd_source <- BayesTools::random_sd_source
+BayesTools::random_new_levels
+
+#' @rdname prior_random
+#' @importFrom BayesTools random_sd_source
+#' @export
+BayesTools::random_sd_source

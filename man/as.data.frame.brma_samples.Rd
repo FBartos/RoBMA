@@ -2,10 +2,25 @@
 % Please edit documentation in R/brma_samples.R
 \name{as.data.frame.brma_samples}
 \alias{as.data.frame.brma_samples}
+\alias{as.data.frame.summary.brma_samples}
 \alias{as.data.frame.brma_samples_list}
 \title{Convert brma_samples Results to Data Frames}
 \usage{
-\method{as.data.frame}{brma_samples}(x, row.names = NULL, optional = FALSE, ...)
+\method{as.data.frame}{brma_samples}(
+  x,
+  row.names = NULL,
+  optional = FALSE,
+  stringsAsFactors = FALSE,
+  ...
+)
+
+\method{as.data.frame}{summary.brma_samples}(
+  x,
+  row.names = NULL,
+  optional = FALSE,
+  stringsAsFactors = FALSE,
+  ...
+)
 
 \method{as.data.frame}{brma_samples_list}(
   x,
@@ -17,8 +32,8 @@
 )
 }
 \arguments{
-\item{x}{a \code{brma_samples} object or multi-component
-\code{brma_samples_list} result}
+\item{x}{a \code{brma_samples}, \code{summary.brma_samples}, or
+multi-component \code{brma_samples_list} result}
 
 \item{row.names}{\code{NULL} or a character vector giving the row names for
 the resulting data frame. Custom row names are unsupported when
@@ -26,25 +41,26 @@ the resulting data frame. Custom row names are unsupported when
 
 \item{optional}{logical; passed to the final data-frame coercion method.}
 
+\item{stringsAsFactors}{logical; passed to the output data frame.}
+
 \item{...}{additional arguments passed to \code{summary.brma_samples()}}
 
 \item{format}{for multi-component results, whether to return a single
 \code{"long"} data frame or a named, possibly nested \code{"list"} with a
 plain data frame at each leaf. Defaults to \code{"long"}.}
-
-\item{stringsAsFactors}{logical; accepted for compatibility with
-\code{data.frame()} and otherwise ignored.}
 }
 \value{
-For an individual \code{brma_samples} object, a plain
-\code{data.frame} containing the displayed posterior summary statistics.
+For an individual \code{brma_samples} object, a plain long
+\code{data.frame} containing the displayed posterior summary statistics and
+leading \code{component} and \code{parameter} columns.
 For a \code{brma_samples_list}, a long data frame by default or, with
 \code{format = "list"}, a named, possibly nested list of such data frames.
 }
 \description{
 Converts a \code{brma_samples} result to the posterior summary
-table displayed by \code{print()}. Multi-component results are returned in
-long form with component and parameter identifiers. Printed quantile labels
+table displayed by \code{print()}. Results are returned in long form with
+component and parameter identifiers; multi-component paths use \code{/} as
+a separator. Printed quantile labels
 such as \code{0.025} and \code{PI 0.025} are returned as the syntactic column
 names \code{CI_0.025} and \code{PI_0.025}, respectively.
 }

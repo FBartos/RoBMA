@@ -54,16 +54,17 @@
     samples <- selected[[name]]
     colnames(samples) <- "tau"
     .new_brma_samples(
-      samples  = samples,
-      n_chains = chain_info[["n_chains"]],
-      n_iter   = chain_info[["n_iter"]],
-      title    = if (identical(name, "total")) {
+      samples   = samples,
+      n_chains  = chain_info[["n_chains"]],
+      n_iter    = chain_info[["n_iter"]],
+      title     = if (identical(name, "total")) {
         "Total Pooled Heterogeneity"
       } else {
         paste0("Pooled Heterogeneity (", name, ")")
       },
-      probs    = probs,
-      data     = NULL
+      component = name,
+      probs     = probs,
+      data      = NULL
     )
   })
   names(out) <- names(selected)
@@ -286,7 +287,8 @@
   }
 
   out <- .simplify_brma_mv_heterogeneity_output(out)
-  if (is.list(out) && length(out) > 1L) {
+  if (is.list(out) && length(out) > 1L &&
+      !inherits(out, "summary_heterogeneity.brma")) {
     class(out) <- c("summary_heterogeneity.brma_list", class(out))
   }
 
@@ -325,7 +327,7 @@
     }
   )
 
-  output <- list(estimates = estimates)
+  output <- list(estimates = estimates, component = component)
   class(output) <- "summary_heterogeneity.brma"
 
   return(output)
@@ -353,7 +355,7 @@
       title      = paste0("Heterogeneity Estimates (", name, "):")
     )
 
-    output <- list(estimates = estimates)
+    output <- list(estimates = estimates, component = name)
     class(output) <- "summary_heterogeneity.brma"
 
     output
@@ -512,14 +514,18 @@
     component_rows <- rep(FALSE, nrow(quantities))
     if (identical(target, "sd_component")) {
       block <- .brma_mv_sd_component_allocation_block(allocation)
-      component_rows <- quantities[["owner_type"]] == "random_block" &
-        quantities[["quantity"]] %in% c("sd", "sd_ratio") &
-        vapply(keys, function(key) {
-          isTRUE(key[["allocation_derived"]])
-        }, logical(1)) &
+      block_rows <- quantities[["owner_type"]] == "random_block" &
         vapply(keys, function(key) {
           identical(key[["random_block"]], block)
         }, logical(1))
+      allocation_derived <- vapply(keys, function(key) {
+        isTRUE(key[["allocation_derived"]])
+      }, logical(1))
+      component_rows <- block_rows & (
+        quantities[["quantity"]] == "cor" |
+          (quantities[["quantity"]] %in% c("sd", "var", "sd_ratio") &
+            allocation_derived)
+      )
     }
     selected <- quantities[allocation_rows | component_rows, , drop = FALSE]
     if (nrow(selected) == 0L) {
@@ -528,8 +534,8 @@
     order_group <- match(
       selected[["quantity"]],
       c(
-        "sd_total", "sd_common", "var_total", "var_common", "sd",
-        "var_prop", "var_ratio", "sd_ratio", "inclusion"
+        "sd_total", "sd_common", "var_total", "var_common", "sd", "var",
+        "cor", "sd_ratio", "var_prop", "var_ratio", "inclusion"
       )
     )
     selected <- selected[order(order_group, na.last = TRUE), , drop = FALSE]
@@ -826,6 +832,31 @@
   }
 
   for (i in seq_along(labels)) {
+    sd_name <- .brma_mv_allocation_parameter_name(
+      block_owner,
+      paste0("sd(", labels[[i]], ")")
+    )
+    samples[[.brma_mv_allocation_parameter_name(
+      block_owner,
+      paste0("var(", labels[[i]], ")")
+    )]] <- samples[[sd_name]]^2
+  }
+
+  for (i in seq_along(labels)) {
+    column <- paste0(weight_name, "[", i, "]")
+    weights <- posterior_samples[, column]
+    variance_ratio <- .brma_mv_allocation_variance_ratio(
+      weights   = weights,
+      scale     = scale,
+      n_targets = n_targets
+    )
+    samples[[.brma_mv_allocation_parameter_name(
+      allocation_owner,
+      paste0("sd_ratio(", labels[[i]], ")")
+    )]] <- sqrt(variance_ratio)
+  }
+
+  for (i in seq_along(labels)) {
     column <- paste0(weight_name, "[", i, "]")
     weights <- posterior_samples[, column]
     samples[[.brma_mv_allocation_parameter_name(
@@ -836,13 +867,6 @@
       scale     = scale,
       n_targets = n_targets
     )
-    samples[[.brma_mv_allocation_parameter_name(
-      allocation_owner,
-      paste0("sd_ratio(", labels[[i]], ")")
-    )]] <- sqrt(samples[[.brma_mv_allocation_parameter_name(
-      allocation_owner,
-      paste0("var_ratio(", labels[[i]], ")")
-    )]])
   }
 
   samples

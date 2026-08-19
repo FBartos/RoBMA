@@ -109,13 +109,15 @@ summary_heterogeneity <- function(object, ...) {
 #' For heterogeneous structured random effects, such as
 #' \code{random = ~ har(time | study)}, the allocation table reports
 #' the exhaustive semantic allocation family: aggregate SD and variance,
-#' level-specific component SDs, variance ratios, and SD ratios. A redundant
-#' block owner is omitted for a bare formula or unnamed one-entry list and
-#' retained for explicitly named one-entry lists and multiple components.
+#' level-specific component SDs and variances, correlations, SD ratios, and
+#' variance ratios. A redundant block owner is omitted for a bare formula or
+#' unnamed one-entry list and retained for explicitly named one-entry lists and
+#' multiple components.
 #'
 #' @return A list of class \code{summary_heterogeneity.brma} containing:
 #' \itemize{
 #'   \item \code{estimates}: A \code{BayesTools_table} with heterogeneity statistics
+#'   \item \code{component}: The public heterogeneity-component name
 #' }
 #' For decomposed \code{brma.mv()} models with multiple selected components,
 #' a named list of such summary objects is returned.
@@ -211,7 +213,8 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
 
   # create output object
   output <- list(
-    estimates = estimates
+    estimates = estimates,
+    component = "location"
   )
 
   class(output) <- "summary_heterogeneity.brma"
@@ -336,4 +339,75 @@ print.summary_heterogeneity.brma_list <- function(x, ...) {
   }
 
   return(invisible(x))
+}
+
+
+#' @title Convert Heterogeneity Summaries to Data Frames
+#'
+#' @description Converts heterogeneity summaries to plain long data frames with
+#' leading \code{component} and \code{parameter} columns. A multi-component
+#' result can instead be returned as a named list with
+#' \code{format = "list"}.
+#'
+#' @param x a \code{summary_heterogeneity.brma} or
+#' \code{summary_heterogeneity.brma_list} object.
+#' @param row.names \code{NULL} or a character vector giving the row names for
+#' the result. Custom row names are unsupported when \code{format = "list"}.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param format for multi-component results, whether to return one
+#' \code{"long"} data frame or a named \code{"list"} of data frames.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame}, or a named list of data frames when
+#' \code{format = "list"}.
+#'
+#' @export
+as.data.frame.summary_heterogeneity.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  component <- x[["component"]]
+  if (!is.character(component) || length(component) != 1L ||
+      is.na(component) || !nzchar(component)) {
+    component <- "location"
+  }
+  output <- .output_table_as_long_data_frame(
+    table            = x[["estimates"]],
+    component        = component,
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.summary_heterogeneity.brma
+#' @export
+as.data.frame.summary_heterogeneity.brma_list <- function(
+    x, row.names = NULL, optional = FALSE, format = c("long", "list"),
+    stringsAsFactors = FALSE, ...) {
+
+  format <- match.arg(format)
+  tables <- lapply(names(x), function(component) {
+    value <- x[[component]]
+    value[["component"]] <- component
+    as.data.frame(value, stringsAsFactors = stringsAsFactors)
+  })
+  names(tables) <- names(x)
+  if (identical(format, "list")) {
+    if (!is.null(row.names)) {
+      stop("'row.names' is unsupported when format = 'list'.", call. = FALSE)
+    }
+    return(tables)
+  }
+
+  output <- .output_bind_long_data_frames(
+    tables    = unname(tables),
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
 }

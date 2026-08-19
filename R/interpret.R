@@ -531,7 +531,7 @@ print.interpret.brma <- function(x, ...) {
 .interpret_samples_record <- function(samples, parameter, conditioning,
                                       probs, central) {
 
-  table <- summary(samples, probs = probs)
+  table <- .output_plain_data_frame(summary(samples, probs = probs))
   if (central == "mode") {
     table <- cbind(
       Mode = .interpret_posterior_mode(as.numeric(samples[, 1L])),

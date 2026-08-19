@@ -119,7 +119,8 @@ rows is not supported.}
 (default) predicts new latent effects, \code{"cluster"} conditions on the
 fitted cluster effect and predicts a new estimate within that cluster, and
 \code{"estimate"} predicts the fitted latent effect. Cluster depth is
-available only for legacy multilevel models. Non-marginal prediction is
+available only for specialized multilevel models fitted with
+\code{cluster}. Non-marginal prediction is
 currently restricted to \code{newdata = NULL}, where fitted identities are
 unambiguous.}
 
@@ -132,10 +133,10 @@ returns a named list of component-specific \code{brma_samples} objects.
 When printed, each \code{brma_samples} object displays a summary table via
 \code{BayesTools::ensemble_estimates_table}. The underlying samples matrix
 can be accessed directly because the object inherits from matrix. Use
-\code{summary()} or \code{as.data.frame()} to obtain the summary table. For
-multi-component results, the data frame contains component and parameter
-identifiers; use \code{as.data.frame(format = "list")} to retain separate
-tables. The samples can also be converted to \pkg{posterior} draws formats
+\code{summary()} or \code{as.data.frame()} to obtain the summary table with
+component and parameter identifiers. For multi-component results, use
+\code{as.data.frame(format = "list")} to retain separate tables. The samples
+can also be converted to \pkg{posterior} draws formats
 using \code{as_draws()} and related functions.
 }
 \description{
@@ -145,7 +146,8 @@ using \code{as_draws()} and related functions.
 Prediction has two independent axes. \code{type} selects the quantity:
 fixed location (\code{"terms"}), latent true effect (\code{"estimate"}), or
 observed outcome (\code{"response"}). \code{conditioning_depth} selects how
-much of the fitted random-effect hierarchy is retained. In the legacy model
+much of the fitted random-effect hierarchy is retained. In the specialized
+multilevel model fitted with \code{cluster},
 \eqn{y_{ij} = X_{ij}\beta + u_j + v_{ij} + \epsilon_{ij}}, the targets are:
 \itemize{
 \item{\code{"marginal"}: condition on neither \eqn{u_j} nor \eqn{v_{ij}};}

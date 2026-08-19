@@ -1,5 +1,39 @@
 context("Summary heterogeneity helpers")
 
+test_that("heterogeneity summaries coerce to component-aware data frames", {
+
+  make_summary <- function(component, offset) {
+    estimates <- BayesTools::ensemble_estimates_table(
+      samples = list(tau = offset + 1:20, tau2 = (offset + 1:20)^2),
+      parameters = c("tau", "tau2"),
+      probs = c(.025, .975)
+    )
+    structure(
+      list(estimates = estimates, component = component),
+      class = "summary_heterogeneity.brma"
+    )
+  }
+  study <- make_summary("study", 0)
+  site  <- make_summary("site", 1)
+  summaries <- structure(
+    list(study = study, site = site),
+    class = c("summary_heterogeneity.brma_list", "list")
+  )
+
+  study_frame <- as.data.frame(study)
+  long_frame  <- as.data.frame(summaries)
+  list_frames <- as.data.frame(summaries, format = "list")
+
+  expect_identical(names(study_frame)[1:2], c("component", "parameter"))
+  expect_identical(study_frame[["component"]], rep("study", 2L))
+  expect_identical(study_frame[["parameter"]], c("tau", "tau2"))
+  expect_identical(names(long_frame)[1:2], c("component", "parameter"))
+  expect_setequal(long_frame[["component"]], c("study", "site"))
+  expect_true(all(vapply(list_frames, is.data.frame, logical(1))))
+  expect_identical(data.frame(study), data.frame(study_frame))
+  expect_identical(data.frame(summaries), data.frame(long_frame))
+})
+
 test_that("rho allocation retains endpoints and rejects invalid values", {
 
   tau <- matrix(.3, nrow = 3L, ncol = 2L)

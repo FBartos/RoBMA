@@ -55,7 +55,8 @@ for each estimate, transforms each through \eqn{Z = Y / SE}, and averages
 the resulting densities with equal weight per estimate.
 
 The default marginal target integrates every latent effect that would be
-newly realized in a replicated literature. For a legacy multilevel model,
+newly realized in a replicated literature. For a specialized multilevel
+model fitted with \code{cluster},
 the predictive variance before sampling error is the sum of between- and
 within-cluster heterogeneity. Cluster conditioning instead retains the fitted
 cluster effects and includes only within-cluster heterogeneity. Estimate

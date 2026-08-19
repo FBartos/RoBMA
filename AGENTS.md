@@ -283,15 +283,20 @@ Leave an empty line after an opening brace in function definitions.
 
 ### Predictive Quantities and Conditioning
 
-Use `y = X beta + u_cluster + u_estimate + epsilon` as the canonical legacy
-notation; random-formula models replace the two named effects by their fitted
-Gaussian blocks.
+`brma(..., cluster = ...)` is a maintained, specialized multilevel interface.
+Its covariance can be represented with `brma.mv()`, but its narrow two-level
+heterogeneity allocation supports structure-specific output such as within-
+and between-cluster I2. Use
+`y = X beta + u_cluster + u_estimate + epsilon` as its canonical notation;
+random-formula models replace the two named effects by their fitted Gaussian
+blocks.
 
 - `type` selects the quantity: `"terms"` is `X beta`, `"estimate"` is a
   latent true effect, and `"response"` adds the sampling distribution.
 - `conditioning_depth` independently selects retained fitted effects:
-  `"marginal"` conditions on none, `"cluster"` retains the fitted legacy
-  cluster effect and predicts a new estimate within it, and `"estimate"`
+  `"marginal"` conditions on none, `"cluster"` retains the fitted cluster
+  effect from the specialized multilevel model and predicts a new estimate
+  within it, and `"estimate"`
   targets the fitted latent effect. Cluster depth is unavailable for arbitrary
   `brma.mv()` random formulas because no unique cluster level exists.
 - Marginal is the canonical prediction default. `newdata` supplies design and
@@ -336,6 +341,17 @@ For method-specific results, prefer `<generic>.<input_class>` and define
 matching `print.<result_class>` or `summary.<result_class>` methods. Preserve
 meaningful underlying classes such as `data.frame`; do not introduce a second
 naming convention for an existing family.
+
+Every user-facing structured result class with a custom tabular `print()` or
+`summary()` method must implement both `as.data.frame()` and `data.frame()`
+coercion. Return one plain long data frame containing all displayed tables,
+with leading `component` and `parameter` columns; use stable `/`-separated
+component paths for nested results. Coercion mirrors displayed values while
+omitting print-hidden metadata. Convert displayed credible- and prediction-
+interval labels to syntactic `CI_<probability>` and `PI_<probability>` column
+names, never base-generated `X...` names. Bind heterogeneous sections with
+union columns and `NA`, and test both coercion entry points, grouping labels,
+interval names, and multi-table results.
 
 Use `component` in post-fit public APIs to distinguish model parts. Normalize
 `component = "mods"` and `component = "location"` through shared helpers; use

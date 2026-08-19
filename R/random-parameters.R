@@ -3,7 +3,7 @@
 .brma_random_parameter_supported_quantities <- function() {
 
   c(
-    "sd", "sd_total", "var_total", "sd_common", "var_common",
+    "sd", "var", "sd_total", "var_total", "sd_common", "var_common",
     "cor", "var_prop", "var_ratio", "sd_ratio"
   )
 }
@@ -805,7 +805,7 @@
 
   type <- spec[["quantity"]]
   support <- if (type %in% c(
-    "sd", "sd_total", "var_total", "sd_common", "var_common"
+    "sd", "var", "sd_total", "var_total", "sd_common", "var_common"
   )) {
     c(0, Inf)
   } else if (identical(type, "sd_ratio")) {
@@ -1003,6 +1003,16 @@
   target_prior <- BayesTools::prior_none()
   if (prior) {
     target_prior <- .brma_random_parameter_exact_prior(selected)
+  }
+  if (prior && is.null(target_prior) && !standardized_coefficients) {
+    prior_density <- BayesTools::parameter_prior_density(
+      object[["fit"]],
+      selected[["entry"]][["selection"]]
+    )
+    if (!is.null(prior_density)) {
+      attr(values, "prior_density") <- prior_density
+      target_prior <- BayesTools::prior_none()
+    }
   }
   if (prior && is.null(target_prior)) {
     if (is.null(prior_selected)) {

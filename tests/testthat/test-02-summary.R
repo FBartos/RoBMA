@@ -33,6 +33,74 @@ test_that("summary.brma does not print known-V backend metadata", {
   expect_false(any(grepl("Known-V backend", output, fixed = TRUE)))
 })
 
+test_that("summary.brma coerces displayed sections to one data frame", {
+
+  inclusion <- data.frame(
+    prior_prob   = 0.5,
+    post_prob    = 0.75,
+    inclusion_BF = 3,
+    row.names    = "Effect",
+    check.names  = FALSE
+  )
+  location <- data.frame(
+    Mean        = c(0.1, 0.2),
+    SD          = c(0.01, 0.02),
+    `0.025`     = c(0.08, 0.16),
+    `0.975`     = c(0.12, 0.24),
+    row.names   = c("sensitivity", "specificity"),
+    check.names = FALSE
+  )
+  random <- data.frame(
+    `Random name`      = "study",
+    `Random grouping`  = "study",
+    `Random structure` = "diag",
+    Mean               = 0.3,
+    SD                 = 0.03,
+    `0.025`            = 0.24,
+    `0.975`            = 0.36,
+    row.names          = "sd(sensitivity)",
+    check.names        = FALSE
+  )
+  sections <- c(
+    "inclusion_components", "inclusion_mods", "inclusion_scale",
+    "estimates", "estimates_conditional",
+    "estimates_mods", "estimates_mods_conditional",
+    "estimates_scale", "estimates_scale_conditional",
+    "estimates_random", "estimates_random_conditional",
+    "estimates_bias", "estimates_bias_conditional"
+  )
+  out <- c(
+    list(
+      name            = "Bayesian Multivariate Meta-Analysis",
+      known_v_backend = list()
+    ),
+    as.list(stats::setNames(vector("list", length(sections)), sections))
+  )
+  out[["inclusion_components"]] <- inclusion
+  out[["estimates_mods"]]       <- location
+  out[["estimates_random"]]     <- random
+  class(out) <- "summary.brma"
+
+  frame <- as.data.frame(out)
+
+  expect_identical(names(frame)[1:2], c("component", "parameter"))
+  expect_identical(
+    frame[["component"]],
+    c("inclusion", "location", "location", "random")
+  )
+  expect_identical(
+    frame[["parameter"]],
+    c("Effect", "sensitivity", "specificity", "sd(sensitivity)")
+  )
+  expect_true(all(c("CI_0.025", "CI_0.975") %in% names(frame)))
+  expect_false(any(c(
+    "Random name", "Random grouping", "Random structure"
+  ) %in% names(frame)))
+  expect_true(is.na(frame[["Mean"]][1L]))
+  expect_true(all(is.na(frame[["prior_prob"]][-1L])))
+  expect_identical(data.frame(out), data.frame(frame))
+})
+
 
 skip_if_no_fits()
 fit_names <- list_fits()

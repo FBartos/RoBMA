@@ -41,8 +41,13 @@ test_that("pooled effect summaries include prediction intervals", {
   pooled_df <- as.data.frame(pooled)
   expect_identical(
     names(pooled_df),
-    c("Mean", "Median", "CI_0.025", "CI_0.975", "PI_0.025", "PI_0.975")
+    c(
+      "component", "parameter", "Mean", "Median",
+      "CI_0.025", "CI_0.975", "PI_0.025", "PI_0.975"
+    )
   )
+  expect_identical(pooled_df[["component"]], "location")
+  expect_identical(pooled_df[["parameter"]], "mu")
   expect_identical(data.frame(pooled), pooled_df)
   expect_equal(
     unname(as.matrix(pooled_df)),
@@ -51,7 +56,10 @@ test_that("pooled effect summaries include prediction intervals", {
   )
   expect_identical(
     names(as.data.frame(pooled, probs = c(.05, .95))),
-    c("Mean", "Median", "CI_0.05", "CI_0.95", "PI_0.05", "PI_0.95")
+    c(
+      "component", "parameter", "Mean", "Median",
+      "CI_0.05", "CI_0.95", "PI_0.05", "PI_0.95"
+    )
   )
   pooled_draws <- as.matrix(RoBMA::as_draws_matrix(pooled))
   expect_equal(
@@ -75,8 +83,11 @@ test_that("pooled effect summaries include prediction intervals", {
   )
   expect_identical(
     names(custom_df),
-    c("Mean", "Median", "CI_0.6", "CI_0.125", "CI_0.9",
-      "PI_0.6", "PI_0.125", "PI_0.9")
+    c(
+      "component", "parameter", "Mean", "Median",
+      "CI_0.6", "CI_0.125", "CI_0.9",
+      "PI_0.6", "PI_0.125", "PI_0.9"
+    )
   )
   expect_identical(data.frame(custom_pooled), custom_df)
   expect_equal(
@@ -159,14 +170,23 @@ test_that("pooled heterogeneity evaluates the average scale design", {
   expect_equal(unname(as.matrix(pooled)), unname(expected), tolerance = 1e-12)
   pooled_df  <- as.data.frame(pooled)
   row_tau_df <- as.data.frame(row_tau)
-  expect_identical(names(pooled_df), c("Mean", "Median", "CI_0.025", "CI_0.975"))
+  expect_identical(
+    names(pooled_df),
+    c("component", "parameter", "Mean", "Median", "CI_0.025", "CI_0.975")
+  )
+  expect_identical(pooled_df[["component"]], "heterogeneity")
+  expect_identical(pooled_df[["parameter"]], "tau")
   expect_identical(data.frame(pooled), pooled_df)
   expect_equal(
     unname(as.matrix(pooled_df)),
     unname(as.matrix(as.data.frame(summary(pooled)))),
     tolerance = 0
   )
-  expect_identical(names(row_tau_df), c("Mean", "Median", "CI_0.025", "CI_0.975"))
+  expect_identical(
+    names(row_tau_df),
+    c("component", "parameter", "Mean", "Median", "CI_0.025", "CI_0.975")
+  )
+  expect_identical(row_tau_df[["component"]], rep("scale", 3L))
   expect_identical(data.frame(row_tau), row_tau_df)
   expect_equal(
     unname(as.matrix(row_tau_df)),

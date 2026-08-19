@@ -100,6 +100,8 @@ fit1_metafor
 
 The matching Bayesian fit replaces the `random = ...` argument with `cluster = district`.
 `brma()` parameterizes the multilevel model in the same compound-symmetric form: a total heterogeneity $\tau$ and a cluster-level allocation $\rho$ where $\tau_{between} = \tau\sqrt{\rho}$ and $\tau_{within} = \tau\sqrt{1 - \rho}$.
+`brma(..., cluster = ...)` is the specialized interface for this model.
+The same covariance can be represented with `brma.mv()`, but the narrower `cluster` parameterization provides dedicated output for $I^2$ and its within- and between-cluster components.
 `measure = "SMD"` selects the default prior distributions for standardized mean differences.
 
 ```{r fit1-brma, eval = FALSE}

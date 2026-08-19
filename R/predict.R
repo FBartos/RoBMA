@@ -45,7 +45,8 @@
 #'   (default) predicts new latent effects, \code{"cluster"} conditions on the
 #'   fitted cluster effect and predicts a new estimate within that cluster, and
 #'   \code{"estimate"} predicts the fitted latent effect. Cluster depth is
-#'   available only for legacy multilevel models. Non-marginal prediction is
+#'   available only for specialized multilevel models fitted with
+#'   \code{cluster}. Non-marginal prediction is
 #'   currently restricted to \code{newdata = NULL}, where fitted identities are
 #'   unambiguous.
 #' @param as_measure logical; whether to convert GLMM response predictions from
@@ -97,7 +98,8 @@
 #' Prediction has two independent axes. \code{type} selects the quantity:
 #' fixed location (\code{"terms"}), latent true effect (\code{"estimate"}), or
 #' observed outcome (\code{"response"}). \code{conditioning_depth} selects how
-#' much of the fitted random-effect hierarchy is retained. In the legacy model
+#' much of the fitted random-effect hierarchy is retained. In the specialized
+#' multilevel model fitted with \code{cluster},
 #' \eqn{y_{ij} = X_{ij}\beta + u_j + v_{ij} + \epsilon_{ij}}, the targets are:
 #' \itemize{
 #'   \item{\code{"marginal"}: condition on neither \eqn{u_j} nor \eqn{v_{ij}};}
@@ -192,10 +194,10 @@
 #' When printed, each \code{brma_samples} object displays a summary table via
 #' \code{BayesTools::ensemble_estimates_table}. The underlying samples matrix
 #' can be accessed directly because the object inherits from matrix. Use
-#' \code{summary()} or \code{as.data.frame()} to obtain the summary table. For
-#' multi-component results, the data frame contains component and parameter
-#' identifiers; use \code{as.data.frame(format = "list")} to retain separate
-#' tables. The samples can also be converted to \pkg{posterior} draws formats
+#' \code{summary()} or \code{as.data.frame()} to obtain the summary table with
+#' component and parameter identifiers. For multi-component results, use
+#' \code{as.data.frame(format = "list")} to retain separate tables. The samples
+#' can also be converted to \pkg{posterior} draws formats
 #' using \code{as_draws()} and related functions.
 #' @seealso [pooled_effect()], [pooled_heterogeneity()], [blup()]
 #' @export
@@ -458,8 +460,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 
   if (conditioning_depth == "cluster" && !is_multilevel) {
     stop(
-      "conditioning_depth = 'cluster' is only available for legacy ",
-      "multilevel (3-level) models.",
+      "conditioning_depth = 'cluster' is only available for specialized ",
+      "multilevel models fitted with 'cluster'.",
       call. = FALSE
     )
   }
@@ -555,13 +557,23 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     context, samples, title, parameters, effect = TRUE) {
 
   constructor <- if (effect) .new_effect_brma_samples else .new_brma_samples
+  component <- switch(
+    context[["type"]],
+    terms       = "location",
+    terms.scale = "scale",
+    location    = "location",
+    estimate    = "estimate",
+    response    = "response",
+    "result"
+  )
   arguments   <- list(
-    samples  = samples,
-    n_chains = context[["n_chains"]],
-    n_iter   = context[["n_iter"]],
-    title    = title,
-    probs    = context[["probs"]],
-    data     = context[["new_data"]]
+    samples   = samples,
+    n_chains  = context[["n_chains"]],
+    n_iter    = context[["n_iter"]],
+    title     = title,
+    component = component,
+    probs     = context[["probs"]],
+    data      = context[["new_data"]]
   )
   if (effect) {
     arguments[["effect_transform"]] <- context[["effect_transform"]]
@@ -691,12 +703,13 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     })
     out <- lapply(names(scale_samples), function(component) {
       .new_brma_samples(
-        samples  = scale_samples[[component]],
-        n_chains = context[["n_chains"]],
-        n_iter   = context[["n_iter"]],
-        title    = paste0("Scale Term Posterior Prediction (", component, "):"),
-        probs    = context[["probs"]],
-        data     = new_data
+        samples   = scale_samples[[component]],
+        n_chains  = context[["n_chains"]],
+        n_iter    = context[["n_iter"]],
+        title     = paste0("Scale Term Posterior Prediction (", component, "):"),
+        component = paste("scale", component, sep = "/"),
+        probs     = context[["probs"]],
+        data      = new_data
       )
     })
     names(out) <- names(scale_samples)
@@ -1446,6 +1459,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     n_chains           = 1L,
     n_iter             = nrow(sample_matrix),
     title              = paste("Conditional", attr(samples, "title")),
+    component          = .brma_samples_component(samples),
     probs              = attr(samples, "probs"),
     data               = attr(samples, "data"),
     effect_transform   = attr(samples, "effect_transform"),

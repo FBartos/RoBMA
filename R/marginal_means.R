@@ -579,6 +579,56 @@ print.summary.marginal_means.brma <- function(x, ...) {
 }
 
 
+#' @title Convert Marginal Means to a Data Frame
+#'
+#' @description Converts the summary displayed for a
+#' \code{marginal_means.brma} object to a plain long data frame with leading
+#' \code{component} and \code{parameter} columns. Printed quantile labels are
+#' returned as syntactic \code{CI_} column names.
+#'
+#' @param x a \code{marginal_means.brma} or
+#' \code{summary.marginal_means.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... additional arguments passed to \code{summary()}.
+#'
+#' @return A plain long \code{data.frame} containing the displayed
+#' marginal-means summary and leading \code{component} and \code{parameter}
+#' columns.
+#'
+#' @export
+as.data.frame.marginal_means.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- as.data.frame.summary.marginal_means.brma(
+    x                = summary(x, ...),
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.marginal_means.brma
+#' @export
+as.data.frame.summary.marginal_means.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- .output_table_as_long_data_frame(
+    table            = x,
+    component        = "marginal means",
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
 #' @title Plot Estimated Marginal Means
 #'
 #' @description Plots estimated marginal means stored in a

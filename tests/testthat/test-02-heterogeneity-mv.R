@@ -164,7 +164,7 @@ test_that("brma.mv heterogeneity resolves aliases and component errors", {
     component_df <- as.data.frame(component)
     expect_identical(
       names(component_df),
-      c("Mean", "Median", "CI_0.025", "CI_0.975")
+      c("component", "parameter", "Mean", "Median", "CI_0.025", "CI_0.975")
     )
     expect_equal(
       unname(as.matrix(component_df)),
@@ -656,6 +656,11 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
               fixed = TRUE))
   )
   expect_true(
+    any(grepl("var(time[1])",
+              rownames(allocation_summaries[["study"]][["estimates"]]),
+              fixed = TRUE))
+  )
+  expect_true(
     any(grepl("var_ratio(time[2])",
               rownames(allocation_summaries[["study"]][["estimates"]]),
               fixed = TRUE))
@@ -669,12 +674,24 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
     10
   )
   expect_equal(
+    allocation_summaries[["study"]][["estimates"]]["var(time[1])", "Mean"],
+    9
+  )
+  expect_equal(
     allocation_summaries[["study"]][["estimates"]]["var_ratio(time[1])", "Mean"],
     0.75
   )
   expect_true(
     "sd_ratio(time[1])" %in%
       rownames(allocation_summaries[["study"]][["estimates"]])
+  )
+  expect_equal(
+    rownames(allocation_summaries[["study"]][["estimates"]]),
+    c(
+      "sd_common", "var_common", "sd(time[1])", "sd(time[2])",
+      "var(time[1])", "var(time[2])", "sd_ratio(time[1])",
+      "sd_ratio(time[2])", "var_ratio(time[1])", "var_ratio(time[2])"
+    )
   )
 })
 

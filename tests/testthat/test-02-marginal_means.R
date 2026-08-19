@@ -111,6 +111,44 @@ smoke_samples <- test_profile_value(250L, 1000L)
 }
 
 
+test_that("marginal means coerce to their displayed data frame", {
+
+  emm <- .marginal_means_test_object()
+  summary_table <- BayesTools::ensemble_estimates_table(
+    samples = list(
+      alternate  = seq(-1, 0, length.out = 20L),
+      random     = seq(-.5, .5, length.out = 20L),
+      systematic = seq(0, 1, length.out = 20L)
+    ),
+    parameters = c("alternate", "random", "systematic"),
+    probs = c(.025, .50, .975)
+  )
+  class(summary_table) <- c(
+    "summary.marginal_means.brma",
+    class(summary_table)
+  )
+  testthat::local_mocked_bindings(
+    summary.marginal_means.brma = function(object, ...) summary_table,
+    .package = "RoBMA"
+  )
+  observed <- as.data.frame(emm)
+  expected <- as.data.frame(summary_table)
+  names(expected) <- names(observed)
+
+  expect_s3_class(observed, "data.frame")
+  expect_true(all(c(
+    "component", "parameter", "Mean", "Median", "CI_0.025", "CI_0.975"
+  ) %in%
+                    names(observed)))
+  expect_equal(
+    unname(as.matrix(observed)),
+    unname(as.matrix(expected))
+  )
+  expect_identical(rownames(observed), rownames(expected))
+  expect_identical(data.frame(emm), data.frame(observed))
+})
+
+
 test_that("marginal_means base plot keeps separate level colors", {
 
   emm  <- .marginal_means_test_object()
@@ -1615,7 +1653,10 @@ test_that("marginal_means summaries transform effect-size scale", {
 
   summary_rr <- summary(emm)
   expected   <- marginal_means_expected_stats(emm)
-  actual     <- as.data.frame(summary_rr)[, colnames(expected)]
+  expected_columns <- names(.output_data_frame_names(
+    as.data.frame(expected, check.names = FALSE)
+  ))
+  actual <- as.data.frame(summary_rr)[, expected_columns]
 
   expect_equal(
     unname(as.matrix(actual)),
@@ -1643,7 +1684,10 @@ test_that("marginal_means summaries convert effect-size measures", {
     emm              = emm,
     effect_transform = effect_transform
   )
-  actual      <- as.data.frame(summary_cor)[, colnames(expected)]
+  expected_columns <- names(.output_data_frame_names(
+    as.data.frame(expected, check.names = FALSE)
+  ))
+  actual <- as.data.frame(summary_cor)[, expected_columns]
 
   expect_equal(
     unname(as.matrix(actual)),

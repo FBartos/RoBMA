@@ -361,8 +361,8 @@ NULL
 #'
 #' Formula-random correlations are always public `cor` quantities. Compact
 #' scalar `rho` coordinates and LKJ primitives are internal backend details,
-#' not aliases. This convention is distinct from the released legacy
-#' `cluster` interface, where `rho` remains the public variance-allocation
+#' not aliases. This convention is distinct from the specialized `cluster`
+#' interface, where `rho` remains the public variance-allocation
 #' parameter described in \code{\link{prior_specification}}.
 #'
 #' ## Ways to customize random-effect priors

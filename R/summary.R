@@ -331,6 +331,84 @@ print.summary.brma <- function(x, ...) {
   return(invisible(x))
 }
 
+
+#' @title Convert brma Summaries to a Data Frame
+#'
+#' @description Converts the non-empty tables displayed by a fitted
+#' \code{brma} object or its \code{summary.brma} result to one plain,
+#' long-form data frame. The leading
+#' \code{component} column identifies the summary section and
+#' \code{parameter} retains the displayed row label. Printed quantile labels
+#' are returned as syntactic \code{CI_} column names.
+#'
+#' @param x a fitted \code{brma} or \code{summary.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... for a fitted object, additional arguments passed to
+#' \code{summary.brma()}; otherwise unused.
+#'
+#' @return A plain \code{data.frame} containing all displayed summary rows.
+#'
+#' @export
+as.data.frame.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- as.data.frame.summary.brma(
+    x                = summary(x, ...),
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.brma
+#' @export
+as.data.frame.summary.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  x_data <- .summary_brma_prepare_print_sections(x)
+  components <- c(
+    inclusion_components         = "inclusion",
+    inclusion_mods               = "inclusion location",
+    inclusion_scale              = "inclusion scale",
+    estimates                    = "common",
+    estimates_conditional        = "conditional common",
+    estimates_mods               = "location",
+    estimates_mods_conditional   = "conditional location",
+    estimates_scale              = "scale",
+    estimates_scale_conditional  = "conditional scale",
+    estimates_random             = "random",
+    estimates_random_conditional = "conditional random",
+    estimates_bias               = "bias",
+    estimates_bias_conditional   = "conditional bias"
+  )
+
+  tables <- lapply(names(components), function(section) {
+    table <- x_data[[section]]
+    if (length(table) == 0L) {
+      return(NULL)
+    }
+
+    .output_table_as_long_data_frame(
+      table            = table,
+      component        = components[[section]],
+      stringsAsFactors = stringsAsFactors
+    )
+  })
+
+  output <- .output_bind_long_data_frames(
+    tables    = tables,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
+}
+
 .summary_brma_prepare_print_sections <- function(x) {
 
   x[["estimates_random"]] <- .summary_brma_random_section_for_print(

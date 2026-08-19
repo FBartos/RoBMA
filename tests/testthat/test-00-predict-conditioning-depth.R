@@ -118,7 +118,7 @@ test_that("known-V estimate depth preserves the joint conditional posterior", {
 })
 
 
-test_that("legacy multilevel estimate depth preserves joint latent uncertainty", {
+test_that("specialized multilevel estimate depth preserves joint latent uncertainty", {
 
   S       <- 15000L
   mu      <- c(0.1, -0.2)

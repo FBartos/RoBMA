@@ -1498,9 +1498,9 @@
 }
 
 
-# Conditional simulation of the total fitted latent contribution in the legacy
-# multilevel normal model. The simulation identity preserves the shared
-# cluster-level dependence instead of drawing row-wise BLUP uncertainty.
+# Conditional simulation of the total fitted latent contribution in the
+# specialized multilevel normal model. The simulation identity preserves the
+# shared cluster-level dependence instead of drawing row-wise BLUP uncertainty.
 .evaluate.brma.multilevel_posterior.norm <- function(
     mu_samples, tau_within, tau_between, yi, vi, cluster,
     bias_offset = NULL) {
