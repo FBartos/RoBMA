@@ -27,10 +27,10 @@ text	effect-bayes-factors	3.500000000	4.6.0	Windows/x86_64-w64-mingw32
 text	model-comparison	0.560000000	4.6.0	Windows/x86_64-w64-mingw32
 text	model-fit-loo	0.500000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-cor-R	0.100000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-known-R	0.170000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-known-R	0.100000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-no-known-R	0.080000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary_het-cor-R	0.050000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary_het-known-R	0.140000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary_het-known-R	0.110000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary_het-no-known-R	0.040000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	diagnostics-cor-R	23.300000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	diagnostics-known-R	22.800000000	4.6.0	Windows/x86_64-w64-mingw32

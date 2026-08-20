@@ -499,7 +499,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 .scenario_timing_types <- function() {
 
   return(c(
-    "fit", "fit_model", "fit_loo", "fit_marglik", "text", "plot"
+    "fit", "fit_model", "fit_loo", "fit_marglik", "time", "text", "plot"
   ))
 }
 
@@ -1211,6 +1211,24 @@ review_test_snapshots <- function(files = NULL,
   }
 
   return(invisible(.scenario_snapshot_review(root, files = files)))
+}
+
+
+# Evaluate an ordinary scenario computation and record its wall time.
+scenario_time <- function(name, code) {
+
+  .scenario_config()
+  name    <- .scenario_validate_name(name, "time")
+  expr    <- substitute(code)
+  started <- .scenario_clock()
+  result  <- withVisible(eval(expr, envir = parent.frame()))
+  elapsed <- max(0, .scenario_clock() - started)
+  .scenario_register_timing("time", name, elapsed)
+
+  if (result[["visible"]]) {
+    return(result[["value"]])
+  }
+  return(invisible(result[["value"]]))
 }
 
 

@@ -337,6 +337,8 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Testing and development
+- adds `scenario_time()` for tracking performance regressions in costly
+  scenario computations that do not produce text or plot snapshots.
 - adds shared `ex_m()`, `ex_r()`, and `ex()` scenario extractors for concise
   metafor/RoBMA comparisons across model lists and parameter vectors, including
   component selectors such as `sd[study]`; unavailable parameters return `NA`.

@@ -23,6 +23,9 @@ relationships easy to inspect.
 
 - Wrap each costly RoBMA fit in `scenario_fit()` with a stable, descriptive
   name. Return a ready-to-analyze object from the block.
+- Wrap costly non-fit computations used later in the scenario in
+  `scenario_time("name", { ... })`. It returns the computed value unchanged and
+  records timing only; it does not cache the value or create a snapshot.
 - Add `add_loo()` and `add_marglik()` inside the cached block whenever they are
   supported and potentially useful for validation or face-validity checks.
 - Reuse cached fits while developing downstream functionality. Restarting R,
@@ -89,9 +92,9 @@ not mechanically reformat an existing scenario to ordinary source-file width.
 
 ## Files and Workflow
 
-Call `scenario_start()` before `scenario_fit()`, `scenario_text()`, or
-`scenario_plot()`. Use the shared helpers rather than recreating their caching,
-printing, graphics, or snapshot behavior.
+Call `scenario_start()` before `scenario_fit()`, `scenario_time()`,
+`scenario_text()`, or `scenario_plot()`. Use the shared helpers rather than
+recreating their caching, timing, printing, graphics, or snapshot behavior.
 
 Run one scenario with:
 
@@ -141,11 +144,13 @@ referenced by the scenario. Never delete an orphan automatically.
 
 ## Performance Timings
 
-`scenario_fit()`, `scenario_text()`, and `scenario_plot()` record wall time in
-the tracked `timings/<scenario>.tsv` baseline. Text timing includes expression
-evaluation and captured printing. Plot timing includes the canonical assertion
-render but excludes any extra interactive preview and file comparison. The
-`fit` timing includes the full cached block but excludes cache reads and writes.
+`scenario_fit()`, `scenario_time()`, `scenario_text()`, and `scenario_plot()`
+record wall time in the tracked `timings/<scenario>.tsv` baseline. A `time`
+entry includes only successful expression evaluation. Text timing includes
+expression evaluation and captured printing. Plot timing includes the canonical
+assertion render but excludes any extra interactive preview and file comparison.
+The `fit` timing includes the full cached block but excludes cache reads and
+writes.
 When the block directly calls unqualified `add_loo()` or `add_marglik()`, the
 same measurement also records `fit_model`, `fit_loo`, and `fit_marglik` rows.
 `fit_model` is the full block time remaining after the observed post-fit calls.

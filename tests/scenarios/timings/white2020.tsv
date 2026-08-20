@@ -14,9 +14,11 @@ fit_marglik	fit_brma_study	5.930000000	4.6.0	Windows/x86_64-w64-mingw32
 text	metafor-comparison	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
 text	model-fit-bma	0.020000000	4.6.0	Windows/x86_64-w64-mingw32
 text	model-fit-loo	0.010000000	4.6.0	Windows/x86_64-w64-mingw32
+text	random-component-bayes-factors	4.540000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma	0.350000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma-observation	0.250000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma-study	0.120000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-heterogeneity	0.230000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-heterogeneity-observation	0.130000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-heterogeneity-study	0.160000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	ranef-comparison	2.740000000	4.6.0	Windows/x86_64-w64-mingw32

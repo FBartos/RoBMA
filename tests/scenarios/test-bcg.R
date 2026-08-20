@@ -318,9 +318,6 @@ testthat::test_that("BCG Meta-Regression", {
 
   # with transformation
   scenario_plot("fit_reg1_posterior_alloc_exp", {
-    # TODO: the prior line is cut at 0? (prbly BT issue with transformation -- even without expl. limit it starts quite late
-    # FIXED: EXP has open support above zero; the first positive grid point is
-    # display resolution, and the transformed normal density tends to zero there.
     plot(fit_reg1, "alloc", ylim = c(0, 2), prior = TRUE, transform = "EXP", xlim = c(0, 4))
     lines(fit_reg1, "alloc", density_method = "IWMDE", lty = 2, transform = "EXP")
   })

@@ -25,10 +25,10 @@ text	marginal-means-us	0.310000000	4.6.0	Windows/x86_64-w64-mingw32
 text	metafor-comparison	1.380000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma_diag	0.570000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma_hcs	0.690000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma_hcs0	0.770000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma_hcs0	0.670000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma_us	0.580000000	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-het-hcs	0.310000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-het-us	0.170000000	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-het-us	0.110000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	cor	8.560000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	mu	4.610000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	random_us	2.320000000	4.6.0	Windows/x86_64-w64-mingw32

@@ -155,7 +155,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   })
 
   scenario_plot("random_us2", {
-    par(mfrow = c(3, 2)) # HERE extend
+    par(mfrow = c(3, 2))
 
     plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE)
     plot(fit_brma_us, "var_ratio(group[specificity])", prior = TRUE)
@@ -164,14 +164,13 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     # FIXED: under the two-part uniform Dirichlet allocation,
     # sd_ratio = sqrt(2 * weight) has density f(r) = r on [0, sqrt(2)];
     # unlike var_ratio, its density is not bounded by the constant 1 / 2.
+    # TODO: I am still a bit confused how its possible that there is an upper bound on the ratio
+    # is it ratio of this group to total or this group to the other? also, the weight is not bounded right?
     plot(fit_brma_us, "sd_ratio(group[sensitivity])", prior = TRUE, xlim = c(0, 2))
     plot(fit_brma_us, "sd_ratio(group[specificity])", prior = TRUE, xlim = c(0, 2))
 
-    # TODO: allow log transformation of var_ratio and sd_ratio parameters
-    # FIXED: positive random-effect variance and SD ratios now accept LOG.
-    plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE, transform = "LOG")
-    plot(fit_brma_us, "sd_ratio(group[specificity])", prior = TRUE, transform = "LOG")
-
+    plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE, transform = "LOG", xlim = c(-3, 1))
+    plot(fit_brma_us, "sd_ratio(group[specificity])",  prior = TRUE, transform = "LOG", xlim = c(-3, 1))
   })
 
 
@@ -185,9 +184,11 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     plot(fit_brma_hcs, "sd(group[specificity])", prior = TRUE)
 
     plot(fit_brma_hcs, "var_ratio(group[sensitivity])", prior = TRUE)
-    plot(fit_brma_hcs, "sd_ratio(group[specificity])",  prior = TRUE) # TODO: annother issue here
+    plot(fit_brma_hcs, "sd_ratio(group[specificity])",  prior = TRUE)
+    # TODO: annother issue here
     # FIXED: the same analytic ratio prior applies to HCS; out-of-support grid
     # values now transform to NaN silently instead of emitting sqrt warnings.
+    # TODO: how do we get the out of support grid values here? the prior seems to be sample and not analytic here?
   })
 
   ### random-effect comparisons ----

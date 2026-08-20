@@ -221,6 +221,56 @@ test_that("interactive timing backfills but requires consent for slowdowns", {
 })
 
 
+test_that("scenario_time returns values and records successful computations", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env <- environment(scenario_time)
+  old_clock  <- get(".scenario_clock", envir = helper_env, inherits = FALSE)
+  on.exit(assign(".scenario_clock", old_clock, envir = helper_env), add = TRUE)
+  ticks <- c(10, 13, 20, 24, 30)
+  assign(
+    ".scenario_clock",
+    function() {
+
+      value <- ticks[[1L]]
+      ticks <<- ticks[-1L]
+      value
+    },
+    envir = helper_env
+  )
+  counter <- 0L
+
+  scenario_start("unit", root = root, update_timings = TRUE)
+  visible <- withVisible(scenario_time("visible", {
+    counter <- counter + 1L
+    42L
+  }))
+  hidden <- withVisible(scenario_time("hidden", invisible("value")))
+  expect_error(scenario_time("failed", stop("calculation failed")), "calculation failed")
+
+  expect_identical(counter, 1L)
+  expect_identical(visible, list(value = 42L, visible = TRUE))
+  expect_identical(hidden, list(value = "value", visible = FALSE))
+  current <- .scenario_current_timings()
+  expect_equal(current[c("type", "name", "elapsed")], data.frame(
+    type    = c("time", "time"),
+    name    = c("hidden", "visible"),
+    elapsed = c(4, 3)
+  ))
+  expect_false("failed" %in% current[["name"]])
+  expect_length(list.files(file.path(root, "results", "unit")), 0L)
+  expect_length(list.files(file.path(root, "_snaps", "unit")), 0L)
+  expect_no_warning(.scenario_finalize_timing())
+  expect_equal(
+    .scenario_read_timings(file.path(root, "timings", "unit.tsv"))[
+      c("type", "name", "elapsed")
+    ],
+    current[c("type", "name", "elapsed")]
+  )
+})
+
+
 test_that("scenario_fit supports optional targeted cache versions", {
 
   root <- .scenario_test_root()

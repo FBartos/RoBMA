@@ -88,8 +88,13 @@ testthat::test_that("White study and observation random-effects model", {
     # we do not neccessarily need density estimation and closed form prior (although the closed form prior should be possible?)
     # FIXED: semantic random-effect names include their coefficient argument;
     # the sampled-prior/KDE path supports this quantity directly.
+    # TODO:
+    # should it be possible to get the prior density analytically here too?
     plot(fit_brma, "study: sd(intercept)", prior = TRUE)
+    lines(fit_brma, "study: sd(intercept)", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000))
 
+    plot(fit_brma, "observation: sd(intercept)", prior = TRUE)
+    lines(fit_brma, "observation: sd(intercept)", density_method = "qCMDE", lty = 2)
   })
 
 
@@ -106,19 +111,20 @@ testthat::test_that("White study and observation random-effects model", {
     )
   })
 
+  # TODO: since we can get qCMDE density of `study: sd(intercept) = 0`; shouldn't that correspond to var_prop(study) = 0?
+  scenario_text("random-component-bayes-factors-consistency", {
+    hypothesis(
+      fit_brma, c("var_prop(study) = 0", "study: sd(intercept) == 0"),
+      density_method  = "qCMDE", density_control = list(samples = 2000L)
+    )
+  })
+
+
 
   ### random-effect comparisons ----
   scenario_plot("ranef-comparison", {
-    ranef_metafor          <- metafor::ranef(fit_metafor)
-    # TODO: this takes way too long, profile and assess bottlenecks
-    # FIXED: BLUPs now multiply compiled covariance factors directly instead of
-    # constructing draw-by-row-by-row arrays and dense Cholesky factors.
-    ranef_brma             <- ranef(fit_brma)
-
-    # TODO:
-    # I believe that the default output ordering does not match metafor convention, please allign
-    # FIXED: unique-level random effects now follow compiled factor-level order,
-    # matching metafor even when a level first appears late in the data.
+    ranef_metafor <- metafor::ranef(fit_metafor)
+    ranef_brma    <- ranef(fit_brma)
 
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     scenario_agreement_plot(ranef_metafor[["study_id"]][["intrcpt"]], as.data.frame(ranef_brma$study)[["Mean"]], "Study effects")
@@ -126,6 +132,6 @@ testthat::test_that("White study and observation random-effects model", {
   })
 
 
-  ###
+  ### TODO: extend
 
 })

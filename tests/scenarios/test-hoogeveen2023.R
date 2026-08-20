@@ -164,15 +164,10 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
 
   scenario_plot("posterior-tau", {
     plot(fit_brma_mv, "sd(intercept)", prior = TRUE, xlim = c(0, .10), col = "blue")
-    # TODO: examine this takes very long:
-    # FIXED: qCMDE uses the exact affine group-IID variance-grid evaluator; the
-    # cached 98-analysis fit completes this layer in approximately three seconds.
     lines(fit_brma_mv, "sd(intercept)", lty = 2, col = "blue", density_method = "qCMDE")
 
-    # TODO: does not export sd(intercept)
-    # FIXED: known-R models intentionally export the scale multiplier as
-    # sd_ratio(intercept); a common marginal sd(intercept) does not exist.
     lines(fit_brma_mv_quality, "sd_ratio(intercept)", col = "green")
+    # TODO: this takes very long now!
     lines(fit_brma_mv_quality, "sd_ratio(intercept)", lty = 2, col = "green", density_method = "qCMDE")
 
     lines(fit_brma_mv_rcor, "sd_ratio(intercept)", col = "red")
