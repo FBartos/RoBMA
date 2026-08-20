@@ -1547,39 +1547,21 @@ test_that("same-data random BLUP is compilation-invariant for one block", {
     tolerance = 1e-12
   )
 
-  original_adapter <- .brma_mv_random_effects_marginal_vcov
-  adapter_blocks   <- list()
   testthat::local_mocked_bindings(
     .brma_mv_random_effects_marginal_vcov = function(
         object, posterior_samples, blocks = NULL, diagonal_only = FALSE,
         data = object[["data"]], new_levels = NULL) {
-      adapter_blocks[[length(adapter_blocks) + 1L]] <<- blocks
-      original_adapter(
-        object            = object,
-        posterior_samples = posterior_samples,
-        blocks            = blocks,
-        diagonal_only     = diagonal_only,
-        data              = data,
-        new_levels        = new_levels
-      )
+      stop("Dense covariance path must not be used.", call. = FALSE)
     },
     .package = "RoBMA"
   )
-  chunked_total <- .evaluate.brma.mv_random_blup.norm(
+  factorized_total <- .evaluate.brma.mv_random_blup.norm(
     object            = sampled,
     mu_samples        = sampled_result[["terms"]],
-    posterior_samples = posterior_samples,
-    max_bytes         = .known_v_covariance_peak_bytes(1L, nrow(dat))
+    posterior_samples = posterior_samples
   )
 
-  expect_equal(unname(chunked_total), unname(expected), tolerance = 1e-12)
-  expect_length(adapter_blocks, nrow(posterior_samples))
-  expect_true(all(vapply(
-    adapter_blocks,
-    identical,
-    logical(1),
-    block_name
-  )))
+  expect_equal(unname(factorized_total), unname(expected), tolerance = 1e-12)
 })
 
 

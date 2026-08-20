@@ -1377,12 +1377,12 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
          call. = FALSE)
   }
 
-  group_order <- unique(group_map)
-  if (length(group_order) != n_groups) {
+  group_order <- seq_len(n_groups)
+  level_rows  <- match(group_order, group_map)
+  if (anyNA(level_rows)) {
     stop("Internal error: random-effect grouping levels are missing fitted rows.",
          call. = FALSE)
   }
-  level_rows <- match(group_order, group_map)
 
   out <- samples[, level_rows, drop = FALSE]
   colnames(out) <- paste0(

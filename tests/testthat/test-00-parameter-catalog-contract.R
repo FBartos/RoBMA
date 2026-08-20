@@ -216,6 +216,7 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
     random[["selection"]][["quantities"]][["provider"]],
     "BayesTools"
   )
+  expect_identical(random[["quantity"]], "sd")
   expect_identical(random[["status"]], "sampled")
   random_hypothesis <- BayesTools::hypothesis_parse(
     "cor(group[sensitivity],group[specificity]) = 0",

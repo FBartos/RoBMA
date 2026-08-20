@@ -86,7 +86,9 @@ testthat::test_that("White study and observation random-effects model", {
     # TODO:
     # how does one plot the prior and posterior distribution for tau in study
     # we do not neccessarily need density estimation and closed form prior (although the closed form prior should be possible?)
-    plot(fit_brma, "study: sd", prior = TRUE)
+    # FIXED: semantic random-effect names include their coefficient argument;
+    # the sampled-prior/KDE path supports this quantity directly.
+    plot(fit_brma, "study: sd(intercept)", prior = TRUE)
 
   })
 
@@ -109,10 +111,14 @@ testthat::test_that("White study and observation random-effects model", {
   scenario_plot("ranef-comparison", {
     ranef_metafor          <- metafor::ranef(fit_metafor)
     # TODO: this takes way too long, profile and assess bottlenecks
+    # FIXED: BLUPs now multiply compiled covariance factors directly instead of
+    # constructing draw-by-row-by-row arrays and dense Cholesky factors.
     ranef_brma             <- ranef(fit_brma)
 
     # TODO:
     # I believe that the default output ordering does not match metafor convention, please allign
+    # FIXED: unique-level random effects now follow compiled factor-level order,
+    # matching metafor even when a level first appears late in the data.
 
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     scenario_agreement_plot(ranef_metafor[["study_id"]][["intrcpt"]], as.data.frame(ranef_brma$study)[["Mean"]], "Study effects")

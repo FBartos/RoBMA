@@ -936,8 +936,7 @@
 .evaluate.brma.mv_random_blup.norm <- function(object, mu_samples,
                                                posterior_samples = NULL,
                                                bias_offset = NULL,
-                                               by_block = FALSE,
-                                               max_bytes = NULL) {
+                                               by_block = FALSE) {
 
   data <- object[["data"]]
   if (!.is_data_random(data)) {
@@ -999,130 +998,63 @@
     stop("Known-V covariance dimensions do not match fitted rows.",
          call. = FALSE)
   }
-  base_covariance <- .known_v_materialize(known_V)
-
-  residual <- matrix(
-    data[["outcome"]][["yi"]],
-    nrow  = S,
-    ncol  = K,
-    byrow = TRUE
-  ) - bias_offset - mu_samples
-  if (by_block) {
-    out <- stats::setNames(
-      lapply(block_names, function(block) {
-        matrix(0, nrow = S, ncol = K)
-      }),
-      block_names
-    )
-  } else {
-    out <- matrix(0, nrow = S, ncol = K)
-  }
-
-  extract_covariance <- function(random_vcov, n_draws, expected_blocks,
-                                 block_label) {
-
-    covariance_samples <- random_vcov[["samples"]]
-    expected_dim       <- c(n_draws, K, K)
-    included_blocks    <- random_vcov[["metadata"]][["included_blocks"]]
-    if (!is.numeric(covariance_samples) ||
-        !identical(dim(covariance_samples), expected_dim) ||
-        any(!is.finite(covariance_samples)) ||
-        !identical(included_blocks, expected_blocks)) {
-      stop(
-        "Random-effect covariance samples for ", block_label, " must be a ",
-        "finite draw x row x row array for the requested blocks, in order.",
-        call. = FALSE
-      )
-    }
-    covariance_samples
-  }
-
-  chunks <- .known_v_covariance_chunk_indices(
-    S         = S,
-    K         = K,
-    max_bytes = max_bytes
+  dependency_blocks <- .marglik_random_dependency_blocks(
+    model_data                   = data,
+    formula_design               = formula_design,
+    blocks                       = block_names,
+    sampling_latent_marginalized = TRUE
   )
-
-  for (rows in chunks) {
-    posterior_chunk <- posterior_samples[rows, , drop = FALSE]
-    total_vcov      <- .brma_mv_random_effects_marginal_vcov(
-      object            = object,
-      posterior_samples = posterior_chunk,
-      blocks            = block_names,
-      diagonal_only     = FALSE,
-      data              = data,
-      new_levels        = "error"
+  random_factors <- .brma_mv_random_effects_marginal_factor_states(
+    object            = object,
+    posterior_samples = posterior_samples,
+    blocks            = block_names,
+    row_blocks        = dependency_blocks,
+    data              = data
+  )
+  if (!identical(random_factors[["row_blocks"]], dependency_blocks) ||
+      !identical(random_factors[["metadata"]][["included_blocks"]],
+                 block_names) ||
+      length(random_factors[["factor_states"]]) != S) {
+    stop(
+      "Random-effect covariance returned invalid factor states.",
+      call. = FALSE
     )
-    total_covariance <- extract_covariance(
-      random_vcov     = total_vcov,
-      n_draws         = length(rows),
-      expected_blocks = block_names,
-      block_label     = "all blocks"
-    )
-
-    weights <- matrix(0, nrow = length(rows), ncol = K)
-    for (draw_i in seq_along(rows)) {
-      marginal_covariance <- base_covariance +
-        total_covariance[draw_i, , ]
-      chol_covariance <- tryCatch(
-        chol(marginal_covariance),
-        error = function(e) NULL
-      )
-      if (is.null(chol_covariance)) {
-        stop(
-          "Cannot solve brma.mv random-effect BLUP covariance; ",
-          "the marginal covariance is not positive definite.",
-          call. = FALSE
-        )
-      }
-      weights[draw_i, ] <- backsolve(
-        chol_covariance,
-        forwardsolve(t(chol_covariance), residual[rows[draw_i], ])
-      )
-    }
-
-    if (!by_block) {
-      for (draw_i in seq_along(rows)) {
-        out[rows[draw_i], ] <-
-          total_covariance[draw_i, , ] %*% weights[draw_i, ]
-      }
-      next
-    }
-
-    if (length(block_names) == 1L) {
-      block <- block_names[[1L]]
-      for (draw_i in seq_along(rows)) {
-        out[[block]][rows[draw_i], ] <-
-          total_covariance[draw_i, , ] %*% weights[draw_i, ]
-      }
-      next
-    }
-
-    rm(total_covariance, total_vcov)
-
-    for (block in block_names) {
-      block_vcov <- .brma_mv_random_effects_marginal_vcov(
-        object            = object,
-        posterior_samples = posterior_chunk,
-        blocks            = block,
-        diagonal_only     = FALSE,
-        data              = data,
-        new_levels        = "error"
-      )
-      block_covariance <- extract_covariance(
-        random_vcov     = block_vcov,
-        n_draws         = length(rows),
-        expected_blocks = block,
-        block_label     = paste0("block '", block, "'")
-      )
-      for (draw_i in seq_along(rows)) {
-        out[[block]][rows[draw_i], ] <-
-          block_covariance[draw_i, , ] %*% weights[draw_i, ]
-      }
-    }
   }
 
-  return(out)
+  conditional <- .marglik_covariance_plan_conditional_summary_batch(
+    cache                    = new.env(parent = emptyenv()),
+    y                        = data[["outcome"]][["yi"]],
+    means                    = mu_samples + bias_offset,
+    sampling_covariance      = .marglik_known_v_covariance_matrix(known_V),
+    random_covariance_plans  = random_factors[["factor_plans"]],
+    random_covariance_states = random_factors[["factor_states"]],
+    block_indices            = dependency_blocks,
+    extra_variances          = matrix(0, nrow = S, ncol = K)
+  )
+  conditional_residual <- conditional[["residual"]]
+  conditional_variance <- conditional[["variance"]]
+  if (!is.numeric(conditional_residual) ||
+      !identical(dim(conditional_residual), c(S, K)) ||
+      any(!is.finite(conditional_residual)) ||
+      !is.numeric(conditional_variance) ||
+      !identical(dim(conditional_variance), c(S, K)) ||
+      any(!is.finite(conditional_variance)) ||
+      any(conditional_variance <= 0)) {
+    stop(
+      "Random-effect covariance returned invalid conditional summaries.",
+      call. = FALSE
+    )
+  }
+
+  # For each row i, the conditional summary returns
+  # residual_i = alpha_i / precision_ii and variance_i = 1 / precision_ii,
+  # so their ratio is the full precision-weighted residual alpha.
+  weights <- conditional_residual / conditional_variance
+  return(BayesTools::random_effects_marginal_factor_product(
+    factors  = random_factors,
+    vectors  = weights,
+    by_block = by_block
+  ))
 }
 
 

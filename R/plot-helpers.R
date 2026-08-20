@@ -374,6 +374,7 @@
       source            = source,
       formula_parameter = formula_parameter,
       role              = quantity[["role"]],
+      quantity          = quantity[["quantity"]],
       status            = quantity[["status"]],
       fixed_value       = quantity[["fixed_value"]],
       stringsAsFactors  = FALSE,

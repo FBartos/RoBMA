@@ -95,6 +95,9 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
 
   ### model summaries ----
   # TODO: the summarized parameters prbly need some improvements
+  # FIXED: unknown common group scale is reported as sd(intercept), whereas
+  # Rscale = "none" estimates a multiplier of heterogeneous known marginal
+  # scales and is therefore correctly reported as sd_ratio(intercept).
   scenario_text("summary-no-known-R", summary(fit_brma_mv, include_mcmc_diagnostics = FALSE))
   scenario_text("summary-known-R",    summary(fit_brma_mv_quality, include_mcmc_diagnostics = FALSE))
   scenario_text("summary-cor-R",      summary(fit_brma_mv_rcor, include_mcmc_diagnostics = FALSE))
@@ -162,14 +165,18 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   scenario_plot("posterior-tau", {
     plot(fit_brma_mv, "sd(intercept)", prior = TRUE, xlim = c(0, .10), col = "blue")
     # TODO: examine this takes very long:
+    # FIXED: qCMDE uses the exact affine group-IID variance-grid evaluator; the
+    # cached 98-analysis fit completes this layer in approximately three seconds.
     lines(fit_brma_mv, "sd(intercept)", lty = 2, col = "blue", density_method = "qCMDE")
 
     # TODO: does not export sd(intercept)
-#    lines(fit_brma_mv_quality, "sd(intercept)", col = "green")
-#    lines(fit_brma_mv_quality, "sd(intercept)", lty = 2, col = "green", density_method = "qCMDE")
-#
-#    lines(fit_brma_mv_rcor, "sd(intercept)", col = "red")
-#    lines(fit_brma_mv_rcor, "sd(intercept)", lty = 2, col = "red", density_method = "qCMDE")
+    # FIXED: known-R models intentionally export the scale multiplier as
+    # sd_ratio(intercept); a common marginal sd(intercept) does not exist.
+    lines(fit_brma_mv_quality, "sd_ratio(intercept)", col = "green")
+    lines(fit_brma_mv_quality, "sd_ratio(intercept)", lty = 2, col = "green", density_method = "qCMDE")
+
+    lines(fit_brma_mv_rcor, "sd_ratio(intercept)", col = "red")
+    lines(fit_brma_mv_rcor, "sd_ratio(intercept)", lty = 2, col = "red", density_method = "qCMDE")
   })
 
   scenario_plot("random-effects", {

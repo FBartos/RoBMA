@@ -366,6 +366,13 @@
     identical(parameter_entry[["component"]], "scale") &&
     identical(parameter_entry[["term"]], "intercept")
   )
+  random_quantity <- parameter_entry[["quantity"]]
+  is_random_ratio <- (
+    identical(parameter_entry[["component"]], "random") &&
+    is.character(random_quantity) && length(random_quantity) == 1L &&
+    !is.na(random_quantity) &&
+    random_quantity %in% c("var_ratio", "sd_ratio")
+  )
 
   if (!is.null(output_measure) && !is_effect_intercept) {
     stop(
@@ -406,10 +413,10 @@
   }
 
   if (identical(transform, "LOG")) {
-    if (!is_scale_intercept) {
+    if (!is_scale_intercept && !is_random_ratio) {
       stop(
         "transform = 'LOG' is only available for positive heterogeneity ",
-        "intercepts.",
+        "intercepts and random-effect variance or SD ratios.",
         call. = FALSE
       )
     }

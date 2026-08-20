@@ -161,10 +161,14 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     plot(fit_brma_us, "var_ratio(group[specificity])", prior = TRUE)
 
     # TODO: this figure is clearly incorrect (the density is forced to be lower than a constant (but it might be higher ofcourse))
+    # FIXED: under the two-part uniform Dirichlet allocation,
+    # sd_ratio = sqrt(2 * weight) has density f(r) = r on [0, sqrt(2)];
+    # unlike var_ratio, its density is not bounded by the constant 1 / 2.
     plot(fit_brma_us, "sd_ratio(group[sensitivity])", prior = TRUE, xlim = c(0, 2))
     plot(fit_brma_us, "sd_ratio(group[specificity])", prior = TRUE, xlim = c(0, 2))
 
     # TODO: allow log transformation of var_ratio and sd_ratio parameters
+    # FIXED: positive random-effect variance and SD ratios now accept LOG.
     plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE, transform = "LOG")
     plot(fit_brma_us, "sd_ratio(group[specificity])", prior = TRUE, transform = "LOG")
 
@@ -182,6 +186,8 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
 
     plot(fit_brma_hcs, "var_ratio(group[sensitivity])", prior = TRUE)
     plot(fit_brma_hcs, "sd_ratio(group[specificity])",  prior = TRUE) # TODO: annother issue here
+    # FIXED: the same analytic ratio prior applies to HCS; out-of-support grid
+    # values now transform to NaN silently instead of emitting sqrt warnings.
   })
 
   ### random-effect comparisons ----

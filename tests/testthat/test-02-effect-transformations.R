@@ -295,6 +295,48 @@ test_that("scale-regression plot coefficients can use EXP", {
   )
 })
 
+test_that("random-effect variance and SD ratios can use LOG", {
+
+  data <- data.frame()
+  attr(data, "measure") <- "GEN"
+  object <- list(data = data)
+  entry <- list(
+    component         = "random",
+    term              = "var_ratio(study)",
+    formula_parameter = "",
+    role              = "random_var",
+    quantity          = "var_ratio"
+  )
+
+  for (quantity in c("var_ratio", "sd_ratio")) {
+    entry[["quantity"]] <- quantity
+    info <- .plot_output_setup(
+      object          = object,
+      parameter       = paste0("allocation: ", quantity, "(study)"),
+      parameter_entry = entry,
+      transform       = "LOG"
+    )
+    transformation <- info[["transformation"]]
+
+    expect_true(info[["active"]])
+    expect_identical(info[["label"]], "log scale")
+    expect_equal(transformation[["fun"]](c(.5, 1, 2)), log(c(.5, 1, 2)))
+    expect_equal(transformation[["jac"]](c(.5, 1, 2)), c(2, 1, .5))
+  }
+
+  entry[["quantity"]] <- "sd"
+  expect_error(
+    .plot_output_setup(
+      object          = object,
+      parameter       = "study: sd(intercept)",
+      parameter_entry = entry,
+      transform       = "LOG"
+    ),
+    "random-effect variance or SD ratios",
+    fixed = TRUE
+  )
+})
+
 test_that("plot transformations use BayesTools forward Jacobian convention", {
 
   original_x    <- c(-1, 0, 1)

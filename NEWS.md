@@ -8,6 +8,8 @@
 - ignores scenario calls measured below 0.5 seconds when assessing per-call and
   average timing regressions, while retaining those measurements in timing
   baselines and candidates.
+- allows random-effect variance and SD ratios to use `transform = "LOG"` in
+  posterior plots.
 - accelerates marginal known-covariance diagnostics and qCMDE/IWMDE density
   evaluation for metadata-declared affine random covariance parameters. A
   generalized spectral engine handles arbitrary dense sampling covariance
@@ -87,9 +89,12 @@
   allocation, monitoring, new grouping levels, and external SD sources.
 - simplifies `ranef()` output to a flat list keyed by canonical random-effect
   block names and adds metafor-compatible `expand`, defaulting to one column
-  per unique grouping-level contribution in first fitted-row order, including
-  observed grouping-level and indicator-coefficient combinations;
-  `expand = TRUE` retains observation-aligned output.
+  per unique grouping-level contribution in persisted factor-level order,
+  including observed grouping-level and indicator-coefficient combinations;
+  `expand = TRUE` retains observation-aligned output. Same-data random-formula
+  BLUPs now multiply compiled covariance factors directly, avoiding dense
+  draw-by-row-by-row covariance arrays while retaining the exact conditional
+  target.
 - unifies plug-in funnel, Bayesian funnel, and regression-plot contour
   evaluation in one exact weighted posterior-mixture quantile engine. Normal,
   PET, PEESE, model-averaged, and selected-normal contours now share native
