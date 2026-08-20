@@ -1245,6 +1245,14 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
     ),
     c(total = 0.25, study = 0.25, observation = NA_real_)
   )
+  expect_equal(
+    ex_r(
+      robma_single_fit,
+      c(study = "sd", observation = "sd", total = "sd"),
+      component = c("study", "observation", "study")
+    ),
+    c(study = 0.25, observation = NA_real_, total = 0.25)
+  )
   expect_error(ex_r(robma_single_fit, "sd", statistic = "SD"), "Statistic")
 
   local_mocked_s3_method(

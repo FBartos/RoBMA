@@ -7,12 +7,12 @@ var_prop(study)       0.222  0.212 0.040 0.459
 var_prop(observation) 0.778  0.788 0.541 0.960
 
 Heterogeneity Estimates (study):
-      Mean Median 0.025 0.975
-tau  0.131  0.130 0.055 0.217
-tau2 0.019  0.017 0.003 0.047
+     Mean Median 0.025 0.975
+sd  0.131  0.130 0.055 0.217
+var 0.019  0.017 0.003 0.047
 
 Heterogeneity Estimates (observation):
-      Mean Median 0.025 0.975
-tau  0.252  0.251 0.204 0.305
-tau2 0.064  0.063 0.042 0.093
+     Mean Median 0.025 0.975
+sd  0.252  0.251 0.204 0.305
+var 0.064  0.063 0.042 0.093
 

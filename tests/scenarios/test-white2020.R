@@ -50,12 +50,15 @@ testthat::test_that("White study and observation random-effects model", {
   scenario_text("summary-heterogeneity-observation", summary_heterogeneity(fit_brma_observation))
 
   metafor_parameters <- c("intercept", study_SD = "sigma[study_id]", observation_SD = "sigma[obs]", total_random_SD = "sigma[total]")
-  robma_parameters   <- c("intercept", study_SD = "sd", observation_SD = "sd", total_random_SD = "sd_total")
-  robma_components   <- c(NA, "study", "observation", NA)
+  robma_parameters        <- c("intercept", study_SD = "sd", observation_SD = "sd", total_random_SD = "sd_total")
+  robma_single_parameters <- c("intercept", study_SD = "sd", observation_SD = "sd", total_random_SD = "sd")
+  robma_components        <- c(NA, "study", "observation", NA)
+  robma_study_components  <- c(NA, "study", "observation", "study")
+  robma_obs_components    <- c(NA, "study", "observation", "observation")
   comparison <- rbind(
     ex_m(fit_metafor, metafor_parameters),             ex_r(fit_brma, robma_parameters, component = robma_components),
-    ex_m(fit_metafor_study, metafor_parameters),       ex_r(fit_brma_study, robma_parameters, component = robma_components),
-    ex_m(fit_metafor_observation, metafor_parameters), ex_r(fit_brma_observation, robma_parameters, component = robma_components)
+    ex_m(fit_metafor_study, metafor_parameters),       ex_r(fit_brma_study, robma_single_parameters, component = robma_study_components),
+    ex_m(fit_metafor_observation, metafor_parameters), ex_r(fit_brma_observation, robma_single_parameters, component = robma_obs_components)
   )
   scenario_text("metafor-comparison", data.frame(
     model           = rep(c("study+observation", "study", "observation"), each = 2L),

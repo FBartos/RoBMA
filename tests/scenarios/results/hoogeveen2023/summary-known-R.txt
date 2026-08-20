@@ -6,6 +6,6 @@ Location
 intercept 0.121 0.012 0.098 0.121 0.144
 
 Random
-                     Mean    SD 0.025   0.5 0.975
-sd_ratio(intercept) 0.036 0.003 0.032 0.036 0.042
+    Mean    SD 0.025   0.5 0.975
+sd 0.036 0.003 0.032 0.036 0.042
 

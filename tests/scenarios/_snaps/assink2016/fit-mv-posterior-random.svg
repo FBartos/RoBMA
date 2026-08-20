@@ -111,7 +111,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMjQwLjAwfDQ4MC4wMHwwLjAwfDI4OC4wMA==)'>
-<text x='369.50' y='275.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='67.36px' lengthAdjust='spacingAndGlyphs'>study: sd(intercept)</text>
+<text x='369.50' y='275.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='31.71px' lengthAdjust='spacingAndGlyphs'>study: sd</text>
 <text transform='translate(248.55,139.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpMjc4Ljk3fDQ2MC4wNHwzOC45N3wyMzkuNTM=)'>
@@ -162,7 +162,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpNDgwLjAwfDcyMC4wMHwwLjAwfDI4OC4wMA==)'>
-<text x='609.50' y='275.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='86.30px' lengthAdjust='spacingAndGlyphs'>esid_study: sd(intercept)</text>
+<text x='609.50' y='275.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='50.64px' lengthAdjust='spacingAndGlyphs'>esid_study: sd</text>
 <text transform='translate(488.55,139.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpNTE4Ljk3fDcwMC4wNHwzOC45N3wyMzkuNTM=)'>
