@@ -158,6 +158,18 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   scenario_text("summary-fit_brma.mv_diag_reg", summary(fit_brma.mv_diag_reg))
   scenario_text("summary-fit_brma_cluster_reg", summary(fit_brma_cluster_reg))
 
+  metafor_parameters <- c("intercept", study_variance = "sigma[study]^2", estimate_variance = "sigma[study/esid]^2", total_random_variance = "sigma[total]^2")
+  robma_parameters   <- c("intercept", study_variance = "var[study]", estimate_variance = "var[esid_study]", total_random_variance = "var_total")
+  scenario_text("metafor-comparison", data.frame(
+    model          = rep(c("correlated V", "diagonal V"), each = 2L),
+    implementation = rep(c("metafor", "RoBMA"), 2L),
+    rbind(
+      ex_m(fit_metafor, metafor_parameters),      ex_r(fit_brma.mv, robma_parameters),
+      ex_m(fit_metafor_diag, metafor_parameters), ex_r(fit_brma.mv_diag, robma_parameters)
+    ),
+    row.names = NULL
+  ))
+
   # model comparison equivalence
   scenario_text("model-fit-equivalent", cbind.data.frame(
     "logml.mv"      = c(logml(fit_brma.mv),      logml(fit_brma.mv_no_study),      logml(fit_brma.mv_no_effect),      logml(fit_brma.mv_fixed)), # different from 2 and 3

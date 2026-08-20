@@ -72,6 +72,10 @@ accepting a timing baseline; never substitute the cache-loading time.
   repeated extraction for a family of visual comparisons. Do not introduce a
   general abstraction for one scenario or use helpers to hide the quantities
   being compared.
+- Keep `ex_m()` and `ex_r()` parameter and statistic vectors on one line, even
+  when long. Parameter names become comparison-table labels: omit names that
+  merely repeat their selectors, and use names only for different labels or
+  repeated selectors that need distinct labels.
 - `scenario_text()` and `scenario_plot()` set the random seed to 1 internally.
   Do not add artifact-specific seeds unless the maintainer requests a different
   stochastic comparison.

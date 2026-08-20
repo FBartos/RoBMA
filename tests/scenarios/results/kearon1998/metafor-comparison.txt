@@ -1,0 +1,5 @@
+      model implementation sensitivity specificity sensitivity_var specificity_var correlation
+1     UN/US        metafor -0.04982192    3.009230       0.4231148       0.5408082  -0.4547048
+2     UN/US          RoBMA -0.01415642    2.740102       0.5048975       0.6055809  -0.3238132
+3 DIAG/HCS0        metafor -0.04844994    3.034676       0.4394000       0.5526810   0.0000000
+4 DIAG/HCS0          RoBMA -0.04240156    2.748358       0.5156098       0.5936003   0.0000000

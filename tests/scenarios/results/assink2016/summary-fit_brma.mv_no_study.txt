@@ -6,6 +6,6 @@ Location
 intercept 0.340 0.063 0.218 0.339 0.464     0.00051          0.008 15273 1.000
 
 Random
-                           Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-study:esid: sd(intercept) 0.398 0.038 0.331 0.396 0.479     0.00041          0.011 8509 1.000
+               Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd(intercept) 0.398 0.038 0.331 0.396 0.479     0.00041          0.011 8509 1.000
 

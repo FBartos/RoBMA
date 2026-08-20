@@ -1,10 +1,8 @@
  Alternative:     Null:      BF error%(BF)
-    mu < -0.5    mu = 0 144.508     13.657
-    mu > -0.5    mu = 0  10.704     13.799
+    mu < -0.5    mu = 0 162.584      9.122
+    mu > -0.5    mu = 0  12.043      9.333
     mu < -0.5 mu > -0.5  13.501      2.337
-[0;31mIWMDE relative MCSE is 13.7%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mIWMDE relative MCSE is 13.7%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mIWMDE finite-population row-sampling relative error is   12%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mIWMDE finite-population row-sampling relative error is   12%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mIWMDE effective sample size is 47.4[0m
-[0;31mIWMDE effective sample size is 47.4[0m
+[0;31mIWMDE relative MCSE is 9.12%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mIWMDE relative MCSE is 9.12%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mIWMDE finite-population row-sampling relative error is 8.74%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mIWMDE finite-population row-sampling relative error is 8.74%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m

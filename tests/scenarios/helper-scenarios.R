@@ -1524,6 +1524,367 @@ scenario_agreement_plot <- function(reference, estimate, main = "",
 }
 
 
+.scenario_ex_string <- function(value, name, allow_null = FALSE) {
+
+  if (allow_null && is.null(value)) {
+    return(invisible(NULL))
+  }
+  if (!is.character(value) || length(value) != 1L ||
+      is.na(value) || !nzchar(value)) {
+    requirement <- if (allow_null) "NULL or one non-empty string" else "one non-empty string"
+    stop("'", name, "' must be ", requirement, ".", call. = FALSE)
+  }
+  return(invisible(value))
+}
+
+
+.scenario_ex_unavailable <- function(source, parameter) {
+
+  error <- simpleError(paste0(
+    source, " estimate '", parameter, "' is unavailable."
+  ))
+  class(error) <- c("scenario_estimate_unavailable", class(error))
+  stop(error)
+}
+
+
+# Extract one coefficient, variance component, or correlation from metafor.
+.scenario_ex_m_one <- function(fit, parameter, statistic, coefficient_table) {
+
+  .scenario_ex_string(parameter, "parameter")
+  .scenario_ex_string(statistic, "statistic")
+  unavailable <- function() {
+    .scenario_ex_unavailable("Metafor", parameter)
+  }
+  statistic_unavailable <- function() {
+    stop(
+      "Statistic '", statistic, "' is unavailable for metafor estimate '",
+      parameter, "'.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.null(coefficient_table) && nrow(coefficient_table) > 0L) {
+    normalize_name <- function(x) tolower(gsub("[^[:alnum:]]", "", x))
+    coefficient_name <- if (parameter %in% c("mu", "intercept")) "intrcpt" else parameter
+    rows <- which(normalize_name(rownames(coefficient_table)) == normalize_name(coefficient_name))
+    if (length(rows) > 1L) {
+      stop("Metafor estimate '", parameter, "' is ambiguous.", call. = FALSE)
+    }
+    if (length(rows) == 1L) {
+      statistic_name <- switch(
+        tolower(statistic),
+        mean = "estimate", sd = "se", ci_0.025 = "ci.lb", ci_0.975 = "ci.ub",
+        statistic
+      )
+      column <- match(tolower(statistic_name), tolower(names(coefficient_table)))
+      if (is.na(column)) {
+        statistic_unavailable()
+      }
+      return(unname(coefficient_table[[column]][[rows]]))
+    }
+  }
+
+  parts <- regmatches(
+    parameter,
+    regexec("^(sigma|tau|gamma|rho|phi)(?:\\[([^]]+)\\])?(\\^2)?$", parameter, perl = TRUE)
+  )[[1L]]
+  if (length(parts) == 0L) {
+    unavailable()
+  }
+  if (!tolower(statistic) %in% c("estimate", "mean")) {
+    statistic_unavailable()
+  }
+
+  family_name <- parts[[2L]]
+  index_name  <- parts[[3L]]
+  squared     <- nzchar(parts[[4L]])
+  is_variance <- family_name %in% c("sigma", "tau", "gamma")
+  field_name  <- if (is_variance) paste0(family_name, "2") else family_name
+  values      <- fit[[field_name]]
+  if (is.null(values) || length(values) == 0L || (!is_variance && squared)) {
+    unavailable()
+  }
+
+  if (identical(index_name, "total")) {
+    if (!identical(family_name, "sigma")) {
+      unavailable()
+    }
+    value <- sum(values)
+  } else {
+    labels <- switch(
+      family_name,
+      sigma = fit[["s.names"]],
+      tau   = fit[["g.levels.f"]],
+      gamma = fit[["h.levels.f"]],
+      NULL
+    )
+    if (is.list(labels)) {
+      labels <- labels[[1L]]
+    }
+    if (!nzchar(index_name)) {
+      if (length(values) != 1L) {
+        stop(
+          "Metafor estimate '", parameter,
+          "' is ambiguous; specify its index or label.",
+          call. = FALSE
+        )
+      }
+      index <- 1L
+    } else if (grepl("^[0-9]+$", index_name)) {
+      index <- as.integer(index_name)
+    } else {
+      index <- match(index_name, as.character(labels))
+    }
+    if (is.na(index) || index < 1L || index > length(values)) {
+      unavailable()
+    }
+    value <- values[[index]]
+  }
+
+  if (is_variance && !squared) {
+    value <- sqrt(value)
+  }
+  return(unname(value))
+}
+
+
+# Extract one named estimate from long-form RoBMA summary output.
+.scenario_ex_r_one <- function(fit, parameter, component, statistic, tables) {
+
+  .scenario_ex_string(parameter, "parameter")
+  .scenario_ex_string(component, "component", allow_null = TRUE)
+  .scenario_ex_string(statistic, "statistic")
+  if (is.null(component)) {
+    bracket_selector <- regmatches(
+      parameter,
+      regexec("^(sd|var)\\[([^]]+)\\]$", parameter, perl = TRUE)
+    )[[1L]]
+    component_selector <- regmatches(
+      parameter,
+      regexec("^([^:]+):[[:space:]]+(.+)$", parameter, perl = TRUE)
+    )[[1L]]
+    if (length(bracket_selector) > 0L) {
+      parameter <- if (identical(bracket_selector[[2L]], "sd")) "tau" else "tau2"
+      component <- bracket_selector[[3L]]
+    } else if (length(component_selector) > 0L) {
+      component <- component_selector[[2L]]
+      parameter <- component_selector[[3L]]
+    }
+  }
+  parameter_aliases <- switch(
+    parameter,
+    mu        = c("mu", "intercept"),
+    intercept = c("intercept", "mu"),
+    parameter
+  )
+
+  found_selector <- FALSE
+  for (table in tables) {
+    if (is.null(table) || !"parameter" %in% names(table) ||
+        (!is.null(component) && !"component" %in% names(table))) {
+      next
+    }
+    matches <- table[["parameter"]] %in% parameter_aliases
+    if (!is.null(component)) {
+      matches <- matches & table[["component"]] == component
+    }
+    rows           <- which(matches)
+    found_selector <- found_selector || length(rows) > 0L
+    if (length(rows) > 1L) {
+      stop(
+        "RoBMA estimate '", parameter,
+        "' is ambiguous; specify 'component'.",
+        call. = FALSE
+      )
+    }
+    if (length(rows) == 1L && statistic %in% names(table)) {
+      return(unname(table[[statistic]][[rows]]))
+    }
+  }
+
+  if (!found_selector && is.null(component) && parameter %in% c("sd_total", "var_total")) {
+    fallback_parameter <- if (identical(parameter, "sd_total")) "tau" else "tau2"
+    table              <- tables[[2L]]
+    if (!is.null(table) && "parameter" %in% names(table)) {
+      rows <- which(table[["parameter"]] == fallback_parameter)
+      if (length(rows) == 1L) {
+        if (!statistic %in% names(table)) {
+          stop(
+            "Statistic '", statistic, "' is unavailable for RoBMA estimate '",
+            parameter, "'.",
+            call. = FALSE
+          )
+        }
+        return(unname(table[[statistic]][[rows]]))
+      }
+    }
+  }
+
+  if (found_selector) {
+    stop(
+      "Statistic '", statistic, "' is unavailable for RoBMA estimate '",
+      parameter, "'.",
+      call. = FALSE
+    )
+  }
+  .scenario_ex_unavailable("RoBMA", parameter)
+}
+
+
+.scenario_ex_values <- function(fit, parameter, component, statistic, extractor) {
+
+  if (!is.character(parameter) || length(parameter) == 0L ||
+      anyNA(parameter) || any(!nzchar(parameter))) {
+    stop("'parameter' must contain one or more non-empty strings.", call. = FALSE)
+  }
+  n_parameters <- length(parameter)
+  if (!is.character(statistic) || !length(statistic) %in% c(1L, n_parameters) ||
+      anyNA(statistic) || any(!nzchar(statistic))) {
+    stop(
+      "'statistic' must contain one string or one string per parameter.",
+      call. = FALSE
+    )
+  }
+  statistic <- rep(statistic, length.out = n_parameters)
+
+  if (is.null(component)) {
+    component <- rep(list(NULL), n_parameters)
+  } else {
+    if (!is.character(component) || !length(component) %in% c(1L, n_parameters)) {
+      stop(
+        "'component' must be NULL, one string, or one string per parameter.",
+        call. = FALSE
+      )
+    }
+    component <- rep(component, length.out = n_parameters)
+    component <- lapply(component, function(value) if (is.na(value)) NULL else value)
+  }
+
+  values <- vapply(seq_len(n_parameters), function(i) {
+    tryCatch(
+      extractor(fit, parameter[[i]], component[[i]], statistic[[i]]),
+      scenario_estimate_unavailable = function(error) NA_real_
+    )
+  }, numeric(1L))
+  if (n_parameters == 1L) {
+    return(unname(values))
+  }
+  parameter_names <- names(parameter)
+  if (is.null(parameter_names)) {
+    parameter_names <- parameter
+  } else {
+    unnamed <- !nzchar(parameter_names)
+    parameter_names[unnamed] <- parameter[unnamed]
+  }
+  names(values) <- parameter_names
+  return(values)
+}
+
+
+# Extract one or more metafor estimates. Unavailable selectors return NA.
+ex_m <- function(fit, parameter, statistic = "estimate") {
+
+  if (!requireNamespace("metafor", quietly = TRUE)) {
+    stop("Package 'metafor' is required to extract metafor estimates.", call. = FALSE)
+  }
+  coefficient_table <- as.data.frame(stats::coef(summary(fit)))
+  return(.scenario_ex_values(
+    fit, parameter, NULL, statistic,
+    function(fit, parameter, component, statistic) {
+      .scenario_ex_m_one(fit, parameter, statistic, coefficient_table)
+    }
+  ))
+}
+
+
+# Extract one or more RoBMA estimates. Selectors such as sd[study],
+# var[study], and study: cor(...) encode the summary component.
+ex_r <- function(fit, parameter, component = NULL, statistic = "Mean") {
+
+  tables <- list(
+    as.data.frame(summary(fit, include_mcmc_diagnostics = FALSE)),
+    tryCatch(
+      as.data.frame(summary_heterogeneity(fit)),
+      error = function(e) NULL
+    )
+  )
+  return(.scenario_ex_values(
+    fit, parameter, component, statistic,
+    function(fit, parameter, component, statistic) {
+      .scenario_ex_r_one(fit, parameter, component, statistic, tables)
+    }
+  ))
+}
+
+
+# Dispatch by model implementation. Parameter vectors return named vectors;
+# model lists return model-named vectors or parameter-column data frames.
+ex <- function(fit, parameter, component = NULL, statistic = NULL, ...) {
+
+  UseMethod("ex")
+}
+
+
+ex.rma <- function(fit, parameter, component = NULL, statistic = NULL, ...) {
+
+  if (is.null(statistic)) {
+    statistic <- "estimate"
+  }
+  return(ex_m(fit, parameter, statistic))
+}
+
+
+ex.brma <- function(fit, parameter, component = NULL, statistic = NULL, ...) {
+
+  if (is.null(statistic)) {
+    statistic <- "Mean"
+  }
+  return(ex_r(fit, parameter, component, statistic))
+}
+
+
+ex.list <- function(fit, parameter, component = NULL, statistic = NULL, ...) {
+
+  if (length(fit) == 0L) {
+    stop("'fit' must contain one or more models.", call. = FALSE)
+  }
+  model_names <- names(fit)
+  if (is.null(model_names)) {
+    model_names <- paste("model", seq_along(fit))
+  } else {
+    unnamed <- !nzchar(model_names)
+    model_names[unnamed] <- paste("model", which(unnamed))
+  }
+  values <- lapply(fit, function(model) {
+    ex(
+      model,
+      parameter = parameter,
+      component = component,
+      statistic = statistic,
+      ...
+    )
+  })
+  if (length(parameter) == 1L) {
+    values <- unlist(values, use.names = FALSE)
+    names(values) <- model_names
+    return(values)
+  }
+  values <- as.data.frame(do.call(rbind, values), check.names = FALSE)
+  rownames(values) <- model_names
+  return(values)
+}
+
+
+ex.default <- function(fit, parameter, component = NULL, statistic = NULL, ...) {
+
+  stop(
+    "'fit' must be a metafor model, a RoBMA model, or a list of models.",
+    call. = FALSE
+  )
+}
+
+
 # Compare marginal diagnostics from a reference fit and a brma.mv fit.
 plot_marginal_diagnostics <- function(fit_reference, fit_brma) {
 

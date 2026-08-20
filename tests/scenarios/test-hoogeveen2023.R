@@ -103,28 +103,23 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   scenario_text("summary_het-known-R",    summary_heterogeneity(fit_brma_mv_quality))
   scenario_text("summary_het-cor-R",      summary_heterogeneity(fit_brma_mv_rcor))
 
-
-  summarize_metafor <- function(fit) {
-    c(mu = as.numeric(stats::coef(fit)[[1L]]), se = fit[["se"]][[1L]],
-      lower = fit[["ci.lb"]][[1L]], upper = fit[["ci.ub"]][[1L]], tau = sqrt(fit[["sigma2"]][[1L]]))
-  }
-  summarize_brma    <- function(fit) {
-    mu  <- as.numeric(pooled_effect(fit))
-    tau <- as.numeric(pooled_heterogeneity(fit))
-    c(mu = mean(mu), se = sd(mu), lower = unname(quantile(mu, .025)),
-      upper = unname(quantile(mu, .975)), tau = median(tau))
-  }
-
   # compare RoBMA and metafor models
   scenario_text("model-comparison", {
+    metafor_parameters <- c(mu = "intercept", se = "intercept", lower = "intercept", upper = "intercept", tau = "sigma[analysis]")
+    metafor_statistics <- c("estimate", "SE", "CI_0.025", "CI_0.975", "estimate")
+    robma_parameters   <- c(mu = "intercept", se = "intercept", lower = "intercept", upper = "intercept", tau = "sd[analysis]")
+    robma_statistics   <- c("Mean", "SD", "CI_0.025", "CI_0.975", "Median")
     data.frame(
       model = rep(c("without known R", "with known R", "with corr R"), each = 2L),
       implementation = rep(c("metafor", "RoBMA"), 3L),
       round(rbind(
-        summarize_metafor(fit_metafor_mv),         summarize_brma(fit_brma_mv),
-        summarize_metafor(fit_metafor_mv_quality), summarize_brma(fit_brma_mv_quality),
-        summarize_metafor(fit_metafor_mv_rcor),    summarize_brma(fit_brma_mv_rcor)
-      ),4),row.names = NULL
+        ex_m(fit_metafor_mv, metafor_parameters, metafor_statistics),
+        ex_r(fit_brma_mv, robma_parameters, statistic = robma_statistics),
+        ex_m(fit_metafor_mv_quality, metafor_parameters, metafor_statistics),
+        ex_r(fit_brma_mv_quality, robma_parameters, statistic = robma_statistics),
+        ex_m(fit_metafor_mv_rcor, metafor_parameters, metafor_statistics),
+        ex_r(fit_brma_mv_rcor, robma_parameters, statistic = robma_statistics)
+      ), 4), row.names = NULL
     )
   })
 

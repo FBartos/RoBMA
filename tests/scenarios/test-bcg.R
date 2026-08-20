@@ -190,13 +190,14 @@ testthat::test_that("BCG Simple Fits", {
     metafor::rma(yi = yi, vi = vi, data = dat_duplicated, method = "REML")
   })
 
+  simple_parameters <- c("mu", "tau")
   scenario_text("fit_simple_weighted_comparison", {data.frame(
-    RoBMA              = coef(fit_simple),
-    RoBMA_weighted     = coef(fit_simple_weighted),
-    RoBMA_duplicated   = coef(fit_simple_duplicated),
-    metafor            = c(stats::coef(fit_simple_metafor), sqrt(fit_simple_metafor[["tau2"]])),
-    metafor_weighted   = c(stats::coef(fit_simple_weighted_metafor), sqrt(fit_simple_weighted_metafor[["tau2"]])),
-    metafor_duplicated = c(stats::coef(fit_simple_duplicated_metafor), sqrt(fit_simple_duplicated_metafor[["tau2"]]))
+    RoBMA              = ex(fit_simple, simple_parameters),
+    RoBMA_weighted     = ex(fit_simple_weighted, simple_parameters),
+    RoBMA_duplicated   = ex(fit_simple_duplicated, simple_parameters),
+    metafor            = ex(fit_simple_metafor, simple_parameters),
+    metafor_weighted   = ex(fit_simple_weighted_metafor, simple_parameters),
+    metafor_duplicated = ex(fit_simple_duplicated_metafor, simple_parameters)
   )})
 
   fit_simple_influence                  <- suppressWarnings(influence(fit_simple))[["inf"]]
@@ -499,10 +500,12 @@ testthat::test_that("BCG Meta-Regression", {
 
   fit_reg3_summary <- summary(fit_reg3)
   scenario_text("fit_reg3_summary", {fit_reg3_summary})
+  reg3_parameters <- rownames(fit_reg3_summary[["estimates_mods"]])
   scenario_text("fit_reg3_coefficient_comparison", {data.frame(
-    term    = rownames(fit_reg3_summary[["estimates_mods"]]),
-    RoBMA   = fit_reg3_summary[["estimates_mods"]][, "Mean"],
-    metafor = as.numeric(stats::coef(fit_reg3_metafor))
+    term      = reg3_parameters,
+    RoBMA     = ex(fit_reg3, reg3_parameters),
+    metafor   = ex(fit_reg3_metafor, reg3_parameters),
+    row.names = NULL
   )})
 
   fit_reg3_emm <- marginal_means(fit_reg3)

@@ -8,10 +8,8 @@ deltype[general]  0.494 0.163  0.168  0.495 0.812     0.00774          0.047 440
 deltype[overt]    0.273 0.177 -0.078  0.276 0.613     0.00592          0.034 889 1.004
 
 Random
-                                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-sd_total(random_total)             0.519 0.072 0.399 0.512 0.681     0.00203          0.028 1251 1.002
-esid:study: sd(intercept)          0.299 0.042 0.222 0.297 0.386     0.00061          0.014 4862 1.000
-study: sd(intercept)               0.420 0.081 0.286 0.411 0.603     0.00242          0.030 1124 1.003
-var_frac(random_total: esid_study) 0.347 0.102 0.170 0.340 0.566     0.00255          0.025 1616 1.002
-var_frac(random_total: study)      0.653 0.102 0.434 0.660 0.830     0.00255          0.025 1616 1.002
+                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd_total             0.519 0.072 0.399 0.512 0.681     0.00203          0.028 1251 1.002
+var_prop(esid_study) 0.347 0.102 0.170 0.340 0.566     0.00255          0.025 1616 1.002
+var_prop(study)      0.653 0.102 0.434 0.660 0.830     0.00255          0.025 1616 1.002
 

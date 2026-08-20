@@ -1,10 +1,8 @@
         Alternative:               Null:     BF error%(BF)
- ablat < -0.01730933           ablat = 0 45.535     10.925
- ablat > -0.01730933           ablat = 0  2.430     11.174
+ ablat < -0.01730933           ablat = 0 46.559      8.283
+ ablat > -0.01730933           ablat = 0  2.485      8.608
  ablat < -0.01730933 ablat > -0.01730933 18.735      2.643
-[0;31mIWMDE relative MCSE is 10.9%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mIWMDE relative MCSE is 10.9%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mIWMDE finite-population row-sampling relative error is 10.8%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mIWMDE finite-population row-sampling relative error is 10.8%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mIWMDE effective sample size is 70.7[0m
-[0;31mIWMDE effective sample size is 70.7[0m
+[0;31mIWMDE relative MCSE is 8.28%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mIWMDE relative MCSE is 8.28%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mIWMDE finite-population row-sampling relative error is 7.51%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mIWMDE finite-population row-sampling relative error is 7.51%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m

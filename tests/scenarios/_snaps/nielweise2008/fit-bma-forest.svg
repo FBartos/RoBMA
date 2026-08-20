@@ -99,8 +99,8 @@
 <polygon points='421.86,145.85 428.03,145.85 428.03,139.68 421.86,139.68 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <text x='23.04' y='80.10' style='font-size: 12.00px; font-weight: bold; font-family: sans;' textLength='30.69px' lengthAdjust='spacingAndGlyphs'>Study</text>
 <text x='696.96' y='80.10' text-anchor='end' style='font-size: 12.00px; font-weight: bold; font-family: sans;' textLength='96.72px' lengthAdjust='spacingAndGlyphs'>Log[IRR] [95% CI]</text>
-<text x='696.96' y='472.60' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='98.06px' lengthAdjust='spacingAndGlyphs'>-0.28 [-0.83,  0.00]</text>
-<polygon points='398.29,469.85 417.40,465.27 427.04,469.85 417.40,474.43 ' style='stroke-width: 0.75; fill: #000000;' />
+<text x='696.96' y='472.60' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='98.06px' lengthAdjust='spacingAndGlyphs'>-0.30 [-0.84,  0.00]</text>
+<polygon points='397.87,469.85 416.59,465.27 427.04,469.85 416.59,474.43 ' style='stroke-width: 0.75; fill: #000000;' />
 <text x='23.04' y='472.60' style='font-size: 12.00px; font-family: sans;' textLength='71.39px' lengthAdjust='spacingAndGlyphs'>Pooled Effect</text>
 </g>
 </svg>

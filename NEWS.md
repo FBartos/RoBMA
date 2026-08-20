@@ -332,6 +332,9 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Testing and development
+- adds shared `ex_m()`, `ex_r()`, and `ex()` scenario extractors for concise
+  metafor/RoBMA comparisons across model lists and parameter vectors, including
+  component selectors such as `sd[study]`; unavailable parameters return `NA`.
 - centralizes multivariate marginal-diagnostic comparison plots in the shared
   scenario helpers instead of redefining them in individual scenarios.
 - separates cached-fit refresh from the standard regression profile, keeps the

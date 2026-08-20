@@ -49,20 +49,18 @@ testthat::test_that("White study and observation random-effects model", {
   scenario_text("summary-heterogeneity-study",       summary_heterogeneity(fit_brma_study))
   scenario_text("summary-heterogeneity-observation", summary_heterogeneity(fit_brma_observation))
 
-  brma_tau <- function(fit, component) summary_heterogeneity(fit, component = component)[["estimates"]]["tau", "Mean"]
+  metafor_parameters <- c("intercept", study_SD = "sigma[study_id]", observation_SD = "sigma[obs]", total_random_SD = "sigma[total]")
+  robma_parameters   <- c("intercept", study_SD = "sd[study]", observation_SD = "sd[observation]", total_random_SD = "sd_total")
+  comparison <- rbind(
+    ex_m(fit_metafor, metafor_parameters),             ex_r(fit_brma, robma_parameters),
+    ex_m(fit_metafor_study, metafor_parameters),       ex_r(fit_brma_study, robma_parameters),
+    ex_m(fit_metafor_observation, metafor_parameters), ex_r(fit_brma_observation, robma_parameters)
+  )
   scenario_text("metafor-comparison", data.frame(
     model           = rep(c("study+observation", "study", "observation"), each = 2L),
     implementation  = rep(c("metafor", "RoBMA"), 3L),
-    intercept        = c(as.numeric(stats::coef(fit_metafor)), as.numeric(stats::coef(fit_brma)[[1L]]),
-                         as.numeric(stats::coef(fit_metafor_study)), as.numeric(stats::coef(fit_brma_study)[[1L]]),
-                         as.numeric(stats::coef(fit_metafor_observation)), as.numeric(stats::coef(fit_brma_observation)[[1L]])),
-    study_SD         = c(sqrt(fit_metafor[["sigma2"]][[1L]]), brma_tau(fit_brma, "study"),
-                         sqrt(fit_metafor_study[["sigma2"]][[1L]]), brma_tau(fit_brma_study, "study"), NA, NA),
-    observation_SD   = c(sqrt(fit_metafor[["sigma2"]][[2L]]), brma_tau(fit_brma, "observation"),
-                         NA, NA, sqrt(fit_metafor_observation[["sigma2"]][[1L]]), brma_tau(fit_brma_observation, "observation")),
-    total_random_SD  = c(sqrt(sum(fit_metafor[["sigma2"]])), brma_tau(fit_brma, "total"),
-                         sqrt(fit_metafor_study[["sigma2"]][[1L]]), brma_tau(fit_brma_study, "study"),
-                         sqrt(fit_metafor_observation[["sigma2"]][[1L]]), brma_tau(fit_brma_observation, "observation"))
+    comparison,
+    row.names = NULL
   ))
 
 

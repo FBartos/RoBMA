@@ -1,5 +1,5 @@
                                         Alternative:                                      Null:    BF error%(BF)
 mu_alloc      mu_alloc[random] < mu_alloc[alternate] mu_alloc[random] - mu_alloc[alternate] = 0 1.652         NA
 mu_alloc1 mu_alloc[random] - mu_alloc[alternate] < 0 mu_alloc[random] - mu_alloc[alternate] = 0 1.652         NA
-mu_alloc2     mu_alloc[random] < mu_alloc[alternate] mu_alloc[random] - mu_alloc[alternate] = 0 1.702      3.783
+mu_alloc2     mu_alloc[random] < mu_alloc[alternate] mu_alloc[random] - mu_alloc[alternate] = 0 1.616      3.117
 mu_alloc3     mu_alloc[random] < mu_alloc[alternate] mu_alloc[random] - mu_alloc[alternate] = 0 1.672      3.603

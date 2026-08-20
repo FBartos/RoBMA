@@ -1,0 +1,5 @@
+         model implementation intercept study_variance estimate_variance total_random_variance
+1 correlated V        metafor 0.3618150     0.07044614         0.1507769             0.2212231
+2 correlated V          RoBMA 0.3540014     0.08301692         0.1515047             0.2345216
+3   diagonal V        metafor 0.4267994     0.18787022         0.1119921             0.2998623
+4   diagonal V          RoBMA 0.4111742     0.18272574         0.1134737             0.2961995

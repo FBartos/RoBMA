@@ -1058,6 +1058,182 @@ test_that("scenario_agreement_plot validates and supports boundary cases", {
 })
 
 
+test_that("scenario estimate extractors select named metafor and RoBMA values", {
+
+  local_mocked_s3_method(
+    "summary", "scenario_metafor_fit",
+    function(object, ...) structure(object, class = "scenario_metafor_summary")
+  )
+  local_mocked_s3_method(
+    "coef", "scenario_metafor_summary",
+    function(object, ...) {
+      matrix(
+        c(0.25, 0.10, 0.05, 0.45,
+          0.40, 0.15, 0.10, 0.70),
+        nrow = 2L, byrow = TRUE,
+        dimnames = list(
+          c("intrcpt", "groupB"),
+          c("estimate", "se", "ci.lb", "ci.ub")
+        )
+      )
+    }
+  )
+  metafor_fit <- structure(
+    list(
+      sigma2   = c(1, 4),
+      s.names  = c("study", "study/esid"),
+      tau2     = c(9, 16),
+      g.levels.f = list(c("a", "b"), as.character(1:3)),
+      rho      = c(0.3, 0.4)
+    ),
+    class = c("scenario_metafor_fit", "rma")
+  )
+
+  expect_equal(ex_m(metafor_fit, "mu"), 0.25)
+  expect_equal(ex_m(metafor_fit, "intercept", "SE"), 0.10)
+  expect_equal(ex_m(metafor_fit, "group[B]", "CI_0.975"), 0.70)
+  expect_equal(ex_m(metafor_fit, "sigma[study]"), 1)
+  expect_equal(ex_m(metafor_fit, "sigma[total]^2"), 5)
+  expect_equal(ex_m(metafor_fit, "tau[b]^2"), 16)
+  expect_equal(ex_m(metafor_fit, "rho[2]"), 0.4)
+  expect_error(ex_m(metafor_fit, "sigma"), "ambiguous")
+  expect_error(ex_m(metafor_fit, "rho"), "ambiguous")
+  expect_true(is.na(ex_m(metafor_fit, "sigma[missing]")))
+  expect_equal(
+    ex_m(metafor_fit, c("mu", study_sd = "sigma[study]", absent = "gamma")),
+    c(mu = 0.25, study_sd = 1, absent = NA_real_)
+  )
+
+  local_mocked_s3_method(
+    "summary", "scenario_robma_fit",
+    function(object, ...) data.frame(
+      component = c("location", "random"),
+      parameter = c("intercept", "sd_total"),
+      Mean       = c(0.30, 0.50),
+      SD         = c(0.08, 0.12),
+      CI_0.025   = c(0.14, 0.28),
+      CI_0.975   = c(0.46, 0.75)
+    )
+  )
+  helper_env <- environment(ex_r)
+  had_local_summary_heterogeneity <- exists(
+    "summary_heterogeneity",
+    envir    = helper_env,
+    inherits = FALSE
+  )
+  if (had_local_summary_heterogeneity) {
+    old_summary_heterogeneity <- get(
+      "summary_heterogeneity",
+      envir    = helper_env,
+      inherits = FALSE
+    )
+  }
+  on.exit({
+    if (had_local_summary_heterogeneity) {
+      assign(
+        "summary_heterogeneity",
+        old_summary_heterogeneity,
+        envir = helper_env
+      )
+    } else {
+      rm("summary_heterogeneity", envir = helper_env)
+    }
+  }, add = TRUE)
+  assign(
+    "summary_heterogeneity",
+    function(fit, ...) {
+
+      if (inherits(fit, "scenario_robma_single_fit")) {
+        return(data.frame(
+          component = c("study", "study"),
+          parameter = c("tau", "tau2"),
+          Mean       = c(0.25, 0.0625),
+          Median     = c(0.24, 0.0576)
+        ))
+      }
+      data.frame(
+        component = c("study", "observation", "total"),
+        parameter = c("tau", "tau", "var_total"),
+        Mean       = c(0.20, 0.40, 0.20),
+        Median     = c(0.18, 0.38, 0.19)
+      )
+    },
+    envir = helper_env
+  )
+  robma_fit <- structure(list(), class = c("scenario_robma_fit", "brma"))
+
+  expect_equal(ex_r(robma_fit, "mu"), 0.30)
+  expect_equal(ex_r(robma_fit, "intercept", statistic = "SD"), 0.08)
+  expect_equal(ex_r(robma_fit, "tau", "study"), 0.20)
+  expect_equal(ex_r(robma_fit, "tau", "study", "Median"), 0.18)
+  expect_equal(ex_r(robma_fit, "var_total"), 0.20)
+  expect_error(ex_r(robma_fit, "tau"), "ambiguous")
+  expect_true(is.na(ex_r(robma_fit, "missing")))
+  expect_equal(
+    ex_r(
+      robma_fit,
+      c(mu = "mu", study = "sd[study]", observation = "sd[observation]", absent = "missing")
+    ),
+    c(mu = 0.30, study = 0.20, observation = 0.40, absent = NA_real_)
+  )
+
+  local_mocked_s3_method(
+    "summary", "scenario_robma_single_fit",
+    function(object, ...) data.frame(
+      component = "location",
+      parameter = "intercept",
+      Mean       = 0.35
+    )
+  )
+  robma_single_fit <- structure(list(), class = c("scenario_robma_single_fit", "brma"))
+  expect_equal(
+    ex_r(
+      robma_single_fit,
+      c(total = "sd_total", study = "sd[study]", observation = "sd[observation]")
+    ),
+    c(total = 0.25, study = 0.25, observation = NA_real_)
+  )
+  expect_error(ex_r(robma_single_fit, "sd_total", statistic = "SD"), "Statistic")
+
+  local_mocked_s3_method(
+    "summary", "scenario_robma_mu_fit",
+    function(object, ...) data.frame(
+      component = "common",
+      parameter = "mu",
+      Mean       = 0.35
+    )
+  )
+  robma_mu_fit <- structure(list(), class = c("scenario_robma_mu_fit", "brma"))
+  expect_equal(ex_r(robma_mu_fit, "intercept"), 0.35)
+
+  expect_equal(
+    ex(
+      robma_fit,
+      c(mu = "mu", study = "tau", observation = "tau", absent = "missing"),
+      component = c(NA, "study", "observation", NA)
+    ),
+    c(mu = 0.30, study = 0.20, observation = 0.40, absent = NA_real_)
+  )
+  expect_equal(
+    ex(list(metafor = metafor_fit, RoBMA = robma_fit), "mu"),
+    c(metafor = 0.25, RoBMA = 0.30)
+  )
+  expect_equal(
+    ex(
+      list(metafor = metafor_fit, RoBMA = robma_fit),
+      c(mu = "mu", absent = "missing")
+    ),
+    data.frame(
+      mu = c(0.25, 0.30), absent = c(NA_real_, NA_real_),
+      row.names = c("metafor", "RoBMA")
+    )
+  )
+  expect_error(ex(robma_fit, "tau"), "ambiguous")
+  expect_error(ex(robma_fit, "intercept", statistic = "missing"), "Statistic")
+  expect_error(ex(1, "mu"), "metafor model")
+})
+
+
 test_that("plot_marginal_diagnostics compares the shared marginal targets", {
 
   state <- new.env(parent = emptyenv())

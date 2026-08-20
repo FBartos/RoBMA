@@ -1,10 +1,10 @@
          Alternative:                 Null:     BF error%(BF)
- deltype[general] = 0 deltype[general] != 0  0.140     13.772
- deltype[general] = 0  deltype[general] > 0  0.070     13.797
- deltype[general] > 0  deltype[general] < 0 84.875      7.675
-[0;31mqCMDE relative MCSE is 13.8%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mqCMDE relative MCSE is 13.8%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mqCMDE finite-population row-sampling relative error is 9.97%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mqCMDE finite-population row-sampling relative error is 9.97%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mqCMDE effective sample size is 50.5[0m
-[0;31mqCMDE effective sample size is 50.5[0m
+ deltype[general] = 0 deltype[general] != 0  0.127     11.453
+ deltype[general] = 0  deltype[general] > 0  0.065     11.481
+ deltype[general] > 0  deltype[general] < 0 79.783      7.675
+[0;31mqCMDE relative MCSE is 11.5%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE relative MCSE is 11.5%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 8.01%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 8.01%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE effective sample size is 71.5[0m
+[0;31mqCMDE effective sample size is 71.5[0m

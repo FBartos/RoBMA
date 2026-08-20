@@ -6,10 +6,8 @@ Location
 intercept 0.354 0.097 0.164 0.353 0.549     0.00159          0.016 3724 1.000
 
 Random
-                                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-sd_total(random_total)             0.480 0.063 0.374 0.473 0.625     0.00136          0.021  2176 1.002
-esid:study: sd(intercept)          0.388 0.036 0.324 0.385 0.464     0.00033          0.009 11878 1.000
-study: sd(intercept)               0.273 0.092 0.111 0.265 0.475     0.00215          0.023  1834 1.003
-var_frac(random_total: esid_study) 0.673 0.140 0.393 0.679 0.925     0.00308          0.022  2054 1.003
-var_frac(random_total: study)      0.327 0.140 0.075 0.321 0.607     0.00308          0.022  2054 1.003
+                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd_total             0.480 0.063 0.374 0.473 0.625     0.00136          0.021 2176 1.002
+var_prop(esid_study) 0.673 0.140 0.393 0.679 0.925     0.00308          0.022 2054 1.003
+var_prop(study)      0.327 0.140 0.075 0.321 0.607     0.00308          0.022 2054 1.003
 

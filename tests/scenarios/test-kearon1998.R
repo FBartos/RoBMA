@@ -70,6 +70,19 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   scenario_text("summary-het-us",  summary_heterogeneity(fit_brma_us))
   scenario_text("summary-het-hcs", summary_heterogeneity(fit_brma_hcs))
 
+  metafor_parameters <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_var = "tau[sensitivity]^2", specificity_var = "tau[specificity]^2", correlation = "rho")
+  robma_parameters   <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_var = "study: var(group[sensitivity])", specificity_var = "study: var(group[specificity])", correlation = "study: cor(group[sensitivity],group[specificity])")
+  scenario_text("metafor-comparison", data.frame(
+    model          = rep(c("UN/US", "DIAG/HCS0"), each = 2L),
+    implementation = rep(c("metafor", "RoBMA"), 2L),
+    rbind(
+      ex_m(fit_metafor_us, metafor_parameters), ex_r(fit_brma_us, robma_parameters),
+      ex_m(fit_metafor_diag, metafor_parameters),
+      ex_r(fit_brma_hcs0, c(robma_parameters[-5L], correlation = "study: cor"))
+    ),
+    row.names = NULL
+  ))
+
   # TODO: how is it possible that pooled heterogeneity is lover than any group level heterogeneity?
   # explain this surprisning finding
   # FIXED: pooling targets the average group contrast; its variance includes

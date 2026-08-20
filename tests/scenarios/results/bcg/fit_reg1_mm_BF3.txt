@@ -1,4 +1,4 @@
                   Alternative:                Null:      BF error%(BF)
 mu_alloc  mu_alloc[random] < 0 mu_alloc[random] = 0 121.825         NA
-mu_alloc1 mu_alloc[random] < 0 mu_alloc[random] = 0 114.494     11.516
+mu_alloc1 mu_alloc[random] < 0 mu_alloc[random] = 0 119.992      8.999
 mu_alloc2 mu_alloc[random] < 0 mu_alloc[random] = 0 113.743     12.048
