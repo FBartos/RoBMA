@@ -79,6 +79,8 @@ accepting a timing baseline; never substitute the cache-loading time.
   when long. Parameter names become comparison-table labels: omit names that
   merely repeat their selectors, and use names only for different labels or
   repeated selectors that need distinct labels.
+- Use `ex_p()` for the pooled-effect column in comparisons with
+  `metafor::predict()`.
 - `scenario_text()` and `scenario_plot()` set the random seed to 1 internally.
   Do not add artifact-specific seeds unless the maintainer requests a different
   stochastic comparison.

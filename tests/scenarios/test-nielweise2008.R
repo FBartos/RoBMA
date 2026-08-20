@@ -80,8 +80,8 @@ testthat::test_that("Niel-Weise Poisson incidence-rate models", {
   ### predicted effects ----
   compare_preds <- function(fit_metafor, fit_RoBMA) {
     cbind.data.frame(
-      "metafor"  = t(data.frame(predict(fit_metafor))[,-2]),
-      "brma"     = t(unname(data.frame(pooled_effect(fit_RoBMA))[,-2]))
+      "metafor" = t(data.frame(predict(fit_metafor))[c("pred", "ci.lb", "ci.ub", "pi.lb", "pi.ub")]),
+      ex_p(fit_RoBMA)
     )
   }
 

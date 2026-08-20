@@ -56,8 +56,8 @@ text	fit_BMA_summary_con2	0.230000000	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_BMA_summary_models	0.050000000	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_loo_comparison	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_loo_comparison_RoBMA	0.010000000	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_PEESE_summary	0.660000000	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_PET_summary	0.660000000	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_PEESE_summary	0.630000000	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_PET_summary	0.610000000	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_RoBMA_reverse_coefficients	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_RoBMA_reverse_fitted	0.200000000	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_RoBMA_summary	1.860000000	4.6.0	Windows/x86_64-w64-mingw32
@@ -70,12 +70,12 @@ plot	fit_conditional_posterior_mu	12.950000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_PEESE	4.250000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_PET	4.610000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_posterior_mu	3.620000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit_RoBMA_PET	3.070000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_RoBMA_PET	2.910000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_RoBMA_reverse_model_probabilities	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_RoBMA_weight	0.130000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_weight	0.010000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_3PSM	0.030000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	funnel_BMA	0.030000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	funnel_BMA	0.010000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_PET	0.040000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_RoBMA	0.090000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_simple	0.070000000	4.6.0	Windows/x86_64-w64-mingw32
@@ -84,7 +84,7 @@ plot	mu_BF_PET_comparison	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_3PSM	0.300000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_BMA	0.080000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_PET	0.270000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	qqnorm_RoBMA	0.840000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm_RoBMA	0.800000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_simple	0.070000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot	5.390000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot_averaged	3.530000000	4.6.0	Windows/x86_64-w64-mingw32

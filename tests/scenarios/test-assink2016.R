@@ -300,9 +300,9 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   ### pooled effects ----
   compare_preds <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
-      "metafor"  = t(data.frame(predict(fit_metafor))[,-2]),
-      "brma.mv"  = t(unname(data.frame(pooled_effect(fit_RoBMA))[,-2])),
-      "brma.uni" = if (!is.null(fit_RoBMA2)) t(unname(data.frame(pooled_effect(fit_RoBMA2))[,-2])) else rep(NA, 5))
+      "metafor" = t(data.frame(predict(fit_metafor))[c("pred", "ci.lb", "ci.ub", "pi.lb", "pi.ub")]),
+      ex_p(fit_RoBMA),
+      if (!is.null(fit_RoBMA2)) ex_p(fit_RoBMA2) else data.frame(brma.uni = rep(NA_real_, 5L)))
   }
 
   set.seed(1)
@@ -320,15 +320,15 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   set.seed(1)
   compare_preds_reg <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
-      "metafor"  = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80),-c(2, 5, 6)]),
-      "brma.mv"  = unlist(unname(data.frame(predict(fit_RoBMA))[c(1, 50, 80),-2])),
-      "brma.uni" = if (!is.null(fit_RoBMA2)) unlist(unname(data.frame(predict(fit_RoBMA2))[c(1, 50, 80),-2])) else rep(NA, 9))
+      "metafor"  = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80), c("pred", "ci.lb", "ci.ub")]),
+      "brma.mv"  = unlist(data.frame(predict(fit_RoBMA))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "brma.uni" = if (!is.null(fit_RoBMA2)) unlist(data.frame(predict(fit_RoBMA2))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L))
   }
   compare_preds_reg_pi <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
-      "metafor"  = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80),-c(2, 3, 4)]),
-      "brma.mv"  = unlist(unname(data.frame(predict(fit_RoBMA, type = "estimate"))[c(1, 50, 80),-2])),
-      "brma.uni" = if (!is.null(fit_RoBMA2)) unlist(unname(data.frame(predict(fit_RoBMA2, type = "estimate"))[c(1, 50, 80),-2])) else rep(NA, 9))
+      "metafor"  = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80), c("pred", "pi.lb", "pi.ub")]),
+      "brma.mv"  = unlist(data.frame(predict(fit_RoBMA, type = "estimate"))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "brma.uni" = if (!is.null(fit_RoBMA2)) unlist(data.frame(predict(fit_RoBMA2, type = "estimate"))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L))
   }
 
   scenario_text("pooled-effect-reg",          compare_preds_reg(fit_metafor_reg,      fit_brma.mv_reg))

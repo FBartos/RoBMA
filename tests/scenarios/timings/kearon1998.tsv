@@ -33,11 +33,11 @@ plot	cor	7.170000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel	11.400000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	marginal_diagnostics_diag	19.110000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	marginal_diagnostics_us	16.810000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	mu	3.170000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	mu	2.950000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm	23.520000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	random_us	2.110000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	ranef-structure-comparison	2.300000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	robma_diagnostics_1	49.060000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	robma_diagnostics_2	50.900000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	sd_common	6.550000000	4.6.0	Windows/x86_64-w64-mingw32
+plot	sd_common	5.700000000	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot	7.020000000	4.6.0	Windows/x86_64-w64-mingw32

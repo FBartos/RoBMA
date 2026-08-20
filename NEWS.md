@@ -348,9 +348,10 @@
 ### Testing and development
 - adds `scenario_time()` for tracking performance regressions in costly
   scenario computations that do not produce text or plot snapshots.
-- adds shared `ex_m()`, `ex_r()`, and `ex()` scenario extractors for concise
-  metafor/RoBMA comparisons across model lists and parameter vectors, including
-  component selectors such as `sd[study]`; unavailable parameters return `NA`.
+- adds shared `ex_m()`, `ex_r()`, `ex_p()`, and `ex()` scenario extractors for
+  concise metafor/RoBMA comparisons across model lists, parameter vectors, and
+  pooled-effect statistics, including component selectors such as `sd[study]`;
+  unavailable parameters return `NA`.
 - centralizes multivariate marginal-diagnostic comparison plots in the shared
   scenario helpers instead of redefining them in individual scenarios.
 - separates cached-fit refresh from the standard regression profile, keeps the

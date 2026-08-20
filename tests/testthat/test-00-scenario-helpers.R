@@ -1294,6 +1294,33 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
 })
 
 
+test_that("ex_p selects stable pooled-effect comparison statistics", {
+
+  local_mocked_s3_method(
+    "pooled_effect", "scenario_pooled_fit",
+    function(object, ...) data.frame(
+      component = "location",
+      parameter = "mu",
+      Mean      = 0.30,
+      Median    = 0.29,
+      CI_0.025  = 0.14,
+      CI_0.975  = 0.46,
+      PI_0.025  = -0.20,
+      PI_0.975  = 0.80
+    )
+  )
+  fit <- structure(list(), class = "scenario_pooled_fit")
+
+  expect_equal(
+    ex_p(fit),
+    data.frame(
+      mu        = c(0.30, 0.14, 0.46, -0.20, 0.80),
+      row.names = c("pred", "ci.lb", "ci.ub", "pi.lb", "pi.ub")
+    )
+  )
+})
+
+
 test_that("plot_marginal_diagnostics compares the shared marginal targets", {
 
   state <- new.env(parent = emptyenv())
