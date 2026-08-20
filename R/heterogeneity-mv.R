@@ -33,6 +33,7 @@
     object            = object,
     posterior_samples = posterior_samples
   )
+  component_quantities <- attr(components, "quantities", exact = TRUE)
 
   component <- .normalize_brma_mv_heterogeneity_component(component)
   if (identical(component, "all")) {
@@ -52,7 +53,15 @@
 
   out <- lapply(names(selected), function(name) {
     samples <- selected[[name]]
-    colnames(samples) <- "tau"
+    colnames(samples) <- if (identical(name, "total")) {
+      if (length(components) > 1L) {
+        "sd_total"
+      } else {
+        unname(component_quantities[[1L]])
+      }
+    } else {
+      unname(component_quantities[[name]])
+    }
     .new_brma_samples(
       samples   = samples,
       n_chains  = chain_info[["n_chains"]],
@@ -89,9 +98,9 @@
 }
 
 
-.brma_mv_rms_sd_samples <- function(tau_samples) {
+.brma_mv_rms_sd_samples <- function(sd_samples) {
 
-  sqrt(rowMeans(tau_samples^2))
+  sqrt(rowMeans(sd_samples^2))
 }
 
 
@@ -119,7 +128,9 @@
       fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
       fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
     )
-    return(list(tau = tau_result[["tau_total"]]))
+    out <- list(estimate = tau_result[["tau_total"]])
+    attr(out, "quantities") <- c(estimate = "sd")
+    return(out)
   }
 
   formula_design <- .brma_mv_pooled_formula_design(object)
@@ -136,8 +147,16 @@
   if (is.null(location_priors)) {
     location_priors <- object[["priors"]][["location"]]
   }
+  allocation_components <- .brma_mv_pooled_allocation_block_samples(
+    object            = object,
+    formula_design    = formula_design,
+    posterior_samples = posterior_samples
+  )
 
   out <- lapply(blocks, function(block) {
+    if (block %in% names(allocation_components)) {
+      return(allocation_components[[block]][["samples"]])
+    }
     # Pass the compiled design directly so the synthetic expanded row is not
     # reconstructed from a raw moderator row.
     random_vcov <- BayesTools::random_effects_marginal_vcov(
@@ -156,6 +175,108 @@
     matrix(sqrt(variance[, 1L]), ncol = 1L)
   })
   names(out) <- blocks
+  quantities <- stats::setNames(rep("sd", length(blocks)), blocks)
+  for (block in intersect(blocks, names(allocation_components))) {
+    quantities[[block]] <- allocation_components[[block]][["quantity"]]
+  }
+  attr(out, "quantities") <- quantities
+
+  return(out)
+}
+
+
+.brma_mv_pooled_allocation_block_samples <- function(
+    object, formula_design, posterior_samples) {
+
+  allocations <- formula_design[["random_allocations"]]
+  if (length(allocations) == 0L) {
+    return(list())
+  }
+  source_samples <- .brma_mv_scale_source_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  K   <- nrow(object[["data"]][["outcome"]])
+  out <- list()
+
+  for (allocation in allocations) {
+    allocation <- .brma_mv_resolve_sd_component_allocation(
+      allocation     = allocation,
+      formula_design = formula_design
+    )
+    if (!identical(allocation[["target"]], "sd_component") ||
+        length(allocation[["leaf_terms"]]) <= 1L) {
+      next
+    }
+    block <- unique(as.character(allocation[["terms"]]))
+    block <- block[!is.na(block) & nzchar(block)]
+    if (length(block) != 1L) {
+      stop(
+        "Pooled SD-component allocation metadata must identify one random ",
+        "block.",
+        call. = FALSE
+      )
+    }
+    quantity <- .brma_mv_allocation_aggregate_quantities(allocation)[["sd"]]
+
+    if (!is.null(object[["fit"]])) {
+      catalog    <- BayesTools::parameter_catalog(object[["fit"]])
+      quantities <- catalog[["quantities"]]
+      keys       <- quantities[["extraction_key"]]
+      rows <- which(
+        !quantities[["internal"]] &
+          quantities[["quantity"]] == quantity &
+          vapply(keys, function(key) {
+            identical(key[["allocation_label"]], allocation[["label"]])
+          }, logical(1))
+      )
+      if (length(rows) != 1L) {
+        stop(
+          "Pooled SD-component allocation metadata do not identify exactly ",
+          "one aggregate SD quantity.",
+          call. = FALSE
+        )
+      }
+      selection <- BayesTools::parameter_catalog_resolve(
+        catalog   = catalog,
+        alias     = quantities[["canonical_name"]][rows],
+        namespace = quantities[["namespace"]][rows]
+      )
+      draws <- BayesTools::parameter_draws(
+        object[["fit"]],
+        selection,
+        model_samples = posterior_samples
+      )
+      samples <- matrix(as.numeric(draws[[1L]][, 1L]), ncol = 1L)
+    } else {
+      source <- allocation[["source"]]
+      name   <- source[["name"]]
+      available <- !is.null(source_samples) && name %in% names(source_samples)
+      if (!available && identical(source[["shape"]], "scalar")) {
+        available <- name %in% colnames(posterior_samples)
+      }
+      if (!available && identical(source[["shape"]], "row")) {
+        available <- all(
+          paste0(name, "[", seq_len(K), "]") %in% colnames(posterior_samples)
+        )
+      }
+      if (!available) {
+        next
+      }
+      samples <- .random_sd_source_samples(
+        source            = source,
+        posterior_samples = posterior_samples,
+        K                 = K,
+        source_samples    = source_samples
+      )
+      samples <- matrix(
+        sqrt(rowMeans(samples^2)),
+        ncol = 1L
+      )
+    }
+
+    out[[block]] <- list(samples = samples, quantity = quantity)
+  }
 
   return(out)
 }
@@ -250,9 +371,10 @@
     selected <- components[!names(components) %in% replaced_components]
     out <- lapply(names(selected), function(name) {
       .summary_heterogeneity_brma_mv_one(
-        tau_samples = selected[[name]],
-        probs       = probs,
-        component   = name
+        sd_samples = selected[[name]],
+        probs      = probs,
+        component  = name,
+        aggregate  = FALSE
       )
     })
     names(out) <- names(selected)
@@ -277,9 +399,11 @@
       )
       out <- lapply(names(selected), function(name) {
         .summary_heterogeneity_brma_mv_one(
-          tau_samples = selected[[name]],
-          probs       = probs,
-          component   = name
+          sd_samples = selected[[name]],
+          probs      = probs,
+          component  = name,
+          aggregate  = identical(name, "total") &&
+            length(components) > 1L
         )
       })
       names(out) <- names(selected)
@@ -308,13 +432,17 @@
 }
 
 
-.summary_heterogeneity_brma_mv_one <- function(tau_samples, probs, component) {
+.summary_heterogeneity_brma_mv_one <- function(sd_samples, probs, component,
+                                               aggregate = FALSE) {
 
-  tau2_samples <- rowMeans(tau_samples^2)
+  var_samples <- rowMeans(sd_samples^2)
+  sd_name     <- if (aggregate) "sd_total" else "sd"
+  var_name    <- if (aggregate) "var_total" else "var"
   samples_list <- list(
-    tau  = sqrt(tau2_samples),
-    tau2 = tau2_samples
+    sqrt(var_samples),
+    var_samples
   )
+  names(samples_list) <- c(sd_name, var_name)
 
   estimates <- BayesTools::ensemble_estimates_table(
     samples    = samples_list,
@@ -1146,7 +1274,7 @@
     fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
     fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
   )
-  out <- list(tau = .expand_brma_mv_heterogeneity_samples(
+  out <- list(estimate = .expand_brma_mv_heterogeneity_samples(
     samples = tau_result[["tau_total"]],
     S       = nrow(posterior_samples),
     K       = K

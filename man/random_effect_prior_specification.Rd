@@ -171,14 +171,16 @@ would make the implied total variance grow with the number of components.
 BayesTools stores concrete coordinates, semantic quantities, and aliases in
 one versioned parameter map. RoBMA summaries, plots, density estimation, and
 hypotheses use its semantic catalog view.
-Canonical random-effect names have the form
-\verb{(formula) owner: quantity(arguments)}; the formula prefix can be omitted.
-A bare formula or unnamed one-entry list also suppresses its redundant owner,
-while an explicitly named one-entry list or a multi-component model retains
-owners for disambiguation. Parentheses contain coefficient or parameter
-names and square brackets contain factor or index levels. Examples include
-\code{sd(intercept)}, \code{cor(group[sensitivity],group[specificity])},
-\code{study: sd(intercept)}, \code{sd_total}, and \code{var_prop(study)}.
+BayesTools canonical random-effect names have the form
+\verb{(formula) owner: quantity(arguments)}. RoBMA consistently prints and accepts
+simplified aliases: a sole intercept is \code{sd} for a bare block and
+\code{study: sd} for a named block, while a non-intercept coefficient remains
+explicit, for example \code{study: sd(x)}. The unique owner-free shorthand \code{sd}
+is accepted when only one component matches. Bare formulas and unnamed
+one-entry lists omit a redundant owner; explicitly named one-entry lists and
+multi-component models retain owners for disambiguation. Other examples are
+\code{cor(group[sensitivity],group[specificity])}, \code{sd_total}, \code{sd_common}, and
+\code{var_prop(study)}.
 A custom \code{random_variance_allocation()} always requires a stable internal
 \code{name}; its \code{display_name} and \code{component_names} separately control these
 public owner and component labels.

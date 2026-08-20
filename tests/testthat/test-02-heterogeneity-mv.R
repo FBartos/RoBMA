@@ -72,11 +72,13 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
 }
 
 
-.expect_mv_heterogeneity_summary <- function(x, info = NULL) {
+.expect_mv_heterogeneity_summary <- function(x,
+                                             info = NULL,
+                                             expected_rows = c("sd", "var")) {
 
   expect_true(inherits(x, "summary_heterogeneity.brma"), info = info)
-  expect_equal(sort(rownames(x[["estimates"]])), c("tau", "tau2"), info = info)
-  estimates <- as.matrix(x[["estimates"]][c("tau", "tau2"), , drop = FALSE])
+  expect_equal(sort(rownames(x[["estimates"]])), sort(expected_rows), info = info)
+  estimates <- as.matrix(x[["estimates"]][expected_rows, , drop = FALSE])
   expect_true(all(is.finite(estimates)), info = info)
   expect_true(all(estimates >= 0), info = info)
   expect_false("I2" %in% rownames(x[["estimates"]]), info = info)
@@ -181,7 +183,7 @@ test_that("brma.mv heterogeneity resolves aliases and component errors", {
     c("component", "parameter")
   )
   expect_setequal(component_table[["component"]], names(all_components))
-  expect_true(all(component_table[["parameter"]] == "tau"))
+  expect_true(all(component_table[["parameter"]] == "sd"))
   expect_type(component_tables, "list")
   expect_named(component_tables, names(all_components))
   expect_true(all(vapply(component_tables, is.data.frame, logical(1))))
@@ -648,6 +650,10 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
     posterior_samples = posterior_samples,
     probs             = c(.025, .975)
   )
+  pooled <- pooled_heterogeneity(
+    object,
+    .posterior_samples = posterior_samples
+  )
 
   expect_named(allocation_summaries, "study")
   expect_true(
@@ -673,6 +679,8 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
     allocation_summaries[["study"]][["estimates"]]["var_common", "Mean"],
     10
   )
+  expect_identical(colnames(pooled), "sd_common")
+  expect_equal(as.numeric(pooled[, 1L]), c(2, 4))
   expect_equal(
     allocation_summaries[["study"]][["estimates"]]["var(time[1])", "Mean"],
     9
@@ -753,9 +761,9 @@ test_that("brma.mv heterogeneity supports single known-V component", {
   fit_brma <- fits[[name]]
 
   pooled <- pooled_heterogeneity(fit_brma)
-  direct <- .pooled_brma_mv_heterogeneity_components(fit_brma)[["tau"]]
+  direct <- .pooled_brma_mv_heterogeneity_components(fit_brma)[["estimate"]]
   total  <- pooled_heterogeneity(fit_brma, component = "total")
-  tau    <- pooled_heterogeneity(fit_brma, component = "tau")
+  estimate <- pooled_heterogeneity(fit_brma, component = "estimate")
   summary <- summary_heterogeneity(fit_brma)
 
   expect_brma_samples_matrix(pooled, 1, paste(name, "pooled heterogeneity"))
@@ -763,7 +771,7 @@ test_that("brma.mv heterogeneity supports single known-V component", {
                tolerance = 1e-12)
   expect_equal(unname(as.matrix(total)), unname(as.matrix(pooled)),
                tolerance = 1e-12)
-  expect_equal(unname(as.matrix(tau)), unname(as.matrix(pooled)),
+  expect_equal(unname(as.matrix(estimate)), unname(as.matrix(pooled)),
                tolerance = 1e-12)
   .expect_mv_heterogeneity_summary(summary, paste(name, "summary"))
 })
@@ -802,7 +810,7 @@ test_that("brma.mv heterogeneity decomposes random-formula SD components", {
     sqrt(Reduce(`+`, lapply(components, function(samples) samples[, 1L]^2))),
     ncol = 1L
   )
-  colnames(total_expected) <- "tau"
+  colnames(total_expected) <- "sd_total"
   expect_equal(unname(as.matrix(total)), unname(total_expected),
                tolerance = 1e-12)
   expect_equal(unname(as.matrix(study)),
@@ -842,7 +850,11 @@ test_that("brma.mv summary heterogeneity returns absolute component summaries", 
       info = paste(name, component, "allocation summary")
     )
   }
-  .expect_mv_heterogeneity_summary(total, paste(name, "total summary"))
+  .expect_mv_heterogeneity_summary(
+    total,
+    paste(name, "total summary"),
+    expected_rows = c("sd_total", "var_total")
+  )
 })
 
 

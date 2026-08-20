@@ -293,8 +293,9 @@ test_that("summary.brma prints known-R random-effect parameters", {
   output <- capture.output(print(out))
 
   expect_summary_contract(out, fits[[name]], name)
-  expect_true("sd_ratio(intercept)" %in% rownames(out[["estimates_random"]]))
-  expect_true(any(grepl("sd_ratio(intercept)", output, fixed = TRUE)))
+  expect_true("sd" %in% rownames(out[["estimates_random"]]))
+  expect_true(any(grepl("sd", output, fixed = TRUE)))
+  expect_false(any(grepl("sd_ratio", output, fixed = TRUE)))
   expect_false(any(grepl("group_covariance", output, fixed = TRUE)))
 })
 

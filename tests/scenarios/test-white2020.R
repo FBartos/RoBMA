@@ -50,11 +50,12 @@ testthat::test_that("White study and observation random-effects model", {
   scenario_text("summary-heterogeneity-observation", summary_heterogeneity(fit_brma_observation))
 
   metafor_parameters <- c("intercept", study_SD = "sigma[study_id]", observation_SD = "sigma[obs]", total_random_SD = "sigma[total]")
-  robma_parameters   <- c("intercept", study_SD = "sd[study]", observation_SD = "sd[observation]", total_random_SD = "sd_total")
+  robma_parameters   <- c("intercept", study_SD = "sd", observation_SD = "sd", total_random_SD = "sd_total")
+  robma_components   <- c(NA, "study", "observation", NA)
   comparison <- rbind(
-    ex_m(fit_metafor, metafor_parameters),             ex_r(fit_brma, robma_parameters),
-    ex_m(fit_metafor_study, metafor_parameters),       ex_r(fit_brma_study, robma_parameters),
-    ex_m(fit_metafor_observation, metafor_parameters), ex_r(fit_brma_observation, robma_parameters)
+    ex_m(fit_metafor, metafor_parameters),             ex_r(fit_brma, robma_parameters, component = robma_components),
+    ex_m(fit_metafor_study, metafor_parameters),       ex_r(fit_brma_study, robma_parameters, component = robma_components),
+    ex_m(fit_metafor_observation, metafor_parameters), ex_r(fit_brma_observation, robma_parameters, component = robma_components)
   )
   scenario_text("metafor-comparison", data.frame(
     model           = rep(c("study+observation", "study", "observation"), each = 2L),
@@ -90,11 +91,11 @@ testthat::test_that("White study and observation random-effects model", {
     # the sampled-prior/KDE path supports this quantity directly.
     # TODO:
     # should it be possible to get the prior density analytically here too?
-    plot(fit_brma, "study: sd(intercept)", prior = TRUE)
-    lines(fit_brma, "study: sd(intercept)", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000))
+    plot(fit_brma, "study: sd", prior = TRUE)
+    lines(fit_brma, "study: sd", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000))
 
-    plot(fit_brma, "observation: sd(intercept)", prior = TRUE)
-    lines(fit_brma, "observation: sd(intercept)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma, "observation: sd", prior = TRUE)
+    lines(fit_brma, "observation: sd", density_method = "qCMDE", lty = 2)
   })
 
 
@@ -111,10 +112,10 @@ testthat::test_that("White study and observation random-effects model", {
     )
   })
 
-  # TODO: since we can get qCMDE density of `study: sd(intercept) = 0`; shouldn't that correspond to var_prop(study) = 0?
+  # TODO: since we can get qCMDE density of `study: sd = 0`; shouldn't that correspond to var_prop(study) = 0?
   scenario_text("random-component-bayes-factors-consistency", {
     hypothesis(
-      fit_brma, c("var_prop(study) = 0", "study: sd(intercept) == 0"),
+      fit_brma, c("var_prop(study) = 0", "study: sd == 0"),
       density_method  = "qCMDE", density_control = list(samples = 2000L)
     )
   })

@@ -1196,14 +1196,14 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
       if (inherits(fit, "scenario_robma_single_fit")) {
         return(data.frame(
           component = c("study", "study"),
-          parameter = c("tau", "tau2"),
+          parameter = c("sd", "var"),
           Mean       = c(0.25, 0.0625),
           Median     = c(0.24, 0.0576)
         ))
       }
       data.frame(
         component = c("study", "observation", "total"),
-        parameter = c("tau", "tau", "var_total"),
+        parameter = c("sd", "sd", "var_total"),
         Mean       = c(0.20, 0.40, 0.20),
         Median     = c(0.18, 0.38, 0.19)
       )
@@ -1214,15 +1214,16 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
 
   expect_equal(ex_r(robma_fit, "mu"), 0.30)
   expect_equal(ex_r(robma_fit, "intercept", statistic = "SD"), 0.08)
-  expect_equal(ex_r(robma_fit, "tau", "study"), 0.20)
-  expect_equal(ex_r(robma_fit, "tau", "study", "Median"), 0.18)
+  expect_equal(ex_r(robma_fit, "sd", "study"), 0.20)
+  expect_equal(ex_r(robma_fit, "sd", "study", "Median"), 0.18)
   expect_equal(ex_r(robma_fit, "var_total"), 0.20)
-  expect_error(ex_r(robma_fit, "tau"), "ambiguous")
+  expect_error(ex_r(robma_fit, "sd"), "ambiguous")
   expect_true(is.na(ex_r(robma_fit, "missing")))
   expect_equal(
     ex_r(
       robma_fit,
-      c(mu = "mu", study = "sd[study]", observation = "sd[observation]", absent = "missing")
+      c(mu = "mu", study = "sd", observation = "sd", absent = "missing"),
+      component = c(NA, "study", "observation", NA)
     ),
     c(mu = 0.30, study = 0.20, observation = 0.40, absent = NA_real_)
   )
@@ -1239,11 +1240,12 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
   expect_equal(
     ex_r(
       robma_single_fit,
-      c(total = "sd_total", study = "sd[study]", observation = "sd[observation]")
+      c(total = "sd", study = "sd", observation = "sd"),
+      component = c(NA, "study", "observation")
     ),
     c(total = 0.25, study = 0.25, observation = NA_real_)
   )
-  expect_error(ex_r(robma_single_fit, "sd_total", statistic = "SD"), "Statistic")
+  expect_error(ex_r(robma_single_fit, "sd", statistic = "SD"), "Statistic")
 
   local_mocked_s3_method(
     "summary", "scenario_robma_mu_fit",
@@ -1259,7 +1261,7 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
   expect_equal(
     ex(
       robma_fit,
-      c(mu = "mu", study = "tau", observation = "tau", absent = "missing"),
+      c(mu = "mu", study = "sd", observation = "sd", absent = "missing"),
       component = c(NA, "study", "observation", NA)
     ),
     c(mu = 0.30, study = 0.20, observation = 0.40, absent = NA_real_)
@@ -1278,7 +1280,7 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
       row.names = c("metafor", "RoBMA")
     )
   )
-  expect_error(ex(robma_fit, "tau"), "ambiguous")
+  expect_error(ex(robma_fit, "sd"), "ambiguous")
   expect_error(ex(robma_fit, "intercept", statistic = "missing"), "Statistic")
   expect_error(ex(1, "mu"), "metafor model")
 })

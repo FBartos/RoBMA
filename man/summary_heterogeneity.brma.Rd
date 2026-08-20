@@ -68,20 +68,27 @@ implementation, using the "typical" sampling variance formula from
 \insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 the partitioned I^2 follows the approach described in the metafor documentation.
 
-For \code{brma.mv()} models, the method reports absolute heterogeneity
-summaries (\code{tau}, \code{tau2}) for selected random-effect components.
-Known-\eqn{R} group covariance kernels are excluded from these summaries:
-they are fixed offsets applied after the fitted heterogeneity scale. They
-remain included in row-specific marginal standard deviations from
+For \code{brma.mv()} models, the method reports \code{sd} and \code{var}
+for each selected random-effect component. A genuine variance-additive
+aggregate is reported as \code{sd_total} and \code{var_total}; a
+mean-variance allocation scale is reported as \code{sd_common} and
+\code{var_common}. This vocabulary also applies when no explicit
+\code{random} formula is supplied because \code{brma.mv()} adds an
+estimate-level random effect by default.
+When a known group covariance \eqn{R} is supplied, \code{sd} is the fitted
+multiplier of that covariance kernel. It need not equal every row's
+marginal standard deviation when \eqn{\mathrm{diag}(R)} is not one.
+Row-specific marginal standard deviations remain available from
 \code{predict(type = "terms.scale")} and in covariance-based prediction and
 diagnostics.
 Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
 known-V covariance structures. For \code{component = "total"}, independent
-component variances are summed before summarizing \code{tau2}; \code{tau}
-is the square root of this variance draw.
+component variances are summed before reporting \code{var_total};
+\code{sd_total} is the square root of this variance draw.
 When a random-formula model uses a shared total-SD plus variance-allocation
 node, \code{component = "all"} also includes an allocation-node table with
-\code{tau}, \code{tau2}, and \code{<allocation>: var_prop(<block>)} rows.
+the appropriate aggregate SD and variance plus
+\code{var_prop(<block>)} rows.
 For nested formulas
 such as \code{random = ~ 1 | study / esid}, this table is displayed under
 the user-facing path \code{"study/esid"}.

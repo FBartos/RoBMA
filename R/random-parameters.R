@@ -168,7 +168,7 @@
   }
   specs <- data.frame(
     parameter          = quantities[["canonical_name"]],
-    label              = sub("^\\([^)]*\\) ", "", quantities[["canonical_name"]]),
+    label              = sub("^\\([^)]*\\) ", "", quantities[["display_label"]]),
     formula_parameter  = quantities[["formula_parameter"]],
     block              = vapply(keys, key_string, character(1), field = "random_block"),
     grouping           = "",

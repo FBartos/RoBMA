@@ -64,14 +64,17 @@
 #' `cs()` / `hcs()`, `ar1()` / `ar()` / `har()`, and `car()` tags instead own
 #' their index basis; see the linked tag documentation before specifying factor
 #' slopes or index variables.
-#' A bare formula or unnamed one-entry list suppresses a redundant top-level
-#' component prefix. An explicitly named one-entry list retains its name; in
-#' lists with two or more entries, missing names become `component 1`,
-#' `component 2`, and so on. A bare single block therefore uses semantic names
-#' such as `sd(intercept)` and `cor(x,y)`; explicitly named or multiple
-#' components retain owners, as in `study: sd(intercept)`. Allocation names
-#' include `sd_total` and `var_prop(study)`. None of these public names expose
-#' backend coordinates.
+#' BayesTools stores fully explicit canonical random-effect names of the form
+#' `(formula) owner: quantity(arguments)`. RoBMA uses their simplified display
+#' aliases consistently in summaries, plotting, density estimation, and
+#' hypotheses. A sole random intercept drops its redundant argument, so a bare
+#' block is displayed and accepted as `sd`, while an explicitly named block is
+#' `study: sd`; the unique shorthand `sd` is also accepted. A non-intercept
+#' coefficient remains explicit, for example `study: sd(x)`. Bare formulas and
+#' unnamed one-entry lists omit a redundant owner; explicitly named one-entry
+#' lists retain it, and missing names in longer lists become `component 1`,
+#' `component 2`, and so on. Allocation names include `sd_total`, `sd_common`,
+#' and `var_prop(study)`. None of these public names expose backend coordinates.
 #' The optional `R` argument supplies known covariance or correlation matrices
 #' across random-effect grouping levels, following `metafor::rma.mv()` naming.
 #' `R` is separate from the known sampling covariance `V`: `V` describes

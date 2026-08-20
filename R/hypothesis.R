@@ -256,7 +256,8 @@ hypothesis.brma <- function(object, hypothesis,
 
   hypothesis <- BayesTools::hypothesis_parse(
     hypothesis = hypothesis,
-    catalog    = .brma_parameter_catalog_metadata(object)[["catalog"]]
+    catalog    = .brma_parameter_catalog_metadata(object)[["catalog"]],
+    simplify_names = TRUE
   )
   display_hypothesis <- hypothesis
   statement_selections <- .hypothesis_brma_select_statements(

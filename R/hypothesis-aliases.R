@@ -8,7 +8,8 @@
     BayesTools::hypothesis_resolve(
       ast       = ast,
       catalog   = metadata[["catalog"]],
-      component = if (identical(component, "auto")) NULL else component
+      component = if (identical(component, "auto")) NULL else component,
+      simplify_names = TRUE
     ),
     BayesTools_parameter_ambiguous = function(error) {
       ambiguity <- .brma_parameter_catalog_group_ambiguity(
@@ -20,7 +21,8 @@
         return(BayesTools::hypothesis_resolve(
           ast       = ast,
           catalog   = metadata[["catalog"]],
-          component = ambiguity[["component"]]
+          component = ambiguity[["component"]],
+          simplify_names = TRUE
         ))
       }
       candidates <- ambiguity[["candidates"]]

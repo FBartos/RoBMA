@@ -71,14 +71,15 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   scenario_text("summary-het-hcs", summary_heterogeneity(fit_brma_hcs))
 
   metafor_parameters <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_var = "tau[sensitivity]^2", specificity_var = "tau[specificity]^2", correlation = "rho")
-  robma_parameters   <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_var = "study: var(group[sensitivity])", specificity_var = "study: var(group[specificity])", correlation = "study: cor(group[sensitivity],group[specificity])")
+  robma_parameters   <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_var = "var(group[sensitivity])", specificity_var = "var(group[specificity])", correlation = "cor(group[sensitivity],group[specificity])")
+  robma_components   <- c(NA, NA, "study", "study", "study")
   scenario_text("metafor-comparison", data.frame(
     model          = rep(c("UN/US", "DIAG/HCS0"), each = 2L),
     implementation = rep(c("metafor", "RoBMA"), 2L),
     rbind(
-      ex_m(fit_metafor_us, metafor_parameters), ex_r(fit_brma_us, robma_parameters),
+      ex_m(fit_metafor_us, metafor_parameters), ex_r(fit_brma_us, robma_parameters, component = robma_components),
       ex_m(fit_metafor_diag, metafor_parameters),
-      ex_r(fit_brma_hcs0, c(robma_parameters[-5L], correlation = "study: cor"))
+      ex_r(fit_brma_hcs0, c(robma_parameters[-5L], correlation = "cor"), component = robma_components)
     ),
     row.names = NULL
   ))

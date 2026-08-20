@@ -280,7 +280,8 @@
     BayesTools::parameter_catalog_resolve(
       catalog   = metadata[["catalog"]],
       alias     = parameter,
-      component = if (identical(component, "auto")) NULL else component
+      component = if (identical(component, "auto")) NULL else component,
+      simplify_names = TRUE
     ),
     BayesTools_parameter_ambiguous = function(error) {
       ambiguity <- .brma_parameter_catalog_group_ambiguity(
@@ -292,7 +293,8 @@
         return(BayesTools::parameter_catalog_resolve(
           catalog   = metadata[["catalog"]],
           alias     = parameter,
-          component = ambiguity[["component"]]
+          component = ambiguity[["component"]],
+          simplify_names = TRUE
         ))
       }
       stop(error)
@@ -362,10 +364,16 @@
 
   add_entry <- function(quantity, parameter, component, term, source,
                         formula_parameter, entry_aliases,
+                        entry_alias_simplified = rep(FALSE,
+                          length(entry_aliases)),
                         member_quantity_ids = character()) {
-    entry_aliases <- unique(entry_aliases[
-      !is.na(entry_aliases) & nzchar(entry_aliases)
-    ])
+    keep_aliases <- !is.na(entry_aliases) & nzchar(entry_aliases)
+    alias_metadata <- unique(data.frame(
+      alias      = entry_aliases[keep_aliases],
+      simplified = entry_alias_simplified[keep_aliases],
+      stringsAsFactors = FALSE
+    ))
+    entry_aliases <- unique(alias_metadata[["alias"]])
     entry <- data.frame(
       quantity_id       = quantity[["quantity_id"]],
       parameter         = parameter,
@@ -384,14 +392,15 @@
     entry[["member_quantity_ids"]] <- I(list(unique(member_quantity_ids)))
     entries[[length(entries) + 1L]] <<- entry
     alias_rows <- data.frame(
-      alias       = entry_aliases,
-      quantity_id = rep(quantity[["quantity_id"]], length(entry_aliases)),
-      namespace   = rep(component, length(entry_aliases)),
-      component   = rep(component, length(entry_aliases)),
+      alias       = alias_metadata[["alias"]],
+      quantity_id = rep(quantity[["quantity_id"]], nrow(alias_metadata)),
+      namespace   = rep(component, nrow(alias_metadata)),
+      component   = rep(component, nrow(alias_metadata)),
+      simplified  = alias_metadata[["simplified"]],
       stringsAsFactors = FALSE
     )
     aliases[[length(aliases) + 1L]] <<- alias_rows[
-      , c("alias", "quantity_id", "namespace", "component"),
+      , c("alias", "quantity_id", "namespace", "component", "simplified"),
       drop = FALSE
     ]
     invisible(NULL)
@@ -549,8 +558,10 @@
     )
     for (row in rows) {
       quantity <- as.list(quantities[row, , drop = FALSE])
-      base_aliases <- catalog[["aliases"]][["alias"]][
-        catalog[["aliases"]][["quantity_id"]] == quantity[["quantity_id"]]
+      base_aliases <- catalog[["aliases"]][
+        catalog[["aliases"]][["quantity_id"]] == quantity[["quantity_id"]],
+        ,
+        drop = FALSE
       ]
       add_entry(
         quantity          = quantity,
@@ -559,7 +570,14 @@
         term              = quantity[["canonical_name"]],
         source            = "random",
         formula_parameter = quantity[["formula_parameter"]],
-        entry_aliases     = c(quantity[["canonical_name"]], base_aliases)
+        entry_aliases     = c(
+          quantity[["canonical_name"]],
+          base_aliases[["alias"]]
+        ),
+        entry_alias_simplified = c(
+          FALSE,
+          base_aliases[["simplified"]]
+        )
       )
     }
   }

@@ -259,14 +259,17 @@ and \code{id()} tags use the same coefficient-formula semantics. The structured
 \code{cs()} / \code{hcs()}, \code{ar1()} / \code{ar()} / \code{har()}, and \code{car()} tags instead own
 their index basis; see the linked tag documentation before specifying factor
 slopes or index variables.
-A bare formula or unnamed one-entry list suppresses a redundant top-level
-component prefix. An explicitly named one-entry list retains its name; in
-lists with two or more entries, missing names become \verb{component 1},
-\verb{component 2}, and so on. A bare single block therefore uses semantic names
-such as \code{sd(intercept)} and \code{cor(x,y)}; explicitly named or multiple
-components retain owners, as in \code{study: sd(intercept)}. Allocation names
-include \code{sd_total} and \code{var_prop(study)}. None of these public names expose
-backend coordinates.
+BayesTools stores fully explicit canonical random-effect names of the form
+\verb{(formula) owner: quantity(arguments)}. RoBMA uses their simplified display
+aliases consistently in summaries, plotting, density estimation, and
+hypotheses. A sole random intercept drops its redundant argument, so a bare
+block is displayed and accepted as \code{sd}, while an explicitly named block is
+\code{study: sd}; the unique shorthand \code{sd} is also accepted. A non-intercept
+coefficient remains explicit, for example \code{study: sd(x)}. Bare formulas and
+unnamed one-entry lists omit a redundant owner; explicitly named one-entry
+lists retain it, and missing names in longer lists become \verb{component 1},
+\verb{component 2}, and so on. Allocation names include \code{sd_total}, \code{sd_common},
+and \code{var_prop(study)}. None of these public names expose backend coordinates.
 The optional \code{R} argument supplies known covariance or correlation matrices
 across random-effect grouping levels, following \code{metafor::rma.mv()} naming.
 \code{R} is separate from the known sampling covariance \code{V}: \code{V} describes

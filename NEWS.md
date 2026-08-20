@@ -34,12 +34,15 @@
   throughout summaries, plotting, density estimation, and hypotheses. The
   linked backend-coordinate, public-quantity, and alias tables are constructed,
   versioned, stored, and validated together; RoBMA consumes the semantic
-  catalog and coordinate accessors as views of that one fitted contract. Public
-  names use
-  `(formula) owner: quantity(parameter[level], ...)`, including `cor`, `sd`,
-  `var`, `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`,
-  `var_ratio`, and `sd_ratio`; backend coordinates are no longer accepted as
-  public aliases.
+  catalog and coordinate accessors as views of that one fitted contract.
+  BayesTools retains canonical names of the form
+  `(formula) owner: quantity(parameter[level], ...)`, while RoBMA consistently
+  requests its simplified display and selector aliases. A sole random
+  intercept therefore prints as `sd` or `study: sd`; non-intercept arguments,
+  such as `study: sd(x)`, remain explicit. Owner-free shorthand is accepted
+  only when it resolves uniquely. The vocabulary includes `cor`, `sd`, `var`,
+  `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`, `var_ratio`,
+  and `sd_ratio`; backend coordinates are no longer public aliases.
   A bare formula or unnamed one-entry list omits its redundant owner prefix, so
   names such as `cor(...)`, `sd_common`, and `var_ratio(...)` work directly in
   summaries, plots, density estimation, and hypotheses. Explicitly named
@@ -62,7 +65,13 @@
   independent stored prior. Basic summaries report only quantities aligned
   with prior specification, while `summary_heterogeneity()` retains aggregate
   variances, allocation-derived component SDs and variances, variance ratios,
-  and SD ratios.
+  and SD ratios. All `brma.mv()` heterogeneity output uses `sd` / `var` for a
+  single component, `sd_total` / `var_total` only for a genuine additive
+  aggregate, and `sd_common` / `var_common` for mean-variance allocations;
+  ordinary `brma()` and the maintained specialized `brma(..., cluster = ...)`
+  interface retain their `tau` / `tau2`, `rho`, and level-specific `I2`
+  vocabulary. A known group covariance reports its fitted kernel multiplier as
+  `sd` / `var`, not `sd_ratio` / `var_ratio`.
   Random-formula `type = "terms.scale"` predictions now group exact row-wise
   leaf SDs only for authoritative user-facing formula components, preserving
   random-slope designs and known covariance kernels while combining expanded
@@ -283,9 +292,9 @@
   labels without redundant row names after internal parameter resolution.
 - keeps known-`V` backend routing in summary metadata without printing this
   implementation detail in ordinary `brma.mv()` summaries.
-- requests BayesTools' structured component labels for random-effect rows, so
-  both single- and multiple-component models print labels such as
-  `study: sd(intercept)` without downstream label rewriting.
+- requests BayesTools' simplified structured component labels for
+  random-effect rows, so a sole intercept prints as `sd` or `study: sd`, while
+  non-intercept coefficients retain labels such as `study: sd(x)`.
 - extends posterior `plot()` and `lines()` transformations: `EXP` now applies
   to individual log-scale ratio meta-regression coefficients and to
   scale-regression coefficients as multiplicative changes in heterogeneity,

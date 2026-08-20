@@ -347,14 +347,16 @@ NULL
 #' BayesTools stores concrete coordinates, semantic quantities, and aliases in
 #' one versioned parameter map. RoBMA summaries, plots, density estimation, and
 #' hypotheses use its semantic catalog view.
-#' Canonical random-effect names have the form
-#' `(formula) owner: quantity(arguments)`; the formula prefix can be omitted.
-#' A bare formula or unnamed one-entry list also suppresses its redundant owner,
-#' while an explicitly named one-entry list or a multi-component model retains
-#' owners for disambiguation. Parentheses contain coefficient or parameter
-#' names and square brackets contain factor or index levels. Examples include
-#' `sd(intercept)`, `cor(group[sensitivity],group[specificity])`,
-#' `study: sd(intercept)`, `sd_total`, and `var_prop(study)`.
+#' BayesTools canonical random-effect names have the form
+#' `(formula) owner: quantity(arguments)`. RoBMA consistently prints and accepts
+#' simplified aliases: a sole intercept is `sd` for a bare block and
+#' `study: sd` for a named block, while a non-intercept coefficient remains
+#' explicit, for example `study: sd(x)`. The unique owner-free shorthand `sd`
+#' is accepted when only one component matches. Bare formulas and unnamed
+#' one-entry lists omit a redundant owner; explicitly named one-entry lists and
+#' multi-component models retain owners for disambiguation. Other examples are
+#' `cor(group[sensitivity],group[specificity])`, `sd_total`, `sd_common`, and
+#' `var_prop(study)`.
 #' A custom `random_variance_allocation()` always requires a stable internal
 #' `name`; its `display_name` and `component_names` separately control these
 #' public owner and component labels.

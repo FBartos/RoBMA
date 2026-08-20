@@ -263,12 +263,15 @@ Leave an empty line after an opening brace in function definitions.
   Correlation defaults remain BayesTools-owned and must not be reconstructed in
   RoBMA: omitted US/UN uses `LKJ(1)`, while omitted scalar correlations use the
   complete structure-specific raw interval.
-- Public random-effect names use
-  `(formula) owner: quantity(arguments)`, with the formula prefix accepted as
-  an omission alias. Parentheses contain coefficient or parameter names and
-  square brackets contain factor or index levels. Use `cor`, never backend
-  `rho`; for example,
-  `study: cor(group[sensitivity],group[specificity])`. Total-variance
+- BayesTools canonical random-effect names use
+  `(formula) owner: quantity(arguments)`. RoBMA requests BayesTools' simplified
+  names for user-facing summaries and selectors. Simplification removes only a
+  sole `intercept` argument (`sd(intercept)` becomes `sd`) and permits omission
+  of an owner only when resolution remains unique; non-intercept arguments stay
+  explicit. Use `cor`, never backend `rho`; for example,
+  `study: cor(group[sensitivity],group[specificity])`. A known group covariance
+  still has a fitted `sd`/`var` kernel scale, not an `sd_ratio`/`var_ratio`.
+  Total-variance
   allocations expose `sd_total`, `var_total`, and `var_prop(...)`;
   mean-variance allocations expose `sd_common`, `var_common`,
   `var_ratio(...)`, and `sd_ratio(...)`.
@@ -278,6 +281,11 @@ Leave an empty line after an opening brace in function definitions.
   `component 1`, `component 2`, and so on. Generated allocations retain a
   stable internal `name`, use `display_name = ""` when no public owner is
   needed, and carry public `component_names` separately.
+- Ordinary and specialized `brma(..., cluster = ...)` models retain
+  `tau`/`tau2` (plus specialized `rho`/`I2`). Every `brma.mv()` heterogeneity
+  summary uses `sd`/`var` for one component, `sd_total`/`var_total` only for a
+  genuine additive aggregate, and `sd_common`/`var_common` for a mean-variance
+  allocation scale.
 - Internal LKJ primitives, compact scalar-correlation coordinates, allocation
   weights, and covariance-construction dependencies remain coordinate-only map
   entries and must not appear in semantic quantities or pass public plotting,

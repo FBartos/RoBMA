@@ -124,14 +124,14 @@
 #' ## Public parameter names
 #'
 #' BayesTools stores concrete coordinates, selectable semantic quantities, and
-#' aliases in one versioned parameter map. Random-effect canonical names use
-#' `(formula) owner: quantity(arguments)`, with the formula prefix optional.
-#' Bare formulas and unnamed one-entry lists suppress the redundant owner;
-#' explicitly named one-entry lists and multi-component models retain it.
-#' Parentheses contain coefficient or parameter names and square brackets
-#' contain factor or index levels. Examples include `sd(intercept)`,
-#' `cor(group[sensitivity],group[specificity])`, and, when an owner is visible,
-#' `study: sd(intercept)`.
+#' aliases in one versioned parameter map. Its canonical random-effect names
+#' use `(formula) owner: quantity(arguments)`. RoBMA prints and accepts
+#' simplified aliases: a sole random intercept is `sd` for a bare block and
+#' `study: sd` for a named block, while a non-intercept coefficient remains
+#' explicit, for example `study: sd(x)`. The owner-free `sd` shorthand is
+#' accepted only when it resolves uniquely. Bare formulas and unnamed one-entry
+#' lists omit a redundant owner; explicitly named one-entry lists and
+#' multi-component models retain it.
 #'
 #' Public correlations are named `cor`; compact scalar `rho` and LKJ
 #' construction coordinates remain internal. Automatic total-variance

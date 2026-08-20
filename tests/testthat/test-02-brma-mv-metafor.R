@@ -286,7 +286,7 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_konstantopoulos2011_cs",
       component = "district",
-      row       = "tau",
+      row       = "sd",
       expected  = function(m) sqrt(m[["tau2"]]),
       tolerance = 0.05
     ),
@@ -300,14 +300,14 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "study",
-      row       = "tau",
+      row       = "sd",
       expected  = function(m) sqrt(m[["sigma2"]][[1]]),
       tolerance = 0.05
     ),
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "esid_study",
-      row       = "tau",
+      row       = "sd",
       expected  = function(m) sqrt(m[["sigma2"]][[2]]),
       tolerance = 0.05
     ),
@@ -356,14 +356,14 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_begg1989_study_treatment",
       component = "study",
-      row       = "tau",
+      row       = "sd",
       expected  = function(m) sqrt(m[["sigma2"]][[1]]),
       tolerance = 0.06
     ),
     list(
       name      = "brma.mv_v14_begg1989_study_treatment",
       component = "treatment",
-      row       = "tau",
+      row       = "sd",
       expected  = function(m) sqrt(m[["tau2"]]),
       tolerance = 0.06
     )

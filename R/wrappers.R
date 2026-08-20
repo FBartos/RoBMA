@@ -433,8 +433,8 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
 
 #' @title Pooled Heterogeneity
 #'
-#' @description Computes the pooled (aggregated) heterogeneity estimate (tau)
-#' from a fitted model.
+#' @description Computes method-specific pooled (aggregated) heterogeneity from
+#' a fitted model.
 #'
 #' @param object a fitted model object
 #' @param ... additional arguments passed to methods
@@ -476,15 +476,19 @@ pooled_heterogeneity <- function(object, ...) {
 #' For multilevel (3-level) models, the returned tau is the total heterogeneity:
 #' \code{tau = sqrt(tau_within^2 + tau_between^2)}.
 #'
-#' For \code{brma.mv()} random-formula models, \code{component = "all"}
+#' For \code{brma.mv()} models, one ordinary selected component is named
+#' \code{sd}; a genuine variance-additive total is named \code{sd_total}; and a
+#' mean-variance allocation anchor is named \code{sd_common}. This includes the
+#' default estimate-level random effect when no explicit \code{random} formula
+#' is supplied. For random-formula models, \code{component = "all"}
 #' returns one \code{brma_samples} object when there is a single heterogeneity
 #' component and a named list when there are multiple components.
 #' \code{component = "total"} computes the variance-additive total at the
 #' average random-effect design. Random slopes are evaluated as
-#' \eqn{\bar q^T G \bar q}. Known-\eqn{R} group covariance kernels are
-#' excluded because they are fixed offsets to, rather than fitted components
-#' of, the heterogeneity scale. Row-specific marginal standard deviations that
-#' include known \eqn{R} are available from
+#' \eqn{\bar q^T G \bar q}. With a known group covariance \eqn{R}, the
+#' reported \code{sd} is the fitted multiplier of that kernel. It need not equal
+#' every row's marginal standard deviation when \eqn{\mathrm{diag}(R)} is not
+#' one. Row-specific marginal standard deviations are available from
 #' \code{predict(type = "terms.scale")}.
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,

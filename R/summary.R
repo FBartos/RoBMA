@@ -519,6 +519,7 @@ print.brma <- function(x, ...) {
   args <- list(
     fit                = object[["fit"]],
     conditional        = conditional,
+    simplify_names     = TRUE,
     remove_diagnostics = !include_mcmc_diagnostics,
     remove_inclusion   = if (conditional) TRUE else is_robma,
     remove_spike_0     = FALSE,

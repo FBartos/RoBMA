@@ -94,10 +94,8 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   })
 
   ### model summaries ----
-  # TODO: the summarized parameters prbly need some improvements
-  # FIXED: unknown common group scale is reported as sd(intercept), whereas
-  # Rscale = "none" estimates a multiplier of heterogeneous known marginal
-  # scales and is therefore correctly reported as sd_ratio(intercept).
+  # The fitted sd is the scale multiplying the known covariance kernel. It is
+  # not necessarily every row's marginal SD when diag(R) differs from one.
   scenario_text("summary-no-known-R", summary(fit_brma_mv, include_mcmc_diagnostics = FALSE))
   scenario_text("summary-known-R",    summary(fit_brma_mv_quality, include_mcmc_diagnostics = FALSE))
   scenario_text("summary-cor-R",      summary(fit_brma_mv_rcor, include_mcmc_diagnostics = FALSE))
@@ -110,18 +108,19 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   scenario_text("model-comparison", {
     metafor_parameters <- c(mu = "intercept", se = "intercept", lower = "intercept", upper = "intercept", tau = "sigma[analysis]")
     metafor_statistics <- c("estimate", "SE", "CI_0.025", "CI_0.975", "estimate")
-    robma_parameters   <- c(mu = "intercept", se = "intercept", lower = "intercept", upper = "intercept", tau = "sd[analysis]")
+    robma_parameters   <- c(mu = "intercept", se = "intercept", lower = "intercept", upper = "intercept", tau = "sd")
+    robma_components   <- c(NA, NA, NA, NA, "analysis")
     robma_statistics   <- c("Mean", "SD", "CI_0.025", "CI_0.975", "Median")
     data.frame(
       model = rep(c("without known R", "with known R", "with corr R"), each = 2L),
       implementation = rep(c("metafor", "RoBMA"), 3L),
       round(rbind(
         ex_m(fit_metafor_mv, metafor_parameters, metafor_statistics),
-        ex_r(fit_brma_mv, robma_parameters, statistic = robma_statistics),
+        ex_r(fit_brma_mv, robma_parameters, component = robma_components, statistic = robma_statistics),
         ex_m(fit_metafor_mv_quality, metafor_parameters, metafor_statistics),
-        ex_r(fit_brma_mv_quality, robma_parameters, statistic = robma_statistics),
+        ex_r(fit_brma_mv_quality, robma_parameters, component = robma_components, statistic = robma_statistics),
         ex_m(fit_metafor_mv_rcor, metafor_parameters, metafor_statistics),
-        ex_r(fit_brma_mv_rcor, robma_parameters, statistic = robma_statistics)
+        ex_r(fit_brma_mv_rcor, robma_parameters, component = robma_components, statistic = robma_statistics)
       ), 4), row.names = NULL
     )
   })
@@ -163,15 +162,15 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   })
 
   scenario_plot("posterior-tau", {
-    plot(fit_brma_mv, "sd(intercept)", prior = TRUE, xlim = c(0, .10), col = "blue")
-    lines(fit_brma_mv, "sd(intercept)", lty = 2, col = "blue", density_method = "qCMDE")
+    plot(fit_brma_mv, "sd", prior = TRUE, xlim = c(0, .10), col = "blue")
+    lines(fit_brma_mv, "sd", lty = 2, col = "blue", density_method = "qCMDE")
 
-    lines(fit_brma_mv_quality, "sd_ratio(intercept)", col = "green")
+    lines(fit_brma_mv_quality, "sd", col = "green")
     # TODO: this takes very long now!
-    lines(fit_brma_mv_quality, "sd_ratio(intercept)", lty = 2, col = "green", density_method = "qCMDE")
+    lines(fit_brma_mv_quality, "sd", lty = 2, col = "green", density_method = "qCMDE")
 
-    lines(fit_brma_mv_rcor, "sd_ratio(intercept)", col = "red")
-    lines(fit_brma_mv_rcor, "sd_ratio(intercept)", lty = 2, col = "red", density_method = "qCMDE")
+    lines(fit_brma_mv_rcor, "sd", col = "red")
+    lines(fit_brma_mv_rcor, "sd", lty = 2, col = "red", density_method = "qCMDE")
   })
 
   scenario_plot("random-effects", {

@@ -1769,7 +1769,7 @@ test_that("known-R multipliers affect covariance but not heterogeneity summaries
     tolerance = 1e-12
   )
   expect_equal(
-    heterogeneity[["estimates"]][c("tau", "tau2"), "Mean"],
+    heterogeneity[["estimates"]][c("sd", "var"), "Mean"],
     c(mean(posterior_samples[, sd_name]),
       mean(posterior_samples[, sd_name]^2)),
     tolerance = 1e-12

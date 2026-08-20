@@ -58,7 +58,7 @@ context("BayesTools parameter catalog contract")
     quantity("PET", "model", "parameter"),
     quantity(
       "random_sd_study_intercept", "mu", "random_sd", "mu", "intercept",
-      "intercept", "(mu) study: sd(intercept)",
+      "intercept", "(mu) study: sd",
       owner_type    = "random_block",
       owner_name    = "study",
       quantity_name = "sd",
@@ -154,7 +154,12 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   pet     <- .brma_parameter_select_entry(object, "PET", component = "bias")
   random  <- .brma_parameter_select_entry(
     object,
-    "study: sd(intercept)",
+    "study: sd",
+    component = "random"
+  )
+  random_short <- .brma_parameter_select_entry(
+    object,
+    "sd",
     component = "random"
   )
 
@@ -218,9 +223,11 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   )
   expect_identical(random[["quantity"]], "sd")
   expect_identical(random[["status"]], "sampled")
+  expect_identical(random_short[["canonical_name"]], random[["canonical_name"]])
   random_hypothesis <- BayesTools::hypothesis_parse(
     "cor(group[sensitivity],group[specificity]) = 0",
-    catalog = resolved_catalog
+    catalog        = resolved_catalog,
+    simplify_names = TRUE
   )
   selected_random_hypothesis <- .hypothesis_brma_select_parameter(
     object     = object,

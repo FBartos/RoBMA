@@ -1668,28 +1668,11 @@ scenario_agreement_plot <- function(reference, estimate, main = "",
 
 
 # Extract one named estimate from long-form RoBMA summary output.
-.scenario_ex_r_one <- function(fit, parameter, component, statistic, tables) {
+.scenario_ex_r_one <- function(parameter, component, statistic, tables) {
 
   .scenario_ex_string(parameter, "parameter")
   .scenario_ex_string(component, "component", allow_null = TRUE)
   .scenario_ex_string(statistic, "statistic")
-  if (is.null(component)) {
-    bracket_selector <- regmatches(
-      parameter,
-      regexec("^(sd|var)\\[([^]]+)\\]$", parameter, perl = TRUE)
-    )[[1L]]
-    component_selector <- regmatches(
-      parameter,
-      regexec("^([^:]+):[[:space:]]+(.+)$", parameter, perl = TRUE)
-    )[[1L]]
-    if (length(bracket_selector) > 0L) {
-      parameter <- if (identical(bracket_selector[[2L]], "sd")) "tau" else "tau2"
-      component <- bracket_selector[[3L]]
-    } else if (length(component_selector) > 0L) {
-      component <- component_selector[[2L]]
-      parameter <- component_selector[[3L]]
-    }
-  }
   parameter_aliases <- switch(
     parameter,
     mu        = c("mu", "intercept"),
@@ -1697,7 +1680,7 @@ scenario_agreement_plot <- function(reference, estimate, main = "",
     parameter
   )
 
-  found_selector <- FALSE
+  found_parameter <- FALSE
   for (table in tables) {
     if (is.null(table) || !"parameter" %in% names(table) ||
         (!is.null(component) && !"component" %in% names(table))) {
@@ -1707,8 +1690,8 @@ scenario_agreement_plot <- function(reference, estimate, main = "",
     if (!is.null(component)) {
       matches <- matches & table[["component"]] == component
     }
-    rows           <- which(matches)
-    found_selector <- found_selector || length(rows) > 0L
+    rows            <- which(matches)
+    found_parameter <- found_parameter || length(rows) > 0L
     if (length(rows) > 1L) {
       stop(
         "RoBMA estimate '", parameter,
@@ -1721,25 +1704,7 @@ scenario_agreement_plot <- function(reference, estimate, main = "",
     }
   }
 
-  if (!found_selector && is.null(component) && parameter %in% c("sd_total", "var_total")) {
-    fallback_parameter <- if (identical(parameter, "sd_total")) "tau" else "tau2"
-    table              <- tables[[2L]]
-    if (!is.null(table) && "parameter" %in% names(table)) {
-      rows <- which(table[["parameter"]] == fallback_parameter)
-      if (length(rows) == 1L) {
-        if (!statistic %in% names(table)) {
-          stop(
-            "Statistic '", statistic, "' is unavailable for RoBMA estimate '",
-            parameter, "'.",
-            call. = FALSE
-          )
-        }
-        return(unname(table[[statistic]][[rows]]))
-      }
-    }
-  }
-
-  if (found_selector) {
+  if (found_parameter) {
     stop(
       "Statistic '", statistic, "' is unavailable for RoBMA estimate '",
       parameter, "'.",
@@ -1816,8 +1781,8 @@ ex_m <- function(fit, parameter, statistic = "estimate") {
 }
 
 
-# Extract one or more RoBMA estimates. Selectors such as sd[study],
-# var[study], and study: cor(...) encode the summary component.
+# Extract one or more RoBMA estimates from long-form summary output. Use
+# 'component' when a parameter occurs in more than one summary component.
 ex_r <- function(fit, parameter, component = NULL, statistic = "Mean") {
 
   tables <- list(
@@ -1830,7 +1795,7 @@ ex_r <- function(fit, parameter, component = NULL, statistic = "Mean") {
   return(.scenario_ex_values(
     fit, parameter, component, statistic,
     function(fit, parameter, component, statistic) {
-      .scenario_ex_r_one(fit, parameter, component, statistic, tables)
+      .scenario_ex_r_one(parameter, component, statistic, tables)
     }
   ))
 }

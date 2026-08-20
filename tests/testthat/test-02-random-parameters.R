@@ -93,7 +93,7 @@ test_that("standard random fixture crosses every semantic consumer boundary", {
   skip_if_missing_fits("brma.mv_block_mvn_random")
   fit <- load_fit("brma.mv_block_mvn_random", validate = FALSE)
   bundle <- .brma_random_parameter_bundle(fit)
-  parameter <- "sd(intercept)"
+  parameter <- "sd"
   index <- match(parameter, bundle[["specs"]][["label"]])
 
   expect_false(is.na(index))

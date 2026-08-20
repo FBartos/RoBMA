@@ -110,14 +110,13 @@
 #'
 #' Random-effect quantities are exposed through the semantic catalog view of
 #' BayesTools' fitted parameter map. Concrete posterior coordinates are a linked
-#' view of the same map and are not additional public names. Canonical names use
-#' `(formula) owner: quantity(arguments)`; RoBMA accepts omission of the
-#' formula prefix.
-#' Parentheses contain coefficient or parameter names and square brackets
-#' contain factor or index levels. Examples are `sd(intercept)`,
-#' `cor(group[sensitivity],group[specificity])`, `study: sd(intercept)`,
-#' `sd_total`, and `var_prop(study)`. Compact scalar-correlation and LKJ
-#' construction coordinates are backend details, not public aliases.
+#' view of the same map and are not additional public names. BayesTools
+#' canonical names use `(formula) owner: quantity(arguments)`. RoBMA prints and
+#' accepts simplified aliases: a sole random intercept is `sd` for a bare block
+#' and `study: sd` for a named block; a non-intercept coefficient remains
+#' explicit, for example `study: sd(x)`. An owner-free `sd` is accepted only
+#' when it resolves uniquely. Public correlations use `cor`; compact scalar
+#' `rho` and LKJ construction coordinates remain internal backend dependencies.
 #'
 #' A bare formula or unnamed one-entry list omits a redundant component owner.
 #' An explicitly named one-entry list retains its owner. For multiple
