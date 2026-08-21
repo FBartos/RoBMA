@@ -314,6 +314,8 @@ An SD-component allocation with
 gives each component the common-SD scale at equal weights:
 \deqn{\sigma_j = \sigma_{\mathrm{common}}\sqrt{K w_j}, \qquad
       K^{-1}\sum_j \sigma_j^2 = \sigma_{\mathrm{common}}^2.}
+The corresponding public multipliers are \code{var_mult(j) = K * w[j]} and
+\code{sd_mult(j) = sqrt(K * w[j])}.
 This is useful for heterogeneous level-specific SDs. Root allocations own an
 SD prior or external SD source. Child allocations inherit one named parent
 component through \code{allocation_ref()} and therefore must not supply another
@@ -339,7 +341,7 @@ components, public component names come from the formula list; missing names
 are generated as \verb{component 1}, \verb{component 2}, and so on.
 Total-variance allocations expose \code{sd_total}, \code{var_total}, and
 \code{var_prop(...)}. Mean-variance allocations expose \code{sd_common}, \code{var_common},
-\code{var_ratio(...)}, and \code{sd_ratio(...)}.
+\code{var_mult(...)}, and \code{sd_mult(...)}.
 }
 
 \subsection{Monitoring, prediction, and parameterization}{

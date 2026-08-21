@@ -45,13 +45,14 @@ Fit caches under `tests/scenarios/cache/` are local and ignored. Never replace
 them with ordinary package-test caches or duplicate the cache logic in a
 scenario.
 
-Each fit cache has companion timing metadata for the successful fitting block,
-excluding cache serialization. Calls to unqualified `add_loo()` and
-`add_marglik()` inside the block are timed automatically and stored separately
-from the remaining model-fitting time; scenario files do not need timing
-wrappers. A cache hit contributes those stored production times rather than RDS
-loading time. If timing metadata is unavailable, refit the cache before
-accepting a timing baseline; never substitute the cache-loading time.
+Each successful uncached fitting block records timing metadata excluding cache
+serialization. Calls to unqualified `add_loo()` and `add_marglik()` inside the
+block are timed automatically and stored separately from the remaining
+model-fitting time; scenario files do not need timing wrappers. A cache hit
+contributes no timing measurement: do not compare its historical production
+timing with the baseline, update the baseline from it, or substitute the
+cache-loading time. Timing completeness checks ignore fit rows served from
+cache during the current run.
 
 ## Human-Focused Snapshots
 
@@ -109,9 +110,10 @@ Use `--refit` to refit models and compare them against the locked outputs. Use
 `--regenerate` shortcut performs both actions. Use `--update-timings` only to
 explicitly accept current timings, including slower timings.
 
-After sourcing `helper-scenarios.R`, `test_scenario()` runs all scenarios from
-an interactive session. Pass a regular-expression `filter` to select scenario
-names, for example `test_scenario(filter = "assink|bcg")`. By default, this
+After sourcing `helper-scenarios.R`, `test_scenarios()` runs all scenarios from
+an interactive session; the existing singular spelling `test_scenario()` is
+retained as an alias. Pass a regular-expression `filter` to select scenario
+names, for example `test_scenarios(filter = "assink|bcg")`. By default, this
 reuses fit caches, suppresses artifact output, and compares without replacing
 text or plot baselines. Missing and faster timing measurements are maintained
 automatically. Set `refit = TRUE`, `update = TRUE`, or `regenerate = TRUE`
@@ -125,8 +127,11 @@ selection. The function uses testthat's one-by-one Accept, Reject, and Skip
 reviewer; skipped candidates remain available for another call.
 
 Sourcing a scenario file directly in an interactive session defaults to reusing
-fit caches, showing artifact output, and immediately creating or replacing text
-and SVG baselines. Do not add control variables to scenario files.
+fit caches, showing artifact output, creating missing text and SVG baselines,
+and comparing existing baselines without replacing them. Pass `update = TRUE`
+to `scenario_start()` explicitly when direct execution should replace exercised
+outputs. Managed and non-interactive runs neither create nor replace baselines
+without an explicit update. Do not add control variables to scenario files.
 
 Text baselines under `results/` and SVGs under `_snaps/` are committed
 human-reviewed artifacts. Missing baselines fail during `test_scenario()`, CLI,
@@ -161,19 +166,23 @@ but is excluded from the unweighted average when split rows are available.
 
 After a complete managed scenario file, issue one warning that lists every call
 whose wall time increased by more than 20% and the unweighted mean percentage
-change across calls when it is a regression greater than 5%. Cached fits use
-their stored production times while text and plot calls use fresh times. Compare
-against the old timing baseline before replacing any timing, fit-cache, text, or
-plot artifact. Retain calls measured below 0.5 seconds in timing baselines and
-candidates, but exclude them from both per-call warnings and the mean regression
-assessment.
+change across calls when it is a regression greater than 5%. Start each per-call
+warning with its absolute change, followed by the percentage and old and new wall
+times, then the timed-part name. Highlight absolute increases greater than two
+seconds in red. Display seconds to one decimal place and percentages as whole
+numbers. Only fits evaluated during the current run contribute fit timings;
+cached fits contribute none. Text and plot calls use fresh times. Compare
+against the old timing baseline before replacing any
+timing, fit-cache, text, or plot artifact. Retain calls measured below 0.75
+seconds in timing baselines and candidates, but exclude them from both per-call
+warnings and the mean regression assessment.
 
 Automatically add every available measurement whose timing row is absent from
 the baseline. Automatically replace an existing row only when its measured wall
 time is faster. Apply this maintenance in managed runs and as successful calls
-are executed line by line during direct interactive development. Do not infer a
-fit-production time from cache-loading time; an old fit cache without timing
-metadata remains unavailable until that fit is intentionally refitted.
+are executed line by line during direct interactive development. Do not infer
+or replay a fit-production time on a cache hit. Intentionally refit a model
+whenever its performance should be measured and tested.
 
 Retain slower current measurements in the ignored `<scenario>.new.tsv` and
 leave the faster baseline unchanged. Only explicit `update_timings = TRUE` or

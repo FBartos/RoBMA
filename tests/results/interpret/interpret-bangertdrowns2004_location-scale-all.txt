@@ -1,6 +1,6 @@
 Bayesian Location-Scale Model (k = 46).
 Pooled effect: mean standardized mean difference = 0.228, 95% CrI [0.136, 0.321].
-Pooled heterogeneity: mean tau = 0.221, 95% CrI [0.098, 0.352].
+Pooled heterogeneity: mean tau = 0.195, 95% CrI [0.088, 0.303].
 Location estimate (intercept): mean intercept = 0.231, 95% CrI [0.095, 0.370] on the standardized mean difference scale.
 Location estimate (meta[1]): mean meta[1] = 0.183, 95% CrI [0.037, 0.340] on the standardized mean difference scale.
 Location estimate (ni100): mean ni100 = -0.059, 95% CrI [-0.107, -0.016] on the standardized mean difference scale.

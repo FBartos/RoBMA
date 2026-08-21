@@ -1,4 +1,2 @@
-source("tests/scenarios/helper-scenarios.R")
-
-test_scenario(filter = "assink|bcg")
+test_scenarios(filter = "assink|bcg")
 review_scenario_snapshots()

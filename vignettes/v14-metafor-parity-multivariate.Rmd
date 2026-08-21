@@ -233,7 +233,7 @@ Here the fixed `0 +` sets the average-effect intercept to zero, while the random
 The two independent contrast declarations create one fixed and one random coefficient per `group` level.
 Because `random_prior` specifies no SD or variance allocation, RoBMA completes it with the usual UISD-scaled `sd_common` prior and a mean-variance Dirichlet allocation across the two random coefficients.
 Because no US correlation prior is supplied, BayesTools completes the block with `LKJ(1)` after its dimension is resolved.
-Because this is a bare one-component random formula, the resulting public catalog suppresses the redundant block prefix and reports `sd(group[sensitivity])`, `sd(group[specificity])`, `sd_common`, `var_common`, the corresponding `var_ratio(...)` and `sd_ratio(...)` quantities, and `cor(group[sensitivity],group[specificity])`.
+Because this is a bare one-component random formula, the resulting public catalog suppresses the redundant block prefix and reports `sd(group[sensitivity])`, `sd(group[specificity])`, `sd_common`, `var_common`, the corresponding `var_mult(...)` and `sd_mult(...)` quantities, and `cor(group[sensitivity],group[specificity])`.
 These same semantic names select parameters in summaries, plots, density estimation, and hypotheses; internal LKJ construction coordinates are not public aliases.
 
 This is not interchangeable with `hcs(group | study)`.

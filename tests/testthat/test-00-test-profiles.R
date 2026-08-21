@@ -22,6 +22,113 @@ source(testthat::test_path("helper-profile-cases.R"))
 }
 
 
+test_that("quiet LLM reporter counts skips without printing each reason", {
+
+  output_path <- tempfile("robma-quiet-reporter-", fileext = ".txt")
+  on.exit(unlink(output_path), add = TRUE)
+  reporter <- quiet_llm_reporter(file = output_path)
+  skip <- structure(
+    list(message = "routine certification skip"),
+    class = c("expectation_skip", "expectation", "condition")
+  )
+  success <- structure(
+    list(),
+    class = c("expectation_success", "expectation", "condition")
+  )
+  failure <- tryCatch(
+    testthat::expectation("failure", "deliberate failure"),
+    error = identity
+  )
+
+  reporter$add_result("profiles", "quiet output", skip)
+  reporter$add_result("profiles", "quiet output", success)
+  reporter$add_result("profiles", "quiet output", failure)
+  reporter$end_reporter()
+  output <- readLines(output_path, warn = FALSE)
+
+  expect_equal(reporter$n_skip, 1L)
+  expect_equal(reporter$n_ok, 1L)
+  expect_equal(reporter$n_fail, 1L)
+  expect_true(any(grepl("deliberate failure", output, fixed = TRUE)))
+  expect_true(any(grepl("SKIP 1", output, fixed = TRUE)))
+  expect_false(any(grepl("routine certification skip", output, fixed = TRUE)))
+})
+
+
+test_that("interactive test runner dispatches filtered and comprehensive profiles", {
+
+  runner_env <- new.env(parent = globalenv())
+  source(
+    testthat::test_path("..", "..", ".dev", "test-tests.R"),
+    local = runner_env
+  )
+  calls <- list()
+  assign(
+    ".run_robma_test_profile",
+    function(profile, clean = FALSE, filter = NULL) {
+
+      calls[[length(calls) + 1L]] <<- list(
+        profile = profile,
+        clean   = clean,
+        filter  = filter
+      )
+      return(invisible(TRUE))
+    },
+    envir = runner_env
+  )
+  assign(
+    "review_test_snapshots",
+    function(...) invisible(data.frame()),
+    envir = runner_env
+  )
+
+  runner_env$test_tests(
+    filter          = "interpret",
+    refit           = TRUE,
+    load_package    = FALSE,
+    stop_on_failure = TRUE,
+    root            = testthat::test_path()
+  )
+  expect_identical(
+    vapply(calls, `[[`, character(1), "profile"),
+    c("refresh-standard", "filter")
+  )
+  expect_identical(vapply(calls, `[[`, logical(1), "clean"), c(TRUE, FALSE))
+  expect_identical(calls[[2L]][["filter"]], "interpret")
+
+  calls <- list()
+  runner_env$test_tests(
+    filter       = "input-data",
+    load_package = FALSE,
+    root         = testthat::test_path()
+  )
+  expect_identical(
+    vapply(calls, `[[`, character(1), "profile"),
+    "filter"
+  )
+  expect_false(calls[[1L]][["clean"]])
+
+  calls <- list()
+  runner_env$test_tests(
+    load_package = FALSE,
+    root         = testthat::test_path()
+  )
+  expect_identical(
+    vapply(calls, `[[`, character(1), "profile"),
+    c("refresh-standard", "standard", "certification")
+  )
+  expect_false(any(vapply(calls, `[[`, logical(1), "clean")))
+  expect_error(
+    runner_env$test_tests(
+      update_timings = TRUE,
+      load_package   = FALSE,
+      root           = testthat::test_path()
+    ),
+    "Ordinary tests have no timing baselines"
+  )
+})
+
+
 test_that("certification cases partition expensive evidence", {
 
   cases   <- certification_cases()

@@ -4,7 +4,7 @@
 
   c(
     "sd", "var", "sd_total", "var_total", "sd_common", "var_common",
-    "cor", "var_prop", "var_ratio", "sd_ratio"
+    "cor", "var_prop", "var_mult", "sd_mult"
   )
 }
 
@@ -326,7 +326,7 @@
       is.na(n_targets) || n_targets < 1L) {
     return(NA_integer_)
   }
-  if (identical(spec[["quantity"]], "sd_ratio") && index > n_targets) {
+  if (identical(spec[["quantity"]], "sd_mult") && index > n_targets) {
     index <- index - n_targets
   }
   if (index < 1L || index > n_targets) {
@@ -509,7 +509,7 @@
   type         <- selected[["spec"]][["quantity"]]
   transform    <- selected[["spec"]][["source_transform"]]
   source_prior <- selected[["source_prior"]]
-  if (type %in% c("sd", "sd_total", "sd_common", "cor", "sd_ratio") &&
+  if (type %in% c("sd", "sd_total", "sd_common", "cor", "sd_mult") &&
       identical(transform, "identity") &&
       !is.null(source_prior) && BayesTools::is.prior(source_prior)) {
     return(source_prior)
@@ -589,7 +589,7 @@
     ))
   }
 
-  if (type %in% c("var_prop", "var_ratio", "sd_ratio") &&
+  if (type %in% c("var_prop", "var_mult", "sd_mult") &&
       identical(selected[["spec"]][["evaluator"]], "allocation") &&
       identical(selected[["spec"]][["source_transform"]], type) &&
       source_type %in% c("identity", "one_to_one_transform") &&
@@ -816,7 +816,7 @@
     "sd", "var", "sd_total", "var_total", "sd_common", "var_common"
   )) {
     c(0, Inf)
-  } else if (identical(type, "sd_ratio")) {
+  } else if (identical(type, "sd_mult")) {
     scale <- if (is.null(allocation)) NULL else allocation[["scale"]]
     if (is.null(allocation)) {
       c(0, Inf)
@@ -825,7 +825,7 @@
       if (!is.numeric(n_targets) || length(n_targets) != 1L ||
           is.na(n_targets) || n_targets < 1) {
         stop(
-          "SD-ratio metadata are missing a valid allocation target count.",
+          "SD-multiplier metadata are missing a valid allocation target count.",
           call. = FALSE
         )
       }
@@ -834,7 +834,7 @@
       c(0, 1)
     } else {
       stop(
-        "SD-ratio metadata are missing a canonical allocation scale.",
+        "SD-multiplier metadata are missing a canonical allocation scale.",
         call. = FALSE
       )
     }
@@ -842,7 +842,7 @@
     c(-1, 1)
   } else if (identical(type, "var_prop")) {
     c(0, 1)
-  } else if (identical(type, "var_ratio")) {
+  } else if (identical(type, "var_mult")) {
     upper <- if (is.null(allocation[["n_targets"]])) Inf else
       as.numeric(allocation[["n_targets"]])
     c(0, upper)
@@ -910,6 +910,57 @@
 
   ""
 }
+
+.brma_random_parameter_zero_boundary_alternative <- function(object,
+                                                               selected) {
+
+  spec <- selected[["spec"]]
+  if (!identical(spec[["quantity"]], "sd") ||
+      !isTRUE(spec[["allocation_derived"]])) {
+    return(NULL)
+  }
+  formula_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
+  term <- .brma_random_parameter_design_term(formula_design, spec)
+  binding <- if (is.null(term)) NULL else term[["sd_binding"]]
+  if (is.null(binding) || !isTRUE(binding[["true_allocation"]]) ||
+      length(binding[["allocations"]]) != 1L) {
+    return(NULL)
+  }
+  allocation <- binding[["allocations"]][[1L]]
+  scale  <- allocation[["scale"]]
+  target <- allocation[["target"]]
+  if (!scale %in% c("total_variance", "mean_variance") ||
+      !target %in% c("block", "sd_component")) {
+    return(NULL)
+  }
+
+  component <- if (identical(target, "sd_component")) {
+    spec[["random_component"]]
+  } else {
+    index <- allocation[["index"]]
+    component_names <- allocation[["component_names"]]
+    if (is.numeric(index) && length(index) == 1L && !is.na(index) &&
+        is.character(component_names) && length(component_names) >= index &&
+        !is.na(component_names[[index]]) &&
+        nzchar(component_names[[index]])) {
+      component_names[[index]]
+    } else {
+      spec[["block"]]
+    }
+  }
+  if (!is.character(component) || length(component) != 1L ||
+      is.na(component) || !nzchar(component)) {
+    return(NULL)
+  }
+  quantity <- if (identical(scale, "total_variance")) {
+    "var_prop"
+  } else {
+    "var_mult"
+  }
+
+  paste0(quantity, "(", component, ") = 0")
+}
+
 
 .brma_random_parameter_prior_has_atom <- function(prior) {
 

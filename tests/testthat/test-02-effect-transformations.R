@@ -295,20 +295,20 @@ test_that("scale-regression plot coefficients can use EXP", {
   )
 })
 
-test_that("random-effect variance and SD ratios can use LOG", {
+test_that("random-effect variance and SD multipliers can use LOG", {
 
   data <- data.frame()
   attr(data, "measure") <- "GEN"
   object <- list(data = data)
   entry <- list(
     component         = "random",
-    term              = "var_ratio(study)",
+    term              = "var_mult(study)",
     formula_parameter = "",
     role              = "random_var",
-    quantity          = "var_ratio"
+    quantity          = "var_mult"
   )
 
-  for (quantity in c("var_ratio", "sd_ratio")) {
+  for (quantity in c("var_mult", "sd_mult")) {
     entry[["quantity"]] <- quantity
     info <- .plot_output_setup(
       object          = object,
@@ -332,7 +332,7 @@ test_that("random-effect variance and SD ratios can use LOG", {
       parameter_entry = entry,
       transform       = "LOG"
     ),
-    "random-effect variance or SD ratios",
+    "random-effect variance or SD multipliers",
     fixed = TRUE
   )
 })

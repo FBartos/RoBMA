@@ -184,7 +184,7 @@
     quantities <- catalog[["quantities"]]
     candidate_rows <- which(
       quantities[["formula_parameter"]] == "mu" &
-        quantities[["role"]] %in% c("random_sd", "random_sd_ratio")
+        quantities[["role"]] %in% c("random_sd", "random_sd_mult")
     )
     updates <- lapply(candidate_rows, function(index) {
       selection <- BayesTools::parameter_catalog_resolve(

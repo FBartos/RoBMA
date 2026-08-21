@@ -270,11 +270,11 @@ Leave an empty line after an opening brace in function definitions.
   of an owner only when resolution remains unique; non-intercept arguments stay
   explicit. Use `cor`, never backend `rho`; for example,
   `study: cor(group[sensitivity],group[specificity])`. A known group covariance
-  still has a fitted `sd`/`var` kernel scale, not an `sd_ratio`/`var_ratio`.
+  still has a fitted `sd`/`var` kernel scale, not an `sd_mult`/`var_mult`.
   Total-variance
   allocations expose `sd_total`, `var_total`, and `var_prop(...)`;
   mean-variance allocations expose `sd_common`, `var_common`,
-  `var_ratio(...)`, and `sd_ratio(...)`.
+  `var_mult(...)`, and `sd_mult(...)`.
 - A bare random formula or unnamed one-entry formula list suppresses a
   redundant top-level component prefix; an explicitly named one-entry list
   retains it. Lists with two or more entries generate missing names as

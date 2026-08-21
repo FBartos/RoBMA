@@ -67,9 +67,9 @@ testthat::test_that("BCG Simple Fits", {
 
   # compute via density methods
   set.seed(1)
-  BFs_IWMDE  <- sapply(mu0_seq, function(mu0) hypothesis(fit_simple, hypothesis = paste0("mu=",mu0), density_method = "IWMDE"))
-  BFs_qCMDE  <- sapply(mu0_seq, function(mu0) hypothesis(fit_simple, hypothesis = paste0("mu=",mu0), density_method = "qCMDE"))
-  BFs_normal <- sapply(mu0_seq, function(mu0) hypothesis(fit_simple, hypothesis = paste0("mu=",mu0), density_method = "normal"))
+  BFs_IWMDE  <- scenario_time("BFs_IWMDE" , sapply(mu0_seq, function(mu0) hypothesis(fit_simple, hypothesis = paste0("mu=",mu0), density_method = "IWMDE")))
+  BFs_qCMDE  <- scenario_time("BFs_qCMDE" , sapply(mu0_seq, function(mu0) hypothesis(fit_simple, hypothesis = paste0("mu=",mu0), density_method = "qCMDE")))
+  BFs_normal <- scenario_time("BFs_normal" , sapply(mu0_seq, function(mu0) hypothesis(fit_simple, hypothesis = paste0("mu=",mu0), density_method = "normal")))
 
   # compare
   scenario_plot("mu_BF_comparison", {
@@ -100,9 +100,9 @@ testthat::test_that("BCG Simple Fits", {
 
   # compute via density methods
   set.seed(1)
-  BFs_tau_IWMDE  <- sapply(tau0_seq, function(tau0) hypothesis(fit_simple, hypothesis = paste0("tau=",tau0), density_method = "IWMDE"))
-  BFs_tau_qCMDE  <- sapply(tau0_seq, function(tau0) hypothesis(fit_simple, hypothesis = paste0("tau=",tau0), density_method = "qCMDE"))
-  BFs_tau_normal <- sapply(tau0_seq, function(tau0) hypothesis(fit_simple, hypothesis = paste0("tau=",tau0), density_method = "normal"))
+  BFs_tau_IWMDE  <- scenario_time("BFs_tau_IWMDE",  sapply(tau0_seq, function(tau0) hypothesis(fit_simple, hypothesis = paste0("tau=",tau0), density_method = "IWMDE")))
+  BFs_tau_qCMDE  <- scenario_time("BFs_tau_qCMDE",  sapply(tau0_seq, function(tau0) hypothesis(fit_simple, hypothesis = paste0("tau=",tau0), density_method = "qCMDE")))
+  BFs_tau_normal <- scenario_time("BFs_tau_normal", sapply(tau0_seq, function(tau0) hypothesis(fit_simple, hypothesis = paste0("tau=",tau0), density_method = "normal")))
 
   # compare
   scenario_plot("tau_BF_comparison", {
@@ -200,8 +200,8 @@ testthat::test_that("BCG Simple Fits", {
     metafor_duplicated = ex(fit_simple_duplicated_metafor, simple_parameters)
   )})
 
-  fit_simple_influence                  <- suppressWarnings(influence(fit_simple))[["inf"]]
-  fit_simple_weighted_influence         <- suppressWarnings(influence(fit_simple_weighted))[["inf"]]
+  fit_simple_influence                  <- scenario_time("fit_simple_influence", suppressWarnings(influence(fit_simple))[["inf"]])
+  fit_simple_weighted_influence         <- scenario_time("fit_simple_weighted_influence", suppressWarnings(influence(fit_simple_weighted))[["inf"]])
   fit_simple_influence_metafor          <- metafor::influence.rma.uni(fit_simple_metafor)[["inf"]]
   fit_simple_weighted_influence_metafor <- metafor::influence.rma.uni(fit_simple_weighted_metafor)[["inf"]]
   scenario_text("fit_simple_weighted_dffits", {data.frame(
@@ -277,8 +277,8 @@ testthat::test_that("BCG Meta-Regression", {
     return(tmp)
   })
 
-  fit_reg1_emm  <- marginal_means(fit_reg1)
-  fit_reg1_emm0 <- marginal_means(fit_reg1, bf = TRUE)
+  fit_reg1_emm  <- scenario_time("fit_reg1_emm", marginal_means(fit_reg1))
+  fit_reg1_emm0 <- scenario_time("fit_reg1_emm0", marginal_means(fit_reg1, bf = TRUE))
 
   ### basic fit summary ----
   fit_reg1_metafor
@@ -507,22 +507,22 @@ testthat::test_that("BCG Meta-Regression", {
     row.names = NULL
   )})
 
-  fit_reg3_emm <- marginal_means(fit_reg3)
+  fit_reg3_emm <- scenario_time("fit_reg3_emm", marginal_means(fit_reg3))
   scenario_text("fit_reg3_marginal_means", {fit_reg3_emm})
 
   ### interaction hypothesis tests ----
   # Compare the interaction estimates across allocation groups.
   set.seed(1)
-  fit_reg3_hypotheses       <- hypothesis(fit_reg3, hypothesis = c("alloc:ablat[random] < 0", "alloc:ablat[random] = 0", "alloc:ablat[random] < alloc:ablat[systematic]"))
-  fit_reg3_hypotheses_IWMDE <- hypothesis(fit_reg3, hypothesis = c("alloc:ablat[random] < 0", "alloc:ablat[random] = 0", "alloc:ablat[random] < alloc:ablat[systematic]"), density_method = "IWMDE")
+  fit_reg3_hypotheses       <- scenario_time("fit_reg3_hypotheses" , hypothesis(fit_reg3, hypothesis = c("alloc:ablat[random] < 0", "alloc:ablat[random] = 0", "alloc:ablat[random] < alloc:ablat[systematic]")))
+  fit_reg3_hypotheses_IWMDE <- scenario_time("fit_reg3_hypotheses_IWMDE" , hypothesis(fit_reg3, hypothesis = c("alloc:ablat[random] < 0", "alloc:ablat[random] = 0", "alloc:ablat[random] < alloc:ablat[systematic]"), density_method = "IWMDE"))
   scenario_text("fit_reg3_interaction_hypotheses", cbind(
     fit_reg3_hypotheses,
     fit_reg3_hypotheses_IWMDE[,3:4]
   ))
 
   ### numerical diagnostic comparisons ----
-  fit_reg3_rstudent          <- suppressWarnings(rstudent(fit_reg3))
-  fit_reg3_dfbetas           <- suppressWarnings(dfbetas(fit_reg3))
+  fit_reg3_rstudent          <- scenario_time("fit_reg3_rstudent", suppressWarnings(rstudent(fit_reg3)))
+  fit_reg3_dfbetas           <- scenario_time("fit_reg3_dfbetas", suppressWarnings(dfbetas(fit_reg3)))
   fit_reg3_influence_metafor <- metafor::influence.rma.uni(fit_reg3_metafor)
   fit_reg3_dfbetas_metafor   <- metafor::dfbetas.rma.uni(fit_reg3_metafor)
 
@@ -543,7 +543,7 @@ testthat::test_that("BCG Meta-Regression", {
   # influence diagnostics use posterior/PSIS rather than classical deletion.
   # The sparse allocation-by-ablat groups also make classical deletion unstable,
   # whereas RoBMA's priors regularize the deleted interaction estimates.
-  fit_reg3_diagnostics_robma <- list(
+  fit_reg3_diagnostics_robma <- scenario_time("fit_reg3_diagnostics_robma", list(
     "Residuals"           = residuals(fit_reg3),
     "Rstandard (z)"       = rstandard(fit_reg3)[["z"]],
     "Rstudent (z)"        = fit_reg3_rstudent[["z"]],
@@ -552,7 +552,7 @@ testthat::test_that("BCG Meta-Regression", {
     "DFFITS"              = suppressWarnings(dffits(fit_reg3)),
     "Cook's distance"     = suppressWarnings(cooks.distance(fit_reg3)),
     "COVRATIO"            = suppressWarnings(covratio(fit_reg3))
-  )
+  ))
   fit_reg3_diagnostics_metafor <- list(
     "Residuals"           = metafor::residuals.rma(fit_reg3_metafor),
     "Rstandard (z)"       = metafor::rstandard.rma.uni(fit_reg3_metafor)[["z"]],

@@ -158,7 +158,7 @@ are \code{var_prop(...)}.
 \deqn{\sigma_j = \sigma_{\mathrm{common}}\sqrt{K w_j}, \qquad
         K^{-1}\sum_j \sigma_j^2 = \sigma_{\mathrm{common}}^2.}
 The public aggregate quantities are \code{sd_common} and \code{var_common};
-components are \code{var_ratio(...)} and \code{sd_ratio(...)}.
+components are \code{var_mult(...)} and \code{sd_mult(...)}.
 }
 
 Consequently, the base prior always controls a clearly defined total or

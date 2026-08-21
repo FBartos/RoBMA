@@ -8,7 +8,7 @@
 - ignores scenario calls measured below 0.5 seconds when assessing per-call and
   average timing regressions, while retaining those measurements in timing
   baselines and candidates.
-- allows random-effect variance and SD ratios to use `transform = "LOG"` in
+- allows random-effect variance and SD multipliers to use `transform = "LOG"` in
   posterior plots.
 - accelerates marginal known-covariance diagnostics and qCMDE/IWMDE density
   evaluation for metadata-declared affine random covariance parameters. A
@@ -41,10 +41,10 @@
   intercept therefore prints as `sd` or `study: sd`; non-intercept arguments,
   such as `study: sd(x)`, remain explicit. Owner-free shorthand is accepted
   only when it resolves uniquely. The vocabulary includes `cor`, `sd`, `var`,
-  `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`, `var_ratio`,
-  and `sd_ratio`; backend coordinates are no longer public aliases.
+  `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`, `var_mult`,
+  and `sd_mult`; backend coordinates are no longer public aliases.
   A bare formula or unnamed one-entry list omits its redundant owner prefix, so
-  names such as `cor(...)`, `sd_common`, and `var_ratio(...)` work directly in
+  names such as `cor(...)`, `sd_common`, and `var_mult(...)` work directly in
   summaries, plots, density estimation, and hypotheses. Explicitly named
   one-entry lists and models with multiple blocks retain block-qualified names.
   Lists with two or more unnamed random components use `component 1`,
@@ -64,14 +64,14 @@
   prior once instead of treating each fitted semantic random quantity as an
   independent stored prior. Basic summaries report only quantities aligned
   with prior specification, while `summary_heterogeneity()` retains aggregate
-  variances, allocation-derived component SDs and variances, variance ratios,
-  and SD ratios. All `brma.mv()` heterogeneity output uses `sd` / `var` for a
+  variances, allocation-derived component SDs and variances, variance multipliers,
+  and SD multipliers. All `brma.mv()` heterogeneity output uses `sd` / `var` for a
   single component, `sd_total` / `var_total` only for a genuine additive
   aggregate, and `sd_common` / `var_common` for mean-variance allocations;
   ordinary `brma()` and the maintained specialized `brma(..., cluster = ...)`
   interface retain their `tau` / `tau2`, `rho`, and level-specific `I2`
   vocabulary. A known group covariance reports its fitted kernel multiplier as
-  `sd` / `var`, not `sd_ratio` / `var_ratio`.
+  `sd` / `var`, not `sd_mult` / `var_mult`.
   Random-formula `type = "terms.scale"` predictions now group exact row-wise
   leaf SDs only for authoritative user-facing formula components, preserving
   random-slope designs and known covariance kernels while combining expanded
@@ -346,6 +346,12 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Testing and development
+- tests scenario fit timings only when the fitting block is evaluated; cache
+  hits no longer replay historical fit, LOO, or marginal-likelihood timings as
+  current performance measurements.
+- makes direct interactive scenario execution display artifact output and create
+  missing baselines without replacing existing text or plot baselines unless
+  output updating is explicitly enabled.
 - adds `scenario_time()` for tracking performance regressions in costly
   scenario computations that do not produce text or plot snapshots.
 - adds shared `ex_m()`, `ex_r()`, `ex_p()`, and `ex()` scenario extractors for
@@ -419,12 +425,27 @@
   increase by that rank when it exceeds one.
 
 ### Fixes
+- adds project-startup `test_scenarios()` and `test_tests()` helpers for
+  filtered runs, cache refitting, candidate generation, and snapshot review.
+  `.dev/user-tests.R` remains the clean standard-plus-certification shortcut,
+  while retaining skip counts without printing each expected skip reason.
+- makes interactive full-suite runs compare scenario-helper artifacts instead
+  of silently entering direct-update mode, and retains changed unit-test text
+  and table references as reviewable `.new.txt` candidates.
 - renders the interactive `scenario_plot()` preview after its canonical SVG so
   the completed figure remains visible in the RStudio graphics device.
+- keeps metadata-declared affine random-covariance qCMDE/IWMDE evaluation on
+  its exact spectral path when the structural zero-reference covariance is
+  singular by rebasing the same affine family at a nonsingular evaluated grid
+  point.
+- rejects point-null Bayes factors for allocation-derived component SDs at
+  zero as nonregular product boundaries and names the corresponding
+  `var_prop(...) = 0` or `var_mult(...) = 0` omission target.
 - completes random-allocation heterogeneity summaries with component variances
   and correlations in semantic order.
-- uses exact BayesTools prior algebra for allocation-derived component SD and
-  variance-ratio plot overlays, preserves the integrable zero-boundary density
+- uses exact BayesTools prior algebra for allocation-derived component SD, SD-
+  multiplier, and variance-multiplier plot overlays, including block-level total-
+  variance allocations; preserves the integrable zero-boundary density
   singularity for squared nonnegative scales, and rebuilds derived LKJ
   Cholesky factors from candidate primitive coordinates so qCMDE likelihoods
   vary with correlation.

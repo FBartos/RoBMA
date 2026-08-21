@@ -1,0 +1,13 @@
+type	name	elapsed	r_version	platform
+fit	fit_brma_ar	249.470000000	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_har	317.630000000	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_har0	267.790000000	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_ar	10.230000000	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_har	16.130000000	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_har0	14.790000000	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_ar	218.800000000	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_har	276.800000000	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_har0	233.530000000	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_ar	20.440000000	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_har	24.700000000	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_har0	19.470000000	4.6.0	Windows/x86_64-w64-mingw32

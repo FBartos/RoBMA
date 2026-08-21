@@ -52,9 +52,21 @@ run_subprofile <- function(name, clean = FALSE) {
 
 run_tests <- function(filter = NULL) {
 
+  reporter <- Sys.getenv("ROBMA_TEST_REPORTER", unset = "llm")
+  stop_on_failure <- Sys.getenv("ROBMA_TEST_STOP_ON_FAILURE", unset = "")
+  stop_on_failure <- if (!nzchar(stop_on_failure)) {
+    TRUE
+  } else {
+    is_true_env("ROBMA_TEST_STOP_ON_FAILURE")
+  }
   test_args <- list(
-    reporter        = "llm",
-    stop_on_failure = TRUE
+    reporter        = if (identical(reporter, "llm") &&
+                           is_true_env("ROBMA_TEST_QUIET_SKIPS")) {
+      quiet_llm_reporter()
+    } else {
+      reporter
+    },
+    stop_on_failure = stop_on_failure
   )
   if (!is.null(filter)) {
     test_args[["filter"]] <- filter

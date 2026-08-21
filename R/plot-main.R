@@ -42,7 +42,8 @@
 #' more sensitive to its fitted conditional weights. Matching is
 #' case-insensitive. For semantic random-effect quantities, qCMDE/IWMDE support
 #' direct scalar fitted sources, allocated component SDs backed by a scalar
-#' aggregate (`sd_total` or `sd_common`), and allocation proportions or ratios
+#' aggregate (`sd_total` or `sd_common`), and allocation proportions or
+#' multipliers
 #' backed by a fitted simplex coordinate. Other nonlinear derived quantities
 #' remain KDE-only.
 #' qCMDE/IWMDE are not available for non-known-\code{V}

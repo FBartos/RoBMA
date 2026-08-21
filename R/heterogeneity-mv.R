@@ -651,7 +651,7 @@
       }, logical(1))
       component_rows <- block_rows & (
         quantities[["quantity"]] == "cor" |
-          (quantities[["quantity"]] %in% c("sd", "var", "sd_ratio") &
+          (quantities[["quantity"]] %in% c("sd", "var", "sd_mult") &
             allocation_derived)
       )
     }
@@ -663,7 +663,7 @@
       selected[["quantity"]],
       c(
         "sd_total", "sd_common", "var_total", "var_common", "sd", "var",
-        "cor", "sd_ratio", "var_prop", "var_ratio", "inclusion"
+        "cor", "sd_mult", "var_prop", "var_mult", "inclusion"
       )
     )
     selected <- selected[order(order_group, na.last = TRUE), , drop = FALSE]
@@ -933,14 +933,14 @@
       )
     }
 
-    variance_ratio <- .brma_mv_allocation_variance_ratio(
+    variance_multiplier <- .brma_mv_allocation_variance_multiplier(
       weights   = weights,
       scale     = scale,
       n_targets = n_targets
     )
     columns <- which(leaf_index == i)
     if (length(columns) == 0L) {
-      sd_samples <- total_sd * sqrt(variance_ratio)
+      sd_samples <- total_sd * sqrt(variance_multiplier)
     } else {
       rows <- .brma_mv_sd_component_allocation_rows(
         allocation   = allocation,
@@ -950,7 +950,7 @@
         K            = ncol(total)
       )
       sd_samples <- sqrt(rowMeans(total[, rows, drop = FALSE]^2) *
-                           variance_ratio)
+                           variance_multiplier)
     }
 
     samples[[.brma_mv_allocation_parameter_name(
@@ -973,15 +973,15 @@
   for (i in seq_along(labels)) {
     column <- paste0(weight_name, "[", i, "]")
     weights <- posterior_samples[, column]
-    variance_ratio <- .brma_mv_allocation_variance_ratio(
+    variance_multiplier <- .brma_mv_allocation_variance_multiplier(
       weights   = weights,
       scale     = scale,
       n_targets = n_targets
     )
     samples[[.brma_mv_allocation_parameter_name(
       allocation_owner,
-      paste0("sd_ratio(", labels[[i]], ")")
-    )]] <- sqrt(variance_ratio)
+      paste0("sd_mult(", labels[[i]], ")")
+    )]] <- sqrt(variance_multiplier)
   }
 
   for (i in seq_along(labels)) {
@@ -989,8 +989,8 @@
     weights <- posterior_samples[, column]
     samples[[.brma_mv_allocation_parameter_name(
       allocation_owner,
-      paste0("var_ratio(", labels[[i]], ")")
-    )]] <- .brma_mv_allocation_variance_ratio(
+      paste0("var_mult(", labels[[i]], ")")
+    )]] <- .brma_mv_allocation_variance_multiplier(
       weights   = weights,
       scale     = scale,
       n_targets = n_targets
@@ -1084,7 +1084,7 @@
 }
 
 
-.brma_mv_allocation_variance_ratio <- function(weights, scale, n_targets) {
+.brma_mv_allocation_variance_multiplier <- function(weights, scale, n_targets) {
 
   if (identical(scale, "mean_variance")) {
     return(n_targets * weights)

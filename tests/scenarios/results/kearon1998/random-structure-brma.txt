@@ -6,8 +6,8 @@ sd_total(allocation)                                                            
 study: sd(intercept)                                   study           study               us  0.648 0.184  0.343  0.628 1.061
 study: sd(group[specificity])                          study           study               us  1.045 0.301  0.511  1.023 1.697
 study: cor(intercept,group[specificity])               study           study               us -0.625 0.267 -0.959 -0.688 0.033
-study: var_ratio(allocation: intercept)                study           study               us  0.591 0.265  0.197  0.549 1.220
-study: var_ratio(allocation: group[specificity])       study           study               us  1.409 0.265  0.780  1.451 1.803
+study: var_mult(allocation: intercept)                study           study               us  0.591 0.265  0.197  0.549 1.220
+study: var_mult(allocation: group[specificity])       study           study               us  1.409 0.265  0.780  1.451 1.803
 
 $DIAG
 Random
@@ -15,6 +15,6 @@ Random
 sd_total(allocation)                                                                          0.806 0.207 0.446 0.789 1.252
 study: sd(intercept)                                   study           study             diag 0.630 0.192 0.318 0.608 1.076
 study: sd(group[specificity])                          study           study             diag 0.928 0.298 0.417 0.904 1.581
-study: var_ratio(allocation: intercept)                study           study             diag 0.676 0.325 0.187 0.629 1.419
-study: var_ratio(allocation: group[specificity])       study           study             diag 1.324 0.325 0.581 1.371 1.813
+study: var_mult(allocation: intercept)                study           study             diag 0.676 0.325 0.187 0.629 1.419
+study: var_mult(allocation: group[specificity])       study           study             diag 1.324 0.325 0.581 1.371 1.813
 

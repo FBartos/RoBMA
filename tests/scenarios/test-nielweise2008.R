@@ -43,6 +43,9 @@ testthat::test_that("Niel-Weise Poisson incidence-rate models", {
   scenario_text("summary-models-fit_BMA", summary_models(fit_BMA))
   scenario_text("summary-heterogenity",   summary_heterogeneity(fit_brma))
 
+  scenario_text("priors_brma",  print_prior(fit_brma))
+  scenario_text("priors_BMA",   print_prior(fit_BMA))
+
   ### basic fit plots ----
   set.seed(1)
   scenario_plot("fit_posterior_mu", {
@@ -66,9 +69,9 @@ testthat::test_that("Niel-Weise Poisson incidence-rate models", {
   scenario_plot("fit_BMA_forest", metafor::forest(as_metafor_forest(fit_BMA)))
 
   ### hypothesis comparisons ----
-  BF_mu_1 <- hypothesis(fit_brma, "mu = 0")[["BF"]]
-  BF_mu_2 <- hypothesis(fit_brma, "mu = 0", density_method = "qCMDE")[["BF"]]
-  BF_mu_3 <- hypothesis(fit_BMA, "mu = 0", density_method = "qCMDE", conditional = TRUE)[["BF"]]
+  BF_mu_1 <- scenario_time("BF_mu_1", hypothesis(fit_brma, "mu = 0")[["BF"]])
+  BF_mu_2 <- scenario_time("BF_mu_2", hypothesis(fit_brma, "mu = 0", density_method = "qCMDE")[["BF"]])
+  BF_mu_3 <- scenario_time("BF_mu_3", hypothesis(fit_BMA, "mu = 0", density_method = "qCMDE", conditional = TRUE)[["BF"]])
   BF_mu   <- bf(fit_brma, fit_brma_null)[["bf"]]
 
   scenario_text("bf-effect", c("marglik" = BF_mu, "KDE" = BF_mu_1, "qCMDE" = BF_mu_2, "qCMDE (BMA)" = BF_mu_3))
@@ -86,7 +89,7 @@ testthat::test_that("Niel-Weise Poisson incidence-rate models", {
   }
 
   set.seed(1)
-  scenario_text("pooled-effect",  compare_preds(fit_metafor, fit_brma))
+  scenario_text("pooled-effect",       compare_preds(fit_metafor, fit_brma))
   scenario_text("pooled-effect-EXP",   pooled_effect(fit_brma, transform = "EXP"))
   scenario_text("pooled-heterogenity", pooled_heterogeneity(fit_brma))
 })

@@ -73,7 +73,7 @@ test_that("the random semantic interface exposes every public quantity", {
     .brma_random_parameter_supported_quantities(),
     c(
       "sd", "var", "sd_total", "var_total", "sd_common", "var_common",
-      "cor", "var_prop", "var_ratio", "sd_ratio"
+      "cor", "var_prop", "var_mult", "sd_mult"
     )
   )
 })
@@ -217,20 +217,20 @@ test_that("random-parameter metadata preserves semantic support", {
 
   expect_equal(
     .brma_random_parameter_support(
-      list(quantity = "sd_ratio"),
+      list(quantity = "sd_mult"),
       allocation = list(scale = "mean_variance", n_targets = 4L)
     ),
     c(0, 2)
   )
   expect_equal(
     .brma_random_parameter_support(
-      list(quantity = "sd_ratio"),
+      list(quantity = "sd_mult"),
       allocation = list(scale = "total_variance", n_targets = 4L)
     ),
     c(0, 1)
   )
   expect_equal(
-    .brma_random_parameter_support(list(quantity = "sd_ratio")),
+    .brma_random_parameter_support(list(quantity = "sd_mult")),
     c(0, Inf)
   )
 })
@@ -422,8 +422,8 @@ test_that("random qCMDE targets support general simplex allocations", {
     parameters = list(alpha = c(1, 2, 3))
   )
   summary_prior <- make_random_metadata_prior(
-    "var_ratio",
-    "allocation: var_ratio(study)",
+    "var_mult",
+    "allocation: var_mult(study)",
     allocation = "allocation",
     component  = "study"
   )
@@ -439,13 +439,13 @@ test_that("random qCMDE targets support general simplex allocations", {
   )
   selected <- list(
     spec = list(
-      quantity          = "var_ratio",
+      quantity          = "var_mult",
       evaluator         = "allocation",
       source_type       = "one_to_one_transform",
       source_parameter = "allocation",
-      source_transform = "var_ratio",
+      source_transform = "var_mult",
       display_transform = list(type = "affine", offset = 0, scale = 3),
-      label             = "allocation: var_ratio(study)",
+      label             = "allocation: var_mult(study)",
       allocation_index  = 2L
     ),
     samples      = matrix(NA_real_, nrow = nrow(weights), ncol = 1L),
@@ -464,7 +464,7 @@ test_that("random qCMDE targets support general simplex allocations", {
 
   target <- .brma_random_parameter_density_target(
     list(fit = fit),
-    "allocation: var_ratio(study)"
+    "allocation: var_mult(study)"
   )
   expect_identical(target[["parameter"]], "allocation[2]")
   expect_identical(target[["parameter_spec"]][["type"]], "simplex_pair")

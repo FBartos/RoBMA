@@ -3,5 +3,5 @@ Effect inclusion: weak evidence against the effect (BF01 = 1.571).
 Heterogeneity inclusion: evidence for heterogeneity unavailable (BFrf = NA).
 Publication Bias inclusion: moderate evidence in favor of publication bias (BFpb = 3.808).
 Pooled effect: model-averaged mean standardized mean difference = 0.094, 95% CrI [0.000, 0.300].
-Pooled heterogeneity: model-averaged mean tau = 0.356, 95% CrI [0.254, 0.483].
+Pooled heterogeneity: model-averaged mean tau = 0.328, 95% CrI [0.227, 0.447].
 Cluster correlation: model-averaged mean rho = 0.726, 95% CrI [0.271, 0.959].

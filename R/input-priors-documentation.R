@@ -335,7 +335,7 @@ NULL
 #'   \deqn{\sigma_j = \sigma_{\mathrm{common}}\sqrt{K w_j}, \qquad
 #'         K^{-1}\sum_j \sigma_j^2 = \sigma_{\mathrm{common}}^2.}
 #'   The public aggregate quantities are `sd_common` and `var_common`;
-#'   components are `var_ratio(...)` and `sd_ratio(...)`.
+#'   components are `var_mult(...)` and `sd_mult(...)`.
 #' }
 #'
 #' Consequently, the base prior always controls a clearly defined total or

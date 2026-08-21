@@ -533,7 +533,7 @@ test_that("v14 brma.mv influence diagnostics return finite estimate-unit output"
     expect_true(all(is.finite(inf_mat[, setdiff(colnames(inf_mat), "cov.r"), drop = FALSE])),
                 info = name)
     expect_true(all(is.finite(dfbs_mat)), info = name)
-    expect_false(any(grepl("cor\\(|var_prop|var_ratio|: sd\\(", colnames(dfbs_mat))),
+    expect_false(any(grepl("cor\\(|var_prop|var_mult|: sd\\(", colnames(dfbs_mat))),
                  info = name)
     expect_true(all(is.finite(dff)), info = name)
     expect_true(all(is.finite(cook)), info = name)

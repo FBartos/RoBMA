@@ -1,0 +1,5 @@
+
+Pooled Heterogeneity (study)
+           Mean Median 0.025 0.975
+sd_common 0.722  0.701 0.421 1.136
+

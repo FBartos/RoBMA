@@ -166,7 +166,6 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
     lines(fit_brma_mv, "sd", lty = 2, col = "blue", density_method = "qCMDE")
 
     lines(fit_brma_mv_quality, "sd", col = "green")
-    # TODO: this takes very long now!
     lines(fit_brma_mv_quality, "sd", lty = 2, col = "green", density_method = "qCMDE")
 
     lines(fit_brma_mv_rcor, "sd", col = "red")

@@ -62,6 +62,13 @@ estimate across moderator levels proportionately to the levels observed
 in the data. This provides an estimate representative of the sample of
 studies.
 
+For \code{brma.mv()} models and models with factor-specific or random-slope
+terms, the average expanded design can be synthetic and need not correspond
+to a single realizable outcome or study. The pooled effect and its prediction
+interval then describe that linear composite and should be interpreted only
+when the composite has a meaningful scientific interpretation. Use
+\code{predict(..., newdata = ...)} for a specified realizable design.
+
 For models without moderators, this returns the single mu parameter. The
 prediction interval is marginal over one new true effect at the same average
 location, scale, and random-effect design. It therefore uses

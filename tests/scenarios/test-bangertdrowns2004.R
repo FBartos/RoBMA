@@ -95,14 +95,14 @@ testthat::test_that("Bangertdrowns location-scale models", {
   )})
 
   ### numerical diagnostic comparisons ----
-  fit_l_rstudent          <- suppressWarnings(rstudent(fit_l))
-  fit_l_dfbetas           <- suppressWarnings(dfbetas(fit_l))
+  fit_l_rstudent          <- scenario_time("fit_l_rstudent" , suppressWarnings(rstudent(fit_l)))
+  fit_l_dfbetas           <- scenario_time("fit_l_dfbetas" , suppressWarnings(dfbetas(fit_l)))
   fit_l_influence_metafor <- metafor::influence.rma.uni(metafor_l)
   fit_l_dfbetas_metafor   <- metafor::dfbetas.rma.uni(metafor_l)
 
   # This denser single-moderator model provides a less regularization-sensitive
   # comparison than the sparse allocation-by-ablat interaction in the BCG data.
-  fit_l_diagnostics_robma <- list(
+  fit_l_diagnostics_robma <- scenario_time("fit_l_diagnostics_robma", list(
     "Residuals"           = residuals(fit_l),
     "Rstandard (z)"       = rstandard(fit_l)[["z"]],
     "Rstudent (z)"        = fit_l_rstudent[["z"]],
@@ -111,7 +111,7 @@ testthat::test_that("Bangertdrowns location-scale models", {
     "DFFITS"              = suppressWarnings(dffits(fit_l)),
     "Cook's distance"     = suppressWarnings(cooks.distance(fit_l)),
     "COVRATIO"            = suppressWarnings(covratio(fit_l))
-  )
+  ))
   fit_l_diagnostics_metafor <- list(
     "Residuals"           = metafor::residuals.rma(metafor_l),
     "Rstandard (z)"       = metafor::rstandard.rma.uni(metafor_l)[["z"]],
@@ -247,13 +247,14 @@ testthat::test_that("Bangertdrowns location-scale models", {
   )})
 
   ### prediction comparisons ----
-  brma_terms       <- data.frame(predict(fit_ls, type = "terms"))[["Mean"]]
-  brma_estimate    <- data.frame(predict(fit_ls, type = "estimate", conditioning_depth = "estimate"))[["Mean"]]
-  brma_ranef       <- colMeans(ranef(fit_ls))
-  metafor_terms    <- predict(metafor_ls)[["pred"]]
-  metafor_estimate <- metafor::blup(metafor_ls)[["pred"]]
-  metafor_ranef    <- metafor::ranef(metafor_ls)[["pred"]]
   scenario_plot("fit_ls_prediction_agreement", {
+    brma_terms       <- data.frame(predict(fit_ls, type = "terms"))[["Mean"]]
+    brma_estimate    <- data.frame(predict(fit_ls, type = "estimate", conditioning_depth = "estimate"))[["Mean"]]
+    brma_ranef       <- colMeans(ranef(fit_ls))
+    metafor_terms    <- predict(metafor_ls)[["pred"]]
+    metafor_estimate <- metafor::blup(metafor_ls)[["pred"]]
+    metafor_ranef    <- metafor::ranef(metafor_ls)[["pred"]]
+
     par(mfrow = c(1, 3))
     scenario_agreement_plot(metafor_terms, brma_terms, "Location")
     scenario_agreement_plot(metafor_estimate, brma_estimate, "BLUP")

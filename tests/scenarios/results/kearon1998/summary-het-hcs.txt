@@ -8,8 +8,8 @@ sd(group[specificity])         0.728  0.698  0.284 1.328
 var(group[sensitivity])        0.517  0.450  0.139 1.304
 var(group[specificity])        0.600  0.488  0.080 1.763
 cor                           -0.321 -0.364 -0.911 0.490
-sd_ratio(group[sensitivity])   0.970  0.982  0.568 1.308
-sd_ratio(group[specificity])   0.991  1.017  0.539 1.295
-var_ratio(group[sensitivity])  0.979  0.965  0.323 1.710
-var_ratio(group[specificity])  1.021  1.035  0.290 1.677
+sd_mult(group[sensitivity])   0.970  0.982  0.568 1.308
+sd_mult(group[specificity])   0.991  1.017  0.539 1.295
+var_mult(group[sensitivity])  0.979  0.965  0.323 1.710
+var_mult(group[specificity])  1.021  1.035  0.290 1.677
 

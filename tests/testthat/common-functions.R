@@ -1,10 +1,3 @@
-# ============================================================================ #
-# CONFIGURATION: Set to TRUE to regenerate reference files, FALSE to run tests
-# ============================================================================ #
-if (!exists("GENERATE_REFERENCE_FILES")) {
-  GENERATE_REFERENCE_FILES <- FALSE
-}
-
 FIT_CACHE_SCHEMA_VERSION <- 7L
 FIT_CACHE_METADATA_FIELDS <- c(
   "schema_version",
@@ -47,6 +40,30 @@ test_profile <- function() {
 is_certification_profile <- function() {
 
   return(identical(test_profile(), "certification"))
+}
+
+.quiet_llm_reporter_class <- R6::R6Class(
+  classname = "RoBMAQuietLlmReporter",
+  inherit   = testthat::LlmReporter,
+  public    = list(
+    add_result = function(context, test, result) {
+
+      if (self$is_full()) {
+        return(invisible())
+      }
+      if (inherits(result, "expectation_skip")) {
+        self$n_skip <- self$n_skip + 1L
+        return(invisible())
+      }
+
+      super$add_result(context, test, result)
+    }
+  )
+)
+
+quiet_llm_reporter <- function(...) {
+
+  return(.quiet_llm_reporter_class$new(...))
 }
 
 test_glmm_fit_settings <- function() {
@@ -120,50 +137,81 @@ if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, 
 # HELPER FUNCTIONS: Reference File Testing
 # ============================================================================ #
 
-# Process reference file: save if GENERATE_REFERENCE_FILES=TRUE, test otherwise
+.reference_candidate_path <- function(path) {
+
+  if (grepl("[.]txt$", path)) {
+    return(sub("[.]txt$", ".new.txt", path))
+  }
+
+  return(paste0(path, ".new.txt"))
+}
+
+
+.write_reference_candidate <- function(lines, path) {
+
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  connection <- file(path, open = "wb")
+  on.exit(close(connection), add = TRUE)
+  writeLines(lines, connection, useBytes = TRUE)
+
+  return(invisible(path))
+}
+
+
+.test_reference_lines <- function(actual_output, filename, info_msg,
+                                  print_dir) {
+
+  ref_file      <- file.path(print_dir, filename)
+  candidate     <- .reference_candidate_path(ref_file)
+  candidate_msg <- paste0(
+    "Reference candidate cached at ", candidate,
+    ". Review it with 'review_test_snapshots()'."
+  )
+
+  if (!file.exists(ref_file)) {
+    skip(paste("Reference file", filename, "not found."))
+    return(invisible(actual_output))
+  }
+
+  expected_output <- readLines(ref_file, warn = FALSE, encoding = "UTF-8")
+  if (identical(actual_output, expected_output)) {
+    unlink(candidate)
+  } else {
+    .write_reference_candidate(actual_output, candidate)
+  }
+
+  expect_equal(
+    actual_output,
+    expected_output,
+    info = paste(c(info_msg, candidate_msg), collapse = "\n")
+  )
+  return(invisible(actual_output))
+}
+
+
 test_reference_table <- function(table, filename, info_msg = NULL,
                                  print_dir = REFERENCE_DIR) {
-  if (GENERATE_REFERENCE_FILES) {
-    # Save mode
-    if (!dir.exists(print_dir)) {
-      dir.create(print_dir, recursive = TRUE)
-    }
-    writeLines(
-      capture_output_lines(table, print = TRUE, width = 150),
-      file.path(print_dir, filename)
-    )
-  } else {
-    # Test mode
-    ref_file <- file.path(print_dir, filename)
-    if (file.exists(ref_file)) {
-      expected_output <- readLines(ref_file, warn = FALSE)
-      actual_output <- capture_output_lines(table, print = TRUE, width = 150)
-      expect_equal(actual_output, expected_output, info = info_msg)
-    } else {
-      skip(paste("Reference file", filename, "not found."))
-    }
-  }
+
+  actual_output <- capture_output_lines(table, print = TRUE, width = 150)
+  return(.test_reference_lines(
+    actual_output = actual_output,
+    filename      = filename,
+    info_msg      = info_msg,
+    print_dir     = print_dir
+  ))
 }
+
 
 test_reference_text <- function(text, filename, info_msg = NULL,
                                 print_dir = REFERENCE_DIR) {
-  if (GENERATE_REFERENCE_FILES) {
-    # Save mode
-    if (!dir.exists(print_dir)) {
-      dir.create(print_dir, recursive = TRUE)
-    }
-    writeLines(text, file.path(print_dir, filename))
-  } else {
-    # Test mode
-    ref_file <- file.path(print_dir, filename)
-    if (file.exists(ref_file)) {
-      expected_output <- readLines(ref_file, warn = FALSE)
-      expected_output <- paste0(expected_output, collapse = "\n")
-      expect_equal(text, expected_output, info = info_msg)
-    } else {
-      skip(paste("Reference file", filename, "not found."))
-    }
-  }
+
+  actual_output <- strsplit(text, "\n", fixed = TRUE)[[1L]]
+  return(.test_reference_lines(
+    actual_output = actual_output,
+    filename      = filename,
+    info_msg      = info_msg,
+    print_dir     = print_dir
+  ))
 }
 
 vdiffr_snapshots_available <- function() {

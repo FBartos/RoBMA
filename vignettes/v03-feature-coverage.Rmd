@@ -441,7 +441,7 @@ rows <- list(
   feature_row("Residuals / Diagnostics", "Cook's distances (`cooks.distance()`)", "YNNYYNNY"),
   feature_row("Residuals / Diagnostics", "DFBETAS (`dfbetas()`)", "YYYYYYYY"),
   feature_row("Residuals / Diagnostics", "DFFITS (`dffits()`)", "YNNYYNNY"),
-  feature_row("Residuals / Diagnostics", "Covariance ratios (`covratio()`)", "YYYYYYYL"),
+  feature_row("Residuals / Diagnostics", "Covariance multipliers (`covratio()`)", "YYYYYYYL"),
   feature_row("Residuals / Diagnostics", "Hat values (`hatvalues()`)", "YNNYYNNY"),
   feature_row("Residuals / Diagnostics", "Combined influence summary (`influence()`)", "YNLYYNLL"),
   feature_row("Residuals / Diagnostics", "LOO / WAIC diagnostics (`check_loo()`, `loo::pareto_k_ids()`, `loo::pareto_k_table()`)", "YLYYYLYL"),

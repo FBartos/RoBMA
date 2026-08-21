@@ -399,7 +399,7 @@ print_prior(mv_random_heterogeneous, parameter = "random")
 The prior display now uses `sigma_common` and shows `scale: mean_variance`.
 For a heterogeneous block with $q$ standard-deviation components and allocation weight $w_j$, the $j$th component standard deviation is `sigma_common * sqrt(q * w[j])`.
 Equal weights make each component SD equal to the common scale, while unequal weights move variance among the components without changing the average component variance.
-After fitting, the allocation is exposed as `sd_common`, `var_common`, `var_ratio(outcome[level])`, and `sd_ratio(outcome[level])`.
+After fitting, the allocation is exposed as `sd_common`, `var_common`, `var_mult(outcome[level])`, and `sd_mult(outcome[level])`.
 The block also receives a uniform prior on the complete valid raw-correlation interval, `(-1 / (K - 1), 1)`, where `K` is the number of outcome levels.
 This includes all negative correlations allowed by the HCS covariance matrix; it does not impose a hidden positive-correlation restriction.
 

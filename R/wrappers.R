@@ -301,6 +301,13 @@ pooled_effect <- function(object, ...) {
 #' in the data. This provides an estimate representative of the sample of
 #' studies.
 #'
+#' For \code{brma.mv()} models and models with factor-specific or random-slope
+#' terms, the average expanded design can be synthetic and need not correspond
+#' to a single realizable outcome or study. The pooled effect and its prediction
+#' interval then describe that linear composite and should be interpreted only
+#' when the composite has a meaningful scientific interpretation. Use
+#' \code{predict(..., newdata = ...)} for a specified realizable design.
+#'
 #' For models without moderators, this returns the single mu parameter. The
 #' prediction interval is marginal over one new true effect at the same average
 #' location, scale, and random-effect design. It therefore uses
@@ -490,6 +497,15 @@ pooled_heterogeneity <- function(object, ...) {
 #' every row's marginal standard deviation when \eqn{\mathrm{diag}(R)} is not
 #' one. Row-specific marginal standard deviations are available from
 #' \code{predict(type = "terms.scale")}.
+#'
+#' For \code{brma.mv()} models and models with factor-specific or random-slope
+#' terms, the average expanded random-effect design can be synthetic and need
+#' not correspond to a single realizable outcome or study. The result is the
+#' heterogeneity of that linear composite, not typical heterogeneity across the
+#' observed designs. Interpret it only when the composite has a meaningful
+#' scientific interpretation; use \code{summary_heterogeneity()} for
+#' observed-design heterogeneity or \code{predict(..., newdata = ...)} for a
+#' specified realizable design.
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
 #' displays a summary table. For decomposed \code{brma.mv()} models, a named

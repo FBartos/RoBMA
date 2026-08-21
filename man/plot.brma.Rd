@@ -105,7 +105,8 @@ additional normalization cost is acceptable; IWMDE can be faster but is
 more sensitive to its fitted conditional weights. Matching is
 case-insensitive. For semantic random-effect quantities, qCMDE/IWMDE support
 direct scalar fitted sources, allocated component SDs backed by a scalar
-aggregate (\code{sd_total} or \code{sd_common}), and allocation proportions or ratios
+aggregate (\code{sd_total} or \code{sd_common}), and allocation proportions or
+multipliers
 backed by a fitted simplex coordinate. Other nonlinear derived quantities
 remain KDE-only.
 qCMDE/IWMDE are not available for non-known-\code{V}

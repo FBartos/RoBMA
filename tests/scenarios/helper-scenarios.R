@@ -93,9 +93,9 @@ if (!exists(".scenario_state", inherits = TRUE)) {
 }
 
 
-# Start one scenario. Direct interactive execution shows and updates output;
-# test_scenario(), tools/test-scenario.R, and non-interactive execution compare
-# quietly unless their explicit controls request otherwise.
+# Start one scenario. Direct interactive execution shows output; all execution
+# modes compare without replacement unless their explicit controls request an
+# update.
 scenario_start <- function(name, regenerate = NULL, refit = NULL, update = NULL,
                            update_timings = NULL, show_output = NULL,
                            root = .scenario_helpers_dir,
@@ -123,7 +123,7 @@ scenario_start <- function(name, regenerate = NULL, refit = NULL, update = NULL,
 
   env_update <- .scenario_is_true(Sys.getenv("ROBMA_SCENARIO_UPDATE"))
   if (is.null(update)) {
-    update <- direct_interactive
+    update <- FALSE
   }
   update <- .scenario_validate_flag(update, "update")
   update <- update || env_update || regenerate
@@ -176,6 +176,7 @@ scenario_start <- function(name, regenerate = NULL, refit = NULL, update = NULL,
     envir = .scenario_state
   )
   assign("timings", .scenario_empty_timings(), envir = .scenario_state)
+  assign("cached_fit_names", character(), envir = .scenario_state)
   assign(
     "timing_unavailable",
     .scenario_empty_timing_unavailable(),
@@ -251,54 +252,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
         )
       }
     )
-    fit_timing <- if (file.exists(paths[["timing"]])) {
-      tryCatch(
-        suppressWarnings(readRDS(paths[["timing"]])),
-        error = function(error) NULL
-      )
-    } else {
-      NULL
-    }
-    cached_phases <- if (is.list(fit_timing)) {
-      fit_timing[["phases"]]
-    } else {
-      NULL
-    }
-    valid_phases <- is.numeric(cached_phases) &&
-      !is.null(names(cached_phases)) &&
-      !anyNA(names(cached_phases)) &&
-      !any(!nzchar(names(cached_phases))) &&
-      !anyDuplicated(names(cached_phases)) &&
-      all(names(cached_phases) %in% c("model", "loo", "marglik")) &&
-      all(is.finite(cached_phases)) &&
-      all(cached_phases >= 0) &&
-      (length(cached_phases) == 0L ||
-       identical(names(cached_phases)[[1L]], "model"))
-    valid_timing <- is.list(fit_timing) &&
-      identical(fit_timing[["version"]], 2L) &&
-      identical(fit_timing[["fit_call"]], fit_call) &&
-      is.numeric(fit_timing[["elapsed"]]) &&
-      length(fit_timing[["elapsed"]]) == 1L &&
-      is.finite(fit_timing[["elapsed"]]) &&
-      fit_timing[["elapsed"]] >= 0 &&
-      valid_phases
-    if (valid_timing) {
-      .scenario_register_fit_timings(
-        name       = name,
-        elapsed    = fit_timing[["elapsed"]],
-        phases     = fit_timing[["phases"]],
-        provenance = fit_timing[["provenance"]]
-      )
-    } else {
-      .scenario_mark_timing_unavailable(
-        "fit", name,
-        paste(
-          "the cached fit predates valid timing metadata with post-fit phases;",
-          "rerun with",
-          "'refit = TRUE'"
-        )
-      )
-    }
+    .scenario_mark_cached_fit(name)
     return(fit)
   }
   if (file.exists(paths[["fit"]]) && !config[["refit"]]) {
@@ -424,6 +378,11 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 .scenario_register_fit_timings <- function(name, elapsed, phases,
                                             provenance) {
 
+  assign(
+    "cached_fit_names",
+    setdiff(.scenario_cached_fit_names(), name),
+    envir = .scenario_state
+  )
   .scenario_register_timing("fit", name, elapsed, provenance)
   phase_types <- c(
     model   = "fit_model",
@@ -596,6 +555,40 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 }
 
 
+.scenario_cached_fit_names <- function() {
+
+  if (!exists("cached_fit_names", envir = .scenario_state, inherits = FALSE)) {
+    return(character())
+  }
+
+  return(get("cached_fit_names", envir = .scenario_state, inherits = FALSE))
+}
+
+
+.scenario_mark_cached_fit <- function(name) {
+
+  name <- .scenario_validate_name(name, "fit")
+  assign(
+    "cached_fit_names",
+    unique(c(.scenario_cached_fit_names(), name)),
+    envir = .scenario_state
+  )
+
+  return(invisible(name))
+}
+
+
+.scenario_expected_timing_keys <- function(baseline) {
+
+  cached <- baseline[["name"]] %in% .scenario_cached_fit_names() &
+    baseline[["type"]] %in% c(
+      "fit", "fit_model", "fit_loo", "fit_marglik"
+    )
+
+  return(.scenario_timing_key(baseline[!cached, , drop = FALSE]))
+}
+
+
 .scenario_timing_issues <- function(final = TRUE) {
 
   current     <- .scenario_current_timings()
@@ -603,33 +596,47 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   unavailable <- get(
     "timing_unavailable", envir = .scenario_state, inherits = FALSE
   )
-  issues <- data.frame(id = character(), text = character(), stringsAsFactors = FALSE)
-  add_issue <- function(id, text) {
+  issues <- data.frame(
+    id               = character(),
+    text             = character(),
+    large_change     = logical(),
+    stringsAsFactors = FALSE
+  )
+  add_issue <- function(id, text, large_change = FALSE) {
 
     issues <<- rbind(
       issues,
-      data.frame(id = id, text = text, stringsAsFactors = FALSE)
+      data.frame(
+        id               = id,
+        text             = text,
+        large_change     = large_change,
+        stringsAsFactors = FALSE
+      )
     )
   }
 
   baseline_key <- .scenario_timing_key(baseline)
+  expected_key <- .scenario_expected_timing_keys(baseline)
   current_key  <- .scenario_timing_key(current)
   matched      <- match(current_key, baseline_key)
-  assessable   <- current[["elapsed"]] >= 0.5
+  assessable   <- current[["elapsed"]] >= 0.75
   comparable   <- !is.na(matched) & assessable
   regressed <- comparable &
     current[["elapsed"]] > 1.20 * baseline[["elapsed"]][matched]
   for (i in which(regressed)) {
     old <- baseline[["elapsed"]][matched[[i]]]
     new <- current[["elapsed"]][[i]]
-    increase <- if (old == 0) Inf else 100 * (new / old - 1)
+    absolute_change <- new - old
+    percentage_change <- if (old == 0) Inf else 100 * (new / old - 1)
     add_issue(
       paste0("call:", current_key[[i]]),
       paste0(
-        current_key[[i]], ": ", sprintf("%.3f", new), " s vs ",
-        sprintf("%.3f", old), " s (+", sprintf("%.1f", increase),
-        "%; threshold 20%)"
-      )
+        "+", sprintf("%.1f", absolute_change), " s (+",
+        sprintf("%.0f", percentage_change), "%; ",
+        sprintf("%.1f", old), " s -> ", sprintf("%.1f", new), " s) ",
+        current_key[[i]]
+      ),
+      large_change = absolute_change > 2
     )
   }
 
@@ -647,7 +654,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 
   observed_key <- c(current_key, .scenario_timing_key(unavailable))
   if (final && nrow(baseline) > 0L) {
-    missing <- setdiff(baseline_key, observed_key)
+    missing <- setdiff(expected_key, observed_key)
     if (length(missing) > 0L) {
       add_issue(
         "structure",
@@ -656,8 +663,8 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     }
   }
 
-  same_entries <- nrow(baseline) > 0L && nrow(unavailable) == 0L &&
-    setequal(current_key, baseline_key)
+  same_entries <- length(expected_key) > 0L && nrow(unavailable) == 0L &&
+    setequal(current_key, expected_key)
   if (final && same_entries) {
     split_fit_names <- current[["name"]][current[["type"]] == "fit_model"]
     average_rows <- assessable & !(current[["type"]] == "fit" &
@@ -678,7 +685,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
         add_issue(
           "average",
           paste0(
-            "average timing regression: ", sprintf("%.1f", average_change),
+            "average timing regression: ", sprintf("%.0f", average_change),
             "% (unweighted mean across ", length(percentage_change),
             " calls; threshold 5%)"
           )
@@ -695,6 +702,15 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 }
 
 
+.scenario_red <- function(text) {
+
+  if (!requireNamespace("cli", quietly = TRUE)) {
+    return(text)
+  }
+  return(cli::col_red(text))
+}
+
+
 .scenario_warn_timing_issues <- function(issues) {
 
   if (nrow(issues) == 0L) {
@@ -708,9 +724,13 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   assign(
     "timing_warned", c(warned, issues[["id"]]), envir = .scenario_state
   )
+  text <- issues[["text"]]
+  text[issues[["large_change"]]] <- .scenario_red(
+    text[issues[["large_change"]]]
+  )
   warning(
     "Scenario timing warnings for '", .scenario_config()[["name"]],
-    "':\n- ", paste(issues[["text"]], collapse = "\n- "),
+    "':\n- ", paste(text, collapse = "\n- "),
     call. = FALSE
   )
 
@@ -745,12 +765,13 @@ scenario_fit <- function(name, code, cache_version = NULL) {
                                               final = FALSE) {
 
   baseline_key <- .scenario_timing_key(baseline)
+  expected_key <- .scenario_expected_timing_keys(baseline)
   current_key  <- .scenario_timing_key(current)
   matched      <- match(current_key, baseline_key)
   slower <- !is.na(matched) &
     current[["elapsed"]] > baseline[["elapsed"]][matched]
   missing <- final && length(setdiff(
-    baseline_key,
+    expected_key,
     c(current_key, .scenario_timing_key(unavailable))
   )) > 0L
 
@@ -807,8 +828,9 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     baseline <- get(
       "timing_baseline", envir = .scenario_state, inherits = FALSE
     )
-    complete <- nrow(baseline) > 0L &&
-      setequal(.scenario_timing_key(current), .scenario_timing_key(baseline))
+    expected_key <- .scenario_expected_timing_keys(baseline)
+    complete <- length(expected_key) > 0L &&
+      setequal(.scenario_timing_key(current), expected_key)
     .scenario_warn_timing_issues(.scenario_timing_issues(final = complete))
     paths <- .scenario_timing_paths()
     updated <- .scenario_merge_timings(
@@ -889,7 +911,9 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   )
   if (allow_update && nrow(current) > 0L) {
     existed <- file.exists(paths[["expected"]])
-    replace_all <- config[["update_timings"]] && nrow(unavailable) == 0L
+    replace_all <- config[["update_timings"]] &&
+      nrow(unavailable) == 0L &&
+      length(.scenario_cached_fit_names()) == 0L
     updated <- if (replace_all) {
       current
     } else {
@@ -1081,16 +1105,17 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 
 
 .scenario_review_snapshots <- function(root, scenarios,
-                                       types = c("table", "figure")) {
+                                       types = c("table", "figure"),
+                                       subject = "Scenario") {
 
   changes <- .scenario_snapshot_candidates(root, scenarios, types)
   if (nrow(changes) == 0L) {
-    message("No cached scenario snapshots to review.")
+    message("No cached ", tolower(subject), " snapshots to review.")
     return(invisible(changes))
   }
 
   message(
-    "Scenario snapshot mismatches:\n- ",
+    subject, " snapshot mismatches:\n- ",
     paste0(
       "[", changes[["type"]], "] ", changes[["name"]],
       collapse = "\n- "
@@ -1150,7 +1175,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
       unlink(changes[["candidate"]][[i]])
     } else {
       stop(
-        "Reviewed scenario snapshot has an unexpected value: ",
+        "Reviewed ", tolower(subject), " snapshot has an unexpected value: ",
         changes[["name"]][[i]], ".",
         call. = FALSE
       )
@@ -1158,7 +1183,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   }
 
   message(
-    "Scenario snapshot review complete: ",
+    subject, " snapshot review complete: ",
     paste0(
       changes[["name"]], " [", changes[["type"]], ":",
       changes[["status"]], "]", collapse = ", "
@@ -1199,7 +1224,42 @@ review_scenario_snapshots <- function(filter = NULL, root = NULL) {
 }
 
 
+review_test_references <- function(filter = NULL,
+                                   root = dirname(.scenario_helpers_dir)) {
+
+  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  results_dir <- file.path(root, "results")
+  if (!dir.exists(results_dir)) {
+    groups <- character()
+  } else {
+    candidates <- list.files(
+      results_dir,
+      pattern    = "[.]new[.]txt$",
+      recursive  = TRUE,
+      full.names = FALSE
+    )
+    groups <- if (length(candidates) == 0L) {
+      character()
+    } else {
+      unique(dirname(candidates))
+    }
+    groups <- groups[!grepl("/", groups, fixed = TRUE)]
+  }
+  if (!is.null(filter)) {
+    groups <- groups[grepl(filter, groups)]
+  }
+
+  return(.scenario_review_snapshots(
+    root      = root,
+    scenarios = sort(groups),
+    types     = "table",
+    subject   = "Test reference"
+  ))
+}
+
+
 review_test_snapshots <- function(files = NULL,
+                                  reference_filter = NULL,
                                   root = file.path(
                                     dirname(.scenario_helpers_dir), "testthat"
                                   )) {
@@ -1210,7 +1270,13 @@ review_test_snapshots <- function(files = NULL,
     return(invisible(FALSE))
   }
 
-  return(invisible(.scenario_snapshot_review(root, files = files)))
+  reviewed <- .scenario_snapshot_review(root, files = files)
+  review_test_references(
+    filter = reference_filter,
+    root   = dirname(root)
+  )
+
+  return(invisible(reviewed))
 }
 
 
@@ -2202,3 +2268,7 @@ test_scenario <- function(filter = NULL, reporter = "progress", refit = FALSE,
   }
   return(invisible(results))
 }
+
+
+# Plural entry point matching that one call may run several scenarios.
+test_scenarios <- test_scenario

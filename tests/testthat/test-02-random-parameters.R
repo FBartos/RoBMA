@@ -838,6 +838,22 @@ test_that("direct multivariate random quantities expose density targets", {
     "ggplot"
   )
 
+  expect_error(
+    hypothesis(
+      fit,
+      "`study: sd(intercept)` = 0",
+      density_method = "qCMDE"
+    ),
+    paste0(
+      "Point-null Bayes factors are unavailable for allocation-derived ",
+      "random-effect quantity 'study: sd' at 0 because zero is a ",
+      "nonregular product boundary of the common scale and allocation ",
+      "weight. Test 'var_prop(study) = 0' to compare omission of this ",
+      "component."
+    ),
+    fixed = TRUE
+  )
+
   context <- .iwmde_context(fit)
   columns <- paste0(nested[["parameter_spec"]][["parameter"]], "[", 1:2, "]")
   state <- .iwmde_row_state(

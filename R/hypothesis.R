@@ -762,6 +762,21 @@ hypothesis.brma <- function(object, hypothesis,
         call. = FALSE
       )
     }
+    zero_alternative <- if (any(point_refs[["value"]] == 0)) {
+      .brma_random_parameter_zero_boundary_alternative(object, posterior)
+    } else {
+      NULL
+    }
+    if (!is.null(zero_alternative)) {
+      stop(
+        "Point-null Bayes factors are unavailable for allocation-derived ",
+        "random-effect quantity '", posterior[["spec"]][["label"]],
+        "' at 0 because zero is a nonregular product boundary of the common ",
+        "scale and allocation weight. Test '", zero_alternative,
+        "' to compare omission of this component.",
+        call. = FALSE
+      )
+    }
     target <- if (precomputed) {
       .brma_random_parameter_density_target(object, parameter)
     } else {

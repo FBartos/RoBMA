@@ -67,6 +67,15 @@ reported \code{sd} is the fitted multiplier of that kernel. It need not equal
 every row's marginal standard deviation when \eqn{\mathrm{diag}(R)} is not
 one. Row-specific marginal standard deviations are available from
 \code{predict(type = "terms.scale")}.
+
+For \code{brma.mv()} models and models with factor-specific or random-slope
+terms, the average expanded random-effect design can be synthetic and need
+not correspond to a single realizable outcome or study. The result is the
+heterogeneity of that linear composite, not typical heterogeneity across the
+observed designs. Interpret it only when the composite has a meaningful
+scientific interpretation; use \code{summary_heterogeneity()} for
+observed-design heterogeneity or \code{predict(..., newdata = ...)} for a
+specified realizable design.
 }
 \examples{
 \dontrun{

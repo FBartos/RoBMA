@@ -21,6 +21,23 @@ devtools::test(filter = "01-", reporter = "llm")
 
 Do not use repeated full-suite runs as an iteration loop.
 
+For an intentional full run from an interactive session, source
+`.dev/user-tests.R` by its absolute path. The script works from any current
+working directory and calls `test_tests(refit = TRUE,
+stop_on_failure = TRUE)`. `test_tests()` is loaded by the project `.Rprofile`.
+Without a filter it refreshes and runs the standard profile, then runs every
+certification case with its independent one-hour limit. A regular-expression
+`filter` runs only matching standard test files and does not refresh cached
+fits unless `refit = TRUE`; filtered runs omit certification. `refit = TRUE`
+cleans the standard fit cache before rebuilding; `update = TRUE` permits
+missing visual candidates, and `regenerate = TRUE` combines those controls.
+Every run ends with snapshot review. Ordinary tests have no per-file timing
+baseline, so `update_timings = TRUE` fails clearly; their timing contract is the
+standard profile's 15-minute total budget. The quiet LLM reporter prints
+failures and warnings immediately, retains skip counts, and omits individual
+skip reports. An unfiltered run is deliberately much slower than the ordinary
+standard profile and does not run `devtools::check()`.
+
 ## Test Profiles
 
 - `Rscript tools/test-profile.R standard`: routine unit, integration,
@@ -74,6 +91,8 @@ standard profile. Certification caches remain local or release-worker assets.
 
 Relevant controls are `ROBMA_TEST_PROFILE`, `ROBMA_TEST_FILES_DIR`,
 `ROBMA_TEST_SKIP_REFIT`, and `ROBMA_TEST_FORCE_REFIT`.
+`ROBMA_TEST_QUIET_SKIPS=TRUE` retains skip counts while suppressing individual
+skip reports in profile-runner output.
 
 ## Correctness Evidence
 
@@ -106,9 +125,13 @@ review every intentional visual change.
 
 After sourcing `tests/scenarios/helper-scenarios.R`, call
 `review_test_snapshots()` to open testthat's native reviewer for ordinary text
-and figure candidates under `tests/testthat/`. Its optional `files` argument
-has the same test-name or trailing-slash directory semantics as
-`testthat::snapshot_review()`. Accept changes only after maintainer review.
+and figure candidates under `tests/testthat/`, followed by per-artifact text and
+table candidates under `tests/results/`. Its optional `files` argument has the
+same test-name or trailing-slash directory semantics as
+`testthat::snapshot_review()`; use `reference_filter` to select reference
+groups such as `"interpret"` or `"marginal_means"`. Accept changes only after
+maintainer review. Rejected `.new.txt` candidates are deleted and skipped ones
+remain available for a later review.
 
 Set `ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS=TRUE` only during an explicit snapshot
 regeneration workflow.

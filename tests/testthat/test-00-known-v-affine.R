@@ -161,6 +161,39 @@ test_that("draw-specific affine covariance chunks match dense block likelihoods"
 })
 
 
+test_that("affine likelihood rebases a singular reference covariance", {
+
+  base <- tcrossprod(c(0.2, 0.3, 0.4))
+  update <- diag(c(0.7, 1.1, 1.5))
+  coefficients <- c(0.01, 0.2, 0.8)
+  means <- rbind(c(0.1, -0.2, 0.4), c(-0.1, 0.3, 0.2))
+  outcome <- c(0.2, -0.5, 0.7)
+
+  observed <- .iwmde_random_affine_log_likelihood_chunk(
+    base_covariance       = base,
+    update_covariance     = update,
+    reference_coefficient = 0,
+    coefficients          = coefficients,
+    means                 = means,
+    outcome               = outcome,
+    blocks                = list(1:3)
+  )
+  expected <- matrix(NA_real_, nrow = length(coefficients), ncol = nrow(means))
+  for (g in seq_along(coefficients)) {
+    covariance <- base + coefficients[[g]] * update
+    for (s in seq_len(nrow(means))) {
+      expected[g, s] <- .marglik_mvn_log_density(
+        y          = outcome,
+        mean       = means[s, ],
+        covariance = covariance
+      )
+    }
+  }
+
+  expect_equal(observed, expected, tolerance = 1e-12)
+})
+
+
 test_that("single unit random component receives the exact IID grid plan", {
 
   update <- structure(

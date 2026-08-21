@@ -137,7 +137,7 @@
 #' construction coordinates remain internal. Automatic total-variance
 #' allocations expose `sd_total`, `var_total`, and `var_prop(...)`.
 #' Mean-variance allocations within heterogeneous blocks expose `sd_common`,
-#' `var_common`, `var_ratio(...)`, and `sd_ratio(...)`. These semantic names are
+#' `var_common`, `var_mult(...)`, and `sd_mult(...)`. These semantic names are
 #' the supported selectors for summaries, plotting, density estimation, and
 #' hypotheses.
 #'

@@ -263,7 +263,7 @@
   for (block in blocks) {
     shared_plan <- NULL
     if (invariant) {
-      shared_plan <- .known_v_affine_spectral_plan(
+      shared_plan <- .iwmde_random_affine_spectral_plan(
         base_covariance = .iwmde_random_affine_covariance_block(
           base_covariance,
           1L,
@@ -274,7 +274,8 @@
           1L,
           block
         ),
-        reference_coefficient = reference_coefficient
+        reference_coefficient = reference_coefficient,
+        coefficients          = coefficients
       )
       if (is.null(shared_plan)) {
         return(NULL)
@@ -283,7 +284,7 @@
     for (s in seq_len(S)) {
       plan <- shared_plan
       if (is.null(plan)) {
-        plan <- .known_v_affine_spectral_plan(
+        plan <- .iwmde_random_affine_spectral_plan(
           base_covariance = .iwmde_random_affine_covariance_block(
             base_covariance,
             s,
@@ -294,7 +295,8 @@
             s,
             block
           ),
-          reference_coefficient = reference_coefficient
+          reference_coefficient = reference_coefficient,
+          coefficients          = coefficients
         )
       }
       if (is.null(plan)) {
@@ -312,6 +314,45 @@
     }
   }
   out
+}
+
+
+.iwmde_random_affine_spectral_plan <- function(
+    base_covariance, update_covariance, reference_coefficient,
+    coefficients) {
+
+  plan <- .known_v_affine_spectral_plan(
+    base_covariance       = base_covariance,
+    update_covariance     = update_covariance,
+    reference_coefficient = reference_coefficient
+  )
+  if (!is.null(plan)) {
+    return(plan)
+  }
+
+  candidates <- unique(coefficients[
+    is.finite(coefficients) & coefficients != reference_coefficient
+  ])
+  if (length(candidates) == 0L) {
+    return(NULL)
+  }
+  candidates <- candidates[order(abs(
+    candidates - stats::median(candidates)
+  ))]
+  for (candidate in candidates) {
+    candidate_covariance <- base_covariance +
+      (candidate - reference_coefficient) * update_covariance
+    plan <- .known_v_affine_spectral_plan(
+      base_covariance       = candidate_covariance,
+      update_covariance     = update_covariance,
+      reference_coefficient = candidate
+    )
+    if (!is.null(plan)) {
+      return(plan)
+    }
+  }
+
+  return(NULL)
 }
 
 

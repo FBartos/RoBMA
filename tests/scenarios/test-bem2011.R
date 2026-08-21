@@ -73,11 +73,12 @@ testthat::test_that("Bem simple models", {
 
   ### fit specific plots ----
   set.seed(1)
-  z_fit_simple <- as_zplot(fit_simple)
-  z_fit_3PSM   <- as_zplot(fit_3PSM)
-  z_fit_PET    <- as_zplot(fit_PET)
 
   scenario_plot("zplot", {
+    z_fit_simple <- as_zplot(fit_simple)
+    z_fit_3PSM   <- as_zplot(fit_3PSM)
+    z_fit_PET    <- as_zplot(fit_PET)
+
     hist(z_fit_3PSM, from = -4)
 
     lines(z_fit_simple)
@@ -89,6 +90,14 @@ testthat::test_that("Bem simple models", {
   scenario_plot("funnel_simple", {funnel(fit_simple)})
   scenario_plot("funnel_3PSM", {funnel(fit_3PSM)})
   scenario_plot("funnel_PET", {funnel(fit_PET)})
+
+  scenario_plot("funnel_3PSM_no_bias", {funnel(fit_3PSM, sampling_bias = FALSE)})
+  scenario_plot("funnel_PET_no_bias", {funnel(fit_PET, sampling_bias = FALSE)})
+
+  set.seed(1)
+  scenario_plot("bfunnel_simple", {bfunnel(fit_simple)})
+  scenario_plot("bfunnel_3PSM", {bfunnel(fit_3PSM)})
+  scenario_plot("bfunnel_PET", {bfunnel(fit_PET)})
 
   set.seed(1)
   scenario_plot("qqnorm_simple", {qqnorm(fit_simple)})
@@ -124,13 +133,13 @@ testthat::test_that("Bem simple models", {
 
   # compute via density methods
   set.seed(1)
-  BFs_3PSM_IWMDE  <- sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "IWMDE"))
-  BFs_3PSM_qCMDE  <- sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "qCMDE"))
-  BFs_3PSM_normal <- sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "normal"))
+  BFs_3PSM_IWMDE  <- scenario_time("BFs_3PSM_IWMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "IWMDE")))
+  BFs_3PSM_qCMDE  <- scenario_time("BFs_3PSM_qCMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "qCMDE")))
+  BFs_3PSM_normal <- scenario_time("BFs_3PSM_normal",  sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "normal")))
 
-  BFs_PET_IWMDE  <- sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "IWMDE"))
-  BFs_PET_qCMDE  <- sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "qCMDE"))
-  BFs_PET_normal <- sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "normal"))
+  BFs_PET_IWMDE   <- scenario_time("BFs_PET_IWMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "IWMDE")))
+  BFs_PET_qCMDE   <- scenario_time("BFs_PET_qCMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "qCMDE")))
+  BFs_PET_normal  <- scenario_time("BFs_PET_normal",  sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "normal")))
 
   # compare
   scenario_plot("mu_BF_3PSM_comparison", {

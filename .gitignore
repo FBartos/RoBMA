@@ -24,6 +24,7 @@ models/MetaRegression/*
 Rplots.pdf
 *.new.svg
 /tests/scenarios/results/**/*.new.txt
+/tests/results/**/*.new.txt
 /tests/scenarios/timings/*.new.tsv
 /tests/testthat/test_files
 /tests/scenarios/cache

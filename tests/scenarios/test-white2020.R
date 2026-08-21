@@ -87,13 +87,6 @@ testthat::test_that("White study and observation random-effects model", {
     plot(fit_brma, "var_prop(observation)", prior = TRUE)
     lines(fit_brma, "var_prop(observation)", density_method = "qCMDE", lty = 2)
 
-    # TODO:
-    # how does one plot the prior and posterior distribution for tau in study
-    # we do not neccessarily need density estimation and closed form prior (although the closed form prior should be possible?)
-    # FIXED: semantic random-effect names include their coefficient argument;
-    # the sampled-prior/KDE path supports this quantity directly.
-    # TODO:
-    # should it be possible to get the prior density analytically here too?
     plot(fit_brma, "study: sd", prior = TRUE)
     lines(fit_brma, "study: sd", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000))
 
@@ -115,15 +108,6 @@ testthat::test_that("White study and observation random-effects model", {
     )
   })
 
-  # TODO: since we can get qCMDE density of `study: sd = 0`; shouldn't that correspond to var_prop(study) = 0?
-  scenario_text("random-component-bayes-factors-consistency", {
-    hypothesis(
-      fit_brma, c("var_prop(study) = 0", "study: sd == 0"),
-      density_method  = "qCMDE", density_control = list(samples = 2000L)
-    )
-  })
-
-
 
   ### random-effect comparisons ----
   scenario_plot("ranef-comparison", {
@@ -135,7 +119,13 @@ testthat::test_that("White study and observation random-effects model", {
     scenario_agreement_plot(ranef_metafor[["obs"]][["intrcpt"]], as.data.frame(ranef_brma$observation)[["Mean"]], "Study effects")
   })
 
+  ### diagnostics ----
+  # TODO: examine this, takes very long time, there must be some incorrect path optimization here
+  # scenario_plot("marginal_diagnostics",   plot_marginal_diagnostics(fit_metafor, fit_brma))
 
-  ### TODO: extend
-
+  ### diagnostic plots ----
+  set.seed(1)
+  scenario_plot("funnel", funnel(fit_brma))
+  scenario_plot("qqnorm", qqnorm(fit_brma))
+  scenario_plot("zplot",  zplot(fit_brma))
 })

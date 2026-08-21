@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 4.1.0.92
+Version: 4.1.0.95
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -65,6 +65,7 @@ Suggests:
     emmeans,
     metadat,
     testthat,
+    cli,
     vdiffr,
     knitr,
     rmarkdown,

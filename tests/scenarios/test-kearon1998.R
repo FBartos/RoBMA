@@ -33,7 +33,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
-  }, cache_version = 2L)
+  }, cache_version = 3L)
   fit_brma_hcs <- scenario_fit("fit_brma_hcs", {
     temp_fit <- brma.mv(yi = yi, V = vi, ni = out1 + out2, mods = ~ 0 + group, random = ~ hcs(group | study),
                         set_contrast_factor_predictors = "independent",
@@ -41,7 +41,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
-  }, cache_version = 2L)
+  }, cache_version = 3L)
   fit_brma_diag <- scenario_fit("fit_brma_diag", {
     temp_fit <- brma.mv(yi = yi, V = vi, ni = out1 + out2, mods = ~ 0 + group, random = ~ diag(0 + group | study),
                         set_contrast_factor_predictors = "independent", prior_heterogeneity = random_prior_diag,
@@ -49,7 +49,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
-  }, cache_version = 2L)
+  }, cache_version = 3L)
   fit_brma_hcs0 <- scenario_fit("fit_brma_hcs0", {
     temp_fit <- brma.mv(yi = yi, V = vi, ni = out1 + out2, mods = ~ 0 + group, random = ~ hcs(group | study),
                         set_contrast_factor_predictors = "independent", prior_heterogeneity = random_prior_hcs0,
@@ -57,7 +57,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     temp_fit <- add_loo(temp_fit)
     temp_fit <- add_marglik(temp_fit)
     return(temp_fit)
-  }, cache_version = 2L)
+  }, cache_version = 3L)
 
   ### model summaries ----
   fit_metafor_us
@@ -69,6 +69,10 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
 
   scenario_text("summary-het-us",  summary_heterogeneity(fit_brma_us))
   scenario_text("summary-het-hcs", summary_heterogeneity(fit_brma_hcs))
+
+  # remember that the pooled heterogeneity is meaningless in this example because it maps to
+  # heterogeneity estimate at 1/2sen 1/2spec which are anti correlated
+  scenario_text("pooled_het", pooled_heterogeneity(fit_brma_us))
 
   metafor_parameters <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_var = "tau[sensitivity]^2", specificity_var = "tau[specificity]^2", correlation = "rho")
   robma_parameters   <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_var = "var(group[sensitivity])", specificity_var = "var(group[specificity])", correlation = "cor(group[sensitivity],group[specificity])")
@@ -84,12 +88,6 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     row.names = NULL
   ))
 
-  # TODO: how is it possible that pooled heterogeneity is lover than any group level heterogeneity?
-  # explain this surprisning finding
-  # FIXED: pooling targets the average group contrast; its variance includes
-  # covariance, so the fitted negative correlation can make it smaller than
-  # either group-specific marginal variance.
-  pooled_heterogeneity(fit_brma_us)
 
   scenario_text("marginal-means-us" ,  summary(marginal_means(fit_brma_us)))
   scenario_text("marginal-means-hcs" , summary(marginal_means(fit_brma_hcs)))
@@ -143,7 +141,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
 
   # other random parameters
   scenario_plot("random_us", {
-    par(mfrow = c(3, 2)) # HERE extend
+    par(mfrow = c(3, 2)) #
 
     plot(fit_brma_us, "sd_common", prior = TRUE)
     plot(fit_brma_us, "var_common", prior = TRUE, xlim = c(0, 2))
@@ -155,23 +153,20 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     plot(fit_brma_us, "var(group[specificity])", xlim = c(0, 2), prior = TRUE)
   })
 
+  # TODO: return here once done with ratio/mult renaming
+  # FIXED: the public quantities are now `var_mult(...)` and `sd_mult(...)`;
+  # the former `*_ratio` names are not retained as aliases.
   scenario_plot("random_us2", {
     par(mfrow = c(3, 2))
 
-    plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE)
-    plot(fit_brma_us, "var_ratio(group[specificity])", prior = TRUE)
+    plot(fit_brma_us, "var_mult(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_us, "var_mult(group[specificity])", prior = TRUE)
 
-    # TODO: this figure is clearly incorrect (the density is forced to be lower than a constant (but it might be higher ofcourse))
-    # FIXED: under the two-part uniform Dirichlet allocation,
-    # sd_ratio = sqrt(2 * weight) has density f(r) = r on [0, sqrt(2)];
-    # unlike var_ratio, its density is not bounded by the constant 1 / 2.
-    # TODO: I am still a bit confused how its possible that there is an upper bound on the ratio
-    # is it ratio of this group to total or this group to the other? also, the weight is not bounded right?
-    plot(fit_brma_us, "sd_ratio(group[sensitivity])", prior = TRUE, xlim = c(0, 2))
-    plot(fit_brma_us, "sd_ratio(group[specificity])", prior = TRUE, xlim = c(0, 2))
+    plot(fit_brma_us, "sd_mult(group[sensitivity])", prior = TRUE, xlim = c(0, 2))
+    plot(fit_brma_us, "sd_mult(group[specificity])", prior = TRUE, xlim = c(0, 2))
 
-    plot(fit_brma_us, "var_ratio(group[sensitivity])", prior = TRUE, transform = "LOG", xlim = c(-3, 1))
-    plot(fit_brma_us, "sd_ratio(group[specificity])",  prior = TRUE, transform = "LOG", xlim = c(-3, 1))
+    plot(fit_brma_us, "var_mult(group[sensitivity])", prior = TRUE, transform = "LOG", xlim = c(-3, 1))
+    plot(fit_brma_us, "sd_mult(group[specificity])",  prior = TRUE, transform = "LOG", xlim = c(-3, 1))
   })
 
 
@@ -184,12 +179,8 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     plot(fit_brma_hcs, "sd(group[sensitivity])", prior = TRUE)
     plot(fit_brma_hcs, "sd(group[specificity])", prior = TRUE)
 
-    plot(fit_brma_hcs, "var_ratio(group[sensitivity])", prior = TRUE)
-    plot(fit_brma_hcs, "sd_ratio(group[specificity])",  prior = TRUE)
-    # TODO: annother issue here
-    # FIXED: the same analytic ratio prior applies to HCS; out-of-support grid
-    # values now transform to NaN silently instead of emitting sqrt warnings.
-    # TODO: how do we get the out of support grid values here? the prior seems to be sample and not analytic here?
+    plot(fit_brma_hcs, "var_mult(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_hcs, "sd_mult(group[specificity])",  prior = TRUE)
   })
 
   ### random-effect comparisons ----
@@ -234,5 +225,4 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   })
 
   scenario_plot("zplot",  zplot(fit_brma_hcs, to = 10, by.hist = 1))
-
 })

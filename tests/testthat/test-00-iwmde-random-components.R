@@ -385,6 +385,105 @@ test_that("semantic random point hypotheses reject singular display boundaries",
   )
 })
 
+
+test_that("allocation-derived SD zero tests name the omission coordinate", {
+
+  allocation <- list(
+    target          = "block",
+    scale           = "total_variance",
+    index           = 1L,
+    component_names = c("study", "observation")
+  )
+  term <- list(
+    block_name  = "study",
+    group_label = "study_id",
+    sd_binding  = list(
+      true_allocation = TRUE,
+      allocations     = list(allocation)
+    )
+  )
+  formula_design <- list(mu = list(
+    parameter      = "mu",
+    random_effects = list(term)
+  ))
+  object <- list(fit = structure(list(), formula_design = formula_design))
+  selected <- list(
+    entry = list(term = "study: sd"),
+    spec = list(
+      label              = "study: sd",
+      quantity           = "sd",
+      allocation_derived = TRUE,
+      formula_parameter  = "mu",
+      block              = "study",
+      grouping           = "study_id",
+      random_component   = "intercept"
+    ),
+    samples      = matrix(seq(.1, 1, length.out = 20L), ncol = 1L),
+    prior        = NULL,
+    source_prior = NULL
+  )
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_select = function(...) selected,
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    .hypothesis_brma_random(
+      object                    = object,
+      parameter                 = "theta",
+      hypothesis                = BayesTools::hypothesis_parse("theta = 0"),
+      standardized_coefficients = FALSE,
+      conditional               = FALSE,
+      logBF                     = FALSE,
+      BF01                      = FALSE,
+      seed                      = 1,
+      density_method            = "qCMDE",
+      density_control           = list(),
+      n_samples                 = 100L,
+      columns                   = "default"
+    ),
+    paste0(
+      "Point-null Bayes factors are unavailable for allocation-derived ",
+      "random-effect quantity 'study: sd' at 0 because zero is a ",
+      "nonregular product boundary of the common scale and allocation ",
+      "weight. Test 'var_prop(study) = 0' to compare omission of this ",
+      "component."
+    ),
+    fixed = TRUE
+  )
+
+  mean_design <- formula_design
+  mean_design[["mu"]][["random_effects"]][[1L]][["sd_binding"]][[
+    "allocations"
+  ]][[1L]][["scale"]] <- "mean_variance"
+  mean_object <- list(fit = structure(list(), formula_design = mean_design))
+  expect_error(
+    .hypothesis_brma_random(
+      object                    = mean_object,
+      parameter                 = "theta",
+      hypothesis                = BayesTools::hypothesis_parse("theta = 0"),
+      standardized_coefficients = FALSE,
+      conditional               = FALSE,
+      logBF                     = FALSE,
+      BF01                      = FALSE,
+      seed                      = 1,
+      density_method            = "qCMDE",
+      density_control           = list(),
+      n_samples                 = 100L,
+      columns                   = "default"
+    ),
+    paste0(
+      "Point-null Bayes factors are unavailable for allocation-derived ",
+      "random-effect quantity 'study: sd' at 0 because zero is a ",
+      "nonregular product boundary of the common scale and allocation ",
+      "weight. Test 'var_mult(study) = 0' to compare omission of this ",
+      "component."
+    ),
+    fixed = TRUE
+  )
+})
+
+
 test_that("batched ordinates retain value-specific diagnostics", {
 
   values <- c(0, 1)

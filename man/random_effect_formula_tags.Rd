@@ -137,7 +137,7 @@ Public correlations are named \code{cor}; compact scalar \code{rho} and LKJ
 construction coordinates remain internal. Automatic total-variance
 allocations expose \code{sd_total}, \code{var_total}, and \code{var_prop(...)}.
 Mean-variance allocations within heterogeneous blocks expose \code{sd_common},
-\code{var_common}, \code{var_ratio(...)}, and \code{sd_ratio(...)}. These semantic names are
+\code{var_common}, \code{var_mult(...)}, and \code{sd_mult(...)}. These semantic names are
 the supported selectors for summaries, plotting, density estimation, and
 hypotheses.
 }

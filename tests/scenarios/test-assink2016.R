@@ -91,7 +91,6 @@ testthat::test_that("Assink multivariate nested random-effects model", {
     tmp <- add_loo(tmp)
     return(tmp)
   })
-
   fit_brma_cluster <- scenario_fit("fit_brma_cluster", {
     tmp <- brma(yi = yi, vi = vi, cluster = study, measure = "SMD", data = dat.assink2016, seed = 1)
     tmp <- add_marglik(tmp)
@@ -271,8 +270,8 @@ testthat::test_that("Assink multivariate nested random-effects model", {
 
   ### hypothesis ----
   set.seed(1)
-  BF_brma_rho    <- hypothesis(fit_brma_cluster, c("rho != 0 vs rho = 0", "rho != 1 vs rho = 1"), density_method = "qCMDE", density_control = list(samples = 2000))
-  BF_mv_diag_rho <- hypothesis(fit_brma.mv_diag, c("var_prop(study) != 0 vs var_prop(study) = 0", "var_prop(study) != 1 vs var_prop(study) = 1"), density_method = "qCMDE", density_control = list(samples = 2000))
+  BF_brma_rho    <- scenario_time("BF_brma_rho", hypothesis(fit_brma_cluster, c("rho != 0 vs rho = 0", "rho != 1 vs rho = 1"), density_method = "qCMDE", density_control = list(samples = 2000)))
+  BF_mv_diag_rho <- scenario_time("BF_mv_diag_rho", hypothesis(fit_brma.mv_diag, c("var_prop(study) != 0 vs var_prop(study) = 0", "var_prop(study) != 1 vs var_prop(study) = 1"), density_method = "qCMDE", density_control = list(samples = 2000)))
   scenario_text("fit_rho_bayes_factor_comparison", data.frame(
     rho                = c(0, 1),
     density_brma_BF    = BF_brma_rho[["BF"]],
@@ -282,10 +281,10 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   ))
 
   set.seed(1)
-  BF_random      <- hypothesis(fit_brma.mv, c(
+  BF_random      <- scenario_time("BF_random", hypothesis(fit_brma.mv, c(
     "var_prop(study) != 0 vs var_prop(study) = 0", "var_prop(study) != 1 vs var_prop(study) = 1",
     "sd_total = 0"
-    ),density_method = "qCMDE", density_control = list(samples = 2000))
+    ),density_method = "qCMDE", density_control = list(samples = 2000)))
   scenario_text("fit_random_bayes_factor_comparison", data.frame(
     hypothesis = c("rho != 0", "rho != 1", "sd != 0"),
     density_BF = BF_random[["BF"]],
@@ -294,7 +293,7 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   ))
 
   set.seed(1)
-  BF_mods <- hypothesis(fit_brma.mv_reg, c("deltype[general] = 0 vs deltype[general] != 0", "deltype[general] = 0 vs deltype[general] > 0", "deltype[general] > 0 vs deltype[general] < 0"),density_method = "qCMDE", density_control = list(samples = 2000))
+  BF_mods <- scenario_time("BF_mods", hypothesis(fit_brma.mv_reg, c("deltype[general] = 0 vs deltype[general] != 0", "deltype[general] = 0 vs deltype[general] > 0", "deltype[general] > 0 vs deltype[general] < 0"),density_method = "qCMDE", density_control = list(samples = 2000)))
   scenario_text("fit_mods", BF_mods)
 
   ### pooled effects ----
@@ -352,11 +351,11 @@ testthat::test_that("Assink multivariate nested random-effects model", {
 
   ### random effects ----
   ranef_metafor <- metafor::ranef(fit_metafor)
-  ranef_brma.mv <- ranef(fit_brma.mv)
+  ranef_brma.mv <- scenario_time("ranef_brma.mv", ranef(fit_brma.mv))
 
   ranef_metafor_diag <- metafor::ranef(fit_metafor_diag)
-  ranef_brma.mv_diag <- ranef(fit_brma.mv_diag)
-  ranef_brma         <- ranef(fit_brma_cluster)
+  ranef_brma.mv_diag <- scenario_time("ranef_brma.mv_diag", ranef(fit_brma.mv_diag))
+  ranef_brma         <- scenario_time("ranef_brma", ranef(fit_brma_cluster))
 
   scenario_plot("ranef_mv", {
     par(mfrow = c(1, 2))

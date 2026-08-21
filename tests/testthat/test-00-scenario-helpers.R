@@ -2,6 +2,36 @@ context("Maintainer scenario helpers")
 
 source(testthat::test_path("..", "scenarios", "helper-scenarios.R"))
 
+.scenario_test_environment_names <- c(
+  "ROBMA_SCENARIO_REGENERATE",
+  "ROBMA_SCENARIO_REFIT",
+  "ROBMA_SCENARIO_UPDATE",
+  "ROBMA_SCENARIO_UPDATE_TIMINGS",
+  "ROBMA_SCENARIO_RUNNER"
+)
+.scenario_test_old_environment <- Sys.getenv(
+  .scenario_test_environment_names,
+  unset = NA_character_
+)
+teardown({
+  for (i in seq_along(.scenario_test_environment_names)) {
+    name  <- .scenario_test_environment_names[[i]]
+    value <- .scenario_test_old_environment[[i]]
+    if (is.na(value)) {
+      Sys.unsetenv(name)
+    } else {
+      do.call(Sys.setenv, stats::setNames(list(value), name))
+    }
+  }
+})
+Sys.setenv(
+  ROBMA_SCENARIO_REGENERATE     = "FALSE",
+  ROBMA_SCENARIO_REFIT          = "FALSE",
+  ROBMA_SCENARIO_UPDATE         = "FALSE",
+  ROBMA_SCENARIO_UPDATE_TIMINGS = "FALSE",
+  ROBMA_SCENARIO_RUNNER         = "TRUE"
+)
+
 
 .scenario_test_root <- function() {
 
@@ -9,6 +39,13 @@ source(testthat::test_path("..", "scenarios", "helper-scenarios.R"))
   dir.create(root, recursive = TRUE)
   return(root)
 }
+
+
+test_that("plural scenario runner retains the established interface", {
+
+  expect_identical(test_scenarios, test_scenario)
+  expect_identical(formals(test_scenarios), formals(test_scenario))
+})
 
 
 test_that("nested helper sourcing reuses the runner state", {
@@ -140,27 +177,48 @@ test_that("scenario defaults distinguish direct and managed interactive runs", {
   }, add = TRUE)
   Sys.unsetenv(environment_names)
 
+  scenario_start(
+    "unit",
+    root        = root,
+    update      = TRUE,
+    show_output = FALSE
+  )
+  scenario_text("result", "old")
+  .with_temp_plot_device({
+    scenario_plot("direct-plot", graphics::plot(1:3, 1:3))
+  })
+
   direct <- scenario_start("unit", root = root)
   expect_false(direct[["refit"]])
   expect_true(direct[["show_output"]])
-  expect_true(direct[["update"]])
+  expect_false(direct[["update"]])
   expect_false(direct[["update_timings"]])
   expect_true(direct[["create_missing"]])
+  expect_output(
+    scenario_text("new-result", "new baseline"),
+    '[1] "new baseline"',
+    fixed = TRUE
+  )
+  expect_true(file.exists(file.path(
+    root, "results", "unit", "new-result.txt"
+  )))
   direct_output <- capture.output({
-    scenario_text("result", "old")
-    scenario_text("result", "new")
+    expect_failure(scenario_text("result", "new"), "candidate is cached")
   })
   expect_match(paste(direct_output, collapse = "\n"), '[1] "new"',
                fixed = TRUE)
   path <- file.path(root, "results", "unit", "result.txt")
-  expect_equal(readLines(path, warn = FALSE), '[1] "new"')
+  expect_equal(readLines(path, warn = FALSE), '[1] "old"')
+  expect_true(file.exists(.scenario_candidate_path(path)))
   .with_temp_plot_device({
-    scenario_plot("direct-plot", graphics::plot(1:3, 1:3))
-    scenario_plot("direct-plot", graphics::plot(1:4, 1:4))
+    expect_failure(
+      scenario_plot("direct-plot", graphics::plot(1:4, 1:4)),
+      "Scenario plot.*changed"
+    )
   })
   plot_path <- file.path(root, "_snaps", "unit", "direct-plot.svg")
   expect_true(file.exists(plot_path))
-  expect_false(file.exists(.scenario_candidate_path(plot_path)))
+  expect_true(file.exists(.scenario_candidate_path(plot_path)))
 
   Sys.setenv(ROBMA_SCENARIO_RUNNER = "TRUE")
   managed <- scenario_start("unit", root = root)
@@ -170,7 +228,7 @@ test_that("scenario defaults distinguish direct and managed interactive runs", {
   expect_false(managed[["update_timings"]])
   expect_false(managed[["create_missing"]])
   expect_failure(scenario_text("result", "managed"), "candidate is cached")
-  expect_equal(readLines(path, warn = FALSE), '[1] "new"')
+  expect_equal(readLines(path, warn = FALSE), '[1] "old"')
 })
 
 
@@ -206,7 +264,7 @@ test_that("interactive timing backfills but requires consent for slowdowns", {
 
   expect_warning(
     .scenario_register_timing("text", "summary", 12),
-    "average timing regression: 20.0%"
+    "average timing regression: 20%"
   )
   expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 10)
   expect_equal(.scenario_read_timings(candidate_path)[["elapsed"]], 12)
@@ -214,7 +272,7 @@ test_that("interactive timing backfills but requires consent for slowdowns", {
   scenario_start("unit", root = root, update_timings = TRUE)
   expect_warning(
     .scenario_register_timing("text", "summary", 12),
-    "average timing regression: 20.0%"
+    "average timing regression: 20%"
   )
   expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 12)
   expect_false(file.exists(candidate_path))
@@ -357,7 +415,7 @@ test_that("scenario refitting and output updates are independent", {
 })
 
 
-test_that("scenario_fit reuses cached production timing", {
+test_that("scenario_fit does not test cached production timing", {
 
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
@@ -392,21 +450,35 @@ test_that("scenario_fit reuses cached production timing", {
   fit_metadata <- readRDS(file.path(
     root, "cache", "unit", "timed.timing.rds"
   ))
+  fit_metadata[["elapsed"]] <- 30
+  saveRDS(fit_metadata, file.path(
+    root, "cache", "unit", "timed.timing.rds"
+  ))
 
   scenario_start("unit", root = root, create_missing = TRUE)
   second <- scenario_fit("timed", {
     counter <- counter + 1L
     counter
   })
+  .scenario_register_timing("text", "summary", 2)
   cached_timing <- .scenario_current_timings()
   expect_no_warning(.scenario_finalize_timing())
 
   expect_identical(first, 1L)
   expect_identical(second, 1L)
   expect_identical(counter, 1L)
-  expect_equal(fit_metadata[["elapsed"]], 3)
-  expect_equal(cached_timing[["elapsed"]], 3)
-  expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 3)
+  expect_equal(fit_metadata[["elapsed"]], 30)
+  expect_equal(cached_timing[c("type", "name", "elapsed")], data.frame(
+    type = "text", name = "summary", elapsed = 2
+  ))
+  expect_equal(
+    .scenario_read_timings(timing_path)[c("type", "name", "elapsed")],
+    data.frame(
+      type    = c("fit", "text"),
+      name    = c("timed", "summary"),
+      elapsed = c(3, 2)
+    )
+  )
 })
 
 
@@ -485,11 +557,11 @@ test_that("scenario_fit automatically stores post-fit phase timings", {
 
   expect_identical(counter, 1L)
   expect_identical(second, first)
-  expect_equal(cached, current)
+  expect_equal(cached, .scenario_empty_timings())
 })
 
 
-test_that("old fit caches require refitting before timing updates", {
+test_that("cached fits do not require timing metadata", {
 
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
@@ -508,10 +580,7 @@ test_that("old fit caches require refitting before timing updates", {
     counter
   })
   .scenario_register_timing("text", "summary", 2)
-  expect_warning(
-    .scenario_finalize_timing(),
-    "cached fit predates valid timing metadata"
-  )
+  expect_no_warning(.scenario_finalize_timing())
 
   expect_identical(counter, 1L)
   available <- .scenario_read_timings(file.path(root, "timings", "unit.tsv"))
@@ -535,7 +604,11 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 12.1)
   .scenario_register_timing("text", "summary", 10)
-  expect_warning(.scenario_finalize_timing(), "fit/model: 12.100 s vs 10.000 s")
+  expect_warning(
+    .scenario_finalize_timing(),
+    "+2.1 s (+21%; 10.0 s -> 12.1 s) fit/model",
+    fixed = TRUE
+  )
   backfilled <- .scenario_read_timings(timing_path)
   expect_equal(backfilled[["elapsed"]], c(10, 10))
   expect_true(file.exists(file.path(root, "timings", "unit.new.tsv")))
@@ -560,9 +633,12 @@ test_that("scenario timings backfill and retain the fastest baseline", {
       invokeRestart("muffleWarning")
     }
   )
-  expect_match(warning_message, "fit/model: 10.000 s vs 8.000 s", fixed = TRUE)
-  expect_match(warning_message, "threshold 20%", fixed = TRUE)
-  expect_match(warning_message, "average timing regression: 12.5%", fixed = TRUE)
+  expect_match(
+    warning_message,
+    "+2.0 s (+25%; 8.0 s -> 10.0 s) fit/model",
+    fixed = TRUE
+  )
+  expect_match(warning_message, "average timing regression: 12%", fixed = TRUE)
   retained <- .scenario_read_timings(timing_path)
   expect_equal(retained[["elapsed"]], c(8, 8))
   expect_true(file.exists(file.path(root, "timings", "unit.new.tsv")))
@@ -572,7 +648,7 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   .scenario_register_timing("text", "summary", 8)
   expect_warning(
     .scenario_finalize_timing(),
-    "average timing regression: 12.5%"
+    "average timing regression: 12%"
   )
   accepted <- .scenario_read_timings(timing_path)
   expect_equal(accepted[["elapsed"]], c(10, 8))
@@ -590,7 +666,7 @@ test_that("scenario timings backfill and retain the fastest baseline", {
       invokeRestart("muffleWarning")
     }
   )
-  expect_match(warning_message, "average timing regression: 10.0%", fixed = TRUE)
+  expect_match(warning_message, "average timing regression: 10%", fixed = TRUE)
   expect_false(grepl("text/summary:", warning_message, fixed = TRUE))
 
   scenario_start("unit", root = root)
@@ -602,32 +678,33 @@ test_that("scenario timings backfill and retain the fastest baseline", {
 })
 
 
-test_that("scenario timing assessments ignore calls below half a second", {
+test_that("scenario timings below three quarters of a second are not assessed", {
 
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
 
   scenario_start("unit", root = root)
-  .scenario_register_timing("text", "quick", 0.1)
+  .scenario_register_timing("text", "quick", 0.06)
   expect_no_warning(.scenario_finalize_timing())
 
   scenario_start("unit", root = root)
-  .scenario_register_timing("text", "quick", 0.49)
+  .scenario_register_timing("text", "quick", 0.74)
   expect_no_warning(.scenario_finalize_timing())
   expect_equal(
     .scenario_read_timings(file.path(root, "timings", "unit.tsv"))[["elapsed"]],
-    0.1
+    0.06
   )
   expect_equal(
     .scenario_read_timings(file.path(root, "timings", "unit.new.tsv"))[["elapsed"]],
-    0.49
+    0.74
   )
 
   scenario_start("unit", root = root)
-  .scenario_register_timing("text", "quick", 0.5)
+  .scenario_register_timing("text", "quick", 0.75)
   expect_warning(
     .scenario_finalize_timing(),
-    "text/quick: 0.500 s vs 0.100 s"
+    "+0.7 s (+1150%; 0.1 s -> 0.8 s) text/quick",
+    fixed = TRUE
   )
 })
 
@@ -659,9 +736,57 @@ test_that("split fit timing averages exclude the redundant total", {
     }
   )
 
-  expect_match(warning_message, "fit/model: 18.000 s vs 12.000 s", fixed = TRUE)
-  expect_match(warning_message, "average timing regression: 10.0%", fixed = TRUE)
+  expect_match(
+    warning_message,
+    "+6.0 s (+50%; 12.0 s -> 18.0 s) fit/model",
+    fixed = TRUE
+  )
+  expect_match(warning_message, "average timing regression: 10%", fixed = TRUE)
   expect_match(warning_message, "unweighted mean across 3 calls", fixed = TRUE)
+})
+
+
+test_that("large absolute scenario timing regressions are highlighted in red", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  old_colors <- getOption("cli.num_colors")
+  on.exit(options(cli.num_colors = old_colors), add = TRUE)
+  options(cli.num_colors = 8L)
+
+  scenario_start("unit", root = root)
+  .scenario_register_timing("fit", "large", 10)
+  .scenario_register_timing("fit", "boundary", 8)
+  expect_no_warning(.scenario_finalize_timing())
+
+  scenario_start("unit", root = root)
+  .scenario_register_timing("fit", "large", 12.1)
+  .scenario_register_timing("fit", "boundary", 10)
+  warning_message <- character()
+  withCallingHandlers(
+    .scenario_finalize_timing(),
+    warning = function(warning) {
+
+      warning_message <<- conditionMessage(warning)
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  expect_match(
+    warning_message,
+    cli::col_red("+2.1 s (+21%; 10.0 s -> 12.1 s) fit/large"),
+    fixed = TRUE
+  )
+  expect_false(grepl(
+    cli::col_red("+2.0 s (+25%; 8.0 s -> 10.0 s) fit/boundary"),
+    warning_message,
+    fixed = TRUE
+  ))
+  expect_match(
+    warning_message,
+    "+2.0 s (+25%; 8.0 s -> 10.0 s) fit/boundary",
+    fixed = TRUE
+  )
 })
 
 
@@ -910,6 +1035,60 @@ test_that("review_test_snapshots forwards testthat snapshot selection", {
     normalizePath(root, winslash = "/", mustWork = TRUE)
   )
   expect_identical(state[["files"]], "test-plot/")
+})
+
+
+test_that("review_test_references discovers and filters text candidates", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env <- environment(review_test_references)
+  old_review <- get(
+    ".scenario_review_snapshots",
+    envir    = helper_env,
+    inherits = FALSE
+  )
+  on.exit(assign(
+    ".scenario_review_snapshots",
+    old_review,
+    envir = helper_env
+  ), add = TRUE)
+  .scenario_write_lines(
+    "old",
+    file.path(root, "results", "interpret", "output.txt")
+  )
+  .scenario_write_lines(
+    "new",
+    file.path(root, "results", "interpret", "output.new.txt")
+  )
+  .scenario_write_lines(
+    "new",
+    file.path(root, "results", "marginal_means", "table.new.txt")
+  )
+
+  state <- new.env(parent = emptyenv())
+  assign(
+    ".scenario_review_snapshots",
+    function(root, scenarios, types = c("table", "figure"),
+             subject = "Scenario") {
+
+      state[["root"]]      <- root
+      state[["scenarios"]] <- scenarios
+      state[["types"]]     <- types
+      state[["subject"]]   <- subject
+      return(invisible(data.frame()))
+    },
+    envir = helper_env
+  )
+
+  review_test_references(filter = "interpret", root = root)
+  expect_identical(
+    state[["root"]],
+    normalizePath(root, winslash = "/", mustWork = TRUE)
+  )
+  expect_identical(state[["scenarios"]], "interpret")
+  expect_identical(state[["types"]], "table")
+  expect_identical(state[["subject"]], "Test reference")
 })
 
 
