@@ -130,6 +130,8 @@ curve. \code{target_relative_mcse} is a point-ordinate diagnostic target and
 does not alter this fixed-budget density plot. The normalization entries are
 used with
 \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+Supply a workspace created by \code{\link[=density_workspace]{density_workspace()}} as the \code{workspace}
+entry to reuse exact computation across related density calls.
 Curve diagnostics apply local relative-MCSE, effective-sample-size, and
 contribution-concentration gates over the empirical 5--95 percent bulk and
 record the 5 and 95 percent tail checkpoints. The entire display retains an

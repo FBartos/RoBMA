@@ -66,6 +66,8 @@
 #' does not alter this fixed-budget density plot. The normalization entries are
 #' used with
 #' \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+#' Supply a workspace created by [density_workspace()] as the `workspace`
+#' entry to reuse exact computation across related density calls.
 #' Curve diagnostics apply local relative-MCSE, effective-sample-size, and
 #' contribution-concentration gates over the empirical 5--95 percent bulk and
 #' record the 5 and 95 percent tail checkpoints. The entire display retains an
@@ -293,6 +295,7 @@ lines.brma <- function(
         normalization_prob   = density_control[["normalization_prob"]],
         density_method       = density_method,
         display_grid         = density_control[["display_grid"]],
+        workspace            = density_control[["workspace"]],
         parameter_spec       = target[["parameter_spec"]],
         display_transform    = target[["display_transform"]]
       )
@@ -329,6 +332,7 @@ lines.brma <- function(
         normalization_prob      = density_control[["normalization_prob"]],
         density_method          = density_method,
         display_grid            = density_control[["display_grid"]],
+        workspace               = density_control[["workspace"]],
         parameter_spec          = parameter_spec
       )
     }
@@ -393,7 +397,8 @@ lines.brma <- function(
                                     normalization_points,
                                     normalization_prob, density_method,
                                     display_grid, parameter_spec = NULL,
-                                    display_transform = NULL) {
+                                    display_transform = NULL,
+                                    workspace = NULL) {
 
   if (is.null(normalization_points)) {
     normalization_points <- max(50L, n_points)
@@ -402,8 +407,9 @@ lines.brma <- function(
     samples          = samples,
     sample_parameter = sample_parameter
   )
-  context        <- .iwmde_context(object)
-  estimate_cache <- .iwmde_estimate_cache()
+  resources      <- .iwmde_workspace_resources(object, workspace)
+  context        <- resources[["context"]]
+  estimate_cache <- resources[["estimate_cache"]]
 
   if (inherits(samples[[sample_parameter]], "mixed_posteriors.factor")) {
     return(.plot_brma_attach_iwmde_factor(

@@ -59,7 +59,11 @@
         exact = TRUE
       )
     )
-    estimate_cache <- .iwmde_estimate_cache()
+    resources <- .iwmde_workspace_resources(
+      object,
+      density_control[["workspace"]]
+    )
+    estimate_cache <- resources[["estimate_cache"]]
     conditional <- .iwmde_first_nonempty_attr(
       target_posterior,
       c("effective_conditional", "conditional")
@@ -68,7 +72,7 @@
       target_posterior <- .hypothesis_brma_attach_iwmde_scalar(
         posterior             = target_posterior,
         raw_posterior         = target_posterior,
-        context               = .iwmde_context(object),
+        context               = resources[["context"]],
         estimate_cache        = estimate_cache,
         parameter             = target[["parameter"]],
         parameter_label       = parameter,

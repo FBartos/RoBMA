@@ -388,8 +388,12 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     density_method
   )
 
-  context        <- .iwmde_context(source_object)
-  estimate_cache <- .iwmde_estimate_cache()
+  resources      <- .iwmde_workspace_resources(
+    source_object,
+    density_control[["workspace"]]
+  )
+  context        <- resources[["context"]]
+  estimate_cache <- resources[["estimate_cache"]]
   object[["inference"]][[inference_type]][[parameter]] <-
     .hypothesis_brma_keep_requested_ordinates(
       posterior  = samples,

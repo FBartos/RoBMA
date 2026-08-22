@@ -1242,15 +1242,21 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     object[["fit"]],
     dots[[".posterior_samples"]]
   )
+  dots[[".posterior_samples"]] <- posterior_samples
 
-  terms_samples <- predict.brma(
-    object        = object,
-    newdata       = NULL,
-    type          = "terms",
-    probs         = probs,
-    bias_adjusted = bias_adjusted,
-    quiet         = TRUE,
-    ...
+  terms_samples <- do.call(
+    predict.brma,
+    c(
+      list(
+        object        = object,
+        newdata       = NULL,
+        type          = "terms",
+        probs         = probs,
+        bias_adjusted = bias_adjusted,
+        quiet         = TRUE
+      ),
+      dots
+    )
   )
 
   n_chains <- attr(terms_samples, "nchains")

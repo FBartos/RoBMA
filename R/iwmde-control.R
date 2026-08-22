@@ -2,6 +2,62 @@
 # IWMDE Controls and Reliability Policy
 # ============================================================================ #
 
+#' Reusable qCMDE/IWMDE computation workspace
+#'
+#' Creates a session-local workspace that lets related qCMDE/IWMDE requests
+#' reuse posterior preparation, compiled predictors, and completed density
+#' estimates. Supply the same workspace as
+#' `density_control = list(workspace = workspace)` to related calls. The
+#' workspace retains only the most recently used fitted object.
+#'
+#' @return An environment of class `RoBMA_density_workspace`.
+#' @export
+density_workspace <- function() {
+
+  workspace <- new.env(parent = emptyenv())
+  class(workspace) <- "RoBMA_density_workspace"
+
+  return(workspace)
+}
+
+
+.iwmde_workspace_resources <- function(object, workspace = NULL) {
+
+  if (is.null(workspace)) {
+    return(list(
+      context        = .iwmde_context(object),
+      estimate_cache = .iwmde_estimate_cache()
+    ))
+  }
+  if (!inherits(workspace, "RoBMA_density_workspace") ||
+      !is.environment(workspace)) {
+    stop(
+      "'density_control$workspace' must be created by 'density_workspace()'.",
+      call. = FALSE
+    )
+  }
+
+  if (is.list(workspace$context) &&
+      identical(workspace$context$object, object) &&
+      is.list(workspace$estimate_cache)) {
+    return(list(
+      context        = workspace$context,
+      estimate_cache = workspace$estimate_cache
+    ))
+  }
+
+  context        <- .iwmde_context(object)
+  estimate_cache <- .iwmde_estimate_cache()
+  rm(list = ls(envir = workspace, all.names = TRUE), envir = workspace)
+  workspace$context        <- context
+  workspace$estimate_cache <- estimate_cache
+
+  return(list(
+    context        = context,
+    estimate_cache = estimate_cache
+  ))
+}
+
 .density_control_normalize <- function(density_method, density_control = NULL,
                                        allow_normal = FALSE,
                                        purpose = c("density", "ordinate")) {
@@ -13,7 +69,7 @@
   purpose <- match.arg(purpose)
   allowed_names <- c(
     "n_points", "samples", "target_relative_mcse",
-    "normalization_points", "normalization_prob", "display_grid"
+    "normalization_points", "normalization_prob", "display_grid", "workspace"
   )
   defaults <- list(
     n_points             = 100L,
@@ -25,7 +81,8 @@
     target_relative_mcse = .05,
     normalization_points = NULL,
     normalization_prob   = .999,
-    display_grid         = "adaptive"
+    display_grid         = "adaptive",
+    workspace            = NULL
   )
 
   if (is.null(density_control)) {
@@ -114,6 +171,14 @@
   defaults[["display_grid"]] <- .iwmde_normalize_display_grid(
     defaults[["display_grid"]]
   )
+  if (!is.null(defaults[["workspace"]]) &&
+      (!inherits(defaults[["workspace"]], "RoBMA_density_workspace") ||
+       !is.environment(defaults[["workspace"]]))) {
+    stop(
+      "'density_control$workspace' must be created by 'density_workspace()'.",
+      call. = FALSE
+    )
+  }
 
   return(defaults)
 }

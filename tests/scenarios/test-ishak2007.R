@@ -26,7 +26,10 @@ testthat::test_that("Ishak longitudinal heterogeneous AR model", {
   time_prior         <- prior_factor(distribution = "normal", parameters = list(mean = 0, sd = unit_information_sd), contrast = "independent")
   random_prior_har0  <- prior_random(study = random_block(covariance = random_covariance(cor = prior("spike", list(0)))))
   convergence_checks <- set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)
-  qcmde_control      <- list(samples = 1000L)
+  qcmde_control      <- list(
+    samples   = 1000L,
+    workspace = density_workspace()
+  )
 
   ### Model fits ----
   fit_metafor_har  <- metafor::rma.mv(yi, V, mods = ~ 0 + time_factor, random = ~ time | study, struct = "HAR", data = dat)

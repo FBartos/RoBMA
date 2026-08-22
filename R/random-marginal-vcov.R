@@ -108,13 +108,15 @@
 
 .brma_mv_random_effects_marginal_factor_states <- function(
     object, posterior_samples, blocks, row_blocks,
-    data = object[["data"]], inputs = NULL) {
+    data = object[["data"]], inputs = NULL,
+    include_known_group_covariance = TRUE) {
 
   if (is.null(inputs)) {
     inputs <- .brma_mv_random_effects_marginal_inputs(
-      object            = object,
-      posterior_samples = posterior_samples,
-      data              = data
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      data                            = data,
+      include_known_group_covariance = include_known_group_covariance
     )
   }
 
@@ -126,6 +128,44 @@
     blocks            = blocks,
     row_blocks        = row_blocks
   ))
+}
+
+
+.brma_mv_random_effects_marginal_diagonal_by_block <- function(
+    object, posterior_samples, blocks, data = object[["data"]],
+    include_known_group_covariance = TRUE) {
+
+  inputs <- .brma_mv_random_effects_marginal_inputs(
+    object                         = object,
+    posterior_samples              = posterior_samples,
+    data                            = data,
+    include_known_group_covariance = include_known_group_covariance
+  )
+  random_terms <- inputs[["formula_design"]][["random_effects"]]
+  n_rows       <- nrow(random_terms[[1L]][["model_matrix"]])
+  factors      <- .brma_mv_random_effects_marginal_factor_states(
+    object            = object,
+    posterior_samples = posterior_samples,
+    blocks            = blocks,
+    row_blocks        = list(seq_len(n_rows)),
+    data              = data,
+    inputs            = inputs
+  )
+
+  variance <- BayesTools::random_effects_marginal_factor_diagonal(
+    factors,
+    by_block = TRUE
+  )
+  row_names <- rownames(random_terms[[1L]][["model_matrix"]])
+  if (is.null(row_names)) {
+    row_names <- as.character(seq_len(n_rows))
+  }
+  for (block in names(variance)) {
+    colnames(variance[[block]]) <- row_names
+    names(dimnames(variance[[block]])) <- c("draw", "row")
+  }
+
+  return(variance)
 }
 
 

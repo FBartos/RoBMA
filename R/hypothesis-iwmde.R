@@ -6,7 +6,8 @@
                                           normalization_prob, density_method,
                                           n_samples,
                                           parameter_spec = NULL,
-                                          level_parameter_specs = list()) {
+                                          level_parameter_specs = list(),
+                                          workspace = NULL) {
 
   point_refs <- .hypothesis_brma_point_refs(hypothesis, parameter)
   if (nrow(point_refs) == 0L) {
@@ -45,8 +46,9 @@
     normalization_points <- max(50L, n_points)
   }
 
-  context        <- .iwmde_context(object)
-  estimate_cache <- .iwmde_estimate_cache()
+  resources      <- .iwmde_workspace_resources(object, workspace)
+  context        <- resources[["context"]]
+  estimate_cache <- resources[["estimate_cache"]]
 
   scalar_rows <- is.na(point_refs[["level"]])
   if (any(scalar_rows)) {

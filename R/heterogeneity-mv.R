@@ -153,26 +153,31 @@
     posterior_samples = posterior_samples
   )
 
-  out <- lapply(blocks, function(block) {
-    if (block %in% names(allocation_components)) {
-      return(allocation_components[[block]][["samples"]])
-    }
-    # Pass the compiled design directly so the synthetic expanded row is not
-    # reconstructed from a raw moderator row.
-    random_vcov <- BayesTools::random_effects_marginal_vcov(
+  covariance_blocks <- setdiff(blocks, names(allocation_components))
+  covariance_components <- list()
+  if (length(covariance_blocks) > 0L) {
+    factors <- BayesTools::random_effects_marginal_factor_states(
       fit               = formula_design,
       parameter         = formula_design[["parameter"]],
       posterior_samples = posterior_samples,
       prior_list        = location_priors,
-      blocks            = block,
-      diagonal_only     = TRUE
+      blocks            = covariance_blocks,
+      row_blocks        = list(1L)
     )
-    variance <- .brma_mv_validate_random_marginal_variance_samples(
-      random_vcov = random_vcov,
-      S           = nrow(posterior_samples),
-      K           = 1L
+    variance <- BayesTools::random_effects_marginal_factor_diagonal(
+      factors,
+      by_block = TRUE
     )
-    matrix(sqrt(variance[, 1L]), ncol = 1L)
+    covariance_components <- lapply(variance, function(samples) {
+      matrix(sqrt(samples[, 1L]), ncol = 1L)
+    })
+  }
+
+  out <- lapply(blocks, function(block) {
+    if (block %in% names(allocation_components)) {
+      return(allocation_components[[block]][["samples"]])
+    }
+    covariance_components[[block]]
   })
   names(out) <- blocks
   quantities <- stats::setNames(rep("sd", length(blocks)), blocks)
@@ -1312,48 +1317,103 @@
     )
   }
 
-  out <- lapply(seq_along(terms), function(i) {
+  block_names     <- vapply(terms, `[[`, character(1), "block_name")
+  out             <- vector("list", length(terms))
+  fallback_blocks <- character()
+  fallback_errors <- list()
+  names(out)      <- block_names
+
+  for (i in seq_along(terms)) {
     term <- terms[[i]]
     if (pure_intercepts[[i]]) {
-      samples <- tryCatch(
+      direct <- tryCatch(
         .random_effect_term_sd_samples(
           term              = term,
           posterior_samples = posterior_samples,
           K                 = K,
           source_samples    = source_samples
         ),
-        error = function(e) {
-          .brma_mv_random_block_row_sd_samples(
-            object                         = object,
-            posterior_samples              = posterior_samples,
-            block                          = term[["block_name"]],
-            K                              = K,
-            data                           = data,
-            new_levels                     = new_levels,
-            original_error                 = e,
-            include_known_group_covariance = include_known_group_covariance
-          )
-        }
+        error = identity
       )
-    } else {
-      samples <- .brma_mv_random_block_row_sd_samples(
-        object                         = object,
-        posterior_samples              = posterior_samples,
-        block                          = term[["block_name"]],
-        K                              = K,
-        data                           = data,
-        new_levels                     = new_levels,
-        original_error                 = NULL,
-        include_known_group_covariance = include_known_group_covariance
+      if (!inherits(direct, "error")) {
+        out[[i]] <- .expand_brma_mv_heterogeneity_samples(
+          samples = direct,
+          S       = nrow(posterior_samples),
+          K       = K
+        )
+        next
+      }
+      fallback_errors[[term[["block_name"]]]] <- direct
+    }
+    fallback_blocks <- c(fallback_blocks, term[["block_name"]])
+  }
+
+  if (length(fallback_blocks) > 0L) {
+    fallback <- .brma_mv_random_block_row_sd_samples_batch(
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      blocks                          = fallback_blocks,
+      K                               = K,
+      data                            = data,
+      new_levels                      = new_levels,
+      original_errors                 = fallback_errors,
+      include_known_group_covariance = include_known_group_covariance
+    )
+    for (block in fallback_blocks) {
+      out[[block]] <- .expand_brma_mv_heterogeneity_samples(
+        samples = fallback[[block]],
+        S       = nrow(posterior_samples),
+        K       = K
       )
     }
-    .expand_brma_mv_heterogeneity_samples(
-      samples = samples,
-      S       = nrow(posterior_samples),
-      K       = K
+  }
+
+  return(out)
+}
+
+
+.brma_mv_random_block_row_sd_samples_batch <- function(
+    object, posterior_samples, blocks, K, data = object[["data"]],
+    new_levels = NULL, original_errors = list(),
+    include_known_group_covariance = TRUE) {
+
+  if (is.null(new_levels)) {
+    variance <- tryCatch(
+      .brma_mv_random_effects_marginal_diagonal_by_block(
+        object                         = object,
+        posterior_samples              = posterior_samples,
+        blocks                          = blocks,
+        data                            = data,
+        include_known_group_covariance = include_known_group_covariance
+      ),
+      error = identity
+    )
+    valid <- is.list(variance) && identical(names(variance), blocks) &&
+      all(vapply(variance, function(samples) {
+        is.numeric(samples) && is.matrix(samples) &&
+          identical(dim(samples), c(nrow(posterior_samples), K)) &&
+          all(is.finite(samples)) && all(samples >= 0)
+      }, logical(1)))
+    if (isTRUE(valid)) {
+      return(lapply(variance, sqrt))
+    }
+    # Preserve the established block-specific error if batch compilation is
+    # structurally unavailable.
+  }
+
+  out <- lapply(blocks, function(block) {
+    .brma_mv_random_block_row_sd_samples(
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      block                          = block,
+      K                              = K,
+      data                           = data,
+      new_levels                     = new_levels,
+      original_error                 = original_errors[[block]],
+      include_known_group_covariance = include_known_group_covariance
     )
   })
-  names(out) <- vapply(terms, `[[`, character(1), "block_name")
+  names(out) <- blocks
 
   return(out)
 }

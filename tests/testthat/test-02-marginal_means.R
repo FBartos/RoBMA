@@ -536,9 +536,10 @@ test_that("marginal_means plot computes missing explicit qCMDE densities", {
                                             n_points, sample_budget,
                                             normalization_points,
                                             normalization_prob, density_method,
-                                            display_grid, null_hypothesis,
-                                            parameter, type, levels, targeted,
-                                            include_ordinates = TRUE) {
+                                             display_grid, null_hypothesis,
+                                             parameter, type, levels, targeted,
+                                             include_ordinates = TRUE,
+                                             workspace = NULL) {
 
       attached <<- list(
         density_method    = density_method,
@@ -787,9 +788,10 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
                                             n_points, sample_budget,
                                             normalization_points,
                                             normalization_prob, density_method,
-                                            display_grid, null_hypothesis,
-                                            parameter, type, levels, targeted,
-                                            include_ordinates = TRUE) {
+                                             display_grid, null_hypothesis,
+                                             parameter, type, levels, targeted,
+                                             include_ordinates = TRUE,
+                                             workspace = NULL) {
 
       attached <<- list(density_method = density_method, levels = levels)
       for (level in levels) {
@@ -870,9 +872,10 @@ test_that("marginal_means plot errors when explicit IWMDE density is unavailable
                                             n_points, sample_budget,
                                             normalization_points,
                                             normalization_prob, density_method,
-                                            display_grid, null_hypothesis,
-                                            parameter, type, levels, targeted,
-                                            include_ordinates = TRUE) {
+                                             display_grid, null_hypothesis,
+                                             parameter, type, levels, targeted,
+                                             include_ordinates = TRUE,
+                                             workspace = NULL) {
 
       density_diagnostics <- .marginal_means_iwmde_density_diagnostics("iwmde")
       density_diagnostics[["n_estimator_rows"]]    <- 500L
