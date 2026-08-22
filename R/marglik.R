@@ -2317,6 +2317,54 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 }
 
 
+.marglik_covariance_plan_affine_grid_loglik <- function(
+    cache, y, means, sampling_covariance, block_indices,
+    base_covariances, update_covariances, reference_coefficient,
+    coefficients) {
+
+  plan <- .marglik_covariance_plan_get(
+    cache                    = cache,
+    y                        = y,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    block_indices            = block_indices
+  )
+  .Call(
+    "RoBMA_known_v_covariance_plan_affine_grid_loglik",
+    plan,
+    t(means),
+    base_covariances,
+    update_covariances,
+    as.double(reference_coefficient),
+    as.double(coefficients),
+    PACKAGE = "RoBMA"
+  )
+}
+
+
+.marglik_covariance_plan_factor_grid_loglik <- function(
+    cache, y, means, sampling_covariance, random_covariance_plans,
+    random_covariance_states, block_indices, extra_variances, update_grid) {
+
+  plan <- .marglik_covariance_plan_get(
+    cache                    = cache,
+    y                        = y,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = random_covariance_plans,
+    block_indices            = block_indices
+  )
+  .Call(
+    "RoBMA_known_v_covariance_plan_factor_grid_loglik",
+    plan,
+    t(means),
+    random_covariance_states,
+    t(extra_variances),
+    update_grid,
+    PACKAGE = "RoBMA"
+  )
+}
+
+
 .marglik_covariance_plan_location_quadratic_batch <- function(
     cache, y, means, bases, sampling_covariance, random_covariance_plans,
     random_covariance_states, block_indices, extra_variances) {
@@ -2385,6 +2433,39 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   summary[["variance"]] <- t(summary[["variance"]])
 
   return(summary)
+}
+
+
+.marglik_covariance_plan_precision_residual_batch <- function(
+    cache, y, means, sampling_covariance, random_covariance_plans,
+    random_covariance_states, block_indices, extra_variances) {
+
+  conditional <- .marglik_covariance_plan_conditional_summary_batch(
+    cache                    = cache,
+    y                        = y,
+    means                    = means,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = random_covariance_plans,
+    random_covariance_states = random_covariance_states,
+    block_indices            = block_indices,
+    extra_variances          = extra_variances
+  )
+  residual <- conditional[["residual"]]
+  variance <- conditional[["variance"]]
+  expected_dimensions <- c(nrow(means), length(y))
+  if (!is.numeric(residual) ||
+      !identical(dim(residual), expected_dimensions) ||
+      any(!is.finite(residual)) ||
+      !is.numeric(variance) ||
+      !identical(dim(variance), expected_dimensions) ||
+      any(!is.finite(variance)) || any(variance <= 0)) {
+    stop("Covariance factor plan returned invalid conditional summaries.",
+         call. = FALSE)
+  }
+
+  # residual_i = alpha_i / precision_ii and
+  # variance_i = 1 / precision_ii, so this ratio is alpha = Q(y - mean).
+  return(residual / variance)
 }
 
 

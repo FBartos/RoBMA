@@ -220,7 +220,12 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
 # ---------------------------------------------------------------------------- #
 .dfbetas_internal <- function(samples, weights) {
 
-  summary <- .psis_influence_summary(samples, weights)
+  summary <- .psis_influence_summary(
+    samples     = samples,
+    weights     = weights,
+    fit_moments = "all",
+    variance    = "all"
+  )
   K       <- nrow(summary[["loo_fit"]])
   P       <- ncol(summary[["loo_fit"]])
   se_loo  <- sqrt(summary[["loo_var"]])

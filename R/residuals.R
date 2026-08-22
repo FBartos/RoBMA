@@ -421,17 +421,12 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
   se2 <- if (conditioning_depth == "estimate") {
     sampling_matrix
   } else if (conditioning_depth == "marginal") {
-    out        <- matrix(NA_real_, nrow = setup[["S"]], ncol = setup[["K"]])
-    chunk_info <- .known_v_apply_marginal_covariance_chunks(
+    factor_plan <- .known_v_marginal_factor_plan(
       object            = object,
       posterior_samples = setup[["posterior_samples"]],
-      FUN               = function(covariance_samples, rows) {
-        for (j in seq_along(rows)) {
-          out[rows[j], ] <<- diag(covariance_samples[j, , ])
-        }
-      }
+      known_V           = known_V
     )
-    out
+    factor_plan[["covariance_diagonal"]]
   } else {
     .check_cluster_unit_deferred("residuals()", argument = "conditioning_depth")
   }
@@ -440,8 +435,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
   out <- .known_v_attach_diagnostic_metadata(
     out,
     .known_v_diagnostic_metadata(
-      sample_info = sample_info,
-      chunk_info  = if (exists("chunk_info", inherits = FALSE)) chunk_info else NULL
+      sample_info = sample_info
     )
   )
 

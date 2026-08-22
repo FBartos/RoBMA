@@ -78,7 +78,7 @@
       samples      = posterior_samples
     )
   }
-  random_factors <- .brma_mv_random_effects_marginal_factor_states(
+  random_factors <- .brma_mv_random_effects_marginal_factor_plan(
     object            = context[["object"]],
     posterior_samples = posterior_samples,
     blocks            = setup[["blocks"]],
@@ -95,15 +95,6 @@
       call. = FALSE
     )
   }
-  if (!identical(random_factors[["row_blocks"]],
-                 setup[["dependency_blocks"]]) ||
-      length(random_factors[["factor_states"]]) != S) {
-    stop(
-      "Marginal random-effect covariance returned invalid factor states.",
-      call. = FALSE
-    )
-  }
-
   yi <- data[["outcome"]][["yi"]]
   if (.data_effect_direction(data) == "negative") {
     yi         <- -yi
@@ -133,16 +124,11 @@
 
   object         <- context[["object"]]
   data           <- context[["data"]]
-  formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
-  terms          <- formula_design[["random_effects"]]
-  blocks <- vapply(terms, .random_effect_term_block_name, character(1))
-  if (length(blocks) == 0L || anyNA(blocks) || any(!nzchar(blocks)) ||
-      anyDuplicated(blocks)) {
-    stop(
-      "Marginal known-V likelihood requires named random-effect blocks.",
-      call. = FALSE
-    )
-  }
+  formula_design <- .brma_mv_random_effects_formula_design(
+    object = object,
+    data   = data
+  )
+  blocks <- .brma_mv_random_effects_block_names(formula_design)
 
   known_V <- .data_known_v_data(data)
   setup <- list(
@@ -154,8 +140,9 @@
       blocks                       = blocks,
       sampling_latent_marginalized = TRUE
     ),
-    covariance_plan_cache            = new.env(parent = emptyenv()),
-    group_iid_plan_cache             = new.env(parent = emptyenv())
+    covariance_plan_cache = new.env(parent = emptyenv()),
+    affine_plan_cache     = new.env(parent = emptyenv()),
+    group_iid_plan_cache  = new.env(parent = emptyenv())
   )
   assign(key, setup, envir = cache)
 

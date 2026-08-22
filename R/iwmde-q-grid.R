@@ -226,6 +226,17 @@
   if (is.matrix(random_affine_out)) {
     return(random_affine_out)
   }
+  random_factor_out <- .iwmde_log_q_grid_known_v_random_factor(
+    context      = context,
+    parameter    = parameter,
+    values       = values,
+    row_states   = row_states,
+    replacement  = replacement,
+    active_setup = active_setup
+  )
+  if (is.matrix(random_factor_out)) {
+    return(random_factor_out)
+  }
   setup <- .iwmde_predictor_setup(
     context      = context,
     row_states   = row_states,

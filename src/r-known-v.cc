@@ -1,6 +1,7 @@
 #include <R_ext/Error.h>
 #include <R_ext/BLAS.h>
 #include <R_ext/Lapack.h>
+#include <R_ext/Utils.h>
 #include <Rinternals.h>
 #include <Matrix/Matrix.h>
 #include <Matrix/stubs.c>
@@ -376,6 +377,44 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
 
   UNPROTECT(1);
   return out;
+}
+
+
+extern "C" SEXP RoBMA_known_v_covariance_plan_affine_grid_loglik(
+    SEXP pointer,
+    SEXP means,
+    SEXP base_covariances,
+    SEXP update_covariances,
+    SEXP reference_coefficient,
+    SEXP coefficients)
+{
+  CovariancePlan *plan = plan_pointer(pointer);
+  return plan_affine_grid_log_likelihood(
+    *plan,
+    means,
+    base_covariances,
+    update_covariances,
+    reference_coefficient,
+    coefficients
+  );
+}
+
+
+extern "C" SEXP RoBMA_known_v_covariance_plan_factor_grid_loglik(
+    SEXP pointer,
+    SEXP means,
+    SEXP random_covariance_states,
+    SEXP extra_variances,
+    SEXP update_grid)
+{
+  CovariancePlan *plan = plan_pointer(pointer);
+  return plan_factor_grid_log_likelihood(
+    *plan,
+    means,
+    random_covariance_states,
+    extra_variances,
+    update_grid
+  );
 }
 
 

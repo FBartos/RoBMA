@@ -38,6 +38,30 @@ test_that("unit-leverage residual rows are identified structurally", {
 })
 
 
+test_that("crossproduct solves honor metadata-declared rank deficiency", {
+
+  X <- cbind(
+    intercept = 1,
+    group_1   = c(1, 0, 1, 0),
+    group_2   = c(0, 1, 0, 1)
+  )
+  weights <- c(1.2, 0.8, 2.1, 1.7)
+  crossproduct <- crossprod(X, weights * X)
+
+  observed <- .hat_solve_crossprod(crossproduct, rank = 2L)
+  expected <- MASS::ginv(crossproduct)
+
+  expect_equal(observed, expected, tolerance = 1e-15)
+  expect_equal(
+    X %*% observed %*% crossprod(X, diag(weights)),
+    X[, 1:2] %*%
+      solve(crossprod(X[, 1:2], weights * X[, 1:2])) %*%
+      crossprod(X[, 1:2], diag(weights)),
+    tolerance = 1e-14
+  )
+})
+
+
 test_that("transformed residual variances use a covariance factor", {
 
   X          <- cbind(1, c(-1, 0, 1))

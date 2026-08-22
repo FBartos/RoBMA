@@ -104,49 +104,44 @@ testthat::test_that("Ishak longitudinal heterogeneous AR model", {
   })
   scenario_text("robma-correlation-comparison-loo", loo_model_weights(fit_brma_har0, fit_brma_har))
 
+
   ### simple plots ----
   scenario_plot("time_factor", {
-    plot(fit_brma_har, "time_factor", prior = TRUE)
-    lines(fit_brma_har, "time_factor", density_method = "qCMDE", lty = 2)
+    plot(fit_brma_har, "time_factor", prior = TRUE, xlim = c(-40, -20))
+    lines(fit_brma_har, "time_factor", density_method = "qCMDE", lty = 2, density_control = list(samples = 2000))
 
     lines(fit_brma_ar, "time_factor", col = c("green", "blue"))
-    lines(fit_brma_ar, "time_factor", col = c("green", "blue"), lty = 2, density_method = "qCMDE")
+    lines(fit_brma_ar, "time_factor", col = c("green", "blue"), lty = 2, density_method = "qCMDE", density_control = list(samples = 2500))
   })
 
+  # these SD parameters density estimates take a long time
   scenario_plot("sd_common", {
     plot(fit_brma_har, "sd_common", prior = TRUE)
     lines(fit_brma_har, "sd_common", density_method = "qCMDE", lty = 2)
 
-    lines(fit_brma_ar, "sd_common", col = "blue")
-    lines(fit_brma_ar, "sd_common", col = "blue", lty = 2, density_method = "qCMDE")
+    lines(fit_brma_ar, "sd", col = "blue")
+    lines(fit_brma_ar, "sd", col = "blue", lty = 2, density_method = "qCMDE")
   })
 
   ### Random-parameter plots ----
   scenario_plot("random-parameters", {
-    par(mfrow = c(2, 3), mar = c(4, 4, 2, 1))
+    par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
 
-    plot(fit_brma_har, "sd_common", prior = TRUE, main = "Common SD: HAR and AR")
-    lines(fit_brma_har, "sd_common", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
-    lines(fit_brma_ar, "sd", col = "blue")
-    lines(fit_brma_ar, "sd", density_method = "qCMDE", density_control = qcmde_control, col = "blue", lty = 2)
-    legend("topright", legend = c("HAR KDE", "HAR qCMDE", "AR KDE", "AR qCMDE"), col = c("black", "black", "blue", "blue"), lty = c(1, 2, 1, 2), bty = "n", cex = 0.7)
-
-    plot(fit_brma_har, "sd(time[1])", prior = TRUE, main = "HAR time 1 SD")
+    plot(fit_brma_har, "sd(time[1])", prior = TRUE)
     lines(fit_brma_har, "sd(time[1])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
 
-    plot(fit_brma_har, "sd(time[2])", prior = TRUE, main = "HAR time 2 SD")
-    lines(fit_brma_har, "sd(time[2])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
+    lines(fit_brma_har, "sd(time[2])", col = "blue")
+    lines(fit_brma_har, "sd(time[2])", col = "blue", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
 
-    plot(fit_brma_har, "sd(time[3])", prior = TRUE, main = "HAR time 3 SD")
-    lines(fit_brma_har, "sd(time[3])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
-
-    plot(fit_brma_har, "sd(time[4])", prior = TRUE, main = "HAR time 4 SD")
-    lines(fit_brma_har, "sd(time[4])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
-
-    plot(fit_brma_har, "cor", prior = TRUE, main = "Correlation: HAR and AR")
+    plot(fit_brma_har, "cor", prior = TRUE, main = "Correlation")
     lines(fit_brma_har, "cor", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
-    lines(fit_brma_ar, "cor", col = "blue")
-    lines(fit_brma_ar, "cor", density_method = "qCMDE", density_control = qcmde_control, col = "blue", lty = 2)
+
+    plot(fit_brma_har, "var_mult(time[1])", prior = TRUE, main = "var_mult")
+    lines(fit_brma_har, "var_mult(time[1])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
+
+    plot(fit_brma_har, "sd_mult(time[1])", prior = TRUE, main = "sd_mult")
+    lines(fit_brma_har, "sd_mult(time[1])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
+
   })
 
   ### Random effects ----
@@ -162,22 +157,12 @@ testthat::test_that("Ishak longitudinal heterogeneous AR model", {
     scenario_agreement_plot(ranef_brma_ar, ranef_brma_har, "RoBMA: HAR vs AR", reference_label = "RoBMA AR", estimate_label = "RoBMA HAR")
   })
 
-  ### random-effect comparisons ----
-  scenario_plot("ranef-comparison", {
-    ranef_metafor <- metafor::ranef(ranef_metafor_har)
-    ranef_brma    <- ranef(fit_brma_har)
-
-    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    scenario_agreement_plot(ranef_metafor[["study_id"]][["intrcpt"]], as.data.frame(ranef_brma$study)[["Mean"]], "Study effects")
-    scenario_agreement_plot(ranef_metafor[["obs"]][["intrcpt"]], as.data.frame(ranef_brma$observation)[["Mean"]], "Study effects")
-  })
-
   ### diagnostics ----
-  scenario_plot("marginal_diagnostics", plot_marginal_diagnostics(ranef_metafor_har, fit_brma_har))
+  scenario_plot("marginal_diagnostics", plot_marginal_diagnostics(fit_metafor_har, fit_brma_har))
 
   ### diagnostic plots ----
   set.seed(1)
   scenario_plot("funnel", funnel(fit_brma_har))
   scenario_plot("qqnorm", qqnorm(fit_brma_har))
-  scenario_plot("zplot",  zplot(fit_brma_har))
+  scenario_plot("zplot",  zplot(fit_brma_har, fom = -12, to = 0))
 })

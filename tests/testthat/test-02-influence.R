@@ -42,10 +42,24 @@ test_that("PSIS fitted-value influence helpers match direct calculations", {
     (expected_cook_delta %*% .symmetric_ginv(stats::cov(fit_samples))) *
       expected_cook_delta
   )
+  shared_summary <- .psis_influence_summary(
+    samples     = fit_samples,
+    weights     = weights,
+    fit_moments = "all",
+    variance    = "matching"
+  )
 
   expect_equal(.dffits_internal(fit_samples, weights), expected_dffits)
+  expect_equal(
+    .dffits_internal(fit_samples, weights, shared_summary),
+    expected_dffits
+  )
   expect_equal(unname(.cooks.distance_internal(fit_samples, weights)),
                expected_cook)
+  expect_equal(
+    unname(.cooks.distance_internal(fit_samples, weights, shared_summary)),
+    expected_cook
+  )
 })
 
 test_that("influence diagnostics retain tiny non-zero posterior variation", {

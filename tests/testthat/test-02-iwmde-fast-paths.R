@@ -45,7 +45,7 @@ test_that("IWMDE numeric cache keys preserve represented coordinates", {
 })
 
 
-test_that("IWMDE extracts only statically continuous stored columns directly", {
+test_that("IWMDE extracts static columns directly and groups dynamic states", {
 
   samples <- cbind(
     theta           = c(10, 20),
@@ -74,9 +74,91 @@ test_that("IWMDE extracts only statically continuous stored columns directly", {
     BayesTools::prior("point", list(location = 0)),
     BayesTools::prior("normal", list(mean = 0, sd = 1))
   ))
-  expect_error(
+  calls <- numeric()
+  testthat::local_mocked_bindings(
+    .iwmde_focal_prior_state = function(context, parameter, row) {
+      calls <<- c(calls, row[["theta_indicator"]])
+      if (row[["theta_indicator"]] == 1) {
+        return(list(status = "point", location = -2))
+      }
+      list(status = "continuous", location = NULL)
+    },
+    .package = "RoBMA"
+  )
+  expect_equal(
     .iwmde_parameter_column_values(context, samples, "theta"),
-    "row dispatch should not be used"
+    c(-2, 20)
+  )
+  expect_identical(calls, c(1, 2))
+})
+
+
+test_that("IWMDE dynamic column extraction dispatches once per active key", {
+
+  samples <- cbind(
+    theta           = seq_len(8L),
+    theta_indicator = c(2, 1, 2, 3, 1, 3, 2, 1)
+  )
+  context <- .iwmde_context_ensure_caches(list(
+    posterior_samples = samples,
+    flat_prior_list   = list(theta = BayesTools::prior_mixture(list(
+      BayesTools::prior("point", list(location = 0)),
+      BayesTools::prior("normal", list(mean = 0, sd = 1)),
+      BayesTools::prior("point", list(location = 4))
+    ))),
+    indicator_names = "theta_indicator"
+  ))
+  calls <- numeric()
+  testthat::local_mocked_bindings(
+    .iwmde_focal_prior_state = function(context, parameter, row) {
+      indicator <- row[["theta_indicator"]]
+      calls <<- c(calls, indicator)
+      if (indicator == 1) {
+        return(list(status = "point", location = 0))
+      }
+      if (indicator == 3) {
+        return(list(status = "point", location = 4))
+      }
+      list(status = "continuous", location = NULL)
+    },
+    .package = "RoBMA"
+  )
+
+  observed <- .iwmde_parameter_column_values(context, samples, "theta")
+  expect_equal(observed, c(1, 0, 3, 4, 0, 4, 7, 0))
+  expect_identical(calls, c(2, 1, 3))
+})
+
+
+test_that("IWMDE grouped extraction preserves unsupported missing values", {
+
+  samples <- cbind(theta_indicator = c(2, 1, 3, 2, 3))
+  context <- .iwmde_context_ensure_caches(list(
+    posterior_samples = samples,
+    flat_prior_list   = list(theta = BayesTools::prior_mixture(list(
+      BayesTools::prior("point", list(location = -1)),
+      BayesTools::prior("normal", list(mean = 0, sd = 1)),
+      BayesTools::prior("normal", list(mean = 1, sd = 2))
+    ))),
+    indicator_names = "theta_indicator"
+  ))
+  testthat::local_mocked_bindings(
+    .iwmde_focal_prior_state = function(context, parameter, row) {
+      indicator <- row[["theta_indicator"]]
+      if (indicator == 1) {
+        return(list(status = "point", location = -1))
+      }
+      if (indicator == 2) {
+        return(list(status = "continuous", location = NULL))
+      }
+      list(status = "unsupported", location = NULL)
+    },
+    .package = "RoBMA"
+  )
+
+  expect_equal(
+    .iwmde_parameter_column_values(context, samples, "theta"),
+    c(NA, -1, NA, NA, NA)
   )
 })
 

@@ -78,17 +78,32 @@ dffits.brma <- function(model, ...) {
   return(dffits_vec)
 }
 
-.dffits_internal <- function(fit_samples, weights) {
+.dffits_internal <- function(fit_samples, weights, summary = NULL) {
 
   if (ncol(as.matrix(fit_samples)) != ncol(as.matrix(weights))) {
     stop("'fit_samples' and 'weights' must have the same number of columns.",
          call. = FALSE)
   }
 
-  summary <- .psis_influence_summary(fit_samples, weights)
+  if (is.null(summary)) {
+    summary <- .psis_influence_summary(
+      samples     = fit_samples,
+      weights     = weights,
+      fit_moments = "matching",
+      variance    = "matching"
+    )
+  }
 
-  delta <- summary[["full_fit"]] - diag(summary[["loo_fit"]])
-  se    <- sqrt(diag(summary[["loo_var"]]))
+  loo_fit <- summary[["loo_fit"]]
+  if (is.matrix(loo_fit)) {
+    loo_fit <- diag(loo_fit)
+  }
+  loo_var <- summary[["loo_var"]]
+  if (is.matrix(loo_var)) {
+    loo_var <- diag(loo_var)
+  }
+  delta <- summary[["full_fit"]] - loo_fit
+  se    <- sqrt(loo_var)
   out   <- rep(NA_real_, length(se))
   valid <- se > 0
   out[valid] <- delta[valid] / se[valid]
@@ -216,33 +231,62 @@ dffits.brma <- function(model, ...) {
 # Full and PSIS leave-one-out moments in affine-standardized coordinates.
 #
 # ---------------------------------------------------------------------------- #
-.psis_influence_summary <- function(samples, weights) {
+.psis_influence_summary <- function(
+    samples, weights, fit_moments = c("all", "matching"),
+    variance = c("all", "matching", "none")) {
 
+  fit_moments <- match.arg(fit_moments)
+  variance    <- match.arg(variance)
   coordinates <- .influence_sample_coordinates(samples)
   samples     <- coordinates[["samples"]]
   weights     <- .influence_normalize_weights(weights, nrow(samples))
+  matching <- ncol(samples) == ncol(weights)
+  if ((fit_moments == "matching" || variance == "matching") && !matching) {
+    stop(
+      "Matching PSIS influence moments require the same number of sample and weight columns.",
+      call. = FALSE
+    )
+  }
+  if (fit_moments == "matching" && variance == "all") {
+    stop(
+      "All PSIS influence variances require all leave-one-out fit moments.",
+      call. = FALSE
+    )
+  }
 
   full_fit <- colMeans(samples)
-  loo_fit  <- crossprod(weights, samples)
-  loo_var  <- matrix(
-    0,
-    nrow     = ncol(weights),
-    ncol     = ncol(samples),
-    dimnames = list(colnames(weights), colnames(samples))
-  )
-
-  for (j in seq_len(ncol(samples))) {
-    centered     <- outer(samples[, j], loo_fit[, j], "-")
-    loo_var[, j] <- colSums(weights * centered^2)
+  loo_fit <- if (fit_moments == "all") {
+    crossprod(weights, samples)
+  } else {
+    colSums(weights * samples)
+  }
+  loo_var <- NULL
+  if (variance == "matching") {
+    matching_fit <- if (is.matrix(loo_fit)) diag(loo_fit) else loo_fit
+    centered     <- sweep(samples, 2L, matching_fit, "-")
+    loo_var      <- colSums(weights * centered^2)
+  } else if (variance == "all") {
+    loo_var <- matrix(
+      0,
+      nrow     = ncol(weights),
+      ncol     = ncol(samples),
+      dimnames = list(colnames(weights), colnames(samples))
+    )
+    for (j in seq_len(ncol(samples))) {
+      centered     <- outer(samples[, j], loo_fit[, j], "-")
+      loo_var[, j] <- colSums(weights * centered^2)
+    }
   }
 
   return(list(
-    full_fit = full_fit,
-    loo_fit  = loo_fit,
-    loo_var  = loo_var,
-    samples  = samples,
-    origin   = coordinates[["origin"]],
-    scale    = coordinates[["scale"]],
-    variable = coordinates[["variable"]]
+    full_fit    = full_fit,
+    loo_fit     = loo_fit,
+    loo_var     = loo_var,
+    samples     = samples,
+    origin      = coordinates[["origin"]],
+    scale       = coordinates[["scale"]],
+    variable    = coordinates[["variable"]],
+    fit_moments = fit_moments,
+    variance    = variance
   ))
 }

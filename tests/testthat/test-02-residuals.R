@@ -608,27 +608,21 @@ test_that("brma.mv random known-V estimate residuals use BLUP and sampled offset
 })
 
 
-test_that("Known-V Pearson residuals chunk marginal covariance without changing results", {
+test_that("Known-V Pearson residuals avoid dense covariance allocation", {
 
   name <- "brma.mv_block_mvn_random_scale"
   skip_if_missing_fits(name)
 
   fit_brma     <- fits[[name]]
   expected     <- residuals(fit_brma, type = "pearson")
-  K            <- nobs(fit_brma)
-  one_draw_mem <- .known_v_covariance_peak_bytes(1L, K)
   old_options  <- options(
-    RoBMA.known_v_covariance_max_bytes = one_draw_mem
+    RoBMA.known_v_covariance_max_bytes = 1
   )
   on.exit(options(old_options), add = TRUE)
 
   actual   <- residuals(fit_brma, type = "pearson")
-  metadata <- attr(actual, "known_v_diagnostic")
-  attr(actual, "known_v_diagnostic") <- NULL
-
   expect_equal(unname(actual), unname(expected), tolerance = 1e-10)
-  expect_true(metadata[["n_chunks"]] > 1L)
-  expect_equal(metadata[["n_used_samples"]], metadata[["n_posterior_samples"]])
+  expect_null(attr(actual, "known_v_diagnostic"))
 })
 
 

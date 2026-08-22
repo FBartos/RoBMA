@@ -269,11 +269,9 @@
     return(FALSE)
   }
 
-  return(all(vapply(seq_len(nrow(samples)), function(i) {
-    state <- .iwmde_focal_prior_state(context, parameter, samples[i, ])
+  states <- .iwmde_focal_prior_states(context, parameter)
 
-    identical(state[["status"]], "point")
-  }, logical(1))))
+  return(all(states[["status"]] == "point"))
 }
 
 
@@ -385,9 +383,20 @@
     }
   }
 
-  return(vapply(seq_len(nrow(samples)), function(i) {
-    .iwmde_parameter_value_row(context, samples[i, ], parameter)
-  }, numeric(1)))
+  states <- if (identical(samples, context[["posterior_samples"]])) {
+    .iwmde_focal_prior_states(context, parameter)
+  } else {
+    .iwmde_focal_prior_states_matrix(context, samples, parameter)
+  }
+  values <- if (parameter %in% colnames(samples)) {
+    as.numeric(samples[, parameter])
+  } else {
+    rep(NA_real_, nrow(samples))
+  }
+  point_rows <- states[["status"]] == "point"
+  values[point_rows] <- states[["location"]][point_rows]
+
+  return(values)
 }
 
 
@@ -697,8 +706,30 @@
     return(get(key, envir = cache, inherits = FALSE))
   }
 
-  samples     <- context[["posterior_samples"]]
-  active_keys <- .iwmde_active_keys(context)
+  samples <- context[["posterior_samples"]]
+  out <- .iwmde_focal_prior_states_matrix(
+    context     = context,
+    samples     = samples,
+    parameter   = parameter,
+    active_keys = .iwmde_active_keys(context)
+  )
+  assign(key, out, envir = cache)
+
+  return(out)
+}
+
+
+.iwmde_focal_prior_states_matrix <- function(context, samples, parameter,
+                                              active_keys = NULL) {
+
+  if (is.null(active_keys)) {
+    active_keys <- .iwmde_active_keys_matrix(context, samples)
+  }
+  if (length(active_keys) != nrow(samples)) {
+    stop("IWMDE active-state keys do not match posterior rows.",
+         call. = FALSE)
+  }
+
   unique_keys <- unique(active_keys)
   first_rows  <- match(unique_keys, active_keys)
   unique_states <- lapply(first_rows, function(row) {
@@ -716,7 +747,6 @@
     status   = status[state_index],
     location = location[state_index]
   )
-  assign(key, out, envir = cache)
 
   return(out)
 }

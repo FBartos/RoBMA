@@ -57,11 +57,13 @@ test_that("quiet LLM reporter counts skips without printing each reason", {
 
 test_that("interactive test runner dispatches filtered and comprehensive profiles", {
 
-  runner_env <- new.env(parent = globalenv())
-  source(
-    testthat::test_path("..", "..", ".dev", "test-tests.R"),
-    local = runner_env
+  runner_path <- testthat::test_path("..", "..", ".dev", "test-tests.R")
+  testthat::skip_if_not(
+    file.exists(runner_path),
+    "Interactive test-runner tooling is available only in a source checkout."
   )
+  runner_env <- new.env(parent = globalenv())
+  source(runner_path, local = runner_env)
   calls <- list()
   assign(
     ".run_robma_test_profile",

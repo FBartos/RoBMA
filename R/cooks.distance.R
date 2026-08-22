@@ -73,9 +73,16 @@ cooks.distance.brma <- function(model, ...) {
   return(d_vec)
 }
 
-.cooks.distance_internal <- function(fit_samples, weights) {
+.cooks.distance_internal <- function(fit_samples, weights, summary = NULL) {
 
-  summary  <- .psis_influence_summary(fit_samples, weights)
+  if (is.null(summary)) {
+    summary <- .psis_influence_summary(
+      samples     = fit_samples,
+      weights     = weights,
+      fit_moments = "all",
+      variance    = "none"
+    )
+  }
   variable <- summary[["variable"]]
   if (!any(variable)) {
     out <- rep(0, ncol(weights))

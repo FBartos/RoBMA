@@ -567,28 +567,22 @@ test_that("VIF supports brma.mv known-R marginal GLS covariance", {
   expect_true(any(abs(random_vcov[["samples"]]) > 0))
 })
 
-test_that("VIF chunks brma.mv known-V marginal covariance without changing results", {
+test_that("VIF avoids dense known-V covariance allocation", {
 
   name <- "brma.mv_block_mvn_random_mods_scale"
   skip_if_missing_fits(name)
 
   object       <- fits[[name]]
   expected     <- vif(object, posterior_correlation = FALSE)[["vif"]]
-  K            <- nobs(object)
-  one_draw_mem <- .known_v_covariance_peak_bytes(1L, K)
   old_options  <- options(
-    RoBMA.known_v_covariance_max_bytes = one_draw_mem
+    RoBMA.known_v_covariance_max_bytes = 1
   )
   on.exit(options(old_options), add = TRUE)
 
   result   <- vif(object, posterior_correlation = FALSE)
   actual   <- result[["vif"]]
-  metadata <- attr(result, "known_v_diagnostic")
-  attr(actual, "known_v_diagnostic") <- NULL
-
   expect_equal(actual, expected, tolerance = 1e-10)
-  expect_true(metadata[["n_chunks"]] > 1L)
-  expect_equal(metadata[["n_used_samples"]], metadata[["n_posterior_samples"]])
+  expect_null(attr(result, "known_v_diagnostic"))
 })
 
 test_that("VIF exposes deterministic known-V draw thinning", {

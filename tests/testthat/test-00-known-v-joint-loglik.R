@@ -237,6 +237,160 @@ test_that("native covariance plan returns exact Schur conditional densities", {
 })
 
 
+test_that("known-V factor plans recover batched precision right-hand sides", {
+
+  sampling_covariance <- matrix(c(
+    1.4, 0.2, 0.1, 0.0,
+    0.2, 1.1, 0.3, 0.1,
+    0.1, 0.3, 1.6, 0.2,
+    0.0, 0.1, 0.2, 1.3
+  ), nrow = 4L, byrow = TRUE)
+  extra_variances <- rbind(
+    c(0.10, 0.20, 0.15, 0.05),
+    c(0.30, 0.05, 0.25, 0.10)
+  )
+  rhs <- cbind(c(0.3, -0.5, 0.8, 0.1), 1, c(-1, -0.2, 0.6, 1.4))
+  plan_data <- list(
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = rep(list(list()), nrow(extra_variances)),
+    block_indices            = list(seq_len(nrow(rhs))),
+    extra_variances          = extra_variances
+  )
+
+  observed <- .known_v_covariance_plan_precision_rhs_batch(
+    plan_data = plan_data,
+    rhs       = rhs
+  )
+  expected <- array(NA_real_, dim = dim(observed))
+  for (draw in seq_len(nrow(extra_variances))) {
+    covariance <- sampling_covariance + diag(extra_variances[draw, ])
+    expected[draw, , ] <- solve(covariance, rhs)
+  }
+
+  expect_equal(observed, expected, tolerance = 1e-12)
+})
+
+
+test_that("latent known-V metadata use the exact low-rank covariance plan", {
+
+  loading <- c(0.2, 0.3, -0.1, 0.4)
+  sampling_covariance <- tcrossprod(loading)
+  known_V <- .known_v_prepare(
+    V                         = sampling_covariance,
+    keep_rows                 = rep(TRUE, length(loading)),
+    known_v_parameterization  = "auto",
+    known_v_residual_fraction = NULL,
+    warn_singular             = FALSE
+  )
+  factor <- .known_v_latent_sampling_factor_plan(known_V)
+  extra_variances <- rbind(
+    c(0.10, 0.20, 0.15, 0.05),
+    c(0.30, 0.05, 0.25, 0.10)
+  )
+  rhs <- cbind(c(0.3, -0.5, 0.8, 0.1), 1)
+  plan_data <- list(
+    sampling_covariance      = factor[["sampling_covariance"]],
+    random_covariance_plans  = list(factor[["factor_plan"]]),
+    random_covariance_states = rep(
+      list(list(factor[["factor_state"]])),
+      nrow(extra_variances)
+    ),
+    block_indices   = list(seq_along(loading)),
+    extra_variances = extra_variances
+  )
+
+  observed <- .known_v_covariance_plan_precision_rhs_batch(
+    plan_data = plan_data,
+    rhs       = rhs
+  )
+  expected <- array(NA_real_, dim = dim(observed))
+  for (draw in seq_len(nrow(extra_variances))) {
+    covariance <- sampling_covariance + diag(extra_variances[draw, ])
+    expected[draw, , ] <- solve(covariance, rhs)
+  }
+
+  expect_equal(
+    tcrossprod(factor[["factor_plan"]][["model_matrix"]]),
+    sampling_covariance,
+    tolerance = 0
+  )
+  expect_equal(observed, expected, tolerance = 1e-12)
+  expect_null(.known_v_latent_sampling_factor_plan(.known_v_prepare(
+    V                         = sampling_covariance + diag(0.01, 4L),
+    keep_rows                 = rep(TRUE, 4L),
+    known_v_parameterization  = "block_mvn",
+    known_v_residual_fraction = NULL,
+    warn_singular             = FALSE
+  )))
+})
+
+
+test_that("known-V factor-plan GLS matches exact dense projections", {
+
+  sampling_covariance <- matrix(c(
+    1.4, 0.2, 0.1, 0.0,
+    0.2, 1.1, 0.3, 0.1,
+    0.1, 0.3, 1.6, 0.2,
+    0.0, 0.1, 0.2, 1.3
+  ), nrow = 4L, byrow = TRUE)
+  extra_variances <- rbind(
+    c(0.10, 0.20, 0.15, 0.05),
+    c(0.30, 0.05, 0.25, 0.10)
+  )
+  y <- c(0.3, -0.5, 0.8, 0.1)
+  X <- cbind(1, c(-1, -0.2, 0.6, 1.4))
+  plan_data <- list(
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = rep(list(list()), nrow(extra_variances)),
+    block_indices            = list(seq_len(length(y))),
+    extra_variances          = extra_variances,
+    covariance_diagonal      = sweep(
+      extra_variances,
+      2L,
+      diag(sampling_covariance),
+      "+"
+    )
+  )
+  testthat::local_mocked_bindings(
+    .known_v_marginal_factor_plan = function(...) plan_data,
+    .package = "RoBMA"
+  )
+
+  observed <- .known_v_factor_gls_projection_batch(
+    object            = list(),
+    posterior_samples = matrix(0, nrow = 2L, ncol = 1L),
+    known_V           = list(),
+    X                 = X,
+    y                 = y,
+    return_full_H     = TRUE,
+    return_se         = TRUE,
+    return_resid      = TRUE
+  )
+
+  for (draw in seq_len(nrow(extra_variances))) {
+    covariance <- sampling_covariance + diag(extra_variances[draw, ])
+    expected <- .known_v_gls_projection(X, y, covariance)
+    A <- diag(length(y)) - expected[["H"]]
+
+    expect_equal(observed[["H"]][draw, , ], expected[["H"]],
+                 tolerance = 1e-12)
+    expect_equal(observed[["H_diag"]][draw, ], diag(expected[["H"]]),
+                 tolerance = 1e-12)
+    expect_equal(observed[["M_diag"]][draw, ], diag(covariance),
+                 tolerance = 1e-12)
+    expect_equal(observed[["residual"]][draw, ], expected[["residual"]],
+                 tolerance = 1e-12)
+    expect_equal(
+      observed[["residual_variance"]][draw, ],
+      rowSums((A %*% expected[["covariance_factor"]])^2),
+      tolerance = 1e-12
+    )
+  }
+})
+
+
 test_that("rank-one known V retains sub-ULP diagonal variance", {
 
   V    <- matrix(1, nrow = 2L, ncol = 2L)

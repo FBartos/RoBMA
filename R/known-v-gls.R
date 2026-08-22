@@ -178,6 +178,267 @@
 }
 
 
+# ---------------------------------------------------------------------------- #
+# .known_v_marginal_factor_plan
+# ---------------------------------------------------------------------------- #
+#
+# Compile the exact marginal covariance representation used by known-V GLS
+# diagnostics. Random-formula models use BayesTools' metadata-declared factor
+# plans; diagonal heterogeneity models use the covariance plan's native
+# per-observation variance input. Both representations retain the fitted
+# sampling covariance without constructing draw x row x row arrays.
+#
+# ---------------------------------------------------------------------------- #
+.known_v_marginal_factor_plan <- function(object, posterior_samples, known_V) {
+
+  data <- object[["data"]]
+  S    <- nrow(posterior_samples)
+  K    <- nrow(data[["outcome"]])
+
+  if (.known_v_nrow(known_V) != K) {
+    stop("Known-V covariance metadata is inconsistent with the outcome data.",
+         call. = FALSE)
+  }
+
+  if (.is_data_random(data)) {
+    sampled_blocks <- .data_sampled_random_effect_blocks(data)
+    extra_variance <- .evaluate_marginalized_random_variance(
+      data              = data,
+      posterior_samples = posterior_samples,
+      K                 = K,
+      source_samples    = .known_v_marginalized_random_source_samples(
+        fit               = object[["fit"]],
+        data              = data,
+        priors            = object[["priors"]],
+        posterior_samples = posterior_samples
+      )
+    )
+
+    if (length(sampled_blocks) > 0L) {
+      random_factors <- .brma_mv_random_effects_marginal_factor_plan(
+        object            = object,
+        posterior_samples = posterior_samples,
+        blocks            = sampled_blocks,
+        data              = data
+      )
+      dependency_blocks <- random_factors[["row_blocks"]]
+      random_variance  <- BayesTools::random_effects_marginal_factor_diagonal(
+        random_factors
+      )
+    } else {
+      dependency_blocks <- .known_v_dependency_blocks(data, K)
+      random_factors   <- list(
+        factor_plans  = list(),
+        factor_states = rep(list(list()), S)
+      )
+      random_variance <- matrix(0, nrow = S, ncol = K)
+    }
+  } else {
+    dependency_blocks <- .known_v_dependency_blocks(data, K)
+    random_factors   <- list(
+      factor_plans  = list(),
+      factor_states = rep(list(list()), S)
+    )
+    extra_variance <- .known_v_diagonal_extra_variance_samples(
+      object            = object,
+      posterior_samples = posterior_samples,
+      K                 = K
+    )
+    random_variance <- matrix(0, nrow = S, ncol = K)
+  }
+
+  covariance_diagonal <- sweep(
+    random_variance + extra_variance,
+    2L,
+    .known_v_diagonal(known_V),
+    "+"
+  )
+  if (!identical(dim(covariance_diagonal), c(S, K)) ||
+      any(!is.finite(covariance_diagonal)) ||
+      any(covariance_diagonal < 0)) {
+    stop("Known-V covariance factor plan returned an invalid diagonal.",
+         call. = FALSE)
+  }
+
+  sampling_covariance <- .marglik_known_v_covariance_matrix(known_V)
+  sampling_factors    <- .known_v_latent_sampling_factor_plan(
+    known_V = known_V
+  )
+  if (!is.null(sampling_factors)) {
+    sampling_covariance <- sampling_factors[["sampling_covariance"]]
+    random_factors[["factor_plans"]] <- c(
+      random_factors[["factor_plans"]],
+      list(sampling_factors[["factor_plan"]])
+    )
+    for (s in seq_len(S)) {
+      random_factors[["factor_states"]][[s]] <- c(
+        random_factors[["factor_states"]][[s]],
+        list(sampling_factors[["factor_state"]])
+      )
+    }
+  }
+
+  return(list(
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = random_factors[["factor_plans"]],
+    random_covariance_states = random_factors[["factor_states"]],
+    block_indices            = dependency_blocks,
+    extra_variances          = extra_variance,
+    covariance_diagonal      = covariance_diagonal
+  ))
+}
+
+
+.known_v_latent_sampling_factor_plan <- function(known_V) {
+
+  if (!identical(.known_v_effective_backend(known_V), "latent")) {
+    return(NULL)
+  }
+  blocks <- .known_v_backend_blocks(known_V, "latent")
+  K      <- .known_v_nrow(known_V)
+  rank   <- sum(vapply(blocks, `[[`, integer(1), "rank"))
+  if (rank == 0L) {
+    return(NULL)
+  }
+
+  model_matrix <- matrix(0, nrow = K, ncol = rank)
+  offset       <- 0L
+  for (block in blocks) {
+    columns <- offset + seq_len(block[["rank"]])
+    model_matrix[block[["index"]], columns] <- block[["B"]]
+    offset <- max(columns)
+  }
+
+  residual_variance <- .known_v_residual_variance(known_V)
+  if (length(residual_variance) != K || any(!is.finite(residual_variance)) ||
+      any(residual_variance < 0)) {
+    stop("Known-V latent residual variance metadata are invalid.",
+         call. = FALSE)
+  }
+
+  return(list(
+    sampling_covariance = diag(residual_variance, nrow = K, ncol = K),
+    factor_plan = list(
+      type                  = "group",
+      model_matrix          = model_matrix,
+      group_map             = rep(1L, K),
+      coefficient_structure = "diagonal"
+    ),
+    factor_state = list(
+      coefficient_factor = diag(1, nrow = rank, ncol = rank)
+    )
+  ))
+}
+
+
+.known_v_covariance_plan_precision_rhs_batch <- function(plan_data, rhs) {
+
+  S <- nrow(plan_data[["extra_variances"]])
+  K <- nrow(rhs)
+  if (!is.matrix(rhs) || nrow(rhs) != K || ncol(rhs) == 0L ||
+      !is.numeric(rhs) || any(!is.finite(rhs))) {
+    stop("Known-V precision right-hand sides are invalid.", call. = FALSE)
+  }
+
+  zero_means <- matrix(0, nrow = S, ncol = K)
+  out        <- array(NA_real_, dim = c(S, K, ncol(rhs)))
+  for (column in seq_len(ncol(rhs))) {
+    out[, , column] <- .marglik_covariance_plan_precision_residual_batch(
+      cache                    = new.env(parent = emptyenv()),
+      y                        = rhs[, column],
+      means                    = zero_means,
+      sampling_covariance      = plan_data[["sampling_covariance"]],
+      random_covariance_plans  = plan_data[["random_covariance_plans"]],
+      random_covariance_states = plan_data[["random_covariance_states"]],
+      block_indices            = plan_data[["block_indices"]],
+      extra_variances          = plan_data[["extra_variances"]]
+    )
+  }
+
+  return(out)
+}
+
+
+.known_v_factor_gls_projection_batch <- function(
+    object, posterior_samples, known_V, X, y,
+    return_full_H = FALSE, return_se = FALSE, return_resid = FALSE) {
+
+  S <- nrow(posterior_samples)
+  K <- length(y)
+  p <- ncol(X)
+  if (!is.matrix(X) || nrow(X) != K || p == 0L ||
+      !is.numeric(X) || any(!is.finite(X)) ||
+      !is.numeric(y) || any(!is.finite(y))) {
+    stop("Known-V GLS projection inputs are invalid.", call. = FALSE)
+  }
+
+  plan_data <- .known_v_marginal_factor_plan(
+    object            = object,
+    posterior_samples = posterior_samples,
+    known_V           = known_V
+  )
+  rhs <- if (return_resid) cbind(y, X) else X
+  precision_rhs <- .known_v_covariance_plan_precision_rhs_batch(
+    plan_data = plan_data,
+    rhs       = rhs
+  )
+  x_offset <- if (return_resid) 1L else 0L
+
+  H_diag_samples <- matrix(NA_real_, nrow = S, ncol = K)
+  H_samples <- if (return_full_H) {
+    array(NA_real_, dim = c(S, K, K))
+  } else {
+    NULL
+  }
+  residual_samples <- if (return_resid) {
+    matrix(NA_real_, nrow = S, ncol = K)
+  } else {
+    NULL
+  }
+  residual_variance_samples <- if (return_se) {
+    matrix(NA_real_, nrow = S, ncol = K)
+  } else {
+    NULL
+  }
+
+  for (s in seq_len(S)) {
+    W_X <- matrix(
+      precision_rhs[s, , x_offset + seq_len(p)],
+      nrow = K,
+      ncol = p
+    )
+    XtWX_inv <- .hat_solve_crossprod(
+      crossprod(X, W_X),
+      rank = attr(X, "rank")
+    )
+    X_cov    <- X %*% XtWX_inv
+
+    H_diag_samples[s, ] <- rowSums(X_cov * W_X)
+    if (return_full_H) {
+      H_samples[s, , ] <- X_cov %*% t(W_X)
+    }
+    if (return_resid) {
+      W_y <- precision_rhs[s, , 1L]
+      beta_hat <- as.vector(XtWX_inv %*% crossprod(X, W_y))
+      residual_samples[s, ] <- y - as.vector(X %*% beta_hat)
+    }
+    if (return_se) {
+      residual_variance_samples[s, ] <-
+        plan_data[["covariance_diagonal"]][s, ] - rowSums(X_cov * X)
+    }
+  }
+
+  return(list(
+    H_diag             = H_diag_samples,
+    H                  = H_samples,
+    M_diag             = plan_data[["covariance_diagonal"]],
+    residual           = residual_samples,
+    residual_variance  = residual_variance_samples,
+    covariance_path    = "factor_plan_gls"
+  ))
+}
+
+
 .known_v_covariance_diagonal_samples <- function(covariance_samples) {
 
   dims <- dim(covariance_samples)
@@ -344,47 +605,6 @@
 }
 
 
-.known_v_apply_marginal_covariance_chunks <- function(object,
-                                                      posterior_samples,
-                                                      max_bytes = NULL,
-                                                      FUN) {
-
-  known_V <- .data_known_v_data(object[["data"]])
-  K       <- nrow(object[["data"]][["outcome"]])
-
-  if (.known_v_nrow(known_V) != K) {
-    stop("Known-V covariance metadata is inconsistent with the outcome data.",
-         call. = FALSE)
-  }
-
-  chunks    <- .known_v_covariance_chunk_indices(
-    S         = nrow(posterior_samples),
-    K         = K,
-    max_bytes = max_bytes
-  )
-  max_bytes <- .known_v_covariance_max_bytes(max_bytes)
-
-  for (rows in chunks) {
-    covariance_samples <- .known_v_marginal_covariance_samples_raw(
-      object            = object,
-      posterior_samples = posterior_samples[rows, , drop = FALSE],
-      known_V           = known_V,
-      K                 = K
-    )
-    FUN(covariance_samples, rows)
-  }
-
-  return(list(
-    max_bytes       = max_bytes,
-    chunk_size      = max(lengths(chunks)),
-    n_chunks        = length(chunks),
-    full_bytes      = .known_v_covariance_bytes(nrow(posterior_samples), K),
-    peak_bytes      = .known_v_covariance_peak_bytes(nrow(posterior_samples), K),
-    one_draw_bytes  = .known_v_covariance_peak_bytes(1L, K)
-  ))
-}
-
-
 .known_v_diagnostic_metadata <- function(sample_info, chunk_info = NULL) {
 
   metadata <- list(
@@ -519,7 +739,7 @@
   WX       <- W %*% X
   Wy       <- as.vector(W %*% y)
   XtWX     <- crossprod(X, WX)
-  XtWX_inv <- .hat_solve_crossprod(XtWX)
+  XtWX_inv <- .hat_solve_crossprod(XtWX, rank = attr(X, "rank"))
   H        <- X %*% XtWX_inv %*% t(WX)
   beta_hat <- as.vector(XtWX_inv %*% crossprod(X, Wy))
   residual <- y - as.vector(X %*% beta_hat)

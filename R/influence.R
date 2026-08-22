@@ -84,8 +84,14 @@ influence.brma <- function(model, ...) {
 
   if (inherits(model, "brma.mv")) {
     fit_samples <- .influence_fit_samples(model)
-    dffits_val  <- .dffits_internal(fit_samples, loo_wts)
-    cook_val    <- .cooks.distance_internal(fit_samples, loo_wts)
+    fit_summary <- .psis_influence_summary(
+      samples     = fit_samples,
+      weights     = loo_wts,
+      fit_moments = "all",
+      variance    = "matching"
+    )
+    dffits_val  <- .dffits_internal(fit_samples, loo_wts, fit_summary)
+    cook_val    <- .cooks.distance_internal(fit_samples, loo_wts, fit_summary)
     cov_val     <- covratio.brma(model, .weights = loo_wts)
     cov_note    <- attr(cov_val, "note")
     cov_val     <- as.numeric(cov_val)
@@ -132,12 +138,18 @@ influence.brma <- function(model, ...) {
   ### Compute Individual Diagnostics using Shared Components
   # DFFITS
   if (outcome_type == "norm" && !is_weightfunction) {
-    dffits_val <- .dffits_internal(fit_samples, loo_wts)
+    fit_summary <- .psis_influence_summary(
+      samples     = fit_samples,
+      weights     = loo_wts,
+      fit_moments = "all",
+      variance    = "matching"
+    )
+    dffits_val <- .dffits_internal(fit_samples, loo_wts, fit_summary)
   }
 
   # Cook's Distance
   if (outcome_type == "norm" && !is_weightfunction) {
-    cook_val <- .cooks.distance_internal(fit_samples, loo_wts)
+    cook_val <- .cooks.distance_internal(fit_samples, loo_wts, fit_summary)
   }
 
   # COVRATIO

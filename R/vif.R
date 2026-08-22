@@ -311,19 +311,17 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     max_samples = max_samples,
     caller      = "known-V VIF diagnostics"
   )
-  vcov <- .vif_vcov_from_covariance_chunks(
+  known_V <- .data_known_v_data(object[["data"]])
+  vcov <- .vif_vcov_from_factor_plan(
     object            = object,
     X                 = X,
-    posterior_samples = sample_info[["posterior_samples"]]
+    posterior_samples = sample_info[["posterior_samples"]],
+    known_V           = known_V
   )
   vcov <- .known_v_attach_diagnostic_metadata(
     vcov,
-    .known_v_diagnostic_metadata(
-      sample_info = sample_info,
-      chunk_info  = attr(vcov, "known_v_covariance_chunks")
-    )
+    .known_v_diagnostic_metadata(sample_info = sample_info)
   )
-  attr(vcov, "known_v_covariance_chunks") <- NULL
 
   return(vcov)
 }
@@ -442,7 +440,10 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     }
 
     W <- chol2inv(chol_covariance)
-    vcov_sum <- vcov_sum + .hat_solve_crossprod(crossprod(X, W %*% X))
+    vcov_sum <- vcov_sum + .hat_solve_crossprod(
+      crossprod(X, W %*% X),
+      rank = attr(X, "rank")
+    )
   }
 
   vcov <- if (average) vcov_sum / S else vcov_sum
@@ -454,28 +455,34 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 }
 
 
-.vif_vcov_from_covariance_chunks <- function(object, X, posterior_samples) {
+.vif_vcov_from_factor_plan <- function(object, X, posterior_samples, known_V) {
 
-  P        <- ncol(X)
-  vcov_sum <- matrix(0, nrow = P, ncol = P)
-
-  chunk_info <- .known_v_apply_marginal_covariance_chunks(
+  S <- nrow(posterior_samples)
+  K <- nrow(X)
+  P <- ncol(X)
+  plan_data <- .known_v_marginal_factor_plan(
     object            = object,
     posterior_samples = posterior_samples,
-    FUN               = function(covariance_samples, rows) {
-      vcov_sum <<- vcov_sum + .vif_vcov_from_covariance_samples(
-        X                  = X,
-        covariance_samples = covariance_samples,
-        average            = FALSE
-      )
-    }
+    known_V           = known_V
+  )
+  precision_X <- .known_v_covariance_plan_precision_rhs_batch(
+    plan_data = plan_data,
+    rhs       = X
   )
 
-  vcov <- vcov_sum / nrow(posterior_samples)
+  vcov_sum <- matrix(0, nrow = P, ncol = P)
+  for (s in seq_len(S)) {
+    W_X <- matrix(precision_X[s, , ], nrow = K, ncol = P)
+    vcov_sum <- vcov_sum + .hat_solve_crossprod(
+      crossprod(X, W_X),
+      rank = attr(X, "rank")
+    )
+  }
+
+  vcov <- vcov_sum / S
   if (!is.null(colnames(X))) {
     dimnames(vcov) <- list(colnames(X), colnames(X))
   }
-  attr(vcov, "known_v_covariance_chunks") <- chunk_info
 
   return(vcov)
 }
@@ -544,7 +551,10 @@ vif.brma <- function(object, posterior_correlation = TRUE,
       block_indices = block_indices
     )
 
-    vcov_sum <- vcov_sum + .hat_solve_crossprod(crossprod(X, WX))
+    vcov_sum <- vcov_sum + .hat_solve_crossprod(
+      crossprod(X, WX),
+      rank = attr(X, "rank")
+    )
   }
 
   vcov <- vcov_sum / S

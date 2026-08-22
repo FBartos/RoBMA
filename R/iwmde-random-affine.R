@@ -25,9 +25,6 @@
   }
 
   setup <- .iwmde_known_v_random_marginal_setup(context)
-  if (!.iwmde_random_affine_has_sampling_dependence(setup)) {
-    return(NULL)
-  }
 
   coefficients <- .iwmde_random_affine_coefficients(values, update)
   finite <- is.finite(values) & is.finite(coefficients)
@@ -66,7 +63,9 @@
       coefficients          = coefficients[finite],
       means                 = mu_samples,
       outcome               = yi,
-      blocks                = setup[["dependency_blocks"]]
+      blocks                = setup[["dependency_blocks"]],
+      plan_cache            = setup[["affine_plan_cache"]],
+      sampling_covariance   = setup[["sampling_covariance"]]
     )
     if (!is.matrix(evaluated) ||
         !identical(dim(evaluated), c(sum(finite), S))) {
@@ -137,7 +136,9 @@
         coefficients          = coefficients[finite],
         means                 = mu_samples[chunk, , drop = FALSE],
         outcome               = yi,
-        blocks                = setup[["dependency_blocks"]]
+        blocks                = setup[["dependency_blocks"]],
+        plan_cache            = setup[["affine_plan_cache"]],
+        sampling_covariance   = setup[["sampling_covariance"]]
       )
       if (!is.matrix(evaluated) ||
           !identical(dim(evaluated), c(sum(finite), length(chunk)))) {
@@ -194,17 +195,6 @@
 }
 
 
-.iwmde_random_affine_has_sampling_dependence <- function(setup) {
-
-  covariance <- setup[["sampling_covariance"]]
-  if (!is.matrix(covariance) || nrow(covariance) != ncol(covariance)) {
-    return(FALSE)
-  }
-  off_diagonal <- row(covariance) != col(covariance)
-  any(covariance[off_diagonal] != 0)
-}
-
-
 .iwmde_random_affine_coefficients <- function(values, update) {
 
   transform <- update[["coefficient_transform"]]
@@ -245,144 +235,22 @@
 
 .iwmde_random_affine_log_likelihood_chunk <- function(
     base_covariance, update_covariance, reference_coefficient, coefficients,
-    means, outcome, blocks) {
+    means, outcome, blocks, plan_cache, sampling_covariance) {
 
   draw_specific <- length(dim(base_covariance)) == 3L
   if (draw_specific != (length(dim(update_covariance)) == 3L)) {
     return(NULL)
   }
-  S <- nrow(means)
-  G <- length(coefficients)
-  out <- matrix(0, nrow = G, ncol = S)
-  invariant <- !draw_specific ||
-    .iwmde_random_affine_covariance_invariant(
-      base_covariance,
-      update_covariance
-    )
 
-  for (block in blocks) {
-    shared_plan <- NULL
-    if (invariant) {
-      shared_plan <- .iwmde_random_affine_spectral_plan(
-        base_covariance = .iwmde_random_affine_covariance_block(
-          base_covariance,
-          1L,
-          block
-        ),
-        update_covariance = .iwmde_random_affine_covariance_block(
-          update_covariance,
-          1L,
-          block
-        ),
-        reference_coefficient = reference_coefficient,
-        coefficients          = coefficients
-      )
-      if (is.null(shared_plan)) {
-        return(NULL)
-      }
-    }
-    for (s in seq_len(S)) {
-      plan <- shared_plan
-      if (is.null(plan)) {
-        plan <- .iwmde_random_affine_spectral_plan(
-          base_covariance = .iwmde_random_affine_covariance_block(
-            base_covariance,
-            s,
-            block
-          ),
-          update_covariance = .iwmde_random_affine_covariance_block(
-            update_covariance,
-            s,
-            block
-          ),
-          reference_coefficient = reference_coefficient,
-          coefficients          = coefficients
-        )
-      }
-      if (is.null(plan)) {
-        return(NULL)
-      }
-      value <- .known_v_affine_log_likelihood(
-        plan         = plan,
-        residual     = outcome[block] - means[s, block],
-        coefficients = coefficients
-      )
-      if (is.null(value)) {
-        return(NULL)
-      }
-      out[, s] <- out[, s] + value
-    }
-  }
-  out
-}
-
-
-.iwmde_random_affine_spectral_plan <- function(
-    base_covariance, update_covariance, reference_coefficient,
-    coefficients) {
-
-  plan <- .known_v_affine_spectral_plan(
-    base_covariance       = base_covariance,
-    update_covariance     = update_covariance,
-    reference_coefficient = reference_coefficient
-  )
-  if (!is.null(plan)) {
-    return(plan)
-  }
-
-  candidates <- unique(coefficients[
-    is.finite(coefficients) & coefficients != reference_coefficient
-  ])
-  if (length(candidates) == 0L) {
-    return(NULL)
-  }
-  candidates <- candidates[order(abs(
-    candidates - stats::median(candidates)
-  ))]
-  for (candidate in candidates) {
-    candidate_covariance <- base_covariance +
-      (candidate - reference_coefficient) * update_covariance
-    plan <- .known_v_affine_spectral_plan(
-      base_covariance       = candidate_covariance,
-      update_covariance     = update_covariance,
-      reference_coefficient = candidate
-    )
-    if (!is.null(plan)) {
-      return(plan)
-    }
-  }
-
-  return(NULL)
-}
-
-
-.iwmde_random_affine_covariance_invariant <- function(base_covariance,
-                                                       update_covariance) {
-
-  S <- dim(base_covariance)[1L]
-  if (S < 2L) {
-    return(TRUE)
-  }
-  all(vapply(2:S, function(s) {
-    identical(
-      base_covariance[s, , , drop = FALSE],
-      base_covariance[1L, , , drop = FALSE]
-    ) && identical(
-      update_covariance[s, , , drop = FALSE],
-      update_covariance[1L, , , drop = FALSE]
-    )
-  }, logical(1)))
-}
-
-
-.iwmde_random_affine_covariance_block <- function(x, draw, block) {
-
-  if (is.matrix(x)) {
-    return(x[block, block, drop = FALSE])
-  }
-  matrix(
-    x[draw, block, block],
-    nrow = length(block),
-    ncol = length(block)
+  .marglik_covariance_plan_affine_grid_loglik(
+    cache                 = plan_cache,
+    y                     = as.double(outcome),
+    means                 = means,
+    sampling_covariance   = sampling_covariance,
+    block_indices         = blocks,
+    base_covariances      = base_covariance,
+    update_covariances    = update_covariance,
+    reference_coefficient = reference_coefficient,
+    coefficients          = coefficients
   )
 }

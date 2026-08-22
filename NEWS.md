@@ -10,15 +10,33 @@
   baselines and candidates.
 - allows random-effect variance and SD multipliers to use `transform = "LOG"` in
   posterior plots.
-- accelerates marginal known-covariance diagnostics and qCMDE/IWMDE density
-  evaluation for metadata-declared affine random covariance parameters. A
-  generalized spectral engine handles arbitrary dense sampling covariance
-  matrices exactly, while the existing native diagonal/grouped engine also
-  handles compiled one-column random components. Supported routes are selected
-  exclusively from BayesTools' persisted formula and parameter-map metadata;
-  non-affine or unsupported quantities retain the generic evaluator. The new
-  paths introduce no covariance repair, clamping, jitter, or numerical
-  affineness guesses.
+- accelerates marginal known-covariance diagnostics through the same exact
+  metadata-compiled covariance factor plans used by likelihood evaluation.
+  Hat values, Pearson residual scales, standardized residuals, and VIFs recover
+  covariance diagonals and batched precision products for every compiled
+  random-covariance family, with the plan's exact dense fallback for unsupported
+  factor geometries, instead of constructing and factorizing a posterior
+  covariance array. Persisted fixed-effect rank metadata now governs every GLS
+  crossproduct solve, and precision right-hand sides are evaluated directly,
+  avoiding cancellation and accidental Cholesky routing for aliased designs.
+  Random blocks already compiled as exact diagonal marginalized variance are
+  separated from sampled covariance factors, while persisted latent known-`V`
+  factors are passed to the same low-rank engine; both preserve the fitted
+  covariance exactly and avoid dense draw-wise factorization. qCMDE/IWMDE
+  evaluation uses a generalized spectral engine for metadata-declared affine
+  covariance parameters, compact coefficient-factor grids for heterogeneous
+  factor structures, compact transition/innovation grids for AR1, AR, HAR, and
+  CAR structures, and native diagonal/grouped engines for compiled one-column
+  random components. Each route consumes BayesTools' compiled update plan and
+  shares the ordinary exact covariance solver, including its dense fallback
+  when sampling covariance destroys a structure's separability. PSIS
+  influence diagnostics compute only their requested leave-one-out moments and
+  share fitted-value moments within `influence()`. No route infers structure
+  from posterior draws or introduces covariance repair, clamping, jitter, or an
+  approximation.
+- groups IWMDE parameter-value extraction by exact cached product-space state,
+  preserving point, continuous, and unsupported branches while avoiding
+  repeated per-draw prior resolution.
 - adds the `Hoogeveen2023` example data set with 106 analyst-team effect-size
   estimates for the relation between religiosity and self-reported well-being.
 - allows `set_contrast_factor_predictors = "independent"` to define one fixed
