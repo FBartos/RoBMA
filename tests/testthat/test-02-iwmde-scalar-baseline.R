@@ -88,7 +88,16 @@ test_that("IWMDE vectorized prior states preserve product-space components", {
       NA_real_
     )
   )
-  expect_identical(.iwmde_active_keys(context), .iwmde_active_keys(context))
+  expected_keys <- c(
+    "mu_indicator=1|tau_indicator=1",
+    "mu_indicator=2|tau_indicator=1",
+    "mu_indicator=1|tau_indicator=2",
+    "mu_indicator=2|tau_indicator=2",
+    "mu_indicator=2|tau_indicator=1",
+    "mu_indicator=1|tau_indicator=2"
+  )
+  expect_identical(.iwmde_active_keys(context), expected_keys)
+  expect_identical(.iwmde_active_keys(context), expected_keys)
 
   invalid_context <- context
   invalid_context[["posterior_samples"]][1, "mu_indicator"] <- 1.5
