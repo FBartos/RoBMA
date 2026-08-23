@@ -120,8 +120,7 @@ testthat::test_that("White study and observation random-effects model", {
   })
 
   ### diagnostics ----
-  # TODO: examine this, takes very long time, there must be some incorrect path optimization here
-  # scenario_plot("marginal_diagnostics",   plot_marginal_diagnostics(fit_metafor, fit_brma))
+  scenario_plot("marginal_diagnostics",   plot_marginal_diagnostics(fit_metafor, fit_brma))
 
   ### diagnostic plots ----
   set.seed(1)

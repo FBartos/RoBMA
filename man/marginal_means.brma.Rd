@@ -77,9 +77,7 @@ curves and point ordinates,
 \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 (default \code{"adaptive"}), \code{normalization_points} (default
 \code{NULL}, resolved to \code{max(50, n_points)}), and
-\code{normalization_prob} (default \code{0.999}). Supply \code{workspace}
-from \code{\link[=density_workspace]{density_workspace()}} to reuse exact computation across related calls.
-\code{samples} defaults
+\code{normalization_prob} (default \code{0.999}). \code{samples} defaults
 to \code{500} for qCMDE and \code{1000} for IWMDE density curves and point
 ordinates. Point ordinates use one fixed state-independent
 simple random sample chosen before contributions are evaluated. Sample

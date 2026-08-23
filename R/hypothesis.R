@@ -182,9 +182,7 @@ hypothesis.default <- function(object, ...) {
 #' \code{target_relative_mcse} (default \code{0.05}),
 #' \code{normalization_points} (default \code{NULL}, resolved to
 #' \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999}),
-#' \code{display_grid} (default \code{"adaptive"}), and \code{workspace}, an
-#' optional object created by [density_workspace()] for reuse across related
-#' calls. Point ordinates use one
+#' and \code{display_grid} (default \code{"adaptive"}). Point ordinates use one
 #' state-independent simple random sample selected before ordinate contributions
 #' are evaluated. Multiple direct scalar point ordinates for one target share
 #' the same conditional-normalization pass while retaining separate diagnostics.
@@ -516,8 +514,7 @@ hypothesis.brma <- function(object, hypothesis,
         coefficient_level_targets,
         `[[`,
         "parameter_spec"
-      ),
-      workspace                = density_control[["workspace"]]
+      )
     )
   }
 
@@ -885,12 +882,8 @@ hypothesis.brma <- function(object, hypothesis,
       density_control[["n_points"]]
     )
   }
-  resources      <- .iwmde_workspace_resources(
-    object,
-    density_control[["workspace"]]
-  )
-  context        <- resources[["context"]]
-  estimate_cache <- resources[["estimate_cache"]]
+  context        <- .iwmde_context(object)
+  estimate_cache <- .iwmde_estimate_cache()
   marginal <- .hypothesis_brma_attach_iwmde_scalar(
     posterior                = marginal,
     raw_posterior            = samples[[parameter]],

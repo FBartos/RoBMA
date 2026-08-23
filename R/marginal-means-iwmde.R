@@ -58,8 +58,7 @@
                                          display_grid, null_hypothesis,
                                          parameter, type, levels, targeted,
                                          include_ordinates = TRUE,
-                                         ordinate_control = NULL,
-                                         workspace = NULL) {
+                                         ordinate_control = NULL) {
 
   .check_iwmde_available(object, "qCMDE/IWMDE marginal_means()")
   if (isTRUE(include_ordinates)) {
@@ -70,9 +69,8 @@
     normalization_points <- max(50L, n_points)
   }
 
-  resources            <- .iwmde_workspace_resources(object, workspace)
-  context              <- resources[["context"]]
-  estimate_cache       <- resources[["estimate_cache"]]
+  context              <- .iwmde_context(object)
+  estimate_cache       <- .iwmde_estimate_cache()
   diagnostics          <- list()
   ordinate_diagnostics <- list()
   density_control_list <- list(
@@ -742,11 +740,7 @@
   samples   <- x[["inference"]][[type]][[parameter]]
   density_control <- .marginal_means_density_control_effective(density_control)
   source_object   <- .iwmde_marginal_means_source_object(x)
-  resources       <- .iwmde_workspace_resources(
-    source_object,
-    density_control[["workspace"]]
-  )
-  context         <- resources[["context"]]
+  context         <- .iwmde_context(source_object)
   provenance <- .marginal_means_density_request_provenance(
     x               = x,
     selected        = selected,
@@ -784,8 +778,7 @@
       type                  = type,
       levels                = missing_levels,
       targeted              = TRUE,
-      include_ordinates     = FALSE,
-      workspace             = density_control[["workspace"]]
+      include_ordinates     = FALSE
     )
   }
 

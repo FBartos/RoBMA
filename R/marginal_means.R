@@ -79,9 +79,7 @@ marginal_means <- function(object, ...) {
 #' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 #' (default \code{"adaptive"}), \code{normalization_points} (default
 #' \code{NULL}, resolved to \code{max(50, n_points)}), and
-#' \code{normalization_prob} (default \code{0.999}). Supply \code{workspace}
-#' from [density_workspace()] to reuse exact computation across related calls.
-#' \code{samples} defaults
+#' \code{normalization_prob} (default \code{0.999}). \code{samples} defaults
 #' to \code{500} for qCMDE and \code{1000} for IWMDE density curves and point
 #' ordinates. Point ordinates use one fixed state-independent
 #' simple random sample chosen before contributions are evaluated. Sample
@@ -296,8 +294,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
       levels                  = precompute_levels,
       targeted                = precompute_targeted,
       include_ordinates       = isTRUE(bf) && point_ordinate_supported,
-      ordinate_control        = ordinate_control,
-      workspace               = density_control[["workspace"]]
+      ordinate_control        = ordinate_control
     )
   }
 
@@ -672,9 +669,8 @@ as.data.frame.summary.marginal_means.brma <- function(
 #' \code{display_grid} (default \code{"adaptive"}),
 #' \code{normalization_points} (default \code{NULL}, resolved to
 #' \code{max(50, n_points)}), and \code{normalization_prob} (default
-#' \code{0.999}). Supply \code{workspace} from [density_workspace()] to reuse
-#' exact computation across related calls. \code{samples} controls the fixed
-#' posterior-row budget for the density curve. \code{target_relative_mcse} is a point-ordinate
+#' \code{0.999}). \code{samples} controls the fixed posterior-row budget for
+#' the density curve. \code{target_relative_mcse} is a point-ordinate
 #' diagnostic target and does not alter this fixed-budget plot. Curve
 #' diagnostics use the empirical 5--95 percent bulk, report the 5 and 95
 #' percent tail checkpoints, and retain a whole-curve absolute MCSE safeguard

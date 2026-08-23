@@ -1,9 +1,5 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
-- adds opt-in `density_workspace()` reuse across related qCMDE/IWMDE plotting,
-  hypothesis, and marginal-means calls. The session-local workspace retains one
-  fitted object and reuses exact compiled context and completed estimates
-  without global state or numerical approximation.
 - batches metadata-compiled random-effect factor states when several
   heterogeneity components are requested and reuses prepared posterior samples
   in random-effect summaries, avoiding repeated compilation and conversion

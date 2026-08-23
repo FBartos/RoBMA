@@ -104,9 +104,7 @@ IWMDE; use \code{Inf} for the eligible-row census),
 \code{target_relative_mcse} (default \code{0.05}),
 \code{normalization_points} (default \code{NULL}, resolved to
 \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999}),
-\code{display_grid} (default \code{"adaptive"}), and \code{workspace}, an
-optional object created by \code{\link[=density_workspace]{density_workspace()}} for reuse across related
-calls. Point ordinates use one
+and \code{display_grid} (default \code{"adaptive"}). Point ordinates use one
 state-independent simple random sample selected before ordinate contributions
 are evaluated. Multiple direct scalar point ordinates for one target share
 the same conditional-normalization pass while retaining separate diagnostics.

@@ -1999,20 +1999,6 @@ test_that("density_control validates public density settings", {
   expect_equal(valid[["normalization_points"]], 40)
   expect_equal(valid[["normalization_prob"]], .95)
   expect_equal(valid[["display_grid"]], "uniform")
-  expect_null(valid[["workspace"]])
-
-  workspace <- density_workspace()
-  with_workspace <- .density_control_normalize(
-    "qCMDE",
-    list(samples = 30, workspace = workspace)
-  )
-  expect_identical(with_workspace[["workspace"]], workspace)
-  expect_s3_class(workspace, "RoBMA_density_workspace")
-  expect_error(
-    .density_control_normalize("qCMDE", list(workspace = new.env())),
-    "must be created by 'density_workspace()'",
-    fixed = TRUE
-  )
   expect_error(
     .density_control_normalize("qCMDE", list(unknown = 1)),
     "unrecognized"
@@ -2067,21 +2053,6 @@ test_that("density_control validates public density settings", {
   expect_error(
     .density_control_normalize("qCMDE", list(normalization_prob = NA_real_)),
     "cannot contain"
-  )
-})
-
-test_that("density workspaces retain exact resources for one fitted object", {
-
-  object <- list(fit = list(marker = 1))
-  workspace <- density_workspace()
-  workspace$context <- list(object = object, marker = "context")
-  workspace$estimate_cache <- .iwmde_estimate_cache()
-
-  resources <- .iwmde_workspace_resources(object, workspace)
-  expect_identical(resources[["context"]], workspace$context)
-  expect_identical(
-    resources[["estimate_cache"]],
-    workspace$estimate_cache
   )
 })
 
