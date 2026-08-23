@@ -507,7 +507,7 @@ test_that("evaluated known-V random log-likelihood requires conditioned mu", {
   posterior_samples <- matrix(numeric(0), nrow = 1L, ncol = 0L)
 
   expect_error(
-    .log_lik_known_v_joint_sum_from_evaluated_predictors(
+    .test_log_lik_known_v_joint_sum_from_evaluated_predictors(
       fit                = object[["fit"]],
       data               = object[["data"]],
       priors             = object[["priors"]],
@@ -518,7 +518,7 @@ test_that("evaluated known-V random log-likelihood requires conditioned mu", {
     "sampled random effects included"
   )
   expect_silent(
-    .log_lik_known_v_joint_sum_from_evaluated_predictors(
+    .test_log_lik_known_v_joint_sum_from_evaluated_predictors(
       fit                         = object[["fit"]],
       data                        = object[["data"]],
       priors                      = object[["priors"]],
@@ -576,7 +576,7 @@ test_that("evaluated known-V marginalized scale maps component row source", {
   )
   expect_true("tau_ran_effects" %in% formula_args[["add_parameters"]])
 
-  log_lik <- .log_lik_known_v_joint_sum_from_evaluated_predictors(
+  log_lik <- .test_log_lik_known_v_joint_sum_from_evaluated_predictors(
     fit                         = object[["fit"]],
     data                        = object[["data"]],
     priors                      = object[["priors"]],

@@ -135,7 +135,7 @@ test_that("known-V posterior ordinate and marginal likelihood are exact", {
   log_kernel <- function(mu) {
 
     vapply(mu, function(value) {
-      log_lik <- .log_lik_known_v_joint_sum_from_evaluated_predictors(
+      log_lik <- .test_log_lik_known_v_joint_sum_from_evaluated_predictors(
         fit                = fit[["fit"]],
         data               = fit[["data"]],
         priors             = fit[["priors"]],
