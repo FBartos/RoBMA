@@ -737,36 +737,22 @@
 }
 
 
-.is_priors_PET            <- function(priors) {
+.prior_bias_matches <- function(priors, predicate) {
 
-  if (is.null(priors[["outcome"]][["bias"]]))
+  bias_prior <- priors[["outcome"]][["bias"]]
+  if (is.null(bias_prior)) {
     return(FALSE)
+  }
 
-  if (is.prior.mixture(priors[["outcome"]][["bias"]]))
-    return(any(sapply(priors[["outcome"]][["bias"]], is.prior.PET)))
+  if (is.prior.mixture(bias_prior)) {
+    return(any(vapply(bias_prior, predicate, logical(1))))
+  }
 
-  return(is.prior.PET(priors[["outcome"]][["bias"]]))
+  return(predicate(bias_prior))
 }
-.is_priors_PEESE          <- function(priors) {
-
-  if (is.null(priors[["outcome"]][["bias"]]))
-    return(FALSE)
-
-  if (is.prior.mixture(priors[["outcome"]][["bias"]]))
-    return(any(sapply(priors[["outcome"]][["bias"]], is.prior.PEESE)))
-
-  return(is.prior.PEESE(priors[["outcome"]][["bias"]]))
-}
-.is_priors_weightfunction <- function(priors) {
-
-  if (is.null(priors[["outcome"]][["bias"]]))
-    return(FALSE)
-
-  if (is.prior.mixture(priors[["outcome"]][["bias"]]))
-    return(any(sapply(priors[["outcome"]][["bias"]], .prior_is_selection_kernel)))
-
-  return(.prior_is_selection_kernel(priors[["outcome"]][["bias"]]))
-}
+.is_priors_PET            <- function(priors) .prior_bias_matches(priors, is.prior.PET)
+.is_priors_PEESE          <- function(priors) .prior_bias_matches(priors, is.prior.PEESE)
+.is_priors_weightfunction <- function(priors) .prior_bias_matches(priors, .prior_is_selection_kernel)
 .convergence_structural_parameters <- function(priors) {
 
   if (!.is_priors_weightfunction(priors)) {
