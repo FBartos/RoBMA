@@ -1033,10 +1033,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     cluster_ranef_mat <- unclass(cluster_samples) - unclass(terms_samples)
     K                 <- ncol(cluster_ranef_mat)
     cluster          <- data[["outcome"]][["cluster"]]
-    cluster_labels   <- .get_cluster_labels(object)[as.character(cluster)]
-    cluster_labels   <- unname(cluster_labels)
-    cluster_missing  <- is.na(cluster_labels)
-    cluster_labels[cluster_missing] <- as.character(cluster[cluster_missing])
+    cluster_labels <- .ranef_cluster_labels(object, cluster)
     if (any(duplicated(cluster_labels))) {
       cluster_names <- paste0(cluster_labels, "|", labels[seq_len(K)])
     } else {
@@ -1047,14 +1044,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     } else {
       cluster_levels         <- unique(cluster)
       cluster_level_map      <- match(cluster, cluster_levels)
-      cluster_level_labels   <- .get_cluster_labels(object)[
-        as.character(cluster_levels)
-      ]
-      cluster_level_labels   <- unname(cluster_level_labels)
-      cluster_level_missing <- is.na(cluster_level_labels)
-      cluster_level_labels[cluster_level_missing] <- as.character(
-        cluster_levels[cluster_level_missing]
-      )
+      cluster_level_labels <- .ranef_cluster_labels(object, cluster_levels)
       cluster_ranef_mat <- .ranef_unique_level_samples(
         samples      = cluster_ranef_mat,
         group_map    = cluster_level_map,
@@ -1146,10 +1136,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 
   labels          <- .get_estimate_labels(object)
   cluster         <- context[["new_data"]][["outcome"]][["cluster"]]
-  cluster_labels  <- .get_cluster_labels(object)[as.character(cluster)]
-  cluster_labels  <- unname(cluster_labels)
-  cluster_missing <- is.na(cluster_labels)
-  cluster_labels[cluster_missing] <- as.character(cluster[cluster_missing])
+  cluster_labels <- .ranef_cluster_labels(object, cluster)
   if (any(duplicated(cluster_labels))) {
     cluster_names <- paste0(cluster_labels, "|", labels)
   } else {
@@ -1163,14 +1150,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   } else {
     cluster_levels         <- unique(cluster)
     cluster_level_map      <- match(cluster, cluster_levels)
-    cluster_level_labels   <- .get_cluster_labels(object)[
-      as.character(cluster_levels)
-    ]
-    cluster_level_labels   <- unname(cluster_level_labels)
-    cluster_level_missing <- is.na(cluster_level_labels)
-    cluster_level_labels[cluster_level_missing] <- as.character(
-      cluster_levels[cluster_level_missing]
-    )
+    cluster_level_labels <- .ranef_cluster_labels(object, cluster_levels)
     components[["cluster"]] <- .ranef_unique_level_samples(
       samples      = components[["cluster"]],
       group_map    = cluster_level_map,
@@ -1387,6 +1367,16 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   }
 
   return(components[[component]])
+}
+
+
+.ranef_cluster_labels <- function(object, cluster) {
+
+  labels  <- unname(.get_cluster_labels(object)[as.character(cluster)])
+  missing <- is.na(labels)
+  labels[missing] <- as.character(cluster[missing])
+
+  return(labels)
 }
 
 
