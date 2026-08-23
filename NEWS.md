@@ -2,7 +2,9 @@
 ### Features
 - batches metadata-compiled random-effect factor states when several
   heterogeneity components are requested and reuses prepared posterior samples
-  in random-effect summaries. Targeted random-parameter diagnostics now
+  in random-effect summaries. Extracting several semantic random quantities
+  materializes their union of catalog-declared dependencies once. Targeted
+  random-parameter diagnostics now
   materialize only the requested semantic quantity instead of first extracting
   every random quantity, avoiding repeated compilation and conversion without
   changing covariance semantics.

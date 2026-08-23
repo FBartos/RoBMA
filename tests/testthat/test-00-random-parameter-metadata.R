@@ -143,7 +143,7 @@ test_that("random-parameter sources are consumed from the BayesTools catalog", {
 })
 
 
-test_that("selected random extraction materializes only its catalog row", {
+test_that("random extraction avoids redundant catalog and dependency work", {
 
   summaries <- list(
     "(mu) study: sd(a)" = make_random_metadata_prior(
@@ -171,20 +171,43 @@ test_that("selected random extraction materializes only its catalog row", {
     summaries,
     mappings
   )[["quantities"]]
-  selection <- structure(
-    list(quantities = quantities[2L, , drop = FALSE]),
-    class = c("BayesTools_parameter_selection", "list")
-  )
+  extraction_keys <- quantities[["extraction_key"]]
+  for (i in seq_along(extraction_keys)) {
+    extraction_keys[[i]][["dependencies"]] <- c("sd_a", "sd_b")[i]
+  }
+  quantities[["extraction_key"]] <- I(extraction_keys)
+  selections <- lapply(seq_len(nrow(quantities)), function(i) {
+    structure(
+      list(quantities = quantities[i, , drop = FALSE]),
+      class = c("BayesTools_parameter_selection", "list")
+    )
+  })
   fit <- coda::mcmc.list(coda::mcmc(matrix(1:6, ncol = 2L)))
-  extracted_ids <- character()
+  extracted_ids             <- character()
+  supplied_model_samples    <- logical()
+  materialized_dependencies <- list()
   testthat::local_mocked_bindings(
     parameter_catalog = function(...) {
       stop("the full catalog must not be traversed")
     },
-    parameter_draws = function(object, selection, ...) {
+    JAGS_materialize_draws = function(object, parameters, ...) {
+      materialized_dependencies[[length(materialized_dependencies) + 1L]] <<-
+        parameters
+      values <- matrix(
+        seq_len(3L * length(parameters)),
+        nrow = 3L,
+        dimnames = list(NULL, parameters)
+      )
+      coda::mcmc.list(coda::mcmc(values))
+    },
+    parameter_draws = function(object, selection, model_samples = NULL, ...) {
       extracted_ids <<- c(
         extracted_ids,
         selection[["quantities"]][["canonical_name"]]
+      )
+      supplied_model_samples <<- c(
+        supplied_model_samples,
+        !is.null(model_samples)
       )
       matrix(c(0.2, 0.3, 0.4), ncol = 1L)
     },
@@ -194,12 +217,26 @@ test_that("selected random extraction materializes only its catalog row", {
 
   out <- .brma_random_parameter_extract_fit(
     fit,
-    selections = list(selection)
+    selections = selections[2L]
   )
 
   expect_identical(extracted_ids, "(mu) study: sd(b)")
+  expect_length(materialized_dependencies, 0L)
+  expect_identical(supplied_model_samples, FALSE)
   expect_identical(colnames(out[["samples"]]), "(mu) study: sd(b)")
   expect_identical(out[["specs"]][["source_parameter"]], "sd_b")
+
+  .brma_random_parameter_extract_fit(fit, selections = selections)
+
+  expect_identical(
+    materialized_dependencies,
+    list(c("sd_a", "sd_b"))
+  )
+  expect_identical(
+    extracted_ids,
+    c("(mu) study: sd(b)", "(mu) study: sd(a)", "(mu) study: sd(b)")
+  )
+  expect_identical(supplied_model_samples, c(FALSE, TRUE, TRUE))
 })
 
 

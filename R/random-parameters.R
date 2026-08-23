@@ -132,8 +132,34 @@
   if (standardized_coefficients) {
     attr(extraction_fit, "formula_scale") <- list()
   }
+  model_samples <- NULL
+  if (length(selections) > 1L) {
+    dependencies <- unique(unlist(lapply(
+      quantities[["extraction_key"]],
+      `[[`,
+      "dependencies"
+    ), use.names = FALSE))
+    model_samples <- if (length(dependencies) > 0L) {
+      as.matrix(BayesTools::JAGS_materialize_draws(
+        extraction_fit,
+        parameters       = dependencies,
+        include_internal = TRUE
+      ))
+    } else {
+      matrix(
+        numeric(),
+        nrow = n_draws,
+        ncol = 0L,
+        dimnames = list(NULL, character())
+      )
+    }
+  }
   columns <- lapply(selections, function(selection) {
-    as.matrix(BayesTools::parameter_draws(extraction_fit, selection))
+    as.matrix(BayesTools::parameter_draws(
+      extraction_fit,
+      selection,
+      model_samples = model_samples
+    ))
   })
   samples <- do.call(cbind, columns)
   colnames(samples) <- quantities[["canonical_name"]]
