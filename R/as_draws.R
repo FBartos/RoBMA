@@ -374,16 +374,6 @@ NULL
 }
 
 
-# Reconstruct one CS/HCS/AR1/HAR/CAR correlation matrix per posterior draw.
-.brma_append_derived_random_correlation <- function(mcmc_list, random_term) {
-
-  return(.brma_append_derived_random_correlation_terms(
-    mcmc_list    = mcmc_list,
-    random_terms = list(random_term)
-  ))
-}
-
-
 # Catalog backend-private variables present in a fitted brma object.
 .brma_auxiliary_variable_catalog <- function(x, variables) {
 

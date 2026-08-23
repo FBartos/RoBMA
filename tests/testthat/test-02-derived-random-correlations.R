@@ -59,12 +59,20 @@ source(testthat::test_path("common-functions.R"))
   matrix(as.matrix(draws[[1L]])[draw, names], nrow = n_columns)
 }
 
+.derived_append_random_correlation <- function(mcmc_list, random_term) {
+
+  .brma_append_derived_random_correlation_terms(
+    mcmc_list    = mcmc_list,
+    random_terms = list(random_term)
+  )
+}
+
 test_that("compact rho draws reconstruct scalar correlation matrices", {
 
   rho <- c(-0.4, 0, 0.6)
   for (structure in c("cs", "hcs", "ar1", "har")) {
     term <- .derived_random_term(structure = structure)
-    draws <- RoBMA:::.brma_append_derived_random_correlation(
+    draws <- .derived_append_random_correlation(
       mcmc_list = .derived_correlation_mcmc(rho),
       random_term = term
     )
@@ -90,7 +98,7 @@ test_that("compact rho draws reconstruct scalar correlation matrices", {
     structure = "car",
     time_values = car_time
   )
-  draws <- RoBMA:::.brma_append_derived_random_correlation(
+  draws <- .derived_append_random_correlation(
     mcmc_list = .derived_correlation_mcmc(rho = c(0.25, 0.81)),
     random_term = term
   )
@@ -110,7 +118,7 @@ test_that("fixed rho coordinates and one-column structures are reconstructed", {
     sample_fixed = 0.5,
     rho_scale = "fisher_z"
   )
-  fisher_draws <- RoBMA:::.brma_append_derived_random_correlation(raw, fisher)
+  fisher_draws <- .derived_append_random_correlation(raw, fisher)
   expected <- matrix(tanh(0.5), nrow = 3L, ncol = 3L)
   diag(expected) <- 1
   expect_equal(
@@ -125,7 +133,7 @@ test_that("fixed rho coordinates and one-column structures are reconstructed", {
     rho_scale = "logit",
     bounds = c(lower = 0, upper = 1)
   )
-  logit_draws <- RoBMA:::.brma_append_derived_random_correlation(raw, logit)
+  logit_draws <- .derived_append_random_correlation(raw, logit)
   expect_equal(
     .derived_correlation_matrix(logit_draws, 1L, 3L),
     0.5^abs(outer(seq_len(3L), seq_len(3L), "-")),
@@ -133,7 +141,7 @@ test_that("fixed rho coordinates and one-column structures are reconstructed", {
   )
 
   scalar <- .derived_random_term(structure = "cs", n_columns = 1L)
-  scalar_draws <- RoBMA:::.brma_append_derived_random_correlation(raw, scalar)
+  scalar_draws <- .derived_append_random_correlation(raw, scalar)
   expect_equal(.derived_correlation_matrix(scalar_draws, 1L, 1L), matrix(1))
 })
 
@@ -142,7 +150,7 @@ test_that("monitoring and quadratic expansion guards preserve the schema", {
   raw <- .derived_correlation_mcmc()
   unmonitored <- .derived_random_term(monitor_correlation = FALSE)
   expect_identical(
-    RoBMA:::.brma_append_derived_random_correlation(raw, unmonitored),
+    .derived_append_random_correlation(raw, unmonitored),
     raw
   )
 
@@ -170,7 +178,7 @@ test_that("monitoring and quadratic expansion guards preserve the schema", {
   malformed <- .derived_random_term()
   malformed[["n_columns"]] <- 2.5
   expect_error(
-    RoBMA:::.brma_append_derived_random_correlation(raw, malformed),
+    .derived_append_random_correlation(raw, malformed),
     "Invalid scalar random-correlation metadata"
   )
 })
@@ -434,7 +442,7 @@ test_that("fixed scalar correlations do not materialize internal coordinates", {
   )
   object   <- structure(list(fit = fit), class = "brma")
   observed <- as.matrix(RoBMA::as_draws_matrix(object))
-  expected <- as.matrix(RoBMA:::.brma_append_derived_random_correlation(
+  expected <- as.matrix(.derived_append_random_correlation(
     public,
     fixed
   )[[1L]])
