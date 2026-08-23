@@ -768,14 +768,6 @@ test_that("singular PSD known-V Cholesky targets fail with targeted messages", {
     .log_lik_estimate_from_setup(setup),
     "positive semidefinite"
   )
-  expect_error(
-    .marglik_mvn_log_density(
-      y          = c(0.10, 0.20, -0.05),
-      mean       = rep(0, 3),
-      covariance = V
-    ),
-    "positive semidefinite"
-  )
 })
 
 

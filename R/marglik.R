@@ -2711,26 +2711,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 }
 
 
-.marglik_mvn_log_density <- function(y, mean, covariance,
-                                     context = "bridge") {
-
-  chol_covariance <- .known_v_chol_covariance(
-    covariance = covariance,
-    context    = context
-  )
-
-  residual <- y - mean
-  z        <- backsolve(chol_covariance, residual, transpose = TRUE)
-  size     <- length(y)
-
-  -0.5 * (
-    size * log(2 * pi) +
-      2 * sum(log(diag(chol_covariance))) +
-      sum(z^2)
-  )
-}
-
-
 .parameters_as_sample_matrix <- function(parameters) {
 
   values <- numeric()
