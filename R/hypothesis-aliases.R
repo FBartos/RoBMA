@@ -108,23 +108,6 @@
 }
 
 
-.hypothesis_brma_aliases_for_catalog_parameter <- function(catalog,
-                                                           parameter) {
-
-  keep <- catalog[["parameter"]] %in% parameter
-  rows <- catalog[keep, , drop = FALSE]
-
-  aliases <- as.list(rows[["parameter"]])
-  names(aliases) <- rows[["alias"]]
-
-  for (name in parameter) {
-    aliases[[name]] <- name
-  }
-
-  return(aliases)
-}
-
-
 .hypothesis_brma_alias_label <- function(aliases, parameter) {
 
   keep <- vapply(aliases, identical, logical(1), y = parameter)
