@@ -1234,41 +1234,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .build_multilevel_marginal_covariance
-# ---------------------------------------------------------------------------- #
-#
-# Construct the marginal covariance matrix for a 3-level normal model.
-#
-# The covariance decomposes into:
-# - sampling variance: diag(vi)
-# - estimate-level heterogeneity: diag(tau_within^2)
-# - cluster-level heterogeneity: block-wise tcrossprod(tau_between)
-#
-# @param tau_within    numeric vector of length K with estimate-level SDs
-# @param tau_between   numeric vector of length K with cluster-level SDs
-# @param vi            numeric vector of length K with sampling variances
-# @param block_indices list of observation indices for each cluster
-#
-# @return A K x K marginal covariance matrix.
-#
-# ---------------------------------------------------------------------------- #
-.build_multilevel_marginal_covariance <- function(tau_within, tau_between, vi,
-                                                  block_indices) {
-
-  K <- length(vi)
-
-  marginal_covariance <- diag(vi + tau_within^2, nrow = K, ncol = K)
-
-  for (idx in block_indices) {
-    marginal_covariance[idx, idx] <- marginal_covariance[idx, idx] +
-      tcrossprod(tau_between[idx])
-  }
-
-  return(marginal_covariance)
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .solve_diagonal_rank_one_block
 # ---------------------------------------------------------------------------- #
 #

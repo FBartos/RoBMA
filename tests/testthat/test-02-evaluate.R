@@ -464,6 +464,23 @@ test_that(".evaluate.brma.cluster_effects returns contribution matrix for new da
   expect_equal(contribution[, 1], contribution[, 2])
 })
 
+.multilevel_reference_covariance <- function(tau_within, tau_between, vi,
+                                             block_indices) {
+
+  covariance <- diag(
+    vi + tau_within^2,
+    nrow = length(vi),
+    ncol = length(vi)
+  )
+  for (indices in block_indices) {
+    covariance[indices, indices] <- covariance[indices, indices] +
+      tcrossprod(tau_between[indices])
+  }
+
+  return(covariance)
+}
+
+
 test_that(".evaluate.brma.multilevel_blup.norm matches full covariance solve", {
 
   S       <- 8
@@ -491,7 +508,7 @@ test_that(".evaluate.brma.multilevel_blup.norm matches full covariance solve", {
   expected_estimate <- matrix(0, nrow = S, ncol = K)
 
   for (s in seq_len(S)) {
-    covariance <- .build_multilevel_marginal_covariance(
+    covariance <- .multilevel_reference_covariance(
       tau_within    = tau_within[s, ],
       tau_between   = tau_between[s, ],
       vi            = vi,
@@ -556,7 +573,7 @@ test_that(".evaluate.brma.multilevel_blup.norm subtracts posterior-row bias offs
   expected_estimate <- matrix(0, nrow = S, ncol = K)
 
   for (s in seq_len(S)) {
-    covariance <- .build_multilevel_marginal_covariance(
+    covariance <- .multilevel_reference_covariance(
       tau_within    = tau_within[s, ],
       tau_between   = tau_between[s, ],
       vi            = vi,
