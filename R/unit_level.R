@@ -100,32 +100,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .get_cluster_indices
-# ---------------------------------------------------------------------------- #
-#
-# @param object brma object.
-#
-# @return named list of integer vectors, one per cluster.
-#
-# ---------------------------------------------------------------------------- #
-.get_cluster_indices <- function(object) {
-
-  if (!.is_multilevel(object)) {
-    return(NULL)
-  }
-
-  outcome_data <- object[["data"]][["outcome"]]
-  cluster      <- outcome_data[["cluster"]]
-  indices      <- split(seq_along(cluster), cluster)
-  labels       <- .get_cluster_labels(object)
-
-  names(indices) <- labels[names(indices)]
-
-  return(indices)
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .get_cluster_labels
 # ---------------------------------------------------------------------------- #
 #

@@ -1543,37 +1543,6 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   ))
 }
 
-.selection_step_logpdf_matrix <- function(y, mean, sd, sei, selection_context) {
-
-  .selection_require_step_evaluable(selection_context, ".selection_step_logpdf_matrix()")
-
-  mean <- as.matrix(mean)
-  sd   <- as.matrix(sd)
-
-  if (length(y) == 1L) {
-    y <- rep(y, ncol(mean))
-  }
-
-  selection_context[["obs_bin"]] <- .selection_obs_bin(
-    y,
-    sei,
-    selection_context[["p_cuts"]],
-    selection_context[["sign"]]
-  )
-
-  return(.selnorm_kernel_loglik_matrix(
-    yi             = y,
-    mu_num         = mean,
-    sigma_num      = sd,
-    sei            = sei,
-    omega          = selection_context[["omega"]],
-    selection_spec = selection_context,
-    alpha          = selection_context[["alpha"]],
-    phack_kind     = selection_context[["phack_kind"]],
-    kernel_mode    = selection_context[["kernel_mode"]]
-  ))
-}
-
 .selection_step_moments_matrix <- function(mean, sd, sei, selection_context) {
 
   .selection_require_step_evaluable(selection_context, ".selection_step_moments_matrix()")

@@ -943,48 +943,6 @@ rstudent.brma <- function(model, unit = "estimate",
 
 
 # ---------------------------------------------------------------------------- #
-# .outcome_moments.selnorm
-# ---------------------------------------------------------------------------- #
-#
-# Per-posterior-sample first and second moments for selected-normal kernels.
-#
-# ---------------------------------------------------------------------------- #
-.outcome_moments.selnorm <- function(mu_samples, tau_within, sei,
-                                     selection_context) {
-
-  S        <- nrow(mu_samples)
-  K        <- ncol(mu_samples)
-  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd <- .root_sum_squares(tau_within, sei_mat)
-
-  return(.selection_step_moments_matrix(
-    mean              = mu_samples,
-    sd                = total_sd,
-    sei               = sei,
-    selection_context = selection_context
-  ))
-}
-
-# ---------------------------------------------------------------------------- #
-# .residuals_cluster.brma
-# ---------------------------------------------------------------------------- #
-#
-# Deferred cluster-unit residual diagnostics.
-#
-# @param object brma object.
-# @param type   character; residual type requested by the public caller.
-# @param conditioning_depth character; conditioning depth.
-#
-# @return stops with a deferred-design error.
-#
-# ---------------------------------------------------------------------------- #
-.residuals_cluster.brma <- function(object, type, conditioning_depth) {
-
-  .check_cluster_unit_deferred("residuals()")
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .standardized_residuals_loopit
 # ---------------------------------------------------------------------------- #
 #
