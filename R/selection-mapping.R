@@ -207,23 +207,6 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   return(as.integer(bin))
 }
 
-.selection_p_bin <- function(p_value, p_cuts) {
-
-  p_cuts <- .selection_assert_p_cuts(p_cuts)
-  if (!is.numeric(p_value) ||
-      any(!is.na(p_value) & (!is.finite(p_value) | p_value < 0 | p_value > 1))) {
-    stop("Selection p-values must be numeric values in [0, 1].", call. = FALSE)
-  }
-
-  bin <- findInterval(
-    p_value,
-    p_cuts,
-    rightmost.closed = TRUE,
-    left.open        = TRUE
-  )
-  return(as.integer(bin))
-}
-
 .selection_segment_midpoint <- function(lower, upper) {
 
   if (is.infinite(lower) && lower < 0) {
@@ -1483,29 +1466,6 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   }
 
   return(invisible(TRUE))
-}
-
-.selection_interval_prob_vec <- function(lower, upper, mean, sd) {
-
-  lower_tail <- stats::pnorm(upper, mean = mean, sd = sd) -
-    stats::pnorm(lower, mean = mean, sd = sd)
-  upper_tail <- stats::pnorm(
-    lower,
-    mean       = mean,
-    sd         = sd,
-    lower.tail = FALSE
-  ) - stats::pnorm(
-    upper,
-    mean       = mean,
-    sd         = sd,
-    lower.tail = FALSE
-  )
-  out <- ifelse(lower >= mean, upper_tail, lower_tail)
-  out[lower >= upper] <- 0
-  if (any(!is.finite(out)) || any(out < 0) || any(out > 1)) {
-    stop("Selection interval probability evaluation failed.", call. = FALSE)
-  }
-  return(out)
 }
 
 .selection_step_log_norm_matrix <- function(mean, sd, sei, selection_context) {

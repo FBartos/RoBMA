@@ -542,7 +542,6 @@ test_that("selected plot quantiles return the left edge of CDF plateaus", {
   )
   boundary <- spec[["z_lower"]][3L]
 
-  expect_false(.plot_selection_mixture_has_full_support(selection, TRUE))
   expect_equal(
     .funnel_model_averaged_quantile(1, .5, setup, "positive"),
     boundary,

@@ -257,58 +257,6 @@ test_that("selection p-value bins are upper-closed at step boundaries", {
   )
   expect_equal(.selection_step_bin_from_z(0, p_cuts), 2L)
   expect_equal(.selection_step_bin_from_z(stats::qnorm(.025, lower.tail = FALSE), p_cuts), 1L)
-  expect_identical(
-    .selection_p_bin(c(.50 - 5e-13, .50, .50 + 5e-13), p_cuts),
-    c(2L, 2L, 3L)
-  )
-})
-
-test_that("selection p-value cut breaks include endpoints and are sorted", {
-
-  expect_error(
-    .selection_p_bin(c(.01, .20), c(.025, .05, 1)),
-    regexp = "endpoints 0 and 1"
-  )
-  expect_error(
-    .selection_p_bin(c(.01, .20), c(0, .05, .025, 1)),
-    regexp = "strictly increasing"
-  )
-  expect_error(
-    .selection_p_bin(.20, c(5e-13, .50, 1)),
-    regexp = "endpoints 0 and 1"
-  )
-  expect_error(
-    .selection_p_bin(.20, c(0, .50, 1 - 5e-13)),
-    regexp = "endpoints 0 and 1"
-  )
-  expect_error(
-    .selection_p_bin(1 + .Machine$double.eps, c(0, .50, 1)),
-    regexp = "values in"
-  )
-})
-
-test_that("selection interval probabilities retain remote-tail mass", {
-
-  expected <- stats::pnorm(37, lower.tail = FALSE) -
-    stats::pnorm(38, lower.tail = FALSE)
-  actual <- .selection_interval_prob_vec(
-    lower = 37,
-    upper = 38,
-    mean  = 0,
-    sd    = 1
-  )
-
-  expect_true(expected > 0)
-  expect_identical(actual, expected)
-  expect_identical(
-    .selection_interval_prob_vec(
-      lower = 39,
-      upper = 40,
-      mean  = 0,
-      sd    = 1
-    ),
-    0
-  )
 })
 
 test_that("selection omega extraction orders indexed posterior columns numerically", {

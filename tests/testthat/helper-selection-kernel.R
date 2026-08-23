@@ -105,6 +105,59 @@
     stats::pnorm(lower, mean = mean, sd = sd))
 }
 
+.test_interval_prob_vec <- function(lower, upper, mean, sd) {
+
+  lower_tail <- stats::pnorm(upper, mean = mean, sd = sd) -
+    stats::pnorm(lower, mean = mean, sd = sd)
+  upper_tail <- stats::pnorm(
+    lower,
+    mean       = mean,
+    sd         = sd,
+    lower.tail = FALSE
+  ) - stats::pnorm(
+    upper,
+    mean       = mean,
+    sd         = sd,
+    lower.tail = FALSE
+  )
+  out <- ifelse(lower >= mean, upper_tail, lower_tail)
+  out[lower >= upper] <- 0
+  if (any(!is.finite(out)) || any(out < 0) || any(out > 1)) {
+    stop("Selection interval probability reference failed.", call. = FALSE)
+  }
+  return(out)
+}
+
+.test_validate_cdf <- function(value, context, operation_count = 1L) {
+
+  if (!is.numeric(value) || any(!is.finite(value))) {
+    stop(context, " produced invalid CDF values.", call. = FALSE)
+  }
+
+  relative_error <- operation_count * .Machine$double.eps /
+    (1 - operation_count * .Machine$double.eps)
+  near_zero <- value < 0 & value >= -relative_error
+  near_one  <- value > 1 & value <= 1 + relative_error
+  value[near_zero] <- 0
+  value[near_one]  <- 1
+
+  if (any(value < 0 | value > 1)) {
+    stop(context, " produced invalid CDF values.", call. = FALSE)
+  }
+  return(value)
+}
+
+.test_selection_mixture_has_full_support <- function(selection_context,
+                                                     selected_rows) {
+
+  if (is.null(selection_context) || any(!selected_rows)) {
+    return(TRUE)
+  }
+
+  omega <- selection_context[["omega"]][selected_rows, , drop = FALSE]
+  return(all(colSums(omega > 0) > 0))
+}
+
 .test_logspace_sub <- function(log_a, log_b) {
 
   if (is.infinite(log_b) && log_b < 0) {

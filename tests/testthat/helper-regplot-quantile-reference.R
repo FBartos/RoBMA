@@ -58,7 +58,7 @@
 
   lower <- numeric(ncol(mean_samples))
   upper <- numeric(ncol(mean_samples))
-  full_support <- .plot_selection_mixture_has_full_support(
+  full_support <- .test_selection_mixture_has_full_support(
     selection_context = setup[["selection"]],
     selected_rows      = setup[["is_weightfunction"]]
   )
@@ -184,7 +184,7 @@
     )
   }
 
-  cdf_values <- .plot_validate_cdf(
+  cdf_values <- .test_validate_cdf(
     cdf_values,
     "Regression-plot normal mixture"
   )
@@ -228,7 +228,7 @@
     )
   }
 
-  cdf_values <- .plot_validate_cdf(
+  cdf_values <- .test_validate_cdf(
     cdf_values,
     "Regression-plot selected-normal mixture"
   )

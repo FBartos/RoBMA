@@ -79,7 +79,7 @@
     step <- step * 2
   }
 
-  full_support <- .plot_selection_mixture_has_full_support(
+  full_support <- .test_selection_mixture_has_full_support(
     selection_context = setup[["selection"]],
     selected_rows      = setup[["is_weightfunction"]]
   )
@@ -199,7 +199,7 @@
     for (b in seq_len(n_bins)) {
       lower <- selection[["z_lower"]][b] * se
       upper <- selection[["z_upper"]][b] * se
-      denom <- denom + omega[, b] * .selection_interval_prob_vec(lower, upper, mean, sd)
+      denom <- denom + omega[, b] * .test_interval_prob_vec(lower, upper, mean, sd)
     }
   }
 
@@ -288,7 +288,7 @@
     }
   }
 
-  cdf_values <- .plot_validate_cdf(cdf_values, "Model-averaged funnel")
+  cdf_values <- .test_validate_cdf(cdf_values, "Model-averaged funnel")
   weights <- .funnel_setup_weights(se_setup[["setup"]])
   return(sum(weights * cdf_values))
 }
@@ -365,14 +365,14 @@
     upper <- step_selection[["z_upper"]][b] * step_selection[["se"]]
 
     if (step_selection[["sign"]] == 1L) {
-      selected_mass <- .selection_interval_prob_vec(
+      selected_mass <- .test_interval_prob_vec(
         lower,
         min(upper, q_signed),
         step_selection[["mean"]],
         step_selection[["sd"]]
       )
     } else {
-      selected_mass <- .selection_interval_prob_vec(
+      selected_mass <- .test_interval_prob_vec(
         max(lower, q_signed),
         upper,
         step_selection[["mean"]],
@@ -383,7 +383,7 @@
     mass <- mass + step_selection[["omega"]][, b] * selected_mass
   }
 
-  return(.plot_validate_cdf(
+  return(.test_validate_cdf(
     mass / step_selection[["denom"]],
     "Selected-normal funnel",
     operation_count = 4L * step_selection[["n_bins"]] + 4L
@@ -497,19 +497,19 @@
       next
     }
 
-    bin_mass <- .selection_interval_prob_vec(lower, upper, mean, sd)
+    bin_mass <- .test_interval_prob_vec(lower, upper, mean, sd)
     denom    <- denom + omega[, b] * bin_mass
 
     if (sign == 1L) {
-      selected_mass <- .selection_interval_prob_vec(lower, min(upper, q_signed), mean, sd)
+      selected_mass <- .test_interval_prob_vec(lower, min(upper, q_signed), mean, sd)
     } else {
-      selected_mass <- .selection_interval_prob_vec(max(lower, q_signed), upper, mean, sd)
+      selected_mass <- .test_interval_prob_vec(max(lower, q_signed), upper, mean, sd)
     }
     mass <- mass + omega[, b] * selected_mass
   }
 
   out <- mass / denom
-  return(.plot_validate_cdf(
+  return(.test_validate_cdf(
     out,
     "Zero-SE selected-normal funnel",
     operation_count = 4L * selection[["n_bins"]] + 4L
