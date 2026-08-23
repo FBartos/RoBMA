@@ -47,6 +47,7 @@ source(testthat::test_path("common-functions.R"))
 test_that("random catalog matches summaries across structures", {
 
   fit_names <- .active_random_parameter_fit_names()
+  skip_if_not(length(fit_names) > 0L, "No random-parameter fixtures are active.")
   skip_if_missing_fits(fit_names)
 
   for (name in fit_names) {
@@ -222,7 +223,16 @@ test_that("random directional hypotheses use induced joint priors", {
 
 test_that("random point hypotheses follow quantity-specific policy", {
 
-  fit_names <- .active_random_parameter_fit_names()
+  fit_names <- intersect(
+    .active_random_parameter_fit_names(),
+    c(
+      "brma.mv_v14_konstantopoulos2011_cs",
+      "brma.mv_v14_ishak2007_har",
+      "brma.mv_v14_begg1989_study_treatment",
+      "brma.mv_block_mvn_random_scale"
+    )
+  )
+  skip_if_not(length(fit_names) > 0L, "No random-parameter fixtures are active.")
   skip_if_missing_fits(fit_names)
 
   if ("brma.mv_v14_konstantopoulos2011_cs" %in% fit_names) {

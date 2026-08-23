@@ -85,58 +85,6 @@
 
 
 
-.log_lik_from_evaluated_predictors <- function(fit, data, priors,
-                                               mu_samples,
-                                               tau_within_samples,
-                                               tau_between_samples = NULL,
-                                               posterior_samples = NULL,
-                                               unit = "estimate",
-                                               add_metadata = FALSE,
-                                               data_hash = NULL,
-                                               random_effects_conditioning = "none") {
-
-  unit  <- .normalize_unit(unit)
-  setup <- .log_lik_evaluated_setup(
-    fit                         = fit,
-    data                        = data,
-    priors                      = priors,
-    unit                        = unit,
-    data_hash                   = data_hash,
-    mu_samples                  = mu_samples,
-    tau_within_samples          = tau_within_samples,
-    tau_between_samples         = tau_between_samples,
-    posterior_samples           = posterior_samples,
-    random_effects_conditioning = random_effects_conditioning
-  )
-
-  log_lik <- if (unit == "estimate") {
-    .log_lik_estimate_from_setup(setup)
-  } else {
-    .log_lik_cluster_from_setup(setup)
-  }
-
-  if (!add_metadata) {
-    return(log_lik)
-  }
-
-  if (unit == "estimate") {
-    colnames(log_lik) <- paste0("log_lik[", seq_len(setup[["K"]]), "]")
-    attr(log_lik, "RoBMA_target") <- .estimate_log_lik_target_metadata(
-      setup     = setup,
-      data_hash = data_hash
-    )
-  } else {
-    log_lik <- .add_cluster_log_lik_metadata(
-      log_lik         = log_lik,
-      cluster_indices = setup[["cluster"]],
-      data_hash       = data_hash
-    )
-  }
-
-  return(log_lik)
-}
-
-
 .log_lik_from_evaluated_predictors_sum <- function(fit, data, priors,
                                                    mu_samples,
                                                    tau_within_samples,
@@ -309,27 +257,6 @@
 }
 
 
-.log_lik_known_v_joint_sum_from_posterior_samples <- function(fit,
-                                                               posterior_samples,
-                                                               data, priors,
-                                                               unit = "estimate",
-                                                               data_hash = NULL) {
-
-  unit  <- .normalize_unit(unit)
-  setup <- .log_lik_posterior_setup(
-    fit                  = fit,
-    posterior_samples    = posterior_samples,
-    data                 = data,
-    priors               = priors,
-    unit                 = unit,
-    data_hash            = data_hash
-  )
-
-  return(.log_lik_known_v_joint_sum_from_setup(setup))
-}
-
-
-
 # random_effects_conditioning records whether mu_samples already includes
 # sampled random-formula effects for known-V estimate-unit likelihoods.
 .log_lik_evaluated_setup <- function(fit, data, priors, unit, data_hash,
@@ -468,7 +395,6 @@
   yi                  <- setup[["yi"]]
   sei                 <- setup[["sei"]]
   selection_sei       <- setup[["selection_sei"]]
-  K                   <- setup[["K"]]
   mu_samples          <- setup[["mu"]]
   tau_within_samples  <- setup[["tau_within"]]
   is_weightfunction   <- setup[["is_weightfunction"]]

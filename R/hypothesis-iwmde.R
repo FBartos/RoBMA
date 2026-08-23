@@ -250,7 +250,6 @@
 .hypothesis_brma_transform_iwmde_ordinate <- function(
     ordinate, display_transform) {
 
-  source_value <- ordinate[["value"]]
   source_evaluation_value <- ordinate[["evaluation_value"]]
   jacobian <- BayesTools::parameter_transform_jacobian(
     source_evaluation_value,

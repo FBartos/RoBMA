@@ -141,7 +141,6 @@
 
   ### extract structural information about the model
   priors            <- object[["priors"]]
-  data              <- object[["data"]]
   is_multilevel     <- .is_multilevel(object)
   is_scale          <- .is_scale(object)
   is_weightfunction <- .is_weightfunction(object)

@@ -94,32 +94,6 @@
 }
 
 
-.known_v_marginal_variance_samples <- function(object,
-                                               posterior_samples = NULL,
-                                               max_samples = Inf,
-                                               max_bytes = NULL) {
-
-  extra_variance <- .known_v_extra_variance_samples(
-    object            = object,
-    posterior_samples = posterior_samples,
-    max_samples       = max_samples,
-    max_bytes         = max_bytes
-  )
-  known_V <- .data_known_v_data(object[["data"]])
-
-  marginal_variance <- sweep(
-    extra_variance,
-    2L,
-    .known_v_diagonal(known_V),
-    "+"
-  )
-  attr(marginal_variance, "known_v_diagnostic") <-
-    attr(extra_variance, "known_v_diagnostic", exact = TRUE)
-
-  return(marginal_variance)
-}
-
-
 .known_v_extra_variance_samples <- function(object,
                                             posterior_samples = NULL,
                                             max_samples = Inf,
@@ -436,31 +410,6 @@
     residual_variance  = residual_variance_samples,
     covariance_path    = "factor_plan_gls"
   ))
-}
-
-
-.known_v_covariance_diagonal_samples <- function(covariance_samples) {
-
-  dims <- dim(covariance_samples)
-  if (length(dims) != 3L || dims[[2L]] != dims[[3L]]) {
-    stop("Known-V covariance samples must be a draw x row x row array.",
-         call. = FALSE)
-  }
-
-  S <- dims[[1L]]
-  K <- dims[[2L]]
-  diagonal_index <- cbind(
-    rep(seq_len(S), each = K),
-    rep(seq_len(K), times = S),
-    rep(seq_len(K), times = S)
-  )
-
-  matrix(
-    covariance_samples[diagonal_index],
-    nrow  = S,
-    ncol  = K,
-    byrow = TRUE
-  )
 }
 
 

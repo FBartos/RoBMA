@@ -500,16 +500,6 @@
 }
 
 
-.iwmde_plan_output_label <- function(output) {
-
-  if (identical(output, "ordinate")) {
-    return("ordinate")
-  }
-
-  return("grid point")
-}
-
-
 .iwmde_plan_row_execution <- function(context, plan, execution_cache = NULL) {
 
   key <- "row_execution"

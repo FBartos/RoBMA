@@ -299,7 +299,6 @@ galbraith.brma <- function(x, ...) {
   # get observed effect sizes and variances
   yi <- .outcome_data_yi(x)
   vi <- .outcome_data_vi(x)
-  K  <- length(yi)
 
   # confidence level
   alpha  <- 1 - level / 100
@@ -321,9 +320,6 @@ galbraith.brma <- function(x, ...) {
   wi <- vi + tau2
   xi <- 1 / sqrt(wi)
   zi <- yi / sqrt(wi)
-
-  # save uncentered yi for arc label computation
-  yi.c <- yi
 
   # arc range tracking (on original scale before centering)
   if (is.null(aty)) {
@@ -556,7 +552,6 @@ galbraith.brma <- function(x, ...) {
   zlab       <- data$zlab
   zlab_auto  <- data$zlab_auto
   atz        <- data$atz
-  xaxismax   <- data$xaxismax
 
   # raw arc parameters (recomputed with aspect ratio below)
   aty        <- data$aty

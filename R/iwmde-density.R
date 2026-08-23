@@ -743,10 +743,8 @@
   normalizer_plan[["n_refinement_steps"]] <- refinement[["n_refinement_steps"]]
   pilot_grid      <- normalizer_plan[["grid_sequence"]][[refinement[["pilot_index"]]]]
   final_grid      <- normalizer_plan[["grid_sequence"]][[refinement[["final_index"]]]]
-  validation_grid <- normalizer_plan[["grid_sequence"]][[refinement[["validation_index"]]]]
   log_q_initial   <- log_q_sequence[[refinement[["pilot_index"]]]]
   log_q_final     <- log_q_sequence[[refinement[["final_index"]]]]
-  log_q_validation <- log_q_sequence[[refinement[["validation_index"]]]]
 
   initial_log_normalizer <- log_normalizer_sequence[[refinement[["pilot_index"]]]]
   final_log_normalizer   <- log_normalizer_sequence[[refinement[["final_index"]]]]

@@ -239,7 +239,6 @@
   effect_direction  <- .data_effect_direction(data)
   is_known_v                   <- .is_data_known_v(data)
   known_v_rank                 <- .data_known_v_rank(data)
-  known_v_parameterization     <- .data_known_v_parameterization(data)
   known_v_backend              <- .data_known_v_effective_backend(data)
   is_known_v_latent            <- is_known_v && known_v_backend %in% c("latent", "diagonal")
   is_known_v_whitened          <- is_known_v && known_v_backend == "whitened"
@@ -637,13 +636,13 @@
       model_syntax          = model_syntax,
       data                  = fit_data,
       prior_list            = fit_priors,
-      formula_list          = .optional_jags_list(fit_formula_args[["formula_list"]]),
-      formula_data_list     = .optional_jags_list(fit_formula_args[["formula_data_list"]]),
-      formula_prior_list    = .optional_jags_list(fit_formula_args[["formula_prior_list"]]),
-      formula_scale_list    = .optional_jags_list(fit_formula_args[["formula_scale_list"]]),
-      formula_random_prior_list           = .optional_jags_list(fit_formula_args[["formula_random_prior_list"]]),
-      formula_random_effects_compile_list = .optional_jags_list(fit_formula_args[["formula_random_effects_compile_list"]]),
-      add_parameters                      = .optional_jags_character(fit_formula_args[["add_parameters"]]),
+      formula_list          = .optional_jags_value(fit_formula_args[["formula_list"]]),
+      formula_data_list     = .optional_jags_value(fit_formula_args[["formula_data_list"]]),
+      formula_prior_list    = .optional_jags_value(fit_formula_args[["formula_prior_list"]]),
+      formula_scale_list    = .optional_jags_value(fit_formula_args[["formula_scale_list"]]),
+      formula_random_prior_list           = .optional_jags_value(fit_formula_args[["formula_random_prior_list"]]),
+      formula_random_effects_compile_list = .optional_jags_value(fit_formula_args[["formula_random_effects_compile_list"]]),
+      add_parameters                      = .optional_jags_value(fit_formula_args[["add_parameters"]]),
       chains                = fit_control[["chains"]],
       adapt                 = fit_control[["adapt"]],
       burnin                = fit_control[["burnin"]],
@@ -923,9 +922,6 @@
     .is_data_known_v(data) &&
       .data_known_v_effective_backend(data) %in% backend
   )
-}
-.is_data_known_v_parameterization <- function(data, parameterization) {
-  return(.is_data_known_v(data) && .data_known_v_parameterization(data) == parameterization)
 }
 .data_known_v_rank        <- function(data) {
   known_V <- .data_known_v_data(data)

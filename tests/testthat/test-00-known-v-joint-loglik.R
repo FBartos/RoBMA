@@ -449,24 +449,29 @@ test_that("rank-one known V retains sub-ULP diagonal variance", {
 
   unequal_diagonal <- c(1e-18, 2e-18)
   setup[["tau_within"]] <- matrix(sqrt(unequal_diagonal), nrow = 1L)
-  expected <- .known_v_diagonal_rank_one_conditional(
-    yi       = setup[["yi"]],
-    mu       = setup[["mu"]][1L, ],
-    diagonal = unequal_diagonal,
-    rank_one = c(1, 1)
+  residual <- setup[["yi"]] - setup[["mu"]][1L, ]
+  expected_variance <- c(
+    unequal_diagonal[[1L]] + 1 / (1 + 1 / unequal_diagonal[[2L]]),
+    unequal_diagonal[[2L]] + 1 / (1 + 1 / unequal_diagonal[[1L]])
+  )
+  expected_residual <- c(
+    residual[[1L]] - (residual[[2L]] / unequal_diagonal[[2L]]) /
+      (1 + 1 / unequal_diagonal[[2L]]),
+    residual[[2L]] - (residual[[1L]] / unequal_diagonal[[1L]]) /
+      (1 + 1 / unequal_diagonal[[1L]])
   )
   distribution <- .known_v_estimate_target_summary_from_setup(
     setup      = setup,
     components = c("mean", "variance")
   )
   expect_equal(
-    distribution[["variance"]] / expected[["variance"]],
+    distribution[["variance"]] / expected_variance,
     matrix(1, nrow = 1L, ncol = 2L),
     tolerance = 1e-12
   )
   expect_equal(
     matrix(setup[["yi"]], nrow = 1L) - distribution[["mean"]],
-    matrix(expected[["residual"]], nrow = 1L),
+    matrix(expected_residual, nrow = 1L),
     tolerance = 1e-12
   )
 

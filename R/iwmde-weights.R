@@ -551,7 +551,6 @@
                                                       weight_rows,
                                                       weight_values) {
 
-  samples <- context[["posterior_samples"]]
   conditioning <- .iwmde_chen_conditioning_matrix(
     context        = context,
     parameter      = parameter,

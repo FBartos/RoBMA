@@ -108,16 +108,6 @@
 }
 
 
-.hypothesis_brma_aliases <- function(object) {
-
-  catalog <- .brma_parameter_catalog(object)
-  .hypothesis_brma_aliases_for_catalog_parameter(
-    catalog   = catalog,
-    parameter = unique(catalog[["parameter"]])
-  )
-}
-
-
 .hypothesis_brma_aliases_for_catalog_parameter <- function(catalog,
                                                            parameter) {
 
@@ -135,16 +125,6 @@
 }
 
 
-.hypothesis_brma_aliases_for_parameter <- function(aliases, parameter) {
-
-  keep <- vapply(aliases, identical, logical(1), y = parameter)
-  aliases <- aliases[keep]
-  aliases[[parameter]] <- parameter
-
-  return(aliases)
-}
-
-
 .hypothesis_brma_alias_label <- function(aliases, parameter) {
 
   keep <- vapply(aliases, identical, logical(1), y = parameter)
@@ -156,16 +136,6 @@
   }
 
   return(parameter)
-}
-
-
-.hypothesis_brma_available_aliases <- function(aliases) {
-
-  available <- unique(names(aliases))
-  available <- available[nzchar(available)]
-  available <- sort(available)
-
-  paste0("'", available, "'", collapse = ", ")
 }
 
 

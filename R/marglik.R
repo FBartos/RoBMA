@@ -224,10 +224,10 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     log_posterior      = .log_posterior,
     data               = fit_data,
     prior_list         = fit_priors,
-    formula_random_effects_marginalize_list = .optional_jags_list(
+    formula_random_effects_marginalize_list = .optional_jags_value(
       bridge_random_marginalization[["request"]]
     ),
-    add_parameters                      = .optional_jags_character(bridge_sd_source_spec[["parameters"]]),
+    add_parameters                      = .optional_jags_value(bridge_sd_source_spec[["parameters"]]),
     add_bounds                          = bridge_sd_source_spec[["bounds"]],
     bridge_context                      = bridge_context_mode,
     bridge_context_node_names           = .marglik_variance_plan_node_names(

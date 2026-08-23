@@ -830,32 +830,7 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' @aliases loo_compare
 #' @export
 loo_compare.brma <- function(x, ..., unit = "estimate") {
-  unit <- .normalize_unit(unit)
-
-  # collect all models: x plus any in ...
-  models <- c(list(x), list(...))
-
-  if (length(models) < 2) {
-    stop("At least two models are required for comparison.", call. = FALSE)
-  }
-
-  # convert brma objects to loo objects if necessary
-  loo_objects <- lapply(models, function(m) {
-    if (inherits(m, "brma")) {
-      loo.brma(m, unit = unit)
-    } else if (inherits(m, "loo")) {
-      m
-    } else {
-      stop("All arguments must be brma or loo objects.", call. = FALSE)
-    }
-  })
-
-  # call the 'loo' package's default implementation to avoid dispatch recursion
-  .check_loo_compare_targets(loo_objects)
-  loo_compare_fun <- get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE)
-  result <- .as_legacy_loo_compare(do.call(loo_compare_fun, loo_objects))
-
-  return(result)
+  return(.loo_compare_objects(c(list(x), list(...)), unit))
 }
 
 
@@ -878,16 +853,18 @@ loo_compare.brma <- function(x, ..., unit = "estimate") {
 #'
 #' @export
 loo_compare.loo <- function(x, ..., unit = "estimate") {
-  unit <- .normalize_unit(unit)
+  return(.loo_compare_objects(c(list(x), list(...)), unit))
+}
 
-  # collect all models: x plus any in ...
-  models <- c(list(x), list(...))
+
+.loo_compare_objects <- function(models, unit) {
+
+  unit <- .normalize_unit(unit)
 
   if (length(models) < 2) {
     stop("At least two models are required for comparison.", call. = FALSE)
   }
 
-  # convert brma objects to loo objects if necessary
   loo_objects <- lapply(models, function(m) {
     if (inherits(m, "brma")) {
       loo.brma(m, unit = unit)
@@ -898,7 +875,6 @@ loo_compare.loo <- function(x, ..., unit = "estimate") {
     }
   })
 
-  # call the 'loo' package's default implementation to avoid dispatch recursion
   .check_loo_compare_targets(loo_objects)
   loo_compare_fun <- get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE)
   result <- .as_legacy_loo_compare(do.call(loo_compare_fun, loo_objects))

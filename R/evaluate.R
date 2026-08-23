@@ -1459,7 +1459,6 @@
                                            posterior_samples = NULL) {
 
   S <- nrow(tau_between)
-  K <- ncol(tau_between)
 
   # NOTE: No direction flipping needed for cluster effects!
   # The JAGS model uses: "-gamma*tau_between" for negative effects, "+gamma*tau_between" for positive

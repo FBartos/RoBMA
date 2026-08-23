@@ -401,22 +401,6 @@
 }
 
 
-.known_v_block_covariance <- function(known_V, block) {
-
-  blocks <- .known_v_blocks(known_V)
-  if (length(block) == 1L && is.numeric(block) &&
-      block >= 1L && block <= length(blocks)) {
-    return(blocks[[block]][["covariance"]])
-  }
-
-  match_block <- vapply(blocks, function(x) identical(x[["index"]], block), logical(1))
-  if (sum(match_block) != 1L) {
-    stop("Known-V dependency block was not found.", call. = FALSE)
-  }
-  blocks[[which(match_block)]][["covariance"]]
-}
-
-
 .known_v_latent_apply <- function(known_V, z_samples) {
 
   z_samples <- as.matrix(z_samples)

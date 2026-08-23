@@ -751,12 +751,6 @@
 }
 
 
-.known_v_extra_sd_from_setup <- function(setup) {
-
-  sqrt(.known_v_extra_variance_from_setup(setup))
-}
-
-
 # ---------------------------------------------------------------------------- #
 # .known_v_estimate_blup_from_setup
 # ---------------------------------------------------------------------------- #
@@ -846,71 +840,6 @@
     variance = conditional_variance,
     residual = conditional_residual
   ))
-}
-
-
-# Conditional moments for diag(diagonal) + rank_one rank_one'.
-.known_v_diagonal_rank_one_conditional <- function(yi, mu, diagonal,
-                                                   rank_one) {
-
-  size <- length(yi)
-  if (length(mu) != size || length(diagonal) != size ||
-      length(rank_one) != size || anyNA(diagonal) ||
-      any(!is.finite(diagonal)) || any(diagonal <= 0)) {
-    stop(
-      "Known-V conditional covariance is positive semidefinite, not positive ",
-      "definite; positive diagonal extra variance is required.",
-      call. = FALSE
-    )
-  }
-
-  residual             <- yi - mu
-  conditional_residual <- numeric(size)
-  conditional_variance <- numeric(size)
-  for (i in seq_len(size)) {
-    other       <- seq_len(size) != i
-    denominator <- 1 + sum(rank_one[other]^2 / diagonal[other])
-    adjustment  <- rank_one[[i]] *
-      sum(rank_one[other] * residual[other] / diagonal[other]) /
-      denominator
-    conditional_residual[[i]] <- residual[[i]] - adjustment
-    conditional_variance[[i]] <- diagonal[[i]] +
-      rank_one[[i]]^2 / denominator
-  }
-
-  if (any(!is.finite(conditional_residual)) ||
-      any(!is.finite(conditional_variance)) ||
-      any(conditional_variance <= 0)) {
-    stop("Known-V conditional covariance could not be evaluated faithfully.",
-         call. = FALSE)
-  }
-
-  return(list(
-    mean     = yi - conditional_residual,
-    variance = conditional_variance,
-    residual = conditional_residual
-  ))
-}
-
-
-# Joint density without materializing a diagonal-plus-rank-one covariance.
-.known_v_diagonal_rank_one_log_density <- function(y, mean, diagonal, rank_one,
-                                                   context) {
-
-  if (anyNA(diagonal) || any(!is.finite(diagonal)) || any(diagonal <= 0)) {
-    stop(
-      "Known-V ", context, " covariance is positive semidefinite, not ",
-      "positive definite; positive diagonal extra variance is required.",
-      call. = FALSE
-    )
-  }
-
-  .log_dmvnorm_diag_rank_one(
-    x        = y,
-    mean     = mean,
-    diagonal = diagonal,
-    rank_one = rank_one
-  )
 }
 
 

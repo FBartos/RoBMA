@@ -372,6 +372,9 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Testing and development
+- removes unreachable and superseded post-fit helpers, consolidates shared JAGS
+  argument and LOO-comparison routing, and replaces implementation-only unit
+  checks with independent references to the current computation paths.
 - tests scenario fit timings only when the fitting block is evaluated; cache
   hits no longer replay historical fit, LOO, or marginal-likelihood timings as
   current performance measurements.

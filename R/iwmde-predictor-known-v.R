@@ -946,7 +946,6 @@
   }
 
   block_data        <- .known_v_dependency_block_data(context[["data"]], K)
-  block_indices     <- lapply(block_data, `[[`, "index")
   block_covariances <- lapply(block_data, `[[`, "covariance")
   if (any(vapply(
     block_covariances,

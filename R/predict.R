@@ -1589,10 +1589,3 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   return(rep(TRUE, S))
 }
 
-.conditional_indicator_column <- function(posterior_samples, parameter) {
-
-  return(.extract_posterior_indicator(
-    posterior_samples = posterior_samples,
-    parameter         = parameter
-  ))
-}

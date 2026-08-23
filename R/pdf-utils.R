@@ -153,15 +153,6 @@
 }
 
 
-.has_native_glmm_cluster <- function() {
-
-  return(
-    is.loaded("RoBMA_glmm_binom_cluster_loglik", PACKAGE = "RoBMA") &&
-      is.loaded("RoBMA_glmm_pois_cluster_loglik",  PACKAGE = "RoBMA")
-  )
-}
-
-
 .has_native_glmm_row_sum <- function(outcome_type, cluster = FALSE,
                                      conditional = FALSE) {
 

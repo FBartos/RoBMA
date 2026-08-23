@@ -95,7 +95,7 @@ test_that("known-V radial tau uses extra variance samples", {
 })
 
 
-test_that("known-V marginal variance samples use the diagonal backend", {
+test_that("known-V extra variance samples use the diagonal backend", {
 
   V    <- matrix(c(.04, .01, .01, .09), nrow = 2L)
   data <- list(outcome = data.frame(yi = c(.10, .20), sei = sqrt(diag(V))))
@@ -144,24 +144,16 @@ test_that("known-V marginal variance samples use the diagonal backend", {
     .package = "RoBMA"
   )
 
-  out <- .known_v_marginal_variance_samples(
-    object            = object,
-    posterior_samples = posterior_samples,
-    max_bytes         = 1
-  )
-  metadata <- attr(out, "known_v_diagnostic", exact = TRUE)
-
-  attr(out, "known_v_diagnostic") <- NULL
-  expect_equal(n_calls, 1L)
-  expect_equal(out, cbind(c(1.04, 2.04, 3.04), c(2.09, 3.09, 4.09)))
-  expect_null(metadata[["n_chunks"]])
-
   extra <- .known_v_extra_variance_samples(
     object            = object,
     posterior_samples = posterior_samples
   )
+  metadata <- attr(extra, "known_v_diagnostic", exact = TRUE)
   attr(extra, "known_v_diagnostic") <- NULL
+
+  expect_equal(n_calls, 1L)
   expect_equal(extra, unname(random_variance))
+  expect_null(metadata[["n_chunks"]])
 })
 
 

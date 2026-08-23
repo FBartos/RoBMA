@@ -500,13 +500,6 @@
 }
 
 
-.iwmde_log_tau_total <- function(tau_within, tau_between) {
-
-  tau_total <- .root_sum_squares(tau_within, tau_between)
-  return(log(tau_total))
-}
-
-
 .iwmde_log_q_grid_normal_location_group <- function(context, parameter, values,
                                                     row_states, replacement,
                                                     setup, basis) {

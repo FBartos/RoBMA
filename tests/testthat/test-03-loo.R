@@ -997,7 +997,10 @@ test_that(".outcome_pdf.pois matches R reference", {
 
 test_that("native GLMM cluster likelihood matches R composition", {
 
-  skip_if_not(.has_native_glmm_cluster(), "Native GLMM cluster kernels unavailable.")
+  native_kernels_available <-
+    is.loaded("RoBMA_glmm_binom_cluster_loglik", PACKAGE = "RoBMA") &&
+    is.loaded("RoBMA_glmm_pois_cluster_loglik", PACKAGE = "RoBMA")
+  skip_if_not(native_kernels_available, "Native GLMM cluster kernels unavailable.")
 
   set.seed(2024)
   S <- 5

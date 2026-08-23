@@ -431,7 +431,11 @@ test_that("brma.mv prepares whitened known-V backend", {
   whitening_block <- known_V[["whitening_blocks"]][[1L]]
   rotation        <- whitening_block[["rotation"]]
   rotated_V       <- rotation %*%
-    .known_v_block_covariance(known_V, whitening_block[["index"]]) %*%
+    V[
+      whitening_block[["index"]],
+      whitening_block[["index"]],
+      drop = FALSE
+    ] %*%
     t(rotation)
   expect_equal(
     rotated_V,

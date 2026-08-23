@@ -71,17 +71,7 @@
 }
 
 
-.optional_jags_list <- function(x) {
-
-  if (length(x) > 0L) {
-    return(x)
-  }
-
-  NULL
-}
-
-
-.optional_jags_character <- function(x) {
+.optional_jags_value <- function(x) {
 
   if (length(x) > 0L) {
     return(x)
