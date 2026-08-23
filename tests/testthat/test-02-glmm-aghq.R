@@ -387,8 +387,8 @@ test_that("ordinary wrappers dispatch supported nuisance priors", {
     7L, 11L, 15, 18, matrix(0.35), matrix(0.6), NULL,
     c(mean = -1, sd = 1.3)
   )
-  expected_bin  <- .glmm_aghq_value(bin_raw)
-  expected_pois <- .glmm_aghq_value(pois_raw)
+  expected_bin  <- bin_raw[["value"]]
+  expected_pois <- pois_raw[["value"]]
 
   expect_equal(
     as.numeric(.outcome_pdf.binom(

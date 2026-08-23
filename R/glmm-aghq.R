@@ -446,21 +446,6 @@
 }
 
 
-# Attach compact convergence diagnostics to a likelihood result.
-.glmm_aghq_value <- function(out) {
-
-  value <- out[["value"]]
-  attr(value, "glmm_aghq_diagnostics") <- out[c(
-    "max_order",
-    "max_change",
-    "max_mode_iterations",
-    "order_counts",
-    "exact_count"
-  )]
-  return(value)
-}
-
-
 # Locate the unique mode of a strictly log-concave one-dimensional kernel.
 .glmm_point_mode <- function(gradient, n, outcome_type, observation) {
 

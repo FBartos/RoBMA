@@ -90,8 +90,7 @@ all: $(SHLIB)
 glmm-aghq.o: glmm-binomial-loglik.h
 
 R_GLMM_INC = r-glmm-common.cc.inc \
-			 r-glmm-marginal.cc.inc \
-			 r-glmm-cluster.cc.inc
+			 r-glmm-marginal.cc.inc
 
 r-glmm.o: $(R_GLMM_INC) glmm-binomial-loglik.h
 

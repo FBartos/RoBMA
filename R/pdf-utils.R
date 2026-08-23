@@ -133,13 +133,10 @@
 }
 
 
-.has_native_glmm_row_sum <- function(outcome_type, cluster = FALSE,
-                                     conditional = FALSE) {
+.has_native_glmm_row_sum <- function(outcome_type, conditional = FALSE) {
 
   suffix <- if (conditional) {
     "conditional_loglik_sum"
-  } else if (cluster) {
-    "cluster_loglik_row_sum"
   } else {
     "marginal_loglik_row_sum"
   }
@@ -626,53 +623,4 @@
   BayesTools::check_int(n_gamma, "cluster_likelihood.n_gamma", lower = 3)
 
   return(as.integer(n_gamma))
-}
-
-
-
-# ---------------------------------------------------------------------------- #
-# .log_lik_cluster_gamma_quadrature
-# ---------------------------------------------------------------------------- #
-#
-# Integrate the held-out cluster effect gamma_g with Gauss-Hermite quadrature.
-#
-# @param cluster_indices     list of cluster index vectors.
-# @param mu_samples          S x K matrix of fixed-effect means.
-# @param tau_between_samples S x K matrix of cluster-level SDs.
-# @param log_lik_fun         function(idx, mu_node) returning S x length(idx)
-#                            conditional log-likelihood matrix.
-# @param weights             optional data weights.
-# @param n_gamma             number of Gauss-Hermite nodes.
-#
-# @return S x G cluster-unit log-likelihood matrix.
-#
-# ---------------------------------------------------------------------------- #
-.log_lik_cluster_gamma_quadrature <- function(cluster_indices, mu_samples,
-                                              tau_between_samples, log_lik_fun,
-                                              weights = NULL,
-                                              n_gamma = .get_cluster_likelihood_n_gamma()) {
-
-  gh      <- .gauss_hermite_nodes(n_gamma)
-  S       <- nrow(mu_samples)
-  G       <- length(cluster_indices)
-  log_lik <- matrix(NA_real_, nrow = S, ncol = G)
-
-  for (g in seq_along(cluster_indices)) {
-    idx       <- cluster_indices[[g]]
-    log_terms <- matrix(NA_real_, nrow = S, ncol = n_gamma)
-
-    for (j in seq_len(n_gamma)) {
-      mu_node <- mu_samples[, idx, drop = FALSE] +
-        gh$nodes[j] * tau_between_samples[, idx, drop = FALSE]
-
-      point_log_lik <- log_lik_fun(idx, mu_node)
-      point_log_lik <- .apply_log_lik_weights(point_log_lik, weights[idx])
-
-      log_terms[, j] <- rowSums(point_log_lik) + gh$log_weights[j]
-    }
-
-    log_lik[, g] <- .rowLogSumExps(log_terms)
-  }
-
-  return(log_lik)
 }

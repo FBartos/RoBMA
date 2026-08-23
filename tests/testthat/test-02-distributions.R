@@ -792,64 +792,6 @@ test_that("native GLMM row-sum kernels match matrix likelihoods", {
   )
 })
 
-test_that("native GLMM cluster row-sum kernels match matrix kernels", {
-
-  skip_if_not(.has_native_glmm_row_sum("bin", cluster = TRUE))
-  skip_if_not(.has_native_glmm_row_sum("pois", cluster = TRUE))
-
-  set.seed(20260514)
-  S <- 4
-  K <- 5
-  setup <- list(
-    mu          = matrix(rnorm(S * K, 0, .25), nrow = S, ncol = K),
-    tau_within  = matrix(runif(S * K, .05, .25), nrow = S, ncol = K),
-    tau_between = matrix(runif(S * K, .02, .18), nrow = S, ncol = K),
-    cluster     = list(a = c(1L, 3L), b = c(2L, 4L, 5L)),
-    weights     = c(1, .5, 1.25, 2, .75)
-  )
-  bin_data <- list(outcome = data.frame(
-    ai  = c(3L, 0L, 8L, 12L, 2L),
-    ci  = c(2L, 4L, 0L, 10L, 1L),
-    n1i = c(20L, 18L, 15L, 30L, 22L),
-    n2i = c(22L, 17L, 16L, 31L, 21L)
-  ))
-  pois_data <- list(outcome = data.frame(
-    x1i = c(0L, 3L, 10L, 12L, 1L),
-    x2i = c(1L, 0L, 8L, 9L, 2L),
-    t1i = c(12, 30, 45, 50, 25),
-    t2i = c(10, 28, 43, 48, 24)
-  ))
-  bin_priors <- list(outcome = list(
-    pi = BayesTools::prior("beta", list(1.5, 2.5))
-  ))
-  pois_priors <- list(outcome = list(
-    phi = BayesTools::prior("normal", list(-1, 1.5))
-  ))
-
-  expect_equal(
-    .log_lik_cluster_glmm_native_sum(
-      setup, bin_data, bin_priors, "bin",
-      n_theta = 5, n_gamma = 5, n_pi = 7
-    ),
-    rowSums(.log_lik_cluster_glmm_native(
-      setup, bin_data, bin_priors, "bin",
-      n_theta = 5, n_gamma = 5, n_pi = 7
-    )),
-    tolerance = 1e-10
-  )
-  expect_equal(
-    .log_lik_cluster_glmm_native_sum(
-      setup, pois_data, pois_priors, "pois",
-      n_theta = 5, n_gamma = 5, n_phi = 7
-    ),
-    rowSums(.log_lik_cluster_glmm_native(
-      setup, pois_data, pois_priors, "pois",
-      n_theta = 5, n_gamma = 5, n_phi = 7
-    )),
-    tolerance = 1e-10
-  )
-})
-
 test_that("native log-sum-exp kernels propagate bad quadrature nodes", {
 
   skip_if_not(.has_native_glmm("bin"))
