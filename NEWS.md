@@ -2,8 +2,10 @@
 ### Features
 - batches metadata-compiled random-effect factor states when several
   heterogeneity components are requested and reuses prepared posterior samples
-  in random-effect summaries, avoiding repeated compilation and conversion
-  without changing covariance semantics.
+  in random-effect summaries. Targeted random-parameter diagnostics now
+  materialize only the requested semantic quantity instead of first extracting
+  every random quantity, avoiding repeated compilation and conversion without
+  changing covariance semantics.
 - standardizes RoBMA's printable structured result classes on `as.data.frame()`
   and `data.frame()` coercion to one component-aware long data frame. This
   covers model and heterogeneity summaries, posterior/prediction and pooled

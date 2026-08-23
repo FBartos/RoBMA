@@ -171,6 +171,15 @@
 .diagnostic_random_parameter_samples <- function(
     model, parameter = NULL, standardized_coefficients = FALSE) {
 
+  if (!is.null(parameter)) {
+    selected <- .brma_random_parameter_select(
+      object                    = model,
+      parameter                 = parameter,
+      standardized_coefficients = standardized_coefficients
+    )
+    return(selected[["samples"]])
+  }
+
   bundle <- .brma_random_parameter_bundle(
     object                    = model,
     standardized_coefficients = standardized_coefficients
@@ -179,16 +188,8 @@
     stop("No random-effect quantities are available for this model.",
          call. = FALSE)
   }
-  if (is.null(parameter)) {
-    return(bundle[["samples"]])
-  }
 
-  selected <- .brma_random_parameter_select(
-    object                    = model,
-    parameter                 = parameter,
-    standardized_coefficients = standardized_coefficients
-  )
-  selected[["samples"]]
+  return(bundle[["samples"]])
 }
 
 
