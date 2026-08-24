@@ -774,30 +774,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .log_lik_known_v_component_conditional
-# ---------------------------------------------------------------------------- #
-#
-# Conditional normal log-densities for all coordinates in one covariance block.
-# For a joint normal distribution, Var(y_i | y_-i) is 1 / precision[i, i] and
-# E(y_i | y_-i) shifts by the precision-weighted joint residual.
-#
-# ---------------------------------------------------------------------------- #
-.log_lik_known_v_component_conditional <- function(yi, mu, covariance) {
-
-  distribution <- .known_v_component_conditional_distribution(
-    yi         = yi,
-    mu         = mu,
-    covariance = covariance
-  )
-
-  -0.5 * (
-    log(2 * pi * distribution[["variance"]]) +
-      distribution[["residual"]]^2 / distribution[["variance"]]
-  )
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .known_v_component_conditional_distribution
 # ---------------------------------------------------------------------------- #
 #

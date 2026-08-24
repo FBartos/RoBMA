@@ -177,7 +177,7 @@ test_that("native covariance plan returns exact Schur conditional densities", {
   for (idx in blocks) {
     covariance <- sampling_covariance[idx, idx, drop = FALSE] +
       diag(extra_variance[idx], nrow = length(idx))
-    expected[idx] <- .log_lik_known_v_component_conditional(
+    expected[idx] <- .known_v_conditional_loglik_reference(
       yi         = y[idx],
       mu         = mean[idx],
       covariance = covariance
@@ -386,7 +386,7 @@ test_that("known-V factor-plan GLS matches exact dense projections", {
 
   for (draw in seq_len(nrow(extra_variances))) {
     covariance <- sampling_covariance + diag(extra_variances[draw, ])
-    expected <- .known_v_gls_projection(X, y, covariance)
+    expected <- .known_v_gls_projection_reference(X, y, covariance)
     A <- diag(length(y)) - expected[["H"]]
 
     expect_equal(observed[["H"]][draw, , ], expected[["H"]],

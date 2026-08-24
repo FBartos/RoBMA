@@ -331,8 +331,6 @@
 
   return(out)
 }
-
-
 .known_v_factor_gls_projection_batch <- function(
     object, posterior_samples, known_V, X, y,
     return_full_H = FALSE, return_se = FALSE, return_resid = FALSE) {
@@ -667,40 +665,3 @@
 }
 
 
-# ---------------------------------------------------------------------------- #
-# .known_v_gls_projection
-# ---------------------------------------------------------------------------- #
-#
-# Shared GLS projection pieces for known-V residual diagnostics.
-#
-# ---------------------------------------------------------------------------- #
-.known_v_gls_projection <- function(X, y, covariance) {
-
-  factorization   <- .covariance_factorization(covariance)
-  covariance      <- factorization[["covariance"]]
-  chol_covariance <- .covariance_cholesky(factorization)
-  if (is.null(chol_covariance)) {
-    stop("Known-V residual covariance is not positive definite.",
-         call. = FALSE)
-  }
-
-  W        <- chol2inv(chol_covariance)
-  WX       <- W %*% X
-  Wy       <- as.vector(W %*% y)
-  XtWX     <- crossprod(X, WX)
-  XtWX_inv <- .hat_solve_crossprod(XtWX, rank = attr(X, "rank"))
-  H        <- X %*% XtWX_inv %*% t(WX)
-  beta_hat <- as.vector(XtWX_inv %*% crossprod(X, Wy))
-  residual <- y - as.vector(X %*% beta_hat)
-
-  return(list(
-    covariance        = covariance,
-    covariance_factor = t(chol_covariance),
-    W                 = W,
-    WX                = WX,
-    XtWX_inv          = XtWX_inv,
-    H                 = H,
-    beta_hat          = beta_hat,
-    residual          = residual
-  ))
-}
