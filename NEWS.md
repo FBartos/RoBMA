@@ -27,6 +27,8 @@
   covariance array. Persisted fixed-effect rank metadata now governs every GLS
   crossproduct solve, and precision right-hand sides are evaluated directly,
   avoiding cancellation and accidental Cholesky routing for aliased designs.
+  Random-effect BLUPs request those precision residuals directly and no longer
+  compute unused conditional variances.
   Random blocks already compiled as exact diagonal marginalized variance are
   separated from sampled covariance factors, while persisted latent known-`V`
   factors are passed to the same low-rank engine; both preserve the fitted
