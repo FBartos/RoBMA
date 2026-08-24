@@ -18,7 +18,26 @@ project_root <- normalizePath(file.path(dirname(script_path), ".."), mustWork = 
 script_path  <- normalizePath(script_path, mustWork = TRUE)
 setwd(project_root)
 
-Sys.setenv(AGENT = "1")
+if (Sys.getenv("AGENT") == "" && Sys.getenv("ROBMA_TEST_REPORTER") == "") {
+  Sys.setenv(AGENT = "1")
+}
+
+message("Running RoBMA test profile: ", profile)
+message(
+  "ROBMA_TEST_FILES_DIR: ",
+  Sys.getenv("ROBMA_TEST_FILES_DIR", unset = "<package default>")
+)
+message("ROBMA_TEST_REPORTER: ", Sys.getenv("ROBMA_TEST_REPORTER", unset = "<unset>"))
+message("AGENT: ", Sys.getenv("AGENT", unset = "<unset>"))
+
+profile_started <- Sys.time()
+
+finish_profile <- function(status = 0L) {
+
+  elapsed <- difftime(Sys.time(), profile_started, units = "secs")
+  message("Elapsed seconds: ", round(as.numeric(elapsed), 1))
+  quit(save = "no", status = status)
+}
 
 
 .rscript <- function() {
@@ -72,6 +91,12 @@ run_tests <- function(filter = NULL) {
     test_args[["filter"]] <- filter
   }
 
+  message(
+    "testthat filter: ",
+    if (is.null(filter)) "<all>" else filter
+  )
+  message("testthat reporter: ", reporter)
+
   return(do.call(devtools::test, test_args))
 }
 
@@ -121,6 +146,9 @@ source_profile_helpers <- function(profile_name, active_fits = NULL) {
     file.path("tests", "testthat", "helper-profile-cases.R"),
     local = .GlobalEnv
   )
+
+  message("Cached-fit profile: ", profile_name)
+  message("Cached-fit directory: ", test_files_dir)
 
   return(invisible(TRUE))
 }
@@ -223,7 +251,7 @@ if (profile %in% c("release", "pre-release", "pre_release")) {
   run_subprofile("standard")
   run_subprofile("certification", clean = clean)
   devtools::check(error_on = "warning")
-  quit(save = "no", status = 0L)
+  finish_profile()
 }
 
 if (profile %in% c("cache", "01-cache", "refresh-standard")) {
@@ -233,7 +261,7 @@ if (profile %in% c("cache", "01-cache", "refresh-standard")) {
   }
   run_tests("01-")
   validate_fit_cache("standard")
-  quit(save = "no", status = 0L)
+  finish_profile()
 }
 
 if (identical(profile, "certification")) {
@@ -243,7 +271,7 @@ if (identical(profile, "certification")) {
     for (name in names(cases)) {
       cat(name, "\t", cases[[name]][["description"]], "\n", sep = "")
     }
-    quit(save = "no", status = 0L)
+    finish_profile()
   }
   if (length(worker_arg) > 1L) {
     stop("Only one certification worker may be requested.", call. = FALSE)
@@ -251,7 +279,7 @@ if (identical(profile, "certification")) {
   if (length(worker_arg) == 1L) {
     name <- sub("^--case-worker=", "", worker_arg)
     run_certification_worker(name)
-    quit(save = "no", status = 0L)
+    finish_profile()
   }
 
   requested <- if (length(extra_args) == 0L) {
@@ -270,7 +298,7 @@ if (identical(profile, "certification")) {
   for (name in requested) {
     run_certification_case(name, clean = clean)
   }
-  quit(save = "no", status = 0L)
+  finish_profile()
 }
 
 if (identical(profile, "standard")) {
@@ -284,7 +312,7 @@ if (identical(profile, "standard")) {
   source_profile_helpers("standard")
   if (length(extra_args) > 0L) {
     run_tests(paste(extra_args, collapse = "|"))
-    quit(save = "no", status = 0L)
+    finish_profile()
   }
 
   validate_fit_cache("standard")
@@ -299,13 +327,13 @@ if (identical(profile, "standard")) {
       call. = FALSE
     )
   }
-  quit(save = "no", status = 0L)
+  finish_profile()
 }
 
 if (identical(profile, "quick")) {
   source_profile_helpers("standard")
   run_tests("00-|02-")
-  quit(save = "no", status = 0L)
+  finish_profile()
 }
 
 if (identical(profile, "filter")) {
@@ -314,7 +342,7 @@ if (identical(profile, "filter")) {
   }
   source_profile_helpers("standard")
   run_tests(paste(extra_args, collapse = "|"))
-  quit(save = "no", status = 0L)
+  finish_profile()
 }
 
 stop(

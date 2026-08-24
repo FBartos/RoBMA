@@ -374,6 +374,10 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Testing and development
+- aligns the interactive `test_tests()` output with BayesTools: interactive
+  runs default to testthat's progress reporter, while `reporter = "llm"`
+  explicitly enables compact agent output. Profile subprocesses report their
+  cache, filter, reporter, and elapsed time.
 - removes unreachable and superseded post-fit helpers, consolidates shared JAGS
   argument and LOO-comparison routing, and replaces implementation-only unit
   checks with independent references to the current computation paths.

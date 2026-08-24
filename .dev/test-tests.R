@@ -115,7 +115,7 @@ if (!exists("review_test_snapshots", mode = "function") ||
 # Run ordinary and certification tests from an interactive development session.
 # A filter selects standard testthat files; an unfiltered run also executes all
 # independently bounded certification cases.
-test_tests <- function(filter = NULL, reporter = "llm", refit = FALSE,
+test_tests <- function(filter = NULL, reporter = "progress", refit = FALSE,
                        update = FALSE, update_timings = FALSE,
                        regenerate = FALSE,
                        load_package = TRUE, stop_on_failure = FALSE,
@@ -200,12 +200,15 @@ test_tests <- function(filter = NULL, reporter = "llm", refit = FALSE,
     }
   }, add = TRUE)
 
-  Sys.unsetenv("AGENT")
   Sys.setenv(
     NOT_CRAN                          = "true",
     ROBMA_TEST_REPORTER               = reporter,
     ROBMA_TEST_STOP_ON_FAILURE        = if (stop_on_failure) "TRUE" else "FALSE",
-    ROBMA_TEST_QUIET_SKIPS            = "TRUE",
+    ROBMA_TEST_QUIET_SKIPS            = if (identical(reporter, "llm")) {
+      "TRUE"
+    } else {
+      "FALSE"
+    },
     ROBMA_TEST_FULL_VISUALS           = "TRUE",
     ROBMA_TEST_FULL_DIAGNOSTICS       = "TRUE",
     ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS = if (update) "TRUE" else "FALSE",
@@ -215,6 +218,11 @@ test_tests <- function(filter = NULL, reporter = "llm", refit = FALSE,
     ROBMA_SCENARIO_UPDATE_TIMINGS     = "FALSE",
     ROBMA_SCENARIO_RUNNER             = "TRUE"
   )
+  if (identical(reporter, "llm")) {
+    Sys.setenv(AGENT = "1")
+  } else {
+    Sys.unsetenv("AGENT")
+  }
 
   results <- list()
   if (is.null(filter)) {

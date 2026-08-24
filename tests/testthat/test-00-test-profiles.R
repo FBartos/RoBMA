@@ -70,9 +70,12 @@ test_that("interactive test runner dispatches filtered and comprehensive profile
     function(profile, clean = FALSE, filter = NULL) {
 
       calls[[length(calls) + 1L]] <<- list(
-        profile = profile,
-        clean   = clean,
-        filter  = filter
+        profile  = profile,
+        clean    = clean,
+        filter   = filter,
+        reporter = Sys.getenv("ROBMA_TEST_REPORTER"),
+        agent    = Sys.getenv("AGENT", unset = NA_character_),
+        quiet    = Sys.getenv("ROBMA_TEST_QUIET_SKIPS")
       )
       return(invisible(TRUE))
     },
@@ -83,6 +86,13 @@ test_that("interactive test runner dispatches filtered and comprehensive profile
     function(...) invisible(data.frame()),
     envir = runner_env
   )
+
+  expected_formals <- c(
+    "filter", "reporter", "refit", "update", "update_timings",
+    "regenerate", "load_package", "stop_on_failure", "root"
+  )
+  expect_identical(names(formals(runner_env$test_tests)), expected_formals)
+  expect_identical(formals(runner_env$test_tests)[["reporter"]], "progress")
 
   runner_env$test_tests(
     filter          = "interpret",
@@ -97,6 +107,9 @@ test_that("interactive test runner dispatches filtered and comprehensive profile
   )
   expect_identical(vapply(calls, `[[`, logical(1), "clean"), c(TRUE, FALSE))
   expect_identical(calls[[2L]][["filter"]], "interpret")
+  expect_identical(calls[[2L]][["reporter"]], "progress")
+  expect_true(is.na(calls[[2L]][["agent"]]))
+  expect_identical(calls[[2L]][["quiet"]], "FALSE")
 
   calls <- list()
   runner_env$test_tests(
@@ -109,6 +122,17 @@ test_that("interactive test runner dispatches filtered and comprehensive profile
     "filter"
   )
   expect_false(calls[[1L]][["clean"]])
+
+  calls <- list()
+  runner_env$test_tests(
+    filter       = "input-data",
+    reporter     = "llm",
+    load_package = FALSE,
+    root         = testthat::test_path()
+  )
+  expect_identical(calls[[1L]][["reporter"]], "llm")
+  expect_identical(calls[[1L]][["agent"]], "1")
+  expect_identical(calls[[1L]][["quiet"]], "TRUE")
 
   calls <- list()
   runner_env$test_tests(

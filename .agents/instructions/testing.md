@@ -33,10 +33,12 @@ cleans the standard fit cache before rebuilding; `update = TRUE` permits
 missing visual candidates, and `regenerate = TRUE` combines those controls.
 Every run ends with snapshot review. Ordinary tests have no per-file timing
 baseline, so `update_timings = TRUE` fails clearly; their timing contract is the
-standard profile's 15-minute total budget. The quiet LLM reporter prints
-failures and warnings immediately, retains skip counts, and omits individual
-skip reports. An unfiltered run is deliberately much slower than the ordinary
-standard profile and does not run `devtools::check()`.
+standard profile's 15-minute total budget. Interactive calls default to
+testthat's progress reporter. Use `reporter = "llm"` for agent-oriented output;
+the quiet LLM reporter prints failures and warnings immediately, retains skip
+counts, and omits individual skip reports. An unfiltered run is deliberately
+much slower than the ordinary standard profile and does not run
+`devtools::check()`.
 
 ## Test Profiles
 
