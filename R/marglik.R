@@ -2440,32 +2440,30 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     cache, y, means, sampling_covariance, random_covariance_plans,
     random_covariance_states, block_indices, extra_variances) {
 
-  conditional <- .marglik_covariance_plan_conditional_summary_batch(
+  plan <- .marglik_covariance_plan_get(
     cache                    = cache,
     y                        = y,
-    means                    = means,
     sampling_covariance      = sampling_covariance,
     random_covariance_plans  = random_covariance_plans,
-    random_covariance_states = random_covariance_states,
-    block_indices            = block_indices,
-    extra_variances          = extra_variances
+    block_indices            = block_indices
   )
-  residual <- conditional[["residual"]]
-  variance <- conditional[["variance"]]
+  precision_residual <- t(.Call(
+    "RoBMA_known_v_covariance_plan_precision_residual_batch",
+    plan,
+    t(means),
+    random_covariance_states,
+    t(extra_variances),
+    PACKAGE = "RoBMA"
+  ))
   expected_dimensions <- c(nrow(means), length(y))
-  if (!is.numeric(residual) ||
-      !identical(dim(residual), expected_dimensions) ||
-      any(!is.finite(residual)) ||
-      !is.numeric(variance) ||
-      !identical(dim(variance), expected_dimensions) ||
-      any(!is.finite(variance)) || any(variance <= 0)) {
-    stop("Covariance factor plan returned invalid conditional summaries.",
+  if (!is.numeric(precision_residual) ||
+      !identical(dim(precision_residual), expected_dimensions) ||
+      any(!is.finite(precision_residual))) {
+    stop("Covariance factor plan returned invalid precision residuals.",
          call. = FALSE)
   }
 
-  # residual_i = alpha_i / precision_ii and
-  # variance_i = 1 / precision_ii, so this ratio is alpha = Q(y - mean).
-  return(residual / variance)
+  return(precision_residual)
 }
 
 

@@ -190,13 +190,14 @@ double *fill_low_rank_factor(
   return U;
 }
 
-bool root_dense_block_log_likelihood(
+bool prepare_root_dense_block(
     CovariancePlan &plan,
     const BlockPlan &block,
     const std::vector<CovarianceFactor> &factors,
     const double *mean,
     const double *extra,
-    double *value)
+    double *covariance,
+    double *residual)
 {
   // Materialize B + U U' directly. This avoids rebuilding each random-effect
   // covariance contribution while retaining the ordinary dense factorization.
@@ -204,8 +205,6 @@ bool root_dense_block_log_likelihood(
     return false;
   }
   const int size = static_cast<int>(block.index.size());
-  double *covariance = plan.covariance_work.data();
-  double *residual = plan.residual_work.data();
   for (int col = 0; col < size; ++col) {
     const int global_col = block.index[static_cast<size_t>(col)];
     for (int row = 0; row < size; ++row) {
@@ -237,6 +236,31 @@ bool root_dense_block_log_likelihood(
       covariance, &size FCONE FCONE
     );
   }
+  return true;
+}
+
+bool root_dense_block_log_likelihood(
+    CovariancePlan &plan,
+    const BlockPlan &block,
+    const std::vector<CovarianceFactor> &factors,
+    const double *mean,
+    const double *extra,
+    double *value)
+{
+  double *covariance = plan.covariance_work.data();
+  double *residual = plan.residual_work.data();
+  if (!prepare_root_dense_block(
+      plan,
+      block,
+      factors,
+      mean,
+      extra,
+      covariance,
+      residual
+    )) {
+    return false;
+  }
+  const int size = static_cast<int>(block.index.size());
   *value = cholesky_block_log_likelihood(size, covariance, residual);
   return true;
 }

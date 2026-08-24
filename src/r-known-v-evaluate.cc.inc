@@ -276,17 +276,36 @@ bool finish_conditional_block(
   // residual, and variance are all derived from this same joint precision; none
   // is an independent marginal observation target.
   const double *latent_residual_solution = solutions;
+  const bool residual_only = precision_residual_only(output);
   for (int observation = 0; observation < size; ++observation) {
-    const double *precision_solution = solutions +
-      static_cast<size_t>((observation + 1) * rank);
     double residual_correction = 0.0;
-    double diagonal_correction = 0.0;
     for (int column : active_columns[static_cast<size_t>(observation)]) {
       const double precision_value = precision_factor[static_cast<size_t>(
         observation + size * column
       )];
       residual_correction += precision_value *
         latent_residual_solution[static_cast<size_t>(column)];
+    }
+    const double precision_residual =
+      base_precision_residual[static_cast<size_t>(observation)] -
+      residual_correction;
+    if (!std::isfinite(precision_residual)) {
+      return false;
+    }
+    if (residual_only) {
+      output.precision_residual[
+        block.index[static_cast<size_t>(observation)]
+      ] = precision_residual;
+      continue;
+    }
+
+    const double *precision_solution = solutions +
+      static_cast<size_t>((observation + 1) * rank);
+    double diagonal_correction = 0.0;
+    for (int column : active_columns[static_cast<size_t>(observation)]) {
+      const double precision_value = precision_factor[static_cast<size_t>(
+        observation + size * column
+      )];
       diagonal_correction += precision_value *
         precision_solution[static_cast<size_t>(column)];
     }
@@ -298,11 +317,7 @@ bool finish_conditional_block(
       std::numeric_limits<double>::epsilon() *
       (std::abs(base_precision_diagonal[static_cast<size_t>(observation)]) +
        std::abs(diagonal_correction));
-    const double precision_residual =
-      base_precision_residual[static_cast<size_t>(observation)] -
-      residual_correction;
-    if (!(precision_diagonal > cancellation_bound) ||
-        !std::isfinite(precision_residual)) {
+    if (!(precision_diagonal > cancellation_bound)) {
       // Do not clamp a cancellation-damaged diagonal. Decline this route so the
       // caller recomputes the same conditional density from the dense precision.
       return false;
@@ -365,6 +380,9 @@ bool diagonal_low_rank_conditional_values(
       if (output.variance != nullptr) {
         output.variance[global] = variance;
       }
+      if (output.precision_residual != nullptr) {
+        output.precision_residual[global] = value / variance;
+      }
     }
     return true;
   }
@@ -400,8 +418,9 @@ bool diagonal_low_rank_conditional_values(
     return false;
   }
 
+  const int n_rhs = precision_residual_only(output) ? 1 : size + 1;
   const size_t system_size = static_cast<size_t>(rank) *
-    static_cast<size_t>(size + 1);
+    static_cast<size_t>(n_rhs);
   plan.conditional_rhs_work.resize(system_size);
   double *systems = plan.conditional_rhs_work.data();
   std::copy(
@@ -409,28 +428,30 @@ bool diagonal_low_rank_conditional_values(
     plan.rhs_work.begin() + rank,
     systems
   );
-  std::fill(
-    systems + rank,
-    systems + system_size,
-    0.0
-  );
-  for (int observation = 0; observation < size; ++observation) {
-    const double inverse_variance = 1.0 /
-      diagonal[static_cast<size_t>(observation)];
-    for (int column : block.precision_active_columns[
-        static_cast<size_t>(observation)
-      ]) {
-      systems[static_cast<size_t>(
-        column + rank * (observation + 1)
-      )] = U[static_cast<size_t>(observation + size * column)] *
-        inverse_variance;
+  if (n_rhs > 1) {
+    std::fill(
+      systems + rank,
+      systems + system_size,
+      0.0
+    );
+    for (int observation = 0; observation < size; ++observation) {
+      const double inverse_variance = 1.0 /
+        diagonal[static_cast<size_t>(observation)];
+      for (int column : block.precision_active_columns[
+          static_cast<size_t>(observation)
+        ]) {
+        systems[static_cast<size_t>(
+          column + rank * (observation + 1)
+        )] = U[static_cast<size_t>(observation + size * column)] *
+          inverse_variance;
+      }
     }
   }
   if (!solve_latent_system(
       plan,
       block,
       rank,
-      size + 1,
+      n_rhs,
       sparse,
       systems
     )) {
@@ -560,8 +581,9 @@ bool block_base_low_rank_conditional_values(
     return false;
   }
 
+  const int n_rhs = precision_residual_only(output) ? 1 : size + 1;
   const size_t system_size = static_cast<size_t>(rank) *
-    static_cast<size_t>(size + 1);
+    static_cast<size_t>(n_rhs);
   plan.conditional_rhs_work.resize(system_size);
   double *systems = plan.conditional_rhs_work.data();
   std::copy(
@@ -569,27 +591,29 @@ bool block_base_low_rank_conditional_values(
     plan.rhs_work.begin() + rank,
     systems
   );
-  std::fill(
-    systems + rank,
-    systems + system_size,
-    0.0
-  );
-  for (int observation = 0; observation < size; ++observation) {
-    for (int column : block.precision_active_columns[
-        static_cast<size_t>(observation)
-      ]) {
-      systems[static_cast<size_t>(
-        column + rank * (observation + 1)
-      )] = base_precision[static_cast<size_t>(
-        observation + size * (column + 1)
-      )];
+  if (n_rhs > 1) {
+    std::fill(
+      systems + rank,
+      systems + system_size,
+      0.0
+    );
+    for (int observation = 0; observation < size; ++observation) {
+      for (int column : block.precision_active_columns[
+          static_cast<size_t>(observation)
+        ]) {
+        systems[static_cast<size_t>(
+          column + rank * (observation + 1)
+        )] = base_precision[static_cast<size_t>(
+          observation + size * (column + 1)
+        )];
+      }
     }
   }
   if (!solve_latent_system(
       plan,
       block,
       rank,
-      size + 1,
+      n_rhs,
       sparse,
       systems
     )) {
@@ -654,6 +678,9 @@ void plan_conditional_values(
       if (output.variance != nullptr) {
         output.variance[global] = variance;
       }
+      if (output.precision_residual != nullptr) {
+        output.precision_residual[global] = value / variance;
+      }
       continue;
     }
 
@@ -700,15 +727,25 @@ void plan_conditional_values(
     const int size = static_cast<int>(block.index.size());
     double *covariance = plan.covariance_work.data();
     double *precision_residual = plan.residual_work.data();
-    fill_dense_block(
-      plan,
-      block,
-      factors,
-      mean_values,
-      extra_values,
-      covariance,
-      precision_residual
-    );
+    if (!prepare_root_dense_block(
+        plan,
+        block,
+        factors,
+        mean_values,
+        extra_values,
+        covariance,
+        precision_residual
+      )) {
+      fill_dense_block(
+        plan,
+        block,
+        factors,
+        mean_values,
+        extra_values,
+        covariance,
+        precision_residual
+      );
+    }
 
     int info = 0;
     F77_CALL(dpotrf)("L", &size, covariance, &size, &info FCONE);
@@ -728,6 +765,20 @@ void plan_conditional_values(
     );
     if (info != 0) {
       Rf_error("Known-V conditional covariance solve failed.");
+    }
+    if (precision_residual_only(output)) {
+      for (int local = 0; local < size; ++local) {
+        const double weighted_residual = precision_residual[
+          static_cast<size_t>(local)
+        ];
+        if (!std::isfinite(weighted_residual)) {
+          Rf_error("Known-V precision residual is invalid.");
+        }
+        output.precision_residual[block.index[
+          static_cast<size_t>(local)
+        ]] = weighted_residual;
+      }
+      continue;
     }
     F77_CALL(dpotri)("L", &size, covariance, &size, &info FCONE);
     if (info != 0) {
@@ -762,6 +813,7 @@ SEXP plan_conditional_log_likelihood(
   SEXP output = PROTECT(Rf_allocVector(REALSXP, plan.n));
   const ConditionalOutput destination = {
     REAL(output),
+    nullptr,
     nullptr,
     nullptr
   };

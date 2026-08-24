@@ -209,6 +209,16 @@ test_that("native covariance plan returns exact Schur conditional densities", {
     block_indices            = blocks,
     extra_variances          = extra_variances
   )
+  precision_residual <- .marglik_covariance_plan_precision_residual_batch(
+    cache                    = NULL,
+    y                        = y,
+    means                    = means,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = states,
+    block_indices            = blocks,
+    extra_variances          = extra_variances
+  )
   expected_residual <- expected_variance <- matrix(
     NA_real_,
     nrow = nrow(means),
@@ -234,6 +244,11 @@ test_that("native covariance plan returns exact Schur conditional densities", {
   expect_equal(summary[["residual"]], expected_residual, tolerance = 1e-12)
   expect_equal(summary[["variance"]], expected_variance, tolerance = 1e-12)
   expect_equal(actual_batch, expected_batch, tolerance = 1e-12)
+  expect_equal(
+    precision_residual,
+    expected_residual / expected_variance,
+    tolerance = 1e-12
+  )
 })
 
 

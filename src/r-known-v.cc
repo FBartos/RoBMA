@@ -498,6 +498,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik_batch(
     const ConditionalOutput destination = {
       REAL(output) + static_cast<size_t>(draw) * plan->n,
       nullptr,
+      nullptr,
       nullptr
     };
     plan_conditional_values(
@@ -564,7 +565,8 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_summary_batch(
     const ConditionalOutput destination = {
       nullptr,
       REAL(residual) + static_cast<size_t>(draw) * plan->n,
-      REAL(variance) + static_cast<size_t>(draw) * plan->n
+      REAL(variance) + static_cast<size_t>(draw) * plan->n,
+      nullptr
     };
     plan_conditional_values(
       *plan,
@@ -575,5 +577,44 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_summary_batch(
     );
   }
   UNPROTECT(4);
+  return output;
+}
+
+extern "C" SEXP RoBMA_known_v_covariance_plan_precision_residual_batch(
+    SEXP pointer,
+    SEXP means,
+    SEXP random_covariance_states,
+    SEXP extra_variances)
+{
+  CovariancePlan *plan = plan_pointer(pointer);
+  const int draws = require_batched_plan_inputs(
+    *plan,
+    means,
+    random_covariance_states,
+    extra_variances
+  );
+  SEXP output = PROTECT(Rf_allocMatrix(REALSXP, plan->n, draws));
+  const double *mean_values = REAL(means);
+  const double *extra_values = REAL(extra_variances);
+  for (int draw = 0; draw < draws; ++draw) {
+    std::vector<CovarianceFactor> states = covariance_states(
+      VECTOR_ELT(random_covariance_states, draw),
+      *plan
+    );
+    const ConditionalOutput destination = {
+      nullptr,
+      nullptr,
+      nullptr,
+      REAL(output) + static_cast<size_t>(draw) * plan->n
+    };
+    plan_conditional_values(
+      *plan,
+      mean_values + static_cast<size_t>(draw) * plan->n,
+      states,
+      extra_values + static_cast<size_t>(draw) * plan->n,
+      destination
+    );
+  }
+  UNPROTECT(1);
   return output;
 }

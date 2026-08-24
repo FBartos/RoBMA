@@ -197,7 +197,16 @@ struct ConditionalOutput {
   double *log_density;
   double *residual;
   double *variance;
+  double *precision_residual;
 };
+
+bool precision_residual_only(const ConditionalOutput &output)
+{
+  return output.precision_residual != nullptr &&
+    output.log_density == nullptr &&
+    output.residual == nullptr &&
+    output.variance == nullptr;
+}
 
 bool store_conditional_output(
     int index,
@@ -223,6 +232,9 @@ bool store_conditional_output(
   }
   if (output.variance != nullptr) {
     output.variance[index] = 1.0 / precision_diagonal;
+  }
+  if (output.precision_residual != nullptr) {
+    output.precision_residual[index] = precision_residual;
   }
   return true;
 }
