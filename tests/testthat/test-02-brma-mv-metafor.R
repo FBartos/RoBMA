@@ -136,6 +136,19 @@ info <- lazy_infos(c(mv_fixed_metafor_fit_name, mv_known_r_metafor_fit_name,
   posterior_samples[rows, , drop = FALSE]
 }
 
+
+.expect_heterogeneity_component <- function(x, component, label) {
+
+  expect_s3_class(x, "summary_heterogeneity.brma")
+  expect_identical(
+    names(x),
+    c("estimates", "component"),
+    info = label
+  )
+  expect_identical(x[["component"]], component, info = label)
+}
+
+
 test_that("fixed-effect brma.mv with random = NULL matches metafor", {
 
   skip_if_missing_fits(mv_fixed_metafor_fit_name)
@@ -401,17 +414,25 @@ test_that("v14 brma.mv heterogeneity component selectors expose expected names",
     out_all  <- summary_heterogeneity(fit_brma, component = "all")
 
     if (length(expected[[name]]) == 1L) {
-      expect_equal(names(out_all), "estimates", info = name)
+      .expect_heterogeneity_component(out_all, expected[[name]], name)
     } else {
       expect_equal(names(out_all), expected[[name]], info = name)
+      expect_identical(
+        unname(vapply(out_all, `[[`, character(1), "component")),
+        expected[[name]],
+        info = name
+      )
       total <- summary_heterogeneity(fit_brma, component = "total")
-      expect_equal(names(total), "estimates", info = paste(name, "total"))
+      .expect_heterogeneity_component(total, "total", paste(name, "total"))
     }
 
     for (component in expected[[name]]) {
       selected <- summary_heterogeneity(fit_brma, component = component)
-      expect_equal(names(selected), "estimates",
-                   info = paste(name, component))
+      .expect_heterogeneity_component(
+        selected,
+        component,
+        paste(name, component)
+      )
     }
     expect_error(
       summary_heterogeneity(fit_brma, component = "missing"),
@@ -624,7 +645,8 @@ test_that("v14 brma.mv ranef components track metafor references", {
       name              = "brma.mv_v14_assink2016_nested",
       component         = "esid_study",
       metafor_component = "study/esid",
-      tolerance         = 0.08
+      tolerance         = 0.08,
+      expand            = TRUE
     ),
     list(
       name              = "brma.mv_v14_ishak2007_har",
@@ -657,6 +679,7 @@ test_that("v14 brma.mv ranef components track metafor references", {
     observed <- .mv_sample_means(ranef(
       fit_brma,
       component          = case[["component"]],
+      expand             = isTRUE(case[["expand"]]),
       .posterior_samples = posterior
     ))
     expected <- metafor::ranef(

@@ -35,6 +35,9 @@ namespace jags {
 
     // destructor (executed when unloading the module)
     RoBMAModule::~RoBMAModule() {
+      // Normal process shutdown does not invoke the R namespace unload hook.
+      unload();
+
       std::vector<Function*> const &fvec = functions();
       for (unsigned int i = 0; i < fvec.size(); ++i) {
         delete fvec[i];

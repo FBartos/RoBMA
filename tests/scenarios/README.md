@@ -68,9 +68,10 @@ and SVG baselines. No control variables are needed in scenario files.
 
 Fit caches under `cache/` are local and ignored. Text files under `results/`
 and SVG files under `_snaps/` are regression baselines. Per-scenario TSV files
-under `timings/` store wall times for every `scenario_fit()`, `scenario_text()`,
-and `scenario_plot()` call. All three baseline types must be committed. Missing
-text and plot baselines follow the snapshot workflow; missing timing rows are
+under `timings/` store wall times and peak R-managed memory in GB for every
+`scenario_fit()`, `scenario_time()`, `scenario_text()`, and `scenario_plot()`
+call. All three baseline types must be committed. Missing text and plot
+baselines follow the snapshot workflow; missing performance measurements are
 backfilled automatically by direct and managed execution.
 Scenario and artifact names may use ASCII letters in either case, numbers,
 underscores, hyphens, and internal periods.
@@ -78,11 +79,10 @@ underscores, hyphens, and internal periods.
 Each fit cache records its normalized fitting call and refits automatically when
 that call changes. Pass an optional positive `cache_version` to
 `scenario_fit()` only when a package-internal fitting change should invalidate
-one otherwise unchanged call. A fit cache also records the wall time and runtime
-provenance of the fitting block. A cached fit contributes that original fitting
-time, not its RDS loading time, so cached and refitted scenario totals remain
-comparable. A cache created before timing metadata existed must be refitted once
-before its fitting time is available.
+one otherwise unchanged call. A fit cache also records the wall time, peak
+R-managed memory, and runtime provenance of the fitting block. Cache hits do not
+contribute historical performance measurements or RDS loading performance;
+refit a model when its fit performance should be assessed.
 
 `scenario_text()` automatically prints a visible returned value into its locked
 output, so summary and table calls do not need an explicit `print()`. Message
@@ -113,19 +113,28 @@ new wall times, then the timed-part name. Increases greater than two seconds are
 highlighted in red. Seconds are shown to one decimal place and percentages as
 whole numbers. Calls measured below 0.75 seconds are retained but excluded from
 regression warnings. Every successful run automatically adds missing timing
-rows and replaces existing rows only when the measured wall time is faster. This
-also happens while a scenario is executed line by line in an interactive
+rows and replaces each existing time or memory metric only when it improves.
+This also happens while a scenario is executed line by line in an interactive
 session.
 
-Slower measurements never replace the baseline automatically. They remain in
-the ignored `timings/<scenario>.new.tsv` candidate. Set
+The `memory_gb` column records the peak reported by R's resettable garbage
+collector and excludes external-process memory. A call warns when it exceeds
+2 GB and is more than 20% above its baseline, and whenever it exceeds 8 GB
+regardless of the baseline. The lowest elapsed time and memory peak are retained
+independently. Nested `fit_model`, `fit_loo`, and `fit_marglik` rows have no
+separate memory peak; their enclosing `fit` row captures the complete fit.
+Existing timing files without `memory_gb` are backfilled as calls are evaluated.
+
+Slower or higher-memory measurements never replace the corresponding baseline
+metric automatically. They remain in the ignored
+`timings/<scenario>.new.tsv` candidate. Set
 `update_timings = TRUE` or use `--update-timings` only to explicitly accept the
-current measurements, including an intentional slowdown after tightening
-precision. Output updates, regeneration, and refitting do not themselves grant
-that consent. The old timing baseline is always compared before any missing,
-faster, or explicitly accepted measurement is written. The TSV records R
+current measurements, including an intentional slowdown or memory increase.
+Output updates, regeneration, and refitting do not themselves grant that
+consent. The old performance baseline is always compared before any missing,
+improved, or explicitly accepted measurement is written. The TSV records R
 version and platform as review provenance but does not automatically invalidate
-timings.
+measurements.
 
 Base graphics parameters are restored after each drawn evaluation, so settings
 such as `par(mar = ...)` do not leak into subsequent plots. Base graphics

@@ -152,17 +152,21 @@ referenced by the scenario. Never delete an orphan automatically.
 ## Performance Timings
 
 `scenario_fit()`, `scenario_time()`, `scenario_text()`, and `scenario_plot()`
-record wall time in the tracked `timings/<scenario>.tsv` baseline. A `time`
-entry includes only successful expression evaluation. Text timing includes
-expression evaluation and captured printing. Plot timing includes the canonical
-assertion render but excludes any extra interactive preview and file comparison.
-The `fit` timing includes the full cached block but excludes cache reads and
-writes.
+record wall time and peak R-managed memory in GB in the tracked
+`timings/<scenario>.tsv` baseline. Memory uses R's resettable
+garbage-collector peak and excludes external-process memory. A `time` entry
+includes only successful expression evaluation. Text timing and memory include
+expression evaluation and captured printing. Plot timing and memory include the
+canonical assertion render but exclude any extra interactive preview and file
+comparison. The `fit` timing and memory include the full cached block but
+exclude cache reads and writes.
 When the block directly calls unqualified `add_loo()` or `add_marglik()`, the
 same measurement also records `fit_model`, `fit_loo`, and `fit_marglik` rows.
 `fit_model` is the full block time remaining after the observed post-fit calls.
 The redundant total `fit` row remains useful as an end-to-end regression check
 but is excluded from the unweighted average when split rows are available.
+Nested phase rows do not record separate memory peaks; the enclosing `fit` row
+owns the peak-memory measurement.
 
 After a complete managed scenario file, issue one warning that lists every call
 whose wall time increased by more than 20% and the unweighted mean percentage
@@ -177,12 +181,20 @@ timing, fit-cache, text, or plot artifact. Retain calls measured below 0.75
 seconds in timing baselines and candidates, but exclude them from both per-call
 warnings and the mean regression assessment.
 
+For memory, warn for a call when its peak exceeds 2 GB and is more than 20%
+above its baseline. Warn whenever a call exceeds 8 GB even without a baseline
+or relative increase. Retain the lowest observed elapsed time and memory peak
+independently; `update_timings = TRUE` explicitly accepts both current values.
+Timing files without the `memory_gb` column are read with unavailable memory
+and backfilled as calls are next evaluated.
+
 Automatically add every available measurement whose timing row is absent from
-the baseline. Automatically replace an existing row only when its measured wall
-time is faster. Apply this maintenance in managed runs and as successful calls
-are executed line by line during direct interactive development. Do not infer
-or replay a fit-production time on a cache hit. Intentionally refit a model
-whenever its performance should be measured and tested.
+the baseline. Automatically replace an existing elapsed time or memory peak
+only when that metric improves. Apply this maintenance in managed runs and as
+successful calls are executed line by line during direct interactive
+development. Do not infer or replay fit performance on a cache hit.
+Intentionally refit a model whenever its performance should be measured and
+tested.
 
 Retain slower current measurements in the ignored `<scenario>.new.tsv` and
 leave the faster baseline unchanged. Only explicit `update_timings = TRUE` or

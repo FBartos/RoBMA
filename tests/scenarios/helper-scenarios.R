@@ -266,9 +266,11 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     )
   }
 
+  .scenario_reset_memory_peak()
   started    <- .scenario_clock()
   evaluation <- .scenario_evaluate_fit(expr, envir = parent.frame())
   elapsed    <- max(0, .scenario_clock() - started)
+  memory_gb  <- .scenario_memory_peak_gb()
   fit        <- evaluation[["fit"]]
   phases     <- evaluation[["phases"]]
   if (length(phases) > 0L) {
@@ -279,16 +281,19 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   saveRDS(fit, paths[["fit"]])
   saveRDS(
     list(
-      version    = 2L,
+      version    = 3L,
       fit_call   = fit_call,
       elapsed    = elapsed,
+      memory_gb  = memory_gb,
       phases     = phases,
       provenance = provenance
     ),
     paths[["timing"]]
   )
   .scenario_write_lines(fit_call, paths[["call"]])
-  .scenario_register_fit_timings(name, elapsed, phases, provenance)
+  .scenario_register_fit_timings(
+    name, elapsed, memory_gb, phases, provenance
+  )
 
   return(fit)
 }
@@ -375,7 +380,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 }
 
 
-.scenario_register_fit_timings <- function(name, elapsed, phases,
+.scenario_register_fit_timings <- function(name, elapsed, memory_gb, phases,
                                             provenance) {
 
   assign(
@@ -383,7 +388,9 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     setdiff(.scenario_cached_fit_names(), name),
     envir = .scenario_state
   )
-  .scenario_register_timing("fit", name, elapsed, provenance)
+  .scenario_register_timing(
+    "fit", name, elapsed, provenance, memory_gb = memory_gb
+  )
   phase_types <- c(
     model   = "fit_model",
     loo     = "fit_loo",
@@ -411,6 +418,20 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 }
 
 
+.scenario_reset_memory_peak <- function() {
+
+  invisible(gc(reset = TRUE))
+}
+
+
+.scenario_memory_peak_gb <- function() {
+
+  memory <- gc()
+  max_used_mb <- memory[, ncol(memory)]
+  return(sum(max_used_mb) / 1024)
+}
+
+
 .scenario_timing_provenance <- function() {
 
   system <- Sys.info()[["sysname"]]
@@ -431,6 +452,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     type      = character(),
     name      = character(),
     elapsed   = numeric(),
+    memory_gb = numeric(),
     r_version = character(),
     platform  = character(),
     stringsAsFactors = FALSE
@@ -501,6 +523,11 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     }
   )
   required <- names(.scenario_empty_timings())
+  previous <- setdiff(required, "memory_gb")
+  if (identical(names(timings), previous)) {
+    timings[["memory_gb"]] <- NA_real_
+    timings <- timings[required]
+  }
   if (!identical(names(timings), required)) {
     stop("Scenario timing baseline has invalid columns: ", path, ".",
          call. = FALSE)
@@ -509,6 +536,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   timings[["type"]]      <- as.character(timings[["type"]])
   timings[["name"]]      <- as.character(timings[["name"]])
   timings[["elapsed"]]   <- as.numeric(timings[["elapsed"]])
+  timings[["memory_gb"]] <- as.numeric(timings[["memory_gb"]])
   timings[["r_version"]] <- as.character(timings[["r_version"]])
   timings[["platform"]]  <- as.character(timings[["platform"]])
   valid <- !is.na(timings[["type"]]) & !is.na(timings[["name"]]) &
@@ -516,6 +544,8 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     grepl("^[A-Za-z0-9][A-Za-z0-9._-]*$", timings[["name"]]) &
     !endsWith(timings[["name"]], ".") &
     is.finite(timings[["elapsed"]]) & timings[["elapsed"]] >= 0 &
+    (is.na(timings[["memory_gb"]]) |
+      (is.finite(timings[["memory_gb"]]) & timings[["memory_gb"]] >= 0)) &
     !is.na(timings[["r_version"]]) & nzchar(timings[["r_version"]]) &
     !is.na(timings[["platform"]]) & nzchar(timings[["platform"]])
   if (any(!valid) || anyDuplicated(.scenario_timing_key(timings))) {
@@ -536,6 +566,11 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     if (nrow(timings) > 0L) {
       apply(timings, 1L, function(row) {
         row[["elapsed"]] <- sprintf("%.9f", as.numeric(row[["elapsed"]]))
+        row[["memory_gb"]] <- if (is.na(row[["memory_gb"]])) {
+          "NA"
+        } else {
+          sprintf("%.6f", as.numeric(row[["memory_gb"]]))
+        }
         paste(row, collapse = "\t")
       })
     }
@@ -640,6 +675,36 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     )
   }
 
+  current_memory  <- current[["memory_gb"]]
+  baseline_memory <- baseline[["memory_gb"]][matched]
+  memory_comparable <- !is.na(matched) & is.finite(current_memory) &
+    is.finite(baseline_memory)
+  memory_regressed <- memory_comparable & current_memory > 2 &
+    current_memory > 1.20 * baseline_memory
+  memory_excessive <- is.finite(current_memory) & current_memory > 8
+  for (i in which(memory_regressed | memory_excessive)) {
+    new <- current_memory[[i]]
+    text <- if (memory_regressed[[i]]) {
+      old <- baseline_memory[[i]]
+      percentage_change <- if (old == 0) Inf else 100 * (new / old - 1)
+      paste0(
+        "+", sprintf("%.1f", new - old), " GB (+",
+        sprintf("%.0f", percentage_change), "%; ",
+        sprintf("%.1f", old), " GB -> ", sprintf("%.1f", new),
+        " GB) peak R memory ", current_key[[i]]
+      )
+    } else {
+      paste0(
+        sprintf("%.1f", new), " GB peak R memory (>8.0 GB) ",
+        current_key[[i]]
+      )
+    }
+    if (memory_regressed[[i]] && memory_excessive[[i]]) {
+      text <- paste0(text, "; exceeds 8.0 GB")
+    }
+    add_issue(paste0("memory:", current_key[[i]]), text)
+  }
+
   if (final && nrow(unavailable) > 0L) {
     for (i in seq_len(nrow(unavailable))) {
       key <- paste(unavailable[["type"]][[i]], unavailable[["name"]][[i]],
@@ -729,7 +794,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     text[issues[["large_change"]]]
   )
   warning(
-    "Scenario timing warnings for '", .scenario_config()[["name"]],
+    "Scenario performance warnings for '", .scenario_config()[["name"]],
     "':\n- ", paste(text, collapse = "\n- "),
     call. = FALSE
   )
@@ -745,19 +810,38 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     return(baseline)
   }
   baseline_key <- .scenario_timing_key(baseline)
-  current_key  <- .scenario_timing_key(current)
-  matched      <- match(current_key, baseline_key)
-  replace <- is.na(matched) | accept_slower
-  comparable <- !is.na(matched)
-  replace[comparable] <- replace[comparable] |
-    current[["elapsed"]][comparable] <
-      baseline[["elapsed"]][matched[comparable]]
-  replacement_key <- current_key[replace]
-  keep <- !baseline_key %in% replacement_key
+  for (i in seq_len(nrow(current))) {
+    key     <- .scenario_timing_key(current[i, , drop = FALSE])
+    matched <- match(key, baseline_key)
+    if (is.na(matched)) {
+      baseline <- rbind(baseline, current[i, , drop = FALSE])
+      baseline_key <- c(baseline_key, key)
+      next
+    }
 
-  return(.scenario_order_timings(rbind(
-    baseline[keep, , drop = FALSE], current[replace, , drop = FALSE]
-  )))
+    replacement <- baseline[matched, , drop = FALSE]
+    changed <- FALSE
+    if (accept_slower ||
+        current[["elapsed"]][[i]] < baseline[["elapsed"]][[matched]]) {
+      replacement[["elapsed"]] <- current[["elapsed"]][[i]]
+      changed <- TRUE
+    }
+    current_memory  <- current[["memory_gb"]][[i]]
+    baseline_memory <- baseline[["memory_gb"]][[matched]]
+    if (is.finite(current_memory) &&
+        (accept_slower || is.na(baseline_memory) ||
+          current_memory < baseline_memory)) {
+      replacement[["memory_gb"]] <- current_memory
+      changed <- TRUE
+    }
+    if (changed) {
+      replacement[["r_version"]] <- current[["r_version"]][[i]]
+      replacement[["platform"]]  <- current[["platform"]][[i]]
+      baseline[matched, ] <- replacement
+    }
+  }
+
+  return(.scenario_order_timings(baseline))
 }
 
 
@@ -770,23 +854,34 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   matched      <- match(current_key, baseline_key)
   slower <- !is.na(matched) &
     current[["elapsed"]] > baseline[["elapsed"]][matched]
+  higher_memory <- !is.na(matched) &
+    is.finite(current[["memory_gb"]]) &
+    is.finite(baseline[["memory_gb"]][matched]) &
+    current[["memory_gb"]] > baseline[["memory_gb"]][matched]
   missing <- final && length(setdiff(
     expected_key,
     c(current_key, .scenario_timing_key(unavailable))
   )) > 0L
 
-  return(any(slower) || nrow(unavailable) > 0L || missing)
+  return(any(slower) || any(higher_memory) ||
+    nrow(unavailable) > 0L || missing)
 }
 
 
 .scenario_register_timing <- function(type, name, elapsed,
-                                      provenance = .scenario_timing_provenance()) {
+                                      provenance = .scenario_timing_provenance(),
+                                      memory_gb = NA_real_) {
 
   type <- match.arg(type, .scenario_timing_types())
   name <- .scenario_validate_name(name, type)
   if (!is.numeric(elapsed) || length(elapsed) != 1L ||
       !is.finite(elapsed) || elapsed < 0) {
     stop("Scenario elapsed time must be one finite non-negative number.",
+         call. = FALSE)
+  }
+  if (!is.numeric(memory_gb) || length(memory_gb) != 1L ||
+      (!is.na(memory_gb) && (!is.finite(memory_gb) || memory_gb < 0))) {
+    stop("Scenario memory must be NA or one finite non-negative number in GB.",
          call. = FALSE)
   }
   valid_provenance <- is.list(provenance) &&
@@ -807,6 +902,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     type      = type,
     name      = name,
     elapsed   = as.numeric(elapsed),
+    memory_gb = as.numeric(memory_gb),
     r_version = provenance[["r_version"]],
     platform  = provenance[["platform"]],
     stringsAsFactors = FALSE
@@ -1280,16 +1376,18 @@ review_test_snapshots <- function(files = NULL,
 }
 
 
-# Evaluate an ordinary scenario computation and record its wall time.
+# Evaluate an ordinary scenario computation and record its performance.
 scenario_time <- function(name, code) {
 
   .scenario_config()
   name    <- .scenario_validate_name(name, "time")
   expr    <- substitute(code)
+  .scenario_reset_memory_peak()
   started <- .scenario_clock()
   result  <- withVisible(eval(expr, envir = parent.frame()))
   elapsed <- max(0, .scenario_clock() - started)
-  .scenario_register_timing("time", name, elapsed)
+  memory_gb <- .scenario_memory_peak_gb()
+  .scenario_register_timing("time", name, elapsed, memory_gb = memory_gb)
 
   if (result[["visible"]]) {
     return(result[["value"]])
@@ -1312,6 +1410,7 @@ scenario_text <- function(name, code) {
 
   old_options <- options(width = config[["width"]])
   on.exit(options(old_options), add = TRUE)
+  .scenario_reset_memory_peak()
   started <- .scenario_clock()
   output <- capture.output(
     {
@@ -1325,7 +1424,8 @@ scenario_text <- function(name, code) {
     type = "output"
   )
   elapsed <- max(0, .scenario_clock() - started)
-  .scenario_register_timing("text", name, elapsed)
+  memory_gb <- .scenario_memory_peak_gb()
+  .scenario_register_timing("text", name, elapsed, memory_gb = memory_gb)
   value <- result[["value"]]
   if (isTRUE(config[["show_output"]]) && length(output) > 0L) {
     writeLines(output)
@@ -1410,7 +1510,8 @@ scenario_text <- function(name, code) {
 }
 
 
-# Draw when interactive output is enabled, and compare with a tracked SVG.
+# Draw when interactive output is enabled, compare with a tracked SVG, and
+# record the canonical render's performance.
 scenario_plot <- function(name, code) {
 
   set.seed(1)
@@ -1421,10 +1522,12 @@ scenario_plot <- function(name, code) {
   show_output <- isTRUE(config[["show_output"]])
   snapshotter <- .scenario_snapshot_context()
   figure_elapsed <- numeric()
+  figure_memory  <- numeric()
 
   figure <- function() {
 
     set.seed(1)
+    .scenario_reset_memory_peak()
     started   <- .scenario_clock()
     completed <- FALSE
     on.exit({
@@ -1433,6 +1536,7 @@ scenario_plot <- function(name, code) {
           figure_elapsed,
           max(0, .scenario_clock() - started)
         )
+        figure_memory <<- c(figure_memory, .scenario_memory_peak_gb())
       }
     }, add = TRUE)
     # vdiffr closes its temporary device, so its par settings cannot leak.
@@ -1442,7 +1546,9 @@ scenario_plot <- function(name, code) {
   }
   on.exit({
     if (length(figure_elapsed) > 0L) {
-      .scenario_register_timing("plot", name, sum(figure_elapsed))
+      .scenario_register_timing(
+        "plot", name, sum(figure_elapsed), memory_gb = max(figure_memory)
+      )
     }
   }, add = TRUE)
 

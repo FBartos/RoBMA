@@ -97,7 +97,10 @@ run_tests <- function(filter = NULL) {
   )
   message("testthat reporter: ", reporter)
 
-  return(do.call(devtools::test, test_args))
+  results <- do.call(devtools::test, test_args)
+  validate_test_results(results)
+
+  return(results)
 }
 
 
@@ -159,33 +162,20 @@ run_certification_worker <- function(name) {
   source_profile_helpers("certification")
   fit_names <- certification_case_fit_names(name)
   set_active_fits(fit_names)
-  case    <- certification_case(name)
-  catalog <- fit_catalog()
+  case <- certification_case(name)
 
   if (clean && length(fit_names) > 0L) {
     clean_cached_fits(fit_names)
   }
 
   started <- proc.time()[["elapsed"]]
-  for (source_file in case[["fit_sources"]]) {
-    source_fit_names <- fit_names[
-      fit_names %in% catalog[["name"]][catalog[["source_file"]] == source_file]
-    ]
-    if (length(source_fit_names) == 0L) {
-      next
-    }
-
-    set_active_fits(source_fit_names)
-    source_filter <- sub("^test-", "", source_file)
-    source_filter <- sub("\\.[Rr]$", "", source_filter)
-    run_tests(source_filter)
-    validate_fit_cache(paste0(
-      "certification case '", name, "' source '", source_file, "'"
-    ))
-  }
-
-  set_active_fits(fit_names)
-  results <- run_tests(case[["test_filter"]])
+  source_filters <- sub(
+    "\\.[Rr]$", "",
+    sub("^test-", "", case[["fit_sources"]])
+  )
+  test_filters <- c(source_filters, case[["test_filter"]])
+  results <- run_tests(paste(test_filters, collapse = "|"))
+  validate_fit_cache(paste0("certification case '", name, "'"))
   validate_certification_evidence(
     results        = results,
     required_tests = case[["required_tests"]],

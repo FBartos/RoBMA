@@ -304,6 +304,32 @@ test_that("certification evidence requires one executed passing result", {
 })
 
 
+test_that("completed test profiles reject collected problems", {
+
+  successful <- data.frame(
+    failed  = 0L,
+    error   = FALSE,
+    warning = 0L
+  )
+  expect_true(isTRUE(validate_test_results(successful)))
+
+  missing <- successful[, c("failed", "error"), drop = FALSE]
+  expect_error(
+    validate_test_results(missing),
+    "Test results are missing required columns: warning.",
+    fixed = TRUE
+  )
+
+  problems <- successful
+  problems[1L, ] <- list(2L, TRUE, 3L)
+  expect_error(
+    validate_test_results(problems),
+    "Test execution recorded problems: failed=2, errors=1, warnings=3.",
+    fixed = TRUE
+  )
+})
+
+
 test_that("active fit selection is explicit and fails closed", {
 
   .with_test_profile_env({

@@ -187,6 +187,9 @@ test_that("scenario defaults distinguish direct and managed interactive runs", {
   .with_temp_plot_device({
     scenario_plot("direct-plot", graphics::plot(1:3, 1:3))
   })
+  direct_timings <- .scenario_current_timings()
+  expect_setequal(direct_timings[["type"]], c("text", "plot"))
+  expect_true(all(is.finite(direct_timings[["memory_gb"]])))
 
   direct <- scenario_start("unit", root = root)
   expect_false(direct[["refit"]])
@@ -316,6 +319,8 @@ test_that("scenario_time returns values and records successful computations", {
     name    = c("hidden", "visible"),
     elapsed = c(4, 3)
   ))
+  expect_true(all(is.finite(current[["memory_gb"]])))
+  expect_true(all(current[["memory_gb"]] > 0))
   expect_false("failed" %in% current[["name"]])
   expect_length(list.files(file.path(root, "results", "unit")), 0L)
   expect_length(list.files(file.path(root, "_snaps", "unit")), 0L)
@@ -535,14 +540,20 @@ test_that("scenario_fit automatically stores post-fit phase timings", {
 
   expect_identical(add_loo, original_add_loo)
   expect_identical(add_marglik, original_add_marglik)
-  expect_identical(metadata[["version"]], 2L)
+  expect_identical(metadata[["version"]], 3L)
   expect_equal(metadata[["elapsed"]], 12)
+  expect_true(is.finite(metadata[["memory_gb"]]))
+  expect_gt(metadata[["memory_gb"]], 0)
   expect_equal(metadata[["phases"]], c(model = 5, loo = 3, marglik = 4))
   expect_equal(current[c("type", "name", "elapsed")], data.frame(
     type = c("fit", "fit_model", "fit_loo", "fit_marglik"),
     name = rep("phased", 4L),
     elapsed = c(12, 5, 3, 4)
   ))
+  expect_true(is.finite(current[["memory_gb"]][current[["type"]] == "fit"]))
+  expect_true(all(is.na(
+    current[["memory_gb"]][current[["type"]] != "fit"]
+  )))
 
   scenario_start("unit", root = root, create_missing = TRUE)
   second <- scenario_fit("phased", {
@@ -746,6 +757,70 @@ test_that("split fit timing averages exclude the redundant total", {
 })
 
 
+test_that("scenario performance baselines retain time and memory independently", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  path <- file.path(root, "timings.tsv")
+  .scenario_write_lines(c(
+    "type\tname\telapsed\tr_version\tplatform",
+    "text\tsummary\t10.000000000\t4.6.0\ttest/platform"
+  ), path)
+  baseline <- .scenario_read_timings(path)
+  expect_true(is.na(baseline[["memory_gb"]]))
+
+  current <- baseline
+  current[["elapsed"]]   <- 12
+  current[["memory_gb"]] <- 3
+  merged <- .scenario_merge_timings(baseline, current)
+  expect_equal(merged[["elapsed"]], 10)
+  expect_equal(merged[["memory_gb"]], 3)
+
+  current[["elapsed"]]   <- 8
+  current[["memory_gb"]] <- 4
+  merged <- .scenario_merge_timings(merged, current)
+  expect_equal(merged[["elapsed"]], 8)
+  expect_equal(merged[["memory_gb"]], 3)
+
+  accepted <- .scenario_merge_timings(
+    merged, current, accept_slower = TRUE
+  )
+  expect_equal(accepted[["elapsed"]], 8)
+  expect_equal(accepted[["memory_gb"]], 4)
+})
+
+
+test_that("scenario memory warnings use relative and absolute limits", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+
+  scenario_start("relative", root = root)
+  .scenario_register_timing("text", "summary", 10, memory_gb = 1.5)
+  expect_no_warning(.scenario_finalize_timing())
+
+  scenario_start("relative", root = root)
+  .scenario_register_timing("text", "summary", 10, memory_gb = 1.9)
+  expect_no_warning(.scenario_finalize_timing())
+
+  scenario_start("relative", root = root)
+  .scenario_register_timing("text", "summary", 10, memory_gb = 2.1)
+  expect_warning(
+    .scenario_finalize_timing(),
+    "+0.6 GB (+40%; 1.5 GB -> 2.1 GB) peak R memory text/summary",
+    fixed = TRUE
+  )
+
+  scenario_start("absolute", root = root)
+  .scenario_register_timing("plot", "large", 10, memory_gb = 8.5)
+  expect_warning(
+    .scenario_finalize_timing(),
+    "8.5 GB peak R memory (>8.0 GB) plot/large",
+    fixed = TRUE
+  )
+})
+
+
 test_that("large absolute scenario timing regressions are highlighted in red", {
 
   root <- .scenario_test_root()
@@ -806,6 +881,7 @@ test_that("scenario_text adds, compares, and regenerates tracked output", {
   expect_equal(.scenario_current_timings()[c("type", "name")], data.frame(
     type = "text", name = "summary"
   ))
+  expect_true(is.finite(.scenario_current_timings()[["memory_gb"]]))
 
   explicit_value <- scenario_text("summary", print(expected_value))
   expect_identical(explicit_value, expected_value)

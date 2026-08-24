@@ -72,6 +72,36 @@ CERTIFICATION_CASE_TIMEOUT_SECONDS <- 60 * 60
 }
 
 
+validate_test_results <- function(results) {
+
+  results <- as.data.frame(results)
+  required_columns <- c("failed", "error", "warning")
+  missing_columns  <- setdiff(required_columns, names(results))
+  if (length(missing_columns) > 0L) {
+    stop(
+      "Test results are missing required columns: ",
+      paste(missing_columns, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  problems <- vapply(required_columns, function(name) {
+    sum(as.integer(results[[name]]), na.rm = TRUE)
+  }, integer(1))
+  if (any(problems > 0L)) {
+    stop(
+      "Test execution recorded problems: failed=", problems[["failed"]],
+      ", errors=", problems[["error"]],
+      ", warnings=", problems[["warning"]], ".",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(TRUE))
+}
+
+
 validate_certification_evidence <- function(results, required_tests,
                                             case_name) {
 

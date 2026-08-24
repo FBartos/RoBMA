@@ -374,6 +374,12 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Testing and development
+- records peak R-managed memory alongside scenario wall times, retains the best
+  time and memory baselines independently, warns for peaks above 2 GB that
+  regress by more than 20%, and always warns for peaks above 8 GB.
+- runs each certification case's fit sources and post-fit checks in one package
+  load, removing redundant RoBMA/JAGS DLL reload cycles and their intermittent
+  Windows teardown failure without skipping any selected tests
 - aligns the interactive `test_tests()` output with BayesTools: interactive
   runs default to testthat's progress reporter, while `reporter = "llm"`
   explicitly enables compact agent output. Profile subprocesses report their
@@ -460,6 +466,13 @@
   increase by that rank when it exceeds one.
 
 ### Fixes
+- unregisters the JAGS module before destroying module-owned native objects at
+  process shutdown, preventing intermittent Windows access violations in
+  isolated test workers
+- makes completed test profiles return a failing status after collecting any
+  assertion failures, errors, or warnings, and updates multivariate
+  certification to validate maintained component metadata and compare nested
+  random effects in public data-row order
 - adds project-startup `test_scenarios()` and `test_tests()` helpers for
   filtered runs, cache refitting, candidate generation, and snapshot review.
   `.dev/user-tests.R` remains the clean standard-plus-certification shortcut,
