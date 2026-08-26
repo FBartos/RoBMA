@@ -6,8 +6,10 @@ residuals, marginal covariance diagnostics, prediction, or marginal likelihood.
 ## Keep Targets Distinct
 
 - `unit` is the deletion/output unit: `"estimate"` or `"cluster"`.
-- `conditioning_depth` records which fitted latent effects are conditioned on:
-  `"marginal"`, `"cluster"`, or `"estimate"`.
+- `conditioning_depth` records which fitted latent effects are retained by
+  prediction and residual targets: `"marginal"`, `"cluster"`, or
+  `"estimate"`. LOO target metadata instead records the deletion `unit` and
+  `retained_context`; do not equate these axes.
 - `log_lik()`, LOO, WAIC, and LOO-PIT use predictive log-score targets.
 - `hatvalues()`, marginal/Pearson residual scaling, and `vif()` use marginal
   GLS covariance.
@@ -23,31 +25,31 @@ For correlated known `V`, estimate-unit log scores are Schur conditionals
 `p(y_i | y_-i, theta)` within dependency blocks. Their column sum is a
 composite score, not the full joint likelihood.
 
-At estimate depth, sampled fitted random effects are conditioned on in the
-mean. Only explicitly marginalized, validated diagonal random-effect variance
-is added to the observation variance.
+For Gaussian estimate-unit scores, integrate every local Gaussian random
+effect through BayesTools' compiled marginal covariance plan. The target is
+`p(y_i | y_-i, theta)`: retained rows from the same dependency block remain
+available after deleting estimate `i`. This is the same target whether the
+fitting parameterization sampled or marginalized a local effect. Never infer
+dependencies from posterior draws or reconstruct a random structure in RoBMA.
 
-Cluster-unit known-`V` scoring and estimate-unit scoring for random-formula
-models without known `V` are currently unavailable. Do not silently substitute
-a different target.
+The specialized `brma(..., cluster = ...)` interface uses the same Gaussian
+covariance scorer for estimate deletion. Cluster-unit scoring deletes the
+whole cluster jointly and retains its distinct new-cluster target. Non-Gaussian,
+selection-model, and weighted likelihoods retain their supported conditional
+representations; do not silently approximate their local-effect integrals.
 
 ## Known Random-Effect Correlation R
 
 Known `R` describes group-axis latent random-effect covariance, not sampling
 covariance. BayesTools owns its scaling and metadata.
 
-- Sampled known-`R` effects are conditioned on in estimate-unit predictive
-  scores.
-- Supported marginalized one-to-one random-intercept blocks contribute their
-  validated diagonal variance.
-- Never add sampled `R` again as pointwise `ZGZ'`; that mixes the prior with
-  observation likelihood and double counts the effect.
-- Delegate marginal random-effect covariance to
-  `BayesTools::random_effects_marginal_vcov()` and validated marginal variance
-  factors to BayesTools.
-
-Dense or off-diagonal marginalized known-`R` predictive scoring would be a new
-explicit target. It must not replace the current estimate target in place.
+- Sampled and marginalized known-`R` effects enter Gaussian estimate scores
+  through the same BayesTools metadata-defined marginal `ZGZ'` covariance.
+- Delegate covariance factor plans and states to BayesTools. RoBMA may combine
+  them with known sampling covariance and validated row variance, but must not
+  recompile or special-case individual random structures.
+- The full joint fitted likelihood used by marginal likelihood remains distinct
+  from the estimate-wise Schur score.
 
 ## Diagnostics and Prediction
 
@@ -71,7 +73,7 @@ Response prediction preserves full `V`/`V_new` and joint `ZGZ'` dependence.
 Conditional means remain available through `blup()` and `fitted()`.
 
 Keep target metadata in `attr(x, "RoBMA_target")`. LOO comparisons must reject
-mismatched data, unit, conditioning depth, or likelihood target. Known-`R`
+mismatched data, unit, retained context, or likelihood target. Known-`R`
 metadata is informative and is not itself a comparison key.
 
 ## Relevant Files

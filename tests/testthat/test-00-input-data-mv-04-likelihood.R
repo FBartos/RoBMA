@@ -682,12 +682,16 @@ test_that("brma.mv known-V estimate log-likelihood uses Schur conditional target
   expect_equal(log_lik_negative, expected_negative, tolerance = 1e-12)
 
   target <- .estimate_log_lik_target_metadata(
-    setup     = setup,
-    data_hash = .get_outcome_hash(object)
+    setup             = setup,
+    data_hash         = .get_outcome_hash(object),
+    dependency_blocks = .known_v_dependency_blocks(
+      object[["data"]],
+      setup[["K"]]
+    )
   )
   expect_true(target[["known_v_estimate_backend"]])
-  expect_true(target[["known_v_schur"]])
-  expect_equal(target[["target"]], "known_v_estimate")
+  expect_true(target[["dependency_conditioning"]])
+  expect_equal(target[["target"]], "estimate_log_score")
 })
 
 
@@ -766,7 +770,7 @@ test_that("singular PSD known-V Cholesky targets fail with targeted messages", {
 
   expect_error(
     .log_lik_estimate_from_setup(setup),
-    "positive semidefinite"
+    "not positive definite"
   )
 })
 
@@ -1104,7 +1108,9 @@ test_that("brma.mv Schur estimate target matches partitioned MVN conditionals", 
     )
   }
 
-  expect_true(.known_v_estimate_target_uses_schur_conditioning(object[["data"]]))
+  expect_true(any(lengths(.known_v_dependency_blocks(
+    object[["data"]], K = 3L
+  )) > 1L))
   expect_equal(.log_lik_estimate_from_setup(setup), expected,
                tolerance = 1e-12)
 })

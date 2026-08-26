@@ -52,35 +52,29 @@ certified nested adaptive quadrature is implemented; use
 For selection models, the LOO evaluates the weighted likelihood, conditioning
 on the posterior omega samples.
 
-For correlated known-\code{V} \code{brma.mv()} models, estimate-unit LOO uses
-conditional predictive contributions \eqn{p(y_i \mid y_{-i}, \theta)} within
-known-\code{V} dependency blocks. This is an existing-estimate diagnostic, not
-an independent new-estimate prediction target.
+For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
+estimate-unit LOO integrates Gaussian local effects and uses
+\eqn{p(y_i \mid y_{-i}, \theta)} within each fitted dependency block. Thus
+deleting one estimate retains the other estimates in its cluster or random-
+effect block; it does not represent prediction for a wholly new group.
 
 For \code{brma.mv()} models with known random-effect group covariance
-\code{R}, estimate-unit LOO keeps sampled random effects at the estimate
-conditioning depth. The known \code{R} matrix shapes the posterior and prior
-for those sampled random effects, but it is not added again as a marginal
-\eqn{ZGZ'} covariance term in this target. Supported known-\code{R} blocks
-compiled as marginalized instead enter through the diagonal extra variance
-term prepared by BayesTools.
+\code{R}, the known \code{R} matrix and fitted random-effect covariance enter
+the marginal \eqn{ZGZ'} covariance through BayesTools' compiled random-effect
+metadata. The same calculation applies to every supported random structure.
 
 Estimate-unit deletion retains the fitted grouping and known-\code{V}
 dependency structure; it does not represent deletion of an entire new random
 group. Models with no local effects, sampled local effects, marginalized
 local effects, or a mixture of sampled and marginalized effects remain
-comparable when their data hash, deletion unit, conditioning depth, and
+comparable when their data hash, deletion unit, retained context, and
 likelihood target agree. The sampled/marginalized labels are retained as
 provenance rather than comparison keys.
-
-Conditioning on sampled local effects can produce high Pareto-k values.
-Inspect the diagnostics with \code{\link{check_loo}} and the corresponding
-\pkg{loo} helpers before interpreting comparisons.
 
 The PSIS object is essential for model comparison via
 \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 RoBMA stores target metadata so comparisons can reject mismatched data,
-unit, or conditioning-depth targets.
+unit, or retained-context targets.
 Each finite log-likelihood column observed to be constant across posterior
 draws uses exact uniform importance ratios. Such columns bypass relative-ESS
 and generalized-Pareto fitting, including when other columns vary. Their
@@ -92,8 +86,10 @@ preserving the LOO target while avoiding probability-scale underflow.
 
 \strong{Important for model comparison:} When comparing models via
 \code{\link[loo]{loo_compare}}, the selection is based on expected
-out-of-sample predictive performance. This evaluates how well models predict
-\emph{new} observations, not how well they fit the observed data.
+predictive performance for the documented deletion target, not in-sample
+fit. For dependent estimates, deleting one estimate may retain other
+observations from its fitted dependency block; this is not new-group
+prediction.
 }
 \examples{
 \dontrun{

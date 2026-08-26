@@ -173,12 +173,12 @@
   cluster_labels    <- names(cluster_indices)
   colnames(log_lik) <- paste0("log_lik_cluster[", cluster_labels, "]")
   attr(log_lik, "RoBMA_target") <- list(
-    unit               = "cluster",
-    conditioning_depth = "cluster",
-    target             = "cluster_joint",
-    n                  = length(cluster_indices),
-    targets            = cluster_labels,
-    data_hash          = data_hash
+    unit             = "cluster",
+    retained_context = "remaining_data",
+    target           = "cluster_joint",
+    n                = length(cluster_indices),
+    targets          = cluster_labels,
+    data_hash        = data_hash
   )
 
   return(log_lik)

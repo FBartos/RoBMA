@@ -23,13 +23,7 @@ info      <- lazy_infos(fit_names, validate = FALSE)
 
 .expected_known_v_estimate_target <- function(object) {
 
-  known_V <- .data_known_v_data(object[["data"]])
-
-  if (length(.known_v_correlated_blocks(known_V)) > 0L) {
-    return("known_v_estimate")
-  }
-
-  return("factorized_estimate")
+  return("estimate_log_score")
 }
 
 
@@ -289,10 +283,15 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
     expect_equal(isTRUE(target[["known_r"]]), is_known_r, info = name)
     if (is_known_r) {
       expect_equal(target[["known_r_blocks"]], "study", info = name)
-      expect_true(grepl("conditions on sampled fitted random effects",
+      expect_true(grepl("metadata-defined marginal ZGZ' covariance",
                         target[["known_r_semantics"]], fixed = TRUE),
                   info = name)
-      expect_equal(target[["random_effects"]], "conditioned", info = name)
+      expect_equal(
+        target[["random_effect_representation"]],
+        "sampled",
+        info = name
+      )
+      expect_equal(target[["latent_effect_handling"]], "integrated", info = name)
     } else {
       expect_equal(length(target[["known_r_blocks"]]), 0L, info = name)
       expect_null(target[["known_r_semantics"]], info = name)
@@ -450,33 +449,35 @@ test_that("LOO and WAIC compare random-effect representations on one target", {
     attr(log_lik(fit_brma), "RoBMA_target", exact = TRUE)
   })
 
-  expected_random_effects <- c(none = "none", marginalized = "none")
-  expected_estimate_level <- c(none = "none", marginalized = "marginalized")
+  expected_representation <- c(none = "none", marginalized = "marginalized")
+  expected_handling       <- c(none = "none", marginalized = "integrated")
   if (is_certification_profile()) {
-    expected_random_effects <- c(
-      expected_random_effects,
-      sampled = "conditioned",
-      mixed   = "conditioned"
+    expected_representation <- c(
+      expected_representation,
+      sampled = "sampled",
+      mixed   = "mixed"
     )
-    expected_estimate_level <- c(
-      expected_estimate_level,
-      sampled = "none",
-      mixed   = "marginalized"
+    expected_handling <- c(
+      expected_handling,
+      sampled = "integrated",
+      mixed   = "integrated"
     )
   }
 
   expect_equal(
-    vapply(targets, function(target) target[["random_effects"]], character(1)),
-    expected_random_effects
+    vapply(targets, function(target) {
+      target[["random_effect_representation"]]
+    }, character(1)),
+    expected_representation
   )
   expect_equal(
     vapply(targets, function(target) {
-      target[["estimate_level_random"]]
+      target[["latent_effect_handling"]]
     }, character(1)),
-    expected_estimate_level
+    expected_handling
   )
 
-  comparison_fields <- c("data_hash", "unit", "conditioning_depth", "target")
+  comparison_fields <- c("data_hash", "unit", "retained_context", "target")
   for (field in comparison_fields) {
     values <- vapply(targets, function(target) target[[field]], character(1))
     expect_equal(length(unique(values)), 1L, info = field)
@@ -562,25 +563,6 @@ test_that("marginalized normal score equals the sampled-effect convolution", {
   expect_equal(marginalized, integrated, tolerance = 1e-9)
 })
 
-test_that("sampled local effects expose their observed PSIS reliability risk", {
-
-  skip_if_not_certification(
-    "The sampled-effect reliability contrast uses a certification fixture."
-  )
-
-  marginalized <- fits[["brma.mv_block_mvn_random"]]
-  sampled      <- fits[["brma.mv_block_mvn_random_sampled"]]
-  marginalized_k <- loo::pareto_k_values(loo(marginalized))
-  sampled_k      <- loo::pareto_k_values(loo(sampled))
-
-  expect_false(any(marginalized_k > 0.7))
-  expect_true(any(sampled_k > 0.7))
-  expect_warning(
-    check_loo(sampled),
-    "Some Pareto k values are high"
-  )
-})
-
 test_that("LOO and WAIC cannot be mixed in one comparison table", {
 
   fit_brma <- fits[["brma.mv_block_mvn_random"]]
@@ -642,8 +624,8 @@ test_that("cached target checks ignore provenance but reject target changes", {
     "RoBMA_target",
     exact = TRUE
   )
-  loo_target[["random_effects"]]           <- "conditioned"
-  waic_target[["estimate_level_random"]] <- "marginalized"
+  loo_target[["random_effect_representation"]] <- "sampled"
+  waic_target[["latent_effect_handling"]]      <- "integrated"
   attr(provenance_only[["loo"]][["estimate"]], "RoBMA_target") <- loo_target
   attr(provenance_only[["waic"]][["estimate"]], "RoBMA_target") <- waic_target
 
@@ -666,7 +648,7 @@ test_that("cached target checks ignore provenance but reject target changes", {
     "RoBMA_target",
     exact = TRUE
   )
-  target[["conditioning_depth"]] <- NULL
+  target[["retained_context"]] <- NULL
   attr(incomplete_target[["waic"]][["estimate"]], "RoBMA_target") <- target
   expect_error(waic(incomplete_target), "incomplete RoBMA target metadata")
 })

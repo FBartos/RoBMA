@@ -268,17 +268,18 @@ test_that("brma.mv fits extended known-V backend smoke models", {
     exact = TRUE
   )
   comparison_fields <- c(
-    "unit", "conditioning_depth", "target", "data_hash"
+    "unit", "retained_context", "target", "data_hash"
   )
   expect_identical(
     marginalized_target[comparison_fields],
     sampled_target[comparison_fields]
   )
   expect_identical(
-    marginalized_target[["estimate_level_random"]],
+    marginalized_target[["random_effect_representation"]],
     "marginalized"
   )
-  expect_identical(sampled_target[["random_effects"]], "conditioned")
+  expect_identical(sampled_target[["random_effect_representation"]], "sampled")
+  expect_identical(sampled_target[["latent_effect_handling"]], "integrated")
 
   loo_comparison <- loo_compare(
     fit_block_random,

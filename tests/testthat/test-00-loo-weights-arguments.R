@@ -21,10 +21,10 @@ test_that("loo_weights rejects additional models with an actionable error", {
   }, numeric(length(draws)))
   loo_result <- suppressWarnings(loo::loo(log_lik))
   attr(loo_result, "RoBMA_target") <- list(
-    unit               = "estimate",
-    conditioning_depth = "estimate",
-    target             = "factorized_estimate",
-    data_hash          = data_hash
+    unit             = "estimate",
+    retained_context = "remaining_data",
+    target           = "estimate_log_score",
+    data_hash        = data_hash
   )
 
   return(loo_result)

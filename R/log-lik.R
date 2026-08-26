@@ -35,9 +35,8 @@
 #
 # Compute pointwise log-likelihoods from an explicit posterior sample matrix.
 #
-# This is the shared evaluator used by regular log_lik/LOO paths and by IWMDE
-# candidate rows. It owns only posterior-row evaluation and dispatch; the actual
-# likelihood math stays in the existing outcome and cluster helpers.
+# This evaluator owns posterior-row setup and dispatch for regular log_lik/LOO
+# paths. The actual likelihood math stays in the outcome and cluster helpers.
 #
 # ---------------------------------------------------------------------------- #
 .log_lik_from_posterior_samples <- function(fit, posterior_samples, data, priors,
@@ -48,19 +47,32 @@
   unit              <- .normalize_unit(unit)
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   setup             <- .log_lik_posterior_setup(
-    fit                  = fit,
-    posterior_samples    = posterior_samples,
-    data                 = data,
-    priors               = priors,
-    unit                 = unit,
-    data_hash            = data_hash
+    fit                     = fit,
+    posterior_samples       = posterior_samples,
+    data                    = data,
+    priors                  = priors,
+    unit                    = unit,
+    data_hash               = data_hash,
+    condition_local_effects = !(
+      unit == "estimate" &&
+        .estimate_normal_target_uses_covariance_backend(data, priors)
+    )
   )
 
   log_lik <- if (unit == "estimate") {
-    .log_lik_estimate_from_setup(setup)
+    .log_lik_estimate_from_setup(
+      setup                   = setup,
+      add_dependency_metadata = add_metadata
+    )
   } else {
     .log_lik_cluster_from_setup(setup)
   }
+  dependency_blocks <- attr(
+    log_lik,
+    "RoBMA_dependency_blocks",
+    exact = TRUE
+  )
+  attr(log_lik, "RoBMA_dependency_blocks") <- NULL
 
   if (!add_metadata) {
     return(log_lik)
@@ -69,8 +81,9 @@
   if (unit == "estimate") {
     colnames(log_lik) <- paste0("log_lik[", seq_len(setup[["K"]]), "]")
     attr(log_lik, "RoBMA_target") <- .estimate_log_lik_target_metadata(
-      setup     = setup,
-      data_hash = data_hash
+      setup             = setup,
+      data_hash         = data_hash,
+      dependency_blocks = dependency_blocks
     )
   } else {
     log_lik <- .add_cluster_log_lik_metadata(
@@ -343,7 +356,8 @@
 
 .log_lik_posterior_setup <- function(fit, posterior_samples, data, priors,
                                      unit, data_hash,
-                                     conditioned_random_effects = NULL) {
+                                     conditioned_random_effects = NULL,
+                                     condition_local_effects = TRUE) {
 
   .estimate_likelihood_setup_from_parts(
     fit                        = fit,
@@ -354,13 +368,15 @@
     data_hash                  = data_hash,
     bias_adjusted              = FALSE,
     conditioned_random_effects = conditioned_random_effects,
+    condition_local_effects    = condition_local_effects,
     caller                     = ".log_lik_posterior_setup()"
   )
 }
 
 
 
-.log_lik_estimate_from_setup <- function(setup) {
+.log_lik_estimate_from_setup <- function(
+    setup, add_dependency_metadata = FALSE) {
 
   data                <- setup[["data"]]
   priors              <- setup[["priors"]]
@@ -374,8 +390,11 @@
   effect_direction    <- setup[["effect_direction"]]
   data_weights        <- setup[["weights"]]
 
-  if (.known_v_estimate_target_uses_backend(data)) {
-    return(.log_lik_known_v_estimate_target_from_setup(setup))
+  if (.estimate_normal_target_uses_covariance_backend(data, priors)) {
+    return(.log_lik_normal_covariance_estimate_target_from_setup(
+      setup                   = setup,
+      add_dependency_metadata = add_dependency_metadata
+    ))
   }
 
   if (is.null(selection_sei)) {
@@ -550,8 +569,9 @@
 #
 # Extract common posterior quantities for estimate-unit predictive likelihoods.
 #
-# The estimate-unit target conditions on fitted cluster effects for multilevel
-# models and integrates over estimate-level heterogeneity.
+# The setup records fitted local effects separately from the fixed predictor.
+# Gaussian estimate-deletion scores integrate them through the covariance;
+# nonlinear likelihoods retain their existing conditional representation.
 #
 # @param object brma object.
 #
@@ -564,6 +584,7 @@
                                                   data_hash = NULL,
                                                   bias_adjusted = FALSE,
                                                   conditioned_random_effects = NULL,
+                                                  condition_local_effects = TRUE,
                                                   caller = ".estimate_likelihood_setup_from_parts()") {
 
   unit              <- .normalize_unit(unit)
@@ -598,6 +619,14 @@
     stop(
       "Precomputed conditioned random effects require an estimate-unit ",
       "random-formula likelihood.",
+      call. = FALSE
+    )
+  }
+  if (!isTRUE(condition_local_effects) &&
+      !is.null(conditioned_random_effects)) {
+    stop(
+      "Precomputed conditioned random effects cannot be supplied when local ",
+      "effects are integrated.",
       call. = FALSE
     )
   }
@@ -643,7 +672,7 @@
   mu_random_samples <- NULL
 
   fit_data <- NULL
-  if (is_multilevel || is_weightfunction) {
+  if ((is_multilevel && condition_local_effects) || is_weightfunction) {
     fit_data <- .create_fit_data(data = data, priors = priors)
   }
 
@@ -653,7 +682,7 @@
     NULL
   }
 
-  if (unit == "estimate" && is_multilevel) {
+  if (unit == "estimate" && is_multilevel && condition_local_effects) {
     cluster_effects <- .evaluate.brma.cluster_effects(
       fit               = fit,
       tau_between       = tau_result[["tau_between"]],
@@ -665,7 +694,7 @@
     mu_samples         <- mu_samples + cluster_effects
     mu_random_samples <- cluster_effects
   }
-  if (unit == "estimate" && is_random) {
+  if (unit == "estimate" && is_random && condition_local_effects) {
     random_effects <- if (is.null(conditioned_random_effects)) {
       .evaluate.brma.random_effects(
         fit               = fit,
@@ -748,17 +777,22 @@
 
 
 .estimate_likelihood_setup.brma <- function(object, bias_adjusted = FALSE,
-                                            posterior_samples = NULL) {
+                                            posterior_samples = NULL,
+                                            condition_local_effects = TRUE) {
 
   .estimate_likelihood_setup_from_parts(
-    fit               = object[["fit"]],
-    data              = object[["data"]],
-    priors            = object[["priors"]],
-    posterior_samples = .get_posterior_samples(object[["fit"]], posterior_samples),
-    unit              = "estimate",
-    data_hash         = .get_outcome_hash(object),
-    bias_adjusted     = bias_adjusted,
-    caller            = ".estimate_likelihood_setup.brma()"
+    fit                     = object[["fit"]],
+    data                    = object[["data"]],
+    priors                  = object[["priors"]],
+    posterior_samples       = .get_posterior_samples(
+      object[["fit"]],
+      posterior_samples
+    ),
+    unit                    = "estimate",
+    data_hash               = .get_outcome_hash(object),
+    bias_adjusted           = bias_adjusted,
+    condition_local_effects = condition_local_effects,
+    caller                  = ".estimate_likelihood_setup.brma()"
   )
 }
 
@@ -770,8 +804,8 @@
 #
 # Estimate-unit likelihood, one contribution per effect-size estimate.
 #
-# For normal multilevel models this is the model likelihood factor conditional
-# on the cluster effect and marginal over estimate-level heterogeneity.
+# For Gaussian multilevel and random-formula models this integrates local
+# effects and conditions on the observations retained after deletion.
 #
 # @param object brma object.
 #
@@ -867,9 +901,8 @@
     semantics <- c(
       semantics,
       paste0(
-        "estimate-unit log-score conditions on sampled fitted random effects; ",
-        "known R shapes their posterior/prior but is not added as a ",
-        "marginal ZGZ' covariance term"
+        "sampled known-R random effects enter the estimate-unit log-score ",
+        "through the BayesTools metadata-defined marginal ZGZ' covariance"
       )
     )
   }
@@ -877,8 +910,8 @@
     semantics <- c(
       semantics,
       paste0(
-        "supported marginalized known-R blocks enter estimate-unit targets ",
-        "as BayesTools-prepared diagonal tau^2 row multipliers"
+        "marginalized known-R blocks enter the estimate-unit log-score as ",
+        "BayesTools-prepared row variance"
       )
     )
   }
@@ -891,37 +924,63 @@
 }
 
 
-.estimate_log_lik_target_metadata <- function(setup, data_hash) {
+.estimate_log_lik_target_metadata <- function(
+    setup, data_hash, dependency_blocks = NULL) {
 
   known_v_estimate_backend <- .known_v_estimate_target_uses_backend(setup[["data"]])
-  known_v_schur            <- .known_v_estimate_target_uses_schur_conditioning(setup[["data"]])
   known_r_metadata         <- .known_r_log_lik_target_metadata(setup[["data"]])
   known_V <- if (.is_data_known_v(setup[["data"]])) {
     .data_known_v_data(setup[["data"]])
   } else {
     NULL
   }
-  component_sizes <- if (known_v_estimate_backend && !is.null(known_V)) {
-    block_indices <- .known_v_dependency_blocks(
-      data = setup[["data"]],
-      K    = setup[["K"]]
+  covariance_backend <- .estimate_normal_target_uses_covariance_backend(
+    setup[["data"]],
+    setup[["priors"]]
+  )
+  block_indices <- if (!is.null(dependency_blocks)) {
+    dependency_blocks
+  } else if (covariance_backend && isTRUE(setup[["is_multilevel"]])) {
+    unname(setup[["cluster"]])
+  } else if (covariance_backend) {
+    stop(
+      "Internal error: covariance score dependency metadata are missing.",
+      call. = FALSE
     )
-    vapply(block_indices, length, integer(1))
   } else {
-    rep(1L, setup[["K"]])
+    as.list(seq_len(setup[["K"]]))
   }
+  component_sizes <- vapply(block_indices, length, integer(1))
+  dependency_conditioning <- any(component_sizes > 1L)
   has_sampled_random <- length(.data_effective_sampled_random_effect_terms(
     setup[["data"]]
   )) > 0L
   has_marginalized_random <- .data_has_marginalized_random_effects(setup[["data"]])
-  has_sampled_estimate_random <- .data_has_sampled_estimate_level_random_effects(
-    setup[["data"]]
-  )
+  has_cluster_random <- isTRUE(setup[["is_multilevel"]])
+  random_representation <- if (has_sampled_random && has_marginalized_random) {
+    "mixed"
+  } else if (has_sampled_random || has_cluster_random) {
+    "sampled"
+  } else if (has_marginalized_random) {
+    "marginalized"
+  } else {
+    "none"
+  }
+  latent_effect_handling <- if (
+      covariance_backend && random_representation != "none") {
+    "integrated"
+  } else if (random_representation == "marginalized") {
+    "integrated"
+  } else if (random_representation != "none") {
+    "sampled"
+  } else {
+    "none"
+  }
 
   list(
     unit                 = "estimate",
-    conditioning_depth   = "estimate",
-    target               = if (known_v_schur) "known_v_estimate" else "factorized_estimate",
+    retained_context     = "remaining_data",
+    target               = "estimate_log_score",
     n                    = setup[["K"]],
     targets              = seq_len(setup[["K"]]),
     data_hash            = data_hash,
@@ -938,19 +997,16 @@
       .known_v_requested_parameterization(known_V)
     },
     dependency_component_sizes = component_sizes,
-    known_v_schur       = known_v_schur,
+    dependency_conditioning = dependency_conditioning,
+    score_representation = if (dependency_conditioning) {
+      "dependency_conditional"
+    } else {
+      "factorized"
+    },
     known_r              = known_r_metadata[["known_r"]],
     known_r_blocks       = known_r_metadata[["known_r_blocks"]],
     known_r_semantics    = known_r_metadata[["known_r_semantics"]],
-    random_effects       = if (has_sampled_random) "conditioned" else "none",
-    estimate_level_random = if (has_sampled_estimate_random && has_marginalized_random) {
-      "conditioned_and_marginalized"
-    } else if (has_marginalized_random) {
-      "marginalized"
-    } else if (has_sampled_estimate_random) {
-      "conditioned"
-    } else {
-      "none"
-    }
+    random_effect_representation = random_representation,
+    latent_effect_handling       = latent_effect_handling
   )
 }

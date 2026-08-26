@@ -1,5 +1,13 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- defines Gaussian estimate-unit LOO and WAIC as deletion-conditioned scores
+  with all local Gaussian random effects integrated through BayesTools'
+  metadata-compiled covariance factors. Sampled, marginalized, and mixed
+  random-effect parameterizations now share the same estimand; LOO-PIT and
+  studentized residual summaries use the matching conditional distribution.
+  Target metadata separates deletion unit and retained context from prediction
+  conditioning depth, and score setup no longer reconstructs fitted random
+  effects that the integrated target does not use.
 - batches metadata-compiled random-effect factor states when several
   heterogeneity components are requested and reuses prepared posterior samples
   in random-effect summaries. Extracting several semantic random quantities

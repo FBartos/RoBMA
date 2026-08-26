@@ -42,7 +42,7 @@ test_that("known-V joint log-likelihood uses block MVN density", {
   expect_equal(.log_lik_estimate_sum_from_setup(setup), ref)
   expect_false(isTRUE(all.equal(
     out,
-    rowSums(.log_lik_known_v_estimate_target_from_setup(setup))
+    rowSums(.log_lik_normal_covariance_estimate_target_from_setup(setup))
   )))
 
   singular_setup <- setup
@@ -118,7 +118,7 @@ test_that("diagonal known-V estimate log-likelihood is exactly vectorized", {
   }
 
   expect_identical(
-    .log_lik_known_v_estimate_target_from_setup(setup),
+    .log_lik_normal_covariance_estimate_target_from_setup(setup),
     expected
   )
   expect_equal(
@@ -248,6 +248,104 @@ test_that("native covariance plan returns exact Schur conditional densities", {
     precision_residual,
     expected_residual / expected_variance,
     tolerance = 1e-12
+  )
+})
+
+
+test_that("multilevel estimate scores integrate cluster effects", {
+
+  fixed_mean <- matrix(
+    c(
+      0.05, 0.08, 0.00, 0.10,
+      0.04, 0.09, 0.01, 0.11
+    ),
+    nrow = 2L,
+    byrow = TRUE
+  )
+  cluster_effect <- matrix(
+    c(
+      0.20, 0.20, -0.10, -0.10,
+      0.10, 0.10, -0.20, -0.20
+    ),
+    nrow = 2L,
+    byrow = TRUE
+  )
+  setup <- list(
+    data              = structure(
+      list(outcome = data.frame(yi = c(0.10, 0.20, -0.10, 0.30))),
+      known_V = FALSE,
+      random  = FALSE
+    ),
+    outcome_type      = "norm",
+    is_multilevel     = TRUE,
+    is_weightfunction = FALSE,
+    weights           = NULL,
+    K                 = 4L,
+    S                 = 2L,
+    yi                = c(0.10, 0.20, -0.10, 0.30),
+    sei               = c(0.10, 0.12, 0.15, 0.08),
+    mu                = fixed_mean + cluster_effect,
+    mu_random         = cluster_effect,
+    tau_within        = matrix(
+      c(0.20, 0.20, 0.30, 0.30, 0.25, 0.25, 0.35, 0.35),
+      nrow = 2L,
+      byrow = TRUE
+    ),
+    tau_between       = matrix(
+      c(0.40, 0.40, 0.50, 0.50, 0.30, 0.30, 0.45, 0.45),
+      nrow = 2L,
+      byrow = TRUE
+    ),
+    cluster           = list(a = 1:2, b = 3:4),
+    effect_direction  = "positive"
+  )
+
+  expected_log_lik <- matrix(NA_real_, nrow = setup[["S"]], ncol = setup[["K"]])
+  expected_mean    <- expected_log_lik
+  expected_variance <- expected_log_lik
+  for (draw in seq_len(setup[["S"]])) {
+    for (indices in setup[["cluster"]]) {
+      covariance <- diag(
+        setup[["sei"]][indices]^2 + setup[["tau_within"]][draw, indices]^2,
+        nrow = length(indices)
+      ) + tcrossprod(setup[["tau_between"]][draw, indices])
+      for (row in seq_along(indices)) {
+        other <- setdiff(seq_along(indices), row)
+        conditional_mean <- fixed_mean[draw, indices[[row]]] +
+          covariance[row, other] / covariance[other, other] *
+          (setup[["yi"]][indices[other]] - fixed_mean[draw, indices[other]])
+        conditional_variance <- covariance[row, row] -
+          covariance[row, other]^2 / covariance[other, other]
+        expected_mean[draw, indices[[row]]]     <- conditional_mean
+        expected_variance[draw, indices[[row]]] <- conditional_variance
+        expected_log_lik[draw, indices[[row]]] <- stats::dnorm(
+          setup[["yi"]][indices[[row]]],
+          mean = conditional_mean,
+          sd   = sqrt(conditional_variance),
+          log  = TRUE
+        )
+      }
+    }
+  }
+
+  observed <- .log_lik_normal_covariance_estimate_target_from_setup(setup)
+  summary  <- .normal_covariance_estimate_target_summary_from_setup(
+    setup,
+    components = c("mean", "variance")
+  )
+
+  expect_equal(observed, expected_log_lik, tolerance = 1e-12)
+  expect_equal(summary[["mean"]], expected_mean, tolerance = 1e-12)
+  expect_equal(summary[["variance"]], expected_variance, tolerance = 1e-12)
+
+  shifted <- setup
+  shift   <- matrix(seq(-0.3, 0.4, length.out = 8L), nrow = 2L)
+  shifted[["mu"]]        <- shifted[["mu"]] + shift
+  shifted[["mu_random"]] <- shifted[["mu_random"]] + shift
+  expect_equal(
+    .log_lik_normal_covariance_estimate_target_from_setup(shifted),
+    observed,
+    tolerance = 0
   )
 })
 
@@ -453,7 +551,7 @@ test_that("rank-one known V retains sub-ULP diagonal variance", {
     expected_joint,
     tolerance = 1e-12
   )
-  distribution <- .known_v_estimate_target_summary_from_setup(setup)
+  distribution <- .normal_covariance_estimate_target_summary_from_setup(setup)
   expect_equal(
     distribution[["variance"]],
     matrix(expected_variance, nrow = 1L, ncol = 2L),
@@ -475,7 +573,7 @@ test_that("rank-one known V retains sub-ULP diagonal variance", {
     residual[[2L]] - (residual[[1L]] / unequal_diagonal[[1L]]) /
       (1 + 1 / unequal_diagonal[[1L]])
   )
-  distribution <- .known_v_estimate_target_summary_from_setup(
+  distribution <- .normal_covariance_estimate_target_summary_from_setup(
     setup      = setup,
     components = c("mean", "variance")
   )
@@ -696,11 +794,6 @@ test_that("IWMDE evaluated known-V likelihood matches joint MVN oracle", {
     expected,
     tolerance = 1e-12
   )
-  expect_false(isTRUE(all.equal(
-    rowSums(.log_lik_known_v_estimate_target_from_setup(setup)),
-    expected,
-    tolerance = 1e-8
-  )))
   expect_equal(
     .iwmde_log_lik_from_evaluated_predictors_sum_active_branch(
       context            = context,

@@ -25,10 +25,10 @@ test_that("brma.mv honors forced known-V backend requests", {
 test_that("LOO target comparison rejects missing likelihood target labels", {
 
   metadata <- list(
-    unit               = "estimate",
-    conditioning_depth = "estimate",
-    data_hash          = "same-data",
-    target             = "known_v_estimate"
+    unit             = "estimate",
+    retained_context = "remaining_data",
+    data_hash        = "same-data",
+    target           = "estimate_log_score"
   )
   loo_a <- structure(list(), class = "loo")
   loo_b <- structure(list(), class = "loo")
@@ -139,7 +139,6 @@ test_that("diagonal brma.mv estimate likelihood matches brma.norm factorization"
   uni_setup <- make_setup(uni_object)
 
   expect_false(.known_v_estimate_target_uses_backend(mv_object[["data"]]))
-  expect_false(.known_v_estimate_target_uses_schur_conditioning(mv_object[["data"]]))
   expect_equal(
     .log_lik_estimate_from_setup(mv_setup),
     .log_lik_estimate_from_setup(uni_setup),
@@ -150,9 +149,9 @@ test_that("diagonal brma.mv estimate likelihood matches brma.norm factorization"
     setup     = mv_setup,
     data_hash = .get_outcome_hash(mv_object)
   )
-  expect_equal(target[["target"]], "factorized_estimate")
+  expect_equal(target[["target"]], "estimate_log_score")
   expect_false(target[["known_v_estimate_backend"]])
-  expect_false(target[["known_v_schur"]])
+  expect_false(target[["dependency_conditioning"]])
 })
 
 
@@ -190,14 +189,27 @@ test_that("diagonal brma.mv random estimate target remains factorized", {
   )
 
   target <- .estimate_log_lik_target_metadata(
-    setup     = setup,
-    data_hash = .get_outcome_hash(object)
+    setup             = setup,
+    data_hash         = .get_outcome_hash(object),
+    dependency_blocks = .marglik_random_dependency_blocks(
+      model_data                   = object[["data"]],
+      formula_design               = .fitted_formula_design(
+        object,
+        "mu",
+        required = TRUE
+      ),
+      blocks                       = .data_sampled_random_effect_blocks(
+        object[["data"]]
+      ),
+      sampling_latent_marginalized = TRUE
+    )
   )
   expect_true(target[["known_v_estimate_backend"]])
-  expect_false(target[["known_v_schur"]])
-  expect_equal(target[["target"]], "factorized_estimate")
+  expect_false(target[["dependency_conditioning"]])
+  expect_equal(target[["target"]], "estimate_log_score")
   expect_equal(target[["dependency_component_sizes"]], rep(1L, 3L))
-  expect_equal(target[["random_effects"]], "conditioned")
+  expect_equal(target[["random_effect_representation"]], "sampled")
+  expect_equal(target[["latent_effect_handling"]], "integrated")
 })
 
 
@@ -649,15 +661,19 @@ test_that("brma.mv marginalized known R contributes known-V row variance", {
   )
 
   target <- .estimate_log_lik_target_metadata(
-    setup     = setup,
-    data_hash = .get_outcome_hash(object)
+    setup             = setup,
+    data_hash         = .get_outcome_hash(object),
+    dependency_blocks = .known_v_dependency_blocks(
+      object[["data"]],
+      nrow(dat)
+    )
   )
   expect_true(target[["known_r"]])
   expect_equal(target[["known_r_blocks"]], "estimate")
-  expect_true(grepl("diagonal tau^2 row multipliers",
+  expect_true(grepl("BayesTools-prepared row variance",
                     target[["known_r_semantics"]], fixed = TRUE))
-  expect_equal(target[["random_effects"]], "none")
-  expect_equal(target[["estimate_level_random"]], "marginalized")
+  expect_equal(target[["random_effect_representation"]], "marginalized")
+  expect_equal(target[["latent_effect_handling"]], "integrated")
 })
 
 

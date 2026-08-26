@@ -1300,13 +1300,29 @@ test_that("brma.mv marginalizes nested estimate level with allocation child SD",
     matrix(rep(c(0.04, 0.09), times = 4), nrow = 2)
   )
   target <- .estimate_log_lik_target_metadata(
-    setup     = list(data = object[["data"]], K = nrow(dat)),
-    data_hash = .get_outcome_hash(object)
+    setup = list(
+      data          = object[["data"]],
+      priors        = object[["priors"]],
+      K             = nrow(dat),
+      is_multilevel = FALSE
+    ),
+    data_hash = .get_outcome_hash(object),
+    dependency_blocks = .marglik_random_dependency_blocks(
+      model_data                   = object[["data"]],
+      formula_design               = .fitted_formula_design(
+        object,
+        "mu",
+        required = TRUE
+      ),
+      blocks                       = .data_sampled_random_effect_blocks(
+        object[["data"]]
+      ),
+      sampling_latent_marginalized = TRUE
+    )
   )
   expect_equal(.data_sampled_random_effect_blocks(object[["data"]]), "study")
-  expect_false(.data_has_sampled_estimate_level_random_effects(object[["data"]]))
-  expect_equal(target[["random_effects"]], "conditioned")
-  expect_equal(target[["estimate_level_random"]], "marginalized")
+  expect_equal(target[["random_effect_representation"]], "mixed")
+  expect_equal(target[["latent_effect_handling"]], "integrated")
 })
 
 
@@ -1674,7 +1690,8 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   expect_equal(loo_target[["target"]], "estimate-unit log-score")
   expect_true(grepl("p(y_i | y_-i", loo_target[["known_v_semantics"]],
                     fixed = TRUE))
-  expect_true(grepl("conditioned", loo_target[["known_r_semantics"]],
+  expect_true(grepl("metadata-defined marginal ZGZ' covariance",
+                    loo_target[["known_r_semantics"]],
                     fixed = TRUE))
 
   marglik_target <- .brma_mv_target_row("add_marglik()/bridge_sampler()")

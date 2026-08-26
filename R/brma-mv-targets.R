@@ -38,7 +38,10 @@
       "joint dependency-block deletion"
     ),
     known_v_semantics = c(
-      rep("correlated V uses p(y_i | y_-i, theta) within dependency blocks", 6),
+      rep(
+        "integrated covariance uses p(y_i | y_-i, theta) within dependency blocks",
+        6
+      ),
       "uses the full joint fitted known-V likelihood",
       rep("uses V + ZGZ' marginal covariance", 3),
       rep("conditional estimate deletion; reported target fixed_location_fitted_value", 2),
@@ -47,8 +50,8 @@
     known_r_semantics = c(
       rep(
         paste0(
-          "sampled known-R random effects are conditioned; marginalized ",
-          "known-R blocks enter as diagonal row variance"
+          "known R and fitted random-effect covariance enter through the ",
+          "BayesTools metadata-defined marginal ZGZ' covariance"
         ),
         6
       ),
@@ -57,7 +60,7 @@
         "marginalized diagonal row variance"
       ),
       rep("known R contributes through ZGZ' marginal covariance", 3),
-      rep("conditional estimate deletion with sampled random effects", 2),
+      rep("conditional estimate deletion with integrated random effects", 2),
       "deferred for brma.mv()"
     ),
     stringsAsFactors = FALSE

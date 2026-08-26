@@ -163,7 +163,9 @@
 # sampling covariance without constructing draw x row x row arrays.
 #
 # ---------------------------------------------------------------------------- #
-.known_v_marginal_factor_plan <- function(object, posterior_samples, known_V) {
+.known_v_marginal_factor_plan <- function(
+    object, posterior_samples, known_V,
+    extra_variances = NULL) {
 
   data <- object[["data"]]
   S    <- nrow(posterior_samples)
@@ -176,17 +178,21 @@
 
   if (.is_data_random(data)) {
     sampled_blocks <- .data_sampled_random_effect_blocks(data)
-    extra_variance <- .evaluate_marginalized_random_variance(
-      data              = data,
-      posterior_samples = posterior_samples,
-      K                 = K,
-      source_samples    = .known_v_marginalized_random_source_samples(
-        fit               = object[["fit"]],
+    extra_variance <- if (is.null(extra_variances)) {
+      .evaluate_marginalized_random_variance(
         data              = data,
-        priors            = object[["priors"]],
-        posterior_samples = posterior_samples
+        posterior_samples = posterior_samples,
+        K                 = K,
+        source_samples    = .known_v_marginalized_random_source_samples(
+          fit               = object[["fit"]],
+          data              = data,
+          priors            = object[["priors"]],
+          posterior_samples = posterior_samples
+        )
       )
-    )
+    } else {
+      as.matrix(extra_variances)
+    }
 
     if (length(sampled_blocks) > 0L) {
       random_factors <- .brma_mv_random_effects_marginal_factor_plan(
@@ -213,12 +219,22 @@
       factor_plans  = list(),
       factor_states = rep(list(list()), S)
     )
-    extra_variance <- .known_v_diagonal_extra_variance_samples(
-      object            = object,
-      posterior_samples = posterior_samples,
-      K                 = K
-    )
+    extra_variance <- if (is.null(extra_variances)) {
+      .known_v_diagonal_extra_variance_samples(
+        object            = object,
+        posterior_samples = posterior_samples,
+        K                 = K
+      )
+    } else {
+      as.matrix(extra_variances)
+    }
     random_variance <- matrix(0, nrow = S, ncol = K)
+  }
+
+  if (!identical(dim(extra_variance), c(S, K)) ||
+      any(!is.finite(extra_variance)) || any(extra_variance < 0)) {
+    stop("Known-V covariance factor plan received invalid extra variances.",
+         call. = FALSE)
   }
 
   covariance_diagonal <- sweep(

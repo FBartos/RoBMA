@@ -76,30 +76,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .loo_conditioning_depth_from_unit
-# ---------------------------------------------------------------------------- #
-#
-# LOO exposes only the deletion unit. The implied conditioning depth is stored
-# as metadata.
-#
-# @param unit character; output/deletion unit.
-#
-# @return character; implied conditioning depth.
-#
-# ---------------------------------------------------------------------------- #
-.loo_conditioning_depth_from_unit <- function(unit) {
-
-  unit <- .normalize_unit(unit)
-
-  if (unit == "estimate") {
-    return("estimate")
-  } else {
-    return("cluster")
-  }
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .get_cluster_labels
 # ---------------------------------------------------------------------------- #
 #
@@ -452,22 +428,22 @@
 #
 # @param object             loo or waic object.
 # @param unit               character; output/deletion unit.
-# @param conditioning_depth character; implied conditioning depth.
+# @param retained_context character; context retained after deletion.
 # @param targets            character; target labels.
 # @param data_hash          character; hash of the outcome target.
 #
 # @return object with RoBMA target metadata.
 #
 # ---------------------------------------------------------------------------- #
-.add_loo_target_metadata <- function(object, unit, conditioning_depth, targets,
+.add_loo_target_metadata <- function(object, unit, retained_context, targets,
                                      data_hash, metadata = NULL) {
 
   target <- list(
-    unit               = unit,
-    conditioning_depth = conditioning_depth,
-    n                  = length(targets),
-    targets            = targets,
-    data_hash          = data_hash
+    unit             = unit,
+    retained_context = retained_context,
+    n                = length(targets),
+    targets          = targets,
+    data_hash        = data_hash
   )
   if (!is.null(metadata)) {
     extra  <- metadata[setdiff(names(metadata), names(target))]
@@ -507,21 +483,16 @@
   unit      <- .normalize_unit(unit)
   data_hash <- .get_outcome_hash(object)
   if (unit == "estimate") {
-    target <- if (.known_v_estimate_target_uses_schur_conditioning(
-        object[["data"]])) {
-      "known_v_estimate"
-    } else {
-      "factorized_estimate"
-    }
+    target <- "estimate_log_score"
   } else {
     target <- "cluster_joint"
   }
 
   list(
-    unit               = unit,
-    conditioning_depth = .loo_conditioning_depth_from_unit(unit),
-    target             = target,
-    data_hash          = data_hash
+    unit             = unit,
+    retained_context = "remaining_data",
+    target           = target,
+    data_hash        = data_hash
   )
 }
 
@@ -535,7 +506,7 @@
 # ---------------------------------------------------------------------------- #
 .predictive_target_fingerprint <- function(metadata) {
 
-  fields <- c("unit", "conditioning_depth", "target", "data_hash")
+  fields <- c("unit", "retained_context", "target", "data_hash")
   if (is.null(metadata) || !all(fields %in% names(metadata))) {
     return(NULL)
   }
@@ -677,31 +648,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .get_target_conditioning_depth
-# ---------------------------------------------------------------------------- #
-#
-# Extract the conditioning-depth metadata, accepting older cached objects that
-# used `level`.
-#
-# @param metadata list; RoBMA target metadata.
-#
-# @return character scalar.
-#
-# ---------------------------------------------------------------------------- #
-.get_target_conditioning_depth <- function(metadata) {
-
-  if (!is.null(metadata[["conditioning_depth"]])) {
-    return(metadata[["conditioning_depth"]])
-  }
-  if (!is.null(metadata[["level"]])) {
-    return(metadata[["level"]])
-  }
-
-  return(NA_character_)
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .check_loo_compare_targets
 # ---------------------------------------------------------------------------- #
 #
@@ -740,14 +686,26 @@
          call. = FALSE)
   }
 
-  units                <- vapply(metadata, `[[`, character(1), "unit")
-  conditioning_depths  <- vapply(metadata, .get_target_conditioning_depth, character(1))
-  data_hashes          <- vapply(metadata, `[[`, character(1), "data_hash")
+  missing_context <- vapply(
+    metadata,
+    function(x) is.null(x[["retained_context"]]),
+    logical(1)
+  )
+  if (any(missing_context)) {
+    stop(
+      "LOO/WAIC objects without retained-context labels cannot be compared.",
+      call. = FALSE
+    )
+  }
+
+  units             <- vapply(metadata, `[[`, character(1), "unit")
+  retained_contexts <- vapply(metadata, `[[`, character(1), "retained_context")
+  data_hashes       <- vapply(metadata, `[[`, character(1), "data_hash")
 
   if (length(unique(units)) > 1 ||
-      length(unique(conditioning_depths)) > 1 ||
+      length(unique(retained_contexts)) > 1 ||
       length(unique(data_hashes)) > 1) {
-    stop("LOO/WAIC objects with different data, unit, or conditioning-depth targets cannot be compared.",
+    stop("LOO/WAIC objects with different data, unit, or retained-context targets cannot be compared.",
          call. = FALSE)
   }
 

@@ -70,35 +70,29 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' For selection models, the LOO evaluates the weighted likelihood, conditioning
 #' on the posterior omega samples.
 #'
-#' For correlated known-\code{V} \code{brma.mv()} models, estimate-unit LOO uses
-#' conditional predictive contributions \eqn{p(y_i \mid y_{-i}, \theta)} within
-#' known-\code{V} dependency blocks. This is an existing-estimate diagnostic, not
-#' an independent new-estimate prediction target.
+#' For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
+#' estimate-unit LOO integrates Gaussian local effects and uses
+#' \eqn{p(y_i \mid y_{-i}, \theta)} within each fitted dependency block. Thus
+#' deleting one estimate retains the other estimates in its cluster or random-
+#' effect block; it does not represent prediction for a wholly new group.
 #'
 #' For \code{brma.mv()} models with known random-effect group covariance
-#' \code{R}, estimate-unit LOO keeps sampled random effects at the estimate
-#' conditioning depth. The known \code{R} matrix shapes the posterior and prior
-#' for those sampled random effects, but it is not added again as a marginal
-#' \eqn{ZGZ'} covariance term in this target. Supported known-\code{R} blocks
-#' compiled as marginalized instead enter through the diagonal extra variance
-#' term prepared by BayesTools.
+#' \code{R}, the known \code{R} matrix and fitted random-effect covariance enter
+#' the marginal \eqn{ZGZ'} covariance through BayesTools' compiled random-effect
+#' metadata. The same calculation applies to every supported random structure.
 #'
 #' Estimate-unit deletion retains the fitted grouping and known-\code{V}
 #' dependency structure; it does not represent deletion of an entire new random
 #' group. Models with no local effects, sampled local effects, marginalized
 #' local effects, or a mixture of sampled and marginalized effects remain
-#' comparable when their data hash, deletion unit, conditioning depth, and
+#' comparable when their data hash, deletion unit, retained context, and
 #' likelihood target agree. The sampled/marginalized labels are retained as
 #' provenance rather than comparison keys.
-#'
-#' Conditioning on sampled local effects can produce high Pareto-k values.
-#' Inspect the diagnostics with \code{\link{check_loo}} and the corresponding
-#' \pkg{loo} helpers before interpreting comparisons.
 #'
 #' The PSIS object is essential for model comparison via
 #' \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 #' RoBMA stores target metadata so comparisons can reject mismatched data,
-#' unit, or conditioning-depth targets.
+#' unit, or retained-context targets.
 #' Each finite log-likelihood column observed to be constant across posterior
 #' draws uses exact uniform importance ratios. Such columns bypass relative-ESS
 #' and generalized-Pareto fitting, including when other columns vary. Their
@@ -110,8 +104,10 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #'
 #' \strong{Important for model comparison:} When comparing models via
 #' \code{\link[loo]{loo_compare}}, the selection is based on expected
-#' out-of-sample predictive performance. This evaluates how well models predict
-#' \emph{new} observations, not how well they fit the observed data.
+#' predictive performance for the documented deletion target, not in-sample
+#' fit. For dependent estimates, deleting one estimate may retain other
+#' observations from its fitted dependency block; this is not new-group
+#' prediction.
 #'
 #' @return The brma object with the LOO result stored in
 #' \code{object[["loo"]][[unit]]}.
@@ -141,18 +137,10 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   unit <- .normalize_unit(unit)
   BayesTools::check_bool(parallel, "parallel")
 
-  conditioning_depth <- .loo_conditioning_depth_from_unit(unit)
-  .check_unit_conditioning_depth(
-    object             = object,
-    unit               = unit,
-    conditioning_depth = conditioning_depth,
-    caller             = "add_loo()"
-  )
-
   # compute the log-likelihood matrix (S x K)
   log_lik <- .log_lik.brma(object, unit = unit, caller = "add_loo()")
   target  <- attr(log_lik, "RoBMA_target", exact = TRUE)
-  .warn_known_v_schur_log_score(target, "LOO")
+  .warn_known_v_dependency_log_score(target, "LOO")
 
   # determine number of cores based on `parallel` and package options
   cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
@@ -196,12 +184,12 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
     centered_variable = centered_variable
   )
   loo_result <- .add_loo_target_metadata(
-    object             = loo_result,
-    unit               = target[["unit"]],
-    conditioning_depth = .get_target_conditioning_depth(target),
-    targets            = target[["targets"]],
-    data_hash          = target[["data_hash"]],
-    metadata           = target
+    object           = loo_result,
+    unit             = target[["unit"]],
+    retained_context = target[["retained_context"]],
+    targets          = target[["targets"]],
+    data_hash        = target[["data_hash"]],
+    metadata         = target
   )
 
   # store in object and return
@@ -559,21 +547,16 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' because it provides better estimates and includes diagnostics (Pareto k
 #' values) that indicate when the approximation may be unreliable.
 #'
-#' For correlated known-\code{V} \code{brma.mv()} models, estimate-unit WAIC uses
-#' the same conditional log-likelihood matrix as estimate-unit LOO,
-#' \eqn{p(y_i \mid y_{-i}, \theta)}. It therefore has the same interpretation as
-#' an existing-estimate diagnostic rather than an independent new-estimate
-#' prediction target.
+#' For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
+#' estimate-unit WAIC uses the same integrated conditional log-likelihood matrix
+#' as estimate-unit LOO, \eqn{p(y_i \mid y_{-i}, \theta)}. Estimate deletion
+#' retains the fitted grouping and dependency structure.
 #'
 #' For \code{brma.mv()} models with known random-effect group covariance
-#' \code{R}, estimate-unit WAIC has the same conditioning convention as
-#' estimate-unit LOO: sampled random effects are conditioned on, and known
-#' \code{R} is not added again as a marginal \eqn{ZGZ'} covariance term.
-#' Estimate deletion retains the fitted grouping/dependency structure, and the
-#' same four-field comparison policy applies across sampled, marginalized, and
-#' mixed local-effect representations. WAIC can be more sensitive than LOO to
-#' whether local effects are sampled or marginalized, so compare its values
-#' with that representation dependence in mind.
+#' \code{R}, the known \code{R} matrix and fitted random-effect covariance enter
+#' through BayesTools' metadata-defined marginal \eqn{ZGZ'} covariance. The same
+#' four-field comparison policy applies across sampled, marginalized, and mixed
+#' local-effect representations.
 #'
 #' @return The brma object with the WAIC result stored in
 #' \code{object[["waic"]][[unit]]}.
@@ -584,28 +567,21 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' @export
 add_waic.brma <- function(object, unit = "estimate", ...) {
   unit <- .normalize_unit(unit)
-  conditioning_depth <- .loo_conditioning_depth_from_unit(unit)
-  .check_unit_conditioning_depth(
-    object             = object,
-    unit               = unit,
-    conditioning_depth = conditioning_depth,
-    caller             = "add_waic()"
-  )
 
   # compute the log-likelihood matrix (S x K)
   log_lik <- .log_lik.brma(object, unit = unit, caller = "add_waic()")
   target  <- attr(log_lik, "RoBMA_target", exact = TRUE)
-  .warn_known_v_schur_log_score(target, "WAIC")
+  .warn_known_v_dependency_log_score(target, "WAIC")
 
   # call waic on the log-likelihood matrix
   waic_result <- loo::waic(log_lik, ...)
   waic_result <- .add_loo_target_metadata(
-    object             = waic_result,
-    unit               = target[["unit"]],
-    conditioning_depth = .get_target_conditioning_depth(target),
-    targets            = target[["targets"]],
-    data_hash          = target[["data_hash"]],
-    metadata           = target
+    object           = waic_result,
+    unit             = target[["unit"]],
+    retained_context = target[["retained_context"]],
+    targets          = target[["targets"]],
+    data_hash        = target[["data_hash"]],
+    metadata         = target
   )
 
   # store in object and return
@@ -617,9 +593,10 @@ add_waic.brma <- function(object, unit = "estimate", ...) {
 }
 
 
-.warn_known_v_schur_log_score <- function(target, method) {
+.warn_known_v_dependency_log_score <- function(target, method) {
 
-  if (!isTRUE(target[["known_v_schur"]])) {
+  if (!isTRUE(target[["known_v"]]) ||
+      !isTRUE(target[["dependency_conditioning"]])) {
     return(invisible(FALSE))
   }
 
@@ -630,9 +607,9 @@ add_waic.brma <- function(object, unit = "estimate", ...) {
   })
 
   warning(
-    "Estimate-unit ", method, " for brma.mv() known-V models uses conditional ",
-    "predictive contributions p(y_i | y_-i, theta). Interpret it as an ",
-    "existing-estimate diagnostic, not independent new-estimate prediction. ",
+    "Estimate-unit ", method, " for brma.mv() known-V models retains the ",
+    "remaining estimates and fitted dependency structure after deleting y_i. ",
+    "Its contribution is p(y_i | y_-i, theta), not a new-group prediction. ",
     "Target: ", target_row[["target"]], ".",
     call. = FALSE
   )
@@ -798,10 +775,12 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #'
 #' \strong{Important for model comparison:} When comparing models via
 #' \code{\link[loo]{loo_compare}}, the selection is based on expected
-#' out-of-sample predictive performance. This evaluates how well models predict
-#' \emph{new} observations, not how well they fit the observed data.
+#' predictive performance for the documented deletion target, not in-sample
+#' fit. For dependent estimates, deleting one estimate may retain other
+#' observations from its fitted dependency block; this is not new-group
+#' prediction.
 #' RoBMA rejects comparisons with different outcome targets/data, \code{unit},
-#' or implied \code{conditioning_depth}. The same compatibility key is applied
+#' or retained context. The same compatibility key is applied
 #' separately to LOO and WAIC; the two criteria cannot be mixed in one
 #' comparison table. Sampled versus marginalized local-effect provenance does
 #' not by itself block comparison.

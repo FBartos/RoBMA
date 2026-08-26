@@ -120,10 +120,10 @@ test_that("loo_compare preserves the released numeric comparison table", {
   loo_a <- suppressWarnings(loo::loo(log_lik_a))
   loo_b <- suppressWarnings(loo::loo(log_lik_b))
   target <- list(
-    unit               = "estimate",
-    conditioning_depth = "estimate",
-    data_hash          = "loo-contract",
-    target             = "factorized_estimate"
+    unit             = "estimate",
+    retained_context = "remaining_data",
+    data_hash        = "loo-contract",
+    target           = "estimate_log_score"
   )
   attr(loo_a, "RoBMA_target") <- target
   attr(loo_b, "RoBMA_target") <- target
@@ -168,10 +168,10 @@ test_that("loo_compare preserves the released numeric WAIC table", {
   waic_a <- suppressWarnings(loo::waic(log_lik_a))
   waic_b <- suppressWarnings(loo::waic(log_lik_b))
   target <- list(
-    unit               = "estimate",
-    conditioning_depth = "estimate",
-    data_hash          = "waic-contract",
-    target             = "factorized_estimate"
+    unit             = "estimate",
+    retained_context = "remaining_data",
+    data_hash        = "waic-contract",
+    target           = "estimate_log_score"
   )
   attr(waic_a, "RoBMA_target") <- target
   attr(waic_b, "RoBMA_target") <- target

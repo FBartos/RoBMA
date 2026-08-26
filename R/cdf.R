@@ -260,9 +260,9 @@
 #
 # Compute CDF values for the estimate-unit LOO target.
 #
-# This mirrors `.log_lik_estimate.brma()`: fixed effects plus fitted cluster
-# effects for multilevel models, marginal over estimate-level heterogeneity.
-# It is used by LOO-PIT residuals so the PSIS weights and CDF target match.
+# This mirrors `.log_lik_estimate.brma()`. Gaussian local effects are
+# integrated, conditional on the estimates retained after deletion. It is used
+# by LOO-PIT residuals so the PSIS weights and CDF target match.
 #
 # @param object brma object.
 #
@@ -280,7 +280,13 @@
   }
 
   if (is.null(setup)) {
-    setup <- .estimate_likelihood_setup.brma(object)
+    setup <- .estimate_likelihood_setup.brma(
+      object                  = object,
+      condition_local_effects = !.estimate_normal_target_uses_covariance_backend(
+        object[["data"]],
+        object[["priors"]]
+      )
+    )
   }
 
   yi                <- setup[["yi"]]
@@ -293,8 +299,9 @@
   effect_direction  <- setup[["effect_direction"]]
   posterior_samples <- setup[["posterior_samples"]]
 
-  if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
-    cdf_vals <- .cdf_known_v_estimate_target_from_setup(setup)
+  if (.estimate_normal_target_uses_covariance_backend(
+      setup[["data"]], setup[["priors"]])) {
+    cdf_vals <- .cdf_normal_covariance_estimate_target_from_setup(setup)
     colnames(cdf_vals) <- paste0("cdf_lik[", seq_len(K), "]")
     return(cdf_vals)
   }

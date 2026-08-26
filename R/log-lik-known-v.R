@@ -24,12 +24,6 @@
 }
 
 
-.known_v_estimate_target_uses_schur_conditioning <- function(data) {
-
-  .is_data_known_v(data) && .data_known_v_correlated(data)
-}
-
-
 # ---------------------------------------------------------------------------- #
 # .known_v_dependency_blocks
 # ---------------------------------------------------------------------------- #
@@ -176,144 +170,183 @@
 }
 
 
-.known_v_rethrow_conditional_error <- function(
-    error, block_data, selected_blocks, extra_variance) {
+# ---------------------------------------------------------------------------- #
+# .estimate_normal_target_uses_covariance_backend
+# ---------------------------------------------------------------------------- #
+#
+# Normal estimate-deletion targets integrate Gaussian local effects. Known-V
+# random-formula models use BayesTools' covariance-factor metadata; the
+# specialized multilevel interface uses the same backend with its random
+# intercept represented as a row-scaled grouped factor.
+#
+# ---------------------------------------------------------------------------- #
+.estimate_normal_target_uses_covariance_backend <- function(data, priors) {
 
-  for (s in seq_len(nrow(extra_variance))) {
-    for (block in block_data[selected_blocks]) {
-      idx <- block[["index"]]
-      covariance <- block[["covariance"]] +
-        diag(extra_variance[s, idx], nrow = length(idx))
-      .known_v_chol_covariance(
-        covariance = covariance,
-        context    = "conditional"
-      )
-    }
+  if (!identical(.data_outcome_type(data), "norm") ||
+      .is_priors_weightfunction(priors) ||
+      .is_data_weights(data)) {
+    return(FALSE)
   }
-  stop(conditionMessage(error), call. = FALSE)
+
+  if (.known_v_estimate_target_uses_backend(data)) {
+    return(TRUE)
+  }
+
+  .is_data_multilevel(data)
+}
+
+
+.estimate_normal_covariance_target_plan_from_setup <- function(setup) {
+
+  if (!identical(setup[["outcome_type"]], "norm")) {
+    stop(
+      "Gaussian covariance estimate targets are only available for normal ",
+      "outcome models.",
+      call. = FALSE
+    )
+  }
+  if (isTRUE(setup[["is_weightfunction"]])) {
+    stop(
+      "Gaussian covariance estimate targets are not available for selection ",
+      "models.",
+      call. = FALSE
+    )
+  }
+  if (!is.null(setup[["weights"]])) {
+    stop(
+      "Gaussian covariance estimate targets are not available for weighted ",
+      "likelihoods.",
+      call. = FALSE
+    )
+  }
+
+  K         <- setup[["K"]]
+  S         <- setup[["S"]]
+  mu_random <- setup[["mu_random"]]
+  if (is.null(mu_random)) {
+    mu_random <- matrix(0, nrow = S, ncol = K)
+  }
+  means <- setup[["mu"]] - mu_random
+
+  if (.is_data_known_v(setup[["data"]])) {
+    object <- list(
+      fit    = setup[["fit"]],
+      data   = setup[["data"]],
+      priors = setup[["priors"]]
+    )
+    plan <- .known_v_marginal_factor_plan(
+      object            = object,
+      posterior_samples = setup[["posterior_samples"]],
+      known_V           = .data_known_v_data(setup[["data"]]),
+      extra_variances   = .known_v_extra_variance_from_setup(setup)
+    )
+  } else if (isTRUE(setup[["is_multilevel"]])) {
+    group_map <- integer(K)
+    for (group in seq_along(setup[["cluster"]])) {
+      group_map[setup[["cluster"]][[group]]] <- group
+    }
+    if (any(group_map == 0L)) {
+      stop("Cluster metadata must assign every estimate to one cluster.",
+           call. = FALSE)
+    }
+
+    factor_plan <- list(
+      type                  = "row_group",
+      model_matrix          = matrix(1, nrow = K, ncol = 1L),
+      group_map             = group_map,
+      coefficient_structure = "diagonal"
+    )
+    factor_states <- lapply(seq_len(S), function(draw) {
+      list(list(
+        coefficient_factor = matrix(1, nrow = 1L, ncol = 1L),
+        row_scale           = as.double(setup[["tau_between"]][draw, ])
+      ))
+    })
+    plan <- list(
+      sampling_covariance      = diag(setup[["sei"]]^2, nrow = K, ncol = K),
+      random_covariance_plans  = list(factor_plan),
+      random_covariance_states = factor_states,
+      block_indices            = unname(setup[["cluster"]]),
+      extra_variances          = setup[["tau_within"]]^2
+    )
+  } else {
+    stop("Gaussian covariance estimate target metadata are unavailable.",
+         call. = FALSE)
+  }
+
+  y          <- setup[["yi"]]
+  lower_tail <- TRUE
+  if (identical(setup[["effect_direction"]], "negative")) {
+    y          <- -y
+    means      <- -means
+    lower_tail <- FALSE
+  }
+
+  c(
+    list(
+      y          = as.double(y),
+      means      = means,
+      lower_tail = lower_tail
+    ),
+    plan[c(
+      "sampling_covariance",
+      "random_covariance_plans",
+      "random_covariance_states",
+      "block_indices",
+      "extra_variances"
+    )]
+  )
 }
 
 
 # ---------------------------------------------------------------------------- #
-# .log_lik_known_v_estimate_target_from_setup
+# .log_lik_normal_covariance_estimate_target_from_setup
 # ---------------------------------------------------------------------------- #
 #
-# Compute one log-density per estimate and posterior row for the known-V
-# estimate target. Correlated dependency blocks use Schur-complement
-# conditionals; singleton blocks reduce to the usual scalar normal density.
+# Compute one log-density per estimate and posterior row for a Gaussian
+# covariance target. Dependency blocks use Schur-complement conditionals;
+# singleton blocks reduce to the usual scalar normal density.
 #
 # ---------------------------------------------------------------------------- #
-.log_lik_known_v_estimate_target_from_setup <- function(setup) {
+.log_lik_normal_covariance_estimate_target_from_setup <- function(
+    setup, add_dependency_metadata = FALSE) {
 
   if (!identical(setup[["outcome_type"]], "norm")) {
     stop(
-      "Known-V estimate-unit log-likelihood target is only available ",
+      "Gaussian covariance estimate target is only available ",
       "for normal outcome models.",
       call. = FALSE
     )
   }
   if (isTRUE(setup[["is_weightfunction"]])) {
     stop(
-      "Known-V estimate-unit log-likelihood target is not available ",
+      "Gaussian covariance estimate target is not available ",
       "for selection models.",
       call. = FALSE
     )
   }
   if (!is.null(setup[["weights"]])) {
     stop(
-      "Known-V estimate-unit log-likelihood target is not available ",
+      "Gaussian covariance estimate target is not available ",
       "for weighted likelihoods.",
       call. = FALSE
     )
   }
 
-  data       <- setup[["data"]]
-  known_V    <- .data_known_v_data(data)
-  K          <- setup[["K"]]
-  S          <- setup[["S"]]
-  yi         <- setup[["yi"]]
-  mu_samples <- setup[["mu"]]
+  plan <- .estimate_normal_covariance_target_plan_from_setup(setup)
 
-  if (identical(setup[["effect_direction"]], "negative")) {
-    yi         <- -yi
-    mu_samples <- -mu_samples
-  }
-
-  if (.known_v_nrow(known_V) != K) {
-    stop("Known-V covariance metadata is inconsistent with the outcome data.",
-         call. = FALSE)
-  }
-  block_data     <- .known_v_dependency_block_data(data, K)
-  block_sizes    <- lengths(lapply(block_data, `[[`, "index"))
-  singleton      <- which(block_sizes == 1L)
-  dependent      <- which(block_sizes > 1L)
-  extra_variance <- .known_v_extra_variance_from_setup(setup)
-  log_lik        <- matrix(NA_real_, nrow = S, ncol = K)
-
-  if (length(singleton) > 0L) {
-    singleton_indices <- vapply(
-      singleton,
-      function(block) block_data[[block]][["index"]][[1L]],
-      integer(1L)
-    )
-    sampling_variance <- vapply(
-      singleton,
-      function(block) block_data[[block]][["covariance"]][1L, 1L],
-      numeric(1L)
-    )
-    variance <- sweep(
-      extra_variance[, singleton_indices, drop = FALSE],
-      MARGIN = 2L,
-      STATS  = sampling_variance,
-      FUN    = "+"
-    )
-    if (any(!is.finite(variance)) || any(variance <= 0)) {
-      invalid <- which(
-        !is.finite(variance) | variance <= 0,
-        arr.ind = TRUE
-      )[1L, ]
-      .known_v_chol_covariance(
-        covariance = matrix(variance[invalid[[1L]], invalid[[2L]]], 1L, 1L),
-        context    = "conditional"
-      )
-    }
-    residual <- sweep(
-      mu_samples[, singleton_indices, drop = FALSE],
-      MARGIN = 2L,
-      STATS  = yi[singleton_indices],
-      FUN    = "-"
-    )
-    log_lik[, singleton_indices] <- -0.5 * (
-      log(2 * pi * variance) + residual^2 / variance
-    )
-  }
-
-  if (length(dependent) > 0L) {
-    for (blocks in .known_v_plan_block_groups(block_data, dependent)) {
-      plan_data <- .known_v_plan_block_data(block_data, blocks)
-      idx       <- plan_data[["global_indices"]]
-      states    <- rep(list(plan_data[["factor_states"]]), S)
-      log_lik[, idx] <- tryCatch(
-        .marglik_covariance_plan_conditional_loglik_batch(
-          cache                    = NULL,
-          y                        = as.double(yi[idx]),
-          means                    = mu_samples[, idx, drop = FALSE],
-          sampling_covariance      = plan_data[["covariance"]],
-          random_covariance_plans  = plan_data[["factor_plans"]],
-          random_covariance_states = states,
-          block_indices            = plan_data[["block_indices"]],
-          extra_variances          = extra_variance[, idx, drop = FALSE]
-        ),
-        error = function(error) {
-          .known_v_rethrow_conditional_error(
-            error           = error,
-            block_data      = block_data,
-            selected_blocks = blocks,
-            extra_variance  = extra_variance
-          )
-        }
-      )
-    }
+  log_lik <- .marglik_covariance_plan_conditional_loglik_batch(
+    cache                    = NULL,
+    y                        = plan[["y"]],
+    means                    = plan[["means"]],
+    sampling_covariance      = plan[["sampling_covariance"]],
+    random_covariance_plans  = plan[["random_covariance_plans"]],
+    random_covariance_states = plan[["random_covariance_states"]],
+    block_indices            = plan[["block_indices"]],
+    extra_variances          = plan[["extra_variances"]]
+  )
+  if (isTRUE(add_dependency_metadata)) {
+    attr(log_lik, "RoBMA_dependency_blocks") <- plan[["block_indices"]]
   }
 
   return(log_lik)
@@ -449,15 +482,16 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .cdf_known_v_estimate_target_from_setup
+# .cdf_normal_covariance_estimate_target_from_setup
 # ---------------------------------------------------------------------------- #
 #
-# CDF values matching `.log_lik_known_v_estimate_target_from_setup()`.
+# CDF values matching
+# `.log_lik_normal_covariance_estimate_target_from_setup()`.
 #
 # ---------------------------------------------------------------------------- #
-.cdf_known_v_estimate_target_from_setup <- function(setup) {
+.cdf_normal_covariance_estimate_target_from_setup <- function(setup) {
 
-  summary <- .known_v_estimate_target_summary_from_setup(
+  summary <- .normal_covariance_estimate_target_summary_from_setup(
     setup      = setup,
     components = "cdf"
   )
@@ -467,14 +501,14 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .known_v_estimate_target_summary_from_setup
+# .normal_covariance_estimate_target_summary_from_setup
 # ---------------------------------------------------------------------------- #
 #
-# Normal CDF and first two moments for each known-V estimate target. Correlated
-# dependency blocks use Schur-complement conditionals.
+# Normal CDF and first two moments for each covariance estimate target.
+# Dependency blocks use Schur-complement conditionals.
 #
 # ---------------------------------------------------------------------------- #
-.known_v_estimate_target_summary_from_setup <- function(
+.normal_covariance_estimate_target_summary_from_setup <- function(
     setup,
     components = c("cdf", "log_lower", "log_upper", "mean", "variance")) {
 
@@ -486,123 +520,43 @@
 
   if (!identical(setup[["outcome_type"]], "norm")) {
     stop(
-      "Known-V estimate-unit CDF target is only available for normal ",
+      "Gaussian covariance estimate target is only available for normal ",
       "outcome models.",
       call. = FALSE
     )
   }
   if (isTRUE(setup[["is_weightfunction"]])) {
     stop(
-      "Known-V estimate-unit CDF target is not available for selection ",
+      "Gaussian covariance estimate target is not available for selection ",
       "models.",
       call. = FALSE
     )
   }
   if (!is.null(setup[["weights"]])) {
     stop(
-      "Known-V estimate-unit CDF target is not available for weighted ",
+      "Gaussian covariance estimate target is not available for weighted ",
       "likelihoods.",
       call. = FALSE
     )
   }
 
-  data       <- setup[["data"]]
-  known_V    <- .data_known_v_data(data)
-  K          <- setup[["K"]]
+  plan <- .estimate_normal_covariance_target_plan_from_setup(setup)
+  conditional <- .marglik_covariance_plan_conditional_summary_batch(
+    cache                    = NULL,
+    y                        = plan[["y"]],
+    means                    = plan[["means"]],
+    sampling_covariance      = plan[["sampling_covariance"]],
+    random_covariance_plans  = plan[["random_covariance_plans"]],
+    random_covariance_states = plan[["random_covariance_states"]],
+    block_indices            = plan[["block_indices"]],
+    extra_variances          = plan[["extra_variances"]]
+  )
+  residual   <- conditional[["residual"]]
+  variance   <- conditional[["variance"]]
+  lower_tail <- plan[["lower_tail"]]
+  yi         <- plan[["y"]]
   S          <- setup[["S"]]
-  yi         <- setup[["yi"]]
-  mu_samples <- setup[["mu"]]
-  lower_tail <- TRUE
-
-  if (identical(setup[["effect_direction"]], "negative")) {
-    yi         <- -yi
-    mu_samples <- -mu_samples
-    lower_tail <- FALSE
-  }
-
-  if (.known_v_nrow(known_V) != K) {
-    stop("Known-V covariance metadata is inconsistent with the outcome data.",
-         call. = FALSE)
-  }
-
-  block_data     <- .known_v_dependency_block_data(data, K)
-  block_sizes    <- lengths(lapply(block_data, `[[`, "index"))
-  singleton      <- which(block_sizes == 1L)
-  dependent      <- which(block_sizes > 1L)
-  extra_variance <- .known_v_extra_variance_from_setup(setup)
-  residual       <- matrix(NA_real_, nrow = S, ncol = K)
-  variance       <- matrix(NA_real_, nrow = S, ncol = K)
-
-  if (length(singleton) > 0L) {
-    singleton_indices <- vapply(
-      singleton,
-      function(block) block_data[[block]][["index"]][[1L]],
-      integer(1L)
-    )
-    sampling_variance <- vapply(
-      singleton,
-      function(block) block_data[[block]][["covariance"]][1L, 1L],
-      numeric(1L)
-    )
-    residual[, singleton_indices] <- -sweep(
-      mu_samples[, singleton_indices, drop = FALSE],
-      MARGIN = 2L,
-      STATS  = yi[singleton_indices],
-      FUN    = "-"
-    )
-    singleton_variance <- sweep(
-      extra_variance[, singleton_indices, drop = FALSE],
-      MARGIN = 2L,
-      STATS  = sampling_variance,
-      FUN    = "+"
-    )
-    if (any(!is.finite(singleton_variance)) ||
-        any(singleton_variance <= 0)) {
-      invalid <- which(
-        !is.finite(singleton_variance) | singleton_variance <= 0,
-        arr.ind = TRUE
-      )[1L, ]
-      .known_v_chol_covariance(
-        covariance = matrix(
-          singleton_variance[invalid[[1L]], invalid[[2L]]],
-          1L,
-          1L
-        ),
-        context    = "conditional"
-      )
-    }
-    variance[, singleton_indices] <- singleton_variance
-  }
-
-  if (length(dependent) > 0L) {
-    for (blocks in .known_v_plan_block_groups(block_data, dependent)) {
-      plan_data   <- .known_v_plan_block_data(block_data, blocks)
-      idx         <- plan_data[["global_indices"]]
-      states      <- rep(list(plan_data[["factor_states"]]), S)
-      conditional <- tryCatch(
-        .marglik_covariance_plan_conditional_summary_batch(
-          cache                    = NULL,
-          y                        = as.double(yi[idx]),
-          means                    = mu_samples[, idx, drop = FALSE],
-          sampling_covariance      = plan_data[["covariance"]],
-          random_covariance_plans  = plan_data[["factor_plans"]],
-          random_covariance_states = states,
-          block_indices            = plan_data[["block_indices"]],
-          extra_variances          = extra_variance[, idx, drop = FALSE]
-        ),
-        error = function(error) {
-          .known_v_rethrow_conditional_error(
-            error           = error,
-            block_data      = block_data,
-            selected_blocks = blocks,
-            extra_variance  = extra_variance
-          )
-        }
-      )
-      residual[, idx] <- conditional[["residual"]]
-      variance[, idx] <- conditional[["variance"]]
-    }
-  }
+  K          <- setup[["K"]]
 
   sd  <- sqrt(variance)
   out <- list()
@@ -649,9 +603,8 @@
 # .known_v_extra_variance_from_setup
 # ---------------------------------------------------------------------------- #
 #
-# Diagonal variance beyond supplied V. For random-formula known-V models, sampled
-# random effects are conditioned in the mean and only marginalized estimate-level
-# random effects contribute here.
+# Diagonal variance beyond supplied V. The covariance factor plan integrates
+# sampled random-effect blocks; already-marginalized row effects contribute here.
 #
 # ---------------------------------------------------------------------------- #
 .known_v_extra_variance_from_setup <- function(setup) {

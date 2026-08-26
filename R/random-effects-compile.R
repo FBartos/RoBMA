@@ -447,25 +447,6 @@
 }
 
 
-.data_has_sampled_estimate_level_random_effects <- function(data) {
-
-  terms <- .data_effective_sampled_random_effect_terms(data)
-  if (length(terms) == 0L) {
-    return(FALSE)
-  }
-
-  k <- nrow(data[["outcome"]])
-  any(vapply(
-    terms,
-    function(term) {
-      identical(.random_effect_term_compile_mode(term), "sampled") &&
-        .is_estimate_level_random_intercept(term, k = k)
-    },
-    logical(1)
-  ))
-}
-
-
 .data_effective_sampled_random_effect_terms <- function(data) {
 
   terms <- .data_random_effect_terms(data)

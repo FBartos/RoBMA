@@ -702,7 +702,13 @@ rstudent.brma <- function(model, unit = "estimate",
     caller             = "rstudent()"
   )
 
-  setup <- .estimate_likelihood_setup.brma(model)
+  setup <- .estimate_likelihood_setup.brma(
+    object                  = model,
+    condition_local_effects = !.estimate_normal_target_uses_covariance_backend(
+      model[["data"]],
+      model[["priors"]]
+    )
+  )
   .check_residual_type_availability(
     type              = "rstudent",
     outcome_type      = setup[["outcome_type"]],
@@ -735,8 +741,9 @@ rstudent.brma <- function(model, unit = "estimate",
   }
 
   predictive_summary <- NULL
-  if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
-    predictive_summary <- .known_v_estimate_target_summary_from_setup(
+  if (.estimate_normal_target_uses_covariance_backend(
+      setup[["data"]], setup[["priors"]])) {
+    predictive_summary <- .normal_covariance_estimate_target_summary_from_setup(
       setup      = setup,
       components = c("log_lower", "log_upper", "mean", "variance")
     )
@@ -846,9 +853,10 @@ rstudent.brma <- function(model, unit = "estimate",
     )
   }
 
-  if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
+  if (.estimate_normal_target_uses_covariance_backend(
+      setup[["data"]], setup[["priors"]])) {
     if (is.null(predictive_summary)) {
-      predictive_summary <- .known_v_estimate_target_summary_from_setup(
+      predictive_summary <- .normal_covariance_estimate_target_summary_from_setup(
         setup      = setup,
         components = c("mean", "variance")
       )
@@ -987,7 +995,13 @@ rstudent.brma <- function(model, unit = "estimate",
   }
 
   if (is.null(setup)) {
-    setup <- .estimate_likelihood_setup.brma(object)
+    setup <- .estimate_likelihood_setup.brma(
+      object                  = object,
+      condition_local_effects = !.estimate_normal_target_uses_covariance_backend(
+        object[["data"]],
+        object[["priors"]]
+      )
+    )
   }
   if (setup[["outcome_type"]] == "norm" && setup[["is_weightfunction"]]) {
     summary <- .loo_predictive_selnorm_summary_estimate(
@@ -1022,9 +1036,10 @@ rstudent.brma <- function(model, unit = "estimate",
     )
   }
 
-  if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
+  if (.estimate_normal_target_uses_covariance_backend(
+      setup[["data"]], setup[["priors"]])) {
     if (is.null(predictive_summary)) {
-      predictive_summary <- .known_v_estimate_target_summary_from_setup(
+      predictive_summary <- .normal_covariance_estimate_target_summary_from_setup(
         setup      = setup,
         components = c("log_lower", "log_upper")
       )
