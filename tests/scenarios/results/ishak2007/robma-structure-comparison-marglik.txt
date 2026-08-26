@@ -1,0 +1,2 @@
+ fit_brma_ar fit_brma_har 
+       0.967        0.033 

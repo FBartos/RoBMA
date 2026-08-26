@@ -22,6 +22,20 @@ source(testthat::test_path("helper-profile-cases.R"))
 }
 
 
+test_that("fit-cache source catalog references the current source tree", {
+
+  package_root <- normalizePath(
+    testthat::test_path("..", ".."),
+    winslash = "/",
+    mustWork = TRUE
+  )
+  source_files <- .fit_cache_required_source_files()
+  missing <- source_files[!file.exists(file.path(package_root, source_files))]
+
+  expect_identical(missing, character())
+})
+
+
 test_that("quiet LLM reporter counts skips without printing each reason", {
 
   output_path <- tempfile("robma-quiet-reporter-", fileext = ".txt")

@@ -1,0 +1,6 @@
+
+Heterogeneity Estimates (study):
+      Mean Median  0.025  0.975
+sd   4.940  4.865  3.710  6.614
+var 24.955 23.672 13.764 43.747
+

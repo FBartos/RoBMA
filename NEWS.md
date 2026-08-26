@@ -468,7 +468,10 @@
 ### Fixes
 - unregisters the JAGS module before destroying module-owned native objects at
   process shutdown, preventing intermittent Windows access violations in
-  isolated test workers
+  isolated test workers, and requires the BayesTools release carrying the same
+  native lifecycle fix
+- removes a superseded native source from the cached-fit fingerprint catalog so
+  source-checkout preflight cannot fall back to an older installed RoBMA version
 - makes completed test profiles return a failing status after collecting any
   assertion failures, errors, or warnings, and updates multivariate
   certification to validate maintained component metadata and compare nested

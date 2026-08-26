@@ -1,118 +1,126 @@
-type	name	elapsed	r_version	platform
-fit	fit_brma	6.010000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv	19.750000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv_diag	14.610000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv_diag_fixed	4.660000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv_diag_no_effect	9.230000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv_diag_no_study	8.540000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv_diag_reg	16.640000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv_fixed	7.220000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv_no_effect	11.810000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv_no_study	10.810000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma.mv_reg	20.830000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_cluster	8.630000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_cluster_reg	10.320000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_fixed	3.980000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma	2.780000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv	10.390000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv_diag	7.360000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv_diag_fixed	1.560000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv_diag_no_effect	3.500000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv_diag_no_study	3.400000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv_diag_reg	7.890000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv_fixed	1.780000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv_no_effect	5.690000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv_no_study	3.030000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma.mv_reg	12.020000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma_cluster	4.070000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma_cluster_reg	4.630000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma_fixed	1.610000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma	1.170000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv	2.220000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv_diag	1.670000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv_diag_fixed	1.350000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv_diag_no_effect	1.450000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv_diag_no_study	1.010000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv_diag_reg	1.520000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv_fixed	1.130000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv_no_effect	1.890000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv_no_study	1.440000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma.mv_reg	1.610000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma_cluster	1.420000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma_cluster_reg	1.470000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma_fixed	1.050000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma	2.060000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv	7.140000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv_diag	5.580000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv_diag_fixed	1.750000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv_diag_no_effect	4.280000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv_diag_no_study	4.130000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv_diag_reg	7.230000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv_fixed	4.310000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv_no_effect	4.230000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv_no_study	6.340000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma.mv_reg	7.200000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_cluster	3.140000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_cluster_reg	4.220000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_fixed	1.320000000	4.6.0	Windows/x86_64-w64-mingw32
-time	BF_brma_rho	3.510000000	4.6.0	Windows/x86_64-w64-mingw32
-time	BF_mods	2.860000000	4.6.0	Windows/x86_64-w64-mingw32
-time	BF_mv_diag_rho	3.690000000	4.6.0	Windows/x86_64-w64-mingw32
-time	BF_random	7.080000000	4.6.0	Windows/x86_64-w64-mingw32
-time	ranef_brma	3.450000000	4.6.0	Windows/x86_64-w64-mingw32
-time	ranef_brma.mv	2.050000000	4.6.0	Windows/x86_64-w64-mingw32
-time	ranef_brma.mv_diag	2.120000000	4.6.0	Windows/x86_64-w64-mingw32
-text	comapre-diag-logml	0.030000000	4.6.0	Windows/x86_64-w64-mingw32
-text	comapre-diag-loo	0.060000000	4.6.0	Windows/x86_64-w64-mingw32
-text	comapre-logml	0.060000000	4.6.0	Windows/x86_64-w64-mingw32
-text	comapre-loo	0.050000000	4.6.0	Windows/x86_64-w64-mingw32
-text	comapre-uni-logml	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
-text	comapre-uni-loo	0.010000000	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_mods	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_random_bayes_factor_comparison	0.060000000	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_rho_bayes_factor_comparison	0.010000000	4.6.0	Windows/x86_64-w64-mingw32
-text	marginal_means	0.790000000	4.6.0	Windows/x86_64-w64-mingw32
-text	metafor-comparison	1.410000000	4.6.0	Windows/x86_64-w64-mingw32
-text	model-fit-equivalent	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
-text	model-fit-loo	0.080000000	4.6.0	Windows/x86_64-w64-mingw32
-text	model-fit-reg-equivalent	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-1	0.660000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-1-diag	0.700000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-2	0.500000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-2-diag	0.390000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-3	0.380000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-3-diag	0.580000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-4	0.070000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-4-diag	0.110000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-diag-reg	0.470000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-diag-reg_pi	1.780000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-reg	0.210000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled-effect-reg_pi	1.180000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma	0.140000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv	0.420000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv_diag	0.530000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv_diag_fixed	0.130000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv_diag_no_effect	0.290000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv_diag_no_study	0.290000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv_diag_reg	0.620000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv_fixed	0.140000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv_no_effect	0.240000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv_no_study	0.330000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv_reg	0.580000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma_cluster	0.170000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma_cluster_reg	0.320000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma_fixed	0.130000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary_heterogeneity-1a	0.110000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary_heterogeneity-1b	0.110000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary_heterogeneity-2	0.120000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary_heterogeneity-3	0.060000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary_heterogeneity-4	0.030000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit.mv_diag_posterior_random	10.110000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit.mv_posterior_mod	5.360000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit.mv_posterior_mu	3.020000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit.mv_posterior_random	10.500000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit.uni_posterior_rho	5.860000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit_mv_marginal_diagnostics	22.440000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	marginal_means_plot	1.440000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	ranef_mv	0.140000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	ranef_mv_diag	0.300000000	4.6.0	Windows/x86_64-w64-mingw32
+type	name	elapsed	memory_gb	r_version	platform
+fit	fit_brma	6.010000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv	19.750000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv_diag	14.610000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv_diag_fixed	4.660000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv_diag_no_effect	9.230000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv_diag_no_study	8.540000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv_diag_reg	16.640000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv_fixed	7.220000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv_no_effect	11.810000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv_no_study	10.810000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma.mv_reg	20.830000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_cluster	8.630000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_cluster_reg	10.320000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_fixed	3.980000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma	2.780000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv	10.390000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv_diag	7.360000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv_diag_fixed	1.560000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv_diag_no_effect	3.500000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv_diag_no_study	3.400000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv_diag_reg	7.890000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv_fixed	1.780000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv_no_effect	5.690000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv_no_study	3.030000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma.mv_reg	12.020000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_cluster	4.070000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_cluster_reg	4.630000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_fixed	1.610000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma	1.170000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv	2.220000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv_diag	1.670000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv_diag_fixed	1.350000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv_diag_no_effect	1.450000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv_diag_no_study	1.010000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv_diag_reg	1.520000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv_fixed	1.130000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv_no_effect	1.890000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv_no_study	1.440000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma.mv_reg	1.610000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_cluster	1.420000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_cluster_reg	1.470000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_fixed	1.050000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma	2.060000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv	7.140000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv_diag	5.580000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv_diag_fixed	1.750000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv_diag_no_effect	4.280000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv_diag_no_study	4.130000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv_diag_reg	7.230000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv_fixed	4.310000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv_no_effect	4.230000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv_no_study	6.340000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma.mv_reg	7.200000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_cluster	3.140000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_cluster_reg	4.220000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_fixed	1.320000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+time	BF_brma_rho	2.720000000	0.895410	4.6.0	Windows/x86_64-w64-mingw32
+time	BF_mods	2.040000000	0.988477	4.6.0	Windows/x86_64-w64-mingw32
+time	BF_mv_diag_rho	2.710000000	0.972461	4.6.0	Windows/x86_64-w64-mingw32
+time	BF_random	5.630000000	0.988477	4.6.0	Windows/x86_64-w64-mingw32
+time	ranef_brma	2.290000000	0.918750	4.6.0	Windows/x86_64-w64-mingw32
+time	ranef_brma.mv	1.300000000	0.978125	4.6.0	Windows/x86_64-w64-mingw32
+time	ranef_brma.mv_diag	1.390000000	0.973633	4.6.0	Windows/x86_64-w64-mingw32
+text	comapre-diag-logml	0.010000000	0.560449	4.6.0	Windows/x86_64-w64-mingw32
+text	comapre-diag-loo	0.030000000	0.581738	4.6.0	Windows/x86_64-w64-mingw32
+text	comapre-logml	0.010000000	0.565430	4.6.0	Windows/x86_64-w64-mingw32
+text	comapre-loo	0.030000000	0.568457	4.6.0	Windows/x86_64-w64-mingw32
+text	comapre-uni-logml	0.000000000	0.544629	4.6.0	Windows/x86_64-w64-mingw32
+text	comapre-uni-loo	0.010000000	0.549609	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_mods	0.000000000	0.578223	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_random_bayes_factor_comparison	0.030000000	0.611816	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_rho_bayes_factor_comparison	0.000000000	0.584473	4.6.0	Windows/x86_64-w64-mingw32
+text	marginal_means	0.590000000	0.871973	4.6.0	Windows/x86_64-w64-mingw32
+text	metafor-comparison	0.670000000	0.780371	4.6.0	Windows/x86_64-w64-mingw32
+text	model-fit-equivalent	0.000000000	0.541211	4.6.0	Windows/x86_64-w64-mingw32
+text	model-fit-loo	0.080000000	0.609473	4.6.0	Windows/x86_64-w64-mingw32
+text	model-fit-reg-equivalent	0.000000000	0.541699	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-1	0.440000000	0.802051	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-1-diag	0.460000000	0.809863	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-2	0.340000000	0.792188	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-2-diag	0.250000000	0.791309	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-3	0.260000000	0.773340	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-3-diag	0.280000000	0.789844	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-4	0.030000000	0.603418	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-4-diag	0.060000000	0.625879	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-diag-reg	0.240000000	0.883887	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-diag-reg_pi	0.920000000	0.988574	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-reg	0.120000000	0.776465	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled-effect-reg_pi	0.680000000	0.988574	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma	0.090000000	0.594336	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv	0.330000000	0.651953	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv_diag	0.340000000	0.717383	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv_diag_fixed	0.080000000	0.587207	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv_diag_no_effect	0.170000000	0.643848	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv_diag_no_study	0.180000000	0.613086	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv_diag_reg	0.390000000	0.730762	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv_fixed	0.080000000	0.587012	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv_no_effect	0.180000000	0.644336	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv_no_study	0.270000000	0.697559	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv_reg	0.390000000	0.730957	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma_cluster	0.130000000	0.638672	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma_cluster_reg	0.230000000	0.723437	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma_fixed	0.070000000	0.587207	4.6.0	Windows/x86_64-w64-mingw32
+text	summary_heterogeneity-1a	0.080000000	0.707129	4.6.0	Windows/x86_64-w64-mingw32
+text	summary_heterogeneity-1b	0.070000000	0.793848	4.6.0	Windows/x86_64-w64-mingw32
+text	summary_heterogeneity-2	0.090000000	0.708594	4.6.0	Windows/x86_64-w64-mingw32
+text	summary_heterogeneity-3	0.030000000	0.641699	4.6.0	Windows/x86_64-w64-mingw32
+text	summary_heterogeneity-4	0.020000000	0.641602	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit.mv_diag_posterior_random	7.670000000	0.972559	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit.mv_posterior_mod	4.000000000	0.972559	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit.mv_posterior_mu	1.860000000	0.899121	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit.mv_posterior_random	7.940000000	0.972559	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit.uni_posterior_rho	3.340000000	0.899121	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_mv_diag_marginal_diagnostics	13.960000000	1.095898	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_mv_marginal_diagnostics	14.660000000	1.095898	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_mv_reg_marginal_diagnostics	15.650000000	1.095898	4.6.0	Windows/x86_64-w64-mingw32
+plot	funnel_brma_mv	1.640000000	0.990430	4.6.0	Windows/x86_64-w64-mingw32
+plot	funnel_brma_mv_reg	0.780000000	0.982324	4.6.0	Windows/x86_64-w64-mingw32
+plot	marginal_means_plot	0.750000000	0.876074	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm_brma_mv	0.670000000	0.954004	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm_brma_mv_reg	0.710000000	0.966602	4.6.0	Windows/x86_64-w64-mingw32
+plot	ranef_mv	0.090000000	0.756348	4.6.0	Windows/x86_64-w64-mingw32
+plot	ranef_mv_diag	0.190000000	0.854199	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot_brma_mv	23.930000000	0.978711	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot_brma_mv_reg	24.060000000	0.971094	4.6.0	Windows/x86_64-w64-mingw32

@@ -1,44 +1,46 @@
-type	name	elapsed	r_version	platform
-fit	fit_brma_diag	11.140000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_hcs	11.180000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_hcs0	10.440000000	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_us	11.390000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma_diag	5.260000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma_hcs	3.760000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma_hcs0	3.520000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma_us	4.790000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma_diag	0.420000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma_hcs	0.460000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma_hcs0	0.430000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma_us	0.390000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_diag	5.460000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_hcs	6.960000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_hcs0	6.490000000	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_us	6.210000000	4.6.0	Windows/x86_64-w64-mingw32
-text	bf_eq_0	0.010000000	4.6.0	Windows/x86_64-w64-mingw32
-text	bf_eq_1	0.000000000	4.6.0	Windows/x86_64-w64-mingw32
-text	bridge_density_eq	6.250000000	4.6.0	Windows/x86_64-w64-mingw32
-text	marginal-means-diag	0.330000000	4.6.0	Windows/x86_64-w64-mingw32
-text	marginal-means-hcs	0.340000000	4.6.0	Windows/x86_64-w64-mingw32
-text	marginal-means-hcs0	0.360000000	4.6.0	Windows/x86_64-w64-mingw32
-text	marginal-means-us	0.340000000	4.6.0	Windows/x86_64-w64-mingw32
-text	metafor-comparison	1.910000000	4.6.0	Windows/x86_64-w64-mingw32
-text	pooled_het	0.040000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma_diag	0.530000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma_hcs	0.730000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma_hcs0	0.770000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma_us	0.670000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-het-hcs	0.470000000	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-het-us	0.470000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	cor	3.930000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	funnel	1.250000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	marginal_diagnostics_diag	5.690000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	marginal_diagnostics_us	6.430000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	mu	3.410000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	qqnorm	1.300000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	random_us	2.740000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	ranef-structure-comparison	3.220000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	robma_diagnostics_1	8.440000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	robma_diagnostics_2	8.610000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	sd_common	4.400000000	4.6.0	Windows/x86_64-w64-mingw32
-plot	zplot	9.450000000	4.6.0	Windows/x86_64-w64-mingw32
+type	name	elapsed	memory_gb	r_version	platform
+fit	fit_brma_diag	11.140000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_hcs	11.180000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_hcs0	10.440000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_us	11.390000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_diag	5.260000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_hcs	3.760000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_hcs0	3.520000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_us	4.790000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_diag	0.420000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_hcs	0.460000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_hcs0	0.430000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_us	0.390000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_diag	5.460000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_hcs	6.960000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_hcs0	6.490000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_us	6.210000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+text	bf_eq_0	0.000000000	0.490820	4.6.0	Windows/x86_64-w64-mingw32
+text	bf_eq_1	0.000000000	0.490820	4.6.0	Windows/x86_64-w64-mingw32
+text	bridge_density_eq	4.170000000	1.082910	4.6.0	Windows/x86_64-w64-mingw32
+text	marginal-means-diag	0.200000000	0.738574	4.6.0	Windows/x86_64-w64-mingw32
+text	marginal-means-hcs	0.200000000	0.740820	4.6.0	Windows/x86_64-w64-mingw32
+text	marginal-means-hcs0	0.200000000	0.742773	4.6.0	Windows/x86_64-w64-mingw32
+text	marginal-means-us	0.200000000	0.755762	4.6.0	Windows/x86_64-w64-mingw32
+text	metafor-comparison	1.170000000	1.035352	4.6.0	Windows/x86_64-w64-mingw32
+text	pooled_het	0.010000000	0.543359	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma_diag	0.340000000	0.715039	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma_hcs	0.400000000	0.748340	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma_hcs0	0.390000000	0.739648	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma_us	0.420000000	0.766504	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-het-hcs	0.340000000	0.840820	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-het-us	0.340000000	0.849219	4.6.0	Windows/x86_64-w64-mingw32
+plot	cor	2.750000000	1.021191	4.6.0	Windows/x86_64-w64-mingw32
+plot	funnel	0.520000000	0.856738	4.6.0	Windows/x86_64-w64-mingw32
+plot	marginal_diagnostics_diag	3.270000000	1.055859	4.6.0	Windows/x86_64-w64-mingw32
+plot	marginal_diagnostics_us	4.190000000	1.105176	4.6.0	Windows/x86_64-w64-mingw32
+plot	mu	2.460000000	1.052832	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm	0.970000000	0.864062	4.6.0	Windows/x86_64-w64-mingw32
+plot	random_hcs	1.730000000	1.073340	4.6.0	Windows/x86_64-w64-mingw32
+plot	random_us	1.940000000	1.093066	4.6.0	Windows/x86_64-w64-mingw32
+plot	random_us2	1.860000000	0.898633	4.6.0	Windows/x86_64-w64-mingw32
+plot	ranef-structure-comparison	2.470000000	1.015234	4.6.0	Windows/x86_64-w64-mingw32
+plot	robma_diagnostics_1	4.720000000	1.105078	4.6.0	Windows/x86_64-w64-mingw32
+plot	robma_diagnostics_2	4.500000000	1.105176	4.6.0	Windows/x86_64-w64-mingw32
+plot	sd_common	3.220000000	1.032520	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot	7.330000000	1.103613	4.6.0	Windows/x86_64-w64-mingw32

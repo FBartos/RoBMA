@@ -141,7 +141,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
 
   # other random parameters
   scenario_plot("random_us", {
-    par(mfrow = c(3, 2)) #
+    par(mfrow = c(3, 2))
 
     plot(fit_brma_us, "sd_common", prior = TRUE)
     plot(fit_brma_us, "var_common", prior = TRUE, xlim = c(0, 2))
@@ -153,9 +153,6 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     plot(fit_brma_us, "var(group[specificity])", xlim = c(0, 2), prior = TRUE)
   })
 
-  # TODO: return here once done with ratio/mult renaming
-  # FIXED: the public quantities are now `var_mult(...)` and `sd_mult(...)`;
-  # the former `*_ratio` names are not retained as aliases.
   scenario_plot("random_us2", {
     par(mfrow = c(3, 2))
 

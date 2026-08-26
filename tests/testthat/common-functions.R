@@ -860,7 +860,6 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/glmm-aghq.cc",
     "src/glmm-aghq.h",
     "src/r-glmm.cc",
-    "src/r-glmm-cluster.cc.inc",
     "src/r-glmm-common.cc.inc",
     "src/r-glmm-marginal.cc.inc",
     "src/r-known-v.cc",
