@@ -252,6 +252,18 @@ certification_cases <- function() {
         "brma.mv known-V fits expose conditional estimate-unit LOO and WAIC"
       )
     ),
+    "loo-exact-refits" = list(
+      description = paste(
+        "PSIS estimate-unit LOO compared with exact observation-deletion",
+        "refits of Kearon US/HCS and Ishak HAR scenario models."
+      ),
+      fit_sources = character(),
+      test_filter = "03-loo-exact-refits",
+      required_tests = .required_tests(
+        "test-03-loo-exact-refits.R",
+        "scenario-model PSIS LOO agrees with five exact deletion refits"
+      )
+    ),
     "multivariate-extended" = list(
       description = paste(
         "Extended known-R, scale, allocation, and moderator multivariate",

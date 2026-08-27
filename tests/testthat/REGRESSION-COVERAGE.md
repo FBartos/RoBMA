@@ -13,6 +13,7 @@ an object or rendering without error is not sufficient representative evidence.
 | Funnel, Q-Q, radial, regression, forest, and z plots | Analytic funnel PIT-projection, CDF-mixture, and posterior-integration identities plus human-reviewed vdiffr snapshots, including side-by-side metafor views where displays share an estimand | Secondary model families and customization galleries |
 | Prior plots | Base and ggplot snapshots for outcome, moderator, and publication-bias priors | Structural component-selection tests cover additional prior families |
 | Multivariate diagnostics | Analytic known-V/known-R data checks and representative forest coverage | Human-reviewed funnel, Q-Q, forest, and regression snapshots from high-draw metafor fixtures |
+| Estimate-unit LOO | Analytic Gaussian conditional-density identities and cached-fit target contracts | Five exact observation-deletion refits of Kearon US/HCS and Ishak HAR models in the `loo-exact-refits` case |
 | GLMM quadrature and likelihoods | Independent R integrations for representative binomial and Poisson cases | The `numerical-kernels` and `glmm-models` certification cases |
 | qCMDE/IWMDE | Analytic identities, scalar/batch parity, provenance, and failure-contract tests | Fitted bridge/ordinate evidence in the `iwmde-qcmde` case |
 

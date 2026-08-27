@@ -1,5 +1,10 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- adds a dedicated `loo-exact-refits` certification case that compares
+  estimate-unit PSIS-LOO against five genuine one-observation-deleted refits
+  of the Kearon US/HCS and Ishak HAR scenario models. The oracle averages each
+  held-out conditional density over the deletion-fit posterior and evaluates
+  agreement using the combined PSIS and batch-means Monte Carlo uncertainty.
 - isolates certification cache preparation from post-fit verification in
   separate R processes. Clean interactive runs through
   `test_tests(refit = TRUE)` retain a single combined one-hour limit per case

@@ -195,6 +195,7 @@ test_that("certification cases partition expensive evidence", {
     "normal-models",
     "glmm-models",
     "multivariate-core",
+    "loo-exact-refits",
     "multivariate-extended",
     "multivariate-singular",
     "multivariate-parity-cs",
