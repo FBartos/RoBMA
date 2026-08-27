@@ -158,6 +158,21 @@ test_that("interactive test runner dispatches filtered and comprehensive profile
     c("refresh-standard", "standard", "certification")
   )
   expect_false(any(vapply(calls, `[[`, logical(1), "clean")))
+
+  calls <- list()
+  runner_env$test_tests(
+    refit        = TRUE,
+    load_package = FALSE,
+    root         = testthat::test_path()
+  )
+  expect_identical(
+    vapply(calls, `[[`, character(1), "profile"),
+    c("refresh-standard", "standard", "certification")
+  )
+  expect_identical(
+    vapply(calls, `[[`, logical(1), "clean"),
+    c(TRUE, FALSE, TRUE)
+  )
   expect_error(
     runner_env$test_tests(
       update_timings = TRUE,
@@ -371,9 +386,15 @@ test_that("certification case fit filters select their source files", {
     fit_filter <- certification_case_fit_filter(name)
     if (length(case[["fit_sources"]]) == 0L) {
       expect_null(fit_filter, info = name)
+      expect_identical(certification_case_phases(name), "verify", info = name)
     } else {
       stems <- sub("^test-", "", sub("\\.[Rr]$", "", case[["fit_sources"]]))
       expect_true(all(grepl(fit_filter, stems)), info = name)
+      expect_identical(
+        certification_case_phases(name),
+        c("prepare", "verify"),
+        info = name
+      )
     }
   }
 })

@@ -1,5 +1,10 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- isolates certification cache preparation from post-fit verification in
+  separate R processes. Clean interactive runs through
+  `test_tests(refit = TRUE)` retain a single combined one-hour limit per case
+  while ensuring native fitting state is torn down before later tests;
+  failures identify the preparation or verification phase.
 - defines Gaussian estimate-unit LOO and WAIC as deletion-conditioned scores
   with all local Gaussian random effects integrated through BayesTools'
   metadata-compiled covariance factors. Sampled, marginalized, and mixed

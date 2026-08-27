@@ -448,3 +448,14 @@ certification_case_fit_filter <- function(name) {
   stems <- sub("\\.[Rr]$", "", stems)
   paste(stems, collapse = "|")
 }
+
+
+certification_case_phases <- function(name) {
+
+  case <- certification_case(name)
+  if (length(case[["fit_sources"]]) == 0L) {
+    return("verify")
+  }
+
+  return(c("prepare", "verify"))
+}

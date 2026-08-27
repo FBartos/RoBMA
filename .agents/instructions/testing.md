@@ -54,9 +54,10 @@ much slower than the ordinary standard profile and does not run
 - `Rscript tools/test-profile.R release`: refresh standard fits, run the
   standard suite, run all certification cases, then call `devtools::check()`.
 
-Every certification case has a hard one-hour limit. Certification has no total
-limit because cases execute in separate processes and can be selected or rerun
-independently.
+Every certification case has a hard one-hour limit shared by its cache
+preparation and verification phases. The phases execute in separate processes,
+so native fitting state cannot leak into post-fit verification. Certification
+has no total limit because cases can be selected or rerun independently.
 
 ## Test Organization
 

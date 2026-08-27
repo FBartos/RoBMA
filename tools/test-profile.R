@@ -4,7 +4,7 @@ args       <- commandArgs(trailingOnly = TRUE)
 profile    <- if (length(args) > 0L) args[[1L]] else "standard"
 clean      <- "--clean" %in% args
 list_only  <- "--list" %in% args
-worker_arg <- grep("^--case-worker=", args, value = TRUE)
+worker_arg <- grep("^--case-(prepare|verify)-worker=", args, value = TRUE)
 extra_args <- setdiff(args[-1L], c("--clean", "--list", worker_arg))
 
 cmd      <- commandArgs(trailingOnly = FALSE)
@@ -157,62 +157,85 @@ source_profile_helpers <- function(profile_name, active_fits = NULL) {
 }
 
 
-run_certification_worker <- function(name) {
+run_certification_worker <- function(name, phase) {
 
+  phase <- match.arg(phase, c("prepare", "verify"))
   source_profile_helpers("certification")
   fit_names <- certification_case_fit_names(name)
   set_active_fits(fit_names)
   case <- certification_case(name)
-
-  if (clean && length(fit_names) > 0L) {
-    clean_cached_fits(fit_names)
-  }
+  phase_label <- switch(
+    phase,
+    prepare = "cache preparation",
+    verify  = "verification"
+  )
+  cache_label <- switch(
+    phase,
+    prepare = "preparation",
+    verify  = "verification"
+  )
 
   started <- proc.time()[["elapsed"]]
-  source_filters <- sub(
-    "\\.[Rr]$", "",
-    sub("^test-", "", case[["fit_sources"]])
-  )
-  test_filters <- c(source_filters, case[["test_filter"]])
-  results <- run_tests(paste(test_filters, collapse = "|"))
-  validate_fit_cache(paste0("certification case '", name, "'"))
-  validate_certification_evidence(
-    results        = results,
-    required_tests = case[["required_tests"]],
-    case_name      = name
-  )
+  if (identical(phase, "prepare")) {
+    if (clean && length(fit_names) > 0L) {
+      clean_cached_fits(fit_names)
+    }
+    fit_filter <- certification_case_fit_filter(name)
+    if (!is.null(fit_filter)) {
+      run_tests(fit_filter)
+    }
+  }
+  validate_fit_cache(paste0(
+    "certification case '", name, "' ", cache_label
+  ))
+  if (identical(phase, "verify")) {
+    results <- run_tests(case[["test_filter"]])
+    validate_certification_evidence(
+      results        = results,
+      required_tests = case[["required_tests"]],
+      case_name      = name
+    )
+  }
 
   elapsed <- proc.time()[["elapsed"]] - started
   message(
-    "Certification case '", name, "' completed in ",
-    round(elapsed, 1), " seconds."
+    "Certification case '", name, "' ", phase_label,
+    " completed in ", round(elapsed, 1), " seconds."
   )
 
   return(invisible(TRUE))
 }
 
 
-run_certification_case <- function(name, clean = FALSE) {
+run_certification_phase <- function(name, phase, clean, timeout) {
 
   if (!requireNamespace("processx", quietly = TRUE)) {
     stop("Package 'processx' is required to enforce certification timeouts.",
          call. = FALSE)
   }
 
-  case_args <- c(
+  phase <- match.arg(phase, c("prepare", "verify"))
+  phase_label <- switch(
+    phase,
+    prepare = "cache preparation",
+    verify  = "verification"
+  )
+  phase_args <- c(
     script_path,
     "certification",
-    paste0("--case-worker=", name)
+    paste0("--case-", phase, "-worker=", name)
   )
-  if (clean) {
-    case_args <- c(case_args, "--clean")
+  if (clean && identical(phase, "prepare")) {
+    phase_args <- c(phase_args, "--clean")
   }
 
-  message("Starting certification case '", name, "' (one-hour limit).")
+  message(
+    "Starting certification case '", name, "' ", phase_label, "."
+  )
   result <- processx::run(
     command         = .rscript(),
-    args            = case_args,
-    timeout         = CERTIFICATION_CASE_TIMEOUT_SECONDS,
+    args            = phase_args,
+    timeout         = timeout,
     echo            = TRUE,
     echo_cmd        = TRUE,
     spinner         = FALSE,
@@ -220,17 +243,54 @@ run_certification_case <- function(name, clean = FALSE) {
   )
   if (isTRUE(result[["timeout"]])) {
     stop(
-      "Certification case '", name, "' exceeded its one-hour limit.",
+      "Certification case '", name,
+      "' exceeded its one-hour limit during ", phase_label, ".",
       call. = FALSE
     )
   }
   if (!identical(result[["status"]], 0L)) {
     stop(
-      "Certification case '", name, "' failed with status ",
-      result[["status"]], ".",
+      "Certification case '", name, "' ", phase_label,
+      " failed with status ", result[["status"]], ".",
       call. = FALSE
     )
   }
+
+  return(invisible(TRUE))
+}
+
+
+run_certification_case <- function(name, clean = FALSE) {
+
+  started <- proc.time()[["elapsed"]]
+  phases  <- certification_case_phases(name)
+  message(
+    "Starting certification case '", name,
+    "' (one-hour combined limit)."
+  )
+
+  for (phase in phases) {
+    elapsed   <- proc.time()[["elapsed"]] - started
+    remaining <- CERTIFICATION_CASE_TIMEOUT_SECONDS - elapsed
+    if (remaining <= 0) {
+      stop(
+        "Certification case '", name, "' exceeded its one-hour limit.",
+        call. = FALSE
+      )
+    }
+    run_certification_phase(
+      name    = name,
+      phase   = phase,
+      clean   = clean,
+      timeout = remaining
+    )
+  }
+
+  elapsed <- proc.time()[["elapsed"]] - started
+  message(
+    "Certification case '", name, "' completed in ",
+    round(elapsed, 1), " seconds."
+  )
 
   return(invisible(TRUE))
 }
@@ -267,8 +327,11 @@ if (identical(profile, "certification")) {
     stop("Only one certification worker may be requested.", call. = FALSE)
   }
   if (length(worker_arg) == 1L) {
-    name <- sub("^--case-worker=", "", worker_arg)
-    run_certification_worker(name)
+    phase <- sub(
+      "^--case-(prepare|verify)-worker=.*$", "\\1", worker_arg
+    )
+    name <- sub("^--case-(prepare|verify)-worker=", "", worker_arg)
+    run_certification_worker(name, phase)
     finish_profile()
   }
 
