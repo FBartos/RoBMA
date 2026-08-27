@@ -392,6 +392,9 @@
   runs default to testthat's progress reporter, while `reporter = "llm"`
   explicitly enables compact agent output. Profile subprocesses report their
   cache, filter, reporter, and elapsed time.
+- runs all files selected by interactive `test_scenarios()` under one testthat
+  reporter, producing one combined progress report and results block while
+  retaining per-scenario timing and orphan finalization.
 - removes unreachable and superseded post-fit helpers, consolidates shared JAGS
   argument and LOO-comparison routing, and replaces implementation-only unit
   checks with independent references to the current computation paths.

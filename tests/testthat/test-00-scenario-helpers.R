@@ -1747,8 +1747,8 @@ test_that("test_scenario filters scenario names and forwards run controls", {
   .scenario_write_lines("", file.path(scenario_root, "test-beta.R"))
 
   helper_env <- environment(test_scenario)
-  old_test_file <- get(
-    ".scenario_test_file",
+  old_test_files <- get(
+    ".scenario_test_files",
     envir    = helper_env,
     inherits = FALSE
   )
@@ -1757,36 +1757,27 @@ test_that("test_scenario filters scenario names and forwards run controls", {
     envir    = helper_env,
     inherits = FALSE
   )
-  old_finalize <- get(
-    ".scenario_finalize_timing",
-    envir    = helper_env,
-    inherits = FALSE
-  )
-  on.exit(assign(".scenario_test_file", old_test_file, envir = helper_env),
+  on.exit(assign(".scenario_test_files", old_test_files, envir = helper_env),
           add = TRUE)
   on.exit(assign(
     "review_scenario_snapshots",
     old_review,
     envir = helper_env
   ), add = TRUE)
-  on.exit(assign(
-    ".scenario_finalize_timing",
-    old_finalize,
-    envir = helper_env
-  ), add = TRUE)
   state <- new.env(parent = emptyenv())
-  state[["paths"]]  <- character()
+  state[["paths"]]  <- list()
   state[["refit"]]  <- character()
   state[["update"]] <- character()
   state[["update_timings"]] <- character()
   state[["runner"]] <- character()
   state[["reporter"]] <- character()
+  state[["stop_on_failure"]] <- logical()
   state[["review"]] <- character()
   assign(
-    ".scenario_test_file",
-    function(path, reporter, stop_on_failure) {
+    ".scenario_test_files",
+    function(paths, reporter, stop_on_failure) {
 
-      state[["paths"]] <- c(state[["paths"]], basename(path))
+      state[["paths"]][[length(state[["paths"]]) + 1L]] <- basename(paths)
       state[["refit"]] <- c(
         state[["refit"]],
         Sys.getenv("ROBMA_SCENARIO_REFIT")
@@ -1804,16 +1795,11 @@ test_that("test_scenario filters scenario names and forwards run controls", {
         Sys.getenv("ROBMA_SCENARIO_RUNNER")
       )
       state[["reporter"]] <- c(state[["reporter"]], reporter)
+      state[["stop_on_failure"]] <- c(
+        state[["stop_on_failure"]],
+        stop_on_failure
+      )
       return(invisible(list()))
-    },
-    envir = helper_env
-  )
-  assign(
-    ".scenario_finalize_timing",
-    function(scenario, allow_update) {
-
-      state[["finalize"]] <- paste(scenario, allow_update, sep = ":")
-      return(invisible(NULL))
     },
     envir = helper_env
   )
@@ -1839,27 +1825,30 @@ test_that("test_scenario filters scenario names and forwards run controls", {
 
   expect_message(
     test_scenario(
-      filter         = "alpha",
+      filter         = "alpha|beta",
       refit          = TRUE,
       update         = FALSE,
       update_timings = TRUE,
       load_package   = FALSE,
       root           = scenario_root
     ),
-    "Running scenario 'alpha'"
+    "Running 2 scenarios"
   )
-  expect_identical(state[["paths"]], "test-alpha.R")
+  expect_identical(
+    state[["paths"]],
+    list(c("test-alpha.R", "test-beta.R"))
+  )
   expect_identical(state[["refit"]], "TRUE")
   expect_identical(state[["update"]], "FALSE")
   expect_identical(state[["update_timings"]], "TRUE")
   expect_identical(state[["runner"]], "TRUE")
   expect_identical(state[["reporter"]], "progress")
-  expect_identical(state[["finalize"]], "alpha:TRUE")
-  expect_identical(state[["review"]], "scenarios:alpha")
+  expect_identical(state[["stop_on_failure"]], FALSE)
+  expect_identical(state[["review"]], "scenarios:alpha,beta")
 
   assign(
-    ".scenario_test_file",
-    function(path, reporter, stop_on_failure) {
+    ".scenario_test_files",
+    function(paths, reporter, stop_on_failure) {
 
       stop("scenario stopped", call. = FALSE)
     },
@@ -1873,10 +1862,9 @@ test_that("test_scenario filters scenario names and forwards run controls", {
     ),
     "scenario stopped"
   )
-  expect_identical(state[["finalize"]], "beta:FALSE")
   expect_identical(
     state[["review"]],
-    c("scenarios:alpha", "scenarios:beta")
+    c("scenarios:alpha,beta", "scenarios:beta")
   )
 
   expect_error(
@@ -1887,4 +1875,68 @@ test_that("test_scenario filters scenario names and forwards run controls", {
     ),
     "No scenarios matched"
   )
+})
+
+
+test_that("selected scenario files share one reporter lifecycle", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  .scenario_write_lines(
+    "testthat::test_that(\"alpha\", testthat::succeed())",
+    file.path(root, "test-alpha.R")
+  )
+  .scenario_write_lines(
+    "testthat::test_that(\"beta\", testthat::succeed())",
+    file.path(root, "test-beta.R")
+  )
+  paths <- stats::setNames(
+    file.path(root, c("test-alpha.R", "test-beta.R")),
+    c("alpha", "beta")
+  )
+  helper_env   <- environment(.scenario_test_files)
+  old_finalize <- get(
+    ".scenario_finalize_timing", envir = helper_env, inherits = FALSE
+  )
+  old_orphans  <- get(
+    ".scenario_report_orphans", envir = helper_env, inherits = FALSE
+  )
+  on.exit(assign(
+    ".scenario_finalize_timing", old_finalize, envir = helper_env
+  ), add = TRUE)
+  on.exit(assign(
+    ".scenario_report_orphans", old_orphans, envir = helper_env
+  ), add = TRUE)
+  finalized <- character()
+  orphans   <- character()
+  assign(
+    ".scenario_finalize_timing",
+    function(scenario, allow_update) {
+
+      finalized <<- c(finalized, paste(scenario, allow_update, sep = ":"))
+      return(invisible(NULL))
+    },
+    envir = helper_env
+  )
+  assign(
+    ".scenario_report_orphans",
+    function(path) {
+
+      orphans <<- c(orphans, basename(path))
+      return(invisible(character()))
+    },
+    envir = helper_env
+  )
+
+  output <- capture.output(.scenario_test_files(
+    paths,
+    reporter        = "progress",
+    stop_on_failure = FALSE
+  ))
+
+  expect_equal(sum(grepl("Results", output, fixed = TRUE)), 1L)
+  expect_true(any(grepl("alpha", output, fixed = TRUE)))
+  expect_true(any(grepl("beta", output, fixed = TRUE)))
+  expect_identical(finalized, c("alpha:TRUE", "beta:TRUE"))
+  expect_identical(orphans, c("test-alpha.R", "test-beta.R"))
 })

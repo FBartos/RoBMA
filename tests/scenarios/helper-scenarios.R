@@ -2259,14 +2259,72 @@ plot_marginal_diagnostics <- function(fit_reference, fit_brma) {
 }
 
 
-.scenario_test_file <- function(path, reporter, stop_on_failure) {
+.scenario_test_files <- function(paths, reporter, stop_on_failure) {
 
-  return(testthat::test_file(
-    path,
-    reporter        = reporter,
-    package         = "RoBMA",
-    load_package    = "none",
-    stop_on_failure = stop_on_failure
+  root      <- unique(dirname(paths))
+  finalized <- character()
+  finish <- function(path, failed) {
+
+    scenario <- names(paths)[match(basename(path), basename(paths))]
+    finalized <<- c(finalized, scenario)
+    .scenario_finalize_timing(
+      scenario,
+      allow_update = !stop_on_failure || !failed
+    )
+    .scenario_report_orphans(path)
+    return(invisible(NULL))
+  }
+  finalizer_class <- R6::R6Class(
+    "ScenarioFinalizeReporter",
+    inherit = testthat::Reporter,
+    public  = list(
+      path   = NULL,
+      failed = FALSE,
+      start_file = function(filename) {
+
+        self$path   <- file.path(root, basename(filename))
+        self$failed <- FALSE
+      },
+      add_result = function(context, test, result) {
+
+        if (inherits(result, c("expectation_failure", "expectation_error"))) {
+          self$failed <- TRUE
+        }
+      },
+      end_file = function() {
+
+        finish(self$path, self$failed)
+      }
+    )
+  )
+  combined_reporter <- testthat::MultiReporter$new(reporters = list(
+    testthat:::find_reporter(reporter),
+    finalizer_class$new()
+  ))
+  scenario_filter <- paste0(
+    "^(",
+    paste(gsub(".", "\\.", names(paths), fixed = TRUE), collapse = "|"),
+    ")$"
+  )
+
+  return(tryCatch(
+    testthat::test_dir(
+      root,
+      filter          = scenario_filter,
+      reporter        = combined_reporter,
+      package         = "RoBMA",
+      load_package    = "none",
+      stop_on_failure = stop_on_failure
+    ),
+    finally = {
+      if (exists("config", envir = .scenario_state, inherits = FALSE)) {
+        scenario <- .scenario_config()[["name"]]
+        pending  <- match(scenario, names(paths))
+        if (!is.na(pending) && !scenario %in% finalized) {
+          finish(paths[[pending]], failed = TRUE)
+        }
+      }
+    }
   ))
 }
 
@@ -2353,26 +2411,13 @@ test_scenario <- function(filter = NULL, reporter = "progress", refit = FALSE,
   )
   setwd(project_root)
 
-  results <- vector("list", length(files))
-  names(results) <- names(files)
-  for (i in seq_along(files)) {
-    path          <- files[[i]]
-    scenario_name <- names(files)[[i]]
-    completed     <- FALSE
-    message("Running scenario '", scenario_name, "'.")
-    results[[i]] <- tryCatch(
-      {
-        result    <- .scenario_test_file(path, reporter, stop_on_failure)
-        completed <- TRUE
-        result
-      },
-      finally = {
-        .scenario_finalize_timing(scenario_name, allow_update = completed)
-        .scenario_report_orphans(path)
-      }
-    )
+  if (length(files) == 1L) {
+    message("Running scenario '", names(files), "'.")
+  } else {
+    message("Running ", length(files), " scenarios.")
   }
-  return(invisible(results))
+  result <- .scenario_test_files(files, reporter, stop_on_failure)
+  return(invisible(result))
 }
 
 

@@ -1,6 +1,6 @@
 Method: stacking
 ------
                  weight
-fit_brma_cluster 0.982 
+fit_brma_cluster 0.981 
 fit_brma         0.000 
-fit_brma_fixed   0.018 
+fit_brma_fixed   0.019 

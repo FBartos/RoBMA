@@ -77,7 +77,7 @@ testthat::test_that("Niel-Weise Poisson incidence-rate models", {
   scenario_text("bf-effect", c("marglik" = BF_mu, "KDE" = BF_mu_1, "qCMDE" = BF_mu_2, "qCMDE (BMA)" = BF_mu_3))
 
   ### plot diagnostics ----
-  scenario_plot("fit_funnel", funnel(fit_brma))
+  scenario_plot("fit_funnel", suppressWarnings(funnel(fit_brma)))
   scenario_plot("residuals",  {scenario_agreement_plot(residuals(fit_metafor), residuals(fit_brma))})
 
   ### predicted effects ----

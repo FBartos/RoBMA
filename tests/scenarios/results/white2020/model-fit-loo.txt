@@ -1,6 +1,6 @@
 Method: stacking
 ------
                      weight
-fit_brma             0.069 
-fit_brma_study       0.380 
-fit_brma_observation 0.551 
+fit_brma             0.072 
+fit_brma_study       0.378 
+fit_brma_observation 0.549 

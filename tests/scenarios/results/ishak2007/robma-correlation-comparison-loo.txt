@@ -1,5 +1,5 @@
 Method: stacking
 ------
               weight
-fit_brma_har0 0.232 
-fit_brma_har  0.768 
+fit_brma_har0 0.000 
+fit_brma_har  1.000 

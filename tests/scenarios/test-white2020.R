@@ -120,7 +120,7 @@ testthat::test_that("White study and observation random-effects model", {
   })
 
   ### diagnostics ----
-  scenario_plot("marginal_diagnostics",   plot_marginal_diagnostics(fit_metafor, fit_brma))
+  scenario_plot("marginal_diagnostics",   suppressWarnings(plot_marginal_diagnostics(fit_metafor, fit_brma)))
 
   ### diagnostic plots ----
   set.seed(1)

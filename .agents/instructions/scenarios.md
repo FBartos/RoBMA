@@ -116,9 +116,11 @@ retained as an alias. Pass a regular-expression `filter` to select scenario
 names, for example `test_scenarios(filter = "assink|bcg")`. By default, this
 reuses fit caches, suppresses artifact output, and compares without replacing
 text or plot baselines. Missing and faster timing measurements are maintained
-automatically. Set `refit = TRUE`, `update = TRUE`, or `regenerate = TRUE`
-explicitly to change fit or output behavior. Set `update_timings = TRUE` only
-to accept current timings even when they are slower.
+automatically. All selected scenarios share one testthat reporter lifecycle, so
+interactive runs print one combined progress report and one results block. Set
+`refit = TRUE`, `update = TRUE`, or `regenerate = TRUE` explicitly to change fit
+or output behavior. Set `update_timings = TRUE` only to accept current timings
+even when they are slower.
 
 Call `review_scenario_snapshots()` after a run to review all cached table and
 figure candidates from the scenarios selected by the latest
