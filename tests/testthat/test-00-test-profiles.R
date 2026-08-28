@@ -29,6 +29,10 @@ test_that("fit-cache source catalog references the current source tree", {
     winslash = "/",
     mustWork = TRUE
   )
+  testthat::skip_if_not(
+    .fit_cache_source_tree_available(package_root),
+    "Fit-cache source catalog validation requires a source checkout."
+  )
   source_files <- .fit_cache_required_source_files()
   missing <- source_files[!file.exists(file.path(package_root, source_files))]
 

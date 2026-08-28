@@ -168,6 +168,7 @@ test_that("log_lik, LOO, weights, diagnostics, and WAIC are available for produc
   product_names <- c(
     "dat.lehmann2018_BMA.norm",
     "bcg_BMA.glmm",
+    "BMA.mv_random_components",
     "dat.lehmann2018_RoBMA"
   )
   skip_if_missing_fits(product_names)

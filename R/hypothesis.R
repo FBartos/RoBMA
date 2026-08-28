@@ -722,13 +722,6 @@ hypothesis.brma <- function(object, hypothesis,
     conditional, logBF, BF01, seed, density_method, density_control = NULL,
     n_samples, columns, parameter_label = parameter) {
 
-  if (conditional) {
-    stop(
-      "Conditional product-space hypotheses are not available for semantic ",
-      "random-effect quantities.",
-      call. = FALSE
-    )
-  }
   precomputed <- .density_method_uses_precomputed(
     density_method,
     allow_normal = TRUE
@@ -749,6 +742,55 @@ hypothesis.brma <- function(object, hypothesis,
   )
   posterior_values <- as.numeric(posterior[["samples"]][, 1L])
   prior_values     <- as.numeric(prior[["samples"]][, 1L])
+  indicator <- .brma_random_parameter_inclusion_indicator(
+    object   = object,
+    selected = posterior
+  )
+  if (conditional) {
+    if (is.null(indicator)) {
+      stop(
+        "Conditional product-space hypotheses require a random-effect ",
+        "quantity owned by one independently gated component.",
+        call. = FALSE
+      )
+    }
+    if (precomputed) {
+      stop(
+        "Conditional random-effect hypotheses support ",
+        "'density_method = \"KDE\"' only.",
+        call. = FALSE
+      )
+    }
+    posterior_keep <- .conditional_parameter_rows(
+      object     = object,
+      parameters = indicator,
+      rule       = "OR"
+    )
+    prior_samples <- prior[["raw_samples"]]
+    if (!is.matrix(prior_samples) ||
+        !indicator %in% colnames(prior_samples)) {
+      stop(
+        "Conditional random-effect prior samples are missing inclusion ",
+        "indicator '", indicator, "'.",
+        call. = FALSE
+      )
+    }
+    prior_indicator <- prior_samples[, indicator]
+    if (any(!is.finite(prior_indicator) |
+            !prior_indicator %in% c(0, 1))) {
+      stop(
+        "Conditional random-effect prior inclusion indicator '", indicator,
+        "' is invalid.",
+        call. = FALSE
+      )
+    }
+    posterior_values <- posterior_values[posterior_keep]
+    prior_values     <- prior_values[prior_indicator == 1]
+    if (length(posterior_values) == 0L || length(prior_values) == 0L) {
+      stop("No samples remain after random-effect inclusion conditioning.",
+           call. = FALSE)
+    }
+  }
 
   point_refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = hypothesis,
@@ -759,6 +801,18 @@ hypothesis.brma <- function(object, hypothesis,
       stop(
         "Point-null tests for random-effect quantities require a direct scalar ",
         "parameter reference.",
+        call. = FALSE
+      )
+    }
+    if (!conditional && !is.null(indicator) &&
+        posterior[["spec"]][["quantity"]] %in% c("sd", "var") &&
+        any(point_refs[["value"]] == 0)) {
+      stop(
+        "Point-null Bayes factors at 0 are unavailable for random-effect ",
+        "quantity '", posterior[["entry"]][["term"]], "' because zero is ",
+        "the declared random-exclusion atom. Use the Random-Effect Inclusion ",
+        "table from 'summary(object)' or 'summary_models(object)' to compare ",
+        "exclusion and inclusion.",
         call. = FALSE
       )
     }

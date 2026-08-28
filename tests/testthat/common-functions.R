@@ -445,6 +445,24 @@ fit_catalog <- function() {
     c("brma.mv", "normal", "known_v", "singular", "block_mvn")
   ))
 
+  bma_mv_catalog <- data.frame(
+    name          = "BMA.mv_random_components",
+    class         = "BMA.mv",
+    family        = "norm",
+    source_file   = "test-01-BMA.mv.R",
+    has_metafor   = FALSE,
+    has_waic      = FALSE,
+    tier          = "core",
+    has_loo       = TRUE,
+    has_marglik   = FALSE,
+    features      = I(list(c(
+      "BMA.mv", "normal", "known_v", "random", "mods",
+      "product_space", "random_inclusion"
+    ))),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, bma_mv_catalog)
+
   parity_catalog <- data.frame(
     name = c(
       "vif_parity_brma",
@@ -559,6 +577,7 @@ fit_catalog <- function() {
     "dat.lehmann2018_RoBMA_mods",
     "dat.lehmann2018_RoBMA_mods2",
     "dat.lehmann2018_RoBMA_3lvl_mods_scale",
+    "BMA.mv_random_components",
     "brma.mv_latent",
     "brma.mv_whitened",
     "brma.mv_block_mvn",
@@ -793,6 +812,7 @@ if (!is.environment(.package_source_md5_cache)) {
   # extensions. Post-fit methods are tested against the cached objects.
   r_files   <- c(
     "R/BMA.glmm.R",
+    "R/BMA.mv.R",
     "R/BMA.norm.R",
     "R/RoBMA.R",
     "R/bPEESE.R",

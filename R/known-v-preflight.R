@@ -325,21 +325,37 @@
       return(NULL)
     }
     for (factor in .marginalized_random_effect_allocation_factors(term)) {
-      weights <- .prior_fixed_values(prior_list[[factor[["weight_name"]]]])
-      index   <- factor[["index"]]
-      if (is.null(weights) || length(weights) < index) {
-        return(NULL)
+      if (!is.null(factor[["inclusion_name"]])) {
+        gate_prior <- .random_allocation_inclusion_prior(
+          prior_list     = prior_list,
+          indicator_name = factor[["inclusion_name"]]
+        )
+        gate <- if (is.null(gate_prior)) {
+          NULL
+        } else {
+          .prior_fixed_values(gate_prior)
+        }
+        if (is.null(gate) || length(gate) != 1L || gate != 1) {
+          return(NULL)
+        }
       }
-      multiplier <- weights[[index]]
-      if (identical(factor[["scale"]], "mean_variance")) {
-        multiplier <- factor[["n_targets"]] * multiplier
-      } else if (!identical(factor[["scale"]], "total_variance")) {
-        return(NULL)
+      if (!is.null(factor[["weight_name"]])) {
+        weights <- .prior_fixed_values(prior_list[[factor[["weight_name"]]]])
+        index   <- factor[["index"]]
+        if (is.null(weights) || length(weights) < index) {
+          return(NULL)
+        }
+        multiplier <- weights[[index]]
+        if (identical(factor[["scale"]], "mean_variance")) {
+          multiplier <- factor[["n_targets"]] * multiplier
+        } else if (!identical(factor[["scale"]], "total_variance")) {
+          return(NULL)
+        }
+        if (!is.finite(multiplier) || multiplier < 0) {
+          return(NULL)
+        }
+        fixed_sd <- fixed_sd * sqrt(multiplier)
       }
-      if (!is.finite(multiplier) || multiplier < 0) {
-        return(NULL)
-      }
-      fixed_sd <- fixed_sd * sqrt(multiplier)
     }
   } else {
     binding <- term[["sd_binding"]]
@@ -519,11 +535,25 @@
     if (has_allocation) {
       factors <- .marginalized_random_effect_allocation_factors(term)
       for (factor in factors) {
-        factor_prior <- prior_list[[factor[["weight_name"]]]]
-        factor_positive <- .prior_coordinate_is_structurally_positive(
-          prior = factor_prior,
-          index = factor[["index"]]
-        )
+        if (is.null(factor[["weight_name"]])) {
+          factor_positive <- TRUE
+        } else {
+          factor_prior <- prior_list[[factor[["weight_name"]]]]
+          factor_positive <- .prior_coordinate_is_structurally_positive(
+            prior = factor_prior,
+            index = factor[["index"]]
+          )
+        }
+        if (!is.null(factor[["inclusion_name"]])) {
+          gate_prior <- .random_allocation_inclusion_prior(
+            prior_list     = prior_list,
+            indicator_name = factor[["inclusion_name"]]
+          )
+          factor_positive <- factor_positive &&
+            !is.null(gate_prior) &&
+            BayesTools::is.prior.point(gate_prior) &&
+            mean(gate_prior) == 1
+        }
         support <- support & factor_positive
       }
     }
@@ -536,7 +566,6 @@
 
   support
 }
-
 
 .random_sd_source_positive_rows <- function(source, data, prior_list, K) {
 

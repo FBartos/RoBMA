@@ -94,6 +94,28 @@
 }
 
 
+.finalize_brma_mv_object <- function(object, marginalize_estimate_level,
+                                     only_priors = FALSE) {
+
+  object <- .prepare_brma_mv_random_effects_compile(
+    object                     = object,
+    marginalize_estimate_level = marginalize_estimate_level
+  )
+  .brma_mv_check_singular_v_regularization(object)
+  if (isTRUE(only_priors)) {
+    return(.set_only_priors_class(object))
+  }
+
+  object[["fit"]] <- .fit(object)
+  .stop_fit_errors(object[["fit"]])
+
+  object[["summary"]]      <- .object_summary(object)
+  object[["coefficients"]] <- .object_coefficients(object)
+
+  .autocompute_brma(object)
+}
+
+
 .known_v_auto_update_for_marginalized_random <- function(data, terms) {
 
   if (!.is_data_known_v(data) || length(terms) == 0L ||
@@ -1047,10 +1069,11 @@
     }
     leaf_factors <- lapply(leaf_index, function(index) {
       list(
-        weight_name = allocation[["weight_name"]],
-        index       = index,
-        scale       = allocation[["scale"]],
-        n_targets   = allocation[["n_targets"]]
+        weight_name    = allocation[["weight_name"]],
+        index          = index,
+        scale          = allocation[["scale"]],
+        n_targets      = allocation[["n_targets"]],
+        inclusion_name = NULL
       )
     })
     return(c(factors, leaf_factors))
@@ -1066,37 +1089,94 @@
 
 .random_allocation_factor_samples <- function(factor, posterior_samples) {
 
-  weight_name <- factor[["weight_name"]]
-  index       <- factor[["index"]]
-  scale       <- factor[["scale"]]
-  n_targets   <- factor[["n_targets"]]
-  column      <- paste0(weight_name, "[", index, "]")
+  weight_name    <- factor[["weight_name"]]
+  index          <- factor[["index"]]
+  scale          <- factor[["scale"]]
+  n_targets      <- factor[["n_targets"]]
+  inclusion_name <- factor[["inclusion_name"]]
 
-  if (!column %in% colnames(posterior_samples)) {
-    stop(
-      "Cannot evaluate marginalized random-effect allocation; missing ",
-      "posterior column: ", column,
-      call. = FALSE
-    )
+  multiplier <- rep(1, nrow(posterior_samples))
+  if (!is.null(weight_name)) {
+    column <- paste0(weight_name, "[", index, "]")
+    if (!column %in% colnames(posterior_samples)) {
+      stop(
+        "Cannot evaluate marginalized random-effect allocation; missing ",
+        "posterior column: ", column,
+        call. = FALSE
+      )
+    }
+
+    weights <- posterior_samples[, column]
+    if (any(!is.finite(weights) | weights < 0)) {
+      stop(
+        "Cannot evaluate marginalized random-effect allocation with invalid ",
+        "weights in posterior column: ", column,
+        call. = FALSE
+      )
+    }
+
+    if (identical(scale, "mean_variance")) {
+      weights <- n_targets * weights
+    } else if (!identical(scale, "total_variance")) {
+      stop("Random-effect allocation factor scale is unsupported.",
+           call. = FALSE)
+    }
+    multiplier <- sqrt(weights)
+  }
+  if (!is.null(inclusion_name)) {
+    if (!inclusion_name %in% colnames(posterior_samples)) {
+      stop(
+        "Cannot evaluate marginalized random-effect allocation; missing ",
+        "posterior column: ", inclusion_name,
+        call. = FALSE
+      )
+    }
+    inclusion <- posterior_samples[, inclusion_name]
+    if (any(!is.finite(inclusion) | !inclusion %in% c(0, 1))) {
+      stop(
+        "Cannot evaluate marginalized random-effect allocation with invalid ",
+        "inclusion indicators in posterior column: ", inclusion_name,
+        call. = FALSE
+      )
+    }
+    multiplier <- multiplier * inclusion
   }
 
-  weights <- posterior_samples[, column]
-  if (any(!is.finite(weights) | weights < 0)) {
-    stop(
-      "Cannot evaluate marginalized random-effect allocation with invalid ",
-      "weights in posterior column: ", column,
-      call. = FALSE
-    )
-  }
+  matrix(multiplier, ncol = 1L)
+}
 
-  if (identical(scale, "mean_variance")) {
-    weights <- n_targets * weights
-  } else if (!identical(scale, "total_variance")) {
-    stop("Random-effect allocation factor scale is unsupported.",
+
+.random_allocation_factor_parameter_columns <- function(factor) {
+
+  if (!is.list(factor)) {
+    stop("Random-effect allocation factor metadata are incomplete.",
          call. = FALSE)
   }
 
-  matrix(sqrt(weights), ncol = 1L)
+  columns <- character()
+  weight_name <- factor[["weight_name"]]
+  if (is.character(weight_name) && length(weight_name) == 1L &&
+      !is.na(weight_name) && nzchar(weight_name)) {
+    index <- factor[["index"]]
+    if (!is.numeric(index) || length(index) != 1L || is.na(index)) {
+      stop("Random-effect allocation factor metadata are incomplete.",
+           call. = FALSE)
+    }
+    columns <- c(columns, paste0(weight_name, "[", index, "]"))
+  }
+
+  inclusion_name <- factor[["inclusion_name"]]
+  if (is.character(inclusion_name) && length(inclusion_name) == 1L &&
+      !is.na(inclusion_name) && nzchar(inclusion_name)) {
+    columns <- c(columns, inclusion_name)
+  }
+
+  if (length(columns) == 0L) {
+    stop("Random-effect allocation factor metadata are incomplete.",
+         call. = FALSE)
+  }
+
+  unique(columns)
 }
 
 
@@ -1206,19 +1286,27 @@
 
 .random_allocation_factor_expression <- function(factor) {
 
-  weight_name <- factor[["weight_name"]]
-  index       <- factor[["index"]]
-  scale       <- factor[["scale"]]
-  n_targets   <- factor[["n_targets"]]
+  weight_name    <- factor[["weight_name"]]
+  index          <- factor[["index"]]
+  scale          <- factor[["scale"]]
+  n_targets      <- factor[["n_targets"]]
+  inclusion_name <- factor[["inclusion_name"]]
 
-  if (!is.character(weight_name) || length(weight_name) != 1L ||
-      is.na(weight_name) || !nzchar(weight_name) ||
-      !is.numeric(index) || length(index) != 1L || is.na(index)) {
+  has_weight <- is.character(weight_name) && length(weight_name) == 1L &&
+    !is.na(weight_name) && nzchar(weight_name)
+  has_inclusion <- is.character(inclusion_name) &&
+    length(inclusion_name) == 1L && !is.na(inclusion_name) &&
+    nzchar(inclusion_name)
+  if ((!has_weight && !has_inclusion) ||
+      (has_weight && (!is.numeric(index) || length(index) != 1L ||
+                      is.na(index)))) {
     stop("Random-effect allocation factor metadata are incomplete.",
          call. = FALSE)
   }
 
-  if (identical(scale, "mean_variance")) {
+  if (!has_weight) {
+    multiplier <- "1"
+  } else if (identical(scale, "mean_variance")) {
     multiplier <- paste0(n_targets, " * ", weight_name, "[", index, "]")
   } else if (identical(scale, "total_variance")) {
     multiplier <- paste0(weight_name, "[", index, "]")
@@ -1227,7 +1315,16 @@
          call. = FALSE)
   }
 
-  paste0("sqrt(", multiplier, ")")
+  weight_expression <- if (has_weight) {
+    paste0("sqrt(", multiplier, ")")
+  } else {
+    "1"
+  }
+  if (has_inclusion) {
+    paste0(inclusion_name, " * ", weight_expression)
+  } else {
+    weight_expression
+  }
 }
 
 

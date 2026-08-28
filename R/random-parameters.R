@@ -37,6 +37,7 @@
       standardized_coefficients = standardized_coefficients,
       selections                = selections
     )
+    extracted[["raw_samples"]] <- raw_samples
     return(extracted)
   }
 
@@ -499,7 +500,8 @@
       object,
       spec
     ),
-    allocation_definition = allocation_definition
+    allocation_definition = allocation_definition,
+    raw_samples            = bundle[["raw_samples"]]
   )
 }
 
@@ -528,6 +530,54 @@
   }
 
   BayesTools::prior("beta", parameters = list(alpha = eta, beta = eta))
+}
+
+
+.brma_random_parameter_inclusion_indicator <- function(object, selected) {
+
+  spec <- selected[["spec"]]
+  map  <- .random_component_inclusion_map(object)
+  aliases <- if (identical(spec[["owner_type"]], "random_block")) {
+    unique(c(spec[["block"]], spec[["owner_name"]]))
+  } else {
+    spec[["random_component"]]
+  }
+  aliases <- aliases[!is.na(aliases) & nzchar(aliases)]
+  indicators <- unique(unlist(map[intersect(aliases, names(map))],
+                              use.names = FALSE))
+  all_indicators <- unique(unlist(map, use.names = FALSE))
+  if (length(indicators) == 0L && length(all_indicators) == 1L) {
+    indicators <- all_indicators
+  }
+
+  if (length(indicators) == 1L) indicators else NULL
+}
+
+.brma_random_parameter_inclusion_probability <- function(object, indicator) {
+
+  if (is.null(indicator)) {
+    return(NULL)
+  }
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  prior      <- .random_allocation_inclusion_prior(
+    prior_list     = prior_list,
+    indicator_name = indicator,
+    required       = TRUE
+  )
+  if (!BayesTools::is.prior(prior)) {
+    stop("Random-effect inclusion prior metadata are malformed.", call. = FALSE)
+  }
+  probability <- mean(prior)
+  if (!is.numeric(probability) || length(probability) != 1L ||
+      !is.finite(probability) || probability < 0 || probability > 1) {
+    stop(
+      "Random-effect inclusion indicator '", indicator,
+      "' has an invalid prior probability.",
+      call. = FALSE
+    )
+  }
+
+  probability
 }
 
 .brma_random_parameter_exact_prior <- function(selected) {
@@ -791,6 +841,11 @@
   if (!is.list(factor) || !all(fields %in% names(factor))) {
     return(NULL)
   }
+  inclusion_name <- factor[["inclusion_name"]]
+  if (is.character(inclusion_name) && length(inclusion_name) == 1L &&
+      !is.na(inclusion_name) && nzchar(inclusion_name)) {
+    return(NULL)
+  }
 
   out <- factor[fields]
   out[["index"]]     <- as.integer(out[["index"]])
@@ -1009,11 +1064,48 @@
 }
 
 .brma_random_parameter_prior_density <- function(samples, support,
-                                                 n_points = 4096L) {
+                                                 n_points = 4096L,
+                                                 inclusion = NULL,
+                                                 inclusion_probability = NULL) {
 
   samples <- as.numeric(samples)
+  continuous_mass <- 1
+  points <- data.frame(x = numeric(), p = numeric())
+  if (!is.null(inclusion)) {
+    inclusion <- as.numeric(inclusion)
+    if (length(inclusion) != length(samples) ||
+        any(!is.finite(inclusion) | !inclusion %in% c(0, 1))) {
+      stop("Random-effect prior inclusion samples are invalid.",
+           call. = FALSE)
+    }
+    if (is.null(inclusion_probability)) {
+      continuous_mass <- mean(inclusion == 1)
+    } else {
+      continuous_mass <- as.numeric(inclusion_probability)
+      if (length(continuous_mass) != 1L || !is.finite(continuous_mass) ||
+          continuous_mass < 0 || continuous_mass > 1) {
+        stop("Random-effect prior inclusion probability is invalid.",
+             call. = FALSE)
+      }
+    }
+    point_mass       <- 1 - continuous_mass
+    samples          <- samples[inclusion == 1]
+    if (point_mass > 0) {
+      points <- data.frame(x = 0, p = point_mass)
+    }
+  }
   samples <- samples[is.finite(samples)]
   if (length(unique(samples)) < 2L) {
+    if (continuous_mass == 0 && nrow(points) == 1L) {
+      out <- list(
+        density = NULL,
+        points  = points,
+        n_grid  = 1L
+      )
+      class(out) <- c("prior_linear_density", "prior_density")
+      attr(out, "support") <- support
+      return(out)
+    }
     return(NULL)
   }
 
@@ -1036,8 +1128,12 @@
   }
   density[["y"]] <- density[["y"]] / integral
   out <- list(
-    density = list(x = density[["x"]], y = density[["y"]], mass = 1),
-    points  = data.frame(x = numeric(), p = numeric()),
+    density = list(
+      x    = density[["x"]],
+      y    = density[["y"]],
+      mass = continuous_mass
+    ),
+    points  = points,
     n_grid  = n_points
   )
   class(out) <- c("prior_linear_density", "prior_density")
@@ -1047,7 +1143,8 @@
 
 .brma_random_parameter_mixed_posterior <- function(
     object, parameter, standardized_coefficients = FALSE,
-    prior = FALSE, n_prior_samples = 10000L, seed = NULL,
+    prior = FALSE, conditional = FALSE,
+    n_prior_samples = 10000L, seed = NULL,
     selected = NULL, prior_selected = NULL) {
 
   if (is.null(selected)) {
@@ -1057,7 +1154,48 @@
       standardized_coefficients = standardized_coefficients
     )
   }
+  indicator <- .brma_random_parameter_inclusion_indicator(object, selected)
+  inclusion_probability <- .brma_random_parameter_inclusion_probability(
+    object    = object,
+    indicator = indicator
+  )
+  zero_gate <- !is.null(indicator) &&
+    selected[["spec"]][["quantity"]] %in% c("sd", "var")
+  if (conditional && is.null(indicator)) {
+    stop(
+      "Conditional product-space plots require a random-effect quantity ",
+      "owned by one independently gated component.",
+      call. = FALSE
+    )
+  }
+
   values <- unname(as.numeric(selected[["samples"]][, 1L]))
+  posterior_inclusion <- NULL
+  if (!is.null(indicator)) {
+    posterior_samples <- .get_posterior_samples(object[["fit"]])
+    if (!indicator %in% colnames(posterior_samples)) {
+      stop(
+        "Random-effect posterior samples are missing inclusion indicator '",
+        indicator, "'.",
+        call. = FALSE
+      )
+    }
+    posterior_inclusion <- posterior_samples[, indicator]
+    if (length(posterior_inclusion) != length(values) ||
+        any(!is.finite(posterior_inclusion) |
+            !posterior_inclusion %in% c(0, 1))) {
+      stop("Random-effect posterior inclusion samples are invalid.",
+           call. = FALSE)
+    }
+    if (conditional) {
+      values <- values[posterior_inclusion == 1]
+      posterior_inclusion <- posterior_inclusion[posterior_inclusion == 1]
+      if (length(values) == 0L) {
+        stop("No samples remain after random-effect inclusion conditioning.",
+             call. = FALSE)
+      }
+    }
+  }
   attr(values, "sample_ind") <- FALSE
   attr(values, "models_ind") <- rep(1, length(values))
   attr(values, "parameter")  <- selected[["entry"]][["parameter"]]
@@ -1078,18 +1216,27 @@
     ),
     class = c("BayesTools_posterior_support", "list")
   )
-  if (!.brma_random_parameter_prior_has_atom(selected[["prior"]]) &&
-      !.brma_random_parameter_prior_has_atom(selected[["source_prior"]])) {
+  if (zero_gate && !conditional && any(posterior_inclusion == 0)) {
+    attr(values, "posterior_atoms") <- BayesTools::posterior_atom_attribute(
+      point_masses = data.frame(
+        x    = 0,
+        mass = mean(posterior_inclusion == 0)
+      ),
+      source = "random-effect inclusion gate"
+    )
+  } else if (!.brma_random_parameter_prior_has_atom(selected[["prior"]]) &&
+             !.brma_random_parameter_prior_has_atom(selected[["source_prior"]])) {
     attr(values, "posterior_atoms") <- BayesTools::posterior_atom_attribute(
       source = "RoBMA semantic random-effect prior"
     )
   }
 
-  target_prior <- BayesTools::prior_none()
-  if (prior) {
+  target_prior <- if (prior && zero_gate) NULL else BayesTools::prior_none()
+  if (prior && !zero_gate) {
     target_prior <- .brma_random_parameter_exact_prior(selected)
   }
-  if (prior && is.null(target_prior) && !standardized_coefficients) {
+  if (prior && is.null(target_prior) && !standardized_coefficients &&
+      !zero_gate) {
     prior_density <- BayesTools::parameter_prior_density(
       object[["fit"]],
       selected[["entry"]][["selection"]]
@@ -1110,9 +1257,36 @@
         seed                      = seed
       )
     }
+    prior_inclusion <- NULL
+    if (!is.null(indicator)) {
+      raw_samples <- prior_selected[["raw_samples"]]
+      if (!is.matrix(raw_samples) ||
+          !indicator %in% colnames(raw_samples)) {
+        stop(
+          "Random-effect prior samples are missing inclusion indicator '",
+          indicator, "'.",
+          call. = FALSE
+        )
+      }
+      prior_inclusion <- raw_samples[, indicator]
+      if (conditional) {
+        prior_values <- prior_selected[["samples"]][, 1L]
+        prior_selected[["samples"]] <- matrix(
+          prior_values[prior_inclusion == 1],
+          ncol = 1L
+        )
+        prior_inclusion <- NULL
+      }
+    }
     prior_density <- .brma_random_parameter_prior_density(
       prior_selected[["samples"]][, 1L],
-      support = support
+      support                 = support,
+      inclusion               = if (zero_gate) prior_inclusion else NULL,
+      inclusion_probability   = if (zero_gate) {
+        inclusion_probability
+      } else {
+        NULL
+      }
     )
     if (is.null(prior_density)) {
       stop(

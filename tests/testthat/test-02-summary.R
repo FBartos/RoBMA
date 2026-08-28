@@ -8,6 +8,7 @@ test_that("summary.brma does not print known-V backend metadata", {
     "inclusion_components",
     "inclusion_mods",
     "inclusion_scale",
+    "inclusion_random",
     "estimates",
     "estimates_conditional",
     "estimates_mods",
@@ -63,6 +64,7 @@ test_that("summary.brma coerces displayed sections to one data frame", {
   )
   sections <- c(
     "inclusion_components", "inclusion_mods", "inclusion_scale",
+    "inclusion_random",
     "estimates", "estimates_conditional",
     "estimates_mods", "estimates_mods_conditional",
     "estimates_scale", "estimates_scale_conditional",
@@ -112,6 +114,7 @@ summary_sections <- c(
   "inclusion_components",
   "inclusion_mods",
   "inclusion_scale",
+  "inclusion_random",
   "estimates",
   "estimates_conditional",
   "estimates_mods",

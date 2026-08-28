@@ -1,5 +1,11 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- adds `BMA.mv()` for product-space model averaging with the complete
+  `brma.mv()` known-sampling-covariance and formula-random workflow. Independent
+  random-component gates multiply their allocated slab variances without
+  renormalizing the remaining components; fitting, inclusion/model summaries,
+  prediction, LOO/WAIC, diagnostics, plots, hypotheses, posterior conversion,
+  and update methods use the same interfaces as existing BMA objects.
 - adds a dedicated `loo-exact-refits` certification case that compares
   estimate-unit PSIS-LOO against five genuine one-observation-deleted refits
   of the Kearon US/HCS and Ishak HAR scenario models. The oracle averages each

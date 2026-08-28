@@ -723,14 +723,31 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       known_V_new        = context[["known_V_new"]]
     )
     out <- .new_brma_samples_list(out)
-    return(.condition_prediction_samples(
-      object            = object,
-      samples           = out,
-      conditional       = context[["conditional"]],
-      parameters        = .conditional_heterogeneity_parameters(object),
-      posterior_samples = posterior_samples,
-      quiet             = context[["quiet"]]
-    ))
+    if (!context[["conditional"]]) {
+      return(out)
+    }
+
+    inclusion_parameters <- .random_component_conditioning_parameters(
+      object     = object,
+      components = names(out)
+    )
+    conditioned <- lapply(names(out), function(component) {
+      .condition_prediction_samples(
+        object            = object,
+        samples           = out[[component]],
+        conditional       = TRUE,
+        parameters        = inclusion_parameters[[component]],
+        posterior_samples = posterior_samples,
+        quiet             = context[["quiet"]]
+      )
+    })
+    names(conditioned) <- names(out)
+    conditioned <- .new_brma_samples_list(conditioned)
+    metadata <- attr(out, "brma_mv_prediction_target", exact = TRUE)
+    if (!is.null(metadata)) {
+      attr(conditioned, "brma_mv_prediction_target") <- metadata
+    }
+    return(conditioned)
   }
 
   tau_samples <- .root_sum_squares(
@@ -1546,6 +1563,21 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
                                                posterior_samples) {
 
   prior_list <- attr(object[["fit"]], "prior_list")
+  random_gate_prior <- .random_allocation_inclusion_prior(
+    prior_list     = prior_list,
+    indicator_name = parameter
+  )
+  if (!is.null(random_gate_prior) && parameter %in% colnames(posterior_samples)) {
+    indicator <- posterior_samples[, parameter]
+    if (any(!is.finite(indicator) | !indicator %in% c(0, 1))) {
+      stop(
+        "Conditional random-effect inclusion indicator '", parameter,
+        "' is invalid.",
+        call. = FALSE
+      )
+    }
+    return(indicator == 1)
+  }
   if (!parameter %in% names(prior_list)) {
     stop("Missing prior for conditional parameter '", parameter, "'.",
          call. = FALSE)

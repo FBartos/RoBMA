@@ -227,6 +227,11 @@ summary.brma       <- function(
   estimates_bias_conditional <- estimates_bias_pair[["conditional"]]
 
   ### provide random-effect component estimates
+  random_footnotes <- .summary_random_footnotes(object, conditional = FALSE)
+  random_conditional_footnotes <- .summary_random_footnotes(
+    object,
+    conditional = TRUE
+  )
   estimates_random_pair <- .summary_estimates_pair(
     enabled                  = .summary_random_components_enabled(object),
     object                   = object,
@@ -240,7 +245,8 @@ summary.brma       <- function(
       random_effects_summary  = "standard",
       random_effects_metadata = TRUE,
       formula_prefix          = FALSE,
-      title                   = "Random"
+      title                   = "Random",
+      footnotes               = random_footnotes
     ),
     conditional_args         = list(
       keep_parameters         = "random",
@@ -248,7 +254,8 @@ summary.brma       <- function(
       random_effects_summary  = "standard",
       random_effects_metadata = TRUE,
       formula_prefix          = FALSE,
-      title                   = "Conditional Random"
+      title                   = "Conditional Random",
+      footnotes               = random_conditional_footnotes
     )
   )
   estimates_random             <- estimates_random_pair[["estimates"]]
@@ -266,7 +273,8 @@ summary.brma       <- function(
     inclusion <- list(
       inclusion_components = list(),
       inclusion_mods       = list(),
-      inclusion_scale      = list()
+      inclusion_scale      = list(),
+      inclusion_random     = list()
     )
   }
 
@@ -276,6 +284,7 @@ summary.brma       <- function(
     inclusion_components        = inclusion[["inclusion_components"]],
     inclusion_mods              = inclusion[["inclusion_mods"]],
     inclusion_scale             = inclusion[["inclusion_scale"]],
+    inclusion_random            = inclusion[["inclusion_random"]],
     estimates                   = estimates_common,
     estimates_conditional       = estimates_common_conditional,
     estimates_mods              = estimates_mods,
@@ -313,6 +322,7 @@ print.summary.brma <- function(x, ...) {
 
   for (type in c(
     "inclusion_components", "inclusion_mods", "inclusion_scale",
+    "inclusion_random",
     "estimates", "estimates_conditional",
     "estimates_mods", "estimates_mods_conditional",
     "estimates_scale", "estimates_scale_conditional",
@@ -375,6 +385,7 @@ as.data.frame.summary.brma <- function(
     inclusion_components         = "inclusion",
     inclusion_mods               = "inclusion location",
     inclusion_scale              = "inclusion scale",
+    inclusion_random             = "inclusion random",
     estimates                    = "common",
     estimates_conditional        = "conditional common",
     estimates_mods               = "location",
@@ -466,6 +477,35 @@ print.brma <- function(x, ...) {
   }
 
   parameters
+}
+
+.summary_random_footnotes <- function(object, conditional) {
+
+  design      <- .fitted_formula_design(object, "mu", required = FALSE)
+  allocations <- design[["random_allocations"]]
+  gated_roots <- .random_gated_root_allocations(allocations)
+  if (length(gated_roots) == 0L) {
+    return(NULL)
+  }
+
+  component_clause <- if (conditional) {
+    "Component SDs condition on their own inclusion gate."
+  } else {
+    "Component SDs include their excluded zero branches."
+  }
+  has_gated_aggregate <- any(vapply(
+    gated_roots,
+    function(allocation) length(allocation[["terms"]]) > 1L,
+    logical(1)
+  ))
+  if (has_gated_aggregate) {
+    return(paste0(
+      "sd_total and var_prop(...) describe the slab allocation before ",
+      "independent component gates. ", component_clause
+    ))
+  }
+
+  component_clause
 }
 
 .summary_scale_footnotes <- function(object) {
@@ -662,6 +702,7 @@ print.brma <- function(x, ...) {
   inclusion <- do.call(BayesTools::JAGS_inference_table, args)
 
   parameters <- attr(inclusion, "parameters")
+  parameter_roles <- attr(inclusion, "parameter_roles", exact = TRUE)
   row_labels <- rownames(inclusion)
 
   core_map <- c(
@@ -674,11 +715,22 @@ print.brma <- function(x, ...) {
   core_parameters <- names(core_map)[names(core_map) %in% parameters]
   core_indices    <- match(core_parameters, parameters)
 
+  random_indices      <- which(parameter_roles == "random_inclusion")
+  random_slab_indices <- which(parameter_roles == "random_slab")
+
   mods_indices <- grep("^mu_", parameters)
   mods_indices <- mods_indices[parameters[mods_indices] != "mu_intercept"]
+  mods_indices <- setdiff(
+    mods_indices,
+    c(random_indices, random_slab_indices)
+  )
 
   scale_indices <- grep("^log_tau_", parameters)
   scale_indices <- scale_indices[parameters[scale_indices] != "log_tau_intercept"]
+  scale_indices <- setdiff(
+    scale_indices,
+    c(random_indices, random_slab_indices)
+  )
 
   output <- list(
     inclusion_components = .summary.inclusion_subtable(
@@ -706,6 +758,16 @@ print.brma <- function(x, ...) {
         sub("^\\(log_tau\\) ", "", row_labels[scale_indices])
       ),
       title      = "Scale Inclusion"
+    ),
+    inclusion_random = .summary.inclusion_subtable(
+      table      = inclusion,
+      indices    = random_indices,
+      row_labels = sub(
+        pattern     = "^.*inclusion\\((.*)\\)$",
+        replacement = "\\1",
+        x           = row_labels[random_indices]
+      ),
+      title      = "Random-Effect Inclusion"
     )
   )
 

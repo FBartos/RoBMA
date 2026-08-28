@@ -976,9 +976,11 @@
       term,
       all = TRUE
     )
-    columns <- c(columns, vapply(factors, function(factor) {
-      paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
-    }, character(1)))
+    factor_columns <- unlist(lapply(
+      factors,
+      .random_allocation_factor_parameter_columns
+    ), use.names = FALSE)
+    columns <- c(columns, factor_columns)
   }
 
   unique(columns[!is.na(columns) & nzchar(columns)])

@@ -186,7 +186,7 @@
 #'
 #' @seealso \code{\link{random_effect_formula_tags}},
 #'   \code{\link{random_effect_prior_specification}}, [brma()],
-#'   [summary.brma()], [predict.brma()]
+#'   [BMA.mv()], [summary.brma()], [predict.brma()]
 #'
 #' @export
 brma.mv <- function(
@@ -264,8 +264,9 @@ brma.mv <- function(
     known_v_residual_fraction           = known_v_residual_fraction,
     known_v_residual_fraction_specified = known_v_residual_fraction_specified
   )
-  if (isTRUE(dots[["only_data"]]))
+  if (isTRUE(dots[["only_data"]])) {
     return(object)
+  }
 
   object$priors <- .check_and_list_priors.brma(
     prior_effect                   = prior_effect,
@@ -276,28 +277,18 @@ brma.mv <- function(
     prior_unit_information_sd      = prior_unit_information_sd,
     prior_informed_field           = prior_informed_field,
     prior_informed_subfield        = prior_informed_subfield,
-    data                           = object[["data"]])
-
-  object <- .prepare_brma_mv_random_effects_compile(
-    object                     = object,
-    marginalize_estimate_level = marginalize_estimate_level
+    data                           = object[["data"]]
   )
-  .brma_mv_check_singular_v_regularization(object)
-  if (isTRUE(dots[["only_priors"]]))
-    return(.set_only_priors_class(object))
 
-  object$fit <- .fit(object)
-  .stop_fit_errors(object$fit)
-
-  object$summary      <- .object_summary(object)
-  object$coefficients <- .object_coefficients(object)
-
-  object <- .autocompute_brma(object)
-
-  return(object)
+  .finalize_brma_mv_object(
+    object                     = object,
+    marginalize_estimate_level = marginalize_estimate_level,
+    only_priors                = isTRUE(dots[["only_priors"]])
+  )
 }
 
-.brma_mv_reject_unsupported_dots <- function(matched_call) {
+.brma_mv_reject_unsupported_dots <- function(matched_call,
+                                             caller = "brma.mv()") {
 
   dots <- matched_call[["..."]]
   if (is.null(dots) || length(dots) == 0L) {
@@ -317,22 +308,22 @@ brma.mv <- function(
 
   messages <- c(
     cluster = paste0(
-      "'cluster' is not supported in brma.mv(); use the dedicated ",
+      "'cluster' is not supported in ", caller, "; use the dedicated ",
       "'random' argument for multilevel structures."
     ),
-    weights = "'weights' are not supported in brma.mv().",
+    weights = paste0("'weights' are not supported in ", caller, "."),
     prior_bias = paste0(
-      "Selection/publication-bias priors are not supported in brma.mv() yet."
+      "Selection/publication-bias priors are not supported in ", caller, "."
     ),
     prior_PET = paste0(
-      "PET publication-bias priors are not supported in brma.mv() yet."
+      "PET publication-bias priors are not supported in ", caller, "."
     ),
     prior_PEESE = paste0(
-      "PEESE publication-bias priors are not supported in brma.mv() yet."
+      "PEESE publication-bias priors are not supported in ", caller, "."
     ),
     model_type = paste0(
-      "'model_type' is not supported in brma.mv(); publication-bias model ",
-      "types are not available for brma.mv() yet."
+      "'model_type' is not supported in ", caller,
+      "; publication-bias model types are unavailable."
     )
   )
   stop(

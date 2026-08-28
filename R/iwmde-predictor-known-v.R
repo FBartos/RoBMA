@@ -401,6 +401,7 @@
     model_matrix <- term[["model_matrix"]]
     group_map    <- term[["group_map"]]
     if (length(factors) != 1L ||
+        length(.random_allocation_factor_parameter_columns(factors[[1L]])) != 1L ||
         !is.character(factors[[1L]][["weight_name"]]) ||
         length(factors[[1L]][["weight_name"]]) != 1L ||
         is.na(factors[[1L]][["weight_name"]]) ||

@@ -428,7 +428,7 @@
     rescale_priors,
     prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield,
-    data, model_type) {
+    data, model_type, random_component_averaging = FALSE) {
 
   ### check input
   if (!missing(rescale_priors))
@@ -480,10 +480,29 @@
   )
   if (!missing(model_type))
     BayesTools::check_char(model_type, "model_type", allow_values = c("2w", "6w", "PP", "PSMA"))
+  BayesTools::check_bool(
+    random_component_averaging,
+    "random_component_averaging"
+  )
 
   ### set prior distributions
   measure       <- .data_measure(data)
   prior_outcome <- list()
+  is_random     <- .is_data_random(data)
+  if (is_random && !random_component_averaging) {
+    stop(
+      "Random-component model averaging must be enabled explicitly.",
+      call. = FALSE
+    )
+  }
+  is_random_prior_heterogeneity <- !missing(prior_heterogeneity) &&
+    .is_prior_random(prior_heterogeneity)
+  if (is_random_prior_heterogeneity && !is_random) {
+    stop(
+      "'prior_heterogeneity = BayesTools::prior_random(...)' can be used only when 'random' is specified.",
+      call. = FALSE
+    )
+  }
 
   prior_outcome[["mu"]] <- .assign_prior.simple_mixture(
     prior = prior_effect, prior_null = prior_effect_null, parameter = "effect", measure = measure,
@@ -491,12 +510,43 @@
     prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
     rescale_priors = rescale_priors
   )
-  prior_outcome[["tau"]] <- .assign_prior.simple_mixture(
-    prior = prior_heterogeneity, prior_null = prior_heterogeneity_null, parameter = "heterogeneity", measure = measure,
-    data = data, prior_unit_information_sd = prior_unit_information_sd,
-    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+  heterogeneity_args <- list(
+    parameter      = "heterogeneity",
+    measure        = measure,
+    data           = data,
     rescale_priors = rescale_priors
   )
+  if (!is_random_prior_heterogeneity && !missing(prior_heterogeneity)) {
+    heterogeneity_args["prior"] <- list(prior_heterogeneity)
+  }
+  if (!missing(prior_heterogeneity_null)) {
+    heterogeneity_args["prior_null"] <- list(prior_heterogeneity_null)
+  }
+  if (!missing(prior_unit_information_sd)) {
+    heterogeneity_args[["prior_unit_information_sd"]] <- prior_unit_information_sd
+  }
+  if (!missing(prior_informed_field)) {
+    heterogeneity_args[["prior_informed_field"]] <- prior_informed_field
+  }
+  if (!missing(prior_informed_subfield)) {
+    heterogeneity_args[["prior_informed_subfield"]] <- prior_informed_subfield
+  }
+  prior_outcome[["tau"]] <- do.call(
+    .assign_prior.simple_mixture,
+    heterogeneity_args
+  )
+  random_mixture <- NULL
+  if (is_random) {
+    default_slab_args <- heterogeneity_args[
+      !names(heterogeneity_args) %in% c("prior", "prior_null")
+    ]
+    default_slab <- do.call(.assign_prior.simple, default_slab_args)
+    random_mixture <- .assign_prior.random_mixture_parts(
+      prior         = prior_outcome[["tau"]],
+      default_slab  = default_slab
+    )
+    prior_outcome[["tau"]] <- random_mixture[["slab"]]
+  }
   # only for multilevel models
   if (.is_data_multilevel(data)) {
     prior_outcome[["rho"]]   <- .assign_prior.heterogeneity_allocation_mixture(
@@ -539,20 +589,66 @@
   }
 
   if (.is_data_scale(data)) {
-    prior_scale <- .assign_prior_list.terms_mixture(
-      prior_list = prior_scale, prior_list_null = prior_scale_null, prior_intercept = prior_outcome[["tau"]], parameter = "scale",
-      measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
-      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
-      rescale_priors = rescale_priors)
+    prior_scale_args <- list(
+      prior_intercept = prior_outcome[["tau"]],
+      measure         = measure,
+      data            = data,
+      rescale_priors  = rescale_priors
+    )
+    if (!missing(prior_scale)) {
+      prior_scale_args["prior_list"] <- list(prior_scale)
+    }
+    if (!missing(prior_scale_null)) {
+      prior_scale_args["prior_list_null"] <- list(prior_scale_null)
+    }
+    if (!missing(prior_unit_information_sd)) {
+      prior_scale_args[["prior_unit_information_sd"]] <- prior_unit_information_sd
+    }
+    if (!missing(prior_informed_field)) {
+      prior_scale_args[["prior_informed_field"]] <- prior_informed_field
+    }
+    if (!missing(prior_informed_subfield)) {
+      prior_scale_args[["prior_informed_subfield"]] <- prior_informed_subfield
+    }
+    prior_scale <- do.call(
+      .assign_prior_list.scale_mixture,
+      prior_scale_args
+    )
     prior_outcome[["tau"]] <- NULL # the prior is forwarded through "scale" to the log(intercept)
   } else {
     prior_scale <- NULL
   }
 
+  prior_location <- .assign_prior.location(
+    prior_effect = prior_outcome[["mu"]],
+    prior_mods   = prior_mods,
+    data         = data
+  )
+
+  if (is_random) {
+    prior_random <- .assign_prior.random_model_average(
+      data           = data,
+      prior_location = prior_location,
+      slab           = random_mixture[["slab"]],
+      inclusion      = random_mixture[["inclusion"]],
+      prior_override = if (is_random_prior_heterogeneity) {
+        prior_heterogeneity
+      } else {
+        NULL
+      }
+    )
+    prior_outcome[["tau"]] <- NULL
+    prior_outcome[["mu"]] <- NULL
+  } else {
+    prior_random <- NULL
+  }
+
   priors <- list(
     outcome  = prior_outcome,
     mods     = prior_mods,
-    scale    = prior_scale
+    scale    = prior_scale,
+    random   = prior_random,
+    location = prior_location
   )
   .check_glmm_no_bias_priors(data, priors)
 

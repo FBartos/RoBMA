@@ -352,7 +352,12 @@
     )
   }
 
-  assign_one <- function(scale_data, formula_parameter, component_prior_list = prior_list) {
+  assign_one <- function(scale_data, formula_parameter, component) {
+    component_prior_list <- if (is_component_scale && has_prior_list) {
+      prior_list[[component]]
+    } else {
+      prior_list
+    }
     args <- list(
       prior_list        = component_prior_list,
       prior_intercept   = prior_intercept,
@@ -375,8 +380,106 @@
     do.call(.assign_prior_list.terms, args)
   }
 
-  if (length(scale_specs) == 1L && identical(scale_specs[[1L]][["parameter"]], "log_tau")) {
-    return(assign_one(data, "log_tau"))
+  .assign_prior_list.scale_apply(
+    data        = data,
+    scale_specs = scale_specs,
+    assign_one  = assign_one
+  )
+}
+
+.assign_prior_list.scale_mixture <- function(
+    prior_list, prior_list_null, prior_intercept, measure, data,
+    prior_unit_information_sd, prior_informed_field,
+    prior_informed_subfield, rescale_priors) {
+
+  has_prior_list      <- !missing(prior_list)
+  has_prior_list_null <- !missing(prior_list_null)
+  has_prior_unit_information_sd <- !missing(prior_unit_information_sd)
+  has_prior_informed_field      <- !missing(prior_informed_field)
+  has_prior_informed_subfield   <- !missing(prior_informed_subfield)
+  scale_specs         <- .data_scale_component_specs(data)
+  if (length(scale_specs) == 0L) {
+    return(NULL)
+  }
+
+  is_component_scale <- inherits(data[["scale"]], "RoBMA_scale_components")
+  component_prior_list <- if (has_prior_list) prior_list else NULL
+  component_prior_null <- if (has_prior_list_null) prior_list_null else NULL
+  if (is_component_scale && has_prior_list &&
+      !is.null(prior_list) && !isFALSE(prior_list)) {
+    component_prior_list <- .assign_prior_list.scale_match_components(
+      prior_list  = prior_list,
+      scale_specs = scale_specs,
+      argument    = "prior_scale"
+    )
+  }
+  if (is_component_scale && has_prior_list_null &&
+      !is.null(prior_list_null) && !isFALSE(prior_list_null)) {
+    component_prior_null <- .assign_prior_list.scale_match_components(
+      prior_list  = prior_list_null,
+      scale_specs = scale_specs,
+      argument    = "prior_scale_null"
+    )
+  }
+
+  assign_one <- function(scale_data, formula_parameter, component) {
+    alternative <- if (is_component_scale && has_prior_list &&
+                       !is.null(component_prior_list) &&
+                       !isFALSE(component_prior_list)) {
+      component_prior_list[[component]]
+    } else {
+      component_prior_list
+    }
+    null <- if (is_component_scale && has_prior_list_null &&
+                !is.null(component_prior_null) &&
+                !isFALSE(component_prior_null)) {
+      component_prior_null[[component]]
+    } else {
+      component_prior_null
+    }
+    args <- list(
+      prior_intercept   = prior_intercept,
+      parameter         = "scale",
+      measure           = measure,
+      data              = scale_data,
+      rescale_priors    = rescale_priors,
+      formula_parameter = formula_parameter
+    )
+    if (has_prior_list) {
+      args["prior_list"] <- list(alternative)
+    }
+    if (has_prior_list_null) {
+      args["prior_list_null"] <- list(null)
+    }
+    if (has_prior_unit_information_sd) {
+      args[["prior_unit_information_sd"]] <- prior_unit_information_sd
+    }
+    if (has_prior_informed_field) {
+      args[["prior_informed_field"]] <- prior_informed_field
+    }
+    if (has_prior_informed_subfield) {
+      args[["prior_informed_subfield"]] <- prior_informed_subfield
+    }
+
+    do.call(.assign_prior_list.terms_mixture, args)
+  }
+
+  .assign_prior_list.scale_apply(
+    data        = data,
+    scale_specs = scale_specs,
+    assign_one  = assign_one
+  )
+}
+
+.assign_prior_list.scale_apply <- function(data, scale_specs, assign_one) {
+
+  if (length(scale_specs) == 1L &&
+      identical(scale_specs[[1L]][["parameter"]], "log_tau")) {
+    return(assign_one(
+      scale_data        = data,
+      formula_parameter = "log_tau",
+      component         = names(scale_specs)[[1L]]
+    ))
   }
 
   out <- lapply(names(scale_specs), function(component) {
@@ -384,32 +487,31 @@
     scale_data            <- data
     scale_data[["scale"]] <- scale_spec[["data"]]
 
-    component_prior_list <- if (is_component_scale && has_prior_list) {
-      prior_list[[component]]
-    } else {
-      prior_list
-    }
-
-    assign_one(scale_data, scale_spec[["parameter"]], component_prior_list)
+    assign_one(
+      scale_data        = scale_data,
+      formula_parameter = scale_spec[["parameter"]],
+      component         = component
+    )
   })
   names(out) <- vapply(scale_specs, `[[`, character(1), "parameter")
   class(out) <- c("RoBMA_scale_priors", "list")
 
-  return(out)
+  out
 }
 
-.assign_prior_list.scale_match_components <- function(prior_list, scale_specs) {
+.assign_prior_list.scale_match_components <- function(prior_list, scale_specs,
+                                                       argument = "prior_scale") {
 
   if (!is.list(prior_list) || BayesTools::is.prior(prior_list)) {
     stop(
-      "When 'scale' is a named list of formulas, 'prior_scale' must either ",
+      "When 'scale' is a named list of formulas, '", argument, "' must either ",
       "be omitted or be a named list with one prior list per scale component.",
       call. = FALSE
     )
   }
   if (is.null(names(prior_list)) || any(!nzchar(names(prior_list)))) {
     stop(
-      "When 'scale' is a named list of formulas, 'prior_scale' component ",
+      "When 'scale' is a named list of formulas, '", argument, "' component ",
       "lists must be named.",
       call. = FALSE
     )
@@ -426,7 +528,7 @@
   )
   if (length(missing_components) > 0L || length(unknown_components) > 0L) {
     stop(
-      "When 'scale' is a named list of formulas, 'prior_scale' names must ",
+      "When 'scale' is a named list of formulas, '", argument, "' names must ",
       "exactly match the scale components. Missing: ",
       .check_and_list_data.collapse_or_none(missing_components),
       "; unknown: ",
@@ -437,7 +539,7 @@
   }
   if (anyDuplicated(supplied) || anyDuplicated(mapped_components)) {
     stop(
-      "'prior_scale' component names must uniquely match scale components.",
+      "'", argument, "' component names must uniquely match scale components.",
       call. = FALSE
     )
   }
@@ -451,7 +553,7 @@
     if (!is.list(prior_list[[component]]) ||
         BayesTools::is.prior(prior_list[[component]])) {
       stop(
-        "Each 'prior_scale' component must be a list of priors for that ",
+        "Each '", argument, "' component must be a list of priors for that ",
         "component's scale formula.",
         call. = FALSE
       )
@@ -529,7 +631,12 @@
 
 .assign_prior_list.terms_mixture               <- function(
     prior_list, prior_list_null, prior_intercept, parameter, measure, data, prior_unit_information_sd,
-    prior_informed_field, prior_informed_subfield, rescale_priors) {
+    prior_informed_field, prior_informed_subfield, rescale_priors,
+    formula_parameter = NULL) {
+
+  if (is.null(formula_parameter)) {
+    formula_parameter <- switch(parameter, "mods" = "mu", "scale" = "log_tau")
+  }
 
   # in contrast to effect/heterogeneity prior list settings terms currently only allow a single prior for alternative
   # and a single prior for the null hypothesis for each term
@@ -571,13 +678,14 @@
     prior_list = prior_list, prior_intercept = prior_intercept, parameter = parameter,
     measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
     prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
-    rescale_priors = rescale_priors)
+    rescale_priors = rescale_priors, formula_parameter = formula_parameter)
 
   prior_list_null <- .assign_prior_list.terms(
     prior_list = prior_list_null, prior_intercept = prior_intercept, parameter = parameter,
     measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
     prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
-    rescale_priors = rescale_priors, set_default_spike = TRUE)
+    rescale_priors = rescale_priors, set_default_spike = TRUE,
+    formula_parameter = formula_parameter)
 
   available_terms <- names(prior_list_alt)
   .warn_unmatched_prior_omissions(
@@ -628,7 +736,7 @@
 
   prior_list <- .repair_formula_prior_list(
     prior_list = prior_list,
-    parameter  = switch(parameter, "mods" = "mu", "scale" = "log_tau")
+    parameter  = formula_parameter
   )
 
   return(prior_list)

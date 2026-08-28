@@ -4,7 +4,8 @@
 #' RoBMA-class product-space objects.
 #'
 #' @param object a fitted RoBMA-class product-space object, including
-#' \code{RoBMA}, \code{BMA}/\code{BMA.norm}, and \code{BMA.glmm}.
+#' \code{RoBMA}, \code{BMA}/\code{BMA.norm}, \code{BMA.glmm}, and
+#' \code{BMA.mv}.
 #' @param type whether to summarize marginal component prior distributions
 #'   (\code{"marginal"}) or individual model combinations (\code{"individual"}).
 #' @param include_mcmc_diagnostics whether to include Bayes factor MCMC
@@ -179,6 +180,10 @@ as.data.frame.summary_models.RoBMA <- function(
 
   location_parameters <- grep("^mu_", names(prior_list), value = TRUE)
   location_parameters <- location_parameters[location_parameters != "mu_intercept"]
+  location_parameters <- setdiff(
+    location_parameters,
+    .random_slab_prior_parameters(prior_list)
+  )
   for (parameter in location_parameters) {
     component <- paste0(
       "Location: ",
@@ -199,9 +204,17 @@ as.data.frame.summary_models.RoBMA <- function(
     component  = "Heterogeneity",
     parameter  = heterogeneity_parameter
   )
+  components <- .summary_models_add_random_slab_components(
+    components = components,
+    prior_list = prior_list
+  )
 
   scale_parameters <- grep("^log_tau_", names(prior_list), value = TRUE)
   scale_parameters <- scale_parameters[scale_parameters != "log_tau_intercept"]
+  scale_parameters <- setdiff(
+    scale_parameters,
+    .random_slab_prior_parameters(prior_list)
+  )
   for (parameter in scale_parameters) {
     component <- paste0(
       "Scale: ",
@@ -221,8 +234,37 @@ as.data.frame.summary_models.RoBMA <- function(
     component  = "Publication Bias",
     parameter  = "bias"
   )
+  components <- .summary_models_add_random_components(
+    components = components,
+    object     = object,
+    prior_list = prior_list
+  )
 
   return(components)
+}
+
+
+.summary_models_add_random_slab_components <- function(components, prior_list) {
+
+  parameters <- .random_slab_prior_parameters(prior_list)
+  for (parameter in parameters) {
+    allocation <- attr(
+      prior_list[[parameter]], "random_allocation", exact = TRUE
+    )
+    component <- if (length(parameters) == 1L) {
+      "Heterogeneity Slab"
+    } else {
+      paste0("Random Slab: ", allocation)
+    }
+    components <- .summary_models_add_component(
+      components = components,
+      prior_list = prior_list,
+      component  = component,
+      parameter  = parameter
+    )
+  }
+
+  components
 }
 
 .summary_models_add_component <- function(components, prior_list, component, parameter) {
@@ -236,15 +278,55 @@ as.data.frame.summary_models.RoBMA <- function(
 
   prior <- prior_list[[parameter]]
   components[[component]] <- list(
-    component   = component,
-    parameter   = parameter,
-    prior       = prior,
-    names       = .summary_models_prior_names(prior),
-    hypothesis  = .summary_models_hypothesis(prior),
-    prior_probs = .summary_models_prior_probs(prior)
+    component        = component,
+    parameter        = parameter,
+    prior            = prior,
+    indicator        = NULL,
+    indicator_offset = 0L,
+    names            = .summary_models_prior_names(prior),
+    hypothesis       = .summary_models_hypothesis(prior),
+    prior_probs      = .summary_models_prior_probs(prior)
   )
 
   return(components)
+}
+
+.summary_models_add_random_components <- function(components, object,
+                                                  prior_list) {
+
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  random_inclusion <- which(
+    quantities[["role"]] == "random_inclusion" &
+      !quantities[["internal"]] &
+      quantities[["status"]] != "unavailable"
+  )
+  for (i in random_inclusion) {
+    key       <- quantities[["extraction_key"]][[i]]
+    indicator <- key[["source_parameter"]]
+    gate_prior <- .random_allocation_inclusion_prior(
+      prior_list     = prior_list,
+      indicator_name = indicator,
+      required       = TRUE
+    )
+    prior_probability <- mean(gate_prior)
+    if (prior_probability %in% c(0, 1)) {
+      next
+    }
+    component_name <- paste(quantities[["arguments"]][[i]], collapse = ", ")
+    component      <- paste0("Random: ", component_name)
+    components[[component]] <- list(
+      component        = component,
+      parameter        = sub("_indicator$", "", indicator),
+      prior            = vector("list", 2L),
+      indicator        = indicator,
+      indicator_offset = 1L,
+      names            = c("Excluded", "Included"),
+      hypothesis       = c("Null", "Alternative"),
+      prior_probs      = c(1 - prior_probability, prior_probability)
+    )
+  }
+
+  components
 }
 
 .summary_models_marginal_tables <- function(components, posterior_samples,
@@ -258,7 +340,9 @@ as.data.frame.summary_models.RoBMA <- function(
     indicators <- .summary_models_indicators(
       posterior_samples = posterior_samples,
       parameter         = info[["parameter"]],
-      prior             = info[["prior"]]
+      prior             = info[["prior"]],
+      column            = info[["indicator"]],
+      offset            = info[["indicator_offset"]]
     )
     post_probs <- vapply(seq_along(info[["names"]]), function(i) {
 
@@ -272,7 +356,9 @@ as.data.frame.summary_models.RoBMA <- function(
       indicator_matrices = .summary_models_marginal_indicator_matrices(
         posterior_samples_list = posterior_samples_list,
         parameter              = info[["parameter"]],
-        prior                  = info[["prior"]]
+        prior                  = info[["prior"]],
+        column                 = info[["indicator"]],
+        offset                 = info[["indicator_offset"]]
       ),
       prior_probs        = info[["prior_probs"]],
       post_probs         = post_probs,
@@ -346,7 +432,9 @@ as.data.frame.summary_models.RoBMA <- function(
     .summary_models_indicators(
       posterior_samples = posterior_samples,
       parameter         = info[["parameter"]],
-      prior             = info[["prior"]]
+      prior             = info[["prior"]],
+      column            = info[["indicator"]],
+      offset            = info[["indicator_offset"]]
     )
   })
 
@@ -438,13 +526,29 @@ as.data.frame.summary_models.RoBMA <- function(
   return(prior_probs)
 }
 
-.summary_models_indicators <- function(posterior_samples, parameter, prior) {
+.summary_models_indicators <- function(posterior_samples, parameter, prior,
+                                       column = NULL, offset = 0L) {
 
-  return(.extract_posterior_indicator(
+  indicators <- .extract_posterior_indicator(
     posterior_samples = posterior_samples,
     parameter         = parameter,
-    prior             = prior
-  ))
+    prior             = NULL,
+    column            = column
+  )
+  indicators <- indicators + offset
+  if (any(!indicators %in% seq_len(length(prior)))) {
+    indicator_name <- if (is.null(column)) {
+      paste0(parameter, "_indicator")
+    } else {
+      column
+    }
+    stop(
+      "Invalid posterior model indicator range: '", indicator_name, "'.",
+      call. = FALSE
+    )
+  }
+
+  return(indicators)
 }
 
 .summary_models_posterior_samples_list <- function(fit) {
@@ -456,7 +560,7 @@ as.data.frame.summary_models.RoBMA <- function(
 }
 
 .summary_models_indicators_list <- function(posterior_samples_list, parameter,
-                                            prior) {
+                                            prior, column = NULL, offset = 0L) {
 
   if (is.null(posterior_samples_list)) {
     return(NULL)
@@ -467,7 +571,9 @@ as.data.frame.summary_models.RoBMA <- function(
     .summary_models_indicators(
       posterior_samples = samples,
       parameter         = parameter,
-      prior             = prior
+      prior             = prior,
+      column            = column,
+      offset            = offset
     )
   })
 
@@ -475,12 +581,16 @@ as.data.frame.summary_models.RoBMA <- function(
 }
 
 .summary_models_marginal_indicator_matrices <- function(posterior_samples_list,
-                                                        parameter, prior) {
+                                                        parameter, prior,
+                                                        column = NULL,
+                                                        offset = 0L) {
 
   indicators_list <- .summary_models_indicators_list(
     posterior_samples_list = posterior_samples_list,
     parameter              = parameter,
-    prior                  = prior
+    prior                  = prior,
+    column                 = column,
+    offset                 = offset
   )
   if (is.null(indicators_list)) {
     return(NULL)
@@ -514,7 +624,9 @@ as.data.frame.summary_models.RoBMA <- function(
     .summary_models_indicators_list(
       posterior_samples_list = posterior_samples_list,
       parameter              = info[["parameter"]],
-      prior                  = info[["prior"]]
+      prior                  = info[["prior"]],
+      column                 = info[["indicator"]],
+      offset                 = info[["indicator_offset"]]
     )
   })
 

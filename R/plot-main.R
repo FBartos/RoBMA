@@ -260,19 +260,17 @@ lines.brma <- function(
   is_random       <- identical(parameter_entry[["component"]], "random")
   random_label    <- NULL
   if (is_random) {
-    if (conditional) {
-      stop(
-        "Conditional product-space plots are not available for semantic ",
-        "random-effect quantities.",
-        call. = FALSE
-      )
+    if (conditional && .density_method_uses_precomputed(density_method)) {
+      stop("Conditional random-effect plots support 'density_method = \"KDE\"' only.",
+           call. = FALSE)
     }
     sample_parameter <- parameter
     samples <- .brma_random_parameter_mixed_posterior(
       object                    = x,
       parameter                 = parameter,
       standardized_coefficients = standardized_coefficients,
-      prior                     = prior
+      prior                     = prior,
+      conditional               = conditional
     )
     density_sample_parameter <- parameter
     random_label <- attr(samples, "random_parameter_label", exact = TRUE)

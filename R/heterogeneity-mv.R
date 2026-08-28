@@ -78,17 +78,26 @@
   })
   names(out) <- names(selected)
 
-  out <- .simplify_brma_mv_heterogeneity_output(out)
   if (conditional) {
-    out <- .condition_prediction_samples(
-      object            = object,
-      samples           = out,
-      conditional       = conditional,
-      parameters        = .conditional_heterogeneity_parameters(object),
-      posterior_samples = posterior_samples,
-      quiet             = TRUE
+    inclusion_parameters <- .random_component_conditioning_parameters(
+      object     = object,
+      components = names(out),
+      fallback   = .conditional_heterogeneity_parameters(object)
     )
+    out <- lapply(names(out), function(name) {
+      .condition_prediction_samples(
+        object            = object,
+        samples           = out[[name]],
+        conditional       = TRUE,
+        parameters        = inclusion_parameters[[name]],
+        posterior_samples = posterior_samples,
+        quiet             = TRUE
+      )
+    })
+    names(out) <- names(selected)
   }
+
+  out <- .simplify_brma_mv_heterogeneity_output(out)
 
   if (is.list(out) && !is.matrix(out)) {
     out <- .new_brma_samples_list(out)

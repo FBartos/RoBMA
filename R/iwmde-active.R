@@ -108,6 +108,18 @@
       )
     }
   }
+  if (!is.null(priors[["location"]])) {
+    for (name in names(priors[["location"]])) {
+      priors[["location"]][[name]] <- .iwmde_select_prior_component(
+        prior     = priors[["location"]][[name]],
+        row       = row,
+        indicator = paste0(
+          BayesTools::JAGS_parameter_names(name, "mu"),
+          "_indicator"
+        )
+      )
+    }
+  }
   if (!is.null(priors[["scale"]])) {
     for (name in names(priors[["scale"]])) {
       priors[["scale"]][[name]] <- .iwmde_select_prior_component(
@@ -413,9 +425,11 @@
       term,
       all = TRUE
     )
-    columns <- c(columns, vapply(factors, function(factor) {
-      paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
-    }, character(1)))
+    factor_columns <- unlist(lapply(
+      factors,
+      .random_allocation_factor_parameter_columns
+    ), use.names = FALSE)
+    columns <- c(columns, factor_columns)
   }
 
   unique(columns[!is.na(columns) & nzchar(columns)])

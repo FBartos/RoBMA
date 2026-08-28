@@ -96,7 +96,8 @@
 }
 
 .assign_prior.random                   <- function(prior, formula_design,
-                                                   sd_sources = NULL) {
+                                                   sd_sources = NULL,
+                                                   inclusion = NULL) {
 
   if (!inherits(formula_design, "BayesTools_formula_design") ||
       length(formula_design[["random_effects"]]) == 0L) {
@@ -110,6 +111,7 @@
     block_info      = block_info,
     sd              = prior,
     sd_sources      = sd_sources,
+    inclusion       = inclusion,
     allocation_name = "heterogeneity"
   )
   block_sd_sources <- list()
@@ -136,7 +138,7 @@
       block <- block_info[[1L]][["block"]]
       block_sds[[block]] <- prior
     }
-  } else if (!is.null(sd_sources)) {
+  } else if (!is.null(sd_sources) && is.null(inclusion)) {
     groups <- .assign_prior.random_component_groups(
       terms       = terms,
       block_names = vapply(block_info, `[[`, character(1), "block")
@@ -580,17 +582,29 @@
 
 .assign_prior.random_allocation        <- function(terms, block_info, sd,
                                                    sd_sources = NULL,
+                                                   inclusion = NULL,
                                                    allocation_name) {
 
   block_names   <- vapply(block_info, `[[`, character(1), "block")
   heterogeneous <- vapply(block_info, `[[`, logical(1), "heterogeneous")
   n_columns     <- vapply(block_info, `[[`, integer(1), "n_columns")
 
+  if (!is.null(inclusion)) {
+    return(.assign_prior.random_gated_allocation(
+      terms           = terms,
+      block_info      = block_info,
+      sd              = sd,
+      sd_sources      = sd_sources,
+      inclusion       = inclusion,
+      allocation_name = allocation_name
+    ))
+  }
+
   if (!is.null(sd_sources)) {
     return(.assign_prior.random_component_allocations(
-      terms       = terms,
-      block_info  = block_info,
-      sd_sources  = sd_sources
+      terms      = terms,
+      block_info = block_info,
+      sd_sources = sd_sources
     ))
   }
 
@@ -706,6 +720,142 @@
   allocations
 }
 
+.assign_prior.random_gated_allocation <- function(
+    terms, block_info, sd, sd_sources = NULL, inclusion, allocation_name) {
+
+  block_names   <- vapply(block_info, `[[`, character(1), "block")
+  groups        <- .assign_prior.random_component_groups(terms, block_names)
+  allocations   <- list()
+
+  if (is.null(sd_sources)) {
+    root_allocation <- BayesTools::random_variance_allocation(
+      name            = allocation_name,
+      display_name    = "",
+      terms           = .assign_prior.random_root_terms(groups),
+      component_names = vapply(groups, `[[`, character(1), "name"),
+      sd              = sd,
+      weights         = if (length(groups) > 1L) {
+        .assign_prior.random_dirichlet(length(groups))
+      } else {
+        NULL
+      },
+      inclusion       = .assign_prior.random_group_inclusion(groups, inclusion)
+    )
+    allocations[[1L]] <- root_allocation
+    for (group in groups) {
+      descendants <- .assign_prior.random_group_descendants(
+        group      = group,
+        groups     = groups,
+        block_info = block_info,
+        parent     = BayesTools::allocation_ref(
+          allocation_name,
+          group[["label"]]
+        )
+      )
+      allocations <- c(allocations, descendants)
+    }
+    return(unname(allocations))
+  }
+
+  for (group in groups) {
+    source <- sd_sources[[group[["label"]]]]
+    group_allocation_name <- .assign_prior.random_component_allocation_name(
+      group  = group,
+      groups = groups
+    )
+    root_args <- list(
+      name            = group_allocation_name,
+      display_name    = if (length(groups) == 1L) "" else group[["name"]],
+      terms           = if (length(group[["blocks"]]) == 1L) {
+        stats::setNames(group[["blocks"]], group[["label"]])
+      } else {
+        stats::setNames(paste0(group[["label"]], "_gated"), group[["label"]])
+      },
+      component_names = group[["name"]],
+      weights         = NULL,
+      inclusion       = stats::setNames(list(inclusion), group[["label"]])
+    )
+    if (is.null(source)) {
+      root_args[["sd"]] <- sd
+    } else {
+      root_args[["sd_source"]] <- source
+    }
+    allocations[[length(allocations) + 1L]] <- do.call(
+      BayesTools::random_variance_allocation,
+      root_args
+    )
+    descendants <- .assign_prior.random_group_descendants(
+      group      = group,
+      groups     = groups,
+      block_info = block_info,
+      parent     = BayesTools::allocation_ref(
+        group_allocation_name,
+        group[["label"]]
+      )
+    )
+    allocations <- c(allocations, descendants)
+  }
+
+  unname(allocations)
+}
+
+.assign_prior.random_group_descendants <- function(
+    group, groups, block_info, parent) {
+
+  block_names   <- vapply(block_info, `[[`, character(1), "block")
+  heterogeneous <- vapply(block_info, `[[`, logical(1), "heterogeneous")
+  n_columns     <- vapply(block_info, `[[`, integer(1), "n_columns")
+  allocations   <- list()
+  parent_for_block <- stats::setNames(
+    vector("list", length(group[["blocks"]])),
+    group[["blocks"]]
+  )
+
+  if (length(group[["blocks"]]) > 1L) {
+    split_name <- paste0(group[["label"]], "_split")
+    allocations[[1L]] <- BayesTools::random_variance_allocation(
+      name            = split_name,
+      display_name    = group[["name"]],
+      terms           = stats::setNames(
+        group[["blocks"]],
+        group[["child_labels"]]
+      ),
+      component_names = group[["child_names"]],
+      parent          = parent,
+      weights         = .assign_prior.random_dirichlet(length(group[["blocks"]]))
+    )
+    for (i in seq_along(group[["blocks"]])) {
+      parent_for_block[[group[["blocks"]][[i]]]] <- BayesTools::allocation_ref(
+        split_name,
+        group[["child_labels"]][[i]]
+      )
+    }
+  } else {
+    parent_for_block[[group[["blocks"]][[1L]]]] <- parent
+  }
+
+  for (block in group[["blocks"]]) {
+    index <- match(block, block_names)
+    if (!isTRUE(heterogeneous[[index]])) {
+      next
+    }
+    allocations[[length(allocations) + 1L]] <- BayesTools::random_variance_allocation(
+      name         = paste0(block, "_components"),
+      display_name = .assign_prior.random_block_display_name(
+        block  = block,
+        groups = groups
+      ),
+      terms        = block,
+      parent       = parent_for_block[[block]],
+      weights      = .assign_prior.random_dirichlet(n_columns[[index]]),
+      target       = "sd_component",
+      scale        = "mean_variance"
+    )
+  }
+
+  allocations
+}
+
 .assign_prior.random_component_allocations <- function(terms, block_info,
                                                        sd_sources) {
 
@@ -795,6 +945,14 @@
 .assign_prior.random_dirichlet         <- function(n) {
 
   BayesTools::prior("dirichlet", parameters = list(alpha = rep(1, n)))
+}
+
+.assign_prior.random_group_inclusion   <- function(groups, inclusion) {
+
+  stats::setNames(
+    rep(list(inclusion), length(groups)),
+    vapply(groups, `[[`, character(1), "label")
+  )
 }
 
 .assign_prior.random_component_groups  <- function(terms, block_names) {
@@ -1147,6 +1305,118 @@
   )
 
   return(prior)
+}
+
+.assign_prior.random_mixture_parts            <- function(prior,
+                                                           default_slab) {
+
+  if (!BayesTools::is.prior.mixture(prior)) {
+    stop("Internal error: random-effect model averaging requires a mixture prior.", call. = FALSE)
+  }
+
+  components <- attr(prior, "components", exact = TRUE)
+  weights    <- attr(prior, "prior_weights", exact = TRUE)
+  if (!is.character(components) || length(components) != length(prior) ||
+      !is.numeric(weights) || length(weights) != length(prior) ||
+      anyNA(weights) || any(!is.finite(weights)) || any(weights <= 0)) {
+    stop("Internal error: malformed heterogeneity mixture prior.", call. = FALSE)
+  }
+
+  is_null <- components == "null"
+  for (i in which(is_null)) {
+    if (!BayesTools::is.prior.point(prior[[i]]) || mean(prior[[i]]) != 0) {
+      stop(
+        "Every 'prior_heterogeneity_null' component for BMA.mv() must be a point prior at exactly zero.",
+        call. = FALSE
+      )
+    }
+  }
+  for (i in which(!is_null)) {
+    if (BayesTools::is.prior.point(prior[[i]]) && mean(prior[[i]]) == 0) {
+      stop(
+        "A point prior at zero belongs in 'prior_heterogeneity_null', not 'prior_heterogeneity', for BMA.mv().",
+        call. = FALSE
+      )
+    }
+  }
+
+  prior_inclusion <- sum(weights[!is_null]) / sum(weights)
+  alternatives    <- prior[!is_null]
+  attributes(alternatives) <- NULL
+  slab <- if (length(alternatives) == 0L) {
+    default_slab
+  } else if (length(alternatives) == 1L) {
+    alternatives[[1L]]
+  } else {
+    BayesTools::prior_mixture(
+      prior_list = alternatives,
+      components = rep("alternative", length(alternatives))
+    )
+  }
+
+  list(
+    slab      = slab,
+    inclusion = BayesTools::prior(
+      "spike",
+      parameters = list(location = prior_inclusion)
+    )
+  )
+}
+
+
+.assign_prior.random_model_average            <- function(
+    data, prior_location, slab, inclusion, prior_override = NULL) {
+
+  if (!is.null(prior_override) &&
+      .assign_prior.random_has_scale(prior_override)) {
+    stop(
+      "BMA.mv() cannot add component gates to a user-supplied random-effect ",
+      "scale architecture. Supply correlation, contrast, monitoring, or ",
+      "parameterization overrides without 'sd', 'sd_source', term-specific ",
+      "SDs, or 'allocation'.",
+      call. = FALSE
+    )
+  }
+
+  preview_defaults <- BayesTools::prior_random(sd = slab)
+  preview_prior <- if (is.null(prior_override)) {
+    preview_defaults
+  } else {
+    .assign_prior.random_complete(
+      prior    = prior_override,
+      defaults = preview_defaults
+    )
+  }
+  formula_design <- .compile_prior_random_formula_design(
+    data           = data,
+    prior_location = prior_location,
+    prior_random   = preview_prior
+  )
+  defaults <- .assign_prior.random(
+    prior          = slab,
+    formula_design = formula_design,
+    sd_sources     = if (.is_data_scale(data)) {
+      .assign_prior.random_scale_sources(data)
+    } else {
+      NULL
+    },
+    inclusion      = inclusion
+  )
+  prior_random <- if (is.null(prior_override)) {
+    defaults
+  } else {
+    .assign_prior.random_complete(
+      prior    = prior_override,
+      defaults = defaults
+    )
+  }
+  .validate_prior_random(
+    data           = data,
+    prior_location = prior_location,
+    prior_random   = prior_random
+  )
+
+  prior_random
 }
 .default_prior.bias_alt                         <- function(model_type, measure, data, prior_unit_information_sd) {
 

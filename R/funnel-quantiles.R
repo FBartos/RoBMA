@@ -354,7 +354,9 @@
     .summary_models_indicators(
       posterior_samples = posterior_samples,
       parameter         = info[["parameter"]],
-      prior             = info[["prior"]]
+      prior             = info[["prior"]],
+      column            = info[["indicator"]],
+      offset            = info[["indicator_offset"]]
     )
   })
   keys <- do.call(paste, c(indicators, sep = ":"))

@@ -438,6 +438,7 @@ test_that("as_draws methods preserve product-space BMA and RoBMA indicators", {
     "dat.lehmann2018_BMA.norm",
     "bcg_BMA.glmm",
     "nielweise2008_BMA.glmm",
+    "BMA.mv_random_components",
     "dat.lehmann2018_RoBMA"
   )
   skip_if_missing_fits(product_names)

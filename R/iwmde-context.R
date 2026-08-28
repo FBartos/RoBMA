@@ -39,7 +39,10 @@
     selection_spec     = .iwmde_selection_spec(data, priors),
     formula_fit        = object[["fit"]],
     formula_inputs     = .iwmde_formula_inputs(data, priors),
-    indicator_names    = .iwmde_indicator_names(posterior_samples),
+    indicator_names    = .iwmde_indicator_names(
+      posterior_samples,
+      prior_list = flat_prior_list
+    ),
     active_cache       = new.env(parent = emptyenv()),
     focal_prior_cache  = new.env(parent = emptyenv()),
     support_cache      = new.env(parent = emptyenv()),
@@ -177,7 +180,7 @@
 }
 
 
-.iwmde_indicator_names <- function(posterior_samples) {
+.iwmde_indicator_names <- function(posterior_samples, prior_list = NULL) {
 
   indicator_names <- grep("(^|_)indicator$", colnames(posterior_samples), value = TRUE)
   indicator_names <- c(
@@ -185,6 +188,13 @@
     intersect("bias_indicator", colnames(posterior_samples))
   )
   indicator_names <- unique(indicator_names)
+  if (!is.null(prior_list)) {
+    random_gate_names <- unique(unname(
+      .random_allocation_inclusion_indicators(prior_list)
+    ))
+    random_gate_names <- random_gate_names[nzchar(random_gate_names)]
+    indicator_names <- setdiff(indicator_names, random_gate_names)
+  }
 
   return(indicator_names)
 }

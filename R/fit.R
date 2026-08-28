@@ -941,7 +941,8 @@
 .is_weightfunction <- function(object) .is_priors_weightfunction(object[["priors"]])
 .is_bias           <- function(object) .is_priors_bias(object[["priors"]])
 .is_RoBMA          <- function(object) inherits(object, "RoBMA")
-.is_BMA            <- function(object) inherits(object, "BMA.norm") || inherits(object, "BMA.glmm")
+.is_BMA            <- function(object) inherits(object, "BMA.norm") ||
+  inherits(object, "BMA.glmm") || inherits(object, "BMA.mv")
 .is_robust_RoBMA   <- function(object) .is_RoBMA(object) && !.is_BMA(object)
 .is_multilevel     <- function(object) .is_data_multilevel(object[["data"]])
 .is_mods           <- function(object) .is_data_mods(object[["data"]])

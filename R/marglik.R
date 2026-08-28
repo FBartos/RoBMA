@@ -49,7 +49,8 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' in the object and can be extracted using \code{\link{bridge_sampler.brma}}.
 #'
 #' Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
-#' and \code{RoBMA}) do not expose a bridge-sampling marginal likelihood;
+#' \code{BMA.mv}, and \code{RoBMA}) do not expose a bridge-sampling marginal
+#' likelihood;
 #' use predictive comparison methods such as \code{\link{loo.brma}} instead.
 #' For a single model whose bridge parameters are all fixed by point priors,
 #' the log marginal likelihood is evaluated exactly at those fixed values;
@@ -785,11 +786,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 .check_marglik_available <- function(object, caller) {
 
   if (inherits(object, "RoBMA")) {
-    stop(
-      "Marginal likelihood is not available for product-space ",
-      "model-averaging objects (BMA.norm, BMA.glmm, RoBMA).",
-      call. = FALSE
-    )
+    .stop_product_space_marglik()
   }
   if (.is_random(object) &&
       !(inherits(object, "brma.mv") && .is_data_known_v(object[["data"]]))) {
@@ -806,6 +803,16 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   invisible(TRUE)
+}
+
+
+.stop_product_space_marglik <- function() {
+
+  stop(
+    "Marginal likelihood is not available for product-space ",
+    "model-averaging objects (BMA.norm, BMA.glmm, BMA.mv, RoBMA).",
+    call. = FALSE
+  )
 }
 
 

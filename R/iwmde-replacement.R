@@ -1123,9 +1123,10 @@
     term,
     all = TRUE
   )
-  factor_columns <- vapply(factors, function(factor) {
-    paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
-  }, character(1))
+  factor_columns <- unlist(lapply(
+    factors,
+    .random_allocation_factor_parameter_columns
+  ), use.names = FALSE)
 
   dependencies <- unique(c(source, factor_columns))
 
