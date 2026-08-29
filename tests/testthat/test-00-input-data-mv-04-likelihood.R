@@ -69,7 +69,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     .log_posterior(
       parameters                 = parameters,
       data                       = block_fit_data,
-      is_mods                    = FALSE,
       is_scale                   = FALSE,
       is_multilevel              = FALSE,
       is_weights                 = FALSE,
@@ -88,7 +87,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     .log_posterior(
       parameters                 = parameters,
       data                       = block_fit_data,
-      is_mods                    = FALSE,
       is_scale                   = FALSE,
       is_multilevel              = FALSE,
       is_weights                 = TRUE,
@@ -142,7 +140,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     .log_posterior(
       parameters                 = parameters,
       data                       = whitened_fit_data,
-      is_mods                    = FALSE,
       is_scale                   = FALSE,
       is_multilevel              = FALSE,
       is_weights                 = FALSE,
@@ -186,7 +183,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
         rank_one_block[["data"]],
         rank_one_block[["priors"]]
       ),
-      is_mods                    = FALSE,
       is_scale                   = FALSE,
       is_multilevel              = FALSE,
       is_weights                 = FALSE,
@@ -220,7 +216,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
         rank_one_whitened[["data"]],
         rank_one_whitened[["priors"]]
       ),
-      is_mods                    = FALSE,
       is_scale                   = FALSE,
       is_multilevel              = FALSE,
       is_weights                 = FALSE,
@@ -273,7 +268,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     .log_posterior(
       parameters                 = scale_parameters,
       data                       = .create_fit_data(scale_block[["data"]], scale_block[["priors"]]),
-      is_mods                    = FALSE,
       is_scale                   = TRUE,
       is_multilevel              = FALSE,
       is_weights                 = FALSE,
@@ -316,7 +310,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     .log_posterior(
       parameters                 = random_parameters,
       data                       = .create_fit_data(random_block[["data"]], random_block[["priors"]]),
-      is_mods                    = FALSE,
       is_scale                   = FALSE,
       is_random                  = TRUE,
       is_multilevel              = FALSE,
@@ -358,7 +351,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     .log_posterior(
       parameters                 = row_parameters,
       data                       = .create_fit_data(random_whitened[["data"]], random_whitened[["priors"]]),
-      is_mods                    = FALSE,
       is_scale                   = FALSE,
       is_random                  = TRUE,
       is_multilevel              = FALSE,
@@ -430,7 +422,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     .log_posterior(
       parameters                 = allocation_parameters,
       data                       = .create_fit_data(allocation_block[["data"]], allocation_block[["priors"]]),
-      is_mods                    = FALSE,
       is_scale                   = TRUE,
       is_random                  = TRUE,
       is_multilevel              = FALSE,
@@ -525,7 +516,6 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     .log_posterior(
       parameters                 = sd_component_parameters,
       data                       = .create_fit_data(sd_component_block[["data"]], sd_component_block[["priors"]]),
-      is_mods                    = FALSE,
       is_scale                   = FALSE,
       is_random                  = TRUE,
       is_multilevel              = FALSE,

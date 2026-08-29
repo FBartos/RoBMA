@@ -51,7 +51,6 @@ test_that("shared Gaussian bridge covariance matches exact known-V likelihoods",
     actual <- .log_posterior(
       parameters = list(mu = 0),
       data = fit_data,
-      is_mods = FALSE,
       is_scale = FALSE,
       is_random = TRUE,
       is_multilevel = FALSE,
@@ -138,7 +137,6 @@ test_that("latent known-V bridge conditions on sampling effects and integrates r
   actual <- .log_posterior(
     parameters = parameters,
     data = fit_data,
-    is_mods = FALSE,
     is_scale = FALSE,
     is_random = TRUE,
     is_multilevel = FALSE,
@@ -218,7 +216,6 @@ test_that("latent known-V sampling coordinates are integrated exactly", {
   actual <- .log_posterior(
     parameters = list(mu = 0, tau = tau),
     data = fit_data,
-    is_mods = FALSE,
     is_scale = FALSE,
     is_random = FALSE,
     is_multilevel = FALSE,
@@ -360,7 +357,6 @@ test_that("native factor likelihood equals independently materialized ZGZ'", {
   actual <- .log_posterior(
     parameters = list(mu = 0),
     data = fit_data,
-    is_mods = FALSE,
     is_scale = FALSE,
     is_random = TRUE,
     is_multilevel = FALSE,

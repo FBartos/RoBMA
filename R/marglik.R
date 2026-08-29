@@ -209,7 +209,12 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     fit            = fit,
     K              = nrow(data[["outcome"]])
   )
-  known_v_setup <- .marglik_known_v_setup(data)
+  known_V <- if (.is_data_known_v(data)) .data_known_v_data(data) else NULL
+  known_v_backend <- if (is.null(known_V)) {
+    NULL
+  } else {
+    .known_v_effective_backend(known_V)
+  }
   marginalized_variance_plan <- if (bridge_setup[["fixed_zero_random"]]) {
     NULL
   } else {
@@ -247,15 +252,14 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     cores                               = cores,
     packages                            = .marglik_bridge_packages(fit, cores),
     # additional arguments passed to .log_posterior via ...
-    is_mods                  = .is_data_mods(data),
     is_scale                 = .is_data_scale(data),
     is_random                = .is_data_random(data),
     is_multilevel            = .is_data_multilevel(data),
     is_weights               = .is_data_weights(data),
     is_known_v               = .is_data_known_v(data),
     model_data               = data,
-    known_V                  = known_v_setup[["known_V"]],
-    known_v_backend          = known_v_setup[["backend"]],
+    known_V                  = known_V,
+    known_v_backend          = known_v_backend,
     marginalized_variance_plan = marginalized_variance_plan,
     is_PET                   = .is_priors_PET(priors),
     is_PEESE                 = .is_priors_PEESE(priors),
@@ -278,20 +282,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     cluster_marginalization[["diagnostics"]]
 
   return(marglik)
-}
-
-
-.marglik_known_v_setup <- function(data) {
-
-  if (!.is_data_known_v(data)) {
-    return(list(known_V = NULL, backend = NULL))
-  }
-
-  known_V <- .data_known_v_data(data)
-  list(
-    known_V = known_V,
-    backend = .known_v_effective_backend(known_V)
-  )
 }
 
 
@@ -951,7 +941,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 #                         - phi: vector of log-rates (if Poisson)
 #                         - theta: vector of random effects (if GLMM)
 # @param data             list containing fit_data (from .create_fit_data)
-# @param is_mods          logical; whether model has moderators
 # @param is_scale         logical; whether model has scale regression
 # @param is_multilevel    logical; whether model is multilevel
 # @param is_weights       logical; whether model uses weights (currently unused)
@@ -966,7 +955,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 # ---------------------------------------------------------------------------- #
 .log_posterior <- function(
     parameters, data,
-    is_mods, is_scale, is_multilevel, is_weights,
+    is_scale, is_multilevel, is_weights,
     is_known_v, is_PET, is_PEESE, is_weightfunction, effect_direction,
     outcome_type, is_random = FALSE, model_data = NULL,
     known_V = NULL, known_v_backend = NULL,
@@ -1007,7 +996,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   # - vector mu of length K (with mods) -> use directly
   mu_samples <- .marglik_get_mu_samples(
     parameters       = parameters,
-    is_mods          = is_mods,
     is_PET           = is_PET,
     is_PEESE         = is_PEESE,
     effect_direction = effect_direction,
@@ -1209,7 +1197,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 
 
 #' @keywords internal
-.marglik_get_mu_samples <- function(parameters, is_mods, is_PET, is_PEESE,
+.marglik_get_mu_samples <- function(parameters, is_PET, is_PEESE,
                                     effect_direction, sei, K) {
 
   # BayesTools returns:
@@ -1219,17 +1207,14 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   #   => vector of length K -> 1 x K matrix
   mu_samples <- matrix(parameters[["mu"]], nrow = 1, ncol = K)
 
-  # add PET adjustment (PET * sei)
-  # direction multiplier: +1 for positive, -1 for negative
-  if (is_PET) {
-    direction <- ifelse(effect_direction == "negative", -1, 1)
-    mu_samples <- mu_samples + direction * parameters[["PET"]] * sei
-  }
-
-  # add PEESE adjustment (PEESE * sei^2)
-  if (is_PEESE) {
-    direction <- ifelse(effect_direction == "negative", -1, 1)
-    mu_samples <- mu_samples + direction * parameters[["PEESE"]] * sei^2
+  bias_parameters <- c(if (is_PET) "PET", if (is_PEESE) "PEESE")
+  for (parameter in bias_parameters) {
+    mu_samples <- mu_samples + parameters[[parameter]] *
+      .bias_regression_predictor(
+        sei              = sei,
+        parameter        = parameter,
+        effect_direction = effect_direction
+      )
   }
 
   return(mu_samples)

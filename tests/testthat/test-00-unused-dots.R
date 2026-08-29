@@ -34,7 +34,9 @@ test_that("top-level fitting constructors reject stale algorithm argument", {
     BMA       = BMA,
     BMA.norm  = BMA.norm,
     bPET      = bPET,
+    bPET.mv   = bPET.mv,
     bPEESE    = bPEESE,
+    bPEESE.mv = bPEESE.mv,
     bselmodel = bselmodel
   )
   glmm_constructors <- list(
@@ -42,9 +44,10 @@ test_that("top-level fitting constructors reject stale algorithm argument", {
     BMA.glmm  = BMA.glmm
   )
 
-  for (constructor in norm_constructors) {
+  for (constructor_name in names(norm_constructors)) {
+    constructor <- norm_constructors[[constructor_name]]
     args <- norm_args
-    if (identical(constructor, brma.mv)) {
+    if (constructor_name %in% c("brma.mv", "bPET.mv", "bPEESE.mv")) {
       args[["V"]]  <- diag(args[["sei"]]^2)
       args[["sei"]] <- NULL
     }

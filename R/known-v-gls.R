@@ -96,8 +96,7 @@
 
 .known_v_extra_variance_samples <- function(object,
                                             posterior_samples = NULL,
-                                            max_samples = Inf,
-                                            max_bytes = NULL) {
+                                            max_samples = Inf) {
 
   if (!inherits(object, "brma.mv") || !.is_data_known_v(object[["data"]])) {
     stop("Known-V extra variance samples require a brma.mv known-V object.",

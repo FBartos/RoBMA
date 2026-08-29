@@ -107,6 +107,20 @@
   return(.point_prior_value(prior))
 }
 
+.bias_regression_predictor <- function(sei, parameter, effect_direction) {
+
+  direction <- if (effect_direction == "negative") -1 else 1
+  if (parameter == "PET") {
+    return(direction * sei)
+  }
+  if (parameter == "PEESE") {
+    return(direction * sei^2)
+  }
+
+  stop("Unknown bias-regression parameter: ", parameter, ".",
+       call. = FALSE)
+}
+
 .fixed_prior_list_values <- function(prior_list) {
 
   if (is.null(prior_list) || length(prior_list) == 0L) {
@@ -664,46 +678,20 @@
   # remains on the original effect-size scale. The data flip in
   # .create_fit_data() is matched by the likelihood sign.
 
-  ### add PET adjustment when NOT incorporating publication bias adjustment
-  # (i.e., when we want to show the biased predictions)
-  # PET model in JAGS: yi_flipped ~ N(-mu + PET * sei, tau) for negative effects
-  #                    yi ~ N(mu + PET * sei, tau) for positive effects
-  # To get biased effect in original scale:
-  #   - positive: E[yi] = mu + PET * sei
-  #   - negative: E[yi_original] = -E[yi_flipped] = -(-mu + PET * sei) = mu - PET * sei
-  # So the sign of PET adjustment depends on effect_direction
-  if (is_PET && !bias_adjusted) {
-
-    PET_samples <- .posterior_or_fixed_scalar(
+  # Add the expected PET/PEESE bias only for observed-scale predictions. The
+  # helper owns the original-scale direction convention used by every
+  # post-fit and bridge path.
+  if (!bias_adjusted && (is_PET || is_PEESE)) {
+    mu_samples <- mu_samples + .evaluate.brma.bias_offset(
+      fit               = fit,
+      outcome_data      = outcome_data,
+      is_PET            = is_PET,
+      is_PEESE          = is_PEESE,
+      effect_direction  = effect_direction,
+      K                 = K,
       posterior_samples = posterior_samples,
-      parameter         = "PET",
-      fixed_value       = .fixed_bias_parameter_value(priors, "PET")
+      priors            = priors
     )
-    sei_vec     <- outcome_data[["sei"]]
-
-    # vectorized: outer(PET_samples, sei_vec) creates S x K matrix
-    # outer(a, b) computes a[i] * b[j] for all i,j pairs
-    # direction multiplier: +1 for positive, -1 for negative
-    direction <- ifelse(effect_direction == "negative", -1, 1)
-    mu_samples <- mu_samples + direction * outer(PET_samples, sei_vec)
-
-  }
-
-  ### add PEESE adjustment when NOT incorporating publication bias adjustment
-  # PEESE model: Same logic as PET but with sei^2
-  if (is_PEESE && !bias_adjusted) {
-
-    PEESE_samples <- .posterior_or_fixed_scalar(
-      posterior_samples = posterior_samples,
-      parameter         = "PEESE",
-      fixed_value       = .fixed_bias_parameter_value(priors, "PEESE")
-    )
-    sei_sq_vec    <- outcome_data[["sei"]]^2
-
-    # direction multiplier: +1 for positive, -1 for negative
-    direction <- ifelse(effect_direction == "negative", -1, 1)
-    mu_samples <- mu_samples + direction * outer(PEESE_samples, sei_sq_vec)
-
   }
 
   return(mu_samples)
@@ -1190,26 +1178,22 @@
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S                 <- nrow(posterior_samples)
   bias_offset       <- matrix(0, nrow = S, ncol = K)
-  direction         <- if (effect_direction == "negative") -1 else 1
+  bias_parameters   <- c(if (is_PET) "PET", if (is_PEESE) "PEESE")
 
-  if (is_PET) {
-    PET_samples <- .posterior_or_fixed_scalar(
+  for (parameter in bias_parameters) {
+    parameter_samples <- .posterior_or_fixed_scalar(
       posterior_samples = posterior_samples,
-      parameter         = "PET",
-      fixed_value       = .fixed_bias_parameter_value(priors, "PET")
+      parameter         = parameter,
+      fixed_value       = .fixed_bias_parameter_value(priors, parameter)
     )
-    bias_offset <- bias_offset +
-      direction * outer(PET_samples, outcome_data[["sei"]])
-  }
-
-  if (is_PEESE) {
-    PEESE_samples <- .posterior_or_fixed_scalar(
-      posterior_samples = posterior_samples,
-      parameter         = "PEESE",
-      fixed_value       = .fixed_bias_parameter_value(priors, "PEESE")
+    bias_offset <- bias_offset + outer(
+      parameter_samples,
+      .bias_regression_predictor(
+        sei              = outcome_data[["sei"]],
+        parameter        = parameter,
+        effect_direction = effect_direction
+      )
     )
-    bias_offset <- bias_offset +
-      direction * outer(PEESE_samples, outcome_data[["sei"]]^2)
   }
 
   return(bias_offset)

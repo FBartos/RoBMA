@@ -186,7 +186,8 @@
 #'
 #' @seealso \code{\link{random_effect_formula_tags}},
 #'   \code{\link{random_effect_prior_specification}}, [brma()],
-#'   [BMA.mv()], [summary.brma()], [predict.brma()]
+#'   [BMA.mv()], [bPET.mv()], [bPEESE.mv()], [bselmodel.mv()],
+#'   [summary.brma()], [predict.brma()]
 #'
 #' @export
 brma.mv <- function(

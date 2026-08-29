@@ -130,6 +130,15 @@
       }
     }
 
+    # PET/PEESE predictors remain on the original row scale under every
+    # known-V likelihood parameterization. Whitened and block-MVN backends
+    # therefore need the marginal standard errors in addition to their
+    # transformed likelihood data.
+    is_bias_regression <- .is_priors_PET(priors) || .is_priors_PEESE(priors)
+    if (is_bias_regression && is.null(fit_data[["sei"]])) {
+      fit_data[["sei"]] <- data[["outcome"]][["sei"]]
+    }
+
     # add selection-kernel data for selection models
     if (.is_priors_weightfunction(priors)) {
       selection_spec <- .selection_spec(

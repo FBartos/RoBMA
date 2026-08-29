@@ -4,7 +4,8 @@
 ##' meta-analysis, model averaging, and publication-bias adjustment. The main
 ##' user-facing fitters are \code{\link{RoBMA}}, \code{\link{BMA}},
 ##' \code{\link{brma}}, \code{\link{brma.glmm}}, \code{\link{bselmodel}},
-##' \code{\link{bPET}}, and \code{\link{bPEESE}}.
+##' \code{\link{bPET}}, \code{\link{bPEESE}}, \code{\link{bPET.mv}}, and
+##' \code{\link{bPEESE.mv}}.
 ##'
 ##' @name RoBMA-package
 ##' @author Frantisek Bartos \email{f.bartos96@@gmail.com}

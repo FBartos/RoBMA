@@ -1,5 +1,12 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- adds `bPET.mv()` and `bPEESE.mv()` as multivariate and multilevel extensions
+  of the single-model PET/PEESE constructors. Both use `brma.mv()` known-`V`
+  likelihood backends, BayesTools random-effect formulas, estimate-level
+  marginalization, summaries, prediction, LOO/WAIC, residual diagnostics, and
+  bridge-sampling marginal likelihoods. PET uses `sqrt(diag(V))` and PEESE uses
+  `diag(V)` as their row-level bias predictors while retaining the full known
+  sampling covariance in the likelihood.
 - adds exact finite-vector estimate-level product-selection likelihoods to
   `bselmodel()` and the new `bselmodel.mv()`. Gaussian cluster, known-`V`, and
   formula-random effects are marginalized into dependency-block covariances;

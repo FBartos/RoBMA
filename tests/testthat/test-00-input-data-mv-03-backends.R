@@ -645,7 +645,6 @@ test_that("brma.mv marginalized known R contributes known-V row variance", {
     .log_posterior(
       parameters                 = parameters,
       data                       = fit_data,
-      is_mods                    = FALSE,
       is_scale                   = FALSE,
       is_random                  = TRUE,
       is_multilevel              = FALSE,

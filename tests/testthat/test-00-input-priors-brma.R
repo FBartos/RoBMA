@@ -179,18 +179,26 @@ test_that("Normal constructors require explicit measure", {
     BMA       = BMA,
     RoBMA     = RoBMA,
     bPET      = bPET,
+    bPET.mv   = bPET.mv,
     bPEESE    = bPEESE,
+    bPEESE.mv = bPEESE.mv,
     bselmodel = bselmodel
   )
 
-  for (constructor in constructors) {
+  for (constructor_name in names(constructors)) {
+    constructor <- constructors[[constructor_name]]
+    arguments <- list(
+      yi                        = test_data$effect,
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )
+    if (constructor_name %in% c("bPET.mv", "bPEESE.mv")) {
+      arguments[["V"]] <- diag(test_data$std_err^2)
+    } else {
+      arguments[["sei"]] <- test_data$std_err
+    }
     expect_error(
-      do.call(constructor, list(
-        yi                        = test_data$effect,
-        sei                       = test_data$std_err,
-        prior_unit_information_sd = 1,
-        only_priors               = TRUE
-      )),
+      do.call(constructor, arguments),
       regexp = "requires explicit 'measure'"
     )
   }

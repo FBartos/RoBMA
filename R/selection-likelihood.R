@@ -251,6 +251,53 @@ set_selection_likelihood_control <- function(
 }
 
 
+.prepare_approximate_selection_known_v <- function(
+    object, selection_likelihood) {
+
+  if (!identical(selection_likelihood, "approximate") ||
+      !.is_priors_weightfunction(object[["priors"]]) ||
+      !.is_data_known_v(object[["data"]])) {
+    return(object)
+  }
+
+  known_V   <- .data_known_v_data(object[["data"]])
+  requested <- .known_v_requested_parameterization(known_V)
+  if (!requested %in% c("auto", "latent")) {
+    stop(
+      "'selection_likelihood = \"approximate\"' requires ",
+      "'known_v_parameterization = \"latent\"'.",
+      call. = FALSE
+    )
+  }
+  if (.known_v_effective_backend(known_V) %in% c("latent", "diagonal")) {
+    return(object)
+  }
+
+  residual_fraction <- .known_v_requested_residual_fraction(known_V)
+  new_known_V <- .known_v_prepare(
+    V                                   = .known_v_as_input(known_V),
+    keep_rows                           = rep(TRUE, .known_v_nrow(known_V)),
+    known_v_parameterization            = "latent",
+    known_v_residual_fraction           = residual_fraction,
+    known_v_residual_fraction_specified = !is.null(residual_fraction),
+    known_v_is_scale                    = .is_data_scale(object[["data"]]),
+    warn_singular                       = FALSE
+  )
+  if (identical(requested, "auto")) {
+    new_known_V <- .known_v_update(
+      new_known_V,
+      list(parameterization_requested = "auto")
+    )
+  }
+  attr(object[["data"]], "known_V_data") <- new_known_V
+  object[["data"]][["outcome"]][["sei"]] <- sqrt(
+    .known_v_diagonal(new_known_V)
+  )
+
+  object
+}
+
+
 .selection_exact_sampling_covariance <- function(data) {
 
   if (.is_data_known_v(data)) {
@@ -691,6 +738,10 @@ set_selection_likelihood_control <- function(
       allow_NA = FALSE
     )
   }
+  object <- .prepare_approximate_selection_known_v(
+    object               = object,
+    selection_likelihood = selection_likelihood
+  )
   if (.is_data_random(object[["data"]])) {
     compile_strategy <- if (identical(selection_likelihood, "exact")) {
       "all"
@@ -723,4 +774,26 @@ set_selection_likelihood_control <- function(
   object[["coefficients"]] <- .object_coefficients(object)
 
   .autocompute_brma(object)
+}
+
+
+.finalize_robma_mv_object <- function(
+    object, selection_likelihood, selection_control,
+    marginalize_estimate_level, only_priors = FALSE) {
+
+  if (.is_priors_weightfunction(object[["priors"]])) {
+    return(.finalize_bselmodel_object(
+      object                     = object,
+      selection_likelihood       = selection_likelihood,
+      selection_control          = selection_control,
+      only_priors                = only_priors,
+      marginalize_estimate_level = marginalize_estimate_level
+    ))
+  }
+
+  .finalize_brma_mv_object(
+    object                     = object,
+    marginalize_estimate_level = marginalize_estimate_level,
+    only_priors                = only_priors
+  )
 }

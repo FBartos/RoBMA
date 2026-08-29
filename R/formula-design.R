@@ -513,7 +513,7 @@
 
   if (is_PET || is_PEESE) {
     outcome_data <- object[["data"]][["outcome"]]
-    direction    <- if (.effect_direction(object) == "negative") -1 else 1
+    effect_direction <- .effect_direction(object)
     assign       <- attr(X, "assign")
     raw_colnames <- attr(X, "raw_colnames")
     aliased      <- attr(X, "aliased")
@@ -523,20 +523,22 @@
     }
     next_assign  <- max(assign) + 1L
 
-    if (is_PET) {
-      X            <- cbind(X, PET = direction * outcome_data[["sei"]])
+    bias_parameters <- c(if (is_PET) "PET", if (is_PEESE) "PEESE")
+    for (parameter in bias_parameters) {
+      predictor <- .bias_regression_predictor(
+        sei              = outcome_data[["sei"]],
+        parameter        = parameter,
+        effect_direction = effect_direction
+      )
+      X <- cbind(X, predictor)
+      colnames(X)[ncol(X)] <- parameter
       assign       <- c(assign, next_assign)
-      raw_colnames <- c(raw_colnames, PET = "PET")
-      aliased      <- c(aliased, PET = FALSE)
-      term_labels  <- c(term_labels, "PET")
-      next_assign  <- next_assign + 1L
-    }
-    if (is_PEESE) {
-      X            <- cbind(X, PEESE = direction * outcome_data[["sei"]]^2)
-      assign       <- c(assign, next_assign)
-      raw_colnames <- c(raw_colnames, PEESE = "PEESE")
-      aliased      <- c(aliased, PEESE = FALSE)
-      term_labels  <- c(term_labels, "PEESE")
+      raw_colnames <- c(
+        raw_colnames,
+        stats::setNames(parameter, parameter)
+      )
+      aliased      <- c(aliased, stats::setNames(FALSE, parameter))
+      term_labels  <- c(term_labels, parameter)
       next_assign  <- next_assign + 1L
     }
 

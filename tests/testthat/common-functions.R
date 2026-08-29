@@ -481,6 +481,24 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, bselmodel_mv_catalog)
 
+  pet_peese_mv_catalog <- data.frame(
+    name = c("bPET.mv_random", "bPEESE.mv_random"),
+    class = c("bPET.mv", "bPEESE.mv"),
+    family = c("norm", "norm"),
+    source_file = rep("test-01-PET-PEESE.mv.R", 2L),
+    has_metafor = FALSE,
+    has_waic = FALSE,
+    tier = "core",
+    has_loo = TRUE,
+    has_marglik = TRUE,
+    features = I(list(
+      c("bPET.mv", "normal", "known_v", "random", "mods", "PET"),
+      c("bPEESE.mv", "normal", "known_v", "random", "mods", "PEESE")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, pet_peese_mv_catalog)
+
   parity_catalog <- data.frame(
     name = c(
       "vif_parity_brma",
@@ -597,6 +615,8 @@ fit_catalog <- function() {
     "dat.lehmann2018_RoBMA_3lvl_mods_scale",
     "BMA.mv_random_components",
     "bselmodel.mv_exact_random",
+    "bPET.mv_random",
+    "bPEESE.mv_random",
     "brma.mv_latent",
     "brma.mv_whitened",
     "brma.mv_block_mvn",
@@ -834,6 +854,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/BMA.mv.R",
     "R/BMA.norm.R",
     "R/RoBMA.R",
+    "R/bPET-PEESE.mv.R",
     "R/bPEESE.R",
     "R/bPET.R",
     "R/brma.glmm.R",

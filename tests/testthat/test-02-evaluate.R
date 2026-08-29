@@ -892,6 +892,32 @@ test_that("PET/PEESE bias offsets match column-wise algebra", {
                info = "Vectorized outer() matches loop for PEESE")
 })
 
+test_that("bias-regression predictors share one original-scale convention", {
+
+  sei <- c(0.10, 0.20, 0.30)
+
+  expect_equal(
+    .bias_regression_predictor(sei, "PET", "positive"),
+    sei
+  )
+  expect_equal(
+    .bias_regression_predictor(sei, "PET", "negative"),
+    -sei
+  )
+  expect_equal(
+    .bias_regression_predictor(sei, "PEESE", "positive"),
+    sei^2
+  )
+  expect_equal(
+    .bias_regression_predictor(sei, "PEESE", "negative"),
+    -sei^2
+  )
+  expect_error(
+    .bias_regression_predictor(sei, "unknown", "positive"),
+    "Unknown bias-regression parameter: unknown\\."
+  )
+})
+
 test_that(".evaluate.brma.bias_offset handles PET/PEESE and effect direction", {
 
   posterior_samples <- matrix(

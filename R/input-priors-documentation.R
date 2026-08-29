@@ -496,8 +496,9 @@ NULL
 #'
 #' @param prior_bias prior distribution for publication-bias adjustment. For
 #' \code{\link{bselmodel}}, this is usually a weightfunction prior created by
-#' \code{\link{prior_weightfunction}}. For \code{\link{bPET}}, use
-#' \code{\link{prior_PET}}. For \code{\link{bPEESE}}, use
+#' \code{\link{prior_weightfunction}}. For \code{\link{bPET}} and
+#' \code{\link{bPET.mv}}, use \code{\link{prior_PET}}. For
+#' \code{\link{bPEESE}} and \code{\link{bPEESE.mv}}, use
 #' \code{\link{prior_PEESE}}. For \code{\link{RoBMA}}, this can be a single
 #' publication-bias prior distribution or a list of publication-bias prior
 #' distributions. In the single-model bias-adjustment constructors, omitted or
@@ -517,15 +518,18 @@ NULL
 #' @details
 #' ## Single-model bias-adjustment priors
 #'
-#' \code{\link{bselmodel}}, \code{\link{bPET}}, and \code{\link{bPEESE}} fit one
-#' publication-bias adjustment at a time. The \code{prior_bias} argument must
-#' match the fitted bias-adjustment type.
+#' \code{\link{bselmodel}}, \code{\link{bselmodel.mv}}, \code{\link{bPET}},
+#' \code{\link{bPET.mv}}, \code{\link{bPEESE}}, and \code{\link{bPEESE.mv}}
+#' fit one publication-bias adjustment at a time. The \code{prior_bias}
+#' argument must match the fitted bias-adjustment type.
 #'
 #' \tabular{lll}{
 #' Constructor \tab Prior constructor \tab Default prior distribution \cr
 #' \code{bselmodel()} \tab \code{\link{prior_weightfunction}} \tab one-sided cumulative weightfunction with \code{steps = 0.025} \cr
 #' \code{bPET()} \tab \code{\link{prior_PET}} \tab positive Cauchy centered at 0 \cr
-#' \code{bPEESE()} \tab \code{\link{prior_PEESE}} \tab positive Cauchy centered at 0, with UISD-adjusted scale
+#' \code{bPEESE()} \tab \code{\link{prior_PEESE}} \tab positive Cauchy centered at 0, with UISD-adjusted scale \cr
+#' \code{bPET.mv()} \tab \code{\link{prior_PET}} \tab same as \code{bPET()} \cr
+#' \code{bPEESE.mv()} \tab \code{\link{prior_PEESE}} \tab same as \code{bPEESE()}
 #' }
 #'
 #' The default PET prior distribution uses

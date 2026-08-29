@@ -274,12 +274,18 @@
 
 .funnel_row_location <- function(se, setup, effect_direction) {
 
-  direction <- ifelse(effect_direction == "negative", -1, 1)
-
   return(
     setup[["mu"]] +
-      direction * setup[["PET"]] * se +
-      direction * setup[["PEESE"]] * se^2
+      setup[["PET"]] * .bias_regression_predictor(
+        sei              = se,
+        parameter        = "PET",
+        effect_direction = effect_direction
+      ) +
+      setup[["PEESE"]] * .bias_regression_predictor(
+        sei              = se,
+        parameter        = "PEESE",
+        effect_direction = effect_direction
+      )
   )
 }
 

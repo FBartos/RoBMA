@@ -340,19 +340,14 @@
     ))
   }
 
-  if (column == "PET" && isTRUE(active_setup[["is_PET"]])) {
-    direction <- ifelse(.data_effect_direction(data) == "negative", -1, 1)
+  if (column %in% c("PET", "PEESE") &&
+      isTRUE(active_setup[[paste0("is_", column)]])) {
     return(list(
-      mu_basis      = direction * data[["outcome"]][["sei"]],
-      log_tau_basis = NULL,
-      scale_update  = "none"
-    ))
-  }
-
-  if (column == "PEESE" && isTRUE(active_setup[["is_PEESE"]])) {
-    direction <- ifelse(.data_effect_direction(data) == "negative", -1, 1)
-    return(list(
-      mu_basis      = direction * data[["outcome"]][["sei"]]^2,
+      mu_basis      = .bias_regression_predictor(
+        sei              = data[["outcome"]][["sei"]],
+        parameter        = column,
+        effect_direction = .data_effect_direction(data)
+      ),
       log_tau_basis = NULL,
       scale_update  = "none"
     ))

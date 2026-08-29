@@ -417,7 +417,6 @@
   )
   support <- .brma_random_parameter_support(
     selected[["spec"]],
-    selected[["prior"]],
     selected[["source_prior"]],
     selected[["allocation_definition"]]
   )
@@ -888,8 +887,7 @@
   unique(exclusions)
 }
 
-.brma_random_parameter_support <- function(spec, prior = NULL,
-                                           source_prior = NULL,
+.brma_random_parameter_support <- function(spec, source_prior = NULL,
                                            allocation = NULL) {
 
   type <- spec[["quantity"]]
@@ -1202,7 +1200,6 @@
   attr(values, "prior_list") <- BayesTools::prior_none()
   support <- .brma_random_parameter_support(
     selected[["spec"]],
-    selected[["prior"]],
     selected[["source_prior"]],
     selected[["allocation_definition"]]
   )

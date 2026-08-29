@@ -8,15 +8,9 @@
 # ============================================================================ #
 
 
-.brma_mv_has_R <- function(R) {
-
-  !is.null(R)
-}
-
-
 .brma_mv_make_group_covariance <- function(R, Rscale) {
 
-  if (!.brma_mv_has_R(R)) {
+  if (is.null(R)) {
     return(NULL)
   }
 

@@ -32,8 +32,8 @@
 #' }
 #' }
 #'
-#' @seealso [publication_bias_prior_specification], [RoBMA()], [bPEESE()],
-#' [bselmodel()], [summary.brma()], [funnel.brma()]
+#' @seealso [bPET.mv()], [publication_bias_prior_specification], [RoBMA()],
+#' [bPEESE()], [bselmodel()], [summary.brma()], [funnel.brma()]
 #' @export
 bPET <- function(
   # input specification

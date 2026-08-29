@@ -717,7 +717,6 @@ test_that("evaluated known-V marginalized scale maps component row source", {
     .log_posterior(
       parameters                 = list(mu = 0),
       data                       = .create_fit_data(object[["data"]], object[["priors"]]),
-      is_mods                    = FALSE,
       is_scale                   = TRUE,
       is_random                  = TRUE,
       is_multilevel              = FALSE,

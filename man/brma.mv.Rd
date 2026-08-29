@@ -381,5 +381,6 @@ summary(fit)
 \seealso{
 \code{\link{random_effect_formula_tags}},
 \code{\link{random_effect_prior_specification}}, \code{\link[=brma]{brma()}},
-\code{\link[=BMA.mv]{BMA.mv()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
+\code{\link[=BMA.mv]{BMA.mv()}}, \code{\link[=bPET.mv]{bPET.mv()}}, \code{\link[=bPEESE.mv]{bPEESE.mv()}}, \code{\link[=bselmodel.mv]{bselmodel.mv()}},
+\code{\link[=summary.brma]{summary.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
 }

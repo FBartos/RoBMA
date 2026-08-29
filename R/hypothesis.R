@@ -875,7 +875,6 @@ hypothesis.brma <- function(object, hypothesis,
     if (!precomputed) {
       support <- .brma_random_parameter_support(
         posterior[["spec"]],
-        posterior[["prior"]],
         posterior[["source_prior"]],
         posterior[["allocation_definition"]]
       )

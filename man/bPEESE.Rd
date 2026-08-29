@@ -211,6 +211,6 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 
 }
 \seealso{
-\link{publication_bias_prior_specification}, \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=bPET]{bPET()}},
-\code{\link[=bselmodel]{bselmodel()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=funnel.brma]{funnel.brma()}}
+\code{\link[=bPEESE.mv]{bPEESE.mv()}}, \link{publication_bias_prior_specification}, \code{\link[=RoBMA]{RoBMA()}},
+\code{\link[=bPET]{bPET()}}, \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=funnel.brma]{funnel.brma()}}
 }

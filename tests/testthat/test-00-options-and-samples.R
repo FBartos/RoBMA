@@ -45,6 +45,12 @@ test_that("fitting constructors inherit silent option when omitted", {
     measure   = "OR",
     only_data = TRUE
   )
+  mv_args <- list(
+    yi        = norm_args[["yi"]],
+    V         = diag(norm_args[["sei"]]^2),
+    measure   = "GEN",
+    only_data = TRUE
+  )
 
   constructors <- list(
     brma       = list(fun = brma,       args = norm_args),
@@ -53,6 +59,8 @@ test_that("fitting constructors inherit silent option when omitted", {
     bselmodel  = list(fun = bselmodel,  args = norm_args),
     bPET       = list(fun = bPET,       args = norm_args),
     bPEESE     = list(fun = bPEESE,     args = norm_args),
+    bPET.mv    = list(fun = bPET.mv,    args = mv_args),
+    bPEESE.mv  = list(fun = bPEESE.mv,  args = mv_args),
     brma.glmm  = list(fun = brma.glmm,  args = glmm_args),
     BMA.glmm   = list(fun = BMA.glmm,   args = glmm_args)
   )

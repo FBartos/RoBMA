@@ -102,10 +102,19 @@ test_that("all public fitting constructors preserve original fitting errors", {
     measure = "OR",
     silent  = TRUE
   )
+  mv_args <- list(
+    yi                        = normal_args[["yi"]],
+    V                         = diag(normal_args[["sei"]]^2),
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    silent                    = TRUE
+  )
   constructors <- list(
     BMA.norm   = function() do.call(BMA.norm, normal_args),
     bPET       = function() do.call(bPET, normal_args),
+    bPET.mv    = function() do.call(bPET.mv, mv_args),
     bPEESE     = function() do.call(bPEESE, normal_args),
+    bPEESE.mv  = function() do.call(bPEESE.mv, mv_args),
     bselmodel  = function() do.call(bselmodel, normal_args),
     RoBMA      = function() do.call(RoBMA, normal_args),
     brma.glmm  = function() do.call(brma.glmm, glmm_args),

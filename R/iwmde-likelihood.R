@@ -221,7 +221,6 @@
   log_lik <- .log_posterior(
     parameters                   = parameters,
     data                         = active_setup[["fit_data"]],
-    is_mods                      = .is_data_mods(context[["data"]]),
     is_scale                     = .is_data_scale(context[["data"]]),
     is_random                    = .is_data_random(context[["data"]]),
     is_multilevel                = .is_data_multilevel(context[["data"]]),
@@ -295,7 +294,6 @@
 
   mu_samples <- .marglik_get_mu_samples(
     parameters       = parameters,
-    is_mods          = .is_data_mods(data),
     is_PET           = active_setup[["is_PET"]],
     is_PEESE         = active_setup[["is_PEESE"]],
     effect_direction = .data_effect_direction(data),
