@@ -28,6 +28,9 @@
   selected-response prediction use the matching target. Dependent normalizers
   and joint selected-response simulation use native kernels, while fitted
   random-effect draws reuse the compiled `brma.mv()` covariance plan.
+  Independent selection blocks use scalar JAGS kernels and batched native
+  scalar evaluation for post-fit likelihoods and bridge sampling, avoiding
+  unnecessary multivariate integration setup.
 - adds `BMA.mv()` for product-space model averaging with the complete
   `brma.mv()` known-sampling-covariance and formula-random workflow. Independent
   random-component gates multiply their allocated slab variances without

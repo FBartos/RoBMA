@@ -342,8 +342,10 @@ corresponding to the selected known-\code{V} backend. It does not use the
 estimate-wise conditional target from LOO/WAIC. During bridge evaluation,
 sampled Gaussian location random effects are integrated exactly as
 \eqn{ZGZ'} while retaining every covariance parameter and prior; fitted
-diagonal marginalized blocks remain in the row variance. Selection
-likelihoods retain their joint latent parameterization.
+diagonal marginalized blocks remain in the row variance. Approximate
+selection likelihoods retain their fitted joint latent
+parameterization. Exact selection likelihoods use the same analytically
+marginalized selected-Gaussian covariance blocks as fitting.
 \item \code{hatvalues()}, marginal \code{rstandard()}, and \code{vif()} use a marginal
 GLS covariance target based on \verb{V + ZGZ'}, where formula random effects
 are marginalized through the BayesTools covariance metadata.
