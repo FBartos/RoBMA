@@ -485,7 +485,7 @@
   effect_direction    <- setup[["effect_direction"]]
   data_weights        <- setup[["weights"]]
 
-  if (.is_data_exact_selection(data)) {
+  if (.setup_uses_exact_selection_likelihood(setup)) {
     return(.selection_exact_joint_loglik_from_setup(setup))
   }
 

@@ -679,6 +679,16 @@ test_that("IWMDE replacement maps preserve the baseline posterior ordinate", {
 
       row_states  <- .iwmde_row_states(context, rows, parameter)
       replacement <- .iwmde_replacement_spec(context, parameter)
+      if (name == "dat.lehmann2018_RoBMA" && parameter == "PET") {
+        expect_true(all(vapply(row_states, function(state) {
+          active_setup <- state[["active_setup"]]
+          is.null(active_setup[["selection_spec"]]) &&
+            !any(startsWith(
+              names(active_setup[["fit_data"]]),
+              "sel_exact_block_"
+            ))
+        }, logical(1))))
+      }
       finite      <- vapply(row_states, function(state) {
         is.finite(state[["baseline_log_q"]])
       }, logical(1))

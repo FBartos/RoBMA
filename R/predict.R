@@ -439,20 +439,21 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   }
 
   ### extract priors and structural information about the model
-  priors            <- object[["priors"]]
-  is_mods           <- .is_mods(object)
-  is_multilevel     <- .is_multilevel(object)
-  is_scale          <- .is_scale(object)
-  is_random         <- is_random_object
-  is_PET            <- .is_PET(object)
-  is_PEESE          <- .is_PEESE(object)
-  is_weightfunction <- .is_weightfunction(object)
-  is_exact_selection <- is_weightfunction &&
-    .is_data_exact_selection(object[["data"]])
-  is_weights        <- .is_weights(object)
-  is_known_v        <- .is_data_known_v(new_data) || !is.null(known_V_new)
-  outcome_type      <- .outcome_type(object)
-  effect_direction  <- .effect_direction(object)
+  priors             <- object[["priors"]]
+  is_mods            <- .is_mods(object)
+  is_multilevel      <- .is_multilevel(object)
+  is_scale           <- .is_scale(object)
+  is_random          <- is_random_object
+  is_PET             <- .is_PET(object)
+  is_PEESE           <- .is_PEESE(object)
+  is_weightfunction  <- .is_weightfunction(object)
+  is_exact_selection <- .uses_exact_selection_likelihood(
+    object[["data"]], priors
+  )
+  is_weights         <- .is_weights(object)
+  is_known_v         <- .is_data_known_v(new_data) || !is.null(known_V_new)
+  outcome_type       <- .outcome_type(object)
+  effect_direction   <- .effect_direction(object)
 
   if (type == "response" && outcome_type == "norm" && is_known_v &&
       is_weightfunction && !is_exact_selection && !bias_adjusted) {

@@ -63,7 +63,7 @@
 
   .check_glmm_no_bias_priors(data, priors)
 
-  if (.is_data_exact_selection(data)) {
+  if (.uses_exact_selection_likelihood(data, priors)) {
     return(.selection_exact_fit_data(data = data, priors = priors))
   }
 
@@ -248,17 +248,18 @@
   .check_glmm_no_bias_priors(data, priors)
 
   ### extract structural information about the model
-  is_mods           <- .is_data_mods(data)
-  is_scale          <- .is_data_scale(data)
-  is_random         <- .is_data_random(data)
-  is_multilevel     <- .is_data_multilevel(data)
-  is_weights        <- .is_data_weights(data)
-  is_PET            <- .is_priors_PET(priors)
-  is_PEESE          <- .is_priors_PEESE(priors)
-  is_weightfunction <- .is_priors_weightfunction(priors)
-  is_exact_selection <- is_weightfunction && .is_data_exact_selection(data)
-  outcome_type      <- .data_outcome_type(data)
-  effect_direction  <- .data_effect_direction(data)
+  is_mods            <- .is_data_mods(data)
+  is_scale           <- .is_data_scale(data)
+  is_random          <- .is_data_random(data)
+  is_multilevel      <- .is_data_multilevel(data)
+  is_weights         <- .is_data_weights(data)
+  is_PET             <- .is_priors_PET(priors)
+  is_PEESE           <- .is_priors_PEESE(priors)
+  is_weightfunction  <- .is_priors_weightfunction(priors)
+  is_exact_selection <- .uses_exact_selection_likelihood(data, priors)
+  outcome_type       <- .data_outcome_type(data)
+  effect_direction   <- .data_effect_direction(data)
+
   is_known_v                   <- .is_data_known_v(data)
   known_v_rank                 <- .data_known_v_rank(data)
   known_v_backend              <- .data_known_v_effective_backend(data)

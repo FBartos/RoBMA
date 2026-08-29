@@ -810,7 +810,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     return(fit_data)
   }
 
-  exact_selection <- .is_data_exact_selection(model_data)
+  exact_selection <- .uses_exact_selection_likelihood(model_data, priors)
   if (is.null(fit_data[["yi"]])) {
     if (!exact_selection) {
       return(fit_data)

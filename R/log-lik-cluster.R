@@ -10,7 +10,7 @@
   sei               <- setup[["sei"]]
   cluster_setup     <- setup
 
-  if (.is_data_exact_selection(setup[["data"]])) {
+  if (.setup_uses_exact_selection_likelihood(setup)) {
     log_lik <- .selection_exact_block_loglik_from_setup(setup)
     exact_blocks <- .data_exact_selection_setup(
       setup[["data"]]
@@ -100,7 +100,7 @@
   sei               <- setup[["sei"]]
   cluster_setup     <- setup
 
-  if (.is_data_exact_selection(setup[["data"]])) {
+  if (.setup_uses_exact_selection_likelihood(setup)) {
     return(.selection_exact_joint_loglik_from_setup(setup))
   }
 

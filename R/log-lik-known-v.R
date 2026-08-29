@@ -187,7 +187,7 @@
   }
 
   if (.is_priors_weightfunction(priors)) {
-    return(.is_data_exact_selection(data))
+    return(.uses_exact_selection_likelihood(data, priors))
   }
 
   if (.known_v_estimate_target_uses_backend(data)) {
@@ -290,7 +290,7 @@
       block_indices            = unname(setup[["cluster"]]),
       extra_variances          = setup[["tau_within"]]^2
     )
-  } else if (.is_data_exact_selection(setup[["data"]])) {
+  } else if (.setup_uses_exact_selection_likelihood(setup)) {
     plan <- list(
       sampling_covariance      = diag(setup[["sei"]]^2, nrow = K, ncol = K),
       random_covariance_plans  = list(),
@@ -353,7 +353,7 @@
 
   plan <- .estimate_normal_covariance_target_plan_from_setup(setup)
 
-  if (.is_data_exact_selection(setup[["data"]])) {
+  if (.setup_uses_exact_selection_likelihood(setup)) {
     conditional <- .marglik_covariance_plan_conditional_summary_batch(
       cache                    = NULL,
       y                        = plan[["y"]],
@@ -441,7 +441,7 @@
     )
   }
 
-  if (.is_data_exact_selection(setup[["data"]])) {
+  if (.setup_uses_exact_selection_likelihood(setup)) {
     return(.selection_exact_joint_loglik_from_setup(setup))
   }
 
@@ -626,7 +626,7 @@
   sd  <- sqrt(variance)
   out <- list()
 
-  if (.is_data_exact_selection(setup[["data"]])) {
+  if (.setup_uses_exact_selection_likelihood(setup)) {
     conditional_mean <- matrix(
       yi,
       nrow  = S,

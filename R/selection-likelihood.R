@@ -116,6 +116,18 @@ set_selection_likelihood_control <- function(
 }
 
 
+.uses_exact_selection_likelihood <- function(data, priors) {
+
+  .is_data_exact_selection(data) && .is_priors_weightfunction(priors)
+}
+
+
+.setup_uses_exact_selection_likelihood <- function(setup) {
+
+  .uses_exact_selection_likelihood(setup[["data"]], setup[["priors"]])
+}
+
+
 .data_exact_selection_setup <- function(data) {
 
   setup <- attr(data, "exact_selection_likelihood", exact = TRUE)
