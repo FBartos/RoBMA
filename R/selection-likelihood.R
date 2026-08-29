@@ -599,11 +599,11 @@ set_selection_likelihood_control <- function(
     stop("Exact selection-likelihood metadata are unavailable.",
          call. = FALSE)
   }
-  plan <- .estimate_normal_covariance_target_plan_from_setup(setup)
+  location <- .estimate_normal_covariance_target_location_from_setup(setup)
   exact_setup <- .data_exact_selection_setup(setup[["data"]])
   selection_context <- .selection_exact_signed_context(
     setup     = setup,
-    signed_yi = plan[["y"]]
+    signed_yi = location[["y"]]
   )
   random_covariance <- .selection_exact_random_covariance_samples(setup)
   log_lik <- matrix(
@@ -617,8 +617,8 @@ set_selection_likelihood_control <- function(
     block_context <- selection_context
     block_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
     log_lik[, block_index] <- .selection_exact_joint_loglik_block(
-      yi               = plan[["y"]][rows],
-      means            = plan[["means"]][, rows, drop = FALSE],
+      yi               = location[["y"]][rows],
+      means            = location[["means"]][, rows, drop = FALSE],
       covariance_lower = .selection_exact_covariance_lower(
         setup                     = setup,
         rows                      = rows,

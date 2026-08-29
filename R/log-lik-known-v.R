@@ -198,6 +198,28 @@
 }
 
 
+.estimate_normal_covariance_target_location_from_setup <- function(setup) {
+
+  mu_random <- setup[["mu_random"]]
+  if (is.null(mu_random)) {
+    mu_random <- matrix(0, nrow = setup[["S"]], ncol = setup[["K"]])
+  }
+  means <- setup[["mu"]] - mu_random
+  y     <- setup[["yi"]]
+
+  if (identical(setup[["effect_direction"]], "negative")) {
+    y     <- -y
+    means <- -means
+  }
+
+  list(
+    y          = as.double(y),
+    means      = means,
+    lower_tail = !identical(setup[["effect_direction"]], "negative")
+  )
+}
+
+
 .estimate_normal_covariance_target_plan_from_setup <- function(setup) {
 
   if (!identical(setup[["outcome_type"]], "norm")) {
@@ -223,13 +245,9 @@
     )
   }
 
-  K         <- setup[["K"]]
-  S         <- setup[["S"]]
-  mu_random <- setup[["mu_random"]]
-  if (is.null(mu_random)) {
-    mu_random <- matrix(0, nrow = S, ncol = K)
-  }
-  means <- setup[["mu"]] - mu_random
+  K        <- setup[["K"]]
+  S        <- setup[["S"]]
+  location <- .estimate_normal_covariance_target_location_from_setup(setup)
 
   if (.is_data_known_v(setup[["data"]])) {
     object <- list(
@@ -285,20 +303,8 @@
          call. = FALSE)
   }
 
-  y          <- setup[["yi"]]
-  lower_tail <- TRUE
-  if (identical(setup[["effect_direction"]], "negative")) {
-    y          <- -y
-    means      <- -means
-    lower_tail <- FALSE
-  }
-
   c(
-    list(
-      y          = as.double(y),
-      means      = means,
-      lower_tail = lower_tail
-    ),
+    location,
     plan[c(
       "sampling_covariance",
       "random_covariance_plans",
