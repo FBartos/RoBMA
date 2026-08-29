@@ -1307,17 +1307,19 @@ test_that("brma.mv marginalizes nested estimate level with allocation child SD",
       is_multilevel = FALSE
     ),
     data_hash = .get_outcome_hash(object),
-    dependency_blocks = .marglik_random_dependency_blocks(
-      model_data                   = object[["data"]],
-      formula_design               = .fitted_formula_design(
+    dependency_blocks = .random_effect_dependency_blocks(
+      sampling_covariance = .known_v_dependency_covariance(
+        object[["data"]],
+        sampling_latent_marginalized = TRUE
+      ),
+      formula_design = .fitted_formula_design(
         object,
         "mu",
         required = TRUE
       ),
-      blocks                       = .data_sampled_random_effect_blocks(
+      blocks = .data_sampled_random_effect_blocks(
         object[["data"]]
-      ),
-      sampling_latent_marginalized = TRUE
+      )
     )
   )
   expect_equal(.data_sampled_random_effect_blocks(object[["data"]]), "study")

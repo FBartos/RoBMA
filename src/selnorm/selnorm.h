@@ -201,4 +201,38 @@ double cpp_selnorm_kernel_rng(
   bool validate_omega = true
 );
 
+double cpp_selnorm_kernel_rng_workspace(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  double u_bin,
+  double u_interval,
+  double alpha,
+  int phack_kind,
+  int kernel_mode,
+  const SelNormKernelData &data,
+  double *mass,
+  double *lower,
+  double *upper,
+  int omega_stride = 1,
+  bool validate_omega = true
+);
+
+double cpp_selnorm_step_log_norm_rng_workspace(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  double u_bin,
+  double u_interval,
+  const SelNormKernelData &data,
+  double *mass,
+  double *lower,
+  double *upper,
+  double *log_normalizer,
+  int omega_stride = 1,
+  bool validate_omega = true
+);
+
 #endif

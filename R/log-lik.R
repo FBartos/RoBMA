@@ -485,6 +485,10 @@
   effect_direction    <- setup[["effect_direction"]]
   data_weights        <- setup[["weights"]]
 
+  if (.is_data_exact_selection(data)) {
+    return(.selection_exact_joint_loglik_from_setup(setup))
+  }
+
   if (.known_v_estimate_target_uses_backend(data)) {
     return(.log_lik_known_v_joint_sum_from_setup(setup))
   }

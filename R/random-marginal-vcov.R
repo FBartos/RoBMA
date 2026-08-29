@@ -49,6 +49,56 @@
 }
 
 
+.random_effect_dependency_blocks <- function(
+    sampling_covariance, formula_design, blocks) {
+
+  if (!is.matrix(sampling_covariance) ||
+      !is.numeric(sampling_covariance) ||
+      nrow(sampling_covariance) != ncol(sampling_covariance) ||
+      anyNA(sampling_covariance) || any(!is.finite(sampling_covariance)) ||
+      any(sampling_covariance != t(sampling_covariance))) {
+    stop(
+      "Sampling covariance is invalid for random-effect dependency ",
+      "construction.",
+      call. = FALSE
+    )
+  }
+  K         <- nrow(sampling_covariance)
+  adjacency <- sampling_covariance != 0
+  terms <- if (is.null(formula_design)) NULL else
+    formula_design[["random_effects"]]
+  term_names <- vapply(terms, .random_effect_term_block_name, character(1))
+  terms <- terms[term_names %in% blocks]
+
+  for (term in terms) {
+    group_map <- as.integer(term[["group_map"]])
+    if (length(group_map) != K || anyNA(group_map) || any(group_map < 1L)) {
+      stop(
+        "Random-effect grouping metadata are invalid for dependency ",
+        "construction.",
+        call. = FALSE
+      )
+    }
+    if (.random_effect_term_has_known_group_covariance(term)) {
+      kernel <- term[["group_covariance"]][["kernel"]]
+      if (!is.matrix(kernel) || any(group_map > nrow(kernel))) {
+        stop(
+          "Known random-effect group covariance is invalid for dependency ",
+          "construction.",
+          call. = FALSE
+        )
+      }
+      adjacency <- adjacency | kernel[group_map, group_map, drop = FALSE] != 0
+    } else {
+      adjacency <- adjacency | outer(group_map, group_map, "==")
+    }
+  }
+  diag(adjacency) <- TRUE
+
+  .known_v_block_indices(adjacency * 1)
+}
+
+
 .brma_mv_random_effects_marginal_inputs <- function(
     object, posterior_samples, data = object[["data"]],
     include_known_group_covariance = TRUE) {
@@ -84,14 +134,16 @@
 .brma_mv_random_effects_marginal_vcov <- function(
     object, posterior_samples, blocks = NULL, diagonal_only = FALSE,
     data = object[["data"]], new_levels = NULL,
-    include_known_group_covariance = TRUE) {
+    include_known_group_covariance = TRUE, inputs = NULL) {
 
-  inputs <- .brma_mv_random_effects_marginal_inputs(
-    object                         = object,
-    posterior_samples              = posterior_samples,
-    data                           = data,
-    include_known_group_covariance = include_known_group_covariance
-  )
+  if (is.null(inputs)) {
+    inputs <- .brma_mv_random_effects_marginal_inputs(
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      data                           = data,
+      include_known_group_covariance = include_known_group_covariance
+    )
+  }
 
   return(BayesTools::random_effects_marginal_vcov(
     fit               = inputs[["formula_fit"]],
@@ -190,11 +242,13 @@
     stop("Requested random-formula blocks are invalid.", call. = FALSE)
   }
   if (is.null(row_blocks)) {
-    row_blocks <- .marglik_random_dependency_blocks(
-      model_data                   = data,
-      formula_design               = inputs[["formula_design"]],
-      blocks                       = blocks,
-      sampling_latent_marginalized = sampling_latent_marginalized
+    row_blocks <- .random_effect_dependency_blocks(
+      sampling_covariance = .known_v_dependency_covariance(
+        data,
+        sampling_latent_marginalized = sampling_latent_marginalized
+      ),
+      formula_design = inputs[["formula_design"]],
+      blocks         = blocks
     )
   }
 

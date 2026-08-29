@@ -200,6 +200,105 @@
 }
 
 
+# Draw one finite-vector product-selected Gaussian response per posterior row.
+# Rejection is performed independently by structural covariance block. The
+# native sampler normalizes each row's nonnegative relative weights by their
+# maximum, so accepting with their product gives the exact selected density.
+.outcome_rng.selnorm_mvn <- function(
+    mu_samples, covariance_samples, sei, selection_context,
+    dependency_blocks, max_attempts = 100000L) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+  if (!identical(dim(covariance_samples), c(S, K, K)) ||
+      any(!is.finite(covariance_samples))) {
+    stop("Selected response covariance samples have invalid dimensions.",
+         call. = FALSE)
+  }
+  if (!is.numeric(sei) || length(sei) != K || anyNA(sei) ||
+      any(!is.finite(sei)) || any(sei <= 0)) {
+    stop("Selected response standard errors must be finite and positive.",
+         call. = FALSE)
+  }
+  BayesTools::check_int(
+    max_attempts,
+    "max_attempts",
+    lower = 1L,
+    check_length = 1L,
+    allow_NA = FALSE
+  )
+  selection_context <- BayesTools::selection_context_validate(
+    context   = selection_context,
+    n_samples = S,
+    required  = c("omega", "kernel_mode", "use_normal")
+  )
+  if (any(!selection_context[["kernel_mode"]] %in%
+          c(SELKERNEL_NORMAL, SELKERNEL_STEP))) {
+    stop("Exact selected response simulation requires a step selection kernel.",
+         call. = FALSE)
+  }
+  omega <- selection_context[["omega"]]
+  if (any(!is.finite(omega)) || any(omega < 0)) {
+    stop("Exact selected response simulation requires nonnegative weights.",
+         call. = FALSE)
+  }
+  .known_v_validate_dependency_blocks(dependency_blocks, K)
+
+  p_cuts  <- .selection_assert_p_cuts(selection_context[["p_cuts"]])
+  z_lower <- stats::qnorm(p_cuts[-1L], lower.tail = FALSE)
+  z_upper <- c(Inf, z_lower[-length(z_lower)])
+  result <- .Call(
+    "RoBMA_selnorm_mnorm_step_rng_batch",
+    .native_numeric_matrix(mu_samples),
+    covariance_samples,
+    .native_numeric_vector(sei),
+    .native_numeric_matrix(omega),
+    .native_numeric_vector(z_lower),
+    .native_numeric_vector(z_upper),
+    .native_integer_vector(selection_context[["sign"]]),
+    .native_integer_vector(selection_context[["kernel_mode"]]),
+    dependency_blocks,
+    .native_integer_vector(max_attempts),
+    PACKAGE = "RoBMA"
+  )
+  if (!is.list(result) ||
+      !identical(names(result), c(
+        "draws", "failure_code", "failure_size"
+      ))) {
+    stop("The exact selected response native kernel returned invalid output.",
+         call. = FALSE)
+  }
+  if (result[["failure_code"]] == 1L) {
+    stop("Selected response covariance is not positive semidefinite.",
+         call. = FALSE)
+  }
+  if (result[["failure_code"]] == 2L) {
+    stop(
+      "Exact selected response RNG was rejected by diagnostics: no ",
+      "proposal was accepted in ", max_attempts, " attempts for a ",
+      "dependency block of size ", result[["failure_size"]], ". Use ",
+      "'bias_adjusted = TRUE' to draw responses before selection.",
+      call. = FALSE
+    )
+  }
+  if (result[["failure_code"]] == 3L) {
+    stop("Exact selected response simulation requires a positive weight.",
+         call. = FALSE)
+  }
+  if (result[["failure_code"]] == 4L) {
+    stop("Selected response covariance must be symmetric.", call. = FALSE)
+  }
+  if (result[["failure_code"]] != 0L ||
+      !identical(dim(result[["draws"]]), c(S, K)) ||
+      any(!is.finite(result[["draws"]]))) {
+    stop("The exact selected response native kernel returned invalid output.",
+         call. = FALSE)
+  }
+
+  return(result[["draws"]])
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .outcome_rng.binom
 # ---------------------------------------------------------------------------- #

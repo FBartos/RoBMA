@@ -41,7 +41,11 @@
   }
 
   fixed_variance <- .brma_mv_fixed_integrated_variance(object, K = K)
-  if (identical(.known_v_effective_backend(known_V), "block_mvn") &&
+  dense_likelihood <- identical(
+    .known_v_effective_backend(known_V),
+    "block_mvn"
+  ) || .is_data_exact_selection(data)
+  if (dense_likelihood &&
       !is.null(fixed_variance)) {
     invalid_numeric_blocks <- Filter(function(block) {
       index      <- block[["index"]]
@@ -51,10 +55,15 @@
     }, covariance_blocks)
     if (length(invalid_numeric_blocks) > 0L) {
       block_labels <- .known_v_block_labels(invalid_numeric_blocks)
+      likelihood <- if (.is_data_exact_selection(data)) {
+        "exact selection likelihood"
+      } else {
+        "block-MVN backend"
+      }
       stop(
         "Fixed integrated variance does not make singular 'V' dependency ",
         "block(s) at retained rows ", paste(block_labels, collapse = ", "),
-        " numerically positive definite for the block-MVN backend. Increase ",
+        " numerically positive definite for the ", likelihood, ". Increase ",
         "the fixed heterogeneity/random-effect SD or supply a ",
         "positive-definite 'V'.",
         call. = FALSE

@@ -986,7 +986,7 @@
     cache                    = new.env(parent = emptyenv()),
     y                        = data[["outcome"]][["yi"]],
     means                    = mu_samples + bias_offset,
-    sampling_covariance      = .marglik_known_v_covariance_matrix(known_V),
+    sampling_covariance      = .known_v_covariance_matrix(known_V),
     random_covariance_plans  = random_factors[["factor_plans"]],
     random_covariance_states = random_factors[["factor_states"]],
     block_indices            = dependency_blocks,
@@ -1276,6 +1276,58 @@
 }
 
 
+# Solve one diagonal-plus-rank-one system per posterior row. The ordinary path
+# is vectorized across draws; exceptional boundary rows retain the scalar
+# factorization and its exact diagnostics.
+.solve_diagonal_rank_one_batch <- function(diagonal, rank_one, residual) {
+
+  diagonal <- as.matrix(diagonal)
+  rank_one <- as.matrix(rank_one)
+  residual <- as.matrix(residual)
+  if (!identical(dim(diagonal), dim(rank_one)) ||
+      !identical(dim(diagonal), dim(residual)) ||
+      any(!is.finite(diagonal)) || any(!is.finite(rank_one)) ||
+      any(!is.finite(residual))) {
+    stop("Cannot solve known-V BLUP covariance batch with invalid inputs.",
+         call. = FALSE)
+  }
+
+  S        <- nrow(diagonal)
+  solution <- matrix(NA_real_, nrow = S, ncol = ncol(diagonal))
+  regular  <- rowSums(diagonal <= 0) == 0L
+  if (any(regular)) {
+    inv_diagonal <- 1 / diagonal[regular, , drop = FALSE]
+    inv_residual <- residual[regular, , drop = FALSE] * inv_diagonal
+    inv_rank_one <- rank_one[regular, , drop = FALSE] * inv_diagonal
+    denominator <- 1 + rowSums(
+      rank_one[regular, , drop = FALSE] * inv_rank_one
+    )
+    regular_rows <- which(regular)
+    valid <- is.finite(denominator) & denominator > 0
+    if (any(valid)) {
+      numerator <- rowSums(
+        rank_one[regular_rows[valid], , drop = FALSE] *
+          inv_residual[valid, , drop = FALSE]
+      )
+      solution[regular_rows[valid], ] <-
+        inv_residual[valid, , drop = FALSE] -
+        inv_rank_one[valid, , drop = FALSE] * (numerator / denominator[valid])
+    }
+    regular[regular_rows[!valid]] <- FALSE
+  }
+
+  for (draw in which(!regular)) {
+    solution[draw, ] <- .solve_diagonal_rank_one_block(
+      diagonal = diagonal[draw, ],
+      rank_one = rank_one[draw, ],
+      residual = residual[draw, ]
+    )
+  }
+
+  return(solution)
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .evaluate.brma.multilevel_blup.norm
 # ---------------------------------------------------------------------------- #
@@ -1315,19 +1367,22 @@
   cluster_contribution  <- matrix(0, nrow = S, ncol = K)
   estimate_contribution <- matrix(0, nrow = S, ncol = K)
 
-  for (s in seq_len(S)) {
-    for (idx in block_indices) {
-      weighted_residual <- .solve_diagonal_rank_one_block(
-        diagonal = vi[idx] + tau_within[s, idx]^2,
-        rank_one = tau_between[s, idx],
-        residual = yi[idx] - bias_offset[s, idx] - mu_samples[s, idx]
-      )
+  for (idx in block_indices) {
+    weighted_residual <- .solve_diagonal_rank_one_batch(
+      diagonal = tau_within[, idx, drop = FALSE]^2 +
+        matrix(vi[idx], nrow = S, ncol = length(idx), byrow = TRUE),
+      rank_one = tau_between[, idx, drop = FALSE],
+      residual = matrix(yi[idx], nrow = S, ncol = length(idx), byrow = TRUE) -
+        bias_offset[, idx, drop = FALSE] - mu_samples[, idx, drop = FALSE]
+    )
 
-      estimate_contribution[s, idx] <- tau_within[s, idx]^2 * weighted_residual
-
-      cluster_scale <- sum(tau_between[s, idx] * weighted_residual)
-      cluster_contribution[s, idx] <- tau_between[s, idx] * cluster_scale
-    }
+    estimate_contribution[, idx] <-
+      tau_within[, idx, drop = FALSE]^2 * weighted_residual
+    cluster_scale <- rowSums(
+      tau_between[, idx, drop = FALSE] * weighted_residual
+    )
+    cluster_contribution[, idx] <-
+      tau_between[, idx, drop = FALSE] * cluster_scale
   }
 
   return(list(
@@ -1337,15 +1392,17 @@
 }
 
 
-# Conditional simulation of the total fitted latent contribution in the
-# specialized multilevel normal model. The simulation identity preserves the
-# shared cluster-level dependence instead of drawing row-wise BLUP uncertainty.
+# Conditional simulation of the total or cluster-level fitted latent
+# contribution in the specialized multilevel normal model. The simulation
+# identity preserves shared cluster-level dependence instead of drawing
+# row-wise BLUP uncertainty.
 .evaluate.brma.multilevel_posterior.norm <- function(
     mu_samples, tau_within, tau_between, yi, vi, cluster,
-    bias_offset = NULL) {
+    bias_offset = NULL, component = c("total", "cluster")) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
+  component <- match.arg(component)
   if (is.null(bias_offset)) {
     bias_offset <- matrix(0, nrow = S, ncol = K)
   } else if (!identical(dim(bias_offset), c(S, K))) {
@@ -1359,32 +1416,46 @@
     cluster_z <- stats::rnorm(S)
     prior_effect[, idx] <-
       tau_between[, idx, drop = FALSE] *
-        matrix(cluster_z, nrow = S, ncol = length(idx)) +
-      tau_within[, idx, drop = FALSE] *
-        matrix(stats::rnorm(S * length(idx)), nrow = S, ncol = length(idx))
+        matrix(cluster_z, nrow = S, ncol = length(idx))
+    if (identical(component, "total")) {
+      prior_effect[, idx] <- prior_effect[, idx, drop = FALSE] +
+        tau_within[, idx, drop = FALSE] *
+          matrix(stats::rnorm(S * length(idx)),
+                 nrow = S, ncol = length(idx))
+    }
   }
-  prior_sampling <- matrix(
+  prior_noise <- matrix(
     stats::rnorm(S * K),
     nrow = S,
     ncol = K
-  ) * matrix(sqrt(vi), nrow = S, ncol = K, byrow = TRUE)
+  )
+  if (identical(component, "total")) {
+    prior_noise <- prior_noise *
+      matrix(sqrt(vi), nrow = S, ncol = K, byrow = TRUE)
+  } else {
+    prior_noise <- prior_noise * sqrt(
+      matrix(vi, nrow = S, ncol = K, byrow = TRUE) + tau_within^2
+    )
+  }
   residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
     bias_offset - mu_samples
   out <- prior_effect
 
-  for (s in seq_len(S)) {
-    for (idx in block_indices) {
-      innovation <- residual[s, idx] - prior_effect[s, idx] -
-        prior_sampling[s, idx]
-      weights <- .solve_diagonal_rank_one_block(
-        diagonal = vi[idx] + tau_within[s, idx]^2,
-        rank_one = tau_between[s, idx],
-        residual = innovation
-      )
-      cluster_adjustment <- tau_between[s, idx] *
-        sum(tau_between[s, idx] * weights)
-      out[s, idx] <- prior_effect[s, idx] +
-        tau_within[s, idx]^2 * weights + cluster_adjustment
+  for (idx in block_indices) {
+    weights <- .solve_diagonal_rank_one_batch(
+      diagonal = tau_within[, idx, drop = FALSE]^2 +
+        matrix(vi[idx], nrow = S, ncol = length(idx), byrow = TRUE),
+      rank_one = tau_between[, idx, drop = FALSE],
+      residual = residual[, idx, drop = FALSE] -
+        prior_effect[, idx, drop = FALSE] -
+        prior_noise[, idx, drop = FALSE]
+    )
+    cluster_scale <- rowSums(tau_between[, idx, drop = FALSE] * weights)
+    out[, idx] <- prior_effect[, idx, drop = FALSE] +
+      tau_between[, idx, drop = FALSE] * cluster_scale
+    if (identical(component, "total")) {
+      out[, idx] <- out[, idx, drop = FALSE] +
+        tau_within[, idx, drop = FALSE]^2 * weights
     }
   }
 

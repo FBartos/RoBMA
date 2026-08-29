@@ -61,6 +61,14 @@
 
   S      <- nrow(posterior_samples)
   K      <- nrow(data[["outcome"]])
+  if (.is_data_exact_selection(object[["data"]])) {
+    return(.predict_brma_mv_marginal_random_draws(
+      object            = object,
+      data              = data,
+      posterior_samples = posterior_samples
+    ))
+  }
+
   out    <- matrix(0, nrow = S, ncol = K)
   blocks <- .data_sampled_random_effect_blocks(object[["data"]])
 
@@ -140,10 +148,25 @@
 }
 
 
+.predict_brma_mv_marginal_random_draws <- function(
+    object, data, posterior_samples) {
+
+  return(.evaluate.brma.random_effects(
+    fit               = object[["fit"]],
+    data              = data,
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples,
+    same_data         = FALSE,
+    required          = TRUE,
+    formula_target    = "marginal",
+    object            = object
+  ))
+}
+
+
 # Draw the total fitted random-formula contribution from its conditional
-# posterior. Sampled blocks are already posterior draws. The compiler permits
-# marginalization only for one-to-one diagonal blocks; draw those blocks
-# conditionally through the known-V Gaussian identity.
+# posterior. Exact selection models use the general marginal covariance;
+# ordinary sampled/marginalized hybrids retain their specialized path.
 .predict_brma_mv_random_posterior_draws <- function(
     object, mu_samples, posterior_samples, bias_offset = NULL) {
 
@@ -171,6 +194,15 @@
   } else if (!identical(dim(bias_offset), c(S, K))) {
     stop("'bias_offset' must have dimensions posterior draw x observation.",
          call. = FALSE)
+  }
+
+  if (.is_data_exact_selection(data)) {
+    return(.predict_brma_mv_marginal_random_posterior_draws(
+      object            = object,
+      mu_samples        = mu_samples,
+      posterior_samples = posterior_samples,
+      bias_offset       = bias_offset
+    ))
   }
 
   sampled_blocks <- .data_sampled_random_effect_blocks(data)
@@ -225,6 +257,36 @@
   )
 
   return(conditional_effect - mu_samples)
+}
+
+
+# Exact conditional simulation for a general marginalized random-formula
+# contribution u ~ N(0, Q) observed through y = X beta + u + e, e ~ N(0, V).
+# The product-selection factor is constant after conditioning on observed y,
+# so the latent posterior remains Gaussian. This is the Matheron update
+# u_0 + Q(Q + V)^-1(y - X beta - bias - u_0 - e_0), evaluated through the
+# shared random-effect sampler and compiled brma.mv covariance plan.
+.predict_brma_mv_marginal_random_posterior_draws <- function(
+    object, mu_samples, posterior_samples, bias_offset) {
+
+  data    <- object[["data"]]
+  known_V <- .data_known_v_data(data)
+  S       <- nrow(posterior_samples)
+  K       <- ncol(mu_samples)
+  prior_random <- .predict_brma_mv_marginal_random_draws(
+    object            = object,
+    data              = data,
+    posterior_samples = posterior_samples
+  )
+  prior_sampling <- .known_v_sampling_noise(known_V, S = S, K = K)
+  correction <- .evaluate.brma.mv_random_blup.norm(
+    object            = object,
+    mu_samples        = mu_samples + prior_random + prior_sampling,
+    posterior_samples = posterior_samples,
+    bias_offset       = bias_offset
+  )
+
+  return(prior_random + correction)
 }
 
 

@@ -131,14 +131,14 @@
   blocks <- .brma_mv_random_effects_block_names(formula_design)
 
   known_V <- .data_known_v_data(data)
+  sampling_covariance <- .known_v_covariance_matrix(known_V)
   setup <- list(
     blocks              = blocks,
-    sampling_covariance = .marglik_known_v_covariance_matrix(known_V),
-    dependency_blocks   = .marglik_random_dependency_blocks(
-      model_data                   = data,
-      formula_design               = formula_design,
-      blocks                       = blocks,
-      sampling_latent_marginalized = TRUE
+    sampling_covariance = sampling_covariance,
+    dependency_blocks   = .random_effect_dependency_blocks(
+      sampling_covariance = sampling_covariance,
+      formula_design      = formula_design,
+      blocks              = blocks
     ),
     covariance_plan_cache = new.env(parent = emptyenv()),
     affine_plan_cache     = new.env(parent = emptyenv()),

@@ -97,7 +97,11 @@ the expected bias (i.e., what we expect to observe given publication bias).}
 \item{For \code{type = "response"} with selection models, samples from
 the selected-normal distribution reflecting the selective publishing
 process.}
-}}
+}
+Exact selection models sample the finite response vector jointly within the
+dependency blocks stored by the fitted likelihood. Approximate selection
+models retain the row-wise selected-normal response sampler. In both cases,
+selection is defined at the estimate level.}
 
 \item{quiet}{logical; whether to suppress informational messages about
 prediction scale and bias adjustment.}

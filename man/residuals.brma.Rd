@@ -122,6 +122,11 @@ the same conditional estimate-unit target as LOO,
 support marginal Pearson and internally standardized residuals through the
 marginal covariance \eqn{V + ZGZ'} and estimate-depth residuals through the
 fitted existing-level random-effect target.
+For exact selection models, the conditional target is selected again only
+by the deleted estimate's weight; the weights of retained estimates cancel.
+Pearson and hat-matrix standardized residuals remain unavailable for
+selection models; use LOO-PIT residuals for a likelihood-aware standardized
+diagnostic.
 
 The residuals are computed separately for each posterior sample,
 naturally propagating uncertainty in model parameters to the residuals.

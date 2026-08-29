@@ -81,6 +81,10 @@
 #'   the selected-normal distribution reflecting the selective publishing
 #'   process.}
 #' }
+#' Exact selection models sample the finite response vector jointly within the
+#' dependency blocks stored by the fitted likelihood. Approximate selection
+#' models retain the row-wise selected-normal response sampler. In both cases,
+#' selection is defined at the estimate level.
 #' @param conditional whether to return conditional posterior predictions for
 #' RoBMA product-space objects. For location predictions, samples are conditioned
 #' on the effect component; for \code{type = "terms.scale"}, samples are
@@ -443,13 +447,15 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   is_PET            <- .is_PET(object)
   is_PEESE          <- .is_PEESE(object)
   is_weightfunction <- .is_weightfunction(object)
+  is_exact_selection <- is_weightfunction &&
+    .is_data_exact_selection(object[["data"]])
   is_weights        <- .is_weights(object)
   is_known_v        <- .is_data_known_v(new_data) || !is.null(known_V_new)
   outcome_type      <- .outcome_type(object)
   effect_direction  <- .effect_direction(object)
 
   if (type == "response" && outcome_type == "norm" && is_known_v &&
-      is_weightfunction && !bias_adjusted) {
+      is_weightfunction && !is_exact_selection && !bias_adjusted) {
     stop(
       "Bias-unadjusted response predictions for known-V weightfunction ",
       "models are not supported because selected-normal sampling does not ",
@@ -497,9 +503,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     )
   }
 
-  ### extract outcome data and fit data for convenience
-  outcome_data      <- new_data[["outcome"]]
-  fit_data          <- .create_fit_data(data = new_data, priors = priors)
+  ### extract outcome data for convenience
+  outcome_data <- new_data[["outcome"]]
 
   # outcome dimensions
   K_original <- nrow(outcome_data)
@@ -536,6 +541,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     is_PET              = is_PET,
     is_PEESE            = is_PEESE,
     is_weightfunction   = is_weightfunction,
+    is_exact_selection  = is_exact_selection,
     is_weights          = is_weights,
     is_known_v          = is_known_v,
     outcome_type        = outcome_type,
@@ -543,7 +549,6 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     posterior_samples   = posterior_samples,
     effect_transform    = effect_transform,
     outcome_data        = outcome_data,
-    fit_data            = fit_data,
     K_original          = K_original,
     K                   = K,
     n_chains            = n_chains,
@@ -779,13 +784,13 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   is_PET              <- context[["is_PET"]]
   is_PEESE            <- context[["is_PEESE"]]
   is_weightfunction   <- context[["is_weightfunction"]]
+  is_exact_selection  <- isTRUE(context[["is_exact_selection"]])
   is_weights          <- context[["is_weights"]]
   is_known_v          <- context[["is_known_v"]]
   outcome_type        <- context[["outcome_type"]]
   effect_direction    <- context[["effect_direction"]]
   posterior_samples   <- context[["posterior_samples"]]
   outcome_data        <- context[["outcome_data"]]
-  fit_data            <- context[["fit_data"]]
   K_original          <- context[["K_original"]]
   K                   <- context[["K"]]
   random_mv           <- context[["random_mv"]]
@@ -848,18 +853,47 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     !random_mv
 
   needs_sampled_cluster <- is_multilevel &&
-    (conditioning_depth == "cluster" ||
+    ((conditioning_depth == "cluster" && !is_exact_selection) ||
      (conditioning_depth == "estimate" &&
-      (outcome_type != "norm" || is_weightfunction)))
+      (outcome_type != "norm" ||
+       (is_weightfunction && !is_exact_selection))))
   if (needs_sampled_cluster) {
     cluster_contribution <- .evaluate.brma.cluster_effects(
       fit               = object[["fit"]],
       tau_between       = tau_between_samples,
-      cluster           = fit_data[["cluster"]],
+      cluster           = outcome_data[["cluster"]],
       same_data         = TRUE,
       effect_direction  = effect_direction,
       posterior_samples = posterior_samples
     )
+    cluster_mu <- fixed_mu + cluster_contribution
+  }
+  if (is_multilevel && outcome_type == "norm" && same_data &&
+      is_exact_selection &&
+      conditioning_depth %in% c("cluster", "estimate")) {
+    multilevel_blup <- .evaluate.brma.multilevel_blup.norm(
+      mu_samples  = fixed_mu,
+      tau_within  = tau_within_samples,
+      tau_between = tau_between_samples,
+      yi          = outcome_data[["yi"]],
+      vi          = blup_vi,
+      cluster     = outcome_data[["cluster"]],
+      bias_offset = blup_bias_offset
+    )
+    cluster_contribution <- if (identical(conditioning_depth, "cluster")) {
+      .evaluate.brma.multilevel_posterior.norm(
+        mu_samples  = fixed_mu,
+        tau_within  = tau_within_samples,
+        tau_between = tau_between_samples,
+        yi          = outcome_data[["yi"]],
+        vi          = blup_vi,
+        cluster     = outcome_data[["cluster"]],
+        bias_offset = blup_bias_offset,
+        component   = "cluster"
+      )
+    } else {
+      multilevel_blup[["cluster"]]
+    }
     cluster_mu <- fixed_mu + cluster_contribution
   }
   if (conditioning_depth == "cluster") {
@@ -878,16 +912,18 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       )
       mu_samples <- fixed_mu + random_blup
     } else if (is_multilevel && outcome_type == "norm" && same_data &&
-               !is_weightfunction) {
-      multilevel_blup <- .evaluate.brma.multilevel_blup.norm(
-        mu_samples  = fixed_mu,
-        tau_within  = tau_within_samples,
-        tau_between = tau_between_samples,
-        yi          = outcome_data[["yi"]],
-        vi          = blup_vi,
-        cluster     = fit_data[["cluster"]],
-        bias_offset = blup_bias_offset
-      )
+               (!is_weightfunction || is_exact_selection)) {
+      if (is.null(multilevel_blup)) {
+        multilevel_blup <- .evaluate.brma.multilevel_blup.norm(
+          mu_samples  = fixed_mu,
+          tau_within  = tau_within_samples,
+          tau_between = tau_between_samples,
+          yi          = outcome_data[["yi"]],
+          vi          = blup_vi,
+          cluster     = outcome_data[["cluster"]],
+          bias_offset = blup_bias_offset
+        )
+      }
       mu_samples <- fixed_mu + multilevel_blup[["cluster"]] +
         multilevel_blup[["estimate"]]
     } else {
@@ -1038,7 +1074,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
         effect_mean <- effect_mean + .evaluate.brma.cluster_effects(
           fit               = object[["fit"]],
           tau_between       = tau_between_samples,
-          cluster           = context[["fit_data"]][["cluster"]],
+          cluster           = outcome_data[["cluster"]],
           same_data         = FALSE,
           effect_direction  = context[["effect_direction"]],
           posterior_samples = posterior_samples
@@ -1093,7 +1129,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
         bias_offset       = blup_bias_offset
       )
   } else if (context[["is_multilevel"]] &&
-             !context[["is_weightfunction"]]) {
+             (!context[["is_weightfunction"]] ||
+              isTRUE(context[["is_exact_selection"]]))) {
     true_effects_samples <- fixed_mu +
       .evaluate.brma.multilevel_posterior.norm(
         mu_samples  = fixed_mu,
@@ -1101,7 +1138,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
         tau_between = tau_between_samples,
         yi          = outcome_data[["yi"]],
         vi          = blup_vi,
-        cluster     = context[["fit_data"]][["cluster"]],
+        cluster     = outcome_data[["cluster"]],
         bias_offset = blup_bias_offset
       )
   } else if (context[["is_known_v"]]) {
@@ -1128,20 +1165,21 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 
 .predict_brma_response <- function(context, location_state, scale_state) {
 
-  object            <- context[["object"]]
-  as_measure        <- context[["as_measure"]]
-  bias_adjusted     <- context[["bias_adjusted"]]
+  object             <- context[["object"]]
+  as_measure         <- context[["as_measure"]]
+  bias_adjusted      <- context[["bias_adjusted"]]
   conditioning_depth <- context[["conditioning_depth"]]
-  new_data          <- context[["new_data"]]
-  known_V_new       <- context[["known_V_new"]]
-  priors            <- context[["priors"]]
-  is_weightfunction <- context[["is_weightfunction"]]
-  is_known_v        <- context[["is_known_v"]]
-  outcome_type      <- context[["outcome_type"]]
-  posterior_samples <- context[["posterior_samples"]]
-  outcome_data      <- context[["outcome_data"]]
-  K                 <- context[["K"]]
-  mu_samples        <- location_state[["mu"]]
+  new_data           <- context[["new_data"]]
+  known_V_new        <- context[["known_V_new"]]
+  priors             <- context[["priors"]]
+  is_weightfunction  <- context[["is_weightfunction"]]
+  is_exact_selection <- isTRUE(context[["is_exact_selection"]])
+  is_known_v         <- context[["is_known_v"]]
+  outcome_type       <- context[["outcome_type"]]
+  posterior_samples  <- context[["posterior_samples"]]
+  outcome_data       <- context[["outcome_data"]]
+  K                  <- context[["K"]]
+  mu_samples         <- location_state[["mu"]]
   tau_within_samples <- scale_state[["within"]]
 
   # different model types have different output structures
@@ -1228,7 +1266,27 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 
   } else if (outcome_type == "norm") {
 
-    if (bias_adjusted || !is_weightfunction) {
+    if (is_exact_selection && !bias_adjusted) {
+
+      exact_response <- .predict_exact_selection_response_setup(
+        context        = context,
+        location_state = location_state,
+        scale_state    = scale_state
+      )
+      selection_context <- .selection_context(
+        object            = object,
+        posterior_samples = posterior_samples,
+        newdata           = new_data
+      )
+      outcome_samples <- .outcome_rng.selnorm_mvn(
+        mu_samples         = exact_response[["means"]],
+        covariance_samples = exact_response[["covariance"]],
+        sei                = outcome_data[["sei"]],
+        selection_context  = selection_context,
+        dependency_blocks  = exact_response[["dependency_blocks"]]
+      )
+
+    } else if (bias_adjusted || !is_weightfunction) {
 
       true_effects_samples <- .predict_brma_estimate_draws(
         context        = context,
@@ -1263,7 +1321,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
         response_mu <- response_mu + .evaluate.brma.cluster_effects(
           fit               = object[["fit"]],
           tau_between       = scale_state[["between"]],
-          cluster           = context[["fit_data"]][["cluster"]],
+          cluster           = outcome_data[["cluster"]],
           same_data         = FALSE,
           effect_direction  = context[["effect_direction"]],
           posterior_samples = posterior_samples
@@ -1310,6 +1368,118 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     effect     = !is.element(outcome_type, c("bin", "pois")) || as_measure
   ))
 
+}
+
+
+.predict_exact_selection_response_setup <- function(
+    context, location_state, scale_state) {
+
+  object             <- context[["object"]]
+  posterior_samples  <- context[["posterior_samples"]]
+  conditioning_depth <- context[["conditioning_depth"]]
+  new_data           <- context[["new_data"]]
+  known_V_new        <- context[["known_V_new"]]
+  S                  <- nrow(posterior_samples)
+  K                  <- context[["K"]]
+  sampling_covariance <- if (context[["is_known_v"]]) {
+    known_V <- if (is.null(known_V_new)) {
+      .data_known_v_data(new_data)
+    } else {
+      known_V_new
+    }
+    .known_v_covariance_matrix(known_V)
+  } else {
+    diag(context[["outcome_data"]][["sei"]]^2, nrow = K, ncol = K)
+  }
+  dependency_blocks <- .known_v_block_indices(sampling_covariance)
+  covariance <- array(
+    rep(sampling_covariance, each = S),
+    dim = c(S, K, K)
+  )
+
+  if (!identical(conditioning_depth, "marginal")) {
+    .known_v_validate_dependency_blocks(dependency_blocks, K)
+    means <- .predict_brma_estimate_draws(
+      context        = context,
+      location_state = location_state,
+      scale_state    = scale_state
+    )
+    return(list(
+      means              = means,
+      covariance         = covariance,
+      dependency_blocks  = dependency_blocks
+    ))
+  }
+
+  means <- location_state[["fixed_mu"]]
+  if (context[["random_mv"]]) {
+    random_inputs <- .brma_mv_random_effects_marginal_inputs(
+      object            = object,
+      posterior_samples = posterior_samples,
+      data              = new_data
+    )
+    random_covariance <- .brma_mv_random_effects_marginal_vcov(
+      object            = object,
+      posterior_samples = posterior_samples,
+      data              = new_data,
+      new_levels        = if (context[["same_data"]]) NULL else "sample",
+      inputs            = random_inputs
+    )
+    dependency_blocks <- .selection_exact_dependency_blocks(
+      data         = new_data,
+      random_terms = unname(random_covariance[["metadata"]][["blocks"]])
+    )
+    random_covariance_samples <- random_covariance[["samples"]]
+    if (!identical(dim(random_covariance_samples), c(S, K, K)) ||
+        any(!is.finite(random_covariance_samples))) {
+      stop("Random-effect response covariance samples are invalid.",
+           call. = FALSE)
+    }
+    covariance <- covariance + random_covariance_samples
+  } else {
+    if (context[["is_multilevel"]]) {
+      dependency_blocks <- .selection_exact_dependency_blocks(new_data)
+    }
+    within <- as.matrix(scale_state[["within"]])
+    if (nrow(within) != S || !ncol(within) %in% c(1L, K) ||
+        any(!is.finite(within))) {
+      stop("Within-cluster scale samples have an invalid shape.",
+           call. = FALSE)
+    }
+    if (ncol(within) == 1L) {
+      within <- matrix(within[, 1L], nrow = S, ncol = K)
+    }
+    for (row in seq_len(K)) {
+      covariance[, row, row] <- covariance[, row, row] + within[, row]^2
+    }
+    if (context[["is_multilevel"]]) {
+      cluster      <- context[["outcome_data"]][["cluster"]]
+      between      <- as.matrix(scale_state[["between"]])
+      if (nrow(between) != S || !ncol(between) %in% c(1L, K) ||
+          any(!is.finite(between))) {
+        stop("Between-cluster scale samples have an invalid shape.",
+             call. = FALSE)
+      }
+      if (ncol(between) == 1L) {
+        between <- matrix(between[, 1L], nrow = S, ncol = K)
+      }
+      for (rows in split(seq_len(K), cluster)) {
+        for (column in rows) {
+          for (row in rows) {
+            covariance[, row, column] <- covariance[, row, column] +
+              between[, row] * between[, column]
+          }
+        }
+      }
+    }
+  }
+  .known_v_validate_dependency_blocks(dependency_blocks, K)
+
+  return(list(
+    means             = means,
+    covariance        = covariance,
+    dependency_blocks = dependency_blocks
+  ))
 }
 
 

@@ -408,7 +408,8 @@ test_that("selection backend consumes BayesTools omega p-order directly", {
   )
   object <- bselmodel(
     yi = effect, sei = std_err, data = test_data,
-    measure = "SMD", prior_bias = prior_bias, only_priors = TRUE
+    measure = "SMD", prior_bias = prior_bias,
+    selection_likelihood = "approximate", only_priors = TRUE
   )
 
   fit_data <- .create_fit_data(object[["data"]], object[["priors"]])

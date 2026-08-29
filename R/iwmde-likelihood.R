@@ -217,21 +217,24 @@
     ))
   }
 
+  marginalized_local_effects <- .is_data_exact_selection(context[["data"]])
   log_lik <- .log_posterior(
-    parameters        = parameters,
-    data              = active_setup[["fit_data"]],
-    is_mods           = .is_data_mods(context[["data"]]),
-    is_scale          = .is_data_scale(context[["data"]]),
-    is_random         = .is_data_random(context[["data"]]),
-    is_multilevel     = .is_data_multilevel(context[["data"]]),
-    is_weights        = .is_data_weights(context[["data"]]),
-    is_known_v        = .is_data_known_v(context[["data"]]),
-    model_data        = context[["data"]],
-    is_PET            = active_setup[["is_PET"]],
-    is_PEESE          = active_setup[["is_PEESE"]],
-    is_weightfunction = active_setup[["is_weightfunction"]],
-    effect_direction  = .data_effect_direction(context[["data"]]),
-    outcome_type      = .data_outcome_type(context[["data"]])
+    parameters                   = parameters,
+    data                         = active_setup[["fit_data"]],
+    is_mods                      = .is_data_mods(context[["data"]]),
+    is_scale                     = .is_data_scale(context[["data"]]),
+    is_random                    = .is_data_random(context[["data"]]),
+    is_multilevel                = .is_data_multilevel(context[["data"]]),
+    is_weights                   = .is_data_weights(context[["data"]]),
+    is_known_v                   = .is_data_known_v(context[["data"]]),
+    model_data                   = context[["data"]],
+    is_PET                       = active_setup[["is_PET"]],
+    is_PEESE                     = active_setup[["is_PEESE"]],
+    is_weightfunction            = active_setup[["is_weightfunction"]],
+    effect_direction             = .data_effect_direction(context[["data"]]),
+    outcome_type                 = .data_outcome_type(context[["data"]]),
+    cluster_effects_marginalized = marginalized_local_effects,
+    sampling_latent_marginalized = marginalized_local_effects
   )
   return(.iwmde_scalar_log_density(log_lik))
 }

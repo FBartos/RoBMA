@@ -774,6 +774,34 @@ double cpp_selnorm_kernel_rng(
   int omega_stride,
   bool validate_omega)
 {
+  std::vector<double> mass(static_cast<std::size_t>(data.n_bins));
+  std::vector<double> lower(static_cast<std::size_t>(data.n_bins));
+  std::vector<double> upper(static_cast<std::size_t>(data.n_bins));
+
+  return cpp_selnorm_kernel_rng_workspace(
+    mean, sd, sei, omega, u_bin, u_interval, alpha, phack_kind,
+    kernel_mode, data, mass.data(), lower.data(), upper.data(),
+    omega_stride, validate_omega
+  );
+}
+
+double cpp_selnorm_kernel_rng_workspace(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  double u_bin,
+  double u_interval,
+  double alpha,
+  int phack_kind,
+  int kernel_mode,
+  const SelNormKernelData &data,
+  double *mass,
+  double *lower,
+  double *upper,
+  int omega_stride,
+  bool validate_omega)
+{
   if (!(sd > 0) || !(sei > 0) ||
       !(u_bin >= 0) || !(u_bin <= 1) ||
       !(u_interval >= 0) || !(u_interval <= 1) ||
@@ -807,7 +835,7 @@ double cpp_selnorm_kernel_rng(
     bool ok = false;
     const double score = step_rng_trusted_partition(
       omega, data, signed_mean, sd, sei, u_bin, u_interval,
-      omega_stride, &ok
+      omega_stride, mass, lower, upper, NULL, &ok
     );
     if (ok) {
       return std::fma(data.effect_sign * score, sd, mean);
@@ -816,8 +844,56 @@ double cpp_selnorm_kernel_rng(
 
   const double score = step_rng_logspace(
     omega, data, signed_mean, sd, sei, u_bin, u_interval, omega_stride,
-    data.trusted_step_partition
+    data.trusted_step_partition, mass, lower, upper
   );
 
   return std::fma(data.effect_sign * score, sd, mean);
+}
+
+double cpp_selnorm_step_log_norm_rng_workspace(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  double u_bin,
+  double u_interval,
+  const SelNormKernelData &data,
+  double *mass,
+  double *lower,
+  double *upper,
+  double *log_normalizer,
+  int omega_stride,
+  bool validate_omega)
+{
+  if (!(sd > 0) || !(sei > 0) || !std::isfinite(mean) ||
+      !std::isfinite(sd) || !std::isfinite(sei) ||
+      !(u_bin >= 0) || !(u_bin <= 1) ||
+      !(u_interval >= 0) || !(u_interval <= 1) ||
+      !(data.effect_sign == 1 || data.effect_sign == -1) ||
+      !data.trusted_step_partition || !data.telescope_probabilities ||
+      (validate_omega &&
+       !validate_omega_values(omega, data, omega_stride))) {
+    *log_normalizer = std::numeric_limits<double>::quiet_NaN();
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  *log_normalizer = std::numeric_limits<double>::quiet_NaN();
+  const double signed_mean = data.effect_sign * mean;
+  bool ok = false;
+  const double score = step_rng_trusted_partition(
+    omega, data, signed_mean, sd, sei, u_bin, u_interval,
+    omega_stride, mass, lower, upper, log_normalizer, &ok
+  );
+  if (ok && std::isfinite(*log_normalizer)) {
+    return std::fma(data.effect_sign * score, sd, mean);
+  }
+
+  *log_normalizer = step_log_normalizer_score_space(
+    omega, data, signed_mean, sd, sei, omega_stride
+  );
+  const double fallback_score = step_rng_logspace(
+    omega, data, signed_mean, sd, sei, u_bin, u_interval, omega_stride,
+    true, mass, lower, upper
+  );
+  return std::fma(data.effect_sign * fallback_score, sd, mean);
 }

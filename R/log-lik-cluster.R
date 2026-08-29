@@ -10,6 +10,33 @@
   sei               <- setup[["sei"]]
   cluster_setup     <- setup
 
+  if (.is_data_exact_selection(setup[["data"]])) {
+    log_lik <- .selection_exact_block_loglik_from_setup(setup)
+    exact_blocks <- .data_exact_selection_setup(
+      setup[["data"]]
+    )[["row_blocks"]]
+    cluster_blocks <- unname(setup[["cluster"]])
+    exact_keys <- vapply(
+      exact_blocks,
+      function(index) paste(index, collapse = ","),
+      character(1L)
+    )
+    cluster_keys <- vapply(
+      cluster_blocks,
+      function(index) paste(index, collapse = ","),
+      character(1L)
+    )
+    order <- match(cluster_keys, exact_keys)
+    if (anyNA(order) || anyDuplicated(order) ||
+        length(order) != ncol(log_lik)) {
+      stop(
+        "Exact selection dependency blocks do not match fitted clusters.",
+        call. = FALSE
+      )
+    }
+    return(log_lik[, order, drop = FALSE])
+  }
+
   if (outcome_type == "norm" && !is_weightfunction &&
       is.null(setup[["weights"]])) {
     if (setup[["effect_direction"]] == "negative") {
@@ -72,6 +99,10 @@
   yi                <- setup[["yi"]]
   sei               <- setup[["sei"]]
   cluster_setup     <- setup
+
+  if (.is_data_exact_selection(setup[["data"]])) {
+    return(.selection_exact_joint_loglik_from_setup(setup))
+  }
 
   if (outcome_type == "norm" && !is_weightfunction &&
       is.null(setup[["weights"]])) {

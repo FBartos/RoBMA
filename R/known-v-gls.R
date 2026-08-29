@@ -177,28 +177,42 @@
   }
 
   if (.is_data_random(data)) {
-    sampled_blocks <- .data_sampled_random_effect_blocks(data)
+    exact_selection <- .is_data_exact_selection(data)
+    sampled_blocks <- if (exact_selection) {
+      NULL
+    } else {
+      .data_sampled_random_effect_blocks(data)
+    }
     extra_variance <- if (is.null(extra_variances)) {
-      .evaluate_marginalized_random_variance(
-        data              = data,
-        posterior_samples = posterior_samples,
-        K                 = K,
-        source_samples    = .known_v_marginalized_random_source_samples(
-          fit               = object[["fit"]],
+      if (exact_selection) {
+        matrix(0, nrow = S, ncol = K)
+      } else {
+        .evaluate_marginalized_random_variance(
           data              = data,
-          priors            = object[["priors"]],
-          posterior_samples = posterior_samples
+          posterior_samples = posterior_samples,
+          K                 = K,
+          source_samples    = .known_v_marginalized_random_source_samples(
+            fit               = object[["fit"]],
+            data              = data,
+            priors            = object[["priors"]],
+            posterior_samples = posterior_samples
+          )
         )
-      )
+      }
     } else {
       as.matrix(extra_variances)
     }
 
-    if (length(sampled_blocks) > 0L) {
+    if (exact_selection || length(sampled_blocks) > 0L) {
       random_factors <- .brma_mv_random_effects_marginal_factor_plan(
         object            = object,
         posterior_samples = posterior_samples,
         blocks            = sampled_blocks,
+        row_blocks        = if (exact_selection) {
+          .data_exact_selection_setup(data)[["row_blocks"]]
+        } else {
+          NULL
+        },
         data              = data
       )
       dependency_blocks <- random_factors[["row_blocks"]]
@@ -250,7 +264,7 @@
          call. = FALSE)
   }
 
-  sampling_covariance <- .marglik_known_v_covariance_matrix(known_V)
+  sampling_covariance <- .known_v_covariance_matrix(known_V)
   sampling_factors    <- .known_v_latent_sampling_factor_plan(
     known_V = known_V
   )

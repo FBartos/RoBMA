@@ -1,5 +1,6 @@
 #include <Rinternals.h>
 #include <R_ext/Error.h>
+#include <R_ext/Lapack.h>
 #include <R_ext/Random.h>
 
 #include <Rmath.h>
@@ -12,6 +13,11 @@
 
 #include "plot-root.h"
 #include "selnorm/selnorm.h"
+#include "selnorm/selnorm-mv.h"
+
+#ifndef FCONE
+# define FCONE
+#endif
 
 extern "C" double Rf_dnorm4(double, double, double, int);
 
@@ -24,5 +30,6 @@ namespace {
 }
 
 #include "r-selnorm-loglik.cc.inc"
+#include "r-selnorm-mv.cc.inc"
 #include "r-selnorm-kernel.cc.inc"
 #include "r-selnorm-funnel-zcurve.cc.inc"

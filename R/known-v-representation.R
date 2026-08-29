@@ -401,6 +401,35 @@
 }
 
 
+.known_v_covariance_matrix <- function(known_V) {
+
+  K          <- .known_v_nrow(known_V)
+  covariance <- matrix(0, nrow = K, ncol = K)
+  for (block in .known_v_blocks(known_V)) {
+    index <- block[["index"]]
+    covariance[index, index] <- block[["covariance"]]
+  }
+
+  covariance
+}
+
+
+.known_v_dependency_covariance <- function(
+    data, sampling_latent_marginalized = FALSE) {
+
+  known_V <- .data_known_v_data(data)
+  backend <- .data_known_v_effective_backend(data)
+  if (backend == "latent" && !sampling_latent_marginalized) {
+    return(diag(
+      .known_v_residual_variance(known_V),
+      nrow = .known_v_nrow(known_V)
+    ))
+  }
+
+  .known_v_covariance_matrix(known_V)
+}
+
+
 .known_v_latent_apply <- function(known_V, z_samples) {
 
   z_samples <- as.matrix(z_samples)

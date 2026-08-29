@@ -191,17 +191,19 @@ test_that("diagonal brma.mv random estimate target remains factorized", {
   target <- .estimate_log_lik_target_metadata(
     setup             = setup,
     data_hash         = .get_outcome_hash(object),
-    dependency_blocks = .marglik_random_dependency_blocks(
-      model_data                   = object[["data"]],
-      formula_design               = .fitted_formula_design(
+    dependency_blocks = .random_effect_dependency_blocks(
+      sampling_covariance = .known_v_dependency_covariance(
+        object[["data"]],
+        sampling_latent_marginalized = TRUE
+      ),
+      formula_design = .fitted_formula_design(
         object,
         "mu",
         required = TRUE
       ),
-      blocks                       = .data_sampled_random_effect_blocks(
+      blocks = .data_sampled_random_effect_blocks(
         object[["data"]]
-      ),
-      sampling_latent_marginalized = TRUE
+      )
     )
   )
   expect_true(target[["known_v_estimate_backend"]])

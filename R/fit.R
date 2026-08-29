@@ -19,11 +19,19 @@
 
   # add cluster-level indicators
   if (.is_data_multilevel(data)) {
-    # encode number of levels for the random-effects prior
-    attr(prior_list[["gamma"]], "levels") <- length(unique(data[["outcome"]][["cluster"]]))
+    if (.is_data_exact_selection(data)) {
+      # Exact selection analytically marginalizes the cluster effects.
+      prior_list[["gamma"]] <- NULL
+    } else {
+      # encode number of levels for the random-effects prior
+      attr(prior_list[["gamma"]], "levels") <-
+        length(unique(data[["outcome"]][["cluster"]]))
+    }
   }
   # add known-V sampling dependency latent factors
-  if (.is_data_known_v_backend(data, "latent") && .data_known_v_rank(data) > 0L) {
+  if (!.is_data_exact_selection(data) &&
+      .is_data_known_v_backend(data, "latent") &&
+      .data_known_v_rank(data) > 0L) {
     prior_list[["sampling_z"]] <- BayesTools::prior_factor(
       "normal",
       parameters = list("mean" = 0, "sd" = 1),
@@ -54,6 +62,10 @@
 .create_fit_data   <- function(data, priors) {
 
   .check_glmm_no_bias_priors(data, priors)
+
+  if (.is_data_exact_selection(data)) {
+    return(.selection_exact_fit_data(data = data, priors = priors))
+  }
 
   ### add outcome specific data
   if (.data_outcome_type(data) == "norm") {
@@ -235,14 +247,18 @@
   is_PET            <- .is_priors_PET(priors)
   is_PEESE          <- .is_priors_PEESE(priors)
   is_weightfunction <- .is_priors_weightfunction(priors)
+  is_exact_selection <- is_weightfunction && .is_data_exact_selection(data)
   outcome_type      <- .data_outcome_type(data)
   effect_direction  <- .data_effect_direction(data)
   is_known_v                   <- .is_data_known_v(data)
   known_v_rank                 <- .data_known_v_rank(data)
   known_v_backend              <- .data_known_v_effective_backend(data)
-  is_known_v_latent            <- is_known_v && known_v_backend %in% c("latent", "diagonal")
-  is_known_v_whitened          <- is_known_v && known_v_backend == "whitened"
-  is_known_v_block_mvn         <- is_known_v && known_v_backend == "block_mvn"
+  is_known_v_latent            <- !is_exact_selection && is_known_v &&
+    known_v_backend %in% c("latent", "diagonal")
+  is_known_v_whitened          <- !is_exact_selection && is_known_v &&
+    known_v_backend == "whitened"
+  is_known_v_block_mvn         <- !is_exact_selection && is_known_v &&
+    known_v_backend == "block_mvn"
   has_marginalized_random      <- .data_has_marginalized_random_effects(data)
 
   if (is_known_v_whitened && is_scale) {
@@ -338,7 +354,7 @@
     mu_estimate <- ifelse(effect_direction == "negative", "- mu", "mu")
   }
   # add cluster-level effects
-  if (is_multilevel) {
+  if (is_multilevel && !is_exact_selection) {
     mu_estimate <- paste0(mu_estimate, ifelse(effect_direction == "negative", " - ", " + "),  "gamma[cluster[i]] * ", tau_between_node)
   }
   # add known-V sampling dependency latent factors
@@ -351,6 +367,12 @@
   }
   if (is_PEESE) {
     mu_estimate <- paste0(mu_estimate, " + PEESE * pow(sei[i],2)")
+  }
+  if (is_exact_selection) {
+    model_syntax <- paste0(
+      model_syntax,
+      "  sel_exact_mu[i] = ", mu_estimate, "\n"
+    )
   }
   if (is_known_v_whitened || is_known_v_block_mvn) {
     model_syntax <- paste0(model_syntax, "  mu_observed[i] = ", mu_estimate, "\n")
@@ -391,7 +413,11 @@
   }
   # compute the total conditional variance of the observed estimate
   sampling_var_node          <- if (is_known_v_latent) "sampling_var[i]" else "pow(sei[i],2)"
-  marginalized_random_var    <- .data_marginalized_random_variance_expression(data, row_index = "i")
+  marginalized_random_var    <- if (is_exact_selection) {
+    "0"
+  } else {
+    .data_marginalized_random_variance_expression(data, row_index = "i")
+  }
   random_likelihood_var_expr <- if (identical(marginalized_random_var, "0")) {
     sampling_var_node
   } else {
@@ -415,49 +441,51 @@
 
     # selection and normal models for norm data outcome
     if (is_weightfunction) {
-      likelihood_weight_expr <- if (is_weights) "weight[i]" else "1"
-      total_sd_node          <- "sel_total_sd[i]"
-      model_syntax           <- paste0(
-        model_syntax,
-        "  ", total_sd_node, " = ", paste0("sqrt", total_var_expr), "\n"
-      )
-      if (identical(selection_spec[["mode"]], "step") &&
-          isTRUE(selection_spec[["jags_use_step_switch"]])) {
-        model_syntax <- paste0(
+      if (!is_exact_selection) {
+        likelihood_weight_expr <- if (is_weights) "weight[i]" else "1"
+        total_sd_node          <- "sel_total_sd[i]"
+        model_syntax           <- paste0(
           model_syntax,
-          "  yi[i] ~ dselnorm_step_switch(",
-          mu_estimate, ",", total_sd_node, ",",
-          "sei[i],", likelihood_weight_expr, ",",
-          selection_spec[["jags_omega"]], ",",
-          "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
-          selection_spec[["jags_kernel_mode"]], ",",
-          "sel_telescope_probabilities)\n"
+          "  ", total_sd_node, " = ", paste0("sqrt", total_var_expr), "\n"
         )
-      } else if (identical(selection_spec[["mode"]], "step")) {
-        model_syntax <- paste0(
-          model_syntax,
-          "  yi[i] ~ dselnorm_step(",
-          mu_estimate, ",", total_sd_node, ",",
-          "sei[i],", likelihood_weight_expr, ",",
-          selection_spec[["jags_omega"]], ",",
-          "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
-          "sel_telescope_probabilities)\n"
-        )
-      } else {
-        model_syntax <- paste0(
-          model_syntax,
-          "  yi[i] ~ dselnorm_kernel(",
-          mu_estimate, ",", total_sd_node, ",",
-          mu_estimate, ",", total_sd_node, ",",
-          "sei[i],", likelihood_weight_expr, ",",
-          selection_spec[["jags_omega"]], ",",
-          "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
-          selection_spec[["jags_alpha"]], ",",
-          selection_spec[["jags_phack_kind"]], ",",
-          "phack_z_source,phack_z_dest,",
-          "sel_segment_bounds,sel_segment_step_bin,sel_segment_phack_region,",
-          "sel_kernel_mode)\n"
-        )
+        if (identical(selection_spec[["mode"]], "step") &&
+            isTRUE(selection_spec[["jags_use_step_switch"]])) {
+          model_syntax <- paste0(
+            model_syntax,
+            "  yi[i] ~ dselnorm_step_switch(",
+            mu_estimate, ",", total_sd_node, ",",
+            "sei[i],", likelihood_weight_expr, ",",
+            selection_spec[["jags_omega"]], ",",
+            "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
+            selection_spec[["jags_kernel_mode"]], ",",
+            "sel_telescope_probabilities)\n"
+          )
+        } else if (identical(selection_spec[["mode"]], "step")) {
+          model_syntax <- paste0(
+            model_syntax,
+            "  yi[i] ~ dselnorm_step(",
+            mu_estimate, ",", total_sd_node, ",",
+            "sei[i],", likelihood_weight_expr, ",",
+            selection_spec[["jags_omega"]], ",",
+            "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
+            "sel_telescope_probabilities)\n"
+          )
+        } else {
+          model_syntax <- paste0(
+            model_syntax,
+            "  yi[i] ~ dselnorm_kernel(",
+            mu_estimate, ",", total_sd_node, ",",
+            mu_estimate, ",", total_sd_node, ",",
+            "sei[i],", likelihood_weight_expr, ",",
+            selection_spec[["jags_omega"]], ",",
+            "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
+            selection_spec[["jags_alpha"]], ",",
+            selection_spec[["jags_phack_kind"]], ",",
+            "phack_z_source,phack_z_dest,",
+            "sel_segment_bounds,sel_segment_step_bin,sel_segment_phack_region,",
+            "sel_kernel_mode)\n"
+          )
+        }
       }
     } else if (!is_known_v_whitened && !is_known_v_block_mvn) {
       if (is_weights) {
@@ -510,6 +538,15 @@
 
 
   model_syntax <- paste0(model_syntax, "}\n")
+  if (is_exact_selection) {
+    model_syntax <- paste0(
+      model_syntax,
+      .selection_exact_model_syntax(
+        data           = data,
+        selection_spec = selection_spec
+      )
+    )
+  }
   if (outcome_type == "norm" && is_known_v_whitened) {
     known_V          <- .data_known_v_data(data)
     whitening_blocks <- .known_v_backend_blocks(known_V, "whitened")

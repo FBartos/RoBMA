@@ -1,6 +1,22 @@
 context("Selection kernel")
 skip_on_cran()
 
+test_that("selection likelihood exposes only exact and approximate targets", {
+
+  expect_error(
+    bselmodel(
+      yi                        = c(.1, .2),
+      sei                       = c(.1, .1),
+      measure                   = "SMD",
+      prior_unit_information_sd = 1,
+      selection_likelihood      = "conditional",
+      only_priors               = TRUE,
+      silent                    = TRUE
+    ),
+    "one of.*exact.*approximate"
+  )
+})
+
 test_that("selection reference weights are structural convergence parameters", {
 
   prior_bias <- BayesTools::prior_weightfunction(
@@ -41,6 +57,7 @@ test_that("selection model fit data and syntax use only the selected-normal kern
     measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_unit_information_sd = 1,
+    selection_likelihood      = "approximate",
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -190,6 +207,7 @@ test_that("single two-sided bselmodel uses active full-grid omega in JAGS", {
     measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_unit_information_sd = 1,
+    selection_likelihood      = "approximate",
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -227,6 +245,7 @@ test_that("JAGS permits fixed zero weights for empty p-value bins", {
     measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_unit_information_sd = 1,
+    selection_likelihood      = "approximate",
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -294,6 +313,417 @@ test_that("selection omega extraction orders indexed posterior columns numerical
   expect_error(
     .extract_selection_omega_samples(missing_custom, selection_spec),
     "custom.omega\\+beta"
+  )
+})
+
+test_that("exact selection constructors marginalize Gaussian dependence", {
+
+  cluster_object <- bselmodel(
+    yi                        = c(.10, .20, .05, .15),
+    sei                       = rep(.10, 4L),
+    cluster                   = c("a", "a", "b", "b"),
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  cluster_fit_priors <- .create_fit_priors(
+    cluster_object[["data"]],
+    cluster_object[["priors"]]
+  )
+  cluster_syntax <- .create_model_syntax(
+    cluster_object[["data"]],
+    cluster_object[["priors"]]
+  )
+
+  expect_true(.is_data_exact_selection(cluster_object[["data"]]))
+  expect_identical(cluster_object[["selection_likelihood"]][["type"]], "exact")
+  expect_identical(
+    .data_exact_selection_setup(cluster_object[["data"]])[["row_blocks"]],
+    list(1:2, 3:4)
+  )
+  expect_null(cluster_fit_priors[["gamma"]])
+  expect_match(cluster_syntax, "dselnorm_mnorm_step", fixed = TRUE)
+  expect_false(grepl("gamma[", cluster_syntax, fixed = TRUE))
+
+  data <- data.frame(study = factor(c("a", "a", "b")))
+  V <- matrix(
+    c(.010, .003, 0, .003, .014, 0, 0, 0, .012),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  mv_object <- bselmodel.mv(
+    yi                        = c(.10, .20, .05),
+    V                         = V,
+    random                    = ~ diag(1 | study),
+    data                      = data,
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  random_terms <- mv_object[["formula_design"]][["mu"]][["random_effects"]]
+
+  expect_s3_class(mv_object, "bselmodel.mv")
+  expect_true(.is_data_exact_selection(mv_object[["data"]]))
+  expect_true(all(vapply(
+    random_terms,
+    function(term) identical(term[["compile_mode"]], "marginalized"),
+    logical(1L)
+  )))
+  expect_match(
+    .create_model_syntax(mv_object[["data"]], mv_object[["priors"]]),
+    "sel_exact_random_block_1_lower",
+    fixed = TRUE
+  )
+
+  expect_error(
+    bselmodel.mv(
+      yi                        = c(.10, .20, .05),
+      V                         = V,
+      measure                   = "SMD",
+      prior_unit_information_sd = 1,
+      selection_likelihood      = "approximate",
+      known_v_parameterization  = "whitened",
+      only_priors               = TRUE,
+      silent                    = TRUE
+    ),
+    "requires.*latent"
+  )
+})
+
+
+test_that("exact selection prediction partitions covariance without known-V metadata", {
+
+  prediction_data <- list(outcome = list(sei = c(.10, .15, .20)))
+  random_terms <- list(list(
+    block_name = "study",
+    group_map  = c(1L, 1L, 2L)
+  ))
+
+  expect_identical(
+    .selection_exact_dependency_blocks(prediction_data, random_terms),
+    list(1:2, 3L)
+  )
+})
+
+
+test_that("exact selection covariance batches preserve multilevel algebra", {
+
+  object <- bselmodel(
+    yi                        = c(.10, .20),
+    sei                       = c(.10, .15),
+    cluster                   = c("a", "a"),
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  tau_within <- rbind(c(.20, .30), c(.25, .35))
+  tau_between <- rbind(c(.40, .50), c(.45, .55))
+  setup <- list(
+    data          = object[["data"]],
+    S             = 2L,
+    tau_within    = tau_within,
+    tau_between   = tau_between,
+    is_multilevel = TRUE
+  )
+
+  observed <- .selection_exact_covariance_lower(setup, rows = 1:2)
+  expected_covariance <- array(NA_real_, dim = c(2L, 2L, 2L))
+  for (draw in seq_len(2L)) {
+    expected_covariance[draw, , ] <- diag(c(.10, .15)^2) +
+      diag(tau_within[draw, ]^2) +
+      outer(tau_between[draw, ], tau_between[draw, ])
+  }
+  expected <- t(vapply(seq_len(2L), function(draw) {
+    expected_covariance[draw, , ][
+      cbind(c(1L, 2L, 2L), c(1L, 1L, 2L))
+    ]
+  }, numeric(3L)))
+
+  expect_equal(observed, expected)
+
+  response_setup <- .predict_exact_selection_response_setup(
+    context        = list(
+      object             = object,
+      posterior_samples  = matrix(0, nrow = 2L, ncol = 1L),
+      conditioning_depth = "marginal",
+      new_data            = object[["data"]],
+      known_V_new         = NULL,
+      K                   = 2L,
+      is_known_v          = FALSE,
+      outcome_data        = object[["data"]][["outcome"]],
+      random_mv           = FALSE,
+      is_multilevel       = TRUE,
+      same_data           = TRUE
+    ),
+    location_state = list(fixed_mu = matrix(0, nrow = 2L, ncol = 2L)),
+    scale_state    = list(within = tau_within, between = tau_between)
+  )
+  expect_equal(response_setup[["covariance"]], expected_covariance)
+})
+
+test_that("exact bivariate selection kernel matches rectangle integration", {
+
+  y     <- c(.30, .50)
+  mu    <- c(.10, .15)
+  sigma <- matrix(c(.09, .03, .03, .16), 2L, 2L)
+  sei   <- c(.20, .25)
+  z     <- stats::qnorm(.025, lower.tail = FALSE)
+  omega <- c(.4, 1)
+  plan  <- BayesTools::selection_likelihood_plan(
+    block_sizes         = 2L,
+    points_per_scramble = 16384L,
+    scrambles           = 8L,
+    seed                 = 5L,
+    relative_tolerance   = .01
+  )
+  lower <- matrix(
+    sigma[cbind(c(1L, 2L, 2L), c(1L, 1L, 2L))],
+    nrow = 1L
+  )
+  actual <- .Call(
+    "RoBMA_selnorm_mnorm_step_loglik_batch",
+    y, matrix(mu, nrow = 1L), lower, sei, matrix(omega, nrow = 1L),
+    c(z, -Inf), c(Inf, z), c(2L, 1L), 1L, TRUE, 1L,
+    as.double(plan[["designs"]][["2"]]), 16384L, 8L, .01,
+    PACKAGE = "RoBMA"
+  )
+  reflected <- .Call(
+    "RoBMA_selnorm_mnorm_step_loglik_batch",
+    -y, matrix(-mu, nrow = 1L), lower, sei, matrix(omega, nrow = 1L),
+    c(z, -Inf), c(Inf, z), c(2L, 1L), -1L, TRUE, 1L,
+    as.double(plan[["designs"]][["2"]]), 16384L, 8L, .01,
+    PACKAGE = "RoBMA"
+  )
+
+  threshold <- z * sei
+  rectangles <- list(
+    list(lower = threshold, upper = c(Inf, Inf), weight = .4^2),
+    list(lower = c(threshold[[1L]], -Inf),
+         upper = c(Inf, threshold[[2L]]), weight = .4),
+    list(lower = c(-Inf, threshold[[2L]]),
+         upper = c(threshold[[1L]], Inf), weight = .4),
+    list(lower = c(-Inf, -Inf), upper = threshold, weight = 1)
+  )
+  normalizer <- sum(vapply(rectangles, function(rectangle) {
+    rectangle[["weight"]] * as.numeric(mvtnorm::pmvnorm(
+      lower = rectangle[["lower"]],
+      upper = rectangle[["upper"]],
+      mean  = mu,
+      sigma = sigma
+    ))
+  }, numeric(1L)))
+  expected <- mvtnorm::dmvnorm(y, mean = mu, sigma = sigma, log = TRUE) +
+    log(prod(omega)) - log(normalizer)
+
+  expect_equal(actual[["log_density"]], expected, tolerance = 5e-4)
+  expect_equal(reflected[["log_density"]], actual[["log_density"]],
+               tolerance = 1e-12)
+  expect_lt(actual[["relative_mcse"]], 5e-4)
+})
+
+
+test_that("exact diagonal selection kernel reduces to analytic row factors", {
+
+  y     <- c(.30, .50)
+  mu    <- c(.10, .15)
+  sd    <- c(.30, .40)
+  sei   <- c(.20, .25)
+  z     <- stats::qnorm(.025, lower.tail = FALSE)
+  omega <- c(.4, 1)
+  plan  <- BayesTools::selection_likelihood_plan(
+    block_sizes         = 2L,
+    points_per_scramble = 8L,
+    scrambles           = 2L,
+    seed                 = 9L,
+    relative_tolerance   = .01
+  )
+  actual <- .Call(
+    "RoBMA_selnorm_mnorm_step_loglik_batch",
+    y, matrix(mu, nrow = 1L), matrix(c(sd[[1L]]^2, 0, sd[[2L]]^2), nrow = 1L),
+    sei, matrix(omega, nrow = 1L), c(z, -Inf), c(Inf, z), c(2L, 1L),
+    1L, TRUE, 1L, as.double(plan[["designs"]][["2"]]), 8L, 2L, .01,
+    PACKAGE = "RoBMA"
+  )
+
+  threshold       <- z * sei
+  significant     <- y >= threshold
+  observed_weight <- ifelse(significant, omega[[1L]], omega[[2L]])
+  normalizer      <- omega[[1L]] * stats::pnorm(
+    threshold,
+    mean       = mu,
+    sd         = sd,
+    lower.tail = FALSE
+  ) + omega[[2L]] * stats::pnorm(threshold, mean = mu, sd = sd)
+  expected <- sum(
+    stats::dnorm(y, mean = mu, sd = sd, log = TRUE) +
+      log(observed_weight) - log(normalizer)
+  )
+
+  expect_equal(actual[["log_density"]], expected, tolerance = 1e-13)
+  expect_identical(actual[["relative_mcse"]], 0)
+})
+
+
+test_that("exact selected multivariate response RNG matches region masses", {
+
+  set.seed(41)
+  S     <- 6000L
+  mu    <- c(.10, .15)
+  sigma <- matrix(c(.09, .03, .03, .16), 2L, 2L)
+  sei   <- c(.20, .25)
+  omega <- c(40, 100)
+  context <- list(
+    omega       = matrix(omega, nrow = S, ncol = 2L, byrow = TRUE),
+    kernel_mode = rep(SELKERNEL_STEP, S),
+    use_normal  = rep(FALSE, S),
+    p_cuts      = c(0, .025, 1),
+    sign        = 1L
+  )
+  covariance <- array(
+    rep(sigma, each = S),
+    dim = c(S, 2L, 2L)
+  )
+  draws <- .outcome_rng.selnorm_mvn(
+    mu_samples         = matrix(mu, nrow = S, ncol = 2L, byrow = TRUE),
+    covariance_samples = covariance,
+    sei                = sei,
+    selection_context  = context,
+    dependency_blocks  = list(1:2)
+  )
+
+  threshold <- stats::qnorm(.025, lower.tail = FALSE) * sei
+  region <- 1L + (draws[, 1L] >= threshold[[1L]]) +
+    2L * (draws[, 2L] >= threshold[[2L]])
+  rectangles <- list(
+    list(lower = c(-Inf, -Inf), upper = threshold, weight = 1),
+    list(lower = c(threshold[[1L]], -Inf),
+         upper = c(Inf, threshold[[2L]]), weight = .4),
+    list(lower = c(-Inf, threshold[[2L]]),
+         upper = c(threshold[[1L]], Inf), weight = .4),
+    list(lower = threshold, upper = c(Inf, Inf), weight = .4^2)
+  )
+  expected <- vapply(rectangles, function(rectangle) {
+    rectangle[["weight"]] * as.numeric(mvtnorm::pmvnorm(
+      lower = rectangle[["lower"]],
+      upper = rectangle[["upper"]],
+      mean  = mu,
+      sigma = sigma
+    ))
+  }, numeric(1L))
+  expected <- expected / sum(expected)
+
+  expect_equal(as.numeric(prop.table(table(factor(region, levels = 1:4)))),
+               expected, tolerance = .025)
+})
+
+
+test_that("exact selected response RNG preserves singular covariance support", {
+
+  S <- 4L
+  loading <- c(.2, -.3)
+  covariance_matrix <- tcrossprod(loading)
+  covariance <- array(
+    rep(covariance_matrix, each = S),
+    dim = c(S, 2L, 2L)
+  )
+  context <- list(
+    omega       = matrix(1, nrow = S, ncol = 1L),
+    kernel_mode = rep(SELKERNEL_NORMAL, S),
+    use_normal  = rep(TRUE, S),
+    p_cuts      = c(0, 1),
+    sign        = 1L
+  )
+  mean <- matrix(c(.1, -.2), nrow = S, ncol = 2L, byrow = TRUE)
+
+  set.seed(842)
+  actual <- .outcome_rng.selnorm_mvn(
+    mu_samples         = mean,
+    covariance_samples = covariance,
+    sei                = c(.1, .1),
+    selection_context  = context,
+    dependency_blocks  = list(1:2)
+  )
+  set.seed(842)
+  factor <- .covariance_sampling_factor(
+    .covariance_factorization(covariance_matrix)
+  )
+  expected <- matrix(NA_real_, nrow = S, ncol = 2L)
+  for (draw in seq_len(S)) {
+    expected[draw, ] <- mean[draw, ] +
+      as.vector(stats::rnorm(2L) %*% factor)
+  }
+
+  expect_equal(actual, expected, tolerance = 1e-15)
+
+  indefinite <- array(
+    rep(matrix(c(1, 2, 2, 1), nrow = 2L), each = S),
+    dim = c(S, 2L, 2L)
+  )
+  expect_error(
+    .outcome_rng.selnorm_mvn(
+      mu_samples         = mean,
+      covariance_samples = indefinite,
+      sei                = c(.1, .1),
+      selection_context  = context,
+      dependency_blocks  = list(1:2)
+    ),
+    "Selected response covariance is not positive semidefinite\\."
+  )
+})
+
+
+test_that("exact selected response RNG rejects asymmetric covariance", {
+
+  context <- list(
+    omega       = matrix(1, nrow = 1L, ncol = 1L),
+    kernel_mode = SELKERNEL_NORMAL,
+    use_normal  = TRUE,
+    p_cuts      = c(0, 1),
+    sign        = 1L
+  )
+  covariance <- array(c(1, .1, .2, 1), dim = c(1L, 2L, 2L))
+
+  expect_error(
+    .outcome_rng.selnorm_mvn(
+      mu_samples         = matrix(0, nrow = 1L, ncol = 2L),
+      covariance_samples = covariance,
+      sei                = c(1, 1),
+      selection_context  = context,
+      dependency_blocks  = list(1:2)
+    ),
+    "Selected response covariance must be symmetric.",
+    fixed = TRUE
+  )
+})
+
+
+test_that("exact selected response RNG reports exhausted rejection sampling", {
+
+  context <- list(
+    omega       = matrix(c(0, 1), nrow = 1L),
+    kernel_mode = SELKERNEL_STEP,
+    use_normal  = FALSE,
+    p_cuts      = c(0, .025, 1),
+    sign        = 1L
+  )
+  expect_error(
+    .outcome_rng.selnorm_mvn(
+      mu_samples         = matrix(1, nrow = 1L),
+      covariance_samples = array(0, dim = c(1L, 1L, 1L)),
+      sei                = .1,
+      selection_context  = context,
+      dependency_blocks  = list(1L),
+      max_attempts       = 3L
+    ),
+    paste0(
+      "Exact selected response RNG was rejected by diagnostics: no ",
+      "proposal was accepted in 3 attempts for a dependency block of size ",
+      "1. Use 'bias_adjusted = TRUE' to draw responses before selection."
+    ),
+    fixed = TRUE
   )
 })
 

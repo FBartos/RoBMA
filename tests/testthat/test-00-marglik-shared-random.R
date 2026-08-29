@@ -198,11 +198,13 @@ test_that("latent known-V sampling coordinates are integrated exactly", {
     paste0("sampling_z[", seq_len(nrow(V)), "]")
   )
 
-  dependency_blocks <- .marglik_random_dependency_blocks(
-    model_data                   = object[["data"]],
-    formula_design               = NULL,
-    blocks                       = character(),
-    sampling_latent_marginalized = TRUE
+  dependency_blocks <- .random_effect_dependency_blocks(
+    sampling_covariance = .known_v_dependency_covariance(
+      object[["data"]],
+      sampling_latent_marginalized = TRUE
+    ),
+    formula_design = NULL,
+    blocks         = character()
   )
   fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
   fit_data <- .marglik_add_random_covariance_bridge_data(

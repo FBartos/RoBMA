@@ -147,3 +147,34 @@ test_that("specialized multilevel estimate depth preserves joint latent uncertai
   expect_equal(colMeans(observed), as.vector(conditional_mean), tolerance = 0.006)
   expect_equal(stats::cov(observed), conditional_v, tolerance = 0.005)
 })
+
+
+test_that("specialized multilevel cluster depth retains posterior uncertainty", {
+
+  S       <- 20000L
+  mu      <- c(0.1, -0.2)
+  tau_b   <- 0.3
+  tau_w   <- c(0.4, 0.25)
+  yi      <- c(0.5, 0.1)
+  vi      <- c(0.09, 0.16)
+  cluster_v  <- tau_b^2 * matrix(1, nrow = 2L, ncol = 2L)
+  marginal_v <- cluster_v + diag(tau_w^2 + vi)
+  expected_mean <- cluster_v %*% solve(marginal_v, yi - mu)
+  expected_v    <- cluster_v -
+    cluster_v %*% solve(marginal_v, cluster_v)
+
+  set.seed(808)
+  observed <- .evaluate.brma.multilevel_posterior.norm(
+    mu_samples  = matrix(mu, nrow = S, ncol = 2L, byrow = TRUE),
+    tau_within  = matrix(tau_w, nrow = S, ncol = 2L, byrow = TRUE),
+    tau_between = matrix(tau_b, nrow = S, ncol = 2L),
+    yi          = yi,
+    vi          = vi,
+    cluster     = c(1L, 1L),
+    component   = "cluster"
+  )
+
+  expect_equal(colMeans(observed), as.vector(expected_mean), tolerance = 0.004)
+  expect_equal(stats::cov(observed), expected_v, tolerance = 0.002)
+  expect_gt(stats::var(observed[, 1L]), 0)
+})

@@ -18,7 +18,8 @@
   fit_data <- .marglik_add_selection_bridge_data(
     fit_data         = fit_data,
     priors           = priors,
-    effect_direction = .data_effect_direction(context[["data"]])
+    effect_direction = .data_effect_direction(context[["data"]]),
+    model_data       = context[["data"]]
   )
 
   setup <- list(

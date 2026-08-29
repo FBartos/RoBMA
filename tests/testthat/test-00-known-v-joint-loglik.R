@@ -131,7 +131,7 @@ test_that("diagonal known-V estimate log-likelihood is exactly vectorized", {
   plan <- .Call(
     "RoBMA_known_v_covariance_plan_create",
     as.double(setup[["yi"]]),
-    .marglik_known_v_covariance_matrix(.data_known_v_data(data)),
+    .known_v_covariance_matrix(.data_known_v_data(data)),
     list(),
     lapply(block_data, `[[`, "index"),
     PACKAGE = "RoBMA"

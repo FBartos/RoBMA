@@ -67,8 +67,13 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' certified nested adaptive quadrature is implemented; use
 #' \code{unit = "estimate"} for GLMMs.
 #'
-#' For selection models, the LOO evaluates the weighted likelihood, conditioning
-#' on the posterior omega samples.
+#' For approximate selection models, LOO evaluates the row-wise selected-normal
+#' likelihood conditional on sampled shared effects and posterior omega. For
+#' exact selection models, estimate deletion uses the selected Gaussian Schur
+#' conditional \eqn{p_E(y_i \mid y_{-i}, \theta)}. The selection weights of the
+#' retained estimates cancel; the deleted estimate retains its own weight and
+#' conditional selection normalizer. This is the estimate-level finite-vector
+#' deletion target, not prediction for an entirely new dependency block.
 #'
 #' For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
 #' estimate-unit LOO integrates Gaussian local effects and uses

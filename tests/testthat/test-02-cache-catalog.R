@@ -499,6 +499,7 @@ test_that("fit catalog is internally consistent", {
       "dat.lehmann2018_RoBMA_mods2",
       "dat.lehmann2018_RoBMA_3lvl_mods_scale",
       "BMA.mv_random_components",
+      "bselmodel.mv_exact_random",
       "brma.mv_latent",
       "brma.mv_whitened",
       "brma.mv_block_mvn",

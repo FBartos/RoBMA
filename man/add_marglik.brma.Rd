@@ -72,8 +72,11 @@ the standardized cluster effects are likewise integrated exactly. The bridge
 retains total heterogeneity and its allocation while evaluating the implied
 diagonal-plus-cluster-rank-one covariance, including row-specific scale
 regression and likelihood weights.
-Selection likelihoods retain the fitted joint latent parameterization because
-they are not Gaussian in the shared random effects.
+Approximate selection likelihoods retain the fitted joint latent
+parameterization because selection is conditional on the shared random
+effects. Exact selection likelihoods instead use the same analytically
+marginalized selected-Gaussian covariance blocks and fixed integration plan
+as fitting, so bridge sampling targets the fitted finite-vector density.
 }
 \examples{
 \dontrun{

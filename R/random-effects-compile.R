@@ -8,16 +8,11 @@
 # ============================================================================ #
 
 
-.prepare_brma_mv_random_effects_compile <- function(object,
-                                                    marginalize_estimate_level) {
+.prepare_random_effects_compile <- function(
+    object, strategy = c("none", "estimate", "all")) {
 
-  BayesTools::check_bool(
-    marginalize_estimate_level,
-    "marginalize_estimate_level",
-    allow_NA = FALSE
-  )
-
-  if (!.is_data_random(object[["data"]]) || !isTRUE(marginalize_estimate_level)) {
+  strategy <- match.arg(strategy)
+  if (!.is_data_random(object[["data"]]) || identical(strategy, "none")) {
     return(object)
   }
 
@@ -27,28 +22,42 @@
     source                 = "location",
     random_effects_compile = NULL
   )
-  candidates <- .marginalized_random_effect_candidates(
-    formula_design = sampled_design,
-    data           = object[["data"]]
-  )
-
-  if (length(candidates) == 0L) {
-    return(object)
-  }
-  if (length(candidates) > 1L) {
-    stop(
-      "Multiple random-effect blocks map one-to-one to estimates and could ",
-      "be marginalized: ",
-      paste(vapply(candidates, `[[`, character(1), "block_name"), collapse = ", "),
-      ". Specify a single estimate-level random term or set ",
-      "'marginalize_estimate_level = FALSE'.",
-      call. = FALSE
+  if (identical(strategy, "estimate")) {
+    candidates <- .marginalized_random_effect_candidates(
+      formula_design = sampled_design,
+      data           = object[["data"]]
     )
+    if (length(candidates) == 0L) {
+      return(object)
+    }
+    if (length(candidates) > 1L) {
+      stop(
+        "Multiple random-effect blocks map one-to-one to estimates and could ",
+        "be marginalized: ",
+        paste(
+          vapply(candidates, `[[`, character(1), "block_name"),
+          collapse = ", "
+        ),
+        ". Specify a single estimate-level random term or set ",
+        "'marginalize_estimate_level = FALSE'.",
+        call. = FALSE
+      )
+    }
+    marginalized_blocks <- candidates[[1L]][["block_name"]]
+  } else {
+    random_effects <- sampled_design[["random_effects"]]
+    marginalized_blocks <- vapply(
+      random_effects,
+      .random_effect_term_block_name,
+      character(1)
+    )
+    if (length(marginalized_blocks) == 0L) {
+      return(object)
+    }
   }
 
-  marginalized_block <- candidates[[1L]][["block_name"]]
-  compile            <- BayesTools::random_effects_compile(
-    marginalized = marginalized_block
+  compile <- BayesTools::random_effects_compile(
+    marginalized = marginalized_blocks
   )
   compiled_design <- .object_bayestools_formula_design(
     object                 = object,
@@ -60,20 +69,28 @@
     compiled_design,
     "marginalized"
   )
-  known_r_metadata <- .attach_known_r_marginal_variance_factors(
-    formula_design = compiled_design,
-    terms          = marginalized_terms
-  )
-  compiled_design     <- known_r_metadata[["formula_design"]]
-  marginalized_terms  <- known_r_metadata[["terms"]]
-  object[["data"]] <- .known_v_auto_update_for_marginalized_random(
-    data  = object[["data"]],
-    terms = marginalized_terms
-  )
-  .validate_marginalized_random_effects(
-    terms = marginalized_terms,
-    data  = object[["data"]]
-  )
+  if (identical(strategy, "estimate")) {
+    known_r_metadata <- .attach_known_r_marginal_variance_factors(
+      formula_design = compiled_design,
+      terms          = marginalized_terms
+    )
+    compiled_design    <- known_r_metadata[["formula_design"]]
+    marginalized_terms <- known_r_metadata[["terms"]]
+    object[["data"]] <- .known_v_auto_update_for_marginalized_random(
+      data  = object[["data"]],
+      terms = marginalized_terms
+    )
+    .validate_marginalized_random_effects(
+      terms = marginalized_terms,
+      data  = object[["data"]]
+    )
+  } else if (length(marginalized_terms) != length(marginalized_blocks)) {
+    stop(
+      "Internal error: not every random-effect block was compiled as ",
+      "marginalized.",
+      call. = FALSE
+    )
+  }
 
   object[["data"]] <- .set_data_random_effects_compile(
     data                 = object[["data"]],
@@ -97,9 +114,14 @@
 .finalize_brma_mv_object <- function(object, marginalize_estimate_level,
                                      only_priors = FALSE) {
 
-  object <- .prepare_brma_mv_random_effects_compile(
-    object                     = object,
-    marginalize_estimate_level = marginalize_estimate_level
+  BayesTools::check_bool(
+    marginalize_estimate_level,
+    "marginalize_estimate_level",
+    allow_NA = FALSE
+  )
+  object <- .prepare_random_effects_compile(
+    object   = object,
+    strategy = if (isTRUE(marginalize_estimate_level)) "estimate" else "none"
   )
   .brma_mv_check_singular_v_regularization(object)
   if (isTRUE(only_priors)) {

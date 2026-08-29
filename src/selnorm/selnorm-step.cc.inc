@@ -519,14 +519,14 @@ double step_rng_trusted_partition(const double *omega,
                                   double signed_mean, double sd, double sei,
                                   double u_bin, double u_interval,
                                   int omega_stride,
+                                  double *mass, double *lower, double *upper,
+                                  double *log_normalizer,
                                   bool *ok)
 {
   *ok = false;
 
-  std::vector<double> mass;
-  std::vector<double> lower;
-  std::vector<double> upper;
   double denom = 0;
+  int n_groups = 0;
 
   for (int b = 0; b < data.n_bins; ) {
     const double w = omega_at(omega, b + 1, omega_stride);
@@ -557,9 +557,10 @@ double step_rng_trusted_partition(const double *omega,
         return std::numeric_limits<double>::quiet_NaN();
       }
       if (group_mass > 0) {
-        mass.push_back(group_mass);
-        lower.push_back(group_lower);
-        upper.push_back(group_upper);
+        mass[n_groups]  = group_mass;
+        lower[n_groups] = group_lower;
+        upper[n_groups] = group_upper;
+        ++n_groups;
         denom += group_mass;
       }
     }
@@ -570,13 +571,16 @@ double step_rng_trusted_partition(const double *omega,
   if (!std::isfinite(denom) || !(denom > 0)) {
     return std::numeric_limits<double>::quiet_NaN();
   }
+  if (log_normalizer != NULL) {
+    *log_normalizer = std::log(denom);
+  }
 
   const double target = u_bin * denom;
   double cumulative = 0;
-  int selected = static_cast<int>(mass.size()) - 1;
+  int selected = n_groups - 1;
 
-  for (int g = 0; g < static_cast<int>(mass.size()); ++g) {
-    cumulative += mass[static_cast<size_t>(g)];
+  for (int g = 0; g < n_groups; ++g) {
+    cumulative += mass[g];
     if (target <= cumulative) {
       selected = g;
       break;
@@ -585,8 +589,8 @@ double step_rng_trusted_partition(const double *omega,
 
   *ok = true;
   return truncated_normal_quantile(
-    lower[static_cast<size_t>(selected)],
-    upper[static_cast<size_t>(selected)],
+    lower[selected],
+    upper[selected],
     0,
     1,
     u_interval
@@ -596,12 +600,11 @@ double step_rng_trusted_partition(const double *omega,
 double step_rng_logspace(const double *omega, const SelNormKernelData &data,
                          double signed_mean, double sd, double sei,
                          double u_bin, double u_interval,
-                         int omega_stride, bool trusted_partition)
+                         int omega_stride, bool trusted_partition,
+                         double *log_mass, double *lower, double *upper)
 {
-  std::vector<double> log_mass;
-  std::vector<double> lower;
-  std::vector<double> upper;
   double max_log_mass = -INFINITY;
+  int n_groups = 0;
 
   for (int b = 0; b < data.n_bins; ) {
     const double w = omega_at(omega, b + 1, omega_stride);
@@ -632,9 +635,10 @@ double step_rng_logspace(const double *omega, const SelNormKernelData &data,
         group_lower, group_upper, 0, 1
       );
       if (lm != -INFINITY) {
-        log_mass.push_back(lm);
-        lower.push_back(group_lower);
-        upper.push_back(group_upper);
+        log_mass[n_groups] = lm;
+        lower[n_groups]    = group_lower;
+        upper[n_groups]    = group_upper;
+        ++n_groups;
         if (lm > max_log_mass) {
           max_log_mass = lm;
         }
@@ -649,8 +653,8 @@ double step_rng_logspace(const double *omega, const SelNormKernelData &data,
   }
 
   double denom = 0;
-  for (int g = 0; g < static_cast<int>(log_mass.size()); ++g) {
-    denom += std::exp(log_mass[static_cast<size_t>(g)] - max_log_mass);
+  for (int g = 0; g < n_groups; ++g) {
+    denom += std::exp(log_mass[g] - max_log_mass);
   }
 
   if (!(denom > 0)) {
@@ -659,10 +663,10 @@ double step_rng_logspace(const double *omega, const SelNormKernelData &data,
 
   const double target = u_bin * denom;
   double cumulative = 0;
-  int selected = static_cast<int>(log_mass.size()) - 1;
+  int selected = n_groups - 1;
 
-  for (int g = 0; g < static_cast<int>(log_mass.size()); ++g) {
-    cumulative += std::exp(log_mass[static_cast<size_t>(g)] - max_log_mass);
+  for (int g = 0; g < n_groups; ++g) {
+    cumulative += std::exp(log_mass[g] - max_log_mass);
     if (target <= cumulative) {
       selected = g;
       break;
@@ -670,8 +674,8 @@ double step_rng_logspace(const double *omega, const SelNormKernelData &data,
   }
 
   return truncated_normal_quantile(
-    lower[static_cast<size_t>(selected)],
-    upper[static_cast<size_t>(selected)],
+    lower[selected],
+    upper[selected],
     0,
     1,
     u_interval

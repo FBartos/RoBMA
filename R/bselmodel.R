@@ -13,11 +13,23 @@
 #' default selection model. If `prior_bias` is supplied, the prior carries its
 #' own side, steps, and weights. If omitted, the default is `0.025`, yielding
 #' intervals `[0, .025]` and `(.025, 1]`.
+#' @param selection_likelihood selection-likelihood target. `"exact"` fits the
+#' finite-vector product-selection likelihood after analytically marginalizing
+#' Gaussian random effects. `"approximate"` fits the row-wise selected-normal
+#' likelihood conditional on sampled random effects.
+#' @param selection_control numerical integration settings created by
+#' [set_selection_likelihood_control()]. Used only for dependent blocks of the
+#' exact likelihood.
 #'
 #' @details
 #' `bselmodel()` is a normal/effect-size selection-model constructor. Custom
 #' `prior_bias` can be a weightfunction prior or a supported BayesTools
 #' selection-kernel prior; p-hacking kernels are not supported in active RoBMA.
+#' The default exact likelihood applies the selection event jointly to the
+#' finite vector of estimates. Independent blocks factorize analytically;
+#' dependent blocks use a fixed randomized quasi-Monte Carlo design with an
+#' explicit relative-error check. Observation weights and non-step selection
+#' kernels are unavailable with the exact target.
 #'
 #' @return A fitted object of class `c("bselmodel", "brma")` containing a
 #' single Bayesian selection model fit.
@@ -59,6 +71,10 @@ bselmodel <- function(
   prior_unit_information_sd, rescale_priors = 1,
   prior_informed_field, prior_informed_subfield,
   effect_direction = "detect", steps,
+
+  # selection likelihood
+  selection_likelihood = c("exact", "approximate"),
+  selection_control = set_selection_likelihood_control(),
 
   # MCMC fitting settings
   sample = 5000, burnin = 2000, adapt = 500,
@@ -108,18 +124,10 @@ bselmodel <- function(
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
     data = object[["data"]], bias_type = "selmodel", steps = steps)
-  if (isTRUE(dots[["only_priors"]]))
-    return(.set_only_priors_class(object))
-
-  ### fit the model
-  object$fit <- .fit(object)
-  .stop_fit_errors(object$fit)
-
-  ### store simple summary & coefficients
-  object$summary       <- .object_summary(object)
-  object$coefficients  <- .object_coefficients(object)
-
-  object               <- .autocompute_brma(object)
-
-  return(object)
+  .finalize_bselmodel_object(
+    object               = object,
+    selection_likelihood = selection_likelihood,
+    selection_control    = selection_control,
+    only_priors          = isTRUE(dots[["only_priors"]])
+  )
 }

@@ -81,7 +81,9 @@ OBJECTS = distributions/DWN.o \
 		  distributions/DSELNORMSTEP.o \
 		  distributions/DSELNORMSTEPSWITCH.o \
 		  distributions/DSELNORMKERNEL.o \
+		  distributions/DSELNORMMVSTEP.o \
 		  selnorm/selnorm.o \
+		  selnorm/selnorm-mv.o \
 		  glmm-aghq.o r-glmm.o r-known-v.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
 
 ###############
@@ -107,6 +109,7 @@ R_SELNORM_INC = r-selnorm-common.cc.inc \
 				r-selnorm-funnel-common.cc.inc \
 				r-selnorm-cluster.cc.inc \
 				r-selnorm-loglik.cc.inc \
+				r-selnorm-mv.cc.inc \
 				r-selnorm-kernel.cc.inc \
 				r-selnorm-funnel-zcurve.cc.inc
 
@@ -116,9 +119,11 @@ SELNORM_INC = selnorm/selnorm-probability.cc.inc \
 			  selnorm/selnorm-boundary.cc.inc \
 			  selnorm/selnorm-api.cc.inc
 
-r-selnorm.o: $(R_SELNORM_INC) selnorm/selnorm.h
+r-selnorm.o: $(R_SELNORM_INC) selnorm/selnorm.h selnorm/selnorm-mv.h
 
 selnorm/selnorm.o: $(SELNORM_INC) selnorm/selnorm.h
+
+selnorm/selnorm-mv.o distributions/DSELNORMMVSTEP.o: selnorm/selnorm-mv.h selnorm/selnorm.h
 
 r-regplot.o distributions/DSELNORMSTEP.o distributions/DSELNORMSTEPSWITCH.o distributions/DSELNORMKERNEL.o: selnorm/selnorm.h
 

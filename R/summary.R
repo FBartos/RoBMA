@@ -201,7 +201,21 @@ summary.brma       <- function(
 
   ### provide publication bias estimates
   bias_footnotes <- if (.is_weightfunction(object)) {
-    "P-value intervals for publication bias weights omega correspond to one-sided p-values."
+    likelihood_note <- if (.is_data_exact_selection(object[["data"]])) {
+      paste0(
+        "The exact finite-vector likelihood applies selection jointly after ",
+        "analytically marginalizing Gaussian random effects."
+      )
+    } else {
+      paste0(
+        "The approximate likelihood applies selection row by row conditional ",
+        "on sampled random effects."
+      )
+    }
+    paste(
+      "P-value intervals for publication bias weights omega correspond to one-sided p-values.",
+      likelihood_note
+    )
   }
   estimates_bias_pair <- .summary_estimates_pair(
     enabled                  = is_bias,
@@ -665,7 +679,12 @@ print.brma <- function(x, ...) {
   }
 
   if ("bselmodel" %in% class(object)) {
-    model_name <- paste(model_name, "Selection")
+    selection_type <- if (.is_data_exact_selection(object[["data"]])) {
+      "Exact Selection"
+    } else {
+      "Approximate Selection"
+    }
+    model_name <- paste(model_name, selection_type)
   } else if ("bPET" %in% class(object)) {
     model_name <- paste(model_name, "PET")
   } else if ("bPEESE" %in% class(object)) {

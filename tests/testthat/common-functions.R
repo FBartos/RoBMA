@@ -463,6 +463,24 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, bma_mv_catalog)
 
+  bselmodel_mv_catalog <- data.frame(
+    name          = "bselmodel.mv_exact_random",
+    class         = "bselmodel.mv",
+    family        = "norm",
+    source_file   = "test-01-bselmodel.mv.R",
+    has_metafor   = FALSE,
+    has_waic      = FALSE,
+    tier          = "core",
+    has_loo       = TRUE,
+    has_marglik   = TRUE,
+    features      = I(list(c(
+      "bselmodel.mv", "normal", "known_v", "random", "mods",
+      "selection", "exact"
+    ))),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, bselmodel_mv_catalog)
+
   parity_catalog <- data.frame(
     name = c(
       "vif_parity_brma",
@@ -578,6 +596,7 @@ fit_catalog <- function() {
     "dat.lehmann2018_RoBMA_mods2",
     "dat.lehmann2018_RoBMA_3lvl_mods_scale",
     "BMA.mv_random_components",
+    "bselmodel.mv_exact_random",
     "brma.mv_latent",
     "brma.mv_whitened",
     "brma.mv_block_mvn",

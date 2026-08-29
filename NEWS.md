@@ -1,5 +1,16 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- adds exact finite-vector estimate-level product-selection likelihoods to
+  `bselmodel()` and the new `bselmodel.mv()`. Gaussian cluster, known-`V`, and
+  formula-random effects are marginalized into dependency-block covariances;
+  diagonal normalizers are analytic and dependent normalizers use a fixed
+  shifted-Halton GHK plan with an explicit relative-error diagnostic. The
+  public switch is `selection_likelihood = "exact"` or `"approximate"`, with
+  no unreleased compatibility aliases. Summary, bridge sampling, estimate-unit
+  LOO/WAIC, LOO-PIT residuals, latent/random-effect prediction, and joint
+  selected-response prediction use the matching target. Dependent normalizers
+  and joint selected-response simulation use native kernels, while fitted
+  random-effect draws reuse the compiled `brma.mv()` covariance plan.
 - adds `BMA.mv()` for product-space model averaging with the complete
   `brma.mv()` known-sampling-covariance and formula-random workflow. Independent
   random-component gates multiply their allocated slab variances without
@@ -491,6 +502,13 @@
   distance, following metafor's chi-square-based meta-analytic convention.
   Values were previously divided by the fixed-effect model rank and therefore
   increase by that rank when it exceeds one.
+
+### Maintenance
+- unifies random-effect compilation for ordinary and exact-selection
+  multivariate models, shares dependency-block construction across likelihood,
+  bridge, diagnostic, and prediction paths, and consumes BayesTools' single
+  lower-triangle covariance ordering contract instead of maintaining parallel
+  exact-selection implementations.
 
 ### Fixes
 - unregisters the JAGS module before destroying module-owned native objects at

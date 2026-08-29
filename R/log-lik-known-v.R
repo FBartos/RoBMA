@@ -182,10 +182,12 @@
 # ---------------------------------------------------------------------------- #
 .estimate_normal_target_uses_covariance_backend <- function(data, priors) {
 
-  if (!identical(.data_outcome_type(data), "norm") ||
-      .is_priors_weightfunction(priors) ||
-      .is_data_weights(data)) {
+  if (!identical(.data_outcome_type(data), "norm") || .is_data_weights(data)) {
     return(FALSE)
+  }
+
+  if (.is_priors_weightfunction(priors)) {
+    return(.is_data_exact_selection(data))
   }
 
   if (.known_v_estimate_target_uses_backend(data)) {
@@ -205,7 +207,8 @@
       call. = FALSE
     )
   }
-  if (isTRUE(setup[["is_weightfunction"]])) {
+  if (isTRUE(setup[["is_weightfunction"]]) &&
+      !.is_data_exact_selection(setup[["data"]])) {
     stop(
       "Gaussian covariance estimate targets are not available for selection ",
       "models.",
@@ -269,6 +272,14 @@
       block_indices            = unname(setup[["cluster"]]),
       extra_variances          = setup[["tau_within"]]^2
     )
+  } else if (.is_data_exact_selection(setup[["data"]])) {
+    plan <- list(
+      sampling_covariance      = diag(setup[["sei"]]^2, nrow = K, ncol = K),
+      random_covariance_plans  = list(),
+      random_covariance_states = rep(list(list()), S),
+      block_indices            = as.list(seq_len(K)),
+      extra_variances          = setup[["tau_within"]]^2
+    )
   } else {
     stop("Gaussian covariance estimate target metadata are unavailable.",
          call. = FALSE)
@@ -318,7 +329,8 @@
       call. = FALSE
     )
   }
-  if (isTRUE(setup[["is_weightfunction"]])) {
+  if (isTRUE(setup[["is_weightfunction"]]) &&
+      !.is_data_exact_selection(setup[["data"]])) {
     stop(
       "Gaussian covariance estimate target is not available ",
       "for selection models.",
@@ -334,6 +346,47 @@
   }
 
   plan <- .estimate_normal_covariance_target_plan_from_setup(setup)
+
+  if (.is_data_exact_selection(setup[["data"]])) {
+    conditional <- .marglik_covariance_plan_conditional_summary_batch(
+      cache                    = NULL,
+      y                        = plan[["y"]],
+      means                    = plan[["means"]],
+      sampling_covariance      = plan[["sampling_covariance"]],
+      random_covariance_plans  = plan[["random_covariance_plans"]],
+      random_covariance_states = plan[["random_covariance_states"]],
+      block_indices            = plan[["block_indices"]],
+      extra_variances          = plan[["extra_variances"]]
+    )
+    conditional_mean <- matrix(
+      plan[["y"]],
+      nrow  = setup[["S"]],
+      ncol  = setup[["K"]],
+      byrow = TRUE
+    ) - conditional[["residual"]]
+    conditional_sd <- sqrt(conditional[["variance"]])
+    selection_context <- .selection_exact_signed_context(
+      setup     = setup,
+      signed_yi = plan[["y"]]
+    )
+    log_lik <- .selnorm_kernel_loglik_matrix(
+      yi             = plan[["y"]],
+      mu_num         = conditional_mean,
+      sigma_num      = conditional_sd,
+      mu_norm        = conditional_mean,
+      sigma_norm     = conditional_sd,
+      sei            = setup[["selection_sei"]],
+      omega          = selection_context[["omega"]],
+      selection_spec = selection_context,
+      alpha          = selection_context[["alpha"]],
+      phack_kind     = selection_context[["phack_kind"]],
+      kernel_mode    = selection_context[["kernel_mode"]]
+    )
+    if (isTRUE(add_dependency_metadata)) {
+      attr(log_lik, "RoBMA_dependency_blocks") <- plan[["block_indices"]]
+    }
+    return(log_lik)
+  }
 
   log_lik <- .marglik_covariance_plan_conditional_loglik_batch(
     cache                    = NULL,
@@ -368,7 +421,8 @@
       call. = FALSE
     )
   }
-  if (isTRUE(setup[["is_weightfunction"]])) {
+  if (isTRUE(setup[["is_weightfunction"]]) &&
+      !.is_data_exact_selection(setup[["data"]])) {
     stop(
       "Known-V joint log-likelihood is not available for selection models.",
       call. = FALSE
@@ -379,6 +433,10 @@
       "Known-V joint log-likelihood is not available for weighted likelihoods.",
       call. = FALSE
     )
+  }
+
+  if (.is_data_exact_selection(setup[["data"]])) {
+    return(.selection_exact_joint_loglik_from_setup(setup))
   }
 
   data       <- setup[["data"]]
@@ -525,7 +583,8 @@
       call. = FALSE
     )
   }
-  if (isTRUE(setup[["is_weightfunction"]])) {
+  if (isTRUE(setup[["is_weightfunction"]]) &&
+      !.is_data_exact_selection(setup[["data"]])) {
     stop(
       "Gaussian covariance estimate target is not available for selection ",
       "models.",
@@ -560,6 +619,71 @@
 
   sd  <- sqrt(variance)
   out <- list()
+
+  if (.is_data_exact_selection(setup[["data"]])) {
+    conditional_mean <- matrix(
+      yi,
+      nrow  = S,
+      ncol  = K,
+      byrow = TRUE
+    ) - residual
+    selection_context <- .selection_exact_signed_context(
+      setup     = setup,
+      signed_yi = yi
+    )
+    if (any(c("cdf", "log_lower", "log_upper") %in% components)) {
+      selected_lower <- .selection_step_cdf_matrix(
+        q                 = yi,
+        mean              = conditional_mean,
+        sd                = sd,
+        sei               = setup[["selection_sei"]],
+        selection_context = selection_context,
+        lower.tail        = lower_tail
+      )
+      selected_upper <- .selection_step_cdf_matrix(
+        q                 = yi,
+        mean              = conditional_mean,
+        sd                = sd,
+        sei               = setup[["selection_sei"]],
+        selection_context = selection_context,
+        lower.tail        = !lower_tail
+      )
+      if ("cdf" %in% components) {
+        out[["cdf"]] <- selected_lower
+      }
+      if ("log_lower" %in% components) {
+        out[["log_lower"]] <- log(selected_lower)
+      }
+      if ("log_upper" %in% components) {
+        out[["log_upper"]] <- log(selected_upper)
+      }
+    }
+    if (any(c("mean", "variance") %in% components)) {
+      moments <- .selection_step_moments_matrix(
+        mean              = conditional_mean,
+        sd                = sd,
+        sei               = setup[["selection_sei"]],
+        selection_context = selection_context
+      )
+      if ("mean" %in% components) {
+        selected_mean <- moments[["mean"]]
+        if (identical(setup[["effect_direction"]], "negative")) {
+          selected_mean <- -selected_mean
+        }
+        out[["mean"]] <- selected_mean
+      }
+      if ("variance" %in% components) {
+        selected_variance <- moments[["second"]] - moments[["mean"]]^2
+        if (any(!is.finite(selected_variance)) ||
+            any(selected_variance < 0)) {
+          stop("Selected-normal predictive variance is invalid.",
+               call. = FALSE)
+        }
+        out[["variance"]] <- selected_variance
+      }
+    }
+    return(out)
+  }
 
   if ("cdf" %in% components) {
     out[["cdf"]] <- stats::pnorm(
@@ -614,7 +738,10 @@
   K                 <- setup[["K"]]
   S                 <- setup[["S"]]
 
-  extra_variance <- if (.is_data_random(data)) {
+  extra_variance <- if (.is_data_exact_selection(data) &&
+                        .is_data_random(data)) {
+    matrix(0, nrow = S, ncol = K)
+  } else if (.is_data_random(data)) {
     .evaluate_marginalized_random_variance(
       data              = data,
       posterior_samples = posterior_samples,
