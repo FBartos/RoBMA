@@ -1,8 +1,10 @@
 .hypothesis_brma_select_parameter <- function(object, hypothesis,
-                                              component) {
+                                              component, metadata = NULL) {
 
   component          <- .parameter_component_normalize(component)
-  metadata           <- .brma_parameter_catalog_metadata(object)
+  if (is.null(metadata)) {
+    metadata <- .brma_parameter_catalog_metadata(object)
+  }
   ast                <- .hypothesis_brma_ast(hypothesis)
   occurrences        <- BayesTools::hypothesis_symbols(
     ast,
@@ -99,7 +101,11 @@
 
 
 .hypothesis_brma_select_statements <- function(object, hypothesis,
-                                               component) {
+                                               component, metadata = NULL) {
+
+  if (is.null(metadata)) {
+    metadata <- .brma_parameter_catalog_metadata(object)
+  }
 
   statements <- BayesTools::hypothesis_render(
     .hypothesis_brma_ast(hypothesis)
@@ -108,7 +114,8 @@
     .hypothesis_brma_select_parameter(
       object     = object,
       hypothesis = BayesTools::hypothesis_parse(statement),
-      component  = component
+      component  = component,
+      metadata   = metadata
     )
   })
 }

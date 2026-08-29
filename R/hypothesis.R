@@ -254,16 +254,18 @@ hypothesis.brma <- function(object, hypothesis,
     .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()")
   }
 
+  parameter_metadata <- .brma_parameter_catalog_metadata(object)
   hypothesis <- BayesTools::hypothesis_parse(
     hypothesis = hypothesis,
-    catalog    = .brma_parameter_catalog_metadata(object)[["catalog"]],
+    catalog    = parameter_metadata[["catalog"]],
     simplify_names = TRUE
   )
   display_hypothesis <- hypothesis
   statement_selections <- .hypothesis_brma_select_statements(
     object     = object,
     hypothesis = hypothesis,
-    component  = component
+    component  = component,
+    metadata   = parameter_metadata
   )
   statement_keys <- vapply(statement_selections, function(selection) {
     paste(selection[["component"]], selection[["parameter"]], sep = "\r")
@@ -288,7 +290,8 @@ hypothesis.brma <- function(object, hypothesis,
   selected <- .hypothesis_brma_select_parameter(
     object     = object,
     hypothesis = hypothesis,
-    component  = component
+    component  = component,
+    metadata   = parameter_metadata
   )
   parameter <- selected[["parameter"]]
   parameter_label <- .hypothesis_brma_alias_label(
