@@ -252,6 +252,30 @@ test_that("RoBMA exact selection preserves explicit target boundaries", {
   ))
 })
 
+
+test_that("exact independent selection blocks use the scalar kernel", {
+
+  object <- bselmodel(
+    yi                        = c(.10, .20, .05),
+    sei                       = rep(.10, 3L),
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+
+  expect_identical(
+    .data_exact_selection_setup(object[["data"]])[["row_blocks"]],
+    as.list(seq_len(3L))
+  )
+  expect_match(syntax, "dselnorm_step_switch", fixed = TRUE)
+  expect_false(grepl("dselnorm_mnorm_step", syntax, fixed = TRUE))
+  expect_false(grepl("_qmc", syntax, fixed = TRUE))
+  expect_false(any(grepl("_qmc$", names(fit_data))))
+})
+
 test_that("selection spec sets probability telescoping flag once", {
 
   yi  <- c(.1, .2, .3)
@@ -717,6 +741,44 @@ test_that("exact diagonal selection kernel reduces to analytic row factors", {
     stats::dnorm(y, mean = mu, sd = sd, log = TRUE) +
       log(observed_weight) - log(normalizer)
   )
+
+  expect_equal(actual[["log_density"]], expected, tolerance = 1e-13)
+  expect_identical(actual[["relative_mcse"]], 0)
+})
+
+
+test_that("exact singleton selection kernel reduces to the scalar density", {
+
+  y     <- .30
+  mu    <- .10
+  sd    <- .30
+  sei   <- .20
+  z     <- stats::qnorm(.025, lower.tail = FALSE)
+  omega <- c(.4, 1)
+  plan  <- BayesTools::selection_likelihood_plan(
+    block_sizes         = 1L,
+    points_per_scramble = 8L,
+    scrambles           = 2L,
+    seed                 = 13L,
+    relative_tolerance   = .01
+  )
+  actual <- .Call(
+    "RoBMA_selnorm_mnorm_step_loglik_batch",
+    y, matrix(mu, nrow = 1L), matrix(sd^2, nrow = 1L), sei,
+    matrix(omega, nrow = 1L), c(z, -Inf), c(Inf, z), 2L,
+    1L, TRUE, SELKERNEL_STEP, as.double(plan[["designs"]][["1"]]),
+    8L, 2L, .01,
+    PACKAGE = "RoBMA"
+  )
+  threshold  <- z * sei
+  normalizer <- omega[[1L]] * stats::pnorm(
+    threshold,
+    mean       = mu,
+    sd         = sd,
+    lower.tail = FALSE
+  ) + omega[[2L]] * stats::pnorm(threshold, mean = mu, sd = sd)
+  expected <- stats::dnorm(y, mean = mu, sd = sd, log = TRUE) -
+    log(normalizer)
 
   expect_equal(actual[["log_density"]], expected, tolerance = 1e-13)
   expect_identical(actual[["relative_mcse"]], 0)

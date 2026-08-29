@@ -52,6 +52,38 @@ double cpp_selnorm_mnorm_step_lpdf(
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   *relative_mcse = 0.0;
 
+  double phack_z_zero[2] = {0, 0};
+  double segment_bounds_zero[1] = {0};
+  int segment_zero[1] = {0};
+  SelNormKernelData selection;
+  selection.n_bins = n_bins;
+  selection.n_segments = 0;
+  selection.effect_sign = effect_sign;
+  selection.q = 0;
+  selection.z_lower = z_lower;
+  selection.z_upper = z_upper;
+  selection.phack_z_source = phack_z_zero;
+  selection.phack_z_dest = phack_z_zero;
+  selection.segment_bounds = segment_bounds_zero;
+  selection.segment_step_bin = segment_zero;
+  selection.segment_phack_region = segment_zero;
+  selection.segment_step_bin_real = 0;
+  selection.segment_phack_region_real = 0;
+  selection.trusted_step_partition = true;
+  selection.telescope_probabilities = telescope_probabilities;
+
+  if (k == 1) {
+    const double variance = covariance_lower[0];
+    if (!(variance > 0.0) || !std::isfinite(variance)) {
+      return negative_infinity;
+    }
+    return cpp_selnorm_kernel_lpdf(
+      x[0], mean[0], std::sqrt(variance), mean[0], std::sqrt(variance),
+      selection_se[0], 1.0, omega, obs_bin[0], 0.0, 0, kernel_mode,
+      selection, 1, false
+    );
+  }
+
   std::vector<double> covariance(static_cast<std::size_t>(k * k), 0.0);
   int position = 0;
   for (int column = 0; column < k; ++column) {
@@ -94,26 +126,6 @@ double cpp_selnorm_mnorm_step_lpdf(
   }
   double log_density = -0.5 *
     (static_cast<double>(k) * std::log(two_pi) + log_det + quadratic);
-
-  double phack_z_zero[2] = {0, 0};
-  double segment_bounds_zero[1] = {0};
-  int segment_zero[1] = {0};
-  SelNormKernelData selection;
-  selection.n_bins = n_bins;
-  selection.n_segments = 0;
-  selection.effect_sign = effect_sign;
-  selection.q = 0;
-  selection.z_lower = z_lower;
-  selection.z_upper = z_upper;
-  selection.phack_z_source = phack_z_zero;
-  selection.phack_z_dest = phack_z_zero;
-  selection.segment_bounds = segment_bounds_zero;
-  selection.segment_step_bin = segment_zero;
-  selection.segment_phack_region = segment_zero;
-  selection.segment_step_bin_real = 0;
-  selection.segment_phack_region_real = 0;
-  selection.trusted_step_partition = true;
-  selection.telescope_probabilities = telescope_probabilities;
 
   if (kernel_mode == SELKERNEL_NORMAL) return log_density;
 

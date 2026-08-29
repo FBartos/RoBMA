@@ -408,9 +408,11 @@ set_selection_likelihood_control <- function(
     fit_data[[paste0(prefix, "_sampling_lower")]] <- unname(
       sampling_covariance[cbind(pairs[["row_1"]], pairs[["row_2"]])]
     )
-    fit_data[[paste0(prefix, "_qmc")]] <- plan[["designs"]][[
-      as.character(length(rows))
-    ]]
+    if (length(rows) > 1L) {
+      fit_data[[paste0(prefix, "_qmc")]] <- plan[["designs"]][[
+        as.character(length(rows))
+      ]]
+    }
   }
   if (!is.null(setup[["random_covariance"]])) {
     fit_data <- c(fit_data, setup[["random_covariance"]][["data"]])
@@ -697,6 +699,37 @@ set_selection_likelihood_control <- function(
     covariance_terms <- covariance_terms[!is.na(covariance_terms) &
       nzchar(covariance_terms) & covariance_terms != "0"]
 
+    density_syntax <- if (block_n == 1L) {
+      paste0(
+        prefix, "_y[1] ~ dselnorm_step_switch(",
+        prefix, "_mu[1],sqrt(", prefix, "_covariance[1]),",
+        prefix, "_sei[1],1,",
+        selection_spec[["jags_omega"]], ",",
+        "sel_z_lower,sel_z_upper,",
+        prefix, "_obs_bin[1],",
+        "sel_sign,",
+        .selection_exact_kernel_mode_expression(selection_spec), ",",
+        "sel_telescope_probabilities)\n"
+      )
+    } else {
+      paste0(
+        prefix, "_y[1:", block_n, "] ~ dselnorm_mnorm_step(",
+        prefix, "_mu[1:", block_n, "],",
+        prefix, "_covariance[1:", lower_n, "],",
+        prefix, "_sei[1:", block_n, "],",
+        selection_spec[["jags_omega"]], ",",
+        "sel_z_lower,sel_z_upper,",
+        prefix, "_obs_bin[1:", block_n, "],",
+        "sel_sign,sel_telescope_probabilities,",
+        .selection_exact_kernel_mode_expression(selection_spec), ",",
+        prefix, "_qmc[1:", plan[["scrambles"]], ",1:",
+        plan[["points_per_scramble"]], ",1:", 2L * block_n, "],",
+        plan[["points_per_scramble"]], ",",
+        plan[["scrambles"]], ",",
+        format(plan[["relative_tolerance"]], scientific = FALSE), ")\n"
+      )
+    }
+
     syntax <- paste0(
       syntax,
       "for(j in 1:", block_n, "){\n",
@@ -706,20 +739,7 @@ set_selection_likelihood_control <- function(
       "  ", prefix, "_covariance[l] = ",
       paste(covariance_terms, collapse = " + "), "\n",
       "}\n",
-      prefix, "_y[1:", block_n, "] ~ dselnorm_mnorm_step(",
-      prefix, "_mu[1:", block_n, "],",
-      prefix, "_covariance[1:", lower_n, "],",
-      prefix, "_sei[1:", block_n, "],",
-      selection_spec[["jags_omega"]], ",",
-      "sel_z_lower,sel_z_upper,",
-      prefix, "_obs_bin[1:", block_n, "],",
-      "sel_sign,sel_telescope_probabilities,",
-      .selection_exact_kernel_mode_expression(selection_spec), ",",
-      prefix, "_qmc[1:", plan[["scrambles"]], ",1:",
-      plan[["points_per_scramble"]], ",1:", 2L * block_n, "],",
-      plan[["points_per_scramble"]], ",",
-      plan[["scrambles"]], ",",
-      format(plan[["relative_tolerance"]], scientific = FALSE), ")\n"
+      density_syntax
     )
   }
 
