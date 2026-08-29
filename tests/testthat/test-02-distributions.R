@@ -653,7 +653,6 @@ test_that("marglik selected-normal known-V path separates SE roles", {
   expect_equal(.log_posterior(
     parameters        = parameters,
     data              = data,
-    is_mods           = FALSE,
     is_scale          = FALSE,
     is_multilevel     = FALSE,
     is_weights        = FALSE,

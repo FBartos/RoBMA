@@ -25,8 +25,8 @@ This function extracts the raw \pkg{bridgesampling} object underlying the
 marginal-likelihood result stored by \code{\link{add_marglik}}. If the
 marginal likelihood has not been computed, an error is thrown.
 Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
-\code{BMA.mv}, and \code{RoBMA}) do not expose bridge-sampling marginal
-likelihoods.
+\code{BMA.mv}, \code{RoBMA}, and \code{RoBMA.mv}) do not expose
+bridge-sampling marginal likelihoods.
 
 Fully fixed models can have a zero-dimensional marginal likelihood evaluated
 exactly. Such fits have no bridge-sampling object, so this method raises a

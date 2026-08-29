@@ -10,20 +10,22 @@
 \code{\link{prior_weightfunction}}. For \code{\link{bPET}} and
 \code{\link{bPET.mv}}, use \code{\link{prior_PET}}. For
 \code{\link{bPEESE}} and \code{\link{bPEESE.mv}}, use
-\code{\link{prior_PEESE}}. For \code{\link{RoBMA}}, this can be a single
-publication-bias prior distribution or a list of publication-bias prior
-distributions. In the single-model bias-adjustment constructors, omitted or
-\code{NULL} uses the corresponding default prior distribution.}
+\code{\link{prior_PEESE}}. For \code{\link{RoBMA}} and
+\code{\link{RoBMA.mv}}, this can be a single publication-bias prior
+distribution or a list of publication-bias prior distributions. In the
+single-model bias-adjustment constructors, omitted or \code{NULL} uses the
+corresponding default prior distribution.}
 
 \item{prior_bias_null}{prior distribution(s) for null publication-bias
-component(s) in \code{\link{RoBMA}}, usually \code{\link{prior_none}()}.
+component(s) in \code{\link{RoBMA}} or \code{\link{RoBMA.mv}}, usually
+\code{\link{prior_none}()}.
 A single prior distribution object creates one null component, a list creates
 multiple null components, and \code{NULL} or \code{FALSE} omits the null
 publication-bias component.}
 
 \item{model_type}{character string specifying predefined publication-bias
-model ensembles for \code{\link{RoBMA}}. One of \code{"PSMA"},
-\code{"6w"}, \code{"2w"}, or \code{"PP"}.}
+model ensembles for \code{\link{RoBMA}} and \code{\link{RoBMA.mv}}. One of
+\code{"PSMA"}, \code{"6w"}, \code{"2w"}, or \code{"PP"}.}
 
 \item{steps}{numeric vector of one-sided p-value cut points for the default
 \code{\link{bselmodel}} weightfunction prior. If \code{prior_bias} is supplied,
@@ -34,7 +36,7 @@ Publication-bias prior distributions are specified separately from the
 meta-analytic prior distributions documented in
 \code{\link{prior_specification}}. They define selection-model weights,
 PET/PEESE regression coefficients, or the publication-bias model space in
-\code{\link{RoBMA}}.
+\code{\link{RoBMA}} and \code{\link{RoBMA.mv}}.
 }
 \details{
 \subsection{Single-model bias-adjustment priors}{
@@ -63,9 +65,10 @@ for each cumulative-Dirichlet alpha parameter.
 
 \subsection{Model-averaged publication-bias priors}{
 
-\code{\link{RoBMA}} averages over publication-bias components. By default,
-\code{prior_bias_null} is \code{\link{prior_none}()} and \code{model_type}
-determines the alternative components:
+\code{\link{RoBMA}} and \code{\link{RoBMA.mv}} average over
+publication-bias components. By default, \code{prior_bias_null} is
+\code{\link{prior_none}()} and \code{model_type} determines the alternative
+components:
 
 \tabular{ll}{
 \code{"PSMA"} \tab six weight functions, PET, and PEESE \cr

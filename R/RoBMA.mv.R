@@ -1,58 +1,55 @@
-#' @title Bayesian Model-Averaged Multivariate Meta-Analysis
+#' @title Robust Bayesian Model-Averaged Multivariate Meta-Analysis
 #'
-#' @description Fits Bayesian model-averaged multivariate and multilevel
-#' meta-analytic models with known sampling covariance and formula random
-#' effects. Random structures supplied through `random` are model-averaged with
-#' independent component gates.
+#' @description Fits robust Bayesian model-averaged multivariate and
+#' multilevel meta-analytic models with known sampling covariance and formula
+#' random effects.
 #'
 #' @inheritParams brma.mv
-#' @inheritParams RoBMA_prior_specification
+#' @inheritParams RoBMA
+#' @inheritParams bselmodel.mv
 #'
 #' @details
-#' `BMA.mv()` combines the product-space model-averaging workflow of [BMA()]
-#' with the likelihood, formula, random-effect, and known-covariance machinery
-#' of [brma.mv()]. For multiple top-level random components, a Dirichlet prior
-#' allocates the slab total variance and an independent Bernoulli gate multiplies
-#' each allocated contribution. The allocation is not renormalized when a gate
-#' is off. Thus component \eqn{j} contributes
-#' \deqn{I_j w_j \tau^2,}
-#' where \eqn{I_j} is its inclusion indicator, \eqn{w_j} is its slab allocation,
-#' and \eqn{\tau} is the slab total SD. With one component, no artificial
-#' Dirichlet weight is created and the contribution is \eqn{I_1 \tau^2}.
+#' `RoBMA.mv()` combines the publication-bias product space of [RoBMA()] with
+#' the known-covariance, formula, random-effect, and prediction machinery of
+#' [brma.mv()]. Selection models, PET, PEESE, and the unadjusted branch are
+#' averaged together according to `model_type` or custom `prior_bias` and
+#' `prior_bias_null` specifications. Selection is always defined at the
+#' estimate level. PET uses `sqrt(diag(V))` and PEESE uses `diag(V)` as their
+#' bias predictors while the likelihood retains the full known sampling
+#' covariance.
 #'
-#' By default, every top-level component has an independent 0.5 inclusion
-#' probability. `prior_heterogeneity` defines the shared positive slab and
-#' `prior_heterogeneity_null` defines exclusion at exactly zero. Their prior
-#' weights determine the common gate probability; multiple alternative priors
-#' retain their relative weights within the slab. Setting
-#' `prior_heterogeneity_null = NULL` or `FALSE` fixes all component gates on,
-#' while `prior_heterogeneity = NULL` or `FALSE` fixes them off. Nested random
-#' terms are gated as one top-level component before their internal Dirichlet
-#' split.
+#' Random structures supplied through `random` use the same independent
+#' component gates as [BMA.mv()]. A Dirichlet prior allocates the slab total
+#' variance across multiple top-level components and each allocation is
+#' multiplied by its own inclusion indicator without renormalizing the
+#' remaining allocations. The default prior inclusion probability is 0.5 for
+#' every component.
 #'
-#' A partial [BayesTools::prior_random()] supplied through
-#' `prior_heterogeneity` may override contrasts, correlations, monitoring, and
-#' parameterization. `BMA.mv()` owns the gated scale architecture, so a custom
-#' `prior_random()` must not supply an SD, SD source, term-specific SD,
-#' covariance-owned SD, or variance allocation.
+#' With `selection_likelihood = "exact"`, all Gaussian random effects are
+#' analytically marginalized and each connected sampling/random covariance
+#' block uses its joint selected-Gaussian density in selection-model branches.
+#' Non-selection branches in the product space retain their ordinary Gaussian,
+#' PET, or PEESE likelihood contribution. With
+#' `selection_likelihood = "approximate"`, selection-model branches use the
+#' row-wise selected-normal likelihood conditional on sampled random effects.
+#' Correlated known sampling covariance then requires the latent known-`V`
+#' representation. `known_v_parameterization = "auto"` is changed to that
+#' representation only when the fitted bias mixture actually contains a
+#' selection model; explicitly requesting `"whitened"` or `"block_mvn"` is
+#' rejected for this target.
 #'
-#' Random-effect inclusion probabilities are reported separately from fixed
-#' effect and scale-regression inclusion. Averaged random-component SDs retain
-#' the excluded zero branch; conditional random summaries condition each
-#' component on its own gate. `sd_total` and `var_prop(...)` describe the
-#' pre-gate slab allocation.
+#' `marginalize_estimate_level` applies to models without an exact selection
+#' branch and to the approximate selection likelihood. Exact selection
+#' necessarily marginalizes every Gaussian random-effect block into the joint
+#' observation covariance.
 #'
 #' Product-space marginal likelihood and bridge-sampling methods are not
 #' available. Predictive comparison through [loo.brma()] and [waic.brma()]
 #' remains available. If `V` is singular, every allowed product-space branch
-#' must contain structural variance sufficient to regularize its null space;
-#' an allowed all-components-off branch is therefore rejected.
-#'
-#' The function does not add publication-bias models. Use [RoBMA.mv()] to add
-#' model-averaged selection, PET, and PEESE publication-bias adjustments.
+#' must contain structural variance sufficient to regularize its null space.
 #'
 #' @return A fitted object of class
-#' `c("BMA.mv", "RoBMA", "brma.mv", "brma.norm", "brma")`.
+#' `c("RoBMA.mv", "RoBMA", "brma.mv", "brma.norm", "brma")`.
 #'
 #' @examples \dontrun{
 #' data("dat.assink2016", package = "metadat")
@@ -64,7 +61,7 @@
 #'   rho = c(0.7, 0.5),
 #'   data = dat.assink2016
 #' )
-#' fit <- BMA.mv(
+#' fit <- RoBMA.mv(
 #'   yi = yi,
 #'   V = V,
 #'   mods = ~ deltype,
@@ -78,26 +75,32 @@
 #' summary_models(fit)
 #' }
 #'
-#' @seealso [BMA()], [RoBMA.mv()], [brma.mv()], [summary.brma()],
+#' @seealso [RoBMA()], [BMA.mv()], [brma.mv()], [bselmodel.mv()], [bPET.mv()],
+#'   [bPEESE.mv()], [set_selection_likelihood_control()], [summary.brma()],
 #'   [summary_models()]
 #'
 #' @export
-BMA.mv <- function(
+RoBMA.mv <- function(
     # input specification
     yi, V, ni,
     mods, scale, random,
     R = NULL, Rscale = "cor",
     data, slab, subset,
-    measure,
+    measure, effect_direction = "detect",
 
     # prior specification
-    prior_effect, prior_heterogeneity, prior_mods, prior_scale,
+    prior_effect, prior_heterogeneity, prior_mods, prior_scale, prior_bias,
     prior_effect_null, prior_heterogeneity_null,
-    prior_mods_null, prior_scale_null,
+    prior_mods_null, prior_scale_null, prior_bias_null,
     standardize_continuous_predictors = TRUE,
     set_contrast_factor_predictors = "treatment",
     prior_unit_information_sd, rescale_priors = 1,
     prior_informed_field, prior_informed_subfield,
+    model_type = "PSMA",
+
+    # selection likelihood
+    selection_likelihood = c("exact", "approximate"),
+    selection_control = set_selection_likelihood_control(),
 
     # MCMC fitting settings
     known_v_parameterization = "auto",
@@ -112,13 +115,14 @@ BMA.mv <- function(
     seed = NULL, silent, ...,
     vi = NULL, sei = NULL) {
 
+  selection_likelihood <- match.arg(selection_likelihood)
   initialized <- .initialize_mv_object(
     matched_call_unevaluated            = match.call(expand.dots = FALSE),
     matched_call                        = match.call(),
     envir                               = parent.frame(),
-    caller                              = "BMA.mv()",
+    caller                              = "RoBMA.mv()",
     object_class                        = c(
-      "BMA.mv", "RoBMA", "brma.mv", "brma.norm", "brma"
+      "RoBMA.mv", "RoBMA", "brma.mv", "brma.norm", "brma"
     ),
     dots                                = list(...),
     missing_measure                     = missing(measure),
@@ -142,7 +146,8 @@ BMA.mv <- function(
     autofit_control                     = autofit_control,
     convergence_checks                  = convergence_checks,
     seed                                = seed,
-    silent                              = silent
+    silent                              = silent,
+    effect_direction                    = effect_direction
   )
   object <- initialized[["object"]]
   dots   <- initialized[["dots"]]
@@ -150,25 +155,30 @@ BMA.mv <- function(
     return(object)
   }
 
-  object$priors <- .check_and_list_priors.RoBMA(
+  object[["priors"]] <- .check_and_list_priors.RoBMA(
     prior_effect               = prior_effect,
     prior_heterogeneity        = prior_heterogeneity,
     prior_mods                 = prior_mods,
     prior_scale                = prior_scale,
+    prior_bias                 = prior_bias,
     prior_effect_null          = prior_effect_null,
     prior_heterogeneity_null   = prior_heterogeneity_null,
     prior_mods_null            = prior_mods_null,
     prior_scale_null           = prior_scale_null,
+    prior_bias_null            = prior_bias_null,
     rescale_priors             = rescale_priors,
     prior_unit_information_sd  = prior_unit_information_sd,
     prior_informed_field       = prior_informed_field,
     prior_informed_subfield    = prior_informed_subfield,
-    data                        = object[["data"]],
+    data                       = object[["data"]],
+    model_type                 = model_type,
     random_component_averaging = TRUE
   )
 
   .finalize_mv_object(
     object                     = object,
+    selection_likelihood       = selection_likelihood,
+    selection_control          = selection_control,
     marginalize_estimate_level = marginalize_estimate_level,
     only_priors                = isTRUE(dots[["only_priors"]])
   )

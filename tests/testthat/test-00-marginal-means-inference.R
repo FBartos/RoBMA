@@ -88,10 +88,9 @@ test_that("interaction marginals condition on every contributing coefficient", {
   }), parameters)
 
   effective <- BayesTools:::.marginal_inference_level_conditionals(
-    marginal         = marginal,
-    prior_list       = prior_list,
-    conditional      = conditional_list[["mu_ab"]],
-    conditional_rule = "OR"
+    marginal    = marginal,
+    prior_list  = prior_list,
+    conditional = conditional_list[["mu_ab"]]
   )
   expected <- lapply(seq_len(nrow(cell_weights)), function(i) {
 

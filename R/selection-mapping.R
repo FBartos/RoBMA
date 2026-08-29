@@ -53,7 +53,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     return(FALSE)
   }
 
-  return(.selection_backend_has_phacking(.selection_backend_spec(list(prior))))
+  backend <- BayesTools::selection_backend_spec(list(prior), backend = "jags")
+  return(.selection_backend_has_phacking(backend))
 }
 
 .prior_has_selection <- function(prior) {
@@ -71,7 +72,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     return(FALSE)
   }
 
-  backend <- .selection_backend_spec(list(prior))
+  backend <- BayesTools::selection_backend_spec(list(prior), backend = "jags")
   return(backend[["mode"]] %in% c("step", "step_phack_power"))
 }
 
@@ -95,11 +96,6 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     return(out)
   }
   return(list(priors_bias))
-}
-
-.selection_backend_spec <- function(priors_bias) {
-
-  return(BayesTools::selection_backend_spec(priors_bias, backend = "jags"))
 }
 
 .selection_backend_has_phacking <- function(backend) {
@@ -128,48 +124,12 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     return(NULL)
   }
 
-  backend <- .selection_backend_spec(priors_list[keep])
-  breaks  <- backend[["step"]][["breaks"]]
-  if (is.null(breaks)) {
-    breaks <- c(0, 1)
-  }
-  return(.selection_assert_p_cuts(breaks))
-}
-
-.selection_kernel_mode <- function(mode) {
-
-  switch(
-    mode,
-    "normal"            = SELKERNEL_NORMAL,
-    "step"              = SELKERNEL_STEP,
-    "phack_power"       = SELKERNEL_PHACK_POWER,
-    "step_phack_power"  = SELKERNEL_STEP_PHACK_POWER,
-    stop("Unsupported selection kernel mode.", call. = FALSE)
+  backend <- BayesTools::selection_backend_spec(
+    priors_list[keep],
+    backend = "jags"
   )
-}
-
-.selection_branch_kernel_modes <- function(backend) {
-
-  branch_type <- backend[["branch_type"]]
-  if (is.null(branch_type)) {
-    return(.selection_kernel_mode(backend[["mode"]]))
-  }
-
-  kernel_mode <- rep(SELKERNEL_NORMAL, length(branch_type))
-  has_step  <- branch_type %in% c("weightfunction", "combined")
-  has_phack <- branch_type %in% c("phack", "phacking", "combined")
-
-  if (backend[["mode"]] == "step") {
-    kernel_mode[has_step] <- SELKERNEL_STEP
-  } else if (backend[["mode"]] == "phack_power") {
-    kernel_mode[has_phack] <- SELKERNEL_PHACK_POWER
-  } else if (backend[["mode"]] == "step_phack_power") {
-    kernel_mode[has_step & !has_phack]  <- SELKERNEL_STEP
-    kernel_mode[has_phack & !has_step]  <- SELKERNEL_PHACK_POWER
-    kernel_mode[has_step & has_phack]   <- SELKERNEL_STEP_PHACK_POWER
-  }
-
-  return(as.integer(kernel_mode))
+  breaks  <- backend[["step"]][["breaks"]]
+  return(.selection_assert_p_cuts(breaks))
 }
 
 .selection_jags_kernel_mode_expression <- function(branch_kernel_mode) {
@@ -446,20 +406,17 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .selection_stop_phacking_deferred()
   }
 
-  backend <- .selection_backend_spec(priors_bias)
-  if (is.null(backend)) {
-    return(NULL)
-  }
+  backend <- BayesTools::selection_backend_spec(
+    priors_bias,
+    backend = "jags"
+  )
 
-  branch_kernel_mode   <- .selection_branch_kernel_modes(backend)
+  branch_kernel_mode   <- backend[["branch_kernel_mode"]]
   jags_use_step_switch <- backend[["mode"]] == "step" &&
     any(branch_kernel_mode == SELKERNEL_NORMAL) &&
     any(branch_kernel_mode == SELKERNEL_STEP)
 
   p_cuts      <- backend[["step"]][["breaks"]]
-  if (is.null(p_cuts)) {
-    p_cuts <- c(0, 1)
-  }
   p_cuts      <- .selection_assert_p_cuts(p_cuts)
   fixed_omega <- .selection_fixed_omega_by_branch(priors_bias, p_cuts)
   n_bins      <- length(p_cuts) - 1L
@@ -499,7 +456,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   if (!identical(backend[["mode"]], "step")) {
     jags_data <- c(jags_data, list(
-      sel_kernel_mode          = .selection_kernel_mode(backend[["mode"]]),
+      sel_kernel_mode          = backend[["kernel_mode"]],
       phack_z_source           = phack_source,
       phack_z_dest             = phack_dest,
       sel_segment_bounds       = .selection_jags_bounds(segments[["bounds"]]),
@@ -522,7 +479,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   }
   return(list(
     mode            = backend[["mode"]],
-    kernel_mode     = .selection_kernel_mode(backend[["mode"]]),
+    kernel_mode     = backend[["kernel_mode"]],
     p_rule          = "signed_one_sided",
     p_cuts          = p_cuts,
     z_lower         = z_lower,

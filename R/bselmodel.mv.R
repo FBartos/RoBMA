@@ -81,71 +81,42 @@ bselmodel.mv <- function(
     seed = NULL, silent, ...,
     vi = NULL, sei = NULL) {
 
-  matched_call_unevaluated            <- match.call(expand.dots = FALSE)
-  .brma_mv_reject_unsupported_dots(
-    matched_call_unevaluated,
-    caller = "bselmodel.mv()"
-  )
-
-  dots                                <- list(...)
-  missing_measure                     <- missing(measure)
-  known_v_residual_fraction_specified <- !missing(known_v_residual_fraction)
-  selection_likelihood                <- match.arg(selection_likelihood)
-  known_v_parameterization <- match.arg(
-    known_v_parameterization,
-    c("auto", "latent", "whitened", "block_mvn")
-  )
-  if (identical(selection_likelihood, "approximate")) {
-    if (identical(known_v_parameterization, "auto")) {
-      known_v_parameterization <- "latent"
-    } else if (!identical(known_v_parameterization, "latent")) {
-      stop(
-        "'selection_likelihood = \"approximate\"' requires ",
-        "'known_v_parameterization = \"latent\"'.",
-        call. = FALSE
-      )
-    }
-  }
-
-  if (missing_measure && !isTRUE(dots[["only_data"]])) {
-    .stop_missing_measure("bselmodel.mv()")
-  }
-  if (missing_measure) {
-    measure <- "GEN"
-  }
-  random_group_covariance <- .brma_mv_make_group_covariance(
-    R      = R,
-    Rscale = Rscale
-  )
-  dots <- .validate_constructor_dots(
-    dots   = dots,
-    caller = "bselmodel.mv()"
-  )
-
-  object <- .createObject(
-    dots  = dots,
-    class = c("bselmodel.mv", "bselmodel", "brma.mv", "brma.norm", "brma"),
-    chains = chains, adapt = adapt, burnin = burnin, sample = sample,
-    thin = thin, autofit = autofit, parallel = parallel, silent = silent,
-    seed = seed, autofit_control = autofit_control,
-    convergence_checks = convergence_checks
-  )
-
-  matched_call <- match.call()
-  matched_call[["known_v_parameterization"]] <- known_v_parameterization
-  object[["data"]] <- .check_and_list_data(
-    .call                              = matched_call,
-    .envir                             = parent.frame(),
-    class                              = "mv",
-    set_contrast_factor_predictors    = set_contrast_factor_predictors,
-    standardize_continuous_predictors = standardize_continuous_predictors,
-    effect_direction                  = effect_direction,
-    measure                           = measure,
-    random_group_covariance            = random_group_covariance,
+  selection_likelihood <- match.arg(selection_likelihood)
+  initialized <- .initialize_mv_object(
+    matched_call_unevaluated            = match.call(expand.dots = FALSE),
+    matched_call                        = match.call(),
+    envir                               = parent.frame(),
+    caller                              = "bselmodel.mv()",
+    object_class                        = c(
+      "bselmodel.mv", "bselmodel", "brma.mv", "brma.norm", "brma"
+    ),
+    dots                                = list(...),
+    missing_measure                     = missing(measure),
+    measure                             = measure,
+    known_v_residual_fraction_specified = !missing(
+      known_v_residual_fraction
+    ),
+    R                                   = R,
+    Rscale                              = Rscale,
+    standardize_continuous_predictors   = standardize_continuous_predictors,
+    set_contrast_factor_predictors      = set_contrast_factor_predictors,
     known_v_parameterization            = known_v_parameterization,
     known_v_residual_fraction           = known_v_residual_fraction,
-    known_v_residual_fraction_specified = known_v_residual_fraction_specified
+    sample                              = sample,
+    burnin                              = burnin,
+    adapt                               = adapt,
+    chains                              = chains,
+    thin                                = thin,
+    parallel                            = parallel,
+    autofit                             = autofit,
+    autofit_control                     = autofit_control,
+    convergence_checks                  = convergence_checks,
+    seed                                = seed,
+    silent                              = silent,
+    effect_direction                    = effect_direction
   )
+  object <- initialized[["object"]]
+  dots   <- initialized[["dots"]]
   if (isTRUE(dots[["only_data"]])) {
     return(object)
   }
@@ -165,7 +136,7 @@ bselmodel.mv <- function(
     steps                     = steps
   )
 
-  .finalize_bselmodel_object(
+  .finalize_mv_object(
     object                     = object,
     selection_likelihood       = selection_likelihood,
     selection_control          = selection_control,

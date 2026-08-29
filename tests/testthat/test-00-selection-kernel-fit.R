@@ -15,6 +15,44 @@ test_that("selection likelihood exposes only exact and approximate targets", {
     ),
     "one of.*exact.*approximate"
   )
+  expect_error(
+    RoBMA(
+      yi                        = c(.1, .2),
+      sei                       = c(.1, .1),
+      measure                   = "SMD",
+      prior_unit_information_sd = 1,
+      selection_likelihood      = "conditional",
+      only_priors               = TRUE,
+      silent                    = TRUE
+    ),
+    "one of.*exact.*approximate"
+  )
+})
+
+test_that("selection model titles omit the likelihood implementation", {
+
+  args <- list(
+    yi                        = c(.1, .2),
+    sei                       = c(.1, .1),
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  exact       <- do.call(bselmodel, c(args, selection_likelihood = "exact"))
+  approximate <- do.call(
+    bselmodel,
+    c(args, selection_likelihood = "approximate")
+  )
+
+  expect_identical(
+    .summary.brma_model_names(exact),
+    "Bayesian Random-Effects Selection Model (k = 2)"
+  )
+  expect_identical(
+    .summary.brma_model_names(approximate),
+    "Bayesian Random-Effects Selection Model (k = 2)"
+  )
 })
 
 test_that("selection reference weights are structural convergence parameters", {
@@ -93,6 +131,7 @@ test_that("mixed normal-step bias syntax uses scalar step switch", {
     prior_heterogeneity       = BayesTools::prior("invgamma", parameters = list(1, .15)),
     prior_heterogeneity_null  = NULL,
     prior_unit_information_sd = 1,
+    selection_likelihood      = "approximate",
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -107,6 +146,110 @@ test_that("mixed normal-step bias syntax uses scalar step switch", {
   expect_match(syntax, "sel_kernel_mode_active", fixed = TRUE)
   expect_match(syntax, "dselnorm_step_switch", fixed = TRUE)
   expect_false(grepl("dselnorm_kernel", syntax, fixed = TRUE))
+})
+
+
+test_that("RoBMA defaults to exact finite-vector selection", {
+
+  prior_bias <- BayesTools::prior_weightfunction(
+    side    = "one-sided",
+    steps   = .025,
+    weights = BayesTools::wf_fixed(c(1, .5))
+  )
+  args <- list(
+    yi                        = c(.10, .20, .05, .15),
+    sei                       = rep(.10, 4L),
+    cluster                   = c("a", "a", "b", "b"),
+    measure                   = "SMD",
+    prior_bias                = prior_bias,
+    prior_bias_null           = BayesTools::prior_none(),
+    prior_effect              = BayesTools::prior("normal", parameters = list(0, 1)),
+    prior_effect_null         = NULL,
+    prior_heterogeneity       = BayesTools::prior("invgamma", parameters = list(1, .15)),
+    prior_heterogeneity_null  = NULL,
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  exact <- do.call(RoBMA, args)
+
+  expect_true(.is_data_exact_selection(exact[["data"]]))
+  expect_identical(exact[["selection_likelihood"]][["type"]], "exact")
+  expect_identical(
+    exact[["selection_likelihood"]][["target"]],
+    "finite_vector_product_selection"
+  )
+  expect_identical(
+    .data_exact_selection_setup(exact[["data"]])[["row_blocks"]],
+    list(1:2, 3:4)
+  )
+  exact_priors <- .create_fit_priors(exact[["data"]], exact[["priors"]])
+  exact_syntax <- .create_model_syntax(exact[["data"]], exact[["priors"]])
+  expect_null(exact_priors[["gamma"]])
+  expect_match(exact_syntax, "dselnorm_mnorm_step", fixed = TRUE)
+  expect_match(exact_syntax, "sel_kernel_mode_active", fixed = TRUE)
+  expect_false(grepl("gamma[", exact_syntax, fixed = TRUE))
+  expect_false(grepl("dselnorm_step_switch", exact_syntax, fixed = TRUE))
+
+  approximate <- do.call(
+    RoBMA,
+    c(args, selection_likelihood = "approximate")
+  )
+  approximate_syntax <- .create_model_syntax(
+    approximate[["data"]],
+    approximate[["priors"]]
+  )
+  expect_false(.is_data_exact_selection(approximate[["data"]]))
+  expect_identical(
+    approximate[["selection_likelihood"]][["target"]],
+    "row_selected_normal_conditional_on_random_effects"
+  )
+  expect_match(approximate_syntax, "dselnorm_step_switch", fixed = TRUE)
+  expect_match(approximate_syntax, "gamma[cluster[i]]", fixed = TRUE)
+})
+
+
+test_that("RoBMA exact selection preserves explicit target boundaries", {
+
+  weighted_args <- list(
+    yi                        = c(.10, .20, .05),
+    sei                       = rep(.10, 3L),
+    weights                   = c(1, .5, 1),
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  expect_error(
+    do.call(RoBMA, weighted_args),
+    "'weights' are unavailable with 'selection_likelihood = \"exact\"'",
+    fixed = TRUE
+  )
+  approximate <- do.call(
+    RoBMA,
+    c(weighted_args, selection_likelihood = "approximate")
+  )
+  expect_identical(
+    approximate[["selection_likelihood"]][["type"]],
+    "approximate"
+  )
+
+  no_selection <- RoBMA(
+    yi                        = c(.10, .20, .05),
+    sei                       = rep(.10, 3L),
+    measure                   = "SMD",
+    model_type                = "PP",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  expect_false(.is_priors_weightfunction(no_selection[["priors"]]))
+  expect_null(no_selection[["selection_likelihood"]])
+  expect_null(attr(
+    no_selection[["data"]],
+    "selection_likelihood",
+    exact = TRUE
+  ))
 })
 
 test_that("selection spec sets probability telescoping flag once", {
@@ -183,7 +326,7 @@ test_that("branch kernel modes follow BayesTools phack and combined labels", {
     c("none", "weightfunction", "phack", "combined")
   )
   expect_equal(
-    .selection_branch_kernel_modes(backend),
+    backend[["branch_kernel_mode"]],
     c(
       SELKERNEL_NORMAL,
       SELKERNEL_STEP,
@@ -390,6 +533,19 @@ test_that("exact selection constructors marginalize Gaussian dependence", {
     ),
     "requires.*latent"
   )
+
+  approximate_auto <- bselmodel.mv(
+    yi                        = c(.10, .20, .05),
+    V                         = V,
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    selection_likelihood      = "approximate",
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  known_V <- .data_known_v_data(approximate_auto[["data"]])
+  expect_identical(.known_v_effective_backend(known_V), "latent")
+  expect_identical(.known_v_requested_parameterization(known_V), "auto")
 })
 
 

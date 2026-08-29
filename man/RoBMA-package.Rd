@@ -9,9 +9,11 @@
 \description{
 RoBMA provides Bayesian meta-analysis, meta-regression, multilevel
 meta-analysis, model averaging, and publication-bias adjustment. The main
-user-facing fitters are \code{\link{RoBMA}}, \code{\link{BMA}},
-\code{\link{brma}}, \code{\link{brma.glmm}}, \code{\link{bselmodel}},
-\code{\link{bPET}}, \code{\link{bPEESE}}, \code{\link{bPET.mv}}, and
+user-facing fitters are \code{\link{RoBMA}}, \code{\link{RoBMA.mv}},
+\code{\link{BMA}}, \code{\link{BMA.mv}}, \code{\link{brma}},
+\code{\link{brma.mv}}, \code{\link{brma.glmm}},
+\code{\link{bselmodel}}, \code{\link{bselmodel.mv}}, \code{\link{bPET}},
+\code{\link{bPEESE}}, \code{\link{bPET.mv}}, and
 \code{\link{bPEESE.mv}}.
 }
 \section{User guide}{

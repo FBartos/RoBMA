@@ -29,7 +29,8 @@ A \code{RoBMA_selection_likelihood_control} object.
 }
 \description{
 Creates numerical integration settings for the finite-vector product
-selection likelihood used by \code{\link[=bselmodel]{bselmodel()}} and \code{\link[=bselmodel.mv]{bselmodel.mv()}}. Integration
-points are fixed before fitting, so repeated likelihood evaluations are
-deterministic. One-dimensional likelihood blocks are evaluated analytically.
+selection likelihood used by \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bselmodel.mv]{bselmodel.mv()}}, \code{\link[=RoBMA]{RoBMA()}}, and
+\code{\link[=RoBMA.mv]{RoBMA.mv()}}. Integration points are fixed before fitting, so repeated
+likelihood evaluations are deterministic. One-dimensional likelihood blocks
+are evaluated analytically.
 }

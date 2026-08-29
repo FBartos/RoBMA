@@ -1,5 +1,14 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- adds `RoBMA.mv()` as the multivariate and multilevel robust model-averaging
+  interface. It combines the complete `BMA.mv()` fixed- and random-component
+  product space with unadjusted, selection-model, PET, and PEESE branches.
+  Estimate-level selection defaults to the exact joint selected-Gaussian
+  likelihood and can use the explicit approximate conditional likelihood;
+  PET/PEESE retain the full known sampling covariance. Summaries, individual
+  model tables, prediction, LOO/WAIC, supported diagnostics and plots,
+  hypotheses, posterior conversion, and updating share the existing RoBMA and
+  `brma.mv()` interfaces.
 - adds `bPET.mv()` and `bPEESE.mv()` as multivariate and multilevel extensions
   of the single-model PET/PEESE constructors. Both use `brma.mv()` known-`V`
   likelihood backends, BayesTools random-effect formulas, estimate-level
@@ -8,7 +17,8 @@
   `diag(V)` as their row-level bias predictors while retaining the full known
   sampling covariance in the likelihood.
 - adds exact finite-vector estimate-level product-selection likelihoods to
-  `bselmodel()` and the new `bselmodel.mv()`. Gaussian cluster, known-`V`, and
+  `bselmodel()`, `RoBMA()`, and the new `bselmodel.mv()` and `RoBMA.mv()`.
+  Gaussian cluster, known-`V`, and
   formula-random effects are marginalized into dependency-block covariances;
   diagonal normalizers are analytic and dependent normalizers use a fixed
   shifted-Halton GHK plan with an explicit relative-error diagnostic. The
@@ -516,6 +526,11 @@
   bridge, diagnostic, and prediction paths, and consumes BayesTools' single
   lower-triangle covariance ordering contract instead of maintaining parallel
   exact-selection implementations.
+- consumes BayesTools' authoritative global and per-branch selection-kernel
+  mode codes instead of maintaining a second downstream mode mapper.
+- centralizes common multivariate-constructor initialization and fitted-object
+  finalization, reuses the random-allocation descendant compiler for gated and
+  ungated paths, and removes the superseded one-use selection finalizer.
 
 ### Fixes
 - unregisters the JAGS module before destroying module-owned native objects at

@@ -124,10 +124,17 @@ bselmodel <- function(
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
     data = object[["data"]], bias_type = "selmodel", steps = steps)
-  .finalize_bselmodel_object(
+  selection_likelihood <- match.arg(
+    selection_likelihood,
+    c("exact", "approximate")
+  )
+  object <- .prepare_selection_likelihood_object(
     object               = object,
     selection_likelihood = selection_likelihood,
-    selection_control    = selection_control,
-    only_priors          = isTRUE(dots[["only_priors"]])
+    selection_control    = selection_control
+  )
+  .fit_and_finalize_object(
+    object,
+    only_priors = isTRUE(dots[["only_priors"]])
   )
 }

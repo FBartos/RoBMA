@@ -675,47 +675,36 @@
     weights   = .assign_prior.random_dirichlet(length(root_terms))
   )
   allocations <- list(root_allocation)
-
-  parent_for_block <- .assign_prior.random_parent_map(
-    groups          = groups,
-    allocation_name = allocation_name
-  )
+  descendants <- list()
   for (group in groups) {
-    if (length(group[["blocks"]]) <= 1L) {
-      next
-    }
-    child_name <- paste0(group[["label"]], "_split")
-    allocations[[length(allocations) + 1L]] <- BayesTools::random_variance_allocation(
-      name    = child_name,
-      display_name = group[["name"]],
-      terms   = stats::setNames(group[["blocks"]], group[["child_labels"]]),
-      component_names = group[["child_names"]],
-      parent  = BayesTools::allocation_ref(allocation_name, group[["label"]]),
-      weights = .assign_prior.random_dirichlet(length(group[["blocks"]]))
-    )
-  }
-
-  for (i in seq_along(block_names)) {
-    if (!isTRUE(heterogeneous[[i]])) {
-      next
-    }
-    parent <- parent_for_block[[block_names[[i]]]]
-    allocations[[length(allocations) + 1L]] <- BayesTools::random_variance_allocation(
-      name       = paste0(block_names[[i]], "_components"),
-      display_name = .assign_prior.random_block_display_name(
-        block = block_names[[i]],
-        groups = groups
-      ),
-      terms      = block_names[[i]],
+    group_descendants <- .assign_prior.random_group_descendants(
+      group      = group,
+      groups     = groups,
+      block_info = block_info,
       parent     = BayesTools::allocation_ref(
-        parent[["allocation"]],
-        parent[["component"]]
-      ),
-      weights    = .assign_prior.random_dirichlet(n_columns[[i]]),
-      target     = "sd_component",
-      scale      = "mean_variance"
+        allocation_name,
+        group[["label"]]
+      )
     )
+    descendants <- c(descendants, group_descendants)
   }
+  descendant_targets <- vapply(descendants, `[[`, character(1), "target")
+  component_descendants <- descendants[
+    descendant_targets == "sd_component"
+  ]
+  component_blocks <- vapply(
+    component_descendants,
+    function(allocation) allocation[["terms"]][[1L]],
+    character(1)
+  )
+  component_descendants <- component_descendants[
+    order(match(component_blocks, block_names))
+  ]
+  allocations <- c(
+    allocations,
+    descendants[descendant_targets == "block"],
+    component_descendants
+  )
 
   allocations
 }
@@ -1036,30 +1025,6 @@
   stats::setNames(terms, vapply(groups, `[[`, character(1), "label"))
 }
 
-.assign_prior.random_parent_map        <- function(groups, allocation_name) {
-
-  out <- list()
-  for (group in groups) {
-    if (length(group[["blocks"]]) == 1L) {
-      out[[group[["blocks"]][[1L]]]] <- list(
-        allocation = allocation_name,
-        component  = group[["label"]]
-      )
-      next
-    }
-
-    child_name <- paste0(group[["label"]], "_split")
-    for (i in seq_along(group[["blocks"]])) {
-      out[[group[["blocks"]][[i]]]] <- list(
-        allocation = child_name,
-        component  = group[["child_labels"]][[i]]
-      )
-    }
-  }
-
-  out
-}
-
 .assign_prior.baserate                 <- function(prior) {
 
   # use default settings if prior distribution is not specified
@@ -1326,7 +1291,8 @@
   for (i in which(is_null)) {
     if (!BayesTools::is.prior.point(prior[[i]]) || mean(prior[[i]]) != 0) {
       stop(
-        "Every 'prior_heterogeneity_null' component for BMA.mv() must be a point prior at exactly zero.",
+        "Every 'prior_heterogeneity_null' component for multivariate ",
+        "random-component model averaging must be a point prior at exactly zero.",
         call. = FALSE
       )
     }
@@ -1334,7 +1300,8 @@
   for (i in which(!is_null)) {
     if (BayesTools::is.prior.point(prior[[i]]) && mean(prior[[i]]) == 0) {
       stop(
-        "A point prior at zero belongs in 'prior_heterogeneity_null', not 'prior_heterogeneity', for BMA.mv().",
+        "A point prior at zero belongs in 'prior_heterogeneity_null', not ",
+        "'prior_heterogeneity', for multivariate random-component model averaging.",
         call. = FALSE
       )
     }
@@ -1370,7 +1337,8 @@
   if (!is.null(prior_override) &&
       .assign_prior.random_has_scale(prior_override)) {
     stop(
-      "BMA.mv() cannot add component gates to a user-supplied random-effect ",
+      "Multivariate model averaging cannot add component gates to a ",
+      "user-supplied random-effect ",
       "scale architecture. Supply correlation, contrast, monitoring, or ",
       "parameterization overrides without 'sd', 'sd_source', term-specific ",
       "SDs, or 'allocation'.",

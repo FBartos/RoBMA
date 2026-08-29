@@ -125,8 +125,8 @@ bridgesampling::bayes_factor
 #' marginal-likelihood result stored by \code{\link{add_marglik}}. If the
 #' marginal likelihood has not been computed, an error is thrown.
 #' Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
-#' \code{BMA.mv}, and \code{RoBMA}) do not expose bridge-sampling marginal
-#' likelihoods.
+#' \code{BMA.mv}, \code{RoBMA}, and \code{RoBMA.mv}) do not expose
+#' bridge-sampling marginal likelihoods.
 #'
 #' Fully fixed models can have a zero-dimensional marginal likelihood evaluated
 #' exactly. Such fits have no bridge-sampling object, so this method raises a
@@ -249,8 +249,8 @@ bridge_sampler.brma <- function(samples, ...) {
 #' This function extracts the log marginal likelihood from the bridge sampling
 #' object that was previously computed and stored using \code{\link{add_marglik}}.
 #' Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
-#' \code{BMA.mv}, and \code{RoBMA}) do not expose bridge-sampling marginal
-#' likelihoods.
+#' \code{BMA.mv}, \code{RoBMA}, and \code{RoBMA.mv}) do not expose
+#' bridge-sampling marginal likelihoods.
 #'
 #' @return A scalar numeric value representing the log marginal likelihood.
 #'

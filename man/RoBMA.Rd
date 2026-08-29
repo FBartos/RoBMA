@@ -37,6 +37,8 @@ RoBMA(
   prior_informed_field,
   prior_informed_subfield,
   model_type = "PSMA",
+  selection_likelihood = c("exact", "approximate"),
+  selection_control = set_selection_likelihood_control(),
   sample = 5000,
   burnin = 2000,
   adapt = 500,
@@ -206,6 +208,15 @@ Custom \code{prior_bias} replaces the preset alternative bias components. If
 \code{prior_bias} is omitted, \code{model_type} determines the default alternatives even
 when \code{prior_bias_null} is customized or omitted.}
 
+\item{selection_likelihood}{selection-likelihood target for selection-model
+branches. \code{"exact"} fits the finite-vector product-selection likelihood;
+\code{"approximate"} fits the row-wise selected-normal likelihood conditional on
+sampled random effects.}
+
+\item{selection_control}{numerical integration settings created by
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. Used only for dependent blocks of the
+exact likelihood.}
+
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
 \item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.}
@@ -259,6 +270,14 @@ a single meta-analytic model.
 \code{RoBMA()} uses normal/effect-size input (\code{yi} with \code{vi} or \code{sei}). Raw-count
 GLMM model averaging is provided by \code{BMA.glmm()}.
 
+When the ensemble contains selection-model branches,
+\code{selection_likelihood = "exact"} applies estimate-level selection jointly to
+the finite vector after analytically marginalizing Gaussian random effects.
+\code{selection_likelihood = "approximate"} retains the row-wise selected-normal
+likelihood conditional on sampled random effects. The exact target is the
+default. It requires step selection kernels and does not support likelihood
+\code{weights}.
+
 Product-space objects support predictive comparison with \code{add_loo()} and
 \code{add_waic()}. Bridge-sampling marginal likelihood via \code{add_marglik()} is
 not available for product-space model-averaging objects.
@@ -284,6 +303,6 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 
 }
 \seealso{
-\link{publication_bias_prior_specification}, \code{\link[=BMA]{BMA()}}, \code{\link[=brma]{brma()}},
-\code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bPET]{bPET()}}, \code{\link[=bPEESE]{bPEESE()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=plot.brma]{plot.brma()}}
+\link{publication_bias_prior_specification}, \code{\link[=RoBMA.mv]{RoBMA.mv()}}, \code{\link[=BMA]{BMA()}},
+\code{\link[=brma]{brma()}}, \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bPET]{bPET()}}, \code{\link[=bPEESE]{bPEESE()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=plot.brma]{plot.brma()}}
 }

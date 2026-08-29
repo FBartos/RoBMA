@@ -145,7 +145,6 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   # compute the log-likelihood matrix (S x K)
   log_lik <- .log_lik.brma(object, unit = unit, caller = "add_loo()")
   target  <- attr(log_lik, "RoBMA_target", exact = TRUE)
-  .warn_known_v_dependency_log_score(target, "LOO")
 
   # determine number of cores based on `parallel` and package options
   cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
@@ -576,7 +575,6 @@ add_waic.brma <- function(object, unit = "estimate", ...) {
   # compute the log-likelihood matrix (S x K)
   log_lik <- .log_lik.brma(object, unit = unit, caller = "add_waic()")
   target  <- attr(log_lik, "RoBMA_target", exact = TRUE)
-  .warn_known_v_dependency_log_score(target, "WAIC")
 
   # call waic on the log-likelihood matrix
   waic_result <- loo::waic(log_lik, ...)
@@ -595,31 +593,6 @@ add_waic.brma <- function(object, unit = "estimate", ...) {
   }
   object[["waic"]][[unit]] <- waic_result
   return(object)
-}
-
-
-.warn_known_v_dependency_log_score <- function(target, method) {
-
-  if (!isTRUE(target[["known_v"]]) ||
-      !isTRUE(target[["dependency_conditioning"]])) {
-    return(invisible(FALSE))
-  }
-
-  target_row <- .brma_mv_target_row(if (identical(method, "WAIC")) {
-    "add_waic()/waic()"
-  } else {
-    "add_loo()/loo()"
-  })
-
-  warning(
-    "Estimate-unit ", method, " for brma.mv() known-V models retains the ",
-    "remaining estimates and fitted dependency structure after deleting y_i. ",
-    "Its contribution is p(y_i | y_-i, theta), not a new-group prediction. ",
-    "Target: ", target_row[["target"]], ".",
-    call. = FALSE
-  )
-
-  return(invisible(TRUE))
 }
 
 

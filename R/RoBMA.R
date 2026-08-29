@@ -8,6 +8,13 @@
 #' @inheritParams RoBMA_prior_specification
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
+#' @param selection_likelihood selection-likelihood target for selection-model
+#'   branches. `"exact"` fits the finite-vector product-selection likelihood;
+#'   `"approximate"` fits the row-wise selected-normal likelihood conditional on
+#'   sampled random effects.
+#' @param selection_control numerical integration settings created by
+#'   [set_selection_likelihood_control()]. Used only for dependent blocks of the
+#'   exact likelihood.
 #'
 #' @details
 #' `RoBMA()` uses product-space Bayesian model averaging. Inclusion Bayes
@@ -22,6 +29,14 @@
 #'
 #' `RoBMA()` uses normal/effect-size input (`yi` with `vi` or `sei`). Raw-count
 #' GLMM model averaging is provided by `BMA.glmm()`.
+#'
+#' When the ensemble contains selection-model branches,
+#' `selection_likelihood = "exact"` applies estimate-level selection jointly to
+#' the finite vector after analytically marginalizing Gaussian random effects.
+#' `selection_likelihood = "approximate"` retains the row-wise selected-normal
+#' likelihood conditional on sampled random effects. The exact target is the
+#' default. It requires step selection kernels and does not support likelihood
+#' `weights`.
 #'
 #' Product-space objects support predictive comparison with `add_loo()` and
 #' `add_waic()`. Bridge-sampling marginal likelihood via `add_marglik()` is
@@ -50,8 +65,8 @@
 #' }
 #' }
 #'
-#' @seealso [publication_bias_prior_specification], [BMA()], [brma()],
-#' [bselmodel()], [bPET()], [bPEESE()], [summary.brma()], [plot.brma()]
+#' @seealso [publication_bias_prior_specification], [RoBMA.mv()], [BMA()],
+#' [brma()], [bselmodel()], [bPET()], [bPEESE()], [summary.brma()], [plot.brma()]
 #' @export
 RoBMA <- function(
   # input specification
@@ -69,6 +84,10 @@ RoBMA <- function(
   prior_informed_field, prior_informed_subfield,
   model_type = "PSMA",
 
+  # selection likelihood
+  selection_likelihood = c("exact", "approximate"),
+  selection_control = set_selection_likelihood_control(),
+
   # MCMC fitting settings
   sample = 5000, burnin = 2000, adapt = 500,
   chains = 3, thin = 1, parallel = FALSE,
@@ -77,6 +96,8 @@ RoBMA <- function(
 
   # additional settings
   seed = NULL, silent, ...) {
+
+  selection_likelihood <- match.arg(selection_likelihood)
 
   ### create the output object
   dots            <- list(...)
@@ -120,17 +141,15 @@ RoBMA <- function(
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
     data = object[["data"]], model_type = model_type)
-  if (isTRUE(dots[["only_priors"]]))
-    return(.set_only_priors_class(object))
-
-  ### fit the model
-  object$fit <- .fit(object)
-  .stop_fit_errors(object$fit)
-
-  ### store simple summary & coefficients
-  object$summary       <- .object_summary(object)
-  object$coefficients  <- .object_coefficients(object)
-  object               <- .autocompute_brma(object)
-
-  return(object)
+  if (.is_priors_weightfunction(object[["priors"]])) {
+    object <- .prepare_selection_likelihood_object(
+      object               = object,
+      selection_likelihood = selection_likelihood,
+      selection_control    = selection_control
+    )
+  }
+  .fit_and_finalize_object(
+    object,
+    only_priors = isTRUE(dots[["only_priors"]])
+  )
 }

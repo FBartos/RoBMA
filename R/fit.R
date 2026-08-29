@@ -783,6 +783,22 @@
 }
 
 
+.fit_and_finalize_object <- function(object, only_priors = FALSE) {
+
+  if (isTRUE(only_priors)) {
+    return(.set_only_priors_class(object))
+  }
+
+  object[["fit"]] <- .fit(object)
+  .stop_fit_errors(object[["fit"]])
+
+  object[["summary"]]      <- .object_summary(object)
+  object[["coefficients"]] <- .object_coefficients(object)
+
+  .autocompute_brma(object)
+}
+
+
 .prior_bias_matches <- function(priors, predicate) {
 
   bias_prior <- priors[["outcome"]][["bias"]]

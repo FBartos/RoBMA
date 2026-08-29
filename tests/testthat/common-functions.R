@@ -463,6 +463,25 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, bma_mv_catalog)
 
+  robma_mv_catalog <- data.frame(
+    name          = "RoBMA.mv_exact_product_space",
+    class         = "RoBMA.mv",
+    family        = "norm",
+    source_file   = "test-01-RoBMA.mv.R",
+    has_metafor   = FALSE,
+    has_waic      = FALSE,
+    tier          = "core",
+    has_loo       = TRUE,
+    has_marglik   = FALSE,
+    features      = I(list(c(
+      "RoBMA.mv", "normal", "known_v", "random", "mods",
+      "product_space", "random_inclusion", "selection", "exact", "PET",
+      "PEESE"
+    ))),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, robma_mv_catalog)
+
   bselmodel_mv_catalog <- data.frame(
     name          = "bselmodel.mv_exact_random",
     class         = "bselmodel.mv",
@@ -614,6 +633,7 @@ fit_catalog <- function() {
     "dat.lehmann2018_RoBMA_mods2",
     "dat.lehmann2018_RoBMA_3lvl_mods_scale",
     "BMA.mv_random_components",
+    "RoBMA.mv_exact_product_space",
     "bselmodel.mv_exact_random",
     "bPET.mv_random",
     "bPEESE.mv_random",
@@ -854,6 +874,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/BMA.mv.R",
     "R/BMA.norm.R",
     "R/RoBMA.R",
+    "R/RoBMA.mv.R",
     "R/bPET-PEESE.mv.R",
     "R/bPEESE.R",
     "R/bPET.R",
@@ -861,6 +882,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/brma.mv.R",
     "R/brma.norm.R",
     "R/bselmodel.R",
+    "R/bselmodel.mv.R",
     "R/brma-mv-known-r.R",
     "R/covariance-factorization.R",
     "R/evaluate.R",
@@ -891,6 +913,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/pdf-utils.R",
     "R/priors.R",
     "R/random-effects-compile.R",
+    "R/selection-likelihood.R",
     "R/selection-mapping.R",
     "R/unit_level.R",
     "R/utilities.R",
@@ -904,6 +927,8 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/init.c",
     "src/distributions/DSELNORMKERNEL.cc",
     "src/distributions/DSELNORMKERNEL.h",
+    "src/distributions/DSELNORMMVSTEP.cc",
+    "src/distributions/DSELNORMMVSTEP.h",
     "src/distributions/DSELNORMSTEP.cc",
     "src/distributions/DSELNORMSTEP.h",
     "src/distributions/DSELNORMSTEPSWITCH.cc",
@@ -935,9 +960,12 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/r-selnorm-funnel-zcurve.cc.inc",
     "src/r-selnorm-kernel.cc.inc",
     "src/r-selnorm-loglik.cc.inc",
+    "src/r-selnorm-mv.cc.inc",
     "src/selnorm/selnorm.cc",
     "src/selnorm/selnorm-api.cc.inc",
     "src/selnorm/selnorm-boundary.cc.inc",
+    "src/selnorm/selnorm-mv.cc",
+    "src/selnorm/selnorm-mv.h",
     "src/selnorm/selnorm-phack.cc.inc",
     "src/selnorm/selnorm-probability.cc.inc",
     "src/selnorm/selnorm-step.cc.inc",

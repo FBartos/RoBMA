@@ -90,6 +90,7 @@ test_that("RoBMA handles multilevel location-scale meta-regression", {
   fit <- suppressWarnings(RoBMA(
     yi = yi, vi = vi, mods = ~ Preregistered, scale = ~ Preregistered, cluster = Full_Citation,
     data = dat.lehmann2018, measure = "SMD",
+    selection_likelihood = "approximate",
     chains = 2, sample = 1000, burnin = 500, adapt = 500,
     seed = 1, silent = TRUE
   ))

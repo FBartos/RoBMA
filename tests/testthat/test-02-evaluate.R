@@ -1248,7 +1248,15 @@ test_that(".cdf.brma returns valid CDF values for weightfunction models", {
     if (!.is_weightfunction(object)) next
 
     # compute CDF (this internally uses use_normal optimization)
-    cdf_vals <- .cdf.brma(object)
+    conditioning_depth <- if (.is_data_known_v(object[["data"]])) {
+      "estimate"
+    } else {
+      "marginal"
+    }
+    cdf_vals <- .cdf.brma(
+      object,
+      conditioning_depth = conditioning_depth
+    )
 
     # verify structure
     expect_true(is.matrix(cdf_vals),

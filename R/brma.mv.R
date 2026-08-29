@@ -186,7 +186,7 @@
 #'
 #' @seealso \code{\link{random_effect_formula_tags}},
 #'   \code{\link{random_effect_prior_specification}}, [brma()],
-#'   [BMA.mv()], [bPET.mv()], [bPEESE.mv()], [bselmodel.mv()],
+#'   [BMA.mv()], [RoBMA.mv()], [bPET.mv()], [bPEESE.mv()], [bselmodel.mv()],
 #'   [summary.brma()], [predict.brma()]
 #'
 #' @export
@@ -219,52 +219,38 @@ brma.mv <- function(
     vi = NULL, sei = NULL
     ) {
 
-  matched_call_unevaluated            <- match.call(expand.dots = FALSE)
-  .brma_mv_reject_unsupported_dots(matched_call_unevaluated)
-
-  dots                                <- list(...)
-  missing_measure                     <- missing(measure)
-  known_v_residual_fraction_specified <- !missing(known_v_residual_fraction)
-  matched_call                        <- match.call()
-
-  if (missing_measure && !isTRUE(dots[["only_data"]])) {
-    .stop_missing_measure("brma.mv()")
-  }
-  if (missing_measure) {
-    measure <- "GEN"
-  }
-  random_group_covariance <- .brma_mv_make_group_covariance(
-    R      = R,
-    Rscale = Rscale
-  )
-  known_v_parameterization <- match.arg(
-    known_v_parameterization,
-    c("auto", "latent", "whitened", "block_mvn")
-  )
-  dots <- .validate_constructor_dots(
-    dots   = dots,
-    caller = "brma.mv()"
-  )
-
-  object <- .createObject(
-    dots = dots, class = c("brma.mv", "brma.norm", "brma"),
-    chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,
-    autofit = autofit, parallel = parallel, silent = silent, seed = seed,
-    autofit_control = autofit_control, convergence_checks = convergence_checks
-  )
-
-  object$data <- .check_and_list_data(
-    .call                              = matched_call,
-    .envir                             = parent.frame(),
-    class                              = "mv",
-    set_contrast_factor_predictors    = set_contrast_factor_predictors,
-    standardize_continuous_predictors = standardize_continuous_predictors,
-    measure                            = measure,
-    random_group_covariance            = random_group_covariance,
+  initialized <- .initialize_mv_object(
+    matched_call_unevaluated            = match.call(expand.dots = FALSE),
+    matched_call                        = match.call(),
+    envir                               = parent.frame(),
+    caller                              = "brma.mv()",
+    object_class                        = c("brma.mv", "brma.norm", "brma"),
+    dots                                = list(...),
+    missing_measure                     = missing(measure),
+    measure                             = measure,
+    known_v_residual_fraction_specified = !missing(
+      known_v_residual_fraction
+    ),
+    R                                   = R,
+    Rscale                              = Rscale,
+    standardize_continuous_predictors   = standardize_continuous_predictors,
+    set_contrast_factor_predictors      = set_contrast_factor_predictors,
     known_v_parameterization            = known_v_parameterization,
     known_v_residual_fraction           = known_v_residual_fraction,
-    known_v_residual_fraction_specified = known_v_residual_fraction_specified
+    sample                              = sample,
+    burnin                              = burnin,
+    adapt                               = adapt,
+    chains                              = chains,
+    thin                                = thin,
+    parallel                            = parallel,
+    autofit                             = autofit,
+    autofit_control                     = autofit_control,
+    convergence_checks                  = convergence_checks,
+    seed                                = seed,
+    silent                              = silent
   )
+  object <- initialized[["object"]]
+  dots   <- initialized[["dots"]]
   if (isTRUE(dots[["only_data"]])) {
     return(object)
   }
@@ -281,11 +267,72 @@ brma.mv <- function(
     data                           = object[["data"]]
   )
 
-  .finalize_brma_mv_object(
+  .finalize_mv_object(
     object                     = object,
     marginalize_estimate_level = marginalize_estimate_level,
     only_priors                = isTRUE(dots[["only_priors"]])
   )
+}
+
+
+.initialize_mv_object <- function(
+    matched_call_unevaluated, matched_call, envir, caller, object_class,
+    dots, missing_measure, measure, known_v_residual_fraction_specified,
+    R, Rscale,
+    standardize_continuous_predictors, set_contrast_factor_predictors,
+    known_v_parameterization, known_v_residual_fraction,
+    sample, burnin, adapt, chains, thin, parallel,
+    autofit, autofit_control, convergence_checks,
+    seed, silent, effect_direction = "positive") {
+
+  .brma_mv_reject_unsupported_dots(
+    matched_call_unevaluated,
+    caller = caller
+  )
+  if (isTRUE(missing_measure) && !isTRUE(dots[["only_data"]])) {
+    .stop_missing_measure(caller)
+  }
+  if (isTRUE(missing_measure)) {
+    measure <- "GEN"
+  }
+
+  known_v_parameterization <- match.arg(
+    known_v_parameterization,
+    c("auto", "latent", "whitened", "block_mvn")
+  )
+  random_group_covariance <- .brma_mv_make_group_covariance(
+    R      = R,
+    Rscale = Rscale
+  )
+  dots <- .validate_constructor_dots(
+    dots   = dots,
+    caller = caller
+  )
+
+  object <- .createObject(
+    dots  = dots,
+    class = object_class,
+    chains = chains, adapt = adapt, burnin = burnin, sample = sample,
+    thin = thin, autofit = autofit, parallel = parallel, silent = silent,
+    seed = seed, autofit_control = autofit_control,
+    convergence_checks = convergence_checks
+  )
+  object[["data"]] <- .check_and_list_data(
+    .call                              = matched_call,
+    .envir                             = envir,
+    class                              = "mv",
+    set_contrast_factor_predictors    = set_contrast_factor_predictors,
+    standardize_continuous_predictors = standardize_continuous_predictors,
+    effect_direction                  = effect_direction,
+    measure                           = measure,
+    random_group_covariance            = random_group_covariance,
+    known_v_parameterization            = known_v_parameterization,
+    known_v_residual_fraction           = known_v_residual_fraction,
+    known_v_residual_fraction_specified =
+      known_v_residual_fraction_specified
+  )
+
+  list(object = object, dots = dots)
 }
 
 .brma_mv_reject_unsupported_dots <- function(matched_call,

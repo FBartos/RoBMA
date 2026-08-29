@@ -492,25 +492,27 @@ NULL
 #' meta-analytic prior distributions documented in
 #' \code{\link{prior_specification}}. They define selection-model weights,
 #' PET/PEESE regression coefficients, or the publication-bias model space in
-#' \code{\link{RoBMA}}.
+#' \code{\link{RoBMA}} and \code{\link{RoBMA.mv}}.
 #'
 #' @param prior_bias prior distribution for publication-bias adjustment. For
 #' \code{\link{bselmodel}}, this is usually a weightfunction prior created by
 #' \code{\link{prior_weightfunction}}. For \code{\link{bPET}} and
 #' \code{\link{bPET.mv}}, use \code{\link{prior_PET}}. For
 #' \code{\link{bPEESE}} and \code{\link{bPEESE.mv}}, use
-#' \code{\link{prior_PEESE}}. For \code{\link{RoBMA}}, this can be a single
-#' publication-bias prior distribution or a list of publication-bias prior
-#' distributions. In the single-model bias-adjustment constructors, omitted or
-#' \code{NULL} uses the corresponding default prior distribution.
+#' \code{\link{prior_PEESE}}. For \code{\link{RoBMA}} and
+#' \code{\link{RoBMA.mv}}, this can be a single publication-bias prior
+#' distribution or a list of publication-bias prior distributions. In the
+#' single-model bias-adjustment constructors, omitted or \code{NULL} uses the
+#' corresponding default prior distribution.
 #' @param prior_bias_null prior distribution(s) for null publication-bias
-#' component(s) in \code{\link{RoBMA}}, usually \code{\link{prior_none}()}.
+#' component(s) in \code{\link{RoBMA}} or \code{\link{RoBMA.mv}}, usually
+#' \code{\link{prior_none}()}.
 #' A single prior distribution object creates one null component, a list creates
 #' multiple null components, and \code{NULL} or \code{FALSE} omits the null
 #' publication-bias component.
 #' @param model_type character string specifying predefined publication-bias
-#' model ensembles for \code{\link{RoBMA}}. One of \code{"PSMA"},
-#' \code{"6w"}, \code{"2w"}, or \code{"PP"}.
+#' model ensembles for \code{\link{RoBMA}} and \code{\link{RoBMA.mv}}. One of
+#' \code{"PSMA"}, \code{"6w"}, \code{"2w"}, or \code{"PP"}.
 #' @param steps numeric vector of one-sided p-value cut points for the default
 #' \code{\link{bselmodel}} weightfunction prior. If \code{prior_bias} is supplied,
 #' the prior distribution carries its own p-value cut points.
@@ -541,9 +543,10 @@ NULL
 #'
 #' ## Model-averaged publication-bias priors
 #'
-#' \code{\link{RoBMA}} averages over publication-bias components. By default,
-#' \code{prior_bias_null} is \code{\link{prior_none}()} and \code{model_type}
-#' determines the alternative components:
+#' \code{\link{RoBMA}} and \code{\link{RoBMA.mv}} average over
+#' publication-bias components. By default, \code{prior_bias_null} is
+#' \code{\link{prior_none}()} and \code{model_type} determines the alternative
+#' components:
 #'
 #' \tabular{ll}{
 #' \code{"PSMA"} \tab six weight functions, PET, and PEESE \cr
@@ -586,11 +589,13 @@ NULL
 #' @name RoBMA_prior_specification
 #'
 #' @description
-#' The \code{\link{RoBMA}} function extends the prior specification described in
-#' \code{\link{prior_specification}} by allowing mixture priors that define competing
-#' hypotheses for Bayesian model-averaging. This enables multimodel inference via the
-#' product space method \insertCite{carlin1995bayesian,lodewyckx2011tutorial}{RoBMA},
-#' where a single MCMC chain explores a joint model space containing all competing models.
+#' The \code{\link{RoBMA}} and \code{\link{RoBMA.mv}} functions extend the
+#' prior specification described in \code{\link{prior_specification}} by
+#' allowing mixture priors that define competing hypotheses for Bayesian
+#' model-averaging. This enables multimodel inference via the product space
+#' method \insertCite{carlin1995bayesian,lodewyckx2011tutorial}{RoBMA}, where a
+#' single MCMC chain explores a joint model space containing all competing
+#' models.
 #'
 #' @param prior_effect prior distribution(s) for the alternative effect
 #' component(s).
@@ -828,7 +833,8 @@ NULL
 #' @seealso
 #' \code{\link{prior_specification}} for base prior specification options,
 #' \code{\link{publication_bias_prior_specification}} for publication-bias priors,
-#' \code{\link{RoBMA}} for the main model-averaging function,
+#' \code{\link{RoBMA}} and \code{\link{RoBMA.mv}} for the main model-averaging
+#' functions,
 #' \code{\link[BayesTools]{prior}} for creating prior distribution objects
 #'
 #' @examples

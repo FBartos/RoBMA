@@ -267,9 +267,8 @@ test_that("scenario-model PSIS LOO agrees with five exact deletion refits", {
     model_index <- model_index + 1L
     model       <- models[[model_name]]
     full_fit    <- model[["fit"]](integer(), 8100L + 100L * model_index)
-    expect_warning(
+    expect_no_warning(
       full_fit <- add_loo(full_fit),
-      "Estimate-unit LOO for brma.mv\\(\\) known-V models",
       info = model_name
     )
     loo_result  <- loo(full_fit)

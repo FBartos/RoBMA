@@ -14,8 +14,8 @@ summary_models(object, ...)
 }
 \arguments{
 \item{object}{a fitted RoBMA-class product-space object, including
-\code{RoBMA}, \code{BMA}/\code{BMA.norm}, \code{BMA.glmm}, and
-\code{BMA.mv}.}
+\code{RoBMA}, \code{RoBMA.mv}, \code{BMA}/\code{BMA.norm},
+\code{BMA.glmm}, and \code{BMA.mv}.}
 
 \item{...}{additional arguments}
 

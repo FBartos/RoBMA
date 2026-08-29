@@ -67,7 +67,8 @@
   design <- NULL
 
   if (!is.null(object[["fit"]])) {
-    design <- BayesTools::JAGS_formula_design(object[["fit"]], parameter)
+    designs <- BayesTools::JAGS_formula_design(object[["fit"]])
+    design  <- designs[[parameter]]
   }
 
   if (is.null(design)) {

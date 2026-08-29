@@ -14,7 +14,8 @@ test_that("bselmodel.mv presents multivariate selection summaries", {
   frame <- as.data.frame(out)
 
   expect_s3_class(out, "summary.brma")
-  expect_match(out[["name"]], "Multivariate.*Exact Selection")
+  expect_match(out[["name"]], "Multivariate.*Selection Model")
+  expect_false(grepl("Exact|Approximate", out[["name"]]))
   expect_true(nrow(out[["estimates_random"]]) > 0L)
   expect_true(nrow(out[["estimates_bias"]]) > 0L)
   expect_true(all(c("random", "bias") %in% frame[["component"]]))

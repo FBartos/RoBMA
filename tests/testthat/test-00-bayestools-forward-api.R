@@ -139,6 +139,28 @@ test_that("formula design accessors support current non-fitted objects", {
   expect_true(all(c("intercept", "x", "z") %in% data_design[["model_terms"]]))
 })
 
+test_that("optional fitted formula design lookup tolerates an absent parameter", {
+
+  scale_design <- list(parameter = "log_tau")
+  fit          <- structure(list(), class = "BayesTools_fit")
+  attr(fit, "formula_design") <- list(log_tau = scale_design)
+  object <- list(fit = fit)
+
+  expect_identical(
+    .fitted_formula_design(object, "log_tau", required = TRUE),
+    scale_design
+  )
+  expect_null(.fitted_formula_design(object, "mu", required = FALSE))
+  expect_error(
+    .fitted_formula_design(object, "mu", required = TRUE),
+    paste0(
+      "Fitted formula design metadata for parameter 'mu' is missing. ",
+      "Refit the model with the current RoBMA/BayesTools build."
+    ),
+    fixed = TRUE
+  )
+})
+
 test_that("Weightfunction observed p-values use selection mapping sign", {
 
   outcome <- data.frame(

@@ -111,30 +111,57 @@
 }
 
 
-.finalize_brma_mv_object <- function(object, marginalize_estimate_level,
-                                     only_priors = FALSE) {
+.finalize_mv_object <- function(
+    object, marginalize_estimate_level,
+    selection_likelihood = NULL, selection_control = NULL,
+    only_priors = FALSE) {
 
   BayesTools::check_bool(
     marginalize_estimate_level,
     "marginalize_estimate_level",
     allow_NA = FALSE
   )
-  object <- .prepare_random_effects_compile(
-    object   = object,
-    strategy = if (isTRUE(marginalize_estimate_level)) "estimate" else "none"
-  )
-  .brma_mv_check_singular_v_regularization(object)
-  if (isTRUE(only_priors)) {
-    return(.set_only_priors_class(object))
+  has_selection <- .is_priors_weightfunction(object[["priors"]])
+  if (has_selection) {
+    if (is.null(selection_likelihood)) {
+      stop(
+        "Internal error: a multivariate selection model requires a ",
+        "selection likelihood.",
+        call. = FALSE
+      )
+    }
+    selection_likelihood <- match.arg(
+      selection_likelihood,
+      c("exact", "approximate")
+    )
+    object <- .prepare_approximate_selection_known_v(
+      object               = object,
+      selection_likelihood = selection_likelihood
+    )
   }
 
-  object[["fit"]] <- .fit(object)
-  .stop_fit_errors(object[["fit"]])
-
-  object[["summary"]]      <- .object_summary(object)
-  object[["coefficients"]] <- .object_coefficients(object)
-
-  .autocompute_brma(object)
+  is_exact_selection <- has_selection &&
+    identical(selection_likelihood, "exact")
+  compile_strategy <- if (is_exact_selection) {
+    "all"
+  } else if (isTRUE(marginalize_estimate_level)) {
+    "estimate"
+  } else {
+    "none"
+  }
+  object <- .prepare_random_effects_compile(
+    object   = object,
+    strategy = compile_strategy
+  )
+  if (has_selection) {
+    object <- .prepare_selection_likelihood_object(
+      object               = object,
+      selection_likelihood = selection_likelihood,
+      selection_control    = selection_control
+    )
+  }
+  .brma_mv_check_singular_v_regularization(object)
+  .fit_and_finalize_object(object, only_priors = only_priors)
 }
 
 

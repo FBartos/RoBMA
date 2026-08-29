@@ -4,8 +4,8 @@
 #' RoBMA-class product-space objects.
 #'
 #' @param object a fitted RoBMA-class product-space object, including
-#' \code{RoBMA}, \code{BMA}/\code{BMA.norm}, \code{BMA.glmm}, and
-#' \code{BMA.mv}.
+#' \code{RoBMA}, \code{RoBMA.mv}, \code{BMA}/\code{BMA.norm},
+#' \code{BMA.glmm}, and \code{BMA.mv}.
 #' @param type whether to summarize marginal component prior distributions
 #'   (\code{"marginal"}) or individual model combinations (\code{"individual"}).
 #' @param include_mcmc_diagnostics whether to include Bayes factor MCMC

@@ -81,11 +81,13 @@ Custom \code{prior_bias} replaces the preset alternative bias components. If
 when \code{prior_bias_null} is customized or omitted.}
 }
 \description{
-The \code{\link{RoBMA}} function extends the prior specification described in
-\code{\link{prior_specification}} by allowing mixture priors that define competing
-hypotheses for Bayesian model-averaging. This enables multimodel inference via the
-product space method \insertCite{carlin1995bayesian,lodewyckx2011tutorial}{RoBMA},
-where a single MCMC chain explores a joint model space containing all competing models.
+The \code{\link{RoBMA}} and \code{\link{RoBMA.mv}} functions extend the
+prior specification described in \code{\link{prior_specification}} by
+allowing mixture priors that define competing hypotheses for Bayesian
+model-averaging. This enables multimodel inference via the product space
+method \insertCite{carlin1995bayesian,lodewyckx2011tutorial}{RoBMA}, where a
+single MCMC chain explores a joint model space containing all competing
+models.
 }
 \details{
 \subsection{The product space method for model-averaging}{
@@ -335,6 +337,7 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 \seealso{
 \code{\link{prior_specification}} for base prior specification options,
 \code{\link{publication_bias_prior_specification}} for publication-bias priors,
-\code{\link{RoBMA}} for the main model-averaging function,
+\code{\link{RoBMA}} and \code{\link{RoBMA.mv}} for the main model-averaging
+functions,
 \code{\link[BayesTools]{prior}} for creating prior distribution objects
 }

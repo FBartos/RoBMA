@@ -13,9 +13,10 @@
 #'
 #' @description
 #' Creates numerical integration settings for the finite-vector product
-#' selection likelihood used by [bselmodel()] and [bselmodel.mv()]. Integration
-#' points are fixed before fitting, so repeated likelihood evaluations are
-#' deterministic. One-dimensional likelihood blocks are evaluated analytically.
+#' selection likelihood used by [bselmodel()], [bselmodel.mv()], [RoBMA()], and
+#' [RoBMA.mv()]. Integration points are fixed before fitting, so repeated
+#' likelihood evaluations are deterministic. One-dimensional likelihood blocks
+#' are evaluated analytically.
 #'
 #' @param points_per_scramble number of shifted Halton points per randomized
 #'   quasi-Monte Carlo scramble.
@@ -379,6 +380,9 @@ set_selection_likelihood_control <- function(
   selection_data <- selection_spec[["jags_data"]]
   selection_data[["sel_obs_bin"]] <- NULL
   fit_data <- c(list(K = length(yi)), selection_data)
+  if (.is_priors_PET(priors) || .is_priors_PEESE(priors)) {
+    fit_data[["sei"]] <- sei
+  }
 
   plan <- setup[["integration_plan"]]
   sampling_covariance <- setup[["sampling_covariance"]]
@@ -720,80 +724,4 @@ set_selection_likelihood_control <- function(
   }
 
   syntax
-}
-
-
-.finalize_bselmodel_object <- function(
-    object, selection_likelihood, selection_control, only_priors = FALSE,
-    marginalize_estimate_level = NULL) {
-
-  selection_likelihood <- match.arg(
-    selection_likelihood,
-    c("exact", "approximate")
-  )
-  if (!is.null(marginalize_estimate_level)) {
-    BayesTools::check_bool(
-      marginalize_estimate_level,
-      "marginalize_estimate_level",
-      allow_NA = FALSE
-    )
-  }
-  object <- .prepare_approximate_selection_known_v(
-    object               = object,
-    selection_likelihood = selection_likelihood
-  )
-  if (.is_data_random(object[["data"]])) {
-    compile_strategy <- if (identical(selection_likelihood, "exact")) {
-      "all"
-    } else if (isTRUE(marginalize_estimate_level)) {
-      "estimate"
-    } else {
-      "none"
-    }
-    object <- .prepare_random_effects_compile(
-      object   = object,
-      strategy = compile_strategy
-    )
-  }
-
-  object <- .prepare_selection_likelihood_object(
-    object               = object,
-    selection_likelihood = selection_likelihood,
-    selection_control    = selection_control
-  )
-  if (.is_data_known_v(object[["data"]])) {
-    .brma_mv_check_singular_v_regularization(object)
-  }
-  if (isTRUE(only_priors)) {
-    return(.set_only_priors_class(object))
-  }
-
-  object[["fit"]] <- .fit(object)
-  .stop_fit_errors(object[["fit"]])
-  object[["summary"]]      <- .object_summary(object)
-  object[["coefficients"]] <- .object_coefficients(object)
-
-  .autocompute_brma(object)
-}
-
-
-.finalize_robma_mv_object <- function(
-    object, selection_likelihood, selection_control,
-    marginalize_estimate_level, only_priors = FALSE) {
-
-  if (.is_priors_weightfunction(object[["priors"]])) {
-    return(.finalize_bselmodel_object(
-      object                     = object,
-      selection_likelihood       = selection_likelihood,
-      selection_control          = selection_control,
-      only_priors                = only_priors,
-      marginalize_estimate_level = marginalize_estimate_level
-    ))
-  }
-
-  .finalize_brma_mv_object(
-    object                     = object,
-    marginalize_estimate_level = marginalize_estimate_level,
-    only_priors                = only_priors
-  )
 }
