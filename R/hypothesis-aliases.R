@@ -1,14 +1,24 @@
 .hypothesis_brma_select_parameter <- function(object, hypothesis,
                                               component) {
 
-  component <- .parameter_component_normalize(component)
-  metadata  <- .brma_parameter_catalog_metadata(object)
-  ast       <- .hypothesis_brma_ast(hypothesis)
+  component          <- .parameter_component_normalize(component)
+  metadata           <- .brma_parameter_catalog_metadata(object)
+  ast                <- .hypothesis_brma_ast(hypothesis)
+  occurrences        <- BayesTools::hypothesis_symbols(
+    ast,
+    occurrences = TRUE
+  )
+  resolver_component <- if (identical(component, "auto") ||
+                            any(!is.na(occurrences[["level"]]))) {
+    NULL
+  } else {
+    component
+  }
   resolved <- tryCatch(
     BayesTools::hypothesis_resolve(
       ast       = ast,
       catalog   = metadata[["catalog"]],
-      component = if (identical(component, "auto")) NULL else component,
+      component = resolver_component,
       simplify_names = TRUE
     ),
     BayesTools_parameter_ambiguous = function(error) {
@@ -51,6 +61,24 @@
       "the current RoBMA/BayesTools build.",
       call. = FALSE
     )
+  }
+  if (!identical(component, "auto")) {
+    compatible <- entries[["component"]] == component
+    if (!any(compatible)) {
+      selected_components <- unique(entries[["component"]])
+      if (length(selected_components) == 1L) {
+        .parameter_component_check_compatible(
+          component          = component,
+          selected_component = selected_components,
+          argument           = "hypothesis"
+        )
+      }
+      stop(
+        "The hypothesis does not resolve to component = '", component, "'.",
+        call. = FALSE
+      )
+    }
+    entries <- entries[compatible, , drop = FALSE]
   }
   if (nrow(entries) > 1L) {
     .hypothesis_brma_stop_multiple_parameters(entries)

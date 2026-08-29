@@ -189,7 +189,16 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
     hypothesis = "f[B] > f[C]",
     component  = "auto"
   )
+  factor_hypothesis_explicit <- .hypothesis_brma_select_parameter(
+    object     = object,
+    hypothesis = "f[B] > f[C]",
+    component  = "mods"
+  )
   expect_identical(factor_hypothesis[["parameter"]], "mu_f")
+  expect_identical(
+    factor_hypothesis_explicit[["parameter"]],
+    factor_hypothesis[["parameter"]]
+  )
   expect_setequal(
     unique(factor_hypothesis[["resolution"]][["occurrences"]][["level"]]),
     c("B", "C")
