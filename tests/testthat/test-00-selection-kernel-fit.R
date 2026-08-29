@@ -793,6 +793,65 @@ test_that("exact singleton selection kernel reduces to the scalar density", {
 })
 
 
+test_that("exact singleton blocks share the compiled scalar batch", {
+
+  y     <- c(.30, .50, -.10)
+  means <- rbind(c(.10, .15, 0), c(.15, .20, -.05))
+  sd    <- rbind(c(.30, .40, .25), c(.35, .45, .30))
+  sei   <- c(.20, .25, .15)
+  z     <- stats::qnorm(.025, lower.tail = FALSE)
+  omega <- rbind(c(.4, 1), c(.6, 1))
+  prior <- BayesTools::prior_weightfunction(
+    side    = "one-sided",
+    steps   = .025,
+    weights = BayesTools::wf_fixed(c(1, .4))
+  )
+  context <- .selection_spec(
+    priors           = list(outcome = list(bias = prior)),
+    yi               = y,
+    sei              = sei,
+    effect_direction = "positive",
+    signed_data      = TRUE
+  )
+  context[["omega"]]       <- omega
+  context[["kernel_mode"]] <- rep(SELKERNEL_STEP, 2L)
+
+  actual <- .selection_exact_singleton_loglik_matrix(
+    yi                = y,
+    means             = means,
+    variances         = sd^2,
+    sei               = sei,
+    selection_context = context
+  )
+  expected <- matrix(NA_real_, nrow = 2L, ncol = 3L)
+  for (sample_index in seq_len(2L)) {
+    threshold <- z * sei
+    normalizer <- omega[sample_index, 1L] * stats::pnorm(
+      threshold,
+      mean       = means[sample_index, ],
+      sd         = sd[sample_index, ],
+      lower.tail = FALSE
+    ) + omega[sample_index, 2L] * stats::pnorm(
+      threshold,
+      mean = means[sample_index, ],
+      sd   = sd[sample_index, ]
+    )
+    observed_weight <- omega[
+      sample_index,
+      ifelse(y >= threshold, 1L, 2L)
+    ]
+    expected[sample_index, ] <- stats::dnorm(
+      y,
+      mean = means[sample_index, ],
+      sd   = sd[sample_index, ],
+      log  = TRUE
+    ) + log(observed_weight) - log(normalizer)
+  }
+
+  expect_equal(actual, expected, tolerance = 1e-13)
+})
+
+
 test_that("exact selected multivariate response RNG matches region masses", {
 
   set.seed(41)

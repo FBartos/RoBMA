@@ -605,6 +605,26 @@ set_selection_likelihood_control <- function(
 }
 
 
+.selection_exact_singleton_loglik_matrix <- function(
+    yi, means, variances, sei, selection_context) {
+
+  sigma <- sqrt(variances)
+  .selnorm_kernel_loglik_matrix(
+    yi             = yi,
+    mu_num         = means,
+    sigma_num      = sigma,
+    mu_norm        = means,
+    sigma_norm     = sigma,
+    sei            = sei,
+    omega          = selection_context[["omega"]],
+    selection_spec = selection_context,
+    alpha          = selection_context[["alpha"]],
+    phack_kind     = selection_context[["phack_kind"]],
+    kernel_mode    = selection_context[["kernel_mode"]]
+  )
+}
+
+
 .selection_exact_block_loglik_from_setup <- function(setup) {
 
   if (!.is_data_exact_selection(setup[["data"]])) {
@@ -623,6 +643,26 @@ set_selection_likelihood_control <- function(
     nrow = setup[["S"]],
     ncol = length(exact_setup[["row_blocks"]])
   )
+
+  if (all(lengths(exact_setup[["row_blocks"]]) == 1L)) {
+    rows <- as.integer(unlist(exact_setup[["row_blocks"]], use.names = FALSE))
+    singleton_context <- selection_context
+    singleton_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
+    variances <- do.call(cbind, lapply(rows, function(row) {
+      .selection_exact_covariance_lower(
+        setup                     = setup,
+        rows                      = row,
+        random_covariance_samples = random_covariance
+      )[, 1L]
+    }))
+    return(.selection_exact_singleton_loglik_matrix(
+      yi                = location[["y"]][rows],
+      means             = location[["means"]][, rows, drop = FALSE],
+      variances         = variances,
+      sei               = setup[["selection_sei"]][rows],
+      selection_context = singleton_context
+    ))
+  }
 
   for (block_index in seq_along(exact_setup[["row_blocks"]])) {
     rows <- exact_setup[["row_blocks"]][[block_index]]

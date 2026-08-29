@@ -1474,6 +1474,19 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   selection_context <- .marglik_selection_context(parameters, data)
+  if (all(lengths(row_blocks) == 1L)) {
+    rows <- as.integer(unlist(row_blocks, use.names = FALSE))
+    singleton_context <- selection_context
+    singleton_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
+    return(sum(.selection_exact_singleton_loglik_matrix(
+      yi                = data[["yi"]][rows],
+      means             = mu_samples[, rows, drop = FALSE],
+      variances         = matrix(diag(covariance)[rows], nrow = 1L),
+      sei               = data[["sei"]][rows],
+      selection_context = singleton_context
+    )))
+  }
+
   log_lik <- 0
   for (rows in row_blocks) {
     pairs <- .selection_exact_lower_pairs(
