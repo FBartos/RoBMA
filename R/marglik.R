@@ -313,7 +313,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 
 .marglik_variance_plan_node_names <- function(plan) {
 
-  if (is.null(plan)) {
+  if (is.null(plan) || length(plan[["terms"]]) == 0L) {
     return(NULL)
   }
   unique(vapply(plan[["terms"]], `[[`, character(1), "parameter"))

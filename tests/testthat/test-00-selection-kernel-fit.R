@@ -561,6 +561,8 @@ test_that("exact selection constructors marginalize Gaussian dependence", {
   approximate_auto <- bselmodel.mv(
     yi                        = c(.10, .20, .05),
     V                         = V,
+    random                    = ~ diag(1 | study),
+    data                      = data,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
     selection_likelihood      = "approximate",
@@ -570,6 +572,12 @@ test_that("exact selection constructors marginalize Gaussian dependence", {
   known_V <- .data_known_v_data(approximate_auto[["data"]])
   expect_identical(.known_v_effective_backend(known_V), "latent")
   expect_identical(.known_v_requested_parameterization(known_V), "auto")
+
+  variance_plan <- .marglik_marginalized_variance_plan(
+    approximate_auto[["data"]]
+  )
+  expect_length(variance_plan[["terms"]], 0L)
+  expect_null(.marglik_variance_plan_node_names(variance_plan))
 })
 
 
