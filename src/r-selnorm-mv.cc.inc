@@ -115,6 +115,111 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
   return output;
 }
 
+extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
+  SEXP yi, SEXP means, SEXP residual_sd, SEXP loading, SEXP sei, SEXP omega,
+  SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
+  SEXP telescope_probabilities, SEXP kernel_mode, SEXP quadrature_nodes,
+  SEXP quadrature_log_weights, SEXP quadrature_orders,
+  SEXP relative_tolerance)
+{
+  check_real(yi, "yi");
+  check_real(means, "means");
+  check_real(residual_sd, "residual_sd");
+  check_real(loading, "loading");
+  check_real(sei, "sei");
+  check_real(omega, "omega");
+  check_real(z_lower, "z_lower");
+  check_real(z_upper, "z_upper");
+  check_integer(obs_bin, "obs_bin");
+  check_integer(sign, "sign");
+  check_logical(telescope_probabilities, "telescope_probabilities");
+  check_integer(kernel_mode, "kernel_mode");
+  check_real(quadrature_nodes, "quadrature_nodes");
+  check_real(quadrature_log_weights, "quadrature_log_weights");
+  check_real(quadrature_orders, "quadrature_orders");
+  check_real(relative_tolerance, "relative_tolerance");
+
+  const int S = matrix_nrow(means, "means");
+  const int K = matrix_ncol(means, "means");
+  const int B = matrix_ncol(omega, "omega");
+  validate_matrix_dims_named(residual_sd, "residual_sd", S, K, "means");
+  validate_matrix_dims_named(loading, "loading", S, K, "means");
+  if (S < 1 || K < 1 || B < 1 || matrix_nrow(omega, "omega") != S ||
+      Rf_length(yi) != K || Rf_length(sei) != K || Rf_length(obs_bin) != K ||
+      Rf_length(z_lower) != B || Rf_length(z_upper) != B) {
+    Rf_error("Exact cluster selection inputs have invalid dimensions.");
+  }
+  if (Rf_length(sign) != 1 ||
+      (INTEGER(sign)[0] != -1 && INTEGER(sign)[0] != 1) ||
+      Rf_length(telescope_probabilities) != 1 ||
+      Rf_length(quadrature_nodes) < 1 ||
+      Rf_length(quadrature_log_weights) != Rf_length(quadrature_nodes) ||
+      Rf_length(quadrature_orders) < 2 ||
+      Rf_length(relative_tolerance) != 1 ||
+      !std::isfinite(REAL(relative_tolerance)[0]) ||
+      REAL(relative_tolerance)[0] <= 0.0) {
+    Rf_error("Exact cluster selection controls are invalid.");
+  }
+  int quadrature_length = 0;
+  int previous_order = 0;
+  for (int rule = 0; rule < Rf_length(quadrature_orders); ++rule) {
+    const double raw_order = REAL(quadrature_orders)[rule];
+    const int order = static_cast<int>(raw_order);
+    if (!std::isfinite(raw_order) || raw_order != static_cast<double>(order) ||
+        order <= previous_order) {
+      Rf_error("'quadrature_orders' must contain increasing positive integers.");
+    }
+    quadrature_length += order;
+    previous_order = order;
+  }
+  if (quadrature_length != Rf_length(quadrature_nodes)) {
+    Rf_error("'quadrature_orders' do not match the quadrature rules.");
+  }
+  const int kernel_length = Rf_length(kernel_mode);
+  if (kernel_length != 1 && kernel_length != S) {
+    Rf_error("'kernel_mode' must have length 1 or one value per posterior sample.");
+  }
+  validate_omega_matrix(REAL(omega), S, B);
+
+  SEXP log_density = PROTECT(Rf_allocVector(REALSXP, S));
+  SEXP relative_change = PROTECT(Rf_allocVector(REALSXP, S));
+  std::vector<double> mean(static_cast<std::size_t>(K));
+  std::vector<double> sd(static_cast<std::size_t>(K));
+  std::vector<double> coefficient(static_cast<std::size_t>(K));
+  std::vector<double> omega_row(static_cast<std::size_t>(B));
+  for (int s = 0; s < S; ++s) {
+    for (int k = 0; k < K; ++k) {
+      mean[static_cast<std::size_t>(k)] = REAL(means)[s + S * k];
+      sd[static_cast<std::size_t>(k)] = REAL(residual_sd)[s + S * k];
+      coefficient[static_cast<std::size_t>(k)] = REAL(loading)[s + S * k];
+    }
+    for (int b = 0; b < B; ++b) {
+      omega_row[static_cast<std::size_t>(b)] = REAL(omega)[s + S * b];
+    }
+    double error = 0.0;
+    REAL(log_density)[s] = cpp_selnorm_cluster_step_lpdf(
+      REAL(yi), mean.data(), sd.data(), coefficient.data(), K, REAL(sei),
+      omega_row.data(), B, REAL(z_lower), REAL(z_upper), INTEGER(obs_bin),
+      INTEGER(sign)[0], LOGICAL(telescope_probabilities)[0],
+      scalar_or_row_int(INTEGER(kernel_mode), kernel_length, s, "kernel_mode"),
+      REAL(quadrature_nodes), REAL(quadrature_log_weights),
+      REAL(quadrature_orders), Rf_length(quadrature_orders),
+      REAL(relative_tolerance)[0], &error
+    );
+    REAL(relative_change)[s] = error;
+  }
+
+  SEXP output = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_VECTOR_ELT(output, 0, log_density);
+  SET_VECTOR_ELT(output, 1, relative_change);
+  SET_STRING_ELT(names, 0, Rf_mkChar("log_density"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("relative_change"));
+  Rf_setAttrib(output, R_NamesSymbol, names);
+  UNPROTECT(4);
+  return output;
+}
+
 namespace {
 
 bool selnorm_mvn_exact_rank_one_factor(const std::vector<double> &covariance,

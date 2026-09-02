@@ -125,7 +125,10 @@ double DSELNORMMVSTEP::logDensity(
   );
   if (!std::isfinite(relative_mcse) || relative_mcse > *par[13]) {
     throw std::runtime_error(
-      "Exact selection-normalizer integration failed its requested relative-error tolerance. Increase 'points_per_scramble' or 'scrambles' in 'selection_control'."
+      "Exact selection normalizer was rejected by diagnostics: relative "
+      "Monte Carlo standard error was " + std::to_string(relative_mcse) +
+      ". Increase 'points_per_scramble' or 'scrambles' in "
+      "'selection_control'."
     );
   }
   if (!std::isfinite(log_density)) return JAGS_NEGINF;

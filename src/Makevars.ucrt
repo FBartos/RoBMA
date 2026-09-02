@@ -81,6 +81,7 @@ OBJECTS = distributions/DWN.o \
 		  distributions/DSELNORMSTEPSWITCH.o \
 		  distributions/DSELNORMKERNEL.o \
 		  distributions/DSELNORMMVSTEP.o \
+		  distributions/DSELNORMCLUSTERSTEP.o \
 		  selnorm/selnorm.o \
 		  selnorm/selnorm-mv.o \
 		  glmm-aghq.o r-glmm.o r-known-v.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
@@ -122,6 +123,6 @@ r-selnorm.o: $(R_SELNORM_INC) selnorm/selnorm.h selnorm/selnorm-mv.h
 
 selnorm/selnorm.o: $(SELNORM_INC) selnorm/selnorm.h
 
-selnorm/selnorm-mv.o distributions/DSELNORMMVSTEP.o: selnorm/selnorm-mv.h selnorm/selnorm.h
+selnorm/selnorm-mv.o distributions/DSELNORMMVSTEP.o distributions/DSELNORMCLUSTERSTEP.o: selnorm/selnorm-mv.h selnorm/selnorm.h
 
 r-regplot.o distributions/DSELNORMSTEP.o distributions/DSELNORMSTEPSWITCH.o distributions/DSELNORMKERNEL.o: selnorm/selnorm.h

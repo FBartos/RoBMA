@@ -35,7 +35,7 @@ hypothesis(object, ...)
   logBF = FALSE,
   BF01 = FALSE,
   seed = NULL,
-  density_method = c("KDE", "normal", "qCMDE", "IWMDE"),
+  density_method = "qCMDE",
   density_control = NULL,
   n_samples = 10000,
   columns = "default",
@@ -65,8 +65,9 @@ the hypothesis expression.}
 
 \item{seed}{optional seed used by BayesTools for sampled prior quantities.}
 
-\item{density_method}{posterior density method. \code{"KDE"} uses the
-standard BayesTools kernel density estimate. \code{"normal"} uses the
+\item{density_method}{posterior density method. Defaults to \code{"qCMDE"}
+for fitted \code{brma} objects. \code{"KDE"} uses the standard BayesTools
+kernel density estimate. \code{"normal"} uses the
 BayesTools normal approximation for point-null hypotheses on fitted
 \code{brma} objects. \code{"qCMDE"} and \code{"IWMDE"} attach RoBMA
 likelihood-aware posterior ordinates for direct point-null hypotheses and
@@ -196,6 +197,8 @@ but is more sensitive to the adequacy and concentration of its fitted
 conditional weights. The normal approximation is useful as a rough check for
 near-normal interior ordinates; it is not a validation reference for skewed
 tails, bounded parameters, or one-sided support boundaries.
+qCMDE is the default for fitted \code{brma} objects. Use \code{"KDE"},
+\code{"normal"}, or \code{"IWMDE"} explicitly to select another route.
 For binomial and Poisson GLMMs, the nuisance state includes the sampled
 estimate-level heterogeneity effects and baserates or log-rates. Averaging
 their row-conditional focal densities is an exact marginalization identity.
@@ -242,7 +245,7 @@ fit_mod <- brma(
 
 # Marginal-mean hypothesis for a factor level
 emm <- marginal_means(fit_mod, density_method = "qCMDE")
-hypothesis(emm, "group[B] > 0 vs group[B] = 0", density_method = "qCMDE")
+hypothesis(emm, "group[B] > 0 vs group[B] = 0")
 }
 
 }

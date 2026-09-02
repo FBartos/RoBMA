@@ -53,6 +53,13 @@ test_that("selection model titles omit the likelihood implementation", {
     .summary.brma_model_names(approximate),
     "Bayesian Random-Effects Selection Model (k = 2)"
   )
+  exact_plan <- exact[["selection_likelihood"]][["integration_plan"]]
+  exact_data <- .create_fit_data(exact[["data"]], exact[["priors"]])
+  expect_identical(exact[["selection_likelihood"]][["exactness"]], "E0")
+  expect_s3_class(exact_plan, "RoBMA_selection_closed_form_plan")
+  expect_identical(exact_plan[["exactness"]], "E0")
+  expect_null(exact_plan[["designs"]])
+  expect_null(exact_data[["sel_exact_cluster_nodes"]])
 })
 
 test_that("selection reference weights are structural convergence parameters", {
@@ -179,14 +186,36 @@ test_that("RoBMA defaults to exact finite-vector selection", {
     exact[["selection_likelihood"]][["target"]],
     "finite_vector_product_selection"
   )
+  expect_identical(exact[["selection_likelihood"]][["exactness"]], "E1")
   expect_identical(
     .data_exact_selection_setup(exact[["data"]])[["row_blocks"]],
     list(1:2, 3:4)
   )
+  exact_plan <- exact[["selection_likelihood"]][["integration_plan"]]
+  expect_s3_class(exact_plan, "RoBMA_selection_cluster_plan")
+  expect_identical(exact_plan[["exactness"]], "E1")
+  expect_identical(
+    exact_plan[["quadrature_orders"]],
+    c(31L, 63L, 127L, 255L, 511L)
+  )
+  expect_null(exact_plan[["designs"]])
   exact_priors <- .create_fit_priors(exact[["data"]], exact[["priors"]])
+  exact_data   <- .create_fit_data(exact[["data"]], exact[["priors"]])
   exact_syntax <- .create_model_syntax(exact[["data"]], exact[["priors"]])
   expect_null(exact_priors[["gamma"]])
-  expect_match(exact_syntax, "dselnorm_mnorm_step", fixed = TRUE)
+  expect_length(grep("^sel_exact_qmc_", names(exact_data), value = TRUE), 0L)
+  expect_length(exact_data[["sel_exact_cluster_nodes"]], 987L)
+  expect_length(exact_data[["sel_exact_cluster_log_weights"]], 987L)
+  expect_true(all(is.finite(exact_data[["sel_exact_cluster_nodes"]])))
+  expect_true(all(is.finite(
+    exact_data[["sel_exact_cluster_log_weights"]]
+  )))
+  expect_identical(
+    exact_data[["sel_exact_cluster_orders"]],
+    c(31L, 63L, 127L, 255L, 511L)
+  )
+  expect_false(grepl("sel_exact_qmc_2", exact_syntax, fixed = TRUE))
+  expect_match(exact_syntax, "dselnorm_cluster_step", fixed = TRUE)
   expect_match(exact_syntax, "sel_kernel_mode_active", fixed = TRUE)
   expect_false(grepl("gamma[", exact_syntax, fixed = TRUE))
   expect_false(grepl("dselnorm_step_switch", exact_syntax, fixed = TRUE))
@@ -274,6 +303,66 @@ test_that("exact independent selection blocks use the scalar kernel", {
   expect_false(grepl("dselnorm_mnorm_step", syntax, fixed = TRUE))
   expect_false(grepl("_qmc", syntax, fixed = TRUE))
   expect_false(any(grepl("_qmc$", names(fit_data))))
+})
+
+test_that("exact cluster log likelihood routes mixed blocks by size", {
+
+  object <- bselmodel(
+    yi                        = c(.10, .20, .05),
+    sei                       = rep(.10, 3L),
+    cluster                   = c("a", "a", "b"),
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  expect_identical(
+    .data_exact_selection_setup(object[["data"]])[["row_blocks"]],
+    list(1:2, 3L)
+  )
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+  expect_true("sel_exact_block_1_sampling_sd" %in% names(fit_data))
+  expect_false("sel_exact_block_2_sampling_sd" %in% names(fit_data))
+
+  cluster_rows   <- NULL
+  singleton_rows <- NULL
+  testthat::local_mocked_bindings(
+    .estimate_normal_covariance_target_location_from_setup = function(setup){
+      list(y = c(.10, .20, .05), means = matrix(0, nrow = 2L, ncol = 3L))
+    },
+    .selection_exact_signed_context = function(setup, signed_yi){
+      list(obs_bin = rep(1L, 3L))
+    },
+    .selection_exact_random_covariance_samples = function(setup) NULL,
+    .selection_exact_covariance_lower = function(
+        setup, rows, random_covariance_samples){
+      singleton_rows <<- rows
+      matrix(.04, nrow = 2L, ncol = 1L)
+    },
+    .selection_exact_singleton_loglik_matrix = function(
+        yi, means, variances, sei, selection_context){
+      matrix(c(31, 32), nrow = 2L, ncol = 1L)
+    },
+    .selection_exact_cluster_loglik_block = function(
+        yi, means, residual_sd, loading, sei, selection_context,
+        integration_plan){
+      cluster_rows <<- length(yi)
+      c(11, 12)
+    },
+    .package = "RoBMA"
+  )
+
+  observed <- .selection_exact_block_loglik_from_setup(list(
+    data          = object[["data"]],
+    S             = 2L,
+    selection_sei = rep(.10, 3L),
+    tau_within    = matrix(.15, nrow = 2L, ncol = 3L),
+    tau_between   = matrix(.20, nrow = 2L, ncol = 3L)
+  ))
+
+  expect_identical(singleton_rows, 3L)
+  expect_identical(cluster_rows, 2L)
+  expect_equal(observed, matrix(c(11, 12, 31, 32), nrow = 2L))
 })
 
 test_that("selection spec sets probability telescoping flag once", {
@@ -510,7 +599,8 @@ test_that("exact selection constructors marginalize Gaussian dependence", {
     list(1:2, 3:4)
   )
   expect_null(cluster_fit_priors[["gamma"]])
-  expect_match(cluster_syntax, "dselnorm_mnorm_step", fixed = TRUE)
+  expect_match(cluster_syntax, "dselnorm_cluster_step", fixed = TRUE)
+  expect_false(grepl("dselnorm_mnorm_step", cluster_syntax, fixed = TRUE))
   expect_false(grepl("gamma[", cluster_syntax, fixed = TRUE))
 
   data <- data.frame(study = factor(c("a", "a", "b")))
@@ -710,6 +800,64 @@ test_that("exact bivariate selection kernel matches rectangle integration", {
   expect_equal(reflected[["log_density"]], actual[["log_density"]],
                tolerance = 1e-12)
   expect_lt(actual[["relative_mcse"]], 5e-4)
+})
+
+
+test_that("exact cluster reduction matches bivariate rectangle integration", {
+
+  y           <- c(.30, .50)
+  mu          <- c(.10, .15)
+  residual_sd <- c(.20, .25)
+  loading     <- c(.30, .35)
+  sei         <- c(.20, .25)
+  z           <- stats::qnorm(.025, lower.tail = FALSE)
+  omega       <- c(.4, 1)
+  quadrature  <- .selection_exact_cluster_quadrature_rules(
+    SELNORM_CLUSTER_QUADRATURE_ORDERS
+  )
+  actual <- .Call(
+    "RoBMA_selnorm_cluster_step_loglik_batch",
+    y, matrix(mu, nrow = 1L), matrix(residual_sd, nrow = 1L),
+    matrix(loading, nrow = 1L), sei, matrix(omega, nrow = 1L),
+    c(z, -Inf), c(Inf, z), c(2L, 1L), 1L, TRUE, SELKERNEL_STEP,
+    quadrature[["nodes"]], quadrature[["log_weights"]],
+    as.numeric(quadrature[["orders"]]), .005,
+    PACKAGE = "RoBMA"
+  )
+
+  covariance <- diag(residual_sd^2) + outer(loading, loading)
+  threshold  <- z * sei
+  rectangles <- list(
+    list(lower = threshold, upper = c(Inf, Inf), weight = .4^2),
+    list(
+      lower = c(threshold[[1L]], -Inf),
+      upper = c(Inf, threshold[[2L]]),
+      weight = .4
+    ),
+    list(
+      lower = c(-Inf, threshold[[2L]]),
+      upper = c(threshold[[1L]], Inf),
+      weight = .4
+    ),
+    list(lower = c(-Inf, -Inf), upper = threshold, weight = 1)
+  )
+  normalizer <- sum(vapply(rectangles, function(rectangle) {
+    rectangle[["weight"]] * as.numeric(mvtnorm::pmvnorm(
+      lower = rectangle[["lower"]],
+      upper = rectangle[["upper"]],
+      mean  = mu,
+      sigma = covariance
+    ))
+  }, numeric(1L)))
+  expected <- mvtnorm::dmvnorm(
+    y,
+    mean  = mu,
+    sigma = covariance,
+    log   = TRUE
+  ) + log(prod(omega)) - log(normalizer)
+
+  expect_equal(actual[["log_density"]], expected, tolerance = 5e-8)
+  expect_lt(actual[["relative_change"]], 5e-4)
 })
 
 

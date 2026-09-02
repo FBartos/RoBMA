@@ -92,6 +92,12 @@ extern SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
     SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
     SEXP telescope_probabilities, SEXP kernel_mode, SEXP qmc,
     SEXP points, SEXP scrambles, SEXP relative_tolerance);
+extern SEXP RoBMA_selnorm_cluster_step_loglik_batch(
+    SEXP yi, SEXP means, SEXP residual_sd, SEXP loading, SEXP sei, SEXP omega,
+    SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
+    SEXP telescope_probabilities, SEXP kernel_mode, SEXP quadrature_nodes,
+    SEXP quadrature_log_weights, SEXP quadrature_orders,
+    SEXP relative_tolerance);
 extern SEXP RoBMA_selnorm_mnorm_step_rng_batch(
     SEXP means, SEXP covariance, SEXP sei, SEXP omega,
     SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
@@ -398,6 +404,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_plot_selnorm_mixture_quantiles", (DL_FUNC) &RoBMA_plot_selnorm_mixture_quantiles, 20},
     {"RoBMA_selnorm_kernel_loglik_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_loglik_matrix, 22},
     {"RoBMA_selnorm_mnorm_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_step_loglik_batch, 15},
+    {"RoBMA_selnorm_cluster_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_cluster_step_loglik_batch, 16},
     {"RoBMA_selnorm_mnorm_step_rng_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_step_rng_batch, 10},
     {"RoBMA_norm_loglik_row_sum", (DL_FUNC) &RoBMA_norm_loglik_row_sum, 5},
     {"RoBMA_known_v_covariance_plan_create", (DL_FUNC) &RoBMA_known_v_covariance_plan_create, 4},

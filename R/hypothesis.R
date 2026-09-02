@@ -37,6 +37,8 @@
 #' conditional weights. The normal approximation is useful as a rough check for
 #' near-normal interior ordinates; it is not a validation reference for skewed
 #' tails, bounded parameters, or one-sided support boundaries.
+#' qCMDE is the default for fitted \code{brma} objects. Use \code{"KDE"},
+#' \code{"normal"}, or \code{"IWMDE"} explicitly to select another route.
 #' For binomial and Poisson GLMMs, the nuisance state includes the sampled
 #' estimate-level heterogeneity effects and baserates or log-rates. Averaging
 #' their row-conditional focal densities is an exact marginalization identity.
@@ -88,7 +90,7 @@
 #'
 #' # Marginal-mean hypothesis for a factor level
 #' emm <- marginal_means(fit_mod, density_method = "qCMDE")
-#' hypothesis(emm, "group[B] > 0 vs group[B] = 0", density_method = "qCMDE")
+#' hypothesis(emm, "group[B] > 0 vs group[B] = 0")
 #' }
 #'
 #' @references
@@ -144,8 +146,9 @@ hypothesis.default <- function(object, ...) {
 #' columns. \code{"all"} also returns \code{prior}, \code{posterior}, and
 #' \code{method} columns. The \code{prior} and \code{posterior} columns are
 #' diagnostics rather than probabilities for all hypothesis types.
-#' @param density_method posterior density method. \code{"KDE"} uses the
-#' standard BayesTools kernel density estimate. \code{"normal"} uses the
+#' @param density_method posterior density method. Defaults to \code{"qCMDE"}
+#' for fitted \code{brma} objects. \code{"KDE"} uses the standard BayesTools
+#' kernel density estimate. \code{"normal"} uses the
 #' BayesTools normal approximation for point-null hypotheses on fitted
 #' \code{brma} objects. \code{"qCMDE"} and \code{"IWMDE"} attach RoBMA
 #' likelihood-aware posterior ordinates for direct point-null hypotheses and
@@ -209,7 +212,7 @@ hypothesis.brma <- function(object, hypothesis,
                             standardized_coefficients = FALSE,
                             conditional = FALSE,
                             logBF = FALSE, BF01 = FALSE, seed = NULL,
-                            density_method = c("KDE", "normal", "qCMDE", "IWMDE"),
+                            density_method = "qCMDE",
                             density_control = NULL,
                             n_samples = 10000,
                             columns = "default", ...) {
@@ -250,16 +253,22 @@ hypothesis.brma <- function(object, hypothesis,
     stop("'conditional' hypotheses are available only for RoBMA objects.",
          call. = FALSE)
   }
-  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
-    .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()")
-  }
-
   parameter_metadata <- .brma_parameter_catalog_metadata(object)
   hypothesis <- BayesTools::hypothesis_parse(
     hypothesis = hypothesis,
     catalog    = parameter_metadata[["catalog"]],
     simplify_names = TRUE
   )
+  requested_point_refs <- BayesTools::hypothesis_parse_point_reference(
+    hypothesis     = hypothesis,
+    allow_compound = TRUE
+  )
+  if (.density_method_uses_precomputed(
+      density_method,
+      allow_normal = TRUE
+    ) && nrow(requested_point_refs) > 0L) {
+    .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()")
+  }
   display_hypothesis <- hypothesis
   statement_selections <- .hypothesis_brma_select_statements(
     object     = object,
@@ -334,6 +343,12 @@ hypothesis.brma <- function(object, hypothesis,
     parameter      = parameter,
     require_direct = !level_contrast
   )
+  if (.density_method_uses_precomputed(
+      density_method,
+      allow_normal = TRUE
+    ) && nrow(requested_point_refs) == 0L) {
+    density_method <- "KDE"
+  }
   coefficient_target <- .hypothesis_brma_formula_coefficient_target(
     object   = object,
     selected = selected

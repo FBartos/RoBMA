@@ -486,21 +486,25 @@ print.brma <- function(x, ...) {
     return(NULL)
   }
 
-  component_clause <- if (conditional) {
-    "Component SDs condition on their own inclusion gate."
-  } else {
+  component_clause <-
     "Component SDs include their excluded zero branches."
-  }
   has_gated_aggregate <- any(vapply(
     gated_roots,
     function(allocation) length(allocation[["terms"]]) > 1L,
     logical(1)
   ))
   if (has_gated_aggregate) {
-    return(paste0(
+    aggregate_clause <- paste0(
       "sd_total and var_prop(...) describe the slab allocation before ",
-      "independent component gates. ", component_clause
-    ))
+      "independent component gates."
+    )
+    if (conditional) {
+      return(aggregate_clause)
+    }
+    return(paste(aggregate_clause, component_clause))
+  }
+  if (conditional) {
+    return(NULL)
   }
 
   component_clause

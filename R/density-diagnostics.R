@@ -91,8 +91,7 @@
 #' @examples \dontrun{
 #' result <- hypothesis(
 #'   fit,
-#'   hypothesis     = "mu != 0 vs mu = 0",
-#'   density_method = "qCMDE"
+#'   hypothesis = "mu != 0 vs mu = 0"
 #' )
 #' density_diagnostics(result)
 #'

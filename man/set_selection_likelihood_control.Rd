@@ -13,16 +13,18 @@ set_selection_likelihood_control(
 }
 \arguments{
 \item{points_per_scramble}{number of shifted Halton points per randomized
-quasi-Monte Carlo scramble.}
+quasi-Monte Carlo scramble for general covariance blocks.}
 
 \item{scrambles}{number of independent randomized shifts used to estimate
-integration error.}
+integration error for general covariance blocks.}
 
-\item{relative_tolerance}{largest accepted relative Monte Carlo standard
-error of a dependent-block selection normalizer.}
+\item{relative_tolerance}{largest accepted successive relative quadrature
+change for rank-one multilevel blocks or relative Monte Carlo standard
+error for general covariance blocks.}
 
 \item{seed}{non-negative integer used only to create the fixed integration
-design. It does not alter R's random-number state.}
+design for general covariance blocks. It does not alter R's random-number
+state.}
 }
 \value{
 A \code{RoBMA_selection_likelihood_control} object.
@@ -30,7 +32,9 @@ A \code{RoBMA_selection_likelihood_control} object.
 \description{
 Creates numerical integration settings for the finite-vector product
 selection likelihood used by \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bselmodel.mv]{bselmodel.mv()}}, \code{\link[=RoBMA]{RoBMA()}}, and
-\code{\link[=RoBMA.mv]{RoBMA.mv()}}. Integration points are fixed before fitting, so repeated
+\code{\link[=RoBMA.mv]{RoBMA.mv()}}. Rank-one multilevel blocks use a deterministic sequence of
+Gauss-Hermite rules; general covariance blocks use randomized quasi-Monte
+Carlo. Every integration design is fixed before fitting, so repeated
 likelihood evaluations are deterministic. One-dimensional likelihood blocks
 are evaluated analytically.
 }

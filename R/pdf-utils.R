@@ -537,6 +537,68 @@
 .gauss_hermite_nodes_cache <- new.env(parent = emptyenv())
 
 
+.gauss_hermite_log_weights_scaled <- function(nodes, n) {
+
+  log_weights <- numeric(length(nodes))
+
+  for (node_index in seq_along(nodes)) {
+    node                <- nodes[node_index]
+    polynomial_previous <- 1
+    polynomial          <- node
+    log_scale           <- 0
+    log_denominator     <- log1p(polynomial^2)
+
+    if (n > 2L) {
+      for (degree in seq_len(n - 2L)) {
+        polynomial_next <- (
+          node * polynomial - sqrt(degree) * polynomial_previous
+        ) / sqrt(degree + 1)
+
+        recurrence_scale <- max(abs(c(
+          polynomial_previous,
+          polynomial,
+          polynomial_next
+        )))
+        if (recurrence_scale > 1e100) {
+          polynomial_previous <- polynomial_previous / recurrence_scale
+          polynomial          <- polynomial / recurrence_scale
+          polynomial_next     <- polynomial_next / recurrence_scale
+          log_scale           <- log_scale + log(recurrence_scale)
+        }
+
+        if (polynomial_next != 0) {
+          log_term <- 2 * (log(abs(polynomial_next)) + log_scale)
+          if (log_term > log_denominator) {
+            log_denominator <- log_term +
+              log1p(exp(log_denominator - log_term))
+          } else {
+            log_denominator <- log_denominator +
+              log1p(exp(log_term - log_denominator))
+          }
+        }
+
+        polynomial_previous <- polynomial
+        polynomial          <- polynomial_next
+      }
+    }
+
+    log_weights[node_index] <- -log_denominator
+  }
+
+  if (any(!is.finite(log_weights))) {
+    stop(
+      "Gauss-Hermite log weights are numerically unstable at order ", n, ".",
+      call. = FALSE
+    )
+  }
+
+  max_log_weight <- max(log_weights)
+  log_normalizer <- max_log_weight +
+    log(sum(exp(log_weights - max_log_weight)))
+  return(log_weights - log_normalizer)
+}
+
+
 .gauss_hermite_nodes <- function(n) {
 
   key <- as.character(n)
@@ -583,13 +645,16 @@
       polynomial          <- polynomial_next
     }
   }
-  weights <- 1 / weight_denominator
+  weights     <- 1 / weight_denominator
+  log_weights <- log(weights)
 
-  if (any(!is.finite(weights)) || any(weights <= 0)) {
-    stop(
-      "Gauss-Hermite weights are numerically unstable at order ", n, ".",
-      call. = FALSE
-    )
+  if (any(!is.finite(log_weights))) {
+    # High-order tail weights can underflow after the ordinary-scale
+    # recurrence overflows. Re-evaluate the same Christoffel formula in log
+    # scale; ordinary weights may still underflow, but likelihood code uses the
+    # finite log weights.
+    log_weights <- .gauss_hermite_log_weights_scaled(nodes, n)
+    weights     <- exp(log_weights)
   }
 
   # Verify: weights should sum to 1
@@ -601,7 +666,7 @@
   out <- list(
     nodes       = nodes[ord],
     weights     = weights[ord],
-    log_weights = log(weights[ord])
+    log_weights = log_weights[ord]
   )
   assign(key, out, envir = .gauss_hermite_nodes_cache)
 

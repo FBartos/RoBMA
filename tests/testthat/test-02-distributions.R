@@ -124,6 +124,29 @@ test_that("analytic normal cluster likelihood matches mvtnorm oracle", {
 })
 
 
+test_that("order-511 Hermite rule remains stable in log scale", {
+
+  rule <- .gauss_hermite_nodes(511L)
+
+  expect_true(all(is.finite(rule[["nodes"]])))
+  expect_true(all(is.finite(rule[["log_weights"]])))
+  expect_equal(rule[["nodes"]], -rev(rule[["nodes"]]), tolerance = 1e-12)
+  expect_equal(
+    rule[["log_weights"]],
+    rev(rule[["log_weights"]]),
+    tolerance = 1e-10
+  )
+  expect_equal(sum(exp(rule[["log_weights"]])), 1, tolerance = 1e-14)
+
+  even_powers      <- seq.int(2L, 8L, by = 2L)
+  moments          <- vapply(even_powers, function(power) {
+    sum(exp(rule[["log_weights"]]) * rule[["nodes"]]^power)
+  }, numeric(1))
+  expected_moments <- c(1, 3, 15, 105)
+  expect_equal(moments, expected_moments, tolerance = 1e-10)
+})
+
+
 test_that("analytic rho-grid cluster likelihood matches mvtnorm oracle", {
 
   S <- 3L

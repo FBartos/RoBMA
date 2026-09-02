@@ -214,15 +214,18 @@ test_that("qCMDE factor point guards use display aliases", {
 })
 
 
-test_that("qCMDE/IWMDE hypotheses guard non-known-V random-formula objects upfront", {
+test_that("hypothesis defaults to qCMDE and guards unsupported random formulas", {
 
   object <- .mock_random_non_known_v_brma_mv()
+  testthat::local_mocked_bindings(
+    .brma_parameter_catalog_metadata = function(...) list(catalog = NULL),
+    .package = "RoBMA"
+  )
 
   expect_error(
     hypothesis.brma(
       object,
       "mu = 0",
-      density_method  = "qCMDE",
       density_control = list(n_points = 20, samples = 20)
     ),
     "qCMDE/IWMDE hypothesis\\(\\).*random-formula"

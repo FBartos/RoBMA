@@ -20,8 +20,10 @@
   `bselmodel()`, `RoBMA()`, and the new `bselmodel.mv()` and `RoBMA.mv()`.
   Gaussian cluster, known-`V`, and
   formula-random effects are marginalized into dependency-block covariances;
-  diagonal normalizers are analytic and dependent normalizers use a fixed
-  shifted-Halton GHK plan with an explicit relative-error diagnostic. The
+  diagonal normalizers are analytic, rank-one multilevel normalizers use an
+  adaptive sequence of deterministic Gauss-Hermite rules, and general
+  covariance normalizers use a fixed shifted-Halton GHK plan. Both numerical
+  routes enforce an explicit relative-error diagnostic. The
   public switch is `selection_likelihood = "exact"` or `"approximate"`, with
   no unreleased compatibility aliases. Summary, bridge sampling, estimate-unit
   LOO/WAIC, LOO-PIT residuals, latent/random-effect prediction, and joint
@@ -402,10 +404,12 @@
   random-effect group covariance in random-intercept blocks, including
   supported one-to-one marginalized known-`R` blocks under known-`V` normal
   models.
-- adds opt-in likelihood-aware qCMDE/IWMDE posterior density and point-ordinate
+- adds likelihood-aware qCMDE/IWMDE posterior density and point-ordinate
   estimation for supported `plot()`, `hypothesis()`/`bf_hypothesis()`,
   `marginal_means()`, and `hypothesis.marginal_means()` workflows via
-  `density_method`.
+  `density_method`. qCMDE is the default for fitted-model `hypothesis()` calls;
+  plotting and marginal-means construction retain KDE unless requested
+  explicitly.
 - adds fixed, user-controlled simple-random posterior-row samples for
   qCMDE/IWMDE density curves and point ordinates through the shared
   `density_control$samples` setting. Density-control lists reject unknown

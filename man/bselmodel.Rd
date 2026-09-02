@@ -212,9 +212,11 @@ and location-scale meta-analytic selection models.
 selection-kernel prior; p-hacking kernels are not supported in active RoBMA.
 The default exact likelihood applies the selection event jointly to the
 finite vector of estimates. Independent blocks factorize analytically;
-dependent blocks use a fixed randomized quasi-Monte Carlo design with an
-explicit relative-error check. Observation weights and non-step selection
-kernels are unavailable with the exact target.
+rank-one multilevel blocks use deterministic Gauss-Hermite quadrature, and
+general covariance blocks use a fixed randomized quasi-Monte Carlo design.
+Both numerical routes apply an explicit relative-error check. Observation
+weights and non-step selection kernels are unavailable with the exact
+target.
 }
 \examples{
 \dontrun{

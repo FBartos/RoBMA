@@ -74,11 +74,13 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
     "before independent component gates",
     fixed = TRUE
   )
-  expect_match(
+  expect_identical(
     attr(out[["estimates_random_conditional"]], "footnotes"),
-    "condition on their own inclusion gate",
-    fixed = TRUE
-  )
+    paste0(
+      "sd_total and var_prop(...) describe the slab allocation before ",
+      "independent component gates."
+    )
+  ))
 
   for (component in names(gate_names)) {
     sd_draws <- .bma_mv_parameter_draws(
