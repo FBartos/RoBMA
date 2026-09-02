@@ -97,7 +97,7 @@ testthat::test_that("Ishak longitudinal heterogeneous AR model", {
   anova(fit_metafor_har0, fit_metafor_har)
   scenario_text("robma-correlation-density-test", {
     bf_bridge <- bf(fit_brma_har, fit_brma_har0)
-    bf_kde    <- hypothesis(fit_brma_har, "cor = 0")
+    bf_kde    <- hypothesis(fit_brma_har, "cor = 0", density_method = "KDE")
     bf_qcmde  <- hypothesis(fit_brma_har, "cor = 0", density_method = "qCMDE", density_control = qcmde_control)
 
     data.frame(bridge = bf_bridge$bf, KDE = bf_kde$BF, qCMDE = bf_qcmde$BF)

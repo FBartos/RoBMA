@@ -99,8 +99,8 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   qcmde_control <- list(samples = 1000L)
   anova(fit_metafor_us, fit_metafor_diag)
   scenario_text("bridge_density_eq", {
-    bf_hyp_us   <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0")
-    bf_hyp_hcs  <- hypothesis(fit_brma_hcs, "cor = 0")
+    bf_hyp_us   <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0", density_method = "KDE")
+    bf_hyp_hcs  <- hypothesis(fit_brma_hcs, "cor = 0", density_method = "KDE")
     bf_hyp_us_qCMDE  <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0", density_method = "qCMDE", density_control = qcmde_control)
     bf_hyp_hcs_qCMDE <- hypothesis(fit_brma_hcs, "cor = 0", density_method = "qCMDE", density_control = qcmde_control)
     bf_hcs_hcs0  <- bf(fit_brma_hcs, fit_brma_hcs0)

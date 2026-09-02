@@ -69,7 +69,7 @@ testthat::test_that("Niel-Weise Poisson incidence-rate models", {
   scenario_plot("fit_BMA_forest", metafor::forest(as_metafor_forest(fit_BMA)))
 
   ### hypothesis comparisons ----
-  BF_mu_1 <- scenario_time("BF_mu_1", hypothesis(fit_brma, "mu = 0")[["BF"]])
+  BF_mu_1 <- scenario_time("BF_mu_1", hypothesis(fit_brma, "mu = 0", density_method = "KDE")[["BF"]])
   BF_mu_2 <- scenario_time("BF_mu_2", hypothesis(fit_brma, "mu = 0", density_method = "qCMDE")[["BF"]])
   BF_mu_3 <- scenario_time("BF_mu_3", hypothesis(fit_BMA, "mu = 0", density_method = "qCMDE", conditional = TRUE)[["BF"]])
   BF_mu   <- bf(fit_brma, fit_brma_null)[["bf"]]

@@ -370,16 +370,16 @@ testthat::test_that("BCG Meta-Regression", {
 
   ### directional hypothesis tests for marginal means ----
 
-  # these two match because its the default level
+  # these two match because it is the default level
   set.seed(1)
   scenario_text("fit_reg1_mm_BF1", {rbind(
     hypothesis(fit_reg1_emm, hypothesis = c("alloc[alternate] < 0 vs alloc[alternate] = 0")),
-    hypothesis(fit_reg1,     hypothesis = c("intercept < 0 vs intercept = 0"))
+    hypothesis(fit_reg1,     hypothesis = c("intercept < 0 vs intercept = 0"), density_method = "KDE")
   )})
   # the mm is larger because its additive effect
   scenario_text("fit_reg1_mm_BF2", {rbind(
     hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),
-    hypothesis(fit_reg1,     hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"))
+    hypothesis(fit_reg1,     hypothesis = c("alloc[random] < 0 vs alloc[random] = 0"), density_method = "KDE")
   )})
   scenario_text("fit_reg1_mm_BF3", {rbind(
     hypothesis(fit_reg1_emm, hypothesis = c("alloc[random] < 0 vs alloc[random] = 0")),

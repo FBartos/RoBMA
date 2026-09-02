@@ -130,7 +130,7 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   effect_bayes_factors <- function(fit, null_fit) {
     data.frame(
       bridge  = bf(fit, null_fit)[["bf"]],
-      KDE     = hypothesis(fit, "mu = 0")[["BF"]][[1L]],
+      KDE     = hypothesis(fit, "mu = 0", density_method = "KDE")[["BF"]][[1L]],
       qCMDE   = hypothesis(fit, "mu = 0", density_method = "qCMDE", density_control = list(samples = 1000L))[["BF"]][[1L]],
       normal  = hypothesis(fit, "mu = 0", density_method = "normal")[["BF"]][[1L]]
     )

@@ -72,7 +72,7 @@ text	fit_mods	0.000000000	0.491406	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_random_bayes_factor_comparison	0.030000000	0.525098	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_rho_bayes_factor_comparison	0.000000000	0.497656	4.6.0	Windows/x86_64-w64-mingw32
 text	marginal_means	0.520000000	0.720606	4.6.0	Windows/x86_64-w64-mingw32
-text	metafor-comparison	0.660000000	0.646875	4.6.0	Windows/x86_64-w64-mingw32
+text	metafor-comparison	0.640000000	0.646875	4.6.0	Windows/x86_64-w64-mingw32
 text	model-fit-equivalent	0.000000000	0.453027	4.6.0	Windows/x86_64-w64-mingw32
 text	model-fit-loo	0.030000000	0.521875	4.6.0	Windows/x86_64-w64-mingw32
 text	model-fit-reg-equivalent	0.000000000	0.453906	4.6.0	Windows/x86_64-w64-mingw32
@@ -89,7 +89,7 @@ text	pooled-effect-diag-reg_pi	0.920000000	0.824805	4.6.0	Windows/x86_64-w64-min
 text	pooled-effect-reg	0.110000000	0.689453	4.6.0	Windows/x86_64-w64-mingw32
 text	pooled-effect-reg_pi	0.670000000	0.824805	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma	0.070000000	0.506055	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-fit_brma.mv	0.310000000	0.615820	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-fit_brma.mv	0.300000000	0.615820	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma.mv_diag	0.310000000	0.608105	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma.mv_diag_fixed	0.080000000	0.498926	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma.mv_diag_no_effect	0.170000000	0.555469	4.6.0	Windows/x86_64-w64-mingw32
