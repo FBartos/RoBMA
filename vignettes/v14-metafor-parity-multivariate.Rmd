@@ -61,9 +61,10 @@ fit1_brma <- brma.mv(
   yi = yi, V = vi, measure = "SMD",
   random = ~ cs(school | district),
   data = dat_konstantopoulos, seed = 1,
-  chains = 4, adapt = 2000, burnin = 5000, sample = 30000,
-  parallel = TRUE, autofit = TRUE
+  chains = 4, adapt = 2000, burnin = 5000, sample = 10000,
+  parallel = TRUE, autofit = FALSE
 )
+vignette_cache_save(cached_fits["fit1_brma"])
 
 data("dat.assink2016", package = "metadat")
 dat_assink <- dat.assink2016
@@ -77,8 +78,9 @@ fit2_brma <- brma.mv(
   yi = yi, V = V_assink, measure = "SMD",
   random = ~ 1 | study / esid,
   data = dat_assink, seed = 2,
-  adapt = 5000, burnin = 10000, sample = 20000
+  chains = 4, adapt = 2000, burnin = 5000, sample = 10000
 )
+vignette_cache_save(cached_fits["fit2_brma"])
 
 data("dat.ishak2007", package = "metadat")
 dat_ishak <- dat.ishak2007
@@ -113,9 +115,10 @@ fit3_brma <- brma.mv(
   prior_mods                = ishak_time_prior,
   prior_unit_information_sd = ishak_unit_information_sd,
   data = dat_ishak, seed = 3,
-  chains = 4, adapt = 5000, burnin = 10000, sample = 30000,
-  parallel = TRUE, autofit = TRUE
+  chains = 4, adapt = 2000, burnin = 5000, sample = 10000,
+  parallel = TRUE, autofit = FALSE
 )
+vignette_cache_save(cached_fits["fit3_brma"])
 
 data("dat.begg1989", package = "metadat")
 dat_begg <- dat.begg1989
@@ -151,10 +154,10 @@ fit4_brma <- brma.mv(
     )
   ),
   prior_unit_information_sd = begg_unit_information_sd,
-  data = dat_begg, seed = 4
+  data = dat_begg, seed = 4,
+  chains = 4, adapt = 2000, burnin = 5000, sample = 10000
 )
-
-vignette_cache_save(cached_fits)
+vignette_cache_save(cached_fits["fit4_brma"])
 ```
 
 This vignette is a starting point for fitting multivariate and multilevel meta-analytic models with the `RoBMA` R package [@RoBMA].
@@ -274,8 +277,8 @@ fit1_brma <- brma.mv(
   yi = yi, V = vi, measure = "SMD",
   random = ~ cs(school | district),
   data = dat_konstantopoulos, seed = 1,
-  chains = 4, adapt = 2000, burnin = 5000, sample = 30000,
-  parallel = TRUE, autofit = TRUE
+  chains = 4, adapt = 2000, burnin = 5000, sample = 10000,
+  parallel = TRUE, autofit = FALSE
 )
 ```
 
@@ -317,14 +320,14 @@ fit2_metafor
 ```
 
 The `brma.mv()` call mirrors the same inputs: `V` is the known sampling covariance matrix and `random` describes the additional heterogeneity.
-The nested variance allocation can mix slowly, so this example uses a longer MCMC run.
+The nested variance allocation can mix slowly, so inspect its convergence diagnostics before interpreting the results.
 
 ```{r fit2-brma, eval = FALSE}
 fit2_brma <- brma.mv(
   yi = yi, V = V_assink, measure = "SMD",
   random = ~ 1 | study / esid,
   data = dat_assink, seed = 2,
-  adapt = 5000, burnin = 10000, sample = 20000
+  chains = 4, adapt = 2000, burnin = 5000, sample = 10000
 )
 ```
 
@@ -404,8 +407,8 @@ fit3_brma <- brma.mv(
   ),
   prior_unit_information_sd = ishak_unit_information_sd,
   data = dat_ishak, seed = 3,
-  chains = 4, adapt = 5000, burnin = 10000, sample = 30000,
-  parallel = TRUE, autofit = TRUE
+  chains = 4, adapt = 2000, burnin = 5000, sample = 10000,
+  parallel = TRUE, autofit = FALSE
 )
 ```
 
@@ -486,7 +489,8 @@ fit4_brma <- brma.mv(
     )
   ),
   prior_unit_information_sd = begg_unit_information_sd,
-  data = dat_begg, seed = 4
+  data = dat_begg, seed = 4,
+  chains = 4, adapt = 2000, burnin = 5000, sample = 10000
 )
 ```
 

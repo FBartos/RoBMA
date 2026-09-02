@@ -72,12 +72,7 @@ fit_RE_Weingarten2018 <- brma(
   sample = 10000, burnin = 10000, adapt = 10000,
   chains = 5, parallel = TRUE, seed = 1
 )
-fit_RoBMA_Weingarten2018 <- RoBMA(
-  yi = yi, vi = vi, measure = "ZCOR",
-  cluster = paper_id, data = Weingarten2018_z,
-  sample = 10000, burnin = 10000, adapt = 10000,
-  chains = 5, parallel = TRUE, seed = 1
-)
+vignette_cache_save(cached_fits["fit_RE_Weingarten2018"])
 
 # Social comparison - Hoppen2025
 data("Hoppen2025", package = "RoBMA")
@@ -87,12 +82,14 @@ fit_RE_Hoppen2025 <- brma(
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RE_Hoppen2025"])
 fit_RoBMA_Hoppen2025 <- RoBMA(
   yi = d, sei = sqrt(v), measure = "SMD",
   data = Hoppen2025,
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RoBMA_Hoppen2025"])
 
 # ChatGPT - Wang2025
 data("Wang2025", package = "RoBMA")
@@ -103,12 +100,14 @@ fit_RE_Wang2025 <- brma(
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RE_Wang2025"])
 fit_RoBMA_Wang2025 <- RoBMA(
   yi = g, sei = se, measure = "SMD",
   data = Wang2025,
   sample = 20000, burnin = 10000, adapt = 10000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RoBMA_Wang2025"])
 
 # Many Labs 2 - ManyLabs16
 data("ManyLabs16", package = "RoBMA")
@@ -118,14 +117,22 @@ fit_RE_ManyLabs16 <- brma(
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RE_ManyLabs16"])
 fit_RoBMA_ManyLabs16 <- RoBMA(
   yi = y, sei = se, measure = "SMD",
   data = ManyLabs16,
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RoBMA_ManyLabs16"])
 
-vignette_cache_save(cached_fits)
+fit_RoBMA_Weingarten2018 <- RoBMA(
+  yi = yi, vi = vi, measure = "ZCOR",
+  cluster = paper_id, data = Weingarten2018_z,
+  sample = 10000, burnin = 10000, adapt = 10000,
+  chains = 5, parallel = TRUE, seed = 1
+)
+vignette_cache_save(cached_fits["fit_RoBMA_Weingarten2018"])
 ```
 
 **This vignette accompanies the manuscript "Zplot: A Visual Diagnostic for Publication Bias in Meta-Analysis" [@bartos2025zcurve].**

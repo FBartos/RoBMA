@@ -263,8 +263,7 @@ For an important point-null result, inspect the compact diagnostics and repeat t
 bf_default <- hypothesis(
   fit_simple,
   hypothesis     = "mu != 0 vs mu = 0",
-  logBF          = TRUE,
-  density_method = "qCMDE"
+  logBF          = TRUE
 )
 density_diagnostics(bf_default)
 
@@ -376,9 +375,10 @@ compare_bf <- function(posterior_bf, fit, fit_null, fit_negative,
 
 bridge_bf_error <- function(x, y) {
 
+  x_mcse <- x[["marglik"]][["repetitions"]][["mcse"]]
+  y_mcse <- y[["marglik"]][["repetitions"]][["mcse"]]
   log_error <- sqrt(
-    x[["marglik"]][["mcse_logml"]]^2 +
-      y[["marglik"]][["mcse_logml"]]^2
+    x_mcse^2 + y_mcse^2
   )
 
   return(100 * sqrt(exp(log_error^2) - 1))
@@ -398,12 +398,12 @@ format_bf_table <- function(x) {
 ```
 
 The posterior-based route uses `hypothesis()`.
-With `density_method = "qCMDE"`, the point-null hypotheses use the qCMDE ordinate at 0 which improves stability of the estimate.
+By default, point-null hypotheses use the qCMDE ordinate at 0, which improves stability of the estimate.
 The region test $\text{BF}_{-+}$ uses prior-posterior odds and does not need a density ordinate.
 
 ```{r hypothesis-mu-posterior}
 mu_posterior_bf <- hypothesis(
-  fit_simple, density_method = "qCMDE",
+  fit_simple,
   hypothesis     = c(
     "mu != 0",
     "mu < 0 vs mu = 0",
