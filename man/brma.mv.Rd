@@ -65,7 +65,9 @@ transformed predictors as columns in \code{data}; inline calls such as \code{I()
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data} and follows the same explicit-column formula grammar as \code{mods}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
 \item{random}{an optional formula or list of formulas specifying
 BayesTools random-effect terms for \code{brma.mv()}. Use
@@ -286,13 +288,18 @@ random-effect blocks enter the conditional mean through BayesTools. With
 block is integrated into the likelihood variance; otherwise the likelihood
 remains conditional on sampled random effects and uses only the known
 sampling covariance \code{V}. With a single top-level random component, \code{scale}
-models the row-wise total random-effect SD consumed by that component. With
-multiple top-level random components, use a named list of \code{scale} formulas
-whose names uniquely match the random components. Component names can be
-ordinary text; RoBMA normalizes them internally for JAGS. Each formula
-models the row-wise total SD for its component. A single \code{scale} formula is
-rejected for multiple top-level random components because the target is
-ambiguous.
+models the row-wise total random-effect SD consumed by that component. A
+named list of \code{scale} formulas can instead target top-level random components
+or concrete random-effect blocks. Block names and grouping labels are
+accepted, and the terminal grouping variable is an alias for an unambiguous
+nested block; for example, \code{scale = list(esid = ~ x)} targets the \code{esid}
+block in \code{random = ~ 1 | study / esid}. Untargeted blocks retain their
+ordinary SD priors. Component names can be ordinary text; RoBMA normalizes
+them internally for JAGS. A single \code{scale} formula is rejected for multiple
+top-level random components because the target is ambiguous. In model-
+averaged models, block-specific scales inside one grouped component require
+the blocks to be supplied as separately named \code{random} entries so their
+inclusion gates remain well-defined.
 When \code{scale} is a named list, \code{prior_scale} must either be omitted or use the
 same named-list shape with one prior list per scale component, using the
 same user-facing names. Post-fit scale predictions for random-formula

@@ -59,12 +59,6 @@
       )
       formula_args[["formula_scale_list"]][[parameter]] <- .data_standardize_continuous_predictors(data)
     }
-    if (.is_data_random(data)) {
-      formula_args[["add_parameters"]] <- unique(c(
-        formula_args[["add_parameters"]],
-        .data_scale_formula_sources(data)
-      ))
-    }
   }
 
   return(formula_args)

@@ -16,33 +16,47 @@ test_that("brma.mv known-V models pass bridge marginal likelihood availability",
 })
 
 
-test_that("bridge SD-source spec expands row sources and attaches bounds", {
+test_that("bridge random-scale sources are reconstructed from formula draws", {
 
-  posterior <- matrix(
-    1:6,
-    nrow = 2L,
-    dimnames = list(NULL, c("tau[1]", "tau[2]", "sigma"))
+  dat <- data.frame(
+    yi  = c(0.10, 0.20),
+    obs = factor(c("e1", "e2")),
+    x   = c(0, 1)
   )
-
-  spec <- .marglik_bridge_sd_source_spec(
-    add_parameters = c("tau", "sigma"),
-    fit            = posterior,
-    K              = 2L
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(c(0.04, 0.09)),
+    random                    = ~ 1 | obs,
+    scale                     = ~ x,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
   )
-
-  expect_equal(spec[["parameters"]], c("tau[1]", "tau[2]", "sigma"))
-  expect_equal(names(spec[["bounds"]][["lb"]]), spec[["parameters"]])
-  expect_equal(names(spec[["bounds"]][["ub"]]), spec[["parameters"]])
-  expect_equal(unname(spec[["bounds"]][["lb"]]), c(0, 0, 0))
-  expect_true(all(is.infinite(spec[["bounds"]][["ub"]])))
-
-  empty <- .marglik_bridge_sd_source_spec(
-    add_parameters = character(),
-    fit            = posterior,
-    K              = 2L
+  fit <- structure(
+    list(),
+    formula_design = list(
+      mu = .fitted_formula_design(object, "mu", required = TRUE)
+    )
   )
-  expect_equal(empty[["parameters"]], character())
-  expect_null(empty[["bounds"]])
+  object[["fit"]] <- fit
+  patched_fit <- .marglik_fit_with_scale_source_values(object, fit)
+  random_term <- attr(patched_fit, "formula_design")[["mu"]][["random_effects"]][[1L]]
+  source <- random_term[["sd_binding"]][["source"]][["source"]]
+  expect_true(is.function(source[["values"]]))
+
+  bridge_context <- structure(
+    list(nodes = c("tau[1]" = 0.10, "tau[2]" = 0.20)),
+    class = c("BayesTools_bridge_context", "list")
+  )
+  expect_equal(
+    .marglik_bridge_row_source_samples(
+      data           = object[["data"]],
+      bridge_context = bridge_context,
+      K              = 2L
+    ),
+    list(tau = matrix(c(0.10, 0.20), nrow = 1L))
+  )
 })
 
 

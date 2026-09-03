@@ -532,9 +532,224 @@
 }
 
 
+.brma_random_parameter_allocation_gate_metadata <- function(selected) {
+
+  allocation <- selected[["allocation_definition"]]
+  quantity   <- selected[["spec"]][["quantity"]]
+  if (is.null(allocation) ||
+      !identical(allocation[["scale"]], "total_variance") ||
+      !quantity %in% c("sd_total", "var_total", "var_prop")) {
+    return(NULL)
+  }
+  n_targets <- allocation[["n_targets"]]
+  if (!is.numeric(n_targets) || length(n_targets) != 1L ||
+      is.na(n_targets) || n_targets != as.integer(n_targets) ||
+      n_targets < 1L) {
+    stop("Random-effect allocation gate metadata have no valid target count.",
+         call. = FALSE)
+  }
+  n_targets <- as.integer(n_targets)
+  component_indicators <- rep(NA_character_, n_targets)
+  inclusion <- allocation[["inclusion"]]
+  if (is.null(inclusion)) {
+    inclusion <- list()
+  }
+  for (record in inclusion) {
+    index     <- record[["index"]]
+    indicator <- record[["indicator_name"]]
+    if (!is.numeric(index) || length(index) != 1L || is.na(index) ||
+        index != as.integer(index) || index < 1L || index > n_targets ||
+        !is.character(indicator) || length(indicator) != 1L ||
+        is.na(indicator) || !nzchar(indicator)) {
+      stop("Random-effect allocation gate metadata are malformed.",
+           call. = FALSE)
+    }
+    component_indicators[[as.integer(index)]] <- indicator
+  }
+  parent_factors <- allocation[["parent_factors"]]
+  if (is.null(parent_factors)) {
+    parent_factors <- list()
+  }
+  parent_indicators <- vapply(parent_factors, function(factor) {
+    indicator <- factor[["inclusion_name"]]
+    if (is.null(indicator)) {
+      return(NA_character_)
+    }
+    if (!is.character(indicator) || length(indicator) != 1L ||
+        is.na(indicator) || !nzchar(indicator)) {
+      stop("Random-effect parent-gate metadata are malformed.",
+           call. = FALSE)
+    }
+    indicator
+  }, character(1))
+  parent_indicators <- unique(parent_indicators[!is.na(parent_indicators)])
+  indicators <- c(
+    component_indicators[!is.na(component_indicators)],
+    parent_indicators
+  )
+  if (length(indicators) == 0L) {
+    return(NULL)
+  }
+  if (anyDuplicated(indicators)) {
+    stop("Random-effect allocation gate metadata contain duplicate indicators.",
+         call. = FALSE)
+  }
+
+  list(
+    quantity             = quantity,
+    index                = selected[["spec"]][["allocation_index"]],
+    component_indicators = component_indicators,
+    parent_indicators    = parent_indicators
+  )
+}
+
+
+.brma_random_parameter_allocation_gate_state <- function(metadata,
+                                                          raw_samples) {
+
+  if (is.null(metadata)) {
+    return(NULL)
+  }
+  if (!is.matrix(raw_samples)) {
+    stop("Random-effect allocation gate samples are unavailable.",
+         call. = FALSE)
+  }
+  n_draws <- nrow(raw_samples)
+  component_active <- matrix(
+    1,
+    nrow = n_draws,
+    ncol = length(metadata[["component_indicators"]])
+  )
+  read_gate <- function(indicator) {
+    if (!indicator %in% colnames(raw_samples)) {
+      stop(
+        "Random-effect allocation samples are missing inclusion indicator '",
+        indicator, "'.",
+        call. = FALSE
+      )
+    }
+    gate <- raw_samples[, indicator]
+    if (any(!is.finite(gate) | !gate %in% c(0, 1))) {
+      stop(
+        "Random-effect allocation inclusion indicator '", indicator,
+        "' is invalid.",
+        call. = FALSE
+      )
+    }
+    as.logical(gate)
+  }
+  for (index in which(!is.na(metadata[["component_indicators"]]))) {
+    component_active[, index] <- read_gate(
+      metadata[["component_indicators"]][[index]]
+    )
+  }
+  parent_active <- rep(TRUE, n_draws)
+  for (indicator in metadata[["parent_indicators"]]) {
+    parent_active <- parent_active & read_gate(indicator)
+  }
+  positive_total <- parent_active & rowSums(component_active) > 0L
+
+  if (metadata[["quantity"]] %in% c("sd_total", "var_total")) {
+    return(list(
+      defined    = rep(TRUE, n_draws),
+      continuous = positive_total,
+      point_zero = !positive_total,
+      point_one  = rep(FALSE, n_draws)
+    ))
+  }
+
+  index <- metadata[["index"]]
+  if (!is.numeric(index) || length(index) != 1L || is.na(index) ||
+      index != as.integer(index) || index < 1L ||
+      index > ncol(component_active)) {
+    stop("Variance-proportion gate metadata have no valid component index.",
+         call. = FALSE)
+  }
+  index         <- as.integer(index)
+  target_active <- component_active[, index]
+  other_active <- if (ncol(component_active) == 1L) {
+    rep(FALSE, n_draws)
+  } else {
+    rowSums(component_active[, -index, drop = FALSE]) > 0L
+  }
+
+  list(
+    defined    = positive_total,
+    continuous = positive_total & target_active & other_active,
+    point_zero = positive_total & !target_active,
+    point_one  = positive_total & target_active & !other_active
+  )
+}
+
+
+.brma_random_parameter_allocation_gate_prior <- function(object, metadata) {
+
+  if (is.null(metadata)) {
+    return(NULL)
+  }
+  gate_probability <- function(indicator) {
+    .brma_random_parameter_inclusion_probability(object, indicator)
+  }
+  component_probability <- rep(
+    1,
+    length(metadata[["component_indicators"]])
+  )
+  for (index in which(!is.na(metadata[["component_indicators"]]))) {
+    component_probability[[index]] <- gate_probability(
+      metadata[["component_indicators"]][[index]]
+    )
+  }
+  parent_probability <- vapply(
+    metadata[["parent_indicators"]],
+    gate_probability,
+    numeric(1)
+  )
+  positive_component <- 1 - prod(1 - component_probability)
+
+  if (metadata[["quantity"]] %in% c("sd_total", "var_total")) {
+    continuous_mass <- prod(parent_probability) * positive_component
+    points <- if (continuous_mass < 1) {
+      data.frame(x = 0, p = 1 - continuous_mass)
+    } else {
+      data.frame(x = numeric(), p = numeric())
+    }
+    return(list(
+      continuous_mass = continuous_mass,
+      points           = points
+    ))
+  }
+  if (positive_component <= 0) {
+    return(list(
+      continuous_mass = 0,
+      points           = data.frame(x = numeric(), p = numeric())
+    ))
+  }
+  index <- as.integer(metadata[["index"]])
+  other_probability <- component_probability[-index]
+  all_other_off <- prod(1 - other_probability)
+  target_probability <- component_probability[[index]]
+  point_zero <- (1 - target_probability) *
+    (1 - all_other_off) / positive_component
+  point_one <- target_probability * all_other_off / positive_component
+  points <- data.frame(
+    x = c(0, 1),
+    p = c(point_zero, point_one)
+  )
+  points <- points[points[["p"]] > 0, , drop = FALSE]
+
+  list(
+    continuous_mass = max(0, 1 - point_zero - point_one),
+    points           = points
+  )
+}
+
+
 .brma_random_parameter_inclusion_indicator <- function(object, selected) {
 
   spec <- selected[["spec"]]
+  if (!spec[["quantity"]] %in% c("sd", "var")) {
+    return(NULL)
+  }
   map  <- .random_component_inclusion_map(object)
   aliases <- if (identical(spec[["owner_type"]], "random_block")) {
     unique(c(spec[["block"]], spec[["owner_name"]]))
@@ -959,13 +1174,16 @@
 }
 
 .brma_random_parameter_point_test_reason <- function(
-    spec, prior = NULL, source_prior = NULL, derived = FALSE) {
+    spec, prior = NULL, source_prior = NULL, derived = FALSE,
+    allocation_gate_prior = NULL) {
 
   type   <- spec[["quantity"]]
   source <- spec[["source_parameter"]]
   label  <- spec[["label"]]
   if (.brma_random_parameter_prior_has_atom(prior) ||
-      .brma_random_parameter_prior_has_atom(source_prior)) {
+      .brma_random_parameter_prior_has_atom(source_prior) ||
+      (!is.null(allocation_gate_prior) &&
+       nrow(allocation_gate_prior[["points"]]) > 0L)) {
     return(paste0(
       "Point-null Bayes factors are not available for random-effect quantity '",
       label, "' because its induced prior/posterior contains a point mass. ",
@@ -1064,12 +1282,29 @@
 .brma_random_parameter_prior_density <- function(samples, support,
                                                  n_points = 4096L,
                                                  inclusion = NULL,
-                                                 inclusion_probability = NULL) {
+                                                 inclusion_probability = NULL,
+                                                 continuous = NULL,
+                                                 point_masses = NULL) {
 
   samples <- as.numeric(samples)
   continuous_mass <- 1
   points <- data.frame(x = numeric(), p = numeric())
-  if (!is.null(inclusion)) {
+  if (!is.null(continuous)) {
+    continuous <- as.logical(continuous)
+    if (length(continuous) != length(samples) || anyNA(continuous) ||
+        is.null(point_masses) || !is.data.frame(point_masses) ||
+        !identical(names(point_masses), c("x", "p")) ||
+        any(!is.finite(point_masses[["x"]])) ||
+        any(!is.finite(point_masses[["p"]]) |
+            point_masses[["p"]] < 0 | point_masses[["p"]] > 1) ||
+        sum(point_masses[["p"]]) > 1 + sqrt(.Machine$double.eps)) {
+      stop("Random-effect structural prior-mass metadata are invalid.",
+           call. = FALSE)
+    }
+    points <- point_masses[point_masses[["p"]] > 0, , drop = FALSE]
+    continuous_mass <- max(0, 1 - sum(points[["p"]]))
+    samples <- samples[continuous]
+  } else if (!is.null(inclusion)) {
     inclusion <- as.numeric(inclusion)
     if (length(inclusion) != length(samples) ||
         any(!is.finite(inclusion) | !inclusion %in% c(0, 1))) {
@@ -1094,7 +1329,7 @@
   }
   samples <- samples[is.finite(samples)]
   if (length(unique(samples)) < 2L) {
-    if (continuous_mass == 0 && nrow(points) == 1L) {
+    if (continuous_mass == 0 && nrow(points) > 0L) {
       out <- list(
         density = NULL,
         points  = points,
@@ -1157,6 +1392,8 @@
     object    = object,
     indicator = indicator
   )
+  allocation_gate_metadata <-
+    .brma_random_parameter_allocation_gate_metadata(selected)
   zero_gate <- !is.null(indicator) &&
     selected[["spec"]][["quantity"]] %in% c("sd", "var")
   if (conditional && is.null(indicator)) {
@@ -1167,10 +1404,31 @@
     )
   }
 
-  values <- unname(as.numeric(selected[["samples"]][, 1L]))
+  raw_values <- unname(as.numeric(selected[["samples"]][, 1L]))
+  posterior_samples <- if (!is.null(indicator) ||
+                            !is.null(allocation_gate_metadata)) {
+    .get_posterior_samples(object[["fit"]])
+  } else {
+    NULL
+  }
+  allocation_gate_state <- .brma_random_parameter_allocation_gate_state(
+    allocation_gate_metadata,
+    posterior_samples
+  )
+  values <- raw_values
+  if (!is.null(allocation_gate_state)) {
+    values <- values[allocation_gate_state[["defined"]]]
+    if (length(values) == 0L) {
+      stop(
+        "Variance proportion '", selected[["spec"]][["label"]],
+        "' is unavailable because no posterior draw has positive realized ",
+        "allocation variance.",
+        call. = FALSE
+      )
+    }
+  }
   posterior_inclusion <- NULL
   if (!is.null(indicator)) {
-    posterior_samples <- .get_posterior_samples(object[["fit"]])
     if (!indicator %in% colnames(posterior_samples)) {
       stop(
         "Random-effect posterior samples are missing inclusion indicator '",
@@ -1213,7 +1471,30 @@
     ),
     class = c("BayesTools_posterior_support", "list")
   )
-  if (zero_gate && !conditional && any(posterior_inclusion == 0)) {
+  allocation_points <- NULL
+  if (!is.null(allocation_gate_state)) {
+    defined <- allocation_gate_state[["defined"]]
+    denominator <- sum(defined)
+    point_mass <- c(
+      sum(allocation_gate_state[["point_zero"]]) / denominator,
+      sum(allocation_gate_state[["point_one"]]) / denominator
+    )
+    allocation_points <- data.frame(
+      x    = c(0, 1),
+      mass = point_mass
+    )
+    allocation_points <- allocation_points[
+      allocation_points[["mass"]] > 0,
+      ,
+      drop = FALSE
+    ]
+  }
+  if (!is.null(allocation_gate_state)) {
+    attr(values, "posterior_atoms") <- BayesTools::posterior_atom_attribute(
+      point_masses = allocation_points,
+      source       = "random-effect allocation gates"
+    )
+  } else if (zero_gate && !conditional && any(posterior_inclusion == 0)) {
     attr(values, "posterior_atoms") <- BayesTools::posterior_atom_attribute(
       point_masses = data.frame(
         x    = 0,
@@ -1228,12 +1509,17 @@
     )
   }
 
-  target_prior <- if (prior && zero_gate) NULL else BayesTools::prior_none()
-  if (prior && !zero_gate) {
+  gated_aggregate <- !is.null(allocation_gate_metadata)
+  target_prior <- if (prior && (zero_gate || gated_aggregate)) {
+    NULL
+  } else {
+    BayesTools::prior_none()
+  }
+  if (prior && !zero_gate && !gated_aggregate) {
     target_prior <- .brma_random_parameter_exact_prior(selected)
   }
   if (prior && is.null(target_prior) && !standardized_coefficients &&
-      !zero_gate) {
+      !zero_gate && !gated_aggregate) {
     prior_density <- BayesTools::parameter_prior_density(
       object[["fit"]],
       selected[["entry"]][["selection"]]
@@ -1275,12 +1561,40 @@
         prior_inclusion <- NULL
       }
     }
+    prior_allocation_state <- .brma_random_parameter_allocation_gate_state(
+      allocation_gate_metadata,
+      prior_selected[["raw_samples"]]
+    )
+    prior_allocation <- .brma_random_parameter_allocation_gate_prior(
+      object,
+      allocation_gate_metadata
+    )
+    if (gated_aggregate &&
+        prior_allocation[["continuous_mass"]] == 0 &&
+        nrow(prior_allocation[["points"]]) == 0L) {
+      stop(
+        "Variance proportion '", selected[["spec"]][["label"]],
+        "' is unavailable because its prior assigns no probability to ",
+        "positive realized allocation variance.",
+        call. = FALSE
+      )
+    }
     prior_density <- .brma_random_parameter_prior_density(
       prior_selected[["samples"]][, 1L],
       support                 = support,
       inclusion               = if (zero_gate) prior_inclusion else NULL,
       inclusion_probability   = if (zero_gate) {
         inclusion_probability
+      } else {
+        NULL
+      },
+      continuous              = if (gated_aggregate) {
+        prior_allocation_state[["continuous"]]
+      } else {
+        NULL
+      },
+      point_masses            = if (gated_aggregate) {
+        prior_allocation[["points"]]
       } else {
         NULL
       }

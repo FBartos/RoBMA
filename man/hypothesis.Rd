@@ -141,7 +141,11 @@ interval and directional hypotheses for semantic standard deviation,
 correlation, and allocation quantities. Point-null hypotheses require a
 direct parameter or level reference. Certified \code{exp(affine)}
 fitted-scale hypotheses are available with KDE only for atom-free,
-unconditional scalar targets. Publication-bias parameters are not supported.}
+unconditional scalar targets. Realized gated allocation totals and
+proportions can contain structural point masses and therefore support only
+interval and directional hypotheses; variance proportions condition on
+positive realized total heterogeneity. Publication-bias parameters are not
+supported.}
 
 \item{standardized_coefficients}{whether moderator and scale coefficients
 are tested on the standardized predictor scale. Defaults to \code{FALSE}.}

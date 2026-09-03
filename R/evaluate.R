@@ -993,7 +993,7 @@
 # ---------------------------------------------------------------------------- #
 #
 # Evaluate row-wise scale formulas. For component-specific random-formula scale
-# models this returns one block of columns per random component source.
+# models this returns one block of columns per random scale target.
 #
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.scale_terms <- function(fit, data, priors,

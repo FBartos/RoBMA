@@ -108,7 +108,11 @@ direct scalar fitted sources, allocated component SDs backed by a scalar
 aggregate (\code{sd_total} or \code{sd_common}), and allocation proportions or
 multipliers
 backed by a fitted simplex coordinate. Other nonlinear derived quantities
-remain KDE-only.
+remain KDE-only. In independently gated allocations, realized
+\code{sd_total}/\code{var_total} and \code{var_prop(...)} are KDE-only because they combine
+multiple gate and allocation coordinates. Their structural point masses are
+displayed separately from the continuous density; \code{var_prop(...)} is
+conditioned on positive realized total heterogeneity.
 qCMDE/IWMDE are not available for non-known-\code{V}
 \code{brma.mv()} random-formula models or
 selection-weightfunction coordinates requiring joint replacement. IWMDE is

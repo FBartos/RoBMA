@@ -90,11 +90,14 @@
 #'
 #' ## Variance allocation
 #'
-#' A block allocation with `scale = "total_variance"` exposes `sd_total` and
-#' `var_total` and splits that total variance across multiple random-effect
-#' blocks:
-#' \deqn{\sigma_j = \sigma_{\mathrm{total}}\sqrt{w_j}, \qquad
-#'       \sum_j \sigma_j^2 = \sigma_{\mathrm{total}}^2.}
+#' A block allocation with `scale = "total_variance"` exposes realized
+#' `sd_total` and `var_total` and splits the slab variance across multiple
+#' random-effect blocks. With optional inclusion gates,
+#' \deqn{\sigma_j = I_j\sigma_{\mathrm{slab}}\sqrt{w_j}, \qquad
+#'       \sigma_{\mathrm{total}}^2 = \sigma_{\mathrm{slab}}^2
+#'       \sum_j I_j w_j.}
+#' The public `var_prop(j)` is \eqn{I_j w_j / \sum_k I_k w_k}, conditional on
+#' positive total variance. The slab scale and raw weights remain internal.
 #' An SD-component allocation with
 #' `scale = "mean_variance"` instead exposes `sd_common` and `var_common` and
 #' gives each component the common-SD scale at equal weights:
@@ -124,7 +127,7 @@
 #' An explicitly named one-entry list retains its owner. For multiple
 #' components, public component names come from the formula list; missing names
 #' are generated as `component 1`, `component 2`, and so on.
-#' Total-variance allocations expose `sd_total`, `var_total`, and
+#' Total-variance allocations expose realized `sd_total`, `var_total`, and
 #' `var_prop(...)`. Mean-variance allocations expose `sd_common`, `var_common`,
 #' `var_mult(...)`, and `sd_mult(...)`.
 #'

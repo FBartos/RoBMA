@@ -45,7 +45,11 @@
 #' aggregate (`sd_total` or `sd_common`), and allocation proportions or
 #' multipliers
 #' backed by a fitted simplex coordinate. Other nonlinear derived quantities
-#' remain KDE-only.
+#' remain KDE-only. In independently gated allocations, realized
+#' `sd_total`/`var_total` and `var_prop(...)` are KDE-only because they combine
+#' multiple gate and allocation coordinates. Their structural point masses are
+#' displayed separately from the continuous density; `var_prop(...)` is
+#' conditioned on positive realized total heterogeneity.
 #' qCMDE/IWMDE are not available for non-known-\code{V}
 #' \code{brma.mv()} random-formula models or
 #' selection-weightfunction coordinates requiring joint replacement. IWMDE is

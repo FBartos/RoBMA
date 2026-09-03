@@ -304,11 +304,14 @@ scalar prior as \code{cor} for a scalar-correlation structure.
 
 \subsection{Variance allocation}{
 
-A block allocation with \code{scale = "total_variance"} exposes \code{sd_total} and
-\code{var_total} and splits that total variance across multiple random-effect
-blocks:
-\deqn{\sigma_j = \sigma_{\mathrm{total}}\sqrt{w_j}, \qquad
-      \sum_j \sigma_j^2 = \sigma_{\mathrm{total}}^2.}
+A block allocation with \code{scale = "total_variance"} exposes realized
+\code{sd_total} and \code{var_total} and splits the slab variance across multiple
+random-effect blocks. With optional inclusion gates,
+\deqn{\sigma_j = I_j\sigma_{\mathrm{slab}}\sqrt{w_j}, \qquad
+      \sigma_{\mathrm{total}}^2 = \sigma_{\mathrm{slab}}^2
+      \sum_j I_j w_j.}
+The public \code{var_prop(j)} is \eqn{I_j w_j / \sum_k I_k w_k}, conditional on
+positive total variance. The slab scale and raw weights remain internal.
 An SD-component allocation with
 \code{scale = "mean_variance"} instead exposes \code{sd_common} and \code{var_common} and
 gives each component the common-SD scale at equal weights:
@@ -339,7 +342,7 @@ A bare formula or unnamed one-entry list omits a redundant component owner.
 An explicitly named one-entry list retains its owner. For multiple
 components, public component names come from the formula list; missing names
 are generated as \verb{component 1}, \verb{component 2}, and so on.
-Total-variance allocations expose \code{sd_total}, \code{var_total}, and
+Total-variance allocations expose realized \code{sd_total}, \code{var_total}, and
 \code{var_prop(...)}. Mean-variance allocations expose \code{sd_common}, \code{var_common},
 \code{var_mult(...)}, and \code{sd_mult(...)}.
 }

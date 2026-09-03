@@ -39,8 +39,12 @@
 #' Random-effect inclusion probabilities are reported separately from fixed
 #' effect and scale-regression inclusion. Averaged random-component SDs retain
 #' the excluded zero branch; conditional random summaries condition each
-#' component on its own gate. `sd_total` and `var_prop(...)` describe the
-#' pre-gate slab allocation.
+#' component on its own gate. `sd_total` and `var_total` are the realized gated
+#' aggregate, including zero when every component is excluded. `var_prop(j)` is
+#' the realized share \eqn{I_j w_j / \sum_k I_k w_k}, conditional on positive
+#' total heterogeneity. Excluded components therefore have zero share, and the
+#' all-off branch is omitted only from variance-proportion summaries. The
+#' positive slab scale and raw Dirichlet weights remain internal coordinates.
 #'
 #' Product-space marginal likelihood and bridge-sampling methods are not
 #' available. Predictive comparison through [loo.brma()] and [waic.brma()]

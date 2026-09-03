@@ -116,6 +116,30 @@ testthat::test_that("Assink multivariate nested random-effects model", {
     return(tmp)
   })
 
+  # scale .mv models
+  fit_brma.mv_scale_total  <- scenario_fit("fit_brma.mv_scale_total", {
+    tmp <- brma.mv(yi = yi, V = V_assink, scale = ~ deltype, measure = "SMD", random = ~ 1 | study / esid, data = dat.assink2016, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  }, cache_version = 1L)
+  fit_brma.mv_scale_effect <- scenario_fit("fit_brma.mv_scale_effect", {
+    tmp <- brma.mv(yi = yi, V = V_assink, scale = list(esid = ~ deltype), measure = "SMD", random = ~ 1 | study / esid, data = dat.assink2016, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  }, cache_version = 1L)
+  # BMA.mv models
+  fit_BMA.mv_diag <- scenario_fit("fit_BMA.mv_diag", {
+    tmp <- BMA.mv(yi = yi, V = V_assink_diagonal, measure = "SMD", random = ~ 1 | study / esid, data = dat.assink2016, seed = 1)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  }, cache_version = 1L)
+  fit_BMA.mv      <- scenario_fit("fit_BMA.mv", {
+    tmp <- BMA.mv(yi = yi, V = V_assink, measure = "SMD", random = ~ 1 | study / esid, data = dat.assink2016, seed = 1)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  }, cache_version = 1L)
   ### model summary ----
   # assess equal models
   fit_metafor

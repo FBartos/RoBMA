@@ -166,6 +166,10 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   )
   fit        <- bridge_setup[["fit"]]
   fit_priors <- bridge_setup[["fit_priors"]]
+  fit <- .marglik_fit_with_scale_source_values(
+    object = object,
+    fit    = fit
+  )
   cluster_marginalization <- .marglik_cluster_effects_setup(
     data       = data,
     priors     = priors,
@@ -204,11 +208,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     sampling_latent_marginalized = sampling_latent_setup[["marginalized"]],
     dependency_blocks = bridge_random_marginalization[["dependency_blocks"]]
   )
-  bridge_sd_source_spec <- .marglik_bridge_sd_source_spec(
-    add_parameters = .marglik_formula_source_parameters(data),
-    fit            = fit,
-    K              = nrow(data[["outcome"]])
-  )
   known_V <- if (.is_data_known_v(data)) .data_known_v_data(data) else NULL
   known_v_backend <- if (is.null(known_V)) {
     NULL
@@ -239,8 +238,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     formula_random_effects_marginalize_list = .optional_jags_value(
       bridge_random_marginalization[["request"]]
     ),
-    add_parameters                      = .optional_jags_value(bridge_sd_source_spec[["parameters"]]),
-    add_bounds                          = bridge_sd_source_spec[["bounds"]],
     bridge_context                      = bridge_context_mode,
     bridge_context_node_names           = .marglik_variance_plan_node_names(
       marginalized_variance_plan
@@ -551,13 +548,32 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 }
 
 
-.marglik_formula_source_parameters <- function(data) {
+.marglik_fit_with_scale_source_values <- function(object, fit) {
 
+  data <- object[["data"]]
   if (!.is_data_random(data) || !.is_data_scale(data)) {
-    return(character())
+    return(fit)
   }
 
-  unique(.data_scale_formula_sources(data))
+  formula_design <- attr(fit, "formula_design", exact = TRUE)
+  mu_design      <- formula_design[["mu"]]
+  if (is.null(mu_design) || length(mu_design[["random_effects"]]) == 0L) {
+    return(fit)
+  }
+
+  values <- .predict_known_v_tau_source_values_function(
+    object = object,
+    data   = data
+  )
+  mu_design[["random_effects"]] <- lapply(
+    mu_design[["random_effects"]],
+    .predict_known_v_random_term_with_tau_source_values,
+    values = values
+  )
+  formula_design[["mu"]] <- mu_design
+  attr(fit, "formula_design") <- formula_design
+
+  fit
 }
 
 
@@ -855,60 +871,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   return(fit_data)
-}
-
-
-.marglik_bridge_sd_source_spec <- function(add_parameters, fit, K) {
-
-  posterior_names <- colnames(suppressWarnings(as.matrix(coda::as.mcmc(fit))))
-  parameters      <- character()
-  lb              <- numeric()
-  ub              <- numeric()
-
-  add_parameter <- function(parameter, lower, upper) {
-
-    if (parameter %in% parameters) {
-      return(invisible(NULL))
-    }
-
-    parameters <<- c(parameters, parameter)
-    lb <<- c(lb, stats::setNames(lower, parameter))
-    ub <<- c(ub, stats::setNames(upper, parameter))
-
-    invisible(NULL)
-  }
-
-  for (parameter in add_parameters) {
-    if (parameter %in% posterior_names) {
-      add_parameter(parameter, 0, Inf)
-      next
-    }
-
-    indexed_parameter <- paste0(parameter, "[", seq_len(K), "]")
-    if (all(indexed_parameter %in% posterior_names)) {
-      for (indexed in indexed_parameter) {
-        add_parameter(indexed, 0, Inf)
-      }
-      next
-    }
-
-    add_parameter(parameter, 0, Inf)
-  }
-
-  if (length(parameters) == 0L) {
-    return(list(
-      parameters = character(),
-      bounds     = NULL
-    ))
-  }
-
-  return(list(
-    parameters = parameters,
-    bounds     = list(
-      lb = lb[parameters],
-      ub = ub[parameters]
-    )
-  ))
 }
 
 
@@ -2722,7 +2684,12 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         parameters     = parameters,
         bridge_context = bridge_context
       ),
-      K                 = K
+      K                 = K,
+      source_samples    = .marglik_bridge_row_source_samples(
+        data           = model_data,
+        bridge_context = bridge_context,
+        K              = K
+      )
     )
   } else {
     tau_within_samples^2
@@ -2743,6 +2710,31 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   return(extra_variance)
+}
+
+.marglik_bridge_row_source_samples <- function(data, bridge_context, K) {
+
+  if (!.is_data_scale(data) ||
+      !inherits(bridge_context, "BayesTools_bridge_context")) {
+    return(NULL)
+  }
+
+  nodes   <- bridge_context[["nodes"]]
+  sources <- unique(unname(.data_scale_formula_sources(data)))
+  out     <- list()
+  for (source in sources) {
+    columns <- paste0(source, "[", seq_len(K), "]")
+    if (is.null(nodes) || !all(columns %in% names(nodes))) {
+      next
+    }
+    out[[source]] <- matrix(
+      unname(nodes[columns]),
+      nrow = 1L,
+      ncol = K
+    )
+  }
+
+  if (length(out) == 0L) NULL else out
 }
 
 

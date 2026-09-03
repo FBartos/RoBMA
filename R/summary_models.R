@@ -312,8 +312,15 @@ as.data.frame.summary_models.RoBMA <- function(
     if (prior_probability %in% c(0, 1)) {
       next
     }
-    component_name <- paste(quantities[["arguments"]][[i]], collapse = ", ")
-    component      <- paste0("Random: ", component_name)
+    component_names <- quantities[["arguments"]][[i]]
+    component_names <- component_names[
+      !is.na(component_names) & nzchar(component_names)
+    ]
+    component <- if (length(component_names) == 0L) {
+      "Random"
+    } else {
+      paste0("Random: ", paste(component_names, collapse = ", "))
+    }
     components[[component]] <- list(
       component        = component,
       parameter        = sub("_indicator$", "", indicator),

@@ -69,7 +69,9 @@ transformed predictors as columns in \code{data}; inline calls such as \code{I()
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data} and follows the same explicit-column formula grammar as \code{mods}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
 \item{random}{an optional formula or list of formulas specifying
 BayesTools random-effect terms for \code{brma.mv()}. Use
@@ -262,8 +264,12 @@ covariance-owned SD, or variance allocation.
 Random-effect inclusion probabilities are reported separately from fixed
 effect and scale-regression inclusion. Averaged random-component SDs retain
 the excluded zero branch; conditional random summaries condition each
-component on its own gate. \code{sd_total} and \code{var_prop(...)} describe the
-pre-gate slab allocation.
+component on its own gate. \code{sd_total} and \code{var_total} are the realized gated
+aggregate, including zero when every component is excluded. \code{var_prop(j)} is
+the realized share \eqn{I_j w_j / \sum_k I_k w_k}, conditional on positive
+total heterogeneity. Excluded components therefore have zero share, and the
+all-off branch is omitted only from variance-proportion summaries. The
+positive slab scale and raw Dirichlet weights remain internal coordinates.
 
 Product-space marginal likelihood and bridge-sampling methods are not
 available. Predictive comparison through \code{\link[=loo.brma]{loo.brma()}} and \code{\link[=waic.brma]{waic.brma()}}

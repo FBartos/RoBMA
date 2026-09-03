@@ -486,21 +486,32 @@ print.brma <- function(x, ...) {
     return(NULL)
   }
 
-  component_clause <-
+  component_clause <- if (conditional) {
+    "Component SDs are conditioned on their own inclusion gates."
+  } else {
     "Component SDs include their excluded zero branches."
-  has_gated_aggregate <- any(vapply(
-    gated_roots,
-    function(allocation) length(allocation[["terms"]]) > 1L,
-    logical(1)
-  ))
+  }
+  has_gated_aggregate <- any(vapply(allocations, function(allocation) {
+    parent_factors <- allocation[["parent_factors"]]
+    if (is.null(parent_factors)) {
+      parent_factors <- list()
+    }
+    inherited_gate <- any(vapply(parent_factors, function(factor) {
+      indicator <- factor[["inclusion_name"]]
+      is.character(indicator) && length(indicator) == 1L &&
+        !is.na(indicator) && nzchar(indicator)
+    }, logical(1)))
+    identical(allocation[["scale"]], "total_variance") &&
+      length(allocation[["terms"]]) > 1L &&
+      (length(allocation[["inclusion"]]) > 0L || inherited_gate)
+  }, logical(1)))
   if (has_gated_aggregate) {
     aggregate_clause <- paste0(
-      "sd_total and var_prop(...) describe the slab allocation before ",
-      "independent component gates."
+      "sd_total and var_total are fully model-averaged realized totals, ",
+      "including the all-off zero branch. var_prop(...) is the realized ",
+      "share conditional on positive total heterogeneity; excluded ",
+      "components have zero share."
     )
-    if (conditional) {
-      return(aggregate_clause)
-    }
     return(paste(aggregate_clause, component_clause))
   }
   if (conditional) {

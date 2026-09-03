@@ -88,7 +88,9 @@ component variances are summed before reporting \code{var_total};
 When a random-formula model uses a shared total-SD plus variance-allocation
 node, \code{component = "all"} also includes an allocation-node table with
 the appropriate aggregate SD and variance plus
-\code{var_prop(<block>)} rows.
+\code{var_prop(<block>)} rows. For gated allocations, the aggregate is the
+realized model-averaged total and includes the all-off zero branch;
+proportions are realized shares conditional on positive total variance.
 For nested formulas
 such as \code{random = ~ 1 | study / esid}, this table is displayed under
 the user-facing path \code{"study/esid"}.

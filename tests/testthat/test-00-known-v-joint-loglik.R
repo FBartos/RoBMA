@@ -687,7 +687,7 @@ test_that("evaluated known-V marginalized scale maps component row source", {
     data   = object[["data"]],
     priors = object[["priors"]]
   )
-  expect_true("tau_ran_effects" %in% formula_args[["add_parameters"]])
+  expect_false("tau_ran_effects" %in% formula_args[["add_parameters"]])
 
   log_lik <- .test_log_lik_known_v_joint_sum_from_evaluated_predictors(
     fit                         = object[["fit"]],

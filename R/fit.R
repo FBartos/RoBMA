@@ -893,10 +893,12 @@
     if (is.null(parameter)) {
       parameter <- if (identical(name, "tau")) "log_tau" else paste0("log_tau_", name)
     }
-    component_name <- attr(component, "component_name", exact = TRUE)
-    scale_name     <- attr(component, "scale_name", exact = TRUE)
-    aliases        <- attr(component, "aliases", exact = TRUE)
-    display_name   <- component_name
+    component_name     <- attr(component, "component_name", exact = TRUE)
+    scale_name         <- attr(component, "scale_name", exact = TRUE)
+    aliases            <- attr(component, "aliases", exact = TRUE)
+    random_target_type <- attr(component, "random_target_type", exact = TRUE)
+    random_target      <- attr(component, "random_target", exact = TRUE)
+    display_name       <- component_name
     if (is.null(display_name) || length(display_name) != 1L ||
         is.na(display_name) || !nzchar(display_name)) {
       display_name <- scale_name
@@ -910,15 +912,17 @@
       aliases <- aliases[!is.na(aliases) & nzchar(aliases)]
     }
     list(
-      name           = name,
-      display_name   = display_name,
-      component_name = component_name,
-      scale_name     = scale_name,
-      aliases        = aliases,
-      source         = source,
-      parameter      = parameter,
-      data           = component,
-      formula        = attr(component, "formula")
+      name               = name,
+      display_name       = display_name,
+      component_name     = component_name,
+      scale_name         = scale_name,
+      aliases            = aliases,
+      random_target_type = random_target_type,
+      random_target      = random_target,
+      source             = source,
+      parameter          = parameter,
+      data               = component,
+      formula            = attr(component, "formula")
     )
   })
   names(out) <- names(components)

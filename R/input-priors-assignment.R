@@ -114,58 +114,18 @@
     inclusion       = inclusion,
     allocation_name = "heterogeneity"
   )
-  block_sd_sources <- list()
-  block_sds        <- list()
-  if (is.null(allocation)) {
-    if (!is.null(sd_sources)) {
-      block_names <- vapply(block_info, `[[`, character(1), "block")
-      groups <- .assign_prior.random_component_groups(
-        terms       = terms,
-        block_names = block_names
-      )
-      for (group in groups) {
-        source <- sd_sources[[group[["label"]]]]
-        if (is.null(source)) {
-          for (block in group[["blocks"]]) {
-            block_sds[[block]] <- prior
-          }
-          next
-        }
-        block <- group[["blocks"]][[1L]]
-        block_sd_sources[[block]] <- source
-      }
-    } else {
-      block <- block_info[[1L]][["block"]]
-      block_sds[[block]] <- prior
-    }
-  } else if (!is.null(sd_sources) && is.null(inclusion)) {
-    groups <- .assign_prior.random_component_groups(
-      terms       = terms,
-      block_names = vapply(block_info, `[[`, character(1), "block")
-    )
-    block_heterogeneous <- stats::setNames(
-      vapply(block_info, `[[`, logical(1), "heterogeneous"),
-      vapply(block_info, `[[`, character(1), "block")
-    )
-    for (group in groups) {
-      source <- sd_sources[[group[["label"]]]]
-      if (is.null(source)) {
-        for (block in group[["blocks"]]) {
-          block_sds[[block]] <- prior
-        }
-        next
-      }
-      block <- group[["blocks"]][[1L]]
-      if (length(group[["blocks"]]) == 1L &&
-          !isTRUE(block_heterogeneous[[block]])) {
-        block_sd_sources[[block]] <- source
-      }
-    }
-  }
+  direct_scales <- .assign_prior.random_direct_block_scales(
+    terms       = terms,
+    block_info  = block_info,
+    sd          = prior,
+    sd_sources  = sd_sources,
+    inclusion   = inclusion,
+    allocation  = allocation
+  )
   block_args <- .assign_prior.random_block_args(
     block_info = block_info,
-    sds        = block_sds,
-    sd_sources = block_sd_sources
+    sds        = direct_scales[["sds"]],
+    sd_sources = direct_scales[["sd_sources"]]
   )
 
   args <- c(
@@ -177,6 +137,63 @@
   args <- args[!vapply(args, is.null, logical(1))]
 
   do.call(BayesTools::prior_random, args)
+}
+
+.assign_prior.random_direct_block_scales <- function(
+    terms, block_info, sd, sd_sources, inclusion, allocation) {
+
+  block_names <- vapply(block_info, `[[`, character(1), "block")
+  heterogeneous <- stats::setNames(
+    vapply(block_info, `[[`, logical(1), "heterogeneous"),
+    block_names
+  )
+  out <- list(sds = list(), sd_sources = list())
+
+  if (!is.null(inclusion)) {
+    return(out)
+  }
+  if (is.null(sd_sources)) {
+    if (is.null(allocation)) {
+      out[["sds"]][[block_names[[1L]]]] <- sd
+    }
+    return(out)
+  }
+
+  groups <- .assign_prior.random_component_groups(terms, block_names)
+  for (group in groups) {
+    group_source <- sd_sources[[group[["label"]]]]
+    block_sources <- sd_sources[group[["blocks"]]]
+    has_block_sources <- is.null(group_source) &&
+      any(!vapply(block_sources, is.null, logical(1)))
+
+    if (!has_block_sources) {
+      if (length(group[["blocks"]]) == 1L) {
+        block <- group[["blocks"]][[1L]]
+        if (!isTRUE(heterogeneous[[block]])) {
+          if (is.null(group_source)) {
+            out[["sds"]][[block]] <- sd
+          } else {
+            out[["sd_sources"]][[block]] <- group_source
+          }
+        }
+      }
+      next
+    }
+
+    for (block in group[["blocks"]]) {
+      if (isTRUE(heterogeneous[[block]])) {
+        next
+      }
+      source <- sd_sources[[block]]
+      if (is.null(source)) {
+        out[["sds"]][[block]] <- sd
+      } else {
+        out[["sd_sources"]][[block]] <- source
+      }
+    }
+  }
+
+  out
 }
 
 .assign_prior.random_has_scale         <- function(prior) {
@@ -291,7 +308,14 @@
   sources <- lapply(scale_specs, function(scale_spec) {
     BayesTools::random_sd_source(scale_spec[["source"]], shape = "row")
   })
-  names(sources) <- names(scale_specs)
+  names(sources) <- vapply(scale_specs, function(scale_spec) {
+    target <- scale_spec[["random_target"]]
+    if (is.null(target) || length(target) != 1L || is.na(target) ||
+        !nzchar(target)) {
+      return(scale_spec[["name"]])
+    }
+    target
+  }, character(1))
 
   sources
 }
@@ -604,7 +628,8 @@
     return(.assign_prior.random_component_allocations(
       terms      = terms,
       block_info = block_info,
-      sd_sources = sd_sources
+      sd_sources = sd_sources,
+      sd         = sd
     ))
   }
 
@@ -716,6 +741,22 @@
   groups        <- .assign_prior.random_component_groups(terms, block_names)
   allocations   <- list()
 
+  multi_block_names <- unlist(lapply(groups, function(group) {
+    if (length(group[["blocks"]]) > 1L) group[["blocks"]] else character()
+  }), use.names = FALSE)
+  block_scale_sources <- intersect(
+    setdiff(names(sd_sources), vapply(groups, `[[`, character(1), "label")),
+    multi_block_names
+  )
+  if (length(block_scale_sources) > 0L) {
+    stop(
+      "Random-effect inclusion cannot be combined with a block-specific ",
+      "'scale' target inside a multi-block random component. Supply the ",
+      "random blocks as separately named entries in 'random'.",
+      call. = FALSE
+    )
+  }
+
   if (is.null(sd_sources)) {
     root_allocation <- BayesTools::random_variance_allocation(
       name            = allocation_name,
@@ -748,6 +789,9 @@
 
   for (group in groups) {
     source <- sd_sources[[group[["label"]]]]
+    if (is.null(source) && length(group[["blocks"]]) == 1L) {
+      source <- sd_sources[[group[["blocks"]][[1L]]]]
+    }
     group_allocation_name <- .assign_prior.random_component_allocation_name(
       group  = group,
       groups = groups
@@ -846,7 +890,7 @@
 }
 
 .assign_prior.random_component_allocations <- function(terms, block_info,
-                                                       sd_sources) {
+                                                       sd_sources, sd) {
 
   block_names   <- vapply(block_info, `[[`, character(1), "block")
   heterogeneous <- vapply(block_info, `[[`, logical(1), "heterogeneous")
@@ -855,8 +899,39 @@
   allocations   <- list()
 
   for (group in groups) {
-    source <- sd_sources[[group[["label"]]]]
-    if (is.null(source)) {
+    source        <- sd_sources[[group[["label"]]]]
+    block_sources <- sd_sources[group[["blocks"]]]
+    has_block_sources <- is.null(source) &&
+      any(!vapply(block_sources, is.null, logical(1)))
+
+    if (has_block_sources) {
+      for (block in group[["blocks"]]) {
+        index <- match(block, block_names)
+        if (!isTRUE(heterogeneous[[index]])) {
+          next
+        }
+        block_source <- sd_sources[[block]]
+        allocation_args <- list(
+          name         = paste0(block, "_components"),
+          display_name = .assign_prior.random_block_display_name(
+            block  = block,
+            groups = groups
+          ),
+          terms        = block,
+          weights      = .assign_prior.random_dirichlet(n_columns[[index]]),
+          target       = "sd_component",
+          scale        = "mean_variance"
+        )
+        if (is.null(block_source)) {
+          allocation_args[["sd"]] <- sd
+        } else {
+          allocation_args[["sd_source"]] <- block_source
+        }
+        allocations[[length(allocations) + 1L]] <- do.call(
+          BayesTools::random_variance_allocation,
+          allocation_args
+        )
+      }
       next
     }
 
@@ -865,53 +940,72 @@
         group  = group,
         groups = groups
       )
-      allocations[[allocation_name]] <- BayesTools::random_variance_allocation(
-        name      = allocation_name,
-        display_name = if (length(groups) == 1L) "" else group[["name"]],
-        terms     = stats::setNames(group[["blocks"]], group[["child_labels"]]),
+      allocation_args <- list(
+        name            = allocation_name,
+        display_name    = if (length(groups) == 1L) "" else group[["name"]],
+        terms           = stats::setNames(group[["blocks"]], group[["child_labels"]]),
         component_names = group[["child_names"]],
-        sd_source = source,
-        weights   = .assign_prior.random_dirichlet(length(group[["blocks"]]))
+        weights         = .assign_prior.random_dirichlet(length(group[["blocks"]]))
       )
+      if (is.null(source)) {
+        allocation_args[["sd"]] <- sd
+      } else {
+        allocation_args[["sd_source"]] <- source
+      }
+      allocations[[allocation_name]] <- do.call(
+        BayesTools::random_variance_allocation,
+        allocation_args
+      )
+      descendants <- list()
+      parent_for_block <- stats::setNames(
+        lapply(group[["child_labels"]], function(component) {
+          BayesTools::allocation_ref(allocation_name, component)
+        }),
+        group[["blocks"]]
+      )
+      for (block in group[["blocks"]]) {
+        index <- match(block, block_names)
+        if (!isTRUE(heterogeneous[[index]])) {
+          next
+        }
+        descendants[[length(descendants) + 1L]] <-
+          BayesTools::random_variance_allocation(
+            name         = paste0(block, "_components"),
+            display_name = .assign_prior.random_block_display_name(
+              block  = block,
+              groups = groups
+            ),
+            terms        = block,
+            parent       = parent_for_block[[block]],
+            weights      = .assign_prior.random_dirichlet(n_columns[[index]]),
+            target       = "sd_component",
+            scale        = "mean_variance"
+          )
+      }
+      allocations <- c(allocations, descendants)
+      next
     }
 
-    for (block in group[["blocks"]]) {
-      index <- match(block, block_names)
-      if (!isTRUE(heterogeneous[[index]])) {
-        next
-      }
-      if (length(group[["blocks"]]) > 1L) {
-        allocation_name <- .assign_prior.random_component_allocation_name(
-          group  = group,
-          groups = groups
-        )
-        parent <- BayesTools::allocation_ref(
-          allocation_name,
-          group[["child_labels"]][[match(block, group[["blocks"]])]]
-        )
-        allocations[[length(allocations) + 1L]] <- BayesTools::random_variance_allocation(
-          name       = paste0(block, "_components"),
-          display_name = .assign_prior.random_block_display_name(
-            block  = block,
-            groups = groups
-          ),
-          terms      = block,
-          parent     = parent,
-          weights    = .assign_prior.random_dirichlet(n_columns[[index]]),
-          target     = "sd_component",
-          scale      = "mean_variance"
-        )
+    block <- group[["blocks"]][[1L]]
+    index <- match(block, block_names)
+    if (isTRUE(heterogeneous[[index]])) {
+      allocation_args <- list(
+        name         = paste0(block, "_components"),
+        display_name = if (length(groups) == 1L) "" else group[["name"]],
+        terms        = block,
+        weights      = .assign_prior.random_dirichlet(n_columns[[index]]),
+        target       = "sd_component",
+        scale        = "mean_variance"
+      )
+      if (is.null(source)) {
+        allocation_args[["sd"]] <- sd
       } else {
-        allocations[[length(allocations) + 1L]] <- BayesTools::random_variance_allocation(
-          name       = paste0(block, "_components"),
-          display_name = if (length(groups) == 1L) "" else group[["name"]],
-          terms      = block,
-          sd_source  = source,
-          weights    = .assign_prior.random_dirichlet(n_columns[[index]]),
-          target     = "sd_component",
-          scale      = "mean_variance"
-        )
+        allocation_args[["sd_source"]] <- source
       }
+      allocations[[length(allocations) + 1L]] <- do.call(
+        BayesTools::random_variance_allocation,
+        allocation_args
+      )
     }
   }
 
@@ -965,6 +1059,13 @@
     }
     name
   }, character(1))
+  component_visible <- vapply(terms, function(term) {
+    visible <- term[["component_visible"]]
+    if (is.null(visible) || length(visible) != 1L || is.na(visible)) {
+      return(TRUE)
+    }
+    isTRUE(visible)
+  }, logical(1))
   child_names <- vapply(seq_along(terms), function(i) {
     name <- terms[[i]][["component_child_name"]]
     if (is.null(name) || length(name) != 1L || is.na(name) || !nzchar(name)) {
@@ -978,7 +1079,11 @@
     index <- which(component_labels == component)
     list(
       label        = component,
-      name         = component_names[index][[1L]],
+      name         = if (any(component_visible[index])) {
+        component_names[index][[1L]]
+      } else {
+        ""
+      },
       blocks       = block_names[index],
       child_labels = child_labels[index],
       child_names  = child_names[index]

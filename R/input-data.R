@@ -43,6 +43,8 @@
 #' @param scale an optional matrix, data.frame, or formula specifying
 #' scale predictors for location-scale models. Formula input is evaluated in
 #' `data` and follows the same explicit-column formula grammar as `mods`.
+#' Random-formula models also accept a named list targeting top-level random
+#' components or concrete random-effect blocks; see [brma.mv()].
 #' @param random an optional formula or list of formulas specifying
 #' BayesTools random-effect terms for `brma.mv()`. Use
 #' [random-effect formula structure tags][random_effect_formula_tags] such as
@@ -1262,7 +1264,7 @@ NULL
   if (is.list(scale) && !is.data.frame(scale) && !inherits(scale, "formula")) {
     if (is.null(names(scale)) || any(!nzchar(names(scale)))) {
       stop(
-        "Component-specific 'scale' lists must be named by random component.",
+        "Component-specific 'scale' lists must be named by random component or block.",
         call. = FALSE
       )
     }
@@ -1895,51 +1897,78 @@ NULL
   component_labels <- components[["label"]]
 
   if (.check_and_list_data.is_scale_components(data_scale)) {
-    component_map <- stats::setNames(component_labels, component_labels)
-    component_map[components[["name"]]] <- component_labels
-
+    targets            <- .check_and_list_data.random_scale_targets(
+      data_random[["terms"]]
+    )
     scale_names        <- names(data_scale)
-    mapped_components  <- unname(component_map[scale_names])
-    unknown_components <- names(data_scale)[is.na(mapped_components)]
+    mapped_targets     <- lapply(
+      scale_names,
+      .check_and_list_data.resolve_random_scale_target,
+      targets = targets
+    )
+    unknown_components <- scale_names[vapply(mapped_targets, is.null, logical(1))]
     if (length(unknown_components) > 0L) {
       stop(
-        "Component-specific 'scale' names must match top-level 'random' ",
-        "components. Unknown: ",
+        "Component-specific 'scale' names must match a top-level 'random' ",
+        "component or a concrete random-effect block. Unknown: ",
         .check_and_list_data.collapse_or_none(unknown_components),
         ".",
         call. = FALSE
       )
     }
-    if (anyDuplicated(mapped_components)) {
+    target_keys <- vapply(mapped_targets, function(target) {
+      paste(target[["type"]], target[["label"]], sep = "::")
+    }, character(1))
+    if (anyDuplicated(target_keys)) {
       stop(
-        "Component-specific 'scale' names must uniquely match top-level ",
-        "'random' components after BayesTools name normalization.",
+        "Component-specific 'scale' names must resolve to unique random-effect targets.",
+        call. = FALSE
+      )
+    }
+    scaled_groups <- vapply(mapped_targets, function(target) {
+      if (identical(target[["type"]], "component")) {
+        target[["component"]]
+      } else {
+        ""
+      }
+    }, character(1))
+    scaled_groups <- scaled_groups[nzchar(scaled_groups)]
+    overlapping_blocks <- vapply(mapped_targets, function(target) {
+      identical(target[["type"]], "block") &&
+        target[["component"]] %in% scaled_groups
+    }, logical(1))
+    if (any(overlapping_blocks)) {
+      stop(
+        "Component-specific 'scale' names must not target both a random ",
+        "component and one of its blocks.",
         call. = FALSE
       )
     }
 
-    scaled_components <- component_labels[component_labels %in% mapped_components]
-    scale_names_by_component <- scale_names[match(scaled_components, mapped_components)]
-    names(scale_names_by_component) <- scaled_components
-    component_names <- stats::setNames(components[["name"]], component_labels)
-
-    data_scale <- data_scale[match(scaled_components, mapped_components)]
-    names(data_scale) <- scaled_components
-    for (component in scaled_components) {
+    target_order <- order(vapply(mapped_targets, `[[`, integer(1), "order"))
+    data_scale     <- data_scale[target_order]
+    mapped_targets <- mapped_targets[target_order]
+    scale_names    <- scale_names[target_order]
+    names(data_scale) <- vapply(mapped_targets, `[[`, character(1), "label")
+    for (i in seq_along(data_scale)) {
+      target         <- mapped_targets[[i]]
+      component      <- target[["label"]]
+      component_name <- target[["name"]]
+      scale_name     <- scale_names[[i]]
       .check_and_list_data.validate_scale_component_name(component)
-      component_name <- component_names[[component]]
-      scale_name     <- scale_names_by_component[[component]]
-      attr(data_scale[[component]], "component")      <- component
-      attr(data_scale[[component]], "component_name") <- component_name
-      attr(data_scale[[component]], "scale_name")     <- scale_name
-      attr(data_scale[[component]], "aliases")        <-
+      attr(data_scale[[i]], "component")          <- component
+      attr(data_scale[[i]], "component_name")     <- component_name
+      attr(data_scale[[i]], "scale_name")         <- scale_name
+      attr(data_scale[[i]], "random_target_type") <- target[["type"]]
+      attr(data_scale[[i]], "random_target")      <- component
+      attr(data_scale[[i]], "aliases")            <-
         .check_and_list_data.scale_component_aliases(
           component  = component,
           name       = component_name,
           scale_name = scale_name
         )
-      attr(data_scale[[component]], "source")         <- paste0("tau_", component)
-      attr(data_scale[[component]], "parameter")      <- paste0("log_tau_", component)
+      attr(data_scale[[i]], "source")    <- paste0("tau_", component)
+      attr(data_scale[[i]], "parameter") <- paste0("log_tau_", component)
     }
     class(data_scale) <- c("RoBMA_scale_components", "list")
 
@@ -1964,6 +1993,102 @@ NULL
   )
 
   data_scale
+}
+
+.check_and_list_data.random_scale_targets <- function(terms) {
+
+  components <- .check_and_list_data.random_components(terms)
+  targets <- lapply(seq_len(nrow(components)), function(i) {
+    list(
+      type           = "component",
+      label          = components[["label"]][[i]],
+      name           = components[["name"]][[i]],
+      component      = components[["label"]][[i]],
+      aliases        = unique(c(
+        components[["label"]][[i]],
+        components[["name"]][[i]]
+      )),
+      nested_aliases = character(),
+      order          = i
+    )
+  })
+
+  component_count <- length(targets)
+  component_labels <- .check_and_list_data.random_component_labels(terms)
+  for (i in seq_along(terms)) {
+    term <- terms[[i]]
+    block_name <- term[["block_name"]]
+    group_name <- term[["group_label"]]
+    if (is.null(group_name) || length(group_name) != 1L ||
+        is.na(group_name) || !nzchar(group_name)) {
+      group_name <- block_name
+    }
+    nesting <- term[["group_nesting_components"]]
+    nested_aliases <- if (is.character(nesting) && length(nesting) > 1L) {
+      tail(nesting, 1L)
+    } else {
+      character()
+    }
+    targets[[length(targets) + 1L]] <- list(
+      type           = "block",
+      label          = block_name,
+      name           = group_name,
+      component      = component_labels[[i]],
+      aliases        = unique(c(block_name, group_name)),
+      nested_aliases = nested_aliases,
+      order          = component_count + i
+    )
+  }
+
+  targets
+}
+
+.check_and_list_data.resolve_random_scale_target <- function(name, targets) {
+
+  component_matches <- which(vapply(targets, function(target) {
+    identical(target[["type"]], "component") && name %in% target[["aliases"]]
+  }, logical(1)))
+  if (length(component_matches) == 1L) {
+    return(targets[[component_matches]])
+  }
+  if (length(component_matches) > 1L) {
+    stop(
+      "Component-specific 'scale' name '", name,
+      "' ambiguously matches multiple random components.",
+      call. = FALSE
+    )
+  }
+
+  block_matches <- which(vapply(targets, function(target) {
+    identical(target[["type"]], "block") && name %in% target[["aliases"]]
+  }, logical(1)))
+  if (length(block_matches) == 1L) {
+    return(targets[[block_matches]])
+  }
+  if (length(block_matches) > 1L) {
+    stop(
+      "Component-specific 'scale' name '", name,
+      "' ambiguously matches multiple random-effect blocks.",
+      call. = FALSE
+    )
+  }
+
+  nested_matches <- which(vapply(targets, function(target) {
+    identical(target[["type"]], "block") &&
+      name %in% target[["nested_aliases"]]
+  }, logical(1)))
+  if (length(nested_matches) == 1L) {
+    return(targets[[nested_matches]])
+  }
+  if (length(nested_matches) > 1L) {
+    stop(
+      "Component-specific 'scale' name '", name,
+      "' ambiguously matches multiple nested random-effect blocks.",
+      call. = FALSE
+    )
+  }
+
+  NULL
 }
 
 .check_and_list_data.random_components <- function(terms) {

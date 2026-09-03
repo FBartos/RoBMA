@@ -128,7 +128,11 @@ hypothesis.default <- function(object, ...) {
 #' correlation, and allocation quantities. Point-null hypotheses require a
 #' direct parameter or level reference. Certified \code{exp(affine)}
 #' fitted-scale hypotheses are available with KDE only for atom-free,
-#' unconditional scalar targets. Publication-bias parameters are not supported.
+#' unconditional scalar targets. Realized gated allocation totals and
+#' proportions can contain structural point masses and therefore support only
+#' interval and directional hypotheses; variance proportions condition on
+#' positive realized total heterogeneity. Publication-bias parameters are not
+#' supported.
 #' @param standardized_coefficients whether moderator and scale coefficients
 #' are tested on the standardized predictor scale. Defaults to \code{FALSE}.
 #' @param conditional whether to use the conditional posterior for product-space
@@ -809,6 +813,18 @@ hypothesis.brma <- function(object, hypothesis,
            call. = FALSE)
     }
   }
+  if (identical(posterior[["spec"]][["quantity"]], "var_prop")) {
+    posterior_values <- posterior_values[!is.na(posterior_values)]
+    prior_values     <- prior_values[!is.na(prior_values)]
+    if (length(posterior_values) == 0L || length(prior_values) == 0L) {
+      stop(
+        "Variance proportion '", posterior[["spec"]][["label"]],
+        "' is unavailable because no draw has positive realized allocation ",
+        "variance.",
+        call. = FALSE
+      )
+    }
+  }
 
   point_refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = hypothesis,
@@ -849,6 +865,25 @@ hypothesis.brma <- function(object, hypothesis,
         call. = FALSE
       )
     }
+    allocation_gate_metadata <-
+      .brma_random_parameter_allocation_gate_metadata(posterior)
+    allocation_gate_prior <-
+      .brma_random_parameter_allocation_gate_prior(
+        object,
+        allocation_gate_metadata
+      )
+    if (!is.null(allocation_gate_prior) &&
+        nrow(allocation_gate_prior[["points"]]) > 0L) {
+      stop(
+        "Point-null Bayes factors are not available for random-effect ",
+        "quantity '", posterior[["spec"]][["label"]], "' because its ",
+        "realized allocation distribution contains structural point masses ",
+        "from allocation gates. Use a region or directional ",
+        "hypothesis, or the Random-Effect Inclusion table from ",
+        "'summary(object)' or 'summary_models(object)'.",
+        call. = FALSE
+      )
+    }
     target <- if (precomputed) {
       .brma_random_parameter_density_target(object, parameter)
     } else {
@@ -881,10 +916,11 @@ hypothesis.brma <- function(object, hypothesis,
       }
     }
     reason <- .brma_random_parameter_point_test_reason(
-      spec         = posterior[["spec"]],
-      prior        = posterior[["prior"]],
-      source_prior = posterior[["source_prior"]],
-      derived      = precomputed
+      spec                  = posterior[["spec"]],
+      prior                 = posterior[["prior"]],
+      source_prior          = posterior[["source_prior"]],
+      derived               = precomputed,
+      allocation_gate_prior = allocation_gate_prior
     )
     if (nzchar(reason)) {
       stop(reason, call. = FALSE)

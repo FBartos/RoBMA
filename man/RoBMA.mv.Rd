@@ -75,7 +75,9 @@ transformed predictors as columns in \code{data}; inline calls such as \code{I()
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data} and follows the same explicit-column formula grammar as \code{mods}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
 \item{random}{an optional formula or list of formulas specifying
 BayesTools random-effect terms for \code{brma.mv()}. Use
@@ -302,7 +304,12 @@ component gates as \code{\link[=BMA.mv]{BMA.mv()}}. A Dirichlet prior allocates 
 variance across multiple top-level components and each allocation is
 multiplied by its own inclusion indicator without renormalizing the
 remaining allocations. The default prior inclusion probability is 0.5 for
-every component.
+every component. Public \code{sd_total} and \code{var_total} draws are the realized
+gated aggregate, including the all-off zero branch. Public
+\code{var_prop(...)} draws are realized shares conditional on positive total
+heterogeneity; excluded components have zero share, and the all-off branch
+is undefined. The positive slab scale and raw Dirichlet weights remain
+internal coordinates.
 
 With \code{selection_likelihood = "exact"}, all Gaussian random effects are
 analytically marginalized and each connected sampling/random covariance

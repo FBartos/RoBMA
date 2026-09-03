@@ -86,16 +86,42 @@ hypothesis_quantities.brma <- function(object, ...) {
       i <- match(parameter, specs[["parameter"]])
       spec         <- as.list(specs[i, , drop = FALSE])
       source_prior <- .brma_random_parameter_source_prior(object, spec)
+      formula_design <- attr(
+        object[["fit"]],
+        "formula_design",
+        exact = TRUE
+      )
+      allocation_definition <- .brma_random_parameter_design_allocation(
+        formula_design,
+        spec
+      )
+      spec[["allocation_index"]] <-
+        .brma_random_parameter_allocation_index(
+          spec,
+          allocation_definition
+        )
+      allocation_gate_metadata <-
+        .brma_random_parameter_allocation_gate_metadata(list(
+          spec                  = spec,
+          allocation_definition = allocation_definition
+        ))
+      allocation_gate_prior <-
+        .brma_random_parameter_allocation_gate_prior(
+          object,
+          allocation_gate_metadata
+      )
       direct_reason <- .brma_random_parameter_point_test_reason(
-        spec         = spec,
-        prior        = bundle[["priors"]][[parameter]],
-        source_prior = source_prior
+        spec                  = spec,
+        prior                 = bundle[["priors"]][[parameter]],
+        source_prior          = source_prior,
+        allocation_gate_prior = allocation_gate_prior
       )
       likelihood_reason <- .brma_random_parameter_point_test_reason(
-        spec         = spec,
-        prior        = bundle[["priors"]][[parameter]],
-        source_prior = source_prior,
-        derived      = TRUE
+        spec                  = spec,
+        prior                 = bundle[["priors"]][[parameter]],
+        source_prior          = source_prior,
+        derived               = TRUE,
+        allocation_gate_prior = allocation_gate_prior
       )
       point_methods <- .hypothesis_quantities_random_point_methods(
         parameter          = parameter,

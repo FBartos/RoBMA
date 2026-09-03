@@ -1,5 +1,9 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- lets named `scale` lists target concrete `brma.mv()` random-effect blocks,
+  including an unambiguous terminal nested grouping name such as `esid` in
+  `random = ~ 1 | study / esid`; untargeted blocks retain their ordinary SD
+  priors
 - adds `RoBMA.mv()` as the multivariate and multilevel robust model-averaging
   interface. It combines the complete `BMA.mv()` fixed- and random-component
   product space with unadjusted, selection-model, PET, and PEESE branches.
@@ -36,7 +40,12 @@
 - adds `BMA.mv()` for product-space model averaging with the complete
   `brma.mv()` known-sampling-covariance and formula-random workflow. Independent
   random-component gates multiply their allocated slab variances without
-  renormalizing the remaining components; fitting, inclusion/model summaries,
+  changing the fitted component scales. Public `sd_total` and `var_total`
+  report the realized gated aggregate, including the all-off zero branch, and
+  `var_prop(...)` reports active-component shares conditional on positive total
+  heterogeneity. Density displays preserve the resulting structural zero/one
+  masses separately from continuous density, and point-null tests are disabled
+  for these gated aggregate quantities. Fitting, inclusion/model summaries,
   prediction, LOO/WAIC, diagnostics, plots, hypotheses, posterior conversion,
   and update methods use the same interfaces as existing BMA objects.
 - adds a dedicated `loo-exact-refits` certification case that compares
@@ -540,6 +549,12 @@
   ungated paths, and removes the superseded one-use selection finalizer.
 
 ### Fixes
+- reconstructs row-specific random-scale SDs from their regression
+  coefficients for LOO and bridge sampling instead of monitoring every
+  deterministic `tau[i]` node; raw rowwise SDs consequently stay out of public
+  summaries
+- removes redundant `component 1` labels from unnamed one-component
+  `BMA.mv()` random formulas while preserving explicit and generated names
 - unregisters the JAGS module before destroying module-owned native objects at
   process shutdown, preventing intermittent Windows access violations in
   isolated test workers, and requires the BayesTools release carrying the same

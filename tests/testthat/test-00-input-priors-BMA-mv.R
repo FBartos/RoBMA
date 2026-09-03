@@ -188,6 +188,11 @@ test_that("BMA.mv gates nested structures before their within-component split", 
   expect_identical(conditioning[["study"]], gate)
   expect_identical(conditioning[["esid_study"]], gate)
   expect_identical(conditioning[["total"]], gate)
+  expect_match(
+    .summary_random_footnotes(object, conditional = TRUE),
+    "fully model-averaged realized totals",
+    fixed = TRUE
+  )
   expect_error(
     .random_component_conditioning_parameters(
       object     = object,
@@ -227,6 +232,27 @@ test_that("BMA.mv gates a random-coefficient block before its SD split", {
 })
 
 
+test_that("BMA.mv hides a sole implicit random-component name", {
+
+  data <- .bma_mv_input_data()
+  object <- BMA.mv(
+    yi = yi, V = .bma_mv_input_V(),
+    random = ~ 1 | study / obs,
+    data = data, measure = "GEN", prior_unit_information_sd = 1,
+    only_priors = TRUE
+  )
+  allocations <- object[["priors"]][["random"]][["allocation"]]
+
+  expect_identical(allocations[[1L]][["component_names"]], "")
+  expect_identical(allocations[[2L]][["display_name"]], "")
+  expect_false(any(grepl(
+    "component 1",
+    unlist(lapply(allocations, `[[`, "display_name")),
+    fixed = TRUE
+  )))
+})
+
+
 test_that("BMA.mv gates component-specific scale regressions independently", {
 
   data <- .bma_mv_input_data()
@@ -257,6 +283,37 @@ test_that("BMA.mv gates component-specific scale regressions independently", {
   expect_named(
     .random_component_inclusion_map(object),
     c("study", "observation")
+  )
+})
+
+
+test_that("BMA.mv accepts block scale aliases for separately named components", {
+
+  data <- .bma_mv_input_data()
+  object <- BMA.mv(
+    yi = yi, V = .bma_mv_input_V(),
+    random = list(
+      study_effect = ~ 1 | study,
+      observation_effect = ~ 1 | obs
+    ),
+    scale = list(study = ~ x, obs = ~ 1),
+    data = data, measure = "GEN", prior_unit_information_sd = 1,
+    only_priors = TRUE
+  )
+  allocations <- object[["priors"]][["random"]][["allocation"]]
+
+  expect_identical(
+    .data_scale_formula_sources(object[["data"]]),
+    c(
+      study_effect       = "tau_study_effect",
+      observation_effect = "tau_observation_effect"
+    )
+  )
+  expect_identical(
+    vapply(allocations, function(allocation) {
+      allocation[["sd_source"]][["name"]]
+    }, character(1)),
+    c("tau_study_effect", "tau_observation_effect")
   )
 })
 

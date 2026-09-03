@@ -865,6 +865,32 @@ test_that("brma.mv validates random formula edge cases", {
     c("tau", "tau")
   )
 
+  nested_block_scale_random <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(0.04, 4)),
+    scale                     = list(x = ~ x),
+    random                    = ~ 1 | study / x,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  expect_equal(
+    .data_scale_formula_sources(nested_block_scale_random[["data"]]),
+    c(x_study = "tau_x_study")
+  )
+  expect_equal(
+    nested_block_scale_random[["priors"]][["random"]][["blocks"]][["x_study"]][["sd_source"]][["name"]],
+    "tau_x_study"
+  )
+  expect_s3_class(
+    nested_block_scale_random[["priors"]][["random"]][["blocks"]][["study"]][["sd"]],
+    "prior"
+  )
+  expect_null(
+    nested_block_scale_random[["priors"]][["random"]][["allocation"]]
+  )
+
   nested_scale_random <- brma.mv(
     yi                        = yi,
     V                         = diag(rep(0.04, 4)),
@@ -1373,7 +1399,7 @@ test_that("brma.mv marginalized estimate-level scale uses row SD source", {
     data   = object[["data"]],
     priors = object[["priors"]]
   )
-  expect_true("tau" %in% formula_args[["add_parameters"]])
+  expect_false("tau" %in% formula_args[["add_parameters"]])
 })
 
 
@@ -1475,7 +1501,7 @@ test_that("brma.mv supports partial random scale with sampled random component",
     data   = object[["data"]],
     priors = object[["priors"]]
   )
-  expect_true("tau_ran_effects" %in% formula_args[["add_parameters"]])
+  expect_false("tau_ran_effects" %in% formula_args[["add_parameters"]])
 })
 
 

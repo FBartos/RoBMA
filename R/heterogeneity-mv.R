@@ -693,7 +693,19 @@
         selection,
         model_samples = posterior_samples
       )
-      as.numeric(draws[[1L]][, 1L])
+      values <- as.numeric(draws[[1L]][, 1L])
+      if (identical(selected[["quantity"]][i], "var_prop")) {
+        values <- values[!is.na(values)]
+        if (length(values) == 0L) {
+          stop(
+            "Variance proportion '", selected[["display_label"]][i],
+            "' is unavailable because no posterior draw has positive ",
+            "realized allocation variance.",
+            call. = FALSE
+          )
+        }
+      }
+      values
     })
     names(samples_list) <- vapply(
       selected[["display_label"]],

@@ -91,13 +91,18 @@
 #' block is integrated into the likelihood variance; otherwise the likelihood
 #' remains conditional on sampled random effects and uses only the known
 #' sampling covariance `V`. With a single top-level random component, `scale`
-#' models the row-wise total random-effect SD consumed by that component. With
-#' multiple top-level random components, use a named list of `scale` formulas
-#' whose names uniquely match the random components. Component names can be
-#' ordinary text; RoBMA normalizes them internally for JAGS. Each formula
-#' models the row-wise total SD for its component. A single `scale` formula is
-#' rejected for multiple top-level random components because the target is
-#' ambiguous.
+#' models the row-wise total random-effect SD consumed by that component. A
+#' named list of `scale` formulas can instead target top-level random components
+#' or concrete random-effect blocks. Block names and grouping labels are
+#' accepted, and the terminal grouping variable is an alias for an unambiguous
+#' nested block; for example, `scale = list(esid = ~ x)` targets the `esid`
+#' block in `random = ~ 1 | study / esid`. Untargeted blocks retain their
+#' ordinary SD priors. Component names can be ordinary text; RoBMA normalizes
+#' them internally for JAGS. A single `scale` formula is rejected for multiple
+#' top-level random components because the target is ambiguous. In model-
+#' averaged models, block-specific scales inside one grouped component require
+#' the blocks to be supplied as separately named `random` entries so their
+#' inclusion gates remain well-defined.
 #' When `scale` is a named list, `prior_scale` must either be omitted or use the
 #' same named-list shape with one prior list per scale component, using the
 #' same user-facing names. Post-fit scale predictions for random-formula

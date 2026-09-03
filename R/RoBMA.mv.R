@@ -23,7 +23,12 @@
 #' variance across multiple top-level components and each allocation is
 #' multiplied by its own inclusion indicator without renormalizing the
 #' remaining allocations. The default prior inclusion probability is 0.5 for
-#' every component.
+#' every component. Public `sd_total` and `var_total` draws are the realized
+#' gated aggregate, including the all-off zero branch. Public
+#' `var_prop(...)` draws are realized shares conditional on positive total
+#' heterogeneity; excluded components have zero share, and the all-off branch
+#' is undefined. The positive slab scale and raw Dirichlet weights remain
+#' internal coordinates.
 #'
 #' With `selection_likelihood = "exact"`, all Gaussian random effects are
 #' analytically marginalized and each connected sampling/random covariance

@@ -71,16 +71,19 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
   )))
   expect_match(
     attr(out[["estimates_random"]], "footnotes"),
-    "before independent component gates",
+    "fully model-averaged realized totals",
     fixed = TRUE
   )
   expect_identical(
     attr(out[["estimates_random_conditional"]], "footnotes"),
     paste0(
-      "sd_total and var_prop(...) describe the slab allocation before ",
-      "independent component gates."
+      "sd_total and var_total are fully model-averaged realized totals, ",
+      "including the all-off zero branch. var_prop(...) is the realized ",
+      "share conditional on positive total heterogeneity; excluded ",
+      "components have zero share. Component SDs are conditioned on their ",
+      "own inclusion gates."
     )
-  ))
+  )
 
   for (component in names(gate_names)) {
     sd_draws <- .bma_mv_parameter_draws(
@@ -99,33 +102,136 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
 })
 
 
-test_that("BMA.mv component SDs use gated non-renormalized slab allocations", {
+test_that("BMA.mv reports realized gated totals and variance proportions", {
 
   samples    <- .get_posterior_samples(fit_bma_mv[["fit"]])
   gate_names <- .bma_mv_random_gate_names(fit_bma_mv)
   sd_total   <- .bma_mv_parameter_draws(fit_bma_mv, "(mu) sd_total")
+  component_sd <- list()
+  proportions <- list()
 
   for (component in names(gate_names)) {
-    actual <- .bma_mv_parameter_draws(
+    component_sd[[component]] <- .bma_mv_parameter_draws(
       fit_bma_mv,
       paste0("(mu) ", component, ": sd(intercept)")
     )
-    allocation <- .bma_mv_parameter_draws(
+    proportions[[component]] <- .bma_mv_parameter_draws(
       fit_bma_mv,
       paste0("(mu) var_prop(", component, ")")
     )
-    expected <- sd_total * samples[, gate_names[[component]]] * sqrt(allocation)
-    expect_equal(actual, as.numeric(expected), tolerance = 1e-12, info = component)
   }
 
   both_off <- rowSums(samples[, gate_names, drop = FALSE]) == 0
-  study_allocation <- .bma_mv_parameter_draws(
-    fit_bma_mv,
-    "(mu) var_prop(study)"
-  )
+  active <- !both_off
+  component_sd <- do.call(cbind, component_sd)
+  proportions <- do.call(cbind, proportions)
+
   expect_true(any(both_off))
-  expect_true(all(study_allocation[both_off] > 0))
-  expect_true(all(study_allocation[both_off] < 1))
+  expect_true(all(sd_total[both_off] == 0))
+  expect_equal(
+    sd_total,
+    sqrt(rowSums(component_sd^2)),
+    tolerance = 1e-12
+  )
+  expect_true(all(is.na(proportions[both_off, , drop = FALSE])))
+  expect_equal(
+    rowSums(proportions[active, , drop = FALSE]),
+    rep(1, sum(active)),
+    tolerance = 1e-12
+  )
+  for (component in names(gate_names)) {
+    gate <- samples[, gate_names[[component]]]
+    expect_true(all(proportions[active & gate == 0, component] == 0))
+    expect_equal(
+      component_sd[active, component],
+      sd_total[active] * sqrt(proportions[active, component]),
+      tolerance = 1e-12,
+      info = component
+    )
+  }
+})
+
+
+test_that("BMA.mv allocation densities preserve gate-defined atoms", {
+
+  total <- .brma_random_parameter_mixed_posterior(
+    fit_bma_mv,
+    "sd_total",
+    prior           = TRUE,
+    n_prior_samples = 2000L,
+    seed            = 732L
+  )[[1L]]
+  total_posterior_atoms <- attr(total, "posterior_atoms", exact = TRUE)
+  total_prior <- attr(total, "prior_density", exact = TRUE)
+  expect_equal(unname(total_posterior_atoms[["locations"]][, 1L]), 0)
+  expect_equal(total_prior[["points"]][["x"]], 0)
+  expect_equal(total_prior[["points"]][["p"]], 0.25)
+  expect_equal(total_prior[["density"]][["mass"]], 0.75)
+
+  proportion <- .brma_random_parameter_mixed_posterior(
+    fit_bma_mv,
+    "var_prop(study)",
+    prior           = TRUE,
+    n_prior_samples = 2000L,
+    seed            = 733L
+  )[[1L]]
+  proportion_posterior_atoms <- attr(
+    proportion,
+    "posterior_atoms",
+    exact = TRUE
+  )
+  proportion_prior <- attr(proportion, "prior_density", exact = TRUE)
+  expect_equal(
+    unname(proportion_posterior_atoms[["locations"]][, 1L]),
+    c(0, 1)
+  )
+  expect_equal(proportion_prior[["points"]][["x"]], c(0, 1))
+  expect_equal(proportion_prior[["points"]][["p"]], c(1 / 3, 1 / 3))
+  expect_equal(proportion_prior[["density"]][["mass"]], 1 / 3)
+
+  expect_s3_class(
+    plot(
+      fit_bma_mv,
+      "sd_total",
+      prior     = TRUE,
+      plot_type = "ggplot"
+    ),
+    "ggplot"
+  )
+  expect_s3_class(
+    plot(
+      fit_bma_mv,
+      "var_prop(study)",
+      prior     = TRUE,
+      plot_type = "ggplot"
+    ),
+    "ggplot"
+  )
+
+  for (parameter in c("sd_total", "var_prop(study)")) {
+    expect_error(
+      hypothesis(
+        fit_bma_mv,
+        paste0("`", parameter, "` = 0"),
+        density_method = "KDE"
+      ),
+      "realized allocation distribution contains structural point masses",
+      fixed = TRUE,
+      info = parameter
+    )
+  }
+
+  quantities <- hypothesis_quantities(fit_bma_mv)
+  gated <- quantities[["component"]] == "random" &
+    quantities[["parameter"]] %in% c(
+      "(mu) sd_total",
+      "(mu) var_total",
+      "(mu) var_prop(study)",
+      "(mu) var_prop(observation)"
+    )
+  expect_true(any(gated))
+  expect_true(all(!quantities[["point_test"]][gated]))
+  expect_true(all(quantities[["direction_test"]][gated]))
 })
 
 
