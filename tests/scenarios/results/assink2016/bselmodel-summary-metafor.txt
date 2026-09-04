@@ -1,0 +1,26 @@
+
+Random-Effects Model (k = 100; tau^2 estimator: ML)
+
+tau^2 (estimated amount of total heterogeneity): 0.3848 (SE = 0.0683)
+tau (square root of estimated tau^2 value):      0.6203
+
+Test for Heterogeneity:
+LRT(df = 1) = 432.9633, p-val < .0001
+
+Model Results:
+
+estimate      se    zval    pval   ci.lb   ci.ub      
+  0.4593  0.1078  4.2603  <.0001  0.2480  0.6705  *** 
+
+Test for Selection Model Parameters:
+LRT(df = 1) = 1.5632, p-val = 0.2112
+
+Selection Model Results:
+
+                     k  estimate      se     zval    pval   ci.lb   ci.ub    
+0     < p <= 0.025  59    1.0000     ---      ---     ---     ---     ---    
+0.025 < p <= 1      41    0.6600  0.2199  -1.5460  0.1221  0.2289  1.0000    
+
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+

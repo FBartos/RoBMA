@@ -1,0 +1,21 @@
+
+Bayesian Multivariate Mixed-Effect Selection Model (k = 100)
+
+Location
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept        -0.059 0.188 -0.423 -0.060 0.315     0.00695          0.037  740 1.002
+deltype[general]  0.405 0.175  0.065  0.404 0.751     0.00580          0.033  909 1.001
+deltype[overt]    0.245 0.190 -0.129  0.245 0.614     0.00455          0.024 1748 1.000
+
+Random
+                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd_total             0.474 0.064 0.367 0.467 0.617     0.00126          0.020 2605 1.000
+var_prop(esid_study) 0.640 0.139 0.367 0.643 0.901     0.00278          0.020 2570 1.000
+var_prop(study)      0.360 0.139 0.099 0.357 0.633     0.00278          0.020 2570 1.000
+
+Publication Bias
+                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA
+omega[0.025,1] 0.681 0.176 0.342 0.686 0.978     0.00152          0.009 13502 1.000
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

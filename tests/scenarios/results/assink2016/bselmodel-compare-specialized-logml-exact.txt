@@ -1,0 +1,4 @@
+                            [,1]
+fit_bselmodel_cluster_exact    1
+fit_bselmodel_exact            0
+fit_bselmodel_fixed_exact      0

@@ -1,0 +1,13 @@
+           component         parameter        Mean      Median     CI_0.025    CI_0.975
+1  random/esid_study u_esid_study[1:1]  0.52009852  0.51889298  0.487011834  0.55951641
+2  random/esid_study u_esid_study[1:2]  0.11708322  0.11698223  0.075465500  0.15978932
+3  random/esid_study u_esid_study[1:3] -0.03266679 -0.03245294 -0.071166923  0.00476023
+4  random/esid_study u_esid_study[1:4] -0.08809018 -0.08775164 -0.141288631 -0.03602268
+5  random/esid_study u_esid_study[1:5] -0.23313894 -0.23244714 -0.281132710 -0.18766217
+6  random/esid_study u_esid_study[1:6] -0.30318584 -0.30196097 -0.333513456 -0.28019046
+7  random/esid_study u_esid_study[2:1]  0.11706308  0.11264828  0.044971524  0.21518877
+8  random/esid_study u_esid_study[2:2]  0.08227979  0.07770148  0.007692303  0.18379932
+9  random/esid_study u_esid_study[2:3] -0.03481892 -0.03945291 -0.110254352  0.06781859
+10 random/esid_study u_esid_study[3:1]  0.46575494  0.46517252  0.387496743  0.55032578
+11 random/esid_study u_esid_study[3:2]  0.43533244  0.43465507  0.364637474  0.51218831
+12 random/esid_study u_esid_study[3:3]  0.23404933  0.23283385  0.192645371  0.28308968

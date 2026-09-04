@@ -1,0 +1,7 @@
+   likelihood hypothesis            qCMDE_status      qCMDE_BF qCMDE_error_percent    marglik_BF
+1       exact   rho != 0               available  8.452450e-01            16.65260  8.487629e-01
+2       exact   rho != 1               available  5.481983e+98            54.12347  1.661204e+97
+3       exact    sd != 0               available 1.074155e+104            15.92192 4.491794e+103
+4 approximate   rho != 0               available  2.465675e+02            99.04246  1.400434e+01
+5 approximate   rho != 1 rejected by diagnostics            NA                  NA  2.919550e+96
+6 approximate    sd != 0 rejected by diagnostics            NA                  NA 1.134818e+106

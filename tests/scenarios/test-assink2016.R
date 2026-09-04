@@ -3,9 +3,10 @@ scenario_start("assink2016")
 # testthat::test_file("tests/scenarios/test-assink2016.R")
 
 ### Description
-# compare multivariate nested random-effects targets with metafor
+# Compare univariate, specialized multilevel, and multivariate nested
+# random-effects targets, including publication-bias adjustment.
 
-testthat::test_that("Assink multivariate nested random-effects model", {
+testthat::test_that("Assink brma and brma.mv models", {
 
   set.seed(1)
   data("dat.assink2016", package = "metadat")
@@ -32,6 +33,12 @@ testthat::test_that("Assink multivariate nested random-effects model", {
 
   fit_brma.mv <- scenario_fit("fit_brma.mv", {
     tmp <- brma.mv(yi = yi, V = V_assink, measure = "SMD", random = ~ 1 | study / esid, data = dat.assink2016, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_brma.mv_bycomp <- scenario_fit("fit_brma.mv_bycomp", {
+    tmp <- brma.mv(yi = yi, V = V_assink, measure = "SMD", random = list(~ 1 | study:esid, ~ 1 | study), data = dat.assink2016, seed = 1)
     tmp <- add_marglik(tmp)
     tmp <- add_loo(tmp)
     return(tmp)
@@ -115,7 +122,6 @@ testthat::test_that("Assink multivariate nested random-effects model", {
     tmp <- add_loo(tmp)
     return(tmp)
   })
-
   # scale .mv models
   fit_brma.mv_scale_total  <- scenario_fit("fit_brma.mv_scale_total", {
     tmp <- brma.mv(yi = yi, V = V_assink, scale = ~ deltype, measure = "SMD", random = ~ 1 | study / esid, data = dat.assink2016, seed = 1)
@@ -140,11 +146,26 @@ testthat::test_that("Assink multivariate nested random-effects model", {
     tmp <- add_loo(tmp)
     return(tmp)
   }, cache_version = 1L)
+  fit_BMA.mv_bycomp  <- scenario_fit("fit_BMA.mv_bycomp", {
+    tmp <- BMA.mv(yi = yi, V = V_assink, measure = "SMD",
+                  random = list("study" = ~ 1 | study, "study:esid" = ~ 1 | study:esid), data = dat.assink2016, seed = 1)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_BMA.mv_bycomp_eff  <- scenario_fit("fit_BMA.mv_bycomp_eff", {
+    tmp <- BMA.mv(yi = yi, V = V_assink, measure = "SMD",
+                  prior_effect_null = NULL,
+                  random = list("study" = ~ 1 | study, "study:esid" = ~ 1 | study:esid), data = dat.assink2016, seed = 1)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+
   ### model summary ----
   # assess equal models
   fit_metafor
   fit_metafor.cs
   scenario_text("summary-fit_brma.mv", summary(fit_brma.mv))
+  scenario_text("summary-fit_brma.mv_bycomp", summary(fit_brma.mv_bycomp))
 
   fit_metafor_no_study
   scenario_text("summary-fit_brma.mv_no_study", summary(fit_brma.mv_no_study))
@@ -182,7 +203,7 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   scenario_text("summary-fit_brma_cluster_reg", summary(fit_brma_cluster_reg))
 
   metafor_parameters <- c("intercept", study_variance = "sigma[study]^2", estimate_variance = "sigma[study/esid]^2", total_random_variance = "sigma[total]^2")
-  robma_parameters   <- c("intercept", study_variance = "var", estimate_variance = "var", total_random_variance = "var_total")
+  robma_parameters   <- c("mu", study_variance = "var", estimate_variance = "var", total_random_variance = "var_total")
   robma_components   <- c(NA, "study", "esid_study", NA)
   scenario_text("metafor-comparison", data.frame(
     model          = rep(c("correlated V", "diagonal V"), each = 2L),
@@ -320,6 +341,17 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   BF_mods <- scenario_time("BF_mods", hypothesis(fit_brma.mv_reg, c("deltype[general] = 0 vs deltype[general] != 0", "deltype[general] = 0 vs deltype[general] > 0", "deltype[general] > 0 vs deltype[general] < 0"),density_method = "qCMDE", density_control = list(samples = 2000)))
   scenario_text("fit_mods", BF_mods)
 
+  # compare marglik posterior probabilities against BMA posterior probabilities
+  scenario_text("bma-vs-marglik", cbind(
+    data.frame(summary_models(fit_BMA.mv_bycomp_eff, type = "individual"))[,c("Random..study", "Random..study.esid", "post_prob")],
+    marglik = round(unname(post_prob(fit_brma.mv_fixed, fit_brma.mv_no_effect, fit_brma.mv_no_study, fit_brma.mv)), 5)
+  ))
+
+  # additional summaries
+  scenario_text("mod-sum-bma",  summary_models(fit_BMA.mv_bycomp))
+  scenario_text("mod-sum-bma2", summary_models(fit_BMA.mv_bycomp, type = "individual"))
+
+
   ### pooled effects ----
   compare_preds <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
@@ -369,9 +401,10 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   scenario_text("summary_heterogeneity-1a", summary_heterogeneity(fit_brma.mv_diag))
   scenario_text("summary_heterogeneity-1b", summary_heterogeneity(fit_brma_cluster))
 
-  scenario_text("summary_heterogeneity-2", summary_heterogeneity(fit_brma.mv))
-  scenario_text("summary_heterogeneity-3", summary_heterogeneity(fit_brma.mv_no_effect))
-  scenario_text("summary_heterogeneity-4", summary_heterogeneity(fit_brma.mv_fixed))
+  scenario_text("summary_heterogeneity-2",  summary_heterogeneity(fit_brma.mv))
+  scenario_text("summary_heterogeneity-2a", summary_heterogeneity(fit_brma.mv_bycomp))
+  scenario_text("summary_heterogeneity-3",  summary_heterogeneity(fit_brma.mv_no_effect))
+  scenario_text("summary_heterogeneity-4",  summary_heterogeneity(fit_brma.mv_fixed))
 
   ### random effects ----
   ranef_metafor <- metafor::ranef(fit_metafor)
@@ -416,4 +449,805 @@ testthat::test_that("Assink multivariate nested random-effects model", {
   scenario_plot("qqnorm_brma_mv_reg", qqnorm(fit_brma.mv_reg))
   scenario_plot("zplot_brma_mv_reg",  zplot(fit_brma.mv_reg, to = 10))
 
+})
+
+testthat::test_that("Assink bselmodel and bselmodel.mv models", {
+
+  set.seed(1)
+  data("dat.assink2016", package = "metadat")
+
+  V_assink <- metafor::vcalc(
+    vi, cluster = study, type = deltype, obs = esid,
+    rho = c(0.7, 0.5), data = dat.assink2016
+  )
+  sampling_blocks <- split(
+    seq_len(nrow(dat.assink2016)),
+    dat.assink2016[["study"]]
+  )
+  sampling_factor_count <- sum(vapply(
+    sampling_blocks,
+    function(rows) length(unique(dat.assink2016[["deltype"]][rows])),
+    integer(1L)
+  ))
+  sampling_loading <- matrix(
+    0,
+    nrow = nrow(dat.assink2016),
+    ncol = sampling_factor_count
+  )
+  sampling_sei <- sqrt(dat.assink2016[["vi"]])
+  column_start <- 1L
+  for (rows in sampling_blocks) {
+    types <- unique(dat.assink2016[["deltype"]][rows])
+    type_covariance <- matrix(0.5, nrow = length(types), ncol = length(types))
+    diag(type_covariance) <- 0.7
+    type_loading <- t(chol(type_covariance))
+    columns <- column_start:(column_start + length(types) - 1L)
+    sampling_loading[rows, columns] <- sampling_sei[rows] *
+      type_loading[
+        match(dat.assink2016[["deltype"]][rows], types),
+        , drop = FALSE
+      ]
+    column_start <- max(columns) + 1L
+  }
+  V_assink_factor <- known_v_factor(
+    diagonal = 0.3 * dat.assink2016[["vi"]],
+    loading  = sampling_loading
+  )
+  reconstructed_V_assink <-
+    diag(V_assink_factor[["diagonal"]]) +
+    tcrossprod(V_assink_factor[["loading"]])
+  scenario_text("bselmodel-known-v-factor-reconstruction", data.frame(
+    reconstructs_V = isTRUE(all.equal(
+      unclass(V_assink), reconstructed_V_assink, tolerance = 1e-14
+    )),
+    row.names = NULL
+  ))
+
+  fit_bselmodel_metafor <- metafor::selmodel(
+    metafor::rma(yi, vi, data = dat.assink2016, method = "ML"),
+    type = "stepfun", steps = 0.025, decreasing = TRUE
+  )
+
+  ### Exact model fits ----
+  fit_bselmodel_exact <- scenario_fit("fit_bselmodel_exact", {
+    tmp <- bselmodel(yi = yi, vi = vi, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel_cluster_exact <- scenario_fit("fit_bselmodel_cluster_exact", {
+    tmp <- bselmodel(yi = yi, vi = vi, cluster = study, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel_cluster_reg_exact <- scenario_fit("fit_bselmodel_cluster_reg_exact", {
+    tmp <- bselmodel(yi = yi, vi = vi, mods = ~ deltype, cluster = study, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel_fixed_exact <- scenario_fit("fit_bselmodel_fixed_exact", {
+    tmp <- bselmodel(yi = yi, vi = vi, prior_heterogeneity = NULL, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_exact <- scenario_fit("fit_bselmodel.mv_exact", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_reg_exact <- scenario_fit("fit_bselmodel.mv_reg_exact", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, mods = ~ deltype, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_no_study_exact <- scenario_fit("fit_bselmodel.mv_no_study_exact", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study:esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_no_effect_exact <- scenario_fit("fit_bselmodel.mv_no_effect_exact", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_fixed_exact <- scenario_fit("fit_bselmodel.mv_fixed_exact", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, prior_heterogeneity = NULL, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_exact <- scenario_fit("fit_bselmodel.mv_V_exact", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink_factor, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", sample = 3000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_reg_exact <- scenario_fit("fit_bselmodel.mv_V_reg_exact", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink_factor, mods = ~ deltype, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", sample = 4000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_no_study_exact <- scenario_fit("fit_bselmodel.mv_V_no_study_exact", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink_factor, random = ~ 1 | study:esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", sample = 2000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_no_effect_exact <- scenario_fit("fit_bselmodel.mv_V_no_effect_exact", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink_factor, random = ~ 1 | study, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", sample = 3000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_fixed_exact <- scenario_fit("fit_bselmodel.mv_V_fixed_exact", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink_factor, prior_heterogeneity = NULL, measure = "SMD", data = dat.assink2016, selection_likelihood = "exact", sample = 1500, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+
+  ### Approximate model fits ----
+  fit_bselmodel_approximate <- scenario_fit("fit_bselmodel_approximate", {
+    tmp <- bselmodel(yi = yi, vi = vi, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel_cluster_approximate <- scenario_fit("fit_bselmodel_cluster_approximate", {
+    tmp <- bselmodel(yi = yi, vi = vi, cluster = study, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel_cluster_reg_approximate <- scenario_fit("fit_bselmodel_cluster_reg_approximate", {
+    tmp <- bselmodel(yi = yi, vi = vi, mods = ~ deltype, cluster = study, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", sample = 15000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel_fixed_approximate <- scenario_fit("fit_bselmodel_fixed_approximate", {
+    tmp <- bselmodel(yi = yi, vi = vi, prior_heterogeneity = NULL, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_approximate <- scenario_fit("fit_bselmodel.mv_approximate", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_reg_approximate <- scenario_fit("fit_bselmodel.mv_reg_approximate", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, mods = ~ deltype, random = ~ 1 | study / esid, prior_heterogeneity = BayesTools::prior_random(study = BayesTools::random_block(parameterization = "centered")), measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", sample = 15000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_no_study_approximate <- scenario_fit("fit_bselmodel.mv_no_study_approximate", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study:esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_no_effect_approximate <- scenario_fit("fit_bselmodel.mv_no_effect_approximate", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study, prior_heterogeneity = BayesTools::prior_random(parameterization = "centered"), measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", sample = 35000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_fixed_approximate <- scenario_fit("fit_bselmodel.mv_fixed_approximate", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, prior_heterogeneity = NULL, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_approximate <- scenario_fit("fit_bselmodel.mv_V_approximate", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_reg_approximate <- scenario_fit("fit_bselmodel.mv_V_reg_approximate", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink, mods = ~ deltype, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", sample = 15000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_no_study_approximate <- scenario_fit("fit_bselmodel.mv_V_no_study_approximate", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study:esid, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_no_effect_approximate <- scenario_fit("fit_bselmodel.mv_V_no_effect_approximate", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study, prior_heterogeneity = BayesTools::prior_random(parameterization = "centered"), measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", sample = 180000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+  fit_bselmodel.mv_V_fixed_approximate <- scenario_fit("fit_bselmodel.mv_V_fixed_approximate", {
+    tmp <- bselmodel.mv(yi = yi, V = V_assink, prior_heterogeneity = NULL, measure = "SMD", data = dat.assink2016, selection_likelihood = "approximate", sample = 15000, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
+
+  bselmodel_fit_names <- sort(ls(
+    pattern = "^fit_bselmodel", envir = environment()
+  ))
+  bselmodel_fits <- mget(
+    bselmodel_fit_names, envir = environment(), inherits = FALSE
+  )
+  bselmodel_fits <- bselmodel_fits[vapply(
+    bselmodel_fits, inherits, logical(1L), what = "brma"
+  )]
+  scenario_text("bselmodel-fit-validity", do.call(rbind, lapply(
+    names(bselmodel_fits),
+    function(name) {
+
+      fit <- bselmodel_fits[[name]]
+      diagnostics <- attr(fit[["fit"]][["converged"]], "diagnostics")
+      assessable  <- diagnostics[diagnostics[["state"]] == "assessable", ]
+      loo_result  <- loo(fit)
+      pareto_k    <- loo_result[["diagnostics"]][["pareto_k"]]
+      data.frame(
+        fit                       = name,
+        likelihood                = fit[["selection_likelihood"]][["type"]],
+        target                    = fit[["selection_likelihood"]][["target"]],
+        converged                 = isTRUE(fit[["fit"]][["converged"]]),
+        max_Rhat                  = max(assessable[["Rhat"]]),
+        min_ESS                   = min(assessable[["ESS"]]),
+        marginal_likelihood_finite = is.finite(logml(fit)),
+        loo_finite                = all(is.finite(loo_result[["estimates"]][, 1L])),
+        max_pareto_k              = max(pareto_k),
+        pareto_k_above_0.7        = sum(pareto_k > 0.7),
+        pareto_k_above_1          = sum(pareto_k > 1),
+        row.names                 = NULL
+      )
+    }
+  )))
+
+  ### Model summaries ----
+  scenario_text("bselmodel-summary-metafor", fit_bselmodel_metafor)
+
+  scenario_text("bselmodel-summary-mv-V-exact",          summary(fit_bselmodel.mv_V_exact))
+  scenario_text("bselmodel-summary-mv-V-no-study-exact", summary(fit_bselmodel.mv_V_no_study_exact))
+  scenario_text("bselmodel-summary-mv-V-no-effect-exact", summary(fit_bselmodel.mv_V_no_effect_exact))
+  scenario_text("bselmodel-summary-mv-V-fixed-exact",     summary(fit_bselmodel.mv_V_fixed_exact))
+  scenario_text("bselmodel-summary-mv-V-reg-exact",       summary(fit_bselmodel.mv_V_reg_exact))
+  scenario_text("bselmodel-summary-mv-vi-exact",          summary(fit_bselmodel.mv_exact))
+  scenario_text("bselmodel-summary-mv-vi-no-study-exact", summary(fit_bselmodel.mv_no_study_exact))
+  scenario_text("bselmodel-summary-mv-vi-no-effect-exact", summary(fit_bselmodel.mv_no_effect_exact))
+  scenario_text("bselmodel-summary-mv-vi-fixed-exact",     summary(fit_bselmodel.mv_fixed_exact))
+  scenario_text("bselmodel-summary-mv-vi-reg-exact",       summary(fit_bselmodel.mv_reg_exact))
+  scenario_text("bselmodel-summary-simple-exact",          summary(fit_bselmodel_exact))
+  scenario_text("bselmodel-summary-cluster-exact",         summary(fit_bselmodel_cluster_exact))
+  scenario_text("bselmodel-summary-cluster-reg-exact",     summary(fit_bselmodel_cluster_reg_exact))
+  scenario_text("bselmodel-summary-fixed-exact",           summary(fit_bselmodel_fixed_exact))
+
+  scenario_text("bselmodel-summary-mv-V-approximate",          summary(fit_bselmodel.mv_V_approximate))
+  scenario_text("bselmodel-summary-mv-V-no-study-approximate", summary(fit_bselmodel.mv_V_no_study_approximate))
+  scenario_text("bselmodel-summary-mv-V-no-effect-approximate", summary(fit_bselmodel.mv_V_no_effect_approximate))
+  scenario_text("bselmodel-summary-mv-V-fixed-approximate",     summary(fit_bselmodel.mv_V_fixed_approximate))
+  scenario_text("bselmodel-summary-mv-V-reg-approximate",       summary(fit_bselmodel.mv_V_reg_approximate))
+  scenario_text("bselmodel-summary-mv-vi-approximate",          summary(fit_bselmodel.mv_approximate))
+  scenario_text("bselmodel-summary-mv-vi-no-study-approximate", summary(fit_bselmodel.mv_no_study_approximate))
+  scenario_text("bselmodel-summary-mv-vi-no-effect-approximate", summary(fit_bselmodel.mv_no_effect_approximate))
+  scenario_text("bselmodel-summary-mv-vi-fixed-approximate",     summary(fit_bselmodel.mv_fixed_approximate))
+  scenario_text("bselmodel-summary-mv-vi-reg-approximate",       summary(fit_bselmodel.mv_reg_approximate))
+  scenario_text("bselmodel-summary-simple-approximate",          summary(fit_bselmodel_approximate))
+  scenario_text("bselmodel-summary-cluster-approximate",         summary(fit_bselmodel_cluster_approximate))
+  scenario_text("bselmodel-summary-cluster-reg-approximate",     summary(fit_bselmodel_cluster_reg_approximate))
+  scenario_text("bselmodel-summary-fixed-approximate",           summary(fit_bselmodel_fixed_approximate))
+
+  # metafor::selmodel() has no rma.mv method, so only the shared univariate
+  # selection-model target has a direct metafor comparison.
+  scenario_text("bselmodel-metafor-comparison", data.frame(
+    implementation        = c("metafor", "RoBMA exact", "RoBMA approximate"),
+    mu                    = c(
+      unname(fit_bselmodel_metafor[["beta"]][[1L]]),
+      ex_r(fit_bselmodel_exact, "mu"),
+      ex_r(fit_bselmodel_approximate, "mu")
+    ),
+    omega                 = c(
+      unname(fit_bselmodel_metafor[["delta"]][[2L]]),
+      ex_r(fit_bselmodel_exact, "omega[0.025,1]"),
+      ex_r(fit_bselmodel_approximate, "omega[0.025,1]")
+    ),
+    total_random_sd       = c(
+      sqrt(fit_bselmodel_metafor[["tau2"]]),
+      ex_r(fit_bselmodel_exact, "tau"),
+      ex_r(fit_bselmodel_approximate, "tau")
+    ),
+    row.names = NULL
+  ))
+
+  scenario_text("bselmodel-selection-targets", data.frame(
+    model = rep(c("simple", "cluster", "mv_vi", "mv_correlated_V"), 2L),
+    likelihood = rep(c("exact", "approximate"), each = 4L),
+    target = vapply(list(
+      fit_bselmodel_exact, fit_bselmodel_cluster_exact,
+      fit_bselmodel.mv_exact, fit_bselmodel.mv_V_exact,
+      fit_bselmodel_approximate, fit_bselmodel_cluster_approximate,
+      fit_bselmodel.mv_approximate, fit_bselmodel.mv_V_approximate
+    ), function(fit) fit[["selection_likelihood"]][["target"]], character(1L)),
+    row.names = NULL
+  ))
+
+  ### Model-fit comparisons ----
+  getloo_bselmodel <- function(fit) loo(fit)[["estimates"]]["looic", 1L]
+  equivalent_bselmodel_fit <- function(
+      fit_mv_V, fit_mv_V_no_study, fit_mv_V_no_effect, fit_mv_V_fixed,
+      fit_mv_vi, fit_mv_vi_no_study, fit_mv_vi_no_effect, fit_mv_vi_fixed,
+      fit_cluster, fit_simple, fit_fixed) {
+
+    data.frame(
+      structure = c("nested", "estimate", "study", "fixed"),
+      logml_mv_V = c(logml(fit_mv_V), logml(fit_mv_V_no_study), logml(fit_mv_V_no_effect), logml(fit_mv_V_fixed)),
+      logml_mv_vi = c(logml(fit_mv_vi), logml(fit_mv_vi_no_study), logml(fit_mv_vi_no_effect), logml(fit_mv_vi_fixed)),
+      logml_bselmodel = c(logml(fit_cluster), logml(fit_simple), NA, logml(fit_fixed)),
+      looic_mv_V = c(getloo_bselmodel(fit_mv_V), getloo_bselmodel(fit_mv_V_no_study), getloo_bselmodel(fit_mv_V_no_effect), getloo_bselmodel(fit_mv_V_fixed)),
+      looic_mv_vi = c(getloo_bselmodel(fit_mv_vi), getloo_bselmodel(fit_mv_vi_no_study), getloo_bselmodel(fit_mv_vi_no_effect), getloo_bselmodel(fit_mv_vi_fixed)),
+      looic_bselmodel = c(getloo_bselmodel(fit_cluster), getloo_bselmodel(fit_simple), NA, getloo_bselmodel(fit_fixed)),
+      row.names = NULL
+    )
+  }
+  scenario_text("bselmodel-model-fit-equivalent-exact", equivalent_bselmodel_fit(
+    fit_bselmodel.mv_V_exact, fit_bselmodel.mv_V_no_study_exact, fit_bselmodel.mv_V_no_effect_exact, fit_bselmodel.mv_V_fixed_exact,
+    fit_bselmodel.mv_exact, fit_bselmodel.mv_no_study_exact, fit_bselmodel.mv_no_effect_exact, fit_bselmodel.mv_fixed_exact,
+    fit_bselmodel_cluster_exact, fit_bselmodel_exact, fit_bselmodel_fixed_exact
+  ))
+  scenario_text("bselmodel-model-fit-equivalent-approximate", equivalent_bselmodel_fit(
+    fit_bselmodel.mv_V_approximate, fit_bselmodel.mv_V_no_study_approximate, fit_bselmodel.mv_V_no_effect_approximate, fit_bselmodel.mv_V_fixed_approximate,
+    fit_bselmodel.mv_approximate, fit_bselmodel.mv_no_study_approximate, fit_bselmodel.mv_no_effect_approximate, fit_bselmodel.mv_fixed_approximate,
+    fit_bselmodel_cluster_approximate, fit_bselmodel_approximate, fit_bselmodel_fixed_approximate
+  ))
+
+  scenario_text("bselmodel-compare-mv-V-loo-exact", loo_model_weights(
+    fit_bselmodel.mv_V_exact, fit_bselmodel.mv_V_no_study_exact, fit_bselmodel.mv_V_no_effect_exact, fit_bselmodel.mv_V_fixed_exact
+  ))
+  scenario_text("bselmodel-compare-mv-V-logml-exact", t(t(round(post_prob(
+    fit_bselmodel.mv_V_exact, fit_bselmodel.mv_V_no_study_exact, fit_bselmodel.mv_V_no_effect_exact, fit_bselmodel.mv_V_fixed_exact
+  ), 3))))
+  scenario_text("bselmodel-compare-mv-vi-loo-exact", loo_model_weights(
+    fit_bselmodel.mv_exact, fit_bselmodel.mv_no_study_exact, fit_bselmodel.mv_no_effect_exact, fit_bselmodel.mv_fixed_exact
+  ))
+  scenario_text("bselmodel-compare-mv-vi-logml-exact", t(t(round(post_prob(
+    fit_bselmodel.mv_exact, fit_bselmodel.mv_no_study_exact, fit_bselmodel.mv_no_effect_exact, fit_bselmodel.mv_fixed_exact
+  ), 3))))
+  scenario_text("bselmodel-compare-specialized-loo-exact", loo_model_weights(
+    fit_bselmodel_cluster_exact, fit_bselmodel_exact, fit_bselmodel_fixed_exact
+  ))
+  scenario_text("bselmodel-compare-specialized-logml-exact", t(t(round(post_prob(
+    fit_bselmodel_cluster_exact, fit_bselmodel_exact, fit_bselmodel_fixed_exact
+  ), 3))))
+
+  scenario_text("bselmodel-compare-mv-V-loo-approximate", loo_model_weights(
+    fit_bselmodel.mv_V_approximate, fit_bselmodel.mv_V_no_study_approximate, fit_bselmodel.mv_V_no_effect_approximate, fit_bselmodel.mv_V_fixed_approximate
+  ))
+  scenario_text("bselmodel-compare-mv-V-logml-approximate", t(t(round(post_prob(
+    fit_bselmodel.mv_V_approximate, fit_bselmodel.mv_V_no_study_approximate, fit_bselmodel.mv_V_no_effect_approximate, fit_bselmodel.mv_V_fixed_approximate
+  ), 3))))
+  scenario_text("bselmodel-compare-mv-vi-loo-approximate", loo_model_weights(
+    fit_bselmodel.mv_approximate, fit_bselmodel.mv_no_study_approximate, fit_bselmodel.mv_no_effect_approximate, fit_bselmodel.mv_fixed_approximate
+  ))
+  scenario_text("bselmodel-compare-mv-vi-logml-approximate", t(t(round(post_prob(
+    fit_bselmodel.mv_approximate, fit_bselmodel.mv_no_study_approximate, fit_bselmodel.mv_no_effect_approximate, fit_bselmodel.mv_fixed_approximate
+  ), 3))))
+  scenario_text("bselmodel-compare-specialized-loo-approximate", loo_model_weights(
+    fit_bselmodel_cluster_approximate, fit_bselmodel_approximate, fit_bselmodel_fixed_approximate
+  ))
+  scenario_text("bselmodel-compare-specialized-logml-approximate", t(t(round(post_prob(
+    fit_bselmodel_cluster_approximate, fit_bselmodel_approximate, fit_bselmodel_fixed_approximate
+  ), 3))))
+
+  scenario_text("bselmodel-model-fit-reg-equivalent", data.frame(
+    likelihood = c("exact", "approximate"),
+    logml_mv_V = c(logml(fit_bselmodel.mv_V_reg_exact), logml(fit_bselmodel.mv_V_reg_approximate)),
+    logml_mv_vi = c(logml(fit_bselmodel.mv_reg_exact), logml(fit_bselmodel.mv_reg_approximate)),
+    logml_bselmodel = c(logml(fit_bselmodel_cluster_reg_exact), logml(fit_bselmodel_cluster_reg_approximate)),
+    row.names = NULL
+  ))
+
+  ### Basic fit plots ----
+  scenario_plot("bselmodel-posterior-rho", {
+    par(mfrow = c(1, 2))
+    plot(fit_bselmodel_cluster_exact, "rho", prior = TRUE, main = "exact")
+    lines(fit_bselmodel.mv_exact, "var_prop(study)", col = "blue")
+    plot(fit_bselmodel_cluster_approximate, "rho", prior = TRUE, main = "approximate")
+    lines(fit_bselmodel.mv_approximate, "var_prop(study)", col = "blue")
+  })
+  scenario_plot("bselmodel-posterior-location", {
+    par(mfrow = c(1, 2))
+    plot(fit_bselmodel.mv_V_exact, "mu", prior = TRUE, xlim = c(-1, 1), main = "exact")
+    lines(fit_bselmodel.mv_exact, "mu", col = "blue")
+    plot(fit_bselmodel.mv_V_approximate, "mu", prior = TRUE, xlim = c(-1, 1), main = "approximate")
+    lines(fit_bselmodel.mv_approximate, "mu", col = "blue")
+  })
+  scenario_plot("bselmodel-posterior-mod", {
+    par(mfrow = c(1, 2))
+    plot(fit_bselmodel.mv_V_reg_exact, "deltype", prior = TRUE, xlim = c(-1, 1), ylim = c(0, 3), main = "exact")
+    plot(fit_bselmodel.mv_V_reg_approximate, "deltype", prior = TRUE, xlim = c(-1, 1), ylim = c(0, 3), main = "approximate")
+  })
+  scenario_plot("bselmodel-posterior-random-mv-V", {
+    par(mfrow = c(2, 3))
+    plot(fit_bselmodel.mv_V_exact, "sd_total", prior = TRUE)
+    plot(fit_bselmodel.mv_V_exact, "study: sd", prior = TRUE)
+    plot(fit_bselmodel.mv_V_exact, "esid_study: sd", prior = TRUE)
+    plot(fit_bselmodel.mv_V_exact, "var_prop(esid_study)", prior = TRUE)
+    plot(fit_bselmodel.mv_V_exact, "var_prop(study)", prior = TRUE)
+  })
+  scenario_plot("bselmodel-weightfunction", {
+    par(mfrow = c(1, 2))
+    plot_weightfunction(fit_bselmodel.mv_V_exact, main = "exact")
+    plot_weightfunction(fit_bselmodel.mv_V_approximate, main = "approximate")
+  })
+
+  ### Hypotheses ----
+  # A fixed regression-sized design keeps exact correlated-V ordinate checks
+  # tractable while retaining their Monte Carlo diagnostics in the snapshots.
+  bselmodel_density_control <- list(
+    samples              = 100L,
+    normalization_points = 20L
+  )
+  set.seed(1)
+  BF_bselmodel_rho_exact <- scenario_time("BF_bselmodel_rho_exact", hypothesis(
+    fit_bselmodel_cluster_exact,
+    c("rho != 0 vs rho = 0", "rho != 1 vs rho = 1"),
+    seed = 1,
+    density_control = bselmodel_density_control
+  ))
+  BF_bselmodel_mv_rho_exact <- scenario_time("BF_bselmodel_mv_rho_exact", hypothesis(
+    fit_bselmodel.mv_exact,
+    c("var_prop(study) != 0 vs var_prop(study) = 0", "var_prop(study) != 1 vs var_prop(study) = 1"),
+    seed = 1,
+    density_control = bselmodel_density_control
+  ))
+  BF_bselmodel_rho_approximate <- scenario_time("BF_bselmodel_rho_approximate", hypothesis(
+    fit_bselmodel_cluster_approximate,
+    c("rho != 0 vs rho = 0", "rho != 1 vs rho = 1"),
+    seed = 1,
+    density_control = bselmodel_density_control
+  ))
+  BF_bselmodel_mv_rho_approximate <- scenario_time("BF_bselmodel_mv_rho_approximate", hypothesis(
+    fit_bselmodel.mv_approximate,
+    c("var_prop(study) != 0 vs var_prop(study) = 0", "var_prop(study) != 1 vs var_prop(study) = 1"),
+    seed = 1,
+    density_control = bselmodel_density_control
+  ))
+  scenario_text("bselmodel-rho-bayes-factor-comparison", data.frame(
+    likelihood = rep(c("exact", "approximate"), each = 2L),
+    rho = rep(c(0, 1), 2L),
+    qCMDE_bselmodel_BF = c(BF_bselmodel_rho_exact[["BF"]], BF_bselmodel_rho_approximate[["BF"]]),
+    qCMDE_bselmodel_error_percent = c(BF_bselmodel_rho_exact[["BF_error"]], BF_bselmodel_rho_approximate[["BF_error"]]),
+    qCMDE_mv_vi_BF = c(BF_bselmodel_mv_rho_exact[["BF"]], BF_bselmodel_mv_rho_approximate[["BF"]]),
+    qCMDE_mv_vi_error_percent = c(BF_bselmodel_mv_rho_exact[["BF_error"]], BF_bselmodel_mv_rho_approximate[["BF_error"]]),
+    marglik_bselmodel_BF = c(
+      bf(fit_bselmodel_cluster_exact, fit_bselmodel_exact)[["bf"]], NA,
+      bf(fit_bselmodel_cluster_approximate, fit_bselmodel_approximate)[["bf"]], NA
+    ),
+    marglik_mv_vi_BF = c(
+      bf(fit_bselmodel.mv_exact, fit_bselmodel.mv_no_study_exact)[["bf"]],
+      bf(fit_bselmodel.mv_exact, fit_bselmodel.mv_no_effect_exact)[["bf"]],
+      bf(fit_bselmodel.mv_approximate, fit_bselmodel.mv_no_study_approximate)[["bf"]],
+      bf(fit_bselmodel.mv_approximate, fit_bselmodel.mv_no_effect_approximate)[["bf"]]
+    ),
+    row.names = NULL
+  ))
+
+  set.seed(1)
+  BF_bselmodel_random_allocation_exact <- scenario_time("BF_bselmodel_random_allocation_exact", hypothesis(
+    fit_bselmodel.mv_V_exact,
+    c(
+      "var_prop(study) != 0 vs var_prop(study) = 0",
+      "var_prop(study) != 1 vs var_prop(study) = 1"
+    ),
+    seed = 1,
+    density_control = bselmodel_density_control
+  ))
+  set.seed(1)
+  BF_bselmodel_random_sd_exact <- scenario_time("BF_bselmodel_random_sd_exact", hypothesis(
+    fit_bselmodel.mv_V_exact,
+    "sd_total = 0",
+    seed = 1,
+    density_control = bselmodel_density_control
+  ))
+  set.seed(1)
+  BF_bselmodel_random_allocation_approximate <- scenario_time("BF_bselmodel_random_allocation_approximate", hypothesis(
+    fit_bselmodel.mv_V_approximate,
+    "var_prop(study) != 0 vs var_prop(study) = 0",
+    seed = 1,
+    density_control = bselmodel_density_control
+  ))
+  set.seed(1)
+  BF_bselmodel_random_approximate_boundary_error <- testthat::expect_error(
+    hypothesis(
+      fit_bselmodel.mv_V_approximate,
+      "var_prop(study) != 1 vs var_prop(study) = 1",
+      seed = 1,
+      density_control = bselmodel_density_control
+    ),
+    class = "RoBMA_density_ordinate_error"
+  )
+  testthat::expect_match(
+    conditionMessage(BF_bselmodel_random_approximate_boundary_error),
+    paste0(
+      "qCMDE posterior ordinate for 'var_prop\\(study\\) = 1' was ",
+      "rejected by diagnostics"
+    )
+  )
+  set.seed(1)
+  BF_bselmodel_random_approximate_sd_error <- testthat::expect_error(
+    hypothesis(
+      fit_bselmodel.mv_V_approximate,
+      "sd_total = 0",
+      seed = 1,
+      density_control = bselmodel_density_control
+    ),
+    class = "RoBMA_density_ordinate_error"
+  )
+  testthat::expect_match(
+    conditionMessage(BF_bselmodel_random_approximate_sd_error),
+    paste0(
+      "qCMDE posterior ordinate for 'sd_total = 0' was rejected by ",
+      "diagnostics: posterior ordinate is zero or non-finite"
+    )
+  )
+  exact_random_BF <- c(
+    BF_bselmodel_random_allocation_exact[["BF"]],
+    BF_bselmodel_random_sd_exact[["BF"]]
+  )
+  exact_random_error <- c(
+    BF_bselmodel_random_allocation_exact[["BF_error"]],
+    BF_bselmodel_random_sd_exact[["BF_error"]]
+  )
+  approximate_random_BF <- c(
+    BF_bselmodel_random_allocation_approximate[["BF"]],
+    NA_real_,
+    NA_real_
+  )
+  approximate_random_error <- c(
+    BF_bselmodel_random_allocation_approximate[["BF_error"]],
+    NA_real_,
+    NA_real_
+  )
+  scenario_text("bselmodel-random-bayes-factor-comparison", data.frame(
+    likelihood = rep(c("exact", "approximate"), each = 3L),
+    hypothesis = rep(c("rho != 0", "rho != 1", "sd != 0"), 2L),
+    qCMDE_status = c(
+      rep("available", 3L),
+      "available", "rejected by diagnostics", "rejected by diagnostics"
+    ),
+    qCMDE_BF = c(exact_random_BF, approximate_random_BF),
+    qCMDE_error_percent = c(exact_random_error, approximate_random_error),
+    marglik_BF = c(
+      bf(fit_bselmodel.mv_V_exact, fit_bselmodel.mv_V_no_study_exact)[["bf"]],
+      bf(fit_bselmodel.mv_V_exact, fit_bselmodel.mv_V_no_effect_exact)[["bf"]],
+      bf(fit_bselmodel.mv_V_exact, fit_bselmodel.mv_V_fixed_exact)[["bf"]],
+      bf(fit_bselmodel.mv_V_approximate, fit_bselmodel.mv_V_no_study_approximate)[["bf"]],
+      bf(fit_bselmodel.mv_V_approximate, fit_bselmodel.mv_V_no_effect_approximate)[["bf"]],
+      bf(fit_bselmodel.mv_V_approximate, fit_bselmodel.mv_V_fixed_approximate)[["bf"]]
+    ),
+    row.names = NULL
+  ))
+
+  set.seed(1)
+  scenario_text("bselmodel-mods-exact", scenario_time("BF_bselmodel_mods_exact", hypothesis(
+    fit_bselmodel.mv_V_reg_exact,
+    c(
+      "deltype[general] = 0 vs deltype[general] != 0",
+      "deltype[general] = 0 vs deltype[general] > 0",
+      "deltype[general] > 0 vs deltype[general] < 0"
+    ),
+    seed = 1,
+    density_control = bselmodel_density_control
+  )))
+  scenario_text("bselmodel-mods-approximate", scenario_time("BF_bselmodel_mods_approximate", hypothesis(
+    fit_bselmodel.mv_V_reg_approximate,
+    c(
+      "deltype[general] = 0 vs deltype[general] != 0",
+      "deltype[general] = 0 vs deltype[general] > 0",
+      "deltype[general] > 0 vs deltype[general] < 0"
+    ),
+    seed = 1,
+    density_control = bselmodel_density_control
+  )))
+
+  ### Pooled effects and predictions ----
+  compare_bselmodel_pooled <- function(fit_RoBMA) {
+
+    return(cbind.data.frame(
+      "metafor" = t(data.frame(predict(fit_bselmodel_metafor))[c("pred", "ci.lb", "ci.ub", "pi.lb", "pi.ub")]),
+      "RoBMA"   = ex_p(fit_RoBMA)[, 1L]
+    ))
+  }
+  scenario_text("bselmodel-pooled-effect-exact",       compare_bselmodel_pooled(fit_bselmodel_exact))
+  scenario_text("bselmodel-pooled-effect-approximate", compare_bselmodel_pooled(fit_bselmodel_approximate))
+
+  equivalent_bselmodel_pooled <- function(fit_cluster, fit_mv, fit_simple, fit_mv_no_study, fit_fixed, fit_mv_fixed) {
+
+    cbind.data.frame(
+      "cluster"      = ex_p(fit_cluster)[, 1L],
+      "mv_nested"    = ex_p(fit_mv)[, 1L],
+      "simple"       = ex_p(fit_simple)[, 1L],
+      "mv_estimate"  = ex_p(fit_mv_no_study)[, 1L],
+      "fixed"        = ex_p(fit_fixed)[, 1L],
+      "mv_fixed"     = ex_p(fit_mv_fixed)[, 1L]
+    )
+  }
+  scenario_text("bselmodel-pooled-equivalent-exact", equivalent_bselmodel_pooled(
+    fit_bselmodel_cluster_exact, fit_bselmodel.mv_exact,
+    fit_bselmodel_exact, fit_bselmodel.mv_no_study_exact,
+    fit_bselmodel_fixed_exact, fit_bselmodel.mv_fixed_exact
+  ))
+  scenario_text("bselmodel-pooled-equivalent-approximate", equivalent_bselmodel_pooled(
+    fit_bselmodel_cluster_approximate, fit_bselmodel.mv_approximate,
+    fit_bselmodel_approximate, fit_bselmodel.mv_no_study_approximate,
+    fit_bselmodel_fixed_approximate, fit_bselmodel.mv_fixed_approximate
+  ))
+  scenario_text("bselmodel-pooled-mv-V", cbind.data.frame(
+    "exact"       = ex_p(fit_bselmodel.mv_V_exact)[, 1L],
+    "approximate" = ex_p(fit_bselmodel.mv_V_approximate)[, 1L]
+  ))
+
+  compare_bselmodel_preds_reg <- function(fit_mv, fit_specialized = NULL, type = "terms") {
+
+    cbind.data.frame(
+      "bselmodel.mv" = unlist(data.frame(predict(fit_mv, type = type))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "bselmodel" = if (!is.null(fit_specialized)) {
+        unlist(data.frame(predict(fit_specialized, type = type))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE)
+      } else {
+        rep(NA_real_, 9L)
+      }
+    )
+  }
+  scenario_text("bselmodel-predictions-mv-V-reg-exact", compare_bselmodel_preds_reg(fit_bselmodel.mv_V_reg_exact))
+  scenario_text("bselmodel-predictions-mv-vi-reg-exact", compare_bselmodel_preds_reg(fit_bselmodel.mv_reg_exact, fit_bselmodel_cluster_reg_exact))
+  scenario_text("bselmodel-predictions-mv-V-reg-pi-exact", compare_bselmodel_preds_reg(fit_bselmodel.mv_V_reg_exact, type = "estimate"))
+  scenario_text("bselmodel-predictions-mv-vi-reg-pi-exact", compare_bselmodel_preds_reg(fit_bselmodel.mv_reg_exact, fit_bselmodel_cluster_reg_exact, type = "estimate"))
+  scenario_text("bselmodel-predictions-mv-V-reg-approximate", compare_bselmodel_preds_reg(fit_bselmodel.mv_V_reg_approximate))
+  scenario_text("bselmodel-predictions-mv-vi-reg-approximate", compare_bselmodel_preds_reg(fit_bselmodel.mv_reg_approximate, fit_bselmodel_cluster_reg_approximate))
+  scenario_text("bselmodel-predictions-mv-V-reg-pi-approximate", compare_bselmodel_preds_reg(fit_bselmodel.mv_V_reg_approximate, type = "estimate"))
+  scenario_text("bselmodel-predictions-mv-vi-reg-pi-approximate", compare_bselmodel_preds_reg(fit_bselmodel.mv_reg_approximate, fit_bselmodel_cluster_reg_approximate, type = "estimate"))
+
+  ### Marginal means ----
+  scenario_text("bselmodel-marginal-means-exact", marginal_means(fit_bselmodel.mv_V_reg_exact))
+  scenario_text("bselmodel-marginal-means-approximate", marginal_means(fit_bselmodel.mv_V_reg_approximate))
+  scenario_plot("bselmodel-marginal-means-plot", {
+    par(mfrow = c(1, 2))
+    plot(marginal_means(fit_bselmodel.mv_V_reg_exact), "deltype", prior = TRUE, xlim = c(-2, 2), main = "exact")
+    plot(marginal_means(fit_bselmodel.mv_V_reg_approximate), "deltype", prior = TRUE, xlim = c(-2, 2), main = "approximate")
+  })
+
+  ### Heterogeneity ----
+  scenario_text("bselmodel-summary-heterogeneity-mv-vi-exact", summary_heterogeneity(fit_bselmodel.mv_exact))
+  scenario_text("bselmodel-summary-heterogeneity-cluster-exact", summary_heterogeneity(fit_bselmodel_cluster_exact))
+  scenario_text("bselmodel-summary-heterogeneity-mv-V-exact", summary_heterogeneity(fit_bselmodel.mv_V_exact))
+  scenario_text("bselmodel-summary-heterogeneity-study-exact", summary_heterogeneity(fit_bselmodel.mv_V_no_effect_exact))
+  scenario_text("bselmodel-summary-heterogeneity-fixed-exact", summary_heterogeneity(fit_bselmodel.mv_V_fixed_exact))
+  scenario_text("bselmodel-summary-heterogeneity-mv-vi-approximate", summary_heterogeneity(fit_bselmodel.mv_approximate))
+  scenario_text("bselmodel-summary-heterogeneity-cluster-approximate", summary_heterogeneity(fit_bselmodel_cluster_approximate))
+  scenario_text("bselmodel-summary-heterogeneity-mv-V-approximate", summary_heterogeneity(fit_bselmodel.mv_V_approximate))
+  scenario_text("bselmodel-summary-heterogeneity-study-approximate", summary_heterogeneity(fit_bselmodel.mv_V_no_effect_approximate))
+  scenario_text("bselmodel-summary-heterogeneity-fixed-approximate", summary_heterogeneity(fit_bselmodel.mv_V_fixed_approximate))
+
+  ### Random effects ----
+  ranef_bselmodel.mv_V_exact <- scenario_time("ranef_bselmodel.mv_V_exact", ranef(fit_bselmodel.mv_V_exact))
+  ranef_bselmodel.mv_exact <- scenario_time("ranef_bselmodel.mv_exact", ranef(fit_bselmodel.mv_exact))
+  ranef_bselmodel_cluster_exact <- scenario_time("ranef_bselmodel_cluster_exact", ranef(fit_bselmodel_cluster_exact))
+  ranef_bselmodel.mv_V_approximate <- scenario_time("ranef_bselmodel.mv_V_approximate", ranef(fit_bselmodel.mv_V_approximate))
+  ranef_bselmodel.mv_approximate <- scenario_time("ranef_bselmodel.mv_approximate", ranef(fit_bselmodel.mv_approximate))
+  ranef_bselmodel_cluster_approximate <- scenario_time("ranef_bselmodel_cluster_approximate", ranef(fit_bselmodel_cluster_approximate))
+  scenario_text("bselmodel-random-effects-exact", head(as.data.frame(ranef_bselmodel.mv_V_exact), 12L))
+  scenario_text("bselmodel-random-effects-approximate", head(as.data.frame(ranef_bselmodel.mv_V_approximate), 12L))
+
+  plot_bselmodel_ranef_equivalence <- function(ranef_mv, ranef_cluster) {
+
+    par(mfrow = c(1, 2))
+    scenario_agreement_plot(as.data.frame(ranef_mv$study)[["Mean"]], as.data.frame(ranef_cluster$cluster)[["Mean"]], main = "study")
+    scenario_agreement_plot(as.data.frame(ranef_mv$esid_study)[["Mean"]], as.data.frame(ranef_cluster$estimate)[["Mean"]], main = "esid_study")
+    return(invisible(NULL))
+  }
+  scenario_plot("bselmodel-ranef-mv-vi-exact", plot_bselmodel_ranef_equivalence(ranef_bselmodel.mv_exact, ranef_bselmodel_cluster_exact))
+  scenario_plot("bselmodel-ranef-mv-vi-approximate", plot_bselmodel_ranef_equivalence(ranef_bselmodel.mv_approximate, ranef_bselmodel_cluster_approximate))
+
+  # Release fits that are no longer needed before the memory-intensive
+  # deletion diagnostics. Scenario caches retain every fit on disk.
+  diagnostic_fit_names <- c(
+    "fit_bselmodel_cluster_exact",
+    "fit_bselmodel_cluster_approximate",
+    "fit_bselmodel.mv_exact",
+    "fit_bselmodel.mv_approximate",
+    "fit_bselmodel.mv_V_exact",
+    "fit_bselmodel.mv_V_approximate",
+    "fit_bselmodel.mv_V_reg_exact",
+    "fit_bselmodel.mv_V_reg_approximate"
+  )
+  rm(
+    list  = setdiff(bselmodel_fit_names, diagnostic_fit_names),
+    envir = environment()
+  )
+  rm(bselmodel_fits)
+  invisible(gc())
+
+  ### Diagnostics ----
+  plot_bselmodel_diagnostic_equivalence <- function(fit_reference, fit_mv) {
+
+    reference_values <- list(
+      "Residuals"      = stats::residuals(fit_reference, type = "outcome", conditioning_depth = "marginal"),
+      "Rstudent"       = suppressWarnings(stats::rstudent(fit_reference))[["z"]]
+    )
+    mv_values <- list(
+      "Residuals"      = stats::residuals(fit_mv, type = "outcome", conditioning_depth = "marginal"),
+      "Rstudent"       = suppressWarnings(stats::rstudent(fit_mv))[["z"]]
+    )
+
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    for (diagnostic in names(reference_values)) {
+      scenario_agreement_plot(reference_values[[diagnostic]], mv_values[[diagnostic]], main = diagnostic)
+    }
+    return(invisible(NULL))
+  }
+  scenario_plot("bselmodel-marginal-diagnostics-mv-vi-exact", plot_bselmodel_diagnostic_equivalence(fit_bselmodel_cluster_exact, fit_bselmodel.mv_exact))
+  scenario_plot("bselmodel-marginal-diagnostics-mv-vi-approximate", plot_bselmodel_diagnostic_equivalence(fit_bselmodel_cluster_approximate, fit_bselmodel.mv_approximate))
+  scenario_text("bselmodel-diagnostics-mv-V", head(data.frame(
+    exact_residual       = residuals(fit_bselmodel.mv_V_exact),
+    approximate_residual = residuals(fit_bselmodel.mv_V_approximate),
+    exact_student        = rstudent(fit_bselmodel.mv_V_exact)[["z"]],
+    approximate_student  = rstudent(fit_bselmodel.mv_V_approximate)[["z"]]
+  ), 12L))
+  scenario_text(
+    "bselmodel-selection-approximation-diagnostics-mv-V",
+    selection_approximation_diagnostics(
+      fit_bselmodel.mv_V_approximate,
+      max_posterior_samples = 128L,
+      latent_samples        = 256L,
+      seed                  = 1L
+    )
+  )
+
+  ### Diagnostic plots ----
+  scenario_plot("bselmodel-funnel-mv-V-exact", {
+    par(mfrow = c(1, 2))
+    funnel(fit_bselmodel.mv_V_exact, main = "funnel")
+    bfunnel(fit_bselmodel.mv_V_exact, main = "bfunnel")
+  })
+  scenario_plot("bselmodel-funnel-mv-V-approximate", {
+    par(mfrow = c(1, 2))
+    funnel(fit_bselmodel.mv_V_approximate, main = "funnel")
+    bfunnel(fit_bselmodel.mv_V_approximate, main = "bfunnel")
+  })
+  scenario_plot("bselmodel-qqnorm-mv-V", {
+    par(mfrow = c(1, 2))
+    qqnorm(fit_bselmodel.mv_V_exact, main = "exact")
+    qqnorm(fit_bselmodel.mv_V_approximate, main = "approximate")
+  })
+  scenario_plot("bselmodel-zplot-mv-V", {
+    par(mfrow = c(1, 2))
+    zplot(fit_bselmodel.mv_V_exact, to = 10, main = "exact")
+    zplot(fit_bselmodel.mv_V_approximate, to = 10, main = "approximate")
+  })
+  scenario_plot("bselmodel-funnel-reg", {
+    par(mfrow = c(1, 2))
+    funnel(fit_bselmodel.mv_V_reg_exact, main = "exact")
+    funnel(fit_bselmodel.mv_V_reg_approximate, main = "approximate")
+  })
+  scenario_plot("bselmodel-qqnorm-reg", {
+    par(mfrow = c(1, 2))
+    qqnorm(fit_bselmodel.mv_V_reg_exact, main = "exact")
+    qqnorm(fit_bselmodel.mv_V_reg_approximate, main = "approximate")
+  })
+  scenario_plot("bselmodel-zplot-reg", {
+    par(mfrow = c(1, 2))
+    zplot(fit_bselmodel.mv_V_reg_exact, to = 10, main = "exact")
+    zplot(fit_bselmodel.mv_V_reg_approximate, to = 10, main = "approximate")
+  })
 })

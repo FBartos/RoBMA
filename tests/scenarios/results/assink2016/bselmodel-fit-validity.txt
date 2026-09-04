@@ -1,0 +1,58 @@
+                                        fit  likelihood                                            target converged max_Rhat   min_ESS
+1            fit_bselmodel.mv_V_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.020273  792.7685
+2                  fit_bselmodel.mv_V_exact       exact                   finite_vector_product_selection      TRUE 1.004138 1425.3189
+3      fit_bselmodel.mv_V_fixed_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.003370  771.3413
+4            fit_bselmodel.mv_V_fixed_exact       exact                   finite_vector_product_selection      TRUE 1.006455 1882.4706
+5  fit_bselmodel.mv_V_no_effect_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.039893  588.7086
+6        fit_bselmodel.mv_V_no_effect_exact       exact                   finite_vector_product_selection      TRUE 1.011877 2138.7906
+7   fit_bselmodel.mv_V_no_study_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.003258 2057.1210
+8         fit_bselmodel.mv_V_no_study_exact       exact                   finite_vector_product_selection      TRUE 1.009136 1201.0945
+9        fit_bselmodel.mv_V_reg_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.002630  739.9513
+10             fit_bselmodel.mv_V_reg_exact       exact                   finite_vector_product_selection      TRUE 1.017211  820.1704
+11             fit_bselmodel.mv_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.015837  579.1351
+12                   fit_bselmodel.mv_exact       exact                   finite_vector_product_selection      TRUE 1.004547 2725.4242
+13       fit_bselmodel.mv_fixed_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.002392 4898.2498
+14             fit_bselmodel.mv_fixed_exact       exact                   finite_vector_product_selection      TRUE 1.002392 4898.2498
+15   fit_bselmodel.mv_no_effect_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.004856  560.8968
+16         fit_bselmodel.mv_no_effect_exact       exact                   finite_vector_product_selection      TRUE 1.001989 3788.2469
+17    fit_bselmodel.mv_no_study_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.001848 3316.1476
+18          fit_bselmodel.mv_no_study_exact       exact                   finite_vector_product_selection      TRUE 1.001848 3316.1476
+19         fit_bselmodel.mv_reg_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.000917  669.4140
+20               fit_bselmodel.mv_reg_exact       exact                   finite_vector_product_selection      TRUE 1.003172 1308.4915
+21                fit_bselmodel_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.001848 3316.1476
+22        fit_bselmodel_cluster_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.020008  626.0032
+23              fit_bselmodel_cluster_exact       exact                   finite_vector_product_selection      TRUE 1.001657 2798.5765
+24    fit_bselmodel_cluster_reg_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.009525  710.5065
+25          fit_bselmodel_cluster_reg_exact       exact                   finite_vector_product_selection      TRUE 1.000946 1273.9690
+26                      fit_bselmodel_exact       exact                   finite_vector_product_selection      TRUE 1.001848 3316.1476
+27          fit_bselmodel_fixed_approximate approximate row_selected_normal_conditional_on_random_effects      TRUE 1.002392 4898.2498
+28                fit_bselmodel_fixed_exact       exact                   finite_vector_product_selection      TRUE 1.002392 4898.2498
+   marginal_likelihood_finite loo_finite max_pareto_k pareto_k_above_0.7 pareto_k_above_1
+1                        TRUE       TRUE    0.6959201                  0                0
+2                        TRUE       TRUE    0.1149398                  0                0
+3                        TRUE       TRUE    1.9386066                 88               41
+4                        TRUE       TRUE    0.6701290                  0                0
+5                        TRUE       TRUE    1.7196687                 94               36
+6                        TRUE       TRUE    0.2458868                  0                0
+7                        TRUE       TRUE    0.6241989                  0                0
+8                        TRUE       TRUE    0.2293561                  0                0
+9                        TRUE       TRUE    0.8255976                  1                0
+10                       TRUE       TRUE    0.2568217                  0                0
+11                       TRUE       TRUE    0.6383775                  0                0
+12                       TRUE       TRUE    0.1102050                  0                0
+13                       TRUE       TRUE    0.6350928                  0                0
+14                       TRUE       TRUE    0.6350928                  0                0
+15                       TRUE       TRUE    0.8484638                  3                0
+16                       TRUE       TRUE    0.2712920                  0                0
+17                       TRUE       TRUE    0.1159814                  0                0
+18                       TRUE       TRUE    0.1159814                  0                0
+19                       TRUE       TRUE    0.7073689                  1                0
+20                       TRUE       TRUE    0.2155298                  0                0
+21                       TRUE       TRUE    0.1159814                  0                0
+22                       TRUE       TRUE    0.6984219                  0                0
+23                       TRUE       TRUE    0.2161573                  0                0
+24                       TRUE       TRUE    0.7187168                  2                0
+25                       TRUE       TRUE    0.2363198                  0                0
+26                       TRUE       TRUE    0.1159814                  0                0
+27                       TRUE       TRUE    0.6350928                  0                0
+28                       TRUE       TRUE    0.6350928                  0                0

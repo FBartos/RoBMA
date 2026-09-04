@@ -1,0 +1,5 @@
+   likelihood rho qCMDE_bselmodel_BF qCMDE_bselmodel_error_percent qCMDE_mv_vi_BF qCMDE_mv_vi_error_percent marglik_bselmodel_BF marglik_mv_vi_BF
+1       exact   0       1.327313e+14                      58.72095   2.250020e+14                  60.04706         3.512196e+13     3.469712e+13
+2       exact   1       3.233859e+17                      18.76013   2.526370e+17                  21.33619                   NA     1.334671e+17
+3 approximate   0       3.298731e+13                      14.97915   6.671471e+18                  53.71100         4.431886e+13     4.420078e+13
+4 approximate   1       1.581914e+15                      26.39987   1.072663e+20                 103.68542                   NA     3.630210e+14

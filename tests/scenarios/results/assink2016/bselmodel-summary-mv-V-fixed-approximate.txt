@@ -1,0 +1,14 @@
+
+Bayesian Multivariate Random-Effects Selection Model (k = 100)
+
+Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+mu  0.147 0.021 0.106 0.147 0.189     0.00077          0.036 771 1.001
+tau 0.000 0.000 0.000 0.000 0.000     0.00000             NA   0    NA
+
+Publication Bias
+                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA
+omega[0.025,1] 0.288 0.179 0.068 0.242 0.771     0.00174          0.010 10626 1.000
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

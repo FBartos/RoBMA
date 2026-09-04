@@ -1,0 +1,5 @@
+                                    [,1]
+fit_bselmodel.mv_V_exact           0.459
+fit_bselmodel.mv_V_no_study_exact  0.541
+fit_bselmodel.mv_V_no_effect_exact 0.000
+fit_bselmodel.mv_V_fixed_exact     0.000
