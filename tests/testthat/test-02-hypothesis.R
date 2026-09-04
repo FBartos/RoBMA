@@ -214,6 +214,49 @@ test_that("qCMDE factor point guards use display aliases", {
 })
 
 
+test_that("qCMDE scalar rejection uses the public parameter label", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_estimate = function(...) {
+      list(
+        diagnostics = list(ordinate = list(
+          status = "ok",
+          reason = "failed qCMDE/IWMDE numerical diagnostics"
+        )),
+        posterior_ordinate          = NULL,
+        rejected_posterior_ordinate = NULL
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  error <- expect_error(
+    .hypothesis_brma_attach_iwmde_scalar(
+      posterior            = stats::rnorm(20),
+      raw_posterior        = stats::rnorm(20),
+      context              = list(),
+      estimate_cache       = .iwmde_estimate_cache(),
+      parameter            = "mu__xRE_ALLOCx_heterogeneity__weight[2]",
+      parameter_label      = "var_prop(study)",
+      value                = 1,
+      conditional          = NULL,
+      n_points             = 20,
+      samples              = 20,
+      target_relative_mcse = .05,
+      normalization_points = 20,
+      normalization_prob   = .99,
+      density_method       = "qCMDE",
+      parameter_spec       = list(type = "random_allocation_weight")
+    ),
+    paste0(
+      "qCMDE posterior ordinate for 'var_prop\\(study\\) = 1' was ",
+      "rejected by diagnostics: failed qCMDE/IWMDE numerical diagnostics"
+    )
+  )
+  expect_false(grepl("mu__xRE_ALLOCx", conditionMessage(error), fixed = TRUE))
+})
+
+
 test_that("hypothesis defaults to qCMDE and guards unsupported random formulas", {
 
   object <- .mock_random_non_known_v_brma_mv()

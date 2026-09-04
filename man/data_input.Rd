@@ -14,8 +14,9 @@ supplied for normal models.}
 \item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
 
-\item{V}{a known working variance-covariance matrix, or a list of block
-variance-covariance matrices, used by \code{brma.mv()}.}
+\item{V}{a known working variance-covariance matrix, a list of block
+variance-covariance matrices, or an exact diagonal-plus-factor declaration
+created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}.}
 
 \item{known_v_parameterization}{known-\code{V} backend used by \code{brma.mv()}.
 \code{"auto"} chooses an exact backend when feasible; \code{"latent"} uses a latent
@@ -29,7 +30,9 @@ representation. Defaults to \code{0.10}; values are validated for all backends
 but affect only the latent backend. When \code{"auto"} selects \code{"whitened"} or
 \code{"block_mvn"}, explicitly supplied values are disregarded by the likelihood.
 Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
-supplied.}
+supplied. For \code{\link[=known_v_factor]{known_v_factor()}} input, the declared diagonal is the exact
+residual variance and this argument is disregarded with a warning when
+supplied explicitly.}
 
 \item{weights}{an optional vector of positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For

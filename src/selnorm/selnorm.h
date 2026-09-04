@@ -99,6 +99,16 @@ bool cpp_selnorm_step_cdf_plan(
   bool validate_omega = true
 );
 
+double cpp_selnorm_step_log_norm(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  const SelNormKernelData &data,
+  int omega_stride = 1,
+  bool validate_omega = true
+);
+
 bool cpp_selnorm_step_cdf_telescope_plan(
   double mean,
   double sd,

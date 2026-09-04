@@ -56,8 +56,9 @@ bselmodel.mv(
 left-hand side and location moderators on the right-hand side (for example
 \code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.}
 
-\item{V}{a known working variance-covariance matrix, or a list of block
-variance-covariance matrices, used by \code{brma.mv()}.}
+\item{V}{a known working variance-covariance matrix, a list of block
+variance-covariance matrices, or an exact diagonal-plus-factor declaration
+created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
 when estimating the unit information standard deviation.}
@@ -192,7 +193,9 @@ representation. Defaults to \code{0.10}; values are validated for all backends
 but affect only the latent backend. When \code{"auto"} selects \code{"whitened"} or
 \code{"block_mvn"}, explicitly supplied values are disregarded by the likelihood.
 Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
-supplied.}
+supplied. For \code{\link[=known_v_factor]{known_v_factor()}} input, the declared diagonal is the exact
+residual variance and this argument is disregarded with a warning when
+supplied explicitly.}
 
 \item{marginalize_estimate_level}{logical; should a one-to-one estimate-level
 random-intercept block be integrated into the likelihood variance instead of
@@ -248,9 +251,15 @@ of the row-specific weights.
 
 With \code{selection_likelihood = "exact"}, all Gaussian random effects are
 analytically marginalized and each connected sampling/random covariance
-block is fitted with its joint selected-Gaussian density. This target is
-independent of \code{known_v_parameterization}; that argument remains relevant to
-the approximate likelihood and downstream known-\code{V} machinery. With
+block is fitted with its joint selected-Gaussian density. Diagonal-plus-factor
+covariance structure is used only when certified by compiled random-effect
+metadata or declared explicitly with \code{\link[=known_v_factor]{known_v_factor()}}. Structural ranks
+one through four with positive conditional residual variances use exact
+low-dimensional factor integrals; other blocks retain the general dense
+exact likelihood. No numerical rank is inferred from an arbitrary covariance
+matrix. This target is independent of
+\code{known_v_parameterization}; that argument remains relevant to the approximate
+likelihood and downstream known-\code{V} machinery. With
 \code{selection_likelihood = "approximate"}, the existing row-wise selected-normal
 likelihood is used. The automatic known-\code{V} backend resolves to \code{"latent"}
 for this approximate target; explicitly requesting \code{"whitened"} or

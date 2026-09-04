@@ -9,6 +9,7 @@
 #include "distributions/DSELNORMSTEPSWITCH.h"
 #include "distributions/DSELNORMMVSTEP.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
+#include "distributions/DSELNORMFACTORSTEP.h"
 
 namespace jags {
   namespace RoBMA { // module namespace
@@ -35,6 +36,7 @@ namespace jags {
       insert(new DSELNORMKERNEL);
       insert(new DSELNORMMVSTEP);
       insert(new DSELNORMCLUSTERSTEP);
+      insert(new DSELNORMFACTORSTEP);
     }
 
     // destructor (executed when unloading the module)

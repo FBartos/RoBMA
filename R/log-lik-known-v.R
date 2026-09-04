@@ -38,6 +38,16 @@
     return(as.list(seq_len(K)))
   }
 
+  if (.known_v_nrow(known_V) != K) {
+    stop("Known-V block metadata is missing and cannot be reconstructed.",
+         call. = FALSE)
+  }
+  if (identical(.known_v_storage(known_V), "factor")) {
+    block_indices <- known_V[["block_indices"]]
+    .known_v_validate_dependency_blocks(block_indices, K)
+    return(block_indices)
+  }
+
   block_data <- .known_v_dependency_block_data(data, K)
   return(lapply(block_data, `[[`, "index"))
 }

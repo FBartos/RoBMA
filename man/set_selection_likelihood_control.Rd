@@ -6,25 +6,41 @@
 \usage{
 set_selection_likelihood_control(
   points_per_scramble = 512L,
+  max_points_per_scramble = 8192L,
   scrambles = 8L,
   relative_tolerance = 0.005,
   seed = 1L
 )
 }
 \arguments{
-\item{points_per_scramble}{number of shifted Halton points per randomized
-quasi-Monte Carlo scramble for general covariance blocks.}
+\item{points_per_scramble}{nominal number of integrand evaluations per
+randomized quasi-Monte Carlo scramble for certified higher-rank factor
+fallbacks, and the number of shifted Halton points for general covariance
+blocks.
+Factor evaluations are allocated equally to the prior- and mode-centered
+proposal components; odd values therefore use the next even total. This
+count is the initial nested-design budget, not an accuracy guarantee. The
+integration diagnostics determine whether it is adequate for each
+evaluated likelihood state.}
+
+\item{max_points_per_scramble}{largest nested-design budget used for a
+certified higher-rank factor fallback when the initial
+\code{points_per_scramble} budget fails its integration diagnostic. Refinement
+doubles the point count up to this value while reusing the same fixed
+design.}
 
 \item{scrambles}{number of independent randomized shifts used to estimate
-integration error for general covariance blocks.}
+integration error for certified higher-rank factors and general covariance
+blocks.}
 
 \item{relative_tolerance}{largest accepted successive relative quadrature
-change for rank-one multilevel blocks or relative Monte Carlo standard
-error for general covariance blocks.}
+change for factor integration, or the largest nested-design relative
+change and relative Monte Carlo standard error for a higher-rank factor
+fallback. General covariance blocks use the relative Monte Carlo standard
+error.}
 
-\item{seed}{non-negative integer used only to create the fixed integration
-design for general covariance blocks. It does not alter R's random-number
-state.}
+\item{seed}{non-negative integer used only to create fixed quasi-Monte Carlo
+designs. It does not alter R's random-number state.}
 }
 \value{
 A \code{RoBMA_selection_likelihood_control} object.
@@ -32,9 +48,19 @@ A \code{RoBMA_selection_likelihood_control} object.
 \description{
 Creates numerical integration settings for the finite-vector product
 selection likelihood used by \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bselmodel.mv]{bselmodel.mv()}}, \code{\link[=RoBMA]{RoBMA()}}, and
-\code{\link[=RoBMA.mv]{RoBMA.mv()}}. Rank-one multilevel blocks use a deterministic sequence of
-Gauss-Hermite rules; general covariance blocks use randomized quasi-Monte
-Carlo. Every integration design is fixed before fitting, so repeated
-likelihood evaluations are deterministic. One-dimensional likelihood blocks
-are evaluated analytically.
+\code{\link[=RoBMA.mv]{RoBMA.mv()}}. Covariance factors use deterministic sequences of
+Gauss-Hermite rules. Certified factors of structural rank two through four
+fall back to randomized quasi-Monte Carlo in the factor dimension when the
+quadrature sequence does not converge. General covariance blocks use
+randomized quasi-Monte Carlo in the dense conditional-normal representation.
+Every integration design is fixed before fitting, so repeated likelihood
+evaluations are deterministic. One-observation blocks are evaluated
+analytically.
+
+The numerical defaults are package operating settings, not statistical
+estimands or literature-mandated constants. \code{points_per_scramble},
+\code{max_points_per_scramble}, and \code{scrambles} set the fixed computational
+design, while
+\code{relative_tolerance} sets its diagnostic acceptance rule. Increasing a
+budget changes only the numerical evaluation of the same likelihood target.
 }

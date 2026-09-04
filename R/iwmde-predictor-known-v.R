@@ -721,7 +721,8 @@
   K       <- setup[["K"]]
   S       <- setup[["S"]]
   mu      <- setup[["mu"]]
-  if (.known_v_nrow(known_V) != K || !identical(dim(mu), c(S, K))) {
+  if (is.null(known_V) || .known_v_nrow(known_V) != K ||
+      !identical(dim(mu), c(S, K))) {
     return(NULL)
   }
 
@@ -834,7 +835,10 @@
 
   data <- context[["data"]]
   if (!identical(parameter, "tau") ||
-      !.iwmde_uses_known_v_joint_likelihood(context) ||
+      !.iwmde_uses_known_v_joint_likelihood(
+        context,
+        priors = setup[["priors"]]
+      ) ||
       .is_data_random(data) ||
       .is_data_multilevel(data) ||
       isTRUE(setup[["is_weightfunction"]]) ||
@@ -851,7 +855,7 @@
   G       <- length(values)
   S       <- length(row_states)
   K       <- setup[["K"]]
-  if (.known_v_nrow(known_V) != K ||
+  if (is.null(known_V) || .known_v_nrow(known_V) != K ||
       !identical(dim(setup[["mu"]]), c(S, K))) {
     return(NULL)
   }
@@ -930,7 +934,7 @@
   known_V <- .data_known_v_data(context[["data"]])
   K       <- setup[["K"]]
   S       <- setup[["S"]]
-  if (.known_v_nrow(known_V) != K ||
+  if (is.null(known_V) || .known_v_nrow(known_V) != K ||
       !identical(dim(mu), c(S, K)) ||
       !identical(dim(mu_basis), c(S, K))) {
     return(NULL)

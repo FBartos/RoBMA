@@ -53,8 +53,10 @@ Defaults to \code{FALSE}.}
 A list of class \code{summary.brma} with model name, optional RoBMA
 inclusion tables, common estimates, moderator estimates, scale estimates,
 publication-bias estimates, and optional conditional estimates. The printed
-form displays the non-empty tables. In meta-regressions with moderators, a
-location intercept fixed at zero is omitted; intercept-only models retain it.
+form displays the non-empty tables. Intercept-only multivariate location
+models label their sole coefficient \code{mu}, consistently with ordinary
+meta-analysis models. Once location moderators are present, the coefficient
+is labeled \code{intercept}; an intercept fixed at zero is omitted.
 The random table reports the quantities aligned with prior specification;
 use \code{\link[=summary_heterogeneity]{summary_heterogeneity()}} for aggregate variances and the complete family
 of deterministic allocation transforms.

@@ -41,7 +41,15 @@ test_that("coef returns model coefficients across cached fits", {
                 info = paste0("coef is non-empty numeric for '", name, "'"))
     expect_true(!is.null(names(cf)),
                 info = paste0("coef is named for '", name, "'"))
-    expect_identical(cf, fit$coefficients,
-                     info = paste0("coef matches $coefficients for '", name, "'"))
+    expected        <- fit$coefficients
+    names(expected) <- .location_repair_intercept_labels(
+      labels = names(expected),
+      object = fit
+    )
+    expect_identical(
+      cf,
+      expected,
+      info = paste0("coef uses public coefficient labels for '", name, "'")
+    )
   }
 })

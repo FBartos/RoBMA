@@ -15,9 +15,15 @@
 #'
 #' With `selection_likelihood = "exact"`, all Gaussian random effects are
 #' analytically marginalized and each connected sampling/random covariance
-#' block is fitted with its joint selected-Gaussian density. This target is
-#' independent of `known_v_parameterization`; that argument remains relevant to
-#' the approximate likelihood and downstream known-`V` machinery. With
+#' block is fitted with its joint selected-Gaussian density. Diagonal-plus-factor
+#' covariance structure is used only when certified by compiled random-effect
+#' metadata or declared explicitly with [known_v_factor()]. Structural ranks
+#' one through four with positive conditional residual variances use exact
+#' low-dimensional factor integrals; other blocks retain the general dense
+#' exact likelihood. No numerical rank is inferred from an arbitrary covariance
+#' matrix. This target is independent of
+#' `known_v_parameterization`; that argument remains relevant to the approximate
+#' likelihood and downstream known-`V` machinery. With
 #' `selection_likelihood = "approximate"`, the existing row-wise selected-normal
 #' likelihood is used. The automatic known-`V` backend resolves to `"latent"`
 #' for this approximate target; explicitly requesting `"whitened"` or

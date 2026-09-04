@@ -4,6 +4,7 @@ test_that("known-V joint log-likelihood uses block MVN density", {
 
   V    <- matrix(c(.04, .015, .015, .09), nrow = 2L)
   data <- list(outcome = data.frame(yi = c(.10, -.20), sei = c(.20, .30)))
+  attr(data, "outcome_type") <- "norm"
   attr(data, "known_V")      <- TRUE
   attr(data, "known_V_data") <- .known_v_prepare(
     V                         = V,
@@ -396,7 +397,7 @@ test_that("latent known-V metadata use the exact low-rank covariance plan", {
     known_v_residual_fraction = NULL,
     warn_singular             = FALSE
   )
-  factor <- .known_v_latent_sampling_factor_plan(known_V)
+  factor <- .known_v_sampling_factor_plan(known_V)
   extra_variances <- rbind(
     c(0.10, 0.20, 0.15, 0.05),
     c(0.30, 0.05, 0.25, 0.10)
@@ -429,13 +430,87 @@ test_that("latent known-V metadata use the exact low-rank covariance plan", {
     tolerance = 0
   )
   expect_equal(observed, expected, tolerance = 1e-12)
-  expect_null(.known_v_latent_sampling_factor_plan(.known_v_prepare(
+  expect_null(.known_v_sampling_factor_plan(.known_v_prepare(
     V                         = sampling_covariance + diag(0.01, 4L),
     keep_rows                 = rep(TRUE, 4L),
     known_v_parameterization  = "block_mvn",
     known_v_residual_fraction = NULL,
     warn_singular             = FALSE
   )))
+})
+
+
+test_that("declared known-V factors stay compact in GLS and prediction", {
+
+  diagonal <- c(.10, .20, .15, .05)
+  loading <- cbind(
+    c(.20, .30, -.10, .40),
+    c(.05, -.08, .12, .02)
+  )
+  known_V <- .known_v_prepare(
+    V                         = known_v_factor(diagonal, loading),
+    keep_rows                 = rep(TRUE, length(diagonal)),
+    known_v_parameterization  = "auto",
+    known_v_residual_fraction = NULL,
+    warn_singular             = FALSE
+  )
+  factor <- .known_v_sampling_factor_plan(known_V)
+
+  data <- list(outcome = data.frame(yi = rep(0, length(diagonal))))
+  attr(data, "known_V")      <- TRUE
+  attr(data, "outcome_type") <- "norm"
+  attr(data, "known_V_data") <- known_V
+  testthat::local_mocked_bindings(
+    .known_v_blocks = function(...) {
+      stop("Declared factors must not be materialized for dependency blocks.")
+    },
+    .known_v_covariance_matrix = function(...) {
+      stop("Declared factors must not be materialized for marginal GLS.")
+    },
+    .package = "RoBMA"
+  )
+  dependency_blocks <- .known_v_dependency_blocks(data, length(diagonal))
+  marginal_plan <- .known_v_marginal_factor_plan(
+    object            = list(data = data),
+    posterior_samples = matrix(numeric(), nrow = 1L, ncol = 0L),
+    known_V           = known_V,
+    extra_variances   = matrix(0, nrow = 1L, ncol = length(diagonal))
+  )
+
+  expect_identical(.known_v_effective_backend(known_V), "whitened")
+  expect_identical(dependency_blocks, known_V[["block_indices"]])
+  expect_identical(
+    marginal_plan[["random_covariance_plans"]][[1L]][["model_matrix"]],
+    loading
+  )
+  expect_equal(
+    factor[["sampling_covariance"]],
+    diag(diagonal, nrow = length(diagonal)),
+    tolerance = 0
+  )
+  expect_identical(factor[["factor_plan"]][["model_matrix"]], loading)
+  expect_equal(
+    factor[["factor_state"]][["coefficient_factor"]],
+    diag(1, nrow = ncol(loading)),
+    tolerance = 0
+  )
+
+  S <- 3L
+  set.seed(194)
+  expected <- sweep(
+    matrix(stats::rnorm(S * length(diagonal)), nrow = S),
+    2L,
+    sqrt(diagonal),
+    "*"
+  ) + matrix(stats::rnorm(S * ncol(loading)), nrow = S) %*% t(loading)
+  set.seed(194)
+  observed <- .known_v_sampling_noise(
+    known_V,
+    S = S,
+    K = length(diagonal)
+  )
+
+  expect_identical(observed, expected)
 })
 
 
@@ -804,5 +879,131 @@ test_that("IWMDE evaluated known-V likelihood matches joint MVN oracle", {
     ),
     expected,
     tolerance = 1e-12
+  )
+})
+
+
+test_that("approximate selection log-likelihood reconstructs its fitted latent target", {
+
+  dat <- data.frame(
+    yi    = c(0.1, -0.2, 0.3, 0.15),
+    study = c("a", "a", "b", "b"),
+    esid  = c("a1", "a2", "b1", "b2")
+  )
+  loading <- matrix(
+    c(0.1, 0.1, 0, 0, 0, 0, 0.2, 0.2),
+    nrow = 4L,
+    ncol = 2L
+  )
+  object <- bselmodel.mv(
+    yi                        = yi,
+    V                         = known_v_factor(
+      diagonal = c(0.01, 0.02, 0.03, 0.01),
+      loading  = loading
+    ),
+    random                    = ~ 1 | study / esid,
+    data                      = dat,
+    measure                   = "GEN",
+    selection_likelihood      = "approximate",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  fit <- structure(
+    list(),
+    formula_design = object[["formula_design"]],
+    prior_list = c(
+      object[["formula_design"]][["mu"]][["prior_list"]],
+      .create_fit_priors(object[["data"]], object[["priors"]])
+    )
+  )
+  posterior_samples <- matrix(
+    c(
+      0.05, 0.10, 0.20, 0.15, -0.05, 0.80, 0.90, 0.3, -0.2,
+      0.10, 0.20, 0.30, -0.10, 0.20, 0.75, 0.85, -0.1, 0.4
+    ),
+    nrow = 2L,
+    byrow = TRUE,
+    dimnames = list(NULL, c(
+      "mu_intercept",
+      "mu__xREx__esid_study_intercept",
+      "mu__xREx__study_intercept",
+      "mu__xREx__study_xRE_Zx[1,1]",
+      "mu__xREx__study_xRE_Zx[2,1]",
+      "omega[1]",
+      "omega[2]",
+      "sampling_z[1]",
+      "sampling_z[2]"
+    ))
+  )
+  fixed_and_study <- matrix(
+    c(0.08, 0.08, 0.04, 0.04, 0.07, 0.07, 0.16, 0.16),
+    nrow = 2L,
+    byrow = TRUE
+  )
+  expected_mu <- fixed_and_study +
+    posterior_samples[, c("sampling_z[1]", "sampling_z[2]")] %*% t(loading)
+  expected_tau <- matrix(
+    posterior_samples[, "mu__xREx__esid_study_intercept"],
+    nrow = 2L,
+    ncol = 4L
+  )
+  expected_sei <- sqrt(c(0.01, 0.02, 0.03, 0.01))
+  expected_selection_sei <- sqrt(
+    c(0.01, 0.02, 0.03, 0.01) + rowSums(loading^2)
+  )
+
+  setup <- .estimate_likelihood_setup_from_parts(
+    fit               = fit,
+    data              = object[["data"]],
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples
+  )
+  selection_context <- .selection_context_from_parts(
+    fit               = fit,
+    data              = object[["data"]],
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples,
+    effect_direction  = "positive"
+  )
+  expected <- .outcome_pdf.selnorm(
+    yi                = dat[["yi"]],
+    mu_samples        = expected_mu,
+    tau_within        = expected_tau,
+    sei               = expected_sei,
+    selection_sei     = expected_selection_sei,
+    selection_context = selection_context
+  )
+
+  expect_false(.estimate_normal_target_uses_covariance_backend(
+    object[["data"]],
+    object[["priors"]]
+  ))
+  expect_equal(setup[["mu"]], expected_mu, tolerance = 1e-15)
+  expect_equal(setup[["tau_within"]], expected_tau, tolerance = 1e-15)
+  expect_equal(setup[["sei"]], expected_sei, tolerance = 1e-15)
+  expect_equal(
+    setup[["selection_sei"]],
+    expected_selection_sei,
+    tolerance = 1e-15
+  )
+  expect_equal(
+    .log_lik_from_posterior_samples(
+      fit               = fit,
+      posterior_samples = posterior_samples,
+      data              = object[["data"]],
+      priors            = object[["priors"]]
+    ),
+    expected,
+    tolerance = 1e-14
+  )
+  expect_equal(
+    .log_lik_from_posterior_samples_sum(
+      fit               = fit,
+      posterior_samples = posterior_samples,
+      data              = object[["data"]],
+      priors            = object[["priors"]]
+    ),
+    rowSums(expected),
+    tolerance = 1e-14
   )
 })

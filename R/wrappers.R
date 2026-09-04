@@ -53,7 +53,14 @@ nobs.brma <- function(object, ...) {
 #' @seealso [summary.brma()]
 #' @export
 coef.brma <- function(object, ...) {
-  return(object[["coefficients"]])
+
+  coefficients        <- object[["coefficients"]]
+  names(coefficients) <- .location_repair_intercept_labels(
+    labels = names(coefficients),
+    object = object
+  )
+
+  return(coefficients)
 }
 
 
@@ -853,10 +860,11 @@ ranef <- function(object, ...) {
 #' \code{TRUE}, matching standard 2-level \code{brma()} behavior.
 #' @param expand whether to repeat random-effect contributions for every fitted
 #' observation. Defaults to \code{FALSE}, returning one column per unique
-#' grouping-level contribution in first fitted-observation order, consistently
-#' with \code{metafor::ranef()}. Indicator-coded random coefficients retain one
-#' column per observed grouping-level and coefficient combination. Set to
-#' \code{TRUE} for observation-aligned output.
+#' grouping-level contribution in the fitted grouping order used by
+#' \code{metafor::ranef()}. Nested groups follow their original outer-to-inner
+#' order. Indicator-coded random coefficients retain one column per observed
+#' grouping-level and coefficient combination. Set to \code{TRUE} for
+#' observation-aligned output.
 #' @param ... additional arguments forwarded to \code{\link{predict.brma}} for
 #' supported options such as \code{conditional}. \code{newdata}, \code{type},
 #' \code{quiet}, \code{output_measure}, and \code{transform} are controlled by

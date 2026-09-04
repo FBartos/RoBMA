@@ -207,7 +207,7 @@
       .iwmde_stop_ordinate_unavailable(
         message = .hypothesis_brma_iwmde_ordinate_failure_message(
           density_method = density_method,
-          target         = paste0(parameter, " = ", requested_value),
+          target         = paste0(parameter_label, " = ", requested_value),
           diagnostic     = diagnostic,
           reason         = .hypothesis_brma_estimate_ordinate_reason(
             estimate = estimate,

@@ -263,11 +263,12 @@
          call. = FALSE)
   }
 
-  sampling_covariance <- .known_v_covariance_matrix(known_V)
-  sampling_factors    <- .known_v_latent_sampling_factor_plan(
+  sampling_factors <- .known_v_sampling_factor_plan(
     known_V = known_V
   )
-  if (!is.null(sampling_factors)) {
+  if (is.null(sampling_factors)) {
+    sampling_covariance <- .known_v_covariance_matrix(known_V)
+  } else {
     sampling_covariance <- sampling_factors[["sampling_covariance"]]
     random_factors[["factor_plans"]] <- c(
       random_factors[["factor_plans"]],
@@ -292,30 +293,42 @@
 }
 
 
-.known_v_latent_sampling_factor_plan <- function(known_V) {
+# Compile the exact fixed sampling factor independently of the fitting backend.
+# Explicit factor storage is authoritative; otherwise only the latent backend
+# exposes a certified factorization.
+.known_v_sampling_factor_plan <- function(known_V) {
 
-  if (!identical(.known_v_effective_backend(known_V), "latent")) {
+  storage <- .known_v_storage(known_V)
+  K       <- .known_v_nrow(known_V)
+  if (identical(storage, "factor")) {
+    model_matrix      <- known_V[["factor_loading"]]
+    residual_variance <- known_V[["factor_diagonal"]]
+  } else if (identical(.known_v_effective_backend(known_V), "latent")) {
+    blocks <- .known_v_backend_blocks(known_V, "latent")
+    rank   <- sum(vapply(blocks, `[[`, integer(1), "rank"))
+    if (rank == 0L) {
+      return(NULL)
+    }
+
+    model_matrix <- matrix(0, nrow = K, ncol = rank)
+    offset       <- 0L
+    for (block in blocks) {
+      columns <- offset + seq_len(block[["rank"]])
+      model_matrix[block[["index"]], columns] <- block[["B"]]
+      offset <- max(columns)
+    }
+    residual_variance <- .known_v_residual_variance(known_V)
+  } else {
     return(NULL)
   }
-  blocks <- .known_v_backend_blocks(known_V, "latent")
-  K      <- .known_v_nrow(known_V)
-  rank   <- sum(vapply(blocks, `[[`, integer(1), "rank"))
+
+  rank <- ncol(model_matrix)
   if (rank == 0L) {
     return(NULL)
   }
-
-  model_matrix <- matrix(0, nrow = K, ncol = rank)
-  offset       <- 0L
-  for (block in blocks) {
-    columns <- offset + seq_len(block[["rank"]])
-    model_matrix[block[["index"]], columns] <- block[["B"]]
-    offset <- max(columns)
-  }
-
-  residual_variance <- .known_v_residual_variance(known_V)
   if (length(residual_variance) != K || any(!is.finite(residual_variance)) ||
       any(residual_variance < 0)) {
-    stop("Known-V latent residual variance metadata are invalid.",
+    stop("Known-V factor residual variance metadata are invalid.",
          call. = FALSE)
   }
 

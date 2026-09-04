@@ -38,7 +38,10 @@
     active_setup = active_setup
   )
 
-  if (.iwmde_uses_known_v_joint_likelihood(context)) {
+  if (.iwmde_uses_known_v_joint_likelihood(
+      context,
+      priors = active_setup[["priors"]]
+    )) {
     return(.iwmde_log_lik_known_v_joint_sum_from_samples(
       context           = context,
       posterior_samples = posterior_samples,
@@ -77,7 +80,10 @@
     )
   }
 
-  if (.iwmde_uses_known_v_joint_likelihood(context)) {
+  if (.iwmde_uses_known_v_joint_likelihood(
+      context,
+      priors = active_setup[["priors"]]
+    )) {
     # Certified callers of this wrapper must pass mu_samples from the IWMDE
     # evaluated-predictor path, where sampled random effects for known-V
     # random-formula models are already included in the location predictor.
@@ -113,9 +119,13 @@
 }
 
 
-.iwmde_uses_known_v_joint_likelihood <- function(context) {
+.iwmde_uses_known_v_joint_likelihood <- function(
+    context, priors = context[["object"]][["priors"]]) {
 
-  .known_v_estimate_target_uses_backend(context[["data"]])
+  data <- context[["data"]]
+
+  .is_data_known_v(data) &&
+    .estimate_normal_target_uses_covariance_backend(data, priors)
 }
 
 

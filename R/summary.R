@@ -26,8 +26,10 @@
 #' @return A list of class `summary.brma` with model name, optional RoBMA
 #' inclusion tables, common estimates, moderator estimates, scale estimates,
 #' publication-bias estimates, and optional conditional estimates. The printed
-#' form displays the non-empty tables. In meta-regressions with moderators, a
-#' location intercept fixed at zero is omitted; intercept-only models retain it.
+#' form displays the non-empty tables. Intercept-only multivariate location
+#' models label their sole coefficient `mu`, consistently with ordinary
+#' meta-analysis models. Once location moderators are present, the coefficient
+#' is labeled `intercept`; an intercept fixed at zero is omitted.
 #' The random table reports the quantities aligned with prior specification;
 #' use [summary_heterogeneity()] for aggregate variances and the complete family
 #' of deterministic allocation transforms.
@@ -157,8 +159,14 @@ summary.brma       <- function(
       }
     )
   )
-  estimates_mods             <- estimates_mods_pair[["estimates"]]
-  estimates_mods_conditional <- estimates_mods_pair[["conditional"]]
+  estimates_mods             <- .summary_location_repair_row_labels(
+    estimates = estimates_mods_pair[["estimates"]],
+    object    = object
+  )
+  estimates_mods_conditional <- .summary_location_repair_row_labels(
+    estimates = estimates_mods_pair[["conditional"]],
+    object    = object
+  )
 
   ### provide regression estimates for the scale meta-regression
   scale_footnotes <- .summary_scale_footnotes(object)
@@ -553,6 +561,19 @@ print.brma <- function(x, ...) {
   )
 
   estimates
+}
+
+.summary_location_repair_row_labels <- function(estimates, object) {
+
+  if (length(estimates) == 0L || is.null(rownames(estimates))) {
+    return(estimates)
+  }
+
+  rownames(estimates) <- .location_repair_intercept_labels(
+    labels = rownames(estimates),
+    object = object
+  )
+  return(estimates)
 }
 
 .summary_scale_display_names <- function(object) {

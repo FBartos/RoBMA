@@ -74,7 +74,9 @@ transformed predictors as columns in \code{data}; inline calls such as \code{I()
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data} and follows the same explicit-column formula grammar as \code{mods}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}

@@ -51,8 +51,9 @@ brma.mv(
 left-hand side and location moderators on the right-hand side (for example
 \code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.}
 
-\item{V}{a known working variance-covariance matrix, or a list of block
-variance-covariance matrices, used by \code{brma.mv()}.}
+\item{V}{a known working variance-covariance matrix, a list of block
+variance-covariance matrices, or an exact diagonal-plus-factor declaration
+created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
 when estimating the unit information standard deviation.}
@@ -164,7 +165,9 @@ representation. Defaults to \code{0.10}; values are validated for all backends
 but affect only the latent backend. When \code{"auto"} selects \code{"whitened"} or
 \code{"block_mvn"}, explicitly supplied values are disregarded by the likelihood.
 Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
-supplied.}
+supplied. For \code{\link[=known_v_factor]{known_v_factor()}} input, the declared diagonal is the exact
+residual variance and this argument is disregarded with a warning when
+supplied explicitly.}
 
 \item{marginalize_estimate_level}{logical; should a one-to-one estimate-level
 random-intercept block be integrated into the likelihood variance instead of

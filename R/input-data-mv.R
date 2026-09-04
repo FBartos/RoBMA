@@ -25,6 +25,7 @@
 
   V       <- .known_v_subset_input(V, keep_rows)
   known_V <- .known_v_canonicalize(V, warn_singular = warn_singular)
+  declared_factor <- identical(.known_v_storage(known_V), "factor")
   covariance_blocks <- .known_v_correlated_blocks(known_V)
   block_indices     <- lapply(covariance_blocks, `[[`, "index")
   if (length(.known_v_independent_indices(known_V)) > 0L) {
@@ -47,18 +48,19 @@
       known_v_is_singular   = singular
     )
   }
-  known_v_residual_fraction_metadata <- if (
-    known_v_parameterization == "latent" ||
-      isTRUE(known_v_residual_fraction_specified)
-  ) {
+  known_v_residual_fraction_metadata <- if (declared_factor) {
+    NULL
+  } else if (known_v_parameterization == "latent" ||
+             isTRUE(known_v_residual_fraction_specified)) {
     known_v_residual_fraction
   } else {
     NULL
   }
-  exact_rank_one_latent <- isTRUE(singular) &&
-    .known_v_singular_blocks_are_exact_rank_one(known_V)
+  exact_declared_latent <- declared_factor ||
+    (isTRUE(singular) &&
+       .known_v_singular_blocks_are_exact_rank_one(known_V))
   if (isTRUE(singular) && known_v_parameterization == "latent" &&
-      !exact_rank_one_latent) {
+      !exact_declared_latent) {
     stop(
       "Singular all-correlated known-V matrices cannot use ",
       "known_v_parameterization = 'latent'. Use 'block_mvn', or 'whitened' ",
@@ -68,7 +70,7 @@
   }
   effective_backend <- if (!correlated) {
     "diagonal"
-  } else if (exact_rank_one_latent) {
+  } else if (isTRUE(singular) && exact_declared_latent) {
     "latent"
   } else {
     known_v_parameterization
@@ -117,10 +119,22 @@
     ))
   }
 
-  decomposition <- .known_v_decompose_blocks(
-    known_V           = known_V,
-    residual_fraction = known_v_residual_fraction
-  )
+  if (declared_factor && isTRUE(known_v_residual_fraction_specified)) {
+    warning(
+      "'known_v_residual_fraction' was disregarded because the 'diagonal' ",
+      "component of 'known_v_factor()' defines the exact residual variance.",
+      call.      = FALSE,
+      immediate. = TRUE
+    )
+  }
+  decomposition <- if (declared_factor) {
+    .known_v_decompose_declared_factor(known_V)
+  } else {
+    .known_v_decompose_blocks(
+      known_V           = known_V,
+      residual_fraction = known_v_residual_fraction
+    )
+  }
 
   return(.known_v_update(known_V, decomposition))
 }
@@ -149,6 +163,43 @@
       diagonal = diagonal,
       blocks   = list(),
       singular = FALSE
+    )))
+  }
+
+  if (storage == "factor") {
+    components <- .known_v_factor_components(V)
+    diagonal   <- components[["diagonal"]] +
+      rowSums(components[["loading"]]^2)
+    if (any(diagonal <= 0)) {
+      stop("The diagonal of 'V' must contain positive variances.",
+           call. = FALSE)
+    }
+    block_indices <- .known_v_factor_block_indices(
+      components[["diagonal"]],
+      components[["loading"]]
+    )
+    covariance <- .known_v_factor_covariance(
+      components[["diagonal"]],
+      components[["loading"]]
+    )
+    if (any(!is.finite(covariance))) {
+      stop("The 'V' argument must contain only finite non-missing values.",
+           call. = FALSE)
+    }
+    singular <- .known_v_is_singular(covariance)
+    if (singular && isTRUE(warn_singular)) {
+      .known_v_warn_singular()
+    }
+    return(.new_known_v(list(
+      version         = 2L,
+      storage         = "factor",
+      K               = K,
+      diagonal        = diagonal,
+      factor_diagonal = components[["diagonal"]],
+      factor_loading  = components[["loading"]],
+      blocks          = NULL,
+      block_indices   = block_indices,
+      singular        = singular
     )))
   }
 
@@ -559,6 +610,72 @@
     rank              = rank_total,
     diagnostics       = diagnostics
   ))
+}
+
+
+.known_v_decompose_declared_factor <- function(known_V) {
+
+  diagonal         <- known_V[["factor_diagonal"]]
+  loading          <- known_V[["factor_loading"]]
+  covariance_blocks <- .known_v_correlated_blocks(known_V)
+  latent_blocks    <- vector("list", length(covariance_blocks))
+  diagnostics      <- vector("list", length(covariance_blocks))
+  rank_total       <- 0L
+
+  for (b in seq_along(covariance_blocks)) {
+    index <- covariance_blocks[[b]][["index"]]
+    support_size <- if (ncol(loading) == 0L) {
+      integer()
+    } else {
+      colSums(loading[index, , drop = FALSE] != 0)
+    }
+    local_columns  <- which(support_size == 1L)
+    factor_columns <- which(support_size > 1L)
+    if (length(local_columns) > 0L) {
+      diagonal[index] <- diagonal[index] + rowSums(
+        loading[index, local_columns, drop = FALSE]^2
+      )
+    }
+    B          <- loading[index, factor_columns, drop = FALSE]
+    rank_block <- ncol(B)
+    latent_blocks[[b]] <- list(
+      index   = index,
+      size    = length(index),
+      B       = B,
+      rank    = rank_block,
+      z_start = rank_total + 1L,
+      z_end   = rank_total + rank_block
+    )
+    rank_total <- rank_total + rank_block
+    diagnostics[[b]] <- data.frame(
+      block                          = b,
+      block_size                     = length(index),
+      requested_residual_fraction    = NA_real_,
+      effective_residual_fraction    = NA_real_,
+      rank                           = rank_block,
+      max_reconstruction_error       = 0,
+      min_latent_eigenvalue          = NA_real_,
+      min_residual_variance_fraction = min(
+        diagonal[index] / .known_v_diagonal(known_V)[index]
+      ),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  independent <- .known_v_independent_indices(known_V)
+  if (length(independent) > 0L && ncol(loading) > 0L) {
+    diagonal[independent] <- diagonal[independent] + rowSums(
+      loading[independent, , drop = FALSE]^2
+    )
+  }
+
+  list(
+    residual_variance = diagonal,
+    residual_sei      = sqrt(diagonal),
+    latent_blocks     = latent_blocks,
+    rank              = rank_total,
+    diagnostics       = .known_v_bind_diagnostics(diagnostics)
+  )
 }
 
 

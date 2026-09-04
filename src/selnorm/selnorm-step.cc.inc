@@ -514,19 +514,15 @@ void step_moments_partition(const double *omega,
   }
 }
 
-double step_rng_trusted_partition(const double *omega,
-                                  const SelNormKernelData &data,
-                                  double signed_mean, double sd, double sei,
-                                  double u_bin, double u_interval,
-                                  int omega_stride,
-                                  double *mass, double *lower, double *upper,
-                                  double *log_normalizer,
-                                  bool *ok)
+double step_normalizer_trusted_partition(
+    const double *omega, const SelNormKernelData &data,
+    double signed_mean, double sd, double sei, int omega_stride,
+    double *mass, double *lower, double *upper, int *n_groups, bool *ok)
 {
   *ok = false;
 
   double denom = 0;
-  int n_groups = 0;
+  *n_groups = 0;
 
   for (int b = 0; b < data.n_bins; ) {
     const double w = omega_at(omega, b + 1, omega_stride);
@@ -557,10 +553,10 @@ double step_rng_trusted_partition(const double *omega,
         return std::numeric_limits<double>::quiet_NaN();
       }
       if (group_mass > 0) {
-        mass[n_groups]  = group_mass;
-        lower[n_groups] = group_lower;
-        upper[n_groups] = group_upper;
-        ++n_groups;
+        if (mass != NULL) mass[*n_groups] = group_mass;
+        if (lower != NULL) lower[*n_groups] = group_lower;
+        if (upper != NULL) upper[*n_groups] = group_upper;
+        ++(*n_groups);
         denom += group_mass;
       }
     }
@@ -571,6 +567,61 @@ double step_rng_trusted_partition(const double *omega,
   if (!std::isfinite(denom) || !(denom > 0)) {
     return std::numeric_limits<double>::quiet_NaN();
   }
+  *ok = true;
+  return denom;
+}
+
+
+bool step_normalizer_trusted_telescoping(
+    const double *omega, const SelNormKernelData &data,
+    double signed_mean, double sd, double sei, int omega_stride,
+    double *boundary_tail, double *omega_diff, double *omega_last,
+    double *normalizer)
+{
+  // For an ordered partition, sum_b omega_b Pr(I_b) equals the last
+  // weight plus the boundary-tail probabilities weighted by adjacent
+  // differences. Callers retain the interval-based path as a cancellation
+  // fallback, so this changes only how the same normalizer is evaluated.
+  *omega_last = omega_at(omega, data.n_bins, omega_stride);
+  *normalizer = *omega_last;
+  double normalizer_abs = std::abs(*normalizer);
+
+  for (int b = 0; b < data.n_bins - 1; ++b) {
+    const double difference = omega_at(omega, b + 1, omega_stride) -
+      omega_at(omega, b + 2, omega_stride);
+    const double boundary_score = stable_affine_score(
+      data.z_lower[b], sei, signed_mean, sd
+    );
+    const double tail = tail_at(boundary_score, 0, 1);
+    const double contribution = difference * tail;
+    if (boundary_tail != NULL) boundary_tail[b] = tail;
+    if (omega_diff != NULL) omega_diff[b] = difference;
+    *normalizer    += contribution;
+    normalizer_abs += std::abs(contribution);
+  }
+
+  return std::isfinite(*omega_last) && std::isfinite(*normalizer) &&
+    *normalizer > std::numeric_limits<double>::min() &&
+    *normalizer > 1e-8 * normalizer_abs;
+}
+
+
+double step_rng_trusted_partition(const double *omega,
+                                   const SelNormKernelData &data,
+                                   double signed_mean, double sd, double sei,
+                                  double u_bin, double u_interval,
+                                  int omega_stride,
+                                  double *mass, double *lower, double *upper,
+                                  double *log_normalizer,
+                                  bool *ok)
+{
+  int n_groups = 0;
+  const double denom = step_normalizer_trusted_partition(
+    omega, data, signed_mean, sd, sei, omega_stride,
+    mass, lower, upper, &n_groups, ok
+  );
+  if (!*ok) return std::numeric_limits<double>::quiet_NaN();
+
   if (log_normalizer != NULL) {
     *log_normalizer = std::log(denom);
   }
@@ -587,7 +638,6 @@ double step_rng_trusted_partition(const double *omega,
     }
   }
 
-  *ok = true;
   return truncated_normal_quantile(
     lower[selected],
     upper[selected],

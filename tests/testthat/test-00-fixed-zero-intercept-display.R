@@ -179,3 +179,48 @@ test_that("stored summaries omit the fixed-zero location intercept", {
   expect_true(all(c("theta", "gamma", "sampling_z", "pi", "phi") %in%
                     observed[["remove_parameters"]]))
 })
+
+
+test_that("intercept-only multivariate location coefficients use mu", {
+
+  no_mods <- brma.mv(
+    yi                        = yi,
+    V                         = sei^2,
+    random                    = ~ (1 | study),
+    data                      = .fixed_zero_intercept_test_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  with_mods <- brma.mv(
+    yi                        = yi,
+    V                         = sei^2,
+    mods                      = ~ mod,
+    random                    = ~ (1 | study),
+    data                      = .fixed_zero_intercept_test_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  no_mods_table <- data.frame(
+    Mean      = 0,
+    row.names = "intercept"
+  )
+  with_mods_table <- data.frame(
+    Mean      = c(0, 1),
+    row.names = c("intercept", "mod")
+  )
+
+  expect_identical(
+    rownames(.summary_location_repair_row_labels(no_mods_table, no_mods)),
+    "mu"
+  )
+  expect_identical(
+    rownames(.summary_location_repair_row_labels(with_mods_table, with_mods)),
+    c("intercept", "mod")
+  )
+
+  no_mods[["coefficients"]] <- c("(mu) intercept" = 0, "(mu) sd" = 1)
+  expect_identical(names(coef(no_mods)), c("mu", "(mu) sd"))
+})

@@ -252,6 +252,8 @@
   is_multilevel <- .is_data_multilevel(data)
   is_random     <- .is_data_random(data)
   K             <- nrow(data[["outcome"]])
+  uses_covariance_backend <- unit == "estimate" &&
+    .estimate_normal_target_uses_covariance_backend(data, priors)
   random_effects_conditioning <- match.arg(
     random_effects_conditioning,
     c("none", "included_in_mu")
@@ -314,7 +316,7 @@
     data   = data,
     priors = priors
   )
-  if (.is_data_known_v(data) && !.known_v_estimate_target_uses_backend(data)) {
+  if (.is_data_known_v(data) && !uses_covariance_backend) {
     mu_samples <- mu_samples + .evaluate.brma.sampling_dependency(
       fit               = fit,
       data              = data,
@@ -337,6 +339,7 @@
     mu_random            = zero_mu,
     tau_within           = tau_within_samples,
     tau_between          = tau_between_samples,
+    is_multilevel        = is_multilevel,
     cluster              = if (is_multilevel) split(seq_len(K), data[["outcome"]][["cluster"]]) else NULL,
     weights              = if (.is_data_weights(data)) data[["outcome"]][["weights"]] else NULL,
     data_hash            = data_hash,
@@ -489,7 +492,7 @@
     return(.selection_exact_joint_loglik_from_setup(setup))
   }
 
-  if (.known_v_estimate_target_uses_backend(data)) {
+  if (.estimate_normal_target_uses_covariance_backend(data, priors)) {
     return(.log_lik_known_v_joint_sum_from_setup(setup))
   }
 
@@ -603,6 +606,8 @@
   outcome_type      <- .data_outcome_type(data)
   effect_direction  <- .data_effect_direction(data)
   K                 <- nrow(data[["outcome"]])
+  uses_covariance_backend <- unit == "estimate" &&
+    .estimate_normal_target_uses_covariance_backend(data, priors)
 
   .check_glmm_no_bias_priors(data, priors)
 
@@ -635,11 +640,29 @@
     )
   }
 
+  marginalized_random_source_samples <-
+    .known_v_marginalized_random_source_samples(
+      fit               = fit,
+      data              = data,
+      priors            = priors,
+      posterior_samples = posterior_samples
+    )
+
   tau_result <- if (is_random) {
     zero_tau <- matrix(0, nrow = nrow(posterior_samples), ncol = K)
+    marginalized_tau <- if (uses_covariance_backend) {
+      zero_tau
+    } else {
+      sqrt(.evaluate_marginalized_random_variance(
+        data              = data,
+        posterior_samples = posterior_samples,
+        K                 = K,
+        source_samples    = marginalized_random_source_samples
+      ))
+    }
     list(
-      tau_total   = zero_tau,
-      tau_within  = zero_tau,
+      tau_total   = marginalized_tau,
+      tau_within  = marginalized_tau,
       tau_between = zero_tau,
       rho         = NULL
     )
@@ -736,7 +759,7 @@
     data   = data,
     priors = priors
   )
-  if (.is_data_known_v(data) && !.known_v_estimate_target_uses_backend(data)) {
+  if (.is_data_known_v(data) && !uses_covariance_backend) {
     mu_samples <- mu_samples + .evaluate.brma.sampling_dependency(
       fit               = fit,
       data              = data,
@@ -769,13 +792,7 @@
     outcome_type      = outcome_type,
     effect_direction  = effect_direction,
     posterior_samples = posterior_samples,
-    marginalized_random_source_samples =
-      .known_v_marginalized_random_source_samples(
-        fit               = fit,
-        data              = data,
-        priors            = priors,
-        posterior_samples = posterior_samples
-      )
+    marginalized_random_source_samples = marginalized_random_source_samples
   ))
 }
 
@@ -833,7 +850,10 @@
 .log_lik_setup_sei <- function(object, data) {
 
   selection_sei <- .outcome_data_sei(object)
-  likelihood_sei <- if (.known_v_estimate_target_uses_backend(data)) {
+  likelihood_sei <- if (.estimate_normal_target_uses_covariance_backend(
+      data,
+      object[["priors"]]
+    )) {
     selection_sei
   } else {
     .outcome_data_likelihood_sei(object)

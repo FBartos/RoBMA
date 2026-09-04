@@ -1,5 +1,54 @@
 context("brma.mv known-V representation and validation")
 
+test_that("declared known-V factors preserve provenance through data paths", {
+
+  diagonal <- c(.010, .015, .020, .025)
+  loading <- cbind(
+    c(.12, .08, 0, 0),
+    c(0, 0, .10, .14),
+    c(.03, 0, 0, 0)
+  )
+  declared <- known_v_factor(diagonal, loading)
+  covariance <- diag(diagonal) + tcrossprod(loading)
+  keep <- c(TRUE, TRUE, FALSE, TRUE)
+
+  prepared <- .known_v_prepare(
+    V                         = declared,
+    keep_rows                 = keep,
+    known_v_parameterization  = "latent",
+    known_v_residual_fraction = NULL,
+    warn_singular             = FALSE
+  )
+  prediction <- .known_v_newdata_prepare(declared, k = 4L)
+
+  expect_identical(.known_v_storage(prepared), "factor")
+  expect_s3_class(.known_v_as_input(prepared), "RoBMA_known_v_factor")
+  expect_equal(
+    unname(.known_v_materialize(prepared)),
+    unname(covariance[keep, keep, drop = FALSE]),
+    tolerance = 0
+  )
+  expect_identical(.known_v_storage(prediction), "factor")
+  expect_equal(
+    unname(.known_v_materialize(prediction)),
+    unname(covariance),
+    tolerance = 0
+  )
+
+  latent_covariance <- diag(.known_v_residual_variance(prepared))
+  for (block in .known_v_backend_blocks(prepared, "latent")) {
+    index <- block[["index"]]
+    latent_covariance[index, index] <-
+      latent_covariance[index, index, drop = FALSE] + tcrossprod(block[["B"]])
+  }
+  expect_equal(
+    unname(latent_covariance),
+    unname(covariance[keep, keep, drop = FALSE]),
+    tolerance = 0
+  )
+})
+
+
 test_that("known-V consumers require the current representation", {
 
   data <- list(outcome = data.frame(yi = 0, sei = 1))

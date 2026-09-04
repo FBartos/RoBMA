@@ -28,7 +28,8 @@
   }
 
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
-  if (identical(state_scope, "global")) {
+  if (identical(state_scope, "global") &&
+      .iwmde_uses_known_v_random_marginal_likelihood(context)) {
     samples <- .iwmde_drop_local_latent_sample_columns(samples, context)
   }
   setup <- if (.iwmde_uses_known_v_random_marginal_likelihood(context) &&
@@ -660,7 +661,10 @@
     context, parameter, row_states, replacement, setup, basis) {
 
   cache <- context[["predictor_cache"]]
-  if (!.iwmde_uses_known_v_joint_likelihood(context) ||
+  if (!.iwmde_uses_known_v_joint_likelihood(
+      context,
+      priors = setup[["priors"]]
+    ) ||
       !is.environment(cache)) {
     return(.iwmde_normal_location_likelihood_change(
       context = context,
@@ -917,7 +921,10 @@
     mu_basis <- -mu_basis
   }
 
-  if (.iwmde_uses_known_v_joint_likelihood(context)) {
+  if (.iwmde_uses_known_v_joint_likelihood(
+      context,
+      priors = setup[["priors"]]
+    )) {
     return(.iwmde_normal_location_likelihood_change_known_v(
       context  = context,
       setup    = setup,

@@ -228,6 +228,14 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     FALSE
   }
   covariance_plan_cache <- new.env(parent = emptyenv())
+  joint_exact_selection <- FALSE
+  if (.is_priors_weightfunction(priors) && .is_data_exact_selection(data)) {
+    joint_exact_selection <-
+      sampling_latent_setup[["marginalized"]] ||
+      .is_data_random(data) || .is_data_multilevel(data) || any(
+        fit_data[["selection_execution_plan"]][["block_sizes"]] > 1L
+      )
+  }
 
   ### compute marginal likelihood
   marglik <- BayesTools::JAGS_bridgesampling(
@@ -261,6 +269,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     is_PET                   = .is_priors_PET(priors),
     is_PEESE                 = .is_priors_PEESE(priors),
     is_weightfunction        = .is_priors_weightfunction(priors),
+    joint_exact_selection    = joint_exact_selection,
     fixed_tau                = .fixed_tau_prior_value(priors),
     fixed_rho                = bridge_setup[["fixed_rho"]],
     fixed_zero_random        = bridge_setup[["fixed_zero_random"]],
@@ -862,13 +871,34 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     isTRUE(selection_spec[["telescope_probabilities"]])
 
   if (exact_selection) {
-    exact_setup <- .data_exact_selection_setup(model_data)
-    fit_data[["exact_selection_row_blocks"]] <- exact_setup[["row_blocks"]]
-    fit_data[["exact_selection_sampling_covariance"]] <-
-      exact_setup[["sampling_covariance"]]
-    fit_data[["exact_selection_integration_plan"]] <-
-      exact_setup[["integration_plan"]]
+    execution_plan <- .data_exact_selection_setup(model_data)
+    row_blocks      <- execution_plan[["row_blocks"]]
+    K <- fit_data[["K"]]
+    if (!is.list(row_blocks) ||
+        !identical(sort(as.integer(unlist(row_blocks))), seq_len(K)) ||
+        length(.selection_exact_sampling_diagonal(
+          execution_plan[["sampling"]]
+        )) != K) {
+      stop("Exact selection bridge metadata are invalid.", call. = FALSE)
+    }
+    fit_data[["selection_execution_plan"]] <- execution_plan
   }
+
+  fit_data[["selection_bridge_context"]] <- .marglik_selection_context(
+    parameters = list(),
+    data       = fit_data
+  )
+  jags_selection_names <- grep("^sel_", names(fit_data), value = TRUE)
+  fit_data[jags_selection_names] <- NULL
+  priority_names <- c(
+    "selection_bridge_context", "selection_execution_plan",
+    "K", "yi", "sei", "cluster", "weight"
+  )
+  priority_names <- priority_names[priority_names %in% names(fit_data)]
+  fit_data <- fit_data[c(
+    priority_names,
+    names(fit_data)[!names(fit_data) %in% priority_names]
+  )]
 
   return(fit_data)
 }
@@ -925,12 +955,19 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     bridge_context = NULL, fixed_tau = NULL, fixed_rho = NULL,
     fixed_zero_random = FALSE, cluster_effects_marginalized = FALSE,
     sampling_latent_marginalized = FALSE,
-    covariance_plan_cache = NULL) {
+    covariance_plan_cache = NULL, joint_exact_selection = NULL) {
 
   ### extract number of observations
   K <- data[["K"]]
-  exact_selection <- isTRUE(is_weightfunction) &&
-    !is.null(model_data) && .is_data_exact_selection(model_data)
+  if (is.null(joint_exact_selection)) {
+    exact_selection <- isTRUE(is_weightfunction) &&
+      !is.null(data[["selection_execution_plan"]])
+    joint_exact_selection <- exact_selection && (
+      sampling_latent_marginalized || is_random || is_multilevel || any(
+        data[["selection_execution_plan"]][["block_sizes"]] > 1L
+      )
+    )
+  }
 
   if (is_known_v) {
     if (is.null(known_V)) {
@@ -1014,7 +1051,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       mu_samples <- -mu_samples
     }
 
-    if (exact_selection) {
+    if (joint_exact_selection) {
 
       log_lik <- .marglik_exact_selection_log_lik(
         parameters               = parameters,
@@ -1270,6 +1307,38 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 
 .marglik_selection_context <- function(parameters, data) {
 
+  template <- data[["selection_bridge_context"]]
+  if (!is.null(template)) {
+    omega <- if (!is.null(parameters[["omega"]])) {
+      matrix(parameters[["omega"]], nrow = 1)
+    } else {
+      template[["omega"]]
+    }
+    alpha <- if (!is.null(parameters[["alpha"]])) {
+      parameters[["alpha"]]
+    } else {
+      template[["alpha"]]
+    }
+    phack_kind <- if (!is.null(parameters[["phack_kind"]])) {
+      as.integer(parameters[["phack_kind"]])
+    } else {
+      template[["phack_kind"]]
+    }
+
+    selection_context <- template
+    selection_context[["omega"]]      <- omega
+    selection_context[["alpha"]]      <- alpha
+    selection_context[["phack_kind"]] <- phack_kind
+    selection_context[["phack_q"]] <- if (phack_kind > 0L) phack_kind else 1L
+    if (!identical(
+      selection_context[["phack_q"]],
+      template[["phack_q"]]
+    )) {
+      selection_context <- .selection_reset_native_cache(selection_context)
+    }
+    return(selection_context)
+  }
+
   z_lower        <- .marglik_restore_jags_selection_bounds(data[["sel_z_lower"]])
   z_upper        <- .marglik_restore_jags_selection_bounds(data[["sel_z_upper"]])
   segment_bounds <- .marglik_restore_jags_selection_bounds(
@@ -1397,17 +1466,24 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     mu_samples, tau_within_samples, tau_between_samples, is_random,
     is_multilevel, fixed_zero_random, K) {
 
-  row_blocks <- data[["exact_selection_row_blocks"]]
-  sampling   <- data[["exact_selection_sampling_covariance"]]
-  integration_plan <- data[["exact_selection_integration_plan"]]
-  if (!is.list(row_blocks) ||
-      !identical(sort(as.integer(unlist(row_blocks))), seq_len(K)) ||
-      !is.matrix(sampling) || !identical(dim(sampling), c(K, K)) ||
-      is.null(integration_plan)) {
+  bridge_plan <- data[["selection_execution_plan"]]
+  if (is.null(bridge_plan)) {
     stop("Exact selection bridge metadata are invalid.", call. = FALSE)
   }
+  row_blocks       <- bridge_plan[["row_blocks"]]
+  execution_plan <- bridge_plan
+  block_sizes       <- bridge_plan[["block_sizes"]]
 
-  covariance <- sampling
+  factor_setup <- list(
+    data          = model_data,
+    S             = 1L,
+    K             = K,
+    tau_within    = tau_within_samples,
+    tau_between   = tau_between_samples,
+    is_multilevel = is_multilevel
+  )
+  random_factor     <- NULL
+  random_covariance <- NULL
   if (is_random && !isTRUE(fixed_zero_random)) {
     marginal_random <- .marglik_bridge_random_covariance(
       bridge_context  = bridge_context,
@@ -1420,55 +1496,132 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         call. = FALSE
       )
     }
-    covariance <- covariance + .marglik_random_covariance_dense(
-      marginal_random,
-      K
-    )
-  } else if (!is_random) {
-    diag(covariance) <- diag(covariance) +
-      as.numeric(tau_within_samples[1L, ])^2
-    if (is_multilevel) {
-      cluster <- model_data[["outcome"]][["cluster"]]
-      between <- as.numeric(tau_between_samples[1L, ])
-      covariance <- covariance + outer(between, between) *
-        outer(cluster, cluster, "==")
+    random_representation <- .data_exact_selection_setup(
+      model_data
+    )[["random_covariance"]][["representation"]]
+    if (identical(random_representation, "diagonal_factor")) {
+      random_factor <-
+        BayesTools::random_effects_marginal_diagonal_factor(
+          marginal_random,
+          cache = covariance_plan_cache
+        )
+    } else {
+      random_covariance <- array(
+        .marglik_random_covariance_dense(marginal_random, K),
+        dim = c(1L, K, K)
+      )
     }
+  } else if (is_random && isTRUE(fixed_zero_random)) {
+    exact_setup <- .data_exact_selection_setup(model_data)
+    if (identical(
+      exact_setup[["random_covariance"]][["representation"]],
+      "diagonal_factor"
+    )) {
+      ranks <- exact_setup[["random_covariance"]][["loading_ranks"]]
+      random_factor <- list(
+        diagonal = matrix(0, nrow = 1L, ncol = K),
+        loadings = lapply(seq_along(row_blocks), function(block_index) {
+          array(
+            0,
+            dim = c(
+              1L,
+              length(row_blocks[[block_index]]),
+              ranks[[block_index]]
+            )
+          )
+        }),
+        ranks = as.integer(ranks),
+        row_blocks = row_blocks
+      )
+    } else {
+      random_covariance <- array(0, dim = c(1L, K, K))
+    }
+  }
+  covariance_lower <- function(rows, block_index) {
+
+    arguments <- list(
+      setup                     = factor_setup,
+      rows                      = rows,
+      random_covariance_samples = random_covariance
+    )
+    if (!is.null(random_factor)) {
+      arguments[["random_factor_samples"]] <- random_factor
+      arguments[["block_index"]] <- block_index
+    }
+    do.call(.selection_exact_covariance_lower, arguments)
   }
 
   selection_context <- .marglik_selection_context(parameters, data)
-  if (all(lengths(row_blocks) == 1L)) {
-    rows <- as.integer(unlist(row_blocks, use.names = FALSE))
+  singleton_blocks  <- bridge_plan[["singleton_blocks"]]
+  log_lik           <- 0
+  if (length(singleton_blocks) > 0L) {
+    rows <- bridge_plan[["singleton_rows"]]
     singleton_context <- selection_context
     singleton_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
-    return(sum(.selection_exact_singleton_loglik_matrix(
+    variances <- .selection_exact_singleton_variances(
+      setup                     = factor_setup,
+      rows                      = rows,
+      block_indices             = singleton_blocks,
+      random_covariance_samples = random_covariance,
+      random_factor_samples     = random_factor
+    )
+    log_lik <- log_lik + sum(.selection_exact_singleton_loglik_matrix(
       yi                = data[["yi"]][rows],
       means             = mu_samples[, rows, drop = FALSE],
-      variances         = matrix(diag(covariance)[rows], nrow = 1L),
+      variances         = variances,
       sei               = data[["sei"]][rows],
       selection_context = singleton_context
-    )))
+    ))
+  }
+  if (length(singleton_blocks) == length(block_sizes)) {
+    return(log_lik)
   }
 
-  log_lik <- 0
-  for (rows in row_blocks) {
-    pairs <- .selection_exact_lower_pairs(
-      integration_plan,
-      seq_along(rows)
-    )
-    covariance_block <- covariance[rows, rows, drop = FALSE]
-    lower <- matrix(
-      covariance_block[cbind(pairs[["row_1"]], pairs[["row_2"]])],
-      nrow = 1L
-    )
+  for (block_index in bridge_plan[["dependent_blocks"]]) {
+    rows <- row_blocks[[block_index]]
+    method <- execution_plan[["block_methods"]][[block_index]]
     block_context <- selection_context
     block_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
+    if (method %in% c("rank_one", "factor")) {
+      components <- .selection_exact_factor_block_samples(
+        setup                 = factor_setup,
+        block_index           = block_index,
+        random_factor_samples = random_factor
+      )
+    }
+    if (method == "rank_one") {
+      log_lik <- log_lik + .selection_exact_cluster_loglik_block(
+        yi                = data[["yi"]][rows],
+        means             = mu_samples[, rows, drop = FALSE],
+        residual_sd       = components[["residual_sd"]],
+        loading           = components[["loading"]],
+        sei               = data[["sei"]][rows],
+        selection_context = block_context,
+        execution_plan  = execution_plan
+      )
+      next
+    }
+    if (method == "factor") {
+      log_lik <- log_lik + .selection_exact_factor_loglik_block(
+        yi                = data[["yi"]][rows],
+        means             = mu_samples[, rows, drop = FALSE],
+        residual_sd       = components[["residual_sd"]],
+        loading           = components[["loading"]],
+        sei               = data[["sei"]][rows],
+        selection_context = block_context,
+        execution_plan  = execution_plan,
+        block_index       = block_index
+      )
+      next
+    }
+
     log_lik <- log_lik + .selection_exact_joint_loglik_block(
       yi                = data[["yi"]][rows],
       means             = mu_samples[, rows, drop = FALSE],
-      covariance_lower  = lower,
+      covariance_lower  = covariance_lower(rows, block_index),
       sei               = data[["sei"]][rows],
       selection_context = block_context,
-      integration_plan  = integration_plan,
+      execution_plan  = execution_plan,
       block_size         = length(rows)
     )
   }
@@ -1575,13 +1728,14 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   if (known_v_backend %in% c("latent", "diagonal")) {
+    sampling_sei <- sqrt(.known_v_residual_variance(known_V))
     if (is_weightfunction) {
       selection_context <- .marglik_selection_context(parameters, data)
       return(.outcome_pdf.selnorm(
         yi                = data[["yi"]],
         mu_samples        = mu_samples,
         tau_within        = tau_within,
-        sei               = sqrt(data[["sampling_var"]]),
+        sei               = sampling_sei,
         selection_sei     = data[["sei"]],
         selection_context = selection_context
       ))
@@ -1591,7 +1745,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       yi         = data[["yi"]],
       mu_samples = mu_samples,
       tau_within = tau_within,
-      sei        = sqrt(data[["sampling_var"]])
+      sei        = sampling_sei
     ))
   }
 
@@ -1748,6 +1902,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     }
     return(list(
       representation = "factor_state",
+      contract_id = contract_id,
       row_blocks = cached[["row_blocks"]],
       factor_plans = cached[["factor_plans"]],
       factor_states = .marglik_validate_random_covariance_factor_states(
@@ -1790,6 +1945,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 
   list(
     representation = "factor_state",
+    contract_id = contract_id,
     row_blocks = validated[["row_blocks"]],
     factor_plans = validated_plans,
     factor_states = validated_states

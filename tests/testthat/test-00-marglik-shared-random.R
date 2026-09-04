@@ -1588,6 +1588,8 @@ test_that("compact bridge factor states retain the exact covariance contract", {
   )
 
   expect_identical(first$representation, "factor_state")
+  expect_identical(first$contract_id, contract_id)
+  expect_identical(second$contract_id, contract_id)
   expect_identical(
     second$factor_plans[[1L]]$model_matrix,
     factor_plan$model_matrix
@@ -1617,7 +1619,7 @@ test_that("compact bridge factor states retain the exact covariance contract", {
     K = K,
     validation_cache = new.env(parent = emptyenv())
   )
-  expect_identical(normalized_full, second)
+  expect_identical(normalized_full, second[names(normalized_full)])
 
   scaled_design <- factor_plan$model_matrix *
     second$factor_states[[1L]]$row_scale

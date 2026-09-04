@@ -286,6 +286,10 @@ NULL
     remove_parameters = remove_parameters,
     random_effects_summary = "standard"
   )
+  rownames(estimates) <- .location_repair_intercept_labels(
+    labels = rownames(estimates),
+    object = object
+  )
 
   return(estimates)
 }

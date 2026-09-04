@@ -783,7 +783,8 @@
     character(1)
   ))
   source_samples <- context[["posterior_samples"]]
-  if (length(state_scope) == 1L && identical(state_scope, "global")) {
+  if (length(state_scope) == 1L && identical(state_scope, "global") &&
+      .iwmde_uses_known_v_random_marginal_likelihood(context)) {
     source_samples <- .iwmde_drop_local_latent_sample_columns(
       source_samples,
       context

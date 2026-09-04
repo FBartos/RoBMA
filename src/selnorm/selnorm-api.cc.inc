@@ -211,6 +211,47 @@ double cpp_selnorm_kernel_log_norm(
   return log_normalizer;
 }
 
+
+double cpp_selnorm_step_log_norm(
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  const SelNormKernelData &data,
+  int omega_stride,
+  bool validate_omega)
+{
+  if (!(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei) || !std::isfinite(mean) ||
+      !(data.effect_sign == 1 || data.effect_sign == -1) ||
+      (validate_omega && !validate_omega_values(omega, data, omega_stride))) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  if (data.trusted_step_partition && data.telescope_probabilities) {
+    double omega_last = 0;
+    double normalizer = 0;
+    if (step_normalizer_trusted_telescoping(
+          omega, data, data.effect_sign * mean, sd, sei, omega_stride,
+          NULL, NULL, &omega_last, &normalizer
+        )) {
+      return std::log(normalizer);
+    }
+
+    int n_groups = 0;
+    bool ok = false;
+    const double fallback = step_normalizer_trusted_partition(
+      omega, data, data.effect_sign * mean, sd, sei, omega_stride,
+      NULL, NULL, NULL, &n_groups, &ok
+    );
+    if (ok) return std::log(fallback);
+  }
+
+  return step_log_normalizer_score_space(
+    omega, data, data.effect_sign * mean, sd, sei, omega_stride
+  );
+}
+
 double cpp_selnorm_kernel_cdf(
   double q,
   double mean,
@@ -325,26 +366,10 @@ bool cpp_selnorm_step_cdf_telescope_plan(
     return false;
   }
 
-  const double signed_mean = data.effect_sign * mean;
-  *omega_last = omega_at(omega, data.n_bins, omega_stride);
-  *normalizer = *omega_last;
-  double normalizer_abs = std::abs(*normalizer);
-
-  for (int b = 0; b < data.n_bins - 1; ++b) {
-    omega_diff[b] = omega_at(omega, b + 1, omega_stride) -
-      omega_at(omega, b + 2, omega_stride);
-    const double boundary_score = stable_affine_score(
-      data.z_lower[b], sei, signed_mean, sd
-    );
-    boundary_tail[b] = tail_at(boundary_score, 0, 1);
-    const double contribution = omega_diff[b] * boundary_tail[b];
-    *normalizer    += contribution;
-    normalizer_abs += std::abs(contribution);
-  }
-
-  return std::isfinite(*omega_last) && std::isfinite(*normalizer) &&
-    *normalizer > std::numeric_limits<double>::min() &&
-    *normalizer > 1e-8 * normalizer_abs;
+  return step_normalizer_trusted_telescoping(
+    omega, data, data.effect_sign * mean, sd, sei, omega_stride,
+    boundary_tail, omega_diff, omega_last, normalizer
+  );
 }
 
 double cpp_selnorm_step_cdf_from_telescope_plan(

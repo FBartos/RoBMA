@@ -53,13 +53,21 @@ test_that("selection model titles omit the likelihood implementation", {
     .summary.brma_model_names(approximate),
     "Bayesian Random-Effects Selection Model (k = 2)"
   )
-  exact_plan <- exact[["selection_likelihood"]][["integration_plan"]]
+  exact_plan <- .data_exact_selection_setup(exact[["data"]])
   exact_data <- .create_fit_data(exact[["data"]], exact[["priors"]])
   expect_identical(exact[["selection_likelihood"]][["exactness"]], "E0")
-  expect_s3_class(exact_plan, "RoBMA_selection_closed_form_plan")
+  expect_s3_class(exact_plan, "RoBMA_selection_execution_plan")
   expect_identical(exact_plan[["exactness"]], "E0")
-  expect_null(exact_plan[["designs"]])
+  expect_identical(
+    exact_plan[["block_methods"]],
+    rep("singleton", length(exact[["data"]][["outcome"]][["yi"]]))
+  )
+  expect_length(exact_plan[["designs"]], 0L)
   expect_null(exact_data[["sel_exact_cluster_nodes"]])
+  expect_identical(exact_data[["sel_exact_singleton_n"]], 2L)
+  expect_equal(exact_data[["sel_exact_singleton_sampling_variance"]],
+               rep(.01, 2L))
+  expect_false(any(grepl("^sel_exact_block_", names(exact_data))))
 })
 
 test_that("selection reference weights are structural convergence parameters", {
@@ -191,28 +199,29 @@ test_that("RoBMA defaults to exact finite-vector selection", {
     .data_exact_selection_setup(exact[["data"]])[["row_blocks"]],
     list(1:2, 3:4)
   )
-  exact_plan <- exact[["selection_likelihood"]][["integration_plan"]]
-  expect_s3_class(exact_plan, "RoBMA_selection_cluster_plan")
+  exact_plan <- .data_exact_selection_setup(exact[["data"]])
+  expect_s3_class(exact_plan, "RoBMA_selection_execution_plan")
   expect_identical(exact_plan[["exactness"]], "E1")
+  expect_identical(exact_plan[["block_methods"]], rep("rank_one", 2L))
   expect_identical(
     exact_plan[["quadrature_orders"]],
-    c(31L, 63L, 127L, 255L, 511L)
+    c(15L, 31L, 63L, 127L, 255L, 511L, 1023L)
   )
-  expect_null(exact_plan[["designs"]])
+  expect_length(exact_plan[["designs"]], 0L)
   exact_priors <- .create_fit_priors(exact[["data"]], exact[["priors"]])
   exact_data   <- .create_fit_data(exact[["data"]], exact[["priors"]])
   exact_syntax <- .create_model_syntax(exact[["data"]], exact[["priors"]])
   expect_null(exact_priors[["gamma"]])
   expect_length(grep("^sel_exact_qmc_", names(exact_data), value = TRUE), 0L)
-  expect_length(exact_data[["sel_exact_cluster_nodes"]], 987L)
-  expect_length(exact_data[["sel_exact_cluster_log_weights"]], 987L)
+  expect_length(exact_data[["sel_exact_cluster_nodes"]], 2025L)
+  expect_length(exact_data[["sel_exact_cluster_log_weights"]], 2025L)
   expect_true(all(is.finite(exact_data[["sel_exact_cluster_nodes"]])))
   expect_true(all(is.finite(
     exact_data[["sel_exact_cluster_log_weights"]]
   )))
   expect_identical(
     exact_data[["sel_exact_cluster_orders"]],
-    c(31L, 63L, 127L, 255L, 511L)
+    c(15L, 31L, 63L, 127L, 255L, 511L, 1023L)
   )
   expect_false(grepl("sel_exact_qmc_2", exact_syntax, fixed = TRUE))
   expect_match(exact_syntax, "dselnorm_cluster_step", fixed = TRUE)
@@ -321,8 +330,8 @@ test_that("exact cluster log likelihood routes mixed blocks by size", {
     list(1:2, 3L)
   )
   fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
-  expect_true("sel_exact_block_1_sampling_sd" %in% names(fit_data))
-  expect_false("sel_exact_block_2_sampling_sd" %in% names(fit_data))
+  expect_true("sel_exact_block_1_sampling_variance" %in% names(fit_data))
+  expect_false("sel_exact_block_2_sampling_variance" %in% names(fit_data))
 
   cluster_rows   <- NULL
   singleton_rows <- NULL
@@ -334,8 +343,9 @@ test_that("exact cluster log likelihood routes mixed blocks by size", {
       list(obs_bin = rep(1L, 3L))
     },
     .selection_exact_random_covariance_samples = function(setup) NULL,
-    .selection_exact_covariance_lower = function(
-        setup, rows, random_covariance_samples){
+    .selection_exact_singleton_variances = function(
+        setup, rows, block_indices, random_covariance_samples,
+        random_factor_samples){
       singleton_rows <<- rows
       matrix(.04, nrow = 2L, ncol = 1L)
     },
@@ -345,7 +355,7 @@ test_that("exact cluster log likelihood routes mixed blocks by size", {
     },
     .selection_exact_cluster_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
-        integration_plan){
+        execution_plan){
       cluster_rows <<- length(yi)
       c(11, 12)
     },
@@ -363,6 +373,257 @@ test_that("exact cluster log likelihood routes mixed blocks by size", {
   expect_identical(singleton_rows, 3L)
   expect_identical(cluster_rows, 2L)
   expect_equal(observed, matrix(c(11, 12, 31, 32), nrow = 2L))
+})
+
+test_that("exact singleton variances preserve covariance representations", {
+
+  ordinary <- bselmodel(
+    yi                        = c(.10, .20),
+    vi                        = c(.01, .02),
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    selection_likelihood      = "exact",
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  tau_within <- rbind(c(.10, .20), c(.30, .40))
+  ordinary_setup <- list(
+    data          = ordinary[["data"]],
+    S             = 2L,
+    tau_within    = tau_within,
+    tau_between   = matrix(0, nrow = 2L, ncol = 2L),
+    is_multilevel = FALSE
+  )
+  sampling <- matrix(c(.01, .02, .01, .02), nrow = 2L, byrow = TRUE)
+  expect_equal(
+    .selection_exact_singleton_variances(
+      setup         = ordinary_setup,
+      rows          = 1:2,
+      block_indices = 1:2
+    ),
+    sampling + tau_within^2,
+    tolerance = 1e-15
+  )
+
+  dat <- data.frame(
+    yi    = c(.10, .20),
+    vi    = c(.01, .02),
+    study = c("a", "b")
+  )
+  random <- bselmodel.mv(
+    yi                        = yi,
+    vi                        = vi,
+    random                    = ~ 1 | study,
+    data                      = dat,
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    selection_likelihood      = "exact",
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  random_setup <- list(
+    data          = random[["data"]],
+    S             = 2L,
+    tau_within    = matrix(0, nrow = 2L, ncol = 2L),
+    tau_between   = matrix(0, nrow = 2L, ncol = 2L),
+    is_multilevel = FALSE
+  )
+  random_covariance <- array(0, dim = c(2L, 2L, 2L))
+  random_covariance[1L, , ] <- matrix(c(.04, .01, .01, .09), 2L)
+  random_covariance[2L, , ] <- matrix(c(.16, .02, .02, .25), 2L)
+  expect_equal(
+    .selection_exact_singleton_variances(
+      setup                     = random_setup,
+      rows                      = 1:2,
+      block_indices             = 1:2,
+      random_covariance_samples = random_covariance
+    ),
+    sampling + rbind(c(.04, .09), c(.16, .25)),
+    tolerance = 1e-15
+  )
+
+  random_factor <- list(
+    diagonal = rbind(c(.01, .02), c(.03, .04)),
+    loadings = list(
+      array(c(.20, .30), dim = c(2L, 1L, 1L)),
+      array(c(.40, .50), dim = c(2L, 1L, 1L))
+    ),
+    ranks = c(1L, 1L)
+  )
+  expect_equal(
+    .selection_exact_singleton_variances(
+      setup                 = random_setup,
+      rows                  = 1:2,
+      block_indices         = 1:2,
+      random_factor_samples = random_factor
+    ),
+    sampling + random_factor[["diagonal"]] +
+      rbind(c(.20^2, .40^2), c(.30^2, .50^2)),
+    tolerance = 1e-15
+  )
+})
+
+test_that("independent exact and approximate bridge densities are identical", {
+
+  make_object <- function(selection_likelihood) {
+
+    bselmodel(
+      yi                        = c(-.20, .05, .35),
+      vi                        = c(.012, .018, .025),
+      measure                   = "SMD",
+      prior_unit_information_sd = 1,
+      selection_likelihood      = selection_likelihood,
+      only_priors               = TRUE,
+      silent                    = TRUE
+    )
+  }
+  evaluate <- function(object) {
+
+    data     <- object[["data"]]
+    priors   <- object[["priors"]]
+    fit_data <- .create_fit_data(data, priors)
+    fit_data <- .marglik_add_selection_bridge_data(
+      fit_data         = fit_data,
+      priors           = priors,
+      effect_direction = .data_effect_direction(data),
+      model_data       = data
+    )
+    .log_posterior(
+      parameters             = list(mu = .10, tau = .15, omega = c(.60, 1)),
+      data                   = fit_data,
+      is_scale              = FALSE,
+      is_multilevel         = FALSE,
+      is_weights            = FALSE,
+      is_known_v            = FALSE,
+      is_PET                = FALSE,
+      is_PEESE              = FALSE,
+      is_weightfunction     = TRUE,
+      effect_direction      = "positive",
+      outcome_type          = "norm",
+      model_data            = data,
+      is_random             = FALSE,
+      joint_exact_selection = FALSE
+    )
+  }
+
+  exact       <- make_object("exact")
+  approximate <- make_object("approximate")
+  expect_identical(
+    .data_exact_selection_setup(exact[["data"]])[["exactness"]],
+    "E0"
+  )
+  expect_equal(evaluate(exact), evaluate(approximate), tolerance = 0)
+
+  exact_data <- .create_fit_data(exact[["data"]], exact[["priors"]])
+  exact_data <- .marglik_add_selection_bridge_data(
+    fit_data         = exact_data,
+    priors           = exact[["priors"]],
+    effect_direction = "positive",
+    model_data       = exact[["data"]]
+  )
+  expect_false(any(grepl("^sel_", names(exact_data))))
+  first_context  <- .marglik_selection_context(list(omega = c(.60, 1)), exact_data)
+  second_context <- .marglik_selection_context(list(omega = c(.40, 1)), exact_data)
+  expect_identical(
+    first_context[["native_cache"]],
+    second_context[["native_cache"]]
+  )
+  expect_equal(second_context[["omega"]], matrix(c(.40, 1), nrow = 1L))
+})
+
+test_that("exact selection bridge routes cluster plans through quadrature", {
+
+  object <- bselmodel(
+    yi                        = c(.10, .20, .05),
+    sei                       = rep(.10, 3L),
+    cluster                   = c("a", "a", "b"),
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+  bridge_data <- .marglik_add_selection_bridge_data(
+    fit_data         = fit_data,
+    priors           = object[["priors"]],
+    effect_direction = .data_effect_direction(object[["data"]]),
+    model_data       = object[["data"]]
+  )
+
+  cluster_call   <- NULL
+  singleton_call <- NULL
+  joint_calls    <- 0L
+  testthat::local_mocked_bindings(
+    .marglik_selection_context = function(parameters, data) {
+      list(obs_bin = rep(1L, 3L))
+    },
+    .selection_exact_singleton_loglik_matrix = function(
+        yi, means, variances, sei, selection_context) {
+      singleton_call <<- list(
+        yi        = yi,
+        means     = means,
+        variances = variances,
+        sei       = sei
+      )
+      matrix(7, nrow = 1L, ncol = 1L)
+    },
+    .selection_exact_cluster_loglik_block = function(
+        yi, means, residual_sd, loading, sei, selection_context,
+        execution_plan) {
+      cluster_call <<- list(
+        yi               = yi,
+        means            = means,
+        residual_sd      = residual_sd,
+        loading          = loading,
+        sei              = sei,
+        execution_plan = execution_plan
+      )
+      11
+    },
+    .selection_exact_joint_loglik_block = function(...) {
+      joint_calls <<- joint_calls + 1L
+      stop("The QMC bridge path must not be used for an E1 cluster plan.")
+    },
+    .package = "RoBMA"
+  )
+
+  mu          <- matrix(c(.01, .02, .03), nrow = 1L)
+  tau_within  <- matrix(c(.15, .16, .17), nrow = 1L)
+  tau_between <- matrix(c(.20, .21, .22), nrow = 1L)
+  observed <- .marglik_exact_selection_log_lik(
+    parameters            = list(),
+    data                  = bridge_data,
+    model_data            = object[["data"]],
+    bridge_context        = NULL,
+    covariance_plan_cache = NULL,
+    mu_samples            = mu,
+    tau_within_samples    = tau_within,
+    tau_between_samples   = tau_between,
+    is_random             = FALSE,
+    is_multilevel         = TRUE,
+    fixed_zero_random     = FALSE,
+    K                     = 3L
+  )
+
+  expect_identical(observed, 18)
+  expect_identical(joint_calls, 0L)
+  expect_equal(cluster_call[["yi"]], c(.10, .20))
+  expect_equal(cluster_call[["means"]], mu[, 1:2, drop = FALSE])
+  expect_equal(
+    cluster_call[["residual_sd"]],
+    sqrt(tau_within[, 1:2, drop = FALSE]^2 + .10^2)
+  )
+  expect_equal(cluster_call[["loading"]], tau_between[, 1:2, drop = FALSE])
+  expect_s3_class(
+    cluster_call[["execution_plan"]],
+    "RoBMA_selection_execution_plan"
+  )
+  expect_equal(singleton_call[["yi"]], .05)
+  expect_equal(singleton_call[["means"]], mu[, 3L, drop = FALSE])
+  expect_equal(
+    singleton_call[["variances"]],
+    matrix(.10^2 + .17^2 + .22^2, nrow = 1L)
+  )
 })
 
 test_that("selection spec sets probability telescoping flag once", {
@@ -620,6 +881,11 @@ test_that("exact selection constructors marginalize Gaussian dependence", {
     silent                    = TRUE
   )
   random_terms <- mv_object[["formula_design"]][["mu"]][["random_effects"]]
+  mv_fit_data  <- .create_fit_data(mv_object[["data"]], mv_object[["priors"]])
+  mv_syntax    <- .create_model_syntax(
+    mv_object[["data"]],
+    mv_object[["priors"]]
+  )
 
   expect_s3_class(mv_object, "bselmodel.mv")
   expect_true(.is_data_exact_selection(mv_object[["data"]]))
@@ -628,10 +894,14 @@ test_that("exact selection constructors marginalize Gaussian dependence", {
     function(term) identical(term[["compile_mode"]], "marginalized"),
     logical(1L)
   )))
-  expect_match(
-    .create_model_syntax(mv_object[["data"]], mv_object[["priors"]]),
-    "sel_exact_random_block_1_lower",
-    fixed = TRUE
+  expect_match(mv_syntax, "sel_exact_random_block_1_lower", fixed = TRUE)
+  expect_length(
+    grep(
+      "^sel_exact_block_[0-9]+_diagonal$",
+      names(mv_fit_data),
+      value = TRUE
+    ),
+    0L
   )
 
   expect_error(
@@ -707,6 +977,25 @@ test_that("exact selection covariance batches preserve multilevel algebra", {
     is_multilevel = TRUE
   )
 
+  evaluated_setup <- .log_lik_evaluated_setup(
+    fit                  = object[["fit"]],
+    data                 = object[["data"]],
+    priors               = object[["priors"]],
+    unit                 = "cluster",
+    data_hash            = NULL,
+    mu_samples           = matrix(0, nrow = 2L, ncol = 2L),
+    tau_within_samples   = tau_within,
+    tau_between_samples  = tau_between,
+    posterior_samples    = NULL
+  )
+  factor_setup <- .selection_exact_factor_block_samples(
+    evaluated_setup,
+    block_index = 1L
+  )
+
+  expect_true(evaluated_setup[["is_multilevel"]])
+  expect_identical(dim(factor_setup[["loading"]]), c(2L, 2L))
+
   observed <- .selection_exact_covariance_lower(setup, rows = 1:2)
   expected_covariance <- array(NA_real_, dim = c(2L, 2L, 2L))
   for (draw in seq_len(2L)) {
@@ -750,12 +1039,11 @@ test_that("exact bivariate selection kernel matches rectangle integration", {
   sei   <- c(.20, .25)
   z     <- stats::qnorm(.025, lower.tail = FALSE)
   omega <- c(.4, 1)
-  plan  <- BayesTools::selection_likelihood_plan(
-    block_sizes         = 2L,
-    points_per_scramble = 16384L,
-    scrambles           = 8L,
-    seed                 = 5L,
-    relative_tolerance   = .01
+  design <- BayesTools::selection_qmc_design(
+    dimensions = 4L,
+    points     = 16384L,
+    scrambles  = 8L,
+    seed       = 5L
   )
   lower <- matrix(
     sigma[cbind(c(1L, 2L, 2L), c(1L, 1L, 2L))],
@@ -765,14 +1053,14 @@ test_that("exact bivariate selection kernel matches rectangle integration", {
     "RoBMA_selnorm_mnorm_step_loglik_batch",
     y, matrix(mu, nrow = 1L), lower, sei, matrix(omega, nrow = 1L),
     c(z, -Inf), c(Inf, z), c(2L, 1L), 1L, TRUE, 1L,
-    as.double(plan[["designs"]][["2"]]), 16384L, 8L, .01,
+    as.double(design), 16384L, 8L, .01,
     PACKAGE = "RoBMA"
   )
   reflected <- .Call(
     "RoBMA_selnorm_mnorm_step_loglik_batch",
     -y, matrix(-mu, nrow = 1L), lower, sei, matrix(omega, nrow = 1L),
     c(z, -Inf), c(Inf, z), c(2L, 1L), -1L, TRUE, 1L,
-    as.double(plan[["designs"]][["2"]]), 16384L, 8L, .01,
+    as.double(design), 16384L, 8L, .01,
     PACKAGE = "RoBMA"
   )
 
@@ -869,18 +1157,17 @@ test_that("exact diagonal selection kernel reduces to analytic row factors", {
   sei   <- c(.20, .25)
   z     <- stats::qnorm(.025, lower.tail = FALSE)
   omega <- c(.4, 1)
-  plan  <- BayesTools::selection_likelihood_plan(
-    block_sizes         = 2L,
-    points_per_scramble = 8L,
-    scrambles           = 2L,
-    seed                 = 9L,
-    relative_tolerance   = .01
+  design <- BayesTools::selection_qmc_design(
+    dimensions = 4L,
+    points     = 8L,
+    scrambles  = 2L,
+    seed       = 9L
   )
   actual <- .Call(
     "RoBMA_selnorm_mnorm_step_loglik_batch",
     y, matrix(mu, nrow = 1L), matrix(c(sd[[1L]]^2, 0, sd[[2L]]^2), nrow = 1L),
     sei, matrix(omega, nrow = 1L), c(z, -Inf), c(Inf, z), c(2L, 1L),
-    1L, TRUE, 1L, as.double(plan[["designs"]][["2"]]), 8L, 2L, .01,
+    1L, TRUE, 1L, as.double(design), 8L, 2L, .01,
     PACKAGE = "RoBMA"
   )
 
@@ -911,18 +1198,17 @@ test_that("exact singleton selection kernel reduces to the scalar density", {
   sei   <- .20
   z     <- stats::qnorm(.025, lower.tail = FALSE)
   omega <- c(.4, 1)
-  plan  <- BayesTools::selection_likelihood_plan(
-    block_sizes         = 1L,
-    points_per_scramble = 8L,
-    scrambles           = 2L,
-    seed                 = 13L,
-    relative_tolerance   = .01
+  design <- BayesTools::selection_qmc_design(
+    dimensions = 2L,
+    points     = 8L,
+    scrambles  = 2L,
+    seed       = 13L
   )
   actual <- .Call(
     "RoBMA_selnorm_mnorm_step_loglik_batch",
     y, matrix(mu, nrow = 1L), matrix(sd^2, nrow = 1L), sei,
     matrix(omega, nrow = 1L), c(z, -Inf), c(Inf, z), 2L,
-    1L, TRUE, SELKERNEL_STEP, as.double(plan[["designs"]][["1"]]),
+    1L, TRUE, SELKERNEL_STEP, as.double(design),
     8L, 2L, .01,
     PACKAGE = "RoBMA"
   )

@@ -71,6 +71,26 @@
          call. = FALSE)
   }
 
+  if (identical(.known_v_storage(known_V), "factor")) {
+    diagonal <- known_V[["factor_diagonal"]]
+    loading  <- known_V[["factor_loading"]]
+    sampling_noise <- sweep(
+      matrix(stats::rnorm(S * K), nrow = S, ncol = K),
+      MARGIN = 2L,
+      STATS  = sqrt(diagonal),
+      FUN    = "*"
+    )
+    if (ncol(loading) > 0L) {
+      sampling_noise <- sampling_noise +
+        matrix(
+          stats::rnorm(S * ncol(loading)),
+          nrow = S,
+          ncol = ncol(loading)
+        ) %*% t(loading)
+    }
+    return(sampling_noise)
+  }
+
   sampling_noise <- matrix(0, nrow = S, ncol = K)
   independent    <- .known_v_independent_indices(known_V)
   if (length(independent) > 0L) {

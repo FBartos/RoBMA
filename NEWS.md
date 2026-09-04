@@ -34,9 +34,53 @@
   selected-response prediction use the matching target. Dependent normalizers
   and joint selected-response simulation use native kernels, while fitted
   random-effect draws reuse the compiled `brma.mv()` covariance plan.
-  Independent selection blocks use scalar JAGS kernels and batched native
-  scalar evaluation for post-fit likelihoods and bridge sampling, avoiding
-  unnecessary multivariate integration setup.
+  One versioned execution plan owns the structural covariance representation,
+  dependency blocks, routing, and deterministic numerical designs used by
+  fitting, post-fit likelihoods, LOO/WAIC, and bridge sampling. BayesTools owns
+  formula-random covariance compilation and dimension-specific QMC design,
+  while RoBMA owns the meta-analysis selection target and routing. Independent
+  selection blocks use one vectorized scalar JAGS block and batched native
+  scalar evaluation; bridge data omit the JAGS-only payload, and numerical
+  designs are stored only in the authoritative plan. Ordered step normalizers use
+  the equivalent telescoping tail-probability identity, and rank-one blocks
+  begin their adaptive Gauss-Hermite ladder at 15 nodes while retaining the
+  same diagnostic tolerance and higher-order fallbacks. Metadata-certified
+  diagonal-plus-factor covariance uses the same factor representation during
+  fitting, post-fit likelihood evaluation, and bridge sampling: rank one uses
+  deterministic one-dimensional quadrature and structural ranks two through
+  four use adaptive deterministic tensor Gauss-Hermite rules, accepting only
+  after two consecutive relative changes satisfy the requested tolerance.
+  States not resolved by quadrature fall back to a fixed factor-dimensional
+  shifted-Halton design
+  split equally between prior-centered and deterministic mode-centered
+  Gaussian proposals, with exact balance-mixture weights plus nested-design
+  and between-scramble diagnostics. The fallback refines its point count up to
+  the configured maximum, now 8,192 points per scramble by default. JAGS does
+  not rescan this large fixed design on every density update; coordinates are
+  validated lazily if a fallback consumes them. Formula random effects use
+  authoritative BayesTools metadata, while
+  `known_v_factor()` supplies an explicit exact `D + UU'` sampling-covariance
+  contract. Arbitrary dense `V`, non-positive residual diagonals, and
+  structural ranks above four fail closed to the general dense exact
+  likelihood; no numerical rank is inferred and no covariance repair, jitter,
+  clamping, or model approximation is introduced. Declared factors are also
+  consumed directly by marginal GLS diagnostics and predictive sampling,
+  independently of the covariance backend selected for fitting.
+- adds `selection_approximation_diagnostics()` for fitted approximate
+  `bselmodel.mv()` models. It simulates fresh pre-selection Gaussian effects
+  through the same compiled known-`V` and random-effect covariance plans used
+  by post-fit likelihood calculations, and reports blockwise latent-reweighting
+  ESS fractions, total-variation distances, robust log-weight spreads, and
+  Monte Carlo standard errors. It supports grouped, row-scaled, known-group,
+  and dense covariance factors, with messages for maximum block-level median
+  total-variation distances above 5% and warnings from 10% onward.
+- corrects post-fit likelihood reconstruction for approximate
+  `bselmodel.mv()` models with formula random effects and known sampling
+  covariance. LOO, bridge sampling, and likelihood-aware density estimation
+  now retain sampled known-`V` dependencies, add analytically marginalized
+  row variance, and distinguish the residual likelihood SD from the marginal
+  SD defining selection thresholds. These paths reproduce the fitted
+  row-selected-normal target without monitoring rowwise derived scales.
 - adds `BMA.mv()` for product-space model averaging with the complete
   `brma.mv()` known-sampling-covariance and formula-random workflow. Independent
   random-component gates multiply their allocated slab variances without
@@ -555,6 +599,9 @@
   summaries
 - removes redundant `component 1` labels from unnamed one-component
   `BMA.mv()` random formulas while preserving explicit and generated names
+- returns unique-level `ranef()` output for nested random-effect blocks in
+  metafor's outer-to-inner grouping order through authoritative BayesTools
+  grouping metadata
 - unregisters the JAGS module before destroying module-owned native objects at
   process shutdown, preventing intermittent Windows access violations in
   isolated test workers, and requires the BayesTools release carrying the same

@@ -1,5 +1,98 @@
 # Known-V input helpers -----
 
+#' Declare a diagonal-plus-factor sampling covariance
+#'
+#' @description
+#' Constructs an exact known sampling covariance representation
+#' \deqn{V = \mathrm{diag}(d) + U U^\mathsf{T}.}
+#' The supplied diagonal and loading matrix define `V`; no numerical rank is
+#' inferred from a materialized covariance matrix. This representation permits
+#' likelihood implementations to use the declared factor dimension when that
+#' route is supported, while all other computations retain the same covariance
+#' target as a conventional dense `V` input.
+#'
+#' @param diagonal finite non-negative numeric vector `d`.
+#' @param loading finite numeric matrix `U` with one row per element of
+#'   `diagonal`. A zero-column matrix is allowed and represents a diagonal
+#'   covariance.
+#'
+#' @return A `RoBMA_known_v_factor` object accepted as the `V` or `V_new`
+#'   argument of multivariate-model interfaces.
+#'
+#' @export
+known_v_factor <- function(diagonal, loading) {
+
+  if (!is.numeric(diagonal) || !is.null(dim(diagonal)) ||
+      length(diagonal) == 0L || anyNA(diagonal) ||
+      any(!is.finite(diagonal)) || any(diagonal < 0)) {
+    stop("'diagonal' must be a finite non-negative numeric vector.",
+         call. = FALSE)
+  }
+  if (!is.numeric(loading) || !is.matrix(loading) ||
+      nrow(loading) != length(diagonal) || anyNA(loading) ||
+      any(!is.finite(loading))) {
+    stop(
+      "'loading' must be a finite numeric matrix with one row per ",
+      "element of 'diagonal'.",
+      call. = FALSE
+    )
+  }
+  total_diagonal <- as.numeric(diagonal) + rowSums(loading^2)
+  if (any(!is.finite(total_diagonal))) {
+    stop("The declared sampling covariance must contain finite variances.",
+         call. = FALSE)
+  }
+
+  structure(
+    list(
+      diagonal = as.numeric(diagonal),
+      loading  = unname(loading)
+    ),
+    class = c("RoBMA_known_v_factor", "list")
+  )
+}
+
+
+.known_v_factor_components <- function(V, arg = "V") {
+
+  if (!inherits(V, "RoBMA_known_v_factor") ||
+      !is.list(V) || !identical(names(V), c("diagonal", "loading"))) {
+    stop("The '", arg, "' factor representation is invalid.", call. = FALSE)
+  }
+  tryCatch(
+    known_v_factor(V[["diagonal"]], V[["loading"]]),
+    error = function(e) {
+      stop("The '", arg, "' factor representation is invalid: ",
+           conditionMessage(e), call. = FALSE)
+    }
+  )
+}
+
+
+.known_v_factor_block_indices <- function(diagonal, loading) {
+
+  K         <- length(diagonal)
+  adjacency <- diag(TRUE, nrow = K, ncol = K)
+  for (column in seq_len(ncol(loading))) {
+    support <- which(loading[, column] != 0)
+    if (length(support) > 1L) {
+      adjacency[support, support] <- TRUE
+    }
+  }
+  .known_v_block_indices(adjacency * 1)
+}
+
+
+.known_v_factor_covariance <- function(diagonal, loading, index = NULL) {
+
+  if (is.null(index)) {
+    index <- seq_along(diagonal)
+  }
+  out <- tcrossprod(loading[index, , drop = FALSE])
+  diag(out) <- diag(out) + diagonal[index]
+  out
+}
+
 .new_known_v <- function(fields) {
 
   if (!is.list(fields) || is.null(names(fields)) || any(!nzchar(names(fields))) ||
@@ -31,7 +124,8 @@
   storage <- known_V[["storage"]]
   K       <- known_V[["K"]]
   diagonal <- known_V[["diagonal"]]
-  if (length(storage) != 1L || !storage %in% c("diagonal", "blocks", "dense") ||
+  if (length(storage) != 1L ||
+      !storage %in% c("diagonal", "blocks", "dense", "factor") ||
       length(K) != 1L || is.na(K) || K < 1L || K != as.integer(K) ||
       !is.numeric(diagonal) || length(diagonal) != K || anyNA(diagonal) ||
       any(!is.finite(diagonal)) || any(diagonal < 0)) {
@@ -47,6 +141,28 @@
     }
   } else if (!is.null(known_V[["V"]])) {
     stop("Internal error: compact known-V representation contains dense state.",
+         call. = FALSE)
+  }
+  if (identical(storage, "factor")) {
+    factor_diagonal <- known_V[["factor_diagonal"]]
+    factor_loading  <- known_V[["factor_loading"]]
+    valid_factor <- is.numeric(factor_diagonal) &&
+      is.null(dim(factor_diagonal)) && length(factor_diagonal) == K &&
+      !anyNA(factor_diagonal) && all(is.finite(factor_diagonal)) &&
+      all(factor_diagonal >= 0) && is.numeric(factor_loading) &&
+      is.matrix(factor_loading) && nrow(factor_loading) == K &&
+      !anyNA(factor_loading) && all(is.finite(factor_loading))
+    if (!valid_factor ||
+        !identical(
+          as.numeric(diagonal),
+          as.numeric(factor_diagonal) + rowSums(factor_loading^2)
+        )) {
+      stop("Internal error: factor known-V representation is invalid.",
+           call. = FALSE)
+    }
+  } else if (!is.null(known_V[["factor_diagonal"]]) ||
+             !is.null(known_V[["factor_loading"]])) {
+    stop("Internal error: non-factor known-V representation contains factors.",
          call. = FALSE)
   }
 
@@ -218,7 +334,13 @@
 # Convert known-V input without validating covariance values.
 .known_v_as_matrix_structure <- function(V, k = NULL) {
 
-  if (is.matrix(V)) {
+  if (inherits(V, "RoBMA_known_v_factor")) {
+    components <- .known_v_factor_components(V)
+    V_matrix <- .known_v_factor_covariance(
+      components[["diagonal"]],
+      components[["loading"]]
+    )
+  } else if (is.matrix(V)) {
     V_matrix <- V
   } else if (is.numeric(V) && is.null(dim(V)) && length(V) > 0L) {
     V_matrix <- diag(as.numeric(V), nrow = length(V), ncol = length(V))
@@ -246,6 +368,10 @@
 # Describe known-V input without materializing block-diagonal storage.
 .known_v_input_storage <- function(V, arg = "V") {
 
+  if (inherits(V, "RoBMA_known_v_factor")) {
+    .known_v_factor_components(V, arg = arg)
+    return("factor")
+  }
   if (is.matrix(V)) {
     if (!is.numeric(V)) {
       stop("The '", arg, "' argument must be numeric.", call. = FALSE)
@@ -265,7 +391,7 @@
 
   stop(
     "The '", arg, "' argument must be a variance vector, a square matrix, ",
-    "or a non-empty list of square matrices.",
+    "a non-empty list of square matrices, or a known_v_factor() object.",
     call. = FALSE
   )
 }
@@ -274,6 +400,9 @@
 .known_v_input_nrow <- function(V, arg = "V") {
 
   storage <- .known_v_input_storage(V, arg = arg)
+  if (storage == "factor") {
+    return(length(V[["diagonal"]]))
+  }
   if (storage == "dense") {
     return(nrow(V))
   }
@@ -301,6 +430,9 @@
 .known_v_input_diagonal <- function(V, arg = "V") {
 
   storage <- .known_v_input_storage(V, arg = arg)
+  if (storage == "factor") {
+    return(V[["diagonal"]] + rowSums(V[["loading"]]^2))
+  }
   if (storage == "dense") {
     return(diag(V))
   }
@@ -320,6 +452,12 @@
   }
 
   storage <- .known_v_input_storage(V)
+  if (storage == "factor") {
+    return(known_v_factor(
+      diagonal = V[["diagonal"]][keep_rows],
+      loading  = V[["loading"]][keep_rows, , drop = FALSE]
+    ))
+  }
   if (storage == "dense") {
     return(V[keep_rows, keep_rows, drop = FALSE])
   }
@@ -383,6 +521,17 @@
       blocks <- blocks[order(vapply(blocks, function(x) x[["index"]][[1L]], integer(1)))]
     }
     return(blocks)
+  }
+  if (storage == "factor") {
+    diagonal      <- known_V[["factor_diagonal"]]
+    loading       <- known_V[["factor_loading"]]
+    block_indices <- known_V[["block_indices"]]
+    return(lapply(block_indices, function(index) {
+      list(
+        index      = index,
+        covariance = .known_v_factor_covariance(diagonal, loading, index)
+      )
+    }))
   }
 
   V             <- known_V[["V"]]
@@ -458,6 +607,12 @@
 
   K   <- .known_v_nrow(known_V)
   out <- matrix(0, nrow = K, ncol = K)
+  if (.known_v_storage(known_V) == "factor") {
+    return(.known_v_factor_covariance(
+      known_V[["factor_diagonal"]],
+      known_V[["factor_loading"]]
+    ))
+  }
   if (.known_v_storage(known_V) == "diagonal") {
     diag(out) <- .known_v_diagonal(known_V)
     return(out)
@@ -473,6 +628,12 @@
 .known_v_as_input <- function(known_V) {
 
   storage <- .known_v_storage(known_V)
+  if (storage == "factor") {
+    return(known_v_factor(
+      known_V[["factor_diagonal"]],
+      known_V[["factor_loading"]]
+    ))
+  }
   if (storage == "diagonal") {
     return(.known_v_diagonal(known_V))
   }
@@ -585,6 +746,35 @@
       diagonal = diagonal,
       blocks   = list(),
       singular = any(diagonal == 0)
+    )))
+  }
+
+  if (storage == "factor") {
+    components <- .known_v_factor_components(V_new, arg = "V_new")
+    diagonal   <- components[["diagonal"]] +
+      rowSums(components[["loading"]]^2)
+    block_indices <- .known_v_factor_block_indices(
+      components[["diagonal"]],
+      components[["loading"]]
+    )
+    covariance <- .known_v_factor_covariance(
+      components[["diagonal"]],
+      components[["loading"]]
+    )
+    if (any(!is.finite(covariance))) {
+      stop("'V_new' must contain only finite non-missing values.",
+           call. = FALSE)
+    }
+    return(.new_known_v(list(
+      version         = 2L,
+      storage         = "factor",
+      K               = K,
+      diagonal        = diagonal,
+      factor_diagonal = components[["diagonal"]],
+      factor_loading  = components[["loading"]],
+      blocks          = NULL,
+      block_indices   = block_indices,
+      singular        = .known_v_newdata_block_is_singular(covariance)
     )))
   }
 

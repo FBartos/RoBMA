@@ -34,10 +34,11 @@ block name. Use \code{"total"} for the summed random-effect deviation.}
 
 \item{expand}{whether to repeat random-effect contributions for every fitted
 observation. Defaults to \code{FALSE}, returning one column per unique
-grouping-level contribution in first fitted-observation order, consistently
-with \code{metafor::ranef()}. Indicator-coded random coefficients retain one
-column per observed grouping-level and coefficient combination. Set to
-\code{TRUE} for observation-aligned output.}
+grouping-level contribution in the fitted grouping order used by
+\code{metafor::ranef()}. Nested groups follow their original outer-to-inner
+order. Indicator-coded random coefficients retain one column per observed
+grouping-level and coefficient combination. Set to \code{TRUE} for
+observation-aligned output.}
 
 \item{...}{additional arguments forwarded to \code{\link{predict.brma}} for
 supported options such as \code{conditional}. \code{newdata}, \code{type},

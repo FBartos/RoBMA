@@ -429,6 +429,19 @@
 }
 
 
+# Use the ordinary meta-analysis label for an intercept-only multivariate
+# location model. The underlying formula term remains "intercept".
+.location_repair_intercept_labels <- function(labels, object) {
+
+  if (!inherits(object, "brma.mv") || .is_mods(object)) {
+    return(labels)
+  }
+
+  labels[labels %in% c("intercept", "(mu) intercept")] <- "mu"
+  return(labels)
+}
+
+
 # Return a fitted formula with an evaluation environment suitable for model.frame().
 .fitted_formula_evaluable <- function(object, design, source) {
 

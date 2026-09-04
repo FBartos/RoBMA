@@ -245,13 +245,13 @@ test_that("v14 brma.mv fixed effects match metafor references", {
   cases <- list(
     list(
       name      = "brma.mv_v14_konstantopoulos2011_cs",
-      rows      = "intercept",
+      rows      = "mu",
       expected  = function(m) as.numeric(m[["beta"]]),
       tolerance = 0.05
     ),
     list(
       name      = "brma.mv_v14_assink2016_nested",
-      rows      = "intercept",
+      rows      = "mu",
       expected  = function(m) as.numeric(m[["beta"]]),
       tolerance = 0.05
     ),
@@ -645,8 +645,7 @@ test_that("v14 brma.mv ranef components track metafor references", {
       name              = "brma.mv_v14_assink2016_nested",
       component         = "esid_study",
       metafor_component = "study/esid",
-      tolerance         = 0.08,
-      expand            = TRUE
+      tolerance         = 0.08
     ),
     list(
       name              = "brma.mv_v14_ishak2007_har",

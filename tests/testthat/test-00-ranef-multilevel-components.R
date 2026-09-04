@@ -245,20 +245,20 @@ test_that("ranef unique-level output follows compiled grouping metadata", {
 })
 
 
-test_that("ranef unique-level output follows compiled level order", {
+test_that("ranef unique-level output follows metafor-compatible compiled order", {
 
   samples <- matrix(seq_len(8L), nrow = 2L)
   observed <- .ranef_unique_level_samples(
     samples      = samples,
     group_map    = c(1L, 3L, 2L, 4L),
-    group_levels = c("one", "two", "three", "four"),
+    group_levels = c("1:1", "1:2", "2:1", "2:2"),
     block        = "esid_study"
   )
 
   expect_equal(unname(observed), samples[, c(1L, 3L, 2L, 4L), drop = FALSE])
   expect_identical(
     colnames(observed),
-    paste0("u_esid_study[", c("one", "two", "three", "four"), "]")
+    paste0("u_esid_study[", c("1:1", "1:2", "2:1", "2:2"), "]")
   )
 })
 
