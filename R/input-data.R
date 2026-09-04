@@ -16,8 +16,9 @@
 #' @param sei a vector of standard errors. Either `vi` or `sei` must be
 #' supplied for normal models.
 #' @param V a known working variance-covariance matrix, a list of block
-#' variance-covariance matrices, or an exact diagonal-plus-factor declaration
-#' created by [known_v_factor()], used by `brma.mv()`.
+#' variance-covariance matrices, a metadata-preserving [vcalc2()] result, or an
+#' exact diagonal-plus-factor declaration created by [known_v_factor()], used
+#' by `brma.mv()`.
 #' @param known_v_parameterization known-`V` backend used by `brma.mv()`.
 #' `"auto"` chooses an exact backend when feasible; `"latent"` uses a latent
 #' `D + BB'` decomposition; `"whitened"` uses an eigen-rotated normal
@@ -29,9 +30,9 @@
 #' but affect only the latent backend. When `"auto"` selects `"whitened"` or
 #' `"block_mvn"`, explicitly supplied values are disregarded by the likelihood.
 #' Direct `"whitened"` or `"block_mvn"` requests warn when an explicit value is
-#' supplied. For [known_v_factor()] input, the declared diagonal is the exact
-#' residual variance and this argument is disregarded with a warning when
-#' supplied explicitly.
+#' supplied. For a factor representation declared by [vcalc2()] or
+#' [known_v_factor()], the declared diagonal is the exact residual variance and
+#' this argument is disregarded with a warning when supplied explicitly.
 #' @param weights an optional vector of positive likelihood weights. For
 #' normal/effect-size models, each weight powers the estimate likelihood. For
 #' constructors with GLMM raw-count input, each weight powers the paired

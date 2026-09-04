@@ -121,8 +121,8 @@
 
   if (declared_factor && isTRUE(known_v_residual_fraction_specified)) {
     warning(
-      "'known_v_residual_fraction' was disregarded because the 'diagonal' ",
-      "component of 'known_v_factor()' defines the exact residual variance.",
+      "'known_v_residual_fraction' was disregarded because the declared ",
+      "factor representation defines the exact residual variance.",
       call.      = FALSE,
       immediate. = TRUE
     )

@@ -1,6 +1,88 @@
 context("Exact selection certified factor routing")
 skip_on_cran()
 
+test_that("vcalc2 preserves vcalc covariance and certifies its common structure", {
+
+  skip_if_not_installed("metafor")
+  dat <- data.frame(
+    yi      = seq(-.3, .4, length.out = 8L),
+    vi      = seq(.02, .09, length.out = 8L),
+    study   = rep(c("a", "b"), each = 4L),
+    type    = rep(c("x", "x", "y", "y"), 2L),
+    obs     = rep(seq_len(4L), 2L)
+  )
+  expected <- metafor::vcalc(
+    vi, cluster = study, type = type, obs = obs,
+    rho = c(.6, .3), data = dat
+  )
+  V <- vcalc2(
+    vi, cluster = study, type = type, obs = obs,
+    rho = c(.6, .3), data = dat
+  )
+
+  expect_identical(class(V), class(expected))
+  expect_equal(
+    matrix(as.numeric(V), nrow = nrow(V)),
+    matrix(as.numeric(expected), nrow = nrow(expected)),
+    tolerance = 0
+  )
+  metadata <- attr(V, "RoBMA_vcalc_metadata", exact = TRUE)
+  expect_s3_class(metadata, "RoBMA_vcalc_metadata")
+  expect_identical(metadata[["factor_status"]], "certified")
+  expect_s3_class(metadata[["factor"]], "RoBMA_known_v_factor")
+
+  object <- bselmodel.mv(
+    yi                        = yi,
+    V                         = V,
+    data                      = dat,
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    selection_likelihood      = "exact",
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  setup <- .data_exact_selection_setup(object[["data"]])
+  expect_identical(
+    .known_v_storage(.data_known_v_data(object[["data"]])),
+    "factor"
+  )
+  expect_identical(setup[["exactness"]], "EF")
+  expect_true(all(setup[["block_methods"]] == "factor"))
+  expect_identical(setup[["factor_ranks"]], c(2L, 2L))
+
+  stale <- V
+  stale[1L, 1L] <- stale[1L, 1L] * 2
+  expect_error(
+    .known_v_canonicalize(stale),
+    "metadata no longer match its covariance matrix",
+    fixed = TRUE
+  )
+})
+
+
+test_that("vcalc2 leaves unsupported metadata structures on the dense route", {
+
+  skip_if_not_installed("metafor")
+  dat <- data.frame(
+    yi    = seq(-.2, .3, length.out = 6L),
+    vi    = seq(.03, .08, length.out = 6L),
+    study = rep(c("a", "b"), each = 3L),
+    type  = rep(c("x", "x", "y"), 2L),
+    obs   = rep(seq_len(3L), 2L),
+    time  = rep(seq_len(3L), 2L)
+  )
+  V <- vcalc2(
+    vi, cluster = study, type = type, obs = obs, time1 = time,
+    rho = c(.6, .3), phi = .5, data = dat
+  )
+  metadata <- attr(V, "RoBMA_vcalc_metadata", exact = TRUE)
+
+  expect_identical(metadata[["factor_status"]], "unsupported")
+  expect_null(metadata[["factor"]])
+  expect_identical(.known_v_input_storage(V), "dense")
+})
+
+
 test_that("known_v_factor preserves exact provenance and structural routing", {
 
   K <- 6L

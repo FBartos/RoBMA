@@ -59,8 +59,10 @@
   not rescan this large fixed design on every density update; coordinates are
   validated lazily if a fallback consumes them. Formula random effects use
   authoritative BayesTools metadata, while
-  `known_v_factor()` supplies an explicit exact `D + UU'` sampling-covariance
-  contract. Arbitrary dense `V`, non-positive residual diagonals, and
+  `vcalc2()` wraps the optionally installed `metafor::vcalc()` and retains its
+  common `type`/`obs` correlation construction as an exact `D + UU'` contract;
+  `known_v_factor()` remains available for explicit declarations. Arbitrary
+  dense `V`, non-positive residual diagonals, and
   structural ranks above four fail closed to the general dense exact
   likelihood; no numerical rank is inferred and no covariance repair, jitter,
   clamping, or model approximation is introduced. Declared factors are also

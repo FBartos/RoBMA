@@ -17,7 +17,8 @@
 #' analytically marginalized and each connected sampling/random covariance
 #' block is fitted with its joint selected-Gaussian density. Diagonal-plus-factor
 #' covariance structure is used only when certified by compiled random-effect
-#' metadata or declared explicitly with [known_v_factor()]. Structural ranks
+#' metadata, retained automatically by [vcalc2()], or declared explicitly with
+#' [known_v_factor()]. Structural ranks
 #' one through four with positive conditional residual variances use exact
 #' low-dimensional factor integrals; other blocks retain the general dense
 #' exact likelihood. No numerical rank is inferred from an arbitrary covariance

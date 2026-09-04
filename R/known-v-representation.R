@@ -55,17 +55,48 @@ known_v_factor <- function(diagonal, loading) {
 
 .known_v_factor_components <- function(V, arg = "V") {
 
-  if (!inherits(V, "RoBMA_known_v_factor") ||
-      !is.list(V) || !identical(names(V), c("diagonal", "loading"))) {
+  direct_factor <- inherits(V, "RoBMA_known_v_factor")
+  factor <- if (direct_factor) V else .known_v_vcalc_factor(V, arg = arg)
+  if (is.null(factor) || !is.list(factor) ||
+      !identical(names(factor), c("diagonal", "loading"))) {
     stop("The '", arg, "' factor representation is invalid.", call. = FALSE)
   }
-  tryCatch(
-    known_v_factor(V[["diagonal"]], V[["loading"]]),
+  components <- tryCatch(
+    known_v_factor(factor[["diagonal"]], factor[["loading"]]),
     error = function(e) {
       stop("The '", arg, "' factor representation is invalid: ",
            conditionMessage(e), call. = FALSE)
     }
   )
+  if (!direct_factor && !.vcalc2_factor_matches(V, components)) {
+    stop(
+      "The '", arg, "' vcalc2() metadata no longer match its covariance matrix.",
+      call. = FALSE
+    )
+  }
+  components
+}
+
+
+.known_v_vcalc_factor <- function(V, arg = "V") {
+
+  metadata <- attr(V, "RoBMA_vcalc_metadata", exact = TRUE)
+  if (is.null(metadata)) {
+    return(NULL)
+  }
+  if (!inherits(metadata, "RoBMA_vcalc_metadata") || !is.list(metadata) ||
+      !identical(metadata[["version"]], 1L) ||
+      !"factor" %in% names(metadata)) {
+    stop("The '", arg, "' vcalc2() metadata are invalid.", call. = FALSE)
+  }
+  metadata[["factor"]]
+}
+
+
+.known_v_has_declared_factor <- function(V, arg = "V") {
+
+  inherits(V, "RoBMA_known_v_factor") ||
+    !is.null(.known_v_vcalc_factor(V, arg = arg))
 }
 
 
@@ -334,7 +365,7 @@ known_v_factor <- function(diagonal, loading) {
 # Convert known-V input without validating covariance values.
 .known_v_as_matrix_structure <- function(V, k = NULL) {
 
-  if (inherits(V, "RoBMA_known_v_factor")) {
+  if (.known_v_has_declared_factor(V)) {
     components <- .known_v_factor_components(V)
     V_matrix <- .known_v_factor_covariance(
       components[["diagonal"]],
@@ -368,7 +399,7 @@ known_v_factor <- function(diagonal, loading) {
 # Describe known-V input without materializing block-diagonal storage.
 .known_v_input_storage <- function(V, arg = "V") {
 
-  if (inherits(V, "RoBMA_known_v_factor")) {
+  if (.known_v_has_declared_factor(V, arg = arg)) {
     .known_v_factor_components(V, arg = arg)
     return("factor")
   }
@@ -401,7 +432,7 @@ known_v_factor <- function(diagonal, loading) {
 
   storage <- .known_v_input_storage(V, arg = arg)
   if (storage == "factor") {
-    return(length(V[["diagonal"]]))
+    return(length(.known_v_factor_components(V, arg = arg)[["diagonal"]]))
   }
   if (storage == "dense") {
     return(nrow(V))
@@ -431,7 +462,8 @@ known_v_factor <- function(diagonal, loading) {
 
   storage <- .known_v_input_storage(V, arg = arg)
   if (storage == "factor") {
-    return(V[["diagonal"]] + rowSums(V[["loading"]]^2))
+    components <- .known_v_factor_components(V, arg = arg)
+    return(components[["diagonal"]] + rowSums(components[["loading"]]^2))
   }
   if (storage == "dense") {
     return(diag(V))
@@ -453,9 +485,10 @@ known_v_factor <- function(diagonal, loading) {
 
   storage <- .known_v_input_storage(V)
   if (storage == "factor") {
+    components <- .known_v_factor_components(V)
     return(known_v_factor(
-      diagonal = V[["diagonal"]][keep_rows],
-      loading  = V[["loading"]][keep_rows, , drop = FALSE]
+      diagonal = components[["diagonal"]][keep_rows],
+      loading  = components[["loading"]][keep_rows, , drop = FALSE]
     ))
   }
   if (storage == "dense") {
