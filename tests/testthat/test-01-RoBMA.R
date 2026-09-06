@@ -73,7 +73,7 @@ test_that("RoBMA handles meta-regression with interaction", {
   fit <- RoBMA(
     yi = yi, vi = vi, mods = ~ Preregistered * Gender,
     data = dat.lehmann2018, measure = "SMD",
-    chains = 2, sample = 1000, burnin = 500, adapt = 500,
+    chains = 2, sample = 1000, burnin = 500, adapt = 1000,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))

@@ -37,6 +37,34 @@ test_that("step selected-normal kernel matches an independent p-bin reference", 
                tolerance = 1e-12)
 })
 
+test_that("step normalizers retain central and extreme one-sided tails", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  scores <- c(-40, -12, -1, 0, 1, 12, 35, 37.5, 38, 40)
+  sei    <- .2
+  sigma  <- matrix(.3, nrow = length(scores))
+  cutoff <- stats::qnorm(.025, lower.tail = FALSE) * sei
+  omega  <- matrix(rep(c(1, 0, 0, 0), each = length(scores)), ncol = 4L)
+
+  for (direction in c("positive", "negative")) {
+    sign <- if (direction == "positive") 1 else -1
+    yi   <- sign * (cutoff + .1)
+    mu   <- matrix(sign * (cutoff - scores * .3), ncol = 1L)
+    spec <- .test_step_spec(yi, sei, effect_direction = direction)
+    observed <- .selnorm_kernel_loglik_matrix(
+      yi = yi, mu_num = mu, sigma_num = sigma, sei = sei,
+      omega = omega, selection_spec = spec
+    )
+    reference <- stats::dnorm(yi, mu, sigma, log = TRUE) - stats::pnorm(
+      cutoff, sign * mu, sigma, lower.tail = FALSE, log.p = TRUE
+    )
+    expect_true(all(is.finite(observed)))
+    # Allow rounding of standardized scores up to 40 SD; include the existing
+    # log-scale fallback beyond the ordinary/subnormal probability boundary.
+    expect_equal(as.numeric(observed), as.numeric(reference), tolerance = 1e-11)
+  }
+})
+
 test_that("unit weights reduce one- and two-sided step kernels to normal", {
 
   skip_if_not(.has_native_selnorm_kernel())
@@ -620,7 +648,7 @@ test_that("step normalizer sign handling is symmetric for negative effects", {
   )
 })
 
-test_that("trusted step CDF, moments, and RNG match exact fallback paths", {
+test_that("trusted step densities, CDF, moments, and RNG match fallback paths", {
 
   skip_if_not(.has_native_selnorm_kernel())
 
@@ -647,6 +675,17 @@ test_that("trusted step CDF, moments, and RNG match exact fallback paths", {
     spec <- .test_step_spec(sign * yi, sei, effect_direction = effect_direction)
     spec_fallback <- spec
     spec_fallback[["telescope_probabilities"]] <- FALSE
+
+    for (selection_spec in list(spec, spec_fallback)) {
+      expect_equal(
+        .selnorm_kernel_loglik_matrix(
+          yi = sign * yi, mu_num = sign * mean, sigma_num = sd,
+          sei = sei, omega = omega, selection_spec = selection_spec
+        ),
+        .test_step_reference(sign * yi, sign * mean, sd, sei, omega, spec),
+        tolerance = 1e-12
+      )
+    }
 
     cdf_lower <- .selnorm_kernel_cdf_matrix(
       q              = sign * yi,

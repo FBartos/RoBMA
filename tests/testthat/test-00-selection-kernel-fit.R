@@ -204,7 +204,7 @@ test_that("RoBMA defaults to exact finite-vector selection", {
   expect_identical(exact_plan[["exactness"]], "E1")
   expect_identical(exact_plan[["block_methods"]], rep("rank_one", 2L))
   expect_identical(
-    exact_plan[["quadrature_orders"]],
+    exact_plan[["quadrature"]][["orders"]],
     c(15L, 31L, 63L, 127L, 255L, 511L, 1023L)
   )
   expect_length(exact_plan[["designs"]], 0L)
@@ -996,7 +996,7 @@ test_that("exact selection covariance batches preserve multilevel algebra", {
   expect_true(evaluated_setup[["is_multilevel"]])
   expect_identical(dim(factor_setup[["loading"]]), c(2L, 2L))
 
-  observed <- .selection_exact_covariance_lower(setup, rows = 1:2)
+  observed <- .selection_exact_covariance_lower(setup, block_index = 1L)
   expected_covariance <- array(NA_real_, dim = c(2L, 2L, 2L))
   for (draw in seq_len(2L)) {
     expected_covariance[draw, , ] <- diag(c(.10, .15)^2) +
@@ -1091,6 +1091,52 @@ test_that("exact bivariate selection kernel matches rectangle integration", {
 })
 
 
+test_that("dense selection supports an excluded middle interval", {
+
+  y      <- c(.60, -.10)
+  mu     <- c(.10, .15)
+  sigma  <- matrix(c(.09, .03, .03, .16), 2L, 2L)
+  sei    <- c(.20, .25)
+  omega  <- c(1, 0, .4)
+  bounds <- c(Inf, stats::qnorm(.05, lower.tail = FALSE), 0, -Inf)
+  lower  <- tail(bounds, -1L)
+  upper  <- head(bounds, -1L)
+  # Sum the four nonzero weighted rectangles, independently of the GHK path.
+  rectangles <- expand.grid(first = c(1L, 3L), second = c(1L, 3L))
+  normalizer <- sum(vapply(seq_len(nrow(rectangles)), function(i) {
+
+    bins      <- as.integer(rectangles[i, ])
+    tail_sign <- ifelse(bins == 1L, 1, -1)
+    prod(omega[bins]) * as.numeric(mvtnorm::pmvnorm(
+      lower     = ifelse(bins == 1L, lower[bins], -upper[bins]) * sei,
+      upper     = c(Inf, Inf),
+      mean      = tail_sign * mu,
+      sigma     = tcrossprod(tail_sign) * sigma,
+      algorithm = mvtnorm::TVPACK(abseps = 1e-10)
+    ))
+  }, numeric(1L)))
+  expected <- mvtnorm::dmvnorm(y, mu, sigma, log = TRUE) +
+    log(.4) - log(normalizer)
+  design <- BayesTools::selection_qmc_design(
+    dimensions = 4L, points = 16384L, scrambles = 8L, seed = 5L
+  )
+  for (sign in c(-1L, 1L)) {
+    for (telescope in c(FALSE, TRUE)) {
+      actual <- .Call(
+        "RoBMA_selnorm_mnorm_step_loglik_batch",
+        sign * y, matrix(sign * mu, nrow = 1L),
+        matrix(sigma[lower.tri(sigma, diag = TRUE)], nrow = 1L),
+        sei, matrix(omega, nrow = 1L), lower, upper, c(1L, 3L), sign,
+        telescope, SELKERNEL_STEP, as.double(design), 16384L, 8L, .01,
+        PACKAGE = "RoBMA"
+      )
+      expect_equal(actual[["log_density"]], expected, tolerance = 5e-4)
+      expect_lt(actual[["relative_mcse"]], 5e-4)
+    }
+  }
+})
+
+
 test_that("exact cluster reduction matches bivariate rectangle integration", {
 
   y           <- c(.30, .50)
@@ -1146,6 +1192,108 @@ test_that("exact cluster reduction matches bivariate rectangle integration", {
 
   expect_equal(actual[["log_density"]], expected, tolerance = 5e-8)
   expect_lt(actual[["relative_change"]], 5e-4)
+})
+
+
+test_that("rank-one selection quadrature preserves direction and log fallback", {
+
+  y           <- c(.3, -.1, .5)
+  mu          <- c(.1, .2, -.1)
+  residual_sd <- c(.2, .3, .25)
+  loading     <- c(.3, -.2, 0)
+  sei         <- c(.2, .15, .25)
+  z           <- stats::qnorm(.025, lower.tail = FALSE)
+  omega       <- c(1, .4)
+  quadrature  <- .selection_exact_cluster_quadrature_rules(
+    SELNORM_CLUSTER_QUADRATURE_ORDERS
+  )
+  normalizer <- stats::integrate(function(gamma) {
+    vapply(gamma, function(value) {
+      probability <- stats::pnorm(
+        z * sei, mu + loading * value, residual_sd, lower.tail = FALSE
+      )
+      stats::dnorm(value) * prod(omega[1L] * probability +
+                                omega[2L] * (1 - probability))
+    }, numeric(1L))
+  }, -Inf, Inf, rel.tol = 1e-10)$value
+  covariance <- diag(residual_sd^2) + tcrossprod(loading)
+  bins <- as.integer(ifelse(y >= z * sei, 1L, 2L))
+  expected <- mvtnorm::dmvnorm(y, mu, covariance, log = TRUE) +
+    sum(log(omega[bins])) - log(normalizer)
+
+  for(sign in c(-1L, 1L)){
+    for(telescope in c(FALSE, TRUE)){
+      actual <- .Call(
+        "RoBMA_selnorm_cluster_step_loglik_batch",
+        sign * y, matrix(sign * mu, 1L), matrix(residual_sd, 1L),
+        matrix(sign * loading, 1L), sei, matrix(omega, 1L),
+        c(z, -Inf), c(Inf, z), bins, sign, telescope, SELKERNEL_STEP,
+        quadrature$nodes, quadrature$log_weights,
+        as.numeric(quadrature$orders), 1e-8, PACKAGE = "RoBMA"
+      )
+      expect_equal(actual$log_density, expected, tolerance = 1e-8)
+      expect_lte(actual$relative_change, 1e-8)
+    }
+  }
+
+  # Constant selection weights cancel even when their product underflows:
+  # the defined likelihood is the ordinary multivariate normal density.
+  y <- rep(y, 10L)
+  mu <- rep(mu, 10L)
+  residual_sd <- rep(residual_sd, 10L)
+  loading <- rep(loading, 10L)
+  actual <- .Call(
+    "RoBMA_selnorm_cluster_step_loglik_batch",
+    y, matrix(mu, 1L), matrix(residual_sd, 1L), matrix(loading, 1L),
+    rep(sei, 10L), matrix(rep(1e-200, 2L), 1L),
+    c(z, -Inf), c(Inf, z), rep(bins, 10L), 1L, TRUE, SELKERNEL_STEP,
+    quadrature$nodes, quadrature$log_weights,
+    as.numeric(quadrature$orders), 1e-8, PACKAGE = "RoBMA"
+  )
+  expected <- mvtnorm::dmvnorm(
+    y, mu, diag(residual_sd^2) + tcrossprod(loading), log = TRUE
+  )
+  expect_equal(actual$log_density, expected, tolerance = 1e-10)
+})
+
+
+test_that("rank-one batches keep posterior-row weights and quadrature state separate", {
+
+  y       <- c(.3, .5)
+  sei     <- c(.2, .25)
+  mu      <- rbind(c(.1, .15), c(-.2, .3), c(.4, -.1))
+  sd      <- rbind(c(.2, .25), c(.3, .2), c(.15, .3))
+  loading <- rbind(c(.3, .35), c(0, 0), c(.5, -.2))
+  omega   <- rbind(c(1, .4), c(.2, 1), c(1, .1))
+  modes   <- c(SELKERNEL_STEP, SELKERNEL_NORMAL, SELKERNEL_STEP)
+  z       <- stats::qnorm(.025, lower.tail = FALSE)
+  bins    <- as.integer(ifelse(y >= z * sei, 1L, 2L))
+  quadrature <- .selection_exact_cluster_quadrature_rules(
+    SELNORM_CLUSTER_QUADRATURE_ORDERS
+  )
+  actual <- .Call(
+    "RoBMA_selnorm_cluster_step_loglik_batch",
+    y, mu, sd, loading, sei, omega, c(z, -Inf), c(Inf, z), bins,
+    1L, TRUE, modes, quadrature$nodes, quadrature$log_weights,
+    as.numeric(quadrature$orders), 1e-8, PACKAGE = "RoBMA"
+  )
+  expected <- vapply(seq_len(nrow(mu)), function(row) {
+    value <- mvtnorm::dmvnorm(
+      y, mu[row, ], diag(sd[row, ]^2) + tcrossprod(loading[row, ]), log = TRUE
+    )
+    if (modes[row] == SELKERNEL_NORMAL) return(value)
+    normalizer <- stats::integrate(function(gamma) {
+      probability1 <- stats::pnorm(z * sei[1], mu[row, 1] + loading[row, 1] * gamma,
+                                   sd[row, 1], lower.tail = FALSE)
+      probability2 <- stats::pnorm(z * sei[2], mu[row, 2] + loading[row, 2] * gamma,
+                                   sd[row, 2], lower.tail = FALSE)
+      weight <- function(p) omega[row, 1] * p + omega[row, 2] * (1 - p)
+      stats::dnorm(gamma) * weight(probability1) * weight(probability2)
+    }, -Inf, Inf, rel.tol = 1e-10)$value
+    value + sum(log(omega[row, bins])) - log(normalizer)
+  }, numeric(1L))
+  expect_equal(actual$log_density, expected, tolerance = 1e-8)
+  expect_true(all(actual$relative_change <= 1e-8))
 })
 
 

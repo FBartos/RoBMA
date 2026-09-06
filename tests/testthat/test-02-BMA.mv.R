@@ -38,7 +38,7 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
   )
   inclusion <- out[["inclusion_random"]]
 
-  expect_equal(rownames(inclusion), names(gate_names))
+  expect_equal(rownames(inclusion), paste0(names(gate_names), ": sd"))
   expect_equal(unname(inclusion[["prior_prob"]]), c(0.5, 0.5))
   expect_equal(
     unname(inclusion[["post_prob"]]),
@@ -48,7 +48,7 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
   summary_frame <- as.data.frame(out)
   expect_equal(
     summary_frame[["parameter"]][summary_frame[["component"]] == "inclusion random"],
-    names(gate_names)
+    paste0(names(gate_names), ": sd")
   )
   expect_false(any(grepl(
     "__xRE_",
@@ -69,20 +69,26 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
     catalog[["quantities"]][["canonical_name"]],
     fixed = TRUE
   )))
-  expect_match(
-    attr(out[["estimates_random"]], "footnotes"),
-    "fully model-averaged realized totals",
-    fixed = TRUE
-  )
+  expect_null(attr(out[["estimates_random"]], "footnotes"))
+  expect_null(attr(out[["estimates_random_conditional"]], "footnotes"))
+
+  expected_parameters <- c("sd_total", paste0("var_prop(", names(gate_names), ")"))
+  expect_identical(rownames(out[["estimates_random"]]), expected_parameters)
+  expect_identical(rownames(out[["estimates_random_conditional"]]), expected_parameters)
+  expect_identical(data.frame(out), summary_frame)
   expect_identical(
-    attr(out[["estimates_random_conditional"]], "footnotes"),
-    paste0(
-      "sd_total and var_total are fully model-averaged realized totals, ",
-      "including the all-off zero branch. var_prop(...) is the realized ",
-      "share conditional on positive total heterogeneity; excluded ",
-      "components have zero share. Component SDs are conditioned on their ",
-      "own inclusion gates."
-    )
+    summary_frame[["parameter"]][summary_frame[["component"]] == "random"],
+    expected_parameters
+  )
+  heterogeneity <- summary_heterogeneity(fit_bma_mv)
+  full_conditional <- BayesTools::JAGS_estimates_table(
+    fit_bma_mv[["fit"]],
+    conditional            = TRUE,
+    random_effects_summary = "full",
+    keep_parameters        = "random",
+    formula_prefix         = FALSE,
+    simplify_names         = TRUE,
+    remove_diagnostics     = TRUE
   )
 
   for (component in names(gate_names)) {
@@ -93,8 +99,14 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
     gate <- samples[, gate_names[[component]]]
     expect_true(all(sd_draws[gate == 0] == 0), info = component)
     expect_equal(
-      out[["estimates_random_conditional"]][paste0(component, ": sd"), "Mean"],
+      full_conditional[paste0(component, ": sd"), "Mean"],
       mean(sd_draws[gate == 1]),
+      tolerance = 5e-4,
+      info = component
+    )
+    expect_equal(
+      heterogeneity[[component]][["estimates"]]["sd", "Mean"],
+      mean(sd_draws),
       tolerance = 5e-4,
       info = component
     )

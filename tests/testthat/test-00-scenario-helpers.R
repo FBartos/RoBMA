@@ -48,6 +48,157 @@ test_that("plural scenario runner retains the established interface", {
 })
 
 
+test_that("scenario timing plots retain individually named function calls", {
+
+  timings <- data.frame(
+    type = c(
+      "fit", "fit_model", "fit_model", "fit_model", "fit_model",
+      "fit_loo", "fit_marglik", "time", "time", "text", "plot"
+    ),
+    name = c(
+      "fit_brma", "fit_brma", "fit_brma.mv_reg",
+      "fit_bselmodel.mv_exact", "fit_bselmodel_approximate", "fit_simple",
+      "fit_simple", "residuals", "fit_reg3_diagnostics_robma", "summary-fit_brma",
+      "marginal_diagnostics"
+    )
+  )
+  expect_identical(
+    .scenario_timing_functions(timings),
+    c(
+      NA_character_, "brma", "brma.mv", "bselmodel.mv", "bselmodel",
+      "add_loo", "add_marglik", "residuals", NA_character_,
+      "summary", "plot_marginal_diagnostics"
+    )
+  )
+  timings[["function"]] <- .scenario_timing_functions(timings)
+  expect_identical(
+    .scenario_timing_likelihoods(timings),
+    c(
+      NA_character_, NA_character_, NA_character_, "exact", "approximate",
+      NA_character_, NA_character_, NA_character_, NA_character_,
+      NA_character_, NA_character_
+    )
+  )
+  expect_identical(
+    .scenario_timing_unit("s"),
+    list(divisor = 1, label = "seconds")
+  )
+  expect_identical(
+    .scenario_timing_unit("m"),
+    list(divisor = 60, label = "minutes")
+  )
+  expect_identical(
+    .scenario_timing_unit("h"),
+    list(divisor = 3600, label = "hours")
+  )
+  expect_error(.scenario_timing_unit("minutes"), "must be 's', 'm', or 'h'")
+  expect_identical(
+    .scenario_timing_groups(data.frame(
+      `function` = c("bselmodel", "bselmodel.mv", "brma"),
+      likelihood = c("approximate", "exact", NA_character_),
+      check.names = FALSE
+    )),
+    c("bselmodel (approximate)", "bselmodel.mv (exact)", "brma")
+  )
+})
+
+
+test_that("plot_scenario_times filters committed baselines", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  dir.create(file.path(root, "timings"))
+  provenance <- .scenario_timing_provenance()
+  timing_rows <- function(type, name, elapsed) {
+
+    data.frame(
+      type      = type,
+      name      = name,
+      elapsed   = elapsed,
+      memory_gb = 1,
+      r_version = provenance[["r_version"]],
+      platform  = provenance[["platform"]],
+      stringsAsFactors = FALSE
+    )
+  }
+  alpha <- timing_rows(
+    c(
+      "fit", "fit_model", "fit_model", "fit_model", "fit_model", "time",
+      "time"
+    ),
+    c(
+      "fit_brma", "fit_brma", "fit_brma.mv_reg",
+      "fit_bselmodel_approximate", "fit_bselmodel_exact", "residuals",
+      "fit_reg3_diagnostics_robma"
+    ),
+    c(5, 2, 4, 8, 10, 1, 3)
+  )
+  beta <- timing_rows(
+    c("fit_model", "time"),
+    c("fit_brma", "residual"),
+    c(6, 2)
+  )
+  candidate <- timing_rows("fit_model", "fit_brma", 100)
+  .scenario_write_timings(alpha, file.path(root, "timings", "alpha.tsv"))
+  .scenario_write_timings(beta, file.path(root, "timings", "beta.tsv"))
+  .scenario_write_timings(
+    candidate,
+    file.path(root, "timings", "beta.new.tsv")
+  )
+
+  plot_path <- tempfile(fileext = ".pdf")
+  on.exit(unlink(plot_path), add = TRUE)
+  grDevices::pdf(plot_path)
+  on.exit(grDevices::dev.off(), add = TRUE)
+
+  alpha_plot <- plot_scenario_times(
+    scenario  = "alpha",
+    functions = c("brma", "residual"),
+    root      = root
+  )
+  expect_equal(
+    alpha_plot[c("scenario", "type", "name", "function", "elapsed")],
+    data.frame(
+      scenario = c("alpha", "alpha"),
+      type      = c("fit_model", "time"),
+      name      = c("fit_brma", "residuals"),
+      `function` = c("brma", "residuals"),
+      elapsed   = c(2, 1),
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+  )
+
+  all_plot <- plot_scenario_times(functions = "brma", unit = "m", root = root)
+  expect_equal(all_plot[["elapsed"]], c(2, 6))
+  expect_setequal(all_plot[["scenario"]], c("alpha", "beta"))
+
+  original_mar <- graphics::par("mar")
+  selection_plot <- plot_scenario_times(
+    functions = "bselmodel",
+    root      = root
+  )
+  expect_equal(graphics::par("mar"), original_mar)
+  expect_identical(
+    selection_plot[["likelihood"]],
+    c("approximate", "exact")
+  )
+  expect_equal(selection_plot[["elapsed"]], c(8, 10))
+
+  exact_plot <- plot_scenario_times(
+    functions  = "bselmodel",
+    likelihood = "exact",
+    root       = root
+  )
+  expect_identical(exact_plot[["likelihood"]], "exact")
+  expect_equal(exact_plot[["elapsed"]], 10)
+  expect_error(
+    plot_scenario_times(scenario = "missing", root = root),
+    "baseline is unavailable"
+  )
+})
+
+
 test_that("nested helper sourcing reuses the runner state", {
 
   helper_env <- environment(scenario_start)
@@ -1585,9 +1736,7 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
     "residuals", "scenario_diagnostic_fit",
     function(object, ...) {
 
-      if (identical(object[["role"]], "estimate")) {
-        state[["residual_args"]] <- list(...)
-      }
+      state[[paste0("residual_args_", object[["role"]])]] <- list(...)
       return(object[["offset"]] + c(1, 2))
     }
   )
@@ -1595,8 +1744,8 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
     "rstandard", "scenario_diagnostic_fit",
     function(model, ...) {
 
-      if (identical(model[["role"]], "estimate")) {
-        state[["rstandard_args"]] <- list(...)
+      state[[paste0("rstandard_args_", model[["role"]])]] <- list(...)
+      if (inherits(model, "brma")) {
         warning("expected diagnostic warning")
       }
       return(list(z = model[["offset"]] + c(3, 4)))
@@ -1606,7 +1755,8 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
     "hatvalues", "scenario_diagnostic_fit",
     function(model, ...) {
 
-      if (identical(model[["role"]], "estimate")) {
+      state[[paste0("hatvalues_called_", model[["role"]])]] <- TRUE
+      if (inherits(model, "brma")) {
         warning("expected diagnostic warning")
       }
       return(model[["offset"]] + c(5, 6))
@@ -1614,11 +1764,19 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
   )
   local_mocked_s3_method(
     "cooks.distance", "scenario_diagnostic_fit",
-    function(model, ...) model[["offset"]] + c(7, 8)
+    function(model, ...) {
+
+      state[[paste0("cooks_called_", model[["role"]])]] <- TRUE
+      return(model[["offset"]] + c(7, 8))
+    }
   )
   local_mocked_s3_method(
     "dfbetas", "scenario_diagnostic_fit",
-    function(model, ...) matrix(model[["offset"]] + c(9, 10), ncol = 1L)
+    function(model, ...) {
+
+      state[[paste0("dfbetas_called_", model[["role"]])]] <- TRUE
+      return(matrix(model[["offset"]] + c(9, 10), ncol = 1L))
+    }
   )
 
   helper_env <- environment(plot_marginal_diagnostics)
@@ -1634,11 +1792,14 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
   ), add = TRUE)
   assign(
     "scenario_agreement_plot",
-    function(reference, estimate, main = "", ...) {
+    function(reference, estimate, main = "", reference_label = "metafor",
+             estimate_label = "RoBMA", ...) {
 
       state[["plots"]][[main]] <- list(
-        reference = reference,
-        estimate  = estimate
+        reference       = reference,
+        estimate        = estimate,
+        reference_label = reference_label,
+        estimate_label  = estimate_label
       )
       return(invisible(NULL))
     },
@@ -1651,7 +1812,7 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
   )
   estimate <- structure(
     list(role = "estimate", offset = 10),
-    class = "scenario_diagnostic_fit"
+    class = c("scenario_diagnostic_fit", "brma")
   )
   expect_no_warning(.with_temp_plot_device({
     value <- plot_marginal_diagnostics(reference, estimate)
@@ -1679,14 +1840,72 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
     lapply(expected_reference, function(x) x + 10)
   )
   expect_identical(
-    state[["residual_args"]],
+    state[["residual_args_estimate"]],
     list(type = "outcome", conditioning_depth = "marginal")
   )
   expect_identical(
-    state[["rstandard_args"]],
+    state[["rstandard_args_estimate"]],
     list(conditioning_depth = "marginal")
   )
   expect_identical(state[["mfrow"]], c(3L, 2L))
+
+  state[["plots"]] <- list()
+  reference_brma <- structure(
+    list(role = "reference_brma", offset = 20),
+    class = c("scenario_diagnostic_fit", "brma")
+  )
+  expect_no_warning(.with_temp_plot_device(
+    plot_marginal_diagnostics(
+      reference_brma,
+      estimate,
+      reference_label = "exact",
+      estimate_label  = "approximate"
+    )
+  ))
+  expect_identical(
+    state[["residual_args_reference_brma"]],
+    list(type = "outcome", conditioning_depth = "marginal")
+  )
+  expect_identical(
+    state[["rstandard_args_reference_brma"]],
+    list(conditioning_depth = "marginal")
+  )
+  expect_equal(
+    lapply(state[["plots"]], `[[`, "reference"),
+    lapply(expected_reference, function(x) x + 20)
+  )
+  expect_identical(
+    unique(vapply(state[["plots"]], `[[`, character(1), "reference_label")),
+    "exact"
+  )
+  expect_identical(
+    unique(vapply(state[["plots"]], `[[`, character(1), "estimate_label")),
+    "approximate"
+  )
+
+  state[["plots"]] <- list()
+  selection_reference <- structure(
+    list(role = "selection_reference", offset = 30),
+    class = c("scenario_diagnostic_fit", "bselmodel", "brma")
+  )
+  selection_estimate <- structure(
+    list(role = "selection_estimate", offset = 40),
+    class = c("scenario_diagnostic_fit", "bselmodel", "brma")
+  )
+  expect_no_warning(.with_temp_plot_device({
+    plot_marginal_diagnostics(selection_reference, selection_estimate)
+    state[["selection_mfrow"]] <- graphics::par("mfrow")
+  }))
+  expect_identical(names(state[["plots"]]), c("Residuals", "DFBETAS"))
+  expect_null(state[["rstandard_args_selection_reference"]])
+  expect_null(state[["rstandard_args_selection_estimate"]])
+  expect_null(state[["hatvalues_called_selection_reference"]])
+  expect_null(state[["hatvalues_called_selection_estimate"]])
+  expect_null(state[["cooks_called_selection_reference"]])
+  expect_null(state[["cooks_called_selection_estimate"]])
+  expect_true(state[["dfbetas_called_selection_reference"]])
+  expect_true(state[["dfbetas_called_selection_estimate"]])
+  expect_identical(state[["selection_mfrow"]], c(1L, 2L))
 })
 
 

@@ -104,6 +104,44 @@ test_that("summary.brma coerces displayed sections to one data frame", {
 })
 
 
+test_that("random inclusion labels identify aggregate and component SDs", {
+
+  labels <- c("(mu) inclusion", "(mu) inclusion(component)",
+              "(mu) inclusion(study:esid)", "(mu) sd_total",
+              "(mu) component: sd_total", "(mu) study:esid: sd",
+              "(mu) study: sd")
+  quantities <- data.frame(
+    canonical_name = labels, display_label = labels,
+    role = c(rep("random_inclusion", 3), rep("random_sd", 4)),
+    quantity = c(rep("inclusion", 3), "sd_total", "sd_total", "sd", "sd"),
+    owner_name = c("", "", "", "", "component", "study:esid", "study")
+  )
+  quantities[["extraction_key"]] <- I(list(
+    list(source_parameter = "shared_gate"),
+    list(source_parameter = "component_gate"),
+    list(source_parameter = "study_gate"),
+    list(dependencies = "shared_gate"),
+    list(dependencies = "component_gate"),
+    list(random_block = "study_esid", dependencies = c("component_gate", "study_gate")),
+    list(random_block = "study", dependencies = "shared_gate")
+  ))
+  testthat::local_mocked_bindings(
+    parameter_catalog = function(...) list(quantities = quantities),
+    .package = "BayesTools"
+  )
+  testthat::local_mocked_bindings(
+    .random_component_inclusion_map = function(...) {
+      list(study_esid = "study_gate", study = "shared_gate")
+    },
+    .package = "RoBMA"
+  )
+
+  expect_identical(
+    .summary_random_inclusion_labels(list(), labels[1:3], labels[1:3]),
+    c("sd_total", "component: sd_total", "study:esid: sd")
+  )
+})
+
 skip_if_no_fits()
 fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)

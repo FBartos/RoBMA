@@ -1,6 +1,50 @@
 context("Exact selection certified factor routing")
 skip_on_cran()
 
+test_that("the optional factor hint describes only dense exact selection fits", {
+
+  # Exercise constructor routing without running a sampler.
+  testthat::local_mocked_bindings(
+    .fit_and_finalize_object = function(object, only_priors) object
+  )
+  factor <- known_v_factor(rep(.03, 3L), matrix(rep(.1, 3L), ncol = 1L))
+  dense  <- diag(factor$diagonal) + tcrossprod(factor$loading)
+  fit <- function(V = dense, target = "exact", silent = FALSE,
+                  only_priors = FALSE, constructor = bselmodel.mv) {
+
+    args <- list(yi = c(.1, .2, .3), V = V, measure = "GEN",
+                   prior_unit_information_sd = 1, silent = silent,
+                   only_priors = only_priors)
+    if (identical(constructor, bselmodel.mv)) {
+      args$selection_likelihood <- target
+    }
+    do.call(constructor, args)
+  }
+  expect_message(
+    plain <- fit(),
+    paste0(
+      "Exact selection fitting is using general covariance integration. ",
+      "If the construction of 'V' is available, 'vcalc2()' may enable faster ",
+      "fitting for supported covariance structures. Ordinary covariance ",
+      "matrices remain fully supported."
+    ),
+    fixed = TRUE
+  )
+  expect_equal(.known_v_covariance_matrix(.data_known_v_data(plain$data)), dense)
+  expect_message(quiet <- fit(silent = TRUE), NA)
+  expect_identical(plain$data, quiet$data)
+  expect_identical(plain$priors, quiet$priors)
+  expect_message(fit(only_priors = TRUE), NA)
+  expect_message(fit(V = diag(diag(dense))), NA)
+  expect_message(fit(V = factor), NA)
+  expect_message(fit(V = known_v_factor(
+    rep(.03, 3L), matrix(seq_len(15L) / 100, nrow = 3L)
+  )), NA)
+  expect_message(fit(target = "approximate"), NA)
+  expect_message(fit(constructor = brma.mv), NA)
+})
+
+
 test_that("vcalc2 preserves vcalc covariance and certifies its common structure", {
 
   skip_if_not_installed("metafor")
@@ -9,15 +53,17 @@ test_that("vcalc2 preserves vcalc covariance and certifies its common structure"
     vi      = seq(.02, .09, length.out = 8L),
     study   = rep(c("a", "b"), each = 4L),
     type    = rep(c("x", "x", "y", "y"), 2L),
-    obs     = rep(seq_len(4L), 2L)
+    obs     = rep(seq_len(4L), 2L),
+    rho     = rep(c(.2, .1), 4L)
   )
+  rho <- c(.6, .3)
   expected <- metafor::vcalc(
     vi, cluster = study, type = type, obs = obs,
-    rho = c(.6, .3), data = dat
+    rho = rho, data = dat
   )
   V <- vcalc2(
     vi, cluster = study, type = type, obs = obs,
-    rho = c(.6, .3), data = dat
+    rho = rho, data = dat
   )
 
   expect_identical(class(V), class(expected))
@@ -50,11 +96,65 @@ test_that("vcalc2 preserves vcalc covariance and certifies its common structure"
   expect_true(all(setup[["block_methods"]] == "factor"))
   expect_identical(setup[["factor_ranks"]], c(2L, 2L))
 
+  approximate_object <- function(V, constructor = bselmodel.mv, ...) {
+
+    constructor(
+      yi = yi, V = V, data = dat, random = ~ 1 | study, measure = "SMD",
+      selection_likelihood = "approximate",
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE, ...
+    )
+  }
+  for (constructor in list(bselmodel.mv, RoBMA.mv)) {
+    wrapped  <- approximate_object(V, constructor)
+    declared <- approximate_object(metadata[["factor"]], constructor)
+    ordinary <- approximate_object(expected, constructor)
+    known_V  <- .data_known_v_data(wrapped[["data"]])
+    expect_identical(known_V, .data_known_v_data(declared[["data"]]))
+    expect_identical(.known_v_effective_backend(known_V), "latent")
+    # Independent consequence of the specified within-type correlation.
+    expect_equal(known_V[["residual_variance"]], (1 - rho[[1L]]) * dat$vi)
+    expect_equal(known_V[["rank"]], 4L)
+    expect_equal(
+      .data_known_v_data(ordinary[["data"]])[["residual_variance"]],
+      .1 * dat$vi
+    )
+    expect_equal(.known_v_covariance_matrix(known_V),
+                 matrix(as.numeric(expected), nrow = nrow(expected)))
+    expect_identical(
+      .create_fit_data(wrapped[["data"]], wrapped[["priors"]]),
+      .create_fit_data(declared[["data"]], declared[["priors"]])
+    )
+    expect_identical(
+      .create_model_syntax(wrapped[["data"]], wrapped[["priors"]]),
+      .create_model_syntax(declared[["data"]], declared[["priors"]])
+    )
+  }
+  expect_warning(
+    override <- approximate_object(V, known_v_residual_fraction = .2),
+    paste0(
+      "'known_v_residual_fraction' was disregarded because the declared ",
+      "factor representation defines the exact residual variance."
+    ),
+    fixed = TRUE
+  )
+  expect_equal(.data_known_v_data(override[["data"]])[["residual_variance"]],
+               .4 * dat$vi)
+
   stale <- V
   stale[1L, 1L] <- stale[1L, 1L] * 2
   expect_error(
     .known_v_canonicalize(stale),
-    "metadata no longer match its covariance matrix",
+    "The 'V' vcalc2() metadata no longer match its covariance matrix.",
+    fixed = TRUE
+  )
+
+  # Detect edits independently of covariance scale or factorization roundoff.
+  tiny <- vcalc2(vi * 1e-20, cluster = study, type = type, obs = obs,
+                 rho = rho, data = dat)
+  tiny[1L, 1L] <- tiny[1L, 1L] * 2
+  expect_error(
+    .known_v_canonicalize(tiny),
+    "The 'V' vcalc2() metadata no longer match its covariance matrix.",
     fixed = TRUE
   )
 })
@@ -120,7 +220,7 @@ test_that("known_v_factor preserves exact provenance and structural routing", {
     .selection_exact_sampling_block(factor_setup[["sampling"]], seq_len(K)),
     covariance
   )
-  expect_identical(factor_setup[["schema_version"]], 1L)
+  expect_identical(factor_setup[["schema_version"]], 2L)
   expect_identical(factor_setup[["exactness"]], "EF")
   expect_identical(
     factor_setup[["factor_ranks"]],
@@ -411,9 +511,6 @@ test_that("bridge factor states retain the certified covariance exactly", {
   factor_call <- NULL
   testthat::local_mocked_bindings(
     .marglik_bridge_random_covariance = function(...) bridge_factor,
-    .marglik_random_covariance_dense = function(...) {
-      stop("Certified bridge factors must not be materialized as dense.")
-    },
     .marglik_selection_context = function(parameters, data) {
       list(obs_bin = rep(1L, 3L))
     },
@@ -428,6 +525,12 @@ test_that("bridge factor states retain the certified covariance exactly", {
       17
     },
     .package = "RoBMA"
+  )
+  testthat::local_mocked_bindings(
+    random_effects_marginal_factor_vcov = function(...) {
+      stop("Certified bridge factors must not be materialized as dense.")
+    },
+    .package = "BayesTools"
   )
 
   observed <- .marglik_exact_selection_log_lik(

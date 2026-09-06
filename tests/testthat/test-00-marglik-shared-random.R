@@ -1,3 +1,45 @@
+# Assemble native inputs from the compact algebra fixtures below.
+covariance_factor_fixture_plan <- function(factor) {
+
+  if (identical(factor[["type"]], "dense")) {
+    return(list(type = "dense"))
+  }
+
+  plan <- factor[c(
+    "type",
+    "model_matrix",
+    "group_map",
+    "coefficient_structure"
+  )]
+  if (identical(factor[["type"]], "known_group")) {
+    plan[["group_covariance"]] <- factor[["group_covariance"]]
+  }
+  plan
+}
+
+
+covariance_factor_fixture_state <- function(factor) {
+
+  if (identical(factor[["type"]], "dense")) {
+    return(list(covariance = factor[["covariance"]]))
+  }
+
+  state <- list(
+    coefficient_factor = factor[["coefficient_factor"]]
+  )
+  if (identical(factor[["coefficient_structure"]], "markov")) {
+    state[["coefficient_scale"]] <- factor[["coefficient_scale"]]
+    state[["markov_transition"]] <- factor[["markov_transition"]]
+    state[["markov_innovation_variance"]] <-
+      factor[["markov_innovation_variance"]]
+  }
+  if (identical(factor[["type"]], "row_group")) {
+    state[["row_scale"]] <- factor[["row_scale"]]
+  }
+  state
+}
+
+
 test_that("shared Gaussian bridge covariance matches exact known-V likelihoods", {
 
   dat <- data.frame(
@@ -19,7 +61,7 @@ test_that("shared Gaussian bridge covariance matches exact known-V likelihoods",
     list(
       nodes = numeric(),
       marginalized_random = list(
-        mu = list(covariance = random_covariance)
+        mu = list(representation = "dense", covariance = random_covariance)
       )
     ),
     class = c(
@@ -109,7 +151,7 @@ test_that("latent known-V bridge conditions on sampling effects and integrates r
     list(
       nodes = numeric(),
       marginalized_random = list(
-        mu = list(covariance = random_covariance)
+        mu = list(representation = "dense", covariance = random_covariance)
       )
     ),
     class = c(
@@ -328,13 +370,16 @@ test_that("native factor likelihood equals independently materialized ZGZ'", {
       nodes = numeric(),
       marginalized_random = list(
         mu = list(
-          representation = "factor",
+          representation = "factor_state",
+          contract_id = new.env(parent = emptyenv()),
           row_blocks = list(1:3, 4:5),
-          factors = list(list(
+          factor_plans = list(list(
             type = "group",
             model_matrix = Z,
             group_map = group_map,
-            coefficient_covariance = G,
+            coefficient_structure = "dense"
+          )),
+          factor_states = list(list(
             coefficient_factor = G_factor
           ))
         )
@@ -406,7 +451,7 @@ test_that("native known-group factor equals independently materialized covarianc
     "RoBMA_known_v_covariance_plan_create",
     as.double(y),
     sampling_covariance,
-    list(.marglik_covariance_factor_plan(factor)),
+    list(covariance_factor_fixture_plan(factor)),
     list(seq_along(y)),
     PACKAGE = "RoBMA"
   )
@@ -414,7 +459,7 @@ test_that("native known-group factor equals independently materialized covarianc
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     double(length(y)),
     PACKAGE = "RoBMA"
   )
@@ -462,7 +507,7 @@ test_that("batched covariance-plan likelihood preserves draw-specific states", {
   factors <- list(factor, factor)
   factors[[2L]]$coefficient_factor <- matrix(0.4, 1L, 1L)
   states <- lapply(factors, function(value) {
-    list(.marglik_covariance_factor_state(value))
+    list(covariance_factor_fixture_state(value))
   })
 
   actual <- .marglik_covariance_plan_loglik_batch(
@@ -470,7 +515,7 @@ test_that("batched covariance-plan likelihood preserves draw-specific states", {
     y                        = y,
     means                    = means,
     sampling_covariance      = sampling_covariance,
-    random_covariance_plans  = list(.marglik_covariance_factor_plan(factor)),
+    random_covariance_plans  = list(covariance_factor_fixture_plan(factor)),
     random_covariance_states = states,
     block_indices            = list(1:2, 3:4),
     extra_variances          = extra_variances
@@ -613,7 +658,7 @@ test_that("native covariance plan reuses exact low-rank group geometry", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     double(length(y)),
     PACKAGE = "RoBMA"
   )
@@ -641,7 +686,7 @@ test_that("native covariance plan reuses exact low-rank group geometry", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(updated_factor)),
+    list(covariance_factor_fixture_state(updated_factor)),
     double(length(y)),
     PACKAGE = "RoBMA"
   )
@@ -688,7 +733,7 @@ test_that("native diagonal coefficient plans preserve the full covariance", {
     blocks,
     PACKAGE = "RoBMA"
   )
-  state <- list(.marglik_covariance_factor_state(factor))
+  state <- list(covariance_factor_fixture_state(factor))
   actual_joint <- .Call(
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
@@ -798,7 +843,7 @@ test_that("native Markov plans match dense joint and conditional likelihoods", {
     list(seq_len(n)),
     PACKAGE = "RoBMA"
   )
-  state <- .marglik_covariance_factor_state(factor)
+  state <- covariance_factor_fixture_state(factor)
   actual_joint <- .Call(
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
@@ -932,7 +977,7 @@ test_that("native covariance plan assembles sparse nested latent geometry", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    lapply(factors, .marglik_covariance_factor_state),
+    lapply(factors, covariance_factor_fixture_state),
     double(K),
     PACKAGE = "RoBMA"
   )
@@ -954,7 +999,7 @@ test_that("native covariance plan assembles sparse nested latent geometry", {
     "RoBMA_known_v_covariance_plan_conditional_loglik",
     plan,
     as.double(mean),
-    lapply(factors, .marglik_covariance_factor_state),
+    lapply(factors, covariance_factor_fixture_state),
     double(K),
     PACKAGE = "RoBMA"
   )
@@ -974,7 +1019,7 @@ test_that("native covariance plan assembles sparse nested latent geometry", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    lapply(updated_factors, .marglik_covariance_factor_state),
+    lapply(updated_factors, covariance_factor_fixture_state),
     double(K),
     PACKAGE = "RoBMA"
   )
@@ -993,7 +1038,7 @@ test_that("native covariance plan assembles sparse nested latent geometry", {
       "RoBMA_known_v_covariance_plan_loglik",
       plan,
       as.double(mean),
-      lapply(factors, .marglik_covariance_factor_state),
+      lapply(factors, covariance_factor_fixture_state),
       double(K),
       PACKAGE = "RoBMA"
     ),
@@ -1037,7 +1082,7 @@ test_that("native sparse factor supports more latent groups than observations", 
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    lapply(factors, .marglik_covariance_factor_state),
+    lapply(factors, covariance_factor_fixture_state),
     double(K),
     PACKAGE = "RoBMA"
   )
@@ -1059,7 +1104,7 @@ test_that("native sparse factor supports more latent groups than observations", 
     "RoBMA_known_v_covariance_plan_conditional_loglik",
     plan,
     as.double(mean),
-    lapply(factors, .marglik_covariance_factor_state),
+    lapply(factors, covariance_factor_fixture_state),
     double(K),
     PACKAGE = "RoBMA"
   )
@@ -1106,7 +1151,7 @@ test_that("native Woodbury quadratic remains stable for explained residuals", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     double(K),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     double(K),
     PACKAGE = "RoBMA"
   )
@@ -1161,7 +1206,7 @@ test_that("native covariance plan uses exact spectral Woodbury blocks", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     extra_variance,
     PACKAGE = "RoBMA"
   )
@@ -1188,7 +1233,7 @@ test_that("native covariance plan uses exact spectral Woodbury blocks", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     varying_extra,
     PACKAGE = "RoBMA"
   )
@@ -1243,7 +1288,7 @@ test_that("native covariance plan uses exact block-base Woodbury algebra", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     extra_variance,
     PACKAGE = "RoBMA"
   )
@@ -1266,7 +1311,7 @@ test_that("native covariance plan uses exact block-base Woodbury algebra", {
     "RoBMA_known_v_covariance_plan_conditional_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     extra_variance,
     PACKAGE = "RoBMA"
   )
@@ -1295,7 +1340,7 @@ test_that("native covariance plan uses exact block-base Woodbury algebra", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     zero_extra,
     PACKAGE = "RoBMA"
   )
@@ -1303,7 +1348,7 @@ test_that("native covariance plan uses exact block-base Woodbury algebra", {
     "RoBMA_known_v_covariance_plan_conditional_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     zero_extra,
     PACKAGE = "RoBMA"
   )
@@ -1311,7 +1356,7 @@ test_that("native covariance plan uses exact block-base Woodbury algebra", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     extra_variance,
     PACKAGE = "RoBMA"
   )
@@ -1369,7 +1414,7 @@ test_that("native sparse factor supports correlated sampling blocks", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    lapply(factors, .marglik_covariance_factor_state),
+    lapply(factors, covariance_factor_fixture_state),
     extra_variance,
     PACKAGE = "RoBMA"
   )
@@ -1395,7 +1440,7 @@ test_that("native sparse factor supports correlated sampling blocks", {
     "RoBMA_known_v_covariance_plan_conditional_loglik",
     plan,
     as.double(mean),
-    lapply(factors, .marglik_covariance_factor_state),
+    lapply(factors, covariance_factor_fixture_state),
     extra_variance,
     PACKAGE = "RoBMA"
   )
@@ -1444,7 +1489,7 @@ test_that("block-base Woodbury falls back exactly for singular base blocks", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     double(K),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     double(K),
     PACKAGE = "RoBMA"
   )
@@ -1458,7 +1503,7 @@ test_that("block-base Woodbury falls back exactly for singular base blocks", {
   expect_equal(actual, expected, tolerance = 1e-12)
 })
 
-test_that("full factors normalize while retaining changing-value checks", {
+test_that("bridge factor states validate static and changing fields separately", {
 
   K <- 4L
   coefficient_factor <- matrix(c(0.4, 0.1, 0, 0.3), nrow = 2L)
@@ -1466,13 +1511,14 @@ test_that("full factors normalize while retaining changing-value checks", {
     type = "group",
     model_matrix = cbind(1, c(-1, 0, 1, 2)),
     group_map = c(1L, 1L, 2L, 2L),
-    coefficient_covariance = tcrossprod(coefficient_factor),
-    coefficient_factor = coefficient_factor
+    coefficient_structure = "dense"
   )
   context <- list(marginalized_random = list(mu = list(
-    representation = "factor",
+    representation = "factor_state",
+    contract_id = new.env(parent = emptyenv()),
     row_blocks = list(1:2, 3:4),
-    factors = list(factor)
+    factor_plans = list(factor),
+    factor_states = list(list(coefficient_factor = coefficient_factor))
   )))
   cache <- new.env(parent = emptyenv())
 
@@ -1481,16 +1527,13 @@ test_that("full factors normalize while retaining changing-value checks", {
     K                = K,
     validation_cache = cache
   )
-  updated_factor <- factor
+  updated_factor <- context$marginalized_random$mu$factor_states[[1L]]
   updated_factor$coefficient_factor <- matrix(
     c(0.25, -0.04, 0, 0.2),
     nrow = 2L
   )
-  updated_factor$coefficient_covariance <- tcrossprod(
-    updated_factor$coefficient_factor
-  )
   updated <- context
-  updated$marginalized_random$mu$factors[[1L]] <- updated_factor
+  updated$marginalized_random$mu$factor_states[[1L]] <- updated_factor
   second <- .marglik_bridge_random_covariance(
     bridge_context   = updated,
     K                = K,
@@ -1510,22 +1553,26 @@ test_that("full factors normalize while retaining changing-value checks", {
   expect_null(second$factor_states[[1L]]$coefficient_covariance)
   expect_identical(second$row_blocks, first$row_blocks)
 
-  asymmetric <- updated
-  asymmetric_factor <- asymmetric$marginalized_random$mu$factors[[1L]]
-  asymmetric_factor$coefficient_covariance[1L, 2L] <- 0.123
-  asymmetric$marginalized_random$mu$factors[[1L]] <- asymmetric_factor
+  unexpected <- updated
+  unexpected$marginalized_random$mu$factor_states[[1L]]$coefficient_covariance <-
+    tcrossprod(updated_factor$coefficient_factor)
   expect_error(
     .marglik_bridge_random_covariance(
-      bridge_context   = asymmetric,
+      bridge_context   = unexpected,
       K                = K,
       validation_cache = cache
     ),
-    "must be symmetric",
+    "Bridge-marginalized random-effect covariance factor state structure changed between evaluations.",
+    fixed = TRUE
+  )
+  expect_error(
+    .marglik_bridge_random_covariance(unexpected, K),
+    "Bridge-marginalized random-effect covariance factor state structure changed between evaluations.",
     fixed = TRUE
   )
 
   changed_design <- updated
-  changed_design$marginalized_random$mu$factors[[1L]]$model_matrix[1L, 2L] <-
+  changed_design$marginalized_random$mu$factor_plans[[1L]]$model_matrix[1L, 2L] <-
     0.5
   expect_error(
     .marglik_bridge_random_covariance(
@@ -1533,7 +1580,7 @@ test_that("full factors normalize while retaining changing-value checks", {
       K = K,
       validation_cache = cache
     ),
-    "design matrix changed",
+    "Bridge-marginalized random-effect factor-state plan changed between evaluations.",
     fixed = TRUE
   )
 
@@ -1545,7 +1592,7 @@ test_that("full factors normalize while retaining changing-value checks", {
       K                = K,
       validation_cache = cache
     ),
-    "row blocks changed",
+    "Bridge-marginalized random-effect row blocks changed between evaluations.",
     fixed = TRUE
   )
 })
@@ -1557,7 +1604,8 @@ test_that("compact bridge factor states retain the exact covariance contract", {
   factor_plan <- list(
     type = "row_group",
     model_matrix = cbind(1, c(-1, 0, 1, 2)),
-    group_map = c(1L, 1L, 2L, 2L)
+    group_map = c(1L, 1L, 2L, 2L),
+    coefficient_structure = "dense"
   )
   contract_id <- new.env(parent = emptyenv())
   context <- list(marginalized_random = list(mu = list(
@@ -1614,12 +1662,11 @@ test_that("compact bridge factor states retain the exact covariance contract", {
       second$factor_states
     )
   )
-  normalized_full <- .marglik_bridge_random_covariance(
-    bridge_context = full_context,
-    K = K,
-    validation_cache = new.env(parent = emptyenv())
+  expect_error(
+    .marglik_bridge_random_covariance(full_context, K),
+    "Bridge-marginalized random-effect covariance has an unknown representation.",
+    fixed = TRUE
   )
-  expect_identical(normalized_full, second[names(normalized_full)])
 
   scaled_design <- factor_plan$model_matrix *
     second$factor_states[[1L]]$row_scale
@@ -1701,7 +1748,7 @@ test_that("native low-rank plan supports row-specific external scales", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     double(length(y)),
     PACKAGE = "RoBMA"
   )
@@ -1752,7 +1799,7 @@ test_that("native dense plan supports known group covariance and random slopes",
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     double(length(y)),
     PACKAGE = "RoBMA"
   )
@@ -1801,7 +1848,7 @@ test_that("native plan factors repeated-observation known group covariance", {
     "RoBMA_known_v_covariance_plan_loglik",
     plan,
     as.double(mean),
-    list(.marglik_covariance_factor_state(factor)),
+    list(covariance_factor_fixture_state(factor)),
     double(length(y)),
     PACKAGE = "RoBMA"
   )

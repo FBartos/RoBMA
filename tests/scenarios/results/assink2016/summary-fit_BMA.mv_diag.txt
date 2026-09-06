@@ -1,0 +1,24 @@
+
+Bayesian Model-Averaged Multivariate Random-Effects Model (k = 100)
+
+Component Inclusion
+       Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Effect       0.500       0.978       43.776               31.380
+
+Random-Effect Inclusion
+               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+(mu) inclusion       0.500       1.000   >14999.000                   NA
+
+Location
+    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+mu 0.410 0.132 0.074 0.416 0.648     0.00518          0.039 701 1.006
+
+Random
+                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd_total             0.543 0.074 0.424 0.534 0.714     0.00224          0.030 1113 1.004
+esid_study: sd       0.336 0.042 0.259 0.334 0.422     0.00052          0.012 6490 1.001
+study: sd            0.423 0.088 0.280 0.412 0.621     0.00280          0.032  981 1.004
+var_prop(esid_study) 0.399 0.109 0.200 0.393 0.625     0.00296          0.027 1377 1.003
+var_prop(study)      0.601 0.109 0.375 0.607 0.800     0.00296          0.027 1377 1.003
+sd_total and var_total are fully model-averaged realized totals, including the all-off zero branch. var_prop(...) is the realized share conditional on positive total heterogeneity; excluded components have zero share. Component SDs include their excluded zero branches.
+
