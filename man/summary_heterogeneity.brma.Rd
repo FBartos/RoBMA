@@ -75,6 +75,10 @@ mean-variance allocation scale is reported as \code{sd_common} and
 \code{var_common}. This vocabulary also applies when no explicit
 \code{random} formula is supplied because \code{brma.mv()} adds an
 estimate-level random effect by default.
+Public random-effect correlations are included in their component's table,
+including homogeneous structures such as \code{ar()}, \code{cs()}, and
+\code{car()}. A variance-additive total across multiple components has no
+single correlation parameter and reports only its total SD and variance.
 When a known group covariance \eqn{R} is supplied, \code{sd} is the fitted
 multiplier of that covariance kernel. It need not equal every row's
 marginal standard deviation when \eqn{\mathrm{diag}(R)} is not one.

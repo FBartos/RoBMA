@@ -27,6 +27,13 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' retains each fitted latent true effect, integrates its posterior conditional
 #' uncertainty, and adds new sampling error. Cluster conditioning is available
 #' only for multilevel models.
+#' Selection models currently support only \code{"marginal"} conditioning.
+#' @param integration_control numerical integration settings created by
+#' \code{set_selection_likelihood_control()}. These control integration within
+#' each posterior draw, independently of \code{max_samples}. Factor blocks use
+#' converged Gauss-Hermite quadrature where possible; other blocks use adaptive
+#' randomized quasi-Monte Carlo. The relative diagnostic compares density error
+#' with the peak of each draw's curve and also checks the selection normalizer.
 #' @param ... additional arguments (currently unused).
 #'
 #' @details
@@ -61,13 +68,33 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' predictive distributions, PET/PEESE regression offsets are omitted, and
 #' designs under a selection model are weighted by their inverse observation
 #' probabilities. The fitted plot curve retains the bias adjustments.
+#'
+#' Exact selection models first select the full Gaussian response vector within
+#' each fitted dependency block, then marginalize to each estimate. Both sampling
+#' covariance and random-effect covariance therefore affect the selected marginal
+#' density. Approximate selection models instead integrate conditionally
+#' normalized selected-normal densities over freshly realized latent effects,
+#' preserving the normalization order used by their fitted likelihood.
+#'
+#' The extrapolated curve uses the same selection normalizers as the fitted
+#' curve. Its integral over the entire real line is the expected total number of
+#' estimates per observed estimate; the integral of the suppressed part is this
+#' quantity minus one. Multiplying by the observed number of estimates gives
+#' \code{Missing N}. For exact correlated selection this counterfactual treats
+#' whole dependency blocks as observed or suppressed, using inverse joint block
+#' probabilities. It can imply large missing counts for large blocks or strong
+#' selection. It does not estimate partially reported blocks. Restricting a
+#' plot with \code{from} or \code{to} does not restrict these summary integrals.
+#'
 #' Zplot diagnostics are available only for normal outcome models. GLMM
 #' objects are rejected because their raw likelihood is on a count scale while
 #' zplot diagnostics require observed effect-size z-statistics with standard
 #' errors. For correlated known-\code{V} \code{brma.mv()} models, zplot is a
-#' descriptive scalar display using diagonal standard errors; off-diagonal
-#' sampling dependence is not represented by the observed
-#' \eqn{z_i = y_i / se_i} histogram.
+#' scalar display using \eqn{z_i = y_i / se_i}. The histogram does not display
+#' dependence, but the fitted selected marginals retain the full covariance.
+#' Numerical integration can be substantially more expensive for correlated
+#' selection than for ordinary Gaussian models; \code{max_samples} controls the
+#' number of posterior draws used for the plot.
 #'
 #' The resulting object retains all original brma properties while adding
 #' zplot results, enabling both standard meta-analytic summaries and
@@ -101,7 +128,8 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' @export
 as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
                           max_samples = 10000,
-                          conditioning_depth = "marginal", ...) {
+                          conditioning_depth = "marginal",
+                          integration_control = set_selection_likelihood_control(), ...) {
 
   BayesTools::check_real(significance_level, "significance_level", lower = 0)
   max_samples        <- .normalize_max_samples(max_samples, "max_samples")
@@ -128,7 +156,8 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
     z_threshold        = significance_level,
     max_samples        = max_samples,
     extrapolate        = TRUE,
-    conditioning_depth = conditioning_depth
+    conditioning_depth = conditioning_depth,
+    integration_control = integration_control
   )
 
   # compute data summaries (observed z-stats)
@@ -145,6 +174,7 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
     data = list(
       significance_level = significance_level,
       conditioning_depth  = conditioning_depth,
+      integration_control = integration_control,
       z                   = z,
       N_significant       = sum(abs(z) > significance_level),
       N_observed          = length(z)
@@ -182,6 +212,7 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' \code{Inf} to use all posterior samples.
 #' @param conditioning_depth predictive conditioning depth passed to
 #' \code{as_zplot()}. Defaults to \code{"marginal"}.
+#' @inheritParams as_zplot.brma
 #' @param ... arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.
 #'
 #' @details When \code{object} already inherits from \code{zplot_brma},
@@ -205,13 +236,15 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' @export
 zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
                        summary_max_samples = 10000,
-                       conditioning_depth = "marginal", ...) {
+                       conditioning_depth = "marginal",
+                       integration_control = set_selection_likelihood_control(), ...) {
 
   zplot_object <- as_zplot(
     object             = object,
     significance_level = significance_level,
     max_samples        = summary_max_samples,
-    conditioning_depth = conditioning_depth
+    conditioning_depth = conditioning_depth,
+    integration_control = integration_control
   )
 
   return(plot(zplot_object, ...))
@@ -281,6 +314,11 @@ summary.zplot_brma <- function(object, probs = c(.025, .975), ...) {
     obs_proportion$conf.int[2],
     .zplot_stored_conditioning_depth(object)
   )
+  if (.is_weightfunction(object) && .is_data_exact_selection(object[["data"]]) &&
+      any(lengths(.data_exact_selection_setup(object[["data"]])$row_blocks) > 1L)) {
+    info_text <- paste(info_text,
+      "Missing N assumes suppression of whole dependency blocks.")
+  }
 
   # compute estimates
   sig_level <- stats::pnorm(object$zplot$data[["significance_level"]], lower.tail = FALSE) * 2
@@ -395,6 +433,7 @@ print.zplot_brma <- function(x, ...) {
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
 #' @param max_samples maximum posterior samples for density estimation.
 #' Defaults to 10000. Use \code{Inf} to use all posterior samples.
+#' @inheritParams as_zplot.brma
 #' @param plot_fit whether to show fitted density (with bias adjustments).
 #' Defaults to \code{TRUE}.
 #' @param plot_extrapolation whether to show extrapolated density (bias removed).
@@ -441,7 +480,8 @@ plot.zplot_brma <- function(x, plot_type = "base",
                              by.hist = 0.5, length.out.hist = NULL,
                              by.lines = 0.05, length.out.lines = NULL,
                              dots_hist = NULL, dots_fit = NULL,
-                             dots_extrapolation = NULL, dots_thresholds = NULL, ...) {
+                             dots_extrapolation = NULL, dots_thresholds = NULL,
+                             integration_control = x[["zplot"]][["data"]][["integration_control"]], ...) {
 
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(plot_fit, "plot_fit")
@@ -460,7 +500,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
 
   computational_args <- c(
     "x", "probs", "max_samples", "plot_ci", "extrapolate", "from", "to",
-    "by", "length.out", "as_data"
+    "by", "length.out", "as_data", "integration_control"
   )
   pair_overrides <- any(c(
     names(dots), names(dots_fit), names(dots_extrapolation)
@@ -478,7 +518,8 @@ plot.zplot_brma <- function(x, plot_type = "base",
       object             = x,
       z_sequence         = z_sequence,
       max_samples        = max_samples,
-      conditioning_depth = .zplot_stored_conditioning_depth(x)
+      conditioning_depth = .zplot_stored_conditioning_depth(x),
+      integration_control = integration_control
     )
     lines_fit <- .zplot_density_data(
       z_sequence = z_sequence,
@@ -498,7 +539,8 @@ plot.zplot_brma <- function(x, plot_type = "base",
     lines_fit <- do.call(lines.zplot_brma, .zplot_deduplicate_call_args(c(
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
            extrapolate = FALSE, plot_ci = plot_ci, from = from, to = to,
-           by = by.lines, length.out = length.out.lines, as_data = TRUE),
+           by = by.lines, length.out = length.out.lines, as_data = TRUE,
+           integration_control = integration_control),
       dots_fit, dots
     )))
     ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
@@ -512,6 +554,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
            extrapolate = TRUE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
+           integration_control = integration_control,
            col = "blue"), # default color if not in dots
       dots_extrapolation, dots
     )))
@@ -832,6 +875,7 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
 #' @param max_samples maximum posterior samples for density. Defaults to 10000.
 #' Use \code{Inf} to use all posterior samples.
+#' @inheritParams as_zplot.brma
 #' @param plot_ci whether to show credible interval bands. Defaults to \code{TRUE}.
 #' @param extrapolate whether to remove bias adjustments. Defaults to \code{FALSE}.
 #' @param from,to z-value range for density. Defaults to \code{-6} and \code{6}.
@@ -863,7 +907,8 @@ lines.zplot_brma <- function(x, plot_type = "base",
                               probs = c(.025, .975), max_samples = 10000,
                               plot_ci = TRUE, extrapolate = FALSE,
                               from = -6, to = 6, by = 0.05, length.out = NULL,
-                              col = "black", as_data = FALSE, ...) {
+                              col = "black", as_data = FALSE,
+                              integration_control = x[["zplot"]][["data"]][["integration_control"]], ...) {
 
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
@@ -886,7 +931,8 @@ lines.zplot_brma <- function(x, plot_type = "base",
     z_sequence         = z_sequence,
     max_samples        = max_samples,
     extrapolate        = extrapolate,
-    conditioning_depth = .zplot_stored_conditioning_depth(x)
+    conditioning_depth = .zplot_stored_conditioning_depth(x),
+    integration_control = integration_control
   )
 
   df_density <- .zplot_density_data(

@@ -36,7 +36,8 @@ vcalc2(
 }
 \value{
 The object returned by \code{\link[metafor:vcalc]{metafor::vcalc()}} with retained RoBMA
-construction metadata.
+construction metadata, including the sampling-factor decomposition used
+by approximate selection models when available.
 }
 \description{
 \code{vcalc2()} is a metadata-preserving wrapper around \code{\link[metafor:vcalc]{metafor::vcalc()}}. It
@@ -50,6 +51,11 @@ a numeric two-element \code{rho} are supplied without \code{grp1}, \code{grp2}, 
 \code{time2}, \code{w1}, \code{w2}, or \code{rvars}, and when \code{nearpd = FALSE}. This covers the
 common within- and between-construct correlation specification. The
 covariance returned by \code{metafor::vcalc()} remains authoritative.
+For \code{selection_likelihood = "approximate"}, the likelihood conditions on
+the retained structural sampling factors when available. This can improve
+computational efficiency, but can also define a different approximation
+than an ordinary \code{metafor::vcalc()} matrix with the same covariance.
+It is not guaranteed to be closer to the exact selection likelihood.
 }
 \examples{
 \dontrun{

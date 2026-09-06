@@ -1,3 +1,80 @@
+test_that("shared random inclusion preserves SD atoms and defined proportions", {
+
+  samples <- cbind(tau = 1:4, gate = c(0, 1, 0, 1),
+                   `weight[1]` = .25, `weight[2]` = .75,
+                   `prior_par_eta_weight[1]` = 1,
+                   `prior_par_eta_weight[2]` = 3)
+  gate <- list(weight_name = NULL, index = NA_integer_,
+               scale = "total_variance", n_targets = 1L,
+               inclusion_name = "gate")
+  weight <- list(weight_name = "weight", index = 1L,
+                 scale = "total_variance", n_targets = 2L)
+  allocation <- list(
+    source = list(name = "tau", shape = "scalar"),
+    scale = "total_variance", target = "block", n_targets = 2L,
+    weight_name = "weight", inclusion = list(),
+    parent_factors = list(gate), factors = list(gate, weight)
+  )
+  term <- list(
+    block_name = "study", sd_component_terms = "intercept",
+    sd_binding = list(true_allocation = TRUE, allocations = list(allocation))
+  )
+  fit <- structure(list(), prior_list = list(
+    weight = BayesTools::prior("dirichlet", list(alpha = c(1, 1)))
+  ), formula_design = list(mu = list(parameter = "mu", random_effects = list(term))))
+  selected <- list(
+    spec = list(source_type = "composite", source_parameter = "",
+                source_transform = "identity", quantity = "sd_total",
+                evaluator = "allocation_sd", formula_parameter = "mu",
+                block = "study", random_component = "intercept",
+                allocation_derived = TRUE, allocation_index = 1L),
+    allocation_definition = allocation
+  )
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_select = function(...) selected,
+    .get_posterior_samples = function(...) samples,
+    .package = "RoBMA"
+  )
+  testthat::local_mocked_bindings(
+    random_effects_marginal_update_plan = function(...) list(family = "unsupported"),
+    .package = "BayesTools"
+  )
+  context <- list(posterior_samples = samples, flat_prior_list = list())
+  expected <- list(sd_total = c(0, 2, 0, 4), sd = c(0, 1, 0, 2),
+                   var_prop = c(NA, .25, NA, .25))
+
+  for (quantity in names(expected)) {
+    selected[["spec"]][["quantity"]] <- quantity
+    selected[["spec"]][["evaluator"]] <- switch(
+      quantity, sd_total = "allocation_sd", sd = "sd", var_prop = "allocation"
+    )
+    selected[["spec"]][["source_transform"]] <- if (quantity == "var_prop") {
+      "var_prop"
+    } else "identity"
+    target <- .brma_random_parameter_density_target(list(fit = fit), quantity)
+    expect_null(target[["reason"]], info = quantity)
+    spec <- .iwmde_parameter_spec(context, target[["parameter"]], target[["parameter_spec"]])
+    expect_identical(spec[["status"]], "ok")
+    expect_equal(.iwmde_parameter_values(context, target[["parameter"]], spec),
+                 expected[[quantity]], info = quantity)
+    component <- .iwmde_parameter_components(context, target[["parameter"]], spec)
+    expect_identical(component[["active"]], c(FALSE, TRUE, FALSE, TRUE))
+    expect_identical(.iwmde_parameter_condition_rows(context, spec),
+                     if (quantity == "var_prop") c(FALSE, TRUE, FALSE, TRUE) else rep(TRUE, 4))
+    if (quantity == "var_prop") {
+      expect_equal(nrow(component[["point_masses"]]), 0L)
+    } else {
+      expect_equal(component[["point_masses"]], data.frame(x = 0, mass = .5))
+    }
+    expect_identical(.iwmde_plan_parameter_spec(spec)[["gate_metadata"]],
+                     spec[["gate_metadata"]])
+    ungated <- spec
+    ungated[["gate_metadata"]] <- NULL
+    expect_false(identical(.iwmde_target_key(target[["parameter"]], spec),
+                           .iwmde_target_key(target[["parameter"]], ungated)))
+  }
+})
+
 test_that("simplex endpoint replacement preserves row-wise prior densities", {
 
   parameter <- "rho"

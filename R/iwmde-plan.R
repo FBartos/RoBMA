@@ -359,7 +359,7 @@
     "source_parameter", "factors", "target_columns", "factor_columns",
     "auxiliary_columns", "conditioning_exclude", "conditional",
     "conditional_rule", "condition_key", "covariance_update", "status",
-    "reason"
+    "reason", "gate_metadata"
   )
 
   return(parameter_spec[intersect(fields, names(parameter_spec))])

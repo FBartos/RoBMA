@@ -126,8 +126,8 @@ double cpp_selnorm_kernel_lpdf(
   double log_normalizer = 0;
   if (mode == SELKERNEL_STEP ||
       (mode == SELKERNEL_STEP_PHACK_POWER && !use_phack)) {
-    log_normalizer = step_log_normalizer_score_space(
-      omega, data, signed_mu_norm, sigma_norm, sei, omega_stride
+    log_normalizer = cpp_selnorm_step_log_norm(
+      mu_norm, sigma_norm, sei, omega, data, omega_stride, false
     );
   } else if (mode == SELKERNEL_STEP_PHACK_POWER) {
     log_normalizer = combined_log_normalizer(
@@ -192,8 +192,8 @@ double cpp_selnorm_kernel_log_norm(
 
   if (kernel_mode == SELKERNEL_STEP ||
       (kernel_mode == SELKERNEL_STEP_PHACK_POWER && !use_phack)) {
-    log_normalizer = step_log_normalizer_score_space(
-      omega, data, data.effect_sign * mean, sd, sei, omega_stride
+    log_normalizer = cpp_selnorm_step_log_norm(
+      mean, sd, sei, omega, data, omega_stride, false
     );
   } else if (kernel_mode == SELKERNEL_STEP_PHACK_POWER) {
     const double log_beta = use_phack ?
@@ -341,6 +341,31 @@ bool cpp_selnorm_step_cdf_plan(
   }
 
   return *n_groups > 0;
+}
+
+bool cpp_selnorm_step_normalizer_product(
+  const double *mean, std::size_t count, double sd, double sei,
+  const double *omega, const SelNormKernelData &data, long double *product)
+{
+  if (!(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei) || !data.trusted_step_partition ||
+      !data.telescope_probabilities || data.n_bins < 1 ||
+      !(data.effect_sign == 1 || data.effect_sign == -1)) {
+    return false;
+  }
+  for (std::size_t i = 0; i < count; ++i) {
+    if (!std::isfinite(mean[i])) return false;
+    double omega_last = 0.0;
+    double normalizer = 0.0;
+    if (!step_normalizer_trusted_telescoping(
+          omega, data, data.effect_sign * mean[i], sd, sei, 1,
+          nullptr, nullptr, &omega_last, &normalizer)) {
+      return false;
+    }
+    product[i] *= static_cast<long double>(normalizer);
+    if (!(product[i] > 0.0L) || !std::isfinite(product[i])) return false;
+  }
+  return true;
 }
 
 bool cpp_selnorm_step_cdf_telescope_plan(
@@ -739,6 +764,17 @@ double cpp_selnorm_kernel_threshold(
 
   if (validate_omega && !validate_omega_values(omega, data, omega_stride)) {
     return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  // Every continuous selected-normal response has |Z| > 0 almost surely.
+  // Evaluate this boundary directly instead of summing rounded tail masses.
+  if (z_threshold == 0.0) {
+    const double log_norm = cpp_selnorm_kernel_log_norm(
+      mean, sd, sei, omega, alpha, phack_kind, kernel_mode, data,
+      omega_stride, false);
+    if (!std::isfinite(log_norm)) return std::numeric_limits<double>::quiet_NaN();
+    *inverse_weight = std::exp(-log_norm);
+    return 1.0;
   }
 
   const double signed_mean = data.effect_sign * mean;

@@ -1,8 +1,9 @@
-extern "C" SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
+static SEXP selnorm_mnorm_step_batch(
   SEXP yi, SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
   SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
   SEXP telescope_probabilities, SEXP kernel_mode, SEXP qmc,
-  SEXP points, SEXP scrambles, SEXP relative_tolerance)
+  SEXP points, SEXP scrambles, SEXP relative_tolerance,
+  SEXP z, SEXP probability, SEXP factors)
 {
   check_real(yi, "yi");
   check_real(means, "means");
@@ -26,6 +27,22 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
   const int B = matrix_ncol(omega, "omega");
   if (S < 1 || K < 1) {
     Rf_error("'means' must have positive dimensions.");
+  }
+  int rank = 0;
+  if (factors != R_NilValue) {
+    if (TYPEOF(factors) != VECSXP ||
+        (Rf_length(factors) != 2 && Rf_length(factors) != 4)) {
+      Rf_error("'factors' must contain residual SDs and loadings.");
+    }
+    check_real(VECTOR_ELT(factors, 0), "residual_sd");
+    check_real(VECTOR_ELT(factors, 1), "loading");
+    validate_matrix_dims_named(VECTOR_ELT(factors, 0), "residual_sd", S, K, "means");
+    const int columns = matrix_ncol(VECTOR_ELT(factors, 1), "loading");
+    if (columns % K != 0 || columns == 0 || columns / K > K ||
+        matrix_nrow(VECTOR_ELT(factors, 1), "loading") != S) {
+      Rf_error("'loading' has invalid dimensions.");
+    }
+    rank = columns / K;
   }
   validate_matrix_dims_named(
     covariance_lower, "covariance_lower", S, L, "means"
@@ -54,9 +71,19 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
   }
   const int n_points    = INTEGER(points)[0];
   const int n_scrambles = INTEGER(scrambles)[0];
+  const bool quadrature = factors != R_NilValue && Rf_length(factors) == 4;
+  if (quadrature) {
+    check_real(VECTOR_ELT(factors, 2), "nodes");
+    check_real(VECTOR_ELT(factors, 3), "log_weights");
+    const int order = Rf_length(VECTOR_ELT(factors, 2));
+    if (order < 1 || rank > 2 || Rf_length(VECTOR_ELT(factors, 3)) != order ||
+        n_points != (rank == 1 ? order : order * order)) {
+      Rf_error("'factors' quadrature dimensions are invalid.");
+    }
+  }
   const R_xlen_t expected_qmc = static_cast<R_xlen_t>(n_scrambles) *
     static_cast<R_xlen_t>(n_points) * static_cast<R_xlen_t>(2 * K);
-  if (XLENGTH(qmc) != expected_qmc) {
+  if (!quadrature && XLENGTH(qmc) != expected_qmc) {
     Rf_error("'qmc' dimensions do not match the integration settings.");
   }
   if (Rf_length(relative_tolerance) != 1 ||
@@ -76,9 +103,28 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
 
   SEXP log_density = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP relative_mcse = PROTECT(Rf_allocVector(REALSXP, S));
+  const bool project = z != R_NilValue;
+  const int Z = project ? Rf_length(z) : 0;
+  if (project) {
+    check_real(z, "z");
+    check_logical(probability, "probability");
+    if (Rf_length(probability) != 1 || LOGICAL(probability)[0] == NA_LOGICAL) {
+      Rf_error("'probability' must be one logical value.");
+    }
+    for (int j = 0; j < Z; ++j) {
+      if (!std::isfinite(REAL(z)[j])) Rf_error("'z' must be finite.");
+      if (LOGICAL(probability)[0] && REAL(z)[j] < 0) {
+        Rf_error("Z thresholds must be non-negative.");
+      }
+    }
+  }
+  SEXP density = PROTECT(Rf_allocMatrix(REALSXP, S, Z));
+  std::vector<double> projected(static_cast<std::size_t>(Z));
   std::vector<double> mean(static_cast<std::size_t>(K));
   std::vector<double> lower(static_cast<std::size_t>(L));
   std::vector<double> omega_row(static_cast<std::size_t>(B));
+  std::vector<double> residual_sd(static_cast<std::size_t>(K));
+  std::vector<double> loading(static_cast<std::size_t>(K * rank));
 
   for (int s = 0; s < S; ++s) {
     for (int k = 0; k < K; ++k) {
@@ -93,26 +139,80 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
     }
 
     double error = 0.0;
+    SelNormZProjection projection;
+    projection.z = project ? REAL(z) : nullptr;
+    projection.size = Z;
+    projection.density = projected.data();
+    projection.relative_error = R_PosInf;
+    projection.probability = project && LOGICAL(probability)[0];
+    projection.rank = rank;
+    projection.factor_loading = rank ? loading.data() : nullptr;
+    projection.residual_sd = rank ? residual_sd.data() : nullptr;
+    projection.order = quadrature ? Rf_length(VECTOR_ELT(factors, 2)) : 0;
+    projection.nodes = quadrature ? REAL(VECTOR_ELT(factors, 2)) : nullptr;
+    projection.log_weights = quadrature ? REAL(VECTOR_ELT(factors, 3)) : nullptr;
+    if (rank) {
+      for (int i = 0; i < K; ++i) {
+        residual_sd[i] = REAL(VECTOR_ELT(factors, 0))[s + S * i];
+        if (!(residual_sd[i] > 0) || !std::isfinite(residual_sd[i])) {
+          Rf_error("'residual_sd' must be finite and positive.");
+        }
+      }
+      for (int j = 0; j < K * rank; ++j) {
+        loading[j] = REAL(VECTOR_ELT(factors, 1))[s + S * j];
+        if (!std::isfinite(loading[j])) Rf_error("'loading' must be finite.");
+      }
+    }
     REAL(log_density)[s] = cpp_selnorm_mnorm_step_lpdf(
       REAL(yi), mean.data(), lower.data(), K, REAL(sei), omega_row.data(), B,
       REAL(z_lower), REAL(z_upper), INTEGER(obs_bin), INTEGER(sign)[0],
       LOGICAL(telescope_probabilities)[0],
       scalar_or_row_int(INTEGER(kernel_mode), kernel_length, s, "kernel_mode"),
-      REAL(qmc), n_points, n_scrambles, &error
+      REAL(qmc), n_points, n_scrambles, &error,
+      project ? &projection : nullptr
     );
-    REAL(relative_mcse)[s] = error;
+    REAL(relative_mcse)[s] = project ? std::max(error, projection.relative_error) : error;
+    for (int j = 0; j < Z; ++j) REAL(density)[s + S * j] = projected[j];
+    R_CheckUserInterrupt();
   }
 
-  SEXP output = PROTECT(Rf_allocVector(VECSXP, 2));
-  SEXP names  = PROTECT(Rf_allocVector(STRSXP, 2));
+  SEXP output = PROTECT(Rf_allocVector(VECSXP, project ? 3 : 2));
+  SEXP names  = PROTECT(Rf_allocVector(STRSXP, project ? 3 : 2));
   SET_VECTOR_ELT(output, 0, log_density);
   SET_VECTOR_ELT(output, 1, relative_mcse);
   SET_STRING_ELT(names, 0, Rf_mkChar("log_density"));
   SET_STRING_ELT(names, 1, Rf_mkChar("relative_mcse"));
+  if (project) {
+    SET_VECTOR_ELT(output, 2, density);
+    SET_STRING_ELT(names, 2, Rf_mkChar("density"));
+  }
   Rf_setAttrib(output, R_NamesSymbol, names);
 
-  UNPROTECT(4);
+  UNPROTECT(5);
   return output;
+}
+
+extern "C" SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
+  SEXP yi, SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
+  SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
+  SEXP telescope_probabilities, SEXP kernel_mode, SEXP qmc,
+  SEXP points, SEXP scrambles, SEXP relative_tolerance)
+{
+  return selnorm_mnorm_step_batch(yi, means, covariance_lower, sei, omega,
+    z_lower, z_upper, obs_bin, sign, telescope_probabilities, kernel_mode,
+    qmc, points, scrambles, relative_tolerance, R_NilValue, R_NilValue, R_NilValue);
+}
+
+extern "C" SEXP RoBMA_selnorm_mnorm_zplot_batch(
+  SEXP yi, SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
+  SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
+  SEXP telescope_probabilities, SEXP kernel_mode, SEXP qmc,
+  SEXP points, SEXP scrambles, SEXP relative_tolerance,
+  SEXP z, SEXP probability, SEXP factors)
+{
+  return selnorm_mnorm_step_batch(yi, means, covariance_lower, sei, omega,
+    z_lower, z_upper, obs_bin, sign, telescope_probabilities, kernel_mode,
+    qmc, points, scrambles, relative_tolerance, z, probability, factors);
 }
 
 extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
@@ -183,6 +283,12 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
 
   SEXP log_density = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP relative_change = PROTECT(Rf_allocVector(REALSXP, S));
+  // These rule weights are invariant across posterior draws and observations.
+  std::vector<long double> quadrature_weights(quadrature_length);
+  for (int i = 0; i < quadrature_length; ++i) {
+    quadrature_weights[i] =
+      std::exp(static_cast<long double>(REAL(quadrature_log_weights)[i]));
+  }
   std::vector<double> mean(static_cast<std::size_t>(K));
   std::vector<double> sd(static_cast<std::size_t>(K));
   std::vector<double> coefficient(static_cast<std::size_t>(K));
@@ -204,7 +310,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
       scalar_or_row_int(INTEGER(kernel_mode), kernel_length, s, "kernel_mode"),
       REAL(quadrature_nodes), REAL(quadrature_log_weights),
       REAL(quadrature_orders), Rf_length(quadrature_orders),
-      REAL(relative_tolerance)[0], &error
+      REAL(relative_tolerance)[0], &error, quadrature_weights.data()
     );
     REAL(relative_change)[s] = error;
   }
@@ -316,12 +422,9 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
       Rf_error("Observed selection inputs are invalid.");
     }
   }
-  for (R_xlen_t i = 0; i < XLENGTH(qmc); ++i) {
-    if (!std::isfinite(REAL(qmc)[i]) || REAL(qmc)[i] <= 0.0 ||
-        REAL(qmc)[i] >= 1.0) {
-      Rf_error("'qmc' must contain finite values strictly between zero and one.");
-    }
-  }
+  // The execution plan validates this fixed design at construction. As in
+  // JAGS, the shared evaluator checks coordinates only if QMC consumes them;
+  // quadrature-only evaluations must not rescan the unused maximum budget.
 
   SEXP log_density = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP relative_mcse = PROTECT(Rf_allocVector(REALSXP, S));

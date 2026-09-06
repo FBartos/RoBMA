@@ -67,33 +67,11 @@
   adjacency <- sampling_covariance != 0
   terms <- if (is.null(formula_design)) NULL else
     formula_design[["random_effects"]]
-  term_names <- vapply(terms, .random_effect_term_block_name, character(1))
-  terms <- terms[term_names %in% blocks]
-
-  for (term in terms) {
-    group_map <- as.integer(term[["group_map"]])
-    if (length(group_map) != K || anyNA(group_map) || any(group_map < 1L)) {
-      stop(
-        "Random-effect grouping metadata are invalid for dependency ",
-        "construction.",
-        call. = FALSE
-      )
-    }
-    if (.random_effect_term_has_known_group_covariance(term)) {
-      kernel <- term[["group_covariance"]][["kernel"]]
-      if (!is.matrix(kernel) || any(group_map > nrow(kernel))) {
-        stop(
-          "Known random-effect group covariance is invalid for dependency ",
-          "construction.",
-          call. = FALSE
-        )
-      }
-      adjacency <- adjacency | kernel[group_map, group_map, drop = FALSE] != 0
-    } else {
-      adjacency <- adjacency | outer(group_map, group_map, "==")
-    }
-  }
-  diag(adjacency) <- TRUE
+  adjacency <- adjacency | BayesTools::random_effects_dependency_matrix(
+    random_effects = if (is.null(terms)) list() else terms,
+    n_rows         = K,
+    blocks         = blocks
+  )
 
   .known_v_block_indices(adjacency * 1)
 }
@@ -170,6 +148,34 @@
       data                            = data,
       include_known_group_covariance = include_known_group_covariance
     )
+  }
+
+  if (.is_data_scale(data)) {
+    # Reconstruct row sources once for the full batch. With explicit columns,
+    # BayesTools can use its batched factor path instead of per-draw callbacks.
+    scale_samples <- .evaluate.brma.scale_terms(
+      fit               = object[["fit"]],
+      data              = data,
+      priors            = object[["priors"]],
+      posterior_samples = posterior_samples,
+      as_list           = FALSE
+    )
+    posterior_samples <- cbind(
+      posterior_samples[, !colnames(posterior_samples) %in%
+        colnames(scale_samples), drop = FALSE],
+      scale_samples
+    )
+    values <- stats::setNames(
+      rep(list(NULL), length(.data_scale_formula_sources(data))),
+      .data_scale_formula_sources(data)
+    )
+    formula_design <- inputs[["formula_design"]]
+    formula_design[["random_effects"]] <- lapply(
+      formula_design[["random_effects"]],
+      .predict_known_v_random_term_with_tau_source_values,
+      values = values
+    )
+    attr(inputs[["formula_fit"]], "formula_design") <- list(mu = formula_design)
   }
 
   return(BayesTools::random_effects_marginal_factor_states(

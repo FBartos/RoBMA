@@ -188,11 +188,6 @@ test_that("BMA.mv gates nested structures before their within-component split", 
   expect_identical(conditioning[["study"]], gate)
   expect_identical(conditioning[["esid_study"]], gate)
   expect_identical(conditioning[["total"]], gate)
-  expect_match(
-    .summary_random_footnotes(object, conditional = TRUE),
-    "fully model-averaged realized totals",
-    fixed = TRUE
-  )
   expect_error(
     .random_component_conditioning_parameters(
       object     = object,

@@ -11,6 +11,13 @@
 #' route is supported, while all other computations retain the same covariance
 #' target as a conventional dense `V` input.
 #'
+#' For `selection_likelihood = "approximate"`, selection conditions on the
+#' declared latent factors. Different diagonal-plus-factor decompositions of
+#' the same covariance can therefore define different approximate likelihoods.
+#' [vcalc2()] retains structural sampling factors automatically for supported
+#' constructions; approximate selection conditions on those factors in the
+#' same way as an explicit declaration here.
+#'
 #' @param diagonal finite non-negative numeric vector `d`.
 #' @param loading finite numeric matrix `U` with one row per element of
 #'   `diagonal`. A zero-column matrix is allowed and represents a diagonal
@@ -68,7 +75,10 @@ known_v_factor <- function(diagonal, loading) {
            conditionMessage(e), call. = FALSE)
     }
   )
-  if (!direct_factor && !.vcalc2_factor_matches(V, components)) {
+  if (!direct_factor &&
+      (!identical(.vcalc2_covariance_hash(V),
+                  attr(V, "RoBMA_vcalc_metadata")[["covariance_hash"]]) ||
+       !.vcalc2_factor_matches(V, components))) {
     stop(
       "The '", arg, "' vcalc2() metadata no longer match its covariance matrix.",
       call. = FALSE

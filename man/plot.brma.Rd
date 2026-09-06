@@ -108,7 +108,10 @@ direct scalar fitted sources, allocated component SDs backed by a scalar
 aggregate (\code{sd_total} or \code{sd_common}), and allocation proportions or
 multipliers
 backed by a fitted simplex coordinate. Other nonlinear derived quantities
-remain KDE-only. In independently gated allocations, realized
+remain KDE-only. Shared inclusion gates are supported for aggregate and
+component SDs and allocation proportions. SDs retain their excluded zero
+branches; proportions condition on positive total heterogeneity.
+In independently gated allocations, realized
 \code{sd_total}/\code{var_total} and \code{var_prop(...)} are KDE-only because they combine
 multiple gate and allocation coordinates. Their structural point masses are
 displayed separately from the continuous density; \code{var_prop(...)} is

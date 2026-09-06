@@ -25,4 +25,11 @@ inferred from a materialized covariance matrix. This representation permits
 likelihood implementations to use the declared factor dimension when that
 route is supported, while all other computations retain the same covariance
 target as a conventional dense \code{V} input.
+
+For \code{selection_likelihood = "approximate"}, selection conditions on the
+declared latent factors. Different diagonal-plus-factor decompositions of
+the same covariance can therefore define different approximate likelihoods.
+\code{\link[=vcalc2]{vcalc2()}} retains structural sampling factors automatically for supported
+constructions; approximate selection conditions on those factors in the
+same way as an explicit declaration here.
 }

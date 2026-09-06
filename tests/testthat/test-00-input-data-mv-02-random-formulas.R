@@ -1,5 +1,49 @@
 context("brma.mv random-formula input contracts")
 
+test_that("plain random slopes compile identically to explicit US blocks", {
+
+  dat <- data.frame(
+    yi    = seq(0.1, 0.6, length.out = 6),
+    study = rep(1:2, each = 3),
+    x     = rep(c(-1, 0, 1), 2),
+    group = factor(rep(c("a", "b", "a"), 2))
+  )
+  pairs <- list(
+    list(~ (1 + x | study), ~ us(1 + x | study)),
+    list(~ (0 + x | study), ~ us(0 + x | study)),
+    list(~ (0 + group | study), ~ us(0 + group | study)),
+    list(~ (x * group | study), ~ us(x * group | study))
+  )
+  for (pair in pairs) {
+    objects <- lapply(pair, function(random) {
+      brma.mv(
+        yi                        = yi,
+        V                         = diag(rep(0.04, 6)),
+        random                    = random,
+        data                      = dat,
+        measure                   = "GEN",
+        prior_unit_information_sd = 1,
+        only_priors               = TRUE
+      )
+    })
+    compiled <- lapply(objects, function(object) {
+      list(
+        syntax = .create_model_syntax(object[["data"]], object[["priors"]]),
+        data   = .create_fit_data(object[["data"]], object[["priors"]])
+      )
+    })
+    expect_identical(compiled[[1L]], compiled[[2L]])
+    blocks <- lapply(objects, function(object) {
+      .fitted_formula_design(object, "mu", required = TRUE)[["random_effects"]][[1L]]
+    })
+    expect_identical(blocks[[1L]][["structure"]], "us")
+    for (field in c("model_matrix", "column_names", "sd_binding", "correlation")) {
+      expect_equal(blocks[[1L]][[field]], blocks[[2L]][[field]])
+    }
+  }
+})
+
+
 test_that("brma.mv supports BayesTools random formulas and owns heterogeneity", {
 
   dat <- data.frame(
@@ -635,19 +679,6 @@ test_that("brma.mv validates random formula edge cases", {
     brma.mv(
       yi                        = yi,
       V                         = diag(rep(0.04, 4)),
-      random                    = ~ x | study,
-      data                      = dat,
-      measure                   = "GEN",
-      prior_unit_information_sd = 1,
-      only_data                 = TRUE
-    ),
-    "Plain 'random' terms"
-  )
-
-  expect_error(
-    brma.mv(
-      yi                        = yi,
-      V                         = diag(rep(0.04, 4)),
       scale                     = ~ x,
       random                    = ~(1 | study) + (1 | x),
       data                      = dat,
@@ -889,6 +920,47 @@ test_that("brma.mv validates random formula edge cases", {
   )
   expect_null(
     nested_block_scale_random[["priors"]][["random"]][["allocation"]]
+  )
+
+  expect_identical(
+    .summary_scale_display_names(plain_nested_scale_random),
+    c(log_tau = "sd_total")
+  )
+  expect_identical(
+    .summary_scale_display_names(nested_block_scale_random),
+    c(log_tau_x_study = "x_study: sd")
+  )
+  expect_identical(
+    .summary_scale_display_names(text_named_scale_prior),
+    c(log_tau_Study_effects = "Study effects: sd",
+      log_tau_X_effects = "X effects: sd")
+  )
+  scale_table <- data.frame(
+    Mean      = c(0.5, -0.3),
+    row.names = c("intercept", "x")
+  )
+  expect_identical(
+    rownames(.summary_scale_repair_row_labels(
+      scale_table, plain_nested_scale_random
+    )),
+    c("exp(intercept)", "x")
+  )
+  rownames(scale_table) <- paste0("(log_tau) ", rownames(scale_table))
+  scale_summary <- .summary_scale_repair_row_labels(
+    scale_table, plain_nested_scale_random
+  )
+  expect_identical(
+    rownames(scale_summary),
+    c("(sd_total) exp(intercept)", "(sd_total) x")
+  )
+  expect_identical(scale_summary[["Mean"]], c(0.5, -0.3))
+  expect_identical(
+    .summary_scale_footnotes(plain_nested_scale_random),
+    paste0(
+      "exp(intercept) is the baseline SD of the indicated target, already ",
+      "exponentiated. Other coefficients are changes in log(SD); ",
+      "exp(coefficient) is an SD multiplier."
+    )
   )
 
   nested_scale_random <- brma.mv(

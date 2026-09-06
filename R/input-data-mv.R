@@ -83,10 +83,19 @@
     residual_fraction_requested = known_v_residual_fraction_metadata
   ))
 
+  if (declared_factor && isTRUE(known_v_residual_fraction_specified)) {
+    warning(
+      "'known_v_residual_fraction' was disregarded because the declared ",
+      "factor representation defines the exact residual variance.",
+      call.      = FALSE,
+      immediate. = TRUE
+    )
+  }
+
   if (effective_backend == "whitened") {
     .known_v_warn_unused_residual_fraction(
       known_v_parameterization,
-      known_v_residual_fraction_specified &&
+      !declared_factor && known_v_residual_fraction_specified &&
         !identical(known_v_requested_parameterization, "auto")
     )
 
@@ -104,7 +113,7 @@
   if (effective_backend == "block_mvn") {
     .known_v_warn_unused_residual_fraction(
       known_v_parameterization,
-      known_v_residual_fraction_specified &&
+      !declared_factor && known_v_residual_fraction_specified &&
         !identical(known_v_requested_parameterization, "auto")
     )
 
@@ -119,14 +128,6 @@
     ))
   }
 
-  if (declared_factor && isTRUE(known_v_residual_fraction_specified)) {
-    warning(
-      "'known_v_residual_fraction' was disregarded because the declared ",
-      "factor representation defines the exact residual variance.",
-      call.      = FALSE,
-      immediate. = TRUE
-    )
-  }
   decomposition <- if (declared_factor) {
     .known_v_decompose_declared_factor(known_V)
   } else {

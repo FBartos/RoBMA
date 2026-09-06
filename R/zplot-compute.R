@@ -28,7 +28,8 @@
 #
 .zplot_fun.brma <- function(object, z_threshold = NULL, z_sequence = NULL,
                              max_samples = 10000, extrapolate = FALSE,
-                             conditioning_depth = "marginal") {
+                             conditioning_depth = "marginal",
+                             integration_control = set_selection_likelihood_control()) {
 
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
   conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
@@ -42,6 +43,20 @@
   selected_ind      <- .thin_sample_rows(nrow(posterior_samples), max_samples)
   if (!is.null(selected_ind)) {
     posterior_samples <- posterior_samples[selected_ind, , drop = FALSE]
+  }
+
+  if (.zplot_requires_selection_marginal(object, conditioning_depth)) {
+    result <- .zplot_selection_marginal(
+      object, posterior_samples, z_sequence, z_threshold,
+      conditioning_depth, integration_control
+    )
+    if (!is.null(z_threshold)) {
+      return(list(
+        EDR     = if (extrapolate) result$EDR else result$fitted[, 1L],
+        weights = result$weights
+      ))
+    }
+    return(result[[if (extrapolate) "extrapolated" else "fitted"]])
   }
 
   predictive <- .zplot_predictive_components(
@@ -133,6 +148,325 @@
     tau_within = predictive_heterogeneity,
     sei        = .outcome_data_sei(object)
   ))
+}
+
+
+.zplot_requires_selection_marginal <- function(object, conditioning_depth) {
+
+  .is_weightfunction(object) &&
+    (!identical(conditioning_depth, "marginal") ||
+       .is_multilevel(object) || inherits(object, "brma.mv"))
+}
+
+
+.zplot_selection_marginal <- function(
+    object, posterior_samples, z_sequence, z_threshold,
+    conditioning_depth, integration_control) {
+
+  control   <- .check_selection_likelihood_control(integration_control)
+  selection <- .selection_context(object, posterior_samples = posterior_samples)
+  .selection_require_step_evaluable(selection, "zplot()")
+  if (conditioning_depth != "marginal") {
+    stop(
+      "Conditional zplot selection targets are unavailable. ",
+      "Use 'conditioning_depth = \"marginal\"'.", call. = FALSE
+    )
+  }
+  predictive <- .zplot_predictive_components(object, posterior_samples, FALSE)
+  predictive$mu_extrapolated <- if (.is_PET(object) || .is_PEESE(object)) {
+    .zplot_predictive_components(object, posterior_samples, TRUE,
+      predictive_heterogeneity = predictive$tau_within)$mu
+  } else {
+    predictive$mu
+  }
+  probability <- !is.null(z_threshold)
+  z <- if (probability) z_threshold else z_sequence
+
+  if (.is_data_exact_selection(object[["data"]])) {
+    return(.zplot_exact_marginal(
+      object, posterior_samples, predictive, selection, z, probability, control
+    ))
+  }
+
+  K <- length(predictive$sei)
+  if (.is_data_random(object[["data"]]) || .is_data_known_v(object[["data"]])) {
+    known_V <- if (.is_data_known_v(object[["data"]])) {
+      .data_known_v_data(object[["data"]])
+    } else {
+      .known_v_newdata_prepare(diag(predictive$sei^2, K), K)
+    }
+    plan <- .known_v_marginal_factor_plan(object, posterior_samples, known_V)
+    if (any(plan$sampling_covariance[row(plan$sampling_covariance) !=
+                                    col(plan$sampling_covariance)] != 0)) {
+      stop("The approximate selection zplot target is unavailable without a conditional sampling factorization.",
+           call. = FALSE)
+    }
+    sd <- sqrt(sweep(plan$extra_variances, 2L, diag(plan$sampling_covariance), "+"))
+    latent_sd <- sqrt(plan$latent_variances)
+  } else {
+    scales    <- .zplot_tau_samples(object, posterior_samples)
+    sd        <- .zplot_total_sd(scales$tau_within, predictive$sei)
+    latent_sd <- scales$tau_between
+  }
+  .zplot_latent_mixture(
+    z, predictive$mu, sd, latent_sd, predictive$sei, selection,
+    probability, control, predictive$mu_extrapolated
+  )
+}
+
+
+# Both curves use the same Gaussian block and the same joint normalizer.
+# Its inverse is the area of the extrapolated curve per observed estimate.
+.zplot_exact_marginal <- function(
+    object, posterior_samples, predictive, selection, z, probability, control) {
+
+  S <- nrow(posterior_samples)
+  K <- length(predictive$sei)
+  scales <- if (.is_data_random(object[["data"]])) {
+    list(tau_within = matrix(0, S, K), tau_between = matrix(0, S, K))
+  } else {
+    .zplot_tau_samples(object, posterior_samples)
+  }
+  fitted       <- matrix(0, S, length(z))
+  extrapolated <- matrix(0, S, length(z))
+  weights      <- numeric(S)
+  designs      <- new.env(parent = emptyenv())
+  exact_plan <- .data_exact_selection_setup(object[["data"]])
+  factor_setup <- list(
+    fit = object[["fit"]], data = object[["data"]], priors = object[["priors"]],
+    posterior_samples = posterior_samples, S = S, K = K,
+    tau_within = scales$tau_within, tau_between = scales$tau_between,
+    is_multilevel = .is_multilevel(object)
+  )
+  random_factors <- .selection_exact_random_factor_samples(factor_setup)
+  random_covariance <- if (is.null(random_factors)) {
+    .selection_exact_random_covariance_samples(factor_setup)
+  } else {
+    NULL
+  }
+  for (block in seq_along(exact_plan$row_blocks)) {
+    rows <- exact_plan$row_blocks[[block]]
+    k <- length(rows)
+    factors <- if (exact_plan$block_methods[block] %in% c("factor", "cluster")) {
+      .selection_exact_factor_block_samples(factor_setup, block, random_factors)
+    } else {
+      NULL
+    }
+    if (!is.null(factors) &&
+        (factors$rank == 0L || factors$rank > k || any(factors$residual_sd <= 0))) {
+      factors <- NULL
+    }
+    pairs <- .selection_exact_lower_pairs(exact_plan, seq_len(k))
+    covariance <- .selection_exact_covariance_lower(
+      factor_setup, block, random_covariance, random_factors
+    )
+    result <- .zplot_joint_block(
+      z, predictive$mu[, rows, drop = FALSE], covariance,
+      predictive$sei[rows], selection, probability, control, designs, factors
+    )
+    sd <- sqrt(covariance[, pairs$row_1 == pairs$row_2, drop = FALSE])
+    normal <- if (probability) {
+      matrix(0, S, 1L)
+    } else {
+      .zplot_normal_density_matrix(z, predictive$mu_extrapolated[, rows, drop = FALSE], sd,
+                                   predictive$sei[rows])
+    }
+    if (probability) {
+      q <- matrix(z * predictive$sei[rows], S, k, byrow = TRUE)
+      normal[, 1L] <- rowMeans(
+        stats::pnorm(q, predictive$mu_extrapolated[, rows, drop = FALSE], sd, lower.tail = FALSE) +
+          stats::pnorm(-q, predictive$mu_extrapolated[, rows, drop = FALSE], sd)
+      )
+    }
+    inverse <- exp(result$log_density)
+    fitted       <- fitted + result$density * (k / K)
+    extrapolated <- extrapolated + normal * inverse * (k / K)
+    weights      <- weights + inverse * (k / K)
+  }
+  list(fitted = fitted, extrapolated = extrapolated, weights = weights,
+       EDR = if (probability) extrapolated[, 1L] / weights else NULL)
+}
+
+
+.zplot_joint_block <- function(
+    z, mean, covariance_lower, sei, selection, probability, control,
+    designs = new.env(parent = emptyenv()), factors = NULL) {
+
+  S      <- nrow(mean)
+  K      <- ncol(mean)
+  points <- control$points_per_scramble
+  active <- seq_len(S)
+  result <- list(log_density = numeric(S), relative_mcse = numeric(S),
+                 density = matrix(0, S, length(z)))
+  previous <- NULL
+  rank <- if (is.null(factors)) 0L else ncol(factors$loading) %/% K
+  quadrature <- rank %in% c(1L, 2L)
+  orders <- if (rank == 1L) SELNORM_CLUSTER_QUADRATURE_ORDERS else
+    SELNORM_FACTOR_QUADRATURE_ORDERS[["2"]]
+  rule_index <- 1L
+  repeat {
+    rule <- if (quadrature) .gauss_hermite_nodes(orders[rule_index]) else NULL
+    if (quadrature) points <- length(rule$nodes)^rank
+    key <- paste(K, points, sep = "/")
+    if (!quadrature && !exists(key, designs, inherits = FALSE)) {
+      assign(key, BayesTools::selection_qmc_design(
+        dimensions = 2L * K, points = points,
+        scrambles = control$scrambles, seed = control$seed
+      ), designs)
+    }
+    context <- BayesTools::selection_context_subset_rows(selection, active)
+    static  <- BayesTools::selection_native_static_args(context)
+    current <- .Call(
+      "RoBMA_selnorm_mnorm_zplot_batch",
+      as.numeric(mean[1L, ]), .native_numeric_matrix(mean[active, , drop = FALSE]),
+      .native_numeric_matrix(covariance_lower[active, , drop = FALSE]),
+      as.numeric(sei), .native_numeric_matrix(context$omega),
+      static$z_lower, static$z_upper, rep.int(1L, K), static$sign,
+      static$telescope_probabilities, .native_integer_vector(context$kernel_mode),
+      if (quadrature) numeric() else as.numeric(get(key, designs)),
+      as.integer(points), as.integer(if (quadrature) 2L else control$scrambles),
+      as.numeric(control$relative_tolerance), as.numeric(z), as.logical(probability),
+      if (is.null(factors)) NULL else c(list(
+        .native_numeric_matrix(factors$residual_sd[active, , drop = FALSE]),
+        .native_numeric_matrix(factors$loading[active, , drop = FALSE])
+      ), if (quadrature) list(rule$nodes, rule$log_weights)),
+      PACKAGE = "RoBMA"
+    )
+    error <- current$relative_mcse
+    error[rowSums(!is.finite(current$density)) > 0L] <- Inf
+    if (!is.null(previous)) {
+      peak <- apply(current$density, 1L, max)
+      change <- apply(abs(current$density - previous$density), 1L, max)
+      positive <- is.finite(peak) & peak > 0
+      change[positive] <- change[positive] / peak[positive]
+      normalizer_change <- abs(expm1(current$log_density - previous$log_density))
+      change[!is.finite(change)] <- Inf
+      normalizer_change[!is.finite(normalizer_change)] <- Inf
+      error <- pmax(error, change, normalizer_change)
+    }
+    accepted_error <- if (quadrature) {
+      if (is.null(previous)) rep(Inf, length(active)) else pmax(error, previous$error)
+    } else {
+      error
+    }
+    result$log_density[active]  <- current$log_density
+    result$relative_mcse[active] <- error
+    result$density[active, ]    <- current$density
+    failed <- which(!is.finite(accepted_error) | accepted_error > control$relative_tolerance |
+                      !is.finite(current$log_density))
+    if (!length(failed)) return(result)
+    if (!quadrature && points >= control$max_points_per_scramble) {
+      stop(
+        "Zplot marginal integration was rejected by diagnostics: relative integration error was ",
+        format(error[failed[1L]], digits = 4),
+        ". Increase 'max_points_per_scramble' in 'integration_control = set_selection_likelihood_control()'.",
+        call. = FALSE
+      )
+    }
+    active <- active[failed]
+    previous <- list(log_density = current$log_density[failed],
+                     density = current$density[failed, , drop = FALSE],
+                     error = if (is.null(previous)) rep(Inf, length(failed)) else error[failed])
+    if (quadrature) {
+      rule_index <- rule_index + 1L
+      if (rule_index > length(orders)) {
+        quadrature <- FALSE
+        previous   <- NULL
+        points     <- control$points_per_scramble
+      }
+    } else {
+      points <- min(2L * points, control$max_points_per_scramble)
+    }
+  }
+}
+
+
+# Approximate selection normalizes before integrating the Gaussian latent
+# effect. Only its one-dimensional marginal is needed for this scalar display.
+.zplot_latent_mixture <- function(
+    z, mean, sd, latent_sd, sei, selection, probability, control,
+    mean_extrapolated = mean) {
+
+  S <- nrow(mean)
+  normal_rows <- which(selection$use_normal)
+  if (length(normal_rows)) {
+    total_sd <- .root_sum_squares(sd, latent_sd)
+    normal_result <- function(location) {
+
+      if (!probability) return(.zplot_normal_density_matrix(z, location, total_sd, sei))
+      q <- matrix(z * sei, S, length(sei), byrow = TRUE)
+      matrix(rowMeans(stats::pnorm(q, location, total_sd, lower.tail = FALSE) +
+                        stats::pnorm(-q, location, total_sd)), S, 1L)
+    }
+    fitted       <- normal_result(mean)
+    extrapolated <- normal_result(mean_extrapolated)
+    weights      <- rep(1, S)
+    active       <- which(!selection$use_normal)
+    if (length(active)) {
+      selected <- .zplot_latent_mixture(z, mean[active, , drop = FALSE],
+        sd[active, , drop = FALSE], latent_sd[active, , drop = FALSE], sei,
+        BayesTools::selection_context_subset_rows(selection, active),
+        probability, control, mean_extrapolated[active, , drop = FALSE])
+      fitted[active, ]       <- selected$fitted
+      extrapolated[active, ] <- selected$extrapolated
+      weights[active] <- selected$weights
+    }
+    return(list(fitted = fitted, extrapolated = extrapolated, weights = weights,
+                EDR = if (probability) extrapolated[, 1L] / weights else NULL))
+  }
+  previous <- NULL
+  for (order in SELNORM_CLUSTER_QUADRATURE_ORDERS) {
+    rule <- .gauss_hermite_nodes(order)
+    fitted       <- matrix(0, S, length(z))
+    extrapolated <- matrix(0, S, length(z))
+    weights      <- numeric(S)
+    for (j in seq_along(rule$nodes)) {
+      conditional_mean <- mean + latent_sd * rule$nodes[j]
+      conditional_extrapolated <- mean_extrapolated + latent_sd * rule$nodes[j]
+      if (probability) {
+        fit <- .zplot_selnorm_threshold_summary(z, conditional_mean, sd, sei, selection, FALSE)
+        ext <- .zplot_selnorm_threshold_summary(z, conditional_extrapolated, sd, sei, selection, TRUE)
+        fitted[, 1L] <- fitted[, 1L] + rule$weights[j] * fit$EDR
+        extrapolated[, 1L] <- extrapolated[, 1L] + rule$weights[j] * ext$EDR * ext$weights
+        weights <- weights + rule$weights[j] * ext$weights
+      } else {
+        pair <- .zplot_selnorm_density_pair(z, conditional_mean, sd, sei, selection)
+        weights <- weights + rule$weights[j] * rowMeans(
+          .zplot_inverse_selection_weights(conditional_mean, sd, sei, selection)
+        )
+        if (!identical(mean, mean_extrapolated)) {
+          pair$extrapolated <- .zplot_selnorm_density_matrix(
+            z, conditional_extrapolated, sd, sei, selection, TRUE
+          )
+        }
+        fitted       <- fitted + rule$weights[j] * pair$fitted
+        extrapolated <- extrapolated + rule$weights[j] * pair$extrapolated
+      }
+    }
+    current <- list(fitted = fitted, extrapolated = extrapolated,
+                    weights = matrix(weights, S, 1L))
+    if (!is.null(previous)) {
+      error <- max(vapply(names(current), function(component) {
+        value <- current[[component]]
+        peak  <- apply(abs(value), 1L, max)
+        change <- apply(abs(value - previous[[component]]), 1L, max)
+        positive <- is.finite(peak) & peak > 0
+        change[positive] <- change[positive] / peak[positive]
+        change[!is.finite(change)] <- Inf
+        max(change)
+      }, numeric(1)))
+      if (is.finite(error) && error <= control$relative_tolerance) {
+        return(list(fitted = fitted, extrapolated = extrapolated, weights = weights,
+                    EDR = if (probability) extrapolated[, 1L] / weights else NULL))
+      }
+    }
+    previous <- current
+  }
+  stop(
+    "Zplot marginal integration was rejected by diagnostics: relative quadrature change was ",
+    format(error, digits = 4), ". Inspect the fitted selection and heterogeneity parameters.",
+    call. = FALSE
+  )
 }
 
 
@@ -726,12 +1060,20 @@
 }
 
 .zplot_density_pair <- function(object, z_sequence, max_samples,
-                                conditioning_depth = "marginal") {
+                                conditioning_depth = "marginal",
+                                integration_control = set_selection_likelihood_control()) {
 
   posterior_samples <- .get_posterior_samples(object[["fit"]])
   selected_ind      <- .thin_sample_rows(nrow(posterior_samples), max_samples)
   if (!is.null(selected_ind)) {
     posterior_samples <- posterior_samples[selected_ind, , drop = FALSE]
+  }
+
+  if (.zplot_requires_selection_marginal(object, conditioning_depth)) {
+    return(.zplot_selection_marginal(
+      object, posterior_samples, z_sequence, NULL,
+      conditioning_depth, integration_control
+    ))
   }
 
   predictive_fit <- .zplot_predictive_components(

@@ -23,6 +23,7 @@
   dots_fit = NULL,
   dots_extrapolation = NULL,
   dots_thresholds = NULL,
+  integration_control = x[["zplot"]][["data"]][["integration_control"]],
   ...
 )
 }
@@ -65,6 +66,13 @@ Defaults to \code{TRUE}.}
 \item{dots_extrapolation}{graphical parameters for extrapolation lines (list).}
 
 \item{dots_thresholds}{graphical parameters for threshold lines (list).}
+
+\item{integration_control}{numerical integration settings created by
+\code{set_selection_likelihood_control()}. These control integration within
+each posterior draw, independently of \code{max_samples}. Factor blocks use
+converged Gauss-Hermite quadrature where possible; other blocks use adaptive
+randomized quasi-Monte Carlo. The relative diagnostic compares density error
+with the peak of each draw's curve and also checks the selection normalizer.}
 
 \item{...}{additional graphical parameters passed to components.}
 }

@@ -16,7 +16,7 @@ test_that("brma.mv known-V models pass bridge marginal likelihood availability",
 })
 
 
-test_that("bridge random-scale sources are reconstructed from formula draws", {
+test_that("bridge random-scale sources reuse evaluated fixed formulas", {
 
   dat <- data.frame(
     yi  = c(0.10, 0.20),
@@ -44,6 +44,14 @@ test_that("bridge random-scale sources are reconstructed from formula draws", {
   random_term <- attr(patched_fit, "formula_design")[["mu"]][["random_effects"]][[1L]]
   source <- random_term[["sd_binding"]][["source"]][["source"]]
   expect_true(is.function(source[["values"]]))
+  expect_equal(
+    source[["values"]](
+      data       = dat,
+      parameters = list(log_tau = log(c(0.10, 0.20))),
+      n_rows     = 2L
+    ),
+    c(0.10, 0.20)
+  )
 
   bridge_context <- structure(
     list(nodes = c("tau[1]" = 0.10, "tau[2]" = 0.20)),
@@ -57,6 +65,42 @@ test_that("bridge random-scale sources are reconstructed from formula draws", {
     ),
     list(tau = matrix(c(0.10, 0.20), nrow = 1L))
   )
+})
+
+
+test_that("batched scale sources preserve random covariance and fitted draws", {
+
+  dat <- data.frame(yi = c(0.1, 0.2), study = factor(c("s1", "s1")), x = c(0, 1))
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(c(0.04, 0.09)),
+    random                    = ~ 1 | study,
+    scale                     = ~ x,
+    prior_scale               = list(
+      intercept = prior("point", list(location = 0.1)),
+      x         = prior("point", list(location = log(2)))
+    ),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior <- cbind(mu_intercept = c(0, 0))
+  before    <- object
+  factors <- .brma_mv_random_effects_marginal_factor_plan(
+    object            = object,
+    posterior_samples = posterior
+  )
+  # A single shared standard-normal effect has covariance tau %*% t(tau).
+  expect_equal(
+    BayesTools::random_effects_marginal_factor_product(
+      factors, vectors = diag(2)
+    ),
+    tcrossprod(c(0.1, 0.2)),
+    tolerance = 1e-12
+  )
+  expect_identical(object, before)
+  expect_identical(colnames(posterior), "mu_intercept")
 })
 
 

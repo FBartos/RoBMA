@@ -376,6 +376,13 @@
     posterior_samples = posterior_samples,
     probs             = probs
   )
+  correlation_samples <- .brma_mv_correlation_sample_lists(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  if (length(components) == 1L) {
+    correlation_samples[["total"]] <- correlation_samples[[names(components)]]
+  }
 
   component <- .normalize_brma_mv_heterogeneity_component(component)
   if (identical(component, "all")) {
@@ -385,10 +392,11 @@
     selected <- components[!names(components) %in% replaced_components]
     out <- lapply(names(selected), function(name) {
       .summary_heterogeneity_brma_mv_one(
-        sd_samples = selected[[name]],
-        probs      = probs,
-        component  = name,
-        aggregate  = FALSE
+        sd_samples          = selected[[name]],
+        probs               = probs,
+        component           = name,
+        aggregate           = FALSE,
+        correlation_samples = correlation_samples[[name]]
       )
     })
     names(out) <- names(selected)
@@ -413,11 +421,12 @@
       )
       out <- lapply(names(selected), function(name) {
         .summary_heterogeneity_brma_mv_one(
-          sd_samples = selected[[name]],
-          probs      = probs,
-          component  = name,
-          aggregate  = identical(name, "total") &&
-            length(components) > 1L
+          sd_samples          = selected[[name]],
+          probs               = probs,
+          component           = name,
+          aggregate           = identical(name, "total") &&
+            length(components) > 1L,
+          correlation_samples = correlation_samples[[name]]
         )
       })
       names(out) <- names(selected)
@@ -447,7 +456,8 @@
 
 
 .summary_heterogeneity_brma_mv_one <- function(sd_samples, probs, component,
-                                               aggregate = FALSE) {
+                                               aggregate = FALSE,
+                                               correlation_samples = NULL) {
 
   var_samples <- rowMeans(sd_samples^2)
   sd_name     <- if (aggregate) "sd_total" else "sd"
@@ -457,6 +467,7 @@
     var_samples
   )
   names(samples_list) <- c(sd_name, var_name)
+  samples_list <- c(samples_list, correlation_samples)
 
   estimates <- BayesTools::ensemble_estimates_table(
     samples    = samples_list,
@@ -473,6 +484,46 @@
   class(output) <- "summary_heterogeneity.brma"
 
   return(output)
+}
+
+
+.brma_mv_correlation_sample_lists <- function(object, posterior_samples) {
+
+  if (!.is_random(object) || is.null(object[["fit"]])) {
+    return(list())
+  }
+
+  catalog    <- BayesTools::parameter_catalog(object[["fit"]])
+  quantities <- catalog[["quantities"]]
+  selected <- quantities[
+    quantities[["namespace"]] == "mu" &
+      quantities[["owner_type"]] == "random_block" &
+      quantities[["quantity"]] == "cor" &
+      !quantities[["internal"]] &
+      quantities[["status"]] != "unavailable",
+    ,
+    drop = FALSE
+  ]
+  out <- list()
+  for (i in seq_len(nrow(selected))) {
+    selection <- BayesTools::parameter_catalog_resolve(
+      catalog   = catalog,
+      alias     = selected[["canonical_name"]][i],
+      namespace = selected[["namespace"]][i]
+    )
+    draws <- BayesTools::parameter_draws(
+      object[["fit"]],
+      selection,
+      model_samples = posterior_samples
+    )
+    block <- selected[["extraction_key"]][[i]][["random_block"]]
+    label <- .brma_mv_random_quantity_display_label(
+      selected[["display_label"]][i]
+    )
+    out[[block]][[label]] <- as.numeric(draws[[1L]][, 1L])
+  }
+
+  return(out)
 }
 
 

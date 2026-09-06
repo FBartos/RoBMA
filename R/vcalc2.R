@@ -12,6 +12,11 @@
 #' `time2`, `w1`, `w2`, or `rvars`, and when `nearpd = FALSE`. This covers the
 #' common within- and between-construct correlation specification. The
 #' covariance returned by `metafor::vcalc()` remains authoritative.
+#' For `selection_likelihood = "approximate"`, the likelihood conditions on
+#' the retained structural sampling factors when available. This can improve
+#' computational efficiency, but can also define a different approximation
+#' than an ordinary `metafor::vcalc()` matrix with the same covariance.
+#' It is not guaranteed to be closer to the exact selection likelihood.
 #'
 #' @param vi,cluster,subgroup,obs,type,time1,time2,grp1,grp2,w1,w2,data,rho,phi,rvars
 #'   Arguments passed unchanged to [metafor::vcalc()].
@@ -20,7 +25,8 @@
 #' @param ... Additional arguments passed unchanged to [metafor::vcalc()].
 #'
 #' @return The object returned by [metafor::vcalc()] with retained RoBMA
-#'   construction metadata.
+#'   construction metadata, including the sampling-factor decomposition used
+#'   by approximate selection models when available.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metafor", quietly = TRUE)) {
@@ -100,7 +106,8 @@ vcalc2 <- function(vi, cluster, subgroup, obs, type, time1, time2,
   cluster  <- evaluate("cluster")
   type     <- evaluate("type")
   obs      <- evaluate("obs")
-  rho      <- evaluate("rho")
+  # Unlike the row variables, vcalc evaluates rho in the calling environment.
+  rho      <- eval(matched_call[["rho"]], envir = caller)
   subgroup <- if ("subgroup" %in% supplied) evaluate("subgroup") else NULL
 
   control_defaults <- list(checkpd = TRUE, nearpd = FALSE, sparse = FALSE)
@@ -202,8 +209,9 @@ vcalc2 <- function(vi, cluster, subgroup, obs, type, time1, time2,
     return(structure(metadata, class = c("RoBMA_vcalc_metadata", "list")))
   }
 
-  metadata[["factor"]]        <- factor
-  metadata[["factor_status"]] <- "certified"
+  metadata[["factor"]]          <- factor
+  metadata[["factor_status"]]   <- "certified"
+  metadata[["covariance_hash"]] <- .vcalc2_covariance_hash(V)
   structure(metadata, class = c("RoBMA_vcalc_metadata", "list"))
 }
 
@@ -296,6 +304,12 @@ vcalc2 <- function(vi, cluster, subgroup, obs, type, time1, time2,
       anyNA(expected) || any(!is.finite(expected))) {
     return(FALSE)
   }
-  scale <- max(1, abs(covariance), abs(expected))
+  scale <- max(abs(covariance), abs(expected))
   max(abs(covariance - expected)) <= 100 * .Machine$double.eps * scale
+}
+
+
+.vcalc2_covariance_hash <- function(V) {
+
+  rlang::hash(list(dim(V), as.numeric(V)))
 }

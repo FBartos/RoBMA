@@ -10,6 +10,7 @@
   significance_level = stats::qnorm(0.975),
   max_samples = 10000,
   conditioning_depth = "marginal",
+  integration_control = set_selection_likelihood_control(),
   ...
 )
 }
@@ -28,7 +29,15 @@ effects; \code{"cluster"}, which retains fitted cluster effects and
 integrates within-cluster heterogeneity; and \code{"estimate"}, which
 retains each fitted latent true effect, integrates its posterior conditional
 uncertainty, and adds new sampling error. Cluster conditioning is available
-only for multilevel models.}
+only for multilevel models.
+Selection models currently support only \code{"marginal"} conditioning.}
+
+\item{integration_control}{numerical integration settings created by
+\code{set_selection_likelihood_control()}. These control integration within
+each posterior draw, independently of \code{max_samples}. Factor blocks use
+converged Gauss-Hermite quadrature where possible; other blocks use adaptive
+randomized quasi-Monte Carlo. The relative diagnostic compares density error
+with the peak of each draw's curve and also checks the selection normalizer.}
 
 \item{...}{additional arguments (currently unused).}
 }
@@ -79,13 +88,33 @@ The EDR uses extrapolation mode: selection is removed from the row-specific
 predictive distributions, PET/PEESE regression offsets are omitted, and
 designs under a selection model are weighted by their inverse observation
 probabilities. The fitted plot curve retains the bias adjustments.
+
+Exact selection models first select the full Gaussian response vector within
+each fitted dependency block, then marginalize to each estimate. Both sampling
+covariance and random-effect covariance therefore affect the selected marginal
+density. Approximate selection models instead integrate conditionally
+normalized selected-normal densities over freshly realized latent effects,
+preserving the normalization order used by their fitted likelihood.
+
+The extrapolated curve uses the same selection normalizers as the fitted
+curve. Its integral over the entire real line is the expected total number of
+estimates per observed estimate; the integral of the suppressed part is this
+quantity minus one. Multiplying by the observed number of estimates gives
+\code{Missing N}. For exact correlated selection this counterfactual treats
+whole dependency blocks as observed or suppressed, using inverse joint block
+probabilities. It can imply large missing counts for large blocks or strong
+selection. It does not estimate partially reported blocks. Restricting a
+plot with \code{from} or \code{to} does not restrict these summary integrals.
+
 Zplot diagnostics are available only for normal outcome models. GLMM
 objects are rejected because their raw likelihood is on a count scale while
 zplot diagnostics require observed effect-size z-statistics with standard
 errors. For correlated known-\code{V} \code{brma.mv()} models, zplot is a
-descriptive scalar display using diagonal standard errors; off-diagonal
-sampling dependence is not represented by the observed
-\eqn{z_i = y_i / se_i} histogram.
+scalar display using \eqn{z_i = y_i / se_i}. The histogram does not display
+dependence, but the fitted selected marginals retain the full covariance.
+Numerical integration can be substantially more expensive for correlated
+selection than for ordinary Gaussian models; \code{max_samples} controls the
+number of posterior draws used for the plot.
 
 The resulting object retains all original brma properties while adding
 zplot results, enabling both standard meta-analytic summaries and

@@ -1,6 +1,8 @@
 #ifndef SELNORM_H_
 #define SELNORM_H_
 
+#include <cstddef>
+
 enum SelKernelMode {
   SELKERNEL_NORMAL           = 0,
   SELKERNEL_STEP             = 1,
@@ -121,6 +123,13 @@ bool cpp_selnorm_step_cdf_telescope_plan(
   double *normalizer,
   int omega_stride = 1,
   bool validate_omega = true
+);
+
+// Multiply one row's normalizers over a quadrature grid. The caller validates
+// omega once per likelihood state; false retains the scalar/log-scale fallback.
+bool cpp_selnorm_step_normalizer_product(
+  const double *mean, std::size_t count, double sd, double sei,
+  const double *omega, const SelNormKernelData &data, long double *product
 );
 
 double cpp_selnorm_step_cdf_from_telescope_plan(

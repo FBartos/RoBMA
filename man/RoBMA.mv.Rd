@@ -244,7 +244,11 @@ but affect only the latent backend. When \code{"auto"} selects \code{"whitened"}
 Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
 supplied. For a factor representation declared by \code{\link[=vcalc2]{vcalc2()}} or
 \code{\link[=known_v_factor]{known_v_factor()}}, the declared diagonal is the exact residual variance and
-this argument is disregarded with a warning when supplied explicitly.}
+this argument is disregarded with a warning when supplied explicitly.
+Approximate selection likelihoods condition on the declared factors when
+available; otherwise this argument controls their sampling decomposition.
+Different decompositions of the same covariance can define different
+approximate selection likelihoods.}
 
 \item{marginalize_estimate_level}{logical; should a one-to-one estimate-level
 random-intercept block be integrated into the likelihood variance instead of
@@ -326,7 +330,11 @@ Correlated known sampling covariance then requires the latent known-\code{V}
 representation. \code{known_v_parameterization = "auto"} is changed to that
 representation only when the fitted bias mixture actually contains a
 selection model; explicitly requesting \code{"whitened"} or \code{"block_mvn"} is
-rejected for this target.
+rejected for this target. As in \code{\link[=bselmodel.mv]{bselmodel.mv()}}, approximate selection
+conditions on the structural sampling factors retained by \code{\link[=vcalc2]{vcalc2()}} or
+declared by \code{\link[=known_v_factor]{known_v_factor()}} when available. An ordinary covariance matrix
+uses the decomposition controlled by \code{known_v_residual_fraction}, which can
+define a different approximate likelihood for the same covariance.
 
 \code{marginalize_estimate_level} applies to models without an exact selection
 branch and to the approximate selection likelihood. Exact selection

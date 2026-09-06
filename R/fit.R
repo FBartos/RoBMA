@@ -701,7 +701,7 @@
       cores                 = fit_control[["cores"]],
       silent                = fit_control[["silent"]],
       seed                  = fit_control[["seed"]],
-      required_packages     = "RoBMA",
+      required_packages     = c("RoBMA", "BayesTools"),
       is_JASP               = object[["is_JASP"]],
       is_JASP_prefix        = object[["is_JASP_prefix"]]
     )
@@ -795,6 +795,7 @@
 
   object[["summary"]]      <- .object_summary(object)
   object[["coefficients"]] <- .object_coefficients(object)
+  object <- .refresh_selection_approximation_diagnostics(object)
 
   .autocompute_brma(object)
 }

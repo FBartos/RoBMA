@@ -233,7 +233,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     joint_exact_selection <-
       sampling_latent_setup[["marginalized"]] ||
       .is_data_random(data) || .is_data_multilevel(data) || any(
-        fit_data[["selection_execution_plan"]][["block_sizes"]] > 1L
+        .data_exact_selection_setup(data)[["block_sizes"]] > 1L
       )
   }
 
@@ -570,10 +570,18 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     return(fit)
   }
 
-  values <- .predict_known_v_tau_source_values_function(
-    object = object,
-    data   = data
-  )
+  # BayesTools has already evaluated the fixed scale formulas for this draw.
+  # Reuse those outputs instead of rebuilding their designs inside each source.
+  specs  <- .data_scale_component_specs(data)
+  values <- lapply(specs, function(spec) {
+
+    parameter <- spec[["parameter"]]
+    function(data, parameters, n_rows) {
+
+      exp(parameters[[parameter]])
+    }
+  })
+  names(values) <- vapply(specs, `[[`, character(1), "source")
   mu_design[["random_effects"]] <- lapply(
     mu_design[["random_effects"]],
     .predict_known_v_random_term_with_tau_source_values,
@@ -881,7 +889,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         )) != K) {
       stop("Exact selection bridge metadata are invalid.", call. = FALSE)
     }
-    fit_data[["selection_execution_plan"]] <- execution_plan
   }
 
   fit_data[["selection_bridge_context"]] <- .marglik_selection_context(
@@ -891,7 +898,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   jags_selection_names <- grep("^sel_", names(fit_data), value = TRUE)
   fit_data[jags_selection_names] <- NULL
   priority_names <- c(
-    "selection_bridge_context", "selection_execution_plan",
+    "selection_bridge_context",
     "K", "yi", "sei", "cluster", "weight"
   )
   priority_names <- priority_names[priority_names %in% names(fit_data)]
@@ -961,10 +968,10 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   K <- data[["K"]]
   if (is.null(joint_exact_selection)) {
     exact_selection <- isTRUE(is_weightfunction) &&
-      !is.null(data[["selection_execution_plan"]])
+      .is_data_exact_selection(model_data)
     joint_exact_selection <- exact_selection && (
       sampling_latent_marginalized || is_random || is_multilevel || any(
-        data[["selection_execution_plan"]][["block_sizes"]] > 1L
+        .data_exact_selection_setup(model_data)[["block_sizes"]] > 1L
       )
     )
   }
@@ -1411,54 +1418,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 }
 
 
-.marglik_random_covariance_dense <- function(value, K) {
-
-  if (is.null(value)) {
-    return(matrix(0, nrow = K, ncol = K))
-  }
-  if (identical(value[["representation"]], "dense")) {
-    return(.marglik_validate_random_covariance_matrix(
-      value[["covariance"]],
-      K
-    ))
-  }
-  if (!identical(value[["representation"]], "factor_state") ||
-      !is.list(value[["factor_plans"]]) ||
-      !is.list(value[["factor_states"]]) ||
-      length(value[["factor_plans"]]) != length(value[["factor_states"]])) {
-    stop("Bridge random-effect covariance representation is invalid.",
-         call. = FALSE)
-  }
-
-  covariance <- matrix(0, nrow = K, ncol = K)
-  for (factor_index in seq_along(value[["factor_plans"]])) {
-    plan  <- value[["factor_plans"]][[factor_index]]
-    state <- value[["factor_states"]][[factor_index]]
-    if (identical(plan[["type"]], "dense")) {
-      covariance <- covariance + .marglik_validate_random_covariance_matrix(
-        state[["covariance"]],
-        K
-      )
-      next
-    }
-
-    basis <- plan[["model_matrix"]] %*% state[["coefficient_factor"]]
-    if (identical(plan[["type"]], "row_group")) {
-      basis <- basis * state[["row_scale"]]
-    }
-    contribution <- tcrossprod(basis)
-    group_map    <- plan[["group_map"]]
-    if (identical(plan[["type"]], "known_group")) {
-      contribution <- contribution *
-        plan[["group_covariance"]][group_map, group_map, drop = FALSE]
-    } else {
-      contribution <- contribution * outer(group_map, group_map, "==")
-    }
-    covariance <- covariance + contribution
-  }
-
-  .marglik_validate_random_covariance_matrix(covariance, K)
-}
 
 
 .marglik_exact_selection_log_lik <- function(
@@ -1466,13 +1425,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     mu_samples, tau_within_samples, tau_between_samples, is_random,
     is_multilevel, fixed_zero_random, K) {
 
-  bridge_plan <- data[["selection_execution_plan"]]
-  if (is.null(bridge_plan)) {
-    stop("Exact selection bridge metadata are invalid.", call. = FALSE)
-  }
-  row_blocks       <- bridge_plan[["row_blocks"]]
-  execution_plan <- bridge_plan
-  block_sizes       <- bridge_plan[["block_sizes"]]
+  execution_plan <- .data_exact_selection_setup(model_data)
+  row_blocks     <- execution_plan[["row_blocks"]]
 
   factor_setup <- list(
     data          = model_data,
@@ -1496,9 +1450,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         call. = FALSE
       )
     }
-    random_representation <- .data_exact_selection_setup(
-      model_data
-    )[["random_covariance"]][["representation"]]
+    random_representation <- execution_plan[["random_covariance"]][["representation"]]
     if (identical(random_representation, "diagonal_factor")) {
       random_factor <-
         BayesTools::random_effects_marginal_diagonal_factor(
@@ -1506,18 +1458,16 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
           cache = covariance_plan_cache
         )
     } else {
-      random_covariance <- array(
-        .marglik_random_covariance_dense(marginal_random, K),
-        dim = c(1L, K, K)
+      random_covariance <- BayesTools::random_effects_marginal_factor_vcov(
+        marginal_random
       )
     }
   } else if (is_random && isTRUE(fixed_zero_random)) {
-    exact_setup <- .data_exact_selection_setup(model_data)
     if (identical(
-      exact_setup[["random_covariance"]][["representation"]],
+      execution_plan[["random_covariance"]][["representation"]],
       "diagonal_factor"
     )) {
-      ranks <- exact_setup[["random_covariance"]][["loading_ranks"]]
+      ranks <- execution_plan[["random_covariance"]][["loading_ranks"]]
       random_factor <- list(
         diagonal = matrix(0, nrow = 1L, ncol = K),
         loadings = lapply(seq_along(row_blocks), function(block_index) {
@@ -1537,96 +1487,15 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       random_covariance <- array(0, dim = c(1L, K, K))
     }
   }
-  covariance_lower <- function(rows, block_index) {
-
-    arguments <- list(
-      setup                     = factor_setup,
-      rows                      = rows,
-      random_covariance_samples = random_covariance
-    )
-    if (!is.null(random_factor)) {
-      arguments[["random_factor_samples"]] <- random_factor
-      arguments[["block_index"]] <- block_index
-    }
-    do.call(.selection_exact_covariance_lower, arguments)
-  }
-
-  selection_context <- .marglik_selection_context(parameters, data)
-  singleton_blocks  <- bridge_plan[["singleton_blocks"]]
-  log_lik           <- 0
-  if (length(singleton_blocks) > 0L) {
-    rows <- bridge_plan[["singleton_rows"]]
-    singleton_context <- selection_context
-    singleton_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
-    variances <- .selection_exact_singleton_variances(
-      setup                     = factor_setup,
-      rows                      = rows,
-      block_indices             = singleton_blocks,
-      random_covariance_samples = random_covariance,
-      random_factor_samples     = random_factor
-    )
-    log_lik <- log_lik + sum(.selection_exact_singleton_loglik_matrix(
-      yi                = data[["yi"]][rows],
-      means             = mu_samples[, rows, drop = FALSE],
-      variances         = variances,
-      sei               = data[["sei"]][rows],
-      selection_context = singleton_context
-    ))
-  }
-  if (length(singleton_blocks) == length(block_sizes)) {
-    return(log_lik)
-  }
-
-  for (block_index in bridge_plan[["dependent_blocks"]]) {
-    rows <- row_blocks[[block_index]]
-    method <- execution_plan[["block_methods"]][[block_index]]
-    block_context <- selection_context
-    block_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
-    if (method %in% c("rank_one", "factor")) {
-      components <- .selection_exact_factor_block_samples(
-        setup                 = factor_setup,
-        block_index           = block_index,
-        random_factor_samples = random_factor
-      )
-    }
-    if (method == "rank_one") {
-      log_lik <- log_lik + .selection_exact_cluster_loglik_block(
-        yi                = data[["yi"]][rows],
-        means             = mu_samples[, rows, drop = FALSE],
-        residual_sd       = components[["residual_sd"]],
-        loading           = components[["loading"]],
-        sei               = data[["sei"]][rows],
-        selection_context = block_context,
-        execution_plan  = execution_plan
-      )
-      next
-    }
-    if (method == "factor") {
-      log_lik <- log_lik + .selection_exact_factor_loglik_block(
-        yi                = data[["yi"]][rows],
-        means             = mu_samples[, rows, drop = FALSE],
-        residual_sd       = components[["residual_sd"]],
-        loading           = components[["loading"]],
-        sei               = data[["sei"]][rows],
-        selection_context = block_context,
-        execution_plan  = execution_plan,
-        block_index       = block_index
-      )
-      next
-    }
-
-    log_lik <- log_lik + .selection_exact_joint_loglik_block(
-      yi                = data[["yi"]][rows],
-      means             = mu_samples[, rows, drop = FALSE],
-      covariance_lower  = covariance_lower(rows, block_index),
-      sei               = data[["sei"]][rows],
-      selection_context = block_context,
-      execution_plan  = execution_plan,
-      block_size         = length(rows)
-    )
-  }
-
-  log_lik
+  factor_setup[["selection_sei"]] <- data[["sei"]]
+  sum(.selection_exact_block_loglik(
+    setup             = factor_setup,
+    yi                = data[["yi"]],
+    means             = mu_samples,
+    selection_context = .marglik_selection_context(parameters, data),
+    random_covariance = random_covariance,
+    random_factor     = random_factor
+  ))
 }
 
 
@@ -1843,16 +1712,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 
   value <- bridge_context[["marginalized_random"]][["mu"]]
   representation <- value[["representation"]]
-  if (is.null(representation) && !is.null(value[["covariance"]])) {
-    representation <- "dense"
-  }
-  if (identical(representation, "factor")) {
-    return(.marglik_bridge_random_covariance_factors(
-      value            = value,
-      K                = K,
-      validation_cache = validation_cache
-    ))
-  }
   if (identical(representation, "factor_state")) {
     return(.marglik_bridge_random_covariance_states(
       value            = value,
@@ -1900,6 +1759,14 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         call. = FALSE
       )
     }
+    if (!identical(value[["factor_plans"]], cached[["source_factor_plans"]])) {
+      stop("Bridge-marginalized random-effect factor-state plan changed between evaluations.",
+           call. = FALSE)
+    }
+    if (!identical(value[["row_blocks"]], cached[["source_row_blocks"]])) {
+      stop("Bridge-marginalized random-effect row blocks changed between evaluations.",
+           call. = FALSE)
+    }
     return(list(
       representation = "factor_state",
       contract_id = contract_id,
@@ -1923,21 +1790,21 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       call. = FALSE
     )
   }
-  factors <- Map(c, factor_plans, factor_states)
-  validated <- .marglik_bridge_random_covariance_factors(
-    value = list(
-      row_blocks = value[["row_blocks"]],
-      factors = factors
-    ),
-    K = K,
-    validation_cache = NULL
+  validated <- .marglik_validate_random_covariance_plans(
+    row_blocks = value[["row_blocks"]],
+    plans = factor_plans,
+    K = K
   )
   validated_plans  <- validated[["factor_plans"]]
-  validated_states <- validated[["factor_states"]]
+  validated_states <- .marglik_validate_random_covariance_factor_states(
+    states = factor_states, templates = validated_plans, K = K
+  )
   if (is.environment(validation_cache)) {
     validation_cache[["factor_state_validation"]] <- list(
       process_id = process_id,
       contract_id = contract_id,
+      source_factor_plans = factor_plans,
+      source_row_blocks = value[["row_blocks"]],
       row_blocks = validated[["row_blocks"]],
       factor_plans = validated_plans
     )
@@ -2036,34 +1903,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 }
 
 
-.marglik_bridge_random_covariance_factors <- function(
-    value, K, validation_cache = NULL) {
-
-  row_blocks <- value[["row_blocks"]]
-  factors    <- value[["factors"]]
-  process_id <- Sys.getpid()
-  cached <- if (is.environment(validation_cache)) {
-    validation_cache[["factor_validation"]]
-  } else {
-    NULL
-  }
-  if (!is.null(cached) && identical(cached[["process_id"]], process_id)) {
-    if (!identical(row_blocks, cached[["source_row_blocks"]])) {
-      stop(
-        "Bridge-marginalized random-effect row blocks changed between evaluations.",
-        call. = FALSE
-      )
-    }
-    factors <- .marglik_validate_random_covariance_factor_values(
-      factors   = factors,
-      templates = cached[["factors"]],
-      K         = K
-    )
-    return(.marglik_canonical_random_covariance_factors(
-      row_blocks = cached[["row_blocks"]],
-      factors    = factors
-    ))
-  }
+.marglik_validate_random_covariance_plans <- function(row_blocks, plans, K) {
 
   if (!is.list(row_blocks) || length(row_blocks) == 0L) {
     stop(
@@ -2088,179 +1928,19 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       call. = FALSE
     )
   }
-  if (!is.list(factors) || length(factors) == 0L) {
-    stop(
-      "Bridge-marginalized random-effect covariance factors are missing.",
-      call. = FALSE
-    )
-  }
-  factors <- lapply(
-    factors,
-    .marglik_validate_random_covariance_factor,
+  plans <- lapply(
+    plans,
+    .marglik_validate_random_covariance_plan,
     K = K
   )
-  if (is.environment(validation_cache)) {
-    validation_cache[["factor_validation"]] <- list(
-      process_id        = process_id,
-      source_row_blocks = value[["row_blocks"]],
-      row_blocks        = row_blocks,
-      factors           = factors
-    )
-  }
-
-  .marglik_canonical_random_covariance_factors(
-    row_blocks = row_blocks,
-    factors    = factors
-  )
-}
-
-
-.marglik_canonical_random_covariance_factors <- function(row_blocks, factors) {
 
   list(
-    representation = "factor_state",
-    row_blocks      = row_blocks,
-    factor_plans    = lapply(factors, .marglik_covariance_factor_plan),
-    factor_states   = lapply(factors, .marglik_covariance_factor_state)
+    row_blocks = row_blocks,
+    factor_plans = plans
   )
 }
 
 
-.marglik_validate_random_covariance_factor_values <- function(
-    factors, templates, K) {
-
-  if (!is.list(factors) || length(factors) != length(templates)) {
-    stop(
-      "Bridge-marginalized random-effect covariance factors changed between evaluations.",
-      call. = FALSE
-    )
-  }
-
-  out <- vector("list", length(factors))
-  for (factor_i in seq_along(factors)) {
-    factor   <- factors[[factor_i]]
-    template <- templates[[factor_i]]
-    factor_coefficient_structure <- factor[["coefficient_structure"]]
-    if (is.null(factor_coefficient_structure)) {
-      factor_coefficient_structure <- "dense"
-    }
-    if (!is.list(factor) || !identical(factor[["type"]], template[["type"]]) ||
-        !identical(factor_coefficient_structure,
-                   template[["coefficient_structure"]])) {
-      stop(
-        "Bridge-marginalized random-effect covariance factor structure changed between evaluations.",
-        call. = FALSE
-      )
-    }
-    type <- template[["type"]]
-    if (identical(type, "dense")) {
-      out[[factor_i]] <- list(
-        type = type,
-        covariance = .marglik_validate_random_covariance_matrix(
-          factor[["covariance"]],
-          K
-        )
-      )
-      next
-    }
-
-    model_matrix <- factor[["model_matrix"]]
-    group_map    <- factor[["group_map"]]
-    if (!is.matrix(model_matrix) || !is.numeric(model_matrix) ||
-        !identical(dim(model_matrix), dim(template[["model_matrix"]]))) {
-      stop(
-        "Bridge-marginalized random-effect design matrix structure changed between evaluations.",
-        call. = FALSE
-      )
-    }
-    if (!identical(model_matrix, template[["model_matrix"]])) {
-      stop(
-        "Bridge-marginalized random-effect design matrix changed between evaluations.",
-        call. = FALSE
-      )
-    }
-    if (!is.numeric(group_map) || length(group_map) != K || anyNA(group_map) ||
-        any(!is.finite(group_map)) || any(group_map != as.integer(group_map)) ||
-        any(group_map < 1L)) {
-      stop("Bridge-marginalized random-effect group mapping is invalid.",
-           call. = FALSE)
-    }
-    group_map <- as.integer(group_map)
-    if (!identical(group_map, template[["group_map"]])) {
-      stop(
-        "Bridge-marginalized random-effect group mapping changed between evaluations.",
-        call. = FALSE
-      )
-    }
-    n_columns <- ncol(template[["model_matrix"]])
-    coefficient_factor <- factor[["coefficient_factor"]]
-    if (!is.matrix(coefficient_factor) || !is.numeric(coefficient_factor) ||
-        !identical(dim(coefficient_factor), c(n_columns, n_columns)) ||
-        anyNA(coefficient_factor) || any(!is.finite(coefficient_factor))) {
-      stop("Bridge-marginalized random-effect coefficient factor is invalid.",
-           call. = FALSE)
-    }
-    coefficient_covariance <- factor[["coefficient_covariance"]]
-    if (!is.null(coefficient_covariance)) {
-      coefficient_covariance <- .marglik_validate_random_covariance_matrix(
-        coefficient_covariance,
-        n_columns
-      )
-      if (!isTRUE(all(coefficient_covariance ==
-                      tcrossprod(coefficient_factor)))) {
-        stop(
-          "Bridge-marginalized random-effect coefficient covariance and factor disagree.",
-          call. = FALSE
-        )
-      }
-    }
-
-    value <- list(
-      type                   = type,
-      model_matrix           = model_matrix,
-      group_map              = group_map,
-      coefficient_structure  = template[["coefficient_structure"]],
-      coefficient_factor     = coefficient_factor
-    )
-    if (identical(template[["coefficient_structure"]], "markov")) {
-      value <- c(
-        value,
-        .marglik_validate_random_covariance_markov_state(
-          factor,
-          n_columns
-        )
-      )
-    }
-    if (!is.null(coefficient_covariance)) {
-      value[["coefficient_covariance"]] <- coefficient_covariance
-    }
-    if (identical(type, "row_group")) {
-      row_scale <- factor[["row_scale"]]
-      if (!is.numeric(row_scale) || length(row_scale) != K ||
-          anyNA(row_scale) || any(!is.finite(row_scale)) ||
-          any(row_scale < 0)) {
-        stop("Bridge-marginalized random-effect row scale is invalid.",
-             call. = FALSE)
-      }
-      value[["row_scale"]] <- as.double(row_scale)
-    } else if (identical(type, "known_group")) {
-      group_covariance <- .marglik_validate_random_covariance_matrix(
-        factor[["group_covariance"]],
-        nrow(template[["group_covariance"]])
-      )
-      if (!identical(group_covariance, template[["group_covariance"]])) {
-        stop(
-          "Bridge-marginalized known group covariance changed between evaluations.",
-          call. = FALSE
-        )
-      }
-      value[["group_covariance"]] <- group_covariance
-    }
-    out[[factor_i]] <- value
-  }
-
-  out
-}
 
 
 .marglik_validate_random_covariance_markov_state <- function(factor,
@@ -2292,7 +1972,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 }
 
 
-.marglik_validate_random_covariance_factor <- function(factor, K) {
+.marglik_validate_random_covariance_plan <- function(factor, K) {
 
   if (!is.list(factor) || !is.character(factor[["type"]]) ||
       length(factor[["type"]]) != 1L || is.na(factor[["type"]])) {
@@ -2301,13 +1981,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
   type <- factor[["type"]]
   if (identical(type, "dense")) {
-    return(list(
-      type = type,
-      covariance = .marglik_validate_random_covariance_matrix(
-        factor[["covariance"]],
-        K
-      )
-    ))
+    return(list(type = type))
   }
   if (!type %in% c("group", "row_group", "known_group")) {
     stop("Bridge-marginalized random-effect covariance factor type is unknown.",
@@ -2328,11 +2002,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
          call. = FALSE)
   }
   group_map <- as.integer(group_map)
-  n_columns <- ncol(model_matrix)
   coefficient_structure <- factor[["coefficient_structure"]]
-  if (is.null(coefficient_structure)) {
-    coefficient_structure <- "dense"
-  }
   if (!is.character(coefficient_structure) ||
       length(coefficient_structure) != 1L ||
       is.na(coefficient_structure) ||
@@ -2342,55 +2012,13 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       call. = FALSE
     )
   }
-  coefficient_factor <- factor[["coefficient_factor"]]
-  if (!is.matrix(coefficient_factor) || !is.numeric(coefficient_factor) ||
-      !identical(dim(coefficient_factor), c(n_columns, n_columns)) ||
-      anyNA(coefficient_factor) || any(!is.finite(coefficient_factor))) {
-    stop("Bridge-marginalized random-effect coefficient factor is invalid.",
-         call. = FALSE)
-  }
-  coefficient_covariance <- factor[["coefficient_covariance"]]
-  if (!is.null(coefficient_covariance)) {
-    coefficient_covariance <- .marglik_validate_random_covariance_matrix(
-      coefficient_covariance,
-      n_columns
-    )
-    if (!isTRUE(all(coefficient_covariance ==
-                    tcrossprod(coefficient_factor)))) {
-      stop(
-        "Bridge-marginalized random-effect coefficient covariance and factor disagree.",
-        call. = FALSE
-      )
-    }
-  }
   if (type %in% c("group", "row_group")) {
     out <- list(
       type = type,
       model_matrix = model_matrix,
       group_map = group_map,
-      coefficient_structure = coefficient_structure,
-      coefficient_factor = coefficient_factor
+      coefficient_structure = coefficient_structure
     )
-    if (identical(coefficient_structure, "markov")) {
-      markov_state <- .marglik_validate_random_covariance_markov_state(
-        factor,
-        n_columns
-      )
-      out <- c(out, markov_state)
-    }
-    if (!is.null(coefficient_covariance)) {
-      out[["coefficient_covariance"]] <- coefficient_covariance
-    }
-    if (identical(type, "row_group")) {
-      row_scale <- factor[["row_scale"]]
-      if (!is.numeric(row_scale) || length(row_scale) != K ||
-          anyNA(row_scale) || any(!is.finite(row_scale)) ||
-          any(row_scale < 0)) {
-        stop("Bridge-marginalized random-effect row scale is invalid.",
-             call. = FALSE)
-      }
-      out[["row_scale"]] <- as.double(row_scale)
-    }
     return(out)
   }
 
@@ -2410,12 +2038,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     model_matrix = model_matrix,
     group_map = group_map,
     group_covariance = group_covariance,
-    coefficient_structure = coefficient_structure,
-    coefficient_factor = coefficient_factor
+    coefficient_structure = coefficient_structure
   )
-  if (!is.null(coefficient_covariance)) {
-    out[["coefficient_covariance"]] <- coefficient_covariance
-  }
   out
 }
 
@@ -2772,45 +2396,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 }
 
 
-.marglik_covariance_factor_plan <- function(factor) {
-
-  if (identical(factor[["type"]], "dense")) {
-    return(list(type = "dense"))
-  }
-
-  plan <- factor[c(
-    "type",
-    "model_matrix",
-    "group_map",
-    "coefficient_structure"
-  )]
-  if (identical(factor[["type"]], "known_group")) {
-    plan[["group_covariance"]] <- factor[["group_covariance"]]
-  }
-  plan
-}
-
-
-.marglik_covariance_factor_state <- function(factor) {
-
-  if (identical(factor[["type"]], "dense")) {
-    return(list(covariance = factor[["covariance"]]))
-  }
-
-  state <- list(
-    coefficient_factor = factor[["coefficient_factor"]]
-  )
-  if (identical(factor[["coefficient_structure"]], "markov")) {
-    state[["coefficient_scale"]] <- factor[["coefficient_scale"]]
-    state[["markov_transition"]] <- factor[["markov_transition"]]
-    state[["markov_innovation_variance"]] <-
-      factor[["markov_innovation_variance"]]
-  }
-  if (identical(factor[["type"]], "row_group")) {
-    state[["row_scale"]] <- factor[["row_scale"]]
-  }
-  state
-}
 
 
 .marglik_known_v_extra_variance <- function(parameters, model_data,

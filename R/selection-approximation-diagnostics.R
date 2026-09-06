@@ -50,12 +50,29 @@
 #' operational notification boundaries, not universal statistical adequacy
 #' standards.
 #'
+#' The default diagnostic is computed and stored when an approximate
+#' `bselmodel.mv()` fit finishes. Calls without simulation arguments return
+#' the stored result; explicitly supplied settings reuse it only when they
+#' match. Printing the model or its summary repeats the stored diagnostic's
+#' notification without rerunning the simulation. Chain extension refreshes
+#' the diagnostic using its stored settings; label-only updates do not.
+#'
+#' Use `add_selection_approximation_diagnostics()` to attach the diagnostic to
+#' an existing fit or store a result computed with different simulation
+#' settings. This function recomputes the diagnostic; assign its returned model
+#' object. A failure of the automatic diagnostic is stored and reported as
+#' unavailable without discarding the fitted posterior; explicitly requesting
+#' the unavailable result raises the diagnostic error.
+#'
 #' @return A data frame with one row per connected dependency block. The
 #'   `q05`, `median`, and `q95` columns summarize the posterior distribution of
 #'   the ESS fraction, total-variation distance, and interquartile range of
 #'   `log(W)`. The `mcse_median` and `mcse_max` columns summarize conditional
 #'   Monte Carlo standard errors across posterior draws. Remaining columns
 #'   identify the block and record the posterior and latent simulation budgets.
+#'   The simulation settings are retained in the `settings` attribute.
+#'   `add_selection_approximation_diagnostics()` returns the fitted object with
+#'   the diagnostic stored.
 #'
 #' @seealso [bselmodel.mv()], [set_selection_likelihood_control()]
 #'
@@ -70,12 +87,25 @@ selection_approximation_diagnostics <- function(
       call. = FALSE
     )
   }
+  if (is.null(object[["fit"]])) {
+    stop("'object' must contain a fitted posterior.", call. = FALSE)
+  }
   if (!identical(.data_selection_likelihood(object[["data"]]), "approximate")) {
     stop(
       "'selection_approximation_diagnostics()' requires a model fitted with ",
       "'selection_likelihood = \"approximate\"'.",
       call. = FALSE
     )
+  }
+
+  cached <- object[["selection_approximation_diagnostics"]]
+  if (!is.null(cached) && missing(max_posterior_samples) &&
+      missing(latent_samples) && missing(seed)) {
+    if (inherits(cached, "error")) {
+      stop(cached)
+    }
+    .selection_approximation_notify_result(cached)
+    return(cached)
   }
 
   max_posterior_samples <- .normalize_max_samples(
@@ -96,6 +126,88 @@ selection_approximation_diagnostics <- function(
     stop("'seed' must be a single non-negative integer.", call. = FALSE)
   }
   seed <- as.integer(seed)
+  settings <- list(
+    max_posterior_samples = max_posterior_samples,
+    latent_samples        = latent_samples,
+    seed                  = seed
+  )
+  if (!is.null(cached) && identical(attr(cached, "settings"), settings)) {
+    if (inherits(cached, "error")) {
+      stop(cached)
+    }
+    .selection_approximation_notify_result(cached)
+    return(cached)
+  }
+
+  result <- .compute_selection_approximation_diagnostics(
+    object                = object,
+    max_posterior_samples = max_posterior_samples,
+    latent_samples        = latent_samples,
+    seed                  = seed
+  )
+  .selection_approximation_notify_result(result)
+  return(result)
+}
+
+
+#' @rdname selection_approximation_diagnostics
+#' @param ... Simulation arguments passed to
+#'   `selection_approximation_diagnostics()`.
+#' @export
+add_selection_approximation_diagnostics <- function(object, ...) {
+
+  object[["selection_approximation_diagnostics"]] <- NULL
+  object[["selection_approximation_diagnostics"]] <-
+    selection_approximation_diagnostics(object, ...)
+  return(object)
+}
+
+
+.refresh_selection_approximation_diagnostics <- function(object) {
+
+  if (!inherits(object, "bselmodel.mv") ||
+      !identical(.data_selection_likelihood(object[["data"]]), "approximate")) {
+    return(object)
+  }
+
+  settings <- attr(object[["selection_approximation_diagnostics"]], "settings")
+  object[["selection_approximation_diagnostics"]] <- NULL
+  result <- tryCatch(
+    do.call(
+      .compute_selection_approximation_diagnostics,
+      c(list(object = object), settings)
+    ),
+    error = function(error) error
+  )
+  if (inherits(result, "error")) {
+    attr(result, "settings") <- settings
+  }
+  object[["selection_approximation_diagnostics"]] <- result
+  .selection_approximation_notify_result(result)
+  return(object)
+}
+
+
+.selection_approximation_notify_result <- function(result) {
+
+  if (is.null(result)) {
+    return(invisible(NULL))
+  }
+  if (inherits(result, "error")) {
+    warning(
+      "Selection-approximation diagnostics are unavailable: ",
+      conditionMessage(result),
+      call. = FALSE
+    )
+  } else {
+    .selection_approximation_notify(result[["total_variation_median"]])
+  }
+  invisible(NULL)
+}
+
+
+.compute_selection_approximation_diagnostics <- function(
+    object, max_posterior_samples = 256L, latent_samples = 512L, seed = 1L) {
 
   rng_kind <- RNGkind()
   has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
@@ -120,10 +232,31 @@ selection_approximation_diagnostics <- function(
     warn              = FALSE
   )
   posterior_samples <- sample_info[["posterior_samples"]]
-  setup <- .estimate_likelihood_setup.brma(
-    object                  = object,
-    posterior_samples       = posterior_samples,
-    condition_local_effects = FALSE
+  data   <- object[["data"]]
+  priors <- object[["priors"]]
+  # The diagnostic adds fresh latent effects, never their fitted realizations.
+  means <- .evaluate.brma.mu(
+    fit               = object[["fit"]],
+    outcome_data      = data[["outcome"]],
+    mods_data         = data[["mods"]],
+    mods_formula      = if (.is_mods(object)) {
+      .create_fit_formula_list(data = data, "mods")
+    } else {
+      NULL
+    },
+    mods_priors       = if (.is_random(object)) {
+      priors[["location"]]
+    } else {
+      priors[["mods"]]
+    },
+    priors            = priors,
+    is_mods           = .is_mods(object),
+    is_PET            = .is_PET(object),
+    is_PEESE          = .is_PEESE(object),
+    effect_direction  = .effect_direction(object),
+    bias_adjusted     = FALSE,
+    K                 = nrow(data[["outcome"]]),
+    posterior_samples = posterior_samples
   )
   selection_context <- .selection_context(object, posterior_samples)
   if (is.null(selection_context)) {
@@ -170,9 +303,9 @@ selection_approximation_diagnostics <- function(
   }
 
   result <- .selection_approximation_run(
-    means               = setup[["mu"]],
+    means               = means,
     residual_variance   = residual_variance,
-    selection_sei       = setup[["selection_sei"]],
+    selection_sei       = .outcome_data_sei(object),
     selection_context   = selection_context,
     factor_plans        = plan[["random_covariance_plans"]],
     factor_states       = plan[["random_covariance_states"]],
@@ -183,7 +316,11 @@ selection_approximation_diagnostics <- function(
   result[["posterior_samples"]]       <- sample_info[["n_used"]]
   result[["total_posterior_samples"]] <- sample_info[["n_total"]]
   result[["latent_samples"]]          <- latent_samples
-  .selection_approximation_notify(result[["total_variation_median"]])
+  attr(result, "settings") <- list(
+    max_posterior_samples = max_posterior_samples,
+    latent_samples        = latent_samples,
+    seed                  = seed
+  )
   result
 }
 

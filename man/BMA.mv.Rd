@@ -187,7 +187,11 @@ but affect only the latent backend. When \code{"auto"} selects \code{"whitened"}
 Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
 supplied. For a factor representation declared by \code{\link[=vcalc2]{vcalc2()}} or
 \code{\link[=known_v_factor]{known_v_factor()}}, the declared diagonal is the exact residual variance and
-this argument is disregarded with a warning when supplied explicitly.}
+this argument is disregarded with a warning when supplied explicitly.
+Approximate selection likelihoods condition on the declared factors when
+available; otherwise this argument controls their sampling decomposition.
+Different decompositions of the same covariance can define different
+approximate selection likelihoods.}
 
 \item{marginalize_estimate_level}{logical; should a one-to-one estimate-level
 random-intercept block be integrated into the likelihood variance instead of

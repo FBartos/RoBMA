@@ -57,14 +57,26 @@ form displays the non-empty tables. Intercept-only multivariate location
 models label their sole coefficient \code{mu}, consistently with ordinary
 meta-analysis models. Once location moderators are present, the coefficient
 is labeled \code{intercept}; an intercept fixed at zero is omitted.
+Scale tables label the baseline SD as \code{exp(intercept)}; its estimates are
+already exponentiated. Other scale coefficients remain on the log-SD scale.
+Multivariate scale rows identify their targeted random-effect SD, total SD
+(\code{sd_total}), or mean-variance allocation scale (\code{sd_common}). The baseline
+corresponds to zero non-intercept design columns under the fitted contrasts
+and the requested predictor standardization.
 The random table reports the quantities aligned with prior specification;
 use \code{\link[=summary_heterogeneity]{summary_heterogeneity()}} for aggregate variances and the complete family
 of deterministic allocation transforms.
+This reporting rule is the same for \code{brma.mv()} and \code{BMA.mv()}: component
+SDs derived from a variance allocation appear only in \code{\link[=summary_heterogeneity]{summary_heterogeneity()}}.
+Printing an approximate \code{bselmodel.mv()} model or its summary also reports
+any notification from its stored \code{\link[=selection_approximation_diagnostics]{selection_approximation_diagnostics()}}
+result without recomputing the diagnostic.
 }
 \description{
 \code{summary.brma} creates summary tables for a
 brma object. For RoBMA objects, inclusion summaries are printed before
-parameter estimates.
+parameter estimates. Random-effect inclusion rows name the corresponding
+SD quantity, retaining component prefixes where needed.
 }
 \examples{
 \dontrun{

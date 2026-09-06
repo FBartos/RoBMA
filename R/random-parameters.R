@@ -857,12 +857,22 @@
   source    <- selected[["spec"]][["source_parameter"]]
   source_type <- selected[["spec"]][["source_type"]]
   type      <- selected[["spec"]][["quantity"]]
-  posterior <- as.matrix(object[["fit"]][["mcmc"]])
+  posterior <- as.matrix(.get_posterior_samples(object[["fit"]]))
   conditioning_exclude <- .brma_random_parameter_simplex_exclusions(
     object,
     posterior
   )
   display_transform <- selected[["spec"]][["display_transform"]]
+  allocation <- selected[["allocation_definition"]]
+  gate_metadata <- .brma_random_parameter_allocation_gate_metadata(selected)
+  shared_gate_proportion <- identical(type, "var_prop") &&
+    !is.null(gate_metadata) && length(allocation[["inclusion"]]) == 0L
+  if (shared_gate_proportion) {
+    source            <- allocation[["weight_name"]]
+    source_type       <- "identity"
+    display_transform <- list(type = "identity")
+    selected[["source_prior"]] <- attr(object[["fit"]], "prior_list")[[source]]
+  }
   if (source_type %in% c("identity", "one_to_one_transform") &&
       !is.na(source) && nzchar(source) &&
       source %in% colnames(posterior) &&
@@ -914,6 +924,7 @@
             auxiliary_columns    = auxiliary_columns,
             conditioning_exclude = columns,
             covariance_update    = covariance_update,
+            gate_metadata        = gate_metadata,
             prior_density        =
               .brma_random_parameter_allocation_source_prior(selected)
           ),
@@ -923,7 +934,7 @@
     }
   }
 
-  if (identical(type, "sd")) {
+  if (type %in% c("sd", "sd_total", "sd_common")) {
     target <- .brma_random_parameter_component_density_target(
       object               = object,
       selected             = selected,
@@ -952,37 +963,53 @@
 
   formula_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
   spec <- selected[["spec"]]
-  if (!identical(spec[["source_type"]], "composite") ||
-      !identical(spec[["evaluator"]], "sd") ||
-      !isTRUE(spec[["allocation_derived"]])) {
+  if (!identical(spec[["source_type"]], "composite")) {
     return(NULL)
   }
-  term <- .brma_random_parameter_design_term(
-    formula_design,
-    spec
-  )
-  if (is.null(term) || !.marginalized_random_effect_has_allocation(term)) {
+  if (identical(spec[["evaluator"]], "allocation_sd")) {
+    allocation <- selected[["allocation_definition"]]
+    if (is.null(allocation) || length(allocation[["inclusion"]]) > 0L) {
+      return(NULL)
+    }
+    factors <- allocation[["parent_factors"]]
+  } else if (identical(spec[["evaluator"]], "sd") &&
+             isTRUE(spec[["allocation_derived"]])) {
+    term <- .brma_random_parameter_design_term(formula_design, spec)
+    if (is.null(term) || !.marginalized_random_effect_has_allocation(term)) {
+      return(NULL)
+    }
+    allocation <- term[["sd_binding"]][["allocations"]][[1L]]
+    column <- .brma_random_parameter_component_column(term, spec)
+    if (is.na(column)) {
+      return(NULL)
+    }
+    factors <- .marginalized_random_effect_allocation_factors(term, column = column)
+  } else {
     return(NULL)
   }
-
-  allocation <- term[["sd_binding"]][["allocations"]][[1L]]
-  source     <- allocation[["source"]]
-  column     <- .brma_random_parameter_component_column(
-    term,
-    spec
-  )
-  if (is.na(column)) {
-    return(NULL)
-  }
-  factors <- .marginalized_random_effect_allocation_factors(
-    term,
-    column = column
-  )
+  source <- allocation[["source"]]
   if (!is.list(source) || !identical(source[["shape"]], "scalar") ||
       length(factors) == 0L) {
     return(NULL)
   }
 
+  indicators <- unique(unlist(lapply(factors, `[[`, "inclusion_name")))
+  gate_metadata <- if (length(indicators) > 0L) list(
+    quantity             = "sd_total",
+    component_indicators = NA_character_,
+    parent_indicators    = indicators
+  ) else NULL
+  # Inclusion gates determine atoms; continuous rows retain the fitted weights.
+  factors <- lapply(factors, function(factor) {
+
+    factor[["inclusion_name"]] <- NULL
+    factor
+  })
+  gate_only <- vapply(factors, function(factor) {
+
+    is.null(factor[["weight_name"]]) && identical(factor[["n_targets"]], 1L)
+  }, logical(1))
+  factors <- factors[!gate_only]
   source_parameter <- source[["name"]]
   factors          <- lapply(factors, .brma_random_parameter_density_factor)
   if (!is.character(source_parameter) || length(source_parameter) != 1L ||
@@ -1004,6 +1031,19 @@
     return(NULL)
   }
 
+  if (length(factors) == 0L) {
+    return(list(
+      parameter      = source_parameter,
+      parameter_spec = list(
+        type                 = "primitive",
+        target_columns       = source_parameter,
+        conditioning_exclude = conditioning_exclude,
+        covariance_update    = covariance_update,
+        gate_metadata        = gate_metadata
+      )
+    ))
+  }
+
   auxiliary_columns <- unique(unlist(lapply(factors, function(factor) {
     .iwmde_simplex_auxiliary_columns(
       factor[["weight_name"]],
@@ -1021,7 +1061,8 @@
       factor_columns       = factor_columns,
       auxiliary_columns    = auxiliary_columns,
       conditioning_exclude = conditioning_exclude,
-      covariance_update    = covariance_update
+      covariance_update    = covariance_update,
+      gate_metadata        = gate_metadata
     )
   ))
 }

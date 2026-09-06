@@ -80,6 +80,11 @@
   if (length(structure_key) > 0L) {
     structure_key <- paste0(names(structure_key), "=", structure_key)
   }
+  if (!is.null(parameter_spec[["gate_metadata"]])) {
+    structure_key <- c(structure_key, .iwmde_hash(
+      "random_inclusion", parameter_spec[["gate_metadata"]]
+    ))
+  }
 
   if (identical(parameter_spec[["type"]], "linear")) {
     weights <- parameter_spec[["weights"]]

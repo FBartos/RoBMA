@@ -266,10 +266,15 @@
   sampling_factors <- .known_v_sampling_factor_plan(
     known_V = known_V
   )
+  latent_variances <- random_variance
   if (is.null(sampling_factors)) {
     sampling_covariance <- .known_v_covariance_matrix(known_V)
   } else {
     sampling_covariance <- sampling_factors[["sampling_covariance"]]
+    latent_variances <- sweep(
+      latent_variances, 2L,
+      rowSums(sampling_factors[["factor_plan"]][["model_matrix"]]^2), "+"
+    )
     random_factors[["factor_plans"]] <- c(
       random_factors[["factor_plans"]],
       list(sampling_factors[["factor_plan"]])
@@ -288,6 +293,7 @@
     random_covariance_states = random_factors[["factor_states"]],
     block_indices            = dependency_blocks,
     extra_variances          = extra_variance,
+    latent_variances         = latent_variances,
     covariance_diagonal      = covariance_diagonal
   ))
 }

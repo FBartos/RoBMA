@@ -11,6 +11,7 @@
   significance_level = stats::qnorm(0.975),
   summary_max_samples = 10000,
   conditioning_depth = "marginal",
+  integration_control = set_selection_likelihood_control(),
   ...
 )
 
@@ -31,6 +32,13 @@ by \code{plot.zplot_brma()} through \code{...}. Defaults to 10000. Use
 
 \item{conditioning_depth}{predictive conditioning depth passed to
 \code{as_zplot()}. Defaults to \code{"marginal"}.}
+
+\item{integration_control}{numerical integration settings created by
+\code{set_selection_likelihood_control()}. These control integration within
+each posterior draw, independently of \code{max_samples}. Factor blocks use
+converged Gauss-Hermite quadrature where possible; other blocks use adaptive
+randomized quasi-Monte Carlo. The relative diagnostic compares density error
+with the peak of each draw's curve and also checks the selection normalizer.}
 
 \item{...}{arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.}
 }

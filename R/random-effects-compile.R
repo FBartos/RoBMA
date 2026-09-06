@@ -161,6 +161,20 @@
     )
   }
   .brma_mv_check_singular_v_regularization(object)
+  if (is_exact_selection && !only_priors &&
+      !object[["fit_control"]][["silent"]] &&
+      .is_data_known_v(object[["data"]])) {
+    plan <- .data_exact_selection_setup(object[["data"]])
+    if (identical(plan[["sampling"]][["representation"]], "dense") &&
+        any(plan[["block_methods"]] == "dense")) {
+      message(
+        "Exact selection fitting is using general covariance integration. ",
+        "If the construction of 'V' is available, 'vcalc2()' may enable faster ",
+        "fitting for supported covariance structures. Ordinary covariance ",
+        "matrices remain fully supported."
+      )
+    }
+  }
   .fit_and_finalize_object(object, only_priors = only_priors)
 }
 

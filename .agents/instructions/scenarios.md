@@ -206,6 +206,20 @@ consent to a slower baseline. Compare against the old baseline before applying
 automatic or explicit updates. Record R version and platform as informational
 provenance without automatically invalidating the baseline.
 
+Use `plot_scenario_times()` to draw horizontal elapsed-time boxplots from the
+committed baselines for one exact scenario or across scenarios. It classifies
+individually named calls conservatively, omitting aggregate `fit` rows,
+`.new.tsv` candidates, and unmatched compound timings. Selection-model fit
+boxes distinguish exact and approximate likelihoods. Its `unit` argument sets
+seconds, minutes, or hours on the x-axis without changing stored values.
+
+Use `plot_marginal_diagnostics()` for metafor-to-RoBMA or RoBMA-to-RoBMA
+diagnostic comparisons. Both RoBMA inputs must use explicit marginal targets;
+label two RoBMA fits with `reference_label` and `estimate_label` when their
+distinction matters. If either fit inherits from `bselmodel`, compare only raw
+residuals and DFBETAS; rstandard, hat values, and Cook's distance are
+structurally unavailable for weight-function selection models.
+
 Do not use output updating or regeneration merely to make a scenario pass.
 Replace baselines only when the maintainer explicitly requests, approves, or
 interactively accepts the change, and review every resulting diff.

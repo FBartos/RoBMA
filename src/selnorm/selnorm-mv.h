@@ -1,6 +1,22 @@
 #ifndef ROBMA_SELNORM_MV_H
 #define ROBMA_SELNORM_MV_H
 
+// Rao-Blackwellized scalar marginals of a finite-vector selected Gaussian.
+// The error is the largest absolute density MCSE, relative to the curve peak.
+struct SelNormZProjection {
+  const double *z;
+  int size;
+  double *density;
+  double relative_error;
+  bool probability;
+  const double *factor_loading;
+  const double *residual_sd;
+  int rank;
+  const double *nodes;
+  const double *log_weights;
+  int order;
+};
+
 double cpp_selnorm_mnorm_step_lpdf(
   const double *x,
   const double *mean,
@@ -18,7 +34,8 @@ double cpp_selnorm_mnorm_step_lpdf(
   const double *qmc,
   int points,
   int scrambles,
-  double *relative_mcse
+  double *relative_mcse,
+  SelNormZProjection *projection = nullptr
 );
 
 double cpp_selnorm_cluster_step_lpdf(
@@ -41,7 +58,8 @@ double cpp_selnorm_cluster_step_lpdf(
   const double *quadrature_orders,
   int quadrature_rule_count,
   double relative_tolerance,
-  double *relative_change
+  double *relative_change,
+  const long double *quadrature_weights = nullptr
 );
 
 double cpp_selnorm_factor_step_lpdf(

@@ -196,7 +196,11 @@ but affect only the latent backend. When \code{"auto"} selects \code{"whitened"}
 Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
 supplied. For a factor representation declared by \code{\link[=vcalc2]{vcalc2()}} or
 \code{\link[=known_v_factor]{known_v_factor()}}, the declared diagonal is the exact residual variance and
-this argument is disregarded with a warning when supplied explicitly.}
+this argument is disregarded with a warning when supplied explicitly.
+Approximate selection likelihoods condition on the declared factors when
+available; otherwise this argument controls their sampling decomposition.
+Different decompositions of the same covariance can define different
+approximate selection likelihoods.}
 
 \item{marginalize_estimate_level}{logical; should a one-to-one estimate-level
 random-intercept block be integrated into the likelihood variance instead of
@@ -267,6 +271,14 @@ likelihood is used. The automatic known-\code{V} backend resolves to \code{"late
 for this approximate target; explicitly requesting \code{"whitened"} or
 \code{"block_mvn"} is rejected because those transformations do not preserve
 estimate-level selection events.
+The approximate likelihood conditions on the structural sampling factors
+retained by \code{\link[=vcalc2]{vcalc2()}} or declared by \code{\link[=known_v_factor]{known_v_factor()}} when available.
+Ordinary covariance matrices remain supported and use the decomposition
+controlled by \code{known_v_residual_fraction}. These decompositions can define
+different approximate likelihoods for the same covariance. Structural
+factors can improve computational efficiency, but are not guaranteed to
+improve agreement with the exact likelihood. Models supplied with \code{vi} or
+\code{sei} instead of \code{V} are unaffected by this distinction.
 
 \code{marginalize_estimate_level} applies only to the approximate likelihood. The
 exact likelihood necessarily marginalizes every Gaussian random-effect block

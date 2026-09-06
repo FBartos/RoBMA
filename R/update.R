@@ -40,6 +40,10 @@
 #' cannot be restarted from a new seed without changing the meaning of chain
 #' continuation.
 #'
+#' Approximate \code{bselmodel.mv()} selection diagnostics are always refreshed
+#' after chain extension using their stored simulation settings, independently
+#' of \code{recompute}. Label-only updates retain the stored diagnostic.
+#'
 #' Named \code{NULL} elements in \code{autofit_control} and
 #' \code{convergence_checks} explicitly disable or clear the corresponding
 #' nullable setting. Omitted elements, a top-level \code{NULL}, and an empty
@@ -129,6 +133,7 @@ update.brma <- function(
     object <- .extend_brma_fit_once(object)
     object[["summary"]]      <- .object_summary(object)
     object[["coefficients"]] <- .object_coefficients(object)
+    object <- .refresh_selection_approximation_diagnostics(object)
     object <- .refresh_brma_fit_cache(
       object    = object,
       cached    = cached,

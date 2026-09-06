@@ -2,6 +2,7 @@
 % Please edit documentation in R/selection-approximation-diagnostics.R
 \name{selection_approximation_diagnostics}
 \alias{selection_approximation_diagnostics}
+\alias{add_selection_approximation_diagnostics}
 \title{Diagnose the Conditional Selection-Likelihood Approximation}
 \usage{
 selection_approximation_diagnostics(
@@ -10,6 +11,8 @@ selection_approximation_diagnostics(
   latent_samples = 512L,
   seed = 1L
 )
+
+add_selection_approximation_diagnostics(object, ...)
 }
 \arguments{
 \item{object}{A fitted \code{\link[=bselmodel.mv]{bselmodel.mv()}} object using
@@ -24,6 +27,9 @@ posterior draw. Defaults to \code{512}.}
 
 \item{seed}{Integer seed for the diagnostic simulation. The calling R
 session's random-number state is restored before returning.}
+
+\item{...}{Simulation arguments passed to
+\code{selection_approximation_diagnostics()}.}
 }
 \value{
 A data frame with one row per connected dependency block. The
@@ -32,6 +38,9 @@ the ESS fraction, total-variation distance, and interquartile range of
 \code{log(W)}. The \code{mcse_median} and \code{mcse_max} columns summarize conditional
 Monte Carlo standard errors across posterior draws. Remaining columns
 identify the block and record the posterior and latent simulation budgets.
+The simulation settings are retained in the \code{settings} attribute.
+\code{add_selection_approximation_diagnostics()} returns the fitted object with
+the diagnostic stored.
 }
 \description{
 Quantifies how strongly estimate-level selection would reweight the latent
@@ -67,6 +76,20 @@ values up to \code{0.05} are silent, values above \code{0.05} and below \code{0.
 a message, and values of at least \code{0.10} produce a warning. These are
 operational notification boundaries, not universal statistical adequacy
 standards.
+
+The default diagnostic is computed and stored when an approximate
+\code{bselmodel.mv()} fit finishes. Calls without simulation arguments return
+the stored result; explicitly supplied settings reuse it only when they
+match. Printing the model or its summary repeats the stored diagnostic's
+notification without rerunning the simulation. Chain extension refreshes
+the diagnostic using its stored settings; label-only updates do not.
+
+Use \code{add_selection_approximation_diagnostics()} to attach the diagnostic to
+an existing fit or store a result computed with different simulation
+settings. This function recomputes the diagnostic; assign its returned model
+object. A failure of the automatic diagnostic is stored and reported as
+unavailable without discarding the fitted posterior; explicitly requesting
+the unavailable result raises the diagnostic error.
 }
 \seealso{
 \code{\link[=bselmodel.mv]{bselmodel.mv()}}, \code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}

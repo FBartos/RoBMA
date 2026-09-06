@@ -287,11 +287,22 @@
       parameter_spec[["factors"]]
     )
 
-    return(as.numeric(samples[, parameter_spec[["source_parameter"]]]) *
-      multiplier)
+    values <- as.numeric(samples[, parameter_spec[["source_parameter"]]]) *
+      multiplier
+  } else {
+    values <- .iwmde_parameter_column_values(context, samples, parameter)
   }
 
-  return(.iwmde_parameter_column_values(context, samples, parameter))
+  gates <- .brma_random_parameter_allocation_gate_state(
+    parameter_spec[["gate_metadata"]], samples
+  )
+  if (!is.null(gates)) {
+    values[gates[["point_zero"]]] <- 0
+    values[gates[["point_one"]]]  <- 1
+    values[!gates[["defined"]]]   <- NA_real_
+  }
+
+  return(values)
 }
 
 
@@ -538,6 +549,22 @@
   samples <- context[["posterior_samples"]]
   n       <- nrow(samples)
 
+  gates <- .brma_random_parameter_allocation_gate_state(
+    parameter_spec[["gate_metadata"]], samples
+  )
+  if (!is.null(gates)) {
+    parameter_spec[["gate_metadata"]] <- NULL
+    component <- .iwmde_parameter_components(context, parameter, parameter_spec)
+    component[["active"]] <- component[["active"]] & gates[["continuous"]]
+    component[["point_location"]][gates[["point_zero"]]] <- 0
+    component[["point_location"]][gates[["point_one"]]]  <- 1
+    component[["point_location"]][!gates[["defined"]]]   <- NA_real_
+    component[["point_masses"]] <- .iwmde_point_mass_table(
+      component[["point_location"]], denominator = sum(gates[["defined"]])
+    )
+    return(component)
+  }
+
   static <- .iwmde_static_parameter_components(context, parameter, n)
   if (!is.null(static)) {
     return(static)
@@ -657,14 +684,18 @@
 
   n           <- nrow(context[["posterior_samples"]])
   conditional <- parameter_spec[["conditional"]]
+  gates <- .brma_random_parameter_allocation_gate_state(
+    parameter_spec[["gate_metadata"]], context[["posterior_samples"]]
+  )
+  defined <- if (is.null(gates)) rep(TRUE, n) else gates[["defined"]]
   if (is.null(conditional) || length(conditional) == 0L) {
-    return(rep(TRUE, n))
+    return(defined)
   }
 
   conditional <- unique(as.character(conditional))
   conditional <- conditional[!is.na(conditional) & nzchar(conditional)]
   if (length(conditional) == 0L) {
-    return(rep(TRUE, n))
+    return(defined)
   }
 
   rule <- parameter_spec[["conditional_rule"]]
@@ -679,10 +710,10 @@
   }
 
   if (identical(rule, "AND")) {
-    return(apply(rows, 1L, all))
+    return(defined & apply(rows, 1L, all))
   }
 
-  return(apply(rows, 1L, any))
+  return(defined & apply(rows, 1L, any))
 }
 
 

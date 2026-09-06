@@ -30,6 +30,14 @@
 #' for this approximate target; explicitly requesting `"whitened"` or
 #' `"block_mvn"` is rejected because those transformations do not preserve
 #' estimate-level selection events.
+#' The approximate likelihood conditions on the structural sampling factors
+#' retained by [vcalc2()] or declared by [known_v_factor()] when available.
+#' Ordinary covariance matrices remain supported and use the decomposition
+#' controlled by `known_v_residual_fraction`. These decompositions can define
+#' different approximate likelihoods for the same covariance. Structural
+#' factors can improve computational efficiency, but are not guaranteed to
+#' improve agreement with the exact likelihood. Models supplied with `vi` or
+#' `sei` instead of `V` are unaffected by this distinction.
 #'
 #' `marginalize_estimate_level` applies only to the approximate likelihood. The
 #' exact likelihood necessarily marginalizes every Gaussian random-effect block

@@ -17,6 +17,7 @@
   length.out = NULL,
   col = "black",
   as_data = FALSE,
+  integration_control = x[["zplot"]][["data"]][["integration_control"]],
   ...
 )
 }
@@ -44,6 +45,13 @@ Use \code{Inf} to use all posterior samples.}
 \item{col}{line color. Defaults to \code{"black"}.}
 
 \item{as_data}{whether to return data instead of plotting. Defaults to \code{FALSE}.}
+
+\item{integration_control}{numerical integration settings created by
+\code{set_selection_likelihood_control()}. These control integration within
+each posterior draw, independently of \code{max_samples}. Factor blocks use
+converged Gauss-Hermite quadrature where possible; other blocks use adaptive
+randomized quasi-Monte Carlo. The relative diagnostic compares density error
+with the peak of each draw's curve and also checks the selection normalizer.}
 
 \item{...}{additional graphical parameters.}
 }

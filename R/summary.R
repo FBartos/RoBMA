@@ -3,7 +3,8 @@
 #'
 #' @description \code{summary.brma} creates summary tables for a
 #' brma object. For RoBMA objects, inclusion summaries are printed before
-#' parameter estimates.
+#' parameter estimates. Random-effect inclusion rows name the corresponding
+#' SD quantity, retaining component prefixes where needed.
 #'
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior samples to be displayed.
@@ -30,9 +31,20 @@
 #' models label their sole coefficient `mu`, consistently with ordinary
 #' meta-analysis models. Once location moderators are present, the coefficient
 #' is labeled `intercept`; an intercept fixed at zero is omitted.
+#' Scale tables label the baseline SD as `exp(intercept)`; its estimates are
+#' already exponentiated. Other scale coefficients remain on the log-SD scale.
+#' Multivariate scale rows identify their targeted random-effect SD, total SD
+#' (`sd_total`), or mean-variance allocation scale (`sd_common`). The baseline
+#' corresponds to zero non-intercept design columns under the fitted contrasts
+#' and the requested predictor standardization.
 #' The random table reports the quantities aligned with prior specification;
 #' use [summary_heterogeneity()] for aggregate variances and the complete family
 #' of deterministic allocation transforms.
+#' This reporting rule is the same for `brma.mv()` and `BMA.mv()`: component
+#' SDs derived from a variance allocation appear only in [summary_heterogeneity()].
+#' Printing an approximate `bselmodel.mv()` model or its summary also reports
+#' any notification from its stored [selection_approximation_diagnostics()]
+#' result without recomputing the diagnostic.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -171,7 +183,7 @@ summary.brma       <- function(
   ### provide regression estimates for the scale meta-regression
   scale_footnotes <- .summary_scale_footnotes(object)
   scale_formulas       <- .summary_scale_formula_parameters(object)
-  scale_formula_prefix <- length(scale_formulas) > 1L
+  scale_formula_prefix <- is_random || length(scale_formulas) > 1L
   estimates_scale_pair <- .summary_estimates_pair(
     enabled                  = is_scale,
     object                   = object,
@@ -233,11 +245,6 @@ summary.brma       <- function(
   estimates_bias_conditional <- estimates_bias_pair[["conditional"]]
 
   ### provide random-effect component estimates
-  random_footnotes <- .summary_random_footnotes(object, conditional = FALSE)
-  random_conditional_footnotes <- .summary_random_footnotes(
-    object,
-    conditional = TRUE
-  )
   estimates_random_pair <- .summary_estimates_pair(
     enabled                  = .summary_random_components_enabled(object),
     object                   = object,
@@ -251,8 +258,7 @@ summary.brma       <- function(
       random_effects_summary  = "standard",
       random_effects_metadata = TRUE,
       formula_prefix          = FALSE,
-      title                   = "Random",
-      footnotes               = random_footnotes
+      title                   = "Random"
     ),
     conditional_args         = list(
       keep_parameters         = "random",
@@ -260,8 +266,7 @@ summary.brma       <- function(
       random_effects_summary  = "standard",
       random_effects_metadata = TRUE,
       formula_prefix          = FALSE,
-      title                   = "Conditional Random",
-      footnotes               = random_conditional_footnotes
+      title                   = "Conditional Random"
     )
   )
   estimates_random             <- estimates_random_pair[["estimates"]]
@@ -302,6 +307,8 @@ summary.brma       <- function(
     estimates_bias              = estimates_bias,
     estimates_bias_conditional  = estimates_bias_conditional
   )
+  out[["selection_approximation_diagnostics"]] <-
+    object[["selection_approximation_diagnostics"]]
 
   class(out) <- "summary.brma"
   attr(out, "mods")         <- is_mods
@@ -343,6 +350,10 @@ print.summary.brma <- function(x, ...) {
 
 
   cat("\n")
+
+  .selection_approximation_notify_result(
+    x[["selection_approximation_diagnostics"]]
+  )
 
   return(invisible(x))
 }
@@ -485,59 +496,19 @@ print.brma <- function(x, ...) {
   parameters
 }
 
-.summary_random_footnotes <- function(object, conditional) {
-
-  design      <- .fitted_formula_design(object, "mu", required = FALSE)
-  allocations <- design[["random_allocations"]]
-  gated_roots <- .random_gated_root_allocations(allocations)
-  if (length(gated_roots) == 0L) {
-    return(NULL)
-  }
-
-  component_clause <- if (conditional) {
-    "Component SDs are conditioned on their own inclusion gates."
-  } else {
-    "Component SDs include their excluded zero branches."
-  }
-  has_gated_aggregate <- any(vapply(allocations, function(allocation) {
-    parent_factors <- allocation[["parent_factors"]]
-    if (is.null(parent_factors)) {
-      parent_factors <- list()
-    }
-    inherited_gate <- any(vapply(parent_factors, function(factor) {
-      indicator <- factor[["inclusion_name"]]
-      is.character(indicator) && length(indicator) == 1L &&
-        !is.na(indicator) && nzchar(indicator)
-    }, logical(1)))
-    identical(allocation[["scale"]], "total_variance") &&
-      length(allocation[["terms"]]) > 1L &&
-      (length(allocation[["inclusion"]]) > 0L || inherited_gate)
-  }, logical(1)))
-  if (has_gated_aggregate) {
-    aggregate_clause <- paste0(
-      "sd_total and var_total are fully model-averaged realized totals, ",
-      "including the all-off zero branch. var_prop(...) is the realized ",
-      "share conditional on positive total heterogeneity; excluded ",
-      "components have zero share."
-    )
-    return(paste(aggregate_clause, component_clause))
-  }
-  if (conditional) {
-    return(NULL)
-  }
-
-  component_clause
-}
-
 .summary_scale_footnotes <- function(object) {
 
-  if (inherits(object, "brma.mv") && .is_random(object)) {
-    return(
-      "exp(Intercept) corresponds to the targeted random-effect SD; the meta-regression coefficients correspond to multiplicative effects on log-scale."
-    )
+  target <- if (.is_random(object)) {
+    "SD of the indicated target"
+  } else {
+    "heterogeneity SD (tau)"
   }
 
-  "exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale."
+  paste0(
+    "exp(intercept) is the baseline ", target,
+    ", already exponentiated. Other coefficients are changes in log(SD); ",
+    "exp(coefficient) is an SD multiplier."
+  )
 }
 
 .summary_scale_repair_row_labels <- function(estimates, object) {
@@ -555,8 +526,8 @@ print.brma <- function(x, ...) {
     )
   }
   rownames(estimates) <- sub(
-    pattern     = "\\) intercept$",
-    replacement = ") exp(intercept)",
+    pattern     = "(^|\\) )intercept$",
+    replacement = "\\1exp(intercept)",
     x           = rownames(estimates)
   )
 
@@ -583,7 +554,35 @@ print.brma <- function(x, ...) {
     return(character(0))
   }
 
-  out <- vapply(scale_specs, `[[`, character(1), "display_name")
+  design <- .fitted_formula_design(object, "mu", required = FALSE)
+  out <- vapply(scale_specs, function(spec) {
+
+    for (allocation in design[["random_allocations"]]) {
+      if (identical(allocation[["source"]][["name"]], spec[["source"]])) {
+        quantity <- if (allocation[["n_targets"]] == 1L) {
+          "sd"
+        } else {
+          .brma_mv_allocation_aggregate_quantities(allocation)[["sd"]]
+        }
+        return(.brma_mv_allocation_parameter_name(
+          .brma_mv_allocation_public_name(allocation), quantity
+        ))
+      }
+    }
+    for (term in design[["random_effects"]]) {
+      if (identical(term[["sd_binding"]][["source"]][["name"]],
+                    spec[["source"]])) {
+        owner <- if (identical(term[["block_name"]],
+                               term[["component_label"]])) {
+          term[["component"]]
+        } else {
+          term[["block_name"]]
+        }
+        return(.brma_mv_allocation_parameter_name(owner, "sd"))
+      }
+    }
+    spec[["display_name"]]
+  }, character(1))
   stats::setNames(out, vapply(scale_specs, `[[`, character(1), "parameter"))
 }
 
@@ -796,16 +795,61 @@ print.brma <- function(x, ...) {
     inclusion_random = .summary.inclusion_subtable(
       table      = inclusion,
       indices    = random_indices,
-      row_labels = sub(
-        pattern     = "^.*inclusion\\((.*)\\)$",
-        replacement = "\\1",
-        x           = row_labels[random_indices]
+      row_labels = .summary_random_inclusion_labels(
+        object,
+        parameters[random_indices],
+        row_labels[random_indices]
       ),
       title      = "Random-Effect Inclusion"
     )
   )
 
   return(output)
+}
+
+.summary_random_inclusion_labels <- function(object, parameters, labels) {
+
+  if (length(parameters) == 0L) {
+    return(labels)
+  }
+  labels <- sub("^.*inclusion\\((.*)\\)$", "\\1", labels)
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  keys       <- quantities[["extraction_key"]]
+  gate_rows  <- which(quantities[["role"]] == "random_inclusion")
+  indicators <- vapply(keys[gate_rows], `[[`, character(1), "source_parameter")
+  sd_rows    <- which(quantities[["quantity"]] %in% c("sd", "sd_total", "sd_common"))
+  component_map <- .random_component_inclusion_map(object)
+  sd_indicators <- lapply(sd_rows, function(row) {
+
+    key <- keys[[row]]
+    if (identical(quantities[["quantity"]][[row]], "sd")) {
+      owners <- c(key[["random_block"]], quantities[["owner_name"]][[row]])
+      return(unique(unlist(component_map[intersect(owners, names(component_map))],
+                           use.names = FALSE)))
+    }
+    intersect(key[["dependencies"]], indicators)
+  })
+
+  for (i in seq_along(parameters)) {
+    gate <- match(parameters[[i]], quantities[["canonical_name"]])
+    if (is.na(gate) || !gate %in% gate_rows) {
+      next
+    }
+    indicator <- keys[[gate]][["source_parameter"]]
+    candidates <- sd_rows[vapply(sd_indicators, identical, logical(1), indicator)]
+    totals <- candidates[quantities[["quantity"]][candidates] %in%
+      c("sd_total", "sd_common")]
+    if (length(totals) == 1L) {
+      candidates <- totals
+    }
+    if (length(candidates) == 1L) {
+      labels[[i]] <- sub(
+        "^\\(mu\\) ", "", quantities[["display_label"]][[candidates]]
+      )
+    }
+  }
+
+  .summary_parameter_label(labels)
 }
 
 .summary_estimates_diagnostic_columns <- function(include_mcmc_diagnostics) {

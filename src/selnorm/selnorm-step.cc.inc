@@ -592,7 +592,9 @@ bool step_normalizer_trusted_telescoping(
     const double boundary_score = stable_affine_score(
       data.z_lower[b], sei, signed_mean, sd
     );
-    const double tail = tail_at(boundary_score, 0, 1);
+    // The standard erfc identity avoids the general location/scale CDF call
+    // at each quadrature point and retains a direct upper-tail evaluation.
+    const double tail = 0.5 * std::erfc(boundary_score * M_SQRT1_2);
     const double contribution = difference * tail;
     if (boundary_tail != NULL) boundary_tail[b] = tail;
     if (omega_diff != NULL) omega_diff[b] = difference;

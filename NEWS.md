@@ -1,5 +1,41 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- uses the same prior-parameterization summary for `BMA.mv()` and `brma.mv()`:
+  variance allocations show their aggregate SD and proportions, while derived
+  component SDs and variances remain in `summary_heterogeneity()`. Random-effect
+  summaries omit explanatory footnotes about model averaging and variance shares.
+- labels scale-summary intercepts as `exp(intercept)` to make their existing
+  SD scale explicit, identifies the targeted random-effect SD in `brma.mv()`
+  scale rows, and clarifies that exponentiated slopes are SD multipliers.
+- supports qCMDE/IWMDE density plots for shared-gate `BMA.mv()` aggregate SDs,
+  component SDs, and variance proportions, preserving excluded zero branches
+  and conditioning proportions on positive total heterogeneity. Random-effect
+  inclusion tables use the corresponding SD labels, including component prefixes.
+- reuses fixed quadrature weights within native selection-likelihood batches
+  without changing calls, draw selection, likelihoods, integration rules, or
+  diagnostic criteria.
+- speeds up selection-model conditional density estimation by batching
+  rank-one quadrature products and sharing the guarded step normalizer with
+  approximate likelihoods, including known sampling covariance. Integration
+  rules, convergence checks, and exact and approximate targets are unchanged.
+- adds `plot_scenario_times()` for horizontal elapsed-time boxplots of
+  individually named calls in one maintainer scenario or across scenarios,
+  with separate exact- and approximate-likelihood selection-model boxes and
+  seconds, minutes, or hours on the x-axis
+- allows the maintainer `plot_marginal_diagnostics()` helper to directly
+  compare two RoBMA fits using explicit marginal diagnostic targets, while
+  omitting unsupported rstandard, hat-value, and Cook's-distance panels for
+  `bselmodel` fits
+- accepts plain random-slope formulas such as `(1 + x | study)` in `brma.mv()`,
+  using BayesTools' unstructured random-coefficient semantics just like `us()`
+- speeds up exact-selection JAGS fitting by batching row normalizers across
+  quadrature points and using the standard complementary-error-function
+  identity for normal tails. Dense-covariance integration omits the unused
+  terminal conditional draw. The likelihood, numerical integration designs,
+  diagnostics, and sampler parameterizations are unchanged.
+- shares exact-selection block evaluation between posterior scores and bridge
+  sampling, and delegates random-effect dependencies and factor covariance
+  reconstruction to BayesTools.
 - lets named `scale` lists target concrete `brma.mv()` random-effect blocks,
   including an unambiguous terminal nested grouping name such as `esid` in
   `random = ~ 1 | study / esid`; untargeted blocks retain their ordinary SD
@@ -55,13 +91,30 @@
   split equally between prior-centered and deterministic mode-centered
   Gaussian proposals, with exact balance-mixture weights plus nested-design
   and between-scramble diagnostics. The fallback refines its point count up to
-  the configured maximum, now 8,192 points per scramble by default. JAGS does
-  not rescan this large fixed design on every density update; coordinates are
-  validated lazily if a fallback consumes them. Formula random effects use
+  the configured maximum, now 8,192 points per scramble by default. Fitting
+  and post-fit density evaluation do not rescan this large fixed design on
+  every update; the design is validated at construction and coordinates are
+  checked lazily if a fallback consumes them. Quadrature rules are prepared
+  once in the execution plan, and factor quadrature reuses partial conditional
+  means across grid axes. Formula random effects use
   authoritative BayesTools metadata, while
   `vcalc2()` wraps the optionally installed `metafor::vcalc()` and retains its
   common `type`/`obs` correlation construction as an exact `D + UU'` contract;
-  `known_v_factor()` remains available for explicit declarations. Arbitrary
+  `known_v_factor()` remains available for explicit declarations. The wrapper
+  preserves `vcalc()` argument evaluation and detects covariance edits that
+  invalidate retained factors. Approximate multivariate selection likelihoods
+  condition on the structural sampling factors retained by `vcalc2()` or
+  declared by `known_v_factor()` when available. Ordinary covariance matrices
+  retain the decomposition controlled by `known_v_residual_fraction`. These
+  representations can define different approximate likelihoods despite having
+  the same covariance; structural conditioning can improve efficiency but is
+  not guaranteed to improve agreement with exact selection. Non-`V` models are
+  unchanged.
+  Non-silent exact selection fits using general integration for an undeclared
+  sampling covariance report that `vcalc2()` may enable faster fitting when
+  supported construction information is available; ordinary matrices remain
+  fully supported.
+  Arbitrary
   dense `V`, non-positive residual diagonals, and
   structural ranks above four fail closed to the general dense exact
   likelihood; no numerical rank is inferred and no covariance repair, jitter,
@@ -75,7 +128,15 @@
   ESS fractions, total-variation distances, robust log-weight spreads, and
   Monte Carlo standard errors. It supports grouped, row-scaled, known-group,
   and dense covariance factors, with messages for maximum block-level median
-  total-variation distances above 5% and warnings from 10% onward.
+  total-variation distances above 5% and warnings from 10% onward. Approximate
+  fits compute and cache this diagnostic automatically; model and summary
+  printing repeat its notification without simulation. Chain extension
+  refreshes it using the stored settings, while label-only updates preserve it.
+  `add_selection_approximation_diagnostics()` attaches or replaces the result
+  on an existing fit without rerunning JAGS. Diagnostic failures preserve the
+  posterior and are reported as unavailable. The diagnostic starts from the
+  fixed predictor and simulates fresh latent effects without adding their
+  fitted realizations.
 - corrects post-fit likelihood reconstruction for approximate
   `bselmodel.mv()` models with formula random effects and known sampling
   covariance. LOO, bridge sampling, and likelihood-aware density estimation
@@ -99,6 +160,14 @@
   of the Kearon US/HCS and Ishak HAR scenario models. The oracle averages each
   held-out conditional density over the deletion-fit posterior and evaluates
   agreement using the combined PSIS and batch-means Monte Carlo uncertainty.
+- adds independently simulated exact and approximate selection-model
+  certification cases with diagonal, structured, and dense sampling covariance.
+  Fixed and three-level examples check parameter recovery and chain diagnostics;
+  independent posterior integration checks JAGS means and second moments.
+  BayesTools checks matching package versions and native builds on the actual
+  fitting workers before compilation.
+  These sparse, one-hour-bounded cases do not change the model likelihoods or
+  the standard test budget.
 - isolates certification cache preparation from post-fit verification in
   separate R processes. Clean interactive runs through
   `test_tests(refit = TRUE)` retain a single combined one-hour limit per case
@@ -205,7 +274,10 @@
   independent stored prior. Basic summaries report only quantities aligned
   with prior specification, while `summary_heterogeneity()` retains aggregate
   variances, allocation-derived component SDs and variances, variance multipliers,
-  and SD multipliers. All `brma.mv()` heterogeneity output uses `sd` / `var` for a
+  and SD multipliers. Public random-effect correlations appear in their owning
+  heterogeneity component, including homogeneous AR, CS, and CAR structures;
+  additive totals across components do not invent a shared correlation.
+  All `brma.mv()` heterogeneity output uses `sd` / `var` for a
   single component, `sd_total` / `var_total` only for a genuine additive
   aggregate, and `sd_common` / `var_common` for mean-variance allocations;
   ordinary `brma()` and the maintained specialized `brma(..., cluster = ...)`
@@ -595,10 +667,20 @@
   ungated paths, and removes the superseded one-use selection finalizer.
 
 ### Fixes
+- corrects marginal `zplot()` densities for correlated exact selection models
+  by marginalizing the jointly selected Gaussian response, including sampling
+  and random-effect covariance. Approximate models integrate their conditional
+  selected-normal densities over new latent effects. Extrapolation, EDR, and
+  missing counts use the same target; exact correlated extrapolation represents
+  suppression of whole dependency blocks. Numerical integration is checked and
+  controlled by `integration_control`. Conditional selection zplots now report
+  their target as unavailable instead of returning a Gaussian plug-in result.
 - reconstructs row-specific random-scale SDs from their regression
   coefficients for LOO and bridge sampling instead of monitoring every
   deterministic `tau[i]` node; raw rowwise SDs consequently stay out of public
-  summaries
+  summaries. Bridge reconstruction reuses the already evaluated fixed scale
+  formulas, and posterior covariance factors reconstruct row scales once per
+  draw batch to use the shared BayesTools batched evaluator.
 - removes redundant `component 1` labels from unnamed one-component
   `BMA.mv()` random formulas while preserving explicit and generated names
 - returns unique-level `ranef()` output for nested random-effect blocks in

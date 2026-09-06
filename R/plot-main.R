@@ -45,7 +45,10 @@
 #' aggregate (`sd_total` or `sd_common`), and allocation proportions or
 #' multipliers
 #' backed by a fitted simplex coordinate. Other nonlinear derived quantities
-#' remain KDE-only. In independently gated allocations, realized
+#' remain KDE-only. Shared inclusion gates are supported for aggregate and
+#' component SDs and allocation proportions. SDs retain their excluded zero
+#' branches; proportions condition on positive total heterogeneity.
+#' In independently gated allocations, realized
 #' `sd_total`/`var_total` and `var_prop(...)` are KDE-only because they combine
 #' multiple gate and allocation coordinates. Their structural point masses are
 #' displayed separately from the continuous density; `var_prop(...)` is

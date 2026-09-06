@@ -264,6 +264,36 @@ certification_cases <- function() {
         "scenario-model PSIS LOO agrees with five exact deletion refits"
       )
     ),
+    "selection-recovery-exact" = list(
+      description = paste(
+        "Independent exact-selection simulations with diagonal, structured,",
+        "and dense V; fixed/nested parameter recovery and a dense posterior oracle."
+      ),
+      fit_sources = character(),
+      test_filter = "^03-selection-recovery-exact$",
+      required_tests = .required_tests(
+        "test-03-selection-recovery-exact.R",
+        c(
+          "exact selection recovers simulated fixed and nested parameters",
+          "exact selection JAGS posterior matches independent dense integration"
+        )
+      )
+    ),
+    "selection-recovery-approximate" = list(
+      description = paste(
+        "Independent conditional-selection simulations with diagonal, structured,",
+        "and dense V; fixed/nested parameter recovery and a dense posterior oracle."
+      ),
+      fit_sources = character(),
+      test_filter = "^03-selection-recovery-approximate$",
+      required_tests = .required_tests(
+        "test-03-selection-recovery-approximate.R",
+        c(
+          "approximate selection recovers simulated fixed and nested parameters",
+          "approximate selection JAGS posterior matches independent dense integration"
+        )
+      )
+    ),
     "multivariate-extended" = list(
       description = paste(
         "Extended known-R, scale, allocation, and moderator multivariate",

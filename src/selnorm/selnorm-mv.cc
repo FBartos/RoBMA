@@ -38,6 +38,7 @@ double qmc_value(const double *values, int scrambles, int points,
 }
 
 struct ClusterNormalizerContext {
+  const long double *quadrature_weights;
   const double *mean;
   const double *residual_sd;
   const double *loading;
@@ -68,19 +69,43 @@ double cluster_log_integrand(const ClusterNormalizerContext &context,
 double cluster_rule_log_integral(const ClusterNormalizerContext &context,
                                  const double *nodes,
                                  const double *log_weights,
-                                 int offset, int order, double mode,
-                                 double curvature)
+                                 int offset, int order)
 {
+  // Use the same row-normalizer products as the factor quadrature. Keep the
+  // log-scale evaluator for non-telescoping weights and product underflow.
+  std::vector<long double> products(static_cast<std::size_t>(order), 1.0L);
+  std::vector<double> means(static_cast<std::size_t>(order));
+  bool direct_ok = true;
+  for (int i = 0; i < context.dimension && direct_ok; ++i) {
+    for (int j = 0; j < order; ++j) {
+      means[j] = context.mean[i] + context.loading[i] * nodes[offset + j];
+    }
+    direct_ok = cpp_selnorm_step_normalizer_product(
+      means.data(), means.size(), context.residual_sd[i],
+      context.selection_se[i], context.omega, context.selection,
+      products.data()
+    );
+  }
+  if (direct_ok) {
+    long double integral = 0.0L;
+    for (int j = 0; j < order; ++j) {
+      const long double weight = context.quadrature_weights ?
+        context.quadrature_weights[offset + j] :
+        std::exp(static_cast<long double>(log_weights[offset + j]));
+      integral += products[j] * weight;
+    }
+    if (integral > 0.0L && std::isfinite(integral)) {
+      return static_cast<double>(std::log(integral));
+    }
+  }
+
   const double negative_infinity = -std::numeric_limits<double>::infinity();
-  const double inverse_scale = 1.0 / std::sqrt(curvature);
-  const double log_jacobian = -0.5 * std::log(curvature);
   double out = negative_infinity;
   for (int j = 0; j < order; ++j) {
     const int index = offset + j;
     const double z = nodes[index];
-    const double gamma = mode + z * inverse_scale;
     const double term = log_weights[index] +
-      cluster_log_integrand(context, gamma) + 0.5 * z * z + log_jacobian;
+      cluster_log_integrand(context, z) + 0.5 * z * z;
     out = log_add_exp(out, term);
   }
   return out;
@@ -229,12 +254,6 @@ bool factor_nested_rule_log_integral(
     }
     row_groups[active].push_back(i);
   }
-  if (effective_rank == context.rank &&
-      row_groups[effective_rank].size() ==
-        static_cast<std::size_t>(context.dimension)) {
-    return false;
-  }
-
   std::vector<std::size_t> sizes(
     static_cast<std::size_t>(effective_rank + 1), 1
   );
@@ -244,35 +263,30 @@ bool factor_nested_rule_log_integral(
   std::vector<std::vector<long double>> factors(
     static_cast<std::size_t>(effective_rank + 1)
   );
-  std::vector<double> latent(static_cast<std::size_t>(effective_rank));
   for (int group = 0; group <= effective_rank; ++group) {
     factors[group].assign(sizes[group], 1.0L);
+    std::vector<double> conditional_means(sizes[group]);
     for (int row : row_groups[group]) {
-      for (std::size_t point = 0; point < sizes[group]; ++point) {
-        std::size_t remaining = point;
-        double conditional_mean = context.mean[row];
-        for (int position = 0; position < group; ++position) {
-          const int node = static_cast<int>(remaining % order);
-          remaining /= static_cast<std::size_t>(order);
-          latent[position] = nodes[offset + node];
-          conditional_mean += context.loading[
-            row + context.dimension * permutation[position]
-          ] * latent[position];
-        }
-        double omega_last = 0.0;
-        double normalizer = 0.0;
-        const bool ok = cpp_selnorm_step_cdf_telescope_plan(
-          conditional_mean, context.residual_sd[row],
-          context.selection_se[row], context.omega, context.selection,
-          nullptr, nullptr, &omega_last, &normalizer, 1, false
-        );
-        if (!ok) return false;
-        factors[group][point] *= static_cast<long double>(normalizer);
-        if (!(factors[group][point] > 0.0L) ||
-            !std::isfinite(factors[group][point])) {
-          return false;
+      conditional_means[0] = context.mean[row];
+      for (int position = 0; position < group; ++position) {
+        const double coefficient = context.loading[
+          row + context.dimension * permutation[position]
+        ];
+        const std::size_t lower_size = sizes[position];
+        // Expand one axis at a time. Visit node zero last so the prefix is
+        // still available while filling the other slices of the same buffer.
+        for (int node = order - 1; node >= 0; --node) {
+          const double shift = coefficient * nodes[offset + node];
+          for (std::size_t lower = 0; lower < lower_size; ++lower) {
+            conditional_means[lower + node * lower_size] =
+              conditional_means[lower] + shift;
+          }
         }
       }
+      if (!cpp_selnorm_step_normalizer_product(
+            conditional_means.data(), sizes[group], context.residual_sd[row],
+            context.selection_se[row], context.omega, context.selection,
+            factors[group].data())) return false;
     }
   }
 
@@ -396,7 +410,8 @@ double vector_dot(const std::vector<double> &x,
 }
 
 void factor_optimize_mode(const FactorNormalizerContext &context,
-                          std::vector<double> *position)
+                          std::vector<double> *position,
+                          std::vector<double> *proposal_covariance = nullptr)
 {
   const int rank = context.rank;
   std::vector<double> gradient(static_cast<std::size_t>(rank));
@@ -412,6 +427,8 @@ void factor_optimize_mode(const FactorNormalizerContext &context,
     inverse_hessian[factor + rank * factor] = 1.0;
   }
   std::vector<double> best = *position;
+  std::vector<double> best_covariance;
+  if (proposal_covariance != nullptr) best_covariance = inverse_hessian;
   double best_value = value;
   const double gradient_tolerance =
     std::sqrt(std::numeric_limits<double>::epsilon());
@@ -503,9 +520,11 @@ void factor_optimize_mode(const FactorNormalizerContext &context,
     if (value > best_value) {
       best = *position;
       best_value = value;
+      if (proposal_covariance != nullptr) best_covariance = inverse_hessian;
     }
   }
   *position = best;
+  if (proposal_covariance != nullptr) *proposal_covariance = best_covariance;
 }
 
 bool factor_solve_cholesky(const std::vector<double> &cholesky, int rank,
@@ -841,7 +860,8 @@ double cpp_selnorm_cluster_step_lpdf(
     bool telescope_probabilities, int kernel_mode,
     const double *quadrature_nodes, const double *quadrature_log_weights,
     const double *quadrature_orders, int quadrature_rule_count,
-    double relative_tolerance, double *relative_change)
+    double relative_tolerance, double *relative_change,
+    const long double *quadrature_weights)
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   const double log_two_pi = std::log(6.283185307179586476925286766559);
@@ -896,6 +916,7 @@ double cpp_selnorm_cluster_step_lpdf(
   }
 
   ClusterNormalizerContext context;
+  context.quadrature_weights = quadrature_weights;
   context.mean = mean;
   context.residual_sd = residual_sd;
   context.loading = loading;
@@ -909,14 +930,14 @@ double cpp_selnorm_cluster_step_lpdf(
   int order = static_cast<int>(quadrature_orders[0]);
   double previous = cluster_rule_log_integral(
     context, quadrature_nodes, quadrature_log_weights,
-    offset, order, 0.0, 1.0
+    offset, order
   );
   offset += order;
   for (int rule = 1; rule < quadrature_rule_count; ++rule) {
     order = static_cast<int>(quadrature_orders[rule]);
     const double current = cluster_rule_log_integral(
       context, quadrature_nodes, quadrature_log_weights,
-      offset, order, 0.0, 1.0
+      offset, order
     );
     *relative_change = cluster_relative_change(previous, current);
     if (std::isfinite(current) && *relative_change <= relative_tolerance) {
@@ -935,7 +956,7 @@ double cpp_selnorm_mnorm_step_lpdf(
     int n_bins, const double *z_lower, const double *z_upper,
     const int *obs_bin, int effect_sign, bool telescope_probabilities,
     int kernel_mode, const double *qmc, int points, int scrambles,
-    double *relative_mcse)
+    double *relative_mcse, SelNormZProjection *projection)
 {
   const int k = dimension;
   const int dimensions = 2 * k;
@@ -963,7 +984,7 @@ double cpp_selnorm_mnorm_step_lpdf(
   selection.trusted_step_partition = true;
   selection.telescope_probabilities = telescope_probabilities;
 
-  if (k == 1) {
+  if (k == 1 && projection == nullptr) {
     const double variance = covariance_lower[0];
     if (!(variance > 0.0) || !std::isfinite(variance)) {
       return negative_infinity;
@@ -1018,9 +1039,9 @@ double cpp_selnorm_mnorm_step_lpdf(
   double log_density = -0.5 *
     (static_cast<double>(k) * std::log(two_pi) + log_det + quadratic);
 
-  if (kernel_mode == SELKERNEL_NORMAL) return log_density;
+  if (kernel_mode == SELKERNEL_NORMAL && projection == nullptr) return log_density;
 
-  for (int i = 0; i < k; ++i) {
+  for (int i = 0; i < k && projection == nullptr; ++i) {
     const double observed_weight = omega[obs_bin[i] - 1];
     const double log_weight = std::log(observed_weight);
     if (!std::isfinite(log_weight)) return negative_infinity;
@@ -1036,7 +1057,7 @@ double cpp_selnorm_mnorm_step_lpdf(
       }
     }
   }
-  if (diagonal_covariance) {
+  if (diagonal_covariance || kernel_mode == SELKERNEL_NORMAL) {
     double log_normalizer = 0.0;
     for (int i = 0; i < k; ++i) {
       log_normalizer += cpp_selnorm_kernel_log_norm(
@@ -1044,7 +1065,94 @@ double cpp_selnorm_mnorm_step_lpdf(
         selection_se[i], omega, 0, 0, kernel_mode, selection, 1, false
       );
     }
+    if (projection != nullptr) {
+      for (int z = 0; z < projection->size; ++z) {
+        double value = 0.0;
+        for (int i = 0; i < k; ++i) {
+          const double sd = std::sqrt(covariance[i + k * i]);
+          if (projection->probability) {
+            double inverse;
+            value += cpp_selnorm_kernel_threshold(projection->z[z], mean[i],
+              sd, selection_se[i], omega, 0, 0, kernel_mode, selection,
+              &inverse, 1, false);
+          } else {
+            int bin = 1;
+            for (int b = 0; b < n_bins; ++b) {
+              const double signed_z = effect_sign * projection->z[z];
+              if (signed_z >= z_lower[b] && signed_z <= z_upper[b]) {
+                bin = b + 1;
+                break;
+              }
+            }
+            value += selection_se[i] * std::exp(cpp_selnorm_kernel_lpdf(
+              projection->z[z] * selection_se[i], mean[i], sd, mean[i], sd,
+              selection_se[i], 1.0, omega, bin, 0.0, 0, kernel_mode,
+              selection, 1, false
+            ));
+          }
+        }
+        projection->density[z] = value / k;
+      }
+      projection->relative_error = 0.0;
+      return -log_normalizer;
+    }
     return log_density - log_normalizer;
+  }
+
+  std::vector<double> precision;
+  std::vector<double> conditional_sd;
+  std::vector<double> conditional_mean(static_cast<std::size_t>(k));
+  std::vector<double> conditional_log_norm(static_cast<std::size_t>(k));
+  std::vector<double> projection_log_sum;
+  std::vector<double> projection_scale(static_cast<std::size_t>(scrambles), negative_infinity);
+  const int factor_rank = projection == nullptr ? 0 : projection->rank;
+  FactorNormalizerContext factor_context;
+  std::vector<double> factor_mode(static_cast<std::size_t>(factor_rank), 0.0);
+  std::vector<double> factor_latent(static_cast<std::size_t>(factor_rank));
+  std::vector<double> factor_normal(static_cast<std::size_t>(factor_rank));
+  std::vector<double> factor_centered(static_cast<std::size_t>(factor_rank));
+  std::vector<double> proposal_factor(static_cast<std::size_t>(factor_rank * factor_rank), 0.0);
+  double proposal_log_det = 0.0;
+  const bool quadrature = projection != nullptr && projection->order > 0;
+  if (factor_rank && !quadrature) {
+    factor_context.mean = mean;
+    factor_context.residual_sd = projection->residual_sd;
+    factor_context.loading = projection->factor_loading;
+    factor_context.dimension = k;
+    factor_context.rank = factor_rank;
+    factor_context.selection_se = selection_se;
+    factor_context.omega = omega;
+    factor_context.n_bins = n_bins;
+    factor_context.kernel_mode = kernel_mode;
+    factor_context.selection = selection;
+    for (int i = 0; i < factor_rank; ++i) proposal_factor[i + factor_rank * i] = 1.0;
+    factor_optimize_mode(factor_context, &factor_mode, &proposal_factor);
+    F77_CALL(dpotrf)("L", &factor_rank, proposal_factor.data(), &factor_rank, &info FCONE);
+    if (info != 0) {
+      // Only the importance proposal changes here; the model covariance is
+      // untouched. The prior component always retains full Gaussian support.
+      std::fill(proposal_factor.begin(), proposal_factor.end(), 0.0);
+      for (int i = 0; i < factor_rank; ++i) proposal_factor[i + factor_rank * i] = 1.0;
+    }
+    for (int i = 0; i < factor_rank; ++i) {
+      proposal_log_det += std::log(proposal_factor[i + factor_rank * i]);
+    }
+  }
+  if (projection != nullptr) {
+    precision = cholesky;
+    F77_CALL(dpotri)("L", &k, precision.data(), &k, &info FCONE);
+    if (info != 0) return negative_infinity;
+    conditional_sd.resize(k);
+    for (int column = 0; column < k; ++column) {
+      conditional_sd[column] = factor_rank ? projection->residual_sd[column] :
+        1.0 / std::sqrt(precision[column + k * column]);
+      for (int row = column + 1; row < k; ++row) {
+        precision[column + k * row] = precision[row + k * column];
+      }
+    }
+    projection_log_sum.assign(
+      static_cast<std::size_t>(scrambles * projection->size), 0.0
+    );
   }
 
   std::vector<double> scramble_log_mean(static_cast<std::size_t>(scrambles));
@@ -1055,52 +1163,173 @@ double cpp_selnorm_mnorm_step_lpdf(
   for (int scramble = 0; scramble < scrambles; ++scramble) {
     double log_sum = negative_infinity;
     for (int point = 0; point < points; ++point) {
-      double log_particle = 0.0;
-      for (int i = 0; i < k; ++i) {
-        double conditional_mean = mean[i];
-        for (int j = 0; j < i; ++j) {
-          conditional_mean +=
-            cholesky[static_cast<std::size_t>(i + k * j)] *
-            latent[static_cast<std::size_t>(j)];
+      for (int component = 0; component < (factor_rank && !quadrature ? 2 : 1); ++component) {
+        double log_particle = 0.0;
+        if (factor_rank) {
+          double log_prior = 0.0;
+          double log_mode = 0.0;
+          int remaining = point;
+          for (int factor = 0; factor < factor_rank; ++factor) {
+            const int node = quadrature ? remaining % projection->order : 0;
+            if (quadrature) remaining /= projection->order;
+            const double normal = quadrature ? projection->nodes[node] :
+              qnorm(qmc_value(qmc, scrambles, points, dimensions, scramble, point,
+                factor + factor_rank * component), 0, 1, true, false);
+            if (quadrature) log_particle += projection->log_weights[node];
+            factor_normal[factor] = normal;
+            factor_latent[factor] = normal;
+            if (component == 1) {
+              factor_latent[factor] = factor_mode[factor];
+              for (int j = 0; j <= factor; ++j) {
+                factor_latent[factor] += proposal_factor[factor + factor_rank * j] * factor_normal[j];
+              }
+            }
+            log_prior -= .5 * factor_latent[factor] * factor_latent[factor];
+            if (!quadrature) {
+              factor_centered[factor] = factor_latent[factor] - factor_mode[factor];
+              for (int j = 0; j < factor; ++j) {
+                factor_centered[factor] -= proposal_factor[factor + factor_rank * j] * factor_centered[j];
+              }
+              factor_centered[factor] /= proposal_factor[factor + factor_rank * factor];
+              log_mode -= .5 * factor_centered[factor] * factor_centered[factor];
+            }
+          }
+          // Two equally allocated Gaussian proposals, including their mixture
+          // importance correction. The outer reduction divides by 'points'.
+          log_particle = quadrature ? log_particle + std::log(points) :
+            log_prior - log_add_exp(log_prior, log_mode - proposal_log_det);
+          for (int i = 0; i < k; ++i) {
+            conditional_mean[i] = mean[i];
+            for (int factor = 0; factor < factor_rank; ++factor) {
+              conditional_mean[i] += projection->factor_loading[i + k * factor] *
+                factor_latent[factor];
+            }
+            conditional_log_norm[i] = cpp_selnorm_step_log_norm(
+              conditional_mean[i], conditional_sd[i], selection_se[i], omega,
+              selection, 1, false);
+            log_particle += conditional_log_norm[i];
+          }
         }
-        const double conditional_sd =
-          cholesky[static_cast<std::size_t>(i + k * i)];
-        double log_local = 0.0;
-        double sampled = 0.0;
-        const double u_bin = qmc_value(
-          qmc, scrambles, points, dimensions, scramble, point, 2 * i
-        );
-        const double u_interval = qmc_value(
-          qmc, scrambles, points, dimensions, scramble, point, 2 * i + 1
-        );
-        if (selection.telescope_probabilities) {
-          sampled = cpp_selnorm_step_log_norm_rng_workspace(
-            conditional_mean, conditional_sd, selection_se[i], omega,
-            u_bin, u_interval, selection, mass.data(), lower.data(),
-            upper.data(), &log_local, 1, false
+        for (int i = 0; i < k && !factor_rank; ++i) {
+          double conditional_mean = mean[i];
+          for (int j = 0; j < i; ++j) {
+            conditional_mean +=
+              cholesky[static_cast<std::size_t>(i + k * j)] *
+              latent[static_cast<std::size_t>(j)];
+          }
+          const double conditional_sd =
+            cholesky[static_cast<std::size_t>(i + k * i)];
+          // Only the final normalizer contributes to the path weight; no later
+          // coordinate consumes a draw from this conditional.
+          if (i == k - 1 && projection == nullptr) {
+            const double log_local = cpp_selnorm_step_log_norm(
+              conditional_mean, conditional_sd, selection_se[i], omega,
+              selection, 1, false
+            );
+            if (!std::isfinite(log_local)) return negative_infinity;
+            log_particle += log_local;
+            break;
+          }
+          double log_local = 0.0;
+          double sampled = 0.0;
+          const double u_bin = qmc_value(
+            qmc, scrambles, points, dimensions, scramble, point, 2 * i
           );
-        } else {
-          log_local = cpp_selnorm_kernel_log_norm(
-            conditional_mean, conditional_sd, selection_se[i], omega,
-            0, 0, kernel_mode, selection, 1, false
+          const double u_interval = qmc_value(
+            qmc, scrambles, points, dimensions, scramble, point, 2 * i + 1
           );
-          sampled = cpp_selnorm_kernel_rng_workspace(
-            conditional_mean, conditional_sd, selection_se[i], omega,
-            u_bin, u_interval, 0, 0, kernel_mode, selection,
-            mass.data(), lower.data(), upper.data(), 1, false
-          );
+          if (selection.telescope_probabilities) {
+            sampled = cpp_selnorm_step_log_norm_rng_workspace(
+              conditional_mean, conditional_sd, selection_se[i], omega,
+              u_bin, u_interval, selection, mass.data(), lower.data(),
+              upper.data(), &log_local, 1, false
+            );
+          } else {
+            log_local = cpp_selnorm_kernel_log_norm(
+              conditional_mean, conditional_sd, selection_se[i], omega,
+              0, 0, kernel_mode, selection, 1, false
+            );
+            sampled = cpp_selnorm_kernel_rng_workspace(
+              conditional_mean, conditional_sd, selection_se[i], omega,
+              u_bin, u_interval, 0, 0, kernel_mode, selection,
+              mass.data(), lower.data(), upper.data(), 1, false
+            );
+          }
+          if (!std::isfinite(log_local) || !std::isfinite(sampled)) {
+            return negative_infinity;
+          }
+          log_particle += log_local;
+          latent[static_cast<std::size_t>(i)] =
+            (sampled - conditional_mean) / conditional_sd;
+          if (projection != nullptr) {
+            // Preserve the full proposal vector for all-coordinate conditionals.
+            // 'residual' is no longer needed by the Gaussian likelihood here.
+            residual[i] = sampled - mean[i];
+          }
         }
-        if (!std::isfinite(log_local) || !std::isfinite(sampled)) {
-          return negative_infinity;
+        log_sum = log_add_exp(log_sum, log_particle);
+        if (projection != nullptr) {
+          if (log_particle > projection_scale[scramble]) {
+            const double scale = std::exp(projection_scale[scramble] - log_particle);
+            for (int z = 0; z < projection->size; ++z) {
+              projection_log_sum[scramble + scrambles * z] *= scale;
+            }
+            projection_scale[scramble] = log_particle;
+          }
+          const double particle_weight = std::exp(log_particle - projection_scale[scramble]);
+          for (int i = 0; i < k && !factor_rank; ++i) {
+            double score = 0.0;
+            for (int j = 0; j < k; ++j) {
+              if (j != i) score += precision[i + k * j] * residual[j];
+            }
+            conditional_mean[i] = mean[i] - score / precision[i + k * i];
+            conditional_log_norm[i] = cpp_selnorm_step_log_norm(
+              conditional_mean[i], conditional_sd[i], selection_se[i], omega,
+              selection, 1, false
+            );
+          }
+          for (int z = 0; z < projection->size; ++z) {
+            double local_sum = 0.0;
+            int bin = 1;
+            for (int b = 0; b < n_bins; ++b) {
+              const double signed_z = effect_sign * projection->z[z];
+              if (signed_z >= z_lower[b] && signed_z <= z_upper[b]) {
+                bin = b + 1;
+                break;
+              }
+            }
+            if (!projection->probability && !(omega[bin - 1] > 0.0)) continue;
+            const double log_weight = std::log(omega[bin - 1]);
+            for (int i = 0; i < k; ++i) {
+              double local;
+              if (projection->probability) {
+                double inverse;
+                local = std::log(cpp_selnorm_kernel_threshold(
+                  projection->z[z], conditional_mean[i], conditional_sd[i],
+                  selection_se[i], omega, 0, 0, kernel_mode, selection,
+                  &inverse, 1, false));
+              } else {
+                local = std::log(selection_se[i]) + log_weight +
+                  dnorm(projection->z[z] * selection_se[i], conditional_mean[i],
+                        conditional_sd[i], true) - conditional_log_norm[i];
+              }
+              local_sum += std::exp(local);
+            }
+            const int index = scramble + scrambles * z;
+            projection_log_sum[index] += particle_weight * local_sum / k;
+          }
         }
-        log_particle += log_local;
-        latent[static_cast<std::size_t>(i)] =
-          (sampled - conditional_mean) / conditional_sd;
       }
-      log_sum = log_add_exp(log_sum, log_particle);
     }
     scramble_log_mean[static_cast<std::size_t>(scramble)] =
       log_sum - std::log(static_cast<double>(points));
+    if (projection != nullptr) {
+      for (int z = 0; z < projection->size; ++z) {
+        const int index = scramble + scrambles * z;
+        projection_log_sum[index] = std::log(projection_log_sum[index]) +
+          projection_scale[scramble];
+      }
+    }
   }
 
   double log_normalizer = negative_infinity;
@@ -1125,6 +1354,30 @@ double cpp_selnorm_mnorm_step_lpdf(
     squared_relative /
     (static_cast<double>(scrambles) * static_cast<double>(scrambles - 1))
   );
+
+  if (projection != nullptr) {
+    double peak = 0.0;
+    double max_mcse = 0.0;
+    for (int z = 0; z < projection->size; ++z) {
+      double numerator = negative_infinity;
+      for (int scramble = 0; scramble < scrambles; ++scramble) {
+        numerator = log_add_exp(numerator, projection_log_sum[scramble + scrambles * z]);
+      }
+      const double value = std::exp(numerator - std::log(points * scrambles) - log_normalizer);
+      projection->density[z] = value;
+      peak = std::max(peak, value);
+      double squared = 0.0;
+      for (int scramble = 0; scramble < scrambles; ++scramble) {
+        const double centered = std::exp(
+          projection_log_sum[scramble + scrambles * z] - std::log(points) - log_normalizer
+        ) - value * std::exp(scramble_log_mean[scramble] - log_normalizer);
+        squared += centered * centered;
+      }
+      max_mcse = std::max(max_mcse, std::sqrt(squared / (scrambles * (scrambles - 1.0))));
+    }
+    projection->relative_error = peak > 0.0 ? max_mcse / peak : 0.0;
+    return -log_normalizer;
+  }
 
   return log_density - log_normalizer;
 }

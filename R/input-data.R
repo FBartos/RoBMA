@@ -33,6 +33,10 @@
 #' supplied. For a factor representation declared by [vcalc2()] or
 #' [known_v_factor()], the declared diagonal is the exact residual variance and
 #' this argument is disregarded with a warning when supplied explicitly.
+#' Approximate selection likelihoods condition on the declared factors when
+#' available; otherwise this argument controls their sampling decomposition.
+#' Different decompositions of the same covariance can define different
+#' approximate selection likelihoods.
 #' @param weights an optional vector of positive likelihood weights. For
 #' normal/effect-size models, each weight powers the estimate likelihood. For
 #' constructors with GLMM raw-count input, each weight powers the paired
@@ -1401,7 +1405,10 @@ NULL
   }
   formula <- random_effects[["formula"]]
   terms   <- random_effects[["terms"]]
-  .check_and_list_data.random_validate_terms(terms)
+  if (length(terms) == 0L) {
+    stop("The 'random' formula must contain at least one random-effect term.",
+         call. = FALSE)
+  }
   .check_and_list_data.random_validate_group_covariance_terms(terms)
 
   variables <- all.vars(formula)
@@ -1523,29 +1530,6 @@ NULL
     deparse(formula[[rhs_index]], width.cutoff = 500L, backtick = TRUE),
     collapse = " "
   )
-}
-
-.check_and_list_data.random_validate_terms <- function(terms) {
-
-  if (length(terms) == 0L) {
-    stop("The 'random' formula must contain at least one random-effect term.",
-         call. = FALSE)
-  }
-
-  for (term in terms) {
-    is_plain <- !isTRUE(term[["explicit_special"]])
-    if (is_plain && !identical(term[["expr"]], 1)) {
-      stop(
-        "Plain 'random' terms are supported only for random intercepts ",
-        "such as '~ 1 | study'. Use an explicit covariance wrapper ",
-        "such as 'diag()', 'us()', 'cs()', or 'ar1()', or the '||' ",
-        "diagonal shorthand, for random slopes.",
-        call. = FALSE
-      )
-    }
-  }
-
-  invisible(TRUE)
 }
 
 .check_and_list_data.random_variables <- function(variables, data, .envir, k) {

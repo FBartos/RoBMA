@@ -41,7 +41,11 @@
 #' representation. `known_v_parameterization = "auto"` is changed to that
 #' representation only when the fitted bias mixture actually contains a
 #' selection model; explicitly requesting `"whitened"` or `"block_mvn"` is
-#' rejected for this target.
+#' rejected for this target. As in [bselmodel.mv()], approximate selection
+#' conditions on the structural sampling factors retained by [vcalc2()] or
+#' declared by [known_v_factor()] when available. An ordinary covariance matrix
+#' uses the decomposition controlled by `known_v_residual_fraction`, which can
+#' define a different approximate likelihood for the same covariance.
 #'
 #' `marginalize_estimate_level` applies to models without an exact selection
 #' branch and to the approximate selection likelihood. Exact selection
