@@ -1,0 +1,8 @@
+
+Marginal Means:
+                   Mean    SD  0.025    0.5 0.975
+intercept        -0.262 0.209 -0.671 -0.260 0.158
+deltype[covert]  -0.262 0.209 -0.671 -0.260 0.158
+deltype[general]  0.153 0.133 -0.112  0.155 0.414
+deltype[overt]   -0.001 0.193 -0.388  0.003 0.366
+

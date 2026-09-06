@@ -16,6 +16,12 @@ Use `scenario_agreement_plot()` for reference-versus-RoBMA difference plots so
 their finite-value filtering, agreement band, and axes stay consistent. Set
 `reference_label` and `estimate_label` for comparisons that are not
 metafor-versus-RoBMA.
+`plot_marginal_diagnostics()` accepts either a metafor reference and a RoBMA
+fit or two RoBMA fits. For two RoBMA fits, both diagnostics use explicit
+marginal targets; use `reference_label` and `estimate_label` to identify them.
+When either fit is a `bselmodel`, the comparison keeps the supported raw
+residuals and DFBETAS panels and omits rstandard, hat values, and Cook's
+distance.
 
 The project `.Rprofile` loads `test_scenarios()` for interactive sessions. It
 reuses fit caches, suppresses artifact output, and compares without replacing
@@ -30,6 +36,9 @@ test_scenarios(filter = "assink|bcg")
 test_scenarios(filter = "assink", refit = TRUE, update_timings = TRUE)
 review_scenario_snapshots()
 review_test_snapshots()
+plot_scenario_times("assink2016", unit = "m")
+plot_scenario_times(functions = c("brma", "brma.mv", "bselmodel", "residuals"))
+plot_scenario_times(functions = "bselmodel", likelihood = "exact")
 ```
 
 `review_scenario_snapshots()` reopens all cached table and figure changes from
@@ -40,6 +49,17 @@ then reviews per-artifact text and table candidates under `tests/results/`.
 Pass testthat's `files` selection for ordinary snapshots and
 `reference_filter` for reference groups such as `"interpret"` or
 `"marginal_means"`.
+
+`plot_scenario_times()` draws horizontal elapsed-time boxplots from the
+committed timing baselines. Pass one exact `scenario` to inspect its calls, or
+omit it to pool calls across scenarios; `functions` optionally selects function
+families. Function families are matched conservatively from timing names and
+split fit phases. Aggregate `fit` rows, `.new.tsv` candidates, and unmatched
+compound timings such as a complete diagnostic set are omitted. `bselmodel()`
+and `bselmodel.mv()` boxes are split by exact versus approximate likelihood;
+the optional `likelihood` argument selects either variant. Set `unit` to `"s"`,
+`"m"`, or `"h"` for seconds, minutes, or hours on the x-axis. Invisibly
+returned `elapsed` values remain in their stored unit of seconds.
 
 Minimal scenario:
 

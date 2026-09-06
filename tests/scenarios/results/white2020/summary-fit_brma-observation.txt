@@ -2,8 +2,8 @@
 Bayesian Multivariate Random-Effects Model (k = 186)
 
 Location
-           Mean    SD 0.025   0.5 0.975
-intercept 0.134 0.026 0.084 0.134 0.185
+    Mean    SD 0.025   0.5 0.975
+mu 0.134 0.026 0.084 0.134 0.185
 
 Random
                  Mean    SD 0.025   0.5 0.975

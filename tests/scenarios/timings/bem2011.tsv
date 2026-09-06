@@ -71,7 +71,7 @@ text	fit_RoBMA_summary_con	1.570000000	0.524902	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_RoBMA_summary_con2	2.140000000	0.524512	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_RoBMA_summary_models	0.360000000	0.536426	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_summary	0.090000000	0.323437	4.6.0	Windows/x86_64-w64-mingw32
-plot	bfunnel_3PSM	2.770000000	0.509180	4.6.0	Windows/x86_64-w64-mingw32
+plot	bfunnel_3PSM	2.740000000	0.509180	4.6.0	Windows/x86_64-w64-mingw32
 plot	bfunnel_PET	1.600000000	0.536621	4.6.0	Windows/x86_64-w64-mingw32
 plot	bfunnel_simple	1.500000000	0.504785	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_average_posterior_mu	4.840000000	0.667578	4.6.0	Windows/x86_64-w64-mingw32
@@ -94,8 +94,8 @@ plot	mu_BF_3PSM_comparison	0.000000000	0.315137	4.6.0	Windows/x86_64-w64-mingw32
 plot	mu_BF_PET_comparison	0.000000000	0.315137	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_3PSM	0.230000000	0.452930	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_BMA	0.060000000	0.394141	4.6.0	Windows/x86_64-w64-mingw32
-plot	qqnorm_PET	0.260000000	0.569922	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm_PET	0.250000000	0.569922	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_RoBMA	0.670000000	0.589844	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_simple	0.060000000	0.365820	4.6.0	Windows/x86_64-w64-mingw32
-plot	zplot	5.440000000	0.849219	4.6.0	Windows/x86_64-w64-mingw32
-plot	zplot_averaged	3.560000000	0.870996	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot	5.420000000	0.849219	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot_averaged	3.490000000	0.870996	4.6.0	Windows/x86_64-w64-mingw32

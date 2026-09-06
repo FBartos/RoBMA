@@ -1,3 +1,3 @@
    likelihood logml_mv_V logml_mv_vi logml_bselmodel
-1       exact  -72.67805   -75.64165       -75.64394
-2 approximate  -76.50220   -76.18887       -76.18809
+1       exact  -72.67620   -75.64165       -75.64394
+2 approximate  -76.46595   -76.17882       -76.19419

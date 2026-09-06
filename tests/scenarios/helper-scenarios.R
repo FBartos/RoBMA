@@ -558,6 +558,275 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 }
 
 
+.scenario_timing_function_aliases <- function() {
+
+  return(list(
+    "RoBMA.mv"                 = "RoBMA.mv",
+    "bselmodel.mv"             = "bselmodel.mv",
+    "bPEESE.mv"                = "bPEESE.mv",
+    "bPET.mv"                  = "bPET.mv",
+    "BMA.mv"                   = "BMA.mv",
+    "brma.mv"                  = "brma.mv",
+    "RoBMA"                    = "RoBMA",
+    "bselmodel"                = "bselmodel",
+    "bPEESE"                   = "bPEESE",
+    "bPET"                     = "bPET",
+    "BMA"                      = "BMA",
+    "brma"                     = "brma",
+    "plot_marginal_diagnostics" = c(
+      "plot_marginal_diagnostics", "marginal_diagnostics"
+    ),
+    "summary_heterogeneity"    = c(
+      "summary_heterogeneity", "summary_heterogenity", "summary_het"
+    ),
+    "summary_models"           = "summary_models",
+    "pooled_heterogeneity"     = c(
+      "pooled_heterogeneity", "pooled_heterogenity"
+    ),
+    "marginal_means"           = "marginal_means",
+    "print_prior"              = "print_prior",
+    "cooks.distance"           = c("cooks.distance", "cooks"),
+    "residuals"                = c("residuals", "residual"),
+    "rstudent"                 = "rstudent",
+    "dfbetas"                  = "dfbetas",
+    "hatvalues"                = "hatvalues",
+    "hypothesis"               = c("hypothesis", "hypotheses"),
+    "influence"                = "influence",
+    "interpret"                = "interpret",
+    "posterior"                = "posterior",
+    "ranef"                    = "ranef",
+    "regplot"                  = "regplot",
+    "bfunnel"                  = "bfunnel",
+    "funnel"                   = "funnel",
+    "forest"                   = "forest",
+    "qqnorm"                   = "qqnorm",
+    "radial"                   = "radial",
+    "zplot"                    = "zplot",
+    "vif"                      = "vif",
+    "summary"                  = "summary"
+  ))
+}
+
+
+.scenario_normalize_timing_name <- function(name) {
+
+  name <- tolower(gsub("[._-]+", ".", name))
+  return(paste0(".", name, "."))
+}
+
+
+.scenario_timing_name_matches <- function(name, aliases) {
+
+  name    <- .scenario_normalize_timing_name(name)
+  aliases <- .scenario_normalize_timing_name(aliases)
+  return(vapply(name, function(value) {
+    any(vapply(aliases, function(alias) {
+      grepl(alias, value, fixed = TRUE)
+    }, logical(1)))
+  }, logical(1)))
+}
+
+
+.scenario_timing_functions <- function(timings) {
+
+  functions <- rep(NA_character_, nrow(timings))
+  functions[timings[["type"]] == "fit_loo"]     <- "add_loo"
+  functions[timings[["type"]] == "fit_marglik"] <- "add_marglik"
+
+  aliases      <- .scenario_timing_function_aliases()
+  constructors <- c(
+    "RoBMA.mv", "bselmodel.mv", "bPEESE.mv", "bPET.mv", "BMA.mv",
+    "brma.mv", "RoBMA", "bselmodel", "bPEESE", "bPET", "BMA", "brma"
+  )
+  for (name in constructors) {
+    selected <- timings[["type"]] == "fit_model" & is.na(functions) &
+      .scenario_timing_name_matches(timings[["name"]], aliases[[name]])
+    functions[selected] <- name
+  }
+
+  post_fit <- setdiff(names(aliases), constructors)
+  for (name in post_fit) {
+    selected <- timings[["type"]] %in% c("time", "text", "plot") &
+      is.na(functions) &
+      .scenario_timing_name_matches(timings[["name"]], aliases[[name]])
+    functions[selected] <- name
+  }
+
+  return(functions)
+}
+
+
+.scenario_timing_likelihoods <- function(timings) {
+
+  likelihoods <- rep(NA_character_, nrow(timings))
+  selection_models <- timings[["function"]] %in% c(
+    "bselmodel", "bselmodel.mv"
+  )
+  exact <- .scenario_timing_name_matches(timings[["name"]], "exact")
+  approximate <- .scenario_timing_name_matches(
+    timings[["name"]], "approximate"
+  )
+  likelihoods[selection_models & exact]       <- "exact"
+  likelihoods[selection_models & approximate] <- "approximate"
+  return(likelihoods)
+}
+
+
+.scenario_resolve_timing_functions <- function(functions) {
+
+  if (!is.character(functions) || length(functions) == 0L ||
+      anyNA(functions) || any(!nzchar(functions))) {
+    stop("'functions' must be one or more function names.", call. = FALSE)
+  }
+  aliases <- c(
+    list(add_loo = "add_loo", add_marglik = "add_marglik"),
+    .scenario_timing_function_aliases()
+  )
+  resolved <- vapply(functions, function(value) {
+    matched <- vapply(aliases, function(alias) {
+      normalized_value <- .scenario_normalize_timing_name(value)
+      normalized_alias <- .scenario_normalize_timing_name(alias)
+      normalized_value %in% normalized_alias
+    }, logical(1))
+    if (!any(matched)) {
+      stop("Unknown scenario timing function: ", value, ".", call. = FALSE)
+    }
+    names(aliases)[which(matched)[1L]]
+  }, character(1))
+  return(unique(unname(resolved)))
+}
+
+
+.scenario_stored_timings <- function(root) {
+
+  root        <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  timings_dir <- file.path(root, "timings")
+  paths <- list.files(
+    timings_dir,
+    pattern    = "[.]tsv$",
+    full.names = TRUE
+  )
+  paths <- paths[!endsWith(paths, ".new.tsv")]
+  if (length(paths) == 0L) {
+    stop("No stored scenario timing baselines are available.", call. = FALSE)
+  }
+
+  timings <- lapply(paths, function(path) {
+    timing <- .scenario_read_timings(path)
+    timing[["scenario"]] <- sub("[.]tsv$", "", basename(path))
+    timing[c("scenario", setdiff(names(timing), "scenario"))]
+  })
+  return(do.call(rbind, timings))
+}
+
+
+.scenario_timing_unit <- function(unit) {
+
+  if (!is.character(unit) || length(unit) != 1L || is.na(unit) ||
+      !unit %in% c("s", "m", "h")) {
+    stop("'unit' must be 's', 'm', or 'h'.", call. = FALSE)
+  }
+  return(switch(
+    unit,
+    s = list(divisor = 1,    label = "seconds"),
+    m = list(divisor = 60,   label = "minutes"),
+    h = list(divisor = 3600, label = "hours")
+  ))
+}
+
+
+.scenario_timing_groups <- function(timings) {
+
+  groups <- timings[["function"]]
+  selection_models <- !is.na(timings[["likelihood"]])
+  groups[selection_models] <- paste0(
+    groups[selection_models], " (",
+    timings[["likelihood"]][selection_models], ")"
+  )
+  return(groups)
+}
+
+
+# Plot committed scenario timing baselines by individually named function call.
+plot_scenario_times <- function(scenario = NULL, functions = NULL,
+                                likelihood = NULL,
+                                unit = "s",
+                                root = .scenario_helpers_dir) {
+
+  if (!is.null(scenario) &&
+      (!is.character(scenario) || length(scenario) != 1L ||
+       is.na(scenario) || !nzchar(scenario))) {
+    stop("'scenario' must be NULL or one scenario name.", call. = FALSE)
+  }
+
+  timings <- .scenario_stored_timings(root)
+  if (!is.null(scenario)) {
+    if (!scenario %in% timings[["scenario"]]) {
+      stop(
+        "Scenario timing baseline is unavailable for '", scenario, "'.",
+        call. = FALSE
+      )
+    }
+    timings <- timings[timings[["scenario"]] == scenario, , drop = FALSE]
+  }
+  timings[["function"]] <- .scenario_timing_functions(timings)
+  timings <- timings[!is.na(timings[["function"]]), , drop = FALSE]
+  timings[["likelihood"]] <- .scenario_timing_likelihoods(timings)
+
+  if (!is.null(functions)) {
+    functions <- .scenario_resolve_timing_functions(functions)
+    timings <- timings[
+      timings[["function"]] %in% functions,
+      ,
+      drop = FALSE
+    ]
+  }
+  if (!is.null(likelihood)) {
+    likelihood <- match.arg(
+      likelihood,
+      c("exact", "approximate"),
+      several.ok = TRUE
+    )
+    timings <- timings[
+      !is.na(timings[["likelihood"]]) &
+        timings[["likelihood"]] %in% likelihood,
+      ,
+      drop = FALSE
+    ]
+  }
+  if (nrow(timings) == 0L) {
+    stop("No individual function timings matched the selection.", call. = FALSE)
+  }
+
+  unit <- .scenario_timing_unit(unit)
+  groups <- .scenario_timing_groups(timings)
+  plot_elapsed <- timings[["elapsed"]] / unit[["divisor"]]
+  medians <- tapply(plot_elapsed, groups, stats::median)
+  order   <- names(sort(medians))
+  elapsed <- split(
+    plot_elapsed,
+    factor(groups, levels = order)
+  )
+  title <- if (is.null(scenario)) {
+    "Scenario times across scenarios"
+  } else {
+    paste("Scenario times:", scenario)
+  }
+  old_par <- graphics::par(mar = c(4, 12, 4, 1))
+  on.exit(graphics::par(old_par), add = TRUE)
+  graphics::boxplot(
+    elapsed,
+    horizontal = TRUE,
+    las        = 1,
+    xlab       = paste0("Elapsed time (", unit[["label"]], ")"),
+    main       = title
+  )
+
+  rownames(timings) <- NULL
+  return(invisible(timings))
+}
+
+
 .scenario_write_timings <- function(timings, path) {
 
   timings <- .scenario_order_timings(timings)
@@ -2052,37 +2321,75 @@ ex.default <- function(fit, parameter, component = NULL, statistic = NULL, ...) 
 }
 
 
-# Compare marginal diagnostics from a reference fit and a brma.mv fit.
-plot_marginal_diagnostics <- function(fit_reference, fit_brma) {
+# Extract comparable marginal diagnostics from metafor or RoBMA fits.
+.scenario_marginal_diagnostic_values <- function(fit) {
 
-  reference_values <- list(
-    "Residuals"      = as.numeric(stats::residuals(fit_reference)),
-    "Rstandard"      = stats::rstandard(fit_reference)[["z"]],
-    "Hat values"     = as.numeric(stats::hatvalues(fit_reference)),
-    "Cooks distance" = stats::cooks.distance(fit_reference),
-    "DFBETAS"        = unlist(stats::dfbetas(fit_reference))
-  )
-  brma_values <- list(
-    "Residuals"      = stats::residuals(
-      fit_brma,
-      type               = "outcome",
-      conditioning_depth = "marginal"
-    ),
-    "Rstandard"      = suppressWarnings(stats::rstandard(
-      fit_brma,
-      conditioning_depth = "marginal"
-    ))[["z"]],
-    "Hat values"     = suppressWarnings(stats::hatvalues(fit_brma)),
-    "Cooks distance" = stats::cooks.distance(fit_brma),
-    "DFBETAS"        = unlist(stats::dfbetas(fit_brma))
-  )
+  if (inherits(fit, "brma")) {
+    values <- list(
+      "Residuals" = stats::residuals(
+        fit,
+        type               = "outcome",
+        conditioning_depth = "marginal"
+      )
+    )
+    if (!inherits(fit, "bselmodel")) {
+      values[["Rstandard"]] <- suppressWarnings(stats::rstandard(
+        fit,
+        conditioning_depth = "marginal"
+      ))[["z"]]
+      values[["Hat values"]]     <- suppressWarnings(stats::hatvalues(fit))
+      values[["Cooks distance"]] <- stats::cooks.distance(fit)
+    }
+    values[["DFBETAS"]] <- unlist(stats::dfbetas(fit))
+    return(values)
+  }
 
-  graphics::par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
-  for (diagnostic in names(reference_values)) {
+  return(list(
+    "Residuals"      = as.numeric(stats::residuals(fit)),
+    "Rstandard"      = stats::rstandard(fit)[["z"]],
+    "Hat values"     = as.numeric(stats::hatvalues(fit)),
+    "Cooks distance" = stats::cooks.distance(fit),
+    "DFBETAS"        = unlist(stats::dfbetas(fit))
+  ))
+}
+
+
+# Compare marginal diagnostics from metafor and/or RoBMA fits.
+plot_marginal_diagnostics <- function(fit_reference, fit_brma,
+                                      reference_label = NULL,
+                                      estimate_label = NULL) {
+
+  reference_is_brma <- inherits(fit_reference, "brma")
+  estimate_is_brma  <- inherits(fit_brma, "brma")
+  if (is.null(reference_label)) {
+    reference_label <- if (reference_is_brma && estimate_is_brma) {
+      "RoBMA 1"
+    } else {
+      "metafor"
+    }
+  }
+  if (is.null(estimate_label)) {
+    estimate_label <- if (reference_is_brma && estimate_is_brma) {
+      "RoBMA 2"
+    } else {
+      "RoBMA"
+    }
+  }
+
+  reference_values <- .scenario_marginal_diagnostic_values(fit_reference)
+  brma_values      <- .scenario_marginal_diagnostic_values(fit_brma)
+  diagnostics      <- intersect(names(reference_values), names(brma_values))
+
+  plot_columns <- min(2L, length(diagnostics))
+  plot_rows    <- ceiling(length(diagnostics) / plot_columns)
+  graphics::par(mfrow = c(plot_rows, plot_columns), mar = c(4, 4, 2, 1))
+  for (diagnostic in diagnostics) {
     scenario_agreement_plot(
       reference_values[[diagnostic]],
       brma_values[[diagnostic]],
-      main = diagnostic
+      main            = diagnostic,
+      reference_label = reference_label,
+      estimate_label  = estimate_label
     )
   }
 

@@ -36,9 +36,9 @@ plot	marginal_diagnostics_diag	3.270000000	0.867578	4.6.0	Windows/x86_64-w64-min
 plot	marginal_diagnostics_us	4.190000000	0.866992	4.6.0	Windows/x86_64-w64-mingw32
 plot	mu	2.460000000	0.820020	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm	0.970000000	0.864062	4.6.0	Windows/x86_64-w64-mingw32
-plot	random_hcs	1.730000000	0.867676	4.6.0	Windows/x86_64-w64-mingw32
+plot	random_hcs	1.720000000	0.867676	4.6.0	Windows/x86_64-w64-mingw32
 plot	random_us	1.940000000	0.867578	4.6.0	Windows/x86_64-w64-mingw32
-plot	random_us2	1.820000000	0.658789	4.6.0	Windows/x86_64-w64-mingw32
+plot	random_us2	1.800000000	0.658789	4.6.0	Windows/x86_64-w64-mingw32
 plot	ranef-structure-comparison	2.300000000	0.807324	4.6.0	Windows/x86_64-w64-mingw32
 plot	robma_diagnostics_1	4.720000000	0.867676	4.6.0	Windows/x86_64-w64-mingw32
 plot	robma_diagnostics_2	4.500000000	0.867676	4.6.0	Windows/x86_64-w64-mingw32

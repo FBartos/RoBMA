@@ -25,11 +25,11 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>
-<line x1='88.21' y1='173.58' x2='368.59' y2='378.58' style='stroke-width: 0.75;' />
-<line x1='381.22' y1='385.15' x2='659.58' y2='479.49' style='stroke-width: 0.75;' />
-<circle cx='82.40' cy='169.33' r='2.70' style='stroke-width: 0.75;' />
-<circle cx='374.40' cy='382.83' r='2.70' style='stroke-width: 0.75;' />
-<circle cx='666.40' cy='481.81' r='2.70' style='stroke-width: 0.75;' />
+<line x1='88.22' y1='173.93' x2='368.58' y2='378.44' style='stroke-width: 0.75;' />
+<line x1='381.22' y1='385.00' x2='659.58' y2='479.77' style='stroke-width: 0.75;' />
+<circle cx='82.40' cy='169.69' r='2.70' style='stroke-width: 0.75;' />
+<circle cx='374.40' cy='382.68' r='2.70' style='stroke-width: 0.75;' />
+<circle cx='666.40' cy='482.09' r='2.70' style='stroke-width: 0.75;' />
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
 <line x1='140.80' y1='502.56' x2='608.00' y2='502.56' style='stroke-width: 0.75;' />
@@ -61,8 +61,8 @@
 <text transform='translate(12.96,280.80) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='31.35px' lengthAdjust='spacingAndGlyphs'>logBF</text>
 </g>
 <g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>
-<polyline points='94.08,22.94 386.08,364.90 678.08,482.08 ' style='stroke-width: 0.75; stroke-dasharray: 4.00,4.00;' />
-<polyline points='105.76,19.86 397.76,370.55 689.76,481.62 ' style='stroke-width: 0.75; stroke-dasharray: 1.00,3.00;' />
-<polyline points='117.44,-753.24 409.44,347.76 701.44,489.99 ' style='stroke-width: 0.75; stroke-dasharray: 1.00,3.00,4.00,3.00;' />
+<polyline points='94.08,22.26 386.08,404.53 678.08,481.28 ' style='stroke-width: 0.75; stroke-dasharray: 4.00,4.00;' />
+<polyline points='105.76,15.33 397.76,402.13 689.76,481.91 ' style='stroke-width: 0.75; stroke-dasharray: 1.00,3.00;' />
+<polyline points='117.44,-769.22 409.44,345.93 701.44,489.03 ' style='stroke-width: 0.75; stroke-dasharray: 1.00,3.00,4.00,3.00;' />
 </g>
 </svg>

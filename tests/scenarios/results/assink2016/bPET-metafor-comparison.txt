@@ -1,0 +1,9 @@
+            model implementation          mu      PET total_random_sd study_variance_fraction
+1          simple        metafor -0.05876374 2.687019       0.5328162                      NA
+2          simple          RoBMA -0.01720894 2.502327       0.5298005                      NA
+3         cluster        metafor  0.00994097 1.972869       0.4716690               0.5456492
+4         cluster          RoBMA  0.06508889 1.709223       0.4772352               0.5405108
+5           mv_vi        metafor  0.00994097 1.972869       0.4716690               0.5456492
+6           mv_vi          RoBMA  0.05480647 1.746760       0.4806939               0.5436352
+7 mv_correlated_V        metafor  0.06875011 1.635545       0.4466219               0.2649283
+8 mv_correlated_V          RoBMA  0.11378867 1.362460       0.4584175               0.2881919

@@ -1,0 +1,3 @@
+  rho density_bPET_BF density_mv_vi_BF marglik_bPET_BF marglik_mv_vi_BF
+1   0    2.030854e+10     2.182675e+10     21254758045     2.151824e+10
+2   1    2.067527e+14     1.114952e+14              NA     1.260160e+14

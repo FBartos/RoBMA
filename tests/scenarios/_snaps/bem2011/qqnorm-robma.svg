@@ -62,14 +62,14 @@
 <polyline points='108.95,467.47 208.82,417.86 272.84,386.06 325.65,361.27 374.40,340.15 423.15,321.09 475.96,302.29 539.98,280.99 639.85,247.74 ' style='stroke-width: 0.75; stroke: #7F7F7F; stroke-dasharray: 1.00,3.00;' />
 <polyline points='108.95,313.86 208.82,280.61 272.84,259.31 325.65,240.51 374.40,221.45 423.15,200.33 475.96,175.54 539.98,143.74 639.85,94.13 ' style='stroke-width: 0.75; stroke: #7F7F7F; stroke-dasharray: 1.00,3.00;' />
 <line x1='59.04' y1='403.86' x2='689.76' y2='157.74' style='stroke-width: 0.75; stroke-dasharray: 4.00,4.00;' />
-<circle cx='108.95' cy='366.08' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
-<circle cx='208.82' cy='300.60' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
-<circle cx='272.84' cy='297.23' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
-<circle cx='325.65' cy='272.95' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
-<circle cx='374.40' cy='266.14' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
-<circle cx='423.15' cy='250.26' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
-<circle cx='475.96' cy='249.51' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
-<circle cx='539.98' cy='245.09' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
-<circle cx='639.85' cy='224.63' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
+<circle cx='108.95' cy='366.34' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
+<circle cx='208.82' cy='300.93' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
+<circle cx='272.84' cy='297.08' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
+<circle cx='325.65' cy='272.74' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
+<circle cx='374.40' cy='265.92' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
+<circle cx='423.15' cy='250.44' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
+<circle cx='475.96' cy='249.30' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
+<circle cx='539.98' cy='244.86' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
+<circle cx='639.85' cy='223.82' r='2.70' style='stroke-width: 0.75; fill: #A6A6A6;' />
 </g>
 </svg>

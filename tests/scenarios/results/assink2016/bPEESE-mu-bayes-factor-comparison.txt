@@ -1,0 +1,2 @@
+ marglik  density 
+5.090545 5.220907 

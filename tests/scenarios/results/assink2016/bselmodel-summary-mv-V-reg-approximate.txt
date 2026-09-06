@@ -2,20 +2,20 @@
 Bayesian Multivariate Mixed-Effect Selection Model (k = 100)
 
 Location
-                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-intercept        -0.059 0.188 -0.423 -0.060 0.315     0.00695          0.037  740 1.002
-deltype[general]  0.405 0.175  0.065  0.404 0.751     0.00580          0.033  909 1.001
-deltype[overt]    0.245 0.190 -0.129  0.245 0.614     0.00455          0.024 1748 1.000
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+intercept        -0.089 0.194 -0.462 -0.096 0.297     0.01221          0.063 253 1.000
+deltype[general]  0.424 0.180  0.068  0.426 0.775     0.01001          0.056 327 1.001
+deltype[overt]    0.253 0.191 -0.126  0.256 0.619     0.00727          0.038 720 1.000
 
 Random
                       Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-sd_total             0.474 0.064 0.367 0.467 0.617     0.00126          0.020 2605 1.000
-var_prop(esid_study) 0.640 0.139 0.367 0.643 0.901     0.00278          0.020 2570 1.000
-var_prop(study)      0.360 0.139 0.099 0.357 0.633     0.00278          0.020 2570 1.000
+sd_total             0.477 0.064 0.371 0.471 0.619     0.00204          0.032  978 1.002
+var_prop(esid_study) 0.632 0.136 0.366 0.633 0.887     0.00424          0.031 1029 1.001
+var_prop(study)      0.368 0.136 0.113 0.367 0.634     0.00424          0.031 1029 1.001
 
 Publication Bias
-                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA
-omega[0.025,1] 0.681 0.176 0.342 0.686 0.978     0.00152          0.009 13502 1.000
+                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,1] 0.672 0.176 0.340 0.674 0.978     0.00274          0.015 4212 1.000
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 

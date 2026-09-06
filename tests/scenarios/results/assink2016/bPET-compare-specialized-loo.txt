@@ -1,0 +1,6 @@
+Method: stacking
+------
+                 weight
+fit_bPET_cluster 0.928 
+fit_bPET         0.000 
+fit_bPET_fixed   0.072 

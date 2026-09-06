@@ -1,0 +1,19 @@
+
+Bayesian Multivariate Mixed-Effect PET Model (k = 100)
+
+Location
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept        -0.262 0.209 -0.671 -0.260 0.158     0.00752          0.036  768 1.003
+deltype[general]  0.415 0.176  0.070  0.414 0.762     0.00569          0.032  964 1.002
+deltype[overt]    0.261 0.193 -0.121  0.262 0.635     0.00449          0.023 1853 1.001
+
+Random
+                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd_total             0.453 0.059 0.356 0.446 0.588     0.00130          0.022 2156 1.004
+var_prop(esid_study) 0.686 0.142 0.397 0.693 0.938     0.00296          0.021 2292 1.004
+var_prop(study)      0.314 0.142 0.062 0.307 0.603     0.00296          0.021 2292 1.004
+
+Publication Bias
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+PET 1.350 0.554 0.327 1.335 2.485     0.01324          0.024 1765 1.001
+

@@ -1,0 +1,4 @@
+     implementation        mu     omega
+1           metafor 0.2345259 0.1701227
+2       RoBMA exact 0.2362924 0.1868997
+3 RoBMA approximate 0.2362924 0.1868997
