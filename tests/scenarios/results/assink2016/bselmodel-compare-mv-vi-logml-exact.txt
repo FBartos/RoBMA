@@ -1,5 +1,0 @@
-                                 [,1]
-fit_bselmodel.mv_exact              1
-fit_bselmodel.mv_no_study_exact     0
-fit_bselmodel.mv_no_effect_exact    0
-fit_bselmodel.mv_fixed_exact        0

@@ -660,14 +660,12 @@ scenario_fit <- function(name, code, cache_version = NULL) {
 
   likelihoods <- rep(NA_character_, nrow(timings))
   selection_models <- timings[["function"]] %in% c(
-    "bselmodel", "bselmodel.mv"
+    "bselmodel", "bselmodel.mv", "RoBMA", "RoBMA.mv"
   )
-  exact <- .scenario_timing_name_matches(timings[["name"]], "exact")
-  approximate <- .scenario_timing_name_matches(
-    timings[["name"]], "approximate"
-  )
-  likelihoods[selection_models & exact]       <- "exact"
-  likelihoods[selection_models & approximate] <- "approximate"
+  marginal    <- .scenario_timing_name_matches(timings[["name"]], "marg")
+  conditional <- .scenario_timing_name_matches(timings[["name"]], "cond")
+  likelihoods[selection_models & marginal & !conditional] <- "marg"
+  likelihoods[selection_models & conditional & !marginal] <- "cond"
   return(likelihoods)
 }
 
@@ -784,7 +782,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
   if (!is.null(likelihood)) {
     likelihood <- match.arg(
       likelihood,
-      c("exact", "approximate"),
+      c("cond", "marg"),
       several.ok = TRUE
     )
     timings <- timings[

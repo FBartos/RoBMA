@@ -6,20 +6,17 @@ Component Inclusion
 Effect       0.500       0.989       88.820               35.068
 
 Random-Effect Inclusion
-           Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-study            0.500       0.928       12.966               15.920
-study:esid       0.500       1.000   >14999.000                   NA
+               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+study: sd            0.500       0.928       12.966               15.920
+study:esid: sd       0.500       1.000   >14999.000                   NA
 
 Location
     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 mu 0.351 0.101 0.150 0.351 0.543     0.00213          0.021 2541 1.005
 
 Random
-                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-sd_total             0.473 0.065 0.364 0.468 0.616     0.00163          0.025  1609 1.001
-study: sd            0.252 0.112 0.000 0.257 0.466     0.00351          0.031  1083 1.004
-study:esid: sd       0.388 0.036 0.324 0.386 0.464     0.00034          0.009 11309 1.000
-var_prop(study)      0.302 0.157 0.000 0.305 0.602     0.00455          0.029  1209 1.003
-var_prop(study:esid) 0.698 0.157 0.398 0.695 1.000     0.00455          0.029  1209 1.003
-sd_total and var_total are fully model-averaged realized totals, including the all-off zero branch. var_prop(...) is the realized share conditional on positive total heterogeneity; excluded components have zero share. Component SDs include their excluded zero branches.
+                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd_total             0.473 0.065 0.364 0.468 0.616     0.00163          0.025 1609 1.001
+var_prop(study)      0.302 0.157 0.000 0.305 0.602     0.00455          0.029 1209 1.003
+var_prop(study:esid) 0.698 0.157 0.398 0.695 1.000     0.00455          0.029 1209 1.003
 

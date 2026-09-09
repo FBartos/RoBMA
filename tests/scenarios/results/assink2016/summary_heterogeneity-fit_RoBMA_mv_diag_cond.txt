@@ -1,0 +1,18 @@
+
+Heterogeneity Estimates (study/esid):
+                      Mean Median 0.025 0.975
+sd_total             0.479  0.471 0.372 0.636
+var_total            0.234  0.221 0.138 0.404
+var_prop(esid_study) 0.457  0.455 0.239 0.688
+var_prop(study)      0.543  0.545 0.312 0.761
+
+Heterogeneity Estimates (esid_study):
+     Mean Median 0.025 0.975
+sd  0.318  0.316 0.243 0.403
+var 0.103  0.100 0.059 0.162
+
+Heterogeneity Estimates (study):
+     Mean Median 0.025 0.975
+sd  0.354  0.344 0.226 0.537
+var 0.131  0.118 0.051 0.288
+

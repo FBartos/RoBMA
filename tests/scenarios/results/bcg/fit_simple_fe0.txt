@@ -1,5 +1,5 @@
 
-Bayesian Random-Effects Model (k = 13)
+Bayesian Fixed-Effect Model (k = 13)
 
 Estimates
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat

@@ -1,6 +1,0 @@
-Method: stacking
-------
-                                  weight
-fit_bselmodel_cluster_approximate 1.000 
-fit_bselmodel_approximate         0.000 
-fit_bselmodel_fixed_approximate   0.000 

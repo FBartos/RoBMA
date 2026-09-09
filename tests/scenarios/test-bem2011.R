@@ -277,7 +277,7 @@ testthat::test_that("Bem BMA models", {
 
   ### hypotheses ----
 
-  # full fit product space BF = 0.664 (fit_RoBMA)
+  # Compare with fit_RoBMA's displayed product-space BF and its reported error.
   scenario_text("density_test_at_0", rbind(
     hypothesis(fit_RoBMA,     hypothesis = "mu = 0", density_method = "qCMDE", density_control = list(samples = 2000), conditional = TRUE),
     hypothesis(fit_RoBMA_con, hypothesis = "mu = 0", density_method = "qCMDE", density_control = list(samples = 2000))

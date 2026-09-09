@@ -1,7 +1,0 @@
-Method: stacking
-------
-                                 weight
-fit_bselmodel.mv_exact           0.742 
-fit_bselmodel.mv_no_study_exact  0.000 
-fit_bselmodel.mv_no_effect_exact 0.258 
-fit_bselmodel.mv_fixed_exact     0.000 

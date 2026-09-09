@@ -1,4 +1,0 @@
-                                  [,1]
-fit_bselmodel_cluster_approximate    1
-fit_bselmodel_approximate            0
-fit_bselmodel_fixed_approximate      0

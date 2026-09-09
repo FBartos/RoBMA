@@ -10,5 +10,5 @@ Scale
                  Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 exp(intercept)  0.348 0.118  0.148  0.338 0.608     0.00134          0.011 7836 1.001
 ni100          -0.375 0.225 -0.865 -0.366 0.042     0.00286          0.013 6324 1.001
-exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
+exp(intercept) is the baseline heterogeneity SD (tau), already exponentiated. Other coefficients are changes in log(SD); exp(coefficient) is an SD multiplier.
 

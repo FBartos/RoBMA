@@ -1,5 +1,0 @@
-                                       [,1]
-fit_bselmodel.mv_approximate              1
-fit_bselmodel.mv_no_study_approximate     0
-fit_bselmodel.mv_no_effect_approximate    0
-fit_bselmodel.mv_fixed_approximate        0
