@@ -74,8 +74,8 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   # heterogeneity estimate at 1/2sen 1/2spec which are anti correlated
   scenario_text("pooled_het", pooled_heterogeneity(fit_brma_us))
 
-  metafor_parameters <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_var = "tau[sensitivity]^2", specificity_var = "tau[specificity]^2", correlation = "rho")
-  robma_parameters   <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_var = "var(group[sensitivity])", specificity_var = "var(group[specificity])", correlation = "cor(group[sensitivity],group[specificity])")
+  metafor_parameters <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_tau2 = "tau[sensitivity]^2", specificity_tau2 = "tau[specificity]^2", correlation = "rho")
+  robma_parameters   <- c(sensitivity = "group[sensitivity]", specificity = "group[specificity]", sensitivity_tau2 = "tau2(group[sensitivity])", specificity_tau2 = "tau2(group[specificity])", correlation = "rho(group[sensitivity],group[specificity])")
   robma_components   <- c(NA, NA, "study", "study", "study")
   scenario_text("metafor-comparison", data.frame(
     model          = rep(c("UN/US", "DIAG/HCS0"), each = 2L),
@@ -83,7 +83,7 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     rbind(
       ex_m(fit_metafor_us, metafor_parameters), ex_r(fit_brma_us, robma_parameters, component = robma_components),
       ex_m(fit_metafor_diag, metafor_parameters),
-      ex_r(fit_brma_hcs0, c(robma_parameters[-5L], correlation = "cor"), component = robma_components)
+      ex_r(fit_brma_hcs0, c(robma_parameters[-5L], correlation = "rho"), component = robma_components)
     ),
     row.names = NULL
   ))
@@ -99,10 +99,10 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   qcmde_control <- list(samples = 1000L)
   anova(fit_metafor_us, fit_metafor_diag)
   scenario_text("bridge_density_eq", {
-    bf_hyp_us   <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0", density_method = "KDE")
-    bf_hyp_hcs  <- hypothesis(fit_brma_hcs, "cor = 0", density_method = "KDE")
-    bf_hyp_us_qCMDE  <- hypothesis(fit_brma_us,  "cor(group[sensitivity],group[specificity]) = 0", density_method = "qCMDE", density_control = qcmde_control)
-    bf_hyp_hcs_qCMDE <- hypothesis(fit_brma_hcs, "cor = 0", density_method = "qCMDE", density_control = qcmde_control)
+    bf_hyp_us   <- hypothesis(fit_brma_us,  "rho(group[sensitivity],group[specificity]) = 0", density_method = "KDE")
+    bf_hyp_hcs  <- hypothesis(fit_brma_hcs, "rho = 0", density_method = "KDE")
+    bf_hyp_us_qCMDE  <- hypothesis(fit_brma_us,  "rho(group[sensitivity],group[specificity]) = 0", density_method = "qCMDE", density_control = qcmde_control)
+    bf_hyp_hcs_qCMDE <- hypothesis(fit_brma_hcs, "rho = 0", density_method = "qCMDE", density_control = qcmde_control)
     bf_hcs_hcs0  <- bf(fit_brma_hcs, fit_brma_hcs0)
     bf_us_diag   <- bf(fit_brma_us, fit_brma_diag)
 
@@ -124,60 +124,60 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   })
 
   scenario_plot("sd_common", {
-    plot(fit_brma_us, "sd_common", prior = TRUE)
-    lines(fit_brma_us, "sd_common", density_method = "qCMDE", lty = 2)
+    plot(fit_brma_us, "tau_common", prior = TRUE)
+    lines(fit_brma_us, "tau_common", density_method = "qCMDE", lty = 2)
 
-    lines(fit_brma_hcs, "sd_common", col = "blue")
-    lines(fit_brma_hcs, "sd_common", col = "blue", lty = 2, density_method = "qCMDE")
+    lines(fit_brma_hcs, "tau_common", col = "blue")
+    lines(fit_brma_hcs, "tau_common", col = "blue", lty = 2, density_method = "qCMDE")
   })
 
   scenario_plot("cor", {
-    plot(fit_brma_us, "cor(group[sensitivity],group[specificity])", prior = TRUE)
-    lines(fit_brma_us, "cor(group[sensitivity],group[specificity])", density_method = "qCMDE", lty = 2)
+    plot(fit_brma_us, "rho(group[sensitivity],group[specificity])", prior = TRUE)
+    lines(fit_brma_us, "rho(group[sensitivity],group[specificity])", density_method = "qCMDE", lty = 2)
 
-    lines(fit_brma_hcs, "cor", col = "blue")
-    lines(fit_brma_hcs, "cor", col = "blue", lty = 2, density_method = "qCMDE")
+    lines(fit_brma_hcs, "rho", col = "blue")
+    lines(fit_brma_hcs, "rho", col = "blue", lty = 2, density_method = "qCMDE")
   })
 
   # other random parameters
   scenario_plot("random_us", {
     par(mfrow = c(3, 2))
 
-    plot(fit_brma_us, "sd_common", prior = TRUE)
-    plot(fit_brma_us, "var_common", prior = TRUE, xlim = c(0, 2))
+    plot(fit_brma_us, "tau_common", prior = TRUE)
+    plot(fit_brma_us, "tau2_common", prior = TRUE, xlim = c(0, 2))
 
-    plot(fit_brma_us, "sd(group[sensitivity])", prior = TRUE)
-    plot(fit_brma_us, "sd(group[specificity])", prior = TRUE)
+    plot(fit_brma_us, "tau(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_us, "tau(group[specificity])", prior = TRUE)
 
-    plot(fit_brma_us, "var(group[sensitivity])", xlim = c(0, 2), prior = TRUE)
-    plot(fit_brma_us, "var(group[specificity])", xlim = c(0, 2), prior = TRUE)
+    plot(fit_brma_us, "tau2(group[sensitivity])", xlim = c(0, 2), prior = TRUE)
+    plot(fit_brma_us, "tau2(group[specificity])", xlim = c(0, 2), prior = TRUE)
   })
 
   scenario_plot("random_us2", {
     par(mfrow = c(3, 2))
 
-    plot(fit_brma_us, "var_mult(group[sensitivity])", prior = TRUE)
-    plot(fit_brma_us, "var_mult(group[specificity])", prior = TRUE)
+    plot(fit_brma_us, "tau2_mult(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_us, "tau2_mult(group[specificity])", prior = TRUE)
 
-    plot(fit_brma_us, "sd_mult(group[sensitivity])", prior = TRUE, xlim = c(0, 2))
-    plot(fit_brma_us, "sd_mult(group[specificity])", prior = TRUE, xlim = c(0, 2))
+    plot(fit_brma_us, "tau_mult(group[sensitivity])", prior = TRUE, xlim = c(0, 2))
+    plot(fit_brma_us, "tau_mult(group[specificity])", prior = TRUE, xlim = c(0, 2))
 
-    plot(fit_brma_us, "var_mult(group[sensitivity])", prior = TRUE, transform = "LOG", xlim = c(-3, 1))
-    plot(fit_brma_us, "sd_mult(group[specificity])",  prior = TRUE, transform = "LOG", xlim = c(-3, 1))
+    plot(fit_brma_us, "tau2_mult(group[sensitivity])", prior = TRUE, transform = "LOG", xlim = c(-3, 1))
+    plot(fit_brma_us, "tau_mult(group[specificity])",  prior = TRUE, transform = "LOG", xlim = c(-3, 1))
   })
 
 
   scenario_plot("random_hcs", {
     par(mfrow = c(3, 2))
 
-    plot(fit_brma_hcs, "sd_common", prior = TRUE)
-    plot(fit_brma_hcs, "var_common", prior = TRUE, xlim = c(0, 1.5), ylim = c(0, 5))
+    plot(fit_brma_hcs, "tau_common", prior = TRUE)
+    plot(fit_brma_hcs, "tau2_common", prior = TRUE, xlim = c(0, 1.5), ylim = c(0, 5))
 
-    plot(fit_brma_hcs, "sd(group[sensitivity])", prior = TRUE)
-    plot(fit_brma_hcs, "sd(group[specificity])", prior = TRUE)
+    plot(fit_brma_hcs, "tau(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_hcs, "tau(group[specificity])", prior = TRUE)
 
-    plot(fit_brma_hcs, "var_mult(group[sensitivity])", prior = TRUE)
-    plot(fit_brma_hcs, "sd_mult(group[specificity])",  prior = TRUE)
+    plot(fit_brma_hcs, "tau2_mult(group[sensitivity])", prior = TRUE)
+    plot(fit_brma_hcs, "tau_mult(group[specificity])",  prior = TRUE)
   })
 
   ### random-effect comparisons ----

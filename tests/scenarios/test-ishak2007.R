@@ -67,11 +67,11 @@ testthat::test_that("Ishak longitudinal heterogeneous AR model", {
   scenario_text("summary-ar", summary(fit_brma_ar))
   scenario_text("summary-heterogeneity-ar", summary_heterogeneity(fit_brma_ar))
 
-  metafor_parameters_har <- c(time_1 = "time_factor[1]", time_2 = "time_factor[2]", time_3 = "time_factor[3]", time_4 = "time_factor[4]", sd_1 = "tau[1]", sd_2 = "tau[2]", sd_3 = "tau[3]", sd_4 = "tau[4]", correlation = "rho")
-  robma_parameters_har   <- c(time_1 = "time_factor[1]", time_2 = "time_factor[2]", time_3 = "time_factor[3]", time_4 = "time_factor[4]", sd_1 = "sd(time[1])", sd_2 = "sd(time[2])", sd_3 = "sd(time[3])", sd_4 = "sd(time[4])", correlation = "cor")
+  metafor_parameters_har <- c(time_1 = "time_factor[1]", time_2 = "time_factor[2]", time_3 = "time_factor[3]", time_4 = "time_factor[4]", tau_1 = "tau[1]", tau_2 = "tau[2]", tau_3 = "tau[3]", tau_4 = "tau[4]", correlation = "rho")
+  robma_parameters_har   <- c(time_1 = "time_factor[1]", time_2 = "time_factor[2]", time_3 = "time_factor[3]", time_4 = "time_factor[4]", tau_1 = "tau(time[1])", tau_2 = "tau(time[2])", tau_3 = "tau(time[3])", tau_4 = "tau(time[4])", correlation = "rho")
   robma_components_har   <- c(rep(NA_character_, 4L), rep("study", 5L))
-  metafor_parameters_ar  <- c(time_1 = "time_factor[1]", time_2 = "time_factor[2]", time_3 = "time_factor[3]", time_4 = "time_factor[4]", sd_1 = "tau", sd_2 = "tau", sd_3 = "tau", sd_4 = "tau", correlation = "rho")
-  robma_parameters_ar    <- c(time_1 = "time_factor[1]", time_2 = "time_factor[2]", time_3 = "time_factor[3]", time_4 = "time_factor[4]", sd_1 = "sd", sd_2 = "sd", sd_3 = "sd", sd_4 = "sd", correlation = "cor")
+  metafor_parameters_ar  <- c(time_1 = "time_factor[1]", time_2 = "time_factor[2]", time_3 = "time_factor[3]", time_4 = "time_factor[4]", tau_1 = "tau", tau_2 = "tau", tau_3 = "tau", tau_4 = "tau", correlation = "rho")
+  robma_parameters_ar    <- c(time_1 = "time_factor[1]", time_2 = "time_factor[2]", time_3 = "time_factor[3]", time_4 = "time_factor[4]", tau_1 = "tau", tau_2 = "tau", tau_3 = "tau", tau_4 = "tau", correlation = "rho")
   robma_components_ar    <- c(rep(NA_character_, 4L), rep("study", 4L), NA_character_)
   scenario_text("metafor-comparison", data.frame(
     model          = rep(c("HAR", "AR"), each = 2L),
@@ -97,8 +97,8 @@ testthat::test_that("Ishak longitudinal heterogeneous AR model", {
   anova(fit_metafor_har0, fit_metafor_har)
   scenario_text("robma-correlation-density-test", {
     bf_bridge <- bf(fit_brma_har, fit_brma_har0)
-    bf_kde    <- hypothesis(fit_brma_har, "cor = 0", density_method = "KDE")
-    bf_qcmde  <- hypothesis(fit_brma_har, "cor = 0", density_method = "qCMDE", density_control = qcmde_control)
+    bf_kde    <- hypothesis(fit_brma_har, "rho = 0", density_method = "KDE")
+    bf_qcmde  <- hypothesis(fit_brma_har, "rho = 0", density_method = "qCMDE", density_control = qcmde_control)
 
     data.frame(bridge = bf_bridge$bf, KDE = bf_kde$BF, qCMDE = bf_qcmde$BF)
   })
@@ -116,31 +116,31 @@ testthat::test_that("Ishak longitudinal heterogeneous AR model", {
 
   # these SD parameters density estimates take a long time
   scenario_plot("sd_common", {
-    plot(fit_brma_har, "sd_common", prior = TRUE)
-    lines(fit_brma_har, "sd_common", density_method = "qCMDE", lty = 2)
+    plot(fit_brma_har, "tau_common", prior = TRUE)
+    lines(fit_brma_har, "tau_common", density_method = "qCMDE", lty = 2)
 
-    lines(fit_brma_ar, "sd", col = "blue")
-    lines(fit_brma_ar, "sd", col = "blue", lty = 2, density_method = "qCMDE")
+    lines(fit_brma_ar, "tau", col = "blue")
+    lines(fit_brma_ar, "tau", col = "blue", lty = 2, density_method = "qCMDE")
   })
 
   ### Random-parameter plots ----
   scenario_plot("random-parameters", {
     par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
 
-    plot(fit_brma_har, "sd(time[1])", prior = TRUE)
-    lines(fit_brma_har, "sd(time[1])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
+    plot(fit_brma_har, "tau(time[1])", prior = TRUE)
+    lines(fit_brma_har, "tau(time[1])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
 
-    lines(fit_brma_har, "sd(time[2])", col = "blue")
-    lines(fit_brma_har, "sd(time[2])", col = "blue", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
+    lines(fit_brma_har, "tau(time[2])", col = "blue")
+    lines(fit_brma_har, "tau(time[2])", col = "blue", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
 
-    plot(fit_brma_har, "cor", prior = TRUE, main = "Correlation")
-    lines(fit_brma_har, "cor", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
+    plot(fit_brma_har, "rho", prior = TRUE, main = "Correlation")
+    lines(fit_brma_har, "rho", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
 
-    plot(fit_brma_har, "var_mult(time[1])", prior = TRUE, main = "var_mult")
-    lines(fit_brma_har, "var_mult(time[1])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
+    plot(fit_brma_har, "tau2_mult(time[1])", prior = TRUE, main = "tau2_mult")
+    lines(fit_brma_har, "tau2_mult(time[1])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
 
-    plot(fit_brma_har, "sd_mult(time[1])", prior = TRUE, main = "sd_mult")
-    lines(fit_brma_har, "sd_mult(time[1])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
+    plot(fit_brma_har, "tau_mult(time[1])", prior = TRUE, main = "tau_mult")
+    lines(fit_brma_har, "tau_mult(time[1])", density_method = "qCMDE", density_control = qcmde_control, lty = 2)
 
   })
 

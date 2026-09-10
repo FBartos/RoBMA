@@ -49,9 +49,9 @@ testthat::test_that("White study and observation random-effects model", {
   scenario_text("summary-heterogeneity-study",       summary_heterogeneity(fit_brma_study))
   scenario_text("summary-heterogeneity-observation", summary_heterogeneity(fit_brma_observation))
 
-  metafor_parameters <- c("intercept", study_SD = "sigma[study_id]", observation_SD = "sigma[obs]", total_random_SD = "sigma[total]")
-  robma_parameters        <- c("intercept", study_SD = "sd", observation_SD = "sd", total_random_SD = "sd_total")
-  robma_single_parameters <- c("intercept", study_SD = "sd", observation_SD = "sd", total_random_SD = "sd")
+  metafor_parameters <- c("intercept", study_tau = "sigma[study_id]", observation_tau = "sigma[obs]", tau_total = "sigma[total]")
+  robma_parameters        <- c("intercept", study_tau = "tau", observation_tau = "tau", tau_total = "tau_total")
+  robma_single_parameters <- c("intercept", study_tau = "tau", observation_tau = "tau", tau_total = "tau")
   robma_components        <- c(NA, "study", "observation", NA)
   robma_study_components  <- c(NA, "study", "observation", "study")
   robma_obs_components    <- c(NA, "study", "observation", "observation")
@@ -75,30 +75,30 @@ testthat::test_that("White study and observation random-effects model", {
   scenario_plot("random", {
     par(mfrow = c(3, 2))
 
-    plot(fit_brma, "sd_total", prior = TRUE)
-    lines(fit_brma, "sd_total", density_method = "qCMDE", lty = 2)
+    plot(fit_brma, "tau_total", prior = TRUE)
+    lines(fit_brma, "tau_total", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma, "var_total", prior = TRUE, xlim = c(0, 0.5), ylim = c(0, 50))
-    lines(fit_brma, "var_total", density_method = "qCMDE", lty = 2)
+    plot(fit_brma, "tau2_total", prior = TRUE, xlim = c(0, 0.5), ylim = c(0, 50))
+    lines(fit_brma, "tau2_total", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma, "var_prop(study)", prior = TRUE)
-    lines(fit_brma, "var_prop(study)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma, "tau2_prop(study)", prior = TRUE)
+    lines(fit_brma, "tau2_prop(study)", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma, "var_prop(observation)", prior = TRUE)
-    lines(fit_brma, "var_prop(observation)", density_method = "qCMDE", lty = 2)
+    plot(fit_brma, "tau2_prop(observation)", prior = TRUE)
+    lines(fit_brma, "tau2_prop(observation)", density_method = "qCMDE", lty = 2)
 
-    plot(fit_brma, "study: sd", prior = TRUE)
-    lines(fit_brma, "study: sd", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000))
+    plot(fit_brma, "study: tau", prior = TRUE)
+    lines(fit_brma, "study: tau", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000))
 
-    plot(fit_brma, "observation: sd", prior = TRUE)
-    lines(fit_brma, "observation: sd", density_method = "qCMDE", lty = 2)
+    plot(fit_brma, "observation: tau", prior = TRUE)
+    lines(fit_brma, "observation: tau", density_method = "qCMDE", lty = 2)
   })
 
 
   ### hypothesis and model comparison ----
   scenario_text("random-component-bayes-factors", {
     density_bf <- hypothesis(
-      fit_brma, c("var_prop(study) != 0 vs var_prop(study) = 0", "var_prop(study) != 1 vs var_prop(study) = 1"),
+      fit_brma, c("tau2_prop(study) != 0 vs tau2_prop(study) = 0", "tau2_prop(study) != 1 vs tau2_prop(study) = 1"),
       density_method  = "qCMDE", density_control = list(samples = 2000L)
     )
     data.frame(

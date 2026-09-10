@@ -94,7 +94,7 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   })
 
   ### model summaries ----
-  # The fitted sd is the scale multiplying the known covariance kernel. It is
+  # The fitted tau is the scale multiplying the known covariance kernel. It is
   # not necessarily every row's marginal SD when diag(R) differs from one.
   scenario_text("summary-no-known-R", summary(fit_brma_mv, include_mcmc_diagnostics = FALSE))
   scenario_text("summary-known-R",    summary(fit_brma_mv_quality, include_mcmc_diagnostics = FALSE))
@@ -108,7 +108,7 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   scenario_text("model-comparison", {
     metafor_parameters <- c(mu = "intercept", se = "intercept", lower = "intercept", upper = "intercept", tau = "sigma[analysis]")
     metafor_statistics <- c("estimate", "SE", "CI_0.025", "CI_0.975", "estimate")
-    robma_parameters   <- c(mu = "intercept", se = "intercept", lower = "intercept", upper = "intercept", tau = "sd")
+    robma_parameters   <- c(mu = "intercept", se = "intercept", lower = "intercept", upper = "intercept", tau = "tau")
     robma_components   <- c(NA, NA, NA, NA, "analysis")
     robma_statistics   <- c("Mean", "SD", "CI_0.025", "CI_0.975", "Median")
     data.frame(
@@ -162,14 +162,14 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   })
 
   scenario_plot("posterior-tau", {
-    plot(fit_brma_mv, "sd", prior = TRUE, xlim = c(0, .10), col = "blue")
-    lines(fit_brma_mv, "sd", lty = 2, col = "blue", density_method = "qCMDE")
+    plot(fit_brma_mv, "tau", prior = TRUE, xlim = c(0, .10), col = "blue")
+    lines(fit_brma_mv, "tau", lty = 2, col = "blue", density_method = "qCMDE")
 
-    lines(fit_brma_mv_quality, "sd", col = "green")
-    lines(fit_brma_mv_quality, "sd", lty = 2, col = "green", density_method = "qCMDE")
+    lines(fit_brma_mv_quality, "tau", col = "green")
+    lines(fit_brma_mv_quality, "tau", lty = 2, col = "green", density_method = "qCMDE")
 
-    lines(fit_brma_mv_rcor, "sd", col = "red")
-    lines(fit_brma_mv_rcor, "sd", lty = 2, col = "red", density_method = "qCMDE")
+    lines(fit_brma_mv_rcor, "tau", col = "red")
+    lines(fit_brma_mv_rcor, "tau", lty = 2, col = "red", density_method = "qCMDE")
   })
 
   scenario_plot("random-effects", {
