@@ -267,10 +267,9 @@ test_that("scenario-model PSIS LOO agrees with five exact deletion refits", {
     model_index <- model_index + 1L
     model       <- models[[model_name]]
     full_fit    <- model[["fit"]](integer(), 8100L + 100L * model_index)
-    expect_no_warning(
-      full_fit <- add_loo(full_fit),
-      info = model_name
-    )
+    # expect_no_warning() takes no 'info': a stray argument makes it error
+    # instead of asserting. The model is identified by the assertions below.
+    expect_no_warning(full_fit <- add_loo(full_fit))
     loo_result  <- loo(full_fit)
     full_log_lik <- log_lik(full_fit)
     target <- attr(full_log_lik, "RoBMA_target", exact = TRUE)
