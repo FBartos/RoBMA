@@ -169,6 +169,73 @@ test_that("BMA.mv reports realized gated totals and variance proportions", {
 })
 
 
+test_that("BMA.mv gated totals equal I_j w_j tau^2 without renormalizing", {
+
+  # The self-consistency checks above still hold if the implementation
+  # renormalized the Dirichlet weights over the active gates. Pin the
+  # documented rule against the internal coordinates instead: the slab total
+  # SD, the raw Dirichlet weights, and the gates.
+  samples    <- .get_posterior_samples(fit_bma_mv[["fit"]])
+  allocation <- fit_bma_mv[["formula_design"]][["mu"]][["random_allocations"]][[1L]]
+  components <- allocation[["component_labels"]]
+  gate_names <- .bma_mv_random_gate_names(fit_bma_mv)
+
+  slab_sd <- as.numeric(samples[, allocation[["scale_name"]]])
+  weights <- as.matrix(samples[, paste0(
+    allocation[["weight_name"]], "[", seq_along(components), "]"
+  ), drop = FALSE])
+  gates <- as.matrix(samples[, gate_names[components], drop = FALSE])
+  dimnames(weights) <- NULL
+  dimnames(gates) <- NULL
+
+  sd_total <- .bma_mv_parameter_draws(fit_bma_mv, "(mu) sd_total")
+  component_sd <- vapply(components, function(component) {
+    .bma_mv_parameter_draws(
+      fit_bma_mv,
+      paste0("(mu) ", component, ": sd(intercept)")
+    )
+  }, numeric(nrow(samples)))
+  proportions <- vapply(components, function(component) {
+    .bma_mv_parameter_draws(
+      fit_bma_mv,
+      paste0("(mu) var_prop(", component, ")")
+    )
+  }, numeric(nrow(samples)))
+
+  # Each component SD is the slab SD scaled by its own gate and raw weight.
+  for (i in seq_along(components)) {
+    expect_equal(
+      unname(component_sd[, i]),
+      slab_sd * gates[, i] * sqrt(weights[, i]),
+      tolerance = 1e-12,
+      info = components[[i]]
+    )
+  }
+
+  # The realized total is the un-renormalized gated sum.
+  gated_variance <- rowSums(gates * weights) * slab_sd^2
+  expect_equal(sd_total^2, gated_variance, tolerance = 1e-12)
+
+  # Renormalization would make the total equal the slab variance whenever any
+  # gate is on. It must not, and the discrepancy must be a real one.
+  some_on <- rowSums(gates) > 0
+  partial <- some_on & rowSums(gates) < length(components)
+  expect_true(any(partial))
+  expect_true(all(sd_total[partial]^2 < slab_sd[partial]^2))
+  expect_gt(max(abs(sd_total[partial]^2 - slab_sd[partial]^2)), 1e-6)
+
+  # Shares are the realized gated weights, not the raw Dirichlet weights.
+  for (i in seq_along(components)) {
+    expect_equal(
+      unname(proportions[some_on, i]),
+      (gates[, i] * weights[, i] / rowSums(gates * weights))[some_on],
+      tolerance = 1e-12,
+      info = components[[i]]
+    )
+  }
+})
+
+
 test_that("BMA.mv allocation densities preserve gate-defined atoms", {
 
   total <- .brma_random_parameter_mixed_posterior(
