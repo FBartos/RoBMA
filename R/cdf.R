@@ -135,6 +135,22 @@
       call. = FALSE
     )
   }
+  if (.is_data_joint_selection(object[["data"]])) {
+    if (conditioning_depth == "estimate") {
+      cdf_vals <- .cdf_lik_estimate.brma(object)
+      colnames(cdf_vals) <- paste0("cdf[", seq_len(ncol(cdf_vals)), "]")
+      return(cdf_vals)
+    }
+    model <- .data_selection_model(object[["data"]])
+    best <- any(vapply(model[["branches"]][model[["active_branches"]]], function(branch) {
+      identical(branch[["weight_rule"]], "best")
+    }, logical(1L)))
+    if (.is_random(object) || .is_multilevel(object) ||
+        .selection_retains_estimate(object[["data"]]) ||
+        (best && any(lengths(model[["groups"]][["row_blocks"]]) > 1L))) {
+      stop("Joint-selection CDF evaluation is unavailable at this conditioning depth. Use the estimate-deletion CDF for LOO-PIT or 'as_zplot()' for marginal selected projections.", call. = FALSE)
+    }
+  }
   if (.is_random(object)) {
     .check_random_formula_postfit_deferred(object, ".cdf.brma()")
   }

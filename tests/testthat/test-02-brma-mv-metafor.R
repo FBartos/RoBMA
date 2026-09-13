@@ -306,7 +306,7 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "study/esid",
-      row       = "sd_total",
+      row       = "tau_total",
       expected  = function(m) sqrt(sum(m[["sigma2"]])),
       tolerance = 0.05
     ),
@@ -327,42 +327,42 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "study/esid",
-      row       = "var_prop(study)",
+      row       = "tau2_prop(study)",
       expected  = function(m) m[["sigma2"]][[1]] / sum(m[["sigma2"]]),
       tolerance = 0.08
     ),
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "study/esid",
-      row       = "var_prop(esid_study)",
+      row       = "tau2_prop(esid_study)",
       expected  = function(m) m[["sigma2"]][[2]] / sum(m[["sigma2"]]),
       tolerance = 0.08
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "sd(time[1])",
+      row       = "tau(time[1])",
       expected  = function(m) sqrt(m[["tau2"]][[1]]),
       tolerance = 0.75
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "sd(time[2])",
+      row       = "tau(time[2])",
       expected  = function(m) sqrt(m[["tau2"]][[2]]),
       tolerance = 0.75
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "sd(time[3])",
+      row       = "tau(time[3])",
       expected  = function(m) sqrt(m[["tau2"]][[3]]),
       tolerance = 0.75
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
       component = "study",
-      row       = "sd(time[4])",
+      row       = "tau(time[4])",
       expected  = function(m) sqrt(m[["tau2"]][[4]]),
       tolerance = 1.10
     ),

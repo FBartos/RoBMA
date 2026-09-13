@@ -53,7 +53,7 @@
 
   out <- lapply(names(selected), function(name) {
     samples <- selected[[name]]
-    colnames(samples) <- if (identical(name, "total")) {
+    quantity <- if (identical(name, "total")) {
       if (length(components) > 1L) {
         "sd_total"
       } else {
@@ -62,6 +62,7 @@
     } else {
       unname(component_quantities[[name]])
     }
+    colnames(samples) <- .brma_random_parameter_io_quantity(quantity)
     .new_brma_samples(
       samples   = samples,
       n_chains  = chain_info[["n_chains"]],
@@ -460,8 +461,8 @@
                                                correlation_samples = NULL) {
 
   var_samples <- rowMeans(sd_samples^2)
-  sd_name     <- if (aggregate) "sd_total" else "sd"
-  var_name    <- if (aggregate) "var_total" else "var"
+  sd_name     <- if (aggregate) "tau_total" else "tau"
+  var_name    <- if (aggregate) "tau2_total" else "tau2"
   samples_list <- list(
     sqrt(var_samples),
     var_samples
@@ -518,7 +519,8 @@
     )
     block <- selected[["extraction_key"]][[i]][["random_block"]]
     label <- .brma_mv_random_quantity_display_label(
-      selected[["display_label"]][i]
+      selected[["display_label"]][i],
+      selected[["quantity"]][i]
     )
     out[[block]][[label]] <- as.numeric(draws[[1L]][, 1L])
   }
@@ -749,7 +751,11 @@
         values <- values[!is.na(values)]
         if (length(values) == 0L) {
           stop(
-            "Variance proportion '", selected[["display_label"]][i],
+            "Heterogeneity-variance proportion '",
+            .brma_mv_random_quantity_display_label(
+              selected[["display_label"]][i],
+              selected[["quantity"]][i]
+            ),
             "' is unavailable because no posterior draw has positive ",
             "realized allocation variance.",
             call. = FALSE
@@ -758,10 +764,9 @@
       }
       values
     })
-    names(samples_list) <- vapply(
-      selected[["display_label"]],
-      .brma_mv_random_quantity_display_label,
-      character(1)
+    names(samples_list) <- .brma_random_parameter_io_names(
+      sub("^\\([^)]*\\) ", "", selected[["display_label"]]),
+      selected[["quantity"]]
     )
 
     name <- .brma_mv_allocation_summary_name(
@@ -799,9 +804,12 @@
 }
 
 
-.brma_mv_random_quantity_display_label <- function(label) {
+.brma_mv_random_quantity_display_label <- function(label, quantity) {
 
-  sub("^\\([^)]*\\) ", "", label)
+  .brma_random_parameter_io_name(
+    sub("^\\([^)]*\\) ", "", label),
+    quantity
+  )
 }
 
 
@@ -901,11 +909,11 @@
   samples <- list()
   samples[[.brma_mv_allocation_parameter_name(
     allocation_owner,
-    aggregate_quantities[["sd"]]
+    .brma_random_parameter_io_quantity(aggregate_quantities[["sd"]])
   )]] <- sqrt(total_variance)
   samples[[.brma_mv_allocation_parameter_name(
     allocation_owner,
-    aggregate_quantities[["var"]]
+    .brma_random_parameter_io_quantity(aggregate_quantities[["var"]])
   )]] <- total_variance
 
   weight_name <- allocation[["weight_name"]]
@@ -935,7 +943,7 @@
     }
     samples[[.brma_mv_allocation_parameter_name(
       allocation_owner,
-      paste0("var_prop(", labels[[i]], ")")
+      paste0("tau2_prop(", labels[[i]], ")")
     )]] <- weights
   }
 
@@ -979,11 +987,11 @@
   samples <- list()
   samples[[.brma_mv_allocation_parameter_name(
     allocation_owner,
-    aggregate_quantities[["sd"]]
+    .brma_random_parameter_io_quantity(aggregate_quantities[["sd"]])
   )]] <- total_sd
   samples[[.brma_mv_allocation_parameter_name(
     allocation_owner,
-    aggregate_quantities[["var"]]
+    .brma_random_parameter_io_quantity(aggregate_quantities[["var"]])
   )]] <- total_sd^2
 
   weight_name <- allocation[["weight_name"]]
@@ -1032,18 +1040,18 @@
 
     samples[[.brma_mv_allocation_parameter_name(
       block_owner,
-      paste0("sd(", labels[[i]], ")")
+      paste0("tau(", labels[[i]], ")")
     )]] <- sd_samples
   }
 
   for (i in seq_along(labels)) {
     sd_name <- .brma_mv_allocation_parameter_name(
       block_owner,
-      paste0("sd(", labels[[i]], ")")
+      paste0("tau(", labels[[i]], ")")
     )
     samples[[.brma_mv_allocation_parameter_name(
       block_owner,
-      paste0("var(", labels[[i]], ")")
+      paste0("tau2(", labels[[i]], ")")
     )]] <- samples[[sd_name]]^2
   }
 
@@ -1057,7 +1065,7 @@
     )
     samples[[.brma_mv_allocation_parameter_name(
       allocation_owner,
-      paste0("sd_mult(", labels[[i]], ")")
+      paste0("tau_mult(", labels[[i]], ")")
     )]] <- sqrt(variance_multiplier)
   }
 
@@ -1066,7 +1074,7 @@
     weights <- posterior_samples[, column]
     samples[[.brma_mv_allocation_parameter_name(
       allocation_owner,
-      paste0("var_mult(", labels[[i]], ")")
+      paste0("tau2_mult(", labels[[i]], ")")
     )]] <- .brma_mv_allocation_variance_multiplier(
       weights   = weights,
       scale     = scale,

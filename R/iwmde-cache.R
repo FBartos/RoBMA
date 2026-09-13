@@ -80,6 +80,13 @@
   if (length(structure_key) > 0L) {
     structure_key <- paste0(names(structure_key), "=", structure_key)
   }
+  direction <- parameter_spec[["direction"]]
+  if (!is.null(direction)) {
+    direction <- direction[order(names(direction))]
+    structure_key <- c(structure_key,
+      paste0("direction:", names(direction), "=", .iwmde_key_number(direction)),
+      paste0("chart:", parameter_spec[["conditioning_chart"]]))
+  }
   if (!is.null(parameter_spec[["gate_metadata"]])) {
     structure_key <- c(structure_key, .iwmde_hash(
       "random_inclusion", parameter_spec[["gate_metadata"]]

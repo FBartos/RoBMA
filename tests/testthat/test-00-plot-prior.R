@@ -370,10 +370,10 @@ test_that("print_prior prints a fitted random specification only once", {
   catalog <- .brma_parameter_catalog(mv_priors)
   random_entries <- catalog[rep(1L, 2L), , drop = FALSE]
   random_entries[["alias"]] <-
-    c("(mu) sd(intercept)", "sd(intercept)")
-  random_entries[["parameter"]]         <- "(mu) sd(intercept)"
+    c("(mu) tau(intercept)", "tau(intercept)")
+  random_entries[["parameter"]]         <- "(mu) tau(intercept)"
   random_entries[["component"]]         <- "random"
-  random_entries[["term"]]              <- "(mu) sd(intercept)"
+  random_entries[["term"]]              <- "(mu) tau(intercept)"
   random_entries[["source"]]            <- "random"
   random_entries[["formula_parameter"]] <- "mu"
   catalog <- rbind(catalog, random_entries)
@@ -384,7 +384,7 @@ test_that("print_prior prints a fitted random specification only once", {
 
   selected <- print_prior(mv_priors, silent = TRUE)
   expect_s3_class(selected[["random"]], "prior_random")
-  expect_false("(mu) sd(intercept)" %in% names(selected))
+  expect_false("(mu) tau(intercept)" %in% names(selected))
 })
 
 test_that("plot_prior supports direct prior objects", {

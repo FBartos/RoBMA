@@ -589,6 +589,10 @@ bool step_normalizer_trusted_telescoping(
   for (int b = 0; b < data.n_bins - 1; ++b) {
     const double difference = omega_at(omega, b + 1, omega_stride) -
       omega_at(omega, b + 2, omega_stride);
+    if (difference == 0.0 && boundary_tail == nullptr) {
+      if (omega_diff != nullptr) omega_diff[b] = difference;
+      continue;
+    }
     const double boundary_score = stable_affine_score(
       data.z_lower[b], sei, signed_mean, sd
     );
@@ -607,6 +611,25 @@ bool step_normalizer_trusted_telescoping(
     *normalizer > 1e-8 * normalizer_abs;
 }
 
+
+double step_rng_prepared_partition(double u_bin, double u_interval,
+    const double *mass, const double *lower, const double *upper,
+    int n_groups, double denom)
+{
+  const double target = u_bin * denom;
+  double cumulative = 0;
+  int selected = n_groups - 1;
+  for (int g = 0; g < n_groups; ++g) {
+    cumulative += mass[g];
+    if (target <= cumulative) {
+      selected = g;
+      break;
+    }
+  }
+  return truncated_normal_quantile(
+    lower[selected], upper[selected], 0, 1, u_interval
+  );
+}
 
 double step_rng_trusted_partition(const double *omega,
                                    const SelNormKernelData &data,
@@ -628,24 +651,8 @@ double step_rng_trusted_partition(const double *omega,
     *log_normalizer = std::log(denom);
   }
 
-  const double target = u_bin * denom;
-  double cumulative = 0;
-  int selected = n_groups - 1;
-
-  for (int g = 0; g < n_groups; ++g) {
-    cumulative += mass[g];
-    if (target <= cumulative) {
-      selected = g;
-      break;
-    }
-  }
-
-  return truncated_normal_quantile(
-    lower[selected],
-    upper[selected],
-    0,
-    1,
-    u_interval
+  return step_rng_prepared_partition(
+    u_bin, u_interval, mass, lower, upper, n_groups, denom
   );
 }
 

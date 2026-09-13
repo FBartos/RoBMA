@@ -33,18 +33,20 @@
 #' is labeled `intercept`; an intercept fixed at zero is omitted.
 #' Scale tables label the baseline SD as `exp(intercept)`; its estimates are
 #' already exponentiated. Other scale coefficients remain on the log-SD scale.
-#' Multivariate scale rows identify their targeted random-effect SD, total SD
-#' (`sd_total`), or mean-variance allocation scale (`sd_common`). The baseline
+#' Multivariate scale rows identify their targeted random-effect heterogeneity
+#' (`tau`), total heterogeneity (`tau_total`), or mean-variance allocation scale
+#' (`tau_common`). The baseline
 #' corresponds to zero non-intercept design columns under the fitted contrasts
 #' and the requested predictor standardization.
 #' The random table reports the quantities aligned with prior specification;
 #' use [summary_heterogeneity()] for aggregate variances and the complete family
 #' of deterministic allocation transforms.
 #' This reporting rule is the same for `brma.mv()` and `BMA.mv()`: component
-#' SDs derived from a variance allocation appear only in [summary_heterogeneity()].
-#' Printing an approximate `bselmodel.mv()` model or its summary also reports
-#' any notification from its stored [selection_approximation_diagnostics()]
-#' result without recomputing the diagnostic.
+#' `tau` values derived from a variance allocation appear only in
+#' [summary_heterogeneity()].
+#' Optional selection-conditioning comparisons are inspected explicitly with
+#' [selection_sensitivity_diagnostics()]. Printing a model or its summary does
+#' not emit sensitivity notifications.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -269,8 +271,14 @@ summary.brma       <- function(
       title                   = "Conditional Random"
     )
   )
-  estimates_random             <- estimates_random_pair[["estimates"]]
-  estimates_random_conditional <- estimates_random_pair[["conditional"]]
+  estimates_random <- .summary_random_repair_parameter_names(
+    estimates = estimates_random_pair[["estimates"]],
+    object    = object
+  )
+  estimates_random_conditional <- .summary_random_repair_parameter_names(
+    estimates = estimates_random_pair[["conditional"]],
+    object    = object
+  )
 
   ### provide RoBMA inclusion summaries
   if (is_robma) {
@@ -307,8 +315,12 @@ summary.brma       <- function(
     estimates_bias              = estimates_bias,
     estimates_bias_conditional  = estimates_bias_conditional
   )
-  out[["selection_approximation_diagnostics"]] <-
-    object[["selection_approximation_diagnostics"]]
+  out[["selection_sensitivity_diagnostics"]] <-
+    object[["selection_sensitivity_diagnostics"]]
+  out[["selection_model"]] <- .data_selection_model(object[["data"]])
+  out[["selection_sampling"]] <- .selection_postfit_target_metadata(
+    object[["data"]]
+  )[["sampling_structure"]]
 
   class(out) <- "summary.brma"
   attr(out, "mods")         <- is_mods
@@ -350,10 +362,6 @@ print.summary.brma <- function(x, ...) {
 
 
   cat("\n")
-
-  .selection_approximation_notify_result(
-    x[["selection_approximation_diagnostics"]]
-  )
 
   return(invisible(x))
 }
@@ -499,7 +507,7 @@ print.brma <- function(x, ...) {
 .summary_scale_footnotes <- function(object) {
 
   target <- if (.is_random(object)) {
-    "SD of the indicated target"
+    "heterogeneity SD (tau) of the indicated target"
   } else {
     "heterogeneity SD (tau)"
   }
@@ -530,6 +538,44 @@ print.brma <- function(x, ...) {
     replacement = "\\1exp(intercept)",
     x           = rownames(estimates)
   )
+
+  estimates
+}
+
+.summary_random_repair_parameter_names <- function(estimates, object) {
+
+  parameters <- attr(estimates, "parameters", exact = TRUE)
+  if (length(estimates) == 0L || is.null(parameters) ||
+      is.null(rownames(estimates)) || is.null(object[["fit"]])) {
+    return(estimates)
+  }
+
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  rows       <- match(parameters, quantities[["canonical_name"]])
+  matched    <- !is.na(rows) & startsWith(quantities[["role"]][rows], "random_")
+  if (!any(matched)) {
+    return(estimates)
+  }
+
+  matched_rows <- rows[matched]
+  rownames(estimates)[matched] <- .brma_random_parameter_io_names(
+    rownames(estimates)[matched],
+    quantities[["quantity"]][matched_rows]
+  )
+  parameters[matched] <- .brma_random_parameter_io_names(
+    parameters[matched],
+    quantities[["quantity"]][matched_rows]
+  )
+  attr(estimates, "parameters") <- parameters
+
+  display_rows <- attr(estimates, "rownames", exact = TRUE)
+  if (is.character(display_rows) && length(display_rows) == nrow(estimates)) {
+    display_rows[matched] <- .brma_random_parameter_io_names(
+      display_rows[matched],
+      quantities[["quantity"]][matched_rows]
+    )
+    attr(estimates, "rownames") <- display_rows
+  }
 
   estimates
 }
@@ -565,7 +611,8 @@ print.brma <- function(x, ...) {
           .brma_mv_allocation_aggregate_quantities(allocation)[["sd"]]
         }
         return(.brma_mv_allocation_parameter_name(
-          .brma_mv_allocation_public_name(allocation), quantity
+          .brma_mv_allocation_public_name(allocation),
+          .brma_random_parameter_io_quantity(quantity)
         ))
       }
     }
@@ -578,7 +625,7 @@ print.brma <- function(x, ...) {
         } else {
           term[["block_name"]]
         }
-        return(.brma_mv_allocation_parameter_name(owner, "sd"))
+        return(.brma_mv_allocation_parameter_name(owner, "tau"))
       }
     }
     spec[["display_name"]]
@@ -693,6 +740,9 @@ print.brma <- function(x, ...) {
     model_name <- paste(model_name, "Location-Scale")
   } else if (is_mods) {
     model_name <- paste(model_name, "Mixed-Effect")
+  } else if (!.is_random(object) &&
+             identical(.fixed_tau_prior_value(object[["priors"]]), 0)) {
+    model_name <- paste(model_name, "Fixed-Effect")
   } else if (!is_mods && !is_scale) {
     model_name <- paste(model_name, "Random-Effects")
   }
@@ -843,8 +893,9 @@ print.brma <- function(x, ...) {
       candidates <- totals
     }
     if (length(candidates) == 1L) {
-      labels[[i]] <- sub(
-        "^\\(mu\\) ", "", quantities[["display_label"]][[candidates]]
+      labels[[i]] <- .brma_random_parameter_io_name(
+        sub("^\\(mu\\) ", "", quantities[["display_label"]][[candidates]]),
+        quantities[["quantity"]][[candidates]]
       )
     }
   }

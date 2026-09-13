@@ -464,7 +464,7 @@ fit_catalog <- function() {
   catalog <- rbind(catalog, bma_mv_catalog)
 
   robma_mv_catalog <- data.frame(
-    name          = "RoBMA.mv_exact_product_space",
+    name          = "RoBMA.mv_marg_product_space",
     class         = "RoBMA.mv",
     family        = "norm",
     source_file   = "test-01-RoBMA.mv.R",
@@ -475,7 +475,7 @@ fit_catalog <- function() {
     has_marglik   = FALSE,
     features      = I(list(c(
       "RoBMA.mv", "normal", "known_v", "random", "mods",
-      "product_space", "random_inclusion", "selection", "exact", "PET",
+      "product_space", "random_inclusion", "selection", "marg", "PET",
       "PEESE"
     ))),
     stringsAsFactors = FALSE
@@ -483,7 +483,7 @@ fit_catalog <- function() {
   catalog <- rbind(catalog, robma_mv_catalog)
 
   bselmodel_mv_catalog <- data.frame(
-    name          = "bselmodel.mv_exact_random",
+    name          = "bselmodel.mv_marg_random",
     class         = "bselmodel.mv",
     family        = "norm",
     source_file   = "test-01-bselmodel.mv.R",
@@ -494,7 +494,7 @@ fit_catalog <- function() {
     has_marglik   = TRUE,
     features      = I(list(c(
       "bselmodel.mv", "normal", "known_v", "random", "mods",
-      "selection", "exact"
+      "selection", "marg"
     ))),
     stringsAsFactors = FALSE
   )
@@ -633,8 +633,8 @@ fit_catalog <- function() {
     "dat.lehmann2018_RoBMA_mods2",
     "dat.lehmann2018_RoBMA_3lvl_mods_scale",
     "BMA.mv_random_components",
-    "RoBMA.mv_exact_product_space",
-    "bselmodel.mv_exact_random",
+    "RoBMA.mv_marg_product_space",
+    "bselmodel.mv_marg_random",
     "bPET.mv_random",
     "bPEESE.mv_random",
     "brma.mv_latent",
@@ -925,10 +925,16 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/Makevars.win",
     "src/RoBMA.cc",
     "src/init.c",
+    "src/distributions/DSELNORMCLUSTERSTEP.cc",
+    "src/distributions/DSELNORMCLUSTERSTEP.h",
+    "src/distributions/DSELNORMFACTORSTEP.cc",
+    "src/distributions/DSELNORMFACTORSTEP.h",
     "src/distributions/DSELNORMKERNEL.cc",
     "src/distributions/DSELNORMKERNEL.h",
     "src/distributions/DSELNORMMVSTEP.cc",
     "src/distributions/DSELNORMMVSTEP.h",
+    "src/distributions/DSELNORMSAMPLINGCONDITIONED.cc",
+    "src/distributions/DSELNORMSAMPLINGCONDITIONED.h",
     "src/distributions/DSELNORMSTEP.cc",
     "src/distributions/DSELNORMSTEP.h",
     "src/distributions/DSELNORMSTEPSWITCH.cc",
@@ -961,13 +967,16 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/r-selnorm-kernel.cc.inc",
     "src/r-selnorm-loglik.cc.inc",
     "src/r-selnorm-mv.cc.inc",
+    "src/r-selnorm-sampling-conditioned.cc.inc",
     "src/selnorm/selnorm.cc",
     "src/selnorm/selnorm-api.cc.inc",
     "src/selnorm/selnorm-boundary.cc.inc",
+    "src/selnorm/selnorm-event.cc.inc",
     "src/selnorm/selnorm-mv.cc",
     "src/selnorm/selnorm-mv.h",
     "src/selnorm/selnorm-phack.cc.inc",
     "src/selnorm/selnorm-probability.cc.inc",
+    "src/selnorm/selnorm-sampling-conditioned.cc.inc",
     "src/selnorm/selnorm-step.cc.inc",
     "src/selnorm/selnorm.h"
   )
@@ -1588,7 +1597,16 @@ skip_refit_if_cached <- function(name) {
 
   skip_refit_env <- Sys.getenv("ROBMA_TEST_SKIP_REFIT")
   skip_refit     <- if (skip_refit_env == "") TRUE else !is_false_env("ROBMA_TEST_SKIP_REFIT")
-  fit_names      <- catalog_group_fits(name)
+
+  catalog     <- active_fit_catalog()
+  source_file <- paste0("test-01-", name, ".R")
+  fit_names   <- if (name %in% catalog[["name"]]) {
+    name
+  } else if (source_file %in% catalog[["source_file"]]) {
+    catalog[catalog[["source_file"]] == source_file, "name"]
+  } else {
+    catalog_group_fits(name)
+  }
 
   if (skip_refit && length(fit_names) > 0 &&
       all(vapply(fit_names, is_cached_fit_valid, TRUE))) {

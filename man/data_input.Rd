@@ -15,29 +15,19 @@ supplied for normal models.}
 supplied for normal models.}
 
 \item{V}{a known working variance-covariance matrix, a list of block
-variance-covariance matrices, a metadata-preserving \code{\link[=vcalc2]{vcalc2()}} result, or an
-exact diagonal-plus-factor declaration created by \code{\link[=known_v_factor]{known_v_factor()}}, used
-by \code{brma.mv()}.}
+variance-covariance matrices, or an exact diagonal-plus-factor declaration
+created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}. Ordinary covariance
+matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. For selection
+models, declare publication groups separately with \code{selection_model(group = ...)}.
+Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
+stored symmetrically by averaging off-diagonal pairs; the supplied object
+and its diagonal are unchanged.}
 
 \item{known_v_parameterization}{known-\code{V} backend used by \code{brma.mv()}.
 \code{"auto"} chooses an exact backend when feasible; \code{"latent"} uses a latent
 \verb{D + BB'} decomposition; \code{"whitened"} uses an eigen-rotated normal
 likelihood; \code{"block_mvn"} uses an exact native block multivariate-normal
 likelihood.}
-
-\item{known_v_residual_fraction}{proportion of the diagonal of \code{V} left as
-conditional independent residual sampling variance in the latent \verb{D + BB'}
-representation. Defaults to \code{0.10}; values are validated for all backends
-but affect only the latent backend. When \code{"auto"} selects \code{"whitened"} or
-\code{"block_mvn"}, explicitly supplied values are disregarded by the likelihood.
-Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
-supplied. For a factor representation declared by \code{\link[=vcalc2]{vcalc2()}} or
-\code{\link[=known_v_factor]{known_v_factor()}}, the declared diagonal is the exact residual variance and
-this argument is disregarded with a warning when supplied explicitly.
-Approximate selection likelihoods condition on the declared factors when
-available; otherwise this argument controls their sampling decomposition.
-Different decompositions of the same covariance can define different
-approximate selection likelihoods.}
 
 \item{weights}{an optional vector of positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For

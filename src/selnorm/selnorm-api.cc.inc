@@ -1,3 +1,10 @@
+#include "selnorm-cdf-table-data.h"
+
+double cpp_selnorm_bounded_cdf_absolute_error()
+{
+  return selnorm_cdf_table::absolute_error;
+}
+
 double cpp_selnorm_normal_lpdf(double x, double mean, double sd)
 {
   if (!(sd > 0) || !std::isfinite(sd) || !std::isfinite(mean) ||
@@ -28,6 +35,38 @@ double cpp_selnorm_affine_normal_lpdf_log_scale(
 
   const double score = stable_affine_score(z, sei, mean, sd);
   return dnorm(score, 0, 1, true) + log_scale;
+}
+
+double cpp_selnorm_affine_normal_pdf_log_scale(
+  double z, double sei, double mean, double sd, double log_scale)
+{
+  if (!(sei > 0) || !std::isfinite(sei) ||
+      !(sd > 0) || !std::isfinite(sd) || !std::isfinite(mean) ||
+      std::isnan(z)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const double score = stable_affine_score(z, sei, mean, sd);
+  const double density = Rf_dnorm4(score, 0, 1, false);
+  const double scale = sei / sd;
+  if (std::isnormal(density) && std::isnormal(scale)) {
+    return density * scale;
+  }
+  // Retain the log-scale evaluation when either factor would lose tail mass
+  // to underflow, or the Jacobian would overflow before multiplication.
+  return std::exp(dnorm(score, 0, 1, true) + log_scale);
+}
+
+double cpp_selnorm_normal_interval_log_prob(
+  double lower, double upper, double mean, double sd)
+{
+  return interval_log_prob(lower, upper, mean, sd);
+}
+
+double cpp_selnorm_normal_interval_quantile(
+  double lower, double upper, double mean, double sd, double u)
+{
+  return truncated_normal_quantile(lower, upper, mean, sd, u);
 }
 
 double cpp_selnorm_kernel_lpdf(
@@ -352,6 +391,38 @@ bool cpp_selnorm_step_normalizer_product(
       !data.telescope_probabilities || data.n_bins < 1 ||
       !(data.effect_sign == 1 || data.effect_sign == -1)) {
     return false;
+  }
+  if (data.n_bins == 2 && std::isfinite(data.z_lower[0]) &&
+      std::isfinite(omega[1])) {
+    // These weights and their difference are fixed over every quadrature node.
+    const bool bounded = data.bounded_cdf &&
+      omega[0] >= std::numeric_limits<double>::min() &&
+      omega[1] >= std::numeric_limits<double>::min() &&
+      std::isfinite(omega[0]) && std::isfinite(omega[1]);
+    const double last = bounded ? std::min(omega[0], omega[1]) : omega[1];
+    const double difference = bounded ? std::max(omega[0], omega[1]) - last : omega[0] - last;
+    const double direction = bounded && omega[0] < omega[1] ? -1.0 : 1.0;
+    const double absolute_last = std::abs(last);
+    for (std::size_t i = 0; i < count; ++i) {
+      if (!std::isfinite(mean[i])) return false;
+      const double score = stable_affine_score(
+        data.z_lower[0], sei, data.effect_sign * mean[i], sd
+      );
+      double probability;
+      if (!bounded || !selnorm_cdf_table::evaluate(-direction * score, &probability)) {
+        probability = 0.5 * std::erfc(direction * score * M_SQRT1_2);
+      }
+      const double contribution = difference * probability;
+      const double normalizer = last + contribution;
+      if (!std::isfinite(normalizer) ||
+          !(normalizer > std::numeric_limits<double>::min()) ||
+          !(normalizer > 1e-8 * (absolute_last + std::abs(contribution)))) {
+        return false;
+      }
+      product[i] *= static_cast<long double>(normalizer);
+      if (!(product[i] > 0.0L) || !std::isfinite(product[i])) return false;
+    }
+    return true;
   }
   for (std::size_t i = 0; i < count; ++i) {
     if (!std::isfinite(mean[i])) return false;
@@ -899,7 +970,7 @@ double cpp_selnorm_kernel_rng_workspace(
       omega_stride, mass, lower, upper, NULL, &ok
     );
     if (ok) {
-      return std::fma(data.effect_sign * score, sd, mean);
+      return selnorm_fma(data.effect_sign * score, sd, mean);
     }
   }
 
@@ -908,7 +979,43 @@ double cpp_selnorm_kernel_rng_workspace(
     data.trusted_step_partition, mass, lower, upper
   );
 
-  return std::fma(data.effect_sign * score, sd, mean);
+  return selnorm_fma(data.effect_sign * score, sd, mean);
+}
+
+bool cpp_selnorm_step_rng_prepare_partition(
+  double mean, double sd, double sei, const double *omega,
+  const SelNormKernelData &data, double *mass, double *lower, double *upper,
+  int *n_groups, double *normalizer, double *log_normalizer)
+{
+  if (!(sd > 0) || !(sei > 0) || !std::isfinite(mean) ||
+      !std::isfinite(sd) || !std::isfinite(sei) ||
+      !(data.effect_sign == 1 || data.effect_sign == -1) ||
+      !data.trusted_step_partition || !data.telescope_probabilities) {
+    return false;
+  }
+  bool ok = false;
+  *normalizer = step_normalizer_trusted_partition(
+    omega, data, data.effect_sign * mean, sd, sei, 1,
+    mass, lower, upper, n_groups, &ok
+  );
+  if (!ok) return false;
+  *log_normalizer = std::log(*normalizer);
+  return std::isfinite(*log_normalizer);
+}
+
+double cpp_selnorm_step_rng_from_partition(
+  double mean, double sd, int effect_sign, double u_bin, double u_interval,
+  const double *mass, const double *lower, const double *upper,
+  int n_groups, double normalizer)
+{
+  if (!(u_bin >= 0) || !(u_bin <= 1) ||
+      !(u_interval >= 0) || !(u_interval <= 1)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  const double score = step_rng_prepared_partition(
+    u_bin, u_interval, mass, lower, upper, n_groups, normalizer
+  );
+  return selnorm_fma(effect_sign * score, sd, mean);
 }
 
 double cpp_selnorm_step_log_norm_rng_workspace(
@@ -946,7 +1053,7 @@ double cpp_selnorm_step_log_norm_rng_workspace(
     omega_stride, mass, lower, upper, log_normalizer, &ok
   );
   if (ok && std::isfinite(*log_normalizer)) {
-    return std::fma(data.effect_sign * score, sd, mean);
+    return selnorm_fma(data.effect_sign * score, sd, mean);
   }
 
   *log_normalizer = step_log_normalizer_score_space(
@@ -956,5 +1063,5 @@ double cpp_selnorm_step_log_norm_rng_workspace(
     omega, data, signed_mean, sd, sei, u_bin, u_interval, omega_stride,
     true, mass, lower, upper
   );
-  return std::fma(data.effect_sign * fallback_score, sd, mean);
+  return selnorm_fma(data.effect_sign * fallback_score, sd, mean);
 }

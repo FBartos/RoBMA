@@ -409,7 +409,9 @@
     PEESE_samples[] <- 0
   }
 
-  selection <- if (sampling_bias) {
+  # Positive weights cancel pointwise when all applicable sources are
+  # retained; marginal mixing therefore follows the ordinary Gaussian law.
+  selection <- if (sampling_bias && !.selection_all_sources_conditioned(x[["data"]])) {
     .selection_context(
       object            = x,
       posterior_samples = posterior_samples
@@ -417,6 +419,7 @@
   } else {
     NULL
   }
+  .plot_check_scalar_selection_target(x, selection, "funnel")
   use_normal <- if (is.null(selection)) {
     rep(TRUE, S)
   } else {

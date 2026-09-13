@@ -24,23 +24,12 @@
   V <- switch(
     shape,
     diagonal = diag(dat$vi),
-    structured = vcalc2(vi, cluster = study, type = type, obs = obs,
+    structured = metafor::vcalc(vi, cluster = study, type = type, obs = obs,
                         rho = c(.35, .20), data = dat),
     dense = kronecker(diag(studies), block)
   )
-  # Independently specified conditioning decomposition: the structured case
-  # has one common sampling factor; the ordinary dense matrix retains its
-  # requested residual fraction. No package decomposition is used here.
-  residual <- switch(shape, diagonal = diag(block),
-                       structured = .65 * diag(block), dense = .1 * diag(block))
-  loading <- switch(shape, diagonal = matrix(numeric(), 3L, 0L),
-                      structured = matrix(sqrt(.35) * sei, ncol = 1L),
-                      dense = t(chol(block - diag(residual))))
-  latent <- tcrossprod(loading)
   stopifnot(min(eigen(correlation, symmetric = TRUE, only.values = TRUE)$values) > .1)
-  stopifnot(isTRUE(all.equal(diag(residual) + latent, block, tolerance = 1e-14)))
-  list(data = dat, V = V, block = block, residual = residual, latent = latent,
-         loading = loading)
+  list(shape = shape, data = dat, V = V, block = block)
 }
 
 
@@ -57,7 +46,7 @@
   proposals <- 0L
   for (study in studies) {
     rows <- which(dat$study == study)
-    if (target == "exact") {
+    if (target == "marg") {
       # Redraw ALL Gaussian effects when a complete candidate block is rejected.
       covariance <- block + truth[["study"]]^2 + diag(truth[["effect"]]^2, 3L)
       root       <- chol(covariance)
@@ -70,14 +59,22 @@
       }
       yi[rows] <- candidate
     } else {
-      # Draw the conditioning effects once, then reject each row separately.
-      # Estimate-specific heterogeneity is marginalized in the fitted target.
-      sampling <- as.numeric(design$loading %*% rnorm(ncol(design$loading)))
+      # Retain the complete sampling error and study effect. Only independent
+      # estimate-specific true effects are redrawn under this product rule.
+      sampling <- as.numeric(rnorm(3L) %*% chol(block))
       location <- truth[["mu"]] + rnorm(1L, sd = truth[["study"]]) + sampling
-      sd       <- sqrt(design$residual + truth[["effect"]]^2)
+      if (truth[["effect"]] == 0) {
+        if (!(weight > 0)) {
+          stop("The conditional recovery simulator requires positive weights when no source is redrawn.")
+        }
+        # Every positive weight cancels when the retained outcome is fixed.
+        yi[rows] <- location
+        proposals <- proposals + length(rows)
+        next
+      }
       for (j in seq_len(3L)) {
         repeat {
-          candidate <- rnorm(1L, location[[j]], sd[[j]])
+          candidate <- rnorm(1L, location[[j]], truth[["effect"]])
           accept    <- if (direction * candidate > threshold[[j]]) 1 else weight
           proposals <- proposals + 1L
           if (runif(1L) < accept) break
@@ -97,6 +94,7 @@
                                     effect_direction = "positive",
                                     selection_control = set_selection_likelihood_control()) {
 
+  mode     <- switch(target, marg = "integrate", cond = "condition")
   sd_prior <- BayesTools::prior("normal", list(0, .5), truncation = list(0, Inf))
   args <- list(
     yi                        = dat$yi,
@@ -110,12 +108,15 @@
       steps   = .05,
       weights = if (is.null(fixed)) {
         BayesTools::wf_independent(BayesTools::prior("beta", list(1, 1)))
-      } else BayesTools::wf_fixed(c(1, fixed[["omega"]]))
+      } else BayesTools::wf_fixed(c(1, fixed[["omega"]])),
+      model = BayesTools::selection_model(
+        other_random_effects   = mode,
+        known_sampling_variance = mode,
+        group            = "study"
+      )
     ),
     effect_direction          = effect_direction,
-    selection_likelihood      = target,
     selection_control         = selection_control,
-    marginalize_estimate_level = TRUE,
     chains                    = 3L,
     parallel                  = TRUE,
     sample                    = sample,
@@ -135,10 +136,68 @@
       effect = BayesTools::random_block(sd = if (is.null(fixed)) sd_prior else
         BayesTools::prior("point", list(fixed[["effect"]])))
     )
-  } else {
-    args$prior_heterogeneity <- BayesTools::prior("point", list(0))
   }
-  do.call(bselmodel.mv, args)
+  case <- paste(target, design[["shape"]], if (random) "nested" else "fixed", sep = "/")
+  sensitivity_prefix <- paste0(
+    "Selection conditioning sensitivity was substantial: the largest unit-level ",
+    "posterior-median total variation distance was "
+  )
+  sensitivity_suffix <- paste0(
+    "%. Retaining and integrating the specified contexts define different reporting models. ",
+    "Inspect 'selection_sensitivity_diagnostics()' for the fitted and reference specifications."
+  )
+  captured <- list()
+  fit <- withCallingHandlers(do.call(bselmodel.mv, args), warning = function(condition) {
+    message <- conditionMessage(condition)
+    kind <- if (startsWith(message, sensitivity_prefix) &&
+               endsWith(message, sensitivity_suffix) && grepl("^[0-9]+\\.[0-9]$", substring(
+                 message, nchar(sensitivity_prefix) + 1L,
+                 nchar(message) - nchar(sensitivity_suffix)))) {
+      "sensitivity"
+    } else NULL
+    # Only one complete expected condition is acknowledged. Duplicates and
+    # every other warning retain their ordinary testthat diagnostic handling.
+    if (!is.null(kind) && is.null(captured[[kind]])) {
+      captured[[kind]] <<- condition
+      invokeRestart("muffleWarning")
+    }
+  })
+  expected <- character()
+  diagnostic <- fit[["selection_sensitivity_diagnostics"]]
+  if (!is.null(fit[["fit"]]) && is.null(diagnostic)) {
+    expect_s3_class(diagnostic, "selection_sensitivity_diagnostics")
+  }
+  if (!is.null(diagnostic)) {
+    expect_s3_class(diagnostic, "selection_sensitivity_diagnostics")
+    maximum_tv <- max(diagnostic[["total_variation_median"]])
+    expect_true(is.finite(maximum_tv), info = case)
+    if (is.finite(maximum_tv) && maximum_tv >= .10) {
+      expected[["sensitivity"]] <- paste0(
+        sensitivity_prefix, sprintf("%.1f", 100 * maximum_tv), sensitivity_suffix
+      )
+    }
+    model <- .data_selection_model(fit[["data"]])
+    provenance <- attr(diagnostic, "target")
+    expect_identical(provenance[["fitted"]], model, info = case)
+    expect_identical(provenance[["publication_groups"]], model[["groups"]], info = case)
+    expect_identical(provenance[["applicable"]], target == "cond", info = case)
+    expect_identical(provenance[["reference"]][c("other_random_effects", "known_sampling_variance")],
+                     list(other_random_effects = "integrate", known_sampling_variance = "integrate"), info = case)
+    expect_identical(provenance[["reference"]][["groups"]], model[["groups"]], info = case)
+    expect_identical(lapply(provenance[["reference"]][["branches"]], `[[`, "weight_rule"),
+                     lapply(model[["branches"]], `[[`, "weight_rule"), info = case)
+    expect_identical(provenance[["integration_control"]],
+                     .data_selection_execution_plan(fit[["data"]])[c(
+                       "points_per_scramble", "max_points_per_scramble", "scrambles",
+                       "seed", "relative_tolerance")], info = case)
+  }
+  messages <- vapply(captured, conditionMessage, character(1L))
+  expect_identical(sort(names(messages)), sort(names(expected)), info = case)
+  for (kind in names(expected)) {
+    expect_identical(unname(messages[kind]), expected[[kind]], info = case)
+  }
+  for (message in messages) cat("Expected recovery warning [", case, "]: ", message, "\n", sep = "")
+  fit
 }
 
 
@@ -152,7 +211,8 @@
 }
 
 
-.selection_recovery_summary <- function(draws, truth, case, parameter) {
+.selection_recovery_summary <- function(draws, truth, case, parameter,
+                                         identified = TRUE) {
 
   transform   <- switch(parameter, omega = qlogis, study = log, effect = log, identity)
   recovery    <- transform(draws)
@@ -160,7 +220,7 @@
   data.frame(
     case          = case,
     parameter     = parameter,
-    truth         = truth,
+    truth         = if (identified) truth else NA_real_,
     mean          = mean(draws),
     sd            = sd(as.numeric(draws)),
     lower         = unname(quantile(draws, .025)),
@@ -169,8 +229,9 @@
     rhat          = posterior::rhat(draws),
     ess_bulk      = posterior::ess_bulk(draws),
     ess_tail      = posterior::ess_tail(draws),
-    recovery_z    = (mean(recovery) - transform(truth)) / recovery_sd,
-    recovery_mcse = posterior::mcse_mean(recovery) / recovery_sd
+    recovery_z    = if (identified) (mean(recovery) - transform(truth)) / recovery_sd else NA_real_,
+    recovery_mcse = if (identified) posterior::mcse_mean(recovery) / recovery_sd else NA_real_,
+    target        = if (identified) "parameter recovery" else "prior invariance"
   )
 }
 
@@ -188,29 +249,32 @@
       design    <- .selection_recovery_design(shape)
       expect_equal(as.numeric(design$V),
                    as.numeric(kronecker(diag(40L), design$block)), tolerance = 1e-14)
-      if (shape == "structured") {
-        expect_identical(attr(design$V, "RoBMA_vcalc_metadata")$factor_status, "certified")
-      }
       simulated <- .selection_recovery_simulate(design, target, truth, 6100L + index)
       started   <- proc.time()[["elapsed"]]
       cat("Selection recovery:", label, "\n")
       fit <- .selection_recovery_fit(design, simulated$data, target, random,
                                      seed = 7100L + index,
-                                     sample = if (target == "approximate" &&
+                                     sample = if (target == "cond" &&
                                                   shape == "structured") 24000L else 6000L,
                                      effect_direction = if (random) "negative" else "positive")
       elapsed <- proc.time()[["elapsed"]] - started
-      expect_identical(fit$selection_likelihood$type, target, info = label)
-      if (target == "exact" && shape == "structured") {
-        expect_identical(fit$selection_likelihood$exactness,
-                         if (random) "EF" else "E1", info = label)
+      model <- .data_selection_model(fit[["data"]])
+      mode  <- switch(target, marg = "integrate", cond = "condition")
+      expect_identical(model[c("other_random_effects", "known_sampling_variance")],
+                       list(other_random_effects = mode, known_sampling_variance = mode),
+                       info = label)
+      if (target == "marg" && shape == "structured") {
+        expect_identical(.data_selection_execution_plan(fit[["data"]])[["row_blocks"]],
+          lapply(unique(simulated$data$study), function(study) which(simulated$data$study == study)),
+          info = label)
       }
       aliases <- c(mu = if (random) "mu_intercept" else "mu", omega = "omega[2]")
       if (random) aliases <- c(aliases, study = "study: sd", effect = "effect: sd")
       rows <- lapply(names(aliases), function(parameter) {
         .selection_recovery_summary(
           .selection_recovery_draws(fit, aliases[[parameter]]),
-          truth[[parameter]], label, parameter
+          truth[[parameter]], label, parameter,
+          identified = !(target == "cond" && !random && parameter == "omega")
         )
       })
       result <- do.call(rbind, rows)
@@ -218,21 +282,47 @@
       result$proposals <- simulated$proposals
       results[[index]] <- result
       print(result, row.names = FALSE, digits = 4)
-      expect_true(all(is.finite(as.matrix(result[, 3:13]))), info = label)
+      identified <- result$target == "parameter recovery"
+      expect_true(all(is.finite(as.matrix(result[, c(
+        "mean", "sd", "lower", "upper", "mcse", "rhat", "ess_bulk", "ess_tail"
+      )]))), info = label)
+      expect_true(all(is.finite(as.matrix(result[identified, c(
+        "truth", "recovery_z", "recovery_mcse"
+      )]))), info = label)
       expect_true(all(result$rhat < 1.01), info = label)
       expect_true(all(result$ess_bulk > 1000 & result$ess_tail > 500), info = label)
       expect_true(all(result$mcse / result$sd < .04), info = label)
       # Finite-data recovery is not a comparison to truth at MCMC precision.
       # Use unconstrained coordinates: raw SDs are brittle for skewed positive
       # or bounded parameters. Four posterior SDs is a conservative sentinel
-      # across 24 checks, not a claim of calibrated frequentist coverage.
-      expect_true(all(abs(result$recovery_z) < 4 + 4 * result$recovery_mcse),
+      # across identified parameters, not a claim of calibrated coverage.
+      expect_true(all(abs(result$recovery_z[identified]) <
+        4 + 4 * result$recovery_mcse[identified]),
                   info = label)
       # A broad, nearly prior-only posterior is not informative recovery.
-      expect_true(all(result$sd < c(mu = .15, omega = .20,
-                                    study = .12, effect = .10)[result$parameter]),
+      expect_true(all(result$sd[identified] < c(mu = .15, omega = .20,
+        study = .12, effect = .10)[result$parameter[identified]]),
                   info = label)
-      if (target == "exact" && shape == "structured" && !random) {
+      if (target == "cond" && !random) {
+        # With all sources retained, omega remains Uniform(0,1) and the mean
+        # has its ordinary conjugate Gaussian posterior. These are invariance
+        # checks, not selection-weight recovery or posterior-width checks.
+        y <- matrix(simulated$data$yi, ncol = 3L, byrow = TRUE)
+        precision <- solve(design$block)
+        posterior_variance <- 1 / (1 + nrow(y) * sum(precision))
+        posterior_mean <- posterior_variance * sum(precision %*% colSums(y))
+        moments <- list(mu = c(posterior_mean, posterior_variance + posterior_mean^2),
+                        omega = c(.5, 1 / 3))
+        for (parameter in names(moments)) {
+          draws <- .selection_recovery_draws(fit, aliases[[parameter]])
+          for (power in 1:2) {
+            values <- draws^power
+            expect_lte(abs(mean(values) - moments[[parameter]][[power]]),
+              4 * posterior::mcse_mean(values) + 1e-6)
+          }
+        }
+      }
+      if (target == "marg" && shape == "structured" && !random) {
         reference <- .selection_recovery_joint_reference(design, simulated$data$yi, 31L)
         refined   <- .selection_recovery_joint_reference(design, simulated$data$yi, 51L)
         expect_equal(reference, refined, tolerance = 1e-6)
@@ -254,22 +344,29 @@
 
 .selection_recovery_reference_density <- function(design, yi, truth, target, order) {
 
-  # Independent 3-dimensional oracle, with nuisance parameters fixed. Exact:
+  # Independent 3-dimensional oracle, with nuisance parameters fixed. Marginal:
   # expand prod[w + (1-w) I(Y>cut)] into eight Gaussian orthant probabilities.
-  # Approximate: integrate reciprocal row normalizers over A | Y under the
-  # *unselected* Gaussian model. This is Bayes' identity, not the package kernel.
+  # Conditional: C is the full sampling error plus the retained study effect.
+  # Integrate reciprocal row normalizers over C | Y under the *unselected*
+  # Gaussian model. This is Bayes' identity, not the package kernel.
   V          <- design$block
   n          <- length(yi)
-  residual   <- design$residual + truth[["effect"]]^2
-  latent     <- design$latent + truth[["study"]]^2
+  candidate_variance <- rep(truth[["effect"]]^2, n)
+  retained   <- V + truth[["study"]]^2
   covariance <- V + truth[["study"]]^2 + diag(truth[["effect"]]^2, n)
   threshold  <- qnorm(.05, lower.tail = FALSE) * sqrt(diag(V))
   omega      <- truth[["omega"]]
   log_weight <- sum(log(ifelse(yi > threshold, 1, omega)))
   subsets    <- as.matrix(expand.grid(rep(list(c(FALSE, TRUE)), n)))
-  if (target == "approximate") {
-    gain <- latent %*% solve(covariance)
-    conditional_covariance <- latent - gain %*% latent
+  if (target == "cond" && truth[["effect"]] == 0) {
+    if (!(omega > 0)) {
+      stop("The conditional recovery reference requires positive weights when no source is integrated.")
+    }
+    return(function(mu) mvtnorm::dmvnorm(yi, rep(mu, n), covariance, log = TRUE))
+  }
+  if (target == "cond") {
+    gain <- retained %*% solve(covariance)
+    conditional_covariance <- retained - gain %*% retained
     # Algebraically symmetric; do not repair, jitter, or truncate eigenvalues.
     root <- chol(conditional_covariance)
     rule <- statmod::gauss.quad.prob(order, dist = "normal")
@@ -281,7 +378,7 @@
 
     location <- rep(mu, n)
     gaussian <- mvtnorm::dmvnorm(yi, location, covariance, log = TRUE)
-    if (target == "exact") {
+    if (target == "marg") {
       normalizer <- 0
       for (i in seq_len(nrow(subsets))) {
         selected <- which(subsets[i, ])
@@ -303,7 +400,7 @@
     conditional_mean <- location + as.numeric(gain %*% (yi - location))
     integrand <- weights
     for (j in seq_len(n)) {
-      score <- (conditional_mean[[j]] + nodes[, j] - threshold[[j]]) / sqrt(residual[[j]])
+      score <- (conditional_mean[[j]] + nodes[, j] - threshold[[j]]) / sqrt(candidate_variance[[j]])
       integrand <- integrand / (omega + (1 - omega) * pnorm(score))
     }
     gaussian + log_weight + log(sum(integrand))
@@ -351,7 +448,7 @@
     mu    <- parameters[[1L]]
     omega <- plogis(parameters[[2L]])
     truth <- c(mu = mu, omega = omega, study = 0, effect = 0)
-    first <- .selection_recovery_reference_density(design, y[1L, ], truth, "exact", 25L)(mu)
+    first <- .selection_recovery_reference_density(design, y[1L, ], truth, "marg", 25L)(mu)
     first_gaussian <- mvtnorm::dmvnorm(y[1L, ], rep(mu, 3L), covariance, log = TRUE)
     # All blocks share a normalizer. Replace the first block's Gaussian and
     # selection counts by the sufficient statistics for the whole dataset.
@@ -408,7 +505,7 @@
   started <- proc.time()[["elapsed"]]
   fit <- .selection_recovery_fit(design, simulated$data, target, random = random,
                                  seed = 7201L,
-                                 sample = if (target == "exact") 6000L else 24000L,
+                                 sample = if (target == "marg") 6000L else 24000L,
                                  fixed = truth)
   elapsed <- proc.time()[["elapsed"]] - started
   draws <- .selection_recovery_draws(fit, if (random) "mu_intercept" else "mu")

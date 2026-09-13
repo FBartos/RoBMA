@@ -58,7 +58,8 @@
                                          display_grid, null_hypothesis,
                                          parameter, type, levels, targeted,
                                          include_ordinates = TRUE,
-                                         ordinate_control = NULL) {
+                                         ordinate_control = NULL,
+                                         integration_control = NULL) {
 
   .check_iwmde_available(object, "qCMDE/IWMDE marginal_means()")
   if (isTRUE(include_ordinates)) {
@@ -78,6 +79,7 @@
     samples              = sample_budget,
     normalization_points = normalization_points,
     normalization_prob   = normalization_prob,
+    integration_control  = integration_control,
     display_grid         = display_grid
   )
   if (is.null(ordinate_control)) {
@@ -86,7 +88,8 @@
       density_control = list(
         n_points             = n_points,
         normalization_points = normalization_points,
-        normalization_prob   = normalization_prob
+        normalization_prob   = normalization_prob,
+        integration_control  = integration_control
       ),
       purpose         = "ordinate"
     )
@@ -104,6 +107,18 @@
     )
   }
   ordinate_control_list[["display_grid"]] <- "ordinate"
+  density_context <- .iwmde_context_with_integration_control(
+    context, integration_control
+  )
+  ordinate_context <- if (identical(
+    integration_control, ordinate_control_list[["integration_control"]]
+  )) {
+    density_context
+  } else {
+    .iwmde_context_with_integration_control(
+      context, ordinate_control_list[["integration_control"]]
+    )
+  }
   include_values       <- NULL
   specs_by_type        <- .marginal_means_iwmde_specs_by_type(
     marginal_means_object = marginal_means_object,
@@ -128,7 +143,7 @@
 
     estimates <- lapply(specs, function(spec) {
       .iwmde_estimate(
-        context         = context,
+        context         = density_context,
         parameter       = spec[["label"]],
         density_method  = density_method,
         density_control = density_control_list,
@@ -159,7 +174,7 @@
   if (length(ordinate_specs) > 0L) {
     ordinate_estimates <- lapply(ordinate_specs, function(spec) {
       .iwmde_estimate(
-        context         = context,
+        context         = ordinate_context,
         parameter       = spec[["label"]],
         density_method  = density_method,
         density_control = ordinate_control_list,
@@ -193,6 +208,7 @@
     samples              = sample_budget,
     normalization_points = normalization_points,
     normalization_prob   = normalization_prob,
+    integration_control  = integration_control,
     density_method       = density_method,
     method               = .density_method_iwmde_estimator(density_method),
     display_grid         = display_grid,
@@ -363,7 +379,8 @@
       "target_relative_mcse",
       "normalization_points",
       "normalization_prob",
-      "display_grid"
+      "display_grid",
+      "integration_control"
     ),
     names(settings)
   )]
@@ -771,6 +788,7 @@
       sample_budget         = density_control[["samples"]],
       normalization_points  = density_control[["normalization_points"]],
       normalization_prob    = density_control[["normalization_prob"]],
+      integration_control   = density_control[["integration_control"]],
       density_method        = density_method,
       display_grid          = density_control[["display_grid"]],
       null_hypothesis       = x[["null_hypothesis"]],

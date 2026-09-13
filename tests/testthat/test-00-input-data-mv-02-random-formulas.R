@@ -924,16 +924,16 @@ test_that("brma.mv validates random formula edge cases", {
 
   expect_identical(
     .summary_scale_display_names(plain_nested_scale_random),
-    c(log_tau = "sd_total")
+    c(log_tau = "tau_total")
   )
   expect_identical(
     .summary_scale_display_names(nested_block_scale_random),
-    c(log_tau_x_study = "x_study: sd")
+    c(log_tau_x_study = "x_study: tau")
   )
   expect_identical(
     .summary_scale_display_names(text_named_scale_prior),
-    c(log_tau_Study_effects = "Study effects: sd",
-      log_tau_X_effects = "X effects: sd")
+    c(log_tau_Study_effects = "Study effects: tau",
+      log_tau_X_effects = "X effects: tau")
   )
   scale_table <- data.frame(
     Mean      = c(0.5, -0.3),
@@ -951,13 +951,14 @@ test_that("brma.mv validates random formula edge cases", {
   )
   expect_identical(
     rownames(scale_summary),
-    c("(sd_total) exp(intercept)", "(sd_total) x")
+    c("(tau_total) exp(intercept)", "(tau_total) x")
   )
   expect_identical(scale_summary[["Mean"]], c(0.5, -0.3))
   expect_identical(
     .summary_scale_footnotes(plain_nested_scale_random),
     paste0(
-      "exp(intercept) is the baseline SD of the indicated target, already ",
+      "exp(intercept) is the baseline heterogeneity SD (tau) of the ",
+      "indicated target, already ",
       "exponentiated. Other coefficients are changes in log(SD); ",
       "exp(coefficient) is an SD multiplier."
     )
@@ -1078,7 +1079,8 @@ test_that("brma.mv validates random formula edge cases", {
       prior_unit_information_sd = 1,
       only_priors               = TRUE
     ),
-    "prior_random"
+    "The 'prior_heterogeneity' argument can be used only when 'random' is specified.",
+    fixed = TRUE
   )
 
   expect_silent(
@@ -1303,22 +1305,22 @@ test_that("marginalized row SD sources require newdata-shaped source samples", {
 })
 
 
-test_that("brma.mv can keep one-to-one random intercepts sampled", {
+test_that("brma.mv keeps unique-level slopes sampled without discarding their role", {
 
   dat <- data.frame(
     yi    = c(0.10, 0.20),
-    study = c("s1", "s2")
+    study = c("s1", "s2"),
+    x     = c(-1, 2)
   )
   V <- matrix(c(0.04, 0.01, 0.01, 0.09), nrow = 2)
 
   object <- brma.mv(
     yi                        = yi,
     V                         = V,
-    random                    = ~ 1 | study,
+    random                    = ~ diag(0 + x | study),
     data                      = dat,
     known_v_parameterization  = "latent",
     measure                   = "GEN",
-    marginalize_estimate_level = FALSE,
     prior_unit_information_sd = 1,
     only_priors               = TRUE
   )
@@ -1328,13 +1330,15 @@ test_that("brma.mv can keep one-to-one random intercepts sampled", {
     vapply(design[["random_effects"]], `[[`, character(1), "compile_mode"),
     "sampled"
   )
+  expect_identical(unname(BayesTools::random_effects_level_roles(
+    design[["random_effects"]], nrow(dat))), "estimate")
 
   syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
   expect_match(
     syntax,
     "yi\\[i\\] ~ dnorm\\(mu\\[i\\] \\+ sampling_dependency\\[i\\],1/\\( sampling_var\\[i\\] \\)\\)"
   )
-  expect_false(grepl("mu__xREx__study_intercept,2", syntax, fixed = TRUE))
+  expect_length(.data_marginalized_random_effects(object[["data"]]), 0L)
   expect_equal(
     .evaluate_marginalized_random_variance(
       data              = object[["data"]],
@@ -1630,25 +1634,29 @@ test_that("brma.mv marginalized random scale applies allocation weights", {
 })
 
 
-test_that("brma.mv rejects ambiguous one-to-one random intercept marginalization", {
+test_that("brma.mv rejects multiple estimate roles before Gaussian collapse eligibility", {
 
   dat <- data.frame(
     yi       = c(0.10, 0.20, 0.30, 0.40),
     study    = paste0("s", 1:4),
-    estimate = paste0("e", 1:4)
+    estimate = paste0("e", 1:4),
+    x        = c(-1, .5, 2, .8)
   )
 
   expect_error(
     brma.mv(
       yi                        = yi,
       V                         = diag(rep(0.04, 4)),
-      random                    = list(study = ~ 1 | study, estimate = ~ 1 | estimate),
+      random                    = list(study = ~ 1 | study, estimate = ~ diag(0 + x | estimate)),
       data                      = dat,
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_priors               = TRUE
     ),
-    "Multiple random-effect blocks map one-to-one"
+    paste0("Estimate-level random-effect identification is unavailable: multiple ",
+      "declared terms have one grouping level per retained estimate ('study', 'estimate'). ",
+      "Specify at most one such term."),
+    fixed = TRUE
   )
 })
 

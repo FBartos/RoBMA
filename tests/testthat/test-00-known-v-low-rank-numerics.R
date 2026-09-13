@@ -64,6 +64,8 @@ test_that("auto-whitened low-rank known V retains the intended likelihood", {
     object <- brma.mv(
       yi                        = yi,
       V                         = V,
+      random                    = ~ 1 | estimate,
+      data                      = data.frame(estimate = seq_along(yi)),
       prior_heterogeneity       = prior_tau,
       known_v_parameterization  = "auto",
       measure                   = "GEN",
@@ -74,6 +76,7 @@ test_that("auto-whitened low-rank known V retains the intended likelihood", {
   )
 
   known_V <- .data_known_v_data(object[["data"]])
+  sd_parameter <- .data_marginalized_random_effects(object[["data"]])[[1L]][["sd_parameter_names"]]
   expect_identical(.known_v_materialize(known_V), V)
   expect_identical(.known_v_effective_backend(known_V), "whitened")
   expect_true(all(vapply(
@@ -90,8 +93,8 @@ test_that("auto-whitened low-rank known V retains the intended likelihood", {
     K                 = length(yi),
     S                 = 1L,
     mu                = matrix(0, nrow = 1L, ncol = length(yi)),
-    tau_within        = matrix(tau, nrow = 1L, ncol = length(yi)),
-    posterior_samples = matrix(numeric(0), nrow = 1L, ncol = 0L),
+    tau_within        = matrix(0, nrow = 1L, ncol = length(yi)),
+    posterior_samples = matrix(tau, nrow = 1L, dimnames = list(NULL, sd_parameter)),
     weights           = NULL,
     is_weightfunction = FALSE,
     outcome_type      = "norm",

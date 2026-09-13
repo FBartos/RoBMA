@@ -29,6 +29,9 @@
     )
   }
   row_budget <- density_control[["samples"]]
+  context <- .iwmde_context_with_integration_control(
+    context, density_control[["integration_control"]]
+  )
 
   values <- .iwmde_sorted_ordinate_values(values)
   ordinate_values <- if ("ordinate" %in% outputs && length(values) > 0L) {
@@ -50,6 +53,7 @@
     prior_ordinates = prior_ordinates
   )
   parameter_spec        <- .iwmde_parameter_spec(context, parameter, parameter_spec)
+  parameter_spec <- .iwmde_linear_conditioning_spec(context, parameter_spec, density_method)
   method                <- .density_method_iwmde_estimator(density_method)
   target_key            <- .iwmde_target_key(parameter, parameter_spec)
   stored_parameter_spec <- .iwmde_plan_parameter_spec(parameter_spec)
@@ -89,6 +93,8 @@
 
   parameter      <- plan[["target"]][["parameter"]]
   parameter_spec <- plan[["parameter_spec"]]
+  execution_spec <- plan[["execution_spec"]]
+  parameter_spec[names(execution_spec)] <- execution_spec
 
   unavailable_reason <- .iwmde_context_unavailable_reason(context)
   if (!is.null(unavailable_reason)) {
@@ -355,7 +361,7 @@
 .iwmde_plan_parameter_spec <- function(parameter_spec) {
 
   fields <- c(
-    "type", "parameter", "weights", "index", "n_targets",
+    "type", "parameter", "weights", "direction", "conditioning_chart", "index", "n_targets",
     "source_parameter", "factors", "target_columns", "factor_columns",
     "auxiliary_columns", "conditioning_exclude", "conditional",
     "conditional_rule", "condition_key", "covariance_update", "status",
@@ -369,13 +375,24 @@
 .iwmde_plan_baseline_contract <- function(context, plan, candidate_rows,
                                           candidate_values) {
 
-  row_states <- .iwmde_row_states_grouped_marginal(
-    context        = context,
-    rows           = candidate_rows,
-    parameter      = plan[["target"]][["parameter"]],
-    parameter_spec = plan[["execution_spec"]],
-    estimator      = plan[["method"]]
+  row_states <- tryCatch(
+    .iwmde_retained_location_row_states(context, plan, candidate_rows),
+    error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) stop(e)
+      .iwmde_stop_construction_failure(plan[["method"]], plan[["target"]][["parameter"]],
+        candidate_rows, stage = "retained-location conditional preparation",
+        detail = conditionMessage(e))
+    }
   )
+  if (is.null(row_states)) {
+    row_states <- .iwmde_row_states_grouped_marginal(
+      context        = context,
+      rows           = candidate_rows,
+      parameter      = plan[["target"]][["parameter"]],
+      parameter_spec = plan[["execution_spec"]],
+      estimator      = plan[["method"]]
+    )
+  }
   if (is.null(row_states)) {
     row_states <- .iwmde_row_states(
       context        = context,
@@ -414,15 +431,23 @@
     )
   }
   .iwmde_validate_row_states(row_states)
+  conditioning_policy <- attr(row_states, "conditioning_policy", exact = TRUE)
+  if (!is.null(plan[["execution_spec"]][["direction"]])) {
+    conditioning_policy <- list(type = "fixed_linear",
+      chart = plan[["execution_spec"]][["conditioning_chart"]],
+      direction = plan[["execution_spec"]][["direction"]],
+      support = "original_prior_intersection")
+  }
 
   return(list(
     row_states       = row_states,
     baseline_log_q   = baseline_log_q,
     estimator_rows   = candidate_rows,
     estimator_values = candidate_values,
+    conditioning_policy = conditioning_policy,
     baseline_rows_hash = .iwmde_hash(
       "iwmde_baseline_rows",
-      candidate_rows
+      if (is.null(conditioning_policy)) candidate_rows else list(candidate_rows, conditioning_policy)
     )
   ))
 }
@@ -502,6 +527,7 @@
     estimator_values  = baseline_contract[["estimator_values"]],
     row_states        = baseline_contract[["row_states"]],
     baseline_log_q    = baseline_contract[["baseline_log_q"]],
+    conditioning_policy = baseline_contract[["conditioning_policy"]],
     n_denominator_rows = length(candidate_rows),
     n_estimator_rows  = length(baseline_contract[["estimator_rows"]]),
     baseline_rows_hash = baseline_contract[["baseline_rows_hash"]],
@@ -558,6 +584,8 @@
     "type",
     "parameter",
     "weights",
+    "direction",
+    "conditioning_chart",
     "index",
     "n_targets",
     "source_parameter",
@@ -571,6 +599,10 @@
     "condition_key",
     "covariance_update"
   )
+  if (!is.null(parameter_spec[["direction"]]) &&
+      identical(parameter_spec[["type"]], "primitive")) {
+    parameter_spec[["type"]] <- "linear"
+  }
   parameter_spec <- parameter_spec[intersect(keep, names(parameter_spec))]
 
   return(.iwmde_compact_nulls(parameter_spec))
@@ -596,6 +628,10 @@
   )
   if (identical(parameter_spec[["type"]], "linear")) {
     target[["weights"]] <- .iwmde_plan_weights(parameter_spec[["weights"]])
+  }
+  if (!is.null(parameter_spec[["direction"]])) {
+    target[["direction"]] <- .iwmde_plan_weights(parameter_spec[["direction"]])
+    target[["conditioning_chart"]] <- parameter_spec[["conditioning_chart"]]
   }
   if (identical(parameter_spec[["type"]], "simplex_pair")) {
     target[["source_parameter"]] <- parameter_spec[["parameter"]]
@@ -727,6 +763,7 @@
     selected_rows_hash   =
       rows[["row_thinning_policy"]][["selected_rows_hash"]],
     baseline_rows_hash   = rows[["baseline_rows_hash"]],
+    conditioning_policy  = rows[["conditioning_policy"]],
     row_thinning_policy  = rows[["row_thinning_policy"]]
   )))
 }
@@ -810,6 +847,9 @@
     value <- NULL
   }
   ordinate_values <- if (identical(attribute, "ordinate")) value else NULL
+  context <- .iwmde_context_with_integration_control(
+    context, density_control[["integration_control"]]
+  )
   parameter_spec <- .iwmde_prepare_prior_ordinates(
     context        = context,
     parameter      = parameter,
@@ -823,6 +863,7 @@
   }
   parameter_spec[["prior_ordinates"]] <- NULL
   parameter_spec <- .iwmde_parameter_spec(context, parameter, parameter_spec)
+  parameter_spec <- .iwmde_linear_conditioning_spec(context, parameter_spec, density_method)
 
   return(.iwmde_provenance_request(
     density_method     = density_method,

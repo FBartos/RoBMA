@@ -417,13 +417,14 @@ test_that("brma.mv marginalizes supported one-to-one known R blocks", {
 })
 
 
-test_that("brma.mv sampled known R path is preserved when requested", {
+test_that("brma.mv retains full correlated known R for an estimate-level term", {
 
   dat <- data.frame(
     yi       = c(0.10, 0.20, 0.30),
     estimate = factor(c("e1", "e2", "e3"), levels = c("e1", "e2", "e3"))
   )
   K <- diag(c(4, 9, 16))
+  K[1, 2] <- K[2, 1] <- 1
   dimnames(K) <- list(levels(dat[["estimate"]]), levels(dat[["estimate"]]))
 
   object <- brma.mv(
@@ -435,7 +436,6 @@ test_that("brma.mv sampled known R path is preserved when requested", {
     data                      = dat,
     measure                   = "GEN",
     prior_unit_information_sd = 1,
-    marginalize_estimate_level  = FALSE,
     only_priors               = TRUE
   )
   term <- .fitted_formula_design(object, "mu")[["random_effects"]][[1L]]
@@ -449,6 +449,9 @@ test_that("brma.mv sampled known R path is preserved when requested", {
   )
 
   expect_equal(term[["compile_mode"]], "sampled")
+  expect_identical(term[["group_covariance"]][["kernel"]], K)
+  expect_identical(unname(BayesTools::random_effects_level_roles(list(term), nrow(dat))),
+    "estimate")
   expect_false(.data_has_marginalized_random_effects(object[["data"]]))
   expect_match(result[["formula_syntax"]], "_xRE_GROUP_Zx", fixed = TRUE)
   expect_true(any(grepl("_xRE_GROUP_PRECx", names(result[["data"]]),
@@ -508,7 +511,6 @@ test_that("known-R marginalization availability rethrows unexpected errors", {
     Rscale                     = "none",
     data                       = dat,
     measure                    = "GEN",
-    marginalize_estimate_level = FALSE,
     prior_unit_information_sd  = 1,
     only_priors                = TRUE
   )
@@ -518,6 +520,7 @@ test_that("known-R marginalization availability rethrows unexpected errors", {
     source                 = "location",
     random_effects_compile = NULL
   )
+  expect_identical(sampled_design[["random_effects"]][[1L]][["compile_mode"]], "sampled")
 
   testthat::local_mocked_bindings(
     random_effects_marginal_variance_factors = function(...) {
@@ -552,7 +555,6 @@ test_that("known-R marginalization handles only the BayesTools condition", {
     Rscale                     = "none",
     data                       = dat,
     measure                    = "GEN",
-    marginalize_estimate_level = FALSE,
     prior_unit_information_sd  = 1,
     only_priors                = TRUE
   )
@@ -562,6 +564,7 @@ test_that("known-R marginalization handles only the BayesTools condition", {
     source                 = "location",
     random_effects_compile = NULL
   )
+  expect_identical(sampled_design[["random_effects"]][[1L]][["compile_mode"]], "sampled")
   unavailable <- structure(
     list(
       message    = "unavailable",

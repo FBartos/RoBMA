@@ -38,6 +38,18 @@
     active_setup = active_setup
   )
 
+  if (.is_data_joint_selection(context[["data"]]) &&
+      .selection_retains_sampling(context[["data"]])) {
+    return(.log_lik_from_posterior_samples_sum(
+      fit               = context[["object"]][["fit"]],
+      posterior_samples = posterior_samples,
+      data              = context[["data"]],
+      priors            = active_setup[["priors"]],
+      unit              = unit,
+      data_hash         = data_hash
+    ))
+  }
+
   if (.iwmde_uses_known_v_joint_likelihood(
       context,
       priors = active_setup[["priors"]]
@@ -70,7 +82,8 @@
                                                                        tau_between_samples = NULL,
                                                                        posterior_samples = NULL,
                                                                        unit = "estimate",
-                                                                       data_hash = NULL) {
+                                                                       data_hash = NULL,
+                                                                       random_factor_samples = NULL) {
 
   if (!is.null(posterior_samples)) {
     posterior_samples <- .iwmde_likelihood_posterior_samples(
@@ -101,7 +114,8 @@
       posterior_samples           = posterior_samples,
       unit                        = unit,
       data_hash                   = data_hash,
-      random_effects_conditioning = random_effects_conditioning
+      random_effects_conditioning = random_effects_conditioning,
+      random_factor_samples       = random_factor_samples
     ))
   }
 
@@ -218,6 +232,10 @@
                                              likelihood_mode = "conditional",
                                              row = NULL) {
 
+  if (.is_data_joint_selection(context[["data"]]) && !is.null(row)) {
+    return(.iwmde_log_likelihood_row_marginal(context, row, active_setup))
+  }
+
   if (identical(likelihood_mode, "marginal")) {
     return(.iwmde_log_likelihood_parameters_marginal(
       context      = context,
@@ -227,7 +245,7 @@
     ))
   }
 
-  marginalized_local_effects <- .is_data_exact_selection(context[["data"]])
+  joint_selection <- .is_data_joint_selection(context[["data"]])
   log_lik <- .log_posterior(
     parameters                   = parameters,
     data                         = active_setup[["fit_data"]],
@@ -242,8 +260,10 @@
     is_weightfunction            = active_setup[["is_weightfunction"]],
     effect_direction             = .data_effect_direction(context[["data"]]),
     outcome_type                 = .data_outcome_type(context[["data"]]),
-    cluster_effects_marginalized = marginalized_local_effects,
-    sampling_latent_marginalized = marginalized_local_effects
+    cluster_effects_marginalized = joint_selection &&
+      !.selection_retains_other_random(context[["data"]]),
+    sampling_latent_marginalized = joint_selection &&
+      !.selection_retains_sampling(context[["data"]])
   )
   return(.iwmde_scalar_log_density(log_lik))
 }

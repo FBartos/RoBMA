@@ -12,55 +12,102 @@
     stop("Internal error: invalid strict covariance policy.", call. = FALSE)
   }
 
-  covariance      <- (covariance + t(covariance)) / 2
-  rank_one_factor <- .covariance_exact_rank_one_factor(covariance)
-  decomposition   <- eigen(covariance, symmetric = TRUE)
-  values          <- eigen(
-    covariance,
-    symmetric   = TRUE,
-    only.values = TRUE
-  )[["values"]]
-  scale           <- max(abs(values))
-  tolerance       <- if (scale == 0) {
-    0
-  } else {
-    # Backward-error envelope for symmetrization and the eigensolve. This
-    # classifies roundoff without changing the supplied covariance matrix.
-    operation_count <- 4 * max(1, nrow(covariance))
-    relative_error  <- operation_count * .Machine$double.eps /
-      (1 - operation_count * .Machine$double.eps)
-    relative_error * scale
+  if (any(covariance != t(covariance))) {
+    stop("Covariance must be symmetric.", call. = FALSE)
   }
 
-  status <- if (!is.null(rank_one_factor)) {
-    if (nrow(covariance) == 1L) "positive_definite" else "positive_semidefinite"
-  } else if (min(values) < if (strict) 0 else -tolerance) {
-    "indefinite"
-  } else if (scale == 0 || min(values) <= tolerance) {
-    "positive_semidefinite"
-  } else {
+  size             <- nrow(covariance)
+  diagonal         <- diag(covariance)
+  zero_diagonal    <- which(diagonal == 0)
+  invalid_variance <- any(diagonal < 0) ||
+    any(covariance[zero_diagonal, , drop = FALSE] != 0)
+  rank_one_factor  <- if (!invalid_variance && size > 1L) .covariance_exact_rank_one_factor(covariance) else NULL
+  cholesky         <- NULL
+  sampling_factor  <- NULL
+  if (!is.null(rank_one_factor)) {
+    sampling_factor <- matrix(rank_one_factor, nrow = 1L)
+  }
+
+  # Keep the raw values-only spectrum as a diagnostic. Rank and null-space
+  # calculations below use the accepted factor, not this separate eigensolve.
+  values <- eigen(covariance, symmetric = TRUE, only.values = TRUE)[["values"]]
+
+  if (!invalid_variance && is.null(sampling_factor)) {
+    positive <- which(diagonal > 0)
+    if (!length(positive)) {
+      sampling_factor <- matrix(0, nrow = 0L, ncol = size)
+    } else {
+      # Apply the existing numerical PSD policy in dimensionless correlation
+      # coordinates. A small marginal variance is not a numerical null axis.
+      sd          <- sqrt(diagonal[positive])
+      correlation <- covariance[positive, positive, drop = FALSE] / tcrossprod(sd)
+      diag(correlation) <- 1
+      invalid_variance <- any(!is.finite(correlation))
+      if (!invalid_variance) {
+        decomposition <- eigen(correlation, symmetric = TRUE)
+        # The vector solver can round a negative eigenvalue to zero, so retain
+        # the values-only solver for the strict sign-classification contract.
+        correlation_values <- eigen(correlation, symmetric = TRUE, only.values = TRUE)[["values"]]
+        spectral_values <- decomposition[["values"]]
+        invalid_variance <- any(!is.finite(correlation_values)) || any(!is.finite(spectral_values))
+        if (!invalid_variance) {
+          operation_count <- 4 * length(positive)
+          correlation_tolerance <- operation_count * .Machine$double.eps /
+            (1 - operation_count * .Machine$double.eps) * max(abs(correlation_values))
+          spectral_values[abs(spectral_values) <= correlation_tolerance] <- 0
+          invalid_variance <- min(correlation_values) <
+            (if (strict) 0 else -correlation_tolerance) || any(spectral_values < 0)
+        }
+        if (!invalid_variance) {
+          keep <- which(spectral_values > 0)
+          # A rounded Cholesky pivot can be positive for an exactly
+          # dependent covariance. Establish support in correlation units
+          # first; Cholesky chooses a factor only when all axes are retained.
+          if (length(keep) == size) {
+            cholesky <- tryCatch(chol(covariance), error = function(e) NULL)
+          }
+          if (!is.null(cholesky)) {
+            sampling_factor <- cholesky
+          } else {
+            sampling_factor <- matrix(0, nrow = length(keep), ncol = size)
+            sampling_factor[, positive] <- sweep(sweep(
+              t(decomposition[["vectors"]][, keep, drop = FALSE]),
+              1L, sqrt(spectral_values[keep]), "*"), 2L, sd, "*")
+          }
+        }
+      }
+    }
+  }
+
+  status <- if (invalid_variance) "indefinite" else if (nrow(sampling_factor) == size) {
     "positive_definite"
+  } else {
+    "positive_semidefinite"
   }
-
-  # A covariance accepted as positive semidefinite can have tiny signed
-  # eigensolver artifacts in its null space. Preserve the submitted covariance
-  # and normalize only the spectral representation used to construct factors.
-  spectral_values <- decomposition[["values"]]
-  if (!identical(status, "indefinite")) {
-    spectral_values[abs(spectral_values) <= tolerance] <- 0
+  if (invalid_variance) {
+    decomposition   <- eigen(covariance, symmetric = TRUE)
+    spectral_values <- decomposition[["values"]]
+    vectors         <- decomposition[["vectors"]]
+  } else if (nrow(sampling_factor) == 0L) {
+    spectral_values <- rep(0, size)
+    vectors         <- diag(size)
+  } else {
+    # One accepted basis owns whitening, pseudoinverses and null-space tests.
+    # The omitted rows of the compact factor are structural zeros; do not
+    # rediscover them by thresholding a second full covariance eigensolve.
+    decomposition   <- svd(sampling_factor, nu = 0L, nv = size)
+    spectral_values <- c(decomposition[["d"]]^2, rep(0, size - nrow(sampling_factor)))
+    vectors         <- decomposition[["v"]]
   }
 
   structure(
     list(
       covariance           = covariance,
+      cholesky             = cholesky,
+      sampling_factor      = sampling_factor,
       eigenvalues          = values,
-      decomposition_values = decomposition[["values"]],
       spectral_values      = spectral_values,
-      eigenvectors         = decomposition[["vectors"]],
-      rank_one_factor      = rank_one_factor,
-      scale                = scale,
-      psd_tolerance        = tolerance,
-      pd_tolerance         = tolerance,
+      eigenvectors         = vectors,
       singular             = !identical(status, "positive_definite"),
       status               = status
     ),
@@ -115,40 +162,23 @@
     return(NULL)
   }
 
-  tryCatch(
-    chol(factorization[["covariance"]]),
-    error = function(e) NULL
-  )
+  factorization[["cholesky"]]
 }
 
 
-# Return a right-multiplication factor F with crossprod(F) equal to covariance.
+# Return the accepted right factor, with K rows to preserve the RNG draw count.
 .covariance_sampling_factor <- function(factorization) {
 
   if (!.covariance_is_positive_semidefinite(factorization)) {
     return(NULL)
   }
 
-  rank_one_factor <- factorization[["rank_one_factor"]]
-  if (!is.null(rank_one_factor)) {
-    size            <- length(rank_one_factor)
-    sampling_factor <- matrix(0, nrow = size, ncol = size)
-    sampling_factor[1L, ] <- rank_one_factor
-    return(sampling_factor)
+  factor <- factorization[["sampling_factor"]]
+  size   <- ncol(factor)
+  if (nrow(factor) == size) {
+    return(factor)
   }
-
-  chol_factor <- tryCatch(
-    chol(factorization[["covariance"]]),
-    error = function(e) NULL
-  )
-  if (!is.null(chol_factor)) {
-    return(chol_factor)
-  }
-
-  values  <- factorization[["spectral_values"]]
-  if (any(values < 0)) {
-    return(NULL)
-  }
-  vectors <- factorization[["eigenvectors"]]
-  vectors %*% diag(sqrt(values), nrow = length(values)) %*% t(vectors)
+  sampling_factor <- matrix(0, nrow = size, ncol = size)
+  sampling_factor[seq_len(nrow(factor)), ] <- factor
+  sampling_factor
 }

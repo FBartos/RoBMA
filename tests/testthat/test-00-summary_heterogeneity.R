@@ -53,29 +53,29 @@ test_that("homogeneous structured heterogeneity includes public correlations", {
     estimates    <- result[["estimates"]]
     expected_cor <- draws[, "mu__xREx__study_rho"]
 
-    expect_identical(rownames(estimates), c("sd", "var", "cor"))
-    expect_equal(estimates["cor", "Mean"], mean(expected_cor))
-    expect_equal(estimates["cor", "Median"], median(expected_cor))
+    expect_identical(rownames(estimates), c("tau", "tau2", "rho"))
+    expect_equal(estimates["rho", "Mean"], mean(expected_cor))
+    expect_equal(estimates["rho", "Median"], median(expected_cor))
     expect_equal(
-      as.numeric(estimates["cor", c("0.1", "0.9")]),
+      as.numeric(estimates["rho", c("0.1", "0.9")]),
       unname(quantile(expected_cor, probs))
     )
-    expect_equal(estimates["sd", "Mean"], mean(draws[, "mu__xREx__study_sd"]))
-    expect_equal(estimates["var", "Mean"], mean(draws[, "mu__xREx__study_sd"]^2))
+    expect_equal(estimates["tau", "Mean"], mean(draws[, "mu__xREx__study_sd"]))
+    expect_equal(estimates["tau2", "Mean"], mean(draws[, "mu__xREx__study_sd"]^2))
     expect_identical(
       summary_heterogeneity(object, component = "study", probs = probs),
       result
     )
     expect_equal(
       summary_heterogeneity(object, component = "total", probs = probs)[["estimates"]][
-        "cor", "Mean"
+        "rho", "Mean"
       ],
       mean(expected_cor)
     )
-    expect_true(any(grepl("^cor +", capture.output(print(result)))))
+    expect_true(any(grepl("^rho +", capture.output(print(result)))))
     frame <- as.data.frame(result)
     expect_identical(frame[["component"]], rep("study", 3L))
-    expect_identical(frame[["parameter"]], c("sd", "var", "cor"))
+    expect_identical(frame[["parameter"]], c("tau", "tau2", "rho"))
     expect_identical(tail(names(frame), 2L), c("CI_0.1", "CI_0.9"))
     expect_identical(data.frame(result), frame)
   }
@@ -100,9 +100,9 @@ test_that("correlations stay with their component and out of additive totals", {
   )
   result <- summary_heterogeneity(object)
   for (block in c("study", "site")) {
-    label     <- paste0(block, ": cor")
+    label     <- paste0(block, ": rho")
     estimates <- result[[block]][["estimates"]]
-    expect_identical(rownames(estimates), c("sd", "var", label))
+    expect_identical(rownames(estimates), c("tau", "tau2", label))
     expect_equal(
       estimates[label, "Mean"],
       mean(draws[, paste0("mu__xREx__", block, "_rho")])
@@ -114,12 +114,12 @@ test_that("correlations stay with their component and out of additive totals", {
   }
   expect_identical(
     rownames(summary_heterogeneity(object, component = "total")[["estimates"]]),
-    c("sd_total", "var_total")
+    c("tau_total", "tau2_total")
   )
   frame <- as.data.frame(result)
   expect_identical(data.frame(result), frame)
   expect_identical(
-    frame[["component"]][grepl(": cor$", frame[["parameter"]])],
+    frame[["component"]][grepl(": rho$", frame[["parameter"]])],
     c("study", "site")
   )
 })
@@ -136,12 +136,12 @@ test_that("allocation correlations are not duplicated or invented", {
   )
   object <- .heterogeneity_correlation_object(~ har(time | study), draws)
   result <- summary_heterogeneity(object)
-  expect_equal(sum(rownames(result[["estimates"]]) == "cor"), 1L)
+  expect_equal(sum(rownames(result[["estimates"]]) == "rho"), 1L)
   expect_equal(
-    result[["estimates"]]["cor", "Mean"],
+    result[["estimates"]]["rho", "Mean"],
     mean(draws[, "mu__xREx__study_rho"])
   )
-  expect_equal(result[["estimates"]]["sd_common", "Mean"], 2.5)
+  expect_equal(result[["estimates"]]["tau_common", "Mean"], 2.5)
   expect_identical(summary_heterogeneity(object, component = "study"), result)
 
   independent <- .heterogeneity_correlation_object(
@@ -151,7 +151,7 @@ test_that("allocation correlations are not duplicated or invented", {
   )
   expect_identical(
     rownames(summary_heterogeneity(independent)[["estimates"]]),
-    c("sd", "var")
+    c("tau", "tau2")
   )
 })
 

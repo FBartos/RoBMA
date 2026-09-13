@@ -2,7 +2,7 @@
 # IWMDE Context and Availability
 # ============================================================================ #
 
-.iwmde_context <- function(object) {
+.iwmde_context <- function(object, integration_control = NULL) {
 
   posterior_samples <- as.matrix(.get_posterior_samples(object[["fit"]]))
   if (is.null(colnames(posterior_samples))) {
@@ -53,7 +53,35 @@
   )
 
   class(context) <- "iwmde_context"
-  return(.iwmde_context_ensure_caches(context))
+  context <- .iwmde_context_ensure_caches(context)
+  return(.iwmde_context_with_integration_control(context, integration_control))
+}
+
+
+.iwmde_context_with_integration_control <- function(context, control) {
+
+  if (is.null(control)) {
+    return(context)
+  }
+  control <- .check_selection_likelihood_control(
+    control, argument = "density_control$integration_control"
+  )
+  if (!.is_data_joint_selection(context[["data"]])) {
+    stop(
+      "'density_control$integration_control' is unavailable for this model: ",
+      "post-fit integration controls require a bound Gaussian selection model.",
+      call. = FALSE
+    )
+  }
+
+  plan <- .data_selection_execution_plan(context[["data"]])
+  execution_plan <- .selection_joint_execution_plan_with_control(plan, control)
+  if (identical(execution_plan, plan)) {
+    return(context)
+  }
+
+  attr(context[["data"]], "selection_execution_plan") <- execution_plan
+  return(.iwmde_context_ensure_caches(context, reset = TRUE))
 }
 
 
@@ -140,7 +168,7 @@
 }
 
 
-.iwmde_context_ensure_caches <- function(context) {
+.iwmde_context_ensure_caches <- function(context, reset = FALSE) {
 
   cache_names <- c(
     "active_cache",
@@ -152,7 +180,7 @@
     "predictor_cache"
   )
   for (cache_name in cache_names) {
-    if (!is.environment(context[[cache_name]])) {
+    if (reset || !is.environment(context[[cache_name]])) {
       context[[cache_name]] <- new.env(parent = emptyenv())
     }
   }
@@ -171,7 +199,7 @@
   if (is.null(context[["formula_inputs"]])) {
     context[["formula_inputs"]] <- list()
   }
-  if (is.null(context[["source_fingerprint"]])) {
+  if (reset || is.null(context[["source_fingerprint"]])) {
     context[["source_fingerprint"]] <-
       .iwmde_compute_source_fingerprint(context)
   }

@@ -1062,7 +1062,8 @@
     return(.iwmde_linear_row_supports(
       context = context,
       rows    = rows,
-      weights = parameter_spec[["weights"]]
+      weights = parameter_spec[["weights"]],
+      direction = parameter_spec[["direction"]]
     ))
   }
   if (!is.null(parameter_spec) &&
@@ -1111,7 +1112,7 @@
 }
 
 
-.iwmde_linear_row_supports <- function(context, rows, weights) {
+.iwmde_linear_row_supports <- function(context, rows, weights, direction = NULL) {
 
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
   current <- .iwmde_linear_values(context, samples, weights)
@@ -1125,23 +1126,17 @@
   for (active_key in unique(active_keys[finite])) {
     positions <- which(finite & active_keys == active_key)
     first_row <- samples[positions[[1L]], ]
-    active_names <- .iwmde_linear_active_columns(
-      context,
-      first_row,
-      weights
-    )
+    linear <- .iwmde_linear_replacement_state(context,
+      list(row = first_row, row_index = rows[positions[[1L]]]),
+      list(type = "linear", weights = weights, direction = direction))
+    if (!isTRUE(linear[["valid"]])) next
+    active_names <- linear[["active_columns"]]
     if (length(active_names) == 0L) {
       out[positions, ] <- current[positions]
       next
     }
 
-    active_weights <- weights[active_names]
-    denominator    <- sum(active_weights^2)
-    if (!is.finite(denominator) || denominator <= 0) {
-      next
-    }
-
-    coefficients <- active_weights / denominator
+    coefficients <- linear[["coefficients"]]
     out[positions, 1L] <- -Inf
     out[positions, 2L] <- Inf
     group_samples <- samples[positions, , drop = FALSE]

@@ -92,6 +92,18 @@
       data_hash       = data_hash
     )
   }
+  if (.is_data_joint_selection(data)) {
+    target <- attr(log_lik, "RoBMA_target", exact = TRUE)
+    target <- c(target, .selection_postfit_target_metadata(data))
+    target[["selection_event"]] <- "original_publication"
+    target[["latent_effect_handling"]] <- "declared_retained_context_and_integrated_sources"
+    if (.selection_retains_sampling(data)) {
+      target[["retained_context"]] <- .selection_deletion_retained_context(data, priors)
+      target[["latent_effect_handling"]] <- "deleted_sampling_error_integrated_with_declared_random_sources"
+      target[["ordinary_branch_handling"]] <- "all_local_Gaussian_sources_integrated_when_selection_cancels"
+    }
+    attr(log_lik, "RoBMA_target") <- target
+  }
 
   return(log_lik)
 }
@@ -174,7 +186,7 @@
     )
   }
 
-  mu_samples <- mu_samples + .evaluate.brma.theta.glmm(
+  mu_samples <- mu_samples + .evaluate.brma.estimate_effects(
     fit               = fit,
     tau_within        = tau_within,
     same_data         = TRUE,
@@ -251,6 +263,8 @@
 
   is_multilevel <- .is_data_multilevel(data)
   is_random     <- .is_data_random(data)
+  joint_selection <- .is_data_joint_selection(data)
+  sampling_conditioned <- joint_selection && .selection_retains_sampling(data)
   K             <- nrow(data[["outcome"]])
   uses_covariance_backend <- unit == "estimate" &&
     .estimate_normal_target_uses_covariance_backend(data, priors)
@@ -303,6 +317,7 @@
   }
   has_sampled_random <- length(.data_effective_sampled_random_effect_terms(data)) > 0L
   if (unit == "estimate" && .is_data_known_v(data) && has_sampled_random &&
+      !sampling_conditioned &&
       !identical(random_effects_conditioning, "included_in_mu")) {
     stop(
       "Internal error: evaluated known-V random-formula log-likelihoods ",
@@ -316,7 +331,40 @@
     data   = data,
     priors = priors
   )
-  if (.is_data_known_v(data) && !uses_covariance_backend) {
+  if (sampling_conditioned &&
+      identical(random_effects_conditioning, "included_in_mu")) {
+    mu_samples <- mu_samples - .evaluate.brma.random_effects(
+      fit               = fit,
+      data              = data,
+      priors            = priors,
+      posterior_samples = posterior_samples,
+      same_data         = TRUE,
+      required          = TRUE
+    )
+  }
+  if (joint_selection && !sampling_conditioned && is_multilevel &&
+      .selection_retains_other_random(data)) {
+    mu_samples <- mu_samples + .evaluate.brma.cluster_effects(
+      fit               = fit,
+      tau_between       = tau_between_samples,
+      cluster           = data[["outcome"]][["cluster"]],
+      same_data         = TRUE,
+      effect_direction  = .data_effect_direction(data),
+      posterior_samples = posterior_samples
+    )
+  }
+  if (joint_selection && !sampling_conditioned && !is_random &&
+      .selection_retains_estimate(data)) {
+    mu_samples <- mu_samples + .evaluate.brma.estimate_effects(
+      fit               = fit,
+      tau_within        = tau_within_samples,
+      same_data         = TRUE,
+      K                 = K,
+      posterior_samples = posterior_samples
+    )
+  }
+  if (!sampling_conditioned &&
+      (joint_selection || (.is_data_known_v(data) && !uses_covariance_backend))) {
     mu_samples <- mu_samples + .evaluate.brma.sampling_dependency(
       fit               = fit,
       data              = data,
@@ -488,8 +536,8 @@
   effect_direction    <- setup[["effect_direction"]]
   data_weights        <- setup[["weights"]]
 
-  if (.setup_uses_exact_selection_likelihood(setup)) {
-    return(.selection_exact_joint_loglik_from_setup(setup))
+  if (.setup_uses_joint_selection_likelihood(setup)) {
+    return(.selection_joint_loglik_from_setup(setup))
   }
 
   if (.estimate_normal_target_uses_covariance_backend(data, priors)) {
@@ -603,6 +651,8 @@
   is_PET            <- .is_priors_PET(priors)
   is_PEESE          <- .is_priors_PEESE(priors)
   is_weightfunction <- .is_priors_weightfunction(priors)
+  joint_selection   <- .is_data_joint_selection(data)
+  sampling_conditioned <- joint_selection && .selection_retains_sampling(data)
   outcome_type      <- .data_outcome_type(data)
   effect_direction  <- .data_effect_direction(data)
   K                 <- nrow(data[["outcome"]])
@@ -699,7 +749,21 @@
   mu_random_samples <- NULL
 
   fit_data <- NULL
-  if ((is_multilevel && condition_local_effects) || is_weightfunction) {
+  retain_other_random <- if (sampling_conditioned) {
+    FALSE
+  } else if (joint_selection) {
+    .selection_retains_other_random(data)
+  } else {
+    unit == "estimate" && condition_local_effects
+  }
+  retain_random <- if (sampling_conditioned) {
+    FALSE
+  } else if (joint_selection) {
+    .selection_retains_any_random(data)
+  } else {
+    retain_other_random
+  }
+  if ((is_multilevel && retain_other_random) || is_weightfunction) {
     fit_data <- .create_fit_data(data = data, priors = priors)
   }
 
@@ -709,7 +773,7 @@
     NULL
   }
 
-  if (unit == "estimate" && is_multilevel && condition_local_effects) {
+  if (is_multilevel && retain_other_random) {
     cluster_effects <- .evaluate.brma.cluster_effects(
       fit               = fit,
       tau_between       = tau_result[["tau_between"]],
@@ -721,7 +785,7 @@
     mu_samples         <- mu_samples + cluster_effects
     mu_random_samples <- cluster_effects
   }
-  if (unit == "estimate" && is_random && condition_local_effects) {
+  if (is_random && retain_random) {
     random_effects <- if (is.null(conditioned_random_effects)) {
       .evaluate.brma.random_effects(
         fit               = fit,
@@ -753,13 +817,26 @@
   if (is.null(mu_random_samples)) {
     mu_random_samples <- matrix(0, nrow = nrow(mu_samples), ncol = K)
   }
+  if (joint_selection && !sampling_conditioned && !is_random &&
+      .selection_retains_estimate(data)) {
+    estimate_effects <- .evaluate.brma.estimate_effects(
+      fit               = fit,
+      tau_within        = tau_result[["tau_within"]],
+      same_data         = TRUE,
+      K                 = K,
+      posterior_samples = posterior_samples
+    )
+    mu_samples        <- mu_samples + estimate_effects
+    mu_random_samples <- mu_random_samples + estimate_effects
+  }
 
   active_object <- list(
     fit    = fit,
     data   = data,
     priors = priors
   )
-  if (.is_data_known_v(data) && !uses_covariance_backend) {
+  if (!sampling_conditioned &&
+      (joint_selection || (.is_data_known_v(data) && !uses_covariance_backend))) {
     mu_samples <- mu_samples + .evaluate.brma.sampling_dependency(
       fit               = fit,
       data              = data,

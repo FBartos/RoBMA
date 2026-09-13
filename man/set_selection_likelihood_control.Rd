@@ -2,7 +2,7 @@
 % Please edit documentation in R/selection-likelihood.R
 \name{set_selection_likelihood_control}
 \alias{set_selection_likelihood_control}
-\title{Control numerical integration of exact selection likelihoods}
+\title{Control numerical integration of selection likelihoods}
 \usage{
 set_selection_likelihood_control(
   points_per_scramble = 512L,
@@ -14,30 +14,46 @@ set_selection_likelihood_control(
 }
 \arguments{
 \item{points_per_scramble}{nominal number of integrand evaluations per
-randomized quasi-Monte Carlo scramble for certified higher-rank factor
+randomized quasi-Monte Carlo scramble for certified factor
 fallbacks, and the number of shifted Halton points for general covariance
 blocks.
-Factor evaluations are allocated equally to the prior- and mode-centered
-proposal components; odd values therefore use the next even total. This
-count is the initial nested-design budget, not an accuracy guarantee. The
+Factor likelihood-normalizer fallbacks combine the prior Gaussian with
+proposals optimized from zero and selection-boundary starting points.
+Every finite optimized candidate is retained, including candidates that
+locate the same mode. The total count is divided as evenly as possible
+across these proposals, and importance weights use the actual allocation.
+Odd likelihood-normalizer factor budgets use the next even total because
+the fixed design uses two streams. This count
+is the initial nested-design budget, not an accuracy guarantee. The
 integration diagnostics determine whether it is adequate for each
-evaluated likelihood state.}
+evaluated likelihood state.
+Selected-density projection fallbacks instead retain the prior Gaussian
+and one proposal optimized from zero.}
 
 \item{max_points_per_scramble}{largest nested-design budget used for a
-certified higher-rank factor fallback when the initial
-\code{points_per_scramble} budget fails its integration diagnostic. Refinement
-doubles the point count up to this value while reusing the same fixed
-design.}
+certified factor fallback, or a post-fit Gaussian event
+calculation, when the initial \code{points_per_scramble} budget fails its
+integration diagnostic. Refinement doubles the point count up to this
+value while reusing the same fixed design.}
 
 \item{scrambles}{number of independent randomized shifts used to estimate
-integration error for certified higher-rank factors and general covariance
+integration error for certified factors and general covariance
 blocks.}
 
 \item{relative_tolerance}{largest accepted successive relative quadrature
 change for factor integration, or the largest nested-design relative
-change and relative Monte Carlo standard error for a higher-rank factor
+change and relative Monte Carlo standard error for a factor
 fallback. General covariance blocks use the relative Monte Carlo standard
-error.}
+error. Dense covariance-envelope quadrature additionally requires the
+sum of covariance-bound width, twice the successive quadrature change,
+the relative exterior-mass bound, and any post-fit CDF interpolation error
+to satisfy this tolerance. Factor quadrature also checks exterior Gaussian
+mass before accepting rule agreement; an unresolved rule sequence uses the
+existing QMC fallback. Zplot projections additionally check density error
+relative to the peak within each posterior draw and raw normalizer-mass
+diagnostics, including their bounded approximation and omission terms.
+These diagnostics do not certify the total integrated error of a compressed
+displayed curve; see \code{\link[=as_zplot.brma]{as_zplot.brma()}}.}
 
 \item{seed}{non-negative integer used only to create fixed quasi-Monte Carlo
 designs. It does not alter R's random-number state.}
@@ -46,16 +62,31 @@ designs. It does not alter R's random-number state.}
 A \code{RoBMA_selection_likelihood_control} object.
 }
 \description{
-Creates numerical integration settings for the finite-vector product
-selection likelihood used by \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bselmodel.mv]{bselmodel.mv()}}, \code{\link[=RoBMA]{RoBMA()}}, and
+Creates numerical integration settings for the product and best-p-value
+selection likelihoods used by \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bselmodel.mv]{bselmodel.mv()}}, \code{\link[=RoBMA]{RoBMA()}}, and
 \code{\link[=RoBMA.mv]{RoBMA.mv()}}. Covariance factors use deterministic sequences of
-Gauss-Hermite rules. Certified factors of structural rank two through four
+Gauss-Hermite rules. Certified factors of structural rank one through four
 fall back to randomized quasi-Monte Carlo in the factor dimension when the
-quadrature sequence does not converge. General covariance blocks use
-randomized quasi-Monte Carlo in the dense conditional-normal representation.
-Every integration design is fixed before fitting, so repeated likelihood
-evaluations are deterministic. One-observation blocks are evaluated
+quadrature sequence does not converge. General covariance blocks with
+monotone product weights first try same-diagonal covariance bounds with a
+common Gaussian factor and independent group factors. Their original full
+covariance remains authoritative. The covariance-bound width, estimated
+quadrature error, and a bound on Gaussian mass outside the quadrature nodes
+share one numerical error budget. Interior quadrature error is estimated,
+so this is not a rigorous probability interval. Unsupported or unresolved
+cases use randomized quasi-Monte Carlo in the dense conditional-normal
+representation.
+Each fit or post-fit request uses a fixed integration design, so repeated
+likelihood evaluations are deterministic. One-observation blocks are evaluated
 analytically.
+
+Post-fit dense two-bin product normalizers can use a bounded interpolation
+of the standard-normal CDF. Its deterministic error is included in the same
+numerical error budget, separately from Monte Carlo standard error. Other
+weights, arithmetic outside its supported range, or insufficient error
+budgets retain the ordinary scalar primitive. An unresolved interpolation
+attempt retries the ordinary covariance-envelope calculation before QMC.
+Fitting and random generation retain their ordinary scalar primitive.
 
 The numerical defaults are package operating settings, not statistical
 estimands or literature-mandated constants. \code{points_per_scramble},
@@ -63,4 +94,17 @@ estimands or literature-mandated constants. \code{points_per_scramble},
 design, while
 \code{relative_tolerance} sets its diagnostic acceptance rule. Increasing a
 budget changes only the numerical evaluation of the same likelihood target.
+
+For qCMDE/IWMDE post-fit densities and hypotheses in Gaussian selection
+models, pass this object as
+\code{density_control$integration_control}, for example
+\code{density_control = list(integration_control = set_selection_likelihood_control(max_points_per_scramble = 32768))}.
+The default \code{NULL} retains the fitted integration settings. An explicit
+control rebuilds a temporary execution plan from the stored covariance
+metadata without changing the fitted object or its posterior draws.
+In fitting and qCMDE/IWMDE likelihood evaluation, the maximum point budget
+controls factor QMC fallback. Post-fit full-event and partial-event
+calculations, including z-plots and sensitivity diagnostics, also refine
+dense QMC evaluations up to that budget. Analytic and deterministic
+quadrature rules remain unchanged.
 }

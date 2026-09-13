@@ -59,7 +59,7 @@ test_that("summary.brma coerces displayed sections to one data frame", {
     SD                 = 0.03,
     `0.025`            = 0.24,
     `0.975`            = 0.36,
-    row.names          = "sd(sensitivity)",
+    row.names          = "tau(sensitivity)",
     check.names        = FALSE
   )
   sections <- c(
@@ -92,7 +92,7 @@ test_that("summary.brma coerces displayed sections to one data frame", {
   )
   expect_identical(
     frame[["parameter"]],
-    c("Effect", "sensitivity", "specificity", "sd(sensitivity)")
+    c("Effect", "sensitivity", "specificity", "tau(sensitivity)")
   )
   expect_true(all(c("CI_0.025", "CI_0.975") %in% names(frame)))
   expect_false(any(c(
@@ -138,8 +138,69 @@ test_that("random inclusion labels identify aggregate and component SDs", {
 
   expect_identical(
     .summary_random_inclusion_labels(list(), labels[1:3], labels[1:3]),
-    c("sd_total", "component: sd_total", "study:esid: sd")
+    c("tau_total", "component: tau_total", "study:esid: tau")
   )
+})
+
+test_that("scalar multivariate summary labels respect declared SD priors", {
+
+  args <- list(
+    yi                        = c(0.1, 0.2, 0.3, 0.4),
+    vi                        = rep(0.01, 4),
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  priors <- list(
+    NULL,
+    prior("point", list(location = 0.3)),
+    prior("normal", list(mean = 0, sd = 1), truncation = list(lower = 0))
+  )
+  model_types <- c("Fixed-Effect", "Random-Effects", "Random-Effects")
+  footnote <- paste0(
+    "exp(intercept) is the baseline heterogeneity SD (%s), already ",
+    "exponentiated. Other coefficients are changes in log(SD); ",
+    "exp(coefficient) is an SD multiplier."
+  )
+
+  for (i in seq_along(priors)) {
+    arguments <- args
+    if (!is.null(priors[[i]])) {
+      arguments[["random"]] <- ~ 1 | estimate
+      arguments[["data"]] <- data.frame(estimate = seq_along(args[["yi"]]))
+      arguments[["selection"]] <- BayesTools::selection_model(group = "estimate")
+      arguments[["prior_heterogeneity"]] <- priors[[i]]
+    }
+    object <- do.call(bselmodel.mv, arguments)
+    expect_identical(
+      .summary.brma_model_names(object),
+      paste("Bayesian Multivariate", model_types[i], "Selection Model (k = 4)")
+    )
+    expect_identical(.summary_scale_footnotes(object), if (is.null(priors[[i]])) {
+      sprintf(footnote, "tau")
+    } else {
+      paste0("exp(intercept) is the baseline heterogeneity SD (tau) of the ",
+        "indicated target, already ",
+        "exponentiated. Other coefficients are changes in log(SD); ",
+        "exp(coefficient) is an SD multiplier.")
+    })
+  }
+
+  for (cluster in list(NULL, c("a", "a", "b", "b"))) {
+    object <- do.call(
+      brma, c(args, list(prior_heterogeneity = NULL, cluster = cluster))
+    )
+    expect_identical(.summary_scale_footnotes(object), sprintf(footnote, "tau"))
+    expect_identical(
+      .summary.brma_model_names(object),
+      if (is.null(cluster)) {
+        "Bayesian Fixed-Effect Model (k = 4)"
+      } else {
+        "Bayesian Multilevel Fixed-Effect Model (k = 4, clusters = 2)"
+      }
+    )
+  }
 })
 
 skip_if_no_fits()
@@ -266,7 +327,22 @@ expect_summary_contract <- function(summary_object, fit, name,
                                     conditional = FALSE) {
 
   expect_s3_class(summary_object, "summary.brma")
-  expect_named(summary_object, summary_sections)
+  expected_sections <- summary_sections
+  sensitivity       <- fit[["selection_sensitivity_diagnostics"]]
+  if (!is.null(sensitivity)) {
+    expected_sections <- c(expected_sections, "selection_sensitivity_diagnostics")
+    expect_identical(summary_object[["selection_sensitivity_diagnostics"]], sensitivity)
+  }
+  selection_model <- .data_selection_model(fit[["data"]])
+  if (!is.null(selection_model)) {
+    expected_sections <- c(expected_sections, "selection_model", "selection_sampling")
+    expect_identical(summary_object[["selection_model"]], selection_model)
+    expect_identical(
+      summary_object[["selection_sampling"]],
+      .selection_postfit_target_metadata(fit[["data"]])[["sampling_structure"]]
+    )
+  }
+  expect_named(summary_object, expected_sections)
   expect_type(summary_object[["name"]], "character")
   expect_true(length(summary_object[["name"]]) == 1L)
   expect_true(nzchar(summary_object[["name"]]))
@@ -325,6 +401,50 @@ test_that("summary.brma returns a stable object contract", {
   }
 })
 
+test_that("scalar multivariate summaries retain RoBMA tau naming", {
+
+  scalar_names <- c("brma.mv_block_mvn", "brma.mv_block_mvn_fixed_random_null")
+  skip_if_missing_fits(scalar_names)
+
+  for (name in scalar_names) {
+    fit <- fits[[name]]
+    map <- BayesTools::parameter_map(fit[["fit"]])
+    reference <- .summary_estimates_table(
+      object                   = fit,
+      probs                    = c(.025, .50, .975),
+      include_mcmc_diagnostics = FALSE,
+      is_robma                 = FALSE,
+      transform_factors        = TRUE,
+      transform_scaled         = TRUE,
+      keep_parameters          = c("mu", "tau"),
+      random_effects_summary   = "none",
+      title                    = "Estimates"
+    )
+    out <- summary(fit, include_mcmc_diagnostics = FALSE)
+
+    expect_identical(rownames(out[["estimates"]]), c("mu", "tau"))
+    expect_identical(attr(out[["estimates"]], "parameters"), c("mu", "tau"))
+    restored <- out[["estimates"]]
+    rownames(restored) <- rownames(reference)
+    expect_identical(restored, reference)
+    expect_identical(BayesTools::parameter_map(fit[["fit"]]), map)
+    expect_identical(
+      out[["name"]],
+      paste(
+        "Bayesian Multivariate",
+        "Fixed-Effect",
+        sprintf("Model (k = %i)", nrow(fit[["data"]][["outcome"]]))
+      )
+    )
+
+    frame <- as.data.frame(out)
+    expect_identical(frame[["parameter"]][frame[["component"]] == "common"],
+                     c("mu", "tau"))
+    expect_true(all(c("CI_0.025", "CI_0.975") %in% names(frame)))
+    expect_identical(data.frame(out), frame)
+  }
+})
+
 test_that("summary.brma prints known-R random-effect parameters", {
 
   name <- "brma.mv_block_mvn_known_R"
@@ -334,9 +454,9 @@ test_that("summary.brma prints known-R random-effect parameters", {
   output <- capture.output(print(out))
 
   expect_summary_contract(out, fits[[name]], name)
-  expect_true("sd" %in% rownames(out[["estimates_random"]]))
-  expect_true(any(grepl("sd", output, fixed = TRUE)))
-  expect_false(any(grepl("sd_mult", output, fixed = TRUE)))
+  expect_true("tau" %in% rownames(out[["estimates_random"]]))
+  expect_true(any(grepl("tau", output, fixed = TRUE)))
+  expect_false(any(grepl("tau_mult", output, fixed = TRUE)))
   expect_false(any(grepl("group_covariance", output, fixed = TRUE)))
 })
 

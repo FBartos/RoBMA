@@ -31,7 +31,7 @@ bselmodel(
   prior_informed_subfield,
   effect_direction = "detect",
   steps,
-  selection_likelihood = c("exact", "approximate"),
+  selection = BayesTools::selection_model(),
   selection_control = set_selection_likelihood_control(),
   sample = 5000,
   burnin = 2000,
@@ -163,14 +163,19 @@ default selection model. If \code{prior_bias} is supplied, the prior carries its
 own side, steps, and weights. If omitted, the default is \code{0.025}, yielding
 intervals \verb{[0, .025]} and \verb{(.025, 1]}.}
 
-\item{selection_likelihood}{selection-likelihood target. \code{"exact"} fits the
-finite-vector product-selection likelihood after analytically marginalizing
-Gaussian random effects. \code{"approximate"} fits the row-wise selected-normal
-likelihood conditional on sampled random effects.}
+\item{selection}{specification created by \code{\link[=selection_model]{selection_model()}} for
+automatically constructed weightfunction priors. The default integrates
+estimate-level random effects and the complete sampling error, and conditions
+on other random effects. Each source can instead be conditioned upon or
+integrated through the corresponding selection-model setting. Explicit
+\code{prior_bias} objects retain their own selection specification; this argument
+does not overwrite it. Conditioning on sampling variation retains the entire
+sampling-error realization, including in ordinary univariate models.
+This sampling setting requires omitted or unit observation \code{weights}.}
 
 \item{selection_control}{numerical integration settings created by
-\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. Used only for dependent blocks of the
-exact likelihood.}
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. These affect numerical evaluation,
+without changing the conditioning model or the vector weighting rule.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
@@ -212,13 +217,26 @@ and location-scale meta-analytic selection models.
 \code{bselmodel()} is a normal/effect-size selection-model constructor. Custom
 \code{prior_bias} can be a weightfunction prior or a supported BayesTools
 selection-kernel prior; p-hacking kernels are not supported in active RoBMA.
-The default exact likelihood applies the selection event jointly to the
-finite vector of estimates. Independent blocks factorize analytically;
-rank-one multilevel blocks use deterministic Gauss-Hermite quadrature, and
-general covariance blocks use a fixed randomized quasi-Monte Carlo design.
-Both numerical routes apply an explicit relative-error check. Observation
-weights and non-step selection kernels are unavailable with the exact
-target.
+By default, the model conditions on contextual cluster effects and uses
+the product of estimate weights. For independent rows conditional on these
+effects, this gives the usual selected-normal likelihood with within-cluster
+heterogeneity integrated. Use \code{selection = selection_model(...)} to choose
+\code{weight_rule = "best"}, which uses the weight at the smallest p-value in
+each publication group, or to supply an explicit group column.
+
+All conditioning choices use the same Gaussian source model. Conditioned
+sources remain latent; their population distributions stay outside selection
+normalization. Integrated sources may be reweighted by selection. With all
+sources conditioned and positive weights, the weights cancel and the
+observed law is the ordinary Gaussian model. See \code{\link[=bselmodel.mv]{bselmodel.mv()}} for the
+complete source and covariance contract.
+
+Product weights factorize only for conditionally independent
+rows. Dependent events use supported covariance-factor quadrature or fixed
+randomized quasi-Monte Carlo integration with explicit error diagnostics.
+Non-unit observation \code{weights} require
+\code{known_sampling_variance = "integrate"} and independent product factors.
+Unit weights are equivalent to omitting \code{weights}.
 }
 \examples{
 \dontrun{

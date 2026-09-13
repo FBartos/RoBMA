@@ -103,6 +103,10 @@ prior_PEESE <- BayesTools::prior_PEESE
 #' \code{wf_fixed()}, or \code{wf_independent()}.
 #' @param reference character. Reference bin, currently
 #' \code{"most_significant"}.
+#' @param model fixed likelihood choices from \code{selection_model()}. The
+#' default integrates estimate random effects and the complete sampling error,
+#' conditions on other random effects, and uses product weights. These choices
+#' do not change the weight-height prior or \code{prior_weights}.
 #' @inheritParams prior
 #'
 #' @details Fixed weights must have one value per p-value bin
@@ -124,6 +128,79 @@ prior_PEESE <- BayesTools::prior_PEESE
 #'
 #' @export
 prior_weightfunction <- BayesTools::prior_weightfunction
+
+#' @title Selection Model
+#'
+#' @description Declare the contextual sources retained by a selection model,
+#' how publication weights combine, and an optional publication-group column.
+#'
+#' @param estimate_random_effects Either \code{"condition"} or
+#' \code{"integrate"} (default), for the declared estimate-level true-effect
+#' source. One-to-one grouping determines this role in multivariate models;
+#' it does not imply independent covariance.
+#' @param other_random_effects Either \code{"condition"} (default) or
+#' \code{"integrate"}, for all remaining declared random-effect terms.
+#' @param known_sampling_variance Either \code{"condition"} or
+#' \code{"integrate"} (default), for the complete sampling-error vector
+#' \eqn{e \sim N(0,V)}. Conditioning retains its realized value during
+#' selection normalization; integration uses the full sampling covariance.
+#' This choice also applies to univariate and independent sampling errors
+#' supplied through \code{vi} or \code{sei}. It does not change \code{V}.
+#' @param weight_rule Either \code{"product"} or \code{"best"}, specifying how
+#' estimate weights combine within a publication group.
+#' @param group Optional unresolved data-column name, supplied as a bare name,
+#' a backtick-quoted name, or one character string. \code{NULL} requests
+#' automatic group resolution when data are bound.
+#'
+#' @details This is RoBMA's re-export of \code{BayesTools::selection_model()}.
+#' The specification is stored in \code{prior_weightfunction(model = ...)}.
+#' Constructor \code{selection = selection_model(...)} settings apply only
+#' to generated default priors; explicit priors retain their own specification.
+#' A group name is captured without evaluating data; RoBMA binds it when the
+#' model data are available. Conditioned sources remain unknown and estimated.
+#' Integrating estimate variation is the default; conditioning on it defines
+#' a different selection model. The specialized clustered interface retains
+#' its total heterogeneity, allocation and within-/between-cluster I2 summaries.
+#'
+#' With positive sampling standard errors, the sampling law can be written as
+#' \eqn{e = Sz}, with
+#' \eqn{z \sim N(0,R)} and \eqn{V = SRS}, where \eqn{S} contains sampling
+#' standard errors and \eqn{R} is their correlation matrix. Conditioning
+#' retains all of \eqn{e}; no residual sampling error is integrated separately.
+#' Covariance factorizations affect computation, not the selection model.
+#' Selection thresholds continue to use the original sampling standard errors.
+#'
+#' When all outcome-generating sources are conditioned upon and weights are
+#' positive almost surely, selection weights cancel and the observed law is
+#' the ordinary Gaussian model. The likelihood then contains no information
+#' about the selection weights. A retained context with zero acceptance
+#' probability cannot complete the selection process. Integrating all sources
+#' instead gives population-level selection among completed studies.
+#' These choices are independent of prediction's \code{conditioning_depth}.
+#' Non-unit observation \code{weights} require
+#' \code{known_sampling_variance = "integrate"}; unit weights are equivalent
+#' to omitting \code{weights}. Other observation-weight restrictions still apply.
+#'
+#' \code{weight_rule = "best"} uses the weight of the smallest p-value's bin,
+#' rather than the largest weight. \code{weight_rule = "product"} multiplies
+#' the estimate weights within each publication group.
+#'
+#' See [bselmodel.mv()] for the supported conditioning cells, source and group
+#' requirements, and covariance boundaries.
+#'
+#' @return A \code{selection_model} object containing fixed mode choices and a
+#' deferred column name or \code{NULL} for automatic group resolution.
+#'
+#' @examples
+#' prior_weightfunction(
+#'   steps = .05,
+#'   model = selection_model(known_sampling_variance = "condition", group = paper_id)
+#' )
+#'
+#' @seealso \code{\link{prior_weightfunction}}, [bselmodel.mv()], [RoBMA.mv()]
+#' @md
+#' @export
+selection_model <- BayesTools::selection_model
 
 #' @rdname prior_weightfunction
 #' @param alpha optional positive cumulative-Dirichlet concentration parameters,

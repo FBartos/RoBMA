@@ -653,8 +653,7 @@ test_that("marglik selected-normal known-V path separates SE roles", {
   attr(model_data, "known_V_data") <- .known_v_prepare(
     V                         = sampling_variance,
     keep_rows                 = rep(TRUE, data[["K"]]),
-    known_v_parameterization  = "latent",
-    known_v_residual_fraction = NULL
+    known_v_parameterization  = "latent"
   )
   parameters <- list(mu = 0, tau = 0)
 

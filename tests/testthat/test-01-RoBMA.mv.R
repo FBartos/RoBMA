@@ -26,7 +26,12 @@ skip_refit_if_cached("RoBMA.mv")
     BayesTools::prior_weightfunction(
       "one-sided",
       steps   = 0.025,
-      weights = BayesTools::wf_cumulative(c(1, 1))
+      weights = BayesTools::wf_cumulative(c(1, 1)),
+      model   = BayesTools::selection_model(
+        other_random_effects    = "integrate",
+        known_sampling_variance = "integrate",
+        group            = "study"
+      )
     ),
     BayesTools::prior_PET(
       "cauchy",
@@ -66,7 +71,7 @@ test_that("RoBMA.mv fits the complete multivariate product space", {
   )
   fit <- suppressWarnings(add_loo(fit, unit = "estimate"))
   save_fit(
-    "RoBMA.mv_exact_product_space",
+    "RoBMA.mv_marg_product_space",
     fit,
     info = input
   )
@@ -75,7 +80,15 @@ test_that("RoBMA.mv fits the complete multivariate product space", {
     class(fit),
     c("RoBMA.mv", "RoBMA", "brma.mv", "brma.norm", "brma")
   )
-  expect_identical(fit[["selection_likelihood"]][["type"]], "exact")
+  model <- .data_selection_model(fit[["data"]])
+  expect_identical(
+    model[c("other_random_effects", "known_sampling_variance")],
+    list(other_random_effects = "integrate", known_sampling_variance = "integrate")
+  )
+  expect_identical(model[["groups"]][["group_index"]], rep(1:3, each = 2L))
+  expect_true(all(vapply(model[["branches"]][model[["active_branches"]]],
+                        function(branch) identical(branch[["weight_rule"]], "product"),
+                        logical(1))))
   expect_true(.is_PET(fit))
   expect_true(.is_PEESE(fit))
   expect_true(.is_weightfunction(fit))

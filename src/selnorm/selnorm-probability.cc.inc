@@ -269,13 +269,13 @@ double stable_affine_score(double z, double sei, double mean, double sd)
     return z;
   }
 
-  const double difference = std::fma(z, sei, -mean);
+  const double difference = selnorm_fma(z, sei, -mean);
   if (std::isfinite(difference)) {
     return difference / sd;
   }
 
   const double scale = std::max(std::max(sei, std::abs(mean)), sd);
-  return std::fma(z, sei / scale, -mean / scale) / (sd / scale);
+  return selnorm_fma(z, sei / scale, -mean / scale) / (sd / scale);
 }
 
 double omega_at(const double *omega, int bin, int stride)

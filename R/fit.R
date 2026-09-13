@@ -16,11 +16,20 @@
     attr(prior_list[["phi"]], "levels")   <- nrow(data[["outcome"]])
     attr(prior_list[["theta"]], "levels") <- nrow(data[["outcome"]])
   }
+  if (.data_outcome_type(data) == "norm" && !.is_data_random(data) &&
+      (.selection_retains_estimate(data) ||
+       (.selection_retains_sampling(data) && .selection_integrates_estimate(data)))) {
+    prior_list[["theta"]] <- BayesTools::prior_factor(
+      "normal", parameters = list(mean = 0, sd = 1), contrast = "independent"
+    )
+    attr(prior_list[["theta"]], "levels") <- nrow(data[["outcome"]])
+  }
 
   # add cluster-level indicators
   if (.is_data_multilevel(data)) {
-    if (.is_data_exact_selection(data)) {
-      # Exact selection analytically marginalizes the cluster effects.
+    if (.is_data_joint_selection(data) && !.selection_retains_other_random(data) &&
+        !.selection_retains_sampling(data)) {
+      # Integrate contextual cluster effects before selection normalization.
       prior_list[["gamma"]] <- NULL
     } else {
       # encode number of levels for the random-effects prior
@@ -29,15 +38,20 @@
     }
   }
   # add known-V sampling dependency latent factors
-  if (!.is_data_exact_selection(data) &&
-      .is_data_known_v_backend(data, "latent") &&
-      .data_known_v_rank(data) > 0L) {
+  sampling_rank <- if (.is_data_joint_selection(data)) {
+    if (.selection_retains_sampling(data)) {
+      .selection_sampling_structure(data)[["rank"]]
+    } else 0L
+  } else if (.is_data_known_v_backend(data, "latent")) {
+    .data_known_v_rank(data)
+  } else 0L
+  if (sampling_rank > 0L) {
     prior_list[["sampling_z"]] <- BayesTools::prior_factor(
       "normal",
       parameters = list("mean" = 0, "sd" = 1),
       contrast   = "independent"
     )
-    attr(prior_list[["sampling_z"]], "levels") <- .data_known_v_rank(data)
+    attr(prior_list[["sampling_z"]], "levels") <- sampling_rank
   }
 
   ### deal with non-prior mixture distributions (bPET, bPEESE, and bselmodel)
@@ -63,8 +77,8 @@
 
   .check_glmm_no_bias_priors(data, priors)
 
-  if (.uses_exact_selection_likelihood(data, priors)) {
-    return(.selection_exact_fit_data(data = data, priors = priors))
+  if (.is_data_joint_selection(data)) {
+    return(.selection_joint_fit_data(data = data, priors = priors))
   }
 
   ### add outcome specific data
@@ -158,7 +172,8 @@
       fit_data[["sampling_var"]] <- .known_v_residual_variance(known_V)
       if (.known_v_rank(known_V) > 0L) {
         latent_blocks <- .known_v_backend_blocks(known_V, "latent")
-        independent   <- .known_v_independent_indices(known_V)
+        independent   <- setdiff(seq_len(.known_v_nrow(known_V)),
+          unlist(lapply(latent_blocks, `[[`, "index")))
         if (length(independent) > 0L) {
           fit_data[["known_v_independent_n"]]     <- length(independent)
           fit_data[["known_v_independent_index"]] <- independent
@@ -256,20 +271,30 @@
   is_PET             <- .is_priors_PET(priors)
   is_PEESE           <- .is_priors_PEESE(priors)
   is_weightfunction  <- .is_priors_weightfunction(priors)
-  is_exact_selection <- .uses_exact_selection_likelihood(data, priors)
+  is_joint_selection <- .is_data_joint_selection(data)
   outcome_type       <- .data_outcome_type(data)
   effect_direction   <- .data_effect_direction(data)
 
   is_known_v                   <- .is_data_known_v(data)
   known_v_rank                 <- .data_known_v_rank(data)
   known_v_backend              <- .data_known_v_effective_backend(data)
-  is_known_v_latent            <- !is_exact_selection && is_known_v &&
+  is_known_v_latent            <- !is_joint_selection && is_known_v &&
     known_v_backend %in% c("latent", "diagonal")
-  is_known_v_whitened          <- !is_exact_selection && is_known_v &&
+  is_known_v_whitened          <- !is_joint_selection && is_known_v &&
     known_v_backend == "whitened"
-  is_known_v_block_mvn         <- !is_exact_selection && is_known_v &&
+  is_known_v_block_mvn         <- !is_joint_selection && is_known_v &&
     known_v_backend == "block_mvn"
   has_marginalized_random      <- .data_has_marginalized_random_effects(data)
+
+  all_selection_sources_retained <- .selection_all_sources_conditioned(data)
+  retained_sampling <- if (.is_data_joint_selection(data) &&
+      .selection_retains_sampling(data) && !all_selection_sources_retained) {
+    .selection_sampling_structure(data)
+  } else NULL
+  if (is_joint_selection) {
+    known_v_rank <- if (is.null(retained_sampling)) 0L else
+      retained_sampling[["rank"]]
+  }
 
   if (is_known_v_whitened && is_scale) {
     stop(
@@ -282,7 +307,7 @@
   model_syntax <- "model{\n"
 
   selection_spec <- NULL
-  if (is_weightfunction) {
+  if (is_weightfunction && !all_selection_sources_retained) {
     selection_spec <- .selection_spec(
       priors           = priors,
       yi               = data[["outcome"]][["yi"]],
@@ -318,7 +343,8 @@
   }
   tau_between_node <- if (is_scale) "tau_between[i]" else "tau_between"
 
-  if (is_weightfunction && isTRUE(selection_spec[["jags_use_step_switch"]])) {
+  if (is_weightfunction && !all_selection_sources_retained &&
+      isTRUE(selection_spec[["jags_use_step_switch"]])) {
     model_syntax <- paste0(
       model_syntax,
       "sel_kernel_mode_active = ",
@@ -327,10 +353,13 @@
     )
   }
 
-  if (is_known_v_latent && known_v_rank > 0L) {
+  if ((is_known_v_latent || !is.null(retained_sampling)) && known_v_rank > 0L) {
     known_V       <- .data_known_v_data(data)
-    latent_blocks <- .known_v_backend_blocks(known_V, "latent")
-    independent   <- .known_v_independent_indices(known_V)
+    latent_blocks <- if (is.null(retained_sampling)) {
+      .known_v_backend_blocks(known_V, "latent")
+    } else retained_sampling[["latent_blocks"]]
+    independent <- setdiff(seq_len(nrow(data[["outcome"]])),
+                          unlist(lapply(latent_blocks, `[[`, "index")))
     if (length(independent) > 0L) {
       model_syntax <- paste0(
         model_syntax,
@@ -364,8 +393,19 @@
     mu_estimate <- ifelse(effect_direction == "negative", "- mu", "mu")
   }
   # add cluster-level effects
-  if (is_multilevel && !is_exact_selection) {
+  if (is_multilevel &&
+      !all_selection_sources_retained &&
+      (!is_joint_selection || .selection_retains_other_random(data) ||
+       .selection_retains_sampling(data))) {
     mu_estimate <- paste0(mu_estimate, ifelse(effect_direction == "negative", " - ", " + "),  "gamma[cluster[i]] * ", tau_between_node)
+  }
+  if (is_joint_selection && !is_random && !all_selection_sources_retained &&
+      (.selection_retains_estimate(data) ||
+       (.selection_retains_sampling(data) && .selection_integrates_estimate(data)))) {
+    mu_estimate <- paste0(
+      mu_estimate, if (effect_direction == "negative") " - " else " + ",
+      "theta[i] * ", tau_within_node
+    )
   }
   # add known-V sampling dependency latent factors
   if (is_known_v_latent && known_v_rank > 0L) {
@@ -378,10 +418,25 @@
   if (is_PEESE) {
     mu_estimate <- paste0(mu_estimate, " + PEESE * pow(sei[i],2)")
   }
-  if (is_exact_selection) {
+  if (is_joint_selection) {
+    if (.selection_retains_sampling(data)) {
+      if (!all_selection_sources_retained) {
+        integrated <- .selection_conditioned_random_expression(data)
+        retained <- .selection_conditioned_random_expression(data, retained = TRUE)
+        model_syntax <- paste0(model_syntax,
+          "  sel_joint_integrated[i] = ", integrated, "\n",
+          "  sel_joint_retained[i] = ", retained, "\n")
+        mu_estimate <- paste0(mu_estimate, " - sel_joint_integrated[i] - sel_joint_retained[i]")
+      } else if (is_random) {
+        # Formula outputs contain their compiled random contributions. Preserve
+        # the fixed mean while integrating every random source in covariance.
+        mu_estimate <- paste0(mu_estimate, " - (",
+          .selection_conditioned_random_expression(data, retained = TRUE), ")")
+      }
+    }
     model_syntax <- paste0(
       model_syntax,
-      "  sel_exact_mu[i] = ", mu_estimate, "\n"
+      "  sel_joint_mu[i] = ", mu_estimate, "\n"
     )
   }
   if (is_known_v_whitened || is_known_v_block_mvn) {
@@ -423,7 +478,7 @@
   }
   # compute the total conditional variance of the observed estimate
   sampling_var_node          <- if (is_known_v_latent) "sampling_var[i]" else "pow(sei[i],2)"
-  marginalized_random_var    <- if (is_exact_selection) {
+  marginalized_random_var    <- if (is_joint_selection) {
     "0"
   } else {
     .data_marginalized_random_variance_expression(data, row_index = "i")
@@ -451,7 +506,7 @@
 
     # selection and normal models for norm data outcome
     if (is_weightfunction) {
-      if (!is_exact_selection) {
+      if (!is_joint_selection) {
         likelihood_weight_expr <- if (is_weights) "weight[i]" else "1"
         total_sd_node          <- "sel_total_sd[i]"
         model_syntax           <- paste0(
@@ -548,10 +603,10 @@
 
 
   model_syntax <- paste0(model_syntax, "}\n")
-  if (is_exact_selection) {
+  if (is_joint_selection) {
     model_syntax <- paste0(
       model_syntax,
-      .selection_exact_model_syntax(
+      .selection_joint_model_syntax(
         data           = data,
         selection_spec = selection_spec
       )
@@ -665,6 +720,16 @@
   data               <- object[["data"]]
   priors             <- object[["priors"]]
 
+  if ((!extend || length(object[["fit"]]) == 0L) &&
+      .is_priors_weightfunction(priors) && .selection_all_sources_conditioned(data)) {
+    warning(
+      "All applicable variation sources are set to 'condition'. ",
+      "Selection weights cancel, so the model uses the ordinary Gaussian likelihood ",
+      "without adjustment by the weight function.",
+      call. = FALSE
+    )
+  }
+
   errors   <- NULL
   warnings <- NULL
 
@@ -702,6 +767,8 @@
       silent                = fit_control[["silent"]],
       seed                  = fit_control[["seed"]],
       required_packages     = c("RoBMA", "BayesTools"),
+      runtime_setup         = .selection_runtime_setup(),
+      runtime_cache         = if (.is_priors_weightfunction(priors)) .selection_cache_runtime() else NULL,
       is_JASP               = object[["is_JASP"]],
       is_JASP_prefix        = object[["is_JASP_prefix"]]
     )
@@ -713,13 +780,17 @@
       autofit_control    = autofit_control,
       parallel           = fit_control[["parallel"]],
       cores              = fit_control[["cores"]],
-      silent             = fit_control[["silent"]]
+      silent             = fit_control[["silent"]],
+      runtime_cache      = if (.is_priors_weightfunction(priors)) .selection_cache_runtime(object[["fit"]]) else NULL
     )
 
   }
 
 
   # assess the model fit and deal with errors
+  attr(fit, "selection_runtime") <- attr(
+    attr(fit, "runtime_setup", exact = TRUE), "selection_runtime", exact = TRUE
+  )
   if (inherits(fit, "error")) {
 
     if(grepl("Unknown function", fit$message))
@@ -786,6 +857,9 @@
 
 .fit_and_finalize_object <- function(object, only_priors = FALSE) {
 
+  if (.selection_retains_sampling(object[["data"]]) && !inherits(object, "brma.mv")) {
+    .selection_check_sampling_completion(object)
+  }
   if (isTRUE(only_priors)) {
     return(.set_only_priors_class(object))
   }
@@ -795,7 +869,6 @@
 
   object[["summary"]]      <- .object_summary(object)
   object[["coefficients"]] <- .object_coefficients(object)
-  object <- .refresh_selection_approximation_diagnostics(object)
 
   .autocompute_brma(object)
 }

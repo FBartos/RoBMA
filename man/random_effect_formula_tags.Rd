@@ -125,21 +125,21 @@ overrides.
 
 BayesTools stores concrete coordinates, selectable semantic quantities, and
 aliases in one versioned parameter map. Its canonical random-effect names
-use \verb{(formula) owner: quantity(arguments)}. RoBMA prints and accepts
-simplified aliases: a sole random intercept is \code{sd} for a bare block and
-\code{study: sd} for a named block, while a non-intercept coefficient remains
-explicit, for example \code{study: sd(x)}. The owner-free \code{sd} shorthand is
+use \verb{(formula) owner: quantity(arguments)}. RoBMA maps these to meta-analytic
+I/O names: a sole random intercept is \code{tau} for a bare block and
+\code{study: tau} for a named block, while a non-intercept coefficient remains
+explicit, for example \code{study: tau(x)}. The owner-free \code{tau} shorthand is
 accepted only when it resolves uniquely. Bare formulas and unnamed one-entry
 lists omit a redundant owner; explicitly named one-entry lists and
 multi-component models retain it.
 
-Public correlations are named \code{cor}; compact scalar \code{rho} and LKJ
-construction coordinates remain internal. Automatic total-variance
-allocations expose \code{sd_total}, \code{var_total}, and \code{var_prop(...)}.
-Mean-variance allocations within heterogeneous blocks expose \code{sd_common},
-\code{var_common}, \code{var_mult(...)}, and \code{sd_mult(...)}. These semantic names are
-the supported selectors for summaries, plotting, density estimation, and
-hypotheses.
+Public correlations are named \code{rho}. Automatic total-variance allocations
+expose \code{tau_total}, \code{tau2_total}, and \code{tau2_prop(...)}. Mean-variance
+allocations within heterogeneous blocks expose \code{tau_common}, \code{tau2_common},
+\code{tau2_mult(...)}, and \code{tau_mult(...)}. BayesTools' general names and compact
+covariance-construction coordinates remain internal to RoBMA. These
+meta-analytic names are the supported selectors for summaries, plotting,
+density estimation, and hypotheses.
 }
 }
 \examples{

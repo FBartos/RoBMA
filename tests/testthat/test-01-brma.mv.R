@@ -199,10 +199,10 @@ test_that("brma.mv fits known-V backend smoke models", {
   expect_false(any(grepl("Random Components", block_random_output,
                          fixed = TRUE)))
   expect_true(any(block_random_output == "Random"))
-  expect_true(any(grepl("sd", block_random_output, fixed = TRUE)))
-  expect_false(any(grepl("sd(intercept)", block_random_output,
+  expect_true(any(grepl("tau", block_random_output, fixed = TRUE)))
+  expect_false(any(grepl("tau(intercept)", block_random_output,
                          fixed = TRUE)))
-  expect_false(any(grepl("estimate: sd", block_random_output,
+  expect_false(any(grepl("estimate: tau", block_random_output,
                          fixed = TRUE)))
   fit_block_random <- suppressWarnings(add_loo(fit_block_random))
   fit_block_random <- suppressWarnings(add_waic(fit_block_random))
@@ -238,7 +238,6 @@ test_that("brma.mv fits extended known-V backend smoke models", {
     V                          = V,
     data                       = transform(dat, estimate = seq_len(nrow(dat))),
     random                     = ~ 1 | estimate,
-    marginalize_estimate_level = FALSE,
     known_v_parameterization   = "block_mvn",
     measure                    = args[["measure"]],
     chains                     = args[["chains"]],
@@ -248,8 +247,17 @@ test_that("brma.mv fits extended known-V backend smoke models", {
     seed                       = args[["seed"]],
     silent                     = args[["silent"]],
     prior_unit_information_sd  = args[["prior_unit_information_sd"]],
-    convergence_checks         = args[["convergence_checks"]]
+    convergence_checks         = args[["convergence_checks"]],
+    only_priors                = TRUE
   )
+  # Keep the same Gaussian model as an explicit sampled reference for certification.
+  fit_block_random_sampled[["data"]] <- .set_data_random_effects_compile(
+    fit_block_random_sampled[["data"]], compile = NULL, marginalized_effects = list())
+  fit_block_random_sampled[["random_effects_compile"]] <- NULL
+  fit_block_random_sampled[["formula_design"]][["mu"]] <- .object_bayestools_formula_design(
+    fit_block_random_sampled, parameter = "mu", source = "location", random_effects_compile = NULL)
+  class(fit_block_random_sampled) <- setdiff(class(fit_block_random_sampled), "only_priors.brma")
+  fit_block_random_sampled <- .fit_and_finalize_object(fit_block_random_sampled)
   fit_block_random_sampled <- suppressWarnings(add_loo(
     fit_block_random_sampled
   ))
@@ -477,7 +485,7 @@ test_that("brma.mv fits extended known-V backend smoke models", {
   expect_true(any(grepl("Scale", random_scale_output, fixed = TRUE)))
   expect_true(any(random_scale_output == "Random"))
   expect_true(all(
-    c("var_prop(effect_study)", "var_prop(study)") %in%
+    c("tau2_prop(effect_study)", "tau2_prop(study)") %in%
       rownames(random_scale_summary[["estimates_random"]])
   ))
   fit_block_random_scale <- suppressWarnings(add_loo(fit_block_random_scale))
@@ -681,8 +689,9 @@ test_that("brma.mv fits structurally regularized singular V", {
   skip_if_fit_not_active("brma.mv_singular_regularized_whitened")
 
   dat <- data.frame(
-    yi    = c(0.08, 0.13, 0.18),
-    study = rep("s1", 3)
+    yi       = c(0.08, 0.13, 0.18),
+    study    = rep("s1", 3),
+    estimate = c("e1", "e2", "e3")
   )
   sei <- c(0.20, 0.30, 0.40)
   V   <- tcrossprod(sei)
@@ -690,10 +699,6 @@ test_that("brma.mv fits structurally regularized singular V", {
   V_general <- tcrossprod(A)
   args <- .brma_mv_fit_args()
 
-  prior_zero <- BayesTools::prior(
-    distribution = "spike",
-    parameters   = list(location = 0)
-  )
   prior_positive <- BayesTools::prior(
     distribution = "spike",
     parameters   = list(location = 0.10)
@@ -703,7 +708,6 @@ test_that("brma.mv fits structurally regularized singular V", {
       yi                        = yi,
       V                         = V,
       data                      = dat,
-      prior_heterogeneity       = prior_zero,
       known_v_parameterization  = "whitened",
       measure                   = args[["measure"]],
       prior_unit_information_sd = args[["prior_unit_information_sd"]],
@@ -741,7 +745,6 @@ test_that("brma.mv fits structurally regularized singular V", {
       yi                        = yi,
       V                         = V_general,
       data                      = dat,
-      prior_heterogeneity       = prior_zero,
       known_v_parameterization  = "block_mvn",
       measure                   = args[["measure"]],
       prior_unit_information_sd = args[["prior_unit_information_sd"]],
@@ -760,6 +763,7 @@ test_that("brma.mv fits structurally regularized singular V", {
     yi                        = yi,
     V                         = V_general,
     data                      = dat,
+    random                    = ~ 1 | estimate,
     prior_heterogeneity       = prior_positive,
     known_v_parameterization  = "block_mvn",
     measure                   = args[["measure"]],
@@ -821,6 +825,7 @@ test_that("brma.mv fits structurally regularized singular V", {
     yi                        = yi,
     V                         = V,
     scale                     = ~ 1,
+    random                    = ~ 1 | estimate,
     data                      = dat,
     prior_scale               = list(
       intercept = BayesTools::prior(
@@ -848,6 +853,7 @@ test_that("brma.mv fits structurally regularized singular V", {
       yi                        = yi,
       V                         = V,
       data                      = dat,
+      random                    = ~ 1 | estimate,
       prior_heterogeneity       = prior_positive,
       known_v_parameterization  = parameterization,
       measure                   = args[["measure"]],
@@ -899,10 +905,6 @@ test_that("brma.mv fits fixed-effect known-V model with random = NULL", {
     V                         = V,
     data                      = dat,
     random                    = NULL,
-    prior_heterogeneity       = BayesTools::prior(
-      distribution = "spike",
-      parameters   = list(location = 0)
-    ),
     known_v_parameterization  = "block_mvn",
     measure                   = args[["measure"]],
     chains                    = args[["chains"]],

@@ -2,7 +2,7 @@
 # selection-likelihood.R
 # ============================================================================ #
 #
-# Exact finite-vector selection likelihood preparation. Generic numerical and
+# Conditional Gaussian vector selection preparation. Generic numerical and
 # random-covariance compilation is owned by BayesTools; this file supplies the
 # meta-analytic covariance and constructor integration.
 #
@@ -18,19 +18,34 @@ SELNORM_FACTOR_QUADRATURE_ORDERS <- list(
 )
 
 
-#' Control numerical integration of exact selection likelihoods
+#' Control numerical integration of selection likelihoods
 #'
 #' @description
-#' Creates numerical integration settings for the finite-vector product
-#' selection likelihood used by [bselmodel()], [bselmodel.mv()], [RoBMA()], and
+#' Creates numerical integration settings for the product and best-p-value
+#' selection likelihoods used by [bselmodel()], [bselmodel.mv()], [RoBMA()], and
 #' [RoBMA.mv()]. Covariance factors use deterministic sequences of
-#' Gauss-Hermite rules. Certified factors of structural rank two through four
+#' Gauss-Hermite rules. Certified factors of structural rank one through four
 #' fall back to randomized quasi-Monte Carlo in the factor dimension when the
-#' quadrature sequence does not converge. General covariance blocks use
-#' randomized quasi-Monte Carlo in the dense conditional-normal representation.
-#' Every integration design is fixed before fitting, so repeated likelihood
-#' evaluations are deterministic. One-observation blocks are evaluated
+#' quadrature sequence does not converge. General covariance blocks with
+#' monotone product weights first try same-diagonal covariance bounds with a
+#' common Gaussian factor and independent group factors. Their original full
+#' covariance remains authoritative. The covariance-bound width, estimated
+#' quadrature error, and a bound on Gaussian mass outside the quadrature nodes
+#' share one numerical error budget. Interior quadrature error is estimated,
+#' so this is not a rigorous probability interval. Unsupported or unresolved
+#' cases use randomized quasi-Monte Carlo in the dense conditional-normal
+#' representation.
+#' Each fit or post-fit request uses a fixed integration design, so repeated
+#' likelihood evaluations are deterministic. One-observation blocks are evaluated
 #' analytically.
+#'
+#' Post-fit dense two-bin product normalizers can use a bounded interpolation
+#' of the standard-normal CDF. Its deterministic error is included in the same
+#' numerical error budget, separately from Monte Carlo standard error. Other
+#' weights, arithmetic outside its supported range, or insufficient error
+#' budgets retain the ordinary scalar primitive. An unresolved interpolation
+#' attempt retries the ordinary covariance-envelope calculation before QMC.
+#' Fitting and random generation retain their ordinary scalar primitive.
 #'
 #' The numerical defaults are package operating settings, not statistical
 #' estimands or literature-mandated constants. `points_per_scramble`,
@@ -39,28 +54,57 @@ SELNORM_FACTOR_QUADRATURE_ORDERS <- list(
 #' `relative_tolerance` sets its diagnostic acceptance rule. Increasing a
 #' budget changes only the numerical evaluation of the same likelihood target.
 #'
+#' For qCMDE/IWMDE post-fit densities and hypotheses in Gaussian selection
+#' models, pass this object as
+#' `density_control$integration_control`, for example
+#' `density_control = list(integration_control = set_selection_likelihood_control(max_points_per_scramble = 32768))`.
+#' The default `NULL` retains the fitted integration settings. An explicit
+#' control rebuilds a temporary execution plan from the stored covariance
+#' metadata without changing the fitted object or its posterior draws.
+#' In fitting and qCMDE/IWMDE likelihood evaluation, the maximum point budget
+#' controls factor QMC fallback. Post-fit full-event and partial-event
+#' calculations, including z-plots and sensitivity diagnostics, also refine
+#' dense QMC evaluations up to that budget. Analytic and deterministic
+#' quadrature rules remain unchanged.
+#'
 #' @param points_per_scramble nominal number of integrand evaluations per
-#'   randomized quasi-Monte Carlo scramble for certified higher-rank factor
+#'   randomized quasi-Monte Carlo scramble for certified factor
 #'   fallbacks, and the number of shifted Halton points for general covariance
 #'   blocks.
-#'   Factor evaluations are allocated equally to the prior- and mode-centered
-#'   proposal components; odd values therefore use the next even total. This
-#'   count is the initial nested-design budget, not an accuracy guarantee. The
+#'   Factor likelihood-normalizer fallbacks combine the prior Gaussian with
+#'   proposals optimized from zero and selection-boundary starting points.
+#'   Every finite optimized candidate is retained, including candidates that
+#'   locate the same mode. The total count is divided as evenly as possible
+#'   across these proposals, and importance weights use the actual allocation.
+#'   Odd likelihood-normalizer factor budgets use the next even total because
+#'   the fixed design uses two streams. This count
+#'   is the initial nested-design budget, not an accuracy guarantee. The
 #'   integration diagnostics determine whether it is adequate for each
 #'   evaluated likelihood state.
+#'   Selected-density projection fallbacks instead retain the prior Gaussian
+#'   and one proposal optimized from zero.
 #' @param max_points_per_scramble largest nested-design budget used for a
-#'   certified higher-rank factor fallback when the initial
-#'   `points_per_scramble` budget fails its integration diagnostic. Refinement
-#'   doubles the point count up to this value while reusing the same fixed
-#'   design.
+#'   certified factor fallback, or a post-fit Gaussian event
+#'   calculation, when the initial `points_per_scramble` budget fails its
+#'   integration diagnostic. Refinement doubles the point count up to this
+#'   value while reusing the same fixed design.
 #' @param scrambles number of independent randomized shifts used to estimate
-#'   integration error for certified higher-rank factors and general covariance
+#'   integration error for certified factors and general covariance
 #'   blocks.
 #' @param relative_tolerance largest accepted successive relative quadrature
 #'   change for factor integration, or the largest nested-design relative
-#'   change and relative Monte Carlo standard error for a higher-rank factor
+#'   change and relative Monte Carlo standard error for a factor
 #'   fallback. General covariance blocks use the relative Monte Carlo standard
-#'   error.
+#'   error. Dense covariance-envelope quadrature additionally requires the
+#'   sum of covariance-bound width, twice the successive quadrature change,
+#'   the relative exterior-mass bound, and any post-fit CDF interpolation error
+#'   to satisfy this tolerance. Factor quadrature also checks exterior Gaussian
+#'   mass before accepting rule agreement; an unresolved rule sequence uses the
+#'   existing QMC fallback. Zplot projections additionally check density error
+#'   relative to the peak within each posterior draw and raw normalizer-mass
+#'   diagnostics, including their bounded approximation and omission terms.
+#'   These diagnostics do not certify the total integrated error of a compressed
+#'   displayed curve; see [as_zplot.brma()].
 #' @param seed non-negative integer used only to create fixed quasi-Monte Carlo
 #'   designs. It does not alter R's random-number state.
 #'
@@ -125,11 +169,12 @@ set_selection_likelihood_control <- function(
 }
 
 
-.check_selection_likelihood_control <- function(control) {
+.check_selection_likelihood_control <- function(
+    control, argument = "selection_control") {
 
   if (!inherits(control, "RoBMA_selection_likelihood_control")) {
     stop(
-      "'selection_control' must be created by ",
+      "'", argument, "' must be created by ",
       "set_selection_likelihood_control().",
       call. = FALSE
     )
@@ -138,56 +183,126 @@ set_selection_likelihood_control <- function(
 }
 
 
-.set_data_selection_likelihood <- function(data, likelihood, setup = NULL) {
+# Reuse fitted covariance metadata when a post-fit call requests another design.
+.selection_joint_execution_plan_with_control <- function(plan, control) {
 
-  attr(data, "selection_likelihood")       <- likelihood
-  attr(data, "exact_selection_likelihood") <- setup
-  data
-}
+  if (all(vapply(names(control), function(name) {
 
-
-.data_selection_likelihood <- function(data) {
-
-  likelihood <- attr(data, "selection_likelihood", exact = TRUE)
-  if (is.null(likelihood)) {
-    return("approximate")
+    identical(plan[[name]], control[[name]])
+  }, logical(1)))) {
+    return(plan)
   }
-  likelihood
+
+  if (identical(plan[["statistical_target"]], "whole_sampling_error_selection")) {
+    for (name in names(control)) plan[[name]] <- control[[name]]
+    plan[["designs"]] <- lapply(plan[["designs"]], function(design) {
+      if (length(design) == 1L) return(design)
+      BayesTools::selection_qmc_design(
+        dimensions = dim(design)[[3L]], points = control[["max_points_per_scramble"]],
+        scrambles = control[["scrambles"]], seed = control[["seed"]]
+      )
+    })
+    return(plan)
+  }
+
+  updated <- .selection_joint_execution_plan(
+    row_blocks             = plan[["row_blocks"]],
+    block_methods          = plan[["block_methods"]],
+    factor_ranks           = plan[["factor_ranks"]],
+    selection_control      = control,
+    sampling               = plan[["sampling"]],
+    sampling_factor_blocks = plan[["sampling_factor_blocks"]],
+    random_covariance      = plan[["random_covariance"]]
+  )
+  updated[["selection_spec"]] <- plan[["selection_spec"]]
+  updated
 }
 
 
-.is_data_exact_selection <- function(data) {
+.data_selection_model <- function(data) {
 
-  identical(.data_selection_likelihood(data), "exact")
+  model <- attr(data, "selection_model", exact = TRUE)
+  if (!is.null(model) &&
+      (!inherits(model, "RoBMA_selection_model") ||
+       !identical(model[["schema_version"]], 3L))) {
+    stop("The fitted selection-model specification is invalid.", call. = FALSE)
+  }
+  model
 }
 
 
-.uses_exact_selection_likelihood <- function(data, priors) {
+.is_data_joint_selection <- function(data) {
 
-  .is_data_exact_selection(data) && .is_priors_weightfunction(priors)
+  !is.null(.data_selection_model(data))
 }
 
 
-.setup_uses_exact_selection_likelihood <- function(setup) {
+.selection_retains_estimate <- function(data) {
 
-  .uses_exact_selection_likelihood(setup[["data"]], setup[["priors"]])
+  model <- .data_selection_model(data)
+  !is.null(model) && identical(model[["estimate_random_effects"]], "condition") &&
+    isTRUE(model[["applicability"]][["estimate_random_effects"]])
 }
 
 
-.data_exact_selection_setup <- function(data) {
+.selection_integrates_estimate <- function(data) {
 
-  plan <- attr(data, "exact_selection_likelihood", exact = TRUE)
-  if (.is_data_exact_selection(data) && is.null(plan)) {
+  model <- .data_selection_model(data)
+  !is.null(model) && identical(model[["estimate_random_effects"]], "integrate") &&
+    isTRUE(model[["applicability"]][["estimate_random_effects"]])
+}
+
+
+.selection_retains_other_random <- function(data) {
+
+  model <- .data_selection_model(data)
+  !is.null(model) && identical(model[["other_random_effects"]], "condition") &&
+    isTRUE(model[["applicability"]][["other_random_effects"]])
+}
+
+
+.selection_retains_any_random <- function(data) {
+
+  .selection_retains_estimate(data) || .selection_retains_other_random(data)
+}
+
+
+.selection_retains_sampling <- function(data) {
+
+  model <- .data_selection_model(data)
+  !is.null(model) && identical(model[["known_sampling_variance"]], "condition") &&
+    isTRUE(model[["applicability"]][["known_sampling_variance"]])
+}
+
+
+.selection_all_sources_conditioned <- function(data) {
+
+  if (!.selection_retains_sampling(data)) return(FALSE)
+  sources <- .data_selection_model(data)[["sources"]][["random"]]
+  all(vapply(sources, function(source) isTRUE(source[["retained"]]), logical(1L)))
+}
+
+
+.setup_uses_joint_selection_likelihood <- function(setup) {
+
+  .is_data_joint_selection(setup[["data"]])
+}
+
+
+.data_selection_execution_plan <- function(data) {
+
+  plan <- attr(data, "selection_execution_plan", exact = TRUE)
+  if (.is_data_joint_selection(data) && is.null(plan)) {
     stop(
-      "Internal error: exact selection-likelihood metadata are missing.",
+      "The fitted selection execution plan is unavailable.",
       call. = FALSE
     )
   }
   if (!is.null(plan) &&
       (!inherits(plan, "RoBMA_selection_execution_plan") ||
-       !identical(plan[["schema_version"]], 2L))) {
+       !identical(plan[["schema_version"]], 5L))) {
     stop(
-      "Internal error: exact selection execution-plan metadata are invalid.",
+      "The fitted selection execution plan is invalid.",
       call. = FALSE
     )
   }
@@ -195,13 +310,152 @@ set_selection_likelihood_control <- function(
 }
 
 
-.prepare_selection_likelihood_object <- function(
-    object, selection_likelihood, selection_control) {
+.prepare_selection_model_object <- function(object) {
 
-  selection_likelihood <- match.arg(
-    selection_likelihood,
-    c("exact", "approximate")
-  )
+  data   <- object[["data"]]
+  priors <- .selection_bias_priors(object[["priors"]])
+  models <- lapply(priors, BayesTools::selection_model_spec)
+  active <- vapply(seq_along(priors), function(i) {
+
+    !is.null(models[[i]]) && priors[[i]][["prior_weights"]] > 0
+  }, logical(1))
+  if (!any(active)) {
+    attr(object[["data"]], "selection_binding") <- NULL
+    return(object)
+  }
+  common <- models[[which(active)[[1L]]]]
+  modes  <- c("estimate_random_effects", "other_random_effects", "known_sampling_variance")
+  if (any(vapply(models[active], function(model) {
+
+    !identical(model[modes], common[modes])
+  }, logical(1)))) {
+    stop(
+      "Active weightfunction branches must use the same 'estimate_random_effects', ",
+      "'other_random_effects', and 'known_sampling_variance' settings.",
+      call. = FALSE
+    )
+  }
+
+  random_sources <- list()
+  if (.is_data_random(data)) {
+    design <- .object_bayestools_formula_design(
+      object                 = object,
+      parameter              = "mu",
+      source                 = "location",
+      random_effects_compile = NULL
+    )
+    object[["formula_design"]][["mu"]] <- design
+    roles <- BayesTools::random_effects_level_roles(
+      design[["random_effects"]], n_rows = nrow(data[["outcome"]])
+    )
+    random_sources <- lapply(design[["random_effects"]], function(term) {
+
+      name <- .random_effect_term_block_name(term)
+      role <- roles[[name]]
+      mode <- if (identical(role, "estimate")) {
+        "estimate_random_effects"
+      } else "other_random_effects"
+      list(
+        name     = name,
+        role     = role,
+        retained = identical(common[[mode]], "condition")
+      )
+    })
+    for (term in design[["random_effects"]]) {
+      if (!identical(term[["parameterization_resolved"]], "mean_centered")) next
+      name <- .random_effect_term_block_name(term)
+      source <- random_sources[[match(name, vapply(random_sources, `[[`, character(1L), "name"))]]
+      if (!isTRUE(source[["retained"]])) {
+        stop("Mean-centered parameterization is unavailable for integrated selection source '",
+             name, "'.", call. = FALSE)
+      }
+    }
+  } else if (!inherits(object, "brma.mv")) {
+    random_sources <- list(list(
+      name     = "estimate",
+      role     = "estimate",
+      retained = identical(common[["estimate_random_effects"]], "condition")
+    ))
+    if (.is_data_multilevel(data)) {
+      random_sources[[2L]] <- list(
+        name     = "cluster",
+        role     = "other",
+        retained = identical(common[["other_random_effects"]], "condition")
+      )
+    }
+  }
+
+  has_estimate <- any(vapply(random_sources, function(source) {
+
+    identical(source[["role"]], "estimate")
+  }, logical(1)))
+  has_random_context <- any(vapply(random_sources, function(source) {
+
+    identical(source[["role"]], "other")
+  }, logical(1)))
+  has_sampling_context <- any(data[["outcome"]][["sei"]] > 0)
+  has_sampling_dependence <- FALSE
+  if (.is_data_known_v(data)) {
+    known_V <- .data_known_v_data(data)
+    if (identical(common[["known_sampling_variance"]], "condition")) {
+      known_V <- .known_v_resolve_selection_structure(known_V)
+      attr(data, "known_V_data") <- known_V
+    }
+    has_sampling_dependence <- length(.known_v_correlated_blocks(known_V)) > 0L
+  }
+
+  binding <- attr(data, "selection_binding", exact = TRUE)
+  if (is.null(binding)) {
+    stop("Selection group binding data are unavailable.", call. = FALSE)
+  }
+  groups <- lapply(models[active], function(model) {
+
+    .selection_bind_groups(
+      model            = model,
+      row_index        = binding[["row_index"]],
+      input_data       = binding[["input_data"]],
+      cluster          = binding[["cluster"]],
+      allow_singletons = !.is_data_random(data) &&
+        !has_random_context && !has_sampling_dependence
+    )
+  })
+  partition <- groups[[1L]][["group_index"]]
+  if (any(vapply(groups, function(group) {
+
+    !identical(group[["group_index"]], partition)
+  }, logical(1)))) {
+    stop(
+      "Active weightfunction branches must use the same publication partition.",
+      call. = FALSE
+    )
+  }
+
+  model <- structure(list(
+    schema_version          = 3L,
+    estimate_random_effects = common[["estimate_random_effects"]],
+    other_random_effects    = common[["other_random_effects"]],
+    known_sampling_variance = common[["known_sampling_variance"]],
+    branches         = models,
+    active_branches  = which(active),
+    groups           = groups[[1L]],
+    branch_groups    = groups,
+    sources          = list(random = random_sources),
+    applicability    = list(
+      estimate_random_effects = has_estimate,
+      other_random_effects    = has_random_context,
+      known_sampling_variance = has_sampling_context
+    )
+  ), class = c("RoBMA_selection_model", "list"))
+  attr(data, "selection_model")   <- model
+  attr(data, "selection_binding") <- NULL
+  object[["data"]] <- data
+  object
+}
+
+
+.prepare_selection_likelihood_object <- function(
+    object, selection_control) {
+
   selection_control <- .check_selection_likelihood_control(selection_control)
 
   if (!.is_priors_weightfunction(object[["priors"]])) {
@@ -210,27 +464,9 @@ set_selection_likelihood_control <- function(
       call. = FALSE
     )
   }
-  if (identical(selection_likelihood, "approximate")) {
-    object[["data"]] <- .set_data_selection_likelihood(
-      data       = object[["data"]],
-      likelihood = "approximate"
-    )
-    object[["selection_likelihood"]] <- list(
-      type    = "approximate",
-      target  = "row_selected_normal_conditional_on_random_effects",
-      control = selection_control
-    )
+  model <- .data_selection_model(object[["data"]])
+  if (is.null(model)) {
     return(object)
-  }
-
-  if (.is_data_weights(object[["data"]])) {
-    stop(
-      "'weights' are unavailable with 'selection_likelihood = \"exact\"' ",
-      "because a powered joint selection density is not a generative ",
-      "finite-vector selection model. Use 'selection_likelihood = ",
-      "\"approximate\"' or omit 'weights'.",
-      call. = FALSE
-    )
   }
 
   signed_yi <- object[["data"]][["outcome"]][["yi"]]
@@ -246,8 +482,8 @@ set_selection_likelihood_control <- function(
   )
   if (is.null(selection_spec) || !identical(selection_spec[["mode"]], "step")) {
     stop(
-      "'selection_likelihood = \"exact\"' currently requires a step ",
-      "selection kernel. P-hacking and other non-step kernels are unavailable.",
+      "Joint selection requires a step selection kernel. ",
+      "P-hacking and other non-step kernels are unavailable.",
       call. = FALSE
     )
   }
@@ -255,22 +491,33 @@ set_selection_likelihood_control <- function(
   formula_design <- NULL
   if (.is_data_random(object[["data"]])) {
     formula_design <- object[["formula_design"]][["mu"]]
-    if (!inherits(formula_design, "BayesTools_formula_design") ||
-        any(vapply(
-          formula_design[["random_effects"]],
-          function(term) !identical(term[["compile_mode"]], "marginalized"),
-          logical(1)
-        ))) {
+    if (!inherits(formula_design, "BayesTools_formula_design")) {
       stop(
-        "Internal error: exact selection random effects were not compiled ",
-        "as marginalized.",
+        "The compiled selection random-effect metadata are unavailable.",
         call. = FALSE
       )
     }
+    integrated_names <- vapply(Filter(function(source) {
+
+      !source[["retained"]]
+    }, model[["sources"]][["random"]]), `[[`, character(1), "name")
+    formula_design[["random_effects"]] <- Filter(function(term) {
+
+      .random_effect_term_block_name(term) %in% integrated_names
+    }, formula_design[["random_effects"]])
+    if (length(formula_design[["random_effects"]]) == 0L) {
+      formula_design <- NULL
+    }
   }
 
-  sampling <- .selection_exact_sampling_plan(object[["data"]])
-  row_blocks <- .selection_exact_dependency_blocks(
+  if (.selection_retains_sampling(object[["data"]])) {
+    return(.prepare_conditioned_sampling_likelihood(
+      object, formula_design, selection_spec, selection_control
+    ))
+  }
+
+  sampling <- .selection_joint_sampling_plan(object[["data"]])
+  row_blocks <- .selection_joint_dependency_blocks(
     data         = object[["data"]],
     random_terms = if (is.null(formula_design)) {
       list()
@@ -279,32 +526,87 @@ set_selection_likelihood_control <- function(
     },
     sampling     = sampling
   )
+  uses_best <- any(vapply(
+    model[["branches"]][model[["active_branches"]]],
+    function(branch) identical(branch[["weight_rule"]], "best"),
+    logical(1)
+  ))
+  if (uses_best) {
+    partition <- model[["groups"]][["group_index"]]
+    for (rows in row_blocks) {
+      if (length(unique(partition[rows])) > 1L) {
+        cross_group <- outer(partition, partition, `!=`)
+        sources <- character()
+        if (!is.null(formula_design)) {
+          for (term in formula_design[["random_effects"]]) {
+            dependency <- BayesTools::random_effects_dependency_matrix(
+              list(term), n_rows = length(partition)
+            )
+            if (any(dependency[cross_group])) {
+              sources <- c(sources, paste0(
+                "Random effects (from random): ", .random_effect_term_block_name(term)
+              ))
+            }
+          }
+        }
+        if (.is_data_multilevel(object[["data"]]) &&
+            !.selection_retains_other_random(object[["data"]])) {
+          cluster <- object[["data"]][["outcome"]][["cluster"]]
+          if (any(outer(cluster, cluster, `==`)[cross_group])) {
+            sources <- c(sources, "Random effects: cluster")
+          }
+        }
+        if (any(.selection_joint_sampling_block(
+          sampling, seq_along(partition)
+        )[cross_group] != 0) || length(sources) == 0L) {
+          sources <- c(sources, "Sampling context (from V)")
+        }
+        stop(
+          "'weight_rule = \"best\"' is unavailable because integrated ",
+          "source(s) ", paste(sources, collapse = "; "),
+          " connect publication groups ",
+          paste(unique(partition[rows]), collapse = ", "),
+          ".",
+          call. = FALSE
+        )
+      }
+    }
+    row_blocks <- model[["groups"]][["row_blocks"]]
+  }
+  if (.is_data_weights(object[["data"]]) &&
+      (uses_best || any(lengths(row_blocks) > 1L))) {
+    stop(
+      "'weights' are unavailable for jointly normalized selection vectors. ",
+      "Omit 'weights'.",
+      call. = FALSE
+    )
+  }
   sampling_factor_blocks <- if (!identical(
       sampling[["representation"]],
       "diagonal_factor"
     )) {
     NULL
   } else {
-    .selection_exact_sampling_factor_blocks(sampling, row_blocks)
+    .selection_joint_sampling_factor_blocks(sampling, row_blocks)
   }
   random_covariance <- NULL
   if (!is.null(formula_design)) {
     random_covariance <- BayesTools::JAGS_formula_random_marginal_covariance(
       formula_design = formula_design,
       row_blocks     = row_blocks,
-      prefix         = "sel_exact_random",
+      prefix         = "sel_joint_random",
       representation = if (!is.null(sampling_factor_blocks)) {
         "auto"
       } else "dense"
     )
   }
-  block_routing <- .selection_exact_block_routing(
+  block_routing <- .selection_joint_block_routing(
     data                   = object[["data"]],
     row_blocks             = row_blocks,
     sampling_factor_blocks = sampling_factor_blocks,
     random_covariance      = random_covariance
   )
-  plan <- .selection_exact_execution_plan(
+  plan <- .selection_joint_execution_plan(
     row_blocks        = row_blocks,
     block_methods     = block_routing[["methods"]],
     factor_ranks      = block_routing[["ranks"]],
@@ -313,72 +615,26 @@ set_selection_likelihood_control <- function(
     sampling_factor_blocks = sampling_factor_blocks,
     random_covariance = random_covariance
   )
-  object[["data"]] <- .set_data_selection_likelihood(
-    data       = object[["data"]],
-    likelihood = "exact",
-    setup      = plan
-  )
-  object[["selection_likelihood"]] <- list(
-    type      = "exact",
-    target    = plan[["statistical_target"]],
-    exactness = plan[["exactness"]],
-    control   = selection_control
-  )
+  plan[["selection_spec"]] <- selection_spec
+  attr(object[["data"]], "selection_execution_plan") <- plan
+  object[["selection_control"]] <- selection_control
 
   object
 }
 
 
-.prepare_approximate_selection_known_v <- function(
-    object, selection_likelihood) {
+.selection_joint_sampling_plan <- function(data) {
 
-  if (!identical(selection_likelihood, "approximate") ||
-      !.is_priors_weightfunction(object[["priors"]]) ||
-      !.is_data_known_v(object[["data"]])) {
-    return(object)
+  if (.selection_retains_sampling(data)) {
+    K <- nrow(data[["outcome"]])
+    return(structure(list(
+      representation = "diagonal_factor",
+      diagonal       = numeric(K),
+      loading        = matrix(0, nrow = K, ncol = 0L)
+    ), class = c("RoBMA_selection_sampling_plan", "list")))
   }
 
-  known_V   <- .data_known_v_data(object[["data"]])
-  requested <- .known_v_requested_parameterization(known_V)
-  if (!requested %in% c("auto", "latent")) {
-    stop(
-      "'selection_likelihood = \"approximate\"' requires ",
-      "'known_v_parameterization = \"latent\"'.",
-      call. = FALSE
-    )
-  }
-  if (.known_v_effective_backend(known_V) %in% c("latent", "diagonal")) {
-    return(object)
-  }
-
-  residual_fraction <- .known_v_requested_residual_fraction(known_V)
-  new_known_V <- .known_v_prepare(
-    V                                   = .known_v_as_input(known_V),
-    keep_rows                           = rep(TRUE, .known_v_nrow(known_V)),
-    known_v_parameterization            = "latent",
-    known_v_residual_fraction           = residual_fraction,
-    known_v_residual_fraction_specified = !is.null(residual_fraction),
-    known_v_is_scale                    = .is_data_scale(object[["data"]]),
-    warn_singular                       = FALSE
-  )
-  if (identical(requested, "auto")) {
-    new_known_V <- .known_v_update(
-      new_known_V,
-      list(parameterization_requested = "auto")
-    )
-  }
-  attr(object[["data"]], "known_V_data") <- new_known_V
-  object[["data"]][["outcome"]][["sei"]] <- sqrt(
-    .known_v_diagonal(new_known_V)
-  )
-
-  object
-}
-
-
-.selection_exact_sampling_plan <- function(data) {
-
-  factor <- .selection_exact_sampling_factor(data)
+  factor <- .selection_joint_sampling_factor(data)
   if (!is.null(factor)) {
     return(structure(
       c(list(representation = "diagonal_factor"), factor),
@@ -396,13 +652,130 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_sampling_diagonal <- function(sampling) {
+.prepare_conditioned_sampling_likelihood <- function(
+    object, formula_design, selection_spec, selection_control) {
+
+  data  <- object[["data"]]
+  model <- .data_selection_model(data)
+  K     <- nrow(data[["outcome"]])
+  if (.is_data_weights(data) && any(data[["outcome"]][["weights"]] != 1)) {
+    stop("Non-unit 'weights' are unavailable with 'known_sampling_variance = \"condition\"'. ",
+      "Omit 'weights' or set 'known_sampling_variance = \"integrate\"' in 'selection_model()'.",
+      call. = FALSE)
+  }
+  full_sampling <- .selection_joint_sampling_factor(data)
+  full_sampling <- if (is.null(full_sampling)) {
+    list(representation = "dense",
+         covariance = .known_v_covariance_matrix(.data_known_v_data(data)))
+  } else c(list(representation = "diagonal_factor"), full_sampling)
+  random_terms <- if (is.null(formula_design)) list() else
+    formula_design[["random_effects"]]
+  all_terms <- if (.is_data_random(data)) {
+    object[["formula_design"]][["mu"]][["random_effects"]]
+  } else list()
+  retained_terms <- Filter(function(term) {
+    !.random_effect_term_block_name(term) %in%
+      vapply(random_terms, .random_effect_term_block_name, character(1))
+  }, all_terms)
+  row_blocks <- .selection_joint_dependency_blocks(data, all_terms, full_sampling)
+  if (.is_data_multilevel(data) && !.is_data_random(data)) {
+    adjacency <- outer(data[["outcome"]][["cluster"]], data[["outcome"]][["cluster"]], `==`)
+    for (rows in row_blocks) adjacency[rows, rows] <- TRUE
+    row_blocks <- .known_v_block_indices(adjacency * 1)
+  }
+  uses_best <- any(vapply(model[["branches"]][model[["active_branches"]]],
+    function(branch) identical(branch[["weight_rule"]], "best"), logical(1)))
+  if (uses_best) {
+    candidate_blocks <- .selection_joint_dependency_blocks(
+      data, random_terms, .selection_joint_sampling_plan(data)
+    )
+    partition <- model[["groups"]][["group_index"]]
+    if (any(vapply(candidate_blocks, function(rows) {
+      length(unique(partition[rows])) > 1L
+    }, logical(1)))) {
+      stop("'weight_rule = \"best\"' is unavailable because integrated random effects connect publication groups.",
+           call. = FALSE)
+    }
+    adjacency <- diag(TRUE, K)
+    for (rows in c(row_blocks, model[["groups"]][["row_blocks"]])) {
+      adjacency[rows, rows] <- TRUE
+    }
+    row_blocks <- .known_v_block_indices(adjacency * 1)
+  }
+  random_covariance <- if (is.null(formula_design)) NULL else
+    BayesTools::JAGS_formula_random_marginal_covariance(
+      formula_design = formula_design, row_blocks = row_blocks,
+      prefix = "sel_joint_random", representation = "auto"
+    )
+  retained_covariance <- NULL
+  if (length(retained_terms)) {
+    retained_design <- object[["formula_design"]][["mu"]]
+    retained_design[["random_effects"]] <- retained_terms
+    retained_covariance <- BayesTools::JAGS_formula_random_marginal_covariance(
+      formula_design = retained_design, row_blocks = row_blocks,
+      prefix = "sel_retained_random", representation = "auto"
+    )
+  }
+  ranks <- if (is.null(random_covariance)) integer(length(row_blocks)) else
+    as.integer(random_covariance[["loading_ranks"]])
+  if (.is_data_multilevel(data) && !.is_data_random(data) &&
+      !.selection_retains_other_random(data)) {
+    ranks <- ranks + vapply(row_blocks, function(rows) {
+      length(unique(data[["outcome"]][["cluster"]][rows]))
+    }, integer(1))
+  }
+  plan <- .selection_joint_execution_plan(
+    row_blocks = row_blocks,
+    block_methods = rep("conditioned_sampling", length(row_blocks)),
+    factor_ranks = ranks, selection_control = selection_control,
+    sampling = .selection_joint_sampling_plan(data),
+    sampling_factor_blocks = NULL, random_covariance = random_covariance
+  )
+  dimensions <- pmax(2L * lengths(row_blocks), ranks)
+  keys       <- ifelse(ranks == 0L, "conditioned_analytic", paste0("conditioned_", dimensions))
+  plan[["design_keys"]] <- keys
+  plan[["designs"]] <- stats::setNames(lapply(unique(keys), function(key) {
+    index <- match(key, keys)
+    # A diagonal candidate law has an analytic normalizer. No QMC values are
+    # used, but JAGS still requires a nonempty argument to the distribution.
+    if (ranks[[index]] == 0L) return(array(0.5, c(1L, 1L, 1L)))
+    BayesTools::selection_qmc_design(
+      dimensions = dimensions[[index]],
+      points = selection_control[["max_points_per_scramble"]],
+      scrambles = selection_control[["scrambles"]], seed = selection_control[["seed"]]
+    )
+  }), unique(keys))
+  plan[["statistical_target"]] <- "whole_sampling_error_selection"
+  plan[["exactness"]] <- if (any(ranks > 4L)) "E2" else if (any(ranks > 1L)) {
+    "EF"
+  } else if (any(ranks == 1L)) "E1" else "E0"
+  plan[["sampling_covariance"]] <- if (.is_data_known_v(data)) {
+    .known_v_covariance_matrix(.data_known_v_data(data))
+  } else diag(data[["outcome"]][["sei"]]^2, K)
+  plan[["sampling_auxiliary"]] <- .selection_sampling_structure(data)
+  plan[["integrated_parameter_stems"]] <- vapply(random_terms,
+    `[[`, character(1), "parameter_stem")
+  plan[["retained_parameter_stems"]] <- vapply(retained_terms,
+    `[[`, character(1), "parameter_stem")
+  plan[["retained_random_covariance"]] <- retained_covariance
+  plan[["quadrature"]] <- .selection_joint_cluster_quadrature_rules(
+    SELNORM_CLUSTER_QUADRATURE_ORDERS)
+  plan[["factor_quadrature"]] <- .selection_joint_factor_quadrature_rules(4L)
+  plan[["selection_spec"]] <- selection_spec
+  attr(data, "selection_execution_plan") <- plan
+  object[["data"]] <- data
+  object[["selection_control"]] <- selection_control
+  object
+}
+
+
+.selection_joint_sampling_diagonal <- function(sampling) {
 
   if (identical(sampling[["representation"]], "dense")) {
     return(diag(sampling[["covariance"]]))
   }
   if (!identical(sampling[["representation"]], "diagonal_factor")) {
-    stop("Exact selection sampling-covariance metadata are invalid.",
+    stop("Selection sampling-covariance metadata are invalid.",
          call. = FALSE)
   }
 
@@ -410,13 +783,232 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_sampling_block <- function(sampling, rows) {
+.selection_conditioned_random_expression <- function(data, retained = FALSE) {
+
+  plan  <- .data_selection_execution_plan(data)
+  stems <- plan[[if (retained) "retained_parameter_stems" else "integrated_parameter_stems"]]
+  terms <- if (length(stems)) paste0(stems, "[i]") else character()
+  if (!.is_data_random(data)) {
+    if (if (retained) .selection_retains_estimate(data) else .selection_integrates_estimate(data)) {
+      tau <- if (.is_data_multilevel(data)) "tau_within" else "tau"
+      if (.is_data_scale(data)) tau <- paste0(tau, "[i]")
+      terms <- c(terms, paste0("theta[i] * ", tau))
+    }
+    if (.is_data_multilevel(data) && .selection_retains_other_random(data) == retained) {
+      tau   <- if (.is_data_scale(data)) "tau_between[i]" else "tau_between"
+      terms <- c(terms, paste0("gamma[cluster[i]] * ", tau))
+    }
+  }
+  if (!length(terms)) return("0")
+  expression <- paste(terms, collapse = " + ")
+  if (identical(.data_effect_direction(data), "negative")) {
+    expression <- paste0("-(", expression, ")")
+  }
+  expression
+}
+
+
+.selection_conditioned_sampling_fit_data <- function(data, priors) {
+
+  plan         <- .data_selection_execution_plan(data)
+  all_retained <- .selection_all_sources_conditioned(data)
+  yi           <- data[["outcome"]][["yi"]]
+  if (identical(.data_effect_direction(data), "negative")) yi <- -yi
+  sei  <- data[["outcome"]][["sei"]]
+  selection_data <- list()
+  if (!all_retained) {
+    spec <- .selection_spec(priors = priors, yi = yi, sei = sei,
+      effect_direction = .data_effect_direction(data), signed_data = TRUE)
+    selection_data <- spec[["jags_data"]]
+    selection_data[["sel_obs_bin"]] <- NULL
+  }
+  out <- c(list(K = length(yi)), selection_data)
+  if (.is_data_multilevel(data) && !all_retained) out[["cluster"]] <- data[["outcome"]][["cluster"]]
+  if (.is_priors_PET(priors) || .is_priors_PEESE(priors)) out[["sei"]] <- sei
+  if (!all_retained) {
+    auxiliary   <- plan[["sampling_auxiliary"]]
+    blocks      <- auxiliary[["latent_blocks"]]
+    independent <- setdiff(seq_along(yi), unlist(lapply(blocks, `[[`, "index")))
+    if (length(independent) && auxiliary[["rank"]] > 0L) {
+      out[["known_v_independent_n"]] <- length(independent)
+      out[["known_v_independent_index"]] <- independent
+    }
+    for (index in seq_along(blocks)) {
+      out[[paste0("sampling_B_", index)]] <- blocks[[index]][["B"]]
+    }
+    for (key in names(plan[["designs"]])) {
+      out[[.selection_joint_qmc_name(key)]] <- plan[["designs"]][[key]]
+    }
+    out[["sel_cond_cluster_nodes"]] <- plan[["quadrature"]][["nodes"]]
+    out[["sel_cond_cluster_log_weights"]] <- plan[["quadrature"]][["log_weights"]]
+    out[["sel_cond_cluster_orders"]] <- plan[["quadrature"]][["orders"]]
+    out[["sel_cond_factor_nodes"]] <- plan[["factor_quadrature"]][["4"]][["nodes"]]
+    out[["sel_cond_factor_log_weights"]] <- plan[["factor_quadrature"]][["4"]][["log_weights"]]
+    out[["sel_cond_factor_orders"]] <- plan[["factor_quadrature"]][["4"]][["orders"]]
+    out[["sel_cond_factor_rule_counts"]] <- plan[["factor_quadrature"]][["4"]][["rule_counts"]]
+  }
+  groups <- .data_selection_model(data)[["groups"]][["group_index"]]
+  for (index in seq_along(plan[["row_blocks"]])) {
+    rows       <- plan[["row_blocks"]][[index]]
+    prefix     <- paste0("sel_joint_block_", index)
+    covariance <- plan[["sampling_covariance"]][rows, rows, drop = FALSE]
+    out[[paste0(prefix, "_y")]] <- yi[rows]
+    if (!all_retained) {
+      out[[paste0(prefix, "_sei")]] <- sei[rows]
+      out[[paste0(prefix, "_obs_bin")]] <- spec[["obs_bin"]][rows]
+    }
+    out[[paste0(prefix, "_row")]] <- rows
+    out[[paste0(prefix, "_sampling_lower")]] <-
+      unname(covariance[lower.tri(covariance, diag = TRUE)])
+    pairs               <- which(lower.tri(covariance, diag = TRUE), arr.ind = TRUE)
+    retained_covariance <- plan[["retained_random_covariance"]]
+    specialized_scale   <- !.is_data_random(data) && .is_data_scale(data)
+    if (!is.null(retained_covariance) || (specialized_scale &&
+        (.selection_retains_estimate(data) || .selection_retains_other_random(data)))) {
+      out[[paste0(prefix, "_local_row_1")]] <- pairs[, 1L]
+    }
+    if ((!is.null(retained_covariance) && retained_covariance[["loading_ranks"]][[index]] > 0L) ||
+        (specialized_scale && .is_data_multilevel(data) && .selection_retains_other_random(data))) {
+      out[[paste0(prefix, "_local_row_2")]] <- pairs[, 2L]
+    }
+    if (!is.null(retained_covariance) || .selection_retains_estimate(data)) {
+      out[[paste0(prefix, "_pair_diagonal")]] <- as.integer(pairs[, 1L] == pairs[, 2L])
+    }
+    if (.is_data_multilevel(data) && !.is_data_random(data) && .selection_retains_other_random(data)) {
+      cluster <- data[["outcome"]][["cluster"]][rows]
+      out[[paste0(prefix, "_same_cluster")]] <- as.integer(cluster[pairs[, 1L]] == cluster[pairs[, 2L]])
+    }
+    if (!all_retained) out[[paste0(prefix, "_group")]] <- match(groups[rows], unique(groups[rows]))
+    if (.is_data_multilevel(data) && !.is_data_random(data) &&
+        !.selection_retains_other_random(data)) {
+      cluster <- data[["outcome"]][["cluster"]][rows]
+      out[[paste0(prefix, "_cluster_loading")]] <-
+        1L * outer(cluster, unique(cluster), `==`)
+    }
+  }
+  if (!is.null(plan[["random_covariance"]])) {
+    out <- c(out, plan[["random_covariance"]][["data"]])
+  }
+  if (!is.null(plan[["retained_random_covariance"]])) {
+    out <- c(out, plan[["retained_random_covariance"]][["data"]])
+  }
+  out
+}
+
+
+.selection_conditioned_sampling_model_syntax <- function(data, selection_spec) {
+
+  plan                <- .data_selection_execution_plan(data)
+  all_retained        <- .selection_all_sources_conditioned(data)
+  covariance          <- plan[["random_covariance"]]
+  retained_covariance <- plan[["retained_random_covariance"]]
+  syntax              <- if (is.null(covariance)) "" else covariance[["syntax"]]
+  if (!is.null(retained_covariance)) syntax <- paste0(syntax, retained_covariance[["syntax"]])
+  for (index in seq_along(plan[["row_blocks"]])) {
+    rows     <- plan[["row_blocks"]][[index]]
+    K        <- length(rows)
+    rank     <- plan[["factor_ranks"]][[index]]
+    prefix   <- paste0("sel_joint_block_", index)
+    row      <- paste0(prefix, "_row[j]")
+    diagonal <- "0"
+    loading  <- character()
+    if (!is.null(covariance)) {
+      diagonal <- paste0(covariance[["diagonal_names"]][[index]], "[j]")
+      loading  <- paste0(covariance[["loading_names"]][[index]],
+        "[j,", seq_len(rank), "]")
+      if (!rank) loading <- character()
+    } else if (!.is_data_random(data)) {
+      if (.selection_integrates_estimate(data)) {
+        tau <- if (.is_data_multilevel(data)) "tau_within" else "tau"
+        if (.is_data_scale(data)) tau <- paste0(tau, "[", row, "]")
+        diagonal <- paste0("pow(", tau, ",2)")
+      }
+      if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
+        tau <- if (.is_data_scale(data)) paste0("tau_between[", row, "]") else
+          "tau_between"
+        loading <- paste0(tau, " * ", prefix, "_cluster_loading[j,",
+          seq_len(rank), "]")
+      }
+    }
+    syntax <- paste0(syntax, "for(j in 1:", K, "){\n",
+      "  ", prefix, "_mu[j] = sel_joint_mu[", row, "]\n",
+      if (!all_retained) paste0(
+        "  ", prefix, "_e0[j] = sampling_dependency[", row, "] + sel_joint_retained[", row, "]\n",
+        "  ", prefix, "_u0[j] = sel_joint_integrated[", row, "]\n") else "",
+      if (!all_retained || K > 1L) paste0("  ", prefix, "_diagonal[j] = ", diagonal, "\n") else "",
+      if (rank) paste0("  ", prefix, "_loading[j,", seq_len(rank), "] = ",
+        loading, "\n", collapse = "") else "",
+      "}\n")
+    local_1        <- paste0(prefix, "_local_row_1[l]")
+    local_2        <- paste0(prefix, "_local_row_2[l]")
+    retained_parts <- paste0(prefix, "_sampling_lower[l]")
+    if (!is.null(retained_covariance)) {
+      retained_parts <- c(retained_parts, paste0(prefix, "_pair_diagonal[l] * ",
+        retained_covariance[["diagonal_names"]][[index]], "[", local_1, "]"))
+      retained_rank <- retained_covariance[["loading_ranks"]][[index]]
+      if (retained_rank) retained_parts <- c(retained_parts, paste0("inprod(",
+        retained_covariance[["loading_names"]][[index]], "[", local_1, ",1:", retained_rank, "],",
+        retained_covariance[["loading_names"]][[index]], "[", local_2, ",1:", retained_rank, "])") )
+    } else if (!.is_data_random(data)) {
+      global_1 <- paste0(prefix, "_row[", local_1, "]")
+      global_2 <- paste0(prefix, "_row[", local_2, "]")
+      if (.selection_retains_estimate(data)) {
+        tau <- if (.is_data_multilevel(data)) "tau_within" else "tau"
+        if (.is_data_scale(data)) tau <- paste0(tau, "[", global_1, "]")
+        retained_parts <- c(retained_parts, paste0(prefix, "_pair_diagonal[l] * pow(", tau, ",2)"))
+      }
+      if (.is_data_multilevel(data) && .selection_retains_other_random(data)) {
+        between <- if (.is_data_scale(data)) paste0("tau_between[", global_1,
+          "] * tau_between[", global_2, "]") else "pow(tau_between,2)"
+        retained_parts <- c(retained_parts, paste0(prefix, "_same_cluster[l] * ", between))
+      }
+    }
+    syntax <- paste0(syntax, "for(l in 1:", K * (K + 1L) / 2L, "){\n",
+      "  ", prefix, "_retained_covariance[l] = ", paste(retained_parts, collapse = " + "), "\n}\n")
+    if (all_retained) {
+      # The source-support preflight has ruled out zero acceptance. Positive
+      # weights then cancel, leaving the full observed Gaussian covariance.
+      # Keep normalized auxiliary priors for latent reconstruction, but do not
+      # make them or omega parents of the observed likelihood.
+      syntax <- paste0(syntax, if (K == 1L) {
+        paste0(prefix, "_y[1] ~ dnorm(", prefix, "_mu[1], 1/",
+          prefix, "_retained_covariance[1])\n")
+      } else {
+        paste0(prefix, "_y[1:", K, "] ~ dknown_v_mnorm(",
+          prefix, "_mu[1:", K, "],", prefix, "_diagonal[1:", K, "],",
+          prefix, "_retained_covariance)\n")
+      })
+      next
+    }
+    loading_expression <- if (rank) paste0(prefix, "_loading[1:", K,
+      ",1:", rank, "]") else "0"
+    syntax <- paste0(syntax, prefix, "_y[1:", K,
+      "] ~ dselnorm_sampling_conditioned(",
+      prefix, "_mu[1:", K, "],", prefix, "_retained_covariance,",
+      prefix, "_diagonal[1:", K, "],", loading_expression, ",", rank, ",",
+      prefix, "_e0[1:", K, "],", prefix, "_u0[1:", K, "],",
+      prefix, "_sei,", selection_spec[["jags_omega"]], ",",
+      "sel_z_lower,sel_z_upper,", prefix, "_obs_bin,sel_sign,",
+      .selection_joint_kernel_mode_expression(selection_spec), ",",
+      "sel_telescope_probabilities,", selection_spec[["jags_vector_rule"]], ",",
+      prefix, "_group,", .selection_joint_qmc_name(plan[["design_keys"]][[index]]), ",",
+      plan[["points_per_scramble"]], ",", plan[["max_points_per_scramble"]], ",",
+      plan[["scrambles"]], ",", format(plan[["relative_tolerance"]], scientific = FALSE),
+      ",sel_cond_cluster_nodes,sel_cond_cluster_log_weights,sel_cond_cluster_orders,",
+      "sel_cond_factor_nodes,sel_cond_factor_log_weights,sel_cond_factor_orders,",
+      "sel_cond_factor_rule_counts)\n")
+  }
+  syntax
+}
+
+
+.selection_joint_sampling_block <- function(sampling, rows) {
 
   if (identical(sampling[["representation"]], "dense")) {
     return(sampling[["covariance"]][rows, rows, drop = FALSE])
   }
   if (!identical(sampling[["representation"]], "diagonal_factor")) {
-    stop("Exact selection sampling-covariance metadata are invalid.",
+    stop("Selection sampling-covariance metadata are invalid.",
          call. = FALSE)
   }
 
@@ -433,7 +1025,239 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_sampling_factor <- function(data) {
+.selection_sampling_auxiliary <- function(fit, data, posterior_samples = NULL) {
+
+  samples   <- .get_posterior_samples(fit, posterior_samples)
+  structure <- .selection_sampling_structure(data)
+  out       <- matrix(0, nrow(samples), nrow(data[["outcome"]]))
+  if (!structure[["rank"]]) return(out)
+  z <- .extract_indexed_parameter_samples(
+    samples, "sampling_z", n_expected = structure[["rank"]]
+  )
+  for (block in structure[["latent_blocks"]]) {
+    columns <- seq.int(block[["z_start"]], block[["z_end"]])
+    out[, block[["index"]]] <- out[, block[["index"]], drop = FALSE] +
+      z[, columns, drop = FALSE] %*% t(block[["B"]])
+  }
+  if (identical(.data_effect_direction(data), "negative")) out <- -out
+  out
+}
+
+
+.selection_conditioned_sampling_factors <- function(setup) {
+
+  data   <- setup[["data"]]
+  plan   <- .data_selection_execution_plan(data)
+  S      <- setup[["S"]]
+  K      <- setup[["K"]]
+  result <- setup[["selection_conditioned_factors"]]
+  if (!is.null(result)) {
+    if (nrow(result[["diagonal"]]) == 1L && S > 1L) {
+      result[["diagonal"]] <- result[["diagonal"]][rep(1L, S), , drop = FALSE]
+      result[["loadings"]] <- lapply(result[["loadings"]], function(loading) {
+        loading[rep(1L, S), , , drop = FALSE]
+      })
+    }
+    return(result)
+  }
+  if (!is.null(plan[["random_covariance"]])) {
+    return(.selection_joint_random_factor_samples(setup))
+  }
+  diagonal <- matrix(0, S, K)
+  if (!.is_data_random(data) && .selection_integrates_estimate(data)) {
+    scale <- setup[["tau_within"]]
+    if (nrow(scale) == 1L && S > 1L) scale <- scale[rep(1L, S), , drop = FALSE]
+    diagonal <- diagonal + scale^2
+  }
+  loadings <- lapply(seq_along(plan[["row_blocks"]]), function(index) {
+    rows    <- plan[["row_blocks"]][[index]]
+    rank    <- plan[["factor_ranks"]][[index]]
+    loading <- array(0, c(S, length(rows), rank))
+    if (rank && .is_data_multilevel(data) && !.is_data_random(data) &&
+        !.selection_retains_other_random(data)) {
+      cluster <- data[["outcome"]][["cluster"]][rows]
+      scale   <- setup[["tau_between"]]
+      if (nrow(scale) == 1L && S > 1L) scale <- scale[rep(1L, S), , drop = FALSE]
+      for (column in seq_len(rank)) {
+        local <- which(cluster == unique(cluster)[[column]])
+        loading[, local, column] <- scale[, rows[local], drop = FALSE]
+      }
+    }
+    loading
+  })
+  list(diagonal = diagonal, loadings = loadings,
+       ranks = as.integer(plan[["factor_ranks"]]))
+}
+
+
+.selection_conditioned_sampling_context <- function(setup) {
+
+  .selection_context_from_parts(
+    fit = setup[["fit"]], data = setup[["data"]], priors = setup[["priors"]],
+    posterior_samples = setup[["posterior_samples"]],
+    effect_direction = .data_effect_direction(setup[["data"]])
+  )
+}
+
+
+.selection_conditioned_sampling_diagnostics <- function(result, plan) {
+
+  mcse   <- max(result[["relative_mcse"]])
+  change <- max(result[["relative_change"]])
+  if (!is.finite(mcse) || !is.finite(change) ||
+      max(mcse, change) > plan[["relative_tolerance"]]) {
+    stop("Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
+      format(mcse), " and nested-design relative change was ", format(change),
+      ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'.",
+      call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+
+# For C = V + sum(retained random covariances) and integrated covariance I,
+# prior auxiliaries C0 and I0 give delta = solve(C + I, y - mu - C0 - I0).
+# Every source j is reconstructed as source_j0 + covariance_j %*% delta.
+# The joint likelihood factor is phi_(C+I)(y-mu) W(y) / A(mu + C0 + C delta).
+# Backend sampling of an auxiliary does not change its selection source role.
+.selection_conditioned_sampling_state <- function(setup) {
+
+  data <- setup[["data"]]
+  S    <- nrow(setup[["posterior_samples"]])
+  K    <- nrow(data[["outcome"]])
+  setup[["S"]] <- S
+  setup[["K"]] <- K
+  plan                       <- .data_selection_execution_plan(data)
+  sources                    <- .data_selection_model(data)[["sources"]][["random"]]
+  contributions              <- .selection_random_source_contributions(setup)
+  baseline                   <- setup[["mu"]]
+  retained                   <- matrix(0, S, K)
+  retained_random_covariance <- array(0, c(S, K, K))
+  integrated                 <- matrix(0, S, K)
+  for (source in sources) {
+    contribution <- contributions[[source[["name"]]]]
+    if (source[["retained"]]) {
+      retained                   <- retained + contribution
+      retained_random_covariance <- retained_random_covariance +
+        .selection_random_source_covariance(setup, source)
+    } else {
+      integrated <- integrated + contribution
+    }
+  }
+  auxiliary <- .selection_sampling_auxiliary(setup[["fit"]], data,
+    setup[["posterior_samples"]])
+  factors          <- .selection_conditioned_sampling_factors(setup)
+  context          <- .selection_conditioned_sampling_context(setup)
+  covariance       <- array(0, c(S, K, K))
+  e                <- correction <- matrix(0, S, K)
+  block_log_lik    <- log_normalizer <- matrix(0, S, length(plan[["row_blocks"]]))
+  diagnostics      <- vector("list", length(plan[["row_blocks"]]))
+  groups           <- .data_selection_model(data)[["groups"]][["group_index"]]
+  total_covariance <- retained_random_covariance
+  for (index in seq_along(plan[["row_blocks"]])) {
+    rows           <- plan[["row_blocks"]][[index]]
+    loading        <- factors[["loadings"]][[index]]
+    rank           <- dim(loading)[[3L]]
+    V              <- plan[["sampling_covariance"]][rows, rows, drop = FALSE]
+    retained_lower <- matrix(0, S, length(rows) * (length(rows) + 1L) / 2L)
+    for (draw in seq_len(S)) {
+      L <- matrix(loading[draw, , ], length(rows), rank)
+      covariance[draw, rows, rows] <- diag(factors[["diagonal"]][draw, rows],
+        length(rows)) + tcrossprod(L)
+      C <- V + matrix(retained_random_covariance[draw, rows, rows], length(rows))
+      retained_lower[draw, ] <- C[lower.tri(C, diag = TRUE)]
+      total_covariance[draw, rows, rows] <- C +
+        matrix(covariance[draw, rows, rows], length(rows))
+    }
+    result <- .Call("RoBMA_selnorm_sampling_conditioned_batch",
+      as.numeric(data[["outcome"]][["yi"]][rows]), baseline[, rows, drop = FALSE],
+      retained_lower,
+      factors[["diagonal"]][, rows, drop = FALSE], matrix(loading, nrow = S),
+      as.integer(rank), auxiliary[, rows, drop = FALSE] + retained[, rows, drop = FALSE],
+      integrated[, rows, drop = FALSE],
+      as.numeric(context[["sei"]][rows]), context[["omega"]],
+      as.numeric(context[["z_lower"]]), as.numeric(context[["z_upper"]]),
+      as.integer(context[["obs_bin"]][rows]), as.integer(context[["sign"]]),
+      as.integer(context[["kernel_mode"]]), isTRUE(context[["telescope_probabilities"]]),
+      as.integer(context[["vector_rule"]]), as.integer(match(groups[rows], unique(groups[rows]))),
+      plan[["designs"]][[plan[["design_keys"]][[index]]]],
+      as.integer(plan[["points_per_scramble"]]), as.integer(plan[["max_points_per_scramble"]]),
+      as.integer(plan[["scrambles"]]), as.numeric(plan[["relative_tolerance"]]),
+      as.numeric(plan[["quadrature"]][["nodes"]]),
+      as.numeric(plan[["quadrature"]][["log_weights"]]),
+      as.numeric(plan[["quadrature"]][["orders"]]),
+      as.numeric(plan[["factor_quadrature"]][["4"]][["nodes"]]),
+      as.numeric(plan[["factor_quadrature"]][["4"]][["log_weights"]]),
+      as.numeric(plan[["factor_quadrature"]][["4"]][["orders"]]),
+      as.numeric(plan[["factor_quadrature"]][["4"]][["rule_counts"]]), PACKAGE = "RoBMA")
+    .selection_conditioned_sampling_diagnostics(result, plan)
+    correction[, rows] <- result[["delta"]]
+    for (draw in seq_len(S)) {
+      e[draw, rows] <- auxiliary[draw, rows] + as.vector(V %*% result[["delta"]][draw, ])
+      baseline[draw, rows] <- setup[["mu"]][draw, rows] + retained[draw, rows] +
+        as.vector(matrix(retained_random_covariance[draw, rows, rows], length(rows)) %*%
+          result[["delta"]][draw, ])
+    }
+    block_log_lik[, index] <- result[["log_lik"]]
+    log_normalizer[, index] <- result[["log_normalizer"]]
+    diagnostics[[index]] <- result[c("relative_mcse", "relative_change")]
+  }
+  list(e = e, correction = correction, integrated_covariance = covariance,
+       baseline_mu = baseline, sampling_covariance = plan[["sampling_covariance"]],
+       total_covariance = total_covariance,
+       log_lik = rowSums(block_log_lik), block_log_lik = block_log_lik,
+       log_normalizer = log_normalizer, candidate_factors = factors,
+       diagnostics = diagnostics)
+}
+
+
+.selection_conditioned_sampling_normalizer <- function(setup, means) {
+
+  means <- as.matrix(means)
+  S     <- nrow(means)
+  K     <- ncol(means)
+  data  <- setup[["data"]]
+  plan  <- .data_selection_execution_plan(data)
+  setup[["S"]] <- S
+  setup[["K"]] <- K
+  if (nrow(setup[["posterior_samples"]]) == 1L && S > 1L) {
+    setup[["posterior_samples"]] <- setup[["posterior_samples"]][rep(1L, S), , drop = FALSE]
+  }
+  factors     <- .selection_conditioned_sampling_factors(setup)
+  context     <- .selection_conditioned_sampling_context(setup)
+  groups      <- .data_selection_model(data)[["groups"]][["group_index"]]
+  value       <- numeric(S)
+  diagnostics <- vector("list", length(plan[["row_blocks"]]))
+  for (index in seq_along(plan[["row_blocks"]])) {
+    rows    <- plan[["row_blocks"]][[index]]
+    loading <- factors[["loadings"]][[index]]
+    rank    <- dim(loading)[[3L]]
+    result  <- .Call("RoBMA_selnorm_conditioned_normalizer_batch",
+      means[, rows, drop = FALSE], factors[["diagonal"]][, rows, drop = FALSE],
+      matrix(loading, nrow = S), as.integer(rank), as.numeric(context[["sei"]][rows]),
+      context[["omega"]], as.numeric(context[["z_lower"]]), as.numeric(context[["z_upper"]]),
+      as.integer(context[["sign"]]), as.integer(context[["kernel_mode"]]),
+      isTRUE(context[["telescope_probabilities"]]), as.integer(context[["vector_rule"]]),
+      as.integer(match(groups[rows], unique(groups[rows]))),
+      plan[["designs"]][[plan[["design_keys"]][[index]]]],
+      as.integer(plan[["points_per_scramble"]]), as.integer(plan[["max_points_per_scramble"]]),
+      as.integer(plan[["scrambles"]]), as.numeric(plan[["relative_tolerance"]]),
+      as.numeric(plan[["quadrature"]][["nodes"]]),
+      as.numeric(plan[["quadrature"]][["log_weights"]]),
+      as.numeric(plan[["quadrature"]][["orders"]]),
+      as.numeric(plan[["factor_quadrature"]][["4"]][["nodes"]]),
+      as.numeric(plan[["factor_quadrature"]][["4"]][["log_weights"]]),
+      as.numeric(plan[["factor_quadrature"]][["4"]][["orders"]]),
+      as.numeric(plan[["factor_quadrature"]][["4"]][["rule_counts"]]), PACKAGE = "RoBMA")
+    .selection_conditioned_sampling_diagnostics(result, plan)
+    value <- value + result[["log_normalizer"]]
+    diagnostics[[index]] <- result[c("relative_mcse", "relative_change")]
+  }
+  list(log_mass = value, diagnostics = diagnostics)
+}
+
+
+.selection_joint_sampling_factor <- function(data) {
 
   if (!.is_data_known_v(data)) {
     return(list(
@@ -456,16 +1280,28 @@ set_selection_likelihood_control <- function(
     ))
   }
   if (storage == "factor") {
+    loading <- known_V[["factor_loading"]]
+    blocks  <- known_V[["block_indices"]]
+    .known_v_validate_dependency_blocks(blocks, .known_v_nrow(known_V))
+    partition <- integer(.known_v_nrow(known_V))
+    for (block in seq_along(blocks)) partition[blocks[[block]]] <- block
+    for (column in seq_len(ncol(loading))) {
+      if (length(unique(partition[loading[, column] != 0])) > 1L) {
+        # Exact covariance cancellation can separate rows sharing auxiliary
+        # columns. The existing dense plan preserves V across those blocks.
+        return(NULL)
+      }
+    }
     return(list(
       diagonal = as.numeric(known_V[["factor_diagonal"]]),
-      loading  = unname(known_V[["factor_loading"]])
+      loading  = unname(loading)
     ))
   }
   NULL
 }
 
 
-.selection_exact_sampling_factor_blocks <- function(factor, row_blocks) {
+.selection_joint_sampling_factor_blocks <- function(factor, row_blocks) {
 
   diagonal <- factor[["diagonal"]]
   loading  <- factor[["loading"]]
@@ -473,7 +1309,7 @@ set_selection_likelihood_control <- function(
   if (!is.numeric(diagonal) || anyNA(diagonal) || any(!is.finite(diagonal)) ||
       any(diagonal < 0) || !is.numeric(loading) || !is.matrix(loading) ||
       nrow(loading) != K || anyNA(loading) || any(!is.finite(loading))) {
-    stop("Exact selection sampling-factor metadata are invalid.",
+    stop("Selection sampling-factor metadata are invalid.",
          call. = FALSE)
   }
 
@@ -501,7 +1337,7 @@ set_selection_likelihood_control <- function(
       logical(1L)
     ))) {
       stop(
-        "Internal error: a certified sampling factor crosses exact-selection blocks.",
+        "Internal error: a certified sampling factor crosses selection blocks.",
         call. = FALSE
       )
     }
@@ -514,7 +1350,7 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_dependency_blocks <- function(
+.selection_joint_dependency_blocks <- function(
     data, random_terms = list(), sampling = NULL) {
 
   if (!is.list(random_terms)) {
@@ -522,7 +1358,7 @@ set_selection_likelihood_control <- function(
          call. = FALSE)
   }
   if (is.null(sampling)) {
-    sampling <- .selection_exact_sampling_plan(data)
+    sampling <- .selection_joint_sampling_plan(data)
   }
   structural_sampling <- if (identical(
       sampling[["representation"]],
@@ -555,7 +1391,7 @@ set_selection_likelihood_control <- function(
 
   adjacency <- structural_sampling != 0
 
-  if (.is_data_multilevel(data)) {
+  if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
     cluster   <- data[["outcome"]][["cluster"]]
     adjacency <- adjacency | outer(cluster, cluster, "==")
   }
@@ -565,7 +1401,7 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_lower_pairs <- function(plan, rows) {
+.selection_joint_lower_pairs <- function(plan, rows) {
 
   pairs <- plan[["lower_pairs"]][[as.character(length(rows))]]
   if (is.null(pairs)) {
@@ -582,7 +1418,7 @@ set_selection_likelihood_control <- function(
       any(unlist(pairs, use.names = FALSE) < 1L) ||
       any(unlist(pairs, use.names = FALSE) > length(rows))) {
     stop(
-      "Internal error: exact selection covariance ordering is invalid.",
+      "Internal error: selection covariance ordering is invalid.",
       call. = FALSE
     )
   }
@@ -593,7 +1429,7 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_uses_diagonal_indicator <- function(
+.selection_joint_uses_diagonal_indicator <- function(
     data, method, random_covariance) {
 
   method == "dense" &&
@@ -602,9 +1438,12 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_fit_data <- function(data, priors) {
+.selection_joint_fit_data <- function(data, priors) {
 
-  plan             <- .data_exact_selection_setup(data)
+  if (.selection_retains_sampling(data)) {
+    return(.selection_conditioned_sampling_fit_data(data, priors))
+  }
+  plan             <- .data_selection_execution_plan(data)
   yi               <- data[["outcome"]][["yi"]]
   effect_direction <- .data_effect_direction(data)
   if (identical(effect_direction, "negative")) {
@@ -621,56 +1460,65 @@ set_selection_likelihood_control <- function(
   selection_data <- selection_spec[["jags_data"]]
   selection_data[["sel_obs_bin"]] <- NULL
   fit_data <- c(list(K = length(yi)), selection_data)
+  if (.is_data_multilevel(data) && .selection_retains_other_random(data)) {
+    fit_data[["cluster"]] <- data[["outcome"]][["cluster"]]
+  }
   if (.is_priors_PET(priors) || .is_priors_PEESE(priors)) {
     fit_data[["sei"]] <- sei
   }
 
   block_methods <- plan[["block_methods"]]
-  if (any(block_methods == "rank_one")) {
+  if (any(block_methods %in% c("rank_one", "dense"))) {
     quadrature <- plan[["quadrature"]]
-    fit_data[["sel_exact_cluster_nodes"]] <- quadrature[["nodes"]]
-    fit_data[["sel_exact_cluster_log_weights"]] <-
+    fit_data[["sel_joint_cluster_nodes"]] <- quadrature[["nodes"]]
+    fit_data[["sel_joint_cluster_log_weights"]] <-
       quadrature[["log_weights"]]
-    fit_data[["sel_exact_cluster_orders"]] <- quadrature[["orders"]]
+    fit_data[["sel_joint_cluster_orders"]] <- quadrature[["orders"]]
   }
   for (rank_name in names(plan[["factor_quadrature"]])) {
     quadrature <- plan[["factor_quadrature"]][[rank_name]]
-    fit_data[[.selection_exact_factor_quadrature_name(
+    fit_data[[.selection_joint_factor_quadrature_name(
       "nodes", rank_name
     )]] <- quadrature[["nodes"]]
-    fit_data[[.selection_exact_factor_quadrature_name(
+    fit_data[[.selection_joint_factor_quadrature_name(
       "log_weights", rank_name
     )]] <- quadrature[["log_weights"]]
-    fit_data[[.selection_exact_factor_quadrature_name(
+    fit_data[[.selection_joint_factor_quadrature_name(
       "orders", rank_name
     )]] <- quadrature[["orders"]]
+    fit_data[[.selection_joint_factor_quadrature_name(
+      "rule_counts", rank_name
+    )]] <- quadrature[["rule_counts"]]
   }
   for (design_key in names(plan[["designs"]])) {
-    fit_data[[.selection_exact_qmc_name(design_key)]] <-
+    fit_data[[.selection_joint_qmc_name(design_key)]] <-
       plan[["designs"]][[design_key]]
   }
 
   if (length(plan[["singleton_blocks"]]) > 0L) {
     rows <- plan[["singleton_rows"]]
-    fit_data[["sel_exact_singleton_n"]] <- length(rows)
-    fit_data[["sel_exact_singleton_y"]] <- yi[rows]
-    fit_data[["sel_exact_singleton_sei"]] <- sei[rows]
-    fit_data[["sel_exact_singleton_obs_bin"]] <-
+    fit_data[["sel_joint_singleton_n"]] <- length(rows)
+    fit_data[["sel_joint_singleton_y"]] <- yi[rows]
+    fit_data[["sel_joint_singleton_sei"]] <- sei[rows]
+    fit_data[["sel_joint_singleton_weights"]] <- if (.is_data_weights(data)) {
+      data[["outcome"]][["weights"]][rows]
+    } else rep(1, length(rows))
+    fit_data[["sel_joint_singleton_obs_bin"]] <-
       selection_spec[["obs_bin"]][rows]
-    fit_data[["sel_exact_singleton_row"]] <- rows
-    fit_data[["sel_exact_singleton_sampling_variance"]] <-
-      .selection_exact_sampling_diagonal(plan[["sampling"]])[rows]
+    fit_data[["sel_joint_singleton_row"]] <- rows
+    fit_data[["sel_joint_singleton_sampling_variance"]] <-
+      .selection_joint_sampling_diagonal(plan[["sampling"]])[rows]
   }
 
   for (block_index in plan[["dependent_blocks"]]) {
     rows   <- plan[["row_blocks"]][[block_index]]
-    prefix <- paste0("sel_exact_block_", block_index)
+    prefix <- paste0("sel_joint_block_", block_index)
     method <- block_methods[[block_index]]
     fit_data[[paste0(prefix, "_y")]]       <- yi[rows]
     fit_data[[paste0(prefix, "_sei")]]     <- sei[rows]
     fit_data[[paste0(prefix, "_obs_bin")]] <- selection_spec[["obs_bin"]][rows]
     fit_data[[paste0(prefix, "_row")]]     <- rows
-    uses_diagonal <- .selection_exact_uses_diagonal_indicator(
+    uses_diagonal <- .selection_joint_uses_diagonal_indicator(
       data              = data,
       method            = method,
       random_covariance = plan[["random_covariance"]]
@@ -683,14 +1531,21 @@ set_selection_likelihood_control <- function(
         fit_data[[paste0(prefix, "_sampling_loading")]] <-
           unname(sampling_factor[["loading"]])
       }
+      if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
+        cluster <- data[["outcome"]][["cluster"]][rows]
+        fit_data[[paste0(prefix, "_cluster_loading")]] <-
+          1L * outer(cluster, unique(cluster), `==`)
+      }
     }
     if (method == "dense") {
-      pairs <- .selection_exact_lower_pairs(plan, rows)
-      if (.is_data_random(data) && uses_diagonal) {
+      pairs <- .selection_joint_lower_pairs(plan, rows)
+      if (!is.null(plan[["random_covariance"]]) && uses_diagonal) {
         fit_data[[paste0(prefix, "_local_row_1")]] <-
           match(pairs[["row_1"]], rows)
-        fit_data[[paste0(prefix, "_local_row_2")]] <-
-          match(pairs[["row_2"]], rows)
+        if (plan[["random_covariance"]][["loading_ranks"]][[block_index]] > 0L) {
+          fit_data[[paste0(prefix, "_local_row_2")]] <-
+            match(pairs[["row_2"]], rows)
+        }
       }
     }
     if (uses_diagonal) {
@@ -699,13 +1554,19 @@ set_selection_likelihood_control <- function(
       )
       if (!.is_data_random(data) && .is_data_scale(data)) {
         fit_data[[paste0(prefix, "_row_1")]] <- pairs[["row_1"]]
-        if (.is_data_multilevel(data)) {
+        if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
           fit_data[[paste0(prefix, "_row_2")]] <- pairs[["row_2"]]
         }
       }
+      if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
+        cluster <- data[["outcome"]][["cluster"]]
+        fit_data[[paste0(prefix, "_same_cluster")]] <- as.integer(
+          cluster[pairs[["row_1"]]] == cluster[pairs[["row_2"]]]
+        )
+      }
     }
     if (method == "dense") {
-      sampling_covariance <- .selection_exact_sampling_block(
+      sampling_covariance <- .selection_joint_sampling_block(
         plan[["sampling"]],
         rows
       )
@@ -725,7 +1586,7 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_block_routing <- function(
+.selection_joint_block_routing <- function(
     data, row_blocks, sampling_factor_blocks, random_covariance) {
 
   block_sizes <- lengths(row_blocks)
@@ -755,9 +1616,10 @@ set_selection_likelihood_control <- function(
     } else {
       random_covariance[["loading_ranks"]][[block_index]]
     }
-    specialized_rank <- as.integer(
-      .is_data_multilevel(data) && !.is_data_random(data)
-    )
+    specialized_rank <- if (.is_data_multilevel(data) &&
+        !.is_data_random(data) && !.selection_retains_other_random(data)) {
+      length(unique(data[["outcome"]][["cluster"]][row_blocks[[block_index]]]))
+    } else 0L
     rank <- sampling[["rank"]] + random_rank + specialized_rank
     ranks[[block_index]] <- rank
     methods[[block_index]] <- if (rank == 1L) {
@@ -772,19 +1634,19 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_execution_plan <- function(
+.selection_joint_execution_plan <- function(
     row_blocks, block_methods, factor_ranks, selection_control, sampling,
     sampling_factor_blocks, random_covariance) {
 
   block_sizes <- lengths(row_blocks)
   if (length(block_sizes) != length(block_methods) ||
       length(block_sizes) != length(factor_ranks)) {
-    stop("Internal error: exact-selection integration routing is invalid.",
+    stop("Internal error: selection integration routing is invalid.",
          call. = FALSE)
   }
   design_keys <- rep(NA_character_, length(block_sizes))
   dense <- which(block_methods == "dense" & block_sizes > 1L)
-  factor <- which(block_methods == "factor")
+  factor <- which(block_methods %in% c("rank_one", "factor"))
   factor_points_per_proposal <- as.integer(ceiling(
     selection_control[["points_per_scramble"]] / 2
   ))
@@ -796,12 +1658,12 @@ set_selection_likelihood_control <- function(
   unique_keys <- unique(design_keys[!is.na(design_keys)])
   designs <- stats::setNames(lapply(unique_keys, function(key) {
     block_index <- which(design_keys == key)[[1L]]
-    dimensions <- if (block_methods[[block_index]] == "factor") {
+    dimensions <- if (block_methods[[block_index]] %in% c("rank_one", "factor")) {
       2L * factor_ranks[[block_index]]
     } else {
       2L * block_sizes[[block_index]]
     }
-    points <- if (block_methods[[block_index]] == "factor") {
+    points <- if (block_methods[[block_index]] %in% c("rank_one", "factor")) {
       factor_max_points_per_proposal
     } else {
       selection_control[["points_per_scramble"]]
@@ -832,8 +1694,8 @@ set_selection_likelihood_control <- function(
     "E0"
   }
   structure(list(
-    schema_version      = 2L,
-    statistical_target  = "finite_vector_product_selection",
+    schema_version      = 5L,
+    statistical_target  = "conditional_gaussian_vector_selection",
     row_blocks          = row_blocks,
     block_sizes         = as.integer(block_sizes),
     block_methods       = block_methods,
@@ -859,15 +1721,15 @@ set_selection_likelihood_control <- function(
     scrambles            = selection_control[["scrambles"]],
     seed                 = selection_control[["seed"]],
     relative_tolerance   = selection_control[["relative_tolerance"]],
-    quadrature          = if (any(block_methods == "rank_one")) {
-      .selection_exact_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
+    quadrature          = if (any(block_methods %in% c("rank_one", "dense"))) {
+      orders <- SELNORM_CLUSTER_QUADRATURE_ORDERS
+      if (any(block_methods == "dense") && !any(block_methods == "rank_one")) {
+        orders <- c(7L, orders)
+      }
+      .selection_joint_cluster_quadrature_rules(orders)
     } else NULL,
-    factor_quadrature   = lapply(
-      SELNORM_FACTOR_QUADRATURE_ORDERS[
-        intersect(names(SELNORM_FACTOR_QUADRATURE_ORDERS),
-                  as.character(unique(factor_ranks[factor])))
-      ],
-      .selection_exact_cluster_quadrature_rules
+    factor_quadrature   = .selection_joint_factor_quadrature_rules(
+      unique(factor_ranks[factor])
     ),
     lower_pairs         = lower_pairs,
     exactness           = exactness
@@ -875,7 +1737,7 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_cluster_quadrature_rules <- function(orders) {
+.selection_joint_cluster_quadrature_rules <- function(orders) {
 
   rules  <- lapply(orders, .gauss_hermite_nodes)
   list(
@@ -889,19 +1751,42 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_qmc_name <- function(block_n) {
+.selection_joint_factor_quadrature_rules <- function(ranks) {
 
-  paste0("sel_exact_qmc_", block_n)
+  rank_names <- intersect(names(SELNORM_FACTOR_QUADRATURE_ORDERS),
+                          as.character(ranks))
+  if (length(rank_names) == 0L) return(list())
+  shared_orders <- SELNORM_FACTOR_QUADRATURE_ORDERS[["2"]]
+  rule_counts   <- lengths(SELNORM_FACTOR_QUADRATURE_ORDERS)
+  for (rank in names(rule_counts)) {
+    if (!identical(SELNORM_FACTOR_QUADRATURE_ORDERS[[rank]],
+                   utils::head(shared_orders, rule_counts[[rank]]))) {
+      stop("Internal error: factor quadrature rules must share a prefix.",
+           call. = FALSE)
+    }
+  }
+  quadrature <- .selection_joint_cluster_quadrature_rules(shared_orders)
+  stats::setNames(lapply(rank_names, function(rank) {
+    c(quadrature, list(rule_counts = unname(rule_counts[
+      as.character(seq.int(2L, as.integer(rank)))
+    ])))
+  }), rank_names)
 }
 
 
-.selection_exact_factor_quadrature_name <- function(quantity, rank) {
+.selection_joint_qmc_name <- function(block_n) {
 
-  paste0("sel_exact_factor_", quantity, "_", rank)
+  paste0("sel_joint_qmc_", block_n)
 }
 
 
-.selection_exact_kernel_mode_expression <- function(selection_spec) {
+.selection_joint_factor_quadrature_name <- function(quantity, rank) {
+
+  paste0("sel_joint_factor_", quantity, "_", rank)
+}
+
+
+.selection_joint_kernel_mode_expression <- function(selection_spec) {
 
   if (isTRUE(selection_spec[["jags_use_step_switch"]])) {
     return(selection_spec[["jags_kernel_mode"]])
@@ -910,7 +1795,7 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_signed_context <- function(setup, signed_yi) {
+.selection_joint_signed_context <- function(setup, signed_yi) {
 
   context <- .selection_context_from_parts(
     fit               = setup[["fit"]],
@@ -934,9 +1819,13 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_random_covariance_samples <- function(setup) {
+.selection_joint_random_covariance_samples <- function(setup) {
 
   if (!.is_data_random(setup[["data"]])) {
+    return(NULL)
+  }
+  plan <- .data_selection_execution_plan(setup[["data"]])
+  if (is.null(plan[["random_covariance"]])) {
     return(NULL)
   }
   object <- list(
@@ -946,13 +1835,14 @@ set_selection_likelihood_control <- function(
   )
   random_vcov <- .brma_mv_random_effects_marginal_vcov(
     object            = object,
-    posterior_samples = setup[["posterior_samples"]]
+    posterior_samples = setup[["posterior_samples"]],
+    blocks            = plan[["random_covariance"]][["term_names"]]
   )
   samples <- random_vcov[["samples"]]
   if (!identical(dim(samples), c(setup[["S"]], setup[["K"]], setup[["K"]])) ||
       any(!is.finite(samples))) {
     stop(
-      "Exact selection random-effect covariance samples are invalid.",
+      "Selection random-effect covariance samples are invalid.",
       call. = FALSE
     )
   }
@@ -961,49 +1851,73 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_random_factor_samples <- function(setup) {
+.selection_joint_random_factor_samples <- function(setup, inputs = NULL) {
 
   if (!.is_data_random(setup[["data"]])) {
     return(NULL)
   }
-  exact_setup <- .data_exact_selection_setup(setup[["data"]])
-  representation <- exact_setup[["random_covariance"]][["representation"]]
-  if (!identical(representation, "diagonal_factor")) {
+  execution_plan <- .data_selection_execution_plan(setup[["data"]])
+  random_covariance <- execution_plan[["random_covariance"]]
+  if (is.null(random_covariance)) {
     return(NULL)
+  }
+  blocks <- random_covariance[["term_names"]]
+  if (!is.character(blocks) || !length(blocks) || anyNA(blocks) ||
+      any(!nzchar(blocks)) || anyDuplicated(blocks)) {
+    stop("Selection random-effect source metadata are invalid.", call. = FALSE)
   }
   object <- list(
     fit    = setup[["fit"]],
     data   = setup[["data"]],
     priors = setup[["priors"]]
   )
-  factors <- .brma_mv_random_effects_marginal_factor_states(
-    object            = object,
-    posterior_samples = setup[["posterior_samples"]],
-    blocks            = NULL,
-    row_blocks        = exact_setup[["row_blocks"]]
-  )
-  result <- BayesTools::random_effects_marginal_diagonal_factor(factors)
+  result <- setup[["selection_random_factor_samples"]]
+  if (is.null(result)) {
+    # The JAGS syntax representation does not determine post-fit covariance
+    # eligibility. Retain its declared source names/row partition, and let
+    # BayesTools compile the corresponding exact post-fit factor geometry.
+    arguments <- list(
+      object = object, posterior_samples = setup[["posterior_samples"]],
+      blocks = blocks, row_blocks = execution_plan[["row_blocks"]]
+    )
+    if (!is.null(inputs)) arguments[["inputs"]] <- inputs
+    factors <- do.call(.brma_mv_random_effects_marginal_factor_states, arguments)
+    result <- tryCatch(
+      BayesTools::random_effects_marginal_diagonal_factor(factors),
+      BayesTools_random_effects_marginal_factor_unavailable = function(e) NULL
+    )
+    if (is.null(result)) {
+      return(NULL)
+    }
+  }
   expected <- c(setup[["S"]], setup[["K"]])
-  if (!identical(dim(result[["diagonal"]]), expected) ||
+  ranks <- if (is.list(result)) result[["ranks"]] else NULL
+  if (!is.list(result) || !identical(dim(result[["diagonal"]]), expected) ||
       any(!is.finite(result[["diagonal"]])) ||
       any(result[["diagonal"]] < 0) ||
-      length(result[["loadings"]]) != length(exact_setup[["row_blocks"]]) ||
-      !identical(
-        result[["ranks"]],
-        as.integer(exact_setup[["random_covariance"]][["loading_ranks"]])
-      )) {
-    stop("Exact selection random-effect factors are invalid.",
+      !identical(result[["row_blocks"]], execution_plan[["row_blocks"]]) ||
+      length(result[["loadings"]]) != length(execution_plan[["row_blocks"]]) ||
+      length(result[["loading_supports"]]) != length(result[["loadings"]]) ||
+      !is.integer(ranks) || length(ranks) != length(result[["loadings"]]) ||
+      anyNA(ranks) || any(ranks < 0L)) {
+    stop("Selection random-effect factors are invalid.",
          call. = FALSE)
   }
   for (block_index in seq_along(result[["loadings"]])) {
     expected_dim <- c(
       setup[["S"]],
-      length(exact_setup[["row_blocks"]][[block_index]]),
+      length(execution_plan[["row_blocks"]][[block_index]]),
       result[["ranks"]][[block_index]]
     )
     if (!identical(dim(result[["loadings"]][[block_index]]), expected_dim) ||
         any(!is.finite(result[["loadings"]][[block_index]]))) {
-      stop("Exact selection random-effect factor loadings are invalid.",
+      stop("Selection random-effect factor loadings are invalid.",
+           call. = FALSE)
+    }
+    support <- result[["loading_supports"]][[block_index]]
+    if (!is.logical(support) || anyNA(support) ||
+        !identical(dim(support), expected_dim[-1L])) {
+      stop("Selection random-effect loading supports are invalid.",
            call. = FALSE)
     }
   }
@@ -1011,22 +1925,25 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_singleton_variances <- function(
+.selection_joint_singleton_variances <- function(
     setup, rows, block_indices, random_covariance_samples = NULL,
     random_factor_samples = NULL) {
 
-  exact_setup <- .data_exact_selection_setup(setup[["data"]])
+  execution_plan <- .data_selection_execution_plan(setup[["data"]])
   S           <- setup[["S"]]
   variances   <- matrix(
-    .selection_exact_sampling_diagonal(exact_setup[["sampling"]])[rows],
+    .selection_joint_sampling_diagonal(execution_plan[["sampling"]])[rows],
     nrow = S,
     ncol = length(rows),
     byrow = TRUE
   )
 
   if (!.is_data_random(setup[["data"]])) {
-    variances <- variances + setup[["tau_within"]][, rows, drop = FALSE]^2
-    if (isTRUE(setup[["is_multilevel"]])) {
+    if (.selection_integrates_estimate(setup[["data"]])) {
+      variances <- variances + setup[["tau_within"]][, rows, drop = FALSE]^2
+    }
+    if (isTRUE(setup[["is_multilevel"]]) &&
+        !.selection_retains_other_random(setup[["data"]])) {
       variances <- variances + setup[["tau_between"]][, rows, drop = FALSE]^2
     }
     return(variances)
@@ -1049,8 +1966,11 @@ set_selection_likelihood_control <- function(
   }
 
   if (is.null(random_covariance_samples)) {
+    if (is.null(execution_plan[["random_covariance"]])) {
+      return(variances)
+    }
     stop(
-      "Exact selection random-effect covariance samples are missing.",
+      "Selection random-effect covariance samples are missing.",
       call. = FALSE
     )
   }
@@ -1067,12 +1987,12 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_factor_block_samples <- function(
+.selection_joint_factor_block_samples <- function(
     setup, block_index, random_factor_samples = NULL) {
 
-  exact_setup <- .data_exact_selection_setup(setup[["data"]])
-  rows        <- exact_setup[["row_blocks"]][[block_index]]
-  sampling    <- exact_setup[["sampling_factor_blocks"]][[block_index]]
+  execution_plan <- .data_selection_execution_plan(setup[["data"]])
+  rows        <- execution_plan[["row_blocks"]][[block_index]]
+  sampling    <- execution_plan[["sampling_factor_blocks"]][[block_index]]
   S           <- setup[["S"]]
   block_n     <- length(rows)
   residual_variance <- matrix(
@@ -1082,6 +2002,7 @@ set_selection_likelihood_control <- function(
     byrow = TRUE
   )
   loading_parts <- list()
+  support_parts <- list()
   if (sampling[["rank"]] > 0L) {
     part <- array(0, dim = c(S, block_n, sampling[["rank"]]))
     for (factor in seq_len(sampling[["rank"]])) {
@@ -1093,33 +2014,48 @@ set_selection_likelihood_control <- function(
       )
     }
     loading_parts[[length(loading_parts) + 1L]] <- part
+    support_parts[[length(support_parts) + 1L]] <- sampling[["loading"]] != 0
   }
 
   if (.is_data_random(setup[["data"]])) {
-    if (is.null(random_factor_samples)) {
-      stop("Exact selection random-effect factors are missing.",
+    if (is.null(random_factor_samples) &&
+        !is.null(execution_plan[["random_covariance"]])) {
+      stop("Selection random-effect factors are missing.",
            call. = FALSE)
     }
-    residual_variance <- residual_variance +
-      random_factor_samples[["diagonal"]][, rows, drop = FALSE]
-    if (random_factor_samples[["ranks"]][[block_index]] > 0L) {
+    if (!is.null(random_factor_samples)) {
+      residual_variance <- residual_variance +
+        random_factor_samples[["diagonal"]][, rows, drop = FALSE]
+    }
+    if (!is.null(random_factor_samples) &&
+        random_factor_samples[["ranks"]][[block_index]] > 0L) {
       loading_parts[[length(loading_parts) + 1L]] <-
         random_factor_samples[["loadings"]][[block_index]]
+      support_parts[[length(support_parts) + 1L]] <-
+        random_factor_samples[["loading_supports"]][[block_index]]
     }
   } else {
-    residual_variance <- residual_variance +
-      setup[["tau_within"]][, rows, drop = FALSE]^2
-    if (isTRUE(setup[["is_multilevel"]])) {
-      part <- array(
-        setup[["tau_between"]][, rows, drop = FALSE],
-        dim = c(S, block_n, 1L)
-      )
+    if (.selection_integrates_estimate(setup[["data"]])) {
+      residual_variance <- residual_variance +
+        setup[["tau_within"]][, rows, drop = FALSE]^2
+    }
+    if (isTRUE(setup[["is_multilevel"]]) &&
+        !.selection_retains_other_random(setup[["data"]])) {
+      cluster <- setup[["data"]][["outcome"]][["cluster"]][rows]
+      support <- outer(cluster, unique(cluster), `==`)
+      part <- array(0, dim = c(S, block_n, ncol(support)))
+      for (j in seq_len(ncol(support))) {
+        part[, , j] <- sweep(
+          setup[["tau_between"]][, rows, drop = FALSE], 2L, support[, j], `*`
+        )
+      }
       loading_parts[[length(loading_parts) + 1L]] <- part
+      support_parts[[length(support_parts) + 1L]] <- support
     }
   }
   if (any(!is.finite(residual_variance)) || any(residual_variance <= 0)) {
     stop(
-      "Exact selection factor residual variances must be finite and positive.",
+      "Selection factor residual variances must be finite and positive.",
       call. = FALSE
     )
   }
@@ -1143,24 +2079,26 @@ set_selection_likelihood_control <- function(
   list(
     residual_sd = sqrt(residual_variance),
     loading     = loading,
+    loading_support = if (length(support_parts)) do.call(cbind, support_parts) else
+      matrix(logical(), block_n, 0L),
     rank        = if (block_n == 0L) 0L else ncol(loading) %/% block_n
   )
 }
 
 
-.selection_exact_covariance_lower <- function(
+.selection_joint_covariance_lower <- function(
     setup, block_index, random_covariance_samples = NULL,
     random_factor_samples = NULL) {
 
-  exact_setup <- .data_exact_selection_setup(setup[["data"]])
-  rows        <- exact_setup[["row_blocks"]][[block_index]]
-  sampling    <- .selection_exact_sampling_block(
-    exact_setup[["sampling"]],
+  execution_plan <- .data_selection_execution_plan(setup[["data"]])
+  rows        <- execution_plan[["row_blocks"]][[block_index]]
+  sampling    <- .selection_joint_sampling_block(
+    execution_plan[["sampling"]],
     rows
   )
   block_n     <- length(rows)
-  pairs       <- .selection_exact_lower_pairs(
-    exact_setup,
+  pairs       <- .selection_joint_lower_pairs(
+    execution_plan,
     seq_len(block_n)
   )
   lower_n     <- length(pairs[["row_1"]])
@@ -1181,6 +2119,9 @@ set_selection_likelihood_control <- function(
           , global_row_1[diagonal], drop = FALSE
         ]
       loading <- random_factor_samples[["loadings"]][[block_index]]
+      if (dim(loading)[[3L]] == 0L) {
+        return(lower)
+      }
       for (column in seq_len(lower_n)) {
         row_1_loading <- matrix(
           loading[, pairs[["row_1"]][[column]], , drop = FALSE],
@@ -1196,8 +2137,11 @@ set_selection_likelihood_control <- function(
       return(lower)
     }
     if (is.null(random_covariance_samples)) {
+      if (is.null(execution_plan[["random_covariance"]])) {
+        return(lower)
+      }
       stop(
-        "Exact selection random-effect covariance samples are missing.",
+        "Selection random-effect covariance samples are missing.",
         call. = FALSE
       )
     }
@@ -1210,9 +2154,12 @@ set_selection_likelihood_control <- function(
   }
 
   diagonal <- pairs[["row_1"]] == pairs[["row_2"]]
-  lower[, diagonal] <- lower[, diagonal, drop = FALSE] +
-    setup[["tau_within"]][, global_row_1[diagonal], drop = FALSE]^2
-  if (isTRUE(setup[["is_multilevel"]])) {
+  if (.selection_integrates_estimate(setup[["data"]])) {
+    lower[, diagonal] <- lower[, diagonal, drop = FALSE] +
+      setup[["tau_within"]][, global_row_1[diagonal], drop = FALSE]^2
+  }
+  if (isTRUE(setup[["is_multilevel"]]) &&
+      !.selection_retains_other_random(setup[["data"]])) {
     cluster      <- setup[["data"]][["outcome"]][["cluster"]]
     same_cluster <- cluster[global_row_1] == cluster[global_row_2]
     lower[, same_cluster] <- lower[, same_cluster, drop = FALSE] +
@@ -1227,12 +2174,20 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_joint_loglik_block <- function(
+.selection_joint_dense_loglik_block <- function(
     yi, means, covariance_lower, sei, selection_context, execution_plan,
-    block_size) {
+    block_size, return_normalizer = FALSE, normalizer_grid = NULL) {
 
   S <- nrow(means)
+  if (!return_normalizer && !is.null(normalizer_grid)) {
+    result <- .selection_normalizer_grid_loglik(yi, means, covariance_lower, sei,
+      selection_context, execution_plan, block_size, normalizer_grid)
+    if (!is.null(result)) return(result)
+  }
   native_static <- BayesTools::selection_native_static_args(selection_context)
+  # This local post-fit request never mutates the fitted/JAGS quadrature plan.
+  quadrature <- execution_plan[["quadrature"]]
+  if (!is.null(quadrature)) attr(quadrature, "bounded_cdf") <- TRUE
   result <- .Call(
     "RoBMA_selnorm_mnorm_step_loglik_batch",
     .native_numeric_vector(yi),
@@ -1252,35 +2207,34 @@ set_selection_likelihood_control <- function(
     .native_integer_vector(execution_plan[["points_per_scramble"]]),
     .native_integer_vector(execution_plan[["scrambles"]]),
     .native_numeric_vector(execution_plan[["relative_tolerance"]]),
+    as.logical(return_normalizer),
+    .native_integer_vector(selection_context[["vector_rule"]]),
+    quadrature,
     PACKAGE = "RoBMA"
   )
-  if (!is.list(result) ||
-      !identical(names(result), c("log_density", "relative_mcse")) ||
-      length(result[["log_density"]]) != S ||
-      length(result[["relative_mcse"]]) != S) {
-    stop("The exact selection native kernel returned invalid output.",
+  expected_names <- c("log_density", "relative_mcse", "log_normalizer",
+                      "integration_diagnostics")
+  if (!is.list(result) || !identical(names(result), expected_names) ||
+      any(lengths(result[1:3]) != S) ||
+      !identical(dim(result[["integration_diagnostics"]]), c(S, 4L))) {
+    stop("The selection native kernel returned invalid output.",
          call. = FALSE)
   }
-  failed <- which(
-    !is.finite(result[["relative_mcse"]]) |
-      result[["relative_mcse"]] > execution_plan[["relative_tolerance"]]
-  )
-  if (length(failed) > 0L) {
-    observed <- result[["relative_mcse"]][failed[[1L]]]
-    stop(
-      "Exact selection normalizer was rejected by diagnostics: relative ",
-      "Monte Carlo standard error was ", format(observed, digits = 4),
-      ". Refit with more integration points in 'selection_control', for ",
-      "example by increasing 'points_per_scramble'.",
-      call. = FALSE
-    )
+  if (!is.null(quadrature)) {
+    cdf_error <- attr(result[["integration_diagnostics"]], "cdf_relative_error", exact = TRUE)
+    if (!is.numeric(cdf_error) || length(cdf_error) != S || !is.null(dim(cdf_error)) ||
+        any(!is.finite(cdf_error)) || any(cdf_error < 0)) {
+      stop("Selection CDF integration diagnostics are unavailable.", call. = FALSE)
+    }
   }
+  if (return_normalizer) return(result)
+  .selection_joint_dense_loglik_check_mcse(result[["relative_mcse"]], execution_plan)
 
   result[["log_density"]]
 }
 
 
-.selection_exact_singleton_loglik_matrix <- function(
+.selection_joint_singleton_loglik_matrix <- function(
     yi, means, variances, sei, selection_context) {
 
   sigma <- sqrt(variances)
@@ -1300,9 +2254,9 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_cluster_loglik_block <- function(
+.selection_joint_cluster_loglik_block <- function(
     yi, means, residual_sd, loading, sei, selection_context,
-    execution_plan) {
+    execution_plan, return_normalizer = FALSE) {
 
   S <- nrow(means)
   native_static <- BayesTools::selection_native_static_args(selection_context)
@@ -1324,25 +2278,38 @@ set_selection_likelihood_control <- function(
     .native_numeric_vector(quadrature[["nodes"]]),
     .native_numeric_vector(quadrature[["log_weights"]]),
     .native_numeric_vector(quadrature[["orders"]]),
+    .native_numeric_vector(execution_plan[["designs"]][["factor_1"]]),
+    .native_integer_vector(execution_plan[["factor_points_per_proposal"]]),
+    .native_integer_vector(execution_plan[["factor_max_points_per_proposal"]]),
+    .native_integer_vector(execution_plan[["scrambles"]]),
     .native_numeric_vector(execution_plan[["relative_tolerance"]]),
+    as.logical(return_normalizer),
+    .native_integer_vector(selection_context[["vector_rule"]]),
     PACKAGE = "RoBMA"
   )
-  if (!is.list(result) ||
-      !identical(names(result), c("log_density", "relative_change")) ||
-      length(result[["log_density"]]) != S ||
-      length(result[["relative_change"]]) != S) {
-    stop("The exact cluster selection kernel returned invalid output.",
+  expected_names <- c("log_density", "relative_mcse", "relative_change",
+                      "log_normalizer")
+  if (!is.list(result) || !identical(names(result), expected_names) ||
+      any(lengths(result) != S)) {
+    stop("The cluster selection kernel returned invalid output.",
          call. = FALSE)
   }
-  failed <- which(
-    !is.finite(result[["relative_change"]]) |
-      result[["relative_change"]] > execution_plan[["relative_tolerance"]]
-  )
+  if (return_normalizer) return(result)
+  diagnostic <- pmax(result[["relative_mcse"]], result[["relative_change"]])
+  failed <- which(!is.finite(diagnostic) |
+    diagnostic > execution_plan[["relative_tolerance"]])
   if (length(failed) > 0L) {
     stop(
-      "Exact selection cluster normalizer was rejected by diagnostics: ",
-      "successive quadrature relative change was ",
-      format(result[["relative_change"]][failed[[1L]]], digits = 4), ".",
+      "Selection cluster normalizer was rejected by diagnostics: ",
+      "relative Monte Carlo standard error was ",
+      format(result[["relative_mcse"]][failed[[1L]]], digits = 4),
+      " and nested-design relative change was ",
+      format(result[["relative_change"]][failed[[1L]]], digits = 4),
+      ". Increase 'max_points_per_scramble' or 'scrambles' in ",
+      "'set_selection_likelihood_control()'. Pass the control as ",
+      "'selection_control' when fitting, 'integration_control' in zplot(), ",
+      "or 'density_control$integration_control' for supported post-fit ",
+      "densities and hypotheses.",
       call. = FALSE
     )
   }
@@ -1350,9 +2317,9 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_factor_loglik_block <- function(
+.selection_joint_factor_loglik_block <- function(
     yi, means, residual_sd, loading, sei, selection_context,
-    execution_plan, block_index) {
+    execution_plan, block_index, return_normalizer = FALSE) {
 
   S <- nrow(means)
   factor_rank <- execution_plan[["factor_ranks"]][[block_index]]
@@ -1363,7 +2330,7 @@ set_selection_likelihood_control <- function(
   if (factor_rank < 2L || factor_rank > 4L ||
       ncol(loading) != length(yi) * factor_rank || is.na(design_key) ||
       length(quadrature[["orders"]]) < 3L) {
-    stop("Internal error: exact selection factor inputs are inconsistent.",
+    stop("Internal error: selection factor inputs are inconsistent.",
          call. = FALSE)
   }
   native_static <- BayesTools::selection_native_static_args(selection_context)
@@ -1384,6 +2351,7 @@ set_selection_likelihood_control <- function(
     .native_numeric_vector(quadrature[["nodes"]]),
     .native_numeric_vector(quadrature[["log_weights"]]),
     .native_numeric_vector(quadrature[["orders"]]),
+    .native_numeric_vector(quadrature[["rule_counts"]]),
     .native_numeric_vector(execution_plan[["designs"]][[design_key]]),
     .native_integer_vector(
       execution_plan[["factor_points_per_proposal"]]
@@ -1393,26 +2361,34 @@ set_selection_likelihood_control <- function(
     ),
     .native_integer_vector(execution_plan[["scrambles"]]),
     .native_numeric_vector(execution_plan[["relative_tolerance"]]),
+    as.logical(return_normalizer),
+    .native_integer_vector(selection_context[["vector_rule"]]),
     PACKAGE = "RoBMA"
   )
-  expected_names <- c("log_density", "relative_mcse", "relative_change")
+  expected_names <- c("log_density", "relative_mcse", "relative_change",
+                      "log_normalizer")
   if (!is.list(result) || !identical(names(result), expected_names) ||
       any(lengths(result) != S)) {
-    stop("The exact selection factor kernel returned invalid output.",
+    stop("The selection factor kernel returned invalid output.",
          call. = FALSE)
   }
+  if (return_normalizer) return(result)
   diagnostic <- pmax(result[["relative_mcse"]], result[["relative_change"]])
   failed <- which(!is.finite(diagnostic) |
     diagnostic > execution_plan[["relative_tolerance"]])
   if (length(failed) > 0L) {
     stop(
-      "Exact selection factor normalizer was rejected by diagnostics: ",
+      "Selection factor normalizer was rejected by diagnostics: ",
       "relative Monte Carlo standard error was ",
       format(result[["relative_mcse"]][failed[[1L]]], digits = 4),
       " and nested-design relative change was ",
       format(result[["relative_change"]][failed[[1L]]], digits = 4),
-      ". Refit with more integration points in 'selection_control', for ",
-      "example by increasing 'max_points_per_scramble' or 'scrambles'.",
+      ". Increase 'max_points_per_scramble' or 'scrambles' in ",
+      "'set_selection_likelihood_control()'. Pass the control as ",
+      "'selection_control' when fitting, 'integration_control' in zplot(), ",
+      "or ",
+      "'density_control$integration_control' for supported post-fit ",
+      "densities and hypotheses.",
       call. = FALSE
     )
   }
@@ -1420,24 +2396,27 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_block_loglik_from_setup <- function(setup) {
+.selection_joint_block_loglik_from_setup <- function(setup) {
 
-  if (!.is_data_exact_selection(setup[["data"]])) {
-    stop("Exact selection-likelihood metadata are unavailable.",
+  if (.selection_retains_sampling(setup[["data"]])) {
+    return(.selection_conditioned_sampling_state(setup)[["block_log_lik"]])
+  }
+  if (!.is_data_joint_selection(setup[["data"]])) {
+    stop("Selection-likelihood metadata are unavailable.",
          call. = FALSE)
   }
   location <- .estimate_normal_covariance_target_location_from_setup(setup)
-  selection_context <- .selection_exact_signed_context(
+  selection_context <- .selection_joint_signed_context(
     setup     = setup,
     signed_yi = location[["y"]]
   )
-  random_factor <- .selection_exact_random_factor_samples(setup)
+  random_factor <- .selection_joint_random_factor_samples(setup)
   random_covariance <- if (is.null(random_factor)) {
-    .selection_exact_random_covariance_samples(setup)
+    .selection_joint_random_covariance_samples(setup)
   } else {
     NULL
   }
-  .selection_exact_block_loglik(
+  .selection_joint_block_loglik(
     setup             = setup,
     yi                = location[["y"]],
     means             = location[["means"]],
@@ -1449,77 +2428,84 @@ set_selection_likelihood_control <- function(
 
 
 # The joint bridge target and posterior block scores share the same evaluator.
-.selection_exact_block_loglik <- function(
+.selection_joint_block_loglik <- function(
     setup, yi, means, selection_context, random_covariance, random_factor) {
 
-  exact_setup <- .data_exact_selection_setup(setup[["data"]])
+  execution_plan <- .data_selection_execution_plan(setup[["data"]])
   log_lik <- matrix(
     0,
     nrow = setup[["S"]],
-    ncol = length(exact_setup[["row_blocks"]])
+    ncol = length(execution_plan[["row_blocks"]])
   )
 
-  singleton_blocks <- exact_setup[["singleton_blocks"]]
+  singleton_blocks <- execution_plan[["singleton_blocks"]]
   if (length(singleton_blocks) > 0L) {
-    rows <- exact_setup[["singleton_rows"]]
+    rows <- execution_plan[["singleton_rows"]]
     singleton_context <- selection_context
     singleton_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
-    variances <- .selection_exact_singleton_variances(
+    variances <- .selection_joint_singleton_variances(
       setup                     = setup,
       rows                      = rows,
       block_indices             = singleton_blocks,
       random_covariance_samples = random_covariance,
       random_factor_samples     = random_factor
     )
-    log_lik[, singleton_blocks] <- .selection_exact_singleton_loglik_matrix(
+    log_lik[, singleton_blocks] <- .selection_joint_singleton_loglik_matrix(
       yi                = yi[rows],
       means             = means[, rows, drop = FALSE],
       variances         = variances,
       sei               = setup[["selection_sei"]][rows],
       selection_context = singleton_context
     )
+    if (.is_data_weights(setup[["data"]])) {
+      log_lik[, singleton_blocks] <- sweep(
+        log_lik[, singleton_blocks, drop = FALSE], 2L,
+        setup[["data"]][["outcome"]][["weights"]][rows], `*`
+      )
+    }
   }
-  for (block_index in exact_setup[["dependent_blocks"]]) {
-    rows <- exact_setup[["row_blocks"]][[block_index]]
-    method <- exact_setup[["block_methods"]][[block_index]]
-    block_context <- selection_context
+  for (block_index in execution_plan[["dependent_blocks"]]) {
+    rows <- execution_plan[["row_blocks"]][[block_index]]
+    method <- execution_plan[["block_methods"]][[block_index]]
+    block_context <- if (is.null(setup[["normalizer_grid"]])) selection_context else
+      BayesTools::selection_context_subset_observations(selection_context, rows)
     block_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
     if (method %in% c("rank_one", "factor")) {
-      components <- .selection_exact_factor_block_samples(
+      components <- .selection_joint_factor_block_samples(
         setup                 = setup,
         block_index           = block_index,
         random_factor_samples = random_factor
       )
     }
     if (method == "rank_one") {
-      log_lik[, block_index] <- .selection_exact_cluster_loglik_block(
+      log_lik[, block_index] <- .selection_joint_cluster_loglik_block(
         yi                 = yi[rows],
         means              = means[, rows, drop = FALSE],
         residual_sd        = components[["residual_sd"]],
         loading            = components[["loading"]],
         sei                = setup[["selection_sei"]][rows],
         selection_context  = block_context,
-        execution_plan     = exact_setup
+        execution_plan     = execution_plan
       )
       next
     }
     if (method == "factor") {
-      log_lik[, block_index] <- .selection_exact_factor_loglik_block(
+      log_lik[, block_index] <- .selection_joint_factor_loglik_block(
         yi                = yi[rows],
         means             = means[, rows, drop = FALSE],
         residual_sd       = components[["residual_sd"]],
         loading           = components[["loading"]],
         sei               = setup[["selection_sei"]][rows],
         selection_context = block_context,
-        execution_plan    = exact_setup,
+        execution_plan    = execution_plan,
         block_index       = block_index
       )
       next
     }
-    log_lik[, block_index] <- .selection_exact_joint_loglik_block(
+    log_lik[, block_index] <- .selection_joint_dense_loglik_block(
       yi                = yi[rows],
       means             = means[, rows, drop = FALSE],
-      covariance_lower  = .selection_exact_covariance_lower(
+      covariance_lower  = .selection_joint_covariance_lower(
         setup                     = setup,
         block_index               = block_index,
         random_covariance_samples = random_covariance,
@@ -1527,8 +2513,11 @@ set_selection_likelihood_control <- function(
       ),
       sei               = setup[["selection_sei"]][rows],
       selection_context = block_context,
-      execution_plan    = exact_setup,
-      block_size        = length(rows)
+      execution_plan    = execution_plan,
+      block_size        = length(rows),
+      normalizer_grid = if (is.null(setup[["normalizer_grid"]])) NULL else list(
+        state = setup[["normalizer_grid"]], block = block_index, rows = rows,
+        sign = if (identical(setup[["effect_direction"]], "negative")) -1 else 1)
     )
   }
 
@@ -1536,13 +2525,13 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_joint_loglik_from_setup <- function(setup) {
+.selection_joint_loglik_from_setup <- function(setup) {
 
-  rowSums(.selection_exact_block_loglik_from_setup(setup))
+  rowSums(.selection_joint_block_loglik_from_setup(setup))
 }
 
 
-.selection_exact_singleton_random_variance_expression <- function(
+.selection_joint_singleton_random_variance_expression <- function(
     plan, block_index) {
 
   random_covariance <- plan[["random_covariance"]]
@@ -1556,7 +2545,7 @@ set_selection_likelihood_control <- function(
       random_covariance[["representation"]],
       "diagonal_factor"
     )) {
-    stop("Exact selection random-covariance metadata are invalid.",
+    stop("Selection random-covariance metadata are invalid.",
          call. = FALSE)
   }
 
@@ -1576,7 +2565,7 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_exact_singleton_model_syntax <- function(
+.selection_joint_singleton_model_syntax <- function(
     data, selection_spec, plan) {
 
   if (length(plan[["singleton_blocks"]]) == 0L) {
@@ -1584,14 +2573,14 @@ set_selection_likelihood_control <- function(
   }
 
   random_assignments <- ""
-  if (.is_data_random(data)) {
+  if (!is.null(plan[["random_covariance"]])) {
     random_assignments <- paste0(vapply(
       seq_along(plan[["singleton_blocks"]]),
       function(index) {
         block_index <- plan[["singleton_blocks"]][[index]]
         paste0(
-          "sel_exact_singleton_random_variance[", index, "] = ",
-          .selection_exact_singleton_random_variance_expression(
+          "sel_joint_singleton_random_variance[", index, "] = ",
+          .selection_joint_singleton_random_variance_expression(
             plan,
             block_index
           ),
@@ -1602,20 +2591,22 @@ set_selection_likelihood_control <- function(
     ), collapse = "")
   }
 
-  row <- "sel_exact_singleton_row[s]"
-  variance_terms <- "sel_exact_singleton_sampling_variance[s]"
-  if (.is_data_random(data)) {
+  row <- "sel_joint_singleton_row[s]"
+  variance_terms <- "sel_joint_singleton_sampling_variance[s]"
+  if (!is.null(plan[["random_covariance"]])) {
     variance_terms <- c(
       variance_terms,
-      "sel_exact_singleton_random_variance[s]"
+      "sel_joint_singleton_random_variance[s]"
     )
-  } else {
+  } else if (!.is_data_random(data)) {
     tau_within <- if (.is_data_multilevel(data)) "tau_within" else "tau"
     if (.is_data_scale(data)) {
       tau_within <- paste0(tau_within, "[", row, "]")
     }
-    variance_terms <- c(variance_terms, paste0("pow(", tau_within, ",2)"))
-    if (.is_data_multilevel(data)) {
+    if (.selection_integrates_estimate(data)) {
+      variance_terms <- c(variance_terms, paste0("pow(", tau_within, ",2)"))
+    }
+    if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
       tau_between <- "tau_between"
       if (.is_data_scale(data)) {
         tau_between <- paste0(tau_between, "[", row, "]")
@@ -1629,23 +2620,27 @@ set_selection_likelihood_control <- function(
 
   paste0(
     random_assignments,
-    "for(s in 1:sel_exact_singleton_n){\n",
-    "  sel_exact_singleton_variance[s] = ",
+    "for(s in 1:sel_joint_singleton_n){\n",
+    "  sel_joint_singleton_variance[s] = ",
     paste(variance_terms, collapse = " + "), "\n",
-    "  sel_exact_singleton_y[s] ~ dselnorm_step_switch(",
-    "sel_exact_mu[", row, "],sqrt(sel_exact_singleton_variance[s]),",
-    "sel_exact_singleton_sei[s],1,", selection_spec[["jags_omega"]], ",",
-    "sel_z_lower,sel_z_upper,sel_exact_singleton_obs_bin[s],sel_sign,",
-    .selection_exact_kernel_mode_expression(selection_spec), ",",
+    "  sel_joint_singleton_y[s] ~ dselnorm_step_switch(",
+    "sel_joint_mu[", row, "],sqrt(sel_joint_singleton_variance[s]),",
+    "sel_joint_singleton_sei[s],sel_joint_singleton_weights[s],",
+    selection_spec[["jags_omega"]], ",",
+    "sel_z_lower,sel_z_upper,sel_joint_singleton_obs_bin[s],sel_sign,",
+    .selection_joint_kernel_mode_expression(selection_spec), ",",
     "sel_telescope_probabilities)\n",
     "}\n"
   )
 }
 
 
-.selection_exact_model_syntax <- function(data, selection_spec) {
+.selection_joint_model_syntax <- function(data, selection_spec) {
 
-  plan <- .data_exact_selection_setup(data)
+  if (.selection_retains_sampling(data)) {
+    return(.selection_conditioned_sampling_model_syntax(data, selection_spec))
+  }
+  plan <- .data_selection_execution_plan(data)
   random_covariance <- plan[["random_covariance"]]
   random_representation <- if (is.null(random_covariance)) {
     NULL
@@ -1658,7 +2653,7 @@ set_selection_likelihood_control <- function(
   }
   syntax <- paste0(
     syntax,
-    .selection_exact_singleton_model_syntax(data, selection_spec, plan)
+    .selection_joint_singleton_model_syntax(data, selection_spec, plan)
   )
 
   for (block_index in plan[["dependent_blocks"]]) {
@@ -1669,12 +2664,12 @@ set_selection_likelihood_control <- function(
     lower_n <- if (method %in% c("rank_one", "factor")) {
       0L
     } else {
-      length(.selection_exact_lower_pairs(plan, rows)[["row_1"]])
+      length(.selection_joint_lower_pairs(plan, rows)[["row_1"]])
     }
-    prefix    <- paste0("sel_exact_block_", block_index)
+    prefix    <- paste0("sel_joint_block_", block_index)
     design_key <- plan[["design_keys"]][[block_index]]
     qmc_name  <- if (!is.na(design_key)) {
-      .selection_exact_qmc_name(design_key)
+      .selection_joint_qmc_name(design_key)
     } else {
       NULL
     }
@@ -1690,12 +2685,12 @@ set_selection_likelihood_control <- function(
         )
       }
       random_factor_covariance <- NULL
-      uses_diagonal <- .selection_exact_uses_diagonal_indicator(
+      uses_diagonal <- .selection_joint_uses_diagonal_indicator(
         data              = data,
         method            = method,
         random_covariance = random_covariance
       )
-      if (.is_data_random(data) && uses_diagonal) {
+      if (!is.null(random_covariance) && uses_diagonal) {
         row_1_expression <- paste0(prefix, "_local_row_1[l]")
         row_2_expression <- paste0(prefix, "_local_row_2[l]")
         random_diagonal <- paste0(
@@ -1720,29 +2715,23 @@ set_selection_likelihood_control <- function(
         )
       }
 
-      extra_covariance <- if (.is_data_random(data)) {
-        NULL
-      } else if (.is_data_multilevel(data)) {
-        paste0(
-          prefix, "_diagonal[l] * pow(tau_within[",
-          prefix, "_row_1[l]],2) + tau_between[",
-          prefix, "_row_1[l]] * tau_between[",
-          prefix, "_row_2[l]]"
-        )
-      } else {
-        paste0(
-          prefix, "_diagonal[l] * pow(tau[",
-          prefix, "_row_1[l]],2)"
-        )
-      }
-      if (!.is_data_scale(data) && !.is_data_random(data)) {
-        extra_covariance <- if (.is_data_multilevel(data)) {
-          paste0(
-            prefix, "_diagonal[l] * pow(tau_within,2) + ",
-            "pow(tau_between,2)"
+      extra_covariance <- NULL
+      if (!.is_data_random(data)) {
+        within <- if (.is_data_multilevel(data)) "tau_within" else "tau"
+        if (.is_data_scale(data)) {
+          within <- paste0(within, "[", prefix, "_row_1[l]]")
+        }
+        if (.selection_integrates_estimate(data)) {
+          extra_covariance <- paste0(prefix, "_diagonal[l] * pow(", within, ",2)")
+        }
+        if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
+          between <- if (.is_data_scale(data)) {
+            paste0("tau_between[", prefix, "_row_1[l]] * tau_between[",
+                   prefix, "_row_2[l]]")
+          } else "pow(tau_between,2)"
+          extra_covariance <- c(
+            extra_covariance, paste0(prefix, "_same_cluster[l] * ", between)
           )
-        } else {
-          paste0(prefix, "_diagonal[l] * pow(tau,2)")
         }
       }
       covariance_terms <- c(
@@ -1772,7 +2761,7 @@ set_selection_likelihood_control <- function(
           paste0(prefix, "_sampling_loading[j,", seq_len(sampling_rank), "]")
         )
       }
-      if (.is_data_random(data)) {
+      if (.is_data_random(data) && !is.null(random_covariance)) {
         residual_terms <- c(
           residual_terms,
           paste0(
@@ -1790,28 +2779,35 @@ set_selection_likelihood_control <- function(
             )
           )
         }
-      } else {
+      } else if (!.is_data_random(data)) {
         tau_within <- if (.is_data_multilevel(data)) "tau_within" else "tau"
         if (.is_data_scale(data)) {
           tau_within <- paste0(tau_within, "[", prefix, "_row[j]]")
         }
-        residual_terms <- c(
-          residual_terms,
-          paste0("pow(", tau_within, ",2)")
-        )
-        if (.is_data_multilevel(data)) {
+        if (.selection_integrates_estimate(data)) {
+          residual_terms <- c(
+            residual_terms,
+            paste0("pow(", tau_within, ",2)")
+          )
+        }
+        if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
           tau_between <- "tau_between"
           if (.is_data_scale(data)) {
             tau_between <- paste0(
               tau_between, "[", prefix, "_row[j]]"
             )
           }
-          loading_expressions <- c(loading_expressions, tau_between)
+          cluster_rank <- length(unique(data[["outcome"]][["cluster"]][rows]))
+          loading_expressions <- c(
+            loading_expressions,
+            paste0(tau_between, " * ", prefix, "_cluster_loading[j,",
+                   seq_len(cluster_rank), "]")
+          )
         }
       }
       if (length(loading_expressions) != factor_rank) {
         stop(
-          "Internal error: exact-selection factor syntax rank is inconsistent.",
+          "Internal error: selection factor syntax rank is inconsistent.",
           call. = FALSE
         )
       }
@@ -1844,10 +2840,16 @@ set_selection_likelihood_control <- function(
         "sel_z_lower,sel_z_upper,",
         prefix, "_obs_bin[1:", block_n, "],",
         "sel_sign,sel_telescope_probabilities,",
-        .selection_exact_kernel_mode_expression(selection_spec), ",",
-        "sel_exact_cluster_nodes,sel_exact_cluster_log_weights,",
-        "sel_exact_cluster_orders,",
-        format(plan[["relative_tolerance"]], scientific = FALSE), ")\n"
+        .selection_joint_kernel_mode_expression(selection_spec), ",",
+        "sel_joint_cluster_nodes,sel_joint_cluster_log_weights,",
+        "sel_joint_cluster_orders,",
+        qmc_name, "[1:", plan[["scrambles"]], ",1:",
+        plan[["factor_max_points_per_proposal"]], ",1:2],",
+        plan[["factor_points_per_proposal"]], ",",
+        plan[["factor_max_points_per_proposal"]], ",",
+        plan[["scrambles"]], ",",
+        format(plan[["relative_tolerance"]], scientific = FALSE), ",",
+        selection_spec[["jags_vector_rule"]], ")\n"
       )
     } else if (method == "factor") {
       paste0(
@@ -1860,19 +2862,21 @@ set_selection_likelihood_control <- function(
         "sel_z_lower,sel_z_upper,",
         prefix, "_obs_bin[1:", block_n, "],",
         "sel_sign,sel_telescope_probabilities,",
-        .selection_exact_kernel_mode_expression(selection_spec), ",",
-        .selection_exact_factor_quadrature_name("nodes", factor_rank), ",",
-        .selection_exact_factor_quadrature_name(
+        .selection_joint_kernel_mode_expression(selection_spec), ",",
+        .selection_joint_factor_quadrature_name("nodes", factor_rank), ",",
+        .selection_joint_factor_quadrature_name(
           "log_weights", factor_rank
         ), ",",
-        .selection_exact_factor_quadrature_name("orders", factor_rank), ",",
+        .selection_joint_factor_quadrature_name("orders", factor_rank), ",",
+        .selection_joint_factor_quadrature_name("rule_counts", factor_rank), ",",
         qmc_name, "[1:", plan[["scrambles"]], ",1:",
         plan[["factor_max_points_per_proposal"]], ",1:",
         2L * factor_rank, "],",
         plan[["factor_points_per_proposal"]], ",",
         plan[["factor_max_points_per_proposal"]], ",",
         plan[["scrambles"]], ",",
-        format(plan[["relative_tolerance"]], scientific = FALSE), ")\n"
+        format(plan[["relative_tolerance"]], scientific = FALSE), ",",
+        selection_spec[["jags_vector_rule"]], ")\n"
       )
     } else {
       paste0(
@@ -1884,19 +2888,22 @@ set_selection_likelihood_control <- function(
         "sel_z_lower,sel_z_upper,",
         prefix, "_obs_bin[1:", block_n, "],",
         "sel_sign,sel_telescope_probabilities,",
-        .selection_exact_kernel_mode_expression(selection_spec), ",",
+        .selection_joint_kernel_mode_expression(selection_spec), ",",
         qmc_name, "[1:", plan[["scrambles"]], ",1:",
         plan[["points_per_scramble"]], ",1:", 2L * block_n, "],",
         plan[["points_per_scramble"]], ",",
         plan[["scrambles"]], ",",
-        format(plan[["relative_tolerance"]], scientific = FALSE), ")\n"
+        format(plan[["relative_tolerance"]], scientific = FALSE), ",",
+        selection_spec[["jags_vector_rule"]], ",",
+        "sel_joint_cluster_nodes,sel_joint_cluster_log_weights,",
+        "sel_joint_cluster_orders)\n"
       )
     }
 
     syntax <- paste0(
       syntax,
       "for(j in 1:", block_n, "){\n",
-      "  ", prefix, "_mu[j] = sel_exact_mu[", prefix, "_row[j]]\n",
+      "  ", prefix, "_mu[j] = sel_joint_mu[", prefix, "_row[j]]\n",
       "}\n",
       factor_setup_syntax,
       covariance_syntax,
@@ -1905,4 +2912,29 @@ set_selection_likelihood_control <- function(
   }
 
   syntax
+}
+
+
+.selection_joint_dense_loglik_check_mcse <- function(relative_mcse, execution_plan) {
+
+  failed <- which(
+    !is.finite(relative_mcse) |
+      relative_mcse > execution_plan[["relative_tolerance"]]
+  )
+  if (length(failed) > 0L) {
+    observed <- relative_mcse[failed[[1L]]]
+    stop(
+      "Selection normalizer was rejected by diagnostics: relative ",
+      "Monte Carlo standard error was ", format(observed, digits = 4),
+      ". Increase 'points_per_scramble' in ",
+      "'set_selection_likelihood_control()'. Pass the control as ",
+      "'selection_control' when fitting, 'integration_control' in zplot(), ",
+      "or ",
+      "'density_control$integration_control' for supported post-fit ",
+      "densities and hypotheses.",
+      call. = FALSE
+    )
+  }
+
+  invisible(NULL)
 }

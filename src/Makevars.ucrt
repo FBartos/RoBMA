@@ -1,3 +1,5 @@
+CXX_STD = CXX17
+
 ######################################################################################################
 ###  This file is based on file in the runjags package (version 2.0)
 ###  The previous version of the file is Copyright (C) Matthew Denwood, licensed under GPL-2.
@@ -83,6 +85,8 @@ OBJECTS = distributions/DWN.o \
 		  distributions/DSELNORMMVSTEP.o \
 		  distributions/DSELNORMCLUSTERSTEP.o \
 		  distributions/DSELNORMFACTORSTEP.o \
+		  distributions/DSELNORMSAMPLINGCONDITIONED.o \
+		  samplers/CoarseCorrectedSlice.o \
 		  selnorm/selnorm.o \
 		  selnorm/selnorm-mv.o \
 		  glmm-aghq.o r-glmm.o r-known-v.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
@@ -90,6 +94,9 @@ OBJECTS = distributions/DWN.o \
 ###############
 
 all: $(SHLIB)
+
+samplers/CoarseCorrectedSlice.o: samplers/CoarseCorrectedSlice.h distributions/DSELNORMMVSTEP.h selnorm/selnorm-mv.h
+RoBMA.o r-selnorm.o: samplers/CoarseCorrectedSlice.h
 
 glmm-aghq.o: glmm-binomial-loglik.h
 
@@ -111,6 +118,7 @@ R_SELNORM_INC = r-selnorm-common.cc.inc \
 				r-selnorm-cluster.cc.inc \
 				r-selnorm-loglik.cc.inc \
 				r-selnorm-mv.cc.inc \
+				r-selnorm-sampling-conditioned.cc.inc \
 				r-selnorm-kernel.cc.inc \
 				r-selnorm-funnel-zcurve.cc.inc
 
@@ -125,5 +133,9 @@ r-selnorm.o: $(R_SELNORM_INC) selnorm/selnorm.h selnorm/selnorm-mv.h
 selnorm/selnorm.o: $(SELNORM_INC) selnorm/selnorm.h
 
 selnorm/selnorm-mv.o distributions/DSELNORMMVSTEP.o distributions/DSELNORMCLUSTERSTEP.o distributions/DSELNORMFACTORSTEP.o: selnorm/selnorm-mv.h selnorm/selnorm.h
+selnorm/selnorm-mv.o: selnorm/selnorm-event.cc.inc selnorm/selnorm-sampling-conditioned.cc.inc
+distributions/DSELNORMSAMPLINGCONDITIONED.o: selnorm/selnorm-mv.h selnorm/selnorm.h
 
 r-regplot.o distributions/DSELNORMSTEP.o distributions/DSELNORMSTEPSWITCH.o distributions/DSELNORMKERNEL.o: selnorm/selnorm.h
+
+$(filter distributions/DSELNORM%.o,$(OBJECTS)): distributions/selnorm-jags-bounds.h

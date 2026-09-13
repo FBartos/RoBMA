@@ -77,8 +77,7 @@ test_that("known-V radial tau uses extra variance samples", {
   attr(data, "known_V_data") <- .known_v_prepare(
     V                         = V,
     keep_rows                 = rep(TRUE, nrow(V)),
-    known_v_parameterization  = "block_mvn",
-    known_v_residual_fraction = NULL
+    known_v_parameterization  = "block_mvn"
   )
   object <- list(data = data)
   class(object) <- c("brma.mv", "brma")
@@ -103,8 +102,7 @@ test_that("known-V extra variance samples use the diagonal backend", {
   attr(data, "known_V_data") <- .known_v_prepare(
     V                         = V,
     keep_rows                 = rep(TRUE, nrow(V)),
-    known_v_parameterization  = "block_mvn",
-    known_v_residual_fraction = NULL
+    known_v_parameterization  = "block_mvn"
   )
   attr(data, "random")       <- TRUE
   object <- list(

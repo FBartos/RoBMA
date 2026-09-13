@@ -490,10 +490,29 @@
 
   list(
     unit             = unit,
-    retained_context = "remaining_data",
+    retained_context = .selection_deletion_retained_context(object[["data"]], object[["priors"]]),
     target           = target,
     data_hash        = data_hash
   )
+}
+
+
+.selection_deletion_retained_context <- function(data, priors) {
+
+  if (!.is_data_joint_selection(data) || !.selection_retains_sampling(data) ||
+      !.is_priors_weightfunction(priors)) return("remaining_data")
+  sources <- .data_selection_model(data)[["sources"]][["random"]]
+  if (!any(vapply(sources, function(source) !source[["retained"]], logical(1L)))) {
+    return("remaining_data")
+  }
+  # Singleton dependency blocks integrate the deleted sampling error without
+  # conditioning on errors from other observations. Source roles alone do not
+  # distinguish that target from genuinely dependent sampling-error deletion.
+  blocks <- .data_selection_execution_plan(data)[["row_blocks"]]
+  if (length(blocks) > 0L && all(lengths(blocks) == 1L)) {
+    return("remaining_data")
+  }
+  "remaining_data_and_remaining_sampling_errors"
 }
 
 

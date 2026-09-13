@@ -79,6 +79,119 @@ test_that("the random semantic interface exposes every public quantity", {
 })
 
 
+test_that("RoBMA maps BayesTools random quantities at its I/O boundary", {
+
+  expect_identical(
+    .brma_random_parameter_io_quantity_map(),
+    c(
+      sd         = "tau",
+      var        = "tau2",
+      sd_total   = "tau_total",
+      var_total  = "tau2_total",
+      sd_common  = "tau_common",
+      var_common = "tau2_common",
+      cor        = "rho",
+      var_prop   = "tau2_prop",
+      sd_mult    = "tau_mult",
+      var_mult   = "tau2_mult"
+    )
+  )
+  expect_identical(
+    .brma_random_parameter_io_names(
+      c(
+        "(mu) study: sd(intercept)", "var_total", "cor(a,b)",
+        "allocation: var_prop(study)", "sd_common"
+      ),
+      c("sd", "var_total", "cor", "var_prop", "sd_common")
+    ),
+    c(
+      "(mu) study: tau(intercept)", "tau2_total", "rho(a,b)",
+      "allocation: tau2_prop(study)", "tau_common"
+    )
+  )
+})
+
+
+test_that("public draws replace backend random coordinates with RoBMA names", {
+
+  coordinate_values <- cbind(
+    mu                 = 1:3,
+    backend_random_sd  = c(.2, .3, .4),
+    random_inclusion   = c(1, 0, 1),
+    backend_random_z   = c(-1, 0, 1)
+  )
+  semantic_values <- cbind(
+    backend_tau  = coordinate_values[, "backend_random_sd"],
+    backend_tau2 = coordinate_values[, "backend_random_sd"]^2
+  )
+  coordinate_chain <- coda::mcmc(coordinate_values, start = 5, thin = 2)
+  semantic_chain   <- coda::mcmc(semantic_values, start = 5, thin = 2)
+  object <- structure(list(fit = list()), class = "brma")
+
+  testthat::local_mocked_bindings(
+    parameter_coordinates = function(...) data.frame(
+      coordinate_name = colnames(coordinate_values),
+      role = c(
+        "fixed_coefficient", "random_sd", "random_inclusion", "random_latent"
+      )
+    ),
+    .package = "BayesTools"
+  )
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_bundle = function(...) list(
+      samples = coda::mcmc.list(semantic_chain),
+      specs   = data.frame(label = c("tau", "tau2"))
+    ),
+    .package = "RoBMA"
+  )
+
+  out <- .brma_replace_random_coordinates(
+    object,
+    coda::mcmc.list(coordinate_chain)
+  )
+  values <- as.matrix(out[[1L]])
+
+  expect_identical(
+    colnames(values),
+    c("mu", "random_inclusion", "backend_random_z", "tau", "tau2")
+  )
+  expect_equal(values[, "tau"], coordinate_values[, "backend_random_sd"])
+  expect_equal(values[, "tau2"], coordinate_values[, "backend_random_sd"]^2)
+  expect_identical(coda::mcpar(out[[1L]]), coda::mcpar(coordinate_chain))
+})
+
+
+test_that("random summary rows use the RoBMA I/O map", {
+
+  estimates <- matrix(
+    c(.2, .1, .4, .3),
+    nrow = 2L,
+    dimnames = list(c("sd", "cor(a,b)"), c("Mean", "SD"))
+  )
+  attr(estimates, "parameters") <- c("(mu) sd", "(mu) cor(a,b)")
+  quantities <- data.frame(
+    canonical_name = c("(mu) sd", "(mu) cor(a,b)"),
+    role           = c("random_sd", "random_correlation"),
+    quantity       = c("sd", "cor")
+  )
+  testthat::local_mocked_bindings(
+    parameter_catalog = function(...) list(quantities = quantities),
+    .package = "BayesTools"
+  )
+
+  out <- .summary_random_repair_parameter_names(
+    estimates,
+    list(fit = list())
+  )
+
+  expect_identical(rownames(out), c("tau", "rho(a,b)"))
+  expect_identical(
+    attr(out, "parameters"),
+    c("(mu) tau", "(mu) rho(a,b)")
+  )
+})
+
+
 test_that("random-parameter sources are consumed from the BayesTools catalog", {
 
   summaries <- list(
@@ -223,7 +336,7 @@ test_that("random extraction avoids redundant catalog and dependency work", {
   expect_identical(extracted_ids, "(mu) study: sd(b)")
   expect_length(materialized_dependencies, 0L)
   expect_identical(supplied_model_samples, FALSE)
-  expect_identical(colnames(out[["samples"]]), "(mu) study: sd(b)")
+  expect_identical(colnames(out[["samples"]]), "(mu) study: tau(b)")
   expect_identical(out[["specs"]][["source_parameter"]], "sd_b")
 
   .brma_random_parameter_extract_fit(fit, selections = selections)
@@ -321,7 +434,7 @@ test_that("random qCMDE targets retain stored semantic coordinates", {
   mock_random_marginal_update_plan()
   z <- c(-0.5, 0, 0.5)
   fit <- structure(
-    list(mcmc = matrix(z, ncol = 1L, dimnames = list(NULL, "study_rho_z"))),
+    coda::mcmc(matrix(z, ncol = 1L, dimnames = list(NULL, "study_rho_z"))),
     prior_list = list(
       study_rho_z = BayesTools::prior(
         "normal",
@@ -357,7 +470,7 @@ test_that("bivariate LKJ correlations expose their scalar qCMDE coordinate", {
   mock_random_marginal_update_plan()
   probability <- c(0.25, 0.5, 0.75)
   fit <- structure(
-    list(mcmc = matrix(
+    coda::mcmc(matrix(
       probability,
       ncol = 1L,
       dimnames = list(NULL, "study_lkj_probability")
@@ -403,7 +516,7 @@ test_that("variance aggregates expose squared-SD qCMDE coordinates", {
   mock_random_marginal_update_plan()
   common_sd <- c(0.25, 0.5, 1)
   fit <- structure(
-    list(mcmc = matrix(
+    coda::mcmc(matrix(
       common_sd,
       ncol = 1L,
       dimnames = list(NULL, "heterogeneity_common_sd")
@@ -471,7 +584,7 @@ test_that("random qCMDE targets support general simplex allocations", {
   )
   attr(summary_prior, "random_allocation_index") <- 2L
   fit <- structure(
-    list(mcmc = posterior),
+    coda::mcmc(posterior),
     prior_list = list(allocation = source_prior)
   )
   selected <- list(
@@ -543,7 +656,7 @@ test_that("allocated component SD targets use declared catalog provenance", {
     )
   )
   fit <- structure(
-    list(mcmc = posterior),
+    coda::mcmc(posterior),
     formula_design = list(list(
       parameter      = "mu",
       random_effects = list(term)

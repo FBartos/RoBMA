@@ -9,8 +9,8 @@ fit_model	fit_brma_null	2.450000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_BMA	12.690000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma	12.450000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma_null	12.690000000	NA	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma	2.770000000	NA	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_null	2.730000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma	1.510000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_null	1.390000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 time	BF_mu_1	0.070000000	0.267481	4.6.0	Windows/x86_64-w64-mingw32
 time	BF_mu_2	0.530000000	0.413184	4.6.0	Windows/x86_64-w64-mingw32
 time	BF_mu_3	0.720000000	0.419336	4.6.0	Windows/x86_64-w64-mingw32

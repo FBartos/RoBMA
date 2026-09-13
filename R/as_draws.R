@@ -28,10 +28,8 @@
 #' \code{brma} object; default methods forward non-\code{brma} objects to the
 #' corresponding \pkg{posterior} conversion function.
 #' @param include_auxiliary logical; whether to include raw backend auxiliary
-#' variables. Defaults to \code{FALSE}, returning the stable model-parameter
-#' schema. Set to \code{TRUE} to expose the non-private coordinates recorded
-#' by the fitted BayesTools parameter map without adding RoBMA-derived
-#' quantities.
+#' variables in addition to the stable model-parameter schema. Formula-random
+#' parameters retain their RoBMA semantic names in either case.
 #' @param ... additional arguments passed to the corresponding
 #' \pkg{posterior} function.
 #'
@@ -56,24 +54,16 @@
 #' \pkg{posterior} conversion function. By default, backend-private latent
 #' effects, known-\code{V} dependency factors, random-effect simulation and
 #' Cholesky factors, and prior-parameterization variables are omitted. Stable
-#' fitted coordinates such as covariance parameters, allocation weights, model
-#' indicators, and likelihood parameters remain available, together with
-#' derived correlation matrices. This export uses the coordinate view of the
-#' fitted parameter map, whereas summaries, plots, density estimation, and
-#' hypotheses use its semantic catalog view; draw-column names are not
-#' additional aliases for public quantities such as `sd_total`, `sd_common`, or
-#' `var_prop(...)`.
-#' Scalar-structure random-effect correlation matrices are reconstructed from
-#' compact rho draws on demand; those compact internal coordinates are never
-#' returned. Conversion fails before allocating the dense matrices when
-#' their combined draw-by-matrix size exceeds
-#' `getOption("RoBMA.max_derived_correlation_cells", 2e7)`. Increase this option
-#' explicitly when the dense output matrices are required. Use
+#' fitted coordinates such as model indicators and likelihood parameters
+#' remain available. Formula-random coordinates are replaced by their semantic
+#' RoBMA quantities using the same names as summaries, plots, and hypotheses,
+#' such as `tau_total`, `tau_common`, `rho(...)`, and `tau2_prop(...)`.
 #' Structural point-prior coordinates are returned as exact constant columns,
 #' with chain timing taken from the fitted draw geometry. Private backend
 #' anchors are never exposed. Use `include_auxiliary = TRUE` to skip RoBMA
-#' filtering and derivation while retaining BayesTools' public/private
-#' boundary. \code{brma_samples} objects have
+#' auxiliary filtering; added backend variables retain their coordinate names,
+#' while public random-effect parameters retain their RoBMA names.
+#' \code{brma_samples} objects have
 #' separate methods documented at \code{\link{as_draws.brma_samples}}.
 #'
 #' @return An object of the corresponding \pkg{posterior} draws class.
@@ -119,122 +109,68 @@ NULL
   )
   mcmc_list <- BayesTools::JAGS_materialize_draws(x[["fit"]])
   if (include_auxiliary) {
+    if (.is_random(x)) {
+      return(.brma_replace_random_coordinates(x, mcmc_list))
+    }
     return(mcmc_list)
   }
 
   mcmc_list <- .brma_filter_auxiliary_variables(x, mcmc_list)
-  return(.brma_append_derived_random_correlations(x, mcmc_list))
+  if (.is_random(x)) {
+    return(.brma_replace_random_coordinates(x, mcmc_list))
+  }
+  return(mcmc_list)
 }
 
 
-# Reconstruct output scalar-structure correlation matrices from compact rho draws.
-.brma_append_derived_random_correlations <- function(x, mcmc_list) {
+# Replace fitted formula-random coordinates by RoBMA semantic quantities.
+.brma_replace_random_coordinates <- function(x, mcmc_list) {
 
-  formula_design <- attr(x[["fit"]], "formula_design", exact = TRUE)
-  if (is.null(formula_design) || !is.list(formula_design)) {
-    return(mcmc_list)
+  coordinates <- BayesTools::parameter_coordinates(x[["fit"]])
+  random_coordinates <- coordinates[
+    coordinates[["role"]] %in% c("random_sd", "random_correlation"),
+    "coordinate_name",
+    drop = TRUE
+  ]
+  bundle          <- .brma_random_parameter_bundle(x, chains = TRUE)
+  semantic_chains <- bundle[["samples"]]
+  semantic_names  <- bundle[["specs"]][["label"]]
+  if (length(semantic_names) != ncol(semantic_chains[[1L]])) {
+    stop("Semantic random-effect draw names are inconsistent.", call. = FALSE)
   }
 
-  random_terms <- unlist(lapply(formula_design, function(design) {
-    if (is.null(design[["random_effects"]])) {
-      return(list())
-    }
-    design[["random_effects"]]
-  }), recursive = FALSE)
-  compact_names <- .brma_random_correlation_coordinate_names(random_terms)
-  mcmc_list <- .brma_materialize_random_correlation_coordinates(
-    x            = x,
-    mcmc_list    = mcmc_list,
-    random_terms = random_terms
-  )
-  .brma_check_derived_random_correlation_budget(
-    random_terms = random_terms,
-    mcmc_list    = mcmc_list
-  )
-  return(.brma_append_derived_random_correlation_terms(
-    mcmc_list      = mcmc_list,
-    random_terms   = random_terms,
-    omit_variables = compact_names
-  ))
-}
-
-
-# Return the compact coordinates used to derive public scalar correlations.
-.brma_random_correlation_coordinate_names <- function(random_terms) {
-
-  names <- unlist(lapply(random_terms, function(random_term) {
-    spec <- .brma_derived_random_correlation_spec(random_term)
-    if (is.null(spec)) {
-      return(character())
-    }
-    correlation <- spec[["random_term"]][["correlation"]]
-    if (!is.list(correlation)) {
-      return(character())
-    }
-    c(correlation[["rho_name"]], correlation[["sample_name"]])
-  }), use.names = FALSE)
-  names <- names[is.character(names) & !is.na(names) & nzchar(names)]
-
-  return(unique(names))
-}
-
-
-# Materialize only missing sampled rho coordinates needed for reconstruction.
-.brma_materialize_random_correlation_coordinates <- function(x, mcmc_list,
-                                                              random_terms) {
-
-  variables <- colnames(as.matrix(mcmc_list[[1L]]))
-  parameters <- unlist(lapply(random_terms, function(random_term) {
-    spec <- .brma_derived_random_correlation_spec(random_term)
-    if (is.null(spec) || spec[["n_columns"]] == 1L) {
-      return(character())
-    }
-    correlation <- spec[["random_term"]][["correlation"]]
-    if (!is.list(correlation) || !is.null(correlation[["sample_fixed"]])) {
-      return(character())
-    }
-    candidates <- unique(c(
-      correlation[["rho_name"]],
-      correlation[["sample_name"]]
-    ))
-    candidates <- candidates[
-      is.character(candidates) & !is.na(candidates) & nzchar(candidates)
-    ]
-    if (any(candidates %in% variables)) {
-      return(character())
-    }
-    correlation[["rho_name"]]
-  }), use.names = FALSE)
-  parameters <- unique(parameters[
-    is.character(parameters) & !is.na(parameters) & nzchar(parameters)
-  ])
-  if (length(parameters) == 0L) {
-    return(mcmc_list)
-  }
-
-  internal <- BayesTools::JAGS_materialize_draws(
-    x[["fit"]],
-    parameters       = parameters,
-    include_internal = TRUE
-  )
-  if (length(internal) != length(mcmc_list)) {
-    stop(
-      "Internal random-correlation draws disagree with the public draw geometry.",
-      call. = FALSE
-    )
-  }
   chains <- lapply(seq_along(mcmc_list), function(chain_i) {
-    public_chain   <- mcmc_list[[chain_i]]
-    internal_chain <- internal[[chain_i]]
-    if (nrow(public_chain) != nrow(internal_chain) ||
-        !identical(coda::mcpar(public_chain), coda::mcpar(internal_chain))) {
+    coordinate_chain <- mcmc_list[[chain_i]]
+    semantic_chain   <- semantic_chains[[chain_i]]
+    if (nrow(coordinate_chain) != nrow(semantic_chain) ||
+        !identical(coda::mcpar(coordinate_chain), coda::mcpar(semantic_chain))) {
       stop(
-        "Internal random-correlation draws disagree with the public draw geometry.",
+        "Semantic random-effect draws disagree with the fitted draw geometry.",
         call. = FALSE
       )
     }
-    values <- cbind(as.matrix(public_chain), as.matrix(internal_chain))
-    mcpar  <- coda::mcpar(public_chain)
+
+    coordinate_values <- as.matrix(coordinate_chain)
+    coordinate_values <- coordinate_values[
+      , !colnames(coordinate_values) %in% random_coordinates,
+      drop = FALSE
+    ]
+    semantic_values <- as.matrix(semantic_chain)
+    colnames(semantic_values) <- semantic_names
+    duplicate_names <- intersect(
+      colnames(coordinate_values),
+      colnames(semantic_values)
+    )
+    if (length(duplicate_names) > 0L) {
+      stop(
+        "RoBMA semantic random-effect names conflict with fitted draw names: ",
+        paste0("'", duplicate_names, "'", collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+
+    values <- cbind(coordinate_values, semantic_values)
+    mcpar  <- coda::mcpar(coordinate_chain)
     coda::mcmc(
       values,
       start = mcpar[[1L]],
@@ -243,134 +179,7 @@ NULL
     )
   })
 
-  return(coda::mcmc.list(chains))
-}
-
-
-# Guard the total dense output allocation before deriving any matrices.
-.brma_check_derived_random_correlation_budget <- function(random_terms,
-                                                          mcmc_list) {
-
-  max_cells <- getOption("RoBMA.max_derived_correlation_cells", 2e7)
-  if (!is.numeric(max_cells) || length(max_cells) != 1L ||
-      is.na(max_cells) || max_cells < 1) {
-    stop(
-      "Option 'RoBMA.max_derived_correlation_cells' must be a positive numeric scalar.",
-      call. = FALSE
-    )
-  }
-  n_draws <- sum(vapply(mcmc_list, nrow, integer(1)))
-  required_cells <- sum(vapply(random_terms, function(random_term) {
-    spec <- .brma_derived_random_correlation_spec(random_term)
-    if (is.null(spec)) {
-      return(0)
-    }
-    as.numeric(spec[["n_columns"]])^2 * n_draws
-  }, numeric(1)))
-  if (required_cells > max_cells) {
-    stop(
-      "Default draw conversion would derive ",
-      format(required_cells, scientific = FALSE, trim = TRUE),
-      " dense random-correlation cells, exceeding option ",
-      "'RoBMA.max_derived_correlation_cells' (",
-      format(max_cells, scientific = FALSE, trim = TRUE),
-      "). Increase the option or use 'include_auxiliary = TRUE' to return ",
-      "raw backend draws without derivation.",
-      call. = FALSE
-    )
-  }
-
-  return(invisible(required_cells))
-}
-
-
-# Validate metadata needed to reconstruct one scalar correlation structure.
-.brma_derived_random_correlation_spec <- function(random_term) {
-
-  structure <- random_term[["structure"]]
-  if (!is.character(structure) || length(structure) != 1L ||
-      is.na(structure) ||
-      !tolower(structure) %in% c("cs", "hcs", "ar1", "car", "har")) {
-    return(NULL)
-  }
-  monitor <- random_term[["monitor"]]
-  if (!is.null(monitor) && !isTRUE(monitor[["correlation"]])) {
-    return(NULL)
-  }
-
-  parameter_stem <- random_term[["parameter_stem"]]
-  n_columns      <- random_term[["n_columns"]]
-  if (!is.character(parameter_stem) || length(parameter_stem) != 1L ||
-      is.na(parameter_stem) || !nzchar(parameter_stem) ||
-      !is.numeric(n_columns) || length(n_columns) != 1L ||
-      is.na(n_columns) || !is.finite(n_columns) ||
-      n_columns != floor(n_columns) || n_columns < 1 ||
-      n_columns > .Machine$integer.max) {
-    stop("Invalid scalar random-correlation metadata in fitted object.",
-         call. = FALSE)
-  }
-  n_columns        <- as.integer(n_columns)
-  correlation_base <- paste0(parameter_stem, "_xRE_CORx_R")
-
-  return(list(
-    random_term      = random_term,
-    block_name       = random_term[["block_name"]],
-    parameter_stem   = parameter_stem,
-    n_columns        = n_columns,
-    correlation_base = correlation_base
-  ))
-}
-
-
-# Generate canonical column names for one derived correlation matrix.
-.brma_derived_random_correlation_names <- function(spec) {
-
-  return(unlist(lapply(seq_len(spec[["n_columns"]]), function(column) {
-    paste0(
-      spec[["correlation_base"]], "[",
-      seq_len(spec[["n_columns"]]), ",", column, "]"
-    )
-  }), use.names = FALSE))
-}
-
-
-# Reconstruct scalar correlation matrices with one copy per chain.
-.brma_append_derived_random_correlation_terms <- function(
-    mcmc_list, random_terms, omit_variables = character()) {
-
-  specs <- lapply(random_terms, .brma_derived_random_correlation_spec)
-  specs <- specs[!vapply(specs, is.null, logical(1))]
-  if (length(specs) == 0L) {
-    return(mcmc_list)
-  }
-
-  chains <- lapply(mcmc_list, function(chain) {
-    values  <- as.matrix(chain)
-    derived <- lapply(specs, function(spec) {
-      matrix(
-        BayesTools::random_effects_correlation_draws(
-          random_term       = spec[["random_term"]],
-          posterior_samples = values
-        ),
-        nrow     = nrow(values),
-        dimnames = list(NULL, .brma_derived_random_correlation_names(spec))
-      )
-    })
-    combined <- do.call(cbind, c(list(values), derived))
-    combined <- combined[
-      , !colnames(combined) %in% omit_variables,
-      drop = FALSE
-    ]
-    mcpar <- coda::mcpar(chain)
-    coda::mcmc(
-      combined,
-      start = mcpar[[1L]],
-      end   = mcpar[[2L]],
-      thin  = mcpar[[3L]]
-    )
-  })
-
-  return(coda::mcmc.list(chains))
+  coda::mcmc.list(chains)
 }
 
 

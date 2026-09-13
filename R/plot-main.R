@@ -11,7 +11,9 @@
 #' present. Additional options are \code{"tau"}, \code{"rho"} for multilevel
 #' models, \code{"PET"}, \code{"PEESE"}, and \code{"omega"} or
 #' \code{"weightfunction"} for selection models. Use \code{plot_pet_peese()}
-#' for PET/PEESE regression plots.
+#' for PET/PEESE regression plots. Factor terms select all coefficient cells;
+#' use a semantic selector such as \code{"group[level]"} to plot one cell.
+#' Structural point masses are retained.
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #' with \code{component = "mods"}. Use \code{"intercept"} for the
 #' adjusted effect in meta-regression models.
@@ -42,16 +44,16 @@
 #' more sensitive to its fitted conditional weights. Matching is
 #' case-insensitive. For semantic random-effect quantities, qCMDE/IWMDE support
 #' direct scalar fitted sources, allocated component SDs backed by a scalar
-#' aggregate (`sd_total` or `sd_common`), and allocation proportions or
+#' aggregate (`tau_total` or `tau_common`), and allocation proportions or
 #' multipliers
 #' backed by a fitted simplex coordinate. Other nonlinear derived quantities
 #' remain KDE-only. Shared inclusion gates are supported for aggregate and
 #' component SDs and allocation proportions. SDs retain their excluded zero
 #' branches; proportions condition on positive total heterogeneity.
 #' In independently gated allocations, realized
-#' `sd_total`/`var_total` and `var_prop(...)` are KDE-only because they combine
+#' `tau_total`/`tau2_total` and `tau2_prop(...)` are KDE-only because they combine
 #' multiple gate and allocation coordinates. Their structural point masses are
-#' displayed separately from the continuous density; `var_prop(...)` is
+#' displayed separately from the continuous density; `tau2_prop(...)` is
 #' conditioned on positive realized total heterogeneity.
 #' qCMDE/IWMDE are not available for non-known-\code{V}
 #' \code{brma.mv()} random-formula models or
@@ -68,6 +70,15 @@
 #' (default \code{"adaptive"}), \code{normalization_points} (default
 #' \code{NULL}, resolved to \code{max(50, n_points)}), and
 #' \code{normalization_prob} (default \code{0.999}).
+#' \code{integration_control} (default \code{NULL}) retains the fitted
+#' selection-integration settings. Supply a control created by
+#' [set_selection_likelihood_control()] to change those settings for this
+#' post-fit calculation, for example
+#' \code{list(integration_control = set_selection_likelihood_control(max_points_per_scramble = 32768))}.
+#' This entry is available for Gaussian selection models with a fitted integration plan.
+#' The fitted object and posterior draws are unchanged. The maximum point budget
+#' controls factor QMC fallback; analytic and deterministic quadrature rules
+#' remain unchanged.
 #' \code{samples} controls the fixed posterior-row budget for the density
 #' curve. \code{target_relative_mcse} is a point-ordinate diagnostic target and
 #' does not alter this fixed-budget density plot. The normalization entries are
@@ -124,6 +135,12 @@
 #' }
 #' }
 #'
+#'
+#' @details A returned qCMDE/IWMDE estimate that fails the density availability
+#' checks raises a `RoBMA_density_plot_error` identifying the plotted parameter.
+#' Its `density_diagnostics` field contains the returned diagnostic records,
+#' including computed density values and selected rows, without executable
+#' estimate plans that could retain the fitted object.
 #'
 #' @return \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
 #' or a \code{ggplot2} object if \code{plot_type = "ggplot"}.
@@ -254,7 +271,7 @@ lines.brma <- function(
     component        = component,
     object           = x
   )
-  parameter_entry <- .brma_parameter_select_entry(x, parameter)
+  parameter_entry <- .brma_parameter_select_entry(x, parameter, allow_factor_cells = TRUE)
   plot_transform  <- .plot_output_setup(
     object          = x,
     parameter       = parameter,
@@ -265,8 +282,35 @@ lines.brma <- function(
 
   ### obtain posterior samples in the plotting format
   is_random       <- identical(parameter_entry[["component"]], "random")
+  is_factor_cell  <- !is.null(parameter_entry[["parent_parameter"]])
+  structural_cell <- FALSE
   random_label    <- NULL
-  if (is_random) {
+  if (is_factor_cell) {
+    cell <- .plot_brma_factor_cell_samples(
+      object = x, entry = parameter_entry,
+      standardized_coefficients = standardized_coefficients,
+      conditional = conditional,
+      precomputed = .density_method_uses_precomputed(density_method)
+    )
+    samples <- cell[["samples"]]
+    sample_parameter <- density_sample_parameter <- parameter
+    structural_cell <- cell[["structural"]]
+    if (.density_method_uses_precomputed(density_method) && !structural_cell) {
+      samples <- .plot_brma_attach_iwmde(
+        object = x, samples = samples, parameter = parameter,
+        sample_parameter = parameter,
+        conditional = if (conditional) parameter_entry[["parent_parameter"]] else NULL,
+        n_points = density_control[["n_points"]],
+        sample_budget = density_control[["samples"]],
+        normalization_points = density_control[["normalization_points"]],
+        normalization_prob = density_control[["normalization_prob"]],
+        integration_control = density_control[["integration_control"]],
+        density_method = density_method,
+        display_grid = density_control[["display_grid"]],
+        parameter_spec = cell[["parameter_spec"]]
+      )
+    }
+  } else if (is_random) {
     if (conditional && .density_method_uses_precomputed(density_method)) {
       stop("Conditional random-effect plots support 'density_method = \"KDE\"' only.",
            call. = FALSE)
@@ -296,6 +340,7 @@ lines.brma <- function(
         sample_budget        = density_control[["samples"]],
         normalization_points = density_control[["normalization_points"]],
         normalization_prob   = density_control[["normalization_prob"]],
+        integration_control  = density_control[["integration_control"]],
         density_method       = density_method,
         display_grid         = density_control[["display_grid"]],
         parameter_spec       = target[["parameter_spec"]],
@@ -332,6 +377,7 @@ lines.brma <- function(
         sample_budget           = density_control[["samples"]],
         normalization_points    = density_control[["normalization_points"]],
         normalization_prob      = density_control[["normalization_prob"]],
+        integration_control     = density_control[["integration_control"]],
         density_method          = density_method,
         display_grid            = density_control[["display_grid"]],
         parameter_spec          = parameter_spec
@@ -344,8 +390,9 @@ lines.brma <- function(
   dots       <- do.call(.set_dots_plot, c(dots_raw, list(n_levels = n_levels)))
   dots_prior <- .set_dots_prior(dots_prior)
   if (is.null(dots[["par_name"]])) {
-    dots[["par_name"]] <- if (is_random) random_label else
-      .plot_parameter_label(parameter, plot_transform)
+    dots[["par_name"]] <- if (is_random) random_label else if (is_factor_cell) {
+      parameter_entry[["selection"]][["quantities"]][["display_label"]]
+    } else .plot_parameter_label(parameter, plot_transform)
   }
 
   # prepare the argument call
@@ -366,11 +413,12 @@ lines.brma <- function(
   ) {
     "precomputed"
   } else {
-    if (.density_method_uses_precomputed(density_method)) {
-      stop(
-        .plot_brma_iwmde_unavailable_message(samples, density_method),
-        call. = FALSE
-      )
+    if (.density_method_uses_precomputed(density_method) && !structural_cell) {
+      stop(.plot_brma_iwmde_unavailable_error(
+        samples        = samples,
+        density_method = density_method,
+        parameter      = if (is_random) random_label else parameter
+      ))
     }
     "KDE"
   }
@@ -381,7 +429,12 @@ lines.brma <- function(
   }
 
   # suppress messages about transformations
-  plot <- suppressMessages(do.call(BayesTools::plot_posterior, args))
+  renderer <- BayesTools::plot_posterior
+  if (is_factor_cell) {
+    args[c("n_samples", "force_samples", "individual", "show_figures")] <- NULL
+    renderer <- BayesTools::plot_marginal
+  }
+  plot <- suppressMessages(do.call(renderer, args))
 
   # return the plots
   if(plot_type == "base"){
@@ -398,7 +451,8 @@ lines.brma <- function(
                                     normalization_points,
                                     normalization_prob, density_method,
                                     display_grid, parameter_spec = NULL,
-                                    display_transform = NULL) {
+                                    display_transform = NULL,
+                                    integration_control = NULL) {
 
   if (is.null(normalization_points)) {
     normalization_points <- max(50L, n_points)
@@ -407,7 +461,7 @@ lines.brma <- function(
     samples          = samples,
     sample_parameter = sample_parameter
   )
-  context        <- .iwmde_context(object)
+  context        <- .iwmde_context(object, integration_control)
   estimate_cache <- .iwmde_estimate_cache()
 
   if (inherits(samples[[sample_parameter]], "mixed_posteriors.factor")) {
@@ -421,6 +475,7 @@ lines.brma <- function(
       sample_budget        = sample_budget,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
+      integration_control  = integration_control,
       density_method       = density_method,
       display_grid         = display_grid,
       context              = context,
@@ -452,6 +507,7 @@ lines.brma <- function(
       samples              = sample_budget,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
+      integration_control  = integration_control,
       display_grid         = display_grid
     ),
     outputs        = "density",
@@ -585,7 +641,8 @@ lines.brma <- function(
                                            normalization_points,
                                            normalization_prob,
                                            density_method, display_grid,
-                                           context, estimate_cache) {
+                                           context, estimate_cache,
+                                           integration_control = NULL) {
 
   sample <- samples[[sample_parameter]]
   if (is.null(colnames(sample))) {
@@ -660,6 +717,7 @@ lines.brma <- function(
         samples              = sample_budget,
         normalization_points = normalization_points,
         normalization_prob   = normalization_prob,
+        integration_control  = integration_control,
         display_grid         = display_grid
       ),
       outputs        = "density",
@@ -718,6 +776,7 @@ lines.brma <- function(
         samples              = sample_budget,
         normalization_points = normalization_points,
         normalization_prob   = normalization_prob,
+        integration_control  = integration_control,
         display_grid         = display_grid
       ),
       outputs        = "density",
@@ -1006,26 +1065,40 @@ lines.brma <- function(
 }
 
 
-.plot_brma_iwmde_unavailable_message <- function(samples, density_method) {
+.plot_brma_iwmde_unavailable_error <- function(samples, density_method,
+                                               parameter) {
 
   details <- .plot_brma_iwmde_unavailable_reason(samples)
+  subject <- paste0(density_method, " density for '", parameter, "'")
   if (is.null(details)) {
-    return(paste0(density_method, " density was not available."))
+    message <- paste0(subject, " was unavailable.")
+  } else {
+    status <- if (isTRUE(details[["rejected"]])) {
+      " was rejected by diagnostics: "
+    } else {
+      " was unavailable: "
+    }
+    message <- paste0(subject, status, sub("[.]+$", "", details[["reason"]]), ".")
   }
-  if (!isTRUE(details[["rejected"]])) {
-    return(paste0(
-      density_method,
-      " density was unavailable: ",
-      details[["reason"]],
-      "."
-    ))
-  }
+  diagnostics <- lapply(
+    attr(samples, "iwmde_diagnostics", exact = TRUE),
+    function(diagnostic) {
 
-  return(paste0(
-    density_method,
-    " density was rejected by diagnostics: ",
-    details[["reason"]],
-    "."
+      # Executable row-state plans contain closures that can retain the fit.
+      diagnostic[["plan"]] <- NULL
+      diagnostic
+    }
+  )
+
+  return(structure(
+    list(
+      message             = message,
+      call                = NULL,
+      parameter           = parameter,
+      density_method      = density_method,
+      density_diagnostics = diagnostics
+    ),
+    class = c("RoBMA_density_plot_error", "error", "condition")
   ))
 }
 
@@ -1081,4 +1154,118 @@ lines.brma <- function(
   }
 
   return(identical(raw_samples, plotted_samples))
+}
+
+
+# Prepare one semantic factor cell using its catalog extraction weights. The
+# parent term supplies only the established prior and conditioning metadata.
+.plot_brma_factor_cell_samples <- function(
+    object, entry, standardized_coefficients, conditional, precomputed) {
+
+  parent <- entry[["parent_parameter"]]
+  selection <- entry[["selection"]]
+  key <- selection[["quantities"]][["extraction_key"]][[1L]]
+  weights <- switch(key[["type"]],
+    coordinate = stats::setNames(1, key[["dependencies"]]),
+    factor_level = stats::setNames(key[["weights"]], key[["dependencies"]]),
+    NULL)
+  if (is.null(weights)) {
+    stop("Selected factor-cell extraction metadata are unavailable.", call. = FALSE)
+  }
+  if (length(weights)) weights <- .iwmde_linear_weights(weights)
+  raw <- .brma_as_mixed_posteriors(
+    object, parent, conditional = if (conditional) parent else NULL,
+    transform_scaled = FALSE
+  )
+  raw_marginal <- BayesTools::marginal_posterior(
+    raw, parent, prior_samples = TRUE, use_formula = FALSE
+  )
+  same_weights <- function(sample, target = weights) {
+
+    candidate <- .iwmde_linear_weights(attr(sample, "linear_weights", exact = TRUE))
+    !is.null(candidate) && identical(unname(candidate[order(names(candidate))]),
+      unname(target[order(names(target))])) && setequal(names(candidate), names(target))
+  }
+  matches <- which(vapply(raw_marginal, same_weights, logical(1L)))
+  if (!length(matches)) {
+    stop("Selected factor-cell prior metadata do not match its fitted extraction weights.",
+      call. = FALSE)
+  }
+  # Multiple cells with the same exact weights represent the same quantity
+  # (for example structural zero interaction cells); no posterior matching.
+  level <- names(raw_marginal)[matches[[1L]]]
+  displayed <- raw
+  marginal <- raw_marginal
+  if (!standardized_coefficients) {
+    displayed <- .brma_as_mixed_posteriors(
+      object, parent, conditional = if (conditional) parent else NULL,
+      transform_scaled = TRUE
+    )
+    marginal <- BayesTools::marginal_posterior(
+      displayed, parent, prior_samples = TRUE, use_formula = FALSE
+    )
+  }
+  value <- marginal[[level]]
+  if (!is.numeric(value) || is.null(attr(value, "prior_density", exact = TRUE))) {
+    stop("Selected factor-cell posterior and prior are unavailable.", call. = FALSE)
+  }
+  source_samples <- as.matrix(displayed[[parent]])
+  if (ncol(source_samples) == 1L && length(key[["dependencies"]]) == 1L) {
+    coordinates <- BayesTools::parameter_coordinates(object[["fit"]])
+    sources <- coordinates[["coordinate_name"]][
+      coordinates[["role"]] == "fixed_coefficient" &
+        coordinates[["formula_parameter"]] == entry[["formula_parameter"]] &
+        coordinates[["term"]] == entry[["term"]] & !coordinates[["internal"]]
+    ]
+    # A one-dimensional contrast prior may name its sole mixed column with
+    # '[1]' even when the fitted source is scalar. The compiled term owns it.
+    if (length(sources) == 1L && identical(sources, key[["dependencies"]])) {
+      colnames(source_samples) <- sources
+    }
+  }
+  # Treatment/independent mixed posteriors use display column names. Recover
+  # their source coordinates only from exact unit-weight marginal metadata.
+  for (dependency in setdiff(key[["dependencies"]], colnames(source_samples))) {
+    unit <- stats::setNames(1, dependency)
+    source_cells <- which(vapply(raw_marginal, same_weights, logical(1L), target = unit))
+    if (!length(source_cells)) {
+      stop("Selected factor-cell source coordinates are unavailable.", call. = FALSE)
+    }
+    source <- marginal[[names(raw_marginal)[source_cells[[1L]]]]]
+    source_samples <- cbind(source_samples, as.numeric(source))
+    colnames(source_samples)[ncol(source_samples)] <- dependency
+  }
+  draws <- BayesTools::parameter_draws(object[["fit"]], selection,
+    model_samples = source_samples)
+  if (nrow(as.matrix(draws)) != length(value)) {
+    stop("Selected factor-cell draws have inconsistent row metadata.", call. = FALSE)
+  }
+  value[] <- as.numeric(as.matrix(draws))
+  attr(value, "parameter") <- entry[["parameter"]]
+  attr(value, "level_name") <- level
+  class(value) <- unique(c(class(value), "marginal_posterior"))
+  structural <- !length(weights)
+  if (precomputed && !standardized_coefficients && !structural) {
+    transform <- BayesTools::JAGS_formula_coefficient_transform(
+      object[["fit"]], entry[["formula_parameter"]], target_scale = "original"
+    )
+    targets <- match(names(weights), transform[["target_names"]])
+    if (anyNA(targets) ||
+        any(transform[["output_transforms"]][names(weights)] != "identity")) {
+      stop("qCMDE/IWMDE for this factor cell requires 'standardized_coefficients = TRUE'.",
+        call. = FALSE)
+    }
+    matrix <- transform[["matrix"]][targets, , drop = FALSE]
+    weights <- stats::setNames(as.numeric(crossprod(weights, matrix)), colnames(matrix))
+    weights <- .iwmde_linear_weights(weights)
+    if (any(transform[["source_transforms"]][names(weights)] != "identity")) {
+      stop("qCMDE/IWMDE for this factor cell requires 'standardized_coefficients = TRUE'.",
+        call. = FALSE)
+    }
+  }
+  samples <- stats::setNames(list(value), entry[["parameter"]])
+  list(samples = samples, structural = structural,
+    parameter_spec = .plot_brma_iwmde_parameter_spec(value,
+      conditional = if (conditional) parent else NULL,
+      type = "linear", weights = weights))
 }

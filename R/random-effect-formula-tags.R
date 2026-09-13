@@ -125,21 +125,21 @@
 #'
 #' BayesTools stores concrete coordinates, selectable semantic quantities, and
 #' aliases in one versioned parameter map. Its canonical random-effect names
-#' use `(formula) owner: quantity(arguments)`. RoBMA prints and accepts
-#' simplified aliases: a sole random intercept is `sd` for a bare block and
-#' `study: sd` for a named block, while a non-intercept coefficient remains
-#' explicit, for example `study: sd(x)`. The owner-free `sd` shorthand is
+#' use `(formula) owner: quantity(arguments)`. RoBMA maps these to meta-analytic
+#' I/O names: a sole random intercept is `tau` for a bare block and
+#' `study: tau` for a named block, while a non-intercept coefficient remains
+#' explicit, for example `study: tau(x)`. The owner-free `tau` shorthand is
 #' accepted only when it resolves uniquely. Bare formulas and unnamed one-entry
 #' lists omit a redundant owner; explicitly named one-entry lists and
 #' multi-component models retain it.
 #'
-#' Public correlations are named `cor`; compact scalar `rho` and LKJ
-#' construction coordinates remain internal. Automatic total-variance
-#' allocations expose `sd_total`, `var_total`, and `var_prop(...)`.
-#' Mean-variance allocations within heterogeneous blocks expose `sd_common`,
-#' `var_common`, `var_mult(...)`, and `sd_mult(...)`. These semantic names are
-#' the supported selectors for summaries, plotting, density estimation, and
-#' hypotheses.
+#' Public correlations are named `rho`. Automatic total-variance allocations
+#' expose `tau_total`, `tau2_total`, and `tau2_prop(...)`. Mean-variance
+#' allocations within heterogeneous blocks expose `tau_common`, `tau2_common`,
+#' `tau2_mult(...)`, and `tau_mult(...)`. BayesTools' general names and compact
+#' covariance-construction coordinates remain internal to RoBMA. These
+#' meta-analytic names are the supported selectors for summaries, plotting,
+#' density estimation, and hypotheses.
 #'
 #' @seealso [brma.mv()], \code{\link{random_effect_prior_specification}},
 #'   \code{\link{prior_random}}, \code{\link{random_covariance}},

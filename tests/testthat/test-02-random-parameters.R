@@ -94,7 +94,7 @@ test_that("standard random fixture crosses every semantic consumer boundary", {
   skip_if_missing_fits("brma.mv_block_mvn_random")
   fit <- load_fit("brma.mv_block_mvn_random", validate = FALSE)
   bundle <- .brma_random_parameter_bundle(fit)
-  parameter <- "sd"
+  parameter <- "tau"
   index <- match(parameter, bundle[["specs"]][["label"]])
 
   expect_false(is.na(index))
@@ -187,7 +187,7 @@ test_that("random plots and MCMC diagnostics use semantic draws", {
     for (type in c("density", "autocorrelation")) {
       expect_s3_class(
         plot_diagnostic(
-          fit, parameter = "cor", component = "random",
+          fit, parameter = "rho", component = "random",
           type = type, plot_type = "ggplot"
         ),
         "ggplot"
@@ -240,7 +240,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
     expect_s3_class(
       hypothesis(
         fit_cs,
-        .random_parameter_hypothesis("cor", "=", 0.5, "!="),
+        .random_parameter_hypothesis("rho", "=", 0.5, "!="),
         component = "random", n_samples = 2000, seed = 21
       ),
       "BayesTools_hypothesis_BF"
@@ -253,7 +253,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
       hypothesis(
         fit_har,
         .random_parameter_hypothesis(
-          "sd(time[1])", "=", 0.2, "!="
+          "tau(time[1])", "=", 0.2, "!="
         ),
         component = "random", n_samples = 1000, seed = 22
       ),
@@ -293,7 +293,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
       hypothesis(
         fit_alloc,
         .random_parameter_hypothesis(
-          "var_prop(study)", "=", 0, ">"
+          "tau2_prop(study)", "=", 0, ">"
         ),
         component = "random", n_samples = 1000, seed = 24
       ),
@@ -303,7 +303,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
       hypothesis(
         fit_alloc,
         .random_parameter_hypothesis(
-          "var_prop(study)", ">", 0.5, "<"
+          "tau2_prop(study)", ">", 0.5, "<"
         ),
         component = "random", density_method = "qCMDE",
         n_samples = 1000, seed = 25
@@ -523,10 +523,10 @@ test_that("random prior overlays and diagnostic labels are semantic", {
     cs <- load_fit("brma.mv_v14_konstantopoulos2011_cs", validate = FALSE)
     diagnostic <- plot_diagnostic_density(
       cs,
-      parameter = "cor", component = "random",
+      parameter = "rho", component = "random",
       plot_type = "ggplot"
     )
-    expect_identical(diagnostic[["labels"]][["title"]], "cor")
+    expect_identical(diagnostic[["labels"]][["title"]], "rho")
   }
 })
 
@@ -627,14 +627,9 @@ test_that("simplex density replacements preserve auxiliary-gamma coordinates", {
         list(use_focal_prior_delta = FALSE, prior_list = prior_list),
         list(use_focal_prior_delta = FALSE, prior_list = prior_list)
       ),
-      replacement = list(type = "simplex_pair")
+      replacement = list(type = "simplex_pair", index = 1L)
     ),
-    c(
-      stats::dgamma(1, 2, 1, log = TRUE) +
-        stats::dgamma(3, 3, 1, log = TRUE),
-      stats::dgamma(2, 2, 1, log = TRUE) +
-        stats::dgamma(2, 3, 1, log = TRUE)
-    )
+    stats::dbeta(c(.25, .5), 2, 3, log = TRUE)
   )
 })
 
@@ -766,23 +761,23 @@ test_that("direct multivariate random quantities expose density targets", {
 
   total <- .brma_random_parameter_density_target(
     fit,
-    "sd_total"
+    "tau_total"
   )
   nested_sd <- .brma_random_parameter_density_target(
     fit,
-    "esid_study: sd(intercept)"
+    "esid_study: tau(intercept)"
   )
   study_sd <- .brma_random_parameter_density_target(
     fit,
-    "study: sd(intercept)"
+    "study: tau(intercept)"
   )
   nested <- .brma_random_parameter_density_target(
     fit,
-    "var_prop(esid_study)"
+    "tau2_prop(esid_study)"
   )
   study <- .brma_random_parameter_density_target(
     fit,
-    "var_prop(study)"
+    "tau2_prop(study)"
   )
 
   expect_identical(total[["parameter_spec"]][["type"]], "primitive")
@@ -798,18 +793,18 @@ test_that("direct multivariate random quantities expose density targets", {
 
   total_plot <- plot(
     fit,
-    "sd_total",
+    "tau_total",
     component = "random",
     plot_type = "ggplot"
   )
   expect_identical(
     total_plot$scales$get_scales("x")$name,
-    "sd_total"
+    "tau_total"
   )
 
   samples <- .brma_random_parameter_mixed_posterior(
     fit,
-    "var_prop(esid_study)",
+    "tau2_prop(esid_study)",
     prior = TRUE
   )
   parameter <- names(samples)[[1L]]
@@ -819,7 +814,7 @@ test_that("direct multivariate random quantities expose density targets", {
 
   component_samples <- .brma_random_parameter_mixed_posterior(
     fit,
-    "study: sd(intercept)",
+    "study: tau(intercept)",
     prior = TRUE
   )
   component_parameter <- names(component_samples)[[1L]]
@@ -835,7 +830,7 @@ test_that("direct multivariate random quantities expose density targets", {
   expect_s3_class(
     plot(
       fit,
-      "study: sd(intercept)",
+      "study: tau(intercept)",
       component       = "random",
       density_method  = "qCMDE",
       density_control = list(
@@ -851,14 +846,14 @@ test_that("direct multivariate random quantities expose density targets", {
   expect_error(
     hypothesis(
       fit,
-      "`study: sd(intercept)` = 0",
+      "`study: tau(intercept)` = 0",
       density_method = "qCMDE"
     ),
     paste0(
       "Point-null Bayes factors are unavailable for allocation-derived ",
-      "random-effect quantity 'study: sd' at 0 because zero is a ",
+      "random-effect quantity 'study: tau' at 0 because zero is a ",
       "nonregular product boundary of the common scale and allocation ",
-      "weight. Test 'var_prop(study) = 0' to compare omission of this ",
+      "weight. Test 'tau2_prop(study) = 0' to compare omission of this ",
       "component."
     ),
     fixed = TRUE
@@ -900,7 +895,7 @@ test_that("qCMDE plots a two-component multivariate allocation proportion", {
   expect_s3_class(
     plot(
       fit,
-      "var_prop(esid_study)",
+      "tau2_prop(esid_study)",
       component       = "random",
       prior           = TRUE,
       density_method  = "qCMDE",

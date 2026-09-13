@@ -1,5 +1,74 @@
 # Internal semantic random-parameter extraction.
 
+.brma_random_parameter_io_quantity_map <- function() {
+
+  c(
+    sd         = "tau",
+    var        = "tau2",
+    sd_total   = "tau_total",
+    var_total  = "tau2_total",
+    sd_common  = "tau_common",
+    var_common = "tau2_common",
+    cor        = "rho",
+    var_prop   = "tau2_prop",
+    sd_mult    = "tau_mult",
+    var_mult   = "tau2_mult"
+  )
+}
+
+
+.brma_random_parameter_io_quantity <- function(quantity) {
+
+  map <- .brma_random_parameter_io_quantity_map()
+  out <- unname(map[quantity])
+  out[is.na(out)] <- quantity[is.na(out)]
+  out
+}
+
+
+.brma_random_parameter_io_name <- function(label, quantity) {
+
+  if (!is.character(label) || length(label) != 1L || is.na(label) ||
+      !is.character(quantity) || length(quantity) != 1L || is.na(quantity)) {
+    return(label)
+  }
+  replacement <- .brma_random_parameter_io_quantity(quantity)
+  if (identical(replacement, quantity)) {
+    return(label)
+  }
+
+  call_prefix <- paste0(quantity, "(")
+  if (grepl(call_prefix, label, fixed = TRUE)) {
+    return(sub(
+      pattern     = call_prefix,
+      replacement = paste0(replacement, "("),
+      x           = label,
+      fixed       = TRUE
+    ))
+  }
+  if (endsWith(label, quantity)) {
+    return(paste0(
+      substr(label, 1L, nchar(label) - nchar(quantity)),
+      replacement
+    ))
+  }
+
+  label
+}
+
+
+.brma_random_parameter_io_names <- function(labels, quantities) {
+
+  if (length(labels) != length(quantities)) {
+    stop("Random-effect names and quantities have different lengths.",
+         call. = FALSE)
+  }
+
+  vapply(seq_along(labels), function(i) {
+    .brma_random_parameter_io_name(labels[[i]], quantities[[i]])
+  }, character(1))
+}
+
 .brma_random_parameter_supported_quantities <- function() {
 
   c(
@@ -163,14 +232,18 @@
     ))
   })
   samples <- do.call(cbind, columns)
-  colnames(samples) <- quantities[["canonical_name"]]
+  parameter_names <- .brma_random_parameter_io_names(
+    quantities[["canonical_name"]],
+    quantities[["quantity"]]
+  )
+  colnames(samples) <- parameter_names
   specs  <- .brma_random_parameter_specs(quantities)
   specs[["display_transform"]] <- I(lapply(selections, function(selection) {
     BayesTools::parameter_transform(extraction_fit, selection)
   }))
   priors <- stats::setNames(
     rep(list(NULL), nrow(quantities)),
-    quantities[["canonical_name"]]
+    parameter_names
   )
 
   list(samples = samples, specs = specs, priors = priors)
@@ -194,8 +267,14 @@
     is.logical(value) && length(value) == 1L && !is.na(value) && value
   }
   specs <- data.frame(
-    parameter          = quantities[["canonical_name"]],
-    label              = sub("^\\([^)]*\\) ", "", quantities[["display_label"]]),
+    parameter          = .brma_random_parameter_io_names(
+      quantities[["canonical_name"]],
+      quantities[["quantity"]]
+    ),
+    label              = .brma_random_parameter_io_names(
+      sub("^\\([^)]*\\) ", "", quantities[["display_label"]]),
+      quantities[["quantity"]]
+    ),
     formula_parameter  = quantities[["formula_parameter"]],
     block              = vapply(keys, key_string, character(1), field = "random_block"),
     grouping           = "",
@@ -1296,7 +1375,10 @@
     "var_mult"
   }
 
-  paste0(quantity, "(", component, ") = 0")
+  paste0(
+    .brma_random_parameter_io_quantity(quantity),
+    "(", component, ") = 0"
+  )
 }
 
 
@@ -1560,7 +1642,8 @@
     target_prior <- .brma_random_parameter_exact_prior(selected)
   }
   if (prior && is.null(target_prior) && !standardized_coefficients &&
-      !zero_gate && !gated_aggregate) {
+      !zero_gate && (!gated_aggregate ||
+        identical(selected[["spec"]][["quantity"]], "var_prop"))) {
     prior_density <- BayesTools::parameter_prior_density(
       object[["fit"]],
       selected[["entry"]][["selection"]]

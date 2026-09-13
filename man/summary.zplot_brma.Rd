@@ -20,7 +20,7 @@ estimates table.
 }
 \description{
 Creates summary tables for zplot estimates including
-EDR, Soric FDR, and estimated missing studies.
+EDR, Soric FDR, and the conventional missing-count diagnostic when applicable.
 }
 \details{
 The summary includes:
@@ -28,11 +28,15 @@ The summary includes:
 \item{EDR}{Expected Discovery Rate - average power of significant studies}
 \item{Soric FDR}{Expected proportion of false discoveries among significant
 results, computed from EDR following Soric (1989)}
-\item{Missing N}{Estimated number of studies suppressed by publication bias,
-computed from the selection model weights}
+\item{Missing N}{The retained reference-bin-normalized inverse-weight
+diagnostic for independent univariate and conditional-cluster product
+models. See \code{\link[=as_zplot.brma]{as_zplot.brma()}} for the additional assumptions required by
+a literal count interpretation. Unavailable for multivariate models,
+applicable integrated contexts, or best-rule selection models because
+relative weights do not identify a missing count}
 }
 
-The footer reports the Observed Discovery Rate (ODR) with 95\\% CI for
+The footer reports the Observed Discovery Rate (ODR) with 95\% CI for
 comparison with the model-estimated EDR.
 }
 \seealso{

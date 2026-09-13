@@ -64,8 +64,12 @@ updates study labels, and optionally recomputes cached fit-dependent
 quantities.
 }
 \details{
-Extending a fit adds posterior samples only. It does not rerun adaptation or
-burn-in. Prior, data, and model-structure updates are intentionally not
+Extending a fit preserves the fitted model and adds posterior samples. No
+additional burn-in is requested. Rebuilding the compiled JAGS model, for
+example after loading a saved fit, for parallel workers, or under runjags'
+repeatable-method settings, can rerun adaptation before collecting those
+samples. Retained selection caches store normalizer calculations, not JAGS
+model pointers or sampler tuning. Prior, data, and model-structure updates are intentionally not
 supported by this method. For \code{brma.mv()} objects, the stored \code{V},
 \code{R}, known-\code{V} backend, and marginalized random-effect metadata are
 preserved because the fitted model structure is reused.
@@ -74,9 +78,15 @@ Extensions continue the random-number generator state stored by JAGS. They
 cannot be restarted from a new seed without changing the meaning of chain
 continuation.
 
-Approximate \code{bselmodel.mv()} selection diagnostics are always refreshed
-after chain extension using their stored simulation settings, independently
-of \code{recompute}. Label-only updates retain the stored diagnostic.
+Retained selection-normalizer caches are restored when compatible. Set
+\code{RoBMA.options(selection.cache_retain = TRUE)} to retain the cache after
+extension, or use \code{\link[=remove_selection_cache]{remove_selection_cache()}} to remove saved cache entries.
+
+Only explicitly stored selection-sensitivity diagnostics are refreshed after
+chain extension, silently and using their stored simulation settings,
+independently of \code{recompute}. Models without a stored comparison do not
+compute one. Label-only updates retain the stored diagnostic. Use
+\code{\link[=selection_sensitivity_diagnostics]{selection_sensitivity_diagnostics()}} to inspect the refreshed result or error.
 
 Named \code{NULL} elements in \code{autofit_control} and
 \code{convergence_checks} explicitly disable or clear the corresponding

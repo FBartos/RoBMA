@@ -20,8 +20,11 @@
 \item{significance_level}{z-value threshold for significance. Defaults
 to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
 
-\item{max_samples}{maximum number of posterior samples for estimation.
-Defaults to 10000. Use \code{Inf} to use all posterior samples.}
+\item{max_samples}{maximum number of posterior samples for the EDR and
+missing-study summaries. Defaults to 10000. Use \code{Inf} to use all
+posterior samples. The density budget is supplied separately to
+\code{plot()} or \code{lines()} and defaults to 1000 for \code{brma.mv}
+models and 10000 for other models.}
 
 \item{conditioning_depth}{predictive conditioning depth. Options are
 \code{"marginal"} (default), which integrates all newly realized random
@@ -34,10 +37,13 @@ Selection models currently support only \code{"marginal"} conditioning.}
 
 \item{integration_control}{numerical integration settings created by
 \code{set_selection_likelihood_control()}. These control integration within
-each posterior draw, independently of \code{max_samples}. Factor blocks use
-converged Gauss-Hermite quadrature where possible; other blocks use adaptive
-randomized quasi-Monte Carlo. The relative diagnostic compares density error
-with the peak of each draw's curve and also checks the selection normalizer.}
+each posterior draw, independently of \code{max_samples}. Factor blocks and
+supported full-covariance product-selection blocks use deterministic
+Gauss-Hermite quadrature where possible, with the existing adaptive randomized
+quasi-Monte Carlo fallback. Density-error checks use the peak within each
+posterior draw and also check the selection normalizer. Bounded CDF
+interpolation, Gaussian-mixture approximation, and omitted contributions
+are charged to the same numerical error budget.}
 
 \item{...}{additional arguments (currently unused).}
 }
@@ -46,10 +52,12 @@ The input object with added class \code{"zplot_brma"} and a new
 \code{zplot} list component containing:
 \describe{
 \item{estimates}{a list with posterior samples for \code{EDR} and
-missing-study \code{weights}}
+extrapolation \code{weights}, when a missing-count convention applies}
 \item{data}{a list with \code{significance_level},
 \code{conditioning_depth}, observed \code{z}-statistics,
 \code{N_significant}, and \code{N_observed}}
+\item{target}{the fitted reporting specification, reference distribution,
+source and publication identities, and missing-count applicability}
 }
 }
 \description{
@@ -80,31 +88,48 @@ it is a full-posterior predictive projection and does not leave observations
 or clusters out when estimating model parameters.
 
 The Expected Discovery Rate (EDR) is the posterior average probability that
-a new outcome from the selected predictive target is statistically
+a new outcome from the bias-adjusted reference distribution is statistically
 significant at the supplied threshold. It is therefore not an exact-repeat
 estimand unless \code{conditioning_depth = "estimate"} is requested.
 
-The EDR uses extrapolation mode: selection is removed from the row-specific
-predictive distributions, PET/PEESE regression offsets are omitted, and
-designs under a selection model are weighted by their inverse observation
-probabilities. The fitted plot curve retains the bias adjustments.
+The EDR uses the bias-adjusted reference distribution: selection and
+PET/PEESE offsets are removed. For multivariate selection models, models
+integrating applicable contextual sources, and best-rule selection models,
+this reference is the normalized pre-selection Gaussian marginal,
+integrating all newly realized contexts. Its integral is
+one and EDR is its significance probability. Relative selection weights do
+not identify an absolute publication probability or missing count, so
+\code{Missing N} is unavailable for these targets.
 
-Exact selection models first select the full Gaussian response vector within
-each fitted dependency block, then marginalize to each estimate. Both sampling
-covariance and random-effect covariance therefore affect the selected marginal
-density. Approximate selection models instead integrate conditionally
-normalized selected-normal densities over freshly realized latent effects,
-preserving the normalization order used by their fitted likelihood.
+The fitted selected curve preserves the original publication event and the
+fitted model's normalization order. It integrates the model's integrated
+sources inside each full-event normalizer and averages conditionally
+normalized projections over newly realized retained contexts. A best rule
+still selects the full original event when displaying one estimate.
+Supported full-covariance product blocks reuse numerator and normalizer
+calculations while refining their quadrature separately. Computation by
+posterior row and covariance block preserves the full publication event.
 
-The extrapolated curve uses the same selection normalizers as the fitted
-curve. Its integral over the entire real line is the expected total number of
-estimates per observed estimate; the integral of the suppressed part is this
-quantity minus one. Multiplying by the observed number of estimates gives
-\code{Missing N}. For exact correlated selection this counterfactual treats
-whole dependency blocks as observed or suppressed, using inverse joint block
-probabilities. It can imply large missing counts for large blocks or strong
-selection. It does not estimate partially reported blocks. Restricting a
-plot with \code{from} or \code{to} does not restrict these summary integrals.
+Numerical diagnostics distinguish raw normalizer-mass ratios from bounds on
+omitted contributions. A raw mass ratio does not certify that the compressed
+displayed curve integrates to one. An omitted-mass bound covers only the
+omitted components, not the total integrated error of the compressed curve.
+Retained component weights are not renormalized to hide omissions.
+
+Independent univariate product-weight models and the released conditional
+cluster display retain their reference-bin-normalized inverse-weight
+extrapolation convention and corresponding \code{Missing N} summary.
+Resolving the same publication groups automatically or explicitly does not
+change the reference distribution or diagnostic.
+A literal count interpretation additionally treats the reference bin as
+fully observed and requires a reporting/stopping design relating attempted
+to observed estimates. These assumptions are not supplied by the fitted
+relative-weight likelihood, which conditions on the reported vector and
+does not identify an absolute publication probability or finite missing pool.
+Valid above-one relative weights can give a negative diagnostic; such a
+value is not a literal missing count.
+Restricting a plot with \code{from} or \code{to} does not restrict the
+summary integrals.
 
 Zplot diagnostics are available only for normal outcome models. GLMM
 objects are rejected because their raw likelihood is on a count scale while
@@ -113,8 +138,8 @@ errors. For correlated known-\code{V} \code{brma.mv()} models, zplot is a
 scalar display using \eqn{z_i = y_i / se_i}. The histogram does not display
 dependence, but the fitted selected marginals retain the full covariance.
 Numerical integration can be substantially more expensive for correlated
-selection than for ordinary Gaussian models; \code{max_samples} controls the
-number of posterior draws used for the plot.
+selection than for ordinary Gaussian models. Density plotting uses its own
+\code{max_samples} argument, independently of the summaries stored here.
 
 The resulting object retains all original brma properties while adding
 zplot results, enabling both standard meta-analytic summaries and

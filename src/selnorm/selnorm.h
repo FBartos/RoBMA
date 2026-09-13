@@ -2,6 +2,7 @@
 #define SELNORM_H_
 
 #include <cstddef>
+#include "selnorm-fma.h"
 
 enum SelKernelMode {
   SELKERNEL_NORMAL           = 0,
@@ -9,6 +10,20 @@ enum SelKernelMode {
   SELKERNEL_PHACK_POWER      = 2,
   SELKERNEL_STEP_PHACK_POWER = 3
 };
+
+enum SelVectorRule {
+  SELVECTOR_PRODUCT = 0,
+  SELVECTOR_BEST_ONE_SIDED = 1,
+  SELVECTOR_BEST_TWO_SIDED = 2
+};
+
+double cpp_selnorm_normal_interval_log_prob(
+  double lower, double upper, double mean, double sd
+);
+
+double cpp_selnorm_normal_interval_quantile(
+  double lower, double upper, double mean, double sd, double u
+);
 
 struct SelNormKernelData {
   int n_bins;
@@ -26,7 +41,11 @@ struct SelNormKernelData {
   const double *segment_phack_region_real;
   bool trusted_step_partition;
   bool telescope_probabilities;
+  // Set only on a call-owned R post-fit integration copy.
+  bool bounded_cdf = false;
 };
+
+double cpp_selnorm_bounded_cdf_absolute_error();
 
 bool selnorm_is_descending_step_partition(const double *z_lower,
                                           const double *z_upper,
@@ -38,6 +57,10 @@ double cpp_selnorm_affine_normal_lpdf(double z, double sei, double mean,
                                       double sd);
 
 double cpp_selnorm_affine_normal_lpdf_log_scale(
+  double z, double sei, double mean, double sd, double log_scale
+);
+
+double cpp_selnorm_affine_normal_pdf_log_scale(
   double z, double sei, double mean, double sd, double log_scale
 );
 
@@ -236,6 +259,18 @@ double cpp_selnorm_kernel_rng_workspace(
   double *upper,
   int omega_stride = 1,
   bool validate_omega = true
+);
+
+bool cpp_selnorm_step_rng_prepare_partition(
+  double mean, double sd, double sei, const double *omega,
+  const SelNormKernelData &data, double *mass, double *lower, double *upper,
+  int *n_groups, double *normalizer, double *log_normalizer
+);
+
+double cpp_selnorm_step_rng_from_partition(
+  double mean, double sd, int effect_sign, double u_bin, double u_interval,
+  const double *mass, const double *lower, const double *upper,
+  int n_groups, double normalizer
 );
 
 double cpp_selnorm_step_log_norm_rng_workspace(

@@ -6,6 +6,20 @@ source(testthat::test_path("helper-contracts.R"))
 fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 
+
+# Same Gaussian model through the existing explicitly sampled BT design contract.
+.sampled_prediction_reference <- function(object) {
+
+  object$data <- .set_data_random_effects_compile(
+    object$data, compile = NULL, marginalized_effects = list()
+  )
+  object$random_effects_compile <- NULL
+  object$formula_design$mu <- .object_bayestools_formula_design(
+    object, parameter = "mu", source = "location", random_effects_compile = NULL
+  )
+  object
+}
+
 .brma_mv_prior_object <- function(random = FALSE) {
 
   dat <- data.frame(
@@ -62,9 +76,9 @@ test_that("brma.mv newdata uses fitted continuous-predictor scaling metadata", {
     only_priors               = TRUE
   )
   posterior_samples <- matrix(
-    c(1, 2, 0.10, 0.20, 0, 0),
+    c(1, 2, 0.10, 0.20),
     nrow     = 2L,
-    dimnames = list(NULL, c("mu_intercept", "mu_x", "tau"))
+    dimnames = list(NULL, c("mu_intercept", "mu_x"))
   )
   newdata <- data.frame(x = c(10, 20, 30, 40))
 
@@ -111,9 +125,9 @@ test_that("known-V newdata response predictions require and validate V_new", {
   newdata <- data.frame(row = 1:2)
   V_new   <- matrix(c(0.04, 0.01, 0.01, 0.05), nrow = 2)
   posterior_samples <- matrix(
-    c(0.1, 0.2, 0.05, 0.06),
+    c(0.1, 0.2),
     nrow = 2,
-    dimnames = list(NULL, c("mu", "tau"))
+    dimnames = list(NULL, "mu")
   )
 
   expect_error(
@@ -178,7 +192,7 @@ test_that("known-V newdata response predictions require and validate V_new", {
   expect_false(response_target[["random_formula"]])
   expect_true(response_target[["v_new"]])
   expect_equal(response_target[["mean_target"]], "fixed_location")
-  expect_equal(response_target[["covariance_target"]], "V_new_plus_heterogeneity")
+  expect_equal(response_target[["covariance_target"]], "V_new")
 
   set.seed(1)
   response_list <- predict(
@@ -197,11 +211,13 @@ test_that("known-V response newdata replays sampling-scale formulas from V_new",
 
   dat <- data.frame(
     yi  = c(.10, .20, .30),
-    sei = c(.20, .25, .30)
+    sei = c(.20, .25, .30),
+    estimate = seq_len(3L)
   )
   object <- brma.mv(
     yi                        = yi,
     V                         = diag(dat[["sei"]]^2),
+    random                    = ~ 1 | estimate,
     scale                     = ~ sei,
     data                      = dat,
     measure                   = "GEN",
@@ -273,10 +289,7 @@ test_that("known-V newdata response predictions preserve V_new covariance", {
   object <- .brma_mv_prior_object(random = FALSE)
   S      <- 20000L
   V_new  <- matrix(c(0.04, 0.018, 0.018, 0.05), nrow = 2)
-  posterior_samples <- cbind(
-    mu  = rep(0, S),
-    tau = rep(0, S)
-  )
+  posterior_samples <- matrix(0, S, 1L, dimnames = list(NULL, "mu"))
 
   set.seed(11)
   response <- predict(
@@ -586,7 +599,7 @@ test_that("random-formula brma.mv newdata estimate predictions use BayesTools ta
 
 test_that("explicit random-formula rows use marginal new-effect targets", {
 
-  object <- brma.mv(
+  object <- .sampled_prediction_reference(brma.mv(
     yi                         = yi,
     V                          = diag(c(.04, .05)),
     data                       = data.frame(
@@ -594,11 +607,10 @@ test_that("explicit random-formula rows use marginal new-effect targets", {
       study = c("s1", "s2")
     ),
     random                     = ~ 1 | study,
-    marginalize_estimate_level = FALSE,
     measure                    = "GEN",
     prior_unit_information_sd  = 1,
     only_priors                = TRUE
-  )
+  ))
   new_data <- .prepare_newdata(
     object         = object,
     newdata        = data.frame(.prediction_row = 1:2),
@@ -651,7 +663,7 @@ test_that("new-effect grouping synthesis does not hide missing design values", {
     data                      = data.frame(
       yi    = c(.1, .2, .3),
       x     = c(0, 1, 2),
-      study = c("s1", "s2", "s3")
+      study = c("s1", "s1", "s2")
     ),
     random                    = list(
       grouped_by_x = ~ 1 | x,
@@ -788,16 +800,15 @@ test_that("marginalized newdata estimate draws match sampled random covariance",
     prior_unit_information_sd = 1,
     only_priors               = TRUE
   )
-  sampled <- brma.mv(
+  sampled <- .sampled_prediction_reference(brma.mv(
     yi                         = yi,
     V                          = V,
     random                     = ~ 1 | study,
     data                       = dat,
     measure                    = "GEN",
     prior_unit_information_sd  = 1,
-    marginalize_estimate_level = FALSE,
     only_priors                = TRUE
-  )
+  ))
   sampled_design <- .fitted_formula_design(sampled, "mu", required = TRUE)
   sd_name        <- sampled_design[["random_effects"]][[1L]][["sd_parameter_names"]][[1L]]
   S              <- 20000L
@@ -1276,7 +1287,7 @@ test_that("same-data random BLUP is compilation-invariant for one block", {
     ),
     nrow = 4
   )
-  make_object <- function(marginalize_estimate_level) {
+  make_object <- function() {
     brma.mv(
       yi                         = yi,
       V                          = V,
@@ -1285,12 +1296,11 @@ test_that("same-data random BLUP is compilation-invariant for one block", {
       known_v_parameterization   = "block_mvn",
       measure                    = "GEN",
       prior_unit_information_sd  = 1,
-      marginalize_estimate_level = marginalize_estimate_level,
       only_priors                = TRUE
     )
   }
-  marginalized   <- make_object(TRUE)
-  sampled        <- make_object(FALSE)
+  marginalized   <- make_object()
+  sampled        <- .sampled_prediction_reference(make_object())
   sampled_design <- .fitted_formula_design(
     sampled,
     "mu",
@@ -1421,7 +1431,7 @@ test_that("same-data random BLUP preserves analytic block components", {
     effect = factor(paste0("e", 1:4))
   )
   V <- diag(c(1, 2, 1.5, 2.5))
-  make_object <- function(marginalize_estimate_level) {
+  make_object <- function() {
     brma.mv(
       yi                         = yi,
       V                          = V,
@@ -1432,12 +1442,11 @@ test_that("same-data random BLUP preserves analytic block components", {
       ),
       measure                    = "GEN",
       prior_unit_information_sd  = 1,
-      marginalize_estimate_level = marginalize_estimate_level,
       only_priors                = TRUE
     )
   }
-  marginalized <- make_object(TRUE)
-  sampled      <- make_object(FALSE)
+  marginalized <- make_object()
+  sampled      <- .sampled_prediction_reference(make_object())
   design       <- .fitted_formula_design(sampled, "mu", required = TRUE)
   block_names  <- vapply(
     design[["random_effects"]],
@@ -1617,7 +1626,7 @@ test_that("known-R multipliers affect covariance but not heterogeneity summaries
     tolerance = 1e-12
   )
   expect_equal(
-    heterogeneity[["estimates"]][c("sd", "var"), "Mean"],
+    heterogeneity[["estimates"]][c("tau", "tau2"), "Mean"],
     c(mean(posterior_samples[, sd_name]),
       mean(posterior_samples[, sd_name]^2)),
     tolerance = 1e-12

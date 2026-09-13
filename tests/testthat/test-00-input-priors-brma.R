@@ -417,14 +417,14 @@ test_that("selection backend consumes BayesTools omega p-order directly", {
   object <- bselmodel(
     yi = effect, sei = std_err, data = test_data,
     measure = "SMD", prior_bias = prior_bias,
-    selection_likelihood = "approximate", only_priors = TRUE
+    only_priors = TRUE
   )
 
   fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
   syntax   <- .create_model_syntax(object[["data"]], object[["priors"]])
 
   expect_true(all(c(
-    "sel_z_lower", "sel_z_upper", "sel_obs_bin", "sel_sign"
+    "sel_z_lower", "sel_z_upper", "sel_joint_singleton_obs_bin", "sel_sign"
   ) %in% names(fit_data)))
   expect_false(any(grepl("sel_phack|phack_z|sel_segment|sel_kernel_mode", names(fit_data))))
   expect_match(syntax, "dselnorm_step", fixed = TRUE)

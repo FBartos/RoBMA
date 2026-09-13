@@ -30,11 +30,9 @@ bselmodel.mv(
   prior_informed_subfield,
   effect_direction = "detect",
   steps,
-  selection_likelihood = c("exact", "approximate"),
+  selection = BayesTools::selection_model(),
   selection_control = set_selection_likelihood_control(),
   known_v_parameterization = "auto",
-  known_v_residual_fraction = 0.1,
-  marginalize_estimate_level = TRUE,
   sample = 5000,
   burnin = 2000,
   adapt = 500,
@@ -57,9 +55,13 @@ left-hand side and location moderators on the right-hand side (for example
 \code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.}
 
 \item{V}{a known working variance-covariance matrix, a list of block
-variance-covariance matrices, a metadata-preserving \code{\link[=vcalc2]{vcalc2()}} result, or an
-exact diagonal-plus-factor declaration created by \code{\link[=known_v_factor]{known_v_factor()}}, used
-by \code{brma.mv()}.}
+variance-covariance matrices, or an exact diagonal-plus-factor declaration
+created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}. Ordinary covariance
+matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. For selection
+models, declare publication groups separately with \code{selection_model(group = ...)}.
+Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
+stored symmetrically by averaging off-diagonal pairs; the supplied object
+and its diagonal are unchanged.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
 when estimating the unit information standard deviation.}
@@ -76,17 +78,10 @@ scale predictors for location-scale models. Formula input is evaluated in
 Random-formula models also accept a named list targeting top-level random
 components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
-\item{random}{an optional formula or list of formulas specifying
-BayesTools random-effect terms for \code{brma.mv()}. Use
-\link[=random_effect_formula_tags]{random-effect formula structure tags} such as
-\code{diag()}, \code{us()}/\code{un()}, \code{cs()}, \code{hcs()}, \code{ar1()}/\code{ar()}, \code{har()}, or
-\code{car()} inside the formula. Plain \code{(expr | group)} syntax uses an
-unstructured random-coefficient block; \code{expr || group} uses a diagonal
-block. The coefficient-formula and structured-index tag families have
-different left-side semantics; see the linked documentation. A bare formula
-or unnamed one-entry list has no redundant component prefix. An explicitly
-named one-entry list retains its name; lists with two or more entries
-generate missing names as \verb{component 1}, \verb{component 2}, and so on.}
+\item{random}{Optional BayesTools random-effect formula or list of formulas.
+Omission or \code{NULL} means a fixed-effect model with no implicit
+heterogeneity term. Known sampling covariance \code{V} remains unchanged.
+Declare \code{random} before supplying heterogeneity priors or scale formulas.}
 
 \item{R}{optional known random-effect group covariance/correlation matrix,
 or a named list of matrices. Matrix row and column names identify grouping
@@ -173,38 +168,25 @@ default selection model. If \code{prior_bias} is supplied, the prior carries its
 own side, steps, and weights. If omitted, the default is \code{0.025}, yielding
 intervals \verb{[0, .025]} and \verb{(.025, 1]}.}
 
-\item{selection_likelihood}{selection-likelihood target. \code{"exact"} fits the
-finite-vector product-selection likelihood after analytically marginalizing
-Gaussian random effects. \code{"approximate"} fits the row-wise selected-normal
-likelihood conditional on sampled random effects.}
+\item{selection}{specification created by \code{\link[=selection_model]{selection_model()}} for
+automatically constructed weightfunction priors. The default integrates
+estimate-level random effects and the complete sampling error, and conditions
+on other random effects. Each source can instead be conditioned upon or
+integrated through the corresponding selection-model setting. Explicit
+\code{prior_bias} objects retain their own selection specification; this argument
+does not overwrite it. Conditioning on sampling variation retains the entire
+sampling-error realization, including in ordinary univariate models.
+This sampling setting requires omitted or unit observation \code{weights}.}
 
 \item{selection_control}{numerical integration settings created by
-\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. Used only for dependent blocks of the
-exact likelihood.}
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. These affect numerical evaluation,
+without changing the conditioning model or the vector weighting rule.}
 
 \item{known_v_parameterization}{known-\code{V} backend used by \code{brma.mv()}.
 \code{"auto"} chooses an exact backend when feasible; \code{"latent"} uses a latent
 \verb{D + BB'} decomposition; \code{"whitened"} uses an eigen-rotated normal
 likelihood; \code{"block_mvn"} uses an exact native block multivariate-normal
 likelihood.}
-
-\item{known_v_residual_fraction}{proportion of the diagonal of \code{V} left as
-conditional independent residual sampling variance in the latent \verb{D + BB'}
-representation. Defaults to \code{0.10}; values are validated for all backends
-but affect only the latent backend. When \code{"auto"} selects \code{"whitened"} or
-\code{"block_mvn"}, explicitly supplied values are disregarded by the likelihood.
-Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
-supplied. For a factor representation declared by \code{\link[=vcalc2]{vcalc2()}} or
-\code{\link[=known_v_factor]{known_v_factor()}}, the declared diagonal is the exact residual variance and
-this argument is disregarded with a warning when supplied explicitly.
-Approximate selection likelihoods condition on the declared factors when
-available; otherwise this argument controls their sampling decomposition.
-Different decompositions of the same covariance can define different
-approximate selection likelihoods.}
-
-\item{marginalize_estimate_level}{logical; should a one-to-one estimate-level
-random-intercept block be integrated into the likelihood variance instead of
-sampled as latent random coefficients? Defaults to \code{TRUE}.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
@@ -249,55 +231,157 @@ Fits estimate-level Bayesian selection models with known sampling covariance
 and BayesTools random-effect formulas.
 }
 \details{
+Omitted or NULL \code{random} specifies a fixed-effect selection model with
+no implicit heterogeneity. Both random-effect selection axes are then
+inapplicable; the sampling-error selection axis still applies.
+Heterogeneity priors and scale formulas require an explicit random structure.
+
 \code{bselmodel.mv()} combines the selection-model interface of \code{\link[=bselmodel]{bselmodel()}} with
-the known-covariance and random-formula model of \code{\link[=brma.mv]{brma.mv()}}. Selection is
-always defined at the estimate level, so the selection weight is the product
-of the row-specific weights.
+the known-covariance and random-formula model of \code{\link[=brma.mv]{brma.mv()}}. Each
+weightfunction carries a \code{\link[=selection_model]{selection_model()}} specifying whether estimate-level
+random effects, other random effects, and the complete sampling error are
+conditioned upon or integrated before selection normalization. The default
+integrates estimate-level random effects and sampling error, conditions on
+other random effects, and uses the product of estimate weights.
+\code{weight_rule = "best"} instead uses
+the weight at the smallest actual p-value in the publication group.
 
-With \code{selection_likelihood = "exact"}, all Gaussian random effects are
-analytically marginalized and each connected sampling/random covariance
-block is fitted with its joint selected-Gaussian density. Diagonal-plus-factor
-covariance structure is used only when certified by compiled random-effect
-metadata, retained automatically by \code{\link[=vcalc2]{vcalc2()}}, or declared explicitly with
-\code{\link[=known_v_factor]{known_v_factor()}}. Structural ranks
-one through four with positive conditional residual variances use exact
-low-dimensional factor integrals; other blocks retain the general dense
-exact likelihood. No numerical rank is inferred from an arbitrary covariance
-matrix. This target is independent of
-\code{known_v_parameterization}; that argument remains relevant to the approximate
-likelihood and downstream known-\code{V} machinery. With
-\code{selection_likelihood = "approximate"}, the existing row-wise selected-normal
-likelihood is used. The automatic known-\code{V} backend resolves to \code{"latent"}
-for this approximate target; explicitly requesting \code{"whitened"} or
-\code{"block_mvn"} is rejected because those transformations do not preserve
-estimate-level selection events.
-The approximate likelihood conditions on the structural sampling factors
-retained by \code{\link[=vcalc2]{vcalc2()}} or declared by \code{\link[=known_v_factor]{known_v_factor()}} when available.
-Ordinary covariance matrices remain supported and use the decomposition
-controlled by \code{known_v_residual_fraction}. These decompositions can define
-different approximate likelihoods for the same covariance. Structural
-factors can improve computational efficiency, but are not guaranteed to
-improve agreement with the exact likelihood. Models supplied with \code{vi} or
-\code{sei} instead of \code{V} are unaffected by this distinction.
+With one cutoff and all three sources integrated, \code{"best"}
+corresponds to the relaxed report-all rule of
+\insertCite{vanaertinpressmultivariate;textual}{RoBMA}: a favorable result
+can select the publication vector, after which all measured outcomes are
+reported. The other conditioning cells and multiple-cutoff best rules are
+extensions of that specification.
 
-\code{marginalize_estimate_level} applies only to the approximate likelihood. The
-exact likelihood necessarily marginalizes every Gaussian random-effect block
-into the joint observation covariance.
+A publication group is resolved from an explicit \code{group} column in the
+prior or a supported constructor cluster. Multivariate random structures
+require an explicit group column. Covariance matrices, including standard
+\code{\link[metafor:vcalc]{metafor::vcalc()}} results, and random-effect grouping factors do not
+establish publication identities.
+
+Sampling error is \eqn{e \sim N(0,V)}. With positive sampling standard
+errors it can equivalently be written as \eqn{e = Sz}, with
+\eqn{z \sim N(0,R)} and \eqn{V = SRS}. Here \eqn{S} contains the original
+sampling standard errors and \eqn{R} preserves their complete correlation
+structure. Conditioning retains the entire realized vector \eqn{e} during
+selection normalization. No residual sampling variation remains inside that
+normalizer. Integration instead contributes the full \eqn{V} to candidate
+variation. These choices apply equally to univariate, diagonal, and
+correlated sampling covariance, including \code{vi} and \code{sei} inputs.
+
+The covariance \code{V} remains authoritative. A diagonal-plus-factor input from
+\code{\link[=known_v_factor]{known_v_factor()}} can support more efficient calculations,
+but equivalent representations define the same selection model when their
+publication groups agree. Selection thresholds always use the original
+\code{sqrt(diag(V))}.
+
+The likelihood and post-fit methods use the same resolved conditioning
+model. \code{known_v_parameterization} and numerical integration settings cannot
+change it. The \code{estimate_random_effects} setting controls estimate-level
+true-effect variation. Shared covariance-factor and dense numerical paths use
+explicit integration diagnostics.
+
+The source settings define the reporting model. An optional comparison with
+integrating retained contexts can be requested with
+\code{\link[=selection_sensitivity_diagnostics]{selection_sensitivity_diagnostics()}} or stored with
+\code{\link[=add_selection_sensitivity_diagnostics]{add_selection_sensitivity_diagnostics()}}. Fitting does not compute this
+separate comparison automatically.
+
+\code{estimate_random_effects}, \code{other_random_effects}, and
+\code{known_sampling_variance} each accept \code{"condition"} or \code{"integrate"}.
+Both \code{"product"} and \code{"best"} support the resulting choices for supported
+Gaussian sources contained within publication groups.
+
+Retained contexts remain unknown and are estimated. Their population mixing
+laws stay outside the selection normalizer; integrating a context instead
+allows selection to reweight its mixing law. An absent context makes its
+two settings coincide. BayesTools identifies an estimate-level random term
+by a distinct grouping level for every retained estimate. At most one such
+term is allowed. Every other declared term is an other-level source,
+including terms with independent coefficient supports inside repeated groups.
+These roles do not split coefficient families or discard known group
+covariance; each choice applies to the complete declared random term.
+
+With every outcome-generating source conditioned upon, candidate outcomes
+are deterministic within a retained context. If weights are positive almost
+surely, they cancel under conditional normalization: the observed law is
+the ordinary Gaussian model and carries no information about the selection
+weights. A zero acceptance probability on a positive-probability set of
+retained contexts makes this selection process invalid. It must not be
+handled by silently discarding those contexts. Ordinary population-level
+publication selection instead integrates all outcome-generating sources.
+
+Product weights also support the existing Gaussian dependency paths spanning
+publication groups. Best weights require integrated dependencies to remain
+within each publication group; an unsupported source is identified before
+fitting. Conditioned sources may connect groups. Integrated candidate
+covariance can be singular while the observed law remains nondegenerate
+after averaging over retained sources. No residual noise is added to change
+this boundary. Ensembles require a common conditioning cell and publication
+partition across active selection branches, while allowing different bins,
+weight priors, and supported weight rules.
+Non-unit observation \code{weights} require
+\code{known_sampling_variance = "integrate"} and independent product factors.
+Unit weights are equivalent to omitting \code{weights}.
+
+Joint likelihoods, single-model bridge evidence, conditional-density
+estimation, selected prediction, latent summaries, and z-plots use this
+resolved model. Estimate-unit LOO, WAIC, and LOO-PIT integrate deleted
+outcomes within the original publication event. Their conditional row scores
+must not be summed and interpreted as a joint group likelihood. Cluster or
+block deletion remains unavailable for arbitrary \code{brma.mv()} random formulas.
+Product-space ensembles do not provide bridge marginal likelihoods.
+With conditioned sampling, estimate deletion integrates the deleted sampling
+error conditional on the retained sampling errors of the remaining estimates.
+
+Marginal selected predictions draw new retained contexts from their original
+mixing laws before drawing selected outcomes and reconstructing latent true
+effects. At estimate depth, latent predictions draw fitted true effects;
+\code{\link[=blup]{blup()}} and \code{\link[=fitted.brma]{fitted.brma()}} instead return conditional means. Response
+prediction at estimate depth describes a new reporting event around fitted
+truth, with new sampling error. Prediction's \code{conditioning_depth} is a
+separate choice from the selection-model source settings.
+Cluster depth is available only for the
+specialized \code{cluster} interface. Known-covariance latent and response
+predictions with \code{newdata} require \code{V_new} and the resolved publication-group
+reference; cross-covariance with fitted outcomes and non-marginal \code{newdata}
+are unavailable. See \code{\link[=predict.brma]{predict.brma()}} for prediction targets and labels.
+
+When the complete sampling error is conditioned upon, total fitted truth
+equals the observed estimate minus its fitted sampling error. Conditional
+means and estimate-depth latent draws then coincide within each posterior
+draw; uncertainty remains across posterior draws. Blockwise \code{\link[=ranef]{ranef()}} retains
+its conditional-mean target for each random-effect block.
+
+Partial-vector calculations retain the full selection event. Densities need
+a nondegenerate observed Gaussian law, except for supported one-coordinate
+projections of explicitly declared rank-one sources. Multicoordinate singular
+Lebesgue densities and general singular conditional latent posteriors are
+unavailable; zero integrated true-effect covariance gives deterministic
+latent effects. No general public multivariate CDF is provided. LOO-PIT and
+z-plots use their respective deletion and marginal projection targets.
 }
 \examples{
 \dontrun{
+dat <- data.frame(yi = c(0.10, 0.20), paper = c("A", "A"))
 V <- matrix(c(0.04, 0.01, 0.01, 0.09), 2, 2)
 fit <- bselmodel.mv(
-  yi      = c(0.10, 0.20),
+  yi      = yi,
   V       = V,
+  data    = dat,
   measure = "GEN",
-  steps   = 0.025,
+  prior_bias = prior_weightfunction(
+    "one-sided", 0.025, model = selection_model(group = paper)
+  ),
   seed    = 1,
   silent  = TRUE
 )
 summary(fit)
 }
 
+}
+\references{
+\insertAllCited{}
 }
 \seealso{
 \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=brma.mv]{brma.mv()}}, \code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}},

@@ -14,7 +14,8 @@
   } else {
     "source"
   }
-  if (!.iwmde_uses_known_v_random_marginal_likelihood(context) ||
+  if (!.iwmde_uses_known_v_random_marginal_likelihood(
+      context, priors = active_setup[["priors"]]) ||
       !inherits(
         update,
         "BayesTools_random_effects_marginal_update_plan"
@@ -93,13 +94,18 @@
 
     for (chunk in chunks) {
       anchor_samples <- lapply(anchor_values, function(value) {
-        .iwmde_random_affine_replacement_samples(
+
+        replaced <- .iwmde_build_replacement_samples(
           context     = context,
           parameter   = parameter,
-          value       = value,
+          values      = value,
           row_states  = row_states[chunk],
           replacement = replacement
         )
+        if (!isTRUE(all(replaced[["valid"]]))) {
+          return(NULL)
+        }
+        replaced[["samples"]]
       })
       if (any(vapply(anchor_samples, is.null, logical(1)))) {
         return(NULL)
@@ -205,31 +211,6 @@
     BayesTools::parameter_transform_forward(values, transform),
     error = function(e) rep(NA_real_, length(values))
   )
-}
-
-
-.iwmde_random_affine_replacement_samples <- function(
-    context, parameter, value, row_states, replacement) {
-
-  rows <- lapply(row_states, function(state) {
-    replaced <- .iwmde_replace_row_for_value(
-      context     = context,
-      state       = state,
-      parameter   = parameter,
-      value       = value,
-      replacement = replacement
-    )
-    if (!isTRUE(replaced[["valid"]])) {
-      return(NULL)
-    }
-    replaced[["row"]]
-  })
-  if (any(vapply(rows, is.null, logical(1)))) {
-    return(NULL)
-  }
-  out <- do.call(rbind, rows)
-  storage.mode(out) <- "double"
-  out
 }
 
 

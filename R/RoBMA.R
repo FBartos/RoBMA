@@ -8,13 +8,7 @@
 #' @inheritParams RoBMA_prior_specification
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
-#' @param selection_likelihood selection-likelihood target for selection-model
-#'   branches. `"exact"` fits the finite-vector product-selection likelihood;
-#'   `"approximate"` fits the row-wise selected-normal likelihood conditional on
-#'   sampled random effects.
-#' @param selection_control numerical integration settings created by
-#'   [set_selection_likelihood_control()]. Used only for dependent blocks of the
-#'   exact likelihood.
+#' @inheritParams bselmodel
 #'
 #' @details
 #' `RoBMA()` uses product-space Bayesian model averaging. Inclusion Bayes
@@ -30,13 +24,13 @@
 #' `RoBMA()` uses normal/effect-size input (`yi` with `vi` or `sei`). Raw-count
 #' GLMM model averaging is provided by `BMA.glmm()`.
 #'
-#' When the ensemble contains selection-model branches,
-#' `selection_likelihood = "exact"` applies estimate-level selection jointly to
-#' the finite vector after analytically marginalizing Gaussian random effects.
-#' `selection_likelihood = "approximate"` retains the row-wise selected-normal
-#' likelihood conditional on sampled random effects. The exact target is the
-#' default. It requires step selection kernels and does not support likelihood
-#' `weights`.
+#' `selection` configures every generated default weightfunction. Its default
+#' integrates estimate-level random effects and conditions on other random
+#' effects and known sampling variance. Explicit priors retain their nested
+#' [selection_model()] settings. Active selection
+#' branches must share the same conditioning choices and publication partition.
+#' Branches can differ in weight-height priors, bins, and `weight_rule`.
+#' These fixed model choices do not introduce new inclusion parameters.
 #'
 #' Product-space objects support predictive comparison with `add_loo()` and
 #' `add_waic()`. Bridge-sampling marginal likelihood via `add_marglik()` is
@@ -85,7 +79,7 @@ RoBMA <- function(
   model_type = "PSMA",
 
   # selection likelihood
-  selection_likelihood = c("exact", "approximate"),
+  selection = BayesTools::selection_model(),
   selection_control = set_selection_likelihood_control(),
 
   # MCMC fitting settings
@@ -97,7 +91,7 @@ RoBMA <- function(
   # additional settings
   seed = NULL, silent, ...) {
 
-  selection_likelihood <- match.arg(selection_likelihood)
+  BayesTools::check_selection_model(selection, name = "selection")
 
   ### create the output object
   dots            <- list(...)
@@ -122,7 +116,8 @@ RoBMA <- function(
     .call = match.call(), .envir = parent.frame(), class = "norm",
     set_contrast_factor_predictors = set_contrast_factor_predictors,
     standardize_continuous_predictors = standardize_continuous_predictors,
-    effect_direction = effect_direction, measure = measure)
+    effect_direction = effect_direction, measure = measure,
+    selection_binding = !isTRUE(dots[["only_data"]]))
   if (isTRUE(dots[["only_data"]]))
     return(object)
 
@@ -140,12 +135,13 @@ RoBMA <- function(
     prior_unit_information_sd         = prior_unit_information_sd,
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
-    data = object[["data"]], model_type = model_type)
+    data = object[["data"]], model_type = model_type,
+    weightfunction_model = selection)
+  object <- .prepare_selection_model_object(object)
   if (.is_priors_weightfunction(object[["priors"]])) {
     object <- .prepare_selection_likelihood_object(
-      object               = object,
-      selection_likelihood = selection_likelihood,
-      selection_control    = selection_control
+      object            = object,
+      selection_control = selection_control
     )
   }
   .fit_and_finalize_object(

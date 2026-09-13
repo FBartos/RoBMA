@@ -27,18 +27,22 @@ to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
 \item{summary_max_samples}{maximum number of posterior samples used for the
 EDR and missing-study summaries stored in the generated zplot object.
 This is separate from the plot-density \code{max_samples} argument accepted
-by \code{plot.zplot_brma()} through \code{...}. Defaults to 10000. Use
-\code{Inf} to use all posterior samples.}
+by \code{plot.zplot_brma()} through \code{...}. The summary default is 10000;
+the density default is 1000 for \code{brma.mv} models and 10000 for other
+models. Use \code{Inf} for either budget to use all posterior samples.}
 
 \item{conditioning_depth}{predictive conditioning depth passed to
 \code{as_zplot()}. Defaults to \code{"marginal"}.}
 
 \item{integration_control}{numerical integration settings created by
 \code{set_selection_likelihood_control()}. These control integration within
-each posterior draw, independently of \code{max_samples}. Factor blocks use
-converged Gauss-Hermite quadrature where possible; other blocks use adaptive
-randomized quasi-Monte Carlo. The relative diagnostic compares density error
-with the peak of each draw's curve and also checks the selection normalizer.}
+each posterior draw, independently of \code{max_samples}. Factor blocks and
+supported full-covariance product-selection blocks use deterministic
+Gauss-Hermite quadrature where possible, with the existing adaptive randomized
+quasi-Monte Carlo fallback. Density-error checks use the peak within each
+posterior draw and also check the selection normalizer. Bounded CDF
+interpolation, Gaussian-mixture approximation, and omitted contributions
+are charged to the same numerical error budget.}
 
 \item{...}{arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.}
 }

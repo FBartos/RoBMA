@@ -374,6 +374,7 @@
 .iwmde_direct_marglik_parameter_missing <- function(row, prior, name) {
 
   if (!BayesTools::is.prior.simple(prior) ||
+      BayesTools::is.prior.factor(prior) ||
       BayesTools::is.prior.point(prior)) {
     return(FALSE)
   }

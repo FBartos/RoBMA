@@ -982,7 +982,7 @@ test_that("GLMM posterior extraction helpers are vectorized", {
     posterior_samples[, c("phi[1]", "phi[2]")]
   )
   expect_equal(
-    .evaluate.brma.theta.glmm(
+    .evaluate.brma.estimate_effects(
       fit               = NULL,
       tau_within        = tau_within,
       same_data         = TRUE,

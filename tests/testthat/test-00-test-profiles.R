@@ -200,8 +200,8 @@ test_that("certification cases partition expensive evidence", {
     "glmm-models",
     "multivariate-core",
     "loo-exact-refits",
-    "selection-recovery-exact",
-    "selection-recovery-approximate",
+    "selection-recovery-marg",
+    "selection-recovery-cond",
     "multivariate-extended",
     "multivariate-singular",
     "multivariate-parity-cs",
@@ -457,4 +457,45 @@ test_that("raw lazy caches expose only active-profile fits", {
     expect_false(call[["validate"]])
     expect_true(call[["active_only"]])
   }
+})
+
+
+test_that("refit skipping checks fits owned by the fitting file before its class", {
+
+  withr::local_envvar(c(ROBMA_TEST_FORCE_REFIT = "FALSE", ROBMA_TEST_SKIP_REFIT = "TRUE"))
+  catalog <- data.frame(
+    name = c("bPET_own", "bPET_elsewhere"),
+    class = c("bPET", "bPET"),
+    source_file = c("test-01-bPET.R", "test-01-fixed-zero-marglik.R"),
+    stringsAsFactors = FALSE
+  )
+  checked <- character()
+  valid <- "bPET_own"
+  helper_env <- new.env(parent = environment(skip_refit_if_cached))
+  for (name in c("skip_refit_if_cached", "catalog_group_fits")) {
+    helper <- get(name, envir = helper_env, inherits = TRUE)
+    environment(helper) <- helper_env
+    assign(name, helper, envir = helper_env)
+  }
+  helper_env$active_fit_catalog <- function() catalog
+  helper_env$is_cached_fit_valid <- function(name) {
+
+    checked <<- c(checked, name)
+    name %in% valid
+  }
+  helper_env$skip <- function(message) {
+
+    stop(structure(list(message = message),
+                   class = c("refit_skipped", "error", "condition")))
+  }
+  # Class-wide resolution still includes other files for cache cleaning.
+  expect_identical(helper_env$catalog_group_fits("bPET"), catalog$name)
+  result <- tryCatch(helper_env$skip_refit_if_cached("bPET"), refit_skipped = identity)
+  expect_s3_class(result, "refit_skipped")
+  expect_identical(checked, "bPET_own")
+
+  valid <- character()
+  checked <- character()
+  expect_false(helper_env$skip_refit_if_cached("bPET"))
+  expect_identical(checked, "bPET_own")
 })

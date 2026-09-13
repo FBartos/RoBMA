@@ -1,5 +1,143 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- optionally retains exact and corrected-sampler selection caches with fitted
+  objects through 'selection.cache_retain'. Compatible entries survive saveRDS
+  and are reused when extending chains; 'remove_selection_cache()' releases the
+  fitted object's retained data. Worker caches remain within the shared native
+  budget, and post-fit worker payloads omit retained fitting caches.
+- preserves small covariance directions in singular Gaussian calculations by
+  applying the existing numerical PSD policy in correlation coordinates and
+  sharing one accepted factor across sampling, whitening, and conditional
+  calculations. Conditional variances use a stable sum-of-squares identity.
+- treats equivalent dense and factor covariance inputs consistently, including
+  cancelling loadings, and corrects latent sampling-node indices.
+- validates native integer controls and array shapes before conversion, rejects
+  dependency partitions that omit covariance, and preserves inactive Gaussian
+  sampling when unused selection weights are zero.
+- uses ordinary Gaussian contour laws when all selection sources are conditioned.
+  Selected funnel contours and regression sampling intervals are unavailable for
+  configurations unsupported by the scalar calculation; bias-adjusted contours
+  remain available, and z-plots retain their joint selected marginal target.
+- uses 1,000 posterior draws by default for multivariate z-plot densities,
+  retaining explicit budgets and the separate summary budget. Optional parallel
+  plotting distributes complete posterior curves across local workers while
+  preserving their grids, publication events, numerical checks, and order.
+  Workers share the configured selection-cache budget and validate package
+  builds, including numerical constants, before calculation. Worker covariance
+  memory limits follow the calling session. Prepared selection metadata, normal interval
+  probabilities, and identical per-row log probabilities are reused.
+- supports individual factor-coefficient selectors such as 'group[level]' in
+  posterior plots and lines, including prior overlays and qCMDE densities,
+  while retaining structural point masses and whole-factor selection.
+- reuses identical adjacent dense selection-likelihood evaluations during
+  post-processing, including their integration diagnostics, without rounding
+  parameter values or changing numerical controls.
+- evaluates supported full-covariance selection z-plots by posterior row and
+  covariance block, reusing full-event normalizers and compiled source
+  metadata instead of allocating global covariance arrays. Gaussian-mixture
+  moment approximations and omitted components carry explicit density-error
+  contributions; omitted mass is checked separately. Full sampling covariance,
+  publication events, conditioning, posterior budgets, and diagnostic criteria
+  are preserved, with existing integration retained for unsupported cases.
+- uses bounded normal-CDF interpolation for supported post-fit two-bin product
+  normalizers, including density and hypothesis evaluation. Its deterministic
+  error enters the existing integration budget. Unsupported inputs use the
+  ordinary primitive; unresolved dense envelopes retry that primitive before
+  QMC. Fitting and random generation retain their ordinary CDF evaluation, and
+  bounded-CDF requests remain isolated from the exact normalizer caches.
+- reuses exact Gaussian covariance factors, precision calculations, and source
+  reconstruction in prediction, fitted values, and BLUPs. Marginal Gaussian
+  z-plot references use covariance diagonals directly. Full covariance and
+  fitted-latent uncertainty are retained, and unchanged-design prediction reuses
+  compiled random-effect metadata.
+- improves selected-response simulation with exact Gaussian factor-box
+  proposals for supported product-selection blocks, including rare events.
+  Acceptance is corrected to the submitted covariance; retained contexts and
+  the existing attempt limit are preserved.
+- evaluates effect-parameter qCMDEs through an equivalent retained-location
+  conditional distribution when a sampled Gaussian random intercept permits
+  it. Supplied scalar priors, the marginal posterior target, fallback rows,
+  and density/ESS diagnostics are preserved. Eligible moderator targets use
+  conditioning directions certified by compiled design metadata and reuse
+  affine predictors, retaining complete original priors, their support, and
+  the generic fallback.
+- reuses requested normalizer-grid evaluations in eligible full-covariance
+  qCMDEs through bounded interpolation. Gaussian densities and prior factors
+  retain their existing evaluation. Interpolation and native-anchor error
+  estimates remain separate from Monte Carlo error; unsafe points use direct
+  integration under the existing likelihood tolerance.
+- caches repeated multivariate selection normalizers under one configurable,
+  lazily allocated budget shared by exact and coarse entries across all chains
+  in a fit. The default is the smaller of 4 GiB and one quarter of currently
+  available system RAM. Parallel workers pool their assigned chains' shares;
+  cache contents use global least-recently-used eviction within each process.
+  Densities and numerical diagnostics are unchanged.
+  An optional `selection.sampler = "coarse_corrected"` sampler reuses coarse
+  normalizers for slice proposals and corrects every proposal against the full
+  target. Prior families and full sampling covariance are preserved. Runtime
+  settings propagate to parallel workers and fit extensions; cache and sampler
+  counters are available through `selection_cache_info()` and
+  `selection_sampler_info()`.
+- supports explicit study-mean sampling for eligible retained scalar random
+  intercepts through `random_block(parameterization = "mean_centered")`,
+  preserving supplied priors, reported random deviations, and bridge
+  coordinates. Existing parameterization defaults are unchanged.
+- omits verbose selection-configuration descriptions from printed model
+  summaries and inference tables, retaining the settings in summary objects.
+- evaluates fully conditioned positive-weight selection models with their exact
+  Gaussian likelihood, retaining prior-only weights and latent reconstruction.
+  A warning identifies this endpoint when fitting starts.
+- prepares independent sampling-conditioned bridge likelihoods once and avoids
+  unused auxiliary-state reconstruction in independent deletion scores. Scalar
+  deletion log-density quadrature runs in the native kernel without expanding
+  selection metadata across quadrature nodes, retaining its tail and refinement
+  checks. LOO comparisons recognize when no remaining sampling errors enter
+  those scores.
+- evaluates narrow conditional-selection z-densities through the equivalent
+  conditional-Gaussian integral, retaining posterior draws, grids, selection
+  boundaries, and per-draw numerical refinement.
+- uses checked covariance envelopes for supported monotone product-selection
+  normalizers with full sampling covariance, retaining the submitted covariance
+  in the Gaussian density and falling back to dense integration when needed.
+  A covariance-derivative bound avoids a second envelope integral when its
+  contribution fits the existing error budget. Quadrature checks retain omitted
+  Gaussian-tail mass, refinement, and covariance uncertainty; looser bounds
+  retain the two-envelope calculation. Full-space Gaussian selection events
+  reuse this normalizer and report quadrature error separately from MCSE.
+  Identical conditional row probabilities are reused in their original
+  product order, and Gaussian factors affecting only one row are integrated
+  analytically, preserving the covariance and integration criteria.
+  Ordinary dense plans without rank-one blocks try an initial seven-point
+  quadrature rule before the existing refinements, retaining the same
+  numerical error criterion and maximum orders.
+- evaluates sampling-conditioned deletion integrals in separate Gaussian tails
+  to avoid infinite quantiles from probabilities rounded to one, and reuses
+  conditional sampling covariances for independent candidate effects.
+- bounds density-estimation workspaces for independent sampling-variance
+  inputs using the existing memory control, without reducing posterior draws.
+- avoids building and repeatedly validating unused QMC arrays when complete
+  sampling conditioning leaves an analytic diagonal candidate distribution,
+  preserving the full covariance, numerical controls and selection law.
+- treats omitted or NULL `random` in all .mv constructors as a fixed-effect
+  model, without implicit heterogeneity or a heterogeneity mixture. Random
+  terms must be declared before supplying heterogeneity priors or scale
+  formulas. Known sampling covariance is preserved, and specialized univariate
+  heterogeneity and clustered tau/rho/I2 behavior remain unchanged.
+- uses metadata-defined prior densities for supported gated variance
+  proportions, avoiding simulated prior-overlay noise while preserving
+  undefined and point-mass branches.
+- allows Gaussian selection densities and hypotheses
+  to refine integration through `density_control$integration_control`, using
+  `set_selection_likelihood_control()`. Omitted controls retain the fitted
+  integration settings; overrides leave the fitted model and posterior draws
+  unchanged.
+- uses the controlled factor-QMC fallback for rank-one selection normalizers
+  when fixed quadrature fails its convergence check. Fitting, likelihoods,
+  densities, hypotheses, and z-plot normalizers share the existing integration
+  budgets and diagnostics.
+- speeds up selection-model LOO and predictive summaries by reusing compiled
+  conditional covariance plans and batching product-weight calculations while
+  preserving retained contexts and the full publication selection event.
 - uses the same prior-parameterization summary for `BMA.mv()` and `brma.mv()`:
   variance allocations show their aggregate SD and proportions, while derived
   component SDs and variances remain in `summary_heterogeneity()`. Random-effect
@@ -11,16 +149,35 @@
   component SDs, and variance proportions, preserving excluded zero branches
   and conditioning proportions on positive total heterogeneity. Random-effect
   inclusion tables use the corresponding SD labels, including component prefixes.
+- reuses BayesTools' conditional covariance plans for shared-gate model-averaged
+  random-effect densities, retaining their continuous-row conditioning and point
+  masses while avoiding repeated candidate covariance reconstruction.
 - reuses fixed quadrature weights within native selection-likelihood batches
-  without changing calls, draw selection, likelihoods, integration rules, or
-  diagnostic criteria.
+  and shares prepared geometry and workspaces across covariance-envelope
+  evaluations, without changing draw selection, likelihoods, integration rules,
+  or diagnostic criteria.
+- omits redundant interval-boundary probabilities when adjacent selection
+  weights are exactly equal.
+- reuses unchanged covariance factors across conditional-density grids and
+  batches covariance-anchor replacement through the shared sample builder.
+- speeds up marginal selection z-plots by reusing joint normalizers for
+  extrapolated summaries and compiled factor supports for nested quadrature.
+  When some factor columns are exactly zero, their states use the existing
+  quadrature rules for the active factor count. Fully inactive states remain
+  analytic.
+  Deterministic projections are evaluated once per rule, and Gaussian curves
+  reuse density ratios across repeated actual grid spacings, with the existing
+  direct evaluation retained for unsupported grids and extreme values.
+- refines conditional selection z-plot quadrature independently for each
+  posterior draw, retaining completed rows under the existing convergence
+  criterion instead of recomputing them when other rows need more nodes.
 - speeds up selection-model conditional density estimation by batching
   rank-one quadrature products and sharing the guarded step normalizer with
-  approximate likelihoods, including known sampling covariance. Integration
-  rules, convergence checks, and exact and approximate targets are unchanged.
+  conditional likelihoods, including known sampling covariance, while preserving
+  the requested numerical rules and diagnostic criteria.
 - adds `plot_scenario_times()` for horizontal elapsed-time boxplots of
   individually named calls in one maintainer scenario or across scenarios,
-  with separate exact- and approximate-likelihood selection-model boxes and
+  with explicit cond/marg selection-model labels and
   seconds, minutes, or hours on the x-axis
 - allows the maintainer `plot_marginal_diagnostics()` helper to directly
   compare two RoBMA fits using explicit marginal diagnostic targets, while
@@ -28,12 +185,13 @@
   `bselmodel` fits
 - accepts plain random-slope formulas such as `(1 + x | study)` in `brma.mv()`,
   using BayesTools' unstructured random-coefficient semantics just like `us()`
-- speeds up exact-selection JAGS fitting by batching row normalizers across
+- speeds up marginal selection JAGS fitting by batching row normalizers across
   quadrature points and using the standard complementary-error-function
-  identity for normal tails. Dense-covariance integration omits the unused
+  identity for normal tails. Dense-covariance integration prepares the first
+  conditional row once per likelihood evaluation and omits the unused
   terminal conditional draw. The likelihood, numerical integration designs,
   diagnostics, and sampler parameterizations are unchanged.
-- shares exact-selection block evaluation between posterior scores and bridge
+- shares marginal selection block evaluation between posterior scores and bridge
   sampling, and delegates random-effect dependencies and factor covariance
   reconstruction to BayesTools.
 - lets named `scale` lists target concrete `brma.mv()` random-effect blocks,
@@ -43,8 +201,8 @@
 - adds `RoBMA.mv()` as the multivariate and multilevel robust model-averaging
   interface. It combines the complete `BMA.mv()` fixed- and random-component
   product space with unadjusted, selection-model, PET, and PEESE branches.
-  Estimate-level selection defaults to the exact joint selected-Gaussian
-  likelihood and can use the explicit approximate conditional likelihood;
+  Selection defaults to conditioning on contextual random effects and
+  integrating the complete sampling error, with source choices carried by priors;
   PET/PEESE retain the full known sampling covariance. Summaries, individual
   model tables, prediction, LOO/WAIC, supported diagnostics and plots,
   hypotheses, posterior conversion, and updating share the existing RoBMA and
@@ -56,100 +214,67 @@
   bridge-sampling marginal likelihoods. PET uses `sqrt(diag(V))` and PEESE uses
   `diag(V)` as their row-level bias predictors while retaining the full known
   sampling covariance in the likelihood.
-- adds exact finite-vector estimate-level product-selection likelihoods to
-  `bselmodel()`, `RoBMA()`, and the new `bselmodel.mv()` and `RoBMA.mv()`.
-  Gaussian cluster, known-`V`, and
-  formula-random effects are marginalized into dependency-block covariances;
-  diagonal normalizers are analytic, rank-one multilevel normalizers use an
-  adaptive sequence of deterministic Gauss-Hermite rules, and general
-  covariance normalizers use a fixed shifted-Halton GHK plan. Both numerical
-  routes enforce an explicit relative-error diagnostic. The
-  public switch is `selection_likelihood = "exact"` or `"approximate"`, with
-  no unreleased compatibility aliases. Summary, bridge sampling, estimate-unit
-  LOO/WAIC, LOO-PIT residuals, latent/random-effect prediction, and joint
-  selected-response prediction use the matching target. Dependent normalizers
-  and joint selected-response simulation use native kernels, while fitted
-  random-effect draws reuse the compiled `brma.mv()` covariance plan.
-  One versioned execution plan owns the structural covariance representation,
-  dependency blocks, routing, and deterministic numerical designs used by
-  fitting, post-fit likelihoods, LOO/WAIC, and bridge sampling. BayesTools owns
-  formula-random covariance compilation and dimension-specific QMC design,
-  while RoBMA owns the meta-analysis selection target and routing. Independent
-  selection blocks use one vectorized scalar JAGS block and batched native
-  scalar evaluation; bridge data omit the JAGS-only payload, and numerical
-  designs are stored only in the authoritative plan. Ordered step normalizers use
-  the equivalent telescoping tail-probability identity, and rank-one blocks
-  begin their adaptive Gauss-Hermite ladder at 15 nodes while retaining the
-  same diagnostic tolerance and higher-order fallbacks. Metadata-certified
-  diagonal-plus-factor covariance uses the same factor representation during
-  fitting, post-fit likelihood evaluation, and bridge sampling: rank one uses
-  deterministic one-dimensional quadrature and structural ranks two through
-  four use adaptive deterministic tensor Gauss-Hermite rules, accepting only
-  after two consecutive relative changes satisfy the requested tolerance.
-  States not resolved by quadrature fall back to a fixed factor-dimensional
-  shifted-Halton design
-  split equally between prior-centered and deterministic mode-centered
-  Gaussian proposals, with exact balance-mixture weights plus nested-design
-  and between-scramble diagnostics. The fallback refines its point count up to
-  the configured maximum, now 8,192 points per scramble by default. Fitting
-  and post-fit density evaluation do not rescan this large fixed design on
-  every update; the design is validated at construction and coordinates are
-  checked lazily if a fallback consumes them. Quadrature rules are prepared
-  once in the execution plan, and factor quadrature reuses partial conditional
-  means across grid axes. Formula random effects use
-  authoritative BayesTools metadata, while
-  `vcalc2()` wraps the optionally installed `metafor::vcalc()` and retains its
-  common `type`/`obs` correlation construction as an exact `D + UU'` contract;
-  `known_v_factor()` remains available for explicit declarations. The wrapper
-  preserves `vcalc()` argument evaluation and detects covariance edits that
-  invalidate retained factors. Approximate multivariate selection likelihoods
-  condition on the structural sampling factors retained by `vcalc2()` or
-  declared by `known_v_factor()` when available. Ordinary covariance matrices
-  retain the decomposition controlled by `known_v_residual_fraction`. These
-  representations can define different approximate likelihoods despite having
-  the same covariance; structural conditioning can improve efficiency but is
-  not guaranteed to improve agreement with exact selection. Non-`V` models are
-  unchanged.
-  Non-silent exact selection fits using general integration for an undeclared
-  sampling covariance report that `vcalc2()` may enable faster fitting when
-  supported construction information is available; ordinary matrices remain
-  fully supported.
-  Arbitrary
-  dense `V`, non-positive residual diagonals, and
-  structural ranks above four fail closed to the general dense exact
-  likelihood; no numerical rank is inferred and no covariance repair, jitter,
-  clamping, or model approximation is introduced. Declared factors are also
-  consumed directly by marginal GLS diagnostics and predictive sampling,
-  independently of the covariance backend selected for fitting.
-- adds `selection_approximation_diagnostics()` for fitted approximate
-  `bselmodel.mv()` models. It simulates fresh pre-selection Gaussian effects
-  through the same compiled known-`V` and random-effect covariance plans used
-  by post-fit likelihood calculations, and reports blockwise latent-reweighting
-  ESS fractions, total-variation distances, robust log-weight spreads, and
-  Monte Carlo standard errors. It supports grouped, row-scaled, known-group,
-  and dense covariance factors, with messages for maximum block-level median
-  total-variation distances above 5% and warnings from 10% onward. Approximate
-  fits compute and cache this diagnostic automatically; model and summary
-  printing repeat its notification without simulation. Chain extension
-  refreshes it using the stored settings, while label-only updates preserve it.
-  `add_selection_approximation_diagnostics()` attaches or replaces the result
-  on an existing fit without rerunning JAGS. Diagnostic failures preserve the
-  posterior and are reported as unavailable. The diagnostic starts from the
-  fixed predictor and simulates fresh latent effects without adding their
-  fitted realizations.
-- corrects post-fit likelihood reconstruction for approximate
-  `bselmodel.mv()` models with formula random effects and known sampling
-  covariance. LOO, bridge sampling, and likelihood-aware density estimation
-  now retain sampled known-`V` dependencies, add analytically marginalized
-  row variance, and distinguish the residual likelihood SD from the marginal
-  SD defining selection thresholds. These paths reproduce the fitted
-  row-selected-normal target without monitoring rowwise derived scales.
+- adds `bselmodel.mv()` and supports conditional Gaussian vector selection in
+  `bselmodel()`, `RoBMA()`, and `RoBMA.mv()`. Weightfunction priors carry a
+  `selection_model()` with separate `estimate_random_effects`,
+  `other_random_effects` and `known_sampling_variance` choices (`"condition"`
+  or `"integrate"`), plus `weight_rule` (`"product"` or `"best"`) and `group`.
+  Defaults integrate estimate random effects and the complete sampling error,
+  and condition on other random effects, with product weights and automatic group
+  resolution. The single constructor input `selection = selection_model(...)`
+  configures generated default weightfunctions; explicit priors retain their
+  own specification. Conditioning on sampling variation retains the entire
+  realized error vector with its full covariance, including univariate `vi`
+  and `sei` inputs. All-conditioned models with positive weights reduce to the
+  ordinary Gaussian law; impossible retained selection contexts fail clearly.
+  Non-unit observation weights require integrated sampling variation and
+  independent product factors; unit weights are equivalent to omission.
+  Multivariate estimate roles follow zero or one declared factor with
+  one-to-one estimate grouping; multiple qualifying factors fail explicitly.
+  Full source covariances are preserved, including non-diagonal known group
+  covariance. Specialized clustered models retain their tau/rho/I2 summaries.
+- defines best-p-value weights by the smallest actual p-value within each
+  publication event, supporting unequal standard errors, one- and two-sided
+  geometry, nonmonotone relative weights, and zero-weight bins. Publication
+  groups bind from an explicit prior column or a supported specialized
+  constructor cluster;
+  covariance blocks and random-effect groups do not define publications.
+- keeps sampling covariance authoritative for conditional and marginal
+  selection. Equivalent dense, diagonal, and `known_v_factor()` representations
+  define the same model with the same publication groups. Ordinary covariance
+  matrices from `metafor::vcalc()` are accepted directly; publication groups
+  are supplied separately. Factor decompositions do not define sampling
+  conditioning choices.
+  Selection thresholds always use the original sampling standard errors.
+- shares one execution plan across fitting, bridge sampling, posterior
+  likelihoods, densities, predictions, LOO, and z-plots. Independent product
+  factors and independent Gaussian event probabilities are analytic; supported
+  low-rank factors use deterministic quadrature with fixed QMC fallback and
+  explicit error diagnostics. Partial-vector and deletion calculations preserve
+  the complete original selection event. Under conditioned sampling, estimate
+  deletion integrates the deleted sampling error conditional on the retained
+  sampling errors of the remaining estimates. Declared source metadata determine
+  estimate and other random-effect roles without splitting declared families.
+- adds `selection_sensitivity_diagnostics()` and
+  `add_selection_sensitivity_diagnostics()` to compare explicit conditioning
+  models at the same weighting rule and publication partition. These statistical
+  comparisons are separate from numerical integration diagnostics and are
+  computed only on request. Chain extension silently refreshes explicitly
+  stored comparisons using their stored settings; fitting and ordinary
+  printing do not compute them or emit sensitivity notifications. Z-plots for
+  multivariate models, estimate-conditioned models, applicable integrated other
+  random effects or sampling contexts, and best rules use the normalized
+  pre-selection Gaussian marginal as the adjusted reference; relative
+  weights do not identify an absolute missing-study count. Independent and
+  conditional-cluster univariate product models retain their conventional
+  inverse-weight diagnostic when estimate effects are integrated. Resolving the same publication groups explicitly
+  or automatically does not change the reference or diagnostic.
 - adds `BMA.mv()` for product-space model averaging with the complete
   `brma.mv()` known-sampling-covariance and formula-random workflow. Independent
   random-component gates multiply their allocated slab variances without
-  changing the fitted component scales. Public `sd_total` and `var_total`
+  changing the fitted component scales. Public `tau_total` and `tau2_total`
   report the realized gated aggregate, including the all-off zero branch, and
-  `var_prop(...)` reports active-component shares conditional on positive total
+  `tau2_prop(...)` reports active-component shares conditional on positive total
   heterogeneity. Density displays preserve the resulting structural zero/one
   masses separately from continuous density, and point-null tests are disabled
   for these gated aggregate quantities. Fitting, inclusion/model summaries,
@@ -160,7 +285,7 @@
   of the Kearon US/HCS and Ishak HAR scenario models. The oracle averages each
   held-out conditional density over the deletion-fit posterior and evaluates
   agreement using the combined PSIS and batch-means Monte Carlo uncertainty.
-- adds independently simulated exact and approximate selection-model
+- adds independently simulated conditional and marginal selection-model
   certification cases with diagonal, structured, and dense sampling covariance.
   Fixed and three-level examples check parameter recovery and chain diagnostics;
   independent posterior integration checks JAGS means and second moments.
@@ -245,15 +370,23 @@
   versioned, stored, and validated together; RoBMA consumes the semantic
   catalog and coordinate accessors as views of that one fitted contract.
   BayesTools retains canonical names of the form
-  `(formula) owner: quantity(parameter[level], ...)`, while RoBMA consistently
-  requests its simplified display and selector aliases. A sole random
-  intercept therefore prints as `sd` or `study: sd`; non-intercept arguments,
-  such as `study: sd(x)`, remain explicit. Owner-free shorthand is accepted
-  only when it resolves uniquely. The vocabulary includes `cor`, `sd`, `var`,
-  `sd_total`, `var_total`, `sd_common`, `var_common`, `var_prop`, `var_mult`,
-  and `sd_mult`; backend coordinates are no longer public aliases.
+  `(formula) owner: quantity(parameter[level], ...)`. RoBMA maps those general
+  names to its meta-analytic I/O vocabulary without changing BayesTools. A sole
+  random intercept therefore prints as `tau` or `study: tau`; non-intercept
+  arguments, such as `study: tau(x)`, remain explicit. Owner-free shorthand is
+  accepted only when it resolves uniquely. RoBMA maps `sd`, `var`, `cor`,
+  total/common scales, proportions, and multipliers to `tau`, `tau2`, `rho`,
+  `tau_total`, `tau2_total`, `tau_common`, `tau2_common`, `tau2_prop`,
+  `tau_mult`, and `tau2_mult`; backend coordinates are no longer public names.
+  The default `as_draws*()` schema now exports these same semantic random-effect
+  quantities instead of backend SD coordinates or dense reconstructed
+  correlation matrices; `include_auxiliary = TRUE` adds backend auxiliaries
+  without renaming the public quantities.
+  Maintainer scenarios and `metafor` comparison tables use the same RoBMA
+  selectors and tau-based labels while retaining `metafor`'s native extraction
+  names for its reference fits.
   A bare formula or unnamed one-entry list omits its redundant owner prefix, so
-  names such as `cor(...)`, `sd_common`, and `var_mult(...)` work directly in
+  names such as `rho(...)`, `tau_common`, and `tau2_mult(...)` work directly in
   summaries, plots, density estimation, and hypotheses. Explicitly named
   one-entry lists and models with multiple blocks retain block-qualified names.
   Lists with two or more unnamed random components use `component 1`,
@@ -262,7 +395,7 @@
   Generated allocations retain stable internal identifiers independently of
   these public names. Random-effect formula, prior, vignette, and maintainer
   documentation now consistently distinguishes backend coordinates from public
-  quantities and uses `cor`, `sd_total`, and `sd_common` according to their
+  quantities and uses `rho`, `tau_total`, and `tau_common` according to their
   fitted meanings. Hypothesis labels preserve semantic aliases and level
   suffixes when one statement expands across factor levels, while cross-level
   KDE contrasts no longer require the fitted-model context used only by
@@ -277,13 +410,12 @@
   and SD multipliers. Public random-effect correlations appear in their owning
   heterogeneity component, including homogeneous AR, CS, and CAR structures;
   additive totals across components do not invent a shared correlation.
-  All `brma.mv()` heterogeneity output uses `sd` / `var` for a
-  single component, `sd_total` / `var_total` only for a genuine additive
-  aggregate, and `sd_common` / `var_common` for mean-variance allocations;
-  ordinary `brma()` and the maintained specialized `brma(..., cluster = ...)`
-  interface retain their `tau` / `tau2`, `rho`, and level-specific `I2`
-  vocabulary. A known group covariance reports its fitted kernel multiplier as
-  `sd` / `var`, not `sd_mult` / `var_mult`.
+  All `brma.mv()` heterogeneity output uses `tau` / `tau2` for a single
+  component, `tau_total` / `tau2_total` only for a genuine additive aggregate,
+  and `tau_common` / `tau2_common` for mean-variance allocations, consistently
+  with ordinary `brma()` and the maintained specialized
+  `brma(..., cluster = ...)` interface. A known group covariance reports its
+  fitted base kernel multiplier as `tau` / `tau2`.
   Random-formula `type = "terms.scale"` predictions now group exact row-wise
   leaf SDs only for authoritative user-facing formula components, preserving
   random-slope designs and known covariance kernels while combining expanded
@@ -505,8 +637,9 @@
 - keeps known-`V` backend routing in summary metadata without printing this
   implementation detail in ordinary `brma.mv()` summaries.
 - requests BayesTools' simplified structured component labels for
-  random-effect rows, so a sole intercept prints as `sd` or `study: sd`, while
-  non-intercept coefficients retain labels such as `study: sd(x)`.
+  random-effect rows and maps them to RoBMA's meta-analytic vocabulary, so a
+  sole intercept prints as `tau` or `study: tau`, while non-intercept
+  coefficients retain labels such as `study: tau(x)`.
 - extends posterior `plot()` and `lines()` transformations: `EXP` now applies
   to individual log-scale ratio meta-regression coefficients and to
   scale-regression coefficients as multiplicative changes in heterogeneity,
@@ -655,11 +788,11 @@
   increase by that rank when it exceeds one.
 
 ### Maintenance
-- unifies random-effect compilation for ordinary and exact-selection
+- unifies random-effect compilation for ordinary and marginal selection
   multivariate models, shares dependency-block construction across likelihood,
   bridge, diagnostic, and prediction paths, and consumes BayesTools' single
   lower-triangle covariance ordering contract instead of maintaining parallel
-  exact-selection implementations.
+  marginal selection implementations.
 - consumes BayesTools' authoritative global and per-branch selection-kernel
   mode codes instead of maintaining a second downstream mode mapper.
 - centralizes common multivariate-constructor initialization and fitted-object
@@ -667,14 +800,35 @@
   ungated paths, and removes the superseded one-use selection finalizer.
 
 ### Fixes
-- corrects marginal `zplot()` densities for correlated exact selection models
-  by marginalizing the jointly selected Gaussian response, including sampling
-  and random-effect covariance. Approximate models integrate their conditional
-  selected-normal densities over new latent effects. Extrapolation, EDR, and
-  missing counts use the same target; exact correlated extrapolation represents
-  suppression of whole dependency blocks. Numerical integration is checked and
-  controlled by `integration_control`. Conditional selection zplots now report
-  their target as unavailable instead of returning a Gaussian plug-in result.
+- prevents narrow retained-location qCMDE kernels from falsely passing
+  normalization checks on a shared grid. Normal and truncated-normal prior
+  products are normalized analytically; other supported scalar priors use
+  row-scaled integration with explicit support and tail checks. Cached density
+  plans distinguish this conditioning and normalization calculation.
+- uses original sampling standard errors for selection cutoffs in
+  conditional-density calculations with known sampling covariance.
+- selects quadrature rules using the effective factor rank when fitted
+  inclusion states make whole loading columns exactly zero. Joint selection
+  likelihood normalizers retain opposing optimized modes in their fallback
+  importance mixture without increasing its total sampling budget or
+  relaxing diagnostics.
+- retains random-effect covariance in the ordinary normal, PET, and PEESE
+  branches of model-averaged conditional-density calculations.
+- conditions conditional selection BLUPs, random effects, and fitted latent
+  draws on their sampled effects and sampling factors. Sampling factors enter
+  the observation residual without becoming part of the latent true effect.
+- uses the conditional Beta prior, including the simplex Jacobian, when
+  evaluating variance-allocation densities, and respects BayesTools' rejection
+  of affine updates for correlated component allocations.
+- reports exhausted posterior draws, rather than a larger local sample budget,
+  as the remedy when a conditional-density calculation has used every draw.
+- computes marginal `zplot()` densities under the fitted conditioning model,
+  retaining each full publication event and averaging over new retained
+  contexts. The vector bias-adjusted reference is the normalized pre-selection
+  Gaussian population, and EDR is its significance probability. Missing counts
+  are unavailable because relative selection weights do not identify absolute
+  publication probabilities. Numerical integration is checked and controlled
+  by `integration_control`.
 - reconstructs row-specific random-scale SDs from their regression
   coefficients for LOO and bridge sampling instead of monitoring every
   deterministic `tau[i]` node; raw rowwise SDs consequently stay out of public
@@ -711,7 +865,7 @@
   point.
 - rejects point-null Bayes factors for allocation-derived component SDs at
   zero as nonregular product boundaries and names the corresponding
-  `var_prop(...) = 0` or `var_mult(...) = 0` omission target.
+  `tau2_prop(...) = 0` or `tau2_mult(...) = 0` omission target.
 - completes random-allocation heterogeneity summaries with component variances
   and correlations in semantic order.
 - uses exact BayesTools prior algebra for allocation-derived component SD, SD-

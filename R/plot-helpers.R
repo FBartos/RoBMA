@@ -18,7 +18,8 @@
       object    = object,
       parameter = parameter_mods,
       component = "mods",
-      argument  = "parameter_mods"
+      argument  = "parameter_mods",
+      allow_factor_cells = TRUE
     ))
   }
 
@@ -28,7 +29,8 @@
       object    = object,
       parameter = parameter_scale,
       component = "scale",
-      argument  = "parameter_scale"
+      argument  = "parameter_scale",
+      allow_factor_cells = TRUE
     ))
   }
 
@@ -40,7 +42,8 @@
     object    = object,
     parameter = parameter,
     component = component,
-    argument  = "parameter"
+    argument  = "parameter",
+    allow_factor_cells = TRUE
   ))
 }
 
@@ -194,13 +197,15 @@
 
 .brma_parameter_select <- function(object, parameter,
                                    component = "auto",
-                                   argument = "parameter") {
+                                   argument = "parameter",
+                                   allow_factor_cells = FALSE) {
 
   entry <- .brma_parameter_select_entry(
     object    = object,
     parameter = parameter,
     component = component,
-    argument  = argument
+    argument  = argument,
+    allow_factor_cells = allow_factor_cells
   )
 
   return(entry[["parameter"]])
@@ -208,7 +213,8 @@
 
 .brma_parameter_select_entry <- function(object, parameter,
                                          component = "auto",
-                                         argument = "parameter") {
+                                         argument = "parameter",
+                                         allow_factor_cells = FALSE) {
 
   component <- .parameter_component_normalize(component)
   BayesTools::check_char(parameter, argument, check_length = 1, allow_NA = FALSE)
@@ -250,6 +256,26 @@
       component = if (identical(component, "auto")) NULL else component,
       simplify_names = TRUE
     ),
+    BayesTools_parameter_not_found = function(error) {
+      if (identical(component, "auto")) stop(error)
+      parents <- metadata[["entries"]]
+      parents <- parents[parents[["component"]] == component, , drop = FALSE]
+      allowed <- unique(c(parents[["quantity_id"]],
+        unlist(parents[["member_quantity_ids"]], use.names = FALSE)))
+      catalog <- metadata[["catalog"]]
+      quantities <- catalog[["quantities"]]
+      aliases <- catalog[["aliases"]]
+      candidates <- unique(c(
+        quantities[["quantity_id"]][quantities[["canonical_name"]] == parameter],
+        aliases[["quantity_id"]][aliases[["alias"]] == parameter]
+      ))
+      candidates <- intersect(candidates, allowed)
+      if (length(candidates) != 1L) stop(error)
+      quantity <- quantities[quantities[["quantity_id"]] == candidates, , drop = FALSE]
+      BayesTools::parameter_catalog_resolve(catalog,
+        alias = quantity[["canonical_name"]], namespace = quantity[["namespace"]],
+        component = quantity[["component"]], simplify_names = TRUE)
+    },
     BayesTools_parameter_ambiguous = function(error) {
       ambiguity <- .brma_parameter_catalog_group_ambiguity(
         entries      = metadata[["entries"]],
@@ -272,6 +298,28 @@
     ,
     drop = FALSE
   ]
+  if (nrow(entry) == 0L) {
+    parent <- .brma_parameter_catalog_entries_for_quantities(
+      metadata[["entries"]], selection[["quantity_id"]]
+    )
+    if (nrow(parent) == 1L &&
+        identical(parent[["role"]], "formula_coefficient_group")) {
+      if (!allow_factor_cells) {
+        stop("Individual factor-cell selection is unavailable for this method. ",
+          "Use 'parameter = \"", parent[["term"]], "\"' to select the whole factor term.",
+          call. = FALSE)
+      }
+      out <- as.list(parent[1L, setdiff(names(parent), "aliases"), drop = FALSE])
+      quantity <- selection[["quantities"]]
+      out[["parent_parameter"]] <- out[["parameter"]]
+      out[["parameter"]] <- quantity[["canonical_name"]]
+      for (field in c("quantity_id", "role", "status", "fixed_value")) {
+        out[[field]] <- quantity[[field]]
+      }
+      out[["selection"]] <- selection
+      return(out)
+    }
+  }
   if (nrow(entry) != 1L) {
     stop(
       "Resolved parameter metadata are unavailable. Refit the model with the ",
@@ -530,17 +578,22 @@
         ,
         drop = FALSE
       ]
+      parameter <- .brma_random_parameter_io_name(
+        quantity[["canonical_name"]],
+        quantity[["quantity"]]
+      )
+      entry_aliases <- .brma_random_parameter_io_names(
+        c(quantity[["canonical_name"]], base_aliases[["alias"]]),
+        rep(quantity[["quantity"]], nrow(base_aliases) + 1L)
+      )
       add_entry(
         quantity          = quantity,
-        parameter         = quantity[["canonical_name"]],
+        parameter         = parameter,
         component         = "random",
-        term              = quantity[["canonical_name"]],
+        term              = parameter,
         source            = "random",
         formula_parameter = quantity[["formula_parameter"]],
-        entry_aliases     = c(
-          quantity[["canonical_name"]],
-          base_aliases[["alias"]]
-        ),
+        entry_aliases     = entry_aliases,
         entry_alias_simplified = c(
           FALSE,
           base_aliases[["simplified"]]
@@ -594,6 +647,14 @@
   } else {
     do.call(rbind, extension_quantities)
   }
+  random_quantity_ids <- entries[["quantity_id"]][
+    entries[["component"]] == "random"
+  ]
+  catalog[["aliases"]] <- catalog[["aliases"]][
+    !catalog[["aliases"]][["quantity_id"]] %in% random_quantity_ids,
+    ,
+    drop = FALSE
+  ]
   catalog <- BayesTools::parameter_catalog_extend(
     catalog    = catalog,
     quantities = extension_quantities,

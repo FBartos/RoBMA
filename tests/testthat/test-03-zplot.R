@@ -136,7 +136,18 @@ test_that("zplot creates reusable objects and plots directly", {
   zp  <- .test_as_zplot(fit, max_samples = zplot_smoke_samples)
 
   expect_s3_class(zp, "zplot_brma")
-  expect_named(zp[["zplot"]], c("estimates", "data"))
+  expect_named(zp[["zplot"]], c("estimates", "data", "target"))
+  expect_identical(zp[["zplot"]][["target"]], list(
+    fitted               = NULL,
+    reference            = "univariate_extrapolation",
+    conditioning_depth   = "marginal",
+    publication_groups   = NULL,
+    source_roles         = NULL,
+    sampling_structure   = NULL,
+    row_index            = NULL,
+    missing_count        = "univariate_convention",
+    missing_count_reason = NULL
+  ))
   expect_identical(
     zp[["zplot"]][["data"]][["conditioning_depth"]],
     "marginal"

@@ -8,7 +8,7 @@
   x,
   plot_type = "base",
   probs = c(0.025, 0.975),
-  max_samples = 10000,
+  max_samples = if (inherits(x, "brma.mv")) 1000 else 10000,
   plot_fit = TRUE,
   plot_extrapolation = TRUE,
   plot_ci = TRUE,
@@ -24,6 +24,8 @@
   dots_extrapolation = NULL,
   dots_thresholds = NULL,
   integration_control = x[["zplot"]][["data"]][["integration_control"]],
+  parallel = FALSE,
+  cores = min(4, RoBMA.get_option("max_cores")),
   ...
 )
 }
@@ -36,7 +38,9 @@ Defaults to \code{"base"}.}
 \item{probs}{quantiles for credible intervals. Defaults to \code{c(.025, .975)}.}
 
 \item{max_samples}{maximum posterior samples for density estimation.
-Defaults to 10000. Use \code{Inf} to use all posterior samples.}
+Defaults to 1000 for \code{brma.mv} models and 10000 for other models.
+Use \code{Inf} to use all posterior samples. This plotting budget does not
+change the EDR and missing-study summary budget in \code{as_zplot()}.}
 
 \item{plot_fit}{whether to show fitted density (with bias adjustments).
 Defaults to \code{TRUE}.}
@@ -69,10 +73,25 @@ Defaults to \code{TRUE}.}
 
 \item{integration_control}{numerical integration settings created by
 \code{set_selection_likelihood_control()}. These control integration within
-each posterior draw, independently of \code{max_samples}. Factor blocks use
-converged Gauss-Hermite quadrature where possible; other blocks use adaptive
-randomized quasi-Monte Carlo. The relative diagnostic compares density error
-with the peak of each draw's curve and also checks the selection normalizer.}
+each posterior draw, independently of \code{max_samples}. Factor blocks and
+supported full-covariance product-selection blocks use deterministic
+Gauss-Hermite quadrature where possible, with the existing adaptive randomized
+quasi-Monte Carlo fallback. Density-error checks use the peak within each
+posterior draw and also check the selection normalizer. Bounded CDF
+interpolation, Gaussian-mixture approximation, and omitted contributions
+are charged to the same numerical error budget.}
+
+\item{parallel}{whether to distribute multivariate selection-model density
+calculations across local workers. Defaults to \code{FALSE}. Only posterior
+draws are divided; the full publication event and integration settings are
+retained. Scalar models, Gaussian-reference-only curves, and EDR summaries
+remain serial.}
+
+\item{cores}{number of local workers when \code{parallel = TRUE}. Defaults
+to the smaller of 4 and \code{RoBMA.get_option("max_cores")}. One core or
+fewer posterior draws than workers uses serial computation. Parallel workers
+require matching installed package/native builds and share the configured
+selection-cache budget. Worker count is reported when parallel work starts.}
 
 \item{...}{additional graphical parameters passed to components.}
 }
@@ -92,10 +111,11 @@ The plot displays two density curves:
 \item{Fit (black)}{Model-implied density including publication bias adjustments.
 This represents the expected distribution of z-statistics given the estimated
 selection process.}
-\item{Extrapolation (blue)}{Bias-corrected curve representing the hypothetical
-distribution without selective reporting, scaled by the expected suppressed
-studies under selection models. This curve is not normalized to integrate
-to one when selection implies missing studies.}
+\item{Extrapolation (blue)}{The bias-adjusted reference without selective
+reporting. Multivariate models, applicable integrated contexts, and
+best-rule selection models use the normalized pre-selection Gaussian
+marginal. Released univariate product
+targets retain their inverse-weight scaling convention.}
 }
 }
 \seealso{

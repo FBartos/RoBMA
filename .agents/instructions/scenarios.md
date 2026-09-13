@@ -34,7 +34,9 @@ relationships easy to inspect.
 - Cache validity is based on the stored fitting expression. Changing that
   expression refits automatically; changes to package internals do not. If an
   upstream change may alter the fitted posterior, treat the cache as
-  potentially stale and consult the maintainer before regenerating it.
+  potentially stale. During an authorized current-results refresh, refit the
+  affected models when needed, retaining old caches and the reason for
+  replacement. Otherwise consult the maintainer before regenerating them.
 - `cache_version` is optional. Use or increment it only to invalidate one fit
   after an approved package-internal fitting change that leaves the fitting
   expression unchanged.
@@ -210,15 +212,18 @@ Use `plot_scenario_times()` to draw horizontal elapsed-time boxplots from the
 committed baselines for one exact scenario or across scenarios. It classifies
 individually named calls conservatively, omitting aggregate `fit` rows,
 `.new.tsv` candidates, and unmatched compound timings. Selection-model fit
-boxes distinguish exact and approximate likelihoods. Its `unit` argument sets
+boxes use explicit cond/marg model labels for conditioning specifications. Its `unit` argument sets
 seconds, minutes, or hours on the x-axis without changing stored values.
 
 Use `plot_marginal_diagnostics()` for metafor-to-RoBMA or RoBMA-to-RoBMA
 diagnostic comparisons. Both RoBMA inputs must use explicit marginal targets;
 label two RoBMA fits with `reference_label` and `estimate_label` when their
-distinction matters. If either fit inherits from `bselmodel`, compare only raw
-residuals and DFBETAS; rstandard, hat values, and Cook's distance are
-structurally unavailable for weight-function selection models.
+distinction matters. When either fit inherits from `bselmodel`, this shared
+helper compares raw residuals and DFBETAS. Rstandard, hat values, and Cook's
+distance remain structurally unavailable for weight-function selection models.
+Dedicated selected-model comparisons may also use `rstudent(fit)[["z"]]` for
+LOO-PIT with stored estimate-unit LOO. This deletion-conditioned target retains
+the original publication event; do not pass `conditioning_depth` to `rstudent()`.
 
 Do not use output updating or regeneration merely to make a scenario pass.
 Replace baselines only when the maintainer explicitly requests, approves, or
@@ -226,14 +231,29 @@ interactively accepts the change, and review every resulting diff.
 
 ## Discrepancies and Scope
 
-If creating or modifying a scenario reveals an unexplained discrepancy, changed
-snapshot, unexpected agreement, or unexpected difference, stop and notify the
-maintainer before changing anything to accommodate it. Report the scenario and
-artifact, the compared models or methods, the observed pattern, and the command
-used. Ask how to proceed.
+An explicit request to create or refresh scenario snapshots authorizes that
+workflow. Generate missing snapshots one by one, inspect each result and its
+runtime, and investigate obvious errors or suspiciously slow computation as
+they arise. Fix clear in-scope implementation errors without asking again for
+permission. Review each intentional baseline change and rerun its original
+expression with the original RNG state before treating it as resolved. Keep
+candidates reserved for the maintainer's own review pending.
 
-Do not ad hoc change package behavior, scenario inputs, comparison methods,
-cached fits, snapshot baselines, or expected relationships. Do not suppress or
-normalize away a discrepancy. When a scenario file is already in progress,
-make only the requested change; ask before cleaning up, reformatting, expanding,
-or correcting adjacent work.
+Preserve the original analysis, model specification, data, comparison methods,
+evaluation order, seeds, and parallel settings. Scenario edits during completion
+are limited to obvious typos and explicit sample/integration budget increases
+needed when defaults are insufficient. This numerical-budget exception also
+applies to an otherwise typo-only task. Use public controls at the affected
+call, such as `density_control$samples` or
+`density_control$integration_control`; do not hide budget changes in package
+code, lower diagnostic requirements, or add parallel computation to improve
+timings. Apply the matched-workload timing rules in `AGENTS.md`.
+
+Do not suppress or normalize away a discrepancy, or change an expected
+relationship merely to make a comparison pass. Investigate against an
+independent reference. If a statistical or architectural choice remains
+ambiguous, record the artifact, observed pattern, reproduction command, impact,
+alternatives, and recommendation in `.agents/instructions-decisions.md`, then
+request the needed decision while continuing independent authorized work.
+Unrequested scenario expansion, reformatting, and unrelated cleanup remain out
+of scope.

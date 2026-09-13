@@ -169,6 +169,9 @@ For generic summaries, plots, and diagnostics that also apply to `brma.mv()` obj
 
 ## Formula Semantics and Random-Effect Structures
 
+In `brma.mv()` and its .mv wrappers, omitted or NULL `random` specifies no random-effects structure and no implicit heterogeneity. The resulting fixed-effect model still uses the full known sampling covariance `V`. Declare a random term before supplying heterogeneity priors or scale formulas; the specialized univariate `brma()` interface retains its implicit heterogeneity and clustered `tau`/`rho`/`I2` behavior.
+
+
 BayesTools deliberately separates a formula's intercept from its factor contrast.
 For fixed moderators, `prior_factor()` owns the factor basis.
 Consequently, `mods = ~ 0 + group` does not invoke base R's automatic full-indicator coding: it fixes the intercept structurally at zero while preserving the contrast selected by `prior_mods`.
@@ -234,9 +237,9 @@ fit <- brma.mv(
 
 Here the fixed `0 +` sets the average-effect intercept to zero, while the random `0 +` removes the random intercept.
 The two independent contrast declarations create one fixed and one random coefficient per `group` level.
-Because `random_prior` specifies no SD or variance allocation, RoBMA completes it with the usual UISD-scaled `sd_common` prior and a mean-variance Dirichlet allocation across the two random coefficients.
+Because `random_prior` specifies no SD or variance allocation, RoBMA completes it with the usual UISD-scaled common-SD prior and a mean-variance Dirichlet allocation across the two random coefficients.
 Because no US correlation prior is supplied, BayesTools completes the block with `LKJ(1)` after its dimension is resolved.
-Because this is a bare one-component random formula, the resulting public catalog suppresses the redundant block prefix and reports `sd(group[sensitivity])`, `sd(group[specificity])`, `sd_common`, `var_common`, the corresponding `var_mult(...)` and `sd_mult(...)` quantities, and `cor(group[sensitivity],group[specificity])`.
+Because this is a bare one-component random formula, RoBMA suppresses the redundant block prefix and reports `tau(group[sensitivity])`, `tau(group[specificity])`, `tau_common`, `tau2_common`, the corresponding `tau2_mult(...)` and `tau_mult(...)` quantities, and `rho(group[sensitivity],group[specificity])`.
 These same semantic names select parameters in summaries, plots, density estimation, and hypotheses; internal LKJ construction coordinates are not public aliases.
 
 This is not interchangeable with `hcs(group | study)`.
@@ -283,9 +286,9 @@ fit1_brma <- brma.mv(
 ```
 
 `summary()` reports the pooled effect and the random-effect parameters monitored by the fitted Bayesian model.
-Here `district: sd` is the shared marginal heterogeneity SD corresponding to
-the `metafor` package variance component, and `district: cor` is the
-compound-symmetric correlation. It is not an `sd_total` allocation quantity.
+Here `district: tau` is the shared marginal heterogeneity SD corresponding to
+the `metafor` package variance component, and `district: rho` is the
+compound-symmetric correlation. It is not a `tau_total` allocation quantity.
 
 ```{r fit1-brma-summary}
 summary(fit1_brma, include_mcmc_diagnostics = FALSE)

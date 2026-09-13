@@ -9,6 +9,10 @@
 #' @inheritParams RoBMA_prior_specification
 #'
 #' @details
+#' Omitted or NULL `random` specifies no heterogeneity and no random-effect
+#' inclusion mixture. Heterogeneity priors and scale formulas require an
+#' explicit random structure; the known sampling covariance remains unchanged.
+#'
 #' `BMA.mv()` combines the product-space model-averaging workflow of [BMA()]
 #' with the likelihood, formula, random-effect, and known-covariance machinery
 #' of [brma.mv()]. For multiple top-level random components, a Dirichlet prior
@@ -39,8 +43,8 @@
 #' Random-effect inclusion probabilities are reported separately from fixed
 #' effect and scale-regression inclusion. Averaged random-component SDs retain
 #' the excluded zero branch; conditional random summaries condition each
-#' component on its own gate. `sd_total` and `var_total` are the realized gated
-#' aggregate, including zero when every component is excluded. `var_prop(j)` is
+#' component on its own gate. `tau_total` and `tau2_total` are the realized gated
+#' aggregate, including zero when every component is excluded. `tau2_prop(j)` is
 #' the realized share \eqn{I_j w_j / \sum_k I_k w_k}, conditional on positive
 #' total heterogeneity. Excluded components therefore have zero share, and the
 #' all-off branch is omitted only from variance-proportion summaries. The
@@ -105,8 +109,6 @@ BMA.mv <- function(
 
     # MCMC fitting settings
     known_v_parameterization = "auto",
-    known_v_residual_fraction = 0.10,
-    marginalize_estimate_level = TRUE,
     sample = 5000, burnin = 2000, adapt = 500,
     chains = 3, thin = 1, parallel = FALSE,
     autofit = FALSE, autofit_control = set_autofit_control(),
@@ -127,15 +129,11 @@ BMA.mv <- function(
     dots                                = list(...),
     missing_measure                     = missing(measure),
     measure                             = measure,
-    known_v_residual_fraction_specified = !missing(
-      known_v_residual_fraction
-    ),
     R                                   = R,
     Rscale                              = Rscale,
     standardize_continuous_predictors   = standardize_continuous_predictors,
     set_contrast_factor_predictors      = set_contrast_factor_predictors,
     known_v_parameterization            = known_v_parameterization,
-    known_v_residual_fraction           = known_v_residual_fraction,
     sample                              = sample,
     burnin                              = burnin,
     adapt                               = adapt,
@@ -173,7 +171,6 @@ BMA.mv <- function(
 
   .finalize_mv_object(
     object                     = object,
-    marginalize_estimate_level = marginalize_estimate_level,
     only_priors                = isTRUE(dots[["only_priors"]])
   )
 }

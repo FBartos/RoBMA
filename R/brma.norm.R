@@ -19,13 +19,13 @@
 #' distributions for the scale regression coefficients are required.
 #'
 #' There are several ways to specify the prior distributions: \enumerate{
-#'    \item{via a standardized effect size `measure` with known unit information standard deviation,}
-#'    \item{by estimating unit information standard deviation using sample sizes `ni`,}
-#'    \item{by manually setting `prior_unit_information_sd`,}
-#'    \item{by specifying informed empirical prior distributions via `prior_informed_field`
-#'    and `prior_informed_subfield`,}
-#'    \item{or via fully custom specification using the `prior_effect`, `prior_heterogeneity`,
-#'    `prior_mods`, `prior_scale`, and `prior_heterogeneity_allocation` arguments.}
+#'    \item via a standardized effect size `measure` with known unit information standard deviation,
+#'    \item by estimating unit information standard deviation using sample sizes `ni`,
+#'    \item by manually setting `prior_unit_information_sd`,
+#'    \item by specifying informed empirical prior distributions via `prior_informed_field`
+#'    and `prior_informed_subfield`,
+#'    \item or via fully custom specification using the `prior_effect`, `prior_heterogeneity`,
+#'    `prior_mods`, `prior_scale`, and `prior_heterogeneity_allocation` arguments.
 #' }
 #' In all cases, the prior behavior can be further modified by the `rescale_priors`,
 #' `standardize_continuous_predictors`, and `set_contrast_factor_predictors` arguments.

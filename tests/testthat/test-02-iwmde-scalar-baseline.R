@@ -685,7 +685,7 @@ test_that("IWMDE replacement maps preserve the baseline posterior ordinate", {
           is.null(active_setup[["selection_spec"]]) &&
             !any(startsWith(
               names(active_setup[["fit_data"]]),
-              "sel_exact_block_"
+              "sel_joint_block_"
             ))
         }, logical(1))))
       }
@@ -812,7 +812,7 @@ test_that("IWMDE conditions GLMM global parameters on sampled local states", {
   }
 })
 
-test_that("IWMDE uses marginal cluster likelihood for multilevel selection rows", {
+test_that("IWMDE retains fitted cluster context for conditional selection rows", {
 
   .skip_if_missing_raw_fits("dat.lehmann2018_RoBMA_3lvl_mods_scale")
 
@@ -836,7 +836,7 @@ test_that("IWMDE uses marginal cluster likelihood for multilevel selection rows"
 
   replacement <- .iwmde_replacement_spec(context, parameter)
   for (state in states) {
-    expect_equal(state[["likelihood_mode"]], "marginal")
+    expect_equal(state[["likelihood_mode"]], "conditional")
     expect_true(is.finite(state[["baseline_log_lik"]]))
 
     log_q <- .iwmde_log_q_replacement(

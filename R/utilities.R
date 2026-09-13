@@ -16,7 +16,12 @@
 #'   \item{\code{autocompute.loo}}{whether to automatically compute LOO (default \code{FALSE})}
 #'   \item{\code{autocompute.waic}}{whether to automatically compute WAIC (default \code{FALSE})}
 #'   \item{\code{autocompute.marglik}}{whether to automatically compute marginal likelihood (default \code{FALSE})}
-#'   \item{\code{cluster_likelihood.n_gamma}}{number of Gauss-Hermite nodes used for ordinary cluster-unit log-likelihoods (default \code{15}); selected-normal cluster likelihoods use a certified 7, 15, and 31 node ladder}
+#'   \item{\code{cluster_likelihood.n_gamma}}{number of Gauss-Hermite nodes used for ordinary cluster-unit log-likelihoods (default \code{15}); selected-normal likelihoods use their own quadrature schedules and integration controls.}
+#'   \item{\code{selection.cache_max_bytes}}{one shared storage budget for exact and coarse selection-normalizer caches across all chains in a fit. The default \code{"auto"} uses the smaller of 4 GiB and one quarter of currently available system RAM, resolved before fitting. Supply a nonnegative whole number of bytes to set an explicit total; \code{0} disables caching. Storage grows as needed. Chains receive equal shares, pooled within each worker process; sequential chains share the total.}
+#'   \item{\code{selection.cache_retain}}{whether to save selection-normalizer cache entries with the fitted object after fitting or extending (default \code{FALSE}). Retained entries survive \code{saveRDS()} and are restored when extending a compatible fit. See \code{\link{remove_selection_cache}} for memory costs and removal.}
+#'   \item{\code{selection.sampler}}{\code{"default"} retains ordinary JAGS sampling. \code{"coarse_corrected"} uses coarse slice proposals with a full-target Metropolis correction for eligible scalar updates involving multivariate step selection. Settings are captured when each model is compiled.}
+#'   \item{\code{selection.coarse_grid}}{named nonnegative grid steps \code{c(mean = .05, variance = .05, log_weight = .01)}. Mean spacing is its step times the largest original sampling SE in the block; covariance-diagonal spacing is its step times that SE squared. Each diagonal is rounded upward on a grid whose origin is its own squared original sampling SE, retaining all off-diagonal entries. Positive weights are rounded on the natural-log scale; zero weights remain zero. A zero step retains that coordinate exactly but does not disable the coarse rule budget or fallback. These settings affect proposals, not the corrected target.}
+#'   \item{\code{selection.coarse_max_rules}}{maximum number of rules tried from the beginning of the fitted quadrature schedule for a coarse anchor (default \code{3}, minimum \code{3}). Unsupported or unsuccessful coarse integration uses the prescribed unit normalizer, without QMC fallback. The full-target evaluator retains its ordinary numerical controls and diagnostics.}
 #'   \item{\code{default_UISD.effect}}{default scaling of the unit information standard deviation for the effect size parameter (default \code{0.5})}
 #'   \item{\code{default_UISD.heterogeneity}}{default scaling of the unit information standard deviation for the heterogeneity parameter (default \code{0.25})}
 #'   \item{\code{default_UISD.mods}}{default scaling of the unit information standard deviation for the moderators (default \code{0.25})}
@@ -66,8 +71,18 @@ RoBMA.options    <- function(...) {
       stop(paste("Unmatched or ambiguous option '", names(opts)[i], "'", sep = ""), call. = FALSE)
     }
 
-    value <- .RoBMA_validate_option(names(opts)[i], opts[[i]])
-    assign(names(opts)[i], value, envir = RoBMA.private)
+    opts[[i]] <- .RoBMA_validate_option(names(opts)[i], opts[[i]])
+  }
+
+  if (length(opts) > 0L && any(startsWith(names(opts), "selection.")) &&
+      .selection_runtime_available()) {
+    options <- utils::modifyList(.RoBMA_current_options(), opts)
+    capacity <- if ("selection.cache_max_bytes" %in% names(opts)) NULL else
+      .Call("RoBMA_selnorm_cache_control", NULL, 0L, PACKAGE = "RoBMA")[["capacity_bytes"]]
+    .selection_runtime_configure(.selection_runtime_settings(options, capacity))
+  }
+  for (i in seq_along(opts)) {
+    assign(names(opts)[i], opts[[i]], envir = RoBMA.private)
   }
 
   return(invisible(.RoBMA_current_options()))
@@ -126,7 +141,8 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
 .RoBMA_check_option_int <- function(value, name, lower = -Inf) {
 
   if (!is.numeric(value) || length(value) != 1 || is.na(value) ||
-      !is.finite(value) || value != as.integer(value) || value < lower) {
+      !is.finite(value) || value != floor(value) ||
+      value > .Machine$integer.max || value < lower) {
     stop(paste0("Option '", name, "' must be an integer >= ", lower, "."), call. = FALSE)
   }
 
@@ -146,6 +162,44 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   }
 
   return(as.numeric(value))
+}
+
+.RoBMA_check_option_bytes <- function(value, name) {
+
+  value <- .RoBMA_check_option_real(value, name, lower = 0)
+  if (value != floor(value) || value > 2^53 - 1) {
+    stop(paste0("Option '", name, "' must be a nonnegative whole number of bytes representable exactly in R."),
+         call. = FALSE)
+  }
+  return(value)
+}
+
+.RoBMA_check_option_cache_bytes <- function(value, name) {
+
+  if (identical(value, "auto")) return(value)
+  return(.RoBMA_check_option_bytes(value, name))
+}
+
+.RoBMA_check_option_sampler <- function(value, name) {
+
+  if (!is.character(value) || length(value) != 1L || is.na(value) ||
+      !value %in% c("default", "coarse_corrected")) {
+    stop(paste0("Option '", name, "' must be 'default' or 'coarse_corrected'."), call. = FALSE)
+  }
+  return(value)
+}
+
+.RoBMA_check_option_coarse_grid <- function(value, name) {
+
+  keys <- c("mean", "variance", "log_weight")
+  if (!is.numeric(value) || length(value) != 3L ||
+      anyDuplicated(names(value)) || !setequal(names(value), keys) ||
+      any(!is.finite(value)) || any(value < 0)) {
+    stop(paste0("Option '", name,
+      "' must contain finite nonnegative 'mean', 'variance', and 'log_weight' steps."),
+      call. = FALSE)
+  }
+  return(stats::setNames(as.numeric(value[keys]), keys))
 }
 
 .RoBMA_option_schema <- list(
@@ -175,6 +229,26 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   ),
   "cluster_likelihood.n_gamma" = list(
     default  = 15L,
+    validate = function(value, name) .RoBMA_check_option_int(value, name, lower = 3L)
+  ),
+  "selection.cache_max_bytes" = list(
+    default  = "auto",
+    validate = .RoBMA_check_option_cache_bytes
+  ),
+  "selection.cache_retain" = list(
+    default  = FALSE,
+    validate = .RoBMA_check_option_bool
+  ),
+  "selection.sampler" = list(
+    default  = "default",
+    validate = .RoBMA_check_option_sampler
+  ),
+  "selection.coarse_grid" = list(
+    default  = c(mean = .05, variance = .05, log_weight = .01),
+    validate = .RoBMA_check_option_coarse_grid
+  ),
+  "selection.coarse_max_rules" = list(
+    default  = 3L,
     validate = function(value, name) .RoBMA_check_option_int(value, name, lower = 3L)
   ),
   "default_UISD.effect" = list(

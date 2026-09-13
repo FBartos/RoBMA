@@ -6,6 +6,8 @@
 #include <limits>
 #include <vector>
 
+extern "C" double Rf_dnorm4(double, double, double, int);
+
 namespace {
 
 // Internal helper fragments deliberately share this anonymous namespace.

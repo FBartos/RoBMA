@@ -28,6 +28,9 @@ NULL
     }
   }
 
+  if (.selection_runtime_available()) {
+    .selection_runtime_configure(.selection_runtime_settings())
+  }
   .check_max_cores()
   .register_posterior_methods()
   .register_loo_methods()
@@ -197,6 +200,8 @@ NULL
 .check_RoBMA_native_routines <- function(pkgname = "RoBMA", warn = TRUE) {
 
   required_symbols <- c(
+    "RoBMA_selnorm_cache_control",
+    "RoBMA_selnorm_sampler_control",
     "RoBMA_selnorm_kernel_loglik_matrix",
     "RoBMA_glmm_binom_marginal_loglik",
     "RoBMA_glmm_pois_marginal_loglik"

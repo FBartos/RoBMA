@@ -57,7 +57,7 @@ test_that("scenario timing plots retain individually named function calls", {
     ),
     name = c(
       "fit_brma", "fit_brma", "fit_brma.mv_reg",
-      "fit_bselmodel.mv_exact", "fit_bselmodel_approximate", "fit_simple",
+      "fit_bselmodel.mv_marg", "fit_bselmodel_cond", "fit_simple",
       "fit_simple", "residuals", "fit_reg3_diagnostics_robma", "summary-fit_brma",
       "marginal_diagnostics"
     )
@@ -74,10 +74,18 @@ test_that("scenario timing plots retain individually named function calls", {
   expect_identical(
     .scenario_timing_likelihoods(timings),
     c(
-      NA_character_, NA_character_, NA_character_, "exact", "approximate",
+      NA_character_, NA_character_, NA_character_, "marg", "cond",
       NA_character_, NA_character_, NA_character_, NA_character_,
       NA_character_, NA_character_
     )
+  )
+  expect_identical(
+    .scenario_timing_likelihoods(data.frame(
+      name = c("fit_RoBMA_cond", "fit_RoBMA_mv_marg", "fit_bselmodel_marg_cond"),
+      `function` = c("RoBMA", "RoBMA.mv", "bselmodel"),
+      check.names = FALSE
+    )),
+    c("cond", "marg", NA_character_)
   )
   expect_identical(
     .scenario_timing_unit("s"),
@@ -95,10 +103,10 @@ test_that("scenario timing plots retain individually named function calls", {
   expect_identical(
     .scenario_timing_groups(data.frame(
       `function` = c("bselmodel", "bselmodel.mv", "brma"),
-      likelihood = c("approximate", "exact", NA_character_),
+      likelihood = c("cond", "marg", NA_character_),
       check.names = FALSE
     )),
-    c("bselmodel (approximate)", "bselmodel.mv (exact)", "brma")
+    c("bselmodel (cond)", "bselmodel.mv (marg)", "brma")
   )
 })
 
@@ -128,7 +136,7 @@ test_that("plot_scenario_times filters committed baselines", {
     ),
     c(
       "fit_brma", "fit_brma", "fit_brma.mv_reg",
-      "fit_bselmodel_approximate", "fit_bselmodel_exact", "residuals",
+      "fit_bselmodel_cond", "fit_bselmodel_marg", "residuals",
       "fit_reg3_diagnostics_robma"
     ),
     c(5, 2, 4, 8, 10, 1, 3)
@@ -181,17 +189,17 @@ test_that("plot_scenario_times filters committed baselines", {
   expect_equal(graphics::par("mar"), original_mar)
   expect_identical(
     selection_plot[["likelihood"]],
-    c("approximate", "exact")
+    c("cond", "marg")
   )
   expect_equal(selection_plot[["elapsed"]], c(8, 10))
 
-  exact_plot <- plot_scenario_times(
+  marginal_plot <- plot_scenario_times(
     functions  = "bselmodel",
-    likelihood = "exact",
+    likelihood = "marg",
     root       = root
   )
-  expect_identical(exact_plot[["likelihood"]], "exact")
-  expect_equal(exact_plot[["elapsed"]], 10)
+  expect_identical(marginal_plot[["likelihood"]], "marg")
+  expect_equal(marginal_plot[["elapsed"]], 10)
   expect_error(
     plot_scenario_times(scenario = "missing", root = root),
     "baseline is unavailable"
@@ -1564,7 +1572,7 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
     "summary", "scenario_robma_fit",
     function(object, ...) data.frame(
       component = c("location", "random"),
-      parameter = c("intercept", "sd_total"),
+      parameter = c("intercept", "tau_total"),
       Mean       = c(0.30, 0.50),
       SD         = c(0.08, 0.12),
       CI_0.025   = c(0.14, 0.28),
@@ -1602,14 +1610,14 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
       if (inherits(fit, "scenario_robma_single_fit")) {
         return(data.frame(
           component = c("study", "study"),
-          parameter = c("sd", "var"),
+          parameter = c("tau", "tau2"),
           Mean       = c(0.25, 0.0625),
           Median     = c(0.24, 0.0576)
         ))
       }
       data.frame(
         component = c("study", "observation", "total"),
-        parameter = c("sd", "sd", "var_total"),
+        parameter = c("tau", "tau", "tau2_total"),
         Mean       = c(0.20, 0.40, 0.20),
         Median     = c(0.18, 0.38, 0.19)
       )
@@ -1620,15 +1628,15 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
 
   expect_equal(ex_r(robma_fit, "mu"), 0.30)
   expect_equal(ex_r(robma_fit, "intercept", statistic = "SD"), 0.08)
-  expect_equal(ex_r(robma_fit, "sd", "study"), 0.20)
-  expect_equal(ex_r(robma_fit, "sd", "study", "Median"), 0.18)
-  expect_equal(ex_r(robma_fit, "var_total"), 0.20)
-  expect_error(ex_r(robma_fit, "sd"), "ambiguous")
+  expect_equal(ex_r(robma_fit, "tau", "study"), 0.20)
+  expect_equal(ex_r(robma_fit, "tau", "study", "Median"), 0.18)
+  expect_equal(ex_r(robma_fit, "tau2_total"), 0.20)
+  expect_error(ex_r(robma_fit, "tau"), "ambiguous")
   expect_true(is.na(ex_r(robma_fit, "missing")))
   expect_equal(
     ex_r(
       robma_fit,
-      c(mu = "mu", study = "sd", observation = "sd", absent = "missing"),
+      c(mu = "mu", study = "tau", observation = "tau", absent = "missing"),
       component = c(NA, "study", "observation", NA)
     ),
     c(mu = 0.30, study = 0.20, observation = 0.40, absent = NA_real_)
@@ -1646,7 +1654,7 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
   expect_equal(
     ex_r(
       robma_single_fit,
-      c(total = "sd", study = "sd", observation = "sd"),
+      c(total = "tau", study = "tau", observation = "tau"),
       component = c(NA, "study", "observation")
     ),
     c(total = 0.25, study = 0.25, observation = NA_real_)
@@ -1654,12 +1662,12 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
   expect_equal(
     ex_r(
       robma_single_fit,
-      c(study = "sd", observation = "sd", total = "sd"),
+      c(study = "tau", observation = "tau", total = "tau"),
       component = c("study", "observation", "study")
     ),
     c(study = 0.25, observation = NA_real_, total = 0.25)
   )
-  expect_error(ex_r(robma_single_fit, "sd", statistic = "SD"), "Statistic")
+  expect_error(ex_r(robma_single_fit, "tau", statistic = "SD"), "Statistic")
 
   local_mocked_s3_method(
     "summary", "scenario_robma_mu_fit",
@@ -1675,7 +1683,7 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
   expect_equal(
     ex(
       robma_fit,
-      c(mu = "mu", study = "sd", observation = "sd", absent = "missing"),
+      c(mu = "mu", study = "tau", observation = "tau", absent = "missing"),
       component = c(NA, "study", "observation", NA)
     ),
     c(mu = 0.30, study = 0.20, observation = 0.40, absent = NA_real_)
@@ -1694,9 +1702,36 @@ test_that("scenario estimate extractors select named metafor and RoBMA values", 
       row.names = c("metafor", "RoBMA")
     )
   )
-  expect_error(ex(robma_fit, "sd"), "ambiguous")
+  expect_error(ex(robma_fit, "tau"), "ambiguous")
   expect_error(ex(robma_fit, "intercept", statistic = "missing"), "Statistic")
   expect_error(ex(1, "mu"), "metafor model")
+})
+
+
+test_that("scenario RoBMA selectors use the tau I/O vocabulary", {
+
+  scenario_dir <- testthat::test_path("..", "scenarios")
+  paths <- list.files(
+    scenario_dir,
+    pattern    = "^test-.*\\.R$",
+    full.names = TRUE
+  )
+  lines <- unlist(lapply(paths, readLines, warn = FALSE), use.names = FALSE)
+  lines <- sub(
+    'scenario_plot\\("(?:sd_common|cor)"',
+    'scenario_plot("<stable-artifact>"',
+    lines
+  )
+  deprecated <- grepl(
+    '"(?:sd|var|cor)"|"[^"\\r\\n]*(?:sd_total|var_total|sd_common|var_common|var_prop|sd_mult|var_mult|: sd|cor\\(|cor =)[^"\\r\\n]*"',
+    lines,
+    perl = TRUE
+  )
+
+  expect_false(
+    any(deprecated),
+    info = paste(lines[deprecated], collapse = "\n")
+  )
 })
 
 
@@ -1858,8 +1893,8 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
     plot_marginal_diagnostics(
       reference_brma,
       estimate,
-      reference_label = "exact",
-      estimate_label  = "approximate"
+      reference_label = "marg",
+      estimate_label  = "cond"
     )
   ))
   expect_identical(
@@ -1876,11 +1911,11 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
   )
   expect_identical(
     unique(vapply(state[["plots"]], `[[`, character(1), "reference_label")),
-    "exact"
+    "marg"
   )
   expect_identical(
     unique(vapply(state[["plots"]], `[[`, character(1), "estimate_label")),
-    "approximate"
+    "cond"
   )
 
   state[["plots"]] <- list()

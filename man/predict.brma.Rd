@@ -42,17 +42,17 @@ known-\code{V} \code{brma.mv()} response prediction, explicit
 
 \item{type}{type of prediction to be performed. Options are:
 \itemize{
-\item{\code{"terms"} (alias: \code{"marginal"}): fixed location
-parameters only, \eqn{X\beta}.}
-\item{\code{"estimate"} (alias: \code{"effect"}): latent true effects.
-The random-effect distribution is selected by \code{conditioning_depth}.}
-\item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
+\item \code{"terms"} (alias: \code{"marginal"}): fixed location
+parameters only, \eqn{X\beta}.
+\item \code{"estimate"} (alias: \code{"effect"}): latent true effects.
+The random-effect distribution is selected by \code{conditioning_depth}.
+\item \code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
 Adds the outcome sampling distribution to the corresponding latent-effect
-target.}
-\item{\code{"terms.scale"}: Scale parameter (tau), incorporating scale
+target.
+\item \code{"terms.scale"}: Scale parameter (tau), incorporating scale
 regression if present. For \code{brma.mv()} random-formula models with
 scale formulas, returns a named list of component-specific
-\code{brma_samples} matrices.}
+\code{brma_samples} matrices.
 }
 The released \code{"cluster"} and \code{"blup"} spellings are retained as
 compatibility shortcuts for conditional location samples: they fix
@@ -84,24 +84,30 @@ returned \code{brma_samples} object is printed. Defaults to \code{c(.025, .975)}
 \item{bias_adjusted}{whether predictions should adjust for publication bias.
 Defaults to \code{FALSE}. When \code{TRUE}:
 \itemize{
-\item{PET/PEESE terms are NOT added to the mean parameter (mu), returning
-the bias-corrected effect estimate.}
-\item{For \code{type = "response"} with selection models, samples from
+\item PET/PEESE terms are NOT added to the mean parameter (mu), returning
+the bias-corrected effect estimate.
+\item For \code{type = "response"} with selection models, samples from
 the ordinary normal predictive distribution instead of the selected-normal
-distribution, simulating what would be observed without publication bias.}
+distribution, simulating what would be observed without publication bias.
 }
 When \code{FALSE}:
 \itemize{
-\item{PET/PEESE terms ARE added to mu, returning predictions that include
-the expected bias (i.e., what we expect to observe given publication bias).}
-\item{For \code{type = "response"} with selection models, samples from
+\item PET/PEESE terms ARE added to mu, returning predictions that include
+the expected bias (i.e., what we expect to observe given publication bias).
+\item For \code{type = "response"} with selection models, samples from
 the selected-normal distribution reflecting the selective publishing
-process.}
+process.
 }
-Exact selection models sample the finite response vector jointly within the
-dependency blocks stored by the fitted likelihood. Approximate selection
-models retain the row-wise selected-normal response sampler. In both cases,
-selection is defined at the estimate level.}
+For new outcomes, selection predictions draw retained contexts from their original Gaussian law,
+then sample each full publication event conditional on that context. Selected
+latent predictions additionally reconstruct the integrated true effects
+conditional on the selected response. At estimate depth, response prediction
+is a new replication event conditional on the fitted latent true effects;
+LOO-PIT instead uses deletion within the original publication event.
+Retained estimate-level effects use their fitted posterior values at estimate
+depth and fresh Gaussian draws for a new estimate within a fitted cluster.
+The fitted selection specification and prediction conditioning depth are
+separate choices.}
 
 \item{quiet}{logical; whether to suppress informational messages about
 prediction scale and bias adjustment.}
@@ -113,10 +119,12 @@ conditioned on the heterogeneity component. Conditional samples are flattened
 to one chain after subsetting posterior rows.}
 
 \item{V_new}{optional sampling covariance matrix for explicit
-\code{newdata} response predictions from known-\code{V} \code{brma.mv()}
+\code{newdata} response or selected latent predictions from known-\code{V} \code{brma.mv()}
 models. May be a square matrix or a list of block covariance matrices whose
 total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
-rows is not supported.}
+rows is not supported.
+Numerical symmetry is handled as for \code{V}: accepted off-diagonal pairs
+are averaged internally; the supplied object and diagonal are unchanged.}
 
 \item{conditioning_depth}{random-effect conditioning depth for
 \code{type = "estimate"} and \code{"response"}. \code{"marginal"}
@@ -154,10 +162,10 @@ much of the fitted random-effect hierarchy is retained. In the specialized
 multilevel model fitted with \code{cluster},
 \eqn{y_{ij} = X_{ij}\beta + u_j + v_{ij} + \epsilon_{ij}}, the targets are:
 \itemize{
-\item{\code{"marginal"}: condition on neither \eqn{u_j} nor \eqn{v_{ij}};}
-\item{\code{"cluster"}: condition on fitted \eqn{u_j}, but draw a new
-\eqn{v_{ij}};}
-\item{\code{"estimate"}: draw the fitted latent effect from its posterior.}
+\item \code{"marginal"}: condition on neither \eqn{u_j} nor \eqn{v_{ij}};
+\item \code{"cluster"}: condition on fitted \eqn{u_j}, but draw a new
+\eqn{v_{ij}};
+\item \code{"estimate"}: draw the fitted latent effect from its posterior.
 }
 \code{type = "response"} adds \eqn{\epsilon} to the selected latent-effect
 target. For normal fitted effects this includes the conditional latent

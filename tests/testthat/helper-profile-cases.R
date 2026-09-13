@@ -157,7 +157,7 @@ validate_certification_evidence <- function(results, required_tests,
 certification_cases <- function() {
 
   multivariate_filter <- paste0(
-    "02-(brma-mv.*|derived-random-correlations|forest|funnel|",
+    "02-(brma-mv.*|forest|funnel|",
     "heterogeneity-mv|hypothesis|influence|marginal_means|plot.*|",
     "predict-mv|qqnorm|random-parameters|regplot|residuals|summary.*|vif)|",
     "03-(bridgesampling|loo|zplot)"
@@ -264,33 +264,33 @@ certification_cases <- function() {
         "scenario-model PSIS LOO agrees with five exact deletion refits"
       )
     ),
-    "selection-recovery-exact" = list(
+    "selection-recovery-marg" = list(
       description = paste(
-        "Independent exact-selection simulations with diagonal, structured,",
+        "Independent marginal-selection simulations with diagonal, structured,",
         "and dense V; fixed/nested parameter recovery and a dense posterior oracle."
       ),
       fit_sources = character(),
-      test_filter = "^03-selection-recovery-exact$",
+      test_filter = "^03-selection-recovery-marg$",
       required_tests = .required_tests(
-        "test-03-selection-recovery-exact.R",
+        "test-03-selection-recovery-marg.R",
         c(
-          "exact selection recovers simulated fixed and nested parameters",
-          "exact selection JAGS posterior matches independent dense integration"
+          "marginal selection recovers simulated fixed and nested parameters",
+          "marginal selection JAGS posterior matches independent dense integration"
         )
       )
     ),
-    "selection-recovery-approximate" = list(
+    "selection-recovery-cond" = list(
       description = paste(
         "Independent conditional-selection simulations with diagonal, structured,",
         "and dense V; fixed/nested parameter recovery and a dense posterior oracle."
       ),
       fit_sources = character(),
-      test_filter = "^03-selection-recovery-approximate$",
+      test_filter = "^03-selection-recovery-cond$",
       required_tests = .required_tests(
-        "test-03-selection-recovery-approximate.R",
+        "test-03-selection-recovery-cond.R",
         c(
-          "approximate selection recovers simulated fixed and nested parameters",
-          "approximate selection JAGS posterior matches independent dense integration"
+          "conditional selection recovers simulated fixed and nested parameters",
+          "conditional selection JAGS posterior matches independent dense integration"
         )
       )
     ),
@@ -419,7 +419,7 @@ certification_cases <- function() {
           "test-02-iwmde-oracles.R",
           c(
             "qCMDE matches GLMM and both estimators match selection bridge factors",
-            "qCMDE and IWMDE match the known-V tau boundary bridge factor"
+            "qCMDE and IWMDE match the known-V estimate SD boundary bridge factor"
           )
         ),
         .iwmde_fast_required_tests(),

@@ -73,13 +73,13 @@
 #'
 #' @details
 #' There are several ways to specify the prior distributions: \enumerate{
-#'    \item{via a standardized effect size `measure` with known unit information standard deviation,}
-#'    \item{by estimating unit information standard deviation using sample sizes `ni`,}
-#'    \item{by manually setting `prior_unit_information_sd`,}
-#'    \item{by specifying informed empirical prior distributions via `prior_informed_field`
-#'    and `prior_informed_subfield`,}
-#'    \item{or via fully custom specification using the `prior_effect`, `prior_heterogeneity`,
-#'    `prior_mods`, `prior_scale`, and `prior_heterogeneity_allocation` arguments.}
+#'    \item via a standardized effect size `measure` with known unit information standard deviation,
+#'    \item by estimating unit information standard deviation using sample sizes `ni`,
+#'    \item by manually setting `prior_unit_information_sd`,
+#'    \item by specifying informed empirical prior distributions via `prior_informed_field`
+#'    and `prior_informed_subfield`,
+#'    \item or via fully custom specification using the `prior_effect`, `prior_heterogeneity`,
+#'    `prior_mods`, `prior_scale`, and `prior_heterogeneity_allocation` arguments.
 #' }
 #' In all cases, the prior behavior can be further modified by the `rescale_priors`,
 #' `standardize_continuous_predictors`, and `set_contrast_factor_predictors` arguments.
@@ -286,8 +286,8 @@ NULL
 #'
 #' Supplying an ordinary positive prior through `prior_heterogeneity` replaces
 #' this base prior only. RoBMA still determines whether it applies directly to
-#' one SD, to `sd_total` for a total-variance allocation, or to `sd_common` for
-#' a mean-variance allocation.
+#' one SD, to the RoBMA quantity `tau_total` for a total-variance allocation, or
+#' to `tau_common` for a mean-variance allocation.
 #'
 #' ## Structure-specific defaults
 #'
@@ -327,15 +327,15 @@ NULL
 #'   `scale = "total_variance"`. For child weight \eqn{w_j},
 #'   \deqn{\sigma_j = \sigma_{\mathrm{total}}\sqrt{w_j}, \qquad
 #'         \sum_j \sigma_j^2 = \sigma_{\mathrm{total}}^2.}
-#'   The public aggregate quantities are `sd_total` and `var_total`; components
-#'   are `var_prop(...)`.
+#'   The public aggregate quantities are `tau_total` and `tau2_total`;
+#'   components are `tau2_prop(...)`.
 #'   \item A heterogeneous block, such as DIAG, US, HCS, or HAR with
 #'   \eqn{K > 1}, adds an SD-component allocation with
 #'   `scale = "mean_variance"`:
 #'   \deqn{\sigma_j = \sigma_{\mathrm{common}}\sqrt{K w_j}, \qquad
 #'         K^{-1}\sum_j \sigma_j^2 = \sigma_{\mathrm{common}}^2.}
-#'   The public aggregate quantities are `sd_common` and `var_common`;
-#'   components are `var_mult(...)` and `sd_mult(...)`.
+#'   The public aggregate quantities are `tau_common` and `tau2_common`;
+#'   components are `tau2_mult(...)` and `tau_mult(...)`.
 #' }
 #'
 #' Consequently, the base prior always controls a clearly defined total or
@@ -348,24 +348,24 @@ NULL
 #' one versioned parameter map. RoBMA summaries, plots, density estimation, and
 #' hypotheses use its semantic catalog view.
 #' BayesTools canonical random-effect names have the form
-#' `(formula) owner: quantity(arguments)`. RoBMA consistently prints and accepts
-#' simplified aliases: a sole intercept is `sd` for a bare block and
-#' `study: sd` for a named block, while a non-intercept coefficient remains
-#' explicit, for example `study: sd(x)`. The unique owner-free shorthand `sd`
+#' `(formula) owner: quantity(arguments)`. RoBMA consistently maps these to
+#' meta-analytic names: a sole intercept is `tau` for a bare block and
+#' `study: tau` for a named block, while a non-intercept coefficient remains
+#' explicit, for example `study: tau(x)`. The unique owner-free shorthand `tau`
 #' is accepted when only one component matches. Bare formulas and unnamed
 #' one-entry lists omit a redundant owner; explicitly named one-entry lists and
 #' multi-component models retain owners for disambiguation. Other examples are
-#' `cor(group[sensitivity],group[specificity])`, `sd_total`, `sd_common`, and
-#' `var_prop(study)`.
+#' `rho(group[sensitivity],group[specificity])`, `tau_total`, `tau_common`, and
+#' `tau2_prop(study)`.
 #' A custom `random_variance_allocation()` always requires a stable internal
 #' `name`; its `display_name` and `component_names` separately control these
 #' public owner and component labels.
 #'
-#' Formula-random correlations are always public `cor` quantities. Compact
-#' scalar `rho` coordinates and LKJ primitives are internal backend details,
-#' not aliases. This convention is distinct from the specialized `cluster`
-#' interface, where `rho` remains the public variance-allocation
-#' parameter described in \code{\link{prior_specification}}.
+#' Formula-random correlations are public `rho` quantities. BayesTools'
+#' general `cor` quantities, compact scalar correlation coordinates, and LKJ
+#' primitives remain internal to RoBMA. In the specialized `cluster` interface,
+#' `rho` remains the public variance-allocation and induced intracluster
+#' correlation parameter described in \code{\link{prior_specification}}.
 #'
 #' ## Ways to customize random-effect priors
 #'
@@ -397,7 +397,7 @@ NULL
 #' }
 #' Combined with `random = ~ us(0 + group | study)`, this creates one
 #' correlated random coefficient per `group` level. RoBMA supplies the
-#' UISD-scaled `sd_common` and mean-variance Dirichlet allocation; BayesTools adds
+#' UISD-scaled common-SD prior and mean-variance Dirichlet allocation; BayesTools adds
 #' the default `LKJ(1)` correlation prior after resolving the coefficient count.
 #' No empty `random_covariance()` or manual allocation is needed.
 #'
@@ -451,7 +451,7 @@ NULL
 #' resolved block names, SD sources, allocation hierarchy, correlation priors,
 #' contrasts, and policies that will be used for fitting. Its mathematical
 #' `sigma_total` and `sigma_common` labels describe the prior architecture;
-#' fitted public selectors use `sd_total` and `sd_common`, respectively.
+#' fitted RoBMA selectors use `tau_total` and `tau_common`, respectively.
 #'
 #' @examples
 #' \dontrun{

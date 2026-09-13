@@ -10,6 +10,8 @@
 #include "distributions/DSELNORMMVSTEP.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
+#include "distributions/DSELNORMSAMPLINGCONDITIONED.h"
+#include "samplers/CoarseCorrectedSlice.h"
 
 namespace jags {
   namespace RoBMA { // module namespace
@@ -37,6 +39,9 @@ namespace jags {
       insert(new DSELNORMMVSTEP);
       insert(new DSELNORMCLUSTERSTEP);
       insert(new DSELNORMFACTORSTEP);
+      insert(new DSELNORMSAMPLINGCONDITIONED);
+      // This process-lifetime factory starts disabled and owns no fitted model.
+      insert(coarse_corrected_slice_factory());
     }
 
     // destructor (executed when unloading the module)

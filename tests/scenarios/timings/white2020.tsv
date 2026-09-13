@@ -8,7 +8,7 @@ fit_model	fit_brma_study	6.340000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma	1.870000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma_observation	2.000000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma_study	1.950000000	NA	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma	4.890000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma	4.520000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_brma_observation	2.930000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_brma_study	2.950000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 text	metafor-comparison	0.000000000	0.242383	4.6.0	Windows/x86_64-w64-mingw32

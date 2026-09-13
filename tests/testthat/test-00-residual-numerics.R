@@ -148,7 +148,6 @@ test_that("known-V estimate residual variance avoids PSD subtraction", {
     V                         = sampling_variance,
     keep_rows                 = rep(TRUE, 4L),
     known_v_parameterization  = "auto",
-    known_v_residual_fraction = NULL,
     warn_singular             = FALSE
   )
 

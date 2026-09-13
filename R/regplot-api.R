@@ -58,7 +58,12 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' plotted predictions and sampling intervals. Defaults to \code{TRUE}. For
 #' PET/PEESE models, this includes the expected regression bias in predictions.
 #' For selection models, sampling-bias adjustment applies to sampling intervals
-#' when \code{si = TRUE}; the mean prediction is unchanged.
+#' when \code{si = TRUE}; the mean prediction is unchanged. Selected sampling
+#' intervals require a supported scalar selection law; joint configurations
+#' needing retained-source or multivariate-event integration are unavailable.
+#' Use \code{sampling_bias = FALSE} for bias-adjusted intervals. Conditioning
+#' every applicable selection source cancels positive weights and uses the
+#' ordinary Gaussian interval law.
 #' @param sei single positive numeric value used as the reference standard
 #' error for sampling-bias and sampling-interval calculations. Defaults to the
 #' median observed standard error. When \code{mod = "sei"} or \code{mod =

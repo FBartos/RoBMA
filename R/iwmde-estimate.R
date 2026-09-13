@@ -13,6 +13,14 @@
     c("density", "ordinate"),
     several.ok = TRUE
   ))
+  density_control <- .iwmde_density_control_resolve(
+    density_method  = density_method,
+    density_control = density_control,
+    purpose         = if ("ordinate" %in% outputs) "ordinate" else "density"
+  )
+  context <- .iwmde_context_with_integration_control(
+    context, density_control[["integration_control"]]
+  )
   ordinate_values <- NULL
   if ("ordinate" %in% outputs) {
     ordinate_values <- .iwmde_sorted_ordinate_values(values)
@@ -261,6 +269,9 @@
 
 .iwmde_estimate_from_plan <- function(context, plan, cache = NULL) {
 
+  context <- .iwmde_context_with_integration_control(
+    context, plan[["control"]][["integration_control"]]
+  )
   key <- plan[["plan_key"]]
   if (.iwmde_estimate_cache_has(cache, key)) {
     return(.iwmde_estimate_cache_get(cache, key))
@@ -740,6 +751,7 @@
       density[["max_normalizer_relative_change"]],
     max_quadrature_relative_change =
       density[["max_quadrature_relative_change"]],
+    normalizer_interpolation = density[["normalizer_interpolation"]],
     p95_normalizer_relative_change =
       density[["p95_normalizer_relative_change"]],
     median_normalizer_relative_change =

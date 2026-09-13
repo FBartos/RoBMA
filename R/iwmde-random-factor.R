@@ -6,7 +6,8 @@
     context, parameter, values, row_states, replacement, active_setup) {
 
   update <- replacement[["covariance_update"]]
-  if (!.iwmde_uses_known_v_random_marginal_likelihood(context) ||
+  if (!.iwmde_uses_known_v_random_marginal_likelihood(
+      context, priors = active_setup[["priors"]]) ||
       !inherits(
         update,
         "BayesTools_random_effects_marginal_update_plan"

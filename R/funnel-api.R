@@ -61,7 +61,10 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' sampling distribution funnel. Defaults to \code{TRUE}. Only used when
 #' \code{residual = FALSE} or when automatic mode selects outcome mode. Ignored
 #' in residual mode. When \code{TRUE} and the model
-#' includes selection models (weightfunction), uses selected-normal quantiles.
+#' includes selection models (weightfunction), uses selected-normal quantiles
+#' where the fitted source and publication structure admit a scalar calculation.
+#' Unsupported joint-selection configurations fail explicitly; use
+#' \code{sampling_bias = FALSE} for bias-adjusted contours.
 #' When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
 #' skew from these regression adjustments.
 #' @param max_samples maximum number of posterior draws used by
@@ -118,8 +121,13 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' heterogeneity represents newly realized latent effects and fitted study
 #' effects are not retained.
 #' For correlated known-\code{V} \code{brma.mv()} models, outcome-mode funnels
-#' are descriptive scalar-SE displays based on the diagonal of \code{V}; residual
-#' mode follows the fitted estimate-unit residual target.
+#' use the diagonal of \code{V} for Gaussian marginal contours. Nonconstant
+#' joint selection requires a full publication design at each hypothetical
+#' standard error and is unavailable in the scalar contour calculation.
+#' Conditioning every applicable selection source cancels positive weights
+#' and therefore retains the Gaussian contours. Use \code{zplot()} to display
+#' the selected marginal distribution at the fitted publication designs.
+#' Residual mode follows the fitted estimate-unit residual target.
 #'
 #' \code{bfunnel()} is available only for intercept-only normal models with
 #' common marginal heterogeneity. It averages the same sampling CDF over

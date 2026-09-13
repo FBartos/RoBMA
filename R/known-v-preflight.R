@@ -3,6 +3,11 @@
 .brma_mv_check_singular_v_regularization <- function(object) {
 
   data <- object[["data"]]
+  if (.is_data_joint_selection(data)) {
+    .selection_check_integrated_covariance(object)
+    .selection_check_sampling_completion(object)
+    return(invisible(TRUE))
+  }
   if (!.is_data_known_v(data)) {
     return(invisible(TRUE))
   }
@@ -44,7 +49,7 @@
   dense_likelihood <- identical(
     .known_v_effective_backend(known_V),
     "block_mvn"
-  ) || .is_data_exact_selection(data)
+  )
   if (dense_likelihood &&
       !is.null(fixed_variance)) {
     invalid_numeric_blocks <- Filter(function(block) {
@@ -55,15 +60,10 @@
     }, covariance_blocks)
     if (length(invalid_numeric_blocks) > 0L) {
       block_labels <- .known_v_block_labels(invalid_numeric_blocks)
-      likelihood <- if (.is_data_exact_selection(data)) {
-        "exact selection likelihood"
-      } else {
-        "block-MVN backend"
-      }
       stop(
         "Fixed integrated variance does not make singular 'V' dependency ",
         "block(s) at retained rows ", paste(block_labels, collapse = ", "),
-        " numerically positive definite for the ", likelihood, ". Increase ",
+        " numerically positive definite for the block-MVN backend. Increase ",
         "the fixed heterogeneity/random-effect SD or supply a ",
         "positive-definite 'V'.",
         call. = FALSE
@@ -72,6 +72,278 @@
   }
 
   invisible(TRUE)
+}
+
+
+.selection_check_sampling_completion <- function(object) {
+
+  data <- object[["data"]]
+  if (!.selection_retains_sampling(data)) return(invisible(TRUE))
+  model    <- .data_selection_model(data)
+  priors   <- .selection_bias_priors(object[["priors"]])
+  branches <- model[["active_branches"]]
+  branches <- branches[vapply(priors[branches], function(prior) {
+    identical(prior[["weights"]][["type"]], "fixed") &&
+      any(prior[["weights"]][["omega"]] == 0)
+  }, logical(1))]
+  if (!length(branches)) return(invisible(TRUE))
+  K       <- nrow(data[["outcome"]])
+  support <- matrix(0, K, K)
+  sources <- Filter(function(source) !source[["retained"]], model[["sources"]][["random"]])
+  if (.is_data_random(data)) {
+    design       <- .fitted_formula_design(object, "mu", required = TRUE)
+    source_names <- vapply(sources, `[[`, character(1), "name")
+    for (term in design[["random_effects"]]) {
+      if (!.random_effect_term_block_name(term) %in% source_names) next
+      contribution <- .selection_random_term_integrated_support(
+        term, data, design[["prior_list"]], K)
+      if (!is.null(contribution)) support <- support + contribution
+    }
+  } else if (length(sources)) {
+    positive        <- .brma_mv_regularized_variance_rows(object, K)
+    within_positive <- between_positive <- TRUE
+    if (.is_data_multilevel(data)) {
+      allocation      <- object[["priors"]][["outcome"]][["rho"]]
+      within_positive <- tryCatch(
+        BayesTools::prior_density_ordinate(allocation, value = 1)[["point_mass"]] == 0,
+        error = function(e) FALSE)
+      between_positive <- tryCatch(
+        BayesTools::prior_density_ordinate(allocation, value = 0)[["point_mass"]] == 0,
+        error = function(e) FALSE)
+    }
+    if (.selection_integrates_estimate(data) && isTRUE(within_positive)) {
+      support <- support + diag(as.numeric(positive), K)
+    }
+    if (.is_data_multilevel(data) && !.selection_retains_other_random(data) &&
+        isTRUE(between_positive)) {
+      support <- support + outer(positive, positive, `&`) *
+        outer(data[["outcome"]][["cluster"]], data[["outcome"]][["cluster"]], `==`)
+    }
+  }
+  plan <- .data_selection_execution_plan(data)
+  for (branch in branches) {
+    prior  <- priors[[branch]]
+    groups <- if (identical(model[["branches"]][[branch]][["weight_rule"]], "best")) {
+      model[["groups"]][["row_blocks"]]
+    } else plan[["row_blocks"]]
+    for (rows in groups) {
+      result <- BayesTools::selection_event_support(prior, support[rows, , drop = FALSE])
+      if (!isTRUE(result[["feasible"]])) {
+        stop("Selection with zero weights is unavailable for retained rows {",
+          paste(rows, collapse = ", "),
+          "}: positive acceptance is not guaranteed for every retained context under the supplied random-effect priors. ",
+          "Use 'weights = wf_cumulative()' in 'prior_weightfunction()' to assign positive weights.",
+          call. = FALSE)
+      }
+    }
+  }
+  invisible(TRUE)
+}
+
+
+# Sampling conditioning uses the full observed Gaussian covariance in its
+# augmentation. Otherwise check the integrated conditional kernel covariance.
+.selection_check_integrated_covariance <- function(object) {
+
+  data     <- object[["data"]]
+  K        <- nrow(data[["outcome"]])
+  plan     <- .data_selection_execution_plan(data)
+  sampling <- if (.selection_retains_sampling(data)) {
+    plan[["sampling_covariance"]]
+  } else .selection_joint_sampling_block(plan[["sampling"]], seq_len(K))
+  blocks   <- plan[["row_blocks"]]
+  singular <- Filter(function(rows) {
+    .known_v_is_singular(sampling[rows, rows, drop = FALSE])
+  }, blocks)
+  if (length(singular) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  support     <- matrix(0, K, K)
+  unavailable <- character()
+  sources     <- character()
+  if (.is_data_random(data)) {
+    design <- .fitted_formula_design(object, "mu", required = TRUE)
+    terms  <- if (.selection_retains_sampling(data)) {
+      design[["random_effects"]]
+    } else .data_marginalized_random_effects(data)
+    for (term in terms) {
+      block <- term[["block_name"]]
+      sources <- c(sources, block)
+      contribution <- .selection_random_term_integrated_support(
+        term, data, design[["prior_list"]], K
+      )
+      if (is.null(contribution)) {
+        unavailable <- c(unavailable, block)
+      } else {
+        support <- support + contribution
+      }
+    }
+  } else if (.selection_integrates_estimate(data) ||
+             (.selection_retains_sampling(data) && .selection_retains_estimate(data))) {
+    support <- diag(.brma_mv_regularized_variance_rows(object, K), K)
+    sources <- "heterogeneity"
+  }
+
+  invalid <- Filter(function(rows) {
+    covariance <- .covariance_factorization(sampling[rows, rows, drop = FALSE])
+    if (.covariance_is_numerically_positive_definite(covariance)) return(FALSE)
+    null <- covariance[["eigenvectors"]][
+      , covariance[["spectral_values"]] == 0,
+      drop = FALSE
+    ]
+    projected <- crossprod(null, support[rows, rows, drop = FALSE] %*% null)
+    qr(projected, tol = sqrt(.Machine$double.eps))[["rank"]] < ncol(null)
+  }, singular)
+  if (length(invalid) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  if (.selection_retains_sampling(data)) {
+    stop(
+      "The sampling-conditioned selection likelihood is unavailable for retained row block(s) ",
+      paste(vapply(invalid, function(rows) paste0("{", paste(rows, collapse = ", "), "}"),
+                   character(1)), collapse = ", "),
+      ": the full sampling and random-effect covariance is not guaranteed to be positive definite.",
+      if (length(unavailable)) paste0(
+        " Structural regularization is unavailable for source(s) '",
+        paste(unavailable, collapse = "', '"),
+        "' with unresolved row-scale or correlation-boundary support."
+      ),
+      " Supply a positive-definite 'V' or strictly positive random-effect variation covering every singular direction.",
+      call. = FALSE
+    )
+  }
+
+  model <- .data_selection_model(data)
+  retained <- c(
+    if (.selection_retains_sampling(data)) "Sampling context (from V)",
+    vapply(Filter(function(source) source[["retained"]],
+                  model[["sources"]][["random"]]), `[[`, character(1), "name")
+  )
+  stop(
+    "The conditional selection likelihood is unavailable for retained row block(s) ",
+    paste(vapply(invalid, function(rows) paste0("{", paste(rows, collapse = ", "), "}"),
+                 character(1)), collapse = ", "),
+    ": integrated sources ",
+    if (length(sources)) paste0("'", paste(sources, collapse = "', '"), "'") else "<none>",
+    " do not guarantee a nondegenerate covariance",
+    if (length(retained)) paste0(" after conditioning on ", paste(retained, collapse = ", ")),
+    ".",
+    if (length(unavailable)) paste0(
+      " Structural regularization is unavailable for source(s) '",
+      paste(unavailable, collapse = "', '"),
+      "' with unresolved row-scale or correlation-boundary support."
+    ),
+    " Specify positive integrated variation covering every singular direction, ",
+    "or use 'selection_model()' to integrate the contextual sources needed for a nondegenerate kernel.",
+    call. = FALSE
+  )
+}
+
+
+# A Gram matrix representing guaranteed integrated column space, not a
+# covariance evaluated at artificial parameter values. Full-rank compiled
+# coefficient/group correlations preserve this space under positive scales.
+.selection_random_term_integrated_support <- function(term, data, prior_list, K) {
+
+  role <- BayesTools::random_effects_source_roles(list(term), K)[[1L]]
+  X    <- term[["model_matrix"]]
+  if (!.selection_random_correlation_has_full_support(term, prior_list)) {
+    return(NULL)
+  }
+  binding <- term[["sd_binding"]]
+  for (column in seq_len(ncol(X))) {
+    source <- if (length(binding[["sources_by_column"]])) {
+      binding[["sources_by_column"]][[column]]
+    } else binding[["source"]]
+    if (is.null(source)) {
+      parameters <- term[["sd_parameter_names"]]
+      parameter <- if (length(parameters) == 1L) parameters else parameters[[column]]
+      positive <- rep(.prior_coordinate_is_structurally_positive(prior_list[[parameter]]), K)
+    } else {
+      positive <- .random_sd_source_positive_rows(source, data, prior_list, K)
+      fixed <- .random_sd_source_fixed_values(source, data, prior_list, K = K)
+      if (identical(source[["shape"]], "row")) {
+        if (is.null(fixed) && !identical(role, "estimate")) {
+          return(NULL)
+        }
+        if (!is.null(fixed)) {
+          X[, column] <- X[, column] * fixed
+        }
+      }
+    }
+    factors <- if (length(binding[["factors_by_column"]])) {
+      binding[["factors_by_column"]][[column]]
+    } else binding[["factors"]]
+    for (factor in factors) {
+      if (!is.null(factor[["weight_name"]])) {
+        positive <- positive & .prior_coordinate_is_structurally_positive(
+          prior_list[[factor[["weight_name"]]]], factor[["index"]]
+        )
+      }
+      if (!is.null(factor[["inclusion_name"]])) {
+        gate <- .prior_fixed_values(.random_allocation_inclusion_prior(
+          prior_list, factor[["inclusion_name"]]
+        ))
+        positive <- positive & (!is.null(gate) && length(gate) == 1L && gate == 1)
+      }
+    }
+    X[!positive, column] <- 0
+  }
+  if (identical(role, "estimate")) {
+    return(diag(rowSums(X != 0) > 0, K))
+  }
+  # A positive-definite known group kernel has the same column space as
+  # independent group coefficients. The compiler owns that definiteness check.
+  tcrossprod(X) * outer(term[["group_map"]], term[["group_map"]], `==`)
+}
+
+
+.selection_random_correlation_has_full_support <- function(term, prior_list) {
+
+  structure <- term[["structure"]]
+  if (term[["n_columns"]] == 1L || structure %in% c("id", "diag")) {
+    return(TRUE)
+  }
+  correlation <- term[["correlation"]]
+  if (identical(correlation[["type"]], "lkj")) {
+    return(is.numeric(correlation[["eta"]]) && length(correlation[["eta"]]) == 1L &&
+      is.finite(correlation[["eta"]]) && correlation[["eta"]] > 0)
+  }
+  if (!identical(correlation[["type"]], "rho")) {
+    return(FALSE)
+  }
+  bounds <- correlation[["bounds"]]
+  fixed  <- correlation[["sample_fixed"]]
+  fixed_interior <- function(value) {
+    rho <- switch(correlation[["rho_scale"]],
+      rho = value,
+      fisher_z = tanh(value),
+      logit = bounds[["lower"]] + diff(bounds) * stats::plogis(value),
+      NA_real_
+    )
+    length(rho) == 1L && is.finite(rho) && rho < bounds[["upper"]] &&
+      (rho > bounds[["lower"]] || (identical(structure, "car") && rho == 0))
+  }
+  prior_interior <- function(prior) {
+    if (is.null(prior)) {
+      return(FALSE)
+    }
+    if (BayesTools::is.prior.mixture(prior)) {
+      return(all(vapply(prior, prior_interior, logical(1))))
+    }
+    if (BayesTools::is.prior.point(prior)) {
+      return(fixed_interior(.prior_fixed_values(prior)))
+    }
+    # Compiled continuous structured-correlation priors lie in the interior.
+    BayesTools::is.prior.simple(prior)
+  }
+  if (is.null(fixed)) {
+    prior_interior(prior_list[[correlation[["prior_name"]]]])
+  } else {
+    fixed_interior(fixed)
+  }
 }
 
 
@@ -660,8 +932,9 @@
   }
 
   factorization <- .covariance_factorization(covariance)
+  if (.covariance_is_numerically_positive_definite(factorization)) return(TRUE)
   null <- factorization[["eigenvectors"]][
-    , factorization[["decomposition_values"]] <= factorization[["psd_tolerance"]],
+    , factorization[["spectral_values"]] == 0,
     drop = FALSE
   ]
   if (ncol(null) == 0L) {

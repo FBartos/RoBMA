@@ -1227,7 +1227,8 @@
 
   return(UISD_SMD / UISD_measure)
 }
-.assign_prior.bias                     <- function(prior, measure, data, prior_unit_information_sd, bias_type, steps) {
+.assign_prior.bias                     <- function(prior, measure, data, prior_unit_information_sd, bias_type, steps,
+                                                   weightfunction_model = BayesTools::selection_model()) {
 
   # assigns either a weight function or PET/PEESE model based on bias_type
   # there is no scaling of the publication bias priors based on rescale_priors
@@ -1243,6 +1244,7 @@
       prior <- BayesTools::prior_weightfunction(
         "one-sided",
         steps   = steps,
+        model   = weightfunction_model,
         weights = BayesTools::wf_cumulative(
           alpha = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), length(steps) + 1)
         )
@@ -1491,23 +1493,24 @@
 
   prior_random
 }
-.default_prior.bias_alt                         <- function(model_type, measure, data, prior_unit_information_sd) {
+.default_prior.bias_alt                         <- function(model_type, measure, data, prior_unit_information_sd,
+                                                           weightfunction_model = BayesTools::selection_model()) {
 
   if (model_type == "2w") {
     return(list(
-      BayesTools::prior_weightfunction("two-sided", c(0.05),       BayesTools::wf_cumulative(c(1, 1)),    prior_weights = 1/2),
-      BayesTools::prior_weightfunction("two-sided", c(0.05, 0.10), BayesTools::wf_cumulative(c(1, 1, 1)), prior_weights = 1/2)
+      BayesTools::prior_weightfunction("two-sided", c(0.05),       BayesTools::wf_cumulative(c(1, 1)),    model = weightfunction_model, prior_weights = 1/2),
+      BayesTools::prior_weightfunction("two-sided", c(0.05, 0.10), BayesTools::wf_cumulative(c(1, 1, 1)), model = weightfunction_model, prior_weights = 1/2)
     ))
   }
 
   if (model_type == "6w") {
     return(list(
-      BayesTools::prior_weightfunction("two-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       prior_weights = 1/6),
-      BayesTools::prior_weightfunction("two-sided", c(0.05, 0.10),       BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/6),
-      BayesTools::prior_weightfunction("one-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       prior_weights = 1/6),
-      BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05),      BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/6),
-      BayesTools::prior_weightfunction("one-sided", c(0.05, 0.5),        BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/6),
-      BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05, 0.5), BayesTools::wf_cumulative(c(1, 1, 1, 1)), prior_weights = 1/6)
+      BayesTools::prior_weightfunction("two-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       model = weightfunction_model, prior_weights = 1/6),
+      BayesTools::prior_weightfunction("two-sided", c(0.05, 0.10),       BayesTools::wf_cumulative(c(1, 1, 1)),    model = weightfunction_model, prior_weights = 1/6),
+      BayesTools::prior_weightfunction("one-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       model = weightfunction_model, prior_weights = 1/6),
+      BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05),      BayesTools::wf_cumulative(c(1, 1, 1)),    model = weightfunction_model, prior_weights = 1/6),
+      BayesTools::prior_weightfunction("one-sided", c(0.05, 0.5),        BayesTools::wf_cumulative(c(1, 1, 1)),    model = weightfunction_model, prior_weights = 1/6),
+      BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05, 0.5), BayesTools::wf_cumulative(c(1, 1, 1, 1)), model = weightfunction_model, prior_weights = 1/6)
     ))
   }
 
@@ -1522,18 +1525,19 @@
   }
 
   return(list(
-    BayesTools::prior_weightfunction("two-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       prior_weights = 1/12),
-    BayesTools::prior_weightfunction("two-sided", c(0.05, 0.10),       BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
-    BayesTools::prior_weightfunction("one-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       prior_weights = 1/12),
-    BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05),      BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
-    BayesTools::prior_weightfunction("one-sided", c(0.05, 0.5),        BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
-    BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05, 0.5), BayesTools::wf_cumulative(c(1, 1, 1, 1)), prior_weights = 1/12),
+    BayesTools::prior_weightfunction("two-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       model = weightfunction_model, prior_weights = 1/12),
+    BayesTools::prior_weightfunction("two-sided", c(0.05, 0.10),       BayesTools::wf_cumulative(c(1, 1, 1)),    model = weightfunction_model, prior_weights = 1/12),
+    BayesTools::prior_weightfunction("one-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       model = weightfunction_model, prior_weights = 1/12),
+    BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05),      BayesTools::wf_cumulative(c(1, 1, 1)),    model = weightfunction_model, prior_weights = 1/12),
+    BayesTools::prior_weightfunction("one-sided", c(0.05, 0.5),        BayesTools::wf_cumulative(c(1, 1, 1)),    model = weightfunction_model, prior_weights = 1/12),
+    BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05, 0.5), BayesTools::wf_cumulative(c(1, 1, 1, 1)), model = weightfunction_model, prior_weights = 1/12),
     BayesTools::prior_PET(distribution = "Cauchy",   parameters = list(0, RoBMA.get_option("default_bias_PET.scale")),                truncation = list(0, Inf), prior_weights = 1/4),
     BayesTools::prior_PEESE(distribution = "Cauchy", parameters = list(0, RoBMA.get_option("default_bias_PEESE.scale") * UISD_ratio), truncation = list(0, Inf), prior_weights = 1/4)
   ))
 }
 .assign_prior.bias_mixture                     <- function(
-    prior, prior_null, measure, data, prior_unit_information_sd, model_type) {
+    prior, prior_null, measure, data, prior_unit_information_sd, model_type,
+    weightfunction_model = BayesTools::selection_model()) {
 
   ### use precanned publication bias adjustment models
   # if neither `prior` or `prior_null` input is specified use the `model_type`
@@ -1544,7 +1548,8 @@
     priors_null <- list(BayesTools::prior_none(prior_weights = 1))
     priors_alt  <- .default_prior.bias_alt(
       model_type = model_type, measure = measure, data = data,
-      prior_unit_information_sd = prior_unit_information_sd)
+      prior_unit_information_sd = prior_unit_information_sd,
+      weightfunction_model = weightfunction_model)
     prior <- BayesTools::prior_mixture(
       prior_list = c(priors_null, priors_alt),
       is_null    = c(TRUE, rep(FALSE, length(priors_alt)))
@@ -1567,7 +1572,8 @@
   if (missing(prior)) {
     priors_alt <- .default_prior.bias_alt(
       model_type = model_type, measure = measure, data = data,
-      prior_unit_information_sd = prior_unit_information_sd)
+      prior_unit_information_sd = prior_unit_information_sd,
+      weightfunction_model = weightfunction_model)
   } else if (is.null(prior) || isFALSE(prior)) {
     priors_alt <- list()
   } else if (BayesTools::is.prior(prior)) {

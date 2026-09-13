@@ -215,7 +215,7 @@
     prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield,
     data, measure,
-    bias_type, steps) {
+    bias_type, steps, weightfunction_model = BayesTools::selection_model()) {
 
   ### check input
   if (!missing(rescale_priors))
@@ -254,6 +254,15 @@
   measure       <- .data_measure(data)
   prior_outcome <- list()
   is_random     <- .is_data_random(data)
+  is_fixed_mv   <- .is_data_known_v(data) && !is_random
+  if (is_fixed_mv) {
+    .check_component_prior_presence(
+      supplied  = !missing(prior_heterogeneity),
+      present   = FALSE,
+      argument  = "prior_heterogeneity",
+      component = "random"
+    )
+  }
   is_random_prior_heterogeneity <- !missing(prior_heterogeneity) &&
     .is_prior_random(prior_heterogeneity)
   random_prior_needs_default_scale <- is_random_prior_heterogeneity &&
@@ -272,7 +281,9 @@
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
       rescale_priors = rescale_priors
     )
-  if (is_random_prior_heterogeneity &&
+  if (is_fixed_mv) {
+    prior_outcome[["tau"]] <- BayesTools::prior("spike", parameters = list(0))
+  } else if (is_random_prior_heterogeneity &&
       (.is_data_scale(data) || random_prior_needs_default_scale)) {
     prior_outcome[["tau"]] <- .assign_prior.simple(
       parameter = "heterogeneity", measure = measure,
@@ -313,7 +324,7 @@
   if (!missing(bias_type)) {
     prior_outcome[["bias"]] <- .assign_prior.bias(
       prior = prior_bias, measure = measure, data = data, prior_unit_information_sd = prior_unit_information_sd,
-      bias_type = bias_type, steps = steps)
+      bias_type = bias_type, steps = steps, weightfunction_model = weightfunction_model)
   }
 
 
@@ -428,7 +439,8 @@
     rescale_priors,
     prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield,
-    data, model_type, random_component_averaging = FALSE) {
+    data, model_type, random_component_averaging = FALSE,
+    weightfunction_model = BayesTools::selection_model()) {
 
   ### check input
   if (!missing(rescale_priors))
@@ -489,6 +501,21 @@
   measure       <- .data_measure(data)
   prior_outcome <- list()
   is_random     <- .is_data_random(data)
+  is_fixed_mv   <- .is_data_known_v(data) && !is_random
+  if (is_fixed_mv) {
+    .check_component_prior_presence(
+      supplied  = !missing(prior_heterogeneity),
+      present   = FALSE,
+      argument  = "prior_heterogeneity",
+      component = "random"
+    )
+    .check_component_prior_presence(
+      supplied  = !missing(prior_heterogeneity_null),
+      present   = FALSE,
+      argument  = "prior_heterogeneity_null",
+      component = "random"
+    )
+  }
   if (is_random && !random_component_averaging) {
     stop(
       "Random-component model averaging must be enabled explicitly.",
@@ -531,10 +558,11 @@
   if (!missing(prior_informed_subfield)) {
     heterogeneity_args[["prior_informed_subfield"]] <- prior_informed_subfield
   }
-  prior_outcome[["tau"]] <- do.call(
-    .assign_prior.simple_mixture,
-    heterogeneity_args
-  )
+  prior_outcome[["tau"]] <- if (is_fixed_mv) {
+    BayesTools::prior("spike", parameters = list(0))
+  } else {
+    do.call(.assign_prior.simple_mixture, heterogeneity_args)
+  }
   random_mixture <- NULL
   if (is_random) {
     default_slab_args <- heterogeneity_args[
@@ -572,7 +600,8 @@
   if (!missing(model_type)) {
     prior_outcome[["bias"]] <- .assign_prior.bias_mixture(
       prior = prior_bias, prior_null = prior_bias_null, measure = measure,
-      data = data, prior_unit_information_sd = prior_unit_information_sd, model_type = model_type
+      data = data, prior_unit_information_sd = prior_unit_information_sd, model_type = model_type,
+      weightfunction_model = weightfunction_model
     )
   }
 

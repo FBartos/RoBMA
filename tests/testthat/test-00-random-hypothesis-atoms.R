@@ -18,7 +18,7 @@ test_that("random semantic point hypotheses reject structural atoms", {
       spec = list(
         quantity     = "var_prop",
         source_parameter = "rho",
-        label            = "total: var_prop(study)"
+        label            = "total: tau2_prop(study)"
       ),
       samples      = matrix(values, ncol = 1L),
       prior        = BayesTools::prior("beta", list(alpha = 1, beta = 1)),
@@ -88,7 +88,7 @@ test_that("hypothesis discovery suppresses atomic random point routes", {
   object <- structure(list(fit = fit), class = "brma")
   specs <- data.frame(
     parameter         = "theta",
-    label             = "total: var_prop(study)",
+    label             = "total: tau2_prop(study)",
     quantity      = "var_prop",
     formula_parameter = "tau",
     block             = NA_character_,
@@ -107,7 +107,7 @@ test_that("hypothesis discovery suppresses atomic random point routes", {
   testthat::local_mocked_bindings(
     .brma_parameter_catalog = function(object) {
       data.frame(
-        alias      = "total: var_prop(study)",
+        alias      = "total: tau2_prop(study)",
         parameter  = "theta",
         component  = "random",
         term       = "variance proportion",
@@ -213,7 +213,7 @@ test_that("realized allocation gates define aggregate and proportion atoms", {
     spec = list(
       quantity         = "var_prop",
       source_parameter = NA_character_,
-      label            = "var_prop(study)"
+      label            = "tau2_prop(study)"
     ),
     allocation_gate_prior = proportion_prior
   )

@@ -6,7 +6,8 @@
                                           normalization_prob, density_method,
                                           n_samples,
                                           parameter_spec = NULL,
-                                          level_parameter_specs = list()) {
+                                          level_parameter_specs = list(),
+                                          integration_control = NULL) {
 
   point_refs <- .hypothesis_brma_point_refs(hypothesis, parameter)
   if (nrow(point_refs) == 0L) {
@@ -45,7 +46,7 @@
     normalization_points <- max(50L, n_points)
   }
 
-  context        <- .iwmde_context(object)
+  context        <- .iwmde_context(object, integration_control)
   estimate_cache <- .iwmde_estimate_cache()
 
   scalar_rows <- is.na(point_refs[["level"]])
@@ -64,6 +65,7 @@
       target_relative_mcse     = target_relative_mcse,
       normalization_points     = normalization_points,
       normalization_prob       = normalization_prob,
+      integration_control      = integration_control,
       density_method           = density_method,
       parameter_spec           = parameter_spec
     )
@@ -85,6 +87,7 @@
       target_relative_mcse = target_relative_mcse,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
+      integration_control  = integration_control,
       density_method       = density_method,
       parameter_spec       = level_parameter_specs[[ref[["level"]]]]
     )
@@ -127,7 +130,7 @@
     parameter_label, value, conditional, n_points, samples,
     target_relative_mcse, normalization_points,
     normalization_prob, density_method, parameter_spec = NULL,
-    display_transform = NULL) {
+    display_transform = NULL, integration_control = NULL) {
 
   if (is.list(raw_posterior) || is.list(posterior)) {
     stop(
@@ -179,6 +182,7 @@
       target_relative_mcse = target_relative_mcse,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
+      integration_control  = integration_control,
       display_grid         = "ordinate"
     ),
     outputs        = "ordinate",
@@ -325,7 +329,7 @@
     posterior, raw_posterior, context, estimate_cache, parameter, level,
     value, conditional, n_points, samples,
     target_relative_mcse, normalization_points, normalization_prob,
-    density_method, parameter_spec = NULL) {
+    density_method, parameter_spec = NULL, integration_control = NULL) {
 
   if (!is.list(posterior) || !level %in% names(posterior)) {
     stop("Hypothesis references unknown level '", level,
@@ -397,6 +401,7 @@
       target_relative_mcse = target_relative_mcse,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
+      integration_control  = integration_control,
       display_grid         = "ordinate"
     ),
     outputs        = "ordinate",

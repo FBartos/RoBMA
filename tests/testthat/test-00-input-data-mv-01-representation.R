@@ -16,7 +16,6 @@ test_that("declared known-V factors preserve provenance through data paths", {
     V                         = declared,
     keep_rows                 = keep,
     known_v_parameterization  = "latent",
-    known_v_residual_fraction = NULL,
     warn_singular             = FALSE
   )
   prediction <- .known_v_newdata_prepare(declared, k = 4L)
@@ -440,8 +439,7 @@ test_that("known V base covariance preserves singleton draw dimensions", {
   known_V <- .known_v_prepare(
     V                         = 0.04,
     keep_rows                 = TRUE,
-    known_v_parameterization  = "auto",
-    known_v_residual_fraction = NULL
+    known_v_parameterization  = "auto"
   )
   covariance_samples <- array(c(0.01, 0.02), dim = c(2L, 1L, 1L))
 
@@ -460,8 +458,7 @@ test_that("known-V base covariance requires canonical inputs", {
   known_V <- .known_v_prepare(
     V                         = 0.04,
     keep_rows                 = TRUE,
-    known_v_parameterization  = "auto",
-    known_v_residual_fraction = NULL
+    known_v_parameterization  = "auto"
   )
   covariance_samples <- array(0.01, dim = c(1L, 1L, 1L))
 
@@ -648,9 +645,7 @@ test_that("internal mv data input defaults NULL known-V parameterization to auto
     set_contrast_factor_predictors    = "treatment",
     standardize_continuous_predictors = FALSE,
     random_group_covariance            = NULL,
-    known_v_parameterization            = NULL,
-    known_v_residual_fraction           = NULL,
-    known_v_residual_fraction_specified = FALSE
+    known_v_parameterization            = NULL
   )
   known_V <- .data_known_v_data(data)
 
@@ -704,7 +699,8 @@ test_that("brma.mv warns and accepts rank-one all-correlated known V", {
 
   dat <- data.frame(
     yi = c(0.10, 0.20, 0.30),
-    x  = c(0, 1, 2)
+    x  = c(0, 1, 2),
+    estimate = seq_len(3L)
   )
   old_max_block <- getOption("RoBMA.known_v_block_mvn_max_block_size", NULL)
   on.exit({
@@ -716,6 +712,7 @@ test_that("brma.mv warns and accepts rank-one all-correlated known V", {
     scale_object <- brma.mv(
       yi                        = yi,
       V                         = V,
+      random                    = ~ 1 | estimate,
       scale                     = ~ x,
       data                      = dat,
       measure                   = "GEN",
@@ -769,8 +766,7 @@ test_that("known V retains exact rank-one dependency blocks", {
       prepared <- .known_v_prepare(
         V                         = V,
         keep_rows                 = rep(TRUE, 4L),
-        known_v_parameterization  = "auto",
-        known_v_residual_fraction = NULL
+        known_v_parameterization  = "auto"
       ),
       "positive semidefinite"
     )
@@ -814,6 +810,8 @@ test_that("known V accepts general low-rank covariance without modification", {
     object <- brma.mv(
       yi                        = c(0.10, 0.20, 0.30, 0.40),
       V                         = V,
+      random                    = ~ 1 | estimate,
+      data                      = data.frame(estimate = seq_len(nrow(V))),
       prior_heterogeneity       = prior_positive,
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
@@ -827,9 +825,11 @@ test_that("known V accepts general low-rank covariance without modification", {
   expect_identical(.known_v_materialize(known_V), V)
   expect_identical(.known_v_effective_backend(known_V), "block_mvn")
 
+  term <- .fitted_formula_design(object, "mu", required = TRUE)[["random_effects"]][[1L]]
+  sd_name <- term[["sd_parameter_names"]][[1L]]
   covariance <- .known_v_marginal_covariance_samples_raw(
     object            = object,
-    posterior_samples = matrix(numeric(0), nrow = 1L, ncol = 0L),
+    posterior_samples = matrix(.10, nrow = 1L, dimnames = list(NULL, sd_name)),
     known_V           = known_V,
     K                 = nrow(V)
   )
@@ -1258,6 +1258,7 @@ test_that("brma.mv rejects invalid and unsupported inputs", {
       prior_unit_information_sd  = 1,
       only_data                  = TRUE
     ),
-    "known_v_residual_fraction"
+    "Unused argument in brma.mv(): 'known_v_residual_fraction'",
+    fixed = TRUE
   )
 })

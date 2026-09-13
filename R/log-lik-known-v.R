@@ -197,7 +197,7 @@
   }
 
   if (.is_priors_weightfunction(priors)) {
-    return(.uses_exact_selection_likelihood(data, priors))
+    return(.is_data_joint_selection(data))
   }
 
   if (.known_v_estimate_target_uses_backend(data)) {
@@ -214,7 +214,13 @@
   if (is.null(mu_random)) {
     mu_random <- matrix(0, nrow = setup[["S"]], ncol = setup[["K"]])
   }
-  means <- setup[["mu"]] - mu_random
+  # Selection setup includes only retained context. Its integrated sources
+  # already belong to the conditional covariance and must not remove H here.
+  means <- if (.is_data_joint_selection(setup[["data"]])) {
+    setup[["mu"]]
+  } else {
+    setup[["mu"]] - mu_random
+  }
   y     <- setup[["yi"]]
 
   if (identical(setup[["effect_direction"]], "negative")) {
@@ -240,7 +246,7 @@
     )
   }
   if (isTRUE(setup[["is_weightfunction"]]) &&
-      !.is_data_exact_selection(setup[["data"]])) {
+      !.is_data_joint_selection(setup[["data"]])) {
     stop(
       "Gaussian covariance estimate targets are not available for selection ",
       "models.",
@@ -300,7 +306,7 @@
       block_indices            = unname(setup[["cluster"]]),
       extra_variances          = setup[["tau_within"]]^2
     )
-  } else if (.setup_uses_exact_selection_likelihood(setup)) {
+  } else if (.setup_uses_joint_selection_likelihood(setup)) {
     plan <- list(
       sampling_covariance      = diag(setup[["sei"]]^2, nrow = K, ncol = K),
       random_covariance_plans  = list(),
@@ -335,6 +341,802 @@
 # singleton blocks reduce to the usual scalar normal density.
 #
 # ---------------------------------------------------------------------------- #
+.selection_joint_conditional_summary_from_setup <- function(setup) {
+
+  location <- .estimate_normal_covariance_target_location_from_setup(setup)
+  data     <- setup[["data"]]
+  plan     <- .data_selection_execution_plan(data)
+  S        <- setup[["S"]]
+  K        <- setup[["K"]]
+  random_factors <- list(
+    factor_plans  = list(),
+    factor_states = rep(list(list()), S)
+  )
+  extra_variances <- if (.selection_integrates_estimate(data)) {
+    setup[["tau_within"]]^2
+  } else {
+    matrix(0, S, K)
+  }
+  if (.is_data_random(data)) {
+    extra_variances <- matrix(0, S, K)
+    blocks <- plan[["random_covariance"]][["term_names"]]
+    if (length(blocks) > 0L) {
+      # Only the resolved integrated sources enter covariance. In particular,
+      # NULL would request every term, including retained contextual effects.
+      random_factors <- .brma_mv_random_effects_marginal_factor_plan(
+        object            = list(
+          fit = setup[["fit"]], data = data, priors = setup[["priors"]]
+        ),
+        posterior_samples = setup[["posterior_samples"]],
+        blocks            = blocks,
+        row_blocks        = plan[["row_blocks"]]
+      )
+    }
+  } else if (isTRUE(setup[["is_multilevel"]]) &&
+             !.selection_retains_other_random(data)) {
+    group_map <- integer(K)
+    for (group in seq_along(setup[["cluster"]])) {
+      group_map[setup[["cluster"]][[group]]] <- group
+    }
+    if (any(group_map == 0L)) {
+      stop("Cluster metadata must assign every estimate to one cluster.",
+           call. = FALSE)
+    }
+    random_factors[["factor_plans"]] <- list(list(
+      type                  = "row_group",
+      model_matrix          = matrix(1, K, 1L),
+      group_map             = group_map,
+      coefficient_structure = "diagonal"
+    ))
+    random_factors[["factor_states"]] <- lapply(seq_len(S), function(draw) {
+      list(list(
+        coefficient_factor = matrix(1, 1L, 1L),
+        row_scale           = as.double(setup[["tau_between"]][draw, ])
+      ))
+    })
+  }
+
+  # Keep the native Markov accelerator for interior states. At a valid
+  # zero-innovation boundary, the same authoritative root remains usable by
+  # the general native factor route. Invalid metadata must still fail.
+  for (i in seq_along(random_factors[["factor_plans"]])) {
+    if (identical(random_factors[["factor_plans"]][[i]][[
+        "coefficient_structure"
+      ]], "markov")) {
+      n_columns <- ncol(random_factors[["factor_plans"]][[i]][["model_matrix"]])
+      boundary <- vapply(random_factors[["factor_states"]], function(state) {
+        markov <- .marglik_validate_random_covariance_markov_state(
+          state[[i]], n_columns, allow_zero_innovation = TRUE
+        )
+        any(markov[["markov_innovation_variance"]] == 0)
+      }, logical(1L))
+      if (any(boundary)) {
+        random_factors[["factor_plans"]][[i]][["coefficient_structure"]] <- "dense"
+      }
+    }
+  }
+  native_supported <- all(vapply(
+    random_factors[["factor_plans"]],
+    function(factor) {
+      identical(factor[["type"]], "dense") ||
+        (isTRUE(factor[["type"]] %in% c("group", "row_group", "known_group")) &&
+         isTRUE(factor[["coefficient_structure"]] %in% c("diagonal", "dense", "markov")))
+    },
+    logical(1L)
+  ))
+
+  if (native_supported) {
+    sampling <- plan[["sampling"]]
+    if (identical(sampling[["representation"]], "dense")) {
+      sampling_covariance <- sampling[["covariance"]]
+    } else if (identical(sampling[["representation"]], "diagonal_factor")) {
+      sampling_covariance <- diag(sampling[["diagonal"]], K, K)
+      loading <- sampling[["loading"]]
+      rank    <- ncol(loading)
+      if (rank > 0L) {
+        random_factors[["factor_plans"]] <- c(
+          random_factors[["factor_plans"]],
+          list(list(
+            type                  = "group",
+            model_matrix          = loading,
+            group_map             = rep(1L, K),
+            coefficient_structure = "diagonal"
+          ))
+        )
+        sampling_state <- list(coefficient_factor = diag(1, rank, rank))
+        random_factors[["factor_states"]] <- lapply(
+          random_factors[["factor_states"]],
+          function(state) c(state, list(sampling_state))
+        )
+      }
+    } else {
+      stop("Selection sampling-covariance metadata are invalid.",
+           call. = FALSE)
+    }
+    summary <- .marglik_covariance_plan_conditional_summary_batch(
+      cache                    = NULL,
+      y                        = location[["y"]],
+      means                    = location[["means"]],
+      sampling_covariance      = sampling_covariance,
+      random_covariance_plans  = random_factors[["factor_plans"]],
+      random_covariance_states = random_factors[["factor_states"]],
+      block_indices            = plan[["row_blocks"]],
+      extra_variances          = extra_variances
+    )
+    variances <- summary[["variance"]]
+    means <- matrix(location[["y"]], S, K, byrow = TRUE) - summary[["residual"]]
+  } else {
+    # Unsupported factor contracts retain the existing general covariance
+    # evaluator. Numerical errors in an admitted native route are not retried.
+    factors <- .selection_joint_random_factor_samples(setup)
+    covariance <- if (is.null(factors)) {
+      .selection_joint_random_covariance_samples(setup)
+    } else {
+      NULL
+    }
+    means <- variances <- matrix(NA_real_, S, K)
+    for (block in seq_along(plan[["row_blocks"]])) {
+      index <- plan[["row_blocks"]][[block]]
+      k <- length(index)
+      lower <- .selection_joint_covariance_lower(
+        setup                     = setup,
+        block_index               = block,
+        random_covariance_samples = covariance,
+        random_factor_samples     = factors
+      )
+      pairs <- .selection_joint_lower_pairs(plan, seq_len(k))
+      for (draw in seq_len(S)) {
+        sigma <- matrix(0, k, k)
+        sigma[cbind(pairs[["row_1"]], pairs[["row_2"]])] <- lower[draw, ]
+        sigma[cbind(pairs[["row_2"]], pairs[["row_1"]])] <- lower[draw, ]
+        factor <- tryCatch(chol(sigma), error = function(e) NULL)
+        if (is.null(factor)) {
+          stop("Selection deletion covariance must be positive definite.",
+               call. = FALSE)
+        }
+        precision <- chol2inv(factor)
+        variance <- 1 / diag(precision)
+        residual <- as.vector(precision %*%
+          (location[["y"]][index] - location[["means"]][draw, index]))
+        variances[draw, index] <- variance
+        means[draw, index] <- location[["y"]][index] - variance * residual
+      }
+    }
+  }
+  list(
+    y                = location[["y"]],
+    means            = means,
+    variance         = variances,
+    lower_tail       = location[["lower_tail"]],
+    selection_context = .selection_joint_signed_context(
+      setup = setup, signed_yi = location[["y"]]
+    ),
+    groups           = .data_selection_model(data)[["groups"]][["row_blocks"]],
+    dependency_blocks = plan[["row_blocks"]]
+  )
+}
+
+
+# Fix all other observed outcomes in the original publication event. For best
+# selection this caps candidate p-values at the best retained p-value, including
+# the mirrored z partition of a two-sided weight function.
+.selection_joint_deleted_row_context <- function(context, y, sei, groups, row) {
+
+  group <- which(vapply(groups, function(index) row %in% index, logical(1L)))
+  if (length(group) != 1L) {
+    stop("Selection publication groups must partition the observed rows.",
+         call. = FALSE)
+  }
+  retained <- setdiff(groups[[group]], row)
+  S <- nrow(context[["omega"]])
+  original_rule <- rep_len(context[["vector_rule"]], S)
+  focal_bin <- rep.int(context[["obs_bin"]][row], S)
+  for (s in which(original_rule != 0L)) {
+    focal_bin[s] <- .selection_joint_best_bin(y[row], sei[row], context, original_rule[s])
+  }
+  context <- .selection_joint_condition_event_context(
+    context, matrix(y[retained], S, length(retained), byrow = TRUE), sei[retained]
+  )
+  context[["vector_rule"]] <- rep.int(0L, S)
+  context <- BayesTools::selection_context_subset_observations(context, row)
+  context[["obs_bin_by_sample"]] <- focal_bin
+  context[["row_fields"]] <- unique(c(context[["row_fields"]], "obs_bin_by_sample"))
+  context
+}
+
+
+# Conditional coordinate moments also admit a singular Gaussian source. The
+# existing covariance policy owns its rank; no variance repair is performed.
+.selection_deleted_gaussian_coordinates <- function(covariance, values) {
+
+  K <- nrow(covariance)
+  out <- list(mean = numeric(K), variance = numeric(K))
+  if (all(covariance == 0)) return(out)
+  factor <- tryCatch(chol(covariance), error = function(e) NULL)
+  if (!is.null(factor)) {
+    precision <- chol2inv(factor)
+    out[["variance"]] <- 1 / diag(precision)
+    out[["mean"]] <- values - out[["variance"]] * as.vector(precision %*% values)
+    return(out)
+  }
+  for (row in seq_len(K)) {
+    conditional <- .selection_deleted_gaussian_block(covariance, values, row)
+    out[["mean"]][row] <- conditional[["mean"]]
+    out[["variance"]][row] <- conditional[["covariance"]][1L, 1L]
+  }
+  out
+}
+
+
+# Delete the focal sampling error along with its observed outcome. Retain only
+# e_-i, the other observed rows, and the model's declared random context. Given
+# these, the integrated random coordinate and the sampling coordinate are two
+# independent scalar Gaussians before the original selection correction.
+.selection_conditioned_sampling_replicate_setup <- function(setup, state, draw, n) {
+
+  rows <- rep(draw, n)
+  current <- setup
+  current[["S"]] <- n
+  for (name in c("posterior_samples", "tau_within", "tau_between")) {
+    current[[name]] <- setup[[name]][rows, , drop = FALSE]
+  }
+  if (!is.null(state[["candidate_factors"]])) {
+    factors <- state[["candidate_factors"]]
+    factors[["diagonal"]] <- factors[["diagonal"]][rows, , drop = FALSE]
+    factors[["loadings"]] <- lapply(factors[["loadings"]], function(loading) {
+      loading[rows, , , drop = FALSE]
+    })
+    current[["selection_conditioned_factors"]] <- factors
+  }
+  current
+}
+
+
+.selection_conditioned_sampling_independent_targets <- function(setup, state, selection, components) {
+
+  plan <- .data_selection_execution_plan(setup[["data"]])
+  independent_blocks <- all(lengths(plan[["row_blocks"]]) == 1L)
+  if (!independent_blocks &&
+      (length(plan[["factor_ranks"]]) != length(plan[["row_blocks"]]) ||
+       any(plan[["factor_ranks"]] != 0L) || any(selection[["vector_rule"]] != 0L))) return(NULL)
+  S <- setup[["S"]]
+  K <- setup[["K"]]
+  if (is.null(state)) {
+    # A singleton deletion integrates its own sampling context. For ordinary
+    # univariate sources the other contexts do not enter this scalar law, so
+    # neither Gaussian auxiliary reconstruction nor S x K x K arrays are used.
+    if (!independent_blocks || .is_data_random(setup[["data"]]) ||
+        .is_data_multilevel(setup[["data"]]) || any(selection[["omega"]] <= 0) ||
+        any(!selection[["kernel_mode"]] %in% c(SELKERNEL_NORMAL, SELKERNEL_STEP)) ||
+        any(selection[["vector_rule"]] != 0L)) return(NULL)
+    sampling_variances <- diag(plan[["sampling_covariance"]])
+    tau_variances <- setup[["tau_within"]]^2
+    if (nrow(tau_variances) == 1L && S > 1L) {
+      tau_variances <- tau_variances[rep(1L, S), , drop = FALSE]
+    }
+    total_variances <- sweep(tau_variances, 2L, sampling_variances, "+")
+    integrated_variances <- if (.selection_integrates_estimate(setup[["data"]])) {
+      tau_variances
+    } else matrix(0, S, K)
+    baseline_mu <- setup[["mu"]]
+    if (identical(components, "log_density")) {
+      direction <- if (identical(setup[["effect_direction"]], "negative")) -1 else 1
+      quadrature <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
+      return(list(log_density = .Call(
+        "RoBMA_selnorm_sampling_deletion_loglik_batch",
+        as.numeric(direction * setup[["yi"]]), direction * baseline_mu,
+        as.numeric(sampling_variances), integrated_variances, total_variances,
+        as.numeric(setup[["selection_sei"]]), selection[["omega"]],
+        as.numeric(selection[["z_lower"]]), as.numeric(selection[["z_upper"]]),
+        as.integer(selection[["obs_bin"]]), as.integer(selection[["kernel_mode"]]),
+        isTRUE(selection[["telescope_probabilities"]]),
+        as.numeric(quadrature[["nodes"]]), as.numeric(quadrature[["log_weights"]]),
+        as.integer(quadrature[["orders"]]), as.numeric(plan[["relative_tolerance"]]),
+        PACKAGE = "RoBMA"
+      )))
+    }
+  } else {
+    sampling_variances <- diag(state[["sampling_covariance"]])
+    baseline_mu <- state[["baseline_mu"]]
+  }
+  sampling_means <- matrix(0, S, K)
+  if (!independent_blocks) {
+    # Independent candidate effects make every other product factor cancel.
+    # Sampling errors may still correlate: condition e_i on the retained e_-i.
+    factor <- tryCatch(chol(state[["sampling_covariance"]]), error = function(e) NULL)
+    if (is.null(factor)) return(NULL)
+    precision <- chol2inv(factor)
+    sampling_variances <- 1 / diag(precision)
+    sampling_means <- state[["e"]] - sweep(state[["e"]] %*% precision,
+      2L, sampling_variances, "*")
+  }
+  out <- stats::setNames(lapply(components, function(component) matrix(NA_real_, S, K)), components)
+  direction <- if (identical(setup[["effect_direction"]], "negative")) -1 else 1
+  y <- direction * setup[["yi"]]
+  for (row in seq_len(K)) {
+    variance <- if (is.null(state)) integrated_variances[, row] else {
+      state[["integrated_covariance"]][, row, row]
+    }
+    ordinary <- variance == 0 | selection[["kernel_mode"]] == SELKERNEL_NORMAL |
+      apply(selection[["omega"]], 1L, function(weights) all(weights == weights[1L]))
+    # When selection cancels in a dependent block, retain the ordinary joint
+    # Gaussian deletion calculation below, which also integrates random context.
+    normal_rows <- if (independent_blocks) ordinary else rep(FALSE, S)
+    ordinary_mean <- direction * setup[["mu"]][normal_rows, row]
+    ordinary_variance <- if (is.null(state)) total_variances[normal_rows, row] else {
+      state[["total_covariance"]][normal_rows, row, row]
+    }
+    ordinary_sd <- sqrt(ordinary_variance)
+    if ("log_density" %in% components) out[["log_density"]][normal_rows, row] <- stats::dnorm(y[row], ordinary_mean, ordinary_sd, log = TRUE)
+    if ("cdf" %in% components) out[["cdf"]][normal_rows, row] <- stats::pnorm(y[row], ordinary_mean, ordinary_sd, lower.tail = direction == 1)
+    if ("log_lower" %in% components) out[["log_lower"]][normal_rows, row] <- stats::pnorm(y[row], ordinary_mean, ordinary_sd, lower.tail = direction == 1, log.p = TRUE)
+    if ("log_upper" %in% components) out[["log_upper"]][normal_rows, row] <- stats::pnorm(y[row], ordinary_mean, ordinary_sd, lower.tail = direction != 1, log.p = TRUE)
+    if ("mean" %in% components) out[["mean"]][normal_rows, row] <- direction * ordinary_mean
+    if ("variance" %in% components) out[["variance"]][normal_rows, row] <- ordinary_variance
+    active <- which(!ordinary)
+    if (!length(active)) next
+    sampling_variance <- sampling_variances[[row]]
+    mean <- direction * (baseline_mu[, row] + sampling_means[, row])
+    total <- sampling_variance + variance
+    conditional_mean <- mean + sampling_variance / total * (y[row] - mean)
+    conditional_sd <- sqrt(sampling_variance * variance / total)
+    context <- BayesTools::selection_context_subset_observations(selection, row)
+    log_weight <- .selection_joint_log_weight(matrix(y[row], S, 1L),
+      setup[["selection_sei"]][row], context)
+    previous <- NULL
+    # Integrate inverse acceptance under E | Y instead of multiplying a
+    # narrow Gaussian likelihood by a broad sampling-error quadrature rule.
+    for (order in SELNORM_CLUSTER_QUADRATURE_ORDERS) {
+      rule <- .gauss_hermite_nodes(order)
+      n <- length(active)
+      contexts <- BayesTools::selection_context_subset_rows(context, rep(active, order))
+      sd <- matrix(rep(sqrt(variance[active]), order), n * order, 1L)
+      sei <- setup[["selection_sei"]][row]
+      current <- list()
+      if ("log_density" %in% components) {
+        means <- outer(conditional_mean[active], rep(1, order)) +
+          outer(conditional_sd[active], rule[["nodes"]])
+        log_mass <- .selection_step_log_norm_matrix(matrix(as.vector(means), n * order, 1L), sd, sei, contexts)
+        terms <- sweep(-matrix(log_mass, n, order), 2L, rule[["log_weights"]], "+")
+        current[["log_density"]] <- stats::dnorm(y[row], mean[active], sqrt(total[active]), log = TRUE) +
+          log_weight[active] + .rowLogSumExps(terms)
+      }
+      if (any(components != "log_density")) {
+        means <- outer(mean[active], rep(1, order)) +
+          outer(rep(sqrt(sampling_variance), n), rule[["nodes"]])
+        means <- matrix(as.vector(means), n * order, 1L)
+        tails <- intersect(components, c("cdf", "log_lower", "log_upper"))
+        tail_values <- list()
+        if (length(tails)) log_mass <- .selection_step_log_norm_matrix(means, sd, sei, contexts)
+        for (tail in tails) {
+          lower_tail <- if (tail == "log_upper") direction != 1 else direction == 1
+          key <- as.character(lower_tail)
+          value <- tail_values[[key]]
+          if (is.null(value)) {
+            partial <- .selection_gaussian_event_mass(means, sd^2, sei, contexts, plan,
+              lower = if (lower_tail) NULL else y[row], upper = if (lower_tail) y[row] else NULL)[["log_mass"]]
+            terms <- sweep(matrix(partial - log_mass, n, order), 2L, rule[["log_weights"]], "+")
+            value <- .rowLogSumExps(terms)
+            tail_values[[key]] <- value
+          }
+          current[[tail]] <- if (tail == "cdf") exp(value) else value
+        }
+        if (any(c("mean", "variance") %in% components)) {
+          moments <- .selection_step_moments_matrix(means, sd, sei, contexts)
+          selected_mean <- as.vector(matrix(moments[["mean"]], n, order) %*% rule[["weights"]])
+          if ("mean" %in% components) current[["mean"]] <- direction * selected_mean
+          if ("variance" %in% components) current[["variance"]] <-
+            as.vector(matrix(moments[["second"]], n, order) %*% rule[["weights"]]) - selected_mean^2
+        }
+      }
+      if (!is.null(previous)) {
+        error <- numeric(n)
+        valid <- rep(TRUE, n)
+        for (component in components) {
+          value <- current[[component]]
+          change <- if (component %in% c("log_density", "log_lower", "log_upper")) {
+            abs(expm1(value - previous[[component]]))
+          } else {
+            scale <- if (component == "mean") sqrt(total[active]) else
+              if (component == "variance") total[active] else abs(value)
+            abs(value - previous[[component]]) / scale
+          }
+          same <- !is.na(value) & !is.na(previous[[component]]) & value == previous[[component]]
+          change[same] <- 0
+          error <- pmax(error, change)
+          valid <- valid & !is.na(value) & value != Inf
+          if (component == "variance") valid <- valid & value >= 0
+        }
+        accepted <- which(valid & is.finite(error) & error <= plan[["relative_tolerance"]])
+        if (length(accepted)) {
+          draws <- active[accepted]
+          for (component in components) out[[component]][draws, row] <- current[[component]][accepted]
+        }
+        failed <- setdiff(seq_len(n), accepted)
+        if (!length(failed)) break
+        active <- active[failed]
+        current <- lapply(current, function(value) value[failed])
+      }
+      previous <- current
+    }
+  }
+  out
+}
+
+
+.selection_conditioned_sampling_estimate_targets <- function(setup, components) {
+
+  S <- setup[["S"]]
+  K <- setup[["K"]]
+  direction <- if (identical(setup[["effect_direction"]], "negative")) -1 else 1
+  y <- direction * setup[["yi"]]
+  plan <- .data_selection_execution_plan(setup[["data"]])
+  selection <- .selection_joint_signed_context(setup, y)
+  out <- .selection_conditioned_sampling_independent_targets(setup, NULL, selection, components)
+  state <- NULL
+  if (is.null(out)) {
+    state <- .selection_conditioned_sampling_state(setup)
+    out <- .selection_conditioned_sampling_independent_targets(setup, state, selection, components)
+  }
+  if (is.null(out)) {
+    out <- stats::setNames(lapply(components, function(component) matrix(NA_real_, S, K)),
+                          components)
+  }
+  if (!any(vapply(out, anyNA, logical(1L)))) {
+    attr(out, "dependency_blocks") <- plan[["row_blocks"]]
+    return(out)
+  }
+  if (is.null(state)) state <- .selection_conditioned_sampling_state(setup)
+  baseline <- direction * state[["baseline_mu"]]
+  errors <- direction * state[["e"]]
+  V <- state[["sampling_covariance"]]
+  groups <- .data_selection_model(setup[["data"]])[["groups"]][["row_blocks"]]
+  tolerance <- plan[["relative_tolerance"]]
+  subdivisions <- as.integer(max(1, floor(plan[["max_points_per_scramble"]] / 21)))
+  remedy <- paste0("Increase 'max_points_per_scramble' in ",
+                   "'selection_control = set_selection_likelihood_control()'.")
+  ordinary_covariance <- state[["total_covariance"]]
+  for (draw in seq_len(S)) {
+    if (!any(vapply(out, function(value) anyNA(value[draw, ]), logical(1L)))) next
+    covariance <- matrix(state[["integrated_covariance"]][draw, , ], K, K)
+    ordinary <- all(covariance == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
+      all(selection[["omega"]][draw, ] == selection[["omega"]][draw, 1L])
+    if (ordinary) {
+      fixed <- direction * setup[["mu"]][draw, ]
+      gaussian <- .selection_deleted_gaussian_coordinates(
+        matrix(ordinary_covariance[draw, , ], K, K), y - fixed
+      )
+      means <- fixed + gaussian[["mean"]]
+      sd <- sqrt(gaussian[["variance"]])
+      if (any(sd == 0)) {
+        stop("Selection estimate deletion is unavailable because the deleted outcome is determined by retained outcomes. Use a larger deletion unit.",
+             call. = FALSE)
+      }
+      if ("log_density" %in% components) out[["log_density"]][draw, ] <- stats::dnorm(y, means, sd, log = TRUE)
+      if ("cdf" %in% components) out[["cdf"]][draw, ] <- stats::pnorm(y, means, sd, lower.tail = direction == 1)
+      if ("log_lower" %in% components) out[["log_lower"]][draw, ] <- stats::pnorm(y, means, sd, lower.tail = direction == 1, log.p = TRUE)
+      if ("log_upper" %in% components) out[["log_upper"]][draw, ] <- stats::pnorm(y, means, sd, lower.tail = direction != 1, log.p = TRUE)
+      if ("mean" %in% components) out[["mean"]][draw, ] <- direction * means
+      if ("variance" %in% components) out[["variance"]][draw, ] <- gaussian[["variance"]]
+      next
+    }
+    sampling <- .selection_deleted_gaussian_coordinates(V, errors[draw, ])
+    random <- .selection_deleted_gaussian_coordinates(
+      covariance, y - baseline[draw, ] - errors[draw, ]
+    )
+    for (row in seq_len(K)) {
+      if (!any(vapply(out, function(value) is.na(value[draw, row]), logical(1L)))) next
+      v_e <- sampling[["variance"]][row]
+      v_u <- random[["variance"]][row]
+      variance <- v_e + v_u
+      if (variance == 0) {
+        stop("Selection estimate deletion is unavailable because the deleted outcome is determined by retained sampling errors and outcomes. Use 'known_sampling_variance = \"integrate\"' when fitting to obtain sampling-marginal deletion scores.",
+             call. = FALSE)
+      }
+      m_e <- sampling[["mean"]][row]
+      location <- baseline[draw, row] + random[["mean"]][row]
+      mean <- location + m_e
+      context <- .selection_joint_deleted_row_context(selection, y, setup[["selection_sei"]], groups, row)
+      context <- BayesTools::selection_context_subset_rows(context, draw)
+      sei <- setup[["selection_sei"]][row]
+      cuts <- sort(unique(c(context[["z_lower"]], context[["z_upper"]]) * sei))
+      cuts <- cuts[is.finite(cuts)]
+      cache <- new.env(parent = emptyenv())
+      log_normalizer <- function(e) {
+
+        key <- paste(format(e, digits = 17), collapse = "/")
+        if (exists(key, envir = cache, inherits = FALSE)) return(get(key, envir = cache))
+        n <- length(e)
+        current <- .selection_conditioned_sampling_replicate_setup(setup, state, draw, n)
+        means <- matrix(baseline[draw, ] + errors[draw, ], n, K, byrow = TRUE)
+        means[, row] <- baseline[draw, row] + e
+        result <- .selection_conditioned_sampling_normalizer(current, direction * means)
+        mass <- result[["log_mass"]]
+        if (any(!is.finite(mass))) {
+          stop("Selection estimate deletion is unavailable because a retained sampling context has zero selection mass.",
+               call. = FALSE)
+        }
+        assign(key, mass, envir = cache)
+        mass
+      }
+      anchor <- log_normalizer(errors[draw, row])
+      integrate_probabilities <- function(fun, boundaries, moment_scale = NULL) {
+
+        parts <- length(boundaries) - 1L
+        value <- error <- 0
+        for (part in seq_len(parts)) {
+          integral <- stats::integrate(
+            fun,
+            lower = boundaries[part], upper = boundaries[part + 1L],
+            subdivisions = subdivisions, rel.tol = tolerance / (2 * parts),
+            abs.tol = if (is.null(moment_scale)) 0 else tolerance * moment_scale / (2 * parts),
+            stop.on.error = FALSE
+          )
+          value <- value + integral[["value"]]
+          error <- error + integral[["abs.error"]]
+          if (!identical(integral[["message"]], "OK") || !is.finite(value)) {
+            stop(paste0("Selection estimate deletion was rejected by diagnostics: scalar integration reported ",
+                        integral[["message"]], ". ", remedy), call. = FALSE)
+          }
+        }
+        error_scale <- if (is.null(moment_scale)) abs(value) else moment_scale
+        relative_error <- if (error_scale == 0 && error == 0) 0 else error / error_scale
+        if (!is.finite(relative_error) || relative_error > tolerance) {
+          stop(paste0("Selection estimate deletion was rejected by diagnostics: relative integration error was ",
+                      format(relative_error, digits = 4), ". ", remedy), call. = FALSE)
+        }
+        value
+      }
+      integrate_gaussian <- function(fun, mean_e, variance_e, moment_scale = NULL) {
+
+        if (variance_e == 0) return(as.numeric(fun(mean_e)))
+        sd_e <- sqrt(variance_e)
+        z <- (cuts - location - mean_e) / sd_e
+        lower_boundaries <- sort(unique(c(0, .5, stats::pnorm(z[z < 0]))))
+        upper_boundaries <- sort(unique(c(0, .5, stats::pnorm(z[z > 0], lower.tail = FALSE))))
+        # Work in each tail's own probabilities. A narrow interval next to
+        # CDF = 1 otherwise rounds interior quadrature points to exactly one,
+        # sending infinite locations into the Gaussian selection kernel.
+        half_scale <- if (is.null(moment_scale)) NULL else moment_scale / 2
+        integrate_probabilities(function(p) fun(mean_e + sd_e * stats::qnorm(p)),
+          lower_boundaries, half_scale) +
+          integrate_probabilities(function(p) fun(mean_e + sd_e * stats::qnorm(p, lower.tail = FALSE)),
+            upper_boundaries, half_scale)
+      }
+      weighted_mass <- function(e, lower = NULL, upper = NULL, moment = NULL) {
+
+        n <- length(e)
+        contexts <- BayesTools::selection_context_subset_rows(context, rep(1L, n))
+        means <- matrix(location + e, n, 1L)
+        mass <- if (v_u == 0) {
+          value <- .selection_joint_log_weight(means, sei, contexts)
+          outside <- rep(FALSE, n)
+          if (!is.null(lower)) outside <- outside | as.numeric(means) < lower
+          if (!is.null(upper)) outside <- outside | as.numeric(means) > upper
+          value[outside] <- -Inf
+          value
+        } else .selection_gaussian_event_mass(
+          means, matrix(v_u, n, 1L), sei, contexts, plan,
+          lower = lower, upper = upper
+        )[["log_mass"]]
+        value <- exp(mass + anchor - log_normalizer(e))
+        if (!is.null(moment)) {
+          moments <- if (v_u == 0) {
+            list(mean = means, second = means^2)
+          } else .selection_step_moments_matrix(means, matrix(sqrt(v_u), n, 1L), sei, contexts)
+          value <- value * as.numeric(moments[[moment]])
+        }
+        as.numeric(value)
+      }
+      singleton_block <- which(vapply(plan[["row_blocks"]], function(index) {
+        length(index) == 1L && index == row
+      }, logical(1L)))
+      normalizer <- if (length(singleton_block)) {
+        # The complete independent event integrates to one under the original
+        # sampling-error law. Only the numerical anchor remains in this scale.
+        exp(state[["log_normalizer"]][draw, singleton_block])
+      } else integrate_gaussian(weighted_mass, m_e, v_e)
+      if (!is.finite(normalizer) || normalizer <= 0) {
+        stop("Selection estimate deletion is unavailable because its conditional selection event cannot be normalized.",
+             call. = FALSE)
+      }
+      if ("log_density" %in% components) {
+        conditional_mean <- m_e + v_e / variance * (y[row] - mean)
+        conditional_variance <- v_e * v_u / variance
+        reciprocal <- integrate_gaussian(function(e) exp(anchor - log_normalizer(e)),
+                                          conditional_mean, conditional_variance)
+        weight <- context[["omega"]][1L, context[["obs_bin_by_sample"]][1L]]
+        out[["log_density"]][draw, row] <- stats::dnorm(y[row], mean, sqrt(variance), log = TRUE) +
+          log(weight) + log(reciprocal) - log(normalizer)
+      }
+      for (tail in intersect(components, c("cdf", "log_lower", "log_upper"))) {
+        lower_tail <- if (tail == "log_upper") direction != 1 else direction == 1
+        probability <- integrate_gaussian(function(e) weighted_mass(e,
+          lower = if (lower_tail) NULL else y[row], upper = if (lower_tail) y[row] else NULL),
+          m_e, v_e) / normalizer
+        log_probability <- log(probability)
+        if (probability == 0) {
+          # A positive tail may be too small for ordinary probability-space
+          # mixing. Factor out its Gaussian tail and integrate the bounded
+          # selection density ratio under that truncated Gaussian instead.
+          log_base <- stats::pnorm(y[row], mean, sqrt(variance),
+                                    lower.tail = lower_tail, log.p = TRUE)
+          cut_probabilities <- stats::pnorm(cuts, mean, sqrt(variance),
+                                            lower.tail = lower_tail, log.p = TRUE)
+          boundaries <- sort(unique(c(0, 1,
+            exp(cut_probabilities[cut_probabilities < log_base] - log_base))))
+          ratio <- integrate_probabilities(function(p) {
+            proposed <- stats::qnorm(log_base + log(p), mean, sqrt(variance),
+                                      lower.tail = lower_tail, log.p = TRUE)
+            contexts <- BayesTools::selection_context_subset_rows(context, rep(1L, length(p)))
+            log_weights <- .selection_joint_log_weight(matrix(proposed, length(p), 1L), sei, contexts)
+            vapply(seq_along(proposed), function(i) {
+              conditional_mean <- m_e + v_e / variance * (proposed[i] - mean)
+              reciprocal <- integrate_gaussian(function(e) exp(anchor - log_normalizer(e)),
+                conditional_mean, v_e * v_u / variance)
+              exp(log_weights[i] + log(reciprocal) - log(normalizer))
+            }, numeric(1L))
+          }, boundaries)
+          log_probability <- log_base + log(ratio)
+        }
+        out[[tail]][draw, row] <- if (tail == "cdf") exp(log_probability) else log_probability
+      }
+      if (any(c("mean", "variance") %in% components)) {
+        # Scale moment error by the Gaussian SD/second moment, so a zero
+        # selected mean remains a valid result rather than a relative-error
+        # singularity. Density and event-mass criteria remain relative to mass.
+        selected_mean <- integrate_gaussian(function(e) weighted_mass(e, moment = "mean"),
+          m_e, v_e, moment_scale = normalizer * sqrt(variance)) / normalizer
+        if ("mean" %in% components) out[["mean"]][draw, row] <- direction * selected_mean
+        if ("variance" %in% components) {
+          second <- integrate_gaussian(function(e) weighted_mass(e, moment = "second"),
+            m_e, v_e, moment_scale = normalizer * (variance + mean^2)) / normalizer
+          selected_variance <- second - selected_mean^2
+          if (!is.finite(selected_variance) || selected_variance < 0) {
+            stop("Selected-normal predictive variance is invalid.", call. = FALSE)
+          }
+          out[["variance"]][draw, row] <- selected_variance
+        }
+      }
+    }
+  }
+  attr(out, "dependency_blocks") <- plan[["row_blocks"]]
+  out
+}
+
+
+.selection_joint_estimate_targets <- function(
+    setup, components = c("log_density", "cdf", "log_lower", "log_upper", "mean", "variance")) {
+
+  if (.selection_retains_sampling(setup[["data"]])) {
+    return(.selection_conditioned_sampling_estimate_targets(setup, components))
+  }
+
+  conditional <- .selection_joint_conditional_summary_from_setup(setup)
+  out <- stats::setNames(lapply(components, function(x) {
+    matrix(NA_real_, setup[["S"]], setup[["K"]])
+  }), components)
+  model <- .data_selection_model(setup[["data"]])
+  branches <- model[["branches"]][model[["active_branches"]]]
+  product <- length(branches) > 0L && all(vapply(branches, function(branch) {
+    identical(branch[["weight_rule"]], "product")
+  }, logical(1L)))
+  if (product) {
+    context <- conditional[["selection_context"]]
+    mean <- conditional[["means"]]
+    variance <- conditional[["variance"]]
+    sd <- sqrt(variance)
+    sei <- setup[["selection_sei"]]
+    y <- conditional[["y"]]
+    if ("log_density" %in% components) {
+      out[["log_density"]] <- .selection_joint_singleton_loglik_matrix(
+        yi = y, means = mean, variances = variance, sei = sei,
+        selection_context = context
+      )
+      # Preserve the existing zero-event error; an observed zero weight alone
+      # remains a valid -Inf score. Ordinary finite rows need no second mass.
+      if (any(!is.finite(out[["log_density"]]))) {
+        normalizer <- .selection_step_log_norm_matrix(mean, sd, sei, context)
+        if (any(!is.finite(normalizer))) {
+          stop("Selected row deletion is unavailable because its conditional selection event cannot be normalized.", call. = FALSE)
+        }
+      }
+    }
+    if ("cdf" %in% components) {
+      out[["cdf"]] <- .selection_step_cdf_matrix(
+        q = y, mean = mean, sd = sd, sei = sei,
+        selection_context = context, lower.tail = conditional[["lower_tail"]]
+      )
+    }
+    if (any(c("mean", "variance") %in% components)) {
+      moments <- .selection_step_moments_matrix(mean, sd, sei, context)
+      if ("mean" %in% components) {
+        out[["mean"]] <- if (conditional[["lower_tail"]]) {
+          moments[["mean"]]
+        } else {
+          -moments[["mean"]]
+        }
+      }
+      if ("variance" %in% components) {
+        variance <- moments[["second"]] - moments[["mean"]]^2
+        if (any(!is.finite(variance)) || any(variance < 0)) {
+          stop("Selected-normal predictive variance is invalid.", call. = FALSE)
+        }
+        out[["variance"]] <- variance
+      }
+    }
+    components <- intersect(components, c("log_lower", "log_upper"))
+  }
+  for (row in if (length(components)) seq_len(setup[["K"]]) else integer()) {
+    context <- .selection_joint_deleted_row_context(
+      context = conditional[["selection_context"]],
+      y       = conditional[["y"]],
+      sei     = setup[["selection_sei"]],
+      groups  = conditional[["groups"]],
+      row     = row
+    )
+    mean <- conditional[["means"]][, row, drop = FALSE]
+    sd <- sqrt(conditional[["variance"]][, row, drop = FALSE])
+    sei <- setup[["selection_sei"]][row]
+    y <- conditional[["y"]][row]
+    if (any(c("log_density", "log_lower", "log_upper") %in% components)) {
+      normalizer <- .selection_gaussian_event_mass(
+        mean, sd^2, sei, context, .data_selection_execution_plan(setup[["data"]])
+      )[["log_mass"]]
+      if (any(!is.finite(normalizer))) {
+        stop("Selected row deletion is unavailable because its conditional selection event cannot be normalized.", call. = FALSE)
+      }
+    }
+    if ("log_density" %in% components) {
+      log_weight <- numeric(setup[["S"]])
+      selected <- which(context[["kernel_mode"]] != SELKERNEL_NORMAL)
+      log_weight[selected] <- log(context[["omega"]][cbind(
+        selected, context[["obs_bin_by_sample"]][selected]
+      )])
+      out[["log_density"]][, row] <- stats::dnorm(y, mean, sd, log = TRUE) +
+        log_weight - normalizer
+    }
+    for (tail in intersect(components, c("cdf", "log_lower", "log_upper"))) {
+      lower_tail <- if (tail == "log_upper") !conditional[["lower_tail"]] else
+        conditional[["lower_tail"]]
+      out[[tail]][, row] <- if (tail == "cdf") {
+        .selection_step_cdf_matrix(
+          q = y, mean = mean, sd = sd, sei = sei,
+          selection_context = context, lower.tail = lower_tail
+        )
+      } else {
+        .selection_gaussian_event_mass(
+          mean, sd^2, sei, context, .data_selection_execution_plan(setup[["data"]]),
+          lower = if (lower_tail) NULL else y,
+          upper = if (lower_tail) y else NULL
+        )[["log_mass"]] - normalizer
+      }
+    }
+    if (any(c("mean", "variance") %in% components)) {
+      moments <- .selection_step_moments_matrix(
+        mean = mean, sd = sd, sei = sei, selection_context = context
+      )
+      if ("mean" %in% components) {
+        out[["mean"]][, row] <- if (conditional[["lower_tail"]]) {
+          moments[["mean"]]
+        } else {
+          -moments[["mean"]]
+        }
+      }
+      if ("variance" %in% components) {
+        variance <- moments[["second"]] - moments[["mean"]]^2
+        if (any(!is.finite(variance)) || any(variance < 0)) {
+          stop("Selected-normal predictive variance is invalid.", call. = FALSE)
+        }
+        out[["variance"]][, row] <- variance
+      }
+    }
+  }
+  attr(out, "dependency_blocks") <- conditional[["dependency_blocks"]]
+  out
+}
+
+
 .log_lik_normal_covariance_estimate_target_from_setup <- function(
     setup, add_dependency_metadata = FALSE) {
 
@@ -346,7 +1148,7 @@
     )
   }
   if (isTRUE(setup[["is_weightfunction"]]) &&
-      !.is_data_exact_selection(setup[["data"]])) {
+      !.is_data_joint_selection(setup[["data"]])) {
     stop(
       "Gaussian covariance estimate target is not available ",
       "for selection models.",
@@ -361,49 +1163,15 @@
     )
   }
 
-  plan <- .estimate_normal_covariance_target_plan_from_setup(setup)
-
-  if (.setup_uses_exact_selection_likelihood(setup)) {
-    conditional <- .marglik_covariance_plan_conditional_summary_batch(
-      cache                    = NULL,
-      y                        = plan[["y"]],
-      means                    = plan[["means"]],
-      sampling_covariance      = plan[["sampling_covariance"]],
-      random_covariance_plans  = plan[["random_covariance_plans"]],
-      random_covariance_states = plan[["random_covariance_states"]],
-      block_indices            = plan[["block_indices"]],
-      extra_variances          = plan[["extra_variances"]]
-    )
-    conditional_mean <- matrix(
-      plan[["y"]],
-      nrow  = setup[["S"]],
-      ncol  = setup[["K"]],
-      byrow = TRUE
-    ) - conditional[["residual"]]
-    conditional_sd <- sqrt(conditional[["variance"]])
-    selection_context <- .selection_exact_signed_context(
-      setup     = setup,
-      signed_yi = plan[["y"]]
-    )
-    log_lik <- .selnorm_kernel_loglik_matrix(
-      yi             = plan[["y"]],
-      mu_num         = conditional_mean,
-      sigma_num      = conditional_sd,
-      mu_norm        = conditional_mean,
-      sigma_norm     = conditional_sd,
-      sei            = setup[["selection_sei"]],
-      omega          = selection_context[["omega"]],
-      selection_spec = selection_context,
-      alpha          = selection_context[["alpha"]],
-      phack_kind     = selection_context[["phack_kind"]],
-      kernel_mode    = selection_context[["kernel_mode"]]
-    )
+  if (.setup_uses_joint_selection_likelihood(setup)) {
+    selected <- .selection_joint_estimate_targets(setup, "log_density")
+    log_lik <- selected[["log_density"]]
     if (isTRUE(add_dependency_metadata)) {
-      attr(log_lik, "RoBMA_dependency_blocks") <- plan[["block_indices"]]
+      attr(log_lik, "RoBMA_dependency_blocks") <- attr(selected, "dependency_blocks")
     }
     return(log_lik)
   }
-
+  plan <- .estimate_normal_covariance_target_plan_from_setup(setup)
   log_lik <- .marglik_covariance_plan_conditional_loglik_batch(
     cache                    = NULL,
     y                        = plan[["y"]],
@@ -438,7 +1206,7 @@
     )
   }
   if (isTRUE(setup[["is_weightfunction"]]) &&
-      !.is_data_exact_selection(setup[["data"]])) {
+      !.is_data_joint_selection(setup[["data"]])) {
     stop(
       "Known-V joint log-likelihood is not available for selection models.",
       call. = FALSE
@@ -451,8 +1219,8 @@
     )
   }
 
-  if (.setup_uses_exact_selection_likelihood(setup)) {
-    return(.selection_exact_joint_loglik_from_setup(setup))
+  if (.setup_uses_joint_selection_likelihood(setup)) {
+    return(.selection_joint_loglik_from_setup(setup))
   }
 
   data       <- setup[["data"]]
@@ -600,7 +1368,7 @@
     )
   }
   if (isTRUE(setup[["is_weightfunction"]]) &&
-      !.is_data_exact_selection(setup[["data"]])) {
+      !.is_data_joint_selection(setup[["data"]])) {
     stop(
       "Gaussian covariance estimate target is not available for selection ",
       "models.",
@@ -613,6 +1381,10 @@
       "likelihoods.",
       call. = FALSE
     )
+  }
+
+  if (.setup_uses_joint_selection_likelihood(setup)) {
+    return(.selection_joint_estimate_targets(setup, components))
   }
 
   plan <- .estimate_normal_covariance_target_plan_from_setup(setup)
@@ -635,71 +1407,6 @@
 
   sd  <- sqrt(variance)
   out <- list()
-
-  if (.setup_uses_exact_selection_likelihood(setup)) {
-    conditional_mean <- matrix(
-      yi,
-      nrow  = S,
-      ncol  = K,
-      byrow = TRUE
-    ) - residual
-    selection_context <- .selection_exact_signed_context(
-      setup     = setup,
-      signed_yi = yi
-    )
-    if (any(c("cdf", "log_lower", "log_upper") %in% components)) {
-      selected_lower <- .selection_step_cdf_matrix(
-        q                 = yi,
-        mean              = conditional_mean,
-        sd                = sd,
-        sei               = setup[["selection_sei"]],
-        selection_context = selection_context,
-        lower.tail        = lower_tail
-      )
-      selected_upper <- .selection_step_cdf_matrix(
-        q                 = yi,
-        mean              = conditional_mean,
-        sd                = sd,
-        sei               = setup[["selection_sei"]],
-        selection_context = selection_context,
-        lower.tail        = !lower_tail
-      )
-      if ("cdf" %in% components) {
-        out[["cdf"]] <- selected_lower
-      }
-      if ("log_lower" %in% components) {
-        out[["log_lower"]] <- log(selected_lower)
-      }
-      if ("log_upper" %in% components) {
-        out[["log_upper"]] <- log(selected_upper)
-      }
-    }
-    if (any(c("mean", "variance") %in% components)) {
-      moments <- .selection_step_moments_matrix(
-        mean              = conditional_mean,
-        sd                = sd,
-        sei               = setup[["selection_sei"]],
-        selection_context = selection_context
-      )
-      if ("mean" %in% components) {
-        selected_mean <- moments[["mean"]]
-        if (identical(setup[["effect_direction"]], "negative")) {
-          selected_mean <- -selected_mean
-        }
-        out[["mean"]] <- selected_mean
-      }
-      if ("variance" %in% components) {
-        selected_variance <- moments[["second"]] - moments[["mean"]]^2
-        if (any(!is.finite(selected_variance)) ||
-            any(selected_variance < 0)) {
-          stop("Selected-normal predictive variance is invalid.",
-               call. = FALSE)
-        }
-        out[["variance"]] <- selected_variance
-      }
-    }
-    return(out)
-  }
 
   if ("cdf" %in% components) {
     out[["cdf"]] <- stats::pnorm(
@@ -754,7 +1461,7 @@
   K                 <- setup[["K"]]
   S                 <- setup[["S"]]
 
-  extra_variance <- if (.is_data_exact_selection(data) &&
+  extra_variance <- if (.is_data_joint_selection(data) &&
                         .is_data_random(data)) {
     matrix(0, nrow = S, ncol = K)
   } else if (.is_data_random(data)) {

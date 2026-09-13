@@ -16,27 +16,18 @@
 #' @param sei a vector of standard errors. Either `vi` or `sei` must be
 #' supplied for normal models.
 #' @param V a known working variance-covariance matrix, a list of block
-#' variance-covariance matrices, a metadata-preserving [vcalc2()] result, or an
-#' exact diagonal-plus-factor declaration created by [known_v_factor()], used
-#' by `brma.mv()`.
+#' variance-covariance matrices, or an exact diagonal-plus-factor declaration
+#' created by [known_v_factor()], used by `brma.mv()`. Ordinary covariance
+#' matrices from [metafor::vcalc()] can be supplied directly. For selection
+#' models, declare publication groups separately with `selection_model(group = ...)`.
+#' Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
+#' stored symmetrically by averaging off-diagonal pairs; the supplied object
+#' and its diagonal are unchanged.
 #' @param known_v_parameterization known-`V` backend used by `brma.mv()`.
 #' `"auto"` chooses an exact backend when feasible; `"latent"` uses a latent
 #' `D + BB'` decomposition; `"whitened"` uses an eigen-rotated normal
 #' likelihood; `"block_mvn"` uses an exact native block multivariate-normal
 #' likelihood.
-#' @param known_v_residual_fraction proportion of the diagonal of `V` left as
-#' conditional independent residual sampling variance in the latent `D + BB'`
-#' representation. Defaults to `0.10`; values are validated for all backends
-#' but affect only the latent backend. When `"auto"` selects `"whitened"` or
-#' `"block_mvn"`, explicitly supplied values are disregarded by the likelihood.
-#' Direct `"whitened"` or `"block_mvn"` requests warn when an explicit value is
-#' supplied. For a factor representation declared by [vcalc2()] or
-#' [known_v_factor()], the declared diagonal is the exact residual variance and
-#' this argument is disregarded with a warning when supplied explicitly.
-#' Approximate selection likelihoods condition on the declared factors when
-#' available; otherwise this argument controls their sampling decomposition.
-#' Different decompositions of the same covariance can define different
-#' approximate selection likelihoods.
 #' @param weights an optional vector of positive likelihood weights. For
 #' normal/effect-size models, each weight powers the estimate likelihood. For
 #' constructors with GLMM raw-count input, each weight powers the paired
@@ -247,8 +238,7 @@ NULL
                                  random_effects_metadata = NULL,
                                  random_group_covariance = NULL,
                                  known_v_parameterization = "auto",
-                                 known_v_residual_fraction = NULL,
-                                 known_v_residual_fraction_specified = FALSE) {
+                                 selection_binding = FALSE) {
 
   # check additional input
   .check_measure(measure, class = class)
@@ -260,7 +250,6 @@ NULL
   BayesTools::check_char(effect_direction, "effect_direction", allow_values = c("positive", "negative", "detect"))
   BayesTools::check_bool(skip_validation, "skip_validation")
   BayesTools::check_bool(allow_na_drop, "allow_na_drop")
-  BayesTools::check_bool(known_v_residual_fraction_specified, "known_v_residual_fraction_specified")
   if (is.null(known_v_parameterization)) {
     known_v_parameterization <- "auto"
   }
@@ -328,6 +317,10 @@ NULL
     random_effects_metadata = random_effects_metadata,
     random_group_covariance = random_group_covariance
   )
+  if (identical(class, "mv") && !is.null(data_scale) &&
+      length(data_random[["terms"]]) == 0L) {
+    stop("The 'scale' argument requires 'random' in multivariate models.", call. = FALSE)
+  }
 
   data_mods  <- .check_and_list_data.coerce_character_predictors(data_mods)
   data_scale <- .check_and_list_data.scale_coerce_character_predictors(data_scale)
@@ -435,12 +428,10 @@ NULL
       keep_rows = keep_rows
     )
     known_V <- .known_v_prepare(
-      V                                   = known_V_input,
-      keep_rows                           = keep_rows,
-      known_v_parameterization            = known_v_parameterization,
-      known_v_residual_fraction           = known_v_residual_fraction,
-      known_v_residual_fraction_specified = known_v_residual_fraction_specified,
-      known_v_is_scale                    = !is.null(data_scale)
+      V                        = known_V_input,
+      keep_rows                = keep_rows,
+      known_v_parameterization = known_v_parameterization,
+      known_v_is_scale         = !is.null(data_scale)
     )
     data_outcome[["sei"]] <- sqrt(.known_v_diagonal(known_V))
   }
@@ -472,6 +463,15 @@ NULL
   attr(data_list, "standardize_continuous_predictors")  <- standardize_continuous_predictors
   attr(data_list, "set_contrast_factor_predictors")     <- set_contrast_factor_predictors
   attr(data_list, "effect_direction")                   <- effect_direction
+  if (selection_binding) {
+    attr(data_list, "selection_binding") <- list(
+      input_data = data,
+      row_index  = which(keep_rows),
+      cluster    = if (cluster_provided) {
+        outcome_result[["data_outcome"]][["cluster_label"]]
+      } else NULL
+    )
+  }
   return(data_list)
 }
 
@@ -1354,13 +1354,6 @@ NULL
   }
 
   random_expr <- .call[[arg_index]]
-  if (is.null(random_expr)) {
-    if (!is.null(random_group_covariance)) {
-      stop("'R' requires a non-NULL 'random' formula.", call. = FALSE)
-    }
-    return(list(formula = NULL, data = NULL, terms = list()))
-  }
-
   random <- if (!is.null(data) && is.data.frame(data)) {
     try(eval(random_expr, data, .envir), silent = TRUE)
   } else {
@@ -1372,6 +1365,12 @@ NULL
       conditionMessage(attr(random, "condition")),
       call. = FALSE
     )
+  }
+  if (is.null(random)) {
+    if (!is.null(random_group_covariance)) {
+      stop("'R' requires a non-NULL 'random' formula.", call. = FALSE)
+    }
+    return(list(formula = NULL, data = NULL, terms = list()))
   }
 
   if (inherits(random, "BayesTools_random_effects")) {
@@ -2013,7 +2012,7 @@ NULL
     }
     nesting <- term[["group_nesting_components"]]
     nested_aliases <- if (is.character(nesting) && length(nesting) > 1L) {
-      tail(nesting, 1L)
+      utils::tail(nesting, 1L)
     } else {
       character()
     }

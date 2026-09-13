@@ -6,7 +6,8 @@
     context, posterior_samples, active_setup, unit, data_hash = NULL,
     fixed_mu_samples = NULL) {
 
-  if (.iwmde_uses_known_v_random_marginal_likelihood(context)) {
+  if (.iwmde_uses_known_v_random_marginal_likelihood(
+      context, priors = active_setup[["priors"]])) {
     return(.iwmde_log_lik_known_v_random_marginal_sum_from_samples(
       context           = context,
       posterior_samples = posterior_samples,
@@ -48,13 +49,14 @@
 }
 
 
-.iwmde_uses_known_v_random_marginal_likelihood <- function(context) {
+.iwmde_uses_known_v_random_marginal_likelihood <- function(
+    context, priors = context[["priors"]]) {
 
   data <- context[["data"]]
 
   .is_data_known_v(data) && .is_data_random(data) &&
     .data_outcome_type(data) == "norm" &&
-    !.is_priors_weightfunction(context[["priors"]])
+    !.is_data_joint_selection(data) && !.is_priors_weightfunction(priors)
 }
 
 
@@ -62,7 +64,8 @@
     context, posterior_samples, active_setup, fixed_mu_samples = NULL) {
 
   data <- context[["data"]]
-  if (!.iwmde_uses_known_v_random_marginal_likelihood(context)) {
+  if (!.iwmde_uses_known_v_random_marginal_likelihood(
+      context, priors = active_setup[["priors"]])) {
     stop(
       "Marginal known-V random-effect likelihood is unavailable for this model.",
       call. = FALSE
@@ -156,7 +159,8 @@
   plan <- .iwmde_known_v_random_group_iid_plan(
     context     = context,
     parameter   = parameter,
-    replacement = replacement
+    replacement = replacement,
+    priors      = active_setup[["priors"]]
   )
   if (is.null(plan)) {
     return(NULL)
@@ -164,6 +168,13 @@
 
   rows <- vapply(row_states, `[[`, integer(1), "row_index")
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
+  required_active <- plan[["required_active"]]
+  if (length(required_active) > 0L &&
+      (!all(required_active %in% colnames(samples)) ||
+       any(!is.finite(samples[, required_active, drop = FALSE])) ||
+       any(samples[, required_active, drop = FALSE] != 1))) {
+    return(NULL)
+  }
   mu_samples <- .iwmde_predictor_evaluate_fixed_mu(
     context      = context,
     active_setup = active_setup,
@@ -358,10 +369,10 @@
 
 
 .iwmde_known_v_random_group_iid_plan <- function(
-    context, parameter, replacement) {
+    context, parameter, replacement, priors = context[["priors"]]) {
 
   data <- context[["data"]]
-  if (!.iwmde_uses_known_v_random_marginal_likelihood(context) ||
+  if (!.iwmde_uses_known_v_random_marginal_likelihood(context, priors) ||
       .is_data_weights(data) ||
       !replacement[["type"]] %in% c(
         "scalar",
@@ -390,11 +401,49 @@
     return(NULL)
   }
 
+  update <- replacement[["covariance_update"]]
+  required_active <- character()
+  if (inherits(update, "BayesTools_random_effects_marginal_update_plan") &&
+      identical(update[["family"]], "unsupported") &&
+      !is.null(update[["conditional"]])) {
+    conditional <- update[["conditional"]]
+    required_active <- conditional[["required_active"]]
+    if (!is.character(required_active) || length(required_active) == 0L ||
+        anyNA(required_active) || any(!nzchar(required_active)) ||
+        anyDuplicated(required_active)) {
+      return(NULL)
+    }
+    update <- conditional[["plan"]]
+  }
+  if (!inherits(update, "BayesTools_random_effects_marginal_update_plan") ||
+      !identical(update[["family"]], "affine") ||
+      !setequal(update[["blocks"]], vapply(
+        terms, `[[`, character(1), "block_name"
+      ))) {
+    return(NULL)
+  }
+
   term_plan <- lapply(terms, function(term) {
     factors <- if (.marginalized_random_effect_has_allocation(term)) {
       .marginalized_random_effect_allocation_factors(term)
     } else {
       NULL
+    }
+    if (length(required_active) > 0L) {
+      gate_only <- vapply(factors, function(factor) {
+
+        is.null(factor[["weight_name"]]) &&
+          identical(factor[["n_targets"]], 1L) &&
+          is.character(factor[["inclusion_name"]]) &&
+          length(factor[["inclusion_name"]]) == 1L &&
+          !is.na(factor[["inclusion_name"]]) &&
+          nzchar(factor[["inclusion_name"]])
+      }, logical(1))
+      gates <- vapply(factors[gate_only], `[[`, character(1), "inclusion_name")
+      if (anyDuplicated(gates) || !setequal(gates, required_active)) {
+        return(NULL)
+      }
+      factors <- factors[!gate_only]
     }
     allocations <- term[["sd_binding"]][["allocations"]]
     allocation  <- if (length(allocations) == 1L) allocations[[1L]] else NULL
@@ -476,10 +525,31 @@
   if (is.null(target_mode)) {
     return(NULL)
   }
+  coefficient_input <- if (identical(target_mode, "component_sd")) {
+    "quantity"
+  } else {
+    "source"
+  }
+  proportion <- identical(target_mode, "proportion")
+  if (!identical(update[["coefficient_input"]], coefficient_input) ||
+      !identical(update[["update"]], if (proportion) "allocation" else "scale") ||
+      !identical(update[["coefficient_transform"]][["type"]],
+                 if (proportion) "identity" else "square") ||
+      !identical(update[["source_parameter"]],
+                 if (proportion) weights[[1L]] else sources[[1L]])) {
+    return(NULL)
+  }
+  if (proportion &&
+      (!identical(update[["allocation"]][["weight_name"]], weights[[1L]]) ||
+       !identical(update[["allocation"]][["index"]], target_index) ||
+       !identical(update[["allocation"]][["n_targets"]], 2L))) {
+    return(NULL)
+  }
 
   grouped_factor <- which(!unique_groups)
 
   list(
+    required_active   = required_active,
     source_parameter  = sources[[1L]],
     weight_parameter  = weights[[1L]],
     factor_indices    = indices,
@@ -536,7 +606,8 @@
 .iwmde_log_lik_known_v_joint_sum_from_evaluated_predictors <- function(
     context, active_setup, mu_samples, tau_within_samples,
     tau_between_samples = NULL, posterior_samples = NULL, unit = "estimate",
-    data_hash = NULL, random_effects_conditioning = "none") {
+    data_hash = NULL, random_effects_conditioning = "none",
+    random_factor_samples = NULL) {
 
   setup <- .log_lik_evaluated_setup(
     fit                         = context[["object"]][["fit"]],
@@ -550,6 +621,7 @@
     posterior_samples           = posterior_samples,
     random_effects_conditioning = random_effects_conditioning
   )
+  setup[["selection_random_factor_samples"]] <- random_factor_samples
   fast <- .iwmde_log_lik_known_v_joint_sum_common_shift(
     context = context,
     setup   = setup
@@ -712,6 +784,7 @@
 .iwmde_log_lik_known_v_joint_sum_common_shift <- function(context, setup) {
 
   if (!identical(setup[["outcome_type"]], "norm") ||
+      .is_data_joint_selection(context[["data"]]) ||
       isTRUE(setup[["is_weightfunction"]]) ||
       !is.null(setup[["weights"]])) {
     return(NULL)
@@ -828,100 +901,6 @@
 }
 
 
-# Evaluate known-V tau candidates while reusing each block factorization across
-# posterior rows.
-.iwmde_log_q_grid_normal_known_v_tau_group <- function(
-    context, parameter, values, row_states, replacement, setup, basis) {
-
-  data <- context[["data"]]
-  if (!identical(parameter, "tau") ||
-      !.iwmde_uses_known_v_joint_likelihood(
-        context,
-        priors = setup[["priors"]]
-      ) ||
-      .is_data_random(data) ||
-      .is_data_multilevel(data) ||
-      isTRUE(setup[["is_weightfunction"]]) ||
-      !is.null(setup[["weights"]]) ||
-      !identical(basis[["scale_update"]], "tau") ||
-      !is.null(basis[["mu_basis"]]) ||
-      !is.null(basis[["log_tau_basis"]]) ||
-      isTRUE(basis[["formula_mu"]]) ||
-      isTRUE(basis[["formula_logtau"]])) {
-    return(NULL)
-  }
-
-  known_V <- .data_known_v_data(data)
-  G       <- length(values)
-  S       <- length(row_states)
-  K       <- setup[["K"]]
-  if (is.null(known_V) || .known_v_nrow(known_V) != K ||
-      !identical(dim(setup[["mu"]]), c(S, K))) {
-    return(NULL)
-  }
-
-  log_prior <- .iwmde_predictor_log_prior(
-    context     = context,
-    parameter   = parameter,
-    values      = values,
-    row_states  = row_states,
-    replacement = replacement
-  )
-  if (is.null(log_prior) || length(log_prior) != G * S) {
-    return(NULL)
-  }
-
-  block_data        <- .known_v_dependency_block_data(data, K)
-  block_indices     <- lapply(block_data, `[[`, "index")
-  block_covariances <- lapply(block_data, `[[`, "covariance")
-  if (any(vapply(
-    block_covariances,
-    function(covariance) {
-      !is.null(.covariance_exact_rank_one_factor(covariance)) &&
-        nrow(covariance) > 1L
-    },
-    logical(1)
-  ))) {
-    return(NULL)
-  }
-
-  residual <- matrix(
-    setup[["yi"]],
-    nrow  = S,
-    ncol  = K,
-    byrow = TRUE
-  ) - setup[["mu"]]
-  log_lik <- matrix(-Inf, nrow = G, ncol = S)
-  valid   <- is.finite(values) & values >= 0
-
-  for (g in which(valid)) {
-    candidate_log_lik <- numeric(S)
-    for (block in seq_along(block_indices)) {
-      idx        <- block_indices[[block]]
-      covariance <- block_covariances[[block]] +
-        diag(values[[g]]^2, nrow = length(idx))
-      chol_covariance <- .known_v_chol_covariance(
-        covariance = covariance,
-        context    = "joint likelihood"
-      )
-      residual_whitened <- backsolve(
-        chol_covariance,
-        t(residual[, idx, drop = FALSE]),
-        transpose = TRUE
-      )
-      candidate_log_lik <- candidate_log_lik - .5 * (
-        length(idx) * log(2 * pi) +
-          2 * sum(log(diag(chol_covariance))) +
-          colSums(residual_whitened^2)
-      )
-    }
-    log_lik[g, ] <- candidate_log_lik
-  }
-
-  return(log_lik + matrix(log_prior, nrow = G, ncol = S))
-}
-
-
 .iwmde_normal_location_likelihood_change_known_v <- function(context, setup,
                                                               yi, mu,
                                                               mu_basis) {
@@ -940,7 +919,8 @@
     return(NULL)
   }
 
-  if (.iwmde_uses_known_v_random_marginal_likelihood(context)) {
+  if (.iwmde_uses_known_v_random_marginal_likelihood(
+      context, priors = setup[["priors"]])) {
     return(.iwmde_normal_location_likelihood_change_known_v_random(
       context  = context,
       setup    = setup,

@@ -10,7 +10,8 @@ test_that("brma and diagonal-V brma.mv fit equivalent meta-regressions", {
     yi = c(-0.20, 0.05, 0.12, 0.31, -0.08, 0.22, 0.40, 0.14),
     vi = c(0.03, 0.05, 0.02, 0.08, 0.04, 0.06, 0.03, 0.07),
     x  = c(-1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2),
-    z  = c(0, 1, 0, 2, 1, 0, 2, 1)
+    z  = c(0, 1, 0, 2, 1, 0, 2, 1),
+    estimate = seq_len(8L)
   )
   checks <- set_convergence_checks(
     max_Rhat = NULL,
@@ -36,7 +37,7 @@ test_that("brma and diagonal-V brma.mv fit equivalent meta-regressions", {
     yi                        = yi,
     V                         = vi,
     mods                      = ~ x + z,
-    random                    = NULL,
+    random                    = ~ 1 | estimate,
     data                      = dat,
     measure                   = "GEN",
     prior_unit_information_sd = 1,

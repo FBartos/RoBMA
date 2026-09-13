@@ -18,8 +18,11 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' @param object a normal-outcome \code{brma} object.
 #' @param significance_level z-value threshold for significance. Defaults
 #' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
-#' @param max_samples maximum number of posterior samples for estimation.
-#' Defaults to 10000. Use \code{Inf} to use all posterior samples.
+#' @param max_samples maximum number of posterior samples for the EDR and
+#' missing-study summaries. Defaults to 10000. Use \code{Inf} to use all
+#' posterior samples. The density budget is supplied separately to
+#' \code{plot()} or \code{lines()} and defaults to 1000 for \code{brma.mv}
+#' models and 10000 for other models.
 #' @param conditioning_depth predictive conditioning depth. Options are
 #' \code{"marginal"} (default), which integrates all newly realized random
 #' effects; \code{"cluster"}, which retains fitted cluster effects and
@@ -30,10 +33,13 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' Selection models currently support only \code{"marginal"} conditioning.
 #' @param integration_control numerical integration settings created by
 #' \code{set_selection_likelihood_control()}. These control integration within
-#' each posterior draw, independently of \code{max_samples}. Factor blocks use
-#' converged Gauss-Hermite quadrature where possible; other blocks use adaptive
-#' randomized quasi-Monte Carlo. The relative diagnostic compares density error
-#' with the peak of each draw's curve and also checks the selection normalizer.
+#' each posterior draw, independently of \code{max_samples}. Factor blocks and
+#' supported full-covariance product-selection blocks use deterministic
+#' Gauss-Hermite quadrature where possible, with the existing adaptive randomized
+#' quasi-Monte Carlo fallback. Density-error checks use the peak within each
+#' posterior draw and also check the selection normalizer. Bounded CDF
+#' interpolation, Gaussian-mixture approximation, and omitted contributions
+#' are charged to the same numerical error budget.
 #' @param ... additional arguments (currently unused).
 #'
 #' @details
@@ -60,31 +66,48 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' or clusters out when estimating model parameters.
 #'
 #' The Expected Discovery Rate (EDR) is the posterior average probability that
-#' a new outcome from the selected predictive target is statistically
+#' a new outcome from the bias-adjusted reference distribution is statistically
 #' significant at the supplied threshold. It is therefore not an exact-repeat
 #' estimand unless \code{conditioning_depth = "estimate"} is requested.
 #'
-#' The EDR uses extrapolation mode: selection is removed from the row-specific
-#' predictive distributions, PET/PEESE regression offsets are omitted, and
-#' designs under a selection model are weighted by their inverse observation
-#' probabilities. The fitted plot curve retains the bias adjustments.
+#' The EDR uses the bias-adjusted reference distribution: selection and
+#' PET/PEESE offsets are removed. For multivariate selection models, models
+#' integrating applicable contextual sources, and best-rule selection models,
+#' this reference is the normalized pre-selection Gaussian marginal,
+#' integrating all newly realized contexts. Its integral is
+#' one and EDR is its significance probability. Relative selection weights do
+#' not identify an absolute publication probability or missing count, so
+#' \code{Missing N} is unavailable for these targets.
 #'
-#' Exact selection models first select the full Gaussian response vector within
-#' each fitted dependency block, then marginalize to each estimate. Both sampling
-#' covariance and random-effect covariance therefore affect the selected marginal
-#' density. Approximate selection models instead integrate conditionally
-#' normalized selected-normal densities over freshly realized latent effects,
-#' preserving the normalization order used by their fitted likelihood.
+#' The fitted selected curve preserves the original publication event and the
+#' fitted model's normalization order. It integrates the model's integrated
+#' sources inside each full-event normalizer and averages conditionally
+#' normalized projections over newly realized retained contexts. A best rule
+#' still selects the full original event when displaying one estimate.
+#' Supported full-covariance product blocks reuse numerator and normalizer
+#' calculations while refining their quadrature separately. Computation by
+#' posterior row and covariance block preserves the full publication event.
 #'
-#' The extrapolated curve uses the same selection normalizers as the fitted
-#' curve. Its integral over the entire real line is the expected total number of
-#' estimates per observed estimate; the integral of the suppressed part is this
-#' quantity minus one. Multiplying by the observed number of estimates gives
-#' \code{Missing N}. For exact correlated selection this counterfactual treats
-#' whole dependency blocks as observed or suppressed, using inverse joint block
-#' probabilities. It can imply large missing counts for large blocks or strong
-#' selection. It does not estimate partially reported blocks. Restricting a
-#' plot with \code{from} or \code{to} does not restrict these summary integrals.
+#' Numerical diagnostics distinguish raw normalizer-mass ratios from bounds on
+#' omitted contributions. A raw mass ratio does not certify that the compressed
+#' displayed curve integrates to one. An omitted-mass bound covers only the
+#' omitted components, not the total integrated error of the compressed curve.
+#' Retained component weights are not renormalized to hide omissions.
+#'
+#' Independent univariate product-weight models and the released conditional
+#' cluster display retain their reference-bin-normalized inverse-weight
+#' extrapolation convention and corresponding \code{Missing N} summary.
+#' Resolving the same publication groups automatically or explicitly does not
+#' change the reference distribution or diagnostic.
+#' A literal count interpretation additionally treats the reference bin as
+#' fully observed and requires a reporting/stopping design relating attempted
+#' to observed estimates. These assumptions are not supplied by the fitted
+#' relative-weight likelihood, which conditions on the reported vector and
+#' does not identify an absolute publication probability or finite missing pool.
+#' Valid above-one relative weights can give a negative diagnostic; such a
+#' value is not a literal missing count.
+#' Restricting a plot with \code{from} or \code{to} does not restrict the
+#' summary integrals.
 #'
 #' Zplot diagnostics are available only for normal outcome models. GLMM
 #' objects are rejected because their raw likelihood is on a count scale while
@@ -93,8 +116,8 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' scalar display using \eqn{z_i = y_i / se_i}. The histogram does not display
 #' dependence, but the fitted selected marginals retain the full covariance.
 #' Numerical integration can be substantially more expensive for correlated
-#' selection than for ordinary Gaussian models; \code{max_samples} controls the
-#' number of posterior draws used for the plot.
+#' selection than for ordinary Gaussian models. Density plotting uses its own
+#' \code{max_samples} argument, independently of the summaries stored here.
 #'
 #' The resulting object retains all original brma properties while adding
 #' zplot results, enabling both standard meta-analytic summaries and
@@ -104,10 +127,12 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' \code{zplot} list component containing:
 #' \describe{
 #'   \item{estimates}{a list with posterior samples for \code{EDR} and
-#'     missing-study \code{weights}}
+#'     extrapolation \code{weights}, when a missing-count convention applies}
 #'   \item{data}{a list with \code{significance_level},
 #'     \code{conditioning_depth}, observed \code{z}-statistics,
 #'     \code{N_significant}, and \code{N_observed}}
+#'   \item{target}{the fitted reporting specification, reference distribution,
+#'     source and publication identities, and missing-count applicability}
 #' }
 #'
 #' @seealso [summary.zplot_brma()], [plot.zplot_brma()], [hist.zplot_brma()],
@@ -164,12 +189,27 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
   yi  <- .outcome_data_yi(object)
   sei <- .outcome_data_sei(object)
   z   <- yi / sei
+  vector_target <- .zplot_vector_selection_target(object)
+  model <- .data_selection_model(object[["data"]])
+  target <- list(
+    fitted = model,
+    reference = if (vector_target) "pre_selection_gaussian" else "univariate_extrapolation",
+    conditioning_depth = conditioning_depth,
+    publication_groups = model[["groups"]],
+    source_roles = model[["sources"]],
+    sampling_structure = .selection_postfit_target_metadata(object[["data"]])[["sampling_structure"]],
+    row_index = model[["groups"]][["row_index"]],
+    missing_count = if (vector_target) "unavailable" else "univariate_convention",
+    missing_count_reason = if (vector_target) {
+      "Missing N is unavailable because relative selection weights do not identify an absolute publication probability."
+    } else NULL
+  )
 
   # store zplot results
   object[["zplot"]] <- list(
     estimates = list(
       EDR     = out_estimates[["EDR"]],
-      weights = out_estimates[["weights"]]
+      weights = if (vector_target) NULL else out_estimates[["weights"]]
     ),
     data = list(
       significance_level = significance_level,
@@ -178,7 +218,8 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
       z                   = z,
       N_significant       = sum(abs(z) > significance_level),
       N_observed          = length(z)
-    )
+    ),
+    target = target
   )
 
   # add class
@@ -208,8 +249,9 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' @param summary_max_samples maximum number of posterior samples used for the
 #' EDR and missing-study summaries stored in the generated zplot object.
 #' This is separate from the plot-density \code{max_samples} argument accepted
-#' by \code{plot.zplot_brma()} through \code{...}. Defaults to 10000. Use
-#' \code{Inf} to use all posterior samples.
+#' by \code{plot.zplot_brma()} through \code{...}. The summary default is 10000;
+#' the density default is 1000 for \code{brma.mv} models and 10000 for other
+#' models. Use \code{Inf} for either budget to use all posterior samples.
 #' @param conditioning_depth predictive conditioning depth passed to
 #' \code{as_zplot()}. Defaults to \code{"marginal"}.
 #' @inheritParams as_zplot.brma
@@ -266,7 +308,7 @@ zplot.zplot_brma <- function(object, ...) {
 #' @title Summarize Zplot Results
 #'
 #' @description Creates summary tables for zplot estimates including
-#' EDR, Soric FDR, and estimated missing studies.
+#' EDR, Soric FDR, and the conventional missing-count diagnostic when applicable.
 #'
 #' @param object a zplot_brma object.
 #' @param probs quantiles of the posterior distribution to display.
@@ -279,11 +321,15 @@ zplot.zplot_brma <- function(object, ...) {
 #'   \item{EDR}{Expected Discovery Rate - average power of significant studies}
 #'   \item{Soric FDR}{Expected proportion of false discoveries among significant
 #'     results, computed from EDR following Soric (1989)}
-#'   \item{Missing N}{Estimated number of studies suppressed by publication bias,
-#'     computed from the selection model weights}
+#'   \item{Missing N}{The retained reference-bin-normalized inverse-weight
+#'     diagnostic for independent univariate and conditional-cluster product
+#'     models. See [as_zplot.brma()] for the additional assumptions required by
+#'     a literal count interpretation. Unavailable for multivariate models,
+#'     applicable integrated contexts, or best-rule selection models because
+#'     relative weights do not identify a missing count}
 #' }
 #'
-#' The footer reports the Observed Discovery Rate (ODR) with 95\% CI for
+#' The footer reports the Observed Discovery Rate (ODR) with 95% CI for
 #' comparison with the model-estimated EDR.
 #'
 #' @return An object of class \code{"summary.zplot_brma"} containing the
@@ -314,10 +360,8 @@ summary.zplot_brma <- function(object, probs = c(.025, .975), ...) {
     obs_proportion$conf.int[2],
     .zplot_stored_conditioning_depth(object)
   )
-  if (.is_weightfunction(object) && .is_data_exact_selection(object[["data"]]) &&
-      any(lengths(.data_exact_selection_setup(object[["data"]])$row_blocks) > 1L)) {
-    info_text <- paste(info_text,
-      "Missing N assumes suppression of whole dependency blocks.")
+  if (identical(object[["zplot"]][["target"]][["missing_count"]], "unavailable")) {
+    info_text <- paste(info_text, object[["zplot"]][["target"]][["missing_count_reason"]])
   }
 
   # compute estimates
@@ -325,9 +369,12 @@ summary.zplot_brma <- function(object, probs = c(.025, .975), ...) {
 
   estimates <- cbind.data.frame(
     "EDR"       = object$zplot$estimates[["EDR"]],
-    "Soric FDR" = .get_Soric_FDR(object$zplot$estimates[["EDR"]], sig_level),
-    "Missing N" = (object$zplot$estimates[["weights"]] - 1) * object$zplot$data[["N_observed"]]
+    "Soric FDR" = .get_Soric_FDR(object$zplot$estimates[["EDR"]], sig_level)
   )
+  if (!is.null(object$zplot$estimates[["weights"]])) {
+    estimates[["Missing N"]] <- (object$zplot$estimates[["weights"]] - 1) *
+      object$zplot$data[["N_observed"]]
+  }
 
   estimates_table <- BayesTools::ensemble_estimates_table(
     samples    = estimates,
@@ -338,7 +385,8 @@ summary.zplot_brma <- function(object, probs = c(.025, .975), ...) {
   )
 
   output <- list(
-    estimates = estimates_table
+    estimates = estimates_table,
+    target = object[["zplot"]][["target"]]
   )
 
   class(output) <- "summary.zplot_brma"
@@ -432,7 +480,19 @@ print.zplot_brma <- function(x, ...) {
 #' Defaults to \code{"base"}.
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
 #' @param max_samples maximum posterior samples for density estimation.
-#' Defaults to 10000. Use \code{Inf} to use all posterior samples.
+#' Defaults to 1000 for \code{brma.mv} models and 10000 for other models.
+#' Use \code{Inf} to use all posterior samples. This plotting budget does not
+#' change the EDR and missing-study summary budget in \code{as_zplot()}.
+#' @param parallel whether to distribute multivariate selection-model density
+#' calculations across local workers. Defaults to \code{FALSE}. Only posterior
+#' draws are divided; the full publication event and integration settings are
+#' retained. Scalar models, Gaussian-reference-only curves, and EDR summaries
+#' remain serial.
+#' @param cores number of local workers when \code{parallel = TRUE}. Defaults
+#' to the smaller of 4 and \code{RoBMA.get_option("max_cores")}. One core or
+#' fewer posterior draws than workers uses serial computation. Parallel workers
+#' require matching installed package/native builds and share the configured
+#' selection-cache budget. Worker count is reported when parallel work starts.
 #' @inheritParams as_zplot.brma
 #' @param plot_fit whether to show fitted density (with bias adjustments).
 #' Defaults to \code{TRUE}.
@@ -461,10 +521,11 @@ print.zplot_brma <- function(x, ...) {
 #'   \item{Fit (black)}{Model-implied density including publication bias adjustments.
 #'     This represents the expected distribution of z-statistics given the estimated
 #'     selection process.}
-#'   \item{Extrapolation (blue)}{Bias-corrected curve representing the hypothetical
-#'     distribution without selective reporting, scaled by the expected suppressed
-#'     studies under selection models. This curve is not normalized to integrate
-#'     to one when selection implies missing studies.}
+#'   \item{Extrapolation (blue)}{The bias-adjusted reference without selective
+#'     reporting. Multivariate models, applicable integrated contexts, and
+#'     best-rule selection models use the normalized pre-selection Gaussian
+#'     marginal. Released univariate product
+#'     targets retain their inverse-weight scaling convention.}
 #' }
 #'
 #' @return \code{NULL} invisibly for base graphics, or a ggplot2 object.
@@ -473,7 +534,8 @@ print.zplot_brma <- function(x, ...) {
 #'
 #' @export
 plot.zplot_brma <- function(x, plot_type = "base",
-                             probs = c(.025, .975), max_samples = 10000,
+                             probs = c(.025, .975),
+                             max_samples = if (inherits(x, "brma.mv")) 1000 else 10000,
                              plot_fit = TRUE, plot_extrapolation = TRUE,
                              plot_ci = TRUE, plot_thresholds = TRUE,
                              from = -6, to = 6,
@@ -481,7 +543,8 @@ plot.zplot_brma <- function(x, plot_type = "base",
                              by.lines = 0.05, length.out.lines = NULL,
                              dots_hist = NULL, dots_fit = NULL,
                              dots_extrapolation = NULL, dots_thresholds = NULL,
-                             integration_control = x[["zplot"]][["data"]][["integration_control"]], ...) {
+                             integration_control = x[["zplot"]][["data"]][["integration_control"]],
+                             parallel = FALSE, cores = min(4, RoBMA.get_option("max_cores")), ...) {
 
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(plot_fit, "plot_fit")
@@ -490,6 +553,8 @@ plot.zplot_brma <- function(x, plot_type = "base",
   BayesTools::check_bool(plot_thresholds, "plot_thresholds")
   BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
+  BayesTools::check_bool(parallel, "parallel", allow_NA = FALSE)
+  BayesTools::check_int(cores, "cores", lower = 1L, allow_NA = FALSE)
 
   dots <- list(...)
 
@@ -499,7 +564,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
   lines_extrapolation <- NULL
 
   computational_args <- c(
-    "x", "probs", "max_samples", "plot_ci", "extrapolate", "from", "to",
+    "x", "probs", "max_samples", "parallel", "cores", "plot_ci", "extrapolate", "from", "to",
     "by", "length.out", "as_data", "integration_control"
   )
   pair_overrides <- any(c(
@@ -519,7 +584,8 @@ plot.zplot_brma <- function(x, plot_type = "base",
       z_sequence         = z_sequence,
       max_samples        = max_samples,
       conditioning_depth = .zplot_stored_conditioning_depth(x),
-      integration_control = integration_control
+      integration_control = integration_control,
+      parallel = parallel, cores = cores
     )
     lines_fit <- .zplot_density_data(
       z_sequence = z_sequence,
@@ -538,7 +604,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
     dots_fit <- if(!is.null(dots_fit)) dots_fit else list()
     lines_fit <- do.call(lines.zplot_brma, .zplot_deduplicate_call_args(c(
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
-           extrapolate = FALSE, plot_ci = plot_ci, from = from, to = to,
+           parallel = parallel, cores = cores, extrapolate = FALSE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
            integration_control = integration_control),
       dots_fit, dots
@@ -552,7 +618,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
     dots_extrapolation <- if(!is.null(dots_extrapolation)) dots_extrapolation else list()
     lines_extrapolation <- do.call(lines.zplot_brma, .zplot_deduplicate_call_args(c(
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
-           extrapolate = TRUE, plot_ci = plot_ci, from = from, to = to,
+           parallel = parallel, cores = cores, extrapolate = TRUE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
            integration_control = integration_control,
            col = "blue"), # default color if not in dots
@@ -873,8 +939,11 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
 #' Defaults to \code{"base"}.
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
-#' @param max_samples maximum posterior samples for density. Defaults to 10000.
-#' Use \code{Inf} to use all posterior samples.
+#' @param max_samples maximum posterior samples for density.
+#' Defaults to 1000 for \code{brma.mv} models and 10000 for other models.
+#' Use \code{Inf} to use all posterior samples. This plotting budget does not
+#' change the EDR and missing-study summaries stored by \code{as_zplot()}.
+#' @inheritParams plot.zplot_brma
 #' @inheritParams as_zplot.brma
 #' @param plot_ci whether to show credible interval bands. Defaults to \code{TRUE}.
 #' @param extrapolate whether to remove bias adjustments. Defaults to \code{FALSE}.
@@ -892,9 +961,11 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' When \code{extrapolate = FALSE}, the density includes all bias adjustments
 #' (PET/PEESE regression, selection weights) representing the fitted model.
 #' When \code{extrapolate = TRUE}, bias adjustments are removed to show the
-#' hypothetical distribution without publication bias. Under selection models,
-#' the curve is scaled by inverse selection probability and need not integrate
-#' to one.
+#' hypothetical distribution without publication bias. Multivariate models,
+#' applicable integrated contexts, and best-rule selection models use a
+#' normalized pre-selection Gaussian reference. Released univariate product
+#' targets retain inverse-weight scaling
+#' and their extrapolated curve need not integrate to one.
 #'
 #' @return \code{NULL} invisibly for base graphics, ggplot2 layers for ggplot,
 #' or a data frame with columns \code{x}, \code{y}, \code{y_lCI}, \code{y_uCI}
@@ -904,15 +975,19 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #'
 #' @export
 lines.zplot_brma <- function(x, plot_type = "base",
-                              probs = c(.025, .975), max_samples = 10000,
+                              probs = c(.025, .975),
+                              max_samples = if (inherits(x, "brma.mv")) 1000 else 10000,
                               plot_ci = TRUE, extrapolate = FALSE,
                               from = -6, to = 6, by = 0.05, length.out = NULL,
                               col = "black", as_data = FALSE,
-                              integration_control = x[["zplot"]][["data"]][["integration_control"]], ...) {
+                              integration_control = x[["zplot"]][["data"]][["integration_control"]],
+                              parallel = FALSE, cores = min(4, RoBMA.get_option("max_cores")), ...) {
 
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
+  BayesTools::check_bool(parallel, "parallel", allow_NA = FALSE)
+  BayesTools::check_int(cores, "cores", lower = 1L, allow_NA = FALSE)
   BayesTools::check_bool(plot_ci, "plot_ci")
   BayesTools::check_bool(extrapolate, "extrapolate")
   BayesTools::check_real(from, "from")
@@ -932,7 +1007,8 @@ lines.zplot_brma <- function(x, plot_type = "base",
     max_samples        = max_samples,
     extrapolate        = extrapolate,
     conditioning_depth = .zplot_stored_conditioning_depth(x),
-    integration_control = integration_control
+    integration_control = integration_control,
+    parallel = parallel, cores = cores
   )
 
   df_density <- .zplot_density_data(

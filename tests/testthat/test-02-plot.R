@@ -472,8 +472,7 @@ test_that("plot.brma fails closed when an explicit estimator is rejected", {
       density_method  = "qCMDE",
       density_control = list(n_points = 20, samples = 20)
     ),
-    "density was unavailable: sentinel diagnostic rejection",
-    fixed = TRUE
+    "^qCMDE density for 'mu' was unavailable: sentinel diagnostic rejection\\.$"
   )
 })
 

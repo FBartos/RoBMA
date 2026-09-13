@@ -8,15 +8,25 @@
 #' The supplied diagonal and loading matrix define `V`; no numerical rank is
 #' inferred from a materialized covariance matrix. This representation permits
 #' likelihood implementations to use the declared factor dimension when that
-#' route is supported, while all other computations retain the same covariance
-#' target as a conventional dense `V` input.
+#' route is supported. Gaussian and selection models retain the same target
+#' as a conventional dense `V` input with the same publication groups.
 #'
-#' For `selection_likelihood = "approximate"`, selection conditions on the
-#' declared latent factors. Different diagonal-plus-factor decompositions of
-#' the same covariance can therefore define different approximate likelihoods.
-#' [vcalc2()] retains structural sampling factors automatically for supported
-#' constructions; approximate selection conditions on those factors in the
-#' same way as an explicit declaration here.
+#' With `selection_model(known_sampling_variance = "condition")`, the declared
+#' covariance defines the complete retained sampling-error vector, including
+#' both diagonal and factor variation. With `known_sampling_variance = "integrate"`
+#' (the default), the full sampling error is integrated before selection
+#' normalization. The diagonal-plus-factor split is a numerical representation;
+#' it does not define which sampling sources are conditioned upon.
+#'
+#' Ordinary covariance matrices, including results from [metafor::vcalc()],
+#' can also be supplied directly. Covariance inputs do not specify publication
+#' groups; declare them separately with `selection_model(group = ...)`.
+#'
+#' Matrix inputs use base R's numerical symmetry tolerance. Accepted matrices
+#' are stored symmetrically by averaging corresponding off-diagonal entries,
+#' leaving the supplied R object and its diagonal unchanged. The stored
+#' covariance uses this symmetric representation and retains input type and
+#' row mapping; it does not include a separate copy of unequal input triangles.
 #'
 #' @param diagonal finite non-negative numeric vector `d`.
 #' @param loading finite numeric matrix `U` with one row per element of
@@ -50,21 +60,59 @@ known_v_factor <- function(diagonal, loading) {
          call. = FALSE)
   }
 
-  structure(
+  factor <- structure(
     list(
       diagonal = as.numeric(diagonal),
       loading  = unname(loading)
     ),
     class = c("RoBMA_known_v_factor", "list")
   )
+  .known_v_stamp_factor(factor, list(
+    version     = 1L,
+    row_index   = seq_along(diagonal),
+    input_nrow  = length(diagonal),
+    source_ids  = if (ncol(loading)) paste0("sampling_factor_", seq_len(ncol(loading))) else character()
+  ))
+}
+
+
+.known_v_stamp_factor <- function(factor, metadata) {
+
+  metadata[["hash"]] <- NULL
+  metadata[["hash"]] <- rlang::hash(list(
+    diagonal = factor[["diagonal"]], loading = factor[["loading"]], metadata = metadata
+  ))
+  attr(factor, "RoBMA_factor_metadata") <- metadata
+  factor
+}
+
+
+.known_v_factor_metadata <- function(factor, arg = "V") {
+
+  metadata <- attr(factor, "RoBMA_factor_metadata", exact = TRUE)
+  if (!is.list(metadata) || !identical(metadata[["version"]], 1L)) {
+    stop("The '", arg, "' factor metadata are invalid.", call. = FALSE)
+  }
+  payload <- metadata
+  payload[["hash"]] <- NULL
+  if (!identical(metadata[["hash"]], rlang::hash(list(
+        diagonal = factor[["diagonal"]], loading = factor[["loading"]], metadata = payload))) ||
+      !.known_v_valid_row_map(metadata[["row_index"]], metadata[["input_nrow"]],
+                             length(factor[["diagonal"]])) ||
+      !is.character(metadata[["source_ids"]]) ||
+      length(metadata[["source_ids"]]) != ncol(factor[["loading"]]) ||
+      anyNA(metadata[["source_ids"]]) || any(!nzchar(metadata[["source_ids"]])) ||
+      anyDuplicated(metadata[["source_ids"]])) {
+    stop("The '", arg, "' factor metadata no longer match its declaration.", call. = FALSE)
+  }
+  metadata
 }
 
 
 .known_v_factor_components <- function(V, arg = "V") {
 
-  direct_factor <- inherits(V, "RoBMA_known_v_factor")
-  factor <- if (direct_factor) V else .known_v_vcalc_factor(V, arg = arg)
-  if (is.null(factor) || !is.list(factor) ||
+  factor <- V
+  if (!inherits(factor, "RoBMA_known_v_factor") || !is.list(factor) ||
       !identical(names(factor), c("diagonal", "loading"))) {
     stop("The '", arg, "' factor representation is invalid.", call. = FALSE)
   }
@@ -75,52 +123,14 @@ known_v_factor <- function(diagonal, loading) {
            conditionMessage(e), call. = FALSE)
     }
   )
-  if (!direct_factor &&
-      (!identical(.vcalc2_covariance_hash(V),
-                  attr(V, "RoBMA_vcalc_metadata")[["covariance_hash"]]) ||
-       !.vcalc2_factor_matches(V, components))) {
-    stop(
-      "The '", arg, "' vcalc2() metadata no longer match its covariance matrix.",
-      call. = FALSE
-    )
-  }
-  components
-}
-
-
-.known_v_vcalc_factor <- function(V, arg = "V") {
-
-  metadata <- attr(V, "RoBMA_vcalc_metadata", exact = TRUE)
-  if (is.null(metadata)) {
-    return(NULL)
-  }
-  if (!inherits(metadata, "RoBMA_vcalc_metadata") || !is.list(metadata) ||
-      !identical(metadata[["version"]], 1L) ||
-      !"factor" %in% names(metadata)) {
-    stop("The '", arg, "' vcalc2() metadata are invalid.", call. = FALSE)
-  }
-  metadata[["factor"]]
+  metadata <- .known_v_factor_metadata(factor, arg = arg)
+  .known_v_stamp_factor(components, metadata)
 }
 
 
 .known_v_has_declared_factor <- function(V, arg = "V") {
 
-  inherits(V, "RoBMA_known_v_factor") ||
-    !is.null(.known_v_vcalc_factor(V, arg = arg))
-}
-
-
-.known_v_factor_block_indices <- function(diagonal, loading) {
-
-  K         <- length(diagonal)
-  adjacency <- diag(TRUE, nrow = K, ncol = K)
-  for (column in seq_len(ncol(loading))) {
-    support <- which(loading[, column] != 0)
-    if (length(support) > 1L) {
-      adjacency[support, support] <- TRUE
-    }
-  }
-  .known_v_block_indices(adjacency * 1)
+  inherits(V, "RoBMA_known_v_factor")
 }
 
 
@@ -132,6 +142,73 @@ known_v_factor <- function(diagonal, loading) {
   out <- tcrossprod(loading[index, , drop = FALSE])
   diag(out) <- diag(out) + diagonal[index]
   out
+}
+
+
+.known_v_input_metadata <- function(V, arg = "V") {
+
+  factor <- if (inherits(V, "RoBMA_known_v_factor")) V else NULL
+  factor_metadata <- if (!is.null(factor)) .known_v_factor_metadata(factor, arg) else NULL
+  K <- .known_v_input_nrow(V, arg = arg)
+  metadata <- list(
+    version             = 2L,
+    origin              = if (!is.null(factor)) "known_v_factor" else "matrix",
+    row_index           = if (!is.null(factor_metadata)) factor_metadata[["row_index"]] else seq_len(K),
+    input_nrow          = if (!is.null(factor_metadata)) factor_metadata[["input_nrow"]] else K,
+    factor_status       = if (!is.null(factor)) "declared" else "undeclared",
+    source_ids          = factor_metadata[["source_ids"]]
+  )
+  .known_v_stamp_selection_metadata(metadata)
+}
+
+
+.known_v_stamp_selection_metadata <- function(metadata) {
+
+  metadata[["hash"]] <- NULL
+  metadata[["hash"]] <- rlang::hash(metadata)
+  metadata
+}
+
+
+.known_v_subset_selection_metadata <- function(metadata, row_index) {
+
+  metadata[["row_index"]] <- metadata[["row_index"]][row_index]
+  .known_v_stamp_selection_metadata(metadata)
+}
+
+
+.known_v_selection_metadata <- function(known_V) {
+
+  metadata <- known_V[["selection_metadata"]]
+  .known_v_validate_selection_metadata(metadata, .known_v_nrow(known_V))
+  metadata
+}
+
+
+.known_v_validate_selection_metadata <- function(metadata, K) {
+
+  if (!is.list(metadata) || !identical(metadata[["version"]], 2L)) {
+    stop("The known-V selection metadata are missing or invalid.", call. = FALSE)
+  }
+  payload <- metadata
+  payload[["hash"]] <- NULL
+  if (!identical(metadata[["hash"]], rlang::hash(payload)) ||
+      !.known_v_valid_row_map(metadata[["row_index"]], metadata[["input_nrow"]], K)) {
+    stop("The known-V selection metadata no longer match their declared rows.", call. = FALSE)
+  }
+  invisible(metadata)
+}
+
+
+.known_v_valid_row_map <- function(row_index, input_nrow, K) {
+
+  is.numeric(input_nrow) && length(input_nrow) == 1L &&
+    !is.na(input_nrow) && is.finite(input_nrow) && input_nrow >= K &&
+    input_nrow == floor(input_nrow) &&
+    is.numeric(row_index) && is.null(dim(row_index)) && length(row_index) == K &&
+    !anyNA(row_index) && all(is.finite(row_index)) &&
+    !anyDuplicated(row_index) && all(row_index >= 1L) &&
+    all(row_index <= input_nrow) && all(row_index == floor(row_index))
 }
 
 .new_known_v <- function(fields) {
@@ -338,12 +415,6 @@ known_v_factor <- function(diagonal, loading) {
 }
 
 
-.known_v_requested_residual_fraction <- function(known_V) {
-
-  known_V[["residual_fraction_requested"]]
-}
-
-
 .known_v_as_matrix <- function(V, k = NULL, warn_singular = TRUE) {
 
   V_matrix <- .known_v_as_matrix_structure(V, k = k)
@@ -489,24 +560,37 @@ known_v_factor <- function(diagonal, loading) {
 .known_v_subset_input <- function(V, keep_rows) {
 
   K <- .known_v_input_nrow(V)
-  if (!is.logical(keep_rows) || length(keep_rows) != K || anyNA(keep_rows)) {
+  if (is.logical(keep_rows) && length(keep_rows) == K && !anyNA(keep_rows)) {
+    row_index <- which(keep_rows)
+  } else if (is.numeric(keep_rows) && !anyNA(keep_rows) &&
+             all(is.finite(keep_rows)) && all(keep_rows == as.integer(keep_rows)) &&
+             all(keep_rows >= 1L & keep_rows <= K) && !anyDuplicated(keep_rows)) {
+    row_index <- as.integer(keep_rows)
+  } else {
     stop("Internal error: invalid known-V row selector.", call. = FALSE)
   }
 
   storage <- .known_v_input_storage(V)
   if (storage == "factor") {
     components <- .known_v_factor_components(V)
-    return(known_v_factor(
-      diagonal = components[["diagonal"]][keep_rows],
-      loading  = components[["loading"]][keep_rows, , drop = FALSE]
-    ))
+    metadata <- .known_v_factor_metadata(components)
+    metadata[["row_index"]] <- metadata[["row_index"]][row_index]
+    return(.known_v_stamp_factor(known_v_factor(
+      diagonal = components[["diagonal"]][row_index],
+      loading  = components[["loading"]][row_index, , drop = FALSE]
+    ), metadata))
   }
   if (storage == "dense") {
-    return(V[keep_rows, keep_rows, drop = FALSE])
+    return(V[row_index, row_index, drop = FALSE])
   }
   if (storage == "diagonal") {
-    return(as.numeric(V)[keep_rows])
+    return(as.numeric(V)[row_index])
   }
+
+  if (is.unsorted(row_index)) {
+    return(.known_v_blockdiag(V)[row_index, row_index, drop = FALSE])
+  }
+  keep_rows <- seq_len(K) %in% row_index
 
   out   <- list()
   start <- 1L
@@ -672,10 +756,17 @@ known_v_factor <- function(diagonal, loading) {
 
   storage <- .known_v_storage(known_V)
   if (storage == "factor") {
-    return(known_v_factor(
+    factor <- known_v_factor(
       known_V[["factor_diagonal"]],
       known_V[["factor_loading"]]
-    ))
+    )
+    metadata <- .known_v_selection_metadata(known_V)
+    return(.known_v_stamp_factor(factor, list(
+      version    = 1L,
+      row_index  = metadata[["row_index"]],
+      input_nrow = metadata[["input_nrow"]],
+      source_ids = metadata[["source_ids"]]
+    )))
   }
   if (storage == "diagonal") {
     return(.known_v_diagonal(known_V))
@@ -773,6 +864,7 @@ known_v_factor <- function(diagonal, loading) {
 
   storage <- .known_v_input_storage(V_new, arg = "V_new")
   K       <- .known_v_input_nrow(V_new, arg = "V_new")
+  metadata <- .known_v_input_metadata(V_new, arg = "V_new")
   if (storage == "diagonal") {
     diagonal <- as.numeric(V_new)
     if (anyNA(diagonal) || any(!is.finite(diagonal))) {
@@ -784,6 +876,7 @@ known_v_factor <- function(diagonal, loading) {
     }
     return(.new_known_v(list(
       version  = 2L,
+      selection_metadata = metadata,
       storage  = "diagonal",
       K        = K,
       diagonal = diagonal,
@@ -796,10 +889,6 @@ known_v_factor <- function(diagonal, loading) {
     components <- .known_v_factor_components(V_new, arg = "V_new")
     diagonal   <- components[["diagonal"]] +
       rowSums(components[["loading"]]^2)
-    block_indices <- .known_v_factor_block_indices(
-      components[["diagonal"]],
-      components[["loading"]]
-    )
     covariance <- .known_v_factor_covariance(
       components[["diagonal"]],
       components[["loading"]]
@@ -808,8 +897,10 @@ known_v_factor <- function(diagonal, loading) {
       stop("'V_new' must contain only finite non-missing values.",
            call. = FALSE)
     }
+    block_indices <- .known_v_block_indices(covariance)
     return(.new_known_v(list(
       version         = 2L,
+      selection_metadata = metadata,
       storage         = "factor",
       K               = K,
       diagonal        = diagonal,
@@ -831,6 +922,7 @@ known_v_factor <- function(diagonal, loading) {
       length(indices[[1L]]) == K && K > 1L
     return(.new_known_v(list(
       version  = 2L,
+      selection_metadata = metadata,
       storage  = if (retain_dense) {
         "dense"
       } else if (length(blocks) == 0L) {
@@ -869,6 +961,7 @@ known_v_factor <- function(diagonal, loading) {
 
   .new_known_v(list(
     version  = 2L,
+    selection_metadata = metadata,
     storage  = "blocks",
     K        = K,
     diagonal = diagonal,
@@ -940,22 +1033,12 @@ known_v_factor <- function(diagonal, loading) {
   singular   <- any(!positive_variance)
 
   for (index in indices) {
-    block           <- covariance[index, index, drop = FALSE]
-    rank_one_factor <- .covariance_exact_rank_one_factor(block)
+    block <- covariance[index, index, drop = FALSE]
     if (!.known_v_covariance_within_pairwise_bounds(block)) {
       return(list(positive_semidefinite = FALSE, singular = TRUE))
     }
 
-    input_factorization <- .covariance_factorization(block)
-    if (!.covariance_is_positive_semidefinite(input_factorization)) {
-      return(list(positive_semidefinite = FALSE, singular = TRUE))
-    }
-
-    factorization <- if (!is.null(rank_one_factor)) {
-      input_factorization
-    } else {
-      .covariance_factorization(stats::cov2cor(block))
-    }
+    factorization <- .covariance_factorization(block)
     if (!.covariance_is_positive_semidefinite(factorization)) {
       return(list(positive_semidefinite = FALSE, singular = TRUE))
     }

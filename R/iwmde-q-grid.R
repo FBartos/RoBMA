@@ -5,6 +5,43 @@
 .iwmde_log_q_grid <- function(context, parameter, values, row_states,
                               replacement) {
 
+  transformed <- vapply(row_states, function(state) {
+    !is.null(state[["conditioning_transform"]])
+  }, logical(1L))
+  if (any(transformed)) {
+    out <- matrix(NA_real_, length(values), length(row_states))
+    out[, transformed] <- .iwmde_log_q_grid_retained_location(context, parameter,
+      values, row_states[transformed], replacement)
+    if (any(!transformed)) {
+      ordinary <- .iwmde_log_q_grid(context, parameter, values,
+        row_states[!transformed], replacement)
+      out[, !transformed] <- ordinary
+      change <- attr(ordinary, "max_quadrature_relative_change", exact = TRUE)
+      if (!is.null(change)) attr(out, "max_quadrature_relative_change") <- change
+    }
+    return(out)
+  }
+
+  if (.is_data_joint_selection(context[["data"]])) {
+    modes <- unique(vapply(row_states, `[[`, character(1L), "likelihood_mode"))
+    if (length(modes) == 1L) {
+      result <- .iwmde_log_q_grid_from_samples(
+        context, parameter, values, row_states, replacement,
+        likelihood_mode = modes,
+        log_lik_fun = function(samples, active_setup, batch) {
+          affine <- .iwmde_joint_affine_log_likelihood(context, parameter, values,
+            samples, active_setup, batch, replacement)
+          if (!is.null(affine)) return(affine)
+          .iwmde_log_lik_from_posterior_samples_sum_active_branch(
+            context, samples, active_setup, unit = "estimate"
+          )
+        }
+      )
+      if (is.matrix(result)) return(result)
+    }
+    return(.iwmde_log_q_grid_scalar(context, parameter, values, row_states, replacement))
+  }
+
   out <- .iwmde_log_q_grid_predictor_batch(
     context     = context,
     parameter   = parameter,
@@ -265,7 +302,8 @@
   if (is.matrix(normal_out)) {
     return(normal_out)
   }
-  if (.iwmde_uses_known_v_random_marginal_likelihood(context)) {
+  if (.iwmde_uses_known_v_random_marginal_likelihood(
+      context, priors = active_setup[["priors"]])) {
     return(NULL)
   }
 
@@ -292,17 +330,104 @@
     return(NULL)
   }
 
+  random_factor_samples <- NULL
+  if (.setup_uses_joint_selection_likelihood(setup) &&
+      is.null(candidates[["replacement_samples"]])) {
+    # These candidates only expand existing posterior rows. Predictor changes
+    # have already been evaluated, so their random-effect factors are invariant.
+    random_factor_samples <- .selection_joint_random_factor_samples(setup)
+    if (!is.null(random_factor_samples)) {
+      rows <- candidates[["row_index"]]
+      random_factor_samples[["diagonal"]] <-
+        random_factor_samples[["diagonal"]][rows, , drop = FALSE]
+      random_factor_samples[["loadings"]] <- lapply(
+        random_factor_samples[["loadings"]],
+        function(loading) loading[rows, , , drop = FALSE]
+      )
+    }
+  }
+
   log_lik <- .iwmde_log_lik_from_evaluated_predictors_sum_active_branch(
-    context             = context,
-    active_setup        = active_setup,
-    mu_samples          = candidates[["mu"]],
-    tau_within_samples  = candidates[["tau_within"]],
-    tau_between_samples = candidates[["tau_between"]],
-    posterior_samples   = posterior_samples,
-    unit                = unit
+    context               = context,
+    active_setup          = active_setup,
+    mu_samples            = candidates[["mu"]],
+    tau_within_samples    = candidates[["tau_within"]],
+    tau_between_samples   = candidates[["tau_between"]],
+    posterior_samples     = posterior_samples,
+    unit                  = unit,
+    random_factor_samples = random_factor_samples
   )
   log_q <- log_lik + log_prior
   log_q[!candidates[["valid"]]] <- -Inf
 
   return(matrix(log_q, nrow = length(values), ncol = length(row_states)))
+}
+
+
+# Reuse a declared fixed-coefficient direction in the existing full joint setup.
+# Candidate posterior rows still own all priors, selection and covariance inputs.
+.iwmde_joint_affine_log_likelihood <- function(context, parameter, values,
+    samples, active_setup, batch, replacement) {
+
+  data <- context[["data"]]
+  tracked <- FALSE
+  on.exit({
+    if (is.environment(context[["normalizer_grid"]]) && !tracked) context[["normalizer_grid"]]$untracked <- TRUE
+  }, add = TRUE)
+  if (!identical(replacement[["type"]], "linear") ||
+      !.is_data_joint_selection(data) || !.is_data_known_v(data) ||
+      .data_outcome_type(data) != "norm" || .selection_retains_sampling(data)) return(NULL)
+  plan <- .data_selection_execution_plan(data)
+  if (!any(plan[["block_methods"]] == "dense") ||
+      any(!plan[["block_methods"]] %in% c("dense", "singleton"))) return(NULL)
+  # The static chart resolver rejects mean translations and dynamic formula
+  # multipliers. Verify the full dependency contract at this evaluation seam.
+  design <- .fitted_formula_design(context[["object"]], "mu", required = TRUE)
+  if (any(vapply(design[["random_effects"]], function(term) {
+    !is.null(term[["mean_translation"]])
+  }, logical(1L)))) return(NULL)
+  states <- batch[["row_states"]]
+  columns <- unique(unlist(lapply(states, function(state) {
+    .iwmde_linear_replacement_state(context, state, replacement)[["active_columns"]]
+  }), use.names = FALSE))
+  if (!length(columns)) return(NULL)
+  dependencies <- BayesTools::JAGS_formula_coordinate_dependencies(
+    context[["object"]][["fit"]], columns)
+  if (any(dependencies[["formula_parameter"]] != "mu") ||
+      any(dependencies[["dependency_type"]] != "coefficient")) return(NULL)
+  states <- batch[["row_states"]]
+  baseline <- .iwmde_predictor_setup(context, states, active_setup, "estimate")
+  basis <- .iwmde_predictor_update_basis(context, parameter, states, replacement, baseline)
+  if (is.null(basis) || !identical(basis[["scale_update"]], "none") ||
+      isTRUE(basis[["formula_mu"]]) || !is.null(basis[["log_tau_basis"]]) ||
+      !is.matrix(basis[["mu_basis"]]) ||
+      !identical(dim(basis[["mu_basis"]]), dim(baseline[["mu"]]))) return(NULL)
+  candidates <- batch[["candidates"]]
+  positions <- batch[["valid_positions"]]
+  state_index <- candidates[["state_index"]][positions]
+  grid_index <- candidates[["grid_index"]][positions]
+  delta <- values[grid_index] - basis[["current"]][state_index]
+  mu <- baseline[["mu"]][state_index, , drop = FALSE]
+  update <- basis[["mu_basis"]][state_index, , drop = FALSE] * delta
+  if (any(!is.finite(update))) return(NULL)
+  # Exactly unchanged rows retain the baseline bytes. This is algebraic zero
+  # work, not a tolerance or a rounded-parameter lookup.
+  changing <- update != 0
+  mu[changing] <- mu[changing] + update[changing]
+  if (any(!is.finite(mu))) return(NULL)
+  setup <- .iwmde_log_lik_posterior_setup_active_branch(context, samples,
+    active_setup, unit = "estimate")
+  if (!identical(dim(mu), dim(setup[["mu"]]))) {
+    stop("Affine joint predictors do not match the candidate rows.", call. = FALSE)
+  }
+  setup[["mu"]] <- mu
+  if (is.environment(context[["normalizer_grid"]])) {
+    setup[["normalizer_grid"]] <- list(shared = context[["normalizer_grid"]],
+      rows = vapply(states, `[[`, integer(1L), "row_index"),
+      current = basis[["current"]], basis = basis[["mu_basis"]],
+      mean = baseline[["mu"]], state_index = state_index, values = values[grid_index])
+  }
+  result <- .log_lik_estimate_sum_from_setup(setup)
+  tracked <- TRUE
+  result
 }

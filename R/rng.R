@@ -127,12 +127,28 @@
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
 
-  if (length(dim(covariance_samples)) != 3L ||
+  fixed <- is.matrix(covariance_samples)
+  if ((fixed && !identical(dim(covariance_samples), c(K, K))) ||
+      (!fixed && (length(dim(covariance_samples)) != 3L ||
       dim(covariance_samples)[1L] != S ||
       dim(covariance_samples)[2L] != K ||
-      dim(covariance_samples)[3L] != K) {
+      dim(covariance_samples)[3L] != K))) {
     stop("Known-V response covariance samples have inconsistent dimensions.",
          call. = FALSE)
+  }
+
+  sampling_factor <- function(covariance) {
+
+    factor <- .covariance_sampling_factor(.covariance_factorization(covariance))
+    if (is.null(factor)) {
+      stop("Known-V response covariance is not positive semidefinite.",
+           call. = FALSE)
+    }
+    factor
+  }
+  if (fixed) {
+    factor <- sampling_factor(covariance_samples)
+    return(mu_samples + matrix(stats::rnorm(S * K), S, K, byrow = TRUE) %*% factor)
   }
 
   response_samples <- mu_samples
@@ -142,12 +158,7 @@
       nrow = K,
       ncol = K
     )
-    factorization <- .covariance_factorization(covariance)
-    factor        <- .covariance_sampling_factor(factorization)
-    if (is.null(factor)) {
-      stop("Known-V response covariance is not positive semidefinite.",
-           call. = FALSE)
-    }
+    factor <- sampling_factor(covariance)
 
     response_samples[s, ] <- mu_samples[s, ] +
       as.vector(stats::rnorm(K) %*% factor)
@@ -220,10 +231,9 @@
 }
 
 
-# Draw one finite-vector product-selected Gaussian response per posterior row.
-# Rejection is performed independently by structural covariance block. The
-# native sampler normalizes each row's nonnegative relative weights by their
-# maximum, so accepting with their product gives the exact selected density.
+# Draw one finite-vector selected Gaussian response per posterior row. Best
+# selection uses one rejection event per publication group; product selection
+# can use independent conditional Gaussian blocks inside that event.
 .outcome_rng.selnorm_mvn <- function(
     mu_samples, covariance_samples, sei, selection_context,
     dependency_blocks, max_attempts = 100000L) {
@@ -250,16 +260,16 @@
   selection_context <- BayesTools::selection_context_validate(
     context   = selection_context,
     n_samples = S,
-    required  = c("omega", "kernel_mode", "use_normal")
+    required  = c("omega", "kernel_mode", "use_normal", "vector_rule")
   )
   if (any(!selection_context[["kernel_mode"]] %in%
           c(SELKERNEL_NORMAL, SELKERNEL_STEP))) {
-    stop("Exact selected response simulation requires a step selection kernel.",
+    stop("Selected response simulation requires a step selection kernel.",
          call. = FALSE)
   }
   omega <- selection_context[["omega"]]
   if (any(!is.finite(omega)) || any(omega < 0)) {
-    stop("Exact selected response simulation requires nonnegative weights.",
+    stop("Selected response simulation requires nonnegative weights.",
          call. = FALSE)
   }
   .known_v_validate_dependency_blocks(dependency_blocks, K)
@@ -279,13 +289,14 @@
     .native_integer_vector(selection_context[["kernel_mode"]]),
     dependency_blocks,
     .native_integer_vector(max_attempts),
+    .native_integer_vector(selection_context[["vector_rule"]]),
     PACKAGE = "RoBMA"
   )
   if (!is.list(result) ||
       !identical(names(result), c(
         "draws", "failure_code", "failure_size"
       ))) {
-    stop("The exact selected response native kernel returned invalid output.",
+    stop("The selected response native kernel returned invalid output.",
          call. = FALSE)
   }
   if (result[["failure_code"]] == 1L) {
@@ -294,7 +305,7 @@
   }
   if (result[["failure_code"]] == 2L) {
     stop(
-      "Exact selected response RNG was rejected by diagnostics: no ",
+      "Selected response RNG was rejected by diagnostics: no ",
       "proposal was accepted in ", max_attempts, " attempts for a ",
       "dependency block of size ", result[["failure_size"]], ". Use ",
       "'bias_adjusted = TRUE' to draw responses before selection.",
@@ -302,16 +313,23 @@
     )
   }
   if (result[["failure_code"]] == 3L) {
-    stop("Exact selected response simulation requires a positive weight.",
+    stop("Selected response simulation requires a positive weight.",
          call. = FALSE)
   }
   if (result[["failure_code"]] == 4L) {
     stop("Selected response covariance must be symmetric.", call. = FALSE)
   }
+  if (result[["failure_code"]] == 6L) {
+    stop(
+      "Selected response RNG was rejected by diagnostics: a Gaussian proposal was non-finite. ",
+      "Inspect the model inputs and posterior draws.",
+      call. = FALSE
+    )
+  }
   if (result[["failure_code"]] != 0L ||
       !identical(dim(result[["draws"]]), c(S, K)) ||
       any(!is.finite(result[["draws"]]))) {
-    stop("The exact selected response native kernel returned invalid output.",
+    stop("The selected response native kernel returned invalid output.",
          call. = FALSE)
   }
 

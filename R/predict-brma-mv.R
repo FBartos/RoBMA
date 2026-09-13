@@ -61,7 +61,7 @@
 
   S      <- nrow(posterior_samples)
   K      <- nrow(data[["outcome"]])
-  if (.is_data_exact_selection(object[["data"]])) {
+  if (.is_data_joint_selection(object[["data"]])) {
     return(.predict_brma_mv_marginal_random_draws(
       object            = object,
       data              = data,
@@ -164,13 +164,19 @@
 }
 
 
-# Draw the total fitted random-formula contribution from its conditional
-# posterior. Exact selection models use the general marginal covariance;
-# ordinary sampled/marginalized hybrids retain their specialized path.
-.predict_brma_mv_random_posterior_draws <- function(
-    object, mu_samples, posterior_samples, bias_offset = NULL) {
+# Conditional means or draws for the fitted random-formula contribution.
+# Selection retains the fitted context declared by its model. Only Gaussian
+# sources integrated before normalization receive a conditional Gaussian update.
+.predict_brma_mv_random_posterior <- function(
+    object, mu_samples, posterior_samples, bias_offset = NULL,
+    type = c("draws", "mean"), by_block = FALSE) {
 
+  type <- match.arg(type)
   data <- object[["data"]]
+  if (by_block && type != "mean") {
+    stop("Blockwise random-effect posterior prediction requires conditional means.",
+         call. = FALSE)
+  }
   if (!.is_data_random(data) || !.is_data_known_v(data)) {
     stop(
       "brma.mv() fitted random-effect posterior prediction requires a ",
@@ -196,34 +202,112 @@
          call. = FALSE)
   }
 
-  if (.is_data_exact_selection(data)) {
-    return(.predict_brma_mv_marginal_random_posterior_draws(
+  if (.is_data_joint_selection(data)) {
+    chunks <- .known_v_covariance_chunk_indices(
+      S = S, K = K, max_bytes = .known_v_covariance_max_bytes() / 4
+    )
+    if (length(chunks) > 1L) {
+      out <- NULL
+      for (rows in chunks) {
+        chunk <- .predict_brma_mv_random_posterior(
+          object, mu_samples[rows, , drop = FALSE],
+          posterior_samples[rows, , drop = FALSE], bias_offset[rows, , drop = FALSE],
+          type = type, by_block = by_block
+        )
+        if (by_block) {
+          if (is.null(out)) out <- lapply(chunk, function(value) matrix(0, S, K))
+          for (name in names(chunk)) out[[name]][rows, ] <- chunk[[name]]
+        } else {
+          if (is.null(out)) out <- matrix(0, S, K)
+          out[rows, ] <- chunk
+        }
+      }
+      return(out)
+    }
+    parts <- .predict_joint_selection_gaussian_parts(
+      object = object, data = data, posterior_samples = posterior_samples,
+      fixed_mu = mu_samples, within = matrix(0, S, K), between = matrix(0, S, K),
+      fitted_context = TRUE, bias_offset = bias_offset
+    )
+    if (!by_block) {
+      return(.predict_joint_selection_source_posterior(
+        parts, data[["outcome"]][["yi"]], draw = type != "mean"
+      ) - mu_samples)
+    }
+    if (!is.null(parts[["posterior_sources"]])) {
+      return(parts[["posterior_source_means"]])
+    }
+    sources <- .data_selection_model(data)[["sources"]][["random"]]
+    weights <- matrix(0, S, K)
+    if (any(!vapply(sources, function(source) isTRUE(source[["retained"]]), logical(1L)))) {
+      for (s in seq_len(S)) {
+        factor <- chol(matrix(parts[["covariance"]][s, , ], K, K))
+        weights[s, ] <- backsolve(factor, forwardsolve(
+          t(factor), data[["outcome"]][["yi"]] - parts[["means"]][s, ]
+        ))
+      }
+    }
+    components <- lapply(sources, function(source) {
+      if (isTRUE(source[["retained"]])) {
+        return(.evaluate.brma.random_effects(
+          fit = object[["fit"]], data = data, priors = object[["priors"]],
+          posterior_samples = posterior_samples, blocks = source[["name"]],
+          object = object
+        ))
+      }
+      covariance <- .brma_mv_random_effects_marginal_vcov(
+        object = object, posterior_samples = posterior_samples,
+        blocks = source[["name"]]
+      )[["samples"]]
+      contribution <- matrix(0, S, K)
+      for (s in seq_len(S)) {
+        contribution[s, ] <- matrix(covariance[s, , ], K, K) %*% weights[s, ]
+      }
+      contribution
+    })
+    names(components) <- vapply(sources, `[[`, character(1L), "name")
+    return(components)
+  }
+  if (.is_priors_weightfunction(object[["priors"]])) {
+    stop("Selected random-effect prediction is unavailable without bound selection-model metadata.", call. = FALSE)
+  }
+  if (type == "mean") {
+    return(.evaluate.brma.mv_random_blup.norm(
       object            = object,
       mu_samples        = mu_samples,
       posterior_samples = posterior_samples,
-      bias_offset       = bias_offset
+      bias_offset       = bias_offset,
+      by_block          = by_block
     ))
   }
 
   sampled_blocks <- .data_sampled_random_effect_blocks(data)
   sampled_effect <- matrix(0, nrow = S, ncol = K)
+  components     <- list()
   if (length(sampled_blocks) > 0L) {
-    sampled_effect <- .evaluate.brma.random_effects(
-      fit               = object[["fit"]],
-      data              = data,
-      priors            = object[["priors"]],
-      posterior_samples = posterior_samples,
-      same_data         = TRUE,
-      required          = TRUE,
-      formula_target    = "conditional",
-      blocks            = sampled_blocks,
-      object            = object
-    )
+    block_groups <- if (by_block) as.list(sampled_blocks) else list(sampled_blocks)
+    for (blocks in block_groups) {
+      block_effect <- .evaluate.brma.random_effects(
+        fit               = object[["fit"]],
+        data              = data,
+        priors            = object[["priors"]],
+        posterior_samples = posterior_samples,
+        same_data         = TRUE,
+        required          = TRUE,
+        formula_target    = "conditional",
+        blocks            = blocks,
+        object            = object
+      )
+      sampled_effect <- sampled_effect + block_effect
+      if (by_block) {
+        components[[blocks]] <- block_effect
+      }
+    }
   }
 
   marginalized_terms <- .data_marginalized_random_effects(data)
   if (length(marginalized_terms) == 0L) {
-    return(sampled_effect)
+    return(if (by_block) components else sampled_effect)
   }
 
   source_samples <- .predict_known_v_newdata_marginalized_source_samples(
@@ -251,42 +335,18 @@
   conditional_effect <- .evaluate.brma.known_v_posterior.norm(
     mu_samples  = mu_samples + sampled_effect,
     tau_within  = sqrt(marginalized_variance),
-    yi          = data[["outcome"]][["yi"]],
-    known_V     = .data_known_v_data(data),
+    yi         = data[["outcome"]][["yi"]],
+    known_V    = .data_known_v_data(data),
     bias_offset = bias_offset
   )
 
+  if (by_block) {
+    # Estimate-level compilation permits a single integrated local block.
+    block <- marginalized_terms[[1L]][["block_name"]]
+    components[[block]] <- conditional_effect - mu_samples - sampled_effect
+    return(components)
+  }
   return(conditional_effect - mu_samples)
-}
-
-
-# Exact conditional simulation for a general marginalized random-formula
-# contribution u ~ N(0, Q) observed through y = X beta + u + e, e ~ N(0, V).
-# The product-selection factor is constant after conditioning on observed y,
-# so the latent posterior remains Gaussian. This is the Matheron update
-# u_0 + Q(Q + V)^-1(y - X beta - bias - u_0 - e_0), evaluated through the
-# shared random-effect sampler and compiled brma.mv covariance plan.
-.predict_brma_mv_marginal_random_posterior_draws <- function(
-    object, mu_samples, posterior_samples, bias_offset) {
-
-  data    <- object[["data"]]
-  known_V <- .data_known_v_data(data)
-  S       <- nrow(posterior_samples)
-  K       <- ncol(mu_samples)
-  prior_random <- .predict_brma_mv_marginal_random_draws(
-    object            = object,
-    data              = data,
-    posterior_samples = posterior_samples
-  )
-  prior_sampling <- .known_v_sampling_noise(known_V, S = S, K = K)
-  correction <- .evaluate.brma.mv_random_blup.norm(
-    object            = object,
-    mu_samples        = mu_samples + prior_random + prior_sampling,
-    posterior_samples = posterior_samples,
-    bias_offset       = bias_offset
-  )
-
-  return(prior_random + correction)
 }
 
 
@@ -727,7 +787,11 @@
 
   response_covariance_target <- NA_character_
   if (type == "response") {
-    response_covariance_target <- if (!is.null(known_V_new) && random_mv) {
+    response_covariance_target <- if (inherits(object, "brma.mv") && !random_mv) {
+      if (!is.null(known_V_new)) "V_new" else if (.is_data_known_v(object[["data"]])) {
+        "known_V"
+      } else "sampling_variance"
+    } else if (!is.null(known_V_new) && random_mv) {
       "V_new_plus_marginal_random_effect_generation"
     } else if (!is.null(known_V_new)) {
       "V_new_plus_heterogeneity"

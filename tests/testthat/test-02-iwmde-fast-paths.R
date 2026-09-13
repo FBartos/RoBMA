@@ -378,8 +378,7 @@ test_that("known-V common-shift likelihood matches the joint reference", {
   attr(data, "known_V_data") <- .known_v_prepare(
     V                         = V,
     keep_rows                 = rep(TRUE, length(yi)),
-    known_v_parameterization  = "block_mvn",
-    known_v_residual_fraction = NULL
+    known_v_parameterization  = "block_mvn"
   )
 
   shifts <- cbind(
@@ -449,7 +448,7 @@ test_that("IWMDE identifies sampled random SD focal parameters", {
   dat <- data.frame(
     yi    = c(.10, .20, .30),
     x     = c(0, 1, 2),
-    study = c("s1", "s2", "s3")
+    study = c("s1", "s1", "s2")
   )
   object <- brma.mv(
     yi                         = yi,
@@ -460,7 +459,6 @@ test_that("IWMDE identifies sampled random SD focal parameters", {
     data                       = dat,
     measure                    = "GEN",
     prior_unit_information_sd  = 1,
-    marginalize_estimate_level = FALSE,
     only_priors                = TRUE
   )
   prior <- BayesTools::prior("normal", list(mean = 0, sd = 1))
@@ -902,7 +900,6 @@ test_that("IWMDE scalar latent random effects match formula reconstruction", {
     data                       = dat,
     measure                    = "GEN",
     prior_unit_information_sd  = 1,
-    marginalize_estimate_level = FALSE,
     only_priors                = TRUE
   )
   term <- .fitted_formula_design(
@@ -3319,6 +3316,136 @@ test_that("known-V random predictor fallbacks remain marginal", {
 })
 
 
+test_that("normal product-space branches retain marginal random covariance", {
+
+  yi        <- c(.2, -.1, .4, .3)
+  sei       <- c(.2, .3, .25, .35)
+  group_map <- c(1L, 1L, 2L, 2L)
+  candidates <- c(.3, .5, .8)
+  bias_priors <- list(
+    none = BayesTools::prior_none(),
+    PET = BayesTools::prior_PET("normal", list(0, 1)),
+    PEESE = BayesTools::prior_PEESE("normal", list(0, 1)),
+    selection = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_fixed(c(1, .5))
+    )
+  )
+  context <- list(
+    object = list(),
+    priors = list(outcome = list(bias = BayesTools::prior_mixture(
+      bias_priors, is_null = c(TRUE, FALSE, FALSE, FALSE)
+    )))
+  )
+  factor_plans <- list(list(
+    type                  = "group",
+    model_matrix          = matrix(1, nrow = length(yi), ncol = 1L),
+    group_map             = group_map,
+    coefficient_structure = "dense"
+  ))
+  factor_states <- function(posterior_samples) {
+
+    list(
+      factor_plans = factor_plans,
+      factor_states = lapply(posterior_samples[, "sd"], function(sd) {
+        list(list(coefficient_factor = matrix(sd, 1L, 1L)))
+      }),
+      row_blocks = list(seq_along(yi))
+    )
+  }
+  fixed_mu <- function(active_setup, samples) {
+
+    out <- matrix(samples[, "mu"], nrow = nrow(samples), ncol = length(yi))
+    if (isTRUE(active_setup[["is_PET"]])) {
+      out <- out + outer(samples[, "PET"], sei)
+    }
+    if (isTRUE(active_setup[["is_PEESE"]])) {
+      out <- out + outer(samples[, "PEESE"], sei^2)
+    }
+    out
+  }
+  testthat::local_mocked_bindings(
+    .iwmde_known_v_random_marginal_setup = function(context) {
+      list(
+        sampling_covariance = covariance,
+        dependency_blocks   = list(seq_along(yi)),
+        blocks              = "study"
+      )
+    },
+    .brma_mv_random_effects_marginal_factor_plan = function(
+        object, posterior_samples, ...) factor_states(posterior_samples),
+    .brma_mv_random_effects_marginal_factor_states = function(
+        object, posterior_samples, ...) factor_states(posterior_samples),
+    .iwmde_predictor_evaluate_fixed_mu = function(
+        context, active_setup, samples) fixed_mu(active_setup, samples),
+    .package = "RoBMA"
+  )
+
+  for (correlated in c(FALSE, TRUE)) {
+    covariance <- diag(sei^2)
+    if (correlated) {
+      covariance[1, 2] <- covariance[2, 1] <- .02
+      covariance[3, 4] <- covariance[4, 3] <- .03
+    }
+    data <- list(outcome = data.frame(yi = yi, sei = sei))
+    attr(data, "outcome_type")     <- "norm"
+    attr(data, "effect_direction") <- "positive"
+    attr(data, "random")           <- TRUE
+    attr(data, "known_V")          <- TRUE
+    attr(data, "known_V_data") <- .known_v_prepare(
+      V = covariance, keep_rows = rep(TRUE, length(yi)),
+      known_v_parameterization = "block_mvn"
+    )
+    context[["data"]] <- data
+
+    expect_false(.iwmde_uses_known_v_random_marginal_likelihood(context))
+    for (branch in c("none", "PET", "PEESE")) {
+      active_setup <- list(
+        priors   = list(outcome = list(bias = bias_priors[[branch]])),
+        is_PET   = branch == "PET",
+        is_PEESE = branch == "PEESE"
+      )
+      samples <- cbind(mu = .1, sd = candidates, PET = .2, PEESE = .4)
+      means <- fixed_mu(active_setup, samples)
+      oracle <- lapply(seq_along(candidates), function(i) {
+        total_covariance <- covariance + candidates[[i]]^2 *
+          outer(group_map, group_map, `==`)
+        root <- chol(total_covariance)
+        residual <- yi - means[i, ]
+        whitened <- forwardsolve(t(root), residual)
+        list(
+          log_lik = -.5 * (
+            length(yi) * log(2 * pi) + 2 * sum(log(diag(root))) +
+              sum(whitened^2)
+          ),
+          linear = sum(solve(total_covariance, residual)),
+          quadratic = sum(solve(total_covariance, rep(1, length(yi))))
+        )
+      })
+      actual <- .iwmde_log_lik_known_v_joint_sum_from_samples(
+        context = context, posterior_samples = samples,
+        active_setup = active_setup, unit = "estimate"
+      )
+      expect_equal(actual, vapply(oracle, `[[`, numeric(1), "log_lik"),
+                   tolerance = 1e-12, info = branch)
+      setup <- list(
+        priors = active_setup[["priors"]],
+        K = length(yi), S = nrow(samples), posterior_samples = samples
+      )
+      quadratic <- .iwmde_normal_location_likelihood_change_known_v(
+        context = context, setup = setup, yi = yi, mu = means,
+        mu_basis = matrix(1, nrow(samples), length(yi))
+      )
+      expect_equal(quadratic[["linear"]],
+                   vapply(oracle, `[[`, numeric(1), "linear"),
+                   tolerance = 1e-12, info = branch)
+      expect_equal(quadratic[["quadratic"]],
+                   vapply(oracle, `[[`, numeric(1), "quadratic"),
+                   tolerance = 1e-12, info = branch)
+    }
+  }
+})
+
+
 test_that("known-V formula random locations use the exact marginal quadratic", {
 
   S <- 2L
@@ -3722,7 +3849,7 @@ test_that("normal cluster rho grid preserves boundaries and prior rows", {
 })
 
 
-test_that("negative-direction selected-normal normalizer change matches matrix reference", {
+test_that("selected-normal location changes preserve sampling thresholds", {
 
   prior <- BayesTools::prior_weightfunction(
     side    = "one-sided",
@@ -3733,7 +3860,6 @@ test_that("negative-direction selected-normal normalizer change matches matrix r
   sei <- c(.20, .30, .40)
   data <- list(outcome = data.frame(yi = yi, sei = sei))
   attr(data, "outcome_type")     <- "norm"
-  attr(data, "effect_direction") <- "negative"
 
   S      <- 2L
   G      <- 3L
@@ -3746,6 +3872,7 @@ test_that("negative-direction selected-normal normalizer change matches matrix r
     tau_within        = matrix(c(.25, .30, .35, .28, .32, .36),
                                nrow = S, byrow = TRUE),
     sei               = sei,
+    selection_sei     = sei,
     weights           = c(1, .5, 2),
     posterior_samples = matrix(
       0,
@@ -3763,11 +3890,6 @@ test_that("negative-direction selected-normal normalizer change matches matrix r
     data            = data,
     predictor_cache = new.env(parent = emptyenv())
   )
-  selection_context <- .iwmde_selection_context_active_branch(
-    context           = context,
-    active_setup      = active_setup,
-    posterior_samples = setup[["posterior_samples"]]
-  )
   basis <- list(
     formula_logtau = FALSE,
     scale_update   = "none",
@@ -3779,43 +3901,64 @@ test_that("negative-direction selected-normal normalizer change matches matrix r
     list(row_index = row, active_key = "negative-selection")
   })
 
-  fast <- .iwmde_selected_normal_location_normalizer_change(
-    context      = context,
-    setup        = setup,
-    basis        = basis,
-    values       = values,
-    row_states   = row_states,
-    active_setup = active_setup
-  )
-
   row_index  <- rep(seq_len(S), each = G)
   grid_index <- rep(seq_len(G), times = S)
   delta      <- values[grid_index] - current[row_index]
-  sd <- sqrt(setup[["tau_within"]]^2 +
-    matrix(sei^2, nrow = S, ncol = length(sei), byrow = TRUE))
-  current_log_norm <- .selection_step_log_norm_matrix(
-    mean              = setup[["mu"]],
-    sd                = sd,
-    sei               = sei,
-    selection_context = selection_context
-  )
-  candidate_context <- BayesTools::selection_context_subset_rows(
-    context = selection_context,
-    rows    = row_index
-  )
-  candidate_log_norm <- .selection_step_log_norm_matrix(
-    mean              = setup[["mu"]][row_index, , drop = FALSE] +
-      basis[["mu_basis"]][row_index, , drop = FALSE] * delta,
-    sd                = sd[row_index, , drop = FALSE],
-    sei               = sei,
-    selection_context = candidate_context
-  )
-  reference <- rowSums(.apply_log_lik_weights(
-    candidate_log_norm - current_log_norm[row_index, , drop = FALSE],
-    setup[["weights"]]
-  ))
+  candidate_mu <- setup[["mu"]][row_index, , drop = FALSE] +
+    basis[["mu_basis"]][row_index, , drop = FALSE] * delta
+  cuts <- stats::qnorm(c(0, .025, .05, 1), lower.tail = FALSE)
+  native_modes <- if (.has_native_selnorm_log_norm_delta()) c(FALSE, TRUE) else FALSE
 
-  expect_equal(fast, reference, tolerance = 1e-12)
+  for (direction in c("positive", "negative")) {
+    context[["data"]] <- data
+    attr(context[["data"]], "effect_direction") <- direction
+    sign <- if (direction == "negative") -1 else 1
+
+    for (residual_sei in list(sei, .6 * sei)) {
+      setup[["sei"]] <- residual_sei
+      sd <- sqrt(setup[["tau_within"]]^2 +
+        matrix(residual_sei^2, nrow = S, ncol = length(sei), byrow = TRUE))
+      log_norm_reference <- function(mean, sd) {
+
+        out <- matrix(NA_real_, nrow = nrow(mean), ncol = ncol(mean))
+        for (row in seq_len(nrow(mean))) {
+          for (k in seq_len(ncol(mean))) {
+            probability <- stats::pnorm(
+              head(cuts, -1L) * sei[k], sign * mean[row, k], sd[row, k]
+            ) - stats::pnorm(
+              tail(cuts, -1L) * sei[k], sign * mean[row, k], sd[row, k]
+            )
+            out[row, k] <- log(sum(c(1, .7, .35) * probability))
+          }
+        }
+        return(out)
+      }
+      current_log_norm   <- log_norm_reference(setup[["mu"]], sd)
+      candidate_log_norm <- log_norm_reference(
+        candidate_mu, sd[row_index, , drop = FALSE]
+      )
+      reference <- as.numeric((candidate_log_norm -
+        current_log_norm[row_index, , drop = FALSE]) %*% setup[["weights"]])
+
+      for (native in native_modes) {
+        context[["predictor_cache"]] <- new.env(parent = emptyenv())
+        fast <- testthat::with_mocked_bindings(
+          .iwmde_selected_normal_location_normalizer_change(
+            context      = context,
+            setup        = setup,
+            basis        = basis,
+            values       = values,
+            row_states   = row_states,
+            active_setup = active_setup
+          ),
+          .has_native_selnorm_log_norm_delta = function() native,
+          .package = "RoBMA"
+        )
+
+        expect_equal(fast, reference, tolerance = 1e-12)
+      }
+    }
+  }
 })
 
 
@@ -4118,6 +4261,7 @@ test_that("IWMDE selected-normal native normalizer skips fallback candidates", {
     mu                = matrix(c(.1, .2, .3, .4), nrow = S),
     tau_within        = c(.05, .10),
     sei               = c(.20, .30),
+    selection_sei     = c(.30, .40),
     weights           = NULL,
     posterior_samples = matrix(0, nrow = S, ncol = 1)
   )
@@ -4157,6 +4301,7 @@ test_that("IWMDE selected-normal native normalizer skips fallback candidates", {
         omega, selection_spec, alpha, phack_kind, kernel_mode) {
 
       expect_equal(mean, setup[["mu"]])
+      expect_equal(sei, setup[["selection_sei"]])
       expect_null(basis)
       matrix(.25, nrow = length(values), ncol = length(current))
     },
@@ -4237,6 +4382,185 @@ test_that("IWMDE batched q evaluation warns on invalid likelihood length", {
     "invalid length"
   )
   expect_null(out)
+})
+
+
+test_that("selection replacements bound workspace without changing row targets", {
+
+  make_data <- function(rule = "product", correlated = FALSE, sampling = "integrate", known_v = TRUE,
+                        dense = FALSE) {
+
+    prior_bias <- prior_weightfunction(
+      "one-sided", steps = .025, weights = wf_fixed(c(1, .5)),
+      model = selection_model(
+        known_sampling_variance = sampling, weight_rule = rule, group = "study"
+      )
+    )
+    args <- list(
+      yi = c(-.1, .2),
+      data = data.frame(study = if (rule == "best") c("a", "b") else c("a", "a")),
+      measure = "GEN", prior_bias = prior_bias,
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+    )
+    object <- if (known_v) {
+      args$V <- if (dense) {
+        matrix(c(.04, .01, .01, .05), nrow = 2L)
+      } else if (correlated) {
+        known_v_factor(c(.03, .04), matrix(c(.1, .1), ncol = 1))
+      } else diag(c(.03, .04))
+      do.call(bselmodel.mv, args)
+    } else {
+      args$sei <- sqrt(c(.03, .04))
+      do.call(bselmodel, args)
+    }
+    object$data
+  }
+  data <- make_data()
+  expect_true(all(.data_selection_execution_plan(data)$block_methods == "singleton"))
+  samples <- cbind(mu = (1:6) / 8, nuisance = (6:1) / 4)
+  rows    <- c(4L, 2L, 4L, 1L, 6L, 3L)
+  keys    <- c("B", "A", "B", "A", "B", "A")
+  means   <- c(0, .2, 0, -.1, .3, -.1)
+  row_states <- lapply(seq_along(rows), function(i) {
+
+    row <- samples[rows[i], ]
+    prior_list <- list(
+      mu       = prior("normal", list(mean = means[i], sd = 1.1)),
+      nuisance = prior("normal", list(mean = 0, sd = 2))
+    )
+    focal <- stats::dnorm(row[["mu"]], means[i], 1.1, log = TRUE)
+    list(
+      row = row, row_index = rows[i], active_key = keys[i],
+      active_setup = list(offset = if (keys[i] == "A") .1 else -.2),
+      likelihood_mode = "conditional", prior_list = prior_list,
+      focal_prior = prior_list$mu,
+      use_focal_prior_delta = c(TRUE, FALSE, TRUE, TRUE, FALSE, TRUE)[i],
+      baseline_focal_log_prior = focal,
+      baseline_log_prior = focal + stats::dnorm(row[["nuisance"]], 0, 2, log = TRUE)
+    )
+  })
+  evaluate <- function(bytes, replacement, values, input_data = data) {
+
+    context <- list(
+      data = input_data, posterior_samples = samples,
+      flat_prior_list = row_states[[1L]]$prior_list,
+      row_cache = new.env(parent = emptyenv()),
+      focal_prior_cache = new.env(parent = emptyenv())
+    )
+    calls <- list()
+    result <- withr::with_options(list(RoBMA.known_v_covariance_max_bytes = bytes),
+      .iwmde_log_q_grid_from_samples(
+        context = context, parameter = "mu", values = values,
+        row_states = row_states, replacement = replacement,
+        likelihood_mode = "conditional",
+        log_lik_fun = function(samples, active_setup, batch) {
+
+          original_rows <- vapply(batch$row_states, `[[`, integer(1), "row_index")
+          calls[[length(calls) + 1L]] <<- cbind(
+            row = original_rows[batch$candidates$state_index[batch$valid_positions]],
+            grid = batch$candidates$grid_index[batch$valid_positions],
+            samples
+          )
+          stats::dnorm(0.2, samples[, "mu"] + samples[, "nuisance"] +
+            active_setup$offset, .8, log = TRUE)
+        }
+      )
+    )
+    list(result = result, calls = calls)
+  }
+  withr::local_seed(12)
+  seed <- .Random.seed
+  for (type in c("linear", "scalar")) {
+    values <- if (type == "linear") c(-.5, NA_real_, .5) else c(-.5, 0, .5)
+    replacement <- list(type = type, weights = c(mu = 1))
+    whole   <- evaluate(Inf, replacement, values)
+    chunked <- evaluate(1536, replacement, values)
+    expected <- vapply(seq_along(rows), function(i) {
+      stats::dnorm(.2, values + samples[rows[i], "nuisance"] +
+        row_states[[i]]$active_setup$offset, .8, log = TRUE) +
+        stats::dnorm(values, means[i], 1.1, log = TRUE) +
+        stats::dnorm(samples[rows[i], "nuisance"], 0, 2, log = TRUE)
+    }, numeric(length(values)))
+    expected[!is.finite(values), ] <- -Inf
+    expect_equal(chunked$result, expected, tolerance = 1e-14)
+    expect_equal(chunked$result, whole$result, tolerance = 1e-14)
+    expect_length(whole$calls, 2L)
+    expect_length(chunked$calls, 4L)
+    expect_identical(do.call(rbind, chunked$calls), do.call(rbind, whole$calls))
+    expect_identical(
+      unname(do.call(rbind, chunked$calls)[, "row"]),
+      rep(as.double(rows[c(1L, 3L, 5L, 2L, 4L, 6L)]), each = sum(is.finite(values)))
+    )
+    expect_lte(max(vapply(chunked$calls, nrow, integer(1))),
+      2L * sum(is.finite(values)))
+  }
+  expect_identical(.Random.seed, seed)
+
+  # Other rules and explicit factor blocks retain their existing single batches.
+  replacement <- list(type = "linear", weights = c(mu = 1))
+  values <- c(-.5, NA_real_, .5)
+  # The same independent selection law supplied through sei needs the same
+  # memory guard; using all posterior draws must not create an unbounded batch.
+  scalar <- make_data(known_v = FALSE)
+  scalar_whole <- evaluate(Inf, replacement, values, scalar)
+  scalar_chunked <- evaluate(1536, replacement, values, scalar)
+  expect_equal(scalar_chunked$result, scalar_whole$result, tolerance = 1e-14)
+  expect_length(scalar_chunked$calls, 4L)
+  expect_identical(do.call(rbind, scalar_chunked$calls), do.call(rbind, scalar_whole$calls))
+  for (other in list(make_data("best"), make_data(correlated = TRUE))) {
+    expect_length(evaluate(1536, replacement, values, other)$calls, 2L)
+  }
+  # Raw full V uses a packed covariance workspace and must also obey the cap.
+  dense <- make_data(dense = TRUE)
+  expect_true(any(.data_selection_execution_plan(dense)$block_methods == "dense"))
+  dense_whole <- evaluate(Inf, replacement, values, dense)
+  dense_chunked <- evaluate(1536, replacement, values, dense)
+  expect_equal(dense_chunked$result, dense_whole$result, tolerance = 1e-14)
+  expect_length(dense_whole$calls, 2L)
+  expect_length(dense_chunked$calls, 6L)
+  expect_identical(do.call(rbind, dense_chunked$calls), do.call(rbind, dense_whole$calls))
+  expect_lte(max(vapply(dense_chunked$calls, nrow, integer(1))), sum(is.finite(values)))
+  invalid <- evaluate(1536, replacement, c(NA_real_, Inf), dense)
+  expect_identical(invalid$result, matrix(-Inf, 2L, length(rows)))
+  expect_length(invalid$calls, 0L)
+  # Full-sampling conditioning adds dense covariance workspaces even for
+  # independent sampling and for sei-based models. The same byte option must
+  # bound each replacement batch without changing any evaluated candidates.
+  conditioned <- list(make_data(sampling = "condition"),
+                      make_data(sampling = "condition", known_v = FALSE),
+                      make_data("best", sampling = "condition"))
+  for (other in conditioned) {
+    whole <- evaluate(Inf, replacement, values, other)
+    chunked <- evaluate(1536, replacement, values, other)
+    expect_equal(chunked$result, whole$result, tolerance = 1e-14)
+    expect_length(whole$calls, 2L)
+    expect_length(chunked$calls, 6L)
+    expect_identical(do.call(rbind, chunked$calls), do.call(rbind, whole$calls))
+    expect_lte(max(vapply(chunked$calls, nrow, integer(1))), sum(is.finite(values)))
+  }
+  expect_identical(.Random.seed, seed)
+  testthat::local_mocked_bindings(
+    .iwmde_build_replacement_samples = function(...) stop("Candidate allocation occurred."),
+    .package = "RoBMA"
+  )
+  expect_error(evaluate(1, replacement, values), paste0(
+    "One selection replacement row requires approximately 576 B of working memory, ",
+    "exceeding option 'RoBMA.known_v_covariance_max_bytes'. Increase this option."
+  ), fixed = TRUE)
+  expect_error(evaluate(1, replacement, values, scalar), paste0(
+    "One selection replacement row requires approximately 576 B of working memory, ",
+    "exceeding option 'RoBMA.known_v_covariance_max_bytes'. Increase this option."
+  ), fixed = TRUE)
+  expect_error(evaluate(1, replacement, values, dense), paste0(
+    "One selection replacement row requires approximately 864 B of working memory, ",
+    "exceeding option 'RoBMA.known_v_covariance_max_bytes'. Increase this option."
+  ), fixed = TRUE)
+  for (other in conditioned) {
+    expect_error(evaluate(1, replacement, values, other), paste0(
+      "One selection replacement row requires approximately 960 B of working memory, ",
+      "exceeding option 'RoBMA.known_v_covariance_max_bytes'. Increase this option."
+    ), fixed = TRUE)
+  }
 })
 
 

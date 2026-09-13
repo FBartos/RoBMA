@@ -9,20 +9,39 @@
 
 
 .prepare_random_effects_compile <- function(
-    object, strategy = c("none", "estimate", "all")) {
+    object, strategy = c("estimate", "selection")) {
 
   strategy <- match.arg(strategy)
-  if (!.is_data_random(object[["data"]]) || identical(strategy, "none")) {
+  if (!.is_data_random(object[["data"]])) {
     return(object)
   }
 
-  sampled_design <- .object_bayestools_formula_design(
-    object                 = object,
-    parameter              = "mu",
-    source                 = "location",
-    random_effects_compile = NULL
-  )
-  if (identical(strategy, "estimate")) {
+  sampled_design <- object[["formula_design"]][["mu"]]
+  if (is.null(sampled_design)) {
+    sampled_design <- .object_bayestools_formula_design(
+      object                 = object,
+      parameter              = "mu",
+      source                 = "location",
+      random_effects_compile = NULL
+    )
+  }
+  if (identical(strategy, "selection")) {
+    if (.selection_retains_sampling(object[["data"]])) {
+      # All random-source coordinates are Gaussian auxiliaries in this
+      # likelihood. The source map records their selection-conditioning roles.
+      object[["formula_design"]][["mu"]] <- sampled_design
+      return(object)
+    }
+    model <- .data_selection_model(object[["data"]])
+    sources <- model[["sources"]][["random"]]
+    marginalized_blocks <- vapply(sources[vapply(
+      sources, function(source) !source[["retained"]], logical(1)
+    )], `[[`, character(1), "name")
+    if (length(marginalized_blocks) == 0L) {
+      object[["formula_design"]][["mu"]] <- sampled_design
+      return(object)
+    }
+  } else {
     candidates <- .marginalized_random_effect_candidates(
       formula_design = sampled_design,
       data           = object[["data"]]
@@ -30,30 +49,7 @@
     if (length(candidates) == 0L) {
       return(object)
     }
-    if (length(candidates) > 1L) {
-      stop(
-        "Multiple random-effect blocks map one-to-one to estimates and could ",
-        "be marginalized: ",
-        paste(
-          vapply(candidates, `[[`, character(1), "block_name"),
-          collapse = ", "
-        ),
-        ". Specify a single estimate-level random term or set ",
-        "'marginalize_estimate_level = FALSE'.",
-        call. = FALSE
-      )
-    }
     marginalized_blocks <- candidates[[1L]][["block_name"]]
-  } else {
-    random_effects <- sampled_design[["random_effects"]]
-    marginalized_blocks <- vapply(
-      random_effects,
-      .random_effect_term_block_name,
-      character(1)
-    )
-    if (length(marginalized_blocks) == 0L) {
-      return(object)
-    }
   }
 
   compile <- BayesTools::random_effects_compile(
@@ -112,42 +108,21 @@
 
 
 .finalize_mv_object <- function(
-    object, marginalize_estimate_level,
-    selection_likelihood = NULL, selection_control = NULL,
+    object, selection_control = NULL,
     only_priors = FALSE) {
 
-  BayesTools::check_bool(
-    marginalize_estimate_level,
-    "marginalize_estimate_level",
-    allow_NA = FALSE
-  )
   has_selection <- .is_priors_weightfunction(object[["priors"]])
   if (has_selection) {
-    if (is.null(selection_likelihood)) {
-      stop(
-        "Internal error: a multivariate selection model requires a ",
-        "selection likelihood.",
-        call. = FALSE
-      )
-    }
-    selection_likelihood <- match.arg(
-      selection_likelihood,
-      c("exact", "approximate")
-    )
-    object <- .prepare_approximate_selection_known_v(
-      object               = object,
-      selection_likelihood = selection_likelihood
-    )
+    object <- .prepare_selection_model_object(object)
+  } else {
+    attr(object[["data"]], "selection_binding") <- NULL
   }
 
-  is_exact_selection <- has_selection &&
-    identical(selection_likelihood, "exact")
-  compile_strategy <- if (is_exact_selection) {
-    "all"
-  } else if (isTRUE(marginalize_estimate_level)) {
-    "estimate"
+  is_joint_selection <- .is_data_joint_selection(object[["data"]])
+  compile_strategy <- if (is_joint_selection) {
+    "selection"
   } else {
-    "none"
+    "estimate"
   }
   object <- .prepare_random_effects_compile(
     object   = object,
@@ -156,25 +131,10 @@
   if (has_selection) {
     object <- .prepare_selection_likelihood_object(
       object               = object,
-      selection_likelihood = selection_likelihood,
       selection_control    = selection_control
     )
   }
   .brma_mv_check_singular_v_regularization(object)
-  if (is_exact_selection && !only_priors &&
-      !object[["fit_control"]][["silent"]] &&
-      .is_data_known_v(object[["data"]])) {
-    plan <- .data_exact_selection_setup(object[["data"]])
-    if (identical(plan[["sampling"]][["representation"]], "dense") &&
-        any(plan[["block_methods"]] == "dense")) {
-      message(
-        "Exact selection fitting is using general covariance integration. ",
-        "If the construction of 'V' is available, 'vcalc2()' may enable faster ",
-        "fitting for supported covariance structures. Ordinary covariance ",
-        "matrices remain fully supported."
-      )
-    }
-  }
   .fit_and_finalize_object(object, only_priors = only_priors)
 }
 
@@ -192,18 +152,15 @@
     return(data)
   }
 
-  known_v_residual_fraction_specified <- !is.null(
-    .known_v_requested_residual_fraction(known_V)
-  )
   new_known_V <- .known_v_prepare(
-    V                                   = .known_v_as_input(known_V),
-    keep_rows                           = rep(TRUE, .known_v_nrow(known_V)),
-    known_v_parameterization            = "auto",
-    known_v_residual_fraction           = .known_v_requested_residual_fraction(known_V),
-    known_v_residual_fraction_specified = known_v_residual_fraction_specified,
-    known_v_is_scale                    = TRUE,
-    warn_singular                       = FALSE
+    V                        = .known_v_as_input(known_V),
+    keep_rows                = rep(TRUE, .known_v_nrow(known_V)),
+    known_v_parameterization = "auto",
+    known_v_is_scale         = TRUE,
+    warn_singular            = FALSE
   )
+  new_known_V[["selection_metadata"]] <- known_V[["selection_metadata"]]
+  new_known_V[["selection_structure"]] <- known_V[["selection_structure"]]
   attr(data, "known_V_data") <- new_known_V
   data[["outcome"]][["sei"]] <- sqrt(.known_v_diagonal(new_known_V))
 
@@ -218,7 +175,10 @@
     return(list())
   }
 
-  k <- nrow(data[["outcome"]])
+  k      <- nrow(data[["outcome"]])
+  roles  <- BayesTools::random_effects_level_roles(random_effects, k)
+  blocks <- vapply(random_effects, .random_effect_term_block_name, character(1))
+  random_effects <- random_effects[roles[blocks] == "estimate"]
   random_effects[vapply(
     random_effects,
     .is_marginalized_estimate_level_candidate,
@@ -464,8 +424,7 @@
     stop(
       "known_v_parameterization = 'whitened' cannot be combined with ",
       "row-varying marginalized estimate-level random effects. Use ",
-      "known_v_parameterization = 'latent' or 'block_mvn', or set ",
-      "'marginalize_estimate_level = FALSE'.",
+      "known_v_parameterization = 'latent' or 'block_mvn'.",
       call. = FALSE
     )
   }

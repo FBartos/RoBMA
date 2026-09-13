@@ -23,13 +23,23 @@ Constructs an exact known sampling covariance representation
 The supplied diagonal and loading matrix define \code{V}; no numerical rank is
 inferred from a materialized covariance matrix. This representation permits
 likelihood implementations to use the declared factor dimension when that
-route is supported, while all other computations retain the same covariance
-target as a conventional dense \code{V} input.
+route is supported. Gaussian and selection models retain the same target
+as a conventional dense \code{V} input with the same publication groups.
 
-For \code{selection_likelihood = "approximate"}, selection conditions on the
-declared latent factors. Different diagonal-plus-factor decompositions of
-the same covariance can therefore define different approximate likelihoods.
-\code{\link[=vcalc2]{vcalc2()}} retains structural sampling factors automatically for supported
-constructions; approximate selection conditions on those factors in the
-same way as an explicit declaration here.
+With \code{selection_model(known_sampling_variance = "condition")}, the declared
+covariance defines the complete retained sampling-error vector, including
+both diagonal and factor variation. With \code{known_sampling_variance = "integrate"}
+(the default), the full sampling error is integrated before selection
+normalization. The diagonal-plus-factor split is a numerical representation;
+it does not define which sampling sources are conditioned upon.
+
+Ordinary covariance matrices, including results from \code{\link[metafor:vcalc]{metafor::vcalc()}},
+can also be supplied directly. Covariance inputs do not specify publication
+groups; declare them separately with \code{selection_model(group = ...)}.
+
+Matrix inputs use base R's numerical symmetry tolerance. Accepted matrices
+are stored symmetrically by averaging corresponding off-diagonal entries,
+leaving the supplied R object and its diagonal unchanged. The stored
+covariance uses this symmetric representation and retains input type and
+row mapping; it does not include a separate copy of unequal input triangles.
 }

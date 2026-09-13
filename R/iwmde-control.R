@@ -13,7 +13,8 @@
   purpose <- match.arg(purpose)
   allowed_names <- c(
     "n_points", "samples", "target_relative_mcse",
-    "normalization_points", "normalization_prob", "display_grid"
+    "normalization_points", "normalization_prob", "display_grid",
+    "integration_control"
   )
   defaults <- list(
     n_points             = 100L,
@@ -25,7 +26,8 @@
     target_relative_mcse = .05,
     normalization_points = NULL,
     normalization_prob   = .999,
-    display_grid         = "adaptive"
+    display_grid         = "adaptive",
+    integration_control  = NULL
   )
 
   if (is.null(density_control)) {
@@ -114,6 +116,12 @@
   defaults[["display_grid"]] <- .iwmde_normalize_display_grid(
     defaults[["display_grid"]]
   )
+  if (!is.null(defaults[["integration_control"]])) {
+    defaults[["integration_control"]] <- .check_selection_likelihood_control(
+      defaults[["integration_control"]],
+      argument = "density_control$integration_control"
+    )
+  }
   return(defaults)
 }
 

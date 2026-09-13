@@ -1,187 +1,159 @@
-context("Exact selection certified factor routing")
+context("Joint selection certified factor routing")
 skip_on_cran()
 
-test_that("the optional factor hint describes only dense exact selection fits", {
+.factor_selection_prior <- function(mode = "integrate") {
 
-  # Exercise constructor routing without running a sampler.
-  testthat::local_mocked_bindings(
-    .fit_and_finalize_object = function(object, only_priors) object
+  BayesTools::prior_weightfunction(
+    "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+    model = BayesTools::selection_model(
+      other_random_effects = mode, known_sampling_variance = mode, group = "study"
+    )
   )
-  factor <- known_v_factor(rep(.03, 3L), matrix(rep(.1, 3L), ncol = 1L))
+}
+
+test_that("conditional selection accepts equivalent covariance representations without warnings", {
+
+  # Exercise the real pre-fit boundary without running a sampler.
+  testthat::local_mocked_bindings(
+    .fit = function(object) list(),
+    .stop_fit_errors = function(...) NULL,
+    .object_summary = function(...) list(),
+    .object_coefficients = function(...) list(),
+    .refresh_selection_sensitivity_diagnostics = function(object) object,
+    .autocompute_brma = function(object) object,
+    .package = "RoBMA"
+  )
+  factor <- known_v_factor(rep(.03, 4L), cbind(
+    c(.1, .1, 0, 0), c(0, 0, .1, .1)
+  ))
   dense  <- diag(factor$diagonal) + tcrossprod(factor$loading)
-  fit <- function(V = dense, target = "exact", silent = FALSE,
+  prior <- function(mode = "condition", weights = c(1, .5), prior_weights = 1) {
+
+    BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_fixed(weights),
+      prior_weights = prior_weights,
+      model = BayesTools::selection_model(
+        other_random_effects = mode, known_sampling_variance = mode, group = "study"
+      )
+    )
+  }
+  fit <- function(V = dense, prior_bias = prior(), silent = FALSE,
                   only_priors = FALSE, constructor = bselmodel.mv) {
 
-    args <- list(yi = c(.1, .2, .3), V = V, measure = "GEN",
-                   prior_unit_information_sd = 1, silent = silent,
-                   only_priors = only_priors)
-    if (identical(constructor, bselmodel.mv)) {
-      args$selection_likelihood <- target
+    args <- list(
+      yi = c(.1, .2, .3, .4), V = V, measure = "GEN",
+      data = data.frame(study = c("a", "a", "b", "b")),
+      prior_unit_information_sd = 1, silent = silent,
+      only_priors = only_priors
+    )
+    if (identical(constructor, bselmodel.mv) || identical(constructor, RoBMA.mv)) {
+      args$prior_bias <- prior_bias
     }
-    do.call(constructor, args)
+    warnings <- list()
+    object <- withCallingHandlers(do.call(constructor, args), warning = function(w) {
+      warnings[[length(warnings) + 1L]] <<- w
+      invokeRestart("muffleWarning")
+    })
+    list(object = object, warnings = warnings)
   }
-  expect_message(
-    plain <- fit(),
-    paste0(
-      "Exact selection fitting is using general covariance integration. ",
-      "If the construction of 'V' is available, 'vcalc2()' may enable faster ",
-      "fitting for supported covariance structures. Ordinary covariance ",
-      "matrices remain fully supported."
-    ),
-    fixed = TRUE
-  )
-  expect_equal(.known_v_covariance_matrix(.data_known_v_data(plain$data)), dense)
-  expect_message(quiet <- fit(silent = TRUE), NA)
-  expect_identical(plain$data, quiet$data)
-  expect_identical(plain$priors, quiet$priors)
-  expect_message(fit(only_priors = TRUE), NA)
-  expect_message(fit(V = diag(diag(dense))), NA)
-  expect_message(fit(V = factor), NA)
-  expect_message(fit(V = known_v_factor(
-    rep(.03, 3L), matrix(seq_len(15L) / 100, nrow = 3L)
-  )), NA)
-  expect_message(fit(target = "approximate"), NA)
-  expect_message(fit(constructor = brma.mv), NA)
+  plain <- fit()
+  quiet <- fit(silent = TRUE)
+  mixture <- fit(constructor = RoBMA.mv, prior_bias = list(prior(), prior()))
+  for (result in list(plain, quiet, mixture)) {
+    expect_length(result$warnings, 0L)
+    expect_equal(.known_v_covariance_matrix(.data_known_v_data(result$object$data)), dense)
+  }
+  expect_identical(plain$object$data, quiet$object$data)
+  expect_identical(plain$object$priors, quiet$object$priors)
+  expect_length(fit(only_priors = TRUE)$warnings, 0L)
+  expect_length(fit(V = diag(diag(dense)))$warnings, 0L)
+  expect_length(fit(V = factor)$warnings, 0L)
+  expect_length(fit(prior_bias = prior("integrate"))$warnings, 0L)
+  expect_length(fit(prior_bias = prior(weights = c(1, 1)))$warnings, 0L)
+  for (constructor in list(brma.mv, bPET.mv, bPEESE.mv)) {
+    expect_length(fit(constructor = constructor)$warnings, 0L)
+  }
 })
 
 
-test_that("vcalc2 preserves vcalc covariance and certifies its common structure", {
+test_that("ordinary sampling matrices and declared factors preserve vcalc covariance", {
 
   skip_if_not_installed("metafor")
   dat <- data.frame(
-    yi      = seq(-.3, .4, length.out = 8L),
-    vi      = seq(.02, .09, length.out = 8L),
-    study   = rep(c("a", "b"), each = 4L),
-    type    = rep(c("x", "x", "y", "y"), 2L),
-    obs     = rep(seq_len(4L), 2L),
-    rho     = rep(c(.2, .1), 4L)
+    yi    = seq(-.3, .4, length.out = 8L),
+    vi    = seq(.02, .09, length.out = 8L),
+    study = rep(c("a", "b"), each = 4L),
+    type  = rep(c("x", "x", "y", "y"), 2L),
+    obs   = rep(seq_len(4L), 2L)
   )
-  rho <- c(.6, .3)
-  expected <- metafor::vcalc(
+  V <- metafor::vcalc(
     vi, cluster = study, type = type, obs = obs,
-    rho = rho, data = dat
+    rho = c(.6, .3), data = dat
   )
-  V <- vcalc2(
-    vi, cluster = study, type = type, obs = obs,
-    rho = rho, data = dat
-  )
-
-  expect_identical(class(V), class(expected))
-  expect_equal(
-    matrix(as.numeric(V), nrow = nrow(V)),
-    matrix(as.numeric(expected), nrow = nrow(expected)),
-    tolerance = 0
-  )
-  metadata <- attr(V, "RoBMA_vcalc_metadata", exact = TRUE)
-  expect_s3_class(metadata, "RoBMA_vcalc_metadata")
-  expect_identical(metadata[["factor_status"]], "certified")
-  expect_s3_class(metadata[["factor"]], "RoBMA_known_v_factor")
+  expected <- matrix(as.numeric(V), nrow = nrow(V))
+  # Independent covariance identity: within-type correlation .6 and
+  # between-type correlation .3, with independent residual variance .4*vi.
+  type_root <- t(chol(matrix(c(.6, .3, .3, .6), 2L)))
+  loading <- matrix(0, nrow(dat), 4L)
+  for (study in seq_len(2L)) {
+    rows <- which(dat$study == c("a", "b")[[study]])
+    loading[rows, (2L * study - 1L):(2L * study)] <-
+      sqrt(dat$vi[rows]) * type_root[match(dat$type[rows], c("x", "y")), ]
+  }
+  factor <- known_v_factor(.4 * dat$vi, loading)
+  expect_equal(diag(factor$diagonal) + tcrossprod(factor$loading),
+               expected, tolerance = 1e-14)
 
   object <- bselmodel.mv(
-    yi                        = yi,
-    V                         = V,
-    data                      = dat,
-    measure                   = "SMD",
-    prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
-    only_priors               = TRUE,
-    silent                    = TRUE
+    yi = yi, V = V, data = dat, measure = "SMD",
+    prior_unit_information_sd = 1, prior_bias = .factor_selection_prior(),
+    only_priors = TRUE, silent = TRUE
   )
-  setup <- .data_exact_selection_setup(object[["data"]])
-  expect_identical(
-    .known_v_storage(.data_known_v_data(object[["data"]])),
-    "factor"
-  )
-  expect_identical(setup[["exactness"]], "EF")
-  expect_true(all(setup[["block_methods"]] == "factor"))
-  expect_identical(setup[["factor_ranks"]], c(2L, 2L))
+  known_V <- .data_known_v_data(object$data)
+  expect_identical(.known_v_storage(known_V), "blocks")
+  expect_identical(.known_v_selection_metadata(known_V)$origin, "matrix")
+  expect_identical(.data_selection_model(object$data)$groups$provenance, "explicit")
 
-  approximate_object <- function(V, constructor = bselmodel.mv, ...) {
+  conditional_object <- function(V, constructor = bselmodel.mv, ...) {
 
+    prior_bias <- if (identical(constructor, RoBMA.mv)) {
+      .default_prior.bias_alt(
+        model_type = "PSMA", measure = "SMD", data = dat,
+        prior_unit_information_sd = 1,
+        weightfunction_model = BayesTools::selection_model(
+          known_sampling_variance = "condition", group = "study")
+      )
+    } else {
+      .factor_selection_prior("condition")
+    }
     constructor(
       yi = yi, V = V, data = dat, random = ~ 1 | study, measure = "SMD",
-      selection_likelihood = "approximate",
+      prior_bias = prior_bias,
       prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE, ...
     )
   }
   for (constructor in list(bselmodel.mv, RoBMA.mv)) {
-    wrapped  <- approximate_object(V, constructor)
-    declared <- approximate_object(metadata[["factor"]], constructor)
-    ordinary <- approximate_object(expected, constructor)
-    known_V  <- .data_known_v_data(wrapped[["data"]])
-    expect_identical(known_V, .data_known_v_data(declared[["data"]]))
-    expect_identical(.known_v_effective_backend(known_V), "latent")
-    # Independent consequence of the specified within-type correlation.
-    expect_equal(known_V[["residual_variance"]], (1 - rho[[1L]]) * dat$vi)
-    expect_equal(known_V[["rank"]], 4L)
-    expect_equal(
-      .data_known_v_data(ordinary[["data"]])[["residual_variance"]],
-      .1 * dat$vi
-    )
-    expect_equal(.known_v_covariance_matrix(known_V),
-                 matrix(as.numeric(expected), nrow = nrow(expected)))
-    expect_identical(
-      .create_fit_data(wrapped[["data"]], wrapped[["priors"]]),
-      .create_fit_data(declared[["data"]], declared[["priors"]])
-    )
-    expect_identical(
-      .create_model_syntax(wrapped[["data"]], wrapped[["priors"]]),
-      .create_model_syntax(declared[["data"]], declared[["priors"]])
-    )
+    for (input in list(V, factor)) {
+      candidate <- conditional_object(input, constructor)
+      known_V   <- .data_known_v_data(candidate$data)
+      sampling  <- .selection_sampling_structure(candidate$data)
+      expect_identical(sampling$residual_variance, numeric(nrow(dat)))
+      expect_identical(sampling$source_ids, "sampling_error")
+      retained <- matrix(0, nrow(dat), sampling$rank)
+      for (block in sampling$latent_blocks) {
+        retained[block$index, seq.int(block$z_start, block$z_end)] <- block$B
+      }
+      expect_equal(tcrossprod(retained), expected, tolerance = 1e-14)
+      expect_equal(.known_v_covariance_matrix(known_V), expected)
+      expect_identical(.data_selection_model(candidate$data)$groups$row_labels, dat$study)
+    }
   }
-  expect_warning(
-    override <- approximate_object(V, known_v_residual_fraction = .2),
-    paste0(
-      "'known_v_residual_fraction' was disregarded because the declared ",
-      "factor representation defines the exact residual variance."
-    ),
-    fixed = TRUE
-  )
-  expect_equal(.data_known_v_data(override[["data"]])[["residual_variance"]],
-               .4 * dat$vi)
-
-  stale <- V
-  stale[1L, 1L] <- stale[1L, 1L] * 2
   expect_error(
-    .known_v_canonicalize(stale),
-    "The 'V' vcalc2() metadata no longer match its covariance matrix.",
-    fixed = TRUE
-  )
-
-  # Detect edits independently of covariance scale or factorization roundoff.
-  tiny <- vcalc2(vi * 1e-20, cluster = study, type = type, obs = obs,
-                 rho = rho, data = dat)
-  tiny[1L, 1L] <- tiny[1L, 1L] * 2
-  expect_error(
-    .known_v_canonicalize(tiny),
-    "The 'V' vcalc2() metadata no longer match its covariance matrix.",
+    conditional_object(V, known_v_residual_fraction = .2),
+    "Unused argument in bselmodel.mv(): 'known_v_residual_fraction'",
     fixed = TRUE
   )
 })
-
-
-test_that("vcalc2 leaves unsupported metadata structures on the dense route", {
-
-  skip_if_not_installed("metafor")
-  dat <- data.frame(
-    yi    = seq(-.2, .3, length.out = 6L),
-    vi    = seq(.03, .08, length.out = 6L),
-    study = rep(c("a", "b"), each = 3L),
-    type  = rep(c("x", "x", "y"), 2L),
-    obs   = rep(seq_len(3L), 2L),
-    time  = rep(seq_len(3L), 2L)
-  )
-  V <- vcalc2(
-    vi, cluster = study, type = type, obs = obs, time1 = time,
-    rho = c(.6, .3), phi = .5, data = dat
-  )
-  metadata <- attr(V, "RoBMA_vcalc_metadata", exact = TRUE)
-
-  expect_identical(metadata[["factor_status"]], "unsupported")
-  expect_null(metadata[["factor"]])
-  expect_identical(.known_v_input_storage(V), "dense")
-})
-
 
 test_that("known_v_factor preserves exact provenance and structural routing", {
 
@@ -203,11 +175,11 @@ test_that("known_v_factor preserves exact provenance and structural routing", {
     data                      = dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = .factor_selection_prior(),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  factor_setup <- .data_exact_selection_setup(factor_object[["data"]])
+  factor_setup <- .data_selection_execution_plan(factor_object[["data"]])
   factor_syntax <- .create_model_syntax(
     factor_object[["data"]], factor_object[["priors"]]
   )
@@ -217,10 +189,10 @@ test_that("known_v_factor preserves exact provenance and structural routing", {
     "factor"
   )
   expect_equal(
-    .selection_exact_sampling_block(factor_setup[["sampling"]], seq_len(K)),
+    .selection_joint_sampling_block(factor_setup[["sampling"]], seq_len(K)),
     covariance
   )
-  expect_identical(factor_setup[["schema_version"]], 2L)
+  expect_identical(factor_setup[["schema_version"]], 5L)
   expect_identical(factor_setup[["exactness"]], "EF")
   expect_identical(
     factor_setup[["factor_ranks"]],
@@ -235,11 +207,11 @@ test_that("known_v_factor preserves exact provenance and structural routing", {
     data                      = dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = .factor_selection_prior(),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  dense_setup <- .data_exact_selection_setup(dense_object[["data"]])
+  dense_setup <- .data_selection_execution_plan(dense_object[["data"]])
   dense_syntax <- .create_model_syntax(
     dense_object[["data"]], dense_object[["priors"]]
   )
@@ -252,7 +224,8 @@ test_that("known_v_factor preserves exact provenance and structural routing", {
 test_that("factor routing fails closed outside the certified kernel contract", {
 
   K <- 6L
-  dat <- data.frame(yi = seq(-.3, .7, length.out = K))
+  dat <- data.frame(yi = seq(-.3, .7, length.out = K), study = "a",
+                    estimate = seq_len(K))
   high_rank <- matrix(seq_len(K * 5L) / 100, nrow = K, ncol = 5L)
   zero_residual <- matrix(c(
     .2, .1,
@@ -267,10 +240,11 @@ test_that("factor routing fails closed outside the certified kernel contract", {
     bselmodel.mv(
       yi                        = yi,
       V                         = V,
+      random                    = ~ 1 | estimate,
       data                      = dat,
       measure                   = "SMD",
       prior_unit_information_sd = 1,
-      selection_likelihood      = "exact",
+      prior_bias = .factor_selection_prior(),
       only_priors               = TRUE,
       silent                    = TRUE
     )
@@ -284,7 +258,7 @@ test_that("factor routing fails closed outside the certified kernel contract", {
   )
 
   for (object in list(high_rank_object, zero_residual_object)) {
-    setup <- .data_exact_selection_setup(object[["data"]])
+    setup <- .data_selection_execution_plan(object[["data"]])
     syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
     expect_identical(setup[["exactness"]], "E2")
     expect_match(syntax, "dselnorm_mnorm_step", fixed = TRUE)
@@ -302,11 +276,11 @@ test_that("factor routing fails closed outside the certified kernel contract", {
     data                      = random_dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = .factor_selection_prior(),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  random_setup    <- .data_exact_selection_setup(
+  random_setup    <- .data_selection_execution_plan(
     random_high_rank_object[["data"]]
   )
   random_fit_data <- .create_fit_data(
@@ -325,8 +299,8 @@ test_that("factor routing fails closed outside the certified kernel contract", {
     random_setup[["block_methods"]],
     "dense"
   )
-  expect_true("sel_exact_block_1_diagonal" %in% names(random_fit_data))
-  expect_match(random_syntax, "sel_exact_block_1_diagonal", fixed = TRUE)
+  expect_true("sel_joint_block_1_diagonal" %in% names(random_fit_data))
+  expect_match(random_syntax, "sel_joint_block_1_diagonal", fixed = TRUE)
 
   expect_error(known_v_factor(c(.1, -.1), matrix(0, 2L, 1L)),
                "non-negative")
@@ -350,7 +324,7 @@ test_that("higher-rank factor controls retain budget semantics", {
     diagonal       = rep(1, 4L),
     loading        = matrix(0, nrow = 4L, ncol = 0L)
   ), class = c("RoBMA_selection_sampling_plan", "list"))
-  factor_plan <- .selection_exact_execution_plan(
+  factor_plan <- .selection_joint_execution_plan(
     row_blocks       = list(1:4),
     block_methods     = "factor",
     factor_ranks      = 3L,
@@ -359,7 +333,7 @@ test_that("higher-rank factor controls retain budget semantics", {
     sampling_factor_blocks = NULL,
     random_covariance = NULL
   )
-  dense_plan <- .selection_exact_execution_plan(
+  dense_plan <- .selection_joint_execution_plan(
     row_blocks       = list(1:4),
     block_methods     = "dense",
     factor_ranks      = NA_integer_,
@@ -398,10 +372,13 @@ test_that("post-fit likelihood retains certified sampling factors", {
   )
   object <- bselmodel.mv(
     yi                        = seq(-.3, .6, length.out = K),
+    data                      = data.frame(study = rep("a", K), estimate = seq_len(K)),
     V                         = known_v_factor(rep(.02, K), loading),
+    random                    = ~ 1 | estimate,
+    prior_heterogeneity       = BayesTools::prior("point", list(location = .15)),
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = .factor_selection_prior(),
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -413,14 +390,14 @@ test_that("post-fit likelihood retains certified sampling factors", {
         means = matrix(0, nrow = 2L, ncol = K)
       )
     },
-    .selection_exact_signed_context = function(setup, signed_yi) {
+    .selection_joint_signed_context = function(setup, signed_yi) {
       list(obs_bin = rep(1L, K))
     },
-    .selection_exact_random_covariance_samples = function(setup) NULL,
-    .selection_exact_covariance_lower = function(...) {
+    .selection_joint_random_covariance_samples = function(setup) NULL,
+    .selection_joint_covariance_lower = function(...) {
       stop("Certified post-fit factors must not use dense covariance.")
     },
-    .selection_exact_factor_loglik_block = function(
+    .selection_joint_factor_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
         execution_plan, block_index) {
       factor_call <<- list(
@@ -433,13 +410,19 @@ test_that("post-fit likelihood retains certified sampling factors", {
     .package = "RoBMA"
   )
 
-  observed <- .selection_exact_block_loglik_from_setup(list(
+  observed <- .selection_joint_block_loglik_from_setup(list(
     data          = object[["data"]],
+    priors        = object[["priors"]],
+    fit           = structure(list(), formula_design = object$formula_design,
+      prior_list = c(object$formula_design$mu$prior_list,
+                     .create_fit_priors(object$data, object$priors))),
+    posterior_samples = matrix(0, 2L, 1L, dimnames = list(NULL, "mu_intercept")),
     S             = 2L,
+    K             = K,
     selection_sei = sqrt(.known_v_diagonal(
       .data_known_v_data(object[["data"]])
     )),
-    tau_within    = matrix(.15, nrow = 2L, ncol = K),
+    tau_within    = matrix(0, nrow = 2L, ncol = K),
     tau_between   = matrix(0, nrow = 2L, ncol = K),
     is_multilevel = FALSE
   ))
@@ -462,6 +445,117 @@ test_that("post-fit likelihood retains certified sampling factors", {
 })
 
 
+test_that("exact random factors reuse repeated states without changing covariance", {
+
+  dat <- data.frame(yi = c(-.2, .1), vi = c(.02, .03), study = "a")
+  object <- bselmodel.mv(
+    yi = yi, vi = vi, random = ~ 1 | study, data = dat, measure = "SMD",
+    prior_unit_information_sd = 1, prior_bias = .factor_selection_prior(),
+    only_priors = TRUE, silent = TRUE
+  )
+  factor_plans <- list(study = list(
+    type = "group", model_matrix = matrix(1, 2L, 1L),
+    group_map = c(1L, 1L), coefficient_structure = "diagonal"
+  ))
+  built_rows <- integer()
+  testthat::local_mocked_bindings(
+    .brma_mv_random_effects_marginal_factor_states = function(
+        object, posterior_samples, blocks, row_blocks) {
+
+      built_rows <<- c(built_rows, nrow(posterior_samples))
+      structure(list(
+        factor_plans = factor_plans,
+        factor_states = lapply(posterior_samples[, "sd"], function(sd) {
+          list(study = list(coefficient_factor = matrix(sd, 1L, 1L)))
+        }),
+        row_blocks = row_blocks,
+        metadata = list(n_draws = nrow(posterior_samples), n_rows = 2L,
+                        included_blocks = "study")
+      ), class = c("BayesTools_random_effects_marginal_factor_states", "list"))
+    },
+    .package = "RoBMA"
+  )
+  setup <- list(data = object[["data"]], priors = object[["priors"]],
+                S = 2L, K = 2L, posterior_samples = cbind(sd = c(.2, .5)))
+  factors <- .selection_joint_random_factor_samples(setup)
+  rows <- c(2L, 1L, 2L)
+  factors[["diagonal"]] <- factors[["diagonal"]][rows, , drop = FALSE]
+  factors[["loadings"]] <- lapply(factors[["loadings"]], function(loading) {
+    loading[rows, , , drop = FALSE]
+  })
+  setup[["S"]] <- 3L
+  setup[["posterior_samples"]] <- setup[["posterior_samples"]][rows, , drop = FALSE]
+  setup[["selection_random_factor_samples"]] <- factors
+  reused <- .selection_joint_random_factor_samples(setup)
+  expect_identical(built_rows, 2L)
+  for (i in seq_along(rows)) {
+    covariance <- diag(reused[["diagonal"]][i, ]) +
+      tcrossprod(matrix(reused[["loadings"]][[1L]][i, , ], nrow = 2L))
+    expect_equal(covariance, matrix(c(.2, .5)[rows[[i]]]^2, 2L, 2L),
+                 tolerance = 1e-14)
+  }
+  setup[["selection_random_factor_samples"]] <- NULL
+  setup[["posterior_samples"]][, "sd"] <- c(.3, .4, .6)
+  changed <- .selection_joint_random_factor_samples(setup)
+  expect_identical(built_rows, c(2L, 3L))
+  expect_equal(as.numeric(changed[["loadings"]][[1L]][, 1L, 1L]),
+               c(.3, .4, .6), tolerance = 1e-14)
+})
+
+
+test_that("dense covariance assembly preserves diagonal and nonempty factor parts", {
+
+  dat      <- data.frame(yi = c(-.2, .1, .3), study = "a", esid = seq_len(3L))
+  sampling <- diag(c(.02, .03, .04)) + tcrossprod(c(.04, .02, .03))
+  diagonal <- rbind(rep(.04, 3L), rep(.09, 3L))
+  for (rank in 0:1) {
+    object <- bselmodel.mv(
+      yi                        = yi,
+      V                         = sampling,
+      random                    = ~ 1 | study/esid,
+      data                      = dat,
+      measure                   = "SMD",
+      prior_unit_information_sd = 1,
+      selection = BayesTools::selection_model(
+        other_random_effects = if (rank == 0L) "condition" else "integrate",
+        group                = "study"
+      ),
+      only_priors = TRUE, silent = TRUE
+    )
+    plan <- .data_selection_execution_plan(object[["data"]])
+    # Dense JAGS storage has no factor columns; post-fit factors may still
+    # contain a nonempty loading component, independently of that storage.
+    expect_identical(plan[["random_covariance"]][["representation"]], "dense")
+    expect_identical(plan[["random_covariance"]][["loading_ranks"]][[1L]], 0L)
+    loading <- array(0, dim = c(2L, 3L, rank))
+    if (rank > 0L) {
+      loading[1L, , 1L] <- .3
+      loading[2L, , 1L] <- .4
+    }
+    factors <- list(
+      diagonal         = diagonal,
+      loadings         = list(loading),
+      ranks            = rank,
+      loading_supports = list(matrix(TRUE, 3L, rank)),
+      row_blocks       = list(seq_len(3L))
+    )
+    observed <- .selection_joint_covariance_lower(
+      setup                 = list(data = object[["data"]], S = 2L),
+      block_index           = 1L,
+      random_factor_samples = factors
+    )
+    expected <- t(vapply(seq_len(2L), function(draw) {
+
+      covariance <- sampling + diag(diagonal[draw, ])
+      if (rank > 0L) {
+        covariance <- covariance + tcrossprod(rep(c(.3, .4)[draw], 3L))
+      }
+      covariance[lower.tri(covariance, diag = TRUE)]
+    }, numeric(6L)))
+    expect_equal(observed, expected, tolerance = 1e-14)
+  }
+})
+
 test_that("bridge factor states retain the certified covariance exactly", {
 
   dat <- data.frame(
@@ -477,11 +571,11 @@ test_that("bridge factor states retain the certified covariance exactly", {
     data                      = dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = .factor_selection_prior(),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  exact_setup <- .data_exact_selection_setup(object[["data"]])
+  exact_setup <- .data_selection_execution_plan(object[["data"]])
   random_term <- object[["formula_design"]][["mu"]][["random_effects"]][[1L]]
   coefficient_factor <- matrix(
     c(.25, 0, 0, .08, .22, 0, -.03, .07, .18),
@@ -514,7 +608,7 @@ test_that("bridge factor states retain the certified covariance exactly", {
     .marglik_selection_context = function(parameters, data) {
       list(obs_bin = rep(1L, 3L))
     },
-    .selection_exact_factor_loglik_block = function(
+    .selection_joint_factor_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
         execution_plan, block_index) {
       factor_call <<- list(
@@ -533,7 +627,7 @@ test_that("bridge factor states retain the certified covariance exactly", {
     .package = "BayesTools"
   )
 
-  observed <- .marglik_exact_selection_log_lik(
+  observed <- .marglik_joint_selection_log_lik(
     parameters            = list(),
     data                  = bridge_data,
     model_data            = object[["data"]],
@@ -576,11 +670,11 @@ test_that("bridge dense fallback reconstructs the exact required block", {
     data                      = dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = .factor_selection_prior(),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  exact_setup <- .data_exact_selection_setup(object[["data"]])
+  exact_setup <- .data_selection_execution_plan(object[["data"]])
   random_term <- object[["formula_design"]][["mu"]][["random_effects"]][[1L]]
   bridge_factor <- list(
     representation = "factor_state",
@@ -608,16 +702,17 @@ test_that("bridge dense fallback reconstructs the exact required block", {
     .marglik_selection_context = function(parameters, data) {
       list(obs_bin = rep(1L, 3L))
     },
-    .selection_exact_joint_loglik_block = function(
+    .selection_joint_dense_loglik_block = function(
         yi, means, covariance_lower, sei, selection_context,
-        execution_plan, block_size) {
+        execution_plan, block_size, normalizer_grid = NULL) {
+      expect_null(normalizer_grid)
       observed_lower <<- covariance_lower
       23
     },
     .package = "RoBMA"
   )
 
-  observed <- .marglik_exact_selection_log_lik(
+  observed <- .marglik_joint_selection_log_lik(
     parameters            = list(),
     data                  = bridge_data,
     model_data            = object[["data"]],
@@ -633,7 +728,7 @@ test_that("bridge dense fallback reconstructs the exact required block", {
   )
 
   expected <- sampling + matrix(.04, 3L, 3L)
-  pairs <- .selection_exact_lower_pairs(
+  pairs <- .selection_joint_lower_pairs(
     exact_setup,
     1:3
   )
@@ -700,9 +795,9 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
       scrambles  = 16L,
       seed       = 417L
     )
-    quadrature <- .selection_exact_cluster_quadrature_rules(
-      SELNORM_FACTOR_QUADRATURE_ORDERS[[as.character(rank)]]
-    )
+    quadrature <- .selection_joint_factor_quadrature_rules(rank)[[
+      as.character(rank)
+    ]]
     observed <- .Call(
       "RoBMA_selnorm_factor_step_loglik_batch",
       as.double(y),
@@ -720,12 +815,14 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
       quadrature[["nodes"]],
       quadrature[["log_weights"]],
       as.double(quadrature[["orders"]]),
+      as.double(quadrature[["rule_counts"]]),
       as.double(qmc),
       4096L,
       4096L,
       16L,
       .005,
-      PACKAGE = "RoBMA"
+      FALSE,
+      0L, PACKAGE = "RoBMA"
     )
     covariance <- diag(residual_sd^2) + tcrossprod(loading)
     normal_observed <- .Call(
@@ -737,8 +834,9 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
       as.double(z_lower), as.double(z_upper), as.integer(obs_bin),
       sign, TRUE, 0L, quadrature[["nodes"]],
       quadrature[["log_weights"]], as.double(quadrature[["orders"]]),
-      as.double(qmc), 4096L, 4096L, 16L, .005,
-      PACKAGE = "RoBMA"
+      as.double(quadrature[["rule_counts"]]),
+      as.double(qmc), 4096L, 4096L, 16L, .005, FALSE,
+      0L, PACKAGE = "RoBMA"
     )
     reference <- reference_loglik(
       y, mu, covariance, sei, omega, z_lower, z_upper, obs_bin, sign
@@ -770,9 +868,7 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
   z_lower <- c(stats::qnorm(.025, lower.tail = FALSE), -Inf)
   z_upper <- c(Inf, stats::qnorm(.025, lower.tail = FALSE))
   obs_bin <- ifelse(y / sei >= z_lower[[1L]], 1L, 2L)
-  quadrature <- .selection_exact_cluster_quadrature_rules(
-    SELNORM_FACTOR_QUADRATURE_ORDERS[["4"]]
-  )
+  quadrature <- .selection_joint_factor_quadrature_rules(4L)[["4"]]
   qmc <- BayesTools::selection_qmc_design(
     dimensions = 8L,
     points     = 8L,
@@ -785,9 +881,10 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
     matrix(as.double(loading), nrow = 1L), sei, matrix(omega, nrow = 1L),
     z_lower, z_upper, as.integer(obs_bin), 1L, TRUE, 1L,
     quadrature[["nodes"]], quadrature[["log_weights"]],
-    as.double(quadrature[["orders"]]), as.double(qmc),
-    8L, 8L, 2L, .005,
-    PACKAGE = "RoBMA"
+    as.double(quadrature[["orders"]]),
+    as.double(quadrature[["rule_counts"]]), as.double(qmc),
+    8L, 8L, 2L, .005, FALSE,
+    0L, PACKAGE = "RoBMA"
   )
   covariance <- diag(residual_sd^2) + tcrossprod(loading)
   reference <- reference_loglik(
@@ -818,9 +915,7 @@ test_that("factor quadrature resolves an Assink state before QMC fallback", {
   z_lower <- c(stats::qnorm(.025, lower.tail = FALSE), -Inf)
   z_upper <- c(Inf, stats::qnorm(.025, lower.tail = FALSE))
   obs_bin <- ifelse(y / sei >= z_lower[[1L]], 1L, 2L)
-  quadrature <- .selection_exact_cluster_quadrature_rules(
-    SELNORM_FACTOR_QUADRATURE_ORDERS[["2"]]
-  )
+  quadrature <- .selection_joint_factor_quadrature_rules(2L)[["2"]]
   qmc <- BayesTools::selection_qmc_design(
     dimensions = 4L,
     points     = 8L,
@@ -833,8 +928,10 @@ test_that("factor quadrature resolves an Assink state before QMC fallback", {
     matrix(as.double(loading), nrow = 1L), sei, matrix(omega, nrow = 1L),
     z_lower, z_upper, as.integer(obs_bin), 1L, TRUE, 1L,
     quadrature[["nodes"]], quadrature[["log_weights"]],
-    as.double(quadrature[["orders"]]), as.double(qmc), 8L, 8L, 2L, .005,
-    PACKAGE = "RoBMA"
+    as.double(quadrature[["orders"]]),
+    as.double(quadrature[["rule_counts"]]), as.double(qmc),
+    8L, 8L, 2L, .005, FALSE,
+    0L, PACKAGE = "RoBMA"
   )
   covariance <- diag(residual_sd^2) + tcrossprod(loading)
   normal_log_density <- mvtnorm::dmvnorm(
@@ -856,6 +953,91 @@ test_that("factor quadrature resolves an Assink state before QMC fallback", {
 })
 
 
+test_that("factor integration retains inactive and opposing selection modes", {
+
+  # Captured valid Assink product-space states: three sampling factors and an
+  # inactive random factor. A rank-four budget previously rejected both states.
+  y <- c(.7156, .7067, .6475, .6428, .6271, .6238, .6025, .5763,
+         .5171, -.3797, -.4228, -.4245, -.4671, -.5230, -.5675, -.7586)
+  vi <- c(.0914, .0875, .0330, .0861, .0400, .0680, .1287, .0332,
+          .0517, .0390, .0664, .0809, .0667, .0988, .0340, .0437)
+  loading <- cbind(
+    c(.252942681254074, .176776695296637, .108562029668362,
+      .175356779167502, .119522860933439, .155838744494796,
+      .300149962518738, .108890508572340, .135883353337654,
+      .118019368870416, .153994434036707, .169978990298381,
+      .154341920978808, .262982889177224, .110194633003868,
+      .124928551008738),
+    c(0, .173205080756888, .0443202630213959, .171813852759316,
+      .0487950036474267, .0636209010280352, 0, .0444543639723985,
+      .133137952086226, .115634893399132, .150883114647446,
+      .166544717289810, .151223580927617, 0, .107968249301092,
+      .122404481710668),
+    c(0, 0, .0966953980290686, 0, .106458129484475,
+      .138804418757713, 0, .0969879717628257, rep(0, 8L)),
+    0
+  )
+  weights <- rbind(
+    c(1, .288785085821257, .067972879147966,
+      .067972879147966, .288785085821257, 1),
+    c(1, .557347309764094, .483225646479775,
+      .483225646479775, .557347309764094, 1)
+  )
+  z_lower <- stats::qnorm(c(.025, .05, .5, .95, .975, 1),
+                           lower.tail = FALSE)
+  z_upper <- c(Inf, head(z_lower, -1L))
+  obs_bin <- vapply(y / sqrt(vi), function(z) {
+    which(z >= z_lower)[[1L]]
+  }, integer(1L))
+  quadrature <- .selection_joint_factor_quadrature_rules(3:4)
+  evaluate <- function(columns, initial_points = 256L, max_points = 4096L) {
+    rank <- length(columns)
+    rules <- quadrature[[as.character(rank)]]
+    qmc <- BayesTools::selection_qmc_design(
+      dimensions = 2L * rank, points = max_points, scrambles = 8L, seed = 1L
+    )
+    .Call(
+      "RoBMA_selnorm_factor_step_loglik_batch",
+      y, matrix(0, 2L, length(y)),
+      matrix(rep(sqrt(.3 * vi), each = 2L), 2L),
+      matrix(rep(as.double(loading[, columns]), each = 2L), 2L),
+      sqrt(vi), weights, z_lower, z_upper, obs_bin, 1L, TRUE, 1L,
+      rules[["nodes"]], rules[["log_weights"]],
+      as.double(rules[["orders"]]), as.double(rules[["rule_counts"]]),
+      as.double(qmc), initial_points, max_points, 8L, .005, TRUE,
+      0L, PACKAGE = "RoBMA"
+    )
+  }
+  actual <- evaluate(1:4)
+  reduced <- evaluate(1:3)
+
+  expect_equal(actual, reduced, tolerance = 1e-12)
+  expect_identical(actual[["relative_mcse"]], c(0, 0))
+  expect_true(all(actual[["relative_change"]] <= .005))
+  # Independent full tensor integration of base-R interval probabilities at
+  # orders 95 and 127 agreed within 8e-13; it did not use the native reduction.
+  expect_lt(max(abs(actual[["log_normalizer"]] -
+                      c(-8.2838610492094045, -7.0139713230657499))),
+            3e-5)
+
+  # A small active fourth factor still has both opposing selection modes.
+  # Independent base-R interval quadrature (95 sampling nodes, 5 study nodes)
+  # gave -8.2656437531115206; a single-mode approximation loses half the mass.
+  loading[, 4L] <- .01
+  active <- evaluate(1:4, initial_points = 257L, max_points = 4103L)
+  expect_true(all(active[["relative_mcse"]] > 0))
+  expect_true(all(active[["relative_mcse"]] <= .005))
+  expect_true(all(active[["relative_change"]] <= .005))
+  expect_lt(abs(active[["log_normalizer"]][[1L]] + 8.2656437531115206), .005)
+
+  # Four coarse points cannot cover all seven proposals. This valid minimum
+  # R-interface budget must produce an estimate and honest diagnostics.
+  limited <- evaluate(1:4, initial_points = 4L, max_points = 4L)
+  expect_true(all(is.finite(limited[["log_normalizer"]])))
+  expect_true(all(limited[["relative_mcse"]] > .005))
+})
+
+
 test_that("JAGS instantiates the certified factor distribution", {
 
   skip_if_not_installed("rjags")
@@ -865,16 +1047,14 @@ test_that("JAGS instantiates the certified factor distribution", {
     scrambles  = 2L,
     seed       = 19L
   )
-  quadrature <- .selection_exact_cluster_quadrature_rules(
-    SELNORM_FACTOR_QUADRATURE_ORDERS[["2"]]
-  )
+  quadrature <- .selection_joint_factor_quadrature_rules(2L)[["2"]]
   model_text <- paste0(
     "model{\n",
     "  y[1:3] ~ dselnorm_factor_step(",
     "mu[1:3],residual_sd[1:3],loading[1:3,1:2],",
     "sei[1:3],omega,z_lower,z_upper,obs_bin[1:3],",
-    "1,1,1,nodes,log_weights,orders,",
-    "qmc[1:2,1:8,1:4],8,8,2,0.005)\n",
+    "1,1,1,nodes,log_weights,orders,rule_counts,",
+    "qmc[1:2,1:8,1:4],8,8,2,0.005,0)\n",
     "}\n"
   )
   connection <- textConnection(model_text)
@@ -895,6 +1075,7 @@ test_that("JAGS instantiates the certified factor distribution", {
       nodes       = quadrature[["nodes"]],
       log_weights = quadrature[["log_weights"]],
       orders      = quadrature[["orders"]],
+      rule_counts = quadrature[["rule_counts"]],
       qmc         = qmc
     ),
     n.chains = 1L,
@@ -903,4 +1084,137 @@ test_that("JAGS instantiates the certified factor distribution", {
   )
 
   expect_s3_class(model, "jags")
+})
+
+
+test_that("the early dense rule stays outside rank-one and sampling-conditioned plans", {
+
+  testthat::local_mocked_bindings(
+    .fit = function(object) list(),
+    .stop_fit_errors = function(...) NULL,
+    .object_summary = function(...) list(),
+    .object_coefficients = function(...) list(),
+    .autocompute_brma = function(object) object,
+    .package = "RoBMA"
+  )
+  data("dat.assink2016", package = "metadat", envir = environment())
+  dat <- dat.assink2016
+  V <- metafor::vcalc(vi, cluster = study, type = deltype, obs = esid,
+    rho = c(.7, .5), data = dat)
+  make_plan <- function(sampling = "integrate") {
+
+    prior <- BayesTools::prior_weightfunction("one-sided", steps = .025,
+      weights = BayesTools::wf_fixed(c(1, .5)),
+      model = BayesTools::selection_model(known_sampling_variance = sampling,
+        group = "study"))
+    object <- bselmodel.mv(yi = yi, V = V, random = ~ 1 | study / esid,
+      data = dat, measure = "SMD", prior_unit_information_sd = 1,
+      prior_bias = prior, only_priors = TRUE, silent = TRUE)
+    .data_selection_execution_plan(object[["data"]])
+  }
+  original <- c(15L, 31L, 63L, 127L, 255L, 511L, 1023L)
+  expect_identical(SELNORM_CLUSTER_QUADRATURE_ORDERS, original)
+  dense <- make_plan()
+  expect_true(any(dense[["block_methods"]] == "dense"))
+  expect_false(any(dense[["block_methods"]] == "rank_one"))
+  expect_identical(dense[["quadrature"]][["orders"]], c(7L, original))
+  conditioned <- make_plan("condition")
+  expect_identical(conditioned[["statistical_target"]], "whole_sampling_error_selection")
+  expect_identical(conditioned[["quadrature"]][["orders"]], original)
+
+  # The compiled rank-one route also owns mixed-sign loadings. A shared plan
+  # containing that route must not inherit a dense-only experimental schedule.
+  for (methods in list("rank_one", c("dense", "rank_one"))) {
+    plan <- .selection_joint_execution_plan(
+      row_blocks = lapply(seq_along(methods), function(index) (3L * index - 2L):(3L * index)),
+      block_methods = methods,
+      factor_ranks = ifelse(methods == "rank_one", 1L, NA_integer_),
+      selection_control = set_selection_likelihood_control(
+        points_per_scramble = 8L, max_points_per_scramble = 8L, scrambles = 2L),
+      sampling = NULL, sampling_factor_blocks = NULL, random_covariance = NULL)
+    expect_identical(plan[["quadrature"]][["orders"]], original)
+  }
+})
+
+# Append to the existing test-00-selection-factor-routing.R after root review.
+# Constructor-only regressions; no new fitted-model cache or sampling budget.
+test_that("factor cancellation preserves publication and prediction partitions", {
+
+  construct <- function(V, dat, group = "paper", rule = "best") {
+
+    bselmodel.mv(
+      yi = dat$yi, V = V, data = dat, measure = "GEN",
+      prior_bias = BayesTools::prior_weightfunction(
+        "one-sided", steps = .025, weights = BayesTools::wf_fixed(c(1, .5)),
+        model = selection_model(group = group, weight_rule = rule)),
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  }
+
+  # The columns overlap every row, but their cross-publication covariance
+  # cancels exactly. These are positive-definite, correlated 2x2 blocks.
+  loading <- rbind(c(1, 1), c(2, 2), c(1, -1), c(2, -2))
+  factor <- known_v_factor(c(1, 2, 3, 4), loading)
+  covariance <- matrix(c(
+    3, 4, 0, 0,
+    4, 10, 0, 0,
+    0, 0, 5, 4,
+    0, 0, 4, 12), 4L, byrow = TRUE)
+  expect_identical(diag(factor$diagonal) + tcrossprod(factor$loading), covariance)
+  dat <- data.frame(yi = c(.1, -.2, .3, -.4), paper = c("a", "a", "b", "b"))
+  dense_fit <- construct(covariance, dat)
+  factor_fit <- construct(factor, dat)
+  expected <- list(1:2, 3:4)
+  for (fit in list(dense_fit, factor_fit)) {
+    known <- .data_known_v_data(fit$data)
+    plan <- .data_selection_execution_plan(fit$data)
+    expect_identical(lapply(.known_v_blocks(known), `[[`, "index"), expected)
+    expect_identical(.known_v_covariance_matrix(known), covariance)
+    expect_identical(plan$row_blocks, expected)
+    expect_identical(plan$sampling$representation, "dense")
+    expect_identical(plan$sampling$covariance, covariance)
+  }
+
+  # Default singleton publication binding must also agree for a diagonal V
+  # expressed with cancelling columns, both at fitting and for explicit V_new.
+  diagonal_factor <- known_v_factor(c(1, 1), rbind(c(1, 1), c(1, -1)))
+  diagonal <- diag(3, 2L)
+  dat <- data.frame(yi = c(.1, -.2))
+  for (input in list(diagonal, diagonal_factor)) {
+    fit <- construct(input, dat, group = NULL, rule = "product")
+    known <- .data_known_v_data(fit$data)
+    expect_length(.known_v_correlated_blocks(known), 0L)
+    expect_identical(.data_selection_model(fit$data)$groups$row_blocks, list(1L, 2L))
+    for (new_input in list(diagonal, diagonal_factor)) {
+      known_new <- .known_v_newdata_prepare(new_input, 2L)
+      expect_length(.known_v_correlated_blocks(known_new), 0L)
+      expect_identical(.known_v_covariance_matrix(known_new), diagonal)
+      context <- list(object = fit, same_data = FALSE, known_V_new = known_new,
+        K = 2L, raw_newdata = dat, outcome_data = dat)
+      expect_identical(.predict_joint_selection_groups(context), list(1L, 2L))
+    }
+  }
+})
+
+test_that("latent fit data distinguish independent rows from rows without loadings", {
+
+  loading <- rbind(c(1, 1), c(2, 2), c(1, -1), c(0, 0))
+  factor <- known_v_factor(rep(1, 4L), loading)
+  dat <- data.frame(yi = c(.1, -.2, .3, -.4))
+  fit <- brma.mv(yi = dat$yi, V = factor, data = dat, measure = "GEN",
+    known_v_parameterization = "latent", prior_unit_information_sd = 1,
+    only_priors = TRUE, silent = TRUE)
+  known <- .data_known_v_data(fit$data)
+  blocks <- .known_v_backend_blocks(known, "latent")
+  expected_zero <- setdiff(seq_len(4L), unlist(lapply(blocks, `[[`, "index")))
+  expect_identical(expected_zero, 4L)
+  expect_identical(.known_v_independent_indices(known), 3:4)
+  graph_data <- .create_fit_data(fit$data, fit$priors)
+  expect_identical(graph_data$known_v_independent_index, expected_zero)
+  expect_identical(graph_data$known_v_independent_n, 1L)
+  expect_identical(.known_v_rank(known), 4L)
+  expect_identical(as.integer(attr(.create_fit_priors(fit$data, fit$priors)$sampling_z,
+    "levels")), 4L)
+  expect_identical(unlist(lapply(blocks, function(block) {
+    seq.int(block$z_start, block$z_end)
+  })), 1:4)
 })

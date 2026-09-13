@@ -1,8 +1,70 @@
 # Known-V backend preparation -----
 
+.selection_bind_groups <- function(model, row_index, input_data,
+                                   cluster = NULL,
+                                   allow_singletons = FALSE) {
+
+  if (!inherits(model, "selection_model") || !is.list(model)) {
+    stop("Internal error: a validated selection model is required for group binding.", call. = FALSE)
+  }
+  if (!is.numeric(row_index) || !length(row_index) || anyNA(row_index) ||
+      any(!is.finite(row_index)) || any(row_index < 1L) ||
+      any(row_index != as.integer(row_index)) || anyDuplicated(row_index)) {
+    stop("Internal error: the selection row map is invalid.", call. = FALSE)
+  }
+  row_index <- as.integer(row_index)
+  BayesTools::check_bool(allow_singletons, "allow_singletons")
+  requested <- model[["group"]]
+  if (!is.null(requested)) {
+    if (!is.character(requested) || length(requested) != 1L ||
+        is.na(requested) || !nzchar(requested)) {
+      stop("The selection model 'group' must be a column name or NULL.", call. = FALSE)
+    }
+    if (!is.data.frame(input_data) || !requested %in% names(input_data)) {
+      stop("The 'group' column '", requested, "' was not found in 'data'.", call. = FALSE)
+    }
+    if (max(row_index) > nrow(input_data)) {
+      stop("The 'group' column does not match the original data row map.", call. = FALSE)
+    }
+    values <- input_data[[requested]][row_index]
+    provenance <- "explicit"
+  } else if (!is.null(cluster)) {
+    if (max(row_index) > length(cluster)) {
+      stop("The 'cluster' identifiers do not match the original data row map.", call. = FALSE)
+    }
+    values <- cluster[row_index]
+    provenance <- "cluster"
+  } else if (allow_singletons) {
+    values <- row_index
+    provenance <- "singleton"
+  } else {
+    stop(
+      "Publication groups are unavailable for this input. Specify 'group' in 'selection_model()'.",
+      call. = FALSE
+    )
+  }
+  if (!is.atomic(values) || !is.null(dim(values)) ||
+      length(values) != length(row_index)) {
+    stop("Publication group identifiers must have one value per retained data row.", call. = FALSE)
+  }
+  if (anyNA(values)) {
+    stop("Publication group identifiers must not be missing among retained data rows.", call. = FALSE)
+  }
+  labels <- unique(values)
+  group_index <- match(values, labels)
+  list(
+    version     = 1L,
+    requested   = requested,
+    row_index   = row_index,
+    row_labels  = values,
+    group_index = group_index,
+    row_blocks  = unname(split(seq_along(group_index), group_index)),
+    labels      = labels,
+    provenance  = provenance
+  )
+}
+
 .known_v_prepare <- function(V, keep_rows, known_v_parameterization,
-                             known_v_residual_fraction,
-                             known_v_residual_fraction_specified = FALSE,
                              known_v_is_scale = FALSE,
                              warn_singular = TRUE) {
 
@@ -18,13 +80,11 @@
   }
   BayesTools::check_bool(known_v_is_scale, "known_v_is_scale")
 
-  if (is.null(known_v_residual_fraction)) {
-    known_v_residual_fraction <- 0.10
-  }
-  .known_v_check_residual_fraction(known_v_residual_fraction)
-
+  metadata <- .known_v_input_metadata(V)
+  metadata <- .known_v_subset_selection_metadata(metadata, which(keep_rows))
   V       <- .known_v_subset_input(V, keep_rows)
   known_V <- .known_v_canonicalize(V, warn_singular = warn_singular)
+  known_V <- .known_v_update(known_V, list(selection_metadata = metadata))
   declared_factor <- identical(.known_v_storage(known_V), "factor")
   covariance_blocks <- .known_v_correlated_blocks(known_V)
   block_indices     <- lapply(covariance_blocks, `[[`, "index")
@@ -48,11 +108,10 @@
       known_v_is_singular   = singular
     )
   }
-  known_v_residual_fraction_metadata <- if (declared_factor) {
+  residual_fraction_requested <- if (declared_factor) {
     NULL
-  } else if (known_v_parameterization == "latent" ||
-             isTRUE(known_v_residual_fraction_specified)) {
-    known_v_residual_fraction
+  } else if (known_v_parameterization == "latent") {
+    0.10
   } else {
     NULL
   }
@@ -80,24 +139,10 @@
     parameterization_requested = known_v_requested_parameterization,
     effective_backend          = effective_backend,
     correlated                 = correlated,
-    residual_fraction_requested = known_v_residual_fraction_metadata
+    residual_fraction_requested = residual_fraction_requested
   ))
 
-  if (declared_factor && isTRUE(known_v_residual_fraction_specified)) {
-    warning(
-      "'known_v_residual_fraction' was disregarded because the declared ",
-      "factor representation defines the exact residual variance.",
-      call.      = FALSE,
-      immediate. = TRUE
-    )
-  }
-
   if (effective_backend == "whitened") {
-    .known_v_warn_unused_residual_fraction(
-      known_v_parameterization,
-      !declared_factor && known_v_residual_fraction_specified &&
-        !identical(known_v_requested_parameterization, "auto")
-    )
 
     whitening <- .known_v_whiten_blocks(known_V)
     return(.known_v_update(
@@ -111,11 +156,6 @@
   }
 
   if (effective_backend == "block_mvn") {
-    .known_v_warn_unused_residual_fraction(
-      known_v_parameterization,
-      !declared_factor && known_v_residual_fraction_specified &&
-        !identical(known_v_requested_parameterization, "auto")
-    )
 
     block_mvn <- .known_v_block_mvn_blocks(known_V)
     return(.known_v_update(
@@ -128,13 +168,20 @@
     ))
   }
 
+  if (effective_backend == "diagonal") {
+    return(.known_v_update(known_V, list(
+      residual_variance = .known_v_diagonal(known_V),
+      residual_sei      = sqrt(.known_v_diagonal(known_V)),
+      latent_blocks     = list(),
+      rank              = 0L,
+      diagnostics       = data.frame()
+    )))
+  }
+
   decomposition <- if (declared_factor) {
     .known_v_decompose_declared_factor(known_V)
   } else {
-    .known_v_decompose_blocks(
-      known_V           = known_V,
-      residual_fraction = known_v_residual_fraction
-    )
+    .known_v_decompose_blocks(known_V)
   }
 
   return(.known_v_update(known_V, decomposition))
@@ -145,6 +192,7 @@
 
   storage <- .known_v_input_storage(V)
   K       <- .known_v_input_nrow(V)
+  metadata <- .known_v_input_metadata(V)
   if (K == 0L) {
     stop("The 'V' argument must be non-empty.", call. = FALSE)
   }
@@ -159,6 +207,7 @@
     }
     return(.new_known_v(list(
       version  = 2L,
+      selection_metadata = metadata,
       storage  = "diagonal",
       K        = K,
       diagonal = diagonal,
@@ -175,10 +224,6 @@
       stop("The diagonal of 'V' must contain positive variances.",
            call. = FALSE)
     }
-    block_indices <- .known_v_factor_block_indices(
-      components[["diagonal"]],
-      components[["loading"]]
-    )
     covariance <- .known_v_factor_covariance(
       components[["diagonal"]],
       components[["loading"]]
@@ -187,12 +232,16 @@
       stop("The 'V' argument must contain only finite non-missing values.",
            call. = FALSE)
     }
+    # Statistical dependence belongs to V, not to overlapping auxiliary
+    # loading columns whose cross-products can cancel exactly.
+    block_indices <- .known_v_block_indices(covariance)
     singular <- .known_v_is_singular(covariance)
     if (singular && isTRUE(warn_singular)) {
       .known_v_warn_singular()
     }
     return(.new_known_v(list(
       version         = 2L,
+      selection_metadata = metadata,
       storage         = "factor",
       K               = K,
       diagonal        = diagonal,
@@ -218,6 +267,7 @@
       length(indices[[1L]]) == K && K > 1L
     return(.new_known_v(list(
       version  = 2L,
+      selection_metadata = metadata,
       storage  = if (retain_dense) {
         "dense"
       } else if (length(blocks) == 0L) {
@@ -259,6 +309,7 @@
 
   .new_known_v(list(
     version  = 2L,
+    selection_metadata = metadata,
     storage  = "blocks",
     K        = K,
     diagonal = diagonal,
@@ -407,37 +458,6 @@
   max(vapply(block_indices, length, integer(1)))
 }
 
-.known_v_check_residual_fraction <- function(known_v_residual_fraction) {
-
-  BayesTools::check_real(
-    known_v_residual_fraction,
-    "known_v_residual_fraction",
-    check_length = 1,
-    lower        = 0,
-    upper        = 1,
-    allow_bound  = FALSE,
-    allow_NA     = FALSE
-  )
-
-  return(invisible(TRUE))
-}
-
-.known_v_warn_unused_residual_fraction <- function(known_v_parameterization,
-                                                   known_v_residual_fraction_specified) {
-
-  if (isTRUE(known_v_residual_fraction_specified)) {
-    warning(
-      "'known_v_residual_fraction' is only used with ",
-      "'known_v_parameterization = \"latent\"' and was disregarded for ",
-      "'known_v_parameterization = \"", known_v_parameterization, "\"'.",
-      call.      = FALSE,
-      immediate. = TRUE
-    )
-  }
-
-  return(invisible(TRUE))
-}
-
 .known_v_block_mvn_blocks <- function(known_V) {
 
   covariance_blocks <- .known_v_correlated_blocks(known_V)
@@ -553,19 +573,18 @@
   ))
 }
 
-.known_v_decompose_blocks <- function(known_V, residual_fraction) {
+.known_v_decompose_blocks <- function(known_V) {
 
   covariance_blocks <- .known_v_correlated_blocks(known_V)
   residual_variance <- .known_v_diagonal(known_V)
   latent_blocks     <- vector("list", length(covariance_blocks))
   diagnostics       <- vector("list", length(covariance_blocks))
-  reduction_warning <- FALSE
   rank_total        <- 0L
 
   for (b in seq_along(covariance_blocks)) {
     idx      <- covariance_blocks[[b]][["index"]]
     V_block  <- covariance_blocks[[b]][["covariance"]]
-    decomp   <- .known_v_decompose_block(V_block, residual_fraction)
+    decomp   <- .known_v_decompose_block(V_block)
 
     residual_variance[idx] <- decomp[["residual_variance"]]
     rank_block <- ncol(decomp[["B"]])
@@ -582,23 +601,13 @@
     diagnostics[[b]] <- data.frame(
       block                          = b,
       block_size                     = length(idx),
-      requested_residual_fraction    = residual_fraction,
+      requested_residual_fraction    = 0.10,
       effective_residual_fraction    = decomp[["effective_residual_fraction"]],
       rank                           = ncol(decomp[["B"]]),
       max_reconstruction_error       = decomp[["max_reconstruction_error"]],
       min_latent_eigenvalue          = decomp[["min_latent_eigenvalue"]],
       min_residual_variance_fraction = min(decomp[["residual_variance"]] / diag(V_block)),
       stringsAsFactors               = FALSE
-    )
-    reduction_warning <- reduction_warning || decomp[["reduced"]]
-  }
-
-  if (reduction_warning) {
-    warning(
-      "'known_v_residual_fraction' was reduced for at least one known-V block ",
-      "to keep V - D positive semidefinite.",
-      call. = FALSE,
-      immediate. = TRUE
     )
   }
 
@@ -618,7 +627,11 @@
 
   diagonal         <- known_V[["factor_diagonal"]]
   loading          <- known_V[["factor_loading"]]
-  covariance_blocks <- .known_v_correlated_blocks(known_V)
+  source_ids       <- .known_v_selection_metadata(known_V)[["source_ids"]]
+  total_diagonal   <- .known_v_diagonal(known_V)
+  covariance_blocks <- Filter(function(block) {
+    any(loading[block[["index"]], , drop = FALSE] != 0)
+  }, .known_v_blocks(known_V))
   latent_blocks    <- vector("list", length(covariance_blocks))
   diagnostics      <- vector("list", length(covariance_blocks))
   rank_total       <- 0L
@@ -630,19 +643,14 @@
     } else {
       colSums(loading[index, , drop = FALSE] != 0)
     }
-    local_columns  <- which(support_size == 1L)
-    factor_columns <- which(support_size > 1L)
-    if (length(local_columns) > 0L) {
-      diagonal[index] <- diagonal[index] + rowSums(
-        loading[index, local_columns, drop = FALSE]^2
-      )
-    }
+    factor_columns <- which(support_size > 0L)
     B          <- loading[index, factor_columns, drop = FALSE]
     rank_block <- ncol(B)
     latent_blocks[[b]] <- list(
       index   = index,
       size    = length(index),
       B       = B,
+      source_ids = source_ids[factor_columns],
       rank    = rank_block,
       z_start = rank_total + 1L,
       z_end   = rank_total + rank_block
@@ -657,16 +665,9 @@
       max_reconstruction_error       = 0,
       min_latent_eigenvalue          = NA_real_,
       min_residual_variance_fraction = min(
-        diagonal[index] / .known_v_diagonal(known_V)[index]
+        diagonal[index] / total_diagonal[index]
       ),
       stringsAsFactors = FALSE
-    )
-  }
-
-  independent <- .known_v_independent_indices(known_V)
-  if (length(independent) > 0L && ncol(loading) > 0L) {
-    diagonal[independent] <- diagonal[independent] + rowSums(
-      loading[independent, , drop = FALSE]^2
     )
   }
 
@@ -677,6 +678,125 @@
     rank              = rank_total,
     diagnostics       = .known_v_bind_diagnostics(diagnostics)
   )
+}
+
+
+.known_v_resolve_selection_structure <- function(known_V) {
+
+  if (!is.null(known_V[["selection_structure"]])) {
+    .known_v_check_selection_structure(known_V)
+    return(known_V)
+  }
+  metadata   <- .known_v_selection_metadata(known_V)
+  K          <- .known_v_nrow(known_V)
+  blocks     <- .known_v_blocks(known_V)
+  rank_total <- 0L
+  for (b in seq_along(blocks)) {
+    rows <- blocks[[b]][["index"]]
+    if (identical(.known_v_storage(known_V), "factor")) {
+      diagonal         <- known_V[["factor_diagonal"]][rows]
+      loading          <- known_V[["factor_loading"]][rows, , drop = FALSE]
+      loading          <- loading[, colSums(abs(loading)) > 0, drop = FALSE]
+      independent      <- which(diagonal > 0)
+      diagonal_loading <- matrix(0, length(rows), length(independent))
+      if (length(independent)) {
+        diagonal_loading[cbind(independent, seq_along(independent))] <-
+          sqrt(diagonal[independent])
+      }
+      B <- cbind(diagonal_loading, loading)
+    } else {
+      covariance <- blocks[[b]][["covariance"]]
+      if (all(covariance == 0)) {
+        B <- matrix(0, length(rows), 0L)
+      } else {
+        root <- tryCatch(chol(covariance), error = function(e) NULL)
+        if (is.null(root)) {
+          # Pivoted Cholesky handles an already validated PSD covariance.
+          # tol = 0 preserves positive pivots rather than dropping small SDs.
+          root <- suppressWarnings(chol(covariance, pivot = TRUE, tol = 0))
+          rank <- attr(root, "rank")
+          B    <- t(root[seq_len(rank), order(attr(root, "pivot")), drop = FALSE])
+        } else {
+          B <- t(root)
+        }
+      }
+    }
+    rank <- ncol(B)
+    blocks[[b]] <- list(
+      index = rows, size = length(rows), B = unname(B), rank = rank,
+      z_start = rank_total + 1L, z_end = rank_total + rank
+    )
+    rank_total <- rank_total + rank
+  }
+  blocks    <- Filter(function(block) block[["rank"]] > 0L, blocks)
+  structure <- list(
+    version           = 2L,
+    metadata_hash     = metadata[["hash"]],
+    row_index         = metadata[["row_index"]],
+    residual_variance = numeric(K),
+    residual_sei      = numeric(K),
+    latent_blocks     = blocks,
+    rank              = rank_total,
+    source_ids        = "sampling_error",
+    provenance        = list(
+      input_origin       = metadata[["origin"]],
+      factor_status      = metadata[["factor_status"]],
+      policy             = "whole_sampling_error",
+      policy_version     = 1L
+    )
+  )
+  structure[["hash"]] <- rlang::hash(structure)
+  .known_v_update(known_V, list(selection_structure = structure))
+}
+
+
+.selection_sampling_structure <- function(data) {
+
+  known_V <- .data_known_v_data(data)
+  if (is.null(known_V)) {
+    K         <- nrow(data[["outcome"]])
+    row_index <- attr(data, "selection_binding", exact = TRUE)[["row_index"]]
+    if (is.null(row_index)) {
+      row_index <- attr(data, "selection_model", exact = TRUE)[["groups"]][["row_index"]]
+    }
+    if (is.null(row_index)) {
+      row_index <- seq_len(K)
+    }
+    sei      <- data[["outcome"]][["sei"]]
+    positive <- which(sei > 0)
+    blocks   <- lapply(seq_along(positive), function(index) {
+
+      row <- positive[[index]]
+      list(index = row, size = 1L, B = matrix(sei[[row]], 1L, 1L),
+           rank = 1L, z_start = index, z_end = index)
+    })
+    return(list(
+      version = 2L, row_index = row_index,
+      residual_variance = numeric(K), residual_sei = numeric(K),
+      latent_blocks = blocks, rank = length(positive), source_ids = "sampling_error",
+      provenance = list(input_origin = "vi/sei", policy = "whole_sampling_error",
+        policy_version = 1L)
+    ))
+  }
+  .known_v_check_selection_structure(known_V)
+}
+
+
+.known_v_check_selection_structure <- function(known_V) {
+
+  structure <- known_V[["selection_structure"]]
+  metadata  <- .known_v_selection_metadata(known_V)
+  if (!is.list(structure) || !identical(structure[["version"]], 2L)) {
+    stop("The conditional sampling structure is missing or invalid.", call. = FALSE)
+  }
+  payload <- structure
+  payload[["hash"]] <- NULL
+  if (!identical(structure[["hash"]], rlang::hash(payload)) ||
+      !identical(structure[["metadata_hash"]], metadata[["hash"]]) ||
+      !identical(structure[["row_index"]], metadata[["row_index"]])) {
+    stop("The conditional sampling structure is missing or no longer matches the retained rows.", call. = FALSE)
+  }
+  structure
 }
 
 
@@ -691,7 +811,7 @@
   out
 }
 
-.known_v_decompose_block <- function(V_block, residual_fraction) {
+.known_v_decompose_block <- function(V_block) {
 
   block_size <- nrow(V_block)
   diagonal   <- diag(V_block)
@@ -703,8 +823,7 @@
       B                            = matrix(rank_one_factor, ncol = 1L),
       effective_residual_fraction  = 0,
       max_reconstruction_error     = 0,
-      min_latent_eigenvalue        = 0,
-      reduced                      = FALSE
+      min_latent_eigenvalue        = 0
     ))
   }
 
@@ -714,12 +833,14 @@
       B                            = matrix(numeric(0), nrow = block_size, ncol = 0L),
       effective_residual_fraction  = 1,
       max_reconstruction_error     = 0,
-      min_latent_eigenvalue        = NA_real_,
-      reduced                      = FALSE
+      min_latent_eigenvalue        = NA_real_
     ))
   }
 
-  correlation <- stats::cov2cor(V_block)
+  # Standardization is a symmetric covariance congruence. Avoid separately
+  # rounded row/column scaling while retaining the supplied V unchanged.
+  correlation <- V_block / tcrossprod(sqrt(diagonal))
+  diag(correlation) <- 1
   lambda_min  <- min(.covariance_factorization(correlation)[["eigenvalues"]])
   alpha_max   <- 0.99 * lambda_min
 
@@ -731,8 +852,7 @@
     )
   }
 
-  alpha   <- min(residual_fraction, alpha_max)
-  reduced <- alpha < residual_fraction
+  alpha <- min(0.10, alpha_max)
 
   residual_variance <- alpha * diagonal
   latent_covariance <- V_block - diag(residual_variance, nrow = block_size)
@@ -761,7 +881,6 @@
     B                            = B,
     effective_residual_fraction  = alpha,
     max_reconstruction_error     = max(abs(reconstruction - V_block)),
-    min_latent_eigenvalue        = min(values),
-    reduced                      = reduced
+    min_latent_eigenvalue        = min(values)
   ))
 }

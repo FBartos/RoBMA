@@ -10,7 +10,7 @@ context("Fixed point-prior monitoring")
   return(BayesTools::JAGS_to_monitor(fit_priors))
 }
 
-test_that("single-model constructors monitor fixed mu and tau", {
+test_that("single-model constructors monitor fixed location and heterogeneity", {
 
   yi          <- c(0.10, 0.20)
   sei         <- c(0.10, 0.12)
@@ -32,7 +32,8 @@ test_that("single-model constructors monitor fixed mu and tau", {
     brma.mv = brma.mv(
       yi                        = yi,
       V                         = matrix(c(0.01, 0.002, 0.002, 0.0144), nrow = 2),
-      random                    = NULL,
+      random                    = ~ 1 | estimate,
+      data                      = data.frame(estimate = seq_along(yi)),
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
       prior_effect              = effect,
@@ -81,9 +82,21 @@ test_that("single-model constructors monitor fixed mu and tau", {
   )
 
   for (name in names(objects)) {
-    monitors <- .fixed_prior_monitors(objects[[name]])
-    expect_true("mu" %in% monitors, info = name)
-    expect_true("tau" %in% monitors, info = name)
+    if (inherits(objects[[name]], "brma.mv")) {
+      design <- .fitted_formula_design(objects[[name]], "mu", required = TRUE)
+      map <- design[["name_map"]]
+      location <- map[["jags_name"]][map[["kind"]] == "fixed" & map[["term"]] == "intercept"]
+      scale <- design[["random_effects"]][[1L]][["sd_parameter_names"]]
+      monitors <- BayesTools::JAGS_to_monitor(design[["prior_list"]])
+      expect_length(location, 1L)
+      expect_length(scale, 1L)
+      expect_true(location %in% monitors, info = name)
+      expect_true(scale %in% monitors, info = name)
+    } else {
+      monitors <- .fixed_prior_monitors(objects[[name]])
+      expect_true("mu" %in% monitors, info = name)
+      expect_true("tau" %in% monitors, info = name)
+    }
   }
 
   expect_true("PET" %in% .fixed_prior_monitors(objects[["bPET"]]))

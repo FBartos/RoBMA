@@ -28,8 +28,6 @@ brma.mv(
   prior_informed_field,
   prior_informed_subfield,
   known_v_parameterization = "auto",
-  known_v_residual_fraction = 0.1,
-  marginalize_estimate_level = TRUE,
   sample = 5000,
   burnin = 2000,
   adapt = 500,
@@ -52,9 +50,13 @@ left-hand side and location moderators on the right-hand side (for example
 \code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.}
 
 \item{V}{a known working variance-covariance matrix, a list of block
-variance-covariance matrices, a metadata-preserving \code{\link[=vcalc2]{vcalc2()}} result, or an
-exact diagonal-plus-factor declaration created by \code{\link[=known_v_factor]{known_v_factor()}}, used
-by \code{brma.mv()}.}
+variance-covariance matrices, or an exact diagonal-plus-factor declaration
+created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}. Ordinary covariance
+matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. For selection
+models, declare publication groups separately with \code{selection_model(group = ...)}.
+Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
+stored symmetrically by averaging off-diagonal pairs; the supplied object
+and its diagonal are unchanged.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
 when estimating the unit information standard deviation.}
@@ -71,17 +73,10 @@ scale predictors for location-scale models. Formula input is evaluated in
 Random-formula models also accept a named list targeting top-level random
 components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
-\item{random}{an optional formula or list of formulas specifying
-BayesTools random-effect terms for \code{brma.mv()}. Use
-\link[=random_effect_formula_tags]{random-effect formula structure tags} such as
-\code{diag()}, \code{us()}/\code{un()}, \code{cs()}, \code{hcs()}, \code{ar1()}/\code{ar()}, \code{har()}, or
-\code{car()} inside the formula. Plain \code{(expr | group)} syntax uses an
-unstructured random-coefficient block; \code{expr || group} uses a diagonal
-block. The coefficient-formula and structured-index tag families have
-different left-side semantics; see the linked documentation. A bare formula
-or unnamed one-entry list has no redundant component prefix. An explicitly
-named one-entry list retains its name; lists with two or more entries
-generate missing names as \verb{component 1}, \verb{component 2}, and so on.}
+\item{random}{Optional BayesTools random-effect formula or list of formulas.
+Omission or \code{NULL} means a fixed-effect model with no implicit
+heterogeneity term. Known sampling covariance \code{V} remains unchanged.
+Declare \code{random} before supplying heterogeneity priors or scale formulas.}
 
 \item{R}{optional known random-effect group covariance/correlation matrix,
 or a named list of matrices. Matrix row and column names identify grouping
@@ -160,24 +155,6 @@ field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field
 likelihood; \code{"block_mvn"} uses an exact native block multivariate-normal
 likelihood.}
 
-\item{known_v_residual_fraction}{proportion of the diagonal of \code{V} left as
-conditional independent residual sampling variance in the latent \verb{D + BB'}
-representation. Defaults to \code{0.10}; values are validated for all backends
-but affect only the latent backend. When \code{"auto"} selects \code{"whitened"} or
-\code{"block_mvn"}, explicitly supplied values are disregarded by the likelihood.
-Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
-supplied. For a factor representation declared by \code{\link[=vcalc2]{vcalc2()}} or
-\code{\link[=known_v_factor]{known_v_factor()}}, the declared diagonal is the exact residual variance and
-this argument is disregarded with a warning when supplied explicitly.
-Approximate selection likelihoods condition on the declared factors when
-available; otherwise this argument controls their sampling decomposition.
-Different decompositions of the same covariance can define different
-approximate selection likelihoods.}
-
-\item{marginalize_estimate_level}{logical; should a one-to-one estimate-level
-random-intercept block be integrated into the likelihood variance instead of
-sampled as latent random coefficients? Defaults to \code{TRUE}.}
-
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
 \item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.}
@@ -238,8 +215,13 @@ threshold, and falls back to the latent backend for large blocks. The automatic
 block-MVN threshold defaults to 128 rows per covariance block and can be
 changed with \code{options(RoBMA.known_v_block_mvn_max_block_size = value)}, where
 \code{value} is a positive integer or \code{Inf}.
-Submitted covariance matrices are validated without projecting negative
-eigenvalues to the positive-semidefinite boundary. Exact rank-one dependency
+Covariance inputs retain their symmetric representation. Numerical
+positive-semidefinite checks use standardized correlations so small marginal
+variances are not mistaken for null directions. At a numerically singular
+boundary, the computational factor uses the existing eigensolver roundoff
+tolerance; sampling, whitening, and conditional calculations share its
+support. This numerical rule is separate from the selection model's
+condition/integrate source choices. Exact rank-one dependency
 blocks are represented by one latent sampling factor, including when another
 backend was requested, so correlations of one and any separate positive
 diagonal variance retain their mathematical structure.
@@ -259,6 +241,14 @@ As a convenience for diagonal known-\code{V} inputs, \code{brma.mv()} also accep
 named \code{vi} or \code{sei} arguments when \code{V} is omitted; these are converted to
 \code{diag(vi)} or \code{diag(sei^2)}. Do not supply \code{V} together with \code{vi} or \code{sei}.
 
+Omitted or NULL \code{random} declares no random-effects structure. No implicit
+\code{tau} or heterogeneity mixture is added. Do not supply \code{prior_heterogeneity}
+or \code{prior_heterogeneity_null} without \code{random}, even as NULL or a zero prior;
+omit these irrelevant arguments instead. Scale formulas also require an
+explicit random structure. This rule applies to all .mv constructors;
+specialized univariate models retain their usual implicit heterogeneity and
+clustered \code{tau}/\code{rho}/\code{I2} behavior.
+
 The \code{random} argument uses BayesTools
 \link[=random_effect_formula_tags]{random-effect formula structure tags}.
 Plain \code{(expr | group)} syntax creates an unstructured random-coefficient
@@ -271,15 +261,18 @@ their index basis; see the linked tag documentation before specifying factor
 slopes or index variables.
 BayesTools stores fully explicit canonical random-effect names of the form
 \verb{(formula) owner: quantity(arguments)}. RoBMA uses their simplified display
-aliases consistently in summaries, plotting, density estimation, and
-hypotheses. A sole random intercept drops its redundant argument, so a bare
-block is displayed and accepted as \code{sd}, while an explicitly named block is
-\code{study: sd}; the unique shorthand \code{sd} is also accepted. A non-intercept
-coefficient remains explicit, for example \code{study: sd(x)}. Bare formulas and
+aliases through RoBMA's meta-analytic naming map consistently in summaries,
+plotting, density estimation, hypotheses, and posterior draws. A sole random
+intercept drops its redundant argument, so a bare block is displayed and
+accepted as \code{tau}, while an explicitly named block is \code{study: tau}; the
+unique shorthand \code{tau} is also accepted. A non-intercept coefficient remains
+explicit, for example \code{study: tau(x)}. Bare formulas and
 unnamed one-entry lists omit a redundant owner; explicitly named one-entry
 lists retain it, and missing names in longer lists become \verb{component 1},
-\verb{component 2}, and so on. Allocation names include \code{sd_total}, \code{sd_common},
-and \code{var_prop(study)}. None of these public names expose backend coordinates.
+\verb{component 2}, and so on. Allocation names include \code{tau_total}, \code{tau_common},
+and \code{tau2_prop(study)}. BayesTools retains its general \code{sd}/\code{var}/\code{cor}
+vocabulary internally; none of these public RoBMA names expose backend
+coordinates.
 The optional \code{R} argument supplies known covariance or correlation matrices
 across random-effect grouping levels, following \code{metafor::rma.mv()} naming.
 \code{R} is separate from the known sampling covariance \code{V}: \code{V} describes
@@ -290,12 +283,11 @@ limited to random-intercept blocks. \code{Rscale} controls how each supplied
 \code{"cor"}, \code{"none"}, \code{"cor0"}, \code{"cov0"}, plus metafor-compatible aliases
 \code{TRUE}/\code{1} for \code{"cor"}, \code{FALSE}/\code{0} for \code{"none"}, \code{2} for \code{"cor0"},
 and \code{3} for \code{"cov0"}.
-When \code{random} is used, shared sampled
-random-effect blocks enter the conditional mean through BayesTools. With
-\code{marginalize_estimate_level = TRUE}, a single one-to-one random-intercept
-block is integrated into the likelihood variance; otherwise the likelihood
-remains conditional on sampled random effects and uses only the known
-sampling covariance \code{V}. With a single top-level random component, \code{scale}
+In non-selection Gaussian models with \code{random}, shared sampled
+random-effect blocks enter the conditional mean through BayesTools. A
+supported one-to-one random-intercept block is automatically integrated into
+the likelihood variance. Other terms remain sampled with their full
+covariance. With a single top-level random component, \code{scale}
 models the row-wise total random-effect SD consumed by that component. A
 named list of \code{scale} formulas can instead target top-level random components
 or concrete random-effect blocks. Block names and grouping labels are
@@ -313,8 +305,9 @@ same named-list shape with one prior list per scale component, using the
 same user-facing names. Post-fit scale predictions for random-formula
 models keep these component scales separate rather than collapsing them into
 one total \eqn{\tau}.
-If \code{marginalize_estimate_level = TRUE}, a single random-intercept block that
-maps one-to-one to estimates is compiled as a marginalized variance component
+In non-selection Gaussian models, a supported random-intercept block that
+maps one-to-one to estimates
+is automatically compiled as a marginalized variance component
 instead of sampled latent coefficients. This preserves estimate-level
 heterogeneity semantics while keeping shared higher-level random effects
 conditional. For known \code{R}, this automatic marginalization is available only
@@ -322,8 +315,9 @@ when BayesTools validates a one-column random-intercept block whose
 \verb{Z K Z'} row-space contribution is diagonal and one-to-one with the fitted
 rows; RoBMA then adds the BayesTools-prepared row multiplier to the known-\code{V}
 extra variance. Other known-\code{R} blocks remain sampled or are rejected by
-BayesTools validation. Ambiguous cases with multiple one-to-one blocks are
-rejected.
+BayesTools validation. Slopes and other unsupported variance forms remain
+sampled. Multiple declared terms with one grouping level per estimate are
+rejected, regardless of their coefficient basis or known group covariance.
 
 The implementation intentionally omits the \code{weights} and \code{cluster} arguments
 from \code{metafor::rma.mv()}. Use \code{random} for multilevel structures.
@@ -357,10 +351,10 @@ corresponding to the selected known-\code{V} backend. It does not use the
 estimate-wise conditional target from LOO/WAIC. During bridge evaluation,
 sampled Gaussian location random effects are integrated exactly as
 \eqn{ZGZ'} while retaining every covariance parameter and prior; fitted
-diagonal marginalized blocks remain in the row variance. Approximate
-selection likelihoods retain their fitted joint latent
-parameterization. Exact selection likelihoods use the same analytically
-marginalized selected-Gaussian covariance blocks as fitting.
+diagonal marginalized blocks remain in the row variance. Selection
+likelihoods instead preserve the normalization boundary declared by
+\code{\link[=selection_model]{selection_model()}}: retained contextual sources remain outside the
+normalizer and integrated sources enter the conditional covariance.
 \item \code{hatvalues()}, marginal \code{rstandard()}, and \code{vif()} use a marginal
 GLS covariance target based on \verb{V + ZGZ'}, where formula random effects
 are marginalized through the BayesTools covariance metadata.
@@ -368,9 +362,10 @@ are marginalized through the BayesTools covariance metadata.
 influence targets. Cluster/block LOO is deferred for \code{brma.mv()} because
 its deletion target is a joint dependency block, not an independent row.
 }
-Simple \code{brma.mv()} models with scalar heterogeneity report the usual \code{tau}
-summary. Random-formula models instead report component-specific standard
-deviation, correlation, and allocation summaries.
+Without \code{random}, the model estimates no heterogeneity. Explicit
+random-formula models report component-specific standard deviation,
+correlation and allocation summaries. A single homogeneous random component
+uses the RoBMA names \code{tau} and \code{tau2}.
 \code{summary_heterogeneity(component = ...)} describes component heterogeneity
 over the observed design, whereas \code{pooled_heterogeneity(component = ...)}
 evaluates absolute component heterogeneity at the average expanded random

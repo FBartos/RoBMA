@@ -42,68 +42,130 @@
     return(NULL)
   }
 
+  chunk_size <- length(row_states)
+  data <- context[["data"]]
+  if (.is_data_joint_selection(data)) {
+    model <- .data_selection_model(data)
+    plan <- .data_selection_execution_plan(data)
+    product <- all(vapply(model[["branches"]][model[["active_branches"]]],
+      function(branch) identical(branch[["weight_rule"]], "product"), logical(1)))
+    sampling_conditioned <- .selection_retains_sampling(data)
+    singleton_product <- product &&
+      length(plan[["block_methods"]]) > 0L &&
+      all(plan[["block_methods"]] == "singleton")
+    dense_blocks <- any(plan[["block_methods"]] == "dense")
+    if (sampling_conditioned || singleton_product || dense_blocks) {
+      # Reserve room for the evaluator's additional arrays. This bounds the
+      # primary rectangular workspaces, not the whole R process's memory.
+      # Conditioned sampling also constructs draw x row x row covariances;
+      # the existing fourfold reserve covers their simultaneous copies.
+      K <- nrow(data[["outcome"]])
+      extra_cells <- if (sampling_conditioned) {
+        sizes <- as.double(lengths(plan[["row_blocks"]]))
+        as.double(K)^2 + sum(sizes * plan[["factor_ranks"]]) +
+          sum(sizes * plan[["retained_random_covariance"]][["loading_ranks"]])
+      } else if (dense_blocks) {
+        sizes <- as.double(lengths(plan[["row_blocks"]]))
+        random <- plan[["random_covariance"]]
+        random_cells <- if (!is.null(random) &&
+                            !identical(random[["representation"]], "diagonal_factor")) {
+          as.double(K)^2
+        } else {
+          sum(sizes * random[["loading_ranks"]])
+        }
+        # Block covariance buffers coexist with the draw-wise random factors.
+        max(sizes * (sizes + 1) / 2) + random_cells
+      } else 0
+      bytes_per_state <- 8 * length(values) * (
+        2 * ncol(context[["posterior_samples"]]) + K + extra_cells
+      )
+      max_bytes <- .known_v_covariance_max_bytes()
+      max_states <- floor(max_bytes / 4 / bytes_per_state)
+      if (max_states < 1) {
+        stop(
+          "One selection replacement row requires approximately ",
+          .known_v_format_bytes(4 * bytes_per_state),
+          " of working memory, exceeding option ",
+          "'RoBMA.known_v_covariance_max_bytes'. Increase this option.",
+          call. = FALSE
+        )
+      }
+      chunk_size <- min(chunk_size, max_states)
+    }
+  }
+
   out  <- matrix(-Inf, nrow = length(values), ncol = length(row_states))
   keys <- vapply(row_states, function(state) {
     .iwmde_state_active_key(context, state)
   }, character(1))
 
   for (key in unique(keys)) {
-    state_cols   <- which(keys == key)
-    group_states <- row_states[state_cols]
-    candidates   <- .iwmde_build_replacement_samples(
-      context     = context,
-      parameter   = parameter,
-      values      = values,
-      row_states  = group_states,
-      replacement = replacement
-    )
+    key_cols <- which(keys == key)
+    for (start in seq.int(1L, length(key_cols), by = chunk_size)) {
+      candidates    <- NULL
+      valid_samples <- NULL
+      state_cols <- key_cols[seq.int(
+        start, min(length(key_cols), start + chunk_size - 1L)
+      )]
+      group_states <- row_states[state_cols]
+      candidates   <- .iwmde_build_replacement_samples(
+        context     = context,
+        parameter   = parameter,
+        values      = values,
+        row_states  = group_states,
+        replacement = replacement
+      )
 
-    valid <- candidates[["valid"]]
-    if (!any(valid)) {
-      next
-    }
+      valid <- candidates[["valid"]]
+      if (!any(valid)) {
+        next
+      }
 
-    valid_positions <- which(valid)
-    valid_samples   <- candidates[["samples"]][valid, , drop = FALSE]
-    active_setup    <- group_states[[1L]][["active_setup"]]
-    log_lik <- log_lik_fun(
-      samples      = valid_samples,
-      active_setup = active_setup,
-      batch        = list(
-        candidates      = candidates,
+      valid_positions <- which(valid)
+      valid_samples   <- candidates[["samples"]][valid, , drop = FALSE]
+      active_setup    <- group_states[[1L]][["active_setup"]]
+      # TODO: optimization needed: full-V marginal selection grids repeat native
+      # factor normalizers across replacement states and values; optimize that
+      # work while retaining the declared target and diagnostic controls.
+      log_lik <- log_lik_fun(
+        samples      = valid_samples,
+        active_setup = active_setup,
+        batch        = list(
+          candidates      = candidates,
+          valid_positions = valid_positions,
+          row_states      = group_states
+        )
+      )
+      if (is.null(log_lik)) {
+        return(NULL)
+      }
+
+      if (!is.numeric(log_lik) || length(log_lik) != length(valid_positions)) {
+        warning(
+          "Batched IWMDE likelihood returned an invalid length; falling back to scalar evaluation.",
+          call. = FALSE
+        )
+        return(NULL)
+      }
+
+      log_prior <- .iwmde_replacement_log_prior(
+        parameter       = parameter,
+        values          = values,
+        valid_samples   = valid_samples,
         valid_positions = valid_positions,
-        row_states      = group_states
+        candidates      = candidates,
+        row_states      = group_states,
+        replacement     = replacement
       )
-    )
-    if (is.null(log_lik)) {
-      return(NULL)
-    }
 
-    if (!is.numeric(log_lik) || length(log_lik) != length(valid_positions)) {
-      warning(
-        "Batched IWMDE likelihood returned an invalid length; falling back to scalar evaluation.",
-        call. = FALSE
-      )
-      return(NULL)
-    }
-
-    log_prior <- .iwmde_replacement_log_prior(
-      parameter       = parameter,
-      values          = values,
-      valid_samples   = valid_samples,
-      valid_positions = valid_positions,
-      candidates      = candidates,
-      row_states      = group_states,
-      replacement     = replacement
-    )
-
-    log_q <- log_lik + log_prior
-    for (i in seq_along(valid_positions)) {
-      position <- valid_positions[i]
-      out[
-        candidates[["grid_index"]][position],
-        state_cols[candidates[["state_index"]][position]]
-      ] <- log_q[i]
+      log_q <- log_lik + log_prior
+      for (i in seq_along(valid_positions)) {
+        position <- valid_positions[i]
+        out[
+          candidates[["grid_index"]][position],
+          state_cols[candidates[["state_index"]][position]]
+        ] <- log_q[i]
+      }
     }
   }
 
@@ -215,6 +277,7 @@
   }
   prior     <- if (is.null(parameter)) NULL else prior_list[[parameter]]
   eta_names <- replacement[["auxiliary_columns"]]
+  index     <- replacement[["index"]]
   if (is.null(eta_names) && !is.null(prior)) {
     eta_names <- .iwmde_simplex_auxiliary_columns(
       parameter,
@@ -224,10 +287,12 @@
   if (is.null(prior) || !inherits(prior, "prior.simplex") ||
       !identical(prior[["distribution"]], "dirichlet") ||
       length(prior[["parameters"]][["alpha"]]) != length(eta_names) ||
-      !all(eta_names %in% colnames(samples))) {
+      !all(eta_names %in% colnames(samples)) ||
+      !is.numeric(index) || length(index) != 1L || !is.finite(index) ||
+      index != floor(index) || index < 1L || index > length(eta_names)) {
     stop(
       "The simplex density target does not have its matching Dirichlet prior ",
-      "and auxiliary coordinates.",
+      "and auxiliary coordinates with a valid focal index.",
       call. = FALSE
     )
   }
@@ -236,16 +301,25 @@
     samples    = samples,
     prior_list = prior_list[setdiff(names(prior_list), parameter)]
   )
-  alpha <- prior[["parameters"]][["alpha"]]
-  for (i in seq_along(alpha)) {
-    eta     <- samples[, eta_names[[i]]]
-    invalid <- !is.finite(eta) | eta < 0
-    term    <- stats::dgamma(eta, shape = alpha[[i]], rate = 1, log = TRUE)
-    term[invalid] <- -Inf
-    log_prior <- log_prior + term
-  }
+  alpha   <- prior[["parameters"]][["alpha"]]
+  eta     <- samples[, eta_names, drop = FALSE]
+  eta_sum <- rowSums(eta)
+  valid   <- rowSums(!is.finite(eta) | eta < 0) == 0L &
+    is.finite(eta_sum) & eta_sum > 0
+  focal_log_prior <- rep(-Inf, nrow(samples))
 
-  return(log_prior)
+  # With the auxiliary total and other relative proportions fixed, the
+  # Dirichlet conditional is Beta. This includes the simplex Jacobian without
+  # cancelling infinite gamma densities at valid endpoints. Nuisance-only
+  # constants are omitted in both this kernel and the row-state baseline.
+  focal_log_prior[valid] <- stats::dbeta(
+    eta[valid, index] / eta_sum[valid],
+    shape1 = alpha[[index]],
+    shape2 = sum(alpha[-index]),
+    log    = TRUE
+  )
+
+  return(log_prior + focal_log_prior)
 }
 
 
@@ -336,7 +410,8 @@
 .iwmde_q_grid_known_v_random_fixed_mu <- function(
     context, active_setup, unit, batch) {
 
-  if (!.iwmde_uses_known_v_random_marginal_likelihood(context) ||
+  if (!.iwmde_uses_known_v_random_marginal_likelihood(
+      context, priors = active_setup[["priors"]]) ||
       !.iwmde_q_grid_fixed_mu_is_invariant(context, batch[["candidates"]])) {
     return(NULL)
   }
@@ -783,8 +858,11 @@
     character(1)
   ))
   source_samples <- context[["posterior_samples"]]
-  if (length(state_scope) == 1L && identical(state_scope, "global") &&
-      .iwmde_uses_known_v_random_marginal_likelihood(context)) {
+  if (length(row_states) > 0L &&
+      length(state_scope) == 1L && identical(state_scope, "global") &&
+      .iwmde_uses_known_v_random_marginal_likelihood(
+        context, priors = row_states[[1L]][["active_setup"]][["priors"]]
+      )) {
     source_samples <- .iwmde_drop_local_latent_sample_columns(
       source_samples,
       context
@@ -1203,10 +1281,12 @@
 .iwmde_linear_replacement_state <- function(context, state, replacement) {
 
   weights <- replacement[["weights"]]
+  direction <- .iwmde_linear_weights(replacement[["direction"]])
   key <- paste(
     "linear_replacement",
     state[["row_index"]],
     paste(names(weights), .iwmde_key_number(weights), sep = "=", collapse = ","),
+    paste(names(direction), .iwmde_key_number(direction), sep = "=", collapse = ","),
     sep = "|"
   )
   if (exists(key, envir = context[["row_cache"]], inherits = FALSE)) {
@@ -1221,7 +1301,13 @@
     return(out)
   }
 
-  active_columns <- .iwmde_linear_active_columns(context, row, weights)
+  moving_weights <- if (is.null(direction)) weights else direction
+  active_columns <- .iwmde_linear_active_columns(context, row, moving_weights)
+  if (!is.null(direction) && !identical(active_columns, names(direction))) {
+    out <- list(valid = FALSE, current = current)
+    assign(key, out, envir = context[["row_cache"]])
+    return(out)
+  }
   if (length(active_columns) == 0L) {
     out <- list(
       valid          = TRUE,
@@ -1235,21 +1321,26 @@
     return(out)
   }
 
-  active_weights <- weights[active_columns]
-  denominator    <- sum(active_weights^2)
+  active_weights <- stats::setNames(numeric(length(active_columns)), active_columns)
+  common <- intersect(active_columns, names(weights))
+  active_weights[common] <- weights[common]
+  denominator <- sum(active_weights^2)
   if (!is.finite(denominator) || denominator <= 0) {
     out <- list(valid = FALSE, current = current)
     assign(key, out, envir = context[["row_cache"]])
     return(out)
   }
 
+  if (!is.null(direction) && sum(active_weights * direction) != 1) {
+    stop("Linear conditioning direction does not preserve the target coordinate.", call. = FALSE)
+  }
   out <- list(
     valid          = TRUE,
     current        = current,
     active_columns = active_columns,
     active_weights = active_weights,
     denominator    = denominator,
-    coefficients   = active_weights / denominator
+    coefficients   = if (is.null(direction)) active_weights / denominator else direction
   )
   assign(key, out, envir = context[["row_cache"]])
 
@@ -1482,8 +1573,7 @@
     return(out(row, state[["parameters"]], valid = valid))
   }
 
-  # Move along the minimum-norm direction that changes a' beta to the target
-  # value while keeping the orthogonal complement fixed.
+  # Move along the resolved fixed direction, preserving its nuisance chart.
   row[linear[["active_columns"]]] <- row[linear[["active_columns"]]] +
     (value - linear[["current"]]) * linear[["coefficients"]]
   synced <- .iwmde_sync_replacement_row(
@@ -1542,8 +1632,10 @@
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "linear")) {
     return(finish(list(
-      type    = "linear",
-      weights = parameter_spec[["weights"]]
+      type = "linear",
+      weights = parameter_spec[["weights"]],
+      direction = parameter_spec[["direction"]],
+      conditioning_chart = parameter_spec[["conditioning_chart"]]
     )))
   }
   if (!is.null(parameter_spec) &&
@@ -1602,4 +1694,107 @@
   }
 
   return(list(type = "fallback"))
+}
+
+
+# Fixed-coefficient conditioning for metadata-declared indicator factors.
+# This chooses a qCMDE chart; target values and the complete prior are unchanged.
+.iwmde_linear_conditioning_spec <- function(context, parameter_spec, density_method) {
+
+  parameter_spec[["direction"]] <- NULL
+  parameter_spec[["conditioning_chart"]] <- NULL
+  if (!identical(density_method, "qCMDE") ||
+      !isTRUE(parameter_spec[["type"]] %in% c("primitive", "linear")) ||
+      !.is_data_joint_selection(context[["data"]]) ||
+      length(context[["indicator_names"]]) ||
+      .iwmde_retained_location_dynamic_prior(context[["flat_prior_list"]])) {
+    return(parameter_spec)
+  }
+  fit <- context[["object"]][["fit"]]
+  if (!inherits(fit, "BayesTools_fit")) return(parameter_spec)
+  weights <- if (identical(parameter_spec[["type"]], "primitive")) {
+    stats::setNames(1, parameter_spec[["parameter"]])
+  } else .iwmde_linear_weights(parameter_spec[["weights"]])
+  if (!length(weights) || length(weights) > 2L || any(weights != 1)) return(parameter_spec)
+  coordinates <- BayesTools::parameter_coordinates(fit)
+  fixed <- coordinates[coordinates[["role"]] == "fixed_coefficient" &
+    coordinates[["formula_parameter"]] == "mu" & !coordinates[["internal"]], , drop = FALSE]
+  intercept <- fixed[["coordinate_name"]][fixed[["term"]] == "intercept" &
+    fixed[["monitor_status"]] == "sampled"]
+  if (length(intercept) != 1L || !all(names(weights) %in% fixed[["coordinate_name"]])) return(parameter_spec)
+  includes_intercept <- intercept %in% names(weights)
+  other <- setdiff(names(weights), intercept)
+  if (length(other) > 1L || (!includes_intercept && length(weights) != 1L)) return(parameter_spec)
+  design <- BayesTools::JAGS_formula_design(fit, parameter = "mu")
+  if (any(vapply(design[["random_effects"]], function(term) {
+    !is.null(term[["mean_translation"]])
+  }, logical(1L)))) return(parameter_spec)
+  static_multipliers <- vapply(design[["prior_list"]], function(prior) {
+    multiplier <- attr(prior, "multiply_by", exact = TRUE)
+    is.null(multiplier) || (is.numeric(multiplier) && length(multiplier) == 1L && is.finite(multiplier))
+  }, logical(1L))
+  if (!all(static_multipliers)) return(parameter_spec)
+  samples <- context[["posterior_samples"]]
+  if (!nrow(samples) || !intercept %in% colnames(samples)) return(parameter_spec)
+  first <- samples[1L, , drop = FALSE]
+  intercept_basis <- BayesTools::JAGS_formula_predictor_basis(fit,
+    stats::setNames(1, intercept), posterior_samples = first)
+  if (!identical(intercept_basis[["status"]], "affine") ||
+      any(intercept_basis[["basis"]] != 1)) return(parameter_spec)
+  blocks <- .data_selection_execution_plan(context[["data"]])[["row_blocks"]]
+  original_basis <- BayesTools::JAGS_formula_predictor_basis(fit,
+    weights / sum(weights^2), posterior_samples = first)
+  if (!length(blocks) || !identical(original_basis[["status"]], "affine")) return(parameter_spec)
+  original_work <- sum(vapply(blocks, function(rows) {
+    any(original_basis[["basis"]][, rows, drop = FALSE] != 0)
+  }, logical(1L)))
+  terms <- if (length(other)) fixed[["term"]][match(other, fixed[["coordinate_name"]])] else
+    setdiff(unique(fixed[["term"]]), "intercept")
+  candidates <- list()
+  for (term in terms) {
+    rows <- which(fixed[["term"]] == term)
+    columns <- fixed[["coordinate_name"]][rows]
+    if (!length(columns) || any(fixed[["monitor_status"]][rows] != "sampled") ||
+        !all(columns %in% colnames(samples))) next
+    priors <- lapply(columns, function(column) .iwmde_focal_prior(context, column, first[1L, ]))
+    if (!all(vapply(priors, BayesTools::is.prior.factor, logical(1L)))) next
+    bases <- lapply(columns, function(column) BayesTools::JAGS_formula_predictor_basis(
+      fit, stats::setNames(1, column), posterior_samples = first))
+    if (!all(vapply(bases, function(basis) identical(basis[["status"]], "affine"), logical(1L)))) next
+    X <- do.call(rbind, lapply(bases, function(basis) as.numeric(basis[["basis"]])))
+    if (any(!X %in% c(0, 1)) || any(colSums(X) > 1) || !any(colSums(X) == 0)) next
+    direction <- if (includes_intercept && length(other)) {
+      stats::setNames(1, other)
+    } else {
+      sign <- if (includes_intercept) 1 else -1
+      c(stats::setNames(sign, intercept), stats::setNames(rep(-sign, length(columns)), columns))
+    }
+    dependencies <- BayesTools::JAGS_formula_coordinate_dependencies(fit, names(direction))
+    if (any(dependencies[["formula_parameter"]] != "mu") ||
+        any(dependencies[["dependency_type"]] != "coefficient")) next
+    moving <- lapply(names(direction), function(column) .iwmde_focal_prior_state(context, column, first[1L, ]))
+    if (!all(vapply(moving, function(state) identical(state[["status"]], "continuous") &&
+        !is.null(state[["prior"]]), logical(1L)))) next
+    aligned <- stats::setNames(numeric(length(direction)), names(direction))
+    common <- intersect(names(weights), names(direction))
+    aligned[common] <- weights[common]
+    if (sum(aligned * direction) != 1) next
+    proposed_basis <- BayesTools::JAGS_formula_predictor_basis(fit, direction,
+      posterior_samples = first)
+    if (!identical(proposed_basis[["status"]], "affine")) next
+    proposed_work <- sum(vapply(blocks, function(rows) {
+      any(proposed_basis[["basis"]][, rows, drop = FALSE] != 0)
+    }, logical(1L)))
+    # Choose only a strict reduction in affected complete likelihood blocks.
+    # This fixed metadata decision does not inspect posterior precision.
+    if (proposed_work >= original_work) next
+    candidates[[length(candidates) + 1L]] <- list(
+      direction = direction[order(names(direction))],
+      chart = if (includes_intercept && length(other)) "indicator_mean_pivot" else "indicator_reference")
+  }
+  if (length(candidates) != 1L) return(parameter_spec)
+  parameter_spec[["weights"]] <- weights
+  parameter_spec[["direction"]] <- candidates[[1L]][["direction"]]
+  parameter_spec[["conditioning_chart"]] <- candidates[[1L]][["chart"]]
+  parameter_spec
 }

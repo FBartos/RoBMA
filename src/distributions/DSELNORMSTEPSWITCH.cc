@@ -16,6 +16,10 @@ DSELNORMSTEPSWITCH::DSELNORMSTEPSWITCH() : VectorDist("dselnorm_step_switch", 11
 
 bool DSELNORMSTEPSWITCH::checkParameterLength(std::vector<unsigned int> const &len) const
 {
+  if (len.size() != 11) return false;
+  const unsigned int maximum = std::numeric_limits<int>::max();
+  for (unsigned int length : len) if (length > maximum) return false;
+  for (unsigned int i = 0; i < 4; ++i) if (len[i] != 1) return false;
   return len[4] > 0 &&
     len[4] == len[5] &&
     len[5] == len[6] &&
@@ -29,25 +33,21 @@ bool DSELNORMSTEPSWITCH::checkParameterValue(std::vector<double const *> const &
                                              std::vector<unsigned int> const &len) const
 {
   const int n_bins      = static_cast<int>(len[4]);
-  const int obs_bin     = static_cast<int>(*par[7]);
-  const int sign        = static_cast<int>(*par[8]);
-  const int kernel_mode = static_cast<int>(*par[9]);
-  const int telescope_probabilities = static_cast<int>(*par[10]);
   const SelNormJagsBounds z_lower(par[5], len[5]);
   const SelNormJagsBounds z_upper(par[6], len[6]);
 
   if (!(*par[1] > 0 && *par[2] > 0 && *par[3] > 0) ||
-      !(sign == 1 || sign == -1) ||
-      !(telescope_probabilities == 0 || telescope_probabilities == 1) ||
-      !(kernel_mode == SELKERNEL_NORMAL || kernel_mode == SELKERNEL_STEP)) {
+      !(*par[8] == 1 || *par[8] == -1) ||
+      !(*par[10] == 0 || *par[10] == 1) ||
+      !(*par[9] == SELKERNEL_NORMAL || *par[9] == SELKERNEL_STEP)) {
     return false;
   }
 
-  if (kernel_mode == SELKERNEL_NORMAL) {
+  if (*par[9] == SELKERNEL_NORMAL) {
     return true;
   }
 
-  if (obs_bin < 1 || obs_bin > n_bins) {
+  if (!selnorm_jags_integer_in_range(*par[7], 1, n_bins)) {
     return false;
   }
 

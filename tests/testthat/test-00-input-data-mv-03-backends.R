@@ -155,16 +155,15 @@ test_that("diagonal brma.mv estimate likelihood matches brma.norm factorization"
 })
 
 
-test_that("diagonal brma.mv random estimate target remains factorized", {
+test_that("diagonal brma.mv sampled estimate slopes retain a factorized target", {
 
   object <- brma.mv(
     yi                         = c(0.10, 0.20, -0.05),
     V                          = diag(c(0.04, 0.09, 0.16)),
-    random                     = ~ 1 | study,
-    data                       = data.frame(study = c("a", "b", "c")),
+    random                     = ~ diag(0 + x | study),
+    data                       = data.frame(study = c("a", "b", "c"), x = c(-1, .5, 2)),
     measure                    = "GEN",
     prior_unit_information_sd  = 1,
-    marginalize_estimate_level = FALSE,
     only_priors                = TRUE
   )
   setup <- list(
@@ -298,6 +297,7 @@ test_that("brma.mv auto selects exact known-V backend when feasible", {
     yi                        = yi,
     V                         = V,
     scale                     = ~ x,
+    random                    = ~ 1 | study,
     data                      = dat,
     measure                   = "GEN",
     prior_unit_information_sd = 1,
@@ -317,6 +317,7 @@ test_that("brma.mv auto selects exact known-V backend when feasible", {
     yi                        = yi,
     V                         = V,
     scale                     = ~ x,
+    random                    = ~ 1 | study,
     data                      = dat,
     measure                   = "GEN",
     prior_unit_information_sd = 1,
@@ -332,6 +333,7 @@ test_that("brma.mv auto selects exact known-V backend when feasible", {
     yi                        = yi,
     V                         = V,
     scale                     = ~ x,
+    random                    = ~ 1 | study,
     data                      = dat,
     measure                   = "GEN",
     prior_unit_information_sd = 1,
@@ -366,6 +368,7 @@ test_that("brma.mv auto selects exact known-V backend when feasible", {
     yi                        = yi,
     V                         = V,
     scale                     = ~ x,
+    random                    = ~ 1 | study,
     data                      = dat,
     measure                   = "GEN",
     prior_unit_information_sd = 1,
@@ -393,6 +396,7 @@ test_that("brma.mv auto selects exact known-V backend when feasible", {
     yi                        = yi,
     V                         = V,
     scale                     = ~ x,
+    random                    = ~ 1 | study,
     data                      = dat,
     known_v_parameterization  = "block_mvn",
     measure                   = "GEN",
@@ -409,6 +413,7 @@ test_that("brma.mv auto selects exact known-V backend when feasible", {
       yi                        = yi,
       V                         = V,
       scale                     = ~ x,
+      random                    = ~ 1 | study,
       data                      = dat,
       measure                   = "GEN",
       prior_unit_information_sd = 1,
@@ -428,19 +433,18 @@ test_that("brma.mv prepares whitened known-V backend", {
       yi                        = c(0.10, 0.20),
       V                         = V,
       known_v_parameterization  = "whitened",
-      known_v_residual_fraction = 0.50,
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_data                 = TRUE
     ),
-    "disregarded"
+    NA
   )
 
   known_V <- attr(object[["data"]], "known_V_data")
   expect_equal(known_V[["parameterization"]], "whitened")
   expect_true(known_V[["correlated"]])
   expect_equal(known_V[["rank"]], 0L)
-  expect_equal(known_V[["residual_fraction_requested"]], 0.50)
+  expect_null(known_V[["residual_fraction_requested"]])
 
   whitening_block <- known_V[["whitening_blocks"]][[1L]]
   rotation        <- whitening_block[["rotation"]]
@@ -461,7 +465,7 @@ test_that("brma.mv prepares whitened known-V backend", {
 })
 
 
-test_that("brma.mv auto known-V update preserves residual fraction", {
+test_that("known-V auto updates use the fixed sampling decomposition", {
 
   old_options <- options(RoBMA.known_v_block_mvn_max_block_size = 1L)
   on.exit(options(old_options))
@@ -491,7 +495,6 @@ test_that("brma.mv auto known-V update preserves residual fraction", {
       Rscale                      = "none",
       data                        = dat,
       known_v_parameterization    = "auto",
-      known_v_residual_fraction   = 0.35,
       measure                     = "GEN",
       prior_unit_information_sd   = 1,
       only_priors                 = TRUE
@@ -502,34 +505,8 @@ test_that("brma.mv auto known-V update preserves residual fraction", {
   known_V <- attr(object[["data"]], "known_V_data")
   expect_equal(known_V[["parameterization_requested"]], "auto")
   expect_equal(known_V[["parameterization"]], "latent")
-  expect_equal(known_V[["residual_fraction_requested"]], 0.35)
-
-  data <- brma.mv(
-    yi                        = yi,
-    V                         = diag(c(0.04, 0.09, 0.16)),
-    data                      = data.frame(yi = c(0.10, 0.20, 0.30)),
-    known_v_parameterization  = "auto",
-    known_v_residual_fraction = 0.40,
-    measure                   = "GEN",
-    prior_unit_information_sd = 1,
-    only_data                 = TRUE
-  )[["data"]]
-  term <- list(
-    block_name           = "study",
-    sd_parameter_names   = "tau",
-    row_multiplier       = c(1, 4, 9),
-    row_multiplier_name  = "known_r_multiplier"
-  )
-
-  updated_known_V <- attr(.known_v_auto_update_for_marginalized_random(
-    data  = data,
-    terms = list(term)
-  ), "known_V_data")
-
-  expect_equal(updated_known_V[["parameterization_requested"]], "auto")
-  expect_equal(updated_known_V[["parameterization"]], "whitened")
-  expect_equal(updated_known_V[["effective_backend"]], "diagonal")
-  expect_equal(updated_known_V[["residual_fraction_requested"]], 0.40)
+  expect_equal(known_V[["residual_fraction_requested"]], 0.10)
+  expect_equal(.known_v_covariance_matrix(known_V), V)
 })
 
 
@@ -986,8 +963,9 @@ test_that("brma.mv block-MVN accepts near-singular positive known-V blocks", {
 test_that("brma.mv allows block-MVN known-V scale models", {
 
   dat <- data.frame(
-    yi = c(0.10, 0.20, 0.30),
-    x  = c(0, 1, 2)
+    yi       = c(0.10, 0.20, 0.30),
+    x        = c(0, 1, 2),
+    estimate = c("e1", "e2", "e3")
   )
 
   expect_silent(
@@ -1003,6 +981,7 @@ test_that("brma.mv allows block-MVN known-V scale models", {
         byrow = TRUE
       ),
       scale                    = ~ x,
+      random                   = ~ 1 | estimate,
       data                     = dat,
       known_v_parameterization = "block_mvn",
       measure                  = "GEN",
@@ -1050,8 +1029,9 @@ test_that("brma.mv allows block-MVN known-V scale models", {
 test_that("brma.mv rejects unsupported whitened known-V combinations", {
 
   dat <- data.frame(
-    yi = c(0.10, 0.20),
-    x  = c(0, 1)
+    yi       = c(0.10, 0.20),
+    x        = c(0, 1),
+    estimate = c("e1", "e2")
   )
 
   expect_error(
@@ -1059,6 +1039,7 @@ test_that("brma.mv rejects unsupported whitened known-V combinations", {
       yi                        = yi,
       V                         = matrix(c(0.04, 0.03, 0.03, 0.09), nrow = 2),
       scale                     = ~ x,
+      random                    = ~ 1 | estimate,
       data                      = dat,
       known_v_parameterization  = "whitened",
       measure                   = "GEN",
@@ -1072,8 +1053,6 @@ test_that("brma.mv rejects unsupported whitened known-V combinations", {
       V                                   = matrix(c(0.04, 0.03, 0.03, 0.09), nrow = 2),
       keep_rows                           = c(TRUE, TRUE),
       known_v_parameterization            = "whitened",
-      known_v_residual_fraction           = NULL,
-      known_v_residual_fraction_specified = FALSE,
       known_v_is_scale                    = TRUE
     ),
     "scale regression"
@@ -1090,8 +1069,6 @@ test_that("known-V preparation can suppress duplicate singular warnings", {
       V                                   = V,
       keep_rows                           = c(TRUE, TRUE),
       known_v_parameterization            = "whitened",
-      known_v_residual_fraction           = NULL,
-      known_v_residual_fraction_specified = FALSE,
       warn_singular                       = TRUE
     ),
     "rank-deficient correlation structure"
@@ -1101,8 +1078,6 @@ test_that("known-V preparation can suppress duplicate singular warnings", {
       V                                   = V,
       keep_rows                           = c(TRUE, TRUE),
       known_v_parameterization            = "whitened",
-      known_v_residual_fraction           = NULL,
-      known_v_residual_fraction_specified = FALSE,
       warn_singular                       = FALSE
     )
   )

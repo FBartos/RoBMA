@@ -8,51 +8,150 @@
 #' @inheritParams bselmodel
 #'
 #' @details
+#' Omitted or NULL `random` specifies a fixed-effect selection model with
+#' no implicit heterogeneity. Both random-effect selection axes are then
+#' inapplicable; the sampling-error selection axis still applies.
+#' Heterogeneity priors and scale formulas require an explicit random structure.
+#'
 #' `bselmodel.mv()` combines the selection-model interface of [bselmodel()] with
-#' the known-covariance and random-formula model of [brma.mv()]. Selection is
-#' always defined at the estimate level, so the selection weight is the product
-#' of the row-specific weights.
+#' the known-covariance and random-formula model of [brma.mv()]. Each
+#' weightfunction carries a [selection_model()] specifying whether estimate-level
+#' random effects, other random effects, and the complete sampling error are
+#' conditioned upon or integrated before selection normalization. The default
+#' integrates estimate-level random effects and sampling error, conditions on
+#' other random effects, and uses the product of estimate weights.
+#' `weight_rule = "best"` instead uses
+#' the weight at the smallest actual p-value in the publication group.
 #'
-#' With `selection_likelihood = "exact"`, all Gaussian random effects are
-#' analytically marginalized and each connected sampling/random covariance
-#' block is fitted with its joint selected-Gaussian density. Diagonal-plus-factor
-#' covariance structure is used only when certified by compiled random-effect
-#' metadata, retained automatically by [vcalc2()], or declared explicitly with
-#' [known_v_factor()]. Structural ranks
-#' one through four with positive conditional residual variances use exact
-#' low-dimensional factor integrals; other blocks retain the general dense
-#' exact likelihood. No numerical rank is inferred from an arbitrary covariance
-#' matrix. This target is independent of
-#' `known_v_parameterization`; that argument remains relevant to the approximate
-#' likelihood and downstream known-`V` machinery. With
-#' `selection_likelihood = "approximate"`, the existing row-wise selected-normal
-#' likelihood is used. The automatic known-`V` backend resolves to `"latent"`
-#' for this approximate target; explicitly requesting `"whitened"` or
-#' `"block_mvn"` is rejected because those transformations do not preserve
-#' estimate-level selection events.
-#' The approximate likelihood conditions on the structural sampling factors
-#' retained by [vcalc2()] or declared by [known_v_factor()] when available.
-#' Ordinary covariance matrices remain supported and use the decomposition
-#' controlled by `known_v_residual_fraction`. These decompositions can define
-#' different approximate likelihoods for the same covariance. Structural
-#' factors can improve computational efficiency, but are not guaranteed to
-#' improve agreement with the exact likelihood. Models supplied with `vi` or
-#' `sei` instead of `V` are unaffected by this distinction.
+#' With one cutoff and all three sources integrated, `"best"`
+#' corresponds to the relaxed report-all rule of
+#' \insertCite{vanaertinpressmultivariate;textual}{RoBMA}: a favorable result
+#' can select the publication vector, after which all measured outcomes are
+#' reported. The other conditioning cells and multiple-cutoff best rules are
+#' extensions of that specification.
 #'
-#' `marginalize_estimate_level` applies only to the approximate likelihood. The
-#' exact likelihood necessarily marginalizes every Gaussian random-effect block
-#' into the joint observation covariance.
+#' A publication group is resolved from an explicit `group` column in the
+#' prior or a supported constructor cluster. Multivariate random structures
+#' require an explicit group column. Covariance matrices, including standard
+#' [metafor::vcalc()] results, and random-effect grouping factors do not
+#' establish publication identities.
+#'
+#' Sampling error is \eqn{e \sim N(0,V)}. With positive sampling standard
+#' errors it can equivalently be written as \eqn{e = Sz}, with
+#' \eqn{z \sim N(0,R)} and \eqn{V = SRS}. Here \eqn{S} contains the original
+#' sampling standard errors and \eqn{R} preserves their complete correlation
+#' structure. Conditioning retains the entire realized vector \eqn{e} during
+#' selection normalization. No residual sampling variation remains inside that
+#' normalizer. Integration instead contributes the full \eqn{V} to candidate
+#' variation. These choices apply equally to univariate, diagonal, and
+#' correlated sampling covariance, including `vi` and `sei` inputs.
+#'
+#' The covariance `V` remains authoritative. A diagonal-plus-factor input from
+#' [known_v_factor()] can support more efficient calculations,
+#' but equivalent representations define the same selection model when their
+#' publication groups agree. Selection thresholds always use the original
+#' `sqrt(diag(V))`.
+#'
+#' The likelihood and post-fit methods use the same resolved conditioning
+#' model. `known_v_parameterization` and numerical integration settings cannot
+#' change it. The `estimate_random_effects` setting controls estimate-level
+#' true-effect variation. Shared covariance-factor and dense numerical paths use
+#' explicit integration diagnostics.
+#'
+#' The source settings define the reporting model. An optional comparison with
+#' integrating retained contexts can be requested with
+#' [selection_sensitivity_diagnostics()] or stored with
+#' [add_selection_sensitivity_diagnostics()]. Fitting does not compute this
+#' separate comparison automatically.
+#'
+#' `estimate_random_effects`, `other_random_effects`, and
+#' `known_sampling_variance` each accept `"condition"` or `"integrate"`.
+#' Both `"product"` and `"best"` support the resulting choices for supported
+#' Gaussian sources contained within publication groups.
+#'
+#' Retained contexts remain unknown and are estimated. Their population mixing
+#' laws stay outside the selection normalizer; integrating a context instead
+#' allows selection to reweight its mixing law. An absent context makes its
+#' two settings coincide. BayesTools identifies an estimate-level random term
+#' by a distinct grouping level for every retained estimate. At most one such
+#' term is allowed. Every other declared term is an other-level source,
+#' including terms with independent coefficient supports inside repeated groups.
+#' These roles do not split coefficient families or discard known group
+#' covariance; each choice applies to the complete declared random term.
+#'
+#' With every outcome-generating source conditioned upon, candidate outcomes
+#' are deterministic within a retained context. If weights are positive almost
+#' surely, they cancel under conditional normalization: the observed law is
+#' the ordinary Gaussian model and carries no information about the selection
+#' weights. A zero acceptance probability on a positive-probability set of
+#' retained contexts makes this selection process invalid. It must not be
+#' handled by silently discarding those contexts. Ordinary population-level
+#' publication selection instead integrates all outcome-generating sources.
+#'
+#' Product weights also support the existing Gaussian dependency paths spanning
+#' publication groups. Best weights require integrated dependencies to remain
+#' within each publication group; an unsupported source is identified before
+#' fitting. Conditioned sources may connect groups. Integrated candidate
+#' covariance can be singular while the observed law remains nondegenerate
+#' after averaging over retained sources. No residual noise is added to change
+#' this boundary. Ensembles require a common conditioning cell and publication
+#' partition across active selection branches, while allowing different bins,
+#' weight priors, and supported weight rules.
+#' Non-unit observation `weights` require
+#' `known_sampling_variance = "integrate"` and independent product factors.
+#' Unit weights are equivalent to omitting `weights`.
+#'
+#' Joint likelihoods, single-model bridge evidence, conditional-density
+#' estimation, selected prediction, latent summaries, and z-plots use this
+#' resolved model. Estimate-unit LOO, WAIC, and LOO-PIT integrate deleted
+#' outcomes within the original publication event. Their conditional row scores
+#' must not be summed and interpreted as a joint group likelihood. Cluster or
+#' block deletion remains unavailable for arbitrary `brma.mv()` random formulas.
+#' Product-space ensembles do not provide bridge marginal likelihoods.
+#' With conditioned sampling, estimate deletion integrates the deleted sampling
+#' error conditional on the retained sampling errors of the remaining estimates.
+#'
+#' Marginal selected predictions draw new retained contexts from their original
+#' mixing laws before drawing selected outcomes and reconstructing latent true
+#' effects. At estimate depth, latent predictions draw fitted true effects;
+#' [blup()] and [fitted.brma()] instead return conditional means. Response
+#' prediction at estimate depth describes a new reporting event around fitted
+#' truth, with new sampling error. Prediction's `conditioning_depth` is a
+#' separate choice from the selection-model source settings.
+#' Cluster depth is available only for the
+#' specialized `cluster` interface. Known-covariance latent and response
+#' predictions with `newdata` require `V_new` and the resolved publication-group
+#' reference; cross-covariance with fitted outcomes and non-marginal `newdata`
+#' are unavailable. See [predict.brma()] for prediction targets and labels.
+#'
+#' When the complete sampling error is conditioned upon, total fitted truth
+#' equals the observed estimate minus its fitted sampling error. Conditional
+#' means and estimate-depth latent draws then coincide within each posterior
+#' draw; uncertainty remains across posterior draws. Blockwise [ranef()] retains
+#' its conditional-mean target for each random-effect block.
+#'
+#' Partial-vector calculations retain the full selection event. Densities need
+#' a nondegenerate observed Gaussian law, except for supported one-coordinate
+#' projections of explicitly declared rank-one sources. Multicoordinate singular
+#' Lebesgue densities and general singular conditional latent posteriors are
+#' unavailable; zero integrated true-effect covariance gives deterministic
+#' latent effects. No general public multivariate CDF is provided. LOO-PIT and
+#' z-plots use their respective deletion and marginal projection targets.
 #'
 #' @return A fitted object of class
 #' `c("bselmodel.mv", "bselmodel", "brma.mv", "brma.norm", "brma")`.
 #'
 #' @examples \dontrun{
+#' dat <- data.frame(yi = c(0.10, 0.20), paper = c("A", "A"))
 #' V <- matrix(c(0.04, 0.01, 0.01, 0.09), 2, 2)
 #' fit <- bselmodel.mv(
-#'   yi      = c(0.10, 0.20),
+#'   yi      = yi,
 #'   V       = V,
+#'   data    = dat,
 #'   measure = "GEN",
-#'   steps   = 0.025,
+#'   prior_bias = prior_weightfunction(
+#'     "one-sided", 0.025, model = selection_model(group = paper)
+#'   ),
 #'   seed    = 1,
 #'   silent  = TRUE
 #' )
@@ -61,6 +160,8 @@
 #'
 #' @seealso [bselmodel()], [brma.mv()], [set_selection_likelihood_control()],
 #'   [summary.brma()]
+#'
+#' @references \insertAllCited{}
 #'
 #' @export
 bselmodel.mv <- function(
@@ -80,13 +181,11 @@ bselmodel.mv <- function(
     effect_direction = "detect", steps,
 
     # selection likelihood
-    selection_likelihood = c("exact", "approximate"),
+    selection = BayesTools::selection_model(),
     selection_control = set_selection_likelihood_control(),
 
     # MCMC fitting settings
     known_v_parameterization = "auto",
-    known_v_residual_fraction = 0.10,
-    marginalize_estimate_level = TRUE,
     sample = 5000, burnin = 2000, adapt = 500,
     chains = 3, thin = 1, parallel = FALSE,
     autofit = FALSE, autofit_control = set_autofit_control(),
@@ -96,7 +195,7 @@ bselmodel.mv <- function(
     seed = NULL, silent, ...,
     vi = NULL, sei = NULL) {
 
-  selection_likelihood <- match.arg(selection_likelihood)
+  BayesTools::check_selection_model(selection, name = "selection")
   initialized <- .initialize_mv_object(
     matched_call_unevaluated            = match.call(expand.dots = FALSE),
     matched_call                        = match.call(),
@@ -108,15 +207,11 @@ bselmodel.mv <- function(
     dots                                = list(...),
     missing_measure                     = missing(measure),
     measure                             = measure,
-    known_v_residual_fraction_specified = !missing(
-      known_v_residual_fraction
-    ),
     R                                   = R,
     Rscale                              = Rscale,
     standardize_continuous_predictors   = standardize_continuous_predictors,
     set_contrast_factor_predictors      = set_contrast_factor_predictors,
     known_v_parameterization            = known_v_parameterization,
-    known_v_residual_fraction           = known_v_residual_fraction,
     sample                              = sample,
     burnin                              = burnin,
     adapt                               = adapt,
@@ -148,14 +243,13 @@ bselmodel.mv <- function(
     prior_informed_subfield   = prior_informed_subfield,
     data                      = object[["data"]],
     bias_type                 = "selmodel",
-    steps                     = steps
+    steps                     = steps,
+    weightfunction_model      = selection
   )
 
   .finalize_mv_object(
     object                     = object,
-    selection_likelihood       = selection_likelihood,
     selection_control          = selection_control,
-    only_priors                = isTRUE(dots[["only_priors"]]),
-    marginalize_estimate_level = marginalize_estimate_level
+    only_priors                = isTRUE(dots[["only_priors"]])
   )
 }

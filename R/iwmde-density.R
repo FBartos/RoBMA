@@ -5,6 +5,58 @@
 .iwmde_row_states <- function(context, rows, parameter = NULL,
                               parameter_spec = NULL, estimator = NULL) {
 
+  if (length(rows) > 1L && .is_data_joint_selection(context[["data"]]) &&
+      .iwmde_context_uses_local_likelihood(context)) {
+    # Reuse the joint batch evaluator only for the baseline likelihood. Local
+    # parameters, priors and row diagnostics are still assembled below.
+    rng_kind <- RNGkind()
+    has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+    if (has_seed) old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+    tryCatch({
+      likelihood_mode <- .iwmde_likelihood_mode(parameter, parameter_spec, context)
+      state_scope     <- .iwmde_state_scope(parameter, parameter_spec, context)
+      active_keys     <- .iwmde_active_keys(context)[rows]
+      cache_keys      <- paste(rows, active_keys, likelihood_mode, sep = "|")
+      pending <- which(!duplicated(cache_keys) & !vapply(
+        cache_keys, exists, logical(1),
+        envir = context[["likelihood_cache"]], inherits = FALSE
+      ))
+      unit <- if (.is_data_multilevel(context[["data"]])) "cluster" else "estimate"
+
+      for (active_key in unique(active_keys[pending])) {
+        positions <- pending[active_keys[pending] == active_key]
+        group_rows <- rows[positions]
+        first_state <- .iwmde_base_row_state(
+          context, group_rows[[1L]], state_scope = state_scope
+        )
+        log_lik <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(
+          context           = context,
+          posterior_samples = context[["posterior_samples"]][group_rows, , drop = FALSE],
+          active_setup      = first_state[["active_setup"]],
+          unit              = unit
+        )
+        if (!is.numeric(log_lik) || !is.null(dim(log_lik)) ||
+            length(log_lik) != length(group_rows) || any(!is.finite(log_lik))) {
+          break
+        }
+        for (i in seq_along(positions)) {
+          assign(cache_keys[[positions[[i]]]], log_lik[[i]],
+                 envir = context[["likelihood_cache"]])
+        }
+      }
+    }, error = function(e) NULL, warning = function(w) NULL, finally = {
+      # A diagnostic or unavailable batch leaves the affected rows uncached;
+      # scalar evaluation emits the original condition without consuming RNG
+      # or duplicating warnings from this speculative calculation.
+      do.call(RNGkind, as.list(rng_kind))
+      if (has_seed) {
+        assign(".Random.seed", old_seed, envir = .GlobalEnv)
+      } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+        rm(".Random.seed", envir = .GlobalEnv)
+      }
+    })
+  }
+
   lapply(rows, function(row) {
     tryCatch(
       .iwmde_row_state(
@@ -99,10 +151,11 @@
       prior_list  = prior_list
     )
     group_rows   <- vapply(group, `[[`, integer(1), "row_index")
-    log_prior    <- .iwmde_log_prior_rows(
+    log_prior    <- .iwmde_replacement_log_prior_rows(
       context[["posterior_samples"]][group_rows, , drop = FALSE],
       prior_list,
-      evaluator = prior_evaluator
+      replacement = parameter_spec,
+      evaluator   = prior_evaluator
     )
 
     if (is_primitive) {
@@ -300,6 +353,10 @@
     return(FALSE)
   }
 
+  if (.is_data_joint_selection(context[["data"]])) {
+    return(.selection_retains_any_random(context[["data"]]) ||
+      .selection_retains_sampling(context[["data"]]))
+  }
   return(.data_outcome_type(context[["data"]]) %in% c("bin", "pois"))
 }
 
@@ -346,7 +403,7 @@
     return(FALSE)
   }
 
-  return(grepl("^(gamma|theta|pi|phi)\\[", parameter))
+  return(grepl("^(gamma|theta|sampling_z|pi|phi)\\[", parameter))
 }
 
 
@@ -356,7 +413,7 @@
     return(FALSE)
   }
 
-  return(parameter %in% c("gamma", "theta", "pi", "phi"))
+  return(parameter %in% c("gamma", "theta", "sampling_z", "pi", "phi"))
 }
 
 
@@ -371,6 +428,7 @@
   } else {
     NULL
   }
+
   if (is.list(cached) && identical(cached[["columns"]], columns)) {
     keep <- cached[["keep"]]
   } else {
@@ -441,14 +499,15 @@
     state_scope = state_scope,
     prior_list  = prior_list
   )
-  log_prior <- .iwmde_log_prior_rows(
+  log_prior <- .iwmde_replacement_log_prior_rows(
     samples = matrix(
       as.numeric(base_state[["row"]]),
       nrow     = 1L,
       dimnames = list(NULL, names(base_state[["row"]]))
     ),
-    prior_list = prior_list,
-    evaluator  = prior_evaluator
+    prior_list  = prior_list,
+    replacement = parameter_spec,
+    evaluator   = prior_evaluator
   )[[1L]]
   if (is_primitive) {
     focal_prior <- .iwmde_focal_prior(context, parameter, base_state[["row"]])
@@ -528,7 +587,8 @@
 
 .iwmde_marginal_likelihood_requires_row <- function(context) {
 
-  .is_data_known_v(context[["data"]]) && .is_data_random(context[["data"]])
+  .is_data_joint_selection(context[["data"]]) ||
+    (.is_data_known_v(context[["data"]]) && .is_data_random(context[["data"]]))
 }
 
 
@@ -574,6 +634,8 @@
 
   grid_sequence <- normalizer_plan[["grid_sequence"]]
   all_grid       <- normalizer_plan[["all_grid"]]
+  context[["normalizer_grid"]] <- .selection_normalizer_grid(context,
+    c(display_grid, all_grid[["x"]]), vapply(row_states, `[[`, integer(1L), "row_index"))
   n_states       <- length(row_states)
   log_q_all      <- matrix(
     NA_real_,
@@ -586,6 +648,20 @@
   quadrature_changes <- numeric()
   log_q_display      <- NULL
   last_index         <- 0L
+  conditional_rows <- which(vapply(row_states, function(state) {
+    !is.null(state[["conditioning_transform"]])
+  }, logical(1L)))
+  conditional_normalizers <- lapply(conditional_rows, function(row) {
+    tryCatch(.iwmde_retained_location_normalizer(row_states[[row]]), error = function(e) {
+      .iwmde_stop_construction_failure("q_grid_cmde", parameter, estimator_rows[[row]],
+        stage = "retained-location conditional normalization", detail = conditionMessage(e))
+    })
+  })
+  conditional_log_mass <- vapply(conditional_normalizers, `[[`, numeric(1L), "log_normalizer")
+  if (length(conditional_rows)) {
+    quadrature_changes <- vapply(conditional_normalizers, `[[`, numeric(1L), "relative_error")
+  }
+  ordinary_rows <- setdiff(seq_len(n_states), conditional_rows)
 
   evaluate_values <- function(values) {
 
@@ -653,10 +729,14 @@
     }
 
     log_q_sequence[[index]] <- log_q_all[grid_rows, , drop = FALSE]
-    log_normalizer_sequence[[index]] <- .iwmde_log_trapz_columns(
-      x     = grid[["z"]],
-      log_y = log_q_sequence[[index]] + grid[["log_jacobian"]]
-    )
+    log_normalizer_sequence[[index]] <- numeric(n_states)
+    if (length(ordinary_rows)) {
+      log_normalizer_sequence[[index]][ordinary_rows] <- .iwmde_log_trapz_columns(
+        x     = grid[["z"]],
+        log_y = log_q_sequence[[index]][, ordinary_rows, drop = FALSE] + grid[["log_jacobian"]]
+      )
+    }
+    log_normalizer_sequence[[index]][conditional_rows] <- conditional_log_mass
     last_index <- index
 
     if (index >= 3L && .iwmde_qcmde_refinement_pair_converged(
@@ -681,7 +761,10 @@
     log_q_display           = log_q_display,
     log_q_sequence          = log_q_sequence[evaluated_sequence],
     log_normalizer_sequence = log_normalizer_sequence[evaluated_sequence],
-    quadrature_change       = quadrature_change
+    conditional_normalization = list(rows = conditional_rows,
+      methods = vapply(conditional_normalizers, `[[`, character(1L), "method")),
+    quadrature_change       = quadrature_change,
+    normalizer_interpolation = .selection_normalizer_grid_diagnostics(context[["normalizer_grid"]])
   ))
 }
 
@@ -887,6 +970,8 @@
     mcmc_uncertainty_reason  = mcse_data[["uncertainty_reason"]],
     log_normalizer         = log_normalizer,
     pilot_log_normalizer   = initial_log_normalizer,
+    conditional_normalization = evaluation[["conditional_normalization"]],
+    normalizer_interpolation = evaluation[["normalizer_interpolation"]],
     n_candidate_rows       = n_candidate_rows,
     n_evaluated_rows       = n_input_rows,
     normalization_points              = length(final_grid[["x"]]),

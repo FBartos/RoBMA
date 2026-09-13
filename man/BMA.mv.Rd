@@ -32,8 +32,6 @@ BMA.mv(
   prior_informed_field,
   prior_informed_subfield,
   known_v_parameterization = "auto",
-  known_v_residual_fraction = 0.1,
-  marginalize_estimate_level = TRUE,
   sample = 5000,
   burnin = 2000,
   adapt = 500,
@@ -56,9 +54,13 @@ left-hand side and location moderators on the right-hand side (for example
 \code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.}
 
 \item{V}{a known working variance-covariance matrix, a list of block
-variance-covariance matrices, a metadata-preserving \code{\link[=vcalc2]{vcalc2()}} result, or an
-exact diagonal-plus-factor declaration created by \code{\link[=known_v_factor]{known_v_factor()}}, used
-by \code{brma.mv()}.}
+variance-covariance matrices, or an exact diagonal-plus-factor declaration
+created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}. Ordinary covariance
+matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. For selection
+models, declare publication groups separately with \code{selection_model(group = ...)}.
+Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
+stored symmetrically by averaging off-diagonal pairs; the supplied object
+and its diagonal are unchanged.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
 when estimating the unit information standard deviation.}
@@ -75,17 +77,10 @@ scale predictors for location-scale models. Formula input is evaluated in
 Random-formula models also accept a named list targeting top-level random
 components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
-\item{random}{an optional formula or list of formulas specifying
-BayesTools random-effect terms for \code{brma.mv()}. Use
-\link[=random_effect_formula_tags]{random-effect formula structure tags} such as
-\code{diag()}, \code{us()}/\code{un()}, \code{cs()}, \code{hcs()}, \code{ar1()}/\code{ar()}, \code{har()}, or
-\code{car()} inside the formula. Plain \code{(expr | group)} syntax uses an
-unstructured random-coefficient block; \code{expr || group} uses a diagonal
-block. The coefficient-formula and structured-index tag families have
-different left-side semantics; see the linked documentation. A bare formula
-or unnamed one-entry list has no redundant component prefix. An explicitly
-named one-entry list retains its name; lists with two or more entries
-generate missing names as \verb{component 1}, \verb{component 2}, and so on.}
+\item{random}{Optional BayesTools random-effect formula or list of formulas.
+Omission or \code{NULL} means a fixed-effect model with no implicit
+heterogeneity term. Known sampling covariance \code{V} remains unchanged.
+Declare \code{random} before supplying heterogeneity priors or scale formulas.}
 
 \item{R}{optional known random-effect group covariance/correlation matrix,
 or a named list of matrices. Matrix row and column names identify grouping
@@ -179,24 +174,6 @@ field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field
 likelihood; \code{"block_mvn"} uses an exact native block multivariate-normal
 likelihood.}
 
-\item{known_v_residual_fraction}{proportion of the diagonal of \code{V} left as
-conditional independent residual sampling variance in the latent \verb{D + BB'}
-representation. Defaults to \code{0.10}; values are validated for all backends
-but affect only the latent backend. When \code{"auto"} selects \code{"whitened"} or
-\code{"block_mvn"}, explicitly supplied values are disregarded by the likelihood.
-Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
-supplied. For a factor representation declared by \code{\link[=vcalc2]{vcalc2()}} or
-\code{\link[=known_v_factor]{known_v_factor()}}, the declared diagonal is the exact residual variance and
-this argument is disregarded with a warning when supplied explicitly.
-Approximate selection likelihoods condition on the declared factors when
-available; otherwise this argument controls their sampling decomposition.
-Different decompositions of the same covariance can define different
-approximate selection likelihoods.}
-
-\item{marginalize_estimate_level}{logical; should a one-to-one estimate-level
-random-intercept block be integrated into the likelihood variance instead of
-sampled as latent random coefficients? Defaults to \code{TRUE}.}
-
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
 \item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.}
@@ -242,6 +219,10 @@ effects. Random structures supplied through \code{random} are model-averaged wit
 independent component gates.
 }
 \details{
+Omitted or NULL \code{random} specifies no heterogeneity and no random-effect
+inclusion mixture. Heterogeneity priors and scale formulas require an
+explicit random structure; the known sampling covariance remains unchanged.
+
 \code{BMA.mv()} combines the product-space model-averaging workflow of \code{\link[=BMA]{BMA()}}
 with the likelihood, formula, random-effect, and known-covariance machinery
 of \code{\link[=brma.mv]{brma.mv()}}. For multiple top-level random components, a Dirichlet prior
@@ -272,8 +253,8 @@ covariance-owned SD, or variance allocation.
 Random-effect inclusion probabilities are reported separately from fixed
 effect and scale-regression inclusion. Averaged random-component SDs retain
 the excluded zero branch; conditional random summaries condition each
-component on its own gate. \code{sd_total} and \code{var_total} are the realized gated
-aggregate, including zero when every component is excluded. \code{var_prop(j)} is
+component on its own gate. \code{tau_total} and \code{tau2_total} are the realized gated
+aggregate, including zero when every component is excluded. \code{tau2_prop(j)} is
 the realized share \eqn{I_j w_j / \sum_k I_k w_k}, conditional on positive
 total heterogeneity. Excluded components therefore have zero share, and the
 all-off branch is omitted only from variance-proportion summaries. The

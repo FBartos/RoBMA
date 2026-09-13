@@ -6,13 +6,13 @@ Location
 mu 0.359 0.095 0.171 0.358 0.548     0.00202          0.021 2231 1.000
 
 Scale
-                                    Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-(esid_study: sd) exp(intercept)    0.514 0.099  0.349  0.504 0.736     0.00303          0.031 1097 1.001
-(esid_study: sd) deltype[general] -0.307 0.217 -0.737 -0.307 0.115     0.00631          0.029 1180 1.000
-(esid_study: sd) deltype[overt]   -0.533 0.301 -1.133 -0.534 0.052     0.00508          0.017 3621 1.001
-exp(intercept) is the baseline SD of the indicated target, already exponentiated. Other coefficients are changes in log(SD); exp(coefficient) is an SD multiplier.
+                                     Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+(esid_study: tau) exp(intercept)    0.514 0.099  0.349  0.504 0.736     0.00303          0.031 1097 1.001
+(esid_study: tau) deltype[general] -0.307 0.217 -0.737 -0.307 0.115     0.00631          0.029 1180 1.000
+(esid_study: tau) deltype[overt]   -0.533 0.301 -1.133 -0.534 0.052     0.00508          0.017 3621 1.001
+exp(intercept) is the baseline heterogeneity SD (tau) of the indicated target, already exponentiated. Other coefficients are changes in log(SD); exp(coefficient) is an SD multiplier.
 
 Random
-           Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-study: sd 0.263 0.099 0.077 0.258 0.474     0.00210          0.021 2259 1.001
+            Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+study: tau 0.263 0.099 0.077 0.258 0.474     0.00210          0.021 2259 1.001
 

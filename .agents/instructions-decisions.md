@@ -1,48 +1,58 @@
 # Pending Maintainer Decisions
 
-Keep only unresolved choices here. Once decided, implement the decision and
-remove the item.
+Keep only unresolved choices here. Remove an item when its decision is
+implemented or superseded.
 
-## Existing Covariance Spectral Truncation
+## Selected Funnel and Zplot Target Consistency
 
-- Issue: `R/covariance-factorization.R` symmetrizes its input and replaces
-  spectral eigenvalues whose absolute value is within its roundoff envelope
-  by zero, including small positive eigenvalues. The selected-response native
-  fallback in `src/r-selnorm-mv.cc.inc` has the same truncation policy after
-  Cholesky fails. This policy predates the selection-speed work.
-- Impact: the spectral factor can differ from the submitted covariance. The
-  R helper is consumed by ordinary known-V latent decomposition and covariance
-  sampling, not just selection models. Its comments distinguish preserved
-  covariance storage from altered spectral factors; storage preservation alone
-  does not establish that downstream sampling preserves the target.
-- Recommendation: review the shared policy separately. Preserve a successful
-  Cholesky factor and valid positive eigenvalues; decide how to handle
-  roundoff-sign ambiguity for genuinely singular inputs before changing the
-  spectral fallback. Do not silently add jitter or covariance repair.
-- Decision: pending; the current performance changes leave this policy intact.
+- Issue: the marginal new-effect contract is implemented by selected zplot as
+  an outer average over newly realized retained contexts of conditionally
+  normalized full publication-event marginals. In contrast,
+  `R/funnel-quantiles.R` combines random sources into total marginal SD before
+  calling the scalar selected-CDF API in `R/regplot-quantiles.R`. Source roles,
+  publication groups and vector selection rules do not reach that native API.
+- Impact: `funnel()` and `bfunnel()` differ correctly in plug-in versus
+  posterior averaging, but their selected distributions generally disagree
+  with the fitted source-normalization order. This already occurs for diagonal
+  sampling covariance with a retained study effect. The documented descriptive
+  scalar-SE convention for full V additionally omits the original multivariate
+  selection event. Previous post-fit runtime passes did not verify this
+  consistency and must not be interpreted as such.
+- Recommendation: retain zplot's agreed marginal replicated-literature target
+  and share its source-aware selected marginal law with contour calculations.
+  For arbitrary hypothetical SE grids under full V, define the accompanying
+  multivariate design/publication event explicitly; a scalar SE alone does not
+  determine that law. Options are full-event contours at validated designs or
+  a separately identified descriptive scalar display. Do not silently replace
+  full-event selection by scalar selection or condition on fitted BLUPs.
+- Current implementation: fully conditioned positive-weight contours use the
+  Gaussian law. Other configurations unsupported by the scalar calculation
+  fail explicitly, rather than returning a different selected distribution.
+- Decision: pending discussion of contour design semantics. The proposed
+  convention scales the complete original publication's SE vector proportionally
+  at each hypothetical focal SE, preserving correlations, relative SEs and random
+  design, then averages over observed designs. The maintainer question is pending.
 
-## Existing Known-V Residual-Decomposition Policy
+## Covariance Working-Precision Boundary
 
-- Issue: `.known_v_decompose_block()` limits the latent backend's residual
-  fraction to `0.99 * lambda_min(cov2cor(V))` and rejects a maximum fraction
-  at or below `sqrt(.Machine$double.eps)`. It warns when the requested
-  fraction is reduced; these policies predate the current work.
-- Impact: the decomposition preserves the Gaussian covariance (subject to
-  the spectral policy above), but changes which factors the approximate
-  selection likelihood conditions on. The 0.99 margin and near-singularity
-  rejection also exclude some mathematically valid decompositions. The
-  Assink ordinary-matrix target uses the requested 0.1 fraction without this
-  reduction, so these constants do not explain the current Assink timing.
-- Recommendation: review the residual-fraction contract and singular-input
-  policy together before changing these constants. Do not change the
-  approximate target or add covariance repair as a performance shortcut.
-- Maintainer proposal: reject approximate selection when the requested
-  decomposition is infeasible instead of reducing its residual fraction, and
-  suggest 'selection_likelihood = "exact"' where supported. Base rejection on
-  the requested decomposition, not a generic high-dependence cutoff: another
-  declared factorization can be feasible. This does not resolve the shared
-  spectral policy or guarantee that exact selection supports every singular V.
-- Decision: pending; left unchanged in this work.
+- Issue: dense covariance inputs with standardized eigenvalues within the
+  eigensolver roundoff envelope cannot be classified as exactly singular,
+  positive definite or indefinite from ordinary floating-point output alone.
+- Current implementation: the inherited numerical PSD rule now operates in SRS
+  correlation coordinates. One accepted factor defines sampling, whitening and
+  conditional support; a rounded positive Cholesky pivot cannot override it.
+  Small independent variances are preserved. Known-group kernels requiring a
+  nonsingular density fail explicitly when positive definiteness is unresolved.
+  External numerical-symmetry canonicalization remains necessary for ordinary
+  metafor::vcalc output and is documented. No diagonal jitter was introduced.
+- Evidence: exact integer rank-two matrices had eight support failures over 30
+  row orderings before the shared-support correction and none afterward. Keeping
+  every computed positive eigenvalue or using zero-tolerance pivoted Cholesky
+  did not solve the general support problem.
+- Decision: any replacement of the inherited within-roundoff PSD convention
+  with stricter unavailability for all ambiguous dense inputs remains a separate
+  maintainer choice. The current review makes the existing convention consistent;
+  it does not claim exact binary64 PSD certification.
 
 ## Existing BayesTools Truncated-Normal CDF Clipping
 

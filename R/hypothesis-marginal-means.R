@@ -388,7 +388,9 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     density_method
   )
 
-  context        <- .iwmde_context(source_object)
+  context        <- .iwmde_context(
+    source_object, density_control[["integration_control"]]
+  )
   estimate_cache <- .iwmde_estimate_cache()
   object[["inference"]][[inference_type]][[parameter]] <-
     .hypothesis_brma_keep_requested_ordinates(
@@ -471,7 +473,9 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       "display_grid"
     )
     if (density_method %in% c("qCMDE", "IWMDE")) {
-      keep <- c(keep, "normalization_points", "normalization_prob")
+      keep <- c(
+        keep, "normalization_points", "normalization_prob", "integration_control"
+      )
     }
     density_control <- settings[intersect(keep, names(settings))]
   }

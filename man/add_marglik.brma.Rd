@@ -72,11 +72,15 @@ the standardized cluster effects are likewise integrated exactly. The bridge
 retains total heterogeneity and its allocation while evaluating the implied
 diagonal-plus-cluster-rank-one covariance, including row-specific scale
 regression and likelihood weights.
-Approximate selection likelihoods retain the fitted joint latent
-parameterization because selection is conditional on the shared random
-effects. Exact selection likelihoods instead use the same analytically
-marginalized selected-Gaussian covariance blocks and fixed integration plan
-as fitting, so bridge sampling targets the fitted finite-vector density.
+Selection models retain every context that the fitted model conditions on,
+including its normalized prior, and integrate only the Gaussian sources
+declared by that model. The likelihood uses the same full publication events
+and integration plan as fitting. A context integrated before selection
+normalization cannot be replaced by a retained-context parameterization.
+With \code{known_sampling_variance = "condition"}, the bridge retains the
+independent Gaussian augmentation coordinates and their normalized priors.
+The complete sampling error and random effects are reconstructed for each
+proposed bridge state before evaluating its selection normalizer.
 }
 \examples{
 \dontrun{

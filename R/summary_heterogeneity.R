@@ -89,31 +89,33 @@ summary_heterogeneity <- function(object, ...) {
 #' \insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 #' the partitioned I^2 follows the approach described in the metafor documentation.
 #'
-#' For \code{brma.mv()} models, the method reports \code{sd} and \code{var}
+#' For \code{brma.mv()} models, the method reports \code{tau} and \code{tau2}
 #' for each selected random-effect component. A genuine variance-additive
-#' aggregate is reported as \code{sd_total} and \code{var_total}; a
-#' mean-variance allocation scale is reported as \code{sd_common} and
-#' \code{var_common}. This vocabulary also applies when no explicit
-#' \code{random} formula is supplied because \code{brma.mv()} adds an
-#' estimate-level random effect by default.
-#' Public random-effect correlations are included in their component's table,
+#' aggregate is reported as \code{tau_total} and \code{tau2_total}; a
+#' mean-variance allocation scale is reported as \code{tau_common} and
+#' \code{tau2_common}. These RoBMA I/O names map to BayesTools' general
+#' random-effect names without changing the fitted quantities. Formula-random
+#' summaries are present only when a
+#' \code{random} formula is declared.
+#' Public random-effect correlations (`rho`) are included in their component's
+#' table,
 #' including homogeneous structures such as \code{ar()}, \code{cs()}, and
 #' \code{car()}. A variance-additive total across multiple components has no
 #' single correlation parameter and reports only its total SD and variance.
-#' When a known group covariance \eqn{R} is supplied, \code{sd} is the fitted
-#' multiplier of that covariance kernel. It need not equal every row's
+#' When a known group covariance \eqn{R} is supplied, \code{tau} is the fitted
+#' base multiplier of that covariance kernel. It need not equal every row's
 #' marginal standard deviation when \eqn{\mathrm{diag}(R)} is not one.
 #' Row-specific marginal standard deviations remain available from
 #' \code{predict(type = "terms.scale")} and in covariance-based prediction and
 #' diagnostics.
 #' Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
 #' known-V covariance structures. For \code{component = "total"}, independent
-#' component variances are summed before reporting \code{var_total};
-#' \code{sd_total} is the square root of this variance draw.
+#' component variances are summed before reporting \code{tau2_total};
+#' \code{tau_total} is the square root of this variance draw.
 #' When a random-formula model uses a shared total-SD plus variance-allocation
 #' node, \code{component = "all"} also includes an allocation-node table with
 #' the appropriate aggregate SD and variance plus
-#' \code{var_prop(<block>)} rows. For gated allocations, the aggregate is the
+#' \code{tau2_prop(<block>)} rows. For gated allocations, the aggregate is the
 #' realized model-averaged total and includes the all-off zero branch;
 #' proportions are realized shares conditional on positive total variance.
 #' For nested formulas

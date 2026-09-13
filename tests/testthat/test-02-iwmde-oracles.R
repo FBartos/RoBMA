@@ -325,7 +325,7 @@ test_that("GLMM IWMDE point Bayes factors are explicitly unsupported", {
 })
 
 
-test_that("qCMDE and IWMDE match the known-V tau boundary bridge factor", {
+test_that("qCMDE and IWMDE match the known-V estimate SD boundary bridge factor", {
 
   skip_on_cran()
   names <- c("iwmde_known_v_tau_null", "iwmde_known_v_tau_full")
@@ -333,7 +333,35 @@ test_that("qCMDE and IWMDE match the known-V tau boundary bridge factor", {
 
   null <- load_fit(names[[1L]])
   full <- load_fit(names[[2L]])
-  .expect_bridge_nesting(null, full, "tau")
+  expect_equal(null[["data"]][["outcome"]], full[["data"]][["outcome"]])
+  null_V <- .known_v_covariance_matrix(.data_known_v_data(null[["data"]]))
+  full_V <- .known_v_covariance_matrix(.data_known_v_data(full[["data"]]))
+  expect_equal(null_V, full_V, tolerance = 0)
+  expect_false(.is_random(null))
+  expect_true(.is_random(full))
+  prior_fields <- c("distribution", "parameters", "truncation", "prior_weights")
+  expect_equal(
+    attr(null[["fit"]], "prior_list")[["mu"]][prior_fields],
+    attr(full[["fit"]], "prior_list")[["mu_intercept"]][prior_fields]
+  )
+  # At zero estimate SD, the explicit random-effect model must reduce to the
+  # same fixed-effect Gaussian law; unlike representation metadata, this is
+  # invariant to whether the null omits the random term.
+  target <- .brma_random_parameter_density_target(full, "tau")
+  zero_draws <- head(as.matrix(.get_posterior_samples(full[["fit"]])), 3L)
+  zero_draws[, target[["parameter"]]] <- 0
+  expected <- vapply(zero_draws[, "mu_intercept"], function(mu) {
+    mvtnorm::dmvnorm(full[["data"]][["outcome"]][["yi"]],
+                     mean = rep(mu, nrow(full_V)), sigma = full_V, log = TRUE)
+  }, numeric(1L))
+  expect_equal(.log_lik_from_posterior_samples_sum(
+    full[["fit"]], zero_draws, full[["data"]], full[["priors"]]
+  ), expected, tolerance = 1e-12)
+  null_draws <- matrix(zero_draws[, "mu_intercept"], ncol = 1L,
+                       dimnames = list(NULL, "mu"))
+  expect_equal(.log_lik_from_posterior_samples_sum(
+    null[["fit"]], null_draws, null[["data"]], null[["priors"]]
+  ), expected, tolerance = 1e-12)
   expect_true(is.finite(logml(null)))
   expect_true(is.finite(logml(full)))
   expect_lt(.iwmde_oracle_bridge_mcse(null), .05)
@@ -342,7 +370,8 @@ test_that("qCMDE and IWMDE match the known-V tau boundary bridge factor", {
   for (density_method in c("qCMDE", "IWMDE")) {
     result <- hypothesis(
       full,
-      "tau = 0",
+      "sd = 0",
+      component       = "random",
       columns         = "all",
       density_method  = density_method,
       density_control = list(
@@ -358,7 +387,7 @@ test_that("qCMDE and IWMDE match the known-V tau boundary bridge factor", {
       result,
       null,
       full,
-      info = paste("known-V tau boundary", density_method)
+      info = paste("known-V estimate SD boundary", density_method)
     )
     diagnostics <- density_diagnostics(result)
     expect_equal(diagnostics[["achieved_row_budget"]], 240L)

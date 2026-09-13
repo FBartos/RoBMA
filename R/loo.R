@@ -61,19 +61,18 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #'
 #' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 #' per cluster. For unweighted normal models without selection this uses the
-#' analytic cluster block covariance. Selection and data-weighted normal models
-#' integrate the held-out cluster effect with Gauss-Hermite quadrature.
+#' analytic cluster block covariance. Data-weighted normal models integrate
+#' the held-out cluster effect with Gauss-Hermite quadrature.
 #' Cluster-unit binomial and Poisson GLMM log-likelihoods are unavailable until
 #' certified nested adaptive quadrature is implemented; use
 #' \code{unit = "estimate"} for GLMMs.
 #'
-#' For approximate selection models, LOO evaluates the row-wise selected-normal
-#' likelihood conditional on sampled shared effects and posterior omega. For
-#' exact selection models, estimate deletion uses the selected Gaussian Schur
-#' conditional \eqn{p_E(y_i \mid y_{-i}, \theta)}. The selection weights of the
-#' retained estimates cancel; the deleted estimate retains its own weight and
-#' conditional selection normalizer. This is the estimate-level finite-vector
-#' deletion target, not prediction for an entirely new dependency block.
+#' Selection-model deletion conditions the Gaussian law on retained outcomes
+#' and on the context declared by the fitted selection model. It preserves the
+#' original publication event and selection standard errors. Product weights
+#' on retained outcomes cancel; best selection continues to depend on the best
+#' p-value among both retained and deleted outcomes. This finite-vector deletion
+#' score differs from prediction for an entirely new publication event.
 #'
 #' For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
 #' estimate-unit LOO integrates Gaussian local effects and uses

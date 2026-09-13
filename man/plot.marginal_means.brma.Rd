@@ -74,7 +74,10 @@ density curves),
 \code{display_grid} (default \code{"adaptive"}),
 \code{normalization_points} (default \code{NULL}, resolved to
 \code{max(50, n_points)}), and \code{normalization_prob} (default
-\code{0.999}). \code{samples} controls the fixed posterior-row budget for
+\code{0.999}). \code{integration_control} (default \code{NULL}) accepts
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}} settings for Gaussian selection models;
+see \code{\link[=marginal_means.brma]{marginal_means.brma()}} for an example. The fitted object and posterior
+draws are unchanged. \code{samples} controls the fixed posterior-row budget for
 the density curve. \code{target_relative_mcse} is a point-ordinate
 diagnostic target and does not alter this fixed-budget plot. Curve
 diagnostics use the empirical 5--95 percent bulk, report the 5 and 95

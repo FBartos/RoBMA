@@ -22,11 +22,12 @@ testthat::test_that("Bem simple models", {
     return(tmp)
   })
   fit_3PSM <- scenario_fit("fit_3PSM", {
-    tmp <- bselmodel(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1)
+    # More posterior draws are needed for precise density evidence at mu = 0.
+    tmp <- bselmodel(yi = d, sei = se, data = Bem2011, measure = "SMD", sample = 20000, seed = 1)
     tmp <- add_loo(tmp)
     tmp <- add_marglik(tmp)
     return(tmp)
-  })
+  }, cache_version = 1L)
   fit_PET <- scenario_fit("fit_PET", {
     tmp <- bPET(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1,
                 sample = 20000, adapt = 5000, burnin = 5000)
@@ -115,7 +116,7 @@ testthat::test_that("Bem simple models", {
                   prior_effect = prior("spike", list(mu0_seq[i])))
       tmp <- add_marglik(tmp)
       return(tmp)
-    })
+    }, cache_version = 1L)
     fit_PET_null_list[[i]] <- scenario_fit(paste0("fit_PET_null_", mu0_seq[i]), {
       tmp <- bPET(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1,
                        prior_effect = prior("spike", list(mu0_seq[i])))
@@ -127,24 +128,40 @@ testthat::test_that("Bem simple models", {
   names(fit_3PSM_null_list) <- paste0("mu=",mu0_seq)
   names(fit_PET_null_list)  <- paste0("mu=",mu0_seq)
 
-  # get BFs
+  # BF10 compares the unrestricted mean with the indicated point null.
   BFs_3PSM_marglik <- sapply(fit_3PSM_null_list, function(fit0) bf(fit_3PSM, fit0))
   BFs_PET_marglik  <- sapply(fit_PET_null_list,  function(fit0) bf(fit_PET,  fit0))
 
   # compute via density methods
   set.seed(1)
-  BFs_3PSM_IWMDE  <- scenario_time("BFs_3PSM_IWMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "IWMDE")))
-  BFs_3PSM_qCMDE  <- scenario_time("BFs_3PSM_qCMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "qCMDE")))
+  BFs_3PSM_IWMDE  <- scenario_time("BFs_3PSM_IWMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "IWMDE", density_control = list(samples = Inf))))
+  BFs_3PSM_qCMDE  <- scenario_time("BFs_3PSM_qCMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "qCMDE", density_control = list(samples = Inf))))
   BFs_3PSM_normal <- scenario_time("BFs_3PSM_normal",  sapply(mu0_seq, function(mu0) hypothesis(fit_3PSM, hypothesis = paste0("mu=",mu0), density_method = "normal")))
 
   BFs_PET_IWMDE   <- scenario_time("BFs_PET_IWMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "IWMDE")))
   BFs_PET_qCMDE   <- scenario_time("BFs_PET_qCMDE",   sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "qCMDE")))
   BFs_PET_normal  <- scenario_time("BFs_PET_normal",  sapply(mu0_seq, function(mu0) hypothesis(fit_PET, hypothesis = paste0("mu=",mu0), density_method = "normal")))
 
+  # Bridge CVs refer to each marginal likelihood; density errors refer to BF10.
+  # The normal approximation remains a descriptive comparison.
+  scenario_text("mu_BF_3PSM_uncertainty", data.frame(
+    mu0                      = mu0_seq,
+    bridge_BF10              = unlist(BFs_3PSM_marglik["bf", ]),
+    bridge_H1_CV_percent     = 100 * bridgesampling::error_measures(bridge_sampler(fit_3PSM))[["cv"]],
+    bridge_H0_CV_percent     = vapply(fit_3PSM_null_list, function(fit0) 100 * bridgesampling::error_measures(bridge_sampler(fit0))[["cv"]], numeric(1)),
+    IWMDE_BF10               = unlist(BFs_3PSM_IWMDE["BF", ]),
+    IWMDE_error_percent      = unlist(BFs_3PSM_IWMDE["BF_error", ]),
+    qCMDE_BF10               = unlist(BFs_3PSM_qCMDE["BF", ]),
+    qCMDE_error_percent      = unlist(BFs_3PSM_qCMDE["BF_error", ]),
+    normal_BF10              = unlist(BFs_3PSM_normal["BF", ]),
+    normal_error_percent     = unlist(BFs_3PSM_normal["BF_error", ]),
+    row.names = NULL
+  ))
+
   # compare
   scenario_plot("mu_BF_3PSM_comparison", {
-    # the reported error% is large for the first two points
-    plot(mu0_seq, log(unlist(BFs_3PSM_marglik[1,])), type = "b", ylab = "logBF", ylim = c(-1, 10))
+    # Inspect the reported errors, especially for the distant null at -0.25.
+    plot(mu0_seq, log(unlist(BFs_3PSM_marglik[1,])), type = "b", ylab = "log BF10", ylim = c(-1, 10))
     lines(mu0_seq + 0.01, log(unlist(BFs_3PSM_IWMDE[3,])),  lty = 2)
     lines(mu0_seq + 0.02, log(unlist(BFs_3PSM_qCMDE[3,])),  lty = 3)
     lines(mu0_seq + 0.03, log(unlist(BFs_3PSM_normal[3,])), lty = 4)
@@ -175,11 +192,11 @@ testthat::test_that("Bem BMA models", {
                  adapt = 5000, burnin = 5000, sample = 20000)
     tmp <- add_loo(tmp)
     return(tmp)
-  })
+  }, cache_version = 1L)
   fit_RoBMA_reverse <- scenario_fit("fit_RoBMA_reverse", {
     RoBMA(yi = d, sei = se, data = Bem2011_reverse, measure = "SMD", effect_direction = "negative", seed = 1,
           adapt = 5000, burnin = 5000, sample = 20000)
-  })
+  }, cache_version = 1L)
   fit_BMA_con <- scenario_fit("fit_BMA_con", {
     tmp <- BMA(yi = d, sei = se, data = Bem2011, measure = "SMD", seed = 1,
                prior_effect_null = FALSE)
@@ -192,7 +209,7 @@ testthat::test_that("Bem BMA models", {
                  adapt = 5000, burnin = 5000, sample = 20000)
     tmp <- add_loo(tmp)
     return(tmp)
-  })
+  }, cache_version = 1L)
 
   ### simple summary ----
   scenario_text("fit_BMA_summary",   {summary(fit_BMA)})

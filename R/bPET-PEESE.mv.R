@@ -8,6 +8,10 @@
 #' @inheritParams bPET
 #'
 #' @details
+#' Omitted or NULL `random` specifies a fixed-effect model with no implicit
+#' heterogeneity. Heterogeneity priors and scale formulas require an explicit
+#' random structure; the known sampling covariance remains unchanged.
+#'
 #' `bPET.mv()` combines the PET publication-bias regression of [bPET()] with
 #' the known-covariance and random-formula model of [brma.mv()]. The PET
 #' predictor is the marginal sampling standard error `sqrt(diag(V))`; known
@@ -54,8 +58,6 @@ bPET.mv <- function(
 
     # MCMC fitting settings
     known_v_parameterization = "auto",
-    known_v_residual_fraction = 0.10,
-    marginalize_estimate_level = TRUE,
     sample = 5000, burnin = 2000, adapt = 500,
     chains = 3, thin = 1, parallel = FALSE,
     autofit = FALSE, autofit_control = set_autofit_control(),
@@ -75,9 +77,6 @@ bPET.mv <- function(
     ),
     bias_type                           = "PET",
     missing_measure                     = missing(measure),
-    known_v_residual_fraction_specified = !missing(
-      known_v_residual_fraction
-    ),
     R                                   = R,
     Rscale                              = Rscale,
     measure                             = measure,
@@ -94,8 +93,6 @@ bPET.mv <- function(
     prior_informed_subfield             = prior_informed_subfield,
     effect_direction                    = effect_direction,
     known_v_parameterization            = known_v_parameterization,
-    known_v_residual_fraction           = known_v_residual_fraction,
-    marginalize_estimate_level          = marginalize_estimate_level,
     sample                              = sample,
     burnin                              = burnin,
     adapt                               = adapt,
@@ -122,6 +119,10 @@ bPET.mv <- function(
 #' @inheritParams bPEESE
 #'
 #' @details
+#' Omitted or NULL `random` specifies a fixed-effect model with no implicit
+#' heterogeneity. Heterogeneity priors and scale formulas require an explicit
+#' random structure; the known sampling covariance remains unchanged.
+#'
 #' `bPEESE.mv()` combines the PEESE publication-bias regression of [bPEESE()]
 #' with the known-covariance and random-formula model of [brma.mv()]. The PEESE
 #' predictor is the marginal sampling variance `diag(V)`; known off-diagonal
@@ -168,8 +169,6 @@ bPEESE.mv <- function(
 
     # MCMC fitting settings
     known_v_parameterization = "auto",
-    known_v_residual_fraction = 0.10,
-    marginalize_estimate_level = TRUE,
     sample = 5000, burnin = 2000, adapt = 500,
     chains = 3, thin = 1, parallel = FALSE,
     autofit = FALSE, autofit_control = set_autofit_control(),
@@ -189,9 +188,6 @@ bPEESE.mv <- function(
     ),
     bias_type                           = "PEESE",
     missing_measure                     = missing(measure),
-    known_v_residual_fraction_specified = !missing(
-      known_v_residual_fraction
-    ),
     R                                   = R,
     Rscale                              = Rscale,
     measure                             = measure,
@@ -208,8 +204,6 @@ bPEESE.mv <- function(
     prior_informed_subfield             = prior_informed_subfield,
     effect_direction                    = effect_direction,
     known_v_parameterization            = known_v_parameterization,
-    known_v_residual_fraction           = known_v_residual_fraction,
-    marginalize_estimate_level          = marginalize_estimate_level,
     sample                              = sample,
     burnin                              = burnin,
     adapt                               = adapt,
@@ -228,15 +222,14 @@ bPEESE.mv <- function(
 
 .fit_bias_regression_mv <- function(
     matched_call_unevaluated, matched_call, envir, caller, class, bias_type,
-    missing_measure, known_v_residual_fraction_specified,
+    missing_measure,
     R, Rscale, measure,
     prior_effect, prior_heterogeneity, prior_mods, prior_scale, prior_bias,
     standardize_continuous_predictors,
     set_contrast_factor_predictors,
     prior_unit_information_sd, rescale_priors,
     prior_informed_field, prior_informed_subfield, effect_direction,
-    known_v_parameterization, known_v_residual_fraction,
-    marginalize_estimate_level,
+    known_v_parameterization,
     sample, burnin, adapt, chains, thin, parallel,
     autofit, autofit_control, convergence_checks,
     seed, silent, dots) {
@@ -250,14 +243,11 @@ bPEESE.mv <- function(
     dots                                = dots,
     missing_measure                     = missing_measure,
     measure                             = measure,
-    known_v_residual_fraction_specified =
-      known_v_residual_fraction_specified,
     R                                   = R,
     Rscale                              = Rscale,
     standardize_continuous_predictors   = standardize_continuous_predictors,
     set_contrast_factor_predictors      = set_contrast_factor_predictors,
     known_v_parameterization            = known_v_parameterization,
-    known_v_residual_fraction           = known_v_residual_fraction,
     sample                              = sample,
     burnin                              = burnin,
     adapt                               = adapt,
@@ -293,7 +283,6 @@ bPEESE.mv <- function(
 
   .finalize_mv_object(
     object                     = object,
-    marginalize_estimate_level = marginalize_estimate_level,
     only_priors                = isTRUE(dots[["only_priors"]])
   )
 }

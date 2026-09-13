@@ -215,11 +215,12 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
 
   rank_one_sei        <- c(0.20, 0.30, 0.40)
   rank_one_V          <- tcrossprod(rank_one_sei)
-  rank_one_parameters <- list(mu = 0, tau = 0.10, sampling_z = 0)
+  rank_one_sd         <- 0.10
+  rank_one_parameters <- list(mu = 0, sampling_z = 0)
   rank_one_expected   <- sum(stats::dnorm(
     c(0.10, 0.20, -0.05),
     mean = 0,
-    sd   = rank_one_parameters[["tau"]],
+    sd   = rank_one_sd,
     log  = TRUE
   ))
 
@@ -227,12 +228,19 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     rank_one_block <- brma.mv(
       yi                        = c(0.10, 0.20, -0.05),
       V                         = rank_one_V,
+      random                    = ~ 1 | estimate,
+      data                      = data.frame(estimate = paste0("e", 1:3)),
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_priors               = TRUE
     ),
     "positive semidefinite"
+  )
+  rank_one_plan <- .marglik_marginalized_variance_plan(rank_one_block[["data"]])
+  rank_one_context <- structure(
+    list(nodes = stats::setNames(rank_one_sd, rank_one_plan[["terms"]][[1L]][["parameter"]])),
+    class = c("BayesTools_bridge_nodes_context", "BayesTools_bridge_context", "list")
   )
   expect_equal(
     .log_posterior(
@@ -242,6 +250,7 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
         rank_one_block[["priors"]]
       ),
       is_scale                   = FALSE,
+      is_random                  = TRUE,
       is_multilevel              = FALSE,
       is_weights                 = FALSE,
       is_known_v                 = TRUE,
@@ -250,7 +259,9 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      model_data                 = rank_one_block[["data"]]
+      model_data                 = rank_one_block[["data"]],
+      marginalized_variance_plan = rank_one_plan,
+      bridge_context             = rank_one_context
     ),
     rank_one_expected,
     tolerance = 1e-10
@@ -260,6 +271,8 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     rank_one_whitened <- brma.mv(
       yi                        = c(0.10, 0.20, -0.05),
       V                         = rank_one_V,
+      random                    = ~ 1 | estimate,
+      data                      = data.frame(estimate = paste0("e", 1:3)),
       known_v_parameterization  = "whitened",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
@@ -275,6 +288,7 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
         rank_one_whitened[["priors"]]
       ),
       is_scale                   = FALSE,
+      is_random                  = TRUE,
       is_multilevel              = FALSE,
       is_weights                 = FALSE,
       is_known_v                 = TRUE,
@@ -283,15 +297,18 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      model_data                 = rank_one_whitened[["data"]]
+      model_data                 = rank_one_whitened[["data"]],
+      marginalized_variance_plan = .marglik_marginalized_variance_plan(rank_one_whitened[["data"]]),
+      bridge_context             = rank_one_context
     ),
     rank_one_expected,
     tolerance = 1e-10
   )
 
   dat_scale <- data.frame(
-    yi = c(0.10, 0.20, -0.05),
-    x  = c(-1, 0, 1)
+    yi       = c(0.10, 0.20, -0.05),
+    x        = c(-1, 0, 1),
+    estimate = paste0("e", 1:3)
   )
   V_scale <- matrix(
     c(
@@ -303,14 +320,16 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     byrow = TRUE
   )
   scale_tau <- c(0.04, 0.10, 0.18)
-  scale_parameters <- list(
-    mu      = 0,
-    log_tau = log(scale_tau)
+  scale_parameters <- list(mu = 0)
+  scale_context <- structure(
+    list(nodes = stats::setNames(scale_tau, paste0("tau[", seq_along(scale_tau), "]"))),
+    class = c("BayesTools_bridge_nodes_context", "BayesTools_bridge_context", "list")
   )
   scale_block <- brma.mv(
     yi                        = yi,
     V                         = V_scale,
     scale                     = ~ x,
+    random                    = ~ 1 | estimate,
     data                      = dat_scale,
     known_v_parameterization  = "block_mvn",
     measure                   = "GEN",
@@ -327,6 +346,7 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       parameters                 = scale_parameters,
       data                       = .create_fit_data(scale_block[["data"]], scale_block[["priors"]]),
       is_scale                   = TRUE,
+      is_random                  = TRUE,
       is_multilevel              = FALSE,
       is_weights                 = FALSE,
       is_known_v                 = TRUE,
@@ -335,7 +355,8 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       is_weightfunction          = FALSE,
       effect_direction           = "positive",
       outcome_type               = "norm",
-      model_data                 = scale_block[["data"]]
+      model_data                 = scale_block[["data"]],
+      bridge_context             = scale_context
     ),
     scale_expected,
     tolerance = 1e-10
@@ -787,6 +808,8 @@ test_that("singular PSD known-V Cholesky targets fail with targeted messages", {
     object <- brma.mv(
       yi                        = c(0.10, 0.20, -0.05),
       V                         = V,
+      random                    = ~ 1 | estimate,
+      data                      = data.frame(estimate = paste0("e", 1:3)),
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
@@ -794,6 +817,7 @@ test_that("singular PSD known-V Cholesky targets fail with targeted messages", {
     ),
     "positive semidefinite"
   )
+  zero_sd <- .data_marginalized_random_effects(object[["data"]])[[1L]][["sd_parameter_names"]]
 
   setup <- list(
     fit               = NULL,
@@ -813,7 +837,7 @@ test_that("singular PSD known-V Cholesky targets fail with targeted messages", {
     is_weightfunction = FALSE,
     outcome_type      = "norm",
     effect_direction  = "positive",
-    posterior_samples = matrix(numeric(0), nrow = 1, ncol = 0L)
+    posterior_samples = matrix(0, nrow = 1L, dimnames = list(NULL, zero_sd))
   )
 
   expect_error(
@@ -858,6 +882,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       yi                        = yi,
       V                         = V_general,
       data                      = dat,
+      random                    = ~ 1 | estimate,
       prior_heterogeneity       = prior_positive,
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
@@ -872,6 +897,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       yi                        = yi,
       V                         = V_general,
       scale                     = ~ x,
+      random                    = ~ 1 | estimate,
       data                      = dat,
       prior_scale               = list(
         intercept = prior_positive,
@@ -899,6 +925,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       V                         = V_tolerance,
       data                      = dat[1:2, , drop = FALSE],
       prior_heterogeneity       = prior_tiny_positive,
+      random                    = ~ 1 | estimate,
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
@@ -933,6 +960,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       V                         = V_rank_one,
       data                      = dat[1:2, , drop = FALSE],
       prior_heterogeneity       = prior_too_small,
+      random                    = ~ 1 | estimate,
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
@@ -951,6 +979,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       scale                     = ~ 1,
       data                      = dat[1:2, , drop = FALSE],
       prior_scale               = list(intercept = prior_scale_invalid),
+      random                    = ~ 1 | estimate,
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
@@ -965,6 +994,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       scale                     = ~ 1,
       data                      = dat[1:2, , drop = FALSE],
       prior_scale               = list(intercept = prior_scale_too_small),
+      random                    = ~ 1 | estimate,
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
@@ -978,7 +1008,6 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
       yi                        = yi,
       V                         = V_general,
       data                      = dat,
-      prior_heterogeneity       = prior_zero,
       known_v_parameterization  = "block_mvn",
       measure                   = "GEN",
       prior_unit_information_sd = 1,
@@ -993,7 +1022,6 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
         yi                        = yi,
         V                         = V,
         data                      = dat,
-        prior_heterogeneity       = prior_zero,
         known_v_parameterization  = parameterization,
         measure                   = "GEN",
         prior_unit_information_sd = 1,
@@ -1007,6 +1035,7 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
         V                         = V,
         data                      = dat,
         prior_heterogeneity       = prior_positive,
+        random                    = ~ 1 | estimate,
         known_v_parameterization  = parameterization,
         measure                   = "GEN",
         prior_unit_information_sd = 1,
@@ -1095,6 +1124,94 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
     "positive semidefinite"
   )
   expect_equal(.data_known_v_effective_backend(tiny_random[["data"]]), "latent")
+})
+
+
+test_that("selected covariance preflight respects the full observed Gaussian law", {
+
+  dat <- data.frame(
+    yi = c(.1, .2, -.1, .3), study = factor(c("a", "a", "b", "b")),
+    estimate = factor(letters[1:4]), x = c(-1, 1, -1, 1),
+    index = factor(c("a", "b", "a", "b")), paper = "all"
+  )
+  V <- known_v_factor(rep(0, 4), diag(c(.2, .3, .4, .5)))
+  zero <- prior("point", list(location = 0))
+  positive <- BayesTools::prior_random(sd = prior("point", list(location = .1)))
+  make <- function(random = ~ 1 | estimate,
+                   prior_heterogeneity = prior("point", list(location = .1)),
+                   known_sampling_variance = "condition", other_random_effects = "condition",
+                   estimate_random_effects = "integrate", R = NULL) {
+
+    arguments <- list(
+      yi = dat$yi, V = V, data = dat, R = R,
+      prior_heterogeneity = prior_heterogeneity,
+      prior_bias = prior_weightfunction(steps = .05, model = selection_model(
+        estimate_random_effects = estimate_random_effects,
+        known_sampling_variance = known_sampling_variance, other_random_effects = other_random_effects, group = paper
+      )),
+      measure = "GEN", effect_direction = "positive", prior_unit_information_sd = 1,
+      standardize_continuous_predictors = FALSE, only_priors = TRUE, silent = TRUE
+    )
+    if (!is.null(random)) {
+      arguments$random <- random
+    }
+    do.call(bselmodel.mv, arguments)
+  }
+  deterministic_candidate <- make(prior_heterogeneity = zero)
+  expect_s3_class(deterministic_candidate, "brma.mv")
+  expect_equal(.data_selection_execution_plan(deterministic_candidate$data)$sampling_covariance,
+    diag(c(.2, .3, .4, .5)^2), tolerance = 1e-15)
+  expect_s3_class(make(), "brma.mv")
+  expect_s3_class(make(prior_heterogeneity = zero, known_sampling_variance = "integrate"), "brma.mv")
+  full_rank <- make(random = ~ us(1 + x | study),
+    prior_heterogeneity = positive, other_random_effects = "integrate")
+  expect_s3_class(full_rank, "brma.mv")
+  expect_identical(.data_selection_execution_plan(full_rank$data)$block_methods,
+    c("conditioned_sampling", "conditioned_sampling"))
+  X <- cbind(1, c(-1, 1))
+  G <- matrix(c(1, .25, .25, 2), 2L)
+  covariance <- kronecker(diag(2L), X %*% G %*% t(X))
+  expect_gt(min(eigen(covariance, symmetric = TRUE, only.values = TRUE)$values), 0)
+  expect_s3_class(make(random = ~ us(1 + x | study), prior_heterogeneity = positive),
+    "brma.mv")
+  expect_s3_class(make(random = ~ 1 | study, prior_heterogeneity = positive,
+    other_random_effects = "integrate"), "brma.mv")
+  dat$x <- c(0, 1, 0, 1)
+  mixed <- make(random = ~ diag(1 + x | study),
+    prior_heterogeneity = positive, other_random_effects = "integrate")
+  expect_identical(.data_selection_model(mixed$data)$sources$random[[1L]]$role, "other")
+  expect_s3_class(make(random = ~ diag(1 + x | study), prior_heterogeneity = positive),
+    "brma.mv")
+  dat$x <- c(-1, 1, -1, 1)
+  expect_s3_class(make(random = ~ 0 + x | estimate,
+    prior_heterogeneity = positive), "brma.mv")
+  expect_s3_class(make(random = ~ 1 | estimate, prior_heterogeneity = positive,
+    estimate_random_effects = "condition"), "brma.mv")
+  kernel <- matrix(.1, 4, 4)
+  diag(kernel) <- 1
+  dimnames(kernel) <- list(letters[1:4], letters[1:4])
+  expect_s3_class(make(random = ~ 1 | estimate, R = kernel,
+    prior_heterogeneity = positive, other_random_effects = "integrate"), "brma.mv")
+
+  structured <- make(random = ~ cs(index | study),
+    prior_heterogeneity = positive, other_random_effects = "integrate")
+  term <- structured$formula_design$mu$random_effects[[1L]]
+  priors <- structured$formula_design$mu$prior_list
+  expect_true(.selection_random_correlation_has_full_support(term, priors))
+  # A boundary declaration cannot borrow the interior's full coefficient rank.
+  # Formula compilation currently refuses this singular endpoint independently.
+  term$correlation$sample_fixed <- 1
+  expect_false(.selection_random_correlation_has_full_support(term, priors))
+  expect_null(.selection_random_term_integrated_support(term, structured$data, priors, 4L))
+
+  V <- known_v_factor(rep(0, 4), matrix(c(.2, .3, .4, .5), 4L))
+  expect_warning(conditional_rank_one <- make(random = ~ 1 | estimate,
+    prior_heterogeneity = positive), "positive semidefinite", fixed = TRUE)
+  expect_s3_class(conditional_rank_one, "brma.mv")
+  expect_warning(integrated_rank_one <- make(random = ~ 1 | estimate,
+    prior_heterogeneity = positive, known_sampling_variance = "integrate"),
+    "positive semidefinite", fixed = TRUE)
+  expect_s3_class(integrated_rank_one, "brma.mv")
 })
 
 

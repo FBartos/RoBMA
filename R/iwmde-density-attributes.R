@@ -278,6 +278,7 @@
     median_normalizer_relative_change = diagnostics[["median_normalizer_relative_change"]],
     max_quadrature_relative_change    =
       diagnostics[["max_quadrature_relative_change"]],
+    normalizer_interpolation = diagnostics[["normalizer_interpolation"]],
     normalization_refined_points      = diagnostics[["normalization_refined_points"]],
     normalization_refined_range       = diagnostics[["normalization_refined_range"]],
     n_refinement_steps                = diagnostics[["n_refinement_steps"]],

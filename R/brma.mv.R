@@ -10,15 +10,16 @@
 #' @inheritParams data_input
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
+#' @param random Optional BayesTools random-effect formula or list of formulas.
+#' Omission or \code{NULL} means a fixed-effect model with no implicit
+#' heterogeneity term. Known sampling covariance \code{V} remains unchanged.
+#' Declare \code{random} before supplying heterogeneity priors or scale formulas.
 #' @param R optional known random-effect group covariance/correlation matrix,
 #' or a named list of matrices. Matrix row and column names identify grouping
 #' levels. This is distinct from the known sampling covariance `V`.
 #' @param Rscale scaling applied to each supplied `R` matrix before fitting.
 #' Supported values are `"cor"`, `"none"`, `"cor0"`, `"cov0"`, with
 #' metafor-compatible aliases `TRUE`, `FALSE`, `0`, `1`, `2`, and `3`.
-#' @param marginalize_estimate_level logical; should a one-to-one estimate-level
-#' random-intercept block be integrated into the likelihood variance instead of
-#' sampled as latent random coefficients? Defaults to `TRUE`.
 #'
 #' @details
 #' `brma.mv()` represents known sampling dependence through a latent `D + BB'`
@@ -33,8 +34,13 @@
 #' block-MVN threshold defaults to 128 rows per covariance block and can be
 #' changed with `options(RoBMA.known_v_block_mvn_max_block_size = value)`, where
 #' `value` is a positive integer or `Inf`.
-#' Submitted covariance matrices are validated without projecting negative
-#' eigenvalues to the positive-semidefinite boundary. Exact rank-one dependency
+#' Covariance inputs retain their symmetric representation. Numerical
+#' positive-semidefinite checks use standardized correlations so small marginal
+#' variances are not mistaken for null directions. At a numerically singular
+#' boundary, the computational factor uses the existing eigensolver roundoff
+#' tolerance; sampling, whitening, and conditional calculations share its
+#' support. This numerical rule is separate from the selection model's
+#' condition/integrate source choices. Exact rank-one dependency
 #' blocks are represented by one latent sampling factor, including when another
 #' backend was requested, so correlations of one and any separate positive
 #' diagonal variance retain their mathematical structure.
@@ -54,6 +60,14 @@
 #' named `vi` or `sei` arguments when `V` is omitted; these are converted to
 #' `diag(vi)` or `diag(sei^2)`. Do not supply `V` together with `vi` or `sei`.
 #'
+#' Omitted or NULL `random` declares no random-effects structure. No implicit
+#' `tau` or heterogeneity mixture is added. Do not supply `prior_heterogeneity`
+#' or `prior_heterogeneity_null` without `random`, even as NULL or a zero prior;
+#' omit these irrelevant arguments instead. Scale formulas also require an
+#' explicit random structure. This rule applies to all .mv constructors;
+#' specialized univariate models retain their usual implicit heterogeneity and
+#' clustered `tau`/`rho`/`I2` behavior.
+#'
 #' The `random` argument uses BayesTools
 #' [random-effect formula structure tags][random_effect_formula_tags].
 #' Plain `(expr | group)` syntax creates an unstructured random-coefficient
@@ -66,15 +80,18 @@
 #' slopes or index variables.
 #' BayesTools stores fully explicit canonical random-effect names of the form
 #' `(formula) owner: quantity(arguments)`. RoBMA uses their simplified display
-#' aliases consistently in summaries, plotting, density estimation, and
-#' hypotheses. A sole random intercept drops its redundant argument, so a bare
-#' block is displayed and accepted as `sd`, while an explicitly named block is
-#' `study: sd`; the unique shorthand `sd` is also accepted. A non-intercept
-#' coefficient remains explicit, for example `study: sd(x)`. Bare formulas and
+#' aliases through RoBMA's meta-analytic naming map consistently in summaries,
+#' plotting, density estimation, hypotheses, and posterior draws. A sole random
+#' intercept drops its redundant argument, so a bare block is displayed and
+#' accepted as `tau`, while an explicitly named block is `study: tau`; the
+#' unique shorthand `tau` is also accepted. A non-intercept coefficient remains
+#' explicit, for example `study: tau(x)`. Bare formulas and
 #' unnamed one-entry lists omit a redundant owner; explicitly named one-entry
 #' lists retain it, and missing names in longer lists become `component 1`,
-#' `component 2`, and so on. Allocation names include `sd_total`, `sd_common`,
-#' and `var_prop(study)`. None of these public names expose backend coordinates.
+#' `component 2`, and so on. Allocation names include `tau_total`, `tau_common`,
+#' and `tau2_prop(study)`. BayesTools retains its general `sd`/`var`/`cor`
+#' vocabulary internally; none of these public RoBMA names expose backend
+#' coordinates.
 #' The optional `R` argument supplies known covariance or correlation matrices
 #' across random-effect grouping levels, following `metafor::rma.mv()` naming.
 #' `R` is separate from the known sampling covariance `V`: `V` describes
@@ -85,12 +102,11 @@
 #' `"cor"`, `"none"`, `"cor0"`, `"cov0"`, plus metafor-compatible aliases
 #' `TRUE`/`1` for `"cor"`, `FALSE`/`0` for `"none"`, `2` for `"cor0"`,
 #' and `3` for `"cov0"`.
-#' When `random` is used, shared sampled
-#' random-effect blocks enter the conditional mean through BayesTools. With
-#' `marginalize_estimate_level = TRUE`, a single one-to-one random-intercept
-#' block is integrated into the likelihood variance; otherwise the likelihood
-#' remains conditional on sampled random effects and uses only the known
-#' sampling covariance `V`. With a single top-level random component, `scale`
+#' In non-selection Gaussian models with `random`, shared sampled
+#' random-effect blocks enter the conditional mean through BayesTools. A
+#' supported one-to-one random-intercept block is automatically integrated into
+#' the likelihood variance. Other terms remain sampled with their full
+#' covariance. With a single top-level random component, `scale`
 #' models the row-wise total random-effect SD consumed by that component. A
 #' named list of `scale` formulas can instead target top-level random components
 #' or concrete random-effect blocks. Block names and grouping labels are
@@ -108,8 +124,9 @@
 #' same user-facing names. Post-fit scale predictions for random-formula
 #' models keep these component scales separate rather than collapsing them into
 #' one total \eqn{\tau}.
-#' If `marginalize_estimate_level = TRUE`, a single random-intercept block that
-#' maps one-to-one to estimates is compiled as a marginalized variance component
+#' In non-selection Gaussian models, a supported random-intercept block that
+#' maps one-to-one to estimates
+#' is automatically compiled as a marginalized variance component
 #' instead of sampled latent coefficients. This preserves estimate-level
 #' heterogeneity semantics while keeping shared higher-level random effects
 #' conditional. For known `R`, this automatic marginalization is available only
@@ -117,8 +134,9 @@
 #' `Z K Z'` row-space contribution is diagonal and one-to-one with the fitted
 #' rows; RoBMA then adds the BayesTools-prepared row multiplier to the known-`V`
 #' extra variance. Other known-`R` blocks remain sampled or are rejected by
-#' BayesTools validation. Ambiguous cases with multiple one-to-one blocks are
-#' rejected.
+#' BayesTools validation. Slopes and other unsupported variance forms remain
+#' sampled. Multiple declared terms with one grouping level per estimate are
+#' rejected, regardless of their coefficient basis or known group covariance.
 #'
 #' The implementation intentionally omits the `weights` and `cluster` arguments
 #' from `metafor::rma.mv()`. Use `random` for multilevel structures.
@@ -151,10 +169,10 @@
 #'     estimate-wise conditional target from LOO/WAIC. During bridge evaluation,
 #'     sampled Gaussian location random effects are integrated exactly as
 #'     \eqn{ZGZ'} while retaining every covariance parameter and prior; fitted
-#'     diagonal marginalized blocks remain in the row variance. Approximate
-#'     selection likelihoods retain their fitted joint latent
-#'     parameterization. Exact selection likelihoods use the same analytically
-#'     marginalized selected-Gaussian covariance blocks as fitting.
+#'     diagonal marginalized blocks remain in the row variance. Selection
+#'     likelihoods instead preserve the normalization boundary declared by
+#'     [selection_model()]: retained contextual sources remain outside the
+#'     normalizer and integrated sources enter the conditional covariance.
 #'   \item `hatvalues()`, marginal `rstandard()`, and `vif()` use a marginal
 #'     GLS covariance target based on `V + ZGZ'`, where formula random effects
 #'     are marginalized through the BayesTools covariance metadata.
@@ -162,9 +180,10 @@
 #'     influence targets. Cluster/block LOO is deferred for `brma.mv()` because
 #'     its deletion target is a joint dependency block, not an independent row.
 #' }
-#' Simple `brma.mv()` models with scalar heterogeneity report the usual `tau`
-#' summary. Random-formula models instead report component-specific standard
-#' deviation, correlation, and allocation summaries.
+#' Without `random`, the model estimates no heterogeneity. Explicit
+#' random-formula models report component-specific standard deviation,
+#' correlation and allocation summaries. A single homogeneous random component
+#' uses the RoBMA names `tau` and `tau2`.
 #' `summary_heterogeneity(component = ...)` describes component heterogeneity
 #' over the observed design, whereas `pooled_heterogeneity(component = ...)`
 #' evaluates absolute component heterogeneity at the average expanded random
@@ -214,8 +233,6 @@ brma.mv <- function(
 
     # MCMC fitting settings
     known_v_parameterization = "auto",
-    known_v_residual_fraction = 0.10,
-    marginalize_estimate_level = TRUE,
     sample = 5000, burnin = 2000, adapt = 500,
     chains = 3, thin = 1, parallel = FALSE,
     autofit = FALSE, autofit_control = set_autofit_control(),
@@ -235,15 +252,11 @@ brma.mv <- function(
     dots                                = list(...),
     missing_measure                     = missing(measure),
     measure                             = measure,
-    known_v_residual_fraction_specified = !missing(
-      known_v_residual_fraction
-    ),
     R                                   = R,
     Rscale                              = Rscale,
     standardize_continuous_predictors   = standardize_continuous_predictors,
     set_contrast_factor_predictors      = set_contrast_factor_predictors,
     known_v_parameterization            = known_v_parameterization,
-    known_v_residual_fraction           = known_v_residual_fraction,
     sample                              = sample,
     burnin                              = burnin,
     adapt                               = adapt,
@@ -276,7 +289,6 @@ brma.mv <- function(
 
   .finalize_mv_object(
     object                     = object,
-    marginalize_estimate_level = marginalize_estimate_level,
     only_priors                = isTRUE(dots[["only_priors"]])
   )
 }
@@ -284,10 +296,10 @@ brma.mv <- function(
 
 .initialize_mv_object <- function(
     matched_call_unevaluated, matched_call, envir, caller, object_class,
-    dots, missing_measure, measure, known_v_residual_fraction_specified,
+    dots, missing_measure, measure,
     R, Rscale,
     standardize_continuous_predictors, set_contrast_factor_predictors,
-    known_v_parameterization, known_v_residual_fraction,
+    known_v_parameterization,
     sample, burnin, adapt, chains, thin, parallel,
     autofit, autofit_control, convergence_checks,
     seed, silent, effect_direction = "positive") {
@@ -334,9 +346,8 @@ brma.mv <- function(
     measure                           = measure,
     random_group_covariance            = random_group_covariance,
     known_v_parameterization            = known_v_parameterization,
-    known_v_residual_fraction           = known_v_residual_fraction,
-    known_v_residual_fraction_specified =
-      known_v_residual_fraction_specified
+    selection_binding                  = !isTRUE(dots[["only_data"]]) &&
+      any(c("bselmodel", "RoBMA") %in% object_class)
   )
 
   list(object = object, dots = dots)

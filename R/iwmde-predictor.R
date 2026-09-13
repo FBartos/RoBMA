@@ -28,12 +28,13 @@
   }
 
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
-  if (identical(state_scope, "global") &&
-      .iwmde_uses_known_v_random_marginal_likelihood(context)) {
+  random_marginal <- .iwmde_uses_known_v_random_marginal_likelihood(
+    context, priors = active_setup[["priors"]]
+  )
+  if (identical(state_scope, "global") && random_marginal) {
     samples <- .iwmde_drop_local_latent_sample_columns(samples, context)
   }
-  setup <- if (.iwmde_uses_known_v_random_marginal_likelihood(context) &&
-               identical(unit, "estimate")) {
+  setup <- if (random_marginal && identical(unit, "estimate")) {
     .iwmde_predictor_setup_known_v_random(
       context           = context,
       posterior_samples = samples,
@@ -109,7 +110,8 @@
       context    = context,
       row_states = row_states,
       weights    = replacement[["weights"]],
-      setup      = setup
+      setup      = setup,
+      direction  = replacement[["direction"]]
     ))
   }
 
@@ -166,7 +168,7 @@
 }
 
 
-.iwmde_predictor_linear_basis <- function(context, row_states, weights, setup) {
+.iwmde_predictor_linear_basis <- function(context, row_states, weights, setup, direction = NULL) {
 
   S                            <- length(row_states)
   K                            <- ncol(setup[["mu"]])
@@ -184,7 +186,7 @@
     linear <- .iwmde_linear_replacement_state(
       context     = context,
       state       = row_states[[i]],
-      replacement = list(type = "linear", weights = weights)
+      replacement = list(type = "linear", weights = weights, direction = direction)
     )
     if (!isTRUE(linear[["valid"]])) {
       return(NULL)
@@ -196,8 +198,7 @@
       return(NULL)
     }
 
-    active_weights <- linear[["active_weights"]]
-    denominator    <- linear[["denominator"]]
+    coefficients <- linear[["coefficients"]]
 
     for (column in active_columns) {
       column_basis <- .iwmde_predictor_column_basis(
@@ -210,7 +211,7 @@
         return(NULL)
       }
 
-      coefficient <- active_weights[[column]] / denominator
+      coefficient <- coefficients[[column]]
       if (isTRUE(column_basis[["formula_mu"]])) {
         has_formula_mu <- TRUE
         if (!column %in% colnames(formula_mu_directions)) {
@@ -516,17 +517,6 @@
       basis       = basis
     ))
   }
-  if (identical(basis[["scale_update"]], "tau")) {
-    return(.iwmde_log_q_grid_normal_known_v_tau_group(
-      context     = context,
-      parameter   = parameter,
-      values      = values,
-      row_states  = row_states,
-      replacement = replacement,
-      setup       = setup,
-      basis       = basis
-    ))
-  }
   if (isTRUE(basis[["formula_mu"]]) ||
       isTRUE(basis[["formula_logtau"]]) ||
       !identical(basis[["scale_update"]], "none") ||
@@ -586,14 +576,22 @@
     return(NULL)
   }
 
-  G          <- length(values)
-  S          <- length(row_states)
-  row_index  <- rep(seq_len(S), each = G)
-  grid_index <- rep(seq_len(G), times = S)
-  delta      <- values[grid_index] - basis[["current"]][row_index]
   baseline <- vapply(row_states, function(state) {
     state[["baseline_log_lik"]]
   }, numeric(1))
+  .iwmde_normal_location_log_q_grid(values, basis[["current"]], baseline,
+    likelihood_change, log_prior, normalizer_change)
+}
+
+.iwmde_normal_location_log_q_grid <- function(values, current, baseline,
+                                               likelihood_change, log_prior,
+                                               normalizer_change = NULL) {
+
+  G          <- length(values)
+  S          <- length(current)
+  row_index  <- rep(seq_len(S), each = G)
+  grid_index <- rep(seq_len(G), times = S)
+  delta      <- values[grid_index] - current[row_index]
   log_lik <- baseline[row_index] +
     likelihood_change[["linear"]][row_index] * delta -
     .5 * likelihood_change[["quadratic"]][row_index] * delta^2
@@ -823,7 +821,7 @@
       current_log_norm = current_log_norm,
       current          = basis[["current"]],
       values           = values,
-      sei              = setup[["sei"]],
+      sei              = setup[["selection_sei"]],
       weights          = setup[["weights"]],
       omega            = selection_context[["omega"]],
       selection_spec   = selection_context,
@@ -853,7 +851,7 @@
   candidate_log_norm <- .selection_step_log_norm_matrix(
     mean              = mean,
     sd                = sd[row_index, , drop = FALSE],
-    sei               = setup[["sei"]],
+    sei               = setup[["selection_sei"]],
     selection_context = candidate_context
   )
 
@@ -897,7 +895,7 @@
   current_log_norm <- .selection_step_log_norm_matrix(
     mean              = setup[["mu"]],
     sd                = sd,
-    sei               = setup[["sei"]],
+    sei               = setup[["selection_sei"]],
     selection_context = selection_context
   )
 
@@ -1340,18 +1338,16 @@
       next
     }
 
-    active_columns <- .iwmde_linear_active_columns(context, row, weights)
+    linear <- .iwmde_linear_replacement_state(context, state, replacement)
+    if (!isTRUE(linear[["valid"]])) next
+    active_columns <- linear[["active_columns"]]
     if (length(active_columns) == 0L) {
       valid <- values == current
       out[idx[valid]] <- state[["baseline_log_prior"]]
       next
     }
 
-    active_weights <- weights[active_columns]
-    denominator    <- sum(active_weights^2)
-    if (!is.finite(denominator) || denominator <= 0) {
-      return(NULL)
-    }
+    coefficients <- linear[["coefficients"]]
 
     log_prior <- rep(state[["baseline_log_prior"]], G)
     for (column in active_columns) {
@@ -1373,7 +1369,7 @@
       }
 
       candidate_values <- row[[column]] +
-        (values - current) * active_weights[[column]] / denominator
+        (values - current) * coefficients[[column]]
       candidate_log_prior <- .iwmde_focal_log_prior_values(
         prior     = prior,
         values    = candidate_values,

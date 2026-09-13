@@ -68,7 +68,9 @@
       target_posterior <- .hypothesis_brma_attach_iwmde_scalar(
         posterior             = target_posterior,
         raw_posterior         = target_posterior,
-        context               = .iwmde_context(object),
+        context               = .iwmde_context(
+          object, density_control[["integration_control"]]
+        ),
         estimate_cache        = estimate_cache,
         parameter             = target[["parameter"]],
         parameter_label       = parameter,
@@ -79,6 +81,7 @@
         target_relative_mcse  = density_control[["target_relative_mcse"]],
         normalization_points  = density_control[["normalization_points"]],
         normalization_prob    = density_control[["normalization_prob"]],
+        integration_control   = density_control[["integration_control"]],
         density_method        = density_method,
         parameter_spec        = parameter_spec
       )

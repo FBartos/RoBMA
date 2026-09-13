@@ -9,8 +9,7 @@ test_that("known-V joint log-likelihood uses block MVN density", {
   attr(data, "known_V_data") <- .known_v_prepare(
     V                         = V,
     keep_rows                 = rep(TRUE, nrow(V)),
-    known_v_parameterization  = "block_mvn",
-    known_v_residual_fraction = NULL
+    known_v_parameterization  = "block_mvn"
   )
   attr(data, "random")       <- FALSE
 
@@ -54,7 +53,6 @@ test_that("known-V joint log-likelihood uses block MVN density", {
       V                         = matrix(1, nrow = 2L, ncol = 2L),
       keep_rows                 = rep(TRUE, 2L),
       known_v_parameterization  = "block_mvn",
-      known_v_residual_fraction = NULL,
       warn_singular             = FALSE
     )
   singular_setup[["tau_within"]] <- matrix(0, nrow = 2L, ncol = 2L)
@@ -77,8 +75,7 @@ test_that("diagonal known-V estimate log-likelihood is exactly vectorized", {
   attr(data, "known_V_data") <- .known_v_prepare(
     V                         = V,
     keep_rows                 = rep(TRUE, nrow(V)),
-    known_v_parameterization  = "block_mvn",
-    known_v_residual_fraction = NULL
+    known_v_parameterization  = "block_mvn"
   )
   attr(data, "random") <- FALSE
 
@@ -394,7 +391,6 @@ test_that("latent known-V metadata use the exact low-rank covariance plan", {
     V                         = sampling_covariance,
     keep_rows                 = rep(TRUE, length(loading)),
     known_v_parameterization  = "auto",
-    known_v_residual_fraction = NULL,
     warn_singular             = FALSE
   )
   factor <- .known_v_sampling_factor_plan(known_V)
@@ -434,7 +430,6 @@ test_that("latent known-V metadata use the exact low-rank covariance plan", {
     V                         = sampling_covariance + diag(0.01, 4L),
     keep_rows                 = rep(TRUE, 4L),
     known_v_parameterization  = "block_mvn",
-    known_v_residual_fraction = NULL,
     warn_singular             = FALSE
   )))
 })
@@ -451,7 +446,6 @@ test_that("declared known-V factors stay compact in GLS and prediction", {
     V                         = known_v_factor(diagonal, loading),
     keep_rows                 = rep(TRUE, length(diagonal)),
     known_v_parameterization  = "auto",
-    known_v_residual_fraction = NULL,
     warn_singular             = FALSE
   )
   factor <- .known_v_sampling_factor_plan(known_V)
@@ -588,7 +582,6 @@ test_that("rank-one known V retains sub-ULP diagonal variance", {
     V                         = V,
     keep_rows                 = rep(TRUE, 2L),
     known_v_parameterization  = "block_mvn",
-    known_v_residual_fraction = NULL,
     warn_singular             = FALSE
   )
   attr(data, "random") <- FALSE
@@ -685,10 +678,14 @@ test_that("evaluated known-V random log-likelihood requires conditioned mu", {
     random                     = ~ 1 | study,
     data                       = dat,
     measure                    = "GEN",
-    marginalize_estimate_level = FALSE,
     prior_unit_information_sd  = 1,
     only_priors                = TRUE
   )
+  object[["data"]] <- .set_data_random_effects_compile(
+    object[["data"]], compile = NULL, marginalized_effects = list())
+  object[["random_effects_compile"]] <- NULL
+  object[["formula_design"]][["mu"]] <- .object_bayestools_formula_design(
+    object, parameter = "mu", source = "location", random_effects_compile = NULL)
 
   mu                <- matrix(0, nrow = 1L, ncol = 2L)
   tau_within        <- matrix(0, nrow = 1L, ncol = 2L)
@@ -824,10 +821,14 @@ test_that("IWMDE evaluated known-V likelihood matches joint MVN oracle", {
     ),
     known_v_parameterization   = "block_mvn",
     measure                    = "GEN",
-    marginalize_estimate_level = FALSE,
     prior_unit_information_sd  = 1,
     only_priors                = TRUE
   )
+  object[["data"]] <- .set_data_random_effects_compile(
+    object[["data"]], compile = NULL, marginalized_effects = list())
+  object[["random_effects_compile"]] <- NULL
+  object[["formula_design"]][["mu"]] <- .object_bayestools_formula_design(
+    object, parameter = "mu", source = "location", random_effects_compile = NULL)
   mu_samples  <- matrix(c(0.02, -0.10, 0.06, -0.16), nrow = 2L, byrow = TRUE)
   tau_samples <- matrix(c(0.05, 0.08, 0.04, 0.06), nrow = 2L, byrow = TRUE)
   context <- list(
@@ -883,7 +884,7 @@ test_that("IWMDE evaluated known-V likelihood matches joint MVN oracle", {
 })
 
 
-test_that("approximate selection log-likelihood reconstructs its fitted latent target", {
+test_that("selection log-likelihood retains study effects and integrates full sampling covariance", {
 
   dat <- data.frame(
     yi    = c(0.1, -0.2, 0.3, 0.15),
@@ -904,7 +905,11 @@ test_that("approximate selection log-likelihood reconstructs its fitted latent t
     random                    = ~ 1 | study / esid,
     data                      = dat,
     measure                   = "GEN",
-    selection_likelihood      = "approximate",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(known_sampling_variance = "integrate", group = "study")
+    ),
+    selection_control = set_selection_likelihood_control(relative_tolerance = 1e-12),
     prior_unit_information_sd = 1,
     only_priors               = TRUE
   )
@@ -918,8 +923,8 @@ test_that("approximate selection log-likelihood reconstructs its fitted latent t
   )
   posterior_samples <- matrix(
     c(
-      0.05, 0.10, 0.20, 0.15, -0.05, 0.80, 0.90, 0.3, -0.2,
-      0.10, 0.20, 0.30, -0.10, 0.20, 0.75, 0.85, -0.1, 0.4
+      0.05, 0.10, 0.20, 0.15, -0.05, 0.80, 0.90,
+      0.10, 0.20, 0.30, -0.10, 0.20, 0.75, 0.85
     ),
     nrow = 2L,
     byrow = TRUE,
@@ -930,9 +935,7 @@ test_that("approximate selection log-likelihood reconstructs its fitted latent t
       "mu__xREx__study_xRE_Zx[1,1]",
       "mu__xREx__study_xRE_Zx[2,1]",
       "omega[1]",
-      "omega[2]",
-      "sampling_z[1]",
-      "sampling_z[2]"
+      "omega[2]"
     ))
   )
   fixed_and_study <- matrix(
@@ -940,8 +943,7 @@ test_that("approximate selection log-likelihood reconstructs its fitted latent t
     nrow = 2L,
     byrow = TRUE
   )
-  expected_mu <- fixed_and_study +
-    posterior_samples[, c("sampling_z[1]", "sampling_z[2]")] %*% t(loading)
+  expected_mu <- fixed_and_study
   expected_tau <- matrix(
     posterior_samples[, "mu__xREx__esid_study_intercept"],
     nrow = 2L,
@@ -958,29 +960,59 @@ test_that("approximate selection log-likelihood reconstructs its fitted latent t
     priors            = object[["priors"]],
     posterior_samples = posterior_samples
   )
-  selection_context <- .selection_context_from_parts(
-    fit               = fit,
-    data              = object[["data"]],
-    priors            = object[["priors"]],
-    posterior_samples = posterior_samples,
-    effect_direction  = "positive"
-  )
-  expected <- .outcome_pdf.selnorm(
-    yi                = dat[["yi"]],
-    mu_samples        = expected_mu,
-    tau_within        = expected_tau,
-    sei               = expected_sei,
-    selection_sei     = expected_selection_sei,
-    selection_context = selection_context
-  )
+  sampling_covariance <- diag(expected_sei^2) + tcrossprod(loading)
+  expected <- matrix(NA_real_, 2L, 4L)
+  expected_joint <- numeric(2L)
+  cutoff <- expected_selection_sei * stats::qnorm(.025, lower.tail = FALSE)
+  # Conditional row scores and the full selected joint density are distinct
+  # under correlated V. A scalar conditional-normal integral supplies each
+  # bivariate publication normalizer independently of the selection kernels.
+  for (draw in 1:2) for (rows in list(1:2, 3:4)) {
+    sigma <- sampling_covariance[rows, rows] + diag(expected_tau[draw, rows]^2)
+    mean <- expected_mu[draw, rows]
+    y <- dat$yi[rows]
+    cuts <- cutoff[rows]
+    sd <- sqrt(diag(sigma))
+    high <- posterior_samples[draw, "omega[1]"]
+    low <- posterior_samples[draw, "omega[2]"]
+    both <- stats::integrate(function(x) {
+      stats::dnorm(x, mean[1L], sd[1L]) * stats::pnorm(cuts[2L],
+        mean[2L] + sigma[2L, 1L] / sigma[1L, 1L] * (x - mean[1L]),
+        sqrt(sigma[2L, 2L] - sigma[2L, 1L]^2 / sigma[1L, 1L]), lower.tail = FALSE)
+    }, cuts[1L], Inf, rel.tol = 1e-12, abs.tol = 1e-14)$value
+    normalizer <- low^2 + low * (high - low) * sum(stats::pnorm(cuts, mean, sd, lower.tail = FALSE)) +
+      (high - low)^2 * both
+    weights <- ifelse(y >= cuts, high, low)
+    expected_joint[draw] <- expected_joint[draw] + mvtnorm::dmvnorm(y, mean, sigma, log = TRUE) +
+      sum(log(weights)) - log(normalizer)
+    for (row in 1:2) {
+      other <- 3L - row
+      conditional_mean <- mean[row] + sigma[row, other] / sigma[other, other] * (y[other] - mean[other])
+      conditional_sd <- sqrt(sigma[row, row] - sigma[row, other]^2 / sigma[other, other])
+      mass <- low + (high - low) * stats::pnorm(cuts[row], conditional_mean, conditional_sd, lower.tail = FALSE)
+      expected[draw, rows[row]] <- stats::dnorm(y[row], conditional_mean, conditional_sd, log = TRUE) +
+        log(weights[row]) - log(mass)
+    }
+  }
 
-  expect_false(.estimate_normal_target_uses_covariance_backend(
+  expect_true(.estimate_normal_target_uses_covariance_backend(
     object[["data"]],
     object[["priors"]]
   ))
   expect_equal(setup[["mu"]], expected_mu, tolerance = 1e-15)
-  expect_equal(setup[["tau_within"]], expected_tau, tolerance = 1e-15)
-  expect_equal(setup[["sei"]], expected_sei, tolerance = 1e-15)
+  plan <- .data_selection_execution_plan(object$data)
+  factors <- .selection_joint_random_factor_samples(setup)
+  for (block in seq_along(plan$row_blocks)) {
+    rows <- plan$row_blocks[[block]]
+    covariance <- sampling_covariance[rows, rows, drop = FALSE]
+    packed <- t(vapply(1:2, function(draw) {
+      sigma <- covariance + diag(expected_tau[draw, rows]^2, length(rows))
+      sigma[lower.tri(sigma, diag = TRUE)]
+    }, numeric(length(rows) * (length(rows) + 1L) / 2L)))
+    expect_equal(.selection_joint_covariance_lower(setup, block, random_factor_samples = factors),
+                 packed, tolerance = 1e-15)
+  }
+  expect_equal(setup[["sei"]], expected_selection_sei, tolerance = 1e-15)
   expect_equal(
     setup[["selection_sei"]],
     expected_selection_sei,
@@ -1003,7 +1035,7 @@ test_that("approximate selection log-likelihood reconstructs its fitted latent t
       data              = object[["data"]],
       priors            = object[["priors"]]
     ),
-    rowSums(expected),
-    tolerance = 1e-14
+    expected_joint,
+    tolerance = 1e-11
   )
 })

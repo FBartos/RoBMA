@@ -15,11 +15,11 @@ fit_loo	fit_brma_mv	0.920000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma_mv_null	0.840000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma_mv_quality	0.870000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma_mv_quality_null	0.860000000	NA	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_brma_mv_rcor	0.940000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_brma_mv_rcor	0.920000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma_mv_rcor_null	0.860000000	NA	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_mv	2.920000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_mv	2.660000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_brma_mv_null	2.510000000	NA	4.6.0	Windows/x86_64-w64-mingw32
-fit_marglik	fit_brma_mv_quality	3.800000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_marglik	fit_brma_mv_quality	3.720000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_brma_mv_quality_null	3.780000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_brma_mv_rcor	3.660000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_brma_mv_rcor_null	3.600000000	NA	4.6.0	Windows/x86_64-w64-mingw32

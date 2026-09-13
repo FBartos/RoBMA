@@ -1,4 +1,4 @@
-context("Exact selection rank-one routing")
+context("Joint selection rank-one routing")
 skip_on_cran()
 
 test_that("nested intercept random effects use the exact rank-one kernel", {
@@ -16,22 +16,87 @@ test_that("nested intercept random effects use the exact rank-one kernel", {
     data                      = dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = "integrate", known_sampling_variance = "integrate", group = "study"
+      )
+    ),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  setup       <- object[["selection_likelihood"]]
-  exact_setup <- .data_exact_selection_setup(object[["data"]])
-  syntax      <- .create_model_syntax(object[["data"]], object[["priors"]])
+  plan   <- .data_selection_execution_plan(object[["data"]])
+  syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
 
-  expect_identical(setup[["exactness"]], "E1")
+  expect_identical(plan[["exactness"]], "E1")
   expect_identical(
-    exact_setup[["random_covariance"]][["representation"]],
+    plan[["random_covariance"]][["representation"]],
     "diagonal_factor"
   )
   expect_match(syntax, "dselnorm_cluster_step", fixed = TRUE)
   expect_false(grepl("dselnorm_mnorm_step", syntax, fixed = TRUE))
-  expect_false(grepl("sel_exact_qmc_", syntax, fixed = TRUE))
+  expect_identical(plan[["schema_version"]], 5L)
+  expect_identical(plan[["design_keys"]], rep("factor_1", 2L))
+  expect_identical(dim(plan[["designs"]][["factor_1"]]), c(8L, 4096L, 2L))
+  expect_match(syntax, "sel_joint_qmc_factor_1[1:8,1:4096,1:2],256,4096,8,",
+               fixed = TRUE)
+  expect_identical(.create_fit_data(object[["data"]], object[["priors"]])[[
+    "sel_joint_qmc_factor_1"
+  ]], plan[["designs"]][["factor_1"]])
+})
+
+
+test_that("rank-one quadrature rejection reuses controlled factor QMC", {
+
+  # This valid five-row input triggered a GH1023 rejection during Assink
+  # adaptation. Independent one-dimensional integration certifies the fallback.
+  yi <- c(.2994, .2992, .2989, .291, .217)
+  sei <- sqrt(c(.0041, .0042, .0041, .0042, .0041))
+  means <- matrix(-.0024773474653312366, 1L, 5L)
+  loading <- matrix(1.3700092963713908, 1L, 5L)
+  omega <- c(1, .47948435347286433)
+  selection <- .selection_spec(
+    list(outcome = list(bias = BayesTools::prior_weightfunction(
+      "one-sided", .025, BayesTools::wf_fixed(omega)
+    ))), yi, sei, effect_direction = "positive", signed_data = FALSE
+  )
+  selection$omega       <- matrix(omega, 1L)
+  selection$vector_rule <- 0L
+  plan <- .selection_joint_execution_plan(
+    row_blocks = list(1:5), block_methods = "rank_one", factor_ranks = 1L,
+    selection_control = set_selection_likelihood_control(), sampling = NULL,
+    sampling_factor_blocks = NULL, random_covariance = NULL
+  )
+  input <- list(yi = yi, means = means, residual_sd = matrix(sei, 1L),
+    loading = loading, sei = sei, selection_context = selection,
+    execution_plan = plan, return_normalizer = TRUE)
+  actual <- do.call(.selection_joint_cluster_loglik_block, input)
+  cutoff <- stats::qnorm(.025, lower.tail = FALSE)
+  reference <- stats::integrate(function(z) {
+    probability <- vapply(seq_along(sei), function(i) {
+      p <- stats::pnorm(cutoff * sei[[i]], means[[i]] + loading[[i]] * z,
+                         sei[[i]], lower.tail = FALSE)
+      omega[[2L]] + (omega[[1L]] - omega[[2L]]) * p
+    }, numeric(length(z)))
+    exp(stats::dnorm(z, log = TRUE) + rowSums(log(probability)))
+  }, -Inf, Inf, rel.tol = 1e-10)
+  expect_lt(reference$abs.error / reference$value, 1e-8)
+  expect_gt(actual$relative_mcse, 0)
+  expect_lte(max(actual$relative_mcse, actual$relative_change),
+               plan$relative_tolerance)
+  expect_lt(abs(expm1(actual$log_normalizer - log(reference$value))),
+              plan$relative_tolerance)
+  expected <- mvtnorm::dmvnorm(yi, as.double(means),
+    diag(sei^2) + tcrossprod(as.double(loading)), log = TRUE) - log(reference$value)
+  expect_equal(actual$log_density, expected, tolerance = .005)
+
+  malformed <- plan
+  malformed$designs$factor_1 <- numeric()
+  input$execution_plan <- malformed
+  condition <- tryCatch(do.call(.selection_joint_cluster_loglik_block, input),
+                        error = identity)
+  expect_identical(conditionMessage(condition),
+    "'qmc' dimensions do not match the cluster integration settings.")
 })
 
 
@@ -56,17 +121,21 @@ test_that("two-coefficient random covariance uses the same rank-one route", {
     data                      = dat,
     measure                   = "GEN",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = "integrate", known_sampling_variance = "integrate", group = "study"
+      )
+    ),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  setup       <- object[["selection_likelihood"]]
-  exact_setup <- .data_exact_selection_setup(object[["data"]])
-  syntax      <- .create_model_syntax(object[["data"]], object[["priors"]])
+  plan   <- .data_selection_execution_plan(object[["data"]])
+  syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
 
-  expect_identical(setup[["exactness"]], "E1")
+  expect_identical(plan[["exactness"]], "E1")
   expect_identical(
-    exact_setup[["random_covariance"]][["representation"]],
+    plan[["random_covariance"]][["representation"]],
     "diagonal_factor"
   )
   expect_match(syntax, "_factor_basis", fixed = TRUE)
@@ -96,19 +165,23 @@ test_that("certified factors route by structural rank and dense V stays dense", 
     data                      = dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = "integrate", known_sampling_variance = "integrate", group = "study"
+      )
+    ),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  correlated_setup <- correlated[["selection_likelihood"]]
-  correlated_exact_setup <- .data_exact_selection_setup(correlated[["data"]])
+  correlated_plan   <- .data_selection_execution_plan(correlated[["data"]])
   correlated_syntax <- .create_model_syntax(
     correlated[["data"]],
     correlated[["priors"]]
   )
-  expect_identical(correlated_setup[["exactness"]], "E2")
+  expect_identical(correlated_plan[["exactness"]], "E2")
   expect_identical(
-    correlated_exact_setup[["random_covariance"]][["representation"]],
+    correlated_plan[["random_covariance"]][["representation"]],
     "dense"
   )
   expect_match(correlated_syntax, "dselnorm_mnorm_step", fixed = TRUE)
@@ -121,23 +194,27 @@ test_that("certified factors route by structural rank and dense V stays dense", 
     data                      = dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = "integrate", known_sampling_variance = "integrate", group = "study"
+      )
+    ),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  higher_rank_setup <- higher_rank[["selection_likelihood"]]
-  higher_rank_exact_setup <- .data_exact_selection_setup(higher_rank[["data"]])
+  higher_rank_plan   <- .data_selection_execution_plan(higher_rank[["data"]])
   higher_rank_syntax <- .create_model_syntax(
     higher_rank[["data"]],
     higher_rank[["priors"]]
   )
-  expect_identical(higher_rank_setup[["exactness"]], "EF")
+  expect_identical(higher_rank_plan[["exactness"]], "EF")
   expect_identical(
-    higher_rank_exact_setup[["random_covariance"]][["representation"]],
+    higher_rank_plan[["random_covariance"]][["representation"]],
     "diagonal_factor"
   )
   expect_identical(
-    higher_rank_exact_setup[["factor_ranks"]],
+    higher_rank_plan[["factor_ranks"]],
     c(2L, 2L)
   )
   expect_match(higher_rank_syntax, "dselnorm_factor_step", fixed = TRUE)
@@ -164,17 +241,22 @@ test_that("crossed random dependencies combine through the generic factor plan",
     data                      = dat,
     measure                   = "GEN",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = "integrate", known_sampling_variance = "integrate", group = "study"
+      )
+    ),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  exact_setup <- .data_exact_selection_setup(object[["data"]])
+  plan <- .data_selection_execution_plan(object[["data"]])
   syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
 
-  expect_identical(exact_setup[["row_blocks"]], list(1:4))
-  expect_identical(exact_setup[["exactness"]], "EF")
+  expect_identical(plan[["row_blocks"]], list(1:4))
+  expect_identical(plan[["exactness"]], "EF")
   expect_identical(
-    exact_setup[["factor_ranks"]],
+    plan[["factor_ranks"]],
     4L
   )
   expect_match(syntax, "dselnorm_factor_step", fixed = TRUE)
@@ -195,19 +277,24 @@ test_that("diagonal block-list V retains generic factor routing", {
     data                      = dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = "integrate", known_sampling_variance = "integrate", group = "study"
+      )
+    ),
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  exact_setup <- .data_exact_selection_setup(object[["data"]])
+  plan <- .data_selection_execution_plan(object[["data"]])
 
-  expect_identical(exact_setup[["exactness"]], "E1")
+  expect_identical(plan[["exactness"]], "E1")
   expect_identical(
-    exact_setup[["block_methods"]],
+    plan[["block_methods"]],
     rep("rank_one", 2L)
   )
   expect_identical(
-    exact_setup[["random_covariance"]][["representation"]],
+    plan[["random_covariance"]][["representation"]],
     "diagonal_factor"
   )
 })

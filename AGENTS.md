@@ -33,6 +33,11 @@ prediction, visualization, and diagnostics.
 - Use independent references, analytic identities, or human-verified results
   for numerical tests. Do not test an implementation against the same
   unverified calculation.
+- When a product-space Bayes factor has zero or one draw in the rare state,
+  require agreement in conclusion, not high numerical precision, if bridge or
+  density-based estimates show overwhelming evidence in the same direction.
+  Keep reported error percentages and uncertainty visible. This does not relax
+  density or integration diagnostics; estimator ESS is not state occupancy.
 
 ### Complexity Budget
 
@@ -48,8 +53,8 @@ prediction, visualization, and diagnostics.
   extensibility, and abstractions serving one simple call site.
 - Generic Bayesian functionality belongs in BayesTools. RoBMA contains
   meta-analysis-specific integration.
-- Remove superseded machinery when replacing an implementation, subject to
-  task scope and maintainer approval.
+- Remove machinery superseded by the current change when it is in scope. Do not
+  remove unrelated existing code without maintainer approval.
 
 ### Compatibility and Release Notes
 
@@ -57,6 +62,9 @@ prediction, visualization, and diagnostics.
   compatibility with earlier iterations of that same unreleased code. Replace
   inferior architecture completely; do not add migrations, deprecated aliases,
   schema adapters, or compatibility layers.
+- Refactor and unify unreleased implementations across RoBMA and BayesTools
+  within the requested scope when this improves correctness, performance, or
+  maintenance. This permission does not extend to breaking released interfaces.
 - For functionality present in a released version, prefer backward-compatible
   changes.
 - If released architecture prevents a clean solution or appears short-sighted,
@@ -90,6 +98,10 @@ prediction, visualization, and diagnostics.
 - Before non-trivial work, state consequential assumptions and success
   criteria. Do not narrate obvious assumptions.
 - Use a short visible plan for multi-step work; revise it when evidence changes.
+- Apply the maintainer's existing authorization without asking again for
+  routine in-scope fixes or unreleased refactors. Before substantial work,
+  consult `.agents/instructions-decisions.md` when present for pending design
+  choices.
 - When requirements, code, tests, or documentation conflict, name the conflict
   and seek or record a decision instead of guessing.
 - Push back with concrete correctness, complexity, maintenance, or runtime
@@ -100,6 +112,36 @@ prediction, visualization, and diagnostics.
   existing code. Remove the former; do not remove the latter without approval.
 - State uncertainty, verification performed, and verification omitted. Never
   present incomplete evidence as completion.
+
+### Performance Investigations
+
+- Treat complete scenario figures taking more than roughly one minute as a
+  usability problem. Summaries and routine post-fit output must also remain
+  practical. Model fitting and explicitly heavy computations such as full
+  marginal likelihood or LOO may take longer.
+- Profile suspiciously slow original calls. Prioritize missing optimized paths,
+  unused compiled metadata, and repeated construction or calculation of values
+  already available before adding new machinery.
+- For large cross-package investigations, use several agents for independent
+  analysis and review, and coordinate work in RoBMA and BayesTools. Read each
+  package's instructions and pending decisions. Parallel agent work does not
+  authorize adding parallel computation to scenarios.
+- Measure improvements with the same scenario expressions, draws, requested
+  grids and sample budgets, seeds, diagnostic criteria, and parallel settings.
+  Do not reduce or otherwise alter numerical budgets to manufacture speedups.
+  Avoid resource contention during comparative timing runs.
+- When defaults are insufficient, explicit sample or integration budget
+  increases in the affected scenario calls are authorized, including for
+  qCMDE failures. Keep diagnostic criteria unchanged. Do not introduce arbitrary
+  hidden sampling changes or silently alter package defaults.
+- Record budget increases and their timings separately from matched-workload
+  performance evidence. Historical minima or an unchanged artifact name do not
+  establish a comparable workload or a fresh measurement.
+- If a prohibitive runtime cannot be fixed in the current work, record an
+  explicit unresolved failure with its original call, workload, timing evidence,
+  and reproduction instructions, then continue independent work. Preserve the
+  failed comparison and do not report deferred snapshots as passed. Never relax
+  tolerances or change sample counts to meet a runtime target.
 
 ### User-Facing Diagnostic Messages
 
@@ -167,6 +209,23 @@ Use `Rscript tools/test-profile.R refresh-standard` only when cached fits are
 missing or stale, then `Rscript tools/test-profile.R standard` for the ordinary
 suite. Use `Rscript tools/test-profile.R certification --list` to select an
 expensive numerical certification case.
+
+### Local Mathematical Tools
+
+For symbolic derivations and independent numerical checks on this maintainer's
+machine, use the installed tools described in the
+[math tools guide](C:/Users/fbart/.codex/math-tools/README.md).
+
+- Mathematica: symbolic identities and integrals; local console kernel at
+  `C:/Program Files/Wolfram Research/Wolfram/15.0/math.exe`.
+- SymPy, mpmath, and python-flint/Arb: symbolic algebra, high-precision numerical
+  references, and rigorous ball arithmetic. Use the isolated interpreter at
+  `C:/Users/fbart/.codex/math-tools/.venv/Scripts/python.exe`.
+- The guide contains commands, pinned versions, and a verification script.
+  Check current availability; MCP access is optional for local calculations.
+- Keep these as development/reference tools, separate from package dependencies.
+  State assumptions and distinguish numerical agreement, rigorous bounds, and
+  formal proofs.
 
 ## R Code Style
 
@@ -264,27 +323,25 @@ Leave an empty line after an opening brace in function definitions.
   RoBMA: omitted US/UN uses `LKJ(1)`, while omitted scalar correlations use the
   complete structure-specific raw interval.
 - BayesTools canonical random-effect names use
-  `(formula) owner: quantity(arguments)`. RoBMA requests BayesTools' simplified
-  names for user-facing summaries and selectors. Simplification removes only a
-  sole `intercept` argument (`sd(intercept)` becomes `sd`) and permits omission
+  `(formula) owner: quantity(arguments)` and retain their general
+  `sd`/`var`/`cor` vocabulary. RoBMA maps these at its I/O boundary to
+  `tau`/`tau2`/`rho`, including `tau_total`, `tau2_total`, `tau_common`,
+  `tau2_common`, `tau2_prop(...)`, `tau_mult(...)`, and `tau2_mult(...)`.
+  Simplification removes only a sole `intercept` argument and permits omission
   of an owner only when resolution remains unique; non-intercept arguments stay
-  explicit. Use `cor`, never backend `rho`; for example,
-  `study: cor(group[sensitivity],group[specificity])`. A known group covariance
-  still has a fitted `sd`/`var` kernel scale, not an `sd_mult`/`var_mult`.
-  Total-variance
-  allocations expose `sd_total`, `var_total`, and `var_prop(...)`;
-  mean-variance allocations expose `sd_common`, `var_common`,
-  `var_mult(...)`, and `sd_mult(...)`.
+  explicit, for example
+  `study: rho(group[sensitivity],group[specificity])`. Never expose a compact
+  backend correlation coordinate merely because it is also named with rho.
 - A bare random formula or unnamed one-entry formula list suppresses a
   redundant top-level component prefix; an explicitly named one-entry list
   retains it. Lists with two or more entries generate missing names as
   `component 1`, `component 2`, and so on. Generated allocations retain a
   stable internal `name`, use `display_name = ""` when no public owner is
   needed, and carry public `component_names` separately.
-- Ordinary and specialized `brma(..., cluster = ...)` models retain
-  `tau`/`tau2` (plus specialized `rho`/`I2`). Every `brma.mv()` heterogeneity
-  summary uses `sd`/`var` for one component, `sd_total`/`var_total` only for a
-  genuine additive aggregate, and `sd_common`/`var_common` for a mean-variance
+- Ordinary and specialized `brma(..., cluster = ...)` models use `tau`/`tau2`
+  (plus specialized `rho`/`I2`). Every `brma.mv()` heterogeneity summary uses
+  `tau`/`tau2` for one component, `tau_total`/`tau2_total` only for a genuine
+  additive aggregate, and `tau_common`/`tau2_common` for a mean-variance
   allocation scale.
 - Internal LKJ primitives, compact scalar-correlation coordinates, allocation
   weights, and covariance-construction dependencies remain coordinate-only map
@@ -403,5 +460,6 @@ kernels live in `src/selnorm/`; R-native registrations live in `src/init.c` and
   documentation. Vignettes use Pandoc citations instead.
 - Keep dependencies minimal; do not add tidyverse dependencies.
 - Use `skip_on_cran()` for computationally intensive tests.
-- Never regenerate reference output or visual snapshots without maintainer
-  review.
+- Explicitly requested scenario creation or refresh follows the individual
+  review workflow in `.agents/instructions/scenarios.md`. Ordinary reference
+  and visual baselines require maintainer review unless explicitly delegated.

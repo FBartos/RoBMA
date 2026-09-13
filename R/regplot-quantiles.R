@@ -113,10 +113,15 @@
     x,
     posterior_samples = posterior_samples
   )
-  selection      <- .selection_context(
+  # The constructor has checked positive acceptance for retained contexts.
+  # All-conditioned selection leaves the marginal Gaussian law unchanged.
+  selection      <- if (.selection_all_sources_conditioned(x[["data"]])) {
+    NULL
+  } else .selection_context(
     object            = x,
     posterior_samples = posterior_samples
   )
+  .plot_check_scalar_selection_target(x, selection, "regplot")
   use_normal     <- if (is.null(selection)) {
     rep(TRUE, S)
   } else {
@@ -128,4 +133,64 @@
     is_weightfunction = !use_normal,
     selection         = selection
   ))
+}
+
+
+# Scalar selected quantiles have no retained-context or joint-event integral.
+# Keep this availability check separate from choosing a full-event contour grid.
+.plot_check_scalar_selection_target <- function(x, selection, family) {
+
+  data <- x[["data"]]
+  if (is.null(selection) || all(selection[["use_normal"]]) ||
+      !.is_data_joint_selection(data) || .selection_all_sources_conditioned(data)) {
+    return(invisible(NULL))
+  }
+  omega <- selection[["omega"]]
+  constant <- omega[, 1L] > 0 & rowSums(omega != omega[, 1L]) == 0L
+  selected <- which(!selection[["use_normal"]] & !constant)
+  if (!length(selected)) return(invisible(NULL))
+
+  model <- .data_selection_model(data)
+  plan <- .data_selection_execution_plan(data)
+  available <- !.selection_retains_sampling(data) &&
+    all(lengths(plan[["row_blocks"]]) == 1L)
+  rules <- rep_len(selection[["vector_rule"]], nrow(omega))[selected]
+  if (any(rules != 0L) && any(lengths(model[["groups"]][["row_blocks"]]) != 1L)) {
+    available <- FALSE
+  }
+  # A changed regression design can activate shared coefficient supports
+  # that were disjoint in the fitted rows. No new-event certificate is passed.
+  requires_zero <- Filter(function(source) isTRUE(source[["retained"]]) ||
+    (identical(family, "regplot") && identical(source[["role"]], "other")),
+    model[["sources"]][["random"]])
+  if (available && length(requires_zero)) {
+    if (.is_data_random(data)) {
+      design <- .fitted_formula_design(x, "mu", required = TRUE)
+      terms <- design[["random_effects"]]
+      term_names <- vapply(terms, .random_effect_term_block_name, character(1L))
+      indices <- match(vapply(requires_zero, `[[`, character(1L), "name"), term_names)
+      available <- !anyNA(indices) && all(vapply(terms[indices],
+        .marglik_random_effect_fixed_zero, logical(1L), data = data,
+        prior_list = design[["prior_list"]], K = nrow(data[["outcome"]])))
+    } else {
+      tau <- if (.is_data_scale(data)) NULL else .fixed_tau_prior_value(x[["priors"]])
+      rho <- .fixed_rho_prior_value(x[["priors"]])
+      available <- all(vapply(requires_zero, function(source) {
+        isTRUE(tau == 0) || (.is_data_multilevel(data) &&
+          ((identical(source[["role"]], "estimate") && isTRUE(rho == 1)) ||
+           (identical(source[["role"]], "other") && isTRUE(rho == 0))))
+      }, logical(1L)))
+    }
+  }
+  if (!available) {
+    if (identical(family, "funnel")) {
+      stop("Selected funnel contours are unavailable for this joint selection configuration. ",
+        "Set 'sampling_bias = FALSE', or use 'zplot()' to view its marginal selected distribution.",
+        call. = FALSE)
+    }
+    stop("Selected regression-plot sampling intervals are unavailable for this joint selection configuration. ",
+      "Set 'sampling_bias = FALSE' to draw bias-adjusted sampling intervals.",
+      call. = FALSE)
+  }
+  invisible(NULL)
 }

@@ -37,7 +37,7 @@ RoBMA(
   prior_informed_field,
   prior_informed_subfield,
   model_type = "PSMA",
-  selection_likelihood = c("exact", "approximate"),
+  selection = BayesTools::selection_model(),
   selection_control = set_selection_likelihood_control(),
   sample = 5000,
   burnin = 2000,
@@ -210,14 +210,19 @@ Custom \code{prior_bias} replaces the preset alternative bias components. If
 \code{prior_bias} is omitted, \code{model_type} determines the default alternatives even
 when \code{prior_bias_null} is customized or omitted.}
 
-\item{selection_likelihood}{selection-likelihood target for selection-model
-branches. \code{"exact"} fits the finite-vector product-selection likelihood;
-\code{"approximate"} fits the row-wise selected-normal likelihood conditional on
-sampled random effects.}
+\item{selection}{specification created by \code{\link[=selection_model]{selection_model()}} for
+automatically constructed weightfunction priors. The default integrates
+estimate-level random effects and the complete sampling error, and conditions
+on other random effects. Each source can instead be conditioned upon or
+integrated through the corresponding selection-model setting. Explicit
+\code{prior_bias} objects retain their own selection specification; this argument
+does not overwrite it. Conditioning on sampling variation retains the entire
+sampling-error realization, including in ordinary univariate models.
+This sampling setting requires omitted or unit observation \code{weights}.}
 
 \item{selection_control}{numerical integration settings created by
-\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. Used only for dependent blocks of the
-exact likelihood.}
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. These affect numerical evaluation,
+without changing the conditioning model or the vector weighting rule.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
@@ -272,13 +277,13 @@ a single meta-analytic model.
 \code{RoBMA()} uses normal/effect-size input (\code{yi} with \code{vi} or \code{sei}). Raw-count
 GLMM model averaging is provided by \code{BMA.glmm()}.
 
-When the ensemble contains selection-model branches,
-\code{selection_likelihood = "exact"} applies estimate-level selection jointly to
-the finite vector after analytically marginalizing Gaussian random effects.
-\code{selection_likelihood = "approximate"} retains the row-wise selected-normal
-likelihood conditional on sampled random effects. The exact target is the
-default. It requires step selection kernels and does not support likelihood
-\code{weights}.
+\code{selection} configures every generated default weightfunction. Its default
+integrates estimate-level random effects and conditions on other random
+effects and known sampling variance. Explicit priors retain their nested
+\code{\link[=selection_model]{selection_model()}} settings. Active selection
+branches must share the same conditioning choices and publication partition.
+Branches can differ in weight-height priors, bins, and \code{weight_rule}.
+These fixed model choices do not introduce new inclusion parameters.
 
 Product-space objects support predictive comparison with \code{add_loo()} and
 \code{add_waic()}. Bridge-sampling marginal likelihood via \code{add_marglik()} is

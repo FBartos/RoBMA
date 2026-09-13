@@ -3,7 +3,7 @@ skip_on_cran()
 skip_refit_if_cached("bselmodel.mv")
 
 
-test_that("bselmodel.mv fits the exact estimate-level selection target", {
+test_that("bselmodel.mv fits the marginal product selection target", {
 
   data <- data.frame(
     yi    = c(0.05, 0.16, 0.22, 0.34, 0.08, 0.19),
@@ -19,7 +19,17 @@ test_that("bselmodel.mv fits the exact estimate-level selection target", {
 
   fit <- bselmodel.mv(
     yi = yi, V = V, mods = ~ x, random = ~ 1 | study,
-    data = data, measure = "GEN", steps = 0.025,
+    data = data, measure = "GEN",
+    prior_bias = BayesTools::prior_weightfunction(
+      side    = "one-sided",
+      steps   = 0.025,
+      weights = BayesTools::wf_cumulative(c(1, 1)),
+      model   = BayesTools::selection_model(
+        other_random_effects    = "integrate",
+        known_sampling_variance = "integrate",
+        group            = "study"
+      )
+    ),
     prior_unit_information_sd = 1,
     selection_control = set_selection_likelihood_control(
       points_per_scramble = 256L,
@@ -42,7 +52,7 @@ test_that("bselmodel.mv fits the exact estimate-level selection target", {
     silent      = TRUE
   )
   save_fit(
-    "bselmodel.mv_exact_random",
+    "bselmodel.mv_marg_random",
     fit,
     info = list(data = data, V = V)
   )
@@ -51,11 +61,13 @@ test_that("bselmodel.mv fits the exact estimate-level selection target", {
     class(fit),
     c("bselmodel.mv", "bselmodel", "brma.mv", "brma.norm", "brma")
   )
-  expect_identical(fit[["selection_likelihood"]][["type"]], "exact")
+  model <- .data_selection_model(fit[["data"]])
   expect_identical(
-    fit[["selection_likelihood"]][["target"]],
-    "finite_vector_product_selection"
+    model[c("other_random_effects", "known_sampling_variance")],
+    list(other_random_effects = "integrate", known_sampling_variance = "integrate")
   )
+  expect_identical(model[["groups"]][["group_index"]], rep(1:3, each = 2L))
+  expect_identical(model[["branches"]][[1L]][["weight_rule"]], "product")
   expect_s3_class(fit[["loo"]][["estimate"]], "loo")
   expect_true(is.finite(as.numeric(logml(fit))))
 })

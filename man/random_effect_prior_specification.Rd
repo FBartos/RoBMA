@@ -107,8 +107,8 @@ random-effect structure.
 
 Supplying an ordinary positive prior through \code{prior_heterogeneity} replaces
 this base prior only. RoBMA still determines whether it applies directly to
-one SD, to \code{sd_total} for a total-variance allocation, or to \code{sd_common} for
-a mean-variance allocation.
+one SD, to the RoBMA quantity \code{tau_total} for a total-variance allocation, or
+to \code{tau_common} for a mean-variance allocation.
 }
 
 \subsection{Structure-specific defaults}{
@@ -150,15 +150,15 @@ multiple top-level components, nested blocks, or heterogeneous blocks:
 \code{scale = "total_variance"}. For child weight \eqn{w_j},
 \deqn{\sigma_j = \sigma_{\mathrm{total}}\sqrt{w_j}, \qquad
         \sum_j \sigma_j^2 = \sigma_{\mathrm{total}}^2.}
-The public aggregate quantities are \code{sd_total} and \code{var_total}; components
-are \code{var_prop(...)}.
+The public aggregate quantities are \code{tau_total} and \code{tau2_total};
+components are \code{tau2_prop(...)}.
 \item A heterogeneous block, such as DIAG, US, HCS, or HAR with
 \eqn{K > 1}, adds an SD-component allocation with
 \code{scale = "mean_variance"}:
 \deqn{\sigma_j = \sigma_{\mathrm{common}}\sqrt{K w_j}, \qquad
         K^{-1}\sum_j \sigma_j^2 = \sigma_{\mathrm{common}}^2.}
-The public aggregate quantities are \code{sd_common} and \code{var_common};
-components are \code{var_mult(...)} and \code{sd_mult(...)}.
+The public aggregate quantities are \code{tau_common} and \code{tau2_common};
+components are \code{tau2_mult(...)} and \code{tau_mult(...)}.
 }
 
 Consequently, the base prior always controls a clearly defined total or
@@ -172,24 +172,24 @@ BayesTools stores concrete coordinates, semantic quantities, and aliases in
 one versioned parameter map. RoBMA summaries, plots, density estimation, and
 hypotheses use its semantic catalog view.
 BayesTools canonical random-effect names have the form
-\verb{(formula) owner: quantity(arguments)}. RoBMA consistently prints and accepts
-simplified aliases: a sole intercept is \code{sd} for a bare block and
-\code{study: sd} for a named block, while a non-intercept coefficient remains
-explicit, for example \code{study: sd(x)}. The unique owner-free shorthand \code{sd}
+\verb{(formula) owner: quantity(arguments)}. RoBMA consistently maps these to
+meta-analytic names: a sole intercept is \code{tau} for a bare block and
+\code{study: tau} for a named block, while a non-intercept coefficient remains
+explicit, for example \code{study: tau(x)}. The unique owner-free shorthand \code{tau}
 is accepted when only one component matches. Bare formulas and unnamed
 one-entry lists omit a redundant owner; explicitly named one-entry lists and
 multi-component models retain owners for disambiguation. Other examples are
-\code{cor(group[sensitivity],group[specificity])}, \code{sd_total}, \code{sd_common}, and
-\code{var_prop(study)}.
+\code{rho(group[sensitivity],group[specificity])}, \code{tau_total}, \code{tau_common}, and
+\code{tau2_prop(study)}.
 A custom \code{random_variance_allocation()} always requires a stable internal
 \code{name}; its \code{display_name} and \code{component_names} separately control these
 public owner and component labels.
 
-Formula-random correlations are always public \code{cor} quantities. Compact
-scalar \code{rho} coordinates and LKJ primitives are internal backend details,
-not aliases. This convention is distinct from the specialized \code{cluster}
-interface, where \code{rho} remains the public variance-allocation
-parameter described in \code{\link{prior_specification}}.
+Formula-random correlations are public \code{rho} quantities. BayesTools'
+general \code{cor} quantities, compact scalar correlation coordinates, and LKJ
+primitives remain internal to RoBMA. In the specialized \code{cluster} interface,
+\code{rho} remains the public variance-allocation and induced intracluster
+correlation parameter described in \code{\link{prior_specification}}.
 }
 
 \subsection{Ways to customize random-effect priors}{
@@ -222,7 +222,7 @@ random_prior <- prior_random(
 }
 Combined with \code{random = ~ us(0 + group | study)}, this creates one
 correlated random coefficient per \code{group} level. RoBMA supplies the
-UISD-scaled \code{sd_common} and mean-variance Dirichlet allocation; BayesTools adds
+UISD-scaled common-SD prior and mean-variance Dirichlet allocation; BayesTools adds
 the default \code{LKJ(1)} correlation prior after resolving the coefficient count.
 No empty \code{random_covariance()} or manual allocation is needed.
 
@@ -278,7 +278,7 @@ without MCMC, then inspect the result with
 resolved block names, SD sources, allocation hierarchy, correlation priors,
 contrasts, and policies that will be used for fitting. Its mathematical
 \code{sigma_total} and \code{sigma_common} labels describe the prior architecture;
-fitted public selectors use \code{sd_total} and \code{sd_common}, respectively.
+fitted RoBMA selectors use \code{tau_total} and \code{tau_common}, respectively.
 }
 }
 \examples{

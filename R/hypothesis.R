@@ -189,7 +189,16 @@ hypothesis.default <- function(object, ...) {
 #' \code{target_relative_mcse} (default \code{0.05}),
 #' \code{normalization_points} (default \code{NULL}, resolved to
 #' \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999}),
-#' and \code{display_grid} (default \code{"adaptive"}). Point ordinates use one
+#' and \code{display_grid} (default \code{"adaptive"}).
+#' \code{integration_control} (default \code{NULL}) retains the fitted
+#' selection-integration settings. Supply a control created by
+#' [set_selection_likelihood_control()] to change those settings for this
+#' post-fit calculation, for example
+#' \code{list(integration_control = set_selection_likelihood_control(max_points_per_scramble = 32768))}.
+#' This entry is available for Gaussian selection models with a fitted integration plan.
+#' The fitted object and posterior draws are unchanged. The maximum point budget
+#' controls factor QMC fallback; analytic and deterministic quadrature rules
+#' remain unchanged. Point ordinates use one
 #' state-independent simple random sample selected before ordinate contributions
 #' are evaluated. Multiple direct scalar point ordinates for one target share
 #' the same conditional-normalization pass while retaining separate diagnostics.
@@ -525,6 +534,7 @@ hypothesis.brma <- function(object, hypothesis,
       target_relative_mcse     = density_control[["target_relative_mcse"]],
       normalization_points     = density_control[["normalization_points"]],
       normalization_prob       = density_control[["normalization_prob"]],
+      integration_control      = density_control[["integration_control"]],
       density_method           = density_method,
       n_samples                = n_samples,
       parameter_spec           = if (is.null(coefficient_target)) {
@@ -989,7 +999,7 @@ hypothesis.brma <- function(object, hypothesis,
       density_control[["n_points"]]
     )
   }
-  context        <- .iwmde_context(object)
+  context        <- .iwmde_context(object, density_control[["integration_control"]])
   estimate_cache <- .iwmde_estimate_cache()
   marginal <- .hypothesis_brma_attach_iwmde_scalar(
     posterior                = marginal,
@@ -1005,6 +1015,7 @@ hypothesis.brma <- function(object, hypothesis,
     target_relative_mcse     = density_control[["target_relative_mcse"]],
     normalization_points     = density_control[["normalization_points"]],
     normalization_prob       = density_control[["normalization_prob"]],
+    integration_control      = density_control[["integration_control"]],
     density_method           = density_method,
     parameter_spec           = target[["parameter_spec"]],
     display_transform        = target[["display_transform"]]

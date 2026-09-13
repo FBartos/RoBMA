@@ -806,9 +806,11 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     diagnostics = diagnostics
   ))
   expect_equal(
-    .plot_brma_iwmde_unavailable_message(samples, "qCMDE"),
+    conditionMessage(.plot_brma_iwmde_unavailable_error(
+      samples, "qCMDE", "mu"
+    )),
     paste0(
-      "qCMDE density was rejected by diagnostics: density bulk effective ",
+      "qCMDE density for 'mu' was rejected by diagnostics: density bulk effective ",
       "sample size is 49.3. Try a larger 'samples' value in the ",
       "'density_control' argument."
     )
@@ -820,6 +822,20 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     fixed = TRUE
   )
   diagnostics[["all_rows_used"]] <- NULL
+  diagnostics[["sampling_fraction"]] <- 1
+  attr(samples, "iwmde_diagnostics")[[1L]][["diagnostics"]] <- diagnostics
+  expect_equal(
+    conditionMessage(.plot_brma_iwmde_unavailable_error(
+      samples, "qCMDE", "mu"
+    )),
+    paste0(
+      "qCMDE density for 'mu' was rejected by diagnostics: density bulk effective ",
+      "sample size is 49.3. Try fitting the model with more posterior draws."
+    )
+  )
+  diagnostics[["sampling_fraction"]] <- .5
+  expect_sample_rejection("bulk effective sample size")
+  diagnostics[["sampling_fraction"]] <- NULL
   diagnostics[["mcmc_uncertainty_scope"]] <-
     "selected_active_rows_with_mass_bound"
   expect_null(.iwmde_diagnostics_density_failure_reason(diagnostics))
@@ -837,6 +853,99 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
   )
   diagnostics[["bulk_max_weight_share"]] <- .30
   expect_sample_rejection("bulk density importance weight")
+})
+
+
+test_that("plot density errors retain semantic targets and computed diagnostics", {
+
+  parameter <- "(mu) study: tau"
+  fit <- structure(list(fit = list()), class = "brma")
+  diagnostic <- list(
+    parameter   = "allocation_sd",
+    status      = "ok",
+    active_rows = seq_len(500L),
+    iwmde       = list(x = c(.1, .2), y = c(.5, .8), ess = c(16.9, 80)),
+    diagnostics = list(
+      estimator               = "q_grid_cmde",
+      n_estimator_rows         = 500L,
+      n_active_state_keys      = 1L,
+      plot_scale_relative_mcse = .01,
+      bulk_max_relative_mcse   = .05,
+      bulk_min_ess             = 16.9
+    ),
+    iwmde_provenance = list(
+      density_control = list(samples = 500L),
+      target = list(parameter = "allocation_sd")
+    ),
+    plan = list(row_states = list(list(prior_evaluator = function(...) fit)))
+  )
+  samples <- stats::setNames(list(c(.1, .2)), parameter)
+  attr(samples, "random_parameter_label") <- "study: tau"
+  attr(samples, "iwmde_diagnostics") <- list(parameter = diagnostic)
+  supplied_target <- NULL
+  testthat::local_mocked_bindings(
+    .iwmde_check_density_method_supported = function(...) invisible(NULL),
+    .check_and_select_plot_parameter = function(...) parameter,
+    .brma_parameter_select_entry = function(...) list(component = "random"),
+    .plot_output_setup = function(...) NULL,
+    .brma_random_parameter_mixed_posterior = function(...) samples,
+    .brma_random_parameter_density_target = function(...) {
+
+      list(parameter = "allocation_sd", parameter_spec = list(type = "primitive"))
+    },
+    .plot_brma_attach_iwmde = function(object, samples, parameter, ...) {
+
+      supplied_target <<- parameter
+      samples
+    },
+    .package = "RoBMA"
+  )
+
+  errors <- list(
+    tryCatch(plot(fit, "study: tau", density_method = "qCMDE"), error = identity),
+    tryCatch(lines(fit, "study: tau", density_method = "qCMDE",
+                   plot_type = "ggplot"), error = identity)
+  )
+  expected <- diagnostic
+  expected[["plan"]] <- NULL
+  for (error in errors) {
+    expect_s3_class(error, "RoBMA_density_plot_error")
+    expect_identical(conditionMessage(error), paste0(
+      "qCMDE density for 'study: tau' was rejected by diagnostics: density ",
+      "bulk effective sample size is 16.9. Try a larger 'samples' value ",
+      "in the 'density_control' argument."
+    ))
+    expect_identical(error[["parameter"]], "study: tau")
+    expect_identical(error[["density_method"]], "qCMDE")
+    expect_null(conditionCall(error))
+    expect_identical(error[["density_diagnostics"]], list(parameter = expected))
+    expect_identical(unserialize(serialize(error, NULL)), error)
+  }
+  expect_identical(supplied_target, "allocation_sd")
+  expect_true(is.function(
+    diagnostic[["plan"]][["row_states"]][[1L]][["prior_evaluator"]]
+  ))
+})
+
+
+test_that("structurally unavailable plot densities retain their reason", {
+
+  diagnostic <- list(
+    parameter = "mu",
+    status    = "unsupported",
+    reason    = "no continuous posterior rows"
+  )
+  samples <- list()
+  attr(samples, "iwmde_diagnostics") <- list(parameter = diagnostic)
+  error <- .plot_brma_iwmde_unavailable_error(samples, "IWMDE", "mu")
+
+  expect_s3_class(error, "RoBMA_density_plot_error")
+  expect_identical(conditionMessage(error),
+    "IWMDE density for 'mu' was unavailable: no continuous posterior rows.")
+  expect_identical(error[["density_diagnostics"]], list(parameter = diagnostic))
+  expect_identical(conditionMessage(.plot_brma_iwmde_unavailable_error(
+    list(), "qCMDE", "mu"
+  )), "qCMDE density for 'mu' was unavailable.")
 })
 
 

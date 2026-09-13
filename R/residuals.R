@@ -112,8 +112,9 @@
 #' support marginal Pearson and internally standardized residuals through the
 #' marginal covariance \eqn{V + ZGZ'} and estimate-depth residuals through the
 #' fitted existing-level random-effect target.
-#' For exact selection models, the conditional target is selected again only
-#' by the deleted estimate's weight; the weights of retained estimates cancel.
+#' Selection models retain their declared context and original publication
+#' event during deletion. Retained product weights cancel; best selection also
+#' retains the best p-value among the observed outcomes in that event.
 #' Pearson and hat-matrix standardized residuals remain unavailable for
 #' selection models; use LOO-PIT residuals for a likelihood-aware standardized
 #' diagnostic.
@@ -729,7 +730,7 @@ rstudent.brma <- function(model, unit = "estimate",
   .diagnostic_check_loo(model, psis_context, unit = "estimate")
 
   if (setup[["outcome_type"]] == "norm" && setup[["is_weightfunction"]] &&
-      !.is_data_exact_selection(setup[["data"]])) {
+      !.is_data_joint_selection(setup[["data"]])) {
     summary <- .loo_predictive_selnorm_summary_estimate(
       object       = model,
       setup        = setup,
@@ -1010,7 +1011,7 @@ rstudent.brma <- function(model, unit = "estimate",
     )
   }
   if (setup[["outcome_type"]] == "norm" && setup[["is_weightfunction"]] &&
-      !.is_data_exact_selection(setup[["data"]])) {
+      !.is_data_joint_selection(setup[["data"]])) {
     summary <- .loo_predictive_selnorm_summary_estimate(
       object       = object,
       setup        = setup,

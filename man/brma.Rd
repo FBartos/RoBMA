@@ -199,13 +199,13 @@ corresponds to the intercept of the scale regression, and additional prior
 distributions for the scale regression coefficients are required.
 
 There are several ways to specify the prior distributions: \enumerate{
-\item{via a standardized effect size \code{measure} with known unit information standard deviation,}
-\item{by estimating unit information standard deviation using sample sizes \code{ni},}
-\item{by manually setting \code{prior_unit_information_sd},}
-\item{by specifying informed empirical prior distributions via \code{prior_informed_field}
-and \code{prior_informed_subfield},}
-\item{or via fully custom specification using the \code{prior_effect}, \code{prior_heterogeneity},
-\code{prior_mods}, \code{prior_scale}, and \code{prior_heterogeneity_allocation} arguments.}
+\item via a standardized effect size \code{measure} with known unit information standard deviation,
+\item by estimating unit information standard deviation using sample sizes \code{ni},
+\item by manually setting \code{prior_unit_information_sd},
+\item by specifying informed empirical prior distributions via \code{prior_informed_field}
+and \code{prior_informed_subfield},
+\item or via fully custom specification using the \code{prior_effect}, \code{prior_heterogeneity},
+\code{prior_mods}, \code{prior_scale}, and \code{prior_heterogeneity_allocation} arguments.
 }
 In all cases, the prior behavior can be further modified by the \code{rescale_priors},
 \code{standardize_continuous_predictors}, and \code{set_contrast_factor_predictors} arguments.

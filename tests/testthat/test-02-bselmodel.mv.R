@@ -1,8 +1,8 @@
 source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-contracts.R"))
 
-skip_if_missing_fits("bselmodel.mv_exact_random")
-fit_bselmodel_mv <- load_fit("bselmodel.mv_exact_random", validate = FALSE)
+skip_if_missing_fits("bselmodel.mv_marg_random")
+fit_bselmodel_mv <- load_fit("bselmodel.mv_marg_random", validate = FALSE)
 
 
 test_that("bselmodel.mv presents multivariate selection summaries", {
@@ -22,7 +22,7 @@ test_that("bselmodel.mv presents multivariate selection summaries", {
 })
 
 
-test_that("bselmodel.mv likelihood methods preserve the exact targets", {
+test_that("bselmodel.mv likelihood methods preserve marginal selection targets", {
 
   draws   <- .get_posterior_samples(fit_bselmodel_mv[["fit"]])
   log_lik <- log_lik(fit_bselmodel_mv, unit = "estimate")
@@ -85,7 +85,7 @@ test_that("bselmodel.mv prediction and latent summaries remain available", {
 })
 
 
-test_that("exact random-effect posterior draws use the shared covariance plan", {
+test_that("marginal random-effect posterior draws use the shared covariance plan", {
 
   posterior_samples <- .get_posterior_samples(fit_bselmodel_mv[["fit"]])
   posterior_samples <- posterior_samples[seq_len(20L), , drop = FALSE]
@@ -96,16 +96,20 @@ test_that("exact random-effect posterior draws use the shared covariance plan", 
   prior_random      <- matrix(seq_len(S * K) / 7000, nrow = S, ncol = K)
   prior_sampling    <- matrix(seq_len(S * K) / 9000, nrow = S, ncol = K)
 
+  draw_calls <- 0L
   testthat::local_mocked_bindings(
-    .predict_brma_mv_marginal_random_draws = function(...) prior_random,
-    .known_v_sampling_noise = function(...) prior_sampling,
+    .outcome_rng.norm_known_v_covariance = function(...) {
+      draw_calls <<- draw_calls + 1L
+      if (draw_calls == 1L) prior_random else prior_sampling
+    },
     .package = "RoBMA"
   )
-  actual <- .predict_brma_mv_marginal_random_posterior_draws(
+  actual <- .predict_brma_mv_random_posterior(
     object            = fit_bselmodel_mv,
     mu_samples        = mu_samples,
     posterior_samples = posterior_samples,
-    bias_offset       = bias_offset
+    bias_offset       = bias_offset,
+    type              = "draws"
   )
 
   random_vcov <- .brma_mv_random_effects_marginal_vcov(
@@ -129,16 +133,17 @@ test_that("exact random-effect posterior draws use the shared covariance plan", 
       as.vector(Q %*% solve(Q + sampling_covariance, residual[draw, ]))
   }
 
+  expect_identical(draw_calls, 2L)
   expect_equal(actual, expected, tolerance = 1e-10)
 })
 
 
-test_that("random-formula qCMDE uses the exact selection likelihood", {
+test_that("random-formula qCMDE uses the marginal selection likelihood", {
 
   expect_s3_class(
     plot(
       fit_bselmodel_mv,
-      "sd",
+      "tau",
       component       = "random",
       density_method  = "qCMDE",
       density_control = list(

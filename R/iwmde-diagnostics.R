@@ -353,7 +353,8 @@
 
 .iwmde_density_sample_rejection_action <- function(diagnostics) {
 
-  if (isTRUE(diagnostics[["all_rows_used"]])) {
+  if (isTRUE(diagnostics[["all_rows_used"]]) ||
+      isTRUE(diagnostics[["sampling_fraction"]] == 1)) {
     return("Try fitting the model with more posterior draws")
   }
 

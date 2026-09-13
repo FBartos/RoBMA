@@ -9,12 +9,17 @@
 #' @inheritParams bselmodel.mv
 #'
 #' @details
+#' Omitted or NULL `random` specifies no heterogeneity or random-effect
+#' inclusion mixture. Publication-bias and fixed-effect alternatives remain
+#' available. Heterogeneity priors and scale formulas require an explicit
+#' random structure; the known sampling covariance remains unchanged.
+#'
 #' `RoBMA.mv()` combines the publication-bias product space of [RoBMA()] with
 #' the known-covariance, formula, random-effect, and prediction machinery of
 #' [brma.mv()]. Selection models, PET, PEESE, and the unadjusted branch are
 #' averaged together according to `model_type` or custom `prior_bias` and
-#' `prior_bias_null` specifications. Selection is always defined at the
-#' estimate level. PET uses `sqrt(diag(V))` and PEESE uses `diag(V)` as their
+#' `prior_bias_null` specifications. Selection is defined over the estimates
+#' in each publication event. PET uses `sqrt(diag(V))` and PEESE uses `diag(V)` as their
 #' bias predictors while the likelihood retains the full known sampling
 #' covariance.
 #'
@@ -23,34 +28,28 @@
 #' variance across multiple top-level components and each allocation is
 #' multiplied by its own inclusion indicator without renormalizing the
 #' remaining allocations. The default prior inclusion probability is 0.5 for
-#' every component. Public `sd_total` and `var_total` draws are the realized
+#' every component. Public `tau_total` and `tau2_total` draws are the realized
 #' gated aggregate, including the all-off zero branch. Public
-#' `var_prop(...)` draws are realized shares conditional on positive total
+#' `tau2_prop(...)` draws are realized shares conditional on positive total
 #' heterogeneity; excluded components have zero share, and the all-off branch
 #' is undefined. The positive slab scale and raw Dirichlet weights remain
 #' internal coordinates.
 #'
-#' With `selection_likelihood = "exact"`, all Gaussian random effects are
-#' analytically marginalized and each connected sampling/random covariance
-#' block uses its joint selected-Gaussian density in selection-model branches.
-#' Non-selection branches in the product space retain their ordinary Gaussian,
-#' PET, or PEESE likelihood contribution. With
-#' `selection_likelihood = "approximate"`, selection-model branches use the
-#' row-wise selected-normal likelihood conditional on sampled random effects.
-#' Correlated known sampling covariance then requires the latent known-`V`
-#' representation. `known_v_parameterization = "auto"` is changed to that
-#' representation only when the fitted bias mixture actually contains a
-#' selection model; explicitly requesting `"whitened"` or `"block_mvn"` is
-#' rejected for this target. As in [bselmodel.mv()], approximate selection
-#' conditions on the structural sampling factors retained by [vcalc2()] or
-#' declared by [known_v_factor()] when available. An ordinary covariance matrix
-#' uses the decomposition controlled by `known_v_residual_fraction`, which can
-#' define a different approximate likelihood for the same covariance.
+#' The constructor's `selection` specification applies to every generated
+#' weightfunction. It integrates estimate-level random effects and the complete
+#' sampling error by default, and conditions on other random effects.
+#' Explicit priors carry their own [selection_model()]
+#' settings, including publication grouping and product or best-p-value weights.
+#' Active selection branches must share one conditioning cell and publication
+#' partition. Their bins, weight priors, and weighting rules may differ.
+#' Non-selection branches retain the corresponding Gaussian, PET, or PEESE
+#' contribution with the same contextual source representation.
 #'
-#' `marginalize_estimate_level` applies to models without an exact selection
-#' branch and to the approximate selection likelihood. Exact selection
-#' necessarily marginalizes every Gaussian random-effect block into the joint
-#' observation covariance.
+#' Whole sampling-error selection, grouping, and the Gaussian source
+#' likelihood follow [bselmodel.mv()]. Numerical backends do not change these
+#' model choices. All three source choices are explicit in `selection`.
+#' Without an active selection branch, supported estimate-level Gaussian
+#' random intercepts are automatically integrated into the likelihood variance.
 #'
 #' Product-space marginal likelihood and bridge-sampling methods are not
 #' available. Predictive comparison through [loo.brma()] and [waic.brma()]
@@ -75,6 +74,7 @@
 #'   V = V,
 #'   mods = ~ deltype,
 #'   random = ~ 1 | study / esid,
+#'   selection = selection_model(group = study),
 #'   data = dat.assink2016,
 #'   measure = "SMD",
 #'   seed = 1,
@@ -108,13 +108,11 @@ RoBMA.mv <- function(
     model_type = "PSMA",
 
     # selection likelihood
-    selection_likelihood = c("exact", "approximate"),
+    selection = BayesTools::selection_model(),
     selection_control = set_selection_likelihood_control(),
 
     # MCMC fitting settings
     known_v_parameterization = "auto",
-    known_v_residual_fraction = 0.10,
-    marginalize_estimate_level = TRUE,
     sample = 5000, burnin = 2000, adapt = 500,
     chains = 3, thin = 1, parallel = FALSE,
     autofit = FALSE, autofit_control = set_autofit_control(),
@@ -124,7 +122,7 @@ RoBMA.mv <- function(
     seed = NULL, silent, ...,
     vi = NULL, sei = NULL) {
 
-  selection_likelihood <- match.arg(selection_likelihood)
+  BayesTools::check_selection_model(selection, name = "selection")
   initialized <- .initialize_mv_object(
     matched_call_unevaluated            = match.call(expand.dots = FALSE),
     matched_call                        = match.call(),
@@ -136,15 +134,11 @@ RoBMA.mv <- function(
     dots                                = list(...),
     missing_measure                     = missing(measure),
     measure                             = measure,
-    known_v_residual_fraction_specified = !missing(
-      known_v_residual_fraction
-    ),
     R                                   = R,
     Rscale                              = Rscale,
     standardize_continuous_predictors   = standardize_continuous_predictors,
     set_contrast_factor_predictors      = set_contrast_factor_predictors,
     known_v_parameterization            = known_v_parameterization,
-    known_v_residual_fraction           = known_v_residual_fraction,
     sample                              = sample,
     burnin                              = burnin,
     adapt                               = adapt,
@@ -181,14 +175,13 @@ RoBMA.mv <- function(
     prior_informed_subfield    = prior_informed_subfield,
     data                       = object[["data"]],
     model_type                 = model_type,
-    random_component_averaging = TRUE
+    random_component_averaging = TRUE,
+    weightfunction_model       = selection
   )
 
   .finalize_mv_object(
     object                     = object,
-    selection_likelihood       = selection_likelihood,
     selection_control          = selection_control,
-    marginalize_estimate_level = marginalize_estimate_level,
     only_priors                = isTRUE(dots[["only_priors"]])
   )
 }

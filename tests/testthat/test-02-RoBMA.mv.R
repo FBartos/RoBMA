@@ -1,7 +1,7 @@
 source(testthat::test_path("common-functions.R"))
 
-skip_if_missing_fits("RoBMA.mv_exact_product_space")
-fit_robma_mv <- load_fit("RoBMA.mv_exact_product_space", validate = FALSE)
+skip_if_missing_fits("RoBMA.mv_marg_product_space")
+fit_robma_mv <- load_fit("RoBMA.mv_marg_product_space", validate = FALSE)
 
 
 .robma_mv_random_gate_names <- function(fit) {
@@ -253,13 +253,13 @@ test_that("RoBMA.mv plots and hypotheses use the combined ensemble", {
   )
   expect_s3_class(as_zplot(fit_robma_mv), "zplot_brma")
   expect_s3_class(
-    plot(fit_robma_mv, "study: sd", plot_type = "ggplot"),
+    plot(fit_robma_mv, "study: tau", plot_type = "ggplot"),
     "ggplot"
   )
   expect_s3_class(
     hypothesis(
       fit_robma_mv,
-      "study: sd < 0.1",
+      "study: tau < 0.1",
       density_method = "KDE"
     ),
     "BayesTools_hypothesis_BF"
@@ -296,5 +296,8 @@ test_that("RoBMA.mv preserves product-space limitations and update", {
     n_before + 40L
   )
   expect_null(extended[["loo"]])
-  expect_identical(extended[["selection_likelihood"]][["type"]], "exact")
+  expect_identical(
+    .data_selection_model(extended[["data"]]),
+    .data_selection_model(fit_robma_mv[["data"]])
+  )
 })

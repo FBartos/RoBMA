@@ -90,21 +90,21 @@
 #'
 #' ## Variance allocation
 #'
-#' A block allocation with `scale = "total_variance"` exposes realized
-#' `sd_total` and `var_total` and splits the slab variance across multiple
+#' A block allocation with `scale = "total_variance"` exposes RoBMA quantities
+#' `tau_total` and `tau2_total` and splits the slab variance across multiple
 #' random-effect blocks. With optional inclusion gates,
 #' \deqn{\sigma_j = I_j\sigma_{\mathrm{slab}}\sqrt{w_j}, \qquad
 #'       \sigma_{\mathrm{total}}^2 = \sigma_{\mathrm{slab}}^2
 #'       \sum_j I_j w_j.}
-#' The public `var_prop(j)` is \eqn{I_j w_j / \sum_k I_k w_k}, conditional on
+#' The public `tau2_prop(j)` is \eqn{I_j w_j / \sum_k I_k w_k}, conditional on
 #' positive total variance. The slab scale and raw weights remain internal.
 #' An SD-component allocation with
-#' `scale = "mean_variance"` instead exposes `sd_common` and `var_common` and
+#' `scale = "mean_variance"` instead exposes `tau_common` and `tau2_common` and
 #' gives each component the common-SD scale at equal weights:
 #' \deqn{\sigma_j = \sigma_{\mathrm{common}}\sqrt{K w_j}, \qquad
 #'       K^{-1}\sum_j \sigma_j^2 = \sigma_{\mathrm{common}}^2.}
-#' The corresponding public multipliers are `var_mult(j) = K * w[j]` and
-#' `sd_mult(j) = sqrt(K * w[j])`.
+#' The corresponding public multipliers are `tau2_mult(j) = K * w[j]` and
+#' `tau_mult(j) = sqrt(K * w[j])`.
 #' This is useful for heterogeneous level-specific SDs. Root allocations own an
 #' SD prior or external SD source. Child allocations inherit one named parent
 #' component through `allocation_ref()` and therefore must not supply another
@@ -116,20 +116,21 @@
 #' Random-effect quantities are exposed through the semantic catalog view of
 #' BayesTools' fitted parameter map. Concrete posterior coordinates are a linked
 #' view of the same map and are not additional public names. BayesTools
-#' canonical names use `(formula) owner: quantity(arguments)`. RoBMA prints and
-#' accepts simplified aliases: a sole random intercept is `sd` for a bare block
-#' and `study: sd` for a named block; a non-intercept coefficient remains
-#' explicit, for example `study: sd(x)`. An owner-free `sd` is accepted only
-#' when it resolves uniquely. Public correlations use `cor`; compact scalar
-#' `rho` and LKJ construction coordinates remain internal backend dependencies.
+#' canonical names use `(formula) owner: quantity(arguments)` with general
+#' `sd`, `var`, and `cor` terminology. RoBMA maps these to meta-analytic I/O
+#' names: a sole random intercept is `tau` for a bare block and `study: tau` for
+#' a named block; a non-intercept coefficient remains explicit, for example
+#' `study: tau(x)`. An owner-free `tau` is accepted only when it resolves
+#' uniquely. Public RoBMA correlations use `rho`; compact covariance-construction
+#' coordinates remain internal backend dependencies.
 #'
 #' A bare formula or unnamed one-entry list omits a redundant component owner.
 #' An explicitly named one-entry list retains its owner. For multiple
 #' components, public component names come from the formula list; missing names
 #' are generated as `component 1`, `component 2`, and so on.
-#' Total-variance allocations expose realized `sd_total`, `var_total`, and
-#' `var_prop(...)`. Mean-variance allocations expose `sd_common`, `var_common`,
-#' `var_mult(...)`, and `sd_mult(...)`.
+#' Total-variance allocations expose realized `tau_total`, `tau2_total`, and
+#' `tau2_prop(...)`. Mean-variance allocations expose `tau_common`,
+#' `tau2_common`, `tau2_mult(...)`, and `tau_mult(...)`.
 #'
 #' ## Monitoring, prediction, and parameterization
 #'

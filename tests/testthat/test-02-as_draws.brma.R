@@ -109,7 +109,7 @@ test_that("as_draws methods return posterior draws for fits", {
   expect_true("mu" %in% posterior::variables(draws))
 })
 
-test_that("as_draws methods preserve raw MCMC values and order", {
+test_that("as_draws methods preserve auxiliary-inclusive values and order", {
 
   mcmc_list       <- RoBMA:::.brma_to_mcmc.list(
     fit,
@@ -266,7 +266,7 @@ test_that("all brma draw formats share auxiliary filtering and validation", {
   }
 })
 
-test_that("all raw draw formats preserve auxiliary values", {
+test_that("all auxiliary-inclusive draw formats preserve values", {
 
   name <- "brma.mv_latent"
   skip_if_missing_fits(name)
@@ -347,9 +347,13 @@ test_that("draw schemas are stable across known-V parameterizations", {
     schemas[["brma.mv_block_mvn_random_sampled"]],
     fixed = TRUE
   )))
-  expect_true(any(grepl(
-    "_intercept$",
-    schemas[["brma.mv_block_mvn_known_R"]]
+  expect_true(all(
+    c("tau", "tau2") %in% schemas[["brma.mv_block_mvn_known_R"]]
+  ))
+  expect_false(any(grepl(
+    "_xRE_",
+    schemas[["brma.mv_block_mvn_known_R"]],
+    fixed = TRUE
   )))
 })
 
@@ -384,14 +388,14 @@ test_that("draw schemas filter model-family-specific auxiliary state", {
     expect_false(any(grepl("_xRE_CORx_L[", schemas[[name]], fixed = TRUE)))
     expect_false(any(startsWith(schemas[[name]], "prior_par_eta_")))
   }
-  expect_true(any(grepl(
-    "_xRE_CORx_R[",
-    schemas[["brma.mv_v14_konstantopoulos2011_cs"]],
-    fixed = TRUE
-  )))
-  expect_true(any(grepl(
-    "_xRE_CORx_R[",
-    schemas[["brma.mv_v14_ishak2007_har"]],
+  expect_true("rho" %in% schemas[["brma.mv_v14_konstantopoulos2011_cs"]])
+  expect_true("rho" %in% schemas[["brma.mv_v14_ishak2007_har"]])
+  expect_false(any(grepl(
+    "_xRE_",
+    c(
+      schemas[["brma.mv_v14_konstantopoulos2011_cs"]],
+      schemas[["brma.mv_v14_ishak2007_har"]]
+    ),
     fixed = TRUE
   )))
 })
@@ -418,18 +422,30 @@ test_that("known-V backend posterior draws agree for common parameters", {
   expect_lt(diff(range(estimates["tau", ])), 0.08)
 })
 
-test_that("equivalent brma and brma.mv fits expose the same model schema", {
+test_that("equivalent brma and brma.mv fits expose corresponding population draws", {
 
   names <- c("vif_parity_brma", "vif_parity_brma_mv")
   skip_if_missing_fits(names)
 
-  schemas <- lapply(names, function(name) {
-    posterior::variables(RoBMA::as_draws_matrix(
-      load_fit(name, validate = FALSE)
-    ))
-  })
-
-  expect_equal(schemas[[1]], schemas[[2]])
+  objects <- lapply(names, load_fit, validate = FALSE)
+  draws <- lapply(objects, function(object) RoBMA::as_draws_matrix(object))
+  schemas <- lapply(draws, posterior::variables)
+  scale_coordinates <- c("tau", "tau")
+  selections <- list(
+    .brma_parameter_select_entry(objects[[1L]], "tau")[["selection"]],
+    .brma_parameter_select_entry(objects[[2L]], "tau", component = "random")[["selection"]]
+  )
+  expect_equal(
+    setdiff(schemas[[1L]], scale_coordinates[[1L]]),
+    setdiff(schemas[[2L]], c("tau", "tau2"))
+  )
+  for (i in seq_along(objects)) {
+    expect_true(scale_coordinates[[i]] %in% schemas[[i]])
+    semantic <- as.matrix(BayesTools::parameter_draws(objects[[i]], selections[[i]]))
+    expect_identical(ncol(semantic), 1L)
+    expect_equal(as.vector(draws[[i]][, scale_coordinates[[i]]]), as.vector(semantic), tolerance = 0)
+    expect_false(any(grepl("^(theta|gamma|sampling_z)\\[|_xRE_Zx\\[|^prior_par_eta_|^inv_", schemas[[i]])))
+  }
 })
 
 test_that("as_draws methods preserve product-space BMA and RoBMA indicators", {

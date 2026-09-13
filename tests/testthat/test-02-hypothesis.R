@@ -237,7 +237,7 @@ test_that("qCMDE scalar rejection uses the public parameter label", {
       context              = list(),
       estimate_cache       = .iwmde_estimate_cache(),
       parameter            = "mu__xRE_ALLOCx_heterogeneity__weight[2]",
-      parameter_label      = "var_prop(study)",
+      parameter_label      = "tau2_prop(study)",
       value                = 1,
       conditional          = NULL,
       n_points             = 20,
@@ -249,7 +249,7 @@ test_that("qCMDE scalar rejection uses the public parameter label", {
       parameter_spec       = list(type = "random_allocation_weight")
     ),
     paste0(
-      "qCMDE posterior ordinate for 'var_prop\\(study\\) = 1' was ",
+      "qCMDE posterior ordinate for 'tau2_prop\\(study\\) = 1' was ",
       "rejected by diagnostics: failed qCMDE/IWMDE numerical diagnostics"
     )
   )
@@ -408,7 +408,7 @@ test_that("transformed point attachment retains the exact requested value", {
     context              = list(),
     estimate_cache       = .iwmde_estimate_cache(),
     parameter            = "tau",
-    parameter_label      = "var_common",
+    parameter_label      = "tau2_common",
     value                = requested,
     conditional          = NULL,
     n_points             = 20,
@@ -1190,7 +1190,7 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
   class(object) <- "marginal_means.brma"
 
   captured <- NULL
-  minimal_context <- function(object) {
+  minimal_context <- function(object, integration_control = NULL) {
 
     list(
       source            = object,
@@ -1370,7 +1370,7 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
     level     = "alternate"
   )
   compatible_object <- make_object(sample)
-  minimal_context <- function(object) {
+  minimal_context <- function(object, integration_control = NULL) {
 
     list(
       source            = object,

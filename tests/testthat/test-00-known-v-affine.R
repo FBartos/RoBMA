@@ -304,7 +304,7 @@ test_that("invariant q-grids bypass candidate covariance reconstruction", {
     .iwmde_predictor_log_prior = function(...) {
       numeric(length(values) * length(row_states))
     },
-    .iwmde_random_affine_replacement_samples = function(...) {
+    .iwmde_build_replacement_samples = function(...) {
       stop("candidate covariance reconstruction must not run", call. = FALSE)
     },
     .brma_mv_random_effects_marginal_vcov = function(...) {

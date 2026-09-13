@@ -79,7 +79,16 @@ marginal_means <- function(object, ...) {
 #' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 #' (default \code{"adaptive"}), \code{normalization_points} (default
 #' \code{NULL}, resolved to \code{max(50, n_points)}), and
-#' \code{normalization_prob} (default \code{0.999}). \code{samples} defaults
+#' \code{normalization_prob} (default \code{0.999}).
+#' \code{integration_control} (default \code{NULL}) retains the fitted
+#' selection-integration settings. Supply a control created by
+#' [set_selection_likelihood_control()] to change those settings for this
+#' post-fit calculation, for example
+#' \code{list(integration_control = set_selection_likelihood_control(max_points_per_scramble = 32768))}.
+#' This entry is available for Gaussian selection models with a fitted integration plan.
+#' The fitted object and posterior draws are unchanged. The maximum point budget
+#' controls factor QMC fallback; analytic and deterministic quadrature rules
+#' remain unchanged. \code{samples} defaults
 #' to \code{500} for qCMDE and \code{1000} for IWMDE density curves and point
 #' ordinates. Point ordinates use one fixed state-independent
 #' simple random sample chosen before contributions are evaluated. Sample
@@ -286,6 +295,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
       sample_budget           = density_control[["samples"]],
       normalization_points    = density_control[["normalization_points"]],
       normalization_prob      = density_control[["normalization_prob"]],
+      integration_control     = density_control[["integration_control"]],
       density_method          = density_method,
       display_grid            = density_control[["display_grid"]],
       null_hypothesis         = null_hypothesis,
@@ -669,7 +679,10 @@ as.data.frame.summary.marginal_means.brma <- function(
 #' \code{display_grid} (default \code{"adaptive"}),
 #' \code{normalization_points} (default \code{NULL}, resolved to
 #' \code{max(50, n_points)}), and \code{normalization_prob} (default
-#' \code{0.999}). \code{samples} controls the fixed posterior-row budget for
+#' \code{0.999}). \code{integration_control} (default \code{NULL}) accepts
+#' [set_selection_likelihood_control()] settings for Gaussian selection models;
+#' see [marginal_means.brma()] for an example. The fitted object and posterior
+#' draws are unchanged. \code{samples} controls the fixed posterior-row budget for
 #' the density curve. \code{target_relative_mcse} is a point-ordinate
 #' diagnostic target and does not alter this fixed-budget plot. Curve
 #' diagnostics use the empirical 5--95 percent bulk, report the 5 and 95

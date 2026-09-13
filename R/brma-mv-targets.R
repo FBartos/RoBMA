@@ -148,10 +148,36 @@
 
 .brma_mv_attach_marglik_target_metadata <- function(x, object) {
 
-  if (!inherits(object, "brma.mv")) {
+  selection <- .selection_postfit_target_metadata(object[["data"]])
+  if (!inherits(object, "brma.mv") && is.null(selection)) {
     return(x)
   }
 
-  attr(x, "RoBMA_target") <- .brma_mv_marglik_target_metadata(object)
+  target <- if (inherits(object, "brma.mv")) {
+    .brma_mv_marglik_target_metadata(object)
+  } else list(method = "add_marglik()/bridge_sampler()", reported_target = "full joint fitted likelihood")
+  attr(x, "RoBMA_target") <- c(target, selection)
   return(x)
+}
+
+
+.selection_postfit_target_metadata <- function(data) {
+
+  model <- .data_selection_model(data)
+  if (is.null(model)) return(NULL)
+  sampling <- list(
+    source = "whole_sampling_error",
+    covariance = "V",
+    row_index = model[["groups"]][["row_index"]],
+    policy = if (identical(model[["known_sampling_variance"]], "condition")) {
+      "whole_sampling_error_conditioning"
+    } else {
+      "full_sampling_covariance_integration"
+    }
+  )
+  list(
+    selection_model = model,
+    sampling_structure = sampling,
+    normalization_boundary = "integrated_sources_before_retained_context_mixing"
+  )
 }

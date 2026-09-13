@@ -309,7 +309,7 @@ if (profile %in% c("cache", "01-cache", "refresh-standard")) {
   if (clean) {
     clean_cached_fits()
   }
-  run_tests("01-")
+  run_tests("^01-")
   validate_fit_cache("standard")
   finish_profile()
 }

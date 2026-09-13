@@ -74,7 +74,7 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
 
 .expect_mv_heterogeneity_summary <- function(x,
                                              info = NULL,
-                                             expected_rows = c("sd", "var")) {
+                                             expected_rows = c("tau", "tau2")) {
 
   expect_true(inherits(x, "summary_heterogeneity.brma"), info = info)
   expect_equal(sort(rownames(x[["estimates"]])), sort(expected_rows), info = info)
@@ -183,7 +183,7 @@ test_that("brma.mv heterogeneity resolves aliases and component errors", {
     c("component", "parameter")
   )
   expect_setequal(component_table[["component"]], names(all_components))
-  expect_true(all(component_table[["parameter"]] == "sd"))
+  expect_true(all(component_table[["parameter"]] == "tau"))
   expect_type(component_tables, "list")
   expect_named(component_tables, names(all_components))
   expect_true(all(vapply(component_tables, is.data.frame, logical(1))))
@@ -301,25 +301,25 @@ test_that("brma.mv summary heterogeneity reports shared allocation nodes", {
   expect_equal(
     rownames(summaries[["study/esid"]][["estimates"]]),
     c(
-      "sd_total",
-      "var_total",
-      "var_prop(esid_study)",
-      "var_prop(study)"
+      "tau_total",
+      "tau2_total",
+      "tau2_prop(esid_study)",
+      "tau2_prop(study)"
     )
   )
   expect_equal(
-    summaries[["study/esid"]][["estimates"]]["sd_total", "Mean"],
+    summaries[["study/esid"]][["estimates"]]["tau_total", "Mean"],
     mean(c(0.50, 0.80)),
     tolerance = 1e-12
   )
   expect_equal(
-    summaries[["study/esid"]][["estimates"]]["var_total", "Mean"],
+    summaries[["study/esid"]][["estimates"]]["tau2_total", "Mean"],
     mean(c(0.50^2, 0.80^2)),
     tolerance = 1e-12
   )
   expect_equal(
     summaries[["study/esid"]][["estimates"]][
-      "var_prop(esid_study)", "Mean"
+      "tau2_prop(esid_study)", "Mean"
     ],
     mean(c(0.64, 0.25)),
     tolerance = 1e-12
@@ -657,48 +657,48 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
 
   expect_named(allocation_summaries, "study")
   expect_true(
-    any(grepl("sd(time[1])",
+    any(grepl("tau(time[1])",
               rownames(allocation_summaries[["study"]][["estimates"]]),
               fixed = TRUE))
   )
   expect_true(
-    any(grepl("var(time[1])",
+    any(grepl("tau2(time[1])",
               rownames(allocation_summaries[["study"]][["estimates"]]),
               fixed = TRUE))
   )
   expect_true(
-    any(grepl("var_mult(time[2])",
+    any(grepl("tau2_mult(time[2])",
               rownames(allocation_summaries[["study"]][["estimates"]]),
               fixed = TRUE))
   )
   expect_equal(
-    allocation_summaries[["study"]][["estimates"]]["sd_common", "Mean"],
+    allocation_summaries[["study"]][["estimates"]]["tau_common", "Mean"],
     3
   )
   expect_equal(
-    allocation_summaries[["study"]][["estimates"]]["var_common", "Mean"],
+    allocation_summaries[["study"]][["estimates"]]["tau2_common", "Mean"],
     10
   )
-  expect_identical(colnames(pooled), "sd_common")
+  expect_identical(colnames(pooled), "tau_common")
   expect_equal(as.numeric(pooled[, 1L]), c(2, 4))
   expect_equal(
-    allocation_summaries[["study"]][["estimates"]]["var(time[1])", "Mean"],
+    allocation_summaries[["study"]][["estimates"]]["tau2(time[1])", "Mean"],
     9
   )
   expect_equal(
-    allocation_summaries[["study"]][["estimates"]]["var_mult(time[1])", "Mean"],
+    allocation_summaries[["study"]][["estimates"]]["tau2_mult(time[1])", "Mean"],
     0.75
   )
   expect_true(
-    "sd_mult(time[1])" %in%
+    "tau_mult(time[1])" %in%
       rownames(allocation_summaries[["study"]][["estimates"]])
   )
   expect_equal(
     rownames(allocation_summaries[["study"]][["estimates"]]),
     c(
-      "sd_common", "var_common", "sd(time[1])", "sd(time[2])",
-      "var(time[1])", "var(time[2])", "sd_mult(time[1])",
-      "sd_mult(time[2])", "var_mult(time[1])", "var_mult(time[2])"
+      "tau_common", "tau2_common", "tau(time[1])", "tau(time[2])",
+      "tau2(time[1])", "tau2(time[2])", "tau_mult(time[1])",
+      "tau_mult(time[2])", "tau2_mult(time[1])", "tau2_mult(time[2])"
     )
   )
 })
@@ -741,12 +741,12 @@ test_that("brma.mv SD-component allocation summaries map row SD sources through 
   )
 
   expect_equal(
-    unname(samples[["study: sd(time[0])"]]),
+    unname(samples[["study: tau(time[0])"]]),
     sqrt(mean(c(1, 2)^2) * (2 * .25)),
     tolerance = 1e-12
   )
   expect_equal(
-    unname(samples[["study: sd(time[1])"]]),
+    unname(samples[["study: tau(time[1])"]]),
     sqrt(mean(c(10, 20)^2) * (2 * .75)),
     tolerance = 1e-12
   )
@@ -810,7 +810,7 @@ test_that("brma.mv heterogeneity decomposes random-formula SD components", {
     sqrt(Reduce(`+`, lapply(components, function(samples) samples[, 1L]^2))),
     ncol = 1L
   )
-  colnames(total_expected) <- "sd_total"
+  colnames(total_expected) <- "tau_total"
   expect_equal(unname(as.matrix(total)), unname(total_expected),
                tolerance = 1e-12)
   expect_equal(unname(as.matrix(study)),
@@ -844,7 +844,7 @@ test_that("brma.mv summary heterogeneity returns absolute component summaries", 
   }
   for (component in names(allocation_summaries)) {
     expect_true(all(
-      c("var_prop(effect_study)", "var_prop(study)") %in%
+      c("tau2_prop(effect_study)", "tau2_prop(study)") %in%
         rownames(summaries[[component]][["estimates"]])
     ),
       info = paste(name, component, "allocation summary")
@@ -853,7 +853,7 @@ test_that("brma.mv summary heterogeneity returns absolute component summaries", 
   .expect_mv_heterogeneity_summary(
     total,
     paste(name, "total summary"),
-    expected_rows = c("sd_total", "var_total")
+    expected_rows = c("tau_total", "tau2_total")
   )
 })
 

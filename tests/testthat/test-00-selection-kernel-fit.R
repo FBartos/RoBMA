@@ -1,7 +1,7 @@
 context("Selection kernel")
 skip_on_cran()
 
-test_that("selection likelihood exposes only exact and approximate targets", {
+test_that("selection constructors reject the superseded target argument", {
 
   expect_error(
     bselmodel(
@@ -9,11 +9,12 @@ test_that("selection likelihood exposes only exact and approximate targets", {
       sei                       = c(.1, .1),
       measure                   = "SMD",
       prior_unit_information_sd = 1,
-      selection_likelihood      = "conditional",
+      selection_likelihood      = "exact",
       only_priors               = TRUE,
       silent                    = TRUE
     ),
-    "one of.*exact.*approximate"
+    "Unused argument in bselmodel(): 'selection_likelihood'",
+    fixed = TRUE
   )
   expect_error(
     RoBMA(
@@ -21,11 +22,12 @@ test_that("selection likelihood exposes only exact and approximate targets", {
       sei                       = c(.1, .1),
       measure                   = "SMD",
       prior_unit_information_sd = 1,
-      selection_likelihood      = "conditional",
+      selection_likelihood      = "approximate",
       only_priors               = TRUE,
       silent                    = TRUE
     ),
-    "one of.*exact.*approximate"
+    "Unused argument in RoBMA(): 'selection_likelihood'",
+    fixed = TRUE
   )
 })
 
@@ -39,36 +41,95 @@ test_that("selection model titles omit the likelihood implementation", {
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  exact       <- do.call(bselmodel, c(args, selection_likelihood = "exact"))
-  approximate <- do.call(
-    bselmodel,
-    c(args, selection_likelihood = "approximate")
-  )
+  objects <- lapply(c("integrate", "condition"), function(mode) {
+
+    prior_bias <- BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = mode, known_sampling_variance = mode
+      )
+    )
+    do.call(bselmodel, c(args, list(prior_bias = prior_bias)))
+  })
+  marginal    <- objects[[1L]]
+  conditional <- objects[[2L]]
 
   expect_identical(
-    .summary.brma_model_names(exact),
+    .summary.brma_model_names(marginal),
     "Bayesian Random-Effects Selection Model (k = 2)"
   )
   expect_identical(
-    .summary.brma_model_names(approximate),
+    .summary.brma_model_names(conditional),
     "Bayesian Random-Effects Selection Model (k = 2)"
   )
-  exact_plan <- .data_exact_selection_setup(exact[["data"]])
-  exact_data <- .create_fit_data(exact[["data"]], exact[["priors"]])
-  expect_identical(exact[["selection_likelihood"]][["exactness"]], "E0")
-  expect_s3_class(exact_plan, "RoBMA_selection_execution_plan")
-  expect_identical(exact_plan[["exactness"]], "E0")
+  joint_plan <- .data_selection_execution_plan(marginal[["data"]])
+  joint_data <- .create_fit_data(marginal[["data"]], marginal[["priors"]])
   expect_identical(
-    exact_plan[["block_methods"]],
-    rep("singleton", length(exact[["data"]][["outcome"]][["yi"]]))
+    .data_selection_model(marginal[["data"]])[["applicability"]],
+    list(estimate_random_effects = TRUE, other_random_effects = FALSE, known_sampling_variance = TRUE)
   )
-  expect_length(exact_plan[["designs"]], 0L)
-  expect_null(exact_data[["sel_exact_cluster_nodes"]])
-  expect_identical(exact_data[["sel_exact_singleton_n"]], 2L)
-  expect_equal(exact_data[["sel_exact_singleton_sampling_variance"]],
+  expect_identical(
+    .data_selection_execution_plan(conditional[["data"]])[["exactness"]], "E0"
+  )
+  expect_s3_class(joint_plan, "RoBMA_selection_execution_plan")
+  expect_identical(joint_plan[["exactness"]], "E0")
+  expect_identical(
+    joint_plan[["block_methods"]],
+    rep("singleton", length(marginal[["data"]][["outcome"]][["yi"]]))
+  )
+  expect_length(joint_plan[["designs"]], 0L)
+  expect_null(joint_data[["sel_joint_cluster_nodes"]])
+  expect_identical(joint_data[["sel_joint_singleton_n"]], 2L)
+  expect_equal(joint_data[["sel_joint_singleton_sampling_variance"]],
                rep(.01, 2L))
-  expect_false(any(grepl("^sel_exact_block_", names(exact_data))))
+  expect_false(any(grepl("^sel_joint_block_", names(joint_data))))
 })
+
+test_that("context-only conditional selection has no residual random variance node", {
+
+  skip_if_not_installed("rjags")
+  dat <- data.frame(
+    yi = c(.1, .2, -.1, .05), vi = c(.01, .02, .03, .04),
+    study = c("a", "a", "b", "b")
+  )
+  object <- bselmodel.mv(
+    yi = yi, vi = vi, random = ~ 1 | study, data = dat,
+    measure = "GEN", prior_unit_information_sd = 1,
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_fixed(c(1, .5)),
+      model = BayesTools::selection_model(group = "study")
+    ),
+    only_priors = TRUE, silent = TRUE
+  )
+  plan <- .data_selection_execution_plan(object[["data"]])
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+  syntax <- BayesTools::JAGS_add_priors(
+    .create_model_syntax(object[["data"]], object[["priors"]]),
+    .create_fit_priors(object[["data"]], object[["priors"]])
+  )
+
+  expect_identical(plan[["block_methods"]], rep("singleton", nrow(dat)))
+  expect_null(plan[["random_covariance"]])
+  expect_equal(fit_data[["sel_joint_singleton_sampling_variance"]], dat$vi,
+               tolerance = 0)
+  expect_match(syntax, paste0(
+    "sel_joint_singleton_variance[s] = ",
+    "sel_joint_singleton_sampling_variance[s]\n"
+  ), fixed = TRUE)
+  expect_false(grepl("sel_joint_singleton_random_variance", syntax, fixed = TRUE))
+
+  # Hold the study contexts fixed while compiling the actual likelihood syntax.
+  fit_data$mu <- c(.1, .1, -.1, -.1)
+  fit_data <- fit_data[vapply(names(fit_data), function(name) {
+    grepl(name, syntax, fixed = TRUE)
+  }, logical(1))]
+  connection <- textConnection(syntax)
+  on.exit(close(connection), add = TRUE)
+  model <- rjags::jags.model(connection, data = fit_data, n.chains = 1L,
+                             n.adapt = 0L, quiet = TRUE)
+  expect_s3_class(model, "jags")
+})
+
 
 test_that("selection reference weights are structural convergence parameters", {
 
@@ -110,7 +171,6 @@ test_that("selection model fit data and syntax use only the selected-normal kern
     measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_unit_information_sd = 1,
-    selection_likelihood      = "approximate",
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -119,11 +179,11 @@ test_that("selection model fit data and syntax use only the selected-normal kern
   syntax   <- .create_model_syntax(object[["data"]], object[["priors"]])
 
   expect_true(all(c(
-    "sel_z_lower", "sel_z_upper", "sel_obs_bin", "sel_sign"
+    "sel_z_lower", "sel_z_upper", "sel_joint_singleton_obs_bin", "sel_sign"
   ) %in% names(fit_data)))
   expect_false(any(grepl("sel_phack|phack_z|sel_segment|sel_kernel_mode", names(fit_data))))
   expect_match(syntax, "dselnorm_step", fixed = TRUE)
-  expect_match(syntax, "sel_total_sd\\[i\\]")
+  expect_match(syntax, "sqrt(sel_joint_singleton_variance[s])", fixed = TRUE)
   expect_false(grepl("dselnorm_kernel|sel_phack|phack_z|sel_segment|sel_kernel_mode", syntax))
 })
 
@@ -146,7 +206,6 @@ test_that("mixed normal-step bias syntax uses scalar step switch", {
     prior_heterogeneity       = BayesTools::prior("invgamma", parameters = list(1, .15)),
     prior_heterogeneity_null  = NULL,
     prior_unit_information_sd = 1,
-    selection_likelihood      = "approximate",
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -155,7 +214,7 @@ test_that("mixed normal-step bias syntax uses scalar step switch", {
   syntax   <- .create_model_syntax(object[["data"]], object[["priors"]])
 
   expect_true(all(c(
-    "sel_z_lower", "sel_z_upper", "sel_obs_bin", "sel_sign"
+    "sel_z_lower", "sel_z_upper", "sel_joint_singleton_obs_bin", "sel_sign"
   ) %in% names(fit_data)))
   expect_false(any(grepl("sel_phack|phack_z|sel_segment", names(fit_data))))
   expect_match(syntax, "sel_kernel_mode_active", fixed = TRUE)
@@ -164,12 +223,15 @@ test_that("mixed normal-step bias syntax uses scalar step switch", {
 })
 
 
-test_that("RoBMA defaults to exact finite-vector selection", {
+test_that("RoBMA marginal product selection integrates cluster effects", {
 
   prior_bias <- BayesTools::prior_weightfunction(
     side    = "one-sided",
     steps   = .025,
-    weights = BayesTools::wf_fixed(c(1, .5))
+    weights = BayesTools::wf_fixed(c(1, .5)),
+    model = BayesTools::selection_model(
+      other_random_effects = "integrate", known_sampling_variance = "integrate"
+    )
   )
   args <- list(
     yi                        = c(.10, .20, .05, .15),
@@ -186,68 +248,69 @@ test_that("RoBMA defaults to exact finite-vector selection", {
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  exact <- do.call(RoBMA, args)
+  marginal <- do.call(RoBMA, args)
 
-  expect_true(.is_data_exact_selection(exact[["data"]]))
-  expect_identical(exact[["selection_likelihood"]][["type"]], "exact")
+  expect_true(.is_data_joint_selection(marginal[["data"]]))
   expect_identical(
-    exact[["selection_likelihood"]][["target"]],
-    "finite_vector_product_selection"
+    .data_selection_model(marginal[["data"]])[c("other_random_effects", "known_sampling_variance")],
+    list(other_random_effects = "integrate", known_sampling_variance = "integrate")
   )
-  expect_identical(exact[["selection_likelihood"]][["exactness"]], "E1")
   expect_identical(
-    .data_exact_selection_setup(exact[["data"]])[["row_blocks"]],
+    .data_selection_execution_plan(marginal[["data"]])[["row_blocks"]],
     list(1:2, 3:4)
   )
-  exact_plan <- .data_exact_selection_setup(exact[["data"]])
-  expect_s3_class(exact_plan, "RoBMA_selection_execution_plan")
-  expect_identical(exact_plan[["exactness"]], "E1")
-  expect_identical(exact_plan[["block_methods"]], rep("rank_one", 2L))
+  joint_plan <- .data_selection_execution_plan(marginal[["data"]])
+  expect_s3_class(joint_plan, "RoBMA_selection_execution_plan")
+  expect_identical(joint_plan[["exactness"]], "E1")
+  expect_identical(joint_plan[["block_methods"]], rep("rank_one", 2L))
   expect_identical(
-    exact_plan[["quadrature"]][["orders"]],
+    joint_plan[["quadrature"]][["orders"]],
     c(15L, 31L, 63L, 127L, 255L, 511L, 1023L)
   )
-  expect_length(exact_plan[["designs"]], 0L)
-  exact_priors <- .create_fit_priors(exact[["data"]], exact[["priors"]])
-  exact_data   <- .create_fit_data(exact[["data"]], exact[["priors"]])
-  exact_syntax <- .create_model_syntax(exact[["data"]], exact[["priors"]])
-  expect_null(exact_priors[["gamma"]])
-  expect_length(grep("^sel_exact_qmc_", names(exact_data), value = TRUE), 0L)
-  expect_length(exact_data[["sel_exact_cluster_nodes"]], 2025L)
-  expect_length(exact_data[["sel_exact_cluster_log_weights"]], 2025L)
-  expect_true(all(is.finite(exact_data[["sel_exact_cluster_nodes"]])))
+  expect_named(joint_plan[["designs"]], "factor_1")
+  joint_priors <- .create_fit_priors(marginal[["data"]], marginal[["priors"]])
+  joint_data   <- .create_fit_data(marginal[["data"]], marginal[["priors"]])
+  joint_syntax <- .create_model_syntax(marginal[["data"]], marginal[["priors"]])
+  expect_null(joint_priors[["gamma"]])
+  expect_identical(grep("^sel_joint_qmc_", names(joint_data), value = TRUE),
+                   "sel_joint_qmc_factor_1")
+  expect_length(joint_data[["sel_joint_cluster_nodes"]], 2025L)
+  expect_length(joint_data[["sel_joint_cluster_log_weights"]], 2025L)
+  expect_true(all(is.finite(joint_data[["sel_joint_cluster_nodes"]])))
   expect_true(all(is.finite(
-    exact_data[["sel_exact_cluster_log_weights"]]
+    joint_data[["sel_joint_cluster_log_weights"]]
   )))
   expect_identical(
-    exact_data[["sel_exact_cluster_orders"]],
+    joint_data[["sel_joint_cluster_orders"]],
     c(15L, 31L, 63L, 127L, 255L, 511L, 1023L)
   )
-  expect_false(grepl("sel_exact_qmc_2", exact_syntax, fixed = TRUE))
-  expect_match(exact_syntax, "dselnorm_cluster_step", fixed = TRUE)
-  expect_match(exact_syntax, "sel_kernel_mode_active", fixed = TRUE)
-  expect_false(grepl("gamma[", exact_syntax, fixed = TRUE))
-  expect_false(grepl("dselnorm_step_switch", exact_syntax, fixed = TRUE))
+  expect_false(grepl("sel_joint_qmc_2", joint_syntax, fixed = TRUE))
+  expect_match(joint_syntax, "dselnorm_cluster_step", fixed = TRUE)
+  expect_match(joint_syntax, "sel_kernel_mode_active", fixed = TRUE)
+  expect_false(grepl("gamma[", joint_syntax, fixed = TRUE))
+  expect_false(grepl("dselnorm_step_switch", joint_syntax, fixed = TRUE))
 
-  approximate <- do.call(
-    RoBMA,
-    c(args, selection_likelihood = "approximate")
+  args[["prior_bias"]] <- BayesTools::prior_weightfunction(
+    side = "one-sided", steps = .025, weights = BayesTools::wf_fixed(c(1, .5))
   )
-  approximate_syntax <- .create_model_syntax(
-    approximate[["data"]],
-    approximate[["priors"]]
+  conditional <- do.call(RoBMA, args)
+  conditional_syntax <- .create_model_syntax(
+    conditional[["data"]],
+    conditional[["priors"]]
   )
-  expect_false(.is_data_exact_selection(approximate[["data"]]))
+  expect_true(.is_data_joint_selection(conditional[["data"]]))
   expect_identical(
-    approximate[["selection_likelihood"]][["target"]],
-    "row_selected_normal_conditional_on_random_effects"
+    .data_selection_model(conditional[["data"]])[c("other_random_effects", "known_sampling_variance")],
+    list(other_random_effects = "condition", known_sampling_variance = "integrate")
   )
-  expect_match(approximate_syntax, "dselnorm_step_switch", fixed = TRUE)
-  expect_match(approximate_syntax, "gamma[cluster[i]]", fixed = TRUE)
+  expect_true(.selection_retains_other_random(conditional[["data"]]))
+  expect_false(.selection_retains_sampling(conditional[["data"]]))
+  expect_match(conditional_syntax, "dselnorm_step_switch", fixed = TRUE)
+  expect_match(conditional_syntax, "gamma[cluster[i]]", fixed = TRUE)
 })
 
 
-test_that("RoBMA exact selection preserves explicit target boundaries", {
+test_that("powered selection weights require integrated sampling and independent product kernels", {
 
   weighted_args <- list(
     yi                        = c(.10, .20, .05),
@@ -258,18 +321,46 @@ test_that("RoBMA exact selection preserves explicit target boundaries", {
     only_priors               = TRUE,
     silent                    = TRUE
   )
+  for (mode in c("condition", "integrate")) {
+    weighted_args[["prior_bias"]] <- BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = mode, known_sampling_variance = mode
+      )
+    )
+    if (mode == "condition") {
+      expect_error(do.call(RoBMA, weighted_args), paste0(
+        "Non-unit 'weights' are unavailable with 'known_sampling_variance = \"condition\"'. ",
+        "Omit 'weights' or set 'known_sampling_variance = \"integrate\"' in 'selection_model()'."
+      ), fixed = TRUE)
+      next
+    }
+    independent <- do.call(RoBMA, weighted_args)
+    expect_identical(
+      .data_selection_execution_plan(independent[["data"]])[["row_blocks"]],
+      as.list(seq_len(3L))
+    )
+    expect_equal(independent[["data"]][["outcome"]][["weights"]], c(1, .5, 1))
+  }
   expect_error(
-    do.call(RoBMA, weighted_args),
-    "'weights' are unavailable with 'selection_likelihood = \"exact\"'",
+    do.call(RoBMA, c(weighted_args, list(cluster = c("a", "a", "b")))),
+    paste0(
+      "'weights' are unavailable for jointly normalized selection vectors. ",
+      "Omit 'weights'."
+    ),
     fixed = TRUE
   )
-  approximate <- do.call(
-    RoBMA,
-    c(weighted_args, selection_likelihood = "approximate")
+  weighted_args[["prior_bias"]] <- BayesTools::prior_weightfunction(
+    "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+    model = BayesTools::selection_model(weight_rule = "best")
   )
-  expect_identical(
-    approximate[["selection_likelihood"]][["type"]],
-    "approximate"
+  expect_error(
+    do.call(RoBMA, weighted_args),
+    paste0(
+      "'weights' are unavailable for jointly normalized selection vectors. ",
+      "Omit 'weights'."
+    ),
+    fixed = TRUE
   )
 
   no_selection <- RoBMA(
@@ -282,12 +373,8 @@ test_that("RoBMA exact selection preserves explicit target boundaries", {
     silent                    = TRUE
   )
   expect_false(.is_priors_weightfunction(no_selection[["priors"]]))
-  expect_null(no_selection[["selection_likelihood"]])
-  expect_null(attr(
-    no_selection[["data"]],
-    "selection_likelihood",
-    exact = TRUE
-  ))
+  expect_null(.data_selection_model(no_selection[["data"]]))
+  expect_null(.data_selection_execution_plan(no_selection[["data"]]))
 })
 
 
@@ -305,7 +392,7 @@ test_that("exact independent selection blocks use the scalar kernel", {
   fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
 
   expect_identical(
-    .data_exact_selection_setup(object[["data"]])[["row_blocks"]],
+    .data_selection_execution_plan(object[["data"]])[["row_blocks"]],
     as.list(seq_len(3L))
   )
   expect_match(syntax, "dselnorm_step_switch", fixed = TRUE)
@@ -314,24 +401,25 @@ test_that("exact independent selection blocks use the scalar kernel", {
   expect_false(any(grepl("_qmc$", names(fit_data))))
 })
 
-test_that("exact cluster log likelihood routes mixed blocks by size", {
+test_that("marginal cluster log likelihood routes mixed blocks by size", {
 
   object <- bselmodel(
     yi                        = c(.10, .20, .05),
     sei                       = rep(.10, 3L),
     cluster                   = c("a", "a", "b"),
     measure                   = "SMD",
+    selection = BayesTools::selection_model(other_random_effects = "integrate", known_sampling_variance = "integrate"),
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
     silent                    = TRUE
   )
   expect_identical(
-    .data_exact_selection_setup(object[["data"]])[["row_blocks"]],
+    .data_selection_execution_plan(object[["data"]])[["row_blocks"]],
     list(1:2, 3L)
   )
   fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
-  expect_true("sel_exact_block_1_sampling_variance" %in% names(fit_data))
-  expect_false("sel_exact_block_2_sampling_variance" %in% names(fit_data))
+  expect_true("sel_joint_block_1_sampling_variance" %in% names(fit_data))
+  expect_false("sel_joint_block_2_sampling_variance" %in% names(fit_data))
 
   cluster_rows   <- NULL
   singleton_rows <- NULL
@@ -339,21 +427,21 @@ test_that("exact cluster log likelihood routes mixed blocks by size", {
     .estimate_normal_covariance_target_location_from_setup = function(setup){
       list(y = c(.10, .20, .05), means = matrix(0, nrow = 2L, ncol = 3L))
     },
-    .selection_exact_signed_context = function(setup, signed_yi){
+    .selection_joint_signed_context = function(setup, signed_yi){
       list(obs_bin = rep(1L, 3L))
     },
-    .selection_exact_random_covariance_samples = function(setup) NULL,
-    .selection_exact_singleton_variances = function(
+    .selection_joint_random_covariance_samples = function(setup) NULL,
+    .selection_joint_singleton_variances = function(
         setup, rows, block_indices, random_covariance_samples,
         random_factor_samples){
       singleton_rows <<- rows
       matrix(.04, nrow = 2L, ncol = 1L)
     },
-    .selection_exact_singleton_loglik_matrix = function(
+    .selection_joint_singleton_loglik_matrix = function(
         yi, means, variances, sei, selection_context){
       matrix(c(31, 32), nrow = 2L, ncol = 1L)
     },
-    .selection_exact_cluster_loglik_block = function(
+    .selection_joint_cluster_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
         execution_plan){
       cluster_rows <<- length(yi)
@@ -362,7 +450,7 @@ test_that("exact cluster log likelihood routes mixed blocks by size", {
     .package = "RoBMA"
   )
 
-  observed <- .selection_exact_block_loglik_from_setup(list(
+  observed <- .selection_joint_block_loglik_from_setup(list(
     data          = object[["data"]],
     S             = 2L,
     selection_sei = rep(.10, 3L),
@@ -382,7 +470,7 @@ test_that("exact singleton variances preserve covariance representations", {
     vi                        = c(.01, .02),
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    selection = BayesTools::selection_model(other_random_effects = "integrate", known_sampling_variance = "integrate"),
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -396,7 +484,7 @@ test_that("exact singleton variances preserve covariance representations", {
   )
   sampling <- matrix(c(.01, .02, .01, .02), nrow = 2L, byrow = TRUE)
   expect_equal(
-    .selection_exact_singleton_variances(
+    .selection_joint_singleton_variances(
       setup         = ordinary_setup,
       rows          = 1:2,
       block_indices = 1:2
@@ -417,7 +505,12 @@ test_that("exact singleton variances preserve covariance representations", {
     data                      = dat,
     measure                   = "SMD",
     prior_unit_information_sd = 1,
-    selection_likelihood      = "exact",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = "integrate", known_sampling_variance = "integrate", group = "study"
+      )
+    ),
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -432,7 +525,7 @@ test_that("exact singleton variances preserve covariance representations", {
   random_covariance[1L, , ] <- matrix(c(.04, .01, .01, .09), 2L)
   random_covariance[2L, , ] <- matrix(c(.16, .02, .02, .25), 2L)
   expect_equal(
-    .selection_exact_singleton_variances(
+    .selection_joint_singleton_variances(
       setup                     = random_setup,
       rows                      = 1:2,
       block_indices             = 1:2,
@@ -451,7 +544,7 @@ test_that("exact singleton variances preserve covariance representations", {
     ranks = c(1L, 1L)
   )
   expect_equal(
-    .selection_exact_singleton_variances(
+    .selection_joint_singleton_variances(
       setup                 = random_setup,
       rows                  = 1:2,
       block_indices         = 1:2,
@@ -463,16 +556,16 @@ test_that("exact singleton variances preserve covariance representations", {
   )
 })
 
-test_that("independent exact and approximate bridge densities are identical", {
+test_that("independent marginal and conditional bridge densities are identical", {
 
-  make_object <- function(selection_likelihood) {
+  make_object <- function(mode) {
 
     bselmodel(
       yi                        = c(-.20, .05, .35),
       vi                        = c(.012, .018, .025),
       measure                   = "SMD",
       prior_unit_information_sd = 1,
-      selection_likelihood      = selection_likelihood,
+      selection = BayesTools::selection_model(other_random_effects = mode, known_sampling_variance = mode),
       only_priors               = TRUE,
       silent                    = TRUE
     )
@@ -502,28 +595,28 @@ test_that("independent exact and approximate bridge densities are identical", {
       outcome_type          = "norm",
       model_data            = data,
       is_random             = FALSE,
-      joint_exact_selection = FALSE
+      joint_selection = FALSE
     )
   }
 
-  exact       <- make_object("exact")
-  approximate <- make_object("approximate")
+  marginal       <- make_object("integrate")
+  conditional <- make_object("condition")
   expect_identical(
-    .data_exact_selection_setup(exact[["data"]])[["exactness"]],
+    .data_selection_execution_plan(marginal[["data"]])[["exactness"]],
     "E0"
   )
-  expect_equal(evaluate(exact), evaluate(approximate), tolerance = 0)
+  expect_equal(evaluate(marginal), evaluate(conditional), tolerance = 0)
 
-  exact_data <- .create_fit_data(exact[["data"]], exact[["priors"]])
-  exact_data <- .marglik_add_selection_bridge_data(
-    fit_data         = exact_data,
-    priors           = exact[["priors"]],
+  joint_data <- .create_fit_data(marginal[["data"]], marginal[["priors"]])
+  joint_data <- .marglik_add_selection_bridge_data(
+    fit_data         = joint_data,
+    priors           = marginal[["priors"]],
     effect_direction = "positive",
-    model_data       = exact[["data"]]
+    model_data       = marginal[["data"]]
   )
-  expect_false(any(grepl("^sel_", names(exact_data))))
-  first_context  <- .marglik_selection_context(list(omega = c(.60, 1)), exact_data)
-  second_context <- .marglik_selection_context(list(omega = c(.40, 1)), exact_data)
+  expect_false(any(grepl("^sel_", names(joint_data))))
+  first_context  <- .marglik_selection_context(list(omega = c(.60, 1)), joint_data)
+  second_context <- .marglik_selection_context(list(omega = c(.40, 1)), joint_data)
   expect_identical(
     first_context[["native_cache"]],
     second_context[["native_cache"]]
@@ -531,13 +624,14 @@ test_that("independent exact and approximate bridge densities are identical", {
   expect_equal(second_context[["omega"]], matrix(c(.40, 1), nrow = 1L))
 })
 
-test_that("exact selection bridge routes cluster plans through quadrature", {
+test_that("marginal selection bridge routes cluster plans through quadrature", {
 
   object <- bselmodel(
     yi                        = c(.10, .20, .05),
     sei                       = rep(.10, 3L),
     cluster                   = c("a", "a", "b"),
     measure                   = "SMD",
+    selection = BayesTools::selection_model(other_random_effects = "integrate", known_sampling_variance = "integrate"),
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
     silent                    = TRUE
@@ -557,7 +651,7 @@ test_that("exact selection bridge routes cluster plans through quadrature", {
     .marglik_selection_context = function(parameters, data) {
       list(obs_bin = rep(1L, 3L))
     },
-    .selection_exact_singleton_loglik_matrix = function(
+    .selection_joint_singleton_loglik_matrix = function(
         yi, means, variances, sei, selection_context) {
       singleton_call <<- list(
         yi        = yi,
@@ -567,7 +661,7 @@ test_that("exact selection bridge routes cluster plans through quadrature", {
       )
       matrix(7, nrow = 1L, ncol = 1L)
     },
-    .selection_exact_cluster_loglik_block = function(
+    .selection_joint_cluster_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
         execution_plan) {
       cluster_call <<- list(
@@ -580,7 +674,7 @@ test_that("exact selection bridge routes cluster plans through quadrature", {
       )
       11
     },
-    .selection_exact_joint_loglik_block = function(...) {
+    .selection_joint_dense_loglik_block = function(...) {
       joint_calls <<- joint_calls + 1L
       stop("The QMC bridge path must not be used for an E1 cluster plan.")
     },
@@ -590,7 +684,7 @@ test_that("exact selection bridge routes cluster plans through quadrature", {
   mu          <- matrix(c(.01, .02, .03), nrow = 1L)
   tau_within  <- matrix(c(.15, .16, .17), nrow = 1L)
   tau_between <- matrix(c(.20, .21, .22), nrow = 1L)
-  observed <- .marglik_exact_selection_log_lik(
+  observed <- .marglik_joint_selection_log_lik(
     parameters            = list(),
     data                  = bridge_data,
     model_data            = object[["data"]],
@@ -724,7 +818,6 @@ test_that("single two-sided bselmodel uses active full-grid omega in JAGS", {
     measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_unit_information_sd = 1,
-    selection_likelihood      = "approximate",
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -762,7 +855,6 @@ test_that("JAGS permits fixed zero weights for empty p-value bins", {
     measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_unit_information_sd = 1,
-    selection_likelihood      = "approximate",
     only_priors               = TRUE,
     silent                    = TRUE
   )
@@ -774,7 +866,7 @@ test_that("JAGS permits fixed zero weights for empty p-value bins", {
     priors
   )
 
-  expect_equal(fit_data[["sel_obs_bin"]], c(1L, 3L))
+  expect_equal(fit_data[["sel_joint_singleton_obs_bin"]], c(1L, 3L))
   expect_match(syntax, "omega[2] <- 0", fixed = TRUE)
 
   expect_false(grepl("omega[2] ~", syntax, fixed = TRUE))
@@ -833,13 +925,14 @@ test_that("selection omega extraction orders indexed posterior columns numerical
   )
 })
 
-test_that("exact selection constructors marginalize Gaussian dependence", {
+test_that("marginal selection constructors integrate Gaussian dependence", {
 
   cluster_object <- bselmodel(
     yi                        = c(.10, .20, .05, .15),
     sei                       = rep(.10, 4L),
     cluster                   = c("a", "a", "b", "b"),
     measure                   = "SMD",
+    selection = BayesTools::selection_model(other_random_effects = "integrate", known_sampling_variance = "integrate"),
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
     silent                    = TRUE
@@ -853,10 +946,13 @@ test_that("exact selection constructors marginalize Gaussian dependence", {
     cluster_object[["priors"]]
   )
 
-  expect_true(.is_data_exact_selection(cluster_object[["data"]]))
-  expect_identical(cluster_object[["selection_likelihood"]][["type"]], "exact")
+  expect_true(.is_data_joint_selection(cluster_object[["data"]]))
   expect_identical(
-    .data_exact_selection_setup(cluster_object[["data"]])[["row_blocks"]],
+    .data_selection_model(cluster_object[["data"]])[["other_random_effects"]],
+    "integrate"
+  )
+  expect_identical(
+    .data_selection_execution_plan(cluster_object[["data"]])[["row_blocks"]],
     list(1:2, 3:4)
   )
   expect_null(cluster_fit_priors[["gamma"]])
@@ -876,6 +972,12 @@ test_that("exact selection constructors marginalize Gaussian dependence", {
     random                    = ~ diag(1 | study),
     data                      = data,
     measure                   = "SMD",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(
+        other_random_effects = "integrate", known_sampling_variance = "integrate", group = "study"
+      )
+    ),
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
     silent                    = TRUE
@@ -888,60 +990,63 @@ test_that("exact selection constructors marginalize Gaussian dependence", {
   )
 
   expect_s3_class(mv_object, "bselmodel.mv")
-  expect_true(.is_data_exact_selection(mv_object[["data"]]))
+  expect_true(.is_data_joint_selection(mv_object[["data"]]))
   expect_true(all(vapply(
     random_terms,
     function(term) identical(term[["compile_mode"]], "marginalized"),
     logical(1L)
   )))
-  expect_match(mv_syntax, "sel_exact_random_block_1_lower", fixed = TRUE)
+  expect_match(mv_syntax, "sel_joint_random_block_1_lower", fixed = TRUE)
   expect_length(
     grep(
-      "^sel_exact_block_[0-9]+_diagonal$",
+      "^sel_joint_block_[0-9]+_diagonal$",
       names(mv_fit_data),
       value = TRUE
     ),
     0L
   )
 
-  expect_error(
-    bselmodel.mv(
-      yi                        = c(.10, .20, .05),
-      V                         = V,
-      measure                   = "SMD",
-      prior_unit_information_sd = 1,
-      selection_likelihood      = "approximate",
-      known_v_parameterization  = "whitened",
-      only_priors               = TRUE,
-      silent                    = TRUE
-    ),
-    "requires.*latent"
+  conditional_prior <- BayesTools::prior_weightfunction(
+    "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+    model = BayesTools::selection_model(group = "study")
   )
 
-  approximate_auto <- bselmodel.mv(
+  conditional_auto <- bselmodel.mv(
     yi                        = c(.10, .20, .05),
     V                         = V,
     random                    = ~ diag(1 | study),
     data                      = data,
     measure                   = "SMD",
+    prior_bias                = conditional_prior,
     prior_unit_information_sd = 1,
-    selection_likelihood      = "approximate",
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  known_V <- .data_known_v_data(approximate_auto[["data"]])
-  expect_identical(.known_v_effective_backend(known_V), "latent")
+  known_V <- .data_known_v_data(conditional_auto[["data"]])
   expect_identical(.known_v_requested_parameterization(known_V), "auto")
+  for (backend in c("whitened", "block_mvn")) {
+    forced <- bselmodel.mv(
+      yi = c(.10, .20, .05), V = V, random = ~ diag(1 | study), data = data,
+      measure = "SMD", prior_bias = conditional_prior,
+      prior_unit_information_sd = 1, known_v_parameterization = backend,
+      only_priors = TRUE, silent = TRUE
+    )
+    expect_false(.selection_retains_sampling(forced[["data"]]))
+    expect_null(.data_known_v_data(forced[["data"]])[["selection_structure"]])
+    expect_equal(.selection_joint_sampling_block(
+      .selection_joint_sampling_plan(forced[["data"]]), seq_len(nrow(V))
+    ), V, tolerance = 0)
+  }
 
   variance_plan <- .marglik_marginalized_variance_plan(
-    approximate_auto[["data"]]
+    conditional_auto[["data"]]
   )
   expect_length(variance_plan[["terms"]], 0L)
   expect_null(.marglik_variance_plan_node_names(variance_plan))
 })
 
 
-test_that("exact selection prediction partitions covariance without known-V metadata", {
+test_that("selection prediction partitions covariance without known-V metadata", {
 
   prediction_data <- list(outcome = list(sei = c(.10, .15, .20)))
   random_terms <- list(list(
@@ -950,19 +1055,25 @@ test_that("exact selection prediction partitions covariance without known-V meta
   ))
 
   expect_identical(
-    .selection_exact_dependency_blocks(prediction_data, random_terms),
+    .selection_joint_dependency_blocks(prediction_data, random_terms),
     list(1:2, 3L)
   )
 })
 
 
-test_that("exact selection covariance batches preserve multilevel algebra", {
+test_that("marginal selection covariance batches preserve multilevel algebra", {
 
   object <- bselmodel(
     yi                        = c(.10, .20),
     sei                       = c(.10, .15),
     cluster                   = c("a", "a"),
     measure                   = "SMD",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_fixed(c(1, .5)),
+      model = BayesTools::selection_model(
+        other_random_effects = "integrate", known_sampling_variance = "integrate"
+      )
+    ),
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
     silent                    = TRUE
@@ -988,7 +1099,7 @@ test_that("exact selection covariance batches preserve multilevel algebra", {
     tau_between_samples  = tau_between,
     posterior_samples    = NULL
   )
-  factor_setup <- .selection_exact_factor_block_samples(
+  factor_setup <- .selection_joint_factor_block_samples(
     evaluated_setup,
     block_index = 1L
   )
@@ -996,7 +1107,7 @@ test_that("exact selection covariance batches preserve multilevel algebra", {
   expect_true(evaluated_setup[["is_multilevel"]])
   expect_identical(dim(factor_setup[["loading"]]), c(2L, 2L))
 
-  observed <- .selection_exact_covariance_lower(setup, block_index = 1L)
+  observed <- .selection_joint_covariance_lower(setup, block_index = 1L)
   expected_covariance <- array(NA_real_, dim = c(2L, 2L, 2L))
   for (draw in seq_len(2L)) {
     expected_covariance[draw, , ] <- diag(c(.10, .15)^2) +
@@ -1011,7 +1122,7 @@ test_that("exact selection covariance batches preserve multilevel algebra", {
 
   expect_equal(observed, expected)
 
-  response_setup <- .predict_exact_selection_response_setup(
+  response_setup <- .predict_joint_selection_response_setup(
     context        = list(
       object             = object,
       posterior_samples  = matrix(0, nrow = 2L, ncol = 1L),
@@ -1053,15 +1164,15 @@ test_that("exact bivariate selection kernel matches rectangle integration", {
     "RoBMA_selnorm_mnorm_step_loglik_batch",
     y, matrix(mu, nrow = 1L), lower, sei, matrix(omega, nrow = 1L),
     c(z, -Inf), c(Inf, z), c(2L, 1L), 1L, TRUE, 1L,
-    as.double(design), 16384L, 8L, .01,
-    PACKAGE = "RoBMA"
+    as.double(design), 16384L, 8L, .01, FALSE,
+    0L, NULL, PACKAGE = "RoBMA"
   )
   reflected <- .Call(
     "RoBMA_selnorm_mnorm_step_loglik_batch",
     -y, matrix(-mu, nrow = 1L), lower, sei, matrix(omega, nrow = 1L),
     c(z, -Inf), c(Inf, z), c(2L, 1L), -1L, TRUE, 1L,
-    as.double(design), 16384L, 8L, .01,
-    PACKAGE = "RoBMA"
+    as.double(design), 16384L, 8L, .01, FALSE,
+    0L, NULL, PACKAGE = "RoBMA"
   )
 
   threshold <- z * sei
@@ -1127,8 +1238,8 @@ test_that("dense selection supports an excluded middle interval", {
         sign * y, matrix(sign * mu, nrow = 1L),
         matrix(sigma[lower.tri(sigma, diag = TRUE)], nrow = 1L),
         sei, matrix(omega, nrow = 1L), lower, upper, c(1L, 3L), sign,
-        telescope, SELKERNEL_STEP, as.double(design), 16384L, 8L, .01,
-        PACKAGE = "RoBMA"
+        telescope, SELKERNEL_STEP, as.double(design), 16384L, 8L, .01, FALSE,
+        0L, NULL, PACKAGE = "RoBMA"
       )
       expect_equal(actual[["log_density"]], expected, tolerance = 5e-4)
       expect_lt(actual[["relative_mcse"]], 5e-4)
@@ -1146,17 +1257,18 @@ test_that("exact cluster reduction matches bivariate rectangle integration", {
   sei         <- c(.20, .25)
   z           <- stats::qnorm(.025, lower.tail = FALSE)
   omega       <- c(.4, 1)
-  quadrature  <- .selection_exact_cluster_quadrature_rules(
+  quadrature  <- .selection_joint_cluster_quadrature_rules(
     SELNORM_CLUSTER_QUADRATURE_ORDERS
   )
+  qmc <- as.double(BayesTools::selection_qmc_design(2L, 4096L, 8L, 1L))
   actual <- .Call(
     "RoBMA_selnorm_cluster_step_loglik_batch",
     y, matrix(mu, nrow = 1L), matrix(residual_sd, nrow = 1L),
     matrix(loading, nrow = 1L), sei, matrix(omega, nrow = 1L),
     c(z, -Inf), c(Inf, z), c(2L, 1L), 1L, TRUE, SELKERNEL_STEP,
     quadrature[["nodes"]], quadrature[["log_weights"]],
-    as.numeric(quadrature[["orders"]]), .005,
-    PACKAGE = "RoBMA"
+    as.numeric(quadrature[["orders"]]), qmc, 256L, 4096L, 8L, .005, FALSE,
+    0L, PACKAGE = "RoBMA"
   )
 
   covariance <- diag(residual_sd^2) + outer(loading, loading)
@@ -1204,9 +1316,10 @@ test_that("rank-one selection quadrature preserves direction and log fallback", 
   sei         <- c(.2, .15, .25)
   z           <- stats::qnorm(.025, lower.tail = FALSE)
   omega       <- c(1, .4)
-  quadrature  <- .selection_exact_cluster_quadrature_rules(
+  quadrature  <- .selection_joint_cluster_quadrature_rules(
     SELNORM_CLUSTER_QUADRATURE_ORDERS
   )
+  qmc <- as.double(BayesTools::selection_qmc_design(2L, 4096L, 8L, 1L))
   normalizer <- stats::integrate(function(gamma) {
     vapply(gamma, function(value) {
       probability <- stats::pnorm(
@@ -1229,7 +1342,8 @@ test_that("rank-one selection quadrature preserves direction and log fallback", 
         matrix(sign * loading, 1L), sei, matrix(omega, 1L),
         c(z, -Inf), c(Inf, z), bins, sign, telescope, SELKERNEL_STEP,
         quadrature$nodes, quadrature$log_weights,
-        as.numeric(quadrature$orders), 1e-8, PACKAGE = "RoBMA"
+        as.numeric(quadrature$orders), qmc, 256L, 4096L, 8L,
+        1e-8, FALSE, 0L, PACKAGE = "RoBMA"
       )
       expect_equal(actual$log_density, expected, tolerance = 1e-8)
       expect_lte(actual$relative_change, 1e-8)
@@ -1248,7 +1362,8 @@ test_that("rank-one selection quadrature preserves direction and log fallback", 
     rep(sei, 10L), matrix(rep(1e-200, 2L), 1L),
     c(z, -Inf), c(Inf, z), rep(bins, 10L), 1L, TRUE, SELKERNEL_STEP,
     quadrature$nodes, quadrature$log_weights,
-    as.numeric(quadrature$orders), 1e-8, PACKAGE = "RoBMA"
+    as.numeric(quadrature$orders), qmc, 256L, 4096L, 8L,
+    1e-8, FALSE, 0L, PACKAGE = "RoBMA"
   )
   expected <- mvtnorm::dmvnorm(
     y, mu, diag(residual_sd^2) + tcrossprod(loading), log = TRUE
@@ -1268,14 +1383,16 @@ test_that("rank-one batches keep posterior-row weights and quadrature state sepa
   modes   <- c(SELKERNEL_STEP, SELKERNEL_NORMAL, SELKERNEL_STEP)
   z       <- stats::qnorm(.025, lower.tail = FALSE)
   bins    <- as.integer(ifelse(y >= z * sei, 1L, 2L))
-  quadrature <- .selection_exact_cluster_quadrature_rules(
+  quadrature <- .selection_joint_cluster_quadrature_rules(
     SELNORM_CLUSTER_QUADRATURE_ORDERS
   )
+  qmc <- as.double(BayesTools::selection_qmc_design(2L, 4096L, 8L, 1L))
   actual <- .Call(
     "RoBMA_selnorm_cluster_step_loglik_batch",
     y, mu, sd, loading, sei, omega, c(z, -Inf), c(Inf, z), bins,
     1L, TRUE, modes, quadrature$nodes, quadrature$log_weights,
-    as.numeric(quadrature$orders), 1e-8, PACKAGE = "RoBMA"
+    as.numeric(quadrature$orders), qmc, 256L, 4096L, 8L,
+    1e-8, FALSE, 0L, PACKAGE = "RoBMA"
   )
   expected <- vapply(seq_len(nrow(mu)), function(row) {
     value <- mvtnorm::dmvnorm(
@@ -1315,8 +1432,8 @@ test_that("exact diagonal selection kernel reduces to analytic row factors", {
     "RoBMA_selnorm_mnorm_step_loglik_batch",
     y, matrix(mu, nrow = 1L), matrix(c(sd[[1L]]^2, 0, sd[[2L]]^2), nrow = 1L),
     sei, matrix(omega, nrow = 1L), c(z, -Inf), c(Inf, z), c(2L, 1L),
-    1L, TRUE, 1L, as.double(design), 8L, 2L, .01,
-    PACKAGE = "RoBMA"
+    1L, TRUE, 1L, as.double(design), 8L, 2L, .01, FALSE,
+    0L, NULL, PACKAGE = "RoBMA"
   )
 
   threshold       <- z * sei
@@ -1357,8 +1474,8 @@ test_that("exact singleton selection kernel reduces to the scalar density", {
     y, matrix(mu, nrow = 1L), matrix(sd^2, nrow = 1L), sei,
     matrix(omega, nrow = 1L), c(z, -Inf), c(Inf, z), 2L,
     1L, TRUE, SELKERNEL_STEP, as.double(design),
-    8L, 2L, .01,
-    PACKAGE = "RoBMA"
+    8L, 2L, .01, FALSE,
+    0L, NULL, PACKAGE = "RoBMA"
   )
   threshold  <- z * sei
   normalizer <- omega[[1L]] * stats::pnorm(
@@ -1372,6 +1489,50 @@ test_that("exact singleton selection kernel reduces to the scalar density", {
 
   expect_equal(actual[["log_density"]], expected, tolerance = 1e-13)
   expect_identical(actual[["relative_mcse"]], 0)
+})
+
+
+test_that("zero observed weights bypass unrequested exact normalization", {
+
+  y      <- c(0, 0)
+  mean   <- matrix(0, 1L, 2L)
+  sei    <- c(.2, .25)
+  sd     <- matrix(c(.2, .25), 1L)
+  weight <- matrix(c(1, 0), 1L)
+  cutoff <- stats::qnorm(.975)
+  common <- list(sei, weight, c(cutoff, -Inf), c(Inf, cutoff),
+                 c(2L, 2L), 1L, TRUE, SELKERNEL_STEP)
+  qmc <- as.double(BayesTools::selection_qmc_design(
+    dimensions = 4L, points = 8L, scrambles = 2L, seed = 1L
+  ))
+  cluster_qmc <- as.double(BayesTools::selection_qmc_design(
+    dimensions = 2L, points = 8L, scrambles = 2L, seed = 1L
+  ))
+  quadrature <- .selection_joint_cluster_quadrature_rules(c(1L, 3L, 5L))
+  rules <- list(quadrature$nodes, quadrature$log_weights,
+                as.double(quadrature$orders))
+  inputs <- list(
+    mnorm = c(list(y, mean, matrix(c(.13, .08, .185), 1L)), common,
+              list(qmc, 8L, 2L, 1e-12, FALSE)),
+    cluster = c(list(y, mean, sd, matrix(c(.3, .35), 1L)), common,
+                rules, list(cluster_qmc, 8L, 8L, 2L, 1e-12, FALSE)),
+    factor = c(list(y, mean, sd, matrix(c(.3, .35, .1, -.15), 1L)),
+               common, rules,
+               list(as.double(length(quadrature$orders)), qmc,
+                    8L, 8L, 2L, 1e-12, FALSE))
+  )
+  for (method in names(inputs)) {
+    tail_arguments <- if (method == "mnorm") list(0L, NULL) else list(0L)
+    result <- do.call(.Call, c(list(
+      paste0("RoBMA_selnorm_", method, "_step_loglik_batch")
+    ), inputs[[method]], tail_arguments, list(PACKAGE = "RoBMA")))
+    expect_identical(result$log_density, -Inf)
+    expect_identical(result$log_normalizer, NA_real_)
+    diagnostics <- result[intersect(c("relative_mcse", "relative_change"),
+                                    names(result))]
+    expect_identical(unlist(diagnostics, use.names = FALSE),
+                     rep(0, length(diagnostics)))
+  }
 })
 
 
@@ -1398,7 +1559,7 @@ test_that("exact singleton blocks share the compiled scalar batch", {
   context[["omega"]]       <- omega
   context[["kernel_mode"]] <- rep(SELKERNEL_STEP, 2L)
 
-  actual <- .selection_exact_singleton_loglik_matrix(
+  actual <- .selection_joint_singleton_loglik_matrix(
     yi                = y,
     means             = means,
     variances         = sd^2,
@@ -1445,6 +1606,7 @@ test_that("exact selected multivariate response RNG matches region masses", {
   context <- list(
     omega       = matrix(omega, nrow = S, ncol = 2L, byrow = TRUE),
     kernel_mode = rep(SELKERNEL_STEP, S),
+    vector_rule = 0L,
     use_normal  = rep(FALSE, S),
     p_cuts      = c(0, .025, 1),
     sign        = 1L
@@ -1487,6 +1649,42 @@ test_that("exact selected multivariate response RNG matches region masses", {
 })
 
 
+test_that("selected Gaussian proposals retain rare product-event moments and direction", {
+
+  S <- 2000L
+  rho <- .8
+  se <- c(1, 1.5)
+  sigma <- outer(se, se) * matrix(c(1, rho, rho, 1), 2L)
+  cutoff <- 5
+  probability <- stats::pnorm(cutoff, lower.tail = FALSE)
+  # Independent one-dimensional Gaussian conditioning integral for the
+  # bivariate tail event, not the rejection proposal's own normalizer.
+  mass <- stats::integrate(function(z) {
+    stats::dnorm(z) * stats::pnorm((cutoff - rho * z) / sqrt(1 - rho^2),
+                                  lower.tail = FALSE)
+  }, cutoff, Inf, rel.tol = 1e-10, abs.tol = 1e-20)$value
+  first <- stats::integrate(function(z) {
+    z * stats::dnorm(z) * stats::pnorm((cutoff - rho * z) / sqrt(1 - rho^2),
+                                      lower.tail = FALSE)
+  }, cutoff, Inf, rel.tol = 1e-10, abs.tol = 1e-20)$value / mass
+  withr::local_seed(364)
+  for (direction in c(1L, -1L)) {
+    context <- list(
+      omega = matrix(c(1e-250, 0), S, 2L, byrow = TRUE),
+      kernel_mode = rep(SELKERNEL_STEP, S), vector_rule = 0L,
+      use_normal = rep(FALSE, S), p_cuts = c(0, probability, 1), sign = direction
+    )
+    draws <- .outcome_rng.selnorm_mvn(
+      matrix(0, S, 2L), array(rep(sigma, each = S), c(S, 2L, 2L)),
+      se, context, list(1:2)
+    )
+    z <- sweep(direction * draws, 2L, se, `/`)
+    expect_true(all(z >= cutoff))
+    expect_equal(colMeans(z), rep(first, 2L), tolerance = .035)
+  }
+})
+
+
 test_that("exact selected response RNG preserves singular covariance support", {
 
   S <- 4L
@@ -1499,6 +1697,7 @@ test_that("exact selected response RNG preserves singular covariance support", {
   context <- list(
     omega       = matrix(1, nrow = S, ncol = 1L),
     kernel_mode = rep(SELKERNEL_NORMAL, S),
+    vector_rule = 0L,
     use_normal  = rep(TRUE, S),
     p_cuts      = c(0, 1),
     sign        = 1L
@@ -1547,6 +1746,7 @@ test_that("exact selected response RNG rejects asymmetric covariance", {
   context <- list(
     omega       = matrix(1, nrow = 1L, ncol = 1L),
     kernel_mode = SELKERNEL_NORMAL,
+    vector_rule = 0L,
     use_normal  = TRUE,
     p_cuts      = c(0, 1),
     sign        = 1L
@@ -1567,11 +1767,12 @@ test_that("exact selected response RNG rejects asymmetric covariance", {
 })
 
 
-test_that("exact selected response RNG reports exhausted rejection sampling", {
+test_that("selected response RNG distinguishes impossible contexts from exhausted searches", {
 
   context <- list(
     omega       = matrix(c(0, 1), nrow = 1L),
     kernel_mode = SELKERNEL_STEP,
+    vector_rule = 0L,
     use_normal  = FALSE,
     p_cuts      = c(0, .025, 1),
     sign        = 1L
@@ -1586,9 +1787,48 @@ test_that("exact selected response RNG reports exhausted rejection sampling", {
       max_attempts       = 3L
     ),
     paste0(
-      "Exact selected response RNG was rejected by diagnostics: no ",
+      "Selected response simulation is unavailable because a fully retained outcome ",
+      "has zero acceptance probability. Use strictly positive selection weights ",
+      "or integrate an outcome-generating source."
+    ),
+    fixed = TRUE
+  )
+  # A positive scalar selected law is sampled directly, including this tail
+  # that previously exhausted a short unselected-Gaussian rejection search.
+  set.seed(842)
+  uniforms <- stats::runif(2L)
+  cutoff <- .1 * stats::qnorm(.025, lower.tail = FALSE)
+  expected <- stats::qnorm(log(uniforms[2L]) +
+    stats::pnorm(cutoff, mean = 1, sd = .2, log.p = TRUE),
+    mean = 1, sd = .2, log.p = TRUE)
+  set.seed(842)
+  scalar <- .outcome_rng.selnorm_mvn(
+    mu_samples = matrix(1, nrow = 1L),
+    covariance_samples = array(.04, dim = c(1L, 1L, 1L)),
+    sei = .1, selection_context = context, dependency_blocks = list(1L),
+    max_attempts = 3L
+  )
+  expect_true(is.finite(scalar[1L, 1L]))
+  expect_lte(scalar[1L, 1L], cutoff)
+  expect_equal(as.numeric(scalar), expected, tolerance = 1e-12)
+
+  # Retain the exhausted-search diagnostic on an SPD, strongly negatively
+  # correlated joint event. Both rows below the cutoff remain mathematically
+  # possible, but cannot be reached by this reproducible three-attempt search.
+  set.seed(842)
+  expect_error(
+    .outcome_rng.selnorm_mvn(
+      mu_samples         = matrix(1, nrow = 1L, ncol = 2L),
+      covariance_samples = array(c(.04, -.0396, -.0396, .04), dim = c(1L, 2L, 2L)),
+      sei                = c(.1, .1),
+      selection_context  = context,
+      dependency_blocks  = list(1:2),
+      max_attempts       = 3L
+    ),
+    paste0(
+    "Selected response RNG was rejected by diagnostics: no ",
       "proposal was accepted in 3 attempts for a dependency block of size ",
-      "1. Use 'bias_adjusted = TRUE' to draw responses before selection."
+      "2. Use 'bias_adjusted = TRUE' to draw responses before selection."
     ),
     fixed = TRUE
   )

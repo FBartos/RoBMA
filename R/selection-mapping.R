@@ -53,7 +53,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     return(FALSE)
   }
 
-  backend <- BayesTools::selection_backend_spec(list(prior), backend = "jags")
+  backend <- BayesTools::selection_backend_spec(list(prior), backend = "jags", include_init = FALSE)
   return(.selection_backend_has_phacking(backend))
 }
 
@@ -72,7 +72,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     return(FALSE)
   }
 
-  backend <- BayesTools::selection_backend_spec(list(prior), backend = "jags")
+  backend <- BayesTools::selection_backend_spec(list(prior), backend = "jags", include_init = FALSE)
   return(backend[["mode"]] %in% c("step", "step_phack_power"))
 }
 
@@ -126,7 +126,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   backend <- BayesTools::selection_backend_spec(
     priors_list[keep],
-    backend = "jags"
+    backend      = "jags",
+    include_init = FALSE
   )
   breaks  <- backend[["step"]][["breaks"]]
   return(.selection_assert_p_cuts(breaks))
@@ -275,7 +276,9 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   }
 
   weights <- selection[["weights"]]
-  if (is.null(weights) || !identical(weights[["type"]], "fixed")) {
+  if (identical(weights[["type"]], "fixed")) {
+    omega <- weights[["omega"]]
+  } else {
     return(rep(NA_real_, n_bins))
   }
 
@@ -284,7 +287,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     one_sided  = TRUE
   )[[1L]]
 
-  return(as.numeric(weights[["omega"]][mapping]))
+  return(as.numeric(omega[mapping]))
 }
 
 .selection_prior_quantile <- function(prior, probability) {
@@ -408,7 +411,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   backend <- BayesTools::selection_backend_spec(
     priors_bias,
-    backend = "jags"
+    backend      = "jags",
+    include_init = FALSE
   )
 
   branch_kernel_mode   <- backend[["branch_kernel_mode"]]
@@ -497,11 +501,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     phack_z_dest    = phack_dest,
     segments        = segments,
     branch_kernel_mode    = branch_kernel_mode,
+    branch_vector_rule    = backend[["branch_vector_rule"]],
     fixed_omega           = fixed_omega,
     jags_use_step_switch  = jags_use_step_switch,
     jags_kernel_mode      = if (jags_use_step_switch) "sel_kernel_mode_active" else "sel_kernel_mode",
     jags_kernel_mode_expr = .selection_jags_kernel_mode_expression(branch_kernel_mode),
     jags_omega      = jags_omega,
+    jags_vector_rule = backend[["jags_vector_rule"]],
     jags_alpha      = jags_alpha,
     jags_pi_null    = backend[["jags_pi_null"]],
     jags_beta_null  = backend[["jags_beta_null"]],
@@ -1285,7 +1291,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
                                            effect_direction,
                                            newdata = NULL) {
 
-  if (!.is_priors_weightfunction(priors)) {
+  has_selection <- .is_priors_weightfunction(priors)
+  if (!has_selection && !.is_data_joint_selection(data)) {
     return(NULL)
   }
 
@@ -1300,34 +1307,59 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   yi                <- outcome_data[["yi"]]
   sei               <- outcome_data[["sei"]]
 
-  selection_spec <- .selection_spec(
-    priors           = priors,
-    yi               = yi,
-    sei              = sei,
-    effect_direction = effect_direction,
-    signed_data      = FALSE
-  )
+  selection_spec <- if (has_selection) {
+    .selection_spec(
+      priors           = priors,
+      yi               = yi,
+      sei              = sei,
+      effect_direction = effect_direction,
+      signed_data      = FALSE
+    )
+  } else {
+    .data_selection_execution_plan(data)[["selection_spec"]]
+  }
 
   if (is.null(selection_spec)) {
     return(NULL)
   }
 
-  routing <- .selection_row_routing(
-    priors               = priors,
-    posterior_samples    = posterior_samples,
-    selection_spec       = selection_spec
-  )
+  S <- nrow(posterior_samples)
+  routing <- if (has_selection) {
+    .selection_row_routing(
+      priors               = priors,
+      posterior_samples    = posterior_samples,
+      selection_spec       = selection_spec
+    )
+  } else {
+    selection_spec[["sign"]] <- if (effect_direction == "negative") -1L else 1L
+    selection_spec[["obs_bin"]] <- .selection_obs_bin(
+      yi, sei, selection_spec[["p_cuts"]], selection_spec[["sign"]]
+    )
+    list(kernel_mode = rep(SELKERNEL_NORMAL, S),
+         bias_indicator = rep(1L, S), use_normal = rep(TRUE, S))
+  }
 
   selection_context <- selection_spec
   selection_context[["family"]]         <- selection_spec[["mode"]]
   selection_context[["yi"]]             <- yi
   selection_context[["sei"]]            <- sei
-  selection_context[["omega"]]          <- .extract_selection_omega_samples(posterior_samples, selection_spec)
-  selection_context[["alpha"]]          <- .extract_selection_alpha_samples(posterior_samples, selection_spec)
-  selection_context[["phack_kind"]]     <- .extract_selection_phack_kind(posterior_samples, selection_spec)
+  selection_context[["omega"]]          <- if (has_selection) {
+    .extract_selection_omega_samples(posterior_samples, selection_spec)
+  } else matrix(1, S, selection_spec[["n_bins"]])
+  selection_context[["alpha"]]          <- if (has_selection) {
+    .extract_selection_alpha_samples(posterior_samples, selection_spec)
+  } else rep(0, S)
+  selection_context[["phack_kind"]]     <- if (has_selection) {
+    .extract_selection_phack_kind(posterior_samples, selection_spec)
+  } else rep(0L, S)
   selection_context[["kernel_mode"]]    <- routing[["kernel_mode"]]
   selection_context[["bias_indicator"]] <- routing[["bias_indicator"]]
   selection_context[["use_normal"]]     <- routing[["use_normal"]]
+  selection_context[["vector_rule"]]    <- if (has_selection) {
+    as.integer(selection_spec[["branch_vector_rule"]][
+      routing[["bias_indicator"]]
+    ])
+  } else rep(0L, S)
 
   selection_context <- BayesTools::selection_context_validate(
     context           = selection_context,

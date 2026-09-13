@@ -302,7 +302,7 @@ test_that("random-effect variance and SD multipliers can use LOG", {
   object <- list(data = data)
   entry <- list(
     component         = "random",
-    term              = "var_mult(study)",
+    term              = "tau2_mult(study)",
     formula_parameter = "",
     role              = "random_var",
     quantity          = "var_mult"
@@ -312,7 +312,11 @@ test_that("random-effect variance and SD multipliers can use LOG", {
     entry[["quantity"]] <- quantity
     info <- .plot_output_setup(
       object          = object,
-      parameter       = paste0("allocation: ", quantity, "(study)"),
+      parameter       = paste0(
+        "allocation: ",
+        .brma_random_parameter_io_quantity(quantity),
+        "(study)"
+      ),
       parameter_entry = entry,
       transform       = "LOG"
     )
@@ -328,7 +332,7 @@ test_that("random-effect variance and SD multipliers can use LOG", {
   expect_error(
     .plot_output_setup(
       object          = object,
-      parameter       = "study: sd(intercept)",
+      parameter       = "study: tau(intercept)",
       parameter_entry = entry,
       transform       = "LOG"
     ),

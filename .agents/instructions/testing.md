@@ -16,7 +16,7 @@ Run the narrowest relevant test first. Populate affected cached fits only when
 needed:
 
 ```r
-devtools::test(filter = "01-", reporter = "llm")
+devtools::test(filter = "^01-", reporter = "llm")
 ```
 
 Do not use repeated full-suite runs as an iteration loop.

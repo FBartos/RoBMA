@@ -49,7 +49,9 @@ the effect size, or to the meta-regression intercept when moderators are
 present. Additional options are \code{"tau"}, \code{"rho"} for multilevel
 models, \code{"PET"}, \code{"PEESE"}, and \code{"omega"} or
 \code{"weightfunction"} for selection models. Use \code{plot_pet_peese()}
-for PET/PEESE regression plots.}
+for PET/PEESE regression plots. Factor terms select all coefficient cells;
+use a semantic selector such as \code{"group[level]"} to plot one cell.
+Structural point masses are retained.}
 
 \item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
 with \code{component = "mods"}. Use \code{"intercept"} for the
@@ -105,16 +107,16 @@ additional normalization cost is acceptable; IWMDE can be faster but is
 more sensitive to its fitted conditional weights. Matching is
 case-insensitive. For semantic random-effect quantities, qCMDE/IWMDE support
 direct scalar fitted sources, allocated component SDs backed by a scalar
-aggregate (\code{sd_total} or \code{sd_common}), and allocation proportions or
+aggregate (\code{tau_total} or \code{tau_common}), and allocation proportions or
 multipliers
 backed by a fitted simplex coordinate. Other nonlinear derived quantities
 remain KDE-only. Shared inclusion gates are supported for aggregate and
 component SDs and allocation proportions. SDs retain their excluded zero
 branches; proportions condition on positive total heterogeneity.
 In independently gated allocations, realized
-\code{sd_total}/\code{var_total} and \code{var_prop(...)} are KDE-only because they combine
+\code{tau_total}/\code{tau2_total} and \code{tau2_prop(...)} are KDE-only because they combine
 multiple gate and allocation coordinates. Their structural point masses are
-displayed separately from the continuous density; \code{var_prop(...)} is
+displayed separately from the continuous density; \code{tau2_prop(...)} is
 conditioned on positive realized total heterogeneity.
 qCMDE/IWMDE are not available for non-known-\code{V}
 \code{brma.mv()} random-formula models or
@@ -132,6 +134,15 @@ entries are \code{n_points} (default \code{100}), \code{samples}
 (default \code{"adaptive"}), \code{normalization_points} (default
 \code{NULL}, resolved to \code{max(50, n_points)}), and
 \code{normalization_prob} (default \code{0.999}).
+\code{integration_control} (default \code{NULL}) retains the fitted
+selection-integration settings. Supply a control created by
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}} to change those settings for this
+post-fit calculation, for example
+\code{list(integration_control = set_selection_likelihood_control(max_points_per_scramble = 32768))}.
+This entry is available for Gaussian selection models with a fitted integration plan.
+The fitted object and posterior draws are unchanged. The maximum point budget
+controls factor QMC fallback; analytic and deterministic quadrature rules
+remain unchanged.
 \code{samples} controls the fixed posterior-row budget for the density
 curve. \code{target_relative_mcse} is a point-ordinate diagnostic target and
 does not alter this fixed-budget density plot. The normalization entries are
@@ -175,6 +186,12 @@ ggplot2 layer(s) for \code{plot_type = "ggplot"}.
 (and prior) distribution a brma object.
 }
 \details{
+A returned qCMDE/IWMDE estimate that fails the density availability
+checks raises a \code{RoBMA_density_plot_error} identifying the plotted parameter.
+Its \code{density_diagnostics} field contains the returned diagnostic records,
+including computed density values and selected rows, without executable
+estimate plans that could retain the fitted object.
+
 \code{lines.brma()} adds the posterior density to an existing base
 plot. With \code{plot_type = "ggplot"}, it returns ggplot2 layer(s) that can
 be added to a \code{plot.brma(..., plot_type = "ggplot")} object with

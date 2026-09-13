@@ -54,10 +54,10 @@ For multilevel (3-level) models, the returned tau is the total heterogeneity:
 \code{tau = sqrt(tau_within^2 + tau_between^2)}.
 
 For \code{brma.mv()} models, one ordinary selected component is named
-\code{sd}; a genuine variance-additive total is named \code{sd_total}; and a
-mean-variance allocation anchor is named \code{sd_common}. This includes the
-default estimate-level random effect when no explicit \code{random} formula
-is supplied. For random-formula models, \code{component = "all"}
+\code{tau}; a genuine variance-additive total is named \code{tau_total}; and a
+mean-variance allocation anchor is named \code{tau_common}. These quantities
+are available when a random formula is declared. For random-formula models,
+\code{component = "all"}
 returns one \code{brma_samples} object when there is a single heterogeneity
 component and a named list when there are multiple components.
 \code{component = "total"} computes the variance-additive total at the

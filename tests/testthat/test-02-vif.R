@@ -518,7 +518,7 @@ test_that("VIF supports brma.mv random-formula marginal GLS covariance", {
   expect_equal(actual, expected, tolerance = 1e-10)
   expect_equal(colnames(post_cor), c("(mu) intercept", "(mu) x", "(mu) z"))
   expect_false(any(grepl("tau", colnames(post_cor), fixed = TRUE)))
-  expect_false(any(grepl("var_prop(", colnames(post_cor), fixed = TRUE)))
+  expect_false(any(grepl("tau2_prop(", colnames(post_cor), fixed = TRUE)))
   expect_equal(
     covariance_samples,
     .known_v_add_base_covariance(

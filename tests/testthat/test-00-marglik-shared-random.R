@@ -79,7 +79,6 @@ test_that("shared Gaussian bridge covariance matches exact known-V likelihoods",
       data = dat,
       measure = "GEN",
       known_v_parameterization = backend,
-      marginalize_estimate_level = FALSE,
       prior_unit_information_sd = 1,
       only_priors = TRUE
     )
@@ -131,15 +130,17 @@ test_that("latent known-V bridge conditions on sampling effects and integrates r
     nrow = 3L,
     byrow = TRUE
   )
+  declared <- known_v_factor(
+    diagonal = .5 * diag(V),
+    loading  = t(chol(V - diag(.5 * diag(V))))
+  )
   object <- brma.mv(
     yi = yi,
-    V = V,
+    V = declared,
     random = ~ 1 | study,
     data = dat,
     measure = "GEN",
     known_v_parameterization = "latent",
-    known_v_residual_fraction = 0.5,
-    marginalize_estimate_level = FALSE,
     prior_unit_information_sd = 1,
     only_priors = TRUE
   )
@@ -203,7 +204,7 @@ test_that("latent known-V bridge conditions on sampling effects and integrates r
 
 test_that("latent known-V sampling coordinates are integrated exactly", {
 
-  dat <- data.frame(yi = c(0.10, -0.20, 0.15))
+  dat <- data.frame(yi = c(0.10, -0.20, 0.15), estimate = 1:3)
   V <- matrix(
     c(
       0.04, 0.01, 0,
@@ -216,11 +217,10 @@ test_that("latent known-V sampling coordinates are integrated exactly", {
   object <- brma.mv(
     yi = yi,
     V = V,
-    random = NULL,
+    random = ~ 1 | estimate,
     data = dat,
     measure = "GEN",
     known_v_parameterization = "latent",
-    marginalize_estimate_level = FALSE,
     prior_unit_information_sd = 1,
     only_priors = TRUE
   )
@@ -255,11 +255,16 @@ test_that("latent known-V sampling coordinates are integrated exactly", {
     dependency_blocks          = dependency_blocks
   )
   tau <- 0.12
+  variance_plan <- .marglik_marginalized_variance_plan(object[["data"]])
+  bridge_context <- structure(
+    list(nodes = stats::setNames(tau, variance_plan$terms[[1L]]$parameter)),
+    class = c("BayesTools_bridge_nodes_context", "BayesTools_bridge_context", "list")
+  )
   actual <- .log_posterior(
-    parameters = list(mu = 0, tau = tau),
+    parameters = list(mu = 0),
     data = fit_data,
     is_scale = FALSE,
-    is_random = FALSE,
+    is_random = TRUE,
     is_multilevel = FALSE,
     is_weights = FALSE,
     is_known_v = TRUE,
@@ -269,6 +274,8 @@ test_that("latent known-V sampling coordinates are integrated exactly", {
     effect_direction = "positive",
     outcome_type = "norm",
     model_data = object[["data"]],
+    marginalized_variance_plan = variance_plan,
+    bridge_context = bridge_context,
     sampling_latent_marginalized = TRUE
   )
   expected <- .marglik_mvn_log_density(
@@ -354,7 +361,6 @@ test_that("native factor likelihood equals independently materialized ZGZ'", {
     data = dat,
     measure = "GEN",
     known_v_parameterization = "block_mvn",
-    marginalize_estimate_level = FALSE,
     prior_unit_information_sd = 1,
     only_priors = TRUE
   )
@@ -2062,7 +2068,6 @@ test_that("marglik accepts every brma.mv random covariance structure", {
       data = dat,
       measure = "GEN",
       prior_unit_information_sd = 1,
-      marginalize_estimate_level = FALSE,
       only_priors = TRUE
     )
     formula_args <- .create_jags_formula_args(
@@ -2115,7 +2120,6 @@ test_that("marglik accepts sampled random intercepts with known group covariance
     data = dat,
     measure = "GEN",
     prior_unit_information_sd = 1,
-    marginalize_estimate_level = FALSE,
     only_priors = TRUE
   )
   formula_args <- .create_jags_formula_args(

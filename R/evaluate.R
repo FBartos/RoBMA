@@ -312,6 +312,16 @@
     )
   }
 
+  if (!is.null(n_expected) &&
+      !identical(colnames(parameter_matrix), parameter)) {
+    expected_names <- paste0(parameter, "[", seq_len(n_expected), "]")
+    missing_names <- setdiff(expected_names, colnames(parameter_matrix))
+    if (length(missing_names) > 0L) {
+      stop("Missing posterior column(s): ", paste(missing_names, collapse = ", "),
+           ".", call. = FALSE)
+    }
+  }
+
   return(parameter_matrix)
 }
 
@@ -836,6 +846,151 @@
 }
 
 
+# With conditioned sampling, every backend source is a Gaussian auxiliary,
+# irrespective of its role in selection normalization.
+.selection_random_source_contributions <- function(setup) {
+
+  data    <- setup[["data"]]
+  sources <- .data_selection_model(data)[["sources"]][["random"]]
+  object  <- setup[["object"]]
+  if (is.null(object)) {
+    object <- list(fit = setup[["fit"]], data = data, priors = setup[["priors"]])
+  }
+  contributions <- lapply(sources, function(source) {
+
+    if (.is_data_random(data)) {
+      return(.evaluate.brma.random_effects(
+        fit               = setup[["fit"]],
+        data              = data,
+        priors            = setup[["priors"]],
+        posterior_samples = setup[["posterior_samples"]],
+        blocks            = source[["name"]],
+        object            = object
+      ))
+    }
+    scale <- if (identical(source[["role"]], "estimate")) {
+      setup[["tau_within"]]
+    } else setup[["tau_between"]]
+    if (all(scale == 0)) {
+      return(matrix(0, setup[["S"]], setup[["K"]]))
+    }
+    if (identical(source[["role"]], "estimate")) {
+      return(.evaluate.brma.estimate_effects(
+        fit               = setup[["fit"]],
+        tau_within        = scale,
+        same_data         = TRUE,
+        K                 = setup[["K"]],
+        posterior_samples = setup[["posterior_samples"]]
+      ))
+    }
+    .evaluate.brma.cluster_effects(
+      fit               = setup[["fit"]],
+      tau_between       = scale,
+      cluster           = data[["outcome"]][["cluster"]],
+      same_data         = TRUE,
+      effect_direction  = .data_effect_direction(data),
+      posterior_samples = setup[["posterior_samples"]]
+    )
+  })
+  names(contributions) <- vapply(sources, `[[`, character(1L), "name")
+  contributions
+}
+
+
+.selection_random_source_covariance <- function(setup, source) {
+
+  data <- setup[["data"]]
+  S    <- setup[["S"]]
+  K    <- setup[["K"]]
+  if (.is_data_random(data)) {
+    object <- setup[["object"]]
+    if (is.null(object)) {
+      object <- list(fit = setup[["fit"]], data = data, priors = setup[["priors"]])
+    }
+    return(.brma_mv_random_effects_marginal_vcov(
+      object            = object,
+      posterior_samples = setup[["posterior_samples"]],
+      blocks            = source[["name"]]
+    )[["samples"]])
+  }
+  covariance <- array(0, c(S, K, K))
+  if (identical(source[["role"]], "estimate")) {
+    for (row in seq_len(K)) {
+      covariance[, row, row] <- setup[["tau_within"]][, row]^2
+    }
+  } else {
+    for (rows in split(seq_len(K), data[["outcome"]][["cluster"]])) {
+      for (row in rows) for (column in rows) {
+        covariance[, row, column] <- setup[["tau_between"]][, row] *
+          setup[["tau_between"]][, column]
+      }
+    }
+  }
+  covariance
+}
+
+
+# Matheron's covariance-owned correction reconstructs each fitted source.
+.selection_random_source_posterior <- function(setup, state) {
+
+  contributions <- .selection_random_source_contributions(setup)
+  sources       <- .data_selection_model(setup[["data"]])[["sources"]][["random"]]
+  K             <- setup[["K"]]
+  for (source in sources) {
+    covariance <- .selection_random_source_covariance(setup, source)
+    name       <- source[["name"]]
+    for (draw in seq_len(setup[["S"]])) {
+      contributions[[name]][draw, ] <- contributions[[name]][draw, ] +
+        as.vector(matrix(covariance[draw, , ], K, K) %*% state[["correction"]][draw, ])
+    }
+  }
+  contributions
+}
+
+
+# Retained sources remain posterior contexts. For several integrated sources,
+# ranef means condition on their observed sum rather than their auxiliary draw.
+.selection_random_source_conditional_means <- function(setup, state, contributions) {
+
+  sources <- .data_selection_model(setup[["data"]])[["sources"]][["random"]]
+  integrated <- Filter(function(source) !isTRUE(source[["retained"]]), sources)
+  if (length(integrated) < 2L) return(contributions)
+  S <- setup[["S"]]
+  K <- setup[["K"]]
+  total <- matrix(setup[["data"]][["outcome"]][["yi"]], S, K, byrow = TRUE) -
+    state[["baseline_mu"]] - state[["e"]]
+  weights <- matrix(0, S, K)
+  for (draw in seq_len(S)) {
+    covariance <- matrix(state[["integrated_covariance"]][draw, , ], K, K)
+    decomposition <- .covariance_factorization(covariance)
+    if (!.covariance_is_positive_semidefinite(decomposition)) {
+      stop("Integrated random-effect covariance must be positive semidefinite.", call. = FALSE)
+    }
+    factor <- .covariance_cholesky(decomposition)
+    if (!is.null(factor)) {
+      weights[draw, ] <- backsolve(factor, forwardsolve(t(factor), total[draw, ]))
+    } else {
+      positive <- decomposition[["spectral_values"]] > 0
+      if (any(positive)) {
+        vectors <- decomposition[["eigenvectors"]][, positive, drop = FALSE]
+        weights[draw, ] <- as.vector(vectors %*%
+          (as.vector(crossprod(vectors, total[draw, ])) /
+             decomposition[["spectral_values"]][positive]))
+      }
+    }
+  }
+  for (source in integrated) {
+    covariance <- .selection_random_source_covariance(setup, source)
+    name <- source[["name"]]
+    for (draw in seq_len(S)) {
+      contributions[[name]][draw, ] <-
+        as.vector(matrix(covariance[draw, , ], K, K) %*% weights[draw, ])
+    }
+  }
+  contributions
+}
+
+
 .evaluate.brma.random_effects_by_block <- function(call_args, formula_design,
                                                    blocks, S, K) {
 
@@ -1116,7 +1271,7 @@
     if (constant_tau) {
       eigen_v     <- .covariance_factorization(V_block)
       tau2        <- tau_block[, 1L]^2
-      denominator <- outer(tau2, eigen_v[["decomposition_values"]], "+")
+      denominator <- outer(tau2, eigen_v[["spectral_values"]], "+")
       if (any(!is.finite(denominator) | denominator <= 0)) {
         stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
              call. = FALSE)
@@ -1493,10 +1648,10 @@
     n_clusters        <- max(cluster)
 
     # extract all gamma columns at once: S x n_clusters matrix
-    gamma_samples <- .extract_posterior_matrix(
+    gamma_samples <- .extract_indexed_parameter_samples(
       posterior_samples = posterior_samples,
       parameter         = "gamma",
-      K                 = n_clusters
+      n_expected        = n_clusters
     )
 
     # gamma_samples[, cluster] reorders columns to match observations
@@ -1521,15 +1676,26 @@
 
 .evaluate.brma.sampling_dependency <- function(fit, data, posterior_samples = NULL) {
 
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  if (.is_data_joint_selection(data)) {
+    K <- nrow(data[["outcome"]])
+    out <- matrix(0, nrow = nrow(posterior_samples), ncol = K)
+    if (!.selection_retains_sampling(data)) {
+      return(out)
+    }
+    # Fitted sampling errors are reconstructed by
+    # .selection_conditioned_sampling_state(); this low-level extractor returns
+    # only the auxiliary sampling realization used by that calculation.
+    return(.selection_sampling_auxiliary(fit, data, posterior_samples))
+  }
+
   known_V <- .data_known_v_data(data)
   if (is.null(known_V) || !.is_data_known_v_backend(data, "latent") ||
       .known_v_rank(known_V) == 0L) {
     K <- nrow(data[["outcome"]])
-    posterior_samples <- .get_posterior_samples(fit, posterior_samples)
     return(matrix(0, nrow = nrow(posterior_samples), ncol = K))
   }
 
-  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   z_samples <- .extract_posterior_matrix(
     posterior_samples = posterior_samples,
     parameter         = "sampling_z",
@@ -1684,7 +1850,7 @@
     if (constant_tau) {
       eigen_v     <- .covariance_factorization(V_block)
       tau2        <- tau_block[, 1L]^2
-      denominator <- outer(tau2, eigen_v[["decomposition_values"]], "+")
+      denominator <- outer(tau2, eigen_v[["spectral_values"]], "+")
       if (any(!is.finite(denominator) | denominator <= 0)) {
         stop(
           "Cannot solve known-V conditional posterior covariance block; ",
@@ -1761,7 +1927,7 @@
 # Compute posterior samples of true effects (theta) for GLMM models.
 #
 # For GLMM models (binomial or Poisson), the estimate-level random effects
-# (theta) are directly sampled in JAGS (not marginalized as in normal models).
+# (theta) are directly sampled in JAGS rather than integrated into the outcome kernel.
 # The true effect is:
 #   true_effect_i = mu_i + theta_i * tau_within_i
 #
@@ -1788,7 +1954,7 @@
                                              posterior_samples = NULL) {
 
   # add the estimate-level random effects (theta * tau_within) to mu
-  theta_contribution <- .evaluate.brma.theta.glmm(
+  theta_contribution <- .evaluate.brma.estimate_effects(
     fit               = fit,
     tau_within        = tau_within,
     same_data         = same_data,
@@ -1941,12 +2107,12 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .evaluate.brma.theta.glmm
+# .evaluate.brma.estimate_effects
 # ---------------------------------------------------------------------------- #
 #
-# Extract or sample estimate-level random effects (theta) for GLMM models.
+# Extract or sample standardized estimate-level random effects (theta).
 #
-# For GLMMs, theta[i] represents the standardized estimate-level random effect
+# theta[i] represents the standardized estimate-level random effect
 # (i.e., theta ~ N(0, 1)). The actual random effect is theta * tau_within.
 #
 # @param fit              runjags fit object (needed to extract theta if same_data)
@@ -1960,18 +2126,18 @@
 #         (theta[k] * tau_within[,k])
 #
 # ---------------------------------------------------------------------------- #
-.evaluate.brma.theta.glmm <- function(fit, tau_within, same_data, K,
-                                      posterior_samples = NULL) {
+.evaluate.brma.estimate_effects <- function(fit, tau_within, same_data, K,
+                                            posterior_samples = NULL) {
 
   S <- nrow(tau_within)
 
   if (same_data) {
 
     posterior_samples  <- .get_posterior_samples(fit, posterior_samples)
-    theta_contribution <- .extract_posterior_matrix(
+    theta_contribution <- .extract_indexed_parameter_samples(
       posterior_samples = posterior_samples,
       parameter         = "theta",
-      K                 = K
+      n_expected        = K
     ) * tau_within
 
   } else {

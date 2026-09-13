@@ -10,7 +10,7 @@
 
 .iwmde_algorithm_version <- function() {
 
-  return("18")
+  return("21")
 }
 
 
@@ -54,7 +54,8 @@
     "target_relative_mcse",
     "normalization_points",
     "normalization_prob",
-    "display_grid"
+    "display_grid",
+    "integration_control"
   )
   density_control <- density_control[intersect(keep, names(density_control))]
   density_control <- .iwmde_compact_nulls(density_control)

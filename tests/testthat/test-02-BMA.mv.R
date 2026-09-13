@@ -38,7 +38,7 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
   )
   inclusion <- out[["inclusion_random"]]
 
-  expect_equal(rownames(inclusion), paste0(names(gate_names), ": sd"))
+  expect_equal(rownames(inclusion), paste0(names(gate_names), ": tau"))
   expect_equal(unname(inclusion[["prior_prob"]]), c(0.5, 0.5))
   expect_equal(
     unname(inclusion[["post_prob"]]),
@@ -48,7 +48,7 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
   summary_frame <- as.data.frame(out)
   expect_equal(
     summary_frame[["parameter"]][summary_frame[["component"]] == "inclusion random"],
-    paste0(names(gate_names), ": sd")
+    paste0(names(gate_names), ": tau")
   )
   expect_false(any(grepl(
     "__xRE_",
@@ -72,7 +72,10 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
   expect_null(attr(out[["estimates_random"]], "footnotes"))
   expect_null(attr(out[["estimates_random_conditional"]], "footnotes"))
 
-  expected_parameters <- c("sd_total", paste0("var_prop(", names(gate_names), ")"))
+  expected_parameters <- c(
+    "tau_total",
+    paste0("tau2_prop(", names(gate_names), ")")
+  )
   expect_identical(rownames(out[["estimates_random"]]), expected_parameters)
   expect_identical(rownames(out[["estimates_random_conditional"]]), expected_parameters)
   expect_identical(data.frame(out), summary_frame)
@@ -105,7 +108,7 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
       info = component
     )
     expect_equal(
-      heterogeneity[[component]][["estimates"]]["sd", "Mean"],
+      heterogeneity[[component]][["estimates"]]["tau", "Mean"],
       mean(sd_draws),
       tolerance = 5e-4,
       info = component
@@ -168,7 +171,7 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
 
   total <- .brma_random_parameter_mixed_posterior(
     fit_bma_mv,
-    "sd_total",
+    "tau_total",
     prior           = TRUE,
     n_prior_samples = 2000L,
     seed            = 732L
@@ -182,7 +185,7 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
 
   proportion <- .brma_random_parameter_mixed_posterior(
     fit_bma_mv,
-    "var_prop(study)",
+    "tau2_prop(study)",
     prior           = TRUE,
     n_prior_samples = 2000L,
     seed            = 733L
@@ -204,7 +207,7 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
   expect_s3_class(
     plot(
       fit_bma_mv,
-      "sd_total",
+      "tau_total",
       prior     = TRUE,
       plot_type = "ggplot"
     ),
@@ -213,14 +216,14 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
   expect_s3_class(
     plot(
       fit_bma_mv,
-      "var_prop(study)",
+      "tau2_prop(study)",
       prior     = TRUE,
       plot_type = "ggplot"
     ),
     "ggplot"
   )
 
-  for (parameter in c("sd_total", "var_prop(study)")) {
+  for (parameter in c("tau_total", "tau2_prop(study)")) {
     expect_error(
       hypothesis(
         fit_bma_mv,
@@ -236,10 +239,10 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
   quantities <- hypothesis_quantities(fit_bma_mv)
   gated <- quantities[["component"]] == "random" &
     quantities[["parameter"]] %in% c(
-      "(mu) sd_total",
-      "(mu) var_total",
-      "(mu) var_prop(study)",
-      "(mu) var_prop(observation)"
+      "(mu) tau_total",
+      "(mu) tau2_total",
+      "(mu) tau2_prop(study)",
+      "(mu) tau2_prop(observation)"
     )
   expect_true(any(gated))
   expect_true(all(!quantities[["point_test"]][gated]))
@@ -494,13 +497,13 @@ test_that("BMA.mv forest and diagnostic plot data use multivariate targets", {
 test_that("BMA.mv random plots and hypotheses respect component gates", {
 
   expect_s3_class(
-    plot(fit_bma_mv, "study: sd", plot_type = "ggplot"),
+    plot(fit_bma_mv, "study: tau", plot_type = "ggplot"),
     "ggplot"
   )
   expect_s3_class(
     plot(
       fit_bma_mv,
-      "study: sd",
+      "study: tau",
       conditional = TRUE,
       plot_type    = "ggplot"
     ),
@@ -509,7 +512,7 @@ test_that("BMA.mv random plots and hypotheses respect component gates", {
   expect_s3_class(
     hypothesis(
       fit_bma_mv,
-      "study: sd < 0.1",
+      "study: tau < 0.1",
       density_method = "KDE"
     ),
     "BayesTools_hypothesis_BF"
@@ -517,7 +520,7 @@ test_that("BMA.mv random plots and hypotheses respect component gates", {
   expect_s3_class(
     hypothesis(
       fit_bma_mv,
-      "study: sd < 0.1",
+      "study: tau < 0.1",
       conditional    = TRUE,
       density_method = "KDE"
     ),
@@ -526,7 +529,7 @@ test_that("BMA.mv random plots and hypotheses respect component gates", {
   expect_error(
     hypothesis(
       fit_bma_mv,
-      "study: sd != 0 vs study: sd = 0",
+      "study: tau != 0 vs study: tau = 0",
       density_method = "KDE"
     ),
     "Random-Effect Inclusion table",
