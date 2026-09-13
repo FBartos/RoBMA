@@ -18,7 +18,10 @@ test_that("bselmodel.mv presents multivariate selection summaries", {
   expect_false(grepl("Exact|Approximate", out[["name"]]))
   expect_true(nrow(out[["estimates_random"]]) > 0L)
   expect_true(nrow(out[["estimates_bias"]]) > 0L)
-  expect_true(all(c("random", "bias") %in% frame[["component"]]))
+  # Random estimates join the common table in the consolidated layout; the
+  # raw estimates_random table above is retained separately.
+  expect_true(all(c("common", "bias") %in% frame[["component"]]))
+  expect_false(any(frame[["component"]] == "random"))
 })
 
 

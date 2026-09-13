@@ -85,7 +85,7 @@ test_that("RoBMA.mv fits the complete multivariate product space", {
     model[c("other_random_effects", "known_sampling_variance")],
     list(other_random_effects = "integrate", known_sampling_variance = "integrate")
   )
-  expect_identical(model[["groups"]][["group_index"]], rep(1:3, each = 2L))
+  expect_identical(model[["groups"]][["provenance"]], "inactive")
   expect_true(all(vapply(model[["branches"]][model[["active_branches"]]],
                         function(branch) identical(branch[["weight_rule"]], "product"),
                         logical(1))))
