@@ -1124,7 +1124,7 @@
       error <- pmax(error, abs(expm1(previous - current$log_normalizer)))
     }
     result$log_density[active]  <- -current$log_normalizer
-    result$relative_mcse[active] <- accepted_error
+    result$relative_mcse[active] <- error
     failed <- which(!is.finite(error) | error > control$relative_tolerance |
                       !is.finite(current$log_normalizer))
     if (!length(failed)) return(result)

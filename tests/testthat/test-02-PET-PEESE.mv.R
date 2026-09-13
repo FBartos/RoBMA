@@ -17,10 +17,14 @@ test_that("multivariate PET and PEESE summaries retain both model parts", {
   expect_true(nrow(peese_summary[["estimates_random"]]) > 0L)
   expect_true(nrow(pet_summary[["estimates_bias"]]) > 0L)
   expect_true(nrow(peese_summary[["estimates_bias"]]) > 0L)
-  expect_true(all(c("random", "bias") %in%
-                    as.data.frame(pet_summary)[["component"]]))
-  expect_true(all(c("random", "bias") %in%
-                    as.data.frame(peese_summary)[["component"]]))
+  # Random estimates join the common table in the consolidated layout; the
+  # raw estimates_random tables above are retained separately.
+  pet_components   <- as.data.frame(pet_summary)[["component"]]
+  peese_components <- as.data.frame(peese_summary)[["component"]]
+  expect_true(all(c("common", "bias") %in% pet_components))
+  expect_true(all(c("common", "bias") %in% peese_components))
+  expect_false(any(pet_components == "random"))
+  expect_false(any(peese_components == "random"))
 })
 
 
