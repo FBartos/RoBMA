@@ -73,6 +73,30 @@ test_that("quiet LLM reporter counts skips without printing each reason", {
 })
 
 
+test_that("reloading interactive helpers replaces restored checkout paths", {
+
+  runner_path <- testthat::test_path("..", "..", ".dev", "test-tests.R")
+  skip_if_not(file.exists(runner_path), "Requires a source checkout.")
+  runner_env <- new.env(parent = globalenv())
+  source(runner_path, local = runner_env)
+  runner_env$.scenario_helpers_dir <- file.path(tempdir(), "moved-checkout")
+  runner_env$.robma_test_project_root <- runner_env$.scenario_helpers_dir
+  runner_env$.scenario_state$last_scenario_run <- list(
+    root = runner_env$.scenario_helpers_dir, scenarios = "old-scenario"
+  )
+
+  source(runner_path, local = runner_env)
+  expected_root <- normalizePath(testthat::test_path("..", ".."), winslash = "/")
+  expect_identical(runner_env$.robma_test_project_root, expected_root)
+  expect_identical(
+    runner_env$.scenario_helpers_dir,
+    file.path(expected_root, "tests", "scenarios")
+  )
+  expect_null(runner_env$.scenario_state$last_scenario_run)
+  expect_gt(length(runner_env$.scenario_list_files()), 0L)
+})
+
+
 test_that("interactive test runner dispatches filtered and comprehensive profiles", {
 
   runner_path <- testthat::test_path("..", "..", ".dev", "test-tests.R")

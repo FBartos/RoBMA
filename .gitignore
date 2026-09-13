@@ -13,7 +13,6 @@ src/boost
 Meta
 RoBMA.Rcheck
 .Rhistory
-.Rprofile
 /doc/
 /Meta/
 config.log

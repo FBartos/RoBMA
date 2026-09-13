@@ -41,6 +41,12 @@ plot_scenario_times(functions = c("brma", "brma.mv", "bselmodel", "residuals"))
 plot_scenario_times(functions = "bselmodel", likelihood = "marg")
 ```
 
+Startup reloads these helpers after restoring `.RData`, so saved paths from a
+moved checkout do not override the current project. After moving a checkout
+with R already open, restart R in the relocated project, or source its
+`.dev/test-tests.R` by its new absolute path to refresh both test and scenario
+helpers in the current session.
+
 `review_scenario_snapshots()` reopens all cached table and figure changes from
 the scenarios selected by the latest `test_scenarios()` call. Its optional
 `filter` further narrows those scenario names. `review_test_snapshots()` opens

@@ -38,29 +38,17 @@
   )
 })
 
-if (!exists("quiet_llm_reporter", mode = "function")) {
-  source(
-    file.path(
-      .robma_test_project_root,
-      "tests",
-      "testthat",
-      "common-functions.R"
-    ),
-    local = TRUE
-  )
-}
-if (!exists("review_test_snapshots", mode = "function") ||
-    !exists("test_scenarios", mode = "function")) {
-  source(
-    file.path(
-      .robma_test_project_root,
-      "tests",
-      "scenarios",
-      "helper-scenarios.R"
-    ),
-    local = TRUE
-  )
-}
+# Always refresh helpers: restored workspaces can carry functions and cached
+# source and scenario roots from a previous checkout.
+source(
+  file.path(.robma_test_project_root, "tests", "testthat", "common-functions.R"),
+  local = TRUE
+)
+.scenario_state <- new.env(parent = emptyenv())
+source(
+  file.path(.robma_test_project_root, "tests", "scenarios", "helper-scenarios.R"),
+  local = TRUE
+)
 
 
 .robma_test_validate_flag <- function(value, name) {
