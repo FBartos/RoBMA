@@ -1,5 +1,9 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- keeps accurate covariance quadrature available for tiny nonmonotone product
+  normalizers with strictly positive weights, using a relative Gaussian
+  covariance perturbation bound. Reconstructed diagonal and factor rounding
+  enter the bound; the existing accuracy tolerance and QMC fallback remain.
 - extends full-covariance product-selection quadrature to two-sided and other
   nonmonotone weight functions. An absolute covariance-error bound preserves
   the supplied covariance and existing numerical tolerance; unsupported or

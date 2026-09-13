@@ -246,21 +246,78 @@ test_that("absolute covariance bounds cover nonmonotone and two-sided products",
 test_that("a loose nonmonotone bound cannot use a covariance sandwich", {
 
   sei <- c(.2, .35, .6)
-  correlation <- matrix(c(1, .7, .50002, .7, 1, .5, .50002, .5, 1), 3L)
-  covariance <- outer(sei, sei) * correlation
   # Almost every candidate lies in the middle bin, so the lower and upper
   # covariance integrals agree numerically. The absolute Price bound ignores
   # threshold locations and exceeds .005 relative to this tiny normalizer.
   # Their apparent agreement cannot certify a nonmonotone covariance sandwich.
-  # TV(weights)^2 = 1.8^2 gives a relative bound of about .012; replacing
-  # total variation by the range .9 would wrongly reduce it below .005.
-  observed <- .selection_envelope_test_call(covariance, 0, sei,
-    c(1, .1, 1), z_lower = c(8, -8, -Inf), z_upper = c(Inf, 8, -8))
-  expect_equal(unname(observed[["integration_diagnostics"]][1L,
-    "used_covariance_envelope"]), 0)
-  # A union bound gives at most 6*pnorm(-8) mass outside the middle bins;
-  # its contribution relative to .1^3 is less than 4e-12.
-  expect_lt(abs(observed[["log_normalizer"]] - 3 * log(.1)), 1e-10)
+  cases <- list(
+    # The remote zero bin rules out a bound requiring strictly positive
+    # weights. TV(weights)^2 = 2^2 gives a relative bound about .015;
+    # incorrectly substituting the range 1 would reduce it below .005.
+    list(departure = 2e-5, omega = c(1, .1, 0, 1),
+      z_lower = c(8, -8, -9, -Inf), z_upper = c(Inf, 8, -8, -9)),
+    # Positive weights permit a relative covariance bound, but this larger
+    # departure exhausts that bound as well as the absolute Price bound.
+    list(departure = .02, omega = c(1, .1, 1),
+      z_lower = c(8, -8, -Inf), z_upper = c(Inf, 8, -8))
+  )
+  for (case in cases) {
+    correlation <- matrix(c(1, .7, .5, .7, 1, .5, .5, .5, 1), 3L)
+    correlation[1L, 3L] <- correlation[3L, 1L] <- .5 + case[["departure"]]
+    covariance <- outer(sei, sei) * correlation
+    observed <- .selection_envelope_test_call(covariance, 0, sei, case[["omega"]],
+      z_lower = case[["z_lower"]], z_upper = case[["z_upper"]])
+    expect_equal(unname(observed[["integration_diagnostics"]][1L,
+      "used_covariance_envelope"]), 0)
+    # A union bound gives at most 6*pnorm(-8) mass outside the middle bins;
+    # its contribution relative to .1^3 is less than 4e-12.
+    expect_lt(abs(observed[["log_normalizer"]] - 3 * log(.1)), 1e-10)
+  }
+})
+
+
+test_that("relative covariance bounds retain tiny large-block normalizers", {
+
+  size <- 74L
+  sei <- seq(.1, .5, length.out = size)
+  rho <- .2
+  weight <- .3
+  cutoff <- stats::qnorm(.975)
+  covariance <- outer(sei, sei) * rho + diag((1 - rho) * sei^2)
+  # For Y_i / sei_i = sqrt(rho)*Z + sqrt(1-rho)*E_i, independent E_i
+  # give q(Z)^74. This direct one-dimensional reference has two distant
+  # modes. Scale before piecewise adaptive integration to retain their mass;
+  # integrate both infinite exterior intervals rather than truncate tails.
+  log_integrand <- function(z) {
+    tail <- stats::pnorm((sqrt(rho) * z - cutoff) / sqrt(1 - rho)) +
+      stats::pnorm((-sqrt(rho) * z - cutoff) / sqrt(1 - rho))
+    size * log(weight + (1 - weight) * tail) + stats::dnorm(z, log = TRUE)
+  }
+  mode <- stats::optimize(log_integrand, c(0, 12), maximum = TRUE)
+  shift <- max(mode[["objective"]], log_integrand(0))
+  breaks <- c(-Inf, seq(-12, 12, by = .5), Inf)
+  parts <- lapply(seq_len(length(breaks) - 1L), function(index) {
+    stats::integrate(function(z) exp(log_integrand(z) - shift),
+      breaks[[index]], breaks[[index + 1L]], rel.tol = 1e-11, abs.tol = 1e-13)
+  })
+  integral <- sum(vapply(parts, `[[`, numeric(1L), "value"))
+  reference <- log(integral) + shift
+  reference_error <- sum(vapply(parts, `[[`, numeric(1L), "abs.error")) / integral
+  expect_lt(reference, -25)
+  expect_lt(reference_error, 1e-9)
+  observed <- .selection_envelope_test_call(covariance, 0, sei, c(1, weight, 1),
+    z_lower = c(cutoff, -cutoff, -Inf), z_upper = c(Inf, cutoff, -cutoff))
+  diagnostic <- observed[["integration_diagnostics"]][1L, ]
+  combined <- diagnostic[["covariance_width"]] +
+    2 * diagnostic[["quadrature_change"]] + diagnostic[["tail_bound"]]
+  relative_error <- abs(expm1(reference - observed[["log_normalizer"]]))
+  expect_equal(diagnostic[["used_covariance_envelope"]], 1)
+  expect_lte(combined, .005)
+  expect_lte(relative_error, combined + reference_error)
+  numerator <- mvtnorm::dmvnorm(rep(0, size), sigma = covariance, log = TRUE) +
+    size * log(weight)
+  expect_equal(observed[["log_density"]] + observed[["log_normalizer"]],
+    numerator, tolerance = 1e-12)
 })
 
 

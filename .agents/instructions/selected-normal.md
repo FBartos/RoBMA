@@ -131,9 +131,13 @@ weights identify neither absolute publication probability nor missing count.
 
 Dense product normalizers may use common/group factor quadrature with a checked
 covariance approximation. Monotone weights permit covariance-order bounds;
-two-sided and other nonmonotone weights require an absolute perturbation bound
-using the step weights' total variation. Never use agreement of auxiliary
-normalizers as a covariance bound for nonmonotone weights. Covariance error,
+two-sided and other nonmonotone weights require a perturbation bound. The
+absolute bound uses the step weights' total variation; strictly positive
+weights additionally permit a relative Gaussian covariance bound including
+emitted SD/loading reconstruction error. Combine relative covariance and
+quadrature errors with their denominator cross term. Zero weights retain the
+absolute bound. Never use agreement of auxiliary normalizers as a covariance
+bound for nonmonotone weights. Covariance error,
 quadrature change, and exterior Gaussian mass share the existing error budget;
 unresolved evaluations retain QMC and its diagnostics.
 

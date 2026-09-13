@@ -856,6 +856,98 @@ double covariance_price_gap_bound(const std::vector<double>& covariance,
   return std::isfinite(result) ? result : infinity;
 }
 
+// Relative covariance perturbation for strictly positive product weights.
+// The auxiliary covariance C0 = D + U U' uses the emitted SDs/loadings,
+// including their diagonal rounding. Since C0 >= D, the maximum absolute row
+// sum of D^(-1/2) (C-C0) D^(-1/2) bounds the whitened spectral error epsilon.
+// Along the Gaussian covariance segment, Jensen and the chi-square MGF give
+// E_selected[||Z||^2] <= 4*k*log(M/m) + 2*k*log(2). Integrating the Gaussian
+// log-density derivative bounds |log A(C) - log A(C0)| without dividing an
+// absolute error by a possibly tiny A. This is the bound used by zplot context
+// integration. Zero weights retain the absolute Price bound instead.
+double covariance_relative_gap_bound(const std::vector<double>& covariance,
+    int dimension, const std::vector<EnvelopeGroupGeometry>& geometry,
+    const double* omega, int n_bins)
+{
+  const double infinity = std::numeric_limits<double>::infinity();
+  double minimum = infinity, maximum = 0.0;
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (!(omega[bin] > 0.0) || !std::isfinite(omega[bin])) return infinity;
+    minimum = std::min(minimum, omega[bin]);
+    maximum = std::max(maximum, omega[bin]);
+  }
+  if (!(minimum > 0.0) || !std::isfinite(minimum)) return infinity;
+  if (minimum == maximum) return 0.0;
+  const auto mul_down = [infinity](double x, double y) {
+    if (x == 0.0 || y == 0.0) return 0.0;
+    const double value = x * y;
+    return value == 0.0 ? 0.0 : std::nextafter(value, -infinity);
+  };
+  const auto mul_up = [infinity](double x, double y) {
+    if (x == 0.0 || y == 0.0) return 0.0;
+    return std::nextafter(x * y, infinity);
+  };
+  const auto add_down = [infinity](double x, double y) {
+    if (x == 0.0) return y;
+    if (y == 0.0) return x;
+    return std::nextafter(x + y, -infinity);
+  };
+  const auto add_up = [infinity](double x, double y) {
+    if (x == 0.0) return y;
+    if (y == 0.0) return x;
+    return std::nextafter(x + y, infinity);
+  };
+  std::vector<double> sd(dimension), common(dimension), child(dimension);
+  std::vector<int> groups(dimension);
+  for (std::size_t group = 0; group < geometry.size(); ++group) {
+    const EnvelopeGroupGeometry& part = geometry[group];
+    for (std::size_t local = 0; local < part.row_index.size(); ++local) {
+      const int row = part.row_index[local];
+      sd[row] = part.residual_sd[local];
+      common[row] = part.common_loading[local];
+      child[row] = geometry.size() == 1 ? 0.0 : part.loading[local];
+      groups[row] = static_cast<int>(group);
+    }
+  }
+  std::vector<double> row_sum(dimension, 0.0);
+  for (int column = 0; column < dimension; ++column) {
+    for (int row = column; row < dimension; ++row) {
+      double lower = row == column ? mul_down(sd[row], sd[row]) : 0.0;
+      double upper = row == column ? mul_up(sd[row], sd[row]) : 0.0;
+      lower = add_down(lower, mul_down(common[row], common[column]));
+      upper = add_up(upper, mul_up(common[row], common[column]));
+      if (groups[row] == groups[column]) {
+        lower = add_down(lower, mul_down(child[row], child[column]));
+        upper = add_up(upper, mul_up(child[row], child[column]));
+      }
+      const double value = covariance[row + dimension * column];
+      const double difference = std::nextafter(std::max(
+        std::fabs(value - lower), std::fabs(value - upper)), infinity);
+      const double scale = mul_down(sd[row], sd[column]);
+      if (!(scale > 0.0) || !std::isfinite(scale) || !std::isfinite(difference)) return infinity;
+      const double error = std::nextafter(difference / scale, infinity);
+      row_sum[row] = add_up(row_sum[row], error);
+      if (row != column) row_sum[column] = add_up(row_sum[column], error);
+    }
+  }
+  const double epsilon = *std::max_element(row_sum.begin(), row_sum.end());
+  if (!(epsilon >= 0.0) || !(epsilon < 1.0)) return infinity;
+  const double complement = std::nextafter(1.0 - epsilon, -infinity);
+  if (!(complement > 0.0)) return infinity;
+  const double log_ratio = std::nextafter(
+    std::nextafter(std::log(maximum), infinity) -
+    std::nextafter(std::log(minimum), -infinity), infinity);
+  const double log_two = std::nextafter(std::log(2.0), infinity);
+  const double moment = add_up(mul_up(4.0 * dimension, log_ratio),
+                              mul_up(2.0 * dimension, log_two));
+  const double beta = std::nextafter(epsilon / (2.0 * complement), infinity);
+  const double determinant = mul_up(0.5 * dimension,
+    -std::nextafter(std::log1p(-epsilon), -infinity));
+  const double log_bound = add_up(determinant, mul_up(beta, moment));
+  if (!std::isfinite(log_bound)) return infinity;
+  return std::nextafter(std::expm1(log_bound), infinity);
+}
+
 // Selection-envelope memoization. Hashes only select candidates: complete
 // owned values, including the numerical controls, establish every cache hit.
 struct EnvelopeMemoSpan {
@@ -1542,7 +1634,10 @@ bool dense_envelope_log_integral(
   );
   const double log_gap = gap_bound > 0.0 ? std::log(gap_bound) :
     -std::numeric_limits<double>::infinity();
-  if (!monotone && !std::isfinite(gap_bound)) return false;
+  const double relative_gap_bound = monotone ?
+    std::numeric_limits<double>::infinity() : covariance_relative_gap_bound(
+      covariance, dimension, lower_geometry, omega, selection.n_bins);
+  if (!monotone && !std::isfinite(gap_bound) && !std::isfinite(relative_gap_bound)) return false;
   EnvelopeRuleWorkspace workspace;
   double previous_lower = std::numeric_limits<double>::quiet_NaN();
   double previous_upper = std::numeric_limits<double>::quiet_NaN();
@@ -1569,11 +1664,18 @@ bool dense_envelope_log_integral(
       integration->nodes, offset, order,
       envelope.groups == 1 ? 1 : envelope.groups + 1,
       omega, selection.n_bins, dimension, SELVECTOR_PRODUCT);
-    const double relative_gap = cdf_log_error > 0 ?
+    double relative_gap = cdf_log_error > 0 ?
       cdf_scale_twice * std::exp(log_gap - lower) : std::exp(log_gap - lower);
     const double lower_tail = cdf_log_error > 0 ?
       cdf_scale_twice * std::exp(log_tail - lower) : std::exp(log_tail - lower);
-    const bool use_gap_bound = std::isfinite(gap_bound) && gap_bound >= 0.0 &&
+    // The relative covariance bound uses the exact auxiliary mass. Convert to
+    // the returned quadrature denominator, retaining its cross term with the
+    // quadrature/tail allowance. Nonmonotone weights never use bounded CDFs.
+    const double quadrature_error = 2.0 * lower_change + lower_tail;
+    if (!monotone && std::isfinite(relative_gap_bound) && std::isfinite(quadrature_error)) {
+      relative_gap = std::min(relative_gap, relative_gap_bound * (1.0 + quadrature_error));
+    }
+    const bool use_gap_bound = std::isfinite(relative_gap) && relative_gap >= 0.0 &&
       relative_gap <= integration->tolerance;
     if (use_gap_bound &&
         relative_gap + 2.0 * lower_change + lower_tail + cdf_relative_error <= integration->tolerance) {

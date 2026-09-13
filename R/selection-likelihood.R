@@ -30,9 +30,12 @@ SELNORM_FACTOR_QUADRATURE_ORDERS <- list(
 #' product weights first try same-diagonal covariance approximations with a
 #' common Gaussian factor and independent group factors. Monotone weights
 #' permit covariance bounds on the normalizer. Two-sided and other nonmonotone
-#' weights require an absolute covariance-perturbation bound based on the total
-#' variation of the step weights; agreement of auxiliary normalizers alone is
-#' insufficient. Their original full covariance remains authoritative.
+#' weights require a covariance-perturbation bound; agreement of auxiliary
+#' normalizers alone is insufficient. The absolute bound uses the total
+#' variation of the step weights. Strictly positive weights also permit a
+#' relative Gaussian covariance bound, including reconstructed diagonal and
+#' factor rounding, which remains useful for tiny normalizers. Their original
+#' full covariance remains authoritative.
 #' The covariance error bound, estimated
 #' quadrature error, and a bound on Gaussian mass outside the quadrature nodes
 #' share one numerical error budget. Interior quadrature error is estimated,
