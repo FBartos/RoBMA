@@ -1,7 +1,7 @@
-# Multivariate Predictive Targets
+# Predictive and Multivariate Targets
 
-Use this guide when changing `brma.mv()`, `log_lik()`, LOO/WAIC,
-residuals, marginal covariance diagnostics, prediction, or marginal likelihood.
+Use this guide when changing prediction, `brma.mv()`, `log_lik()`, LOO/WAIC,
+residuals, marginal covariance diagnostics, or marginal likelihood.
 
 ## Keep Targets Distinct
 
@@ -53,6 +53,13 @@ covariance. BayesTools owns its scaling and metadata.
 
 ## Diagnostics and Prediction
 
+The specialized `brma(..., cluster = ...)` interface remains supported. Its
+two-level allocation permits within- and between-cluster I2 even though its
+covariance can also be represented by `brma.mv()`. Use
+`y = X beta + u_cluster + u_estimate + epsilon` as its canonical notation;
+random-formula models replace the named effects with their fitted Gaussian
+blocks.
+
 Marginal covariance consumers use `M = V + ZGZ'`. Same-data
 `predict.brma.mv()` follows the same two-axis contract as `brma()`:
 
@@ -63,14 +70,30 @@ Marginal covariance consumers use `M = V + ZGZ'`. Same-data
 - `conditioning_depth = "estimate"` draws fitted latent effects from their
   conditional posterior, including conditional uncertainty rather than only
   Gaussian BLUP means;
+- `conditioning_depth = "cluster"` retains the specialized multilevel model's
+  fitted cluster effect and predicts a new estimate within it;
 - cluster depth is unavailable for arbitrary random formulas because their
   hierarchy does not identify one canonical cluster level.
+
+Marginal is the canonical prediction default. Response prediction adds only
+the sampling layer to the corresponding latent target. For GLMM responses,
+estimate depth uses fitted posterior `pi`/`phi`; marginal and cluster depths
+draw a new nuisance rate from its prior and are partly prior predictive.
+Document this wherever those GLMM targets are exposed.
 
 `newdata` selects design and identity, not conditioning. Non-marginal explicit
 rows must be rejected unless fitted identities can be validated. Marginal
 matching labels preserve joint new-draw dependence and never reuse fitted BLUPs.
 Response prediction preserves full `V`/`V_new` and joint `ZGZ'` dependence.
-Conditional means remain available through `blup()` and `fitted()`.
+Conditional means remain available through `blup()` and
+`fitted(..., conditioning_depth = "estimate")`.
+
+Normal-model funnel/sampling bands, regression/forest prediction intervals,
+default z-plots, and default residual diagnostics use explicit marginal
+targets. GLMM funnel and regression sampling bands are descriptive normal
+effect-size approximations and must be labeled accordingly. LOO and LOO-PIT
+keep deletion-conditioned predictive-score targets and must not be routed
+through generic response prediction.
 
 Keep target metadata in `attr(x, "RoBMA_target")`. LOO comparisons must reject
 mismatched data, unit, retained context, or likelihood target. Known-`R`

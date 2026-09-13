@@ -12,6 +12,8 @@ samples again. `tau` is nonnegative and is never flipped.
 PET/PEESE sampling-bias offsets follow effect direction: add them for positive
 effects and subtract them for negative effects. Reuse
 `.evaluate.brma.bias_offset()`.
+Their coefficients are zero in inactive product-space branches, so applying
+these offsets to all rows preserves branch routing.
 
 Ordinary normal CDF code owns its direction transformation. Selected-normal
 code receives the sign through `.selection_context()`. Callers must not add
@@ -120,6 +122,9 @@ Integration diagnostics remain separate from model sensitivity. Relative
 weights identify neither absolute publication probability nor missing count.
 
 ## Unsupported Paths
+
+Publication-bias weight functions are unsupported for binomial and Poisson
+GLMMs.
 
 P-hacking selected-normal branches remain internal and unsupported. Do not
 expose or activate them without an explicit maintainer decision and a defined

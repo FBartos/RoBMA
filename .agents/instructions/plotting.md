@@ -41,7 +41,8 @@ regression plots. Selection branches must use `.selection_context()`.
 
 ## Predictive Targets
 
-Use the prediction notation and two-axis contract in root `AGENTS.md`.
+Use the prediction notation and two-axis contract in
+[multivariate-targets.md](multivariate-targets.md).
 Regression/forest prediction intervals, normal-model outcome-mode funnel
 contours, and default z-plots target marginal new effects or responses.
 GLMM funnel contours and regression sampling bands are explicitly descriptive
@@ -53,8 +54,8 @@ conditioning from whether a plot evaluates fitted rows or an explicit grid.
 ## API and Verification
 
 Use `plot_type = "base"` or `"ggplot"` where both backends are available.
-Keep released plotting arguments working through the compatibility policy in
-root `AGENTS.md`.
+Keep released plotting arguments working for the compatibility periods in
+[model-interface.md](model-interface.md).
 
 Test computed plot data and dispatch separately, then retain representative
 human-reviewed visual snapshots for both backends. Structural or render-only

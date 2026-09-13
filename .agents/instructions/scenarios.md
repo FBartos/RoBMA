@@ -1,8 +1,12 @@
-# Scenario Tests
+# Maintainer Scenarios
 
 Use this guide whenever creating, modifying, regenerating, or reviewing
 maintainer scenarios under `tests/scenarios/` or their runner
 `tools/test-scenario.R`.
+
+In BayesToolsVerse, the shared validation guide owns scope, runtime criteria,
+and the distinction from tests and verification. Use its configured R and
+private agent library. The package helpers below own execution and review.
 
 ## Purpose
 
@@ -26,8 +30,8 @@ relationships easy to inspect.
 - Wrap costly non-fit computations used later in the scenario in
   `scenario_time("name", { ... })`. It returns the computed value unchanged and
   records timing only; it does not cache the value or create a snapshot.
-- Add `add_loo()` and `add_marglik()` inside the cached block whenever they are
-  supported and potentially useful for validation or face-validity checks.
+- Put `add_loo()` and `add_marglik()` inside the cached block when the analysis
+  needs those supported quantities, so expensive results are reused.
 - Reuse cached fits while developing downstream functionality. Restarting R,
   reloading or reinstalling RoBMA, and rerunning only parts of an analysis are
   not reasons to refit.
@@ -38,7 +42,7 @@ relationships easy to inspect.
   affected models when needed, retaining old caches and the reason for
   replacement. Otherwise consult the maintainer before regenerating them.
 - `cache_version` is optional. Use or increment it only to invalidate one fit
-  after an approved package-internal fitting change that leaves the fitting
+  after an in-scope package-internal fitting change that leaves the fitting
   expression unchanged.
 - Keep fit blocks compact. Scenario files may retain long model calls on one
   line when that is easier to scan on the maintainer's ultrawide monitor.
@@ -145,8 +149,10 @@ testthat's colored value diff. Interactive `test_scenario()` runs finish all
 selected scenarios before listing the table and figure mismatches and opening
 the same combined reviewer. Accepted candidates replace the baseline, rejected
 candidates are removed, and skipped candidates remain cached. Direct plot
-comparison retains a changed `<name>.new.svg`. Rerun `test_scenario()` after
-review to confirm accepted changes. Run deferred review from the runner's exit
+comparison retains a changed `<name>.new.svg`. Accepting an already verified
+candidate does not itself require rerunning an expensive expression. Rerun
+when implementation, inputs, or RNG behavior changed, or reproducibility is
+unverified. Run deferred review from the runner's exit
 path so an early scenario failure cannot bypass cached candidates.
 Non-interactive runs never prompt or accept changes.
 
@@ -226,34 +232,36 @@ LOO-PIT with stored estimate-unit LOO. This deletion-conditioned target retains
 the original publication event; do not pass `conditioning_depth` to `rstudent()`.
 
 Do not use output updating or regeneration merely to make a scenario pass.
-Replace baselines only when the maintainer explicitly requests, approves, or
-interactively accepts the change, and review every resulting diff.
+Generate candidates within the requested scenario work. Accept baseline
+changes only after maintainer or explicitly delegated review, and review every
+resulting diff. Requests to generate or refresh output alone do not delegate
+review.
 
 ## Discrepancies and Scope
 
 An explicit request to create or refresh scenario snapshots authorizes that
-workflow. Generate missing snapshots one by one, inspect each result and its
+workflow. Generate missing candidates one by one, inspect each result and its
 runtime, and investigate obvious errors or suspiciously slow computation as
 they arise. Fix clear in-scope implementation errors without asking again for
-permission. Review each intentional baseline change and rerun its original
-expression with the original RNG state before treating it as resolved. Keep
-candidates reserved for the maintainer's own review pending.
+permission. Validate changed computations with the original workload and RNG
+state. Keep candidates pending for maintainer review unless that review was
+explicitly delegated.
 
 Preserve the original analysis, model specification, data, comparison methods,
-evaluation order, seeds, and parallel settings. Scenario edits during completion
-are limited to obvious typos and explicit sample/integration budget increases
-needed when defaults are insufficient. This numerical-budget exception also
-applies to an otherwise typo-only task. Use public controls at the affected
-call, such as `density_control$samples` or
-`density_control$integration_control`; do not hide budget changes in package
-code, lower diagnostic requirements, or add parallel computation to improve
-timings. Apply the matched-workload timing rules in `AGENTS.md`.
+evaluation order, seeds, and parallel settings. Change scenario controls only
+within explicit authorization, including authorization already given. When
+accuracy requires a different budget, report the proposed public control and
+its justification separately from matched-workload performance evidence. Do
+not hide budget changes in package code, lower diagnostic requirements, or add
+parallel computation merely to improve timings.
 
 Do not suppress or normalize away a discrepancy, or change an expected
 relationship merely to make a comparison pass. Investigate against an
 independent reference. If a statistical or architectural choice remains
 ambiguous, record the artifact, observed pattern, reproduction command, impact,
-alternatives, and recommendation in `.agents/instructions-decisions.md`, then
-request the needed decision while continuing independent authorized work.
+alternatives, and recommendation in the workspace's
+[pending decisions](../../../.agents/decisions.md)
+(or a temporary package decision note in a standalone checkout), then request
+the needed decision while continuing independent authorized work.
 Unrequested scenario expansion, reformatting, and unrelated cleanup remain out
 of scope.

@@ -1,465 +1,95 @@
-# AGENTS.md
+# RoBMA
 
-Guidance for coding assistants working in RoBMA. Be extremely concise.
+RoBMA owns Bayesian meta-analysis, publication-bias adjustment, model averaging,
+meta-regression, multilevel and multivariate models, GLMMs, and their post-fit
+interfaces. BayesTools owns the reusable Bayesian and formula infrastructure.
 
-## Package Overview
+When this checkout is inside BayesToolsVerse, follow the shared
+[workspace guidance](../AGENTS.md), [validation policy](../.agents/instructions/validation.md),
+[R environment](../.agents/instructions/r-environment.md), and
+[public API contracts](../.agents/instructions/public-api.md).
+They own workflow, research tools, agent scratch space, and the distinction
+between tests, verification, and scenarios. A standalone checkout retains the
+package contracts below; the optional parent workspace is not a dependency.
+Check [pending workspace decisions](../.agents/decisions.md) when present.
 
-RoBMA provides Bayesian meta-analysis, model averaging, publication-bias
-adjustment, meta-regression, multilevel and multivariate models, GLMMs,
-prediction, visualization, and diagnostics.
+## Contracts to consult
 
-- Backend: JAGS through `runjags`/`rjags`, plus focused native kernels.
-- Core dependency: BayesTools for generic Bayesian infrastructure.
-- Estimation: JAGS product-space fitting.
-- System requirement: JAGS 4.3.1 or newer.
+Read the guide relevant to the change and maintain it with the implementation:
 
-## Numerical and Engineering Guardrails
-
-### Numerical Faithfulness
-
-- Correct inference-changing numerical errors; do not pursue arbitrary
-  machine-level perfection.
-- Implement the statistical model as specified. Never silently alter user
-  inputs or computed values with epsilons, clamping, covariance repair, or
-  similar heuristics.
-- Invalid inputs must fail clearly. Mathematically valid boundary cases must
-  retain their defined behavior.
-- Prefer established implementations from base R, BayesTools, JAGS, or standard
-  numerical libraries.
-- Support statistically meaningful extreme cases. Do not promise correctness
-  for every representable binary64 input unless the public API requires it.
-- Base numerical warnings on structural or provenance information where
-  possible. Do not infer prior densities from posterior samples.
-- Use independent references, analytic identities, or human-verified results
-  for numerical tests. Do not test an implementation against the same
-  unverified calculation.
-- When a product-space Bayes factor has zero or one draw in the rare state,
-  require agreement in conclusion, not high numerical precision, if bridge or
-  density-based estimates show overwhelming evidence in the same direction.
-  Keep reported error percentages and uncertainty visible. This does not relax
-  density or integration diagnostics; estimator ESS is not state occupancy.
-
-### Complexity Budget
-
-- Prefer the smallest boring implementation that solves the observed problem.
-- Do not add general exact-arithmetic, arbitrary-precision, or binary64
-  emulation subsystems.
-- Native C/C++ is justified only by JAGS integration, statistical correctness,
-  or a substantial measured performance benefit.
-- Before adding native code, abstractions, or source files, verify that existing
-  R, BayesTools, JAGS, or package infrastructure cannot solve the problem
-  cleanly.
-- Avoid parallel implementations, duplicated numerical paths, speculative
-  extensibility, and abstractions serving one simple call site.
-- Generic Bayesian functionality belongs in BayesTools. RoBMA contains
-  meta-analysis-specific integration.
-- Remove machinery superseded by the current change when it is in scope. Do not
-  remove unrelated existing code without maintainer approval.
-
-### Compatibility and Release Notes
-
-- During development of an unreleased patch version, do not preserve
-  compatibility with earlier iterations of that same unreleased code. Replace
-  inferior architecture completely; do not add migrations, deprecated aliases,
-  schema adapters, or compatibility layers.
-- Refactor and unify unreleased implementations across RoBMA and BayesTools
-  within the requested scope when this improves correctness, performance, or
-  maintenance. This permission does not extend to breaking released interfaces.
-- For functionality present in a released version, prefer backward-compatible
-  changes.
-- If released architecture prevents a clean solution or appears short-sighted,
-  ask the maintainer whether to preserve compatibility or make a breaking
-  change. Never assume either choice.
-- When feature implementation on a branch is complete, increment the package
-  patch version and update `NEWS.md` in the same feature change.
-- Write `NEWS.md` for the final branch state that will be squashed into the
-  future release. Do not describe intermediate revisions of unreleased features.
-
-### Testing Budget
-
-- Add the smallest high-information regression test proving correctness. Do not
-  add tests merely to increase coverage.
-- The standard unit, integration, and visual suite must target at most 15
-  minutes on the reference machine.
-- Expensive numerical certification belongs in the certification profile and is
-  reserved for feature certification and major releases.
-- Limit each independently runnable certification case to one hour. There is no
-  total certification limit; release certification may run all cases in
-  sequence.
-- Prefer focused tests during development. Do not repeatedly run the full suite
-  without a concrete reason.
-- Preserve human-verified `vdiffr` snapshots. Never replace meaningful visual
-  comparisons with superficial render-only assertions.
-- Do not weaken, skip, regenerate, or loosen an existing regression expectation
-  merely to make a changed implementation pass.
-
-### Engineering Behavior
-
-- Before non-trivial work, state consequential assumptions and success
-  criteria. Do not narrate obvious assumptions.
-- Use a short visible plan for multi-step work; revise it when evidence changes.
-- Apply the maintainer's existing authorization without asking again for
-  routine in-scope fixes or unreleased refactors. Before substantial work,
-  consult `.agents/instructions-decisions.md` when present for pending design
-  choices.
-- When requirements, code, tests, or documentation conflict, name the conflict
-  and seek or record a decision instead of guessing.
-- Push back with concrete correctness, complexity, maintenance, or runtime
-  costs. Propose the simpler alternative and follow the maintainer's decision.
-- Establish a simple correct implementation or reference before optimizing.
-  Preserve behavior while optimizing and measure performance claims.
-- Distinguish dead code introduced by the current change from unrelated
-  existing code. Remove the former; do not remove the latter without approval.
-- State uncertainty, verification performed, and verification omitted. Never
-  present incomplete evidence as completion.
-
-### Performance Investigations
-
-- Treat complete scenario figures taking more than roughly one minute as a
-  usability problem. Summaries and routine post-fit output must also remain
-  practical. Model fitting and explicitly heavy computations such as full
-  marginal likelihood or LOO may take longer.
-- Profile suspiciously slow original calls. Prioritize missing optimized paths,
-  unused compiled metadata, and repeated construction or calculation of values
-  already available before adding new machinery.
-- For large cross-package investigations, use several agents for independent
-  analysis and review, and coordinate work in RoBMA and BayesTools. Read each
-  package's instructions and pending decisions. Parallel agent work does not
-  authorize adding parallel computation to scenarios.
-- Measure improvements with the same scenario expressions, draws, requested
-  grids and sample budgets, seeds, diagnostic criteria, and parallel settings.
-  Do not reduce or otherwise alter numerical budgets to manufacture speedups.
-  Avoid resource contention during comparative timing runs.
-- When defaults are insufficient, explicit sample or integration budget
-  increases in the affected scenario calls are authorized, including for
-  qCMDE failures. Keep diagnostic criteria unchanged. Do not introduce arbitrary
-  hidden sampling changes or silently alter package defaults.
-- Record budget increases and their timings separately from matched-workload
-  performance evidence. Historical minima or an unchanged artifact name do not
-  establish a comparable workload or a fresh measurement.
-- If a prohibitive runtime cannot be fixed in the current work, record an
-  explicit unresolved failure with its original call, workload, timing evidence,
-  and reproduction instructions, then continue independent work. Preserve the
-  failed comparison and do not report deferred snapshots as passed. Never relax
-  tolerances or change sample counts to meet a runtime target.
-
-### User-Facing Diagnostic Messages
-
-- For a quantitative criterion that blocks a result, use: `<subject> was
-  rejected by diagnostics: <observed issue>. <action>.`
-- Report the observed metric and value, not the internal cutoff. Thresholds may
-  remain in non-blocking warnings and diagnostic objects or tables.
-- Give only a remedy that can address the failed criterion. Name the exact
-  public argument and setting; once a local sample census is exhausted,
-  recommend more upstream draws instead of a larger local sample budget.
-- Describe structurally unsupported or missing results as `unavailable`, not
-  `rejected by diagnostics`, and do not suggest irrelevant numerical tuning.
-- If no direct remedy exists, suggest a supported alternative or diagnostic
-  inspection without promising that it will fix the issue.
-- Quote R argument and setting names with single quotes in plain-text messages,
-  end conditions with a period, use `call. = FALSE`, and test the complete
-  user-facing message plus structural and quantitative branches.
-
-### Change Discipline
-
-- Make focused, reviewable commits with informative messages.
-- Commit related code, tests, and documentation together. Avoid documentation-
-  only progress commits.
-- Do not refactor unrelated code while fixing a numerical issue.
-- For ambiguous statistical or architectural choices, stop and record the
-  issue, impact, alternatives, and recommendation in
-  `.agents/instructions-decisions.md`; do not guess.
-- Place agent-authored investigation reports and other temporary work artifacts
-  under `.agents/tmp/`, not in the package root.
-- Before finishing, review the diff for unnecessary files, abstractions,
-  compatibility layers, tests, and native code.
-
-## Detailed Instructions
-
-Read only the guide relevant to the files being changed:
-
-- [testing.md](.agents/instructions/testing.md): test profiles, cached fits,
-  metafor comparisons, and visual regression.
-- [scenarios.md](.agents/instructions/scenarios.md): maintainer analysis
-  scenarios, caches, human-reviewed snapshots, and discrepancy escalation.
-- [selected-normal.md](.agents/instructions/selected-normal.md): posterior
-  direction and selection-kernel routing.
-- [multivariate-targets.md](.agents/instructions/multivariate-targets.md):
-  `brma.mv()` predictive and covariance target semantics.
-- [plotting.md](.agents/instructions/plotting.md): plot data/rendering separation
+- [Model interfaces](.agents/instructions/model-interface.md): BayesTools
+  integration, scale completion, semantic names, classes, and public selectors.
+- [Predictive targets](.agents/instructions/multivariate-targets.md): prediction,
+  conditioning, sampling and random-effect covariance, LOO, and marginal likelihood.
+- [Selected normal](.agents/instructions/selected-normal.md): effect direction,
+  product-space routing, selection sources, and supported kernel paths.
+- [Testing](.agents/instructions/testing.md): ordinary tests, verification
+  profiles, fit caches, metafor comparisons, and visual regression.
+- [Scenarios](.agents/instructions/scenarios.md): readable maintainer analyses,
+  cached fits, output candidates, and timing records.
+- [Plotting](.agents/instructions/plotting.md): plot-data/rendering separation
   and publication-bias display semantics.
-- [vignettes.md](.agents/instructions/vignettes.md): vignette structure, caching,
-  style, and citations.
+- [Vignettes](.agents/instructions/vignettes.md): cached examples and citations.
 
-Do not load all guides by default. Before changing an instruction, verify every
-referenced file and function against the current tree. Put unresolved maintainer
-choices in `.agents/instructions-decisions.md`.
+Use BayesTools' compiled formula metadata, parameter maps, and public accessors.
+Fix shared infrastructure in BayesTools when it owns the behavior. Keep the
+model's statistical target explicit; do not infer it from posterior draws or
+substitute a target with matching dimensions.
 
-## Development Commands
+## Source ownership
+
+- Input: `R/input-data.R`, `R/input-priors*.R`, and `R/input-object.R`.
+- Fitting: `R/fit.R` and model constructors.
+- Posterior evaluation: `R/evaluate.R`, `R/pdf*.R`, `R/cdf.R`, and `R/rng.R`.
+- Outcome access: `R/outcome-helpers.R`.
+- Selection routing: `R/selection-mapping.R`.
+- Native R interface: `R/distributions.R`.
+
+Use existing BayesTools validators and RoBMA access helpers instead of direct
+object-internal access. Qualify non-base calls with `::` in package source;
+vignettes may attach packages for user-facing examples. Match nearby R
+formatting, including aligned related assignments/arguments and the blank line
+after a function's opening brace. Prefer existing imports and do not add
+tidyverse dependencies.
+
+## Development and backend
+
+Requires R >= 4.3.0, C++17, and JAGS >= 4.3.1 through `runjags`/`rjags`.
+Fitting uses JAGS product-space models and focused native kernels. In the
+workspace, use its configured R and private agent library for these commands:
 
 ```r
 devtools::load_all()
 devtools::document()
 devtools::test(filter = "topic", reporter = "llm")
-devtools::test(reporter = "llm")
 devtools::check()
 ```
 
-Use `Rscript tools/test-profile.R refresh-standard` only when cached fits are
-missing or stale, then `Rscript tools/test-profile.R standard` for the ordinary
-suite. Use `Rscript tools/test-profile.R certification --list` to select an
-expensive numerical certification case.
-
-### Local Mathematical Tools
-
-For symbolic derivations and independent numerical checks on this maintainer's
-machine, use the installed tools described in the
-[math tools guide](C:/Users/fbart/.codex/math-tools/README.md).
-
-- Mathematica: symbolic identities and integrals; local console kernel at
-  `C:/Program Files/Wolfram Research/Wolfram/15.0/math.exe`.
-- SymPy, mpmath, and python-flint/Arb: symbolic algebra, high-precision numerical
-  references, and rigorous ball arithmetic. Use the isolated interpreter at
-  `C:/Users/fbart/.codex/math-tools/.venv/Scripts/python.exe`.
-- The guide contains commands, pinned versions, and a verification script.
-  Check current availability; MCP access is optional for local calculations.
-- Keep these as development/reference tools, separate from package dependencies.
-  State assumptions and distinguish numerical agreement, rigorous bounds, and
-  formal proofs.
-
-## R Code Style
-
-- Use `snake_case` names and `<-` assignment.
-- Use two-space indentation and no tabs.
-- Use `TRUE`/`FALSE`, never `T`/`F`.
-- Do not use `|>` or `%>%`; name intermediate results.
-- Qualify non-base calls with `::` in package source. Vignettes may attach
-  packages for user-facing examples.
-- Prefer clear code over forced vectorization; use `vapply()` for type-stable
-  atomic iteration and loops when clearer.
-- Use existing BayesTools validators and RoBMA access helpers instead of direct
-  object-internal access.
-- Never call `setwd()` in package code or write to user directories without
-  permission.
-
-Align assignment arrows in sequences:
-
-```r
-is_multilevel     <- .is_multilevel(x)
-is_weightfunction <- .is_weightfunction(x)
+```text
+Rscript tools/test-profile.R standard
+Rscript tools/test-profile.R refresh-standard
+Rscript tools/test-profile.R certification --list
+Rscript tools/test-scenario.R <name>
 ```
 
-Align named arguments in multiline calls:
+Start with the affected tests. `standard` uses existing valid caches;
+`refresh-standard` populates missing or stale fits. `certification` is the
+runner's name for deeper verification; select relevant cases separately from
+routine tests. Scenario baselines require maintainer or explicitly delegated
+review, as described in the scenario guide.
 
-```r
-result <- my_function(
-  first_arg  = value1,
-  second_arg = value2
-)
-```
+Native JAGS distributions live in `src/distributions/`; selected-normal kernels
+are in `src/selnorm/`. R-native registrations are in `src/init.c` and
+`src/r-*.cc`; module registration is in `src/RoBMA.cc`. Keep registrations and
+matching `Makevars*` source lists consistent when native sources change.
 
-Leave an empty line after an opening brace in function definitions.
+## Documentation and release
 
-## Architecture
-
-### BayesTools Formula Semantics
-
-- BayesTools formula semantics are authoritative and intentionally differ from
-  ordinary `stats::model.matrix()` semantics. Factor contrasts are owned by
-  `prior_factor()` and persisted formula metadata, not selected by including or
-  omitting an intercept. Thus `mods = ~ 0 + group` with an independent factor
-  prior means a structural zero intercept plus one coefficient per `group`
-  level.
-- Keep the two BayesTools random-effect families distinct. `id()`, `diag()`,
-  and `us()` / `un()` use a general random-coefficient formula on the left of
-  `|`; plain `(expr | group)` is `us()` and `||` is `diag()`. In this family,
-  `1`, `0`, and `-1` control the random intercept, and continuous slopes,
-  factor slopes, and interactions are supported. `id()` uses one shared SD,
-  `diag()` uses one SD per independent coefficient, and `us()` estimates their
-  unstructured correlation matrix.
-- Factor coding in a random-coefficient block is owned by the concrete random
-  block, not by intercept syntax. By default it can reuse contrast metadata
-  already established for the same fixed factor; use
-  `random_block(contrasts = ...)` when the random basis must be explicit or
-  differ from the fixed basis. For example, `us(0 + group | study)` together
-  with `random_block(contrasts = c(group = "independent"))` gives one correlated
-  random coefficient per `group` level and no random intercept. `0 + group`
-  alone does not force level indicators.
-- `cs()` / `hcs()`, `ar1()` / `ar()` / `har()`, and `car()` are instead
-  structure-owned index specifications. `cs()` and `hcs()` accept one or more
-  discrete index columns; multiple columns form their observed interaction.
-  `ar1()` and `har()` accept exactly one discrete index column, whose factor
-  levels or sorted unique values determine order. These discrete structures
-  accept factor, character, numeric/integer, or logical data and persist the
-  resolved levels. `car()` accepts exactly one finite numeric/integer coordinate
-  or an ordered factor with numeric labels and uses actual distances.
-- Structure-owned index specifications reject explicit `1`, `0`, and `-1` and
-  do not accept `random_block(contrasts = ...)`. `hcs(index | group)` estimates
-  level-specific SDs and one common pairwise correlation; it is not a synonym
-  for `us(0 + index | group)`, whose correlation matrix is unrestricted.
-- RoBMA must consume BayesTools' parsed/compiled random-effect metadata for
-  column counts, level order, covariance ownership, prediction, and labels. Do
-  not independently reconstruct these with `stats::model.matrix()`, infer a
-  random basis from a fixed formula, or relabel coefficient-basis covariance as
-  level-basis covariance.
-- BayesTools persists one versioned `parameter_map()` with linked coordinate,
-  quantity, and alias tables. `parameter_coordinates()` is its concrete backend
-  view, keyed by `coordinate_name`; `parameter_catalog()` is its semantic
-  public view, keyed by `canonical_name`. RoBMA summaries, plotting, density
-  estimation, and hypotheses must resolve catalog quantities and obtain draws
-  through `parameter_draws()`. Never accept a coordinate as a public alias
-  merely because it is monitored.
-- Random-effect density and marginal-diagnostic fast paths must consume
-  BayesTools' `random_effects_marginal_update_plan()`. Route only
-  metadata-declared affine families through exact covariance algebra; retain
-  the generic evaluator for factor, Markov, and unsupported families. Never
-  infer affineness from posterior draws or evaluated covariance candidates.
-- Treat a `prior_random()` object with no global or block SD, SD source,
-  term-specific SD override, covariance-owned SD, or variance allocation as a
-  partial override. Complete its scale with RoBMA's ordinary UISD and allocation
-  rules while preserving the user's contrasts, covariance priors, and policies.
-  If any scale architecture is supplied, do not merge additional scale defaults.
-  Correlation defaults remain BayesTools-owned and must not be reconstructed in
-  RoBMA: omitted US/UN uses `LKJ(1)`, while omitted scalar correlations use the
-  complete structure-specific raw interval.
-- BayesTools canonical random-effect names use
-  `(formula) owner: quantity(arguments)` and retain their general
-  `sd`/`var`/`cor` vocabulary. RoBMA maps these at its I/O boundary to
-  `tau`/`tau2`/`rho`, including `tau_total`, `tau2_total`, `tau_common`,
-  `tau2_common`, `tau2_prop(...)`, `tau_mult(...)`, and `tau2_mult(...)`.
-  Simplification removes only a sole `intercept` argument and permits omission
-  of an owner only when resolution remains unique; non-intercept arguments stay
-  explicit, for example
-  `study: rho(group[sensitivity],group[specificity])`. Never expose a compact
-  backend correlation coordinate merely because it is also named with rho.
-- A bare random formula or unnamed one-entry formula list suppresses a
-  redundant top-level component prefix; an explicitly named one-entry list
-  retains it. Lists with two or more entries generate missing names as
-  `component 1`, `component 2`, and so on. Generated allocations retain a
-  stable internal `name`, use `display_name = ""` when no public owner is
-  needed, and carry public `component_names` separately.
-- Ordinary and specialized `brma(..., cluster = ...)` models use `tau`/`tau2`
-  (plus specialized `rho`/`I2`). Every `brma.mv()` heterogeneity summary uses
-  `tau`/`tau2` for one component, `tau_total`/`tau2_total` only for a genuine
-  additive aggregate, and `tau_common`/`tau2_common` for a mean-variance
-  allocation scale.
-- Internal LKJ primitives, compact scalar-correlation coordinates, allocation
-  weights, and covariance-construction dependencies remain coordinate-only map
-  entries and must not appear in semantic quantities or pass public plotting,
-  density, or hypothesis gates.
-- If current BayesTools code, documentation, or tests conflict with this
-  contract, repair the shared BayesTools implementation first. Do not add a
-  RoBMA-only formula parser or downstream compatibility workaround.
-
-### Predictive Quantities and Conditioning
-
-`brma(..., cluster = ...)` is a maintained, specialized multilevel interface.
-Its covariance can be represented with `brma.mv()`, but its narrow two-level
-heterogeneity allocation supports structure-specific output such as within-
-and between-cluster I2. Use
-`y = X beta + u_cluster + u_estimate + epsilon` as its canonical notation;
-random-formula models replace the two named effects by their fitted Gaussian
-blocks.
-
-- `type` selects the quantity: `"terms"` is `X beta`, `"estimate"` is a
-  latent true effect, and `"response"` adds the sampling distribution.
-- `conditioning_depth` independently selects retained fitted effects:
-  `"marginal"` conditions on none, `"cluster"` retains the fitted cluster
-  effect from the specialized multilevel model and predicts a new estimate
-  within it, and `"estimate"`
-  targets the fitted latent effect. Cluster depth is unavailable for arbitrary
-  `brma.mv()` random formulas because no unique cluster level exists.
-- Marginal is the canonical prediction default. `newdata` supplies design and
-  identity only; it never changes the estimand. Equivalent implicit and
-  explicit designs must have the same marginal law. Matching fitted group
-  labels preserves dependence among new draws but does not reuse fitted effects.
-- Non-marginal `newdata` must fail unless fitted identities are validated
-  unambiguously. Never silently fall back to marginal prediction.
-- At estimate depth, `type = "estimate"` includes fitted latent posterior
-  uncertainty; `blup()` and `fitted(..., conditioning_depth = "estimate")`
-  are the conditional-mean interfaces. `type = "response"` adds only the
-  sampling layer to the corresponding latent target.
-- For GLMM responses, estimate depth uses fitted posterior `pi`/`phi`;
-  marginal and cluster depths draw a new nuisance rate from its prior and are
-  therefore partly prior predictive. Document this whenever those targets are
-  exposed.
-- Normal-model funnel/sampling bands, regression/forest prediction intervals,
-  default z-plots, and default residual diagnostics use explicit marginal
-  targets. GLMM funnel and regression sampling bands are descriptive normal
-  effect-size approximations, not discrete response predictions, and must say
-  so. LOO and LOO-PIT retain their deletion-conditioned predictive-score
-  targets and must not be routed through generic response prediction.
-- Preserve full `V`/`V_new` sampling covariance and joint random-effect
-  dependence. Keep `unit` (output/deletion unit), `conditioning_depth`, and
-  `type` distinct in APIs and target metadata.
-
-### Classes and Interfaces
-
-- `brma`: base class.
-- `brma.norm`, `brma.glmm`, `brma.mv`: likelihood/model specializations.
-- `RoBMA`: product-space model averaging, extending `brma`.
-- Wrapper classes prepend their class, for example
-  `c("BMA.norm", "RoBMA", "brma")` and
-  `c("BMA.glmm", "RoBMA", "brma.glmm", "brma")`.
-
-Primary interfaces are `brma()`, `brma.norm()`, `brma.glmm()`, `brma.mv()`,
-`bselmodel()`, `bPET()`, `bPEESE()`, `RoBMA()`, `BMA()`, `BMA.norm()`, and
-`BMA.glmm()`.
-
-For objects returned by S3 methods, follow the existing result-object family.
-For method-specific results, prefer `<generic>.<input_class>` and define
-matching `print.<result_class>` or `summary.<result_class>` methods. Preserve
-meaningful underlying classes such as `data.frame`; do not introduce a second
-naming convention for an existing family.
-
-Every user-facing structured result class with a custom tabular `print()` or
-`summary()` method must implement both `as.data.frame()` and `data.frame()`
-coercion. Return one plain long data frame containing all displayed tables,
-with leading `component` and `parameter` columns; use stable `/`-separated
-component paths for nested results. Coercion mirrors displayed values while
-omitting print-hidden metadata. Convert displayed credible- and prediction-
-interval labels to syntactic `CI_<probability>` and `PI_<probability>` column
-names, never base-generated `X...` names. Bind heterogeneous sections with
-union columns and `NA`, and test both coercion entry points, grouping labels,
-interval names, and multi-table results.
-
-Use `component` in post-fit public APIs to distinguish model parts. Normalize
-`component = "mods"` and `component = "location"` through shared helpers; use
-`component = "bias"` for publication-bias parameters. Retain released
-`parameter_mods` and `parameter_scale` plotting arguments through 4.x. Reserve
-`type` for output or prediction kind.
-
-### Selection Models
-
-Selection post-processing is driven by `bias_indicator` and
-`.selection_context()`, not by direct `omega` inspection. Use
-`.extract_use_normal()` for posterior-row routing. Selected-normal PDF, CDF, and
-RNG callers must pass the context. PET and PEESE coefficients are zero in
-inactive product-space branches, so their offsets may be added for all rows.
-
-Publication-bias weight functions are unsupported for binomial and Poisson
-GLMMs.
-
-### Source Ownership
-
-- Input: `R/input-data.R`, `R/input-priors*.R`, `R/input-object.R`.
-- Fitting: `R/fit.R` and model constructors.
-- Posterior evaluation: `R/evaluate.R`, `R/pdf*.R`, `R/cdf.R`, `R/rng.R`.
-- Outcome access: `R/outcome-helpers.R`.
-- Selection routing: `R/selection-mapping.R`.
-- Native R interface: `R/distributions.R`.
-
-The focused JAGS extension lives in `src/distributions/`; shared selected-normal
-kernels live in `src/selnorm/`; R-native registrations live in `src/init.c` and
-`src/r-*.cc`; module registration lives in `src/RoBMA.cc`. Update matching
-`Makevars*` files when adding native sources.
-
-## Documentation and CRAN
-
-- Use roxygen2 for exported functions and `\insertCite{key}{RoBMA}` for package
-  documentation. Vignettes use Pandoc citations instead.
-- Keep dependencies minimal; do not add tidyverse dependencies.
-- Use `skip_on_cran()` for computationally intensive tests.
-- Explicitly requested scenario creation or refresh follows the individual
-  review workflow in `.agents/instructions/scenarios.md`. Ordinary reference
-  and visual baselines require maintainer review unless explicitly delegated.
+- Document exports with roxygen2 and `\insertCite{key}{RoBMA}`;
+  vignettes use Pandoc citations.
+- For a completed feature, increment the package patch version and update
+  `NEWS.md` for the final feature state.
+- Preserve released interfaces, including the compatibility periods documented
+  in the model-interface guide.
+- Use `skip_on_cran()` for computationally intensive tests. Keep `AGENTS.md`,
+  `.agents/`, and development-only material excluded through `.Rbuildignore`.

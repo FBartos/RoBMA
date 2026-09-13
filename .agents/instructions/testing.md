@@ -4,6 +4,11 @@ Use this guide for changes under `tests/testthat/` or the ordinary test-profile
 runners under `tools/`. For maintainer analysis scenarios under
 `tests/scenarios/` or `tools/test-scenario.R`, use `scenarios.md` instead.
 
+In BayesToolsVerse, the shared validation guide defines tests, verification,
+and scenarios. The runner's `certification` profile is deeper verification,
+separate from routine tests. Use the workspace's configured R and private agent
+library when available.
+
 ## Development Workflow
 
 Always use the LLM reporter:
@@ -32,8 +37,9 @@ fits unless `refit = TRUE`; filtered runs omit certification. `refit = TRUE`
 cleans the standard fit cache before rebuilding; `update = TRUE` permits
 missing visual candidates, and `regenerate = TRUE` combines those controls.
 Every run ends with snapshot review. Ordinary tests have no per-file timing
-baseline, so `update_timings = TRUE` fails clearly; their timing contract is the
-standard profile's 15-minute total budget. Interactive calls default to
+baseline, so `update_timings = TRUE` fails clearly; the standard profile's
+15-minute total limit is an extreme ceiling, not a runtime target. Interactive
+calls default to
 testthat's progress reporter. Use `reporter = "llm"` for agent-oriented output;
 the quiet LLM reporter prints failures and warnings immediately, retains skip
 counts, and omits individual skip reports. An unfiltered run is deliberately
@@ -44,8 +50,8 @@ much slower than the ordinary standard profile and does not run
 
 - `Rscript tools/test-profile.R standard`: routine unit, integration,
   representative metafor, and human-reviewed visual tests using an already
-  valid fit cache; maximum 15 minutes on the reference machine. It never fits
-  models.
+  valid fit cache; its 15-minute maximum on the reference machine is a ceiling,
+  not a target. It never fits models.
 - `Rscript tools/test-profile.R refresh-standard`: create only missing or stale
   standard cached fits. Use `--clean` only for an intentional full refresh.
 - `Rscript tools/test-profile.R certification --list`: list independently
@@ -106,9 +112,9 @@ skip reports in profile-runner output.
   cached fit's `info` during `test-01-*`, then reuse it in post-fit tests.
 - Justify tolerances from Monte Carlo or numerical error. Do not use a fixed
   package-wide tolerance merely because it makes a test pass.
-- Do not update committed expected results when a test fails. Determine whether
-  the implementation or old expectation is wrong and involve the maintainer
-  before changing a verified baseline.
+- A failing expectation requires diagnosis. Generate a candidate when the
+  intended result changed; accept a verified baseline change only after
+  maintainer or explicitly delegated review.
 - Do not add redundant matrices, samples, fits, or assertions for coverage alone.
 
 The evidence inventory in `tests/testthat/REGRESSION-COVERAGE.md` records the
@@ -122,9 +128,9 @@ Use `expect_vdiffr_snapshot()` from
 belong in the standard profile. Gate redundant galleries with
 `skip_if_not_full_visuals()`.
 
-Never auto-accept or auto-update snapshots. Structural `as_data = TRUE` tests
-supplement visual snapshots; they do not replace them. Ask the maintainer to
-review every intentional visual change.
+Retain candidates for maintainer or explicitly delegated review before
+acceptance. Structural `as_data = TRUE` tests supplement visual snapshots;
+they do not replace them.
 
 After sourcing `tests/scenarios/helper-scenarios.R`, call
 `review_test_snapshots()` to open testthat's native reviewer for ordinary text
@@ -133,8 +139,8 @@ table candidates under `tests/results/`. Its optional `files` argument has the
 same test-name or trailing-slash directory semantics as
 `testthat::snapshot_review()`; use `reference_filter` to select reference
 groups such as `"interpret"` or `"marginal_means"`. Accept changes only after
-maintainer review. Rejected `.new.txt` candidates are deleted and skipped ones
-remain available for a later review.
+maintainer or explicitly delegated review. Rejected `.new.txt` candidates are
+deleted and skipped ones remain available for a later review.
 
 Set `ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS=TRUE` only during an explicit snapshot
 regeneration workflow.
