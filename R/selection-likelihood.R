@@ -1549,9 +1549,15 @@ set_selection_likelihood_control <- function(
       }
     }
     if (uses_diagonal) {
-      fit_data[[paste0(prefix, "_diagonal")]] <- as.integer(
-        pairs[["row_1"]] == pairs[["row_2"]]
-      )
+      # The dense covariance syntax references the pair-diagonal indicator only
+      # for a compiled random covariance or an integrated specialized estimate
+      # variance. Emitting it otherwise leaves unused JAGS data behind.
+      if (!is.null(plan[["random_covariance"]]) ||
+          (!.is_data_random(data) && .selection_integrates_estimate(data))) {
+        fit_data[[paste0(prefix, "_diagonal")]] <- as.integer(
+          pairs[["row_1"]] == pairs[["row_2"]]
+        )
+      }
       if (!.is_data_random(data) && .is_data_scale(data)) {
         fit_data[[paste0(prefix, "_row_1")]] <- pairs[["row_1"]]
         if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
