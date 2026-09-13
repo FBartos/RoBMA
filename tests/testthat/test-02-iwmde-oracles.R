@@ -370,7 +370,7 @@ test_that("qCMDE and IWMDE match the known-V estimate SD boundary bridge factor"
   for (density_method in c("qCMDE", "IWMDE")) {
     result <- hypothesis(
       full,
-      "sd = 0",
+      "tau = 0",
       component       = "random",
       columns         = "all",
       density_method  = density_method,

@@ -66,7 +66,7 @@ test_that("bselmodel.mv fits the marginal product selection target", {
     model[c("other_random_effects", "known_sampling_variance")],
     list(other_random_effects = "integrate", known_sampling_variance = "integrate")
   )
-  expect_identical(model[["groups"]][["group_index"]], rep(1:3, each = 2L))
+  expect_identical(model[["groups"]][["provenance"]], "inactive")
   expect_identical(model[["branches"]][[1L]][["weight_rule"]], "product")
   expect_s3_class(fit[["loo"]][["estimate"]], "loo")
   expect_true(is.finite(as.numeric(logml(fit))))
