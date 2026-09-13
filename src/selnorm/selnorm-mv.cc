@@ -284,6 +284,41 @@ struct SelNormCovarianceEnvelope {
   double between_upper;
 };
 
+// One representable step encloses each correctly rounded basic operation.
+// All interval operations using these have nonnegative operands. Handle exact
+// zero products separately; underflowed positive products retain an upper
+// bound of the least positive representable number. Overflow rejects the
+// optional paths. These directed endpoints modify only auxiliary bounds.
+// Shared by the covariance envelope and both covariance gap bounds so the
+// outward-rounding convention has exactly one definition.
+inline double mul_down(double x, double y)
+{
+  if (x == 0.0 || y == 0.0) return 0.0;
+  const double value = x * y;
+  return value == 0.0 ? 0.0 :
+    std::nextafter(value, -std::numeric_limits<double>::infinity());
+}
+
+inline double mul_up(double x, double y)
+{
+  if (x == 0.0 || y == 0.0) return 0.0;
+  return std::nextafter(x * y, std::numeric_limits<double>::infinity());
+}
+
+inline double add_down(double x, double y)
+{
+  if (x == 0.0) return y;
+  if (y == 0.0) return x;
+  return std::nextafter(x + y, -std::numeric_limits<double>::infinity());
+}
+
+inline double add_up(double x, double y)
+{
+  if (x == 0.0) return y;
+  if (y == 0.0) return x;
+  return std::nextafter(x + y, std::numeric_limits<double>::infinity());
+}
+
 // Equal means and diagonals with ordered off-diagonals order Gaussian
 // expectations of nonnegative product weights monotone in one common direction.
 // Along the covariance segment, the derivative is
@@ -298,30 +333,6 @@ bool covariance_envelope(const std::vector<double>& covariance, int dimension,
     return false;
   }
   const double infinity = std::numeric_limits<double>::infinity();
-  // One representable step encloses each correctly rounded basic operation.
-  // All interval operations below have nonnegative operands. Handle exact
-  // zero products separately; underflowed positive products retain an upper
-  // bound of the least positive representable number. Overflow rejects this
-  // optional path. These directed endpoints modify only auxiliary bounds.
-  const auto down_product = [infinity](double x, double y) {
-    if (x == 0.0 || y == 0.0) return 0.0;
-    const double value = x * y;
-    return value == 0.0 ? 0.0 : std::nextafter(value, -infinity);
-  };
-  const auto up_product = [infinity](double x, double y) {
-    if (x == 0.0 || y == 0.0) return 0.0;
-    return std::nextafter(x * y, infinity);
-  };
-  const auto down_sum = [infinity](double x, double y) {
-    if (x == 0.0) return y;
-    if (y == 0.0) return x;
-    return std::nextafter(x + y, -infinity);
-  };
-  const auto up_sum = [infinity](double x, double y) {
-    if (x == 0.0) return y;
-    if (y == 0.0) return x;
-    return std::nextafter(x + y, infinity);
-  };
 
   std::vector<double> correlation(static_cast<std::size_t>(dimension) * dimension);
   std::vector<double> values;
@@ -341,8 +352,8 @@ bool covariance_envelope(const std::vector<double>& covariance, int dimension,
       if (!(scale > 0.0) || !std::isfinite(scale)) return false;
       const double ratio = value / scale;
       if (!std::isfinite(ratio)) return false;
-      const double scale_lower = down_product(selection_se[i], selection_se[j]);
-      const double scale_upper = up_product(selection_se[i], selection_se[j]);
+      const double scale_lower = mul_down(selection_se[i], selection_se[j]);
+      const double scale_upper = mul_up(selection_se[i], selection_se[j]);
       if (!(scale_lower > 0.0) || !std::isfinite(scale_upper)) return false;
       common_lower = std::max(common_lower, value == 0.0 ? 0.0 :
         std::nextafter(value / scale_upper, -infinity));
@@ -416,8 +427,8 @@ bool covariance_envelope(const std::vector<double>& covariance, int dimension,
     for (int j = 0; j < dimension; ++j) {
       for (int i = j + 1; i < dimension; ++i) {
         const double value = covariance[i + dimension * j];
-        const double scale_lower = down_product(selection_se[i], selection_se[j]);
-        const double scale_upper = up_product(selection_se[i], selection_se[j]);
+        const double scale_lower = mul_down(selection_se[i], selection_se[j]);
+        const double scale_upper = mul_up(selection_se[i], selection_se[j]);
         if (!(scale_lower > 0.0) || !std::isfinite(scale_upper)) return false;
         const double lower = value == 0.0 ? 0.0 :
           std::nextafter(value / scale_upper, -infinity);
@@ -458,10 +469,10 @@ bool covariance_envelope(const std::vector<double>& covariance, int dimension,
         for (int i = 0; i < dimension; ++i) {
           common[i] = common_root * selection_se[i];
           type[i] = type_root * selection_se[i];
-          const double nominal_variance = up_product(
-            up_product(within, selection_se[i]), selection_se[i]);
-          const double loading_variance = up_sum(
-            up_product(common[i], common[i]), up_product(type[i], type[i]));
+          const double nominal_variance = mul_up(
+            mul_up(within, selection_se[i]), selection_se[i]);
+          const double loading_variance = add_up(
+            mul_up(common[i], common[i]), mul_up(type[i], type[i]));
           if (!std::isfinite(nominal_variance) ||
               !std::isfinite(loading_variance) ||
               !(covariance[i + dimension * i] > nominal_variance) ||
@@ -475,14 +486,14 @@ bool covariance_envelope(const std::vector<double>& covariance, int dimension,
           for (int i = j + 1; i < dimension; ++i) {
             const double coefficient = types[i] == types[j] ? within : between;
             const double nominal = side == 0 ?
-              up_product(up_product(coefficient, selection_se[i]), selection_se[j]) :
-              down_product(down_product(coefficient, selection_se[i]), selection_se[j]);
+              mul_up(mul_up(coefficient, selection_se[i]), selection_se[j]) :
+              mul_down(mul_down(coefficient, selection_se[i]), selection_se[j]);
             double represented = side == 0 ?
-              up_product(common[i], common[j]) : down_product(common[i], common[j]);
+              mul_up(common[i], common[j]) : mul_down(common[i], common[j]);
             if (types[i] == types[j]) {
               represented = side == 0 ?
-                up_sum(represented, up_product(type[i], type[j])) :
-                down_sum(represented, down_product(type[i], type[j]));
+                add_up(represented, mul_up(type[i], type[j])) :
+                add_down(represented, mul_down(type[i], type[j]));
             }
             const double supplied = covariance[i + dimension * j];
             if (side == 0 ? (nominal > supplied || represented > supplied) :
@@ -767,25 +778,6 @@ double covariance_price_gap_bound(const std::vector<double>& covariance,
       covariance.size() != static_cast<std::size_t>(dimension) * dimension ||
       envelope.type_index.size() != static_cast<std::size_t>(dimension) ||
       envelope.groups < 1 || envelope.groups > 3) return infinity;
-  const auto mul_down = [infinity](double x, double y) {
-    if (x == 0.0 || y == 0.0) return 0.0;
-    const double value = x * y;
-    return value == 0.0 ? 0.0 : std::nextafter(value, -infinity);
-  };
-  const auto mul_up = [infinity](double x, double y) {
-    if (x == 0.0 || y == 0.0) return 0.0;
-    return std::nextafter(x * y, infinity);
-  };
-  const auto add_down = [infinity](double x, double y) {
-    if (x == 0.0) return y;
-    if (y == 0.0) return x;
-    return std::nextafter(x + y, -infinity);
-  };
-  const auto add_up = [infinity](double x, double y) {
-    if (x == 0.0) return y;
-    if (y == 0.0) return x;
-    return std::nextafter(x + y, infinity);
-  };
   double minimum = infinity, maximum = 0.0;
   for (int bin = 0; bin < n_bins; ++bin) {
     if (!(omega[bin] >= 0.0) || !std::isfinite(omega[bin])) return infinity;
@@ -841,6 +833,12 @@ double covariance_price_gap_bound(const std::vector<double>& covariance,
     }
   }
   if (sum == 0.0) return 0.0;
+  // Both branches compute the same quantity: for a monotone weight sequence
+  // the total variation sum |omega[b] - omega[b-1]| equals max - min exactly.
+  // The closed form is kept only because it is one rounding step, whereas the
+  // summed form accumulates outward rounding across every bin and is therefore
+  // slightly looser. Dropping either branch changes only that slack, so do not
+  // collapse them without accepting the wider monotone bound.
   double variation = std::nextafter(maximum - minimum, infinity);
   if (!monotone) {
     variation = 0.0;
@@ -870,6 +868,11 @@ double covariance_relative_gap_bound(const std::vector<double>& covariance,
     const double* omega, int n_bins)
 {
   const double infinity = std::numeric_limits<double>::infinity();
+  // Re-validate every input rather than relying on the caller's ordering:
+  // the loops below index fixed-size vectors by geometry-supplied row indices.
+  if (dimension < 2 || n_bins < 1 || omega == nullptr ||
+      covariance.size() != static_cast<std::size_t>(dimension) * dimension ||
+      geometry.empty()) return infinity;
   double minimum = infinity, maximum = 0.0;
   for (int bin = 0; bin < n_bins; ++bin) {
     if (!(omega[bin] > 0.0) || !std::isfinite(omega[bin])) return infinity;
@@ -878,34 +881,24 @@ double covariance_relative_gap_bound(const std::vector<double>& covariance,
   }
   if (!(minimum > 0.0) || !std::isfinite(minimum)) return infinity;
   if (minimum == maximum) return 0.0;
-  const auto mul_down = [infinity](double x, double y) {
-    if (x == 0.0 || y == 0.0) return 0.0;
-    const double value = x * y;
-    return value == 0.0 ? 0.0 : std::nextafter(value, -infinity);
-  };
-  const auto mul_up = [infinity](double x, double y) {
-    if (x == 0.0 || y == 0.0) return 0.0;
-    return std::nextafter(x * y, infinity);
-  };
-  const auto add_down = [infinity](double x, double y) {
-    if (x == 0.0) return y;
-    if (y == 0.0) return x;
-    return std::nextafter(x + y, -infinity);
-  };
-  const auto add_up = [infinity](double x, double y) {
-    if (x == 0.0) return y;
-    if (y == 0.0) return x;
-    return std::nextafter(x + y, infinity);
-  };
+  // One group means the single common factor carries the whole loading, so
+  // there is no separate child contribution. This matches the sibling bound's
+  // envelope.groups == 1 test: prepare_envelope_geometry() resizes the
+  // geometry to envelope.groups, so the two predicates are the same.
+  const bool single_group = geometry.size() == 1;
   std::vector<double> sd(dimension), common(dimension), child(dimension);
   std::vector<int> groups(dimension);
   for (std::size_t group = 0; group < geometry.size(); ++group) {
     const EnvelopeGroupGeometry& part = geometry[group];
+    if (part.residual_sd.size() != part.row_index.size() ||
+        part.common_loading.size() != part.row_index.size() ||
+        part.loading.size() != part.row_index.size()) return infinity;
     for (std::size_t local = 0; local < part.row_index.size(); ++local) {
       const int row = part.row_index[local];
+      if (row < 0 || row >= dimension) return infinity;
       sd[row] = part.residual_sd[local];
       common[row] = part.common_loading[local];
-      child[row] = geometry.size() == 1 ? 0.0 : part.loading[local];
+      child[row] = single_group ? 0.0 : part.loading[local];
       groups[row] = static_cast<int>(group);
     }
   }
@@ -921,6 +914,10 @@ double covariance_relative_gap_bound(const std::vector<double>& covariance,
         upper = add_up(upper, mul_up(child[row], child[column]));
       }
       const double value = covariance[row + dimension * column];
+      // C0 = D + U U' can only represent nonnegative off-diagonals, so a
+      // negative supplied entry is outside the envelope family. Reject it here
+      // as the absolute bound does, instead of relying on epsilon reaching one.
+      if (!std::isfinite(value) || (row != column && !(value >= 0.0))) return infinity;
       const double difference = std::nextafter(std::max(
         std::fabs(value - lower), std::fabs(value - upper)), infinity);
       const double scale = mul_down(sd[row], sd[column]);
@@ -1623,21 +1620,42 @@ bool dense_envelope_log_integral(
   const bool monotone = increasing || decreasing;
   SelNormCovarianceEnvelope envelope;
   if (!covariance_envelope(covariance, dimension, selection_se, &envelope)) return false;
+  // The absolute bound needs only the envelope, so evaluate it before any
+  // geometry work: a nonmonotone case whose weights already rule out the
+  // relative bound can then stop without preparing quadrature geometry.
+  const double gap_bound = covariance_price_gap_bound(
+    covariance, selection_se, dimension, envelope, omega, selection.n_bins, monotone
+  );
+  const double log_gap = gap_bound > 0.0 ? std::log(gap_bound) :
+    -std::numeric_limits<double>::infinity();
+  bool positive_weights = true;
+  double maximum_weight = 0.0;
+  for (int bin = 0; bin < selection.n_bins; ++bin) {
+    positive_weights = positive_weights && omega[bin] > 0.0 && std::isfinite(omega[bin]);
+    maximum_weight = std::max(maximum_weight, omega[bin]);
+  }
+  if (!monotone && !std::isfinite(gap_bound) && !positive_weights) return false;
   std::vector<EnvelopeGroupGeometry> lower_geometry, upper_geometry;
   if (!prepare_envelope_geometry(covariance, mean, selection_se, dimension,
                                  envelope, false, &lower_geometry) ||
       (monotone && !prepare_envelope_geometry(covariance, mean, selection_se, dimension,
                                  envelope, true, &upper_geometry))) return false;
 
-  const double gap_bound = covariance_price_gap_bound(
-    covariance, selection_se, dimension, envelope, omega, selection.n_bins, monotone
-  );
-  const double log_gap = gap_bound > 0.0 ? std::log(gap_bound) :
-    -std::numeric_limits<double>::infinity();
   const double relative_gap_bound = monotone ?
     std::numeric_limits<double>::infinity() : covariance_relative_gap_bound(
       covariance, dimension, lower_geometry, omega, selection.n_bins);
   if (!monotone && !std::isfinite(gap_bound) && !std::isfinite(relative_gap_bound)) return false;
+  // The product normalizer is at most max(omega)^dimension, so the absolute
+  // bound can never yield a relative gap below this rule-independent value.
+  // If neither that floor nor the relative bound can reach the tolerance, no
+  // amount of refinement will accept, so stop before evaluating any rule.
+  const bool use_relative_bound = !monotone && std::isfinite(relative_gap_bound);
+  if (!monotone) {
+    const double gap_floor = std::exp(log_gap -
+      static_cast<double>(dimension) * std::log(maximum_weight));
+    if (!(gap_floor <= integration->tolerance) &&
+        !(use_relative_bound && relative_gap_bound <= integration->tolerance)) return false;
+  }
   EnvelopeRuleWorkspace workspace;
   double previous_lower = std::numeric_limits<double>::quiet_NaN();
   double previous_upper = std::numeric_limits<double>::quiet_NaN();
@@ -1668,12 +1686,22 @@ bool dense_envelope_log_integral(
       cdf_scale_twice * std::exp(log_gap - lower) : std::exp(log_gap - lower);
     const double lower_tail = cdf_log_error > 0 ?
       cdf_scale_twice * std::exp(log_tail - lower) : std::exp(log_tail - lower);
-    // The relative covariance bound uses the exact auxiliary mass. Convert to
-    // the returned quadrature denominator, retaining its cross term with the
-    // quadrature/tail allowance. Nonmonotone weights never use bounded CDFs.
-    const double quadrature_error = 2.0 * lower_change + lower_tail;
-    if (!monotone && std::isfinite(relative_gap_bound) && std::isfinite(quadrature_error)) {
-      relative_gap = std::min(relative_gap, relative_gap_bound * (1.0 + quadrature_error));
+    // The relative covariance bound uses the exact auxiliary mass A(C0). The
+    // returned denominator is the quadrature value A_hat, and
+    // A(C0)/A_hat <= 1/(1 - quadrature_error), so divide by the complement
+    // rather than multiplying by the first-order factor 1 + quadrature_error,
+    // which understates the converted bound by O(quadrature_error^2). Round
+    // every step outward, as elsewhere in this file. Nonmonotone weights never
+    // use bounded CDFs: they need at least three bins, while the bounded-CDF
+    // path requires exactly two.
+    const double quadrature_error = add_up(mul_up(2.0, lower_change), lower_tail);
+    if (use_relative_bound && std::isfinite(quadrature_error) && quadrature_error < 1.0) {
+      const double complement = std::nextafter(1.0 - quadrature_error,
+        -std::numeric_limits<double>::infinity());
+      if (complement > 0.0) {
+        relative_gap = std::min(relative_gap, std::nextafter(
+          relative_gap_bound / complement, std::numeric_limits<double>::infinity()));
+      }
     }
     const bool use_gap_bound = std::isfinite(relative_gap) && relative_gap >= 0.0 &&
       relative_gap <= integration->tolerance;

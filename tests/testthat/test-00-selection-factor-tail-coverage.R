@@ -47,6 +47,11 @@ test_that("factor quadrature agreement cannot hide an uncovered selection tail",
   }
 })
 
+# The envelope budget under test is the package default, not a literal: reading
+# it here keeps these assertions tied to the control they are exercising.
+.selection_envelope_test_tolerance <-
+  set_selection_likelihood_control()[["relative_tolerance"]]
+
 .selection_envelope_test_call <- function(
     covariance, mean, sei, omega, sign = 1L, vector_rule = 0L,
     z_lower = c(stats::qnorm(.975), -Inf), z_upper = c(Inf, stats::qnorm(.975)),
@@ -62,7 +67,7 @@ test_that("factor quadrature agreement cannot hide an uncovered selection tail",
     yi, matrix(rep_len(mean, size), 1L),
     matrix(covariance[lower.tri(covariance, diag = TRUE)], 1L), sei,
     matrix(omega, 1L), z_lower, z_upper, bins, sign, TRUE, SELKERNEL_STEP,
-    as.double(design), 512L, 8L, .005, TRUE, vector_rule,
+    as.double(design), 512L, 8L, .selection_envelope_test_tolerance, TRUE, vector_rule,
     .selection_joint_cluster_quadrature_rules(orders),
     PACKAGE = "RoBMA")
 }
@@ -156,7 +161,7 @@ test_that("monotone covariance bounds cover trivariate arcsine normalizers", {
         2 * diagnostic[["quadrature_change"]] + diagnostic[["tail_bound"]]
 
       expect_gt(diagnostic[["covariance_width"]], 0)
-      expect_lte(combined, .005)
+      expect_lte(combined, .selection_envelope_test_tolerance)
       # Use the estimate's denominator, as the diagnostics do. The allowance
       # covers floating-point evaluation of the independent closed form.
       relative_error <- abs(expm1(log(reference) - observed[["log_normalizer"]]))
@@ -229,7 +234,7 @@ test_that("absolute covariance bounds cover nonmonotone and two-sided products",
         relative_error <- abs(expm1(log(reference) - observed[["log_normalizer"]]))
         expect_equal(diagnostic[["used_covariance_envelope"]], 1)
         expect_gt(diagnostic[["covariance_width"]], 0)
-        expect_lte(combined, .005)
+        expect_lte(combined, .selection_envelope_test_tolerance)
         # TVPACK is requested at 1e-10 absolute accuracy. The allowance covers
         # the weighted rectangle sums and their division by the normalizer.
         expect_lte(relative_error, combined + 1e-7)
@@ -240,6 +245,73 @@ test_that("absolute covariance bounds cover nonmonotone and two-sided products",
       }
     }
   }
+})
+
+
+test_that("the formerly excluded nonmonotone weights keep their normalizer", {
+
+  # This configuration was rejected outright while nonmonotone products had no
+  # covariance bound, so its only assertion was that the envelope stayed unused.
+  # It now reaches the absolute bound and needs its value pinned independently.
+  data <- data.frame(vi = c(.04, .09, .16), study = 1L,
+                     type = c("a", "a", "b"), estimate = 1:3)
+  covariance <- as.matrix(metafor::vcalc(vi, cluster = study, type = type,
+    obs = estimate, rho = c(.7, .5), data = data))
+  covariance[1L, 3L] <- covariance[3L, 1L] <- covariance[1L, 3L] + 1e-6
+  sei <- sqrt(data[["vi"]])
+  mean <- c(.1, .3, -.2)
+  omega <- c(1, .2, .8)
+  z_lower <- c(1, 0, -Inf)
+  z_upper <- c(Inf, 1, 0)
+
+  # Weight all 27 bin combinations by TVPACK rectangle probabilities, obtained
+  # from semi-infinite orthants by inclusion-exclusion. This reference uses no
+  # factorization and no signed weight expansion.
+  corners <- as.matrix(expand.grid(rep(list(c(FALSE, TRUE)), 3L)))
+  combinations <- as.matrix(expand.grid(rep(list(1:3), 3L)))
+  orthant <- function(upper) {
+    if (any(upper == -Inf)) return(0)
+    finite <- which(is.finite(upper))
+    if (!length(finite)) return(1)
+    if (length(finite) == 1L) {
+      return(stats::pnorm(upper[finite], mean[finite], sei[finite]))
+    }
+    as.numeric(mvtnorm::pmvnorm(lower = rep(-Inf, length(finite)),
+      upper = upper[finite], mean = mean[finite],
+      sigma = covariance[finite, finite, drop = FALSE],
+      algorithm = mvtnorm::TVPACK(abseps = 1e-10)))
+  }
+  reference <- sum(vapply(seq_len(nrow(combinations)), function(index) {
+    bins <- combinations[index, ]
+    weight <- prod(omega[bins])
+    if (weight == 0) return(0)
+    lower <- z_lower[bins] * sei
+    upper <- z_upper[bins] * sei
+    probability <- sum(vapply(seq_len(nrow(corners)), function(corner) {
+      use_upper <- corners[corner, ]
+      (-1)^sum(!use_upper) * orthant(ifelse(use_upper, upper, lower))
+    }, numeric(1L)))
+    weight * probability
+  }, numeric(1L)))
+
+  observed <- .selection_envelope_test_call(covariance, mean, sei, omega,
+    z_lower = z_lower, z_upper = z_upper)
+  diagnostic <- observed[["integration_diagnostics"]][1L, ]
+  combined <- diagnostic[["covariance_width"]] +
+    2 * diagnostic[["quadrature_change"]] + diagnostic[["tail_bound"]]
+  relative_error <- abs(expm1(log(reference) - observed[["log_normalizer"]]))
+  if (diagnostic[["used_covariance_envelope"]] == 1) {
+    expect_lte(combined, .selection_envelope_test_tolerance)
+    # TVPACK is requested at 1e-10 absolute accuracy; the allowance covers the
+    # weighted rectangle sums and their division by the normalizer.
+    expect_lte(relative_error, combined + 1e-7)
+  } else {
+    expect_lte(relative_error, .selection_envelope_test_tolerance)
+  }
+  numerator <- mvtnorm::dmvnorm(rep(0, 3L), mean, covariance, log = TRUE) +
+    3 * log(omega[[2L]])
+  expect_equal(observed[["log_density"]] + observed[["log_normalizer"]],
+    numerator, tolerance = 1e-12)
 })
 
 
@@ -312,7 +384,7 @@ test_that("relative covariance bounds retain tiny large-block normalizers", {
     2 * diagnostic[["quadrature_change"]] + diagnostic[["tail_bound"]]
   relative_error <- abs(expm1(reference - observed[["log_normalizer"]]))
   expect_equal(diagnostic[["used_covariance_envelope"]], 1)
-  expect_lte(combined, .005)
+  expect_lte(combined, .selection_envelope_test_tolerance)
   expect_lte(relative_error, combined + reference_error)
   numerator <- mvtnorm::dmvnorm(rep(0, size), sigma = covariance, log = TRUE) +
     size * log(weight)
@@ -389,7 +461,7 @@ test_that("Assink two-sided defaults agree with independent adaptive integration
     relative_error <- abs(expm1(log(reference[["value"]]) -
       observed[["log_normalizer"]]))
     expect_equal(diagnostic[["used_covariance_envelope"]], 1)
-    expect_lte(combined, .005)
+    expect_lte(combined, .selection_envelope_test_tolerance)
     expect_lte(relative_error, combined + reference_error)
     numerator <- mvtnorm::dmvnorm(rep(0, length(sei)), sigma = covariance,
       log = TRUE) + length(sei) * log(tail(case[["weights"]], 1L))
