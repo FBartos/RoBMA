@@ -810,6 +810,13 @@
   distance, following metafor's chi-square-based meta-analytic convention.
   Values were previously divided by the fixed-effect model rank and therefore
   increase by that rank when it exceeds one.
+- changes the `zplot()` and `plot.zplot_brma()` default to
+  `plot_extrapolation = FALSE`, so the diagnostic shows the observed
+  z-statistics and the fitted selected density only. The extrapolated curve
+  rescales the display by an inferred selection convention rather than
+  describing the observed literature, and is now drawn only when
+  `plot_extrapolation = TRUE` is requested. `lines()` keeps its unchanged
+  `extrapolate = FALSE` default.
 
 ### Maintenance
 - unifies random-effect compilation for ordinary and marginal selection

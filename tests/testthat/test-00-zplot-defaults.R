@@ -51,10 +51,10 @@ test_that("zplot density defaults follow the model class and preserve explicit b
     expected <- default_budgets[[model_index]]
     calls <- list()
     plot.zplot_brma(x)
-    expect_identical(calls[[1L]]$route, "paired")
+    expect_identical(calls[[1L]]$route, "single")
     expect_equal(calls[[1L]]$max_samples, expected)
-    plot.zplot_brma(x, plot_extrapolation = FALSE)
-    expect_identical(calls[[2L]]$route, "single")
+    plot.zplot_brma(x, plot_extrapolation = TRUE)
+    expect_identical(calls[[2L]]$route, "paired")
     expect_equal(calls[[2L]]$max_samples, expected)
     expect_s3_class(lines.zplot_brma(x, as_data = TRUE), "data.frame")
     expect_equal(calls[[3L]]$max_samples, expected)
@@ -83,4 +83,12 @@ test_that("the EDR summary budget remains independent of density plot defaults",
 
   expect_identical(formals(as_zplot.brma)$max_samples, 10000)
   expect_identical(formals(zplot.brma)$summary_max_samples, 10000)
+})
+
+
+test_that("zplot displays only the fitted curve unless extrapolation is requested", {
+
+  expect_identical(formals(plot.zplot_brma)$plot_fit, TRUE)
+  expect_identical(formals(plot.zplot_brma)$plot_extrapolation, FALSE)
+  expect_identical(formals(lines.zplot_brma)$extrapolate, FALSE)
 })

@@ -1,5 +1,4 @@
-  structure logml_mv_vi logml_bselmodel looic_mv_vi looic_bselmodel
-1    nested   -79.36512        -79.3451    133.4162        133.6798
-2  estimate  -110.78764       -110.7890    215.0975        215.0975
-3     study  -112.88411              NA    205.0509              NA
-4     fixed  -327.27220       -327.2722    654.6251        654.6251
+  structure logml_mv_V logml_mv_vi logml_bselmodel looic_mv_V looic_mv_vi looic_bselmodel
+1    nested  -74.32066   -79.36512        -79.3451   126.8745    133.4162        133.6798
+2  estimate         NA  -110.78764       -110.7890         NA    215.0975        215.0975
+3     fixed -313.37542  -327.27220       -327.2722   643.7484    654.6251        654.6251

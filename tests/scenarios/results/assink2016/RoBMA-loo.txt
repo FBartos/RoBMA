@@ -1,0 +1,2 @@
+  structure      uni  cluster  mv.diag     mv.V
+1   default 189.8302 130.0576 130.1233 126.4154

@@ -273,10 +273,11 @@ These results provide extreme evidence for the presence of publication bias and 
 
 **Extrapolation to pre-publication bias.**
 The package also allows us to extrapolate what the distribution of z-statistics might have looked like in the absence of publication bias.
-This is achieved by calling the `zplot()` function (with the default `plot_extrapolation = TRUE` argument), which builds the diagnostic plot directly from a fitted model.
+This is achieved by calling the `zplot()` function with `plot_extrapolation = TRUE`, which builds the diagnostic plot directly from a fitted model.
+The extrapolated curve is not drawn by default because it rescales the display by an inferred selection convention rather than describing the observed literature.
 
 ```{r, fig.cap="Ease-of-Retrieval Effect: Extrapolation Analysis"}
-zplot(fit_RoBMA_Weingarten2018, from = -3, to = 6, by.hist = 0.25)
+zplot(fit_RoBMA_Weingarten2018, from = -3, to = 6, by.hist = 0.25, plot_extrapolation = TRUE)
 ```
 
 Under the inverse-weight convention, the blue line extrapolates the fitted display after removing publication-bias adjustments; it need not integrate to one.
@@ -366,10 +367,10 @@ This visual assessment aligns with the statistical evidence: RoBMA yields extrem
 
 **Extrapolation to pre-publication bias.**
 The package also allows us to extrapolate what the distribution of z-statistics might have looked like in the absence of publication bias.
-This is achieved by either setting `extrapolate = TRUE` in the `lines()` function, or calling the `zplot()` function (with the default `plot_extrapolation = TRUE` argument).
+This is achieved by either setting `extrapolate = TRUE` in the `lines()` function, or setting `plot_extrapolation = TRUE` in the `zplot()` function.
 
 ```{r, fig.cap="Social Comparison: Extrapolation Analysis"}
-zplot(fit_RoBMA_Hoppen2025)
+zplot(fit_RoBMA_Hoppen2025, plot_extrapolation = TRUE)
 ```
 
 Under the inverse-weight convention, the blue line extrapolates the fitted display after removing publication-bias adjustments; it need not integrate to one.
@@ -439,7 +440,7 @@ This visual pattern corresponds to moderate statistical evidence for publication
 We can examine the extrapolation to assess the impact of publication bias:
 
 ```{r, fig.cap="ChatGPT: Extrapolation Analysis"}
-zplot(fit_RoBMA_Wang2025, from = -2, to = 8)
+zplot(fit_RoBMA_Wang2025, from = -2, to = 8, plot_extrapolation = TRUE)
 ```
 
 The extrapolated distribution (blue line) shows a more modest difference between the fitted and extrapolated distributions compared to the extreme bias example, reflecting the moderate degree of publication bias in this literature.
@@ -516,7 +517,7 @@ The absence of publication bias is further confirmed by the statistical evidence
 We can examine whether there would be any difference in the absence of publication bias:
 
 ```{r, fig.cap="Framing Effects: Extrapolation Analysis"}
-zplot(fit_RoBMA_ManyLabs16)
+zplot(fit_RoBMA_ManyLabs16, plot_extrapolation = TRUE)
 ```
 
 The extrapolated distribution (blue line) shows virtually no difference between the fitted and extrapolated distributions, confirming that publication bias has minimal impact in this well-designed replication project.

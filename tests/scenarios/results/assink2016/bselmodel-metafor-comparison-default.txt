@@ -1,0 +1,4 @@
+  implementation        mu     omega total_random_sd
+1        metafor 0.4592574 0.6599834       0.6203236
+2      bselmodel 0.4514750 0.6726885       0.6181912
+3   bselmodel.mv 0.4514750 0.6726885       0.6181912

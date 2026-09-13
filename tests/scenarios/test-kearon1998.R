@@ -221,5 +221,5 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
     qqnorm(fit_brma_hcs0,   main = "HCS0")
   })
 
-  scenario_plot("zplot",  zplot(fit_brma_hcs, to = 10, by.hist = 1))
+  scenario_plot("zplot",  zplot(fit_brma_hcs, to = 10, by.hist = 1, plot_extrapolation = TRUE))
 })

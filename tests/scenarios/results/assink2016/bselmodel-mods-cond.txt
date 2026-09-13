@@ -1,10 +1,8 @@
-         Alternative:                 Null:     BF error%(BF)
- deltype[general] = 0 deltype[general] != 0  0.204     27.859
- deltype[general] = 0  deltype[general] > 0  0.104     27.863
- deltype[general] > 0  deltype[general] < 0 69.315      4.085
-[0;31mqCMDE relative MCSE is 27.9%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mqCMDE relative MCSE is 27.9%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mqCMDE finite-population row-sampling relative error is 22.8%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mqCMDE finite-population row-sampling relative error is 22.8%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
-[0;31mqCMDE effective sample size is 12.4[0m
-[0;31mqCMDE effective sample size is 12.4[0m
+         Alternative:                 Null:      BF error%(BF)
+ deltype[general] = 0 deltype[general] != 0   0.091      7.823
+ deltype[general] = 0  deltype[general] > 0   0.046      7.864
+ deltype[general] > 0  deltype[general] < 0 187.801     11.542
+[0;31mqCMDE relative MCSE is 7.82%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE relative MCSE is 7.82%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 7.14%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 7.14%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m

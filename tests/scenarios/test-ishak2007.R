@@ -164,5 +164,5 @@ testthat::test_that("Ishak longitudinal heterogeneous AR model", {
   set.seed(1)
   scenario_plot("funnel", funnel(fit_brma_har))
   scenario_plot("qqnorm", qqnorm(fit_brma_har))
-  scenario_plot("zplot",  zplot(fit_brma_har, from = -12, to = 0))
+  scenario_plot("zplot",  zplot(fit_brma_har, from = -12, to = 0, plot_extrapolation = TRUE))
 })

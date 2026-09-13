@@ -83,9 +83,10 @@ test_that("zplot extrapolation colors deduplicate user line arguments", {
 
   expect_silent(plot.zplot_brma(
     zplot_object,
-    plot_fit = FALSE,
-    plot_ci  = FALSE,
-    col      = "red"
+    plot_fit           = FALSE,
+    plot_extrapolation = TRUE,
+    plot_ci            = FALSE,
+    col                = "red"
   ))
   expect_equal(observed_col, "red")
 
@@ -93,6 +94,7 @@ test_that("zplot extrapolation colors deduplicate user line arguments", {
   expect_silent(plot.zplot_brma(
     zplot_object,
     plot_fit           = FALSE,
+    plot_extrapolation = TRUE,
     plot_ci            = FALSE,
     dots_extrapolation = list(col = "green")
   ))

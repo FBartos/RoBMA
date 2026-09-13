@@ -1,43 +1,28 @@
 
 Robust Bayesian Model-Averaged Multivariate Random-Effects Model (k = 100)
-Random effects (from random): condition. Normalized separately at each retained context; its original population mixing law is preserved.
-Sampling context (from V): condition. Normalized separately at each retained context; its original population mixing law is preserved.
-Random sources: esid_study (independent estimate variation), study (contextual variation).
-Conditioned contexts remain unknown and estimated; their posteriors can update with the data.
-Independent estimate-level and residual variation are integrated before normalization.
-Selection weights: Product of estimate weights.
-Publication groups: requested automatic; resolved 17 groups from vcalc2.
-Sampling structure: declared sampling factors; input vcalc2; policy version 1; 21 contextual factors.
-Sampling sources: sampling_factor_1, sampling_factor_2, sampling_factor_3, sampling_factor_4, sampling_factor_5, sampling_factor_6, sampling_factor_7, sampling_factor_8, sampling_factor_9, sampling_factor_10, sampling_factor_11, sampling_factor_12, sampling_factor_13, sampling_factor_14, sampling_factor_15, sampling_factor_16, sampling_factor_17, sampling_factor_18, sampling_factor_19, sampling_factor_20, sampling_factor_21.
 
 Component Inclusion
-                 Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Effect                 0.500       0.305        0.439               11.682
-Publication Bias       0.500       0.962       25.132               18.041
+                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Effect                  0.500       0.260        0.350                5.402
+Random: tau_total       0.500       1.000   >14999.000                   NA
+Publication Bias        0.500       0.990      101.740               13.826
 
-Random-Effect Inclusion
-         Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-sd_total       0.500       1.000   >14999.000                   NA
-
-Location
-    Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
-mu 0.058 0.120 -0.026 0.000 0.391     0.00847          0.070 201 1.006
-
-Random
-                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-sd_total             0.462 0.060 0.366 0.455 0.601     0.00182          0.031 1088 1.006
-var_prop(esid_study) 0.709 0.139 0.422 0.717 0.951     0.00433          0.031 1022 1.006
-var_prop(study)      0.291 0.139 0.049 0.283 0.578     0.00433          0.031 1022 1.006
+Estimates
+                       Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu                    0.035 0.088 -0.029 0.000 0.302     0.00245          0.028 1291 1.001
+tau_total             0.470 0.061  0.370 0.463 0.606     0.00137          0.022 2008 1.002
+tau2_prop(esid_study) 0.725 0.143  0.430 0.734 0.971     0.00336          0.024 1829 1.001
+tau2_prop(study)      0.275 0.143  0.029 0.266 0.570     0.00336          0.024 1829 1.001
 
 Publication Bias
                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-omega[0.025,0.05] 0.995 0.040 0.968 1.000 1.000     0.00110          0.027 2186 1.025
-omega[0.05,0.5]   0.967 0.134 0.418 1.000 1.000     0.00630          0.047  503 1.017
-omega[0.5,0.95]   0.961 0.156 0.326 1.000 1.000     0.00761          0.049  476 1.021
-omega[0.95,0.975] 0.961 0.156 0.326 1.000 1.000     0.00757          0.049  480 1.021
-omega[0.975,1]    0.962 0.155 0.326 1.000 1.000     0.00728          0.047  557 1.021
-PET               1.365 0.761 0.000 1.574 2.447     0.04932          0.065  243 1.007
-PEESE             0.181 0.690 0.000 0.000 2.871     0.02821          0.041  606 1.007
+omega[0.025,0.05] 0.901 0.152 0.503 1.000 1.000     0.00219          0.014 4888 1.000
+omega[0.05,0.5]   0.524 0.238 0.255 0.440 1.000     0.00416          0.017 3270 1.001
+omega[0.5,0.95]   0.474 0.256 0.195 0.381 1.000     0.00474          0.019 2915 1.002
+omega[0.95,0.975] 0.476 0.258 0.195 0.381 1.000     0.00482          0.019 2861 1.002
+omega[0.975,1]    0.478 0.261 0.195 0.381 1.000     0.00489          0.019 2839 1.002
+PET               0.245 0.617 0.000 0.000 2.099     0.01088          0.018 3246 1.004
+PEESE             0.027 0.271 0.000 0.000 0.000     0.00384          0.014 5679 1.000
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 

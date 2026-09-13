@@ -2,24 +2,17 @@
 Robust Bayesian Model-Averaged Multivariate Random-Effects Model (k = 100)
 
 Component Inclusion
-                 Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Effect                 0.500       0.261        0.352               10.202
-Publication Bias       0.500       0.996      244.902               37.540
-[0;31mBayes factor MC error for bias is based on 61 posterior samples from the less frequent model.[0m
+                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Effect                  0.500       0.261        0.352               10.202
+Random: tau_total       0.500       1.000   >14999.000                   NA
+Publication Bias        0.500       0.996      244.902               37.540
 
-Random-Effect Inclusion
-          Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-tau_total       0.500       1.000   >14999.000                   NA
-
-Location
-    Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
-mu 0.037 0.104 -0.070 0.000 0.350     0.00640          0.061 301 1.022
-
-Random
-                       Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-tau_total             0.479 0.067 0.372 0.471 0.636     0.00203          0.030 1110 1.003
-tau2_prop(esid_study) 0.457 0.117 0.239 0.455 0.688     0.00316          0.027 1377 1.001
-tau2_prop(study)      0.543 0.117 0.312 0.545 0.761     0.00316          0.027 1377 1.001
+Estimates
+                       Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu                    0.037 0.104 -0.070 0.000 0.350     0.00640          0.061  301 1.022
+tau_total             0.479 0.067  0.372 0.471 0.636     0.00203          0.030 1110 1.003
+tau2_prop(esid_study) 0.457 0.117  0.239 0.455 0.688     0.00316          0.027 1377 1.001
+tau2_prop(study)      0.543 0.117  0.312 0.545 0.761     0.00316          0.027 1377 1.001
 
 Publication Bias
                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat

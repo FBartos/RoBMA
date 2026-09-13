@@ -1,0 +1,31 @@
+
+Mixed-Effects Model (k = 100; tau^2 estimator: ML)
+
+tau^2 (estimated amount of residual heterogeneity): 0.3325 (SE = 0.0604)
+tau (square root of estimated tau^2 value):         0.5766
+
+Test for Residual Heterogeneity:
+LRT(df = 1) = 388.7982, p-val < .0001
+
+Test of Moderators (coefficients 2:3):
+QM(df = 2) = 12.3901, p-val = 0.0020
+
+Model Results:
+
+                estimate      se     zval    pval    ci.lb   ci.ub      
+intrcpt          -0.2051  0.2072  -0.9897  0.3223  -0.6112  0.2010      
+deltypegeneral    0.7446  0.2138   3.4830  0.0005   0.3256  1.1636  *** 
+deltypeovert      0.7520  0.2672   2.8139  0.0049   0.2282  1.2757   ** 
+
+Test for Selection Model Parameters:
+LRT(df = 1) = 1.3626, p-val = 0.2431
+
+Selection Model Results:
+
+                     k  estimate      se     zval    pval   ci.lb   ci.ub    
+0     < p <= 0.025  59    1.0000     ---      ---     ---     ---     ---    
+0.025 < p <= 1      41    0.6776  0.2264  -1.4239  0.1545  0.2339  1.0000    
+
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+

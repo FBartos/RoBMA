@@ -1,28 +1,16 @@
 
 Bayesian Multivariate Random-Effects Selection Model (k = 100)
-Random effects (from random): condition. Normalized separately at each retained context; its original population mixing law is preserved.
-Sampling context (from V): condition. Normalized separately at each retained context; its original population mixing law is preserved.
-Random sources: esid_study (independent estimate variation), study (contextual variation).
-Conditioned contexts remain unknown and estimated; their posteriors can update with the data.
-Independent estimate-level and residual variation are integrated before normalization.
-Selection weights: Product of estimate weights.
-Publication groups: requested automatic; resolved 17 groups from vcalc2.
-Sampling structure: declared sampling factors; input vcalc2; policy version 1; 21 contextual factors.
-Sampling sources: sampling_factor_1, sampling_factor_2, sampling_factor_3, sampling_factor_4, sampling_factor_5, sampling_factor_6, sampling_factor_7, sampling_factor_8, sampling_factor_9, sampling_factor_10, sampling_factor_11, sampling_factor_12, sampling_factor_13, sampling_factor_14, sampling_factor_15, sampling_factor_16, sampling_factor_17, sampling_factor_18, sampling_factor_19, sampling_factor_20, sampling_factor_21.
 
-Location
-    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
-mu 0.303 0.104 0.090 0.305 0.508     0.00334          0.032 980 1.001
-
-Random
-                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-sd_total             0.482 0.064 0.378 0.475 0.624     0.00195          0.031 1075 1.002
-var_prop(esid_study) 0.656 0.137 0.381 0.660 0.910     0.00433          0.032  998 1.000
-var_prop(study)      0.344 0.137 0.090 0.340 0.619     0.00433          0.032  998 1.000
+Estimates
+                       Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu                    0.174 0.108 -0.040 0.174 0.389     0.00241          0.022 2004 1.001
+tau_total             0.451 0.058  0.356 0.444 0.582     0.00135          0.023 1843 1.001
+tau2_prop(esid_study) 0.746 0.142  0.436 0.759 0.976     0.00353          0.025 1620 1.001
+tau2_prop(study)      0.254 0.142  0.024 0.241 0.564     0.00353          0.025 1620 1.001
 
 Publication Bias
                 Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-omega[0.025,1] 0.679 0.174 0.346 0.682 0.978     0.00280          0.016 3929 1.001
+omega[0.025,1] 0.536 0.126 0.321 0.524 0.816     0.00228          0.018 3042 1.001
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 

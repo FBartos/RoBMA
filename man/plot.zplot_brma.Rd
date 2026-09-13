@@ -10,7 +10,7 @@
   probs = c(0.025, 0.975),
   max_samples = if (inherits(x, "brma.mv")) 1000 else 10000,
   plot_fit = TRUE,
-  plot_extrapolation = TRUE,
+  plot_extrapolation = FALSE,
   plot_ci = TRUE,
   plot_thresholds = TRUE,
   from = -6,
@@ -46,7 +46,7 @@ change the EDR and missing-study summary budget in \code{as_zplot()}.}
 Defaults to \code{TRUE}.}
 
 \item{plot_extrapolation}{whether to show extrapolated density (bias removed).
-Defaults to \code{TRUE}.}
+Defaults to \code{FALSE}.}
 
 \item{plot_ci}{whether to show credible interval bands. Defaults to \code{TRUE}.}
 
@@ -106,16 +106,19 @@ observed z-statistics overlaid with model-implied densities.
 All model-implied curves use the \code{conditioning_depth} stored by
 \code{as_zplot()}. Recreate the zplot object to change the predictive target.
 
-The plot displays two density curves:
+The plot can display two density curves:
 \describe{
 \item{Fit (black)}{Model-implied density including publication bias adjustments.
 This represents the expected distribution of z-statistics given the estimated
-selection process.}
+selection process. Shown by default.}
 \item{Extrapolation (blue)}{The bias-adjusted reference without selective
 reporting. Multivariate models, applicable integrated contexts, and
 best-rule selection models use the normalized pre-selection Gaussian
 marginal. Released univariate product
-targets retain their inverse-weight scaling convention.}
+targets retain their inverse-weight scaling convention. Shown only when
+\code{plot_extrapolation = TRUE}, since the extrapolated curve rescales
+the display by an inferred selection convention rather than describing
+the observed literature.}
 }
 }
 \seealso{

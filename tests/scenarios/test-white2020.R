@@ -126,5 +126,5 @@ testthat::test_that("White study and observation random-effects model", {
   set.seed(1)
   scenario_plot("funnel", funnel(fit_brma))
   scenario_plot("qqnorm", qqnorm(fit_brma))
-  scenario_plot("zplot",  zplot(fit_brma))
+  scenario_plot("zplot",  zplot(fit_brma, plot_extrapolation = TRUE))
 })

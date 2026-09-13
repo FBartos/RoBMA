@@ -211,6 +211,7 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
     qqnorm(fit_brma_mv_rcor,    main = "Cor R")
   })
   scenario_plot("zplot", {
-    zplot(fit_brma_mv_quality, from = 0, to = 20, by.lines = 1, main = "Known quality R")
+    zplot(fit_brma_mv_quality, from = 0, to = 20, by.lines = 1,
+          plot_extrapolation = TRUE, main = "Known quality R")
   })
 })

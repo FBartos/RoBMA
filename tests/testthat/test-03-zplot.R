@@ -501,12 +501,12 @@ test_that("zplot for simple meta-analysis renders base and ggplot output", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("zplot_simple_base", function() {
-    suppressMessages(.test_plot_zplot(zc, plot_type = "base"))
+    suppressMessages(.test_plot_zplot(zc, plot_type = "base", plot_extrapolation = TRUE))
   })
 
   expect_vdiffr_snapshot(
     "zplot_simple_ggplot",
-    suppressMessages(.test_plot_zplot(zc, plot_type = "ggplot"))
+    suppressMessages(.test_plot_zplot(zc, plot_type = "ggplot", plot_extrapolation = TRUE))
   )
 })
 
@@ -531,7 +531,7 @@ test_that("zplot customization snapshots are stable", {
   expect_vdiffr_snapshot("zplot_custom_base", function() {
     suppressMessages(.test_plot_zplot(
       zc, plot_type = "base",
-      plot_fit = TRUE, plot_ci = TRUE,
+      plot_fit = TRUE, plot_extrapolation = TRUE, plot_ci = TRUE,
       lwd = 2, lty = 2,           # line args
       dots_hist = list(col = "lightblue"),
       main = "Custom Zplot"
@@ -543,7 +543,7 @@ test_that("zplot customization snapshots are stable", {
   expect_vdiffr_snapshot(
     "zplot_custom_ggplot",
     suppressMessages(.test_plot_zplot(
-      zc, plot_type = "ggplot",
+      zc, plot_type = "ggplot", plot_extrapolation = TRUE,
       dots_hist = list(fill = "lightblue", color = "blue"),
       dots_thresholds = list(color = "red", linetype = "dashed"),
       main = "Custom Zplot GGplot"
@@ -581,7 +581,8 @@ test_that("zplot for meta-regression renders base output", {
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_regression_base", function() {
-    suppressMessages(.test_plot_zplot(zc, plot_type = "base", main = "Meta-Regression Zplot"))
+    suppressMessages(.test_plot_zplot(zc, plot_type = "base", plot_extrapolation = TRUE,
+                                      main = "Meta-Regression Zplot"))
   })
 
 })
@@ -598,7 +599,8 @@ test_that("zplot for positive-direction selection model renders base output", {
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_selection_pos_base", function() {
-    suppressMessages(.test_plot_zplot(zc, plot_type = "base", main = "Selection Model (Pos) Zplot"))
+    suppressMessages(.test_plot_zplot(zc, plot_type = "base", plot_extrapolation = TRUE,
+                                      main = "Selection Model (Pos) Zplot"))
   })
 
 })
@@ -613,7 +615,8 @@ test_that("zplot for negative-direction selection model renders base output", {
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_selection_neg_base", function() {
-    suppressMessages(.test_plot_zplot(zc, plot_type = "base", main = "Selection Model (Neg) Zplot"))
+    suppressMessages(.test_plot_zplot(zc, plot_type = "base", plot_extrapolation = TRUE,
+                                      main = "Selection Model (Neg) Zplot"))
   })
 
 })
@@ -708,7 +711,8 @@ test_that("zplot for positive-direction PET model renders base output", {
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_PET_pos_base", function() {
-    suppressMessages(.test_plot_zplot(zc, plot_type = "base", main = "PET Model (Pos) Zplot"))
+    suppressMessages(.test_plot_zplot(zc, plot_type = "base", plot_extrapolation = TRUE,
+                                      main = "PET Model (Pos) Zplot"))
   })
 
 })
@@ -723,7 +727,8 @@ test_that("zplot for negative-direction PET model renders base output", {
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_PET_neg_base", function() {
-    suppressMessages(.test_plot_zplot(zc, plot_type = "base", main = "PET Model (Neg) Zplot"))
+    suppressMessages(.test_plot_zplot(zc, plot_type = "base", plot_extrapolation = TRUE,
+                                      main = "PET Model (Neg) Zplot"))
   })
 
 })
@@ -744,7 +749,8 @@ test_that("zplot for multilevel model renders base output", {
   zc   <- .test_as_zplot(fits[[name]], conditioning_depth = "cluster")
 
   expect_vdiffr_snapshot("zplot_multilevel_base", function() {
-    suppressMessages(.test_plot_zplot(zc, plot_type = "base", main = "Multilevel Model Zplot"))
+    suppressMessages(.test_plot_zplot(zc, plot_type = "base", plot_extrapolation = TRUE,
+                                      main = "Multilevel Model Zplot"))
   })
 
 })

@@ -195,7 +195,7 @@ These are $z = \pm 1.65$ and $z = \pm 1.96$, corresponding to marginally signifi
 
 ```{r zplot, fig.width = 6, fig.height = 4}
 par(mar = c(4, 4, 0, 0))
-zplot(fit_reg, by.hist = 0.25, plot_extrapolation = FALSE, from = -4, to = 8)
+zplot(fit_reg, by.hist = 0.25, from = -4, to = 8)
 ```
 
 We can notice clear discontinuities corresponding to selection on the direction of the effect and marginal significance.

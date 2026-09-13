@@ -1,12 +1,9 @@
 
 Bayesian Multivariate Random-Effects Selection Model (k = 100)
 
-Location
-    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-mu 0.451 0.094 0.254 0.455 0.625     0.00161          0.017 3519 1.000
-
-Random
+Estimates
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu  0.451 0.094 0.254 0.455 0.625     0.00161          0.017 3519 1.000
 tau 0.618 0.055 0.519 0.615 0.735     0.00062          0.011 7697 1.001
 
 Publication Bias

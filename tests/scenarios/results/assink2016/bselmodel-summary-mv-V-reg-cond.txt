@@ -1,30 +1,21 @@
 
 Bayesian Multivariate Mixed-Effect Selection Model (k = 100)
-Random effects (from random): condition. Normalized separately at each retained context; its original population mixing law is preserved.
-Sampling context (from V): condition. Normalized separately at each retained context; its original population mixing law is preserved.
-Random sources: esid_study (independent estimate variation), study (contextual variation).
-Conditioned contexts remain unknown and estimated; their posteriors can update with the data.
-Independent estimate-level and residual variation are integrated before normalization.
-Selection weights: Product of estimate weights.
-Publication groups: requested automatic; resolved 17 groups from vcalc2.
-Sampling structure: declared sampling factors; input vcalc2; policy version 1; 21 contextual factors.
-Sampling sources: sampling_factor_1, sampling_factor_2, sampling_factor_3, sampling_factor_4, sampling_factor_5, sampling_factor_6, sampling_factor_7, sampling_factor_8, sampling_factor_9, sampling_factor_10, sampling_factor_11, sampling_factor_12, sampling_factor_13, sampling_factor_14, sampling_factor_15, sampling_factor_16, sampling_factor_17, sampling_factor_18, sampling_factor_19, sampling_factor_20, sampling_factor_21.
 
-Location
+Common Estimates
+                       Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau_total             0.433 0.054 0.343 0.427 0.552     0.00112          0.021 2348 1.000
+tau2_prop(esid_study) 0.749 0.139 0.458 0.761 0.977     0.00323          0.023 1858 1.000
+tau2_prop(study)      0.251 0.139 0.023 0.239 0.542     0.00323          0.023 1858 1.000
+
+Meta-Regression
                    Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-intercept        -0.050 0.187 -0.419 -0.053 0.318     0.00652          0.035  825 1.003
-deltype[general]  0.397 0.177  0.046  0.399 0.744     0.00589          0.033  919 1.003
-deltype[overt]    0.232 0.191 -0.146  0.233 0.605     0.00417          0.022 2129 1.001
-
-Random
-                      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-sd_total             0.479 0.065 0.373 0.471 0.627     0.00118          0.018 3024 1.002
-var_prop(esid_study) 0.632 0.140 0.357 0.635 0.896     0.00256          0.018 3000 1.001
-var_prop(study)      0.368 0.140 0.104 0.365 0.643     0.00256          0.018 3000 1.001
+intercept        -0.212 0.179 -0.559 -0.215 0.150     0.00707          0.039  655 1.002
+deltype[general]  0.420 0.159  0.099  0.420 0.727     0.00579          0.036  757 1.001
+deltype[overt]    0.265 0.183 -0.097  0.266 0.615     0.00491          0.027 1415 1.000
 
 Publication Bias
-                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA
-omega[0.025,1] 0.687 0.174 0.351 0.690 0.979     0.00150          0.009 13463 1.000
+                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,1] 0.513 0.125 0.303 0.502 0.795     0.00244          0.020 2610 1.001
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 
