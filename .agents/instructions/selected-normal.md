@@ -38,6 +38,16 @@ context contains branch routing and numerical kernel inputs, including
 Do not pass loose `use_normal`, `omega`, or sign arguments through higher
 level callers when the context already owns them.
 
+Retained-intercept qCMDE conditioning may operate within fixed product-space
+branches. Resolve each branch's focal prior and preserve its indicators and
+random-effect gates. Zero retained scales use the ordinary conditional evaluator;
+the information cap remains based on the complete requested posterior row set.
+
+Post-fit native kernels may coalesce adjacent, exactly equal step weights on
+a validated partition, remapping observed bins to their union intervals. Preserve
+the caller's context and branch identity; the compact partition only selects an
+equivalent numerical kernel and retains its existing error diagnostics.
+
 ## Vector Selection Models
 
 Weightfunction priors carry `selection_model()` with these defaults:

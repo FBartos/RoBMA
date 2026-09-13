@@ -183,19 +183,7 @@
             crossprod(context_factor), predictive[["sei"]][observations], context, FALSE, control, plan,
             factors = local_factors, publication_groups = publication[observations], designs = designs)
         } else {
-          if (!is.list(projected)) stop("Zplot context projection densities are unavailable.", call. = FALSE)
-          for (metric in c("relative_error", "mass_error")) {
-            error <- projected[[metric]]
-            if (!is.numeric(error) || length(error) != 1L || is.na(error) || error < 0) {
-              stop("Zplot context projection diagnostics are unavailable.", call. = FALSE)
-            }
-            if (!is.finite(error) || error > control[["relative_tolerance"]]) {
-              subject <- if (metric == "relative_error") "relative integration error" else "normalization error"
-              stop("Zplot context projection was rejected by diagnostics: ", subject, " was ",
-                format(error, digits = 4), ". Inspect the fitted selection and covariance parameters.", call. = FALSE)
-            }
-          }
-          density <- projected[["density"]]
+          density <- .zplot_context_projection_density(projected, z, control)
         }
         if (!identical(dim(density), c(1L, length(z))) ||
             any(!is.finite(density)) || any(density < 0)) {

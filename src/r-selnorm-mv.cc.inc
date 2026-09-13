@@ -1,3 +1,41 @@
+// A posterior branch can use only a subset of the shared prior-union cuts.
+// This call-owned view removes exact adjacent repeats after validation, without
+// changing the context, branch routing, or the weight at an observed boundary.
+struct CompactStepPartition {
+  std::vector<double> omega, lower, upper;
+  std::vector<int> obs_bin, bin_map;
+
+  bool prepare(const double *weights, const double *z_lower,
+      const double *z_upper, int bins, const int *observed = nullptr,
+      int observations = 0)
+  {
+    if (bins <= 2) return false;
+    bool repeated = false;
+    for (int bin = 1; bin < bins; ++bin)
+      repeated = repeated || weights[bin] == weights[bin - 1];
+    if (!repeated) return false;
+    omega.clear(); lower.clear(); upper.clear();
+    if (observed != nullptr) bin_map.resize(bins);
+    for (int first = 0; first < bins;) {
+      int last = first;
+      while (last + 1 < bins && weights[last + 1] == weights[first]) ++last;
+      omega.push_back(weights[first]);
+      lower.push_back(z_lower[last]);
+      upper.push_back(z_upper[first]);
+      if (observed != nullptr)
+        for (int bin = first; bin <= last; ++bin)
+          bin_map[bin] = static_cast<int>(omega.size());
+      first = last + 1;
+    }
+    if (observed != nullptr) {
+      obs_bin.resize(observations);
+      for (int row = 0; row < observations; ++row)
+        obs_bin[row] = bin_map[observed[row] - 1];
+    }
+    return true;
+  }
+};
+
 static SelNormDenseIntegration validate_dense_integration(
   SEXP normalizer_quadrature, SEXP relative_tolerance,
   std::vector<double> &normalizer_orders)
@@ -343,6 +381,10 @@ static SEXP selnorm_mnorm_step_batch(
   // The dense R interface approximates only post-fit log densities.
   // Its existing projected-outcome path retains the original primitive.
   if (z != R_NilValue) integration_rules.bounded_cdf = false;
+  if (integration_rules.bounded_cdf &&
+      !selnorm_is_descending_step_partition(REAL(z_lower), REAL(z_upper), B)) {
+    Rf_error("Selection bounds do not define a descending step partition.");
+  }
 
   validate_omega_matrix(REAL(omega), S, B);
   for (int k = 0; k < K; ++k) {
@@ -393,6 +435,7 @@ static SEXP selnorm_mnorm_step_batch(
   std::vector<double> omega_row(static_cast<std::size_t>(B));
   std::vector<double> residual_sd(static_cast<std::size_t>(K));
   std::vector<double> loading(static_cast<std::size_t>(K * rank));
+  CompactStepPartition partition;
 
   // The existing owned row buffers are also the previous physical key.
   // Only this call's non-projected dense likelihood can reuse a completed row;
@@ -465,9 +508,17 @@ static SEXP selnorm_mnorm_step_batch(
       }
     }
     SelNormDenseIntegration integration = integration_rules;
+    const bool compact = !project && integration_rules.bounded_cdf &&
+      row_kernel == SELKERNEL_STEP && row_rule == SELVECTOR_PRODUCT &&
+      LOGICAL(telescope_probabilities)[0] && partition.prepare(omega_row.data(),
+        REAL(z_lower), REAL(z_upper), B, INTEGER(obs_bin), K);
     REAL(log_density)[s] = cpp_selnorm_mnorm_step_lpdf(
-      REAL(yi), mean.data(), lower.data(), K, REAL(sei), omega_row.data(), B,
-      REAL(z_lower), REAL(z_upper), INTEGER(obs_bin), INTEGER(sign)[0],
+      REAL(yi), mean.data(), lower.data(), K, REAL(sei),
+      compact ? partition.omega.data() : omega_row.data(),
+      compact ? static_cast<int>(partition.omega.size()) : B,
+      compact ? partition.lower.data() : REAL(z_lower),
+      compact ? partition.upper.data() : REAL(z_upper),
+      compact ? partition.obs_bin.data() : INTEGER(obs_bin), INTEGER(sign)[0],
       LOGICAL(telescope_probabilities)[0],
       row_kernel,
       REAL(qmc), n_points, n_scrambles, &error,
@@ -1353,7 +1404,8 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
             s + S * (INTEGER(block)[column] - 1)
           ];
           if (!deterministic) {
-            for (int row = 0; row < n; ++row) {
+            const int active_rows = positive_definite ? column + 1 : n;
+            for (int row = 0; row < active_rows; ++row) {
               value += normal[row] * factor[row + n * column];
             }
           }
@@ -1427,7 +1479,7 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
               log_acceptance = -std::numeric_limits<double>::infinity();
               break;
             }
-            log_acceptance += std::log(REAL(omega)[s + S * bin]) - std::log(maximum_weight);
+            log_acceptance += log_weights[bin];
             if (holder) mixture_log_terms[row] = n * log_weights[bin] - pivot_log_normalizer[row];
           }
           if (holder && std::isfinite(log_acceptance)) {
@@ -1663,8 +1715,14 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
   std::size_t components = 0;
   bool available = false;
   try {
+    CompactStepPartition partition;
+    const bool compact_partition = bounded_cdf && LOGICAL(telescope)[0] &&
+      partition.prepare(REAL(omega), REAL(lower), REAL(upper), bins);
     available = cpp_selnorm_context_star_projection(REAL(means), contexts, REAL(covariance_lower), k,
-      REAL(selection_se), REAL(omega), bins, REAL(lower), REAL(upper), INTEGER(sign)[0], LOGICAL(telescope)[0],
+      REAL(selection_se), compact_partition ? partition.omega.data() : REAL(omega),
+      compact_partition ? static_cast<int>(partition.omega.size()) : bins,
+      compact_partition ? partition.lower.data() : REAL(lower),
+      compact_partition ? partition.upper.data() : REAL(upper), INTEGER(sign)[0], LOGICAL(telescope)[0],
       log_normalizers == R_NilValue ? nullptr : REAL(log_normalizers),
       REAL(context_log_weights), REAL(nodes), REAL(log_weights), order,
       REAL(z), size, REAL(allowance)[0], REAL(density), &mass, &error, &components, REAL(compact),

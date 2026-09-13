@@ -593,7 +593,7 @@
       all(factors[["loading"]][1L, ] != 0)) {
     rank_one <- as.numeric(factors[["loading"]][1L, ])
   }
-  project <- function(means) {
+  project_direct <- function(means, diagnostics = FALSE) {
 
     local_factors <- factors
     if (!is.null(local_factors)) {
@@ -620,14 +620,71 @@
     packed <- matrix(sigma[lower.tri(sigma, diag = TRUE)],
       nrow(means), k * (k + 1L) / 2L, byrow = TRUE)
     if (all(context_rows[["vector_rule"]] == 0L) && is.null(rank_one)) {
-      return(.zplot_joint_block(z, means, packed, sei,
-        context_rows, probability, control, designs, local_factors)[["density"]])
+      projected <- .zplot_joint_block(z, means, packed, sei,
+        context_rows, probability, control, designs, local_factors)
+      density <- projected[["density"]]
+      if (diagnostics) {
+        relative_error <- projected[["relative_mcse"]]
+        if (!is.numeric(relative_error) || length(relative_error) != nrow(means) ||
+            any(!is.finite(relative_error)) || any(relative_error < 0)) {
+          stop("Zplot fallback integration diagnostics are unavailable.", call. = FALSE)
+        }
+        # This is the generic kernel's checked MCSE/refinement estimate,
+        # including its normalizer check, rather than a certified bound.
+        attr(density, "integration_error") <- list(
+          absolute = relative_error * apply(density, 1L, max), mass = relative_error)
+      }
+      return(density)
     }
     .zplot_full_event_projection(
       z, means, packed[1L, , drop = FALSE], sei, context_rows, probability,
       execution_plan, rank_one_loading = if (!is.null(rank_one))
         matrix(rank_one, nrow(means), k, byrow = TRUE) else NULL
     )
+  }
+  point_projection <- !probability && !factor_projection && k > 1L &&
+    is.null(rank_one) && context[["vector_rule"]] == 0L &&
+    context[["kernel_mode"]] == SELKERNEL_STEP && all(context[["omega"]] > 0)
+  project <- function(means, absolute_tolerance = NULL, diagnostics = FALSE) {
+
+    # The outer QMC nodes are fixed retained realizations. Each therefore has
+    # a point-context full-event density, including the same original dense
+    # sampling covariance. Reuse its checked factor projection before the
+    # generic inner QMC calculation, without changing the outer nodes or gates.
+    if (!point_projection) {
+      return(project_direct(means))
+    }
+    output <- matrix(0, nrow(means), length(z))
+    absolute_error <- mass_error <- numeric(nrow(means))
+    pending <- logical(nrow(means))
+    point_factor <- matrix(0, 1L, k)
+    for (row in seq_len(nrow(means))) {
+      projected <- .zplot_context_projection(z, as.numeric(means[row, ]), sigma,
+        point_factor, sei, context, control, absolute_tolerance)
+      if (is.null(projected)) {
+        pending[row] <- TRUE
+      } else {
+        output[row, ] <- .zplot_context_projection_density(
+          projected, z, control, absolute_tolerance)[1L, ]
+        absolute_error[row] <- projected[["integration_error"]][["absolute"]]
+        mass_error[row] <- projected[["mass_error"]]
+      }
+    }
+    pending <- which(pending)
+    if (length(pending)) {
+      direct <- project_direct(means[pending, , drop = FALSE],
+        diagnostics = diagnostics)
+      output[pending, ] <- direct
+      if (diagnostics) {
+        errors <- attr(direct, "integration_error", exact = TRUE)
+        absolute_error[pending] <- errors[["absolute"]]
+        mass_error[pending] <- errors[["mass"]]
+      }
+    }
+    if (diagnostics) {
+      attr(output, "integration_error") <- list(absolute = absolute_error, mass = mass_error)
+    }
+    output
   }
   if (length(zero_variance) == k) {
     current <- matrix(0, 1L, length(z))
@@ -640,9 +697,20 @@
     }
     points <- control[["points_per_scramble"]]
     scrambles <- control[["scrambles"]]
+    point_absolute_tolerance <- NULL
+    if (point_projection) {
+      reference <- .zplot_normal_density_matrix(z, matrix(mean, 1L, k),
+        matrix(sqrt(diag(sigma) + diag(latent)), 1L, k), sei)
+      # This allocates inner work only. Acceptance below uses the combined
+      # errors and the computed selected curve, not this Gaussian reference.
+      allocation <- control[["relative_tolerance"]] * max(reference) / 16
+      if (is.finite(allocation) && allocation > 0) point_absolute_tolerance <- allocation
+    }
     used <- 0L
     sums <- matrix(0, scrambles, length(z))
+    error_sums <- matrix(0, scrambles, 2L)
     previous <- NULL
+    previous_absolute_error <- 0
     repeat {
       key <- paste("context", k, points, sep = "/")
       if (!exists(key, designs, inherits = FALSE)) {
@@ -653,26 +721,45 @@
       uniforms <- get(key, designs)[, seq.int(used + 1L, points), , drop = FALSE]
       contexts <- matrix(stats::qnorm(uniforms), (points - used) * scrambles, k) %*% factor
       means <- sweep(contexts, 2L, mean, "+")
-      values <- project(means)
+      values <- project(means, point_absolute_tolerance, diagnostics = point_projection)
       sums <- sums + rowsum(values, rep(seq_len(scrambles), points - used), reorder = FALSE)
+      numerical <- attr(values, "integration_error", exact = TRUE)
+      if (!is.null(numerical)) {
+        error_sums <- error_sums + rowsum(cbind(numerical[["absolute"]], numerical[["mass"]]),
+          rep(seq_len(scrambles), points - used), reorder = FALSE)
+      }
       estimates <- sums / points
       current <- matrix(colMeans(estimates), 1L, length(z))
       peak <- max(current)
+      # Positive averaging carries the inner bounds and checked error estimates
+      # through the QMC weights. Their perturbation of the scramble means can
+      # also affect MCSE; use the corresponding Euclidean norm allowance.
+      scramble_errors <- error_sums[, 1L] / points
+      numerical_error <- mean(scramble_errors)
+      mass_error <- mean(error_sums[, 2L] / points)
+      mcse_error <- sqrt(sum(scramble_errors^2) / (scrambles * (scrambles - 1L)))
       error <- max(apply(estimates, 2L, stats::sd)) / sqrt(scrambles)
-      if (peak > 0) error <- error / peak
+      error <- error + mcse_error
       if (!is.null(previous)) {
-        change <- max(abs(current - previous))
-        if (peak > 0) change <- change / peak
+        change <- max(abs(current - previous)) + numerical_error + previous_absolute_error
         error <- max(error, change)
       }
+      error <- error + numerical_error
+      peak_lower <- peak - numerical_error
+      if (peak_lower > 0) error <- error / peak_lower else if (numerical_error > 0) error <- Inf
       if (all(is.finite(current)) && is.finite(error) &&
-          error <= control[["relative_tolerance"]]) break
+          error <= control[["relative_tolerance"]] && mass_error <= control[["relative_tolerance"]]) break
       if (points >= control[["max_points_per_scramble"]]) {
+        if (mass_error > control[["relative_tolerance"]]) {
+          stop("Zplot retained-context integration was rejected by diagnostics: normalization error was ",
+            format(mass_error, digits = 4), ". Inspect the inner selection integration diagnostics.", call. = FALSE)
+        }
         stop("Zplot retained-context integration was rejected by diagnostics: relative integration error was ",
           format(error, digits = 4), ". Increase 'max_points_per_scramble' in ",
           "'integration_control = set_selection_likelihood_control()'.", call. = FALSE)
       }
       previous <- current
+      previous_absolute_error <- numerical_error
       used <- points
       points <- min(2L * points, control[["max_points_per_scramble"]])
     }
@@ -1037,7 +1124,7 @@
       error <- pmax(error, abs(expm1(previous - current$log_normalizer)))
     }
     result$log_density[active]  <- -current$log_normalizer
-    result$relative_mcse[active] <- error
+    result$relative_mcse[active] <- accepted_error
     failed <- which(!is.finite(error) | error > control$relative_tolerance |
                       !is.finite(current$log_normalizer))
     if (!length(failed)) return(result)

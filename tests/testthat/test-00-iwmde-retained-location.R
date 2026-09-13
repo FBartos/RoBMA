@@ -383,3 +383,124 @@ test_that("constructor metadata routes iid allocations and excludes known-R cond
     expect_null(.iwmde_retained_location_row_states(context, plan, selected_rows))
   }
 })
+
+.retained_location_mixture_fixture <- function(sign) {
+
+  dat <- data.frame(yi = c(.1, -.2, .3, .05), study = factor(c("a", "a", "b", "b")))
+  V <- diag(c(.04, .09, .16, .25))
+  V[cbind(1:4, c(2L, 1L, 4L, 3L))] <- .01
+  bias <- BayesTools::prior_weightfunction("one-sided", .025,
+    BayesTools::wf_fixed(c(1, .5)), model = selection_model())
+  object <- RoBMA.mv(yi = yi, V = V, random = ~1 | study, data = dat,
+    measure = "GEN", prior_unit_information_sd = 1,
+    prior_effect = list(BayesTools::prior("normal", list(0, .7)),
+      BayesTools::prior("normal", list(.3, .4))),
+    prior_bias = list(bias, BayesTools::prior_PET("normal", list(0, 1)),
+      BayesTools::prior_PEESE("normal", list(0, 1))),
+    prior_bias_null = BayesTools::prior_none(),
+    only_priors = TRUE, silent = TRUE, effect_direction = sign)
+  design <- object$formula_design$mu
+  target <- design$name_map$jags_name[design$name_map$kind == "fixed" &
+    design$name_map$term == "intercept"]
+  prior_list <- c(design$prior_list, .create_fit_priors(object$data, object$priors))
+  focal <- prior_list[[target]]
+  point <- which(vapply(focal, BayesTools::is.prior.point, logical(1L)))
+  continuous <- which(!vapply(focal, BayesTools::is.prior.point, logical(1L)))
+  # Include a spike as the first posterior row: candidate rows must select
+  # their own focal priors instead of inheriting that first row's prior.
+  branches <- expand.grid(effect = c(point, continuous), bias = seq_along(prior_list$bias),
+    gate = c(0, 1), replicate = 1:2)
+  S <- nrow(branches)
+  samples <- matrix(seq(-.2, .4, length.out = S), S, 1L,
+    dimnames = list(NULL, target))
+  samples[branches$effect == point, target] <- 0
+  append_column <- function(name, values) {
+    samples <<- cbind(samples, rep(values, length.out = S))
+    colnames(samples)[ncol(samples)] <<- name
+  }
+  append_column(paste0(target, "_indicator"), branches$effect)
+  append_column("bias_indicator", branches$bias)
+  allocation <- design$random_allocations[[1L]]
+  append_column(allocation$source_node, .5)
+  gate <- allocation$inclusion[[1L]]$indicator_name
+  append_column(gate, branches$gate)
+  term <- design$random_effects[[1L]]
+  append_column(term$sd_parameter_names, .5 * branches$gate)
+  latent <- as.vector(BayesTools:::.bt_random_effect_latent_names(term,
+    n_groups = term$n_groups, n_columns = 1L))
+  for (index in seq_along(latent)) {
+    append_column(latent[[index]], seq(-.3, .2, length.out = S) + index / 10)
+  }
+  append_column("omega[1]", 1)
+  append_column("omega[2]", .5)
+  append_column("PET", .1 * vapply(prior_list$bias, BayesTools::is.prior.PET,
+    logical(1L))[branches$bias])
+  append_column("PEESE", .1 * vapply(prior_list$bias, BayesTools::is.prior.PEESE,
+    logical(1L))[branches$bias])
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  class(fit) <- c("BayesTools_fit", class(fit))
+  attr(fit, "formula_design") <- object$formula_design
+  attr(fit, "prior_list") <- prior_list
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  fit <- BayesTools:::.bt_attach_fit_contract(fit)
+  object$fit <- fit
+  list(context = .iwmde_context(object), target = target, latent = latent,
+    gate = gate, V = V)
+}
+
+test_that("retained-location mixtures preserve branches, allocation gates and scalar priors", {
+
+  for (sign in c("positive", "negative")) {
+    fixture <- .retained_location_mixture_fixture(sign)
+    context <- fixture$context
+    target <- fixture$target
+    samples <- context$posterior_samples
+    expect_null(.iwmde_retained_location_plan(context, target, list(type = "primitive")))
+    plan <- .iwmde_plan(context, target, "qCMDE", list(samples = Inf, n_points = 20L),
+      outputs = "density")
+    expect_identical(plan$status, "ok")
+    rows <- plan$rows$estimator_rows
+    states <- plan$rows$row_states
+    transformed <- vapply(states, function(state) !is.null(state$conditioning_transform), logical(1L))
+    expect_identical(transformed, samples[rows, fixture$gate] == 1)
+    expect_true(any(transformed))
+    expect_true(any(!transformed))
+    expect_equal(plan$rows$point_masses$mass, 1 / 3)
+    expect_identical(vapply(states, `[[`, character(1L), "active_key"),
+      .iwmde_active_keys(context)[rows])
+    expect_identical(plan$rows$conditioning_policy$information_multiplier, length(rows))
+    expect_equal(plan$rows$conditioning_policy$information_cap,
+      length(rows) * sum(solve(fixture$V)), tolerance = 1e-12)
+    values <- c(-.15, 0, .25)
+    combined <- .iwmde_log_q_grid(context, target, values, states, plan$replacement)
+    for (position in which(transformed)) {
+      state <- states[[position]]
+      prior <- state$focal_prior
+      row <- samples[rows[[position]], ]
+      latent_means <- row[[target]] + .5 * row[fixture$latent]
+      precision <- 1 / prior$parameters$sd^2 + length(fixture$latent) / .5^2
+      conditional_mean <- (prior$parameters$mean / prior$parameters$sd^2 +
+        sum(latent_means) / .5^2) / precision
+      normalizer <- .iwmde_retained_location_normalizer(state)
+      expect_equal(exp(combined[, position] - normalizer$log_normalizer),
+        stats::dnorm(values, conditional_mean, 1 / sqrt(precision)), tolerance = 1e-12)
+    }
+    # The full likelihood itself stays unchanged under the translation, for
+    # active selection, ordinary normal, PET and PEESE branches in either sign.
+    for (key in unique(.iwmde_active_keys(context)[rows[transformed]])) {
+      position <- which(transformed & vapply(states, `[[`, character(1L), "active_key") == key)[[1L]]
+      row <- samples[rows[[position]], ]
+      candidates <- matrix(rep(row, each = 2L), 2L, dimnames = list(NULL, names(row)))
+      candidates[2L, target] <- row[[target]] + .2
+      candidates[2L, fixture$latent] <- row[fixture$latent] - .2 / .5
+      likelihood <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(context,
+        candidates, .iwmde_active_setup(context, row, key), unit = "estimate")
+      expect_equal(likelihood[1L], likelihood[2L], tolerance = 1e-11)
+    }
+    dynamic <- context
+    dynamic$flat_prior_list[[target]][[2L]]$parameters$mean <- as.name(target)
+    expect_null(.iwmde_retained_location_plan(dynamic, target, list(type = "primitive"),
+      row = samples[rows[which(transformed)[[1L]]], ]))
+  }
+})

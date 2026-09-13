@@ -15,6 +15,31 @@
 }
 
 
+.zplot_context_test_bivariate_density <- function(locations, covariance, sei, z, weight = .2) {
+
+  sd <- sqrt(diag(covariance))
+  schur <- diag(covariance) - covariance[1L, 2L]^2 / rev(diag(covariance))
+  # Independent bivariate Gaussian probabilities give the complete event
+  # normalizer for every retained realization, before averaging the curves.
+  normalizers <- apply(locations, 1L, function(location) {
+    joint <- as.numeric(mvtnorm::pmvnorm(lower = c(0, 0), upper = c(Inf, Inf),
+      mean = location, sigma = covariance, algorithm = mvtnorm::TVPACK()))
+    weight^2 + weight * (1 - weight) * sum(stats::pnorm(location / sd)) +
+      (1 - weight)^2 * joint
+  })
+  matrix(vapply(z, function(value) {
+    observed <- if (value >= 0) 1 else weight
+    vapply(seq_len(nrow(locations)), function(row) {
+      location <- locations[row, ]
+      x <- value * sei
+      conditional_mean <- rev(location) + covariance[1L, 2L] / diag(covariance) * (x - location)
+      companion <- weight + (1 - weight) * stats::pnorm(conditional_mean / sqrt(rev(schur)))
+      mean(sei * stats::dnorm(x, location, sd) * observed * companion) / normalizers[row]
+    }, numeric(1L))
+  }, numeric(nrow(locations))), nrow(locations), length(z))
+}
+
+
 test_that("context projection keeps the full bivariate normalizer inside the population mixture", {
 
   sei <- c(.7, 1.3)
@@ -98,6 +123,147 @@ test_that("point contexts agree with an analytic Gaussian orthant identity", {
   expect_lte(actual$relative_error, control$relative_tolerance)
   expect_lte(actual$mass_error, control$relative_tolerance)
   expect_lt(max(abs(as.numeric(actual$density) - expected)), 1e-3)
+})
+
+
+test_that("equivalent selection partitions give identical checked context projections", {
+
+  sei <- c(.7, 1.3)
+  covariance <- matrix(c(.61, .364, .364, 1.81), 2L)
+  cases <- list(
+    list(cuts = .5, weights = c(1, .2),
+      refined_cuts = c(.1, .5, .9), refined_weights = c(1, 1, .2, .2)),
+    list(cuts = c(.25, .75), weights = c(1, .2, 1),
+      refined_cuts = c(.05, .25, .5, .75, .95), refined_weights = c(1, 1, .2, .2, 1, 1))
+  )
+  for (case in cases) {
+    for (direction in c("positive", "negative")) {
+      context <- .zplot_context_test_selection(sei,
+        cutoff = stats::qnorm(case$cuts, lower.tail = FALSE),
+        weights = case$weights, direction = direction)
+      refined <- .zplot_context_test_selection(sei,
+        cutoff = stats::qnorm(case$refined_cuts, lower.tail = FALSE),
+        weights = case$refined_weights, direction = direction)
+      before <- BayesTools::selection_native_static_args(refined)
+      evaluate <- function(selection) .zplot_context_projection(c(-2, -.6, 0, .7, 2),
+        c(.15, -.1), covariance, matrix(.2, 1L, 2L), sei, selection,
+        set_selection_likelihood_control(relative_tolerance = .001))
+      expected <- evaluate(context)
+      actual <- evaluate(refined)
+      expect_type(actual, "list")
+      expect_identical(actual, expected)
+      expect_identical(BayesTools::selection_native_static_args(refined), before)
+    }
+  }
+})
+
+
+test_that("multidimensional retained contexts keep each full-event normalizer", {
+
+  sei <- c(.7, 1.3)
+  covariance <- matrix(c(.61, .364, .364, 1.81), 2L)
+  latent <- diag(c(.02, .04))
+  mean <- c(.15, -.1)
+  weight <- .2
+  z <- c(-.7, .3, 1.6)
+  control <- set_selection_likelihood_control(points_per_scramble = 64L,
+    max_points_per_scramble = 64L, scrambles = 4L, relative_tolerance = .01)
+  uniforms <- BayesTools::selection_qmc_design(dimensions = 2L, points = 64L,
+    scrambles = 4L, seed = control$seed)
+  locations <- sweep(matrix(stats::qnorm(uniforms), 256L, 2L) %*% chol(latent), 2L, mean, "+")
+  expected <- colMeans(.zplot_context_test_bivariate_density(locations, covariance, sei, z, weight))
+  actual <- .zplot_full_event_context_draw(z, mean, covariance, latent, sei,
+    .zplot_context_test_selection(sei, cutoff = 0), FALSE, control, list())
+  # The reference uses exactly the same outer QMC nodes. This isolates the
+  # checked inner approximation from uncertainty in the outer population mean.
+  expect_equal(as.numeric(actual), expected, tolerance = 1e-3)
+})
+
+
+test_that("negligible conditional tails use the aggregate density error scale", {
+
+  covariance <- matrix(c(.0115, .006544158, .006544158, .0076), 2L)
+  sei <- sqrt(diag(covariance))
+  z <- seq(-6, 10, .4)
+  context <- .zplot_context_test_selection(sei, cutoff = 0)
+  control <- set_selection_likelihood_control(points_per_scramble = 8L,
+    max_points_per_scramble = 8L, scrambles = 2L)
+  locations <- rbind(matrix(.1, 4L, 2L),
+    matrix(c(2.359389, 2.051164), 4L, 2L, byrow = TRUE))
+  uniforms <- array(NA_real_, c(2L, 8L, 2L))
+  for (column in seq_len(2L)) uniforms[, , column] <-
+    rep(stats::pnorm(locations[, column]), each = 2L)
+  testthat::local_mocked_bindings(selection_qmc_design = function(dimensions, points, scrambles, seed) {
+    stopifnot(dimensions == 2L, points == 8L, scrambles == 2L, seed == control$seed)
+    uniforms
+  }, .package = "BayesTools")
+  locations <- matrix(stats::qnorm(uniforms), 16L, 2L)
+  expected <- colMeans(.zplot_context_test_bivariate_density(locations, covariance, sei, z))
+  # Standalone point-context evaluation retains its relative requirement.
+  expect_null(.zplot_context_projection(z, locations[16L, ], covariance,
+    matrix(0, 1L, 2L), sei, context, control))
+  actual <- .zplot_full_event_context_draw(z, c(0, 0), covariance, diag(2L), sei,
+    context, FALSE, control, list())
+  expect_lt(max(abs(as.numeric(actual) - expected)), control$relative_tolerance * max(expected))
+})
+
+
+test_that("the aggregate curve rejects non-negligible conditional errors", {
+
+  sei <- c(.7, 1.3)
+  context <- .zplot_context_test_selection(sei, cutoff = 0)
+  control <- set_selection_likelihood_control(points_per_scramble = 8L,
+    max_points_per_scramble = 8L, scrambles = 2L)
+  testthat::local_mocked_bindings(.zplot_context_projection = function(
+      z, mean, covariance, context_factor, sei, selection, control, absolute_tolerance = NULL) {
+    list(density = matrix(1e-4, 1L, length(z)), relative_error = Inf, mass_error = 0,
+      integration_error = c(absolute = absolute_tolerance / 2))
+  })
+  expect_error(.zplot_full_event_context_draw(c(-1, 0, 1), c(0, 0),
+    matrix(c(.61, .364, .364, 1.81), 2L), diag(2L), sei,
+    context, FALSE, control, list()), "retained-context integration was rejected by diagnostics")
+})
+
+
+test_that("retained-context acceleration preserves diagnostic rejection", {
+
+  sei <- c(.7, 1.3)
+  context <- .zplot_context_test_selection(sei)
+  control <- set_selection_likelihood_control()
+  testthat::local_mocked_bindings(.zplot_context_projection = function(...) {
+    list(density = matrix(.1, 1L, 3L), relative_error = 2 * control$relative_tolerance,
+      mass_error = 0)
+  })
+  expect_error(.zplot_full_event_context_draw(c(-1, 0, 1), c(.1, .2),
+    matrix(c(.61, .364, .364, 1.81), 2L), matrix(0, 2L, 2L), sei,
+    context, FALSE, control, list()), "rejected by diagnostics")
+})
+
+
+test_that("unavailable context geometry retains the full-covariance fallback", {
+
+  sei <- c(.7, 1.3)
+  covariance <- matrix(c(.61, -.364, -.364, 1.81), 2L)
+  sd <- sqrt(diag(covariance))
+  weight <- .2
+  acceptance <- ((1 + weight) / 2)^2 +
+    (1 - weight)^2 * asin(covariance[1L, 2L] / prod(sd)) / (2 * pi)
+  schur <- diag(covariance) - covariance[1L, 2L]^2 / rev(diag(covariance))
+  z <- c(-.7, .3, 1.6)
+  expected <- vapply(z, function(value) {
+    x <- value * sei
+    companion <- weight + (1 - weight) * stats::pnorm(
+      covariance[1L, 2L] / diag(covariance) * x / sqrt(rev(schur)))
+    observed <- if (value > 0) 1 else weight
+    mean(sei * stats::dnorm(x, 0, sd) * observed * companion) / acceptance
+  }, numeric(1L))
+  context <- .zplot_context_test_selection(sei, cutoff = 0)
+  control <- set_selection_likelihood_control(relative_tolerance = .001)
+  expect_null(.zplot_context_projection(z, c(0, 0), covariance,
+    matrix(0, 1L, 2L), sei, context, control))
+  actual <- .zplot_full_event_context_draw(z, c(0, 0), covariance,
+    matrix(0, 2L, 2L), sei, context, FALSE, control, list())
+  expect_equal(as.numeric(actual), expected, tolerance = 1e-3)
 })
 
 

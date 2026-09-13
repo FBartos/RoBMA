@@ -378,3 +378,41 @@ test_that("conditional random selection integrates the complete sampling covaria
   }
 
 })
+
+
+test_that("one integrated random source retains correlated and zero-variance updates", {
+
+  dat <- data.frame(yi = c(.8, -.1, .3), study = c("a", "a", "b"))
+  V <- matrix(c(.10, .02, .01, .02, .20, .03, .01, .03, .15), 3L)
+  object <- bselmodel.mv(
+    yi = yi, V = V, random = list(study = ~ 1 | study), data = dat,
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE,
+    selection = selection_model(other_random_effects = "integrate")
+  )
+  term <- .fitted_formula_design(object, "mu", required = TRUE)[["random_effects"]][[1L]]
+  samples <- cbind(mu = c(.1, -.2), c(.4, 0))
+  colnames(samples)[[2L]] <- term[["sd_parameter_names"]][[1L]]
+  expected <- matrix(0, 2L, 3L)
+  Q <- .4^2 * outer(dat$study, dat$study, `==`)
+  expected[1L, ] <- Q %*% solve(V + Q, dat$yi - samples[1L, "mu"])
+
+  withr::local_seed(813)
+  initial_seed <- .Random.seed
+  actual <- ranef(object, expand = TRUE, simplify = FALSE,
+                  .posterior_samples = samples)
+  expect_identical(.Random.seed, initial_seed)
+  expect_equal(unname(as.matrix(actual[["study"]])), expected, tolerance = 1e-12)
+
+  # Return the source update directly; subtracting two large fitted locations
+  # would erase this small, identifiable contribution.
+  shifted <- object
+  shifted[["data"]][["outcome"]][["yi"]] <- 1e16 + c(2, -2, 4)
+  shifted_samples <- samples[1L, , drop = FALSE]
+  shifted_samples[1L, ] <- c(1e16, .04)
+  Q <- .04^2 * outer(dat$study, dat$study, `==`)
+  expected_shifted <- Q %*% solve(V + Q, c(2, -2, 4))
+  actual_shifted <- ranef(shifted, expand = TRUE, simplify = FALSE,
+                          .posterior_samples = shifted_samples)
+  expect_equal(as.numeric(as.matrix(actual_shifted[["study"]])),
+               as.vector(expected_shifted), tolerance = 1e-12)
+})

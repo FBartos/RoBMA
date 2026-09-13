@@ -51,6 +51,13 @@ Residual-mode plots inherit the explicitly requested residual conditioning
 depth; LOO-PIT remains the deletion-conditioned LOO target. Do not infer
 conditioning from whether a plot evaluates fitted rows or an explicit grid.
 
+Selected zplots may reuse checked point-context projections at retained-context
+QMC nodes. Preserve the full event at each node, the outer node sequence and
+the existing fallback for unsupported covariance geometry. Carry the inner
+absolute density and normalization errors through the positive outer weights;
+include their effects on MCSE and refinement changes before checking the outer
+curve's peak. Standalone point contexts retain their relative-error requirement.
+
 ## API and Verification
 
 Use `plot_type = "base"` or `"ggplot"` where both backends are available.

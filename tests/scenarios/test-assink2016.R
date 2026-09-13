@@ -1003,6 +1003,12 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
     tmp <- add_loo(tmp)
     return(tmp)
   })
+  fit_bselmodel.mv_no_estimate_cond <- scenario_fit("fit_bselmodel.mv_no_estimate_cond", {
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
+    tmp <- add_marglik(tmp)
+    tmp <- add_loo(tmp)
+    return(tmp)
+  })
   fit_bselmodel.mv_fixed_cond <- scenario_fit("fit_bselmodel.mv_fixed_cond", {
     tmp <- bselmodel.mv(yi = yi, vi = vi, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
     tmp <- add_marglik(tmp)
@@ -1155,7 +1161,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
     lines(fit_bselmodel.mv_cond, "mu", col = "blue", lty = 2, density_method = "qCMDE")
 
     lines(fit_bselmodel.mv_V_cond, "mu", col = "red")
-    lines(fit_bselmodel.mv_V_cond, "mu", col = "red", lty = 2, density_method = "qCMDE") # TODO: this one looks completely incorrect
+    lines(fit_bselmodel.mv_V_cond, "mu", col = "red", lty = 2, density_method = "qCMDE")
   })
   scenario_plot("bselmodel-posterior-mod-default", {
     plot(fit_bselmodel.mv_V_reg_cond, "deltype", prior = TRUE, xlim = c(-1, 1), ylim = c(0, 3))

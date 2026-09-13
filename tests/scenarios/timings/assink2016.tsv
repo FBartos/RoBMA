@@ -560,5 +560,6 @@ plot	RoBMA-qqnorm-mv-V-cond	11.140000000	2.165820	4.6.0	Windows/x86_64-w64-mingw
 plot	RoBMA-ranef-1	0.340000000	0.686133	4.6.0	Windows/x86_64-w64-mingw32
 plot	RoBMA-ranef-2	0.210000000	0.626270	4.6.0	Windows/x86_64-w64-mingw32
 plot	RoBMA-ranef-4	0.190000000	0.473926	4.6.0	Windows/x86_64-w64-mingw32
+plot	RoBMA-zplot-mv-V-cond	648.730000000	1.492481	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot_brma_mv	13.060000000	0.961914	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot_brma_mv_reg	13.170000000	0.966309	4.6.0	Windows/x86_64-w64-mingw32

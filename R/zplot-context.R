@@ -1,3 +1,30 @@
+.zplot_context_projection_density <- function(projected, z, control,
+                                               absolute_tolerance = NULL) {
+
+  if (!is.list(projected)) stop("Zplot context projection densities are unavailable.", call. = FALSE)
+  metrics <- c(if (is.null(absolute_tolerance)) "relative_error" else "absolute_error", "mass_error")
+  for (metric in metrics) {
+    error <- if (metric == "absolute_error") projected[["integration_error"]][["absolute"]] else projected[[metric]]
+    tolerance <- if (metric == "absolute_error") absolute_tolerance else control[["relative_tolerance"]]
+    if (!is.numeric(error) || length(error) != 1L || is.na(error) || error < 0) {
+      stop("Zplot context projection diagnostics are unavailable.", call. = FALSE)
+    }
+    if (!is.finite(error) || error > tolerance) {
+      subject <- switch(metric, relative_error = "relative integration error",
+        absolute_error = "absolute integration error", mass_error = "normalization error")
+      stop("Zplot context projection was rejected by diagnostics: ", subject, " was ",
+        format(error, digits = 4), ". Inspect the fitted selection and covariance parameters.", call. = FALSE)
+    }
+  }
+  density <- projected[["density"]]
+  if (!identical(dim(density), c(1L, length(z))) ||
+      any(!is.finite(density)) || any(density < 0)) {
+    stop("Zplot context projection densities are unavailable.", call. = FALSE)
+  }
+  density
+}
+
+
 # Sufficient resolution bound for the UNWEIGHTED Gaussian basis.
 # Weighted selection still requires the independent model/mass/tail checks.
 .zplot_context_gaussian_bound <- function(beta, order) {
@@ -66,7 +93,13 @@
 # retained Gaussian factors. NULL delegates this cell to the existing full-event
 # implementation; no alternative target, partial result or false pass is returned.
 .zplot_context_projection <- function(z, mean, covariance, context_factor, sei,
-                                      selection, control) {
+                                      selection, control, absolute_tolerance = NULL) {
+
+  if (!is.null(absolute_tolerance) &&
+      (!is.numeric(absolute_tolerance) || length(absolute_tolerance) != 1L ||
+       !is.finite(absolute_tolerance) || absolute_tolerance <= 0)) {
+    stop("The context projection absolute tolerance must be finite and positive.", call. = FALSE)
+  }
 
   if (isTRUE(selection$use_normal) || selection$kernel_mode != SELKERNEL_STEP ||
       selection$vector_rule != 0L) return(NULL)
@@ -91,6 +124,9 @@
   precision <- chol2inv(cholesky)
   packed <- as.double(covariance[lower.tri(covariance, diag = TRUE)])
   point_context <- all(context_factor == 0)
+  if (!is.null(absolute_tolerance) && !point_context) {
+    stop("An absolute context projection tolerance requires a point context.", call. = FALSE)
+  }
   if (!point_context && nrow(context_factor) != 1L) {
     return(NULL)
   }
@@ -496,7 +532,12 @@
     covariance_part <- combine("covariance")
     pruning_part <- combine("pruning")
     inner_part <- combine("inner_change") + combine("tail")
-    if (is.finite(relative_error) && relative_error <= tolerance && mass_error <= tolerance) {
+    density_accepted <- if (is.null(absolute_tolerance)) {
+      is.finite(relative_error) && relative_error <= tolerance
+    } else {
+      is.finite(error) && error <= absolute_tolerance
+    }
+    if (density_accepted && mass_error <= tolerance) {
       return(list(density = matrix(fine$density, 1L), relative_error = relative_error,
         mass_error = mass_error, mass_omission_error = mass_omission_error,
         integration_error = c(absolute = error, numerator = inner_part,
@@ -519,7 +560,9 @@
       allowance <- if (compression_refinements < 8L) allowance / 2 else 0
       next
     }
-    routing_budget <- tolerance * max(max(fine$density), reference_peak)
+    routing_budget <- if (is.null(absolute_tolerance)) {
+      tolerance * max(max(fine$density), reference_peak)
+    } else absolute_tolerance
     priority <- c(inner = inner_part, outer = outer_change + fine$outer_tail,
       normalizer = normalizer_part, compression = compression_part, cdf = cdf_part,
       pruning = pruning_part, covariance = covariance_part)

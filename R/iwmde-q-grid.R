@@ -374,7 +374,7 @@
   on.exit({
     if (is.environment(context[["normalizer_grid"]]) && !tracked) context[["normalizer_grid"]]$untracked <- TRUE
   }, add = TRUE)
-  if (!identical(replacement[["type"]], "linear") ||
+  if (!replacement[["type"]] %in% c("linear", "scalar") ||
       !.is_data_joint_selection(data) || !.is_data_known_v(data) ||
       .data_outcome_type(data) != "norm" || .selection_retains_sampling(data)) return(NULL)
   plan <- .data_selection_execution_plan(data)
@@ -387,9 +387,13 @@
     !is.null(term[["mean_translation"]])
   }, logical(1L)))) return(NULL)
   states <- batch[["row_states"]]
-  columns <- unique(unlist(lapply(states, function(state) {
-    .iwmde_linear_replacement_state(context, state, replacement)[["active_columns"]]
-  }), use.names = FALSE))
+  columns <- if (identical(replacement[["type"]], "scalar")) {
+    parameter
+  } else {
+    unique(unlist(lapply(states, function(state) {
+      .iwmde_linear_replacement_state(context, state, replacement)[["active_columns"]]
+    }), use.names = FALSE))
+  }
   if (!length(columns)) return(NULL)
   dependencies <- BayesTools::JAGS_formula_coordinate_dependencies(
     context[["object"]][["fit"]], columns)

@@ -3,7 +3,7 @@
 
 .iwmde_retained_location_dynamic_prior <- function(value) {
 
-  if (is.expression(value) || is.call(value) || is.function(value) || is.environment(value)) {
+  if (is.expression(value) || is.language(value) || is.function(value) || is.environment(value)) {
     return(TRUE)
   }
   if (is.list(value)) {
@@ -12,7 +12,8 @@
   FALSE
 }
 
-.iwmde_retained_location_plan <- function(context, parameter, parameter_spec) {
+.iwmde_retained_location_plan <- function(context, parameter, parameter_spec,
+                                          row = NULL) {
 
   data <- context[["data"]]
   fit <- context[["object"]][["fit"]]
@@ -20,9 +21,8 @@
       .data_outcome_type(data) != "norm" || .selection_retains_sampling(data) ||
       .is_data_scale(data) || .is_data_weights(data) ||
       !identical(parameter_spec[["type"]], "primitive") ||
-      !inherits(fit, "BayesTools_fit") || length(context[["indicator_names"]]) ||
+      !inherits(fit, "BayesTools_fit") ||
       .iwmde_retained_location_dynamic_prior(context[["flat_prior_list"]]) ||
-      any(nzchar(.random_allocation_inclusion_indicators(context[["flat_prior_list"]]))) ||
       .iwmde_parameter_controls_sampled_random_sd(context, parameter)) {
     return(NULL)
   }
@@ -40,7 +40,8 @@
   }
   samples <- context[["posterior_samples"]]
   if (!parameter %in% colnames(samples) || nrow(samples) == 0L) return(NULL)
-  prior <- .iwmde_focal_prior(context, parameter, samples[1L, ])
+  if (is.null(row)) row <- samples[1L, ]
+  prior <- .iwmde_focal_prior(context, parameter, row)
   if (is.null(prior) || !BayesTools::is.prior.simple(prior) ||
       BayesTools::is.prior.factor(prior) || BayesTools::is.prior.point(prior) ||
       BayesTools::is.prior.discrete(prior) ||
@@ -51,7 +52,8 @@
   # The shared accessor certifies affine dependence, including rejection of
   # logged intercepts, expressions and random-scale dependencies.
   basis <- BayesTools::JAGS_formula_predictor_basis(fit,
-    directions = stats::setNames(1, parameter), posterior_samples = samples[1L, , drop = FALSE])
+    directions = stats::setNames(1, parameter),
+    posterior_samples = matrix(row, 1L, dimnames = list(NULL, names(row))))
   K <- nrow(data[["outcome"]])
   if (!identical(basis[["status"]], "affine") ||
       !identical(basis[["parameter"]], "mu") ||
@@ -127,12 +129,23 @@
   }
   # An exact unit-weight alias has the same retained-location conditional law.
   # The original target label/spec remain authoritative for output and fallback.
-  metadata <- .iwmde_retained_location_plan(context, coordinate, coordinate_spec)
-  if (is.null(metadata)) return(NULL)
   data <- context[["data"]]
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
   S <- length(rows)
   K <- nrow(data[["outcome"]])
+  # Bound selection branches share the retained source roles. Their indicators
+  # select scalar priors; holding them fixed also preserves ordinary/PET/PEESE
+  # likelihoods when the intercept and retained coefficients are translated.
+  active_keys <- .iwmde_active_keys(context)[rows]
+  unique_keys <- unique(active_keys)
+  metadata_by_key <- lapply(match(unique_keys, active_keys), function(position) {
+    .iwmde_retained_location_plan(context, coordinate, coordinate_spec,
+      row = samples[position, ])
+  })
+  eligible_keys <- !vapply(metadata_by_key, is.null, logical(1L))
+  if (!any(eligible_keys)) return(NULL)
+  metadata <- metadata_by_key[[which(eligible_keys)[[1L]]]]
+  key_index <- match(active_keys, unique_keys)
   # Fixed, target-independent sampling information. A singular sampling law
   # has no such finite bound in this first route and keeps ordinary qCMDE.
   sampling <- .selection_joint_sampling_block(
@@ -150,7 +163,10 @@
   if (any(sd != matrix(sd[, 1L], S, K))) return(NULL)
   sd <- sd[, 1L]
   information <- (sqrt(metadata[["n_groups"]]) / sd)^2
-  use_transformed <- sd > 0 & is.finite(information) & information <= information_cap
+  # Indicators and allocation gates are held fixed in this conditional chart.
+  # A zero retained scale has no invertible translation and uses ordinary qCMDE.
+  use_transformed <- eligible_keys[key_index] & sd > 0 &
+    is.finite(information) & information <= information_cap
   if (!any(use_transformed)) return(NULL)
   selected <- which(use_transformed)
   selected_samples <- samples[selected, , drop = FALSE]
@@ -171,8 +187,12 @@
   }
   change <- .iwmde_retained_location_statistics(coefficients, sd[selected])
   if (is.null(change)) return(NULL)
-  focal_prior <- .iwmde_focal_log_prior_values(metadata[["prior"]],
-    selected_samples[, coordinate], coordinate)
+  focal_prior <- rep(NA_real_, length(selected))
+  for (index in unique(key_index[selected])) {
+    positions <- which(key_index[selected] == index)
+    focal_prior[positions] <- .iwmde_focal_log_prior_values(
+      metadata_by_key[[index]][["prior"]], selected_samples[positions, coordinate], coordinate)
+  }
   if (any(!is.finite(focal_prior))) {
     .iwmde_stop_construction_failure("q_grid_cmde", parameter,
       rows[selected[!is.finite(focal_prior)]],
@@ -185,11 +205,13 @@
   for (i in seq_along(selected)) {
     position <- selected[[i]]
     states[[position]] <- .iwmde_new_row_state(list(
-      row_index = rows[[position]], row = selected_samples[i, ], active_key = "all",
+      row_index = rows[[position]], row = selected_samples[i, ],
+      active_key = active_keys[[position]],
       current = selected_samples[i, coordinate],
       baseline_log_q = focal_prior[[i]], baseline_log_lik = 0,
       baseline_log_prior = focal_prior[[i]], baseline_focal_log_prior = focal_prior[[i]],
-      focal_prior = metadata[["prior"]], use_focal_prior_delta = TRUE,
+      focal_prior = metadata_by_key[[key_index[[position]]]][["prior"]],
+      use_focal_prior_delta = TRUE,
       likelihood_mode = "conditional", state_scope = "local",
       gaussian_change = list(linear = change[["linear"]][[i]], quadratic = change[["quadratic"]][[i]]),
       conditioning_transform = transform))
@@ -221,6 +243,18 @@
       identical(transform[["parameter"]], parameter)
   }, logical(1L)))) {
     stop("Retained-location conditional row metadata are inconsistent.", call. = FALSE)
+  }
+  # Scalar priors may differ between product-space branches. Preserve each
+  # branch's normalized conditional law before averaging posterior rows.
+  active_keys <- vapply(row_states, `[[`, character(1L), "active_key")
+  if (length(unique(active_keys)) > 1L) {
+    out <- matrix(NA_real_, length(values), length(row_states))
+    for (active_key in unique(active_keys)) {
+      positions <- which(active_keys == active_key)
+      out[, positions] <- .iwmde_log_q_grid_retained_location(context, parameter,
+        values, row_states[positions], replacement)
+    }
+    return(out)
   }
   current <- vapply(row_states, `[[`, numeric(1L), "current")
   change <- list(

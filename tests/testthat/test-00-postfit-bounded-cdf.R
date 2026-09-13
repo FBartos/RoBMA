@@ -1,11 +1,11 @@
-.postfit_cdf_fixture <- function(weights = c(1, .2), direction = "positive") {
+.postfit_cdf_fixture <- function(weights = c(1, .2), direction = "positive",
+                                 steps = if (length(weights) == 2L) .025 else c(.025, .17)) {
 
   sei <- c(.7, .9)
   covariance <- matrix(c(1, .4, .4, .9), 2L)
   sign <- if (direction == "positive") 1 else -1
   mean <- matrix(sign * c(.1, -.2), 1L)
   yi <- sign * c(.2, -.1)
-  steps <- if (length(weights) == 2L) .025 else c(.025, .17)
   prior <- BayesTools::prior_weightfunction("one-sided", steps, BayesTools::wf_fixed(weights))
   context <- .selection_spec(list(outcome = list(bias = prior)), yi, sei,
     effect_direction = direction, signed_data = FALSE)
@@ -25,9 +25,8 @@
     sei = sei, context = context, plan = plan)
 }
 
-.postfit_cdf_original <- function(x) {
+.postfit_cdf_original <- function(x, static = BayesTools::selection_native_static_args(x$context)) {
 
-  static <- BayesTools::selection_native_static_args(x$context)
   .Call("RoBMA_selnorm_mnorm_step_loglik_batch", as.double(x$yi), x$mean,
     x$packed, x$sei, x$context$omega, static$z_lower, static$z_upper,
     as.integer(x$context$obs_bin), static$sign, static$telescope_probabilities,
@@ -93,7 +92,7 @@ test_that("bounded postfit calls cannot populate or consume the ordinary cache",
   expect_identical(again$log_normalizer, exact$log_normalizer)
   expect_gt(.Call("RoBMA_selnorm_cache_control", NULL, 0L, PACKAGE = "RoBMA")$exact$hits, before$exact$hits)
 
-  for (weights in list(c(1, 0), c(1, 1e-12), c(1, .2, .2))) {
+  for (weights in list(c(1, 0), c(1, 1e-12))) {
     x <- .postfit_cdf_fixture(weights)
     exact <- .postfit_cdf_original(x)
     postfit <- .selection_joint_dense_loglik_block(x$yi, x$mean, x$packed,
@@ -102,6 +101,78 @@ test_that("bounded postfit calls cannot populate or consume the ordinary cache",
     expect_identical(postfit$log_density, exact$log_density)
     expect_identical(attr(postfit$integration_diagnostics, "cdf_relative_error", exact = TRUE), 0)
   }
+})
+
+test_that("postfit union cuts retain the exact branch weight law and error budget", {
+
+  # The first, third and fourth cuts below are absent from this branch's
+  # weight law. Include zero weights and observations exactly at removed,
+  # retained and zero cutoffs; the native observed-bin map must preserve them.
+  steps <- c(.005, .025, .1, .5)
+  for (direction in c("positive", "negative")) {
+    sign <- if (direction == "positive") 1 else -1
+    for (weight in c(.2, 0)) {
+      reduced <- .postfit_cdf_fixture(c(1, weight), direction)
+      expanded <- .postfit_cdf_fixture(c(1, 1, weight, weight, weight), direction, steps)
+      for (cutoff in c(stats::qnorm(.005, lower.tail = FALSE),
+                       stats::qnorm(.025, lower.tail = FALSE), 0)) {
+        yi <- sign * expanded$sei * c(cutoff, 0)
+        evaluate <- function(x) {
+          x$context$obs_bin <- .selection_obs_bin(yi, x$sei, x$context$p_cuts, sign)
+          .selection_joint_dense_loglik_block(yi, x$mean, x$packed,
+            x$sei, x$context, x$plan, 2L, return_normalizer = TRUE)
+        }
+        fields <- c("omega", "p_cuts", "z_lower", "z_upper", "kernel_mode", "vector_rule")
+        before <- serialize(expanded$context[fields], NULL)
+        actual <- evaluate(expanded)
+        expected <- evaluate(reduced)
+        expect_identical(actual, expected)
+        expect_identical(serialize(expanded$context[fields], NULL), before)
+        cdf <- attr(actual$integration_diagnostics, "cdf_relative_error", exact = TRUE)
+        if (weight > 0) {
+          expect_gt(cdf, 0)
+          expect_equal(actual$integration_diagnostics[, "used_covariance_envelope"][[1L]], 1)
+          total <- actual$integration_diagnostics[, "covariance_width"] +
+            2 * actual$integration_diagnostics[, "quadrature_change"] +
+            actual$integration_diagnostics[, "tail_bound"] + cdf
+          expect_lte(as.numeric(total), expanded$plan$relative_tolerance)
+        } else {
+          expect_identical(cdf, 0)
+        }
+      }
+    }
+  }
+
+  # Numerically close weights retain their real intervening steps, so this
+  # nonmonotone branch cannot acquire the two-bin bounded-CDF calculation.
+  expanded <- .postfit_cdf_fixture(c(1, 1, .2, .2 + 1e-12, .2), steps = steps)
+  reduced <- .postfit_cdf_fixture(c(1, .2, .2 + 1e-12, .2), steps = steps[-1L])
+  evaluate <- function(x) .selection_joint_dense_loglik_block(x$yi, x$mean, x$packed,
+    x$sei, x$context, x$plan, 2L, return_normalizer = TRUE)
+  actual <- evaluate(expanded)
+  expect_identical(actual, evaluate(reduced))
+  expect_identical(attr(actual$integration_diagnostics, "cdf_relative_error", exact = TRUE), 0)
+
+  # Coincident weights do not reclassify a Gaussian or a best-selection row.
+  for (branch in list(c(kernel = 0L, rule = 0L), c(kernel = 1L, rule = 1L))) {
+    x <- .postfit_cdf_fixture(c(1, .2, .2))
+    x$context$kernel_mode <- branch[["kernel"]]
+    x$context$vector_rule <- branch[["rule"]]
+    x$context$use_normal <- branch[["kernel"]] == 0L
+    actual <- evaluate(x)
+    ordinary <- .postfit_cdf_original(x)
+    expect_identical(actual$log_density, ordinary$log_density)
+    expect_identical(actual$log_normalizer, ordinary$log_normalizer)
+    expect_identical(attr(actual$integration_diagnostics, "cdf_relative_error", exact = TRUE), 0)
+  }
+
+  # Equal weights cannot hide a malformed internal boundary by merging it.
+  x <- .postfit_cdf_fixture(c(1, .2, .2))
+  attr(x$plan$quadrature, "bounded_cdf") <- TRUE
+  static <- BayesTools::selection_native_static_args(x$context)
+  static$z_upper[3L] <- static$z_upper[3L] + .01
+  expect_error(.postfit_cdf_original(x, static),
+    "Selection bounds do not define a descending step partition.", fixed = TRUE)
 })
 
 test_that("an eligible bounded envelope retries the ordinary rule before QMC", {

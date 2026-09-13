@@ -238,8 +238,29 @@
       return(parts[["posterior_source_means"]])
     }
     sources <- .data_selection_model(data)[["sources"]][["random"]]
+    retained <- vapply(sources, function(source) isTRUE(source[["retained"]]), logical(1L))
+    if (sum(!retained) == 1L) {
+      # With one integrated source its contribution is the complete Gaussian
+      # update. Reuse the block/diagonal posterior evaluator instead of forming
+      # and factoring the full covariance again for each posterior draw.
+      source_parts <- parts
+      source_parts[["latent_means"]] <- matrix(0, S, K)
+      integrated_mean <- .predict_joint_selection_source_posterior(
+        source_parts, data[["outcome"]][["yi"]], draw = FALSE
+      )
+      components <- lapply(sources, function(source) {
+        if (!isTRUE(source[["retained"]])) return(integrated_mean)
+        .evaluate.brma.random_effects(
+          fit = object[["fit"]], data = data, priors = object[["priors"]],
+          posterior_samples = posterior_samples, blocks = source[["name"]],
+          object = object
+        )
+      })
+      names(components) <- vapply(sources, `[[`, character(1L), "name")
+      return(components)
+    }
     weights <- matrix(0, S, K)
-    if (any(!vapply(sources, function(source) isTRUE(source[["retained"]]), logical(1L)))) {
+    if (any(!retained)) {
       for (s in seq_len(S)) {
         factor <- chol(matrix(parts[["covariance"]][s, , ], K, K))
         weights[s, ] <- backsolve(factor, forwardsolve(

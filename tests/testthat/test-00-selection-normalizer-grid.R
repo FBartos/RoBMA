@@ -105,6 +105,37 @@ test_that("requested-node interpolation preserves full joint densities for both 
   }
 })
 
+test_that("scalar fixed coefficients retain checked full-event normalizer grids", {
+
+  values <- seq(-.4, .4, length.out = 161L)
+  for (sign in c("positive", "negative")) {
+    fixture <- .normalizer_grid_test_fixture(sign)
+    context <- fixture$context
+    parameter <- fixture$parameter
+    spec <- list(type = "primitive", parameter = parameter)
+    states <- .iwmde_row_states(context, 1L, parameter, spec, "q_grid_cmde")
+    state <- states[[1L]]
+    candidates <- matrix(rep(state$row, each = length(values)), length(values),
+      dimnames = list(NULL, names(state$row)))
+    candidates[, parameter] <- values
+    prior_rows <- .resolve_fixed_prior_sample_columns(candidates, state$prior_list)
+    prior <- vapply(seq_len(nrow(prior_rows)), function(i) {
+      BayesTools::JAGS_marglik_priors(prior_rows[i, ], state$prior_list)
+    }, numeric(1L))
+    reference <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(context,
+      candidates, state$active_setup, unit = "estimate") + prior
+    context$normalizer_grid <- .selection_normalizer_grid(context, values, 1L)
+    actual <- .iwmde_log_q_grid(context, parameter, values, states,
+      list(type = "scalar"))
+    diagnostic <- .selection_normalizer_grid_diagnostics(context$normalizer_grid)
+    expect_true(diagnostic$used)
+    expect_gt(diagnostic$interpolated_points, 0)
+    expect_false(diagnostic$untracked_path)
+    expect_lte(max(abs(as.numeric(actual) - reference)),
+      diagnostic$max_log_likelihood_error + 1e-9)
+  }
+})
+
 test_that("normalizer geometry has bounded storage and unsafe-node fallback", {
 
   fixture <- .normalizer_grid_test_fixture()

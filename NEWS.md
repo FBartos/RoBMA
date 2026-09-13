@@ -1,5 +1,17 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- speeds multivariate selection-model post-fit calculations by applying exact
+  retained-intercept qCMDE conditionals within ensemble branches, reusing checked
+  scalar normalizer grids and single-source Gaussian random-effect updates,
+  and avoiding repeated rejection-sampler work. Source roles,
+  branch priors, numerical controls and sampler draws are preserved.
+- reuses checked full-event projections inside retained-context zplot integration,
+  including models conditioning on both estimate and study random effects.
+  The original outer integration and unsupported-geometry fallback remain.
+- coalesces exactly repeated adjacent selection weights in dense post-fit
+  likelihoods and zplot projections. Ensemble branches with only two distinct
+  step regions regain the existing bounded-CDF kernel on their shared grid;
+  fitted priors, branch identities and numerical error limits remain unchanged.
 - adds the optional 'jags.worker_output' setting to capture parallel JAGS
   worker stdout and stderr during fitting and extension, including failures
   that terminate a worker before it can return an R error.

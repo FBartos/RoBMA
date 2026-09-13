@@ -1,3 +1,6 @@
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include "selnorm-mv.h"
 #include "selnorm-mixture-compression.h"
 
@@ -2883,6 +2886,11 @@ int cpp_selnorm_factor_box_rng(
     const double *z_lower, const double *z_upper, int effect_sign,
     int max_attempts, double (*uniform)(), double *output)
 {
+  const bool profile_box = std::getenv("ROBMA_DEBUG_FACTOR_BOX") != nullptr;
+  const auto profile_tick = []() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); };
+  const double profile_start = profile_box ? profile_tick() : 0.0;
+  double profile_geometry = 0.0, profile_correction = 0.0, profile_integrands = 0.0, profile_intervals = 0.0, profile_totals = 0.0, profile_sampling = 0.0, profile_late_preparation = 0.0;
+  std::uint64_t profile_queries = 0, profile_hits = 0, profile_interval_queries = 0;
   std::uint64_t preparation_work = 0;
   double log_lower = 0.0, log_upper = 0.0;
   const double infinity = std::numeric_limits<double>::infinity();
@@ -2926,6 +2934,7 @@ int cpp_selnorm_factor_box_rng(
   }
   if (rank < 1 || rank > 4) return -1;
   loading.resize(static_cast<std::size_t>(n) * rank);
+  if (profile_box) profile_geometry = profile_tick() - profile_start;
   // Radius of each elementary long-double operation. This applies only to
   // the auxiliary covariance construction, never to modification of target C.
   const auto radius = [long_infinity](long double value) {
@@ -3014,6 +3023,7 @@ int cpp_selnorm_factor_box_rng(
   if (info != 0 || !std::all_of(correction.begin(), correction.end(),
       [](double value) { return std::isfinite(value); })) return -1;
 
+  if (profile_box) profile_correction = profile_tick() - profile_start - profile_geometry;
   SelNormKernelData selection = {};
   selection.n_bins = bins;
   selection.effect_sign = effect_sign;
@@ -3035,6 +3045,7 @@ int cpp_selnorm_factor_box_rng(
   };
   std::vector<double> location(n);
   const auto integrand = [&](const std::array<double, 4> &point, bool preparation) {
+    const double profile_integrand_start = profile_box ? profile_tick() : 0.0;
     for (int row = 0; row < n; ++row) {
       location[row] = mean[row];
       for (int axis = 0; axis < rank; ++axis) {
@@ -3056,7 +3067,11 @@ int cpp_selnorm_factor_box_rng(
       }
       direct = direct && product > 0.0L && std::isfinite(product);
     }
-    if (direct) return static_cast<double>(std::log(product));
+    if (direct) {
+      const double value = static_cast<double>(std::log(product));
+      if (profile_box && preparation) profile_integrands += profile_tick() - profile_integrand_start;
+      return value;
+    }
     // Unsafe direct products retain the complete existing scalar log path.
     // Preparation cost includes both attempted mass evaluations and fallback work.
     double total = 0.0;
@@ -3072,9 +3087,38 @@ int cpp_selnorm_factor_box_rng(
       total += value;
     }
     if (std::isnan(total)) throw std::runtime_error("A factor-box corner is undefined");
+    if (profile_box && preparation) profile_integrands += profile_tick() - profile_integrand_start;
     return total;
   };
-  const auto corner = [&](const std::array<double, 4> &point) { return integrand(point, true); };
+  auto corner_hash = [rank](const std::array<double, 4> &point) {
+    std::size_t hash = 0;
+    for (int axis = 0; axis < rank; ++axis) {
+      hash ^= std::hash<double>{}(point[axis]) + static_cast<std::size_t>(0x9e3779b9) +
+        (hash << 6) + (hash >> 2);
+    }
+    return hash;
+  };
+  std::unordered_map<std::array<double, 4>, std::pair<double, std::uint64_t>,
+                     decltype(corner_hash)> corner_cache(0, corner_hash);
+  std::unordered_map<std::array<double, 4>, int, decltype(corner_hash)> profile_interval_keys(0, corner_hash);
+  const auto corner = [&](const std::array<double, 4> &point) {
+    if (profile_box) ++profile_queries;
+    std::array<double, 4> key = point;
+    std::fill(key.begin() + rank, key.end(), 0.0);
+    const auto cached = corner_cache.find(key);
+    if (cached != corner_cache.end()) {
+      if (profile_box) ++profile_hits;
+      // Preserve the original refinement decisions and RNG stream. This is
+      // the same corner's logical preparation cost, even when its value is
+      // already available from a neighbouring cell.
+      preparation_work += cached->second.second;
+      return cached->second.first;
+    }
+    const std::uint64_t before = preparation_work;
+    const double value = integrand(point, true);
+    corner_cache.emplace(key, std::make_pair(value, preparation_work - before));
+    return value;
+  };
   const auto low = [&](const Cell &cell) { return increasing ? cell.lower_corner : cell.upper_corner; };
   const auto high = [&](const Cell &cell) { return increasing ? cell.upper_corner : cell.lower_corner; };
   const auto set_mass_gap = [&](Cell &cell) {
@@ -3092,11 +3136,13 @@ int cpp_selnorm_factor_box_rng(
   set_mass_gap(initial);
   cells.push_back(initial);
   const auto totals = [&]() {
+    const double profile_total_start = profile_box ? profile_tick() : 0.0;
     log_lower = log_upper = negative_infinity;
     for (const Cell &cell : cells) {
       log_lower = log_add_exp(log_lower, cell.mass + low(cell));
       log_upper = log_add_exp(log_upper, cell.mass + high(cell));
     }
+    if (profile_box) profile_totals += profile_tick() - profile_total_start;
   };
   const auto refine = [&]() {
     if (cells.size() >= 2000) return false;
@@ -3110,6 +3156,11 @@ int cpp_selnorm_factor_box_rng(
     double best_gap = infinity, widest = negative_infinity;
     bool found = false;
     for (int axis = 0; axis < rank; ++axis) {
+      if (profile_box) {
+        ++profile_interval_queries;
+        ++profile_interval_keys[std::array<double, 4>{parent.lower[axis], parent.upper[axis], 0.0, 0.0}];
+      }
+      const double profile_interval_start = profile_box ? profile_tick() : 0.0;
       const double median = cpp_selnorm_normal_interval_quantile(
         parent.lower[axis], parent.upper[axis], 0.0, 1.0, 0.5);
       if (!std::isfinite(median) || median <= parent.lower[axis] || median >= parent.upper[axis]) continue;
@@ -3117,6 +3168,7 @@ int cpp_selnorm_factor_box_rng(
       left.upper[axis] = right.lower[axis] = median;
       left.axis_mass[axis] = cpp_selnorm_normal_interval_log_prob(parent.lower[axis], median, 0.0, 1.0);
       right.axis_mass[axis] = cpp_selnorm_normal_interval_log_prob(median, parent.upper[axis], 0.0, 1.0);
+      if (profile_box) profile_intervals += profile_tick() - profile_interval_start;
       if (!std::isfinite(left.axis_mass[axis]) || !std::isfinite(right.axis_mass[axis])) continue;
       left.upper_corner = corner(left.upper);
       right.lower_corner = corner(right.lower);
@@ -3149,6 +3201,19 @@ int cpp_selnorm_factor_box_rng(
     previous_cost = cost;
   }
   totals();
+  const double profile_prepared = profile_box ? profile_tick() : 0.0;
+  const auto profile_report = [&]() {
+    if (!profile_box) return;
+    static std::array<double, 7> times{};
+    static std::array<std::uint64_t, 6> counts{};
+    times[0] += profile_geometry; times[1] += profile_correction;
+    times[2] += profile_integrands; times[3] += profile_intervals; times[4] += profile_totals;
+    times[5] += profile_prepared - profile_start - profile_geometry - profile_correction + profile_late_preparation;
+    times[6] += profile_sampling;
+    ++counts[0]; counts[1] += profile_queries; counts[2] += profile_hits;
+    counts[3] += profile_interval_queries; counts[4] += profile_interval_keys.size(); counts[5] += cells.size();
+    if (counts[0] % 100 == 0) std::fprintf(stderr, "Box profile: calls %llu geometry %.6f correction %.6f integrands %.6f intervals %.6f totals %.6f preparation %.6f sampling %.6f corners %llu hits %llu interval_queries %llu unique_intervals %llu cells %llu\n", (unsigned long long) counts[0], times[0], times[1], times[2], times[3], times[4], times[5], times[6], (unsigned long long) counts[1], (unsigned long long) counts[2], (unsigned long long) counts[3], (unsigned long long) counts[4], (unsigned long long) counts[5]);
+  };
   std::array<double, 4> factors{};
   std::vector<double> residual(n), transformed(n);
   std::vector<double> mass(bins), lower(bins), upper(bins);
@@ -3157,12 +3222,15 @@ int cpp_selnorm_factor_box_rng(
     // Adapt only before the next candidate, after previous rejections have
     // fully completed. An outer covariance rejection redraws both F and Y.
     if (completed_failures >= 64 && refinable && cells.size() < 2000) {
+      const double profile_late_start = profile_box ? profile_tick() : 0.0;
       for (int i = 0; i < 32 && cells.size() < 2000; ++i) {
         if (!refine()) { refinable = false; break; }
       }
       totals();
       completed_failures = 0;
+      if (profile_box) profile_late_preparation += profile_tick() - profile_late_start;
     }
+    const double profile_sampling_start = profile_box ? profile_tick() : 0.0;
     const double threshold = std::log(uniform()) + log_upper;
     double cumulative = negative_infinity;
     std::size_t selected = cells.size();
@@ -3183,6 +3251,7 @@ int cpp_selnorm_factor_box_rng(
     const double log_F = integrand(factors, false);
     if (log_F > high(cell) || std::isnan(log_F)) return -2;
     if (std::log(uniform()) > log_F - high(cell)) {
+      if (profile_box) profile_sampling += profile_tick() - profile_sampling_start;
       ++completed_failures; continue;
     }
     for (int row = 0; row < n; ++row) {
@@ -3201,7 +3270,12 @@ int cpp_selnorm_factor_box_rng(
     long double quadratic = 0.0L;
     for (double value : transformed) quadratic += static_cast<long double>(value) * value;
     if (!std::isfinite(quadratic)) return -2;
-    if (std::log(uniform()) <= -0.5L * quadratic) return 1;
+    if (std::log(uniform()) <= -0.5L * quadratic) {
+      if (profile_box) profile_sampling += profile_tick() - profile_sampling_start;
+      profile_report();
+      return 1;
+    }
+    if (profile_box) profile_sampling += profile_tick() - profile_sampling_start;
     ++completed_failures;
   }
   return 0;
