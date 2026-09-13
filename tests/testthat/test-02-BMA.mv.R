@@ -47,9 +47,11 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
 
   summary_frame <- as.data.frame(out)
   expect_equal(
-    summary_frame[["parameter"]][summary_frame[["component"]] == "inclusion random"],
-    paste0(names(gate_names), ": tau")
+    summary_frame[["parameter"]][summary_frame[["component"]] == "inclusion"],
+    c(rownames(out[["inclusion_components"]]),
+      paste0("Random: ", names(gate_names), ": tau"))
   )
+  expect_false(any(summary_frame[["component"]] == "inclusion random"))
   expect_false(any(grepl(
     "__xRE_",
     rownames(out[["inclusion_mods"]]),
@@ -532,7 +534,7 @@ test_that("BMA.mv random plots and hypotheses respect component gates", {
       "study: tau != 0 vs study: tau = 0",
       density_method = "KDE"
     ),
-    "Random-Effect Inclusion table",
+    "Component Inclusion table",
     fixed = TRUE
   )
 })

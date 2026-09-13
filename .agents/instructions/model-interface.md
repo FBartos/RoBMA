@@ -86,6 +86,10 @@ use `Meta-Regression` without scale predictors and `Location` with them. Scale
 coefficients retain their own table. Without location moderators, `mu` stays in
 the common table. Apply the same layout to conditional estimates while retaining
 the separate raw summary tables and their parameter metadata.
+Merge random-effect inclusion rows into the displayed `Component Inclusion`
+table with `Random: ` labels, before `Publication Bias`. Preserve bounded BF
+markers and diagnostics when combining and ordering rows. Data-frame exports
+follow this layout; raw inclusion subtables remain available.
 
 ## Classes and public arguments
 

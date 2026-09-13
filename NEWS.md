@@ -1,5 +1,8 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- includes random-effect inclusion rows in the Component Inclusion table,
+  labeled 'Random: ...' and placed before Publication Bias. Printed bounds,
+  diagnostics and data-frame exports retain the same inference values.
 - keeps accurate covariance quadrature available for tiny nonmonotone product
   normalizers with strictly positive weights, using a relative Gaussian
   covariance perturbation bound. Reconstructed diagonal and factor rounding

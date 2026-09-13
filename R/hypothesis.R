@@ -854,7 +854,7 @@ hypothesis.brma <- function(object, hypothesis,
       stop(
         "Point-null Bayes factors at 0 are unavailable for random-effect ",
         "quantity '", posterior[["entry"]][["term"]], "' because zero is ",
-        "the declared random-exclusion atom. Use the Random-Effect Inclusion ",
+        "the declared random-exclusion atom. Use the Component Inclusion ",
         "table from 'summary(object)' or 'summary_models(object)' to compare ",
         "exclusion and inclusion.",
         call. = FALSE
@@ -889,7 +889,7 @@ hypothesis.brma <- function(object, hypothesis,
         "quantity '", posterior[["spec"]][["label"]], "' because its ",
         "realized allocation distribution contains structural point masses ",
         "from allocation gates. Use a region or directional ",
-        "hypothesis, or the Random-Effect Inclusion table from ",
+        "hypothesis, or the Component Inclusion table from ",
         "'summary(object)' or 'summary_models(object)'.",
         call. = FALSE
       )

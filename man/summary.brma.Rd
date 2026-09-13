@@ -84,8 +84,10 @@ not emit sensitivity notifications.
 \description{
 \code{summary.brma} creates summary tables for a
 brma object. For RoBMA objects, inclusion summaries are printed before
-parameter estimates. Random-effect inclusion rows name the corresponding
-SD quantity, retaining component prefixes where needed.
+parameter estimates. Random-effect inclusion rows are included in
+\verb{Component Inclusion}, immediately before \verb{Publication Bias} when present.
+Their labels prefix the corresponding SD quantity with \verb{Random:}, retaining
+component names where needed. Data-frame exports use the same layout.
 }
 \examples{
 \dontrun{

@@ -3,8 +3,10 @@
 #'
 #' @description \code{summary.brma} creates summary tables for a
 #' brma object. For RoBMA objects, inclusion summaries are printed before
-#' parameter estimates. Random-effect inclusion rows name the corresponding
-#' SD quantity, retaining component prefixes where needed.
+#' parameter estimates. Random-effect inclusion rows are included in
+#' `Component Inclusion`, immediately before `Publication Bias` when present.
+#' Their labels prefix the corresponding SD quantity with `Random:`, retaining
+#' component names where needed. Data-frame exports use the same layout.
 #'
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior samples to be displayed.
@@ -454,6 +456,21 @@ as.data.frame.summary.brma <- function(
 
 .summary_brma_prepare_print_sections <- function(x) {
 
+  random_inclusion <- x[["inclusion_random"]]
+  if (length(random_inclusion) > 0L && nrow(random_inclusion) > 0L) {
+    rownames(random_inclusion) <- paste0("Random: ", rownames(random_inclusion))
+    inclusion <- .summary_brma_combine_tables(
+      tables = list(x[["inclusion_components"]], random_inclusion),
+      title = "Component Inclusion"
+    )
+    indices <- order(rownames(inclusion) == "Publication Bias")
+    x[["inclusion_components"]] <- .summary.inclusion_subtable(
+      table = inclusion, indices = indices,
+      row_labels = rownames(inclusion)[indices], title = "Component Inclusion"
+    )
+    x[["inclusion_random"]] <- list()
+  }
+
   x[["estimates_random"]] <- .summary_brma_random_section_for_print(
     random = x[["estimates_random"]],
     title  = "Random"
@@ -470,7 +487,7 @@ as.data.frame.summary.brma <- function(
       prefix <- if (nzchar(suffix)) "Conditional " else ""
       sections <- paste0(c("estimates", if (!mods) "estimates_mods", "estimates_random"), suffix)
       common <- paste0("estimates", suffix)
-      x[[common]] <- .summary_brma_combine_estimates(
+      x[[common]] <- .summary_brma_combine_tables(
         tables = x[sections],
         title = paste0(prefix, if (mods || scale) "Common Estimates" else "Estimates")
       )
@@ -485,7 +502,7 @@ as.data.frame.summary.brma <- function(
   return(x)
 }
 
-.summary_brma_combine_estimates <- function(tables, title) {
+.summary_brma_combine_tables <- function(tables, title) {
 
   tables <- Filter(function(table) length(table) > 0L && nrow(table) > 0L, tables)
   if (length(tables) == 0L) return(list())
@@ -494,6 +511,25 @@ as.data.frame.summary.brma <- function(
     row.names = unlist(lapply(tables, rownames), use.names = FALSE)
   )
   class(out) <- class(tables[[1L]])
+  for (column in colnames(out)) {
+    sources <- lapply(tables, function(table) table[[column]])
+    present <- which(!vapply(sources, is.null, logical(1L)))
+    column_attributes <- attributes(sources[[present[[1L]]]])
+    for (attribute in setdiff(names(column_attributes), c("names", "bound_operator"))) {
+      attr(out[[column]], attribute) <- column_attributes[[attribute]]
+    }
+    if (any(vapply(sources, function(source) {
+      !is.null(attr(source, "bound_operator", exact = TRUE))
+    }, logical(1L)))) {
+      attr(out[[column]], "bound_operator") <- unlist(lapply(seq_along(tables), function(i) {
+        bounds <- attr(sources[[i]], "bound_operator", exact = TRUE)
+        if (is.null(bounds)) rep(NA_character_, nrow(tables[[i]])) else bounds
+      }), use.names = FALSE)
+    }
+    if (any(vapply(sources, inherits, logical(1L), what = "BayesTools_BF"))) {
+      class(out[[column]]) <- unique(c("BayesTools_BF", class(out[[column]])))
+    }
+  }
   for (attribute in c("type", "n_models")) {
     values <- unlist(unname(lapply(tables, function(table) {
       value <- attr(table, attribute, exact = TRUE)

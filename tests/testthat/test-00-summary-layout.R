@@ -251,3 +251,172 @@ test_that("models without multivariate random terms keep their existing layout",
   attr(out, "random") <- NULL
   expect_identical(.summary_brma_prepare_print_sections(out), out)
 })
+
+.summary_layout_inclusion <- function(parameters, values, title,
+                                      operators = rep(NA_character_, length(values)),
+                                      logBF = FALSE, BF01 = FALSE,
+                                      diagnostics = NULL) {
+
+  out <- data.frame(
+    prior_prob   = rep(0.5, length(parameters)),
+    post_prob    = values / (1 + values),
+    inclusion_BF = values,
+    row.names    = parameters
+  )
+  attr(values, "bound_operator") <- operators
+  out[["inclusion_BF"]] <- BayesTools::format_BF(
+    values, inclusion = TRUE, logBF = logBF, BF01 = BF01
+  )
+  types <- c("prior_prob", "post_prob", "inclusion_BF")
+  if (!is.null(diagnostics)) {
+    out[["BF_error"]] <- diagnostics
+    types <- c(types, "BF_error")
+  }
+  class(out) <- c("BayesTools_table", "data.frame")
+  attr(out, "type") <- types
+  attr(out, "parameters") <- parameters
+  attr(out, "title") <- title
+  attr(out, "rownames") <- TRUE
+  attr(out, "logBF") <- logBF
+  attr(out, "BF01") <- BF01
+  attr(out, "footnotes") <- paste(title, "footnote.")
+  out
+}
+
+test_that("random inclusion joins component inclusion before publication bias", {
+
+  for (mods in c(FALSE, TRUE)) {
+    for (scale in c(FALSE, TRUE)) {
+      out <- .summary_layout_fixture(mods = mods, scale = scale)
+      out[["inclusion_components"]] <- .summary_layout_inclusion(
+        c("Effect", "Publication Bias"), c(0.35, 101.74), "Component Inclusion"
+      )
+      out[["inclusion_random"]] <- .summary_layout_inclusion(
+        c("study: tau", "observation: tau"), c(5.25, 17.75), "Random-Effect Inclusion",
+        operators = c(">", NA_character_)
+      )
+      original <- out
+      prepared <- .summary_brma_prepare_print_sections(out)
+      expected_parameters <- c(
+        "Effect", "Random: study: tau", "Random: observation: tau", "Publication Bias"
+      )
+      expect_identical(rownames(prepared[["inclusion_components"]]), expected_parameters)
+      expect_identical(
+        attr(prepared[["inclusion_components"]][["inclusion_BF"]], "bound_operator"),
+        c(NA_character_, ">", NA_character_, NA_character_)
+      )
+      expect_length(prepared[["inclusion_random"]], 0L)
+
+      output <- capture.output(print(out))
+      expect_equal(sum(output == "Component Inclusion"), 1L)
+      expect_false(any(output == "Random-Effect Inclusion"))
+      printed_rows <- output[grepl("^(Effect|Random:|Publication Bias) +.*[0-9]", output)]
+      expect_identical(
+        sub(" +[0-9].*$", "", printed_rows), expected_parameters
+      )
+
+      frame <- as.data.frame(out)
+      inclusion <- frame[frame[["component"]] == "inclusion", , drop = FALSE]
+      expect_identical(inclusion[["parameter"]], expected_parameters)
+      expect_equal(as.numeric(inclusion[["inclusion_BF"]]), c(0.35, 5.25, 17.75, 101.74))
+      expect_false(any(frame[["component"]] == "inclusion random"))
+      expect_identical(out, original)
+    }
+  }
+})
+
+test_that("merged inclusion preserves bounded BF rows, transforms, and diagnostics", {
+
+  for (logBF in c(FALSE, TRUE)) {
+    for (BF01 in c(FALSE, TRUE)) {
+      out <- .summary_layout_fixture(conditional = FALSE)
+      out[["inclusion_components"]] <- .summary_layout_inclusion(
+        c("Effect", "Publication Bias"), c(0.350123456789, 101.740123456789),
+        "Component Inclusion", operators = c(NA_character_, "<"),
+        logBF = logBF, BF01 = BF01, diagnostics = c(5.402123456789, NA_real_)
+      )
+      out[["inclusion_random"]] <- .summary_layout_inclusion(
+        "tau_total", 14999, "Random-Effect Inclusion", operators = ">",
+        logBF = logBF, BF01 = BF01
+      )
+      original <- out
+      merged <- .summary_brma_prepare_print_sections(out)[["inclusion_components"]]
+      expected_BF <- c(0.350123456789, 14999, 101.740123456789)
+      if (BF01) expected_BF <- 1 / expected_BF
+      if (logBF) expected_BF <- log(expected_BF)
+      expected_operators <- c(NA_character_, if (BF01) "<" else ">",
+                              if (BF01) ">" else "<")
+      expected_names <- c("Effect", "Random: tau_total", "Publication Bias")
+
+      expect_identical(rownames(merged), expected_names)
+      expect_s3_class(merged[["inclusion_BF"]], "BayesTools_BF")
+      expect_equal(as.numeric(merged[["inclusion_BF"]]), expected_BF)
+      expect_identical(attr(merged[["inclusion_BF"]], "bound_operator"), expected_operators)
+      for (attribute in c("name", "logBF", "BF01")) {
+        expect_identical(
+          attr(merged[["inclusion_BF"]], attribute),
+          attr(out[["inclusion_random"]][["inclusion_BF"]], attribute)
+        )
+      }
+      expect_identical(merged[["BF_error"]], c(5.402123456789, NA_real_, NA_real_))
+      expect_identical(attr(merged, "type"),
+                       c("prior_prob", "post_prob", "inclusion_BF", "BF_error"))
+      expect_identical(attr(merged, "footnotes"),
+                       c("Component Inclusion footnote.", "Random-Effect Inclusion footnote."))
+      expect_identical(attr(merged, "title"), "Component Inclusion")
+      output <- capture.output(print(out))
+      expect_true(any(grepl(paste0("^Random: tau_total .*", expected_operators[2L]), output)))
+      expect_true(any(grepl(paste0("^Publication Bias .*", expected_operators[3L]), output)))
+      expect_false(any(grepl("^Effect .*[<>]", output)))
+
+      frame <- as.data.frame(out)
+      inclusion <- frame[frame[["component"]] == "inclusion", , drop = FALSE]
+      expect_equal(as.numeric(inclusion[["inclusion_BF"]]), expected_BF)
+      expect_identical(inclusion[["BF_error"]], c(5.402123456789, NA_real_, NA_real_))
+      expect_true(is.numeric(inclusion[["inclusion_BF"]]))
+      expect_identical(out, original)
+    }
+  }
+})
+
+test_that("inclusion layout supports absent bias, random-only, and empty tables", {
+
+  out <- .summary_layout_fixture(conditional = FALSE)
+  out[["inclusion_components"]] <- .summary_layout_inclusion(
+    c("Effect", "Heterogeneity"), c(0.35, 8), "Component Inclusion"
+  )
+  out[["inclusion_random"]] <- .summary_layout_inclusion(
+    "tau_total", 14999, "Random-Effect Inclusion", operators = ">"
+  )
+  expect_identical(
+    rownames(.summary_brma_prepare_print_sections(out)[["inclusion_components"]]),
+    c("Effect", "Heterogeneity", "Random: tau_total")
+  )
+
+  for (empty in list(list(), out[["inclusion_components"]][FALSE, , drop = FALSE])) {
+    out[["inclusion_components"]] <- empty
+    prepared <- .summary_brma_prepare_print_sections(out)
+    expect_identical(rownames(prepared[["inclusion_components"]]), "Random: tau_total")
+    expect_identical(attr(prepared[["inclusion_components"]], "title"), "Component Inclusion")
+    expect_identical(attr(prepared[["inclusion_components"]][["inclusion_BF"]], "bound_operator"), ">")
+    expect_length(prepared[["inclusion_random"]], 0L)
+    output <- capture.output(print(out))
+    expect_equal(sum(output == "Component Inclusion"), 1L)
+    expect_false(any(output == "Random-Effect Inclusion"))
+  }
+
+  out[["inclusion_components"]] <- list()
+  out[["inclusion_random"]] <- list()
+  prepared <- .summary_brma_prepare_print_sections(out)
+  expect_length(prepared[["inclusion_components"]], 0L)
+  expect_length(prepared[["inclusion_random"]], 0L)
+  expect_false(any(as.data.frame(out)[["component"]] == "inclusion"))
+
+  out[["inclusion_components"]] <- .summary_layout_inclusion(
+    c("Effect", "Publication Bias"), c(0.35, 101.74), "Component Inclusion"
+  )
+  expect_identical(
+    .summary_brma_prepare_print_sections(out)[["inclusion_components"]],
+    out[["inclusion_components"]]
+  )
+})

@@ -87,8 +87,14 @@ test_that("RoBMA.mv summaries average every product-space component", {
 
   summary_frame <- as.data.frame(out)
   expect_true(all(c(
-    "inclusion", "inclusion random", "location", "bias", "random"
+    "inclusion", "location", "bias", "common"
   ) %in% summary_frame[["component"]]))
+  expect_false(any(summary_frame[["component"]] %in% c("inclusion random", "random")))
+  expect_equal(
+    summary_frame[["parameter"]][summary_frame[["component"]] == "inclusion"],
+    c(setdiff(rownames(out[["inclusion_components"]]), "Publication Bias"),
+      paste0("Random: ", rownames(out[["inclusion_random"]])), "Publication Bias")
+  )
 })
 
 
