@@ -102,7 +102,7 @@ RoBMA.mv <- function(
     prior_effect_null, prior_heterogeneity_null,
     prior_mods_null, prior_scale_null, prior_bias_null,
     standardize_continuous_predictors = TRUE,
-    set_contrast_factor_predictors = "treatment",
+    set_contrast_factor_predictors = "meandif",
     prior_unit_information_sd, rescale_priors = 1,
     prior_informed_field, prior_informed_subfield,
     model_type = "PSMA",

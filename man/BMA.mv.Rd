@@ -26,7 +26,7 @@ BMA.mv(
   prior_mods_null,
   prior_scale_null,
   standardize_continuous_predictors = TRUE,
-  set_contrast_factor_predictors = "treatment",
+  set_contrast_factor_predictors = "meandif",
   prior_unit_information_sd,
   rescale_priors = 1,
   prior_informed_field,
