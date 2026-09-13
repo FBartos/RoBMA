@@ -57,6 +57,13 @@ form displays the non-empty tables. Intercept-only multivariate location
 models label their sole coefficient \code{mu}, consistently with ordinary
 meta-analysis models. Once location moderators are present, the coefficient
 is labeled \code{intercept}; an intercept fixed at zero is omitted.
+Multivariate models without \code{mods} or \code{scale} display location and random
+estimates together in one \code{Estimates} table. With predictors, random estimates
+join \verb{Common Estimates}, location coefficients appear in \code{Meta-Regression}
+(or \code{Location} when \code{scale} is present), and scale coefficients appear in
+\code{Scale}. Without location moderators, \code{mu} remains in the common table.
+Conditional estimates follow the same layout. Data-frame conversion follows
+these displayed sections; the returned list retains its separate raw tables.
 Scale tables label the baseline SD as \code{exp(intercept)}; its estimates are
 already exponentiated. Other scale coefficients remain on the log-SD scale.
 Multivariate scale rows identify their targeted random-effect heterogeneity
