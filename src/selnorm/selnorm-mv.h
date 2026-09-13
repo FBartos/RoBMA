@@ -61,7 +61,8 @@ struct SelNormZProjection {
 };
 
 // Optional integration rules for an ordinary dense covariance. Covariance
-// envelopes bound the intended normalizer; their width is separate from the
+// envelopes bound monotone product normalizers. Nonmonotone products require
+// an absolute covariance-perturbation bound. That error is separate from the
 // estimated interior quadrature error and bounded exterior Gaussian mass.
 struct SelNormDenseIntegration {
   const double *nodes = nullptr;

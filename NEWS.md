@@ -1,5 +1,10 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- extends full-covariance product-selection quadrature to two-sided and other
+  nonmonotone weight functions. An absolute covariance-error bound preserves
+  the supplied covariance and existing numerical tolerance; unsupported or
+  unresolved cases retain QMC diagnostics. Default RoBMA ensembles can use this
+  integration path without changing their selection models or point budgets.
 - aligns multivariate summary output with univariate models: location and
   random estimates share one table without moderators or scale predictors,
   and use common, regression and scale sections when predictors are present.

@@ -748,13 +748,19 @@ double envelope_rule_log_integral(
   return result;
 }
 
-// Absolute Price-theorem bound A(covariance) - A(lower envelope).
+// Absolute Price-theorem bound |A(covariance) - A(lower envelope)|.
 // The caller has certified equal diagonals, 0 <= lower_ij <= covariance_ij,
-// positive definite covariance, and common-direction monotone product weights.
+// positive definite covariance, and nonnegative product step weights.
+// Off-diagonal differentiation has coefficient one (Price's theorem,
+// Voigtlaender, 2021, Theorem 1, doi:10.1007/s10959-020-01017-w):
+// each derivative measure has total variation
+// sum |omega[b] - omega[b-1]|. Bound the remaining weights by their maximum
+// and each bivariate density by its largest prefactor along the segment.
 // Every actual lower loading uses the same double arithmetic as quadrature.
 double covariance_price_gap_bound(const std::vector<double>& covariance,
     const double* selection_se, int dimension,
-    const SelNormCovarianceEnvelope& envelope, const double* omega, int n_bins)
+    const SelNormCovarianceEnvelope& envelope, const double* omega, int n_bins,
+    bool monotone)
 {
   const double infinity = std::numeric_limits<double>::infinity();
   if (dimension < 2 || n_bins < 1 || selection_se == nullptr || omega == nullptr ||
@@ -835,7 +841,15 @@ double covariance_price_gap_bound(const std::vector<double>& covariance,
     }
   }
   if (sum == 0.0) return 0.0;
-  const double variation = std::nextafter(maximum - minimum, infinity);
+  double variation = std::nextafter(maximum - minimum, infinity);
+  if (!monotone) {
+    variation = 0.0;
+    for (int bin = 1; bin < n_bins; ++bin) {
+      if (omega[bin] == omega[bin - 1]) continue;
+      variation = add_up(variation,
+        std::nextafter(std::fabs(omega[bin] - omega[bin - 1]), infinity));
+    }
+  }
   double multiplier = mul_up(variation, variation);
   for (int i = 0; i < dimension - 2; ++i) multiplier = mul_up(multiplier, maximum);
   const double result = mul_up(sum, multiplier);
@@ -1505,29 +1519,30 @@ bool dense_envelope_log_integral(
     // the returned approximate integral. L=0 retains the original arithmetic.
     return cdf_log_error > 0 ? cdf_scale * (cdf_scale_twice * raw + cdf_change_error) : raw;
   };
-  // Gaussian covariance comparison applies only when every nonnegative row
-  // weight is monotone in the same direction. Two-sided and nonmonotone rules,
-  // and best-event weights, retain their existing general covariance route.
+  // Covariance ordering brackets normalizers only for monotone row weights.
+  // Nonmonotone product weights instead require an absolute perturbation
+  // bound; agreement of two auxiliary integrals cannot replace that bound.
   bool increasing = true;
   bool decreasing = true;
   for (int bin = 1; bin < selection.n_bins; ++bin) {
     increasing = increasing && omega[bin - 1] >= omega[bin];
     decreasing = decreasing && omega[bin - 1] <= omega[bin];
   }
-  if (!increasing && !decreasing) return false;
+  const bool monotone = increasing || decreasing;
   SelNormCovarianceEnvelope envelope;
   if (!covariance_envelope(covariance, dimension, selection_se, &envelope)) return false;
   std::vector<EnvelopeGroupGeometry> lower_geometry, upper_geometry;
   if (!prepare_envelope_geometry(covariance, mean, selection_se, dimension,
                                  envelope, false, &lower_geometry) ||
-      !prepare_envelope_geometry(covariance, mean, selection_se, dimension,
-                                 envelope, true, &upper_geometry)) return false;
+      (monotone && !prepare_envelope_geometry(covariance, mean, selection_se, dimension,
+                                 envelope, true, &upper_geometry))) return false;
 
   const double gap_bound = covariance_price_gap_bound(
-    covariance, selection_se, dimension, envelope, omega, selection.n_bins
+    covariance, selection_se, dimension, envelope, omega, selection.n_bins, monotone
   );
   const double log_gap = gap_bound > 0.0 ? std::log(gap_bound) :
     -std::numeric_limits<double>::infinity();
+  if (!monotone && !std::isfinite(gap_bound)) return false;
   EnvelopeRuleWorkspace workspace;
   double previous_lower = std::numeric_limits<double>::quiet_NaN();
   double previous_upper = std::numeric_limits<double>::quiet_NaN();
@@ -1575,7 +1590,7 @@ bool dense_envelope_log_integral(
     }
 
     double upper = std::numeric_limits<double>::quiet_NaN();
-    if (!use_gap_bound || rule + 1 == integration->rule_count) {
+    if (monotone && (!use_gap_bound || rule + 1 == integration->rule_count)) {
       // A loose bound restores the two actual envelope quadratures. A deferred
       // previous upper value is evaluated at its original rule, not replaced
       // by a lower-covariance value. The final rule always tries this route.

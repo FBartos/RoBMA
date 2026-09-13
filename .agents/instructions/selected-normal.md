@@ -129,6 +129,14 @@ Changed roles/workloads require new evidence before equivalence claims.
 Integration diagnostics remain separate from model sensitivity. Relative
 weights identify neither absolute publication probability nor missing count.
 
+Dense product normalizers may use common/group factor quadrature with a checked
+covariance approximation. Monotone weights permit covariance-order bounds;
+two-sided and other nonmonotone weights require an absolute perturbation bound
+using the step weights' total variation. Never use agreement of auxiliary
+normalizers as a covariance bound for nonmonotone weights. Covariance error,
+quadrature change, and exterior Gaussian mass share the existing error budget;
+unresolved evaluations retain QMC and its diagnostics.
+
 ## Unsupported Paths
 
 Publication-bias weight functions are unsupported for binomial and Poisson

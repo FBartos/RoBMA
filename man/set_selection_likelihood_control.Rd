@@ -68,9 +68,13 @@ selection likelihoods used by \code{\link[=bselmodel]{bselmodel()}}, \code{\link
 Gauss-Hermite rules. Certified factors of structural rank one through four
 fall back to randomized quasi-Monte Carlo in the factor dimension when the
 quadrature sequence does not converge. General covariance blocks with
-monotone product weights first try same-diagonal covariance bounds with a
-common Gaussian factor and independent group factors. Their original full
-covariance remains authoritative. The covariance-bound width, estimated
+product weights first try same-diagonal covariance approximations with a
+common Gaussian factor and independent group factors. Monotone weights
+permit covariance bounds on the normalizer. Two-sided and other nonmonotone
+weights require an absolute covariance-perturbation bound based on the total
+variation of the step weights; agreement of auxiliary normalizers alone is
+insufficient. Their original full covariance remains authoritative.
+The covariance error bound, estimated
 quadrature error, and a bound on Gaussian mass outside the quadrature nodes
 share one numerical error budget. Interior quadrature error is estimated,
 so this is not a rigorous probability interval. Unsupported or unresolved
