@@ -1,5 +1,8 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- adds the optional 'jags.worker_output' setting to capture parallel JAGS
+  worker stdout and stderr during fitting and extension, including failures
+  that terminate a worker before it can return an R error.
 - includes random-effect inclusion rows in the Component Inclusion table,
   labeled 'Random: ...' and placed before Publication Bias. Printed bounds,
   diagnostics and data-frame exports retain the same inference values.

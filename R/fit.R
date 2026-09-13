@@ -717,6 +717,8 @@
   fit_control        <- object[["fit_control"]]
   autofit_control    <- object[["autofit_control"]]
   convergence_checks <- object[["convergence_checks"]]
+  worker_output      <- RoBMA.get_option("jags.worker_output")
+  if (!nzchar(worker_output)) worker_output <- NULL
   data               <- object[["data"]]
   priors             <- object[["priors"]]
 
@@ -769,6 +771,7 @@
       required_packages     = c("RoBMA", "BayesTools"),
       runtime_setup         = .selection_runtime_setup(),
       runtime_cache         = if (.is_priors_weightfunction(priors)) .selection_cache_runtime() else NULL,
+      worker_output         = worker_output,
       is_JASP               = object[["is_JASP"]],
       is_JASP_prefix        = object[["is_JASP_prefix"]]
     )
@@ -781,6 +784,7 @@
       parallel           = fit_control[["parallel"]],
       cores              = fit_control[["cores"]],
       silent             = fit_control[["silent"]],
+      worker_output      = worker_output,
       runtime_cache      = if (.is_priors_weightfunction(priors)) .selection_cache_runtime(object[["fit"]]) else NULL
     )
 

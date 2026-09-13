@@ -13,6 +13,7 @@
 #'   \item{\code{max_cores}}{number of cores to use for parallel computing (default is one fewer than detected logical cores, with a minimum/fallback of 1)}
 #'   \item{\code{check_scaling}}{whether to check scaling of predictors (default \code{TRUE})}
 #'   \item{\code{silent}}{whether to suppress output (default \code{FALSE})}
+#'   \item{\code{jags.worker_output}}{file path for parallel JAGS worker stdout and stderr when fitting or extending. The parent directory must exist; workers append to the same file and messages may interleave. The default empty string disables capture. Set this option inside any background job that fits the model. It does not change sampling or numerical integration settings.}
 #'   \item{\code{autocompute.loo}}{whether to automatically compute LOO (default \code{FALSE})}
 #'   \item{\code{autocompute.waic}}{whether to automatically compute WAIC (default \code{FALSE})}
 #'   \item{\code{autocompute.marglik}}{whether to automatically compute marginal likelihood (default \code{FALSE})}
@@ -189,6 +190,15 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   return(value)
 }
 
+
+.RoBMA_check_option_worker_output <- function(value, name) {
+
+  if (!is.character(value) || length(value) != 1L || is.na(value)) {
+    stop(paste0("Option '", name, "' must be a file path or an empty string."), call. = FALSE)
+  }
+  return(value)
+}
+
 .RoBMA_check_option_coarse_grid <- function(value, name) {
 
   keys <- c("mean", "variance", "log_weight")
@@ -214,6 +224,10 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   "silent" = list(
     default  = FALSE,
     validate = .RoBMA_check_option_bool
+  ),
+  "jags.worker_output" = list(
+    default  = "",
+    validate = .RoBMA_check_option_worker_output
   ),
   "autocompute.loo" = list(
     default  = FALSE,

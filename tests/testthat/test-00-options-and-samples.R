@@ -26,6 +26,40 @@ test_that("RoBMA options expose only public options", {
   expect_equal(updated[["max_cores"]], 1L)
 })
 
+test_that("worker output is opt-in and reaches fitting and extension", {
+
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+  log_path <- tempfile("RoBMA worker ", fileext = ".log")
+  for (value in list(NULL, TRUE, NA_character_, c("a", "b"))) {
+    expect_error(RoBMA.options(jags.worker_output = value),
+      "Option 'jags.worker_output' must be a file path or an empty string.", fixed = TRUE)
+  }
+  RoBMA.options(jags.worker_output = "")
+  object <- brma(yi = c(.1, .2, .3), sei = c(.2, .2, .2),
+    measure = "SMD", only_priors = TRUE, silent = TRUE)
+  received <- list()
+  backend <- function(..., worker_output) {
+    received[length(received) + 1L] <<- list(worker_output)
+    simpleError("Worker output forwarding probe")
+  }
+  testthat::local_mocked_bindings(JAGS_fit = backend, JAGS_extend = backend,
+    .package = "BayesTools")
+  .fit(object)
+  expect_null(received[[1L]])
+  RoBMA.options(jags.worker_output = log_path)
+  expect_identical(RoBMA.get_option("jags.worker_output"), log_path)
+  .fit(object)
+  object$fit <- list("extension probe")
+  .fit(object, extend = TRUE)
+  expect_identical(received[2:3], list(log_path, log_path))
+  RoBMA.options(jags.worker_output = "")
+  .fit(object, extend = TRUE)
+  expect_null(received[[4L]])
+  expect_false(file.exists(log_path))
+})
+
+
 test_that("fitting constructors inherit silent option when omitted", {
 
   old_options <- RoBMA.options()
