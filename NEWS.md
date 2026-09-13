@@ -743,7 +743,7 @@
   `RoBMA.options(default_lograte.sd = ...)` option controls this standard
   deviation. This intentionally changes default Poisson GLMM fits and makes
   prior informativeness invariant to the exposure-time unit.
-- requires BayesTools 0.3.1.37 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.103 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis

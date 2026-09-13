@@ -96,11 +96,16 @@ reference:
   - brma.glmm
   - brma.mv
   - RoBMA
+  - RoBMA.mv
   - BMA
   - BMA.glmm
+  - BMA.mv
   - bselmodel
+  - bselmodel.mv
   - bPET
+  - bPET.mv
   - bPEESE
+  - bPEESE.mv
   - update.brma
 - title: Inputs, priors, and model specification
   contents:
@@ -118,6 +123,10 @@ reference:
   - prior_PET
   - prior_PEESE
   - prior_weightfunction
+  - prior_random
+  - selection_model
+  - known_v_factor
+  - set_selection_likelihood_control
   - estimate_unit_information_sd
   - contr.BayesTools
 - title: Summaries and estimates
@@ -178,6 +187,11 @@ reference:
   - rstudent.brma
   - vif
   - vif.brma
+  - density_diagnostics
+  - selection_sensitivity_diagnostics
+  - selection_cache_info
+  - selection_sampler_info
+  - remove_selection_cache
 - title: Plots
   contents:
   - plot.brma
@@ -214,6 +228,7 @@ reference:
   - Andrews2021
   - Bem2011
   - Havrankova2025
+  - Hoogeveen2023
   - Hoppen2025
   - Johnides2025
   - Kroupova2021
@@ -229,3 +244,15 @@ reference:
   - print.summary.marginal_means.brma
   - print.summary_heterogeneity.brma
   - print.vif.brma
+- title: Data frame coercion
+  contents:
+  - as.data.frame.brma
+  - as.data.frame.brma_samples
+  - as.data.frame.summary_heterogeneity.brma
+  - as.data.frame.summary_models.RoBMA
+  - as.data.frame.marginal_means.brma
+  - as.data.frame.zplot_brma
+  - as.data.frame.vif.brma
+  - as.data.frame.infl.brma
+  - as.data.frame.dfbetas.brma
+  - as.data.frame.covratio.brma
