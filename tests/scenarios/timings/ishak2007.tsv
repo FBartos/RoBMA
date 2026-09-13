@@ -19,8 +19,8 @@ text	robma-structure-comparison-loo	0.000000000	0.370703	4.6.0	Windows/x86_64-w6
 text	robma-structure-comparison-marglik	0.000000000	0.368066	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-ar	0.790000000	0.689160	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-har	1.380000000	0.695996	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-heterogeneity-ar	0.840000000	0.790039	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-heterogeneity-har	1.060000000	0.800684	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-heterogeneity-ar	0.790000000	0.790039	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-heterogeneity-har	1.000000000	0.800684	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel	1.860000000	1.252637	4.6.0	Windows/x86_64-w64-mingw32
 plot	marginal_diagnostics	30.820000000	1.371680	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm	1.790000000	1.257129	4.6.0	Windows/x86_64-w64-mingw32

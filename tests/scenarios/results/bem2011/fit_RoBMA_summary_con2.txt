@@ -1,13 +1,5 @@
 
 Robust Bayesian Model-Averaged Random-Effects Model (k = 9)
-Estimate random effects: integrate. Integrated before normalization; selection can reweight its population mixing law.
-Other random effects: condition. Context absent; condition and integrate coincide.
-Known sampling context (from V): condition. Context absent; condition and integrate coincide.
-Random sources: estimate (estimate-level variation).
-Residual sampling variation is always integrated before normalization.
-Selection weights: Product of estimate weights.
-Publication groups: requested automatic; resolved 9 groups from singleton.
-Sampling structure: independent sampling errors; input vi/sei; policy version 1; 0 contextual factors.
 
 Component Inclusion
                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)

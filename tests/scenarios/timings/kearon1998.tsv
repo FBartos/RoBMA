@@ -3,7 +3,7 @@ fit	fit_brma_diag	7.680000000	0.867676	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_brma_hcs	7.830000000	0.970703	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_brma_hcs0	7.750000000	0.867676	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_brma_us	8.260000000	1.029688	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma_diag	3.700000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_diag	3.200000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_hcs	2.910000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_hcs0	2.850000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_us	3.560000000	NA	4.6.0	Windows/x86_64-w64-mingw32
@@ -28,7 +28,7 @@ text	summary-fit_brma_diag	0.330000000	0.313379	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma_hcs	0.400000000	0.312207	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma_hcs0	0.390000000	0.312402	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma_us	0.420000000	0.310840	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-het-hcs	0.320000000	0.404297	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-het-hcs	0.300000000	0.404297	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-het-us	0.330000000	0.414746	4.6.0	Windows/x86_64-w64-mingw32
 plot	cor	2.360000000	0.477832	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel	0.520000000	0.512402	4.6.0	Windows/x86_64-w64-mingw32

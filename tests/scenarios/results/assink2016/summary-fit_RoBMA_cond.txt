@@ -1,11 +1,5 @@
 
 Robust Bayesian Model-Averaged Random-Effects Model (k = 100)
-Random effects (from random): condition. Context absent; condition and integrate coincide.
-Sampling context (from V): condition. Context absent; condition and integrate coincide.
-Independent estimate-level and residual variation are integrated before normalization.
-Selection weights: Product of estimate weights.
-Publication groups: requested automatic; resolved 100 groups from singleton.
-Sampling structure: independent sampling errors; input vi/sei; policy version 1; 0 contextual factors.
 
 Component Inclusion
                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
