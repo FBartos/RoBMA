@@ -49,10 +49,11 @@ reporting models; it is not a numerical approximation error bound.
 }
 \details{
 At each posterior draw the fitted model defines a conditional Gaussian
-response law, retained contexts, and original publication groups. The
+response law, retained contexts, and any best-rule publication groups. The
 diagnostic evaluates each Gaussian selection unit's normalizer at fresh
-retained contexts, preserving original publication groups and the fitted
-product or best weight rule. Within a connected source unit, their product gives the
+retained contexts, preserving the fitted product or best weight rule and any
+best-rule publication groups. Product-only models require no grouping.
+Within a connected source unit, their product gives the
 relative reweighting when the retained contexts are integrated before
 selection normalization.
 

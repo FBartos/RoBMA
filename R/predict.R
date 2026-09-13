@@ -20,7 +20,10 @@
 #'   must agree. Poisson GLMM response predictions require exposures \code{t1i}
 #'   and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 #'   known-\code{V} \code{brma.mv()} response prediction, explicit
-#'   \code{newdata} also requires a new sampling covariance matrix.
+#'   \code{newdata} also requires a new sampling covariance matrix. Product-only
+#'   selection models require no publication-group column. If an active
+#'   selection branch uses \code{weight_rule = "best"}, its publication groups
+#'   must also be resolvable in the prediction data.
 #' @param type type of prediction to be performed. Options are:
 #' \itemize{
 #'   \item \code{"terms"} (alias: \code{"marginal"}): fixed location
@@ -1821,12 +1824,16 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
         (is.null(known_V) || !length(.known_v_correlated_blocks(known_V)))
     )
   })
-  if (!length(groups) || any(vapply(groups, function(group) {
-    !identical(group[["group_index"]], groups[[1L]][["group_index"]])
+  best <- vapply(model[["branches"]][model[["active_branches"]]], function(branch) {
+    identical(branch[["weight_rule"]], "best")
+  }, logical(1L))
+  publication_groups <- if (any(best)) groups[best] else groups[1L]
+  if (!length(publication_groups) || any(vapply(publication_groups, function(group) {
+    !identical(group[["group_index"]], publication_groups[[1L]][["group_index"]])
   }, logical(1L)))) {
-    stop("Selected prediction requires one common publication partition.", call. = FALSE)
+    stop("Selected best-weight prediction requires one common publication partition.", call. = FALSE)
   }
-  groups[[1L]][["row_blocks"]]
+  publication_groups[[1L]][["row_blocks"]]
 }
 
 

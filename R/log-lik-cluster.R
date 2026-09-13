@@ -215,10 +215,11 @@
     ordinary <- all(covariance == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
       all(selection[["omega"]][draw, ] == selection[["omega"]][draw, 1L])
     context <- BayesTools::selection_context_subset_rows(selection, draw)
+    weight_groups <- if (context[["vector_rule"]] == 0L) list(seq_len(K)) else groups
     log_weights <- function(values) {
 
       weights <- numeric(nrow(values))
-      for (group in groups) {
+      for (group in weight_groups) {
         group_context <- BayesTools::selection_context_subset_observations(context, group)
         group_context <- BayesTools::selection_context_subset_rows(group_context, rep(1L, nrow(values)))
         weights <- weights + .selection_joint_log_weight(values[, group, drop = FALSE],
@@ -272,7 +273,7 @@
         # Retained outside events contribute only their fixed W/A ratio.
         outside <- setdiff(seq_len(K), deleted)
         outside_weight <- 0
-        for (group in groups) {
+        for (group in weight_groups) {
           rows <- intersect(group, outside)
           if (length(rows)) outside_weight <- outside_weight + .selection_joint_log_weight(
             matrix(y[rows], 1L), setup[["selection_sei"]][rows],

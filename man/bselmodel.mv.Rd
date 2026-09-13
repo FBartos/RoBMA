@@ -57,8 +57,9 @@ left-hand side and location moderators on the right-hand side (for example
 \item{V}{a known working variance-covariance matrix, a list of block
 variance-covariance matrices, or an exact diagonal-plus-factor declaration
 created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}. Ordinary covariance
-matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. For selection
-models, declare publication groups separately with \code{selection_model(group = ...)}.
+matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. Product selection
+requires no publication groups. For best-p-value selection, declare groups
+separately with \code{selection_model(weight_rule = "best", group = ...)}.
 Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
 stored symmetrically by averaging off-diagonal pairs; the supplied object
 and its diagonal are unchanged.}
@@ -172,7 +173,9 @@ intervals \verb{[0, .025]} and \verb{(.025, 1]}.}
 automatically constructed weightfunction priors. The default integrates
 estimate-level random effects and the complete sampling error, and conditions
 on other random effects. Each source can instead be conditioned upon or
-integrated through the corresponding selection-model setting. Explicit
+integrated through the corresponding selection-model setting. The default
+\code{weight_rule = "product"} needs no publication groups and ignores \code{group}.
+Publication grouping is active only for \code{weight_rule = "best"}. Explicit
 \code{prior_bias} objects retain their own selection specification; this argument
 does not overwrite it. Conditioning on sampling variation retains the entire
 sampling-error realization, including in ordinary univariate models.
@@ -242,7 +245,9 @@ weightfunction carries a \code{\link[=selection_model]{selection_model()}} speci
 random effects, other random effects, and the complete sampling error are
 conditioned upon or integrated before selection normalization. The default
 integrates estimate-level random effects and sampling error, conditions on
-other random effects, and uses the product of estimate weights.
+other random effects, and uses the product of estimate weights. The default
+product rule needs no publication groups, so adding a three-level structure
+requires only \code{random = ~ 1 | study / esid}.
 \code{weight_rule = "best"} instead uses
 the weight at the smallest actual p-value in the publication group.
 
@@ -253,11 +258,16 @@ can select the publication vector, after which all measured outcomes are
 reported. The other conditioning cells and multiple-cutoff best rules are
 extensions of that specification.
 
-A publication group is resolved from an explicit \code{group} column in the
-prior or a supported constructor cluster. Multivariate random structures
-require an explicit group column. Covariance matrices, including standard
-\code{\link[metafor:vcalc]{metafor::vcalc()}} results, and random-effect grouping factors do not
-establish publication identities.
+Publication grouping is active only for \code{weight_rule = "best"}. For grouped
+multivariate models, specify it with
+\code{selection = selection_model(weight_rule = "best", group = study)}, or in
+the selection model of an explicit weightfunction prior. Independent models
+without a random structure can use singleton groups automatically. Covariance
+matrices, including standard \code{\link[metafor:vcalc]{metafor::vcalc()}} results, and random-effect
+grouping factors do not establish publication identities. With \code{"product"},
+\code{group} is ignored: it is neither bound to a data column nor checked as a
+publication partition. Integration follows the dependencies in \code{V} and the
+integrated random effects, independently of publication grouping.
 
 Sampling error is \eqn{e \sim N(0,V)}. With positive sampling standard
 errors it can equivalently be written as \eqn{e = Sz}, with
@@ -271,9 +281,9 @@ correlated sampling covariance, including \code{vi} and \code{sei} inputs.
 
 The covariance \code{V} remains authoritative. A diagonal-plus-factor input from
 \code{\link[=known_v_factor]{known_v_factor()}} can support more efficient calculations,
-but equivalent representations define the same selection model when their
-publication groups agree. Selection thresholds always use the original
-\code{sqrt(diag(V))}.
+but equivalent representations define the same selection model with matching
+source settings and, for \code{"best"}, publication groups. Selection thresholds
+always use the original \code{sqrt(diag(V))}.
 
 The likelihood and post-fit methods use the same resolved conditioning
 model. \code{known_v_parameterization} and numerical integration settings cannot
@@ -290,7 +300,7 @@ separate comparison automatically.
 \code{estimate_random_effects}, \code{other_random_effects}, and
 \code{known_sampling_variance} each accept \code{"condition"} or \code{"integrate"}.
 Both \code{"product"} and \code{"best"} support the resulting choices for supported
-Gaussian sources contained within publication groups.
+Gaussian sources, subject to the dependency restrictions below.
 
 Retained contexts remain unknown and are estimated. Their population mixing
 laws stay outside the selection normalizer; integrating a context instead
@@ -311,15 +321,17 @@ retained contexts makes this selection process invalid. It must not be
 handled by silently discarding those contexts. Ordinary population-level
 publication selection instead integrates all outcome-generating sources.
 
-Product weights also support the existing Gaussian dependency paths spanning
-publication groups. Best weights require integrated dependencies to remain
-within each publication group; an unsupported source is identified before
+Product normalization retains all supported Gaussian dependencies. Best
+weights require integrated dependencies to remain within each publication
+group; an unsupported source is identified before
 fitting. Conditioned sources may connect groups. Integrated candidate
 covariance can be singular while the observed law remains nondegenerate
 after averaging over retained sources. No residual noise is added to change
-this boundary. Ensembles require a common conditioning cell and publication
-partition across active selection branches, while allowing different bins,
-weight priors, and supported weight rules.
+this boundary. Ensembles require a common conditioning cell across active
+selection branches and a common publication partition across their \code{"best"}
+branches only. Product branches impose no grouping requirements; an ensemble
+without \code{"best"} accepts the default \code{group = NULL}. Bins, weight priors, and
+supported weight rules may differ across branches.
 Non-unit observation \code{weights} require
 \code{known_sampling_variance = "integrate"} and independent product factors.
 Unit weights are equivalent to omitting \code{weights}.
@@ -343,9 +355,10 @@ truth, with new sampling error. Prediction's \code{conditioning_depth} is a
 separate choice from the selection-model source settings.
 Cluster depth is available only for the
 specialized \code{cluster} interface. Known-covariance latent and response
-predictions with \code{newdata} require \code{V_new} and the resolved publication-group
-reference; cross-covariance with fitted outcomes and non-marginal \code{newdata}
-are unavailable. See \code{\link[=predict.brma]{predict.brma()}} for prediction targets and labels.
+predictions with \code{newdata} require \code{V_new} and, for \code{"best"}, the resolved
+publication-group reference; cross-covariance with fitted outcomes and
+non-marginal \code{newdata} are unavailable. See \code{\link[=predict.brma]{predict.brma()}} for prediction
+targets and labels.
 
 When the complete sampling error is conditioned upon, total fitted truth
 equals the observed estimate minus its fitted sampling error. Conditional
@@ -363,16 +376,13 @@ z-plots use their respective deletion and marginal projection targets.
 }
 \examples{
 \dontrun{
-dat <- data.frame(yi = c(0.10, 0.20), paper = c("A", "A"))
+dat <- data.frame(yi = c(0.10, 0.20))
 V <- matrix(c(0.04, 0.01, 0.01, 0.09), 2, 2)
 fit <- bselmodel.mv(
   yi      = yi,
   V       = V,
   data    = dat,
   measure = "GEN",
-  prior_bias = prior_weightfunction(
-    "one-sided", 0.025, model = selection_model(group = paper)
-  ),
   seed    = 1,
   silent  = TRUE
 )

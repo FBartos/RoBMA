@@ -1,5 +1,10 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- simplifies product selection models by making publication grouping inactive.
+  Multivariate and multilevel product models, including product-only ensembles,
+  accept the default 'group = NULL' and need only their 'random' specification.
+  Only active best-p-value branches resolve and compare publication groups;
+  product fitting and prediction retain their full covariance dependencies.
 - optionally retains exact and corrected-sampler selection caches with fitted
   objects through 'selection.cache_retain'. Compatible entries survive saveRDS
   and are reused when extending chains; 'remove_selection_cache()' releases the

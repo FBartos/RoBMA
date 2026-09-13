@@ -19,7 +19,9 @@
 #' random effects, other random effects, and the complete sampling error are
 #' conditioned upon or integrated before selection normalization. The default
 #' integrates estimate-level random effects and sampling error, conditions on
-#' other random effects, and uses the product of estimate weights.
+#' other random effects, and uses the product of estimate weights. The default
+#' product rule needs no publication groups, so adding a three-level structure
+#' requires only `random = ~ 1 | study / esid`.
 #' `weight_rule = "best"` instead uses
 #' the weight at the smallest actual p-value in the publication group.
 #'
@@ -30,11 +32,16 @@
 #' reported. The other conditioning cells and multiple-cutoff best rules are
 #' extensions of that specification.
 #'
-#' A publication group is resolved from an explicit `group` column in the
-#' prior or a supported constructor cluster. Multivariate random structures
-#' require an explicit group column. Covariance matrices, including standard
-#' [metafor::vcalc()] results, and random-effect grouping factors do not
-#' establish publication identities.
+#' Publication grouping is active only for `weight_rule = "best"`. For grouped
+#' multivariate models, specify it with
+#' `selection = selection_model(weight_rule = "best", group = study)`, or in
+#' the selection model of an explicit weightfunction prior. Independent models
+#' without a random structure can use singleton groups automatically. Covariance
+#' matrices, including standard [metafor::vcalc()] results, and random-effect
+#' grouping factors do not establish publication identities. With `"product"`,
+#' `group` is ignored: it is neither bound to a data column nor checked as a
+#' publication partition. Integration follows the dependencies in `V` and the
+#' integrated random effects, independently of publication grouping.
 #'
 #' Sampling error is \eqn{e \sim N(0,V)}. With positive sampling standard
 #' errors it can equivalently be written as \eqn{e = Sz}, with
@@ -48,9 +55,9 @@
 #'
 #' The covariance `V` remains authoritative. A diagonal-plus-factor input from
 #' [known_v_factor()] can support more efficient calculations,
-#' but equivalent representations define the same selection model when their
-#' publication groups agree. Selection thresholds always use the original
-#' `sqrt(diag(V))`.
+#' but equivalent representations define the same selection model with matching
+#' source settings and, for `"best"`, publication groups. Selection thresholds
+#' always use the original `sqrt(diag(V))`.
 #'
 #' The likelihood and post-fit methods use the same resolved conditioning
 #' model. `known_v_parameterization` and numerical integration settings cannot
@@ -67,7 +74,7 @@
 #' `estimate_random_effects`, `other_random_effects`, and
 #' `known_sampling_variance` each accept `"condition"` or `"integrate"`.
 #' Both `"product"` and `"best"` support the resulting choices for supported
-#' Gaussian sources contained within publication groups.
+#' Gaussian sources, subject to the dependency restrictions below.
 #'
 #' Retained contexts remain unknown and are estimated. Their population mixing
 #' laws stay outside the selection normalizer; integrating a context instead
@@ -88,15 +95,17 @@
 #' handled by silently discarding those contexts. Ordinary population-level
 #' publication selection instead integrates all outcome-generating sources.
 #'
-#' Product weights also support the existing Gaussian dependency paths spanning
-#' publication groups. Best weights require integrated dependencies to remain
-#' within each publication group; an unsupported source is identified before
+#' Product normalization retains all supported Gaussian dependencies. Best
+#' weights require integrated dependencies to remain within each publication
+#' group; an unsupported source is identified before
 #' fitting. Conditioned sources may connect groups. Integrated candidate
 #' covariance can be singular while the observed law remains nondegenerate
 #' after averaging over retained sources. No residual noise is added to change
-#' this boundary. Ensembles require a common conditioning cell and publication
-#' partition across active selection branches, while allowing different bins,
-#' weight priors, and supported weight rules.
+#' this boundary. Ensembles require a common conditioning cell across active
+#' selection branches and a common publication partition across their `"best"`
+#' branches only. Product branches impose no grouping requirements; an ensemble
+#' without `"best"` accepts the default `group = NULL`. Bins, weight priors, and
+#' supported weight rules may differ across branches.
 #' Non-unit observation `weights` require
 #' `known_sampling_variance = "integrate"` and independent product factors.
 #' Unit weights are equivalent to omitting `weights`.
@@ -120,9 +129,10 @@
 #' separate choice from the selection-model source settings.
 #' Cluster depth is available only for the
 #' specialized `cluster` interface. Known-covariance latent and response
-#' predictions with `newdata` require `V_new` and the resolved publication-group
-#' reference; cross-covariance with fitted outcomes and non-marginal `newdata`
-#' are unavailable. See [predict.brma()] for prediction targets and labels.
+#' predictions with `newdata` require `V_new` and, for `"best"`, the resolved
+#' publication-group reference; cross-covariance with fitted outcomes and
+#' non-marginal `newdata` are unavailable. See [predict.brma()] for prediction
+#' targets and labels.
 #'
 #' When the complete sampling error is conditioned upon, total fitted truth
 #' equals the observed estimate minus its fitted sampling error. Conditional
@@ -142,16 +152,13 @@
 #' `c("bselmodel.mv", "bselmodel", "brma.mv", "brma.norm", "brma")`.
 #'
 #' @examples \dontrun{
-#' dat <- data.frame(yi = c(0.10, 0.20), paper = c("A", "A"))
+#' dat <- data.frame(yi = c(0.10, 0.20))
 #' V <- matrix(c(0.04, 0.01, 0.01, 0.09), 2, 2)
 #' fit <- bselmodel.mv(
 #'   yi      = yi,
 #'   V       = V,
 #'   data    = dat,
 #'   measure = "GEN",
-#'   prior_bias = prior_weightfunction(
-#'     "one-sided", 0.025, model = selection_model(group = paper)
-#'   ),
 #'   seed    = 1,
 #'   silent  = TRUE
 #' )

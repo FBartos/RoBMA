@@ -9,7 +9,8 @@
 #' inferred from a materialized covariance matrix. This representation permits
 #' likelihood implementations to use the declared factor dimension when that
 #' route is supported. Gaussian and selection models retain the same target
-#' as a conventional dense `V` input with the same publication groups.
+#' as a conventional dense `V` input with the same source settings and, for
+#' best-p-value selection, publication groups.
 #'
 #' With `selection_model(known_sampling_variance = "condition")`, the declared
 #' covariance defines the complete retained sampling-error vector, including
@@ -20,7 +21,9 @@
 #'
 #' Ordinary covariance matrices, including results from [metafor::vcalc()],
 #' can also be supplied directly. Covariance inputs do not specify publication
-#' groups; declare them separately with `selection_model(group = ...)`.
+#' groups. Only `weight_rule = "best"` uses publication groups; declare them
+#' separately with `selection_model(weight_rule = "best", group = ...)`.
+#' The default product rule requires no publication grouping.
 #'
 #' Matrix inputs use base R's numerical symmetry tolerance. Accepted matrices
 #' are stored symmetrically by averaging corresponding off-diagonal entries,

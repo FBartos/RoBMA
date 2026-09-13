@@ -90,20 +90,28 @@ Non-unit observation `weights` require sampling `integrate` and the supported
 independent-product weighted path. Unit weights are identical to omission and
 remain valid with sampling `condition`.
 
-Bind publication groups after the common row selection, using the explicit
-column or supported constructor cluster. Ordinary `metafor::vcalc()` outputs
-are covariance matrices; they do not provide publication identities. Do not
-infer publications from random groups or covariance blocks. Partial
-vectors, deletion, prediction and zplots retain the full original selection
-event. Under sampling `condition`, estimate deletion integrates the deleted
-sampling error conditionally on the retained errors of remaining estimates.
-Fixed choices add no parameters.
+Publication grouping is active only for `weight_rule = "best"`. Product
+branches ignore `group`, do not bind its column or check its partition, and
+accept the default `group = NULL` for every supported model structure.
+Product integration follows the full integrated covariance dependencies.
+For best branches, bind publication groups after the common row selection,
+using the explicit column, supported constructor cluster, or an existing
+unambiguous singleton fallback. Active selection branches share source settings;
+only best branches must share a publication partition. Best requires integrated
+dependencies to remain within each group; conditioned sources may connect groups.
+Ordinary `metafor::vcalc()` outputs are covariance matrices; they do not provide
+publication identities. Do not infer publications from random groups or covariance
+blocks. Partial vectors, deletion, prediction and zplots retain the full original
+selection event. Under sampling `condition`, estimate deletion integrates the
+deleted sampling error conditionally on the retained errors of remaining
+estimates. Fixed choices add no parameters.
 
 Keep `known_v_factor()` as an explicit exact computational representation,
 and accept ordinary covariance matrices directly. Preserve row identity and
-bind publication groups separately from covariance input. Equivalent covariances with
-the same publication partition define the same selection model; do not attach
-conditioning meaning or decomposition warnings to diagonal-plus-factor splits.
+bind publication groups for best rules separately from covariance input.
+Equivalent covariances with the same source settings and, for best rules,
+publication partition define the same selection model. Do not attach conditioning
+meaning or decomposition warnings to diagonal-plus-factor splits.
 
 All-conditioned sources with positive weights almost surely reduce to the
 ordinary Gaussian law and provide no likelihood information about the weights.

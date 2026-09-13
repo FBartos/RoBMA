@@ -52,8 +52,9 @@ left-hand side and location moderators on the right-hand side (for example
 \item{V}{a known working variance-covariance matrix, a list of block
 variance-covariance matrices, or an exact diagonal-plus-factor declaration
 created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}. Ordinary covariance
-matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. For selection
-models, declare publication groups separately with \code{selection_model(group = ...)}.
+matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. Product selection
+requires no publication groups. For best-p-value selection, declare groups
+separately with \code{selection_model(weight_rule = "best", group = ...)}.
 Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
 stored symmetrically by averaging off-diagonal pairs; the supplied object
 and its diagonal are unchanged.}

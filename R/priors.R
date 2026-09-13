@@ -132,7 +132,8 @@ prior_weightfunction <- BayesTools::prior_weightfunction
 #' @title Selection Model
 #'
 #' @description Declare the contextual sources retained by a selection model,
-#' how publication weights combine, and an optional publication-group column.
+#' how estimate weights combine, and a publication-group column for best-p-value
+#' selection when needed.
 #'
 #' @param estimate_random_effects Either \code{"condition"} or
 #' \code{"integrate"} (default), for the declared estimate-level true-effect
@@ -146,18 +147,25 @@ prior_weightfunction <- BayesTools::prior_weightfunction
 #' selection normalization; integration uses the full sampling covariance.
 #' This choice also applies to univariate and independent sampling errors
 #' supplied through \code{vi} or \code{sei}. It does not change \code{V}.
-#' @param weight_rule Either \code{"product"} or \code{"best"}, specifying how
-#' estimate weights combine within a publication group.
+#' @param weight_rule Either \code{"product"} (default), which multiplies
+#' estimate weights without publication grouping, or \code{"best"}, which uses
+#' the weight at the smallest p-value within each publication group.
 #' @param group Optional unresolved data-column name, supplied as a bare name,
-#' a backtick-quoted name, or one character string. \code{NULL} requests
-#' automatic group resolution when data are bound.
+#' a backtick-quoted name, or one character string. Active only for
+#' \code{weight_rule = "best"}, where the default \code{NULL} requests
+#' automatic group resolution when data are bound. Product models ignore this
+#' argument and require no group column.
 #'
 #' @details This is RoBMA's re-export of \code{BayesTools::selection_model()}.
 #' The specification is stored in \code{prior_weightfunction(model = ...)}.
 #' Constructor \code{selection = selection_model(...)} settings apply only
 #' to generated default priors; explicit priors retain their own specification.
-#' A group name is captured without evaluating data; RoBMA binds it when the
-#' model data are available. Conditioned sources remain unknown and estimated.
+#' A group name is captured without evaluating data; RoBMA binds it only for
+#' \code{weight_rule = "best"}. When \code{group = NULL}, best-rule groups come
+#' from a supported constructor's \code{cluster} input or, for independent models
+#' without a random structure, one group per estimate. Other best-rule models
+#' require an explicit group column. Conditioned sources remain unknown and
+#' estimated.
 #' Integrating estimate variation is the default; conditioning on it defines
 #' a different selection model. The specialized clustered interface retains
 #' its total heterogeneity, allocation and within-/between-cluster I2 summaries.
@@ -183,18 +191,25 @@ prior_weightfunction <- BayesTools::prior_weightfunction
 #'
 #' \code{weight_rule = "best"} uses the weight of the smallest p-value's bin,
 #' rather than the largest weight. \code{weight_rule = "product"} multiplies
-#' the estimate weights within each publication group.
+#' all estimate weights. Its joint normalizer retains the dependencies in the
+#' integrated covariance, regardless of grouping. In ensembles, only best-rule
+#' branches require matching publication partitions; product-only ensembles
+#' accept \code{group = NULL}.
 #'
 #' See [bselmodel.mv()] for the supported conditioning cells, source and group
 #' requirements, and covariance boundaries.
 #'
 #' @return A \code{selection_model} object containing fixed mode choices and a
-#' deferred column name or \code{NULL} for automatic group resolution.
+#' deferred column name or \code{NULL}. The group is used only by the best rule.
 #'
 #' @examples
 #' prior_weightfunction(
 #'   steps = .05,
-#'   model = selection_model(known_sampling_variance = "condition", group = paper_id)
+#'   model = selection_model(known_sampling_variance = "condition")
+#' )
+#' prior_weightfunction(
+#'   steps = .05,
+#'   model = selection_model(weight_rule = "best", group = paper_id)
 #' )
 #'
 #' @seealso \code{\link{prior_weightfunction}}, [bselmodel.mv()], [RoBMA.mv()]

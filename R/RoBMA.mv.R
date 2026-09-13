@@ -38,10 +38,12 @@
 #' The constructor's `selection` specification applies to every generated
 #' weightfunction. It integrates estimate-level random effects and the complete
 #' sampling error by default, and conditions on other random effects.
-#' Explicit priors carry their own [selection_model()]
-#' settings, including publication grouping and product or best-p-value weights.
-#' Active selection branches must share one conditioning cell and publication
-#' partition. Their bins, weight priors, and weighting rules may differ.
+#' Default product weights require no publication groups: `group = NULL` is
+#' valid, including with a multilevel `random` formula and correlated `V`.
+#' Explicit priors carry their own [selection_model()] settings. Active selection
+#' branches must share one conditioning cell; only `weight_rule = "best"`
+#' branches require and must share a publication partition. Product branches
+#' ignore `group`. Their bins, weight priors, and weighting rules may differ.
 #' Non-selection branches retain the corresponding Gaussian, PET, or PEESE
 #' contribution with the same contextual source representation.
 #'
@@ -74,7 +76,6 @@
 #'   V = V,
 #'   mods = ~ deltype,
 #'   random = ~ 1 | study / esid,
-#'   selection = selection_model(group = study),
 #'   data = dat.assink2016,
 #'   measure = "SMD",
 #'   seed = 1,

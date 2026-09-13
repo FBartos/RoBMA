@@ -214,7 +214,9 @@ when \code{prior_bias_null} is customized or omitted.}
 automatically constructed weightfunction priors. The default integrates
 estimate-level random effects and the complete sampling error, and conditions
 on other random effects. Each source can instead be conditioned upon or
-integrated through the corresponding selection-model setting. Explicit
+integrated through the corresponding selection-model setting. The default
+\code{weight_rule = "product"} needs no publication groups and ignores \code{group}.
+Publication grouping is active only for \code{weight_rule = "best"}. Explicit
 \code{prior_bias} objects retain their own selection specification; this argument
 does not overwrite it. Conditioning on sampling variation retains the entire
 sampling-error realization, including in ordinary univariate models.
@@ -278,10 +280,12 @@ a single meta-analytic model.
 GLMM model averaging is provided by \code{BMA.glmm()}.
 
 \code{selection} configures every generated default weightfunction. Its default
-integrates estimate-level random effects and conditions on other random
-effects and known sampling variance. Explicit priors retain their nested
-\code{\link[=selection_model]{selection_model()}} settings. Active selection
-branches must share the same conditioning choices and publication partition.
+integrates estimate-level random effects and the complete sampling error,
+and conditions on other random effects. Explicit priors retain their nested
+\code{\link[=selection_model]{selection_model()}} settings. Active selection branches must share the same
+conditioning choices. Only \code{weight_rule = "best"} branches require and must
+share a publication partition. Product branches ignore \code{group}; an ensemble
+without \code{"best"} needs no publication groups and accepts \code{group = NULL}.
 Branches can differ in weight-height priors, bins, and \code{weight_rule}.
 These fixed model choices do not introduce new inclusion parameters.
 

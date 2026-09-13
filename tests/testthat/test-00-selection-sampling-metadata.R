@@ -15,7 +15,7 @@ test_that("ordinary vcalc covariance follows retained data rows and explicit pub
   rows <- c(1L, 3L, 4L, 5L, 6L)
   object <- bselmodel.mv(
     yi = yi, V = V, data = dat, subset = rows,
-    selection = selection_model(group = study), measure = "GEN",
+    selection = selection_model(weight_rule = "best", group = study), measure = "GEN",
     prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
   )
   known_V <- .data_known_v_data(object$data)
@@ -39,6 +39,7 @@ test_that("ordinary vcalc covariance follows retained data rows and explicit pub
                    .known_v_selection_metadata(known_subset))
   expect_error(bselmodel.mv(
     yi = yi, V = V, data = dat, subset = rows, measure = "GEN",
+    selection = selection_model(weight_rule = "best"),
     prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
   ), "Publication groups are unavailable for this input. Specify 'group' in 'selection_model()'.",
      fixed = TRUE)
@@ -52,8 +53,8 @@ test_that("publication binding follows declared precedence and the original row 
     paper = c(NA, "p", "q", "p")
   )
   rows <- c(4L, 2L, 3L)
-  automatic <- BayesTools::selection_model()
-  explicit <- BayesTools::selection_model(group = paper)
+  automatic <- BayesTools::selection_model(weight_rule = "best")
+  explicit <- BayesTools::selection_model(weight_rule = "best", group = paper)
 
   bound <- .selection_bind_groups(explicit, rows, dat, cluster = dat$study)
   expect_identical(bound$requested, "paper")

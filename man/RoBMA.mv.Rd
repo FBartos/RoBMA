@@ -62,8 +62,9 @@ left-hand side and location moderators on the right-hand side (for example
 \item{V}{a known working variance-covariance matrix, a list of block
 variance-covariance matrices, or an exact diagonal-plus-factor declaration
 created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}. Ordinary covariance
-matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. For selection
-models, declare publication groups separately with \code{selection_model(group = ...)}.
+matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. Product selection
+requires no publication groups. For best-p-value selection, declare groups
+separately with \code{selection_model(weight_rule = "best", group = ...)}.
 Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
 stored symmetrically by averaging off-diagonal pairs; the supplied object
 and its diagonal are unchanged.}
@@ -220,7 +221,9 @@ when \code{prior_bias_null} is customized or omitted.}
 automatically constructed weightfunction priors. The default integrates
 estimate-level random effects and the complete sampling error, and conditions
 on other random effects. Each source can instead be conditioned upon or
-integrated through the corresponding selection-model setting. Explicit
+integrated through the corresponding selection-model setting. The default
+\code{weight_rule = "product"} needs no publication groups and ignores \code{group}.
+Publication grouping is active only for \code{weight_rule = "best"}. Explicit
 \code{prior_bias} objects retain their own selection specification; this argument
 does not overwrite it. Conditioning on sampling variation retains the entire
 sampling-error realization, including in ordinary univariate models.
@@ -309,10 +312,12 @@ internal coordinates.
 The constructor's \code{selection} specification applies to every generated
 weightfunction. It integrates estimate-level random effects and the complete
 sampling error by default, and conditions on other random effects.
-Explicit priors carry their own \code{\link[=selection_model]{selection_model()}}
-settings, including publication grouping and product or best-p-value weights.
-Active selection branches must share one conditioning cell and publication
-partition. Their bins, weight priors, and weighting rules may differ.
+Default product weights require no publication groups: \code{group = NULL} is
+valid, including with a multilevel \code{random} formula and correlated \code{V}.
+Explicit priors carry their own \code{\link[=selection_model]{selection_model()}} settings. Active selection
+branches must share one conditioning cell; only \code{weight_rule = "best"}
+branches require and must share a publication partition. Product branches
+ignore \code{group}. Their bins, weight priors, and weighting rules may differ.
 Non-selection branches retain the corresponding Gaussian, PET, or PEESE
 contribution with the same contextual source representation.
 
@@ -343,7 +348,6 @@ fit <- RoBMA.mv(
   V = V,
   mods = ~ deltype,
   random = ~ 1 | study / esid,
-  selection = selection_model(group = study),
   data = dat.assink2016,
   measure = "SMD",
   seed = 1,

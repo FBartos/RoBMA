@@ -419,13 +419,18 @@ set_selection_likelihood_control <- function(
         !has_random_context && !has_sampling_dependence
     )
   })
-  partition <- groups[[1L]][["group_index"]]
-  if (any(vapply(groups, function(group) {
+  best <- vapply(models[active], function(model) {
+
+    identical(model[["weight_rule"]], "best")
+  }, logical(1))
+  publication_groups <- if (any(best)) groups[best] else groups[1L]
+  partition <- publication_groups[[1L]][["group_index"]]
+  if (any(vapply(publication_groups, function(group) {
 
     !identical(group[["group_index"]], partition)
   }, logical(1)))) {
     stop(
-      "Active weightfunction branches must use the same publication partition.",
+      "Active best-weight branches must use the same publication partition.",
       call. = FALSE
     )
   }
@@ -437,7 +442,7 @@ set_selection_likelihood_control <- function(
     known_sampling_variance = common[["known_sampling_variance"]],
     branches         = models,
     active_branches  = which(active),
-    groups           = groups[[1L]],
+    groups           = publication_groups[[1L]],
     branch_groups    = groups,
     sources          = list(random = random_sources),
     applicability    = list(

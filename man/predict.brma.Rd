@@ -38,7 +38,10 @@ event counts \code{ai} and \code{ci}, or supply the four cell counts
 must agree. Poisson GLMM response predictions require exposures \code{t1i}
 and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 known-\code{V} \code{brma.mv()} response prediction, explicit
-\code{newdata} also requires a new sampling covariance matrix.}
+\code{newdata} also requires a new sampling covariance matrix. Product-only
+selection models require no publication-group column. If an active
+selection branch uses \code{weight_rule = "best"}, its publication groups
+must also be resolvable in the prediction data.}
 
 \item{type}{type of prediction to be performed. Options are:
 \itemize{

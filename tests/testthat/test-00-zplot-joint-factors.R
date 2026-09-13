@@ -23,6 +23,45 @@ test_that("the shared context fallback preserves block weighting", {
 })
 
 
+test_that("product publication inputs preserve the streamed zplot factor path", {
+
+  dat <- data.frame(yi = c(.1, .2, -.1, .3), study = c("a", "a", "b", "b"),
+                    esid = 1:4, paper = "all")
+  V <- kronecker(diag(2L), matrix(c(.04, .01, .01, .06), 2L))
+  samples <- matrix(c(.1, -.2), 2L, dimnames = list(NULL, "mu_intercept"))
+  prepared <- lapply(list(selection_model(), selection_model(group = paper)), function(model) {
+
+    prior <- BayesTools::prior_weightfunction("one-sided", .025,
+      BayesTools::wf_fixed(c(1, .2)), model = model)
+    object <- bselmodel.mv(yi = yi, V = V, random = ~ 1 | study / esid, data = dat,
+      prior_bias = prior, measure = "GEN", prior_unit_information_sd = 1,
+      prior_heterogeneity = BayesTools::prior_random(
+        sd = BayesTools::prior("point", list(location = .4))),
+      only_priors = TRUE, silent = TRUE)
+    object$fit <- structure(list(), formula_design = object$formula_design,
+      prior_list = c(object$formula_design$mu$prior_list,
+                     .create_fit_priors(object$data, object$priors)))
+    selection <- .selection_spec(object$priors, dat$yi, sqrt(diag(V)), "positive")
+    selection$omega <- matrix(c(1, .2), 2L, 2L, byrow = TRUE)
+    selection$alpha <- numeric(2L)
+    selection$phack_kind <- integer(2L)
+    selection$kernel_mode <- rep(SELKERNEL_STEP, 2L)
+    selection$vector_rule <- integer(2L)
+    selection$use_normal <- rep(FALSE, 2L)
+    .zplot_joint_factor_preparation(object, samples, selection, FALSE,
+      set_selection_likelihood_control())
+  })
+  for (result in prepared) {
+    expect_false(is.null(result))
+    expect_identical(result$execution_plan$row_blocks, list(1:2, 3:4))
+    expect_equal(result$integrated$diagonal, matrix(.4^2, 2L, 4L))
+    expect_identical(result$retained$ranks, c(1L, 1L))
+  }
+  expect_identical(prepared[[1L]]$integrated, prepared[[2L]]$integrated)
+  expect_identical(prepared[[1L]]$retained, prepared[[2L]]$retained)
+})
+
+
 test_that("streamed contexts keep row weights and current-cell fallback aligned", {
 
   dat <- data.frame(yi = c(.1, .2, .3), study = c("a", "a", "b"), esid = 1:3)

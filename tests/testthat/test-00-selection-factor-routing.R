@@ -1,12 +1,13 @@
 context("Joint selection certified factor routing")
 skip_on_cran()
 
-.factor_selection_prior <- function(mode = "integrate") {
+.factor_selection_prior <- function(mode = "integrate", weight_rule = "product") {
 
   BayesTools::prior_weightfunction(
     "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
     model = BayesTools::selection_model(
-      other_random_effects = mode, known_sampling_variance = mode, group = "study"
+      other_random_effects = mode, known_sampling_variance = mode,
+      weight_rule = weight_rule, group = "study"
     )
   )
 }
@@ -106,7 +107,8 @@ test_that("ordinary sampling matrices and declared factors preserve vcalc covari
 
   object <- bselmodel.mv(
     yi = yi, V = V, data = dat, measure = "SMD",
-    prior_unit_information_sd = 1, prior_bias = .factor_selection_prior(),
+    prior_unit_information_sd = 1,
+    prior_bias = .factor_selection_prior(weight_rule = "best"),
     only_priors = TRUE, silent = TRUE
   )
   known_V <- .data_known_v_data(object$data)
@@ -121,10 +123,10 @@ test_that("ordinary sampling matrices and declared factors preserve vcalc covari
         model_type = "PSMA", measure = "SMD", data = dat,
         prior_unit_information_sd = 1,
         weightfunction_model = BayesTools::selection_model(
-          known_sampling_variance = "condition", group = "study")
+          known_sampling_variance = "condition", weight_rule = "best", group = "study")
       )
     } else {
-      .factor_selection_prior("condition")
+      .factor_selection_prior("condition", weight_rule = "best")
     }
     constructor(
       yi = yi, V = V, data = dat, random = ~ 1 | study, measure = "SMD",

@@ -167,7 +167,9 @@ intervals \verb{[0, .025]} and \verb{(.025, 1]}.}
 automatically constructed weightfunction priors. The default integrates
 estimate-level random effects and the complete sampling error, and conditions
 on other random effects. Each source can instead be conditioned upon or
-integrated through the corresponding selection-model setting. Explicit
+integrated through the corresponding selection-model setting. The default
+\code{weight_rule = "product"} needs no publication groups and ignores \code{group}.
+Publication grouping is active only for \code{weight_rule = "best"}. Explicit
 \code{prior_bias} objects retain their own selection specification; this argument
 does not overwrite it. Conditioning on sampling variation retains the entire
 sampling-error realization, including in ordinary univariate models.
@@ -222,7 +224,10 @@ the product of estimate weights. For independent rows conditional on these
 effects, this gives the usual selected-normal likelihood with within-cluster
 heterogeneity integrated. Use \code{selection = selection_model(...)} to choose
 \code{weight_rule = "best"}, which uses the weight at the smallest p-value in
-each publication group, or to supply an explicit group column.
+each publication group. For \code{"best"}, \code{group} identifies a data column;
+when \code{group = NULL}, the specialized \code{cluster} argument supplies publication
+groups, or an unclustered model uses one group per estimate. Product models
+use neither input to define selection groups.
 
 All conditioning choices use the same Gaussian source model. Conditioned
 sources remain latent; their population distributions stay outside selection
@@ -231,7 +236,7 @@ sources conditioned and positive weights, the weights cancel and the
 observed law is the ordinary Gaussian model. See \code{\link[=bselmodel.mv]{bselmodel.mv()}} for the
 complete source and covariance contract.
 
-Product weights factorize only for conditionally independent
+Product normalizers factorize only for conditionally independent
 rows. Dependent events use supported covariance-factor quadrature or fixed
 randomized quasi-Monte Carlo integration with explicit error diagnostics.
 Non-unit observation \code{weights} require

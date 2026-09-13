@@ -986,7 +986,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
     return(tmp)
   })
   fit_bselmodel.mv_cond <- scenario_fit("fit_bselmodel.mv_cond", {
-    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), parallel = TRUE, seed = 1)
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
     tmp <- add_marglik(tmp)
     tmp <- add_loo(tmp)
     return(tmp)
@@ -994,25 +994,25 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   fit_bselmodel.mv_reg_cond <- scenario_fit("fit_bselmodel.mv_reg_cond", {
     tmp <- bselmodel.mv(yi = yi, vi = vi, mods = ~ deltype, random = ~ 1 | study / esid,
                         prior_heterogeneity = BayesTools::prior_random(study = BayesTools::random_block(parameterization = "centered")), measure = "SMD",
-                        data = dat.assink2016, selection = selection_model(group = study), sample = 15000, burnin = 5000, parallel = TRUE, seed = 1)
+                        data = dat.assink2016, sample = 15000, burnin = 5000, parallel = TRUE, seed = 1)
     tmp <- add_marglik(tmp)
     tmp <- add_loo(tmp)
     return(tmp)
   })
   fit_bselmodel.mv_no_study_cond <- scenario_fit("fit_bselmodel.mv_no_study_cond", {
-    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study:esid, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), parallel = TRUE, seed = 1)
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study:esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
     tmp <- add_marglik(tmp)
     tmp <- add_loo(tmp)
     return(tmp)
   })
   fit_bselmodel.mv_no_estimate_cond <- scenario_fit("fit_bselmodel.mv_no_estimate_cond", {
-    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), sample = 60000, burnin = 10000, parallel = TRUE, seed = 1)
+    tmp <- bselmodel.mv(yi = yi, vi = vi, random = ~ 1 | study, measure = "SMD", data = dat.assink2016, sample = 60000, burnin = 10000, parallel = TRUE, seed = 1)
     tmp <- add_marglik(tmp)
     tmp <- add_loo(tmp)
     return(tmp)
   })
   fit_bselmodel.mv_fixed_cond <- scenario_fit("fit_bselmodel.mv_fixed_cond", {
-    tmp <- bselmodel.mv(yi = yi, vi = vi, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), parallel = TRUE, seed = 1)
+    tmp <- bselmodel.mv(yi = yi, vi = vi, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
     tmp <- add_marglik(tmp)
     tmp <- add_loo(tmp)
     return(tmp)
@@ -1020,7 +1020,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   # Deferred: dense vcalc integration failed its precision check with both
   # 512 and 32768 points. Keep the original calls for later optimization.
   # fit_bselmodel.mv_V_cond <- scenario_fit("fit_bselmodel.mv_V_cond", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), selection_control = set_selection_likelihood_control(points_per_scramble = 32768, max_points_per_scramble = 32768), effect_direction = "positive", parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection_control = set_selection_likelihood_control(points_per_scramble = 32768, max_points_per_scramble = 32768), effect_direction = "positive", parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp, repetitions = 3L)
     # tmp <- add_loo(tmp)
     # return(tmp)
@@ -1028,7 +1028,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   # Deferred: selection-normalizer diagnostics rejected all ten fitting attempts
   # (3.2 minutes). The diagonal regression comparisons remain active below.
   # fit_bselmodel.mv_V_reg_cond <- scenario_fit("fit_bselmodel.mv_V_reg_cond", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, mods = ~ deltype, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), sample = 15000, burnin = 5000, parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, mods = ~ deltype, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, sample = 15000, burnin = 5000, parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp)
     # tmp <- add_loo(tmp)
     # return(tmp)
@@ -1036,7 +1036,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   # Deferred: selection-normalizer diagnostics rejected all ten attempts
   # (2.2 minutes); the corresponding diagonal model completed.
   # fit_bselmodel.mv_V_no_study_cond <- scenario_fit("fit_bselmodel.mv_V_no_study_cond", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study:esid, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study:esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp)
     # tmp <- add_loo(tmp)
     # return(tmp)
@@ -1044,7 +1044,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   # Deferred: selection-normalizer diagnostics rejected all ten attempts
   # before the requested 120,000-sample run could complete.
   # fit_bselmodel.mv_V_no_estimate_cond <- scenario_fit("fit_bselmodel.mv_V_no_estimate_cond", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), sample = 120000, burnin = 10000, parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study, measure = "SMD", data = dat.assink2016, sample = 120000, burnin = 10000, parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp)
     # tmp <- add_loo(tmp)
     # return(tmp)
@@ -1052,7 +1052,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   # Deferred: selection-normalizer diagnostics rejected all ten attempts
   # (1.9 minutes), including this model without random effects.
   # fit_bselmodel.mv_V_fixed_cond <- scenario_fit("fit_bselmodel.mv_V_fixed_cond", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp)
     # tmp <- add_loo(tmp)
     # return(tmp)
@@ -1060,7 +1060,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
 
   # Deferred with its effect-present partner; the null failed at 512 points.
   # fit_bselmodel.mv_V_cond_null <- scenario_fit("fit_bselmodel.mv_V_cond_null", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect = prior("spike", list(0)), measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), selection_control = set_selection_likelihood_control(points_per_scramble = 32768, max_points_per_scramble = 32768), effect_direction = "positive", parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect = prior("spike", list(0)), measure = "SMD", data = dat.assink2016, selection_control = set_selection_likelihood_control(points_per_scramble = 32768, max_points_per_scramble = 32768), effect_direction = "positive", parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp, repetitions = 3L)
     # tmp <- add_loo(tmp)
     # return(tmp)
@@ -1301,14 +1301,14 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   # Deferred: the all-integrated effect model failed selection-normalizer
   # diagnostics in all ten fitting attempts (2.3 minutes).
   # fit_bselmodel.mv_V_marg <- scenario_fit("fit_bselmodel.mv_V_marg", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "integrate", known_sampling_variance = "integrate", group = study), selection_control = set_selection_likelihood_control(max_points_per_scramble = 32768), effect_direction = "positive", parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "integrate", known_sampling_variance = "integrate"), selection_control = set_selection_likelihood_control(max_points_per_scramble = 32768), effect_direction = "positive", parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp, repetitions = 3L)
     # tmp <- add_loo(tmp)
     # return(tmp)
   # })
   # The matched mean-null model also failed all ten attempts (2.3 minutes).
   # fit_bselmodel.mv_V_marg_null <- scenario_fit("fit_bselmodel.mv_V_marg_null", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect = prior("spike", list(0)), measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "integrate", known_sampling_variance = "integrate", group = study), selection_control = set_selection_likelihood_control(max_points_per_scramble = 32768), effect_direction = "positive", parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect = prior("spike", list(0)), measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "integrate", known_sampling_variance = "integrate"), selection_control = set_selection_likelihood_control(max_points_per_scramble = 32768), effect_direction = "positive", parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp, repetitions = 3L)
     # tmp <- add_loo(tmp)
     # return(tmp)
@@ -1326,13 +1326,13 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   # Deferred: the cached blocks took 20.5 and 24.3 minutes before LOO failed.
   # The LOO correction has focused tests; full scenario refits remain deferred.
   # fit_bselmodel.mv_V_sampling_cond <- scenario_fit("fit_bselmodel.mv_V_sampling_cond", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "condition", known_sampling_variance = "condition", group = study), effect_direction = "positive", parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "condition", known_sampling_variance = "condition"), effect_direction = "positive", parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp, repetitions = 3L)
     # tmp <- add_loo(tmp)
     # return(tmp)
   # })
   # fit_bselmodel.mv_V_sampling_cond_null <- scenario_fit("fit_bselmodel.mv_V_sampling_cond_null", {
-    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect = prior("spike", list(0)), measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "condition", known_sampling_variance = "condition", group = study), effect_direction = "positive", parallel = TRUE, seed = 1)
+    # tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect = prior("spike", list(0)), measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "condition", known_sampling_variance = "condition"), effect_direction = "positive", parallel = TRUE, seed = 1)
     # tmp <- add_marglik(tmp, repetitions = 3L)
     # tmp <- add_loo(tmp)
     # return(tmp)
@@ -1433,14 +1433,14 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
   })
   # Current run: maximum reported R-hat = 1.055; review ensemble mixing.
   fit_RoBMA_mv_diag_cond <- scenario_fit("fit_RoBMA_mv_diag_cond", {
-    tmp <- RoBMA.mv(yi = yi, V = vi, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), parallel = TRUE, seed = 1)
+    tmp <- RoBMA.mv(yi = yi, V = vi, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
     tmp <- add_loo(tmp)
     return(tmp)
   })
   # Deferred: selection-normalizer diagnostics rejected all ten attempts
   # (3.8 minutes). The diagonal ensemble remains active.
   # fit_RoBMA_mv_V_cond <- scenario_fit("fit_RoBMA_mv_V_cond", {
-    # tmp <- RoBMA.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, selection = selection_model(group = study), parallel = TRUE, seed = 1)
+    # tmp <- RoBMA.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
     # tmp <- add_loo(tmp)
     # return(tmp)
   # })
@@ -1558,13 +1558,13 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
   # Deferred: the all-integrated effect-present ensemble failed selection-
   # normalizer diagnostics in all ten fitting attempts (4.1 minutes).
   # fit_RoBMA_mv_V_marg_effect <- scenario_fit("fit_RoBMA_mv_V_marg_effect", {
-    # tmp <- RoBMA.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect_null = NULL, measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "integrate", known_sampling_variance = "integrate", group = study), selection_control = set_selection_likelihood_control(max_points_per_scramble = 32768), parallel = TRUE, seed = 1)
+    # tmp <- RoBMA.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect_null = NULL, measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "integrate", known_sampling_variance = "integrate"), selection_control = set_selection_likelihood_control(max_points_per_scramble = 32768), parallel = TRUE, seed = 1)
     # tmp <- add_loo(tmp)
     # return(tmp)
   # })
   # The matched mean-null ensemble also failed all ten attempts (3.1 minutes).
   # fit_RoBMA_mv_V_marg_null <- scenario_fit("fit_RoBMA_mv_V_marg_null", {
-    # tmp <- RoBMA.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect = NULL, measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "integrate", known_sampling_variance = "integrate", group = study), selection_control = set_selection_likelihood_control(max_points_per_scramble = 32768), parallel = TRUE, seed = 1)
+    # tmp <- RoBMA.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, prior_effect = NULL, measure = "SMD", data = dat.assink2016, selection = selection_model(estimate_random_effects = "integrate", other_random_effects = "integrate", known_sampling_variance = "integrate"), selection_control = set_selection_likelihood_control(max_points_per_scramble = 32768), parallel = TRUE, seed = 1)
     # tmp <- add_loo(tmp)
     # return(tmp)
   # })

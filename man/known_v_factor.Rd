@@ -24,7 +24,8 @@ The supplied diagonal and loading matrix define \code{V}; no numerical rank is
 inferred from a materialized covariance matrix. This representation permits
 likelihood implementations to use the declared factor dimension when that
 route is supported. Gaussian and selection models retain the same target
-as a conventional dense \code{V} input with the same publication groups.
+as a conventional dense \code{V} input with the same source settings and, for
+best-p-value selection, publication groups.
 
 With \code{selection_model(known_sampling_variance = "condition")}, the declared
 covariance defines the complete retained sampling-error vector, including
@@ -35,7 +36,9 @@ it does not define which sampling sources are conditioned upon.
 
 Ordinary covariance matrices, including results from \code{\link[metafor:vcalc]{metafor::vcalc()}},
 can also be supplied directly. Covariance inputs do not specify publication
-groups; declare them separately with \code{selection_model(group = ...)}.
+groups. Only \code{weight_rule = "best"} uses publication groups; declare them
+separately with \code{selection_model(weight_rule = "best", group = ...)}.
+The default product rule requires no publication grouping.
 
 Matrix inputs use base R's numerical symmetry tolerance. Accepted matrices
 are stored symmetrically by averaging corresponding off-diagonal entries,

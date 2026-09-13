@@ -15,7 +15,13 @@
   row_index <- as.integer(row_index)
   BayesTools::check_bool(allow_singletons, "allow_singletons")
   requested <- model[["group"]]
-  if (!is.null(requested)) {
+  if (identical(model[["weight_rule"]], "product")) {
+    # Native selection interfaces still need a row partition. These singleton
+    # identities carry no publication meaning and never determine dependencies.
+    requested <- NULL
+    values <- row_index
+    provenance <- "inactive"
+  } else if (!is.null(requested)) {
     if (!is.character(requested) || length(requested) != 1L ||
         is.na(requested) || !nzchar(requested)) {
       stop("The selection model 'group' must be a column name or NULL.", call. = FALSE)

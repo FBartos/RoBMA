@@ -103,20 +103,17 @@ test_that("constructor defaults agree and explicit child targets remain authorit
     expect_identical(default[fields], list(
       estimate_random_effects = "integrate", other_random_effects = "condition",
       known_sampling_variance = "integrate"))
-    if (multivariate) default <- BayesTools::selection_model(group = "study")
     explicit <- do.call(constructor, c(args, list(selection = default)))
     generated <- .data_selection_model(explicit[["data"]])
     expect_identical(generated[fields], default[fields])
     expect_true(all(vapply(generated[["branches"]][generated[["active_branches"]]],
       identical, logical(1), y = default)))
-    if (!multivariate) {
-      implicit <- do.call(constructor, args)
-      expect_identical(implicit[["data"]], explicit[["data"]])
-      expect_identical(implicit[["priors"]], explicit[["priors"]])
-      expect_identical(
-        .create_model_syntax(implicit[["data"]], implicit[["priors"]]),
-        .create_model_syntax(explicit[["data"]], explicit[["priors"]]))
-    }
+    implicit <- do.call(constructor, args)
+    expect_identical(implicit[["data"]], explicit[["data"]])
+    expect_identical(implicit[["priors"]], explicit[["priors"]])
+    expect_identical(
+      .create_model_syntax(implicit[["data"]], implicit[["priors"]]),
+      .create_model_syntax(explicit[["data"]], explicit[["priors"]]))
 
     requested <- BayesTools::selection_model(estimate_random_effects = "condition",
       other_random_effects = "integrate", known_sampling_variance = "integrate",
@@ -162,7 +159,11 @@ test_that("all conditioning cells and weight rules retain their declared source 
       )
       model <- .data_selection_model(object[["data"]])
       expect_identical(model[["branches"]][[1L]], requested)
-      expect_identical(model[["groups"]][["group_index"]], c(1L, 1L, 2L, 2L))
+      if (weight_rule == "best") {
+        expect_identical(model[["groups"]][["group_index"]], c(1L, 1L, 2L, 2L))
+      } else {
+        expect_identical(model[["groups"]][["provenance"]], "inactive")
+      }
       expect_identical(.selection_retains_any_random(object[["data"]]),
         cell$estimate_random_effects == "condition" || cell$other_random_effects == "condition")
       expect_identical(.selection_retains_sampling(object[["data"]]),
@@ -199,11 +200,11 @@ test_that("independent random slopes remain integrated estimate-level sources", 
   expect_false(model[["applicability"]][["other_random_effects"]])
   expect_identical(.data_selection_execution_plan(object[["data"]])[["row_blocks"]],
                    as.list(seq_len(4L)))
-  expect_identical(model[["groups"]][["group_index"]], c(1L, 1L, 2L, 2L))
+  expect_identical(model[["groups"]][["provenance"]], "inactive")
 })
 
 
-test_that("active selection branches require a common cell and publication partition", {
+test_that("active selection branches share a cell and best branches share a publication partition", {
 
   data <- .robma_mv_input_data()
   data[["publication"]] <- c("p1", "p1", "p2", "p2")
@@ -217,18 +218,19 @@ test_that("active selection branches require a common cell and publication parti
     data = data, prior_bias = lapply(models, prior), measure = "GEN",
     prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
   )
-  common <- BayesTools::selection_model(group = "study")
+  common <- BayesTools::selection_model(weight_rule = "best", group = "study")
   other_cell <- BayesTools::selection_model(
-    other_random_effects = "integrate", group = "study"
+    other_random_effects = "integrate", weight_rule = "best", group = "study"
   )
   expect_error(stage(list(common, other_cell)), paste0(
     "Active weightfunction branches must use the same 'estimate_random_effects', ",
     "'other_random_effects', and 'known_sampling_variance' settings."
   ), fixed = TRUE)
-  expect_error(stage(list(common, BayesTools::selection_model(group = "crossed"))),
-               "Active weightfunction branches must use the same publication partition.",
+  expect_error(stage(list(common, BayesTools::selection_model(
+    weight_rule = "best", group = "crossed"))),
+               "Active best-weight branches must use the same publication partition.",
                fixed = TRUE)
-  equivalent <- BayesTools::selection_model(group = "publication")
+  equivalent <- BayesTools::selection_model(weight_rule = "best", group = "publication")
   object <- stage(list(common, equivalent))
   model <- .data_selection_model(object[["data"]])
   expect_identical(model[["branches"]][model[["active_branches"]]],

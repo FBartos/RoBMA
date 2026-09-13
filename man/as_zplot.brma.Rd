@@ -119,8 +119,9 @@ Retained component weights are not renormalized to hide omissions.
 Independent univariate product-weight models and the released conditional
 cluster display retain their reference-bin-normalized inverse-weight
 extrapolation convention and corresponding \code{Missing N} summary.
-Resolving the same publication groups automatically or explicitly does not
-change the reference distribution or diagnostic.
+Product selection does not use publication groups; its covariance
+dependencies and source settings determine the reference distribution and
+diagnostic. Best-p-value selection preserves the resolved publication groups.
 A literal count interpretation additionally treats the reference bin as
 fully observed and requires a reporting/stopping design relating attempted
 to observed estimates. These assumptions are not supplied by the fitted

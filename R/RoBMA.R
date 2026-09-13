@@ -25,10 +25,12 @@
 #' GLMM model averaging is provided by `BMA.glmm()`.
 #'
 #' `selection` configures every generated default weightfunction. Its default
-#' integrates estimate-level random effects and conditions on other random
-#' effects and known sampling variance. Explicit priors retain their nested
-#' [selection_model()] settings. Active selection
-#' branches must share the same conditioning choices and publication partition.
+#' integrates estimate-level random effects and the complete sampling error,
+#' and conditions on other random effects. Explicit priors retain their nested
+#' [selection_model()] settings. Active selection branches must share the same
+#' conditioning choices. Only `weight_rule = "best"` branches require and must
+#' share a publication partition. Product branches ignore `group`; an ensemble
+#' without `"best"` needs no publication groups and accepts `group = NULL`.
 #' Branches can differ in weight-height priors, bins, and `weight_rule`.
 #' These fixed model choices do not introduce new inclusion parameters.
 #'

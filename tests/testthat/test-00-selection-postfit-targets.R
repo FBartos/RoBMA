@@ -565,7 +565,7 @@ test_that("bridge setup integrates known V without requesting a retained decompo
       "one-sided", .05, BayesTools::wf_fixed(c(1, .4)),
       model = BayesTools::selection_model(
         other_random_effects = "integrate", known_sampling_variance = "integrate",
-        group = "paper"
+        weight_rule = "best", group = "paper"
       )
     )
   )

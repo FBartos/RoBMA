@@ -80,10 +80,6 @@
       !is.integer(retained[["ranks"]]) || length(retained[["ranks"]]) != length(blocks)) {
     stop("Retained zplot factors or structural diagonal supports are invalid.", call. = FALSE)
   }
-  publication <- model[["groups"]][["group_index"]]
-  if (length(publication) != K || anyNA(publication)) {
-    stop("Zplot publication identities disagree with the fitted observations.", call. = FALSE)
-  }
   for (block in seq_along(blocks)) {
     rows <- blocks[[block]]
     rank <- retained[["ranks"]][[block]]
@@ -94,8 +90,7 @@
         !identical(dim(loading_support), c(length(rows), rank))) {
       stop("Retained zplot loading metadata are invalid.", call. = FALSE)
     }
-    if (length(rows) > 1L && (any(support[rows]) || rank > 1L ||
-        length(unique(publication[rows])) != 1L)) return(NULL)
+    if (length(rows) > 1L && (any(support[rows]) || rank > 1L)) return(NULL)
   }
   integrated <- .selection_joint_random_factor_samples(setup, inputs = inputs)
   if (is.null(integrated) && !is.null(plan[["random_covariance"]])) return(NULL)
