@@ -6,7 +6,11 @@ fit_robma_mv <- load_fit("RoBMA.mv_marg_product_space", validate = FALSE)
 
 .robma_mv_random_gate_names <- function(fit) {
 
-  allocation <- fit[["formula_design"]][["mu"]][["random_allocations"]][[1L]]
+  # `fit[["formula_design"]]` is not populated for every gated fit (a sole
+  # random component leaves it NULL); the fitted design always is.
+  allocation <- .fitted_formula_design(
+    fit, "mu"
+  )[["random_allocations"]][[1L]]
   vapply(
     allocation[["inclusion"]],
     `[[`,

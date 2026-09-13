@@ -285,7 +285,9 @@ test_that("RoBMA.mv stages the complete marginal product space", {
     c(0.5, 0.5)
   )
   expect_length(unique(vapply(
-    object[["formula_design"]][["mu"]][["random_allocations"]][[1L]][["inclusion"]],
+    .fitted_formula_design(
+      object, "mu"
+    )[["random_allocations"]][[1L]][["inclusion"]],
     `[[`,
     character(1),
     "indicator_name"

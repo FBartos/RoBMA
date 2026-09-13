@@ -4,11 +4,20 @@ skip_if_missing_fits("BMA.mv_random_components")
 fit_bma_mv <- load_fit("BMA.mv_random_components", validate = FALSE)
 
 
+.bma_mv_root_allocation <- function(fit) {
+
+  # Read through the production accessor: `fit[["formula_design"]]` is not
+  # populated for every gated fit (a sole random component leaves it NULL),
+  # while the fitted design is always recorded on the JAGS object.
+  design <- .fitted_formula_design(fit, "mu", required = TRUE)
+  design[["random_allocations"]][[1L]]
+}
+
+
 .bma_mv_random_gate_names <- function(fit) {
 
-  allocation <- fit[["formula_design"]][["mu"]][["random_allocations"]][[1L]]
   vapply(
-    allocation[["inclusion"]],
+    .bma_mv_root_allocation(fit)[["inclusion"]],
     `[[`,
     character(1),
     "indicator_name"
@@ -176,7 +185,7 @@ test_that("BMA.mv gated totals equal I_j w_j tau^2 without renormalizing", {
   # documented rule against the internal coordinates instead: the slab total
   # SD, the raw Dirichlet weights, and the gates.
   samples    <- .get_posterior_samples(fit_bma_mv[["fit"]])
-  allocation <- fit_bma_mv[["formula_design"]][["mu"]][["random_allocations"]][[1L]]
+  allocation <- .bma_mv_root_allocation(fit_bma_mv)
   components <- allocation[["component_labels"]]
   gate_names <- .bma_mv_random_gate_names(fit_bma_mv)
 

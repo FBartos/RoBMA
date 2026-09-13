@@ -62,7 +62,7 @@ test_that("BMA.mv fits a product space over fixed and random components", {
     c("BMA.mv", "RoBMA", "brma.mv", "brma.norm", "brma")
   )
   expect_length(
-    fit[["formula_design"]][["mu"]][["random_allocations"]][[1L]][["inclusion"]],
+    .fitted_formula_design(fit, "mu")[["random_allocations"]][[1L]][["inclusion"]],
     2L
   )
   expect_length(summary(fit)[["inclusion_random"]][["post_prob"]], 2L)
