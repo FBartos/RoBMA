@@ -1,5 +1,9 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- aligns multivariate summary output with univariate models: location and
+  random estimates share one table without moderators or scale predictors,
+  and use common, regression and scale sections when predictors are present.
+  Conditional output and data-frame exports follow the same layout.
 - simplifies product selection models by making publication grouping inactive.
   Multivariate and multilevel product models, including product-only ensembles,
   accept the default 'group = NULL' and need only their 'random' specification.

@@ -31,6 +31,13 @@
 #' models label their sole coefficient `mu`, consistently with ordinary
 #' meta-analysis models. Once location moderators are present, the coefficient
 #' is labeled `intercept`; an intercept fixed at zero is omitted.
+#' Multivariate models without `mods` or `scale` display location and random
+#' estimates together in one `Estimates` table. With predictors, random estimates
+#' join `Common Estimates`, location coefficients appear in `Meta-Regression`
+#' (or `Location` when `scale` is present), and scale coefficients appear in
+#' `Scale`. Without location moderators, `mu` remains in the common table.
+#' Conditional estimates follow the same layout. Data-frame conversion follows
+#' these displayed sections; the returned list retains its separate raw tables.
 #' Scale tables label the baseline SD as `exp(intercept)`; its estimates are
 #' already exponentiated. Other scale coefficients remain on the log-SD scale.
 #' Multivariate scale rows identify their targeted random-effect heterogeneity
@@ -456,7 +463,53 @@ as.data.frame.summary.brma <- function(
     title  = "Conditional Random"
   )
 
+  if (isTRUE(attr(x, "random", exact = TRUE))) {
+    mods  <- isTRUE(attr(x, "mods", exact = TRUE))
+    scale <- isTRUE(attr(x, "scale", exact = TRUE))
+    for (suffix in c("", "_conditional")) {
+      prefix <- if (nzchar(suffix)) "Conditional " else ""
+      sections <- paste0(c("estimates", if (!mods) "estimates_mods", "estimates_random"), suffix)
+      common <- paste0("estimates", suffix)
+      x[[common]] <- .summary_brma_combine_estimates(
+        tables = x[sections],
+        title = paste0(prefix, if (mods || scale) "Common Estimates" else "Estimates")
+      )
+      for (section in setdiff(sections, common)) x[[section]] <- list()
+      location <- paste0("estimates_mods", suffix)
+      if (mods && length(x[[location]]) > 0L) {
+        attr(x[[location]], "title") <- paste0(prefix, if (scale) "Location" else "Meta-Regression")
+      }
+    }
+  }
+
   return(x)
+}
+
+.summary_brma_combine_estimates <- function(tables, title) {
+
+  tables <- Filter(function(table) length(table) > 0L && nrow(table) > 0L, tables)
+  if (length(tables) == 0L) return(list())
+  out <- .output_bind_long_data_frames(
+    tables = lapply(tables, .output_plain_data_frame),
+    row.names = unlist(lapply(tables, rownames), use.names = FALSE)
+  )
+  class(out) <- class(tables[[1L]])
+  for (attribute in c("type", "n_models")) {
+    values <- unlist(unname(lapply(tables, function(table) {
+      value <- attr(table, attribute, exact = TRUE)
+      if (is.null(value)) return(NULL)
+      stats::setNames(value, colnames(table))
+    })))
+    attr(out, attribute) <- if (length(values)) unname(values[colnames(out)]) else NULL
+  }
+  for (attribute in c("parameters", "footnotes", "warnings")) {
+    values <- unlist(unname(lapply(tables, attr, which = attribute, exact = TRUE)),
+                     use.names = attribute == "warnings")
+    attr(out, attribute) <- if (attribute == "footnotes") unique(values) else values
+  }
+  attr(out, "title") <- title
+  attr(out, "rownames") <- attr(tables[[1L]], "rownames", exact = TRUE)
+  out
 }
 
 .summary_brma_random_section_for_print <- function(random, title) {

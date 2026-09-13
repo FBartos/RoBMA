@@ -79,6 +79,14 @@ Ordinary and specialized `brma(..., cluster = ...)` models use `tau`/`tau2`
 `tau_total`/`tau2_total` for a genuine additive aggregate, and
 `tau_common`/`tau2_common` for a mean-variance allocation scale.
 
+Printed summaries and their data-frame exports follow the univariate layout.
+Without `mods` or `scale`, combine location and random estimates in `Estimates`.
+With predictors, random estimates join `Common Estimates`; location coefficients
+use `Meta-Regression` without scale predictors and `Location` with them. Scale
+coefficients retain their own table. Without location moderators, `mu` stays in
+the common table. Apply the same layout to conditional estimates while retaining
+the separate raw summary tables and their parameter metadata.
+
 ## Classes and public arguments
 
 `brma` is the base class; `brma.norm`, `brma.glmm`, and `brma.mv` specialize the

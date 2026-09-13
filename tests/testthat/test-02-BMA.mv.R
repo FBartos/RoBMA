@@ -80,7 +80,7 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
   expect_identical(rownames(out[["estimates_random_conditional"]]), expected_parameters)
   expect_identical(data.frame(out), summary_frame)
   expect_identical(
-    summary_frame[["parameter"]][summary_frame[["component"]] == "random"],
+    summary_frame[["parameter"]][summary_frame[["component"]] == "common"],
     expected_parameters
   )
   heterogeneity <- summary_heterogeneity(fit_bma_mv)

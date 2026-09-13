@@ -198,7 +198,8 @@ test_that("brma.mv fits known-V backend smoke models", {
                          fixed = TRUE)))
   expect_false(any(grepl("Random Components", block_random_output,
                          fixed = TRUE)))
-  expect_true(any(block_random_output == "Random"))
+  expect_true(any(block_random_output == "Estimates"))
+  expect_false(any(block_random_output %in% c("Location", "Random")))
   expect_true(any(grepl("tau", block_random_output, fixed = TRUE)))
   expect_false(any(grepl("tau(intercept)", block_random_output,
                          fixed = TRUE)))
@@ -483,7 +484,8 @@ test_that("brma.mv fits extended known-V backend smoke models", {
   expect_false(any(grepl("Random Components", random_scale_output,
                          fixed = TRUE)))
   expect_true(any(grepl("Scale", random_scale_output, fixed = TRUE)))
-  expect_true(any(random_scale_output == "Random"))
+  expect_true(any(random_scale_output == "Common Estimates"))
+  expect_false(any(random_scale_output == "Random"))
   expect_true(all(
     c("tau2_prop(effect_study)", "tau2_prop(study)") %in%
       rownames(random_scale_summary[["estimates_random"]])
