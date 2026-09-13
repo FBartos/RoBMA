@@ -42,7 +42,8 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' @param object a brma model object.
 #' @param unit output/deletion unit. \code{"estimate"} computes one contribution
 #' per effect-size estimate. \code{"cluster"} computes one contribution per
-#' cluster and is available only for multilevel models.
+#' cluster and is available only for multilevel models fitted through the
+#' specialized clustered interface.
 #' @param r_eff optional vector of relative effective sample sizes. If not
 #' provided, it is computed from the log-likelihood values.
 #' @param parallel Logical. If \code{TRUE}, \code{loo::relative_eff()} and
@@ -66,6 +67,9 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' Cluster-unit binomial and Poisson GLMM log-likelihoods are unavailable until
 #' certified nested adaptive quadrature is implemented; use
 #' \code{unit = "estimate"} for GLMMs.
+#' Cluster-unit contributions are also unavailable for \code{brma.mv()} models,
+#' whose random-formula deletion semantics still need a dedicated design; use
+#' \code{unit = "estimate"} there.
 #'
 #' Selection-model deletion conditions the Gaussian law on retained outcomes
 #' and on the context declared by the fitted selection model. It preserves the
