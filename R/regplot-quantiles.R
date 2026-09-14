@@ -152,7 +152,13 @@
 
   model <- .data_selection_model(data)
   plan <- .data_selection_execution_plan(data)
-  available <- !.selection_retains_sampling(data) &&
+  # Conditioned sources no longer block a funnel contour: the band is the
+  # mixture over their population law, which `.funnel_conditioned_expansion()`
+  # evaluates. What still has no scalar law is a joint publication event, so a
+  # multi-row dependency block or a best rule spanning several rows remains
+  # unavailable. Regression-plot intervals keep the stricter scalar rule.
+  supports_conditioned <- identical(family, "funnel")
+  available <- (supports_conditioned || !.selection_retains_sampling(data)) &&
     all(lengths(plan[["row_blocks"]]) == 1L)
   rules <- rep_len(selection[["vector_rule"]], nrow(omega))[selected]
   if (any(rules != 0L) && any(lengths(model[["groups"]][["row_blocks"]]) != 1L)) {
@@ -160,9 +166,13 @@
   }
   # A changed regression design can activate shared coefficient supports
   # that were disjoint in the fitted rows. No new-event certificate is passed.
-  requires_zero <- Filter(function(source) isTRUE(source[["retained"]]) ||
-    (identical(family, "regplot") && identical(source[["role"]], "other")),
-    model[["sources"]][["random"]])
+  requires_zero <- if (supports_conditioned) {
+    list()
+  } else {
+    Filter(function(source) isTRUE(source[["retained"]]) ||
+      (identical(family, "regplot") && identical(source[["role"]], "other")),
+      model[["sources"]][["random"]])
+  }
   if (available && length(requires_zero)) {
     if (.is_data_random(data)) {
       design <- .fitted_formula_design(x, "mu", required = TRUE)

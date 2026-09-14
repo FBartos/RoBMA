@@ -187,15 +187,29 @@ test_that("scalar selected contour guards preserve supported and Gaussian cases"
   regression_message <- paste0(
     "Selected regression-plot sampling intervals are unavailable for this joint selection configuration. ",
     "Set 'sampling_bias = FALSE' to draw bias-adjusted sampling intervals.")
-  rejected <- list(
+  # A conditioned source no longer blocks a funnel contour: its band is the
+  # mixture over that source's population law. Regression-plot intervals keep
+  # the stricter scalar rule, so they still refuse the same inputs.
+  conditioned <- list(
     make(retained = TRUE),
-    make(sampling = "condition"),
+    make(sampling = "condition")
+  )
+  for (object in conditioned) {
+    expect_null(.plot_check_scalar_selection_target(object, context, "funnel"))
+    condition <- tryCatch(.plot_check_scalar_selection_target(object, context, "regplot"),
+      error = function(e) e)
+    expect_identical(conditionMessage(condition), regression_message)
+    expect_null(conditionCall(condition))
+  }
+
+  # A joint publication event still has no scalar law, for either family.
+  rejected <- list(
     make(dependent = TRUE),
     make(publication = TRUE)
   )
   for (i in seq_along(rejected)) {
     selected <- context
-    if (i == 4L) selected$vector_rule[] <- 1L
+    if (i == 2L) selected$vector_rule[] <- 1L
     expect_error(.plot_check_scalar_selection_target(rejected[[i]], selected, "funnel"),
       funnel_message, fixed = TRUE)
     condition <- tryCatch(.plot_check_scalar_selection_target(rejected[[i]], selected, "regplot"),
@@ -260,4 +274,105 @@ test_that("scalar selected contour guards preserve supported and Gaussian cases"
   expect_identical(calls, 2L)
   expect_null(.funnel_setup_from_samples(object, posterior, .7, TRUE, FALSE, 1)$selection)
   expect_identical(calls, 2L)
+})
+
+
+test_that("conditioned sources give the funnel band their mixture, not their spread", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  spec <- .test_step_spec(c(.2, .1), c(.2, .2))
+  selection <- spec
+  selection[["omega"]]       <- matrix(spec[["fixed_omega"]], nrow = 1L)
+  selection[["alpha"]]       <- 0
+  selection[["phack_kind"]]  <- 0L
+  selection[["kernel_mode"]] <- SELKERNEL_STEP
+  selection[["use_normal"]]  <- FALSE
+  selection[["vector_rule"]] <- 0L
+
+  mu <- 0.30
+  base <- list(
+    mu = mu, tau = 0, PET = 0, PEESE = 0,
+    is_weightfunction = TRUE, selection = selection, weights = 1
+  )
+  band <- function(integrated, conditioned, retains_sampling, se) {
+    setup <- base
+    setup[["sources"]] <- list(
+      integrated = integrated, conditioned = conditioned,
+      retains_sampling = retains_sampling, common = TRUE
+    )
+    .funnel_model_averaged_quantiles_native(se, setup, "positive")
+  }
+
+  # Reference: mix selected normals over the conditioned offset, each carrying
+  # its own normalizer, which is what a retained source implies.
+  static <- BayesTools::selection_native_static_args(selection)
+  omega  <- as.numeric(selection[["omega"]])
+  reference <- function(v_integrated, v_conditioned, se, probs = c(.025, .975)) {
+    edges <- function(bin) {
+      c(static[["z_lower"]][bin] * se, static[["z_upper"]][bin] * se)
+    }
+    weight_of <- function(y) {
+      z <- y / se
+      omega[vapply(z, function(value) {
+
+        which(value >= static[["z_lower"]] & value < static[["z_upper"]])[1L]
+      }, integer(1))]
+    }
+    rule  <- .gauss_hermite_nodes(301L)
+    nodes <- rule[["nodes"]]
+    node_weights <- rule[["weights"]] / sum(rule[["weights"]])
+    sd_kernel <- sqrt(v_integrated)
+    spread <- sqrt(v_integrated + v_conditioned)
+    grid <- seq(mu - 14 * spread, mu + 14 * spread, length.out = 60001L)
+    mass <- weight_of(grid)
+    density <- numeric(length(grid))
+    for (node in seq_along(nodes)) {
+      centre <- mu + nodes[node] * sqrt(v_conditioned)
+      normalizer <- sum(vapply(seq_along(omega), function(bin) {
+
+        edge <- edges(bin)
+        omega[bin] * (stats::pnorm(edge[2L], centre, sd_kernel) -
+                        stats::pnorm(edge[1L], centre, sd_kernel))
+      }, numeric(1)))
+      density <- density + node_weights[node] * mass *
+        stats::dnorm(grid, centre, sd_kernel) / normalizer
+    }
+    cumulative <- c(0, cumsum(
+      (density[-1L] + density[-length(density)]) / 2 * diff(grid)
+    ))
+    cumulative <- cumulative / cumulative[length(cumulative)]
+    # The far tails are flat to working precision; drop the ties so the
+    # inversion is well defined rather than silently interpolated across them.
+    keep <- !duplicated(cumulative)
+    stats::approx(cumulative[keep], grid[keep], xout = probs)$y
+  }
+
+  se <- 0.2
+  # Every source integrated: the band is the ordinary selected normal, and the
+  # previous scalar construction from a total tau reproduces it exactly.
+  integrated_only <- band(0.04, 0, FALSE, se)
+  legacy <- base
+  legacy[["tau"]] <- sqrt(0.04)
+  scalar <- .funnel_model_averaged_quantiles_native(se, legacy, "positive")
+  expect_equal(integrated_only[["lower"]], scalar[["lower"]], tolerance = 1e-12)
+  expect_equal(integrated_only[["upper"]], scalar[["upper"]], tolerance = 1e-12)
+
+  # A retained random source: the band is the mixture, not the same spread.
+  conditioned <- band(0, 0.04, FALSE, se)
+  target <- reference(se^2, 0.04, se)
+  expect_equal(conditioned[["lower"]], target[1L], tolerance = 1e-4)
+  expect_equal(conditioned[["upper"]], target[2L], tolerance = 1e-4)
+  expect_gt(abs(conditioned[["lower"]] - integrated_only[["lower"]]), 0.01)
+
+  # Retained sampling moves the standard error into the mixed bucket instead.
+  retained_sampling <- band(0.04, 0, TRUE, se)
+  expect_equal(retained_sampling[["lower"]],
+               reference(0.04, se^2, se)[1L], tolerance = 1e-4)
+  expect_gt(abs(retained_sampling[["lower"]] - integrated_only[["lower"]]), 0.01)
+
+  # Both roles at once still sum to the same total spread as the legacy band.
+  mixed <- band(0.02, 0.02, FALSE, se)
+  expect_true(is.finite(mixed[["lower"]]) && is.finite(mixed[["upper"]]))
+  expect_lt(mixed[["lower"]], mixed[["upper"]])
 })

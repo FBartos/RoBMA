@@ -278,11 +278,12 @@ test_that("plug-in funnels average complete joint-model CDFs", {
     },
     .funnel_setup_from_samples = function(
         x, posterior_samples, tau_samples, sampling_heterogeneity,
-        sampling_bias, weights) {
+        sampling_bias, weights, sources = NULL) {
       list(
         posterior_samples = posterior_samples,
         tau                = tau_samples,
-        weights            = weights
+        weights            = weights,
+        sources            = sources
       )
     },
     .package = "RoBMA"
