@@ -581,6 +581,40 @@ struct EnvelopeRuleWorkspace {
   std::vector<long double> singleton_probability;
 };
 
+// Repeat only the failure conditions of prepare_envelope_geometry for one
+// envelope side without materializing its geometry. The residual arithmetic
+// matches that function exactly, so feasibility here agrees with its success.
+bool envelope_geometry_feasible(
+    const std::vector<double> &covariance, const double* selection_se, int dimension,
+    const SelNormCovarianceEnvelope &envelope, bool upper)
+{
+  const double within = upper ? envelope.within_upper : envelope.within_lower;
+  const double between = upper ? envelope.between_upper : envelope.between_lower;
+  const double common = std::sqrt(envelope.groups == 1 ? within : between);
+  const double child = envelope.groups == 1 ? 0.0 : std::sqrt(within - between);
+  const bool absorb_singleton = envelope.groups > 1;
+  std::vector<int> group_sizes;
+  if (absorb_singleton) {
+    group_sizes.assign(envelope.groups, 0);
+    for (int row = 0; row < dimension; ++row) ++group_sizes[envelope.type_index[row]];
+  }
+  for (int row = 0; row < dimension; ++row) {
+    if (!(selection_se[row] > 0.0) || !std::isfinite(selection_se[row]) ||
+        !(covariance[row + dimension * row] > 0.0) ||
+        !std::isfinite(covariance[row + dimension * row])) return false;
+    const bool singleton = absorb_singleton && group_sizes[envelope.type_index[row]] == 1;
+    const double common_loading = common * selection_se[row];
+    const double child_loading = singleton ? 0.0 : child * selection_se[row];
+    const long double residual = static_cast<long double>(covariance[row + dimension * row]) -
+      static_cast<long double>(common_loading) * common_loading -
+      static_cast<long double>(child_loading) * child_loading;
+    if (!(residual > 0.0) || !std::isfinite(residual)) return false;
+    const double sd = std::sqrt(static_cast<double>(residual));
+    if (!(sd > 0.0) || !std::isfinite(sd)) return false;
+  }
+  return true;
+}
+
 bool prepare_envelope_geometry(
     const std::vector<double> &covariance, const double *mean,
     const double *selection_se, int dimension, const SelNormCovarianceEnvelope &envelope,
@@ -1695,9 +1729,21 @@ bool dense_envelope_log_integral(
   if (!monotone && !std::isfinite(gap_bound) && !positive_weights) return false;
   std::vector<EnvelopeGroupGeometry> lower_geometry, upper_geometry;
   if (!prepare_envelope_geometry(covariance, mean, selection_se, dimension,
-                                 envelope, false, &lower_geometry) ||
-      (monotone && !prepare_envelope_geometry(covariance, mean, selection_se, dimension,
-                                 envelope, true, &upper_geometry))) return false;
+                                 envelope, false, &lower_geometry)) return false;
+  // The upper geometry is only consumed by a monotone direct comparison. The
+  // covariance-bound route below accepts many states without ever evaluating
+  // it, so its matrices stay lazy. The original eager rejection semantics are
+  // preserved by the matching feasibility check below: it repeats the exact
+  // residual arithmetic of prepare_envelope_geometry's upper pass.
+  if (monotone && !envelope_geometry_feasible(covariance, selection_se, dimension,
+                                              envelope, true)) return false;
+  bool upper_prepared = false;
+  const auto prepare_upper = [&]() {
+    if (upper_prepared) return true;
+    upper_prepared = prepare_envelope_geometry(covariance, mean, selection_se,
+                                               dimension, envelope, true, &upper_geometry);
+    return upper_prepared;
+  };
 
   const double relative_gap_bound = monotone ?
     std::numeric_limits<double>::infinity() : covariance_relative_gap_bound(
@@ -1778,7 +1824,8 @@ bool dense_envelope_log_integral(
     }
 
     double upper = std::numeric_limits<double>::quiet_NaN();
-    if (monotone && (!use_gap_bound || rule + 1 == integration->rule_count)) {
+    if (monotone && (!use_gap_bound || rule + 1 == integration->rule_count) &&
+        prepare_upper()) {
       // A loose bound restores the two actual envelope quadratures. A deferred
       // previous upper value is evaluated at its original rule, not replaced
       // by a lower-covariance value. The final rule always tries this route.

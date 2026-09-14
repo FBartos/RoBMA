@@ -53,6 +53,10 @@
       .zplot_selection_marginal_parallel(object, posterior_samples, z_sequence,
         conditioning_depth, integration_control, cores)
     } else {
+      # Serial worker rows inherit the fitted model's parallel setup; the
+      # PSOCK branch above disables native threading in its workers.
+      .native_threads_configure(.resolve_native_threads(object))
+      on.exit(.native_threads_configure(1L), add = TRUE)
       .zplot_selection_marginal(object, posterior_samples, z_sequence, z_threshold,
         conditioning_depth, integration_control, extrapolate_only = extrapolate)
     }

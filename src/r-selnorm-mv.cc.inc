@@ -214,30 +214,41 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
   SEXP mcse = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP cdf_error = PROTECT(integration_rules.bounded_cdf ? Rf_allocVector(REALSXP, S) : R_NilValue);
   SEXP cdf_log_error = PROTECT(integration_rules.bounded_cdf ? Rf_allocVector(REALSXP, S) : R_NilValue);
-  std::vector<double> mean(K), covariance(L), weights(B), lo(K), hi(K), loading(K);
+  // Kernel modes are validated before the row loop so parallel workers never
+  // raise R errors from a worker thread.
   for (int s = 0; s < S; ++s) {
     const int mode = scalar_or_row_int(INTEGER(kernel_mode), mode_length, s, "kernel_mode");
     if (mode != SELKERNEL_NORMAL && mode != SELKERNEL_STEP) {
       Rf_error("Gaussian selection events require a normal or step selection kernel.");
     }
+  }
+  const int threads = robma_batch_threads(S);
+  robma_parallel::for_rows(S, threads, [&](int s) {
+    std::vector<double> row_mean(static_cast<std::size_t>(K));
+    std::vector<double> row_covariance(static_cast<std::size_t>(L));
+    std::vector<double> row_weights(static_cast<std::size_t>(B));
+    std::vector<double> row_lo(static_cast<std::size_t>(K));
+    std::vector<double> row_hi(static_cast<std::size_t>(K));
+    std::vector<double> row_loading(static_cast<std::size_t>(K));
+    const int mode = scalar_or_row_int(INTEGER(kernel_mode), mode_length, s, "kernel_mode");
     for (int i = 0; i < K; ++i) {
-      mean[i] = REAL(means)[s + S * i];
-      lo[i] = REAL(lower)[s + S * i];
-      hi[i] = REAL(upper)[s + S * i];
+      row_mean[i] = REAL(means)[s + S * i];
+      row_lo[i] = REAL(lower)[s + S * i];
+      row_hi[i] = REAL(upper)[s + S * i];
     }
     if (rank_one_loading == R_NilValue) {
-      for (int i = 0; i < L; ++i) covariance[i] = REAL(covariance_lower)[s + S * i];
+      for (int i = 0; i < L; ++i) row_covariance[i] = REAL(covariance_lower)[s + S * i];
     } else {
-      for (int i = 0; i < K; ++i) loading[i] = REAL(rank_one_loading)[s + S * i];
+      for (int i = 0; i < K; ++i) row_loading[i] = REAL(rank_one_loading)[s + S * i];
     }
-    for (int i = 0; i < B; ++i) weights[i] = REAL(omega)[s + S * i];
+    for (int i = 0; i < B; ++i) row_weights[i] = REAL(omega)[s + S * i];
     SelNormDenseIntegration integration = integration_rules;
-    REAL(log_mass)[s] = cpp_selnorm_gaussian_event_log_mass(mean.data(),
-      covariance.data(), K, REAL(sei), weights.data(), B, REAL(z_lower),
+    REAL(log_mass)[s] = cpp_selnorm_gaussian_event_log_mass(row_mean.data(),
+      row_covariance.data(), K, REAL(sei), row_weights.data(), B, REAL(z_lower),
       REAL(z_upper), INTEGER(sign)[0], mode,
       scalar_or_row_int(INTEGER(vector_rule), rule_length, s, "vector_rule"),
-      lo.data(), hi.data(), REAL(qmc), n_points, n_scrambles, REAL(mcse) + s,
-      rank_one_loading == R_NilValue ? nullptr : loading.data(),
+      row_lo.data(), row_hi.data(), REAL(qmc), n_points, n_scrambles, REAL(mcse) + s,
+      rank_one_loading == R_NilValue ? nullptr : row_loading.data(),
       normalizer_quadrature == R_NilValue ? nullptr : &integration);
     // This combines covariance/exterior bounds with estimated interior error;
     // it is not a Monte Carlo standard error or a rigorous total error bound.
@@ -248,8 +259,7 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
       REAL(cdf_error)[s] = integration.cdf_relative_error;
       REAL(cdf_log_error)[s] = integration.cdf_log_error;
     }
-    R_CheckUserInterrupt();
-  }
+  });
   SEXP out = PROTECT(Rf_allocVector(VECSXP, 3));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, 3));
   SET_VECTOR_ELT(out, 0, log_mass);
@@ -437,88 +447,86 @@ static SEXP selnorm_mnorm_step_batch(
   std::vector<double> loading(static_cast<std::size_t>(K * rank));
   CompactStepPartition partition;
 
+  // Per-row factor inputs are validated before the row loop so the parallel
+  // workers below never need to raise R errors from a worker thread.
+  if (rank) {
+    for (int s = 0; s < S; ++s) {
+      for (int i = 0; i < K; ++i) {
+        const double value = REAL(VECTOR_ELT(factors, 0))[s + S * i];
+        if (!(value > 0) || !std::isfinite(value)) {
+          Rf_error("'residual_sd' must be finite and positive.");
+        }
+      }
+      for (int j = 0; j < K * rank; ++j) {
+        const double value = REAL(VECTOR_ELT(factors, 1))[s + S * j];
+        if (!std::isfinite(value)) Rf_error("'loading' must be finite.");
+        if (loading_support != nullptr && !loading_support[j] && value != 0.0) {
+          Rf_error("'loading' contains nonzero values outside 'loading_support'.");
+        }
+      }
+    }
+  }
+
   // The existing owned row buffers are also the previous physical key.
   // Only this call's non-projected dense likelihood can reuse a completed row;
   // static observations, selection controls and quadrature/QMC are call-common.
-  const bool adjacent_dense = !project && factors == R_NilValue;
+  const int threads = robma_batch_threads(S);
+  const bool adjacent_dense = !project && factors == R_NilValue && threads == 1;
   bool previous_accepted = false;
   int previous_kernel = 0, previous_rule = 0;
   const auto same_double = [](const double &left, const double &right) {
     return std::memcmp(&left, &right, sizeof(double)) == 0;
   };
-  for (int s = 0; s < S; ++s) {
+  const auto compute_row = [&](int s, std::vector<double> &row_mean,
+      std::vector<double> &row_lower, std::vector<double> &row_omega,
+      std::vector<double> &row_residual_sd, std::vector<double> &row_loading,
+      std::vector<double> &row_projected, CompactStepPartition &row_partition) {
     const int row_kernel = scalar_or_row_int(INTEGER(kernel_mode), kernel_length, s, "kernel_mode");
     const int row_rule = scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule");
-    bool same_row = adjacent_dense && previous_accepted &&
-      row_kernel == previous_kernel && row_rule == previous_rule;
     for (int k = 0; k < K; ++k) {
-      same_row = same_row && same_double(mean[static_cast<std::size_t>(k)], REAL(means)[s + S * k]);
-      mean[static_cast<std::size_t>(k)] = REAL(means)[s + S * k];
+      row_mean[static_cast<std::size_t>(k)] = REAL(means)[s + S * k];
     }
     for (int l = 0; l < L; ++l) {
-      same_row = same_row && same_double(lower[static_cast<std::size_t>(l)], REAL(covariance_lower)[s + S * l]);
-      lower[static_cast<std::size_t>(l)] =
-        REAL(covariance_lower)[s + S * l];
+      row_lower[static_cast<std::size_t>(l)] = REAL(covariance_lower)[s + S * l];
     }
     for (int b = 0; b < B; ++b) {
-      same_row = same_row && same_double(omega_row[static_cast<std::size_t>(b)], REAL(omega)[s + S * b]);
-      omega_row[static_cast<std::size_t>(b)] = REAL(omega)[s + S * b];
+      row_omega[static_cast<std::size_t>(b)] = REAL(omega)[s + S * b];
     }
-    if (same_row) {
-      REAL(log_density)[s] = REAL(log_density)[s - 1];
-      REAL(relative_mcse)[s] = REAL(relative_mcse)[s - 1];
-      REAL(log_normalizer)[s] = REAL(log_normalizer)[s - 1];
-      for (int column = 0; column < 4; ++column)
-        REAL(integration_diagnostics)[s + S * column] = REAL(integration_diagnostics)[s - 1 + S * column];
-      if (integration_rules.bounded_cdf) {
-        REAL(cdf_error)[s] = REAL(cdf_error)[s - 1];
-        REAL(cdf_log_error)[s] = REAL(cdf_log_error)[s - 1];
+    if (rank) {
+      for (int i = 0; i < K; ++i) {
+        row_residual_sd[i] = REAL(VECTOR_ELT(factors, 0))[s + S * i];
       }
-      R_CheckUserInterrupt();
-      continue;
+      for (int j = 0; j < K * rank; ++j) {
+        row_loading[j] = REAL(VECTOR_ELT(factors, 1))[s + S * j];
+      }
     }
 
     double error = 0.0;
     SelNormZProjection projection;
     projection.z = project ? REAL(z) : nullptr;
     projection.size = Z;
-    projection.density = projected.data();
+    projection.density = row_projected.data();
     projection.relative_error = R_PosInf;
     projection.probability = project && LOGICAL(probability)[0];
     projection.rank = rank;
-    projection.factor_loading = rank ? loading.data() : nullptr;
+    projection.factor_loading = rank ? row_loading.data() : nullptr;
     projection.loading_support = loading_support;
-    projection.residual_sd = rank ? residual_sd.data() : nullptr;
+    projection.residual_sd = rank ? row_residual_sd.data() : nullptr;
     projection.order = quadrature ? Rf_length(VECTOR_ELT(factors, 2)) : 0;
     projection.nodes = quadrature ? REAL(VECTOR_ELT(factors, 2)) : nullptr;
     projection.log_weights = quadrature ? REAL(VECTOR_ELT(factors, 3)) : nullptr;
-    if (rank) {
-      for (int i = 0; i < K; ++i) {
-        residual_sd[i] = REAL(VECTOR_ELT(factors, 0))[s + S * i];
-        if (!(residual_sd[i] > 0) || !std::isfinite(residual_sd[i])) {
-          Rf_error("'residual_sd' must be finite and positive.");
-        }
-      }
-      for (int j = 0; j < K * rank; ++j) {
-        loading[j] = REAL(VECTOR_ELT(factors, 1))[s + S * j];
-        if (!std::isfinite(loading[j])) Rf_error("'loading' must be finite.");
-        if (loading_support != nullptr && !loading_support[j] && loading[j] != 0.0) {
-          Rf_error("'loading' contains nonzero values outside 'loading_support'.");
-        }
-      }
-    }
     SelNormDenseIntegration integration = integration_rules;
     const bool compact = !project && integration_rules.bounded_cdf &&
       row_kernel == SELKERNEL_STEP && row_rule == SELVECTOR_PRODUCT &&
-      LOGICAL(telescope_probabilities)[0] && partition.prepare(omega_row.data(),
+      LOGICAL(telescope_probabilities)[0] && row_partition.prepare(row_omega.data(),
         REAL(z_lower), REAL(z_upper), B, INTEGER(obs_bin), K);
     REAL(log_density)[s] = cpp_selnorm_mnorm_step_lpdf(
-      REAL(yi), mean.data(), lower.data(), K, REAL(sei),
-      compact ? partition.omega.data() : omega_row.data(),
-      compact ? static_cast<int>(partition.omega.size()) : B,
-      compact ? partition.lower.data() : REAL(z_lower),
-      compact ? partition.upper.data() : REAL(z_upper),
-      compact ? partition.obs_bin.data() : INTEGER(obs_bin), INTEGER(sign)[0],
+      REAL(yi), row_mean.data(), row_lower.data(), K, REAL(sei),
+      compact ? row_partition.omega.data() : row_omega.data(),
+      compact ? static_cast<int>(row_partition.omega.size()) : B,
+      compact ? row_partition.lower.data() : REAL(z_lower),
+      compact ? row_partition.upper.data() : REAL(z_upper),
+      compact ? row_partition.obs_bin.data() : INTEGER(obs_bin), INTEGER(sign)[0],
       LOGICAL(telescope_probabilities)[0],
       row_kernel,
       REAL(qmc), n_points, n_scrambles, &error,
@@ -538,22 +546,76 @@ static SEXP selnorm_mnorm_step_batch(
         REAL(cdf_log_error)[s] = integration.cdf_log_error;
       }
     }
-    for (int j = 0; j < Z; ++j) REAL(density)[s + S * j] = projected[j];
-    previous_kernel = row_kernel;
-    previous_rule = row_rule;
-    previous_accepted = adjacent_dense && std::isfinite(REAL(log_density)[s]) &&
-      std::isfinite(error) && error >= 0.0 && error <= REAL(relative_tolerance)[0] &&
-      (!return_normalizer || std::isfinite(REAL(log_normalizer)[s]));
-    if (previous_accepted) {
-      for (int column = 0; column < 4; ++column) {
-        const double diagnostic = REAL(integration_diagnostics)[s + S * column];
-        if (!std::isfinite(diagnostic) || diagnostic < 0.0) previous_accepted = false;
+    for (int j = 0; j < Z; ++j) REAL(density)[s + S * j] = row_projected[j];
+    return std::pair<int, SelNormDenseIntegration>(row_kernel, integration);
+  };
+  if (threads == 1) {
+    for (int s = 0; s < S; ++s) {
+      const int row_kernel = scalar_or_row_int(INTEGER(kernel_mode), kernel_length, s, "kernel_mode");
+      const int row_rule = scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule");
+      bool same_row = adjacent_dense && previous_accepted &&
+        row_kernel == previous_kernel && row_rule == previous_rule;
+      for (int k = 0; k < K; ++k) {
+        same_row = same_row && same_double(mean[static_cast<std::size_t>(k)], REAL(means)[s + S * k]);
+        mean[static_cast<std::size_t>(k)] = REAL(means)[s + S * k];
       }
-      if (integration_rules.bounded_cdf &&
-          (!std::isfinite(integration.cdf_relative_error) || integration.cdf_relative_error < 0.0 ||
-           !std::isfinite(integration.cdf_log_error) || integration.cdf_log_error < 0.0)) previous_accepted = false;
+      for (int l = 0; l < L; ++l) {
+        same_row = same_row && same_double(lower[static_cast<std::size_t>(l)], REAL(covariance_lower)[s + S * l]);
+        lower[static_cast<std::size_t>(l)] =
+          REAL(covariance_lower)[s + S * l];
+      }
+      for (int b = 0; b < B; ++b) {
+        same_row = same_row && same_double(omega_row[static_cast<std::size_t>(b)], REAL(omega)[s + S * b]);
+        omega_row[static_cast<std::size_t>(b)] = REAL(omega)[s + S * b];
+      }
+      if (same_row) {
+        REAL(log_density)[s] = REAL(log_density)[s - 1];
+        REAL(relative_mcse)[s] = REAL(relative_mcse)[s - 1];
+        REAL(log_normalizer)[s] = REAL(log_normalizer)[s - 1];
+        for (int column = 0; column < 4; ++column)
+          REAL(integration_diagnostics)[s + S * column] = REAL(integration_diagnostics)[s - 1 + S * column];
+        if (integration_rules.bounded_cdf) {
+          REAL(cdf_error)[s] = REAL(cdf_error)[s - 1];
+          REAL(cdf_log_error)[s] = REAL(cdf_log_error)[s - 1];
+        }
+        R_CheckUserInterrupt();
+        continue;
+      }
+
+      auto row_result = compute_row(s, mean, lower, omega_row, residual_sd,
+                                    loading, projected, partition);
+      previous_kernel = row_result.first;
+      previous_rule = scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule");
+      const SelNormDenseIntegration &integration = row_result.second;
+      previous_accepted = adjacent_dense && std::isfinite(REAL(log_density)[s]) &&
+        std::isfinite(REAL(relative_mcse)[s]) && REAL(relative_mcse)[s] >= 0.0 &&
+        REAL(relative_mcse)[s] <= REAL(relative_tolerance)[0] &&
+        (!return_normalizer || std::isfinite(REAL(log_normalizer)[s]));
+      if (previous_accepted) {
+        for (int column = 0; column < 4; ++column) {
+          const double diagnostic = REAL(integration_diagnostics)[s + S * column];
+          if (!std::isfinite(diagnostic) || diagnostic < 0.0) previous_accepted = false;
+        }
+        if (integration_rules.bounded_cdf &&
+            (!std::isfinite(integration.cdf_relative_error) || integration.cdf_relative_error < 0.0 ||
+             !std::isfinite(integration.cdf_log_error) || integration.cdf_log_error < 0.0)) previous_accepted = false;
+      }
+      R_CheckUserInterrupt();
     }
-    R_CheckUserInterrupt();
+  } else {
+    // Rows are independent: each writes only its own output slots. Workers
+    // own their buffers and partitions, so results match the serial rows.
+    robma_parallel::for_rows(S, threads, [&](int s) {
+      std::vector<double> row_mean(static_cast<std::size_t>(K));
+      std::vector<double> row_lower(static_cast<std::size_t>(L));
+      std::vector<double> row_omega(static_cast<std::size_t>(B));
+      std::vector<double> row_residual_sd(static_cast<std::size_t>(K));
+      std::vector<double> row_loading(static_cast<std::size_t>(K * rank));
+      std::vector<double> row_projected(static_cast<std::size_t>(Z));
+      CompactStepPartition row_partition;
+      compute_row(s, row_mean, row_lower, row_omega, row_residual_sd,
+                  row_loading, row_projected, row_partition);
+    });
   }
 
   SEXP output = PROTECT(Rf_allocVector(VECSXP, project ? 3 : 4));
@@ -710,24 +772,25 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
     quadrature_weights[i] =
       std::exp(static_cast<long double>(REAL(quadrature_log_weights)[i]));
   }
-  std::vector<double> mean(static_cast<std::size_t>(K));
-  std::vector<double> sd(static_cast<std::size_t>(K));
-  std::vector<double> coefficient(static_cast<std::size_t>(K));
-  std::vector<double> omega_row(static_cast<std::size_t>(B));
-  for (int s = 0; s < S; ++s) {
+  const int threads = robma_batch_threads(S);
+  robma_parallel::for_rows(S, threads, [&](int s) {
+    std::vector<double> row_mean(static_cast<std::size_t>(K));
+    std::vector<double> row_sd(static_cast<std::size_t>(K));
+    std::vector<double> row_coefficient(static_cast<std::size_t>(K));
+    std::vector<double> row_omega(static_cast<std::size_t>(B));
     for (int k = 0; k < K; ++k) {
-      mean[static_cast<std::size_t>(k)] = REAL(means)[s + S * k];
-      sd[static_cast<std::size_t>(k)] = REAL(residual_sd)[s + S * k];
-      coefficient[static_cast<std::size_t>(k)] = REAL(loading)[s + S * k];
+      row_mean[static_cast<std::size_t>(k)] = REAL(means)[s + S * k];
+      row_sd[static_cast<std::size_t>(k)] = REAL(residual_sd)[s + S * k];
+      row_coefficient[static_cast<std::size_t>(k)] = REAL(loading)[s + S * k];
     }
     for (int b = 0; b < B; ++b) {
-      omega_row[static_cast<std::size_t>(b)] = REAL(omega)[s + S * b];
+      row_omega[static_cast<std::size_t>(b)] = REAL(omega)[s + S * b];
     }
     double mcse = 0.0;
     double error = 0.0;
     REAL(log_density)[s] = cpp_selnorm_cluster_step_lpdf(
-      REAL(yi), mean.data(), sd.data(), coefficient.data(), K, REAL(sei),
-      omega_row.data(), B, REAL(z_lower), REAL(z_upper), INTEGER(obs_bin),
+      REAL(yi), row_mean.data(), row_sd.data(), row_coefficient.data(), K, REAL(sei),
+      row_omega.data(), B, REAL(z_lower), REAL(z_upper), INTEGER(obs_bin),
       INTEGER(sign)[0], LOGICAL(telescope_probabilities)[0],
       scalar_or_row_int(INTEGER(kernel_mode), kernel_length, s, "kernel_mode"),
       REAL(quadrature_nodes), REAL(quadrature_log_weights),
@@ -739,7 +802,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
     );
     REAL(relative_mcse)[s] = mcse;
     REAL(relative_change)[s] = error;
-  }
+  });
 
   SEXP output = PROTECT(Rf_allocVector(VECSXP, 4));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
@@ -876,35 +939,45 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   SEXP relative_change = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP log_normalizer = PROTECT(Rf_allocVector(REALSXP, S));
   std::fill_n(REAL(log_normalizer), S, NA_REAL);
-  std::vector<double> mean(static_cast<std::size_t>(K));
-  std::vector<double> sd(static_cast<std::size_t>(K));
-  std::vector<double> coefficient(
-    static_cast<std::size_t>(K * rank)
-  );
-  std::vector<double> omega_row(static_cast<std::size_t>(B));
+  // Per-row location and loading inputs are validated before the row loop so
+  // parallel workers never raise R errors from a worker thread.
   for (int s = 0; s < S; ++s) {
     for (int i = 0; i < K; ++i) {
-      mean[i] = REAL(means)[s + S * i];
-      sd[i] = REAL(residual_sd)[s + S * i];
-      if (!std::isfinite(mean[i]) || !(sd[i] > 0.0) ||
-          !std::isfinite(sd[i])) {
+      if (!std::isfinite(REAL(means)[s + S * i]) ||
+          !(REAL(residual_sd)[s + S * i] > 0.0) ||
+          !std::isfinite(REAL(residual_sd)[s + S * i])) {
         Rf_error("Exact factor selection location inputs are invalid.");
       }
     }
     for (int column = 0; column < K * rank; ++column) {
-      coefficient[column] = REAL(loading)[s + S * column];
-      if (!std::isfinite(coefficient[column])) {
+      if (!std::isfinite(REAL(loading)[s + S * column])) {
         Rf_error("Exact factor selection loadings must be finite.");
       }
     }
+  }
+  const int threads = robma_batch_threads(S);
+  robma_parallel::for_rows(S, threads, [&](int s) {
+    std::vector<double> row_mean(static_cast<std::size_t>(K));
+    std::vector<double> row_sd(static_cast<std::size_t>(K));
+    std::vector<double> row_coefficient(
+      static_cast<std::size_t>(K * rank)
+    );
+    std::vector<double> row_omega(static_cast<std::size_t>(B));
+    for (int i = 0; i < K; ++i) {
+      row_mean[i] = REAL(means)[s + S * i];
+      row_sd[i] = REAL(residual_sd)[s + S * i];
+    }
+    for (int column = 0; column < K * rank; ++column) {
+      row_coefficient[column] = REAL(loading)[s + S * column];
+    }
     for (int bin = 0; bin < B; ++bin) {
-      omega_row[bin] = REAL(omega)[s + S * bin];
+      row_omega[bin] = REAL(omega)[s + S * bin];
     }
     double mcse = 0.0;
     double change = 0.0;
     REAL(log_density)[s] = cpp_selnorm_factor_step_lpdf(
-      REAL(yi), mean.data(), sd.data(), coefficient.data(), K, rank,
-      REAL(sei), omega_row.data(), B, REAL(z_lower), REAL(z_upper),
+      REAL(yi), row_mean.data(), row_sd.data(), row_coefficient.data(), K, rank,
+      REAL(sei), row_omega.data(), B, REAL(z_lower), REAL(z_upper),
       INTEGER(obs_bin), INTEGER(sign)[0],
       LOGICAL(telescope_probabilities)[0],
       scalar_or_row_int(INTEGER(kernel_mode), kernel_length, s, "kernel_mode"),
@@ -918,7 +991,7 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
     );
     REAL(relative_mcse)[s] = mcse;
     REAL(relative_change)[s] = change;
-  }
+  });
 
   SEXP output = PROTECT(Rf_allocVector(VECSXP, 4));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));

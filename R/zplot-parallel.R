@@ -26,6 +26,12 @@
 
     .libPaths(paths)
     options(memory_options)
+    # Workers already split posterior rows; native row threading belongs to
+    # the parent process to avoid oversubscribing the machine.
+    tryCatch(
+      RoBMA.options(native_threads = 1L),
+      error = function(e) NULL
+    )
     NULL
   }
   environment(initialize) <- baseenv()

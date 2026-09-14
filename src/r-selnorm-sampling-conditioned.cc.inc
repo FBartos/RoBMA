@@ -316,42 +316,47 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
     SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
   }
   Rf_setAttrib(out, R_NamesSymbol, names);
-  std::vector<double> m(K), d(K), l(K * R), w(B), projected(size);
-  std::string failure;
-  try {
-    for (int s = 0; s < S; ++s) {
-      const int mode = scalar_or_row_int(INTEGER(kernel_mode), mode_length, s, "kernel_mode");
-      if (mode != SELKERNEL_NORMAL && mode != SELKERNEL_STEP) {
-        throw std::runtime_error("Conditional sampling selection requires a normal or step kernel.");
-      }
-      for (int row = 0; row < K; ++row) {
-        m[row] = REAL(means)[s + S * row];
-        d[row] = REAL(diagonal)[s + S * row];
-      }
-      for (int i = 0; i < K * R; ++i) l[i] = REAL(loading)[s + S * i];
-      for (int bin = 0; bin < B; ++bin) w[bin] = REAL(omega)[s + S * bin];
-      if (project) {
-        double normalizer = 0.0;
-        cpp_selnorm_factor_projection(m.data(), d.data(), l.data(), K, R,
-          REAL(sei), w.data(), B, REAL(z_lower), REAL(z_upper), INTEGER(sign)[0],
-          mode, LOGICAL(telescope_probabilities)[0],
-          scalar_or_row_int(INTEGER(vector_rule), rule_length, s, "vector_rule"),
-          INTEGER(group_index), REAL(qmc), INTEGER(initial_points)[0], maximum,
-          shifts, REAL(relative_tolerance)[0], quadrature, REAL(z), size,
-          projection_kind, projected.data(), &normalizer, REAL(VECTOR_ELT(out, 1)) + s);
-        REAL(VECTOR_ELT(out, 0))[s] = -normalizer;
-        for (int index = 0; index < size; ++index) REAL(VECTOR_ELT(out, 2))[s + S * index] = projected[index];
-      } else REAL(VECTOR_ELT(out, 0))[s] = cpp_selnorm_conditioned_log_normalizer(m.data(),
-        d.data(), l.data(), K, R, REAL(sei), w.data(), B, REAL(z_lower), REAL(z_upper),
+  // Kernel modes are validated before the row loop so parallel workers never
+  // raise errors from a worker thread.
+  for (int s = 0; s < S; ++s) {
+    const int mode = scalar_or_row_int(INTEGER(kernel_mode), mode_length, s, "kernel_mode");
+    if (mode != SELKERNEL_NORMAL && mode != SELKERNEL_STEP) {
+      Rf_error("Conditional sampling selection requires a normal or step kernel.");
+    }
+  }
+  const int threads = robma_batch_threads(S);
+  robma_parallel::for_rows(S, threads, [&](int s) {
+    std::vector<double> row_m(static_cast<std::size_t>(K));
+    std::vector<double> row_d(static_cast<std::size_t>(K));
+    std::vector<double> row_l(static_cast<std::size_t>(K * R));
+    std::vector<double> row_w(static_cast<std::size_t>(B));
+    std::vector<double> row_projected(static_cast<std::size_t>(size));
+    const int mode = scalar_or_row_int(INTEGER(kernel_mode), mode_length, s, "kernel_mode");
+    for (int row = 0; row < K; ++row) {
+      row_m[row] = REAL(means)[s + S * row];
+      row_d[row] = REAL(diagonal)[s + S * row];
+    }
+    for (int i = 0; i < K * R; ++i) row_l[i] = REAL(loading)[s + S * i];
+    for (int bin = 0; bin < B; ++bin) row_w[bin] = REAL(omega)[s + S * bin];
+    if (project) {
+      double normalizer = 0.0;
+      cpp_selnorm_factor_projection(row_m.data(), row_d.data(), row_l.data(), K, R,
+        REAL(sei), row_w.data(), B, REAL(z_lower), REAL(z_upper), INTEGER(sign)[0],
+        mode, LOGICAL(telescope_probabilities)[0],
+        scalar_or_row_int(INTEGER(vector_rule), rule_length, s, "vector_rule"),
+        INTEGER(group_index), REAL(qmc), INTEGER(initial_points)[0], maximum,
+        shifts, REAL(relative_tolerance)[0], quadrature, REAL(z), size,
+        projection_kind, row_projected.data(), &normalizer, REAL(VECTOR_ELT(out, 1)) + s);
+      REAL(VECTOR_ELT(out, 0))[s] = -normalizer;
+      for (int index = 0; index < size; ++index) REAL(VECTOR_ELT(out, 2))[s + S * index] = row_projected[index];
+    } else REAL(VECTOR_ELT(out, 0))[s] = cpp_selnorm_conditioned_log_normalizer(row_m.data(),
+        row_d.data(), row_l.data(), K, R, REAL(sei), row_w.data(), B, REAL(z_lower), REAL(z_upper),
         INTEGER(sign)[0], mode, LOGICAL(telescope_probabilities)[0],
         scalar_or_row_int(INTEGER(vector_rule), rule_length, s, "vector_rule"),
         INTEGER(group_index), REAL(qmc), INTEGER(initial_points)[0], maximum,
         shifts, REAL(relative_tolerance)[0], REAL(VECTOR_ELT(out, 1)) + s,
         REAL(VECTOR_ELT(out, 2)) + s, quadrature);
-      R_CheckUserInterrupt();
-    }
-  } catch (const std::exception &error) { failure = error.what(); }
-  if (!failure.empty()) Rf_error("%s", failure.c_str());
+  });
   UNPROTECT(2);
   return out;
 }

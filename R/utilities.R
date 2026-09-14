@@ -11,6 +11,7 @@
 #' The available options are:
 #' \describe{
 #'   \item{\code{max_cores}}{number of cores to use for parallel computing (default is one fewer than detected logical cores, with a minimum/fallback of 1)}
+#'   \item{\code{native_threads}}{maximum number of native threads used to evaluate independent posterior rows of the compiled selection-likelihood batches in post-processing such as likelihood-aware densities, z-plots, and predictions. The default \code{NA} keeps this processing single-threaded and instead inherits the model's fitting setup: models fitted with \code{parallel = TRUE} evaluate their post-processing rows with up to \code{max_cores} native threads, unless this option sets an explicit thread count. Each row keeps its deterministic serial arithmetic, so results do not depend on the thread count; single-state fitting and bridge-sampling evaluations stay serial.}
 #'   \item{\code{check_scaling}}{whether to check scaling of predictors (default \code{TRUE})}
 #'   \item{\code{silent}}{whether to suppress output (default \code{FALSE})}
 #'   \item{\code{jags.worker_output}}{file path for parallel JAGS worker stdout and stderr when fitting or extending. The parent directory must exist; workers append to the same file and messages may interleave. The default empty string disables capture. Set this option inside any background job that fits the model. It does not change sampling or numerical integration settings.}
@@ -82,11 +83,51 @@ RoBMA.options    <- function(...) {
       .Call("RoBMA_selnorm_cache_control", NULL, 0L, PACKAGE = "RoBMA")[["capacity_bytes"]]
     .selection_runtime_configure(.selection_runtime_settings(options, capacity))
   }
+  if (length(opts) > 0L && "native_threads" %in% names(opts)) {
+    .native_threads_configure(opts[["native_threads"]])
+  }
   for (i in seq_along(opts)) {
     assign(names(opts)[i], opts[[i]], envir = RoBMA.private)
   }
 
   return(invisible(.RoBMA_current_options()))
+}
+
+
+# Push the native row-thread budget into the compiled batch kernels. The
+# process-global value is only read between rows; ongoing calls are unaffected.
+.native_threads_configure <- function(threads) {
+
+  if (!is.loaded("RoBMA_selnorm_set_native_threads", PACKAGE = "RoBMA")) {
+    return(invisible(FALSE))
+  }
+  if (length(threads) != 1L || is.na(threads)) {
+    threads <- 1L
+  }
+  invisible(.Call("RoBMA_selnorm_set_native_threads", as.numeric(threads),
+                  PACKAGE = "RoBMA"))
+}
+
+
+# Resolve the native row-thread budget for a fitted object. An explicit
+# 'native_threads' option always wins; otherwise models fitted in parallel
+# inherit parallel row evaluation for their post-processing and models fitted
+# sequentially stay single-threaded.
+.resolve_native_threads <- function(object) {
+
+  requested <- RoBMA.private[["native_threads"]]
+  if (length(requested) == 1L && !is.na(requested)) {
+    return(max(1L, as.integer(requested)))
+  }
+  fit_control <- if (!is.null(object) && !is.null(object[["fit_control"]])) {
+    object[["fit_control"]]
+  } else {
+    NULL
+  }
+  if (isTRUE(fit_control[["parallel"]])) {
+    return(max(1L, as.integer(RoBMA.private[["max_cores"]])))
+  }
+  return(1L)
 }
 
 #' @rdname RoBMA_options
@@ -128,6 +169,21 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   }
 
   return(max(1L, as.integer(cores) - 1L))
+}
+
+
+.RoBMA_default_native_threads <- function() {
+
+  return(NA_integer_)
+}
+
+
+.RoBMA_check_option_threads <- function(value, name) {
+
+  if (length(value) == 1L && is.na(value)) {
+    return(NA_integer_)
+  }
+  return(.RoBMA_check_option_int(value, name, lower = 1L))
 }
 
 .RoBMA_check_option_bool <- function(value, name) {
@@ -216,6 +272,10 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   "max_cores" = list(
     default  = .RoBMA_default_max_cores,
     validate = function(value, name) .RoBMA_check_option_int(value, name, lower = 1L)
+  ),
+  "native_threads" = list(
+    default  = .RoBMA_default_native_threads,
+    validate = .RoBMA_check_option_threads
   ),
   "check_scaling" = list(
     default  = TRUE,

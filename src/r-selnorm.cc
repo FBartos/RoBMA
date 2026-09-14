@@ -17,6 +17,7 @@
 #include "plot-root.h"
 #include "selnorm/selnorm.h"
 #include "selnorm/selnorm-mv.h"
+#include "selnorm/selnorm-parallel.h"
 #include "samplers/CoarseCorrectedSlice.h"
 
 #ifndef FCONE
@@ -38,6 +39,21 @@ namespace {
 #include "r-selnorm-sampling-conditioned.cc.inc"
 #include "r-selnorm-kernel.cc.inc"
 #include "r-selnorm-funnel-zcurve.cc.inc"
+
+extern "C" SEXP RoBMA_selnorm_set_native_threads(SEXP threads)
+{
+  if ((TYPEOF(threads) != INTSXP && TYPEOF(threads) != REALSXP) ||
+      XLENGTH(threads) != 1 || Rf_inherits(threads, "factor")) {
+    Rf_error("'threads' must be one positive integer or zero for the OpenMP default.");
+  }
+  const double value = Rf_asReal(threads);
+  if (!std::isfinite(value) || value < 0.0 || value != std::floor(value) ||
+      value > static_cast<double>(std::numeric_limits<int>::max())) {
+    Rf_error("'threads' must be one nonnegative whole number of threads.");
+  }
+  robma_set_native_threads(static_cast<int>(value));
+  return R_NilValue;
+}
 
 extern "C" SEXP RoBMA_selnorm_cache_snapshot()
 {
