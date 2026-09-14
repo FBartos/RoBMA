@@ -550,18 +550,39 @@ hypothesis.brma <- function(object, hypothesis,
     )
   }
 
-  out <- BayesTools::hypothesis_BF(
-    posterior      = posterior,
-    hypothesis     = hypothesis,
-    parameter      = parameter,
-    logBF          = logBF,
-    BF01           = BF01,
-    seed           = seed,
-    columns        = columns,
-    density_method = if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
-      "precomputed"
-    } else {
-      density_method
+  out <- tryCatch(
+    BayesTools::hypothesis_BF(
+      posterior      = posterior,
+      hypothesis     = hypothesis,
+      parameter      = parameter,
+      logBF          = logBF,
+      BF01           = BF01,
+      seed           = seed,
+      columns        = columns,
+      density_method = if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
+        "precomputed"
+      } else {
+        density_method
+      }
+    ),
+    error = function(error) {
+
+      # A spike-and-slab component puts a declared point mass at the null, so
+      # the Savage-Dickey ratio is structurally unavailable rather than
+      # numerically rejected. Name the supported alternative.
+      text <- conditionMessage(error)
+      if (!inherits(object, "RoBMA") ||
+          !grepl("point mass", text, fixed = TRUE) ||
+          !grepl("null hypothesis value", text, fixed = TRUE)) {
+        stop(error)
+      }
+      stop(
+        text,
+        " This parameter has a null component, so its evidence against the ",
+        "null is the inclusion Bayes factor reported by 'summary()' and ",
+        "'summary_models()'.",
+        call. = FALSE
+      )
     }
   )
 
