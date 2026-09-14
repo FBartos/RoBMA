@@ -852,6 +852,11 @@
   ungated paths, and removes the superseded one-use selection finalizer.
 
 ### Fixes
+- replaces the bounded selection-normalizer cache's pooled allocator with
+  direct byte-counted storage and proactive LRU admission. Evicted bytes are
+  immediately reusable, cache-full operation no longer relies on allocation
+  exceptions, and long-running multivariate fits no longer reach the native
+  crash previously triggered during high-turnover insertion.
 - prevents narrow retained-location qCMDE kernels from falsely passing
   normalization checks on a shared grid. Normal and truncated-normal prior
   products are normalized analytically; other supported scalar priors use

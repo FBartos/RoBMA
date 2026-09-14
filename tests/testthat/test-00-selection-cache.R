@@ -79,7 +79,9 @@ test_that("exact selection caching preserves targets under controls and memory p
 
   RoBMA.options(selection.cache_max_bytes = 64 * 1024)
   pressure_arguments <- arguments
-  for (index in seq_len(400L)) {
+  # Exercise many admissions after the cache is full; allocator/eviction bugs
+  # appear on repeated turnover, not on the first cache fill.
+  for (index in seq_len(4000L)) {
     pressure_arguments[[2L]][] <- index * 1e-4
     last <- evaluate(pressure_arguments)
   }
@@ -87,6 +89,7 @@ test_that("exact selection caching preserves targets under controls and memory p
   expect_true(is.finite(last[["log_normalizer"]]))
   expect_lte(diagnostic_error(last), .005)
   expect_gt(pressure[["evictions"]], 0)
+  expect_equal(pressure[["allocation_failures"]], 0)
   expect_lte(pressure[["allocated_bytes"]], pressure[["capacity_bytes"]])
   expect_lte(pressure[["peak_bytes"]], pressure[["capacity_bytes"]])
   expect_identical(evaluate(arguments), uncached[[1L]])

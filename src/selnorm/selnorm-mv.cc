@@ -996,7 +996,11 @@ struct EnvelopeMemoView {
   }
 };
 
-// All pool, table, key, and index blocks use this one lazy capped upstream.
+// Keys, controls, LRU nodes, and index blocks use this direct counting
+// resource. A pool resource is deliberately not interposed here: its hidden
+// pool/oversize state makes the byte cap indirect, and the actual crash was in
+// a key copy on its exception-driven full-cache retry path. Direct requests
+// are exactly countable and every eviction immediately returns usable bytes.
 // Process RSS additionally includes allocator metadata outside these blocks.
 class EnvelopeMemoResource final : public std::pmr::memory_resource {
   void *do_allocate(std::size_t bytes, std::size_t alignment) override
@@ -1216,22 +1220,45 @@ struct EnvelopeMemoEntry {
 };
 
 using EnvelopeMemoEntries = std::pmr::list<EnvelopeMemoEntry>;
+using EnvelopeMemoIndex =
+  std::pmr::unordered_multimap<std::size_t, EnvelopeMemoEntries::iterator>;
+
+// Conservative direct-allocation allowance for one LRU node, one index node,
+// and bucket storage (including the old-plus-new arrays during rehash).
+constexpr std::size_t envelope_entry_overhead = 512;
 
 struct EnvelopeMemoStorage {
-  std::pmr::unsynchronized_pool_resource pool;
   std::array<std::pmr::vector<double>, 2> controls;
   std::array<bool, 2> controls_ready{{false, false}};
   EnvelopeMemoEntries entries;
-  std::pmr::unordered_multimap<std::size_t, EnvelopeMemoEntries::iterator> index;
+  EnvelopeMemoIndex index;
   explicit EnvelopeMemoStorage(std::pmr::memory_resource *resource)
-    : pool(std::pmr::pool_options{16, 8192}, resource),
-      controls{{std::pmr::vector<double>(&pool), std::pmr::vector<double>(&pool)}},
-      entries(&pool), index(&pool)
+    : controls{{std::pmr::vector<double>(resource), std::pmr::vector<double>(resource)}},
+      entries(resource), index(resource)
   {
     // Rehash's old and new buckets both count against the one shared cap.
     index.max_load_factor(1.0f);
   }
 };
+
+bool envelope_memo_add(std::size_t left, std::size_t right, std::size_t *result)
+{
+  if (right > std::numeric_limits<std::size_t>::max() - left) return false;
+  *result = left + right;
+  return true;
+}
+
+bool envelope_memo_entry_bytes(std::size_t key_doubles, std::size_t controls_doubles,
+    std::size_t *result)
+{
+  std::size_t bytes = envelope_entry_overhead;
+  if (key_doubles > (std::numeric_limits<std::size_t>::max() - bytes) / sizeof(double) ||
+      controls_doubles > (std::numeric_limits<std::size_t>::max() - bytes) / sizeof(double))
+    return false;
+  if (!envelope_memo_add(bytes, key_doubles * sizeof(double), &bytes) ||
+      !envelope_memo_add(bytes, controls_doubles * sizeof(double), result)) return false;
+  return true;
+}
 
 struct EnvelopeMemoTicket {
   std::uint64_t generation = 0;
@@ -1240,7 +1267,7 @@ struct EnvelopeMemoTicket {
   bool cacheable = false;
 };
 
-// Exact and coarse entries share one pool and global recency order, without
+// Exact and coarse entries share one budget and global recency order, without
 // sharing numerical identity or admission policy. Evaluation and borrowed-key
 // hashing stay outside the mutex; no entry or owned pointer escapes its lock.
 class EnvelopeMemo {
@@ -1254,6 +1281,22 @@ class EnvelopeMemo {
   static std::size_t slot(EnvelopeMemoComponent component)
   {
     return static_cast<std::size_t>(component);
+  }
+  bool make_room(std::size_t required)
+  {
+    if (required > resource.capacity) return false;
+    while (storage && resource.capacity - resource.allocated < required &&
+           !storage->entries.empty()) {
+      erase(std::prev(storage->entries.end()), true);
+    }
+    if (storage && storage->entries.empty() &&
+        resource.capacity - resource.allocated < required) {
+      // Unordered-map buckets do not shrink when nodes are erased. Return that
+      // retained capacity before declaring an otherwise empty cache full.
+      EnvelopeMemoIndex empty(&resource);
+      storage->index.swap(empty);
+    }
+    return resource.capacity - resource.allocated >= required;
   }
   SelNormCacheInfo info_unlocked() const
   {
@@ -1297,7 +1340,7 @@ class EnvelopeMemo {
       auto current = entry++;
       if (current->component == component) erase(current, false);
     }
-    std::pmr::vector<double> empty(&storage->pool);
+    std::pmr::vector<double> empty(&resource);
     storage->controls[owner].swap(empty);
     storage->controls_ready[owner] = false;
   }
@@ -1311,39 +1354,36 @@ class EnvelopeMemo {
   bool ensure_controls(EnvelopeMemoComponent component, const EnvelopeMemoView &controls)
   {
     const std::size_t owner = slot(component);
+    std::size_t required = 0;
     if (storage && storage->controls_ready[owner]) {
       if (controls.equals(storage->controls[owner])) return true;
       ++counters[owner].resets;
       clear_component(component);
     }
-    bool reset_once = false;
-    for (;;) {
-      try {
-        initialize_controls(component, controls);
-        return true;
-      } catch (const std::bad_alloc &) {
-        ++counters[owner].allocation_failures;
-        if (storage && !storage->entries.empty()) {
-          erase(std::prev(storage->entries.end()), true);
-          continue;
-        }
-        if (reset_once) return false;
-        reset_once = true;
-        // Reset counters attribute a restart to its requesting component.
-        ++counters[owner].resets;
-        release_storage();
-      }
+    if (!envelope_memo_entry_bytes(0, controls.size(), &required) ||
+        !make_room(required)) return false;
+    try {
+      initialize_controls(component, controls);
+      return true;
+    } catch (const std::bad_alloc &) {
+      ++counters[owner].allocation_failures;
+      return false;
     }
   }
   void insert(const EnvelopeMemoView &key, const EnvelopeMemoView &controls,
       const EnvelopeMemoTicket &ticket, const EnvelopeMemoResult &result)
   {
     const std::size_t owner = slot(ticket.component);
-    bool reset_once = false;
+    std::size_t required = 0;
+    if (!envelope_memo_entry_bytes(key.size(), 0, &required) || !make_room(required)) {
+      ++counters[owner].allocation_failures;
+      return;
+    }
+    bool restarted = false;
     while (storage) {
       auto created = storage->entries.end();
       try {
-        storage->entries.emplace_front(&storage->pool, key, ticket.hash, ticket.component, result);
+        storage->entries.emplace_front(&resource, key, ticket.hash, ticket.component, result);
         created = storage->entries.begin();
         storage->index.emplace(ticket.hash, created);
         ++counters[owner].entries;
@@ -1352,11 +1392,16 @@ class EnvelopeMemo {
         ++counters[owner].allocation_failures;
         if (created != storage->entries.end()) storage->entries.erase(created);
         if (!storage->entries.empty()) {
-          erase(std::prev(storage->entries.end()), true);
+          // Evict several LRU records before retrying. This is only a fallback
+          // for a rehash's temporary old-plus-new bucket requirement or an
+          // allocator failure; ordinary admission evicted proactively above.
+          const std::size_t batch = std::max<std::size_t>(16, storage->entries.size() / 16);
+          for (std::size_t evicted = 0; evicted < batch && !storage->entries.empty(); ++evicted)
+            erase(std::prev(storage->entries.end()), true);
           continue;
         }
-        if (reset_once) return;
-        reset_once = true;
+        if (restarted) return;
+        restarted = true;
         ++counters[owner].resets;
         release_storage();
         try {
@@ -1403,8 +1448,9 @@ public:
     ticket->hash = key.hash() ^ (static_cast<std::size_t>(0x9e3779b97f4a7c15ULL) * owner);
     const std::lock_guard<std::mutex> lock(mutex);
     if (resource.capacity == 0) return false;
-    bool usable = key.size() <= resource.capacity / sizeof(double) &&
-      controls.size() <= resource.capacity / sizeof(double);
+    std::size_t required = 0;
+    bool usable = envelope_memo_entry_bytes(key.size(), controls.size(), &required) &&
+      required <= resource.capacity;
     if (usable) usable = ensure_controls(component, controls);
     ticket->cacheable = usable;
     ticket->generation = generation[owner];
@@ -1522,6 +1568,15 @@ public:
             if (found->second->component == entry.component && key.equals(found->second->key)) { duplicate = true; break; }
           if (duplicate) continue;
         }
+        std::size_t required = 0;
+        if (!envelope_memo_entry_bytes(entry.size,
+              storage && storage->controls_ready[owner] ? 0 : header.controls_size[owner],
+              &required) ||
+            !make_room(required)) {
+          if (resource.capacity != 0) ++counters[owner].allocation_failures;
+          full = true;
+          break;
+        }
         bool created = false;
         try {
           if (!storage) storage.emplace(&resource);
@@ -1530,9 +1585,9 @@ public:
             std::memcpy(storage->controls[owner].data(), header.controls[owner], header.controls_size[owner] * sizeof(double));
             storage->controls_ready[owner] = true;
           }
-          // Input order is MRU-first. Append at the cold end without eviction;
-          // a smaller budget retains the warm prefix, including shard order.
-          storage->entries.emplace_back(&storage->pool, entry.key, entry.size, hash, entry.component, entry.result);
+          // Input order is MRU-first. Proactive admission evicts only from the
+          // cold end, so a smaller budget retains the warm prefix and order.
+          storage->entries.emplace_back(&resource, entry.key, entry.size, hash, entry.component, entry.result);
           created = true;
           storage->index.emplace(hash, std::prev(storage->entries.end()));
           ++counters[owner].entries;
