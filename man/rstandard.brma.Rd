@@ -52,7 +52,12 @@ standardized residuals (z-values). Available for normal outcome models only.
 This function returns a data frame with three columns matching the output
 of \code{metafor::rstandard}:
 \itemize{
-\item \code{resid}: Raw residuals (observed - fitted values)
+\item \code{resid}: GLS projection residuals \eqn{(I - H) y}, so that the
+residual and its standard error come from the same projection. These are
+not the posterior-mean residuals returned by
+\code{residuals(type = "outcome")}, which subtract the posterior mean of
+the fitted values and therefore carry the prior's shrinkage; the two
+agree as the effect prior becomes diffuse.
 \item \code{se}: Standard errors of the residuals
 \item \code{z}: Posterior mean of draw-wise standardized residuals
 }

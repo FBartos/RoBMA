@@ -87,7 +87,12 @@ compute residual standard errors that account for the uncertainty in
 estimated coefficients:
 \deqn{z_i = \frac{e_i}{\sqrt{[(I-H)M(I-H)']_{ii}}}}
 where \eqn{H} is the hat matrix and \eqn{M} is the marginal variance-covariance
-matrix. For models without moderators, this simplifies to the Pearson formula.
+matrix. Because the GLS projection satisfies \eqn{HM = MH' = HMH'}, the
+denominator equals
+\eqn{M_{ii} - [X(X'M^{-1}X)^{-1}X']_{ii}}, which is strictly smaller than the
+Pearson denominator \eqn{\sqrt{M_{ii}}}. This holds with no moderators too,
+where fitting the pooled effect alone removes \eqn{1/(1'M^{-1}1)} from every
+residual variance, so standardized and Pearson residuals do not coincide.
 Only available for normal outcome models without selection (weightfunction)
 bias adjustment.
 
