@@ -147,7 +147,7 @@ text	fit_reg3_vif_comparison	0.000000000	0.262402	4.6.0	Windows/x86_64-w64-mingw
 text	fit_simple_BF_IWMDE	0.600000000	0.439844	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_BF_marglik	0.000000000	0.203613	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_BF_normal	0.250000000	0.437109	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_simple_BF_qCMDE	0.410000000	0.446484	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_simple_BF_qCMDE	0.400000000	0.446484	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_fe	0.080000000	0.264258	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_fe0	0.070000000	0.258203	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_influence	0.560000000	0.445898	4.6.0	Windows/x86_64-w64-mingw32

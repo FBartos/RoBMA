@@ -40,4 +40,4 @@ plot	posterior-mu	1.200000000	0.491504	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-tau	5.470000000	0.491504	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm	2.170000000	0.661914	4.6.0	Windows/x86_64-w64-mingw32
 plot	random-effects	7.410000000	0.598731	4.6.0	Windows/x86_64-w64-mingw32
-plot	zplot	2.220000000	0.667481	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot	1.080000000	0.667481	4.6.0	Windows/x86_64-w64-mingw32

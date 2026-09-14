@@ -49,7 +49,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMC4wMHwzNjAuMDB8MC4wMHwyODguMDA=)'>
-<text x='197.93' y='285.61' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='47.05px' lengthAdjust='spacingAndGlyphs'>sd(time[1])</text>
+<text x='197.93' y='285.61' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='50.37px' lengthAdjust='spacingAndGlyphs'>tau(time[1])</text>
 <text transform='translate(9.56,132.05) rotate(-90)' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='33.22px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <defs>
@@ -106,7 +106,7 @@
 </defs>
 <g clip-path='url(#cpMzYwLjAwfDcyMC4wMHwwLjAwfDI4OC4wMA==)'>
 <text x='557.93' y='15.38' text-anchor='middle' style='font-size: 9.96px; font-weight: bold; font-family: sans;' textLength='48.72px' lengthAdjust='spacingAndGlyphs'>Correlation</text>
-<text x='557.93' y='285.61' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='13.84px' lengthAdjust='spacingAndGlyphs'>cor</text>
+<text x='557.93' y='285.61' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='14.40px' lengthAdjust='spacingAndGlyphs'>rho</text>
 <text transform='translate(369.56,132.05) rotate(-90)' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='33.22px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpNDA3LjgxfDcwOC4wNXwyMy45MHwyNDAuMTk=)'>
@@ -149,8 +149,8 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMC4wMHwzNjAuMDB8Mjg4LjAwfDU3Ni4wMA==)'>
-<text x='197.93' y='303.38' text-anchor='middle' style='font-size: 9.96px; font-weight: bold; font-family: sans;' textLength='38.20px' lengthAdjust='spacingAndGlyphs'>var_mult</text>
-<text x='197.93' y='573.61' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='74.72px' lengthAdjust='spacingAndGlyphs'>var_mult(time[1])</text>
+<text x='197.93' y='303.38' text-anchor='middle' style='font-size: 9.96px; font-weight: bold; font-family: sans;' textLength='43.74px' lengthAdjust='spacingAndGlyphs'>tau2_mult</text>
+<text x='197.93' y='573.61' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='80.27px' lengthAdjust='spacingAndGlyphs'>tau2_mult(time[1])</text>
 <text transform='translate(9.56,420.05) rotate(-90)' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='33.22px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpNDcuODF8MzQ4LjA1fDMxMS45MHw1MjguMTk=)'>
@@ -199,8 +199,8 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMzYwLjAwfDcyMC4wMHwyODguMDB8NTc2LjAw)'>
-<text x='557.93' y='303.38' text-anchor='middle' style='font-size: 9.96px; font-weight: bold; font-family: sans;' textLength='34.88px' lengthAdjust='spacingAndGlyphs'>sd_mult</text>
-<text x='557.93' y='573.61' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='71.41px' lengthAdjust='spacingAndGlyphs'>sd_mult(time[1])</text>
+<text x='557.93' y='303.38' text-anchor='middle' style='font-size: 9.96px; font-weight: bold; font-family: sans;' textLength='38.20px' lengthAdjust='spacingAndGlyphs'>tau_mult</text>
+<text x='557.93' y='573.61' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='74.73px' lengthAdjust='spacingAndGlyphs'>tau_mult(time[1])</text>
 <text transform='translate(369.56,420.05) rotate(-90)' text-anchor='middle' style='font-size: 9.96px; font-family: sans;' textLength='33.22px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpNDA3LjgxfDcwOC4wNXwzMTEuOTB8NTI4LjE5)'>

@@ -25,7 +25,7 @@ plot	funnel	1.860000000	1.252637	4.6.0	Windows/x86_64-w64-mingw32
 plot	marginal_diagnostics	30.820000000	1.371680	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm	1.790000000	1.257129	4.6.0	Windows/x86_64-w64-mingw32
 plot	random-parameters	29.630000000	1.300781	4.6.0	Windows/x86_64-w64-mingw32
-plot	ranef-agreement	3.720000000	1.147266	4.6.0	Windows/x86_64-w64-mingw32
+plot	ranef-agreement	3.690000000	1.147266	4.6.0	Windows/x86_64-w64-mingw32
 plot	sd_common	5.800000000	0.827051	4.6.0	Windows/x86_64-w64-mingw32
 plot	time_factor	15.720000000	0.827051	4.6.0	Windows/x86_64-w64-mingw32
-plot	zplot	8.360000000	1.182715	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot	1.660000000	1.182715	4.6.0	Windows/x86_64-w64-mingw32
