@@ -12,7 +12,11 @@
         update,
         "BayesTools_random_effects_marginal_update_plan"
       ) || !update[["family"]] %in% c("factor", "markov") ||
-      !replacement[["type"]] %in% c("primitive", "scalar") ||
+      !replacement[["type"]] %in% c(
+        "primitive",
+        "scalar",
+        "random_component_sd"
+      ) ||
       .is_data_weights(context[["data"]])) {
     return(NULL)
   }

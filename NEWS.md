@@ -1,5 +1,7 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- uses BayesTools factor column-scale grids for allocation-derived component
+  SDs on correlated random structures
 - reuses the fitted parameter-map runtime cache for RoBMA catalog metadata
   so repeated plot and summary accessors do not rebuild alias tables
 - speeds multivariate selection-model post-fit calculations by applying exact
@@ -18,8 +20,10 @@
   worker stdout and stderr during fitting and extension, including failures
   that terminate a worker before it can return an R error.
 - includes random-effect inclusion rows in the Component Inclusion table,
-  labeled 'Random: ...' and placed before Publication Bias. Printed bounds,
-  diagnostics and data-frame exports retain the same inference values.
+  labeled 'Heterogeneity: ...' to match the univariate 'Heterogeneity' row, and
+  placed before Publication Bias. Printed bounds, diagnostics and data-frame
+  exports retain the same inference values. Model-overview component labels in
+  'summary_models()' keep their 'Random: ...' names.
 - keeps accurate covariance quadrature available for tiny nonmonotone product
   normalizers with strictly positive weights, using a relative Gaussian
   covariance perturbation bound. Reconstructed diagonal and factor rounding
