@@ -41,6 +41,9 @@ knowledge-base/
 .positai
 CLAUDE.md
 
+# Agent scratch, logs, and task notes
+/.work/
+
 # StatsVault local workspace and generated agent bridges
 .StatsVault/
 /tools/rma-mv-parity

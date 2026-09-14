@@ -1,9 +1,6 @@
 if (file.exists("helper-scenarios.R")) source("helper-scenarios.R") else source("tests/scenarios/helper-scenarios.R")
 scenario_start("assink2016")
 # testthat::test_file("tests/scenarios/test-assink2016.R")
-# Selection settings are source-specific; the broad model comparisons use defaults.
-# Failed full-V fits and fit blocks exceeding 20 minutes are commented out
-# with their dependent output, retaining the calls for later optimization.
 ### Description
 # Compare univariate, specialized multilevel, and multivariate nested
 # random-effects targets, including publication-bias adjustment.
