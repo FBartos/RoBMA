@@ -1,5 +1,7 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- reuses the fitted parameter-map runtime cache for RoBMA catalog metadata
+  so repeated plot and summary accessors do not rebuild alias tables
 - speeds multivariate selection-model post-fit calculations by applying exact
   retained-intercept qCMDE conditionals within ensemble branches, reusing checked
   scalar normalizer grids and single-source Gaussian random-effect updates,

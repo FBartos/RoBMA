@@ -371,6 +371,12 @@
       "parameter_map"
     )
   )
+  map <- BayesTools::parameter_map(object[["fit"]])
+  cache <- attr(map, "runtime_cache", exact = TRUE)
+  if (is.environment(cache) && !is.null(cache$brma_metadata)) {
+    return(cache$brma_metadata)
+  }
+
   catalog    <- BayesTools::parameter_catalog(object[["fit"]])
   quantities <- catalog[["quantities"]]
   entries    <- list()
@@ -662,7 +668,11 @@
     provider   = "RoBMA"
   )
 
-  return(list(catalog = catalog, entries = entries))
+  out <- list(catalog = catalog, entries = entries)
+  if (is.environment(cache)) {
+    cache$brma_metadata <- out
+  }
+  return(out)
 }
 
 
