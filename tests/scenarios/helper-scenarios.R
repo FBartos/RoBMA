@@ -499,9 +499,10 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   config   <- .scenario_config()
   expected <- file.path(config[["timings_dir"]], paste0(config[["name"]], ".tsv"))
 
+  # The ignored `.new.tsv` companion always records the complete last run.
   return(list(
-    expected  = expected,
-    candidate = .scenario_candidate_path(expected)
+    expected = expected,
+    last_run = .scenario_candidate_path(expected)
   ))
 }
 
@@ -1112,29 +1113,6 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
 }
 
 
-.scenario_timing_candidate_needed <- function(baseline, current, unavailable,
-                                              final = FALSE) {
-
-  baseline_key <- .scenario_timing_key(baseline)
-  expected_key <- .scenario_expected_timing_keys(baseline)
-  current_key  <- .scenario_timing_key(current)
-  matched      <- match(current_key, baseline_key)
-  slower <- !is.na(matched) &
-    current[["elapsed"]] > baseline[["elapsed"]][matched]
-  higher_memory <- !is.na(matched) &
-    is.finite(current[["memory_gb"]]) &
-    is.finite(baseline[["memory_gb"]][matched]) &
-    current[["memory_gb"]] > baseline[["memory_gb"]][matched]
-  missing <- final && length(setdiff(
-    expected_key,
-    c(current_key, .scenario_timing_key(unavailable))
-  )) > 0L
-
-  return(any(slower) || any(higher_memory) ||
-    nrow(unavailable) > 0L || missing)
-}
-
-
 .scenario_register_timing <- function(type, name, elapsed,
                                       provenance = .scenario_timing_provenance(),
                                       memory_gb = NA_real_) {
@@ -1205,13 +1183,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
       .scenario_write_timings(updated, paths[["expected"]])
       assign("timing_baseline", updated, envir = .scenario_state)
     }
-    if (.scenario_timing_candidate_needed(
-      updated, current, unavailable, final = FALSE
-    )) {
-      .scenario_write_timings(current, paths[["candidate"]])
-    } else {
-      unlink(paths[["candidate"]])
-    }
+    .scenario_write_timings(current, paths[["last_run"]])
   }
 
   return(invisible(elapsed))
@@ -1294,7 +1266,6 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
         " scenario timings: ", paths[["expected"]]
       )
     }
-    baseline <- updated
   } else if (config[["update_timings"]] && !allow_update) {
     warning(
       "Scenario timing baseline for '", config[["name"]],
@@ -1303,14 +1274,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
     )
   }
 
-  keep_candidate <- !allow_update || .scenario_timing_candidate_needed(
-    baseline, current, unavailable, final = TRUE
-  )
-  if (nrow(current) > 0L && keep_candidate) {
-    .scenario_write_timings(current, paths[["candidate"]])
-  } else {
-    unlink(paths[["candidate"]])
-  }
+  .scenario_write_timings(current, paths[["last_run"]])
 
   return(invisible(current))
 }

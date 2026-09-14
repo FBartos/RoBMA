@@ -420,8 +420,8 @@ test_that("interactive timing backfills but requires consent for slowdowns", {
 
   scenario_start("unit", root = root)
   .scenario_register_timing("text", "summary", 10)
-  timing_path    <- file.path(root, "timings", "unit.tsv")
-  candidate_path <- file.path(root, "timings", "unit.new.tsv")
+  timing_path   <- file.path(root, "timings", "unit.tsv")
+  last_run_path <- file.path(root, "timings", "unit.new.tsv")
   expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 10)
 
   expect_warning(
@@ -429,7 +429,7 @@ test_that("interactive timing backfills but requires consent for slowdowns", {
     "average timing regression: 20%"
   )
   expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 10)
-  expect_equal(.scenario_read_timings(candidate_path)[["elapsed"]], 12)
+  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], 12)
 
   scenario_start("unit", root = root, update_timings = TRUE)
   expect_warning(
@@ -437,7 +437,7 @@ test_that("interactive timing backfills but requires consent for slowdowns", {
     "average timing regression: 20%"
   )
   expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 12)
-  expect_false(file.exists(candidate_path))
+  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], 12)
 })
 
 
@@ -768,8 +768,10 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 10)
   expect_no_warning(.scenario_finalize_timing())
-  timing_path <- file.path(root, "timings", "unit.tsv")
+  timing_path   <- file.path(root, "timings", "unit.tsv")
+  last_run_path <- file.path(root, "timings", "unit.new.tsv")
   expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 10)
+  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], 10)
 
   scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 12.1)
@@ -781,7 +783,9 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   )
   backfilled <- .scenario_read_timings(timing_path)
   expect_equal(backfilled[["elapsed"]], c(10, 10))
-  expect_true(file.exists(file.path(root, "timings", "unit.new.tsv")))
+  expect_equal(
+    .scenario_read_timings(last_run_path)[["elapsed"]], c(12.1, 10)
+  )
 
   scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 8)
@@ -789,7 +793,7 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   expect_no_warning(.scenario_finalize_timing())
   improved <- .scenario_read_timings(timing_path)
   expect_equal(improved[["elapsed"]], c(8, 8))
-  expect_false(file.exists(file.path(root, "timings", "unit.new.tsv")))
+  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], c(8, 8))
 
   scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 10)
@@ -811,7 +815,7 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   expect_match(warning_message, "average timing regression: 12%", fixed = TRUE)
   retained <- .scenario_read_timings(timing_path)
   expect_equal(retained[["elapsed"]], c(8, 8))
-  expect_true(file.exists(file.path(root, "timings", "unit.new.tsv")))
+  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], c(10, 8))
 
   scenario_start("unit", root = root, update_timings = TRUE)
   .scenario_register_timing("fit", "model", 10)
@@ -822,7 +826,7 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   )
   accepted <- .scenario_read_timings(timing_path)
   expect_equal(accepted[["elapsed"]], c(10, 8))
-  expect_false(file.exists(file.path(root, "timings", "unit.new.tsv")))
+  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], c(10, 8))
 
   scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 10)
@@ -844,7 +848,9 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   .scenario_register_timing("text", "summary", 8.4)
   expect_no_warning(.scenario_finalize_timing())
   expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], c(10, 8))
-  expect_true(file.exists(file.path(root, "timings", "unit.new.tsv")))
+  expect_equal(
+    .scenario_read_timings(last_run_path)[["elapsed"]], c(10.4, 8.4)
+  )
 })
 
 

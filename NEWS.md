@@ -735,6 +735,9 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Testing and development
+- writes the complete wall time and memory measurements of every scenario run to
+  the ignored `timings/<scenario>.new.tsv`, including runs that only improve the
+  committed baseline, so the last and the best run stay available side by side.
 - records peak R-managed memory alongside scenario wall times, retains the best
   time and memory baselines independently, warns for peaks above 2 GB that
   regress by more than 20%, and always warns for peaks above 8 GB.

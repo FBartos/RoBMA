@@ -60,7 +60,7 @@ Pass testthat's `files` selection for ordinary snapshots and
 committed timing baselines. Pass one exact `scenario` to inspect its calls, or
 omit it to pool calls across scenarios; `functions` optionally selects function
 families. Function families are matched conservatively from timing names and
-split fit phases. Aggregate `fit` rows, `.new.tsv` candidates, and unmatched
+split fit phases. Aggregate `fit` rows, `.new.tsv` last-run files, and unmatched
 compound timings such as a complete diagnostic set are omitted. Selection-model
 fit boxes use explicit `cond` and `marg` markers in stored call names. The optional
 `likelihood` argument selects either marker. Historical exact/approximate names
@@ -154,8 +154,9 @@ separate memory peak; their enclosing `fit` row captures the complete fit.
 Existing timing files without `memory_gb` are backfilled as calls are evaluated.
 
 Slower or higher-memory measurements never replace the corresponding baseline
-metric automatically. They remain in the ignored
-`timings/<scenario>.new.tsv` candidate. Set
+metric automatically. Every run instead writes its complete measurements to the
+ignored `timings/<scenario>.new.tsv`, so the committed baseline always describes
+the best observed run and its companion always describes the last one. Set
 `update_timings = TRUE` or use `--update-timings` only to explicitly accept the
 current measurements, including an intentional slowdown or memory increase.
 Output updates, regeneration, and refitting do not themselves grant that

@@ -206,8 +206,10 @@ development. Do not infer or replay fit performance on a cache hit.
 Intentionally refit a model whenever its performance should be measured and
 tested.
 
-Retain slower current measurements in the ignored `<scenario>.new.tsv` and
-leave the faster baseline unchanged. Only explicit `update_timings = TRUE` or
+Write the complete current measurements to the ignored `<scenario>.new.tsv` on
+every run, including runs that only improve the baseline, so the last and the
+best run are both available without rerunning a scenario. Leave the faster
+baseline metric unchanged. Only explicit `update_timings = TRUE` or
 `--update-timings` may accept slower measurements, such as after intentionally
 tightening precision. Output updates, regeneration, and refitting do not imply
 consent to a slower baseline. Compare against the old baseline before applying
@@ -217,7 +219,7 @@ provenance without automatically invalidating the baseline.
 Use `plot_scenario_times()` to draw horizontal elapsed-time boxplots from the
 committed baselines for one exact scenario or across scenarios. It classifies
 individually named calls conservatively, omitting aggregate `fit` rows,
-`.new.tsv` candidates, and unmatched compound timings. Selection-model fit
+`.new.tsv` last-run files, and unmatched compound timings. Selection-model fit
 boxes use explicit cond/marg model labels for conditioning specifications. Its `unit` argument sets
 seconds, minutes, or hours on the x-axis without changing stored values.
 
