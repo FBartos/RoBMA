@@ -62,6 +62,78 @@ test_that("analytic sampling selection does not require a QMC grid", {
     "Conditional sampling selection inputs have invalid dimensions.", fixed = TRUE)
 })
 
+test_that("selection standard errors scale each row's bin boundaries", {
+
+  # A boundary at z = 0 sits at 0 in outcome units whatever the selection
+  # standard error is, so an unequal-SE check at that cut cannot fail. Use a
+  # nonzero cut, where the SE genuinely moves the boundary, and pin the value
+  # against the analytic independent-row normalizer.
+  cut       <- 1.2
+  mean      <- c(.2, -.1)
+  variance  <- c(.25, .49)
+  omega     <- c(1, .2)
+  equal     <- c(1, 1)
+  unequal   <- c(.5, 1.4)
+
+  analytic <- function(sei) {
+    selected <- stats::pnorm(cut * sei, mean, sqrt(variance), lower.tail = FALSE)
+    sum(log(omega[1] * selected + omega[2] * (1 - selected)))
+  }
+  normalizer <- function(sei, z_lower = c(cut, -Inf), z_upper = c(Inf, cut)) {
+    args <- .sampling_native_arguments(mean, variance, omega = omega)
+    args$sei     <- sei
+    args$z_lower <- z_lower
+    args$z_upper <- z_upper
+    .sampling_native_mass(args)$log_normalizer
+  }
+
+  expect_equal(normalizer(equal),   analytic(equal),   tolerance = 1e-14)
+  expect_equal(normalizer(unequal), analytic(unequal), tolerance = 1e-14)
+
+  # The comparison only discriminates because the boundary actually moved.
+  expect_gt(abs(normalizer(unequal) - normalizer(equal)), .1)
+
+  # It does not move at a zero cut, which is why one is not used above.
+  expect_equal(normalizer(unequal, c(0, -Inf), c(Inf, 0)),
+               normalizer(equal,   c(0, -Inf), c(Inf, 0)),
+               tolerance = 1e-14)
+})
+
+test_that("a shared factor keeps each row's own selection standard error", {
+
+  cut        <- .8
+  mean       <- c(.2, -.1, .4)
+  variance   <- c(.25, .49, .16)
+  loading    <- matrix(c(.5, .4, .3), 3L, 1L)
+  omega      <- c(1, .3)
+  sei        <- c(.4, 1, 1.8)
+  covariance <- diag(variance) + tcrossprod(loading)
+
+  bins <- expand.grid(rep(list(seq_along(omega)), length(mean)))
+  reference <- log(sum(apply(bins, 1L, function(bin) {
+    lower <- ifelse(bin == 1L, cut * sei, -Inf)
+    upper <- ifelse(bin == 1L, Inf, cut * sei)
+    prod(omega[bin]) * suppressWarnings(as.numeric(mvtnorm::pmvnorm(
+      lower     = lower,
+      upper     = upper,
+      mean      = mean,
+      sigma     = covariance,
+      algorithm = mvtnorm::Miwa(steps = 4096L)
+    )))
+  })))
+
+  args <- .sampling_native_arguments(mean, variance, loading, omega = omega)
+  args$sei     <- sei
+  args$z_lower <- c(cut, -Inf)
+  args$z_upper <- c(Inf, cut)
+  expect_equal(.sampling_native_mass(args)$log_normalizer, reference,
+               tolerance = 1e-6)
+
+  equal <- args
+  equal$sei <- rep(1, length(mean))
+  expect_gt(abs(.sampling_native_mass(equal)$log_normalizer - reference), .1)
+})
+
 test_that("Matheron likelihood preserves singular sampling covariance", {
 
   V    <- matrix(1, 2, 2)
