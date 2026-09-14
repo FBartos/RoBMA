@@ -1,15 +1,15 @@
 
 Bayesian Multivariate Mixed-Effect Model (k = 100)
 
-Location
-                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-intercept        -0.012 0.186 -0.372 -0.014 0.362     0.00649          0.035  823 1.001
-deltype[general]  0.409 0.177  0.055  0.412 0.755     0.00585          0.033  924 1.001
-deltype[overt]    0.250 0.191 -0.124  0.250 0.624     0.00458          0.024 1751 1.000
-
-Random
+Common Estimates
                        Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 tau_total             0.473 0.063 0.370 0.465 0.620     0.00137          0.022 2140 1.001
 tau2_prop(esid_study) 0.654 0.139 0.372 0.658 0.907     0.00291          0.021 2272 1.002
 tau2_prop(study)      0.346 0.139 0.093 0.342 0.628     0.00291          0.021 2272 1.002
+
+Meta-Regression
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept        -0.012 0.186 -0.372 -0.014 0.362     0.00649          0.035  823 1.001
+deltype[general]  0.409 0.177  0.055  0.412 0.755     0.00585          0.033  924 1.001
+deltype[overt]    0.250 0.191 -0.124  0.250 0.624     0.00458          0.024 1751 1.000
 
