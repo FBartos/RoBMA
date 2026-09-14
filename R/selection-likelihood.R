@@ -2194,9 +2194,15 @@ set_selection_likelihood_control <- function(
 
 .selection_joint_dense_loglik_block <- function(
     yi, means, covariance_lower, sei, selection_context, execution_plan,
-    block_size, return_normalizer = FALSE, normalizer_grid = NULL) {
+    block_size, return_normalizer = FALSE, normalizer_grid = NULL,
+    covariance_grid = NULL) {
 
   S <- nrow(means)
+  if (!return_normalizer && !is.null(covariance_grid)) {
+    result <- .selection_covariance_grid_loglik(yi, means, covariance_lower, sei,
+      selection_context, execution_plan, block_size, covariance_grid)
+    if (!is.null(result)) return(result)
+  }
   if (!return_normalizer && !is.null(normalizer_grid)) {
     result <- .selection_normalizer_grid_loglik(yi, means, covariance_lower, sei,
       selection_context, execution_plan, block_size, normalizer_grid)
@@ -2535,6 +2541,9 @@ set_selection_likelihood_control <- function(
       block_size        = length(rows),
       normalizer_grid = if (is.null(setup[["normalizer_grid"]])) NULL else list(
         state = setup[["normalizer_grid"]], block = block_index, rows = rows,
+        sign = if (identical(setup[["effect_direction"]], "negative")) -1 else 1),
+      covariance_grid = if (is.null(setup[["covariance_grid"]])) NULL else list(
+        state = setup[["covariance_grid"]], block = block_index, rows = rows,
         sign = if (identical(setup[["effect_direction"]], "negative")) -1 else 1)
     )
   }

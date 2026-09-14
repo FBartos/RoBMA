@@ -636,6 +636,9 @@
   all_grid       <- normalizer_plan[["all_grid"]]
   context[["normalizer_grid"]] <- .selection_normalizer_grid(context,
     c(display_grid, all_grid[["x"]]), vapply(row_states, `[[`, integer(1L), "row_index"))
+  context[["covariance_grid"]] <- .selection_covariance_grid(context,
+    c(display_grid, all_grid[["x"]]), vapply(row_states, `[[`, integer(1L), "row_index"),
+    row_states, replacement, parameter)
   n_states       <- length(row_states)
   log_q_all      <- matrix(
     NA_real_,
@@ -762,9 +765,10 @@
     log_q_sequence          = log_q_sequence[evaluated_sequence],
     log_normalizer_sequence = log_normalizer_sequence[evaluated_sequence],
     conditional_normalization = list(rows = conditional_rows,
-      methods = vapply(conditional_normalizers, `[[`, character(1L), "method")),
+      methods = vapply(conditional_normalizers, `[[`, character(1), "method")),
     quadrature_change       = quadrature_change,
-    normalizer_interpolation = .selection_normalizer_grid_diagnostics(context[["normalizer_grid"]])
+    normalizer_interpolation = .selection_normalizer_grid_diagnostics(context[["normalizer_grid"]]),
+    covariance_interpolation = .selection_covariance_grid_diagnostics(context[["covariance_grid"]])
   ))
 }
 

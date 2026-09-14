@@ -32,6 +32,9 @@
           affine <- .iwmde_joint_affine_log_likelihood(context, parameter, values,
             samples, active_setup, batch, replacement)
           if (!is.null(affine)) return(affine)
+          rank_one <- .iwmde_joint_rank_one_variance_log_likelihood(
+            context, parameter, values, samples, active_setup, batch, replacement)
+          if (!is.null(rank_one)) return(rank_one)
           .iwmde_log_lik_from_posterior_samples_sum_active_branch(
             context, samples, active_setup, unit = "estimate"
           )
