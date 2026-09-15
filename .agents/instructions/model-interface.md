@@ -87,7 +87,9 @@ coefficients retain their own table. Without location moderators, `mu` stays in
 the common table. Apply the same layout to conditional estimates while retaining
 the separate raw summary tables and their parameter metadata.
 Merge random-effect inclusion rows into the displayed `Component Inclusion`
-table with `Random: ` labels, before `Publication Bias`. Preserve bounded BF
+table with `Heterogeneity: ` labels, matching the univariate `Heterogeneity`
+row, before `Publication Bias`. Model-overview components in `summary_models()`
+keep their own `Random: ` labels. Preserve bounded BF
 markers and diagnostics when combining and ordering rows. Data-frame exports
 follow this layout; raw inclusion subtables remain available.
 

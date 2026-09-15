@@ -458,7 +458,7 @@ as.data.frame.summary.brma <- function(
 
   random_inclusion <- x[["inclusion_random"]]
   if (length(random_inclusion) > 0L && nrow(random_inclusion) > 0L) {
-    rownames(random_inclusion) <- paste0("Random: ", rownames(random_inclusion))
+    rownames(random_inclusion) <- paste0("Heterogeneity: ", rownames(random_inclusion))
     inclusion <- .summary_brma_combine_tables(
       tables = list(x[["inclusion_components"]], random_inclusion),
       title = "Component Inclusion"

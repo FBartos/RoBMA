@@ -58,7 +58,7 @@ test_that("BMA.mv summary reports exact random-component inclusion states", {
   expect_equal(
     summary_frame[["parameter"]][summary_frame[["component"]] == "inclusion"],
     c(rownames(out[["inclusion_components"]]),
-      paste0("Random: ", names(gate_names), ": tau"))
+      paste0("Heterogeneity: ", names(gate_names), ": tau"))
   )
   expect_false(any(summary_frame[["component"]] == "inclusion random"))
   expect_false(any(grepl(

@@ -97,7 +97,7 @@ test_that("RoBMA.mv summaries average every product-space component", {
   expect_equal(
     summary_frame[["parameter"]][summary_frame[["component"]] == "inclusion"],
     c(setdiff(rownames(out[["inclusion_components"]]), "Publication Bias"),
-      paste0("Random: ", rownames(out[["inclusion_random"]])), "Publication Bias")
+      paste0("Heterogeneity: ", rownames(out[["inclusion_random"]])), "Publication Bias")
   )
 })
 

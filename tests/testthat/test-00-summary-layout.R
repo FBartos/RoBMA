@@ -298,7 +298,8 @@ test_that("random inclusion joins component inclusion before publication bias", 
       original <- out
       prepared <- .summary_brma_prepare_print_sections(out)
       expected_parameters <- c(
-        "Effect", "Random: study: tau", "Random: observation: tau", "Publication Bias"
+        "Effect", "Heterogeneity: study: tau", "Heterogeneity: observation: tau",
+        "Publication Bias"
       )
       expect_identical(rownames(prepared[["inclusion_components"]]), expected_parameters)
       expect_identical(
@@ -310,7 +311,7 @@ test_that("random inclusion joins component inclusion before publication bias", 
       output <- capture.output(print(out))
       expect_equal(sum(output == "Component Inclusion"), 1L)
       expect_false(any(output == "Random-Effect Inclusion"))
-      printed_rows <- output[grepl("^(Effect|Random:|Publication Bias) +.*[0-9]", output)]
+      printed_rows <- output[grepl("^(Effect|Heterogeneity:|Publication Bias) +.*[0-9]", output)]
       expect_identical(
         sub(" +[0-9].*$", "", printed_rows), expected_parameters
       )
@@ -346,7 +347,7 @@ test_that("merged inclusion preserves bounded BF rows, transforms, and diagnosti
       if (logBF) expected_BF <- log(expected_BF)
       expected_operators <- c(NA_character_, if (BF01) "<" else ">",
                               if (BF01) ">" else "<")
-      expected_names <- c("Effect", "Random: tau_total", "Publication Bias")
+      expected_names <- c("Effect", "Heterogeneity: tau_total", "Publication Bias")
 
       expect_identical(rownames(merged), expected_names)
       expect_s3_class(merged[["inclusion_BF"]], "BayesTools_BF")
@@ -365,7 +366,7 @@ test_that("merged inclusion preserves bounded BF rows, transforms, and diagnosti
                        c("Component Inclusion footnote.", "Random-Effect Inclusion footnote."))
       expect_identical(attr(merged, "title"), "Component Inclusion")
       output <- capture.output(print(out))
-      expect_true(any(grepl(paste0("^Random: tau_total .*", expected_operators[2L]), output)))
+      expect_true(any(grepl(paste0("^Heterogeneity: tau_total .*", expected_operators[2L]), output)))
       expect_true(any(grepl(paste0("^Publication Bias .*", expected_operators[3L]), output)))
       expect_false(any(grepl("^Effect .*[<>]", output)))
 
@@ -390,13 +391,13 @@ test_that("inclusion layout supports absent bias, random-only, and empty tables"
   )
   expect_identical(
     rownames(.summary_brma_prepare_print_sections(out)[["inclusion_components"]]),
-    c("Effect", "Heterogeneity", "Random: tau_total")
+    c("Effect", "Heterogeneity", "Heterogeneity: tau_total")
   )
 
   for (empty in list(list(), out[["inclusion_components"]][FALSE, , drop = FALSE])) {
     out[["inclusion_components"]] <- empty
     prepared <- .summary_brma_prepare_print_sections(out)
-    expect_identical(rownames(prepared[["inclusion_components"]]), "Random: tau_total")
+    expect_identical(rownames(prepared[["inclusion_components"]]), "Heterogeneity: tau_total")
     expect_identical(attr(prepared[["inclusion_components"]], "title"), "Component Inclusion")
     expect_identical(attr(prepared[["inclusion_components"]][["inclusion_BF"]], "bound_operator"), ">")
     expect_length(prepared[["inclusion_random"]], 0L)
