@@ -247,14 +247,13 @@
     return(NULL)
   }
 
-  increments  <- -diff(c(levels, 0))
-  if (any(increments < 0)) {
-    return(NULL)
-  }
-  diagonal    <- (1 - levels[[1L]]) * variance
-  loadings    <- list()
-  supports    <- list()
-  parents     <- integer()
+  # C = (1 - rho_1) I + sum_l (rho_l - rho_{l+1}) sum_{g in P_l} 1_g 1_g',
+  # with rho_{L+1} = 0. Every increment is positive because the levels are
+  # distinct, ordered and strictly above the roundoff floor.
+  increments <- -diff(c(levels, 0))
+  diagonal   <- (1 - levels[[1L]]) * variance
+  loadings   <- list()
+  supports   <- list()
   for (level in seq_along(levels)) {
     partition <- partitions[[level]]
     for (group in unique(partition)) {
@@ -268,7 +267,6 @@
       column[rows] <- sqrt(increments[[level]]) * sd[rows]
       loadings[[length(loadings) + 1L]] <- column
       supports[[length(supports) + 1L]] <- rows
-      parents[[length(parents) + 1L]]   <- level
     }
   }
   if (length(loadings) == 0L) {
@@ -337,18 +335,18 @@
 # a level is not an equivalence relation or the partitions are not nested.
 .covariance_nested_level_partitions <- function(correlation, levels, tolerance) {
 
-  size       <- nrow(correlation)
   partitions <- vector("list", length(levels))
   previous   <- NULL
   for (level in seq_along(levels)) {
     related <- correlation >= levels[[level]] - tolerance
     diag(related) <- TRUE
-    # Disjoint cliques: the relation must be transitive as supplied, never
-    # completed by a connected-component search.
-    if (!all(((related %*% related) > 0) == related)) {
+    # Disjoint cliques: label each row by the first row it relates to, then
+    # require the relation to be exactly that labelling. A relation that only
+    # connects rows transitively is declined, never completed.
+    membership <- max.col(related, ties.method = "first")
+    if (!all(related == outer(membership, membership, `==`))) {
       return(NULL)
     }
-    membership <- apply(related, 1L, function(row) which(row)[[1L]])
     if (!is.null(previous) &&
         any(tapply(membership, previous, function(x) length(unique(x))) != 1L)) {
       return(NULL)

@@ -40,6 +40,17 @@ groups. Only \code{weight_rule = "best"} uses publication groups; declare them
 separately with \code{selection_model(weight_rule = "best", group = ...)}.
 The default product rule requires no publication grouping.
 
+A declaration is not required to reach the factor routes. Dependency blocks
+whose correlation is constant on nested partitions of their rows, which is
+what compound symmetry and nested \code{\link[metafor:vcalc]{metafor::vcalc()}} \code{type}/\code{obs}
+structures produce, are recognized from an ordinary matrix and represented
+exactly as \eqn{\mathrm{diag}(d) + U U^\mathsf{T}}. The recovered
+representation must reproduce the supplied entries to working precision;
+blocks that do not, such as autoregressive \code{phi} or shared-control
+structures, keep the general route with the supplied entries. \code{V} remains
+the stored covariance either way. Use \code{known_v_factor()} to declare a
+factor that cannot be recovered from the matrix, or to name its sources.
+
 Matrix inputs use base R's numerical symmetry tolerance. Accepted matrices
 are stored symmetrically by averaging corresponding off-diagonal entries,
 leaving the supplied R object and its diagonal unchanged. Positive

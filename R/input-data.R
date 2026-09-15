@@ -23,7 +23,9 @@
 #' separately with `selection_model(weight_rule = "best", group = ...)`.
 #' Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
 #' stored symmetrically by averaging off-diagonal pairs; the supplied object
-#' and its diagonal are unchanged.
+#' and its diagonal are unchanged. Dependency blocks that are block constant
+#' on nested partitions are represented exactly as a diagonal-plus-factor
+#' structure without a [known_v_factor()] declaration.
 #' @param known_v_parameterization known-`V` backend used by `brma.mv()`.
 #' `"auto"` chooses an exact backend when feasible; `"latent"` uses a latent
 #' `D + BB'` decomposition; `"whitened"` uses an eigen-rotated normal

@@ -57,7 +57,12 @@
 #' [known_v_factor()] can support more efficient calculations,
 #' but equivalent representations define the same selection model with matching
 #' source settings and, for `"best"`, publication groups. Selection thresholds
-#' always use the original `sqrt(diag(V))`.
+#' always use the original `sqrt(diag(V))`. The same faster routes are reached
+#' from an ordinary matrix whose dependency blocks are block constant on nested
+#' partitions, such as compound symmetry or nested [metafor::vcalc()]
+#' `type`/`obs` structures: that structure is recovered from the supplied
+#' entries and reproduces them to working precision. It changes how the same
+#' integral is evaluated, not which sampling sources are conditioned upon.
 #'
 #' The likelihood and post-fit methods use the same resolved conditioning
 #' model. `known_v_parameterization` and numerical integration settings cannot

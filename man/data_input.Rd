@@ -22,7 +22,9 @@ requires no publication groups. For best-p-value selection, declare groups
 separately with \code{selection_model(weight_rule = "best", group = ...)}.
 Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
 stored symmetrically by averaging off-diagonal pairs; the supplied object
-and its diagonal are unchanged.}
+and its diagonal are unchanged. Dependency blocks that are block constant
+on nested partitions are represented exactly as a diagonal-plus-factor
+structure without a \code{\link[=known_v_factor]{known_v_factor()}} declaration.}
 
 \item{known_v_parameterization}{known-\code{V} backend used by \code{brma.mv()}.
 \code{"auto"} chooses an exact backend when feasible; \code{"latent"} uses a latent

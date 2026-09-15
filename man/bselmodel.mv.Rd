@@ -62,7 +62,9 @@ requires no publication groups. For best-p-value selection, declare groups
 separately with \code{selection_model(weight_rule = "best", group = ...)}.
 Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
 stored symmetrically by averaging off-diagonal pairs; the supplied object
-and its diagonal are unchanged.}
+and its diagonal are unchanged. Dependency blocks that are block constant
+on nested partitions are represented exactly as a diagonal-plus-factor
+structure without a \code{\link[=known_v_factor]{known_v_factor()}} declaration.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
 when estimating the unit information standard deviation.}
@@ -283,7 +285,12 @@ The covariance \code{V} remains authoritative. A diagonal-plus-factor input from
 \code{\link[=known_v_factor]{known_v_factor()}} can support more efficient calculations,
 but equivalent representations define the same selection model with matching
 source settings and, for \code{"best"}, publication groups. Selection thresholds
-always use the original \code{sqrt(diag(V))}.
+always use the original \code{sqrt(diag(V))}. The same faster routes are reached
+from an ordinary matrix whose dependency blocks are block constant on nested
+partitions, such as compound symmetry or nested \code{\link[metafor:vcalc]{metafor::vcalc()}}
+\code{type}/\code{obs} structures: that structure is recovered from the supplied
+entries and reproduces them to working precision. It changes how the same
+integral is evaluated, not which sampling sources are conditioned upon.
 
 The likelihood and post-fit methods use the same resolved conditioning
 model. \code{known_v_parameterization} and numerical integration settings cannot

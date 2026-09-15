@@ -1148,6 +1148,31 @@
 }
 
 
+# Whether the native nested rule accepts these supports: every pair must be
+# nested or disjoint, which is the forest the rule integrates. A chain is the
+# special case of one child per level.
+.selection_factor_support_is_forest <- function(support) {
+
+  rank <- ncol(support)
+  if (rank <= 1L) {
+    return(TRUE)
+  }
+  ordered <- support[, order(colSums(support), decreasing = TRUE), drop = FALSE]
+  for (outer in seq_len(rank - 1L)) {
+    for (inner in seq.int(outer + 1L, rank)) {
+      if (!any(ordered[, outer] & ordered[, inner])) {
+        next
+      }
+      if (!all(ordered[, inner] <= ordered[, outer])) {
+        return(FALSE)
+      }
+    }
+  }
+
+  TRUE
+}
+
+
 .zplot_joint_block <- function(
     z, mean, covariance_lower, sei, selection, probability, control,
     designs = new.env(parent = emptyenv()), factors = NULL) {
@@ -1207,9 +1232,7 @@
     }
   }
   if (rank %in% c(3L, 4L) && !is.null(support)) {
-    ordered <- support[, order(colSums(support), decreasing = TRUE), drop = FALSE]
-    nested  <- all(ordered[, -1L, drop = FALSE] <=
-                     ordered[, -rank, drop = FALSE])
+    nested <- .selection_factor_support_is_forest(support)
   }
   quadrature <- rank %in% c(1L, 2L) || nested
   orders <- if (rank == 1L) SELNORM_CLUSTER_QUADRATURE_ORDERS else

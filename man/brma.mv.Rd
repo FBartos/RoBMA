@@ -57,7 +57,9 @@ requires no publication groups. For best-p-value selection, declare groups
 separately with \code{selection_model(weight_rule = "best", group = ...)}.
 Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
 stored symmetrically by averaging off-diagonal pairs; the supplied object
-and its diagonal are unchanged.}
+and its diagonal are unchanged. Dependency blocks that are block constant
+on nested partitions are represented exactly as a diagonal-plus-factor
+structure without a \code{\link[=known_v_factor]{known_v_factor()}} declaration.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
 when estimating the unit information standard deviation.}

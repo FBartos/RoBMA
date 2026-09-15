@@ -1,5 +1,19 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- recognizes block-constant known-`V` structure from an ordinary covariance
+  matrix, so compound symmetry and nested `metafor::vcalc()` `type`/`obs`
+  designs reach the exact rank-one and factor selection routes without a
+  `known_v_factor()` declaration. A dependency block is represented as
+  `diag(d) + UU'` only when that reproduces its supplied entries to working
+  precision; other blocks keep the general route. `V` remains the stored
+  covariance and the conditioning targets are unchanged, but correlated-`V`
+  selection fits now evaluate the same integrals through deterministic
+  quadrature instead of quasi-Monte Carlo, so their draws move within Monte
+  Carlo error.
+- integrates factor supports that form a tree rather than only a chain, so a
+  study with several effect-size types uses one quadrature rule per type
+  instead of a full rank-dimensional tensor rule. Mean-sweep normalizer
+  interpolation also applies to the rank-one and factor routes.
 - uses BayesTools factor column-scale grids for allocation-derived component
   SDs on correlated random structures
 - reuses the fitted parameter-map runtime cache for RoBMA catalog metadata
