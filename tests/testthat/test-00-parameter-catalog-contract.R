@@ -135,6 +135,12 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
       invisible(TRUE)
     },
     parameter_catalog = function(object, ...) .test_parameter_catalog(),
+    # Catalog metadata requires the fitted parameter map unconditionally; the
+    # sentinel fit carries none, so stand in a map that exposes the runtime
+    # cache the metadata builder reuses.
+    parameter_map = function(object, ...) {
+      structure(list(), runtime_cache = new.env(parent = emptyenv()))
+    },
     JAGS_formula_name_map = function(fit, parameter) {
       .test_formula_name_map(parameter)
     },
