@@ -13,7 +13,11 @@
 #define SELNORM_TAIL_INLINE inline
 #endif
 
-#if defined(__GNUC__) && (defined(__x86_64__) || defined(_M_X64))
+// The AVX2 lane needs a per-function target region, which is spelled
+// "#pragma GCC target" and is not accepted by clang or MSVC. Those compilers
+// use the scalar lane below, which is itself faster than the library erfc it
+// replaces, so this is a missing speedup rather than a missing capability.
+#if defined(__GNUC__) && !defined(__clang__) &&     (defined(__x86_64__) || defined(_M_X64))
 #define SELNORM_TAIL_HAS_AVX2 1
 #include <immintrin.h>
 #else
@@ -120,12 +124,23 @@ struct ScalarLane {
   static SELNORM_TAIL_INLINE Value subtract(Value a, Value b) { return a - b; }
   static SELNORM_TAIL_INLINE Value multiply(Value a, Value b) { return a * b; }
   static SELNORM_TAIL_INLINE Value divide(Value a, Value b) { return a / b; }
+  // Written as a product and a sum rather than std::fma: without a hardware
+  // fused multiply-add enabled at compile time the library call is software
+  // emulation, which costs more than the whole approximation. A build that
+  // does enable one contracts this back into a single instruction. The
+  // approximations carry relative errors below 1e-18, so the extra rounding
+  // per step stays far inside the double-precision result.
   static SELNORM_TAIL_INLINE Value fused(Value a, Value b, Value c) {
-    return std::fma(a, b, c);
+    return a * b + c;
   }
   static SELNORM_TAIL_INLINE Value absolute(Value a) { return std::fabs(a); }
+
+  // Round to nearest, ties to even, for |a| below 2^51. Adding and removing
+  // 1.5 * 2^52 does that with two additions; std::nearbyint has to consult the
+  // rounding mode and is a library call here.
   static SELNORM_TAIL_INLINE Value round_nearest(Value a) {
-    return std::nearbyint(a);
+    const double shift = 6755399441055744.0;   // 2^52 + 2^51
+    return (a + shift) - shift;
   }
 
   // 2^exponent for an integral exponent in [-1022, 1023].
@@ -139,8 +154,10 @@ struct ScalarLane {
 
   // Truncation to a multiple of one sixteenth. Such a value and its square are
   // exact in binary, which is what keeps exp(-x^2/2) accurate at large x.
+  // Truncation toward zero; the argument is a magnitude below 38, so the
+  // integer conversion is exact and matches the vector lane's rounding mode.
   static SELNORM_TAIL_INLINE Value sixteenth(Value a) {
-    return std::trunc(a * 16.0) * 0.0625;
+    return static_cast<double>(static_cast<int>(a * 16.0)) * 0.0625;
   }
 
   static SELNORM_TAIL_INLINE Mask less_equal(Value a, Value b) {
@@ -283,12 +300,15 @@ inline bool avx2_available()
 #endif
 
 
-// out[i] = Q(offset - mean[i] * inverse_sd).
+// out[i] = Q(offset - mean[i] * inverse_sd). `scalar` forces the fallback lane
+// that builds without the vector region use, so the tests can certify it on
+// any machine.
 inline void upper_tail_affine(const double *mean, std::size_t count,
-                              double offset, double inverse_sd, double *out)
+                              double offset, double inverse_sd, double *out,
+                              bool scalar = false)
 {
 #if SELNORM_TAIL_HAS_AVX2
-  if (avx2_available()) {
+  if (!scalar && avx2_available()) {
     upper_tail_affine_avx2(mean, count, offset, inverse_sd, out);
     return;
   }

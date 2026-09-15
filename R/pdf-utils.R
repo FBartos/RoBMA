@@ -699,12 +699,15 @@
 # approximation through the selection likelihoods themselves.
 #
 # @param x numeric vector of scores
+# @param scalar force the fallback lane that builds without the vector
+#   region use, so the tests can certify it on any machine
 #
 # @return numeric vector of upper-tail probabilities
 #
 # ---------------------------------------------------------------------------- #
-.selnorm_normal_upper_tail <- function(x) {
+.selnorm_normal_upper_tail <- function(x, scalar = FALSE) {
 
-  .Call("RoBMA_selnorm_normal_upper_tail", as.numeric(x), PACKAGE = "RoBMA")
+  .Call("RoBMA_selnorm_normal_upper_tail", as.numeric(x),
+        as.logical(scalar)[[1L]], PACKAGE = "RoBMA")
 }
 

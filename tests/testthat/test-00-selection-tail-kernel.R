@@ -76,3 +76,31 @@ test_that("the tail kernel handles non-finite and extreme arguments", {
   expect_true(is.na(.selnorm_normal_upper_tail(NA_real_)))
   expect_identical(.selnorm_normal_upper_tail(numeric(0)), numeric(0))
 })
+
+
+test_that("the fallback lane is as accurate as the vectorized one", {
+
+  # Builds without the vector region -- other compilers, other architectures --
+  # take the scalar lane. It must be certified on every machine, not only where
+  # it happens to be the dispatched path.
+  grid <- sort(unique(c(seq(-40, 40, by = 0.002), seq(-1, 1, by = 1e-4),
+                        seq(0.6, 0.75, by = 1e-5), seq(5.5, 5.8, by = 1e-5))))
+  fallback  <- .selnorm_normal_upper_tail(grid, scalar = TRUE)
+  reference <- stats::pnorm(grid, lower.tail = FALSE)
+
+  expect_true(all(is.finite(fallback)))
+  expect_true(all(fallback >= 0 & fallback <= 1))
+  comparable <- reference > 0 & abs(grid) <= 37.5
+  expect_lt(max(abs(fallback[comparable] - reference[comparable]) /
+                  reference[comparable]), 1e-13)
+
+  # And it agrees with whatever lane this build dispatches to.
+  dispatched <- .selnorm_normal_upper_tail(grid)
+  positive   <- dispatched > 0
+  expect_lt(max(abs(fallback[positive] / dispatched[positive] - 1)), 1e-14)
+
+  exact <- c(`8` = 6.2209605742717841235e-16, `20` = 2.7536241186062336951e-89,
+             `37` = 5.7255712225245768227e-300)
+  expect_lt(max(abs(.selnorm_normal_upper_tail(as.numeric(names(exact)),
+                                               scalar = TRUE) / exact - 1)), 1e-15)
+})

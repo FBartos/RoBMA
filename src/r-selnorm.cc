@@ -45,10 +45,14 @@ namespace {
 // the package tests can certify the batched approximation against pnorm over a
 // dense argument grid, and so a length-one request and the same value inside a
 // batch can be shown to agree.
-extern "C" SEXP RoBMA_selnorm_normal_upper_tail(SEXP x)
+extern "C" SEXP RoBMA_selnorm_normal_upper_tail(SEXP x, SEXP scalar)
 {
   if ((TYPEOF(x) != REALSXP && TYPEOF(x) != INTSXP) || Rf_inherits(x, "factor")) {
     Rf_error("'x' must be a numeric vector.");
+  }
+  if (TYPEOF(scalar) != LGLSXP || Rf_length(scalar) != 1 ||
+      LOGICAL(scalar)[0] == NA_LOGICAL) {
+    Rf_error("'scalar' must be one non-missing logical value.");
   }
   SEXP values = PROTECT(Rf_coerceVector(x, REALSXP));
   const R_xlen_t count = XLENGTH(values);
@@ -56,7 +60,8 @@ extern "C" SEXP RoBMA_selnorm_normal_upper_tail(SEXP x)
   if (count > 0) {
     // The kernel's own affine form: score = 0 - x * (-1).
     selnorm_tail::upper_tail_affine(REAL(values),
-      static_cast<std::size_t>(count), 0.0, -1.0, REAL(out));
+      static_cast<std::size_t>(count), 0.0, -1.0, REAL(out),
+      LOGICAL(scalar)[0] == TRUE);
   }
   UNPROTECT(2);
   return out;
