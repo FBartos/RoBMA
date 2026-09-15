@@ -29,7 +29,10 @@
 #' @return A list of class `summary.brma` with model name, optional RoBMA
 #' inclusion tables, common estimates, moderator estimates, scale estimates,
 #' publication-bias estimates, and optional conditional estimates. The printed
-#' form displays the non-empty tables. Intercept-only multivariate location
+#' form displays the non-empty tables. Objects created with `only_data = TRUE`
+#' return the resolved data and objects created with `only_priors = TRUE`
+#' return the resolved prior list, because neither carries a posterior.
+#' Intercept-only multivariate location
 #' models label their sole coefficient `mu`, consistently with ordinary
 #' meta-analysis models. Once location moderators are present, the coefficient
 #' is labeled `intercept`; an intercept fixed at zero is omitted.
@@ -108,6 +111,17 @@ summary.brma       <- function(
   # deal with `only_data` fit
   if (is.null(object[["priors"]]) && is.null(object[["fit"]])) {
     return(object[["data"]])
+  }
+
+  # deal with `only_priors` fit: prior resolution stopped before fitting, so
+  # there is no posterior to summarize and the resolved priors are reported
+  # instead, mirroring the `only_data` branch above.
+  if (inherits(object, "only_priors.brma") &&
+      !inherits(object[["fit"]], "BayesTools_fit")) {
+    if (is.null(object[["priors"]])) {
+      stop("'summary' requires a fitted brma object.", call. = FALSE)
+    }
+    return(object[["priors"]])
   }
 
   ### provide common estimates
@@ -951,41 +965,19 @@ print.brma <- function(x, ...) {
   if (length(parameters) == 0L) {
     return(labels)
   }
-  labels <- sub("^.*inclusion\\((.*)\\)$", "\\1", labels)
+  labels     <- sub("^.*inclusion\\((.*)\\)$", "\\1", labels)
   quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
   keys       <- quantities[["extraction_key"]]
-  gate_rows  <- which(quantities[["role"]] == "random_inclusion")
-  indicators <- vapply(keys[gate_rows], `[[`, character(1), "source_parameter")
-  sd_rows    <- which(quantities[["quantity"]] %in% c("sd", "sd_total", "sd_common"))
-  component_map <- .random_component_inclusion_map(object)
-  sd_indicators <- lapply(sd_rows, function(row) {
-
-    key <- keys[[row]]
-    if (identical(quantities[["quantity"]][[row]], "sd")) {
-      owners <- c(key[["random_block"]], quantities[["owner_name"]][[row]])
-      return(unique(unlist(component_map[intersect(owners, names(component_map))],
-                           use.names = FALSE)))
-    }
-    intersect(key[["dependencies"]], indicators)
-  })
+  sd_names   <- .random_inclusion_sd_names(object)
 
   for (i in seq_along(parameters)) {
     gate <- match(parameters[[i]], quantities[["canonical_name"]])
-    if (is.na(gate) || !gate %in% gate_rows) {
+    if (is.na(gate) || !identical(quantities[["role"]][[gate]], "random_inclusion")) {
       next
     }
-    indicator <- keys[[gate]][["source_parameter"]]
-    candidates <- sd_rows[vapply(sd_indicators, identical, logical(1), indicator)]
-    totals <- candidates[quantities[["quantity"]][candidates] %in%
-      c("sd_total", "sd_common")]
-    if (length(totals) == 1L) {
-      candidates <- totals
-    }
-    if (length(candidates) == 1L) {
-      labels[[i]] <- .brma_random_parameter_io_name(
-        sub("^\\(mu\\) ", "", quantities[["display_label"]][[candidates]]),
-        quantities[["quantity"]][[candidates]]
-      )
+    sd_name <- sd_names[[keys[[gate]][["source_parameter"]]]]
+    if (!is.null(sd_name)) {
+      labels[[i]] <- sd_name
     }
   }
 

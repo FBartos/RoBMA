@@ -58,6 +58,15 @@
 #' remain available. Formula-random coordinates are replaced by their semantic
 #' RoBMA quantities using the same names as summaries, plots, and hypotheses,
 #' such as `tau_total`, `tau_common`, `rho(...)`, and `tau2_prop(...)`.
+#' Random-effect SD switches are exposed as exact columns named after the
+#' standard deviation they act on, with an `_indicator` suffix, pairing with
+#' the semantic SD column the same way `mu_x_indicator` pairs with `mu_x`. A
+#' heterogeneity-component inclusion gate is 0/1, such as `study: tau_indicator`
+#' and `observation: tau_indicator`, and carries the inclusion state the
+#' summary reports under `Heterogeneity:`. An allocation-SD prior indicator,
+#' such as `tau_total_indicator`, records which mixture component allocated the
+#' total standard deviation and therefore takes one value per component,
+#' matching the order of that prior's components.
 #' Structural point-prior coordinates are returned as exact constant columns,
 #' with chain timing taken from the fitted draw geometry. Private backend
 #' anchors are never exposed. Use `include_auxiliary = TRUE` to skip RoBMA
@@ -135,6 +144,9 @@ NULL
   bundle          <- .brma_random_parameter_bundle(x, chains = TRUE)
   semantic_chains <- bundle[["samples"]]
   semantic_names  <- bundle[["specs"]][["label"]]
+  # Heterogeneity-component inclusion gates live on private coordinates that
+  # JAGS_materialize_draws() hides. Re-expose them beside the SD they switch on.
+  gate_chains     <- .brma_random_inclusion_indicator_chains(x)
   if (length(semantic_names) != ncol(semantic_chains[[1L]])) {
     stop("Semantic random-effect draw names are inconsistent.", call. = FALSE)
   }
@@ -157,6 +169,16 @@ NULL
     ]
     semantic_values <- as.matrix(semantic_chain)
     colnames(semantic_values) <- semantic_names
+    if (length(gate_chains) > 0L) {
+      gate_values <- gate_chains[[chain_i]]
+      if (nrow(gate_values) != nrow(semantic_values)) {
+        stop(
+          "Random-effect inclusion draws disagree with the fitted draw geometry.",
+          call. = FALSE
+        )
+      }
+      semantic_values <- cbind(semantic_values, gate_values)
+    }
     duplicate_names <- intersect(
       colnames(coordinate_values),
       colnames(semantic_values)
@@ -180,6 +202,42 @@ NULL
   })
 
   coda::mcmc.list(chains)
+}
+
+
+# Exact indicator draws of every random-effect SD switch, one matrix per chain,
+# named after the SD it acts on: 0/1 for a component inclusion gate, and the
+# mixture component index for an allocation-SD prior. They sit on private
+# coordinates, so they must be materialized with the internal coordinates
+# included. The values are passed through unchanged; re-encoding them would
+# assert a meaning the prior does not carry.
+.brma_random_inclusion_indicator_chains <- function(x) {
+
+  gate_names <- c(.random_inclusion_sd_names(x), .random_slab_sd_names(x))
+  if (length(gate_names) == 0L) {
+    return(list())
+  }
+
+  chains <- BayesTools::JAGS_materialize_draws(
+    x[["fit"]],
+    parameters       = unname(names(gate_names)),
+    include_internal = TRUE
+  )
+  available <- intersect(names(gate_names), colnames(as.matrix(chains[[1L]])))
+  if (length(available) == 0L) {
+    return(list())
+  }
+
+  lapply(chains, function(chain) {
+
+    values <- as.matrix(chain)[, available, drop = FALSE]
+    if (!all(values == trunc(values))) {
+      stop("Random-effect indicator draws are not whole numbers.",
+           call. = FALSE)
+    }
+    colnames(values) <- paste0(unname(gate_names[available]), "_indicator")
+    values
+  })
 }
 
 

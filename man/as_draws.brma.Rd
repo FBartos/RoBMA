@@ -104,6 +104,15 @@ fitted coordinates such as model indicators and likelihood parameters
 remain available. Formula-random coordinates are replaced by their semantic
 RoBMA quantities using the same names as summaries, plots, and hypotheses,
 such as \code{tau_total}, \code{tau_common}, \code{rho(...)}, and \code{tau2_prop(...)}.
+Random-effect SD switches are exposed as exact columns named after the
+standard deviation they act on, with an \verb{_indicator} suffix, pairing with
+the semantic SD column the same way \code{mu_x_indicator} pairs with \code{mu_x}. A
+heterogeneity-component inclusion gate is 0/1, such as \code{study: tau_indicator}
+and \code{observation: tau_indicator}, and carries the inclusion state the
+summary reports under \verb{Heterogeneity:}. An allocation-SD prior indicator,
+such as \code{tau_total_indicator}, records which mixture component allocated the
+total standard deviation and therefore takes one value per component,
+matching the order of that prior's components.
 Structural point-prior coordinates are returned as exact constant columns,
 with chain timing taken from the fitted draw geometry. Private backend
 anchors are never exposed. Use \code{include_auxiliary = TRUE} to skip RoBMA

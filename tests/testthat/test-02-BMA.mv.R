@@ -502,16 +502,58 @@ test_that("BMA.mv formula and ensemble post-processing remains available", {
   expect_s3_class(RoBMA::as_draws_df(fit_bma_mv), "draws_df")
   expect_s3_class(RoBMA::as_draws_matrix(fit_bma_mv), "draws_matrix")
   expect_s3_class(RoBMA::as_draws_rvars(fit_bma_mv), "draws_rvars")
-  expect_true(all(
-    .bma_mv_random_gate_names(fit_bma_mv) %in% posterior::variables(draws)
-  ))
-  slab_indicators <- paste0(
-    .random_slab_prior_parameters(
-      attr(fit_bma_mv[["fit"]], "prior_list", exact = TRUE)
-    ),
+  # Heterogeneity gates are public under the SD they switch on, never under
+  # their internal backend coordinate names.
+  gate_names <- .bma_mv_random_gate_names(fit_bma_mv)
+  expect_false(any(gate_names %in% posterior::variables(draws)))
+  public_gates <- paste0(
+    unname(RoBMA:::.random_inclusion_sd_names(fit_bma_mv)),
     "_indicator"
   )
-  expect_true(all(slab_indicators %in% posterior::variables(draws)))
+  expect_true(length(public_gates) > 0L)
+  expect_true(all(public_gates %in% posterior::variables(draws)))
+
+  # The public columns are exact 0/1 and agree draw by draw with the raw
+  # indicator coordinates.
+  sd_names  <- RoBMA:::.random_inclusion_sd_names(fit_bma_mv)
+  raw_gates <- as.matrix(BayesTools::JAGS_materialize_draws(
+    fit_bma_mv[["fit"]],
+    parameters       = unname(names(sd_names)),
+    include_internal = TRUE
+  ))
+  draws_matrix <- posterior::as_draws_matrix(draws)
+  for (indicator in names(sd_names)) {
+    public <- as.numeric(draws_matrix[, paste0(sd_names[[indicator]], "_indicator")])
+    expect_true(all(public %in% c(0, 1)))
+    expect_identical(public, as.numeric(raw_gates[, indicator]))
+  }
+  # The allocation-SD prior indicator is public under the aggregate SD it
+  # allocates, never under its internal coordinate name. It selects a mixture
+  # component, so it takes one value per component rather than a 0/1 state.
+  prior_list  <- attr(fit_bma_mv[["fit"]], "prior_list", exact = TRUE)
+  slab_priors <- .random_slab_prior_parameters(prior_list)
+  expect_true(length(slab_priors) > 0L)
+  expect_false(any(
+    paste0(slab_priors, "_indicator") %in% posterior::variables(draws)
+  ))
+  slab_names <- RoBMA:::.random_slab_sd_names(fit_bma_mv)
+  expect_identical(unname(slab_names), "tau_total")
+  expect_true(all(
+    paste0(unname(slab_names), "_indicator") %in% posterior::variables(draws)
+  ))
+  for (indicator in names(slab_names)) {
+    components <- attr(
+      prior_list[[sub("_indicator$", "", indicator)]],
+      "components",
+      exact = TRUE
+    )
+    public <- as.numeric(draws_matrix[, paste0(slab_names[[indicator]], "_indicator")])
+    expect_true(all(public %in% seq_along(components)))
+    expect_identical(public, as.numeric(as.matrix(
+      BayesTools::JAGS_materialize_draws(
+        fit_bma_mv[["fit"]], parameters = indicator, include_internal = TRUE
+      ))[, indicator]))
+  }
   expect_s3_class(marginal_means(fit_bma_mv, n_samples = 100L), "marginal_means.brma")
   expect_s3_class(vif(fit_bma_mv), "vif.brma")
   expect_s3_class(interpret(fit_bma_mv), "interpret.brma")

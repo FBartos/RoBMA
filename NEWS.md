@@ -871,6 +871,37 @@
   ungated paths, and removes the superseded one-use selection finalizer.
 
 ### Fixes
+- `marginal_means()` no longer fails on a meta-regression whose coefficients
+  use plain priors. Only coefficients carrying an inclusion indicator
+  (spike-and-slab, or a mixture with `null`/`alternative` components) are now
+  offered to BayesTools as conditional candidates, so a coefficient that is
+  present in every model is treated as always included instead of being
+  rejected as a non-conditional label.
+- `as_draws()` exposes the random-effect SD indicators that were hidden with
+  their backend coordinates. They appear as exact columns named after the
+  standard deviation they act on with an `_indicator` suffix, pairing with the
+  semantic SD column the way `mu_x_indicator` pairs with `mu_x`: a
+  heterogeneity-component inclusion gate is 0/1, such as `study: tau_indicator`
+  and `observation: tau_indicator`, and an allocation-SD prior indicator such
+  as `tau_total_indicator` records which mixture component allocated the total
+  standard deviation, taking one value per component. Their internal backend
+  coordinates stay private, and summaries label the matching `Heterogeneity:`
+  rows through the same mapping.
+- conditional marginal-means qCMDE and IWMDE densities no longer reject a model
+  whose coefficients all carry plain priors. Such a model has nothing to
+  condition on, so its conditional posterior is the averaged one and carries no
+  condition metadata; that metadata is now required only where a condition was
+  actually requested, so its absence still flags a stale object.
+- `summary()` on an `only_priors = TRUE` object returns the resolved priors,
+  mirroring the `only_data = TRUE` branch, instead of failing inside the
+  BayesTools fit accessors.
+- `brma.mv(R = )` reports a missing `random` term before validating the
+  supplied matrices, and reports matrix problems against `R` rather than
+  leaking the internal `covariance` argument name.
+- an empty analysis data set names the step that emptied it, distinguishing an
+  exhaustive `subset` from dropped missing values.
+- an unknown `mods` variable is named the way an unknown random-effect variable
+  already is.
 - accepts exactly singular known-'V' covariances that reach working precision
   along mixed rounding paths, including ordinary 'metafor::vcalc()' output with
   'rho = 1'. Block validity is now decided only by the standardized-eigenvalue

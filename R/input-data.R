@@ -394,7 +394,13 @@ NULL
   k_final <- nrow(data_outcome)
 
   if (k_final == 0) {
-    stop("No observations remaining after removing missing values.", call. = FALSE)
+    stop(
+      .check_and_list_data.no_observations_message(
+        subsetted = !is.null(subset),
+        n_dropped = n_dropped
+      ),
+      call. = FALSE
+    )
   }
 
   if (outcome_type == "norm" && effect_direction == "detect") {
@@ -1202,9 +1208,19 @@ NULL
       )
     }
 
-    if (inherits(mf, "try-error"))
+    if (inherits(mf, "try-error")) {
+      condition_message <- conditionMessage(attr(mf, "condition"))
+      missing_variable  <- regmatches(
+        condition_message,
+        regexec("object '([^']+)' not found", condition_message)
+      )[[1L]]
+      # Name the missing variable the way the random-effect parser does.
+      if (length(missing_variable) == 2L)
+        stop(paste0("Cannot find the '", name, "' variable ('",
+                    missing_variable[[2L]], "')."), call. = FALSE)
       stop(paste0("Cannot create model frame from '", name, "' formula: ",
-                  conditionMessage(attr(mf, "condition"))), call. = FALSE)
+                  condition_message), call. = FALSE)
+    }
 
     if (nrow(mf) != k)
       stop(paste0("The number of rows in '", name, "' (", nrow(mf),
@@ -1561,6 +1577,26 @@ NULL
 
   return(out)
 }
+
+# Attribute an empty data set to the step that emptied it.
+.check_and_list_data.no_observations_message <- function(subsetted, n_dropped) {
+
+  if (!subsetted && n_dropped == 0) {
+    return("The data contain no observations.")
+  }
+  if (!subsetted) {
+    return("No observations remaining after removing missing values.")
+  }
+  if (n_dropped == 0) {
+    return("No observations remaining after applying 'subset'.")
+  }
+
+  paste0(
+    "No observations remaining after applying 'subset' and removing ",
+    "missing values."
+  )
+}
+
 
 .check_and_list_data.random_variable <- function(variable, data, .envir) {
 

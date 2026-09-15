@@ -22,9 +22,17 @@
 
   group_covariance <- Map(
     function(covariance, scale) {
-      BayesTools::random_group_covariance(
-        covariance = covariance,
-        scale      = scale
+      tryCatch(
+        BayesTools::random_group_covariance(
+          covariance = covariance,
+          scale      = scale
+        ),
+        error = function(error) {
+          stop(
+            .brma_mv_group_covariance_error_message(conditionMessage(error)),
+            call. = FALSE
+          )
+        }
       )
     },
     entries,
@@ -43,7 +51,11 @@
 
 .brma_mv_group_covariance_error_message <- function(message) {
 
-  gsub("'group_covariance'", "'R'", message, fixed = TRUE)
+  # BayesTools names its own arguments; report them as the 'R' argument the
+  # user supplied.
+  message <- gsub("'group_covariance$covariance'", "'R'", message, fixed = TRUE)
+  message <- gsub("'group_covariance'", "'R'", message, fixed = TRUE)
+  gsub("'covariance'", "'R'", message, fixed = TRUE)
 }
 
 

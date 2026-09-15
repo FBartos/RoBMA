@@ -886,6 +886,26 @@
 }
 
 
+# Whether any marginal parameter of a fitted marginal-means object offered a
+# conditional candidate, i.e. whether conditioning can differ from averaging.
+.marginal_means_conditional_requested <- function(marginal_means_object) {
+
+  object <- marginal_means_object[["source_object"]]
+  if (is.null(object)) {
+    return(TRUE)
+  }
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+
+  any(vapply(
+    marginal_means_object[["parameters"]],
+    function(parameter) {
+      .marginal_means_prior_is_conditional(prior_list[[parameter]])
+    },
+    logical(1)
+  ))
+}
+
+
 .iwmde_marginal_means_specs <- function(marginal_means_object, parameter,
                                         type, levels) {
 
@@ -901,6 +921,13 @@
 
   samples <- marginal_means_object[["inference"]][[type]]
   specs   <- list()
+  # Without conditional coefficients the conditional posterior is the averaged
+  # one and legitimately carries no condition metadata. Only demand that
+  # metadata where a condition was actually requested, so its absence keeps
+  # flagging a stale object rather than an unconditioned model.
+  conditional_requested <- .marginal_means_conditional_requested(
+    marginal_means_object
+  )
 
   for (selected_parameter in selected) {
     parameter_name <- selected_parameter[["parameter"]]
@@ -923,7 +950,8 @@
       condition_metadata <- .iwmde_sample_condition_metadata(
         samples                       = level_sample,
         include_prior_density_context = TRUE,
-        require_child_condition       = identical(type, "conditional")
+        require_child_condition       = identical(type, "conditional") &&
+          conditional_requested
       )
       label <- paste0(selected_parameter[["label"]], ": ", level)
       key   <- label

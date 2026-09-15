@@ -53,7 +53,10 @@ Defaults to \code{FALSE}.}
 A list of class \code{summary.brma} with model name, optional RoBMA
 inclusion tables, common estimates, moderator estimates, scale estimates,
 publication-bias estimates, and optional conditional estimates. The printed
-form displays the non-empty tables. Intercept-only multivariate location
+form displays the non-empty tables. Objects created with \code{only_data = TRUE}
+return the resolved data and objects created with \code{only_priors = TRUE}
+return the resolved prior list, because neither carries a posterior.
+Intercept-only multivariate location
 models label their sole coefficient \code{mu}, consistently with ordinary
 meta-analysis models. Once location moderators are present, the coefficient
 is labeled \code{intercept}; an intercept fixed at zero is omitted.

@@ -319,6 +319,11 @@ brma.mv <- function(
     known_v_parameterization,
     c("auto", "latent", "whitened", "block_mvn")
   )
+  # 'R' is only meaningful alongside a random-effect term. Check that first so
+  # the actionable message wins over the per-matrix validation below.
+  if (!is.null(R) && is.na(match("random", names(matched_call)))) {
+    stop("'R' requires a 'random' formula.", call. = FALSE)
+  }
   random_group_covariance <- .brma_mv_make_group_covariance(
     R      = R,
     Rscale = Rscale

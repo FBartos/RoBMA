@@ -1466,7 +1466,63 @@ test_that("NA handling rejects empty post-drop data", {
       ),
       only_data = TRUE
     )),
-    regexp = "No observations remaining"
+    regexp = "No observations remaining after removing missing values"
+  )
+})
+
+
+test_that("An empty data set names the step that emptied it", {
+
+  skip_on_cran()
+
+  complete <- data.frame(
+    yi  = c(0.10, 0.25, 0.15),
+    sei = c(0.20, 0.10, 0.22),
+    x   = c(1, 2, 3)
+  )
+
+  # An exhaustive subset must not be reported as missing values.
+  expect_error(
+    brma.norm(yi = yi, sei = sei, data = complete, subset = x > 10,
+              only_data = TRUE),
+    "No observations remaining after applying 'subset'.",
+    fixed = TRUE
+  )
+
+  # Both steps contributed.
+  expect_error(
+    suppressWarnings(brma.norm(
+      yi   = yi,
+      sei  = sei,
+      data = data.frame(
+        yi  = c(0.10, NA),
+        sei = c(0.20, 0.10),
+        x   = c(1, 20)
+      ),
+      subset    = x > 10,
+      only_data = TRUE
+    )),
+    paste0("No observations remaining after applying 'subset' and removing ",
+           "missing values."),
+    fixed = TRUE
+  )
+})
+
+
+test_that("An unknown moderator variable is named like a random-effect variable", {
+
+  skip_on_cran()
+
+  complete <- data.frame(
+    yi  = c(0.10, 0.25, 0.15),
+    sei = c(0.20, 0.10, 0.22)
+  )
+
+  expect_error(
+    brma.norm(yi = yi, sei = sei, mods = ~ nothere, data = complete,
+              only_data = TRUE),
+    "Cannot find the 'mods' variable ('nothere').",
+    fixed = TRUE
   )
 })
 

@@ -243,6 +243,34 @@ test_that("brma.mv rejects unsupported known R inputs", {
     ),
     "requires a 'random' formula"
   )
+  # An unnamed matrix must still be reported against 'R' and against the
+  # missing random term, not against BayesTools' internal 'covariance'.
+  expect_error(
+    brma.mv(
+      yi                        = yi,
+      V                         = diag(0.01, nrow(dat)),
+      R                         = diag(3),
+      data                      = dat,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "requires a 'random' formula"
+  )
+  expect_error(
+    brma.mv(
+      yi                        = yi,
+      V                         = diag(0.01, nrow(dat)),
+      random                    = ~ 1 | id,
+      R                         = diag(3),
+      data                      = dat,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "'R' must have row and column names.",
+    fixed = TRUE
+  )
   expect_error(
     brma.mv(
       yi                        = yi,

@@ -62,7 +62,15 @@ test_that("interaction marginals condition on every contributing coefficient", {
 
   terms <- c("intercept", "a", "b", "a:b")
   parameters <- c("mu_intercept", "mu_a", "mu_b", "mu_ab")
+  spike_and_slab_priors <- stats::setNames(lapply(parameters, function(parameter) {
+
+    BayesTools::prior_spike_and_slab(
+      prior_parameter = BayesTools::prior("normal", list(mean = 0, sd = 1))
+    )
+  }), parameters)
+  object <- list(fit = structure(list(), prior_list = spike_and_slab_priors))
   conditional_list <- .marginal_means_conditional_list(
+    object     = object,
     terms      = terms,
     parameters = parameters
   )
@@ -154,4 +162,54 @@ test_that("interaction marginals condition on every contributing coefficient", {
   expect_equal(actual_bf, reference_bf, tolerance = 1e-14)
   expect_equal(actual_bf, 0.3565699, tolerance = 1e-7)
   expect_gt(abs(log(actual_bf / incomplete_bf)), log(2))
+})
+
+
+test_that("only coefficients with inclusion indicators are conditional candidates", {
+
+  parameters <- c("mu_intercept", "mu_a", "mu_b")
+  terms      <- c("intercept", "a", "b")
+  make_object <- function(prior_list) {
+
+    list(fit = structure(list(), prior_list = prior_list))
+  }
+  plain          <- BayesTools::prior("normal", list(mean = 0, sd = 1))
+  spike_and_slab <- BayesTools::prior_spike_and_slab(prior_parameter = plain)
+  null_mixture   <- BayesTools::prior_mixture(
+    list(
+      BayesTools::prior("spike",  list(location = 0)),
+      BayesTools::prior("normal", list(mean = 0, sd = 1))
+    ),
+    components = c("null", "alternative")
+  )
+
+  # Plain priors are always included in every model, so BayesTools rejects them
+  # as conditional labels; they must not be offered as candidates.
+  plain_list <- .marginal_means_conditional_list(
+    object     = make_object(stats::setNames(
+      list(plain, plain, plain), parameters
+    )),
+    terms      = terms,
+    parameters = parameters
+  )
+  expect_named(plain_list, parameters)
+  expect_identical(plain_list[["mu_a"]], character(0))
+
+  mixed_list <- .marginal_means_conditional_list(
+    object     = make_object(stats::setNames(
+      list(plain, spike_and_slab, null_mixture), parameters
+    )),
+    terms      = terms,
+    parameters = parameters
+  )
+  expect_identical(mixed_list[["mu_intercept"]], c("mu_a", "mu_b"))
+  expect_identical(mixed_list[["mu_b"]], c("mu_a", "mu_b"))
+
+  # A parameter missing from the prior list is not a conditional candidate.
+  partial_list <- .marginal_means_conditional_list(
+    object     = make_object(list(mu_a = spike_and_slab)),
+    terms      = terms,
+    parameters = parameters
+  )
+  expect_identical(partial_list[["mu_a"]], "mu_a")
 })

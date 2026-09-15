@@ -102,6 +102,106 @@
 }
 
 
+# Pair each random-inclusion gate with the SD quantity it switches on, keyed by
+# the gate's backend indicator parameter and valued by the public SD draw name.
+# Summaries and `as_draws()` both report gates through this one mapping.
+.random_inclusion_sd_names <- function(object) {
+
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  keys       <- quantities[["extraction_key"]]
+  gate_rows  <- which(quantities[["role"]] == "random_inclusion")
+  if (length(gate_rows) == 0L) {
+    return(stats::setNames(character(), character()))
+  }
+
+  indicators    <- vapply(keys[gate_rows], `[[`, character(1), "source_parameter")
+  sd_rows       <- which(quantities[["quantity"]] %in%
+                           c("sd", "sd_total", "sd_common"))
+  component_map <- .random_component_inclusion_map(object)
+  sd_indicators <- lapply(sd_rows, function(row) {
+
+    key <- keys[[row]]
+    if (identical(quantities[["quantity"]][[row]], "sd")) {
+      owners <- c(key[["random_block"]], quantities[["owner_name"]][[row]])
+      return(unique(unlist(component_map[intersect(owners, names(component_map))],
+                           use.names = FALSE)))
+    }
+    intersect(key[["dependencies"]], indicators)
+  })
+
+  paired <- vapply(seq_along(gate_rows), function(i) {
+
+    candidates <- sd_rows[vapply(sd_indicators, identical, logical(1),
+                                 indicators[[i]])]
+    totals <- candidates[quantities[["quantity"]][candidates] %in%
+                           c("sd_total", "sd_common")]
+    if (length(totals) == 1L) {
+      candidates <- totals
+    }
+    if (length(candidates) != 1L) {
+      return(NA_character_)
+    }
+    .brma_random_parameter_io_name(
+      sub("^\\([^)]*\\) ", "", quantities[["display_label"]][[candidates]]),
+      quantities[["quantity"]][[candidates]]
+    )
+  }, character(1))
+
+  out <- stats::setNames(paired, indicators)
+  out[!is.na(out)]
+}
+
+
+# Pair each allocation-SD mixture prior with the aggregate SD it is a prior on,
+# keyed by the mixture's backend indicator and valued by the public SD draw
+# name. This indicator selects which mixture component allocated the total SD,
+# so it takes one value per component rather than a 0/1 inclusion state. It
+# sits on the shared SD budget rather than on a single random-effect component,
+# so it is not a `random_inclusion` catalog row and is resolved separately from
+# `.random_inclusion_sd_names()`.
+.random_slab_sd_names <- function(object) {
+
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  slab       <- .random_slab_prior_parameters(prior_list)
+  if (length(slab) == 0L) {
+    return(stats::setNames(character(), character()))
+  }
+
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  keys       <- quantities[["extraction_key"]]
+  total_rows <- which(quantities[["quantity"]] %in% c("sd_total", "sd_common"))
+  sd_rows    <- which(quantities[["quantity"]] == "sd")
+
+  owning_row <- function(parameter) {
+
+    for (rows in list(total_rows, sd_rows)) {
+      candidates <- rows[vapply(rows, function(row) {
+        parameter %in% keys[[row]][["dependencies"]]
+      }, logical(1))]
+      if (length(candidates) == 1L) {
+        return(candidates)
+      }
+    }
+    NA_integer_
+  }
+
+  paired <- vapply(slab, function(parameter) {
+
+    row <- owning_row(parameter)
+    if (is.na(row)) {
+      return(NA_character_)
+    }
+    .brma_random_parameter_io_name(
+      sub("^\\([^)]*\\) ", "", quantities[["display_label"]][[row]]),
+      quantities[["quantity"]][[row]]
+    )
+  }, character(1))
+
+  out <- stats::setNames(unname(paired), paste0(slab, "_indicator"))
+  out[!is.na(out)]
+}
+
+
 .random_component_conditioning_parameters <- function(object, components,
                                                         fallback = NULL) {
 

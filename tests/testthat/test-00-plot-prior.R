@@ -496,3 +496,21 @@ test_that("only_priors objects print and plot via prior methods", {
   )
   expect_true(.is_ggplot(plot(priors, plot_type = "ggplot")))
 })
+
+
+test_that("summary returns the priors of an only_priors object", {
+
+  skip_on_cran()
+
+  priors <- BMA(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", only_priors = TRUE
+  )
+
+  # No posterior exists, so summary() reports the resolved priors instead of
+  # failing inside the BayesTools fit accessors.
+  summarized <- summary(priors)
+
+  expect_identical(summarized, priors[["priors"]])
+  expect_true(length(summarized) > 0L)
+})

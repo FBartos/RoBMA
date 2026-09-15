@@ -137,6 +137,17 @@ test_that("public draws replace backend random coordinates with RoBMA names", {
     ),
     .package = "BayesTools"
   )
+  # No random-inclusion gates in this synthetic catalog, so the gate columns
+  # are a no-op and the coordinate replacement is what is under test.
+  testthat::local_mocked_bindings(
+    parameter_catalog = function(...) list(
+      quantities = data.frame(
+        role             = character(),
+        stringsAsFactors = FALSE
+      )
+    ),
+    .package = "BayesTools"
+  )
   testthat::local_mocked_bindings(
     .brma_random_parameter_bundle = function(...) list(
       samples = coda::mcmc.list(semantic_chain),

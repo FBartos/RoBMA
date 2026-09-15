@@ -228,6 +228,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   terms      <- parameter_setup[["terms"]]
   parameters <- parameter_setup[["parameters"]]
   conditional_list <- .marginal_means_conditional_list(
+    object     = object,
     terms      = terms,
     parameters = parameters
   )
@@ -855,15 +856,45 @@ lines.marginal_means.brma <- function(x, parameter, prior = FALSE, ...) {
 
 
 # Build BayesTools conditional-list specification for marginal means.
-.marginal_means_conditional_list <- function(terms, parameters) {
+.marginal_means_conditional_list <- function(object, terms, parameters) {
 
   # A marginal cell can depend on lower-order and interaction coefficients
   # beyond the coefficient naming its displayed term. BayesTools applies this
   # candidate list per cell and removes coefficients with zero linear weight.
-  conditional_list <- rep(list(parameters), length(terms))
+  # Only coefficients carrying an inclusion indicator can be conditioned on;
+  # coefficients with plain priors are always included in every model and
+  # BayesTools rejects them as conditional candidates.
+  prior_list  <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  conditional <- parameters[vapply(parameters, function(parameter) {
+    .marginal_means_prior_is_conditional(prior_list[[parameter]])
+  }, logical(1))]
+
+  conditional_list <- rep(list(conditional), length(terms))
   names(conditional_list) <- parameters
 
   return(conditional_list)
+}
+
+
+# Whether a prior produces an inclusion indicator that BayesTools can condition
+# on. Mixtures qualify only with 'null'/'alternative' components.
+.marginal_means_prior_is_conditional <- function(prior) {
+
+  if (is.null(prior)) {
+    return(FALSE)
+  }
+
+  if (BayesTools::is.prior.spike_and_slab(prior)) {
+    return(TRUE)
+  }
+
+  if (BayesTools::is.prior.mixture(prior)) {
+    components <- attr(prior, "components", exact = TRUE)
+    return(length(components) > 0L &&
+             all(components %in% c("null", "alternative")))
+  }
+
+  return(FALSE)
 }
 
 
