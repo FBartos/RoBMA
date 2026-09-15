@@ -100,146 +100,6 @@
 
 
 
-# Evaluate one dependency block's fitted zplot density for every posterior row
-# at once. The integrated Gaussian law reaches the batched, threaded kernel
-# through the block's certified factor; the retained context is one standard
-# normal axis, integrated on the same Gauss-Hermite ladder the rest of the
-# selection code walks. Rows leave the ladder as they converge, so a slow row
-# does not force the whole block to a finer rule.
-#
-# Returns NULL whenever the structure or the diagnostics do not support this
-# route, and the caller keeps its per-draw projection.
-.zplot_joint_factor_block_batch <- function(
-    z, block_mean, covariance_lower, block_sei, context_loading, context_rank,
-    block_context, setup, plan, block, integrated, control, designs, threads) {
-
-  S <- nrow(block_mean)
-  k <- ncol(block_mean)
-  # The batch trades more quadrature nodes for work the threaded kernel can
-  # spread over rows. With one thread that trade loses to the per-draw
-  # projection, which is serial but evaluates a compressed geometry.
-  if (threads < 2L) {
-    return(NULL)
-  }
-  if (k < 2L || context_rank > 1L || is.null(plan[["sampling_factor_blocks"]]) ||
-      !plan[["block_methods"]][[block]] %in% c("rank_one", "factor")) {
-    return(NULL)
-  }
-  factors <- tryCatch(
-    .selection_joint_factor_block_samples(setup, block, integrated),
-    error = function(e) NULL)
-  if (is.null(factors) || !identical(dim(factors[["residual_sd"]]), c(S, k)) ||
-      factors[["rank"]] < 1L || factors[["rank"]] > k ||
-      any(!is.finite(factors[["residual_sd"]])) ||
-      any(factors[["residual_sd"]] <= 0) ||
-      !.selection_factor_support_is_forest(factors[["loading_support"]])) {
-    return(NULL)
-  }
-  context <- if (context_rank == 1L) matrix(context_loading, S, k) else
-    matrix(0, S, k)
-  if (any(!is.finite(context))) {
-    return(NULL)
-  }
-
-  # A bound on the block's selected density at any context realization: the
-  # largest Gaussian ordinate of the integrated law, inflated by the weight
-  # ratio. It bounds the mass this ladder leaves outside its extreme nodes.
-  omega <- block_context[["omega"]]
-  if (!is.matrix(omega) || any(!is.finite(omega)) || any(omega <= 0)) {
-    return(NULL)
-  }
-  density_bound <- numeric(S)
-  covariance <- matrix(0, k, k)
-  lower_index <- lower.tri(covariance, diag = TRUE)
-  upper_index <- upper.tri(covariance)
-  for (draw in seq_len(S)) {
-    covariance[lower_index] <- covariance_lower[draw, ]
-    covariance[upper_index] <- t(covariance)[upper_index]
-    root <- tryCatch(chol(covariance), error = function(e) NULL)
-    if (is.null(root)) {
-      return(NULL)
-    }
-    density_bound[[draw]] <- max(omega[draw, ]) / min(omega[draw, ]) *
-      mean(block_sei * sqrt(diag(chol2inv(root)))) / sqrt(2 * pi)
-  }
-  if (any(!is.finite(density_bound))) {
-    return(NULL)
-  }
-
-  # The first rules of the ladder the per-draw projection walks for this axis.
-  # Beyond these the outer nodes sit far enough into the tail that the inner
-  # kernel leaves its own quadrature rules for quasi-Monte Carlo, which costs
-  # far more than the per-draw projection those rows fall back to.
-  orders    <- c(3L, 7L, 15L)
-  accepted  <- matrix(0, S, length(z))
-  pending   <- seq_len(S)
-  previous  <- NULL
-  previous_error <- NULL
-  for (order in orders) {
-    if (!length(pending)) {
-      break
-    }
-    rule  <- .gauss_hermite_nodes(order)
-    nodes <- length(rule[["nodes"]])
-    rows  <- length(pending)
-    if (!is.finite(rows * nodes * length(z) * 8) ||
-        rows * nodes * length(z) * 8 > .known_v_covariance_max_bytes()) {
-      return(NULL)
-    }
-    row_index  <- rep.int(pending, nodes)
-    node_index <- rep(seq_len(nodes), each = rows)
-    projected <- tryCatch(.zplot_joint_block(
-      z = z,
-      mean = block_mean[row_index, , drop = FALSE] +
-        context[row_index, , drop = FALSE] * rule[["nodes"]][node_index],
-      covariance_lower = covariance_lower[row_index, , drop = FALSE],
-      sei = block_sei,
-      selection = BayesTools::selection_context_subset_rows(block_context, row_index),
-      probability = FALSE, control = control, designs = designs,
-      factors = list(
-        residual_sd = factors[["residual_sd"]][row_index, , drop = FALSE],
-        loading     = factors[["loading"]][row_index, , drop = FALSE],
-        loading_support = factors[["loading_support"]]
-      )), error = function(e) NULL)
-    if (is.null(projected) || any(!is.finite(projected[["density"]])) ||
-        any(projected[["density"]] < 0)) {
-      return(NULL)
-    }
-
-    weights <- exp(rule[["log_weights"]])
-    current <- matrix(0, rows, length(z))
-    inner   <- numeric(rows)
-    for (node in seq_len(nodes)) {
-      index  <- (node - 1L) * rows + seq_len(rows)
-      values <- projected[["density"]][index, , drop = FALSE]
-      current <- current + weights[[node]] * values
-      inner   <- inner + weights[[node]] * projected[["relative_mcse"]][index] *
-        apply(values, 1L, max)
-    }
-    # Gaussian mass outside the extreme nodes, bounded by the density bound.
-    tail  <- density_bound[pending] * 2 *
-      stats::pnorm(max(rule[["nodes"]]), lower.tail = FALSE)
-    peak  <- apply(current, 1L, max)
-    error <- if (is.null(previous)) {
-      rep(Inf, rows)
-    } else {
-      apply(abs(current - previous), 1L, max) + inner + previous_error
-    }
-    error    <- error + tail
-    relative <- ifelse(peak - inner > 0, error / (peak - inner), Inf)
-    settled  <- is.finite(relative) & relative <= control[["relative_tolerance"]]
-    if (any(settled)) {
-      accepted[pending[settled], ] <- current[settled, , drop = FALSE]
-    }
-    pending        <- pending[!settled]
-    previous       <- current[!settled, , drop = FALSE]
-    previous_error <- inner[!settled]
-  }
-
-  list(density = accepted, done = !seq_len(S) %in% pending)
-}
-
-
 .zplot_joint_factor_marginal <- function(object, posterior_samples, predictive,
     selection, z, probability, control) {
 
@@ -260,7 +120,6 @@
     K <- ncol(means)
     selected <- matrix(0, S, length(z))
     designs <- new.env(parent = emptyenv())
-    threads <- .resolve_native_threads(object)
     publication <- .data_selection_model(object[["data"]])[["groups"]][["group_index"]]
     for (block in seq_along(plan[["row_blocks"]])) {
       observations <- plan[["row_blocks"]][[block]]
@@ -286,26 +145,7 @@
       upper_index <- pairs[["row_2"]] + (pairs[["row_1"]] - 1L) * k
       block_mean <- means[, observations, drop = FALSE]
       block_sei <- predictive[["sei"]][observations]
-      # A certified sampling factor lets the whole block reach the batched,
-      # threaded kernel for every posterior row at once, with the retained
-      # context as one outer quadrature axis, instead of rebuilding the
-      # per-draw projection geometry and rule tables for each row in turn.
-      batched <- .zplot_joint_factor_block_batch(
-        z = z, block_mean = block_mean, covariance_lower = lower,
-        block_sei = block_sei, context_loading = loading, context_rank = rank,
-        block_context = block_context, setup = setup, plan = plan,
-        block = block, integrated = prepared[["integrated"]],
-        control = control, designs = designs, threads = threads)
       streamed_rows <- seq_len(S)
-      if (!is.null(batched)) {
-        done <- batched[["done"]]
-        selected[done, ] <- selected[done, , drop = FALSE] +
-          batched[["density"]][done, , drop = FALSE] * k / K
-        streamed_rows <- which(!done)
-        if (!length(streamed_rows)) {
-          next
-        }
-      }
       # Preparation has validated every posterior row and admitted only active
       # STEP/product selection. The projection consumes these four row fields
       # and the immutable native specification; full context reconstruction is
