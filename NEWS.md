@@ -14,11 +14,24 @@
   study with several effect-size types uses one quadrature rule per type
   instead of a full rank-dimensional tensor rule. Mean-sweep normalizer
   interpolation also applies to the rank-one and factor routes.
-- evaluates correlated-`V` zplot blocks for every posterior draw in one
-  batched call when the post-fit thread budget allows, so the configured
-  native threads apply to the fitted-density curve. Draws whose retained
-  context needs a finer outer rule keep the per-draw projection, and with a
-  single thread the batch is not used at all.
+- evaluates the standard-normal tails inside every selection kernel in one
+  batched, vectorized pass instead of one library `erfc` call per quadrature
+  point, which is what those kernels spend most of their time on. The
+  approximation uses the same three argument ranges as `pnorm()`, with
+  coefficients fitted against an arbitrary-precision reference, and agrees with
+  `pnorm()` to within 1e-13 over a dense grid; beyond about eight standard
+  deviations it is closer to the exact tail than the library routine. Recovered
+  and dense correlated-`V` blocks evaluate 2.5 to 4.7 times faster, in fitting
+  and in every post-fit consumer.
+- spreads the correlated-`V` z-plot fitted density over the configured native
+  threads. The per-draw context projection threads its quadrature contexts and
+  its mixture rows and reproduces the serial result exactly at any thread
+  count, so the configured native threads now apply to the fitted-density
+  curve.
+- stops refining a `qCMDE` normalization grid once the density line's effective
+  sample size is settled far below the estimator's acceptance gate, which the
+  refinement cannot change. The gate itself, its message and every accepted
+  line are unchanged.
 - uses BayesTools factor column-scale grids for allocation-derived component
   SDs on correlated random structures
 - reuses the fitted parameter-map runtime cache for RoBMA catalog metadata

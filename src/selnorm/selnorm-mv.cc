@@ -2498,10 +2498,34 @@ inline void selnorm_evaluate_gaussian_mixtures(
   // grid. Only the reduction below is ordered, so the threaded result is the
   // serial result. A row's own buffer is kept and summed afterwards.
   const int count = static_cast<int>(rows.size());
-  std::vector<std::vector<long double>> row_density(rows.size());
+  const int workers = threads > 1 && count > 1 ? std::min(threads, count) : 1;
   std::vector<long double> row_error(rows.size(), 0.0L);
   std::vector<long double> row_omitted(rows.size(), 0.0L);
-  const int workers = threads > 1 && count > 1 ? std::min(threads, count) : 1;
+  const auto accumulate = [&](int index) {
+    if (row_omitted[index] > 0) {
+      input_omitted_mass = selnorm_mixture_compression_detail::round_up(
+        input_omitted_mass + row_omitted[index]);
+    }
+    if (row_error[index] > 0) {
+      absolute_error = selnorm_mixture_compression_detail::round_up(
+        absolute_error + row_error[index]);
+    }
+  };
+  if (workers <= 1) {
+    // Serial rows accumulate straight into the output, as before.
+    for (int index = 0; index < count; ++index) {
+      if (rows[index].count == 0) continue;
+      selnorm_evaluate_gaussian_mixture_row(rows[index], compression_allowance,
+        row_allowance, workspace, row_error[index], row_omitted[index]);
+      accumulate(index);
+      for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
+        density[grid_point] += workspace.row_density[grid_point];
+      }
+    }
+    return;
+  }
+
+  std::vector<std::vector<long double>> row_density(rows.size());
   std::atomic<bool> failed{false};
   const auto evaluate = [&](int index, SelNormMixtureProjectionWorkspace &scratch) {
     if (rows[index].count == 0) return;
@@ -2510,7 +2534,7 @@ inline void selnorm_evaluate_gaussian_mixtures(
     row_density[index] = scratch.row_density;
   };
 #if defined(_OPENMP)
-  if (workers > 1) {
+  {
     #pragma omp parallel num_threads(workers)
     {
       SelNormMixtureProjectionWorkspace scratch(workspace);
@@ -2527,22 +2551,14 @@ inline void selnorm_evaluate_gaussian_mixtures(
     if (failed.load(std::memory_order_relaxed)) {
       throw std::runtime_error("Gaussian mixture row projection failed.");
     }
-  } else
-#endif
-  {
-    for (int index = 0; index < count; ++index) evaluate(index, workspace);
   }
+#else
+  for (int index = 0; index < count; ++index) evaluate(index, workspace);
+#endif
 
   for (int index = 0; index < count; ++index) {
     if (row_density[index].empty()) continue;
-    if (row_omitted[index] > 0) {
-      input_omitted_mass = selnorm_mixture_compression_detail::round_up(
-        input_omitted_mass + row_omitted[index]);
-    }
-    if (row_error[index] > 0) {
-      absolute_error = selnorm_mixture_compression_detail::round_up(
-        absolute_error + row_error[index]);
-    }
+    accumulate(index);
     for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
       density[grid_point] += row_density[index][grid_point];
     }

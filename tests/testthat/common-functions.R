@@ -972,12 +972,15 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/selnorm/selnorm-api.cc.inc",
     "src/selnorm/selnorm-boundary.cc.inc",
     "src/selnorm/selnorm-event.cc.inc",
+    "src/selnorm/selnorm-fma.h",
     "src/selnorm/selnorm-mv.cc",
     "src/selnorm/selnorm-mv.h",
     "src/selnorm/selnorm-phack.cc.inc",
     "src/selnorm/selnorm-probability.cc.inc",
     "src/selnorm/selnorm-sampling-conditioned.cc.inc",
     "src/selnorm/selnorm-step.cc.inc",
+    "src/selnorm/selnorm-tail-kernel.cc.inc",
+    "src/selnorm/selnorm-tail.h",
     "src/selnorm/selnorm.h"
   )
 
