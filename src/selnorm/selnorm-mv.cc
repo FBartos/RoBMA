@@ -2481,6 +2481,15 @@ inline void selnorm_evaluate_gaussian_mixtures(
   }
 }
 
+// Deterministic quadrature over a forest of factor supports. The factors are
+// sorted by decreasing support size; every pair of supports must then be
+// nested or disjoint, which is what block-constant covariance structures on a
+// nesting tree produce. A chain (each support inside the previous one) is the
+// special case with one child per level and keeps its previous arithmetic.
+//
+// Each factor integrates over the tensor of its own axis and the axes of its
+// ancestors only, so a root with disjoint children costs one rule per child
+// rather than one full rank-dimensional tensor.
 bool factor_nested_rule_log_integral(
     const FactorNormalizerContext &context, const double *nodes,
     const double *log_weights, int offset, int order, double *result,
@@ -2516,128 +2525,168 @@ bool factor_nested_rule_log_integral(
          support_size[permutation[effective_rank - 1]] == 0) {
     --effective_rank;
   }
-  for (int position = 1; position < effective_rank; ++position) {
-    const int previous = permutation[position - 1];
-    const int current  = permutation[position];
-    for (int i = 0; i < context.dimension; ++i) {
-      if (supported(i, current) && !supported(i, previous)) {
-        return false;
+
+  // Supports must form a forest: the closest containing support is a factor
+  // parent, and a partial overlap is rejected.
+  const std::size_t node_count = static_cast<std::size_t>(effective_rank);
+  std::vector<int> parent(node_count, -1);
+  std::vector<int> depth(node_count, 0);
+  std::vector<std::vector<int>> children(node_count);
+  std::vector<int> roots;
+  for (int q = 0; q < effective_rank; ++q) {
+    for (int p = 0; p < q; ++p) {
+      bool inside = true;
+      bool disjoint = true;
+      for (int i = 0; i < context.dimension; ++i) {
+        if (!supported(i, permutation[q])) continue;
+        if (supported(i, permutation[p])) disjoint = false;
+        else inside = false;
       }
+      if (disjoint) continue;
+      if (!inside) return false;
+      parent[q] = p;
+    }
+    if (parent[q] < 0) {
+      roots.push_back(q);
+    } else {
+      depth[q] = depth[parent[q]] + 1;
+      children[parent[q]].push_back(q);
     }
   }
 
-  std::vector<std::vector<int>> row_groups(
-    static_cast<std::size_t>(effective_rank + 1)
-  );
+  // The axes of a factor are its ancestors, root first, then itself.
+  std::vector<std::vector<int>> axes(node_count);
+  for (int q = 0; q < effective_rank; ++q) {
+    if (parent[q] >= 0) axes[q] = axes[parent[q]];
+    axes[q].push_back(q);
+  }
+
+  // Every row belongs to the deepest factor supporting it, and that factor
+  // axes must be exactly the factors supporting the row.
+  std::vector<std::vector<int>> node_rows(node_count);
+  std::vector<int> free_rows;
   for (int i = 0; i < context.dimension; ++i) {
+    int owner = -1;
     int active = 0;
-    while (active < effective_rank && supported(i, permutation[active])) {
+    for (int q = 0; q < effective_rank; ++q) {
+      if (!supported(i, permutation[q])) continue;
       ++active;
+      if (owner < 0 || depth[q] > depth[owner]) owner = q;
     }
-    for (int position = active; position < effective_rank; ++position) {
-      if (supported(i, permutation[position])) {
-        return false;
-      }
+    if (owner < 0) {
+      free_rows.push_back(i);
+      continue;
     }
-    row_groups[active].push_back(i);
+    if (active != static_cast<int>(axes[owner].size())) return false;
+    node_rows[owner].push_back(i);
   }
-  std::vector<std::size_t> sizes(
-    static_cast<std::size_t>(effective_rank + 1), 1
-  );
-  for (int position = 1; position <= effective_rank; ++position) {
-    sizes[position] = sizes[position - 1] * static_cast<std::size_t>(order);
+
+  std::vector<std::size_t> power(node_count + 2, 1);
+  for (std::size_t j = 1; j < power.size(); ++j) {
+    power[j] = power[j - 1] * static_cast<std::size_t>(order);
   }
-  std::vector<std::vector<long double>> factors(
-    static_cast<std::size_t>(effective_rank + 1)
-  );
+
+  std::vector<std::vector<long double>> own(node_count);
+  std::vector<std::vector<long double>> integral(node_count);
   std::vector<std::vector<double>> row_means;
   std::vector<std::vector<long double>> row_normalizers;
   if (projection != nullptr) {
-    row_means.resize(context.dimension);
-    row_normalizers.resize(context.dimension);
+    row_means.resize(static_cast<std::size_t>(context.dimension));
+    row_normalizers.resize(static_cast<std::size_t>(context.dimension));
   }
-  for (int group = 0; group <= effective_rank; ++group) {
-    factors[group].assign(sizes[group], 1.0L);
-    std::vector<double> conditional_means(sizes[group]);
-    for (int row : row_groups[group]) {
+  const std::vector<int> no_axes;
+
+  const auto accumulate_rows = [&](const std::vector<int> &rows,
+                                   std::size_t size,
+                                   const std::vector<int> &row_axes,
+                                   std::vector<long double> &target) {
+    std::vector<double> conditional_means(size);
+    for (int row : rows) {
       conditional_means[0] = context.mean[row];
-      for (int position = 0; position < group; ++position) {
+      for (std::size_t position = 0; position < row_axes.size(); ++position) {
         const double coefficient = context.loading[
-          row + context.dimension * permutation[position]
+          row + context.dimension * permutation[row_axes[position]]
         ];
-        const std::size_t lower_size = sizes[position];
+        const std::size_t lower_size = power[position];
         // Expand one axis at a time. Visit node zero last so the prefix is
         // still available while filling the other slices of the same buffer.
-        for (int node = order - 1; node >= 0; --node) {
-          const double shift = coefficient * nodes[offset + node];
+        for (int point = order - 1; point >= 0; --point) {
+          const double shift = coefficient * nodes[offset + point];
           for (std::size_t lower = 0; lower < lower_size; ++lower) {
-            conditional_means[lower + node * lower_size] =
-              conditional_means[lower] + shift;
+            conditional_means[
+              lower + static_cast<std::size_t>(point) * lower_size
+            ] = conditional_means[lower] + shift;
           }
         }
       }
       if (projection != nullptr) {
         row_means[row] = conditional_means;
-        row_normalizers[row].assign(sizes[group], 1.0L);
+        row_normalizers[row].assign(size, 1.0L);
       }
       if (!cpp_selnorm_step_normalizer_product(
-            conditional_means.data(), sizes[group], context.residual_sd[row],
+            conditional_means.data(), size, context.residual_sd[row],
             context.selection_se[row], context.omega, context.selection,
-            projection == nullptr ? factors[group].data() :
+            projection == nullptr ? target.data() :
               row_normalizers[row].data())) return false;
       if (projection != nullptr) {
-        for (std::size_t point = 0; point < sizes[group]; ++point) {
-          factors[group][point] *= row_normalizers[row][point];
+        for (std::size_t point = 0; point < size; ++point) {
+          target[point] *= row_normalizers[row][point];
         }
+      }
+    }
+    return true;
+  };
+
+  std::vector<long double> base(1, 1.0L);
+  if (!accumulate_rows(free_rows, 1, no_axes, base)) return false;
+
+  std::vector<long double> weights(static_cast<std::size_t>(order));
+  for (int point = 0; point < order; ++point) {
+    weights[point] =
+      std::exp(static_cast<long double>(log_weights[offset + point]));
+  }
+
+  std::vector<int> by_depth(node_count);
+  for (int q = 0; q < effective_rank; ++q) by_depth[q] = q;
+  std::stable_sort(by_depth.begin(), by_depth.end(),
+                   [&depth](int left, int right) {
+                     return depth[left] > depth[right];
+                   });
+
+  for (int q : by_depth) {
+    const std::size_t prefix = power[depth[q]];
+    const std::size_t size = power[depth[q] + 1];
+    own[q].assign(size, 1.0L);
+    if (!accumulate_rows(node_rows[q], size, axes[q], own[q])) return false;
+    for (int child : children[q]) {
+      for (std::size_t point = 0; point < size; ++point) {
+        own[q][point] *= integral[child][point];
+      }
+    }
+    integral[q].assign(prefix, 0.0L);
+    for (std::size_t lower = 0; lower < prefix; ++lower) {
+      for (int point = 0; point < order; ++point) {
+        integral[q][lower] += weights[point] * own[q][
+          lower + static_cast<std::size_t>(point) * prefix
+        ];
+      }
+      if (!(integral[q][lower] > 0.0L) ||
+          !std::isfinite(integral[q][lower])) {
+        return false;
       }
     }
   }
 
-  std::vector<long double> weights(static_cast<std::size_t>(order));
-  for (int node = 0; node < order; ++node) {
-    weights[node] =
-      std::exp(static_cast<long double>(log_weights[offset + node]));
-  }
-  std::vector<std::vector<long double>> messages;
-  std::vector<std::vector<long double>> integrals;
+  long double total = base[0];
+  for (int root : roots) total *= integral[root][0];
+  if (!(total > 0.0L) || !std::isfinite(total)) return false;
+  *result = static_cast<double>(std::log(total));
+
   if (projection != nullptr) {
-    messages.resize(effective_rank + 1);
-    integrals.resize(effective_rank + 1);
-  }
-  std::vector<long double> current = std::move(factors[effective_rank]);
-  if (projection != nullptr) messages[effective_rank] = current;
-  for (int group = effective_rank; group > 0; --group) {
-    const std::size_t lower_size = sizes[group - 1];
-    std::vector<long double> integrated(lower_size, 0.0L);
-    for (std::size_t lower = 0; lower < lower_size; ++lower) {
-      for (int node = 0; node < order; ++node) {
-        integrated[lower] += weights[node] * current[
-          lower + static_cast<std::size_t>(node) * lower_size
-        ];
-      }
-    }
-    if (projection != nullptr) integrals[group] = integrated;
-    for (std::size_t lower = 0; lower < lower_size; ++lower) {
-      integrated[lower] *= factors[group - 1][lower];
-      if (!(integrated[lower] > 0.0L) ||
-          !std::isfinite(integrated[lower])) {
-        return false;
-      }
-    }
-    current = std::move(integrated);
-    if (projection != nullptr) messages[group - 1] = current;
-  }
-  if (current.size() != 1 || !(current[0] > 0.0L) ||
-      !std::isfinite(current[0])) {
-    return false;
-  }
-  *result = static_cast<double>(std::log(current[0]));
-  if (projection != nullptr) {
-    // The backward messages already integrate every deeper factor. Their
-    // conditional quadrature weights project each row using only its active
-    // prefix, without rebuilding a full tensor for every density-grid point.
+    // The upward messages already integrate every deeper factor. Their
+    // conditional quadrature weights project each row using only its own
+    // axes, without rebuilding a full tensor for every density-grid point.
     std::vector<long double> density(projection->size, 0.0L);
-    std::vector<long double> marginal(1, 1.0L);
     std::vector<double> z_weight(projection->size, context.omega[0]);
     if (!projection->probability) {
       for (int z = 0; z < projection->size; ++z) {
@@ -2653,19 +2702,24 @@ bool factor_nested_rule_log_integral(
     }
     NormalProjectionGrid recurrence(projection->z,
       projection->probability ? 0 : projection->size);
-    for (int group = 0; group <= effective_rank; ++group) {
-      for (int row : row_groups[group]) {
+    std::vector<std::vector<long double>> marginal(node_count);
+    const std::vector<long double> unit(1, 1.0L);
+
+    const auto project_rows = [&](const std::vector<int> &rows,
+                                  const std::vector<long double> &weight,
+                                  std::size_t size) {
+      for (int row : rows) {
         const double log_scale = std::log(context.selection_se[row]) -
           std::log(context.residual_sd[row]);
         recurrence.prepare(context.selection_se[row], context.residual_sd[row]);
-        for (std::size_t point = 0; point < sizes[group]; ++point) {
-          const long double weight = marginal[point] / row_normalizers[row][point];
+        for (std::size_t point = 0; point < size; ++point) {
+          const long double scaled = weight[point] / row_normalizers[row][point];
           if (recurrence.add(row_means[row][point], context.selection_se[row],
-                context.residual_sd[row], log_scale, weight, z_weight, density)) continue;
+                context.residual_sd[row], log_scale, scaled, z_weight, density)) continue;
           for (int z = 0; z < projection->size; ++z) {
             if (projection->probability) {
               double inverse;
-              density[z] += marginal[point] * cpp_selnorm_kernel_threshold(
+              density[z] += weight[point] * cpp_selnorm_kernel_threshold(
                 projection->z[z], row_means[row][point], context.residual_sd[row],
                 context.selection_se[row], context.omega, 0, 0,
                 context.kernel_mode, context.selection, &inverse, 1, false
@@ -2683,24 +2737,35 @@ bool factor_nested_rule_log_integral(
                     row_means[row][point], context.residual_sd[row], log_scale
                   )
                 ));
-              density[z] += weight * z_weight[z] * extended_value;
+              density[z] += scaled * z_weight[z] * extended_value;
             }
           }
         }
       }
-      if (group < effective_rank) {
-        const std::size_t lower_size = sizes[group];
-        std::vector<long double> next(sizes[group + 1]);
-        for (int node = 0; node < order; ++node) {
-          for (std::size_t lower = 0; lower < lower_size; ++lower) {
-            const std::size_t index =
-              lower + static_cast<std::size_t>(node) * lower_size;
-            next[index] = marginal[lower] * weights[node] *
-              messages[group + 1][index] / integrals[group + 1][lower];
-          }
+    };
+
+    project_rows(free_rows, unit, 1);
+    std::vector<int> visit(node_count);
+    for (int q = 0; q < effective_rank; ++q) visit[q] = q;
+    std::stable_sort(visit.begin(), visit.end(),
+                     [&depth](int left, int right) {
+                       return depth[left] < depth[right];
+                     });
+    for (int q : visit) {
+      const std::size_t prefix = power[depth[q]];
+      const std::size_t size = power[depth[q] + 1];
+      const std::vector<long double> &upper =
+        parent[q] < 0 ? unit : marginal[parent[q]];
+      marginal[q].assign(size, 0.0L);
+      for (int point = 0; point < order; ++point) {
+        for (std::size_t lower = 0; lower < prefix; ++lower) {
+          const std::size_t index =
+            lower + static_cast<std::size_t>(point) * prefix;
+          marginal[q][index] = upper[lower] * weights[point] *
+            own[q][index] / integral[q][lower];
         }
-        marginal = std::move(next);
       }
+      project_rows(node_rows[q], marginal[q], size);
     }
     for (int z = 0; z < projection->size; ++z) {
       projection->density[z] = static_cast<double>(density[z] / context.dimension);
