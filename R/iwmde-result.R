@@ -31,7 +31,12 @@
 
 .iwmde_compact_nulls <- function(x) {
 
-  if (!is.list(x)) {
+  # A typed object is left exactly as it is. Dropping its empty fields would
+  # reshape it, and `lapply()` below returns a bare list, so recursing into one
+  # silently removes its class: that is how the random-effect marginal update
+  # plans reached the covariance-sweep interpolation without the class its
+  # eligibility check looks for.
+  if (!is.list(x) || !is.null(attr(x, "class", exact = TRUE))) {
     return(x)
   }
 
@@ -58,6 +63,12 @@
     "integration_control"
   )
   density_control <- density_control[intersect(keep, names(density_control))]
+  # Provenance is an inert record of what was requested, so the control is
+  # stored as plain settings rather than as a live control object.
+  if (!is.null(density_control[["integration_control"]])) {
+    density_control[["integration_control"]] <-
+      unclass(density_control[["integration_control"]])
+  }
   density_control <- .iwmde_compact_nulls(density_control)
 
   return(density_control)
