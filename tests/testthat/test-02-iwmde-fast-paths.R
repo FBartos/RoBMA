@@ -4404,7 +4404,9 @@ test_that("selection replacements bound workspace without changing row targets",
     )
     object <- if (known_v) {
       args$V <- if (dense) {
-        matrix(c(.04, .01, .01, .05), nrow = 2L)
+        # Negative within-block correlation: exact recovery declines, so the
+        # block keeps the packed dense covariance workspace this exercises.
+        matrix(c(.04, -.01, -.01, .05), nrow = 2L)
       } else if (correlated) {
         known_v_factor(c(.03, .04), matrix(c(.1, .1), ncol = 1))
       } else diag(c(.03, .04))
