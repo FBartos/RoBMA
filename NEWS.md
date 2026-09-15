@@ -852,6 +852,14 @@
   ungated paths, and removes the superseded one-use selection finalizer.
 
 ### Fixes
+- accepts exactly singular known-'V' covariances that reach working precision
+  along mixed rounding paths, including ordinary 'metafor::vcalc()' output with
+  'rho = 1'. Block validity is now decided only by the standardized-eigenvalue
+  roundoff rule; the redundant zero-tolerance pairwise bound that previously
+  rejected such input could not distinguish a one-ulp reconstruction artifact
+  from an invalid covariance. Correlations the eigensolver can resolve above
+  one, indefinite blocks and singular designs without covering model structure
+  remain errors.
 - replaces the bounded selection-normalizer cache's pooled allocator with
   direct byte-counted storage and proactive LRU admission. Evicted bytes are
   immediately reusable, cache-full operation no longer relies on allocation

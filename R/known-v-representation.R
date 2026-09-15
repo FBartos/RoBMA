@@ -27,9 +27,16 @@
 #'
 #' Matrix inputs use base R's numerical symmetry tolerance. Accepted matrices
 #' are stored symmetrically by averaging corresponding off-diagonal entries,
-#' leaving the supplied R object and its diagonal unchanged. The stored
-#' covariance uses this symmetric representation and retains input type and
-#' row mapping; it does not include a separate copy of unequal input triangles.
+#' leaving the supplied R object and its diagonal unchanged. Positive
+#' semidefiniteness is judged from the standardized eigenvalues, with values
+#' inside the eigensolver's roundoff envelope treated as zero. Exactly singular
+#' designs are therefore accepted and factorized to their true rank, including
+#' [metafor::vcalc()] output with `rho = 1`, whose diagonal and off-diagonal
+#' reach working precision along different rounding paths. A singular
+#' covariance still requires model structure covering its null space; see
+#' [brma.mv()]. The stored covariance uses this symmetric representation and
+#' retains input type and row mapping; it does not include a separate copy of
+#' unequal input triangles.
 #'
 #' @param diagonal finite non-negative numeric vector `d`.
 #' @param loading finite numeric matrix `U` with one row per element of
@@ -1012,17 +1019,6 @@ known_v_factor <- function(diagonal, loading) {
 }
 
 
-# Check the necessary pairwise covariance bounds on the supplied matrix.
-.known_v_covariance_within_pairwise_bounds <- function(covariance) {
-
-  scale        <- sqrt(diag(covariance))
-  bound        <- tcrossprod(scale)
-  off_diagonal <- lower.tri(covariance)
-
-  return(all(abs(covariance[off_diagonal]) <= bound[off_diagonal]))
-}
-
-
 # Classify dependency blocks without modifying the supplied covariance.
 .known_v_covariance_classification <- function(V) {
 
@@ -1035,11 +1031,16 @@ known_v_factor <- function(diagonal, loading) {
   indices    <- .known_v_block_indices(covariance)
   singular   <- any(!positive_variance)
 
+  # The factorization is the single authority on block validity. A pairwise
+  # bound |cov_ij| <= sd_i sd_j adds nothing: an excess e makes the 2x2
+  # principal submatrix carry eigenvalue -e, so by Cauchy interlacing the block
+  # has lambda_min <= -e and the factorization already rejects every excess
+  # above its own roundoff tolerance. Screening the pairs separately only
+  # applied a second, stricter convention inside that tolerance, which refused
+  # exactly-singular designs such as metafor::vcalc(rho = 1) whose off-diagonal
+  # and diagonal reached working precision along different rounding paths.
   for (index in indices) {
     block <- covariance[index, index, drop = FALSE]
-    if (!.known_v_covariance_within_pairwise_bounds(block)) {
-      return(list(positive_semidefinite = FALSE, singular = TRUE))
-    }
 
     factorization <- .covariance_factorization(block)
     if (!.covariance_is_positive_semidefinite(factorization)) {

@@ -841,32 +841,65 @@ test_that("known V accepts general low-rank covariance without modification", {
 })
 
 
-test_that("known V rejects adjacent-above-one correlations", {
+test_that("known V accepts within-roundoff above-one correlations", {
 
+  # One ulp above the pairwise bound is not evidence of an invalid covariance:
+  # the block is positive semidefinite to working precision and factorizes to
+  # its exact rank. Ordinary metafor::vcalc(rho = 1) output lands here because
+  # its diagonal and off-diagonal reach working precision along different
+  # rounding paths. Only the factorization's roundoff tolerance decides.
   V <- matrix(
     c(1, 1 + .Machine$double.eps, 1 + .Machine$double.eps, 1),
     nrow = 2L
   )
 
-  expect_error(
-    .known_v_as_matrix(V),
-    "positive semidefinite"
-  )
-  expect_error(
-    .known_v_newdata_prepare(V, k = 2L),
-    "positive semidefinite"
-  )
+  expect_equal(.covariance_factorization(V)[["status"]], "positive_semidefinite")
+  expect_silent(.known_v_as_matrix(V, warn_singular = FALSE))
+  expect_silent(.known_v_newdata_prepare(V, k = 2L))
 
   rank_one <- tcrossprod(c(0.20, 0.30, 0.40))
   mixed    <- .known_v_blockdiag(list(rank_one, V))
-  expect_error(
-    .known_v_as_matrix(mixed),
-    "positive semidefinite"
-  )
-  expect_error(
-    .known_v_newdata_prepare(mixed, k = 5L),
-    "positive semidefinite"
-  )
+  expect_silent(.known_v_as_matrix(mixed, warn_singular = FALSE))
+  expect_silent(.known_v_newdata_prepare(mixed, k = 5L))
+})
+
+
+test_that("known V rejects correlations above the roundoff tolerance", {
+
+  # An excess the eigensolver can resolve remains an error, however small.
+  for (excess in c(1e-4, 1e-12)) {
+    V <- matrix(c(1, 1 + excess, 1 + excess, 1), nrow = 2L)
+    expect_equal(.covariance_factorization(V)[["status"]], "indefinite")
+    expect_error(.known_v_as_matrix(V), "positive semidefinite")
+    expect_error(.known_v_newdata_prepare(V, k = 2L), "positive semidefinite")
+  }
+
+  gross <- matrix(c(1, 2, 2, 1), nrow = 2L)
+  expect_error(.known_v_as_matrix(gross), "positive semidefinite")
+})
+
+
+test_that("known V accepts metafor::vcalc output with rho = 1", {
+
+  skip_if_not_installed("metafor")
+  skip_if_not_installed("metadat")
+
+  data("dat.assink2016", package = "metadat", envir = environment())
+  dat <- dat.assink2016[dat.assink2016$study %in% 1:4, ]
+  V   <- suppressWarnings(metafor::vcalc(
+    vi = dat$vi, cluster = dat$study, obs = dat$esid, rho = 1
+  ))
+  V <- (V + t(V)) / 2
+
+  # Perfectly correlated sampling errors within a cluster are exactly singular;
+  # the block factorizes to rank one rather than being refused.
+  classification <- .known_v_covariance_classification(V)
+  expect_true(classification[["positive_semidefinite"]])
+  expect_true(classification[["singular"]])
+  expect_silent(.known_v_as_matrix(V, warn_singular = FALSE))
+
+  block <- V[dat$study == dat$study[1L], dat$study == dat$study[1L], drop = FALSE]
+  expect_equal(nrow(.covariance_factorization(block)[["sampling_factor"]]), 1L)
 })
 
 
@@ -875,7 +908,10 @@ test_that("known V rejects pairwise-bounded indefinite matrices", {
   V <- matrix(-0.75, nrow = 3L, ncol = 3L)
   diag(V) <- 1
 
-  expect_true(.known_v_covariance_within_pairwise_bounds(V))
+  # Pairwise bounds hold everywhere, yet the block is indefinite: a pairwise
+  # check could never have been sufficient on its own.
+  scale <- sqrt(diag(V))
+  expect_true(all(abs(V[lower.tri(V)]) <= tcrossprod(scale)[lower.tri(V)]))
   expect_error(
     .known_v_as_matrix(V),
     "positive semidefinite"

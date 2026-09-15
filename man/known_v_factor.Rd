@@ -42,7 +42,14 @@ The default product rule requires no publication grouping.
 
 Matrix inputs use base R's numerical symmetry tolerance. Accepted matrices
 are stored symmetrically by averaging corresponding off-diagonal entries,
-leaving the supplied R object and its diagonal unchanged. The stored
-covariance uses this symmetric representation and retains input type and
-row mapping; it does not include a separate copy of unequal input triangles.
+leaving the supplied R object and its diagonal unchanged. Positive
+semidefiniteness is judged from the standardized eigenvalues, with values
+inside the eigensolver's roundoff envelope treated as zero. Exactly singular
+designs are therefore accepted and factorized to their true rank, including
+\code{\link[metafor:vcalc]{metafor::vcalc()}} output with \code{rho = 1}, whose diagonal and off-diagonal
+reach working precision along different rounding paths. A singular
+covariance still requires model structure covering its null space; see
+\code{\link[=brma.mv]{brma.mv()}}. The stored covariance uses this symmetric representation and
+retains input type and row mapping; it does not include a separate copy of
+unequal input triangles.
 }

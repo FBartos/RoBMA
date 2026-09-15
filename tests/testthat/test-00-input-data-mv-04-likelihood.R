@@ -933,13 +933,17 @@ test_that("brma.mv singular-V preflight requires structural regularization", {
     ),
     "positive semidefinite"
   )
+  # The 1e-9 excess above is resolvable and stays an error. One ulp is not:
+  # it sits inside the eigensolver's roundoff envelope, so the block is
+  # accepted as exactly singular and factorizes to its true rank.
   V_tight <- matrix(
     c(1, 1 + .Machine$double.eps, 1 + .Machine$double.eps, 1),
     nrow = 2
   )
-  expect_error(
-    .known_v_as_matrix(V_tight),
-    "positive semidefinite"
+  expect_silent(.known_v_as_matrix(V_tight, warn_singular = FALSE))
+  expect_equal(
+    nrow(.covariance_factorization(V_tight)[["sampling_factor"]]),
+    1L
   )
   V_rank_one <- tcrossprod(c(1, 1))
   prior_too_small <- BayesTools::prior(
