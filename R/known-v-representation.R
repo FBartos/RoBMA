@@ -295,17 +295,21 @@ known_v_factor <- function(diagonal, loading) {
   }
 
   # The supplied blocks own the partition; a corrupted one must fail there.
-  partition <- lapply(.known_v_blocks(known_V), `[[`, "index")
+  supplied_blocks <- .known_v_blocks(known_V)
+  partition <- lapply(supplied_blocks, `[[`, "index")
   .known_v_validate_dependency_blocks(partition, K)
+  position <- integer(K)
+  position[vapply(partition, `[[`, integer(1), 1L)] <- seq_along(partition)
   covered <- integer(0)
 
   for (block in blocks) {
     index   <- block[["index"]]
     loading <- block[["loading"]]
+    supplied <- supplied_blocks[[position[[index[[1L]]]]]]
     if (!is.numeric(loading) || !is.matrix(loading) ||
         nrow(loading) != length(index) || ncol(loading) == 0L ||
         anyNA(loading) || any(!is.finite(loading)) ||
-        !any(vapply(partition, function(rows) identical(rows, index), logical(1)))) {
+        !identical(supplied[["index"]], index)) {
       stop("Internal error: recovered known-V factor metadata are invalid.",
            call. = FALSE)
     }
@@ -315,9 +319,9 @@ known_v_factor <- function(diagonal, loading) {
     }
     reconstruction <- tcrossprod(loading)
     diag(reconstruction) <- diag(reconstruction) + diagonal[index]
-    supplied <- .known_v_block_covariance(known_V, index)
-    scale    <- max(abs(supplied))
-    residual <- max(abs(reconstruction - supplied)) / scale
+    covariance <- supplied[["covariance"]]
+    scale      <- max(abs(covariance))
+    residual   <- max(abs(reconstruction - covariance)) / scale
     if (!is.finite(residual) ||
         residual > 8 * length(index) * .Machine$double.eps) {
       stop("Internal error: a recovered known-V factor no longer reproduces 'V'.",
@@ -339,25 +343,6 @@ known_v_factor <- function(diagonal, loading) {
   invisible(known_V)
 }
 
-
-# The supplied entries of one dependency block, without materializing V.
-.known_v_block_covariance <- function(known_V, index) {
-
-  if (length(index) == 1L) {
-    return(matrix(.known_v_diagonal(known_V)[[index]], 1L, 1L))
-  }
-  V <- known_V[["V"]]
-  if (!is.null(V)) {
-    return(V[index, index, drop = FALSE])
-  }
-  for (block in known_V[["blocks"]]) {
-    if (identical(as.integer(block[["index"]]), as.integer(index))) {
-      return(block[["covariance"]])
-    }
-  }
-
-  stop("Internal error: unknown known-V dependency block.", call. = FALSE)
-}
 
 
 .known_v_factor_covariance <- function(diagonal, loading, index = NULL) {
