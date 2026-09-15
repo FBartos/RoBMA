@@ -976,6 +976,7 @@
     pilot_log_normalizer   = initial_log_normalizer,
     conditional_normalization = evaluation[["conditional_normalization"]],
     normalizer_interpolation = evaluation[["normalizer_interpolation"]],
+    covariance_interpolation = evaluation[["covariance_interpolation"]],
     n_candidate_rows       = n_candidate_rows,
     n_evaluated_rows       = n_input_rows,
     normalization_points              = length(final_grid[["x"]]),

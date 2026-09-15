@@ -757,6 +757,7 @@
     max_quadrature_relative_change =
       density[["max_quadrature_relative_change"]],
     normalizer_interpolation = density[["normalizer_interpolation"]],
+    covariance_interpolation = density[["covariance_interpolation"]],
     p95_normalizer_relative_change =
       density[["p95_normalizer_relative_change"]],
     median_normalizer_relative_change =
