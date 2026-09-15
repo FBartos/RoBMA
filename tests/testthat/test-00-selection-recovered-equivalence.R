@@ -78,7 +78,6 @@ test_that("recovered and dense block evaluators agree on the selected law", {
                           matrix(extra, draws, k))
     loading <- matrix(as.numeric(block[["loading"]]), draws, k * rank,
                       byrow = TRUE)
-    factor_plan <- .recovered_equivalence_plan(k, "factor", max(rank, 2L))
     observed <- if (rank == 1L) {
       .selection_joint_cluster_loglik_block(
         yi = yi, means = means, residual_sd = residual_sd, loading = loading,
@@ -88,7 +87,8 @@ test_that("recovered and dense block evaluators agree on the selected law", {
     } else {
       .selection_joint_factor_loglik_block(
         yi = yi, means = means, residual_sd = residual_sd, loading = loading,
-        sei = sei, selection_context = context, execution_plan = factor_plan,
+        sei = sei, selection_context = context,
+        execution_plan = .recovered_equivalence_plan(k, "factor", rank),
         block_index = 1L, return_normalizer = TRUE)
     }
 
