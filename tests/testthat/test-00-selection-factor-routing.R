@@ -401,7 +401,8 @@ test_that("post-fit likelihood retains certified sampling factors", {
     },
     .selection_joint_factor_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
-        execution_plan, block_index) {
+        execution_plan, block_index, normalizer_grid = NULL) {
+      expect_null(normalizer_grid)
       factor_call <<- list(
         residual_sd = residual_sd,
         loading     = loading,
@@ -612,7 +613,8 @@ test_that("bridge factor states retain the certified covariance exactly", {
     },
     .selection_joint_factor_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
-        execution_plan, block_index) {
+        execution_plan, block_index, normalizer_grid = NULL) {
+      expect_null(normalizer_grid)
       factor_call <<- list(
         residual_sd = residual_sd,
         loading     = loading,
@@ -706,8 +708,10 @@ test_that("bridge dense fallback reconstructs the exact required block", {
     },
     .selection_joint_dense_loglik_block = function(
         yi, means, covariance_lower, sei, selection_context,
-        execution_plan, block_size, normalizer_grid = NULL) {
+        execution_plan, block_size, normalizer_grid = NULL,
+        covariance_grid = NULL) {
       expect_null(normalizer_grid)
+      expect_null(covariance_grid)
       observed_lower <<- covariance_lower
       23
     },
@@ -1103,23 +1107,33 @@ test_that("the early dense rule stays outside rank-one and sampling-conditioned 
   dat <- dat.assink2016
   V <- metafor::vcalc(vi, cluster = study, type = deltype, obs = esid,
     rho = c(.7, .5), data = dat)
-  make_plan <- function(sampling = "integrate") {
+  # Negative within-block correlation is not a diagonal-plus-factor structure,
+  # so every correlated block declines recovery and stays dense.
+  V_dense <- metafor::vcalc(vi, cluster = study, obs = esid, rho = -.04,
+    data = dat)
+  make_plan <- function(sampling = "integrate", covariance = V) {
 
     prior <- BayesTools::prior_weightfunction("one-sided", steps = .025,
       weights = BayesTools::wf_fixed(c(1, .5)),
       model = BayesTools::selection_model(known_sampling_variance = sampling,
         group = "study"))
-    object <- bselmodel.mv(yi = yi, V = V, random = ~ 1 | study / esid,
+    object <- bselmodel.mv(yi = yi, V = covariance, random = ~ 1 | study / esid,
       data = dat, measure = "SMD", prior_unit_information_sd = 1,
       prior_bias = prior, only_priors = TRUE, silent = TRUE)
     .data_selection_execution_plan(object[["data"]])
   }
   original <- c(15L, 31L, 63L, 127L, 255L, 511L, 1023L)
   expect_identical(SELNORM_CLUSTER_QUADRATURE_ORDERS, original)
-  dense <- make_plan()
+  dense <- make_plan(covariance = V_dense)
   expect_true(any(dense[["block_methods"]] == "dense"))
   expect_false(any(dense[["block_methods"]] == "rank_one"))
   expect_identical(dense[["quadrature"]][["orders"]], c(7L, original))
+  # The nested vcalc() structure is recovered from the plain matrix, so the
+  # same data reach the factor rules and keep the rank-one schedule.
+  recovered <- make_plan()
+  expect_false(any(recovered[["block_methods"]] == "dense"))
+  expect_true(any(recovered[["block_methods"]] == "rank_one"))
+  expect_identical(recovered[["quadrature"]][["orders"]], original)
   conditioned <- make_plan("condition")
   expect_identical(conditioned[["statistical_target"]], "whole_sampling_error_selection")
   expect_identical(conditioned[["quadrature"]][["orders"]], original)
@@ -1172,9 +1186,21 @@ test_that("factor cancellation preserves publication and prediction partitions",
     expect_identical(lapply(.known_v_blocks(known), `[[`, "index"), expected)
     expect_identical(.known_v_covariance_matrix(known), covariance)
     expect_identical(plan$row_blocks, expected)
-    expect_identical(plan$sampling$representation, "dense")
-    expect_identical(plan$sampling$covariance, covariance)
   }
+  # The declared loading spans both publications, so the cancellation guard
+  # keeps it on the supplied dense plan. The same matrix supplied plainly
+  # recovers a per-block factor, which is a representation of those entries
+  # and not a different covariance.
+  factor_plan <- .data_selection_execution_plan(factor_fit$data)
+  expect_identical(factor_plan$sampling$representation, "dense")
+  expect_identical(factor_plan$sampling$covariance, covariance)
+  dense_plan <- .data_selection_execution_plan(dense_fit$data)
+  expect_identical(dense_plan$sampling$representation, "diagonal_factor")
+  expect_identical(dense_plan$block_methods, c("rank_one", "rank_one"))
+  recovered <- diag(dense_plan$sampling$diagonal) +
+    tcrossprod(dense_plan$sampling$loading)
+  expect_lt(max(abs(recovered - covariance)), 8 * 2 * .Machine$double.eps *
+    max(abs(covariance)))
 
   # Default singleton publication binding must also agree for a diagonal V
   # expressed with cancelling columns, both at fitting and for explicit V_new.

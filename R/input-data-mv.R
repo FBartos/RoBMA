@@ -271,7 +271,7 @@
     }
     retain_dense <- length(indices) == 1L &&
       length(indices[[1L]]) == K && K > 1L
-    return(.new_known_v(list(
+    return(.known_v_attach_certified_factor(.new_known_v(list(
       version  = 2L,
       selection_metadata = metadata,
       storage  = if (retain_dense) {
@@ -287,7 +287,7 @@
       blocks   = if (retain_dense) NULL else blocks,
       block_indices = if (retain_dense) indices else NULL,
       singular = singular
-    )))
+    ))))
   }
 
   blocks   <- list()
@@ -313,7 +313,7 @@
     .known_v_warn_singular()
   }
 
-  .new_known_v(list(
+  .known_v_attach_certified_factor(.new_known_v(list(
     version  = 2L,
     selection_metadata = metadata,
     storage  = "blocks",
@@ -321,7 +321,63 @@
     diagonal = diagonal,
     blocks   = blocks,
     singular = singular
-  ))
+  )))
+}
+
+
+# Attach a certified block-constant factor when every correlated dependency
+# block recovers exactly. The supplied entries stay authoritative; the factor
+# is a derived computational representation of the same matrix, used only
+# where a declared factor is already consumed.
+#
+# Recovery is per block: a block that declines keeps the supplied entries and
+# its dense route, and the rest of the matrix still reaches the factor rules.
+.known_v_attach_certified_factor <- function(known_V) {
+
+  blocks <- .known_v_blocks(known_V)
+  correlated <- which(vapply(blocks, function(block) {
+    length(block[["index"]]) > 1L
+  }, logical(1)))
+  if (length(correlated) == 0L) {
+    return(known_V)
+  }
+
+  diagonal   <- .known_v_diagonal(known_V)
+  certified  <- list()
+  dense_rows <- integer(0)
+  rank       <- 0L
+  for (position in correlated) {
+    index  <- blocks[[position]][["index"]]
+    factor <- .covariance_block_constant_factor(
+      blocks[[position]][["covariance"]]
+    )
+    if (is.null(factor)) {
+      dense_rows <- c(dense_rows, index)
+      next
+    }
+    diagonal[index] <- factor[["diagonal"]]
+    rank <- rank + factor[["rank"]]
+    certified[[length(certified) + 1L]] <- list(
+      index    = index,
+      loading  = factor[["loading"]],
+      levels   = factor[["levels"]],
+      supports = lapply(factor[["supports"]], function(rows) index[rows]),
+      support  = factor[["support"]],
+      depth    = factor[["depth"]],
+      residual = factor[["residual"]]
+    )
+  }
+  if (length(certified) == 0L) {
+    return(known_V)
+  }
+
+  .known_v_update(known_V, list(certified_factor = list(
+    status     = "recovered_block_constant",
+    diagonal   = diagonal,
+    blocks     = certified,
+    dense_rows = sort(dense_rows),
+    rank       = rank
+  )))
 }
 
 

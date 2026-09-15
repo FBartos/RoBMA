@@ -2,7 +2,10 @@ test_that("post-fit factors preserve the selected law independently of fitted co
 
   dat <- data.frame(yi = c(-.2, .1), study = c("a", "a"), esid = 1:2)
   sampling_diagonal <- c(.04, .09)
-  sampling_loading <- matrix(c(.1, .2), 2L, 1L)
+  # A negative loading product keeps the plain matrix off the recovery route,
+  # so the two inputs exercise the dense and the factor fitted syntax for one
+  # and the same covariance.
+  sampling_loading <- matrix(c(.1, -.2), 2L, 1L)
   V <- diag(sampling_diagonal) + tcrossprod(sampling_loading)
   estimate_sd <- c(.2, .4)
   study_sd <- c(.3, .5)

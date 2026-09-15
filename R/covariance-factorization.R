@@ -182,3 +182,238 @@
   sampling_factor[seq_len(nrow(factor)), ] <- factor
   sampling_factor
 }
+
+
+# Exact diagonal-plus-block-constant recovery for one dependency block.
+#
+# Returns a certified `diag(D) + U U'` representation of the supplied block
+# when its correlation matrix is block constant on nested partitions, and NULL
+# otherwise. Acceptance is an algebraic identity checked to working precision,
+# never a numerical-rank decision: the reconstruction must reproduce every
+# supplied entry within the factorization roundoff envelope.
+.covariance_block_constant_factor <- function(covariance, max_levels = 3L,
+                                              separation = 1e-8) {
+
+  if (!is.matrix(covariance) || !is.numeric(covariance) ||
+      nrow(covariance) != ncol(covariance) || nrow(covariance) < 2L ||
+      anyNA(covariance) || any(!is.finite(covariance)) ||
+      any(covariance != t(covariance))) {
+    return(NULL)
+  }
+
+  size     <- nrow(covariance)
+  variance <- unname(diag(covariance))
+  if (any(variance <= 0)) {
+    return(NULL)
+  }
+
+  sd          <- sqrt(variance)
+  correlation <- unname(covariance / tcrossprod(sd))
+  diag(correlation) <- 1
+  if (anyNA(correlation) || any(!is.finite(correlation))) {
+    return(NULL)
+  }
+
+  # The same roundoff convention as .covariance_factorization(), in
+  # dimensionless correlation units: vcalc()-style entries reach working
+  # precision along different rounding paths and differ by one or two ulps.
+  operation_count <- 4 * size
+  tolerance       <- operation_count * .Machine$double.eps /
+    (1 - operation_count * .Machine$double.eps)
+
+  off_diagonal <- correlation[lower.tri(correlation)]
+  if (any(off_diagonal < -tolerance)) {
+    return(NULL)
+  }
+
+  levels <- .covariance_correlation_levels(off_diagonal, tolerance)
+  if (is.null(levels)) {
+    return(NULL)
+  }
+  levels <- sort(levels[levels > tolerance], decreasing = TRUE)
+  if (length(levels) == 0L || length(levels) > max_levels) {
+    return(NULL)
+  }
+  if (length(levels) > 1L && any(-diff(levels) < separation)) {
+    return(NULL)
+  }
+  # rho = 1 is the exactly singular structure owned by the rank-one detector.
+  if (levels[[1L]] >= 1 - tolerance) {
+    return(NULL)
+  }
+
+  partitions <- .covariance_nested_level_partitions(correlation, levels, tolerance)
+  if (is.null(partitions)) {
+    return(NULL)
+  }
+
+  increments  <- -diff(c(levels, 0))
+  if (any(increments < 0)) {
+    return(NULL)
+  }
+  diagonal    <- (1 - levels[[1L]]) * variance
+  loadings    <- list()
+  supports    <- list()
+  parents     <- integer()
+  for (level in seq_along(levels)) {
+    partition <- partitions[[level]]
+    for (group in unique(partition)) {
+      rows <- which(partition == group)
+      if (length(rows) == 1L) {
+        # A singleton group carries no dependence; absorb it exactly.
+        diagonal[rows] <- diagonal[rows] + increments[[level]] * variance[rows]
+        next
+      }
+      column <- numeric(size)
+      column[rows] <- sqrt(increments[[level]]) * sd[rows]
+      loadings[[length(loadings) + 1L]] <- column
+      supports[[length(supports) + 1L]] <- rows
+      parents[[length(parents) + 1L]]   <- level
+    }
+  }
+  if (length(loadings) == 0L) {
+    return(NULL)
+  }
+
+  merged <- .covariance_merge_equal_supports(loadings, supports)
+  loading  <- merged[["loading"]]
+  supports <- merged[["supports"]]
+
+  reconstruction <- tcrossprod(loading)
+  diag(reconstruction) <- diag(reconstruction) + diagonal
+  scale <- max(abs(covariance))
+  if (!(scale > 0)) {
+    return(NULL)
+  }
+  residual <- max(abs(reconstruction - covariance)) / scale
+  if (!is.finite(residual) || residual > 8 * size * .Machine$double.eps) {
+    return(NULL)
+  }
+  if (any(diagonal < 0) || anyNA(diagonal) || any(!is.finite(diagonal))) {
+    return(NULL)
+  }
+
+  list(
+    diagonal    = diagonal,
+    loading     = loading,
+    rank        = ncol(loading),
+    levels      = levels,
+    supports    = supports,
+    support     = .covariance_support_shape(supports),
+    residual    = residual,
+    depth       = length(levels)
+  )
+}
+
+
+# Cluster the observed off-diagonal correlations into distinct levels.
+# Returns NULL when two candidate levels are separated by less than the
+# roundoff tolerance yet more than one ulp apart within a run, which would
+# make the level assignment ambiguous.
+.covariance_correlation_levels <- function(values, tolerance) {
+
+  values <- sort(unique(values))
+  if (length(values) == 0L) {
+    return(NULL)
+  }
+
+  level_values <- numeric(0)
+  members      <- values[[1L]]
+  for (value in values[-1L]) {
+    if (value - members[[length(members)]] <= tolerance) {
+      members <- c(members, value)
+    } else {
+      level_values <- c(level_values, mean(members))
+      members      <- value
+    }
+  }
+  level_values <- c(level_values, mean(members))
+
+  level_values
+}
+
+
+# Build the nested partition induced by each correlation level, or NULL when
+# a level is not an equivalence relation or the partitions are not nested.
+.covariance_nested_level_partitions <- function(correlation, levels, tolerance) {
+
+  size       <- nrow(correlation)
+  partitions <- vector("list", length(levels))
+  previous   <- NULL
+  for (level in seq_along(levels)) {
+    related <- correlation >= levels[[level]] - tolerance
+    diag(related) <- TRUE
+    # Disjoint cliques: the relation must be transitive as supplied, never
+    # completed by a connected-component search.
+    if (!all(((related %*% related) > 0) == related)) {
+      return(NULL)
+    }
+    membership <- apply(related, 1L, function(row) which(row)[[1L]])
+    if (!is.null(previous) &&
+        any(tapply(membership, previous, function(x) length(unique(x))) != 1L)) {
+      return(NULL)
+    }
+    partitions[[level]] <- membership
+    previous            <- membership
+  }
+
+  partitions
+}
+
+
+# Merge columns with identical support so that a single-level block yields one
+# column rather than parallel columns of the same group.
+.covariance_merge_equal_supports <- function(loadings, supports) {
+
+  keys   <- vapply(supports, function(rows) paste(rows, collapse = ","), character(1))
+  unique_keys <- unique(keys)
+  columns <- lapply(unique_keys, function(key) {
+    selected <- which(keys == key)
+    if (length(selected) == 1L) {
+      return(loadings[[selected]])
+    }
+    sqrt(Reduce(`+`, lapply(loadings[selected], function(column) column^2)))
+  })
+
+  list(
+    loading  = matrix(unlist(columns, use.names = FALSE),
+                      nrow = length(loadings[[1L]]), ncol = length(columns)),
+    supports = supports[match(unique_keys, keys)]
+  )
+}
+
+
+# Classify the loading supports as a chain, a tree, or neither. The nested
+# quadrature rules depend on this shape.
+.covariance_support_shape <- function(supports) {
+
+  if (length(supports) <= 1L) {
+    return("chain")
+  }
+
+  order_by_size <- order(lengths(supports), decreasing = TRUE)
+  supports      <- supports[order_by_size]
+  is_chain <- all(vapply(seq_along(supports)[-1L], function(position) {
+    all(supports[[position]] %in% supports[[position - 1L]])
+  }, logical(1)))
+  if (is_chain) {
+    return("chain")
+  }
+
+  # A forest: every pair of supports is either disjoint or strictly nested.
+  pairs_ok <- TRUE
+  for (i in seq_along(supports)) {
+    for (j in seq_along(supports)) {
+      if (i >= j) next
+      shared <- intersect(supports[[i]], supports[[j]])
+      if (length(shared) == 0L) next
+      if (!all(supports[[j]] %in% supports[[i]])) {
+        pairs_ok <- FALSE
+        break
+      }
+    }
+    if (!pairs_ok) break
+  }
+
+  if (pairs_ok) "tree" else "general"
+}

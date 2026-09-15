@@ -381,8 +381,12 @@
       !.is_data_joint_selection(data) || !.is_data_known_v(data) ||
       .data_outcome_type(data) != "norm" || .selection_retains_sampling(data)) return(NULL)
   plan <- .data_selection_execution_plan(data)
-  if (!any(plan[["block_methods"]] == "dense") ||
-      any(!plan[["block_methods"]] %in% c("dense", "singleton"))) return(NULL)
+  # Rebuilding only the changed predictor rows is a property of the mean
+  # sweep, not of how a block normalizer is evaluated, so every certified
+  # block route qualifies.
+  if (!any(plan[["block_methods"]] %in% c("dense", "rank_one", "factor")) ||
+      any(!plan[["block_methods"]] %in%
+          c("dense", "rank_one", "factor", "singleton"))) return(NULL)
   # The static chart resolver rejects mean translations and dynamic formula
   # multipliers. Verify the full dependency contract at this evaluation seam.
   design <- .fitted_formula_design(context[["object"]], "mu", required = TRUE)

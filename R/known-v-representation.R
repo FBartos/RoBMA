@@ -144,6 +144,211 @@ known_v_factor <- function(diagonal, loading) {
 }
 
 
+# A certified computational factor for the stored covariance, declared by the
+# user through known_v_factor() or recovered exactly from the supplied entries.
+# V stays authoritative: this is a representation of the same matrix, never a
+# source-role or conditioning change.
+#
+# Recovered factors are stored per dependency block. Their columns never cross
+# blocks, so block-sparse storage keeps the representation compact for inputs
+# with many small blocks; consumers that need one global loading materialize
+# it through .known_v_certified_factor_loading().
+.known_v_certified_factor <- function(known_V) {
+
+  if (identical(.known_v_storage(known_V), "factor")) {
+    return(list(status = "declared"))
+  }
+
+  known_V[["certified_factor"]]
+}
+
+
+.known_v_has_certified_factor <- function(known_V) {
+
+  !is.null(.known_v_certified_factor(known_V))
+}
+
+
+.known_v_certified_factor_status <- function(known_V) {
+
+  factor <- .known_v_certified_factor(known_V)
+  if (is.null(factor)) {
+    return("undeclared")
+  }
+
+  factor[["status"]]
+}
+
+
+# The residual diagonal of the certified factor, one value per row.
+.known_v_certified_factor_diagonal <- function(known_V) {
+
+  if (identical(.known_v_storage(known_V), "factor")) {
+    return(as.numeric(known_V[["factor_diagonal"]]))
+  }
+
+  as.numeric(known_V[["certified_factor"]][["diagonal"]])
+}
+
+
+# The certified loading as one K x p matrix, ordered by dependency block.
+.known_v_certified_factor_loading <- function(known_V) {
+
+  if (identical(.known_v_storage(known_V), "factor")) {
+    return(unname(known_V[["factor_loading"]]))
+  }
+
+  factor  <- known_V[["certified_factor"]]
+  K       <- .known_v_nrow(known_V)
+  loading <- matrix(0, nrow = K, ncol = factor[["rank"]])
+  offset  <- 0L
+  for (block in factor[["blocks"]]) {
+    columns <- offset + seq_len(ncol(block[["loading"]]))
+    loading[block[["index"]], columns] <- block[["loading"]]
+    offset <- offset + ncol(block[["loading"]])
+  }
+
+  loading
+}
+
+
+# Correlated rows a certified factor does not represent. Their blocks keep the
+# supplied entries and the dense route.
+.known_v_certified_factor_dense_rows <- function(known_V) {
+
+  if (identical(.known_v_storage(known_V), "factor")) {
+    return(integer(0))
+  }
+
+  as.integer(known_V[["certified_factor"]][["dense_rows"]])
+}
+
+
+# The certified factor of each correlated dependency block, block-local.
+.known_v_certified_factor_blocks <- function(known_V) {
+
+  if (identical(.known_v_storage(known_V), "factor")) {
+    loading  <- known_V[["factor_loading"]]
+    diagonal <- as.numeric(known_V[["factor_diagonal"]])
+    return(lapply(known_V[["block_indices"]], function(index) {
+      block_loading <- loading[index, , drop = FALSE]
+      list(
+        index    = index,
+        diagonal = diagonal[index],
+        loading  = unname(block_loading[, colSums(abs(block_loading)) > 0, drop = FALSE])
+      )
+    }))
+  }
+
+  factor   <- known_V[["certified_factor"]]
+  diagonal <- as.numeric(factor[["diagonal"]])
+  lapply(factor[["blocks"]], function(block) {
+    list(
+      index    = block[["index"]],
+      diagonal = diagonal[block[["index"]]],
+      loading  = block[["loading"]]
+    )
+  })
+}
+
+
+# Validate a recovered certified factor against the stored covariance. The
+# reconstruction identity is re-checked here so that a representation carried
+# through subsetting, updating, or caching cannot drift from its entries.
+.known_v_validate_certified_factor <- function(known_V) {
+
+  factor <- known_V[["certified_factor"]]
+  if (is.null(factor)) {
+    return(invisible(known_V))
+  }
+
+  K <- .known_v_nrow(known_V)
+  if (identical(.known_v_storage(known_V), "factor")) {
+    stop("Internal error: declared factor storage cannot carry a recovered factor.",
+         call. = FALSE)
+  }
+  diagonal   <- factor[["diagonal"]]
+  blocks     <- factor[["blocks"]]
+  dense_rows <- factor[["dense_rows"]]
+  if (!is.list(factor) || !identical(factor[["status"]], "recovered_block_constant") ||
+      !is.numeric(diagonal) || !is.null(dim(diagonal)) || length(diagonal) != K ||
+      anyNA(diagonal) || any(!is.finite(diagonal)) || any(diagonal < 0) ||
+      !is.integer(dense_rows) || anyNA(dense_rows) || anyDuplicated(dense_rows) ||
+      any(dense_rows < 1L) || any(dense_rows > K) ||
+      !is.list(blocks) || length(blocks) == 0L ||
+      !identical(factor[["rank"]], sum(vapply(blocks, function(block) {
+        ncol(block[["loading"]])
+      }, integer(1))))) {
+    stop("Internal error: recovered known-V factor metadata are invalid.",
+         call. = FALSE)
+  }
+
+  # The supplied blocks own the partition; a corrupted one must fail there.
+  partition <- lapply(.known_v_blocks(known_V), `[[`, "index")
+  .known_v_validate_dependency_blocks(partition, K)
+  covered <- integer(0)
+
+  for (block in blocks) {
+    index   <- block[["index"]]
+    loading <- block[["loading"]]
+    if (!is.numeric(loading) || !is.matrix(loading) ||
+        nrow(loading) != length(index) || ncol(loading) == 0L ||
+        anyNA(loading) || any(!is.finite(loading)) ||
+        !any(vapply(partition, function(rows) identical(rows, index), logical(1)))) {
+      stop("Internal error: recovered known-V factor metadata are invalid.",
+           call. = FALSE)
+    }
+    if (any(colSums(loading != 0) < 2L)) {
+      stop("Internal error: a recovered known-V factor column has no dependence.",
+           call. = FALSE)
+    }
+    reconstruction <- tcrossprod(loading)
+    diag(reconstruction) <- diag(reconstruction) + diagonal[index]
+    supplied <- .known_v_block_covariance(known_V, index)
+    scale    <- max(abs(supplied))
+    residual <- max(abs(reconstruction - supplied)) / scale
+    if (!is.finite(residual) ||
+        residual > 8 * length(index) * .Machine$double.eps) {
+      stop("Internal error: a recovered known-V factor no longer reproduces 'V'.",
+           call. = FALSE)
+    }
+    covered <- c(covered, index)
+  }
+
+  if (anyDuplicated(covered) || length(intersect(covered, dense_rows)) > 0L) {
+    stop("Internal error: recovered known-V factor blocks overlap.", call. = FALSE)
+  }
+  independent <- setdiff(seq_len(K), covered)
+  if (!identical(as.numeric(diagonal[independent]),
+                 as.numeric(.known_v_diagonal(known_V)[independent]))) {
+    stop("Internal error: a recovered known-V factor changed an independent variance.",
+         call. = FALSE)
+  }
+
+  invisible(known_V)
+}
+
+
+# The supplied entries of one dependency block, without materializing V.
+.known_v_block_covariance <- function(known_V, index) {
+
+  if (length(index) == 1L) {
+    return(matrix(.known_v_diagonal(known_V)[[index]], 1L, 1L))
+  }
+  V <- known_V[["V"]]
+  if (!is.null(V)) {
+    return(V[index, index, drop = FALSE])
+  }
+  for (block in known_V[["blocks"]]) {
+    if (identical(as.integer(block[["index"]]), as.integer(index))) {
+      return(block[["covariance"]])
+    }
+  }
+
+  stop("Internal error: unknown known-V dependency block.", call. = FALSE)
+}
+
+
 .known_v_factor_covariance <- function(diagonal, loading, index = NULL) {
 
   if (is.null(index)) {
@@ -293,6 +498,7 @@ known_v_factor <- function(diagonal, loading) {
     stop("Internal error: non-factor known-V representation contains factors.",
          call. = FALSE)
   }
+  .known_v_validate_certified_factor(known_V)
 
   invisible(known_V)
 }

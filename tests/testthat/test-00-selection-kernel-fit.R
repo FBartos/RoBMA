@@ -443,7 +443,8 @@ test_that("marginal cluster log likelihood routes mixed blocks by size", {
     },
     .selection_joint_cluster_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
-        execution_plan){
+        execution_plan, normalizer_grid = NULL){
+      expect_null(normalizer_grid)
       cluster_rows <<- length(yi)
       c(11, 12)
     },
@@ -663,7 +664,8 @@ test_that("marginal selection bridge routes cluster plans through quadrature", {
     },
     .selection_joint_cluster_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
-        execution_plan) {
+        execution_plan, normalizer_grid = NULL) {
+      expect_null(normalizer_grid)
       cluster_call <<- list(
         yi               = yi,
         means            = means,
@@ -961,8 +963,10 @@ test_that("marginal selection constructors integrate Gaussian dependence", {
   expect_false(grepl("gamma[", cluster_syntax, fixed = TRUE))
 
   data <- data.frame(study = factor(c("a", "a", "b")))
+  # Negative within-block covariance is not a diagonal-plus-factor structure,
+  # so the block declines recovery and keeps the dense multivariate syntax.
   V <- matrix(
-    c(.010, .003, 0, .003, .014, 0, 0, 0, .012),
+    c(.010, -.003, 0, -.003, .014, 0, 0, 0, .012),
     nrow = 3L,
     byrow = TRUE
   )

@@ -649,7 +649,8 @@ set_selection_likelihood_control <- function(
   factor <- .selection_joint_sampling_factor(data)
   if (!is.null(factor)) {
     return(structure(
-      c(list(representation = "diagonal_factor"), factor),
+      c(list(representation = "diagonal_factor"), factor,
+        list(supplied = .selection_joint_supplied_sampling(data))),
       class = c("RoBMA_selection_sampling_plan", "list")
     ))
   }
@@ -660,6 +661,27 @@ set_selection_likelihood_control <- function(
       covariance     = .known_v_covariance_matrix(.data_known_v_data(data))
     ),
     class = c("RoBMA_selection_sampling_plan", "list")
+  )
+}
+
+
+# The supplied sampling entries behind a recovered factor. V stays the stored
+# covariance, so every consumer that materializes a block reads these rather
+# than the reconstruction. A declared factor is itself the supplied input and
+# has no separate entries.
+.selection_joint_supplied_sampling <- function(data) {
+
+  if (!.is_data_known_v(data)) {
+    return(NULL)
+  }
+  known_V <- .data_known_v_data(data)
+  if (identical(.known_v_storage(known_V), "factor")) {
+    return(NULL)
+  }
+
+  list(
+    diagonal = .known_v_diagonal(known_V),
+    blocks   = .known_v_correlated_blocks(known_V)
   )
 }
 
@@ -679,7 +701,8 @@ set_selection_likelihood_control <- function(
   full_sampling <- if (is.null(full_sampling)) {
     list(representation = "dense",
          covariance = .known_v_covariance_matrix(.data_known_v_data(data)))
-  } else c(list(representation = "diagonal_factor"), full_sampling)
+  } else c(list(representation = "diagonal_factor"), full_sampling,
+           list(supplied = .selection_joint_supplied_sampling(data)))
   random_terms <- if (is.null(formula_design)) list() else
     formula_design[["random_effects"]]
   all_terms <- if (.is_data_random(data)) {
@@ -1024,6 +1047,25 @@ set_selection_likelihood_control <- function(
          call. = FALSE)
   }
 
+  supplied <- sampling[["supplied"]]
+  if (!is.null(supplied)) {
+    covariance <- diag(
+      supplied[["diagonal"]][rows],
+      nrow = length(rows),
+      ncol = length(rows)
+    )
+    for (block in supplied[["blocks"]]) {
+      local <- match(block[["index"]], rows)
+      keep  <- which(!is.na(local))
+      if (length(keep) < 2L) {
+        next
+      }
+      covariance[local[keep], local[keep]] <-
+        block[["covariance"]][keep, keep, drop = FALSE]
+    }
+    return(covariance)
+  }
+
   covariance <- diag(
     sampling[["diagonal"]][rows],
     nrow = length(rows),
@@ -1291,9 +1333,13 @@ set_selection_likelihood_control <- function(
       loading  = matrix(0, nrow = .known_v_nrow(known_V), ncol = 0L)
     ))
   }
-  if (storage == "factor") {
-    loading <- known_V[["factor_loading"]]
-    blocks  <- known_V[["block_indices"]]
+  if (.known_v_has_certified_factor(known_V)) {
+    loading <- .known_v_certified_factor_loading(known_V)
+    blocks  <- if (identical(storage, "factor")) {
+      known_V[["block_indices"]]
+    } else {
+      lapply(.known_v_blocks(known_V), `[[`, "index")
+    }
     .known_v_validate_dependency_blocks(blocks, .known_v_nrow(known_V))
     partition <- integer(.known_v_nrow(known_V))
     for (block in seq_along(blocks)) partition[blocks[[block]]] <- block
@@ -1305,8 +1351,9 @@ set_selection_likelihood_control <- function(
       }
     }
     return(list(
-      diagonal = as.numeric(known_V[["factor_diagonal"]]),
-      loading  = unname(loading)
+      diagonal   = .known_v_certified_factor_diagonal(known_V),
+      loading    = loading,
+      dense_rows = .known_v_certified_factor_dense_rows(known_V)
     ))
   }
   NULL
@@ -1335,7 +1382,8 @@ set_selection_likelihood_control <- function(
       diagonal[[row]] <- diagonal[[row]] + loading[row, column]^2
     }
   }
-  dependent <- which(lengths(support) > 1L)
+  dependent  <- which(lengths(support) > 1L)
+  dense_rows <- factor[["dense_rows"]]
 
   lapply(row_blocks, function(rows) {
     columns <- dependent[vapply(
@@ -1354,9 +1402,10 @@ set_selection_likelihood_control <- function(
       )
     }
     list(
-      diagonal = diagonal[rows],
-      loading  = loading[rows, columns, drop = FALSE],
-      rank     = length(columns)
+      diagonal  = diagonal[rows],
+      loading   = loading[rows, columns, drop = FALSE],
+      rank      = length(columns),
+      certified = !any(rows %in% dense_rows)
     )
   })
 }
@@ -1384,6 +1433,13 @@ set_selection_likelihood_control <- function(
     for (column in seq_len(ncol(loading))) {
       support <- loading[, column] != 0
       adjacency <- adjacency | outer(support, support, "&")
+    }
+    # Blocks the factor does not represent keep their dependence in the
+    # supplied entries, so read the structure from V wherever it is stored.
+    for (block in sampling[["supplied"]][["blocks"]]) {
+      index <- block[["index"]]
+      adjacency[index, index] <- adjacency[index, index] |
+        (block[["covariance"]] != 0)
     }
     adjacency * 1
   }
@@ -1626,7 +1682,10 @@ set_selection_likelihood_control <- function(
 
   for (block_index in which(block_sizes > 1L)) {
     sampling <- sampling_factor_blocks[[block_index]]
-    if (any(sampling[["diagonal"]] <= 0)) {
+    # A block the sampling factor does not represent keeps the supplied
+    # entries and the dense normalizer.
+    if (any(sampling[["diagonal"]] <= 0) ||
+        !is.null(sampling[["certified"]]) && !isTRUE(sampling[["certified"]])) {
       next
     }
     random_rank <- if (is.null(random_covariance)) {
@@ -2280,9 +2339,17 @@ set_selection_likelihood_control <- function(
 
 .selection_joint_cluster_loglik_block <- function(
     yi, means, residual_sd, loading, sei, selection_context,
-    execution_plan, return_normalizer = FALSE) {
+    execution_plan, return_normalizer = FALSE, normalizer_grid = NULL) {
 
   S <- nrow(means)
+  if (!return_normalizer && !is.null(normalizer_grid)) {
+    result <- .selection_joint_factor_grid_loglik(
+      yi = yi, means = means, residual_sd = residual_sd, loading = loading,
+      sei = sei, selection_context = selection_context,
+      execution_plan = execution_plan, metadata = normalizer_grid,
+      method = "rank_one")
+    if (!is.null(result)) return(result)
+  }
   native_static <- BayesTools::selection_native_static_args(selection_context)
   quadrature <- execution_plan[["quadrature"]]
   result <- .Call(
@@ -2341,11 +2408,51 @@ set_selection_likelihood_control <- function(
 }
 
 
+# Route a factor block's mean sweep through the shared normalizer grid. The
+# block's own certified route evaluates every anchor; only the interpolation
+# between them is shared with the dense implementation.
+.selection_joint_factor_grid_loglik <- function(
+    yi, means, residual_sd, loading, sei, selection_context, execution_plan,
+    metadata, method, block_index = NULL) {
+
+  block_size <- length(yi)
+  covariance_lower <- .selection_factor_covariance_lower(
+    residual_sd = residual_sd, loading = loading, block_size = block_size
+  )
+
+  .selection_normalizer_grid_loglik(
+    yi                = yi,
+    means             = means,
+    covariance_lower  = covariance_lower,
+    sei               = sei,
+    selection_context = selection_context,
+    execution_plan    = execution_plan,
+    block_size        = block_size,
+    metadata          = metadata,
+    factor            = list(
+      method      = method,
+      residual_sd = residual_sd,
+      loading     = loading,
+      block_index = block_index
+    )
+  )
+}
+
+
 .selection_joint_factor_loglik_block <- function(
     yi, means, residual_sd, loading, sei, selection_context,
-    execution_plan, block_index, return_normalizer = FALSE) {
+    execution_plan, block_index, return_normalizer = FALSE,
+    normalizer_grid = NULL) {
 
   S <- nrow(means)
+  if (!return_normalizer && !is.null(normalizer_grid)) {
+    result <- .selection_joint_factor_grid_loglik(
+      yi = yi, means = means, residual_sd = residual_sd, loading = loading,
+      sei = sei, selection_context = selection_context,
+      execution_plan = execution_plan, metadata = normalizer_grid,
+      method = "factor", block_index = block_index)
+    if (!is.null(result)) return(result)
+  }
   factor_rank <- execution_plan[["factor_ranks"]][[block_index]]
   design_key  <- execution_plan[["design_keys"]][[block_index]]
   quadrature <- execution_plan[["factor_quadrature"]][[
@@ -2501,6 +2608,9 @@ set_selection_likelihood_control <- function(
         random_factor_samples = random_factor
       )
     }
+    block_normalizer_grid <- if (is.null(setup[["normalizer_grid"]])) NULL else list(
+      state = setup[["normalizer_grid"]], block = block_index, rows = rows,
+      sign = if (identical(setup[["effect_direction"]], "negative")) -1 else 1)
     if (method == "rank_one") {
       log_lik[, block_index] <- .selection_joint_cluster_loglik_block(
         yi                 = yi[rows],
@@ -2509,7 +2619,8 @@ set_selection_likelihood_control <- function(
         loading            = components[["loading"]],
         sei                = setup[["selection_sei"]][rows],
         selection_context  = block_context,
-        execution_plan     = execution_plan
+        execution_plan     = execution_plan,
+        normalizer_grid    = block_normalizer_grid
       )
       next
     }
@@ -2522,7 +2633,8 @@ set_selection_likelihood_control <- function(
         sei               = setup[["selection_sei"]][rows],
         selection_context = block_context,
         execution_plan    = execution_plan,
-        block_index       = block_index
+        block_index       = block_index,
+        normalizer_grid   = block_normalizer_grid
       )
       next
     }

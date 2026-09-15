@@ -88,8 +88,9 @@ test_that("streamed contexts keep row weights and current-cell fallback aligned"
   selection$kernel_mode <- c(SELKERNEL_STEP, SELKERNEL_NORMAL, SELKERNEL_STEP)
   selection$vector_rule <- integer(3L)
   selection$use_normal <- c(FALSE, TRUE, FALSE)
-  integrated <- list(diagonal = matrix(tau_e[active]^2, 2L, 3L),
-    loadings = list(array(numeric(), c(2L, 2L, 0L)), array(numeric(), c(2L, 1L, 0L))))
+  integrated <- list(diagonal = matrix(tau_e[active]^2, 2L, 3L), ranks = c(0L, 0L),
+    loadings = list(array(numeric(), c(2L, 2L, 0L)), array(numeric(), c(2L, 1L, 0L))),
+    loading_supports = list(matrix(logical(), 2L, 0L), matrix(logical(), 1L, 0L)))
   retained <- list(diagonal = cbind(0, 0, tau_b[active]^2), ranks = c(1L, 0L),
     loadings = list(array(matrix(tau_b[active], 2L, 2L), c(2L, 2L, 1L)), array(numeric(), c(2L, 1L, 0L))))
   prepared <- list(active = active, setup = list(data = object$data, S = 2L, K = 3L),

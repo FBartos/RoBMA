@@ -6,11 +6,15 @@
       !.is_data_known_v(context[["data"]]) ||
       .selection_retains_sampling(context[["data"]])) return(NULL)
   plan <- .data_selection_execution_plan(context[["data"]])
-  dense <- sum(plan[["block_methods"]] == "dense")
+  # The transport identity and its certificate do not depend on how a block
+  # normalizer is evaluated, only on the accuracy each route reports, so every
+  # correlated route is eligible.
+  tracked <- sum(plan[["block_methods"]] %in%
+    c("dense", "rank_one", "factor"))
   queries <- sort(unique(queries[is.finite(queries)]))
-  if (!dense || length(queries) < 16L || !length(rows)) return(NULL)
+  if (!tracked || length(queries) < 16L || !length(rows)) return(NULL)
   # Reserve for native records, reported error, binding data and R overhead.
-  bytes <- 4 * (length(queries) * length(rows) * dense * 48 +
+  bytes <- 4 * (length(queries) * length(rows) * tracked * 48 +
     length(rows) * sum(lengths(plan[["row_blocks"]])^2) * 8)
   if (!is.finite(bytes) || bytes > .known_v_covariance_max_bytes()) return(NULL)
   out <- new.env(parent = emptyenv())
@@ -115,8 +119,66 @@
 }
 
 
+# The packed lower triangle of diag(residual_sd^2) + L L' for every draw, in
+# the column-major order the grid's block reconstruction expects.
+.selection_factor_covariance_lower <- function(residual_sd, loading, block_size) {
+
+  S     <- nrow(residual_sd)
+  rank  <- if (block_size == 0L) 0L else ncol(loading) %/% block_size
+  index <- which(lower.tri(matrix(0, block_size, block_size), diag = TRUE),
+                 arr.ind = TRUE)
+  out   <- matrix(0, nrow = S, ncol = nrow(index))
+  for (column in seq_len(nrow(index))) {
+    i <- index[[column, 1L]]
+    j <- index[[column, 2L]]
+    value <- if (i == j) residual_sd[, i]^2 else numeric(S)
+    for (factor in seq_len(rank)) {
+      value <- value + loading[, (factor - 1L) * block_size + i] *
+        loading[, (factor - 1L) * block_size + j]
+    }
+    out[, column] <- value
+  }
+
+  out
+}
+
+
+# The exact Gaussian component of each block state. Interpolated normalizers
+# divide into this density, so it is evaluated from the same covariance the
+# block's own route integrates.
+.selection_grid_gaussian_lpdf <- function(yi, means, covariance_lower, block_size) {
+
+  S        <- nrow(means)
+  out      <- numeric(S)
+  lower    <- lower.tri(matrix(0, block_size, block_size), diag = TRUE)
+  upper    <- upper.tri(matrix(0, block_size, block_size))
+  previous <- NULL
+  root     <- NULL
+  log_det  <- NA_real_
+  for (draw in seq_len(S)) {
+    packed <- covariance_lower[draw, ]
+    if (is.null(previous) || any(packed != previous)) {
+      covariance <- matrix(0, block_size, block_size)
+      covariance[lower] <- packed
+      covariance[upper] <- t(covariance)[upper]
+      root <- tryCatch(chol(covariance), error = function(e) NULL)
+      if (is.null(root)) {
+        return(NULL)
+      }
+      log_det  <- 2 * sum(log(diag(root)))
+      previous <- packed
+    }
+    whitened <- backsolve(root, yi - means[draw, ], transpose = TRUE)
+    out[[draw]] <- -0.5 *
+      (block_size * log(2 * pi) + log_det + sum(whitened^2))
+  }
+
+  out
+}
+
+
 .selection_normalizer_grid_loglik <- function(yi, means, covariance_lower, sei,
-    selection_context, execution_plan, block_size, metadata) {
+    selection_context, execution_plan, block_size, metadata, factor = NULL) {
 
   shared <- metadata[["state"]][["shared"]]
   if (!is.environment(shared)) return(NULL)
@@ -215,16 +277,37 @@
   }
   fetch <- function(positions, group, ids, kind) {
     if (!length(positions)) return(invisible(NULL))
-    result <- .selection_joint_dense_loglik_block(yi, means[positions, , drop = FALSE],
-      covariance_lower[positions, , drop = FALSE], sei,
-      BayesTools::selection_context_subset_rows(selection_context, positions),
-      execution_plan, block_size, return_normalizer = TRUE)
-    diagnostic <- result[["integration_diagnostics"]]
-    cdf <- attr(diagnostic, "cdf_relative_error", exact = TRUE)
-    if (is.null(cdf)) cdf <- numeric(length(positions))
-    eta <- 2 * diagnostic[, "quadrature_change"] + diagnostic[, "covariance_width"] +
-      diagnostic[, "tail_bound"] + cdf
-    eta[diagnostic[, "used_covariance_envelope"] != 1] <- NA_real_
+    context <- BayesTools::selection_context_subset_rows(selection_context, positions)
+    result <- if (is.null(factor)) {
+      .selection_joint_dense_loglik_block(yi, means[positions, , drop = FALSE],
+        covariance_lower[positions, , drop = FALSE], sei, context,
+        execution_plan, block_size, return_normalizer = TRUE)
+    } else if (identical(factor[["method"]], "rank_one")) {
+      .selection_joint_cluster_loglik_block(yi, means[positions, , drop = FALSE],
+        factor[["residual_sd"]][positions, , drop = FALSE],
+        factor[["loading"]][positions, , drop = FALSE], sei, context,
+        execution_plan, return_normalizer = TRUE)
+    } else {
+      .selection_joint_factor_loglik_block(yi, means[positions, , drop = FALSE],
+        factor[["residual_sd"]][positions, , drop = FALSE],
+        factor[["loading"]][positions, , drop = FALSE], sei, context,
+        execution_plan, factor[["block_index"]], return_normalizer = TRUE)
+    }
+    eta <- if (is.null(factor)) {
+      diagnostic <- result[["integration_diagnostics"]]
+      cdf <- attr(diagnostic, "cdf_relative_error", exact = TRUE)
+      if (is.null(cdf)) cdf <- numeric(length(positions))
+      value <- 2 * diagnostic[, "quadrature_change"] + diagnostic[, "covariance_width"] +
+        diagnostic[, "tail_bound"] + cdf
+      value[diagnostic[, "used_covariance_envelope"] != 1] <- NA_real_
+      value
+    } else {
+      # The factor routes certify their successive quadrature change; keep the
+      # same doubling the dense envelope applies to its own change term.
+      value <- 2 * result[["relative_change"]]
+      value[!is.finite(value)] <- NA_real_
+      value
+    }
     for (g in unique(group)) {
       at <- which(group == g)
       entry <- entries[[g]]
@@ -316,9 +399,18 @@
     # This requests only the exact Gaussian component; fitted bias metadata
     # and the selected normalizer remain in the original context.
     gaussian_context[["kernel_mode"]] <- rep(0L, length(rows))
-    gaussian <- .selection_joint_dense_loglik_block(yi, means[rows, , drop = FALSE],
-      covariance_lower[rows, , drop = FALSE], sei, gaussian_context,
-      execution_plan, block_size)
+    gaussian <- if (is.null(factor)) {
+      .selection_joint_dense_loglik_block(yi, means[rows, , drop = FALSE],
+        covariance_lower[rows, , drop = FALSE], sei, gaussian_context,
+        execution_plan, block_size)
+    } else {
+      .selection_grid_gaussian_lpdf(yi, means[rows, , drop = FALSE],
+        covariance_lower[rows, , drop = FALSE], block_size)
+    }
+    if (is.null(gaussian)) {
+      shared$untracked <- TRUE
+      return(NULL)
+    }
     for (bin in selection_context[["obs_bin"]]) gaussian <- gaussian + log(omega[rows, bin])
     result[rows] <- gaussian - log_A[rows]
     shared$stats[["gaussian_evaluations"]] <- shared$stats[["gaussian_evaluations"]] + length(rows)
