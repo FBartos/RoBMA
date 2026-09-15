@@ -304,10 +304,10 @@
 }
 
 
-# Cluster the observed off-diagonal correlations into distinct levels.
-# Returns NULL when two candidate levels are separated by less than the
-# roundoff tolerance yet more than one ulp apart within a run, which would
-# make the level assignment ambiguous.
+# Cluster the observed off-diagonal correlations into distinct levels. Values
+# within the roundoff tolerance of their neighbour join one level and are
+# represented by its mean; the reconstruction certificate, not this clustering,
+# decides whether the resulting representation is accepted.
 .covariance_correlation_levels <- function(values, tolerance) {
 
   values <- sort(unique(values))
@@ -398,20 +398,18 @@
     return("chain")
   }
 
-  # A forest: every pair of supports is either disjoint or strictly nested.
-  pairs_ok <- TRUE
-  for (i in seq_along(supports)) {
-    for (j in seq_along(supports)) {
-      if (i >= j) next
-      shared <- intersect(supports[[i]], supports[[j]])
-      if (length(shared) == 0L) next
-      if (!all(supports[[j]] %in% supports[[i]])) {
-        pairs_ok <- FALSE
-        break
+  # A forest: every pair of supports is either disjoint or nested. Nested
+  # partitions can only produce this shape, so "general" is a guard.
+  for (outer in seq_len(length(supports) - 1L)) {
+    for (inner in seq.int(outer + 1L, length(supports))) {
+      if (!any(supports[[inner]] %in% supports[[outer]])) {
+        next
+      }
+      if (!all(supports[[inner]] %in% supports[[outer]])) {
+        return("general")
       }
     }
-    if (!pairs_ok) break
   }
 
-  if (pairs_ok) "tree" else "general"
+  "tree"
 }

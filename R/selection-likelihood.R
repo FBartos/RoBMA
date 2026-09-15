@@ -1320,7 +1320,8 @@ set_selection_likelihood_control <- function(
         0,
         nrow = length(data[["outcome"]][["sei"]]),
         ncol = 0L
-      )
+      ),
+      dense_rows = integer(0)
     ))
   }
   known_V <- .data_known_v_data(data)
@@ -1330,7 +1331,8 @@ set_selection_likelihood_control <- function(
        length(.known_v_correlated_blocks(known_V)) == 0L)) {
     return(list(
       diagonal = .known_v_diagonal(known_V),
-      loading  = matrix(0, nrow = .known_v_nrow(known_V), ncol = 0L)
+      loading  = matrix(0, nrow = .known_v_nrow(known_V), ncol = 0L),
+      dense_rows = integer(0)
     ))
   }
   if (.known_v_has_certified_factor(known_V)) {
