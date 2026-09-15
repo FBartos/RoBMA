@@ -4,6 +4,10 @@
 #include <cstddef>
 #include "selnorm-fma.h"
 
+// Longest step partition the batched tail kernel hoists cutoffs for; longer
+// partitions use the unchanged per-element evaluator.
+#define SELNORM_TAIL_MAX_BINS 64
+
 enum SelKernelMode {
   SELKERNEL_NORMAL           = 0,
   SELKERNEL_STEP             = 1,

@@ -382,6 +382,78 @@ bool cpp_selnorm_step_cdf_plan(
   return *n_groups > 0;
 }
 
+
+// Telescoped step normalizers for a whole quadrature batch. For one row the
+// cutoff scores are affine in the quadrature location, so the row's scale and
+// scaled cutoffs hoist out of the loop and every tail is evaluated through the
+// batched kernel. Returns false without a usable result whenever the row's
+// geometry or any normalizer falls outside the direct form, and the caller's
+// unchanged log-scale evaluator takes over.
+bool step_normalizer_batch_telescoping(
+  const double *mean, std::size_t count, double sd, double sei,
+  const double *omega, const SelNormKernelData &data, long double *product)
+{
+  if (!data.trusted_step_partition || !data.telescope_probabilities ||
+      data.n_bins < 1) {
+    return false;
+  }
+  const double last = omega[data.n_bins - 1];
+  if (!std::isfinite(last)) return false;
+  const double inverse_sd = data.effect_sign / sd;
+  if (!std::isfinite(inverse_sd)) return false;
+
+  // Scaled cutoffs and weight differences are fixed over the whole batch.
+  int boundaries = 0;
+  double offset[SELNORM_TAIL_MAX_BINS];
+  double difference[SELNORM_TAIL_MAX_BINS];
+  if (data.n_bins - 1 > SELNORM_TAIL_MAX_BINS) return false;
+  for (int bin = 0; bin < data.n_bins - 1; ++bin) {
+    const double step = omega[bin] - omega[bin + 1];
+    if (!std::isfinite(step)) return false;
+    if (step == 0.0) continue;
+    const double scaled = data.z_lower[bin] * sei / sd;
+    if (!std::isfinite(scaled)) return false;
+    offset[boundaries] = scaled;
+    difference[boundaries] = step;
+    ++boundaries;
+  }
+
+  const std::size_t block = 256;
+  double tail[block];
+  double normalizer[block];
+  double magnitude[block];
+  for (std::size_t start = 0; start < count; start += block) {
+    const std::size_t size = std::min(block, count - start);
+    for (std::size_t index = 0; index < size; ++index) {
+      if (!std::isfinite(mean[start + index])) return false;
+      normalizer[index] = last;
+      magnitude[index] = std::abs(last);
+    }
+    for (int bin = 0; bin < boundaries; ++bin) {
+      selnorm_tail::upper_tail_affine(mean + start, size, offset[bin],
+                                      inverse_sd, tail);
+      for (std::size_t index = 0; index < size; ++index) {
+        const double contribution = difference[bin] * tail[index];
+        normalizer[index] += contribution;
+        magnitude[index] += std::abs(contribution);
+      }
+    }
+    for (std::size_t index = 0; index < size; ++index) {
+      const double value = normalizer[index];
+      if (!std::isfinite(value) ||
+          !(value > std::numeric_limits<double>::min()) ||
+          !(value > 1e-8 * magnitude[index])) {
+        return false;
+      }
+      long double &target = product[start + index];
+      target *= static_cast<long double>(value);
+      if (!(target > 0.0L) || !std::isfinite(target)) return false;
+    }
+  }
+  return true;
+}
+
+
 bool cpp_selnorm_step_normalizer_product(
   const double *mean, std::size_t count, double sd, double sei,
   const double *omega, const SelNormKernelData &data, long double *product)
@@ -392,8 +464,8 @@ bool cpp_selnorm_step_normalizer_product(
       !(data.effect_sign == 1 || data.effect_sign == -1)) {
     return false;
   }
-  if (data.n_bins == 2 && std::isfinite(data.z_lower[0]) &&
-      std::isfinite(omega[1])) {
+  if (data.bounded_cdf && data.n_bins == 2 &&
+      std::isfinite(data.z_lower[0]) && std::isfinite(omega[1])) {
     // These weights and their difference are fixed over every quadrature node.
     const bool bounded = data.bounded_cdf &&
       omega[0] >= std::numeric_limits<double>::min() &&
@@ -424,6 +496,11 @@ bool cpp_selnorm_step_normalizer_product(
     }
     return true;
   }
+  if (step_normalizer_batch_telescoping(mean, count, sd, sei, omega, data,
+                                       product)) {
+    return true;
+  }
+
   for (std::size_t i = 0; i < count; ++i) {
     if (!std::isfinite(mean[i])) return false;
     double omega_last = 0.0;

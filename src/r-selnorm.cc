@@ -16,6 +16,7 @@
 
 #include "plot-root.h"
 #include "selnorm/selnorm.h"
+#include "selnorm/selnorm-tail.h"
 #include "selnorm/selnorm-mv.h"
 #include "selnorm/selnorm-parallel.h"
 #include "samplers/CoarseCorrectedSlice.h"
@@ -39,6 +40,27 @@ namespace {
 #include "r-selnorm-sampling-conditioned.cc.inc"
 #include "r-selnorm-kernel.cc.inc"
 #include "r-selnorm-funnel-zcurve.cc.inc"
+
+// Standard-normal upper tail as the selection kernels evaluate it, exposed so
+// the package tests can certify the batched approximation against pnorm over a
+// dense argument grid, and so a length-one request and the same value inside a
+// batch can be shown to agree.
+extern "C" SEXP RoBMA_selnorm_normal_upper_tail(SEXP x)
+{
+  if ((TYPEOF(x) != REALSXP && TYPEOF(x) != INTSXP) || Rf_inherits(x, "factor")) {
+    Rf_error("'x' must be a numeric vector.");
+  }
+  SEXP values = PROTECT(Rf_coerceVector(x, REALSXP));
+  const R_xlen_t count = XLENGTH(values);
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, count));
+  if (count > 0) {
+    // The kernel's own affine form: score = 0 - x * (-1).
+    selnorm_tail::upper_tail_affine(REAL(values),
+      static_cast<std::size_t>(count), 0.0, -1.0, REAL(out));
+  }
+  UNPROTECT(2);
+  return out;
+}
 
 extern "C" SEXP RoBMA_selnorm_set_native_threads(SEXP threads)
 {

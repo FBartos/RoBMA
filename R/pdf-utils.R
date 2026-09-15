@@ -689,3 +689,22 @@
 
   return(as.integer(n_gamma))
 }
+
+# ---------------------------------------------------------------------------- #
+# .selnorm_normal_upper_tail
+# ---------------------------------------------------------------------------- #
+#
+# Standard-normal upper tail P(Z > x) as the compiled selection kernels evaluate
+# it. Exposed for certification against `pnorm()`; package code reaches the same
+# approximation through the selection likelihoods themselves.
+#
+# @param x numeric vector of scores
+#
+# @return numeric vector of upper-tail probabilities
+#
+# ---------------------------------------------------------------------------- #
+.selnorm_normal_upper_tail <- function(x) {
+
+  .Call("RoBMA_selnorm_normal_upper_tail", as.numeric(x), PACKAGE = "RoBMA")
+}
+

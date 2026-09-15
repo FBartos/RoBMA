@@ -1,4 +1,5 @@
 #include "selnorm.h"
+#include "selnorm-tail.h"
 
 #include <JRmath.h>
 #include <algorithm>
