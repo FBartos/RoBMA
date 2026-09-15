@@ -371,11 +371,22 @@
       "parameter_map"
     )
   )
-  map <- BayesTools::parameter_map(object[["fit"]])
-  cache <- attr(map, "runtime_cache", exact = TRUE)
-  if (is.environment(cache) && !is.null(cache$brma_metadata)) {
-    return(cache$brma_metadata)
-  }
+
+  # The metadata is derived from the fitted map, but also from the object's
+  # data and priors, so those have to be part of the cache key: the map alone
+  # would let a differently specified object read back another one's entries.
+  BayesTools::parameter_map_cache(
+    map      = BayesTools::parameter_map(object[["fit"]]),
+    provider = "RoBMA",
+    key      = list(
+      data   = object[["data"]],
+      priors = object[["priors"]]
+    ),
+    compute  = function() .brma_parameter_catalog_metadata_compute(object)
+  )
+}
+
+.brma_parameter_catalog_metadata_compute <- function(object) {
 
   catalog    <- BayesTools::parameter_catalog(object[["fit"]])
   quantities <- catalog[["quantities"]]
@@ -668,11 +679,7 @@
     provider   = "RoBMA"
   )
 
-  out <- list(catalog = catalog, entries = entries)
-  if (is.environment(cache)) {
-    cache$brma_metadata <- out
-  }
-  return(out)
+  return(list(catalog = catalog, entries = entries))
 }
 
 

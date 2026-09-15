@@ -136,10 +136,19 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
     },
     parameter_catalog = function(object, ...) .test_parameter_catalog(),
     # Catalog metadata requires the fitted parameter map unconditionally; the
-    # sentinel fit carries none, so stand in a map that exposes the runtime
-    # cache the metadata builder reuses.
+    # sentinel fit carries none, so stand in a map that `parameter_map_cache()`
+    # accepts and can key its session-registry slot on.
     parameter_map = function(object, ...) {
-      structure(list(), runtime_cache = new.env(parent = emptyenv()))
+      structure(
+        list(
+          schema_version = NA_integer_,
+          coordinates    = NULL,
+          quantities     = NULL,
+          aliases        = NULL
+        ),
+        class            = c("BayesTools_parameter_map", "list"),
+        runtime_cache_id = "test-parameter-catalog-contract"
+      )
     },
     JAGS_formula_name_map = function(fit, parameter) {
       .test_formula_name_map(parameter)
