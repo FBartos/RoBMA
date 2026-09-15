@@ -356,3 +356,81 @@
 
   return(out)
 }
+
+
+# The estimator's acceptance gate is driven by the smallest effective sample
+# size over the bulk of the curve, and that is a property of the row weights,
+# not of the normalization grid: the grid only refines a per-row constant. A
+# line whose bulk ESS is already far below the gate after two grids therefore
+# cannot be rescued by refining further, and the refinement is the expensive
+# part -- on the correlated-V study-level SD line the first grid costs 48 s and
+# the two refinements 87 s, all of it discarded when the gate rejects.
+#
+# Two conditions are required before refinement stops, so the rule rests on the
+# line's own behaviour rather than on an assumed rate of change: the bulk ESS
+# must be below the gate by the margin below at both grids, and the two values
+# must agree within the same factor, meaning the sequence has settled. The line
+# is still evaluated and still judged by the unchanged final gate.
+.iwmde_qcmde_pilot_bulk_ess <- function(display_grid, log_q_display,
+                                        log_normalizer, active_mass,
+                                        denominator) {
+
+  if (is.null(log_q_display) || !is.matrix(log_q_display) ||
+      length(display_grid) != nrow(log_q_display) ||
+      length(display_grid) < 3L || !all(is.finite(log_normalizer))) {
+    return(NA_real_)
+  }
+  terms <- tryCatch(
+    .iwmde_density_aggregate(
+      log_terms   = sweep(log_q_display, 2L, log_normalizer, "-"),
+      active_mass = active_mass,
+      denominator = denominator
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(terms)) {
+    return(NA_real_)
+  }
+  y <- terms[["y"]]
+  if (!all(is.finite(y)) || !any(y > 0)) {
+    return(NA_real_)
+  }
+  # The gate's bulk is the central mass of the curve. Take it from the pilot
+  # curve itself rather than from the plan, at the same tail probabilities.
+  width <- diff(display_grid)
+  mass  <- cumsum(c(0, width * (y[-length(y)] + y[-1L]) / 2))
+  total <- mass[[length(mass)]]
+  if (!is.finite(total) || total <= 0) {
+    return(NA_real_)
+  }
+  probabilities <- .iwmde_density_tail_probabilities()
+  bulk <- mass / total >= probabilities[[1L]] &
+    mass / total <= probabilities[[2L]]
+  ess <- terms[["ess"]][bulk]
+  ess <- ess[is.finite(ess)]
+  if (length(ess) == 0L) {
+    return(NA_real_)
+  }
+
+  min(ess)
+}
+
+
+.iwmde_qcmde_pilot_gate_hopeless <- function(bulk_ess, estimator_rows) {
+
+  if (length(bulk_ess) < 2L || any(!is.finite(bulk_ess))) {
+    return(FALSE)
+  }
+  margin  <- .iwmde_qcmde_pilot_gate_margin()
+  minimum <- .iwmde_density_min_ess(estimator_rows)
+  settled <- max(bulk_ess) <= margin * min(bulk_ess)
+
+  settled && max(bulk_ess) < minimum / margin
+}
+
+
+# How far below the gate the bulk effective sample size must sit, and how
+# closely two grids must agree, before refinement stops. Measured separation on
+# the correlated-V Assink fit: 25.9 on the line the gate rejects against 118
+# and 173 on the two it accepts, with a gate minimum of 50.
+.iwmde_qcmde_pilot_gate_margin <- function() 1.5

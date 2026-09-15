@@ -649,6 +649,8 @@
   log_q_sequence <- vector("list", length(grid_sequence))
   log_normalizer_sequence <- vector("list", length(grid_sequence))
   quadrature_changes <- numeric()
+  pilot_gate_stopped <- FALSE
+  pilot_bulk_ess     <- numeric()
   log_q_display      <- NULL
   last_index         <- 0L
   conditional_rows <- which(vapply(row_states, function(state) {
@@ -751,6 +753,25 @@
     )) {
       break
     }
+    # A line whose row weights already put it far below the acceptance gate at
+    # two settled grids cannot be rescued by refining the normalizer further,
+    # and refining it is the expensive part. Two grids are kept either way, so
+    # the validation diagnostics still have a pair to compare.
+    pilot_bulk_ess <- c(pilot_bulk_ess, .iwmde_qcmde_pilot_bulk_ess(
+      display_grid   = display_grid,
+      log_q_display  = log_q_display,
+      log_normalizer = log_normalizer_sequence[[index]],
+      active_mass    = active_mass,
+      denominator    = denominator
+    ))
+    if (index == 2L && .iwmde_qcmde_pilot_gate_hopeless(
+      bulk_ess       = pilot_bulk_ess,
+      estimator_rows = length(estimator_rows)
+    )) {
+      pilot_gate_stopped <- TRUE
+      last_index <- index
+      break
+    }
   }
 
   evaluated_sequence <- seq_len(last_index)
@@ -767,6 +788,8 @@
     conditional_normalization = list(rows = conditional_rows,
       methods = vapply(conditional_normalizers, `[[`, character(1), "method")),
     quadrature_change       = quadrature_change,
+    pilot_gate_stopped      = pilot_gate_stopped,
+    pilot_bulk_ess          = pilot_bulk_ess,
     normalizer_interpolation = .selection_normalizer_grid_diagnostics(context[["normalizer_grid"]]),
     covariance_interpolation = .selection_covariance_grid_diagnostics(context[["covariance_grid"]])
   ))
@@ -977,6 +1000,8 @@
     conditional_normalization = evaluation[["conditional_normalization"]],
     normalizer_interpolation = evaluation[["normalizer_interpolation"]],
     covariance_interpolation = evaluation[["covariance_interpolation"]],
+    pilot_gate_stopped     = evaluation[["pilot_gate_stopped"]],
+    pilot_bulk_ess         = evaluation[["pilot_bulk_ess"]],
     n_candidate_rows       = n_candidate_rows,
     n_evaluated_rows       = n_input_rows,
     normalization_points              = length(final_grid[["x"]]),
