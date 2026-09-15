@@ -277,7 +277,8 @@ bool cpp_selnorm_context_star_projection(
   double *mass, double *compression_error, std::size_t *components,
   double *compact_log_normalizers = nullptr,
   bool bounded_cdf = false, double *cdf_factor_log_errors = nullptr,
-  double *input_omitted_mass_error = nullptr
+  double *input_omitted_mass_error = nullptr,
+  int threads = 1
 );
 
 #endif

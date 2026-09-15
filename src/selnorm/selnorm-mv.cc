@@ -29,6 +29,10 @@
 
 #include "selnorm.h"
 
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 #ifndef FCONE
 # define FCONE
 #endif
@@ -2341,6 +2345,12 @@ struct SelNormMixtureProjectionWorkspace {
       maximum_weight = std::max(maximum_weight, weight[point]);
     }
   }
+
+  // Worker copy: same grid and step weights, its own recurrence and buffers.
+  SelNormMixtureProjectionWorkspace(const SelNormMixtureProjectionWorkspace &other)
+    : SelNormMixtureProjectionWorkspace(other.z, other.size, other.weight.data()) {}
+  SelNormMixtureProjectionWorkspace &operator=(
+    const SelNormMixtureProjectionWorkspace &) = delete;
 };
 
 // Each view has physical-coordinate means and one fixed physical SD/original SE.
@@ -2351,12 +2361,121 @@ struct SelNormMixtureProjectionWorkspace {
 // Allowance zero disables compression but still permits the exact Gaussian
 // recurrence; a caller needing its historical raw-loop mode should branch before
 // collecting mixtures. Probability/CDF projections do not call this helper.
+// One mixture row's contribution, left in the workspace's row buffer, with its
+// compression error and omitted mass reported separately. The caller reduces
+// the rows in their original order, so a threaded evaluation accumulates
+// exactly what a serial one does.
+inline void selnorm_evaluate_gaussian_mixture_row(
+    SelNormGaussianMixtureRow const &row, double compression_allowance,
+    long double row_allowance, SelNormMixtureProjectionWorkspace &workspace,
+    long double &error, long double &omitted_mass)
+{
+  error = 0.0L;
+  omitted_mass = 0.0L;
+  const double *means = row.mean;
+  const double *logs = row.log_coefficient;
+  std::size_t count = row.count;
+  SelNormMixtureCompression compressed;
+  const bool grouped = compression_allowance > 0.0 && workspace.size >= 16 &&
+    selnorm_compress_gaussian_mixture(means, logs, count, row.sd,
+      row_allowance / row.sei, &compressed);
+  // The moment planner keeps the original input arrays and source indices.
+  // Its error covers both the polynomial and explicit bounded tail omission;
+  // unsafe points use the original Gaussian sum, never a clipped polynomial.
+  const long double common_scale = grouped ? std::exp(compressed.log_scale) : 0.0L;
+  if (grouped && common_scale > 0.0L && std::isfinite(common_scale)) {
+    omitted_mass = compressed.input_omission_mass;
+    error = compressed.absolute_error * row.sei * workspace.maximum_weight;
+    std::fill(workspace.row_density.begin(), workspace.row_density.end(), 0.0L);
+    workspace.recurrence.prepare(row.sei, row.sd);
+    const double log_scale = std::log(row.sei) - std::log(row.sd);
+    std::vector<double> unit_weight(workspace.size, 1.0);
+    std::vector<long double> gaussian(workspace.size);
+    for (SelNormGaussianMomentGroup const &group : compressed.groups) {
+      std::fill(gaussian.begin(), gaussian.end(), 0.0L);
+      // Singleton points always use the original component below; avoid
+      // preparing a recurrence whose output cannot be consumed.
+      bool recurrence_ok = group.source_count > 1 &&
+        workspace.recurrence.add(group.mean, row.sei, row.sd,
+          log_scale, common_scale, unit_weight, gaussian);
+      if (recurrence_ok) {
+        for (long double value : gaussian) {
+          if (!std::isfinite(value) || value < 0.0L) recurrence_ok = false;
+        }
+      }
+      for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
+        if (!(workspace.weight[grid_point] > 0.0)) continue;
+        const long double t = static_cast<long double>(selnorm_fma(
+          workspace.z[grid_point], row.sei, -group.mean)) / row.sd;
+        long double polynomial = 0.0L;
+        SelNormGaussianMomentPoint action = selnorm_gaussian_moment_point(group, t, &polynomial);
+        if (action == SelNormGaussianMomentPoint::omitted) continue;
+        if (action == SelNormGaussianMomentPoint::polynomial) {
+          const long double base_density = recurrence_ok ? gaussian[grid_point] :
+            std::exp(compressed.log_scale + cpp_selnorm_affine_normal_lpdf_log_scale(
+              workspace.z[grid_point], row.sei, group.mean, row.sd, log_scale));
+          const long double value = base_density * polynomial * workspace.weight[grid_point];
+          if (value > 0.0L && std::isfinite(value)) {
+            workspace.row_density[grid_point] += value;
+            continue;
+          }
+        }
+        // Original group summation also handles extreme scaling and any
+        // polynomial range/positivity failure. No extra coefficient factor.
+        for (std::size_t index = group.source_begin;
+             index < group.source_begin + group.source_count; ++index) {
+          const std::size_t original = compressed.source_index[index];
+          const long double log_value = static_cast<long double>(logs[original]) +
+            workspace.log_weight[grid_point] + cpp_selnorm_affine_normal_lpdf_log_scale(
+              workspace.z[grid_point], row.sei, means[original], row.sd, log_scale);
+          workspace.row_density[grid_point] += std::exp(log_value);
+        }
+      }
+    }
+    return;
+  }
+  // Original outcome units retain the affine Gaussian FMA calculation. SE
+  // appears once in the projected density and once in the error bound.
+  std::fill(workspace.row_density.begin(), workspace.row_density.end(), 0.0L);
+  workspace.recurrence.prepare(row.sei, row.sd);
+  const double log_scale = std::log(row.sei) - std::log(row.sd);
+  bool recurrence_ok = true;
+  for (std::size_t point = 0; point < count; ++point) {
+    const long double coefficient = std::exp(static_cast<long double>(logs[point]));
+    if ((coefficient == 0.0L && std::isfinite(logs[point])) ||
+        !workspace.recurrence.add(means[point], row.sei, row.sd, log_scale,
+          coefficient, workspace.weight, workspace.row_density)) {
+      recurrence_ok = false;
+      break;
+    }
+  }
+  if (recurrence_ok) {
+    for (long double value : workspace.row_density) {
+      if (!std::isfinite(value)) recurrence_ok = false;
+    }
+  }
+  if (!recurrence_ok) {
+    std::fill(workspace.row_density.begin(), workspace.row_density.end(), 0.0L);
+    for (std::size_t point = 0; point < count; ++point) {
+      for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
+        if (!(workspace.weight[grid_point] > 0.0)) continue;
+        const long double log_value = static_cast<long double>(logs[point]) +
+          workspace.log_weight[grid_point] + cpp_selnorm_affine_normal_lpdf_log_scale(
+            workspace.z[grid_point], row.sei, means[point], row.sd, log_scale);
+        workspace.row_density[grid_point] += std::exp(log_value);
+      }
+    }
+  }
+}
+
+
 inline void selnorm_evaluate_gaussian_mixtures(
     std::vector<SelNormGaussianMixtureRow> const &rows,
     double compression_allowance,
     SelNormMixtureProjectionWorkspace &workspace,
     std::vector<long double> &density,
-    long double &absolute_error, long double &input_omitted_mass)
+    long double &absolute_error, long double &input_omitted_mass,
+    int threads)
 {
   if (!std::isfinite(compression_allowance) || compression_allowance < 0.0) {
     throw std::invalid_argument("Gaussian mixture compression allowance is invalid.");
@@ -2374,109 +2493,58 @@ inline void selnorm_evaluate_gaussian_mixtures(
   if (rows.empty() || !(workspace.maximum_weight > 0.0)) return;
   const long double row_allowance = static_cast<long double>(compression_allowance) /
     (static_cast<long double>(rows.size()) * workspace.maximum_weight);
-  for (SelNormGaussianMixtureRow const &row : rows) {
-    if (row.count == 0) continue;
-    const double *means = row.mean;
-    const double *logs = row.log_coefficient;
-    std::size_t count = row.count;
-    SelNormMixtureCompression compressed;
-    const bool grouped = compression_allowance > 0.0 && workspace.size >= 16 &&
-      selnorm_compress_gaussian_mixture(means, logs, count, row.sd,
-        row_allowance / row.sei, &compressed);
-    // The moment planner keeps the original input arrays and source indices.
-    // Its error covers both the polynomial and explicit bounded tail omission;
-    // unsafe points use the original Gaussian sum, never a clipped polynomial.
-    const long double common_scale = grouped ? std::exp(compressed.log_scale) : 0.0L;
-    if (grouped && common_scale > 0.0L && std::isfinite(common_scale)) {
-      if (compressed.input_omission_mass > 0) input_omitted_mass =
-        selnorm_mixture_compression_detail::round_up(input_omitted_mass + compressed.input_omission_mass);
-      absolute_error = selnorm_mixture_compression_detail::round_up(absolute_error +
-        compressed.absolute_error * row.sei * workspace.maximum_weight);
-      std::fill(workspace.row_density.begin(), workspace.row_density.end(), 0.0L);
-      workspace.recurrence.prepare(row.sei, row.sd);
-      const double log_scale = std::log(row.sei) - std::log(row.sd);
-      std::vector<double> unit_weight(workspace.size, 1.0);
-      std::vector<long double> gaussian(workspace.size);
-      for (SelNormGaussianMomentGroup const &group : compressed.groups) {
-        std::fill(gaussian.begin(), gaussian.end(), 0.0L);
-        // Singleton points always use the original component below; avoid
-        // preparing a recurrence whose output cannot be consumed.
-        bool recurrence_ok = group.source_count > 1 &&
-          workspace.recurrence.add(group.mean, row.sei, row.sd,
-            log_scale, common_scale, unit_weight, gaussian);
-        if (recurrence_ok) {
-          for (long double value : gaussian) {
-            if (!std::isfinite(value) || value < 0.0L) recurrence_ok = false;
-          }
-        }
-        for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
-          if (!(workspace.weight[grid_point] > 0.0)) continue;
-          const long double t = static_cast<long double>(selnorm_fma(
-            workspace.z[grid_point], row.sei, -group.mean)) / row.sd;
-          long double polynomial = 0.0L;
-          SelNormGaussianMomentPoint action = selnorm_gaussian_moment_point(group, t, &polynomial);
-          if (action == SelNormGaussianMomentPoint::omitted) continue;
-          if (action == SelNormGaussianMomentPoint::polynomial) {
-            const long double base_density = recurrence_ok ? gaussian[grid_point] :
-              std::exp(compressed.log_scale + cpp_selnorm_affine_normal_lpdf_log_scale(
-                workspace.z[grid_point], row.sei, group.mean, row.sd, log_scale));
-            const long double value = base_density * polynomial * workspace.weight[grid_point];
-            if (value > 0.0L && std::isfinite(value)) {
-              workspace.row_density[grid_point] += value;
-              continue;
-            }
-          }
-          // Original group summation also handles extreme scaling and any
-          // polynomial range/positivity failure. No extra coefficient factor.
-          for (std::size_t index = group.source_begin;
-               index < group.source_begin + group.source_count; ++index) {
-            const std::size_t original = compressed.source_index[index];
-            const long double log_value = static_cast<long double>(logs[original]) +
-              workspace.log_weight[grid_point] + cpp_selnorm_affine_normal_lpdf_log_scale(
-                workspace.z[grid_point], row.sei, means[original], row.sd, log_scale);
-            workspace.row_density[grid_point] += std::exp(log_value);
-          }
+
+  // Rows are independent: each one projects its own mixture onto the whole
+  // grid. Only the reduction below is ordered, so the threaded result is the
+  // serial result. A row's own buffer is kept and summed afterwards.
+  const int count = static_cast<int>(rows.size());
+  std::vector<std::vector<long double>> row_density(rows.size());
+  std::vector<long double> row_error(rows.size(), 0.0L);
+  std::vector<long double> row_omitted(rows.size(), 0.0L);
+  const int workers = threads > 1 && count > 1 ? std::min(threads, count) : 1;
+  std::atomic<bool> failed{false};
+  const auto evaluate = [&](int index, SelNormMixtureProjectionWorkspace &scratch) {
+    if (rows[index].count == 0) return;
+    selnorm_evaluate_gaussian_mixture_row(rows[index], compression_allowance,
+      row_allowance, scratch, row_error[index], row_omitted[index]);
+    row_density[index] = scratch.row_density;
+  };
+#if defined(_OPENMP)
+  if (workers > 1) {
+    #pragma omp parallel num_threads(workers)
+    {
+      SelNormMixtureProjectionWorkspace scratch(workspace);
+      #pragma omp for schedule(dynamic, 1)
+      for (int index = 0; index < count; ++index) {
+        if (failed.load(std::memory_order_relaxed)) continue;
+        try {
+          evaluate(index, scratch);
+        } catch (...) {
+          failed.store(true, std::memory_order_relaxed);
         }
       }
-      for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
-        density[grid_point] += workspace.row_density[grid_point];
-      }
-      continue;
     }
-    // Original outcome units retain the affine Gaussian FMA calculation. SE
-    // appears once in the projected density and once in the error bound.
-    std::fill(workspace.row_density.begin(), workspace.row_density.end(), 0.0L);
-    workspace.recurrence.prepare(row.sei, row.sd);
-    const double log_scale = std::log(row.sei) - std::log(row.sd);
-    bool recurrence_ok = true;
-    for (std::size_t point = 0; point < count; ++point) {
-      const long double coefficient = std::exp(static_cast<long double>(logs[point]));
-      if ((coefficient == 0.0L && std::isfinite(logs[point])) ||
-          !workspace.recurrence.add(means[point], row.sei, row.sd, log_scale,
-            coefficient, workspace.weight, workspace.row_density)) {
-        recurrence_ok = false;
-        break;
-      }
+    if (failed.load(std::memory_order_relaxed)) {
+      throw std::runtime_error("Gaussian mixture row projection failed.");
     }
-    if (recurrence_ok) {
-      for (long double value : workspace.row_density) {
-        if (!std::isfinite(value)) recurrence_ok = false;
-      }
+  } else
+#endif
+  {
+    for (int index = 0; index < count; ++index) evaluate(index, workspace);
+  }
+
+  for (int index = 0; index < count; ++index) {
+    if (row_density[index].empty()) continue;
+    if (row_omitted[index] > 0) {
+      input_omitted_mass = selnorm_mixture_compression_detail::round_up(
+        input_omitted_mass + row_omitted[index]);
     }
-    if (!recurrence_ok) {
-      std::fill(workspace.row_density.begin(), workspace.row_density.end(), 0.0L);
-      for (std::size_t point = 0; point < count; ++point) {
-        for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
-          if (!(workspace.weight[grid_point] > 0.0)) continue;
-          const long double log_value = static_cast<long double>(logs[point]) +
-            workspace.log_weight[grid_point] + cpp_selnorm_affine_normal_lpdf_log_scale(
-              workspace.z[grid_point], row.sei, means[point], row.sd, log_scale);
-          workspace.row_density[grid_point] += std::exp(log_value);
-        }
-      }
+    if (row_error[index] > 0) {
+      absolute_error = selnorm_mixture_compression_detail::round_up(
+        absolute_error + row_error[index]);
     }
     for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
-      density[grid_point] += workspace.row_density[grid_point];
+      density[grid_point] += row_density[index][grid_point];
     }
   }
 }
@@ -4731,7 +4799,8 @@ bool cpp_selnorm_context_star_projection(
   const double *z, int size, double allowance, double *density,
   double *mass, double *compression_error, std::size_t *components,
   double *compact_log_normalizers,
-  bool bounded_cdf, double *cdf_factor_log_errors, double *input_omitted_mass_error)
+  bool bounded_cdf, double *cdf_factor_log_errors, double *input_omitted_mass_error,
+  int threads)
 {
   if (input_omitted_mass_error != nullptr) *input_omitted_mass_error = 0.0;
   std::vector<double> covariance(static_cast<std::size_t>(dimension) * dimension);
@@ -4781,13 +4850,29 @@ bool cpp_selnorm_context_star_projection(
       projection.log_coefficient[row].reserve(count);
     }
   }
-  EnvelopeRuleWorkspace workspace;
   std::vector<long double> weights(order);
   for (int node = 0; node < order; ++node) weights[node] = std::exp(static_cast<long double>(log_weights[node]));
-  std::vector<double> mean(dimension), residual_sd(active_contexts > 0 ? dimension : 0);
+  std::vector<double> residual_sd(active_contexts > 0 ? dimension : 0);
   double log_mass = -std::numeric_limits<double>::infinity();
-  std::vector<std::size_t> starts(active_contexts > 0 && log_normalizers == nullptr ? dimension : 0);
-  for (int context = 0; context < contexts; ++context) {
+
+  // Contexts are independent quadrature nodes of the retained axis. Each one
+  // builds its own mixture fragment; the fragments are concatenated and the
+  // masses reduced below in context order, so a threaded evaluation produces
+  // the serial result element for element.
+  const int context_workers = threads > 1 && contexts > 1 ?
+    std::min(threads, contexts) : 1;
+  std::vector<double> context_local(contexts,
+    std::numeric_limits<double>::quiet_NaN());
+  std::vector<EnvelopeRuleProjection> fragments(
+    context_workers > 1 ? static_cast<std::size_t>(contexts) : 0);
+  for (EnvelopeRuleProjection &fragment : fragments) {
+    fragment.means.resize(dimension);
+    fragment.log_coefficient.resize(dimension);
+  }
+  std::atomic<bool> context_failed{false};
+  const auto evaluate_context = [&](int context, EnvelopeRuleWorkspace &workspace,
+                                    EnvelopeRuleProjection *target) {
+    std::vector<double> mean(dimension);
     for (int row = 0; row < dimension; ++row) mean[row] = means[context + contexts * row];
     std::vector<EnvelopeGroupGeometry> geometry;
     if (!prepare_envelope_geometry(covariance, mean.data(), selection_se, dimension,
@@ -4802,26 +4887,76 @@ bool cpp_selnorm_context_star_projection(
     const bool collect = context_log_weights[context] != -std::numeric_limits<double>::infinity();
     const double log_scale = context_log_weights[context] -
       (log_normalizers == nullptr ? 0.0 : log_normalizers[context]);
+    std::vector<std::size_t> starts(
+      log_normalizers == nullptr && collect ? dimension : 0);
     if (log_normalizers == nullptr && collect) {
-      for (int row = 0; row < dimension; ++row) starts[row] = projection.log_coefficient[row].size();
+      for (int row = 0; row < dimension; ++row) starts[row] = target->log_coefficient[row].size();
     }
-    projection.log_scale = log_scale - std::log(static_cast<double>(dimension));
+    target->log_scale = log_scale - std::log(static_cast<double>(dimension));
     const double local = envelope_rule_log_integral(geometry, omega, selection,
-      nodes, log_weights, weights.data(), 0, order, &workspace, collect ? &projection : nullptr);
+      nodes, log_weights, weights.data(), 0, order, &workspace, collect ? target : nullptr);
     if (!std::isfinite(local)) return false;
-    if (compact_log_normalizers != nullptr) compact_log_normalizers[context] = local;
+    context_local[context] = local;
     if (log_normalizers == nullptr && collect) {
       // Explicit private own-A0 mode. The caller must validate raw cross-rule
       // A0 changes/tails; this same-rule mass is algebraically normalized and
       // is not a diagnostic. The actual full-C law is covered separately.
       for (int row = 0; row < dimension; ++row) {
-        for (std::size_t index = starts[row]; index < projection.log_coefficient[row].size(); ++index) {
-          projection.log_coefficient[row][index] -= local;
+        for (std::size_t index = starts[row]; index < target->log_coefficient[row].size(); ++index) {
+          target->log_coefficient[row][index] -= local;
         }
       }
+    }
+    return true;
+  };
+
+#if defined(_OPENMP)
+  if (context_workers > 1) {
+    #pragma omp parallel num_threads(context_workers)
+    {
+      EnvelopeRuleWorkspace workspace;
+      #pragma omp for schedule(dynamic, 1)
+      for (int context = 0; context < contexts; ++context) {
+        if (context_failed.load(std::memory_order_relaxed)) continue;
+        bool ok = false;
+        try {
+          ok = evaluate_context(context, workspace, &fragments[context]);
+        } catch (...) {
+          ok = false;
+        }
+        if (!ok) context_failed.store(true, std::memory_order_relaxed);
+      }
+    }
+    if (context_failed.load(std::memory_order_relaxed)) return false;
+    // Nothing was collected when no context carries weight, and the shared
+    // projection's row vectors are then not even sized.
+    for (int context = 0; active_contexts > 0 && context < contexts; ++context) {
+      EnvelopeRuleProjection &fragment = fragments[context];
+      for (int row = 0; row < dimension; ++row) {
+        projection.means[row].insert(projection.means[row].end(),
+          fragment.means[row].begin(), fragment.means[row].end());
+        projection.log_coefficient[row].insert(projection.log_coefficient[row].end(),
+          fragment.log_coefficient[row].begin(), fragment.log_coefficient[row].end());
+      }
+    }
+  } else
+#endif
+  {
+    EnvelopeRuleWorkspace workspace;
+    for (int context = 0; context < contexts; ++context) {
+      if (!evaluate_context(context, workspace, &projection)) return false;
+    }
+  }
+
+  for (int context = 0; context < contexts; ++context) {
+    const double local = context_local[context];
+    if (compact_log_normalizers != nullptr) compact_log_normalizers[context] = local;
+    const bool collect = context_log_weights[context] != -std::numeric_limits<double>::infinity();
+    if (log_normalizers == nullptr && collect) {
       log_mass = log_add_exp(log_mass, context_log_weights[context]);
     } else if (log_normalizers != nullptr) {
-      log_mass = log_add_exp(log_mass, log_scale + local);
+      log_mass = log_add_exp(log_mass, context_log_weights[context] -
+        log_normalizers[context] + local);
     }
   }
   if (active_contexts == 0) {
@@ -4856,7 +4991,8 @@ bool cpp_selnorm_context_star_projection(
   }
   std::vector<long double> values;
   long double error = 0.0L, input_omitted_mass = 0.0L;
-  selnorm_evaluate_gaussian_mixtures(rows, allowance, mixture, values, error, input_omitted_mass);
+  selnorm_evaluate_gaussian_mixtures(rows, allowance, mixture, values, error,
+    input_omitted_mass, threads);
   for (int point = 0; point < size; ++point) {
     density[point] = static_cast<double>(values[point]);
     if (!std::isfinite(density[point]) || density[point] < 0.0) return false;

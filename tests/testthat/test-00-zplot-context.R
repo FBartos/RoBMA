@@ -326,3 +326,37 @@ test_that("input mixture pruning preserves raw anchors and reports bounded omiss
   expect_identical(mass_only$compact_log_normalizers, exact$compact_log_normalizers)
   expect_identical(.Random.seed, before)
 })
+
+
+test_that("the context projection is invariant to the native thread count", {
+
+  # Contexts and mixture rows are evaluated in parallel but reduced in their
+  # original order, so a projection must not depend on the thread budget.
+  sei <- c(.7, 1.3, .9, 1.1, .8, 1.4)
+  # Compound symmetry with a positive residual on every row, which is what the
+  # covariance envelope the projection builds requires.
+  covariance <- diag(.5 * sei^2) + .3 * tcrossprod(sei)
+  z <- seq(-3, 3, length.out = 61L)
+  control <- set_selection_likelihood_control(relative_tolerance = .005)
+  selection <- .zplot_context_test_selection(sei, cutoff = 1.96,
+                                             weights = c(1, .35))
+  previous <- RoBMA.get_option("native_threads")
+  on.exit(RoBMA.options(native_threads = previous), add = TRUE)
+
+  reference <- NULL
+  for (threads in c(1L, 2L, 3L, 8L)) {
+    RoBMA.options(native_threads = threads)
+    actual <- .zplot_context_projection(z, rep(.2, 6L), covariance,
+      matrix(sqrt(.3), 1L, 6L), sei, selection, control)
+    expect_type(actual, "list")
+    values <- c(as.numeric(actual$density), actual$relative_error,
+                actual$mass_error, actual$mass_omission_error)
+    expect_true(all(is.finite(values)))
+    if (is.null(reference)) {
+      reference <- values
+      expect_gt(max(actual$density), 0)
+    } else {
+      expect_identical(values, reference)
+    }
+  }
+})

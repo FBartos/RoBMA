@@ -1799,7 +1799,8 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
       log_normalizers == R_NilValue ? nullptr : REAL(log_normalizers),
       REAL(context_log_weights), REAL(nodes), REAL(log_weights), order,
       REAL(z), size, REAL(allowance)[0], REAL(density), &mass, &error, &components, REAL(compact),
-      bounded_cdf, REAL(cdf_factor), &omitted_mass_error);
+      bounded_cdf, REAL(cdf_factor), &omitted_mass_error,
+      robma_batch_threads(std::max(contexts, k), 2));
   } catch (const std::exception &exception) {
     Rf_error("Deterministic star projection failed: %s.", exception.what());
   }
