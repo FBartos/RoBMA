@@ -145,6 +145,10 @@ double *fill_low_rank_factor(
       static_cast<size_t>(group.factor)
     ];
     const int q = factor.n_columns;
+    // Structurally zero source columns are omitted from this block's
+    // correction, so the output columns follow the group's own list.
+    const int active = group.source_columns.empty() ? q :
+      static_cast<int>(group.source_columns.size());
     for (int local : group.local_rows) {
       const int global = block.index[static_cast<size_t>(local)];
       const double row_scale = factor.type == ROW_GROUP_FACTOR ?
@@ -159,7 +163,9 @@ double *fill_low_rank_factor(
           group_index + factor.n_groups * group.group_factor_column
         )];
       }
-      for (int root_column = 0; root_column < q; ++root_column) {
+      for (int output = 0; output < active; ++output) {
+        const int root_column = group.source_columns.empty() ? output :
+          group.source_columns[static_cast<size_t>(output)];
         double transformed;
         if (factor.coefficient_structure == DIAGONAL_COEFFICIENT) {
           transformed = factor.model_matrix[
@@ -182,7 +188,7 @@ double *fill_low_rank_factor(
           Rf_error("Known-V bridge low-rank factor must be finite.");
         }
         U[static_cast<size_t>(
-          local + size * (group.column_offset + root_column)
+          local + size * (group.column_offset + output)
         )] = transformed;
       }
     }

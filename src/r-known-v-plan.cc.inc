@@ -311,6 +311,29 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
           low_rank_group.local_rows.push_back(local);
         }
       }
+      // A block-sparse loading leaves most source columns structurally zero
+      // on any one block. With a diagonal coefficient root each output column
+      // uses exactly one source column, so the zero ones contribute nothing
+      // and are left out of the block's low-rank correction. A dense root
+      // mixes every source column into every output column and keeps them.
+      if (factor.coefficient_structure == DIAGONAL_COEFFICIENT) {
+        for (int column = 0; column < factor.n_columns; ++column) {
+          for (int local : low_rank_group.local_rows) {
+            const int global = out.index[static_cast<size_t>(local)];
+            if (factor.model_matrix[static_cast<size_t>(
+                  global + n * column)] != 0.0) {
+              low_rank_group.source_columns.push_back(column);
+              break;
+            }
+          }
+        }
+        if (low_rank_group.source_columns.empty()) {
+          continue;
+        }
+        out.low_rank_groups.push_back(low_rank_group);
+        rank += static_cast<int>(low_rank_group.source_columns.size());
+        continue;
+      }
       out.low_rank_groups.push_back(low_rank_group);
       rank += factor.n_columns;
     }
@@ -318,7 +341,9 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
   out.rank = rank;
   out.active_columns.resize(static_cast<size_t>(size));
   for (const LowRankGroup &group : out.low_rank_groups) {
-    const int q = factors[static_cast<size_t>(group.factor)].n_columns;
+    const int q = group.source_columns.empty() ?
+      factors[static_cast<size_t>(group.factor)].n_columns :
+      static_cast<int>(group.source_columns.size());
     for (int local : group.local_rows) {
       std::vector<int> &columns = out.active_columns[
         static_cast<size_t>(local)

@@ -101,6 +101,10 @@ struct LowRankGroup {
   int column_offset;
   int group_factor_column;
   std::vector<int> local_rows;
+  // Source columns this group actually loads on. Empty means every column of
+  // the factor, which is the only possibility unless the coefficient root is
+  // diagonal: a dense root mixes all source columns into every output column.
+  std::vector<int> source_columns;
 };
 
 struct SamplingBlock {
