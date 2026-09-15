@@ -1079,6 +1079,38 @@ set_selection_likelihood_control <- function(
 }
 
 
+# The Gaussian base a diagonal-factor plan adds its loading to. Recovered
+# blocks carry their dependence in the loading and contribute only their
+# residual diagonal; blocks the factor does not represent keep their supplied
+# entries here, so base + loading loading' is the stored covariance either way.
+.selection_joint_sampling_dense_base <- function(sampling) {
+
+  if (!identical(sampling[["representation"]], "diagonal_factor")) {
+    stop("Selection sampling-covariance metadata are invalid.",
+         call. = FALSE)
+  }
+  K          <- length(sampling[["diagonal"]])
+  covariance <- diag(sampling[["diagonal"]], nrow = K, ncol = K)
+  dense_rows <- sampling[["dense_rows"]]
+  if (length(dense_rows) == 0L) {
+    return(covariance)
+  }
+  supplied <- sampling[["supplied"]]
+  if (is.null(supplied)) {
+    stop("Internal error: a sampling factor with dense rows lacks the supplied entries.",
+         call. = FALSE)
+  }
+  for (block in supplied[["blocks"]]) {
+    index <- block[["index"]]
+    if (!any(index %in% dense_rows)) {
+      next
+    }
+    covariance[index, index] <- block[["covariance"]]
+  }
+  covariance
+}
+
+
 .selection_sampling_auxiliary <- function(fit, data, posterior_samples = NULL) {
 
   samples   <- .get_posterior_samples(fit, posterior_samples)

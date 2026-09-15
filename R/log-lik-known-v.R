@@ -430,7 +430,9 @@
     if (identical(sampling[["representation"]], "dense")) {
       sampling_covariance <- sampling[["covariance"]]
     } else if (identical(sampling[["representation"]], "diagonal_factor")) {
-      sampling_covariance <- diag(sampling[["diagonal"]], K, K)
+      # Blocks a recovered factor does not represent keep their supplied
+      # entries in the base; the loading adds only the recovered blocks.
+      sampling_covariance <- .selection_joint_sampling_dense_base(sampling)
       loading <- sampling[["loading"]]
       rank    <- ncol(loading)
       if (rank > 0L) {

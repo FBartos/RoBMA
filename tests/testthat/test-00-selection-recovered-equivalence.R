@@ -322,3 +322,100 @@ test_that("the batched zplot block route matches the per-draw projection", {
       designs = new.env(parent = emptyenv()), threads = 1L))
   }
 })
+
+
+.recovered_equivalence_mixed <- function() {
+
+  # One compound-symmetric block, which recovers as rank one, next to one
+  # autoregressive block, which declines and keeps the supplied entries.
+  variance <- c(.04, .05, .06, .03, .07, .05)
+  compound <- .known_v_exact_symmetrize(
+    (diag(.4, 3L) + .6) * tcrossprod(sqrt(variance[1:3])))
+  autoregressive <- .known_v_exact_symmetrize(
+    outer(1:3, 1:3, function(i, j) .8^abs(i - j)) *
+      tcrossprod(sqrt(variance[4:6])))
+  V <- matrix(0, 6L, 6L)
+  V[1:3, 1:3] <- compound
+  V[4:6, 4:6] <- autoregressive
+  list(yi = c(.1, -.2, .3, .05, .25, -.15), V = V,
+       compound = compound, autoregressive = autoregressive)
+}
+
+
+test_that("a mixed plan keeps the supplied dense block in its Gaussian base", {
+
+  fixture <- .recovered_equivalence_mixed()
+  object <- bselmodel.mv(
+    yi = yi, V = fixture[["V"]], data = data.frame(yi = fixture[["yi"]], id = 1:6),
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE,
+    silent = TRUE)
+  plan     <- .data_selection_execution_plan(object[["data"]])
+  sampling <- plan[["sampling"]]
+  expect_identical(plan[["block_methods"]], c("rank_one", "dense"))
+  expect_identical(sampling[["dense_rows"]], 4:6)
+
+  base <- .selection_joint_sampling_dense_base(sampling)
+  # Recovered rows carry their dependence in the loading, dense rows in V.
+  expect_identical(base[4:6, 4:6], fixture[["autoregressive"]])
+  expect_identical(base[1:3, 1:3], diag(sampling[["diagonal"]][1:3], 3L, 3L))
+  expect_identical(base[1:3, 4:6], matrix(0, 3L, 3L))
+  reconstruction <- base + tcrossprod(sampling[["loading"]])
+  expect_lt(max(abs(reconstruction - fixture[["V"]])),
+            8 * 3 * .Machine$double.eps * max(abs(fixture[["V"]])))
+
+  # A fully recovered plan has a diagonal base.
+  full <- .recovered_equivalence_blocks()
+  recovered <- bselmodel.mv(
+    yi = yi, V = full[["V"]], data = data.frame(yi = full[["yi"]], id = 1:9),
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE,
+    silent = TRUE)
+  full_sampling <- .data_selection_execution_plan(recovered[["data"]])[["sampling"]]
+  expect_length(full_sampling[["dense_rows"]], 0L)
+  expect_identical(.selection_joint_sampling_dense_base(full_sampling),
+                   diag(full_sampling[["diagonal"]], 9L, 9L))
+})
+
+
+test_that("estimate conditionals on a mixed plan condition on the supplied dense block", {
+
+  fixture <- .recovered_equivalence_mixed()
+  dat <- data.frame(yi = fixture[["yi"]], paper = rep("a", 6L))
+  object <- bselmodel.mv(
+    yi = yi, V = fixture[["V"]], data = dat, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE,
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", .05, BayesTools::wf_fixed(c(1, .4)),
+      model = BayesTools::selection_model(known_sampling_variance = "integrate",
+        group = "paper")))
+  plan <- .data_selection_execution_plan(object[["data"]])
+  expect_identical(plan[["block_methods"]], c("rank_one", "dense"))
+  # No estimate-level heterogeneity term exists in this model, so the
+  # Gaussian law the conditionals use is the supplied V alone.
+  expect_false(.selection_integrates_estimate(object[["data"]]))
+
+  fit <- structure(list(), formula_design = object$formula_design,
+    prior_list = c(object$formula_design$mu$prior_list,
+                   .create_fit_priors(object$data, object$priors)))
+  samples <- matrix(c(.1, -.2), 2L, dimnames = list(NULL, "mu_intercept"))
+  setup <- .log_lik_evaluated_setup(fit, object$data, object$priors,
+    "estimate", NULL, matrix(samples[, 1L], 2L, 6L), matrix(0, 2L, 6L), NULL,
+    samples, random_effects_conditioning = "included_in_mu")
+  actual <- .selection_joint_conditional_summary_from_setup(setup)
+
+  # Each estimate conditions on the other rows of its dependency block under
+  # the supplied V: the recovered block through its factor, the declined
+  # block through its supplied entries.
+  reference_mean <- reference_variance <- matrix(NA_real_, 2L, 6L)
+  sigma <- fixture[["V"]]
+  for (draw in 1:2) {
+    for (rows in plan[["row_blocks"]]) for (i in rows) {
+      other <- setdiff(rows, i)
+      coefficient <- solve(sigma[other, other], sigma[other, i])
+      reference_mean[draw, i] <- samples[draw, 1L] +
+        sum((fixture[["yi"]][other] - samples[draw, 1L]) * coefficient)
+      reference_variance[draw, i] <- sigma[i, i] - sum(sigma[i, other] * coefficient)
+    }
+  }
+  expect_equal(unname(actual[["means"]]), reference_mean, tolerance = 1e-11)
+  expect_equal(unname(actual[["variance"]]), reference_variance, tolerance = 1e-11)
+})
