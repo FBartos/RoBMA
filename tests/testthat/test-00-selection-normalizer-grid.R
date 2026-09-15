@@ -1,13 +1,16 @@
 # Deterministic posterior rows exercise the real compiled likelihood and priors;
 # constructing these objects does not fit or sample a model.
 .normalizer_grid_test_fixture <- function(sign = "positive", weights = c(1, .5),
-                                          covariance = .01) {
+                                          covariance = .01, V = NULL,
+                                          study = rep(letters[1:3], each = 2)) {
 
   dat <- data.frame(yi = c(-.1, .2, .05, .3, -.2, .1),
-    study = factor(rep(letters[1:3], each = 2)),
+    study = factor(study),
     group = factor(rep(letters[1:3], each = 2)))
-  V <- diag(c(.04, .09, .05, .08, .06, .1))
-  V[cbind(1:6, c(2, 1, 4, 3, 6, 5))] <- covariance
+  if (is.null(V)) {
+    V <- diag(c(.04, .09, .05, .08, .06, .1))
+    V[cbind(1:6, c(2, 1, 4, 3, 6, 5))] <- covariance
+  }
   bias <- BayesTools::prior_weightfunction("one-sided",
     if (length(weights) == 2L) .025 else c(.025, .05),
     BayesTools::wf_fixed(weights), model = selection_model(group = "study",
@@ -220,4 +223,69 @@ test_that("normalizer interpolation leaves Gaussian and constant-weight laws exa
     actual <- .selection_joint_dense_loglik_block(yi, means, packed, sei, branch, plan, 2L)
     expect_equal(actual, reference, tolerance = 1e-11)
   }
+})
+
+
+# One four-row study with two effect-size types, which recovers as a rank-three
+# tree, next to a two-row study that recovers as rank one. Both blocks then
+# reach the normalizer grid through the factor and rank-one anchors rather than
+# the dense kernel.
+.normalizer_grid_tree_covariance <- function(rho = c(.7, .5)) {
+
+  variance <- c(.04, .09, .05, .08, .06, .1)
+  study <- c("a", "a", "a", "a", "b", "b")
+  type  <- c("x", "x", "y", "y", "z", "z")
+  correlation <- matrix(0, 6L, 6L)
+  correlation[outer(study, study, `==`)] <- rho[[2L]]
+  correlation[outer(study, study, `==`) & outer(type, type, `==`)] <- rho[[1L]]
+  correlation[5:6, 5:6] <- rho[[1L]]
+  diag(correlation) <- 1
+  .known_v_exact_symmetrize(correlation * tcrossprod(sqrt(variance)))
+}
+
+
+test_that("recovered rank-one and factor blocks reach the normalizer grid", {
+
+  # The grid certifies a mean sweep, not a way of evaluating a block
+  # normalizer, so its anchors must also come from the deterministic factor
+  # routes. This drives both a rank-one and a rank-three tree block.
+  values <- sort(unique(c(seq(-.4, .4, length.out = 161L), .031, .031 + 1e-14)))
+  fixture <- .normalizer_grid_test_fixture(
+    V = .normalizer_grid_tree_covariance(),
+    study = c("a", "a", "a", "a", "b", "b"))
+
+  plan <- .data_selection_execution_plan(fixture$context$data)
+  expect_identical(plan$block_methods, c("factor", "rank_one"))
+  expect_identical(plan$factor_ranks, c(3L, 1L))
+  expect_false(any(plan$block_methods == "dense"))
+
+  observed <- 0L
+  route <- .selection_joint_factor_grid_loglik
+  dense <- 0L
+  dense_route <- .selection_joint_dense_loglik_block
+  testthat::local_mocked_bindings(
+    .selection_joint_factor_grid_loglik = function(...) {
+      observed <<- observed + 1L
+      route(...)
+    },
+    .selection_joint_dense_loglik_block = function(...) {
+      dense <<- dense + 1L
+      dense_route(...)
+    },
+    .package = "RoBMA")
+
+  result <- .normalizer_grid_test_joint(fixture, values)
+  diagnostic <- result$diagnostic
+
+  # Every anchor came from a factor route, none from the dense kernel.
+  expect_gt(observed, 0L)
+  expect_identical(dense, 0L)
+  expect_true(diagnostic$used)
+  expect_gt(diagnostic$anchor_evaluations, 0)
+  expect_gt(diagnostic$interpolated_points, 0)
+  expect_identical(diagnostic$unknown_error_points, 0L)
+  expect_false(diagnostic$untracked_path)
+  expect_true(all(is.finite(result$actual)))
+  expect_lte(max(abs(result$actual - result$reference)),
+    diagnostic$max_log_likelihood_error + 1e-9)
 })
