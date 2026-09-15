@@ -246,3 +246,79 @@ test_that("a recovered selection plan routes its blocks and keeps V exact", {
     }
   }
 })
+
+
+test_that("the batched zplot block route matches the per-draw projection", {
+
+  # The batched route is only taken when the post-fit thread budget can
+  # spread its extra quadrature nodes; with one thread it must decline so the
+  # per-draw projection keeps the block.
+  fixture <- .recovered_equivalence_blocks()
+  known_V <- .known_v_canonicalize(fixture[["V"]])
+  blocks  <- .known_v_certified_factor_blocks(known_V)
+  z       <- seq(-3, 3, by = .25)
+  control <- set_selection_likelihood_control()
+
+  set.seed(3350)
+  draws <- 10L
+  for (block in blocks) {
+    index <- block[["index"]]
+    k     <- length(index)
+    rank  <- ncol(block[["loading"]])
+    sei   <- sqrt(diag(fixture[["V"]])[index])
+    context <- .recovered_equivalence_context(sei, draws)
+    block_mean <- matrix(stats::rnorm(draws * k, 0.15, 0.10), draws, k)
+    extra <- stats::runif(draws, 0.01, 0.06)
+
+    supplied <- fixture[["V"]][index, index, drop = FALSE]
+    pairs <- .selection_joint_lower_pairs(
+      .recovered_equivalence_plan(k, "dense", NA_integer_), seq_len(k))
+    packed <- matrix(supplied[cbind(pairs[["row_1"]], pairs[["row_2"]])],
+                     draws, length(pairs[["row_1"]]), byrow = TRUE)
+    diagonal <- pairs[["row_1"]] == pairs[["row_2"]]
+    packed[, diagonal] <- packed[, diagonal] + extra
+
+    factors <- list(
+      residual_sd = sqrt(matrix(block[["diagonal"]], draws, k, byrow = TRUE) +
+                           matrix(extra, draws, k)),
+      loading = matrix(as.numeric(block[["loading"]]), draws, k * rank,
+                       byrow = TRUE),
+      loading_support = block[["loading"]] != 0,
+      rank = rank
+    )
+    plan <- .recovered_equivalence_plan(
+      k, if (rank == 1L) "rank_one" else "factor", rank)
+    plan[["sampling_factor_blocks"]] <- list(list(rank = rank))
+    setup <- list(S = draws)
+
+    testthat::local_mocked_bindings(
+      .selection_joint_factor_block_samples = function(...) factors,
+      .package = "RoBMA")
+
+    # A point context: the batch then integrates a single node and must
+    # reproduce the ordinary batched block density exactly.
+    batched <- .zplot_joint_factor_block_batch(
+      z = z, block_mean = block_mean, covariance_lower = packed,
+      block_sei = sei, context_loading = matrix(0, draws, k), context_rank = 0L,
+      block_context = context, setup = setup, plan = plan, block = 1L,
+      integrated = NULL, control = control,
+      designs = new.env(parent = emptyenv()), threads = 2L)
+    expect_false(is.null(batched))
+    expect_true(all(batched[["done"]]))
+
+    reference <- .zplot_joint_block(z, block_mean, packed, sei, context, FALSE,
+      control, new.env(parent = emptyenv()), factors)
+    peak <- max(reference[["density"]])
+    expect_gt(peak, 0)
+    expect_lt(max(abs(batched[["density"]] - reference[["density"]])) / peak,
+              control[["relative_tolerance"]])
+
+    # One thread declines, leaving every row to the per-draw projection.
+    expect_null(.zplot_joint_factor_block_batch(
+      z = z, block_mean = block_mean, covariance_lower = packed,
+      block_sei = sei, context_loading = matrix(0, draws, k), context_rank = 0L,
+      block_context = context, setup = setup, plan = plan, block = 1L,
+      integrated = NULL, control = control,
+      designs = new.env(parent = emptyenv()), threads = 1L))
+  }
+})

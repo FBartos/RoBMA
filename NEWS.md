@@ -14,6 +14,11 @@
   study with several effect-size types uses one quadrature rule per type
   instead of a full rank-dimensional tensor rule. Mean-sweep normalizer
   interpolation also applies to the rank-one and factor routes.
+- evaluates correlated-`V` zplot blocks for every posterior draw in one
+  batched call when the post-fit thread budget allows, so the configured
+  native threads apply to the fitted-density curve. Draws whose retained
+  context needs a finer outer rule keep the per-draw projection, and with a
+  single thread the batch is not used at all.
 - uses BayesTools factor column-scale grids for allocation-derived component
   SDs on correlated random structures
 - reuses the fitted parameter-map runtime cache for RoBMA catalog metadata
