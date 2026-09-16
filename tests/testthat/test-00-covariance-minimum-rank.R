@@ -240,3 +240,50 @@ test_that("a minimum-rank block evaluates the same selected law as the dense rou
   expect_lt(max(abs(observed[["log_density"]] - reference[["log_density"]])),
             budget)
 })
+
+
+test_that("a block with no low-rank structure declines without refinement", {
+
+  # An exact `D + U U'` makes every off-diagonal submatrix `V[I, J]` equal
+  # `U[I, ] U[J, ]'`, so its rank cannot exceed the factor rank. That bound
+  # settles an unstructured or slowly decaying block before any Gauss-Newton
+  # runs, which is what keeps model construction with an arbitrary dense 'V'
+  # from paying a minute at input.
+  set.seed(4242L)
+  unstructured <- function(size) {
+    entries <- matrix(stats::rnorm(size * size), size, size)
+    .known_v_exact_symmetrize(crossprod(entries) / size + diag(size))
+  }
+  autoregressive <- function(size, phi = .8) {
+    correlation <- outer(seq_len(size), seq_len(size),
+                         function(i, j) phi^abs(i - j))
+    .known_v_exact_symmetrize(
+      correlation * tcrossprod(sqrt(seq(.02, .06, length.out = size)))
+    )
+  }
+
+  for (block in list(unstructured(80L), autoregressive(80L))) {
+    elapsed <- system.time(
+      factor <- .covariance_minimum_rank_factor(block)
+    )[["elapsed"]]
+    expect_null(factor)
+    expect_lt(elapsed, 1)
+  }
+
+  # The same for the whole input path a user reaches with a dense 'V'.
+  dense   <- unstructured(150L)
+  elapsed <- system.time(known_V <- .known_v_canonicalize(dense))[["elapsed"]]
+  expect_false(.known_v_has_certified_factor(known_V))
+  expect_lt(elapsed, 2)
+
+  # The bound is necessary, never sufficient: exact structure at the same sizes
+  # is still recovered.
+  for (rank in 1:3) {
+    exact     <- .minimum_rank_fixture(80L, rank, 909L + rank)
+    recovered <- .covariance_minimum_rank_factor(exact)
+    expect_false(is.null(recovered))
+    expect_lte(recovered[["rank"]], rank)
+    expect_lte(.minimum_rank_residual(recovered, exact),
+               8 * 80 * .Machine$double.eps)
+  }
+})

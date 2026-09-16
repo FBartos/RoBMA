@@ -345,10 +345,18 @@
 
   # Rank one is always in scope: for two rows it is the only representation
   # there is, and it is the one the cluster route wants.
-  ranks <- seq_len(max(min(
+  limit <- max(min(
     as.integer(max_rank), size - 1L,
     max(.covariance_ledermann_rank(size), 1L)
-  ), 0L))
+  ), 0L)
+  # Ranks below the off-diagonal bound cannot hold an exact representation, and
+  # a bound above the limit settles the block without any refinement at all.
+  lower <- .covariance_off_diagonal_rank_bound(covariance, tolerance)
+  if (lower > limit) {
+    return(NULL)
+  }
+  first <- max(lower, 1L)
+  ranks <- if (limit >= first) seq.int(first, limit) else integer(0)
   for (rank in ranks) {
     accepted <- Filter(Negate(is.null), lapply(
       .covariance_low_rank_starts(covariance, rank),
@@ -371,6 +379,48 @@
   }
 
   NULL
+}
+
+
+# Smallest rank any exact `D + U U'` representation of the block could have.
+# Splitting the rows into two disjoint groups makes the off-diagonal submatrix
+# `V[I, J]` equal `U[I, ] U[J, ]'` exactly, with no diagonal term left in it, so
+# its rank never exceeds the factor rank whatever the residual variances are.
+# Two splits are taken because each is blind to a different structure: halves
+# see an unstructured block, and the odd/even split sees the decaying bands that
+# separate across halves. One small SVD each settles a block that no refinement
+# could have recovered.
+.covariance_off_diagonal_rank_bound <- function(covariance, tolerance) {
+
+  size <- nrow(covariance)
+  if (size < 4L) {
+    return(0L)
+  }
+  scale <- max(abs(covariance))
+  # A singular value moves by at most the spectral norm of the perturbation,
+  # itself at most `size` times its largest entry, so a block whose
+  # reconstruction the certificate would accept keeps every singular value past
+  # its true rank below this threshold.
+  threshold <- 16 * size * tolerance * scale
+  rows      <- seq_len(size)
+  splits    <- list(rows <= size %/% 2L, rows %% 2L == 1L)
+
+  bound <- 0L
+  for (split in splits) {
+    block <- covariance[split, !split, drop = FALSE]
+    if (!length(block)) {
+      next
+    }
+    values <- tryCatch(svd(block, nu = 0L, nv = 0L)[["d"]],
+                       error = function(e) NULL)
+    if (is.null(values) || anyNA(values) || any(!is.finite(values))) {
+      # An undecided split constrains nothing; leave the search unbounded.
+      return(0L)
+    }
+    bound <- max(bound, sum(values > threshold))
+  }
+
+  as.integer(bound)
 }
 
 
@@ -544,8 +594,10 @@
 # has `n (n - 1) / 2` equations in `n r` unknowns and Gauss-Newton converges
 # quadratically near an exact representation. Rotations of U leave the residual
 # unchanged, so the normal equations are damped rather than solved exactly.
+# That quadratic convergence is also what bounds the work: a start outside the
+# basin stalls, and only an exact representation keeps earning its iterations.
 .covariance_low_rank_polish <- function(covariance, loading,
-                                        iterations = 80L) {
+                                        iterations = 80L, stall = 12L) {
 
   size  <- nrow(covariance)
   rank  <- ncol(loading)
@@ -564,6 +616,7 @@
     return(loading)
   }
   damping <- 1e-9 * max(scale, 1e-300)
+  stalled <- 0L
 
   for (iteration in seq_len(iterations)) {
     if (best <= .Machine$double.eps * scale) {
@@ -598,15 +651,24 @@
     candidate <- loading + matrix(step, size, rank)
     proposed  <- residual_of(candidate)
     if (all(is.finite(proposed)) && max(abs(proposed)) < best) {
+      halved  <- max(abs(proposed)) <= best / 2
       loading <- candidate
       current <- proposed
       best    <- max(abs(proposed))
       damping <- damping / 10
+      # Near an exact representation the residual is squared every step, so a
+      # run of steps that do not even halve it means the start was not in that
+      # basin and the remaining iterations would only refine an inexact fit.
+      stalled <- if (halved) 0L else stalled + 1L
     } else {
       damping <- damping * 10
+      stalled <- stalled + 1L
       if (damping > scale) {
         break
       }
+    }
+    if (stalled >= stall) {
+      break
     }
   }
 
