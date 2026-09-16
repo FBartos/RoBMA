@@ -281,7 +281,7 @@ known_v_factor <- function(diagonal, loading) {
   diagonal   <- factor[["diagonal"]]
   blocks     <- factor[["blocks"]]
   dense_rows <- factor[["dense_rows"]]
-  if (!is.list(factor) || !identical(factor[["status"]], "recovered_block_constant") ||
+  if (!is.list(factor) || !identical(factor[["status"]], "recovered") ||
       !is.numeric(diagonal) || !is.null(dim(diagonal)) || length(diagonal) != K ||
       anyNA(diagonal) || any(!is.finite(diagonal)) || any(diagonal < 0) ||
       !is.integer(dense_rows) || anyNA(dense_rows) || anyDuplicated(dense_rows) ||
@@ -309,7 +309,8 @@ known_v_factor <- function(diagonal, loading) {
     if (!is.numeric(loading) || !is.matrix(loading) ||
         nrow(loading) != length(index) || ncol(loading) == 0L ||
         anyNA(loading) || any(!is.finite(loading)) ||
-        !identical(supplied[["index"]], index)) {
+        !identical(supplied[["index"]], index) ||
+        !isTRUE(block[["method"]] %in% c("block_constant", "minimum_rank"))) {
       stop("Internal error: recovered known-V factor metadata are invalid.",
            call. = FALSE)
     }

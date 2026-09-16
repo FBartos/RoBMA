@@ -166,9 +166,16 @@ test_that("normalizer geometry has bounded storage and unsafe-node fallback", {
 
 test_that("unavailable anchor errors remain unknown through direct evaluation", {
 
-  # Negative sampling covariances use the ordinary native route.
+  # A block that declines exact recovery uses the ordinary native route.
   # Its QMC MCSE is not an absolute normalizer-error bound for interpolation.
-  fixture <- .normalizer_grid_test_fixture(weights = c(1, .98, .99), covariance = -.01)
+  fixture <- .normalizer_grid_test_fixture(
+    weights = c(1, .98, .99),
+    study   = rep(letters[1:2], each = 3),
+    V       = .dense_route_block_diagonal(
+      c(.04, .09, .05, .08, .06, .1), rep(1:2, each = 3), rho = .3,
+      negative = TRUE
+    )
+  )
   result <- .normalizer_grid_test_joint(fixture, seq(-.4, .4, length.out = 81L))
   expect_false(result$diagnostic$used)
   expect_gt(result$diagnostic$unknown_error_points, 0)

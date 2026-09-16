@@ -21,6 +21,16 @@
   by a per-rank rule count: the nested rule spends `order^(depth + 1)` nodes and
   the tensor fallback `order^rank`, so a forest of many factors costs what its
   depth costs. Blocks of rank four and below reach the same rules as before.
+- recovers an exact `diag(d) + U U'` representation of a dependency block whose
+  correlations are not block constant, so covariance from overlapping samples,
+  shared control arms or signed relationships reaches the deterministic factor
+  routes without a `known_v_factor()` declaration. The smallest rank that
+  reproduces every supplied entry to working precision is accepted, and only
+  that: an approximate fit is declined at every rank, as is a representation
+  whose residual variances are not certifiably positive. The search stops at
+  the Ledermann bound, above which every positive-definite block fits exactly
+  and an exact fit says nothing about the block, so a genuinely unstructured
+  block keeps its supplied entries and its general route.
 - integrates factor blocks whose loading supports the nested rule cannot
   reduce -- supports that are not a forest, and the dense supports exact
   recovery produces -- on a Smolyak sparse grid built from the same

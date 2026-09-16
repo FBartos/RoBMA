@@ -213,13 +213,42 @@ test_that("known_v_factor preserves exact provenance and structural routing", {
     only_priors               = TRUE,
     silent                    = TRUE
   )
-  dense_setup <- .data_selection_execution_plan(dense_object[["data"]])
-  dense_syntax <- .create_model_syntax(
+  plain_setup <- .data_selection_execution_plan(dense_object[["data"]])
+  plain_syntax <- .create_model_syntax(
     dense_object[["data"]], dense_object[["priors"]]
   )
-  expect_identical(dense_setup[["exactness"]], "E2")
-  expect_match(dense_syntax, "dselnorm_mnorm_step", fixed = TRUE)
-  expect_false(grepl("dselnorm_factor_step", dense_syntax, fixed = TRUE))
+  # The same matrix supplied without the declaration recovers its own rank, so
+  # the two objects reach the same route and the same rules.
+  expect_identical(plain_setup[["exactness"]], "EF")
+  expect_identical(plain_setup[["factor_ranks"]], 2L)
+  expect_match(plain_syntax, "dselnorm_factor_step", fixed = TRUE)
+  expect_false(grepl("dselnorm_mnorm_step", plain_syntax, fixed = TRUE))
+  expect_equal(
+    .selection_joint_sampling_block(plain_setup[["sampling"]], seq_len(K)),
+    covariance
+  )
+
+  # A block whose entries no exact low-rank representation reproduces keeps the
+  # general route.
+  general_object <- bselmodel.mv(
+    yi                        = yi,
+    V                         = .dense_route_covariance(
+      variance = seq(.02, .07, length.out = K)
+    ),
+    data                      = dat,
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    prior_bias = .factor_selection_prior(),
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  general_setup <- .data_selection_execution_plan(general_object[["data"]])
+  general_syntax <- .create_model_syntax(
+    general_object[["data"]], general_object[["priors"]]
+  )
+  expect_identical(general_setup[["exactness"]], "E2")
+  expect_match(general_syntax, "dselnorm_mnorm_step", fixed = TRUE)
+  expect_false(grepl("dselnorm_factor_step", general_syntax, fixed = TRUE))
 })
 
 
@@ -554,7 +583,7 @@ test_that("exact random factors reuse repeated states without changing covarianc
 test_that("dense covariance assembly preserves diagonal and nonempty factor parts", {
 
   dat      <- data.frame(yi = c(-.2, .1, .3), study = "a", esid = seq_len(3L))
-  sampling <- diag(c(.02, .03, .04)) + tcrossprod(c(.04, .02, .03))
+  sampling <- .dense_route_covariance()
   diagonal <- rbind(rep(.04, 3L), rep(.09, 3L))
   for (rank in 0:1) {
     object <- bselmodel.mv(
@@ -711,7 +740,7 @@ test_that("bridge dense fallback reconstructs the exact required block", {
     yi    = c(-.20, .05, .35),
     study = factor(rep("a", 3L))
   )
-  sampling <- diag(c(.02, .03, .04)) + tcrossprod(c(.03, .02, .01))
+  sampling <- .dense_route_covariance()
   object <- bselmodel.mv(
     yi                        = yi,
     V                         = sampling,
@@ -1147,24 +1176,26 @@ test_that("the early dense rule stays outside rank-one and sampling-conditioned 
   dat <- dat.assink2016
   V <- metafor::vcalc(vi, cluster = study, type = deltype, obs = esid,
     rho = c(.7, .5), data = dat)
-  # Negative within-block correlation is not a diagonal-plus-factor structure,
-  # so every correlated block declines recovery and stays dense.
-  V_dense <- metafor::vcalc(vi, cluster = study, obs = esid, rho = -.04,
-    data = dat)
-  make_plan <- function(sampling = "integrate", covariance = V) {
+  # The dense schedule applies only when every correlated block declines exact
+  # recovery. Markov correlations on clusters of at least three rows do; a
+  # two-row block never does, because every two-row block is rank one.
+  dense_dat <- dat[dat$study %in% names(which(table(dat$study) >= 3L)), ]
+  V_dense <- .dense_route_block_diagonal(dense_dat$vi, dense_dat$study)
+  make_plan <- function(sampling = "integrate", covariance = V,
+                        data = dat) {
 
     prior <- BayesTools::prior_weightfunction("one-sided", steps = .025,
       weights = BayesTools::wf_fixed(c(1, .5)),
       model = BayesTools::selection_model(known_sampling_variance = sampling,
         group = "study"))
     object <- bselmodel.mv(yi = yi, V = covariance, random = ~ 1 | study / esid,
-      data = dat, measure = "SMD", prior_unit_information_sd = 1,
+      data = data, measure = "SMD", prior_unit_information_sd = 1,
       prior_bias = prior, only_priors = TRUE, silent = TRUE)
     .data_selection_execution_plan(object[["data"]])
   }
   original <- c(15L, 31L, 63L, 127L, 255L, 511L, 1023L)
   expect_identical(SELNORM_CLUSTER_QUADRATURE_ORDERS, original)
-  dense <- make_plan(covariance = V_dense)
+  dense <- make_plan(covariance = V_dense, data = dense_dat)
   expect_true(any(dense[["block_methods"]] == "dense"))
   expect_false(any(dense[["block_methods"]] == "rank_one"))
   expect_identical(dense[["quadrature"]][["orders"]], c(7L, original))

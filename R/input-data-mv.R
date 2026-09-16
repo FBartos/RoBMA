@@ -348,9 +348,18 @@
   rank       <- 0L
   for (position in correlated) {
     index  <- blocks[[position]][["index"]]
+    # Block-constant structure first: it is a closed form and its supports are
+    # a forest, which the nested quadrature integrates one axis per level. The
+    # minimum-rank search covers what it declines -- signed correlations,
+    # overlapping samples, shared arms -- at the cost of a dense support.
     factor <- .covariance_block_constant_factor(
       blocks[[position]][["covariance"]]
     )
+    if (is.null(factor)) {
+      factor <- .covariance_minimum_rank_factor(
+        blocks[[position]][["covariance"]]
+      )
+    }
     if (is.null(factor)) {
       dense_rows <- c(dense_rows, index)
       next
@@ -359,6 +368,7 @@
     rank <- rank + factor[["rank"]]
     certified[[length(certified) + 1L]] <- list(
       index    = index,
+      method   = factor[["method"]],
       loading  = factor[["loading"]],
       levels   = factor[["levels"]],
       supports = lapply(factor[["supports"]], function(rows) index[rows]),
@@ -372,7 +382,7 @@
   }
 
   .known_v_update(known_V, list(certified_factor = list(
-    status     = "recovered_block_constant",
+    status     = "recovered",
     diagonal   = diagonal,
     blocks     = certified,
     dense_rows = sort(dense_rows),

@@ -52,7 +52,7 @@ test_that("recovered and dense block evaluators agree on the selected law", {
   fixture <- .recovered_equivalence_blocks()
   known_V <- .known_v_canonicalize(fixture[["V"]])
   expect_identical(.known_v_certified_factor_status(known_V),
-                   "recovered_block_constant")
+                   "recovered")
   blocks <- .known_v_certified_factor_blocks(known_V)
   expect_identical(vapply(blocks, function(b) ncol(b[["loading"]]), integer(1)),
                    c(4L, 1L))
@@ -190,6 +190,7 @@ test_that("recovery leaves Gaussian known-V models byte-identical", {
     if (!recovered) {
       testthat::local_mocked_bindings(
         .covariance_block_constant_factor = function(...) NULL,
+        .covariance_minimum_rank_factor = function(...) NULL,
         .package = "RoBMA")
     }
     object <- build()
@@ -222,6 +223,7 @@ test_that("a recovered selection plan routes its blocks and keeps V exact", {
     if (!recovered) {
       testthat::local_mocked_bindings(
         .covariance_block_constant_factor = function(...) NULL,
+        .covariance_minimum_rank_factor = function(...) NULL,
         .package = "RoBMA")
     }
     bselmodel.mv(yi = yi, V = fixture[["V"]], data = dat, measure = "GEN",

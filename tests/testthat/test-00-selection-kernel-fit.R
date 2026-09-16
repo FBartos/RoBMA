@@ -962,16 +962,15 @@ test_that("marginal selection constructors integrate Gaussian dependence", {
   expect_false(grepl("dselnorm_mnorm_step", cluster_syntax, fixed = TRUE))
   expect_false(grepl("gamma[", cluster_syntax, fixed = TRUE))
 
-  data <- data.frame(study = factor(c("a", "a", "b")))
-  # Negative within-block covariance is not a diagonal-plus-factor structure,
-  # so the block declines recovery and keeps the dense multivariate syntax.
-  V <- matrix(
-    c(.010, -.003, 0, -.003, .014, 0, 0, 0, .012),
-    nrow = 3L,
-    byrow = TRUE
+  data <- data.frame(study = factor(c("a", "a", "a", "b")))
+  # No exact low-rank representation reproduces Markov correlations inside the
+  # evidence bound, so the block declines recovery and keeps the dense
+  # multivariate syntax.
+  V <- .dense_route_block_diagonal(
+    c(.010, .014, .011, .012), data[["study"]]
   )
   mv_object <- bselmodel.mv(
-    yi                        = c(.10, .20, .05),
+    yi                        = c(.10, .20, .05, .15),
     V                         = V,
     random                    = ~ diag(1 | study),
     data                      = data,
@@ -1016,7 +1015,7 @@ test_that("marginal selection constructors integrate Gaussian dependence", {
   )
 
   conditional_auto <- bselmodel.mv(
-    yi                        = c(.10, .20, .05),
+    yi                        = c(.10, .20, .05, .15),
     V                         = V,
     random                    = ~ diag(1 | study),
     data                      = data,
@@ -1030,7 +1029,7 @@ test_that("marginal selection constructors integrate Gaussian dependence", {
   expect_identical(.known_v_requested_parameterization(known_V), "auto")
   for (backend in c("whitened", "block_mvn")) {
     forced <- bselmodel.mv(
-      yi = c(.10, .20, .05), V = V, random = ~ diag(1 | study), data = data,
+      yi = c(.10, .20, .05, .15), V = V, random = ~ diag(1 | study), data = data,
       measure = "SMD", prior_bias = conditional_prior,
       prior_unit_information_sd = 1, known_v_parameterization = backend,
       only_priors = TRUE, silent = TRUE

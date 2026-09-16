@@ -1,12 +1,16 @@
 test_that("post-fit factors preserve the selected law independently of fitted covariance syntax", {
 
-  dat <- data.frame(yi = c(-.2, .1), study = c("a", "a"), esid = 1:2)
-  sampling_diagonal <- c(.04, .09)
-  # A negative loading product keeps the plain matrix off the recovery route,
-  # so the two inputs exercise the dense and the factor fitted syntax for one
-  # and the same covariance.
-  sampling_loading <- matrix(c(.1, -.2), 2L, 1L)
-  V <- diag(sampling_diagonal) + tcrossprod(sampling_loading)
+  dat <- data.frame(yi = c(-.2, .1, .25), study = "a", esid = 1:3)
+  sampling_diagonal <- c(.04, .09, .06)
+  sampling_loading <- matrix(c(.1, -.2, .15), 3L, 1L)
+  # A declared factor and a plain matrix that declines exact recovery exercise
+  # the factor and the dense fitted syntax. They cannot be the same matrix any
+  # more: a matrix an exact representation reproduces takes the factor route
+  # however it is supplied, so each leg carries its own covariance and its own
+  # oracle. The marginal variances agree, so both legs share their standard
+  # errors and their selection thresholds.
+  V_factor <- diag(sampling_diagonal) + tcrossprod(sampling_loading)
+  V_dense  <- .dense_route_negative_covariance(diag(V_factor))
   estimate_sd <- c(.2, .4)
   study_sd <- c(.3, .5)
   means <- c(-.1, .25)
@@ -21,11 +25,20 @@ test_that("post-fit factors preserve the selected law independently of fitted co
     .package = "RoBMA"
   )
   for (representation in c("dense", "diagonal_factor")) {
+    V <- if (representation == "dense") V_dense else V_factor
     object <- bselmodel.mv(yi = yi, random = ~ 1 | study/esid, data = dat,
-      V = if (representation == "dense") V else known_v_factor(sampling_diagonal, sampling_loading),
+      V = if (representation == "dense") V_dense else
+        known_v_factor(sampling_diagonal, sampling_loading),
       measure = "GEN", prior_unit_information_sd = 1, prior_bias = prior,
       effect_direction = "positive", only_priors = TRUE, silent = TRUE,
-      selection_control = set_selection_likelihood_control(relative_tolerance = 1e-8))
+      # A three-row block on the general route is integrated by quasi-Monte
+      # Carlo, so its budget and its agreement are stated on that scale; the
+      # factor route stays deterministic.
+      selection_control = if (representation == "dense") {
+        set_selection_likelihood_control(
+          relative_tolerance = 1e-4, points_per_scramble = 16384L,
+          max_points_per_scramble = 65536L, scrambles = 16L)
+      } else set_selection_likelihood_control(relative_tolerance = 1e-8))
     plan <- .data_selection_execution_plan(object$data)
     expect_identical(plan$random_covariance$representation, representation)
     fit <- structure(list(), formula_design = object$formula_design,
@@ -45,38 +58,44 @@ test_that("post-fit factors preserve the selected law independently of fitted co
     expect_false(is.null(factors))
     expect_identical(factors$ranks, 1L)
     expected_random <- lapply(seq_along(means), function(draw) {
-      diag(estimate_sd[draw]^2, 2L) + matrix(study_sd[draw]^2, 2L, 2L)
+      diag(estimate_sd[draw]^2, 3L) + matrix(study_sd[draw]^2, 3L, 3L)
     })
     packed <- t(vapply(expected_random, function(random) {
       covariance <- V + random
       covariance[lower.tri(covariance, diag = TRUE)]
-    }, numeric(3L)))
+    }, numeric(6L)))
     expect_equal(.selection_joint_covariance_lower(setup, 1L,
       random_factor_samples = factors), packed, tolerance = 1e-14)
 
-    # Independent bivariate conditional-normal integration defines the
-    # selected normalizer; it does not reuse any selection-kernel calculation.
+    # Independent orthant integration defines the selected normalizer; it does
+    # not reuse any selection-kernel calculation. The step weights expand the
+    # product of one-sided weights into one trivariate probability per subset
+    # of significant rows.
+    cut <- sqrt(diag(V)) * stats::qnorm(.975)
     expected <- vapply(seq_along(means), function(draw) {
       covariance <- V + expected_random[[draw]]
-      mean <- rep(means[draw], 2L)
-      sd <- sqrt(diag(covariance))
-      cut <- sqrt(diag(V)) * stats::qnorm(.975)
-      both <- stats::integrate(function(x) {
-        stats::dnorm(x, mean[1L], sd[1L]) * stats::pnorm(cut[2L],
-          mean[2L] + covariance[2L, 1L] / covariance[1L, 1L] * (x - mean[1L]),
-          sqrt(covariance[2L, 2L] - covariance[2L, 1L]^2 / covariance[1L, 1L]),
-          lower.tail = FALSE)
-      }, cut[1L], Inf, rel.tol = 1e-11, abs.tol = 1e-13)$value
-      normalizer <- .25 + .25 * sum(stats::pnorm(cut, mean, sd, lower.tail = FALSE)) + .25 * both
+      mean <- rep(means[draw], 3L)
+      normalizer <- sum(apply(
+        expand.grid(rep(list(c(FALSE, TRUE)), 3L)), 1L, function(significant) {
+          .5^sum(!significant) * as.numeric(mvtnorm::pmvnorm(
+            lower = ifelse(significant, cut, -Inf),
+            upper = ifelse(significant, Inf, cut),
+            mean  = mean, sigma = covariance,
+            algorithm = mvtnorm::Miwa(steps = 4096L)
+          ))
+        }
+      ))
       mvtnorm::dmvnorm(dat$yi, mean, covariance, log = TRUE) +
         sum(log(ifelse(dat$yi >= cut, 1, .5))) - log(normalizer)
     }, numeric(1L))
     observed <- as.numeric(.selection_joint_block_loglik_from_setup(setup))
-    expect_equal(observed, expected, tolerance = 1e-7)
+    expect_equal(observed, expected,
+                 tolerance = if (representation == "dense") 1e-3 else 1e-7)
     fits[[representation]] <- list(factors = factors, log_lik = observed)
   }
+  # The random factors are a property of the random structure, which both legs
+  # share; their selected laws belong to their own covariances.
   expect_equal(fits$dense$factors, fits$diagonal_factor$factors, tolerance = 1e-14)
-  expect_equal(fits$dense$log_lik, fits$diagonal_factor$log_lik, tolerance = 1e-7)
 })
 
 test_that("only structural factor unavailability uses the generic fallback", {

@@ -238,7 +238,7 @@ test_that("a recovered factor is attached per block and leaves V authoritative",
   expect_identical(.known_v_storage(known_V), "blocks")
   expect_true(.known_v_has_certified_factor(known_V))
   expect_identical(.known_v_certified_factor_status(known_V),
-                   "recovered_block_constant")
+                   "recovered")
   expect_length(.known_v_certified_factor_dense_rows(known_V), 0L)
   # V stays the stored covariance, bit for bit.
   expect_identical(.known_v_covariance_matrix(known_V), V)
@@ -271,7 +271,7 @@ test_that("a mixed matrix recovers block by block", {
 
   known_V <- .known_v_canonicalize(V)
   expect_identical(.known_v_certified_factor_status(known_V),
-                   "recovered_block_constant")
+                   "recovered")
   expect_length(.known_v_certified_factor_blocks(known_V), 1L)
   expect_identical(.known_v_certified_factor_dense_rows(known_V), 4:6)
   expect_identical(.known_v_covariance_matrix(known_V), V)

@@ -292,6 +292,7 @@
   }
 
   list(
+    method      = "block_constant",
     diagonal    = diagonal,
     loading     = loading,
     rank        = ncol(loading),
@@ -301,6 +302,315 @@
     residual    = residual,
     depth       = length(levels)
   )
+}
+
+
+# Exact minimum-rank recovery for one dependency block.
+#
+# Covariance from overlapping samples, shared control arms or partially shared
+# raters is exactly `diag(d) + U U'` with a small number of columns without
+# being block constant on nested partitions, which is the structure
+# .covariance_block_constant_factor() recovers. This searches for the smallest
+# rank that reproduces every supplied entry within the same factorization
+# roundoff envelope. Acceptance remains an algebraic identity: an approximate
+# fit at any rank is declined and the block keeps its supplied entries and its
+# general route. No approximation is ever accepted.
+#
+# The search stops at the Ledermann bound as well as at the kernel rank cap.
+# Above that bound the off-diagonal entries no longer outnumber the free
+# loadings, every positive-definite block fits exactly -- `diag(lambda_min) +
+# U U'` at rank `n - 1` reproduces any of them -- and an exact fit stops being
+# evidence about the supplied covariance. Recovery is a statement about that
+# covariance, so it stops where the statement stops being one.
+.covariance_minimum_rank_factor <- function(covariance,
+                                            max_rank = SELNORM_FACTOR_MAX_RANK) {
+
+  if (!is.matrix(covariance) || !is.numeric(covariance) ||
+      nrow(covariance) != ncol(covariance) || nrow(covariance) < 2L ||
+      anyNA(covariance) || any(!is.finite(covariance)) ||
+      any(covariance != t(covariance))) {
+    return(NULL)
+  }
+
+  covariance <- unname(covariance)
+  size       <- nrow(covariance)
+  variance   <- diag(covariance)
+  scale      <- max(abs(covariance))
+  if (any(variance <= 0) || !(scale > 0)) {
+    return(NULL)
+  }
+  # The same convention as .covariance_factorization(): entries that reach
+  # working precision along different rounding paths differ by a few ulps.
+  tolerance <- 8 * size * .Machine$double.eps
+
+  # Rank one is always in scope: for two rows it is the only representation
+  # there is, and it is the one the cluster route wants.
+  ranks <- seq_len(max(min(
+    as.integer(max_rank), size - 1L,
+    max(.covariance_ledermann_rank(size), 1L)
+  ), 0L))
+  for (rank in ranks) {
+    accepted <- Filter(Negate(is.null), lapply(
+      .covariance_low_rank_starts(covariance, rank),
+      function(loading) {
+        .covariance_low_rank_accept(
+          covariance, .covariance_low_rank_polish(covariance, loading),
+          scale, tolerance
+        )
+      }
+    ))
+    if (length(accepted) > 0L) {
+      # Several exact representations of the same rank can differ in how much
+      # residual spread they leave on a row, and a route conditions on that
+      # spread. Prefer the best-conditioned one rather than the first found.
+      margin <- vapply(accepted, function(candidate) {
+        min(candidate[["diagonal"]] / diag(covariance))
+      }, numeric(1))
+      return(accepted[[which.max(margin)]])
+    }
+  }
+
+  NULL
+}
+
+
+# Largest rank at which the off-diagonal entries of a block still constrain the
+# loadings, `(2n + 1 - sqrt(8n + 1)) / 2` (Ledermann, 1937).
+.covariance_ledermann_rank <- function(size) {
+
+  as.integer(floor((2 * size + 1 - sqrt(8 * size + 1)) / 2))
+}
+
+
+# Certify one candidate and shape it like a recovered factor, or return NULL.
+.covariance_low_rank_accept <- function(covariance, loading, scale, tolerance) {
+
+  size     <- nrow(covariance)
+  diagonal <- diag(covariance) - rowSums(loading^2)
+
+  # A column supported by one row contributes only to that row's variance.
+  # Absorbing it is exact and keeps every retained column a real dependence.
+  alone <- which(colSums(loading != 0) < 2L)
+  if (length(alone) > 0L) {
+    diagonal <- diagonal + rowSums(loading[, alone, drop = FALSE]^2)
+    loading  <- loading[, -alone, drop = FALSE]
+  }
+  # A residual variance at the roundoff floor is not a certifiably positive
+  # one, and the representation it belongs to is singular: the conditional
+  # distribution the factor routes evaluate would have no residual spread on
+  # that row. Decline and let a higher rank, or the general route, own it.
+  if (ncol(loading) == 0L || anyNA(diagonal) || any(!is.finite(diagonal)) ||
+      any(diagonal <= tolerance * max(diag(covariance)))) {
+    return(NULL)
+  }
+
+  reconstruction <- tcrossprod(loading)
+  diag(reconstruction) <- diag(reconstruction) + diagonal
+  residual <- max(abs(reconstruction - covariance)) / scale
+  if (!is.finite(residual) || residual > tolerance) {
+    return(NULL)
+  }
+
+  supports <- lapply(seq_len(ncol(loading)), function(column) {
+    which(loading[, column] != 0)
+  })
+  list(
+    method   = "minimum_rank",
+    diagonal = diagonal,
+    loading  = loading,
+    rank     = ncol(loading),
+    levels   = numeric(0),
+    supports = supports,
+    support  = .covariance_support_shape(supports),
+    residual = residual,
+    depth    = NA_integer_
+  )
+}
+
+
+# Candidate loadings for one rank. Rank one is determined in closed form by any
+# triple of distinct rows; higher ranks start from the classical principal
+# factor iteration, from the plain truncated spectrum, and from fixed residual
+# fractions of the supplied variances. The exact representations of a block are
+# a manifold when the off-diagonal system is underdetermined, and only part of
+# it keeps every residual variance positive, so several starts are tried and
+# each is also offered shrunk inside the feasible region.
+.covariance_low_rank_starts <- function(covariance, rank) {
+
+  if (rank == 1L) {
+    start <- .covariance_rank_one_start(covariance)
+    return(if (is.null(start)) list() else list(start))
+  }
+
+  size     <- nrow(covariance)
+  variance <- diag(covariance)
+  truncate <- function(diagonal) {
+    reduced <- covariance
+    diag(reduced) <- variance - diagonal
+    decomposition <- eigen(reduced, symmetric = TRUE)
+    values <- pmax(decomposition[["values"]][seq_len(rank)], 0)
+    if (anyNA(values) || any(!is.finite(values))) {
+      return(NULL)
+    }
+    decomposition[["vectors"]][, seq_len(rank), drop = FALSE] *
+      rep(sqrt(values), each = size)
+  }
+
+  spectral <- truncate(rep(0, size))
+  if (is.null(spectral)) {
+    return(list())
+  }
+  diagonal <- pmin(pmax(variance - rowSums(spectral^2), 0), variance)
+  factored <- spectral
+  for (iteration in seq_len(200L)) {
+    candidate <- truncate(diagonal)
+    if (is.null(candidate)) {
+      break
+    }
+    factored <- candidate
+    updated  <- pmin(pmax(variance - rowSums(factored^2), 0), variance)
+    if (max(abs(updated - diagonal)) <= .Machine$double.eps * max(variance)) {
+      break
+    }
+    diagonal <- updated
+  }
+
+  starts <- c(list(factored, spectral),
+              lapply(c(.25, .6), function(fraction) {
+                truncate(fraction * variance)
+              }))
+  starts <- Filter(Negate(is.null), starts)
+  # Row-scaling a start into the interior costs nothing and changes which
+  # exact representation the refinement converges to when several exist.
+  interior <- lapply(starts, function(start) {
+    total <- rowSums(start^2)
+    scale <- sqrt(pmin(1, .5 * variance / pmax(total, .Machine$double.xmin)))
+    start * scale
+  })
+
+  c(starts, interior)
+}
+
+
+.covariance_rank_one_start <- function(covariance) {
+
+  size <- nrow(covariance)
+  off  <- abs(covariance)
+  diag(off) <- 0
+  if (max(off) <= 0) {
+    return(NULL)
+  }
+
+  if (size == 2L) {
+    # Two rows leave one degree of freedom. Splitting the covariance in the
+    # proportion of the supplied variances keeps both residual variances
+    # non-negative whenever any exact representation does.
+    correlation <- covariance[1L, 2L] /
+      sqrt(covariance[1L, 1L] * covariance[2L, 2L])
+    if (!is.finite(correlation) || abs(correlation) > 1) {
+      return(NULL)
+    }
+    magnitude <- sqrt(abs(correlation) * diag(covariance))
+    return(matrix(
+      c(magnitude[[1L]], sign(correlation) * magnitude[[2L]]), 2L, 1L
+    ))
+  }
+
+  # u_p^2 = V_pj V_pk / V_jk holds for any three distinct rows of an exact
+  # rank-one representation. Choose the most strongly related rows for it.
+  pivot  <- which.max(apply(off, 1L, max))
+  others <- setdiff(seq_len(size), pivot)
+  block  <- off[others, others, drop = FALSE]
+  if (max(block) <= 0) {
+    return(NULL)
+  }
+  pair <- which(block == max(block), arr.ind = TRUE)[1L, ]
+  j <- others[[pair[[1L]]]]
+  k <- others[[pair[[2L]]]]
+  squared <- covariance[pivot, j] * covariance[pivot, k] / covariance[j, k]
+  if (!is.finite(squared) || squared <= 0) {
+    return(NULL)
+  }
+
+  value   <- sqrt(squared)
+  loading <- covariance[pivot, ] / value
+  loading[[pivot]] <- value
+  matrix(loading, ncol = 1L)
+}
+
+
+# Refine the loadings against the off-diagonal entries alone. The diagonal is
+# not a residual: it is recovered from the loadings afterwards, so the system
+# has `n (n - 1) / 2` equations in `n r` unknowns and Gauss-Newton converges
+# quadratically near an exact representation. Rotations of U leave the residual
+# unchanged, so the normal equations are damped rather than solved exactly.
+.covariance_low_rank_polish <- function(covariance, loading,
+                                        iterations = 80L) {
+
+  size  <- nrow(covariance)
+  rank  <- ncol(loading)
+  scale <- max(abs(covariance))
+  pairs <- which(upper.tri(covariance), arr.ind = TRUE)
+  rows  <- pairs[, 1L]
+  cols  <- pairs[, 2L]
+  target <- covariance[cbind(rows, cols)]
+
+  residual_of <- function(value) {
+    target - rowSums(value[rows, , drop = FALSE] * value[cols, , drop = FALSE])
+  }
+  current <- residual_of(loading)
+  best    <- max(abs(current))
+  if (!is.finite(best)) {
+    return(loading)
+  }
+  damping <- 1e-9 * max(scale, 1e-300)
+
+  for (iteration in seq_len(iterations)) {
+    if (best <= .Machine$double.eps * scale) {
+      break
+    }
+    # The normal equations of the Gauss-Newton system have a closed block form,
+    # so neither the Jacobian nor its cross-product is ever materialized from
+    # the pair list: (A'A)[(k,a),(l,b)] is U[l,a] U[k,b] off the diagonal and
+    # the k-th deleted Gram entry on it, and (A'r)[k,a] is (R U)[k,a].
+    residual_matrix <- matrix(0, size, size)
+    residual_matrix[cbind(rows, cols)] <- current
+    residual_matrix[cbind(cols, rows)] <- current
+    gradient <- as.vector(residual_matrix %*% loading)
+    gram     <- crossprod(loading)
+    normal   <- matrix(0, size * rank, size * rank)
+    for (a in seq_len(rank)) {
+      for (b in seq_len(rank)) {
+        value <- tcrossprod(loading[, b], loading[, a])
+        diag(value) <- gram[a, b] - loading[, a] * loading[, b]
+        normal[(a - 1L) * size + seq_len(size),
+               (b - 1L) * size + seq_len(size)] <- value
+      }
+    }
+
+    step <- tryCatch(
+      solve(normal + diag(damping, nrow(normal)), gradient),
+      error = function(e) NULL
+    )
+    if (is.null(step) || anyNA(step) || any(!is.finite(step))) {
+      break
+    }
+    candidate <- loading + matrix(step, size, rank)
+    proposed  <- residual_of(candidate)
+    if (all(is.finite(proposed)) && max(abs(proposed)) < best) {
+      loading <- candidate
+      current <- proposed
+      best    <- max(abs(proposed))
+      damping <- damping / 10
+    } else {
+      damping <- damping * 10
+      if (damping > scale) {
+        break
+      }
+    }
+  }
+
+  loading
 }
 
 
