@@ -313,6 +313,13 @@ inline void upper_tail_affine(const double *mean, std::size_t count,
     return;
   }
 #endif
+  // std::fma here is deliberate, and is the one place the lane keeps it: the
+  // AVX2 region forms the same score with a fused multiply-add, so the two
+  // lanes agree bit for bit only if this one does too. Without hardware FMA it
+  // becomes a library call: 18.4 ns per value against 9.2 ns with -mfma, over
+  // 1e7 arguments at -O2 with the vector region forced off. That is the price
+  // of the agreement on such a build, and the lane is still ahead of the
+  // library erfc it replaces (23.0 ns in the same harness).
   for (std::size_t index = 0; index < count; ++index) {
     out[index] = scalar_kernel::upper_tail(
       std::fma(-mean[index], inverse_sd, offset));
