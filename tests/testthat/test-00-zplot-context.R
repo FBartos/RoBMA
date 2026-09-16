@@ -126,6 +126,48 @@ test_that("point contexts agree with an analytic Gaussian orthant identity", {
 })
 
 
+test_that("a batch of point contexts is the average of their full-event densities", {
+
+  # Each retained realization keeps its own full-event normalizer, so the batch
+  # target is the average of ratios, checked here against the independent
+  # bivariate reference. A batch of one is the single-context projection.
+  sei <- c(.7, 1.3)
+  covariance <- matrix(c(.61, .364, .364, 1.81), 2L)
+  z <- c(-.7, .3, 1.6, 2.4)
+  context <- .zplot_context_test_selection(sei, cutoff = 0)
+  control <- set_selection_likelihood_control(relative_tolerance = .001)
+  locations <- rbind(c(-.4, .1), c(0, 0), c(.3, .5), c(.8, -.2), c(-.1, .9))
+
+  single <- .zplot_context_projection(z, locations[3L, ], covariance,
+    matrix(0, 1L, 2L), sei, context, control)
+  expect_identical(
+    .zplot_context_projection(z, locations[3L, ], covariance, matrix(0, 1L, 2L),
+      sei, context, control, context_means = locations[3L, , drop = FALSE]),
+    single
+  )
+
+  batch <- .zplot_context_projection(z, colMeans(locations), covariance,
+    matrix(0, 1L, 2L), sei, context, control, context_means = locations)
+  expect_type(batch, "list")
+  expect_lte(batch$relative_error, control$relative_tolerance)
+  expect_lte(batch$mass_error, control$relative_tolerance)
+  expected <- colMeans(.zplot_context_test_bivariate_density(locations, covariance, sei, z))
+  expect_lt(max(abs(as.numeric(batch$density) - expected)),
+            batch$integration_error[["absolute"]] + 1e-6)
+  # The same nodes projected one at a time give the same curve.
+  separate <- colMeans(do.call(rbind, lapply(seq_len(nrow(locations)), function(row) {
+    .zplot_context_projection(z, locations[row, ], covariance, matrix(0, 1L, 2L),
+      sei, context, control)$density[1L, ]
+  })))
+  expect_lt(max(abs(as.numeric(batch$density) - separate)), 1e-4 * max(separate))
+
+  # A batch must stay a set of point contexts.
+  expect_error(.zplot_context_projection(z, colMeans(locations), covariance,
+    matrix(.1, 1L, 2L), sei, context, control, context_means = locations),
+    "batched context projection inputs are invalid", fixed = TRUE)
+})
+
+
 test_that("equivalent selection partitions give identical checked context projections", {
 
   sei <- c(.7, 1.3)
@@ -215,7 +257,8 @@ test_that("the aggregate curve rejects non-negligible conditional errors", {
   control <- set_selection_likelihood_control(points_per_scramble = 8L,
     max_points_per_scramble = 8L, scrambles = 2L)
   testthat::local_mocked_bindings(.zplot_context_projection = function(
-      z, mean, covariance, context_factor, sei, selection, control, absolute_tolerance = NULL) {
+      z, mean, covariance, context_factor, sei, selection, control, absolute_tolerance = NULL,
+      context_means = NULL) {
     list(density = matrix(1e-4, 1L, length(z)), relative_error = Inf, mass_error = 0,
       integration_error = c(absolute = absolute_tolerance / 2))
   })

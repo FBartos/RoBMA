@@ -649,7 +649,8 @@
   point_projection <- !probability && !factor_projection && k > 1L &&
     is.null(rank_one) && context[["vector_rule"]] == 0L &&
     context[["kernel_mode"]] == SELKERNEL_STEP && all(context[["omega"]] > 0)
-  project <- function(means, absolute_tolerance = NULL, diagnostics = FALSE) {
+  project <- function(means, absolute_tolerance = NULL, diagnostics = FALSE,
+                      groups = seq_len(nrow(means))) {
 
     # The outer QMC nodes are fixed retained realizations. Each therefore has
     # a point-context full-event density, including the same original dense
@@ -662,16 +663,28 @@
     absolute_error <- mass_error <- numeric(nrow(means))
     pending <- logical(nrow(means))
     point_factor <- matrix(0, 1L, k)
-    for (row in seq_len(nrow(means))) {
-      projected <- .zplot_context_projection(z, as.numeric(means[row, ]), sigma,
-        point_factor, sei, context, control, absolute_tolerance)
+    # Nodes differ only in their context mean, so they are projected together:
+    # one certified projection of a batch's equal-weight average replaces one
+    # per node, whose setup and native calls dominated the cost. A batch never
+    # mixes scrambles, so each scramble's node sum and the spread between
+    # scrambles the outer error rests on are unchanged; every node of a batch
+    # carries the batch average and its bound.
+    batches <- unlist(lapply(split(seq_len(nrow(means)), groups), function(rows) {
+      split(rows, ceiling(seq_along(rows) / .zplot_context_batch_size()))
+    }), recursive = FALSE, use.names = FALSE)
+    for (rows in batches) {
+      batch <- means[rows, , drop = FALSE]
+      projected <- .zplot_context_projection(z, colMeans(batch), sigma,
+        point_factor, sei, context, control, absolute_tolerance,
+        context_means = batch)
       if (is.null(projected)) {
-        pending[row] <- TRUE
+        pending[rows] <- TRUE
       } else {
-        output[row, ] <- .zplot_context_projection_density(
-          projected, z, control, absolute_tolerance)[1L, ]
-        absolute_error[row] <- projected[["integration_error"]][["absolute"]]
-        mass_error[row] <- projected[["mass_error"]]
+        density <- .zplot_context_projection_density(
+          projected, z, control, absolute_tolerance)
+        output[rows, ] <- matrix(density[1L, ], length(rows), length(z), byrow = TRUE)
+        absolute_error[rows] <- projected[["integration_error"]][["absolute"]]
+        mass_error[rows] <- projected[["mass_error"]]
       }
     }
     pending <- which(pending)
@@ -725,7 +738,8 @@
       uniforms <- get(key, designs)[, seq.int(used + 1L, points), , drop = FALSE]
       contexts <- matrix(stats::qnorm(uniforms), (points - used) * scrambles, k) %*% factor
       means <- sweep(contexts, 2L, mean, "+")
-      values <- project(means, point_absolute_tolerance, diagnostics = point_projection)
+      values <- project(means, point_absolute_tolerance, diagnostics = point_projection,
+        groups = rep(seq_len(scrambles), points - used))
       sums <- sums + rowsum(values, rep(seq_len(scrambles), points - used), reorder = FALSE)
       numerical <- attr(values, "integration_error", exact = TRUE)
       if (!is.null(numerical)) {

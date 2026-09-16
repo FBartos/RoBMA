@@ -33,6 +33,13 @@
   `pilot_gate_stopped` and `pilot_bulk_ess` columns, so a line whose refinement
   was cut short says so and names the bulk effective sample size it stopped on.
   Both were recorded internally and then dropped before any consumer saw them.
+- projects the retained contexts of a conditioned-random-effect zplot in
+  batches instead of one certified projection per quasi-Monte Carlo node. Each
+  node differs only in its context mean, and the native kernel already
+  integrates a set of contexts, each at its own normalizer; batches stay within
+  one scramble, so the node sums and the scramble spread the error gate reads
+  are unchanged. A 22-row Assink block that could not finish one draw now takes
+  4.6 s, and the curves agree with the per-node projection to 1e-6 of the peak.
 - repairs the certified covariance-sweep interpolation, which could not run.
   Three independent defects had kept it out of reach: the family quantity was
   resolved through a transform's name rather than the transform, so every state

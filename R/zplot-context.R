@@ -92,8 +92,19 @@
 # Called with a validated single-row selection context and metadata-prepared
 # retained Gaussian factors. NULL delegates this cell to the existing full-event
 # implementation; no alternative target, partial result or false pass is returned.
+# Point contexts projected in one call. Each carries its own mixture over the
+# inner rules, so the native work and memory of a call grow with the batch;
+# this keeps a 22-row block near 40 MB per call.
+.zplot_context_batch_size <- function() 512L
+
+
+# `context_means` projects a batch of point contexts at once: the equal-weight
+# average of their full-event densities, each normalized at its own context,
+# which is what a Monte Carlo average over retained realizations consumes. One
+# point context is the batch of one, so the single-row call is unchanged.
 .zplot_context_projection <- function(z, mean, covariance, context_factor, sei,
-                                      selection, control, absolute_tolerance = NULL) {
+                                      selection, control, absolute_tolerance = NULL,
+                                      context_means = NULL) {
 
   if (!is.null(absolute_tolerance) &&
       (!is.numeric(absolute_tolerance) || length(absolute_tolerance) != 1L ||
@@ -112,13 +123,22 @@
     is.matrix(context_factor), ncol(context_factor) == k,
     nrow(context_factor) >= 1L, all(is.finite(context_factor)),
     length(z) > 0L, all(is.finite(z)), all(is.finite(sei)), all(sei > 0))
+  if (!is.null(context_means) &&
+      (!is.matrix(context_means) || ncol(context_means) != k ||
+       nrow(context_means) < 1L || any(!is.finite(context_means)) ||
+       any(context_factor != 0))) {
+    stop("Internal error: batched context projection inputs are invalid.", call. = FALSE)
+  }
+  point_means <- if (is.null(context_means)) matrix(mean, 1L) else context_means
   if (!identical(covariance, t(covariance))) return(NULL)
   cholesky <- tryCatch(chol(covariance), error = function(e) NULL)
   if (is.null(cholesky)) return(NULL)
   sei <- as.double(sei)
   if (all(omega == omega[[1L]])) {
     sd <- sqrt(diag(covariance) + colSums(context_factor^2))
-    return(list(density = .zplot_normal_density_matrix(z, matrix(mean, 1L), matrix(sd, 1L), sei),
+    density <- .zplot_normal_density_matrix(z, point_means,
+      matrix(sd, nrow(point_means), k, byrow = TRUE), sei)
+    return(list(density = matrix(colMeans(density), 1L),
       relative_error = 0, mass_error = 0, mass_omission_error = 0, integration_error = c(absolute = 0)))
   }
   precision <- chol2inv(cholesky)
@@ -206,8 +226,11 @@
 
     key <- as.character(order)
     if (exists(key, tables, inherits = FALSE)) return(get(key, tables))
-    context_rule <- if (point_context) list(nodes = 0, log_weights = 0) else .gauss_hermite_nodes(order)
-    means <- if (point_context) matrix(mean, 1L) else
+    context_rule <- if (point_context) list(
+      nodes = rep(0, nrow(point_means)),
+      log_weights = rep(-log(nrow(point_means)), nrow(point_means))
+    ) else .gauss_hermite_nodes(order)
+    means <- if (point_context) point_means else
       sweep(outer(context_rule$nodes, as.numeric(context_factor)), 2L, mean, "+")
     log_context_mass <- log_sum(context_rule$log_weights)
     # Bound the normalized compact/full-C density ratio over the complete
@@ -215,8 +238,11 @@
     # The means are affine in one sorted context coordinate. Their actual
     # endpoint rows and the positive-SE grid endpoints give the same extrema
     # as the former repeated full-grid/row scans.
-    lower_mean <- pmin(means[1L, ], means[nrow(means), ])
-    upper_mean <- pmax(means[1L, ], means[nrow(means), ])
+    # A batch of point contexts has no such order; its column range bounds it.
+    lower_mean <- if (point_context) apply(means, 2L, min) else
+      pmin(means[1L, ], means[nrow(means), ])
+    upper_mean <- if (point_context) apply(means, 2L, max) else
+      pmax(means[1L, ], means[nrow(means), ])
     standardized_distance <- pmax(abs(grid_range[[1L]] * sei - upper_mean),
       abs(grid_range[[2L]] * sei - lower_mean)) /
       sqrt((1 - epsilon_actual) * diag(covariance))
@@ -251,7 +277,10 @@
     # A_q is monotone under the same structural conditions and has a known
     # positive floor including the literal inner quadrature-rule mass.
     log_floor_inverse <- -k * log(min(omega)) - integration_rank * log_sum(inner$log_weights)
-    continuous <- if (point_context) -log_A[[1L]] else log_floor_inverse
+    # Finitely many point contexts are their own rule: the weighted inverse
+    # normalizers are exact, and one context gives its own inverse.
+    continuous <- if (point_context) log_sum(table$rule$log_weights - log_A) else
+      log_floor_inverse
     if (!point_context) {
       signed_loading <- static$sign * as.numeric(context_factor)
       increasing_weight <- all(diff(omega) <= 0)
@@ -475,13 +504,20 @@
       outer_tail = fine$table$outer_tail, fine = fine)
   }
   reference_sd <- sqrt(diag(covariance) + colSums(context_factor^2))
-  reference_at <- function(index) mean(sei * stats::dnorm(z[[index]] * sei, mean, reference_sd))
+  reference_mean <- colMeans(point_means)
+  reference_at <- function(index) {
+
+    heights <- stats::dnorm(
+      matrix(z[[index]] * sei, nrow(point_means), k, byrow = TRUE), point_means,
+      matrix(reference_sd, nrow(point_means), k, byrow = TRUE))
+    mean(sei * colMeans(heights))
+  }
   component_height <- sei / reference_sd
   reference_indices <- integer()
   if (all(is.finite(component_height)) && any(component_height > 0)) {
     highest <- which.max(component_height)
-    anchor <- mean[[highest]] / sei[[highest]]
-    central <- sum(mean / reference_sd) / sum(component_height)
+    anchor <- reference_mean[[highest]] / sei[[highest]]
+    central <- sum(reference_mean / reference_sd) / sum(component_height)
     if (is.finite(anchor) && is.finite(central)) {
       reference_indices <- unique(c(which.min(abs(z - anchor)), which.min(abs(z - central))))
     }
