@@ -82,3 +82,28 @@ test_that("the pilot bulk ESS reads the central mass of the pilot curve", {
     display_grid = display_grid[1:2], log_q_display = log_q,
     log_normalizer = rep(0, 3L), active_mass = 1, denominator = 3L)))
 })
+
+
+test_that("a stopped line reports the gate and the value it stopped on", {
+
+  # The verdict and the values behind it were recorded on the density curve and
+  # then dropped before any consumer saw them. They belong in the public
+  # diagnostics, so a user can tell a line whose refinement was cut short from
+  # one that settled on its own.
+  template <- .iwmde_empty_public_density_diagnostics()
+  expect_true(all(c("pilot_gate_stopped", "pilot_bulk_ess") %in% names(template)))
+  expect_identical(typeof(template[["pilot_gate_stopped"]]), "logical")
+  expect_identical(typeof(template[["pilot_bulk_ess"]]), "double")
+
+  # The gate compares the largest pilot value against the minimum it needs, so
+  # that is the one a stopped line has to report.
+  expect_identical(.iwmde_pilot_gate_bulk_ess(c(25.9, 24.1)), 25.9)
+  expect_identical(.iwmde_pilot_gate_bulk_ess(c(25.9, NA_real_, Inf)), 25.9)
+  expect_true(is.na(.iwmde_pilot_gate_bulk_ess(numeric(0))))
+  expect_true(is.na(.iwmde_pilot_gate_bulk_ess(NULL)))
+
+  # An estimator that keeps no pilot sequence reports no value rather than a
+  # number that would read as a measurement.
+  expect_true(is.na(.iwmde_public_logical(NULL)))
+  expect_true(is.na(.iwmde_public_numeric(.iwmde_pilot_gate_bulk_ess(NULL))))
+})

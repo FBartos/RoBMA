@@ -65,8 +65,9 @@
 #' computed point ordinate. Columns identify the estimator, parameter, requested
 #' and evaluated values, schema/source provenance, row counts, active mass,
 #' relative MCSE, ESS, largest contribution share, finite terms, normalization
-#' and quadrature checks, fixed-sampling state, policy thresholds, weight
-#' fallbacks, status, and warnings.
+#' and quadrature checks, whether the qCMDE pilot gate stopped refinement and
+#' the bulk effective sample size it stopped on, fixed-sampling state, policy
+#' thresholds, weight fallbacks, status, and warnings.
 #'
 #' The exact columns, in order, are `schema_version`, `algorithm_version`,
 #' `source_fingerprint`, `estimator`, `density_method`, `parameter`, `level`,
@@ -79,7 +80,8 @@
 #' `sampling_uncertainty_type`, `ess`, `max_weight_share`,
 #' `normalization_relative_error`, `stability_metric`,
 #' `stability_relative_error`, `ordinate_relative_change`,
-#' `quadrature_relative_change`, `target_relative_mcse`,
+#' `quadrature_relative_change`, `pilot_gate_stopped`, `pilot_bulk_ess`,
+#' `target_relative_mcse`,
 #' `stability_warning_threshold`, `stability_rejection_threshold`,
 #' `quadrature_warning_threshold`, `quadrature_rejection_threshold`,
 #' `warning_relative_mcse`, `warning_min_finite_terms`, `warning_min_ess`,
@@ -307,6 +309,12 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     quadrature_relative_change = .iwmde_public_numeric(
       diagnostics[["max_quadrature_relative_change"]]
     ),
+    pilot_gate_stopped = .iwmde_public_logical(
+      diagnostics[["pilot_gate_stopped"]]
+    ),
+    pilot_bulk_ess = .iwmde_public_numeric(
+      .iwmde_pilot_gate_bulk_ess(diagnostics[["pilot_bulk_ess"]])
+    ),
     target_relative_mcse = .iwmde_public_numeric_any(
       diagnostics,
       "target_relative_mcse",
@@ -363,6 +371,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     normalization_relative_error = numeric(),
     stability_metric = character(), stability_relative_error = numeric(),
     ordinate_relative_change = numeric(), quadrature_relative_change = numeric(),
+    pilot_gate_stopped = logical(), pilot_bulk_ess = numeric(),
     target_relative_mcse = numeric(), stability_warning_threshold = numeric(),
     stability_rejection_threshold = numeric(),
     quadrature_warning_threshold = numeric(),
@@ -406,6 +415,20 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   }
 
   return(diagnostics)
+}
+
+
+# The pilot gate stops on the largest bulk effective sample size it saw, so that
+# is the value a stopped line has to report.
+.iwmde_pilot_gate_bulk_ess <- function(value) {
+
+  value <- suppressWarnings(as.numeric(value))
+  value <- value[is.finite(value)]
+  if (length(value) == 0L) {
+    return(NA_real_)
+  }
+
+  max(value)
 }
 
 

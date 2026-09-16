@@ -21,6 +21,10 @@
   by a per-rank rule count: the nested rule spends `order^(depth + 1)` nodes and
   the tensor fallback `order^rank`, so a forest of many factors costs what its
   depth costs. Blocks of rank four and below reach the same rules as before.
+- reports the qCMDE pilot gate through `density_diagnostics()`, in the new
+  `pilot_gate_stopped` and `pilot_bulk_ess` columns, so a line whose refinement
+  was cut short says so and names the bulk effective sample size it stopped on.
+  Both were recorded internally and then dropped before any consumer saw them.
 - repairs the certified covariance-sweep interpolation, which could not run.
   Three independent defects had kept it out of reach: the family quantity was
   resolved through a transform's name rather than the transform, so every state

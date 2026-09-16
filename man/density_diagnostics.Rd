@@ -19,8 +19,9 @@ A data frame of class \code{RoBMA_density_diagnostics}, with one row per
 computed point ordinate. Columns identify the estimator, parameter, requested
 and evaluated values, schema/source provenance, row counts, active mass,
 relative MCSE, ESS, largest contribution share, finite terms, normalization
-and quadrature checks, fixed-sampling state, policy thresholds, weight
-fallbacks, status, and warnings.
+and quadrature checks, whether the qCMDE pilot gate stopped refinement and
+the bulk effective sample size it stopped on, fixed-sampling state, policy
+thresholds, weight fallbacks, status, and warnings.
 
 The exact columns, in order, are \code{schema_version}, \code{algorithm_version},
 \code{source_fingerprint}, \code{estimator}, \code{density_method}, \code{parameter}, \code{level},
@@ -33,7 +34,8 @@ The exact columns, in order, are \code{schema_version}, \code{algorithm_version}
 \code{sampling_uncertainty_type}, \code{ess}, \code{max_weight_share},
 \code{normalization_relative_error}, \code{stability_metric},
 \code{stability_relative_error}, \code{ordinate_relative_change},
-\code{quadrature_relative_change}, \code{target_relative_mcse},
+\code{quadrature_relative_change}, \code{pilot_gate_stopped}, \code{pilot_bulk_ess},
+\code{target_relative_mcse},
 \code{stability_warning_threshold}, \code{stability_rejection_threshold},
 \code{quadrature_warning_threshold}, \code{quadrature_rejection_threshold},
 \code{warning_relative_mcse}, \code{warning_min_finite_terms}, \code{warning_min_ess},
