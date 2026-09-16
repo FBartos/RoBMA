@@ -21,6 +21,14 @@
   by a per-rank rule count: the nested rule spends `order^(depth + 1)` nodes and
   the tensor fallback `order^rank`, so a forest of many factors costs what its
   depth costs. Blocks of rank four and below reach the same rules as before.
+- integrates factor blocks whose loading supports the nested rule cannot
+  reduce -- supports that are not a forest, and the dense supports exact
+  recovery produces -- on a Smolyak sparse grid built from the same
+  Gauss-Hermite sequence, instead of falling back to randomized quasi-Monte
+  Carlo. Its combination coefficients are signed but every rule it combines is
+  a positive product integral, and it is accepted on the same successive-level
+  diagnostic and tail-coverage check as the dense sequences. Blocks that were
+  already accepted are unchanged.
 - evaluates the standard-normal tails inside every selection kernel in one
   batched, vectorized pass instead of one library `erfc` call per quadrature
   point, which is what those kernels spend most of their time on. The

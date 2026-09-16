@@ -1409,10 +1409,9 @@ test_that("the factor node budget, not the rank, bounds the deterministic ladder
   expect_identical(forest_result[["relative_mcse"]], 0)
   expect_lte(forest_result[["relative_change"]], .005)
 
-  # The same rank with cyclically overlapping supports is not a forest, so only
-  # the tensor rule remains and the budget affords a single rung at order three.
-  # One rung cannot produce two successive changes, so the randomized fallback
-  # owns this block; its estimate must still agree with the forest-free oracle.
+  # The same rank with cyclically overlapping supports is not a forest, so the
+  # tensor rule is all the sequence has and the budget affords one rung of it at
+  # order three. The sparse grid owns this block instead, and stays exact.
   cyclic <- matrix(0, K, K)
   for (column in seq_len(K)) {
     cyclic[c(column, column %% K + 1L), column] <- .12
@@ -1420,9 +1419,10 @@ test_that("the factor node budget, not the rank, bounds the deterministic ladder
   expect_identical(
     .selection_factor_support_forest_depth(cyclic != 0), NA_integer_
   )
+  expect_false(.selnorm_factor_rule_affordable(5L, K))
   cyclic_result <- run(cyclic)
-  expect_gt(cyclic_result[["relative_mcse"]], 0)
-  expect_lte(cyclic_result[["relative_mcse"]], .005)
+  expect_identical(cyclic_result[["relative_mcse"]], 0)
+  expect_lte(cyclic_result[["relative_change"]], .005)
 
   covariance <- diag(residual_sd^2) + tcrossprod(cyclic)
   assignments <- expand.grid(rep(list(seq_along(omega)), K))
@@ -1437,5 +1437,5 @@ test_that("the factor node budget, not the rank, bounds the deterministic ladder
     )))
   })
   expect_equal(cyclic_result[["log_normalizer"]], log(sum(terms)),
-               tolerance = .005)
+               tolerance = 1e-4)
 })

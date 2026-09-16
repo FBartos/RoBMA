@@ -2997,6 +2997,224 @@ double factor_rule_log_integral(const FactorNormalizerContext &context,
   return out;
 }
 
+// Sparse-grid quadrature for factor supports that are not a forest. Such a
+// block has no cheaper exact structure, and its tensor rule costs
+// `order^rank`, which the node budget refuses above a low order once the rank
+// passes four. A Smolyak combination of the same Gauss-Hermite sequence
+// reaches a comparable total-degree exactness in far fewer nodes.
+//
+// The combination coefficients are signed. Every tensor rule it combines is a
+// positive product integral evaluated exactly as the dense rules are, so the
+// row kernels keep their unsigned accumulation and only the outer sum is
+// signed; a combination that leaves the positive orthant is declined rather
+// than reported.
+#define SELNORM_FACTOR_SMOLYAK_MAX_LEVELS 8
+
+struct FactorSmolyakLevels {
+  int count = 0;
+  const double *nodes[SELNORM_FACTOR_SMOLYAK_MAX_LEVELS];
+  const double *log_weights[SELNORM_FACTOR_SMOLYAK_MAX_LEVELS];
+  int offset[SELNORM_FACTOR_SMOLYAK_MAX_LEVELS];
+  int order[SELNORM_FACTOR_SMOLYAK_MAX_LEVELS];
+};
+
+// The one-point rule anchors the coarsest sparse-grid level. The shared
+// sequence starts at three because the dense rules never need a coarser rule,
+// but without it every level difference costs a factor of order three per
+// axis and the grid cannot climb at all above rank five.
+const double selnorm_smolyak_single_node = 0.0;
+const double selnorm_smolyak_single_log_weight = 0.0;
+
+// Take a roughly doubling subsequence of the shared rule sequence. Successive
+// sparse-grid levels must gain enough exactness to make their level difference
+// an error estimate; consecutive rungs of the dense ladder do not.
+bool factor_smolyak_levels(const double *nodes, const double *log_weights,
+                           const double *orders, int rule_count,
+                           FactorSmolyakLevels *out)
+{
+  out->count = 1;
+  out->nodes[0] = &selnorm_smolyak_single_node;
+  out->log_weights[0] = &selnorm_smolyak_single_log_weight;
+  out->offset[0] = -1;
+  out->order[0] = 1;
+  int offset = 0;
+  int previous = 1;
+  for (int rule = 0; rule < rule_count; ++rule) {
+    const double raw = orders[rule];
+    const int order = static_cast<int>(raw);
+    if (!std::isfinite(raw) || raw != static_cast<double>(order) || order < 1) {
+      return false;
+    }
+    if (order >= 2 * previous &&
+        out->count < SELNORM_FACTOR_SMOLYAK_MAX_LEVELS) {
+      out->nodes[out->count] = nodes + offset;
+      out->log_weights[out->count] = log_weights + offset;
+      out->offset[out->count] = offset;
+      out->order[out->count] = order;
+      previous = order;
+      ++out->count;
+    }
+    offset += order;
+  }
+  return out->count >= 3;
+}
+
+// One anisotropic tensor rule over the factor axes, expanded one axis at a
+// time so each row's normalizers are evaluated in one batched pass.
+bool factor_anisotropic_rule_integral(
+    const FactorNormalizerContext &context, const double *const *nodes,
+    const double *const *log_weights, const int *order,
+    std::vector<long double> *value, std::vector<double> *conditional,
+    long double *result)
+{
+  std::size_t total = 1;
+  for (int axis = 0; axis < context.rank; ++axis) {
+    total *= static_cast<std::size_t>(order[axis]);
+  }
+  value->assign(total, 1.0L);
+  conditional->resize(total);
+
+  std::size_t lower_size = 1;
+  for (int axis = 0; axis < context.rank; ++axis) {
+    const int points = order[axis];
+    // Visit node zero last: it reuses the prefix that the other slices read.
+    for (int point = points - 1; point >= 0; --point) {
+      const long double weight = std::exp(
+        static_cast<long double>(log_weights[axis][point])
+      );
+      for (std::size_t lower = 0; lower < lower_size; ++lower) {
+        (*value)[lower + static_cast<std::size_t>(point) * lower_size] =
+          (*value)[lower] * weight;
+      }
+    }
+    lower_size *= static_cast<std::size_t>(points);
+  }
+
+  for (int row = 0; row < context.dimension; ++row) {
+    (*conditional)[0] = context.mean[row];
+    lower_size = 1;
+    for (int axis = 0; axis < context.rank; ++axis) {
+      const double coefficient =
+        context.loading[row + context.dimension * axis];
+      const int points = order[axis];
+      for (int point = points - 1; point >= 0; --point) {
+        const double shift = coefficient * nodes[axis][point];
+        for (std::size_t lower = 0; lower < lower_size; ++lower) {
+          (*conditional)[lower + static_cast<std::size_t>(point) * lower_size] =
+            (*conditional)[lower] + shift;
+        }
+      }
+      lower_size *= static_cast<std::size_t>(points);
+    }
+    if (!cpp_selnorm_step_normalizer_product(
+          conditional->data(), total, context.residual_sd[row],
+          context.selection_se[row], context.omega, context.selection,
+          value->data())) {
+      return false;
+    }
+  }
+
+  long double sum = 0.0L;
+  for (std::size_t point = 0; point < total; ++point) sum += (*value)[point];
+  if (!(sum > 0.0L) || !std::isfinite(sum)) return false;
+  *result = sum;
+  return true;
+}
+
+// Visit every level multi-index of the Smolyak combination at level `total`.
+// Indices are one-based level numbers; an index vector contributes when its
+// sum lies in [total - rank + 1, total].
+template <typename Visit>
+void factor_smolyak_indices(int rank, int level_count, int total, Visit visit)
+{
+  std::vector<int> index(static_cast<std::size_t>(rank), 1);
+  const int lower = total - rank + 1;
+  // Depth-first walk with the remaining-axes bounds used for pruning.
+  const auto recurse = [&](auto &&self, int position, int prefix) -> void {
+    const int remaining = rank - position;
+    if (remaining == 0) {
+      if (prefix >= lower) visit(index.data());
+      return;
+    }
+    for (int level = 1; level <= level_count; ++level) {
+      const int next = prefix + level;
+      // Every remaining axis contributes at least one and at most level_count.
+      if (next + (remaining - 1) > total) break;
+      if (next + (remaining - 1) * level_count < lower) continue;
+      index[static_cast<std::size_t>(position)] = level;
+      self(self, position + 1, next);
+    }
+  };
+  recurse(recurse, 0, 0);
+}
+
+double factor_smolyak_binomial(int n, int k)
+{
+  if (k < 0 || k > n) return 0.0;
+  double out = 1.0;
+  for (int step = 0; step < k; ++step) {
+    out = out * (n - step) / (step + 1);
+  }
+  return out;
+}
+
+// The sparse-grid integral at one level, or false when the level exceeds the
+// node budget, a sub-rule fails, or the signed combination is not positive.
+bool factor_smolyak_log_integral(
+    const FactorNormalizerContext &context, const FactorSmolyakLevels &levels,
+    int total, double *result)
+{
+  const int rank = context.rank;
+  if (rank < 1 || total < rank) return false;
+
+  double nodes_used = 0.0;
+  factor_smolyak_indices(rank, levels.count, total, [&](const int *index) {
+    double size = 1.0;
+    for (int axis = 0; axis < rank; ++axis) {
+      size *= levels.order[index[axis] - 1];
+    }
+    nodes_used += size;
+  });
+  if (!(nodes_used > 0.0) || nodes_used > SELNORM_FACTOR_NODE_BUDGET) {
+    return false;
+  }
+
+  std::vector<const double *> axis_nodes(static_cast<std::size_t>(rank));
+  std::vector<const double *> axis_log_weights(static_cast<std::size_t>(rank));
+  std::vector<int> order(static_cast<std::size_t>(rank));
+  std::vector<long double> value;
+  std::vector<double> conditional;
+  long double combination = 0.0L;
+  bool ok = true;
+  factor_smolyak_indices(rank, levels.count, total, [&](const int *index) {
+    if (!ok) return;
+    int sum = 0;
+    for (int axis = 0; axis < rank; ++axis) {
+      const int level = index[axis] - 1;
+      axis_nodes[static_cast<std::size_t>(axis)] = levels.nodes[level];
+      axis_log_weights[static_cast<std::size_t>(axis)] =
+        levels.log_weights[level];
+      order[static_cast<std::size_t>(axis)] = levels.order[level];
+      sum += index[axis];
+    }
+    long double partial = 0.0L;
+    if (!factor_anisotropic_rule_integral(context, axis_nodes.data(),
+          axis_log_weights.data(), order.data(), &value, &conditional,
+          &partial)) {
+      ok = false;
+      return;
+    }
+    const int difference = total - sum;
+    const double coefficient = factor_smolyak_binomial(rank - 1, difference) *
+      ((difference % 2 == 0) ? 1.0 : -1.0);
+    combination += static_cast<long double>(coefficient) * partial;
+  });
+  if (!ok || !(combination > 0.0L) || !std::isfinite(combination)) return false;
+
+  *result = static_cast<double>(std::log(combination));
+  return std::isfinite(*result);
+}
+
 double vector_dot(const std::vector<double> &x,
                   const std::vector<double> &y)
 {
@@ -3772,6 +3990,53 @@ double cpp_selnorm_factor_step_lpdf(
       previous_quadrature = current_quadrature;
       previous_quadrature_change = current_quadrature_change;
       quadrature_offset += quadrature_order;
+    }
+  }
+
+  // A support the nested rule cannot reduce keeps the tensor cost, which the
+  // node budget stops at a low order once the rank passes four. That is both a
+  // support that is not a forest and one whose forest is a chain, which is what
+  // minimum-rank recovery produces. Try the sparse grid before the randomized
+  // fallback; the sequence above is unchanged, so nothing that accepted there
+  // reaches this.
+  if (rank >= 3 && (!forest.valid || forest.max_depth + 1 >= rank)) {
+    FactorSmolyakLevels levels;
+    if (factor_smolyak_levels(quadrature_nodes, quadrature_log_weights,
+                              quadrature_orders, quadrature_rule_count,
+                              &levels)) {
+      double previous_sparse = 0.0;
+      double previous_sparse_change = std::numeric_limits<double>::infinity();
+      bool have_previous = false;
+      for (int total = rank; ; ++total) {
+        double current_sparse = 0.0;
+        if (!factor_smolyak_log_integral(context, levels, total,
+                                         &current_sparse)) break;
+        if (have_previous) {
+          const double change = cluster_relative_change(
+            previous_sparse, current_sparse
+          );
+          // The largest single-axis rule the combination reaches is the level
+          // that leaves every other axis at the coarsest rule. Its tails are
+          // what the grid can see; the one-point anchor certifies nothing.
+          const int top = std::min(total - rank, levels.count - 1);
+          if (top >= 1 && change <= relative_tolerance &&
+              previous_sparse_change <= relative_tolerance &&
+              quadrature_covers_gaussian_tails(
+                quadrature_nodes, levels.offset[top], levels.order[top], rank,
+                omega, n_bins, dimension, vector_rule, current_sparse,
+                relative_tolerance
+              )) {
+            *relative_change = change;
+            if (log_normalizer_out != nullptr) {
+              *log_normalizer_out = current_sparse;
+            }
+            return log_density - current_sparse;
+          }
+          previous_sparse_change = change;
+        }
+        previous_sparse = current_sparse;
+        have_previous = true;
+      }
     }
   }
 
