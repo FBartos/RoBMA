@@ -328,6 +328,25 @@ set_selection_likelihood_control <- function(
       call. = FALSE
     )
   }
+
+  .selection_joint_migrate_factor_quadrature(plan)
+}
+
+
+# Plans stored before the quadrature was budgeted by support shape kept one rule
+# sequence per factor rank, keyed by rank. The sequences are constants of the
+# code, not of the fit -- the model, the blocks and every other planned field
+# are unchanged -- so a stored plan takes the current ladder rather than being
+# unreadable. Refinement still stops on the same relative tolerance.
+.selection_joint_migrate_factor_quadrature <- function(plan) {
+
+  quadrature <- plan[["factor_quadrature"]]
+  if (is.null(quadrature) || !is.null(quadrature[["orders"]])) {
+    return(plan)
+  }
+
+  plan[["factor_quadrature"]] <- .selection_joint_factor_quadrature_rules()
+
   plan
 }
 

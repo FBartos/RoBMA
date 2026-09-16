@@ -44,6 +44,12 @@
   the Ledermann bound, above which every positive-definite block fits exactly
   and an exact fit says nothing about the block, so a genuinely unstructured
   block keeps its supplied entries and its general route.
+- keeps reading fits saved by earlier development builds of this cycle. Their
+  recovered known-`V` factors named the block-constant route in the status and
+  carried no per-block method, and their stored execution plans held one
+  quadrature rule sequence per factor rank rather than the single budgeted
+  ladder; both are now accepted and normalized on read, with the reconstruction
+  certificate still deciding whether a stored representation describes `V`.
 - integrates factor blocks whose loading supports the nested rule cannot
   reduce -- supports that are not a forest, and the dense supports exact
   recovery produces -- on a Smolyak sparse grid built from the same

@@ -287,3 +287,88 @@ test_that("a block with no low-rank structure declines without refinement", {
                8 * 80 * .Machine$double.eps)
   }
 })
+
+
+test_that("a fit stored under the earlier recovered status stays readable", {
+
+  # Recoveries saved before the minimum-rank search named the block-constant
+  # route in the status and carried no per-block `method`. The layout is
+  # otherwise the current one, and the reconstruction certificate is what
+  # decides whether it still describes 'V', so such a fit must keep working.
+  covariance <- matrix(.01, 4L, 4L)
+  diag(covariance) <- .05
+  known_V <- .known_v_canonicalize(.known_v_exact_symmetrize(covariance))
+  expect_identical(.known_v_certified_factor_status(known_V), "recovered")
+
+  legacy <- known_V
+  legacy[["certified_factor"]][["status"]] <- "recovered_block_constant"
+  legacy[["certified_factor"]][["blocks"]] <- lapply(
+    legacy[["certified_factor"]][["blocks"]],
+    function(block) block[setdiff(names(block), "method")]
+  )
+  expect_null(legacy[["certified_factor"]][["blocks"]][[1L]][["method"]])
+
+  expect_silent(.known_v_validate_certified_factor(legacy))
+  expect_identical(.known_v_certified_factor_status(legacy), "recovered")
+  migrated <- .known_v_update(legacy, list(singular = legacy[["singular"]]))
+  expect_identical(migrated[["certified_factor"]][["status"]], "recovered")
+  expect_identical(
+    migrated[["certified_factor"]][["blocks"]][[1L]][["method"]],
+    "block_constant"
+  )
+  expect_identical(.known_v_certified_factor_loading(migrated),
+                   .known_v_certified_factor_loading(known_V))
+  expect_identical(.known_v_certified_factor_diagonal(migrated),
+                   .known_v_certified_factor_diagonal(known_V))
+
+  # Migration names the route; it never excuses a representation that drifted.
+  damaged <- legacy
+  damaged[["certified_factor"]][["blocks"]][[1L]][["loading"]][1L, 1L] <- .3
+  expect_error(.known_v_validate_certified_factor(damaged),
+               "no longer reproduces", fixed = TRUE)
+})
+
+
+test_that("a plan stored with per-rank quadrature rules keeps its fit readable", {
+
+  # Plans saved before the quadrature was budgeted by support shape carried one
+  # rule sequence per factor rank, keyed by rank, at the same schema version.
+  # Those sequences are constants of the code, so a stored plan takes the
+  # current ladder instead of leaving the fit unreadable.
+  current <- .selection_joint_factor_quadrature_rules()
+  legacy_plan <- structure(
+    list(
+      schema_version     = 5L,
+      statistical_target = "conditional_gaussian_vector_selection",
+      block_methods      = "factor",
+      factor_ranks       = 3L,
+      factor_quadrature  = list(
+        `2` = list(nodes = 1, log_weights = 0, orders = c(3L, 5L, 7L),
+                   rule_counts = 3L),
+        `3` = list(nodes = 1, log_weights = 0, orders = c(3L, 5L),
+                   rule_counts = 2L)
+      )
+    ),
+    class = c("RoBMA_selection_execution_plan", "list")
+  )
+  expect_null(legacy_plan[["factor_quadrature"]][["orders"]])
+
+  data <- structure(list(), selection_execution_plan = legacy_plan)
+  migrated <- .data_selection_execution_plan(data)
+  expect_identical(migrated[["factor_quadrature"]], current)
+  # Nothing else about the plan is rewritten.
+  expect_identical(
+    migrated[setdiff(names(migrated), "factor_quadrature")],
+    legacy_plan[setdiff(names(legacy_plan), "factor_quadrature")]
+  )
+
+  # A current plan passes through untouched.
+  current_plan <- legacy_plan
+  current_plan[["factor_quadrature"]] <- current
+  expect_identical(
+    .data_selection_execution_plan(
+      structure(list(), selection_execution_plan = current_plan)
+    ),
+    current_plan
+  )
+})

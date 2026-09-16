@@ -170,7 +170,7 @@ known_v_factor <- function(diagonal, loading) {
     return(list(status = "declared"))
   }
 
-  known_V[["certified_factor"]]
+  .known_v_migrate_certified_factor(known_V[["certified_factor"]])
 }
 
 
@@ -263,15 +263,42 @@ known_v_factor <- function(diagonal, loading) {
 }
 
 
+# Accept the one earlier recovered layout. Before the minimum-rank search every
+# recovery came from the block-constant route, so the status named that route
+# and the blocks carried no `method`. The stored representation is otherwise
+# the current one, and the reconstruction certificate below -- not the status --
+# is what decides whether it still describes 'V', so name the route and carry on
+# rather than making those fits unreadable.
+.known_v_migrate_certified_factor <- function(factor) {
+
+  if (is.null(factor) || !identical(factor[["status"]], "recovered_block_constant")) {
+    return(factor)
+  }
+
+  factor[["status"]] <- "recovered"
+  factor[["blocks"]] <- lapply(factor[["blocks"]], function(block) {
+    if (is.null(block[["method"]])) {
+      block[["method"]] <- "block_constant"
+    }
+    block
+  })
+
+  factor
+}
+
+
 # Validate a recovered certified factor against the stored covariance. The
 # reconstruction identity is re-checked here so that a representation carried
 # through subsetting, updating, or caching cannot drift from its entries.
+# The earlier recovered layout is migrated first, so this returns the known-V
+# it certified rather than the one it was handed.
 .known_v_validate_certified_factor <- function(known_V) {
 
-  factor <- known_V[["certified_factor"]]
+  factor <- .known_v_migrate_certified_factor(known_V[["certified_factor"]])
   if (is.null(factor)) {
     return(invisible(known_V))
   }
+  known_V[["certified_factor"]] <- factor
 
   K <- .known_v_nrow(known_V)
   if (identical(.known_v_storage(known_V), "factor")) {
@@ -281,14 +308,6 @@ known_v_factor <- function(diagonal, loading) {
   diagonal   <- factor[["diagonal"]]
   blocks     <- factor[["blocks"]]
   dense_rows <- factor[["dense_rows"]]
-  if (identical(factor[["status"]], "recovered_block_constant")) {
-    stop(
-      "This fit stores a known-'V' recovery from before exact minimum-rank ",
-      "recovery was added, which recorded a different representation. Refit ",
-      "the model, or refresh the cached fit, to use it.",
-      call. = FALSE
-    )
-  }
   if (!is.list(factor) || !identical(factor[["status"]], "recovered") ||
       !is.numeric(diagonal) || !is.null(dim(diagonal)) || length(diagonal) != K ||
       anyNA(diagonal) || any(!is.finite(diagonal)) || any(diagonal < 0) ||
@@ -503,7 +522,7 @@ known_v_factor <- function(diagonal, loading) {
     stop("Internal error: non-factor known-V representation contains factors.",
          call. = FALSE)
   }
-  .known_v_validate_certified_factor(known_V)
+  known_V <- .known_v_validate_certified_factor(known_V)
 
   invisible(known_V)
 }
