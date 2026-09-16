@@ -167,13 +167,16 @@ double cpp_selnorm_cluster_step_lpdf(
   int vector_rule = 0
 );
 
+// Zero loading columns are compacted out before integration: they only add a
+// latent axis that integrates to one, so `rank` is the declared rank and the
+// evaluated one follows the columns that carry dependence.
 double cpp_selnorm_factor_step_lpdf(
   const double *x,
   const double *mean,
   const double *residual_sd,
-  const double *loading,
+  const double *declared_loading,
   int dimension,
-  int rank,
+  int declared_rank,
   const double *selection_se,
   const double *omega,
   int n_bins,

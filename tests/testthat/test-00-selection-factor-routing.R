@@ -1470,3 +1470,64 @@ test_that("the factor node budget, not the rank, bounds the deterministic ladder
   expect_equal(cyclic_result[["log_normalizer"]], log(sum(terms)),
                tolerance = 1e-4)
 })
+
+
+test_that("zero loading columns do not charge the budget on a non-forest support", {
+
+  # Two supports that overlap without nesting are not a forest, so the nested
+  # rule declines and the tensor cost is charged on every axis the context
+  # carries. Inactive product-space components must not be among them: a
+  # declared rank-four loading with two zero columns has to reach the same rung,
+  # and the same value, as the rank-two loading built from its active columns.
+  y  <- c(.42, .31, .58, .22, .37)
+  vi <- c(.030, .045, .026, .052, .038)
+  loading <- cbind(
+    c(.16, .16, .16, 0, 0),
+    c(0, 0, .14, .14, .14),
+    0, 0
+  )
+  weights <- rbind(c(1, .45, .12, .12, .45, 1),
+                   c(1, .80, .60, .60, .80, 1))
+  z_lower <- stats::qnorm(c(.025, .05, .5, .95, .975, 1), lower.tail = FALSE)
+  z_upper <- c(Inf, head(z_lower, -1L))
+  obs_bin <- vapply(y / sqrt(vi), function(z) {
+    which(z >= z_lower)[[1L]]
+  }, integer(1L))
+  quadrature <- .selection_joint_factor_quadrature_rules()
+  evaluate <- function(columns) {
+    rank <- length(columns)
+    qmc  <- BayesTools::selection_qmc_design(
+      dimensions = 2L * rank, points = 4096L, scrambles = 8L, seed = 1L
+    )
+    .Call(
+      "RoBMA_selnorm_factor_step_loglik_batch",
+      y, matrix(0, 2L, length(y)),
+      matrix(rep(sqrt(.3 * vi), each = 2L), 2L),
+      matrix(rep(as.double(loading[, columns, drop = FALSE]), each = 2L), 2L),
+      sqrt(vi), weights, z_lower, z_upper, obs_bin, 1L, TRUE, 1L,
+      quadrature[["nodes"]], quadrature[["log_weights"]],
+      as.double(quadrature[["orders"]]),
+      as.double(qmc), 256L, 4096L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA"
+    )
+  }
+
+  declared <- evaluate(1:4)
+  active   <- evaluate(1:2)
+  # Quadrature settled both, so the randomized design never entered and the
+  # two calls are the same evaluation.
+  expect_identical(declared[["relative_mcse"]], c(0, 0))
+  expect_identical(active[["relative_mcse"]], c(0, 0))
+  expect_identical(declared, active)
+  expect_true(all(is.finite(declared[["log_normalizer"]])))
+
+  # The support really is the one this test is about: not a forest, and it needs
+  # the rung the rank-four budget could not afford.
+  expect_true(is.na(
+    .selection_factor_support_forest_depth(loading[, 1:2, drop = FALSE] != 0)
+  ))
+  expect_identical(
+    .covariance_support_shape(list(which(loading[, 1L] != 0),
+                                   which(loading[, 2L] != 0))),
+    "general"
+  )
+})

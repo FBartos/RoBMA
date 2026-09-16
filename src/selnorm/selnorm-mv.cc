@@ -3809,7 +3809,7 @@ int cpp_selnorm_factor_box_rng(
 
 double cpp_selnorm_factor_step_lpdf(
     const double *x, const double *mean, const double *residual_sd,
-    const double *loading, int dimension, int rank,
+    const double *declared_loading, int dimension, int declared_rank,
     const double *selection_se, const double *omega, int n_bins,
     const double *z_lower, const double *z_upper, const int *obs_bin,
     int effect_sign, bool telescope_probabilities, int kernel_mode,
@@ -3826,12 +3826,54 @@ double cpp_selnorm_factor_step_lpdf(
   if (log_normalizer_out != nullptr) {
     *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
   }
-  if (dimension < 1 || rank < 1 || rank > SELNORM_FACTOR_MAX_RANK ||
-      (rank > 1 && quadrature_rule_count < 3) ||
+  if (dimension < 1 || declared_rank < 1 ||
+      declared_rank > SELNORM_FACTOR_MAX_RANK ||
+      (declared_rank > 1 && quadrature_rule_count < 3) ||
       initial_points < 2 ||
       max_points < initial_points || scrambles < 2 ||
       !(relative_tolerance > 0.0)) {
     return negative_infinity;
+  }
+
+  // Inactive product-space components keep their declared loading columns, and
+  // a zero column only contributes a latent axis that integrates to one: it
+  // leaves the density unchanged and its row and column of `I + U' S^-1 U`
+  // equal to the identity. Drop those columns once, here, so the support shape,
+  // the node budget, the sparse grid and the randomized fallback all see the
+  // columns that actually carry dependence.
+  std::vector<int> active_columns;
+  active_columns.reserve(static_cast<std::size_t>(declared_rank));
+  for (int factor = 0; factor < declared_rank; ++factor) {
+    for (int i = 0; i < dimension; ++i) {
+      if (declared_loading[i + dimension * factor] != 0.0) {
+        active_columns.push_back(factor);
+        break;
+      }
+    }
+  }
+  const int active_rank = static_cast<int>(active_columns.size());
+  const bool compacted = active_rank >= 1 && active_rank < declared_rank;
+  std::vector<double> compacted_loading;
+  if (compacted) {
+    compacted_loading.resize(
+      static_cast<std::size_t>(dimension) * active_rank
+    );
+    for (int factor = 0; factor < active_rank; ++factor) {
+      const double *column = declared_loading + dimension * active_columns[factor];
+      std::copy(column, column + dimension,
+                compacted_loading.begin() +
+                  static_cast<std::size_t>(dimension) * factor);
+    }
+  }
+  const double *loading = compacted ? compacted_loading.data() : declared_loading;
+  int rank = compacted ? active_rank : declared_rank;
+  // The randomized fallback reads a design the caller built for the declared
+  // rank. Keep its layout and take the coordinates of the retained columns, so
+  // compaction lowers the integration dimension without reinterpreting the
+  // supplied low-discrepancy points.
+  std::vector<int> qmc_column(static_cast<std::size_t>(rank));
+  for (int factor = 0; factor < rank; ++factor) {
+    qmc_column[factor] = compacted ? active_columns[factor] : factor;
   }
 
   double phack_z_zero[2] = {0, 0};
@@ -4112,7 +4154,7 @@ double cpp_selnorm_factor_step_lpdf(
     static_cast<std::size_t>(scrambles)
   );
   const int proposal_count = static_cast<int>(proposals.size());
-  const int qmc_dimensions = 2 * rank;
+  const int qmc_dimensions = 2 * declared_rank;
   const int max_per_proposal =
     (2 * max_points + proposal_count - 1) / proposal_count;
   const auto component_count = [proposal_count](int total, int component) {
@@ -4161,7 +4203,7 @@ double cpp_selnorm_factor_step_lpdf(
             standard_normal[factor] = qnorm(
               qmc_value(
                 qmc, scrambles, max_points, qmc_dimensions, scramble,
-                design_point, factor + rank * stream
+                design_point, qmc_column[factor] + declared_rank * stream
               ),
               0.0, 1.0, true, false
             );
