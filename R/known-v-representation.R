@@ -281,6 +281,14 @@ known_v_factor <- function(diagonal, loading) {
   diagonal   <- factor[["diagonal"]]
   blocks     <- factor[["blocks"]]
   dense_rows <- factor[["dense_rows"]]
+  if (identical(factor[["status"]], "recovered_block_constant")) {
+    stop(
+      "This fit stores a known-'V' recovery from before exact minimum-rank ",
+      "recovery was added, which recorded a different representation. Refit ",
+      "the model, or refresh the cached fit, to use it.",
+      call. = FALSE
+    )
+  }
   if (!is.list(factor) || !identical(factor[["status"]], "recovered") ||
       !is.numeric(diagonal) || !is.null(dim(diagonal)) || length(diagonal) != K ||
       anyNA(diagonal) || any(!is.finite(diagonal)) || any(diagonal < 0) ||

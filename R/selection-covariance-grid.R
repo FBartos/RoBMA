@@ -57,6 +57,11 @@
     return(NULL)
   }
   plan <- .data_selection_execution_plan(data)
+  # Only the dense route. Extending the interpolation to the rank-one and
+  # factor routes was implemented and measured: their kernels are cheap enough
+  # after the vectorized tails and the budgeted quadrature that the anchor
+  # bookkeeping costs about four times what it saves. See the follow-up
+  # implementation log.
   if (!any(plan[["block_methods"]] == "dense")) {
     return(NULL)
   }
@@ -141,7 +146,9 @@
 
   update <- shared[["update"]]
   source <- update[["source_parameter"]]
-  transform <- update[["source_transform"]]
+  # The plan records the transform's name and the transform itself; only the
+  # latter can be applied to a draw.
+  transform <- update[["source_transform_spec"]]
   if (!is.character(source) || length(source) != 1L || is.na(source) ||
       !source %in% names(samples_row)) {
     return(NA_real_)
@@ -254,6 +261,7 @@
       data                       = context[["data"]],
       priors                     = active_setup[["priors"]],
       unit                       = "estimate",
+      data_hash                  = NULL,
       conditioned_random_effects = conditioned
     )
     if (identical(setup[["effect_direction"]], "negative")) {

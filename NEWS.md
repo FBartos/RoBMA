@@ -21,6 +21,13 @@
   by a per-rank rule count: the nested rule spends `order^(depth + 1)` nodes and
   the tensor fallback `order^rank`, so a forest of many factors costs what its
   depth costs. Blocks of rank four and below reach the same rules as before.
+- repairs the certified covariance-sweep interpolation, which could not run.
+  Three independent defects had kept it out of reach: the family quantity was
+  resolved through a transform's name rather than the transform, so every state
+  declined; two of its setup calls omitted a required argument; and the block
+  context was narrowed to the block's rows only when the mean-sweep grid was
+  active. Correlated-`V` selection models whose sweep names one random
+  component now interpolate as documented.
 - builds the random-effect factor contract once per density line instead of
   once per replacement chunk. The compiled contract and its diagonal-plus-factor
   reduction plan do not depend on the swept values, so they are retained across

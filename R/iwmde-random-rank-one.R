@@ -50,6 +50,7 @@
     data                       = context[["data"]],
     priors                     = active_setup[["priors"]],
     unit                       = "estimate",
+    data_hash                  = NULL,
     conditioned_random_effects = conditioned_random_effects
   )
   setup[["covariance_grid"]] <- list(

@@ -2647,8 +2647,14 @@ set_selection_likelihood_control <- function(
   for (block_index in execution_plan[["dependent_blocks"]]) {
     rows <- execution_plan[["row_blocks"]][[block_index]]
     method <- execution_plan[["block_methods"]][[block_index]]
-    block_context <- if (is.null(setup[["normalizer_grid"]])) selection_context else
+    # Both grids subset the context to their own rows when they evaluate
+    # anchors, so the block's observation fields must already be the block's.
+    block_context <- if (is.null(setup[["normalizer_grid"]]) &&
+                         is.null(setup[["covariance_grid"]])) {
+      selection_context
+    } else {
       BayesTools::selection_context_subset_observations(selection_context, rows)
+    }
     block_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
     if (method %in% c("rank_one", "factor")) {
       components <- .selection_joint_factor_block_samples(
@@ -2659,6 +2665,9 @@ set_selection_likelihood_control <- function(
     }
     block_normalizer_grid <- if (is.null(setup[["normalizer_grid"]])) NULL else list(
       state = setup[["normalizer_grid"]], block = block_index, rows = rows,
+      sign = if (identical(setup[["effect_direction"]], "negative")) -1 else 1)
+    block_covariance_grid <- if (is.null(setup[["covariance_grid"]])) NULL else list(
+      state = setup[["covariance_grid"]], block = block_index, rows = rows,
       sign = if (identical(setup[["effect_direction"]], "negative")) -1 else 1)
     if (method == "rank_one") {
       log_lik[, block_index] <- .selection_joint_cluster_loglik_block(
@@ -2700,12 +2709,8 @@ set_selection_likelihood_control <- function(
       selection_context = block_context,
       execution_plan    = execution_plan,
       block_size        = length(rows),
-      normalizer_grid = if (is.null(setup[["normalizer_grid"]])) NULL else list(
-        state = setup[["normalizer_grid"]], block = block_index, rows = rows,
-        sign = if (identical(setup[["effect_direction"]], "negative")) -1 else 1),
-      covariance_grid = if (is.null(setup[["covariance_grid"]])) NULL else list(
-        state = setup[["covariance_grid"]], block = block_index, rows = rows,
-        sign = if (identical(setup[["effect_direction"]], "negative")) -1 else 1)
+      normalizer_grid = block_normalizer_grid,
+      covariance_grid = block_covariance_grid
     )
   }
 
