@@ -1,7 +1,7 @@
 #' @importFrom graphics hist lines
 #' @importFrom Matrix Cholesky
 #' @importFrom stats AIC BIC coef cooks.distance dfbetas fitted hatvalues influence model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update vcov
-#' @importFrom utils capture.output getS3method
+#' @importFrom utils capture.output getFromNamespace getS3method tail
 NULL
 
 .onLoad <- function(libname, pkgname) {

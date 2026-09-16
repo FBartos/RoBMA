@@ -44,7 +44,7 @@
   worker <- function(rows, object, posterior_samples, z_sequence,
                      conditioning_depth, integration_control) {
 
-    RoBMA:::.zplot_selection_marginal(
+    utils::getFromNamespace(".zplot_selection_marginal", "RoBMA")(
       object = object, posterior_samples = posterior_samples[rows, , drop = FALSE],
       z_sequence = z_sequence, z_threshold = NULL,
       conditioning_depth = conditioning_depth,

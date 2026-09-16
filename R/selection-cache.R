@@ -256,8 +256,12 @@ selection_sampler_info <- function(clear = FALSE) {
 
   # A small base-environment closure transports only frozen settings to workers.
   settings <- .selection_runtime_settings()
+  # The closure keeps only the frozen settings, so the worker has to resolve the
+  # configuration function from its own loaded namespace rather than carry one.
   callback <- function(context) {
-    RoBMA:::.selection_runtime_configure(settings, context)
+    utils::getFromNamespace(".selection_runtime_configure", "RoBMA")(
+      settings, context
+    )
     invisible(NULL)
   }
   environment(callback) <- list2env(list(settings = settings), parent = baseenv())
@@ -312,10 +316,12 @@ selection_sampler_info <- function(clear = FALSE) {
   callback <- function(context, state = NULL) {
 
     if (context[["phase"]] == "restore") {
-      RoBMA:::.selection_cache_restore(state)
+      utils::getFromNamespace(".selection_cache_restore", "RoBMA")(state)
     } else if (context[["phase"]] == "capture" && retain) {
       payload <- .Call("RoBMA_selnorm_cache_snapshot", PACKAGE = "RoBMA")
-      build <- if (length(payload)) RoBMA:::.selection_cache_build() else NULL
+      build <- if (length(payload)) {
+        utils::getFromNamespace(".selection_cache_build", "RoBMA")()
+      } else NULL
       RoBMA::selection_cache_info(clear = TRUE)
       if (length(payload) > 0L) return(list(build = build, payload = payload))
     }
