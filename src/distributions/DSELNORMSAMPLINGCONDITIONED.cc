@@ -15,12 +15,12 @@ namespace jags {
 namespace RoBMA {
 
 DSELNORMSAMPLINGCONDITIONED::DSELNORMSAMPLINGCONDITIONED() :
-  VectorDist("dselnorm_sampling_conditioned", 29) {}
+  VectorDist("dselnorm_sampling_conditioned", 28) {}
 
 bool DSELNORMSAMPLINGCONDITIONED::checkParameterLength(
     std::vector<unsigned int> const &len) const
 {
-  if (len.size() != 29) return false;
+  if (len.size() != 28) return false;
   const unsigned int maximum = std::numeric_limits<int>::max();
   for (unsigned int length : len) if (length > maximum) return false;
   if (len[0] == 0 || len[0] > maximum / len[0]) return false;
@@ -30,7 +30,7 @@ bool DSELNORMSAMPLINGCONDITIONED::checkParameterLength(
       len[8] == 0 || len[9] != len[8] || len[10] != len[8] ||
       len[11] != len[0] || len[16] != len[0] || len[17] == 0 ||
       len[22] == 0 || len[23] != len[22] || len[24] < 3 ||
-      len[25] == 0 || len[26] != len[25] || len[27] < 3 || len[28] != 3) return false;
+      len[25] == 0 || len[26] != len[25] || len[27] < 3) return false;
   for (int i = 12; i <= 15; ++i) if (len[i] != 1) return false;
   for (int i = 18; i <= 21; ++i) if (len[i] != 1) return false;
   return true;
@@ -72,7 +72,7 @@ bool DSELNORMSAMPLINGCONDITIONED::checkParameterValue(
       if (argument == 17 && !(par[argument][i] > 0.0 && par[argument][i] < 1.0)) return false;
     }
   }
-  for (int argument = 22; argument < 29; ++argument) {
+  for (int argument = 22; argument < 28; ++argument) {
     for (unsigned int i = 0; i < len[argument]; ++i) {
       if (!std::isfinite(par[argument][i])) return false;
     }
@@ -87,10 +87,6 @@ bool DSELNORMSAMPLINGCONDITIONED::checkParameterValue(
       total += previous;
     }
     if (len[offset] != static_cast<unsigned int>(total)) return false;
-  }
-  for (int rank_index = 0; rank_index < 3; ++rank_index) {
-    const double count = par[28][rank_index];
-    if (count != std::floor(count) || count < 3 || count > len[27]) return false;
   }
   const SelNormJagsBounds lower(par[9], len[9]), upper(par[10], len[10]);
   return selnorm_is_descending_step_partition(lower.data(), upper.data(), len[8]);
@@ -112,7 +108,7 @@ double DSELNORMSAMPLINGCONDITIONED::logDensity(double const *x,
   double mcse = 0.0, change = 0.0, normalizer = 0.0;
   const SelNormConditionedQuadrature quadrature = {par[22], par[23], par[24],
     static_cast<int>(len[24]), par[25], par[26], par[27],
-    static_cast<int>(len[27]), par[28]};
+    static_cast<int>(len[27])};
   const double value = cpp_selnorm_sampling_conditioned_lpdf(x, par[0], par[1],
     par[2], par[3], k, static_cast<int>(*par[4]), par[5], par[6], par[7], par[8],
     len[8], z_lower.data(), z_upper.data(), bins.data(), static_cast<int>(*par[12]),

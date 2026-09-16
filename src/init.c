@@ -107,8 +107,7 @@ extern SEXP RoBMA_selnorm_sampling_conditioned_batch(
     SEXP group_index, SEXP qmc, SEXP initial_points, SEXP max_points,
     SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
-    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP factor_rule_counts);
+    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders);
 extern SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
     SEXP yi, SEXP means, SEXP sampling_variances, SEXP integrated_variances,
     SEXP total_variances, SEXP sei, SEXP omega, SEXP z_lower, SEXP z_upper,
@@ -120,8 +119,7 @@ extern SEXP RoBMA_selnorm_conditioned_normalizer_batch(
     SEXP telescope_probabilities, SEXP vector_rule, SEXP group_index, SEXP qmc,
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
-    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP factor_rule_counts);
+    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders);
 extern SEXP RoBMA_selnorm_factor_projection_batch(
     SEXP means, SEXP diagonal, SEXP loading, SEXP rank, SEXP sei, SEXP omega,
     SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
@@ -129,7 +127,7 @@ extern SEXP RoBMA_selnorm_factor_projection_batch(
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
     SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP factor_rule_counts, SEXP z, SEXP kind);
+    SEXP z, SEXP kind);
 extern SEXP RoBMA_selnorm_mnorm_zplot_batch(
     SEXP yi, SEXP means, SEXP covariance_lower, SEXP sei, SEXP omega,
     SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
@@ -147,8 +145,7 @@ extern SEXP RoBMA_selnorm_factor_step_loglik_batch(
     SEXP yi, SEXP means, SEXP residual_sd, SEXP loading, SEXP sei, SEXP omega,
     SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
     SEXP telescope_probabilities, SEXP kernel_mode, SEXP quadrature_nodes,
-    SEXP quadrature_log_weights, SEXP quadrature_orders,
-    SEXP quadrature_rule_counts, SEXP qmc,
+    SEXP quadrature_log_weights, SEXP quadrature_orders, SEXP qmc,
     SEXP initial_points, SEXP max_points, SEXP scrambles,
     SEXP relative_tolerance, SEXP return_normalizer, SEXP vector_rule);
 extern SEXP RoBMA_selnorm_mnorm_step_rng_batch(
@@ -480,13 +477,13 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_plot_selnorm_mixture_quantiles", (DL_FUNC) &RoBMA_plot_selnorm_mixture_quantiles, 20},
     {"RoBMA_selnorm_kernel_loglik_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_loglik_matrix, 22},
     {"RoBMA_selnorm_mnorm_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_step_loglik_batch, 18},
-    {"RoBMA_selnorm_sampling_conditioned_batch", (DL_FUNC) &RoBMA_selnorm_sampling_conditioned_batch, 30},
+    {"RoBMA_selnorm_sampling_conditioned_batch", (DL_FUNC) &RoBMA_selnorm_sampling_conditioned_batch, 29},
     {"RoBMA_selnorm_sampling_deletion_loglik_batch", (DL_FUNC) &RoBMA_selnorm_sampling_deletion_loglik_batch, 16},
-    {"RoBMA_selnorm_conditioned_normalizer_batch", (DL_FUNC) &RoBMA_selnorm_conditioned_normalizer_batch, 25},
-    {"RoBMA_selnorm_factor_projection_batch", (DL_FUNC) &RoBMA_selnorm_factor_projection_batch, 27},
+    {"RoBMA_selnorm_conditioned_normalizer_batch", (DL_FUNC) &RoBMA_selnorm_conditioned_normalizer_batch, 24},
+    {"RoBMA_selnorm_factor_projection_batch", (DL_FUNC) &RoBMA_selnorm_factor_projection_batch, 26},
     {"RoBMA_selnorm_mnorm_zplot_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_zplot_batch, 19},
     {"RoBMA_selnorm_cluster_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_cluster_step_loglik_batch, 22},
-    {"RoBMA_selnorm_factor_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_factor_step_loglik_batch, 23},
+    {"RoBMA_selnorm_factor_step_loglik_batch", (DL_FUNC) &RoBMA_selnorm_factor_step_loglik_batch, 22},
     {"RoBMA_selnorm_mnorm_step_rng_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_step_rng_batch, 11},
     {"RoBMA_selnorm_gaussian_event_mass_batch", (DL_FUNC) &RoBMA_selnorm_gaussian_event_mass_batch, 17},
     {"RoBMA_norm_loglik_row_sum", (DL_FUNC) &RoBMA_norm_loglik_row_sum, 5},

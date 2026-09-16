@@ -319,7 +319,7 @@ double sampling_conditioned_normalizer(const double *mean,
         selection.z_upper, bins.data(), selection.effect_sign,
         selection.telescope_probabilities, SELKERNEL_STEP, quadrature.factor_nodes,
         quadrature.factor_log_weights, quadrature.factor_orders,
-        quadrature.factor_rule_count, quadrature.factor_rule_counts,
+        quadrature.factor_rule_count,
         qmc, initial_points, max_points, scrambles, tolerance, relative_mcse,
         relative_change, &normalizer, vector_rule);
     }

@@ -2574,21 +2574,38 @@ inline void selnorm_evaluate_gaussian_mixtures(
 // Each factor integrates over the tensor of its own axis and the axes of its
 // ancestors only, so a root with disjoint children costs one rule per child
 // rather than one full rank-dimensional tensor.
-bool factor_nested_rule_log_integral(
-    const FactorNormalizerContext &context, const double *nodes,
-    const double *log_weights, int offset, int order, double *result,
-    SelNormZProjection *projection = nullptr)
+// Structural analysis of the factor supports, built once per likelihood state.
+// When the supports form a forest the nested rule expands one axis per tree
+// level, so its cost is `rows x order^(depth + 1)` and does not grow with the
+// factor rank. The tensor fallback costs `order^rank`, which is what the rank
+// cap used to encode.
+struct FactorForestPlan {
+  bool valid = false;
+  int effective_rank = 0;
+  int max_depth = 0;
+  std::vector<int> permutation;
+  std::vector<int> parent;
+  std::vector<int> depth;
+  std::vector<std::vector<int> > children;
+  std::vector<int> roots;
+  std::vector<std::vector<int> > axes;
+  std::vector<std::vector<int> > node_rows;
+  std::vector<int> free_rows;
+};
+
+bool factor_forest_plan(const FactorNormalizerContext &context,
+                        const int *declared_support, FactorForestPlan *out)
 {
+  out->valid = false;
   if (context.vector_rule != SELVECTOR_PRODUCT) return false;
-  const int *declared_support = projection == nullptr ? nullptr :
-    projection->loading_support;
   const auto supported = [&context, declared_support](int row, int factor) {
     const int index = row + context.dimension * factor;
     return declared_support == nullptr ? context.loading[index] != 0.0 :
       declared_support[index] != 0;
   };
   std::vector<int> support_size(static_cast<std::size_t>(context.rank), 0);
-  std::vector<int> permutation(static_cast<std::size_t>(context.rank));
+  std::vector<int> &permutation = out->permutation;
+  permutation.assign(static_cast<std::size_t>(context.rank), 0);
   for (int factor = 0; factor < context.rank; ++factor) {
     permutation[factor] = factor;
     for (int i = 0; i < context.dimension; ++i) {
@@ -2609,14 +2626,19 @@ bool factor_nested_rule_log_integral(
          support_size[permutation[effective_rank - 1]] == 0) {
     --effective_rank;
   }
+  out->effective_rank = effective_rank;
 
   // Supports must form a forest: the closest containing support is a factor
   // parent, and a partial overlap is rejected.
   const std::size_t node_count = static_cast<std::size_t>(effective_rank);
-  std::vector<int> parent(node_count, -1);
-  std::vector<int> depth(node_count, 0);
-  std::vector<std::vector<int>> children(node_count);
-  std::vector<int> roots;
+  std::vector<int> &parent = out->parent;
+  std::vector<int> &depth = out->depth;
+  std::vector<std::vector<int> > &children = out->children;
+  std::vector<int> &roots = out->roots;
+  parent.assign(node_count, -1);
+  depth.assign(node_count, 0);
+  children.assign(node_count, std::vector<int>());
+  roots.clear();
   for (int q = 0; q < effective_rank; ++q) {
     for (int p = 0; p < q; ++p) {
       bool inside = true;
@@ -2639,7 +2661,8 @@ bool factor_nested_rule_log_integral(
   }
 
   // The axes of a factor are its ancestors, root first, then itself.
-  std::vector<std::vector<int>> axes(node_count);
+  std::vector<std::vector<int> > &axes = out->axes;
+  axes.assign(node_count, std::vector<int>());
   for (int q = 0; q < effective_rank; ++q) {
     if (parent[q] >= 0) axes[q] = axes[parent[q]];
     axes[q].push_back(q);
@@ -2647,8 +2670,10 @@ bool factor_nested_rule_log_integral(
 
   // Every row belongs to the deepest factor supporting it, and that factor
   // axes must be exactly the factors supporting the row.
-  std::vector<std::vector<int>> node_rows(node_count);
-  std::vector<int> free_rows;
+  std::vector<std::vector<int> > &node_rows = out->node_rows;
+  std::vector<int> &free_rows = out->free_rows;
+  node_rows.assign(node_count, std::vector<int>());
+  free_rows.clear();
   for (int i = 0; i < context.dimension; ++i) {
     int owner = -1;
     int active = 0;
@@ -2664,6 +2689,31 @@ bool factor_nested_rule_log_integral(
     if (active != static_cast<int>(axes[owner].size())) return false;
     node_rows[owner].push_back(i);
   }
+
+  out->max_depth = 0;
+  for (int q = 0; q < effective_rank; ++q) {
+    if (depth[q] > out->max_depth) out->max_depth = depth[q];
+  }
+  out->valid = true;
+  return true;
+}
+
+bool factor_nested_rule_log_integral(
+    const FactorNormalizerContext &context, const FactorForestPlan &plan,
+    const double *nodes, const double *log_weights, int offset, int order,
+    double *result, SelNormZProjection *projection = nullptr)
+{
+  if (!plan.valid) return false;
+  const int effective_rank = plan.effective_rank;
+  const std::vector<int> &permutation = plan.permutation;
+  const std::vector<int> &parent = plan.parent;
+  const std::vector<int> &depth = plan.depth;
+  const std::vector<std::vector<int> > &children = plan.children;
+  const std::vector<int> &roots = plan.roots;
+  const std::vector<std::vector<int> > &axes = plan.axes;
+  const std::vector<std::vector<int> > &node_rows = plan.node_rows;
+  const std::vector<int> &free_rows = plan.free_rows;
+  const std::size_t node_count = static_cast<std::size_t>(effective_rank);
 
   std::vector<std::size_t> power(node_count + 2, 1);
   for (std::size_t j = 1; j < power.size(); ++j) {
@@ -2861,15 +2911,22 @@ bool factor_nested_rule_log_integral(
 }
 
 double factor_rule_log_integral(const FactorNormalizerContext &context,
+                                const FactorForestPlan &plan,
                                 const double *nodes,
                                 const double *log_weights,
                                 int offset, int order)
 {
   double nested = 0.0;
   if (factor_nested_rule_log_integral(
-        context, nodes, log_weights, offset, order, &nested
+        context, plan, nodes, log_weights, offset, order, &nested
       )) {
     return nested;
+  }
+  // A forest plan that fails numerically leaves only the tensor rule, which
+  // the budget may refuse at this rank. Declining the rung keeps the ladder
+  // and its randomized fallback in charge rather than spending the nodes.
+  if (!selnorm_factor_rule_affordable(order, context.rank)) {
+    return -std::numeric_limits<double>::infinity();
   }
   std::size_t total = 1;
   for (int factor = 0; factor < context.rank; ++factor) {
@@ -3540,7 +3597,6 @@ double cpp_selnorm_factor_step_lpdf(
     int effect_sign, bool telescope_probabilities, int kernel_mode,
     const double *quadrature_nodes, const double *quadrature_log_weights,
     const double *quadrature_orders, int quadrature_rule_count,
-    const double *quadrature_rule_counts,
     const double *qmc, int initial_points, int max_points, int scrambles,
     double relative_tolerance, double *relative_mcse,
     double *relative_change, double *log_normalizer_out, int vector_rule)
@@ -3552,9 +3608,8 @@ double cpp_selnorm_factor_step_lpdf(
   if (log_normalizer_out != nullptr) {
     *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
   }
-  if (dimension < 1 || rank < 1 || rank > 4 ||
-      (rank > 1 && (quadrature_rule_count < 3 ||
-                    quadrature_rule_counts == nullptr)) ||
+  if (dimension < 1 || rank < 1 || rank > SELNORM_FACTOR_MAX_RANK ||
+      (rank > 1 && quadrature_rule_count < 3) ||
       initial_points < 2 ||
       max_points < initial_points || scrambles < 2 ||
       !(relative_tolerance > 0.0)) {
@@ -3668,42 +3723,33 @@ double cpp_selnorm_factor_step_lpdf(
   context.kernel_mode = kernel_mode;
   context.selection = selection;
 
+  FactorForestPlan forest;
+  factor_forest_plan(context, nullptr, &forest);
+  // The nested rule expands one axis per tree level, so a forest support pays
+  // `order^(depth + 1)` and its ladder length does not depend on the rank.
+  const int cost_exponent = forest.valid ? forest.max_depth + 1 : rank;
+
   // The cluster evaluator enters at rank one only after its own unchanged
   // quadrature sequence rejects. Share the QMC fallback below in that case.
   if (rank > 1) {
-    // Inactive product-space components retain their declared loading columns.
-    // Select the existing rule sequence for the exact active factor count.
-    int active_rank = 0;
-    for (int factor = 0; factor < rank; ++factor) {
-      for (int i = 0; i < dimension; ++i) {
-        if (loading[i + dimension * factor] != 0.0) {
-          ++active_rank;
-          break;
-        }
-      }
-    }
-    const int rule_rank = active_rank >= 2 ? active_rank : rank;
-    const double raw_rule_count = quadrature_rule_counts[rule_rank - 2];
-    if (!std::isfinite(raw_rule_count) || raw_rule_count < 3.0 ||
-        raw_rule_count > quadrature_rule_count ||
-        raw_rule_count != std::floor(raw_rule_count)) {
-      return negative_infinity;
-    }
-    const int active_rule_count = static_cast<int>(raw_rule_count);
-
     int quadrature_offset = 0;
     int quadrature_order = static_cast<int>(quadrature_orders[0]);
-    double previous_quadrature = factor_rule_log_integral(
-      context, quadrature_nodes, quadrature_log_weights,
-      quadrature_offset, quadrature_order
-    );
+    if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) {
+      quadrature_order = 0;
+    }
+    double previous_quadrature = quadrature_order == 0 ? negative_infinity :
+      factor_rule_log_integral(
+        context, forest, quadrature_nodes, quadrature_log_weights,
+        quadrature_offset, quadrature_order
+      );
     double previous_quadrature_change =
       std::numeric_limits<double>::infinity();
-    quadrature_offset += quadrature_order;
-    for (int rule = 1; rule < active_rule_count; ++rule) {
+    quadrature_offset += static_cast<int>(quadrature_orders[0]);
+    for (int rule = 1; rule < quadrature_rule_count; ++rule) {
       quadrature_order = static_cast<int>(quadrature_orders[rule]);
+      if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) break;
       const double current_quadrature = factor_rule_log_integral(
-        context, quadrature_nodes, quadrature_log_weights,
+        context, forest, quadrature_nodes, quadrature_log_weights,
         quadrature_offset, quadrature_order
       );
       const double current_quadrature_change = cluster_relative_change(
@@ -4076,7 +4122,7 @@ double cpp_selnorm_cluster_step_lpdf(
   return cpp_selnorm_factor_step_lpdf(
     x, mean, residual_sd, loading, dimension, 1, selection_se, omega, n_bins,
     z_lower, z_upper, obs_bin, effect_sign, telescope_probabilities, kernel_mode,
-    nullptr, nullptr, nullptr, 0, nullptr, qmc, initial_points, max_points,
+    nullptr, nullptr, nullptr, 0, qmc, initial_points, max_points,
     scrambles, relative_tolerance, relative_mcse, relative_change,
     log_normalizer_out, vector_rule
   );
@@ -4326,8 +4372,10 @@ double cpp_selnorm_mnorm_step_lpdf(
   }
   if (quadrature && factor_rank > 0 && projection->loading_support != nullptr) {
     double log_normalizer = 0.0;
+    FactorForestPlan forest;
+    factor_forest_plan(factor_context, projection->loading_support, &forest);
     if (factor_nested_rule_log_integral(
-          factor_context, projection->nodes, projection->log_weights,
+          factor_context, forest, projection->nodes, projection->log_weights,
           0, projection->order, &log_normalizer, projection
         )) {
       *relative_mcse = 0.0;

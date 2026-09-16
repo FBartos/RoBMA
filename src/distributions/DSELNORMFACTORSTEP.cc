@@ -17,12 +17,12 @@ namespace jags {
 namespace RoBMA {
 
 DSELNORMFACTORSTEP::DSELNORMFACTORSTEP() :
-  VectorDist("dselnorm_factor_step", 21) {}
+  VectorDist("dselnorm_factor_step", 20) {}
 
 bool DSELNORMFACTORSTEP::checkParameterLength(
     std::vector<unsigned int> const &len) const
 {
-  if (len.size() != 21) return false;
+  if (len.size() != 20) return false;
   const unsigned int maximum = std::numeric_limits<int>::max();
   for (unsigned int length : len) if (length > maximum) return false;
   if (len[0] == 0 || len[0] > maximum / len[0]) return false;
@@ -30,15 +30,14 @@ bool DSELNORMFACTORSTEP::checkParameterLength(
       len[3] != len[0] || len[7] != len[0] || len[4] == 0 ||
       len[5] != len[4] || len[6] != len[4]) return false;
   const unsigned int rank = len[2] / len[0];
-  if (rank < 2 || rank > 4) return false;
+  if (rank < 2 || rank > SELNORM_FACTOR_MAX_RANK) return false;
   for (unsigned int i = 8; i <= 10; ++i) {
     if (len[i] != 1) return false;
   }
-  if (len[11] == 0 || len[12] != len[11] || len[13] < 3 ||
-      len[14] != rank - 1 || len[15] == 0) {
+  if (len[11] == 0 || len[12] != len[11] || len[13] < 3 || len[14] == 0) {
     return false;
   }
-  for (unsigned int i = 16; i <= 20; ++i) {
+  for (unsigned int i = 15; i <= 19; ++i) {
     if (len[i] != 1) return false;
   }
   return true;
@@ -52,16 +51,16 @@ bool DSELNORMFACTORSTEP::checkParameterValue(
   const int rank = static_cast<int>(len[2] / len[0]);
   const int n_bins = static_cast<int>(len[4]);
   const int limit = std::numeric_limits<int>::max();
-  const double tolerance = *par[19];
+  const double tolerance = *par[18];
   if (!(*par[8] == 1 || *par[8] == -1) || !(*par[9] == 0 || *par[9] == 1) ||
       !(*par[10] == SELKERNEL_NORMAL || *par[10] == SELKERNEL_STEP) ||
-      !selnorm_jags_integer_in_range(*par[16], 4, limit) ||
-      !selnorm_jags_integer_in_range(*par[17], 4, limit) || *par[17] < *par[16] ||
-      !selnorm_jags_integer_in_range(*par[18], 2, limit) ||
-      !selnorm_jags_integer_in_range(*par[20], SELVECTOR_PRODUCT, SELVECTOR_BEST_TWO_SIDED) ||
+      !selnorm_jags_integer_in_range(*par[15], 4, limit) ||
+      !selnorm_jags_integer_in_range(*par[16], 4, limit) || *par[16] < *par[15] ||
+      !selnorm_jags_integer_in_range(*par[17], 2, limit) ||
+      !selnorm_jags_integer_in_range(*par[19], SELVECTOR_PRODUCT, SELVECTOR_BEST_TWO_SIDED) ||
       !(tolerance > 0.0) || !std::isfinite(tolerance)) return false;
-  if (!selnorm_jags_qmc_length(len[15], 2U * rank,
-      static_cast<unsigned int>(*par[17]), static_cast<unsigned int>(*par[18]))) return false;
+  if (!selnorm_jags_qmc_length(len[14], 2U * rank,
+      static_cast<unsigned int>(*par[16]), static_cast<unsigned int>(*par[17]))) return false;
   const SelNormJagsBounds z_lower(par[5], len[5]);
   const SelNormJagsBounds z_upper(par[6], len[6]);
   for (int i = 0; i < k; ++i) {
@@ -88,11 +87,6 @@ bool DSELNORMFACTORSTEP::checkParameterValue(
     previous_order = order;
   }
   if (quadrature_length != static_cast<int>(len[11])) return false;
-  for (unsigned int index = 0; index < len[14]; ++index) {
-    const double count = par[14][index];
-    if (!std::isfinite(count) || count != std::floor(count) || count < 3.0 ||
-        count > len[13]) return false;
-  }
   for (unsigned int i = 0; i < len[11]; ++i) {
     if (!std::isfinite(par[11][i]) || !std::isfinite(par[12][i])) {
       return false;
@@ -117,9 +111,9 @@ double DSELNORMFACTORSTEP::logDensity(
   const int k = static_cast<int>(length);
   const int rank = static_cast<int>(len[2] / len[0]);
   const int n_bins = static_cast<int>(len[4]);
-  const int initial_points = static_cast<int>(*par[16]);
-  const int max_points = static_cast<int>(*par[17]);
-  const int scrambles = static_cast<int>(*par[18]);
+  const int initial_points = static_cast<int>(*par[15]);
+  const int max_points = static_cast<int>(*par[16]);
+  const int scrambles = static_cast<int>(*par[17]);
   const SelNormJagsBounds z_lower(par[5], len[5]);
   const SelNormJagsBounds z_upper(par[6], len[6]);
   std::vector<int> obs_bin(static_cast<std::size_t>(k));
@@ -134,12 +128,12 @@ double DSELNORMFACTORSTEP::logDensity(
     z_lower.data(), z_upper.data(), obs_bin.data(),
     static_cast<int>(*par[8]), static_cast<int>(*par[9]) == 1,
     static_cast<int>(*par[10]), par[11], par[12], par[13],
-    static_cast<int>(len[13]), par[14], par[15], initial_points, max_points,
-    scrambles, *par[19], &relative_mcse, &relative_change,
-    nullptr, static_cast<int>(*par[20])
+    static_cast<int>(len[13]), par[14], initial_points, max_points,
+    scrambles, *par[18], &relative_mcse, &relative_change,
+    nullptr, static_cast<int>(*par[19])
   );
   const double diagnostic = std::max(relative_mcse, relative_change);
-  if (!std::isfinite(diagnostic) || diagnostic > *par[19]) {
+  if (!std::isfinite(diagnostic) || diagnostic > *par[18]) {
     throw std::runtime_error(
       "Selection factor normalizer was rejected by diagnostics: "
       "relative Monte Carlo standard error was " +

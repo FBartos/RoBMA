@@ -8,6 +8,30 @@
 // partitions use the unchanged per-element evaluator.
 #define SELNORM_TAIL_MAX_BINS 64
 
+// Largest certified factor rank the deterministic factor routes accept. The
+// affordable quadrature at a given rank is decided by the node budget and the
+// runtime support shape, not by this cap; the cap bounds the workspaces the
+// kernels and the JAGS distributions allocate per block.
+#define SELNORM_FACTOR_MAX_RANK 8
+
+// Node budget one deterministic factor rule may spend. A tensor rule costs
+// `order^rank` and the nested forest rule `order^(depth + 1)`; both are capped
+// here. The value reproduces the per-rank rule counts the ladder used to carry
+// as constants: `63^3` and `21^4` are the largest rules the rank three and
+// rank four sequences reached, and the next rung of either exceeds it.
+#define SELNORM_FACTOR_NODE_BUDGET 262144.0
+
+// Whether one rule of this order fits the budget at the given cost exponent.
+inline bool selnorm_factor_rule_affordable(int order, int exponent)
+{
+  double nodes = 1.0;
+  for (int axis = 0; axis < exponent; ++axis) {
+    nodes *= static_cast<double>(order);
+    if (nodes > SELNORM_FACTOR_NODE_BUDGET) return false;
+  }
+  return true;
+}
+
 enum SelKernelMode {
   SELKERNEL_NORMAL           = 0,
   SELKERNEL_STEP             = 1,

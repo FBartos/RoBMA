@@ -33,7 +33,6 @@ test_that("factor quadrature agreement cannot hide an uncovered selection tail",
         quadrature[["nodes"]], quadrature[["log_weights"]],
         as.double(quadrature[["orders"]])
       )
-      if (rank == 2L) common <- c(common, list(3))
       arguments <- c(common, list(qmc, 512L, 8192L, 8L, .005, TRUE, 0L))
       symbol <- paste0("RoBMA_selnorm_", if (rank == 1L) "cluster" else "factor",
                        "_step_loglik_batch")

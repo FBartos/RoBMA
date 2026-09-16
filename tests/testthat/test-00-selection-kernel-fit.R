@@ -1522,8 +1522,7 @@ test_that("zero observed weights bypass unrequested exact normalization", {
                 rules, list(cluster_qmc, 8L, 8L, 2L, 1e-12, FALSE)),
     factor = c(list(y, mean, sd, matrix(c(.3, .35, .1, -.15), 1L)),
                common, rules,
-               list(as.double(length(quadrature$orders)), qmc,
-                    8L, 8L, 2L, 1e-12, FALSE))
+               list(qmc, 8L, 8L, 2L, 1e-12, FALSE))
   )
   for (method in names(inputs)) {
     tail_arguments <- if (method == "mnorm") list(0L, NULL) else list(0L)

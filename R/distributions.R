@@ -59,7 +59,7 @@
     required = c("omega", "kernel_mode", "vector_rule")
   )
   cluster <- execution_plan[["quadrature"]]
-  factor <- execution_plan[["factor_quadrature"]][["4"]]
+  factor <- execution_plan[["factor_quadrature"]]
   result <- .Call("RoBMA_selnorm_factor_projection_batch",
     mean, .native_numeric_matrix(diagonal), .native_numeric_matrix(loading),
     as.integer(rank), as.numeric(selection_se), .native_numeric_matrix(selection_context[["omega"]]),
@@ -72,7 +72,7 @@
     as.integer(execution_plan[["scrambles"]]), as.numeric(execution_plan[["relative_tolerance"]]),
     as.numeric(cluster[["nodes"]]), as.numeric(cluster[["log_weights"]]), as.numeric(cluster[["orders"]]),
     as.numeric(factor[["nodes"]]), as.numeric(factor[["log_weights"]]),
-    as.numeric(factor[["orders"]]), as.numeric(factor[["rule_counts"]]),
+    as.numeric(factor[["orders"]]),
     as.numeric(z), if (probability) 2L else 0L, PACKAGE = "RoBMA")
   if (!is.list(result) || !identical(dim(result[["density"]]), c(S, length(z))) ||
       length(result[["relative_mcse"]]) != S || length(result[["log_density"]]) != S) {

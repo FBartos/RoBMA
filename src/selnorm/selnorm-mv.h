@@ -187,7 +187,6 @@ double cpp_selnorm_factor_step_lpdf(
   const double *quadrature_log_weights,
   const double *quadrature_orders,
   int quadrature_rule_count,
-  const double *quadrature_rule_counts,
   const double *qmc,
   int initial_points,
   int max_points,
@@ -223,7 +222,6 @@ struct SelNormConditionedQuadrature {
   const double *factor_log_weights;
   const double *factor_orders;
   int factor_rule_count;
-  const double *factor_rule_counts;
 };
 
 double cpp_selnorm_sampling_conditioned_lpdf(

@@ -146,17 +146,17 @@ test_that("JAGS selection controls reject fractional modes and bins", {
       extra = list(qmc = rep(.5, 16)), bad = c("mode", "sign", "telescope", "bins")),
     factor = list(distribution = "dselnorm_factor_step", arguments = c(
       "mu", "sd", "factor_loading", "sei", "omega", "lower", "upper", "bins",
-      "sign", "telescope", "mode", "nodes", "log_weights", "orders", "rule_count", "qmc",
+      "sign", "telescope", "mode", "nodes", "log_weights", "orders", "qmc",
       "points", "maximum", "scrambles", "tolerance", "rule"),
-      extra = list(factor_loading = rep(.1, 4), rule_count = 3, qmc = rep(.5, 32)),
-      bad = c("mode", "bins", "points", "rule_count")),
+      extra = list(factor_loading = rep(.1, 4), qmc = rep(.5, 32)),
+      bad = c("mode", "bins", "points")),
     conditioned = list(distribution = "dselnorm_sampling_conditioned", arguments = c(
       "mu", "covariance", "residual", "loading", "rank", "mu", "mu", "sei", "omega",
       "lower", "upper", "bins", "sign", "mode", "telescope", "rule", "groups", "qmc",
       "points", "maximum", "scrambles", "tolerance", "nodes", "log_weights", "orders",
-      "nodes", "log_weights", "orders", "rule_count"),
-      extra = list(residual = c(0, 0), rank = 1, groups = c(1, 2), qmc = rep(.5, 32),
-        rule_count = rep(3, 3)), bad = c("rank", "bins", "groups", "rule", "scrambles"))
+      "nodes", "log_weights", "orders"),
+      extra = list(residual = c(0, 0), rank = 1, groups = c(1, 2), qmc = rep(.5, 32)),
+      bad = c("rank", "bins", "groups", "rule", "scrambles"))
   )
   compile <- function(specification, data) {
 

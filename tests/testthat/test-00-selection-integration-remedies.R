@@ -130,8 +130,7 @@ test_that("JAGS selection rejections report complete model-neutral diagnostics",
                   list(as.double(cluster_qmc), 8L, 8L, 2L, .005, FALSE)),
     factor = c(list(data$y, matrix(data$offset, 1L), matrix(residual_sd, 1L),
                      matrix(as.double(loading), 1L)), common, rules,
-                 list(as.double(length(quadrature$orders)), as.double(qmc),
-                        8L, 8L, 2L, .005, FALSE))
+                 list(as.double(qmc), 8L, 8L, 2L, .005, FALSE))
   )
   for (method in names(inputs)) {
     tail_arguments <- if (method == "mnorm") list(0L, quadrature) else list(0L)
@@ -170,7 +169,6 @@ test_that("JAGS selection rejections report complete model-neutral diagnostics",
       current_data <- c(current_data, quadrature[c("nodes", "log_weights", "orders")])
     }
     current_data$qmc <- if (method == "cluster") cluster_qmc else qmc
-    if (method == "factor") current_data$rule_counts <- length(quadrature$orders)
     covariance_arguments <- switch(method,
       mnorm = "mu[],covariance[],", cluster = "mu[],residual_sd[],loading[],",
       factor = "mu[],residual_sd[],loading[,],"
@@ -178,7 +176,7 @@ test_that("JAGS selection rejections report complete model-neutral diagnostics",
     integration_arguments <- switch(method,
       mnorm = "qmc[,,],8,2,.005,0,nodes[],log_weights[],orders[]",
       cluster = "nodes[],log_weights[],orders[],qmc[,,],8,8,2,.005,0",
-      factor = "nodes[],log_weights[],orders[],rule_counts,qmc[,,],8,8,2,.005,0"
+      factor = "nodes[],log_weights[],orders[],qmc[,,],8,8,2,.005,0"
     )
     syntax <- paste0(
       "model { beta ~ dnorm(0,1)\n",

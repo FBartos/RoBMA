@@ -6,7 +6,7 @@ context("Whole sampling-error selection native kernels")
 
   K <- length(mean)
   cluster_rules <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
-  factor_rules  <- .selection_joint_factor_quadrature_rules(4L)[["4"]]
+  factor_rules  <- .selection_joint_factor_quadrature_rules()
   list(
     means                  = matrix(as.double(mean), 1L),
     diagonal               = matrix(as.double(diagonal), 1L),
@@ -34,8 +34,7 @@ context("Whole sampling-error selection native kernels")
     cluster_orders         = as.double(cluster_rules$orders),
     factor_nodes           = as.double(factor_rules$nodes),
     factor_log_weights     = as.double(factor_rules$log_weights),
-    factor_orders          = as.double(factor_rules$orders),
-    factor_rule_counts     = as.double(factor_rules$rule_counts)
+    factor_orders          = as.double(factor_rules$orders)
   )
 }
 
@@ -409,7 +408,7 @@ test_that("JAGS reports the failed sampling-normalizer diagnostic and applicable
     "y[1:4] ~ dselnorm_sampling_conditioned(",
     "location[1:4],C[1:10],d[1:4],L[1:12],3,e0[1:4],u0[1:4],",
     "se[1:4],w[1:2],lo[1:2],hi[1:2],bins[1:4],1,1,0,0,",
-    "grp[1:4],qmc[1:Q],8,8,8,tol,cn,cl,co,fn,fl,fo,fr) }"
+    "grp[1:4],qmc[1:Q],8,8,8,tol,cn,cl,co,fn,fl,fo) }"
   )
   for (criterion in c("mcse", "change")) {
     if (criterion == "change") {
@@ -439,8 +438,8 @@ test_that("JAGS reports the failed sampling-normalizer diagnostic and applicable
                  bins = rep(1, 4), grp = rep(1, 4), qmc = args$qmc, Q = length(args$qmc),
                  tol = args$relative_tolerance,
                  cn = args$cluster_nodes, cl = args$cluster_log_weights, co = args$cluster_orders,
-                 fn = args$factor_nodes, fl = args$factor_log_weights, fo = args$factor_orders,
-                 fr = args$factor_rule_counts)
+                 fn = args$factor_nodes, fl = args$factor_log_weights,
+                 fo = args$factor_orders)
     connection <- textConnection(syntax)
     expect_error({
       model <- rjags::jags.model(connection, data = data, inits = list(beta = 0),

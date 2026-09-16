@@ -248,7 +248,7 @@ test_that("rank-deficient factor projections retain scalar Gaussian densities", 
   plan <- c(control, list(
     statistical_target = "whole_sampling_error_selection", row_blocks = list(1:3),
     quadrature = .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS),
-    factor_quadrature = .selection_joint_factor_quadrature_rules(4L)
+    factor_quadrature = .selection_joint_factor_quadrature_rules()
   ))
   qmc <- BayesTools::selection_qmc_design(dimensions = 6L,
     points = control$max_points_per_scramble, scrambles = control$scrambles, seed = control$seed)

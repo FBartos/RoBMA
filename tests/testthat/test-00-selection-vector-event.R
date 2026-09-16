@@ -191,7 +191,7 @@ test_that("factor and cluster normalizers share the conditional Gaussian event l
   cluster_rules <- .selection_joint_cluster_quadrature_rules(
     SELNORM_CLUSTER_QUADRATURE_ORDERS
   )
-  factor_rules <- .selection_joint_factor_quadrature_rules(2L)[["2"]]
+  factor_rules <- .selection_joint_factor_quadrature_rules()
   qmc <- as.double(BayesTools::selection_qmc_design(
     dimensions = 4L, points = 2048L, scrambles = 8L, seed = 417L
   ))
@@ -216,7 +216,7 @@ test_that("factor and cluster normalizers share the conditional Gaussian event l
         factor = c(list(y, matrix(mean, 1L), matrix(residual, 1L),
                         matrix(as.double(loading), 1L)), common,
                    list(factor_rules$nodes, factor_rules$log_weights,
-                        as.double(factor_rules$orders), as.double(factor_rules$rule_counts),
+                        as.double(factor_rules$orders),
                         qmc, 256L, 2048L, 8L, .005, TRUE, rule)),
         dense = c(list(y, matrix(mean, 1L),
                        matrix(covariance[lower.tri(covariance, diag = TRUE)], 1L)),
@@ -298,7 +298,7 @@ test_that("the Gaussian event facade validates its explicit numerical contract",
 test_that("JAGS vector distributions accept the same explicit best event rule", {
 
   skip_if_not_installed("rjags")
-  quadrature <- .selection_joint_factor_quadrature_rules(2L)[["2"]]
+  quadrature <- .selection_joint_factor_quadrature_rules()
   cluster_quadrature <- .selection_joint_cluster_quadrature_rules(
     SELNORM_CLUSTER_QUADRATURE_ORDERS
   )
@@ -328,7 +328,7 @@ test_that("JAGS vector distributions accept the same explicit best event rule", 
       )
       integration_arguments <- switch(method,
         cluster = "nodes[],log_weights[],orders[],qmc[,,],256,2048,8,.005,rule",
-        factor = "nodes[],log_weights[],orders[],rule_counts[],qmc[,,],256,2048,8,.005,rule",
+        factor = "nodes[],log_weights[],orders[],qmc[,,],256,2048,8,.005,rule",
         mnorm = "qmc[,,],2048,8,.005,rule,nodes[],log_weights[],orders[]"
       )
       if (method != "mnorm") {
@@ -342,7 +342,6 @@ test_that("JAGS vector distributions accept the same explicit best event rule", 
         data <- c(data, cluster_quadrature[c("nodes", "log_weights", "orders")])
       }
       data$qmc <- if (method == "cluster") cluster_qmc else qmc
-      if (method == "factor") data$rule_counts <- quadrature$rule_counts
       syntax <- paste0("model { beta ~ dnorm(0,1)\n",
         "for(i in 1:2) { mu[i] <- beta + offset[i] }\n",
         "y[1:2] ~ dselnorm_", method, "_step(", covariance_arguments,

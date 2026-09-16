@@ -14,6 +14,13 @@
   study with several effect-size types uses one quadrature rule per type
   instead of a full rank-dimensional tensor rule. Mean-sweep normalizer
   interpolation also applies to the rank-one and factor routes.
+- integrates certified factor blocks of rank five to eight whose loading
+  supports form a forest, instead of falling back to the dense route or to
+  randomized quasi-Monte Carlo. How far a block climbs its quadrature sequence
+  is now decided by a node budget and the block's own support shape rather than
+  by a per-rank rule count: the nested rule spends `order^(depth + 1)` nodes and
+  the tensor fallback `order^rank`, so a forest of many factors costs what its
+  depth costs. Blocks of rank four and below reach the same rules as before.
 - evaluates the standard-normal tails inside every selection kernel in one
   batched, vectorized pass instead of one library `erfc` call per quadrature
   point, which is what those kernels spend most of their time on. The

@@ -259,13 +259,55 @@ test_that("factor routing fails closed outside the certified kernel contract", {
     "positive semidefinite"
   )
 
-  for (object in list(high_rank_object, zero_residual_object)) {
-    setup <- .data_selection_execution_plan(object[["data"]])
-    syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
-    expect_identical(setup[["exactness"]], "E2")
-    expect_match(syntax, "dselnorm_mnorm_step", fixed = TRUE)
-    expect_false(grepl("dselnorm_factor_step", syntax, fixed = TRUE))
-  }
+  # A declared rank the deterministic kernels accept keeps the factor route;
+  # how far its quadrature climbs is decided by the node budget at evaluation.
+  high_rank_setup  <- .data_selection_execution_plan(high_rank_object[["data"]])
+  high_rank_syntax <- .create_model_syntax(
+    high_rank_object[["data"]], high_rank_object[["priors"]]
+  )
+  expect_identical(high_rank_setup[["block_methods"]], "factor")
+  expect_identical(high_rank_setup[["factor_ranks"]], 5L)
+  expect_match(high_rank_syntax, "dselnorm_factor_step", fixed = TRUE)
+
+  # A rank above the certified kernel cap still falls back to the dense route.
+  over_cap_K   <- 10L
+  over_cap_dat <- data.frame(
+    yi       = seq(-.3, .7, length.out = over_cap_K),
+    study    = "a",
+    estimate = seq_len(over_cap_K)
+  )
+  over_cap_object <- bselmodel.mv(
+    yi                        = yi,
+    V                         = known_v_factor(
+      rep(.02, over_cap_K),
+      matrix(seq_len(over_cap_K * 9L) / 1000, nrow = over_cap_K, ncol = 9L)
+    ),
+    random                    = ~ 1 | estimate,
+    data                      = over_cap_dat,
+    measure                   = "SMD",
+    prior_unit_information_sd = 1,
+    prior_bias = .factor_selection_prior(),
+    only_priors               = TRUE,
+    silent                    = TRUE
+  )
+  over_cap_setup  <- .data_selection_execution_plan(over_cap_object[["data"]])
+  over_cap_syntax <- .create_model_syntax(
+    over_cap_object[["data"]], over_cap_object[["priors"]]
+  )
+  expect_identical(over_cap_setup[["exactness"]], "E2")
+  expect_match(over_cap_syntax, "dselnorm_mnorm_step", fixed = TRUE)
+  expect_false(grepl("dselnorm_factor_step", over_cap_syntax, fixed = TRUE))
+
+  # A factor with no positive residual variance is not a certified factor.
+  zero_residual_setup  <- .data_selection_execution_plan(
+    zero_residual_object[["data"]]
+  )
+  zero_residual_syntax <- .create_model_syntax(
+    zero_residual_object[["data"]], zero_residual_object[["priors"]]
+  )
+  expect_identical(zero_residual_setup[["exactness"]], "E2")
+  expect_match(zero_residual_syntax, "dselnorm_mnorm_step", fixed = TRUE)
+  expect_false(grepl("dselnorm_factor_step", zero_residual_syntax, fixed = TRUE))
 
   random_dat <- data.frame(
     yi    = dat[["yi"]],
@@ -299,10 +341,13 @@ test_that("factor routing fails closed outside the certified kernel contract", {
   )
   expect_identical(
     random_setup[["block_methods"]],
-    "dense"
+    "factor"
   )
-  expect_true("sel_joint_block_1_diagonal" %in% names(random_fit_data))
-  expect_match(random_syntax, "sel_joint_block_1_diagonal", fixed = TRUE)
+  expect_identical(random_setup[["factor_ranks"]], 6L)
+  expect_true(
+    .selection_joint_factor_quadrature_name("nodes") %in% names(random_fit_data)
+  )
+  expect_match(random_syntax, "dselnorm_factor_step", fixed = TRUE)
 
   expect_error(known_v_factor(c(.1, -.1), matrix(0, 2L, 1L)),
                "non-negative")
@@ -801,9 +846,7 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
       scrambles  = 16L,
       seed       = 417L
     )
-    quadrature <- .selection_joint_factor_quadrature_rules(rank)[[
-      as.character(rank)
-    ]]
+    quadrature <- .selection_joint_factor_quadrature_rules()
     observed <- .Call(
       "RoBMA_selnorm_factor_step_loglik_batch",
       as.double(y),
@@ -821,7 +864,6 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
       quadrature[["nodes"]],
       quadrature[["log_weights"]],
       as.double(quadrature[["orders"]]),
-      as.double(quadrature[["rule_counts"]]),
       as.double(qmc),
       4096L,
       4096L,
@@ -840,7 +882,6 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
       as.double(z_lower), as.double(z_upper), as.integer(obs_bin),
       sign, TRUE, 0L, quadrature[["nodes"]],
       quadrature[["log_weights"]], as.double(quadrature[["orders"]]),
-      as.double(quadrature[["rule_counts"]]),
       as.double(qmc), 4096L, 4096L, 16L, .005, FALSE,
       0L, PACKAGE = "RoBMA"
     )
@@ -874,7 +915,7 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
   z_lower <- c(stats::qnorm(.025, lower.tail = FALSE), -Inf)
   z_upper <- c(Inf, stats::qnorm(.025, lower.tail = FALSE))
   obs_bin <- ifelse(y / sei >= z_lower[[1L]], 1L, 2L)
-  quadrature <- .selection_joint_factor_quadrature_rules(4L)[["4"]]
+  quadrature <- .selection_joint_factor_quadrature_rules()
   qmc <- BayesTools::selection_qmc_design(
     dimensions = 8L,
     points     = 8L,
@@ -888,7 +929,7 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
     z_lower, z_upper, as.integer(obs_bin), 1L, TRUE, 1L,
     quadrature[["nodes"]], quadrature[["log_weights"]],
     as.double(quadrature[["orders"]]),
-    as.double(quadrature[["rule_counts"]]), as.double(qmc),
+    as.double(qmc),
     8L, 8L, 2L, .005, FALSE,
     0L, PACKAGE = "RoBMA"
   )
@@ -921,7 +962,7 @@ test_that("factor quadrature resolves an Assink state before QMC fallback", {
   z_lower <- c(stats::qnorm(.025, lower.tail = FALSE), -Inf)
   z_upper <- c(Inf, stats::qnorm(.025, lower.tail = FALSE))
   obs_bin <- ifelse(y / sei >= z_lower[[1L]], 1L, 2L)
-  quadrature <- .selection_joint_factor_quadrature_rules(2L)[["2"]]
+  quadrature <- .selection_joint_factor_quadrature_rules()
   qmc <- BayesTools::selection_qmc_design(
     dimensions = 4L,
     points     = 8L,
@@ -935,7 +976,7 @@ test_that("factor quadrature resolves an Assink state before QMC fallback", {
     z_lower, z_upper, as.integer(obs_bin), 1L, TRUE, 1L,
     quadrature[["nodes"]], quadrature[["log_weights"]],
     as.double(quadrature[["orders"]]),
-    as.double(quadrature[["rule_counts"]]), as.double(qmc),
+    as.double(qmc),
     8L, 8L, 2L, .005, FALSE,
     0L, PACKAGE = "RoBMA"
   )
@@ -995,10 +1036,10 @@ test_that("factor integration retains inactive and opposing selection modes", {
   obs_bin <- vapply(y / sqrt(vi), function(z) {
     which(z >= z_lower)[[1L]]
   }, integer(1L))
-  quadrature <- .selection_joint_factor_quadrature_rules(3:4)
+  quadrature <- .selection_joint_factor_quadrature_rules()
   evaluate <- function(columns, initial_points = 256L, max_points = 4096L) {
     rank <- length(columns)
-    rules <- quadrature[[as.character(rank)]]
+    rules <- quadrature
     qmc <- BayesTools::selection_qmc_design(
       dimensions = 2L * rank, points = max_points, scrambles = 8L, seed = 1L
     )
@@ -1009,7 +1050,7 @@ test_that("factor integration retains inactive and opposing selection modes", {
       matrix(rep(as.double(loading[, columns]), each = 2L), 2L),
       sqrt(vi), weights, z_lower, z_upper, obs_bin, 1L, TRUE, 1L,
       rules[["nodes"]], rules[["log_weights"]],
-      as.double(rules[["orders"]]), as.double(rules[["rule_counts"]]),
+      as.double(rules[["orders"]]),
       as.double(qmc), initial_points, max_points, 8L, .005, TRUE,
       0L, PACKAGE = "RoBMA"
     )
@@ -1053,13 +1094,13 @@ test_that("JAGS instantiates the certified factor distribution", {
     scrambles  = 2L,
     seed       = 19L
   )
-  quadrature <- .selection_joint_factor_quadrature_rules(2L)[["2"]]
+  quadrature <- .selection_joint_factor_quadrature_rules()
   model_text <- paste0(
     "model{\n",
     "  y[1:3] ~ dselnorm_factor_step(",
     "mu[1:3],residual_sd[1:3],loading[1:3,1:2],",
     "sei[1:3],omega,z_lower,z_upper,obs_bin[1:3],",
-    "1,1,1,nodes,log_weights,orders,rule_counts,",
+    "1,1,1,nodes,log_weights,orders,",
     "qmc[1:2,1:8,1:4],8,8,2,0.005,0)\n",
     "}\n"
   )
@@ -1081,7 +1122,6 @@ test_that("JAGS instantiates the certified factor distribution", {
       nodes       = quadrature[["nodes"]],
       log_weights = quadrature[["log_weights"]],
       orders      = quadrature[["orders"]],
-      rule_counts = quadrature[["rule_counts"]],
       qmc         = qmc
     ),
     n.chains = 1L,
@@ -1245,4 +1285,157 @@ test_that("latent fit data distinguish independent rows from rows without loadin
   expect_identical(unlist(lapply(blocks, function(block) {
     seq.int(block$z_start, block$z_end)
   })), 1:4)
+})
+
+
+test_that("forest supports above rank four integrate deterministically", {
+
+  # The nested rule expands one axis per tree level, so a forest support costs
+  # `order^(depth + 1)` however many factors it carries. These blocks are what
+  # exact recovery and declared cluster loadings produce above rank four.
+  evaluate <- function(loading, residual_sd, mu, y, sei, omega, z_lower,
+                       z_upper, sign = 1L, points = 4096L, scrambles = 16L) {
+    K       <- length(y)
+    rank    <- ncol(loading)
+    score   <- sign * y / sei
+    obs_bin <- vapply(score, function(value) {
+      which(value >= z_lower)[[1L]]
+    }, integer(1L))
+    qmc <- BayesTools::selection_qmc_design(
+      dimensions = 2L * rank, points = points, scrambles = scrambles,
+      seed = 613L
+    )
+    quadrature <- .selection_joint_factor_quadrature_rules()
+    .Call(
+      "RoBMA_selnorm_factor_step_loglik_batch",
+      as.double(y), matrix(mu, nrow = 1L), matrix(residual_sd, nrow = 1L),
+      matrix(as.double(loading), nrow = 1L), as.double(sei),
+      matrix(omega, nrow = 1L), as.double(z_lower), as.double(z_upper),
+      as.integer(obs_bin), sign, TRUE, 1L,
+      quadrature[["nodes"]], quadrature[["log_weights"]],
+      as.double(quadrature[["orders"]]), as.double(qmc),
+      as.integer(points), as.integer(points), as.integer(scrambles),
+      .005, TRUE, 0L, PACKAGE = "RoBMA"
+    )
+  }
+
+  # Rank five over six rows: one root column and four disjoint child columns.
+  K           <- 6L
+  rank        <- 5L
+  residual_sd <- seq(.30, .45, length.out = K)
+  loading     <- matrix(0, K, rank)
+  loading[, 1L] <- seq(.18, .30, length.out = K)
+  groups <- list(1:2, 3:4, 5L, 6L)
+  for (column in seq_along(groups)) {
+    loading[groups[[column]], column + 1L] <- c(.22, .14, .19, .16)[column]
+  }
+  mu      <- seq(-.30, .40, length.out = K)
+  y       <- c(-.44, -.11, .08, .31, .52, .87)
+  sei     <- seq(.20, .34, length.out = K)
+  omega   <- c(.35, 1)
+  z_lower <- c(stats::qnorm(.05, lower.tail = FALSE), -Inf)
+  z_upper <- c(Inf, stats::qnorm(.05, lower.tail = FALSE))
+
+  observed <- evaluate(loading, residual_sd, mu, y, sei, omega, z_lower, z_upper)
+
+  # Independent oracle: the normalizer is the weighted sum of orthant
+  # probabilities of the reconstructed covariance over every bin assignment.
+  covariance <- diag(residual_sd^2) + tcrossprod(loading)
+  assignments <- expand.grid(rep(list(seq_along(omega)), K))
+  set.seed(4211L)
+  terms <- apply(assignments, 1L, function(bins) {
+    probability <- suppressWarnings(as.numeric(mvtnorm::pmvnorm(
+      lower     = z_lower[bins] * sei,
+      upper     = z_upper[bins] * sei,
+      mean      = mu,
+      sigma     = covariance,
+      algorithm = mvtnorm::GenzBretz(maxpts = 500000L, abseps = 1e-10)
+    )))
+    prod(omega[bins]) * probability
+  })
+  reference <- mvtnorm::dmvnorm(y, mu, covariance, log = TRUE) +
+    sum(log(omega[vapply(y / sei, function(value) {
+      which(value >= z_lower)[[1L]]
+    }, integer(1L))])) - log(sum(terms))
+
+  expect_identical(observed[["relative_mcse"]], 0)
+  expect_lte(observed[["relative_change"]], .005)
+  expect_equal(observed[["log_density"]], reference, tolerance = 2e-6)
+})
+
+
+test_that("the factor node budget, not the rank, bounds the deterministic ladder", {
+
+  K           <- 8L
+  residual_sd <- rep(.35, K)
+  mu          <- seq(-.25, .35, length.out = K)
+  y           <- seq(-.4, .9, length.out = K)
+  sei         <- rep(.25, K)
+  omega       <- c(.4, 1)
+  z_lower     <- c(stats::qnorm(.05, lower.tail = FALSE), -Inf)
+  z_upper     <- c(Inf, stats::qnorm(.05, lower.tail = FALSE))
+  obs_bin     <- vapply(y / sei, function(value) {
+    which(value >= z_lower)[[1L]]
+  }, integer(1L))
+
+  run <- function(loading) {
+    rank <- ncol(loading)
+    qmc  <- BayesTools::selection_qmc_design(
+      dimensions = 2L * rank, points = 2048L, scrambles = 8L, seed = 811L
+    )
+    quadrature <- .selection_joint_factor_quadrature_rules()
+    .Call(
+      "RoBMA_selnorm_factor_step_loglik_batch",
+      as.double(y), matrix(mu, nrow = 1L), matrix(residual_sd, nrow = 1L),
+      matrix(as.double(loading), nrow = 1L), as.double(sei),
+      matrix(omega, nrow = 1L), as.double(z_lower), as.double(z_upper),
+      as.integer(obs_bin), 1L, TRUE, 1L,
+      quadrature[["nodes"]], quadrature[["log_weights"]],
+      as.double(quadrature[["orders"]]), as.double(qmc),
+      256L, 2048L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA"
+    )
+  }
+
+  # A three-level forest of rank eight: root, two halves, four pairs, one leaf.
+  forest_supports <- list(1:8, 1:4, 5:8, 1:2, 3:4, 5:6, 7:8, 1L)
+  forest <- matrix(0, K, length(forest_supports))
+  for (column in seq_along(forest_supports)) {
+    forest[forest_supports[[column]], column] <- .12
+  }
+  expect_identical(
+    .selection_factor_support_forest_depth(forest != 0), 3L
+  )
+  forest_result <- run(forest)
+  expect_identical(forest_result[["relative_mcse"]], 0)
+  expect_lte(forest_result[["relative_change"]], .005)
+
+  # The same rank with cyclically overlapping supports is not a forest, so only
+  # the tensor rule remains and the budget affords a single rung at order three.
+  # One rung cannot produce two successive changes, so the randomized fallback
+  # owns this block; its estimate must still agree with the forest-free oracle.
+  cyclic <- matrix(0, K, K)
+  for (column in seq_len(K)) {
+    cyclic[c(column, column %% K + 1L), column] <- .12
+  }
+  expect_identical(
+    .selection_factor_support_forest_depth(cyclic != 0), NA_integer_
+  )
+  cyclic_result <- run(cyclic)
+  expect_gt(cyclic_result[["relative_mcse"]], 0)
+  expect_lte(cyclic_result[["relative_mcse"]], .005)
+
+  covariance <- diag(residual_sd^2) + tcrossprod(cyclic)
+  assignments <- expand.grid(rep(list(seq_along(omega)), K))
+  set.seed(9013L)
+  terms <- apply(assignments, 1L, function(bins) {
+    prod(omega[bins]) * suppressWarnings(as.numeric(mvtnorm::pmvnorm(
+      lower     = z_lower[bins] * sei,
+      upper     = z_upper[bins] * sei,
+      mean      = mu,
+      sigma     = covariance,
+      algorithm = mvtnorm::GenzBretz(maxpts = 200000L, abseps = 1e-9)
+    )))
+  })
+  expect_equal(cyclic_result[["log_normalizer"]], log(sum(terms)),
+               tolerance = .005)
 })

@@ -11,11 +11,26 @@
 
 SELNORM_CLUSTER_QUADRATURE_ORDERS <-
   c(15L, 31L, 63L, 127L, 255L, 511L, 1023L)
-SELNORM_FACTOR_QUADRATURE_ORDERS <- list(
-  `2` = c(3L, 5L, 7L, 9L, 11L, 15L, 21L, 31L, 43L, 63L, 95L),
-  `3` = c(3L, 5L, 7L, 9L, 11L, 15L, 21L, 31L, 43L, 63L),
-  `4` = c(3L, 5L, 7L, 9L, 11L, 15L, 21L)
-)
+# One shared sequence for every certified factor rank. How far a block climbs
+# it is a property of the block, not of its rank: the nested rule over a forest
+# support costs `order^(depth + 1)` and the tensor fallback `order^rank`, and
+# the kernels stop at the first rule that exceeds their node budget.
+SELNORM_FACTOR_QUADRATURE_ORDERS <-
+  c(3L, 5L, 7L, 9L, 11L, 15L, 21L, 31L, 43L, 63L, 95L)
+
+# Largest certified factor rank the deterministic routes accept. Mirrors
+# SELNORM_FACTOR_MAX_RANK in src/selnorm/selnorm.h.
+SELNORM_FACTOR_MAX_RANK <- 8L
+
+# Node budget one deterministic factor rule may spend. Mirrors
+# selnorm_factor_node_budget in src/selnorm/selnorm-mv.cc.
+SELNORM_FACTOR_NODE_BUDGET <- 262144
+
+
+.selnorm_factor_rule_affordable <- function(order, exponent) {
+
+  as.double(order)^as.double(exponent) <= SELNORM_FACTOR_NODE_BUDGET
+}
 
 
 #' Control numerical integration of selection likelihoods
@@ -795,7 +810,7 @@ set_selection_likelihood_control <- function(
   plan[["retained_random_covariance"]] <- retained_covariance
   plan[["quadrature"]] <- .selection_joint_cluster_quadrature_rules(
     SELNORM_CLUSTER_QUADRATURE_ORDERS)
-  plan[["factor_quadrature"]] <- .selection_joint_factor_quadrature_rules(4L)
+  plan[["factor_quadrature"]] <- .selection_joint_factor_quadrature_rules()
   plan[["selection_spec"]] <- selection_spec
   attr(data, "selection_execution_plan") <- plan
   object[["data"]] <- data
@@ -877,10 +892,9 @@ set_selection_likelihood_control <- function(
     out[["sel_cond_cluster_nodes"]] <- plan[["quadrature"]][["nodes"]]
     out[["sel_cond_cluster_log_weights"]] <- plan[["quadrature"]][["log_weights"]]
     out[["sel_cond_cluster_orders"]] <- plan[["quadrature"]][["orders"]]
-    out[["sel_cond_factor_nodes"]] <- plan[["factor_quadrature"]][["4"]][["nodes"]]
-    out[["sel_cond_factor_log_weights"]] <- plan[["factor_quadrature"]][["4"]][["log_weights"]]
-    out[["sel_cond_factor_orders"]] <- plan[["factor_quadrature"]][["4"]][["orders"]]
-    out[["sel_cond_factor_rule_counts"]] <- plan[["factor_quadrature"]][["4"]][["rule_counts"]]
+    out[["sel_cond_factor_nodes"]] <- plan[["factor_quadrature"]][["nodes"]]
+    out[["sel_cond_factor_log_weights"]] <- plan[["factor_quadrature"]][["log_weights"]]
+    out[["sel_cond_factor_orders"]] <- plan[["factor_quadrature"]][["orders"]]
   }
   groups <- .data_selection_model(data)[["groups"]][["group_index"]]
   for (index in seq_along(plan[["row_blocks"]])) {
@@ -1030,8 +1044,7 @@ set_selection_likelihood_control <- function(
       plan[["points_per_scramble"]], ",", plan[["max_points_per_scramble"]], ",",
       plan[["scrambles"]], ",", format(plan[["relative_tolerance"]], scientific = FALSE),
       ",sel_cond_cluster_nodes,sel_cond_cluster_log_weights,sel_cond_cluster_orders,",
-      "sel_cond_factor_nodes,sel_cond_factor_log_weights,sel_cond_factor_orders,",
-      "sel_cond_factor_rule_counts)\n")
+      "sel_cond_factor_nodes,sel_cond_factor_log_weights,sel_cond_factor_orders)\n")
   }
   syntax
 }
@@ -1272,10 +1285,9 @@ set_selection_likelihood_control <- function(
       as.numeric(plan[["quadrature"]][["nodes"]]),
       as.numeric(plan[["quadrature"]][["log_weights"]]),
       as.numeric(plan[["quadrature"]][["orders"]]),
-      as.numeric(plan[["factor_quadrature"]][["4"]][["nodes"]]),
-      as.numeric(plan[["factor_quadrature"]][["4"]][["log_weights"]]),
-      as.numeric(plan[["factor_quadrature"]][["4"]][["orders"]]),
-      as.numeric(plan[["factor_quadrature"]][["4"]][["rule_counts"]]), PACKAGE = "RoBMA")
+      as.numeric(plan[["factor_quadrature"]][["nodes"]]),
+      as.numeric(plan[["factor_quadrature"]][["log_weights"]]),
+      as.numeric(plan[["factor_quadrature"]][["orders"]]), PACKAGE = "RoBMA")
     .selection_conditioned_sampling_diagnostics(result, plan)
     correction[, rows] <- result[["delta"]]
     for (draw in seq_len(S)) {
@@ -1331,10 +1343,9 @@ set_selection_likelihood_control <- function(
       as.numeric(plan[["quadrature"]][["nodes"]]),
       as.numeric(plan[["quadrature"]][["log_weights"]]),
       as.numeric(plan[["quadrature"]][["orders"]]),
-      as.numeric(plan[["factor_quadrature"]][["4"]][["nodes"]]),
-      as.numeric(plan[["factor_quadrature"]][["4"]][["log_weights"]]),
-      as.numeric(plan[["factor_quadrature"]][["4"]][["orders"]]),
-      as.numeric(plan[["factor_quadrature"]][["4"]][["rule_counts"]]), PACKAGE = "RoBMA")
+      as.numeric(plan[["factor_quadrature"]][["nodes"]]),
+      as.numeric(plan[["factor_quadrature"]][["log_weights"]]),
+      as.numeric(plan[["factor_quadrature"]][["orders"]]), PACKAGE = "RoBMA")
     .selection_conditioned_sampling_diagnostics(result, plan)
     value <- value + result[["log_normalizer"]]
     diagnostics[[index]] <- result[c("relative_mcse", "relative_change")]
@@ -1577,20 +1588,14 @@ set_selection_likelihood_control <- function(
       quadrature[["log_weights"]]
     fit_data[["sel_joint_cluster_orders"]] <- quadrature[["orders"]]
   }
-  for (rank_name in names(plan[["factor_quadrature"]])) {
-    quadrature <- plan[["factor_quadrature"]][[rank_name]]
-    fit_data[[.selection_joint_factor_quadrature_name(
-      "nodes", rank_name
-    )]] <- quadrature[["nodes"]]
-    fit_data[[.selection_joint_factor_quadrature_name(
-      "log_weights", rank_name
-    )]] <- quadrature[["log_weights"]]
-    fit_data[[.selection_joint_factor_quadrature_name(
-      "orders", rank_name
-    )]] <- quadrature[["orders"]]
-    fit_data[[.selection_joint_factor_quadrature_name(
-      "rule_counts", rank_name
-    )]] <- quadrature[["rule_counts"]]
+  if (any(block_methods == "factor")) {
+    quadrature <- plan[["factor_quadrature"]]
+    fit_data[[.selection_joint_factor_quadrature_name("nodes")]] <-
+      quadrature[["nodes"]]
+    fit_data[[.selection_joint_factor_quadrature_name("log_weights")]] <-
+      quadrature[["log_weights"]]
+    fit_data[[.selection_joint_factor_quadrature_name("orders")]] <-
+      quadrature[["orders"]]
   }
   for (design_key in names(plan[["designs"]])) {
     fit_data[[.selection_joint_qmc_name(design_key)]] <-
@@ -1735,7 +1740,7 @@ set_selection_likelihood_control <- function(
     ranks[[block_index]] <- rank
     methods[[block_index]] <- if (rank == 1L) {
       "rank_one"
-    } else if (rank >= 2L && rank <= 4L) {
+    } else if (rank >= 2L && rank <= SELNORM_FACTOR_MAX_RANK) {
       "factor"
     } else {
       "dense"
@@ -1839,9 +1844,7 @@ set_selection_likelihood_control <- function(
       }
       .selection_joint_cluster_quadrature_rules(orders)
     } else NULL,
-    factor_quadrature   = .selection_joint_factor_quadrature_rules(
-      unique(factor_ranks[factor])
-    ),
+    factor_quadrature   = .selection_joint_factor_quadrature_rules(),
     lower_pairs         = lower_pairs,
     exactness           = exactness
   ), class = c("RoBMA_selection_execution_plan", "list"))
@@ -1862,26 +1865,9 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_joint_factor_quadrature_rules <- function(ranks) {
+.selection_joint_factor_quadrature_rules <- function() {
 
-  rank_names <- intersect(names(SELNORM_FACTOR_QUADRATURE_ORDERS),
-                          as.character(ranks))
-  if (length(rank_names) == 0L) return(list())
-  shared_orders <- SELNORM_FACTOR_QUADRATURE_ORDERS[["2"]]
-  rule_counts   <- lengths(SELNORM_FACTOR_QUADRATURE_ORDERS)
-  for (rank in names(rule_counts)) {
-    if (!identical(SELNORM_FACTOR_QUADRATURE_ORDERS[[rank]],
-                   utils::head(shared_orders, rule_counts[[rank]]))) {
-      stop("Internal error: factor quadrature rules must share a prefix.",
-           call. = FALSE)
-    }
-  }
-  quadrature <- .selection_joint_cluster_quadrature_rules(shared_orders)
-  stats::setNames(lapply(rank_names, function(rank) {
-    c(quadrature, list(rule_counts = unname(rule_counts[
-      as.character(seq.int(2L, as.integer(rank)))
-    ])))
-  }), rank_names)
+  .selection_joint_cluster_quadrature_rules(SELNORM_FACTOR_QUADRATURE_ORDERS)
 }
 
 
@@ -1891,9 +1877,9 @@ set_selection_likelihood_control <- function(
 }
 
 
-.selection_joint_factor_quadrature_name <- function(quantity, rank) {
+.selection_joint_factor_quadrature_name <- function(quantity) {
 
-  paste0("sel_joint_factor_", quantity, "_", rank)
+  paste0("sel_joint_factor_", quantity)
 }
 
 
@@ -2489,10 +2475,8 @@ set_selection_likelihood_control <- function(
   }
   factor_rank <- execution_plan[["factor_ranks"]][[block_index]]
   design_key  <- execution_plan[["design_keys"]][[block_index]]
-  quadrature <- execution_plan[["factor_quadrature"]][[
-    as.character(factor_rank)
-  ]]
-  if (factor_rank < 2L || factor_rank > 4L ||
+  quadrature <- execution_plan[["factor_quadrature"]]
+  if (factor_rank < 2L || factor_rank > SELNORM_FACTOR_MAX_RANK ||
       ncol(loading) != length(yi) * factor_rank || is.na(design_key) ||
       length(quadrature[["orders"]]) < 3L) {
     stop("Internal error: selection factor inputs are inconsistent.",
@@ -2516,7 +2500,6 @@ set_selection_likelihood_control <- function(
     .native_numeric_vector(quadrature[["nodes"]]),
     .native_numeric_vector(quadrature[["log_weights"]]),
     .native_numeric_vector(quadrature[["orders"]]),
-    .native_numeric_vector(quadrature[["rule_counts"]]),
     .native_numeric_vector(execution_plan[["designs"]][[design_key]]),
     .native_integer_vector(
       execution_plan[["factor_points_per_proposal"]]
@@ -3036,12 +3019,9 @@ set_selection_likelihood_control <- function(
         prefix, "_obs_bin[1:", block_n, "],",
         "sel_sign,sel_telescope_probabilities,",
         .selection_joint_kernel_mode_expression(selection_spec), ",",
-        .selection_joint_factor_quadrature_name("nodes", factor_rank), ",",
-        .selection_joint_factor_quadrature_name(
-          "log_weights", factor_rank
-        ), ",",
-        .selection_joint_factor_quadrature_name("orders", factor_rank), ",",
-        .selection_joint_factor_quadrature_name("rule_counts", factor_rank), ",",
+        .selection_joint_factor_quadrature_name("nodes"), ",",
+        .selection_joint_factor_quadrature_name("log_weights"), ",",
+        .selection_joint_factor_quadrature_name("orders"), ",",
         qmc_name, "[1:", plan[["scrambles"]], ",1:",
         plan[["factor_max_points_per_proposal"]], ",1:",
         2L * factor_rank, "],",

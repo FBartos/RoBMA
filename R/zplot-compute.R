@@ -1148,28 +1148,33 @@
 }
 
 
-# Whether the native nested rule accepts these supports: every pair must be
-# nested or disjoint, which is the forest the rule integrates. A chain is the
-# special case of one child per level.
-.selection_factor_support_is_forest <- function(support) {
+# Depth of the forest the native nested rule integrates, or NA when the
+# supports are not a forest: every pair must be nested or disjoint. A chain is
+# the special case of one child per level. The rule expands one axis per level,
+# so the depth, not the rank, decides what one rule costs.
+.selection_factor_support_forest_depth <- function(support) {
 
   rank <- ncol(support)
   if (rank <= 1L) {
-    return(TRUE)
+    return(0L)
   }
   ordered <- support[, order(colSums(support), decreasing = TRUE), drop = FALSE]
-  for (outer in seq_len(rank - 1L)) {
-    for (inner in seq.int(outer + 1L, rank)) {
-      if (!any(ordered[, outer] & ordered[, inner])) {
+  depth <- integer(rank)
+  for (outer in seq_len(rank)) {
+    parent <- 0L
+    for (inner in seq_len(outer - 1L)) {
+      if (!any(ordered[, inner] & ordered[, outer])) {
         next
       }
-      if (!all(ordered[, inner] <= ordered[, outer])) {
-        return(FALSE)
+      if (!all(ordered[, outer] <= ordered[, inner])) {
+        return(NA_integer_)
       }
+      parent <- inner
     }
+    depth[[outer]] <- if (parent == 0L) 0L else depth[[parent]] + 1L
   }
 
-  TRUE
+  max(depth)
 }
 
 
@@ -1231,16 +1236,24 @@
       }
     }
   }
-  if (rank %in% c(3L, 4L) && !is.null(support)) {
-    nested <- .selection_factor_support_is_forest(support)
-  }
+  forest_depth <- if (rank >= 3L && !is.null(support)) {
+    .selection_factor_support_forest_depth(support)
+  } else NA_integer_
+  nested <- rank >= 3L && !is.na(forest_depth)
   quadrature <- rank %in% c(1L, 2L) || nested
   orders <- if (rank == 1L) SELNORM_CLUSTER_QUADRATURE_ORDERS else
-    SELNORM_FACTOR_QUADRATURE_ORDERS[[as.character(rank)]]
+    SELNORM_FACTOR_QUADRATURE_ORDERS
+  # Same node budget the kernels apply: a forest support pays
+  # `order^(depth + 1)`, a plain tensor `order^rank`.
+  cost_exponent <- if (nested) forest_depth + 1L else rank
+  if (quadrature) {
+    orders <- orders[.selnorm_factor_rule_affordable(orders, cost_exponent)]
+    quadrature <- length(orders) > 0L
+  }
   rule_index <- 1L
   repeat {
     rule <- if (quadrature) .gauss_hermite_nodes(orders[rule_index]) else NULL
-    if (quadrature) points <- length(rule$nodes)^rank
+    if (quadrature) points <- length(rule$nodes)
     key <- paste(K, points, sep = "/")
     if (!quadrature && !exists(key, designs, inherits = FALSE)) {
       assign(key, BayesTools::selection_qmc_design(

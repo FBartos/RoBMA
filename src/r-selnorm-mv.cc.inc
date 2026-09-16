@@ -349,19 +349,31 @@ static SEXP selnorm_mnorm_step_batch(
       Rf_length(scrambles) != 1 || INTEGER(scrambles)[0] < 2) {
     Rf_error("'points' and 'scrambles' contain invalid integration settings.");
   }
-  const int n_points    = INTEGER(points)[0];
+  int n_points          = INTEGER(points)[0];
   const int n_scrambles = INTEGER(scrambles)[0];
   const bool quadrature = factors != R_NilValue && Rf_length(factors) == 5;
   const int *loading_support = nullptr;
   if (quadrature) {
     check_real(VECTOR_ELT(factors, 2), "nodes");
     check_real(VECTOR_ELT(factors, 3), "log_weights");
+    // The projection integrates a forest support one axis per tree level, so
+    // its cost is not a tensor size and 'points' carries the rule order itself.
+    // A support the nested rule declines falls back to the tensor loop, whose
+    // size is derived here and bounded by the same node budget.
     const int order = Rf_length(VECTOR_ELT(factors, 2));
-    double expected_points = 1.0;
-    for (int factor = 0; factor < rank; ++factor) expected_points *= order;
-    if (order < 1 || rank > 4 || Rf_length(VECTOR_ELT(factors, 3)) != order ||
-        n_points != expected_points) {
+    if (order < 1 || rank > SELNORM_FACTOR_MAX_RANK ||
+        Rf_length(VECTOR_ELT(factors, 3)) != order || n_points != order) {
       Rf_error("'factors' quadrature dimensions are invalid.");
+    }
+    if (selnorm_factor_rule_affordable(order, rank)) {
+      double tensor = 1.0;
+      for (int factor = 0; factor < rank; ++factor) tensor *= order;
+      n_points = static_cast<int>(tensor);
+    } else {
+      // No affordable tensor rule. The nested rule still runs; if it declines,
+      // an empty point set declines the rung and the caller refines or falls
+      // back rather than spending an unbounded tensor.
+      n_points = 0;
     }
     SEXP support = VECTOR_ELT(factors, 4);
     if (rank > 2 || support != R_NilValue) {
@@ -823,8 +835,7 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   SEXP yi, SEXP means, SEXP residual_sd, SEXP loading, SEXP sei, SEXP omega,
   SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
   SEXP telescope_probabilities, SEXP kernel_mode, SEXP quadrature_nodes,
-  SEXP quadrature_log_weights, SEXP quadrature_orders,
-  SEXP quadrature_rule_counts, SEXP qmc,
+  SEXP quadrature_log_weights, SEXP quadrature_orders, SEXP qmc,
   SEXP initial_points, SEXP max_points, SEXP scrambles,
   SEXP relative_tolerance, SEXP return_normalizer, SEXP vector_rule)
 {
@@ -847,7 +858,6 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   check_real(quadrature_nodes, "quadrature_nodes");
   check_real(quadrature_log_weights, "quadrature_log_weights");
   check_real(quadrature_orders, "quadrature_orders");
-  check_real(quadrature_rule_counts, "quadrature_rule_counts");
   check_real(qmc, "qmc");
   check_integer(initial_points, "initial_points");
   check_integer(max_points, "max_points");
@@ -864,7 +874,8 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   }
   const int rank = loading_columns / K;
   validate_matrix_dims_named(residual_sd, "residual_sd", S, K, "means");
-  if (matrix_nrow(loading, "loading") != S || rank < 2 || rank > 4 ||
+  if (matrix_nrow(loading, "loading") != S || rank < 2 ||
+      rank > SELNORM_FACTOR_MAX_RANK ||
       B < 1 || matrix_nrow(omega, "omega") != S ||
       Rf_length(yi) != K || Rf_length(sei) != K ||
       Rf_length(obs_bin) != K || Rf_length(z_lower) != B ||
@@ -877,7 +888,6 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
       Rf_length(quadrature_nodes) < 1 ||
       Rf_length(quadrature_log_weights) != Rf_length(quadrature_nodes) ||
       Rf_length(quadrature_orders) < 3 ||
-      Rf_length(quadrature_rule_counts) != rank - 1 ||
       Rf_length(initial_points) != 1 || INTEGER(initial_points)[0] < 4 ||
       Rf_length(max_points) != 1 ||
       INTEGER(max_points)[0] < INTEGER(initial_points)[0] ||
@@ -901,13 +911,6 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   }
   if (quadrature_length != Rf_length(quadrature_nodes)) {
     Rf_error("'quadrature_orders' do not match the quadrature rules.");
-  }
-  for (int index = 0; index < rank - 1; ++index) {
-    const double count = REAL(quadrature_rule_counts)[index];
-    if (!std::isfinite(count) || count != std::floor(count) || count < 3.0 ||
-        count > Rf_length(quadrature_orders)) {
-      Rf_error("'quadrature_rule_counts' must contain valid rule-prefix lengths.");
-    }
   }
   const int n_initial_points = INTEGER(initial_points)[0];
   const int n_max_points = INTEGER(max_points)[0];
@@ -983,7 +986,6 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
       scalar_or_row_int(INTEGER(kernel_mode), kernel_length, s, "kernel_mode"),
       REAL(quadrature_nodes), REAL(quadrature_log_weights),
       REAL(quadrature_orders), Rf_length(quadrature_orders),
-      REAL(quadrature_rule_counts),
       REAL(qmc), n_initial_points, n_max_points, n_scrambles,
       REAL(relative_tolerance)[0], &mcse, &change,
       LOGICAL(return_normalizer)[0] ? REAL(log_normalizer) + s : nullptr,

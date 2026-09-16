@@ -174,14 +174,13 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
 
 static SelNormConditionedQuadrature sampling_conditioned_quadrature(
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
-    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP factor_rule_counts)
+    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders)
 {
   const SEXP inputs[] = {cluster_nodes, cluster_log_weights, cluster_orders,
-    factor_nodes, factor_log_weights, factor_orders, factor_rule_counts};
+    factor_nodes, factor_log_weights, factor_orders};
   const char *labels[] = {"cluster_nodes", "cluster_log_weights", "cluster_orders",
-    "factor_nodes", "factor_log_weights", "factor_orders", "factor_rule_counts"};
-  for (int i = 0; i < 7; ++i) {
+    "factor_nodes", "factor_log_weights", "factor_orders"};
+  for (int i = 0; i < 6; ++i) {
     check_real(inputs[i], labels[i]);
     for (R_xlen_t j = 0; j < XLENGTH(inputs[i]); ++j) {
       if (!std::isfinite(REAL(inputs[i])[j])) Rf_error("'%s' must contain finite values.", labels[i]);
@@ -203,16 +202,9 @@ static SelNormConditionedQuadrature sampling_conditioned_quadrature(
       Rf_error("Conditional selection quadrature arrays do not match their orders.");
     }
   }
-  if (Rf_length(factor_rule_counts) != 3) Rf_error("Conditional selection factor quadrature requires counts for ranks two through four.");
-  for (int rank = 0; rank < 3; ++rank) {
-    const double count = REAL(factor_rule_counts)[rank];
-    if (count != std::floor(count) || count < 3 || count > Rf_length(factor_orders)) {
-      Rf_error("Conditional selection factor quadrature rule counts are invalid.");
-    }
-  }
   return {REAL(cluster_nodes), REAL(cluster_log_weights), REAL(cluster_orders),
     Rf_length(cluster_orders), REAL(factor_nodes), REAL(factor_log_weights),
-    REAL(factor_orders), Rf_length(factor_orders), REAL(factor_rule_counts)};
+    REAL(factor_orders), Rf_length(factor_orders)};
 }
 
 static SEXP selnorm_conditioned_normalizer_or_projection_batch(
@@ -222,11 +214,11 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
     SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP factor_rule_counts, SEXP z, SEXP kind)
+    SEXP z, SEXP kind)
 {
   const SelNormConditionedQuadrature quadrature = sampling_conditioned_quadrature(
     cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes,
-    factor_log_weights, factor_orders, factor_rule_counts);
+    factor_log_weights, factor_orders);
   check_real(means, "means");
   check_real(diagonal, "diagonal");
   check_real(loading, "loading");
@@ -367,15 +359,14 @@ extern "C" SEXP RoBMA_selnorm_conditioned_normalizer_batch(
     SEXP telescope_probabilities, SEXP vector_rule, SEXP group_index, SEXP qmc,
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
-    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP factor_rule_counts)
+    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders)
 {
   return selnorm_conditioned_normalizer_or_projection_batch(means, diagonal,
     loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode,
     telescope_probabilities, vector_rule, group_index, qmc, initial_points,
     max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights,
     cluster_orders, factor_nodes, factor_log_weights, factor_orders,
-    factor_rule_counts, R_NilValue, R_NilValue);
+    R_NilValue, R_NilValue);
 }
 
 extern "C" SEXP RoBMA_selnorm_factor_projection_batch(
@@ -385,14 +376,14 @@ extern "C" SEXP RoBMA_selnorm_factor_projection_batch(
     SEXP initial_points, SEXP max_points, SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
     SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP factor_rule_counts, SEXP z, SEXP kind)
+    SEXP z, SEXP kind)
 {
   return selnorm_conditioned_normalizer_or_projection_batch(means, diagonal,
     loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode,
     telescope_probabilities, vector_rule, group_index, qmc, initial_points,
     max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights,
     cluster_orders, factor_nodes, factor_log_weights, factor_orders,
-    factor_rule_counts, z, kind);
+    z, kind);
 }
 
 extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
@@ -403,12 +394,11 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
     SEXP group_index, SEXP qmc, SEXP initial_points, SEXP max_points,
     SEXP scrambles, SEXP relative_tolerance,
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
-    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
-    SEXP factor_rule_counts)
+    SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders)
 {
   const SelNormConditionedQuadrature quadrature = sampling_conditioned_quadrature(
     cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes,
-    factor_log_weights, factor_orders, factor_rule_counts);
+    factor_log_weights, factor_orders);
   check_real(yi, "yi");
   check_real(means, "means");
   check_real(sampling_lower, "sampling_lower");
