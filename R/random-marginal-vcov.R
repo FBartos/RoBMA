@@ -139,15 +139,37 @@
 .brma_mv_random_effects_marginal_factor_states <- function(
     object, posterior_samples, blocks, row_blocks,
     data = object[["data"]], inputs = NULL,
-    include_known_group_covariance = TRUE) {
+    include_known_group_covariance = TRUE, cache = NULL) {
 
   if (is.null(inputs)) {
-    inputs <- .brma_mv_random_effects_marginal_inputs(
-      object                         = object,
-      posterior_samples              = posterior_samples,
-      data                            = data,
+    # The design and its priors do not depend on the draws, and the downstream
+    # contract cache compares them by value: reusing the same objects makes
+    # that comparison a pointer check instead of a deep walk.
+    structural <- if (is.environment(cache)) cache[["marginal_inputs"]] else NULL
+    identity <- list(
+      fit = object[["fit"]], data = data, priors = object[["priors"]],
       include_known_group_covariance = include_known_group_covariance
     )
+    if (!is.null(structural) && identical(structural[["identity"]], identity)) {
+      inputs <- structural[["inputs"]]
+      inputs[["formula_fit"]] <- .posterior_formula_fit(
+        fit               = object[["fit"]],
+        posterior_samples = posterior_samples,
+        formula_design    = TRUE
+      )
+      attr(inputs[["formula_fit"]], "formula_design") <-
+        list(mu = inputs[["formula_design"]])
+    } else {
+      inputs <- .brma_mv_random_effects_marginal_inputs(
+        object                         = object,
+        posterior_samples              = posterior_samples,
+        data                            = data,
+        include_known_group_covariance = include_known_group_covariance
+      )
+      if (is.environment(cache)) {
+        cache[["marginal_inputs"]] <- list(identity = identity, inputs = inputs)
+      }
+    }
   }
 
   if (.is_data_scale(data)) {
@@ -184,7 +206,8 @@
     posterior_samples = posterior_samples,
     prior_list        = inputs[["location_priors"]],
     blocks            = blocks,
-    row_blocks        = row_blocks
+    row_blocks        = row_blocks,
+    cache             = cache
   ))
 }
 

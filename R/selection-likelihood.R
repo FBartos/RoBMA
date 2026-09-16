@@ -1948,6 +1948,26 @@ set_selection_likelihood_control <- function(
 }
 
 
+# One compiled random-effect factor contract, retained while a density line
+# evaluates its replacement chunks. BayesTools re-validates the contract by
+# value on every call and the evaluated states are never cached, so a different
+# model recompiles rather than reusing anything; only one entry is kept.
+.selection_random_factor_contract_cache <- local({
+
+  store <- new.env(parent = emptyenv())
+  function() {
+
+    if (!identical(store[["process_id"]], Sys.getpid())) {
+      store[["process_id"]]  <- Sys.getpid()
+      store[["states"]]      <- new.env(parent = emptyenv())
+      store[["diagonal"]]    <- new.env(parent = emptyenv())
+      store[["contract_id"]] <- NULL
+    }
+    store
+  }
+})
+
+
 .selection_joint_random_factor_samples <- function(setup, inputs = NULL) {
 
   if (!.is_data_random(setup[["data"]])) {
@@ -1978,9 +1998,21 @@ set_selection_likelihood_control <- function(
       blocks = blocks, row_blocks = execution_plan[["row_blocks"]]
     )
     if (!is.null(inputs)) arguments[["inputs"]] <- inputs
+    # A density line calls this once per replacement chunk with the same
+    # contract and different draws. Compiling the contract and reducing it to
+    # diagonal-plus-factor form are both invariant; only the evaluated states
+    # are not.
+    cache <- .selection_random_factor_contract_cache()
+    arguments[["cache"]] <- cache[["states"]]
     factors <- do.call(.brma_mv_random_effects_marginal_factor_states, arguments)
+    if (!identical(cache[["contract_id"]], factors[["contract_id"]])) {
+      cache[["contract_id"]] <- factors[["contract_id"]]
+      cache[["diagonal"]]    <- new.env(parent = emptyenv())
+    }
     result <- tryCatch(
-      BayesTools::random_effects_marginal_diagonal_factor(factors),
+      BayesTools::random_effects_marginal_diagonal_factor(
+        factors, cache = cache[["diagonal"]]
+      ),
       BayesTools_random_effects_marginal_factor_unavailable = function(e) NULL
     )
     if (is.null(result)) {

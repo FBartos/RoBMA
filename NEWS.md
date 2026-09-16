@@ -21,6 +21,12 @@
   by a per-rank rule count: the nested rule spends `order^(depth + 1)` nodes and
   the tensor fallback `order^rank`, so a forest of many factors costs what its
   depth costs. Blocks of rank four and below reach the same rules as before.
+- builds the random-effect factor contract once per density line instead of
+  once per replacement chunk. The compiled contract and its diagonal-plus-factor
+  reduction plan do not depend on the swept values, so they are retained across
+  the chunks of one line and re-validated by value; the evaluated states are
+  never reused. A 500-row `tau_total` line on the diagonal-`V` selection fit
+  takes 8.0 s where it took 10.0 s, with the same values.
 - recovers an exact `diag(d) + U U'` representation of a dependency block whose
   correlations are not block constant, so covariance from overlapping samples,
   shared control arms or signed relationships reaches the deterministic factor

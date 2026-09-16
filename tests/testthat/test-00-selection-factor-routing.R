@@ -537,7 +537,7 @@ test_that("exact random factors reuse repeated states without changing covarianc
   built_rows <- integer()
   testthat::local_mocked_bindings(
     .brma_mv_random_effects_marginal_factor_states = function(
-        object, posterior_samples, blocks, row_blocks) {
+        object, posterior_samples, blocks, row_blocks, ...) {
 
       built_rows <<- c(built_rows, nrow(posterior_samples))
       structure(list(
