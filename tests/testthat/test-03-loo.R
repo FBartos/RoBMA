@@ -604,8 +604,16 @@ test_that("cached LOO and WAIC reject stale outcome and known-V targets", {
   }
   attr(stale_V[["data"]], "known_V_data") <- known_V
 
-  expect_error(loo(stale_V), "current outcome data")
-  expect_error(waic(stale_V), "current outcome data")
+  # A block that carries a recovered representation is rejected by the identity
+  # that representation is certified on, which is the earlier guard; a block
+  # without one is rejected by the cached predictive target.
+  stale_V_rejection <- if (.known_v_has_certified_factor(known_V)) {
+    "no longer reproduces"
+  } else {
+    "current outcome data"
+  }
+  expect_error(loo(stale_V), stale_V_rejection)
+  expect_error(waic(stale_V), stale_V_rejection)
 })
 
 test_that("cached target checks ignore provenance but reject target changes", {

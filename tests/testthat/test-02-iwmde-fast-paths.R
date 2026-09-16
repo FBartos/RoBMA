@@ -4404,9 +4404,10 @@ test_that("selection replacements bound workspace without changing row targets",
     )
     object <- if (known_v) {
       args$V <- if (dense) {
-        # Negative within-block correlation: exact recovery declines, so the
-        # block keeps the packed dense covariance workspace this exercises.
-        matrix(c(.04, -.01, -.01, .05), nrow = 2L)
+        # A declared factor above the certified kernel rank cap: routing keeps
+        # the packed dense covariance workspace this exercises. A plain matrix
+        # no longer can, because every two-row block is exactly rank one.
+        known_v_factor(rep(.005, 2L), matrix(.02, nrow = 2L, ncol = 9L))
       } else if (correlated) {
         known_v_factor(c(.03, .04), matrix(c(.1, .1), ncol = 1))
       } else diag(c(.03, .04))
