@@ -21,6 +21,14 @@
   by a per-rank rule count: the nested rule spends `order^(depth + 1)` nodes and
   the tensor fallback `order^rank`, so a forest of many factors costs what its
   depth costs. Blocks of rank four and below reach the same rules as before.
+  The selected-normal factor distributions take one parameter fewer with the
+  per-rank rule counts gone, so a fit saved from an earlier development build
+  cannot be extended with `update()` or `JAGS_extend()` and must be refit;
+  reading, plotting and summarizing such a fit are unaffected.
+- threads the per-draw context projection and the selection kernels, which
+  post-fit calls on a serially fitted model do not pick up on their own:
+  `RoBMA.options(native_threads = )` is the lever for those calls, and a zplot
+  panel that takes 33.5 s serially takes 22.2 s at eight threads.
 - reports the qCMDE pilot gate through `density_diagnostics()`, in the new
   `pilot_gate_stopped` and `pilot_bulk_ess` columns, so a line whose refinement
   was cut short says so and names the bulk effective sample size it stopped on.
