@@ -343,6 +343,19 @@
   # working precision along different rounding paths differ by a few ulps.
   tolerance <- 8 * size * .Machine$double.eps
 
+  # Every accepted representation keeps each residual variance above the
+  # certificate floor, so `D + U U'` is positive definite with its smallest
+  # eigenvalue at least that floor. A block at or below it -- exactly singular,
+  # like a rank-one `s s'` with no residual spread, or rank deficient to
+  # working precision -- has no acceptable representation at any rank, and
+  # the ladder would only refine towards representations the certificate
+  # declines.
+  smallest <- min(eigen(covariance, symmetric = TRUE,
+                        only.values = TRUE)[["values"]])
+  if (!is.finite(smallest) || smallest <= tolerance * max(variance)) {
+    return(NULL)
+  }
+
   # Rank one is always in scope: for two rows it is the only representation
   # there is, and it is the one the cluster route wants.
   limit <- max(min(

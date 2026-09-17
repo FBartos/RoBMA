@@ -289,6 +289,44 @@ test_that("a block with no low-rank structure declines without refinement", {
 })
 
 
+test_that("a singular block declines without refinement", {
+
+  # An accepted representation keeps every residual variance positive, so no
+  # singular block has one at any rank. The search settles such a block from
+  # its spectrum instead of polishing every start on every rank towards
+  # representations the certificate then declines: a rank-one `s s'` from one
+  # shared standard error is exactly this block, and it reaches the input path
+  # once per model.
+  shared_se <- rep(.12, 98L)
+  rank_one  <- .known_v_exact_symmetrize(tcrossprod(shared_se))
+  set.seed(6161L)
+  loading  <- matrix(stats::rnorm(80L * 3L, sd = .3), 80L, 3L)
+  deficient <- .known_v_exact_symmetrize(tcrossprod(loading))
+
+  testthat::local_mocked_bindings(
+    .covariance_low_rank_polish = function(...) {
+      stop("a singular block must not be refined", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+  for (block in list(rank_one, deficient)) {
+    elapsed <- system.time(
+      factor <- .covariance_minimum_rank_factor(block)
+    )[["elapsed"]]
+    expect_null(factor)
+    expect_lt(elapsed, 1)
+  }
+
+  # The same for the input path: the block keeps its supplied entries and its
+  # rank-one sampling factor, and construction does not pay for the search.
+  elapsed <- system.time(
+    known_V <- suppressWarnings(.known_v_canonicalize(rank_one))
+  )[["elapsed"]]
+  expect_false(.known_v_has_certified_factor(known_V))
+  expect_lt(elapsed, 1)
+})
+
+
 test_that("a fit stored under the earlier recovered status stays readable", {
 
   # Recoveries saved before the minimum-rank search named the block-constant
