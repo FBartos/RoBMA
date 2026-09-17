@@ -1,5 +1,16 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- evaluates the posterior density of a selection model whose publication event
+  factorizes over single estimates through the batched predictor route again.
+  The generic candidate route, which rebuilds a full selection likelihood for
+  every (grid point, posterior row) pair, has served every selection model
+  since the joint routing landed, although a plan with only singleton blocks
+  needs neither its joint integration nor its per-candidate setup: the closed
+  form for a normal location change and the native normalizer delta grid give
+  the same joint log density. A `hypothesis()` Bayes factor on a three-parameter
+  selection model reproduces to all printed digits and takes half the time; the
+  generic route remains the fallback for every plan with a dependent block and
+  for a batch the predictor route declines.
 - recognizes block-constant known-`V` structure from an ordinary covariance
   matrix, so compound symmetry and nested `metafor::vcalc()` `type`/`obs`
   designs reach the exact rank-one and factor selection routes without a

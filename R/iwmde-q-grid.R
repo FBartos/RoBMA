@@ -23,6 +23,30 @@
   }
 
   if (.is_data_joint_selection(context[["data"]])) {
+    # An all-singleton selection plan has no dependent block to integrate, so
+    # the batched predictor route evaluates the same joint density as the
+    # generic candidate route below: the closed-form normal location change and
+    # the native normalizer delta grid replace one full likelihood per
+    # (value, row) candidate. Retained-location rows have already returned
+    # above, and the generic route stays the fallback whenever the predictor
+    # batch declines.
+    plan <- .data_selection_execution_plan(context[["data"]])
+    if (length(plan[["block_methods"]]) > 0L &&
+        all(plan[["block_methods"]] == "singleton")) {
+      predictor <- .iwmde_log_q_grid_predictor_batch(
+        context     = context,
+        parameter   = parameter,
+        values      = values,
+        row_states  = row_states,
+        replacement = replacement
+      )
+      if (is.matrix(predictor) &&
+          nrow(predictor) == length(values) &&
+          ncol(predictor) == length(row_states)) {
+        return(predictor)
+      }
+    }
+
     modes <- unique(vapply(row_states, `[[`, character(1L), "likelihood_mode"))
     if (length(modes) == 1L) {
       result <- .iwmde_log_q_grid_from_samples(
