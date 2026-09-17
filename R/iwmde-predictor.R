@@ -4,14 +4,22 @@
 
 .iwmde_predictor_setup <- function(context, row_states, active_setup, unit) {
 
-  rows <- vapply(row_states, function(state) {
-    state[["row_index"]]
-  }, integer(1))
-  state_scope <- unique(vapply(
-    row_states,
-    .iwmde_state_scope_value,
-    character(1)
-  ))
+  rows <- vapply(row_states, `[[`, integer(1L), "row_index")
+  # The states of one group carry one declared scope; reading the field
+  # directly avoids a call per posterior row, and anything the field-level
+  # normalizer would have to repair falls back to it.
+  state_scope <- tryCatch(
+    unique(vapply(row_states, `[[`, character(1L), "state_scope")),
+    error = function(e) NULL
+  )
+  if (length(state_scope) != 1L ||
+      !state_scope %in% c("local", "global")) {
+    state_scope <- unique(vapply(
+      row_states,
+      .iwmde_state_scope_value,
+      character(1)
+    ))
+  }
   if (length(state_scope) != 1L) {
     state_scope <- "mixed"
   }
@@ -84,21 +92,11 @@
 
 .iwmde_predictor_cache_key <- function(prefix, ...) {
 
-  bytes <- as.integer(serialize(list(...), NULL, version = 3))
-  hash1 <- 5381
-  hash2 <- 0
-
-  for (byte in bytes) {
-    hash1 <- (hash1 * 33 + byte) %% 2147483647
-    hash2 <- (hash2 * 65599 + byte) %% 2147483629
-  }
-
-  return(paste(
-    prefix,
-    sprintf("%08x", as.integer(hash1)),
-    sprintf("%08x", as.integer(hash2)),
-    sep = "|"
-  ))
+  # The payloads carry the whole vector of posterior row indices and, on the
+  # known-V routes, whole block covariances, and the previous rolling hash ran
+  # one R iteration per serialized byte. .iwmde_hash() is the same compact key
+  # the rest of the estimator uses.
+  return(.iwmde_hash(prefix, list(...)))
 }
 
 
@@ -587,14 +585,16 @@
                                                likelihood_change, log_prior,
                                                normalizer_change = NULL) {
 
-  G          <- length(values)
-  S          <- length(current)
-  row_index  <- rep(seq_len(S), each = G)
-  grid_index <- rep(seq_len(G), times = S)
-  delta      <- values[grid_index] - current[row_index]
-  log_lik <- baseline[row_index] +
-    likelihood_change[["linear"]][row_index] * delta -
-    .5 * likelihood_change[["quadratic"]][row_index] * delta^2
+  G <- length(values)
+  S <- length(current)
+  # The candidate grid is regular, so indexing through rep(seq_len(.)) index
+  # vectors is the same as repeating the vectors themselves - the same values
+  # in the same order, without materializing two index vectors as long as the
+  # grid.
+  delta   <- rep(values, times = S) - rep(current, each = G)
+  log_lik <- rep(baseline, each = G) +
+    rep(likelihood_change[["linear"]], each = G) * delta -
+    .5 * rep(likelihood_change[["quadratic"]], each = G) * delta^2
   if (!is.null(normalizer_change)) {
     log_lik <- log_lik - normalizer_change
   }
@@ -671,9 +671,7 @@
     ))
   }
 
-  rows <- vapply(row_states, function(state) {
-    state[["row_index"]]
-  }, integer(1))
+  rows <- vapply(row_states, `[[`, integer(1L), "row_index")
   state_scope <- unique(vapply(
     row_states,
     .iwmde_state_scope_value,
@@ -876,9 +874,7 @@
                                                     selection_context,
                                                     row_states) {
 
-  rows <- vapply(row_states, function(state) {
-    state[["row_index"]]
-  }, integer(1))
+  rows <- vapply(row_states, `[[`, integer(1L), "row_index")
   key <- .iwmde_predictor_cache_key(
     prefix                  = "selnorm_current_log_norm",
     active_key              = .iwmde_state_active_key(context, row_states[[1L]]),
@@ -1245,10 +1241,20 @@
   G <- length(values)
   S <- length(row_states)
 
-  use_delta <- !identical(replacement[["type"]], "linear") &&
-    all(vapply(row_states, function(state) {
+  # Reading the flag directly costs no call per posterior row; a state that
+  # carries something other than one logical value falls back to the
+  # isTRUE() test, which is what decided such a state before.
+  delta_flags <- tryCatch(
+    vapply(row_states, `[[`, logical(1L), "use_focal_prior_delta"),
+    error = function(e) NULL
+  )
+  if (is.null(delta_flags)) {
+    delta_flags <- vapply(row_states, function(state) {
       isTRUE(state[["use_focal_prior_delta"]])
-    }, logical(1)))
+    }, logical(1))
+  }
+  use_delta <- !identical(replacement[["type"]], "linear") &&
+    isTRUE(all(delta_flags))
 
   if (use_delta) {
     focal_log_prior <- .iwmde_focal_log_prior_values(
@@ -1268,15 +1274,14 @@
       numeric(1),
       "baseline_focal_log_prior"
     )
-    out <- sweep(
-      matrix(focal_log_prior, nrow = G, ncol = S),
-      2L,
-      baseline_log_prior,
-      "+"
-    )
-    out <- sweep(out, 2L, baseline_focal_log_prior, "-")
+    # The grid is column-major, so the two column sweeps are the same additions
+    # written directly on the flattened candidate vector, without the two
+    # intermediate matrices sweep() builds.
+    out <- rep(unname(focal_log_prior), times = S) +
+      rep(unname(baseline_log_prior), each = G)
+    out <- out - rep(unname(baseline_focal_log_prior), each = G)
 
-    return(as.numeric(out))
+    return(out)
   }
 
   if (identical(replacement[["type"]], "linear")) {

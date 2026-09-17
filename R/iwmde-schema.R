@@ -112,7 +112,6 @@
   }
 
   version <- .iwmde_schema_version()
-  layout  <- NULL
   for (i in seq_along(fields_list)) {
     fields <- fields_list[[i]]
     if (!is.list(fields)) {
@@ -120,16 +119,12 @@
     }
     fields[["schema_version"]] <- version
     class(fields) <- c("iwmde_row_state", "list")
-    if (!identical(names(fields), layout)) {
+    baseline_log_q <- fields[["baseline_log_q"]]
+    if (!is.numeric(baseline_log_q) || length(baseline_log_q) != 1L ||
+        !is.finite(baseline_log_q)) {
+      # The schema version was just written, so the baseline density is the
+      # only field left to examine; the per-state validator owns the message.
       .iwmde_validate_row_state(fields)
-      layout <- names(fields)
-    } else {
-      baseline_log_q <- fields[["baseline_log_q"]]
-      if (!is.numeric(baseline_log_q) || length(baseline_log_q) != 1L ||
-          !is.finite(baseline_log_q)) {
-        stop("Internal IWMDE row state has an invalid baseline log density.",
-             call. = FALSE)
-      }
     }
     fields_list[[i]] <- fields
   }
@@ -168,25 +163,16 @@
   if (length(row_states) == 0L) {
     return(invisible(row_states))
   }
-  # The states of one plan come from the same constructor, so the shared field
-  # set is examined once per distinct layout instead of once per row; only the
-  # row-dependent baseline density is examined for every state. These are the
-  # conditions .iwmde_validate_row_state() raises an error for.
+  # The conditions .iwmde_validate_row_state() raises an error for, tested
+  # directly: a plan carries one state per retained posterior row, so neither
+  # the field-name vector nor a tryCatch frame is built for each of them. A
+  # required field that is absent and one that is present but empty both make
+  # the state invalid here, exactly as they do there.
   version <- .iwmde_schema_version()
-  layout  <- NULL
-  layout_ok <- FALSE
   valid   <- logical(length(row_states))
   for (i in seq_along(row_states)) {
     state <- row_states[[i]]
-    if (!is.list(state)) {
-      next
-    }
-    fields <- names(state)
-    if (!identical(fields, layout)) {
-      layout    <- fields
-      layout_ok <- all(c("schema_version", "baseline_log_q") %in% fields)
-    }
-    if (!layout_ok || !identical(state[["schema_version"]], version)) {
+    if (!is.list(state) || !identical(state[["schema_version"]], version)) {
       next
     }
     baseline_log_q <- state[["baseline_log_q"]]

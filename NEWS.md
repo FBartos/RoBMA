@@ -1,5 +1,13 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- stops the density pipeline from rebuilding, on every pass of the qCMDE
+  refinement sequence, what the plan already fixed: the active-branch grouping
+  of the row states now travels with them, the predictor cache keys are hashed
+  instead of folded byte by byte in R, the candidate grids are built by
+  repeating their inputs rather than by indexing through index vectors as long
+  as the grid, and the column sweeps of the normalizer write the subtraction
+  directly. A selection Bayes factor over every posterior draw spends a
+  quarter less time outside the kernels for the same values.
 - stops the density pipeline from doing per-posterior-row R work that a
   vectorized pass answers. The active-branch keys of a candidate sample matrix
   are built in one validated pass per indicator column and memoized for the

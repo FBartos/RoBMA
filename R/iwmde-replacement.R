@@ -94,13 +94,10 @@
     }
   }
 
-  out  <- matrix(-Inf, nrow = length(values), ncol = length(row_states))
-  keys <- vapply(row_states, function(state) {
-    .iwmde_state_active_key(context, state)
-  }, character(1))
+  out    <- matrix(-Inf, nrow = length(values), ncol = length(row_states))
+  groups <- .iwmde_row_state_groups(context, row_states)
 
-  for (key in unique(keys)) {
-    key_cols <- which(keys == key)
+  for (key_cols in groups) {
     for (start in seq.int(1L, length(key_cols), by = chunk_size)) {
       candidates    <- NULL
       valid_samples <- NULL

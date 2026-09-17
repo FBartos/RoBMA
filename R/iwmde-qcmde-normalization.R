@@ -346,10 +346,19 @@
     return(out)
   }
 
-  log_y_keep <- log_y[, keep, drop = FALSE]
+  # Dropping no column needs no copy of the grid, which carries one column per
+  # retained posterior row.
+  log_y_keep <- if (all(keep)) log_y else log_y[, keep, drop = FALSE]
   max_log    <- apply(log_y_keep, 2L, max, na.rm = TRUE)
-  y          <- exp(sweep(log_y_keep, 2L, max_log, "-"))
-  y[!is.finite(y)] <- 0
+  # The column sweep written directly on the matrix: same subtraction, one
+  # allocation instead of sweep()'s permuted copy.
+  y          <- exp(log_y_keep - rep(max_log, each = nrow(log_y_keep)))
+  # Every retained column was divided by its own finite maximum, so the scaled
+  # weights lie in [0, 1] and only a missing log density can leave one
+  # non-finite. Testing for that costs no mask over the whole grid.
+  if (anyNA(y)) {
+    y[!is.finite(y)] <- 0
+  }
   area       <- .iwmde_trapz_columns(x = x, y = y)
   valid      <- is.finite(area) & area > 0
   out[which(keep)[valid]] <- log(area[valid]) + max_log[valid]

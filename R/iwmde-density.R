@@ -115,14 +115,14 @@
       state_scope = state_scope
     )
   })
-  state_keys <- vapply(states, function(state) {
-    paste(
-      state[["active_key"]],
-      likelihood_mode,
-      state_scope,
-      sep = "|"
-    )
-  }, character(1))
+  # One vectorized paste over the active keys rather than one call per state:
+  # the likelihood mode and the state scope are the same for the whole group.
+  state_keys <- paste(
+    vapply(states, `[[`, character(1L), "active_key"),
+    likelihood_mode,
+    state_scope,
+    sep = "|"
+  )
   is_primitive <- is.null(parameter_spec) ||
     identical(parameter_spec[["type"]], "primitive")
   controls_random_sd <-
@@ -164,14 +164,24 @@
         parameter,
         first_state[["row"]]
       )
-      focal_values <- vapply(group, function(state) {
-        value <- state[["row"]][[parameter]]
-        if (is.null(value) || length(value) != 1L) {
-          return(NA_real_)
-        }
+      # A state's row is its posterior row, so a focal parameter that is a
+      # posterior column is read for the whole group in one subset instead of
+      # one named lookup per state. Anything else keeps the row-wise read and
+      # its errors.
+      focal_column <- length(parameter) == 1L && !is.na(parameter) &&
+        parameter %in% colnames(context[["posterior_samples"]])
+      focal_values <- if (focal_column) {
+        as.numeric(context[["posterior_samples"]][group_rows, parameter])
+      } else {
+        vapply(group, function(state) {
+          value <- state[["row"]][[parameter]]
+          if (is.null(value) || length(value) != 1L) {
+            return(NA_real_)
+          }
 
-        as.numeric(value)
-      }, numeric(1))
+          as.numeric(value)
+        }, numeric(1))
+      }
       baseline_focal_log_prior <- .iwmde_focal_log_prior_values(
         prior     = focal_prior,
         values    = focal_values,
@@ -628,6 +638,29 @@
   }
 
   return(.iwmde_active_key(context, state[["row"]]))
+}
+
+
+# Group row states by their active branch, in first-appearance order. The keys
+# are fixed for the whole plan while the grid sequence walks the same list of
+# states several times, so the grouping travels with the list once
+# .iwmde_plan_baseline_contract() has attached it. A list that was subset or
+# rebuilt elsewhere loses the attribute and is grouped again.
+.iwmde_row_state_groups <- function(context, row_states) {
+
+  cached <- attr(row_states, "iwmde_active_groups", exact = TRUE)
+  if (is.list(cached) &&
+      identical(attr(cached, "n_states", exact = TRUE), length(row_states))) {
+    return(cached)
+  }
+
+  keys   <- vapply(row_states, function(state) {
+    .iwmde_state_active_key(context, state)
+  }, character(1))
+  groups <- split(seq_along(keys), factor(keys, levels = unique(keys)))
+  attr(groups, "n_states") <- length(row_states)
+
+  return(groups)
 }
 
 

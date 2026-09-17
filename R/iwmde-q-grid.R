@@ -213,14 +213,11 @@
     return(NULL)
   }
 
-  out  <- matrix(-Inf, nrow = length(values), ncol = length(row_states))
-  keys <- vapply(row_states, function(state) {
-    .iwmde_state_active_key(context, state)
-  }, character(1))
+  out    <- matrix(-Inf, nrow = length(values), ncol = length(row_states))
+  groups <- .iwmde_row_state_groups(context, row_states)
   quadrature_change <- NA_real_
 
-  for (key in unique(keys)) {
-    state_cols   <- which(keys == key)
+  for (state_cols in groups) {
     group_states <- row_states[state_cols]
     group_out    <- .iwmde_log_q_grid_predictor_group(
       context     = context,

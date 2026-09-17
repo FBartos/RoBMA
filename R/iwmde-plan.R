@@ -431,6 +431,10 @@
     )
   }
   .iwmde_validate_row_states(row_states)
+  # The active-branch grouping of these states is fixed for the whole plan, and
+  # every pass of the grid sequence asks for it, so it travels with the list.
+  attr(row_states, "iwmde_active_groups") <-
+    .iwmde_row_state_groups(context, row_states)
   conditioning_policy <- attr(row_states, "conditioning_policy", exact = TRUE)
   if (!is.null(plan[["execution_spec"]][["direction"]])) {
     conditioning_policy <- list(type = "fixed_linear",
