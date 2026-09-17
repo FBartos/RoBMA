@@ -89,7 +89,7 @@ setwd(project_root)
 # timings this runner records are meant to describe the package users install.
 source(file.path(project_root, "tools", "optimized-dll.R"))
 ensure_optimized_dll(project_root, quiet = TRUE)
-devtools::load_all(quiet = TRUE, debug = FALSE)
+pkgload::load_all(quiet = TRUE, debug = FALSE)
 
 for (name in requested) {
   path      <- scenario_files[match(name, scenario_names)]
