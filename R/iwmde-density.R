@@ -232,8 +232,11 @@
       state[["baseline_log_q"]]         <- baseline_log_q[[i]]
       state[["likelihood_mode"]]        <- likelihood_mode
       state[["state_scope"]]            <- state_scope
-      states[[positions[[i]]]]           <- .iwmde_new_row_state(state)
+      group[[i]]                        <- state
     }
+    # One constructor built the whole group, so its shared schema is validated
+    # once instead of once per row.
+    states[positions] <- .iwmde_new_row_states(group)
   }
 
   return(states)

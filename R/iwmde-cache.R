@@ -182,25 +182,37 @@
 .iwmde_key_number <- function(x) {
 
   x <- as.numeric(x)
+  out <- character(length(x))
+  if (length(x) == 0L) {
+    return(out)
+  }
 
-  return(vapply(x, function(value) {
+  # Chen proposal keys are built for every posterior row of a plan, so the
+  # represented-coordinate encoding runs over the whole vector at once instead
+  # of once per value. The encoded strings are the same.
+  nan_values <- is.nan(x)
+  na_values  <- is.na(x) & !nan_values
+  infinite   <- is.infinite(x)
+  out[nan_values] <- "NaN"
+  out[na_values]  <- "NA"
+  out[infinite & x > 0] <- "Inf"
+  out[infinite & x < 0] <- "-Inf"
 
-    if (is.nan(value)) {
-      return("NaN")
-    }
-    if (is.na(value)) {
-      return("NA")
-    }
-    if (is.infinite(value)) {
-      return(if (value > 0) "Inf" else "-Inf")
-    }
-    if (value == 0) {
-      value <- 0
-    }
+  finite <- !nan_values & !na_values & !infinite
+  if (any(finite)) {
+    values <- x[finite]
+    # Negative zero is the same coordinate as zero.
+    values[values == 0] <- 0
+    bytes <- as.integer(writeBin(values, raw(), size = 8L, endian = "big"))
+    hex   <- sprintf("%02x", bytes)
+    dim(hex) <- c(8L, length(values))
+    out[finite] <- do.call(
+      paste0,
+      lapply(seq_len(8L), function(byte) hex[byte, ])
+    )
+  }
 
-    bytes <- writeBin(value, raw(), size = 8L, endian = "big")
-    return(paste(sprintf("%02x", as.integer(bytes)), collapse = ""))
-  }, character(1), USE.NAMES = FALSE))
+  return(out)
 }
 
 

@@ -98,6 +98,46 @@
 }
 
 
+# States built by one constructor share their field layout, so the schema is
+# checked once for the group and only the row-dependent baseline density is
+# checked for every state. A state whose layout differs from the group's falls
+# back to the per-state constructor.
+.iwmde_new_row_states <- function(fields_list) {
+
+  if (!is.list(fields_list)) {
+    stop("Internal IWMDE row states must be a list.", call. = FALSE)
+  }
+  if (length(fields_list) == 0L) {
+    return(list())
+  }
+
+  version <- .iwmde_schema_version()
+  layout  <- NULL
+  for (i in seq_along(fields_list)) {
+    fields <- fields_list[[i]]
+    if (!is.list(fields)) {
+      stop("Internal IWMDE row state must be a list.", call. = FALSE)
+    }
+    fields[["schema_version"]] <- version
+    class(fields) <- c("iwmde_row_state", "list")
+    if (!identical(names(fields), layout)) {
+      .iwmde_validate_row_state(fields)
+      layout <- names(fields)
+    } else {
+      baseline_log_q <- fields[["baseline_log_q"]]
+      if (!is.numeric(baseline_log_q) || length(baseline_log_q) != 1L ||
+          !is.finite(baseline_log_q)) {
+        stop("Internal IWMDE row state has an invalid baseline log density.",
+             call. = FALSE)
+      }
+    }
+    fields_list[[i]] <- fields
+  }
+
+  return(fields_list)
+}
+
+
 .iwmde_validate_row_state <- function(state) {
 
   .iwmde_validate_required_fields(
@@ -128,12 +168,31 @@
   if (length(row_states) == 0L) {
     return(invisible(row_states))
   }
-  valid <- vapply(row_states, function(state) {
-    tryCatch({
-      .iwmde_validate_row_state(state)
-      is.finite(state[["baseline_log_q"]])
-    }, error = function(e) FALSE)
-  }, logical(1))
+  # The states of one plan come from the same constructor, so the shared field
+  # set is examined once per distinct layout instead of once per row; only the
+  # row-dependent baseline density is examined for every state. These are the
+  # conditions .iwmde_validate_row_state() raises an error for.
+  version <- .iwmde_schema_version()
+  layout  <- NULL
+  layout_ok <- FALSE
+  valid   <- logical(length(row_states))
+  for (i in seq_along(row_states)) {
+    state <- row_states[[i]]
+    if (!is.list(state)) {
+      next
+    }
+    fields <- names(state)
+    if (!identical(fields, layout)) {
+      layout    <- fields
+      layout_ok <- all(c("schema_version", "baseline_log_q") %in% fields)
+    }
+    if (!layout_ok || !identical(state[["schema_version"]], version)) {
+      next
+    }
+    baseline_log_q <- state[["baseline_log_q"]]
+    valid[[i]] <- is.numeric(baseline_log_q) &&
+      length(baseline_log_q) == 1L && is.finite(baseline_log_q)
+  }
   if (!all(valid)) {
     stop(
       "Internal IWMDE row states contain an invalid baseline log density.",

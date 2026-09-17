@@ -1283,7 +1283,7 @@
 
   values <- as.numeric(values)
   values <- values[is.finite(values)]
-  keys   <- vapply(values, .iwmde_key_number, character(1))
+  keys   <- .iwmde_key_number(values)
   keep   <- !duplicated(keys)
   values <- values[keep]
   names(values) <- keys[keep]

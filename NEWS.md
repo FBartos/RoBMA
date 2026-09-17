@@ -1,5 +1,15 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- stops the density pipeline from doing per-posterior-row R work that a
+  vectorized pass answers. The active-branch keys of a candidate sample matrix
+  are built in one validated pass per indicator column and memoized for the
+  helpers that ask for the same matrix six times per estimate; the row states
+  of one group are validated against their shared schema once instead of once
+  per row; the batched log densities are scattered into their grid by one
+  matrix-index assignment; and the exact binary64 keys of the Chen proposal are
+  encoded for the whole vector at once. Every value, key and rejection is the
+  one the element-wise code produced. These were 30-38% of a model-averaged
+  posterior plot and about a tenth of a selection ordinate.
 - threads the univariate selected-normal kernels and the scalar zcurve kernels
   over posterior rows. The likelihood, log-normalizer, normalizer delta grid,
   CDF and moment batches, the z-curve densities and the EDR summary were the

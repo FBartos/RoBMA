@@ -159,13 +159,12 @@
       )
 
       log_q <- log_lik + log_prior
-      for (i in seq_along(valid_positions)) {
-        position <- valid_positions[i]
-        out[
-          candidates[["grid_index"]][position],
-          state_cols[candidates[["state_index"]][position]]
-        ] <- log_q[i]
-      }
+      # One matrix-index assignment instead of one R iteration per candidate:
+      # each candidate keeps its own (grid point, state) cell.
+      out[cbind(
+        candidates[["grid_index"]][valid_positions],
+        state_cols[candidates[["state_index"]][valid_positions]]
+      )] <- log_q
     }
   }
 
@@ -803,19 +802,46 @@
     return(rep("all", nrow(samples)))
   }
 
+  # One estimate asks for the keys of the same sample matrix from several
+  # independent helpers (focal-prior states, parameter columns, linear row
+  # supports). The indicator columns decide the keys, so they are also the
+  # memo key: hashing them is far cheaper than rebuilding the key strings.
+  present <- intersect(indicator_names, colnames(samples))
+  cache   <- context[["row_cache"]]
+  key     <- if (is.environment(cache)) {
+    .iwmde_hash("iwmde_active_keys_matrix", list(
+      indicator_names = indicator_names,
+      indicators      = samples[, present, drop = FALSE]
+    ))
+  } else {
+    NULL
+  }
+  if (!is.null(key) && exists(key, envir = cache, inherits = FALSE)) {
+    return(get(key, envir = cache, inherits = FALSE))
+  }
+
   parts <- lapply(indicator_names, function(name) {
     if (!name %in% colnames(samples)) {
       return(rep(paste(name, "NA", sep = "="), nrow(samples)))
     }
 
-    values <- vapply(samples[, name], function(value) {
-      as.character(.iwmde_indicator_index(value, name))
-    }, character(1))
+    # The whole column is validated and converted at once; the checks and their
+    # messages are the ones .iwmde_indicator_index() applies per value.
+    index <- .as_exact_model_indicator(samples[, name], name)
+    if (any(index < 1L)) {
+      stop("'", name, "' is outside the available prior components.",
+           call. = FALSE)
+    }
 
-    paste(name, values, sep = "=")
+    paste(name, index, sep = "=")
   })
 
-  return(do.call(paste, c(parts, sep = "|")))
+  out <- do.call(paste, c(parts, sep = "|"))
+  if (!is.null(key)) {
+    assign(key, out, envir = cache)
+  }
+
+  return(out)
 }
 
 

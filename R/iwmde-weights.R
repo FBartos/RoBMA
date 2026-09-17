@@ -341,13 +341,12 @@
 
 .iwmde_chen_support_keys <- function(supports) {
 
-  apply(supports, 1L, function(support) {
-    paste(
-      .iwmde_key_number(support[1]),
-      .iwmde_key_number(support[2]),
-      sep = ","
-    )
-  })
+  # One vectorized encoding per bound instead of one closure call per row.
+  paste(
+    .iwmde_key_number(supports[, 1L]),
+    .iwmde_key_number(supports[, 2L]),
+    sep = ","
+  )
 }
 
 
