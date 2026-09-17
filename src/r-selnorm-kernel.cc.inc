@@ -1,3 +1,29 @@
+namespace {
+
+// Row-wise selection arguments materialized before a parallel region. The row
+// accessors of SelNormNativeArgs re-check their lengths and can raise an R
+// error, which a worker thread must never do; the lengths are already
+// validated by validate_selnorm_native_args(), so this only moves the lookup.
+struct SelNormKernelRowArgs {
+  std::vector<double> alpha;
+  std::vector<int>    phack_kind;
+  std::vector<int>    kernel_mode;
+
+  SelNormKernelRowArgs(const SelNormNativeArgs &args, int S)
+    : alpha(static_cast<std::size_t>(S)),
+      phack_kind(static_cast<std::size_t>(S)),
+      kernel_mode(static_cast<std::size_t>(S))
+  {
+    for (int s = 0; s < S; ++s) {
+      alpha[static_cast<std::size_t>(s)]       = args.alpha_at(s);
+      phack_kind[static_cast<std::size_t>(s)]  = args.phack_kind_at(s);
+      kernel_mode[static_cast<std::size_t>(s)] = args.kernel_mode_at(s);
+    }
+  }
+};
+
+}
+
 extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
   SEXP mean, SEXP sd, SEXP basis, SEXP current_log_norm, SEXP current,
   SEXP values, SEXP sei, SEXP weights, SEXP omega, SEXP alpha,
@@ -47,7 +73,13 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
   const double *weights_p          = REAL(weights);
   double *out_p                    = REAL(out);
 
-  for (int s = 0; s < S; ++s) {
+  const SelNormKernelRowArgs row_args(selnorm, S);
+  // Posterior rows are independent: row s reads call-common inputs and its own
+  // slice of the inputs, and writes only its own G output slots. The per-row
+  // arithmetic and its order are the ones the serial loop uses, so the result
+  // is identical at any thread count.
+  const auto compute_row = [&](int s) {
+    const std::size_t row = static_cast<std::size_t>(s);
     for (int g = 0; g < G; ++g) {
       const double delta = values_p[g] - current_p[s];
       double row_sum = 0;
@@ -64,9 +96,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
           sd_p[cell],
           sei_p[k],
           selnorm.omega_row(s),
-          selnorm.alpha_at(s),
-          selnorm.phack_kind_at(s),
-          selnorm.kernel_mode_at(s),
+          row_args.alpha[row],
+          row_args.phack_kind[row],
+          row_args.kernel_mode[row],
           selnorm.data,
           S,
           false
@@ -77,6 +109,13 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
 
       out_p[g + G * s] = row_sum;
     }
+  };
+
+  const int threads = robma_batch_threads(S);
+  if (threads == 1) {
+    for (int s = 0; s < S; ++s) compute_row(s);
+  } else {
+    robma_parallel::for_rows(S, threads, compute_row);
   }
 
   UNPROTECT(1);
@@ -129,27 +168,41 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
   const int *obs_bin_p       = INTEGER(obs_bin);
   double *out_p              = REAL(out);
 
-  for (int k = 0; k < K; ++k) {
-    for (int s = 0; s < S; ++s) {
-      const int cell = s + S * k;
-      out_p[cell] = cpp_selnorm_kernel_lpdf(
-        yi_p[k],
-        mu_num_p[cell],
-        sigma_num_p[cell],
-        mu_norm_p[cell],
-        sigma_norm_p[cell],
-        sei_p[k],
-        weights_p[k],
-        selnorm.omega_row(s),
-        obs_bin_p[k],
-        selnorm.alpha_at(s),
-        selnorm.phack_kind_at(s),
-        selnorm.kernel_mode_at(s),
-        selnorm.data,
-        S,
-        false
-      );
+  const SelNormKernelRowArgs row_args(selnorm, S);
+  const auto compute_cell = [&](int s, int k) {
+    const int cell = s + S * k;
+    const std::size_t row = static_cast<std::size_t>(s);
+    out_p[cell] = cpp_selnorm_kernel_lpdf(
+      yi_p[k],
+      mu_num_p[cell],
+      sigma_num_p[cell],
+      mu_norm_p[cell],
+      sigma_norm_p[cell],
+      sei_p[k],
+      weights_p[k],
+      selnorm.omega_row(s),
+      obs_bin_p[k],
+      row_args.alpha[row],
+      row_args.phack_kind[row],
+      row_args.kernel_mode[row],
+      selnorm.data,
+      S,
+      false
+    );
+  };
+
+  // Every (row, observation) cell is an independent evaluation, so visiting the
+  // cells row-first gives each posterior row its own disjoint output slots
+  // without changing any value.
+  const int threads = robma_batch_threads(S);
+  if (threads == 1) {
+    for (int k = 0; k < K; ++k) {
+      for (int s = 0; s < S; ++s) compute_cell(s, k);
     }
+  } else {
+    robma_parallel::for_rows(S, threads, [&](int s) {
+      for (int k = 0; k < K; ++k) compute_cell(s, k);
+    });
   }
 
   UNPROTECT(1);
@@ -202,7 +255,11 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
   const int *obs_bin_p       = INTEGER(obs_bin);
   double *out_p              = REAL(out);
 
-  for (int s = 0; s < S; ++s) {
+  const SelNormKernelRowArgs row_args(selnorm, S);
+  // The row sum keeps its serial accumulation order; only whole rows are
+  // distributed, and each row writes one output slot of its own.
+  const auto compute_row = [&](int s) {
+    const std::size_t row = static_cast<std::size_t>(s);
     double row_sum = 0.0;
     for (int k = 0; k < K; ++k) {
       const int cell = s + S * k;
@@ -216,15 +273,22 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
         weights_p[k],
         selnorm.omega_row(s),
         obs_bin_p[k],
-        selnorm.alpha_at(s),
-        selnorm.phack_kind_at(s),
-        selnorm.kernel_mode_at(s),
+        row_args.alpha[row],
+        row_args.phack_kind[row],
+        row_args.kernel_mode[row],
         selnorm.data,
         S,
         false
       );
     }
     out_p[s] = row_sum;
+  };
+
+  const int threads = robma_batch_threads(S);
+  if (threads == 1) {
+    for (int s = 0; s < S; ++s) compute_row(s);
+  } else {
+    robma_parallel::for_rows(S, threads, compute_row);
   }
 
   UNPROTECT(1);
@@ -263,22 +327,33 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
   const double *sei_p       = REAL(sei);
   double *out_p             = REAL(out);
 
-  for (int k = 0; k < K; ++k) {
-    for (int s = 0; s < S; ++s) {
-      const int cell = s + S * k;
-      out_p[cell] = cpp_selnorm_kernel_log_norm(
-        mean_p[cell],
-        sd_p[cell],
-        sei_p[k],
-        selnorm.omega_row(s),
-        selnorm.alpha_at(s),
-        selnorm.phack_kind_at(s),
-        selnorm.kernel_mode_at(s),
-        selnorm.data,
-        S,
-        false
-      );
+  const SelNormKernelRowArgs row_args(selnorm, S);
+  const auto compute_cell = [&](int s, int k) {
+    const int cell = s + S * k;
+    const std::size_t row = static_cast<std::size_t>(s);
+    out_p[cell] = cpp_selnorm_kernel_log_norm(
+      mean_p[cell],
+      sd_p[cell],
+      sei_p[k],
+      selnorm.omega_row(s),
+      row_args.alpha[row],
+      row_args.phack_kind[row],
+      row_args.kernel_mode[row],
+      selnorm.data,
+      S,
+      false
+    );
+  };
+
+  const int threads = robma_batch_threads(S);
+  if (threads == 1) {
+    for (int k = 0; k < K; ++k) {
+      for (int s = 0; s < S; ++s) compute_cell(s, k);
     }
+  } else {
+    robma_parallel::for_rows(S, threads, [&](int s) {
+      for (int k = 0; k < K; ++k) compute_cell(s, k);
+    });
   }
 
   UNPROTECT(1);
@@ -321,24 +396,42 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
   const bool lower_tail_bool = LOGICAL(lower_tail)[0] == TRUE;
   double *out_p              = REAL(out);
 
+  const SelNormKernelRowArgs row_args(selnorm, S);
+  // Recycling 'q' over observations is resolved here so no length lookup, and
+  // therefore no possible R error, remains inside the row body.
+  std::vector<double> q_by_observation(static_cast<std::size_t>(K));
   for (int k = 0; k < K; ++k) {
-    for (int s = 0; s < S; ++s) {
-      const int cell = s + S * k;
-      out_p[cell] = cpp_selnorm_kernel_cdf(
-        scalar_or_col_real(x_p, Rf_length(x), k, "q"),
-        mean_p[cell],
-        sd_p[cell],
-        sei_p[k],
-        selnorm.omega_row(s),
-        selnorm.alpha_at(s),
-        selnorm.phack_kind_at(s),
-        selnorm.kernel_mode_at(s),
-        selnorm.data,
-        S,
-        lower_tail_bool,
-        false
-      );
+    q_by_observation[static_cast<std::size_t>(k)] =
+      scalar_or_col_real(x_p, Rf_length(x), k, "q");
+  }
+  const auto compute_cell = [&](int s, int k) {
+    const int cell = s + S * k;
+    const std::size_t row = static_cast<std::size_t>(s);
+    out_p[cell] = cpp_selnorm_kernel_cdf(
+      q_by_observation[static_cast<std::size_t>(k)],
+      mean_p[cell],
+      sd_p[cell],
+      sei_p[k],
+      selnorm.omega_row(s),
+      row_args.alpha[row],
+      row_args.phack_kind[row],
+      row_args.kernel_mode[row],
+      selnorm.data,
+      S,
+      lower_tail_bool,
+      false
+    );
+  };
+
+  const int threads = robma_batch_threads(S);
+  if (threads == 1) {
+    for (int k = 0; k < K; ++k) {
+      for (int s = 0; s < S; ++s) compute_cell(s, k);
     }
+  } else {
+    robma_parallel::for_rows(S, threads, [&](int s) {
+      for (int k = 0; k < K; ++k) compute_cell(s, k);
+    });
   }
 
   UNPROTECT(1);
@@ -387,24 +480,35 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
   double *mean_out_p       = REAL(out_mean);
   double *second_out_p     = REAL(out_second);
 
-  for (int k = 0; k < K; ++k) {
-    for (int s = 0; s < S; ++s) {
-      const int cell = s + S * k;
-      cpp_selnorm_kernel_moments(
-        mean_p[cell],
-        sd_p[cell],
-        sei_p[k],
-        selnorm.omega_row(s),
-        selnorm.alpha_at(s),
-        selnorm.phack_kind_at(s),
-        selnorm.kernel_mode_at(s),
-        selnorm.data,
-        mean_out_p + cell,
-        second_out_p + cell,
-        S,
-        false
-      );
+  const SelNormKernelRowArgs row_args(selnorm, S);
+  const auto compute_cell = [&](int s, int k) {
+    const int cell = s + S * k;
+    const std::size_t row = static_cast<std::size_t>(s);
+    cpp_selnorm_kernel_moments(
+      mean_p[cell],
+      sd_p[cell],
+      sei_p[k],
+      selnorm.omega_row(s),
+      row_args.alpha[row],
+      row_args.phack_kind[row],
+      row_args.kernel_mode[row],
+      selnorm.data,
+      mean_out_p + cell,
+      second_out_p + cell,
+      S,
+      false
+    );
+  };
+
+  const int threads = robma_batch_threads(S);
+  if (threads == 1) {
+    for (int k = 0; k < K; ++k) {
+      for (int s = 0; s < S; ++s) compute_cell(s, k);
     }
+  } else {
+    robma_parallel::for_rows(S, threads, [&](int s) {
+      for (int k = 0; k < K; ++k) compute_cell(s, k);
+    });
   }
 
   UNPROTECT(4);
@@ -443,6 +547,8 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
   const double *sei_p      = REAL(sei);
   double *out_p            = REAL(out);
 
+  // Serial: the draws consume R's random number stream in a fixed order, so
+  // distributing rows would change the values and touch the R API in workers.
   GetRNGstate();
   for (int k = 0; k < K; ++k) {
     for (int s = 0; s < S; ++s) {
@@ -530,6 +636,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     R_alloc(S, sizeof(double))
   );
 
+  // Serial: this batch reduces over posterior rows into one summary per
+  // observation, its row body raises R errors on invalid weights and moments,
+  // and the moment work buffers are shared across rows.
   for (int k = 0; k < K; ++k) {
     double log_lower_sum = -INFINITY;
     double log_upper_sum = -INFINITY;

@@ -69,6 +69,12 @@
     return(result[[if (extrapolate) "extrapolated" else "fitted"]])
   }
 
+  # The vectorized route's kernels are row-parallel too, so it takes the same
+  # thread budget as the selection-marginal route above and restores one thread
+  # on exit.
+  .native_threads_configure(.resolve_native_threads(object))
+  on.exit(.native_threads_configure(1L), add = TRUE)
+
   predictive <- .zplot_predictive_components(
     object             = object,
     posterior_samples  = posterior_samples,

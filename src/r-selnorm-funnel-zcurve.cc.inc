@@ -33,8 +33,10 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
     }
   }
 
-  for (int ell = 0; ell < L; ++ell) {
-    for (int s = 0; s < S; ++s) {
+  // Posterior rows are independent: each keeps the serial per-grid-point and
+  // per-estimate accumulation order and writes only its own output slots.
+  const auto compute_row = [&](int s) {
+    for (int ell = 0; ell < L; ++ell) {
       double dens_sum = 0;
       for (int k = 0; k < K; ++k) {
         const int cell = s + S * k;
@@ -45,6 +47,13 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
       }
       out_p[s + S * ell] = dens_sum / K;
     }
+  };
+
+  const int threads = robma_batch_threads(S);
+  if (threads == 1) {
+    for (int s = 0; s < S; ++s) compute_row(s);
+  } else {
+    robma_parallel::for_rows(S, threads, compute_row);
   }
 
   UNPROTECT(1);
@@ -182,7 +191,10 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
       row_mode[static_cast<size_t>(s)] == SELKERNEL_STEP_PHACK_POWER;
   }
 
-  for (int s = 0; s < S; ++s) {
+  // Rows are independent and every input length was validated above, so each
+  // row keeps its serial accumulation order and writes only its own EDR and
+  // weight slot.
+  const auto compute_row = [&](int s) {
     double threshold_sum = 0;
     double weight_sum = 0;
 
@@ -252,6 +264,13 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
 
     edr_p[s] = extrapolate_b ? threshold_sum / weight_sum : threshold_sum / K;
     weights_p[s] = weight_sum / K;
+  };
+
+  const int threads = robma_batch_threads(S);
+  if (threads == 1) {
+    for (int s = 0; s < S; ++s) compute_row(s);
+  } else {
+    robma_parallel::for_rows(S, threads, compute_row);
   }
 
   UNPROTECT(4);
@@ -677,6 +696,10 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     }
   }
 
+  // Serial: the retained-context mixture raises R errors from inside its row
+  // body (unavailable normalizers, active p-hacking kernels), writes the
+  // per-row integration errors through the R API, and shares its node, curve
+  // and interpolation buffers across rows.
   if (latent_mixture) {
     SelNormNormalProjectionWorkspace projection(z_p, L);
     std::vector<double> row_weights(B), node_means(n_nodes), log_coefficients(n_nodes);
@@ -1044,8 +1067,12 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     return out;
   }
 
-  for (int ell = 0; ell < L; ++ell) {
-    for (int s = 0; s < S; ++s) {
+  // No retained context: the remaining work is one independent accumulation per
+  // (row, grid point) cell, with every input already validated and the row
+  // normalizers already built. Visiting the cells row-first leaves the
+  // arithmetic and its order unchanged and gives each row its own output slots.
+  const auto compute_row = [&](int s) {
+    for (int ell = 0; ell < L; ++ell) {
       if (row_active_phack[static_cast<size_t>(s)]) {
         const double missing = std::numeric_limits<double>::quiet_NaN();
         if (paired) {
@@ -1135,6 +1162,13 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
 
       out_p[s + S * ell] = dens_sum / K;
     }
+  };
+
+  const int threads = robma_batch_threads(S);
+  if (threads == 1) {
+    for (int s = 0; s < S; ++s) compute_row(s);
+  } else {
+    robma_parallel::for_rows(S, threads, compute_row);
   }
 
   UNPROTECT(n_protect);

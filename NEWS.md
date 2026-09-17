@@ -1,5 +1,15 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- threads the univariate selected-normal kernels and the scalar zcurve kernels
+  over posterior rows. The likelihood, log-normalizer, normalizer delta grid,
+  CDF and moment batches, the z-curve densities and the EDR summary were the
+  post-fit kernels that still evaluated their rows one after another, and they
+  are 38-45% of a selection ordinate and 73-90% of a univariate `zplot()`. Rows
+  write only their own output slots and keep their serial arithmetic, so the
+  values are identical at any thread count. The vectorized `zplot()` route now
+  configures the same thread budget as the selection-marginal route, so a model
+  fitted with `parallel = TRUE` uses it; the retained-context mixture, the
+  random draws and the PSIS-weighted summary stay serial.
 - evaluates the posterior density of a selection model whose publication event
   factorizes over single estimates through the batched predictor route again.
   The generic candidate route, which rebuilds a full selection likelihood for
