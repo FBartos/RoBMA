@@ -239,6 +239,46 @@ changes only after maintainer or explicitly delegated review, and review every
 resulting diff. Requests to generate or refresh output alone do not delegate
 review.
 
+## Benchmarking Scenario Artifacts
+
+`tools/bench-scenario.R` runs selected `scenario_plot()`, `scenario_text()` and
+`scenario_time()` artifacts against the cached fits without the rest of the
+scenario, so scenario workloads can serve as a performance benchmark during
+development. It binds fits and every fit-dependent assignment lazily and times
+that preparation separately, loads the release DLL, and writes one `results.tsv`
+row per artifact with wall time, peak memory and an md5 fingerprint of the
+printed text or the rendered SVG. It writes no timing baseline and no snapshot:
+
+```text
+Rscript tools/bench-scenario.R bem2011 --only='^zplot$' --out=.work/tmp/<task>/run1
+```
+
+`--out` is required. `--list` writes `listing-<scenario>.tsv` into the same
+directory (with the committed `best` and last `.new.tsv` timings beside each
+artifact) and `--index=<from:to>` then runs a slice of that listing, which is how
+a long scenario is split across processes. `--only` is a regular expression on
+artifact names, `--profile` adds an `Rprof` file and a `.prof.txt` summary,
+`--limit` caps one artifact's wall time, `--threads` sets
+`RoBMA.options(native_threads=)`, `--root` points at another RoBMA tree (the fit
+cache and committed timings still come from this one unless `--cache` says
+otherwise), `--installed` benchmarks the installed package, and `--tag` labels
+the rows. `tools/bench-digest.R <run dir> [min seconds]` summarizes a run with
+each artifact's native share and top self-time functions;
+`tools/bench-prof-tree.R <file.Rprof>` prints the call tree of one artifact.
+
+Two rules make the numbers usable:
+
+- **A/B in one session.** Compare against a baseline measured on the same
+  machine in the same session, with the same thread budget and no competing
+  jobs. When a number matters, rerun the baseline artifact from a pristine
+  worktree of the pre-change commit through `--root` rather than trusting an
+  older run directory. The committed `timings/*.tsv` `best` rows are historical
+  minima from other code states and are not an A/B reference.
+- **Fingerprints are the identity check.** A performance change must leave the
+  md5 fingerprint of every artifact it can touch unchanged. Diagnose a mismatch
+  down to the numeric difference in the underlying values; never accept one
+  because the artifact "looks the same".
+
 ## Discrepancies and Scope
 
 An explicit request to create or refresh scenario snapshots authorizes that
