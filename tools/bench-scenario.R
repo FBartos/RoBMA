@@ -51,6 +51,22 @@ if (is.null(out_dir)) {
   stop("Specify the run directory with --out=<dir>.", call. = FALSE)
 }
 out_dir   <- normalizePath(out_dir, winslash = "/", mustWork = FALSE)
+# This runner must never be able to leave a file among the timings, snapshots,
+# results or fit caches, whatever the caller passes, so a run directory inside
+# either tree's tests/ is refused rather than created.
+local({
+  comparable <- function(path) {
+    if (.Platform$OS.type == "windows") tolower(path) else path
+  }
+  for (tree in unique(c(main_root, root))) {
+    tests_dir <- file.path(tree, "tests")
+    if (startsWith(paste0(comparable(out_dir), "/"),
+                   paste0(comparable(tests_dir), "/"))) {
+      stop("--out must not point inside '", tests_dir,
+           "'; use a run directory outside the package tree.", call. = FALSE)
+    }
+  }
+})
 limit     <- as.numeric(opt("limit", "Inf"))
 threads   <- opt("threads")
 tag       <- opt("tag", "")

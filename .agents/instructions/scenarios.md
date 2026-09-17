@@ -250,10 +250,15 @@ row per artifact with wall time, peak memory and an md5 fingerprint of the
 printed text or the rendered SVG. It writes no timing baseline and no snapshot:
 
 ```text
-Rscript tools/bench-scenario.R bem2011 --only='^zplot$' --out=.work/tmp/<task>/run1
+Rscript tools/bench-scenario.R bem2011 --only='^zplot$' --out=../.work/tmp/<task>/run1
 ```
 
-`--out` is required. `--list` writes `listing-<scenario>.tsv` into the same
+`--out` is required, is resolved against the directory the command runs in (not
+the package root the script moves to), and must lie outside the package tree;
+the workspace `.work/tmp/<task>/` is the place for run directories, and an
+`--out` inside either tree's `tests/` is refused so that no run can leave a file
+among the timings, snapshots, results or fit caches. `--list` writes
+`listing-<scenario>.tsv` into the same
 directory (with the committed `best` and last `.new.tsv` timings beside each
 artifact) and `--index=<from:to>` then runs a slice of that listing, which is how
 a long scenario is split across processes. `--only` is a regular expression on
