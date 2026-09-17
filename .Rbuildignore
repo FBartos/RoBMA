@@ -50,3 +50,4 @@ _pkgdown.yml
 ^tools$
 ^\.claude$
 ^\.git$
+^src/\.optimized-dll$

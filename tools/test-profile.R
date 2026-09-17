@@ -97,6 +97,11 @@ run_tests <- function(filter = NULL) {
   )
   message("testthat reporter: ", reporter)
 
+  # devtools::test() loads through pkgload, whose default debug build
+  # compiles the DLL at -O0; build it with the release flags first so the
+  # native code under test is the code users run and timings mean something.
+  source(file.path(project_root, "tools", "optimized-dll.R"))
+  ensure_optimized_dll(project_root, quiet = TRUE)
   results <- do.call(devtools::test, test_args)
   validate_test_results(results)
 

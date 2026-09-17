@@ -49,3 +49,4 @@ CLAUDE.md
 /tools/rma-mv-parity
 /.agents/tmp
 *.Rout.fail
+src/.optimized-dll
