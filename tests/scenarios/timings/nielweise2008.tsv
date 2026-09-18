@@ -1,8 +1,8 @@
 type	name	elapsed	memory_gb	r_version	platform
-fit	fit_BMA	15.470000000	0.812109	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma	16.340000000	0.867188	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_null	16.680000000	0.866211	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_metafor	0.440000000	0.592383	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_BMA	15.470000000	0.434277	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma	16.340000000	0.480078	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_null	16.680000000	0.480078	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_metafor	0.440000000	0.372461	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_BMA	2.750000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma	2.360000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_null	2.440000000	NA	4.6.0	Windows/x86_64-w64-mingw32

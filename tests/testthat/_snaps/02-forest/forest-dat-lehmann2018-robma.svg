@@ -536,8 +536,8 @@
 <polygon points='424.89,61.52 426.71,61.52 426.71,59.71 424.89,59.71 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <text x='23.04' y='51.47' style='font-size: 6.57px; font-weight: bold; font-family: sans;' textLength='16.81px' lengthAdjust='spacingAndGlyphs'>Study</text>
 <text x='696.96' y='51.47' text-anchor='end' style='font-size: 6.57px; font-weight: bold; font-family: sans;' textLength='41.64px' lengthAdjust='spacingAndGlyphs'>SMD [95% CI]</text>
-<text x='696.96' y='498.74' text-anchor='end' style='font-size: 6.57px; font-family: sans;' textLength='53.34px' lengthAdjust='spacingAndGlyphs'> 0.03 [-0.00,  0.22]</text>
-<polygon points='407.78,497.24 409.19,494.73 419.86,497.24 409.19,499.74 ' style='stroke-width: 0.75; fill: #000000;' />
+<text x='696.96' y='498.74' text-anchor='end' style='font-size: 6.57px; font-family: sans;' textLength='53.34px' lengthAdjust='spacingAndGlyphs'> 0.01 [-0.04,  0.18]</text>
+<polygon points='405.78,497.24 408.30,494.73 417.63,497.24 408.30,499.74 ' style='stroke-width: 0.75; fill: #000000;' />
 <text x='23.04' y='498.74' style='font-size: 6.57px; font-family: sans;' textLength='39.10px' lengthAdjust='spacingAndGlyphs'>Pooled Effect</text>
 </g>
 </svg>

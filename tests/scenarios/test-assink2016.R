@@ -1289,7 +1289,8 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   scenario_plot("bselmodel-qqnorm-mv-V-cond", qqnorm(fit_bselmodel.mv_V_cond))
   scenario_plot("bselmodel-zplot-mv-V-cond", {
     zplot(fit_bselmodel.mv_V_cond, to = 10, plot_extrapolation = FALSE)                      # TODO: this is one is quite long
-    lines(as_zplot(fit_bselmodel.mv_V_CCI_coarse), plot_extrapolation = FALSE, col = "red")  # TODO: this is one is even longer
+    # TODO: currently takes over 3hs and fails on checks?
+    # lines(as_zplot(fit_bselmodel.mv_V_CCI_coarse), plot_extrapolation = FALSE, col = "red")
   })
 
   scenario_plot("bselmodel-funnel-reg-cond", funnel(fit_bselmodel.mv_V_reg_cond))

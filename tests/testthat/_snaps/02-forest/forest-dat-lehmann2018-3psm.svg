@@ -537,7 +537,7 @@
 <text x='23.04' y='51.47' style='font-size: 6.57px; font-weight: bold; font-family: sans;' textLength='16.81px' lengthAdjust='spacingAndGlyphs'>Study</text>
 <text x='696.96' y='51.47' text-anchor='end' style='font-size: 6.57px; font-weight: bold; font-family: sans;' textLength='41.64px' lengthAdjust='spacingAndGlyphs'>SMD [95% CI]</text>
 <text x='696.96' y='498.74' text-anchor='end' style='font-size: 6.57px; font-family: sans;' textLength='52.98px' lengthAdjust='spacingAndGlyphs'> 0.14 [ 0.03,  0.25]</text>
-<polygon points='409.36,497.24 415.42,494.73 421.36,497.24 415.42,499.74 ' style='stroke-width: 0.75; fill: #000000;' />
+<polygon points='409.36,497.24 415.37,494.73 421.31,497.24 415.37,499.74 ' style='stroke-width: 0.75; fill: #000000;' />
 <text x='23.04' y='498.74' style='font-size: 6.57px; font-family: sans;' textLength='39.10px' lengthAdjust='spacingAndGlyphs'>Pooled Effect</text>
 </g>
 </svg>
