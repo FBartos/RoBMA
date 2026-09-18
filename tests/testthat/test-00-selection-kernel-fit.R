@@ -433,7 +433,7 @@ test_that("marginal cluster log likelihood routes mixed blocks by size", {
     .selection_joint_random_covariance_samples = function(setup) NULL,
     .selection_joint_singleton_variances = function(
         setup, rows, block_indices, random_covariance_samples,
-        random_factor_samples){
+        random_factor_samples, static = NULL){
       singleton_rows <<- rows
       matrix(.04, nrow = 2L, ncol = 1L)
     },
@@ -443,7 +443,8 @@ test_that("marginal cluster log likelihood routes mixed blocks by size", {
     },
     .selection_joint_cluster_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
-        execution_plan, normalizer_grid = NULL){
+        execution_plan, normalizer_grid = NULL, plan_native = NULL,
+        block_native = NULL){
       expect_null(normalizer_grid)
       cluster_rows <<- length(yi)
       c(11, 12)
@@ -664,7 +665,8 @@ test_that("marginal selection bridge routes cluster plans through quadrature", {
     },
     .selection_joint_cluster_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
-        execution_plan, normalizer_grid = NULL) {
+        execution_plan, normalizer_grid = NULL, plan_native = NULL,
+        block_native = NULL) {
       expect_null(normalizer_grid)
       cluster_call <<- list(
         yi               = yi,

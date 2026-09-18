@@ -333,6 +333,180 @@ set_selection_likelihood_control <- function(
 }
 
 
+# Everything the joint selection block likelihood reads from the fitted data
+# alone: the migrated execution plan, the sampling diagonal it implies, and the
+# structural predicates the blocks are assembled with. Bridge sampling resolves
+# this once for the whole bridge; the batched post-fit routes resolve it once
+# per call. Passing it down replaces one attribute read, schema check and
+# quadrature migration per row block with none.
+.selection_joint_static <- function(data) {
+
+  execution_plan <- .data_selection_execution_plan(data)
+
+  list(
+    execution_plan       = execution_plan,
+    sampling_diagonal    = .selection_joint_sampling_diagonal(
+      execution_plan[["sampling"]]
+    ),
+    is_random            = .is_data_random(data),
+    is_weights           = .is_data_weights(data),
+    integrates_estimate  = .selection_integrates_estimate(data),
+    retains_estimate     = .selection_retains_estimate(data),
+    retains_other_random = .selection_retains_other_random(data),
+    plan_native          = .selection_joint_plan_native_args(execution_plan),
+    block_native_cache   = new.env(parent = emptyenv()),
+    factor_block_cache   = new.env(parent = emptyenv())
+  )
+}
+
+
+# The row blocks' constant kernel arguments for one set of observation vectors.
+# A bridge evaluates the same observations for every state; a post-fit batch
+# that changes them rebuilds the set.
+.selection_joint_block_native_cache <- function(static, yi, sei, obs_bin,
+                                                execution_plan) {
+
+  cache <- static[["block_native_cache"]]
+  if (!is.environment(cache)) {
+    return(NULL)
+  }
+  if (identical(cache[["yi"]], yi) && identical(cache[["sei"]], sei) &&
+      identical(cache[["obs_bin"]], obs_bin)) {
+    return(cache[["blocks"]])
+  }
+
+  blocks <- lapply(execution_plan[["row_blocks"]], function(rows) {
+
+    .selection_joint_block_native_args(
+      yi      = yi[rows],
+      sei     = sei[rows],
+      obs_bin = obs_bin[rows]
+    )
+  })
+  cache[["yi"]]      <- yi
+  cache[["sei"]]     <- sei
+  cache[["obs_bin"]] <- obs_bin
+  cache[["blocks"]]  <- blocks
+
+  blocks
+}
+
+
+.selection_joint_block_native <- function(blocks, block_index) {
+
+  if (is.null(blocks)) NULL else blocks[[block_index]]
+}
+
+
+# The sampling residual variance, loading and support of one row block. They
+# are functions of the fitted plan and the number of evaluated states, so a
+# bridge builds them once per block instead of once per state.
+.selection_joint_factor_block_sampling_parts <- function(
+    static, execution_plan, block_index, S, block_n) {
+
+  cache <- static[["factor_block_cache"]]
+  key   <- paste0(block_index, "@", S)
+  if (is.environment(cache)) {
+    parts <- cache[[key]]
+    if (!is.null(parts)) {
+      return(parts)
+    }
+  }
+
+  sampling <- execution_plan[["sampling_factor_blocks"]][[block_index]]
+  parts <- list(
+    residual_variance = matrix(
+      sampling[["diagonal"]],
+      nrow = S,
+      ncol = block_n,
+      byrow = TRUE
+    ),
+    loading_parts = list(),
+    support_parts = list()
+  )
+  if (sampling[["rank"]] > 0L) {
+    part <- array(0, dim = c(S, block_n, sampling[["rank"]]))
+    for (factor in seq_len(sampling[["rank"]])) {
+      part[, , factor] <- matrix(
+        sampling[["loading"]][, factor],
+        nrow = S,
+        ncol = block_n,
+        byrow = TRUE
+      )
+    }
+    parts[["loading_parts"]] <- list(part)
+    parts[["support_parts"]] <- list(sampling[["loading"]] != 0)
+  }
+  if (is.environment(cache)) {
+    cache[[key]] <- parts
+  }
+
+  parts
+}
+
+
+# The execution plan's own native kernel arguments. They are constants of the
+# fitted plan, so a bridge passes them through the coercion guards once instead
+# of once per kernel call and row block.
+.selection_joint_plan_native_args <- function(execution_plan) {
+
+  quadrature        <- execution_plan[["quadrature"]]
+  factor_quadrature <- execution_plan[["factor_quadrature"]]
+
+  list(
+    quadrature_nodes = .native_numeric_vector(quadrature[["nodes"]]),
+    quadrature_log_weights =
+      .native_numeric_vector(quadrature[["log_weights"]]),
+    quadrature_orders = .native_numeric_vector(quadrature[["orders"]]),
+    factor_nodes = .native_numeric_vector(factor_quadrature[["nodes"]]),
+    factor_log_weights =
+      .native_numeric_vector(factor_quadrature[["log_weights"]]),
+    factor_orders = .native_numeric_vector(factor_quadrature[["orders"]]),
+    designs = lapply(execution_plan[["designs"]], .native_numeric_vector),
+    factor_points_per_proposal = .native_integer_vector(
+      execution_plan[["factor_points_per_proposal"]]
+    ),
+    factor_max_points_per_proposal = .native_integer_vector(
+      execution_plan[["factor_max_points_per_proposal"]]
+    ),
+    scrambles = .native_integer_vector(execution_plan[["scrambles"]]),
+    relative_tolerance = .native_numeric_vector(
+      execution_plan[["relative_tolerance"]]
+    )
+  )
+}
+
+
+# A missing design is an empty argument, as the coercion guard made it.
+.selection_joint_plan_design <- function(plan_native, design_key) {
+
+  design <- plan_native[["designs"]][[design_key]]
+  if (is.null(design)) numeric() else design
+}
+
+
+# The row block's own constant kernel arguments. A bridge evaluates the same
+# rows for every state, so the block cache below coerces them once.
+.selection_joint_block_native_args <- function(yi, sei, obs_bin) {
+
+  list(
+    yi      = .native_numeric_vector(yi),
+    sei     = .native_numeric_vector(sei),
+    obs_bin = .native_integer_vector(obs_bin)
+  )
+}
+
+
+.selection_joint_setup_static <- function(setup, static = NULL) {
+
+  if (!is.null(static)) {
+    return(static)
+  }
+
+  .selection_joint_static(setup[["data"]])
+}
+
+
 # Plans stored before the quadrature was budgeted by support shape kept one rule
 # sequence per factor rank, keyed by rank. The sequences are constants of the
 # code, not of the fit -- the model, the blocks and every other planned field
@@ -2075,23 +2249,24 @@ set_selection_likelihood_control <- function(
 
 .selection_joint_singleton_variances <- function(
     setup, rows, block_indices, random_covariance_samples = NULL,
-    random_factor_samples = NULL) {
+    random_factor_samples = NULL, static = NULL) {
 
-  execution_plan <- .data_selection_execution_plan(setup[["data"]])
+  static      <- .selection_joint_setup_static(setup, static)
+  execution_plan <- static[["execution_plan"]]
   S           <- setup[["S"]]
   variances   <- matrix(
-    .selection_joint_sampling_diagonal(execution_plan[["sampling"]])[rows],
+    static[["sampling_diagonal"]][rows],
     nrow = S,
     ncol = length(rows),
     byrow = TRUE
   )
 
-  if (!.is_data_random(setup[["data"]])) {
-    if (.selection_integrates_estimate(setup[["data"]])) {
+  if (!static[["is_random"]]) {
+    if (static[["integrates_estimate"]]) {
       variances <- variances + setup[["tau_within"]][, rows, drop = FALSE]^2
     }
     if (isTRUE(setup[["is_multilevel"]]) &&
-        !.selection_retains_other_random(setup[["data"]])) {
+        !static[["retains_other_random"]]) {
       variances <- variances + setup[["tau_between"]][, rows, drop = FALSE]^2
     }
     return(variances)
@@ -2136,36 +2311,27 @@ set_selection_likelihood_control <- function(
 
 
 .selection_joint_factor_block_samples <- function(
-    setup, block_index, random_factor_samples = NULL) {
+    setup, block_index, random_factor_samples = NULL, static = NULL) {
 
-  execution_plan <- .data_selection_execution_plan(setup[["data"]])
+  static      <- .selection_joint_setup_static(setup, static)
+  execution_plan <- static[["execution_plan"]]
   rows        <- execution_plan[["row_blocks"]][[block_index]]
-  sampling    <- execution_plan[["sampling_factor_blocks"]][[block_index]]
   S           <- setup[["S"]]
   block_n     <- length(rows)
-  residual_variance <- matrix(
-    sampling[["diagonal"]],
-    nrow = S,
-    ncol = block_n,
-    byrow = TRUE
+  # The block's sampling contribution comes from the fitted plan alone; only
+  # the random-effect factors of the evaluated state are added to it.
+  sampling_parts <- .selection_joint_factor_block_sampling_parts(
+    static         = static,
+    execution_plan = execution_plan,
+    block_index    = block_index,
+    S              = S,
+    block_n        = block_n
   )
-  loading_parts <- list()
-  support_parts <- list()
-  if (sampling[["rank"]] > 0L) {
-    part <- array(0, dim = c(S, block_n, sampling[["rank"]]))
-    for (factor in seq_len(sampling[["rank"]])) {
-      part[, , factor] <- matrix(
-        sampling[["loading"]][, factor],
-        nrow = S,
-        ncol = block_n,
-        byrow = TRUE
-      )
-    }
-    loading_parts[[length(loading_parts) + 1L]] <- part
-    support_parts[[length(support_parts) + 1L]] <- sampling[["loading"]] != 0
-  }
+  residual_variance <- sampling_parts[["residual_variance"]]
+  loading_parts     <- sampling_parts[["loading_parts"]]
+  support_parts     <- sampling_parts[["support_parts"]]
 
-  if (.is_data_random(setup[["data"]])) {
+  if (static[["is_random"]]) {
     if (is.null(random_factor_samples) &&
         !is.null(execution_plan[["random_covariance"]])) {
       stop("Selection random-effect factors are missing.",
@@ -2183,12 +2349,12 @@ set_selection_likelihood_control <- function(
         random_factor_samples[["loading_supports"]][[block_index]]
     }
   } else {
-    if (.selection_integrates_estimate(setup[["data"]])) {
+    if (static[["integrates_estimate"]]) {
       residual_variance <- residual_variance +
         setup[["tau_within"]][, rows, drop = FALSE]^2
     }
     if (isTRUE(setup[["is_multilevel"]]) &&
-        !.selection_retains_other_random(setup[["data"]])) {
+        !static[["retains_other_random"]]) {
       cluster <- setup[["data"]][["outcome"]][["cluster"]][rows]
       support <- outer(cluster, unique(cluster), `==`)
       part <- array(0, dim = c(S, block_n, ncol(support)))
@@ -2236,9 +2402,10 @@ set_selection_likelihood_control <- function(
 
 .selection_joint_covariance_lower <- function(
     setup, block_index, random_covariance_samples = NULL,
-    random_factor_samples = NULL) {
+    random_factor_samples = NULL, static = NULL) {
 
-  execution_plan <- .data_selection_execution_plan(setup[["data"]])
+  static      <- .selection_joint_setup_static(setup, static)
+  execution_plan <- static[["execution_plan"]]
   rows        <- execution_plan[["row_blocks"]][[block_index]]
   sampling    <- .selection_joint_sampling_block(
     execution_plan[["sampling"]],
@@ -2259,7 +2426,7 @@ set_selection_likelihood_control <- function(
   global_row_1 <- rows[pairs[["row_1"]]]
   global_row_2 <- rows[pairs[["row_2"]]]
 
-  if (.is_data_random(setup[["data"]])) {
+  if (static[["is_random"]]) {
     if (!is.null(random_factor_samples)) {
       diagonal <- pairs[["row_1"]] == pairs[["row_2"]]
       lower[, diagonal] <- lower[, diagonal, drop = FALSE] +
@@ -2302,12 +2469,12 @@ set_selection_likelihood_control <- function(
   }
 
   diagonal <- pairs[["row_1"]] == pairs[["row_2"]]
-  if (.selection_integrates_estimate(setup[["data"]])) {
+  if (static[["integrates_estimate"]]) {
     lower[, diagonal] <- lower[, diagonal, drop = FALSE] +
       setup[["tau_within"]][, global_row_1[diagonal], drop = FALSE]^2
   }
   if (isTRUE(setup[["is_multilevel"]]) &&
-      !.selection_retains_other_random(setup[["data"]])) {
+      !static[["retains_other_random"]]) {
     cluster      <- setup[["data"]][["outcome"]][["cluster"]]
     same_cluster <- cluster[global_row_1] == cluster[global_row_2]
     lower[, same_cluster] <- lower[, same_cluster, drop = FALSE] +
@@ -2410,7 +2577,8 @@ set_selection_likelihood_control <- function(
 
 .selection_joint_cluster_loglik_block <- function(
     yi, means, residual_sd, loading, sei, selection_context,
-    execution_plan, return_normalizer = FALSE, normalizer_grid = NULL) {
+    execution_plan, return_normalizer = FALSE, normalizer_grid = NULL,
+    plan_native = NULL, block_native = NULL) {
 
   S <- nrow(means)
   if (!return_normalizer && !is.null(normalizer_grid)) {
@@ -2422,29 +2590,36 @@ set_selection_likelihood_control <- function(
     if (!is.null(result)) return(result)
   }
   native_static <- BayesTools::selection_native_static_args(selection_context)
-  quadrature <- execution_plan[["quadrature"]]
+  if (is.null(plan_native)) {
+    plan_native <- .selection_joint_plan_native_args(execution_plan)
+  }
+  if (is.null(block_native)) {
+    block_native <- .selection_joint_block_native_args(
+      yi = yi, sei = sei, obs_bin = selection_context[["obs_bin"]]
+    )
+  }
   result <- .Call(
     "RoBMA_selnorm_cluster_step_loglik_batch",
-    .native_numeric_vector(yi),
+    block_native[["yi"]],
     .native_numeric_matrix(means),
     .native_numeric_matrix(residual_sd),
     .native_numeric_matrix(loading),
-    .native_numeric_vector(sei),
+    block_native[["sei"]],
     .native_numeric_matrix(selection_context[["omega"]]),
     native_static[["z_lower"]],
     native_static[["z_upper"]],
-    .native_integer_vector(selection_context[["obs_bin"]]),
+    block_native[["obs_bin"]],
     native_static[["sign"]],
     native_static[["telescope_probabilities"]],
     .native_integer_vector(selection_context[["kernel_mode"]]),
-    .native_numeric_vector(quadrature[["nodes"]]),
-    .native_numeric_vector(quadrature[["log_weights"]]),
-    .native_numeric_vector(quadrature[["orders"]]),
-    .native_numeric_vector(execution_plan[["designs"]][["factor_1"]]),
-    .native_integer_vector(execution_plan[["factor_points_per_proposal"]]),
-    .native_integer_vector(execution_plan[["factor_max_points_per_proposal"]]),
-    .native_integer_vector(execution_plan[["scrambles"]]),
-    .native_numeric_vector(execution_plan[["relative_tolerance"]]),
+    plan_native[["quadrature_nodes"]],
+    plan_native[["quadrature_log_weights"]],
+    plan_native[["quadrature_orders"]],
+    .selection_joint_plan_design(plan_native, "factor_1"),
+    plan_native[["factor_points_per_proposal"]],
+    plan_native[["factor_max_points_per_proposal"]],
+    plan_native[["scrambles"]],
+    plan_native[["relative_tolerance"]],
     as.logical(return_normalizer),
     .native_integer_vector(selection_context[["vector_rule"]]),
     PACKAGE = "RoBMA"
@@ -2518,7 +2693,7 @@ set_selection_likelihood_control <- function(
 .selection_joint_factor_loglik_block <- function(
     yi, means, residual_sd, loading, sei, selection_context,
     execution_plan, block_index, return_normalizer = FALSE,
-    normalizer_grid = NULL) {
+    normalizer_grid = NULL, plan_native = NULL, block_native = NULL) {
 
   S <- nrow(means)
   if (!return_normalizer && !is.null(normalizer_grid)) {
@@ -2539,32 +2714,36 @@ set_selection_likelihood_control <- function(
          call. = FALSE)
   }
   native_static <- BayesTools::selection_native_static_args(selection_context)
+  if (is.null(plan_native)) {
+    plan_native <- .selection_joint_plan_native_args(execution_plan)
+  }
+  if (is.null(block_native)) {
+    block_native <- .selection_joint_block_native_args(
+      yi = yi, sei = sei, obs_bin = selection_context[["obs_bin"]]
+    )
+  }
   result <- .Call(
     "RoBMA_selnorm_factor_step_loglik_batch",
-    .native_numeric_vector(yi),
+    block_native[["yi"]],
     .native_numeric_matrix(means),
     .native_numeric_matrix(residual_sd),
     .native_numeric_matrix(loading),
-    .native_numeric_vector(sei),
+    block_native[["sei"]],
     .native_numeric_matrix(selection_context[["omega"]]),
     native_static[["z_lower"]],
     native_static[["z_upper"]],
-    .native_integer_vector(selection_context[["obs_bin"]]),
+    block_native[["obs_bin"]],
     native_static[["sign"]],
     native_static[["telescope_probabilities"]],
     .native_integer_vector(selection_context[["kernel_mode"]]),
-    .native_numeric_vector(quadrature[["nodes"]]),
-    .native_numeric_vector(quadrature[["log_weights"]]),
-    .native_numeric_vector(quadrature[["orders"]]),
-    .native_numeric_vector(execution_plan[["designs"]][[design_key]]),
-    .native_integer_vector(
-      execution_plan[["factor_points_per_proposal"]]
-    ),
-    .native_integer_vector(
-      execution_plan[["factor_max_points_per_proposal"]]
-    ),
-    .native_integer_vector(execution_plan[["scrambles"]]),
-    .native_numeric_vector(execution_plan[["relative_tolerance"]]),
+    plan_native[["factor_nodes"]],
+    plan_native[["factor_log_weights"]],
+    plan_native[["factor_orders"]],
+    .selection_joint_plan_design(plan_native, design_key),
+    plan_native[["factor_points_per_proposal"]],
+    plan_native[["factor_max_points_per_proposal"]],
+    plan_native[["scrambles"]],
+    plan_native[["relative_tolerance"]],
     as.logical(return_normalizer),
     .native_integer_vector(selection_context[["vector_rule"]]),
     PACKAGE = "RoBMA"
@@ -2626,16 +2805,19 @@ set_selection_likelihood_control <- function(
     means             = location[["means"]],
     selection_context = selection_context,
     random_covariance = random_covariance,
-    random_factor     = random_factor
+    random_factor     = random_factor,
+    static            = .selection_joint_static(setup[["data"]])
   )
 }
 
 
 # The joint bridge target and posterior block scores share the same evaluator.
 .selection_joint_block_loglik <- function(
-    setup, yi, means, selection_context, random_covariance, random_factor) {
+    setup, yi, means, selection_context, random_covariance, random_factor,
+    static = NULL) {
 
-  execution_plan <- .data_selection_execution_plan(setup[["data"]])
+  static <- .selection_joint_setup_static(setup, static)
+  execution_plan <- static[["execution_plan"]]
   log_lik <- matrix(
     0,
     nrow = setup[["S"]],
@@ -2652,7 +2834,8 @@ set_selection_likelihood_control <- function(
       rows                      = rows,
       block_indices             = singleton_blocks,
       random_covariance_samples = random_covariance,
-      random_factor_samples     = random_factor
+      random_factor_samples     = random_factor,
+      static                    = static
     )
     log_lik[, singleton_blocks] <- .selection_joint_singleton_loglik_matrix(
       yi                = yi[rows],
@@ -2661,12 +2844,23 @@ set_selection_likelihood_control <- function(
       sei               = setup[["selection_sei"]][rows],
       selection_context = singleton_context
     )
-    if (.is_data_weights(setup[["data"]])) {
+    if (static[["is_weights"]]) {
       log_lik[, singleton_blocks] <- sweep(
         log_lik[, singleton_blocks, drop = FALSE], 2L,
         setup[["data"]][["outcome"]][["weights"]][rows], `*`
       )
     }
+  }
+  block_native <- if (length(execution_plan[["dependent_blocks"]]) > 0L) {
+    .selection_joint_block_native_cache(
+      static         = static,
+      yi             = yi,
+      sei            = setup[["selection_sei"]],
+      obs_bin        = selection_context[["obs_bin"]],
+      execution_plan = execution_plan
+    )
+  } else {
+    NULL
   }
   for (block_index in execution_plan[["dependent_blocks"]]) {
     rows <- execution_plan[["row_blocks"]][[block_index]]
@@ -2684,7 +2878,8 @@ set_selection_likelihood_control <- function(
       components <- .selection_joint_factor_block_samples(
         setup                 = setup,
         block_index           = block_index,
-        random_factor_samples = random_factor
+        random_factor_samples = random_factor,
+        static                = static
       )
     }
     block_normalizer_grid <- if (is.null(setup[["normalizer_grid"]])) NULL else list(
@@ -2702,7 +2897,11 @@ set_selection_likelihood_control <- function(
         sei                = setup[["selection_sei"]][rows],
         selection_context  = block_context,
         execution_plan     = execution_plan,
-        normalizer_grid    = block_normalizer_grid
+        normalizer_grid    = block_normalizer_grid,
+        plan_native        = static[["plan_native"]],
+        block_native       = .selection_joint_block_native(
+          block_native, block_index
+        )
       )
       next
     }
@@ -2716,7 +2915,11 @@ set_selection_likelihood_control <- function(
         selection_context = block_context,
         execution_plan    = execution_plan,
         block_index       = block_index,
-        normalizer_grid   = block_normalizer_grid
+        normalizer_grid   = block_normalizer_grid,
+        plan_native       = static[["plan_native"]],
+        block_native      = .selection_joint_block_native(
+          block_native, block_index
+        )
       )
       next
     }
@@ -2727,7 +2930,8 @@ set_selection_likelihood_control <- function(
         setup                     = setup,
         block_index               = block_index,
         random_covariance_samples = random_covariance,
-        random_factor_samples     = random_factor
+        random_factor_samples     = random_factor,
+        static                    = static
       ),
       sei               = setup[["selection_sei"]][rows],
       selection_context = block_context,

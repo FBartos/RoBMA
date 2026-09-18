@@ -111,3 +111,60 @@ test_that("add_marglik forwards bridge and parallel controls", {
   )
   expect_identical(explicit[["marglik"]][["logml"]], 0)
 })
+
+
+test_that("the cached bridge sample layout reproduces the general assembly", {
+
+  # A bridge fixes the one-row sample matrix's columns once and fills the
+  # values by position. Every state must give the matrix the general path
+  # assembles from the parameter list, the bridge row metadata and the nodes.
+  parameters <- list(mu = 0.5, beta = c(1, 2, 3), empty = numeric(),
+                     tau = 0.25)
+  attr(parameters, "posterior_samples") <- matrix(
+    c(0.5, 7, 9), nrow = 1L,
+    dimnames = list(NULL, c("mu", "extra_a", "extra_b"))
+  )
+  context <- structure(
+    list(nodes = c(tau = 0.25, extra_a = 7, node_c = 4)),
+    class = c("BayesTools_bridge_context", "list")
+  )
+
+  reference <- .marglik_bridge_posterior_samples(parameters, context)
+  cache     <- new.env(parent = emptyenv())
+  expect_identical(
+    .marglik_bridge_posterior_samples(parameters, context, cache),
+    reference
+  )
+
+  # a second state of the same shape replays the layout
+  other <- parameters
+  other[["beta"]] <- c(-1, -2, -3)
+  attr(other, "posterior_samples") <- matrix(
+    c(0.5, 70, 90), nrow = 1L,
+    dimnames = list(NULL, c("mu", "extra_a", "extra_b"))
+  )
+  other_context <- context
+  other_context[["nodes"]] <- c(tau = 0.25, extra_a = 70, node_c = 40)
+  expect_identical(
+    .marglik_bridge_posterior_samples(other, other_context, cache),
+    .marglik_bridge_posterior_samples(other, other_context)
+  )
+
+  # another shape rebuilds the layout instead of replaying a stale one
+  changed <- parameters
+  changed[["beta"]] <- c(1, 2)
+  expect_identical(
+    .marglik_bridge_posterior_samples(changed, context, cache),
+    .marglik_bridge_posterior_samples(changed, context)
+  )
+
+  # a context without nodes and a call without one keep their own layouts
+  expect_identical(
+    .marglik_bridge_posterior_samples(parameters, NULL, cache),
+    .marglik_bridge_posterior_samples(parameters, NULL)
+  )
+  expect_identical(
+    .marglik_bridge_posterior_samples(parameters, context, cache),
+    reference
+  )
+})

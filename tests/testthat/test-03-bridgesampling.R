@@ -357,3 +357,91 @@ test_that("add_marglik rejects product-space model-averaging objects", {
     )
   }
 })
+
+# ---------------------------------------------------------------------------- #
+# per-bridge caches evaluate the same log posterior as the general path
+# ---------------------------------------------------------------------------- #
+
+# Bridge sampling resolves the selection execution plan, the data predicates,
+# the native kernel arguments, the one-row sample layout and the bridge context
+# node layout once per bridge. Evaluate the same states through those resolved
+# objects and through the general per-state path and require the same numbers.
+.bridge_log_posterior_trace <- function(name, limit, reference) {
+
+  fit      <- load_fit(name, validate = FALSE)
+  store    <- new.env(parent = emptyenv())
+  store$n  <- 0L
+  store$values <- numeric(limit)
+  original <- RoBMA:::.log_posterior
+  record   <- function(...) {
+
+    value <- original(...)
+    if (store$n < limit) {
+      store$n <- store$n + 1L
+      store$values[[store$n]] <- value
+    }
+    value
+  }
+  run <- function() {
+
+    set.seed(100)
+    add_marglik(fit, parallel = FALSE)
+  }
+
+  fitted <- if (reference) {
+    plain_static <- function(setup, static = NULL) {
+
+      out <- RoBMA:::.selection_joint_static(setup[["data"]])
+      out[["plan_native"]]        <- NULL
+      out[["block_native_cache"]] <- NULL
+      out[["factor_block_cache"]] <- NULL
+      out
+    }
+    testthat::with_mocked_bindings(
+      testthat::with_mocked_bindings(
+        run(),
+        .log_posterior                = record,
+        .selection_joint_setup_static = plain_static,
+        .marglik_bridge_sample_layout = function(...) NULL,
+        .package = "RoBMA"
+      ),
+      .bt_JAGS_bridge_node_layout = function(...) NULL,
+      .package = "BayesTools"
+    )
+  } else {
+    testthat::with_mocked_bindings(
+      run(),
+      .log_posterior = record,
+      .package = "RoBMA"
+    )
+  }
+
+  list(
+    values = store$values[seq_len(store$n)],
+    logml  = fitted[["marglik"]][["logml"]],
+    marglik = fitted[["marglik"]]
+  )
+}
+
+test_that("per-bridge caches leave the bridge log posterior identical", {
+
+  cached_names <- c(
+    "dat.lehmann2018-3PSM",
+    "bselmodel.mv_marg_random",
+    "brma.mv_block_mvn_random",
+    "bPET.mv_random"
+  )
+  skip_if_missing_fits(cached_names)
+
+  for (name in cached_names) {
+    # The limit is above every fixture's retained draw count, so the trace
+    # covers every state the bridge evaluates.
+    fast      <- .bridge_log_posterior_trace(name, limit = 50000L, reference = FALSE)
+    reference <- .bridge_log_posterior_trace(name, limit = 50000L, reference = TRUE)
+
+    expect_gte(length(fast$values), 200L)
+    expect_identical(fast$values, reference$values, info = name)
+    expect_identical(fast$logml, reference$logml, info = name)
+    expect_identical(fast$marglik, reference$marglik, info = name)
+  }
+})

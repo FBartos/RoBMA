@@ -1,5 +1,19 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- resolves once per `add_marglik()` bridge what the fitted data alone decide.
+  The selection execution plan and its quadrature migration, the structural
+  data predicates the row blocks are assembled with, the sampling contribution
+  of each block, the plan's own native kernel arguments and each block's
+  observation arguments were rebuilt for every evaluated state - three times
+  per state for an independent selection model and once per row block for a
+  correlated-`V` one. They now travel with the bridge callback, the selection
+  context of a state is derived from its template in one replacement, and the
+  one-row sample matrix a known-`V` scale model feeds to the marginalized
+  variance evaluator has its column layout fixed once and its values filled by
+  position. Marginal likelihoods are bit-identical; the independent selection
+  model of the bem2011 scenario takes 7.4 s where it took 16.1 s, a known-`V`
+  scale-regression bridge 9.4 s where it took 15.0 s, and the correlated-`V`
+  selection bridge of the Assink scenario 78.7 s where it took 102.0 s.
 - removes the per-cell R overhead of the correlated-`V` zplot: the memo keys of
   the quadrature ladder are written when an allowance changes rather than
   formatted on every lookup, the pruning order of a context rule is kept with

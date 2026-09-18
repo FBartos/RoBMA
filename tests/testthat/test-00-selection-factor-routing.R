@@ -475,7 +475,8 @@ test_that("post-fit likelihood retains certified sampling factors", {
     },
     .selection_joint_factor_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
-        execution_plan, block_index, normalizer_grid = NULL) {
+        execution_plan, block_index, normalizer_grid = NULL,
+        plan_native = NULL, block_native = NULL) {
       expect_null(normalizer_grid)
       factor_call <<- list(
         residual_sd = residual_sd,
@@ -687,7 +688,8 @@ test_that("bridge factor states retain the certified covariance exactly", {
     },
     .selection_joint_factor_loglik_block = function(
         yi, means, residual_sd, loading, sei, selection_context,
-        execution_plan, block_index, normalizer_grid = NULL) {
+        execution_plan, block_index, normalizer_grid = NULL,
+        plan_native = NULL, block_native = NULL) {
       expect_null(normalizer_grid)
       factor_call <<- list(
         residual_sd = residual_sd,
