@@ -247,3 +247,95 @@ test_that("threaded zcurve kernels return identical values at any thread count",
     )
   })
 })
+
+
+# ---------------------------------------------------------------------------- #
+# Work-based row schedule
+# ---------------------------------------------------------------------------- #
+
+.row_schedule <- function(rows, work_per_row) {
+
+  return(.Call("RoBMA_selnorm_row_schedule", as.numeric(rows),
+               as.numeric(work_per_row), PACKAGE = "RoBMA"))
+}
+
+
+test_that("the row schedule keeps small batches serial and sizes large regions", {
+
+  skip_if_not(is.loaded("RoBMA_selnorm_row_schedule", PACKAGE = "RoBMA"))
+
+  previous <- RoBMA.get_option("native_threads")
+  on.exit(RoBMA.options(native_threads = previous), add = TRUE)
+  RoBMA.options(native_threads = 31L)
+
+  # Every shape below the threshold runs the entry point's own serial loop, so
+  # no thread budget can make it slower than one thread.
+  small <- list(
+    c(rows = 16L, work = 5 * 4),        # 16 rows, 5 observations, 4 bins
+    c(rows = 64L, work = 5 * 4),
+    c(rows = 16L, work = 200 * 4),
+    c(rows = 500L, work = 12 * 4),
+    c(rows = 64L, work = 20 * 5 * 4),   # 20 grid points
+    c(rows = 16L, work = 20 * 12)       # zcurve grid, no bins
+  )
+  for (shape in small) {
+    schedule <- .row_schedule(shape[["rows"]], shape[["work"]])
+    expect_identical(schedule[["threads"]], 1L,
+      info = paste("rows", shape[["rows"]], "work", shape[["work"]]))
+  }
+
+  # The shapes the post-fit batches spend their time in do thread, and one
+  # parallel region covers enough rows that the region overhead is amortized.
+  large <- list(
+    c(rows = 20000L, work = 12 * 4),
+    c(rows = 60000L, work = 48 * 4),
+    c(rows = 4000L, work = 20 * 48 * 4),
+    c(rows = 20000L, work = 350 * 5)
+  )
+  for (shape in large) {
+    schedule <- .row_schedule(shape[["rows"]], shape[["work"]])
+    expect_gt(schedule[["threads"]], 1L)
+    expect_gte(schedule[["chunk_rows"]], schedule[["threads"]])
+    # Either the region carries its full share of work or it covers the batch.
+    expect_true(
+      schedule[["chunk_rows"]] == shape[["rows"]] ||
+        as.numeric(schedule[["chunk_rows"]]) * shape[["work"]] >=
+          schedule[["threads"]] * 1e6,
+      info = paste("rows", shape[["rows"]], "work", shape[["work"]])
+    )
+  }
+
+  # A smaller budget is never exceeded, and one thread stays one thread.
+  RoBMA.options(native_threads = 8L)
+  expect_lte(.row_schedule(60000L, 48 * 4)[["threads"]], 8L)
+  RoBMA.options(native_threads = 1L)
+  expect_identical(.row_schedule(60000L, 48 * 4)[["threads"]], 1L)
+})
+
+
+test_that("a batch below the work gate is identical at every thread budget", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  # 20 rows and 5 observations are below the work gate, so this batch keeps the
+  # serial loop; the values must still be identical at every budget.
+  inputs    <- .kernel_thread_inputs(S = 20L, K = 5L)
+  selection <- .kernel_thread_selection_context(inputs)
+
+  .expect_thread_invariant("small loglik_row_sum", function() {
+    .selnorm_kernel_loglik_row_sum(
+      yi             = inputs[["yi"]],
+      mu_num         = inputs[["mean"]],
+      sigma_num      = inputs[["sd"]],
+      sei            = inputs[["sei"]],
+      omega          = inputs[["omega"]],
+      selection_spec = inputs[["spec"]],
+      kernel_mode    = inputs[["kernel_mode"]]
+    )
+  }, threads = c(1L, 2L, 8L, 31L))
+
+  expect_identical(
+    .row_schedule(20L, length(inputs[["sei"]]) * inputs[["spec"]][["n_bins"]])[["threads"]],
+    1L
+  )
+})

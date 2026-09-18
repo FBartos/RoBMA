@@ -57,6 +57,66 @@ inline int robma_batch_threads(int rows, int minimum_rows = 16)
 #endif
 }
 
+// How a batch of independent rows is distributed. 'chunk_rows' is the number of
+// rows one parallel region covers; the remaining rows follow in further
+// regions, between which the main thread checks for an interrupt.
+struct RobmaRowSchedule {
+  int threads;
+  int chunk_rows;
+};
+
+// Row count alone does not say whether threads pay for themselves: a batch of
+// many rows that each evaluate the kernel a handful of times spends more on
+// opening parallel regions than it saves. Callers therefore state the work one
+// row carries in kernel evaluations - observations, times grid points, times
+// selection bins where the kernel walks them - and these two constants turn
+// that into a thread count and a region size.
+//
+// ROBMA_WORK_PER_THREAD is the work a thread must be handed before it is worth
+// waking; ROBMA_WORK_PER_THREAD_REGION is how much work each thread gets inside
+// one parallel region, which bounds both the region-spawn overhead per unit of
+// work and how long the main thread waits before its next interrupt check.
+// Both are calibrated over the shapes the post-fit batches use; see
+// tests/testthat/test-00-selection-kernel-threads.R for the invariance the
+// choice must preserve.
+#define ROBMA_WORK_PER_THREAD 2.0e4
+#define ROBMA_WORK_PER_THREAD_REGION 1.0e6
+
+inline RobmaRowSchedule robma_row_schedule(int rows, double work_per_row)
+{
+  RobmaRowSchedule schedule;
+  schedule.threads = 1;
+  schedule.chunk_rows = rows;
+#if defined(_OPENMP)
+  if (rows < 2 || !(work_per_row > 0.0)) return schedule;
+  int requested = robma_native_threads_value().load(std::memory_order_relaxed);
+  if (requested <= 0) requested = omp_get_max_threads();
+  const int available = omp_get_max_threads();
+  if (available <= 1 || requested <= 1) return schedule;
+  const int budget = std::min(std::min(requested, available), rows);
+  if (budget <= 1) return schedule;
+  const double total = static_cast<double>(rows) * work_per_row;
+  const double affordable = std::floor(total / ROBMA_WORK_PER_THREAD);
+  if (!(affordable >= 2.0)) return schedule;
+  schedule.threads = affordable >= static_cast<double>(budget) ?
+    budget : static_cast<int>(affordable);
+  const double region = ROBMA_WORK_PER_THREAD_REGION *
+    static_cast<double>(schedule.threads) / work_per_row;
+  const double capped = std::min(static_cast<double>(rows), std::ceil(region));
+  schedule.chunk_rows = std::max(schedule.threads,
+    capped >= 1.0 ? static_cast<int>(capped) : 1);
+#else
+  (void)work_per_row;
+#endif
+  return schedule;
+}
+
+// The same gate for a batch whose parallel region the caller opens itself.
+inline int robma_work_threads(int rows, double work_per_row)
+{
+  return robma_row_schedule(rows, work_per_row).threads;
+}
+
 namespace robma_parallel {
 
 // Applies 'body(s)' to every row in [0, rows). With more than one thread the
@@ -64,8 +124,9 @@ namespace robma_parallel {
 // must not call the R API and must not fail (validate inputs beforehand).
 // A C++ exception escaping 'body' in any worker is re-raised as an R error on
 // the main thread after the loop completes, mirroring the serial behaviour.
+// 'chunk_rows' of zero keeps the row-count-only default chunking.
 template <typename Body>
-void for_rows(int rows, int threads, Body &&body)
+void for_rows(int rows, int threads, int chunk_rows, Body &&body)
 {
   if (rows <= 0) return;
   bool failed = false;
@@ -96,12 +157,13 @@ void for_rows(int rows, int threads, Body &&body)
     }
   } else {
 #if defined(_OPENMP)
-    // Chunks keep interrupt responsiveness and bound region-spawn overhead:
-    // each chunk carries at least eight rows per worker of useful work.
-    const int chunk_rows = std::max(8, rows / (threads * 8));
-    for (int start = 0; start < rows && !failed; start += chunk_rows) {
+    // Chunks keep interrupt responsiveness and bound region-spawn overhead.
+    // Without a work-aware chunk size each chunk carries at least eight rows
+    // per worker of useful work.
+    const int step = chunk_rows > 0 ? chunk_rows : std::max(8, rows / (threads * 8));
+    for (int start = 0; start < rows && !failed; start += step) {
       R_CheckUserInterrupt();
-      const int end = std::min(rows, start + chunk_rows);
+      const int end = std::min(rows, start + step);
       #pragma omp parallel num_threads(threads)
       {
         #pragma omp for schedule(dynamic, 1)
@@ -110,6 +172,7 @@ void for_rows(int rows, int threads, Body &&body)
     }
 #else
     (void)threads;
+    (void)chunk_rows;
     for (int s = 0; s < rows; ++s) {
       if (failed) break;
       guarded_body(s);
@@ -117,6 +180,25 @@ void for_rows(int rows, int threads, Body &&body)
 #endif
   }
   if (failed) Rf_error("%s", failure_message.c_str());
+}
+
+template <typename Body>
+void for_rows(int rows, int threads, Body &&body)
+{
+  for_rows(rows, threads, 0, std::forward<Body>(body));
+}
+
+// Runs 'body(s)' over the rows with the thread count and region size the
+// schedule chose. One thread keeps the plain serial loop, so a serial batch
+// gains neither an interrupt check per row nor a changed access order.
+template <typename Body>
+void for_rows(int rows, const RobmaRowSchedule &schedule, Body &&body)
+{
+  if (schedule.threads <= 1) {
+    for (int s = 0; s < rows; ++s) body(s);
+    return;
+  }
+  for_rows(rows, schedule.threads, schedule.chunk_rows, std::forward<Body>(body));
 }
 
 }

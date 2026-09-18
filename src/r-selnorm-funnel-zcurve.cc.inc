@@ -49,11 +49,13 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
     }
   };
 
-  const int threads = robma_batch_threads(S);
-  if (threads == 1) {
+  // One normal density evaluation per grid point and observation.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(L) * K);
+  if (schedule.threads == 1) {
     for (int s = 0; s < S; ++s) compute_row(s);
   } else {
-    robma_parallel::for_rows(S, threads, compute_row);
+    robma_parallel::for_rows(S, schedule, compute_row);
   }
 
   UNPROTECT(1);
@@ -266,11 +268,13 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
     weights_p[s] = weight_sum / K;
   };
 
-  const int threads = robma_batch_threads(S);
-  if (threads == 1) {
+  // One threshold or log-normalizer evaluation per observation and bin.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(K) * B);
+  if (schedule.threads == 1) {
     for (int s = 0; s < S; ++s) compute_row(s);
   } else {
-    robma_parallel::for_rows(S, threads, compute_row);
+    robma_parallel::for_rows(S, schedule, compute_row);
   }
 
   UNPROTECT(4);
@@ -1164,11 +1168,14 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     }
   };
 
-  const int threads = robma_batch_threads(S);
-  if (threads == 1) {
+  // One density evaluation per grid point and observation; the retained-context
+  // branch stays serial above, so only this region's work is scheduled here.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(L) * K);
+  if (schedule.threads == 1) {
     for (int s = 0; s < S; ++s) compute_row(s);
   } else {
-    robma_parallel::for_rows(S, threads, compute_row);
+    robma_parallel::for_rows(S, schedule, compute_row);
   }
 
   UNPROTECT(n_protect);

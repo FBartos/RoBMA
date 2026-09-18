@@ -1789,6 +1789,20 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
   double mass = NA_REAL, error = NA_REAL, omitted_mass_error = 0.0;
   std::size_t components = 0;
   bool available = false;
+  // The star rule integrates one common axis and one child axis per
+  // nonsingleton group, so a context costs on the order of k * order^2 node
+  // probabilities. The two weights convert that count into the kernel
+  // evaluations robma_row_schedule() is calibrated in: a numerator context also
+  // collects and projects its mixture, while a mass-only context takes the
+  // cached direct-product branch and is an order of magnitude cheaper per node
+  // probability. The work decides whether threads pay for themselves at all;
+  // the team size stays the one context and mixture-row count the call can use.
+  const int star_rows = std::max(contexts, k);
+  const double star_work = static_cast<double>(contexts) * k * order * order *
+    (log_normalizers == R_NilValue ? 0.4 : 10.0);
+  const int star_threads =
+    robma_work_threads(star_rows, star_work / star_rows) > 1 ?
+      robma_batch_threads(star_rows, 2) : 1;
   try {
     CompactStepPartition partition;
     const bool compact_partition = bounded_cdf && LOGICAL(telescope)[0] &&
@@ -1801,8 +1815,7 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
       log_normalizers == R_NilValue ? nullptr : REAL(log_normalizers),
       REAL(context_log_weights), REAL(nodes), REAL(log_weights), order,
       REAL(z), size, REAL(allowance)[0], REAL(density), &mass, &error, &components, REAL(compact),
-      bounded_cdf, REAL(cdf_factor), &omitted_mass_error,
-      robma_batch_threads(std::max(contexts, k), 2));
+      bounded_cdf, REAL(cdf_factor), &omitted_mass_error, star_threads);
   } catch (const std::exception &exception) {
     Rf_error("Deterministic star projection failed: %s.", exception.what());
   }

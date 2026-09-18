@@ -111,11 +111,13 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
     }
   };
 
-  const int threads = robma_batch_threads(S);
-  if (threads == 1) {
+  // One log-normalizer evaluation per grid value, observation and bin.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(G) * K * selnorm.B);
+  if (schedule.threads == 1) {
     for (int s = 0; s < S; ++s) compute_row(s);
   } else {
-    robma_parallel::for_rows(S, threads, compute_row);
+    robma_parallel::for_rows(S, schedule, compute_row);
   }
 
   UNPROTECT(1);
@@ -194,13 +196,14 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
   // Every (row, observation) cell is an independent evaluation, so visiting the
   // cells row-first gives each posterior row its own disjoint output slots
   // without changing any value.
-  const int threads = robma_batch_threads(S);
-  if (threads == 1) {
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(K) * selnorm.B);
+  if (schedule.threads == 1) {
     for (int k = 0; k < K; ++k) {
       for (int s = 0; s < S; ++s) compute_cell(s, k);
     }
   } else {
-    robma_parallel::for_rows(S, threads, [&](int s) {
+    robma_parallel::for_rows(S, schedule, [&](int s) {
       for (int k = 0; k < K; ++k) compute_cell(s, k);
     });
   }
@@ -284,11 +287,12 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
     out_p[s] = row_sum;
   };
 
-  const int threads = robma_batch_threads(S);
-  if (threads == 1) {
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(K) * selnorm.B);
+  if (schedule.threads == 1) {
     for (int s = 0; s < S; ++s) compute_row(s);
   } else {
-    robma_parallel::for_rows(S, threads, compute_row);
+    robma_parallel::for_rows(S, schedule, compute_row);
   }
 
   UNPROTECT(1);
@@ -345,13 +349,14 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
     );
   };
 
-  const int threads = robma_batch_threads(S);
-  if (threads == 1) {
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(K) * selnorm.B);
+  if (schedule.threads == 1) {
     for (int k = 0; k < K; ++k) {
       for (int s = 0; s < S; ++s) compute_cell(s, k);
     }
   } else {
-    robma_parallel::for_rows(S, threads, [&](int s) {
+    robma_parallel::for_rows(S, schedule, [&](int s) {
       for (int k = 0; k < K; ++k) compute_cell(s, k);
     });
   }
@@ -423,13 +428,14 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
     );
   };
 
-  const int threads = robma_batch_threads(S);
-  if (threads == 1) {
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(K) * selnorm.B);
+  if (schedule.threads == 1) {
     for (int k = 0; k < K; ++k) {
       for (int s = 0; s < S; ++s) compute_cell(s, k);
     }
   } else {
-    robma_parallel::for_rows(S, threads, [&](int s) {
+    robma_parallel::for_rows(S, schedule, [&](int s) {
       for (int k = 0; k < K; ++k) compute_cell(s, k);
     });
   }
@@ -500,13 +506,14 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
     );
   };
 
-  const int threads = robma_batch_threads(S);
-  if (threads == 1) {
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(K) * selnorm.B);
+  if (schedule.threads == 1) {
     for (int k = 0; k < K; ++k) {
       for (int s = 0; s < S; ++s) compute_cell(s, k);
     }
   } else {
-    robma_parallel::for_rows(S, threads, [&](int s) {
+    robma_parallel::for_rows(S, schedule, [&](int s) {
       for (int k = 0; k < K; ++k) compute_cell(s, k);
     });
   }

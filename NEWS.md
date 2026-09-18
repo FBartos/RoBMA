@@ -1,5 +1,15 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- chooses the thread count of the post-fit selection, z-curve and zplot
+  context-star batches from the work a row carries - observations, times grid
+  points, times selection bins - instead of from the row count alone, and lets
+  one parallel region cover as many rows as amortize its cost. A batch below
+  the gate keeps the entry point's own serial loop, so no shape is slower than
+  at one thread, while a batch of many rows that each evaluate the kernel a
+  handful of times no longer spends more on opening parallel regions than it
+  saves: a 20000-row, 12-observation log-likelihood batch that was slower at
+  the maximum budget than serially is now sixteen times faster. Values remain
+  identical at every thread count.
 - evaluates the candidate grid of an ordinary normal model without a selection
   model in one native pass. A location, heterogeneity or scale-regression
   density used to materialize the location, scale and validity matrices of

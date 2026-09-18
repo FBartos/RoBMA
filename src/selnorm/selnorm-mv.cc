@@ -5248,7 +5248,12 @@ bool cpp_selnorm_context_star_projection(
     std::vector<EnvelopeGroupGeometry> geometry;
     if (!prepare_envelope_geometry(covariance, mean.data(), selection_se, dimension,
         envelope, false, &geometry)) return false;
-    if (active_contexts > 0) {
+    // Residual standard deviations come from the covariance and the selection
+    // scales, not from the context mean, so every context wrote the same
+    // values into this shared vector and the serial loop kept the last
+    // context's. Only that context writes now: the values are unchanged and
+    // the threaded loop no longer writes the same addresses from every worker.
+    if (active_contexts > 0 && context == contexts - 1) {
       for (const EnvelopeGroupGeometry &group : geometry) {
         for (std::size_t row = 0; row < group.row_index.size(); ++row) {
           residual_sd[group.row_index[row]] = group.residual_sd[row];

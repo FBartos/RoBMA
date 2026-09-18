@@ -67,6 +67,35 @@ extern "C" SEXP RoBMA_selnorm_normal_upper_tail(SEXP x, SEXP scalar)
   return out;
 }
 
+// The row schedule the batch kernels resolve for a shape, exposed so the
+// package tests can certify which shapes stay serial and how large a parallel
+// region is without timing anything.
+extern "C" SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row)
+{
+  if ((TYPEOF(rows) != INTSXP && TYPEOF(rows) != REALSXP) || XLENGTH(rows) != 1 ||
+      (TYPEOF(work_per_row) != INTSXP && TYPEOF(work_per_row) != REALSXP) ||
+      XLENGTH(work_per_row) != 1) {
+    Rf_error("'rows' and 'work_per_row' must be single numbers.");
+  }
+  const double row_count = Rf_asReal(rows);
+  const double work = Rf_asReal(work_per_row);
+  if (!std::isfinite(row_count) || row_count < 0 ||
+      row_count > static_cast<double>(std::numeric_limits<int>::max())) {
+    Rf_error("'rows' must be one nonnegative whole number of rows.");
+  }
+  const RobmaRowSchedule schedule =
+    robma_row_schedule(static_cast<int>(row_count), work);
+  SEXP out = PROTECT(Rf_allocVector(INTSXP, 2));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  INTEGER(out)[0] = schedule.threads;
+  INTEGER(out)[1] = schedule.chunk_rows;
+  SET_STRING_ELT(names, 0, Rf_mkChar("threads"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("chunk_rows"));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return out;
+}
+
 extern "C" SEXP RoBMA_selnorm_set_native_threads(SEXP threads)
 {
   if ((TYPEOF(threads) != INTSXP && TYPEOF(threads) != REALSXP) ||
