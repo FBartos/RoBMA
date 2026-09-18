@@ -648,9 +648,15 @@
 # rebuilt elsewhere loses the attribute and is grouped again.
 .iwmde_row_state_groups <- function(context, row_states) {
 
+  # The grouping identifies this exact list of states. Subsetting and rebuilding
+  # drop the attribute, and the first and last row index are recorded with it so
+  # that an in-place edit which keeps the list length cannot be served a stale
+  # grouping either.
+  edges  <- .iwmde_row_state_group_edges(row_states)
   cached <- attr(row_states, "iwmde_active_groups", exact = TRUE)
   if (is.list(cached) &&
-      identical(attr(cached, "n_states", exact = TRUE), length(row_states))) {
+      identical(attr(cached, "n_states", exact = TRUE), length(row_states)) &&
+      identical(attr(cached, "row_edges", exact = TRUE), edges)) {
     return(cached)
   }
 
@@ -659,8 +665,21 @@
   }, character(1))
   groups <- split(seq_along(keys), factor(keys, levels = unique(keys)))
   attr(groups, "n_states") <- length(row_states)
+  attr(groups, "row_edges") <- edges
 
   return(groups)
+}
+
+
+# The first and last state's row index, or NULL for an empty list.
+.iwmde_row_state_group_edges <- function(row_states) {
+
+  n <- length(row_states)
+  if (n == 0L) {
+    return(NULL)
+  }
+
+  return(c(row_states[[1L]][["row_index"]], row_states[[n]][["row_index"]]))
 }
 
 
