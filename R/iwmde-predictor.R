@@ -1033,6 +1033,94 @@
 }
 
 
+# The candidate grid of a plain normal model without selection: the batch is a
+# mean and scale sweep of the existing posterior rows, so its log-likelihood
+# sum is the same weighted normal density the candidate route evaluates, with
+# no candidate matrix in between. NULL keeps the candidate route for everything
+# this guard does not cover.
+.iwmde_predictor_normal_grid_log_lik <- function(context, active_setup, setup,
+                                                 basis, values, unit) {
+
+  if (!identical(unit, "estimate") ||
+      !is.loaded("RoBMA_norm_predictor_grid_loglik", PACKAGE = "RoBMA")) {
+    return(NULL)
+  }
+  data   <- context[["data"]]
+  priors <- active_setup[["priors"]]
+  if (.data_outcome_type(data) != "norm" ||
+      .is_priors_weightfunction(priors) ||
+      .is_data_joint_selection(data) ||
+      .is_data_known_v(data) ||
+      .is_data_random(data) ||
+      .is_data_multilevel(data) ||
+      isTRUE(setup[["is_multilevel"]]) ||
+      isTRUE(setup[["is_weightfunction"]]) ||
+      .estimate_normal_target_uses_covariance_backend(data, priors)) {
+    return(NULL)
+  }
+  if (isTRUE(basis[["formula_mu"]]) || isTRUE(basis[["formula_logtau"]])) {
+    return(NULL)
+  }
+  scale_update <- basis[["scale_update"]]
+  if (!identical(scale_update, "none") && !identical(scale_update, "tau")) {
+    return(NULL)
+  }
+  scale_tau <- identical(scale_update, "tau")
+  mu        <- setup[["mu"]]
+  tau_total <- setup[["tau_total"]]
+  if (!is.matrix(mu) || (!scale_tau && !is.matrix(tau_total))) {
+    return(NULL)
+  }
+  S <- nrow(mu)
+  K <- ncol(mu)
+  if (!scale_tau && !identical(dim(tau_total), c(S, K))) {
+    return(NULL)
+  }
+  mu_basis      <- basis[["mu_basis"]]
+  log_tau_basis <- basis[["log_tau_basis"]]
+  for (matrix_argument in list(mu_basis, log_tau_basis)) {
+    if (!is.null(matrix_argument) && !identical(dim(matrix_argument), c(S, K))) {
+      return(NULL)
+    }
+  }
+  current <- basis[["current"]]
+  yi      <- setup[["yi"]]
+  sei     <- setup[["sei"]]
+  if (!is.numeric(current) || length(current) != S ||
+      !is.numeric(yi) || length(yi) != K ||
+      !is.numeric(sei) || length(sei) != K) {
+    return(NULL)
+  }
+  weights <- setup[["weights"]]
+  if (!is.null(weights) && (!is.numeric(weights) || length(weights) != K)) {
+    return(NULL)
+  }
+  # A negative effect direction evaluates the density of the reflected outcome.
+  # Negating the location inputs is the same reflection as negating the
+  # candidate locations afterwards, element for element.
+  if (identical(setup[["effect_direction"]], "negative")) {
+    yi <- -yi
+    mu <- -mu
+    if (!is.null(mu_basis)) mu_basis <- -mu_basis
+  }
+
+  return(.Call(
+    "RoBMA_norm_predictor_grid_loglik",
+    .native_numeric_vector(yi),
+    .native_numeric_vector(sei),
+    if (is.null(weights)) NULL else .native_numeric_vector(weights),
+    .native_numeric_matrix(mu),
+    if (is.null(mu_basis)) NULL else .native_numeric_matrix(mu_basis),
+    if (scale_tau) NULL else .native_numeric_matrix(tau_total),
+    if (is.null(log_tau_basis)) NULL else .native_numeric_matrix(log_tau_basis),
+    .native_numeric_vector(current),
+    .native_numeric_vector(values),
+    as.logical(scale_tau),
+    PACKAGE = "RoBMA"
+  ))
+}
+
+
 .iwmde_predictor_candidates <- function(context, active_setup, setup, basis,
                                         parameter, values, row_states,
                                         replacement) {

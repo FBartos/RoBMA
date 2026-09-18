@@ -1,5 +1,14 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- evaluates the candidate grid of an ordinary normal model without a selection
+  model in one native pass. A location, heterogeneity or scale-regression
+  density used to materialize the location, scale and validity matrices of
+  every (grid point, posterior row) candidate before summing one weighted
+  normal density per observation; the same sum and the same validity mask are
+  now evaluated from the posterior rows and the grid directly, with the
+  logarithm of a repeated scale taken once per row instead of once per
+  candidate. A location-scale coefficient density reproduces its values and
+  takes a third less time and half the memory.
 - evaluates the mean-sweep normalizer grid of a correlated-`V` selection model
   without rebuilding per candidate row what the posterior row already fixes.
   The exact Gaussian component whitens a whole run of draws that share a packed

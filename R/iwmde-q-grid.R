@@ -331,6 +331,34 @@
     return(NULL)
   }
 
+  native <- .iwmde_predictor_normal_grid_log_lik(
+    context      = context,
+    active_setup = active_setup,
+    setup        = setup,
+    basis        = basis,
+    values       = values,
+    unit         = unit
+  )
+  if (!is.null(native)) {
+    # Prior ordinates never depended on the candidate matrices for the batches
+    # this route serves: no formula replacement means no replacement samples.
+    log_prior <- .iwmde_predictor_log_prior(
+      context             = context,
+      parameter           = parameter,
+      values              = values,
+      row_states          = row_states,
+      replacement         = replacement,
+      replacement_samples = NULL
+    )
+    if (is.null(log_prior) || length(log_prior) != length(native[["log_lik"]])) {
+      return(NULL)
+    }
+    log_q <- native[["log_lik"]] + log_prior
+    log_q[!native[["valid"]]] <- -Inf
+
+    return(matrix(log_q, nrow = length(values), ncol = length(row_states)))
+  }
+
   candidates <- .iwmde_predictor_candidates(
     context     = context,
     active_setup = active_setup,

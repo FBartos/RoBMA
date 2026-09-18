@@ -1,3 +1,208 @@
+namespace {
+
+// One candidate cell of the normal predictor grid, written exactly as
+// RoBMA_norm_loglik_row_sum() writes it so that the two routes agree value for
+// value: the same total standard deviation and the same weighted dnorm.
+inline double norm_predictor_cell(double yi, double mu, double tau, double sei,
+                                  double weight)
+{
+  const double sd = std::sqrt(tau * tau + sei * sei);
+  return weight * Rf_dnorm4(yi, mu, sd, 1);
+}
+
+void check_predictor_matrix(SEXP x, const char *name, int S, int K)
+{
+  check_real(x, name);
+  validate_matrix_dims(x, name, S, K);
+}
+
+}
+
+// Weighted normal log-likelihood sums over a grid of candidate values for one
+// posterior batch, without materializing the (S * G) x K candidate matrices
+// .iwmde_predictor_candidates() builds. Column s of the result holds the G
+// candidates of posterior row s, in the column-major order the R grid uses.
+//
+// The candidate location is mu[s, k] + mu_basis[s, k] * (values[g] -
+// current[s]); its scale is values[g] when the grid replaces tau itself,
+// otherwise tau[s, k], and either is carried through exp(log(tau) +
+// log_tau_basis[s, k] * delta) when the batch has a log-tau basis. 'valid'
+// reproduces the candidate builder's validity mask, including the row sums it
+// tests, so the caller's -Inf pattern is unchanged.
+extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
+  SEXP yi, SEXP sei, SEXP weights, SEXP mu, SEXP mu_basis, SEXP tau,
+  SEXP log_tau_basis, SEXP current, SEXP values, SEXP scale_update_tau)
+{
+  check_real(yi, "yi");
+  check_real(sei, "sei");
+  check_real(current, "current");
+  check_real(values, "values");
+  check_logical(scale_update_tau, "scale_update_tau");
+
+  const int S = matrix_nrow(mu, "mu");
+  const int K = matrix_ncol(mu, "mu");
+  const int G = Rf_length(values);
+  const bool scale_tau = LOGICAL(scale_update_tau)[0] == TRUE;
+
+  check_predictor_matrix(mu, "mu", S, K);
+  if (mu_basis != R_NilValue) check_predictor_matrix(mu_basis, "mu_basis", S, K);
+  if (log_tau_basis != R_NilValue) {
+    check_predictor_matrix(log_tau_basis, "log_tau_basis", S, K);
+  }
+  if (scale_tau) {
+    if (tau != R_NilValue) {
+      Rf_error("'tau' must be absent when the grid replaces the scale itself.");
+    }
+  } else {
+    check_predictor_matrix(tau, "tau", S, K);
+  }
+  if (Rf_length(yi) != K || Rf_length(sei) != K) {
+    Rf_error("'yi' and 'sei' must have one value per observation.");
+  }
+  if (weights != R_NilValue) {
+    check_real(weights, "weights");
+    if (Rf_length(weights) != K) {
+      Rf_error("'weights' must have one value per observation.");
+    }
+  }
+  if (Rf_length(current) != S) {
+    Rf_error("'current' must have one value per posterior sample.");
+  }
+
+  SEXP out_log_lik = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(G) * S));
+  SEXP out_valid = PROTECT(Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(G) * S));
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_STRING_ELT(names, 0, Rf_mkChar("log_lik"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("valid"));
+  SET_VECTOR_ELT(out, 0, out_log_lik);
+  SET_VECTOR_ELT(out, 1, out_valid);
+  Rf_setAttrib(out, R_NamesSymbol, names);
+
+  const double *yi_p        = REAL(yi);
+  const double *sei_p       = REAL(sei);
+  const double *weights_p   = weights == R_NilValue ? 0 : REAL(weights);
+  const double *mu_p        = REAL(mu);
+  const double *mu_basis_p  = mu_basis == R_NilValue ? 0 : REAL(mu_basis);
+  const double *tau_p       = scale_tau ? 0 : REAL(tau);
+  const double *log_tau_p   = log_tau_basis == R_NilValue ? 0 : REAL(log_tau_basis);
+  const double *current_p   = REAL(current);
+  const double *values_p    = REAL(values);
+  double *log_lik_p         = REAL(out_log_lik);
+  int *valid_p              = LOGICAL(out_valid);
+
+  // The candidate matrices repeated one posterior row per grid value, so the
+  // parts of the arithmetic that depend on only one of the two indices are
+  // prepared once here. Every prepared value is the one the repeated row
+  // carried: the logarithm of the same scale, and the row sums that
+  // .iwmde_predictor_candidates() tested with rowSums(), accumulated over the
+  // same observations in the same order and in the same long double.
+  const bool has_log_tau = log_tau_p != 0;
+  std::vector<double> log_base;
+  if (has_log_tau) {
+    if (scale_tau) {
+      log_base.resize(static_cast<std::size_t>(G));
+      for (int g = 0; g < G; ++g) log_base[g] = std::log(values_p[g]);
+    } else {
+      log_base.resize(static_cast<std::size_t>(S) * K);
+      for (std::size_t i = 0; i < log_base.size(); ++i) log_base[i] = std::log(tau_p[i]);
+    }
+  }
+  std::vector<double> mu_row;
+  if (mu_basis_p == 0) {
+    mu_row.resize(static_cast<std::size_t>(S));
+    for (int s = 0; s < S; ++s) {
+      long double sum = 0.0L;
+      for (int k = 0; k < K; ++k) sum += static_cast<long double>(mu_p[s + S * k]);
+      mu_row[static_cast<std::size_t>(s)] = static_cast<double>(sum);
+    }
+  }
+  std::vector<double> tau_row;
+  std::vector<char> tau_row_ok;
+  if (!has_log_tau) {
+    const int fixed = scale_tau ? G : S;
+    tau_row.resize(static_cast<std::size_t>(fixed));
+    tau_row_ok.resize(static_cast<std::size_t>(fixed));
+    for (int i = 0; i < fixed; ++i) {
+      long double sum = 0.0L;
+      bool ok = true;
+      for (int k = 0; k < K; ++k) {
+        const double scale = scale_tau ? values_p[i] : tau_p[i + S * k];
+        if (!std::isfinite(scale) || scale < 0.0) ok = false;
+        sum += static_cast<long double>(scale);
+      }
+      tau_row[static_cast<std::size_t>(i)] = static_cast<double>(sum);
+      tau_row_ok[static_cast<std::size_t>(i)] = ok ? 1 : 0;
+    }
+  }
+
+  // Posterior rows are independent: row s reads call-common inputs and its own
+  // slice, and writes only its own G output slots.
+  const auto compute_row = [&](int s) {
+    const double current_value = current_p[s];
+    const std::size_t row = static_cast<std::size_t>(s);
+    const bool fixed_mu = mu_basis_p == 0;
+    for (int g = 0; g < G; ++g) {
+      const R_xlen_t cell = static_cast<R_xlen_t>(s) * G + g;
+      const double value = values_p[g];
+      const double delta = value - current_value;
+      bool ok = std::isfinite(value) && std::isfinite(delta);
+      if (scale_tau && !(value >= 0.0)) ok = false;
+      long double mu_sum = 0.0L;
+      long double tau_sum = 0.0L;
+      long double log_tau_sum = 0.0L;
+      bool tau_ok = true;
+      double row_sum = 0.0;
+      for (int k = 0; k < K; ++k) {
+        const int slot = s + S * k;
+        const double location = fixed_mu ? mu_p[slot] :
+          mu_p[slot] + mu_basis_p[slot] * delta;
+        double scale;
+        if (has_log_tau) {
+          const double log_scale = (scale_tau ? log_base[static_cast<std::size_t>(g)] :
+            log_base[static_cast<std::size_t>(slot)]) + log_tau_p[slot] * delta;
+          log_tau_sum += static_cast<long double>(log_scale);
+          scale = std::exp(log_scale);
+          if (!std::isfinite(scale) || scale < 0.0) tau_ok = false;
+          tau_sum += static_cast<long double>(scale);
+        } else {
+          scale = scale_tau ? value : tau_p[slot];
+        }
+        if (!fixed_mu) mu_sum += static_cast<long double>(location);
+        row_sum += norm_predictor_cell(yi_p[k], location, scale, sei_p[k],
+          weights_p == 0 ? 1.0 : weights_p[k]);
+      }
+      if (has_log_tau) {
+        if (!std::isfinite(static_cast<double>(log_tau_sum))) ok = false;
+        if (!tau_ok) ok = false;
+        if (!std::isfinite(static_cast<double>(tau_sum))) ok = false;
+      } else {
+        const std::size_t fixed_index = scale_tau ?
+          static_cast<std::size_t>(g) : row;
+        if (tau_row_ok[fixed_index] == 0) ok = false;
+        if (!std::isfinite(tau_row[fixed_index])) ok = false;
+      }
+      const double location_sum = fixed_mu ? mu_row[row] :
+        static_cast<double>(mu_sum);
+      if (!std::isfinite(location_sum)) ok = false;
+      log_lik_p[cell] = row_sum;
+      valid_p[cell] = ok ? TRUE : FALSE;
+    }
+  };
+
+  // One density evaluation per grid value and observation.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(G) * K);
+  if (schedule.threads == 1) {
+    for (int s = 0; s < S; ++s) compute_row(s);
+  } else {
+    robma_parallel::for_rows(S, schedule, compute_row);
+  }
+
+  UNPROTECT(4);
+  return out;
+}
+
 extern "C" SEXP RoBMA_norm_loglik_row_sum(
   SEXP yi, SEXP mu_samples, SEXP tau_within, SEXP sei, SEXP weights)
 {
