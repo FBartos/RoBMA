@@ -2487,14 +2487,18 @@ set_selection_likelihood_control <- function(
     metadata, method, block_index = NULL) {
 
   block_size <- length(yi)
-  covariance_lower <- .selection_factor_covariance_lower(
-    residual_sd = residual_sd, loading = loading, block_size = block_size
+  # A mean sweep repeats one posterior row per state, so the packed block
+  # covariance repeats with it. Building only its distinct rows leaves every
+  # packed value unchanged and keeps the whole candidate matrix out of memory.
+  covariance <- .selection_factor_covariance_rows(
+    residual_sd = residual_sd, loading = loading, block_size = block_size,
+    state_index = metadata[["state"]][["state_index"]]
   )
 
   .selection_normalizer_grid_loglik(
     yi                = yi,
     means             = means,
-    covariance_lower  = covariance_lower,
+    covariance_lower  = covariance[["values"]],
     sei               = sei,
     selection_context = selection_context,
     execution_plan    = execution_plan,
@@ -2505,7 +2509,8 @@ set_selection_likelihood_control <- function(
       residual_sd = residual_sd,
       loading     = loading,
       block_index = block_index
-    )
+    ),
+    covariance_rows   = covariance[["rows"]]
   )
 }
 

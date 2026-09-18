@@ -1,5 +1,17 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- evaluates the mean-sweep normalizer grid of a correlated-`V` selection model
+  without rebuilding per candidate row what the posterior row already fixes.
+  The exact Gaussian component whitens a whole run of draws that share a packed
+  covariance with one triangular solve instead of one per draw, the packed
+  block covariance of a factor block is built for the distinct posterior rows a
+  mean sweep repeats rather than for every candidate row, its column set is
+  assembled by matrix indexing instead of a loop per packed column, and the
+  per-state group loops read the grid row, cache key, packed covariance and
+  query ids they prepared once for the whole call. Every value, anchor request
+  and diagnostic counter is unchanged; a conditioned moderator density and a
+  marginal-means panel on the Assink multivariate selection model take about
+  a third less time.
 - stops the density pipeline from rebuilding, on every pass of the qCMDE
   refinement sequence, what the plan already fixed: the active-branch grouping
   of the row states now travels with them, the predictor cache keys are hashed
