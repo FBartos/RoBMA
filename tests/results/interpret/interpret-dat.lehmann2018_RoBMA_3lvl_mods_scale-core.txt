@@ -1,7 +1,7 @@
 Robust Bayesian Model-Averaged Multilevel Location-Scale Model (k = 81, clusters = 41).
-Effect inclusion: weak evidence against the effect (BF01 = 1.571).
+Effect inclusion: weak evidence against the effect (BF01 = 2.120).
 Heterogeneity inclusion: evidence for heterogeneity unavailable (BFrf = NA).
-Publication Bias inclusion: moderate evidence in favor of publication bias (BFpb = 3.808).
-Pooled effect: model-averaged mean standardized mean difference = 0.094, 95% CrI [0.000, 0.300].
-Pooled heterogeneity: model-averaged mean tau = 0.328, 95% CrI [0.227, 0.447].
-Cluster correlation: model-averaged mean rho = 0.726, 95% CrI [0.271, 0.959].
+Publication Bias inclusion: moderate evidence in favor of publication bias (BFpb = 4.525).
+Pooled effect: model-averaged mean standardized mean difference = 0.085, 95% CrI [0.000, 0.303].
+Pooled heterogeneity: model-averaged mean tau = 0.330, 95% CrI [0.237, 0.444].
+Cluster correlation: model-averaged mean rho = 0.714, 95% CrI [0.281, 0.955].
