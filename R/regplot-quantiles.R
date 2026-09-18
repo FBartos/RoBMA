@@ -152,16 +152,21 @@
 
   model <- .data_selection_model(data)
   plan <- .data_selection_execution_plan(data)
+  rules <- rep_len(selection[["vector_rule"]], nrow(omega))[selected]
+  product_rule <- all(rules == 0L)
   # Conditioned sources no longer block a funnel contour: the band is the
   # mixture over their population law, which `.funnel_conditioned_expansion()`
-  # evaluates. What still has no scalar law is a joint publication event, so a
-  # multi-row dependency block or a best rule spanning several rows remains
-  # unavailable. Regression-plot intervals keep the stricter scalar rule.
+  # evaluates. A funnel contour is the law of a new, independent estimate at
+  # each hypothetical standard error; under the product rule that estimate is
+  # its own dependency block, so the fitted rows' integration blocks do not
+  # enter its scalar law. A best rule weighs an estimate against the others of
+  # its publication and still needs that design, and regression-plot intervals
+  # keep the stricter scalar rule over the fitted rows themselves.
   supports_conditioned <- identical(family, "funnel")
   available <- (supports_conditioned || !.selection_retains_sampling(data)) &&
-    all(lengths(plan[["row_blocks"]]) == 1L)
-  rules <- rep_len(selection[["vector_rule"]], nrow(omega))[selected]
-  if (any(rules != 0L) && any(lengths(model[["groups"]][["row_blocks"]]) != 1L)) {
+    ((supports_conditioned && product_rule) ||
+       all(lengths(plan[["row_blocks"]]) == 1L))
+  if (!product_rule && any(lengths(model[["groups"]][["row_blocks"]]) != 1L)) {
     available <- FALSE
   }
   # A changed regression design can activate shared coefficient supports

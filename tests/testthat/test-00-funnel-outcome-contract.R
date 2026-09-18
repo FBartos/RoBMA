@@ -202,17 +202,30 @@ test_that("scalar selected contour guards preserve supported and Gaussian cases"
     expect_null(conditionCall(condition))
   }
 
-  # A joint publication event still has no scalar law, for either family.
+  # A product rule weighs an estimate by its own p-value alone, so the new,
+  # independent estimate a funnel contour describes is its own dependency
+  # block and the fitted rows' integration blocks do not enter its scalar law.
+  # Regression-plot intervals stay on the fitted rows and keep the stricter
+  # rule.
+  dependent <- make(dependent = TRUE)
+  expect_null(.plot_check_scalar_selection_target(dependent, context, "funnel"))
+  condition <- tryCatch(.plot_check_scalar_selection_target(dependent, context, "regplot"),
+    error = function(e) e)
+  expect_identical(conditionMessage(condition), regression_message)
+  expect_null(conditionCall(condition))
+
+  # A best rule weighs an estimate against the others of its publication, so a
+  # joint publication event still has no scalar law, for either family.
+  best_rule <- context
+  best_rule$vector_rule[] <- 1L
   rejected <- list(
-    make(dependent = TRUE),
+    dependent,
     make(publication = TRUE)
   )
-  for (i in seq_along(rejected)) {
-    selected <- context
-    if (i == 2L) selected$vector_rule[] <- 1L
-    expect_error(.plot_check_scalar_selection_target(rejected[[i]], selected, "funnel"),
+  for (object in rejected) {
+    expect_error(.plot_check_scalar_selection_target(object, best_rule, "funnel"),
       funnel_message, fixed = TRUE)
-    condition <- tryCatch(.plot_check_scalar_selection_target(rejected[[i]], selected, "regplot"),
+    condition <- tryCatch(.plot_check_scalar_selection_target(object, best_rule, "regplot"),
       error = function(e) e)
     expect_identical(conditionMessage(condition), regression_message)
     expect_null(conditionCall(condition))
@@ -252,16 +265,17 @@ test_that("scalar selected contour guards preserve supported and Gaussian cases"
 
   # Exercise the setup owners so direct helper coverage cannot hide a missing
   # guard call. No numerical CDF is invoked for these unavailable configurations.
+  # A best rule keeps the dependent blocks unavailable for both families.
   calls <- 0L
   testthat::local_mocked_bindings(
     .extract_bias_indicator = function(object, posterior_samples) rep(1L, nrow(posterior_samples)),
     .funnel_mu_samples = function(x, posterior_samples) posterior_samples[, "mu"],
     .selection_context = function(object, posterior_samples) {
       calls <<- calls + 1L
-      context["omega"] <- list(context$omega[seq_len(nrow(posterior_samples)), , drop = FALSE])
-      context$use_normal <- context$use_normal[seq_len(nrow(posterior_samples))]
-      context$vector_rule <- context$vector_rule[seq_len(nrow(posterior_samples))]
-      context
+      best_rule["omega"] <- list(best_rule$omega[seq_len(nrow(posterior_samples)), , drop = FALSE])
+      best_rule$use_normal <- best_rule$use_normal[seq_len(nrow(posterior_samples))]
+      best_rule$vector_rule <- best_rule$vector_rule[seq_len(nrow(posterior_samples))]
+      best_rule
     }, .package = "RoBMA"
   )
   object <- make(dependent = TRUE)
@@ -274,6 +288,109 @@ test_that("scalar selected contour guards preserve supported and Gaussian cases"
   expect_identical(calls, 2L)
   expect_null(.funnel_setup_from_samples(object, posterior, .7, TRUE, FALSE, 1)$selection)
   expect_identical(calls, 2L)
+})
+
+
+# The correlated-V blocks belong to the fitted rows' joint normalizer. A funnel
+# contour asks a different question - the law of a new, independent estimate at
+# a hypothetical standard error - so under the product rule the contour must not
+# read them at all. Both fixtures are prior-only: no sampling is involved.
+test_that("product-rule funnel contours ignore correlated integration blocks", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  data <- data.frame(
+    yi    = c(.10, .20, .30, .05),
+    study = factor(c("a", "b", "c", "d"))
+  )
+  block <- matrix(c(.040, .012, .012, .050), nrow = 2L)
+  V_correlated <- matrix(0, nrow = 4L, ncol = 4L)
+  V_correlated[1:2, 1:2] <- block
+  V_correlated[3:4, 3:4] <- block
+
+  make <- function(V) {
+    bselmodel.mv(
+      yi         = yi,
+      V          = V,
+      data       = data,
+      measure    = "GEN",
+      prior_bias = BayesTools::prior_weightfunction(
+        side    = "one-sided",
+        steps   = .025,
+        weights = BayesTools::wf_fixed(c(1, .2)),
+        model   = BayesTools::selection_model(
+          other_random_effects    = "integrate",
+          known_sampling_variance = "integrate",
+          group                   = "study"
+        )
+      ),
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE,
+      silent                    = TRUE
+    )
+  }
+  correlated  <- make(V_correlated)
+  independent <- make(diag(diag(V_correlated)))
+
+  # The integration blocks are the only thing that differs between the two.
+  expect_identical(
+    lengths(.data_selection_execution_plan(correlated[["data"]])[["row_blocks"]]),
+    c(2L, 2L)
+  )
+  expect_identical(
+    lengths(.data_selection_execution_plan(independent[["data"]])[["row_blocks"]]),
+    rep(1L, 4L)
+  )
+  expect_identical(
+    correlated[["data"]][["outcome"]][["sei"]],
+    independent[["data"]][["outcome"]][["sei"]]
+  )
+
+  posterior <- matrix(c(.25, .30), ncol = 1L, dimnames = list(NULL, "mu"))
+  setup_of  <- function(object) {
+    .funnel_setup_from_samples(
+      x                      = object,
+      posterior_samples      = posterior,
+      tau_samples            = rep(.15, nrow(posterior)),
+      sampling_heterogeneity = TRUE,
+      sampling_bias          = TRUE,
+      weights                = rep(.5, nrow(posterior)),
+      sources                = list(
+        integrated       = rep(.15^2, nrow(posterior)),
+        conditioned      = rep(0, nrow(posterior)),
+        retains_sampling = FALSE,
+        common           = TRUE
+      )
+    )
+  }
+  correlated_setup  <- setup_of(correlated)
+  independent_setup <- setup_of(independent)
+  expect_true(all(correlated_setup[["is_weightfunction"]]))
+  expect_identical(correlated_setup[["selection"]][["vector_rule"]], rep(0L, 2L))
+
+  # The scalar selected law reads the hypothetical standard error and the
+  # integrated spread, never the fitted rows' blocks, so the two contours agree
+  # exactly on the same posterior draws.
+  se <- seq(0, .35, length.out = 11L)
+  expect_identical(
+    .get_funnel_quantiles_from_setup(se, correlated_setup, "positive"),
+    .get_funnel_quantiles_from_setup(se, independent_setup, "positive")
+  )
+
+  # A best weight rule needs the publication design of the new estimate and
+  # stays unavailable on the correlated blocks; regression-plot intervals
+  # describe the fitted rows and stay unavailable under either rule.
+  best_rule <- correlated_setup[["selection"]]
+  best_rule[["vector_rule"]] <- rep(1L, nrow(posterior))
+  expect_error(
+    .plot_check_scalar_selection_target(correlated, best_rule, "funnel"),
+    "Selected funnel contours are unavailable", fixed = TRUE
+  )
+  expect_null(.plot_check_scalar_selection_target(independent, best_rule, "funnel"))
+  expect_error(
+    .plot_check_scalar_selection_target(correlated, correlated_setup[["selection"]], "regplot"),
+    "Selected regression-plot sampling intervals are unavailable", fixed = TRUE
+  )
 })
 
 

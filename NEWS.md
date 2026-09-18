@@ -1,5 +1,19 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- draws outcome-mode `funnel()` and `bfunnel()` contours for correlated known-`V`
+  selection models under `weight_rule = "product"`. The contour is the law of a
+  new, independent estimate at each hypothetical standard error; under the
+  product rule that estimate is its own dependency block, so its selected law is
+  the scalar selected normal at that standard error, mixed over the population
+  law of any conditioned source - the same computation an independent selection
+  model uses. The availability check refused it because the *fitted* rows'
+  integration blocks are not singletons, which is a property of the observed
+  estimates rather than of the new one. A best weight rule weighs an estimate
+  against the others of its publication and still needs that design at each
+  hypothetical standard error, so it stays unavailable, and regression-plot
+  sampling intervals, which describe the fitted rows themselves, keep the
+  stricter rule. The observed estimates' own selected marginals inside a
+  correlated block remain the subject of `zplot()`.
 - remembers the exponentiated weights of a quadrature rule instead of computing
   them again on every call of a selection batch. The correlated-`V` cluster
   batch, the sampling-conditioned deletion batch and the latent z-curve density

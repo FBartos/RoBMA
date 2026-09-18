@@ -121,12 +121,20 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' heterogeneity represents newly realized latent effects and fitted study
 #' effects are not retained.
 #' For correlated known-\code{V} \code{brma.mv()} models, outcome-mode funnels
-#' use the diagonal of \code{V} for Gaussian marginal contours. Nonconstant
-#' joint selection requires a full publication design at each hypothetical
-#' standard error and is unavailable in the scalar contour calculation.
-#' Conditioning every applicable selection source cancels positive weights
-#' and therefore retains the Gaussian contours. Use \code{zplot()} to display
-#' the selected marginal distribution at the fitted publication designs.
+#' use the diagonal of \code{V} for Gaussian marginal contours. The contour
+#' describes a new, independent estimate at each hypothetical standard error,
+#' so the fitted rows' correlations do not enter it: under
+#' \code{weight_rule = "product"} such an estimate forms its own dependency
+#' block and its selected law is the scalar selected normal at that standard
+#' error, mixed over the population law of any conditioned source. Nonconstant
+#' joint selection under a best weight rule instead weighs an estimate against
+#' the others of its publication; it requires a full publication design at each
+#' hypothetical standard error and remains unavailable in the scalar contour
+#' calculation. Conditioning every applicable selection source cancels positive
+#' weights and therefore retains the Gaussian contours. The observed estimates'
+#' own selected marginals inside a correlated block differ from this new-study
+#' contour; use \code{zplot()} to display them at the fitted publication
+#' designs.
 #' Residual mode follows the fitted estimate-unit residual target.
 #'
 #' \code{bfunnel()} is available only for intercept-only normal models with
