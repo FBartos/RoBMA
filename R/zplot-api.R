@@ -924,8 +924,13 @@ hist.zplot_brma <- function(x, plot_type = "base",
 
   # One sorted pass per column: stats::quantile() evaluates each probability
   # independently, so asking for both returns the two numbers the two separate
-  # passes returned, with the same names.
-  bounds <- apply(z_density, 2, stats::quantile, probs = probs[1:2])
+  # passes returned. apply() then labels its two rows with the probabilities,
+  # where one pass per probability named its result after the columns of
+  # `z_density` alone; a single-column grid would otherwise carry a probability
+  # label into the row names of the returned data frame, and an empty grid would
+  # not give a matrix at all. Both are restored by naming the result here.
+  bounds <- matrix(apply(z_density, 2, stats::quantile, probs = probs[1:2]),
+                   nrow = 2L, dimnames = list(NULL, colnames(z_density)))
 
   return(data.frame(
     x     = z_sequence,
