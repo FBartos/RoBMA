@@ -1,5 +1,14 @@
 .write_canonical_svg <- function(plot, file, title = "") {
 
+  # vdiffr closes its SVG device without reselecting the caller's device, so
+  # with several devices open R would continue on an arbitrary one.
+  previous_device <- grDevices::dev.cur()
+  on.exit({
+    if (previous_device > 1L && previous_device %in% grDevices::dev.list()) {
+      grDevices::dev.set(previous_device)
+    }
+  }, add = TRUE)
+
   vdiffr::write_svg(plot, file, title)
   .canonicalize_dense_diamond_polygons(file)
 }
