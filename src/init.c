@@ -166,7 +166,8 @@ extern SEXP RoBMA_norm_loglik_row_sum(SEXP yi, SEXP mu_samples,
 extern SEXP RoBMA_norm_predictor_grid_loglik(SEXP yi, SEXP sei, SEXP weights,
                                              SEXP mu, SEXP mu_basis, SEXP tau,
                                              SEXP log_tau_basis, SEXP current,
-                                             SEXP values, SEXP scale_update_tau);
+                                             SEXP values, SEXP scale_update_tau,
+                                             SEXP log_tau_delta_log);
 extern SEXP RoBMA_known_v_covariance_plan_create(SEXP y,
                                                   SEXP sampling_covariance,
                                                   SEXP random_covariance_factors,
@@ -495,7 +496,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_mnorm_step_rng_batch", (DL_FUNC) &RoBMA_selnorm_mnorm_step_rng_batch, 11},
     {"RoBMA_selnorm_gaussian_event_mass_batch", (DL_FUNC) &RoBMA_selnorm_gaussian_event_mass_batch, 17},
     {"RoBMA_norm_loglik_row_sum", (DL_FUNC) &RoBMA_norm_loglik_row_sum, 5},
-    {"RoBMA_norm_predictor_grid_loglik", (DL_FUNC) &RoBMA_norm_predictor_grid_loglik, 10},
+    {"RoBMA_norm_predictor_grid_loglik", (DL_FUNC) &RoBMA_norm_predictor_grid_loglik, 11},
     {"RoBMA_known_v_covariance_plan_create", (DL_FUNC) &RoBMA_known_v_covariance_plan_create, 4},
     {"RoBMA_known_v_covariance_plan_loglik", (DL_FUNC) &RoBMA_known_v_covariance_plan_loglik, 4},
     {"RoBMA_known_v_covariance_plan_loglik_batch", (DL_FUNC) &RoBMA_known_v_covariance_plan_loglik_batch, 4},

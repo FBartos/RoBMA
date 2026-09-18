@@ -215,6 +215,115 @@ test_that("the native normal candidate grid matches the candidate route", {
 })
 
 
+# The `tau` of a scale-regression model is the logged formula intercept. It is
+# affine in its own logarithm, so the batched route carries a log-tau basis and
+# forms the update from log(value) - log(current); the generic route rebuilds
+# the whole scale formula for every candidate row. The two must agree to
+# floating-point rounding.
+test_that("the log-tau intercept basis matches the generic formula evaluator", {
+
+  fit_names <- .normal_grid_fit_names()
+  skip_if(length(fit_names) == 0L, "No cached normal fixtures are available.")
+
+  parameter <- "log_tau_intercept"
+  served    <- character()
+
+  for (fit_name in fit_names) {
+    object <- tryCatch(load_fit(fit_name, validate = FALSE), error = function(e) NULL)
+    if (is.null(object) || !.is_scale(object)) {
+      next
+    }
+    context <- .iwmde_context(object)
+    if (!parameter %in% colnames(context[["posterior_samples"]])) {
+      next
+    }
+    inputs <- .normal_grid_inputs(context, parameter)
+    if (is.null(inputs)) {
+      next
+    }
+    label <- paste0(fit_name, " / ", parameter)
+
+    log_bases <- 0L
+    batched <- local({
+      original <- .iwmde_predictor_materialize_formula_basis
+      testthat::local_mocked_bindings(
+        .iwmde_predictor_materialize_formula_basis = function(...) {
+          basis <- original(...)
+          if (identical(basis[["log_tau_basis_coordinate"]], "log")) {
+            log_bases <<- log_bases + 1L
+          }
+          basis
+        },
+        .package = "RoBMA"
+      )
+      .iwmde_log_q_grid_predictor_batch(
+        context     = context,
+        parameter   = parameter,
+        values      = inputs[["values"]],
+        row_states  = inputs[["row_states"]],
+        replacement = inputs[["replacement"]]
+      )
+    })
+    # Restoring the previous non-affine verdict keeps the generic evaluator.
+    generic <- local({
+      original <- .iwmde_predictor_materialize_formula_basis
+      testthat::local_mocked_bindings(
+        .iwmde_predictor_materialize_formula_basis = function(...) {
+          basis <- original(...)
+          if (identical(basis[["log_tau_basis_coordinate"]], "log")) {
+            basis[["log_tau_basis"]]            <- NULL
+            basis[["log_tau_basis_coordinate"]] <- NULL
+            basis[["formula_logtau"]]           <- TRUE
+            basis[["formula_logtau_columns"]]   <- parameter
+          }
+          basis
+        },
+        .package = "RoBMA"
+      )
+      .iwmde_log_q_grid_predictor_batch(
+        context     = context,
+        parameter   = parameter,
+        values      = inputs[["values"]],
+        row_states  = inputs[["row_states"]],
+        replacement = inputs[["replacement"]]
+      )
+    })
+    if (log_bases == 0L || !is.matrix(batched) || !is.matrix(generic)) {
+      next
+    }
+
+    expect_identical(dim(batched), dim(generic), info = label)
+    expect_identical(is.finite(batched), is.finite(generic), info = label)
+    finite <- is.finite(generic)
+    expect_true(any(finite), info = paste0(label, ": no finite log density"))
+    deviation <- max(abs(batched[finite] - generic[finite]) /
+                       pmax(abs(generic[finite]), 1))
+    expect_lt(deviation, 1e-10, label = paste0(label, ": max scaled deviation"))
+
+    # A non-positive candidate has no logarithm on either route.
+    outside <- inputs
+    outside[["values"]] <- c(inputs[["values"]], -1, 0)
+    masked <- .iwmde_log_q_grid_predictor_batch(
+      context     = context,
+      parameter   = parameter,
+      values      = outside[["values"]],
+      row_states  = outside[["row_states"]],
+      replacement = outside[["replacement"]]
+    )
+    expect_true(is.matrix(masked), info = paste0(label, " (outside support)"))
+    expect_true(all(masked[length(inputs[["values"]]) + 1:2, ] == -Inf),
+                info = paste0(label, " (outside support)"))
+
+    served <- c(served, label)
+  }
+
+  skip_if(length(served) == 0L,
+          "No cached scale-regression fixture carries a log-tau intercept basis.")
+  cat("\nlog-tau intercept basis served:\n  ",
+      paste(served, collapse = "\n  "), "\n", sep = "")
+})
+
+
 test_that("the native normal candidate grid is thread invariant", {
 
   skip_if_not(is.loaded("RoBMA_norm_predictor_grid_loglik", PACKAGE = "RoBMA"))
@@ -233,13 +342,14 @@ test_that("the native normal candidate grid is thread invariant", {
   values        <- c(-0.4, 0, 0.2, 0.7, 1.5, NaN, Inf)
   weights       <- stats::runif(K, .5, 2)
 
-  call_grid <- function(scale_tau, use_mu_basis, use_log_tau, use_weights) {
+  call_grid <- function(scale_tau, use_mu_basis, use_log_tau, use_weights,
+                        log_delta = FALSE) {
     .Call("RoBMA_norm_predictor_grid_loglik",
       yi, sei, if (use_weights) weights else NULL, mu,
       if (use_mu_basis) mu_basis else NULL,
       if (scale_tau) NULL else tau,
       if (use_log_tau) log_tau_basis else NULL,
-      current, values, scale_tau, PACKAGE = "RoBMA")
+      current, values, scale_tau, log_delta, PACKAGE = "RoBMA")
   }
 
   for (scale_tau in c(FALSE, TRUE)) {
@@ -258,7 +368,38 @@ test_that("the native normal candidate grid is thread invariant", {
       }
     }
   }
+
+  # The log-coordinate delta of a logged formula intercept is equally thread
+  # invariant, and it accompanies no location basis.
+  positive_current <- abs(current) + .1
+  log_reference <- NULL
+  for (threads in c(1L, 2L, 8L)) {
+    RoBMA.options(native_threads = threads)
+    value <- .Call("RoBMA_norm_predictor_grid_loglik",
+      yi, sei, weights, mu, NULL, tau, log_tau_basis,
+      positive_current, values, FALSE, TRUE, PACKAGE = "RoBMA")
+    if (is.null(log_reference)) {
+      log_reference <- value
+    } else {
+      expect_identical(value, log_reference, info = paste("log delta, threads", threads))
+    }
+  }
   RoBMA.options(native_threads = 1L)
+
+  # Only a positive candidate and a positive current value have a logarithm.
+  non_positive <- !is.na(values) & values <= 0
+  expect_true(all(!log_reference[["valid"]][rep(non_positive, times = S)]))
+  expect_true(any(log_reference[["valid"]]))
+  expect_error(
+    .Call("RoBMA_norm_predictor_grid_loglik", yi, sei, weights, mu, mu_basis,
+      tau, log_tau_basis, positive_current, values, FALSE, TRUE, PACKAGE = "RoBMA"),
+    "location basis"
+  )
+  expect_error(
+    .Call("RoBMA_norm_predictor_grid_loglik", yi, sei, weights, mu, NULL,
+      tau, NULL, positive_current, values, FALSE, TRUE, PACKAGE = "RoBMA"),
+    "log-tau basis"
+  )
 
   # A grid without a mu basis and without weights keeps the same shapes.
   plain <- call_grid(FALSE, FALSE, FALSE, FALSE)

@@ -1,5 +1,22 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- takes the batched route for `tau` on a scale-regression model. The fitted
+  coordinate is the logged intercept of `log tau_k = log(alpha) + x_k' beta`, so
+  `d log tau_k / d alpha` is not constant and the density pipeline had no
+  closed-form direction for it: every candidate value re-evaluated the whole
+  scale formula over the grid times posterior rows. In the intercept's own
+  logarithm the map is exactly affine with the design column as its basis, which
+  `BayesTools::JAGS_formula_predictor_basis()` now reports, and the candidate
+  grid and its native batch form the log-tau update from `log(value) -
+  log(current)`. A non-positive candidate has no logarithm and stays invalid, as
+  it was on the generic route. The batched route is taken only when the grid
+  sweeps the intercept's own values and nothing else moves with it; anything
+  else keeps the generic evaluator. The values agree with the generic route to
+  rounding - the bangertdrowns2004 `tau` density line differs by at most
+  3.9e-16 relative on both scale fits and its point ordinate at `tau = 0.2` is
+  identical to all 17 digits - and the scenario fingerprints are unchanged,
+  while `fit_posterior_tau` takes 10.1 s where it took 13.2 s and 0.57 GB where
+  it took 1.78 GB.
 - draws outcome-mode `funnel()` and `bfunnel()` contours for correlated known-`V`
   selection models under `weight_rule = "product"`. The contour is the law of a
   new, independent estimate at each hypothetical standard error; under the

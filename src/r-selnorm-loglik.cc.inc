@@ -26,23 +26,35 @@ void check_predictor_matrix(SEXP x, const char *name, int S, int K)
 // The candidate location is mu[s, k] + mu_basis[s, k] * (values[g] -
 // current[s]); its scale is values[g] when the grid replaces tau itself,
 // otherwise tau[s, k], and either is carried through exp(log(tau) +
-// log_tau_basis[s, k] * delta) when the batch has a log-tau basis. 'valid'
-// reproduces the candidate builder's validity mask, including the row sums it
-// tests, so the caller's -Inf pattern is unchanged.
+// log_tau_basis[s, k] * delta) when the batch has a log-tau basis. A log-tau
+// basis of a logged formula intercept is additive in the logarithm of the
+// focal coordinate instead, so 'log_tau_delta_log' replaces that delta with
+// log(values[g]) - log(current[s]) and marks a non-positive pair invalid.
+// 'valid' reproduces the candidate builder's validity mask, including the row
+// sums it tests, so the caller's -Inf pattern is unchanged.
 extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
   SEXP yi, SEXP sei, SEXP weights, SEXP mu, SEXP mu_basis, SEXP tau,
-  SEXP log_tau_basis, SEXP current, SEXP values, SEXP scale_update_tau)
+  SEXP log_tau_basis, SEXP current, SEXP values, SEXP scale_update_tau,
+  SEXP log_tau_delta_log)
 {
   check_real(yi, "yi");
   check_real(sei, "sei");
   check_real(current, "current");
   check_real(values, "values");
   check_logical(scale_update_tau, "scale_update_tau");
+  check_logical(log_tau_delta_log, "log_tau_delta_log");
 
   const int S = matrix_nrow(mu, "mu");
   const int K = matrix_ncol(mu, "mu");
   const int G = Rf_length(values);
   const bool scale_tau = LOGICAL(scale_update_tau)[0] == TRUE;
+  const bool log_delta = LOGICAL(log_tau_delta_log)[0] == TRUE;
+  if (log_delta && log_tau_basis == R_NilValue) {
+    Rf_error("'log_tau_delta_log' needs a log-tau basis.");
+  }
+  if (log_delta && mu_basis != R_NilValue) {
+    Rf_error("'log_tau_delta_log' cannot accompany a location basis.");
+  }
 
   check_predictor_matrix(mu, "mu", S, K);
   if (mu_basis != R_NilValue) check_predictor_matrix(mu_basis, "mu_basis", S, K);
@@ -148,6 +160,17 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
       const double delta = value - current_value;
       bool ok = std::isfinite(value) && std::isfinite(delta);
       if (scale_tau && !(value >= 0.0)) ok = false;
+      // The log-tau basis of a logged formula intercept multiplies the
+      // difference of the logarithms; only a positive pair has one.
+      double tau_delta = delta;
+      if (log_delta) {
+        if (value > 0.0 && current_value > 0.0) {
+          tau_delta = std::log(value) - std::log(current_value);
+        } else {
+          tau_delta = 0.0;
+          ok = false;
+        }
+      }
       long double mu_sum = 0.0L;
       long double tau_sum = 0.0L;
       long double log_tau_sum = 0.0L;
@@ -160,7 +183,7 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
         double scale;
         if (has_log_tau) {
           const double log_scale = (scale_tau ? log_base[static_cast<std::size_t>(g)] :
-            log_base[static_cast<std::size_t>(slot)]) + log_tau_p[slot] * delta;
+            log_base[static_cast<std::size_t>(slot)]) + log_tau_p[slot] * tau_delta;
           log_tau_sum += static_cast<long double>(log_scale);
           scale = std::exp(log_scale);
           if (!std::isfinite(scale) || scale < 0.0) tau_ok = false;

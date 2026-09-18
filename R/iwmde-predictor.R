@@ -154,7 +154,10 @@
       )
     } else {
       NULL
-    }
+    },
+    # The scalar grid sweeps this coordinate's own values, so a logged
+    # intercept's log-coordinate basis applies to it directly.
+    allow_log_coordinate = TRUE
   )
   basis <- .iwmde_predictor_expand_basis(
     basis = basis,
@@ -422,7 +425,7 @@
 
 .iwmde_predictor_materialize_formula_basis <- function(
     context, setup, basis, formula_mu_directions = NULL,
-    formula_logtau_directions = NULL) {
+    formula_logtau_directions = NULL, allow_log_coordinate = FALSE) {
 
   directions <- list(
     mu      = formula_mu_directions,
@@ -455,19 +458,66 @@
         call. = FALSE
       )
     }
+    # An affine basis in a coordinate other than the fitted one is additive in a
+    # transform of the focal value, so its update is not `value - current`. Only
+    # the log-tau route forms such an update, and only when the candidate grid
+    # sweeps that coordinate's own values - a unit direction on the focal
+    # coordinate - with nothing else moving, because one candidate delta cannot
+    # serve two coordinates. Anything else keeps the generic evaluator and the
+    # whole formula. A released BayesTools that names no coordinate reports the
+    # fitted one.
+    coordinate <- result[["coordinate"]]
+    if (is.null(coordinate)) {
+      coordinate <- "identity"
+    }
+    takes_coordinate <- identical(coordinate, "identity") ||
+      (identical(coordinate, "log") &&
+         identical(formula_parameter, "log_tau") &&
+         isTRUE(allow_log_coordinate) &&
+         identical(ncol(parameter_directions), 1L) &&
+         all(parameter_directions == 1) &&
+         !isTRUE(basis[["formula_mu"]]) && is.null(basis[["mu_basis"]]) &&
+         identical(basis[["scale_update"]], "none"))
+    if (!takes_coordinate) {
+      basis[[paste0("formula_", formula_parameter, "_status")]] <- "non_affine"
+      basis[[paste0("formula_", formula_parameter, "_reason")]] <- paste0(
+        "The selected predictor update is additive in the '", coordinate,
+        "' coordinate, which this batch cannot apply."
+      )
+      next
+    }
     if (identical(formula_parameter, "mu")) {
       basis[["mu_basis"]]           <- result[["basis"]]
       basis[["formula_mu"]]         <- FALSE
       basis[["formula_mu_columns"]] <- NULL
       basis[["formula_mu_affine"]]  <- TRUE
     } else {
-      basis[["log_tau_basis"]]          <- result[["basis"]]
-      basis[["formula_logtau"]]         <- FALSE
-      basis[["formula_logtau_columns"]] <- NULL
+      basis[["log_tau_basis"]]            <- result[["basis"]]
+      basis[["log_tau_basis_coordinate"]] <- coordinate
+      basis[["formula_logtau"]]           <- FALSE
+      basis[["formula_logtau_columns"]]   <- NULL
     }
   }
 
   return(basis)
+}
+
+
+# A log-tau basis built from a logged formula intercept is additive in the
+# logarithm of the focal coordinate: log tau_k(v) = log tau_k(c) + basis[s, k] *
+# (log(v) - log(c)). Every other log-tau basis is additive in the coordinate
+# itself. Only positive candidate and current values have a logarithm, so the
+# remaining rows are marked invalid and keep a zero update.
+.iwmde_predictor_log_tau_delta <- function(basis, values, current, delta) {
+
+  if (!identical(basis[["log_tau_basis_coordinate"]], "log")) {
+    return(list(delta = delta, valid = rep(TRUE, length(delta))))
+  }
+  positive <- is.finite(values) & values > 0 & is.finite(current) & current > 0
+  log_delta <- numeric(length(delta))
+  log_delta[positive] <- log(values[positive]) - log(current[positive])
+
+  return(list(delta = log_delta, valid = positive))
 }
 
 
@@ -1104,6 +1154,11 @@
     if (!is.null(mu_basis)) mu_basis <- -mu_basis
   }
 
+  # A logged formula intercept moves the log-tau predictor by the difference of
+  # the logarithms; the native batch forms that delta itself.
+  log_tau_delta_log <- !is.null(log_tau_basis) &&
+    identical(basis[["log_tau_basis_coordinate"]], "log")
+
   return(.Call(
     "RoBMA_norm_predictor_grid_loglik",
     .native_numeric_vector(yi),
@@ -1116,6 +1171,7 @@
     .native_numeric_vector(current),
     .native_numeric_vector(values),
     as.logical(scale_tau),
+    as.logical(log_tau_delta_log),
     PACKAGE = "RoBMA"
   ))
 }
@@ -1179,8 +1235,16 @@
   }
 
   if (!is.null(basis[["log_tau_basis"]])) {
+    log_update <- .iwmde_predictor_log_tau_delta(
+      basis   = basis,
+      values  = values[grid_index],
+      current = basis[["current"]][row_index],
+      delta   = delta
+    )
+    valid   <- valid & log_update[["valid"]]
     log_tau <- log(tau_total)
-    log_tau <- log_tau + basis[["log_tau_basis"]][row_index, , drop = FALSE] * delta
+    log_tau <- log_tau + basis[["log_tau_basis"]][row_index, , drop = FALSE] *
+      log_update[["delta"]]
     valid   <- valid & is.finite(rowSums(log_tau))
     tau_total <- exp(log_tau)
   }
