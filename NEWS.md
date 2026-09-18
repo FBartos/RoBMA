@@ -1,5 +1,12 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- removes the per-cell R overhead of the correlated-`V` zplot: the memo keys of
+  the quadrature ladder are written when an allowance changes rather than
+  formatted on every lookup, the pruning order of a context rule is kept with
+  the rule, the Gauss-Hermite rules and the Gaussian resolution bounds are
+  fetched once per call, and the credible band asks for both of its quantiles
+  in one pass. A fitted zplot curve that needs neither the extrapolated curve
+  nor the threshold summary also stops computing them.
 - chooses the thread count of the post-fit selection, z-curve and zplot
   context-star batches from the work a row carries - observations, times grid
   points, times selection bins - instead of from the row count alone, and lets

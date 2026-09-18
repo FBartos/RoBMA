@@ -57,8 +57,12 @@
       # PSOCK branch above disables native threading in its workers.
       .native_threads_configure(.resolve_native_threads(object))
       on.exit(.native_threads_configure(1L), add = TRUE)
+      # Only the fitted curve leaves this call when no extrapolated curve and
+      # no threshold summary is requested, so the selection routes can skip the
+      # inverse weights and the extrapolated mixture they would discard.
       .zplot_selection_marginal(object, posterior_samples, z_sequence, z_threshold,
-        conditioning_depth, integration_control, extrapolate_only = extrapolate)
+        conditioning_depth, integration_control, extrapolate_only = extrapolate,
+        fitted_only = !extrapolate && is.null(z_threshold))
     }
     if (!is.null(z_threshold)) {
       return(list(
@@ -178,7 +182,8 @@
 
 .zplot_selection_marginal <- function(
     object, posterior_samples, z_sequence, z_threshold,
-    conditioning_depth, integration_control, extrapolate_only = FALSE) {
+    conditioning_depth, integration_control, extrapolate_only = FALSE,
+    fitted_only = FALSE) {
 
   control   <- .check_selection_likelihood_control(integration_control)
   selection <- .selection_context(object, posterior_samples = posterior_samples)
@@ -202,7 +207,7 @@
   if (.is_data_joint_selection(object[["data"]])) {
     return(.zplot_joint_marginal(
       object, posterior_samples, predictive, selection, z, probability, control,
-      extrapolate_only
+      extrapolate_only, fitted_only
     ))
   }
 
@@ -228,7 +233,7 @@
   }
   .zplot_latent_mixture(
     z, predictive$mu, sd, latent_sd, predictive$sei, selection,
-    probability, control, predictive$mu_extrapolated
+    probability, control, predictive$mu_extrapolated, fitted_only
   )
 }
 
@@ -257,7 +262,7 @@
 
 .zplot_joint_marginal <- function(
     object, posterior_samples, predictive, selection, z, probability, control,
-    extrapolate_only = FALSE) {
+    extrapolate_only = FALSE, fitted_only = FALSE) {
 
   S <- nrow(posterior_samples)
   K <- length(predictive[["sei"]])
@@ -302,7 +307,7 @@
       }
       chunk <- .zplot_joint_marginal(object, posterior_samples[rows, , drop = FALSE],
         chunk_predictive, BayesTools::selection_context_subset_rows(selection, rows),
-        z, probability, control, extrapolate_only)
+        z, probability, control, extrapolate_only, fitted_only)
       for (name in c("fitted", "extrapolated")) {
         if (is.null(chunk[[name]])) result[[name]] <- NULL else
           result[[name]][rows, ] <- chunk[[name]]
@@ -350,12 +355,12 @@
     return(.zplot_latent_mixture(
       z, predictive[["mu"]], sqrt(variance), sqrt(context_variance),
       predictive[["sei"]], selection, probability, control,
-      predictive[["mu_extrapolated"]]
+      predictive[["mu_extrapolated"]], fitted_only
     ))
   }
   if (!vector_target && all(rules == 0L) && all(zero_context)) {
     return(.zplot_integrated_marginal(object, posterior_samples, predictive,
-      selection, z, probability, control, extrapolate_only))
+      selection, z, probability, control, extrapolate_only, fitted_only))
   }
 
   result[["fitted"]] <- normal(predictive[["mu"]])

@@ -180,11 +180,18 @@
   factor_beta <- geometry$loading^2 / (2 * variance)
   context_beta <- colSums(context_factor^2) / (2 * variance)
   height_ratio <- sqrt(1 + (rowSums(geometry$loading^2) + colSums(context_factor^2)) / variance)
+  resolutions <- new.env(parent = emptyenv())
+  # The ladder asks for the same (inner, outer) pair on several passes; the
+  # resolution depends on nothing else, so it is computed once per pair.
   gaussian_resolution <- function(inner_order, outer_order) {
 
+    key <- paste(inner_order, outer_order, sep = "/")
+    if (exists(key, resolutions, inherits = FALSE)) return(get(key, resolutions))
     inner <- height_ratio * rowSums(matrix(.zplot_context_gaussian_bound(factor_beta, inner_order), k))
     outer <- if (point_context) rep(0, k) else height_ratio * .zplot_context_gaussian_bound(context_beta, outer_order)
-    c(inner = max(inner), outer = max(outer), total = max(inner + outer))
+    value <- c(inner = max(inner), outer = max(outer), total = max(inner + outer))
+    assign(key, value, resolutions)
+    value
   }
   final_resolution <- gaussian_resolution(tail(inner_orders, 1L), tail(context_orders, 1L))
   if (!is.finite(final_resolution[["total"]]) || final_resolution[["total"]] > tolerance) {
@@ -200,6 +207,19 @@
   tables <- new.env(parent = emptyenv())
   results <- new.env(parent = emptyenv())
   normalizers <- new.env(parent = emptyenv())
+  rules <- new.env(parent = emptyenv())
+  # The two allowances take a handful of values per cell, so their exact keys
+  # are written when they change instead of on every memo lookup.
+  allowance_key <- NULL
+  pruning_key <- NULL
+  quadrature_rule <- function(order) {
+
+    key <- as.character(order)
+    if (exists(key, rules, inherits = FALSE)) return(get(key, rules))
+    value <- .gauss_hermite_nodes(order)
+    assign(key, value, rules)
+    value
+  }
   log_sum <- function(values) {
 
     largest <- max(values)
@@ -229,9 +249,12 @@
     context_rule <- if (point_context) list(
       nodes = rep(0, nrow(point_means)),
       log_weights = rep(-log(nrow(point_means)), nrow(point_means))
-    ) else .gauss_hermite_nodes(order)
-    means <- if (point_context) point_means else
-      sweep(outer(context_rule$nodes, as.numeric(context_factor)), 2L, mean, "+")
+    ) else quadrature_rule(order)
+    # The same column-wise addition sweep() performs, without its aperm().
+    means <- if (point_context) point_means else {
+      shifted <- outer(context_rule$nodes, as.numeric(context_factor))
+      shifted + rep(mean, each = nrow(shifted))
+    }
     log_context_mass <- log_sum(context_rule$log_weights)
     # Bound the normalized compact/full-C density ratio over the complete
     # requested grid/context rectangle. Original C remains the target.
@@ -264,6 +287,8 @@
     value <- list(means = means, rule = context_rule,
       interval = if (point_context) NULL else normal_interval(
         c(-Inf, context_rule$nodes), c(context_rule$nodes, Inf)),
+      # The pruning order depends on this rule alone, not on the allowance.
+      prune_order = order(context_rule$log_weights, seq_along(context_rule$log_weights)),
       mass = exp(log_context_mass),
       covariance_error = covariance_error,
       log_density_bound = log_density_bound,
@@ -314,17 +339,17 @@
     log_omitted <- -Inf
     if (!point_context && pruning_allowance > 0 && N > 1L) {
       log_cap <- log(pruning_allowance) - table$log_density_bound
-      candidates <- order(table$rule$log_weights, seq_len(N))
-      removed <- integer()
+      candidates <- table$prune_order
+      removed <- logical(N)
       # Preserve at least one positive rule node. The original weights of all
       # retained nodes are unchanged; neither rule mass nor A is renormalized.
       for (index in candidates[-length(candidates)]) {
         next_mass <- log_sum(c(log_omitted, table$rule$log_weights[[index]]))
         if (next_mass > log_cap) break
         log_omitted <- next_mass
-        removed <- c(removed, index)
+        removed[[index]] <- TRUE
       }
-      keep <- setdiff(keep, removed)
+      if (any(removed)) keep <- keep[!removed]
     }
     list(keep = keep, mass = exp(log_omitted),
       retained_mass = exp(log_sum(table$rule$log_weights[keep])),
@@ -373,7 +398,7 @@
     if (exists(key, normalizers, inherits = FALSE)) return(get(key, normalizers))
     table <- context_table(outer_order)
     if (is.null(table)) return(NULL)
-    quadrature <- .gauss_hermite_nodes(order)
+    quadrature <- quadrature_rule(order)
     # The existing native seam calculates every raw mass but collects no
     # density components. Its final positive-mass gate intentionally reports
     # unavailable. Accept only this complete, explicit mass-only result.
@@ -396,16 +421,16 @@
   evaluate <- function(outer_order, inner_order, allowance) {
 
     denominator_order <- denominator_orders[denominator_index]
-    key <- paste(outer_order, inner_order, denominator_order, cdf_enabled, format(allowance, digits = 17),
-      format(pruning_allowance, digits = 17), sep = "/")
+    key <- paste(outer_order, inner_order, denominator_order, cdf_enabled,
+      allowance_key, pruning_key, sep = "/")
     if (exists(key, results, inherits = FALSE)) return(get(key, results))
     table <- context_table(outer_order)
     if (is.null(table)) return(NULL)
     denominator <- raw_normalizer(outer_order, denominator_order)
     if (is.null(denominator)) return(NULL)
     log_D <- denominator$log_A
-    inner <- .gauss_hermite_nodes(inner_order)
-    denominator_rule <- .gauss_hermite_nodes(denominator_order)
+    inner <- quadrature_rule(inner_order)
+    denominator_rule <- quadrature_rule(denominator_order)
     pruned <- prune_context(table)
     keep <- pruned$keep
     context_weights <- table$rule$log_weights
@@ -475,7 +500,7 @@
     if (any(adjacent_error > 0)) log_difference <- log_add(
       adjacent_error + log_difference, log_abs_expm1(adjacent_error))
     weighted_difference <- exp(log_sum(log_weights + log_difference))
-    denominator_rule <- .gauss_hermite_nodes(denominator_orders[denominator_index])
+    denominator_rule <- quadrature_rule(denominator_orders[denominator_index])
     log_denominator_tail <- gaussian_tail(denominator_rule$nodes) +
       log(integration_rank) + k * log(max(omega))
     weighted_denominator_tail <- exp(log_sum(log_weights + log_denominator_tail -
@@ -532,9 +557,11 @@
     reference_peak <- max(vapply(seq_along(z), reference_at, numeric(1L)))
   }
   allowance <- tolerance * reference_peak / 128
+  allowance_key <- format(allowance, digits = 17)
   # Initial allocation only; the unchanged total error gate decides acceptance.
   # Raw A0 anchors and the continuous inverse-Aq tail rectangles remain unpruned.
   pruning_allowance <- if (point_context) 0 else tolerance * reference_peak / 32
+  pruning_key <- format(pruning_allowance, digits = 17)
   repeat {
     resolution <- gaussian_resolution(inner_orders[inner_index],
       if (point_context) 0L else context_orders[context_index])
@@ -594,6 +621,7 @@
     if (mass_error > tolerance && mass_omission_error >= mass_error / 2 && allowance > 0) {
       compression_refinements <- compression_refinements + 1L
       allowance <- if (compression_refinements < 8L) allowance / 2 else 0
+      allowance_key <- format(allowance, digits = 17)
       next
     }
     routing_budget <- if (is.null(absolute_tolerance)) {
@@ -618,10 +646,12 @@
           compression_part > routing_budget / 4) {
         compression_refinements <- compression_refinements + 1L
         allowance <- if (compression_refinements < 8L) allowance / 2 else 0
+        allowance_key <- format(allowance, digits = 17)
       } else if (action == "pruning" && pruning_allowance > 0 &&
           (pruning_part > routing_budget / 4 || fine$fine$omitted_mass > tolerance / 4)) {
         pruning_refinements <- pruning_refinements + 1L
         pruning_allowance <- if (pruning_refinements < 8L) pruning_allowance / 2 else 0
+        pruning_key <- format(pruning_allowance, digits = 17)
       } else if (action == "covariance" && covariance_part > routing_budget) {
         return(NULL)
       } else next

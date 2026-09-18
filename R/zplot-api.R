@@ -922,11 +922,16 @@ hist.zplot_brma <- function(x, plot_type = "base",
 
 .zplot_density_data <- function(z_sequence, z_density, probs) {
 
+  # One sorted pass per column: stats::quantile() evaluates each probability
+  # independently, so asking for both returns the two numbers the two separate
+  # passes returned, with the same names.
+  bounds <- apply(z_density, 2, stats::quantile, probs = probs[1:2])
+
   return(data.frame(
     x     = z_sequence,
     y     = colMeans(z_density),
-    y_lCI = apply(z_density, 2, stats::quantile, probs = probs[1]),
-    y_uCI = apply(z_density, 2, stats::quantile, probs = probs[2])
+    y_lCI = bounds[1L, ],
+    y_uCI = bounds[2L, ]
   ))
 }
 

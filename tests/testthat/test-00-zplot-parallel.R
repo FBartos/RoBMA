@@ -107,7 +107,8 @@ test_that("density dispatch thins once and keeps summaries and reference curves 
     .effect_direction = function(...) "positive",
     .zplot_requires_selection_marginal = function(...) TRUE,
     .zplot_selection_marginal = function(object, posterior_samples, z_sequence, z_threshold,
-        conditioning_depth, integration_control, extrapolate_only = FALSE){
+        conditioning_depth, integration_control, extrapolate_only = FALSE,
+        fitted_only = FALSE){
       evaluate("serial", posterior_samples, if(is.null(z_threshold)) z_sequence else z_threshold)
     },
     .zplot_selection_marginal_parallel = function(object, posterior_samples, z_sequence,
