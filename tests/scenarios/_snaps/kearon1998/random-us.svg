@@ -49,7 +49,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMC4wMHwzNjAuMDB8MC4wMHwxOTIuMDA=)'>
-<text x='189.50' y='179.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='43.15px' lengthAdjust='spacingAndGlyphs'>sd_common</text>
+<text x='189.50' y='179.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='45.80px' lengthAdjust='spacingAndGlyphs'>tau_common</text>
 <text transform='translate(8.55,91.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <defs>
@@ -100,7 +100,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMzYwLjAwfDcyMC4wMHwwLjAwfDE5Mi4wMA==)'>
-<text x='549.50' y='179.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='45.79px' lengthAdjust='spacingAndGlyphs'>var_common</text>
+<text x='549.50' y='179.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='50.20px' lengthAdjust='spacingAndGlyphs'>tau2_common</text>
 <text transform='translate(368.55,91.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpMzk4Ljk3fDcwMC4wNHwzOC45N3wxNDMuNTM=)'>
@@ -144,7 +144,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMC4wMHwzNjAuMDB8MTkyLjAwfDM4NC4wMA==)'>
-<text x='189.50' y='371.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='72.64px' lengthAdjust='spacingAndGlyphs'>sd(group[sensitivity])</text>
+<text x='189.50' y='371.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='75.28px' lengthAdjust='spacingAndGlyphs'>tau(group[sensitivity])</text>
 <text transform='translate(8.55,283.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpMzguOTd8MzQwLjA0fDIzMC45N3wzMzUuNTM=)'>
@@ -186,7 +186,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMzYwLjAwfDcyMC4wMHwxOTIuMDB8Mzg0LjAw)'>
-<text x='549.50' y='371.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='72.64px' lengthAdjust='spacingAndGlyphs'>sd(group[specificity])</text>
+<text x='549.50' y='371.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='75.28px' lengthAdjust='spacingAndGlyphs'>tau(group[specificity])</text>
 <text transform='translate(368.55,283.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpMzk4Ljk3fDcwMC4wNHwyMzAuOTd8MzM1LjUz)'>
@@ -234,7 +234,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMC4wMHwzNjAuMDB8Mzg0LjAwfDU3Ni4wMA==)'>
-<text x='189.50' y='563.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='75.28px' lengthAdjust='spacingAndGlyphs'>var(group[sensitivity])</text>
+<text x='189.50' y='563.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='79.69px' lengthAdjust='spacingAndGlyphs'>tau2(group[sensitivity])</text>
 <text transform='translate(8.55,475.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpMzguOTd8MzQwLjA0fDQyMi45N3w1MjcuNTM=)'>
@@ -282,7 +282,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMzYwLjAwfDcyMC4wMHwzODQuMDB8NTc2LjAw)'>
-<text x='549.50' y='563.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='75.28px' lengthAdjust='spacingAndGlyphs'>var(group[specificity])</text>
+<text x='549.50' y='563.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='79.69px' lengthAdjust='spacingAndGlyphs'>tau2(group[specificity])</text>
 <text transform='translate(368.55,475.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpMzk4Ljk3fDcwMC4wNHw0MjIuOTd8NTI3LjUz)'>

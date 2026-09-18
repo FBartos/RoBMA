@@ -42,7 +42,7 @@
 <text x='44.64' y='245.57' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.6</text>
 <text x='44.64' y='164.01' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.8</text>
 <text x='44.64' y='82.44' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>1.0</text>
-<text x='374.40' y='557.28' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='206.78px' lengthAdjust='spacingAndGlyphs'>cor(group[sensitivity],group[specificity])</text>
+<text x='374.40' y='557.28' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='207.45px' lengthAdjust='spacingAndGlyphs'>rho(group[sensitivity],group[specificity])</text>
 <text transform='translate(12.96,280.80) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='40.02px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <defs>
