@@ -707,7 +707,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   if (latent_mixture) {
     SelNormNormalProjectionWorkspace projection(z_p, L);
     std::vector<double> row_weights(B), node_means(n_nodes), log_coefficients(n_nodes);
-    std::vector<long double> normalizers(n_nodes), quadrature_weights(n_nodes);
+    std::vector<long double> normalizers(n_nodes);
     std::vector<long double> density(L), cell_density(L);
     SEXP interpolation = Rf_getAttrib(quadrature, Rf_install("density_control"));
     const bool requested = interpolation != R_NilValue;
@@ -715,7 +715,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     double interpolation_tolerance = 0.0;
     const double *coarse_nodes = nullptr, *coarse_logs = nullptr;
     int coarse_count = 0;
-    std::vector<long double> coarse_weights;
+    SelNormRuleWeights coarse_weights;
     SEXP fitted_error = R_NilValue, extrapolated_error = R_NilValue;
     if (requested) {
       if (TYPEOF(interpolation) != VECSXP || Rf_length(interpolation) != 2) {
@@ -737,13 +737,13 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
           Rf_error("Coarse quadrature dimensions are invalid.");
         }
         coarse_nodes = REAL(cn); coarse_logs = REAL(cw);
-        coarse_weights.resize(coarse_count);
         for (int j = 0; j < coarse_count; ++j) {
           if (!std::isfinite(coarse_nodes[j]) || !std::isfinite(coarse_logs[j])) {
             Rf_error("Coarse quadrature values must be finite.");
           }
-          coarse_weights[j] = std::exp(static_cast<long double>(coarse_logs[j]));
         }
+        // The rule weights depend on nothing but the rule.
+        coarse_weights = selnorm_rule_weights(coarse_logs, coarse_count);
       }
       fitted_error = PROTECT(Rf_allocVector(REALSXP, S)); ++n_protect;
       extrapolated_error = PROTECT(Rf_allocVector(REALSXP, S)); ++n_protect;
@@ -768,9 +768,8 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     std::vector<long double> coarse_noninterpolated(L), cell_coarse(L), cell_gaussian(L);
     const long double half_log_two_pi = 0.5L * std::log(2 * std::acos(-1.0L));
 
-    for (int j = 0; j < n_nodes; ++j) {
-      quadrature_weights[j] = std::exp(static_cast<long double>(log_weights_p[j]));
-    }
+    const SelNormRuleWeights quadrature_weights =
+      selnorm_rule_weights(log_weights_p, n_nodes);
     for (int s = 0; s < S; ++s) {
       std::fill(density.begin(), density.end(), 0.0L);
       std::fill(interpolation_error.begin(), interpolation_error.end(), 0.0L);
@@ -900,10 +899,10 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
             bool valid = std::isfinite(remainder);
             for (int j = 0; j < chosen->count && valid; ++j) {
               H[j] = inverse_integral(chosen->nodes[j], nodes_p, log_weights_p,
-                quadrature_weights.data(), n_nodes, false);
+                quadrature_weights->data(), n_nodes, false);
               if (coarse_count > 0) {
                 const long double coarse = inverse_integral(chosen->nodes[j],
-                  coarse_nodes, coarse_logs, coarse_weights.data(), coarse_count, false);
+                  coarse_nodes, coarse_logs, coarse_weights->data(), coarse_count, false);
                 node_error[j] = std::fabs(H[j] - coarse);
               }
               valid = H[j] > 0.0L && std::isfinite(H[j]) && std::isfinite(node_error[j]);
@@ -997,10 +996,10 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
           double coarse_inverse = fine_inverse;
           if (selected && latent_p[cell] > 0) {
             fine_inverse = inverse_integral(z_p[ell], nodes_p, log_weights_p,
-              quadrature_weights.data(), n_nodes, true);
+              quadrature_weights->data(), n_nodes, true);
             if (requested && coarse_count > 0) {
               coarse_inverse = inverse_integral(z_p[ell], coarse_nodes, coarse_logs,
-                coarse_weights.data(), coarse_count, true);
+                coarse_weights->data(), coarse_count, true);
             }
           }
           const long double value = std::exp(static_cast<long double>(gaussian + fine_inverse));

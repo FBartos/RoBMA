@@ -89,10 +89,10 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
   SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
   std::fill_n(REAL(out), static_cast<R_xlen_t>(S) * K, NA_REAL);
   std::vector<double> weights(B), node_means(maximum_order);
-  std::vector<long double> normalizers(maximum_order), quadrature_weights(total_nodes);
-  for (int i = 0; i < total_nodes; ++i) {
-    quadrature_weights[i] = std::exp(static_cast<long double>(REAL(log_weights)[i]));
-  }
+  std::vector<long double> normalizers(maximum_order);
+  // The rule weights depend on nothing but the rule; see selnorm_rule_weights.
+  const SelNormRuleWeights quadrature_weights = selnorm_rule_weights(
+    REAL(log_weights), total_nodes);
   const double tolerance = REAL(relative_tolerance)[0];
   std::string failure;
   try {
@@ -132,7 +132,7 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
           long double inverse = 0.0L;
           if (direct) {
             for (int j = 0; j < order; ++j) {
-              inverse += quadrature_weights[offset + j] / normalizers[j];
+              inverse += (*quadrature_weights)[offset + j] / normalizers[j];
             }
           }
           double log_inverse;

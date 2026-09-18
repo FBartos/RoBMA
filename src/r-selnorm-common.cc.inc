@@ -102,6 +102,67 @@ void validate_omega_matrix(const double *omega, int S, int B)
   }
 }
 
+// Exponentiating the log weights of a quadrature rule depends on nothing but
+// the rule, so a batch entry point called one posterior row at a time - the
+// marginal likelihood bridge issues tens of thousands of such calls - must not
+// repeat it for every call. This memo keeps the few most recently used rules,
+// keyed by the exact bytes of the log-weight vector, so a served vector holds
+// the same 'expl' results the caller would have computed itself. Entries are
+// handed out as shared owners, so dropping one never invalidates a vector a
+// call is still reading, and the table is guarded by a mutex in case a caller
+// ever threads above these entry points; today every lookup happens on the main
+// thread, before the parallel region.
+using SelNormRuleWeights = std::shared_ptr<const std::vector<long double> >;
+
+SelNormRuleWeights selnorm_rule_weights(const double *log_weights, int count)
+{
+  struct RuleEntry {
+    std::vector<double> log_weights;
+    SelNormRuleWeights  weights;
+  };
+  static const std::size_t maximum_entries = 32;
+  static std::mutex remembered_mutex;
+  // Most recently used first.
+  static std::vector<RuleEntry> remembered;
+
+  const std::size_t length = static_cast<std::size_t>(count);
+  {
+    const std::lock_guard<std::mutex> lock(remembered_mutex);
+    for (std::size_t slot = 0; slot < remembered.size(); ++slot) {
+      // The bytes decide: a rule vector R reallocated at the same address, or
+      // one of equal length holding other values, must not be served this one.
+      if (remembered[slot].log_weights.size() != length) continue;
+      if (length > 0 && std::memcmp(remembered[slot].log_weights.data(),
+                                    log_weights, length * sizeof(double)) != 0) {
+        continue;
+      }
+      SelNormRuleWeights found = remembered[slot].weights;
+      std::rotate(remembered.begin(), remembered.begin() + slot,
+                  remembered.begin() + slot + 1);
+      return found;
+    }
+  }
+
+  std::shared_ptr<std::vector<long double> > computed =
+    std::make_shared<std::vector<long double> >(length);
+  for (int i = 0; i < count; ++i) {
+    (*computed)[static_cast<std::size_t>(i)] =
+      std::exp(static_cast<long double>(log_weights[i]));
+  }
+  SelNormRuleWeights weights = computed;
+  try {
+    RuleEntry entry;
+    entry.log_weights.assign(log_weights, log_weights + count);
+    entry.weights = weights;
+    const std::lock_guard<std::mutex> lock(remembered_mutex);
+    remembered.insert(remembered.begin(), std::move(entry));
+    if (remembered.size() > maximum_entries) remembered.resize(maximum_entries);
+  } catch (const std::bad_alloc &) {
+    // The value is already computed; failing to remember it changes nothing.
+  }
+  return weights;
+}
+
 void set_kernel_data(SelNormKernelData *data, int B, int n_segments,
                      SEXP sign, SEXP q, SEXP z_lower, SEXP z_upper,
                      SEXP phack_z_source, SEXP phack_z_dest,

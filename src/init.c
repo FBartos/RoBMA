@@ -14,6 +14,7 @@ extern SEXP RoBMA_selnorm_cache_control(SEXP capacity_bytes, SEXP clear);
 extern SEXP RoBMA_selnorm_normal_upper_tail(SEXP x, SEXP scalar);
 extern SEXP RoBMA_selnorm_set_native_threads(SEXP threads);
 extern SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row);
+extern SEXP RoBMA_selnorm_rule_weights_check(SEXP log_weights);
 extern SEXP RoBMA_selnorm_cache_snapshot(void);
 extern SEXP RoBMA_selnorm_cache_restore(SEXP snapshots);
 extern SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP clear);
@@ -466,6 +467,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_normal_upper_tail", (DL_FUNC) &RoBMA_selnorm_normal_upper_tail, 2},
     {"RoBMA_selnorm_set_native_threads", (DL_FUNC) &RoBMA_selnorm_set_native_threads, 1},
     {"RoBMA_selnorm_row_schedule", (DL_FUNC) &RoBMA_selnorm_row_schedule, 2},
+    {"RoBMA_selnorm_rule_weights_check", (DL_FUNC) &RoBMA_selnorm_rule_weights_check, 1},
     {"RoBMA_selnorm_cache_snapshot", (DL_FUNC) &RoBMA_selnorm_cache_snapshot, 0},
     {"RoBMA_selnorm_cache_restore", (DL_FUNC) &RoBMA_selnorm_cache_restore, 1},
     {"RoBMA_selnorm_sampler_control", (DL_FUNC) &RoBMA_selnorm_sampler_control, 3},

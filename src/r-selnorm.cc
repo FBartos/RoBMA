@@ -10,6 +10,9 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <memory>
+#include <mutex>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -91,6 +94,61 @@ extern "C" SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row)
   INTEGER(out)[1] = schedule.chunk_rows;
   SET_STRING_ELT(names, 0, Rf_mkChar("threads"));
   SET_STRING_ELT(names, 1, Rf_mkChar("chunk_rows"));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return out;
+}
+
+// The rule-weight memo of the batch entry points, exposed so the package tests
+// can certify that a remembered rule is served the same values a fresh
+// exponentiation of its log weights produces, and that a changed rule is not
+// served a remembered one. 'identifier' is the same for two calls that are
+// served the same vector and differs whenever a new one was computed; the small
+// registry behind it exists only for this certification entry point.
+extern "C" SEXP RoBMA_selnorm_rule_weights_check(SEXP log_weights)
+{
+  if (TYPEOF(log_weights) != REALSXP || XLENGTH(log_weights) < 1 ||
+      XLENGTH(log_weights) > std::numeric_limits<int>::max()) {
+    Rf_error("'log_weights' must be a nonempty numeric vector.");
+  }
+  const int count = static_cast<int>(XLENGTH(log_weights));
+  const SelNormRuleWeights weights =
+    selnorm_rule_weights(REAL(log_weights), count);
+  if (!weights || static_cast<int>(weights->size()) != count) {
+    Rf_error("The rule weight memo returned a vector of the wrong length.");
+  }
+
+  int mismatches = 0;
+  for (int i = 0; i < count; ++i) {
+    const long double fresh =
+      std::exp(static_cast<long double>(REAL(log_weights)[i]));
+    const long double served = (*weights)[static_cast<std::size_t>(i)];
+    const bool both_missing = std::isnan(fresh) && std::isnan(served);
+    if (!both_missing && !(served == fresh)) ++mismatches;
+  }
+
+  static std::vector<std::pair<SelNormRuleWeights, int> > registry;
+  static int last_identifier = 0;
+  int identifier = NA_INTEGER;
+  for (std::size_t i = 0; i < registry.size(); ++i) {
+    if (registry[i].first == weights) {
+      identifier = registry[i].second;
+      break;
+    }
+  }
+  if (identifier == NA_INTEGER && registry.size() < 256) {
+    registry.push_back(std::make_pair(weights, ++last_identifier));
+    identifier = last_identifier;
+  }
+
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 3));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_VECTOR_ELT(out, 0, Rf_ScalarInteger(mismatches));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarInteger(identifier));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarInteger(count));
+  SET_STRING_ELT(names, 0, Rf_mkChar("mismatches"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("identifier"));
+  SET_STRING_ELT(names, 2, Rf_mkChar("length"));
   Rf_setAttrib(out, R_NamesSymbol, names);
   UNPROTECT(2);
   return out;

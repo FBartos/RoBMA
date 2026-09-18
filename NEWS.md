@@ -1,5 +1,20 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- remembers the exponentiated weights of a quadrature rule instead of computing
+  them again on every call of a selection batch. The correlated-`V` cluster
+  batch, the sampling-conditioned deletion batch and the latent z-curve density
+  exponentiated their whole rule - 2025 nodes for the Assink scenario - before
+  any model work. A batch of many rows absorbs that; a one-row call does not,
+  and the `add_marglik()` bridge evaluates one posterior row at a time, about
+  33 000 native calls per 3000 draws. The weights now come from a small memo
+  inside the package library, keyed by the exact bytes of the log-weight vector,
+  so a remembered rule holds the same values a fresh exponentiation gives. One
+  one-row cluster call takes 6.4 microseconds where it took 322, the serial
+  bridge of the Assink correlated-`V` selection fit 6.0 s per 3000 draws where
+  it took 17.0 s (its native share falls from 66 % to 10 %), and `add_marglik()`
+  on its full posterior 11.9 s where it took 29.3 s. The marginal likelihood is
+  identical, and so is every fingerprint of the scenario artifacts that use
+  these batches.
 - resolves once per `add_marglik()` bridge what the fitted data alone decide.
   The selection execution plan and its quadrature migration, the structural
   data predicates the row blocks are assembled with, the sampling contribution

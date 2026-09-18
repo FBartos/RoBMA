@@ -574,3 +574,59 @@ test_that("funnel max_samples uses a global nested simple random sample", {
     seq_along(bias_indicator)
   )
 })
+
+
+test_that("the quadrature rule memo serves what a fresh exponentiation gives", {
+
+  skip_if_not(is.loaded("RoBMA_selnorm_rule_weights_check", PACKAGE = "RoBMA"))
+
+  check <- function(log_weights) {
+    return(.Call("RoBMA_selnorm_rule_weights_check", as.numeric(log_weights),
+                 PACKAGE = "RoBMA"))
+  }
+
+  # The nested Gauss-Hermite ladder the correlated-V kernels are called with,
+  # a short rule, a rule with structural zeros, and one whose weights are far
+  # below the smallest positive double, where only the long double the kernels
+  # accumulate in still separates the nodes.
+  ladder <- unlist(lapply(c(15L, 31L, 63L, 127L), function(order) {
+    .gauss_hermite_nodes(order)[["log_weights"]]
+  }))
+  rules <- list(
+    ladder           = ladder,
+    short            = .gauss_hermite_nodes(7L)[["log_weights"]],
+    structural_zeros = c(-Inf, log(c(.25, .50, .25)), -Inf),
+    below_double     = seq(-745, -11000, length.out = 64L)
+  )
+
+  identifiers <- integer()
+  for (name in names(rules)) {
+    served <- check(rules[[name]])
+    expect_identical(served[["mismatches"]], 0L, info = name)
+    expect_identical(served[["length"]], length(rules[[name]]), info = name)
+    # An equal rule in another vector is served the remembered one: the memo
+    # keys on the values, not on where R happens to keep them.
+    repeated <- check(rules[[name]] + 0)
+    expect_identical(repeated[["mismatches"]], 0L, info = name)
+    expect_identical(repeated[["identifier"]], served[["identifier"]], info = name)
+    identifiers <- c(identifiers, served[["identifier"]])
+  }
+  expect_identical(anyDuplicated(identifiers), 0L)
+
+  # A changed vector is not served the previous entry, however small the change,
+  # and the rule it replaces stays remembered.
+  changed         <- ladder
+  changed[[100L]] <- changed[[100L]] * (1 + .Machine[["double.eps"]])
+  changed_served  <- check(changed)
+  expect_false(identical(changed[[100L]], ladder[[100L]]))
+  expect_identical(changed_served[["mismatches"]], 0L)
+  expect_false(changed_served[["identifier"]] %in% identifiers)
+  expect_identical(check(ladder)[["identifier"]], identifiers[[1L]])
+
+  # The table is bounded: 32 other rules displace the ladder, which is then
+  # exponentiated again, to the same values.
+  for (offset in seq_len(32L)) invisible(check(ladder[seq_len(64L)] - offset))
+  recomputed <- check(ladder)
+  expect_identical(recomputed[["mismatches"]], 0L)
+  expect_false(recomputed[["identifier"]] %in% identifiers)
+})

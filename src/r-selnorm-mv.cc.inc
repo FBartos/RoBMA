@@ -778,12 +778,10 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
   SEXP relative_change = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP log_normalizer = PROTECT(Rf_allocVector(REALSXP, S));
   std::fill_n(REAL(log_normalizer), S, NA_REAL);
-  // These rule weights are invariant across posterior draws and observations.
-  std::vector<long double> quadrature_weights(quadrature_length);
-  for (int i = 0; i < quadrature_length; ++i) {
-    quadrature_weights[i] =
-      std::exp(static_cast<long double>(REAL(quadrature_log_weights)[i]));
-  }
+  // These rule weights are invariant across posterior draws and observations,
+  // and a one-row call must not pay for the whole rule before any model work.
+  const SelNormRuleWeights quadrature_weights = selnorm_rule_weights(
+    REAL(quadrature_log_weights), quadrature_length);
   const int threads = robma_batch_threads(S);
   robma_parallel::for_rows(S, threads, [&](int s) {
     std::vector<double> row_mean(static_cast<std::size_t>(K));
@@ -808,7 +806,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
       REAL(quadrature_nodes), REAL(quadrature_log_weights),
       REAL(quadrature_orders), Rf_length(quadrature_orders),
       REAL(qmc), n_initial_points, n_max_points, n_scrambles,
-      REAL(relative_tolerance)[0], &mcse, &error, quadrature_weights.data(),
+      REAL(relative_tolerance)[0], &mcse, &error, quadrature_weights->data(),
       LOGICAL(return_normalizer)[0] ? REAL(log_normalizer) + s : nullptr,
       scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule")
     );
