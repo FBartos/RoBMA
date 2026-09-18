@@ -1038,6 +1038,8 @@
   ungated paths, and removes the superseded one-use selection finalizer.
 
 ### Fixes
+- keeps a chunked `zplot()` marginal from writing inverse weights and an
+  expected discovery rate that a fitted-only chunk never produced.
 - `marginal_means()` no longer fails on a meta-regression whose coefficients
   use plain priors. Only coefficients carrying an inclusion indicator
   (spike-and-slab, or a mixture with `null`/`alternative` components) are now

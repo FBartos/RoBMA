@@ -260,6 +260,25 @@
 }
 
 
+# Place one chunk's rows in the assembled marginal. A chunk carries only the
+# quantities its own request produced: a fitted-only chunk has no extrapolated
+# curve, no inverse weights and no EDR, and the assembled result then has none
+# either.
+.zplot_marginal_chunk_assign <- function(result, chunk, rows, probability) {
+
+  for (name in c("fitted", "extrapolated")) {
+    if (is.null(chunk[[name]])) result[[name]] <- NULL else
+      result[[name]][rows, ] <- chunk[[name]]
+  }
+  for (name in c("weights", if (probability) "EDR")) {
+    if (is.null(chunk[[name]])) result[[name]] <- NULL else
+      result[[name]][rows] <- chunk[[name]]
+  }
+
+  result
+}
+
+
 .zplot_joint_marginal <- function(
     object, posterior_samples, predictive, selection, z, probability, control,
     extrapolate_only = FALSE, fitted_only = FALSE) {
@@ -308,12 +327,7 @@
       chunk <- .zplot_joint_marginal(object, posterior_samples[rows, , drop = FALSE],
         chunk_predictive, BayesTools::selection_context_subset_rows(selection, rows),
         z, probability, control, extrapolate_only, fitted_only)
-      for (name in c("fitted", "extrapolated")) {
-        if (is.null(chunk[[name]])) result[[name]] <- NULL else
-          result[[name]][rows, ] <- chunk[[name]]
-      }
-      result[["weights"]][rows] <- chunk[["weights"]]
-      if (probability) result[["EDR"]][rows] <- chunk[["EDR"]]
+      result <- .zplot_marginal_chunk_assign(result, chunk, rows, probability)
     }
     return(result)
   }

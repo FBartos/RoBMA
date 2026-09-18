@@ -885,3 +885,47 @@ test_that("zplot retains separate PET and PEESE predictive components", {
   expect_equal(result$fitted, matrix(0, nrow = 2, ncol = 1))
   expect_equal(result$extrapolated, matrix(1, nrow = 2, ncol = 1))
 })
+
+
+test_that("the chunked marginal assembler keeps only the quantities a chunk carries", {
+
+  S    <- 4L
+  rows <- 1:2
+  result <- list(
+    fitted       = matrix(0, S, 3L),
+    extrapolated = matrix(0, S, 3L),
+    weights      = numeric(S),
+    EDR          = numeric(S)
+  )
+
+  full_chunk <- list(
+    fitted       = matrix(1, length(rows), 3L),
+    extrapolated = matrix(2, length(rows), 3L),
+    weights      = c(.5, .25),
+    EDR          = c(.8, .6)
+  )
+  assembled <- .zplot_marginal_chunk_assign(result, full_chunk, rows, TRUE)
+  expect_equal(assembled$fitted[rows, ], full_chunk$fitted)
+  expect_equal(assembled$extrapolated[rows, ], full_chunk$extrapolated)
+  expect_equal(assembled$weights[rows], full_chunk$weights)
+  expect_equal(assembled$EDR[rows], full_chunk$EDR)
+
+  # A fitted-only chunk has no extrapolated curve, no inverse weights and no
+  # EDR; writing them would fabricate values for rows that were never asked for.
+  fitted_chunk <- list(fitted = matrix(1, length(rows), 3L))
+  assembled <- .zplot_marginal_chunk_assign(result, fitted_chunk, rows, TRUE)
+  expect_equal(assembled$fitted[rows, ], fitted_chunk$fitted)
+  expect_null(assembled$extrapolated)
+  expect_null(assembled$weights)
+  expect_null(assembled$EDR)
+
+  # a density request without probabilities leaves EDR untouched
+  no_edr <- list(
+    fitted       = matrix(1, length(rows), 3L),
+    extrapolated = matrix(2, length(rows), 3L),
+    weights      = c(.5, .25)
+  )
+  assembled <- .zplot_marginal_chunk_assign(result, no_edr, rows, FALSE)
+  expect_equal(assembled$weights[rows], no_edr$weights)
+  expect_equal(assembled$EDR, numeric(S))
+})
