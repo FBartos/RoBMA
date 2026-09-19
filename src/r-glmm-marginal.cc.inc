@@ -501,13 +501,11 @@ extern "C" SEXP RoBMA_glmm_pois_conditional_loglik_sum(
       const double half_effect = 0.5 * mu_p[cell];
       const double log_lambda_1 = log_phi_p[cell] + log_t1[k] + half_effect;
       const double log_lambda_2 = log_phi_p[cell] + log_t2[k] - half_effect;
-      const double lambda_1     = std::exp(log_lambda_1);
-      const double lambda_2     = std::exp(log_lambda_2);
 
       const double weight_k = weights_p == 0 ? 1.0 : weights_p[k];
       const double log_lik =
-        x1i_p[k] * log_lambda_1 - lambda_1 +
-        x2i_p[k] * log_lambda_2 - lambda_2 -
+        poisson_log_kernel_glmm(x1i_p[k], log_lambda_1) +
+        poisson_log_kernel_glmm(x2i_p[k], log_lambda_2) -
         log_factorial[k];
       row_sum += weight_k * log_lik;
     }
