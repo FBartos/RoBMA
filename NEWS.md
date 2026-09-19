@@ -18,7 +18,10 @@
   3.9e-16 relative on both scale fits and its point ordinate at `tau = 0.2` is
   identical to all 17 digits - and the scenario fingerprints are unchanged,
   while `fit_posterior_tau` takes 10.1 s where it took 13.2 s and 0.57 GB where
-  it took 1.78 GB.
+  it took 1.78 GB. The log-coordinate verdict this route reads arrives with
+  BayesTools 0.3.1.116, which is now the required minimum: an older BayesTools
+  would report the logged intercept as non-affine and silently leave the line
+  on the generic evaluator.
 - draws outcome-mode `funnel()` and `bfunnel()` contours for correlated known-`V`
   selection models under `weight_rule = "product"`. The contour is the law of a
   new, independent estimate at each hypothetical standard error; under the
