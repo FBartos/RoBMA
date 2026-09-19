@@ -568,10 +568,9 @@
     default_slab_args <- heterogeneity_args[
       !names(heterogeneity_args) %in% c("prior", "prior_null")
     ]
-    default_slab <- do.call(.assign_prior.simple, default_slab_args)
     random_mixture <- .assign_prior.random_mixture_parts(
       prior         = prior_outcome[["tau"]],
-      default_slab  = default_slab
+      default_slab  = do.call(.assign_prior.simple, default_slab_args)
     )
     prior_outcome[["tau"]] <- random_mixture[["slab"]]
   }
