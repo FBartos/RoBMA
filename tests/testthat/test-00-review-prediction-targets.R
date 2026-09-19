@@ -39,3 +39,33 @@ test_that("fitted Gaussian uncertainty is equivariant to effect-size units", {
   expect_equal(draw_at_scale(1e100), reference, tolerance = 1e-14)
   expect_equal(draw_at_scale(1e-100), reference, tolerance = 1e-14)
 })
+
+test_that("one-estimate GLMM replication accepts scalar JAGS nuisance names", {
+
+  binomial <- brma.glmm(ai = 2, ci = 1, n1i = 10, n2i = 12, measure = "OR",
+    only_priors = TRUE)
+  poisson <- brma.glmm(x1i = 2, x2i = 1, t1i = 10, t2i = 12, measure = "IRR",
+    only_priors = TRUE)
+  samples <- cbind(mu = c(-.2, .1, .3, .5), tau = .4,
+    theta = c(-.5, 0, .5, 1), pi = c(.1, .2, .3, .4), phi = log(c(.1, .2, .3, .4)))
+  effect <- samples[, "mu"] + samples[, "tau"] * samples[, "theta"]
+  set.seed(827)
+  expected_binomial <- cbind(
+    stats::rbinom(4L, 10, stats::plogis(stats::qlogis(samples[, "pi"]) + effect / 2)),
+    stats::rbinom(4L, 12, stats::plogis(stats::qlogis(samples[, "pi"]) - effect / 2))
+  )
+  set.seed(827)
+  actual_binomial <- predict(binomial, type = "response", conditioning_depth = "estimate",
+    as_measure = FALSE, quiet = TRUE, .posterior_samples = samples)
+  expect_equal(unname(as.matrix(actual_binomial)), expected_binomial, tolerance = 0)
+
+  set.seed(828)
+  expected_poisson <- cbind(
+    stats::rpois(4L, exp(samples[, "phi"] + effect / 2 + log(10))),
+    stats::rpois(4L, exp(samples[, "phi"] - effect / 2 + log(12)))
+  )
+  set.seed(828)
+  actual_poisson <- predict(poisson, type = "response", conditioning_depth = "estimate",
+    as_measure = FALSE, quiet = TRUE, .posterior_samples = samples)
+  expect_equal(unname(as.matrix(actual_poisson)), expected_poisson, tolerance = 0)
+})

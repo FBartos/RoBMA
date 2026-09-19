@@ -1990,10 +1990,10 @@
 .evaluate.brma.baserate <- function(fit, K, posterior_samples = NULL) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
-  pi_samples        <- .extract_posterior_matrix(
+  pi_samples        <- .extract_indexed_parameter_samples(
     posterior_samples = posterior_samples,
     parameter         = "pi",
-    K                 = K
+    n_expected        = K
   )
 
   return(.logit(pi_samples))
@@ -2043,10 +2043,10 @@
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
 
-  return(.extract_posterior_matrix(
+  return(.extract_indexed_parameter_samples(
     posterior_samples = posterior_samples,
     parameter         = "phi",
-    K                 = K
+    n_expected        = K
   ))
 }
 
