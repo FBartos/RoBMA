@@ -718,12 +718,17 @@ test_that("a fitted point-baserate GLMM supports log-likelihood criteria", {
     list(location = 0.05),
     contrast = "independent"
   )
-  fit <- brma.glmm(
-    ai = c(4L, 6L, 3L), bi = c(119L, 300L, 228L),
-    ci = c(11L, 29L, 11L), di = c(128L, 274L, 209L),
-    measure = "OR", prior_baserate = prior_baserate,
-    chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
-    seed = 42, silent = TRUE
+  expect_warning(
+    fit <- brma.glmm(
+      ai = c(4L, 6L, 3L), bi = c(119L, 300L, 228L),
+      ci = c(11L, 29L, 11L), di = c(128L, 274L, 209L),
+      measure = "OR", prior_baserate = prior_baserate,
+      chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
+      seed = 42, silent = TRUE
+    ),
+    paste0("Only one chain was run. R-hat cannot be computed; ",
+           "checking the remaining enabled convergence criteria."),
+    fixed = TRUE
   )
   log_lik <- log_lik(fit)
   fit_loo <- suppressWarnings(add_loo(fit))
@@ -739,19 +744,24 @@ test_that("a fitted point-baserate GLMM supports log-likelihood criteria", {
 
 test_that("boundary-concentrated beta priors support likelihood criteria", {
 
-  fit <- brma.glmm(
-    ai             = c(0L, 0L, 1L),
-    bi             = c(1L, 10L, 9L),
-    ci             = c(0L, 1L, 0L),
-    di             = c(1L, 9L, 10L),
-    measure        = "OR",
-    prior_baserate = BayesTools::prior("beta", list(0.1, 0.1)),
-    chains         = 1L,
-    sample         = 100L,
-    burnin         = 100L,
-    adapt          = 100L,
-    seed           = 42L,
-    silent         = TRUE
+  expect_warning(
+    fit <- brma.glmm(
+      ai             = c(0L, 0L, 1L),
+      bi             = c(1L, 10L, 9L),
+      ci             = c(0L, 1L, 0L),
+      di             = c(1L, 9L, 10L),
+      measure        = "OR",
+      prior_baserate = BayesTools::prior("beta", list(0.1, 0.1)),
+      chains         = 1L,
+      sample         = 100L,
+      burnin         = 100L,
+      adapt          = 100L,
+      seed           = 42L,
+      silent         = TRUE
+    ),
+    paste0("Only one chain was run. R-hat cannot be computed; ",
+           "checking the remaining enabled convergence criteria."),
+    fixed = TRUE
   )
   log_lik <- log_lik(fit)
   fit_loo <- suppressWarnings(add_loo(fit))
@@ -885,25 +895,35 @@ test_that("truncated nuisance recovery certifies sharp theta integrals", {
 
 test_that("fitted truncated-nuisance GLMMs support likelihood criteria", {
 
-  fit_bin <- brma.glmm(
-    ai = c(4L, 6L, 3L), bi = c(119L, 300L, 228L),
-    ci = c(11L, 29L, 11L), di = c(128L, 274L, 209L),
-    measure = "OR",
-    prior_baserate = BayesTools::prior(
-      "beta", list(1.5, 2.5), truncation = list(0.1, 0.9)
+  expect_warning(
+    fit_bin <- brma.glmm(
+      ai = c(4L, 6L, 3L), bi = c(119L, 300L, 228L),
+      ci = c(11L, 29L, 11L), di = c(128L, 274L, 209L),
+      measure = "OR",
+      prior_baserate = BayesTools::prior(
+        "beta", list(1.5, 2.5), truncation = list(0.1, 0.9)
+      ),
+      chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
+      seed = 123L, silent = TRUE
     ),
-    chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
-    seed = 123L, silent = TRUE
+    paste0("Only one chain was run. R-hat cannot be computed; ",
+           "checking the remaining enabled convergence criteria."),
+    fixed = TRUE
   )
-  fit_pois <- brma.glmm(
-    x1i = c(0L, 3L, 7L), x2i = c(0L, 4L, 11L),
-    t1i = c(20, 15, 18), t2i = c(22, 19, 21),
-    measure = "IRR",
-    prior_lograte = BayesTools::prior(
-      "normal", list(-1, 1.3), truncation = list(-3, 2)
+  expect_warning(
+    fit_pois <- brma.glmm(
+      x1i = c(0L, 3L, 7L), x2i = c(0L, 4L, 11L),
+      t1i = c(20, 15, 18), t2i = c(22, 19, 21),
+      measure = "IRR",
+      prior_lograte = BayesTools::prior(
+        "normal", list(-1, 1.3), truncation = list(-3, 2)
+      ),
+      chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
+      seed = 123L, silent = TRUE
     ),
-    chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
-    seed = 123L, silent = TRUE
+    paste0("Only one chain was run. R-hat cannot be computed; ",
+           "checking the remaining enabled convergence criteria."),
+    fixed = TRUE
   )
 
   for (fit in list(binomial = fit_bin, Poisson = fit_pois)) {
