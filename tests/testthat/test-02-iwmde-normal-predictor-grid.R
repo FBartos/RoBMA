@@ -324,6 +324,155 @@ test_that("the log-tau intercept basis matches the generic formula evaluator", {
 })
 
 
+# The batched route is answered by one estimate of one batch above. What a user
+# reads is the whole `tau` density line of a scale model and its point
+# ordinate, which the estimator assembles from many batches, its own
+# normalization grid and the row weights. Drive both routes through the
+# estimator and compare what it returns.
+.log_tau_route_estimates <- function(context, parameter, value) {
+
+  control <- list(n_points = 20L, samples = 200L)
+  run <- function() {
+    line <- .iwmde_estimate(
+      context         = context,
+      parameter       = parameter,
+      density_method  = "qCMDE",
+      density_control = control,
+      outputs         = "density",
+      parameter_spec  = list(
+        type             = "primitive",
+        conditional      = NULL,
+        conditional_rule = "AND"
+      ),
+      metadata        = list(parameter = parameter),
+      cache           = .iwmde_estimate_cache()
+    )
+    point <- .iwmde_estimate(
+      context         = context,
+      parameter       = parameter,
+      density_method  = "qCMDE",
+      density_control = c(control, list(display_grid = "ordinate")),
+      outputs         = "ordinate",
+      values          = value,
+      parameter_spec  = list(
+        type             = "primitive",
+        conditional      = NULL,
+        conditional_rule = "AND"
+      ),
+      metadata        = list(parameter = parameter),
+      cache           = .iwmde_estimate_cache()
+    )
+    list(
+      x        = as.numeric(line[["posterior_density"]][["x"]]),
+      y        = as.numeric(line[["posterior_density"]][["y"]]),
+      ordinate = as.numeric(point[["posterior_ordinate"]][["ordinate"]])
+    )
+  }
+
+  log_bases <- 0L
+  batched <- local({
+    original <- .iwmde_predictor_materialize_formula_basis
+    testthat::local_mocked_bindings(
+      .iwmde_predictor_materialize_formula_basis = function(...) {
+        basis <- original(...)
+        if (identical(basis[["log_tau_basis_coordinate"]], "log")) {
+          log_bases <<- log_bases + 1L
+        }
+        basis
+      },
+      .package = "RoBMA"
+    )
+    run()
+  })
+  # Restoring the previous non-affine verdict sends every candidate row through
+  # .iwmde_predictor_evaluate_tau(), which rebuilds the whole scale formula.
+  generic <- local({
+    original <- .iwmde_predictor_materialize_formula_basis
+    testthat::local_mocked_bindings(
+      .iwmde_predictor_materialize_formula_basis = function(...) {
+        basis <- original(...)
+        if (identical(basis[["log_tau_basis_coordinate"]], "log")) {
+          basis[["log_tau_basis"]]            <- NULL
+          basis[["log_tau_basis_coordinate"]] <- NULL
+          basis[["formula_logtau"]]           <- TRUE
+          basis[["formula_logtau_columns"]]   <- parameter
+        }
+        basis
+      },
+      .package = "RoBMA"
+    )
+    run()
+  })
+
+  return(list(batched = batched, generic = generic, log_bases = log_bases))
+}
+
+
+test_that("the scale model's `tau` density line matches the generic evaluator", {
+
+  fit_names <- .normal_grid_fit_names()
+  skip_if(length(fit_names) == 0L, "No cached normal fixtures are available.")
+
+  parameter <- "log_tau_intercept"
+  served    <- character()
+
+  for (fit_name in fit_names) {
+    object <- tryCatch(load_fit(fit_name, validate = FALSE), error = function(e) NULL)
+    if (is.null(object) || !.is_scale(object)) {
+      next
+    }
+    context <- .iwmde_context(object)
+    if (!parameter %in% colnames(context[["posterior_samples"]])) {
+      next
+    }
+    draws <- context[["posterior_samples"]][, parameter]
+    draws <- draws[is.finite(draws) & draws > 0]
+    if (length(draws) < 2L) {
+      next
+    }
+    label     <- paste0(fit_name, " / ", parameter)
+    estimates <- .log_tau_route_estimates(
+      context   = context,
+      parameter = parameter,
+      value     = as.numeric(stats::median(draws))
+    )
+    if (estimates[["log_bases"]] == 0L) {
+      next
+    }
+    batched <- estimates[["batched"]]
+    generic <- estimates[["generic"]]
+
+    expect_identical(batched[["x"]], generic[["x"]],
+                     info = paste0(label, ": display grid"))
+    expect_gt(length(generic[["y"]]), 1L)
+    expect_length(batched[["y"]], length(generic[["y"]]))
+    expect_true(all(is.finite(generic[["y"]])),
+                info = paste0(label, ": generic density line"))
+    line_deviation <- max(abs(batched[["y"]] - generic[["y"]]) /
+                            pmax(abs(generic[["y"]]), .Machine$double.xmin))
+    expect_lt(line_deviation, 1e-10,
+              label = paste0(label, ": max relative density-line difference"))
+
+    expect_true(is.finite(generic[["ordinate"]]),
+                info = paste0(label, ": generic ordinate"))
+    expect_gt(generic[["ordinate"]], 0)
+    point_deviation <- abs(batched[["ordinate"]] - generic[["ordinate"]]) /
+      abs(generic[["ordinate"]])
+    expect_lt(point_deviation, 1e-10,
+              label = paste0(label, ": relative ordinate difference"))
+
+    served <- c(served, sprintf(
+      "%s (line %.3g, ordinate %.3g)", label, line_deviation, point_deviation
+    ))
+  }
+
+  skip_if(length(served) == 0L,
+          "No cached scale-regression fixture carries a log-tau intercept basis.")
+  cat("\n`tau` density line, batched vs generic:\n  ",
+      paste(served, collapse = "\n  "), "\n", sep = "")
+})
+
+
 test_that("the native normal candidate grid is thread invariant", {
 
   skip_if_not(is.loaded("RoBMA_norm_predictor_grid_loglik", PACKAGE = "RoBMA"))
