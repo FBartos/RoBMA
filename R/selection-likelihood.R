@@ -2789,11 +2789,38 @@ set_selection_likelihood_control <- function(
          call. = FALSE)
   }
   location <- .estimate_normal_covariance_target_location_from_setup(setup)
-  selection_context <- .selection_joint_signed_context(
-    setup     = setup,
-    signed_yi = location[["y"]]
-  )
-  random_factor <- .selection_joint_random_factor_samples(setup)
+  static   <- .selection_joint_setup_static(setup, setup[["selection_static"]])
+  # A mean sweep repeats one posterior row per state, and everything below the
+  # location reads that row alone, so the state's own rows carry the whole
+  # construction and the candidate rows only repeat it.
+  state_rows  <- setup[["state_rows"]]
+  state_setup <- state_rows[["setup"]]
+  state_index <- state_rows[["index"]]
+  if (!is.null(state_index)) {
+    random_factor <- .selection_joint_random_factor_samples(state_setup)
+    # Without a factor form the state's covariance is a whole row x row cube,
+    # which the candidate rows cannot repeat within the batch's memory bound.
+    if (is.null(random_factor) &&
+        !is.null(static[["execution_plan"]][["random_covariance"]])) {
+      state_setup <- NULL
+      state_index <- NULL
+    }
+  }
+  if (is.null(state_index)) {
+    selection_context <- .selection_joint_signed_context(
+      setup     = setup,
+      signed_yi = location[["y"]]
+    )
+    random_factor <- .selection_joint_random_factor_samples(setup)
+  } else {
+    selection_context <- BayesTools::selection_context_subset_rows(
+      context = .selection_joint_signed_context(
+        setup     = state_setup,
+        signed_yi = location[["y"]]
+      ),
+      rows    = state_index
+    )
+  }
   random_covariance <- if (is.null(random_factor)) {
     .selection_joint_random_covariance_samples(setup)
   } else {
@@ -2806,18 +2833,25 @@ set_selection_likelihood_control <- function(
     selection_context = selection_context,
     random_covariance = random_covariance,
     random_factor     = random_factor,
-    static            = .selection_joint_static(setup[["data"]])
+    static            = static,
+    state_setup       = state_setup,
+    state_index       = state_index
   )
 }
 
 
 # The joint bridge target and posterior block scores share the same evaluator.
+# `state_setup` and `state_index` describe a batch whose rows repeat one
+# posterior row per state: the block variances, factors and covariances are
+# then evaluated on the states and their rows repeated, while the location and
+# the normalizer grid stay per candidate row.
 .selection_joint_block_loglik <- function(
     setup, yi, means, selection_context, random_covariance, random_factor,
-    static = NULL) {
+    static = NULL, state_setup = NULL, state_index = NULL) {
 
   static <- .selection_joint_setup_static(setup, static)
   execution_plan <- static[["execution_plan"]]
+  parts_setup <- if (is.null(state_index)) setup else state_setup
   log_lik <- matrix(
     0,
     nrow = setup[["S"]],
@@ -2829,13 +2863,16 @@ set_selection_likelihood_control <- function(
     rows <- execution_plan[["singleton_rows"]]
     singleton_context <- selection_context
     singleton_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
-    variances <- .selection_joint_singleton_variances(
-      setup                     = setup,
-      rows                      = rows,
-      block_indices             = singleton_blocks,
-      random_covariance_samples = random_covariance,
-      random_factor_samples     = random_factor,
-      static                    = static
+    variances <- .selection_joint_expand_state_rows(
+      parts = .selection_joint_singleton_variances(
+        setup                     = parts_setup,
+        rows                      = rows,
+        block_indices             = singleton_blocks,
+        random_covariance_samples = random_covariance,
+        random_factor_samples     = random_factor,
+        static                    = static
+      ),
+      state_index = state_index
     )
     log_lik[, singleton_blocks] <- .selection_joint_singleton_loglik_matrix(
       yi                = yi[rows],
@@ -2875,11 +2912,14 @@ set_selection_likelihood_control <- function(
     }
     block_context[["obs_bin"]] <- selection_context[["obs_bin"]][rows]
     if (method %in% c("rank_one", "factor")) {
-      components <- .selection_joint_factor_block_samples(
-        setup                 = setup,
-        block_index           = block_index,
-        random_factor_samples = random_factor,
-        static                = static
+      components <- .selection_joint_expand_state_rows(
+        parts = .selection_joint_factor_block_samples(
+          setup                 = parts_setup,
+          block_index           = block_index,
+          random_factor_samples = random_factor,
+          static                = static
+        ),
+        state_index = state_index
       )
     }
     block_normalizer_grid <- if (is.null(setup[["normalizer_grid"]])) NULL else list(
@@ -2926,12 +2966,15 @@ set_selection_likelihood_control <- function(
     log_lik[, block_index] <- .selection_joint_dense_loglik_block(
       yi                = yi[rows],
       means             = means[, rows, drop = FALSE],
-      covariance_lower  = .selection_joint_covariance_lower(
-        setup                     = setup,
-        block_index               = block_index,
-        random_covariance_samples = random_covariance,
-        random_factor_samples     = random_factor,
-        static                    = static
+      covariance_lower  = .selection_joint_expand_state_rows(
+        parts = .selection_joint_covariance_lower(
+          setup                     = parts_setup,
+          block_index               = block_index,
+          random_covariance_samples = random_covariance,
+          random_factor_samples     = random_factor,
+          static                    = static
+        ),
+        state_index = state_index
       ),
       sei               = setup[["selection_sei"]][rows],
       selection_context = block_context,
@@ -2949,6 +2992,39 @@ set_selection_likelihood_control <- function(
 .selection_joint_loglik_from_setup <- function(setup) {
 
   rowSums(.selection_joint_block_loglik_from_setup(setup))
+}
+
+
+# Repeat a per-state construction for the candidate rows that share the state.
+# The native batch entries take one factor, loading and variance per evaluated
+# row, so the repetition is a copy of rows the construction already holds, not
+# a second evaluation of it. `state_index` of NULL leaves the parts as they are,
+# which is what a batch whose rows are already the evaluated states needs.
+.selection_joint_expand_state_rows <- function(parts, state_index) {
+
+  if (is.null(parts) || is.null(state_index)) {
+    return(parts)
+  }
+  if (is.matrix(parts)) {
+    return(parts[state_index, , drop = FALSE])
+  }
+  for (field in c("diagonal", "residual_sd", "loading")) {
+    value <- parts[[field]]
+    if (is.matrix(value)) {
+      parts[[field]] <- value[state_index, , drop = FALSE]
+    }
+  }
+  if (is.list(parts[["loadings"]])) {
+    parts[["loadings"]] <- lapply(parts[["loadings"]], function(value) {
+      if (length(dim(value)) == 3L) {
+        value[state_index, , , drop = FALSE]
+      } else {
+        value
+      }
+    })
+  }
+
+  return(parts)
 }
 
 

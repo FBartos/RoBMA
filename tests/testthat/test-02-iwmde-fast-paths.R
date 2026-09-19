@@ -4962,3 +4962,269 @@ test_that("ordinary marginal baseline states match scalar construction", {
     )
   }
 })
+
+
+# ============================================================================ #
+# Affine joint mean sweep: one construction per state
+# ============================================================================ #
+
+# Cached fixtures that may carry a correlated joint selection model; the guard
+# of .iwmde_joint_affine_log_likelihood() decides which of them take the route.
+.affine_sweep_fit_names <- function() {
+
+  unique(c(
+    list_fits(feature = "selection"),
+    list_fits(class = c("bselmodel", "bselmodel.mv", "RoBMA", "RoBMA.mv"))
+  ))
+}
+
+
+.affine_sweep_qualifies <- function(context) {
+
+  data <- context[["data"]]
+  if (!.is_data_joint_selection(data) || !.is_data_known_v(data) ||
+      .selection_retains_sampling(data)) {
+    return(FALSE)
+  }
+  methods <- .data_selection_execution_plan(data)[["block_methods"]]
+
+  return(any(methods %in% c("dense", "rank_one", "factor")) &&
+           all(methods %in% c("dense", "rank_one", "factor", "singleton")))
+}
+
+
+# One candidate batch of a scalar mean sweep: the states, their candidate rows
+# and the affine route's own arguments.
+.affine_sweep_batch <- function(context, parameter, n_rows = 4L, n_values = 3L) {
+
+  # The plan resolves a primitive target to the conditioning chart the qCMDE
+  # estimator actually sweeps; the affine route reads that replacement.
+  spec <- tryCatch(
+    .iwmde_linear_conditioning_spec(
+      context,
+      .iwmde_parameter_spec(
+        context,
+        parameter,
+        list(type = "primitive", conditional = NULL, conditional_rule = "AND")
+      ),
+      "qCMDE"
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(spec) || !identical(spec[["status"]], "ok")) {
+    return(NULL)
+  }
+  values    <- tryCatch(.iwmde_parameter_values(context, parameter, spec),
+                        error = function(e) NULL)
+  component <- tryCatch(.iwmde_parameter_components(context, parameter, spec),
+                        error = function(e) NULL)
+  if (is.null(values) || is.null(component)) {
+    return(NULL)
+  }
+  active <- component[["active"]] & is.finite(values)
+  if (sum(active) < 2L) {
+    return(NULL)
+  }
+  row_states <- tryCatch(
+    .iwmde_row_states(context, utils::head(which(active), n_rows), parameter, spec),
+    error = function(e) NULL
+  )
+  if (is.null(row_states)) {
+    return(NULL)
+  }
+  row_states <- row_states[vapply(row_states, function(state) {
+    is.finite(state[["baseline_log_q"]]) &&
+      is.null(state[["conditioning_transform"]])
+  }, logical(1))]
+  if (length(row_states) == 0L) {
+    return(NULL)
+  }
+  grid <- unique(as.numeric(stats::quantile(
+    values[active], probs = seq(.2, .8, length.out = n_values),
+    names = FALSE, type = 8
+  )))
+  grid <- grid[is.finite(grid)]
+  if (length(grid) == 0L) {
+    return(NULL)
+  }
+  replacement <- .iwmde_replacement_spec(context, parameter, spec)
+  if (!replacement[["type"]] %in% c("linear", "scalar")) {
+    # The chart resolver rewrites a factor moderator's contrast into a unit
+    # direction on one mu coefficient and leaves every other formula
+    # coefficient on the generic evaluator. The identity below is a property of
+    # that direction, not of the resolver, so a fixture without a factor
+    # moderator drives the same direction on its own coefficient.
+    if (!identical(.iwmde_predictor_formula_parameter(context, parameter), "mu")) {
+      return(NULL)
+    }
+    replacement <- list(type = "linear", weights = stats::setNames(1, parameter))
+  }
+  candidates  <- .iwmde_build_replacement_samples(
+    context     = context,
+    parameter   = parameter,
+    values      = grid,
+    row_states  = row_states,
+    replacement = replacement
+  )
+  positions <- which(candidates[["valid"]])
+  if (length(positions) == 0L) {
+    return(NULL)
+  }
+
+  return(list(
+    values       = grid,
+    row_states   = row_states,
+    replacement  = replacement,
+    samples      = candidates[["samples"]][positions, , drop = FALSE],
+    state_index  = candidates[["state_index"]][positions],
+    active_setup = row_states[[1L]][["active_setup"]],
+    batch        = list(
+      candidates      = candidates,
+      valid_positions = positions,
+      row_states      = row_states
+    )
+  ))
+}
+
+
+# The affine route's own result plus the candidate mean it handed to the block
+# likelihood, with the state repetition either taken or refused.
+.affine_sweep_evaluate <- function(context, parameter, inputs, per_row) {
+
+  captured <- NULL
+  original <- .log_lik_estimate_sum_from_setup
+  evaluate <- function() {
+    .iwmde_joint_affine_log_likelihood(
+      context      = context,
+      parameter    = parameter,
+      values       = inputs[["values"]],
+      samples      = inputs[["samples"]],
+      active_setup = inputs[["active_setup"]],
+      batch        = inputs[["batch"]],
+      replacement  = inputs[["replacement"]]
+    )
+  }
+  record <- function(setup) {
+    captured <<- setup[["mu"]]
+    original(setup)
+  }
+  value <- if (per_row) {
+    local({
+      testthat::local_mocked_bindings(
+        .log_lik_estimate_sum_from_setup = record,
+        .iwmde_affine_state_rows = function(state_setup, state_index) NULL,
+        .package = "RoBMA"
+      )
+      evaluate()
+    })
+  } else {
+    local({
+      testthat::local_mocked_bindings(
+        .log_lik_estimate_sum_from_setup = record,
+        .package = "RoBMA"
+      )
+      evaluate()
+    })
+  }
+
+  return(list(value = value, mu = captured))
+}
+
+
+test_that("the affine joint mean sweep repeats one construction per state", {
+
+  fit_names <- .affine_sweep_fit_names()
+  skip_if(length(fit_names) == 0L, "No cached selection fixtures are available.")
+
+  served <- character()
+
+  for (fit_name in fit_names) {
+    context <- .iwmde_context(load_fit(fit_name, validate = FALSE))
+    if (!.affine_sweep_qualifies(context)) {
+      next
+    }
+    columns    <- colnames(context[["posterior_samples"]])
+    parameters <- unique(c(
+      utils::head(intersect(c("mu", "mu_intercept"), columns), 1L),
+      utils::head(setdiff(grep("^mu_", columns, value = TRUE), "mu_intercept"), 1L)
+    ))
+
+    for (parameter in parameters) {
+      inputs <- .affine_sweep_batch(context, parameter)
+      if (is.null(inputs)) {
+        next
+      }
+      label <- paste0(fit_name, " / ", parameter)
+
+      repeated <- .affine_sweep_evaluate(context, parameter, inputs, per_row = FALSE)
+      per_row  <- .affine_sweep_evaluate(context, parameter, inputs, per_row = TRUE)
+      if (is.null(repeated[["value"]]) || is.null(per_row[["value"]])) {
+        next
+      }
+
+      # The whole batch, and the location it was evaluated at.
+      expect_identical(repeated[["value"]], per_row[["value"]], info = label)
+      expect_identical(repeated[["mu"]], per_row[["mu"]],
+                       info = paste0(label, ": setup mu"))
+
+      # The constructions the repetition replaces, one by one.
+      state_index <- inputs[["state_index"]]
+      state_setup <- .iwmde_predictor_setup(
+        context, inputs[["row_states"]], inputs[["active_setup"]], "estimate"
+      )
+      row_setup <- .iwmde_log_lik_posterior_setup_active_branch(
+        context, inputs[["samples"]], inputs[["active_setup"]], unit = "estimate"
+      )
+      signed_yi <- .estimate_normal_covariance_target_location_from_setup(
+        row_setup
+      )[["y"]]
+      expect_identical(
+        BayesTools::selection_context_subset_rows(
+          .selection_joint_signed_context(state_setup, signed_yi), state_index
+        )[["omega"]],
+        .selection_joint_signed_context(row_setup, signed_yi)[["omega"]],
+        info = paste0(label, ": omega")
+      )
+
+      state_factor <- .selection_joint_random_factor_samples(state_setup)
+      row_factor   <- .selection_joint_random_factor_samples(row_setup)
+      if (!is.null(state_factor) && !is.null(row_factor)) {
+        expanded <- .selection_joint_expand_state_rows(state_factor, state_index)
+        expect_identical(expanded[["diagonal"]], row_factor[["diagonal"]],
+                         info = paste0(label, ": diagonal"))
+        expect_identical(expanded[["loadings"]], row_factor[["loadings"]],
+                         info = paste0(label, ": loadings"))
+      }
+
+      static <- .selection_joint_static(context[["data"]])
+      plan   <- static[["execution_plan"]]
+      blocks <- which(plan[["block_methods"]] %in% c("rank_one", "factor"))
+      expect_gt(length(blocks), 0L)
+      for (block_index in utils::head(blocks, 3L)) {
+        expanded <- .selection_joint_expand_state_rows(
+          .selection_joint_factor_block_samples(
+            setup = state_setup, block_index = block_index,
+            random_factor_samples = state_factor, static = static
+          ),
+          state_index
+        )
+        reference <- .selection_joint_factor_block_samples(
+          setup = row_setup, block_index = block_index,
+          random_factor_samples = row_factor,
+          static = .selection_joint_static(context[["data"]])
+        )
+        expect_identical(expanded[["residual_sd"]], reference[["residual_sd"]],
+                         info = paste0(label, ": residual_sd block ", block_index))
+        expect_identical(expanded[["loading"]], reference[["loading"]],
+                         info = paste0(label, ": loading block ", block_index))
+      }
+
+      served <- c(served, label)
+    }
+  }
+
+  skip_if(length(served) == 0L,
+          "No cached correlated selection fixture takes the affine mean sweep.")
+  cat("\naffine joint mean sweep repeated per state:\n  ",
+      paste(served, collapse = "\n  "), "\n", sep = "")
+})

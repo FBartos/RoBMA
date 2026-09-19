@@ -475,12 +475,13 @@
   changing <- update != 0
   mu[changing] <- mu[changing] + update[changing]
   if (any(!is.finite(mu))) return(NULL)
-  setup <- .iwmde_log_lik_posterior_setup_active_branch(context, samples,
-    active_setup, unit = "estimate")
+  setup <- .iwmde_affine_candidate_setup(context, baseline, samples,
+    active_setup, state_index)
   if (!identical(dim(mu), dim(setup[["mu"]]))) {
     stop("Affine joint predictors do not match the candidate rows.", call. = FALSE)
   }
   setup[["mu"]] <- mu
+  setup[["selection_static"]] <- .iwmde_selection_joint_static(context)
   if (is.environment(context[["normalizer_grid"]])) {
     setup[["normalizer_grid"]] <- list(shared = context[["normalizer_grid"]],
       rows = vapply(states, `[[`, integer(1L), "row_index"),
@@ -490,4 +491,78 @@
   result <- .log_lik_estimate_sum_from_setup(setup)
   tracked <- TRUE
   result
+}
+
+
+# The candidate rows of an affine mean sweep repeat one posterior row per state
+# in every coordinate the sweep does not write, and the dependency guard above
+# admits only mu coefficient coordinates. Every field of the likelihood setup
+# other than the location is therefore the state's own field, so the setup is
+# built once for the S states - it already is, as the cached predictor setup the
+# affine direction is read from - and its rows are repeated for the candidates.
+# The candidates keep their own posterior rows, so a consumer that reads a swept
+# coordinate still sees the candidate's value.
+.iwmde_affine_candidate_setup <- function(context, state_setup, samples,
+                                          active_setup, state_index) {
+
+  setup <- state_setup
+  for (field in c("mu", "mu_random", "tau_total", "tau_within", "tau_between")) {
+    value <- setup[[field]]
+    if (is.matrix(value)) {
+      setup[[field]] <- value[state_index, , drop = FALSE]
+    }
+  }
+  if (!is.null(setup[["rho"]])) {
+    setup[["rho"]] <- setup[["rho"]][state_index]
+  }
+  sources <- setup[["marginalized_random_source_samples"]]
+  if (is.list(sources) && length(sources) > 0L) {
+    setup[["marginalized_random_source_samples"]] <- lapply(sources, function(value) {
+      if (is.matrix(value)) value[state_index, , drop = FALSE] else value
+    })
+  }
+  setup[["S"]] <- length(state_index)
+  setup[["posterior_samples"]] <- .iwmde_likelihood_posterior_samples(
+    context      = context,
+    samples      = samples,
+    active_setup = active_setup
+  )
+  setup[["state_rows"]] <- .iwmde_affine_state_rows(state_setup, state_index)
+
+  return(setup)
+}
+
+
+# The state repetition a candidate batch carries, or NULL when the batch does
+# not repeat whole states and every construction has to be evaluated per row.
+.iwmde_affine_state_rows <- function(state_setup, state_index) {
+
+  S <- state_setup[["S"]]
+  if (!is.integer(state_index) || length(state_index) == 0L ||
+      anyNA(state_index) || !is.numeric(S) || length(S) != 1L ||
+      min(state_index) < 1L || max(state_index) > S) {
+    return(NULL)
+  }
+
+  return(list(setup = state_setup, index = state_index))
+}
+
+
+# One joint-selection static per density-line context. The migrated execution
+# plan and the caches its block constructions key by evaluated state count are
+# functions of the fitted data alone, so a density line resolves them once for
+# all of its replacement chunks instead of once per chunk.
+.iwmde_selection_joint_static <- function(context) {
+
+  cache <- context[["predictor_cache"]]
+  key   <- "selection_joint_static"
+  if (is.environment(cache) && exists(key, envir = cache, inherits = FALSE)) {
+    return(get(key, envir = cache, inherits = FALSE))
+  }
+  static <- .selection_joint_static(context[["data"]])
+  if (is.environment(cache)) {
+    assign(key, static, envir = cache)
+  }
+
+  return(static)
 }

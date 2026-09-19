@@ -1,5 +1,26 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- builds a joint selection model's density-line constructions once per
+  posterior state instead of once per candidate row. A qCMDE or IWMDE line over
+  a location coefficient of a correlated known-`V` selection model expands its
+  posterior states into one row per (state, grid value) - 365 500 rows on the
+  Assink moderator line - and rebuilt the whole likelihood setup, the signed
+  selection context, the random-effect factor states and every block's residual
+  standard deviations and loadings for each of them. The sweep writes only mu
+  coefficient coordinates, and none of those constructions reads one, so they
+  are functions of the state's posterior row alone. They are now evaluated on
+  the states and their rows are repeated for the candidates - the copy the
+  native batch entries need anyway, since they take one factor and one mean per
+  evaluated row. The candidate rows keep their own posterior draws, so a
+  consumer that does read a swept coordinate still sees the candidate's value,
+  and a batch that does not repeat whole states keeps the per-row construction.
+  Every value is unchanged: the Assink scenario fingerprints of
+  `bselmodel-posterior-mod-default`, `bselmodel-posterior-location-default`,
+  `bselmodel-mods-cond` and `bselmodel-marginal-means-plot-default` are
+  identical in three interleaved repetitions, while the moderator density takes
+  13.6-13.9 s where it took 20.8-22.0 s, its hypothesis 6.4 s where it took
+  9.2-9.3 s, and the marginal-means line 28.8-29.1 s where it took 39.4-40.5 s,
+  each with 0.1-0.4 GB less peak memory.
 - takes the batched route for `tau` on a scale-regression model. The fitted
   coordinate is the logged intercept of `log tau_k = log(alpha) + x_k' beta`, so
   `d log tau_k / d alpha` is not constant and the density pipeline had no
