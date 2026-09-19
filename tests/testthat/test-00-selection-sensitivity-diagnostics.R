@@ -311,8 +311,9 @@ test_that("sensitivity preserves full events and has constant no-context weights
     selection$phack_kind <- 0L
     selection$use_normal <- FALSE
     arguments <- list(means = matrix(c(0, 0), 1L),
-      covariance = array(diag(2), c(1L, 2L, 2L)),
-      context_covariance = array(tcrossprod(c(1, .5)), c(1L, 2L, 2L)),
+      covariance = .as_block_covariance(array(diag(2), c(1L, 2L, 2L))),
+      context_covariance = .as_block_covariance(
+        array(tcrossprod(c(1, .5)), c(1L, 2L, 2L))),
       selection_sei = c(1, 1), selection_context = selection,
       normalization_units = if (rule == "product") list(1L, 2L) else list(1:2),
       row_blocks = list(1:2), execution_plan = plan, latent_samples = 5L)
@@ -322,7 +323,7 @@ test_that("sensitivity preserves full events and has constant no-context weights
       1 - .8 * apply(below, 1L, prod)
     expect_equal(out$total_variation_median, .5 * mean(abs(weights / mean(weights) - 1)), tolerance = 1e-12)
     expect_equal(out$ess_fraction_median, mean(weights)^2 / mean(weights^2), tolerance = 1e-12)
-    arguments$context_covariance[] <- 0
+    arguments$context_covariance <- .block_covariance_zero(1L, 2L)
     constant <- do.call(.selection_sensitivity_run, arguments)
     expect_identical(constant$total_variation_median, 0)
     expect_identical(constant$ess_fraction_median, 1)

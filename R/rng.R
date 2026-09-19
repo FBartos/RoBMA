@@ -128,11 +128,17 @@
   K <- ncol(mu_samples)
 
   fixed <- is.matrix(covariance_samples)
-  if ((fixed && !identical(dim(covariance_samples), c(K, K))) ||
-      (!fixed && (length(dim(covariance_samples)) != 3L ||
-      dim(covariance_samples)[1L] != S ||
-      dim(covariance_samples)[2L] != K ||
-      dim(covariance_samples)[3L] != K))) {
+  blocked <- .is_block_covariance(covariance_samples)
+  dimension <- if (blocked) {
+    .block_covariance_dim(covariance_samples)
+  } else {
+    dim(covariance_samples)
+  }
+  if ((fixed && !identical(dimension, c(K, K))) ||
+      (!fixed && (length(dimension) != 3L ||
+      dimension[1L] != S ||
+      dimension[2L] != K ||
+      dimension[3L] != K))) {
     stop("Known-V response covariance samples have inconsistent dimensions.",
          call. = FALSE)
   }
@@ -153,11 +159,13 @@
 
   response_samples <- mu_samples
   for (s in seq_len(S)) {
-    covariance <- matrix(
-      covariance_samples[s, , ],
-      nrow = K,
-      ncol = K
-    )
+    # The assembled K x K matrix, not the blocks: this factorization of the
+    # whole matrix and of its blocks differ in the last bits.
+    covariance <- if (blocked) {
+      .block_covariance_dense(covariance_samples, s)
+    } else {
+      matrix(covariance_samples[s, , ], nrow = K, ncol = K)
+    }
     factor <- sampling_factor(covariance)
 
     response_samples[s, ] <- mu_samples[s, ] +
@@ -240,8 +248,17 @@
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
-  if (!identical(dim(covariance_samples), c(S, K, K)) ||
-      any(!is.finite(covariance_samples))) {
+  # Either calling form: a dense draw x row x row array, or the block
+  # covariance the joint selection parts carry.
+  blocked <- .is_block_covariance(covariance_samples)
+  if (blocked) {
+    if (!identical(.block_covariance_dim(covariance_samples), c(S, K, K)) ||
+        !.block_covariance_all_finite(covariance_samples)) {
+      stop("Selected response covariance samples have invalid dimensions.",
+           call. = FALSE)
+    }
+  } else if (!identical(dim(covariance_samples), c(S, K, K)) ||
+             any(!is.finite(covariance_samples))) {
     stop("Selected response covariance samples have invalid dimensions.",
          call. = FALSE)
   }
@@ -280,7 +297,13 @@
   result <- .Call(
     "RoBMA_selnorm_mnorm_step_rng_batch",
     .native_numeric_matrix(mu_samples),
-    covariance_samples,
+    # The per-block calling form: the kernel reads only the blocks, so it
+    # neither receives nor scans the dense cube's cross-block zeros.
+    if (blocked) {
+      .block_covariance_native_parts(covariance_samples)
+    } else {
+      covariance_samples
+    },
     .native_numeric_vector(sei),
     .native_numeric_matrix(omega),
     .native_numeric_vector(z_lower),

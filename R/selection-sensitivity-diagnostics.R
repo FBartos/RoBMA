@@ -328,8 +328,8 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
   S <- nrow(means)
   K <- ncol(means)
   B <- length(row_blocks)
-  if (!identical(dim(covariance), c(S, K, K)) ||
-      !identical(dim(context_covariance), c(S, K, K)) ||
+  if (!identical(.block_covariance_dim(covariance), c(S, K, K)) ||
+      !identical(.block_covariance_dim(context_covariance), c(S, K, K)) ||
       length(selection_sei) != K || !B ||
       !identical(sort(as.integer(unlist(row_blocks, use.names = FALSE))), seq_len(K)) ||
       !identical(sort(as.integer(unlist(normalization_units, use.names = FALSE))), seq_len(K))) {
@@ -340,15 +340,18 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
   metrics <- stats::setNames(lapply(metric_names, function(x) matrix(NA_real_, S, B)), metric_names)
   integration_error <- matrix(0, S, B)
   integration_quadrature_error <- matrix(0, S, B)
+  zero_context <- .block_covariance_zero_draws(context_covariance)
   for (draw in seq_len(S)) {
     if (isTRUE(selection_context[["use_normal"]][[draw]]) ||
-        all(context_covariance[draw, , ] == 0)) {
+        zero_context[[draw]]) {
       constant <- .selection_sensitivity_weight_metrics(rep(0, latent_samples))
       for (metric in metric_names) metrics[[metric]][draw, ] <- constant[[metric]]
       next
     }
+    # The assembled K x K matrix, not the blocks: this spectral factorization
+    # of the whole matrix and of its blocks differ in the last bits.
     latent <- .selection_sensitivity_covariance_draws(
-      matrix(context_covariance[draw, , ], K, K), latent_samples
+      .block_covariance_dense(context_covariance, draw), latent_samples
     )
     conditional_means <- sweep(latent, 2L, means[draw, ], "+")
     draw_context <- BayesTools::selection_context_subset_rows(
@@ -360,11 +363,11 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
     for (event in seq_along(normalization_units)) {
       observations <- normalization_units[[event]]
       n <- length(observations)
-      sigma <- matrix(covariance[draw, observations, observations], n, n)
+      sigma <- .block_covariance_sub(covariance, draw, observations)
       rank_one <- if (!is.null(random_covariance)) {
         .selection_joint_declared_rank_one_loading(
           execution_plan[["sampling_factor_blocks"]][[event]],
-          matrix(random_covariance[draw, observations, observations], n, n))
+          .block_covariance_sub(random_covariance, draw, observations))
       } else NULL
       lower <- matrix(sigma[lower.tri(sigma, diag = TRUE)], latent_samples,
         n * (n + 1L) / 2L, byrow = TRUE)

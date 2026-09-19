@@ -341,11 +341,8 @@
     fixed_mu = predictive[["mu"]], within = scales[["tau_within"]],
     between = scales[["tau_between"]], draw_context = FALSE
   )
-  diagonal_samples <- function(covariance) {
-    matrix(vapply(seq_len(K), function(row) covariance[, row, row], numeric(S)), S, K)
-  }
-  variance <- diagonal_samples(parts[["covariance"]])
-  context_variance <- diagonal_samples(parts[["context_covariance"]])
+  variance <- .block_covariance_diag_matrix(parts[["covariance"]])
+  context_variance <- .block_covariance_diag_matrix(parts[["context_covariance"]])
   normal <- function(mean) {
     sd <- sqrt(variance + context_variance)
     if (!probability) return(.zplot_normal_density_matrix(z, mean, sd, predictive[["sei"]]))
@@ -357,13 +354,8 @@
   result <- list(fitted = NULL, extrapolated = reference, weights = rep(1, S),
     EDR = if (probability) reference[, 1L] else NULL)
 
-  off_diagonal <- row(matrix(0, K, K)) != col(matrix(0, K, K))
-  diagonal_kernel <- vapply(seq_len(S), function(draw) {
-    all(matrix(parts[["covariance"]][draw, , ], K, K)[off_diagonal] == 0)
-  }, logical(1))
-  zero_context <- vapply(seq_len(S), function(draw) {
-    all(parts[["context_covariance"]][draw, , ] == 0)
-  }, logical(1))
+  diagonal_kernel <- .block_covariance_diagonal_draws(parts[["covariance"]])
+  zero_context <- .block_covariance_zero_draws(parts[["context_covariance"]])
   rules <- rep_len(selection[["vector_rule"]], S)
   if (!vector_target && all(rules == 0L) && all(diagonal_kernel)) {
     return(.zplot_latent_mixture(
@@ -381,9 +373,7 @@
   active <- which(!selection[["use_normal"]])
   # With no refreshed source, positive selection weights cancel at each
   # retained realization. Its marginal projection is the ordinary Gaussian.
-  deterministic <- vapply(seq_len(S), function(draw) {
-    all(parts[["covariance"]][draw, , ] == 0)
-  }, logical(1))
+  deterministic <- .block_covariance_zero_draws(parts[["covariance"]])
   active <- setdiff(active, which(deterministic))
   scalar <- active[rules[active] == 0L & diagonal_kernel[active] &
     rowSums(variance[active, , drop = FALSE] <= 0) == 0L]
@@ -436,14 +426,16 @@
     }
     result[["fitted"]][active, ] <- .zplot_full_event_context_mixture(
       z = z, mean = parts[["means"]][active, , drop = FALSE],
-      covariance = parts[["covariance"]][active, , , drop = FALSE],
-      context_covariance = parts[["context_covariance"]][active, , , drop = FALSE],
+      covariance = .block_covariance_draws(parts[["covariance"]], active),
+      context_covariance = .block_covariance_draws(
+        parts[["context_covariance"]], active),
       sei = predictive[["sei"]],
       selection = BayesTools::selection_context_subset_rows(selection, active),
       probability = probability, control = control, execution_plan = execution_plan,
       block_factors = block_factors,
       sampling_factor_blocks = execution_plan[["sampling_factor_blocks"]],
-      random_covariance = parts[["random_covariance"]][active, , , drop = FALSE],
+      random_covariance = .block_covariance_draws(
+        parts[["random_covariance"]], active),
       publication_groups = .data_selection_model(data)[["groups"]][["group_index"]]
     )
   }
@@ -561,13 +553,13 @@
     observations <- execution_plan[["row_blocks"]][[block]]
     k <- length(observations)
     for (draw in seq_len(S)) {
-      sigma <- matrix(covariance[draw, observations, observations], k, k)
-      latent <- matrix(context_covariance[draw, observations, observations], k, k)
+      sigma <- .block_covariance_sub(covariance, draw, observations)
+      latent <- .block_covariance_sub(context_covariance, draw, observations)
       context <- BayesTools::selection_context_subset_observations(
         BayesTools::selection_context_subset_rows(selection, draw), observations)
       rank_one <- if (!is.null(random_covariance)) {
         .selection_joint_declared_rank_one_loading(sampling_factor_blocks[[block]],
-          matrix(random_covariance[draw, observations, observations], k, k))
+          .block_covariance_sub(random_covariance, draw, observations))
       } else NULL
       factors <- block_factors[[block]]
       if (!is.null(factors)) {

@@ -90,12 +90,14 @@ test_that("fresh retained contexts are integrated outside best normalization", {
   set.seed(167)
   before <- .Random.seed
   got <- .zplot_full_event_context_mixture(z, matrix(mean, 1L),
-    array(diag(sd^2), c(1L, 2L, 2L)),
-    array(tcrossprod(loading), c(1L, 2L, 2L)), sei, context, FALSE, control, plan)
+    .as_block_covariance(array(diag(sd^2), c(1L, 2L, 2L))),
+    .as_block_covariance(array(tcrossprod(loading), c(1L, 2L, 2L))),
+    sei, context, FALSE, control, plan)
   expect_equal(as.vector(got), expected, tolerance = .001)
   expect_identical(.Random.seed, before)
   singleton <- .zplot_full_event_context_mixture(.3, matrix(mean[1L]),
-    array(sd[1L]^2, c(1L, 1L, 1L)), array(0, c(1L, 1L, 1L)),
+    .as_block_covariance(array(sd[1L]^2, c(1L, 1L, 1L))),
+    .block_covariance_zero(1L, 1L),
     sei[1L], context, FALSE, control, c(control, list(row_blocks = list(1L))))
   expect_identical(dim(singleton), c(1L, 1L))
 })
@@ -173,17 +175,19 @@ test_that("declared rank-one sampling events retain their scalar projections", {
   context <- .zplot_event_context("best")
   z <- c(-2, -.3, .4, 2)
   actual <- .zplot_full_event_context_mixture(z, matrix(c(0, 0), 1L),
-    array(tcrossprod(sampling$loading), c(1L, 2L, 2L)),
-    array(0, c(1L, 2L, 2L)), c(1, 2), context, FALSE, control, plan,
-    sampling_factor_blocks = list(sampling), random_covariance = array(0, c(1L, 2L, 2L)))
+    .as_block_covariance(array(tcrossprod(sampling$loading), c(1L, 2L, 2L))),
+    .block_covariance_zero(1L, 2L), c(1, 2), context, FALSE, control, plan,
+    sampling_factor_blocks = list(sampling),
+    random_covariance = .block_covariance_zero(1L, 2L))
   # Y=(T,-2T), so one p-value is always in the preferred halfspace.
   expect_equal(as.vector(actual), stats::dnorm(z), tolerance = 1e-12)
   random_source <- .zplot_full_event_context_mixture(z, matrix(c(0, 0), 1L),
-    array(tcrossprod(sampling$loading), c(1L, 2L, 2L)),
-    array(0, c(1L, 2L, 2L)), c(1, 2), context, FALSE, control, plan,
+    .as_block_covariance(array(tcrossprod(sampling$loading), c(1L, 2L, 2L))),
+    .block_covariance_zero(1L, 2L), c(1, 2), context, FALSE, control, plan,
     block_factors = list(list(rank = 1L, residual_sd = matrix(0, 1L, 2L),
       loading = matrix(c(1, -2), 1L))),
-    random_covariance = array(tcrossprod(sampling$loading), c(1L, 2L, 2L)))
+    random_covariance = .as_block_covariance(
+      array(tcrossprod(sampling$loading), c(1L, 2L, 2L))))
   expect_equal(random_source, actual, tolerance = 1e-12)
   expect_error(.zplot_full_event_projection(.3, matrix(c(0, 0), 1L), NULL,
     c(1, 2), context, FALSE, plan, rank_one_loading = matrix(c(0, 0), 1L)),
@@ -304,7 +308,8 @@ test_that("rank-deficient factor projections retain scalar Gaussian densities", 
   factors <- list(list(rank = 1L, diagonal = matrix(0, 1L, 3L),
     residual_sd = matrix(0, 1L, 3L), loading = matrix(loading, 1L)))
   actual <- .zplot_full_event_context_mixture(z, mean,
-    array(tcrossprod(loading), c(1L, 3L, 3L)), array(latent, c(1L, 3L, 3L)),
+    .as_block_covariance(array(tcrossprod(loading), c(1L, 3L, 3L))),
+    .as_block_covariance(array(latent, c(1L, 3L, 3L))),
     rep(1, 3L), context, FALSE, control, plan, block_factors = factors)
   expected <- vapply(z, function(value) {
     mean(stats::dnorm(value, as.numeric(mean), sqrt(diag(latent) + rowSums(loading^2))))

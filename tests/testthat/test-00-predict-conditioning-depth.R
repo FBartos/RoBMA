@@ -53,7 +53,8 @@ test_that("selection partitions specialized estimate and cluster sources indepen
       expect_equal(unname(parts$latent_means), unname(expected_mean), tolerance = 1e-15)
       expected_posterior <- expected_mean
       for (s in 1:2) {
-        expect_equal(parts$random_covariance[s, , ], integrated, tolerance = 1e-15)
+        expect_equal(.block_covariance_dense(parts$random_covariance, s),
+                     integrated, tolerance = 1e-15)
         expected_posterior[s, ] <- expected_mean[s, ] + integrated %*%
           solve(integrated + diag(dat$vi), dat$yi - expected_mean[s, ])
       }
@@ -77,7 +78,10 @@ test_that("selection partitions specialized estimate and cluster sources indepen
         fixed, within, between, draw_context = FALSE)
       expect_identical(.Random.seed, before)
       expect_equal(mixture$means, fixed, tolerance = 0)
-      for (s in 1:2) expect_equal(mixture$context_covariance[s, , ], retained, tolerance = 1e-15)
+      for (s in 1:2) {
+        expect_equal(.block_covariance_dense(mixture$context_covariance, s),
+                     retained, tolerance = 1e-15)
+      }
     }
   }
   # A new estimate within a fitted cluster draws fresh estimate context, never fitted theta.
@@ -93,7 +97,7 @@ test_that("selection partitions specialized estimate and cluster sources indepen
   expect_equal(unname(response$latent_means), unname(cluster_mean + fresh_estimate), tolerance = 1e-15)
   # The normal outcome kernel uses the fitted SE; its squared value can differ
   # from the original vi literal by a rounding bit after sqrt(vi).
-  for (s in 1:2) expect_equal(response$covariance[s, , ],
+  for (s in 1:2) expect_equal(.block_covariance_dense(response$covariance, s),
     diag(object$data$outcome$sei^2), tolerance = 0)
 })
 

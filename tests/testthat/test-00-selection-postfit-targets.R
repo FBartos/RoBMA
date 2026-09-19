@@ -54,8 +54,12 @@ test_that("fixed-effect mv selection has no estimate variance source", {
     expect_false(.selection_retains_estimate(object$data))
     expect_false(.selection_integrates_estimate(object$data))
     expect_identical(parts$latent_means, fixed)
-    expect_identical(parts$random_covariance, array(0, c(2L, 2L, 2L)))
-    for (s in 1:2) expect_equal(parts$covariance[s, , ], diag(dat$vi), tolerance = 0)
+    expect_true(.block_covariance_is_zero(parts$random_covariance))
+    expect_identical(.block_covariance_dim(parts$random_covariance), c(2L, 2L, 2L))
+    for (s in 1:2) {
+      expect_equal(.block_covariance_dense(parts$covariance, s), diag(dat$vi),
+                   tolerance = 0)
+    }
   }
 })
 
@@ -204,11 +208,14 @@ test_that("integrated true effects use the Gaussian posterior conditional on ret
     sampling_covariance <- R + if (retain_sampling) 0 else sampling_context
     latent_mean <- fixed + if (retain_random) h_random else 0
     mean <- latent_mean + if (retain_sampling) h_sampling else 0
+    dense_block <- function(matrix) {
+      .block_covariance(list(1:2), list(array(matrix, c(1L, 2L, 2L))), 1L, 2L)
+    }
     parts <- list(
       means = matrix(mean, 1L), latent_means = matrix(latent_mean, 1L),
-      random_covariance = array(random_covariance, c(1L, 2L, 2L)),
-      sampling_covariance = array(sampling_covariance, c(1L, 2L, 2L)),
-      covariance = array(random_covariance + sampling_covariance, c(1L, 2L, 2L))
+      random_covariance = dense_block(random_covariance),
+      sampling_covariance = dense_block(sampling_covariance),
+      covariance = dense_block(random_covariance + sampling_covariance)
     )
     expected <- latent_mean + as.vector(random_covariance %*%
       solve(random_covariance + sampling_covariance, y - mean))
@@ -219,18 +226,21 @@ test_that("integrated true effects use the Gaussian posterior conditional on ret
     expect_identical(.Random.seed, before)
   }
   singleton <- list(means = matrix(.2), latent_means = matrix(.3),
-    random_covariance = array(.4, c(1L, 1L, 1L)),
-    sampling_covariance = array(.6, c(1L, 1L, 1L)),
-    covariance = array(1, c(1L, 1L, 1L)))
+    random_covariance = .block_covariance_from_diagonal(matrix(.4)),
+    sampling_covariance = .block_covariance_from_diagonal(matrix(.6)),
+    covariance = .block_covariance_from_diagonal(matrix(1)))
   expect_identical(dim(.predict_joint_selection_source_posterior(singleton, .5, FALSE)), c(1L, 1L))
   expect_equal(as.numeric(.predict_joint_selection_source_posterior(singleton, .5, FALSE)), .42)
   # A declared singular sampling law still has a deterministic true effect
   # when no true-effect source is integrated.
+  singular_block <- function(values) {
+    .block_covariance(list(1:2), list(array(values, c(1L, 2L, 2L))), 1L, 2L)
+  }
   singular <- list(means = matrix(c(.2, .4), 1L),
     latent_means = matrix(c(.1, .3), 1L),
-    random_covariance = array(0, c(1L, 2L, 2L)),
-    sampling_covariance = array(c(1, -2, -2, 4), c(1L, 2L, 2L)),
-    covariance = array(c(1, -2, -2, 4), c(1L, 2L, 2L)))
+    random_covariance = singular_block(0),
+    sampling_covariance = singular_block(c(1, -2, -2, 4)),
+    covariance = singular_block(c(1, -2, -2, 4)))
   set.seed(126)
   before <- .Random.seed
   expect_identical(.predict_joint_selection_source_posterior(
@@ -245,13 +255,11 @@ test_that("declared singleton source reconstruction preserves Gaussian draws and
 
     S <- nrow(q)
     K <- ncol(q)
-    Q <- D <- array(0, c(S, K, K))
-    for (k in seq_len(K)) {
-      Q[, k, k] <- q[, k]
-      D[, k, k] <- d[, k]
-    }
+    Q <- .block_covariance_from_diagonal(q)
+    D <- .block_covariance_from_diagonal(d)
     list(means = matrix(.2, S, K), latent_means = matrix(.3, S, K),
-         random_covariance = Q, sampling_covariance = D, covariance = Q + D,
+         random_covariance = Q, sampling_covariance = D,
+         covariance = .block_covariance_add(Q, D),
          dependency_blocks = blocks)
   }
   original_sampler <- .outcome_rng.norm_known_v_covariance
@@ -314,7 +322,7 @@ test_that("declared singleton source reconstruction preserves Gaussian draws and
   expect_identical(.Random.seed, mixed_rng)
 
   invalid <- scalar
-  invalid$covariance[] <- 0
+  invalid$covariance <- .block_covariance_from_diagonal(matrix(0))
   error <- tryCatch(.predict_joint_selection_source_posterior(invalid, .5, FALSE),
                     error = identity)
   expect_identical(conditionMessage(error),
@@ -341,9 +349,9 @@ test_that("diagonal source reconstruction preserves the full conditional Gaussia
   parts <- list(
     means = matrix(mean, S, 3L, byrow = TRUE),
     latent_means = matrix(latent, S, 3L, byrow = TRUE),
-    random_covariance = array(rep(Q, each = S), c(S, 3L, 3L)),
-    sampling_covariance = array(rep(V, each = S), c(S, 3L, 3L)),
-    covariance = array(rep(Q + V, each = S), c(S, 3L, 3L)),
+    random_covariance = .block_covariance_from_matrix(Q, S, list(1:3)),
+    sampling_covariance = .block_covariance_from_matrix(V, S, list(1:3)),
+    covariance = .block_covariance_from_matrix(Q + V, S, list(1:3)),
     random_diagonal = matrix(q, S, 3L, byrow = TRUE),
     sampling_covariance_matrix = V,
     dependency_blocks = list(1:3)
@@ -427,16 +435,20 @@ test_that("same-design marginal selection retains certified integrated covarianc
   for (field in c("means", "latent_means")) {
     expect_equal(fast[[field]], reference[[field]], tolerance = 1e-12)
   }
-  # The dense BayesTools backend labels its covariance axes; the diagonal
-  # calculation uses internal positional arrays. Compare their values and
-  # dimensions while checking the backend labels and dependency order explicitly.
+  # Both routes carry block covariances over positional row indices; the dense
+  # BayesTools backend's own axis labels do not survive the split into blocks.
+  # Compare their dense per-draw values, their dimensions and the partition
+  # each of them declares.
   for (field in c("random_covariance", "covariance")) {
-    expect_identical(dim(fast[[field]]), c(2L, 3L, 3L))
-    expect_identical(dim(reference[[field]]), dim(fast[[field]]))
-    expect_identical(dimnames(reference[[field]]),
-      list(draw = NULL, row = rownames(dat), column = rownames(dat)))
-    expect_equal(as.numeric(fast[[field]]), as.numeric(reference[[field]]),
-                 tolerance = 1e-12)
+    expect_identical(.block_covariance_dim(fast[[field]]), c(2L, 3L, 3L))
+    expect_identical(.block_covariance_dim(reference[[field]]),
+                     .block_covariance_dim(fast[[field]]))
+    expect_identical(sort(unlist(reference[[field]][["blocks"]])), 1:3)
+    for (draw in 1:2) {
+      expect_equal(.block_covariance_dense(fast[[field]], draw),
+                   .block_covariance_dense(reference[[field]], draw),
+                   tolerance = 1e-12)
+    }
   }
   expect_identical(fast$dependency_blocks, reference$dependency_blocks)
   # New estimate identities can repeat, producing non-diagonal integrated
@@ -453,12 +465,15 @@ test_that("same-design marginal selection retains certified integrated covarianc
   expect_identical(level_policy, "sample")
   expect_null(changed$random_diagonal)
   expected <- .4^2 * matrix(c(1, 1, 0, 1, 1, 0, 0, 0, 1), 3L)
-  expect_identical(dim(changed$random_covariance), c(2L, 3L, 3L))
-  expect_identical(dimnames(changed$random_covariance),
-    list(draw = NULL, row = rownames(new_rows), column = rownames(new_rows)))
+  expect_identical(.block_covariance_dim(changed$random_covariance), c(2L, 3L, 3L))
+  # The repeated new estimate identity is one block; the third row is its own.
+  expect_identical(
+    lapply(changed$random_covariance[["blocks"]], as.integer),
+    list(1:2, 3L)
+  )
   for (draw in 1:2) {
-    expect_equal(as.numeric(changed$random_covariance[draw, , ]), as.numeric(expected),
-                 tolerance = 1e-12)
+    expect_equal(.block_covariance_dense(changed$random_covariance, draw),
+                 expected, tolerance = 1e-12)
   }
 })
 

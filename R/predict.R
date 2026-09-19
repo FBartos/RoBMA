@@ -929,21 +929,32 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
         cluster_mu <- fixed_mu + parts[["random_mean"]] - parts[["estimate_mean"]]
       } else {
         cluster_parts <- parts
-        cluster_covariance <- array(0, dim(parts[["random_covariance"]]))
-        between <- matrix(tau_between_samples, nrow(posterior_samples), K)
-        within <- matrix(tau_within_samples, nrow(posterior_samples), K)
-        for (rows in split(seq_len(K), outcome_data[["cluster"]])) {
-          for (row in rows) for (column in rows) {
-            cluster_covariance[, row, column] <- between[, row] * between[, column]
-          }
-        }
-        cluster_parts[["random_covariance"]] <- cluster_covariance
+        S_draws <- nrow(posterior_samples)
+        between <- matrix(tau_between_samples, S_draws, K)
+        within <- matrix(tau_within_samples, S_draws, K)
+        cluster_blocks <- unname(lapply(
+          split(seq_len(K), outcome_data[["cluster"]]), as.integer
+        ))
+        cluster_parts[["random_covariance"]] <- .block_covariance(
+          blocks = cluster_blocks,
+          values = lapply(cluster_blocks, function(rows) {
+            n     <- length(rows)
+            value <- array(0, dim = c(S_draws, n, n))
+            for (column in seq_len(n)) {
+              for (row in seq_len(n)) {
+                value[, row, column] <-
+                  between[, rows[[row]]] * between[, rows[[column]]]
+              }
+            }
+            value
+          }),
+          S = S_draws, K = K
+        )
         cluster_parts[["latent_means"]] <- fixed_mu
         if (.selection_integrates_estimate(object[["data"]])) {
-          for (row in seq_len(K)) {
-            cluster_parts[["sampling_covariance"]][, row, row] <-
-              cluster_parts[["sampling_covariance"]][, row, row] + within[, row]^2
-          }
+          cluster_parts[["sampling_covariance"]] <- .block_covariance_add_diagonal(
+            cluster_parts[["sampling_covariance"]], within^2
+          )
         }
         cluster_mu <- .predict_joint_selection_source_posterior(
           cluster_parts, outcome_data[["yi"]],
@@ -1520,8 +1531,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
         estimate_mean <- estimate_mean + sources[[source[["name"]]]]
       }
     }
-    covariance <- array(0, c(S, K, K))
-    singleton_blocks <- lapply(seq_len(K), identity)
+    singleton_blocks <- .block_covariance_singleton_blocks(K)
+    covariance <- .block_covariance_zero(S, K, singleton_blocks)
     return(list(
       means = latent_mean + state[["e"]] + bias_offset,
       latent_means = latent_mean, random_mean = latent_mean - fixed_mu,
@@ -1535,10 +1546,32 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   }
   random_mean <- zero
   estimate_mean <- zero
-  random_covariance <- array(0, c(S, K, K))
+  # Every covariance below is block-diagonal by construction and no consumer
+  # reads a cross-block element, so they are carried as block covariances
+  # instead of dense S x K x K cubes.
+  random_covariance <- .block_covariance_zero(S, K)
   random_diagonal <- NULL
-  context_covariance <- if (draw_context) NULL else array(0, c(S, K, K))
+  context_covariance <- if (draw_context) NULL else .block_covariance_zero(S, K)
   random_metadata <- list()
+  cluster_covariance_blocks <- function(between) {
+    blocks <- unname(lapply(
+      split(seq_len(K), data[["outcome"]][["cluster"]]), as.integer
+    ))
+    .block_covariance(
+      blocks = blocks,
+      values = lapply(blocks, function(rows) {
+        n     <- length(rows)
+        value <- array(0, dim = c(S, n, n))
+        for (column in seq_len(n)) {
+          for (row in seq_len(n)) {
+            value[, row, column] <- between[, rows[[row]]] * between[, rows[[column]]]
+          }
+        }
+        value
+      }),
+      S = S, K = K
+    )
+  }
   if (.is_data_random(data)) {
     sources <- model[["sources"]][["random"]]
     retained <- vapply(sources, function(source) isTRUE(source[["retained"]]), logical(1L))
@@ -1557,7 +1590,13 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
           blocks = block_names[retained], data = data,
           new_levels = if (fitted_context) NULL else "sample"
         )
-        context_covariance <- context_result[["samples"]]
+        context_covariance <- .block_covariance_from_array(
+          context_result[["samples"]],
+          .known_v_block_indices(BayesTools::random_effects_dependency_matrix(
+            random_effects = context_result[["metadata"]][["blocks"]],
+            n_rows = K, blocks = block_names[retained]
+          ) * 1)
+        )
         random_metadata <- context_result[["metadata"]][["blocks"]]
       }
     }
@@ -1574,15 +1613,21 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       } else NULL
       if (!is.null(factors) && all(factors[["ranks"]] == 0L)) {
         random_diagonal <- factors[["diagonal"]]
-        for (row in seq_len(K)) random_covariance[, row, row] <- random_diagonal[, row]
+        random_covariance <- .block_covariance_from_diagonal(random_diagonal)
       } else {
         random_result <- .brma_mv_random_effects_marginal_vcov(
           object = object, posterior_samples = posterior_samples,
           blocks = block_names[!retained], data = data,
           new_levels = if (fitted_context) NULL else "sample"
         )
-        random_covariance <- random_result[["samples"]]
         random_metadata <- c(random_metadata, random_result[["metadata"]][["blocks"]])
+        random_covariance <- .block_covariance_from_array(
+          random_result[["samples"]],
+          .known_v_block_indices(BayesTools::random_effects_dependency_matrix(
+            random_effects = random_metadata, n_rows = K,
+            blocks = block_names[!retained]
+          ) * 1)
+        )
       }
     }
   } else {
@@ -1594,10 +1639,10 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
           same_data = fitted_context, K = K, posterior_samples = posterior_samples
         )
       } else {
-        for (row in seq_len(K)) context_covariance[, row, row] <- within[, row]^2
+        context_covariance <- .block_covariance_from_diagonal(within^2)
       }
     } else if (.selection_integrates_estimate(object[["data"]])) {
-      for (row in seq_len(K)) random_covariance[, row, row] <- within[, row]^2
+      random_covariance <- .block_covariance_from_diagonal(within^2)
     }
     if (.is_data_multilevel(data)) {
       between <- matrix(between, S, K)
@@ -1610,20 +1655,14 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
             posterior_samples = posterior_samples
           )
         } else {
-          for (rows in split(seq_len(K), data[["outcome"]][["cluster"]])) {
-            for (row in rows) for (column in rows) {
-              context_covariance[, row, column] <- context_covariance[, row, column] +
-                between[, row] * between[, column]
-            }
-          }
+          context_covariance <- .block_covariance_add(
+            context_covariance, cluster_covariance_blocks(between)
+          )
         }
       } else {
-        for (rows in split(seq_len(K), data[["outcome"]][["cluster"]])) {
-          for (row in rows) for (column in rows) {
-            random_covariance[, row, column] <- random_covariance[, row, column] +
-              between[, row] * between[, column]
-          }
-        }
+        random_covariance <- .block_covariance_add(
+          random_covariance, cluster_covariance_blocks(between)
+        )
       }
     }
   }
@@ -1638,8 +1677,10 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   if (retained_sampling) {
     sampling_covariance <- matrix(0, K, K)
     if (!draw_context) {
-      context_covariance <- context_covariance +
-        array(rep(full_sampling_covariance, each = S), c(S, K, K))
+      context_covariance <- .block_covariance_add(
+        context_covariance,
+        .block_covariance_from_matrix(full_sampling_covariance, S)
+      )
     } else if (is.null(known_V)) {
       sampling_mean <- sweep(matrix(stats::rnorm(S * K), S, K),
         2L, data[["outcome"]][["sei"]], `*`)
@@ -1677,7 +1718,10 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     }
   }
   sampling_covariance_matrix <- sampling_covariance
-  sampling_covariance <- array(rep(sampling_covariance, each = S), c(S, K, K))
+  # The sampling covariance does not vary over draws; it is stored once.
+  sampling_covariance <- .block_covariance_from_matrix(
+    sampling_covariance_matrix, S, sampling_dependency_blocks
+  )
   list(
     means               = fixed_mu + random_mean + sampling_mean + bias_offset,
     latent_means        = fixed_mu + random_mean,
@@ -1688,7 +1732,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     random_diagonal     = random_diagonal,
     sampling_covariance = sampling_covariance,
     sampling_covariance_matrix = sampling_covariance_matrix,
-    covariance          = random_covariance + sampling_covariance,
+    covariance          = .block_covariance_add(random_covariance, sampling_covariance),
     context_covariance  = context_covariance,
     sampling_dependency_blocks = sampling_dependency_blocks,
     dependency_blocks   = .known_v_block_indices(adjacency * 1),
@@ -1710,12 +1754,12 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   if (!identical(dim(y), c(S, K))) {
     stop("Selected latent outcomes must match their Gaussian means.", call. = FALSE)
   }
-  if (all(parts[["random_covariance"]] == 0)) {
+  if (.block_covariance_is_zero(parts[["random_covariance"]])) {
     return(parts[["latent_means"]])
   }
   # Once the complete sampling error is retained, the total true effect is
   # determined by the observed candidate, even for a singular random source.
-  if (all(parts[["sampling_covariance"]] == 0)) {
+  if (.block_covariance_is_zero(parts[["sampling_covariance"]])) {
     return(parts[["latent_means"]] + y - parts[["means"]])
   }
   blocks <- parts[["dependency_blocks"]]
@@ -1750,12 +1794,10 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     }
     source_names <- c("random_covariance", "sampling_covariance", "covariance")
     if (all(lengths(blocks) == 1L) && all(vapply(source_names, function(source) {
-      identical(dim(parts[[source]]), c(S, K, K))
+      identical(.block_covariance_dim(parts[[source]]), c(S, K, K))
     }, logical(1L)))) {
       variances <- lapply(source_names, function(source) {
-        matrix(vapply(seq_len(K), function(k) {
-          parts[[source]][, k, k]
-        }, numeric(S)), S, K)
+        .block_covariance_diag_matrix(parts[[source]])
       })
       random_variance   <- variances[[1L]]
       sampling_variance <- variances[[2L]]
@@ -1795,16 +1837,19 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     sampling <- .outcome_rng.norm_known_v_covariance(sampling, sampling_covariance)
   }
   residual <- y - parts[["means"]] - random - sampling
+  # The assembled K x K matrix, not the blocks: a blocked LAPACK factorization
+  # of the whole matrix and of its blocks differ in the last bits.
+  zero_random <- .block_covariance_zero_draws(parts[["random_covariance"]])
   for (s in seq_len(S)) {
-    if (all(parts[["random_covariance"]][s, , ] == 0)) next
-    covariance <- matrix(parts[["covariance"]][s, , ], K, K)
+    if (zero_random[[s]]) next
+    covariance <- .block_covariance_dense(parts[["covariance"]], s)
     factor <- tryCatch(chol(covariance), error = function(e) NULL)
     if (is.null(factor)) {
       stop("Selected latent posterior covariance must be positive definite.", call. = FALSE)
     }
     precision_residual <- backsolve(factor, forwardsolve(t(factor), residual[s, ]))
     random[s, ] <- random[s, ] +
-      as.vector(matrix(parts[["random_covariance"]][s, , ], K, K) %*% precision_residual)
+      .block_covariance_matvec(parts[["random_covariance"]], s, precision_residual)
   }
   parts[["latent_means"]] + random
 }
@@ -1856,18 +1901,21 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     truth <- .predict_brma_estimate_draws(context, location_state, scale_state)
     parts[["latent_means"]] <- truth
     parts[["means"]] <- truth + parts[["sampling_mean"]]
-    parts[["random_covariance"]] <- array(0, c(S, K, K))
+    parts[["random_covariance"]] <- .block_covariance_zero(S, K)
     parts[["covariance"]] <- parts[["sampling_covariance"]]
     parts[["dependency_blocks"]] <- parts[["sampling_dependency_blocks"]]
   } else if (depth == "cluster") {
     parts[["latent_means"]] <- location_state[["mu"]] + parts[["estimate_mean"]]
     parts[["means"]] <- parts[["latent_means"]] + parts[["sampling_mean"]]
-    parts[["random_covariance"]] <- array(0, c(S, K, K))
-    if (.selection_integrates_estimate(context[["object"]][["data"]])) {
-      within <- matrix(scale_state[["within"]], S, K)
-      for (row in seq_len(K)) parts[["random_covariance"]][, row, row] <- within[, row]^2
+    parts[["random_covariance"]] <- if (
+      .selection_integrates_estimate(context[["object"]][["data"]])) {
+      .block_covariance_from_diagonal(matrix(scale_state[["within"]], S, K)^2)
+    } else {
+      .block_covariance_zero(S, K)
     }
-    parts[["covariance"]] <- parts[["random_covariance"]] + parts[["sampling_covariance"]]
+    parts[["covariance"]] <- .block_covariance_add(
+      parts[["random_covariance"]], parts[["sampling_covariance"]]
+    )
     parts[["dependency_blocks"]] <- parts[["sampling_dependency_blocks"]]
   }
   groups <- .predict_joint_selection_groups(context)

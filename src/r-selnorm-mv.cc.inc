@@ -1163,6 +1163,101 @@ int selnorm_mvn_step_bin(double value, double sei, int sign,
   return -1;
 }
 
+// The selected-response covariance, in either of the two calling forms: a
+// dense draw x row x row array, or the block-diagonal form - a list of one
+// draw x row x row array per storage block (with one draw when the block does
+// not vary over draws) and the observation indices of each block. The block
+// form carries no cross-block element, so nothing has to be scanned to
+// establish that they are zero; the reader below returns that zero.
+struct SelNormCovarianceInput {
+  bool blocked = false;
+  const double *dense = nullptr;
+  std::vector<const double *> values;
+  std::vector<int> value_draws;
+  std::vector<int> value_size;
+  std::vector<int> storage_block;
+  std::vector<int> storage_position;
+  int samples = 0;
+  int outcomes = 0;
+
+  double at(int draw, int row, int column) const {
+    if (!blocked) {
+      return dense[draw + static_cast<R_xlen_t>(samples) *
+                     (row + static_cast<R_xlen_t>(outcomes) * column)];
+    }
+    const int block = storage_block[static_cast<std::size_t>(row)];
+    if (block != storage_block[static_cast<std::size_t>(column)]) return 0.0;
+    const int draws = value_draws[static_cast<std::size_t>(block)];
+    const int size = value_size[static_cast<std::size_t>(block)];
+    const int i = storage_position[static_cast<std::size_t>(row)];
+    const int j = storage_position[static_cast<std::size_t>(column)];
+    return values[static_cast<std::size_t>(block)][
+      (draws == 1 ? 0 : draw) +
+      static_cast<R_xlen_t>(draws) * (i + static_cast<R_xlen_t>(size) * j)];
+  }
+};
+
+// Read and validate the block-diagonal calling form.
+SelNormCovarianceInput selnorm_mvn_block_covariance(SEXP covariance, int S, int K)
+{
+  SelNormCovarianceInput input;
+  input.blocked = true;
+  input.samples = S;
+  input.outcomes = K;
+  if (Rf_length(covariance) != 2) {
+    Rf_error("'covariance' must pair block values with block indices.");
+  }
+  SEXP values = VECTOR_ELT(covariance, 0);
+  SEXP blocks = VECTOR_ELT(covariance, 1);
+  if (TYPEOF(values) != VECSXP || TYPEOF(blocks) != VECSXP ||
+      Rf_length(values) != Rf_length(blocks) || Rf_length(blocks) < 1) {
+    Rf_error("'covariance' must pair one value array per block.");
+  }
+  const int n_blocks = Rf_length(blocks);
+  input.storage_block.assign(static_cast<std::size_t>(K), -1);
+  input.storage_position.assign(static_cast<std::size_t>(K), -1);
+  for (int block_index = 0; block_index < n_blocks; ++block_index) {
+    SEXP block = VECTOR_ELT(blocks, block_index);
+    SEXP value = VECTOR_ELT(values, block_index);
+    if (TYPEOF(block) != INTSXP || Rf_length(block) < 1) {
+      Rf_error("'covariance' contains an invalid block.");
+    }
+    if (TYPEOF(value) != REALSXP) {
+      Rf_error("'covariance' block values must be numeric.");
+    }
+    const int n = Rf_length(block);
+    SEXP value_dim = Rf_getAttrib(value, R_DimSymbol);
+    if (TYPEOF(value_dim) != INTSXP || Rf_length(value_dim) != 3 ||
+        (INTEGER(value_dim)[0] != 1 && INTEGER(value_dim)[0] != S) ||
+        INTEGER(value_dim)[1] != n || INTEGER(value_dim)[2] != n) {
+      Rf_error("'covariance' block values must be draw x row x row arrays.");
+    }
+    for (R_xlen_t i = 0; i < XLENGTH(value); ++i) {
+      if (!std::isfinite(REAL(value)[i])) {
+        Rf_error("'covariance' must contain finite values.");
+      }
+    }
+    for (int j = 0; j < n; ++j) {
+      const int index = INTEGER(block)[j];
+      if (index < 1 || index > K ||
+          input.storage_block[static_cast<std::size_t>(index - 1)] != -1) {
+        Rf_error("'covariance' blocks must partition the observations.");
+      }
+      input.storage_block[static_cast<std::size_t>(index - 1)] = block_index;
+      input.storage_position[static_cast<std::size_t>(index - 1)] = j;
+    }
+    input.values.push_back(REAL(value));
+    input.value_draws.push_back(INTEGER(value_dim)[0]);
+    input.value_size.push_back(n);
+  }
+  for (int k = 0; k < K; ++k) {
+    if (input.storage_block[static_cast<std::size_t>(k)] == -1) {
+      Rf_error("'covariance' blocks must partition the observations.");
+    }
+  }
+  return input;
+}
+
 }
 
 extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
@@ -1171,7 +1266,8 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
   SEXP dependency_blocks, SEXP max_attempts, SEXP vector_rule)
 {
   check_real(means, "means");
-  check_real(covariance, "covariance");
+  const bool blocked_covariance = TYPEOF(covariance) == VECSXP;
+  if (!blocked_covariance) check_real(covariance, "covariance");
   check_real(sei, "sei");
   check_real(omega, "omega");
   check_real(z_lower, "z_lower");
@@ -1187,12 +1283,20 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
   if (S < 1 || K < 1 || B < 1 || matrix_nrow(omega, "omega") != S) {
     Rf_error("Selected response inputs have invalid dimensions.");
   }
-  SEXP covariance_dim = Rf_getAttrib(covariance, R_DimSymbol);
-  if (TYPEOF(covariance_dim) != INTSXP || Rf_length(covariance_dim) != 3 ||
-      INTEGER(covariance_dim)[0] != S ||
-      INTEGER(covariance_dim)[1] != K ||
-      INTEGER(covariance_dim)[2] != K) {
-    Rf_error("'covariance' dimensions must match 'means'.");
+  SelNormCovarianceInput covariance_input;
+  if (blocked_covariance) {
+    covariance_input = selnorm_mvn_block_covariance(covariance, S, K);
+  } else {
+    SEXP covariance_dim = Rf_getAttrib(covariance, R_DimSymbol);
+    if (TYPEOF(covariance_dim) != INTSXP || Rf_length(covariance_dim) != 3 ||
+        INTEGER(covariance_dim)[0] != S ||
+        INTEGER(covariance_dim)[1] != K ||
+        INTEGER(covariance_dim)[2] != K) {
+      Rf_error("'covariance' dimensions must match 'means'.");
+    }
+    covariance_input.dense = REAL(covariance);
+    covariance_input.samples = S;
+    covariance_input.outcomes = K;
   }
   if (Rf_length(sei) != K || Rf_length(z_lower) != B ||
       Rf_length(z_upper) != B) {
@@ -1248,16 +1352,31 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
       Rf_error("'means' must contain finite values.");
     }
   }
-  for (int column = 0; column < K; ++column) {
-    for (int row = 0; row < K; ++row) {
-      const bool cross_block = seen[row] != seen[column];
-      const R_xlen_t offset = static_cast<R_xlen_t>(S) *
-        (row + static_cast<R_xlen_t>(K) * column);
-      for (int s = 0; s < S; ++s) {
-        const double value = REAL(covariance)[offset + s];
-        if (!std::isfinite(value)) Rf_error("'covariance' must contain finite values.");
-        if (cross_block && value != 0.0) {
+  if (blocked_covariance) {
+    // The block form carries no cross-block element at all, so the only thing
+    // left to establish is that its own blocks do not straddle two dependency
+    // blocks. Its values were checked finite when they were read.
+    for (int k = 0; k < K; ++k) {
+      const int storage = covariance_input.storage_block[static_cast<std::size_t>(k)];
+      for (int j = 0; j < K; ++j) {
+        if (covariance_input.storage_block[static_cast<std::size_t>(j)] == storage &&
+            seen[j] != seen[k]) {
           Rf_error("'dependency_blocks' must include all observations with nonzero covariance.");
+        }
+      }
+    }
+  } else {
+    for (int column = 0; column < K; ++column) {
+      for (int row = 0; row < K; ++row) {
+        const bool cross_block = seen[row] != seen[column];
+        const R_xlen_t offset = static_cast<R_xlen_t>(S) *
+          (row + static_cast<R_xlen_t>(K) * column);
+        for (int s = 0; s < S; ++s) {
+          const double value = REAL(covariance)[offset + s];
+          if (!std::isfinite(value)) Rf_error("'covariance' must contain finite values.");
+          if (cross_block && value != 0.0) {
+            Rf_error("'dependency_blocks' must include all observations with nonzero covariance.");
+          }
         }
       }
     }
@@ -1341,12 +1460,8 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
         const int source_column = INTEGER(block)[column] - 1;
         for (int row = 0; row < n; ++row) {
           const int source_row = INTEGER(block)[row] - 1;
-          const double a = REAL(covariance)[
-            s + S * (source_row + K * source_column)
-          ];
-          const double b = REAL(covariance)[
-            s + S * (source_column + K * source_row)
-          ];
+          const double a = covariance_input.at(s, source_row, source_column);
+          const double b = covariance_input.at(s, source_column, source_row);
           if (a != b) {
             failure_code  = 4;
             failure_size  = n;

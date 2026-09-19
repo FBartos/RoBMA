@@ -30,9 +30,9 @@ test_that("sampling endpoints retain the whole covariance independently of its r
     )
     expected_V <- if (is.null(input) || is.null(dim(input)) && is.numeric(input)) diag(diag(V)) else V
     random <- diag(within[1L, ]^2)
-    expect_equal(parts$covariance[1L, , ],
+    expect_equal(.block_covariance_dense(parts$covariance, 1L),
       random + if (sampling_mode == "integrate") expected_V else 0, tolerance = 1e-14)
-    expect_equal(parts$context_covariance[1L, , ],
+    expect_equal(.block_covariance_dense(parts$context_covariance, 1L),
       if (sampling_mode == "condition") expected_V else matrix(0, 3L, 3L), tolerance = 1e-14)
     expect_identical(.selection_postfit_target_metadata(data)$sampling_structure$source,
       "whole_sampling_error")
@@ -98,9 +98,9 @@ test_that("a retained complete sampling error identifies total truth with singul
   Q <- matrix(c(1, 2, 2, 4), 2L)
   parts <- list(
     means = matrix(c(.5, -.1), 1L), latent_means = matrix(c(.2, .3), 1L),
-    random_covariance = array(Q, c(1L, 2L, 2L)),
-    sampling_covariance = array(0, c(1L, 2L, 2L)),
-    covariance = array(Q, c(1L, 2L, 2L))
+    random_covariance = .as_block_covariance(array(Q, c(1L, 2L, 2L))),
+    sampling_covariance = .block_covariance_zero(1L, 2L),
+    covariance = .as_block_covariance(array(Q, c(1L, 2L, 2L)))
   )
   y <- c(.7, .3)
   set.seed(291)

@@ -1144,7 +1144,10 @@ test_that("marginal selection covariance batches preserve multilevel algebra", {
     location_state = list(fixed_mu = matrix(0, nrow = 2L, ncol = 2L)),
     scale_state    = list(within = tau_within, between = tau_between)
   )
-  expect_equal(response_setup[["covariance"]], expected_covariance)
+  for (draw in seq_len(2L)) {
+    expect_equal(.block_covariance_dense(response_setup[["covariance"]], draw),
+                 expected_covariance[draw, , ])
+  }
 })
 
 test_that("exact bivariate selection kernel matches rectangle integration", {

@@ -18,9 +18,8 @@ test_that("Gaussian zplot reference matches dense parts for all source choices",
       dense <- .predict_joint_selection_gaussian_parts(
         object, object$data, samples, mean, within, matrix(0, 2L, 2L),
         draw_context = FALSE)
-      dense_diagonal <- vapply(seq_len(2L), function(row) {
-        dense$covariance[, row, row] + dense$context_covariance[, row, row]
-      }, numeric(2L))
+      dense_diagonal <- .block_covariance_diag_matrix(dense$covariance) +
+        .block_covariance_diag_matrix(dense$context_covariance)
       reference <- .zplot_gaussian_marginal_reference(object, samples, predictive)
       expect_identical(reference$mu, predictive$mu_extrapolated)
       expect_identical(reference$sei, predictive$sei)
@@ -61,9 +60,8 @@ test_that("Gaussian reference includes fresh estimate and study variation", {
             group = paper))
         dense <- .predict_joint_selection_gaussian_parts(
           object, object$data, samples, mean, within, between, draw_context = FALSE)
-        dense_diagonal <- vapply(seq_len(3L), function(row) {
-          dense$covariance[, row, row] + dense$context_covariance[, row, row]
-        }, numeric(2L))
+        dense_diagonal <- .block_covariance_diag_matrix(dense$covariance) +
+          .block_covariance_diag_matrix(dense$context_covariance)
         reference <- .zplot_gaussian_marginal_reference(object, samples, predictive)
         expect_equal(reference$variance, expected, tolerance = 1e-14)
         expect_equal(reference$variance, dense_diagonal, tolerance = 1e-14)

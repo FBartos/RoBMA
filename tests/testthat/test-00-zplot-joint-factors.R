@@ -14,7 +14,8 @@ test_that("the shared context fallback preserves block weighting", {
   context$vector_rule <- integer(2L)
   context$use_normal <- rep(TRUE, 2L)
   result <- .zplot_full_event_context_mixture(z, mean,
-    array(rep(sigma, each = 2L), c(2L, 3L, 3L)), array(0, c(2L, 3L, 3L)), sei,
+    .as_block_covariance(array(rep(sigma, each = 2L), c(2L, 3L, 3L))),
+    .block_covariance_zero(2L, 3L), sei,
     context, FALSE, set_selection_likelihood_control(), list(row_blocks = list(1:2, 3L)))
   expected <- vapply(z, function(value) vapply(seq_len(2L), function(row) {
     mean(sei * stats::dnorm(value * sei, mean[row, ], sqrt(diag(sigma))))

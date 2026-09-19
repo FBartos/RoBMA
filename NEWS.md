@@ -1,5 +1,25 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- carries a selection model's prediction covariances one dependency block at a
+  time instead of as dense posterior-draw cubes. The random, sampling, total
+  and context covariances of a joint selection prediction are block-diagonal by
+  construction - the blocks are the connected components of the sampling and
+  random dependency structure the fitted model declares - and no consumer ever
+  read an element whose two rows lie in different blocks. Each of them was
+  nevertheless a dense draw x row x row array: 1.12 GiB apiece on the Assink
+  correlated-`V` fits at 15 000 draws and 100 rows, against 131 MB of actual
+  block content, and `array()` alone was about half the profiled time of
+  `ranef()` and `blup()` there. They are now `RoBMA_block_covariance` objects
+  storing one array per block, with the sampling covariance stored once rather
+  than replicated over the draws, and the selected-response kernel gained a
+  per-block calling form that neither receives nor scans the cross-block zeros.
+  The two per-draw factorizations that feed reported quantities still take the
+  assembled matrix, because a blocked LAPACK factorization of the whole matrix
+  and of its blocks differ in the last bits. Every value is unchanged:
+  `predict()`, `ranef()`, `blup()`, `zplot()` and the selection sensitivity
+  diagnostics are identical on the Assink correlated-`V` fits and on
+  singleton-only fits, and every scenario fingerprint of assink2016,
+  kearon1998, hoogeveen2023 and white2020 is unchanged.
 - reads a loading-free random covariance of a selection model straight off the
   fitted model's own marginalized random-effect evaluator. When the execution
   plan declares no loadings for any row block, the random covariance is a

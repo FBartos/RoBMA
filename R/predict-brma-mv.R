@@ -261,8 +261,11 @@
     }
     weights <- matrix(0, S, K)
     if (any(!retained)) {
+      # The assembled K x K matrix, not the blocks: a blocked LAPACK
+      # factorization of the whole matrix and of its blocks differ in the last
+      # bits, and these weights carry into every reported component.
       for (s in seq_len(S)) {
-        factor <- chol(matrix(parts[["covariance"]][s, , ], K, K))
+        factor <- chol(.block_covariance_dense(parts[["covariance"]], s))
         weights[s, ] <- backsolve(factor, forwardsolve(
           t(factor), data[["outcome"]][["yi"]] - parts[["means"]][s, ]
         ))
@@ -276,13 +279,20 @@
           object = object
         ))
       }
-      covariance <- .brma_mv_random_effects_marginal_vcov(
+      result <- .brma_mv_random_effects_marginal_vcov(
         object = object, posterior_samples = posterior_samples,
         blocks = source[["name"]]
-      )[["samples"]]
+      )
+      covariance <- .block_covariance_from_array(
+        result[["samples"]],
+        .known_v_block_indices(BayesTools::random_effects_dependency_matrix(
+          random_effects = result[["metadata"]][["blocks"]], n_rows = K,
+          blocks = source[["name"]]
+        ) * 1)
+      )
       contribution <- matrix(0, S, K)
       for (s in seq_len(S)) {
-        contribution[s, ] <- matrix(covariance[s, , ], K, K) %*% weights[s, ]
+        contribution[s, ] <- .block_covariance_matvec(covariance, s, weights[s, ])
       }
       contribution
     })
