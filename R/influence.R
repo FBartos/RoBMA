@@ -258,9 +258,25 @@ influence.brma <- function(model, ...) {
 
   K <- ncol(tau_samples)
   if (K > 1L) {
-    tau_deleted <- sqrt(
-      (rowSums(tau_samples^2) - tau_samples^2) / (K - 1L)
-    )
+    # Accumulate each side of a deletion separately. Subtracting its square
+    # from the total loses smaller remaining scales when one row dominates.
+    # Scaling before the stable norm also avoids squaring finite large SDs.
+    divisor     <- sqrt(K - 1L)
+    tau_deleted <- matrix(0, nrow(tau_samples), K)
+    left        <- numeric(nrow(tau_samples))
+    for (i in seq_len(K)) {
+      tau_deleted[, i] <- left
+      if (i < K) {
+        left <- .root_sum_squares(left, tau_samples[, i] / divisor)
+      }
+    }
+    right <- numeric(nrow(tau_samples))
+    for (i in rev(seq_len(K))) {
+      tau_deleted[, i] <- .root_sum_squares(tau_deleted[, i], right)
+      if (i > 1L) {
+        right <- .root_sum_squares(right, tau_samples[, i] / divisor)
+      }
+    }
   } else {
     tau_deleted <- tau_samples
   }
