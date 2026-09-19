@@ -612,8 +612,8 @@ NULL
     yi <- stats::model.response(full_mf)
     names(yi) <- NULL
 
-    # Extract predictors (RHS)
-    if (ncol(full_mf) > 1) {
+    # An empty RHS still carries the structural zero intercept in yi ~ 0.
+    if (ncol(full_mf) > 1 || attr(stats::terms(formula_yi), "intercept") == 0L) {
       mods_from_yi <- full_mf[, -1, drop = FALSE]
     }
   }
@@ -730,7 +730,8 @@ NULL
     yi <- stats::model.response(full_mf)
     names(yi) <- NULL
 
-    if (ncol(full_mf) > 1) {
+    # An empty RHS still carries the structural zero intercept in yi ~ 0.
+    if (ncol(full_mf) > 1 || attr(stats::terms(formula_yi), "intercept") == 0L) {
       mods_from_yi <- full_mf[, -1, drop = FALSE]
     }
   }
