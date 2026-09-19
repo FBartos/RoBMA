@@ -20,7 +20,7 @@ CXX_STD = CXX17
 JAGS_ROOT ?= /c/progra~1/JAGS/JAGS-4.3.1
 
 ## Use the old ABI to match JAGS 4.x compilation on Windows:
-PKG_CXXFLAGS = -D_GLIBCXX_USE_CXX11_ABI=0
+PKG_CXXFLAGS = -D_GLIBCXX_USE_CXX11_ABI=0 $(SHLIB_OPENMP_CXXFLAGS)
 ## Note: this behaviour will be changed (and RoBMA updated) before JAGS 5 is released
 ## If you are trying to compile this version of RoBMA against JAGS 5 you may need to remove this PKG_CXXFLAGS line
 
@@ -66,9 +66,9 @@ endif
 LAPACK_LIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/R" CMD config LAPACK_LIBS)
 BLAS_LIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/R" CMD config BLAS_LIBS)
 FLIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/R" CMD config FLIBS)
-PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" -D JAGS_MAJOR_ASSUMED=$(JAGS_MAJOR_ASSUMED) -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION) -DR_NO_REMAP $(SHLIB_OPENMP_CFLAGS)
+PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" -D JAGS_MAJOR_ASSUMED=$(JAGS_MAJOR_ASSUMED) -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION) -DR_NO_REMAP
 
-PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(SHLIB_OPENMP_CFLAGS)
+PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(SHLIB_OPENMP_CXXFLAGS)
 
 
 ###############
