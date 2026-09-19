@@ -1011,6 +1011,16 @@
   default hides backend-only variables and `TRUE` exposes raw backend draws.
 
 ### Testing and development
+- adds `tools/bench-glmm-aghq.R`, a micro-benchmark of the Poisson GLMM
+  adaptive Gauss-Hermite kernel as `add_loo()` drives it on the cached
+  nielweise2008 fits. It guards a build-layout collision: the kernel runs 2.2x
+  slower in some linked images than in others, with its own machine code
+  byte-identical and at the same address, because the statically linked libm
+  bodies it calls move relative to it. Every repetition returns bit-identical
+  numbers, so no test, snapshot or scenario fingerprint can see it. The tool
+  replays the arguments the package's own caller prepares and checks the replay
+  against the live `add_loo()` result. Run it after any native change; see
+  `.agents/instructions/validation.md`.
 - writes the complete wall time and memory measurements of every scenario run to
   the ignored `timings/<scenario>.new.tsv`, including runs that only improve the
   committed baseline, so the last and the best run stay available side by side.

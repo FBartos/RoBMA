@@ -25,6 +25,8 @@ Read the guide relevant to the change and maintain it with the implementation:
   product-space routing, selection sources, and supported kernel paths.
 - [Testing](.agents/instructions/testing.md): ordinary tests, verification
   profiles, fit caches, metafor comparisons, and visual regression.
+- [Validation specifics](.agents/instructions/validation.md): the native
+  performance checks this package needs beyond the shared validation policy.
 - [Scenarios](.agents/instructions/scenarios.md): readable maintainer analyses,
   cached fits, output candidates, and timing records.
 - [Plotting](.agents/instructions/plotting.md): plot-data/rendering separation
