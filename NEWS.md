@@ -8,8 +8,10 @@
   logarithm the map is exactly affine with the design column as its basis, which
   `BayesTools::JAGS_formula_predictor_basis()` now reports, and the candidate
   grid and its native batch form the log-tau update from `log(value) -
-  log(current)`. A non-positive candidate has no logarithm and stays invalid, as
-  it was on the generic route. The batched route is taken only when the grid
+  log(current)`. A non-positive candidate has no logarithm and is marked
+  invalid; neither the density grid, which is built in that logarithm, nor a
+  point-null value, which is checked against the open support, offers one. The
+  batched route is taken only when the grid
   sweeps the intercept's own values and nothing else moves with it; anything
   else keeps the generic evaluator. The values agree with the generic route to
   rounding - the bangertdrowns2004 `tau` density line differs by at most
