@@ -224,6 +224,9 @@ print.interpret.brma <- function(x, ...) {
                                     conditional, scope, probs, central,
                                     effect_central) {
 
+  summary_object[["inclusion_components"]] <-
+    .summary_brma_component_inclusion(summary_object)
+
   sources <- .interpret_brma_sources(
     object           = object,
     summary_object   = summary_object,
@@ -802,12 +805,12 @@ print.interpret.brma <- function(x, ...) {
   return(list(
     kind    = "evidence",
     section = "components",
-    item_id = if (!is.null(item_ids[[row]])) unname(item_ids[[row]]) else row,
+    item_id = if (row %in% names(item_ids)) unname(item_ids[[row]]) else row,
     order   = order,
     source  = "component_tests",
     row     = row,
-    label   = if (!is.null(labels[[row]])) unname(labels[[row]]) else tolower(row),
-    BF_name = if (!is.null(BF_names[[row]])) unname(BF_names[[row]]) else "BF"
+    label   = if (row %in% names(labels)) unname(labels[[row]]) else row,
+    BF_name = if (row %in% names(BF_names)) unname(BF_names[[row]]) else "BF"
   ))
 }
 

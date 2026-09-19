@@ -5,7 +5,7 @@
 #' brma object. For RoBMA objects, inclusion summaries are printed before
 #' parameter estimates. Random-effect inclusion rows are included in
 #' `Component Inclusion`, immediately before `Publication Bias` when present.
-#' Their labels prefix the corresponding SD quantity with `Random:`, retaining
+#' Their labels prefix the corresponding SD quantity with `Heterogeneity:`, retaining
 #' component names where needed. Data-frame exports use the same layout.
 #'
 #' @param object a fitted brma object
@@ -468,7 +468,7 @@ as.data.frame.summary.brma <- function(
   return(output)
 }
 
-.summary_brma_prepare_print_sections <- function(x) {
+.summary_brma_component_inclusion <- function(x) {
 
   random_inclusion <- x[["inclusion_random"]]
   if (length(random_inclusion) > 0L && nrow(random_inclusion) > 0L) {
@@ -478,10 +478,20 @@ as.data.frame.summary.brma <- function(
       title = "Component Inclusion"
     )
     indices <- order(rownames(inclusion) == "Publication Bias")
-    x[["inclusion_components"]] <- .summary.inclusion_subtable(
+    return(.summary.inclusion_subtable(
       table = inclusion, indices = indices,
       row_labels = rownames(inclusion)[indices], title = "Component Inclusion"
-    )
+    ))
+  }
+
+  return(x[["inclusion_components"]])
+}
+
+.summary_brma_prepare_print_sections <- function(x) {
+
+  x[["inclusion_components"]] <- .summary_brma_component_inclusion(x)
+  random_inclusion <- x[["inclusion_random"]]
+  if (length(random_inclusion) > 0L && nrow(random_inclusion) > 0L) {
     x[["inclusion_random"]] <- list()
   }
 
