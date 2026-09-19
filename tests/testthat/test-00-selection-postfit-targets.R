@@ -437,13 +437,20 @@ test_that("same-design marginal selection retains certified integrated covarianc
   }
   # Both routes carry block covariances over positional row indices; the dense
   # BayesTools backend's own axis labels do not survive the split into blocks.
-  # Compare their dense per-draw values, their dimensions and the partition
-  # each of them declares.
+  # The row order it used to label is what the two routes' declared partitions
+  # and their dense per-draw values pin instead: the integrated random source is
+  # one estimate-level block per row, and adding the correlated sampling
+  # covariance of the first two rows joins them.
+  expected_blocks <- list(random_covariance = list(1L, 2L, 3L),
+                          covariance = list(1:2, 3L))
   for (field in c("random_covariance", "covariance")) {
     expect_identical(.block_covariance_dim(fast[[field]]), c(2L, 3L, 3L))
     expect_identical(.block_covariance_dim(reference[[field]]),
                      .block_covariance_dim(fast[[field]]))
-    expect_identical(sort(unlist(reference[[field]][["blocks"]])), 1:3)
+    expect_identical(lapply(fast[[field]][["blocks"]], as.integer),
+                     expected_blocks[[field]])
+    expect_identical(lapply(reference[[field]][["blocks"]], as.integer),
+                     expected_blocks[[field]])
     for (draw in 1:2) {
       expect_equal(.block_covariance_dense(fast[[field]], draw),
                    .block_covariance_dense(reference[[field]], draw),
