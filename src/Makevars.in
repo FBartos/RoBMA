@@ -53,10 +53,16 @@ OBJECTS = distributions/DWN.o \
 
 all: $(SHLIB)
 
+DISTRIBUTION_OBJECTS = $(filter distributions/%.o,$(OBJECTS))
+$(DISTRIBUTION_OBJECTS): %.o: %.h
+RoBMA.o: $(DISTRIBUTION_OBJECTS:.o=.h) selnorm/selnorm-mv.h
+
 samplers/CoarseCorrectedSlice.o: samplers/CoarseCorrectedSlice.h distributions/DSELNORMMVSTEP.h selnorm/selnorm-mv.h
 RoBMA.o r-selnorm.o: samplers/CoarseCorrectedSlice.h
 
 glmm-aghq.o: glmm-binomial-loglik.h
+glmm-aghq.o init.o: glmm-aghq.h
+testRoBMA.o: jagsversions.h
 
 R_GLMM_INC = r-glmm-common.cc.inc \
 			 r-glmm-marginal.cc.inc
@@ -97,3 +103,10 @@ distributions/DSELNORMSAMPLINGCONDITIONED.o: selnorm/selnorm-mv.h selnorm/selnor
 r-regplot.o distributions/DSELNORMSTEP.o distributions/DSELNORMSTEPSWITCH.o distributions/DSELNORMKERNEL.o: selnorm/selnorm.h
 
 $(filter distributions/DSELNORM%.o,$(OBJECTS)): distributions/selnorm-jags-bounds.h
+
+# Local headers are transitive dependencies of the objects that include them.
+$(filter distributions/DSELNORM%.o,$(OBJECTS)) r-regplot.o r-selnorm.o selnorm/selnorm.o selnorm/selnorm-mv.o: selnorm/selnorm-fma.h
+r-regplot.o r-selnorm.o: plot-root.h
+r-selnorm.o selnorm/selnorm.o: selnorm/selnorm-tail.h selnorm/selnorm-tail-kernel.cc.inc
+selnorm/selnorm.o: selnorm/selnorm-cdf-table-data.h
+selnorm/selnorm-mv.o: selnorm/selnorm-mixture-compression.h
