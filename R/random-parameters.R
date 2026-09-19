@@ -830,19 +830,17 @@
     return(NULL)
   }
   map  <- .random_component_inclusion_map(object)
-  aliases <- if (identical(spec[["owner_type"]], "random_block")) {
-    unique(c(spec[["block"]], spec[["owner_name"]]))
-  } else {
-    spec[["random_component"]]
-  }
+  aliases <- unique(c(
+    spec[["block"]],
+    if (identical(spec[["owner_type"]], "random_block")) {
+      spec[["owner_name"]]
+    } else {
+      spec[["random_component"]]
+    }
+  ))
   aliases <- aliases[!is.na(aliases) & nzchar(aliases)]
   indicators <- unique(unlist(map[intersect(aliases, names(map))],
                               use.names = FALSE))
-  all_indicators <- unique(unlist(map, use.names = FALSE))
-  if (length(indicators) == 0L && length(all_indicators) == 1L) {
-    indicators <- all_indicators
-  }
-
   if (length(indicators) == 1L) indicators else NULL
 }
 
