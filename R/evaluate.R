@@ -1902,19 +1902,22 @@
     same_data   = TRUE,
     bias_offset = bias_offset
   )
-  tau2        <- tau_within^2
-  sampling_v  <- matrix(sei^2, nrow = nrow(tau_within),
-                        ncol = ncol(tau_within), byrow = TRUE)
-  denominator <- tau2 + sampling_v
-  conditional_v <- tau2 * sampling_v / denominator
-  zero_information <- denominator == 0
-  conditional_v[zero_information] <- 0
+  sampling_sd <- matrix(sei, nrow = nrow(tau_within),
+                         ncol = ncol(tau_within), byrow = TRUE)
+  small <- pmin(tau_within, sampling_sd)
+  large <- pmax(tau_within, sampling_sd)
+  conditional_sd <- small
+  positive <- large > 0
+  # tau * se / sqrt(tau^2 + se^2), evaluated without a product of
+  # variances that can overflow or underflow in otherwise valid units.
+  conditional_sd[positive] <- small[positive] /
+    sqrt(1 + (small[positive] / large[positive])^2)
 
   out <- conditional_mean + matrix(
-    stats::rnorm(length(conditional_v)),
-    nrow = nrow(conditional_v),
-    ncol = ncol(conditional_v)
-  ) * sqrt(conditional_v)
+    stats::rnorm(length(conditional_sd)),
+    nrow = nrow(conditional_sd),
+    ncol = ncol(conditional_sd)
+  ) * conditional_sd
 
   return(out)
 }

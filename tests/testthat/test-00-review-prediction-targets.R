@@ -20,3 +20,22 @@ test_that("retained sampling does not enter the scalar marginal selection CDF", 
     fixed = TRUE
   )
 })
+
+test_that("fitted Gaussian uncertainty is equivariant to effect-size units", {
+
+  S <- 20L
+  draw_at_scale <- function(scale) {
+    set.seed(826)
+    .evaluate.brma.true_effects_posterior.norm(
+      mu_samples = matrix(.1 * scale, S, 2L),
+      tau_within = matrix(c(.3, .5) * scale, S, 2L, byrow = TRUE),
+      yi = c(.8, -.1) * scale,
+      sei = c(.2, .4) * scale
+    ) / scale
+  }
+  # Gaussian conjugacy is unchanged by a common change of effect-size units.
+  # The SD formula must not square or multiply representable variances again.
+  reference <- draw_at_scale(1)
+  expect_equal(draw_at_scale(1e100), reference, tolerance = 1e-14)
+  expect_equal(draw_at_scale(1e-100), reference, tolerance = 1e-14)
+})
