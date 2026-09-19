@@ -975,7 +975,7 @@ hypothesis.brma <- function(object, hypothesis,
       }
     }
   }
-  if (length(unique(prior_values[is.finite(prior_values)])) < 2L) {
+  if (identical(posterior[["spec"]][["status"]], "structural")) {
     stop(
       "Hypothesis tests are not defined for fixed random-effect quantity '",
       posterior[["entry"]][["term"]], "'.",
