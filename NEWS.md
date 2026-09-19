@@ -1,4 +1,8 @@
 ## version 4.1.5 (IN PROGRESS)
+### Fixes
+- accepts BayesTools conditional-normal-mixture prior-ordinate metadata while
+  retaining the exact structural-classification requirement. Numerical
+  integration accuracy remains separate diagnostic information.
 ### Features
 - carries a selection model's prediction covariances one dependency block at a
   time instead of as dense posterior-draw cubes. The random, sampling, total

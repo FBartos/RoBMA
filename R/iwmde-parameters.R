@@ -1344,7 +1344,7 @@
   )
   methods <- c(
     "primitive", "point", "finite_mixture", "scalar_affine",
-    "linear_normal", "named_transform", "unsupported_provenance"
+    "linear_normal", "conditional_normal_mixture", "named_transform", "unsupported_provenance"
   )
   valid <- is.list(result) && identical(names(result), fields) &&
     identical(result[["schema_version"]], "1") &&

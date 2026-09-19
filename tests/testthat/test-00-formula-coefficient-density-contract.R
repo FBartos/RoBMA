@@ -1,5 +1,40 @@
 context("BayesTools formula coefficient density contract")
 
+test_that("conditional-normal ordinates retain exact structural classification", {
+
+  priors <- list(
+    a = BayesTools::prior("normal", list(0, 1)),
+    b = BayesTools::prior("normal", list(0, 1)),
+    s = BayesTools::prior("cauchy", list(0, 1), list(0, 5))
+  )
+  attr(priors$b, "multiply_by") <- "s"
+  density <- BayesTools:::.prior_linear_combination_density(
+    priors, c(a = 1, b = -1), n_grid = 512
+  )
+  ordinate <- BayesTools::prior_density_ordinate(density, 0)
+  expect_identical(ordinate$method, "conditional_normal_mixture")
+  expect_true(ordinate$exact)
+  expect_false(ordinate$provenance$integration$exact)
+  expect_identical(.iwmde_validate_prior_ordinate(ordinate, 0), ordinate)
+  expect_length(.iwmde_ordinate_prior_warnings("mu_intercept", list(ordinate)), 0L)
+
+  testthat::local_mocked_bindings(
+    JAGS_formula_prior_density = function(...) density,
+    .package = "BayesTools"
+  )
+  target <- .hypothesis_brma_formula_prior_target(
+    object = list(fit = list()), samples = list(),
+    hypothesis = BayesTools::hypothesis_parse("mu_intercept = 0"),
+    point_values = 0,
+    target_info = list(
+      formula_parameter = "mu", target = "mu_intercept",
+      route = list(type = "affine", weights = c(a = 1, b = -1))
+    )
+  )
+  expect_identical(target$prior_density, density)
+  expect_identical(target$parameter_spec$type, "linear")
+})
+
 
 test_that("transformed coefficient hypotheses use exact structural weights", {
 
