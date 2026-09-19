@@ -128,28 +128,24 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
       bias = BayesTools::prior_PET("normal", list(mean = 0, sd = 1))
     ))
   )
+  declared_catalog <- .test_parameter_catalog()
+  dependencies <- unique(unlist(lapply(
+    declared_catalog[["quantities"]][["extraction_key"]], `[[`, "dependencies"
+  ), use.names = FALSE))
+  fitted_map <- BayesTools:::.bt_parameter_map_new(
+    coordinates = BayesTools:::.bt_build_parameter_coordinates(dependencies),
+    quantities  = declared_catalog[["quantities"]],
+    aliases     = declared_catalog[["aliases"]]
+  )
   checked <- NULL
   testthat::local_mocked_bindings(
     JAGS_validate_fit_contract = function(fit, requires) {
       checked <<- unique(c(checked, requires))
       invisible(TRUE)
     },
-    parameter_catalog = function(object, ...) .test_parameter_catalog(),
-    # Catalog metadata requires the fitted parameter map unconditionally; the
-    # sentinel fit carries none, so stand in a map that `parameter_map_cache()`
-    # accepts and can key its session-registry slot on.
-    parameter_map = function(object, ...) {
-      structure(
-        list(
-          schema_version = NA_integer_,
-          coordinates    = NULL,
-          quantities     = NULL,
-          aliases        = NULL
-        ),
-        class            = c("BayesTools_parameter_map", "list"),
-        runtime_cache_id = "test-parameter-catalog-contract"
-      )
-    },
+    parameter_catalog = function(object, ...) declared_catalog,
+    # Keep the metadata-only sentinel backed by a valid map and real cache.
+    parameter_map = function(object, ...) fitted_map,
     JAGS_formula_name_map = function(fit, parameter) {
       .test_formula_name_map(parameter)
     },
