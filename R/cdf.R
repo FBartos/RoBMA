@@ -147,6 +147,7 @@
     }, logical(1L)))
     if (.is_random(object) || .is_multilevel(object) ||
         .selection_retains_estimate(object[["data"]]) ||
+        .selection_retains_sampling(object[["data"]]) ||
         (best && any(lengths(model[["groups"]][["row_blocks"]]) > 1L))) {
       stop("Joint-selection CDF evaluation is unavailable at this conditioning depth. Use the estimate-deletion CDF for LOO-PIT or 'as_zplot()' for marginal selected projections.", call. = FALSE)
     }
