@@ -77,6 +77,10 @@ level order is retained; otherwise sorted unique values determine the levels
 and, for AR(1), their order. \code{cs()} and \code{hcs()} may combine multiple columns
 with \code{+}; BayesTools forms the observed interaction in lexicographic order.
 \code{ar1()} and \code{har()} require exactly one index column.
+AR1/HAR warns when numeric labels in a character or unordered factor resolve
+to a non-increasing numeric order, such as \code{1, 10, 2}, while preserving that
+order. Use numeric values for numeric ordering, or an ordered factor with
+explicit levels to confirm another intended order.
 
 \code{hcs(index | group)} and \code{us(0 + index | group)} are different models even
 when both produce one standard deviation per displayed level. HCS constrains
@@ -86,6 +90,10 @@ specified through contrast metadata when it matters.
 Alias tags are normalized before model compilation: \code{un()} to \code{us()},
 \code{ar()} to \code{ar1()}, and unqualified \code{random()} / \code{re()} to \code{us()} unless a
 covariance override changes the structure.
+In these wrappers, \code{covariance = "cs", hom = FALSE} resolves to \code{hcs()},
+and \code{covariance = "ar1", hom = FALSE} resolves to \code{har()}. Any explicit
+covariance structure in \code{prior_random()} must match the resolved structure.
+Direct \code{cs()} / \code{ar1()} tags retain their homogeneous meaning.
 
 \code{brma.mv()} also accepts metafor-style known group covariance through its
 \code{R} and \code{Rscale} arguments. This covariance is attached to random-effect

@@ -75,6 +75,10 @@
 #' and, for AR(1), their order. `cs()` and `hcs()` may combine multiple columns
 #' with `+`; BayesTools forms the observed interaction in lexicographic order.
 #' `ar1()` and `har()` require exactly one index column.
+#' AR1/HAR warns when numeric labels in a character or unordered factor resolve
+#' to a non-increasing numeric order, such as `1, 10, 2`, while preserving that
+#' order. Use numeric values for numeric ordering, or an ordered factor with
+#' explicit levels to confirm another intended order.
 #'
 #' `hcs(index | group)` and `us(0 + index | group)` are different models even
 #' when both produce one standard deviation per displayed level. HCS constrains
@@ -84,6 +88,10 @@
 #' Alias tags are normalized before model compilation: `un()` to `us()`,
 #' `ar()` to `ar1()`, and unqualified `random()` / `re()` to `us()` unless a
 #' covariance override changes the structure.
+#' In these wrappers, `covariance = "cs", hom = FALSE` resolves to `hcs()`,
+#' and `covariance = "ar1", hom = FALSE` resolves to `har()`. Any explicit
+#' covariance structure in `prior_random()` must match the resolved structure.
+#' Direct `cs()` / `ar1()` tags retain their homogeneous meaning.
 #'
 #' `brma.mv()` also accepts metafor-style known group covariance through its
 #' `R` and `Rscale` arguments. This covariance is attached to random-effect
