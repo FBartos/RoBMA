@@ -638,8 +638,9 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
     study_rows <- study_rows:(study_rows - k + 1L)
   }
 
-  lower <- min(row - ifelse(predstyle == "line", 1, 2), 0)
-  upper <- max(study_rows, na.rm = TRUE) + top
+  lower <- min(row - ifelse(predstyle == "line", 1, 2), study_rows - 1, 0,
+               na.rm = TRUE)
+  upper <- max(study_rows, row, na.rm = TRUE) + top
 
   return(c(lower, upper))
 }
