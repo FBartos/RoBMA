@@ -1,5 +1,19 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Features
+- reads a loading-free random covariance of a selection model straight off the
+  fitted model's own marginalized random-effect evaluator. When the execution
+  plan declares no loadings for any row block, the random covariance is a
+  per-row diagonal variance, and the variance the non-covariance backends of
+  the same likelihood already read is that diagonal. Compiling the factor
+  contract and reducing it to the diagonal was therefore work every candidate
+  row of a heterogeneity density line paid for: 0.92 s per 100 000 rows against
+  0.05 s for the same numbers, bit for bit. Any declared loading keeps the
+  compiled geometry, which is the only thing that can carry one. The Assink
+  correlated-`V` heterogeneity lines take 12.6 s (`tau_total`), 49.5 s
+  (`study: tau`, 2000 rows), 8.9 s (`esid_study: tau`), 9.7 s
+  (`tau2_prop(esid_study)`) and 10.6 s (`tau2_prop(study)`) where they took
+  14.1, 57.3, 10.4, 12.2 and 12.1 s, and every scenario fingerprint that
+  touches a selection density is unchanged.
 - builds a joint selection model's density-line constructions once per
   posterior state instead of once per candidate row. A qCMDE or IWMDE line over
   a location coefficient of a correlated known-`V` selection model expands its

@@ -554,6 +554,9 @@
 # all of its replacement chunks instead of once per chunk.
 .iwmde_selection_joint_static <- function(context) {
 
+  if (!.is_data_joint_selection(context[["data"]])) {
+    return(NULL)
+  }
   cache <- context[["predictor_cache"]]
   key   <- "selection_joint_static"
   if (is.environment(cache) && exists(key, envir = cache, inherits = FALSE)) {

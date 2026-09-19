@@ -37,6 +37,10 @@
     data_hash                  = data_hash,
     conditioned_random_effects = conditioned_random_effects
   )
+  # A density line evaluates many replacement chunks against the same fitted
+  # data, so the migrated execution plan, its native kernel arguments and the
+  # block caches keyed by evaluated state count travel with the line.
+  setup[["selection_static"]] <- .iwmde_selection_joint_static(context)
   fast <- .iwmde_log_lik_known_v_joint_sum_common_shift(
     context = context,
     setup   = setup

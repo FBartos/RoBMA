@@ -5228,3 +5228,143 @@ test_that("the affine joint mean sweep repeats one construction per state", {
   cat("\naffine joint mean sweep repeated per state:\n  ",
       paste(served, collapse = "\n  "), "\n", sep = "")
 })
+
+
+# ============================================================================ #
+# Loading-free random covariance: the diagonal shortcut
+# ============================================================================ #
+
+# A joint selection model whose declared random covariance carries no loadings
+# takes its per-row diagonal from the model's own marginalized random-effect
+# evaluator instead of compiling and reducing the BayesTools factor contract.
+# The two must produce the same object, field for field, or a density line's
+# block variances move.
+test_that("the loading-free random covariance shortcut equals the factor contract", {
+
+  fit_names <- .affine_sweep_fit_names()
+  skip_if(length(fit_names) == 0L, "No cached selection fixtures are available.")
+
+  served <- character()
+
+  for (fit_name in fit_names) {
+    object  <- load_fit(fit_name, validate = FALSE)
+    context <- .iwmde_context(object)
+    data    <- context[["data"]]
+    if (!.is_data_joint_selection(data) || !.is_data_random(data)) {
+      next
+    }
+    plan <- tryCatch(.data_selection_execution_plan(data), error = function(e) NULL)
+    if (is.null(plan) || is.null(plan[["random_covariance"]])) {
+      next
+    }
+    rows    <- utils::head(seq_len(nrow(context[["posterior_samples"]])), 50L)
+    states  <- tryCatch(
+      .iwmde_row_states(
+        context, rows, "mu",
+        list(type = "primitive", parameter = "mu", status = "ok")
+      ),
+      error = function(e) NULL
+    )
+    active_setup <- if (is.null(states) || length(states) == 0L) {
+      list(priors = object[["priors"]])
+    } else {
+      states[[1L]][["active_setup"]]
+    }
+    setup <- tryCatch(
+      .iwmde_log_lik_posterior_setup_active_branch(
+        context,
+        context[["posterior_samples"]][rows, , drop = FALSE],
+        active_setup,
+        unit = "estimate"
+      ),
+      error = function(e) NULL
+    )
+    if (is.null(setup)) {
+      next
+    }
+    label <- paste0(fit_name, " (", paste(plan[["random_covariance"]][["term_names"]],
+                                          collapse = ", "), ")")
+
+    shortcut <- .selection_joint_random_diagonal_samples(setup, plan)
+    contract <- local({
+      testthat::local_mocked_bindings(
+        .selection_joint_random_diagonal_samples = function(setup, execution_plan, inputs = NULL) NULL,
+        .package = "RoBMA"
+      )
+      .selection_joint_random_factor_samples(setup)
+    })
+    skip_if(is.null(contract), "The factor contract is unavailable for this fixture.")
+
+    # The premise the shortcut rests on, on every fixture: the total row
+    # variance of the diagonal-plus-factor form is the marginalized random
+    # variance the model's own evaluator returns. A loading-free plan carries
+    # that total in the diagonal alone, which is what the shortcut returns.
+    total <- contract[["diagonal"]]
+    for (block_index in seq_along(contract[["loadings"]])) {
+      rows    <- plan[["row_blocks"]][[block_index]]
+      loading <- contract[["loadings"]][[block_index]]
+      if (dim(loading)[[3L]] == 0L) {
+        next
+      }
+      for (position in seq_along(rows)) {
+        total[, rows[[position]]] <- total[, rows[[position]]] +
+          rowSums(matrix(loading[, position, , drop = FALSE], nrow = nrow(total))^2)
+      }
+    }
+    expect_equal(
+      total,
+      .evaluate_marginalized_random_variance(
+        data              = data,
+        posterior_samples = setup[["posterior_samples"]],
+        K                 = setup[["K"]],
+        source_samples    = setup[["marginalized_random_source_samples"]]
+      ),
+      tolerance = 1e-12,
+      info      = paste0(label, ": total marginalized row variance")
+    )
+
+    if (is.null(shortcut)) {
+      # A declared loading keeps the compiled geometry; record that it does.
+      expect_true(any(plan[["random_covariance"]][["loading_ranks"]] != 0),
+                  info = paste0(label, ": shortcut refused a loading-free plan"))
+      served <- c(served, paste0(label, " [loadings kept]"))
+      next
+    }
+
+    expect_identical(shortcut[["diagonal"]], contract[["diagonal"]],
+                     info = paste0(label, ": diagonal"))
+    expect_identical(shortcut[["loadings"]], contract[["loadings"]],
+                     info = paste0(label, ": loadings"))
+    expect_identical(shortcut[["loading_supports"]], contract[["loading_supports"]],
+                     info = paste0(label, ": loading supports"))
+    expect_identical(shortcut[["ranks"]], contract[["ranks"]],
+                     info = paste0(label, ": ranks"))
+    expect_identical(shortcut[["row_blocks"]], contract[["row_blocks"]],
+                     info = paste0(label, ": row blocks"))
+
+    # And the block constructions that read them.
+    static <- .selection_joint_static(data)
+    blocks <- which(static[["execution_plan"]][["block_methods"]] %in%
+                      c("rank_one", "factor"))
+    for (block_index in utils::head(blocks, 3L)) {
+      expect_identical(
+        .selection_joint_factor_block_samples(
+          setup = setup, block_index = block_index,
+          random_factor_samples = shortcut, static = static
+        ),
+        .selection_joint_factor_block_samples(
+          setup = setup, block_index = block_index,
+          random_factor_samples = contract, static = .selection_joint_static(data)
+        ),
+        info = paste0(label, ": block ", block_index)
+      )
+    }
+
+    served <- c(served, label)
+  }
+
+  skip_if(length(served) == 0L,
+          "No cached selection fixture carries a joint random covariance.")
+  cat("\nmarginalized random covariance served:\n  ",
+      paste(served, collapse = "\n  "), "\n", sep = "")
+})

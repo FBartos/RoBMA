@@ -2161,6 +2161,74 @@ set_selection_likelihood_control <- function(
 })
 
 
+# A random covariance the fitted plan declares as loading-free is a per-row
+# diagonal variance, and the fitted model's own marginalized random-effect
+# evaluator - the one every non-covariance backend reads the same variance from
+# - produces it directly. Compiling the factor contract and reducing it to that
+# diagonal is then work a density line pays for every candidate row: on the
+# Assink correlated-V selection fit it is 0.92 s per 100 000 rows against 0.05 s
+# for the same values, bit for bit. Any declared loading keeps the compiled
+# factor geometry, which is the only thing that can carry one.
+.selection_joint_random_diagonal_samples <- function(setup, execution_plan,
+                                                     inputs = NULL) {
+
+  # A caller that overrides the contract's inputs is asking for a covariance
+  # the evaluated draws alone do not determine.
+  if (!is.null(inputs)) {
+    return(NULL)
+  }
+  random_covariance <- execution_plan[["random_covariance"]]
+  row_blocks        <- execution_plan[["row_blocks"]]
+  ranks             <- random_covariance[["loading_ranks"]]
+  if (!identical(random_covariance[["representation"]], "diagonal_factor") ||
+      !is.numeric(ranks) || length(ranks) != length(row_blocks) ||
+      anyNA(ranks) || any(ranks != 0)) {
+    return(NULL)
+  }
+  # The evaluator sums the model's marginalized terms, so the plan's sources
+  # must be exactly those or the diagonal it returns is a different quantity;
+  # and it reads each term's standard deviation from the evaluated draws, so
+  # every one of those columns has to be there. A contract that binds a source
+  # some other way keeps the compiled geometry, which resolves it.
+  terms   <- .data_marginalized_random_effects(setup[["data"]])
+  columns <- colnames(setup[["posterior_samples"]])
+  names   <- vapply(terms, function(term) {
+    name <- term[["block_name"]]
+    if (is.character(name) && length(name) == 1L) name else NA_character_
+  }, character(1L))
+  bound <- vapply(terms, function(term) {
+    parameter <- term[["sd_parameter_names"]]
+    is.character(parameter) && length(parameter) == 1L && !is.na(parameter) &&
+      nzchar(parameter) && parameter %in% columns
+  }, logical(1L))
+  if (anyNA(names) || !all(bound) ||
+      !identical(sort(names), sort(random_covariance[["term_names"]]))) {
+    return(NULL)
+  }
+  diagonal <- .evaluate_marginalized_random_variance(
+    data              = setup[["data"]],
+    posterior_samples = setup[["posterior_samples"]],
+    K                 = setup[["K"]],
+    source_samples    = setup[["marginalized_random_source_samples"]]
+  )
+  if (!identical(dim(diagonal), c(setup[["S"]], setup[["K"]]))) {
+    return(NULL)
+  }
+
+  return(list(
+    diagonal         = diagonal,
+    loadings         = lapply(row_blocks, function(rows) {
+      array(0, dim = c(setup[["S"]], length(rows), 0L))
+    }),
+    loading_supports = lapply(row_blocks, function(rows) {
+      matrix(logical(), length(rows), 0L)
+    }),
+    ranks            = rep(0L, length(row_blocks)),
+    row_blocks       = row_blocks
+  ))
+}
+
+
 .selection_joint_random_factor_samples <- function(setup, inputs = NULL) {
 
   if (!.is_data_random(setup[["data"]])) {
@@ -2182,6 +2250,11 @@ set_selection_likelihood_control <- function(
     priors = setup[["priors"]]
   )
   result <- setup[["selection_random_factor_samples"]]
+  if (is.null(result)) {
+    result <- .selection_joint_random_diagonal_samples(
+      setup = setup, execution_plan = execution_plan, inputs = inputs
+    )
+  }
   if (is.null(result)) {
     # The JAGS syntax representation does not determine post-fit covariance
     # eligibility. Retain its declared source names/row partition, and let
