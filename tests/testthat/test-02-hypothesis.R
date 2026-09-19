@@ -17,6 +17,13 @@ source(testthat::test_path("common-functions.R"))
 }
 
 
+.mock_hypothesis_mu_catalog_metadata <- function(...) {
+
+  coordinates <- BayesTools:::.bt_build_parameter_coordinates(columns = "mu")
+  list(catalog = BayesTools:::.bt_build_parameter_catalog(coordinates))
+}
+
+
 .hypothesis_expect_bridge_ready <- function(object) {
 
   mcse <- .hypothesis_bridge_mcse(object)
@@ -84,7 +91,7 @@ test_that("hypothesis warns only for omitted conditioning on null-component ense
   )
 
   testthat::local_mocked_bindings(
-    .brma_parameter_catalog_metadata = function(...) list(catalog = NULL),
+    .brma_parameter_catalog_metadata = .mock_hypothesis_mu_catalog_metadata,
     .hypothesis_brma_select_parameter = function(...) {
       list(
         parameter = "mu",
@@ -261,7 +268,7 @@ test_that("hypothesis defaults to qCMDE and guards unsupported random formulas",
 
   object <- .mock_random_non_known_v_brma_mv()
   testthat::local_mocked_bindings(
-    .brma_parameter_catalog_metadata = function(...) list(catalog = NULL),
+    .brma_parameter_catalog_metadata = .mock_hypothesis_mu_catalog_metadata,
     .package = "RoBMA"
   )
 
