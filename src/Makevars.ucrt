@@ -1,5 +1,4 @@
 CXX_STD = CXX17
-PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
 
 ######################################################################################################
 ###  This file is based on file in the runjags package (version 2.0)
@@ -20,11 +19,8 @@ PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
 ## Conditionally set the JAGS_ROOT variable (if it is not already set) to a location specified by the CRAN team:
 JAGS_ROOT ?= /c/progra~1/JAGS/JAGS-4.3.1
 
-## Use the old ABI to match JAGS 4.x compilation on Windows:
-#PKG_CXXFLAGS = -D_GLIBCXX_USE_CXX11_ABI=0
-PKG_CXXFLAGS=
-## Note: this behaviour will be changed (and RoBMA updated) before JAGS 5 is released
-## If you are trying to compile this version of RoBMA against JAGS 5 you may need to remove this PKG_CXXFLAGS line
+## UCRT uses the default C++ ABI.
+PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
 
 ###############
 ###  Flags
