@@ -1760,9 +1760,13 @@
   samples <- context[["posterior_samples"]]
   if (!nrow(samples) || !intercept %in% colnames(samples)) return(parameter_spec)
   first <- samples[1L, , drop = FALSE]
+  # The chart shifts the fitted coordinates themselves, so an affine basis is
+  # only usable when its update is additive in the fitted coordinate: a logged
+  # intercept is additive in its own logarithm and keeps the ordinary chart.
   intercept_basis <- BayesTools::JAGS_formula_predictor_basis(fit,
     stats::setNames(1, intercept), posterior_samples = first)
   if (!identical(intercept_basis[["status"]], "affine") ||
+      !identical(.iwmde_predictor_basis_coordinate(intercept_basis), "identity") ||
       any(intercept_basis[["basis"]] != 1)) return(parameter_spec)
   blocks <- .data_selection_execution_plan(context[["data"]])[["row_blocks"]]
   original_basis <- BayesTools::JAGS_formula_predictor_basis(fit,

@@ -500,7 +500,24 @@ test_that("retained-location mixtures preserve branches, allocation gates and sc
     }
     dynamic <- context
     dynamic$flat_prior_list[[target]][[2L]]$parameters$mean <- as.name(target)
+    conditioning_row <- samples[rows[which(transformed)[[1L]]], ]
     expect_null(.iwmde_retained_location_plan(dynamic, target, list(type = "primitive"),
-      row = samples[rows[which(transformed)[[1L]]], ]))
+      row = conditioning_row))
+    # The translation moves the fitted coordinate itself, so the accessor's
+    # affine verdict is usable only in the fitted coordinate. A logged
+    # intercept is affine in its own logarithm and keeps the generic route.
+    expect_false(is.null(.iwmde_retained_location_plan(context, target,
+      list(type = "primitive"), row = conditioning_row)))
+    local({
+      original_basis <- BayesTools::JAGS_formula_predictor_basis
+      testthat::local_mocked_bindings(
+        JAGS_formula_predictor_basis = function(...) {
+          result <- original_basis(...)
+          if (identical(result$status, "affine")) result$coordinate <- "log"
+          result
+        }, .package = "BayesTools")
+      expect_null(.iwmde_retained_location_plan(context, target,
+        list(type = "primitive"), row = conditioning_row))
+    })
   }
 })

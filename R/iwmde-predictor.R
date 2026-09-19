@@ -466,10 +466,7 @@
     # serve two coordinates. Anything else keeps the generic evaluator and the
     # whole formula. A released BayesTools that names no coordinate reports the
     # fitted one.
-    coordinate <- result[["coordinate"]]
-    if (is.null(coordinate)) {
-      coordinate <- "identity"
-    }
+    coordinate <- .iwmde_predictor_basis_coordinate(result)
     takes_coordinate <- identical(coordinate, "identity") ||
       (identical(coordinate, "log") &&
          identical(formula_parameter, "log_tau") &&
@@ -500,6 +497,22 @@
   }
 
   return(basis)
+}
+
+
+# The coordinate an affine predictor basis is additive in. Every caller of
+# `BayesTools::JAGS_formula_predictor_basis()` has to read it before it forms an
+# update from `value - current`: a logged formula intercept is affine in its own
+# logarithm, not in the fitted coordinate. A released BayesTools that names no
+# coordinate reports the fitted one.
+.iwmde_predictor_basis_coordinate <- function(result) {
+
+  coordinate <- result[["coordinate"]]
+  if (is.null(coordinate)) {
+    return("identity")
+  }
+
+  return(coordinate)
 }
 
 

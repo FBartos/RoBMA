@@ -50,12 +50,16 @@
     return(NULL)
   }
   # The shared accessor certifies affine dependence, including rejection of
-  # logged intercepts, expressions and random-scale dependencies.
+  # expressions and random-scale dependencies. It also reports the coordinate
+  # the update is additive in; this translation moves the fitted coordinate
+  # itself, so a logged intercept - affine only in its own logarithm - keeps
+  # the generic conditioning.
   basis <- BayesTools::JAGS_formula_predictor_basis(fit,
     directions = stats::setNames(1, parameter),
     posterior_samples = matrix(row, 1L, dimnames = list(NULL, names(row))))
   K <- nrow(data[["outcome"]])
   if (!identical(basis[["status"]], "affine") ||
+      !identical(.iwmde_predictor_basis_coordinate(basis), "identity") ||
       !identical(basis[["parameter"]], "mu") ||
       !identical(dim(basis[["basis"]]), c(1L, K)) ||
       any(basis[["basis"]] != 1)) {

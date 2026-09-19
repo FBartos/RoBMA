@@ -122,6 +122,23 @@ test_that("affine joint grids reuse unchanged blocks and preserve the original l
     spec <- .iwmde_linear_conditioning_spec(context,
       list(type = "primitive", parameter = intercept), "qCMDE")
     expect_false(is.null(spec$direction))
+    # The chart shifts the fitted coordinates themselves. A basis that is
+    # affine in another coordinate - a logged intercept is affine only in its
+    # own logarithm - has no `value - current` update and keeps the ordinary
+    # chart, whatever the basis values look like.
+    local({
+      original_basis <- BayesTools::JAGS_formula_predictor_basis
+      testthat::local_mocked_bindings(
+        JAGS_formula_predictor_basis = function(...) {
+          result <- original_basis(...)
+          if (identical(result$status, "affine")) result$coordinate <- "log"
+          result
+        }, .package = "BayesTools")
+      logged <- .iwmde_linear_conditioning_spec(context,
+        list(type = "primitive", parameter = intercept), "qCMDE")
+      expect_null(logged$direction)
+      expect_null(logged$conditioning_chart)
+    })
     execution <- .iwmde_plan_execution_spec(spec)
     replacement <- .iwmde_replacement_spec(context, intercept, execution)
     states <- .iwmde_row_states(context, 1L, intercept, execution, "q_grid_cmde")
