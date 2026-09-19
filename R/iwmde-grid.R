@@ -478,8 +478,20 @@
     if (length(gaps) == 0L || max(gaps) <= 0) {
       break
     }
-    index <- which.max(gaps)
-    grid <- sort(unique(c(grid, mean(grid[c(index, index + 1L)]))))
+    midpoints <- vapply(seq_along(gaps), function(index) {
+      mean(grid[c(index, index + 1L)])
+    }, numeric(1))
+    available <- which(midpoints > grid[-length(grid)] &
+                         midpoints < grid[-1L])
+    if (length(available) == 0L) {
+      stop(
+        "The density display range contains too few representable values ",
+        "for the requested number of grid points.",
+        call. = FALSE
+      )
+    }
+    index <- available[which.max(gaps[available])]
+    grid <- sort(c(grid, midpoints[index]))
   }
 
   if (length(grid) > n_points) {
