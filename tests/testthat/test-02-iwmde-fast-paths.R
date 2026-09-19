@@ -5257,24 +5257,53 @@ test_that("the loading-free random covariance shortcut equals the factor contrac
     if (is.null(plan) || is.null(plan[["random_covariance"]])) {
       next
     }
-    rows    <- utils::head(seq_len(nrow(context[["posterior_samples"]])), 50L)
-    states  <- tryCatch(
-      .iwmde_row_states(
-        context, rows, "mu",
-        list(type = "primitive", parameter = "mu", status = "ok")
-      ),
-      error = function(e) NULL
-    )
-    active_setup <- if (is.null(states) || length(states) == 0L) {
-      list(priors = object[["priors"]])
+    # The likelihood setup below is an active-branch setup, so the states have
+    # to carry the fixture's own localized priors: a hand-made specification
+    # leaves a mixture fixture with the full prior list, the setup refuses it,
+    # and the premise goes unasserted on exactly the fixtures that have more
+    # than one component. Resolve the parameter the way the sweep test does.
+    parameter <- utils::head(intersect(
+      c("mu", "mu_intercept"), colnames(context[["posterior_samples"]])
+    ), 1L)
+    spec <- if (length(parameter) == 1L) {
+      tryCatch(
+        .iwmde_parameter_spec(
+          context, parameter,
+          list(type = "primitive", conditional = NULL, conditional_rule = "AND")
+        ),
+        error = function(e) NULL
+      )
     } else {
-      states[[1L]][["active_setup"]]
+      NULL
     }
+    if (is.null(spec) || !identical(spec[["status"]], "ok")) {
+      next
+    }
+    values    <- tryCatch(.iwmde_parameter_values(context, parameter, spec),
+                          error = function(e) NULL)
+    component <- tryCatch(.iwmde_parameter_components(context, parameter, spec),
+                          error = function(e) NULL)
+    if (is.null(values) || is.null(component)) {
+      next
+    }
+    active <- which(component[["active"]] & is.finite(values))
+    states <- if (length(active) == 0L) {
+      NULL
+    } else {
+      tryCatch(
+        .iwmde_row_states(context, utils::head(active, 50L), parameter, spec),
+        error = function(e) NULL
+      )
+    }
+    if (is.null(states) || length(states) == 0L) {
+      next
+    }
+    sample_rows <- vapply(states, `[[`, integer(1L), "row_index")
     setup <- tryCatch(
       .iwmde_log_lik_posterior_setup_active_branch(
         context,
-        context[["posterior_samples"]][rows, , drop = FALSE],
-        active_setup,
+        context[["posterior_samples"]][sample_rows, , drop = FALSE],
+        states[[1L]][["active_setup"]],
         unit = "estimate"
       ),
       error = function(e) NULL
@@ -5293,7 +5322,11 @@ test_that("the loading-free random covariance shortcut equals the factor contrac
       )
       .selection_joint_random_factor_samples(setup)
     })
-    skip_if(is.null(contract), "The factor contract is unavailable for this fixture.")
+    # A fixture the contract cannot answer carries no premise to assert.
+    # Skipping here would end the test and take every later fixture with it.
+    if (is.null(contract)) {
+      next
+    }
 
     # The premise the shortcut rests on, on every fixture: the total row
     # variance of the diagonal-plus-factor form is the marginalized random
