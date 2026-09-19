@@ -5401,3 +5401,89 @@ test_that("the loading-free random covariance shortcut equals the factor contrac
   cat("\nmarginalized random covariance served:\n  ",
       paste(served, collapse = "\n  "), "\n", sep = "")
 })
+
+
+# The evaluator scales a marginalized term's variance by its row multiplier
+# only, while the compiled factor geometry also carries the term's design
+# entry. A single-column *non-intercept* random term keeps rank-0 loadings and
+# would otherwise pass every precondition, receiving `sd^2` where the fitted
+# covariance is `z_k^2 sd^2`. No cached fixture carries such a term, so the
+# term metadata is constructed here.
+test_that("the loading-free shortcut refuses a non-intercept design column", {
+
+  S <- 7L
+  K <- 4L
+  z <- c(0.5, 1.5, 2, 3)
+  posterior_samples <- matrix(
+    seq_len(S) / 10, nrow = S, ncol = 1L,
+    dimnames = list(NULL, "tau_study")
+  )
+  make_term <- function(model_matrix, row_multiplier = NULL) {
+    term <- list(
+      block_name         = "study",
+      sd_parameter_names = "tau_study",
+      model_matrix       = model_matrix,
+      n_columns          = 1L,
+      structure          = "id",
+      group_map          = seq_len(K),
+      n_groups           = K
+    )
+    if (!is.null(row_multiplier)) {
+      term[["row_multiplier"]]      <- row_multiplier
+      term[["row_multiplier_name"]] <- "study_R_diagonal"
+    }
+    term
+  }
+  make_setup <- function(term) {
+    data <- list(
+      outcome  = data.frame(yi = numeric(K), sei = rep(1, K)),
+      location = structure(
+        matrix(1, K, 1L),
+        marginalized_random_effects = list(term)
+      )
+    )
+    list(
+      data              = data,
+      posterior_samples = posterior_samples,
+      S                 = S,
+      K                 = K,
+      marginalized_random_source_samples = NULL
+    )
+  }
+  plan <- list(
+    random_covariance = list(
+      representation = "diagonal_factor",
+      loading_ranks  = rep(0L, K),
+      term_names     = "study"
+    ),
+    row_blocks = lapply(seq_len(K), function(row) row)
+  )
+
+  # An all-ones design column is the case the shortcut was measured on: the
+  # evaluator's `sd^2` is the fitted diagonal.
+  intercept <- .selection_joint_random_diagonal_samples(
+    make_setup(make_term(matrix(1, K, 1L))), plan
+  )
+  expect_false(is.null(intercept))
+  expect_identical(
+    intercept[["diagonal"]],
+    matrix(posterior_samples[, "tau_study"]^2, S, K)
+  )
+
+  # The same term with a non-intercept design column must be refused.
+  expect_null(.selection_joint_random_diagonal_samples(
+    make_setup(make_term(matrix(z, K, 1L))), plan
+  ))
+
+  # A term whose row multiplier carries the design entry is served again: the
+  # evaluator applies it, so its diagonal is the fitted one.
+  multiplied <- .selection_joint_random_diagonal_samples(
+    make_setup(make_term(matrix(z, K, 1L), row_multiplier = z^2)), plan
+  )
+  expect_false(is.null(multiplied))
+  expect_identical(
+    multiplied[["diagonal"]],
+    matrix(posterior_samples[, "tau_study"]^2, S, K) *
+      matrix(z^2, S, K, byrow = TRUE)
+  )
+})

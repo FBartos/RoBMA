@@ -8,7 +8,11 @@
   contract and reducing it to the diagonal was therefore work every candidate
   row of a heterogeneity density line paid for: 0.92 s per 100 000 rows against
   0.05 s for the same numbers, bit for bit. Any declared loading keeps the
-  compiled geometry, which is the only thing that can carry one. The Assink
+  compiled geometry, which is the only thing that can carry one, and so does
+  any term whose design entry the evaluator does not carry: the evaluator
+  scales a term's variance by its row multiplier alone, so a term is served
+  only where its design column is all ones or where a row multiplier carries
+  that entry. The Assink
   correlated-`V` heterogeneity lines take 12.6 s (`tau_total`), 49.5 s
   (`study: tau`, 2000 rows), 8.9 s (`esid_study: tau`), 9.7 s
   (`tau2_prop(esid_study)`) and 10.6 s (`tau2_prop(study)`) where they took

@@ -2201,7 +2201,20 @@ set_selection_likelihood_control <- function(
     is.character(parameter) && length(parameter) == 1L && !is.na(parameter) &&
       nzchar(parameter) && parameter %in% columns
   }, logical(1L))
-  if (anyNA(names) || !all(bound) ||
+  # The evaluator scales a term's variance by its row multiplier alone, while
+  # the compiled geometry also carries the term's design entry. The two agree
+  # only where that entry is one for every row, or where a row multiplier is
+  # the quantity carrying it; anything else keeps the compiled geometry.
+  design_carried <- vapply(terms, function(term) {
+    if (.marginalized_random_effect_has_row_multiplier(term)) {
+      return(TRUE)
+    }
+    model_matrix <- term[["model_matrix"]]
+    is.matrix(model_matrix) && ncol(model_matrix) == 1L &&
+      nrow(model_matrix) == setup[["K"]] && all(is.finite(model_matrix)) &&
+      all(model_matrix[, 1L] == 1)
+  }, logical(1L))
+  if (anyNA(names) || !all(bound) || !all(design_carried) ||
       !identical(sort(names), sort(random_covariance[["term_names"]]))) {
     return(NULL)
   }
