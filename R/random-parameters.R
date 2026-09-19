@@ -797,7 +797,7 @@
       points           = points
     ))
   }
-  if (positive_component <= 0) {
+  if (positive_component <= 0 || any(parent_probability == 0)) {
     return(list(
       continuous_mass = 0,
       points           = data.frame(x = numeric(), p = numeric())

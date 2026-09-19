@@ -62,3 +62,30 @@ test_that("a random inclusion gate belongs only to its declared block", {
     )
   }
 })
+
+
+test_that("variance proportions require a possible positive parent allocation", {
+
+  gate_prior <- function(indicator, probability) {
+    prior <- BayesTools::prior("spike", list(location = probability))
+    attr(prior, "random_allocation_indicator") <- indicator
+    prior
+  }
+  fit <- structure(list(), prior_list = list(
+    parent = gate_prior("parent", 0),
+    child = gate_prior("child", .5)
+  ))
+  metadata <- list(
+    quantity = "var_prop", index = 1L,
+    component_indicators = c("child", NA_character_),
+    parent_indicators = "parent"
+  )
+  prior <- .brma_random_parameter_allocation_gate_prior(list(fit = fit), metadata)
+  expect_equal(prior[["continuous_mass"]], 0)
+  expect_equal(nrow(prior[["points"]]), 0L)
+
+  state <- .brma_random_parameter_allocation_gate_state(
+    metadata, cbind(parent = c(0, 0), child = c(0, 1))
+  )
+  expect_false(any(state[["defined"]]))
+})
