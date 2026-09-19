@@ -21,6 +21,8 @@
 - declares direct test dependencies and tracks all native header dependencies
   in incremental builds. OpenMP compiler and linker flags now use the C++
   macros appropriate to the native backend.
+- excludes generated test failure logs and scenario timing candidates from
+  source packages, preventing stale local failures from appearing in checks.
 - accepts BayesTools conditional-normal-mixture prior-ordinate metadata while
   retaining the exact structural-classification requirement. Numerical
   integration accuracy remains separate diagnostic information.
