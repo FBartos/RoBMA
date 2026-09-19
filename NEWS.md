@@ -1,5 +1,26 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Fixes
+- preserves fixed-zero intercepts in response-only formulas such as `yi ~ 0`
+  and avoids evaluating unused default heterogeneity priors when multivariate
+  model-averaging priors are already fully specified.
+- preserves conditional Gaussian uncertainty and leave-one-out heterogeneity
+  summaries across very different effect-size scales, and handles zero and
+  infinite conditional Poisson rates without introducing `NaN` likelihoods.
+- accepts scalar JAGS nuisance-parameter names when predicting binomial or
+  Poisson responses from a model containing one estimate.
+- rejects the unsupported marginal CDF for selection models that condition on
+  sampling variation, instead of returning a differently normalized law.
+- stops adaptive density grids explicitly when their requested resolution
+  exceeds floating-point precision. Random hypothesis eligibility now follows
+  structural parameter metadata rather than constancy of sampled values.
+- keeps random-component inclusion indicators with their declared owners,
+  preventing unrelated components from acquiring spurious zero atoms or
+  conditional hypotheses.
+- includes random-effect inclusion evidence in `interpret()` and preserves
+  custom study and summary rows within automatic forest-plot limits.
+- declares direct test dependencies and tracks all native header dependencies
+  in incremental builds. OpenMP compiler and linker flags now use the C++
+  macros appropriate to the native backend.
 - accepts BayesTools conditional-normal-mixture prior-ordinate metadata while
   retaining the exact structural-classification requirement. Numerical
   integration accuracy remains separate diagnostic information.
