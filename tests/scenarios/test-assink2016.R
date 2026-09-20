@@ -1280,7 +1280,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   scenario_plot("bselmodel-marginal-diagnostics-mv-vi-cond", plot_bselmodel_diagnostic_equivalence(fit_bselmodel_cluster_cond, fit_bselmodel.mv_cond))
   scenario_plot("bselmodel-marginal-diagnostics-mv-V-cond",  plot_bselmodel_diagnostic_equivalence(fit_bselmodel.mv_V_cond,    fit_bselmodel.mv_cond))
 
-  # TODO: I think a standard funnel for .mv fits with correlated errors should work (especially the default selectin model where the product is irrelevant)
+  # The outcome contours describe a new independently published estimate.
   scenario_plot("bselmodel-funnel-mv-V-cond", {
     par(mfrow = c(1, 2))
     funnel(fit_bselmodel.mv_V_cond, main = "funnel")
@@ -1428,7 +1428,7 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
   scenario_plot("RoBMA-blup-mv-V-cond-vs-diag", scenario_agreement_plot(data.frame(blup(fit_RoBMA_mv_V_cond))[,"Mean"], data.frame(blup(fit_RoBMA_mv_diag_cond))[,"Mean"], estimate_label = "mv-vi", reference_label = "mv-V"))
 
   ### Diagnostics ----
-  scenario_plot("RoBMA-funnel-mv-V-cond", funnel(fit_RoBMA_mv_V_cond, main = "default")) # TODO: this should be available
+  scenario_plot("RoBMA-funnel-mv-V-cond", funnel(fit_RoBMA_mv_V_cond, main = "default"))
   scenario_plot("RoBMA-qqnorm-mv-V-cond", qqnorm(fit_RoBMA_mv_V_cond, main = "default"))
   scenario_plot("RoBMA-zplot-mv-V-cond", zplot(fit_RoBMA_mv_V_cond, to = 10, main = "default"))
 })
