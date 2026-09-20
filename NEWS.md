@@ -1,5 +1,8 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Fixes
+- requires BayesTools 0.3.1.120 to integrate directional prior probabilities at
+  the requested threshold, avoiding spurious grid-refinement failures in
+  coefficient and model-averaged hypothesis tests.
 - preserves fixed-zero intercepts in response-only formulas such as `yi ~ 0`
   and avoids evaluating unused default heterogeneity priors when multivariate
   model-averaging priors are already fully specified.
