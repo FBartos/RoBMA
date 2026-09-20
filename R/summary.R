@@ -542,17 +542,9 @@ as.data.frame.summary.brma <- function(
     for (attribute in setdiff(names(column_attributes), c("names", "bound_operator"))) {
       attr(out[[column]], attribute) <- column_attributes[[attribute]]
     }
-    if (any(vapply(sources, function(source) {
-      !is.null(attr(source, "bound_operator", exact = TRUE))
-    }, logical(1L)))) {
-      attr(out[[column]], "bound_operator") <- unlist(lapply(seq_along(tables), function(i) {
-        bounds <- attr(sources[[i]], "bound_operator", exact = TRUE)
-        if (is.null(bounds)) rep(NA_character_, nrow(tables[[i]])) else bounds
-      }), use.names = FALSE)
-    }
-    if (any(vapply(sources, inherits, logical(1L), what = "BayesTools_BF"))) {
-      class(out[[column]]) <- unique(c("BayesTools_BF", class(out[[column]])))
-    }
+    out[[column]] <- .output_bind_bf_attributes(
+      out[[column]], sources, vapply(tables, nrow, integer(1L))
+    )
   }
   for (attribute in c("type", "n_models")) {
     values <- unlist(unname(lapply(tables, function(table) {

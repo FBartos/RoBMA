@@ -195,6 +195,93 @@ test_that("summary result families satisfy the output contract", {
 })
 
 
+.output_contract_inclusion <- function(parameters, values, bounds = NULL,
+                                       logBF = FALSE, BF01 = FALSE) {
+
+  out <- data.frame(
+    prior_prob = 0.5, post_prob = values / (1 + values),
+    inclusion_BF = values, row.names = parameters
+  )
+  attr(values, "bound_operator") <- bounds
+  out[["inclusion_BF"]] <- BayesTools::format_BF(
+    values, inclusion = TRUE, logBF = logBF, BF01 = BF01
+  )
+  class(out) <- c("BayesTools_table", "data.frame")
+  attr(out, "type") <- c("prior_prob", "post_prob", "inclusion_BF")
+  out
+}
+
+
+test_that("summary exports align BF bounds with estimates and conditional rows", {
+
+  object <- structure(list(
+    name = "Model",
+    inclusion_components = .output_contract_inclusion(
+      c("Effect", "Heterogeneity"), c(100, 3), c(">", NA_character_)
+    ),
+    inclusion_mods = data.frame(inclusion_BF = 0.25, row.names = "age"),
+    estimates = .output_contract_table(c("mu", "tau")),
+    estimates_conditional = .output_contract_table(c("mu", "tau"))
+  ), class = "summary.brma")
+
+  for (coerce in list(as.data.frame, data.frame)) {
+    output <- coerce(object)
+    BF <- output[["inclusion_BF"]]
+    expect_equal(nrow(output), 7L)
+    expect_equal(as.numeric(BF), c(100, 3, 0.25, rep(NA_real_, 4L)))
+    expect_identical(attr(BF, "bound_operator"), c(">", rep(NA_character_, 6L)))
+    expect_s3_class(BF, "BayesTools_BF")
+    expect_identical(attr(BF, "name"), "Inclusion BF")
+    expect_identical(output[["component"]], c(
+      "inclusion", "inclusion", "inclusion location",
+      "common", "common", "conditional common", "conditional common"
+    ))
+  }
+})
+
+
+test_that("model-summary exports retain BFs introduced in later tables", {
+
+  for (logBF in c(FALSE, TRUE)) {
+    for (BF01 in c(FALSE, TRUE)) {
+      bounded <- .output_contract_inclusion(
+        c("null", "alternative"), c(0.01, 100), c("<", ">"), logBF, BF01
+      )
+      unbounded <- .output_contract_inclusion("alternative", 2, logBF = logBF, BF01 = BF01)
+      object <- structure(list(
+        name = "Model", type = "marginal",
+        marginal = list(
+          Effect = data.frame(post_prob = 1, row.names = "fixed"),
+          Heterogeneity = bounded,
+          Moderator = unbounded
+        )
+      ), class = "summary_models.RoBMA")
+      expected_values <- c(NA_real_, 0.01, 100, 2)
+      expected_bounds <- c(NA_character_, "<", ">", NA_character_)
+      if (BF01) {
+        expected_values <- 1 / expected_values
+        expected_bounds[2:3] <- c(">", "<")
+      }
+      if (logBF) expected_values <- log(expected_values)
+
+      for (coerce in list(as.data.frame, data.frame)) {
+        output <- coerce(object)
+        BF <- output[["inclusion_BF"]]
+        expect_equal(as.numeric(BF), expected_values)
+        expect_identical(attr(BF, "bound_operator"), expected_bounds)
+        expect_s3_class(BF, "BayesTools_BF")
+        for (attribute in c("name", "logBF", "BF01")) {
+          expect_identical(attr(BF, attribute), attr(bounded[["inclusion_BF"]], attribute))
+        }
+        # Row subsetting must keep the markers attached to their own values.
+        selected <- output[c(4L, 2L, 1L), , drop = FALSE][["inclusion_BF"]]
+        expect_identical(attr(selected, "bound_operator"), expected_bounds[c(4L, 2L, 1L)])
+      }
+    }
+  }
+})
+
+
 test_that("print-delegating result objects match their summary data frames", {
 
   marginal_summary <- .output_contract_table()

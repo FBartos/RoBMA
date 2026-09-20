@@ -469,14 +469,20 @@ as.data.frame.brma_samples_list <- function(
     )
   } else {
     column_names <- unique(unlist(lapply(tables, names), use.names = FALSE))
-    tables <- lapply(tables, function(table) {
+    aligned_tables <- lapply(tables, function(table) {
       missing_names <- setdiff(column_names, names(table))
       for (name in missing_names) {
         table[[name]] <- rep(NA, nrow(table))
       }
       table[column_names]
     })
-    output <- do.call(rbind, tables)
+    output <- do.call(rbind, aligned_tables)
+    row_counts <- vapply(tables, nrow, integer(1L))
+    for (column in column_names) {
+      output[[column]] <- .output_bind_bf_attributes(
+        output[[column]], lapply(tables, `[[`, column), row_counts
+      )
+    }
     rownames(output) <- NULL
   }
 
@@ -486,6 +492,42 @@ as.data.frame.brma_samples_list <- function(
     optional  = optional
   )
 
+  return(output)
+}
+
+
+.output_bind_bf_attributes <- function(output, sources, row_counts) {
+
+  has_bounds <- vapply(sources, function(source) {
+    !is.null(attr(source, "bound_operator", exact = TRUE))
+  }, logical(1L))
+  is_bf <- vapply(sources, inherits, logical(1L), what = "BayesTools_BF")
+  if (!any(has_bounds | is_bf)) {
+    return(output)
+  }
+
+  # rbind() retains only the first column's attributes, even when a later
+  # table supplies its first Bayes factor. Keep its scale and presentation
+  # metadata, and bind row-level bounds with the same missing-cell padding.
+  source <- sources[[which(has_bounds | is_bf)[[1L]]]]
+  for (attribute in c("name", "logBF", "BF01")) {
+    attr(output, attribute) <- attr(source, attribute, exact = TRUE)
+  }
+  bounds <- lapply(seq_along(sources), function(i) {
+    bound <- attr(sources[[i]], "bound_operator", exact = TRUE)
+    if (is.null(bound)) {
+      return(rep(NA_character_, row_counts[[i]]))
+    }
+    if (length(bound) != row_counts[[i]]) {
+      stop("Internal error: Bayes factor bounds do not match table rows.",
+           call. = FALSE)
+    }
+    bound
+  })
+  attr(output, "bound_operator") <- unlist(bounds, use.names = FALSE)
+  if (any(is_bf)) {
+    class(output) <- unique(c("BayesTools_BF", class(output)))
+  }
   return(output)
 }
 
