@@ -1639,7 +1639,7 @@ scenario_text <- function(name, code) {
   expr   <- substitute(code)
   result <- NULL
 
-  old_options <- options(width = config[["width"]])
+  old_options <- options(width = config[["width"]], useFancyQuotes = FALSE)
   on.exit(options(old_options), add = TRUE)
   .scenario_reset_memory_peak()
   started <- .scenario_clock()

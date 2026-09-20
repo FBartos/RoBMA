@@ -93,6 +93,9 @@ cache during the current run.
   stochastic comparison.
 - `scenario_text()` suppresses message conditions emitted while evaluating its
   expression, including fitting progress. Warnings and errors remain visible.
+- `scenario_text()` uses the configured output width and plain ASCII quotes
+  (`useFancyQuotes = FALSE`) for locale-independent text snapshots, restoring
+  the caller's printing options after capture, including on errors.
 
 Ordinary package line-width limits do not apply to scenario scripts. Preserve
 long calls, aligned comparison columns, compact one-line plot invocations, and

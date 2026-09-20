@@ -1072,6 +1072,30 @@ test_that("scenario_text adds, compares, and regenerates tracked output", {
 })
 
 
+test_that("scenario_text uses portable quotes and restores printing options", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  custom_quotes <- c("<single>", "</single>", "<double>", "</double>")
+  old_options <- options(width = 97L, useFancyQuotes = custom_quotes)
+  on.exit(options(old_options), add = TRUE)
+
+  scenario_start("unit", root = root, create_missing = TRUE, width = 80L)
+  scenario_text("quotes", {
+    cat(sQuote("single"), dQuote("double"), getOption("width"), sep = "\n")
+    invisible(NULL)
+  })
+  path <- file.path(root, "results", "unit", "quotes.txt")
+  expect_identical(readLines(path, warn = FALSE), c("'single'", '"double"', "80"))
+  expect_identical(getOption("useFancyQuotes"), custom_quotes)
+  expect_identical(getOption("width"), 97L)
+
+  expect_error(scenario_text("failed", stop("capturing failed")), "capturing failed")
+  expect_identical(getOption("useFancyQuotes"), custom_quotes)
+  expect_identical(getOption("width"), 97L)
+})
+
+
 test_that("scenario_text seeds stochastic snapshots independently", {
 
   root <- .scenario_test_root()
