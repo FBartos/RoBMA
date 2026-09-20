@@ -1,5 +1,7 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Fixes
+- preserves row-specific Bayes-factor bound markers when exporting combined
+  summary and model tables as data frames.
 - requires BayesTools 0.3.1.120 to integrate directional prior probabilities at
   the requested threshold, avoiding spurious grid-refinement failures in
   coefficient and model-averaged hypothesis tests.
