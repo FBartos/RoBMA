@@ -514,21 +514,33 @@ as.data.frame.brma_samples_list <- function(
     attr(output, attribute) <- attr(source, attribute, exact = TRUE)
   }
   bounds <- lapply(seq_along(sources), function(i) {
-    bound <- attr(sources[[i]], "bound_operator", exact = TRUE)
-    if (is.null(bound)) {
-      return(rep(NA_character_, row_counts[[i]]))
-    }
-    if (length(bound) != row_counts[[i]]) {
-      stop("Internal error: Bayes factor bounds do not match table rows.",
-           call. = FALSE)
-    }
-    bound
+    .output_bf_bound_operators(
+      attr(sources[[i]], "bound_operator", exact = TRUE), row_counts[[i]]
+    )
   })
   attr(output, "bound_operator") <- unlist(bounds, use.names = FALSE)
   if (any(is_bf)) {
     class(output) <- unique(c("BayesTools_BF", class(output)))
   }
   return(output)
+}
+
+
+.output_bf_bound_operators <- function(bounds, n_rows) {
+
+  if (is.null(bounds)) {
+    return(rep(NA_character_, n_rows))
+  }
+  # BayesTools accepts a scalar as one operator shared by every BF. Other
+  # mismatched lengths can be stale row metadata and must not be recycled.
+  if (length(bounds) == 1L) {
+    return(rep(bounds, n_rows))
+  }
+  if (length(bounds) != n_rows) {
+    stop("Internal error: Bayes factor bounds do not match table rows.",
+         call. = FALSE)
+  }
+  return(bounds)
 }
 
 

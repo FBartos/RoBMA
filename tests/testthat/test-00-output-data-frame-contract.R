@@ -282,6 +282,33 @@ test_that("model-summary exports retain BFs introduced in later tables", {
 })
 
 
+test_that("table binding expands only supported scalar BF bounds", {
+
+  table <- .output_contract_inclusion(c("null", "alternative"), c(10, 20), ">")
+  attr(table[["inclusion_BF"]], "bound_operator") <- ">"
+  object <- structure(list(
+    name = "Model", type = "marginal",
+    marginal = list(
+      Effect = table,
+      Heterogeneity = data.frame(post_prob = 1, row.names = "fixed")
+    )
+  ), class = "summary_models.RoBMA")
+  for (coerce in list(as.data.frame, data.frame)) {
+    output <- coerce(object)
+    expect_equal(as.numeric(output[["inclusion_BF"]]), c(10, 20, NA_real_))
+    expect_identical(attr(output[["inclusion_BF"]], "bound_operator"),
+                     c(">", ">", NA_character_))
+  }
+
+  attr(object[["marginal"]][["Effect"]][["inclusion_BF"]], "bound_operator") <-
+    c(">", NA_character_, "<")
+  expect_error(
+    as.data.frame(object),
+    "Internal error: Bayes factor bounds do not match table rows.", fixed = TRUE
+  )
+})
+
+
 test_that("print-delegating result objects match their summary data frames", {
 
   marginal_summary <- .output_contract_table()

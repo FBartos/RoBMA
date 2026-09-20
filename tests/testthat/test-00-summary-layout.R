@@ -283,6 +283,61 @@ test_that("models without multivariate random terms keep their existing layout",
   out
 }
 
+test_that("unbounded inclusion metadata follows row splitting and reordering", {
+
+  table <- .summary_layout_inclusion(
+    c("Effect", "study: tau", "observation: tau", "Publication Bias"),
+    c(2, 3, 5, 7), "Component Inclusion"
+  )
+  expect_false(inherits(table[["inclusion_BF"]], "BayesTools_BF"))
+  object <- structure(list(
+    inclusion_components = .summary.inclusion_subtable(
+      table, c(4L, 1L), c("Publication Bias", "Effect"), "Component Inclusion"
+    ),
+    inclusion_random = .summary.inclusion_subtable(
+      table, c(2L, 3L), c("study: tau", "observation: tau"), "Random-Effect Inclusion"
+    )
+  ), class = "summary.brma")
+  for (section in c("inclusion_components", "inclusion_random")) {
+    expect_identical(
+      attr(object[[section]][["inclusion_BF"]], "bound_operator"),
+      rep(NA_character_, 2L)
+    )
+  }
+  for (coerce in list(as.data.frame, data.frame)) {
+    output <- coerce(object)
+    expect_identical(output[["parameter"]], c(
+      "Effect", "Heterogeneity: study: tau", "Heterogeneity: observation: tau",
+      "Publication Bias"
+    ))
+    expect_equal(as.numeric(output[["inclusion_BF"]]), c(2, 3, 5, 7))
+    expect_identical(attr(output[["inclusion_BF"]], "bound_operator"),
+                     rep(NA_character_, 4L))
+  }
+})
+
+
+test_that("scalar BF bounds retain their uniform meaning after row selection", {
+
+  table <- .summary_layout_inclusion(
+    c("Effect", "Heterogeneity", "Publication Bias"), c(11, 13, 17),
+    "Component Inclusion", operators = ">"
+  )
+  attr(table[["inclusion_BF"]], "bound_operator") <- ">"
+  output <- .summary.inclusion_subtable(
+    table, c(3L, 1L), c("Publication Bias", "Effect"), "Component Inclusion"
+  )
+  expect_equal(as.numeric(output[["inclusion_BF"]]), c(17, 11))
+  expect_identical(attr(output[["inclusion_BF"]], "bound_operator"), c(">", ">"))
+
+  attr(table[["inclusion_BF"]], "bound_operator") <- c(">", "<")
+  expect_error(
+    .summary.inclusion_subtable(table, 2L, "Heterogeneity", "Component Inclusion"),
+    "Internal error: Bayes factor bounds do not match table rows.", fixed = TRUE
+  )
+})
+
+
 test_that("random inclusion joins component inclusion before publication bias", {
 
   for (mods in c(FALSE, TRUE)) {

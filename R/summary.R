@@ -1031,13 +1031,19 @@ print.brma <- function(x, ...) {
   return(output)
 }
 
-# Restore row-level BayesTools_BF attributes after table subsetting.
+# Restore row-level bounds after table subsetting. Unbounded BF columns also
+# carry all-NA bound metadata even though they do not have BayesTools_BF class.
 .summary.inclusion_subtable_restore_BF_attributes <- function(output, table,
                                                               indices) {
 
   for (column in intersect(colnames(output), colnames(table))) {
     if (inherits(table[[column]], "BayesTools_BF")) {
       output[[column]] <- table[[column]][indices]
+    }
+    bounds <- attr(table[[column]], "bound_operator", exact = TRUE)
+    if (!is.null(bounds)) {
+      attr(output[[column]], "bound_operator") <-
+        .output_bf_bound_operators(bounds, nrow(table))[indices]
     }
   }
 
