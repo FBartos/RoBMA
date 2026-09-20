@@ -120,13 +120,14 @@ summary(fit_BMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 
 The output from the `summary()` function has 3 parts. The first one provides a basic summary of the fitted models by component types (presence of the effect and heterogeneity).
 The table summarizes the prior and posterior probabilities and the inclusion Bayes factors of the individual components.
-The results show that the inclusion Bayes factor for the effect is similar to the one reported in @bartos2021bayesian, $\text{BF}_{10} = 240.9$ and $\text{BF}_{\text{rf}} = 3.53$
-(minor differences are a consequence of the product-space estimation algorithm in the new version of the package).
+The example fit gives an effect inclusion Bayes factor of roughly $\text{BF}_{10} = 250$ and a heterogeneity inclusion Bayes factor of $\text{BF}_{\text{rf}} = 3.60$, broadly consistent with the evidence reported in @bartos2021bayesian.
+The effect Bayes factor has an estimated relative Monte Carlo error of 29%, and its inclusion indicator has R-hat = 1.15.
+Its exact magnitude is therefore not numerically settled by this run.
 
 The second part under the 'Model-averaged estimates' heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero).
 We move to the last part.
 
-The third part under the 'Conditional estimates' heading displays the conditional effect size estimate corresponding to the one reported in @bartos2021bayesian, d = 1.080, 95% CI [0.661, 1.424], and a heterogeneity estimate (not reported previously).
+The third part under the 'Conditional estimates' heading displays the conditional effect size estimate corresponding to the one reported in @bartos2021bayesian, d = 1.082, 95% CI [0.663, 1.420], and a heterogeneity estimate (not reported previously).
 
 The dedicated helper functions can be used to extract the pooled effect and heterogeneity estimates directly (assuming the presence of the effect and heterogeneity respectively):
 
@@ -146,7 +147,7 @@ plot(fit_BMA, parameter = "mu", prior = TRUE, xlim = c(-2, 2), lwd = 2)
 ```
 
 By default, the function plots the model-averaged estimates across all models; the arrows represent the probability of a spike, and the lines represent the posterior density under models assuming a non-zero effect.
-The secondary y-axis (right) shows the probability of the spike (at zero) decreasing from 0.50 to 0.005 (also obtainable from the model summary).
+The secondary y-axis (right) shows the probability of the spike (at zero) decreasing from 0.50 to approximately 0.004 (also obtainable from the model summary), subject to the indicator-mixing limitation noted above.
 
 To visualize the conditional effect size estimate, we can add the `conditional = TRUE` argument,
 
@@ -183,11 +184,11 @@ summary(fit_RoBMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 
 We notice the additional values in the 'Component Inclusion' table in the 'Publication Bias' row. 
 The model is now extended with 32 publication bias adjustment models that account for 50% of the prior model probability. 
-When comparing the RoBMA to the second BMA fit, we notice a large decrease in the inclusion Bayes factor for the presence of the effect $\text{BF}_{10} = 2.42$ vs. $\text{BF}_{10} = 240.9$, which still presents weak evidence for the presence of the effect.
-We can further quantify the evidence in favor of the publication bias with the inclusion Bayes factor for publication bias $\text{BF}_{pb} = 4.97$, which can be interpreted as moderate evidence in favor of publication bias.
+When comparing RoBMA to the BMA fit, we notice a large decrease in the inclusion Bayes factor for the presence of the effect, from roughly 250 to $\text{BF}_{10} = 2.77$, leaving weak evidence for the presence of the effect.
+We can further quantify the evidence in favor of publication bias with the inclusion Bayes factor $\text{BF}_{pb} = 4.74$, which indicates moderate evidence in favor of publication bias.
 
 We can also compare the unadjusted and publication-bias-adjusted conditional effect size estimates.
-Including models assuming publication bias into our model-averaged estimate (assuming the presence of the effect) decreases the estimated effect to d = 0.655, 95% CI [-0.384, 1.330] with a much wider credible interval.
+Including models assuming publication bias into our model-averaged estimate (assuming the presence of the effect) decreases the estimated effect to d = 0.704, 95% CI [-0.327, 1.338] with a much wider credible interval.
 
 ```{r}
 pooled_effect(fit_BMA, conditional = TRUE)
@@ -197,8 +198,8 @@ pooled_effect(fit_RoBMA, conditional = TRUE)
 The same shift is visible in the prior and posterior plot below.
 
 ```{r fig_mu_RoBMA_cond, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
-par(mar = c(4, 4, 0, 4))
-plot(fit_RoBMA, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-2, 2), lwd = 2)
+par(mar = c(4, 4, 1, 4))
+plot(fit_RoBMA, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-2, 2), ylim = c(0, 1.35), lwd = 2)
 ```
 
 

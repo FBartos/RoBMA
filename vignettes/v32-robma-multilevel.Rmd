@@ -1,7 +1,7 @@
 ---
 title: "Multilevel Robust Bayesian Meta-Analysis"
 author: "František Bartoš"
-date: "17th of December 2025 (updated: 29th of April 2026)"
+date: "17th of December 2025 (updated: 20th of September 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -156,8 +156,9 @@ summary(fit)
 This table shows Bayes factors testing the presence of effect, heterogeneity, and publication bias. 
 Each row displays the prior probability, posterior probability after observing the data, and the inclusion Bayes factor comparing models with versus without that component.
 
-In our example, the inclusion BF for the effect is 0.927, indicating weak evidence against an effect. 
-The inclusion BF for heterogeneity and publication bias are reported as `Inf`, i.e., beyond the numerical precision of the estimation algorithm (> 10⁶), indicating extreme evidence for both components.
+In our example, the inclusion BF for the effect is about 1.54, providing little evidence to distinguish the presence and absence of an average effect.
+The inclusion BFs for heterogeneity and publication bias are reported as bounds above 59,999 because no corresponding null states occurred in the retained draws.
+These bounds reflect limited Monte Carlo resolution; the convergence diagnostics also mark the unvisited states as not assessable.
 
 ### Model-Averaged Estimates
 
@@ -166,15 +167,16 @@ The average effect size is `mu`, the overall heterogeneity is `tau`, and the het
 The heterogeneity allocation parameter `rho` indicates the proportion of heterogeneity allocated to the cluster-level component: `rho = 0` means all heterogeneity is within clusters, `rho = 1` means all heterogeneity is between clusters, and `rho = 0.5` means equal split.
 The remaining parameters summarize the weight function and PET/PEESE regression for publication bias.
 
-In our example, we find a small effect size (*d* = 0.050, 95% CI [0.000, 0.173]), substantial heterogeneity (τ = 0.40, 95% CI [0.348, 0.458]), and nearly balanced heterogeneity allocation (ρ = 0.461, 95% CI [0.306, 0.603]).
+In our example, we find a small effect size (*d* = 0.072, 95% CI [0.000, 0.189]), substantial heterogeneity (τ = 0.391, 95% CI [0.327, 0.460]), and nearly balanced heterogeneity allocation (ρ = 0.492, 95% CI [0.330, 0.638]).
 The large heterogeneity combined with the small pooled effect suggests substantial variation in true effects.
-This distribution of true effect sizes can be obtained from the `summary_heterogeneity()` function:
+The `summary_heterogeneity()` function summarizes the heterogeneity components, while `pooled_effect()` also reports a prediction interval for a new true effect:
 
 ```{r}
 summary_heterogeneity(fit)
+pooled_effect(fit)
 ```
 
-The wide prediction interval (*d* = -0.752 to 0.845) quantifies the degree of this heterogeneity: some studies may show benefits while others show harm.
+The wide prediction interval includes both negative and positive effects: some studies may show benefits while others show harm.
 
 ## Model Types Summary
 

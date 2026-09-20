@@ -359,8 +359,10 @@ The first table called `Component Inclusion` contains information about the fitt
 The second column summarizes the prior model probabilities of the models assuming the presence of the individual components.
 The third column contains information about the posterior probability of models assuming the presence of the components; we can observe that the posterior model probabilities of models assuming the presence of an effect slightly increased.
 The last column contains information about the evidence in favor of the presence of any of those components. 
-Evidence for the presence of an effect is undecided; the models assuming the presence of an effect are only ~1.2 times more likely given the data than the models assuming the absence of an effect. 
-However, we find overwhelming evidence in favor of heterogeneity, with the models assuming the presence of heterogeneity being more than 10,000 times more likely given the data than models assuming the absence of heterogeneity, and moderate evidence in favor of publication bias. 
+Evidence for the presence of an effect is undecided, with an inclusion Bayes factor of about 1.31.
+The heterogeneity inclusion Bayes factor is about 8,000, but only three retained draws visit the homogeneous model and its estimated relative Monte Carlo error is 58%.
+The heterogeneity indicator's R-hat is not assessable, so this large Bayes factor should not be treated as numerically precise.
+The publication-bias inclusion Bayes factor is 5.15, indicating moderate evidence for publication bias.
 
 The second table called `Estimates` contains information about the model-averaged estimates. 
 The first row labeled `mu` corresponds to the model-averaged effect size estimate on Fisher's *z* scale and the second row labeled `tau` corresponds to the model-averaged heterogeneity estimates. 

@@ -139,8 +139,9 @@ summary_models(fit_RoBMA)
 ```
 
 The posterior model weights show which sub-models the data prefer within each component's mixture.
-The bias side of the ensemble concentrates posterior mass on PET (posterior probability $0.77$, individual inclusion BF $\approx 23$) with a smaller share on PEESE; the weight functions and the no-bias spike all receive negligible posterior weight.
+The bias side of the ensemble puts the largest posterior weight on PET (posterior probability $0.68$, individual inclusion BF $\approx 15$), followed by PEESE ($0.21$); the remaining bias components together account for about $0.10$.
 The `inclusion BF` column is the Bayes factor for that one sub-model against the rest of its mixture, so it does not need to agree with the component-level inclusion BF reported by `summary()`.
+These numerical weights remain approximate: the example fit reports R-hat values up to 1.08 for bias-state indicators and PET/PEESE coefficients, and the heterogeneity indicator is constant, so its convergence diagnostics cannot be assessed.
 
 `plot()` overlays the prior and the model-averaged posterior of any model parameter.
 On `mu` the spike at zero (right-axis arrow) carries the posterior probability that the effect is null and the slab carries the rest; the grey shapes are the corresponding prior distribution.
