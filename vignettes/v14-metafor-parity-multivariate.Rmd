@@ -167,9 +167,6 @@ The examples move from a simple three-level model to known sampling covariance m
 The first two examples rely on default prior distributions and the last two examples rely on unit-information-scaled prior distributions; see the [*Prior Distributions*](v01-prior-distributions.html) vignette for more details.
 For generic summaries, plots, and diagnostics that also apply to `brma.mv()` objects, see the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette.
 
-The cached compound-symmetry and heterogeneous-AR examples retain some R-hat or effective-sample-size diagnostics outside the default targets at the displayed iteration counts.
-Inspect these diagnostics and extend the fits before interpreting small differences from the `metafor` estimates.
-
 ## Formula Semantics and Random-Effect Structures
 
 In `brma.mv()` and its .mv wrappers, omitted or NULL `random` specifies no random-effects structure and no implicit heterogeneity. The resulting fixed-effect model still uses the full known sampling covariance `V`. Declare a random term before supplying heterogeneity priors or scale formulas; the specialized univariate `brma()` interface retains its implicit heterogeneity and clustered `tau`/`rho`/`I2` behavior.

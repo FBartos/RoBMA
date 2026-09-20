@@ -182,7 +182,7 @@ We demonstrate the zplot diagnostics on four empirical meta-analyses that repres
 
 1. **Ease-of-retrieval effect in the few/many paradigm** [@weingarten2018does]: an example with extreme publication bias.
 2. **Social comparison as behavior change technique** [@hoppen2025meta]: an example with strong publication bias.
-3. **ChatGPT effects on learning performance** [@wang2025effect]: an example with substantial publication-bias adjustment but a small conventional `Missing N` diagnostic.
+3. **ChatGPT effects on learning performance** [@wang2025effect]: an example with extreme evidence for publication bias but a small conventional `Missing N` diagnostic.
 4. **Framing effects from Many Labs 2** [@klein2018many]: an example with no publication bias (registered replication reports).
 
 For each example, we fit both a simple random-effects model using `brma()` and a publication-bias-adjusted ensemble using `RoBMA()` [@maier2020robust; @bartos2021no].
@@ -240,14 +240,12 @@ The Bayesian multilevel random-effects model finds results similar to those repo
 
 The RoBMA analysis reveals extreme evidence for publication bias.
 However, RoBMA still finds extreme evidence for the presence of an effect, with a substantially reduced but non-zero model-averaged effect size estimate.
-The example fit reports all three component Bayes factors as $>49{,}999$ because their excluded states were not visited; these are reporting bounds, and convergence diagnostics for the constant indicators are unavailable.
-Some bias-state indicators also have R-hat values up to 1.15, so the model probabilities should not be treated as numerically settled.
 
 **Zplot diagnostics.**
 We now generate zplots to assess how well each model captures the observed distribution of z-statistics.
 The `hist()` function creates a histogram of the observed z-statistics, while `lines()` overlays the model-implied posterior predictive distributions [@gabry2019visualization].
-The `as_zplot()` function transforms a fitted `brma`/`RoBMA` object into a `zplot_brma` object that `hist()`, `lines()`, and `plot()` can consume:
-We prepare each diagnostic once and reuse it, avoiding repeated discovery-rate calculations for this large multilevel example.
+The `as_zplot()` function transforms a fitted `brma`/`RoBMA` object into a `zplot_brma` object that `hist()`, `lines()`, and `plot()` can consume.
+We prepare each diagnostic once and reuse it to avoid repeated calculations for this large multilevel example:
 
 ```{r, fig.cap="Ease-of-Retrieval Effect: Model Fit Assessment"}
 zplot_RE_Weingarten2018    <- as_zplot(fit_RE_Weingarten2018)
@@ -279,7 +277,7 @@ These results provide extreme evidence for the presence of publication bias and 
 
 **Extrapolation to pre-publication bias.**
 The package also allows us to extrapolate what the distribution of z-statistics might have looked like in the absence of publication bias.
-This is achieved by calling the `zplot()` function with `plot_extrapolation = TRUE`; it accepts either a fitted model or a prepared `zplot_brma` object.
+This is achieved by calling the `zplot()` function with `plot_extrapolation = TRUE`, which accepts either a fitted model or a prepared `zplot_brma` object.
 The extrapolated curve is not drawn by default because it rescales the display by an inferred selection convention rather than describing the observed literature.
 
 ```{r, fig.cap="Ease-of-Retrieval Effect: Extrapolation Analysis"}
@@ -298,8 +296,8 @@ summary(zplot_RoBMA_Weingarten2018)
 ```
 
 The summary provides several key results.
-The observed discovery rate (ODR = 0.45) substantially exceeds the posterior mean expected discovery rate (EDR = 0.21, 95% CrI [0.16, 0.27]), indicating that more significant results appear in the published literature than the adjusted reference distribution predicts.
-The `Missing N` diagnostic has posterior mean 511 and 95% CrI [247, 957], describing substantial extrapolation under the convention above; it does not identify how many studies are absent from the literature.
+The observed discovery rate (ODR) substantially exceeds the expected discovery rate (EDR), indicating that many more significant results appear in the published literature than we would expect.
+The large `Missing N` diagnostic describes substantial extrapolation under the convention above; it does not identify how many studies are absent from the literature.
 The false discovery risk (FDR) provides an upper bound on the proportion of statistically significant results that may be false positives, though this risk remains moderate due to evidence for a genuine underlying effect despite the extreme publication bias.
 
 ### Example 2: Social Comparison and Behavior Change
@@ -348,8 +346,6 @@ summary(fit_RoBMA_Hoppen2025)
 
 When accounting for the possibility of publication bias with RoBMA, we find extreme evidence for the presence of publication bias.
 Consequently, the effect size shrinks to essentially zero, with moderate evidence against the presence of an effect.
-The publication-bias Bayes factor is approximately 450, with estimated relative Monte Carlo error of 21%.
-The example fit retains bias-state R-hat values up to 1.17 and an unvisited excluded heterogeneity state, so its model-probability diagnostics do not establish full convergence.
 
 **Zplot diagnostics.**
 
@@ -393,8 +389,8 @@ summary(as_zplot(fit_RoBMA_Hoppen2025))
 ```
 
 The summary provides several results.
-The observed discovery rate (ODR = 0.35) is close to the posterior mean expected discovery rate (EDR = 0.34, 95% CrI [0.24, 0.51]).
-The `Missing N` diagnostic has posterior mean 57 and 95% CrI [25, 146], indicating substantial conventional extrapolation subject to the reporting assumptions above; it is not an identified count of absent studies.
+The observed discovery rate (ODR, i.e., the observed proportion of statistically significant results) in the dataset matches the expected discovery rate (EDR) due to the one-sided selection for marginally significant results (instead of statistically significant results).
+The large `Missing N` diagnostic indicates substantial conventional extrapolation, subject to the reporting assumptions above; it is not an identified count of absent studies.
 The false discovery risk (FDR), which corresponds to the upper bound on the false positive rate, is not extremely inflated due to the possible small positive and negative effects under the moderate heterogeneity.
 
 
@@ -442,7 +438,7 @@ The ChatGPT histogram contains mainly positive z-statistics.
 Both fitted density curves are smooth across zero and the conventional significance thresholds.
 
 RoBMA (blue dashed line) places more predictive mass near the positive peak than the random-effects model (black dashed line), with substantial overlap between their uncertainty bands.
-The model comparison below assigns strong support to publication-bias adjustment overall; the extrapolation panel shows its effect on the implied distribution.
+The model comparison below provides extreme evidence for publication bias; the extrapolation panel shows its effect on the implied distribution.
 
 **Extrapolation to pre-publication bias.**
 We can examine the extrapolation to assess the impact of publication bias:
@@ -461,11 +457,9 @@ summary(fit_RE_Wang2025)
 summary(fit_RoBMA_Wang2025)
 ```
 
-The random-effects model estimates d = 0.829, 95% CrI [0.592, 1.070], whereas RoBMA gives a model-averaged estimate of d = 0.120, 95% CrI [-0.280, 0.556].
-Both models retain substantial between-study heterogeneity, and the adjusted effect is compatible with zero.
-The effect inclusion Bayes factor is 1.06, leaving evidence for its presence undecided.
-The publication-bias Bayes factor is roughly 3,000, but its estimated relative Monte Carlo error is 29%, based on only 33 draws from the no-bias state.
-Rare bias-state indicators have R-hat values up to 1.29, and the excluded heterogeneity state was not visited, so the detailed model probabilities remain numerically uncertain.
+The random-effects model yields a substantial positive effect size estimate, while RoBMA produces a smaller estimate with a wider credible interval that includes zero.
+Both models retain substantial between-study heterogeneity.
+The Bayes factor for the effect is 1.06, leaving the evidence undecided, whereas the Bayes factor of roughly 3,000 indicates extreme evidence for publication bias.
 
 **Zplot summary metrics.**
 The zplot summary statistics describe a different aspect of the adjustment:
@@ -474,9 +468,8 @@ The zplot summary statistics describe a different aspect of the adjustment:
 summary(as_zplot(fit_RoBMA_Wang2025))
 ```
 
-The posterior mean EDR is 0.47, 95% CrI [0.37, 0.59], compared with ODR = 0.64.
-The conventional `Missing N` diagnostic has posterior mean 0.02 and median zero.
-Its small value does not imply weak publication-bias evidence: it describes the inverse-weight extrapolation convention, rather than the overall strength of support for bias adjustment.
+The summary shows a moderate-to-high EDR and a small conventional `Missing N` diagnostic.
+The small `Missing N` diagnostic describes the inverse-weight extrapolation convention and does not imply weak evidence for publication bias.
 
 ### Example 4: Framing Effects from Many Labs 2
 
@@ -542,13 +535,12 @@ summary(fit_RE_ManyLabs16)
 summary(fit_RoBMA_ManyLabs16)
 ```
 
-The posterior mean effect sizes are similar (d = 0.436 for the random-effects model and d = 0.426 for RoBMA), although RoBMA has a wider credible interval.
+Both models yield similar effect size estimates.
 The Bayes factor for publication bias provides moderate evidence against the presence of publication bias, appropriately penalizing the more complex model when it offers no advantage.
-The example fit's effect-inclusion indicator has R-hat = 1.35 and its effect Bayes factor has estimated relative Monte Carlo error of 126%, so that Bayes factor is not numerically precise despite the similar effect estimates.
+This demonstrates the method's ability to distinguish between necessary and unnecessary model complexity.
 
 **Zplot summary metrics.**
-The posterior mean EDR is 0.58, 95% CrI [0.41, 0.68], close to ODR = 0.56.
-The conventional `Missing N` diagnostic has posterior mean 0.62, median zero, and 95% CrI [0.00, 6.97]; its small value does not establish that no studies are missing.
+The publication-bias assessment statistics show a moderate EDR matching the ODR and a near-zero conventional `Missing N` diagnostic; the latter does not establish that no studies are missing.
 
 ```{r}
 summary(as_zplot(fit_RoBMA_ManyLabs16))

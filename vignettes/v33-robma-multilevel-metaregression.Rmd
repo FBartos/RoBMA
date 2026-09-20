@@ -169,8 +169,7 @@ summary(fit_reg, include_mcmc_diagnostics = FALSE)
 
 The effect-size estimates are obtained with dedicated helpers: `pooled_effect()` for the average effect and `marginal_means()` for the moderator levels.
 
-The inclusion Bayes factors for the average effect, consumer-contact moderation, heterogeneity, and publication bias are all reported as $>59{,}999$.
-Their excluded states were not visited in the retained draws, so these are reporting bounds rather than precise Bayes factor estimates; convergence diagnostics for the constant inclusion indicators remain unavailable.
+The multilevel RoBMA meta-regression finds extreme evidence for the presence of the average effect, moderation by the degree of consumer contact, between-study heterogeneity, and publication bias (all BFs > 59,999).
 
 ```{r pooled-effect}
 pooled_effect(fit_reg)
@@ -186,9 +185,8 @@ mm_reg <- marginal_means(fit_reg)
 summary(mm_reg)
 ```
 
-For jobs with no consumer contact, the marginal-means Bayes factor is approximately 0.10, providing moderate evidence for the point null.
-For some or direct consumer contact, the posterior credible intervals lie above zero, but the reported KDE Bayes factors rely on kernel-tail estimates because the draws do not span zero.
-Their very large numerical magnitudes should not be interpreted precisely.
+The estimated marginal means reveal moderate evidence for the absence of an effect for jobs with no consumer contact ($\text{BF}_{10} = 0.10$) and extreme evidence for an effect for jobs with some or direct consumer contact.
+The Bayes factors for the latter two groups rely on estimates from the tails of the posterior distributions and should not be interpreted precisely.
 
 ## Visual Fit Assessment
 

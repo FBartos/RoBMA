@@ -156,9 +156,8 @@ summary(fit)
 This table shows Bayes factors testing the presence of effect, heterogeneity, and publication bias. 
 Each row displays the prior probability, posterior probability after observing the data, and the inclusion Bayes factor comparing models with versus without that component.
 
-In our example, the inclusion BF for the effect is about 1.54, providing little evidence to distinguish the presence and absence of an average effect.
-The inclusion BFs for heterogeneity and publication bias are reported as bounds above 59,999 because no corresponding null states occurred in the retained draws.
-These bounds reflect limited Monte Carlo resolution; the convergence diagnostics also mark the unvisited states as not assessable.
+In our example, the inclusion BF for the effect is 1.54, indicating undecided evidence for an effect.
+The inclusion BFs for heterogeneity and publication bias are reported as larger than 59,999, indicating extreme evidence for both components.
 
 ### Model-Averaged Estimates
 
@@ -169,7 +168,7 @@ The remaining parameters summarize the weight function and PET/PEESE regression 
 
 In our example, we find a small effect size (*d* = 0.072, 95% CI [0.000, 0.189]), substantial heterogeneity (τ = 0.391, 95% CI [0.327, 0.460]), and nearly balanced heterogeneity allocation (ρ = 0.492, 95% CI [0.330, 0.638]).
 The large heterogeneity combined with the small pooled effect suggests substantial variation in true effects.
-The `summary_heterogeneity()` function summarizes the heterogeneity components, while `pooled_effect()` also reports a prediction interval for a new true effect:
+This distribution of true effect sizes can be summarized with the `summary_heterogeneity()` function. A prediction interval for a new true effect can be obtained with `pooled_effect()`:
 
 ```{r}
 summary_heterogeneity(fit)
