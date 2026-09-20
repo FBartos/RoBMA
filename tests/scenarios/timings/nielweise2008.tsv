@@ -26,7 +26,7 @@ text	summary-heterogenity	0.010000000	0.327246	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-models-fit_BMA	0.050000000	0.367969	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_BMA_forest	0.080000000	0.416797	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_forest	0.120000000	0.367773	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit_funnel	0.030000000	0.370117	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_funnel	0.020000000	0.370117	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_posterior_mu	1.530000000	0.537207	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_posterior_tau	1.390000000	0.537207	4.6.0	Windows/x86_64-w64-mingw32
 plot	residuals	0.020000000	0.330859	4.6.0	Windows/x86_64-w64-mingw32

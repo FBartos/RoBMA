@@ -42,5 +42,5 @@ plot	random_us2	0.200000000	0.589258	4.6.0	Windows/x86_64-w64-mingw32
 plot	ranef-structure-comparison	2.190000000	0.662598	4.6.0	Windows/x86_64-w64-mingw32
 plot	robma_diagnostics_1	4.160000000	0.663672	4.6.0	Windows/x86_64-w64-mingw32
 plot	robma_diagnostics_2	4.070000000	0.664941	4.6.0	Windows/x86_64-w64-mingw32
-plot	sd_common	1.880000000	0.661719	4.6.0	Windows/x86_64-w64-mingw32
+plot	sd_common	1.860000000	0.661719	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot	0.700000000	0.661231	4.6.0	Windows/x86_64-w64-mingw32

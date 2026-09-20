@@ -14,7 +14,7 @@ fit_marglik	fit_brma_har0	12.360000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 text	metafor-comparison	3.830000000	1.082715	4.6.0	Windows/x86_64-w64-mingw32
 text	metafor-structure-comparison	0.000000000	0.480469	4.6.0	Windows/x86_64-w64-mingw32
 text	robma-correlation-comparison-loo	0.000000000	0.529883	4.6.0	Windows/x86_64-w64-mingw32
-text	robma-correlation-density-test	2.920000000	1.040918	4.6.0	Windows/x86_64-w64-mingw32
+text	robma-correlation-density-test	2.720000000	1.040918	4.6.0	Windows/x86_64-w64-mingw32
 text	robma-structure-comparison-loo	0.010000000	0.497363	4.6.0	Windows/x86_64-w64-mingw32
 text	robma-structure-comparison-marglik	0.000000000	0.511426	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-ar	0.880000000	0.956641	4.6.0	Windows/x86_64-w64-mingw32

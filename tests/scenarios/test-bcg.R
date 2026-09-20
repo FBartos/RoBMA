@@ -256,6 +256,29 @@ testthat::test_that("BCG Simple Fits", {
   scenario_text("fit_simple0_BF_IWMDE",   {hypothesis(fit_simple_fe, hypothesis = c("mu = 0"), density_method = "IWMDE")})
   scenario_text("fit_simple0_BF_qCMDE",   {hypothesis(fit_simple_fe, hypothesis = c("mu = 0"), density_method = "qCMDE")})
 
+  ### fit non-local prior
+  fit_moment <- scenario_fit("fit_moment", {
+    tmp <- brma(yi = yi, vi = vi, data = dat, measure = "RR", seed = 1,
+                prior_effect = prior("moment", list(-0.5)))
+    tmp <- add_loo(tmp)
+    tmp <- add_marglik(tmp)
+    return(tmp)
+  })
+
+  scenario_text("priors_moment", print_prior(fit_moment))
+
+  scenario_plot("fit_moment_posterior_mu", {
+    plot(fit_moment, "mu", ylim = c(0, 3), prior = TRUE)
+    lines(fit_moment, "mu", density_method = "IWMDE", lty = 2)
+    lines(fit_moment, "mu", density_method = "qCMDE", lty = 2)
+  })
+
+  scenario_plot("fit_moment_posterior_tau", {
+    plot(fit_moment, "tau", ylim = c(0, 3), prior = TRUE)
+    lines(fit_moment, "tau", density_method = "IWMDE", lty = 2)
+    lines(fit_moment, "tau", density_method = "qCMDE", lty = 2)
+  })
+
 })
 
 testthat::test_that("BCG Meta-Regression", {
