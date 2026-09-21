@@ -184,6 +184,38 @@ test_that("radial tau uses within-draw RMS heterogeneity", {
 })
 
 
+test_that("radial coordinates retain row-marginal heterogeneity", {
+
+  posterior_samples <- matrix(1:3, ncol = 1L)
+  tau_samples <- rbind(
+    c(.1, .2, .4),
+    c(.3, .6, .8),
+    c(.5, 1.0, 1.2)
+  )
+  object <- structure(
+    list(fit = list(), data = list(outcome = data.frame(yi = 1:3))),
+    class = c("brma.mv", "brma")
+  )
+
+  testthat::local_mocked_bindings(
+    .get_posterior_samples = function(...) posterior_samples,
+    .funnel_row_heterogeneity_samples = function(object, posterior_samples) {
+      tau_samples
+    },
+    .package = "RoBMA"
+  )
+
+  expect_equal(.get_radial_tau_rows(object), colMeans(tau_samples))
+
+  legacy <- list(fit = list(), data = list(outcome = data.frame(yi = 1:3)))
+  testthat::local_mocked_bindings(
+    .get_radial_tau = function(...) .25,
+    .package = "RoBMA"
+  )
+  expect_identical(.get_radial_tau_rows(legacy), rep(.25, 3L))
+})
+
+
 test_that("outcome funnel eligibility requires row-invariant heterogeneity", {
 
   posterior_samples <- matrix(

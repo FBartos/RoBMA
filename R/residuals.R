@@ -170,6 +170,11 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
                            conditioning_depth = "marginal",
                            bias_adjusted = FALSE, max_samples = Inf, ...) {
 
+  previous_threads <- .native_threads_configure(.resolve_native_threads(object))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
+
   # input validation
   dots                         <- list(...)
   conditioning_depth_specified <- !missing(conditioning_depth)
@@ -269,6 +274,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 
   known_v_sample_info <- NULL
   known_v_samples     <- NULL
+  known_v_metadata    <- NULL
   if (type == "pearson" && .is_data_known_v(object[["data"]])) {
     known_v_sample_info <- .known_v_diagnostic_posterior_samples(
       object      = object,
@@ -322,8 +328,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
   }
 
   out <- colMeans(resid_samples)
-  if (exists("known_v_metadata", inherits = FALSE) &&
-      !is.null(known_v_metadata)) {
+  if (!is.null(known_v_metadata)) {
     out <- .known_v_attach_diagnostic_metadata(out, known_v_metadata)
   }
 
@@ -534,6 +539,11 @@ rstandard.brma <- function(model, unit = "estimate",
                            conditioning_depth = "marginal",
                            max_samples = Inf, ...) {
 
+  previous_threads <- .native_threads_configure(.resolve_native_threads(model))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
+
   dots <- list(...)
   .check_legacy_level_arg(dots, "rstandard()")
 
@@ -681,6 +691,11 @@ rstandard.brma <- function(model, unit = "estimate",
 #' @exportS3Method
 rstudent.brma <- function(model, unit = "estimate",
                           conditioning_depth = "marginal", ...) {
+
+  previous_threads <- .native_threads_configure(.resolve_native_threads(model))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
 
   dots                         <- list(...)
   .psis_context                <- dots[[".psis_context"]]

@@ -19,6 +19,11 @@
 .log_lik.brma <- function(object, unit = "estimate",
                           caller = ".log_lik.brma()") {
 
+  previous_threads <- .native_threads_configure(.resolve_native_threads(object))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
+
   unit <- .normalize_unit(unit)
   .check_log_lik_target_available(object, unit, caller)
 

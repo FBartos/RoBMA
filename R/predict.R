@@ -247,7 +247,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     dots                         = list(...)
   )
 
-  .predict_brma_from_context(context)
+  .with_native_threads(object, .predict_brma_from_context(context))
 }
 
 

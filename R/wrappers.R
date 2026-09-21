@@ -400,7 +400,7 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
     object            = object,
     posterior_samples = posterior_samples
   )
-  prediction_samples <- matrix(
+  prediction_samples <- .with_preserved_rng(matrix(
     stats::rnorm(
       n    = nrow(samples),
       mean = samples[, 1L],
@@ -408,7 +408,7 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
     ),
     ncol     = 1L,
     dimnames = list(NULL, "mu")
-  )
+  ))
 
   chain_info <- .brma_samples_chain_info(
     fit       = object[["fit"]],

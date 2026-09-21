@@ -5,8 +5,8 @@
 # Radial (Galbraith) plot functions for brma objects.
 #
 # The radial plot displays effect sizes on a transformed scale where:
-# - x-axis: precision (1/sqrt(vi + tau^2))
-# - z-axis: standardized effect (yi/sqrt(vi + tau^2))
+# - x-axis: precision (1/sqrt(vi + tau_i^2))
+# - z-axis: standardized effect (yi/sqrt(vi + tau_i^2))
 #
 # A line from the origin through any point has slope equal to the
 # observed effect size. An arc on the right side maps z-values back
@@ -82,22 +82,28 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' standard error into a point in precision-standardized space:
 #'
 #' \itemize{
-#'   \item x-axis: precision = \eqn{1/\sqrt{v_i + \hat{\tau}^2}}
-#'   \item z-axis: standardized effect = \eqn{y_i/\sqrt{v_i + \hat{\tau}^2}}
+#'   \item x-axis: precision = \eqn{1/\sqrt{v_i + \hat{\tau}_i^2}}
+#'   \item z-axis: standardized effect = \eqn{y_i/\sqrt{v_i + \hat{\tau}_i^2}}
 #' }
+#' For ordinary and specialized multilevel models, the marginal heterogeneity
+#' is common and \eqn{\hat{\tau}_i = \hat{\tau}}. Random-formula models use
+#' each row's marginal random-effect standard deviation. Known sampling
+#' covariance uses its diagonal for \eqn{v_i}; plotted points can therefore be
+#' dependent.
 #'
-#' Under the random-effects model, studies consistent with the pooled effect
-#' should fall within the sloped parallelogram confidence band around the
-#' pooled-effect line. The arc on the right side allows reading individual
-#' effect sizes by projecting from the origin through a point to the arc; when
-#' \code{center = TRUE}, the plotted slope is relative to the pooled effect.
+#' For a single normal model, the sloped parallelogram is the usual marginal
+#' Gaussian reference band around the pooled-effect line. For GLMMs it is a
+#' continuity-corrected effect-size approximation; for selection, PET/PEESE,
+#' and product-space models it remains a bias-adjusted posterior-mean reference
+#' rather than an exact envelope of the fitted observation law. The arc on the
+#' right side allows reading individual effect sizes by projecting from the
+#' origin through a point to the arc; when \code{center = TRUE}, the plotted
+#' slope is relative to the pooled effect.
 #'
-#' This function requires an intercept-only single normal model with scalar
-#' independent sampling variances and no publication-bias or model-averaging
-#' components. Radial plots are not meaningful for meta-regression,
-#' location-scale, multilevel/random-effect, GLMM, product-space, or known-V
-#' multivariate models where the classical scalar precision target is not the
-#' fitted likelihood target.
+#' This function requires an intercept-only model without scale regression or
+#' likelihood weights. Likelihood-weighted fits do not have a single radial
+#' precision target because the observational variance and power-likelihood
+#' information scales differ.
 #'
 #' \code{galbraith()} is a same-argument alias for \code{radial()}.
 #'
@@ -145,6 +151,11 @@ radial.brma <- function(x, center = FALSE, xlim, zlim, xlab, zlab,
                         atz, aty, steps = 7, level = 95, digits = 2,
                         transf, targs, plot_type = "base", ...) {
 
+  previous_threads <- .native_threads_configure(.resolve_native_threads(x))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
+
   # input validation
   BayesTools::check_bool(center, "center")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -170,7 +181,12 @@ radial.brma <- function(x, center = FALSE, xlim, zlim, xlab, zlab,
   if (.is_scale(x)) {
     stop("Radial plots cannot be drawn for models with scale regression.", call. = FALSE)
   }
-  .check_radial_model_supported(x)
+  if (.is_weights(x)) {
+    stop(
+      "Radial plots are not available for likelihood-weighted models.",
+      call. = FALSE
+    )
+  }
 
   # set up graphical arguments with defaults
   dots <- .set_dots_radial(...)
@@ -213,52 +229,6 @@ radial.brma <- function(x, center = FALSE, xlim, zlim, xlab, zlab,
 galbraith.brma <- function(x, ...) {
 
   radial.brma(x, ...)
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .check_radial_model_supported
-# ---------------------------------------------------------------------------- #
-#
-# Guard the classical Galbraith target. The plot assumes independent scalar
-# sampling variances and a single normal model; broader fitted objects have
-# different likelihood or averaging targets.
-#
-# ---------------------------------------------------------------------------- #
-.check_radial_model_supported <- function(x) {
-
-  if (.outcome_type(x) != "norm") {
-    stop(
-      "Radial plots are only available for normal outcome models with scalar ",
-      "independent sampling variances.",
-      call. = FALSE
-    )
-  }
-
-  if (inherits(x, "RoBMA")) {
-    stop(
-      "Radial plots are not available for product-space model-averaging objects.",
-      call. = FALSE
-    )
-  }
-
-  if (.is_weightfunction(x) || .is_PET(x) || .is_PEESE(x)) {
-    stop(
-      "Radial plots are not available for publication-bias adjusted models.",
-      call. = FALSE
-    )
-  }
-
-  if (.is_multilevel(x) || .is_random(x) ||
-      inherits(x, "brma.mv") || .is_data_known_v(x[["data"]])) {
-    stop(
-      "Radial plots are not available for multilevel, random-formula, or ",
-      "known-V models.",
-      call. = FALSE
-    )
-  }
-
-  return(invisible(TRUE))
 }
 
 
@@ -312,9 +282,11 @@ galbraith.brma <- function(x, ...) {
   ci.lb      <- mu_summary["mu", as.character(probs[1])]
   ci.ub      <- mu_summary["mu", as.character(probs[2])]
 
-  # retain the observed-design RMS heterogeneity used for common radial scaling
-  tau  <- .get_radial_tau(x)
+  # Use each row's marginal heterogeneity. This is the released common scalar
+  # for ordinary models and a row-specific scale for random-formula designs.
+  tau  <- .get_radial_tau_rows(x)
   tau2 <- tau^2
+  row_specific_tau <- !all(tau == tau[[1L]])
 
   # compute precision and standardized values
   wi <- vi + tau2
@@ -358,16 +330,28 @@ galbraith.brma <- function(x, ...) {
 
   # ---- axis labels ----
   if (is.null(xlab)) {
-    xlab <- expression(x[i] == 1 / sqrt(v[i] + tau^2))
+    xlab <- if (row_specific_tau) {
+      expression(x[i] == 1 / sqrt(v[i] + tau[i]^2))
+    } else {
+      expression(x[i] == 1 / sqrt(v[i] + tau^2))
+    }
   }
 
   # zlab: fraction expression for base R mtext, simpler for ggplot
   zlab_auto <- is.null(zlab)
   if (zlab_auto) {
     if (center) {
-      zlab <- expression(z[i] == frac(y[i] - hat(mu), sqrt(v[i] + tau^2)))
+      zlab <- if (row_specific_tau) {
+        expression(z[i] == frac(y[i] - hat(mu), sqrt(v[i] + tau[i]^2)))
+      } else {
+        expression(z[i] == frac(y[i] - hat(mu), sqrt(v[i] + tau^2)))
+      }
     } else {
-      zlab <- expression(z[i] == frac(y[i], sqrt(v[i] + tau^2)))
+      zlab <- if (row_specific_tau) {
+        expression(z[i] == frac(y[i], sqrt(v[i] + tau[i]^2)))
+      } else {
+        expression(z[i] == frac(y[i], sqrt(v[i] + tau^2)))
+      }
     }
   }
 

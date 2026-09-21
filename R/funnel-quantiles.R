@@ -29,6 +29,26 @@
 }
 
 
+# Posterior-mean row-marginal heterogeneity used by radial coordinates. Models
+# with common heterogeneity return the same value for every row, preserving the
+# released scalar calculation exactly.
+.get_radial_tau_rows <- function(object) {
+
+  K <- nrow(object[["data"]][["outcome"]])
+  if (!inherits(object, "brma.mv")) {
+    return(rep(.get_radial_tau(object), K))
+  }
+
+  posterior_samples <- .get_posterior_samples(object[["fit"]])
+  tau_samples <- .funnel_row_heterogeneity_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+
+  return(colMeans(tau_samples))
+}
+
+
 .get_radial_tau_known_v <- function(object) {
 
   extra_variance <- .known_v_extra_variance_samples(object)

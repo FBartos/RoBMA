@@ -23,9 +23,11 @@ an object or rendering without error is not sufficient representative evidence.
 
 Removed RoBMA 4.0 GLMM Q-Q snapshots are intentionally not restored because
 the current API rejects discrete outcomes until a discrete PIT convention is
-defined. Removed radial snapshots for multilevel, GLMM, selection, PET, and
-model-averaged objects likewise correspond to explicit unsupported-input errors,
-not superficial replacement tests.
+defined. Radial coverage retains the released multilevel, GLMM effect-size,
+selection, PET, and model-averaged displays through coordinate identities and
+base/ggplot renderer checks. Byte-identical reviewed RoBMA 4.0 snapshots are
+restored for the multilevel, PET, and model-averaged representatives; the
+ordinary normal model retains representative snapshots for both backends.
 
 Ranks or finite-value checks may replace direct equality only when RoBMA and
 metafor target different predictive quantities. Such cases must retain an

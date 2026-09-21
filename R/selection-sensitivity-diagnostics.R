@@ -184,6 +184,11 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
     object, max_posterior_samples = 256L, latent_samples = 512L, seed = 1L,
     integration_control = NULL) {
 
+  previous_threads <- .native_threads_configure(.resolve_native_threads(object))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
+
   rng_kind <- RNGkind()
   has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   if (has_seed) old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)

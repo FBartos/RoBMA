@@ -26,17 +26,21 @@
 
 // Process-wide row budget shared by the R-facing selection batches. The value
 // is owned by the R option 'native_threads' and is applied from the main
-// thread; batch code only reads it. Zero means the OpenMP default count.
+// thread; batch code only reads it. A fresh process starts serial, matching
+// the option's NA default: post-fit calls thread only after the R side
+// resolves a budget for them. Zero means the OpenMP default count.
 inline std::atomic<int> &robma_native_threads_value()
 {
-  static std::atomic<int> value{0};
+  static std::atomic<int> value{1};
   return value;
 }
 
-inline void robma_set_native_threads(int threads)
+// Installs a new budget and returns the one it replaces, so a scoped caller
+// can restore what it found rather than a fixed value.
+inline int robma_set_native_threads(int threads)
 {
-  robma_native_threads_value().store(threads < 1 ? 0 : threads,
-                                     std::memory_order_relaxed);
+  return robma_native_threads_value().exchange(threads < 1 ? 0 : threads,
+                                               std::memory_order_relaxed);
 }
 
 // Thread count for a batch of 'rows' independent rows. Small batches stay

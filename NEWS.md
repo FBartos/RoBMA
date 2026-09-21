@@ -1,5 +1,19 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Fixes
+- initializes native post-processing at one thread, applies the documented
+  fit-specific thread budget at object-facing consumers, pins each PSOCK
+  z-plot worker only after RoBMA is loaded, and restores the process's previous
+  native budget after scoped z-plot and density work.
+- restores radial plots for released multilevel, GLMM effect-size, publication-
+  bias, product-space, random-formula, and known-covariance model families.
+  Random-formula coordinates use row-marginal heterogeneity; non-Gaussian and
+  publication-bias bands are documented as descriptive reference bands.
+- gives RoBMA LOO comparison tables their own print subclass instead of
+  replacing loo's `print.compare.loo` method for the whole R session.
+- restores quiet fitting as the package default and keeps pooled-effect
+  prediction intervals from advancing the caller's random-number stream.
+- evaluates response formulas with an explicit `na.pass` policy rather than
+  temporarily changing the process-wide `na.action` option.
 - preserves row-specific Bayes-factor bound markers when exporting combined
   summary and model tables as data frames.
 - requires BayesTools 0.3.1.120 to integrate directional prior probabilities at

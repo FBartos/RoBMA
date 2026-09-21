@@ -165,8 +165,8 @@ extern "C" SEXP RoBMA_selnorm_set_native_threads(SEXP threads)
       value > static_cast<double>(std::numeric_limits<int>::max())) {
     Rf_error("'threads' must be one nonnegative whole number of threads.");
   }
-  robma_set_native_threads(static_cast<int>(value));
-  return R_NilValue;
+  // The replaced budget lets R-side scopes restore what they found.
+  return Rf_ScalarInteger(robma_set_native_threads(static_cast<int>(value)));
 }
 
 extern "C" SEXP RoBMA_selnorm_cache_snapshot()

@@ -13,7 +13,7 @@
 #'   \item{\code{max_cores}}{number of cores to use for parallel computing (default is one fewer than detected logical cores, with a minimum/fallback of 1)}
 #'   \item{\code{native_threads}}{maximum number of native threads used to evaluate independent posterior rows of the compiled selection-likelihood batches in post-processing such as likelihood-aware densities, z-plots, and predictions. The default \code{NA} keeps this processing single-threaded and instead inherits the model's fitting setup: models fitted with \code{parallel = TRUE} evaluate their post-processing rows with up to \code{max_cores} native threads, unless this option sets an explicit thread count. Parallel work is arranged so that every reduction keeps its serial order, so results do not depend on the thread count; single-state fitting and bridge-sampling evaluations stay serial. A model fitted with \code{parallel = FALSE} therefore does its post-processing serially, which the kernels notice: set this option to use several threads for post-fit calls on such a fit.}
 #'   \item{\code{check_scaling}}{whether to check scaling of predictors (default \code{TRUE})}
-#'   \item{\code{silent}}{whether to suppress output (default \code{FALSE})}
+#'   \item{\code{silent}}{whether to suppress JAGS output when fitting or extending models (default \code{TRUE}, the released constructor default)}
 #'   \item{\code{jags.worker_output}}{file path for parallel JAGS worker stdout and stderr when fitting or extending. The parent directory must exist; workers append to the same file and messages may interleave. The default empty string disables capture. Set this option inside any background job that fits the model. It does not change sampling or numerical integration settings.}
 #'   \item{\code{autocompute.loo}}{whether to automatically compute LOO (default \code{FALSE})}
 #'   \item{\code{autocompute.waic}}{whether to automatically compute WAIC (default \code{FALSE})}
@@ -96,16 +96,57 @@ RoBMA.options    <- function(...) {
 
 # Push the native row-thread budget into the compiled batch kernels. The
 # process-global value is only read between rows; ongoing calls are unaffected.
+# Returns the budget it replaced (NULL without the native routines), so a
+# scoped caller restores that value on exit instead of a fixed one.
 .native_threads_configure <- function(threads) {
 
   if (!is.loaded("RoBMA_selnorm_set_native_threads", PACKAGE = "RoBMA")) {
-    return(invisible(FALSE))
+    return(invisible(NULL))
   }
   if (length(threads) != 1L || is.na(threads)) {
     threads <- 1L
   }
   invisible(.Call("RoBMA_selnorm_set_native_threads", as.numeric(threads),
                   PACKAGE = "RoBMA"))
+}
+
+
+# Evaluate 'expr' with the native row-thread budget resolved for 'object' and
+# put the previous budget back afterwards, whether or not 'expr' succeeds.
+.with_native_threads <- function(object, expr) {
+
+  previous <- .native_threads_configure(.resolve_native_threads(object))
+  if (!is.null(previous)) {
+    on.exit(.native_threads_configure(previous), add = TRUE)
+  }
+
+  expr
+}
+
+
+# Evaluate 'expr' without leaving a trace in the caller's random-number
+# stream: the RNG kind and '.Random.seed' are put back afterwards.
+.with_preserved_rng <- function(expr) {
+
+  rng_kind <- RNGkind()
+  has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (has_seed) {
+    old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  } else {
+    # A read-only stochastic summary must also be repeatable before the caller
+    # has initialized R's RNG stream.
+    set.seed(1L)
+  }
+  on.exit({
+    do.call(RNGkind, as.list(rng_kind))
+    if (has_seed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+
+  expr
 }
 
 
@@ -282,7 +323,7 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
     validate = .RoBMA_check_option_bool
   ),
   "silent" = list(
-    default  = FALSE,
+    default  = TRUE,
     validate = .RoBMA_check_option_bool
   ),
   "jags.worker_output" = list(
@@ -768,24 +809,12 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   )
   seed <- as.integer(seed %% (.Machine$integer.max - 1)) + 1L
 
-  rng_kind <- RNGkind()
-  has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  if (has_seed) {
-    old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  }
-  on.exit({
-    do.call(RNGkind, as.list(rng_kind))
-    if (has_seed) {
-      assign(".Random.seed", old_seed, envir = .GlobalEnv)
-    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
-      rm(".Random.seed", envir = .GlobalEnv)
-    }
-  }, add = TRUE)
-
-  RNGkind("Mersenne-Twister", "Inversion", "Rejection")
-  set.seed(seed)
-  permutation <- sample.int(length(rows), length(rows), replace = FALSE)
-  selected    <- sort(permutation[seq_len(as.integer(max_samples))])
+  selected <- .with_preserved_rng({
+    RNGkind("Mersenne-Twister", "Inversion", "Rejection")
+    set.seed(seed)
+    permutation <- sample.int(length(rows), length(rows), replace = FALSE)
+    sort(permutation[seq_len(as.integer(max_samples))])
+  })
 
   return(rows[selected])
 }

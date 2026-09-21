@@ -8,9 +8,14 @@
                             cache = NULL) {
 
   # Likelihood-aware densities inherit the fitted model's parallel setup for
-  # their independent posterior rows; an explicit option overrides it.
-  .native_threads_configure(.resolve_native_threads(context[["object"]]))
-  on.exit(.native_threads_configure(1L), add = TRUE)
+  # their independent posterior rows; an explicit option overrides it. The
+  # previous budget comes back on exit.
+  previous_threads <- .native_threads_configure(
+    .resolve_native_threads(context[["object"]])
+  )
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
 
   context <- .iwmde_context_ensure_caches(context)
   outputs <- unique(match.arg(

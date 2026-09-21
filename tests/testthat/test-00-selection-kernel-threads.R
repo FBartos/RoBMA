@@ -260,6 +260,110 @@ test_that("threaded zcurve kernels return identical values at any thread count",
 }
 
 
+.current_native_thread_budget <- function() {
+
+  current <- .native_threads_configure(1L)
+  if (!is.null(current)) {
+    .native_threads_configure(current)
+  }
+  current
+}
+
+
+test_that("native thread scopes restore their process budget", {
+
+  skip_if_not(is.loaded("RoBMA_selnorm_set_native_threads", PACKAGE = "RoBMA"))
+
+  previous_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, previous_options), add = TRUE)
+  RoBMA.options(native_threads = NA_integer_, max_cores = 3L)
+  .native_threads_configure(5L)
+
+  serial_object   <- list(fit_control = list(parallel = FALSE))
+  parallel_object <- list(fit_control = list(parallel = TRUE))
+
+  expect_identical(
+    .with_native_threads(serial_object, .current_native_thread_budget()),
+    1L
+  )
+  expect_identical(.current_native_thread_budget(), 5L)
+
+  expect_error(
+    .with_native_threads(serial_object, stop("scope failure", call. = FALSE)),
+    "scope failure",
+    fixed = TRUE
+  )
+  expect_identical(.current_native_thread_budget(), 5L)
+
+  expect_identical(
+    .with_native_threads(parallel_object, .current_native_thread_budget()),
+    3L
+  )
+  expect_identical(.current_native_thread_budget(), 5L)
+})
+
+
+test_that("object-facing post-fit entry points inherit a parallel fit budget", {
+
+  skip_if_not(is.loaded("RoBMA_selnorm_set_native_threads", PACKAGE = "RoBMA"))
+
+  previous_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, previous_options), add = TRUE)
+  RoBMA.options(native_threads = NA_integer_, max_cores = 3L)
+  .native_threads_configure(5L)
+  object <- structure(
+    list(fit_control = list(parallel = TRUE), fit = list()),
+    class = "brma"
+  )
+
+  testthat::local_mocked_bindings(
+    .check_log_lik_target_available = function(...) invisible(TRUE),
+    .log_lik_estimate.brma = function(...) .current_native_thread_budget(),
+    .predict_brma_context = function(...) list(),
+    .predict_brma_from_context = function(...) .current_native_thread_budget(),
+    .check_legacy_level_arg = function(...) invisible(TRUE),
+    .normalize_funnel_max_samples = function(x) x,
+    .set_dots_funnel = function(dots) list(as_data = TRUE),
+    .is_mods = function(...) FALSE,
+    .is_scale = function(...) FALSE,
+    .funnel_common_heterogeneity = function(...) list(common = TRUE),
+    .funnel_data_outcome = function(...) .current_native_thread_budget(),
+    .get_posterior_samples = function(...) matrix(1, nrow = 2L, ncol = 1L),
+    .thin_sample_rows = function(...) NULL,
+    .zplot_requires_selection_marginal = function(...) TRUE,
+    .zplot_selection_marginal = function(...) .current_native_thread_budget(),
+    .package = "RoBMA"
+  )
+
+  expect_identical(.log_lik.brma(object), 3L)
+  expect_identical(predict.brma(object), 3L)
+  expect_identical(funnel.brma(object, as_data = TRUE), 3L)
+  expect_identical(
+    .zplot_density_pair(object, 0, max_samples = Inf),
+    3L
+  )
+  expect_identical(.current_native_thread_budget(), 5L)
+})
+
+
+test_that("a fresh RoBMA worker starts with one native thread", {
+
+  skip_on_cran()
+  cluster <- parallel::makePSOCKcluster(1L, rscript_args = "--vanilla")
+  on.exit(parallel::stopCluster(cluster), add = TRUE)
+  parallel::clusterCall(cluster, function(paths) .libPaths(paths), .libPaths())
+  parallel::clusterEvalQ(cluster, loadNamespace("RoBMA"))
+
+  initial <- parallel::clusterEvalQ(cluster, {
+    configure <- getFromNamespace(".native_threads_configure", "RoBMA")
+    previous  <- configure(1L)
+    configure(previous)
+    previous
+  })
+  expect_identical(initial, list(1L))
+})
+
+
 test_that("the row schedule keeps small batches serial and sizes large regions", {
 
   skip_if_not(is.loaded("RoBMA_selnorm_row_schedule", PACKAGE = "RoBMA"))

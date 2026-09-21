@@ -766,9 +766,9 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' comparison table. Sampled versus marginalized local-effect provenance does
 #' not by itself block comparison.
 #'
-#' @return A numeric matrix of class \code{"compare.loo"}. The matrix retains
-#' the comparison columns and printing contract returned by loo versions before
-#' 2.10.0.
+#' @return A numeric matrix of class \code{"compare.loo.brma"}, which also
+#' inherits from \code{"compare.loo"}. The matrix retains the comparison
+#' columns and printing contract returned by loo versions before 2.10.0.
 #'
 #' @seealso \code{\link{loo.brma}}, \code{\link[loo]{loo_compare}}
 #'
@@ -805,9 +805,9 @@ loo_compare.brma <- function(x, ..., unit = "estimate") {
 #' objects to compare.
 #' @param unit output/deletion unit used when extracting LOO from brma objects.
 #'
-#' @return A numeric matrix of class \code{"compare.loo"}. The matrix retains
-#' the comparison columns and printing contract returned by loo versions before
-#' 2.10.0.
+#' @return A numeric matrix of class \code{"compare.loo.brma"}, which also
+#' inherits from \code{"compare.loo"}. The matrix retains the comparison
+#' columns and printing contract returned by loo versions before 2.10.0.
 #'
 #' @seealso \code{\link{loo.brma}}, \code{\link[loo]{loo_compare}}
 #'
@@ -878,13 +878,14 @@ loo_compare.loo <- function(x, ..., unit = "estimate") {
     stop("Internal error: invalid loo comparison table.", call. = FALSE)
   }
   rownames(out) <- as.character(x[["model"]])
-  class(out)    <- c("compare.loo", "matrix", "array")
+  class(out)    <- c("compare.loo.brma", "compare.loo", "matrix", "array")
 
   return(out)
 }
 
 
-.print_compare_loo <- function(x, ..., digits = 1, simplify = TRUE) {
+#' @export
+print.compare.loo.brma <- function(x, ..., digits = 1, simplify = TRUE) {
 
   if (is.data.frame(x)) {
     print_method <- get(

@@ -239,6 +239,12 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
                         sampling_heterogeneity = TRUE, sampling_bias = TRUE,
                         max_samples = 10000,
                         plot_type = "base", ...) {
+
+  previous_threads <- .native_threads_configure(.resolve_native_threads(x))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
+
   # input validation
   conditioning_depth_specified <- !missing(conditioning_depth)
   dots                         <- list(...)
@@ -366,6 +372,11 @@ bfunnel.default <- function(x, ...) {
 bfunnel.brma <- function(x, sampling_heterogeneity = TRUE,
                          sampling_bias = TRUE, max_samples = 10000,
                          plot_type = "base", ...) {
+
+  previous_threads <- .native_threads_configure(.resolve_native_threads(x))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
 
   dots <- list(...)
   .check_legacy_level_arg(dots, "bfunnel()")

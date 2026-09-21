@@ -601,12 +601,12 @@ NULL
       stop("Cannot specify 'mods' when 'yi' is a formula. Use either 'yi ~ mod1 + mod2' or 'yi = effect, mods = ~ mod1 + mod2', but not both.", call. = FALSE)
     }
 
-    # Extract the model frame from the formula
-    na_act <- getOption("na.action")
-    options(na.action = "na.pass")
-    on.exit(options(na.action = na_act), add = TRUE)
-
-    full_mf <- stats::model.frame(yi, data = data)
+    # Extract the model frame without changing the process-wide NA policy.
+    full_mf <- stats::model.frame(
+      yi,
+      data      = data,
+      na.action = stats::na.pass
+    )
 
     # Extract response (LHS)
     yi <- stats::model.response(full_mf)
@@ -721,11 +721,11 @@ NULL
       stop("Cannot specify 'mods' when 'yi' is a formula. Use either 'yi ~ mod1 + mod2' or 'yi = effect, mods = ~ mod1 + mod2', but not both.", call. = FALSE)
     }
 
-    na_act <- getOption("na.action")
-    options(na.action = "na.pass")
-    on.exit(options(na.action = na_act), add = TRUE)
-
-    full_mf <- stats::model.frame(yi, data = data)
+    full_mf <- stats::model.frame(
+      yi,
+      data      = data,
+      na.action = stats::na.pass
+    )
 
     yi <- stats::model.response(full_mf)
     names(yi) <- NULL

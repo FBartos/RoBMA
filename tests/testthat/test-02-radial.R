@@ -12,6 +12,20 @@ fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 info      <- lazy_infos(fit_names, validate = FALSE)
 
+.expect_radial_coordinates <- function(fit) {
+
+  radial_data <- suppressWarnings(radial(fit, as_data = TRUE))
+  expect_true(all(is.finite(radial_data[["points"]][["x"]])))
+  expect_true(all(is.finite(radial_data[["points"]][["z"]])))
+  expect_equal(
+    radial_data[["points"]][["z"]] / radial_data[["points"]][["x"]],
+    .outcome_data_yi(fit),
+    tolerance = 1e-12
+  )
+
+  invisible(radial_data)
+}
+
 
 # ============================================================================ #
 # Test: Simple Meta-Analysis Radial Plot
@@ -89,15 +103,24 @@ test_that("Radial plot retains representative visual coverage", {
 # Test: 3-Level Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot rejects 3-level models", {
+test_that("Radial plot supports 3-level models", {
 
   name     <- "konstantopoulos2011_3lvl"
   fit_brma <- fits[[name]]
 
-  expect_error(
-    radial(fit_brma, plot_type = "base"),
-    "multilevel",
-    info = "3-level models are rejected"
+  radial_data <- .expect_radial_coordinates(fit_brma)
+  tau <- summary(pooled_heterogeneity(fit_brma))["tau", "Mean"]
+  expect_equal(
+    radial_data[["points"]][["x"]],
+    1 / sqrt(.outcome_data_vi(fit_brma) + tau^2),
+    tolerance = 1e-12
+  )
+  expect_vdiffr_snapshot("radial_3lvl_brma_base", function() {
+    radial(fit_brma, plot_type = "base")
+  })
+  expect_vdiffr_snapshot(
+    "radial_3lvl_brma_ggplot",
+    radial(fit_brma, plot_type = "ggplot")
   )
 })
 
@@ -105,47 +128,46 @@ test_that("Radial plot rejects 3-level models", {
 # Test: GLMM Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot rejects GLMM models", {
+test_that("Radial plot supports GLMM effect-size approximations", {
 
   name     <- "nielweise2008_glmm"
   fit_brma <- fits[[name]]
 
-  expect_error(
-    radial(fit_brma, plot_type = "base"),
-    "normal outcome models",
-    info = "GLMM models are rejected"
-  )
+  .expect_radial_coordinates(fit_brma)
+  expect_no_error(radial(fit_brma, plot_type = "base"))
+  expect_s3_class(radial(fit_brma, plot_type = "ggplot"), "ggplot")
 })
 
 # ============================================================================ #
 # Test: Selection Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot rejects selection models", {
+test_that("Radial plot supports selection-model references", {
 
   name     <- "dat.lehmann2018-3PSM"
   fit_brma <- fits[[name]]
 
-  expect_error(
-    radial(fit_brma, plot_type = "base"),
-    "publication-bias",
-    info = "selection models are rejected"
-  )
+  .expect_radial_coordinates(fit_brma)
+  expect_no_error(radial(fit_brma, plot_type = "base"))
+  expect_s3_class(radial(fit_brma, plot_type = "ggplot"), "ggplot")
 })
 
 # ============================================================================ #
 # Test: PET Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot rejects PET models", {
+test_that("Radial plot supports PET references", {
 
   name     <- "dat.lehmann2018-PET"
   fit_brma <- fits[[name]]
 
-  expect_error(
-    radial(fit_brma, plot_type = "base"),
-    "publication-bias",
-    info = "PET models are rejected"
+  .expect_radial_coordinates(fit_brma)
+  expect_vdiffr_snapshot("radial_PET_brma_base", function() {
+    radial(fit_brma, plot_type = "base")
+  })
+  expect_vdiffr_snapshot(
+    "radial_PET_brma_ggplot",
+    radial(fit_brma, plot_type = "ggplot")
   )
 })
 
@@ -153,15 +175,18 @@ test_that("Radial plot rejects PET models", {
 # Test: BMA.norm Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot rejects BMA.norm model-averaging objects", {
+test_that("Radial plot supports BMA.norm references", {
 
   name     <- "dat.lehmann2018_BMA.norm"
   fit_brma <- fits[[name]]
 
-  expect_error(
-    radial(fit_brma, plot_type = "base"),
-    "model-averaging",
-    info = "BMA.norm objects are rejected"
+  .expect_radial_coordinates(fit_brma)
+  expect_vdiffr_snapshot("radial_BMA", function() {
+    suppressWarnings(radial(fit_brma, plot_type = "base"))
+  })
+  expect_s3_class(
+    suppressWarnings(radial(fit_brma, plot_type = "ggplot")),
+    "ggplot"
   )
 })
 
@@ -169,15 +194,18 @@ test_that("Radial plot rejects BMA.norm model-averaging objects", {
 # Test: BMA.glmm Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot rejects BMA.glmm model-averaging objects", {
+test_that("Radial plot supports BMA.glmm references", {
 
   name     <- "bcg_BMA.glmm"
   fit_brma <- fits[[name]]
 
-  expect_error(
-    radial(fit_brma, plot_type = "base"),
-    "normal outcome models",
-    info = "BMA.glmm objects are rejected"
+  .expect_radial_coordinates(fit_brma)
+  expect_vdiffr_snapshot("radial_BMA.glmm", function() {
+    suppressWarnings(radial(fit_brma, plot_type = "base"))
+  })
+  expect_s3_class(
+    suppressWarnings(radial(fit_brma, plot_type = "ggplot")),
+    "ggplot"
   )
 })
 
@@ -185,15 +213,16 @@ test_that("Radial plot rejects BMA.glmm model-averaging objects", {
 # Test: RoBMA Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot rejects RoBMA model-averaging objects", {
+test_that("Radial plot supports RoBMA references", {
 
   name     <- "dat.lehmann2018_RoBMA"
   fit_brma <- fits[[name]]
 
-  expect_error(
-    radial(fit_brma, plot_type = "base"),
-    "model-averaging",
-    info = "RoBMA objects are rejected"
+  .expect_radial_coordinates(fit_brma)
+  expect_no_error(suppressWarnings(radial(fit_brma, plot_type = "base")))
+  expect_s3_class(
+    suppressWarnings(radial(fit_brma, plot_type = "ggplot")),
+    "ggplot"
   )
 })
 
@@ -217,12 +246,27 @@ test_that("Radial plot errors on unsupported model types", {
     info = "location-scale model is rejected"
   )
 
+  weighted_fit <- fits[["bcg_meta-analysis"]]
+  attr(weighted_fit[["data"]], "weights") <- TRUE
+  expect_error(
+    radial(weighted_fit),
+    "likelihood-weighted",
+    info = "likelihood-weighted models are rejected"
+  )
+
   name <- "brma.mv_block_mvn"
   skip_if_missing_fits(name)
-  expect_error(
-    radial(fits[[name]]),
-    "known-V",
-    info = "known-V brma.mv model is rejected"
+  .expect_radial_coordinates(fits[[name]])
+
+  name <- "brma.mv_block_mvn_random"
+  skip_if_missing_fits(name)
+  fit_random  <- fits[[name]]
+  radial_data <- .expect_radial_coordinates(fit_random)
+  tau <- summary(pooled_heterogeneity(fit_random))["tau", "Mean"]
+  expect_equal(
+    radial_data[["points"]][["x"]],
+    1 / sqrt(.outcome_data_vi(fit_random) + tau^2),
+    tolerance = 1e-12
   )
 })
 

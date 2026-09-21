@@ -138,7 +138,10 @@ test_that("loo_compare preserves the released numeric comparison table", {
     "p_loo", "se_p_loo", "looic", "se_looic"
   )
 
-  expect_identical(class(out), c("compare.loo", "matrix", "array"))
+  expect_identical(
+    class(out),
+    c("compare.loo.brma", "compare.loo", "matrix", "array")
+  )
   expect_true(is.numeric(out))
   expect_identical(colnames(out), legacy_columns)
   expect_identical(rownames(out), as.character(upstream[["model"]]))
@@ -186,7 +189,10 @@ test_that("loo_compare preserves the released numeric WAIC table", {
     "p_waic", "se_p_waic", "waic", "se_waic"
   )
 
-  expect_identical(class(out), c("compare.loo", "matrix", "array"))
+  expect_identical(
+    class(out),
+    c("compare.loo.brma", "compare.loo", "matrix", "array")
+  )
   expect_true(is.numeric(out))
   expect_identical(colnames(out), legacy_columns)
   expect_identical(rownames(out), as.character(upstream[["model"]]))

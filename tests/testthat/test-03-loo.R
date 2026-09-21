@@ -95,7 +95,10 @@ test_that("loo_compare compares two brma models", {
   out <- suppressWarnings(loo_compare(fit_brma, fit_brma2))
 
   # check structure
-  expect_identical(class(out), c("compare.loo", "matrix", "array"))
+  expect_identical(
+    class(out),
+    c("compare.loo.brma", "compare.loo", "matrix", "array")
+  )
   expect_equal(nrow(out), 2)
   expect_true(all(c("elpd_diff", "se_diff") %in% colnames(out)))
 })
@@ -114,9 +117,30 @@ test_that("loo_compare accepts loo objects", {
   out <- loo_compare(loo_brma, loo_brma2)
 
   # check structure
-  expect_identical(class(out), c("compare.loo", "matrix", "array"))
+  expect_identical(
+    class(out),
+    c("compare.loo.brma", "compare.loo", "matrix", "array")
+  )
   expect_equal(nrow(out), 2)
   expect_true(all(c("elpd_diff", "se_diff") %in% colnames(out)))
+
+  upstream <- do.call(
+    get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE),
+    list(loo_brma, loo_brma2)
+  )
+  upstream_print <- get(
+    "print.compare.loo",
+    envir    = asNamespace("loo"),
+    inherits = FALSE
+  )
+  expect_identical(
+    getS3method("print", "compare.loo"),
+    upstream_print
+  )
+  expect_identical(
+    capture.output(print(upstream, simplify = FALSE)),
+    capture.output(upstream_print(upstream, simplify = FALSE))
+  )
 })
 
 test_that("cluster-unit LOO has a comparable joint-target label", {
@@ -1008,4 +1032,3 @@ test_that("loo_weights and check_loo return stable diagnostics", {
   fit_bad[["loo"]][["estimate"]][["diagnostics"]][["pareto_k"]][1] <- 0.8
   expect_warning(check_loo(fit_bad), "Some Pareto k values are high")
 })
-

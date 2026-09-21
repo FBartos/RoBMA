@@ -11,6 +11,7 @@ test_that("parallel density chunks preserve rows, budgets, and cleanup", {
   events <- character()
   sampled_rows <- list()
   initialized_limits <- numeric()
+  thread_budgets <- integer()
   fail_worker <- FALSE
   setup <- function(context){
 
@@ -35,6 +36,10 @@ test_that("parallel density chunks preserve rows, budgets, and cleanup", {
       density <- outer(ids, z, "+")
       list(fitted = density, extrapolated = density / 2,
         weights = ids, EDR = NULL)
+    },
+    .native_threads_configure = function(threads) {
+      thread_budgets <<- c(thread_budgets, threads)
+      if (threads == 1L) 7L else 1L
     },
     .package = "RoBMA"
   )
@@ -80,12 +85,15 @@ test_that("parallel density chunks preserve rows, budgets, and cleanup", {
   expect_identical(.Random.seed, seed)
   expect_identical(attr(object[["fit"]], "runtime_state"), list(as.raw(1:4)))
   expect_identical(initialized_limits, c(123456, 234567, 123456, 234567))
+  expect_identical(thread_budgets, c(1L, 7L, 1L, 7L))
 
   events <- character()
+  thread_budgets <- integer()
   fail_worker <- TRUE
   expect_error(suppressMessages(.zplot_selection_marginal_parallel(object, samples,
     z, "marginal", control, cores = 2L)), "posterior draw 19 failed", fixed = TRUE)
   expect_identical(tail(events, 2L), c("stop", "finish coordinator"))
+  expect_identical(thread_budgets, c(1L, 7L, 1L, 7L))
 })
 
 

@@ -4,20 +4,37 @@ if (interactive()) {
   library(testthat)
   library(vdiffr)
 
-  # R restores .RData after .Rprofile. Reload development helpers afterward
-  # so saved functions and absolute paths cannot override this checkout.
-  .First <- local({
+  # R restores .RData after .Rprofile. An active binding captures any saved
+  # .First while keeping this wrapper in place until startup invokes it.
+  local({
     project_root <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
-    previous_first <- get0(".First", envir = .GlobalEnv, inherits = FALSE)
+    state <- new.env(parent = emptyenv())
+    state$had_previous <- exists(".First", envir = .GlobalEnv, inherits = FALSE)
+    if (state$had_previous) {
+      state$previous <- get(".First", envir = .GlobalEnv, inherits = FALSE)
+      rm(".First", envir = .GlobalEnv)
+    }
 
-    function() {
-      if (is.null(previous_first)) {
-        rm(".First", envir = .GlobalEnv)
-      } else {
-        assign(".First", previous_first, envir = .GlobalEnv)
-        previous_first()
+    first <- function() {
+      had_previous <- state$had_previous
+      previous     <- if (had_previous) state$previous else NULL
+      rm(".First", envir = .GlobalEnv)
+      if (had_previous) {
+        assign(".First", previous, envir = .GlobalEnv)
+        if (is.function(previous)) {
+          previous()
+        }
       }
       source(file.path(project_root, ".dev", "test-tests.R"), local = .GlobalEnv)
     }
+
+    makeActiveBinding(".First", function(value) {
+      if (missing(value)) {
+        return(first)
+      }
+      state$had_previous <- TRUE
+      state$previous     <- value
+      invisible(NULL)
+    }, .GlobalEnv)
   })
 }

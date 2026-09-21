@@ -26,12 +26,6 @@
 
     .libPaths(paths)
     options(memory_options)
-    # Workers already split posterior rows; native row threading belongs to
-    # the parent process to avoid oversubscribing the machine.
-    tryCatch(
-      RoBMA.options(native_threads = 1L),
-      error = function(e) NULL
-    )
     NULL
   }
   environment(initialize) <- baseenv()
@@ -44,6 +38,16 @@
   worker <- function(rows, object, posterior_samples, z_sequence,
                      conditioning_depth, integration_control) {
 
+    # Workers already split posterior rows; native row threading belongs to
+    # the parent process to avoid oversubscribing the machine. RoBMA is only
+    # loaded on the worker by now, so the pin resolves from its namespace.
+    configure_threads <- utils::getFromNamespace(
+      ".native_threads_configure", "RoBMA"
+    )
+    previous_threads <- configure_threads(1L)
+    if (!is.null(previous_threads)) {
+      on.exit(configure_threads(previous_threads), add = TRUE)
+    }
     utils::getFromNamespace(".zplot_selection_marginal", "RoBMA")(
       object = object, posterior_samples = posterior_samples[rows, , drop = FALSE],
       z_sequence = z_sequence, z_threshold = NULL,

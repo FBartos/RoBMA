@@ -1555,6 +1555,32 @@ test_that("NA handling supports yi ~ mods formula syntax", {
 })
 
 
+test_that("yi formulas do not change NA policy while evaluating other inputs", {
+
+  observed_na_action <- NULL
+  sampling_se <- function() {
+    observed_na_action <<- getOption("na.action")
+    rep(.2, 4L)
+  }
+  data <- data.frame(
+    yi = c(.1, .2, .3, .4),
+    x  = c(1, 2, 3, 4)
+  )
+  withr::local_options(na.action = "na.exclude")
+
+  brma.norm(
+    yi        = yi ~ x,
+    sei       = sampling_se(),
+    data      = data,
+    measure   = "GEN",
+    only_data = TRUE
+  )
+
+  expect_identical(observed_na_action, "na.exclude")
+  expect_identical(getOption("na.action"), "na.exclude")
+})
+
+
 test_that("NA handling supports subset argument", {
 
   skip_on_cran()

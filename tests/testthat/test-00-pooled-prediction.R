@@ -25,10 +25,23 @@ test_that("pooled effect summaries include prediction intervals", {
     ncol = 1L
   )
   set.seed(481)
+  seed_before <- .Random.seed
+  kind_before <- RNGkind()
   pooled <- pooled_effect(
     object,
     .posterior_samples = posterior_samples
   )
+  expect_identical(.Random.seed, seed_before)
+  expect_identical(RNGkind(), kind_before)
+  pooled_again <- pooled_effect(
+    object,
+    .posterior_samples = posterior_samples
+  )
+  expect_identical(
+    attr(pooled_again, "prediction_samples"),
+    attr(pooled, "prediction_samples")
+  )
+  expect_identical(.Random.seed, seed_before)
   estimates <- summary(pooled)
   estimates_df <- as.data.frame(estimates)
 
@@ -124,6 +137,46 @@ test_that("pooled effect summaries include prediction intervals", {
     unname(attr(transformed, "prediction_samples")),
     unname(exp(expected_prediction)),
     tolerance = 1e-12
+  )
+})
+
+
+test_that("pooled prediction intervals are deterministic without an RNG state", {
+
+  had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (had_seed) {
+    old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  }
+  on.exit({
+    if (had_seed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+  if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+    rm(".Random.seed", envir = .GlobalEnv)
+  }
+
+  object <- brma(
+    yi                        = c(-0.2, 0.1, 0.4),
+    sei                       = c(0.2, 0.2, 0.2),
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_samples <- cbind(
+    mu  = c(-0.2, 0.0, 0.2, 0.4),
+    tau = c(0.1, 0.2, 0.3, 0.4)
+  )
+
+  first <- pooled_effect(object, .posterior_samples = posterior_samples)
+  expect_false(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
+  second <- pooled_effect(object, .posterior_samples = posterior_samples)
+  expect_false(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
+  expect_identical(
+    attr(first, "prediction_samples"),
+    attr(second, "prediction_samples")
   )
 })
 

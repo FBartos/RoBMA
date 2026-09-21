@@ -27,6 +27,7 @@ NULL
       do.call("RoBMA.options", args = setopts)
     }
   }
+  .native_threads_configure(RoBMA.private[["native_threads"]])
 
   if (.selection_runtime_available()) {
     .selection_runtime_configure(.selection_runtime_settings())
@@ -268,11 +269,6 @@ NULL
   # Register methods for brma class
   .s3_register("loo::loo",         "brma")
   .s3_register("loo::loo_compare", "brma")
-  .s3_register(
-    "base::print",
-    "compare.loo",
-    method = .print_compare_loo
-  )
 
   invisible(NULL)
 }

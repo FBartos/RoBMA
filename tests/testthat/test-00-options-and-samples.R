@@ -6,6 +6,7 @@ test_that("RoBMA options expose only public options", {
   on.exit(do.call(RoBMA.options, old_options), add = TRUE)
 
   expect_true("silent" %in% names(old_options))
+  expect_true(old_options[["silent"]])
   expect_equal(old_options[["default_lograte.sd"]], 1)
   expect_false("RoBMA_version" %in% names(old_options))
   expect_false("module_location" %in% names(old_options))

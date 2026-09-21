@@ -54,15 +54,14 @@
         conditioning_depth, integration_control, cores)
     } else {
       # Serial worker rows inherit the fitted model's parallel setup; the
-      # PSOCK branch above disables native threading in its workers.
-      .native_threads_configure(.resolve_native_threads(object))
-      on.exit(.native_threads_configure(1L), add = TRUE)
+      # PSOCK branch above pins one native thread in each of its workers.
       # Only the fitted curve leaves this call when no extrapolated curve and
       # no threshold summary is requested, so the selection routes can skip the
       # inverse weights and the extrapolated mixture they would discard.
-      .zplot_selection_marginal(object, posterior_samples, z_sequence, z_threshold,
+      .with_native_threads(object, .zplot_selection_marginal(
+        object, posterior_samples, z_sequence, z_threshold,
         conditioning_depth, integration_control, extrapolate_only = extrapolate,
-        fitted_only = !extrapolate && is.null(z_threshold))
+        fitted_only = !extrapolate && is.null(z_threshold)))
     }
     if (!is.null(z_threshold)) {
       return(list(
@@ -74,10 +73,12 @@
   }
 
   # The vectorized route's kernels are row-parallel too, so it takes the same
-  # thread budget as the selection-marginal route above and restores one thread
-  # on exit.
-  .native_threads_configure(.resolve_native_threads(object))
-  on.exit(.native_threads_configure(1L), add = TRUE)
+  # thread budget as the selection-marginal route above and restores the
+  # previous budget on exit.
+  previous_threads <- .native_threads_configure(.resolve_native_threads(object))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
 
   predictive <- .zplot_predictive_components(
     object             = object,
@@ -2126,6 +2127,11 @@
                                 conditioning_depth = "marginal",
                                 integration_control = set_selection_likelihood_control(),
                                 parallel = FALSE, cores = min(4, RoBMA.get_option("max_cores"))) {
+
+  previous_threads <- .native_threads_configure(.resolve_native_threads(object))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
 
   posterior_samples <- .get_posterior_samples(object[["fit"]])
   selected_ind      <- .thin_sample_rows(nrow(posterior_samples), max_samples)
