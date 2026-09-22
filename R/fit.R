@@ -906,6 +906,9 @@
     .prior_has_selection,
     logical(1)
   )
+  if (!any(has_selection)) {
+    return(character())
+  }
   p_cuts <- BayesTools::weightfunctions_mapping(
     prior_list = bias_priors[has_selection],
     cuts_only  = TRUE,
