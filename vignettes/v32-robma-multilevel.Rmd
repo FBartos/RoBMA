@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Multilevel Robust Bayesian Meta-Analysis}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -94,8 +93,8 @@ The multilevel approach explicitly models the clustering structure through the `
  - partitions heterogeneity into within-study and between-study components,
  - adjusts for selective reporting of individual estimates, conditional on the shared study effect, in its weightfunction branches.
 
-These branches use `selection = selection_model()` by default: estimate random effects are integrated, other random effects and known sampling context are conditioned upon, and weights are multiplied across estimates. For this specialized clustered model, within-study heterogeneity is the estimate source and the shared study effect is the other source; the usual `tau`, `rho` and `I2` summaries retain their meanings.
-Setting `selection = selection_model(other_random_effects = "integrate")` instead normalizes after averaging over the shared study effect. Setting `estimate_random_effects = "condition"` retains the within-study effect during normalization and defines another target. The `known_sampling_variance` field controls declared sampling context, while residual sampling variance is always integrated; the `sei` inputs here have no sampling context. Explicit weightfunction priors retain their own model specification.
+These branches use `selection = selection_model()` by default: estimate random effects and known sampling variation are integrated, other random effects are conditioned upon, and weights are multiplied across estimates. For this specialized clustered model, within-study heterogeneity is the estimate source and the shared study effect is the other source; the usual `tau`, `rho` and `I2` summaries retain their meanings.
+Setting `selection = selection_model(other_random_effects = "integrate")` instead normalizes after averaging over the shared study effect. Setting `estimate_random_effects = "condition"` retains the within-study effect during normalization and defines another target. The `known_sampling_variance` field controls the complete sampling-error source, including the independent errors specified by `sei` here; setting it to `"condition"` retains their realization during selection normalization. Explicit weightfunction priors retain their own model specification.
 
 ## Loading the Data
 
