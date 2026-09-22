@@ -111,7 +111,7 @@ test_that("the credible band is the one two separate quantile passes returned", 
     )
   }
 
-  set.seed(20260918)
+  withr::local_seed(20260918)
   grids <- list(
     "many points"          = matrix(stats::rnorm(40L * 13L), nrow = 40L),
     "one grid point"       = matrix(stats::rnorm(40L), ncol = 1L),

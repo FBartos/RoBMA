@@ -1604,7 +1604,7 @@ test_that("exact singleton blocks share the compiled scalar batch", {
 
 test_that("exact selected multivariate response RNG matches region masses", {
 
-  set.seed(41)
+  withr::local_seed(41)
   S     <- 6000L
   mu    <- c(.10, .15)
   sigma <- matrix(c(.09, .03, .03, .16), 2L, 2L)
@@ -1711,7 +1711,7 @@ test_that("exact selected response RNG preserves singular covariance support", {
   )
   mean <- matrix(c(.1, -.2), nrow = S, ncol = 2L, byrow = TRUE)
 
-  set.seed(842)
+  withr::local_seed(842)
   actual <- .outcome_rng.selnorm_mvn(
     mu_samples         = mean,
     covariance_samples = covariance,
@@ -1719,7 +1719,7 @@ test_that("exact selected response RNG preserves singular covariance support", {
     selection_context  = context,
     dependency_blocks  = list(1:2)
   )
-  set.seed(842)
+  withr::local_seed(842)
   factor <- .covariance_sampling_factor(
     .covariance_factorization(covariance_matrix)
   )
@@ -1802,13 +1802,13 @@ test_that("selected response RNG distinguishes impossible contexts from exhauste
   )
   # A positive scalar selected law is sampled directly, including this tail
   # that previously exhausted a short unselected-Gaussian rejection search.
-  set.seed(842)
+  withr::local_seed(842)
   uniforms <- stats::runif(2L)
   cutoff <- .1 * stats::qnorm(.025, lower.tail = FALSE)
   expected <- stats::qnorm(log(uniforms[2L]) +
     stats::pnorm(cutoff, mean = 1, sd = .2, log.p = TRUE),
     mean = 1, sd = .2, log.p = TRUE)
-  set.seed(842)
+  withr::local_seed(842)
   scalar <- .outcome_rng.selnorm_mvn(
     mu_samples = matrix(1, nrow = 1L),
     covariance_samples = array(.04, dim = c(1L, 1L, 1L)),
@@ -1822,7 +1822,7 @@ test_that("selected response RNG distinguishes impossible contexts from exhauste
   # Retain the exhausted-search diagnostic on an SPD, strongly negatively
   # correlated joint event. Both rows below the cutoff remain mathematically
   # possible, but cannot be reached by this reproducible three-attempt search.
-  set.seed(842)
+  withr::local_seed(842)
   expect_error(
     .outcome_rng.selnorm_mvn(
       mu_samples         = matrix(1, nrow = 1L, ncol = 2L),

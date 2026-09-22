@@ -219,7 +219,7 @@ test_that("integrated true effects use the Gaussian posterior conditional on ret
     )
     expected <- latent_mean + as.vector(random_covariance %*%
       solve(random_covariance + sampling_covariance, y - mean))
-    set.seed(147)
+    withr::local_seed(147)
     before <- .Random.seed
     expect_equal(as.vector(.predict_joint_selection_source_posterior(parts, y, FALSE)),
                  expected, tolerance = 1e-12)
@@ -241,7 +241,7 @@ test_that("integrated true effects use the Gaussian posterior conditional on ret
     random_covariance = singular_block(0),
     sampling_covariance = singular_block(c(1, -2, -2, 4)),
     covariance = singular_block(c(1, -2, -2, 4)))
-  set.seed(126)
+  withr::local_seed(126)
   before <- .Random.seed
   expect_identical(.predict_joint_selection_source_posterior(
     singular, c(.5, -.2), TRUE), singular$latent_means)
@@ -274,13 +274,13 @@ test_that("declared singleton source reconstruction preserves Gaussian draws and
   d <- rbind(c(.6, 1.3), c(0, 0), c(0, 0))
   parts <- make_parts(q, d)
   y <- rbind(c(.5, -.1), c(.2, .2), c(-.2, .8))
-  set.seed(146)
+  withr::local_seed(146)
   fast <- .predict_joint_selection_source_posterior(parts, y)
   fast_rng <- .Random.seed
   expect_identical(sampler_calls, 0L)
   reference <- parts
   reference$dependency_blocks <- NULL
-  set.seed(146)
+  withr::local_seed(146)
   slow <- .predict_joint_selection_source_posterior(reference, y)
   expect_identical(sampler_calls, 2L)
   expect_equal(fast, slow, tolerance = 1e-12)
@@ -290,11 +290,11 @@ test_that("declared singleton source reconstruction preserves Gaussian draws and
   # Independent scalar conditional law: mean .42, variance .24. These
   # coefficients retain the two original Gaussian phases, each of length one.
   scalar <- make_parts(matrix(.4), matrix(.6))
-  set.seed(147)
+  withr::local_seed(147)
   z <- stats::rnorm(2L)
   scalar_rng <- .Random.seed
   expected <- .42 + .6 * sqrt(.4) * z[1L] - .4 * sqrt(.6) * z[2L]
-  set.seed(147)
+  withr::local_seed(147)
   actual <- .predict_joint_selection_source_posterior(scalar, .5)
   expect_identical(dim(actual), c(1L, 1L))
   expect_equal(as.numeric(actual), expected, tolerance = 1e-12)
@@ -312,12 +312,12 @@ test_that("declared singleton source reconstruction preserves Gaussian draws and
   # the tiny positive diagonal beside an exact zero.
   mixed <- make_parts(matrix(c(1, 1e-22, 0), 1L), matrix(1, 1L, 3L))
   sampler_calls <- 0L
-  set.seed(148)
+  withr::local_seed(148)
   mixed_draw <- .predict_joint_selection_source_posterior(mixed, rep(.4, 3L))
   mixed_rng <- .Random.seed
   expect_identical(sampler_calls, 2L)
   mixed$dependency_blocks <- NULL
-  set.seed(148)
+  withr::local_seed(148)
   expect_identical(.predict_joint_selection_source_posterior(mixed, rep(.4, 3L)), mixed_draw)
   expect_identical(.Random.seed, mixed_rng)
 
@@ -365,7 +365,7 @@ test_that("diagonal source reconstruction preserves the full conditional Gaussia
   rng <- .Random.seed
   general <- parts
   general$random_diagonal <- general$sampling_covariance_matrix <- NULL
-  set.seed(362)
+  withr::local_seed(362)
   reference <- .predict_joint_selection_source_posterior(general, y)
   expect_equal(actual, reference, tolerance = 1e-12)
   expect_identical(.Random.seed, rng)
@@ -377,9 +377,9 @@ test_that("diagonal source reconstruction preserves the full conditional Gaussia
   # singular rank-one support retains the existing fallback representation.
   loading <- c(.3, -.4, .2)
   singular <- tcrossprod(loading)
-  set.seed(363)
+  withr::local_seed(363)
   fixed <- .outcome_rng.norm_known_v_covariance(matrix(0, 5L, 3L), singular)
-  set.seed(363)
+  withr::local_seed(363)
   repeated <- .outcome_rng.norm_known_v_covariance(matrix(0, 5L, 3L),
     array(rep(singular, each = 5L), c(5L, 3L, 3L)))
   expect_equal(fixed, repeated, tolerance = 1e-15)
@@ -427,7 +427,7 @@ test_that("same-design marginal selection retains certified integrated covarianc
   fast_seed <- .Random.seed
   expect_equal(fast$random_diagonal, matrix(.4^2, 2L, 3L), tolerance = 1e-14)
   use_factors <- FALSE
-  set.seed(371)
+  withr::local_seed(371)
   reference <- evaluate()
   expect_identical(.Random.seed, fast_seed)
   expect_null(reference$random_diagonal)
@@ -513,7 +513,7 @@ test_that("selected prediction chunks retain posterior rows and fitted-context m
       result
     }, .package = "RoBMA"
   )
-  set.seed(127)
+  withr::local_seed(127)
   before <- .Random.seed
   fitted <- blup(object, .posterior_samples = samples)
   expect_identical(.Random.seed, before)
@@ -525,10 +525,10 @@ test_that("selected prediction chunks retain posterior rows and fitted-context m
   expect_equal(as.numeric(fitted), as.numeric(expected), tolerance = 1e-12)
   expect_identical(rownames(fitted), rownames(samples))
   expect_identical(sizes, c(2L, 2L, 2L, 1L))
-  set.seed(128)
+  withr::local_seed(128)
   first <- predict(object, type = "estimate", quiet = TRUE,
                    .posterior_samples = samples)
-  set.seed(128)
+  withr::local_seed(128)
   second <- predict(object, type = "estimate", quiet = TRUE,
                     .posterior_samples = samples)
   expect_identical(as.numeric(first), as.numeric(second))

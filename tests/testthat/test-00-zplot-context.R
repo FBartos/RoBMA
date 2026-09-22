@@ -346,7 +346,7 @@ test_that("input mixture pruning preserves raw anchors and reports bounded omiss
       rule$nodes, rule$log_weights, seq(-4, 4, length.out = 65L), allowance,
       PACKAGE = "RoBMA")
   }
-  set.seed(419L)
+  withr::local_seed(419L)
   before <- .Random.seed
   exact <- evaluate(0)
   pruned <- evaluate(1e-4)

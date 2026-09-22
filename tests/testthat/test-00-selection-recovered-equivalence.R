@@ -57,7 +57,7 @@ test_that("recovered and dense block evaluators agree on the selected law", {
   expect_identical(vapply(blocks, function(b) ncol(b[["loading"]]), integer(1)),
                    c(4L, 1L))
 
-  set.seed(4021)
+  withr::local_seed(4021)
   draws     <- 100L
   tolerance <- set_selection_likelihood_control()[["relative_tolerance"]]
 
@@ -128,7 +128,7 @@ test_that("recovered and dense zplot block densities agree", {
   z       <- seq(-3, 3, by = .25)
   control <- set_selection_likelihood_control()
 
-  set.seed(9110)
+  withr::local_seed(9110)
   draws <- 12L
   for (block in blocks) {
     index <- block[["index"]]

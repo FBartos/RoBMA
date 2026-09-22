@@ -1479,7 +1479,7 @@ test_that("scenario_plot locks interactive plots and seeds each rendering", {
     state[["exit_new"]] <- graphics::par("new")
   })
 
-  set.seed(1)
+  withr::local_seed(1)
   expected_random <- stats::runif(1L)
   expect_identical(state[["draws"]], 2L)
   expect_equal(state[["random"]], rep(expected_random, 2L))
@@ -1746,6 +1746,7 @@ test_that("scenario RoBMA selectors use the tau I/O vocabulary", {
     pattern    = "^test-.*\\.R$",
     full.names = TRUE
   )
+  skip_if(length(paths) == 0L, "Maintainer scenario sources are not installed.")
   lines <- unlist(lapply(paths, readLines, warn = FALSE), use.names = FALSE)
   lines <- sub(
     'scenario_plot\\("(?:sd_common|cor)"',

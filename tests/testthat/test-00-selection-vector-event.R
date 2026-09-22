@@ -243,7 +243,7 @@ test_that("best response draws retain the full independent publication vector", 
   covariance <- array(0, c(n, 2L, 2L))
   covariance[, 1L, 1L] <- 1
   covariance[, 2L, 2L] <- 1
-  set.seed(8173)
+  withr::local_seed(8173)
   draws <- .Call(
     "RoBMA_selnorm_mnorm_step_rng_batch", matrix(0, n, 2L), covariance,
     c(1, 1), matrix(rep(c(1, .2), each = n), n),

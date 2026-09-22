@@ -87,7 +87,7 @@ test_that("fresh retained contexts are integrated outside best normalization", {
       }, numeric(1L))
     }, -Inf, Inf, rel.tol = 1e-9)$value
   }, numeric(1L))
-  set.seed(167)
+  withr::local_seed(167)
   before <- .Random.seed
   got <- .zplot_full_event_context_mixture(z, matrix(mean, 1L),
     .as_block_covariance(array(diag(sd^2), c(1L, 2L, 2L))),

@@ -172,7 +172,7 @@ test_that("default RoBMA step normalizer matches independent Bem2011 reference",
     effect_direction = attr(object[["data"]], "effect_direction")
   )
 
-  set.seed(107)
+  withr::local_seed(107)
   S     <- 4L
   K     <- length(Bem2011[["d"]])
   mean  <- matrix(stats::rnorm(S * K, mean = .12, sd = .08), nrow = S)
@@ -730,7 +730,7 @@ test_that("trusted step densities, CDF, moments, and RNG match fallback paths", 
       tolerance = 1e-12
     )
 
-    set.seed(511)
+    withr::local_seed(511)
     rng_fast <- .selnorm_kernel_rng_matrix(
       mean           = sign * mean,
       sd             = sd,
@@ -738,7 +738,7 @@ test_that("trusted step densities, CDF, moments, and RNG match fallback paths", 
       omega          = omega,
       selection_spec = spec
     )
-    set.seed(511)
+    withr::local_seed(511)
     rng_fallback <- .selnorm_kernel_rng_matrix(
       mean           = sign * mean,
       sd             = sd,
@@ -882,7 +882,7 @@ test_that("step selected-normal RNG follows exact bin masses and moments", {
 
   skip_if_not(.has_native_selnorm_kernel())
 
-  set.seed(101)
+  withr::local_seed(101)
   yi    <- 0
   sei   <- .11
   spec  <- .test_step_spec(yi, sei)
@@ -935,7 +935,7 @@ test_that("step selected-normal RNG handles signed extreme tail truncation", {
 
   skip_if_not(.has_native_selnorm_kernel())
 
-  set.seed(102)
+  withr::local_seed(102)
   sei   <- .10
   spec  <- .test_step_spec(-.10, sei, effect_direction = "negative")
   S     <- 128L

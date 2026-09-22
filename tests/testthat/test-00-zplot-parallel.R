@@ -70,7 +70,7 @@ test_that("parallel density chunks preserve rows, budgets, and cleanup", {
     clusterApply = function(cl, x, fun, ...) lapply(x, fun, ...),
     .package = "parallel"
   )
-  set.seed(123)
+  withr::local_seed(123)
   seed <- .Random.seed
   expect_message(result <- .zplot_selection_marginal_parallel(object, samples, z,
     "marginal", control, cores = 2L),
@@ -168,7 +168,7 @@ test_that("generic QMC z projections retain their design across draw partitions"
   control <- set_selection_likelihood_control(points_per_scramble = 32L,
     max_points_per_scramble = 4096L, scrambles = 8L, seed = 17L)
   designs <- new.env(parent = emptyenv())
-  set.seed(123)
+  withr::local_seed(123)
   seed <- .Random.seed
   full <- .zplot_joint_block(z, mean, packed, sei, context, FALSE, control, designs)
   pieces <- lapply(list(1L, 2:3), function(rows){

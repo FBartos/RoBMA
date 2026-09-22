@@ -440,12 +440,14 @@ test_that("JAGS reports the failed sampling-normalizer diagnostic and applicable
                  cn = args$cluster_nodes, cl = args$cluster_log_weights, co = args$cluster_orders,
                  fn = args$factor_nodes, fl = args$factor_log_weights,
                  fo = args$factor_orders)
-    connection <- textConnection(syntax)
-    expect_error({
-      model <- rjags::jags.model(connection, data = data, inits = list(beta = 0),
-                                n.chains = 1L, n.adapt = 0L, quiet = TRUE)
-      stats::update(model, 1L, progress.bar = "none")
-    }, expected, fixed = TRUE)
-    close(connection)
+    local({
+      connection <- textConnection(syntax)
+      on.exit(close(connection))
+      expect_error({
+        model <- rjags::jags.model(connection, data = data, inits = list(beta = 0),
+                                  n.chains = 1L, n.adapt = 0L, quiet = TRUE)
+        stats::update(model, 1L, progress.bar = "none")
+      }, expected, fixed = TRUE)
+    })
   }
 })

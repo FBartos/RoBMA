@@ -13,7 +13,7 @@ source(testthat::test_path("helper-selection-kernel.R"))
 # scales, so the row arguments the kernels resolve really vary by row.
 .kernel_thread_inputs <- function(S = 96L, K = 5L) {
 
-  set.seed(20260917)
+  withr::local_seed(20260917)
   yi   <- c(.12, -.05, .31, .22, -.18)[seq_len(K)]
   sei  <- c(.10, .18, .14, .22, .09)[seq_len(K)]
   spec <- .test_step_spec(yi, sei)

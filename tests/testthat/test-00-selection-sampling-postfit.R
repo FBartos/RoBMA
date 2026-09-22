@@ -103,7 +103,7 @@ test_that("a retained complete sampling error identifies total truth with singul
     covariance = .as_block_covariance(array(Q, c(1L, 2L, 2L)))
   )
   y <- c(.7, .3)
-  set.seed(291)
+  withr::local_seed(291)
   before <- .Random.seed
   for (draw in c(FALSE, TRUE)) {
     expect_equal(as.vector(.predict_joint_selection_source_posterior(parts, y, draw)), c(.4, .7))

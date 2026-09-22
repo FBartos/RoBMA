@@ -235,7 +235,7 @@ test_that("funnel and regplot selected CDF paths match non-telescoped fallback",
   skip_if_not(.has_native_selnorm_kernel())
   skip_if_not(.has_native_regplot_selection_mixture())
 
-  set.seed(109)
+  withr::local_seed(109)
   S     <- 11L
   K     <- 3L
   yi    <- c(.08, .20, .42)
@@ -307,7 +307,7 @@ test_that("native funnel model-averaged quantiles match R fallback", {
     selection = list()
   )))
 
-  set.seed(127)
+  withr::local_seed(127)
   S     <- 19L
   yi    <- c(.08, .20, .42)
   sei   <- c(.09, .14, .22)

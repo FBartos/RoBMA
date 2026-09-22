@@ -223,7 +223,7 @@ test_that("diagnostics integrate fresh sampling effects and preserve the RNG", {
     only_priors               = TRUE
   )
   object[["fit"]] <- list(has_posterior = TRUE)
-  set.seed(123)
+  withr::local_seed(123)
   rng_before <- .Random.seed
   baseline <- .compute_selection_sensitivity_diagnostics(object, latent_samples = 32L)
   expect_identical(.Random.seed, rng_before)
@@ -283,7 +283,7 @@ test_that("fresh context draws retain positive-semidefinite Gaussian covariance"
 
   loading <- matrix(c(1, .2, 0, .5, 1, .4, 0, .4), 4L, 2L)
   covariance <- tcrossprod(loading)
-  set.seed(445)
+  withr::local_seed(445)
   draws <- .selection_sensitivity_covariance_draws(covariance, 100000L)
   expect_lt(max(abs(stats::cov(draws) - covariance)), .025)
   expect_identical(.selection_sensitivity_covariance_draws(matrix(0, 2L, 2L), 3L),

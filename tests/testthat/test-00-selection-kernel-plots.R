@@ -373,7 +373,7 @@ test_that("native regplot selection intervals match R reference", {
 
   skip_if_not(.has_native_regplot_selection_mixture())
 
-  set.seed(131)
+  withr::local_seed(131)
   S            <- 15L
   K            <- 4L
   se           <- seq(.11, .17, length.out = K)
@@ -696,7 +696,7 @@ test_that("native weighted selected-normal summary matches matrix reductions", {
 
   skip_if_not(.has_native_selnorm_kernel())
 
-  set.seed(141)
+  withr::local_seed(141)
   S    <- 17L
   K    <- 5L
   yi   <- -seq_len(K) / 20

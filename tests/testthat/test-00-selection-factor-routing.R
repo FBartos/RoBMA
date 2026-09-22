@@ -853,7 +853,7 @@ test_that("native factor likelihood agrees with an independent MVN oracle", {
       sum(log(omega[obs_bin])) - log(sum(terms))
   }
 
-  set.seed(927)
+  withr::local_seed(927)
   errors <- diagnostics <- normal_errors <- numeric(3L)
   for (rank in 2:4) {
     K <- 4L
@@ -1375,7 +1375,7 @@ test_that("forest supports above rank four integrate deterministically", {
   # probabilities of the reconstructed covariance over every bin assignment.
   covariance <- diag(residual_sd^2) + tcrossprod(loading)
   assignments <- expand.grid(rep(list(seq_along(omega)), K))
-  set.seed(4211L)
+  withr::local_seed(4211L)
   terms <- apply(assignments, 1L, function(bins) {
     probability <- suppressWarnings(as.numeric(mvtnorm::pmvnorm(
       lower     = z_lower[bins] * sei,
@@ -1459,7 +1459,7 @@ test_that("the factor node budget, not the rank, bounds the deterministic ladder
 
   covariance <- diag(residual_sd^2) + tcrossprod(cyclic)
   assignments <- expand.grid(rep(list(seq_along(omega)), K))
-  set.seed(9013L)
+  withr::local_seed(9013L)
   terms <- apply(assignments, 1L, function(bins) {
     prod(omega[bins]) * suppressWarnings(as.numeric(mvtnorm::pmvnorm(
       lower     = z_lower[bins] * sei,

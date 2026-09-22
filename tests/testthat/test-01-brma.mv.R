@@ -59,7 +59,7 @@ skip_refit_if_cached("brma.mv")
 
 .brma_mv_add_cached_diagnostics <- function(fit, seed) {
 
-  set.seed(seed)
+  withr::local_seed(seed)
   fit <- add_marglik(fit)
   fit <- suppressWarnings(add_loo(fit))
 

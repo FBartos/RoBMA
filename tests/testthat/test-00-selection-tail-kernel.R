@@ -62,6 +62,7 @@ test_that("a tail value does not depend on its position in the batch", {
   }
 
   # Length-one requests take the same path as a full batch.
+  withr::local_seed(20260922)
   probe <- sample(seq_along(grid), 40L)
   expect_identical(vapply(grid[probe], .selnorm_normal_upper_tail, numeric(1L)),
                    reference[probe])

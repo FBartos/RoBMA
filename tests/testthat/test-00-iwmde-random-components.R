@@ -127,7 +127,7 @@ test_that("shared-gate allocation grids use declared continuous covariance plans
     allocation_definition = split,
     samples = as.matrix(BayesTools::parameter_draws(fit, prior_selection))
   )
-  set.seed(1)
+  withr::local_seed(1)
   prior_seed <- .Random.seed
   prior_samples <- .brma_random_parameter_mixed_posterior(
     list(fit = fit), "split: tau2_prop(study)", prior = TRUE,
@@ -402,6 +402,10 @@ test_that("simplex baselines use the same conditional prior as replacements", {
 
 test_that("retained selection baselines preserve local states and scalar diagnostics", {
 
+  withr::local_seed(17)
+  original_rng_kind <- RNGkind()
+  withr::defer(do.call(RNGkind, as.list(original_rng_kind)))
+
   samples <- cbind(mu = c(.2, -.1, .4, .5, -.3),
                    gamma = c(.1, .3, -.2, .7, -.5),
                    mu_indicator = c(1, 2, 1, 2, 1))
@@ -478,9 +482,11 @@ test_that("retained selection baselines preserve local states and scalar diagnos
   for (mode in c("ok", "warning", "error", "nonfinite", "shape")) {
     scalar_context <- new_context()
     batch_context  <- new_context()
+    do.call(RNGkind, as.list(original_rng_kind))
     set.seed(17)
     scalar <- evaluate(scalar_context, FALSE)
     evaluations <- list()
+    do.call(RNGkind, as.list(original_rng_kind))
     set.seed(17)
     batched <- evaluate(batch_context, TRUE)
     expect_identical(batched[["warnings"]], scalar[["warnings"]], info = mode)

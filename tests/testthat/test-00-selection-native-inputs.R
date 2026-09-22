@@ -68,7 +68,7 @@ test_that("native recognized rank-one sampling retains its original first-normal
   withr::local_seed(73027)
   result <- .native_srs_draws(covariance)
   observed_seed <- .Random.seed
-  set.seed(73027)
+  withr::local_seed(73027)
   standard <- matrix(stats::rnorm(8L * 2L), ncol = 2L, byrow = TRUE)
   expected <- outer(standard[, 1L], loading)
   expect_identical(result$failure_code, 0L)
@@ -81,7 +81,7 @@ test_that("native spectral fallback preserves marginal scales and structural zer
   withr::local_seed(73029)
   small <- .native_srs_draws(diag(c(1, 1e-20, 0)))
   small_seed <- .Random.seed
-  set.seed(73029)
+  withr::local_seed(73029)
   unit <- .native_srs_draws(diag(c(1, 1, 0)))
   expect_identical(small$failure_code, 0L)
   expect_identical(unit$failure_code, 0L)
@@ -108,7 +108,7 @@ test_that("native SRS fallback keeps rank-two Gaussian support and draw count", 
   expect_lte(max(abs(result$draws[, 1L] - result$draws[, 3L])), bound)
   expect_lte(max(abs(result$draws[, 2L] - result$draws[, 4L])), bound)
   expect_equal(qr(result$draws)$rank, 2L)
-  set.seed(73031)
+  withr::local_seed(73031)
   invisible(stats::rnorm(8L * 4L))
   expect_identical(.Random.seed, observed_seed)
 })

@@ -64,7 +64,7 @@ test_that("retained cache callbacks round-trip and respect the current retention
   expect_gt(length(snapshot[["payload"]]), 0)
   expect_equal(selection_cache_info()$allocated_bytes[1L], 0)
   snapshot <- unserialize(serialize(snapshot, NULL))
-  set.seed(16)
+  withr::local_seed(16)
   rng <- .Random.seed
   callback(context, list(snapshot))
   expect_identical(.Random.seed, rng)

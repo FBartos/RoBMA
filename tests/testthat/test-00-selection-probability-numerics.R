@@ -267,7 +267,7 @@ test_that("selected-normal RNG avoids division-first score coordinates", {
   omega          <- matrix(rep(c(1, 0, 0, 0), each = S), nrow = S)
   expected_lower <- spec[["z_lower"]][1L] * 1e-310
 
-  set.seed(8041)
+  withr::local_seed(8041)
   actual <- .selnorm_kernel_rng_matrix(
     mean           = matrix(1, nrow = S),
     sd             = matrix(1, nrow = S),

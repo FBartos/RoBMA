@@ -67,7 +67,7 @@ skip_on_cran()
 # a run of several equal draws, single-draw runs, and a returning covariance.
 .grid_packed_covariance <- function(block_size, seed) {
 
-  set.seed(seed)
+  withr::local_seed(seed)
   root  <- matrix(stats::rnorm(block_size * block_size), block_size)
   value <- crossprod(root) + diag(block_size) * (block_size + 1)
 
@@ -86,7 +86,7 @@ test_that("the vectorized normalizer-grid Gaussian density is unchanged", {
     covariance_lower <- do.call(rbind, packed[pattern])
     S <- nrow(covariance_lower)
 
-    set.seed(900L + block_size)
+    withr::local_seed(900L + block_size)
     yi    <- stats::rnorm(block_size)
     means <- matrix(stats::rnorm(S * block_size, sd = 0.7), nrow = S)
 
@@ -118,7 +118,7 @@ test_that("the vectorized normalizer-grid Gaussian density is unchanged", {
 test_that("a row-compacted covariance gives the same Gaussian density", {
 
   for (block_size in c(1L, 3L, 6L)) {
-    set.seed(700L + block_size)
+    withr::local_seed(700L + block_size)
     states      <- rep(seq_len(7L), each = 5L)
     S           <- length(states)
     residual_sd <- matrix(stats::runif(7L * block_size, 0.2, 1.1),
@@ -172,7 +172,7 @@ test_that("a non-positive-definite normalizer-grid block still declines", {
   bad        <- good
   bad[[1L]]  <- -1
 
-  set.seed(31L)
+  withr::local_seed(31L)
   yi    <- stats::rnorm(block_size)
   means <- matrix(stats::rnorm(4L * block_size), nrow = 4L)
 
@@ -196,7 +196,7 @@ test_that("the vectorized packed factor covariance is unchanged", {
 
   for (block_size in c(1L, 2L, 4L, 7L)) {
     for (rank in c(0L, 1L, 2L, 3L)) {
-      set.seed(4000L + 100L * block_size + rank)
+      withr::local_seed(4000L + 100L * block_size + rank)
       S           <- 11L
       residual_sd <- matrix(stats::runif(S * block_size, 0.05, 1.5), nrow = S)
       loading     <- matrix(stats::rnorm(S * block_size * rank),
