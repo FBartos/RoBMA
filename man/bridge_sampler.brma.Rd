@@ -12,7 +12,8 @@
 \item{...}{additional arguments (currently not used).}
 }
 \value{
-An object of class \code{"bridge"} as returned by
+An object of class \code{"bridge"}, or \code{"bridge_list"} for
+repeated bridge estimates, as returned by
 \code{\link[bridgesampling]{bridge_sampler}}.
 }
 \description{

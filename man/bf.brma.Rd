@@ -20,13 +20,20 @@ Default is \code{FALSE}.}
 \item{...}{additional arguments (currently not used).}
 }
 \value{
-A list of class \code{"bf_default"} with components:
+For single estimates, a list of class \code{"bf_default"} with components:
 \itemize{
-\item \code{bf}: (scalar) value of the Bayes factor in favor of
-\code{x1} over \code{x2}.
-\item \code{log}: Boolean indicating whether \code{bf} corresponds
-to the log Bayes factor.
+  \item \code{bf}: (scalar) value of the Bayes factor in favor of
+  \code{x1} over \code{x2}.
+  \item \code{log}: Boolean indicating whether \code{bf} corresponds
+  to the log Bayes factor.
 }
+For repeated estimates, a list of class \code{c("bf.brma", "bf_bridge_list")}
+with a vector \code{bf}, scalar \code{bf_median_based}, and \code{log}. It
+uses the upstream repeated-Bayes-factor print method. Both
+\code{as.data.frame()} and \code{data.frame()} return a long data frame with
+\code{component}, \code{parameter}, and full-precision numeric \code{value}
+columns, containing every repetition and the displayed median-based, range,
+and interquartile-range summaries.
 }
 \description{
 Compute the Bayes factor comparing two brma models.
@@ -38,6 +45,15 @@ model \code{x2}. The marginal likelihoods must first be computed using
 outcome target/data, including outcome type and, when present, likelihood
 weights. Cluster identifiers define model structure and are not part of the
 outcome-data identity.
+
+When either model contains repeated bridge estimates, the shorter sequence
+is recycled with a warning, following \pkg{bridgesampling}. Repetitions are
+compared in order. The median-based estimate is computed from the separate
+medians of the log marginal likelihoods before recycling, rather than the
+median of the repetition-wise Bayes factors. A recorded explicit drop policy
+excludes non-finite repetitions from standardized results. Legacy raw
+\code{"bridge_list"} results retain failed repetitions in the returned
+estimates, with upstream missing-value behavior when printed.
 }
 \examples{
 \dontrun{
