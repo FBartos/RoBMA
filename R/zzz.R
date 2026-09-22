@@ -1,7 +1,10 @@
 #' @importFrom graphics hist lines
+#' @importFrom Matrix Cholesky
 #' @importFrom stats AIC BIC coef cooks.distance dfbetas fitted hatvalues influence model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update
 #' @importFrom utils capture.output getFromNamespace getS3method tail
 NULL
+
+# The Matrix import loads the registered CHOLMOD C-callables used by r-known-v.
 
 .onLoad <- function(libname, pkgname) {
 
