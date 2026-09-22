@@ -67,10 +67,11 @@ Only used when funnel is in residual mode.}
 \item{unit}{output unit for residual mode. Only \code{"estimate"} is
 implemented in this pass.}
 
-\item{conditioning_depth}{residual conditioning depth for residual mode.
+\item{conditioning_depth}{conditioning depth for non-LOO residual mode.
 Options are \code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.
-The default LOO-PIT residual path is available only with marginal
-conditioning depth.}
+Omit this argument for \code{type = "LOO-PIT"} (the default) or its
+\code{"rstudent"} alias: the estimate-deletion context determines the
+LOO predictive target.}
 
 \item{sampling_heterogeneity}{whether heterogeneity should be incorporated
 into the sampling distribution funnel. Defaults to \code{TRUE}. Only used
