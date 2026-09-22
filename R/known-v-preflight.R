@@ -542,7 +542,9 @@
     if (is.null(values) || is.null(multiplier) || is.na(term_index)) {
       return(NULL)
     }
-    columns <- which(design[["assign"]] == (term_index - 1L))
+    has_intercept <- "intercept" %in% design[["model_terms"]]
+    columns <- which(design[["assign"]] ==
+                       (term_index - as.integer(has_intercept)))
     if (length(columns) == 0L) {
       return(NULL)
     }
