@@ -47,6 +47,10 @@ Regression/forest prediction intervals, normal-model outcome-mode funnel
 contours, and default z-plots target marginal new effects or responses.
 GLMM funnel contours and regression sampling bands are explicitly descriptive
 normal effect-size approximations, not discrete response predictions.
+Plug-in funnel heterogeneity uses the within-model RMS SD, with integrated and
+conditioned components averaged as variances. Location/bias parameters use their
+within-model posterior means. Posterior-predictive funnels still average CDFs
+over draws before inversion.
 Residual-mode plots inherit the explicitly requested residual conditioning
 depth; LOO-PIT remains the deletion-conditioned LOO target. Do not infer
 conditioning from whether a plot evaluates fitted rows or an explicit grid.

@@ -133,7 +133,8 @@ likelihood coverage. Otherwise, it returns
 }
 \description{
 \code{funnel.brma} creates fast plug-in funnel contours.
-Continuous parameters are fixed at their within-model posterior means. For
+Location and bias parameters are fixed at their within-model posterior means;
+heterogeneity uses the root mean square SD, \eqn{\sqrt{E(\tau^2)}}. For
 model-averaged fits, complete joint models retain their posterior model
 probabilities and their plug-in sampling CDFs are averaged before the
 contours are inverted. This makes the ordinary normal-model construction
@@ -160,8 +161,10 @@ mixture median (the pooled effect in a single model); when PET/PEESE bias
 adjustment is incorporated, the center line can vary with the standard
 error. The funnel region represents the central 95\\%
 region of the plug-in sampling distribution, optionally incorporating
-heterogeneity and publication bias. Continuous parameters are replaced by
-posterior means separately within every complete joint model. The resulting
+heterogeneity and publication bias. Location and bias parameters use posterior
+means, and heterogeneity uses the square root of the posterior mean variance,
+separately within every complete joint model. Integrated and conditioned
+variance components are averaged on the variance scale. The resulting
 model-specific CDFs are averaged with posterior model probabilities and only
 then inverted; neither parameters nor contour endpoints are averaged across
 models.

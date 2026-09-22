@@ -301,7 +301,8 @@ test_that("plug-in funnels average complete joint-model CDFs", {
   )
   common_heterogeneity <- list(
     posterior_samples = posterior_samples,
-    tau                = posterior_samples[, "tau"]
+    tau                = posterior_samples[, "tau"],
+    sources = list(integrated = c(1, 1, 4, 4), conditioned = c(0, 8, 0, 12))
   )
 
   testthat::local_mocked_bindings(
@@ -331,7 +332,9 @@ test_that("plug-in funnels average complete joint-model CDFs", {
   )
 
   expect_equal(unname(setup[["posterior_samples"]][, "mu"]), c(1, 12))
-  expect_equal(unname(setup[["tau"]]), c(2, 3))
+  expect_equal(unname(setup[["tau"]]), sqrt(c(5, 10)))
+  expect_equal(setup[["tau"]]^2,
+    setup[["sources"]][["integrated"]] + setup[["sources"]][["conditioned"]])
   expect_equal(unname(setup[["weights"]]), c(.5, .5))
 })
 

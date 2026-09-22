@@ -596,7 +596,10 @@
 
   model_tau <- vapply(group_rows, function(rows) {
 
-    mean(tau_samples[rows])
+    values <- tau_samples[rows]
+    scale  <- max(values)
+    if (scale == 0) return(0)
+    scale * sqrt(mean((values / scale)^2))
   }, numeric(1))
   model_weights <- lengths(group_rows) / nrow(posterior_samples)
 
