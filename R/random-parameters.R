@@ -408,7 +408,7 @@
     return(NULL)
   }
   keys <- vapply(allocations, function(allocation) {
-    value <- allocation[["weight_name"]]
+    value <- allocation[["label"]]
     if (is.null(value)) "" else value
   }, character(1))
   allocations <- allocations[!duplicated(keys)]
@@ -803,7 +803,14 @@
       points           = data.frame(x = numeric(), p = numeric())
     ))
   }
-  index <- as.integer(metadata[["index"]])
+  index <- metadata[["index"]]
+  if (!is.numeric(index) || length(index) != 1L || is.na(index) ||
+      index != as.integer(index) || index < 1L ||
+      index > length(component_probability)) {
+    stop("Variance-proportion gate metadata have no valid component index.",
+         call. = FALSE)
+  }
+  index <- as.integer(index)
   other_probability <- component_probability[-index]
   all_other_off <- prod(1 - other_probability)
   target_probability <- component_probability[[index]]
@@ -943,7 +950,10 @@
   allocation <- selected[["allocation_definition"]]
   gate_metadata <- .brma_random_parameter_allocation_gate_metadata(selected)
   shared_gate_proportion <- identical(type, "var_prop") &&
-    !is.null(gate_metadata) && length(allocation[["inclusion"]]) == 0L
+    !is.null(gate_metadata) && length(allocation[["inclusion"]]) == 0L &&
+    is.character(allocation[["weight_name"]]) &&
+    length(allocation[["weight_name"]]) == 1L &&
+    !is.na(allocation[["weight_name"]]) && nzchar(allocation[["weight_name"]])
   if (shared_gate_proportion) {
     source            <- allocation[["weight_name"]]
     source_type       <- "identity"
@@ -1344,7 +1354,9 @@
   allocation <- binding[["allocations"]][[1L]]
   scale  <- allocation[["scale"]]
   target <- allocation[["target"]]
-  if (!scale %in% c("total_variance", "mean_variance") ||
+  if (length(scale) != 1L || is.na(scale) ||
+      !scale %in% c("total_variance", "mean_variance") ||
+      length(target) != 1L || is.na(target) ||
       !target %in% c("block", "sd_component")) {
     return(NULL)
   }
