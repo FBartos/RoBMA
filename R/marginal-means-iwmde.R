@@ -318,6 +318,13 @@
     if (!identical(diagnostic[["status"]], "ok")) {
       next
     }
+    ordinate <- estimate[["posterior_ordinate"]]
+    if (is.null(ordinate)) {
+      ordinate <- estimate[["rejected_posterior_ordinate"]]
+    }
+    if (is.null(ordinate)) {
+      next
+    }
 
     parameter <- specs[[name]][["parameter"]]
     level     <- specs[[name]][["level"]]
@@ -327,9 +334,9 @@
     }
 
     if (is.list(samples) && !is.null(samples[[level]])) {
-      attr(samples[[level]], "posterior_ordinate") <- estimate[["posterior_ordinate"]]
+      attr(samples[[level]], "posterior_ordinate") <- ordinate
     } else {
-      attr(samples, "posterior_ordinate") <- estimate[["posterior_ordinate"]]
+      attr(samples, "posterior_ordinate") <- ordinate
     }
     marginal_means_object[["inference"]][[type]][[parameter]] <- samples
   }

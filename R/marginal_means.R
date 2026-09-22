@@ -1064,7 +1064,7 @@ lines.marginal_means.brma <- function(x, parameter, prior = FALSE, ...) {
 
   n_prior_levels <- sum(prior_component_counts)
   if (is.null(dots_prior[["col"]]) && n_levels == 1L) {
-    dots_prior[["col"]] <- "black"
+    dots_prior[["col"]] <- rep("black", n_prior_levels)
   } else if (is.null(dots_prior[["col"]]) && n_levels > 1L) {
     level_col <- .plot_level_palette(n_levels)
     dots_prior[["col"]] <- rep(level_col, prior_component_counts)
