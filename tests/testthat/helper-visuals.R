@@ -8,6 +8,10 @@ if (!exists(".write_canonical_svg", mode = "function")) {
 expect_vdiffr_snapshot <- function(title, fig, ...) {
 
   skip_if_no_vdiffr_snapshots()
+  if (!requireNamespace("vdiffr", quietly = TRUE) &&
+      exists(".announce_existing_visual_snapshots", mode = "function")) {
+    .announce_existing_visual_snapshots()
+  }
   testthat::skip_if_not_installed("vdiffr")
   vdiffr::expect_doppelganger(
     title,

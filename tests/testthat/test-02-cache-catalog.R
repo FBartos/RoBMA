@@ -708,6 +708,21 @@ test_that("cache validation rejects corrupted synthetic metadata", {
     "BayesTools backend fingerprint unavailable" %in% unavailable_backend
   )
 
+  unavailable_source_validator <- validate_cached_fit
+  environment(unavailable_source_validator) <- list2env(
+    list(source_file_md5 = function(...) NA_character_),
+    parent = environment(validate_cached_fit)
+  )
+  unavailable_source <- unavailable_source_validator(
+    name = name, metadata = metadata, check_files = FALSE
+  )
+  expect_true("source file fingerprint unavailable" %in% unavailable_source)
+  unavailable_package <- validate_cached_fit(
+    name = name, metadata = metadata, check_files = FALSE,
+    package_md5 = NA_character_
+  )
+  expect_true("cache source fingerprint unavailable" %in% unavailable_package)
+
   malformed_backend <- validate_cached_fit(
     name                   = name,
     fit                    = fit,

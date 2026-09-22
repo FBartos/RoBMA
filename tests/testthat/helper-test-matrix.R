@@ -80,7 +80,7 @@ for_each_case <- function(cases, callback, tier = test_tier()) {
 
   cases <- filter_cases(cases, tier = tier)
   if (nrow(cases) == 0L) {
-    return(invisible(NULL))
+    testthat::skip("No cases are active in this test profile.")
   }
 
   for (i in seq_len(nrow(cases))) {

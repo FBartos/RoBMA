@@ -789,8 +789,7 @@ catalog_fits <- function(feature, class, family, has_metafor, has_loo,
   return(
     call_name %in% c("context", "source", "skip_on_cran",
                      "skip_if_not_installed", "skip_refit_if_cached",
-                     "skip_if_fit_not_active", "skip_if_not_certification") ||
-      grepl("^expect_", call_name)
+                     "skip_if_fit_not_active", "skip_if_not_certification")
   )
 }
 
@@ -1455,18 +1454,20 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
 
     if (check_source) {
       expected_md5 <- source_file_md5(entry[["source_file"]])
-      if (!is.na(expected_md5) &&
-          (is.null(metadata[["source_file_md5"]]) ||
-           !identical(metadata[["source_file_md5"]], expected_md5))) {
+      if (is.na(expected_md5)) {
+        messages <- c(messages, "source file fingerprint unavailable")
+      } else if (is.null(metadata[["source_file_md5"]]) ||
+                 !identical(metadata[["source_file_md5"]], expected_md5)) {
         messages <- c(messages, "source file hash changed")
       }
 
       if (is.null(package_md5)) {
         package_md5 <- package_source_md5()
       }
-      if (!is.na(package_md5) &&
-          (is.null(metadata[["package_source_md5"]]) ||
-           !identical(metadata[["package_source_md5"]], package_md5))) {
+      if (is.na(package_md5)) {
+        messages <- c(messages, "cache source fingerprint unavailable")
+      } else if (is.null(metadata[["package_source_md5"]]) ||
+                 !identical(metadata[["package_source_md5"]], package_md5)) {
         messages <- c(messages, "cache source hash changed")
       }
 
