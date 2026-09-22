@@ -37,6 +37,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
       Rf_length(n1i) != K || Rf_length(n2i) != K) {
     Rf_error("binomial outcome vectors must have length K.");
   }
+  validate_binomial_outcomes_glmm(ai, ci, n1i, n2i, K);
 
   SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
 
@@ -149,6 +150,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
       Rf_length(t1i) != K || Rf_length(t2i) != K) {
     Rf_error("Poisson outcome vectors must have length K.");
   }
+  validate_poisson_outcomes_glmm(x1i, x2i, t1i, t2i, K);
 
   SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
 
@@ -248,6 +250,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik_row_sum(
       Rf_length(n1i) != K || Rf_length(n2i) != K) {
     Rf_error("binomial outcome vectors must have length K.");
   }
+  validate_binomial_outcomes_glmm(ai, ci, n1i, n2i, K);
 
   SEXP out = PROTECT(Rf_allocVector(REALSXP, S));
 
@@ -336,6 +339,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik_row_sum(
       Rf_length(t1i) != K || Rf_length(t2i) != K) {
     Rf_error("Poisson outcome vectors must have length K.");
   }
+  validate_poisson_outcomes_glmm(x1i, x2i, t1i, t2i, K);
 
   SEXP out = PROTECT(Rf_allocVector(REALSXP, S));
 
@@ -411,6 +415,7 @@ extern "C" SEXP RoBMA_glmm_binom_conditional_loglik_sum(
       Rf_length(n1i) != K || Rf_length(n2i) != K) {
     Rf_error("binomial outcome vectors must have length K.");
   }
+  validate_binomial_outcomes_glmm(ai, ci, n1i, n2i, K);
 
   SEXP out = PROTECT(Rf_allocVector(REALSXP, S));
 
@@ -473,6 +478,7 @@ extern "C" SEXP RoBMA_glmm_pois_conditional_loglik_sum(
       Rf_length(t1i) != K || Rf_length(t2i) != K) {
     Rf_error("Poisson outcome vectors must have length K.");
   }
+  validate_poisson_outcomes_glmm(x1i, x2i, t1i, t2i, K);
 
   SEXP out = PROTECT(Rf_allocVector(REALSXP, S));
 

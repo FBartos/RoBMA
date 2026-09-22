@@ -36,6 +36,32 @@ static void check_integer_glmm(SEXP x, const char *name)
   }
 }
 
+static void validate_binomial_outcomes_glmm(SEXP ai, SEXP ci,
+                                            SEXP n1i, SEXP n2i, int K)
+{
+  for (int k = 0; k < K; ++k) {
+    const int a = INTEGER(ai)[k], c = INTEGER(ci)[k];
+    const int n1 = INTEGER(n1i)[k], n2 = INTEGER(n2i)[k];
+    if (a < 0 || c < 0 || n1 < 0 || n2 < 0 || a > n1 || c > n2) {
+      Rf_error("Binomial counts must be non-missing, non-negative, and no greater than their totals.");
+    }
+  }
+}
+
+static void validate_poisson_outcomes_glmm(SEXP x1i, SEXP x2i,
+                                           SEXP t1i, SEXP t2i, int K)
+{
+  for (int k = 0; k < K; ++k) {
+    if (INTEGER(x1i)[k] < 0 || INTEGER(x2i)[k] < 0) {
+      Rf_error("Poisson counts must be non-missing and non-negative.");
+    }
+    if (!std::isfinite(REAL(t1i)[k]) || !(REAL(t1i)[k] > 0.0) ||
+        !std::isfinite(REAL(t2i)[k]) || !(REAL(t2i)[k] > 0.0)) {
+      Rf_error("Poisson exposures must be finite and positive.");
+    }
+  }
+}
+
 static double buffered_logsumexp_glmm(const std::vector<double> &terms)
 {
   double term_max = -INFINITY;
