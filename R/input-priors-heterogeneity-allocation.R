@@ -26,7 +26,7 @@
     priors_alt <- list(.assign_prior.heterogeneity_allocation(prior = prior))
   } else if (is.null(prior) || isFALSE(prior)) {
     priors_alt <- list()
-  } else if (is.list(prior) && all(sapply(prior, BayesTools::is.prior))) {
+  } else if (is.list(prior) && all(vapply(prior, BayesTools::is.prior, logical(1)))) {
     priors_alt <- prior
     for (i in seq_along(priors_alt)) {
       priors_alt[[i]] <- .assign_prior.heterogeneity_allocation(prior = priors_alt[[i]])
@@ -47,7 +47,7 @@
     priors_null <- list()
   } else if (BayesTools::is.prior(prior_null)) {
     priors_null <- list(.assign_prior.heterogeneity_allocation(prior = prior_null))
-  } else if (is.list(prior_null) && all(sapply(prior_null, BayesTools::is.prior))) {
+  } else if (is.list(prior_null) && all(vapply(prior_null, BayesTools::is.prior, logical(1)))) {
     priors_null <- prior_null
     for (i in seq_along(priors_null)) {
       priors_null[[i]] <- .assign_prior.heterogeneity_allocation(prior = priors_null[[i]])
