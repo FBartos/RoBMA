@@ -41,21 +41,12 @@ source(testthat::test_path("helper-iwmde.R"))
 
 .normal_grid_inputs <- function(context, parameter, n_rows = 6L, n_values = 5L) {
 
-  spec <- tryCatch(
-    .iwmde_parameter_spec(context, parameter, NULL),
-    error = function(e) NULL
-  )
+  spec <- .iwmde_parameter_spec(context, parameter, NULL)
   if (is.null(spec) || !identical(spec[["status"]], "ok")) {
     return(NULL)
   }
-  values <- tryCatch(
-    .iwmde_parameter_values(context, parameter, spec),
-    error = function(e) NULL
-  )
-  component <- tryCatch(
-    .iwmde_parameter_components(context, parameter, spec),
-    error = function(e) NULL
-  )
+  values <- .iwmde_parameter_values(context, parameter, spec)
+  component <- .iwmde_parameter_components(context, parameter, spec)
   if (is.null(values) || is.null(component)) {
     return(NULL)
   }
@@ -63,9 +54,8 @@ source(testthat::test_path("helper-iwmde.R"))
   if (sum(active) < 2L) {
     return(NULL)
   }
-  row_states <- tryCatch(
-    .iwmde_row_states(context, utils::head(which(active), n_rows), parameter, spec),
-    error = function(e) NULL
+  row_states <- .iwmde_row_states(
+    context, utils::head(which(active), n_rows), parameter, spec
   )
   if (is.null(row_states)) {
     return(NULL)
@@ -476,8 +466,10 @@ test_that("the scale model's `tau` density line matches the generic evaluator", 
 test_that("the native normal candidate grid is thread invariant", {
 
   skip_if_not(is.loaded("RoBMA_norm_predictor_grid_loglik", PACKAGE = "RoBMA"))
+  previous_threads <- RoBMA.get_option("native_threads")
+  withr::defer(RoBMA.options(native_threads = previous_threads))
 
-  set.seed(20260918)
+  withr::local_seed(20260918)
   S   <- 96L
   K   <- 9L
   G   <- 7L
@@ -533,8 +525,6 @@ test_that("the native normal candidate grid is thread invariant", {
       expect_identical(value, log_reference, info = paste("log delta, threads", threads))
     }
   }
-  RoBMA.options(native_threads = 1L)
-
   # Only a positive candidate and a positive current value have a logarithm.
   non_positive <- !is.na(values) & values <= 0
   expect_true(all(!log_reference[["valid"]][rep(non_positive, times = S)]))

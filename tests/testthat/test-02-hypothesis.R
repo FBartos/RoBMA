@@ -1591,6 +1591,7 @@ test_that("marginal means hypotheses select averaged or conditioned marginals", 
 test_that("marginal means hypothesis density methods use public names", {
 
   expect_false("type" %in% names(formals(hypothesis.marginal_means.brma)))
+  expect_true("density_method" %in% names(formals(hypothesis.marginal_means.brma)))
   expect_null(formals(hypothesis.marginal_means.brma)[["density_method"]])
 })
 

@@ -651,7 +651,7 @@ test_that("GEN measure requires ni or prior_unit_information_sd for RoBMA", {
 
   expect_error(
     RoBMA(yi = effect, sei = std_err, data = test_data, measure = "GEN", only_priors = TRUE),
-    regexp = "ni|unit_information_sd|UISD|Sample size"
+    regexp = "Sample size 'ni' or unit information sd 'unit_information_sd' must be specified"
   )
 
   # Should work with ni

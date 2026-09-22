@@ -34,10 +34,11 @@ info          <- lazy_infos(marglik_names, validate = FALSE)
 
 test_that("bridge_sampler extracts raw bridge sampling objects", {
 
+  expect_gt(length(marglik_names), 0L)
   for (name in marglik_names) {
     marglik  <- fits[[name]][["marglik"]]
-    upstream <- marglik[["diagnostics"]][["upstream"]]
-    if (!inherits(upstream, "bridge")) {
+    if (identical(marglik[["aggregation"]][["rule"]], "exact_zero_dimensional")) {
+      expect_error(bridge_sampler(fits[[name]]), class = "RoBMA_exact_marglik_no_bridge")
       next
     }
 
@@ -74,7 +75,7 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
   estimate_scale_logml <- numeric()
   same_models          <- list()
   for (name in mv_names) {
-    set.seed(100)
+    withr::local_seed(100)
     fit_brma <- add_marglik(load_fit(name, validate = FALSE))
     target   <- attr(fit_brma[["marglik"]], "RoBMA_target", exact = TRUE)
     expect_s3_class(fit_brma[["marglik"]], "BayesTools_marglik", info = name)
@@ -135,7 +136,7 @@ test_that("add_marglik computes bridge sampling for marginalized random allocati
   name <- "brma.mv_block_mvn_random_scale"
   skip_if_missing_fits(name)
 
-  set.seed(100)
+  withr::local_seed(100)
   fit_brma <- add_marglik(load_fit(name, validate = FALSE))
   target   <- attr(fit_brma[["marglik"]], "RoBMA_target", exact = TRUE)
   expect_s3_class(fit_brma[["marglik"]], "BayesTools_marglik")
@@ -384,7 +385,7 @@ test_that("add_marglik rejects product-space model-averaging objects", {
   }
   run <- function() {
 
-    set.seed(100)
+    withr::local_seed(100)
     add_marglik(fit, parallel = FALSE)
   }
 

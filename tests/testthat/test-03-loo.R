@@ -184,7 +184,8 @@ test_that("loo_compare rejects fewer than two models", {
   # get one brma fit
   fit_brma <- fits[["bcg_meta-analysis"]]
 
-  expect_error(loo_compare(fit_brma, "At least two models"))
+  expect_error(loo_compare(fit_brma), "At least two models are required")
+  expect_error(loo_model_weights(fit_brma), "At least two models are required")
 })
 
 test_that("log_lik, LOO, weights, diagnostics, and WAIC are available for product-space fits", {
@@ -693,7 +694,7 @@ test_that("cached target checks ignore provenance but reject target changes", {
 
 test_that(".outcome_pdf.norm computes correct log-likelihood", {
 
-  set.seed(123)
+  withr::local_seed(123)
 
   yi  <- c(0.1, 0.2, 0.3)
   sei <- c(0.1, 0.1, 0.1)

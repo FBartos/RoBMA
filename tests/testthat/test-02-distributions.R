@@ -64,6 +64,7 @@ test_that("order-61 Hermite rule retains independently verified tail weights", {
 
 test_that("analytic normal cluster likelihood matches mvtnorm oracle", {
 
+  skip_if_not_installed("mvtnorm")
   S <- 3L
   K <- 6L
   setup <- list(
@@ -149,6 +150,7 @@ test_that("order-511 Hermite rule remains stable in log scale", {
 
 test_that("analytic rho-grid cluster likelihood matches mvtnorm oracle", {
 
+  skip_if_not_installed("mvtnorm")
   S <- 3L
   K <- 6L
   setup <- list(
@@ -334,6 +336,7 @@ test_that("native normal cluster likelihood matches R quadrature", {
 
 test_that("native selected-normal cluster likelihood matches high-order R quadrature", {
 
+  withr::local_seed(20260922)
   skip_if_not(.has_native_norm_cluster_quadrature(selection = TRUE))
 
   prior <- BayesTools::prior_weightfunction(
@@ -1217,6 +1220,7 @@ test_that("native selected-normal CDF mirrors negative direction and preserves e
     lower.tail        = FALSE
   )
   expect_gt(extreme[1, 1], 0)
-  expect_equal(extreme[1, 1], stats::pnorm(10, lower.tail = FALSE),
-               tolerance = 1e-20)
+  # Compare the tiny positive probability relatively; an absolute tolerance
+  # larger than the tail itself would also accept severe underestimation.
+  expect_lt(abs(extreme[1, 1] / stats::pnorm(10, lower.tail = FALSE) - 1), 1e-12)
 })

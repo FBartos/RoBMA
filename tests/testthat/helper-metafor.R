@@ -714,8 +714,6 @@ metafor_vif_value <- function(fit_metafor, btt) {
 
 metafor_vif_table <- function(fit_brma, fit_metafor, btt = NULL) {
 
-  brma_vif <- vif(fit_brma, posterior_correlation = FALSE)[["vif"]]
-
   if (is.null(btt)) {
     btt <- brma_term_btt(fit_brma)
   }
@@ -723,8 +721,10 @@ metafor_vif_table <- function(fit_brma, fit_metafor, btt = NULL) {
   expected <- do.call(rbind, lapply(btt, function(x) metafor_vif_value(fit_metafor, x)))
 
   return(data.frame(
-    term              = brma_vif[["term"]],
-    df                = brma_vif[["df"]],
+    term              = vapply(btt, function(columns) {
+      paste(colnames(fit_metafor[["X"]])[columns], collapse = " + ")
+    }, character(1)),
+    df                = lengths(btt),
     GVIF              = unname(expected[, "GVIF"]),
     "GVIF^(1/(2*df))" = unname(expected[, "GSIF"]),
     stringsAsFactors  = FALSE,

@@ -761,12 +761,9 @@ test_that("plot.brma forwards attached qCMDE density for PET and PEESE parameter
       density_control   = list(n_points = 20, samples = 20)
     )
 
-    density_source <- if (!is.null(captured[["samples"]][[case[["parameter"]]]])) {
-      case[["parameter"]]
-    } else {
-      "bias"
-    }
-    posterior_density <- attr(captured[["samples"]][[density_source]], "posterior_density")
+    expect_identical(captured[["parameter"]], case[["parameter"]])
+    expect_true("bias" %in% names(captured[["samples"]]))
+    posterior_density <- attr(captured[["samples"]][["bias"]], "posterior_density")
 
     expect_s3_class(out, "mock_plot")
     expect_equal(captured[["dots"]][["density_method"]], "precomputed")

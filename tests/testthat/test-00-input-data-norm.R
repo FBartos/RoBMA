@@ -271,7 +271,7 @@ test_that("Input rejects invalid outcome specifications", {
     list(
       label  = "missing variance",
       expr   = quote(brma.norm(yi = c(0.1, 0.2), only_data = TRUE)),
-      regexp = "vi|sei|variance|standard error"
+      regexp = "Either 'vi' .* or 'sei' .* must be provided"
     ),
     list(
       label  = "length mismatch",

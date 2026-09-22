@@ -333,6 +333,7 @@ test_that("Radial plot data and alias interface are stable", {
   # --------------------------------------------------
 
   expect_error(radial(fit_brma, plot_type = "invalid"),
+    regexp = "'plot_type'",
     info = "invalid plot_type is rejected"
   )
 

@@ -89,6 +89,7 @@ test_that("Newdata prediction preserves duplicate rows and rejects novel factor 
 
   expect_error(
     predict(fit_factor, newdata = newdata_factor, type = "terms", quiet = TRUE),
+    regexp = "level",
     info = "novel factor levels are rejected"
   )
 })

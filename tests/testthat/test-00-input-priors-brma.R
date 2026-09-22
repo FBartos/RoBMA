@@ -66,7 +66,7 @@ test_that("GEN measure without ni is rejected", {
 
   expect_error(
     brma.norm(yi = effect, sei = std_err, data = test_data, measure = "GEN", only_priors = TRUE),
-    regexp = "ni|unit_information_sd|UISD"
+    regexp = "Sample size 'ni' or unit information sd 'unit_information_sd' must be specified"
   )
 })
 
@@ -1034,9 +1034,10 @@ test_that("Scale priors are assigned", {
   result_smd  <- brma.norm(yi = effect, sei = std_err, scale = ~ scale_var, data = test_data, measure = "SMD",  only_priors = TRUE)[["priors"]]
   result_zcor <- brma.norm(yi = effect, sei = std_err, scale = ~ scale_var, data = test_data, measure = "ZCOR", only_priors = TRUE)[["priors"]]
 
-  if (!is.null(result_smd$scale$scale_var) && !is.null(result_zcor$scale$scale_var)) {
-    expect_equal(result_smd$scale$scale_var$parameters$sd, result_zcor$scale$scale_var$parameters$sd)
-  }
+  expect_true("scale_var" %in% names(result_smd$scale))
+  expect_true("scale_var" %in% names(result_zcor$scale))
+  expect_true(is.numeric(result_smd$scale$scale_var$parameters$sd))
+  expect_equal(result_smd$scale$scale_var$parameters$sd, result_zcor$scale$scale_var$parameters$sd)
 })
 
 

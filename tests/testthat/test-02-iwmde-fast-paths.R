@@ -4999,8 +4999,7 @@ test_that("ordinary marginal baseline states match scalar construction", {
 
   # The plan resolves a primitive target to the conditioning chart the qCMDE
   # estimator actually sweeps; the affine route reads that replacement.
-  spec <- tryCatch(
-    .iwmde_linear_conditioning_spec(
+  spec <- .iwmde_linear_conditioning_spec(
       context,
       .iwmde_parameter_spec(
         context,
@@ -5008,16 +5007,12 @@ test_that("ordinary marginal baseline states match scalar construction", {
         list(type = "primitive", conditional = NULL, conditional_rule = "AND")
       ),
       "qCMDE"
-    ),
-    error = function(e) NULL
-  )
+    )
   if (is.null(spec) || !identical(spec[["status"]], "ok")) {
     return(NULL)
   }
-  values    <- tryCatch(.iwmde_parameter_values(context, parameter, spec),
-                        error = function(e) NULL)
-  component <- tryCatch(.iwmde_parameter_components(context, parameter, spec),
-                        error = function(e) NULL)
+  values    <- .iwmde_parameter_values(context, parameter, spec)
+  component <- .iwmde_parameter_components(context, parameter, spec)
   if (is.null(values) || is.null(component)) {
     return(NULL)
   }
@@ -5025,10 +5020,7 @@ test_that("ordinary marginal baseline states match scalar construction", {
   if (sum(active) < 2L) {
     return(NULL)
   }
-  row_states <- tryCatch(
-    .iwmde_row_states(context, utils::head(which(active), n_rows), parameter, spec),
-    error = function(e) NULL
-  )
+  row_states <- .iwmde_row_states(context, utils::head(which(active), n_rows), parameter, spec)
   if (is.null(row_states)) {
     return(NULL)
   }

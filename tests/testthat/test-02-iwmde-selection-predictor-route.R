@@ -60,21 +60,12 @@ source(testthat::test_path("helper-iwmde.R"))
 .selection_route_inputs <- function(context, parameter, n_rows = 6L,
                                     n_values = 4L) {
 
-  spec <- tryCatch(
-    .iwmde_parameter_spec(context, parameter, NULL),
-    error = function(e) NULL
-  )
+  spec <- .iwmde_parameter_spec(context, parameter, NULL)
   if (is.null(spec) || !identical(spec[["status"]], "ok")) {
     return(NULL)
   }
-  values <- tryCatch(
-    .iwmde_parameter_values(context, parameter, spec),
-    error = function(e) NULL
-  )
-  component <- tryCatch(
-    .iwmde_parameter_components(context, parameter, spec),
-    error = function(e) NULL
-  )
+  values <- .iwmde_parameter_values(context, parameter, spec)
+  component <- .iwmde_parameter_components(context, parameter, spec)
   if (is.null(values) || is.null(component)) {
     return(NULL)
   }
@@ -85,10 +76,7 @@ source(testthat::test_path("helper-iwmde.R"))
   }
   rows <- utils::head(which(active), n_rows)
 
-  row_states <- tryCatch(
-    .iwmde_row_states(context, rows, parameter, spec),
-    error = function(e) NULL
-  )
+  row_states <- .iwmde_row_states(context, rows, parameter, spec)
   if (is.null(row_states)) {
     return(NULL)
   }

@@ -516,9 +516,11 @@ test_that("Regression plot data and argument validation are stable", {
     expect_true(all(vapply(band_data[band_columns], length, integer(1)) == nrow(band_data)),
       info = paste0(band_name, " columns all have matching lengths")
     )
-    expect_equal(band_data$x, band_data$xpred,
-      info = paste0(band_name, " x coordinates match the stored prediction x values")
+    expected_x <- c(regplot_data$pred$x, rev(regplot_data$pred$x))
+    expect_equal(band_data$x, expected_x,
+      info = paste0(band_name, " x coordinates follow the prediction grid in both directions")
     )
+    expect_equal(band_data$xpred, expected_x)
   }
 
   # Check number of points matches number of studies
@@ -544,10 +546,12 @@ test_that("Regression plot data and argument validation are stable", {
   # --------------------------------------------------
 
   expect_error(.test_regplot(fit_brma, plot_type = "invalid"),
+    regexp = "plot_type",
     info = "invalid plot_type is rejected"
   )
 
   expect_error(.test_regplot(fit_brma, sei = 0),
+    regexp = "sei",
     info = "non-positive reference sei is rejected"
   )
 

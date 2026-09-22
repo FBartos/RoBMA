@@ -3,6 +3,7 @@ source(testthat::test_path("common-functions.R"))
 
 test_that("known-V estimate SD grids reuse the declared covariance plan", {
 
+  skip_if_not_installed("mvtnorm")
   fit_name <- "brma.mv_block_mvn_random"
   skip_if_missing_fits(fit_name)
 

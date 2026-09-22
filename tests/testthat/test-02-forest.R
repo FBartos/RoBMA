@@ -542,6 +542,7 @@ test_that("Forest plot for simple meta-analysis matches metafor structure", {
   skip_if_not_installed("metafor")
 
   name        <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -570,6 +571,7 @@ test_that("Forest prediction-shade gallery is stable", {
     "Metafor's high-resolution prediction gradient is release-only coverage."
   )
   name     <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
   fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("forest_simple_prediction_shade", function() {

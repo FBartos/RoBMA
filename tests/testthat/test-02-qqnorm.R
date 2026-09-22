@@ -202,6 +202,7 @@ test_that("Q-Q plot rejects GLMMs without a discrete PIT convention", {
   # rstandard should error for GLMM models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
+    regexp = "only available for normal outcome models",
     info = "rstandard residuals are rejected for GLMM models"
   )
 })
@@ -220,6 +221,7 @@ test_that("Q-Q plot rejects GLMM meta-regression without a PIT convention", {
   # rstandard should error for GLMM models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
+    regexp = "only available for normal outcome models",
     info = "rstandard residuals are rejected for GLMM models"
   )
 })
@@ -282,6 +284,7 @@ test_that("Q-Q plot for selection model renders residual quantiles", {
   # rstandard should error for selection models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
+    regexp = "not available for selection models",
     info = "rstandard residuals are rejected for selection models"
   )
 })
@@ -322,6 +325,7 @@ test_that("Q-Q plot for selection meta-regression renders residual quantiles", {
   # rstandard should error for selection models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
+    regexp = "not available for selection models",
     info = "rstandard residuals are rejected for selection models"
   )
 })
@@ -504,6 +508,7 @@ test_that("Q-Q plot data and argument validation are stable", {
   # --------------------------------------------------
 
   expect_error(qqnorm(fit_brma, plot_type = "invalid"),
+    regexp = "'plot_type'",
     info = "invalid plot_type is rejected"
   )
 
@@ -512,6 +517,7 @@ test_that("Q-Q plot data and argument validation are stable", {
   # --------------------------------------------------
 
   expect_error(qqnorm(fit_brma, type = "invalid"),
+    regexp = "'type'",
     info = "invalid type is rejected"
   )
 
