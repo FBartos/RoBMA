@@ -576,12 +576,10 @@
 # independent scalar Gaussians before the original selection correction.
 .selection_conditioned_sampling_replicate_setup <- function(setup, state, draw, n) {
 
-  rows <- rep(draw, n)
-  current <- setup
+  # Keep one state until the normalizer selects its bounded candidate chunk.
+  rows <- draw
+  current <- .selection_conditioned_sampling_subset_setup(setup, rows)
   current[["S"]] <- n
-  for (name in c("posterior_samples", "tau_within", "tau_between")) {
-    current[[name]] <- setup[[name]][rows, , drop = FALSE]
-  }
   if (!is.null(state[["candidate_factors"]])) {
     factors <- state[["candidate_factors"]]
     factors[["diagonal"]] <- factors[["diagonal"]][rows, , drop = FALSE]
@@ -767,6 +765,28 @@
 
 
 .selection_conditioned_sampling_estimate_targets <- function(setup, components) {
+
+  S <- setup[["S"]]
+  K <- setup[["K"]]
+  direction <- if (identical(setup[["effect_direction"]], "negative")) -1 else 1
+  selection <- .selection_joint_signed_context(setup, direction * setup[["yi"]])
+  independent <- .selection_conditioned_sampling_independent_targets(setup, NULL, selection, components)
+  if (!is.null(independent) && !any(vapply(independent, anyNA, logical(1L)))) {
+    attr(independent, "dependency_blocks") <- .data_selection_execution_plan(setup[["data"]])[["row_blocks"]]
+    return(independent)
+  }
+  out <- stats::setNames(lapply(components, function(component) matrix(NA_real_, S, K)), components)
+  for (rows in .selection_conditioned_sampling_chunks(S, K)) {
+    current <- .selection_conditioned_sampling_subset_setup(setup, rows)
+    result <- .selection_conditioned_sampling_estimate_targets_chunk(current, components)
+    for (component in components) out[[component]][rows, ] <- result[[component]]
+  }
+  attr(out, "dependency_blocks") <- .data_selection_execution_plan(setup[["data"]])[["row_blocks"]]
+  out
+}
+
+
+.selection_conditioned_sampling_estimate_targets_chunk <- function(setup, components) {
 
   S <- setup[["S"]]
   K <- setup[["K"]]

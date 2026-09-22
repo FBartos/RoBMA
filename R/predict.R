@@ -1520,9 +1520,9 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       S = S, K = K, mu = fixed_mu + bias_offset,
       tau_within = matrix(within, S, K), tau_between = matrix(between, S, K)
     )
-    state <- .selection_conditioned_sampling_state(setup)
-    sources <- .selection_random_source_posterior(setup, state)
-    source_means <- .selection_random_source_conditional_means(setup, state, sources)
+    state <- .selection_conditioned_sampling_posterior(setup)
+    sources <- state[["sources"]]
+    source_means <- state[["source_means"]]
     latent_mean <- matrix(data[["outcome"]][["yi"]], S, K, byrow = TRUE) -
       state[["e"]] - bias_offset
     estimate_mean <- zero

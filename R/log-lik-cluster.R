@@ -200,6 +200,17 @@
     scores <- .selection_conditioned_sampling_estimate_targets(setup, "log_density")[["log_density"]]
     return(scores[, unlist(units, use.names = FALSE), drop = FALSE])
   }
+  out <- matrix(NA_real_, setup[["S"]], length(units))
+  for (rows in .selection_conditioned_sampling_chunks(setup[["S"]], setup[["K"]])) {
+    current <- .selection_conditioned_sampling_subset_setup(setup, rows)
+    out[rows, ] <- .selection_conditioned_sampling_deletion_loglik_chunk(current, units)
+  }
+  out
+}
+
+
+.selection_conditioned_sampling_deletion_loglik_chunk <- function(setup, units) {
+
   state <- .selection_conditioned_sampling_state(setup)
   S <- setup[["S"]]
   K <- setup[["K"]]

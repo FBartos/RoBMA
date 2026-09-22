@@ -980,6 +980,43 @@
 
 
 # Matheron's covariance-owned correction reconstructs each fitted source.
+.selection_conditioned_sampling_posterior <- function(setup) {
+
+  S <- setup[["S"]]
+  K <- setup[["K"]]
+  source_names <- vapply(.data_selection_model(setup[["data"]])[["sources"]][["random"]],
+                         `[[`, character(1L), "name")
+  result <- list(
+    e = matrix(0, S, K),
+    sources = stats::setNames(lapply(source_names, function(name) matrix(0, S, K)), source_names),
+    source_means = stats::setNames(lapply(source_names, function(name) matrix(0, S, K)), source_names)
+  )
+  for (rows in .selection_conditioned_sampling_chunks(S, K)) {
+    current <- .selection_conditioned_sampling_subset_setup(setup, rows)
+    state <- .selection_conditioned_sampling_state(current)
+    sources <- .selection_random_source_posterior(current, state)
+    source_means <- .selection_random_source_conditional_means(current, state, sources)
+    result[["e"]][rows, ] <- state[["e"]]
+    for (name in source_names) {
+      result[["sources"]][[name]][rows, ] <- sources[[name]]
+      result[["source_means"]][[name]][rows, ] <- source_means[[name]]
+      for (component in c("sources", "source_means")) {
+        values <- if (component == "sources") sources[[name]] else source_means[[name]]
+        colnames(result[[component]][[name]]) <- colnames(values)
+        if (!is.null(rownames(values))) {
+          if (is.null(rownames(result[[component]][[name]]))) {
+            rownames(result[[component]][[name]]) <- character(S)
+          }
+          rownames(result[[component]][[name]])[rows] <- rownames(values)
+        }
+      }
+    }
+    rm(state, current, sources, source_means)
+  }
+  result
+}
+
+
 .selection_random_source_posterior <- function(setup, state) {
 
   contributions <- .selection_random_source_contributions(setup)

@@ -1407,6 +1407,47 @@ set_selection_likelihood_control <- function(
 }
 
 
+.selection_conditioned_sampling_chunks <- function(S, K) {
+
+  # Retained, integrated, total, and source covariances coexist with factor
+  # loadings and packed native inputs. Reuse the existing covariance budget
+  # with room for those simultaneous arrays, including one global row block.
+  .known_v_covariance_chunk_indices(
+    S, K, max_bytes = .known_v_covariance_max_bytes() / 4
+  )
+}
+
+
+.selection_conditioned_sampling_subset_setup <- function(setup, rows) {
+
+  subset_draws <- function(value) {
+    if (is.null(value)) return(NULL)
+    dimensions <- dim(value)
+    if (!length(dimensions) %in% c(2L, 3L) || !dimensions[[1L]] %in% c(1L, setup[["S"]])) {
+      stop("Conditioned sampling setup has inconsistent posterior rows.", call. = FALSE)
+    }
+    index <- if (dimensions[[1L]] == 1L) rep.int(1L, length(rows)) else rows
+    if (length(dimensions) == 2L) return(value[index, , drop = FALSE])
+    value[index, , , drop = FALSE]
+  }
+  current <- setup
+  for (name in c("posterior_samples", "mu", "tau_within", "tau_between")) {
+    current[name] <- list(subset_draws(setup[[name]]))
+  }
+  for (name in c("selection_conditioned_factors", "selection_random_factor_samples")) {
+    factors <- setup[[name]]
+    if (is.null(factors)) next
+    factors[["diagonal"]] <- subset_draws(factors[["diagonal"]])
+    factors[["loadings"]] <- lapply(factors[["loadings"]], subset_draws)
+    current[[name]] <- factors
+  }
+  current[["S"]] <- length(rows)
+  current
+}
+
+
+# This worker owns only one bounded draw chunk. Public consumers retain their
+# requested matrices or source draws, never the sequence of covariance states.
 # For C = V + sum(retained random covariances) and integrated covariance I,
 # prior auxiliaries C0 and I0 give delta = solve(C + I, y - mu - C0 - I0).
 # Every source j is reconstructed as source_j0 + covariance_j %*% delta.
@@ -1419,6 +1460,10 @@ set_selection_likelihood_control <- function(
   K    <- nrow(data[["outcome"]])
   setup[["S"]] <- S
   setup[["K"]] <- K
+  .known_v_check_full_covariance_allocation(
+    S, K, max_bytes = .known_v_covariance_max_bytes() / 4,
+    caller = "Conditioned sampling state"
+  )
   plan                       <- .data_selection_execution_plan(data)
   sources                    <- .data_selection_model(data)[["sources"]][["random"]]
   contributions              <- .selection_random_source_contributions(setup)
@@ -1507,6 +1552,32 @@ set_selection_likelihood_control <- function(
 
 
 .selection_conditioned_sampling_normalizer <- function(setup, means) {
+
+  means <- as.matrix(means)
+  S <- nrow(means)
+  K <- ncol(means)
+  chunks <- .selection_conditioned_sampling_chunks(S, K)
+  setup[["S"]] <- S
+  value <- numeric(S)
+  diagnostics <- vector("list", length(.data_selection_execution_plan(setup[["data"]])[["row_blocks"]]))
+  for (rows in chunks) {
+    current <- .selection_conditioned_sampling_subset_setup(setup, rows)
+    result <- .selection_conditioned_sampling_normalizer_chunk(current, means[rows, , drop = FALSE])
+    value[rows] <- result[["log_mass"]]
+    for (block in seq_along(diagnostics)) {
+      if (is.null(diagnostics[[block]])) {
+        diagnostics[[block]] <- lapply(result[["diagnostics"]][[block]], function(x) numeric(S))
+      }
+      for (name in names(diagnostics[[block]])) {
+        diagnostics[[block]][[name]][rows] <- result[["diagnostics"]][[block]][[name]]
+      }
+    }
+  }
+  list(log_mass = value, diagnostics = diagnostics)
+}
+
+
+.selection_conditioned_sampling_normalizer_chunk <- function(setup, means) {
 
   means <- as.matrix(means)
   S     <- nrow(means)
@@ -2872,7 +2943,13 @@ set_selection_likelihood_control <- function(
 .selection_joint_block_loglik_from_setup <- function(setup) {
 
   if (.selection_retains_sampling(setup[["data"]])) {
-    return(.selection_conditioned_sampling_state(setup)[["block_log_lik"]])
+    blocks <- .data_selection_execution_plan(setup[["data"]])[["row_blocks"]]
+    result <- matrix(0, setup[["S"]], length(blocks))
+    for (rows in .selection_conditioned_sampling_chunks(setup[["S"]], setup[["K"]])) {
+      current <- .selection_conditioned_sampling_subset_setup(setup, rows)
+      result[rows, ] <- .selection_conditioned_sampling_state(current)[["block_log_lik"]]
+    }
+    return(result)
   }
   if (!.is_data_joint_selection(setup[["data"]])) {
     stop("Selection-likelihood metadata are unavailable.",
