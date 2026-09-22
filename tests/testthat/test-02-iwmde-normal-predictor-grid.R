@@ -41,6 +41,15 @@ source(testthat::test_path("helper-iwmde.R"))
 
 .normal_grid_inputs <- function(context, parameter, n_rows = 6L, n_values = 5L) {
 
+  # These structural exclusions match the native normal-grid guard. Their
+  # separate likelihoods do not reach this kernel, so do not construct row
+  # states for them merely to discover the same ineligibility afterward.
+  data <- context[["data"]]
+  if (!identical(.data_outcome_type(data), "norm") ||
+      .is_data_joint_selection(data) || .is_data_known_v(data) ||
+      .is_data_random(data) || .is_data_multilevel(data)) {
+    return(NULL)
+  }
   spec <- .iwmde_parameter_spec(context, parameter, NULL)
   if (is.null(spec) || !identical(spec[["status"]], "ok")) {
     return(NULL)
@@ -79,6 +88,28 @@ source(testthat::test_path("helper-iwmde.R"))
     replacement = .iwmde_replacement_spec(context, parameter, spec)
   ))
 }
+
+
+test_that("normal-grid fixtures apply structural eligibility before row preparation", {
+
+  testthat::local_mocked_bindings(
+    .iwmde_parameter_spec = function(...) stop("eligible row preparation reached"),
+    .package = "RoBMA"
+  )
+  normal <- structure(list(), outcome_type = "norm")
+  for (flag in c("known_V", "random", "cluster")) {
+    data <- normal
+    attr(data, flag) <- TRUE
+    expect_null(.normal_grid_inputs(list(data = data), "mu"))
+  }
+  selection <- normal
+  attr(selection, "selection_model") <- structure(list(schema_version = 3L),
+    class = "RoBMA_selection_model")
+  expect_null(.normal_grid_inputs(list(data = selection), "mu"))
+  expect_null(.normal_grid_inputs(list(data = structure(list(), outcome_type = "bin")), "mu"))
+  expect_error(.normal_grid_inputs(list(data = normal), "mu"),
+    "eligible row preparation reached", fixed = TRUE)
+})
 
 
 # The two routes on one batch: the native grid where its guard admits the
