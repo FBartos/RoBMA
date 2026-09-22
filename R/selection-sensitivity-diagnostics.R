@@ -245,7 +245,8 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
   }
   publication_groups <- model[["groups"]][["row_blocks"]]
   adjacency <- diag(TRUE, ncol(means))
-  for (rows in c(parts[["full_dependency_blocks"]], publication_groups)) {
+  for (rows in c(parts[["full_dependency_blocks"]], publication_groups,
+                 execution_plan[["row_blocks"]])) {
     adjacency[rows, rows] <- TRUE
   }
   row_blocks <- .known_v_block_indices(adjacency * 1)
@@ -340,6 +341,17 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
       !identical(sort(as.integer(unlist(normalization_units, use.names = FALSE))), seq_len(K))) {
     stop("Selection sensitivity diagnostic inputs are inconsistent.", call. = FALSE)
   }
+  events_by_block <- lapply(row_blocks, function(block_rows) {
+    which(vapply(normalization_units, function(rows) {
+      all(rows %in% block_rows)
+    }, logical(1)))
+  })
+  if (any(lengths(events_by_block) == 0L) ||
+      !identical(sort(as.integer(unlist(events_by_block, use.names = FALSE))),
+                 seq_along(normalization_units))) {
+    stop("Selection sensitivity blocks must contain complete normalization events.",
+         call. = FALSE)
+  }
   metric_names <- c("ess_fraction", "ess_fraction_mcse", "total_variation",
     "total_variation_mcse", "log_weight_iqr")
   metrics <- stats::setNames(lapply(metric_names, function(x) matrix(NA_real_, S, B)), metric_names)
@@ -403,9 +415,7 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
       event_quadrature_error[[event]] <- max(mass[["relative_quadrature_error"]])
     }
     for (block in seq_along(row_blocks)) {
-      events <- which(vapply(normalization_units, function(rows) {
-        all(rows %in% row_blocks[[block]])
-      }, logical(1)))
+      events <- events_by_block[[block]]
       block_metrics <- .selection_sensitivity_weight_metrics(
         rowSums(log_normalizers[, events, drop = FALSE])
       )
