@@ -120,7 +120,8 @@
     tau_b_s             <- tau_between_samples[s, ]
     sampling_diagonal_s <- vi / weights
     diagonal_s          <- (vi + tau_w_s^2) / weights
-    M_diag_s            <- diagonal_s
+    outcome_diagonal_s  <- vi + tau_w_s^2
+    M_diag_s            <- outcome_diagonal_s
 
     if (is_multilevel) {
       M_diag_s <- M_diag_s + tau_b_s^2
@@ -227,9 +228,12 @@
       }
 
       if (return_se) {
+        # Likelihood weights determine the fitted projection above. Residual
+        # variability is under the original outcome law, as in metafor's
+        # (I - H) M (I - H)' diagnostic with custom estimation weights.
         se2 <- .hat_transformed_covariance_diag(
           transform     = variance_transform,
-          diagonal      = diagonal_s,
+          diagonal      = outcome_diagonal_s,
           rank_one      = if (is_multilevel) tau_b_s else NULL,
           block_indices = block_indices
         )

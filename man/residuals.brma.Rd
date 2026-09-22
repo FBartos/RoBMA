@@ -87,7 +87,8 @@ compute residual standard errors that account for the uncertainty in
 estimated coefficients:
 \deqn{z_i = \frac{e_i}{\sqrt{[(I-H)M(I-H)']_{ii}}}}
 where \eqn{H} is the hat matrix and \eqn{M} is the marginal variance-covariance
-matrix. Because the GLS projection satisfies \eqn{HM = MH' = HMH'}, the
+matrix. Without additional likelihood weights, the GLS projection satisfies
+\eqn{HM = MH' = HMH'}, so the
 denominator equals
 \eqn{M_{ii} - [X(X'M^{-1}X)^{-1}X']_{ii}}, which is strictly smaller than the
 Pearson denominator \eqn{\sqrt{M_{ii}}}. This holds with no moderators too,
@@ -96,14 +97,25 @@ residual variance, so standardized and Pearson residuals do not coincide.
 Only available for normal outcome models without selection (weightfunction)
 bias adjustment.
 
+Likelihood \code{weights} affect fitting, the fitted projection, and PSIS
+deletion weights; they do not divide the observation variance used for
+diagnostic scaling. Pearson residuals and the predictive CDF/moments in
+\code{rstudent()} use the original outcome law. Internally standardized
+residuals combine the fitted weighted projection \eqn{H} with that law's
+covariance \eqn{M}, as in \pkg{metafor} diagnostics with custom fitting weights.
+RoBMA retains its Bayesian posterior averaging and LOO-PIT transformation;
+these are not identical to frequentist deleted-residual z-statistics.
+
 LOO-PIT residuals (\code{type = "LOO-PIT"}) are the Bayesian equivalent of
 studentized deleted residuals \insertCite{vehtari2017practical}{RoBMA}. They
 are computed via leave-one-out probability integral transformation:
 \deqn{r_i = \Phi^{-1}(u_i)}
 where \eqn{u_i = \sum_s w_{is} F(y_i | \theta^{(s)})} is the LOO-weighted CDF
 value, \eqn{w_{is}} are the normalized PSIS weights, and \eqn{F} is the
-cumulative distribution function of the estimate-unit predictive
-distribution used by LOO. Lower and upper probabilities are accumulated
+cumulative distribution function of the estimate-unit outcome distribution
+under the leave-one-out fit. With likelihood weights, PSIS removes the
+weighted likelihood contribution while this CDF remains unpowered.
+Lower and upper probabilities are accumulated
 separately on the log scale, and the smaller tail is passed directly to the
 normal quantile function. Therefore extreme residuals are not truncated by
 probability clipping. Under a correctly specified model, LOO-PIT

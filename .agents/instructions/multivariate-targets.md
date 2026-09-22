@@ -11,13 +11,20 @@ residuals, marginal covariance diagnostics, or marginal likelihood.
   `"estimate"`. LOO target metadata instead records the deletion `unit` and
   `retained_context`; do not equate these axes.
 - `log_lik()`, LOO, WAIC, and LOO-PIT use predictive log-score targets.
-- `hatvalues()`, marginal/Pearson residual scaling, and `vif()` use marginal
-  GLS covariance.
+- `hatvalues()` and `vif()` use the fitted GLS projection; Pearson and
+  standardized residual scaling use the marginal outcome covariance.
 - `add_marglik()` and `bridge_sampler()` use the full joint fitted
   likelihood and prior, not a pointwise predictive score.
 
 Do not reuse one target's covariance or likelihood merely because dimensions
 match.
+
+Likelihood weights affect fitting and PSIS deletion, not the observation law
+used to scale diagnostics. Pearson and LOO-PIT/rstudent use the original outcome
+variance/CDF. Internally standardized residuals use the fitted weighted
+projection with the original covariance in `(I-H) M (I-H)'`; the ordinary GLS
+subtraction identity applies only without extra likelihood weights. Keep
+Bayesian posterior averaging and LOO-PIT distinct from metafor's refit z-score.
 
 ## Known Sampling Covariance V
 

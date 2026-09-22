@@ -16,7 +16,10 @@
 #'
 #' This function computes the diagonal elements of the hat matrix:
 #' \deqn{h_i = (X (X^T W X)^{-1} X^T W)_{ii}}
-#' where \eqn{W} is the weight matrix inverse to the marginal variance matrix.
+#' where \eqn{W} is the fitted precision matrix. Without additional likelihood
+#' weights it is the inverse marginal covariance; likelihood weights modify
+#' estimation precision without redefining the original outcome covariance
+#' used to standardize residuals.
 #'
 #' The hat matrix is computed for each posterior draw and then averaged over
 #' draws, matching the vector output shape used by `metafor`.
