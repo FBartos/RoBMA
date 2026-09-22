@@ -2168,6 +2168,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     object            = object,
     posterior_samples = posterior_samples
   )
+  conditions <- matrix(conditions, nrow = nrow(posterior_samples),
+                       ncol = length(parameters))
 
   if (rule == "AND") {
     keep <- apply(conditions, 1, all)

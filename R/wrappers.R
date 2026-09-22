@@ -1354,7 +1354,12 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   if (component == "total") {
     .check_ranef_total_expansion(components, expand)
     total <- Reduce(`+`, lapply(components, as.matrix))
-    colnames(total) <- paste0("u[", labels[seq_len(ncol(total))], "]")
+    if (expand) {
+      colnames(total) <- paste0("u[", labels[seq_len(ncol(total))], "]")
+    } else {
+      prefix <- paste0("u_", names(components)[[1L]])
+      colnames(total) <- paste0("u", substring(colnames(total), nchar(prefix) + 1L))
+    }
     return(.new_brma_samples(
       samples   = total,
       n_chains  = n_chains,

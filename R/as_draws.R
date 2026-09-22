@@ -231,7 +231,7 @@ NULL
   lapply(chains, function(chain) {
 
     values <- as.matrix(chain)[, available, drop = FALSE]
-    if (!all(values == trunc(values))) {
+    if (any(!is.finite(values)) || !all(values == trunc(values))) {
       stop("Random-effect indicator draws are not whole numbers.",
            call. = FALSE)
     }
