@@ -13,8 +13,12 @@
 #' @noRd
 parameter_draws.brma <- function(object, selection, ...) {
 
+  if (!is.list(selection) || !inherits(selection, "BayesTools_parameter_selection")) {
+    stop("'selection' must contain one resolved BayesTools parameter quantity.",
+         call. = FALSE)
+  }
   quantities <- selection[["quantities"]]
-  if (!inherits(selection, "BayesTools_parameter_selection") ||
+  if (
       !is.data.frame(quantities) || nrow(quantities) != 1L) {
     stop(
       "'selection' must contain one resolved BayesTools parameter quantity.",
@@ -33,7 +37,13 @@ parameter_draws.brma <- function(object, selection, ...) {
     )
   }
 
-  key <- quantities[["extraction_key"]][[1L]]
+  keys <- quantities[["extraction_key"]]
+  if (!is.list(keys) || length(keys) != 1L || !is.list(keys[[1L]]) ||
+      !is.character(keys[[1L]][["type"]]) || length(keys[[1L]][["type"]]) != 1L ||
+      is.na(keys[[1L]][["type"]]) || !nzchar(keys[[1L]][["type"]])) {
+    stop("RoBMA parameter quantity has no valid extraction key.", call. = FALSE)
+  }
+  key <- keys[[1L]]
   if (identical(key[["type"]], "robma_formula_group")) {
     return(BayesTools::JAGS_materialize_draws(
       fit        = object[["fit"]],

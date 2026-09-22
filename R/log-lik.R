@@ -1063,7 +1063,7 @@
   )) > 0L
   has_marginalized_random <- .data_has_marginalized_random_effects(setup[["data"]])
   has_cluster_random <- isTRUE(setup[["is_multilevel"]])
-  random_representation <- if (has_sampled_random && has_marginalized_random) {
+  random_representation <- if ((has_sampled_random || has_cluster_random) && has_marginalized_random) {
     "mixed"
   } else if (has_sampled_random || has_cluster_random) {
     "sampled"

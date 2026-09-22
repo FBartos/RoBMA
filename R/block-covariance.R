@@ -58,6 +58,9 @@
       stop("Block covariance values must be draw x row x row arrays.",
            call. = FALSE)
     }
+    if (any(!is.finite(value))) {
+      stop("Block covariance values must be finite.", call. = FALSE)
+    }
     blocks[[index]]       <- rows
     values[[index]]       <- value
     row_block[rows]       <- index

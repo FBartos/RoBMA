@@ -1763,6 +1763,11 @@
 
 .total_brma_mv_heterogeneity_samples <- function(components) {
 
+  if (!is.list(components) || length(components) == 0L ||
+      any(vapply(components, function(samples) !is.numeric(samples) ||
+                   length(samples) == 0L, logical(1L)))) {
+    stop("Heterogeneity components must contain numeric samples.", call. = FALSE)
+  }
   variance <- Reduce(`+`, lapply(components, function(samples) samples^2))
   sqrt(variance)
 }
