@@ -460,6 +460,9 @@
 
   for (term in formula_design[["random_effects"]]) {
     block     <- term[["block_name"]]
+    if (is.null(block) || !block %in% names(component_by_block)) {
+      stop("Random-effect scale metadata contain an unknown block.", call. = FALSE)
+    }
     component <- component_by_block[[block]]
     expected  <- if (component %in% names(expected_sources)) {
       expected_sources[[component]]
