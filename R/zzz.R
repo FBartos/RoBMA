@@ -29,13 +29,7 @@ NULL
   .native_threads_configure(RoBMA.private[["native_threads"]])
 
   if (.selection_runtime_available()) {
-    # Resolve automatic RAM budgets once when fitting starts, including in
-    # worker processes that only load the namespace for post-fit evaluation.
-    capacity <- RoBMA.get_option("selection.cache_max_bytes")
-    if (identical(capacity, "auto")) {
-      capacity <- 0
-    }
-    .selection_runtime_configure(.selection_runtime_settings(capacity_bytes = capacity))
+    .selection_runtime_configure(.selection_runtime_settings())
   }
   .check_max_cores()
   .register_posterior_methods()
