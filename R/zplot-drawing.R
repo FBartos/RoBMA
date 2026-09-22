@@ -1,12 +1,10 @@
 .get_dots_hist_zplot <- function(dots, plot_type = "base", max_density = NULL) {
+
+  ylim <- dots[["ylim"]]
+  if (is.null(ylim) && !is.null(max_density)) {
+    ylim <- c(0, max(c(max_density, dots[[".zplot_auto_ymax"]])))
+  }
   if (plot_type == "base") {
-    if (!is.null(dots[["ylim"]]) && !is.null(max_density)) {
-      ylim <- range(dots[["ylim"]], max_density)
-    } else if (!is.null(max_density)) {
-      ylim <- c(0, max_density)
-    } else {
-      ylim <- NULL
-    }
     hist_dots <- list(
       border = if (!is.null(dots[["border"]])) dots[["border"]] else "gray60",
       col    = if (!is.null(dots[["col"]]))    dots[["col"]]    else NA,
@@ -25,7 +23,8 @@
       alpha = if (!is.null(dots[["alpha"]])) dots[["alpha"]] else 1,
       xlab  = if (!is.null(dots[["xlab"]]))  dots[["xlab"]]  else "Z-Statistic",
       ylab  = if (!is.null(dots[["ylab"]]))  dots[["ylab"]]  else "Density",
-      main  = if (!is.null(dots[["main"]]))  dots[["main"]]  else ""
+      main  = if (!is.null(dots[["main"]]))  dots[["main"]]  else "",
+      ylim  = ylim
     )
   }
   return(hist_dots)
@@ -155,25 +154,20 @@
 
   if(type == "hist"){
     # for histogram, shift the specified bin boundaries to the closest z-treshold
+    original_bins <- bins
+    claimed <- c(1L, length(bins))
     for(i in seq_along(z_bounds)){
 
-      # get index of the first larger sequence
-      i_larger <- which(bins > z_bounds[i])[1]
-
-      # if there is none skip
-      if(is.na(i_larger))
-        next
-
-      # get index of the closer one from below
-      i_lower  <- i_larger - 1
-
-      # replace the closer sequence with the boundary
-      if(bins[i_larger] - z_bounds[i] < z_bounds[i] - bins[i_lower]){
-        bins[i_larger] <- z_bounds[i]
+      closest <- which.min(abs(original_bins - z_bounds[i]))
+      # Preserve endpoints and thresholds already assigned to this edge.
+      if(closest %in% claimed){
+        bins <- c(bins, z_bounds[i])
       }else{
-        bins[i_lower]  <- z_bounds[i]
+        bins[closest] <- z_bounds[i]
+        claimed <- c(claimed, closest)
       }
     }
+    bins <- sort(unique(bins))
   }else if(type == "dens"){
     # for density, extend the specified support at the threshold
     bins <- sort(unique(c(bins, z_bounds)))

@@ -611,7 +611,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
            parallel = parallel, cores = cores, extrapolate = FALSE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
            integration_control = integration_control),
-      dots_fit, dots
+      dots, dots_fit
     )))
     ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
   }
@@ -626,7 +626,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
            integration_control = integration_control,
            col = "blue"), # default color if not in dots
-      dots_extrapolation, dots
+      dots, dots_extrapolation
     )))
     ymax <- max(c(ymax, lines_extrapolation$y, if (plot_ci) lines_extrapolation$y_uCI))
   }
@@ -651,14 +651,14 @@ plot.zplot_brma <- function(x, plot_type = "base",
     length.out      = length.out.hist,
     plot_thresholds = plot_thresholds,
     dots_thresholds = dots_thresholds,
-    ylim            = if (ymax != 0) c(0, ymax * 1.05) else NULL,
+    .zplot_auto_ymax = if (ymax != 0) ymax * 1.05 else NULL,
     dots_hist       = dots_hist,
     dots_all        = dots
   )
 
   # 4. Add fit lines
   if (plot_fit) {
-    dots_fit_lines <- .get_dots_lines_zplot(c(dots, dots_fit), plot_type = plot_type)
+    dots_fit_lines <- .get_dots_lines_zplot(c(dots_fit, dots), plot_type = plot_type)
 
     if (plot_type == "base") {
       if (plot_ci) {
@@ -701,7 +701,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
 
   # 5. Add extrapolation lines
   if (plot_extrapolation) {
-     dots_ext_lines <- .get_dots_lines_zplot(c(dots, dots_extrapolation), plot_type = plot_type, col = "blue")
+     dots_ext_lines <- .get_dots_lines_zplot(c(dots_extrapolation, dots), plot_type = plot_type, col = "blue")
 
     if (plot_type == "base") {
       if (plot_ci) {
@@ -858,7 +858,8 @@ hist.zplot_brma <- function(x, plot_type = "base",
         width = df_hist$breaks
       ) +
       ggplot2::labs(x = dots_hist_params$xlab, y = dots_hist_params$ylab) +
-      ggplot2::ggtitle(dots_hist_params$main)
+      ggplot2::ggtitle(dots_hist_params$main) +
+      ggplot2::coord_cartesian(ylim = dots_hist_params$ylim)
   } else {
     if (add) {
       graphics::rect(
