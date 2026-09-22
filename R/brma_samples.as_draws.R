@@ -19,6 +19,9 @@
 #' then all from chain 2, etc.). Conditional RoBMA samples are intentionally
 #' stored as one flattened chain because conditioning subsets posterior rows
 #' across chains.
+#' The generic \code{as_draws()} returns a chain-preserving
+#' \code{draws_array}; request \code{as_draws_matrix()} explicitly for a
+#' draws-by-variable matrix, which retains chain counts in its metadata.
 #'
 #' @return An object of the corresponding \pkg{posterior} draws class.
 #'
@@ -30,7 +33,7 @@ NULL
 #' @rdname as_draws.brma_samples
 #' @export
 as_draws.brma_samples <- function(x, ...) {
-  return(.brma_samples_as_draws(x, posterior::as_draws_matrix, ...))
+  return(.brma_samples_as_draws(x, posterior::as_draws_array, ...))
 }
 
 #' @rdname as_draws.brma_samples
