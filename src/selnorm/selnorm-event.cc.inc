@@ -61,6 +61,11 @@ double rank_one_event_log_mass(const double *mean, const double *loading,
         const double cut = (sign * selection_se[i] * selection.z_lower[bin] -
           mean[i]) / loading[i];
         if (cut > lo && cut < hi) cuts.push_back(cut);
+        if (vector_rule == SELVECTOR_BEST_TWO_SIDED) {
+          const double reflected = (-selection_se[i] * selection.z_lower[bin] -
+            mean[i]) / loading[i];
+          if (reflected > lo && reflected < hi) cuts.push_back(reflected);
+        }
       }
     }
   }
