@@ -277,10 +277,11 @@ galbraith.brma <- function(x, ...) {
 
   # get pooled effect estimate
   mu_samples <- pooled_effect(x, probs = probs)
-  mu_summary <- summary(mu_samples)
-  beta       <- mu_summary["mu", "Mean"]
-  ci.lb      <- mu_summary["mu", as.character(probs[1])]
-  ci.ub      <- mu_summary["mu", as.character(probs[2])]
+  mu_draws   <- as.matrix(mu_samples)[, "mu"]
+  beta       <- mean(mu_draws)
+  mu_ci      <- stats::quantile(mu_draws, probs = probs, names = FALSE)
+  ci.lb      <- mu_ci[1L]
+  ci.ub      <- mu_ci[2L]
 
   # Use each row's marginal heterogeneity. This is the released common scalar
   # for ordinary models and a row-specific scale for random-formula designs.
@@ -443,7 +444,7 @@ galbraith.brma <- function(x, ...) {
 
   # CI arc
   ci_values    <- c(ci.lb_plot, beta_plot, ci.ub_plot)
-  ci_arc_slopes <- seq(ci.lb_plot, ci.ub_plot, length.out = ceiling(arc_res / 4))
+  ci_arc_slopes <- seq(ci.lb_plot, ci.ub_plot, length.out = max(2L, ceiling(arc_res / 4)))
   ci_arc_theta  <- atan(ci_arc_slopes)
   df_ci_arc <- data.frame(
     x = ci.xpos * cos(ci_arc_theta),
@@ -677,7 +678,7 @@ galbraith.brma <- function(x, ...) {
 
   # ---- CI arc line ----
   ci_arc_slopes <- seq(ci_values[1], ci_values[3],
-                       length.out = ceiling(arc_res / 4))
+                       length.out = max(2L, ceiling(arc_res / 4)))
   ci_arc_xi     <- .arc_x(ci.xpos, ci_arc_slopes)
   ci_arc_zi     <- .arc_z(ci.xpos, ci_arc_slopes)
 
@@ -803,7 +804,7 @@ galbraith.brma <- function(x, ...) {
 
   # ---- CI arc line ----
   ci_arc_slopes <- seq(ci_values[1], ci_values[3],
-                       length.out = ceiling(arc_res / 4))
+                       length.out = max(2L, ceiling(arc_res / 4)))
   df_ci_arc <- data.frame(
     x = .arc_x(ci.xpos, ci_arc_slopes),
     z = .arc_z(ci.xpos, ci_arc_slopes)

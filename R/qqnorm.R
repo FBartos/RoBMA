@@ -282,6 +282,9 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
       unit   = unit
     )
   }
+  if (length(z) == 0L || any(!is.finite(z))) {
+    stop("Normal QQ plots require finite standardized residuals.", call. = FALSE)
+  }
   K <- length(z)
 
   # theoretical standard normal quantiles
@@ -312,14 +315,14 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 
   # axis limits
   if (is.null(xlim)) {
-    xlim <- range(qq_x) * 1.1
+    xlim <- grDevices::extendrange(qq_x, f = 0.05)
   }
   if (is.null(ylim)) {
     all_y <- qq_y
     if (!is.null(env_data)) {
       all_y <- c(all_y, env_data$lower, env_data$upper)
     }
-    ylim <- range(all_y) * 1.1
+    ylim <- grDevices::extendrange(all_y, f = 0.05)
   }
 
   # axis labels
