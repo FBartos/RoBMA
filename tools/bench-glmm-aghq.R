@@ -10,7 +10,8 @@
 # Why this exists: the kernel's speed depends on where the linker places the
 # statically linked libm bodies it calls (`exp`, `log`, `lgamma`) relative to
 # the kernel itself. An unlucky exact placement costs a factor of 2.2 with the
-# kernel's own machine code byte-identical and at the same address. It is not
+# compiled kernel object byte-identical and the entry address unchanged; linked
+# call and data-reference operands differ with relocation. It is not
 # an R-level or a numerical change - every repetition returns the same result -
 # so no test and no scenario fingerprint can see it. Run this after any native
 # change; `.agents/instructions/validation.md` records what to do with a slow
