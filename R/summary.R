@@ -532,7 +532,7 @@ as.data.frame.summary.brma <- function(
   if (length(tables) == 0L) return(list())
   out <- .output_bind_long_data_frames(
     tables = lapply(tables, .output_plain_data_frame),
-    row.names = unlist(lapply(tables, rownames), use.names = FALSE)
+    row.names = make.unique(unlist(lapply(tables, rownames), use.names = FALSE))
   )
   class(out) <- class(tables[[1L]])
   for (column in colnames(out)) {
@@ -846,7 +846,7 @@ print.brma <- function(x, ...) {
   } else if (is_mods) {
     model_name <- paste(model_name, "Mixed-Effect")
   } else if (!.is_random(object) &&
-             identical(.fixed_tau_prior_value(object[["priors"]]), 0)) {
+             isTRUE(.fixed_tau_prior_value(object[["priors"]]) == 0)) {
     model_name <- paste(model_name, "Fixed-Effect")
   } else if (!is_mods && !is_scale) {
     model_name <- paste(model_name, "Random-Effects")
@@ -977,9 +977,9 @@ print.brma <- function(x, ...) {
     if (is.na(gate) || !identical(quantities[["role"]][[gate]], "random_inclusion")) {
       next
     }
-    sd_name <- sd_names[[keys[[gate]][["source_parameter"]]]]
-    if (!is.null(sd_name)) {
-      labels[[i]] <- sd_name
+    source <- keys[[gate]][["source_parameter"]]
+    if (length(source) == 1L && !is.na(source) && source %in% names(sd_names)) {
+      labels[[i]] <- sd_names[[source]]
     }
   }
 
