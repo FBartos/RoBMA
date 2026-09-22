@@ -655,6 +655,8 @@ NULL
     # Both provided - check consistency
     if (any(!.sampling_variance_matches_se(vi, sei), na.rm = TRUE))
       stop("The provided 'vi' and 'sei' values are inconsistent.", call. = FALSE)
+    missing_sei <- is.na(sei)
+    sei[missing_sei] <- sqrt(vi[missing_sei])
   }
 
   represented_vi  <- sei^2
@@ -829,6 +831,13 @@ NULL
   }
   if (has_sei) {
     .check_and_list_data.mv_hidden_input_structure(sei, "sei", k)
+  }
+
+  if (has_vi && has_sei) {
+    missing_vi  <- is.na(vi)
+    missing_sei <- is.na(sei)
+    vi[missing_vi]   <- sei[missing_vi]^2
+    sei[missing_sei] <- sqrt(vi[missing_sei])
   }
 
   missing_for_na <- rep(FALSE, k)
@@ -1605,7 +1614,10 @@ NULL
     return(data[[variable]])
   }
   if (exists(variable, envir = .envir, inherits = TRUE)) {
-    return(get(variable, envir = .envir, inherits = TRUE))
+    value <- get(variable, envir = .envir, inherits = TRUE)
+    if (!is.function(value)) {
+      return(value)
+    }
   }
 
   stop(
