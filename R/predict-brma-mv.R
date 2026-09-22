@@ -429,12 +429,12 @@
   S          <- nrow(sd_samples)
   K          <- ncol(sd_samples)
   group_keys <- .predict_known_v_marginalized_random_group_keys(term, data, K)
-  if (is.null(group_keys)) {
-    return(matrix(
-      stats::rnorm(length(sd_samples), mean = 0, sd = as.vector(sd_samples)),
-      nrow = S,
-      ncol = K
-    ))
+  if (is.null(group_keys) || length(group_keys) != K || anyNA(group_keys)) {
+    stop(
+      "Marginalized random-effect prediction requires complete grouping ",
+      "variables in 'newdata'.",
+      call. = FALSE
+    )
   }
 
   group_factor <- factor(group_keys, levels = unique(group_keys))
@@ -457,7 +457,7 @@
 .predict_known_v_marginalized_random_group_keys <- function(term, data, K) {
 
   location <- data[["location"]]
-  if (is.null(location) || nrow(location) != K) {
+  if (!is.data.frame(location) || nrow(location) != K) {
     return(NULL)
   }
 
@@ -472,6 +472,9 @@
       parts <- lapply(variables, function(variable) {
         as.character(location[[variable]])
       })
+      if (any(vapply(parts, anyNA, logical(1)))) {
+        return(NULL)
+      }
       return(do.call(paste, c(parts, sep = ":")))
     }
   }
