@@ -41,8 +41,9 @@ figure. Defaults to \code{FALSE}.}
 or ggplot2 \code{"ggplot"} for plotting. Defaults to
 \code{"base"}.}
 
-\item{show_data}{whether observed one-sided p-values should be shown as rug
-marks on the weightfunction axis. Defaults to \code{TRUE}.}
+\item{show_data}{whether observed p-values should be shown as rug marks on
+the weightfunction axis, using its one-sided or two-sided convention.
+Defaults to \code{TRUE}.}
 
 \item{dots_data}{list of additional graphical arguments for observed
 p-value rug marks. Supported arguments include \code{col}/\code{color},

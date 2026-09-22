@@ -13,8 +13,9 @@
 #' figure. Defaults to \code{FALSE}.
 #' @param rescale_p_values whether to rescale p-values to the interval shown
 #' by the weightfunction plot. Defaults to \code{TRUE}.
-#' @param show_data whether observed one-sided p-values should be shown as rug
-#' marks on the weightfunction axis. Defaults to \code{TRUE}.
+#' @param show_data whether observed p-values should be shown as rug marks on
+#' the weightfunction axis, using its one-sided or two-sided convention.
+#' Defaults to \code{TRUE}.
 #' @param dots_data list of additional graphical arguments for observed
 #' p-value rug marks. Supported arguments include \code{col}/\code{color},
 #' \code{alpha}, \code{lwd}/\code{linewidth}/\code{size},
@@ -124,22 +125,25 @@ plot_weightfunction.brma  <- function(
 .weightfunction_observed_p_values <- function(x) {
 
   outcome_data <- x[["data"]][["outcome"]]
-  selection    <- .selection_spec(
-    priors           = x[["priors"]],
-    yi               = outcome_data[["yi"]],
-    sei              = outcome_data[["sei"]],
-    effect_direction = .effect_direction(x),
-    signed_data      = FALSE
-  )
-
-  if (is.null(selection)) {
+  bias_prior  <- x[["priors"]][["outcome"]][["bias"]]
+  bias_priors <- .selection_bias_priors(x[["priors"]])
+  if (!any(vapply(bias_priors, .prior_has_selection, logical(1)))) {
     return(NULL)
   }
 
-  return(stats::pnorm(
-    selection[["sign"]] * outcome_data[["yi"]] / outcome_data[["sei"]],
-    lower.tail = FALSE
-  ))
+  one_sided <- inherits(bias_prior, "prior.bias_mixture") ||
+    any(vapply(bias_priors, function(prior) {
+
+      .is_prior_bias_kernel(prior) ||
+        (.is_prior_weightfunction(prior) && prior[["side"]] == "one-sided")
+    }, logical(1)))
+  sign <- if (.effect_direction(x) == "negative") -1L else 1L
+  z <- sign * outcome_data[["yi"]] / outcome_data[["sei"]]
+
+  if (one_sided) {
+    return(stats::pnorm(z, lower.tail = FALSE))
+  }
+  return(2 * stats::pnorm(abs(z), lower.tail = FALSE))
 }
 
 
