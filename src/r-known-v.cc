@@ -30,6 +30,29 @@ namespace {
 
 } // namespace
 
+// Keep the persisted v1 outcome fingerprint exactly: every integer in the
+// original R recurrence fits within double's exact-integer range. Native
+// unsigned arithmetic removes the interpreted per-byte loop without changing
+// payload encoding, initial states, multipliers, or moduli.
+extern "C" SEXP RoBMA_outcome_hash_raw(SEXP payload)
+{
+  if (TYPEOF(payload) != RAWSXP) {
+    Rf_error("Outcome hash payload must be a raw vector.");
+  }
+  std::uint64_t hash1 = 5381;
+  std::uint64_t hash2 = 0;
+  const unsigned char *bytes = RAW(payload);
+  for (R_xlen_t i = 0; i < XLENGTH(payload); ++i) {
+    hash1 = (hash1 * 33 + bytes[i]) % 2147483647;
+    hash2 = (hash2 * 65599 + bytes[i]) % 2147483629;
+  }
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, 2));
+  REAL(out)[0] = static_cast<double>(hash1);
+  REAL(out)[1] = static_cast<double>(hash2);
+  UNPROTECT(1);
+  return out;
+}
+
 extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     SEXP y,
     SEXP sampling_covariance,

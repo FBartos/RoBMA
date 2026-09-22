@@ -189,19 +189,13 @@
     )
   }
 
-  bytes <- as.integer(.outcome_hash_bytes(payload))
-  hash1 <- 5381
-  hash2 <- 0
-
-  for (byte in bytes) {
-    hash1 <- (hash1 * 33 + byte) %% 2147483647
-    hash2 <- (hash2 * 65599 + byte) %% 2147483629
-  }
+  hashes <- .Call("RoBMA_outcome_hash_raw", .outcome_hash_bytes(payload),
+                  PACKAGE = "RoBMA")
 
   return(paste0(
     "v1:",
-    sprintf("%08x", as.integer(hash1)),
-    sprintf("%08x", as.integer(hash2))
+    sprintf("%08x", as.integer(hashes[[1L]])),
+    sprintf("%08x", as.integer(hashes[[2L]]))
   ))
 }
 
