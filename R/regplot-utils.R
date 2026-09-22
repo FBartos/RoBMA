@@ -17,6 +17,7 @@
   dots <- .plot_point_style_defaults(dots)
 
   # line styling
+  attr(dots, "lcol_supplied") <- !is.null(dots[["lcol"]])
   if (is.null(dots[["lcol"]]))     dots[["lcol"]]     <- "black"
   if (is.null(dots[["lwd"]]))      dots[["lwd"]]      <- 2
   .check_plot_positive_scalar(dots[["lwd"]], "lwd")

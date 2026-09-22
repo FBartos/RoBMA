@@ -828,10 +828,13 @@
 .regplot_normalized_precision <- function(sei) {
 
   if (!is.numeric(sei) || length(sei) == 0L || any(!is.finite(sei)) ||
-      any(sei <= 0)) {
-    stop("Regression-plot standard errors must be finite and positive.",
+      any(sei < 0)) {
+    stop("Regression-plot standard errors must be finite and non-negative.",
          call. = FALSE)
   }
+
+  if (all(sei == 0)) return(numeric(length(sei)))
+  if (any(sei == 0)) return(as.numeric(sei == 0))
 
   relative_sd <- min(sei) / sei
   minimum     <- min(relative_sd)

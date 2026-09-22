@@ -108,11 +108,7 @@
   if (is.null(posterior_samples)) {
     posterior_samples <- .get_posterior_samples(x[["fit"]])
   }
-  S              <- nrow(posterior_samples)
-  bias_indicator <- .extract_bias_indicator(
-    x,
-    posterior_samples = posterior_samples
-  )
+  S <- nrow(posterior_samples)
   # The constructor has checked positive acceptance for retained contexts.
   # All-conditioned selection leaves the marginal Gaussian law unchanged.
   selection      <- if (.selection_all_sources_conditioned(x[["data"]])) {
@@ -129,7 +125,6 @@
   }
 
   return(list(
-    bias_indicator    = bias_indicator,
     is_weightfunction = !use_normal,
     selection         = selection
   ))

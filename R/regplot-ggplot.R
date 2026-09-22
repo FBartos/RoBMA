@@ -189,7 +189,7 @@
   n_groups   <- length(groups)
   has_by     <- n_groups > 1L
 
-  line_cols <- .regplot_palette(groups, lcol)
+  line_cols <- .regplot_palette(groups, lcol, isTRUE(attr(dots, "lcol_supplied")))
   if (has_by) {
     ci_cols <- pi_cols <- si_cols <- line_cols
   } else {
@@ -338,22 +338,20 @@
       ggplot2::scale_x_continuous(
         breaks = seq_along(data$levels),
         labels = data$levels,
-        limits = data$xlim,
         name   = data$xlab
       )
   } else {
     out <- out +
       ggplot2::scale_x_continuous(
-        limits = data$xlim,
         name   = data$xlab
       )
   }
 
   out <- out +
     ggplot2::scale_y_continuous(
-      limits = data$ylim,
       name   = data$ylab
-    )
+    ) +
+    ggplot2::coord_cartesian(xlim = data$xlim, ylim = data$ylim)
 
   if (has_by) {
     out <- out +

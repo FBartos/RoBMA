@@ -5,9 +5,12 @@
   return(isTRUE(shade))
 }
 
-.regplot_palette <- function(groups, default_col) {
+.regplot_palette <- function(groups, default_col, supplied = FALSE) {
 
   n <- length(groups)
+  if (supplied) {
+    return(stats::setNames(rep(default_col, length.out = n), groups))
+  }
   if (n == 1L) {
     return(stats::setNames(default_col[1], groups))
   }
@@ -37,21 +40,10 @@
     return(rep(0, n))
   }
 
-  old_seed <- if (exists(".Random.seed", envir = .GlobalEnv)) {
-    get(".Random.seed", envir = .GlobalEnv)
-  } else {
-    NULL
-  }
-  on.exit({
-    if (!is.null(old_seed)) {
-      assign(".Random.seed", old_seed, envir = .GlobalEnv)
-    } else if (exists(".Random.seed", envir = .GlobalEnv)) {
-      rm(".Random.seed", envir = .GlobalEnv)
-    }
-  })
-
-  set.seed(42)
-  return(stats::runif(n, -amount, amount))
+  return(.with_preserved_rng({
+    set.seed(42)
+    stats::runif(n, -amount, amount)
+  }))
 }
 
 .regplot_band_edges <- function(df_band) {
@@ -177,7 +169,7 @@
   n_groups   <- length(groups)
   has_by     <- n_groups > 1L
 
-  line_cols <- .regplot_palette(groups, lcol)
+  line_cols <- .regplot_palette(groups, lcol, isTRUE(attr(dots, "lcol_supplied")))
   point_cols <- if (has_by) line_cols else stats::setNames(rep(col, n_groups), groups)
   point_bgs  <- if (has_by) {
     stats::setNames(grDevices::adjustcolor(line_cols, alpha.f = 0.45), groups)
@@ -310,7 +302,7 @@
       legend = groups,
       col    = line_cols,
       pt.bg  = point_bgs,
-      pch    = 21,
+      pch    = pch,
       lty    = 1,
       lwd    = lwd,
       bty    = "n"
