@@ -4,6 +4,7 @@
 ^RoBMA\.Rproj$
 ^src/.*\.(o|so|dll|dylib)$
 ^\.Rproj\.user$
+^\.RData$
 ^do-not-share$
 ^models$
 ^tests/results$
@@ -11,6 +12,7 @@
 ^tests/testthat/test_files$
 ^tests/testthat/_snaps$
 ^tests/testthat/Rplots\.pdf$
+^tests/certification/Rplots\.pdf$
 ^tests/scenarios/test-.*\.[Rr]$
 ^tests/scenarios/cache$
 ^tests/scenarios/results$

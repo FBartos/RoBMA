@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Posterior Densities and Parameter Tests}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -235,6 +234,7 @@ It can be seriously inaccurate at one-sided boundaries and at posterior ordinate
 | `normalization_points` | `NULL` | Initial hidden normalization-grid size; `NULL` resolves to `max(50, n_points)`. |
 | `normalization_prob` | `0.999` | Central posterior probability used to seed the hidden normalization range; qCMDE refines and extends that range. |
 | `display_grid` | `"adaptive"` | Adaptive or uniform placement of plotted points; it is immaterial for a point-only hypothesis. |
+| `integration_control` | `NULL` | Post-fit selection-likelihood integration controls, supplied by `set_selection_likelihood_control()`; `NULL` uses the fitted controls. |
 
 Density curves and point ordinates both use the `samples` budget.
 Point ordinates select one reproducible, state-independent simple random sample before any ordinate contribution is evaluated.

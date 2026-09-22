@@ -23,7 +23,7 @@
 ##'
 ##' @references \insertAllCited{}
 ##' @importFrom BayesTools is.prior is.prior.none is.prior.point is.prior.simple is.prior.factor is.prior.PET is.prior.PEESE is.prior.weightfunction
-##' @importFrom BayesTools is.prior.independent is.prior.spike_and_slab is.prior.mixture
+##' @importFrom BayesTools is.prior.spike_and_slab is.prior.mixture
 ##' @importFrom Rdpack reprompt
 ##' @importFrom rlang .data
 "_PACKAGE"

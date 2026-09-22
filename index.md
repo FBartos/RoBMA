@@ -112,6 +112,7 @@ matching `RoBMA` R package syntax, output, and diagnostics.
 |:---|:---|
 | [*Bayesian Model Averaging*](articles/v20-bayesian-model-averaging.html) | Accounting for model uncertainty across presence and absence of effect and heterogeneity, with posterior model probabilities and inclusion Bayes factors |
 | [*Robust Bayesian Meta-Analysis*](articles/v21-robust-bayesian-meta-analysis.html) | Extending the ensemble to publication-bias models used in `RoBMA()`, with `PSMA`, `PP`, and bespoke ensemble specifications |
+| [*Posterior Densities and Parameter Tests*](articles/v22-posterior-densities-parameter-tests.html) | Likelihood-aware posterior densities and hypothesis tests with qCMDE and IWMDE |
 
 The first vignette introduces model averaging on an ensemble of models
 with and without effect and heterogeneity. The second extends the

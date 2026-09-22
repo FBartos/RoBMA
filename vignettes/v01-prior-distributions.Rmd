@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Prior Distributions}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -409,7 +408,7 @@ The latter obtains its factor basis from random-block contrast metadata and esti
 Formula-random correlations use `rho` in summaries, plots, density estimation, and hypotheses. BayesTools retains its general `cor` names and compact backend coordinates internally.
 See [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html#formula-semantics-and-random-effect-structures) for the full formula contract and a worked factor-level US specification.
 
-For custom random-effect prior distributions via `BayesTools::prior_random()`, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
+For custom random-effect prior distributions via `prior_random()`, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
 
 ## Informed Empirical Prior Distributions
 
