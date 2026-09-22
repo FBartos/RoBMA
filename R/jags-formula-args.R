@@ -36,7 +36,7 @@
 
     formula_args[["formula_list"]][["mu"]]       <- .create_fit_formula_list(data = data, parameter = location_parameter)
     formula_args[["formula_data_list"]][["mu"]]  <- .create_fit_formula_data_list(data = data, parameter = location_parameter)
-    formula_args[["formula_prior_list"]][["mu"]] <- .create_fit_formula_prior_list(priors = priors, parameter = location_parameter)
+    formula_args[["formula_prior_list"]]["mu"]   <- list(.create_fit_formula_prior_list(priors = priors, parameter = location_parameter))
     formula_args[["formula_scale_list"]][["mu"]] <- .data_standardize_continuous_predictors(data)
     if (.is_data_random(data)) {
       formula_args[["formula_random_prior_list"]][["mu"]] <- priors[["random"]]
@@ -53,10 +53,10 @@
       parameter <- scale_spec[["parameter"]]
       formula_args[["formula_list"]][[parameter]]       <- .create_fit_scale_formula(scale_spec[["formula"]])
       formula_args[["formula_data_list"]][[parameter]]  <- scale_spec[["data"]]
-      formula_args[["formula_prior_list"]][[parameter]] <- .create_fit_scale_formula_prior_list(
+      formula_args[["formula_prior_list"]][parameter]   <- list(.create_fit_scale_formula_prior_list(
         priors    = priors,
         parameter = parameter
-      )
+      ))
       formula_args[["formula_scale_list"]][[parameter]] <- .data_standardize_continuous_predictors(data)
     }
   }
