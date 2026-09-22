@@ -64,13 +64,14 @@
       target_posterior,
       c("effective_conditional", "conditional")
     )
+    context <- .iwmde_context(
+      object, density_control[["integration_control"]]
+    )
     for (value in values) {
       target_posterior <- .hypothesis_brma_attach_iwmde_scalar(
         posterior             = target_posterior,
         raw_posterior         = target_posterior,
-        context               = .iwmde_context(
-          object, density_control[["integration_control"]]
-        ),
+        context               = context,
         estimate_cache        = estimate_cache,
         parameter             = target[["parameter"]],
         parameter_label       = parameter,
@@ -105,7 +106,7 @@
       posterior = target[["posterior"]]
     )
   }
-  rownames(out) <- rep(parameter, nrow(out))
+  rownames(out) <- make.unique(rep(parameter, nrow(out)))
 
   return(out)
 }

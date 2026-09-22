@@ -1300,11 +1300,14 @@ hypothesis.brma <- function(object, hypothesis,
       support = c(0, Inf)
     ))
   }
-  if (all(source_transforms == "identity") &&
+  if (length(source_transforms) == length(weights) &&
+      !anyNA(source_transforms) && all(source_transforms == "identity") &&
       identical(output_transform, "identity")) {
     return(list(type = "affine", weights = weights))
   }
-  if (all(source_transforms %in% c("identity", "log")) &&
+  if (length(source_transforms) == length(weights) &&
+      !anyNA(source_transforms) &&
+      all(source_transforms %in% c("identity", "log")) &&
       identical(output_transform, "exp")) {
     return(list(
       type    = "exp_affine",

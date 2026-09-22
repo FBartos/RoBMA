@@ -57,7 +57,7 @@
         logical(1)
       ))
   }, logical(1))
-  if (!all(covered)) {
+  if (length(quantity_ids) == 0L || !all(covered) || nrow(entries) == 0L) {
     stop(
       "Resolved hypothesis metadata are unavailable. Refit the model with ",
       "the current RoBMA/BayesTools build.",
