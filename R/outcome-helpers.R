@@ -27,6 +27,9 @@
 
   outcome_type <- .outcome_type(object)
   outcome_data <- object[["data"]][["outcome"]]
+  if (length(outcome_type) != 1L || !outcome_type %in% c("norm", "bin", "pois")) {
+    stop("Outcome data have an unsupported or missing outcome type.", call. = FALSE)
+  }
 
   if (outcome_type == "norm") {
     # normal models: yi is directly available
@@ -85,6 +88,9 @@
 
   outcome_type <- .outcome_type(object)
   outcome_data <- object[["data"]][["outcome"]]
+  if (length(outcome_type) != 1L || !outcome_type %in% c("norm", "bin", "pois")) {
+    stop("Outcome data have an unsupported or missing outcome type.", call. = FALSE)
+  }
 
   if (outcome_type == "norm") {
     # normal models: sei is directly available

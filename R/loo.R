@@ -368,7 +368,12 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
     dimnames = list(unit_names, pointwise_names)
   )
   if (length(variable) > 0L) {
-    pointwise[variable, ] <- variable_result[["pointwise"]]
+    variable_pointwise <- variable_result[["pointwise"]]
+    if (!all(pointwise_names %in% colnames(variable_pointwise))) {
+      stop("LOO pointwise output is missing required diagnostic columns.",
+           call. = FALSE)
+    }
+    pointwise[variable, ] <- variable_pointwise[, pointwise_names, drop = FALSE]
   }
   if (length(exact) > 0L) {
     constant <- log_lik[1L, exact]

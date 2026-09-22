@@ -23,3 +23,14 @@ test_that("missing heterogeneity components do not erase all total draws", {
   expect_equal(.total_brma_mv_heterogeneity_samples(list(matrix(3, 2L), matrix(4, 2L))),
                 matrix(5, 2L))
 })
+
+test_that("outcome accessors reject missing and unknown outcome types", {
+
+  for (type in list(NULL, "unknown", NA_character_)) {
+    object <- list(data = structure(list(outcome = data.frame()), outcome_type = type))
+    for (accessor in list(.outcome_data_yi, .outcome_data_sei)) {
+      expect_error(accessor(object),
+        "Outcome data have an unsupported or missing outcome type.", fixed = TRUE)
+    }
+  }
+})
