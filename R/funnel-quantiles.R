@@ -85,12 +85,17 @@
   )
   tau <- .funnel_row_heterogeneity_samples(object, posterior_samples)
 
+  if (any(!is.finite(tau))) {
+    stop("Funnel plots require finite row-marginal heterogeneity draws.",
+         call. = FALSE)
+  }
+
   reference <- matrix(
     tau[, 1L],
     nrow = nrow(tau),
     ncol = ncol(tau)
   )
-  common <- all(tau == reference)
+  common <- all(.equal_within_double_roundoff(tau, reference))
 
   return(list(
     common            = common,
@@ -486,6 +491,7 @@
 .funnel_conditioned_order <- function(integrated_sd, conditioned_sd,
                                       minimum = 21L, maximum = 401L) {
 
+  if (any(integrated_sd == 0 & conditioned_sd > 0)) return(maximum)
   positive <- integrated_sd > 0
   if (!any(positive)) return(maximum)
   ratio <- max(conditioned_sd[positive] / integrated_sd[positive])

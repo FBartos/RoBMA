@@ -42,6 +42,11 @@
   # get standard errors
   se <- .outcome_data_sei(x)
 
+  if (length(se) == 0L || any(!is.finite(se)) || any(se < 0)) {
+    stop("Funnel-plot standard errors must be finite and non-negative.",
+         call. = FALSE)
+  }
+
   # compute standard-error plotting range
   se_range <- pretty(c(0, max(se)))
 
@@ -218,6 +223,11 @@
     }
   }
   K <- length(se)
+
+  if (K == 0L || any(!is.finite(se)) || any(se < 0)) {
+    stop("Funnel-plot standard errors must be finite and non-negative.",
+         call. = FALSE)
+  }
 
   # Compute a descriptive sampling-error reference region. Residual funnels do
   # not incorporate tau and the bounds are not posterior-predictive intervals.

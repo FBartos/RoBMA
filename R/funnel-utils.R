@@ -17,10 +17,16 @@
 # ---------------------------------------------------------------------------- #
 .clip_line_x <- function(x, y, xlim) {
 
-  if (length(x) < 2) return(data.frame(x=x, y=y))
-
   xmin <- min(xlim)
   xmax <- max(xlim)
+
+  if (any(!is.finite(x)) || any(!is.finite(y))) {
+    stop("Funnel contour coordinates must be finite.", call. = FALSE)
+  }
+  if (length(x) < 2L) {
+    keep <- x >= xmin & x <= xmax
+    return(data.frame(x = x[keep], y = y[keep]))
+  }
 
   x_out <- numeric(0)
   y_out <- numeric(0)
