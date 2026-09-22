@@ -542,7 +542,14 @@
     return(NULL)
   }
 
-  return(effect_transform[["transformation"]])
+  transformation <- effect_transform[["transformation"]]
+  if (identical(effect_transform[["transform"]], "EXP")) {
+    transformation[["output_support"]] <- c(0, Inf)
+  } else if (identical(effect_transform[["transform"]], "identity") &&
+             identical(effect_transform[["output_measure"]], "COR")) {
+    transformation[["output_support"]] <- c(-1, 1)
+  }
+  return(transformation)
 }
 
 .is_effect_location_parameter <- function(parameter) {
