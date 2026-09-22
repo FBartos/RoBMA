@@ -131,7 +131,7 @@ test_that("loo_compare preserves the released numeric comparison table", {
   out      <- loo_compare(loo_a, loo_b)
   upstream <- do.call(
     get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE),
-    list(loo_a, loo_b)
+    list(x = list(loo_a = loo_a, loo_b = loo_b))
   )
   legacy_columns <- c(
     "elpd_diff", "se_diff", "elpd_loo", "se_elpd_loo",
@@ -182,7 +182,7 @@ test_that("loo_compare preserves the released numeric WAIC table", {
   out      <- loo_compare(waic_a, waic_b)
   upstream <- do.call(
     get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE),
-    list(waic_a, waic_b)
+    list(x = list(waic_a = waic_a, waic_b = waic_b))
   )
   legacy_columns <- c(
     "elpd_diff", "se_diff", "elpd_waic", "se_elpd_waic",
