@@ -57,7 +57,9 @@ double qmc_value(const double *values, int scrambles, int points,
   const std::size_t total = static_cast<std::size_t>(scrambles) *
     static_cast<std::size_t>(points) * static_cast<std::size_t>(dimensions);
   if (index >= total) return std::numeric_limits<double>::quiet_NaN();
-  return values[index];
+  const double value = values[index];
+  return value > 0.0 && value < 1.0 ? value :
+    std::numeric_limits<double>::quiet_NaN();
 }
 
 #include "selnorm-event.cc.inc"
@@ -247,7 +249,9 @@ double quadrature_log_gaussian_tail_bound(
     const double *nodes, int offset, int order, int rank,
     const double *omega, int n_bins, int dimension, int vector_rule)
 {
-  if (order < 1 || rank < 1) return std::numeric_limits<double>::infinity();
+  if (order < 1 || rank < 1 || n_bins < 1) {
+    return std::numeric_limits<double>::infinity();
+  }
   const double *begin = nodes + offset;
   const double *end = begin + order;
   const double lower = *std::min_element(begin, end);
@@ -2537,12 +2541,17 @@ inline void selnorm_evaluate_gaussian_mixtures(
   {
     #pragma omp parallel num_threads(workers)
     {
-      SelNormMixtureProjectionWorkspace scratch(workspace);
+      std::optional<SelNormMixtureProjectionWorkspace> scratch;
+      try {
+        scratch.emplace(workspace);
+      } catch (...) {
+        failed.store(true, std::memory_order_relaxed);
+      }
       #pragma omp for schedule(dynamic, 1)
       for (int index = 0; index < count; ++index) {
         if (failed.load(std::memory_order_relaxed)) continue;
         try {
-          evaluate(index, scratch);
+          evaluate(index, *scratch);
         } catch (...) {
           failed.store(true, std::memory_order_relaxed);
         }
@@ -4327,6 +4336,14 @@ double cpp_selnorm_cluster_step_lpdf(
   if (log_normalizer_out != nullptr) {
     *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
   }
+  if (dimension < 1 || n_bins < 1 || quadrature_rule_count < 1 ||
+      initial_points < 2 || max_points < initial_points || scrambles < 2 ||
+      !(relative_tolerance > 0.0) || !std::isfinite(relative_tolerance) ||
+      (effect_sign != 1 && effect_sign != -1) ||
+      (kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) ||
+      vector_rule < SELVECTOR_PRODUCT || vector_rule > SELVECTOR_BEST_TWO_SIDED) {
+    return negative_infinity;
+  }
 
   double phack_z_zero[2] = {0, 0};
   double segment_bounds_zero[1] = {0};
@@ -4355,7 +4372,9 @@ double cpp_selnorm_cluster_step_lpdf(
   for (int i = 0; i < dimension; ++i) {
     if (!(residual_sd[i] > 0.0) || !std::isfinite(residual_sd[i]) ||
         !std::isfinite(loading[i]) || !std::isfinite(x[i]) ||
-        !std::isfinite(mean[i])) return negative_infinity;
+        !std::isfinite(mean[i]) || !(selection_se[i] > 0.0) ||
+        !std::isfinite(selection_se[i]) || obs_bin[i] < 1 ||
+        obs_bin[i] > n_bins) return negative_infinity;
     const double variance = residual_sd[i] * residual_sd[i];
     const double residual = x[i] - mean[i];
     log_det += std::log(variance);
@@ -4450,6 +4469,10 @@ double cpp_selnorm_mnorm_step_lpdf(
   const double two_pi = 6.283185307179586476925286766559;
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   *relative_mcse = 0.0;
+  if (dimension < 1 || n_bins < 1 || points < 1 || scrambles < 2) {
+    *relative_mcse = std::numeric_limits<double>::infinity();
+    return negative_infinity;
+  }
   if (log_normalizer_override != nullptr &&
       (!std::isfinite(*log_normalizer_override) || projection != nullptr)) {
     throw std::invalid_argument("An explicit selection normalizer must be finite and cannot project outcomes.");

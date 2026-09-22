@@ -250,7 +250,7 @@ SEXP norm_cluster_analytic_accumulate(const NormClusterAnalyticArgs &args,
 {
   SEXP out = PROTECT(row_sum ?
     Rf_allocVector(REALSXP, args.S) :
-    Rf_allocMatrix(REALSXP, args.S, args.G));
+    allocate_selnorm_matrix(REALSXP, args.S, args.G));
   double *out_p = REAL(out);
   if (row_sum) {
     std::fill(out_p, out_p + args.S, 0.0);
@@ -279,7 +279,7 @@ SEXP norm_cluster_analytic_accumulate(const NormClusterAnalyticArgs &args,
 SEXP norm_cluster_analytic_rho_grid_accumulate(
     const NormClusterAnalyticArgs &args, const double *rho, int n_rho)
 {
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, n_rho, args.S));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, n_rho, args.S));
   double *out_p = REAL(out);
 
   for (int s = 0; s < args.S; ++s) {
@@ -731,7 +731,7 @@ NormClusterIntegral norm_cluster_adaptive_log_integral(
 
 SEXP norm_cluster_accumulate(const NormClusterArgs &args)
 {
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, args.S, args.G));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, args.S, args.G));
   double *out_p = REAL(out);
 
   std::vector<double> gamma_terms(

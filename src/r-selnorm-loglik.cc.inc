@@ -669,9 +669,9 @@ extern "C" SEXP RoBMA_selnorm_cluster_location_grid(
   }
 
   const int G_values = Rf_length(values);
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, G_values, args.S));
-  SEXP sensitivity = PROTECT(Rf_allocMatrix(REALSXP, G_values, args.S));
-  SEXP quadrature_order = PROTECT(Rf_allocMatrix(INTSXP, G_values, args.S));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, G_values, args.S));
+  SEXP sensitivity = PROTECT(allocate_selnorm_matrix(REALSXP, G_values, args.S));
+  SEXP quadrature_order = PROTECT(allocate_selnorm_matrix(INTSXP, G_values, args.S));
 
   args.selected          = true;
   args.yi                = REAL(yi);

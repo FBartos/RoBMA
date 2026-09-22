@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <cstdint>
+#include <exception>
 #include <limits>
 #include <vector>
 
@@ -34,13 +36,9 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     SEXP random_covariance_factors,
     SEXP block_indices)
 {
-  CovariancePlan *plan = make_plan(
-    y,
-    sampling_covariance,
-    random_covariance_factors,
-    block_indices
-  );
-  SEXP pointer = PROTECT(R_MakeExternalPtr(plan, R_NilValue, R_NilValue));
+  // Register ownership before filling the plan: invalid nested input can
+  // raise an R error at any stage, and the finalizer must own partial state.
+  SEXP pointer = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(pointer, finalize_plan, TRUE);
   int low_rank_blocks = 0;
   int markov_blocks = 0;
@@ -65,6 +63,17 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
       ++sparse_factor_blocks;
     } else if (block.low_rank_eligible) {
       ++low_rank_blocks;
+  CovariancePlan *plan = nullptr;
+  char error_message[512] = {};
+  try {
+    plan = new CovariancePlan();
+    R_SetExternalPtrAddr(pointer, plan);
+    initialize_plan(plan, y, sampling_covariance, random_covariance_factors,
+      block_indices);
+  } catch (const std::exception &error) {
+    std::strncpy(error_message, error.what(), sizeof(error_message) - 1);
+  }
+  if (error_message[0]) Rf_error("Known-V plan construction failed: %s", error_message);
       sparse_assembly_blocks += block.sparse_assembly_eligible ? 1 : 0;
     } else if (block.block_base_eligible) {
       ++block_base_blocks;
@@ -224,7 +233,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
   const double *mean_values = REAL(means);
   const double *group_values = REAL(group_variances);
   const double *diagonal_values = REAL(diagonal_variances);
-  for (int index = 0; index < grids * draws; ++index) {
+  for (R_xlen_t index = 0; index < XLENGTH(group_variances); ++index) {
     if (!std::isfinite(group_values[index]) || group_values[index] < 0.0 ||
         !std::isfinite(diagonal_values[index]) ||
         diagonal_values[index] < 0.0) {
@@ -234,7 +243,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
     }
   }
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, grids, draws));
+  SEXP out = PROTECT(allocate_plan_matrix(REALSXP, grids, draws));
   std::fill(
     REAL(out),
     REAL(out) + static_cast<size_t>(grids) * static_cast<size_t>(draws),
@@ -487,7 +496,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik_batch(
     random_covariance_states,
     extra_variances
   );
-  SEXP output = PROTECT(Rf_allocMatrix(REALSXP, plan->n, draws));
+  SEXP output = PROTECT(allocate_plan_matrix(REALSXP, plan->n, draws));
   const double *mean_values = REAL(means);
   const double *extra_values = REAL(extra_variances);
   for (int draw = 0; draw < draws; ++draw) {
@@ -546,8 +555,8 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_summary_batch(
     extra_variances
   );
   SEXP output = PROTECT(Rf_allocVector(VECSXP, 2));
-  SEXP residual = PROTECT(Rf_allocMatrix(REALSXP, plan->n, draws));
-  SEXP variance = PROTECT(Rf_allocMatrix(REALSXP, plan->n, draws));
+  SEXP residual = PROTECT(allocate_plan_matrix(REALSXP, plan->n, draws));
+  SEXP variance = PROTECT(allocate_plan_matrix(REALSXP, plan->n, draws));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
   SET_STRING_ELT(names, 0, Rf_mkChar("residual"));
   SET_STRING_ELT(names, 1, Rf_mkChar("variance"));
@@ -593,7 +602,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_precision_residual_batch(
     random_covariance_states,
     extra_variances
   );
-  SEXP output = PROTECT(Rf_allocMatrix(REALSXP, plan->n, draws));
+  SEXP output = PROTECT(allocate_plan_matrix(REALSXP, plan->n, draws));
   const double *mean_values = REAL(means);
   const double *extra_values = REAL(extra_variances);
   for (int draw = 0; draw < draws; ++draw) {

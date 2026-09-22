@@ -61,7 +61,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
     Rf_error("'sei' and 'weights' must have one value per observation.");
   }
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, G, S));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, G, S));
 
   const double *mean_p             = REAL(mean);
   const double *sd_p               = REAL(sd);
@@ -158,7 +158,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
     Rf_error("'yi', 'sei', 'weights', and 'obs_bin' must have one value per observation.");
   }
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
 
   const double *yi_p         = REAL(yi);
   const double *mu_num_p     = REAL(mu_num);
@@ -324,7 +324,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
     Rf_error("'sei' must have one value per observation.");
   }
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
 
   const double *mean_p      = REAL(mean);
   const double *sd_p        = REAL(sd);
@@ -392,7 +392,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
     Rf_error("'q' must have length 1 or K and 'sei' must have one value per observation.");
   }
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
 
   const double *x_p          = REAL(x);
   const double *mean_p       = REAL(mean);
@@ -469,8 +469,8 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
     Rf_error("'sei' must have one value per observation.");
   }
 
-  SEXP out_mean = PROTECT(Rf_allocMatrix(REALSXP, S, K));
-  SEXP out_second = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+  SEXP out_mean = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
+  SEXP out_second = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
   SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
 
@@ -547,7 +547,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
     Rf_error("'sei' must have one value per observation.");
   }
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
 
   const double *mean_p     = REAL(mean);
   const double *sd_p       = REAL(sd);
@@ -747,7 +747,10 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       );
     }
 
-    if (log_lower_sum == -INFINITY && log_upper_sum == -INFINITY) {
+    if (std::isnan(log_lower_sum) || std::isnan(log_upper_sum)) {
+      log_lower_out_p[k] = NA_REAL;
+      log_upper_out_p[k] = NA_REAL;
+    } else if (log_lower_sum == -INFINITY && log_upper_sum == -INFINITY) {
       Rf_error("Selected-normal predictive tail probabilities are undefined.");
     } else if (log_lower_sum == -INFINITY) {
       log_lower_out_p[k] = -INFINITY;

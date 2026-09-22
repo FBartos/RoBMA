@@ -260,7 +260,7 @@ double cpp_selnorm_step_log_norm(
   int omega_stride,
   bool validate_omega)
 {
-  if (!(sd > 0) || !std::isfinite(sd) ||
+  if (data.n_bins < 1 || omega_stride < 1 || !(sd > 0) || !std::isfinite(sd) ||
       !(sei > 0) || !std::isfinite(sei) || !std::isfinite(mean) ||
       !(data.effect_sign == 1 || data.effect_sign == -1) ||
       (validate_omega && !validate_omega_values(omega, data, omega_stride))) {

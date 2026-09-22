@@ -21,11 +21,13 @@ DKNOWNVMNORM::DKNOWNVMNORM() : VectorDist("dknown_v_mnorm", 3) {}
 
 bool DKNOWNVMNORM::checkParameterLength(std::vector<unsigned int> const &len) const
 {
-  if (len[0] == 0 || len[0] != len[1]) {
+  if (len.size() != 3 || len[0] == 0 || len[0] != len[1]) {
     return false;
   }
 
   const unsigned int k = len[0];
+  const unsigned int maximum = std::numeric_limits<int>::max();
+  if (k > maximum / k) return false;
   return len[2] == k * (k + 1) / 2;
 }
 

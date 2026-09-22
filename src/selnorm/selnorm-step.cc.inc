@@ -616,6 +616,9 @@ double step_rng_prepared_partition(double u_bin, double u_interval,
     const double *mass, const double *lower, const double *upper,
     int n_groups, double denom)
 {
+  if (n_groups < 1 || !(denom > 0.0) || !std::isfinite(denom)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
   const double target = u_bin * denom;
   double cumulative = 0;
   int selected = n_groups - 1;

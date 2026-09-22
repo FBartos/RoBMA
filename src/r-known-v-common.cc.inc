@@ -13,6 +13,9 @@ void require_real_vector(SEXP x, R_xlen_t length, const char *name)
 
 void require_real_square_matrix(SEXP x, int size, const char *name)
 {
+  if (XLENGTH(x) > std::numeric_limits<int>::max()) {
+    Rf_error("'%s' exceeds the native matrix integer indexing limit.", name);
+  }
   if (TYPEOF(x) != REALSXP || !Rf_isMatrix(x)) {
     Rf_error("'%s' must be a double matrix.", name);
   }
@@ -20,6 +23,15 @@ void require_real_square_matrix(SEXP x, int size, const char *name)
   if (INTEGER(dimensions)[0] != size || INTEGER(dimensions)[1] != size) {
     Rf_error("'%s' has inconsistent dimensions.", name);
   }
+}
+
+SEXP allocate_plan_matrix(int type, int rows, int columns)
+{
+  if (rows < 0 || columns < 0 ||
+      (rows > 0 && columns > std::numeric_limits<int>::max() / rows)) {
+    Rf_error("Known-V output exceeds the native matrix integer indexing limit.");
+  }
+  return Rf_allocMatrix(type, rows, columns);
 }
 
 SEXP list_element(SEXP x, const char *name)

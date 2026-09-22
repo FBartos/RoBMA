@@ -15,6 +15,9 @@ PlanFactor covariance_factor_plan(SEXP factor, int n)
   if (TYPEOF(model_matrix) != REALSXP || !Rf_isMatrix(model_matrix)) {
     Rf_error("Random covariance factor model matrix must be double.");
   }
+  if (XLENGTH(model_matrix) > std::numeric_limits<int>::max()) {
+    Rf_error("Random covariance model matrix exceeds the native integer indexing limit.");
+  }
   SEXP model_dimensions = Rf_getAttrib(model_matrix, R_DimSymbol);
   out.n_columns = INTEGER(model_dimensions)[1];
   if (INTEGER(model_dimensions)[0] != n || out.n_columns < 1) {
@@ -99,6 +102,9 @@ PlanFactor covariance_factor_plan(SEXP factor, int n)
   }
   SEXP group_dimensions = Rf_getAttrib(group_covariance, R_DimSymbol);
   out.n_groups = INTEGER(group_dimensions)[0];
+  if (XLENGTH(group_covariance) > std::numeric_limits<int>::max()) {
+    Rf_error("Known group covariance exceeds the native integer indexing limit.");
+  }
   if (out.n_groups < 1 ||
       INTEGER(group_dimensions)[1] != out.n_groups) {
     Rf_error("Known group covariance factor must be square.");
@@ -616,7 +622,7 @@ BlockPlan make_block_plan(SEXP index, const double *sampling, int n,
   return out;
 }
 
-CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
+void initialize_plan(CovariancePlan *plan, SEXP y, SEXP sampling_covariance,
                           SEXP random_covariance_factors,
                           SEXP block_indices)
 {
@@ -636,22 +642,19 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
     Rf_error("Random covariance factor plans must be a list.");
   }
 
-  CovariancePlan *plan = new CovariancePlan();
   plan->n = n;
   plan->y.assign(REAL(y), REAL(y) + n);
   plan->sampling_covariance.assign(
     REAL(sampling_covariance),
-    REAL(sampling_covariance) + static_cast<size_t>(n * n)
+    REAL(sampling_covariance) + static_cast<size_t>(n) * static_cast<size_t>(n)
   );
   for (double value : plan->y) {
     if (!std::isfinite(value)) {
-      delete plan;
       Rf_error("Known-V bridge observations must be finite.");
     }
   }
   for (double value : plan->sampling_covariance) {
     if (!std::isfinite(value)) {
-      delete plan;
       Rf_error("Known-V sampling covariance must be finite.");
     }
   }
@@ -659,7 +662,6 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
     for (int row = 0; row < n; ++row) {
       if (plan->sampling_covariance[static_cast<size_t>(row + n * col)] !=
           plan->sampling_covariance[static_cast<size_t>(col + n * row)]) {
-        delete plan;
         Rf_error("Known-V sampling covariance must be exactly symmetric.");
       }
     }
@@ -690,7 +692,6 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
     );
     for (int global : block.index) {
       if (membership[static_cast<size_t>(global)] != -1) {
-        delete plan;
         Rf_error("Covariance block indices must not overlap.");
       }
       membership[static_cast<size_t>(global)] = static_cast<int>(block_i);
@@ -714,7 +715,6 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
     plan->blocks.push_back(block);
   }
   if (std::find(membership.begin(), membership.end(), -1) != membership.end()) {
-    delete plan;
     Rf_error("Covariance block indices must partition every observation.");
   }
 
@@ -725,7 +725,6 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
   }
   if (has_sparse_factor_candidate) {
     if (!M_cholmod_start(&plan->cholmod_common_state)) {
-      delete plan;
       Rf_error("Known-V sparse latent solver could not be initialized.");
     }
     plan->cholmod_started = true;
@@ -754,7 +753,6 @@ CovariancePlan *make_plan(SEXP y, SEXP sampling_covariance,
   plan->rhs_work.resize(max_rank);
   plan->scale_work.resize(max_rank);
   plan->base_rhs_work.resize(max_base_rhs_size);
-  return plan;
 }
 
 CovariancePlan *plan_pointer(SEXP pointer)

@@ -15,7 +15,7 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
     Rf_error("'sei' must have one value per observation.");
   }
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, L));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, S, L));
 
   const double *z_p    = REAL(z_sequence);
   const double *mean_p = REAL(mean);
@@ -574,9 +574,9 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   double *extrapolated_p = NULL;
 
   if (paired) {
-    fitted = PROTECT(Rf_allocMatrix(REALSXP, S, L));
+    fitted = PROTECT(allocate_selnorm_matrix(REALSXP, S, L));
     ++n_protect;
-    extrapolated = PROTECT(Rf_allocMatrix(REALSXP, S, L));
+    extrapolated = PROTECT(allocate_selnorm_matrix(REALSXP, S, L));
     ++n_protect;
     out = PROTECT(Rf_allocVector(VECSXP, 2));
     ++n_protect;
@@ -592,7 +592,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     fitted_p       = REAL(fitted);
     extrapolated_p = REAL(extrapolated);
   } else {
-    out = PROTECT(Rf_allocMatrix(REALSXP, S, L));
+    out = PROTECT(allocate_selnorm_matrix(REALSXP, S, L));
     ++n_protect;
     out_p = REAL(out);
   }

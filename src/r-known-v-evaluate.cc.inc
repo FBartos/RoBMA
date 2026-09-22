@@ -1052,7 +1052,7 @@ SEXP plan_affine_grid_log_likelihood(
   const double one = 1.0;
   const double zero = 0.0;
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, grids, draws));
+  SEXP out = PROTECT(allocate_plan_matrix(REALSXP, grids, draws));
   std::fill(
     REAL(out),
     REAL(out) + static_cast<size_t>(grids) * static_cast<size_t>(draws),
@@ -1269,6 +1269,22 @@ SEXP plan_factor_grid_log_likelihood(
       Rf_error("Known-V factor grid Cholesky states must be finite.");
     }
   }
+  if (stored.coefficient_structure == DIAGONAL_COEFFICIENT) {
+    const int states = factor_update ? draws : grids;
+    for (int column = 0; column < q; ++column) {
+      for (int row = 0; row < q; ++row) {
+        if (row == column) continue;
+        for (int state = 0; state < states; ++state) {
+          const size_t index = static_cast<size_t>(state) +
+            static_cast<size_t>(states) *
+              (static_cast<size_t>(row) + static_cast<size_t>(q) * column);
+          if (candidate_factor_values[index] != 0.0) {
+            Rf_error("Known-V diagonal coefficient factors must remain diagonal.");
+          }
+        }
+      }
+    }
+  }
   if (factor_update) {
     for (R_xlen_t index = 0; index < XLENGTH(candidate_scale); ++index) {
       if (!std::isfinite(candidate_scale_values[index]) ||
@@ -1286,7 +1302,7 @@ SEXP plan_factor_grid_log_likelihood(
     }
   }
 
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, grids, draws));
+  SEXP out = PROTECT(allocate_plan_matrix(REALSXP, grids, draws));
   const double *mean_values = REAL(means);
   const double *extra_values = REAL(extra_variances);
   std::vector<double> coefficient_factor(static_cast<size_t>(q * q));

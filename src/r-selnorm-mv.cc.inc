@@ -436,8 +436,8 @@ static SEXP selnorm_mnorm_step_batch(
       }
     }
   }
-  SEXP density = PROTECT(Rf_allocMatrix(REALSXP, S, Z));
-  SEXP integration_diagnostics = PROTECT(project ? R_NilValue : Rf_allocMatrix(REALSXP, S, 4));
+  SEXP density = PROTECT(allocate_selnorm_matrix(REALSXP, S, Z));
+  SEXP integration_diagnostics = PROTECT(project ? R_NilValue : allocate_selnorm_matrix(REALSXP, S, 4));
   SEXP cdf_error = PROTECT(integration_rules.bounded_cdf ? Rf_allocVector(REALSXP, S) : R_NilValue);
   SEXP cdf_log_error = PROTECT(integration_rules.bounded_cdf ? Rf_allocVector(REALSXP, S) : R_NilValue);
   if (!project) {
@@ -772,6 +772,13 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
     Rf_error("'kernel_mode' must have length 1 or one value per posterior sample.");
   }
   validate_omega_matrix(REAL(omega), S, B);
+  for (int k = 0; k < K; ++k) {
+    if (!std::isfinite(REAL(yi)[k]) || !std::isfinite(REAL(sei)[k]) ||
+        !(REAL(sei)[k] > 0.0) || INTEGER(obs_bin)[k] < 1 ||
+        INTEGER(obs_bin)[k] > B) {
+      Rf_error("Observed selection inputs are invalid.");
+    }
+  }
 
   SEXP log_density = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP relative_mcse = PROTECT(Rf_allocVector(REALSXP, S));
@@ -1390,7 +1397,7 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
     }
   }
 
-  SEXP draws = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+  SEXP draws = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
   std::fill(REAL(draws), REAL(draws) + static_cast<R_xlen_t>(S) * K,
             NA_REAL);
   std::vector<double> block_covariance(
@@ -1747,7 +1754,7 @@ extern "C" SEXP RoBMA_selnorm_covariance_envelope_components(
   for (int i = 0; i < 10; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
   Rf_setAttrib(result, R_NamesSymbol, names);
   SEXP sd = PROTECT(Rf_allocVector(REALSXP, k));
-  SEXP work = PROTECT(Rf_allocMatrix(REALSXP, k, 4));
+  SEXP work = PROTECT(allocate_selnorm_matrix(REALSXP, k, 4));
   SEXP types = PROTECT(Rf_allocVector(INTSXP, k));
   int groups = 0;
   bool available = false;
@@ -1770,9 +1777,9 @@ extern "C" SEXP RoBMA_selnorm_covariance_envelope_components(
   }
   const int rank = groups == 1 ? 1 : groups + 1;
   SEXP variance = PROTECT(Rf_allocVector(REALSXP, k));
-  SEXP loading = PROTECT(Rf_allocMatrix(REALSXP, k, rank));
-  SEXP residual = PROTECT(Rf_allocMatrix(REALSXP, k, k));
-  SEXP radius = PROTECT(Rf_allocMatrix(REALSXP, k, k));
+  SEXP loading = PROTECT(allocate_selnorm_matrix(REALSXP, k, rank));
+  SEXP residual = PROTECT(allocate_selnorm_matrix(REALSXP, k, k));
+  SEXP radius = PROTECT(allocate_selnorm_matrix(REALSXP, k, k));
   std::copy_n(REAL(work), static_cast<std::size_t>(k) * rank, REAL(loading));
   for (int row = 0; row < k; ++row) {
     REAL(variance)[row] = static_cast<double>(
@@ -1916,6 +1923,7 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
   const int star_threads =
     robma_work_threads(star_rows, star_work / star_rows) > 1 ?
       robma_batch_threads(star_rows, 2) : 1;
+  char error_message[512] = {};
   try {
     CompactStepPartition partition;
     const bool compact_partition = bounded_cdf && LOGICAL(telescope)[0] &&
@@ -1930,8 +1938,9 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
       REAL(z), size, REAL(allowance)[0], REAL(density), &mass, &error, &components, REAL(compact),
       bounded_cdf, REAL(cdf_factor), &omitted_mass_error, star_threads);
   } catch (const std::exception &exception) {
-    Rf_error("Deterministic star projection failed: %s.", exception.what());
+    std::strncpy(error_message, exception.what(), sizeof(error_message) - 1);
   }
+  if (error_message[0]) Rf_error("Deterministic star projection failed: %s.", error_message);
   SET_VECTOR_ELT(result, 0, Rf_ScalarLogical(available));
   if (available) SET_VECTOR_ELT(result, 1, density);
   SET_VECTOR_ELT(result, 2, Rf_ScalarReal(mass));

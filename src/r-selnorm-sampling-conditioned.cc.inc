@@ -86,7 +86,7 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
   data.z_upper = REAL(z_upper);
   data.trusted_step_partition = true;
   data.telescope_probabilities = LOGICAL(telescope_probabilities)[0] == TRUE;
-  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+  SEXP out = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
   std::fill_n(REAL(out), static_cast<R_xlen_t>(S) * K, NA_REAL);
   std::vector<double> weights(B), node_means(maximum_order);
   std::vector<long double> normalizers(maximum_order);
@@ -304,7 +304,7 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
   const char *labels[] = {project ? "log_density" : "log_normalizer", "relative_mcse",
     project ? "density" : "relative_change"};
   for (int i = 0; i < 3; ++i) {
-    SET_VECTOR_ELT(out, i, project && i == 2 ? Rf_allocMatrix(REALSXP, S, size) : Rf_allocVector(REALSXP, S));
+    SET_VECTOR_ELT(out, i, project && i == 2 ? allocate_selnorm_matrix(REALSXP, S, size) : Rf_allocVector(REALSXP, S));
     SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
   }
   Rf_setAttrib(out, R_NamesSymbol, names);
@@ -492,7 +492,7 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
   const char *labels[] = {"log_lik", "e_star", "delta", "log_normalizer",
     "relative_mcse", "relative_change"};
   for (int i = 0; i < 6; ++i) {
-    SET_VECTOR_ELT(out, i, (i == 1 || i == 2) ? Rf_allocMatrix(REALSXP, S, K) :
+    SET_VECTOR_ELT(out, i, (i == 1 || i == 2) ? allocate_selnorm_matrix(REALSXP, S, K) :
       Rf_allocVector(REALSXP, S));
     SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
   }

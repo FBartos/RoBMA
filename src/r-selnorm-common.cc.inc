@@ -3,8 +3,25 @@
 // by posterior row. These structures are non-owning call-lifetime views, and
 // validation preserves the R-level kernel semantics.
 
+void require_matrix_index_size(SEXP x, const char *name)
+{
+  if (XLENGTH(x) > std::numeric_limits<int>::max()) {
+    Rf_error("'%s' exceeds the native matrix integer indexing limit.", name);
+  }
+}
+
+SEXP allocate_selnorm_matrix(int type, int rows, int columns)
+{
+  if (rows < 0 || columns < 0 ||
+      (rows > 0 && columns > std::numeric_limits<int>::max() / rows)) {
+    Rf_error("Selection output exceeds the native matrix integer indexing limit.");
+  }
+  return Rf_allocMatrix(type, rows, columns);
+}
+
 int matrix_nrow(SEXP x, const char *name)
 {
+  require_matrix_index_size(x, name);
   SEXP dim = Rf_getAttrib(x, R_DimSymbol);
   if (TYPEOF(dim) != INTSXP || Rf_length(dim) != 2) {
     Rf_error("'%s' must be a matrix.", name);
@@ -14,6 +31,7 @@ int matrix_nrow(SEXP x, const char *name)
 
 int matrix_ncol(SEXP x, const char *name)
 {
+  require_matrix_index_size(x, name);
   SEXP dim = Rf_getAttrib(x, R_DimSymbol);
   if (TYPEOF(dim) != INTSXP || Rf_length(dim) != 2) {
     Rf_error("'%s' must be a matrix.", name);
