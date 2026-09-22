@@ -156,3 +156,7 @@ selnorm/selnorm-mv.o: selnorm/selnorm-mixture-compression.h
 
 
 ###############
+
+# R API calls and entry boundaries must be rebuilt together.
+r-glmm.o r-known-v.o r-regplot.o r-selnorm.o glmm-aghq.o: r-native-api.h r-native-boundary.h
+r-selnorm.o: r-native-probe.cc.inc

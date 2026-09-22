@@ -8,6 +8,8 @@
 
 #include "glmm-binomial-loglik.h"
 
+#include "r-native-api.h"
+
 // Keep the likelihood kernels in one translation unit while separating the
 // shared validation and marginal entry-point implementations.
 #include "r-glmm-common.cc.inc"

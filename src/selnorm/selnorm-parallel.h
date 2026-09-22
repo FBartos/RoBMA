@@ -19,6 +19,7 @@
 #include <mutex>
 #include <string>
 #include <utility>
+#include "../r-native-boundary.h"
 
 #if defined(_OPENMP)
 #include <omp.h>
@@ -133,40 +134,30 @@ template <typename Body>
 void for_rows(int rows, int threads, int chunk_rows, Body &&body)
 {
   if (rows <= 0) return;
-  bool failed = false;
+  std::exception_ptr failure;
   std::mutex failure_mutex;
-  std::string failure_message;
   const auto guarded_body = [&](int s) {
     try {
       body(s);
-    } catch (const std::exception &error) {
-      std::lock_guard<std::mutex> lock(failure_mutex);
-      if (!failed) {
-        failed = true;
-        failure_message = error.what();
-      }
     } catch (...) {
       std::lock_guard<std::mutex> lock(failure_mutex);
-      if (!failed) {
-        failed = true;
-        failure_message = "unknown native row failure";
-      }
+      if (!failure) failure = std::current_exception();
     }
   };
   if (threads <= 1) {
     for (int s = 0; s < rows; ++s) {
-      if (failed) break;
-      guarded_body(s);
-      R_CheckUserInterrupt();
+      body(s);
+      robma_native::check_interrupt();
     }
   } else {
 #if defined(_OPENMP)
+    robma_native::prepare_workers();
     // Chunks keep interrupt responsiveness and bound region-spawn overhead.
     // Without a work-aware chunk size each chunk carries at least eight rows
     // per worker of useful work.
     const int step = chunk_rows > 0 ? chunk_rows : std::max(8, rows / (threads * 8));
-    for (int start = 0; start < rows && !failed; start += step) {
-      R_CheckUserInterrupt();
+    for (int start = 0; start < rows && !failure; start += step) {
+      robma_native::check_interrupt();
       const int end = std::min(rows, start + step);
       #pragma omp parallel num_threads(threads)
       {
@@ -177,13 +168,13 @@ void for_rows(int rows, int threads, int chunk_rows, Body &&body)
 #else
     (void)threads;
     (void)chunk_rows;
+    (void)guarded_body;
     for (int s = 0; s < rows; ++s) {
-      if (failed) break;
-      guarded_body(s);
+      body(s);
     }
 #endif
   }
-  if (failed) Rf_error("%s", failure_message.c_str());
+  if (failure) std::rethrow_exception(failure);
 }
 
 template <typename Body>

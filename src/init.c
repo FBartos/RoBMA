@@ -11,6 +11,7 @@
 
 extern void getjagsversions(int *forced, int *assumed, int *detected, int *used);
 extern SEXP RoBMA_outcome_hash_raw(SEXP payload);
+extern SEXP RoBMA_native_unwind_probe(SEXP action, SEXP callback, SEXP threads);
 extern SEXP RoBMA_selnorm_cache_control(SEXP capacity_bytes, SEXP clear);
 extern SEXP RoBMA_selnorm_normal_upper_tail(SEXP x, SEXP scalar);
 extern SEXP RoBMA_selnorm_set_native_threads(SEXP threads);
@@ -463,6 +464,7 @@ extern SEXP RoBMA_selnorm_context_star_zplot(
 
 
 static const R_CallMethodDef callMethods[] = {
+    {"RoBMA_native_unwind_probe", (DL_FUNC) &RoBMA_native_unwind_probe, 3},
     {"RoBMA_outcome_hash_raw", (DL_FUNC) &RoBMA_outcome_hash_raw, 1},
     {"RoBMA_selnorm_covariance_envelope_components", (DL_FUNC) &RoBMA_selnorm_covariance_envelope_components, 3},
     {"RoBMA_selnorm_context_star_zplot", (DL_FUNC) &RoBMA_selnorm_context_star_zplot, 14},

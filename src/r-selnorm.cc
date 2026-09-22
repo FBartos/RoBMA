@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <chrono>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -30,6 +31,8 @@
 
 extern "C" double Rf_dnorm4(double, double, double, int);
 
+#include "r-native-api.h"
+
 // Private implementation fragments share one anonymous namespace and are kept in
 // this order so helper symbols stay internal to this translation unit.
 namespace {
@@ -43,6 +46,7 @@ namespace {
 #include "r-selnorm-sampling-conditioned.cc.inc"
 #include "r-selnorm-kernel.cc.inc"
 #include "r-selnorm-funnel-zcurve.cc.inc"
+#include "r-native-probe.cc.inc"
 
 // Standard-normal upper tail as the selection kernels evaluate it, exposed so
 // the package tests can certify the batched approximation against pnorm over a
@@ -50,6 +54,7 @@ namespace {
 // batch can be shown to agree.
 extern "C" SEXP RoBMA_selnorm_normal_upper_tail(SEXP x, SEXP scalar)
 {
+  ROBMA_NATIVE_BEGIN(x, scalar)
   if ((TYPEOF(x) != REALSXP && TYPEOF(x) != INTSXP) || Rf_inherits(x, "factor")) {
     Rf_error("'x' must be a numeric vector.");
   }
@@ -68,6 +73,7 @@ extern "C" SEXP RoBMA_selnorm_normal_upper_tail(SEXP x, SEXP scalar)
   }
   UNPROTECT(2);
   return out;
+  ROBMA_NATIVE_END
 }
 
 // The row schedule the batch kernels resolve for a shape, exposed so the
@@ -75,6 +81,7 @@ extern "C" SEXP RoBMA_selnorm_normal_upper_tail(SEXP x, SEXP scalar)
 // region is without timing anything.
 extern "C" SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row)
 {
+  ROBMA_NATIVE_BEGIN(rows, work_per_row)
   if ((TYPEOF(rows) != INTSXP && TYPEOF(rows) != REALSXP) || XLENGTH(rows) != 1 ||
       (TYPEOF(work_per_row) != INTSXP && TYPEOF(work_per_row) != REALSXP) ||
       XLENGTH(work_per_row) != 1) {
@@ -97,6 +104,7 @@ extern "C" SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row)
   Rf_setAttrib(out, R_NamesSymbol, names);
   UNPROTECT(2);
   return out;
+  ROBMA_NATIVE_END
 }
 
 // The rule-weight memo of the batch entry points, exposed so the package tests
@@ -107,6 +115,7 @@ extern "C" SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row)
 // registry behind it exists only for this certification entry point.
 extern "C" SEXP RoBMA_selnorm_rule_weights_check(SEXP log_weights)
 {
+  ROBMA_NATIVE_BEGIN(log_weights)
   if (TYPEOF(log_weights) != REALSXP || XLENGTH(log_weights) < 1 ||
       XLENGTH(log_weights) > std::numeric_limits<int>::max()) {
     Rf_error("'log_weights' must be a nonempty numeric vector.");
@@ -152,10 +161,12 @@ extern "C" SEXP RoBMA_selnorm_rule_weights_check(SEXP log_weights)
   Rf_setAttrib(out, R_NamesSymbol, names);
   UNPROTECT(2);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_set_native_threads(SEXP threads)
 {
+  ROBMA_NATIVE_BEGIN(threads)
   if ((TYPEOF(threads) != INTSXP && TYPEOF(threads) != REALSXP) ||
       XLENGTH(threads) != 1 || Rf_inherits(threads, "factor")) {
     Rf_error("'threads' must be one positive integer or zero for the OpenMP default.");
@@ -167,10 +178,12 @@ extern "C" SEXP RoBMA_selnorm_set_native_threads(SEXP threads)
   }
   // The replaced budget lets R-side scopes restore what they found.
   return Rf_ScalarInteger(robma_set_native_threads(static_cast<int>(value)));
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_cache_snapshot()
 {
+  ROBMA_NATIVE_BEGIN()
   for (int attempt = 0; attempt < 2; ++attempt) {
     std::size_t size = 0; char error_message[512] = {};
     try { size = cpp_selnorm_cache_snapshot_size(); }
@@ -187,10 +200,12 @@ extern "C" SEXP RoBMA_selnorm_cache_snapshot()
   }
   Rf_error("Selection cache changed during snapshot capture.");
   return R_NilValue;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_cache_restore(SEXP snapshots)
 {
+  ROBMA_NATIVE_BEGIN(snapshots)
   if (TYPEOF(snapshots) != VECSXP) Rf_error("Selection cache snapshots must be a list of raw vectors.");
   const R_xlen_t count = XLENGTH(snapshots);
   if (static_cast<std::uint64_t>(count) > std::numeric_limits<std::size_t>::max() / sizeof(SelNormCacheBlob))
@@ -222,10 +237,12 @@ extern "C" SEXP RoBMA_selnorm_cache_restore(SEXP snapshots)
   Rf_setAttrib(output, R_NamesSymbol, labels);
   UNPROTECT(2);
   return output;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_cache_control(SEXP capacity_bytes, SEXP clear_mask)
 {
+  ROBMA_NATIVE_BEGIN(capacity_bytes, clear_mask)
   if (TYPEOF(clear_mask) != INTSXP || XLENGTH(clear_mask) != 1 ||
       INTEGER(clear_mask)[0] < 0 || INTEGER(clear_mask)[0] > 3) {
     Rf_error("'clear_mask' must be one integer from 0 to 3.");
@@ -281,10 +298,12 @@ extern "C" SEXP RoBMA_selnorm_cache_control(SEXP capacity_bytes, SEXP clear_mask
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(2);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP clear)
 {
+  ROBMA_NATIVE_BEGIN(enabled, settings, clear)
   if (TYPEOF(clear) != LGLSXP || XLENGTH(clear) != 1 || LOGICAL(clear)[0] == NA_LOGICAL) {
     Rf_error("'clear' must be one non-missing logical value.");
   }
@@ -340,4 +359,5 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(2);
   return out;
+  ROBMA_NATIVE_END
 }

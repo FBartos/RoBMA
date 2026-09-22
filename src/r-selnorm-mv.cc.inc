@@ -128,6 +128,7 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
   SEXP points, SEXP scrambles, SEXP rank_one_loading,
   SEXP normalizer_quadrature, SEXP relative_tolerance)
 {
+  ROBMA_NATIVE_BEGIN(means, covariance_lower, sei, omega, z_lower, z_upper, sign, kernel_mode, vector_rule, lower, upper, qmc, points, scrambles, rank_one_loading, normalizer_quadrature, relative_tolerance)
   check_real(means, "means");
   if (rank_one_loading == R_NilValue) {
     check_real(covariance_lower, "covariance_lower");
@@ -275,6 +276,7 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
   Rf_setAttrib(out, R_NamesSymbol, names);
   UNPROTECT(7);
   return out;
+  ROBMA_NATIVE_END
 }
 
 static SEXP selnorm_mnorm_step_batch(
@@ -662,6 +664,7 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
   SEXP points, SEXP scrambles, SEXP relative_tolerance,
   SEXP return_normalizer, SEXP vector_rule, SEXP normalizer_quadrature)
 {
+  ROBMA_NATIVE_BEGIN(yi, means, covariance_lower, sei, omega, z_lower, z_upper, obs_bin, sign, telescope_probabilities, kernel_mode, qmc, points, scrambles, relative_tolerance, return_normalizer, vector_rule, normalizer_quadrature)
   check_logical(return_normalizer, "return_normalizer");
   if (LOGICAL(return_normalizer)[0] == NA_LOGICAL) {
     Rf_error("'return_normalizer' must not be missing.");
@@ -670,6 +673,7 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_loglik_batch(
     z_lower, z_upper, obs_bin, sign, telescope_probabilities, kernel_mode,
     qmc, points, scrambles, relative_tolerance, R_NilValue, R_NilValue,
     R_NilValue, LOGICAL(return_normalizer)[0], vector_rule, normalizer_quadrature);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_mnorm_zplot_batch(
@@ -679,10 +683,12 @@ extern "C" SEXP RoBMA_selnorm_mnorm_zplot_batch(
   SEXP points, SEXP scrambles, SEXP relative_tolerance,
   SEXP z, SEXP probability, SEXP factors, SEXP vector_rule)
 {
+  ROBMA_NATIVE_BEGIN(yi, means, covariance_lower, sei, omega, z_lower, z_upper, obs_bin, sign, telescope_probabilities, kernel_mode, qmc, points, scrambles, relative_tolerance, z, probability, factors, vector_rule)
   return selnorm_mnorm_step_batch(yi, means, covariance_lower, sei, omega,
     z_lower, z_upper, obs_bin, sign, telescope_probabilities, kernel_mode,
     qmc, points, scrambles, relative_tolerance, z, probability, factors, false,
     vector_rule, R_NilValue);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
@@ -693,6 +699,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
   SEXP initial_points, SEXP max_points, SEXP scrambles,
   SEXP relative_tolerance, SEXP return_normalizer, SEXP vector_rule)
 {
+  ROBMA_NATIVE_BEGIN(yi, means, residual_sd, loading, sei, omega, z_lower, z_upper, obs_bin, sign, telescope_probabilities, kernel_mode, quadrature_nodes, quadrature_log_weights, quadrature_orders, qmc, initial_points, max_points, scrambles, relative_tolerance, return_normalizer, vector_rule)
   check_logical(return_normalizer, "return_normalizer");
   if (LOGICAL(return_normalizer)[0] == NA_LOGICAL) {
     Rf_error("'return_normalizer' must not be missing.");
@@ -834,6 +841,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
   Rf_setAttrib(output, R_NamesSymbol, names);
   UNPROTECT(6);
   return output;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
@@ -844,6 +852,7 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   SEXP initial_points, SEXP max_points, SEXP scrambles,
   SEXP relative_tolerance, SEXP return_normalizer, SEXP vector_rule)
 {
+  ROBMA_NATIVE_BEGIN(yi, means, residual_sd, loading, sei, omega, z_lower, z_upper, obs_bin, sign, telescope_probabilities, kernel_mode, quadrature_nodes, quadrature_log_weights, quadrature_orders, qmc, initial_points, max_points, scrambles, relative_tolerance, return_normalizer, vector_rule)
   check_logical(return_normalizer, "return_normalizer");
   if (LOGICAL(return_normalizer)[0] == NA_LOGICAL) {
     Rf_error("'return_normalizer' must not be missing.");
@@ -1013,6 +1022,7 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   Rf_setAttrib(output, R_NamesSymbol, names);
   UNPROTECT(6);
   return output;
+  ROBMA_NATIVE_END
 }
 
 namespace {
@@ -1272,6 +1282,7 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
   SEXP z_lower, SEXP z_upper, SEXP sign, SEXP kernel_mode,
   SEXP dependency_blocks, SEXP max_attempts, SEXP vector_rule)
 {
+  ROBMA_NATIVE_BEGIN(means, covariance, sei, omega, z_lower, z_upper, sign, kernel_mode, dependency_blocks, max_attempts, vector_rule)
   check_real(means, "means");
   const bool blocked_covariance = TYPEOF(covariance) == VECSXP;
   if (!blocked_covariance) check_real(covariance, "covariance");
@@ -1732,11 +1743,13 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
 
   UNPROTECT(3);
   return output;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_covariance_envelope_components(
     SEXP covariance_lower, SEXP selection_se, SEXP upper)
 {
+  ROBMA_NATIVE_BEGIN(covariance_lower, selection_se, upper)
   check_real(covariance_lower, "covariance_lower");
   check_real(selection_se, "selection_se");
   check_logical(upper, "upper");
@@ -1835,6 +1848,7 @@ extern "C" SEXP RoBMA_selnorm_covariance_envelope_components(
   SET_VECTOR_ELT(result, 9, radius);
   UNPROTECT(9);
   return result;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_context_star_zplot(
@@ -1842,6 +1856,7 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
   SEXP lower, SEXP upper, SEXP sign, SEXP telescope, SEXP log_normalizers,
   SEXP context_log_weights, SEXP nodes, SEXP log_weights, SEXP z, SEXP allowance)
 {
+  ROBMA_NATIVE_BEGIN(means, covariance_lower, selection_se, omega, lower, upper, sign, telescope, log_normalizers, context_log_weights, nodes, log_weights, z, allowance)
   check_real(means, "means"); check_real(covariance_lower, "covariance_lower");
   check_real(selection_se, "selection_se"); check_real(omega, "omega");
   check_real(lower, "lower"); check_real(upper, "upper"); check_integer(sign, "sign");
@@ -1966,4 +1981,5 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
   Rf_setAttrib(compact, Rf_install("cdf_numerator_log_error"), cdf_numerator);
   UNPROTECT(9);
   return result;
+  ROBMA_NATIVE_END
 }

@@ -1,6 +1,7 @@
 extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
   SEXP z_sequence, SEXP mean, SEXP sd, SEXP sei)
 {
+  ROBMA_NATIVE_BEGIN(z_sequence, mean, sd, sei)
   check_real(z_sequence, "z_sequence");
   check_real(mean, "mean");
   check_real(sd, "sd");
@@ -60,6 +61,7 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
@@ -69,6 +71,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
   SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP extrapolate, SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(z_threshold, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, extrapolate, telescope_probabilities)
   check_real(z_threshold, "z_threshold");
   check_real(mean, "mean");
   check_real(sd, "sd");
@@ -279,6 +282,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
 
   UNPROTECT(4);
   return out;
+  ROBMA_NATIVE_END
 }
 
 namespace {
@@ -456,6 +460,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   SEXP extrapolate, SEXP telescope_probabilities,
   SEXP latent_sd, SEXP quadrature)
 {
+  ROBMA_NATIVE_BEGIN(z_sequence, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, extrapolate, telescope_probabilities, latent_sd, quadrature)
   check_real(z_sequence, "z_sequence");
   check_real(mean, "mean");
   check_real(sd, "sd");
@@ -1179,4 +1184,5 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
 
   UNPROTECT(n_protect);
   return out;
+  ROBMA_NATIVE_END
 }

@@ -13,6 +13,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
                                                   SEXP logit_pi_grid,
                                                   SEXP log_pi_weights)
 {
+  ROBMA_NATIVE_BEGIN(ai, ci, n1i, n2i, mu_samples, tau_within, weights, theta_grid, log_theta_weights, logit_pi_grid, log_pi_weights)
   check_integer_glmm(ai, "ai");
   check_integer_glmm(ci, "ci");
   check_integer_glmm(n1i, "n1i");
@@ -114,6 +115,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
@@ -126,6 +128,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
                                                  SEXP log_phi_grid,
                                                  SEXP log_phi_weights)
 {
+  ROBMA_NATIVE_BEGIN(x1i, x2i, t1i, t2i, mu_samples, tau_within, weights, theta_grid, log_theta_weights, log_phi_grid, log_phi_weights)
   check_integer_glmm(x1i, "x1i");
   check_integer_glmm(x2i, "x2i");
   check_real_glmm(t1i, "t1i");
@@ -219,6 +222,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_glmm_binom_marginal_loglik_row_sum(
@@ -226,6 +230,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik_row_sum(
   SEXP tau_within, SEXP weights, SEXP theta_grid,
   SEXP log_theta_weights, SEXP logit_pi_grid, SEXP log_pi_weights)
 {
+  ROBMA_NATIVE_BEGIN(ai, ci, n1i, n2i, mu_samples, tau_within, weights, theta_grid, log_theta_weights, logit_pi_grid, log_pi_weights)
   check_integer_glmm(ai, "ai");
   check_integer_glmm(ci, "ci");
   check_integer_glmm(n1i, "n1i");
@@ -308,6 +313,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik_row_sum(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_glmm_pois_marginal_loglik_row_sum(
@@ -315,6 +321,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik_row_sum(
   SEXP tau_within, SEXP weights, SEXP theta_grid,
   SEXP log_theta_weights, SEXP log_phi_grid, SEXP log_phi_weights)
 {
+  ROBMA_NATIVE_BEGIN(x1i, x2i, t1i, t2i, mu_samples, tau_within, weights, theta_grid, log_theta_weights, log_phi_grid, log_phi_weights)
   check_integer_glmm(x1i, "x1i");
   check_integer_glmm(x2i, "x2i");
   check_real_glmm(t1i, "t1i");
@@ -397,12 +404,14 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik_row_sum(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_glmm_binom_conditional_loglik_sum(
   SEXP ai, SEXP ci, SEXP n1i, SEXP n2i, SEXP mu_samples,
   SEXP logit_baserate, SEXP weights)
 {
+  ROBMA_NATIVE_BEGIN(ai, ci, n1i, n2i, mu_samples, logit_baserate, weights)
   check_integer_glmm(ai, "ai");
   check_integer_glmm(ci, "ci");
   check_integer_glmm(n1i, "n1i");
@@ -460,12 +469,14 @@ extern "C" SEXP RoBMA_glmm_binom_conditional_loglik_sum(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_glmm_pois_conditional_loglik_sum(
   SEXP x1i, SEXP x2i, SEXP t1i, SEXP t2i, SEXP mu_samples,
   SEXP log_phi, SEXP weights)
 {
+  ROBMA_NATIVE_BEGIN(x1i, x2i, t1i, t2i, mu_samples, log_phi, weights)
   check_integer_glmm(x1i, "x1i");
   check_integer_glmm(x2i, "x2i");
   check_real_glmm(t1i, "t1i");
@@ -520,4 +531,5 @@ extern "C" SEXP RoBMA_glmm_pois_conditional_loglik_sum(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }

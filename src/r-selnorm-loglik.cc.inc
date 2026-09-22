@@ -37,6 +37,7 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
   SEXP log_tau_basis, SEXP current, SEXP values, SEXP scale_update_tau,
   SEXP log_tau_delta_log)
 {
+  ROBMA_NATIVE_BEGIN(yi, sei, weights, mu, mu_basis, tau, log_tau_basis, current, values, scale_update_tau, log_tau_delta_log)
   check_real(yi, "yi");
   check_real(sei, "sei");
   check_real(current, "current");
@@ -224,11 +225,13 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
 
   UNPROTECT(4);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_norm_loglik_row_sum(
   SEXP yi, SEXP mu_samples, SEXP tau_within, SEXP sei, SEXP weights)
 {
+  ROBMA_NATIVE_BEGIN(yi, mu_samples, tau_within, sei, weights)
   check_real(yi, "yi");
   check_real(mu_samples, "mu_samples");
   check_real(tau_within, "tau_within");
@@ -270,12 +273,14 @@ extern "C" SEXP RoBMA_norm_loglik_row_sum(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_norm_cluster_analytic_loglik(
   SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
   SEXP cluster_index, SEXP cluster_size)
 {
+  ROBMA_NATIVE_BEGIN(yi, vi, mu_samples, tau_within, tau_between, cluster_index, cluster_size)
   NormClusterAnalyticArgs args;
   validate_cluster_common_data(
     yi, vi, "vi", mu_samples, tau_within, tau_between, cluster_index,
@@ -291,12 +296,14 @@ extern "C" SEXP RoBMA_norm_cluster_analytic_loglik(
   args.cluster_size  = INTEGER(cluster_size);
 
   return norm_cluster_analytic_accumulate(args, false);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_norm_cluster_analytic_loglik_row_sum(
   SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
   SEXP cluster_index, SEXP cluster_size)
 {
+  ROBMA_NATIVE_BEGIN(yi, vi, mu_samples, tau_within, tau_between, cluster_index, cluster_size)
   NormClusterAnalyticArgs args;
   validate_cluster_common_data(
     yi, vi, "vi", mu_samples, tau_within, tau_between, cluster_index,
@@ -312,12 +319,14 @@ extern "C" SEXP RoBMA_norm_cluster_analytic_loglik_row_sum(
   args.cluster_size  = INTEGER(cluster_size);
 
   return norm_cluster_analytic_accumulate(args, true);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_norm_cluster_analytic_rho_grid_loglik(
   SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_total, SEXP rho,
   SEXP cluster_index, SEXP cluster_size)
 {
+  ROBMA_NATIVE_BEGIN(yi, vi, mu_samples, tau_total, rho, cluster_index, cluster_size)
   NormClusterAnalyticArgs args;
   validate_cluster_common_data(
     yi, vi, "vi", mu_samples, tau_total, tau_total, cluster_index,
@@ -344,6 +353,7 @@ extern "C" SEXP RoBMA_norm_cluster_analytic_rho_grid_loglik(
   args.cluster_size  = INTEGER(cluster_size);
 
   return norm_cluster_analytic_rho_grid_accumulate(args, rho_p, n_rho);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_norm_cluster_loglik(
@@ -351,6 +361,7 @@ extern "C" SEXP RoBMA_norm_cluster_loglik(
   SEXP cluster_index, SEXP cluster_size, SEXP weights, SEXP gamma_grid,
   SEXP log_gamma_weights)
 {
+  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size, weights, gamma_grid, log_gamma_weights)
   NormClusterArgs args;
   validate_cluster_common_norm(
     yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size,
@@ -378,6 +389,7 @@ extern "C" SEXP RoBMA_norm_cluster_loglik(
   args.kernel_mode_len   = 0;
 
   return norm_cluster_accumulate(args);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_norm_cluster_loglik_row_sum(
@@ -385,6 +397,7 @@ extern "C" SEXP RoBMA_norm_cluster_loglik_row_sum(
   SEXP cluster_index, SEXP cluster_size, SEXP weights, SEXP gamma_grid,
   SEXP log_gamma_weights)
 {
+  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size, weights, gamma_grid, log_gamma_weights)
   NormClusterArgs args;
   validate_cluster_common_norm(
     yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size,
@@ -412,6 +425,7 @@ extern "C" SEXP RoBMA_norm_cluster_loglik_row_sum(
   args.kernel_mode_len   = 0;
 
   return norm_cluster_accumulate_row_sum(args);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_cluster_loglik(
@@ -423,6 +437,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_loglik(
   SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size, weights, gamma_grid, log_gamma_weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, obs_bin, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   NormClusterArgs args;
   validate_cluster_common_norm(
     yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size,
@@ -504,6 +519,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_loglik(
   );
 
   return norm_cluster_accumulate(args);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_cluster_loglik_row_sum(
@@ -515,6 +531,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_loglik_row_sum(
   SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size, weights, gamma_grid, log_gamma_weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, obs_bin, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   NormClusterArgs args;
   validate_cluster_common_norm(
     yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size,
@@ -596,6 +613,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_loglik_row_sum(
   );
 
   return norm_cluster_accumulate_row_sum(args);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_cluster_location_grid(
@@ -607,6 +625,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_location_grid(
   SEXP phack_z_dest, SEXP segment_bounds, SEXP segment_step_bin,
   SEXP segment_phack_region, SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, mu_basis, current, values, tau_within, tau_between, cluster_index, cluster_size, weights, gamma_grid, log_gamma_weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, obs_bin, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   NormClusterArgs args;
   validate_cluster_common_norm(
     yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size,
@@ -747,4 +766,5 @@ extern "C" SEXP RoBMA_selnorm_cluster_location_grid(
 
   UNPROTECT(3);
   return out;
+  ROBMA_NATIVE_END
 }

@@ -10,6 +10,8 @@
 
 #include "glmm-binomial-loglik.h"
 
+#include "r-native-api.h"
+
 namespace {
 
 const double LOG_2PI = std::log(2.0 * std::acos(-1.0));
@@ -1001,11 +1003,13 @@ extern "C" SEXP RoBMA_glmm_binom_aghq(
   SEXP nodes, SEXP log_weights, SEXP tolerance,
   SEXP consecutive, SEXP mode_tolerance)
 {
+  ROBMA_NATIVE_BEGIN(ai, ci, n1i, n2i, mu_samples, tau_within, weights, alpha, beta, nodes, log_weights, tolerance, consecutive, mode_tolerance)
   return run_binomial(
     ai, ci, n1i, n2i, mu_samples, tau_within, weights,
     alpha, beta, nodes, log_weights, tolerance, consecutive,
     mode_tolerance, false
   );
+  ROBMA_NATIVE_END
 }
 
 
@@ -1015,11 +1019,13 @@ extern "C" SEXP RoBMA_glmm_binom_aghq_row_sum(
   SEXP nodes, SEXP log_weights, SEXP tolerance,
   SEXP consecutive, SEXP mode_tolerance)
 {
+  ROBMA_NATIVE_BEGIN(ai, ci, n1i, n2i, mu_samples, tau_within, weights, alpha, beta, nodes, log_weights, tolerance, consecutive, mode_tolerance)
   return run_binomial(
     ai, ci, n1i, n2i, mu_samples, tau_within, weights,
     alpha, beta, nodes, log_weights, tolerance, consecutive,
     mode_tolerance, true
   );
+  ROBMA_NATIVE_END
 }
 
 
@@ -1029,11 +1035,13 @@ extern "C" SEXP RoBMA_glmm_pois_aghq(
   SEXP nodes, SEXP log_weights, SEXP tolerance,
   SEXP consecutive, SEXP mode_tolerance)
 {
+  ROBMA_NATIVE_BEGIN(x1i, x2i, t1i, t2i, mu_samples, tau_within, weights, mean, sd, nodes, log_weights, tolerance, consecutive, mode_tolerance)
   return run_poisson(
     x1i, x2i, t1i, t2i, mu_samples, tau_within, weights,
     mean, sd, nodes, log_weights, tolerance, consecutive,
     mode_tolerance, false
   );
+  ROBMA_NATIVE_END
 }
 
 
@@ -1043,9 +1051,11 @@ extern "C" SEXP RoBMA_glmm_pois_aghq_row_sum(
   SEXP nodes, SEXP log_weights, SEXP tolerance,
   SEXP consecutive, SEXP mode_tolerance)
 {
+  ROBMA_NATIVE_BEGIN(x1i, x2i, t1i, t2i, mu_samples, tau_within, weights, mean, sd, nodes, log_weights, tolerance, consecutive, mode_tolerance)
   return run_poisson(
     x1i, x2i, t1i, t2i, mu_samples, tau_within, weights,
     mean, sd, nodes, log_weights, tolerance, consecutive,
     mode_tolerance, true
   );
+  ROBMA_NATIVE_END
 }

@@ -724,6 +724,10 @@ void initialize_plan(CovariancePlan *plan, SEXP y, SEXP sampling_covariance,
       block.sparse_factor_candidate;
   }
   if (has_sparse_factor_candidate) {
+    plan->cholmod_free_factor = reinterpret_cast<decltype(plan->cholmod_free_factor)>(
+      robma_native::call(R_GetCCallable, "Matrix", "cholmod_free_factor"));
+    plan->cholmod_finish = reinterpret_cast<decltype(plan->cholmod_finish)>(
+      robma_native::call(R_GetCCallable, "Matrix", "cholmod_finish"));
     if (!M_cholmod_start(&plan->cholmod_common_state)) {
       Rf_error("Known-V sparse latent solver could not be initialized.");
     }

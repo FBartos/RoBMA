@@ -7,6 +7,7 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
     SEXP obs_bin, SEXP kernel_mode, SEXP telescope_probabilities,
     SEXP nodes, SEXP log_weights, SEXP orders, SEXP relative_tolerance)
 {
+  ROBMA_NATIVE_BEGIN(yi, means, sampling_variances, integrated_variances, total_variances, sei, omega, z_lower, z_upper, obs_bin, kernel_mode, telescope_probabilities, nodes, log_weights, orders, relative_tolerance)
   const SEXP numeric_inputs[] = {yi, means, sampling_variances, integrated_variances,
     total_variances, sei, omega, z_lower, z_upper, nodes, log_weights, relative_tolerance};
   const char *numeric_labels[] = {"yi", "means", "sampling_variances", "integrated_variances",
@@ -169,6 +170,7 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
   if (!failure.empty()) Rf_error("%s", failure.c_str());
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 
@@ -361,12 +363,14 @@ extern "C" SEXP RoBMA_selnorm_conditioned_normalizer_batch(
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
     SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders)
 {
+  ROBMA_NATIVE_BEGIN(means, diagonal, loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode, telescope_probabilities, vector_rule, group_index, qmc, initial_points, max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes, factor_log_weights, factor_orders)
   return selnorm_conditioned_normalizer_or_projection_batch(means, diagonal,
     loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode,
     telescope_probabilities, vector_rule, group_index, qmc, initial_points,
     max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights,
     cluster_orders, factor_nodes, factor_log_weights, factor_orders,
     R_NilValue, R_NilValue);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_factor_projection_batch(
@@ -378,12 +382,14 @@ extern "C" SEXP RoBMA_selnorm_factor_projection_batch(
     SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders,
     SEXP z, SEXP kind)
 {
+  ROBMA_NATIVE_BEGIN(means, diagonal, loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode, telescope_probabilities, vector_rule, group_index, qmc, initial_points, max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes, factor_log_weights, factor_orders, z, kind)
   return selnorm_conditioned_normalizer_or_projection_batch(means, diagonal,
     loading, rank, sei, omega, z_lower, z_upper, sign, kernel_mode,
     telescope_probabilities, vector_rule, group_index, qmc, initial_points,
     max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights,
     cluster_orders, factor_nodes, factor_log_weights, factor_orders,
     z, kind);
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
@@ -396,6 +402,7 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
     SEXP cluster_nodes, SEXP cluster_log_weights, SEXP cluster_orders,
     SEXP factor_nodes, SEXP factor_log_weights, SEXP factor_orders)
 {
+  ROBMA_NATIVE_BEGIN(yi, means, sampling_lower, diagonal, loading, rank, sampling_auxiliary, random_auxiliary, sei, omega, z_lower, z_upper, obs_bin, sign, kernel_mode, telescope_probabilities, vector_rule, group_index, qmc, initial_points, max_points, scrambles, relative_tolerance, cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes, factor_log_weights, factor_orders)
   const SelNormConditionedQuadrature quadrature = sampling_conditioned_quadrature(
     cluster_nodes, cluster_log_weights, cluster_orders, factor_nodes,
     factor_log_weights, factor_orders);
@@ -534,4 +541,5 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
   if (!failure.empty()) Rf_error("%s", failure.c_str());
   UNPROTECT(2);
   return out;
+  ROBMA_NATIVE_END
 }

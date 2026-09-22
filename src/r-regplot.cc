@@ -13,6 +13,8 @@
 #include "plot-root.h"
 #include "selnorm/selnorm.h"
 
+#include "r-native-api.h"
+
 // Funnel and regression plots invert the same posterior-row mixture CDF. This
 // file owns their shared normal/selected-normal evaluation and root semantics;
 // callers only construct plot-specific mean and SD matrices.
@@ -779,6 +781,7 @@ SEXP plot_mixture_quantile_matrix(SEXP mean, SEXP sd, SEXP probs,
 extern "C" SEXP RoBMA_plot_normal_mixture_quantiles(
   SEXP mean, SEXP sd, SEXP probs, SEXP weights)
 {
+  ROBMA_NATIVE_BEGIN(mean, sd, probs, weights)
   int S, K;
   plot_validate_mean_sd(mean, sd, &S, &K);
   plot_validate_probs(probs);
@@ -796,6 +799,7 @@ extern "C" SEXP RoBMA_plot_normal_mixture_quantiles(
   return plot_mixture_quantile_matrix(
     mean, sd, probs, weights, &ctx, weight_sum, false
   );
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_plot_selnorm_mixture_quantiles(
@@ -806,6 +810,7 @@ extern "C" SEXP RoBMA_plot_selnorm_mixture_quantiles(
   SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(mean, sd, se, probs, weights, selected, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   int S, K;
   plot_validate_mean_sd(mean, sd, &S, &K);
   plot_validate_probs(probs);
@@ -919,4 +924,5 @@ extern "C" SEXP RoBMA_plot_selnorm_mixture_quantiles(
     mean, sd, probs, weights, &ctx, weight_sum, true,
     REAL(se), Rf_length(se)
   );
+  ROBMA_NATIVE_END
 }

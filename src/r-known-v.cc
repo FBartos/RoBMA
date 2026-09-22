@@ -18,6 +18,17 @@
 # define FCONE
 #endif
 
+#include "r-native-api.h"
+
+// Matrix may report CHOLMOD failures through R's error handler. Protect those
+// calls just like direct R API calls; plan finalizers use resolved free hooks.
+#define M_cholmod_start(...) robma_native::call(&(M_cholmod_start), __VA_ARGS__)
+#define M_cholmod_analyze(...) robma_native::call(&(M_cholmod_analyze), __VA_ARGS__)
+#define M_cholmod_factorize(...) robma_native::call(&(M_cholmod_factorize), __VA_ARGS__)
+#define M_cholmod_factor_ldetA(...) robma_native::call(&(M_cholmod_factor_ldetA), __VA_ARGS__)
+#define M_cholmod_solve(...) robma_native::call(&(M_cholmod_solve), __VA_ARGS__)
+#define M_cholmod_free_dense(...) robma_native::call(&(M_cholmod_free_dense), __VA_ARGS__)
+
 namespace {
 
 // Private implementation fragments remain in one translation unit so the
@@ -36,6 +47,7 @@ namespace {
 // payload encoding, initial states, multipliers, or moduli.
 extern "C" SEXP RoBMA_outcome_hash_raw(SEXP payload)
 {
+  ROBMA_NATIVE_BEGIN(payload)
   if (TYPEOF(payload) != RAWSXP) {
     Rf_error("Outcome hash payload must be a raw vector.");
   }
@@ -51,6 +63,7 @@ extern "C" SEXP RoBMA_outcome_hash_raw(SEXP payload)
   REAL(out)[1] = static_cast<double>(hash2);
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_known_v_covariance_plan_create(
@@ -59,6 +72,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
     SEXP random_covariance_factors,
     SEXP block_indices)
 {
+  ROBMA_NATIVE_BEGIN(y, sampling_covariance, random_covariance_factors, block_indices)
   // Register ownership before filling the plan: invalid nested input can
   // raise an R error at any stage, and the finalizer must own partial state.
   SEXP pointer = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
@@ -169,6 +183,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   );
   UNPROTECT(10);
   return pointer;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_known_v_covariance_plan_loglik(
@@ -177,6 +192,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_loglik(
     SEXP random_covariance_states,
     SEXP extra_variance)
 {
+  ROBMA_NATIVE_BEGIN(pointer, mean, random_covariance_states, extra_variance)
   CovariancePlan *plan = plan_pointer(pointer);
   std::vector<CovarianceFactor> states = covariance_states(
     random_covariance_states,
@@ -188,6 +204,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_loglik(
     states,
     extra_variance
   ));
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_known_v_covariance_plan_loglik_batch(
@@ -196,6 +213,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_loglik_batch(
     SEXP random_covariance_states,
     SEXP extra_variances)
 {
+  ROBMA_NATIVE_BEGIN(pointer, means, random_covariance_states, extra_variances)
   CovariancePlan *plan = plan_pointer(pointer);
   const int draws = require_batched_plan_inputs(
     *plan,
@@ -220,6 +238,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_loglik_batch(
   }
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
@@ -228,6 +247,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
     SEXP group_variances,
     SEXP diagonal_variances)
 {
+  ROBMA_NATIVE_BEGIN(pointer, means, group_variances, diagonal_variances)
   CovariancePlan *plan = plan_pointer(pointer);
   if (TYPEOF(means) != REALSXP || !Rf_isMatrix(means) ||
       TYPEOF(group_variances) != REALSXP ||
@@ -409,6 +429,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 
@@ -420,6 +441,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_affine_grid_loglik(
     SEXP reference_coefficient,
     SEXP coefficients)
 {
+  ROBMA_NATIVE_BEGIN(pointer, means, base_covariances, update_covariances, reference_coefficient, coefficients)
   CovariancePlan *plan = plan_pointer(pointer);
   return plan_affine_grid_log_likelihood(
     *plan,
@@ -429,6 +451,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_affine_grid_loglik(
     reference_coefficient,
     coefficients
   );
+  ROBMA_NATIVE_END
 }
 
 
@@ -439,6 +462,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_factor_grid_loglik(
     SEXP extra_variances,
     SEXP update_grid)
 {
+  ROBMA_NATIVE_BEGIN(pointer, means, random_covariance_states, extra_variances, update_grid)
   CovariancePlan *plan = plan_pointer(pointer);
   return plan_factor_grid_log_likelihood(
     *plan,
@@ -447,6 +471,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_factor_grid_loglik(
     extra_variances,
     update_grid
   );
+  ROBMA_NATIVE_END
 }
 
 
@@ -458,6 +483,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_location_quadratic_batch(
     SEXP random_covariance_states,
     SEXP extra_variances)
 {
+  ROBMA_NATIVE_BEGIN(pointer, means, bases, random_covariance_states, extra_variances)
   CovariancePlan *plan = plan_pointer(pointer);
   const int draws = require_batched_plan_inputs(
     *plan,
@@ -504,6 +530,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_location_quadratic_batch(
   }
   UNPROTECT(4);
   return output;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik_batch(
@@ -512,6 +539,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik_batch(
     SEXP random_covariance_states,
     SEXP extra_variances)
 {
+  ROBMA_NATIVE_BEGIN(pointer, means, random_covariance_states, extra_variances)
   CovariancePlan *plan = plan_pointer(pointer);
   const int draws = require_batched_plan_inputs(
     *plan,
@@ -543,6 +571,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik_batch(
   }
   UNPROTECT(1);
   return output;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik(
@@ -551,6 +580,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik(
     SEXP random_covariance_states,
     SEXP extra_variance)
 {
+  ROBMA_NATIVE_BEGIN(pointer, mean, random_covariance_states, extra_variance)
   CovariancePlan *plan = plan_pointer(pointer);
   std::vector<CovarianceFactor> states = covariance_states(
     random_covariance_states,
@@ -562,6 +592,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_loglik(
     states,
     extra_variance
   );
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_summary_batch(
@@ -570,6 +601,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_summary_batch(
     SEXP random_covariance_states,
     SEXP extra_variances)
 {
+  ROBMA_NATIVE_BEGIN(pointer, means, random_covariance_states, extra_variances)
   CovariancePlan *plan = plan_pointer(pointer);
   const int draws = require_batched_plan_inputs(
     *plan,
@@ -610,6 +642,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_conditional_summary_batch(
   }
   UNPROTECT(4);
   return output;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_known_v_covariance_plan_precision_residual_batch(
@@ -618,6 +651,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_precision_residual_batch(
     SEXP random_covariance_states,
     SEXP extra_variances)
 {
+  ROBMA_NATIVE_BEGIN(pointer, means, random_covariance_states, extra_variances)
   CovariancePlan *plan = plan_pointer(pointer);
   const int draws = require_batched_plan_inputs(
     *plan,
@@ -649,4 +683,5 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_precision_residual_batch(
   }
   UNPROTECT(1);
   return output;
+  ROBMA_NATIVE_END
 }

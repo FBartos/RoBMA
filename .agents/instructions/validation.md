@@ -5,6 +5,21 @@ the three layers, the evidence rules and the runtime expectations. This guide
 adds only what is specific to this package's native code, and the runners are
 documented in [testing](testing.md) and [scenarios](scenarios.md).
 
+## R native error boundaries
+
+R-facing C++ entry points use `ROBMA_NATIVE_BEGIN`/`ROBMA_NATIVE_END` and include
+`r-native-api.h` after external headers. Individual allocating/error-capable R
+calls need the protected adapter; wrapping an entire C++ computation in
+`R_UnwindProtect` would still skip its destructors. Evaluate native expressions
+before entering the adapter, and preserve R continuation conditions separately
+from ordinary C++ exceptions. Keep destructors nonthrowing.
+
+Workers consume prepared numeric pointers and never call error-capable R APIs.
+The row executor materializes ALTREP views on the main thread after validation
+and transports worker exceptions to the outer boundary. Shared JAGS kernels do
+not include the R API remapping. Changes to this boundary require the focused
+native-unwind tests as well as the relevant numerical checks.
+
 ## Performance investigation
 
 ### The Poisson GLMM AGHQ layout collision
@@ -21,8 +36,10 @@ Rscript tools/bench-glmm-aghq.R --root=<other tree>   # a comparison tree
 
 **What it detects.** The Poisson AGHQ kernel `run_poisson`
 (`src/glmm-aghq.cc`, reached through `.Call("RoBMA_glmm_pois_aghq", ...)`) runs
-2.2x slower in some linked images than in others, with its own machine code
-byte-identical and at the same address in both. What moves is the placement of
+2.2x slower in some linked images than in others, with its compiled object
+byte-identical and its computation and entry address unchanged. Linked call
+and data-reference operands differ because their targets are relocated.
+What moves is the placement of
 the statically linked mingw libm bodies it calls (`exp`, `log`, `lgamma`)
 relative to it: an exact placement collides (branch-target aliasing is the
 consistent hypothesis; unproven, and naming the resource needs hardware

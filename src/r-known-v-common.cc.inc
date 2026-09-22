@@ -172,17 +172,22 @@ struct CovariancePlan {
   ~CovariancePlan()
   {
     if (cholmod_started) {
+      // Valid CHOLMOD releases neither allocate R objects nor need an R
+      // callback. Resolve their symbols during initialization, not unwinding.
+      cholmod_common_state.error_handler = nullptr;
       for (BlockPlan &block : blocks) {
         if (block.sparse_factor != nullptr) {
-          M_cholmod_free_factor(&block.sparse_factor, &cholmod_common_state);
+          cholmod_free_factor(&block.sparse_factor, &cholmod_common_state);
         }
       }
-      M_cholmod_finish(&cholmod_common_state);
+      cholmod_finish(&cholmod_common_state);
     }
   }
 
   int n;
   bool cholmod_started;
+  int (*cholmod_free_factor)(cholmod_factor **, cholmod_common *) = nullptr;
+  int (*cholmod_finish)(cholmod_common *) = nullptr;
   cholmod_common cholmod_common_state;
   std::vector<double> y;
   std::vector<double> sampling_covariance;

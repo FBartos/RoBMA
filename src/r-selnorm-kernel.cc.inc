@@ -32,6 +32,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
   SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(mean, sd, basis, current_log_norm, current, values, sei, weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   check_real(mean, "mean");
   check_real(sd, "sd");
   check_real(basis, "basis");
@@ -122,6 +123,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
@@ -132,6 +134,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
   SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(yi, mu_num, sigma_num, mu_norm, sigma_norm, sei, weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, obs_bin, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   check_real(yi, "yi");
   check_real(mu_num, "mu_num");
   check_real(sigma_num, "sigma_num");
@@ -210,6 +213,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
@@ -220,6 +224,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
   SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(yi, mu_num, sigma_num, mu_norm, sigma_norm, sei, weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, obs_bin, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   check_real(yi, "yi");
   check_real(mu_num, "mu_num");
   check_real(sigma_num, "sigma_num");
@@ -297,6 +302,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
@@ -306,6 +312,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
   SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   check_real(mean, "mean");
   check_real(sd, "sd");
   check_real(sei, "sei");
@@ -363,6 +370,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
@@ -372,6 +380,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
   SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP lower_tail, SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(x, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, lower_tail, telescope_probabilities)
   check_real(x, "q");
   check_real(mean, "mean");
   check_real(sd, "sd");
@@ -442,6 +451,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
@@ -451,6 +461,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
   SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   check_real(mean, "mean");
   check_real(sd, "sd");
   check_real(sei, "sei");
@@ -520,6 +531,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
 
   UNPROTECT(4);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
@@ -529,6 +541,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
   SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   check_real(mean, "mean");
   check_real(sd, "sd");
   check_real(sei, "sei");
@@ -582,6 +595,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
 
   UNPROTECT(1);
   return out;
+  ROBMA_NATIVE_END
 }
 
 extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
@@ -591,6 +605,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(yi, mean, sd, sei, psis_weights, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   check_real(yi, "yi");
   check_real(mean, "mean");
   check_real(sd, "sd");
@@ -773,4 +788,5 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
 
   UNPROTECT(6);
   return out;
+  ROBMA_NATIVE_END
 }
