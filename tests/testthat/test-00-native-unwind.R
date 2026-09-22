@@ -110,6 +110,45 @@ test_that("interrupted native simulations save consumed R random draws", {
   expect_identical(.native_unwind_probe("counts")[[1L]], 0L)
 })
 
+test_that("nested native simulations share their parent's active RNG stream", {
+
+  withr::local_seed(741L)
+  expected <- runif(4L)
+  set.seed(741L)
+  .native_unwind_probe("rng_callback", function() {
+    .native_unwind_probe("rng_success")
+    .native_unwind_probe("rng_success")
+  })
+  expect_identical(runif(1L), expected[[4L]])
+
+  set.seed(741L)
+  expect_error(.native_unwind_probe("rng_callback", function() {
+    .native_unwind_probe("rng_callback", function() stop("nested RNG failure"))
+  }), "nested RNG failure")
+  expect_identical(runif(1L), expected[[3L]])
+  expect_identical(.native_unwind_probe("counts")[[1L]], 0L)
+})
+
+test_that("paired RNG calls borrow and release only their own native scope", {
+
+  spec <- .test_step_spec(0, 1)
+  draw <- function() .selnorm_kernel_rng_matrix(matrix(0), matrix(1), 1,
+    matrix(1, 1L, spec$n_bins), spec, kernel_mode = 0L)[[1L]]
+  withr::local_seed(971L)
+  expected <- runif(4L)
+  set.seed(971L)
+  nested <- NULL
+  .native_unwind_probe("rng_callback", function() nested <<- draw())
+  expect_equal(nested, qnorm(expected[[3L]]), tolerance = 1e-14)
+  expect_identical(runif(1L), expected[[4L]])
+
+  # A child is the owner when the parent has not acquired RNG state.
+  set.seed(971L)
+  .native_unwind_probe("callback", function() nested <<- draw())
+  expect_equal(nested, qnorm(expected[[2L]]), tolerance = 1e-14)
+  expect_identical(runif(1L), expected[[3L]])
+})
+
 test_that("R warnings promoted to errors unwind native state", {
 
   withr::local_options(warn = 2)

@@ -58,7 +58,6 @@ inline bool in_worker()
 struct Buffer { SEXP object; void *data; R_xlen_t length; bool preserved; };
 struct Context {
   SEXP token;
-  bool rng_open = false;
   std::vector<Buffer> buffers;
   std::initializer_list<SEXP> arguments;
   ~Context() {
@@ -73,6 +72,9 @@ struct Context {
 // OpenMP publication/join barriers make the prepared ALTREP views read-only in
 // workers. Nested main-thread .Call entries restore their parent's context.
 inline Context *active_context = nullptr;
+// Nested native entries borrow the owner's in-memory RNG stream. Reloading
+// .Random.seed in a child would repeat draws not yet saved by its parent.
+inline Context *rng_owner = nullptr;
 
 template <class Function>
 SEXP protect_call(Function &&function)
@@ -234,13 +236,23 @@ inline double normal_cdf(double x, double mean, double sd, int lower, int log)
 
 inline void get_rng_state()
 {
-  call(GetRNGstate);
-  active_context->rng_open = true;
+  if (in_worker() || active_context == nullptr) {
+    error("An R API operation was requested outside the native main-thread boundary.");
+  }
+  if (rng_owner == nullptr) {
+    call(GetRNGstate);
+    rng_owner = active_context;
+  }
 }
 inline void put_rng_state()
 {
-  call(PutRNGstate);
-  active_context->rng_open = false;
+  if (in_worker() || active_context == nullptr) {
+    error("An R API operation was requested outside the native main-thread boundary.");
+  }
+  if (rng_owner == active_context) {
+    call(PutRNGstate);
+    rng_owner = nullptr;
+  }
 }
 
 template <class Function>
@@ -251,9 +263,9 @@ SEXP entry(std::initializer_list<SEXP> arguments, Function &&function)
   SEXP result = R_NilValue;
   SEXP continuation = R_NilValue;
   char message[8192] = {};
-  bool rng_open = false;
+  bool save_rng = false;
   {
-    Context context{token, false, {}, arguments};
+    Context context{token, {}, arguments};
     Context *previous = active_context;
     active_context = &context;
     try {
@@ -267,12 +279,13 @@ SEXP entry(std::initializer_list<SEXP> arguments, Function &&function)
     } catch (...) {
       std::strcpy(message, "Native C++ evaluation failed with an unknown exception.");
     }
-    rng_open = context.rng_open;
+    save_rng = rng_owner == &context;
+    if (save_rng) rng_owner = nullptr;
     active_context = previous;
   }
   // No owned C++ state or active exception remains at these R longjmp sites.
   // Save consumed RNG draws even if an error/interrupt left the simulation.
-  if (rng_open) PutRNGstate();
+  if (save_rng) PutRNGstate();
   if (continuation != R_NilValue) R_ContinueUnwind(continuation);
   if (message[0]) Rf_error("%s", message);
   UNPROTECT(1);
