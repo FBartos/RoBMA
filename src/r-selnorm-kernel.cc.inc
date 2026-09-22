@@ -560,13 +560,15 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
   for (int k = 0; k < K; ++k) {
     for (int s = 0; s < S; ++s) {
       const int cell = s + S * k;
+      const double u_bin = unif_rand();
+      const double u_interval = unif_rand();
       out_p[cell] = cpp_selnorm_kernel_rng(
         mean_p[cell],
         sd_p[cell],
         sei_p[k],
         selnorm.omega_row(s),
-        unif_rand(),
-        unif_rand(),
+        u_bin,
+        u_interval,
         selnorm.alpha_at(s),
         selnorm.phack_kind_at(s),
         selnorm.kernel_mode_at(s),
