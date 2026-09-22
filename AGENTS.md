@@ -89,8 +89,10 @@ matching `Makevars*` source lists consistent when native sources change.
 
 - Document exports with roxygen2 and `\insertCite{key}{RoBMA}`;
   vignettes use Pandoc citations.
-- For a completed feature, increment the package patch version and update
-  `NEWS.md` for the final feature state.
+- Use the fourth DESCRIPTION version component for development revisions and
+  keep NEWS under the intended three-component release. The maintainer sets the
+  final DESCRIPTION release version immediately before merging the release PR.
+  Update NEWS for the final feature state.
 - Preserve released interfaces, including the compatibility periods documented
   in the model-interface guide.
 - Use `skip_on_cran()` for computationally intensive tests. Keep `AGENTS.md`,

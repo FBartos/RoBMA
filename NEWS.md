@@ -1,5 +1,25 @@
-## version 4.1.5 (IN PROGRESS)
+## version 4.1.0 (IN PROGRESS)
 ### Fixes
+- preserves compiled random-prior branches in qCMDE likelihood evaluation and
+  derives internally generated point targets from persisted prior locations.
+- uses original outcome variances for weighted residual diagnostics, retaining
+  likelihood weights for fitting and PSIS deletion. Internally standardized
+  residuals combine the fitted projection with the original covariance, matching
+  the diagnostic convention in metafor with custom estimation weights.
+- uses within-model RMS heterogeneity for plug-in funnel contours, consistently
+  averaging integrated and conditioned heterogeneity on the variance scale.
+- preserves repeated bridge estimates in Bayes-factor and posterior-model-
+  probability comparisons, including scalar-first calls. Bayes factors retain
+  the upstream median-log-likelihood summary; posterior probabilities have one
+  row per repetition. Scalar `logml()` summaries remain available.
+- requires BayesTools 0.3.1.121 for declared transformation output support.
+  Correlation density plots accept wider display limits while curves and atoms
+  remain inside [-1, 1].
+- bounds sampling-conditioned covariance work across globally connected draws
+  and initializes caches on first use, including computations on saved fits,
+  without probing system RAM during package loading.
+- unwinds native C++ resources on R errors and interrupts and contains worker
+  exceptions before returning to R. Valid numerical kernels retain their results.
 - preserves cluster membership when checking cached LOO/WAIC results and model
   comparisons, and retains model names in ranked comparison tables.
 - handles incomplete random-effect metadata, one-row conditional predictions,
@@ -31,7 +51,8 @@
   temporarily changing the process-wide `na.action` option.
 - preserves row-specific Bayes-factor bound markers when exporting combined
   summary and model tables as data frames.
-- requires BayesTools 0.3.1.120 to integrate directional prior probabilities at
+- uses the directional prior-probability integration introduced in BayesTools
+  0.3.1.120 at
   the requested threshold, avoiding spurious grid-refinement failures in
   coefficient and model-averaged hypothesis tests.
 - preserves fixed-zero intercepts in response-only formulas such as `yi ~ 0`
@@ -144,7 +165,7 @@
   identical to all 17 digits - and the scenario fingerprints are unchanged,
   while `fit_posterior_tau` takes 10.1 s where it took 13.2 s and 0.57 GB where
   it took 1.78 GB. The log-coordinate verdict this route reads arrives with
-  BayesTools 0.3.1.116 (included in the current minimum, 0.3.1.120): an older BayesTools
+  BayesTools 0.3.1.116 (included in the current minimum, 0.3.1.121): an older BayesTools
   would report the logged intercept as non-affine and silently leave the line
   on the generic evaluator.
 - draws outcome-mode `funnel()` and `bfunnel()` contours for correlated known-`V`
@@ -1160,7 +1181,7 @@
   `RoBMA.options(default_lograte.sd = ...)` option controls this standard
   deviation. This intentionally changes default Poisson GLMM fits and makes
   prior informativeness invariant to the exposure-time unit.
-- requires BayesTools 0.3.1.120 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.121 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
@@ -1184,10 +1205,14 @@
 - removes the unreleased logical aggregate prediction mode. Explicit prediction
   rows now each represent one new true effect; use `pooled_effect()` for direct
   fitted-design aggregation.
-- corrects the `BMA.glmm()` factor-contrast default from treatment coding to
-  mean-difference coding, matching the other BMA/RoBMA constructors. This can
+- intentionally changes the `BMA.glmm()` factor-contrast default from treatment
+  coding to mean-difference coding for consistency with the other BMA/RoBMA
+  constructors. This can
   change moderator coefficient interpretation for calls that did not specify
   `set_contrast_factor_predictors` explicitly.
+- returns a `draws_array` from generic `as_draws(brma_samples)` so chain dimensions
+  are explicit. `as_draws_matrix()` remains available and retains its chain-count
+  metadata in the matrix representation.
 - gives `predict.brma()` one explicit two-axis contract across ordinary,
   multilevel, multivariate, and GLMM models: `type` selects fixed terms, latent
   effects, or observed responses, while the new `conditioning_depth` selects
