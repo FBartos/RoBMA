@@ -106,9 +106,8 @@ NULL
 # @param data The data frame to search in (can be NULL)
 # @param enclos The enclosing environment for evaluation
 # @param name The name of the argument (for error messages)
-# @param allow_NULL Logical; if TRUE, NULL values are allowed
 # @return The extracted vector or NULL
-.get_variable <- function(mf, data, enclos, name, allow_NULL = TRUE) {
+.get_variable <- function(mf, data, enclos, name) {
 
   # Check if argument is in the call
   arg_index <- match(name, names(mf))
@@ -180,9 +179,9 @@ NULL
 .check_and_list_data.optional_vars <- function(.call, data, .envir, k, primary_var) {
 
   # Extract optional variables
-  weights   <- .get_variable(.call, data, .envir, "weights",   allow_NULL = TRUE)
-  cluster   <- .get_variable(.call, data, .envir, "cluster",   allow_NULL = TRUE)
-  slab      <- .get_variable(.call, data, .envir, "slab",      allow_NULL = TRUE)
+  weights   <- .get_variable(.call, data, .envir, "weights")
+  cluster   <- .get_variable(.call, data, .envir, "cluster")
+  slab      <- .get_variable(.call, data, .envir, "slab")
 
   # Track which optional fields were provided
   weights_provided   <- !is.null(weights)
@@ -263,7 +262,7 @@ NULL
   )
 
   ### Extract the data argument first - other variables may reference columns within it
-  data <- .get_variable(.call, NULL, .envir, "data", allow_NULL = TRUE)
+  data <- .get_variable(.call, NULL, .envir, "data")
 
   ### Step 1: Extract and validate outcome variables (dispatch based on class)
   outcome_result <- switch(
@@ -332,7 +331,7 @@ NULL
   }
 
   ### Step 3: Apply subset (before NA handling)
-  subset    <- .get_variable(.call, data, .envir, "subset", allow_NULL = TRUE)
+  subset    <- .get_variable(.call, data, .envir, "subset")
   keep_rows <- rep(TRUE, k)
 
   if (!is.null(subset)) {
@@ -584,7 +583,7 @@ NULL
 .check_and_list_data.outcome.norm <- function(.call, data, .envir, effect_direction, skip_validation = FALSE) {
 
   # Extract yi (may be a formula like yi ~ mod1 + mod2)
-  yi <- .get_variable(.call, data, .envir, "yi", allow_NULL = FALSE)
+  yi <- .get_variable(.call, data, .envir, "yi")
 
   # Handle yi as formula (e.g., yi ~ mod1 + mod2)
   formula_yi   <- NULL
@@ -596,7 +595,7 @@ NULL
     .check_and_list_data.validate_fixed_formula(yi, "yi")
 
     # Check that mods is not also specified (would be ambiguous)
-    mods_check <- .get_variable(.call, data, .envir, "mods", allow_NULL = TRUE)
+    mods_check <- .get_variable(.call, data, .envir, "mods")
     if (!is.null(mods_check)) {
       stop("Cannot specify 'mods' when 'yi' is a formula. Use either 'yi ~ mod1 + mod2' or 'yi = effect, mods = ~ mod1 + mod2', but not both.", call. = FALSE)
     }
@@ -619,11 +618,11 @@ NULL
   }
 
   # Extract variance/standard error
-  vi  <- .get_variable(.call, data, .envir, "vi",  allow_NULL = TRUE)
-  sei <- .get_variable(.call, data, .envir, "sei", allow_NULL = TRUE)
+  vi  <- .get_variable(.call, data, .envir, "vi")
+  sei <- .get_variable(.call, data, .envir, "sei")
 
   # Extract ni (sample sizes) - specific to normal likelihood models
-  ni <- .get_variable(.call, data, .envir, "ni", allow_NULL = TRUE)
+  ni <- .get_variable(.call, data, .envir, "ni")
 
   ### Input validation
 
@@ -708,7 +707,7 @@ NULL
 # with a known working variance-covariance matrix.
 .check_and_list_data.outcome.mv <- function(.call, data, .envir, effect_direction, skip_validation = FALSE) {
 
-  yi <- .get_variable(.call, data, .envir, "yi", allow_NULL = FALSE)
+  yi <- .get_variable(.call, data, .envir, "yi")
 
   formula_yi   <- NULL
   mods_from_yi <- NULL
@@ -718,7 +717,7 @@ NULL
     formula_yi <- yi
     .check_and_list_data.validate_fixed_formula(yi, "yi")
 
-    mods_check <- .get_variable(.call, data, .envir, "mods", allow_NULL = TRUE)
+    mods_check <- .get_variable(.call, data, .envir, "mods")
     if (!is.null(mods_check)) {
       stop("Cannot specify 'mods' when 'yi' is a formula. Use either 'yi ~ mod1 + mod2' or 'yi = effect, mods = ~ mod1 + mod2', but not both.", call. = FALSE)
     }
@@ -738,10 +737,10 @@ NULL
     }
   }
 
-  V   <- .get_variable(.call, data, .envir, "V", allow_NULL = TRUE)
-  vi  <- .get_variable(.call, data, .envir, "vi", allow_NULL = TRUE)
-  sei <- .get_variable(.call, data, .envir, "sei", allow_NULL = TRUE)
-  ni  <- .get_variable(.call, data, .envir, "ni", allow_NULL = TRUE)
+  V   <- .get_variable(.call, data, .envir, "V")
+  vi  <- .get_variable(.call, data, .envir, "vi")
+  sei <- .get_variable(.call, data, .envir, "sei")
+  ni  <- .get_variable(.call, data, .envir, "ni")
 
   BayesTools::check_real(yi, "yi", check_length = 0, allow_NULL = FALSE, allow_NA = TRUE)
   if (all(is.na(yi)))
@@ -1014,12 +1013,12 @@ NULL
 .check_and_list_data.outcome.bin <- function(.call, data, .envir, skip_validation = FALSE) {
 
   # Extract cell counts for 2x2 tables
-  ai  <- .get_variable(.call, data, .envir, "ai",  allow_NULL = TRUE)
-  bi  <- .get_variable(.call, data, .envir, "bi",  allow_NULL = TRUE)
-  ci  <- .get_variable(.call, data, .envir, "ci",  allow_NULL = TRUE)
-  di  <- .get_variable(.call, data, .envir, "di",  allow_NULL = TRUE)
-  n1i <- .get_variable(.call, data, .envir, "n1i", allow_NULL = TRUE)
-  n2i <- .get_variable(.call, data, .envir, "n2i", allow_NULL = TRUE)
+  ai  <- .get_variable(.call, data, .envir, "ai")
+  bi  <- .get_variable(.call, data, .envir, "bi")
+  ci  <- .get_variable(.call, data, .envir, "ci")
+  di  <- .get_variable(.call, data, .envir, "di")
+  n1i <- .get_variable(.call, data, .envir, "n1i")
+  n2i <- .get_variable(.call, data, .envir, "n2i")
 
   counts <- .canonicalize_binomial_counts(
     ai              = ai,
@@ -1087,10 +1086,10 @@ NULL
 .check_and_list_data.outcome.pois <- function(.call, data, .envir, skip_validation = FALSE) {
 
   # Extract event counts and person-time for Poisson models
-  x1i <- .get_variable(.call, data, .envir, "x1i", allow_NULL = TRUE)
-  x2i <- .get_variable(.call, data, .envir, "x2i", allow_NULL = TRUE)
-  t1i <- .get_variable(.call, data, .envir, "t1i", allow_NULL = TRUE)
-  t2i <- .get_variable(.call, data, .envir, "t2i", allow_NULL = TRUE)
+  x1i <- .get_variable(.call, data, .envir, "x1i")
+  x2i <- .get_variable(.call, data, .envir, "x2i")
+  t1i <- .get_variable(.call, data, .envir, "t1i")
+  t2i <- .get_variable(.call, data, .envir, "t2i")
 
   ### Validate that all required variables are provided
   if (is.null(x1i) || is.null(x2i) || is.null(t1i) || is.null(t2i)) {
@@ -2212,6 +2211,10 @@ NULL
     )
   }))
 
+  if (is.null(na_entries)) {
+    stop("Prediction data must not contain missing values.", call. = FALSE)
+  }
+
   rows    <- sort(unique(na_entries[["row"]]))
   columns <- unique(na_entries[["column"]])
 
@@ -2808,8 +2811,10 @@ print.RoBMA_data <- function(x, n = 6, ...) {
       call_args[["cluster"]] <- quote(cluster)
     } else {
       n_new <- nrow(newdata)
-      newdata[[".RoBMA_cluster"]] <- seq_len(n_new)
-      call_args[["cluster"]] <- quote(.RoBMA_cluster)
+      newdata <- .prepare_newdata_add_placeholder(
+        newdata = newdata, name = "cluster", value = seq_len(n_new), n = n_new
+      )
+      call_args[["cluster"]] <- as.name(.prepare_newdata_parser_column(newdata, "cluster"))
     }
   }
 
