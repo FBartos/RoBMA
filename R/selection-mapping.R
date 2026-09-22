@@ -286,8 +286,24 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     prior_list = list(selection),
     one_sided  = TRUE
   )[[1L]]
+  local_cuts <- BayesTools::weightfunctions_mapping(
+    prior_list = list(selection),
+    cuts_only  = TRUE,
+    one_sided  = TRUE
+  )
+  global_to_local <- vapply(seq_len(n_bins), function(bin) {
+    local_bin <- which(
+      p_cuts[[bin]] >= local_cuts[-length(local_cuts)] &
+        p_cuts[[bin + 1L]] <= local_cuts[-1L]
+    )
+    if (length(local_bin) != 1L) {
+      stop("Selection fixed weights require a compatible global p-value grid.",
+           call. = FALSE)
+    }
+    local_bin
+  }, integer(1))
 
-  return(as.numeric(omega[mapping]))
+  return(as.numeric(omega[mapping[global_to_local]]))
 }
 
 .selection_prior_quantile <- function(prior, probability) {
