@@ -257,6 +257,8 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "src/distributions/DWN.cc",
     "src/glmm-aghq.cc",
     "src/glmm-aghq.h",
+    "src/r-native-api.h",
+    "src/r-native-boundary.h",
     "src/r-glmm.cc",
     "src/r-selnorm.cc",
     "src/r-selnorm-common.cc.inc",
@@ -265,6 +267,7 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "src/r-selnorm-loglik.cc.inc",
     "src/selnorm/selnorm-api.cc.inc",
     "src/selnorm/selnorm-boundary.cc.inc",
+    "src/selnorm/selnorm-parallel.h",
     "src/selnorm/selnorm-phack.cc.inc",
     "src/selnorm/selnorm-probability.cc.inc",
     "src/selnorm/selnorm-step.cc.inc"
@@ -394,6 +397,18 @@ test_that("package source hash refreshes after source edits", {
     useBytes = TRUE
   )
   expect_false(identical(package_source_md5(), hash_before))
+
+  for (header in c("src/r-native-api.h", "src/r-native-boundary.h",
+                   "src/selnorm/selnorm-parallel.h")) {
+    before_header_edit <- package_source_md5()
+    header_path <- file.path(package_root, header)
+    writeLines(
+      c(readLines(header_path, warn = FALSE), "#define ROBMA_NATIVE_CACHE_TEST 1"),
+      header_path,
+      useBytes = TRUE
+    )
+    expect_false(identical(package_source_md5(), before_header_edit), info = header)
+  }
 })
 
 test_that("R source hashes ignore comments and formatting", {
