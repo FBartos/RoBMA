@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Feature Coverage}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -376,8 +375,9 @@ feature_table <- function(rows) {
 }
 ```
 
-This vignette overviews current features of the `RoBMA` R package [@RoBMA].
-The table is organized by substantive capability.
+This vignette overviews selected features of the `RoBMA` R package [@RoBMA].
+The table is organized by substantive capability and covers the model families named in its columns.
+It is not a complete inventory of exported functions or the multivariate model families; additional interfaces are listed below.
 Some rows point to additional features not (yet) available in the `RoBMA` R package but featured in the `metafor` package [@metafor] as reference points.
 
 Green ticks mark available features.
@@ -481,5 +481,16 @@ rows <- list(
 
 feature_table(rows)
 ```
+
+## Additional interfaces
+
+The multivariate constructors [BMA.mv()](../reference/BMA.mv.html), [RoBMA.mv()](../reference/RoBMA.mv.html), [bselmodel.mv()](../reference/bselmodel.mv.html), [bPET.mv()](../reference/bPET.mv.html), and [bPEESE.mv()](../reference/bPEESE.mv.html) extend model averaging and publication-bias adjustment to known sampling covariances and structured random effects.
+Their method-specific restrictions are described in the constructor and post-fit reference pages; the `brma.mv` column alone does not describe their coverage.
+
+- [hypothesis()](../reference/hypothesis.html), including its `bf_hypothesis()` and `BF_hypothesis()` aliases, tests parameter hypotheses. [hypothesis_quantities()](../reference/hypothesis_quantities.html) lists supported quantities, and [density_diagnostics()](../reference/density_diagnostics.html) extracts density-estimation diagnostics.
+- [bfunnel()](../reference/funnel.html) provides the Bayesian funnel interface, and [as_metafor_forest()](../reference/as_metafor_forest.html) prepares forest-plot adapters.
+- [known_v_factor()](../reference/known_v_factor.html) represents known sampling covariance. The [prior_random() family](../reference/prior_random.html) specifies random-effect priors and includes `allocation_ref()`, `prior_lkj()`, `random_covariance()`, `random_monitor()`, `random_new_levels()`, `random_sd_source()`, and `random_variance_allocation()`.
+- [selection_model()](../reference/selection_model.html) specifies the selection target. [set_selection_likelihood_control()](../reference/set_selection_likelihood_control.html) supplies numerical integration controls, while [selection_sensitivity_diagnostics()](../reference/selection_sensitivity_diagnostics.html) examines sensitivity to selection settings.
+- [selection_cache_info()](../reference/selection_cache_info.html), [remove_selection_cache()](../reference/remove_selection_cache.html), and [selection_sampler_info()](../reference/selection_sampler_info.html) inspect and manage selection computation.
 
 ## References
