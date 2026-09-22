@@ -1311,6 +1311,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   if (!has_selection && !.is_data_joint_selection(data)) {
     return(NULL)
   }
+  .selection_runtime_ensure()
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   outcome_data      <- if (is.null(newdata)) {

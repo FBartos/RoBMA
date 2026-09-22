@@ -18,6 +18,9 @@
 #' setting supplies an explicit total byte budget; \code{0} disables storage.
 #' If the available-memory query fails, a warning is issued and caching stays
 #' disabled until a budget can be resolved or supplied explicitly.
+#' Loading the package does not query available memory. The first selection
+#' computation initializes the current process's cache, including computations
+#' on a saved fit. Explicit option changes and fitting setup also initialize it.
 #' Exact and coarse entries share one lazily allocated pool with global
 #' least-recently-used eviction. The ordinary sampler does not use coarse entries.
 #'
@@ -206,6 +209,16 @@ selection_sampler_info <- function(clear = FALSE) {
     "RoBMA_selnorm_sampler_control"), is.loaded, logical(1L), PACKAGE = "RoBMA"))
 }
 
+.selection_runtime_ensure <- function() {
+
+  if (isTRUE(RoBMA.private[["selection_runtime_initialized"]])) {
+    return(invisible(TRUE))
+  }
+  if (!.selection_runtime_available()) return(invisible(FALSE))
+  .selection_runtime_configure(.selection_runtime_settings())
+  invisible(TRUE)
+}
+
 .selection_runtime_settings <- function(options = .RoBMA_current_options(),
                                          capacity_bytes = NULL) {
 
@@ -249,6 +262,7 @@ selection_sampler_info <- function(clear = FALSE) {
   grid <- settings[["coarse_grid"]][c("mean", "variance", "log_weight")]
   .Call("RoBMA_selnorm_sampler_control", settings[["sampler"]] == "coarse_corrected",
         as.numeric(c(grid, settings[["coarse_max_rules"]])), FALSE, PACKAGE = "RoBMA")
+  RoBMA.private[["selection_runtime_initialized"]] <- TRUE
   invisible(NULL)
 }
 

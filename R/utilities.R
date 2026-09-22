@@ -77,9 +77,10 @@ RoBMA.options    <- function(...) {
   }
 
   if (length(opts) > 0L && any(startsWith(names(opts), "selection.")) &&
-      .selection_runtime_available()) {
+      .selection_runtime_available() && !isTRUE(RoBMA.private[["selection_runtime_loading"]])) {
     options <- utils::modifyList(.RoBMA_current_options(), opts)
-    capacity <- if ("selection.cache_max_bytes" %in% names(opts)) NULL else
+    capacity <- if ("selection.cache_max_bytes" %in% names(opts) ||
+                    !isTRUE(RoBMA.private[["selection_runtime_initialized"]])) NULL else
       .Call("RoBMA_selnorm_cache_control", NULL, 0L, PACKAGE = "RoBMA")[["capacity_bytes"]]
     .selection_runtime_configure(.selection_runtime_settings(options, capacity))
   }

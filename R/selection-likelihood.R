@@ -450,6 +450,7 @@ set_selection_likelihood_control <- function(
 # of once per kernel call and row block.
 .selection_joint_plan_native_args <- function(execution_plan) {
 
+  .selection_runtime_ensure()
   quadrature        <- execution_plan[["quadrature"]]
   factor_quadrature <- execution_plan[["factor_quadrature"]]
 

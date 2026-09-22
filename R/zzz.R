@@ -8,6 +8,9 @@ NULL
 
 .onLoad <- function(libname, pkgname) {
 
+  RoBMA.private[["selection_runtime_loading"]] <- TRUE
+  RoBMA.private[["selection_runtime_initialized"]] <- FALSE
+  on.exit(RoBMA.private[["selection_runtime_loading"]] <- FALSE, add = TRUE)
   requireNamespace("BayesTools")
   requireNamespace("runjags")
   requireNamespace("mvtnorm")
@@ -32,7 +35,8 @@ NULL
   .native_threads_configure(RoBMA.private[["native_threads"]])
 
   if (.selection_runtime_available()) {
-    .selection_runtime_configure(.selection_runtime_settings())
+    .selection_runtime_configure(.selection_runtime_settings(capacity_bytes = 0))
+    RoBMA.private[["selection_runtime_initialized"]] <- FALSE
   }
   .check_max_cores()
   .register_posterior_methods()
