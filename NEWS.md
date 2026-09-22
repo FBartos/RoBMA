@@ -1,5 +1,20 @@
 ## version 4.1.5 (IN PROGRESS)
 ### Fixes
+- preserves cluster membership when checking cached LOO/WAIC results and model
+  comparisons, and retains model names in ranked comparison tables.
+- handles incomplete random-effect metadata, one-row conditional predictions,
+  zero-rank known-covariance blocks, and missing standard errors with supplied
+  variances without losing dimensions, labels, or observations.
+- corrects mixed discrete/continuous density arithmetic, qCMDE refinement
+  checks, rejected-ordinate diagnostics, and covariance-grid fallback routing.
+- corrects weightfunction p-value axes, diagnostic plot limits and clipping,
+  high-confidence radial intervals, and plot random-number-state restoration.
+- validates native counts, dimensions, and selection inputs before arithmetic,
+  sequences selected-normal RNG draws explicitly, and retains the existing
+  outcome-hash values with a compiled byte-hashing loop.
+- stores sampling-conditioned covariance by declared dependency blocks and
+  chunks temporary formula-source covariance evaluation, preserving full
+  covariance and the original per-draw numerical calculations.
 - initializes native post-processing at one thread, applies the documented
   fit-specific thread budget at object-facing consumers, pins each PSOCK
   z-plot worker only after RoBMA is loaded, and restores the process's previous
@@ -46,6 +61,11 @@
   retaining the exact structural-classification requirement. Numerical
   integration accuracy remains separate diagnostic information.
 ### Features
+- exposes `hypothesis_quantities()` for discovering testable quantities and
+  `BF_hypothesis()` as the capitalized hypothesis Bayes-factor alias.
+- exports the random-effect prior helpers `allocation_ref()`, `prior_lkj()`,
+  `random_covariance()`, `random_monitor()`, `random_new_levels()`,
+  `random_sd_source()`, and `random_variance_allocation()`.
 - carries a selection model's prediction covariances one dependency block at a
   time instead of as dense posterior-draw cubes. The random, sampling, total
   and context covariances of a joint selection prediction are block-diagonal by
@@ -124,7 +144,7 @@
   identical to all 17 digits - and the scenario fingerprints are unchanged,
   while `fit_posterior_tau` takes 10.1 s where it took 13.2 s and 0.57 GB where
   it took 1.78 GB. The log-coordinate verdict this route reads arrives with
-  BayesTools 0.3.1.116, which is now the required minimum: an older BayesTools
+  BayesTools 0.3.1.116 (included in the current minimum, 0.3.1.120): an older BayesTools
   would report the logged intercept as non-affine and silently leave the line
   on the generic evaluator.
 - draws outcome-mode `funnel()` and `bfunnel()` contours for correlated known-`V`
@@ -1140,7 +1160,7 @@
   `RoBMA.options(default_lograte.sd = ...)` option controls this standard
   deviation. This intentionally changes default Poisson GLMM fits and makes
   prior informativeness invariant to the exposure-time unit.
-- requires BayesTools 0.3.1.103 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.120 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
