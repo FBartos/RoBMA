@@ -124,6 +124,10 @@
         full <- .selection_joint_event_numerator(
           mean, covariance, sei, context, plan, seq_along(index), y
         )[["log_numerator"]]
+        if (any(!is.finite(full))) {
+          stop("Selection deletion is unavailable because the observed outcomes have zero or invalid event density.",
+               call. = FALSE)
+        }
       }
       partial <- .selection_joint_checked_event(
         compute = function(control, rows = NULL) {
@@ -258,6 +262,9 @@
       }
       sampling_root <- .covariance_sampling_factor(.covariance_factorization(sampling[["covariance"]]))
       random_root <- .covariance_sampling_factor(.covariance_factorization(random[["covariance"]]))
+      if (is.null(sampling_root) || is.null(random_root)) {
+        stop("Selection deletion covariance must be positive semidefinite.", call. = FALSE)
+      }
       gain <- sampling[["covariance"]] %*% chol2inv(total_factor)
       posterior_mean <- sampling[["mean"]] + as.vector(gain %*% residual)
       # A conditional-draw root avoids subtracting nearly equal covariances.

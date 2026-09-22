@@ -484,8 +484,9 @@
 .log_lik_cluster_norm_quadrature_r <- function(setup, yi, sei,
                                                is_weightfunction,
                                                selection_context = NULL,
-                                               n_gamma = .get_cluster_likelihood_n_gamma()) {
+                                               n_gamma = NULL) {
 
+  n_gamma         <- .log_lik_cluster_norm_n_gamma(n_gamma)
   gh              <- .gauss_hermite_nodes(n_gamma)
   cluster_indices <- setup[["cluster"]]
   S               <- setup[["S"]]

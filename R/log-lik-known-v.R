@@ -655,12 +655,14 @@
   out <- stats::setNames(lapply(components, function(component) matrix(NA_real_, S, K)), components)
   direction <- if (identical(setup[["effect_direction"]], "negative")) -1 else 1
   y <- direction * setup[["yi"]]
+  equal_weights <- apply(selection[["omega"]], 1L,
+                         function(weights) all(weights == weights[1L]))
   for (row in seq_len(K)) {
     variance <- if (is.null(state)) integrated_variances[, row] else {
       state[["integrated_covariance"]][, row, row]
     }
     ordinary <- variance == 0 | selection[["kernel_mode"]] == SELKERNEL_NORMAL |
-      apply(selection[["omega"]], 1L, function(weights) all(weights == weights[1L]))
+      equal_weights
     # When selection cancels in a dependent block, retain the ordinary joint
     # Gaussian deletion calculation below, which also integrates random context.
     normal_rows <- if (independent_blocks) ordinary else rep(FALSE, S)
@@ -810,16 +812,22 @@
       )
       means <- fixed + gaussian[["mean"]]
       sd <- sqrt(gaussian[["variance"]])
-      if (any(sd == 0)) {
+      pending <- Reduce(`|`, lapply(out, function(value) is.na(value[draw, ])))
+      if (any(sd[pending] == 0)) {
         stop("Selection estimate deletion is unavailable because the deleted outcome is determined by retained outcomes. Use a larger deletion unit.",
              call. = FALSE)
       }
-      if ("log_density" %in% components) out[["log_density"]][draw, ] <- stats::dnorm(y, means, sd, log = TRUE)
-      if ("cdf" %in% components) out[["cdf"]][draw, ] <- stats::pnorm(y, means, sd, lower.tail = direction == 1)
-      if ("log_lower" %in% components) out[["log_lower"]][draw, ] <- stats::pnorm(y, means, sd, lower.tail = direction == 1, log.p = TRUE)
-      if ("log_upper" %in% components) out[["log_upper"]][draw, ] <- stats::pnorm(y, means, sd, lower.tail = direction != 1, log.p = TRUE)
-      if ("mean" %in% components) out[["mean"]][draw, ] <- direction * means
-      if ("variance" %in% components) out[["variance"]][draw, ] <- gaussian[["variance"]]
+      for (component in components) {
+        rows <- which(is.na(out[[component]][draw, ]))
+        out[[component]][draw, rows] <- switch(component,
+          log_density = stats::dnorm(y[rows], means[rows], sd[rows], log = TRUE),
+          cdf = stats::pnorm(y[rows], means[rows], sd[rows], lower.tail = direction == 1),
+          log_lower = stats::pnorm(y[rows], means[rows], sd[rows], lower.tail = direction == 1, log.p = TRUE),
+          log_upper = stats::pnorm(y[rows], means[rows], sd[rows], lower.tail = direction != 1, log.p = TRUE),
+          mean = direction * means[rows],
+          variance = gaussian[["variance"]][rows]
+        )
+      }
       next
     }
     sampling <- .selection_deleted_gaussian_coordinates(V, errors[draw, ])
