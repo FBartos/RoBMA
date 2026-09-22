@@ -488,12 +488,17 @@
     target <- "cluster_joint"
   }
 
-  list(
+  key <- list(
     unit             = unit,
     retained_context = .selection_deletion_retained_context(object[["data"]], object[["priors"]]),
     target           = target,
     data_hash        = data_hash
   )
+  if (unit == "cluster") {
+    cluster <- object[["data"]][["outcome"]][["cluster"]]
+    key[["cluster_partition"]] <- unname(split(seq_along(cluster), cluster))
+  }
+  key
 }
 
 
@@ -571,6 +576,11 @@
       "Recompute with ", recompute, ".",
       call. = FALSE
     )
+  }
+  if (unit == "cluster" &&
+      !identical(metadata[["cluster_partition"]], current[["cluster_partition"]])) {
+    stop("Stored ", method, " does not match the current cluster partition. ",
+         "Recompute with ", recompute, ".", call. = FALSE)
   }
   if (!identical(
       stored_fingerprint,
@@ -704,7 +714,6 @@
     stop("LOO/WAIC objects without RoBMA data hashes cannot be compared.",
          call. = FALSE)
   }
-
   missing_context <- vapply(
     metadata,
     function(x) is.null(x[["retained_context"]]),
@@ -726,6 +735,18 @@
       length(unique(data_hashes)) > 1) {
     stop("LOO/WAIC objects with different data, unit, or retained-context targets cannot be compared.",
          call. = FALSE)
+  }
+
+  if (identical(units[[1L]], "cluster")) {
+    partitions <- lapply(metadata, `[[`, "cluster_partition")
+    if (any(vapply(partitions, is.null, logical(1L)))) {
+      stop("Cluster LOO/WAIC objects without cluster partitions cannot be compared. Recompute with 'add_loo()' or 'add_waic()'.",
+           call. = FALSE)
+    }
+    if (!all(vapply(partitions, identical, logical(1L), partitions[[1L]]))) {
+      stop("LOO/WAIC objects with different cluster partitions cannot be compared.",
+           call. = FALSE)
+    }
   }
 
   target_kinds <- vapply(metadata, function(x) {

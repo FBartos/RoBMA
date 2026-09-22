@@ -98,6 +98,9 @@ through generic response prediction.
 Keep target metadata in `attr(x, "RoBMA_target")`. LOO comparisons must reject
 mismatched data, unit, retained context, or likelihood target. Known-`R`
 metadata is informative and is not itself a comparison key.
+Cluster-unit scores also retain the ordered row partition; matching cluster
+counts or labels alone do not make pointwise scores comparable. Recompute old
+cluster diagnostics that lack this partition metadata.
 
 ## Relevant Files
 

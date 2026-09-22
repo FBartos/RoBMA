@@ -459,6 +459,7 @@
     target           = "cluster_joint",
     n                = length(cluster_indices),
     targets          = cluster_labels,
+    cluster_partition = unname(cluster_indices),
     data_hash        = data_hash
   )
 
