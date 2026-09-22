@@ -18,8 +18,7 @@ parameter_draws.brma <- function(object, selection, ...) {
          call. = FALSE)
   }
   quantities <- selection[["quantities"]]
-  if (
-      !is.data.frame(quantities) || nrow(quantities) != 1L) {
+  if (!is.data.frame(quantities) || nrow(quantities) != 1L) {
     stop(
       "'selection' must contain one resolved BayesTools parameter quantity.",
       call. = FALSE
