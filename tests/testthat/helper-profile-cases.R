@@ -72,6 +72,83 @@ CERTIFICATION_CASE_TIMEOUT_SECONDS <- 60 * 60
 }
 
 
+required_native_test_symbols <- function() {
+
+  c(
+    paste0("RoBMA_selnorm_kernel_", c(
+      "loglik_matrix", "log_norm_matrix", "cdf_matrix", "moments_matrix",
+      "rng_matrix", "weighted_summary", "log_norm_delta_grid", "loglik_row_sum"
+    )),
+    paste0("RoBMA_known_v_covariance_plan_", c(
+      "create", "loglik_batch", "conditional_loglik_batch",
+      "conditional_summary_batch", "affine_grid_loglik", "factor_grid_loglik"
+    )),
+    "RoBMA_norm_predictor_grid_loglik",
+    "RoBMA_norm_cluster_analytic_loglik",
+    "RoBMA_selnorm_cluster_loglik",
+    "RoBMA_selnorm_cluster_location_grid",
+    "RoBMA_selnorm_sampling_conditioned_batch",
+    "RoBMA_selnorm_sampling_deletion_loglik_batch",
+    "RoBMA_selnorm_gaussian_event_mass_batch",
+    "RoBMA_glmm_binom_aghq", "RoBMA_glmm_pois_aghq",
+    "RoBMA_plot_normal_mixture_quantiles",
+    "RoBMA_plot_selnorm_mixture_quantiles",
+    "RoBMA_selnorm_zcurve_threshold_summary",
+    "RoBMA_selnorm_zcurve_density_matrix"
+  )
+}
+
+
+validate_native_test_symbols <- function(
+    registered = names(getDLLRegisteredRoutines("RoBMA")[[".Call"]]),
+    registration_source = NULL) {
+
+  required <- required_native_test_symbols()
+  if (!is.null(registration_source)) {
+    declarations <- readLines(registration_source, warn = FALSE)
+    pattern <- '^\\s*\\{\\s*"(RoBMA_[^"]+)"\\s*,\\s*\\(DL_FUNC\\)'
+    matched <- regmatches(declarations, regexec(pattern, declarations, perl = TRUE))
+    declared <- vapply(Filter(function(x) length(x) > 1L, matched), `[[`, character(1), 2L)
+    if (length(declared) == 0L) {
+      stop("No native entry-point declarations found in the test source tree.", call. = FALSE)
+    }
+    required <- union(required, declared)
+  }
+  missing <- setdiff(required, registered)
+  if (length(missing) > 0L) {
+    stop(
+      "Required native test entry points are unavailable: ",
+      paste(missing, collapse = ", "),
+      ". Rebuild and reload the tested RoBMA DLL before running this profile.",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+
+standard_required_tests <- function() {
+
+  rbind(
+    .required_tests("test-00-selection-kernel-step.R", c(
+      "step selected-normal kernel matches an independent p-bin reference",
+      "step normalizers retain central and extreme one-sided tails",
+      "step selected-normal RNG follows exact bin masses and moments"
+    )),
+    .required_tests("test-00-selection-kernel-native.R",
+      "native funnel model-averaged quantiles match R fallback"),
+    .required_tests("test-00-known-v-joint-loglik.R",
+      "native covariance plan returns exact Schur conditional densities"),
+    .required_tests("test-02-iwmde-oracles.R",
+      "qCMDE matches the conditional-normal random-effects oracle"),
+    .required_tests("test-02-pr82-estimator-integration.R", c(
+      "public density hypotheses and plots match conjugate Gaussian inference",
+      "marginal means retain genuine qCMDE curves and usable point ordinates"
+    ))
+  )
+}
+
+
 validate_test_results <- function(results) {
 
   results <- as.data.frame(results)
@@ -105,6 +182,22 @@ validate_test_results <- function(results) {
 validate_certification_evidence <- function(results, required_tests,
                                             case_name) {
 
+  .validate_required_test_evidence(
+    results, required_tests, paste0("Certification case '", case_name, "'")
+  )
+}
+
+
+validate_standard_evidence <- function(results) {
+
+  .validate_required_test_evidence(
+    results, standard_required_tests(), "Standard profile"
+  )
+}
+
+
+.validate_required_test_evidence <- function(results, required_tests, evidence_label) {
+
   if (is.null(required_tests) || nrow(required_tests) == 0L) {
     return(invisible(TRUE))
   }
@@ -114,7 +207,7 @@ validate_certification_evidence <- function(results, required_tests,
   missing_columns  <- setdiff(required_columns, names(results))
   if (length(missing_columns) > 0L) {
     stop(
-      "Certification results are missing required columns: ",
+      evidence_label, " results are missing required columns: ",
       paste(missing_columns, collapse = ", "),
       call. = FALSE
     )
@@ -128,14 +221,14 @@ validate_certification_evidence <- function(results, required_tests,
 
     if (length(matches) != 1L) {
       stop(
-        "Certification case '", case_name, "' requires exactly one result for ",
+        evidence_label, " requires exactly one result for ",
         label, ", but observed ", length(matches), ".",
         call. = FALSE
       )
     }
     if (isTRUE(results[["skipped"]][[matches]])) {
       stop(
-        "Certification case '", case_name, "' skipped required test ", label,
+        evidence_label, " skipped required test ", label,
         ".",
         call. = FALSE
       )
@@ -143,8 +236,8 @@ validate_certification_evidence <- function(results, required_tests,
     if (is.na(results[["passed"]][[matches]]) ||
         results[["passed"]][[matches]] < 1L) {
       stop(
-        "Certification case '", case_name,
-        "' recorded no passing expectations for required test ", label, ".",
+        evidence_label,
+        " recorded no passing expectations for required test ", label, ".",
         call. = FALSE
       )
     }

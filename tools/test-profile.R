@@ -102,6 +102,8 @@ run_tests <- function(filter = NULL) {
   # native code under test is the code users run and timings mean something.
   source(file.path(project_root, "tools", "optimized-dll.R"))
   ensure_optimized_dll(project_root, quiet = TRUE)
+  pkgload::load_all(project_root, compile = FALSE, helpers = FALSE, quiet = TRUE)
+  validate_native_test_symbols(registration_source = file.path(project_root, "src", "init.c"))
   results <- do.call(devtools::test, test_args)
   validate_test_results(results)
 
@@ -375,7 +377,8 @@ if (identical(profile, "standard")) {
 
   validate_fit_cache("standard")
   started <- proc.time()[["elapsed"]]
-  run_tests("00-|02-|03-")
+  results <- run_tests("00-|02-|03-")
+  validate_standard_evidence(results)
   elapsed <- proc.time()[["elapsed"]] - started
   message("Standard profile completed in ", round(elapsed, 1), " seconds.")
   if (elapsed > 15 * 60) {

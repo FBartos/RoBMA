@@ -19,7 +19,13 @@ an object or rendering without error is not sufficient representative evidence.
 | Selection target binding | All eight source cells with product and best rules, explicit child-prior precedence, publication-group agreement, estimate-level random slopes and correlated known-R ownership, unchanged weight priors and model odds, and full-error covariance/likelihood invariance across dense and factor representations. Completion tests reject impossible hard-selection contexts and non-unit observation weights under conditioned sampling while retaining unit-weight identity. | Target-matched recovery and prior-invariance cases below |
 | Whole sampling-error likelihood | Independent Gaussian Matheron source reconstruction, retained and integrated source covariance identities, ordinary-Gaussian cancellation with all sources conditioned, primitive evidence replay, analytic rank-one/deterministic normalizers, independent singular-factor orthants, PSD CDF/tail endpoints, and selected-response support. Fitted source semantics are tested independently of auxiliary backend coordinates. | Conditional recovery and dense posterior oracles below |
 | GLMM quadrature and likelihoods | Independent R integrations for representative binomial and Poisson cases | The `numerical-kernels` and `glmm-models` certification cases |
-| qCMDE/IWMDE | Analytic identities, scalar/batch parity, provenance, and failure-contract tests | Fitted bridge/ordinate evidence in the `iwmde-qcmde` case |
+| qCMDE/IWMDE | Analytic identities, scalar/batch parity, provenance, and failure-contract tests; genuine public hypotheses and plotted density curves against a conjugate known-V Gaussian posterior for both estimators; genuine marginal-means density/ordinate attachment and point-BF consumption | Fitted bridge/ordinate evidence in the `iwmde-qcmde` case |
+
+The complete standard runner enforces its named core evidence and checks the
+loaded native registration against the source declarations. Ordinary optional
+gallery skips cannot substitute for the required independent kernel and public
+estimator cases. BLUP conditioning and working VIF covariance also have small
+independent dense-algebra oracles without fitted-cache dependencies.
 
 Removed RoBMA 4.0 GLMM Q-Q snapshots are intentionally not restored because
 the current API rejects discrete outcomes until a discrete PIT convention is

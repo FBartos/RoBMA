@@ -60,6 +60,14 @@ much slower than the ordinary standard profile and does not run
 - `Rscript tools/test-profile.R release`: refresh standard fits, run the
   standard suite, run all certification cases, then call `devtools::check()`.
 
+Every profile checks the loaded DLL against the native entry points declared
+in `src/init.c` before running tests. The complete standard profile also requires
+the core oracle and real-estimator cases named by `standard_required_tests()`
+to execute with passing expectations. Missing symbols and skipped required cases
+are failures; optional dependency and extended-gallery skips remain visible and
+permitted. Filtered development runs enforce native availability but do not claim
+complete standard evidence.
+
 Every certification case has a hard one-hour limit shared by its cache
 preparation and verification phases. The phases execute in separate processes,
 so native fitting state cannot leak into post-fit verification. Certification
@@ -112,6 +120,13 @@ skip reports in profile-runner output.
   cached fit's `info` during `test-01-*`, then reuse it in post-fit tests.
 - Justify tolerances from Monte Carlo or numerical error. Do not use a fixed
   package-wide tolerance merely because it makes a test pass.
+- State numerical error explicitly with absolute, relative, log, or peak-scaled
+  comparisons where scale matters. Do not rely on testthat edition-specific
+  `expect_equal()` normalization for small probabilities or near-zero quantities.
+  Keep the current edition unless a separate migration validates its effects.
+- Use deterministic call/path guards for algorithmic work limits. Machine-specific
+  elapsed-time thresholds belong in focused performance verification, not ordinary
+  unit assertions.
 - A failing expectation requires diagnosis. Generate a candidate when the
   intended result changed; accept a verified baseline change only after
   maintainer or explicitly delegated review.

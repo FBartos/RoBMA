@@ -390,6 +390,49 @@ test_that("completed test profiles reject collected problems", {
 })
 
 
+test_that("native test preflight rejects missing required entry points", {
+
+  expect_true(isTRUE(validate_native_test_symbols()))
+  expected <- required_native_test_symbols()
+  expect_error(
+    validate_native_test_symbols(expected[-1L]),
+    expected[[1L]],
+    fixed = TRUE
+  )
+  expect_error(validate_native_test_symbols(character()),
+    "Rebuild and reload the tested RoBMA DLL", fixed = TRUE)
+  declaration <- tempfile(fileext = ".c")
+  on.exit(unlink(declaration))
+  writeLines('{"RoBMA_future_kernel", (DL_FUNC) &RoBMA_future_kernel, 1},', declaration)
+  expect_error(
+    validate_native_test_symbols(expected, registration_source = declaration),
+    "RoBMA_future_kernel", fixed = TRUE
+  )
+  expect_true(isTRUE(validate_native_test_symbols(
+    c(expected, "RoBMA_future_kernel"), registration_source = declaration
+  )))
+})
+
+
+test_that("standard evidence requires executed core cases and permits declared skips", {
+
+  required <- standard_required_tests()
+  successful <- transform(required, skipped = FALSE, passed = 1L)
+  optional <- data.frame(
+    file = "test-optional-gallery.R", test = "optional gallery",
+    skipped = TRUE, passed = 0L
+  )
+  expect_true(isTRUE(validate_standard_evidence(rbind(successful, optional))))
+  expect_error(validate_standard_evidence(successful[-1L, ]), "observed 0")
+  skipped <- successful
+  skipped[["skipped"]][[1L]] <- TRUE
+  expect_error(validate_standard_evidence(skipped), "Standard profile skipped required test")
+  empty <- successful
+  empty[["passed"]][[1L]] <- 0L
+  expect_error(validate_standard_evidence(empty), "no passing expectations")
+})
+
+
 test_that("active fit selection is explicit and fails closed", {
 
   .with_test_profile_env({
