@@ -1,6 +1,5 @@
 #' @importFrom graphics hist lines
-#' @importFrom Matrix Cholesky
-#' @importFrom stats AIC BIC coef cooks.distance dfbetas fitted hatvalues influence model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update vcov
+#' @importFrom stats AIC BIC coef cooks.distance dfbetas fitted hatvalues influence model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update
 #' @importFrom utils capture.output getFromNamespace getS3method tail
 NULL
 
@@ -30,7 +29,13 @@ NULL
   .native_threads_configure(RoBMA.private[["native_threads"]])
 
   if (.selection_runtime_available()) {
-    .selection_runtime_configure(.selection_runtime_settings())
+    # Resolve automatic RAM budgets once when fitting starts, including in
+    # worker processes that only load the namespace for post-fit evaluation.
+    capacity <- RoBMA.get_option("selection.cache_max_bytes")
+    if (identical(capacity, "auto")) {
+      capacity <- 0
+    }
+    .selection_runtime_configure(.selection_runtime_settings(capacity_bytes = capacity))
   }
   .check_max_cores()
   .register_posterior_methods()
