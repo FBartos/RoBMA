@@ -120,7 +120,7 @@
       expected_dim <- c(length(chunk), K, K)
       valid_covariance <- vapply(covariance, function(value) {
         is.array(value) && identical(dim(value), expected_dim) &&
-          all(is.finite(value))
+          all(is.finite(value)) && all(value == aperm(value, c(1L, 3L, 2L)))
       }, logical(1))
       if (!all(valid_covariance)) {
         return(NULL)

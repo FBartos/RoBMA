@@ -644,7 +644,8 @@
       conditioned_chain_id = conditioned_chain_id,
       active_mass        = plan[["rows"]][["active_mass"]],
       replacement        = plan[["replacement"]],
-      n_candidate_rows   = execution[["n_candidate_rows"]]
+      n_candidate_rows   = execution[["n_candidate_rows"]],
+      density_output     = identical(output, "density")
     )
   } else {
     density <- .iwmde_density_iwmde(
@@ -728,6 +729,8 @@
   )
 
   diagnostics <- list(
+    target_relative_mcse         = plan[["control"]][["target_relative_mcse"]],
+    all_rows_used                = isTRUE(density[["sampling_fraction"]] == 1),
     integral                    = plot_integral,
     plot_integral               = plot_integral,
     point_mass_total            = rows[["point_mass_total"]],

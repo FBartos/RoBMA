@@ -326,7 +326,7 @@
 
   sampling_relative_mcse <- .iwmde_diagnostic_scalar_any(
     diagnostics,
-    "sampling_relative_mcse"
+    c("sampling_relative_mcse", "max_sampling_relative_mcse")
   )
   target_relative_mcse <- .iwmde_diagnostic_scalar_any(
     diagnostics,

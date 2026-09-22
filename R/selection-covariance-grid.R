@@ -325,6 +325,11 @@
   if (!(maximum > 0) || any(!is.finite(weights)) || minimum < 0) {
     return(NULL)
   }
+  # Equal weights remove selection, but the Gaussian likelihood still varies
+  # with the swept mean or covariance. Let the exact Gaussian route handle it.
+  if (maximum == minimum) {
+    return(NULL)
+  }
   if (identical(shared[["family"]], "variance")) {
     column <- shared[["loading"]][rows, , drop = FALSE]
     active <- which(colSums(column != 0) > 0)
@@ -337,7 +342,7 @@
       # the update basis is not rank one on it.
       return(NULL)
     }
-    constant <- all(m == 0) || maximum == minimum
+    constant <- all(m == 0)
     D <- base[["covariance"]][rows, rows, drop = FALSE] -
       base[["coefficient"]] * (m %*% t(m))
     if (any(!is.finite(D)) || any(diag(D) <= 0)) {
@@ -365,7 +370,7 @@
   # "mean" family: the fixed block covariance with the latent direction.
   S <- base[["covariance"]][rows, rows, drop = FALSE]
   b <- base[["direction"]][rows]
-  constant <- maximum == minimum
+  constant <- all(b == 0)
   d <- if (constant) 0 else .selection_covariance_grid_direction_norm(S, b)
   if (!constant && (!is.finite(d) || d <= 0)) {
     return(NULL)

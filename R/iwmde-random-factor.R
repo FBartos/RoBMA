@@ -6,12 +6,16 @@
     context, parameter, values, row_states, replacement, active_setup) {
 
   update <- replacement[["covariance_update"]]
+  coefficient_input <- if (identical(
+    replacement[["type"]], "random_component_sd"
+  )) "quantity" else "source"
   if (!.iwmde_uses_known_v_random_marginal_likelihood(
       context, priors = active_setup[["priors"]]) ||
       !inherits(
         update,
         "BayesTools_random_effects_marginal_update_plan"
       ) || !update[["family"]] %in% c("factor", "markov") ||
+      !identical(update[["coefficient_input"]], coefficient_input) ||
       !replacement[["type"]] %in% c(
         "primitive",
         "scalar",
@@ -53,13 +57,16 @@
     data              = data,
     inputs            = inputs
   )
-  update_grid <- BayesTools::random_effects_marginal_update_grid(
+  update_grid <- tryCatch(BayesTools::random_effects_marginal_update_grid(
     fit               = inputs[["formula_fit"]],
     update            = update,
     values            = values[finite],
     posterior_samples = samples,
     prior_list        = inputs[["location_priors"]]
-  )
+  ), error = function(e) NULL)
+  if (is.null(update_grid)) {
+    return(NULL)
+  }
   factor_names <- names(random_factors[["factor_plans"]])
   factor_index <- match(update_grid[["block"]], factor_names)
   if (is.na(factor_index)) {

@@ -189,8 +189,7 @@
   has_active_census <- length(contribution_rows) ==
     length(active_population_rows) &&
     !anyNA(match(active_population_rows, contribution_rows))
-  empirical_active_mass <- length(active_population_rows) /
-    length(conditioned_rows)
+  empirical_active_mass <- mean(conditioned_rows %in% active_population_rows)
   if (!is.finite(active_mass) || active_mass <= 0 ||
       active_mass != empirical_active_mass) {
     stop("Inconsistent active mass for IWMDE contributions.", call. = FALSE)
@@ -252,7 +251,7 @@
 
   indicator <- matrix(0, nrow = 1L, ncol = length(conditioned_rows))
   indicator[, match(active_population_rows, conditioned_rows)] <- 1
-  empirical_active_mass <- mean(indicator)
+  empirical_active_mass <- mean(conditioned_rows %in% active_population_rows)
   if (!is.finite(active_mass) || active_mass <= 0 ||
       active_mass != empirical_active_mass) {
     stop("Inconsistent active mass for IWMDE contributions.", call. = FALSE)

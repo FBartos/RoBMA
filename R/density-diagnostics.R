@@ -205,7 +205,6 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   }
 
   out <- do.call(rbind, rows)
-  out <- out[!duplicated(out), , drop = FALSE]
   rownames(out) <- NULL
   class(out) <- c("RoBMA_density_diagnostics", "data.frame")
 

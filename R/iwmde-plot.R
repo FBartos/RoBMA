@@ -16,8 +16,13 @@
 
 .iwmde_histogram <- function(values, xlim, mass = 1) {
 
+  if (!is.numeric(xlim) || length(xlim) != 2L ||
+      any(!is.finite(xlim)) || xlim[1L] >= xlim[2L]) {
+    stop("IWMDE histogram range must contain two increasing finite values.",
+         call. = FALSE)
+  }
   values <- values[is.finite(values)]
-  breaks <- seq(xlim[1], xlim[2], length.out = 18)
+  breaks <- unique(seq(xlim[1], xlim[2], length.out = 18))
   mids   <- (utils::head(breaks, -1L) + utils::tail(breaks, -1L)) / 2
 
   if (length(values) == 0L) {

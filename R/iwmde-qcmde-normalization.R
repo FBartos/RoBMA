@@ -159,7 +159,7 @@
     return(list(
       pilot_index        = 1L,
       final_index        = 2L,
-      validation_index   = 2L,
+      validation_index   = 1L,
       n_refinement_steps = 1L
     ))
   }

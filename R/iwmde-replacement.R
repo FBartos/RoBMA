@@ -1692,31 +1692,31 @@
   }
 
   if (.iwmde_parameter_is_eta(parameter)) {
-    return(list(type = "fallback"))
+    return(finish(list(type = "fallback")))
   }
   formula_parameter <- .iwmde_predictor_formula_parameter(
     context = context,
     column  = parameter
   )
   if (isTRUE(formula_parameter %in% c("mu", "log_tau"))) {
-    return(list(type = "fallback"))
+    return(finish(list(type = "fallback")))
   }
 
   if (parameter %in% c("mu", "tau", "log_tau", "rho", "PET", "PEESE")) {
-    return(list(type = "scalar", name = parameter))
+    return(finish(list(type = "scalar", name = parameter)))
   }
 
   indexed <- regexec("^(.+)\\[([0-9]+)\\]$", parameter)
   match   <- regmatches(parameter, indexed)[[1]]
   if (length(match) == 3L && match[2] %in% c("gamma", "pi", "theta", "phi")) {
-    return(list(
+    return(finish(list(
       type  = "indexed",
       name  = match[2],
       index = as.integer(match[3])
-    ))
+    )))
   }
 
-  return(list(type = "fallback"))
+  return(finish(list(type = "fallback")))
 }
 
 

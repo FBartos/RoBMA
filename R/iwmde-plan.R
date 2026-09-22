@@ -247,7 +247,7 @@
     parameter_spec = parameter_spec
   )
   transform <- .iwmde_parameter_transform(support)
-  xlim <- .iwmde_plot_range(posterior_values[finite_rows], support)
+  xlim <- .iwmde_plot_range(continuous_values, support)
   if (!all(is.finite(xlim)) || xlim[1] >= xlim[2]) {
     plan[["status"]] <- "unsupported"
     plan[["reason"]] <- "could not construct a finite plotting range"

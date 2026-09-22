@@ -685,7 +685,8 @@
 
 .iwmde_qcmde_evaluate_grid_sequence <- function(
     context, parameter, display_grid, normalizer_plan, row_states,
-    replacement, estimator_rows, active_mass, denominator) {
+    replacement, estimator_rows, active_mass, denominator,
+    density_output = TRUE) {
 
   grid_sequence <- normalizer_plan[["grid_sequence"]]
   all_grid       <- normalizer_plan[["all_grid"]]
@@ -812,13 +813,13 @@
     # two settled grids cannot be rescued by refining the normalizer further,
     # and refining it is the expensive part. Two grids are kept either way, so
     # the validation diagnostics still have a pair to compare.
-    pilot_bulk_ess <- c(pilot_bulk_ess, .iwmde_qcmde_pilot_bulk_ess(
+    pilot_bulk_ess <- c(pilot_bulk_ess, if (density_output) .iwmde_qcmde_pilot_bulk_ess(
       display_grid   = display_grid,
       log_q_display  = log_q_display,
       log_normalizer = log_normalizer_sequence[[index]],
       active_mass    = active_mass,
       denominator    = denominator
-    ))
+    ) else NA_real_)
     if (index == 2L && .iwmde_qcmde_pilot_gate_hopeless(
       bulk_ess       = pilot_bulk_ess,
       estimator_rows = length(estimator_rows)
@@ -860,7 +861,8 @@
                                 expected_chain_ids = unique(chain_id),
                                 conditioned_rows = NULL,
                                 conditioned_chain_id = NULL,
-                                n_candidate_rows = length(row_states)) {
+                                n_candidate_rows = length(row_states),
+                                density_output = TRUE) {
 
   n_input_rows     <- length(row_states)
   n_candidate_rows <- as.integer(n_candidate_rows[[1L]])
@@ -887,7 +889,8 @@
     replacement      = replacement,
     estimator_rows   = estimator_rows,
     active_mass      = active_mass,
-    denominator      = n_candidate_rows
+    denominator      = n_candidate_rows,
+    density_output   = density_output
   )
   log_q_display           <- evaluation[["log_q_display"]]
   log_q_sequence          <- evaluation[["log_q_sequence"]]
