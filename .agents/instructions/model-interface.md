@@ -59,6 +59,13 @@ through exact covariance algebra and retain the generic evaluator for factor,
 Markov, and unsupported families. Do not infer affineness from posterior draws
 or evaluated covariance candidates.
 
+Post-fit mixture likelihoods keep random-source indicators with their persisted
+compiled priors, including externally bound SD sources; localize only indicators
+whose consuming priors were localized. Compute internally generated point-only
+linear targets from declared point-prior locations using the same matrix
+transformation as target draws and atom metadata. User-supplied null values
+retain exact equality semantics.
+
 BayesTools canonical names are `(formula) owner: quantity(arguments)`.
 Parentheses hold coefficient/parameter names; square brackets hold factor/index
 levels. RoBMA maps `sd`/`var`/`cor` at its I/O boundary to `tau`/`tau2`/`rho`,

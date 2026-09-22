@@ -597,17 +597,20 @@
   active         <- rep(FALSE, n)
   point_location <- rep(NA_real_, n)
 
-  point_sum   <- numeric(n)
   unsupported <- rep(FALSE, n)
   for (parameter in names(weights)) {
     states <- .iwmde_focal_prior_states(context, parameter)
     active <- active | states[["status"]] == "continuous"
     unsupported <- unsupported | states[["status"]] == "unsupported"
-    point_rows <- states[["status"]] == "point"
-    point_sum[point_rows] <- point_sum[point_rows] +
-      weights[[parameter]] * states[["location"]][point_rows]
   }
-  point_location[!active & !unsupported] <- point_sum[!active & !unsupported]
+  point_rows <- which(!active & !unsupported)
+  if (length(point_rows) > 0L) {
+    # Match target-draw and posterior-atom matrix arithmetic, using declared
+    # point-prior locations rather than sampled coordinates for these rows.
+    point_location[point_rows] <- .iwmde_linear_values(
+      context, samples[point_rows, , drop = FALSE], weights
+    )
+  }
 
   points <- .iwmde_point_mass_table(point_location, denominator = n)
 

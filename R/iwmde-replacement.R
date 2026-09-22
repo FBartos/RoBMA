@@ -1621,6 +1621,15 @@
 
 .iwmde_linear_value_row <- function(context, row, weights) {
 
+  states <- lapply(names(weights), function(parameter) {
+    .iwmde_focal_prior_state(context, parameter, row)
+  })
+  if (all(vapply(states, function(state) identical(state[["status"]], "point"), logical(1L)))) {
+    locations <- vapply(states, `[[`, numeric(1L), "location")
+    # Internally generated atom targets use this same metadata-based matrix
+    # product. Keep exact equality for externally supplied null values.
+    return(as.numeric(matrix(locations, nrow = 1L) %*% weights))
+  }
   values <- vapply(names(weights), function(parameter) {
     .iwmde_parameter_value_row(context, row, parameter)
   }, numeric(1))
