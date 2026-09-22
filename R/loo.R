@@ -790,7 +790,8 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' @aliases loo_compare
 #' @export
 loo_compare.brma <- function(x, ..., unit = "estimate") {
-  return(.loo_compare_objects(c(list(x), list(...)), unit))
+  return(.loo_compare_objects(c(list(x), list(...)), unit,
+    as.list(substitute(list(x, ...)))[-1L]))
 }
 
 
@@ -813,16 +814,25 @@ loo_compare.brma <- function(x, ..., unit = "estimate") {
 #'
 #' @export
 loo_compare.loo <- function(x, ..., unit = "estimate") {
-  return(.loo_compare_objects(c(list(x), list(...)), unit))
+  return(.loo_compare_objects(c(list(x), list(...)), unit,
+    as.list(substitute(list(x, ...)))[-1L]))
 }
 
 
-.loo_compare_objects <- function(models, unit) {
+.loo_compare_objects <- function(models, unit, expressions = NULL) {
 
   unit <- .normalize_unit(unit)
 
   if (length(models) < 2) {
     stop("At least two models are required for comparison.", call. = FALSE)
+  }
+
+  if (!is.null(expressions)) {
+    labels <- names(models)
+    if (is.null(labels)) labels <- rep("", length(models))
+    unnamed <- !nzchar(labels)
+    labels[unnamed] <- vapply(expressions[unnamed], deparse1, character(1L))
+    names(models) <- make.unique(labels)
   }
 
   loo_objects <- lapply(models, function(m) {
@@ -837,7 +847,7 @@ loo_compare.loo <- function(x, ..., unit = "estimate") {
 
   .check_loo_compare_targets(loo_objects)
   loo_compare_fun <- get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE)
-  result <- .as_legacy_loo_compare(do.call(loo_compare_fun, loo_objects))
+  result <- .as_legacy_loo_compare(loo_compare_fun(loo_objects))
 
   return(result)
 }
