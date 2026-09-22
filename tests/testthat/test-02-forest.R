@@ -540,6 +540,8 @@ test_that("metafor forest adapter validates adapter-specific arguments", {
 test_that("Forest plot for simple meta-analysis matches metafor structure", {
 
   skip_if_not_installed("metafor")
+  withr::local_seed(1, .rng_kind = "Mersenne-Twister",
+                    .rng_normal_kind = "Inversion", .rng_sample_kind = "Rejection")
 
   name        <- "bcg_meta-analysis"
   skip_if_missing_fits(name)
