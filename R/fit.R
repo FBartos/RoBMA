@@ -909,11 +909,9 @@
   if (!any(has_selection)) {
     return(character())
   }
-  p_cuts <- BayesTools::weightfunctions_mapping(
-    prior_list = bias_priors[has_selection],
-    cuts_only  = TRUE,
-    one_sided  = TRUE
-  )
+  p_cuts <- BayesTools::selection_backend_spec(
+    bias_priors[has_selection], include_init = FALSE
+  )[["step"]][["breaks"]]
 
   public_reference <- paste0(
     "omega[", p_cuts[[1L]], ",", p_cuts[[2L]], "]"
