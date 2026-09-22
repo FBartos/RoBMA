@@ -2023,12 +2023,17 @@ test_that("known-V estimate predictions use the full covariance BLUP", {
     mu    <- as.matrix(predict(fit_brma, type = "terms", quiet = TRUE))
     tau   <- as.matrix(predict(fit_brma, type = "terms.scale", quiet = TRUE))
 
-    expected <- .evaluate.brma.known_v_blup.norm(
-      mu_samples = mu,
-      tau_within = tau,
-      yi         = fit_brma[["data"]][["outcome"]][["yi"]],
-      known_V    = .data_known_v_data(fit_brma[["data"]])
-    )
+    # Condition a Gaussian estimate effect directly, using the original input
+    # covariance rather than the evaluator that predict() dispatches to.
+    V <- load_info(name)[["V"]]
+    yi <- fit_brma[["data"]][["outcome"]][["yi"]]
+    expected <- mu
+    for (draw in seq_len(nrow(mu))) {
+      Q <- diag(tau[draw, ]^2, nrow = ncol(mu))
+      expected[draw, ] <- mu[draw, ] + as.vector(
+        Q %*% solve(Q + V, yi - mu[draw, ])
+      )
+    }
 
     expect_equal(
       unname(theta),

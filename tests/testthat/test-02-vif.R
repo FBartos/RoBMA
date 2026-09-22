@@ -351,13 +351,15 @@ test_that("ordinary VIF uses posterior covariance averaging", {
     fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
     fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
   )
-  expected <- .vif_vcov_from_tau_samples(
-    X                   = X,
-    vi                  = .outcome_data_vi(object),
-    weights             = .outcome_data_weights(object),
-    tau_within_samples  = tau[["tau_within"]],
-    tau_between_samples = tau[["tau_between"]]
-  )
+  vi <- .outcome_data_vi(object)
+  weights <- .outcome_data_weights(object)
+  if (is.null(weights)) weights <- rep(1, K)
+  # Each draw defines a weighted least-squares covariance. Average those
+  # independent dense solves, not the production covariance helper's output.
+  expected <- Reduce(`+`, lapply(seq_len(nrow(tau[["tau_within"]])), function(draw) {
+    precision <- weights / (vi + tau[["tau_within"]][draw, ]^2)
+    solve(crossprod(X, X * precision))
+  })) / nrow(tau[["tau_within"]])
 
   expect_equal(.vif_vcov_brma(object, X), expected, tolerance = 1e-12)
 })

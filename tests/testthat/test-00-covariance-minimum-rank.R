@@ -249,7 +249,7 @@ test_that("a block with no low-rank structure declines without refinement", {
   # settles an unstructured or slowly decaying block before any Gauss-Newton
   # runs, which is what keeps model construction with an arbitrary dense 'V'
   # from paying a minute at input.
-  set.seed(4242L)
+  withr::local_seed(4242L)
   unstructured <- function(size) {
     entries <- matrix(stats::rnorm(size * size), size, size)
     .known_v_exact_symmetrize(crossprod(entries) / size + diag(size))
@@ -262,19 +262,22 @@ test_that("a block with no low-rank structure declines without refinement", {
     )
   }
 
-  for (block in list(unstructured(80L), autoregressive(80L))) {
-    elapsed <- system.time(
-      factor <- .covariance_minimum_rank_factor(block)
-    )[["elapsed"]]
-    expect_null(factor)
-    expect_lt(elapsed, 1)
-  }
+  local({
+    testthat::local_mocked_bindings(
+      .covariance_low_rank_polish = function(...) {
+        stop("an unstructured block must not be refined", call. = FALSE)
+      },
+      .package = "RoBMA"
+    )
+    for (block in list(unstructured(80L), autoregressive(80L))) {
+      expect_null(.covariance_minimum_rank_factor(block))
+    }
 
-  # The same for the whole input path a user reaches with a dense 'V'.
-  dense   <- unstructured(150L)
-  elapsed <- system.time(known_V <- .known_v_canonicalize(dense))[["elapsed"]]
-  expect_false(.known_v_has_certified_factor(known_V))
-  expect_lt(elapsed, 2)
+    # Enforce the same no-refinement contract through the full input path.
+    # Wall-clock thresholds cannot distinguish that contract on slower hosts.
+    known_V <- .known_v_canonicalize(unstructured(150L))
+    expect_false(.known_v_has_certified_factor(known_V))
+  })
 
   # The bound is necessary, never sufficient: exact structure at the same sizes
   # is still recovered.
@@ -299,7 +302,7 @@ test_that("a singular block declines without refinement", {
   # once per model.
   shared_se <- rep(.12, 98L)
   rank_one  <- .known_v_exact_symmetrize(tcrossprod(shared_se))
-  set.seed(6161L)
+  withr::local_seed(6161L)
   loading  <- matrix(stats::rnorm(80L * 3L, sd = .3), 80L, 3L)
   deficient <- .known_v_exact_symmetrize(tcrossprod(loading))
 
@@ -310,20 +313,13 @@ test_that("a singular block declines without refinement", {
     .package = "RoBMA"
   )
   for (block in list(rank_one, deficient)) {
-    elapsed <- system.time(
-      factor <- .covariance_minimum_rank_factor(block)
-    )[["elapsed"]]
-    expect_null(factor)
-    expect_lt(elapsed, 1)
+    expect_null(.covariance_minimum_rank_factor(block))
   }
 
   # The same for the input path: the block keeps its supplied entries and its
   # rank-one sampling factor, and construction does not pay for the search.
-  elapsed <- system.time(
-    known_V <- suppressWarnings(.known_v_canonicalize(rank_one))
-  )[["elapsed"]]
+  known_V <- suppressWarnings(.known_v_canonicalize(rank_one))
   expect_false(.known_v_has_certified_factor(known_V))
-  expect_lt(elapsed, 1)
 })
 
 
