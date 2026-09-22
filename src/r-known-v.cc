@@ -40,6 +40,17 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
   // raise an R error at any stage, and the finalizer must own partial state.
   SEXP pointer = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(pointer, finalize_plan, TRUE);
+  CovariancePlan *plan = nullptr;
+  char error_message[512] = {};
+  try {
+    plan = new CovariancePlan();
+    R_SetExternalPtrAddr(pointer, plan);
+    initialize_plan(plan, y, sampling_covariance, random_covariance_factors,
+      block_indices);
+  } catch (const std::exception &error) {
+    std::strncpy(error_message, error.what(), sizeof(error_message) - 1);
+  }
+  if (error_message[0]) Rf_error("Known-V plan construction failed: %s", error_message);
   int low_rank_blocks = 0;
   int markov_blocks = 0;
   int fixed_known_group_blocks = 0;
@@ -63,17 +74,6 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_create(
       ++sparse_factor_blocks;
     } else if (block.low_rank_eligible) {
       ++low_rank_blocks;
-  CovariancePlan *plan = nullptr;
-  char error_message[512] = {};
-  try {
-    plan = new CovariancePlan();
-    R_SetExternalPtrAddr(pointer, plan);
-    initialize_plan(plan, y, sampling_covariance, random_covariance_factors,
-      block_indices);
-  } catch (const std::exception &error) {
-    std::strncpy(error_message, error.what(), sizeof(error_message) - 1);
-  }
-  if (error_message[0]) Rf_error("Known-V plan construction failed: %s", error_message);
       sparse_assembly_blocks += block.sparse_assembly_eligible ? 1 : 0;
     } else if (block.block_base_eligible) {
       ++block_base_blocks;
