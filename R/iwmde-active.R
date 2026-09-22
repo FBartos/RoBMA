@@ -31,6 +31,7 @@
     is_PEESE          = .is_priors_PEESE(priors),
     is_weightfunction = .is_priors_weightfunction(priors)
   )
+  setup[["preserved_indicators"]] <- .iwmde_random_prior_indicators(context)
 
   assign(key, setup, envir = context[["active_cache"]])
   return(setup)
@@ -90,6 +91,12 @@
 .iwmde_active_nested_priors <- function(context, row) {
 
   priors <- context[["priors"]]
+  if (.is_data_random(context[["data"]])) {
+    # This declaration is used when compiling the model, not when evaluating
+    # its fitted likelihood. Random covariances retain the original compiled
+    # formula design and priors, including their product-space indicators.
+    priors[["random"]] <- NULL
+  }
 
   if (!is.null(priors[["outcome"]])) {
     for (name in names(priors[["outcome"]])) {
@@ -132,6 +139,42 @@
   }
 
   return(priors)
+}
+
+
+.iwmde_random_prior_indicators <- function(context) {
+
+  indicators <- context[["indicator_names"]]
+  if (!.is_data_random(context[["data"]]) || length(indicators) == 0L) {
+    return(character())
+  }
+  cache <- context[["prior_cache"]]
+  key <- "random_prior_indicators"
+  if (is.environment(cache) && exists(key, cache, inherits = FALSE)) {
+    return(get(key, cache, inherits = FALSE))
+  }
+  fit <- context[["formula_fit"]]
+  if (is.null(fit)) fit <- context[["object"]][["fit"]]
+  coordinates <- BayesTools::parameter_coordinates(fit)
+  random <- coordinates[["role"]] == "allocation" |
+    nzchar(coordinates[["random_block"]])
+  preserved <- intersect(indicators, coordinates[["coordinate_name"]][random])
+  # An externally declared SD source may remain a public scalar coordinate,
+  # rather than a random-block coordinate. Its dependency is still explicit in
+  # the persisted formula design and must retain the original source branch.
+  source_names <- intersect(names(context[["flat_prior_list"]]),
+                            coordinates[["coordinate_name"]])
+  if (length(source_names) > 0L) {
+    dependencies <- BayesTools::JAGS_formula_coordinate_dependencies(fit, source_names)
+    sources <- unique(dependencies[["coordinate_name"]][
+      dependencies[["dependency_type"]] %in%
+        c("random_sd_source", "opaque_random_sd_callback")
+    ])
+    source_indicators <- vapply(sources, .iwmde_indicator_name, character(1L))
+    preserved <- union(preserved, intersect(indicators, source_indicators))
+  }
+  if (is.environment(cache)) assign(key, preserved, cache)
+  preserved
 }
 
 

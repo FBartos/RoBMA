@@ -615,6 +615,7 @@
     )
   }
   indicator_names <- unique(indicator_names)
+  indicator_names <- setdiff(indicator_names, active_setup[["preserved_indicators"]])
   indicator_names <- intersect(indicator_names, columns)
   if (length(indicator_names) == 0L) {
     return(samples)
