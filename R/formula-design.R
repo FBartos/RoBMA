@@ -535,7 +535,7 @@
     if (is.null(assign)) {
       assign <- seq_len(ncol(X)) - 1L
     }
-    next_assign  <- max(assign) + 1L
+    next_assign  <- max(c(0L, assign)) + 1L
 
     bias_parameters <- c(if (is_PET) "PET", if (is_PEESE) "PEESE")
     for (parameter in bias_parameters) {
