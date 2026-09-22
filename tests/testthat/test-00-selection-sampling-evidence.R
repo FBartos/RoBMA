@@ -397,7 +397,7 @@ test_that("sampling-conditioned deletion retains a density with singular integra
     dimnames = list(NULL, c("mu", "tau", "rho", "gamma[1]", "sampling_z[1]", "sampling_z[2]")))
   setup <- .log_lik_posterior_setup(object$fit, samples, object$data, object$priors, "estimate", NULL)
   state <- .selection_conditioned_sampling_state(setup)
-  expect_equal(matrix(state$integrated_covariance[1, , ], 2L), matrix(.25, 2L, 2L), tolerance = 0)
+  expect_equal(.selection_covariance_draw(state$integrated_covariance, 1L), matrix(.25, 2L, 2L), tolerance = 0)
   actual <- .log_lik_estimate_from_setup(setup)
   # A shared random intercept gives a rank-one integrated covariance. Once
   # the other row and its sampling error are retained, that intercept is known;

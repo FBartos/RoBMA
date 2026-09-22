@@ -1424,14 +1424,15 @@ set_selection_likelihood_control <- function(
   contributions              <- .selection_random_source_contributions(setup)
   baseline                   <- setup[["mu"]]
   retained                   <- matrix(0, S, K)
-  retained_random_covariance <- array(0, c(S, K, K))
+  retained_random_covariance <- .block_covariance_zero(S, K)
   integrated                 <- matrix(0, S, K)
   for (source in sources) {
     contribution <- contributions[[source[["name"]]]]
     if (source[["retained"]]) {
       retained                   <- retained + contribution
-      retained_random_covariance <- retained_random_covariance +
-        .selection_random_source_covariance(setup, source)
+      retained_random_covariance <- .block_covariance_add(
+        retained_random_covariance, .selection_random_source_covariance(setup, source)
+      )
     } else {
       integrated <- integrated + contribution
     }
@@ -1440,26 +1441,24 @@ set_selection_likelihood_control <- function(
     setup[["posterior_samples"]])
   factors          <- .selection_conditioned_sampling_factors(setup)
   context          <- .selection_conditioned_sampling_context(setup)
-  covariance       <- array(0, c(S, K, K))
+  covariance       <- vector("list", length(plan[["row_blocks"]]))
   e                <- correction <- matrix(0, S, K)
   block_log_lik    <- log_normalizer <- matrix(0, S, length(plan[["row_blocks"]]))
   diagnostics      <- vector("list", length(plan[["row_blocks"]]))
   groups           <- .data_selection_model(data)[["groups"]][["group_index"]]
-  total_covariance <- retained_random_covariance
   for (index in seq_along(plan[["row_blocks"]])) {
     rows           <- plan[["row_blocks"]][[index]]
     loading        <- factors[["loadings"]][[index]]
     rank           <- dim(loading)[[3L]]
     V              <- plan[["sampling_covariance"]][rows, rows, drop = FALSE]
     retained_lower <- matrix(0, S, length(rows) * (length(rows) + 1L) / 2L)
+    covariance[[index]] <- array(0, c(S, length(rows), length(rows)))
     for (draw in seq_len(S)) {
       L <- matrix(loading[draw, , ], length(rows), rank)
-      covariance[draw, rows, rows] <- diag(factors[["diagonal"]][draw, rows],
+      covariance[[index]][draw, , ] <- diag(factors[["diagonal"]][draw, rows],
         length(rows)) + tcrossprod(L)
-      C <- V + matrix(retained_random_covariance[draw, rows, rows], length(rows))
+      C <- V + .block_covariance_sub(retained_random_covariance, draw, rows)
       retained_lower[draw, ] <- C[lower.tri(C, diag = TRUE)]
-      total_covariance[draw, rows, rows] <- C +
-        matrix(covariance[draw, rows, rows], length(rows))
     }
     result <- .Call("RoBMA_selnorm_sampling_conditioned_batch",
       as.numeric(data[["outcome"]][["yi"]][rows]), baseline[, rows, drop = FALSE],
@@ -1486,13 +1485,18 @@ set_selection_likelihood_control <- function(
     for (draw in seq_len(S)) {
       e[draw, rows] <- auxiliary[draw, rows] + as.vector(V %*% result[["delta"]][draw, ])
       baseline[draw, rows] <- setup[["mu"]][draw, rows] + retained[draw, rows] +
-        as.vector(matrix(retained_random_covariance[draw, rows, rows], length(rows)) %*%
+        as.vector(.block_covariance_sub(retained_random_covariance, draw, rows) %*%
           result[["delta"]][draw, ])
     }
     block_log_lik[, index] <- result[["log_lik"]]
     log_normalizer[, index] <- result[["log_normalizer"]]
     diagnostics[[index]] <- result[c("relative_mcse", "relative_change")]
   }
+  covariance <- .block_covariance(plan[["row_blocks"]], covariance, S, K)
+  total_covariance <- .block_covariance_add(.block_covariance_add(
+    .block_covariance_from_matrix(plan[["sampling_covariance"]], S),
+    retained_random_covariance
+  ), covariance)
   list(e = e, correction = correction, integrated_covariance = covariance,
        baseline_mu = baseline, sampling_covariance = plan[["sampling_covariance"]],
        total_covariance = total_covariance,

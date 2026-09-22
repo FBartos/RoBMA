@@ -907,26 +907,75 @@
     if (is.null(object)) {
       object <- list(fit = setup[["fit"]], data = data, priors = setup[["priors"]])
     }
-    return(.brma_mv_random_effects_marginal_vcov(
-      object            = object,
-      posterior_samples = setup[["posterior_samples"]],
-      blocks            = source[["name"]]
-    )[["samples"]])
-  }
-  covariance <- array(0, c(S, K, K))
-  if (identical(source[["role"]], "estimate")) {
-    for (row in seq_len(K)) {
-      covariance[, row, row] <- setup[["tau_within"]][, row]^2
-    }
-  } else {
-    for (rows in split(seq_len(K), data[["outcome"]][["cluster"]])) {
-      for (row in rows) for (column in rows) {
-        covariance[, row, column] <- setup[["tau_between"]][, row] *
-          setup[["tau_between"]][, column]
+    inputs <- .brma_mv_random_effects_marginal_inputs(
+      object, setup[["posterior_samples"]]
+    )
+    dependencies <- BayesTools::random_effects_dependency_matrix(
+      random_effects = inputs[["formula_design"]][["random_effects"]],
+      n_rows = K, blocks = source[["name"]]
+    )
+    blocks <- .known_v_block_indices(dependencies * 1)
+    values <- lapply(blocks, function(rows) {
+      array(0, c(S, length(rows), length(rows)))
+    })
+    for (chunk in .known_v_covariance_chunk_indices(S, K)) {
+      covariance <- .brma_mv_random_effects_marginal_vcov(
+        object            = object,
+        posterior_samples = setup[["posterior_samples"]][chunk, , drop = FALSE],
+        blocks            = source[["name"]],
+        inputs            = inputs
+      )[["samples"]]
+      # Validate each source's own dependencies; retained sources can connect
+      # rows that are independent in the integrated candidate covariance.
+      covariance <- .block_covariance_from_array(covariance, blocks)
+      for (index in seq_along(blocks)) {
+        values[[index]][chunk, , ] <- covariance[["values"]][[index]]
       }
     }
+    return(.block_covariance(blocks, values, S, K))
   }
-  covariance
+  if (identical(source[["role"]], "estimate")) {
+    scale <- setup[["tau_within"]]
+    if (nrow(scale) == 1L && S > 1L) scale <- scale[rep(1L, S), , drop = FALSE]
+    return(.block_covariance_from_diagonal(scale^2))
+  }
+  blocks <- unname(lapply(split(seq_len(K), data[["outcome"]][["cluster"]]), as.integer))
+  values <- lapply(blocks, function(rows) {
+    n <- length(rows)
+    covariance <- array(0, c(S, n, n))
+    for (row in seq_len(n)) for (column in seq_len(n)) {
+      covariance[, row, column] <- setup[["tau_between"]][, rows[[row]]] *
+        setup[["tau_between"]][, rows[[column]]]
+    }
+    covariance
+  })
+  .block_covariance(blocks, values, S, K)
+}
+
+
+# Keep dense states usable for internal callers while fitted computations store
+# only their declared covariance blocks. Factorization still sees one complete
+# K x K draw, preserving its original arithmetic and singularity decisions.
+.selection_covariance_draw <- function(covariance, draw) {
+
+  if (.is_block_covariance(covariance)) {
+    return(.block_covariance_dense(covariance, draw))
+  }
+  K <- dim(covariance)[[2L]]
+  matrix(covariance[draw, , ], K, K)
+}
+
+
+.selection_covariance_diagonal <- function(covariance) {
+
+  if (.is_block_covariance(covariance)) {
+    return(.block_covariance_diag_matrix(covariance))
+  }
+  S <- dim(covariance)[[1L]]
+  K <- dim(covariance)[[2L]]
+  out <- matrix(0, S, K)
+  for (row in seq_len(K)) out[, row] <- covariance[, row, row]
+  out
 }
 
 
@@ -941,7 +990,8 @@
     name       <- source[["name"]]
     for (draw in seq_len(setup[["S"]])) {
       contributions[[name]][draw, ] <- contributions[[name]][draw, ] +
-        as.vector(matrix(covariance[draw, , ], K, K) %*% state[["correction"]][draw, ])
+        as.vector(.selection_covariance_draw(covariance, draw) %*%
+          state[["correction"]][draw, ])
     }
   }
   contributions
@@ -961,7 +1011,7 @@
     state[["baseline_mu"]] - state[["e"]]
   weights <- matrix(0, S, K)
   for (draw in seq_len(S)) {
-    covariance <- matrix(state[["integrated_covariance"]][draw, , ], K, K)
+    covariance <- .selection_covariance_draw(state[["integrated_covariance"]], draw)
     decomposition <- .covariance_factorization(covariance)
     if (!.covariance_is_positive_semidefinite(decomposition)) {
       stop("Integrated random-effect covariance must be positive semidefinite.", call. = FALSE)
@@ -984,7 +1034,7 @@
     name <- source[["name"]]
     for (draw in seq_len(S)) {
       contributions[[name]][draw, ] <-
-        as.vector(matrix(covariance[draw, , ], K, K) %*% weights[draw, ])
+        as.vector(.selection_covariance_draw(covariance, draw) %*% weights[draw, ])
     }
   }
   contributions

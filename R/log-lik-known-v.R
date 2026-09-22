@@ -640,6 +640,8 @@
   } else {
     sampling_variances <- diag(state[["sampling_covariance"]])
     baseline_mu <- state[["baseline_mu"]]
+    integrated_variances <- .selection_covariance_diagonal(state[["integrated_covariance"]])
+    total_variances <- .selection_covariance_diagonal(state[["total_covariance"]])
   }
   sampling_means <- matrix(0, S, K)
   if (!independent_blocks) {
@@ -658,18 +660,14 @@
   equal_weights <- apply(selection[["omega"]], 1L,
                          function(weights) all(weights == weights[1L]))
   for (row in seq_len(K)) {
-    variance <- if (is.null(state)) integrated_variances[, row] else {
-      state[["integrated_covariance"]][, row, row]
-    }
+    variance <- integrated_variances[, row]
     ordinary <- variance == 0 | selection[["kernel_mode"]] == SELKERNEL_NORMAL |
       equal_weights
     # When selection cancels in a dependent block, retain the ordinary joint
     # Gaussian deletion calculation below, which also integrates random context.
     normal_rows <- if (independent_blocks) ordinary else rep(FALSE, S)
     ordinary_mean <- direction * setup[["mu"]][normal_rows, row]
-    ordinary_variance <- if (is.null(state)) total_variances[normal_rows, row] else {
-      state[["total_covariance"]][normal_rows, row, row]
-    }
+    ordinary_variance <- total_variances[normal_rows, row]
     ordinary_sd <- sqrt(ordinary_variance)
     if ("log_density" %in% components) out[["log_density"]][normal_rows, row] <- stats::dnorm(y[row], ordinary_mean, ordinary_sd, log = TRUE)
     if ("cdf" %in% components) out[["cdf"]][normal_rows, row] <- stats::pnorm(y[row], ordinary_mean, ordinary_sd, lower.tail = direction == 1)
@@ -802,13 +800,13 @@
   ordinary_covariance <- state[["total_covariance"]]
   for (draw in seq_len(S)) {
     if (!any(vapply(out, function(value) anyNA(value[draw, ]), logical(1L)))) next
-    covariance <- matrix(state[["integrated_covariance"]][draw, , ], K, K)
+    covariance <- .selection_covariance_draw(state[["integrated_covariance"]], draw)
     ordinary <- all(covariance == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
       all(selection[["omega"]][draw, ] == selection[["omega"]][draw, 1L])
     if (ordinary) {
       fixed <- direction * setup[["mu"]][draw, ]
       gaussian <- .selection_deleted_gaussian_coordinates(
-        matrix(ordinary_covariance[draw, , ], K, K), y - fixed
+        .selection_covariance_draw(ordinary_covariance, draw), y - fixed
       )
       means <- fixed + gaussian[["mean"]]
       sd <- sqrt(gaussian[["variance"]])

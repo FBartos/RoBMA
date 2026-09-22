@@ -188,9 +188,9 @@ test_that("all eight source cells preserve full-error selection and their source
         expect_equal(as.numeric(state$e), expected_sampling, tolerance = 1e-12, info = label)
         expect_equal(as.numeric(state$baseline_mu + state$e), candidate_mean,
           tolerance = 1e-12, info = label)
-        expect_equal(unname(state$total_covariance[1L, , ]), expected_covariance,
+        expect_equal(unname(.selection_covariance_draw(state$total_covariance, 1L)), expected_covariance,
           tolerance = 1e-12, info = label)
-        expect_equal(unname(state$integrated_covariance[1L, , ]), candidate_covariance,
+        expect_equal(unname(.selection_covariance_draw(state$integrated_covariance, 1L)), candidate_covariance,
           tolerance = 1e-12, info = label)
         posterior <- .selection_random_source_posterior(setup, state)
         expect_equal(as.numeric(posterior$esid_study), expected_estimate,
@@ -259,7 +259,7 @@ test_that("an estimate-level term preserves correlated known group covariance", 
       candidate_mean <- .1 + c(-.18, .12) + as.vector(V %*% delta)
       candidate_covariance <- C
       state <- .selection_conditioned_sampling_state(setup)
-      expect_equal(state$integrated_covariance[1L, , ], C, tolerance = 1e-12)
+      expect_equal(.selection_covariance_draw(state$integrated_covariance, 1L), C, tolerance = 1e-12)
       expect_equal(as.numeric(state$baseline_mu + state$e), candidate_mean,
         tolerance = 1e-12)
     }

@@ -215,7 +215,7 @@
   out <- matrix(NA_real_, S, length(units))
   ordinary_covariance <- state[["total_covariance"]]
   for (draw in seq_len(S)) {
-    covariance <- matrix(state[["integrated_covariance"]][draw, , ], K, K)
+    covariance <- .selection_covariance_draw(state[["integrated_covariance"]], draw)
     ordinary <- all(covariance == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
       all(selection[["omega"]][draw, ] == selection[["omega"]][draw, 1L])
     context <- BayesTools::selection_context_subset_rows(selection, draw)
@@ -237,7 +237,7 @@
       dimension <- length(deleted)
       if (ordinary) {
         fixed <- direction * setup[["mu"]][draw, ]
-        gaussian <- .selection_deleted_gaussian_block(matrix(ordinary_covariance[draw, , ], K, K),
+        gaussian <- .selection_deleted_gaussian_block(.selection_covariance_draw(ordinary_covariance, draw),
                                                       y - fixed, deleted)
         mean <- fixed[deleted] + gaussian[["mean"]]
         total <- gaussian[["covariance"]]
