@@ -321,7 +321,7 @@
     for (block in blocks) {
       columns <- offset + seq_len(block[["rank"]])
       model_matrix[block[["index"]], columns] <- block[["B"]]
-      offset <- max(columns)
+      offset <- offset + block[["rank"]]
     }
     residual_variance <- .known_v_residual_variance(known_V)
   } else {
@@ -356,7 +356,7 @@
 .known_v_covariance_plan_precision_rhs_batch <- function(plan_data, rhs) {
 
   S <- nrow(plan_data[["extra_variances"]])
-  K <- nrow(rhs)
+  K <- ncol(plan_data[["extra_variances"]])
   if (!is.matrix(rhs) || nrow(rhs) != K || ncol(rhs) == 0L ||
       !is.numeric(rhs) || any(!is.finite(rhs))) {
     stop("Known-V precision right-hand sides are invalid.", call. = FALSE)
