@@ -174,7 +174,7 @@
   identical to all 17 digits - and the scenario fingerprints are unchanged,
   while `fit_posterior_tau` takes 10.1 s where it took 13.2 s and 0.57 GB where
   it took 1.78 GB. The log-coordinate verdict this route reads arrives with
-  BayesTools 0.3.1.116 (included in the current minimum, 0.3.1.121): an older BayesTools
+  BayesTools 0.3.1.116 (included in the current minimum, 0.3.1.123): an older BayesTools
   would report the logged intercept as non-affine and silently leave the line
   on the generic evaluator.
 - draws outcome-mode `funnel()` and `bfunnel()` contours for correlated known-`V`
@@ -1191,13 +1191,15 @@
   `RoBMA.options(default_lograte.sd = ...)` option controls this standard
   deviation. This intentionally changes default Poisson GLMM fits and makes
   prior informativeness invariant to the exposure-time unit.
-- requires BayesTools 0.3.1.121 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.123 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
   ASTs, structural prior-ordinate classification, and exact induced formula-
-  coefficient prior densities, structured random-effect component labels, and
-  consistent base posterior-overlay spike scaling.
+  coefficient prior densities, structured random-effect component labels,
+  consistent base posterior-overlay spike scaling, factor levels selected by
+  their labels with contrast coefficients labelled `{j}`, and declared
+  undefined original-scale correlation draws.
 - requires loo 2.10.0 internally while preserving RoBMA's released numeric
   `compare.loo` matrix and printing contract.
 - removes transitional pre-release known-`V`, dense random-correlation, and
