@@ -138,30 +138,56 @@ test_that("factor-level hypotheses resolve exact transformed coordinates", {
     )
   )
   class(transform) <- c("BayesTools_formula_coefficient_transform", "list")
-  selected <- list(
-    component = "mods",
-    entry = list(
-      role              = "formula_coefficient_group",
-      formula_parameter = "mu"
-    ),
-    resolution = list(occurrences = data.frame(
-      level          = "random",
-      canonical_name = "mu_alloc__xXx__ablat[1]",
-      stringsAsFactors = FALSE
-    ))
+  # Canonical level names carry the level label; the extraction key maps a
+  # direct level cell to its coordinate. The reference level is structural and
+  # a mean-difference level combines coordinates.
+  level_names <- c(
+    random     = "mu_alloc__xXx__ablat[random]",
+    alternate  = "mu_alloc__xXx__ablat[alternate]",
+    systematic = "mu_alloc__xXx__ablat[systematic]"
   )
-  point_refs <- data.frame(level = "random", value = 0)
+  quantities <- data.frame(
+    quantity_id      = paste0("q_", names(level_names)),
+    canonical_name   = unname(level_names),
+    status           = c("sampled", "structural", "derived"),
+    fixed_value      = c(NA_real_, 0, NA_real_),
+    stringsAsFactors = FALSE
+  )
+  quantities[["extraction_key"]] <- list(
+    list(type = "factor_level", dependencies = "mu_alloc__xXx__ablat[1]",
+         weights = 1),
+    list(type = "factor_level", dependencies = character(), weights = numeric()),
+    list(type = "factor_level",
+         dependencies = c("mu_alloc__xXx__ablat[1]", "mu_alloc__xXx__ablat[2]"),
+         weights = c(0.5, 0.5))
+  )
+  selected_levels <- function(levels) {
+
+    list(
+      component = "mods",
+      entry = list(
+        role              = "formula_coefficient_group",
+        formula_parameter = "mu"
+      ),
+      resolution = list(occurrences = data.frame(
+        level          = levels,
+        canonical_name = unname(level_names[levels]),
+        quantity_id    = paste0("q_", levels),
+        stringsAsFactors = FALSE
+      ))
+    )
+  }
   testthat::local_mocked_bindings(
     JAGS_formula_coefficient_transform = function(...) transform,
+    parameter_catalog = function(...) list(quantities = quantities),
     .package = "BayesTools"
   )
+  object <- list(fit = structure(list(), class = "BayesTools_fit"))
 
   target <- .hypothesis_brma_formula_coefficient_level_targets(
-    object     = list(
-      fit = structure(list(), class = "BayesTools_fit")
-    ),
-    selected   = selected,
-    point_refs = point_refs
+    object     = object,
+    selected   = selected_levels(c("random", "alternate")),
+    point_refs = data.frame(level = c("random", "alternate"), value = 0)
   )
 
   expect_named(target, "random")
@@ -173,6 +199,18 @@ test_that("factor-level hypotheses resolve exact transformed coordinates", {
   expect_identical(
     target[["random"]][["route"]][["weights"]],
     c("mu_alloc__xXx__ablat[1]" = 0.25)
+  )
+  expect_error(
+    .hypothesis_brma_formula_coefficient_level_targets(
+      object     = object,
+      selected   = selected_levels("systematic"),
+      point_refs = data.frame(level = "systematic", value = 0)
+    ),
+    paste0(
+      "Resolved formula coefficient 'mu_alloc__xXx__ablat[systematic]' is ",
+      "absent from the fitted coefficient transformation."
+    ),
+    fixed = TRUE
   )
 })
 

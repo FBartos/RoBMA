@@ -332,6 +332,26 @@
   return(out)
 }
 
+# The fitted coordinate that a catalog quantity is identical to: the coordinate
+# of a coordinate key, or the only dependency of a factor-level key with unit
+# weight (a direct level cell or a contrast coefficient '<parameter>{j}').
+# Combinations of coordinates and structural levels have none.
+.brma_catalog_key_coordinate <- function(key) {
+
+  if (!is.list(key) || length(key[["dependencies"]]) != 1L) {
+    return(NULL)
+  }
+  if (identical(key[["type"]], "coordinate")) {
+    return(key[["dependencies"]][[1L]])
+  }
+  if (identical(key[["type"]], "factor_level") &&
+      identical(unname(as.numeric(key[["weights"]])), 1)) {
+    return(key[["dependencies"]][[1L]])
+  }
+
+  return(NULL)
+}
+
 .brma_parameter_catalog <- function(object) {
 
   if (is.null(object[["fit"]])) {

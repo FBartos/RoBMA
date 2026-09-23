@@ -1138,37 +1138,47 @@ hypothesis.brma <- function(object, hypothesis,
   }
 
   occurrences <- selected[["resolution"]][["occurrences"]]
+  quantities  <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
   out <- lapply(levels, function(level) {
     level_occurrences <- occurrences[
       !is.na(occurrences[["level"]]) & occurrences[["level"]] == level,
       ,
       drop = FALSE
     ]
-    target <- unique(level_occurrences[["canonical_name"]])
-    if (length(target) != 1L) {
+    level_name <- unique(level_occurrences[["canonical_name"]])
+    if (length(level_name) != 1L) {
       stop(
         "Resolved formula coefficient level '", level,
         "' is ambiguous in the fitted parameter catalog.",
         call. = FALSE
       )
     }
-    target_i <- match(target, transform[["target_names"]])
+    quantity <- quantities[
+      quantities[["quantity_id"]] %in%
+        unique(level_occurrences[["quantity_id"]]),
+      ,
+      drop = FALSE
+    ]
+    # Canonical level names are level labels, never coordinates: a level is a
+    # fitted coefficient only when its extraction key maps it to one
+    # coordinate with unit weight (a direct level cell).
+    target <- if (nrow(quantity) == 1L) {
+      .brma_catalog_key_coordinate(quantity[["extraction_key"]][[1L]])
+    }
+    target_i <- if (is.null(target)) {
+      NA_integer_
+    } else {
+      match(target, transform[["target_names"]])
+    }
     if (is.na(target_i)) {
-      catalog  <- BayesTools::parameter_catalog(object[["fit"]])
-      quantity <- catalog[["quantities"]][
-        catalog[["quantities"]][["quantity_id"]] %in%
-          unique(level_occurrences[["quantity_id"]]),
-        ,
-        drop = FALSE
-      ]
       fixed <- nrow(quantity) == 1L &&
-        (identical(quantity[["status"]], "fixed") ||
+        (quantity[["status"]] %in% c("fixed", "structural") ||
            is.finite(quantity[["fixed_value"]]))
       if (fixed) {
         return(NULL)
       }
       stop(
-        "Resolved formula coefficient '", target,
+        "Resolved formula coefficient '", level_name,
         "' is absent from the fitted coefficient transformation.",
         call. = FALSE
       )
