@@ -7,60 +7,81 @@ CXX_STD = CXX17
 ###  The previous file is based on that in the rjags package (version 3-10)
 ###  Original file is Copyright (C) Martyn Plummer, licensed under GPL-2
 ###
-###  Note:  This windows makefile requires the JAGS_ROOT variable to be set
+###  Note:  JAGS_ROOT may point to the JAGS installation. Without it, the newest
+###  installed /c/progra~1/JAGS/JAGS-4.* is used.
 ###
-###  This file allows compilation with JAGS 4 (or later) without modifying RoBMA.
-###  To force the package to compile assuming a given JAGS version is installed, use the
-###  JAGS_MAJOR_FORCED environmental variable.  This might be necessary on windows if you have
-###  JAGS installed in a non-standard location.
+###  RoBMA builds against the JAGS 4 module interface only; JAGS 5 is not supported.
+###  The optional JAGS_MAJOR_VERSION environmental variable (passed as JAGS_MAJOR_FORCED)
+###  must name JAGS 4.
 ###
 ######################################################################################################
 
-## Conditionally set the JAGS_ROOT variable (if it is not already set) to a location specified by the CRAN team:
-JAGS_ROOT ?= /c/progra~1/JAGS/JAGS-4.3.1
+## RoBMA builds against the JAGS 4 module interface only. Without JAGS_ROOT the
+## newest installed JAGS-4.* root is used and installs of other major versions
+## are ignored; a JAGS_ROOT, JAGS_VERSION, or JAGS_MAJOR_VERSION naming another
+## major version, or headers declaring one, stop the build.
+JAGS_MIN_VERSION := 4.3.1
+JAGS_REQUIRED_MAJOR := 4
+JAGS_SUPPORTED_RANGE := JAGS 4.x (>= $(JAGS_MIN_VERSION), < 5.0.0)
+JAGS_VERSION_HINT := Install JAGS 4.3.x (JAGS 5 is not supported) or set JAGS_ROOT to a JAGS 4.x installation
+JAGS_INSTALL_ROOTS := $(sort $(wildcard /c/progra~1/JAGS/JAGS-*))
+
+ifeq ($(strip $(JAGS_ROOT)),)
+JAGS_ROOT := $(shell printf '%s\n' $(JAGS_INSTALL_ROOTS) | awk -v major="$(JAGS_REQUIRED_MAJOR)" 'NF { n = split($$0, p, "/"); name = p[n]; sub(/^JAGS-/, "", name); split(name, v, "."); if (v[1] != major) next; key = sprintf("%06d.%06d.%06d", v[1], v[2], v[3]); if (key > best) { best = key; root = $$0 } } END { print root }')
+ifeq ($(strip $(JAGS_ROOT)),)
+ifneq ($(strip $(JAGS_INSTALL_ROOTS)),)
+$(error RoBMA requires $(JAGS_SUPPORTED_RANGE), but only other JAGS versions were found: $(notdir $(JAGS_INSTALL_ROOTS)). $(JAGS_VERSION_HINT))
+endif
+$(error JAGS was not found. Install $(JAGS_SUPPORTED_RANGE) or set JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1)
+endif
+endif
 
 ## UCRT uses the default C++ ABI.
 PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
 
 ###############
 ###  Flags
-###  The installed major version of JAGS is needed at this stage - we try to guess this from JAGS_ROOT
-###  If you have a non-standard JAGS install (and therefore JAGS_ROOT variable), then see the README file
+###  The JAGS version is read from JAGS_VERSION or the JAGS-x.y.z name of JAGS_ROOT, the forced
+###  major version from JAGS_MAJOR_VERSION, and the declared major version from the JAGS headers
 ###############
-# We need to introduce spaces so that we can fool word into splitting the $(JAGS_ROOT) path:
-space :=
-space +=
+# A literal space for splitting version strings into words:
+empty :=
+space := $(empty) $(empty)
 
-# First check to see if JAGS_MAJOR_VERSION is defined in the environment and pass that as JAGS_MAJOR_FORCED to -D
-ifneq ($(strip $(JAGS_MAJOR_VERSION)),)
-JAGS_MAJOR = $(strip $(JAGS_MAJOR_VERSION))
-JAGS_MAJOR_ASSUMED = $(strip 0)
-else
-
-# Check if the JAGS_ROOT is standard i.e. we can extract a major version:
-JAGS_VERSION_PRESENT = $(findstring JAGS-,$(JAGS_ROOT))
-
-# If we can detect and extract a JAGS major version:
-ifneq ($(strip $(JAGS_VERSION_PRESENT)),)
-# First substitute / for space:
-JAGS_ROOT_SUB = $(subst /,$(space),$(JAGS_ROOT))
-# Then isolate the JAGS-x.x.x part:
-JAGS_FULL_VERS = $(word $(words $(JAGS_ROOT_SUB)),$(JAGS_ROOT_SUB))
-# Then substitute / for space and extract the major version
-JAGS_MAJOR_ASSUMED = $(strip $(word 2,$(subst .,$(space),$(subst -,$(space),$(JAGS_FULL_VERS)))))
-else
-# Otherwise make an assumption about JAGS_MAJOR and give a warning:
-JAGS_MAJOR_ASSUMED = $(strip 4)
-$(warning The major version of JAGS could not be determined from $(JAGS_ROOT) - assuming version $(JAGS_MAJOR_ASSUMED) (otherwise the Makevars.win file may need to be modified))
+ifeq ($(strip $(JAGS_VERSION)),)
+JAGS_VERSION := $(patsubst JAGS-%,%,$(filter JAGS-%,$(shell basename "$(JAGS_ROOT)")))
+endif
+ifneq ($(strip $(JAGS_VERSION)),)
+ifneq ($(firstword $(subst .,$(space),$(JAGS_VERSION))),$(JAGS_REQUIRED_MAJOR))
+$(error RoBMA requires $(JAGS_SUPPORTED_RANGE); JAGS_VERSION/JAGS_ROOT reported $(JAGS_VERSION). $(JAGS_VERSION_HINT))
+endif
+JAGS_VERSION_SUPPORTED := $(shell awk -v version="$(JAGS_VERSION)" -v minimum="$(JAGS_MIN_VERSION)" 'BEGIN { split(version, v, "."); split(minimum, m, "."); for (i = 1; i <= 3; i++) { if (v[i] + 0 > m[i] + 0) { print "yes"; exit } if (v[i] + 0 < m[i] + 0) { print "no"; exit } } print "yes" }')
+ifeq ($(JAGS_VERSION_SUPPORTED),no)
+$(error RoBMA requires $(JAGS_SUPPORTED_RANGE); JAGS_VERSION/JAGS_ROOT reported $(JAGS_VERSION). $(JAGS_VERSION_HINT))
+endif
 endif
 
-JAGS_MAJOR = $(strip $(JAGS_MAJOR_ASSUMED))
+ifneq ($(strip $(JAGS_MAJOR_VERSION)),)
+ifneq ($(strip $(JAGS_MAJOR_VERSION)),$(JAGS_REQUIRED_MAJOR))
+$(error RoBMA requires $(JAGS_SUPPORTED_RANGE); JAGS_MAJOR_VERSION is $(JAGS_MAJOR_VERSION). $(JAGS_VERSION_HINT))
+endif
+endif
 
+JAGS_HEADER_MAJOR := $(strip $(shell sed -n 's/^.define[[:space:]][[:space:]]*JAGS_MAJOR[[:space:]][[:space:]]*\([0-9][0-9]*\).*/\1/p' "$(JAGS_ROOT)/include/version.h" 2>/dev/null))
+ifneq ($(JAGS_HEADER_MAJOR),)
+ifneq ($(JAGS_HEADER_MAJOR),$(JAGS_REQUIRED_MAJOR))
+$(error RoBMA requires $(JAGS_SUPPORTED_RANGE); the JAGS headers in "$(JAGS_ROOT)/include" declare JAGS_MAJOR $(JAGS_HEADER_MAJOR). $(JAGS_VERSION_HINT))
+endif
+endif
+
+ifeq ($(strip $(JAGS_VERSION)$(JAGS_MAJOR_VERSION)$(JAGS_HEADER_MAJOR)),)
+$(warning The version of JAGS could not be determined from $(JAGS_ROOT) - assuming JAGS $(JAGS_REQUIRED_MAJOR))
 endif
 
 # Set the CPPFLAGS accordingly
 # Prepending 0 to JAGS_MAJOR_VERSION prevents it being set as blank (the C++ code requires a number)
-JAGS_MAJOR_ASSUMED := 4
+JAGS_MAJOR := $(JAGS_REQUIRED_MAJOR)
+JAGS_MAJOR_ASSUMED := $(JAGS_REQUIRED_MAJOR)
 LAPACK_LIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/R" CMD config LAPACK_LIBS)
 BLAS_LIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/R" CMD config BLAS_LIBS)
 FLIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/R" CMD config FLIBS)

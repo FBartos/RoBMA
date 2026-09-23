@@ -137,7 +137,7 @@ NULL
     if (warn) {
       warning(
         "RoBMA JAGS module was not found in the installed package library. ",
-        "Model fitting requires this module; reinstall RoBMA after installing JAGS >= 4.3.1.",
+        "Model fitting requires this module; reinstall RoBMA after installing JAGS 4.x (>= 4.3.1; JAGS 5 is not supported).",
         call. = FALSE
       )
     }
@@ -154,7 +154,7 @@ NULL
   if (!loaded && warn) {
     message <- paste0(
       "RoBMA JAGS module failed to load from '", path, "'. ",
-      "Model fitting requires this module; reinstall RoBMA after installing JAGS >= 4.3.1."
+      "Model fitting requires this module; reinstall RoBMA after installing JAGS 4.x (>= 4.3.1; JAGS 5 is not supported)."
     )
     if (!is.null(load_error)) {
       message <- paste0(message, " rjags error: ", load_error)
@@ -193,7 +193,7 @@ NULL
   if (!isTRUE(loaded) && warn) {
     message <- paste0(
       "RoBMA native routines failed to load from the package DLL. ",
-      "Compiled likelihood helpers will be unavailable; reinstall RoBMA after installing JAGS >= 4.3.1."
+      "Compiled likelihood helpers will be unavailable; reinstall RoBMA after installing JAGS 4.x (>= 4.3.1; JAGS 5 is not supported)."
     )
     if (!is.null(load_error)) {
       message <- paste0(message, " R loader error: ", load_error)

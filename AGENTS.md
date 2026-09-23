@@ -56,7 +56,8 @@ tidyverse dependencies.
 
 ## Development and backend
 
-Requires R >= 4.3.0, C++17, and JAGS >= 4.3.1 through `runjags`/`rjags`.
+Requires R >= 4.3.0, C++17, and JAGS 4.x (>= 4.3.1; the native module does
+not support JAGS 5) through `runjags`/`rjags`.
 Fitting uses JAGS product-space models and focused native kernels. In the
 workspace, use its configured R and private agent library for these commands:
 

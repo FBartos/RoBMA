@@ -1245,6 +1245,14 @@
   describing the observed literature, and is now drawn only when
   `plot_extrapolation = TRUE` is requested. `lines()` keeps its unchanged
   `extrapolate = FALSE` default.
+- requires JAGS 4.x (>= 4.3.1, < 5.0.0). The RoBMA JAGS module implements the
+  JAGS 4 module interface and does not compile against JAGS 5. Installation
+  now stops with a message naming the reported version when `configure` finds
+  another major version through pkg-config or the `JAGS_MAJOR` declared by the
+  selected headers. On Windows the build selects the newest installed
+  `JAGS-4.*` when `JAGS_ROOT` is unset and stops when `JAGS_ROOT`,
+  `JAGS_VERSION`, `JAGS_MAJOR_VERSION`, or the headers name another major
+  version.
 
 ### Maintenance
 - unifies random-effect compilation for ordinary and marginal selection

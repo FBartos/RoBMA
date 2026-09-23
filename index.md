@@ -20,7 +20,8 @@ more detailed vignettes that follow.
 
 ## System Requirements
 
-The `RoBMA` R package requires JAGS 4.3.1 or newer (Plummer, 2003).
+The `RoBMA` R package requires JAGS 4.x (4.3.1 or newer; JAGS 5 is not
+supported) (Plummer, 2003).
 Install JAGS from <https://mcmc-jags.sourceforge.io/> before installing
 the R package.
 
