@@ -28,6 +28,14 @@ Bayesian posterior averaging and LOO-PIT distinct from metafor's refit z-score.
 
 ## Known Sampling Covariance V
 
+Covariance classification, sampling support, and numerical representations are
+distinct. Preserve the accepted sampling factor and PSD/PD status when a
+positive direction cannot be represented by a Cholesky pivot or squared
+singular value. Operations requiring that unavailable representation fail with
+their target context; they must not treat underflow as a structural zero, add
+jitter, or silently use a lower-rank inverse. Genuine PSD targets retain their
+supported spectral paths, and sampling may use the accepted factor directly.
+
 For correlated known `V`, estimate-unit log scores are Schur conditionals
 `p(y_i | y_-i, theta)` within dependency blocks. Their column sum is a
 composite score, not the full joint likelihood.

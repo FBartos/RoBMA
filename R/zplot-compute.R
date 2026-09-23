@@ -1812,7 +1812,7 @@
 
   marginal_covariance <- latent_covariance + sampling_covariance
   chol_marginal <- .covariance_cholesky(
-    .covariance_factorization(marginal_covariance)
+    .covariance_factorization(marginal_covariance), "Estimate-depth marginal covariance"
   )
   if (is.null(chol_marginal)) {
     stop(

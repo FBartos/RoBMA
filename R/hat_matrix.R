@@ -488,7 +488,7 @@
       covariance <- V_block
       diag(covariance) <- diag(covariance) + block_extra
       chol_covariance <- .covariance_cholesky(
-        .covariance_factorization(covariance)
+        .covariance_factorization(covariance), "Known-V residual covariance"
       )
       if (is.null(chol_covariance)) {
         stop("Known-V residual covariance is not positive definite.",

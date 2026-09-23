@@ -1,4 +1,4 @@
-# Singular known-V preflight -----
+# Known-V support and fixed-covariance preflight -----
 
 .brma_mv_check_singular_v_regularization <- function(object) {
 
@@ -13,23 +13,23 @@
   }
 
   known_V <- .data_known_v_data(data)
-  if (!.known_v_is_singular_representation(known_V) &&
-      !(!is.null(known_V[["V"]]) && .known_v_is_singular(known_V[["V"]]))) {
-    return(invisible(TRUE))
-  }
+  singular <- .known_v_is_singular_representation(known_V) ||
+    (!is.null(known_V[["V"]]) && .known_v_is_singular(known_V[["V"]]))
 
   K                 <- .known_v_nrow(known_V)
-  regularized_rows  <- .brma_mv_regularized_variance_rows(object, K = K)
   covariance_blocks <- .known_v_correlated_blocks(known_V)
-  invalid_blocks    <- Filter(function(block) {
-    covariance <- block[["covariance"]]
-    index      <- block[["index"]]
-    .known_v_is_singular(covariance) &&
-      !.known_v_nullspace_is_regularized(
-        covariance       = covariance,
-        regularized_rows = regularized_rows[index]
-      )
-  }, covariance_blocks)
+  invalid_blocks    <- if (singular) {
+    regularized_rows <- .brma_mv_regularized_variance_rows(object, K = K)
+    Filter(function(block) {
+      covariance <- block[["covariance"]]
+      index      <- block[["index"]]
+      .known_v_is_singular(covariance) &&
+        !.known_v_nullspace_is_regularized(
+          covariance       = covariance,
+          regularized_rows = regularized_rows[index]
+        )
+    }, covariance_blocks)
+  } else list()
 
   if (length(invalid_blocks) > 0L) {
     block_labels <- .known_v_block_labels(invalid_blocks)
@@ -45,18 +45,22 @@
     )
   }
 
-  fixed_variance <- .brma_mv_fixed_integrated_variance(object, K = K)
   dense_likelihood <- identical(
     .known_v_effective_backend(known_V),
     "block_mvn"
   )
+  fixed_variance <- if (singular || dense_likelihood) {
+    .brma_mv_fixed_integrated_variance(object, K = K)
+  } else NULL
   if (dense_likelihood &&
       !is.null(fixed_variance)) {
     invalid_numeric_blocks <- Filter(function(block) {
       index      <- block[["index"]]
       covariance <- block[["covariance"]] +
         diag(fixed_variance[index], nrow = length(index))
-      !.known_v_is_numerically_positive_definite(covariance)
+      !.known_v_is_numerically_positive_definite(covariance, context = paste0(
+        "Known-V block-MVN covariance at retained rows {", paste(index, collapse = ", "), "}"
+      ))
     }, covariance_blocks)
     if (length(invalid_numeric_blocks) > 0L) {
       block_labels <- .known_v_block_labels(invalid_numeric_blocks)
@@ -189,7 +193,7 @@
     covariance <- .covariance_factorization(sampling[rows, rows, drop = FALSE])
     if (.covariance_is_numerically_positive_definite(covariance)) return(FALSE)
     null <- covariance[["eigenvectors"]][
-      , covariance[["spectral_values"]] == 0,
+      , seq_len(nrow(covariance[["covariance"]])) > nrow(covariance[["sampling_factor"]]),
       drop = FALSE
     ]
     projected <- crossprod(null, support[rows, rows, drop = FALSE] %*% null)
@@ -416,7 +420,7 @@
   if (.is_data_random(data)) {
     terms <- .data_marginalized_random_effects(data)
     if (length(terms) == 0L) {
-      return(NULL)
+      return(numeric(K))
     }
 
     design     <- .fitted_formula_design(object, "mu", required = TRUE)
@@ -452,7 +456,10 @@
   }
 
   tau_prior <- object[["priors"]][["outcome"]][["tau"]]
-  if (is.null(tau_prior) || BayesTools::is.prior.mixture(tau_prior) ||
+  if (is.null(tau_prior)) {
+    return(numeric(K))
+  }
+  if (BayesTools::is.prior.mixture(tau_prior) ||
       !BayesTools::is.prior.point(tau_prior)) {
     return(NULL)
   }
@@ -749,12 +756,13 @@
 }
 
 
-# Check positive definiteness at the covariance's relative numerical scale.
-.known_v_is_numerically_positive_definite <- function(covariance) {
+# The block-MVN gate needs a usable factor as well as positive definiteness.
+.known_v_is_numerically_positive_definite <- function(
+    covariance, context = "Known-V block-MVN covariance") {
 
-  .covariance_is_numerically_positive_definite(
-    .covariance_factorization(covariance)
-  )
+  !is.null(.covariance_cholesky(
+    .covariance_factorization(covariance), context
+  ))
 }
 
 
@@ -936,7 +944,7 @@
   factorization <- .covariance_factorization(covariance)
   if (.covariance_is_numerically_positive_definite(factorization)) return(TRUE)
   null <- factorization[["eigenvectors"]][
-    , factorization[["spectral_values"]] == 0,
+    , seq_len(nrow(covariance)) > nrow(factorization[["sampling_factor"]]),
     drop = FALSE
   ]
   if (ncol(null) == 0L) {

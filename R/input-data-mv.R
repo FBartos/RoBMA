@@ -611,7 +611,7 @@
     idx       <- covariance_blocks[[b]][["index"]]
     V_block   <- covariance_blocks[[b]][["covariance"]]
     factorization <- .covariance_factorization(V_block)
-    values        <- factorization[["spectral_values"]]
+    values        <- .covariance_spectral_values(factorization, "Known-V whitening covariance")
     if (!.covariance_is_positive_semidefinite(factorization)) {
       stop("Known-V whitening covariance is not positive semidefinite.",
            call. = FALSE)
@@ -927,9 +927,17 @@
   alpha <- min(0.10, alpha_max)
 
   residual_variance <- alpha * diagonal
+  if (any(residual_variance <= 0)) {
+    stop(
+      "Known-V latent decomposition is unavailable because a strictly ",
+      "positive residual variance underflowed to zero. Rescale the outcome, ",
+      "covariance, and associated priors consistently before fitting.",
+      call. = FALSE
+    )
+  }
   latent_covariance <- V_block - diag(residual_variance, nrow = block_size)
   eig  <- .covariance_factorization(latent_covariance)
-  values <- eig[["spectral_values"]]
+  values <- .covariance_spectral_values(eig, "Known-V latent covariance")
   keep   <- values > 0
 
   if (!.covariance_is_positive_semidefinite(eig)) {

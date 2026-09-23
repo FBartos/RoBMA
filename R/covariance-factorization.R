@@ -156,13 +156,42 @@
 }
 
 
-.covariance_cholesky <- function(factorization) {
+.covariance_cholesky <- function(factorization, context = "Covariance") {
 
   if (!.covariance_is_numerically_positive_definite(factorization)) {
     return(NULL)
   }
 
-  factorization[["cholesky"]]
+  factor <- factorization[["cholesky"]]
+  if (is.null(factor) || any(!is.finite(factor)) || any(diag(factor) <= 0)) {
+    stop(
+      context, " is positive definite, but a usable Cholesky factor is ",
+      "unavailable at working precision. Rescale the outcome, covariance, ",
+      "and associated priors consistently before fitting.",
+      call. = FALSE
+    )
+  }
+  factor
+}
+
+
+# The accepted factor owns the number of positive directions. Squaring a
+# representable singular value can underflow; that is not a structural zero.
+.covariance_spectral_values <- function(factorization, context = "Covariance") {
+
+  values <- factorization[["spectral_values"]]
+  if (.covariance_is_positive_semidefinite(factorization) &&
+      (any(!is.finite(values)) ||
+       sum(values > 0) != nrow(factorization[["sampling_factor"]]))) {
+    stop(
+      context, " spectral variances are unavailable at working precision: ",
+      "a retained positive direction has a zero or non-finite variance. ",
+      "Rescale the outcome, covariance, and associated priors consistently ",
+      "before fitting.",
+      call. = FALSE
+    )
+  }
+  values
 }
 
 

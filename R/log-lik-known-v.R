@@ -1653,7 +1653,7 @@
 .known_v_chol_covariance <- function(covariance, context) {
 
   factorization <- .covariance_factorization(covariance)
-  chol_covariance <- .covariance_cholesky(factorization)
+  chol_covariance <- .covariance_cholesky(factorization, paste("Known-V", context, "covariance"))
   if (is.null(chol_covariance)) {
     .known_v_stop_non_positive_definite_covariance(covariance, context)
   }

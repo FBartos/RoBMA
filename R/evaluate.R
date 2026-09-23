@@ -1053,16 +1053,17 @@
     if (!.covariance_is_positive_semidefinite(decomposition)) {
       stop("Integrated random-effect covariance must be positive semidefinite.", call. = FALSE)
     }
-    factor <- .covariance_cholesky(decomposition)
+    factor <- .covariance_cholesky(decomposition, "Integrated random-effect covariance")
     if (!is.null(factor)) {
       weights[draw, ] <- backsolve(factor, forwardsolve(t(factor), total[draw, ]))
     } else {
-      positive <- decomposition[["spectral_values"]] > 0
+      values <- .covariance_spectral_values(decomposition, "Integrated random-effect covariance")
+      positive <- values > 0
       if (any(positive)) {
         vectors <- decomposition[["eigenvectors"]][, positive, drop = FALSE]
         weights[draw, ] <- as.vector(vectors %*%
           (as.vector(crossprod(vectors, total[draw, ])) /
-             decomposition[["spectral_values"]][positive]))
+             values[positive]))
       }
     }
   }
@@ -1360,6 +1361,7 @@
       tau2        <- tau_block[, 1L]^2
       denominator <- outer(tau2, eigen_v[["spectral_values"]], "+")
       if (any(!is.finite(denominator) | denominator <= 0)) {
+        .covariance_cholesky(eigen_v, "Known-V BLUP covariance")
         stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
              call. = FALSE)
       }
@@ -1374,7 +1376,8 @@
       tau2    <- tau_block[s, ]^2
       M_block <- V_block
       diag(M_block) <- diag(M_block) + tau2
-      chol_m  <- .covariance_cholesky(.covariance_factorization(M_block))
+      chol_m  <- .covariance_cholesky(.covariance_factorization(M_block),
+                                      "Known-V BLUP covariance")
       if (is.null(chol_m)) {
         stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
              call. = FALSE)
@@ -1490,7 +1493,8 @@
 
   covariance <- diag(diagonal, nrow = length(diagonal), ncol = length(diagonal)) +
     tcrossprod(rank_one)
-  chol_m <- .covariance_cholesky(.covariance_factorization(covariance))
+  chol_m <- .covariance_cholesky(.covariance_factorization(covariance),
+                                 "Known-V BLUP covariance")
 
   if (is.null(chol_m)) {
     stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
@@ -1939,6 +1943,7 @@
       tau2        <- tau_block[, 1L]^2
       denominator <- outer(tau2, eigen_v[["spectral_values"]], "+")
       if (any(!is.finite(denominator) | denominator <= 0)) {
+        .covariance_cholesky(eigen_v, "Known-V conditional posterior covariance")
         stop(
           "Cannot solve known-V conditional posterior covariance block; ",
           "covariance is not positive definite.",
@@ -1955,7 +1960,8 @@
       tau2    <- tau_block[s, ]^2
       M_block <- V_block
       diag(M_block) <- diag(M_block) + tau2
-      chol_m <- .covariance_cholesky(.covariance_factorization(M_block))
+      chol_m <- .covariance_cholesky(.covariance_factorization(M_block),
+                                     "Known-V conditional posterior covariance")
       if (is.null(chol_m)) {
         stop(
           "Cannot solve known-V conditional posterior covariance block; ",

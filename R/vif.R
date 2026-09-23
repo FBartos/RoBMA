@@ -433,7 +433,7 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     covariance <- covariance_samples[s, , , drop = FALSE]
     covariance <- matrix(covariance, nrow = K, ncol = K)
     factorization   <- .covariance_factorization(covariance)
-    chol_covariance <- .covariance_cholesky(factorization)
+    chol_covariance <- .covariance_cholesky(factorization, "VIF marginal covariance")
     if (is.null(chol_covariance)) {
       stop("VIF marginal covariance is not positive definite.",
            call. = FALSE)

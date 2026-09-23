@@ -168,14 +168,15 @@
   if (!.covariance_is_positive_semidefinite(decomposition)) {
     stop("Selection deletion covariance must be positive semidefinite.", call. = FALSE)
   }
-  factor <- .covariance_cholesky(decomposition)
+  factor <- .covariance_cholesky(decomposition, "Retained selection-deletion covariance")
   if (!is.null(factor)) {
     coefficient <- backsolve(factor, forwardsolve(t(factor), cross))
   } else {
-    positive <- decomposition[["spectral_values"]] > 0
+    values_kept <- .covariance_spectral_values(decomposition, "Retained selection-deletion covariance")
+    positive <- values_kept > 0
     vectors <- decomposition[["eigenvectors"]][, positive, drop = FALSE]
     coefficient <- if (any(positive)) {
-      vectors %*% (crossprod(vectors, cross) / decomposition[["spectral_values"]][positive])
+      vectors %*% (crossprod(vectors, cross) / values_kept[positive])
     } else matrix(0, length(retained), dimension)
   }
   full <- .covariance_factorization(covariance)
@@ -186,8 +187,8 @@
   residual_root <- root[, deleted, drop = FALSE] - root[, retained, drop = FALSE] %*% coefficient
   conditional_covariance <- crossprod(residual_root)
   if (!.covariance_is_numerically_positive_definite(full)) {
-    kept_rank <- sum(decomposition[["spectral_values"]] > 0)
-    if (kept_rank == sum(full[["spectral_values"]] > 0)) conditional_covariance[,] <- 0
+    kept_rank <- nrow(decomposition[["sampling_factor"]])
+    if (kept_rank == nrow(full[["sampling_factor"]])) conditional_covariance[,] <- 0
   }
   list(mean = as.vector(crossprod(coefficient, values[retained])),
        covariance = conditional_covariance)
@@ -259,7 +260,8 @@
         mean <- baseline[draw, deleted] + sampling[["mean"]] + random[["mean"]]
         total <- sampling[["covariance"]] + random[["covariance"]]
       }
-      total_factor <- .covariance_cholesky(.covariance_factorization(total))
+      total_factor <- .covariance_cholesky(.covariance_factorization(total),
+                                           "Selection deletion covariance")
       if (is.null(total_factor)) {
         stop("Selection deletion is unavailable because the deleted outcome vector has no density conditional on retained sampling errors and outcomes. Use 'known_sampling_variance = \"integrate\"' when fitting to obtain sampling-marginal deletion scores.",
              call. = FALSE)
