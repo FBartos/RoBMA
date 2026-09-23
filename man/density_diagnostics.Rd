@@ -9,7 +9,7 @@ density_diagnostics(object, ...)
 \arguments{
 \item{object}{an object returned by \code{\link[=hypothesis]{hypothesis()}} with
 \code{density_method = "qCMDE"} or \code{density_method = "IWMDE"}, or an
-\code{RoBMA_density_ordinate_error} caught from a rejected point-ordinate
+\code{RoBMA_density_ordinate_error} caught from a failed or rejected point-ordinate
 computation.}
 
 \item{...}{unused.}
