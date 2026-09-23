@@ -210,6 +210,25 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
     ),
     fixed = TRUE
   )
+
+  # Random-slope quantities such as 'tau(g1{3})' are no fixed contrast
+  # coefficients, and '{j}' after a name that is no fixed factor term is a
+  # parse error: neither gets the coefficient message, which names the fixed
+  # coefficient selector wherever it appears.
+  metadata <- .brma_parameter_catalog_metadata(fits[["treatment"]])
+  expect_null(.hypothesis_brma_check_coefficient_selector("tau(g1{3}) > 0.05", metadata))
+  expect_null(.hypothesis_brma_check_coefficient_selector("(mu) tau(g1{3}) > 0", metadata))
+  expect_null(.hypothesis_brma_check_coefficient_selector("h{1} > 0", metadata))
+  expect_error(
+    .hypothesis_brma_check_coefficient_selector("tau(g2{1}) > 0 & g1{1} > 0", metadata),
+    "Hypotheses on factor contrast coefficients such as 'g1{1}' are not supported.",
+    fixed = TRUE
+  )
+  expect_error(
+    suppressWarnings(hypothesis(fits[["treatment"]], "tau(g1{3}) > 0.05")),
+    "Could not parse hypothesis expression 'tau(g1{3}) > 0.05'.",
+    fixed = TRUE
+  )
 })
 
 

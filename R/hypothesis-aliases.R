@@ -110,25 +110,46 @@
 }
 
 
-# A '{j}' selector that did not parse names a factor contrast coefficient
-# that the fitted catalog does not have (for example of a treatment factor,
-# whose levels are its coefficients). Stop naming the level-label form.
+# A '{j}' selector of a fixed factor term that did not parse names a factor
+# contrast coefficient that the fitted catalog does not have (for example of a
+# treatment factor, whose levels are its coefficients). Stop naming the
+# level-label form. Selectors inside a function call, such as the random-slope
+# quantities 'tau(g{1})', and selectors of names that are no fixed factor term
+# keep the parse error.
 .hypothesis_brma_check_coefficient_selector <- function(hypothesis, metadata) {
 
   text      <- paste(hypothesis, collapse = " ")
-  selectors <- regmatches(
-    text,
-    gregexpr("[^[:space:]()<>=!&|,+*/~-]+\\{[0-9]+\\}", text)
-  )[[1L]]
-  if (length(selectors) == 0L) {
+  positions <- gregexpr("[^[:space:]()<>=!&|,+*/~-]+\\{[0-9]+\\}", text)[[1L]]
+  if (positions[[1L]] == -1L) {
     return(invisible(NULL))
   }
-
-  .brma_stop_contrast_coefficient(
-    metadata   = metadata,
-    selector   = selectors[[1L]],
-    term_alias = sub("\\{[0-9]+\\}$", "", selectors[[1L]])
+  selectors <- regmatches(text, list(positions))[[1L]]
+  in_call   <- grepl(
+    "[[:alnum:]._]\\($",
+    substring(text, 1L, positions - 1L)
   )
+  groups <- metadata[["entries"]]
+  groups <- groups[
+    groups[["role"]] == "formula_coefficient_group",
+    ,
+    drop = FALSE
+  ]
+  for (i in which(!in_call)) {
+    term_alias <- sub("\\{[0-9]+\\}$", "", selectors[[i]])
+    known <- groups[["parameter"]] %in% term_alias |
+      vapply(groups[["aliases"]], function(aliases) {
+        term_alias %in% aliases
+      }, logical(1))
+    if (any(known)) {
+      .brma_stop_contrast_coefficient(
+        metadata   = metadata,
+        selector   = selectors[[i]],
+        term_alias = term_alias
+      )
+    }
+  }
+
+  return(invisible(NULL))
 }
 
 
