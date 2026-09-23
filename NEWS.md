@@ -1,5 +1,11 @@
 ## version 4.1.0 (IN PROGRESS)
 ### Fixes
+- retains failed qCMDE/IWMDE point computations in density diagnostics, with
+  computed log ordinates and distinct underflow, overflow, arithmetic-failure,
+  unexplained-zero and not-computed reasons. Marginal-means warnings retain the
+  specific failure; invalid ordinates remain ineligible for Bayes factors.
+- rejects nonfinite likelihood weights at input validation while preserving
+  positive fractional weights and existing missing-value handling.
 - reports working-precision failures when an accepted covariance cannot supply
   a usable Cholesky factor or represent a retained positive variance, rather
   than silently losing that direction or misreporting structural singularity.
