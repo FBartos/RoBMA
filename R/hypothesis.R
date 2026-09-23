@@ -708,6 +708,16 @@ hypothesis.brma <- function(object, hypothesis,
   out <- do.call(rbind, results)
   concatenated_rows <- unlist(groups, use.names = FALSE)
   restore_order     <- order(concatenated_rows)
+  # Row names as in BayesTools::hypothesis_BF(): rows of several statements on
+  # one quantity carry their statement number in the full hypothesis, not the
+  # number within their parameter group.
+  row_names <- .hypothesis_brma_row_names(
+    labels     = sub(
+      " \\([0-9]+\\)$", "",
+      unlist(lapply(results, rownames), use.names = FALSE)
+    ),
+    statements = concatenated_rows
+  )
 
   raw_BF <- unlist(lapply(results, function(result) {
     attr(result, "raw_BF", exact = TRUE)
@@ -726,11 +736,12 @@ hypothesis.brma <- function(object, hypothesis,
     if (length(result_warnings) > 0L && !is.null(names(result_warnings))) {
       warning_rows <- match(names(result_warnings), rownames(result))
       matched      <- !is.na(warning_rows)
-      names(result_warnings)[matched] <- rownames(out)[rows[warning_rows[matched]]]
+      names(result_warnings)[matched] <- row_names[rows[warning_rows[matched]]]
     }
     warnings[[i]] <- result_warnings
     row_offset    <- row_offset + nrow(result)
   }
+  rownames(out) <- row_names
 
   bound_operator <- unlist(lapply(results, function(result) {
     operator <- attr(result[["BF"]], "bound_operator", exact = TRUE)

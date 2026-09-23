@@ -313,4 +313,12 @@ test_that("repeated hypothesis rows are numbered by statement", {
   ))
   expect_identical(rownames(regions), c("g1 (1)", "g1 (2)"))
   expect_identical(names(attr(regions, "warnings")), "g1 (2)")
+
+  # Statements on another quantity in between keep the statement numbers of
+  # the full hypothesis ("g1 (3)", not the second g1 row "g1 (2)").
+  groups <- suppressWarnings(hypothesis(
+    fit, c("g1[10] > 0", "g2[2] > 0", "g1[20] > 0"), density_method = "KDE"
+  ))
+  expect_identical(rownames(groups), c("g1 (1)", "g2", "g1 (3)"))
+  expect_identical(names(attr(groups, "warnings")), "g1 (3)")
 })
