@@ -137,3 +137,55 @@ test_that("mean-difference level point hypotheses stop without a single coordina
   }
 })
 
+
+test_that("factor-cell plots draw the selected level for every contrast", {
+
+  skip_on_cran()
+  fits  <- .factor_level_target_fits()
+  cases <- data.frame(
+    parameter = c("g1[10]", "g1[20]", "g2[2]", "g2[3]", "g2[4]"),
+    term      = c("g1", "g1", "g2", "g2", "g2"),
+    level     = c(2L, 3L, 2L, 3L, 4L),
+    stringsAsFactors = FALSE
+  )
+
+  for (contrast in names(fits)) {
+    fit  <- fits[[contrast]]
+    mcmc <- as.matrix(fit[["fit"]][["mcmc"]])
+    for (i in seq_len(nrow(cases))) {
+      term        <- cases[["term"]][i]
+      n_levels    <- if (identical(term, "g1")) 3L else 4L
+      coordinates <- paste0("mu_", term, "[", seq_len(n_levels - 1L), "]")
+      # Level values from the fitted coordinates and the contrast matrix.
+      contrasts <- if (identical(contrast, "treatment")) {
+        stats::contr.treatment(n_levels)
+      } else {
+        BayesTools::contr.meandif(n_levels)
+      }
+      expected <- as.numeric(
+        mcmc[, coordinates, drop = FALSE] %*% contrasts[cases[["level"]][i], ]
+      )
+
+      entry <- .brma_parameter_select_entry(
+        fit, cases[["parameter"]][i], allow_factor_cells = TRUE
+      )
+      cell <- .plot_brma_factor_cell_samples(
+        object                    = fit,
+        entry                     = entry,
+        standardized_coefficients = FALSE,
+        conditional               = FALSE,
+        precomputed               = FALSE
+      )
+      expect_equal(
+        as.numeric(cell[["samples"]][[1L]]), expected,
+        tolerance = 1e-10, info = paste(contrast, cases[["parameter"]][i])
+      )
+    }
+  }
+
+  plotted <- suppressWarnings(plot(
+    fits[["meandif"]], parameter = "g1[10]", plot_type = "ggplot",
+    density_method = "KDE"
+  ))
+  expect_s3_class(plotted, "ggplot")
+})

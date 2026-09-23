@@ -1157,6 +1157,33 @@ lines.brma <- function(
 }
 
 
+# Name mixed factor columns by the fitted coordinates they hold. A column that
+# is a catalog quantity identical to one coordinate (a direct level cell such
+# as treatment 'mu_g[3]', which holds coordinate 'mu_g[2]', or a contrast
+# coefficient 'mu_g{j}') takes that coordinate's name; other columns keep
+# theirs. All columns are renamed at once, since a level label can equal the
+# name of another level's coordinate.
+.plot_brma_factor_cell_coordinate_columns <- function(object, columns) {
+
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  rows       <- match(columns, quantities[["canonical_name"]])
+  mapped     <- columns
+  for (i in which(!is.na(rows))) {
+    coordinate <- .brma_catalog_key_coordinate(
+      quantities[["extraction_key"]][[rows[[i]]]]
+    )
+    if (!is.null(coordinate)) {
+      mapped[[i]] <- coordinate
+    }
+  }
+  if (anyDuplicated(mapped)) {
+    stop("Selected factor-cell source coordinates are ambiguous.", call. = FALSE)
+  }
+
+  return(mapped)
+}
+
+
 # Prepare one semantic factor cell using its catalog extraction weights. The
 # parent term supplies only the established prior and conditioning metadata.
 .plot_brma_factor_cell_samples <- function(
@@ -1223,8 +1250,15 @@ lines.brma <- function(
       colnames(source_samples) <- sources
     }
   }
-  # Treatment/independent mixed posteriors use display column names. Recover
-  # their source coordinates only from exact unit-weight marginal metadata.
+  # Mixed columns carry level labels (treatment/independent cells) or
+  # coefficient labels '<parameter>{j}' (mean-difference, orthonormal, ordered
+  # increments); the cell's extraction key names fitted coordinates.
+  colnames(source_samples) <- .plot_brma_factor_cell_coordinate_columns(
+    object  = object,
+    columns = colnames(source_samples)
+  )
+  # Recover source coordinates that no mixed column names only from exact
+  # unit-weight marginal metadata.
   for (dependency in setdiff(key[["dependencies"]], colnames(source_samples))) {
     unit <- stats::setNames(1, dependency)
     source_cells <- which(vapply(raw_marginal, same_weights, logical(1L), target = unit))
