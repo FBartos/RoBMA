@@ -32,10 +32,10 @@ structure without a \code{\link[=known_v_factor]{known_v_factor()}} declaration.
 likelihood; \code{"block_mvn"} uses an exact native block multivariate-normal
 likelihood.}
 
-\item{weights}{an optional vector of positive likelihood weights. For
+\item{weights}{an optional vector of finite positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
-two-arm likelihood for one study.}
+two-arm likelihood for one study. Positive fractional weights are allowed.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
 when estimating the unit information standard deviation.}

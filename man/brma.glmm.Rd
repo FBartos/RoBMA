@@ -78,10 +78,10 @@ binomial GLMMs, it is computed as \code{ci + di}.}
 
 \item{t2i}{a vector of the person-time in the control group.}
 
-\item{weights}{an optional vector of positive likelihood weights. For
+\item{weights}{an optional vector of finite positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
-two-arm likelihood for one study.}
+two-arm likelihood for one study. Positive fractional weights are allowed.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
 location moderators (meta-regressors). Formula input is evaluated in \code{data}

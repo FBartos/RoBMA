@@ -31,10 +31,10 @@
 #' `D + BB'` decomposition; `"whitened"` uses an eigen-rotated normal
 #' likelihood; `"block_mvn"` uses an exact native block multivariate-normal
 #' likelihood.
-#' @param weights an optional vector of positive likelihood weights. For
+#' @param weights an optional vector of finite positive likelihood weights. For
 #' normal/effect-size models, each weight powers the estimate likelihood. For
 #' constructors with GLMM raw-count input, each weight powers the paired
-#' two-arm likelihood for one study.
+#' two-arm likelihood for one study. Positive fractional weights are allowed.
 #' @param ni an optional vector of sample sizes. Used for `measure = "GEN"` or
 #' when estimating the unit information standard deviation.
 #' @param mods an optional matrix, data.frame, or formula specifying
@@ -193,6 +193,8 @@ NULL
     stop("The 'weights' argument must not contain missing values.", call. = FALSE)
   if (!is.null(weights))
     BayesTools::check_real(weights, "weights", check_length = k, allow_NULL = TRUE, allow_NA = FALSE, lower = 0, allow_bound = FALSE)
+  if (!is.null(weights) && any(!is.finite(weights)))
+    stop("The 'weights' argument must contain only finite values.", call. = FALSE)
 
   # Validate cluster
   if (!is.null(cluster) && length(cluster) != k)
