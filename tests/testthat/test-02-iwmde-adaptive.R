@@ -451,7 +451,8 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
     "target_met",
     "precision_target_met", "sampling_target_met", "bf_grade_met",
     "n_weight_fallbacks",
-    "weight_fallback_reasons", "status", "warnings"
+    "weight_fallback_reasons", "status", "ordinate", "log_ordinate",
+    "numerical_status", "failure_reason", "warnings"
   ))
   expect_equal(nrow(out), 1L)
   expect_equal(out[["estimator"]], "iwmde")
@@ -482,6 +483,10 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
   expect_equal(out[["n_weight_fallbacks"]], 1L)
   expect_match(out[["weight_fallback_reasons"]], "singular_covariance=1")
   expect_equal(out[["status"]], "ok")
+  expect_equal(out[["ordinate"]], .4)
+  expect_true(is.na(out[["log_ordinate"]]))
+  expect_identical(out[["numerical_status"]], "finite")
+  expect_true(is.na(out[["failure_reason"]]))
 })
 
 
