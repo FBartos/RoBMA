@@ -106,7 +106,14 @@
       posterior = target[["posterior"]]
     )
   }
-  rownames(out) <- make.unique(rep(parameter, nrow(out)))
+  # One contrast quantity: row i is statement i.
+  out <- .hypothesis_brma_set_row_names(
+    out       = out,
+    row_names = .hypothesis_brma_row_names(
+      labels     = rep(parameter, nrow(out)),
+      statements = seq_len(nrow(out))
+    )
+  )
 
   return(out)
 }

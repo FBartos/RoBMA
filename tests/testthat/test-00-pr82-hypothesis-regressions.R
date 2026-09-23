@@ -38,7 +38,7 @@ test_that("cross-level hypotheses keep all rows and build one shared context", {
     logBF = FALSE, BF01 = FALSE, seed = NULL, columns = NULL
   )
   expect_identical(result[["BF"]], c(2, 3))
-  expect_identical(rownames(result), c("mu_group", "mu_group.1"))
+  expect_identical(rownames(result), c("mu_group (1)", "mu_group (2)"))
   expect_identical(calls, 1L)
 })
 

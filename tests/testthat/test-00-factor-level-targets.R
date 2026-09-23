@@ -189,3 +189,34 @@ test_that("factor-cell plots draw the selected level for every contrast", {
   ))
   expect_s3_class(plotted, "ggplot")
 })
+
+
+test_that("repeated hypothesis rows are numbered by statement", {
+
+  skip_on_cran()
+  fit <- .factor_level_target_fits()[["treatment"]]
+
+  # Rows of several statements on one quantity use BayesTools' "mu (1)"
+  # scheme; "g11" would read like another parameter and "g1.1" collides with
+  # the names `[.data.frame` gives duplicated rows.
+  single <- suppressWarnings(hypothesis(
+    fit, "g1[10] = g1[20]", density_method = "KDE"
+  ))
+  expect_identical(rownames(single), "g1")
+
+  contrast <- suppressWarnings(hypothesis(
+    fit, c("g1[10] = g1[20]", "g1[10] - g1[20] = 0.1"), density_method = "KDE"
+  ))
+  expect_identical(rownames(contrast), c("g1 (1)", "g1 (2)"))
+  expect_identical(
+    rownames(contrast[c(1L, 1L, 2L), ]),
+    c("g1 (1)", "g1 (1).1", "g1 (2)")
+  )
+
+  # The boundary-valued region of level 20 keys its warning to its own row.
+  regions <- suppressWarnings(hypothesis(
+    fit, c("g1[10] > 0", "g1[20] > 0"), density_method = "KDE"
+  ))
+  expect_identical(rownames(regions), c("g1 (1)", "g1 (2)"))
+  expect_identical(names(attr(regions, "warnings")), "g1 (2)")
+})

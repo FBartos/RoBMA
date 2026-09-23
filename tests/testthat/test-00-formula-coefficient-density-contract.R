@@ -770,7 +770,7 @@ test_that("hypothesis results restore public interaction labels", {
     "alloc:ablat[random] >= 0",
     "alloc:ablat[random] >= alloc:ablat[systematic]"
   ))
-  expect_identical(rownames(out), c("alloc:ablat", "alloc:ablat1"))
+  expect_identical(rownames(out), c("alloc:ablat (1)", "alloc:ablat (2)"))
   expect_false(attr(out, "rownames", exact = TRUE))
   expect_identical(attr(out, "raw_BF", exact = TRUE), raw_BF)
   expect_identical(
@@ -780,5 +780,6 @@ test_that("hypothesis results restore public interaction labels", {
   printed <- capture.output(print(out))
   expect_true(any(grepl("alloc:ablat[random] < 0", printed, fixed = TRUE)))
   expect_false(any(grepl("alloc:ablat1", printed, fixed = TRUE)))
+  expect_false(any(grepl("alloc:ablat (", printed, fixed = TRUE)))
   expect_false(any(grepl("mu_interaction", printed, fixed = TRUE)))
 })

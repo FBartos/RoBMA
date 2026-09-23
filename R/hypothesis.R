@@ -1685,18 +1685,48 @@ hypothesis.brma <- function(object, hypothesis,
       old_rownames[has_suffix],
       bracket_start[has_suffix]
     )
-    new_rownames  <- make.unique(paste0(parameter_label, suffix), sep = "")
-    rownames(out) <- new_rownames
-
-    warnings <- attr(out, "warnings", exact = TRUE)
-    if (!is.null(warnings) && !is.null(names(warnings))) {
-      warning_rows <- match(names(warnings), old_rownames)
-      matched      <- !is.na(warning_rows)
-      names(warnings)[matched] <- new_rownames[warning_rows[matched]]
-      attr(out, "warnings") <- warnings
-    }
+    # Statement numbers of repeated rows are renumbered for the display labels.
+    suffix <- sub(" \\([0-9]+\\)$", "", suffix)
+    out <- .hypothesis_brma_set_row_names(
+      out       = out,
+      row_names = .hypothesis_brma_row_names(
+        labels     = paste0(parameter_label, suffix),
+        statements = statement_i
+      )
+    )
   }
   attr(out, "rownames") <- FALSE
+
+  return(out)
+}
+
+
+# Row names of hypothesis tables, as in BayesTools::hypothesis_BF(): rows of
+# several statements on one quantity carry the statement number ("mu (1)",
+# "mu (2)"). "mu1" reads like another parameter, and "mu.1" collides with the
+# names `[.data.frame` gives duplicated rows.
+.hypothesis_brma_row_names <- function(labels, statements) {
+
+  repeated <- labels %in% labels[duplicated(labels)]
+  labels[repeated] <- paste0(labels[repeated], " (", statements[repeated], ")")
+
+  return(make.unique(labels, sep = " "))
+}
+
+
+# Rename table rows together with the table warnings keyed by them.
+.hypothesis_brma_set_row_names <- function(out, row_names) {
+
+  old_rownames  <- rownames(out)
+  rownames(out) <- row_names
+
+  warnings <- attr(out, "warnings", exact = TRUE)
+  if (!is.null(warnings) && !is.null(names(warnings))) {
+    warning_rows <- match(names(warnings), old_rownames)
+    matched      <- !is.na(warning_rows)
+    names(warnings)[matched] <- row_names[warning_rows[matched]]
+    attr(out, "warnings") <- warnings
+  }
 
   return(out)
 }
