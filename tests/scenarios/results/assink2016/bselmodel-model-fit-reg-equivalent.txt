@@ -1,0 +1,3 @@
+  likelihood logml_mv_V logml_mv_vi logml_bselmodel
+1       marg  -72.67620   -75.64165       -75.64394
+2       cond  -76.53429   -76.18953       -76.17970

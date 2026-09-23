@@ -19,6 +19,9 @@
 #' then all from chain 2, etc.). Conditional RoBMA samples are intentionally
 #' stored as one flattened chain because conditioning subsets posterior rows
 #' across chains.
+#' The generic \code{as_draws()} returns a chain-preserving
+#' \code{draws_array}; request \code{as_draws_matrix()} explicitly for a
+#' draws-by-variable matrix, which retains chain counts in its metadata.
 #'
 #' @return An object of the corresponding \pkg{posterior} draws class.
 #'
@@ -30,75 +33,46 @@ NULL
 #' @rdname as_draws.brma_samples
 #' @export
 as_draws.brma_samples <- function(x, ...) {
-
-  .check_posterior_package()
-
-  # reconstruct mcmc.list from samples, convert to draws_array first
-  # (to properly set chain dimensions), then to draws_matrix
-  # this matches posterior::as_draws.matrix behavior but preserves chain info
-  mcmc.list <- .brma_samples_to_mcmc.list(x)
-
-  return(posterior::as_draws_matrix(mcmc.list, ...))
+  return(.brma_samples_as_draws(x, posterior::as_draws_array, ...))
 }
 
 #' @rdname as_draws.brma_samples
 #' @export
 as_draws_array.brma_samples <- function(x, ...) {
-
-  .check_posterior_package()
-
-  # reconstruct mcmc.list from samples
-  mcmc.list <- .brma_samples_to_mcmc.list(x)
-
-  return(posterior::as_draws_array(mcmc.list, ...))
+  return(.brma_samples_as_draws(x, posterior::as_draws_array, ...))
 }
 
 #' @rdname as_draws.brma_samples
 #' @export
 as_draws_df.brma_samples <- function(x, ...) {
-
-  .check_posterior_package()
-
-  # reconstruct mcmc.list from samples
-  mcmc.list <- .brma_samples_to_mcmc.list(x)
-
-  return(posterior::as_draws_df(mcmc.list, ...))
+  return(.brma_samples_as_draws(x, posterior::as_draws_df, ...))
 }
 
 #' @rdname as_draws.brma_samples
 #' @export
 as_draws_list.brma_samples <- function(x, ...) {
-
-  .check_posterior_package()
-
-  # reconstruct mcmc.list from samples
-  mcmc.list <- .brma_samples_to_mcmc.list(x)
-
-  return(posterior::as_draws_list(mcmc.list, ...))
+  return(.brma_samples_as_draws(x, posterior::as_draws_list, ...))
 }
 
 #' @rdname as_draws.brma_samples
 #' @export
 as_draws_matrix.brma_samples <- function(x, ...) {
-
-  .check_posterior_package()
-
-  # reconstruct mcmc.list from samples
-  mcmc.list <- .brma_samples_to_mcmc.list(x)
-
-  return(posterior::as_draws_matrix(mcmc.list, ...))
+  return(.brma_samples_as_draws(x, posterior::as_draws_matrix, ...))
 }
 
 #' @rdname as_draws.brma_samples
 #' @export
 as_draws_rvars.brma_samples <- function(x, ...) {
+  return(.brma_samples_as_draws(x, posterior::as_draws_rvars, ...))
+}
+
+
+.brma_samples_as_draws <- function(x, converter, ...) {
 
   .check_posterior_package()
-
-  # reconstruct mcmc.list from samples
   mcmc.list <- .brma_samples_to_mcmc.list(x)
 
-  return(posterior::as_draws_rvars(mcmc.list, ...))
+  return(converter(mcmc.list, ...))
 }
 
 

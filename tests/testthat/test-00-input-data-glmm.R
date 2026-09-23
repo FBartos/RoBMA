@@ -200,6 +200,96 @@ test_that("GLMM handles slab and cluster metadata", {
 })
 
 
+test_that("GLMM rejects unresolved supplied optional variables", {
+
+  skip_on_cran()
+
+  expect_error_cases(list(
+    list(
+      label  = "unresolved weights",
+      expr   = quote(brma.glmm(
+        ai        = ai,
+        bi        = bi,
+        ci        = ci,
+        di        = di,
+        weights   = wights,
+        data      = test_data_glmm,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*weights"
+    ),
+    list(
+      label  = "unresolved cluster",
+      expr   = quote(brma.glmm(
+        ai        = ai,
+        bi        = bi,
+        ci        = ci,
+        di        = di,
+        cluster   = cluser,
+        data      = test_data_glmm,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*cluster"
+    ),
+    list(
+      label  = "unresolved subset",
+      expr   = quote(brma.glmm(
+        ai        = ai,
+        bi        = bi,
+        ci        = ci,
+        di        = di,
+        subset    = subest,
+        data      = test_data_glmm,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*subset"
+    ),
+    list(
+      label  = "unresolved binomial total",
+      expr   = quote(brma.glmm(
+        ai        = ai,
+        ci        = ci,
+        n1i       = sample_size_1,
+        n2i       = n2i,
+        data      = test_data_glmm,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*n1i"
+    ),
+    list(
+      label  = "unresolved poisson count",
+      expr   = quote(brma.glmm(
+        x1i       = x1_typo,
+        x2i       = c(2L, 4L),
+        t1i       = c(10, 12),
+        t2i       = c(11, 13),
+        measure   = "IRR",
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*x1i"
+    )
+  ))
+
+  result <- brma.glmm(
+    ai        = ai,
+    bi        = bi,
+    ci        = ci,
+    di        = di,
+    weights   = NULL,
+    cluster   = NULL,
+    slab      = NULL,
+    subset    = NULL,
+    data      = test_data_glmm,
+    only_data = TRUE
+  )[["data"]]
+
+  expect_equal(nrow(result$outcome), nrow(test_data_glmm))
+  expect_false(attr(result, "weights"))
+  expect_false(attr(result, "cluster"))
+  expect_false(attr(result, "slab"))
+})
+
+
 # ============================================================================
 # Input validation tests
 # ============================================================================
@@ -429,6 +519,39 @@ test_that("GLMM validates inferred cells and argument lengths", {
         only_data = TRUE
       )),
       regexp = "bi"
+    ),
+    list(
+      label  = "zero treatment arm total",
+      expr   = quote(brma.glmm(
+        ai        = c(0L, 10L),
+        ci        = c(1L, 10L),
+        n1i       = c(0L, 50L),
+        n2i       = c(50L, 50L),
+        only_data = TRUE
+      )),
+      regexp = "n1i.*positive"
+    ),
+    list(
+      label  = "zero control arm total",
+      expr   = quote(brma.glmm(
+        ai        = c(1L, 10L),
+        ci        = c(0L, 10L),
+        n1i       = c(50L, 50L),
+        n2i       = c(0L, 50L),
+        only_data = TRUE
+      )),
+      regexp = "n2i.*positive"
+    ),
+    list(
+      label  = "zero treatment arm total from cells",
+      expr   = quote(brma.glmm(
+        ai        = c(0L, 10L),
+        bi        = c(0L, 40L),
+        ci        = c(1L, 10L),
+        di        = c(49L, 40L),
+        only_data = TRUE
+      )),
+      regexp = "n1i.*positive"
     )
   ))
 })

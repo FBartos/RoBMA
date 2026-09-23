@@ -77,6 +77,7 @@ test_that("BMA.glmm staged constructor returns product-space objects without bia
   expect_s3_class(object_data, "BMA.glmm")
   expect_s3_class(object_data, "RoBMA")
   expect_s3_class(object_data, "brma.glmm")
+  expect_equal(attr(object_data[["data"]], "set_contrast_factor_predictors"), "meandif")
   expect_s3_class(object_priors, "BMA.glmm")
   expect_null(object_priors[["priors"]][["outcome"]][["bias"]])
   expect_true(BayesTools::is.prior.mixture(object_priors[["priors"]][["outcome"]][["mu"]]))

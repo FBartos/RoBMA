@@ -1,0 +1,3 @@
+  rho qCMDE_cluster_BF qCMDE_cluster_error_percent qCMDE_mv_vi_BF qCMDE_mv_vi_error_percent marglik_cluster_BF marglik_mv_vi_BF
+1   0     6.559288e+17                    87.87761   1.174554e+17                  64.54279        4.52806e+13     4.432246e+13
+2   1     2.122740e+18                    72.42106   4.959636e+20                  95.14830                 NA     3.488401e+14

@@ -27,6 +27,8 @@ test_that("BMA.glmm fits binomial model (OR)", {
 })
 
 test_that("BMA.glmm fits Poisson model (IRR)", {
+
+  skip_if_fit_not_active("nielweise2008_BMA.glmm")
   data(dat.nielweise2008, package = "metadat")
 
   fit <- BMA.glmm(
@@ -47,6 +49,8 @@ test_that("BMA.glmm fits Poisson model (IRR)", {
 
 
 test_that("BMA.glmm handles custom priors", {
+
+  skip_if_fit_not_active("bcg_BMA.glmm_custom")
   data(dat.bcg, package = "metadat")
 
   fit <- BMA.glmm(
@@ -68,6 +72,8 @@ test_that("BMA.glmm handles custom priors", {
 })
 
 test_that("BMA.glmm handles 3lvl location-scale meta-regression", {
+
+  skip_if_fit_not_active("bcg_BMA.glmm_3lvl_location_scale")
   data(dat.bcg, package = "metadat")
 
   fit <- BMA.glmm(

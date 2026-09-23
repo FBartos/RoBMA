@@ -1,3 +1,63 @@
+.test_step_spec <- function(yi, sei, effect_direction = "positive") {
+
+  prior <- BayesTools::prior_weightfunction(
+    side    = "one-sided",
+    steps   = c(.025, .05, .50),
+    weights = BayesTools::wf_fixed(c(1, .7, .35, .2))
+  )
+
+  .selection_spec(
+    priors           = list(outcome = list(bias = prior)),
+    yi               = yi,
+    sei              = sei,
+    effect_direction = effect_direction,
+    signed_data      = FALSE
+  )
+}
+
+.test_two_sided_step_spec <- function(yi, sei, effect_direction = "positive") {
+
+  prior <- BayesTools::prior_weightfunction(
+    side    = "two-sided",
+    steps   = c(.05, .10),
+    weights = BayesTools::wf_fixed(c(1, .7, .35))
+  )
+
+  .selection_spec(
+    priors           = list(outcome = list(bias = prior)),
+    yi               = yi,
+    sei              = sei,
+    effect_direction = effect_direction,
+    signed_data      = FALSE
+  )
+}
+
+.test_step_log_norm_reference <- function(mean, sd, sei, omega, spec) {
+
+  S   <- nrow(mean)
+  K   <- ncol(mean)
+  out <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (s in seq_len(S)) {
+    for (k in seq_len(K)) {
+      mean_z   <- spec[["sign"]] * mean[s, k] / sei[k]
+      sd_z     <- sd[s, k] / sei[k]
+      log_mass <- vapply(seq_len(spec[["n_bins"]]), function(b) {
+        log(omega[s, b]) + .test_interval_log_prob(
+          spec[["z_lower"]][b],
+          spec[["z_upper"]][b],
+          mean_z,
+          sd_z
+        )
+      }, numeric(1))
+
+      out[s, k] <- .test_logsumexp(log_mass)
+    }
+  }
+
+  return(out)
+}
+
 .test_step_reference <- function(yi, mu, sigma, sei, omega, spec,
                                  weights = rep(1, length(yi))) {
 
@@ -43,6 +103,59 @@
   }
   return(stats::pnorm(upper, mean = mean, sd = sd) -
     stats::pnorm(lower, mean = mean, sd = sd))
+}
+
+.test_interval_prob_vec <- function(lower, upper, mean, sd) {
+
+  lower_tail <- stats::pnorm(upper, mean = mean, sd = sd) -
+    stats::pnorm(lower, mean = mean, sd = sd)
+  upper_tail <- stats::pnorm(
+    lower,
+    mean       = mean,
+    sd         = sd,
+    lower.tail = FALSE
+  ) - stats::pnorm(
+    upper,
+    mean       = mean,
+    sd         = sd,
+    lower.tail = FALSE
+  )
+  out <- ifelse(lower >= mean, upper_tail, lower_tail)
+  out[lower >= upper] <- 0
+  if (any(!is.finite(out)) || any(out < 0) || any(out > 1)) {
+    stop("Selection interval probability reference failed.", call. = FALSE)
+  }
+  return(out)
+}
+
+.test_validate_cdf <- function(value, context, operation_count = 1L) {
+
+  if (!is.numeric(value) || any(!is.finite(value))) {
+    stop(context, " produced invalid CDF values.", call. = FALSE)
+  }
+
+  relative_error <- operation_count * .Machine$double.eps /
+    (1 - operation_count * .Machine$double.eps)
+  near_zero <- value < 0 & value >= -relative_error
+  near_one  <- value > 1 & value <= 1 + relative_error
+  value[near_zero] <- 0
+  value[near_one]  <- 1
+
+  if (any(value < 0 | value > 1)) {
+    stop(context, " produced invalid CDF values.", call. = FALSE)
+  }
+  return(value)
+}
+
+.test_selection_mixture_has_full_support <- function(selection_context,
+                                                     selected_rows) {
+
+  if (is.null(selection_context) || any(!selected_rows)) {
+    return(TRUE)
+  }
+
+  omega <- selection_context[["omega"]][selected_rows, , drop = FALSE]
+  return(all(colSums(omega > 0) > 0))
 }
 
 .test_logspace_sub <- function(log_a, log_b) {

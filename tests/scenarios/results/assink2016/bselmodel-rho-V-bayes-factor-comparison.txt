@@ -1,0 +1,5 @@
+  likelihood rho qCMDE_mv_V_BF qCMDE_mv_V_error_percent marglik_mv_V_BF
+1       marg   0  8.058764e-01                 5.776597    8.530704e-01
+2       marg   1  2.286284e+98                31.109592    1.671970e+97
+3       cond   0  7.505316e+01                35.983461    1.361796e+01
+4       cond   1 1.366064e+149                92.677001    1.593477e+94

@@ -36,8 +36,222 @@
   if (!is.null(posterior_samples)) {
     return(posterior_samples)
   }
+  if (is.null(fit)) {
+    stop(
+      "Posterior samples are required for this operation; refit the model ",
+      "or supply '.posterior_samples'.",
+      call. = FALSE
+    )
+  }
 
   return(suppressWarnings(coda::as.mcmc(fit)))
+}
+
+.point_prior_value <- function(prior) {
+
+  if (is.null(prior) || !BayesTools::is.prior.point(prior)) {
+    return(NULL)
+  }
+
+  value <- prior[["parameters"]][["location"]]
+  if (length(value) == 1L && is.finite(value)) {
+    return(as.numeric(value))
+  }
+
+  return(NULL)
+}
+
+.fixed_tau_prior_value <- function(priors) {
+
+  if (is.null(priors) || is.null(priors[["outcome"]])) {
+    return(NULL)
+  }
+
+  return(.point_prior_value(priors[["outcome"]][["tau"]]))
+}
+
+.fixed_mu_prior_value <- function(priors) {
+
+  if (is.null(priors) || is.null(priors[["outcome"]])) {
+    return(NULL)
+  }
+
+  return(.point_prior_value(priors[["outcome"]][["mu"]]))
+}
+
+.fixed_rho_prior_value <- function(priors) {
+
+  if (is.null(priors) || is.null(priors[["outcome"]])) {
+    return(NULL)
+  }
+
+  return(.point_prior_value(priors[["outcome"]][["rho"]]))
+}
+
+.fixed_bias_parameter_value <- function(priors, parameter) {
+
+  if (is.null(priors) ||
+      is.null(priors[["outcome"]]) ||
+      is.null(priors[["outcome"]][["bias"]])) {
+    return(NULL)
+  }
+
+  prior <- priors[["outcome"]][["bias"]]
+  if (parameter == "PET" && !BayesTools::is.prior.PET(prior)) {
+    return(NULL)
+  }
+  if (parameter == "PEESE" && !BayesTools::is.prior.PEESE(prior)) {
+    return(NULL)
+  }
+
+  return(.point_prior_value(prior))
+}
+
+.bias_regression_predictor <- function(sei, parameter, effect_direction) {
+
+  direction <- if (effect_direction == "negative") -1 else 1
+  if (parameter == "PET") {
+    return(direction * sei)
+  }
+  if (parameter == "PEESE") {
+    return(direction * sei^2)
+  }
+
+  stop("Unknown bias-regression parameter: ", parameter, ".",
+       call. = FALSE)
+}
+
+.fixed_prior_list_values <- function(prior_list) {
+
+  if (is.null(prior_list) || length(prior_list) == 0L) {
+    return(numeric())
+  }
+
+  values <- vapply(prior_list, function(prior) {
+    value <- .point_prior_value(prior)
+    if (is.null(value)) NA_real_ else value
+  }, numeric(1))
+  values <- values[is.finite(values)]
+
+  return(values)
+}
+
+.resolve_fixed_prior_row <- function(row, prior_list) {
+
+  fixed_values <- .fixed_prior_list_values(prior_list)
+  if (length(fixed_values) == 0L) {
+    return(row)
+  }
+
+  for (parameter in names(fixed_values)) {
+    row[[parameter]] <- fixed_values[[parameter]]
+  }
+
+  return(row)
+}
+
+.resolve_fixed_prior_sample_columns <- function(posterior_samples, prior_list) {
+
+  fixed_values <- .fixed_prior_list_values(prior_list)
+  if (length(fixed_values) == 0L) {
+    return(posterior_samples)
+  }
+
+  columns <- colnames(posterior_samples)
+  if (is.null(columns)) {
+    return(posterior_samples)
+  }
+
+  fixed_columns <- intersect(names(fixed_values), columns)
+  for (column in fixed_columns) {
+    posterior_samples[, column] <- fixed_values[[column]]
+  }
+
+  missing_values <- fixed_values[!names(fixed_values) %in% columns]
+  if (length(missing_values) == 0L) {
+    return(posterior_samples)
+  }
+
+  fixed_samples <- matrix(
+    rep(missing_values, each = nrow(posterior_samples)),
+    nrow     = nrow(posterior_samples),
+    ncol     = length(missing_values),
+    dimnames = list(NULL, names(missing_values))
+  )
+
+  return(cbind(posterior_samples, fixed_samples))
+}
+
+.posterior_or_fixed_scalar <- function(posterior_samples, parameter,
+                                       fixed_value = NULL,
+                                       required = TRUE) {
+
+  if (!is.null(fixed_value)) {
+    return(rep(fixed_value, nrow(posterior_samples)))
+  }
+  if (parameter %in% colnames(posterior_samples)) {
+    return(as.numeric(posterior_samples[, parameter]))
+  }
+  if (isTRUE(required)) {
+    stop("Missing posterior ", parameter, " columns.", call. = FALSE)
+  }
+
+  return(NULL)
+}
+
+
+# Validate scalar or row-wise heterogeneity-allocation values without clipping.
+.resolve_heterogeneity_allocation <- function(rho, n_samples, context) {
+
+  if (!is.numeric(rho) || !length(rho) %in% c(1L, n_samples)) {
+    stop(
+      context,
+      " 'rho' must be a numeric scalar or vector matching posterior rows.",
+      call. = FALSE
+    )
+  }
+  if (any(!is.finite(rho)) || any(rho < 0 | rho > 1)) {
+    stop(
+      context,
+      " 'rho' must contain only finite values within [0, 1].",
+      call. = FALSE
+    )
+  }
+
+  return(rep(as.numeric(rho), length.out = n_samples))
+}
+
+
+# Split total heterogeneity while preserving exact allocation endpoints.
+.heterogeneity_components <- function(tau_total, rho = NULL,
+                                      is_multilevel = FALSE,
+                                      context = "Heterogeneity") {
+
+  if (!is.matrix(tau_total) || !is.numeric(tau_total) ||
+      any(!is.finite(tau_total)) || any(tau_total < 0)) {
+    stop(
+      context,
+      " 'tau_total' must be a finite, non-negative numeric matrix.",
+      call. = FALSE
+    )
+  }
+  if (!isTRUE(is_multilevel)) {
+    return(list(
+      tau_total   = tau_total,
+      tau_within  = tau_total,
+      tau_between = matrix(0, nrow = nrow(tau_total), ncol = ncol(tau_total)),
+      rho         = NULL
+    ))
+  }
+
+  rho <- .resolve_heterogeneity_allocation(rho, nrow(tau_total), context)
+
+  return(list(
+    tau_total   = tau_total,
+    tau_within  = tau_total * sqrt(1 - rho),
+    tau_between = tau_total * sqrt(rho),
+    rho         = rho
+  ))
 }
 
 
@@ -75,38 +289,40 @@
                                                n_expected = NULL,
                                                required = TRUE) {
 
-  parameter_pattern <- gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", parameter)
-  parameter_cols    <- grep(
-    paste0("^", parameter_pattern, "(\\[|$)"),
-    colnames(posterior_samples),
-    value = TRUE
+  parameter_matrix <- BayesTools::JAGS_indexed_parameter_matrix(
+    samples   = posterior_samples,
+    parameter = parameter
   )
+  if (is.null(parameter_matrix) && parameter %in% colnames(posterior_samples)) {
+    parameter_matrix <- as.matrix(posterior_samples[, parameter, drop = FALSE])
+  }
 
-  if (length(parameter_cols) == 0L) {
+  if (is.null(parameter_matrix)) {
     if (required) {
       stop("Missing posterior ", parameter, " columns.", call. = FALSE)
     }
     return(NULL)
   }
 
-  parameter_index <- suppressWarnings(as.integer(sub(
-    paste0("^", parameter_pattern, "\\[([0-9]+)\\]$"),
-    "\\1",
-    parameter_cols
-  )))
-  if (all(!is.na(parameter_index))) {
-    parameter_cols <- parameter_cols[order(parameter_index)]
-  }
-
-  if (!is.null(n_expected) && length(parameter_cols) != n_expected) {
+  if (!is.null(n_expected) && ncol(parameter_matrix) != n_expected) {
     stop(
       "Expected ", n_expected, " posterior ", parameter, " column(s), found ",
-      length(parameter_cols), ".",
+      ncol(parameter_matrix), ".",
       call. = FALSE
     )
   }
 
-  return(as.matrix(posterior_samples[, parameter_cols, drop = FALSE]))
+  if (!is.null(n_expected) &&
+      !identical(colnames(parameter_matrix), parameter)) {
+    expected_names <- paste0(parameter, "[", seq_len(n_expected), "]")
+    missing_names <- setdiff(expected_names, colnames(parameter_matrix))
+    if (length(missing_names) > 0L) {
+      stop("Missing posterior column(s): ", paste(missing_names, collapse = ", "),
+           ".", call. = FALSE)
+    }
+  }
+
+  return(parameter_matrix)
 }
 
 
@@ -135,7 +351,8 @@
 # posterior rows while preserving formula scaling metadata from the JAGS fit.
 #
 # ---------------------------------------------------------------------------- #
-.posterior_formula_fit <- function(fit, posterior_samples) {
+.posterior_formula_fit <- function(fit, posterior_samples,
+                                   formula_design = TRUE) {
 
   formula_fit <- if (inherits(posterior_samples, "mcmc")) {
     posterior_samples
@@ -144,8 +361,37 @@
   }
 
   attr(formula_fit, "formula_scale") <- attr(fit, "formula_scale")
+  if (isTRUE(formula_design)) {
+    attr(formula_fit, "formula_design") <- attr(fit, "formula_design")
+  } else {
+    attr(formula_fit, "formula_design") <- NULL
+  }
 
   return(formula_fit)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.log_tau
+# ---------------------------------------------------------------------------- #
+
+.evaluate.brma.log_tau <- function(fit, scale_data, scale_formula,
+                                    scale_priors, posterior_samples) {
+
+  scale_priors <- .repair_formula_prior_list(
+    prior_list = scale_priors,
+    parameter  = "log_tau"
+  )
+
+  # BayesTools returns K x S; RoBMA prediction samples use S x K.
+  return(t(BayesTools::JAGS_evaluate_formula(
+    fit            = .posterior_formula_fit(fit, posterior_samples),
+    formula        = scale_formula,
+    parameter      = "log_tau",
+    data           = scale_data,
+    prior_list     = scale_priors,
+    formula_target = "fixed"
+  )))
 }
 
 
@@ -182,7 +428,8 @@
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.tau <- function(fit, scale_data, scale_formula, scale_priors,
                                is_scale, is_multilevel, K,
-                               posterior_samples = NULL) {
+                               posterior_samples = NULL,
+                               fixed_tau = NULL, fixed_rho = NULL) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S <- nrow(posterior_samples)  # number of posterior samples
@@ -190,60 +437,135 @@
   ### compute tau samples based on model type
   if (is_scale) {
 
-    scale_priors <- .repair_formula_prior_list(
-      prior_list = scale_priors,
-      parameter  = "log_tau"
+    log_tau_samples <- .evaluate.brma.log_tau(
+      fit               = fit,
+      scale_data        = scale_data,
+      scale_formula     = scale_formula,
+      scale_priors      = scale_priors,
+      posterior_samples = posterior_samples
     )
-
-    # scale regression: evaluate log_tau formula then exponentiate
-    # BayesTools::JAGS_evaluate_formula returns K x S matrix, we need S x K
-    log_tau_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit        = .posterior_formula_fit(fit, posterior_samples),
-      formula    = scale_formula,
-      parameter  = "log_tau",
-      data       = scale_data,
-      prior_list = scale_priors
-    ))
     tau_samples <- exp(log_tau_samples)
 
   } else {
 
-    # simple model: extract tau column and replicate to K columns
-    # matrix(vec, nrow = S, ncol = K) replicates vec across columns
-    # equivalent to: for (k in 1:K) result[, k] <- posterior_samples[, "tau"]
-    tau_samples <- matrix(posterior_samples[, "tau"], nrow = S, ncol = K)
+    if (!is.null(fixed_tau)) {
+      tau_samples <- matrix(fixed_tau, nrow = S, ncol = K)
+    } else {
+      tau_parameter <- .extract_indexed_parameter_samples(
+        posterior_samples = posterior_samples,
+        parameter         = "tau",
+        required          = FALSE
+      )
+      if (is.null(tau_parameter)) {
+        if (!any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
+          stop("Missing posterior tau columns.", call. = FALSE)
+        }
+        tau_samples <- matrix(0, nrow = S, ncol = K)
+      } else if (ncol(tau_parameter) == 1L) {
+        # simple model: extract tau column and replicate to K columns
+        # matrix(vec, nrow = S, ncol = K) replicates vec across columns
+        # equivalent to: for (k in 1:K) result[, k] <- tau_parameter[, 1]
+        tau_samples <- matrix(tau_parameter[, 1L], nrow = S, ncol = K)
+      } else if (ncol(tau_parameter) == K) {
+        tau_samples <- tau_parameter
+      } else {
+        stop(
+          "Posterior tau samples must be scalar or row-wise.",
+          call. = FALSE
+        )
+      }
+    }
 
   }
 
-  ### split tau into within/between components for multilevel models
-  if (is_multilevel) {
-
-    # extract rho (proportion of variance at cluster-level)
-    rho_samples <- posterior_samples[, "rho"]
-
-    # clamp rho to [0, 1] to handle JAGS numerical precision issues
-    # pmin/pmax are vectorized min/max: faster than rho[rho > 1] <- 1
-    rho_samples <- pmin(pmax(rho_samples, 0), 1)
-
-    # tau_within = tau * sqrt(1 - rho)  (estimate-level heterogeneity)
-    # tau_between = tau * sqrt(rho)     (cluster-level heterogeneity)
-    # multiplication by vector rho_samples broadcasts across columns
-    tau_within_samples  <- tau_samples * sqrt(1 - rho_samples)
-    tau_between_samples <- tau_samples * sqrt(rho_samples)
-
+  rho_samples <- if (is_multilevel) {
+    .posterior_or_fixed_scalar(
+      posterior_samples = posterior_samples,
+      parameter         = "rho",
+      fixed_value       = fixed_rho
+    )
   } else {
-
-    # non-multilevel: all heterogeneity is at estimate-level
-    # tau_between is zero matrix for consistent interface
-    tau_within_samples  <- tau_samples
-    tau_between_samples <- matrix(0, nrow = S, ncol = K)
-
+    NULL
   }
 
-  return(list(
-    tau_total   = tau_samples,
-    tau_within  = tau_within_samples,
-    tau_between = tau_between_samples
+  return(.heterogeneity_components(
+    tau_total     = tau_samples,
+    rho           = rho_samples,
+    is_multilevel = is_multilevel,
+    context       = "Posterior heterogeneity"
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.pooled_tau
+# ---------------------------------------------------------------------------- #
+#
+# Evaluate heterogeneity at the average expanded scale design. For a log-scale
+# regression this averages the linear predictor before applying exp(), rather
+# than averaging observation-level standard deviations or variances.
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.pooled_tau <- function(
+    fit, scale_data, scale_formula, scale_priors, is_scale, is_multilevel,
+    posterior_samples = NULL, fixed_tau = NULL, fixed_rho = NULL) {
+
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  S                 <- nrow(posterior_samples)
+
+  if (is_scale) {
+    log_tau_samples <- .evaluate.brma.log_tau(
+      fit               = fit,
+      scale_data        = scale_data,
+      scale_formula     = scale_formula,
+      scale_priors      = scale_priors,
+      posterior_samples = posterior_samples
+    )
+    tau_samples <- matrix(
+      exp(rowMeans(log_tau_samples)),
+      nrow = S,
+      ncol = 1L
+    )
+  } else {
+    if (!is.null(fixed_tau)) {
+      tau_samples <- matrix(fixed_tau, nrow = S, ncol = 1L)
+    } else {
+      tau_parameter <- .extract_indexed_parameter_samples(
+        posterior_samples = posterior_samples,
+        parameter         = "tau",
+        required          = FALSE
+      )
+      if (is.null(tau_parameter)) {
+        if (!any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
+          stop("Missing posterior tau columns.", call. = FALSE)
+        }
+        tau_samples <- matrix(0, nrow = S, ncol = 1L)
+      } else if (ncol(tau_parameter) == 1L) {
+        tau_samples <- matrix(tau_parameter[, 1L], nrow = S, ncol = 1L)
+      } else {
+        stop(
+          "Pooled heterogeneity requires a scalar tau or a scale formula.",
+          call. = FALSE
+        )
+      }
+    }
+  }
+
+  rho_samples <- if (is_multilevel) {
+    .posterior_or_fixed_scalar(
+      posterior_samples = posterior_samples,
+      parameter         = "rho",
+      fixed_value       = fixed_rho
+    )
+  } else {
+    NULL
+  }
+
+  return(.heterogeneity_components(
+    tau_total     = tau_samples,
+    rho           = rho_samples,
+    is_multilevel = is_multilevel,
+    context       = "Pooled posterior heterogeneity"
   ))
 }
 
@@ -269,6 +591,7 @@
 #                         (NULL if not a meta-regression model)
 # @param mods_formula     formula object for meta-regression
 # @param mods_priors      list of priors for moderator parameters
+# @param priors           complete model-prior specification
 # @param is_mods          logical; whether model is meta-regression
 # @param is_PET           logical; whether model includes PET adjustment
 # @param is_PEESE         logical; whether model includes PEESE adjustment
@@ -282,9 +605,10 @@
 # @return S x K matrix of mu (location) posterior samples
 #
 # ---------------------------------------------------------------------------- #
-.evaluate.brma.mu <- function(fit, outcome_data, mods_data, mods_formula, mods_priors,
-                              is_mods, is_PET, is_PEESE, effect_direction,
-                              bias_adjusted, K, posterior_samples = NULL) {
+.evaluate.brma.mu <- function(fit, outcome_data, mods_data, mods_formula,
+                              mods_priors, priors, is_mods, is_PET, is_PEESE,
+                              effect_direction, bias_adjusted, K,
+                              posterior_samples = NULL) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S <- nrow(posterior_samples)
@@ -300,17 +624,62 @@
     # meta-regression: evaluate mu formula with moderators
     # returns K x S, transpose to S x K
     mu_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit        = .posterior_formula_fit(fit, posterior_samples),
-      formula    = mods_formula,
-      parameter  = "mu",
-      data       = mods_data,
-      prior_list = mods_priors
+      fit            = .posterior_formula_fit(fit, posterior_samples),
+      formula        = mods_formula,
+      parameter      = "mu",
+      data           = mods_data,
+      prior_list     = mods_priors,
+      formula_target = "fixed"
     ))
 
   } else {
 
-    # simple model: replicate mu column to K columns
-    mu_samples <- matrix(posterior_samples[, "mu"], nrow = S, ncol = K)
+    fixed_mu <- .fixed_mu_prior_value(priors)
+    if (!is.null(fixed_mu)) {
+
+      # point prior: mu is fixed and therefore absent from posterior samples
+      mu_samples <- matrix(fixed_mu, nrow = S, ncol = K)
+
+    } else if ("mu" %in% colnames(posterior_samples)) {
+
+      # simple model: replicate mu column to K columns
+      mu_samples <- matrix(posterior_samples[, "mu"], nrow = S, ncol = K)
+
+    } else {
+
+      formula_priors  <- .repair_formula_prior_list(
+        prior_list = mods_priors,
+        parameter  = "mu"
+      )
+      intercept_prior <- formula_priors[["intercept"]]
+      intercept_name  <- BayesTools::JAGS_parameter_names(
+        "intercept",
+        formula_parameter = "mu"
+      )
+      if (!is.null(intercept_prior) &&
+          is.null(attr(intercept_prior, "multiply_by")) &&
+          intercept_name %in% colnames(posterior_samples)) {
+        mu_samples <- matrix(
+          posterior_samples[, intercept_name],
+          nrow = S,
+          ncol = K
+        )
+      } else {
+        location_data <- data.frame(row.names = seq_len(K))
+        mu_samples <- t(BayesTools::JAGS_evaluate_formula(
+          fit            = .posterior_formula_fit(
+            fit               = fit,
+            posterior_samples = posterior_samples,
+            formula_design    = FALSE
+          ),
+          formula        = stats::as.formula("~ 1"),
+          parameter      = "mu",
+          data           = location_data,
+          prior_list     = formula_priors,
+          formula_target = "fixed"
+        ))
+      }
+    }
 
   }
 
@@ -319,41 +688,706 @@
   # remains on the original effect-size scale. The data flip in
   # .create_fit_data() is matched by the likelihood sign.
 
-  ### add PET adjustment when NOT incorporating publication bias adjustment
-  # (i.e., when we want to show the biased predictions)
-  # PET model in JAGS: yi_flipped ~ N(-mu + PET * sei, tau) for negative effects
-  #                    yi ~ N(mu + PET * sei, tau) for positive effects
-  # To get biased effect in original scale:
-  #   - positive: E[yi] = mu + PET * sei
-  #   - negative: E[yi_original] = -E[yi_flipped] = -(-mu + PET * sei) = mu - PET * sei
-  # So the sign of PET adjustment depends on effect_direction
-  if (is_PET && !bias_adjusted) {
-
-    PET_samples <- posterior_samples[, "PET"]
-    sei_vec     <- outcome_data[["sei"]]
-
-    # vectorized: outer(PET_samples, sei_vec) creates S x K matrix
-    # outer(a, b) computes a[i] * b[j] for all i,j pairs
-    # direction multiplier: +1 for positive, -1 for negative
-    direction <- ifelse(effect_direction == "negative", -1, 1)
-    mu_samples <- mu_samples + direction * outer(PET_samples, sei_vec)
-
-  }
-
-  ### add PEESE adjustment when NOT incorporating publication bias adjustment
-  # PEESE model: Same logic as PET but with sei^2
-  if (is_PEESE && !bias_adjusted) {
-
-    PEESE_samples <- posterior_samples[, "PEESE"]
-    sei_sq_vec    <- outcome_data[["sei"]]^2
-
-    # direction multiplier: +1 for positive, -1 for negative
-    direction <- ifelse(effect_direction == "negative", -1, 1)
-    mu_samples <- mu_samples + direction * outer(PEESE_samples, sei_sq_vec)
-
+  # Add the expected PET/PEESE bias only for observed-scale predictions. The
+  # helper owns the original-scale direction convention used by every
+  # post-fit and bridge path.
+  if (!bias_adjusted && (is_PET || is_PEESE)) {
+    mu_samples <- mu_samples + .evaluate.brma.bias_offset(
+      fit               = fit,
+      outcome_data      = outcome_data,
+      is_PET            = is_PET,
+      is_PEESE          = is_PEESE,
+      effect_direction  = effect_direction,
+      K                 = K,
+      posterior_samples = posterior_samples,
+      priors            = priors
+    )
   }
 
   return(mu_samples)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.random_effects
+# ---------------------------------------------------------------------------- #
+#
+# Evaluate the conditional random-effect contribution for same-data
+# random-formula models. This intentionally returns only the group-level
+# contribution; callers add it to `.evaluate.brma.mu()` explicitly.
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.random_effects <- function(fit, data, priors,
+                                          posterior_samples = NULL,
+                                          same_data = TRUE,
+                                          required = FALSE,
+                                          formula_target = "conditional",
+                                          blocks = NULL,
+                                          object = NULL) {
+
+  formula_target <- match.arg(formula_target, c("conditional", "marginal"))
+
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  S                 <- nrow(posterior_samples)
+  K                 <- nrow(data[["outcome"]])
+
+  if (is.null(object)) {
+    object <- list(
+      fit    = fit,
+      data   = data,
+      priors = priors
+    )
+  }
+
+  if (!.is_data_random(data)) {
+    if (required) {
+      stop("Random-effect predictions require a random-formula model.",
+           call. = FALSE)
+    }
+    return(matrix(0, nrow = S, ncol = K))
+  }
+
+  location_priors <- attr(fit, "prior_list")
+  if (is.null(location_priors)) {
+    location_priors <- priors[["location"]]
+  }
+  if (is.null(location_priors)) {
+    stop("Random-effect prediction requires location prior metadata.",
+         call. = FALSE)
+  }
+
+  formula_design <- if (.is_scale(object)) {
+    .predict_known_v_formula_design_with_row_source_values(
+      object = object,
+      data   = data
+    )
+  } else {
+    .fitted_formula_design(object, "mu", required = TRUE)
+  }
+  if (is.null(formula_design)) {
+    stop(
+      "Conditional random-effect evaluation requires fitted formula-design metadata.",
+      call. = FALSE
+    )
+  }
+
+  if (identical(formula_target, "conditional")) {
+    sampled_blocks <- .formula_design_sampled_random_effect_blocks(formula_design)
+    if (is.null(blocks)) {
+      blocks <- sampled_blocks
+    }
+    if (length(blocks) == 0L) {
+      return(matrix(0, nrow = S, ncol = K))
+    }
+  }
+  has_known_group_covariance <- .formula_design_blocks_have_known_group_covariance(
+    formula_design = formula_design,
+    blocks         = blocks
+  )
+
+  formula_fit <- .posterior_formula_fit(
+    fit               = fit,
+    posterior_samples = posterior_samples,
+    formula_design    = TRUE
+  )
+  attr(formula_fit, "formula_design") <- list(mu = formula_design)
+
+  call_args <- list(
+    fit            = formula_fit,
+    formula        = .create_fit_formula_list(data = data, parameter = "location"),
+    parameter      = "mu",
+    data           = data[["location"]],
+    prior_list     = location_priors,
+    formula_target = formula_target
+  )
+
+  if (identical(formula_target, "conditional")) {
+    call_args[["blocks"]]     <- blocks
+    if (!isTRUE(same_data) &&
+        has_known_group_covariance &&
+        length(blocks) > 1L) {
+      random_samples <- .evaluate.brma.random_effects_by_block(
+        call_args      = call_args,
+        formula_design = formula_design,
+        blocks         = blocks,
+        S              = S,
+        K              = K
+      )
+      return(t(random_samples))
+    }
+    call_args[["new_levels"]] <- .evaluate.brma.random_effects_new_levels(
+      formula_design = formula_design,
+      blocks         = blocks,
+      same_data      = same_data
+    )
+  } else {
+    if (!is.null(blocks)) {
+      call_args[["blocks"]] <- blocks
+    }
+    call_args[["marginal_method"]] <- if (has_known_group_covariance) {
+      "covariance"
+    } else {
+      "sample"
+    }
+    call_args[["new_levels"]]      <- if (has_known_group_covariance) "error" else "sample"
+  }
+
+  prediction     <- do.call(BayesTools::JAGS_predict_formula, call_args)
+  random_samples <- .evaluate.brma.random_effects_prediction_samples(
+    prediction = prediction,
+    S          = S,
+    K          = K
+  )
+  if (is.null(random_samples)) {
+    return(matrix(0, nrow = S, ncol = K))
+  }
+
+  return(t(random_samples))
+}
+
+
+# With conditioned sampling, every backend source is a Gaussian auxiliary,
+# irrespective of its role in selection normalization.
+.selection_random_source_contributions <- function(setup) {
+
+  data    <- setup[["data"]]
+  sources <- .data_selection_model(data)[["sources"]][["random"]]
+  object  <- setup[["object"]]
+  if (is.null(object)) {
+    object <- list(fit = setup[["fit"]], data = data, priors = setup[["priors"]])
+  }
+  contributions <- lapply(sources, function(source) {
+
+    if (.is_data_random(data)) {
+      return(.evaluate.brma.random_effects(
+        fit               = setup[["fit"]],
+        data              = data,
+        priors            = setup[["priors"]],
+        posterior_samples = setup[["posterior_samples"]],
+        blocks            = source[["name"]],
+        object            = object
+      ))
+    }
+    scale <- if (identical(source[["role"]], "estimate")) {
+      setup[["tau_within"]]
+    } else setup[["tau_between"]]
+    if (all(scale == 0)) {
+      return(matrix(0, setup[["S"]], setup[["K"]]))
+    }
+    if (identical(source[["role"]], "estimate")) {
+      return(.evaluate.brma.estimate_effects(
+        fit               = setup[["fit"]],
+        tau_within        = scale,
+        same_data         = TRUE,
+        K                 = setup[["K"]],
+        posterior_samples = setup[["posterior_samples"]]
+      ))
+    }
+    .evaluate.brma.cluster_effects(
+      fit               = setup[["fit"]],
+      tau_between       = scale,
+      cluster           = data[["outcome"]][["cluster"]],
+      same_data         = TRUE,
+      effect_direction  = .data_effect_direction(data),
+      posterior_samples = setup[["posterior_samples"]]
+    )
+  })
+  names(contributions) <- vapply(sources, `[[`, character(1L), "name")
+  contributions
+}
+
+
+.selection_random_source_covariance <- function(setup, source) {
+
+  data <- setup[["data"]]
+  S    <- setup[["S"]]
+  K    <- setup[["K"]]
+  if (.is_data_random(data)) {
+    object <- setup[["object"]]
+    if (is.null(object)) {
+      object <- list(fit = setup[["fit"]], data = data, priors = setup[["priors"]])
+    }
+    inputs <- .brma_mv_random_effects_marginal_inputs(
+      object, setup[["posterior_samples"]]
+    )
+    dependencies <- BayesTools::random_effects_dependency_matrix(
+      random_effects = inputs[["formula_design"]][["random_effects"]],
+      n_rows = K, blocks = source[["name"]]
+    )
+    blocks <- .known_v_block_indices(dependencies * 1)
+    values <- lapply(blocks, function(rows) {
+      array(0, c(S, length(rows), length(rows)))
+    })
+    for (chunk in .known_v_covariance_chunk_indices(S, K)) {
+      covariance <- .brma_mv_random_effects_marginal_vcov(
+        object            = object,
+        posterior_samples = setup[["posterior_samples"]][chunk, , drop = FALSE],
+        blocks            = source[["name"]],
+        inputs            = inputs
+      )[["samples"]]
+      # Validate each source's own dependencies; retained sources can connect
+      # rows that are independent in the integrated candidate covariance.
+      covariance <- .block_covariance_from_array(covariance, blocks)
+      for (index in seq_along(blocks)) {
+        values[[index]][chunk, , ] <- covariance[["values"]][[index]]
+      }
+    }
+    return(.block_covariance(blocks, values, S, K))
+  }
+  if (identical(source[["role"]], "estimate")) {
+    scale <- setup[["tau_within"]]
+    if (nrow(scale) == 1L && S > 1L) scale <- scale[rep(1L, S), , drop = FALSE]
+    return(.block_covariance_from_diagonal(scale^2))
+  }
+  blocks <- unname(lapply(split(seq_len(K), data[["outcome"]][["cluster"]]), as.integer))
+  values <- lapply(blocks, function(rows) {
+    n <- length(rows)
+    covariance <- array(0, c(S, n, n))
+    for (row in seq_len(n)) for (column in seq_len(n)) {
+      covariance[, row, column] <- setup[["tau_between"]][, rows[[row]]] *
+        setup[["tau_between"]][, rows[[column]]]
+    }
+    covariance
+  })
+  .block_covariance(blocks, values, S, K)
+}
+
+
+# Keep dense states usable for internal callers while fitted computations store
+# only their declared covariance blocks. Factorization still sees one complete
+# K x K draw, preserving its original arithmetic and singularity decisions.
+.selection_covariance_draw <- function(covariance, draw) {
+
+  if (.is_block_covariance(covariance)) {
+    return(.block_covariance_dense(covariance, draw))
+  }
+  K <- dim(covariance)[[2L]]
+  matrix(covariance[draw, , ], K, K)
+}
+
+
+.selection_covariance_diagonal <- function(covariance) {
+
+  if (.is_block_covariance(covariance)) {
+    return(.block_covariance_diag_matrix(covariance))
+  }
+  S <- dim(covariance)[[1L]]
+  K <- dim(covariance)[[2L]]
+  out <- matrix(0, S, K)
+  for (row in seq_len(K)) out[, row] <- covariance[, row, row]
+  out
+}
+
+
+# Matheron's covariance-owned correction reconstructs each fitted source.
+.selection_conditioned_sampling_posterior <- function(setup) {
+
+  S <- setup[["S"]]
+  K <- setup[["K"]]
+  source_names <- vapply(.data_selection_model(setup[["data"]])[["sources"]][["random"]],
+                         `[[`, character(1L), "name")
+  result <- list(
+    e = matrix(0, S, K),
+    sources = stats::setNames(lapply(source_names, function(name) matrix(0, S, K)), source_names),
+    source_means = stats::setNames(lapply(source_names, function(name) matrix(0, S, K)), source_names)
+  )
+  for (rows in .selection_conditioned_sampling_chunks(S, K)) {
+    current <- .selection_conditioned_sampling_subset_setup(setup, rows)
+    state <- .selection_conditioned_sampling_state(current)
+    sources <- .selection_random_source_posterior(current, state)
+    source_means <- .selection_random_source_conditional_means(current, state, sources)
+    result[["e"]][rows, ] <- state[["e"]]
+    for (name in source_names) {
+      result[["sources"]][[name]][rows, ] <- sources[[name]]
+      result[["source_means"]][[name]][rows, ] <- source_means[[name]]
+      for (component in c("sources", "source_means")) {
+        values <- if (component == "sources") sources[[name]] else source_means[[name]]
+        colnames(result[[component]][[name]]) <- colnames(values)
+        if (!is.null(rownames(values))) {
+          if (is.null(rownames(result[[component]][[name]]))) {
+            rownames(result[[component]][[name]]) <- character(S)
+          }
+          rownames(result[[component]][[name]])[rows] <- rownames(values)
+        }
+      }
+    }
+    rm(state, current, sources, source_means)
+  }
+  result
+}
+
+
+.selection_random_source_posterior <- function(setup, state) {
+
+  contributions <- .selection_random_source_contributions(setup)
+  sources       <- .data_selection_model(setup[["data"]])[["sources"]][["random"]]
+  K             <- setup[["K"]]
+  for (source in sources) {
+    covariance <- .selection_random_source_covariance(setup, source)
+    name       <- source[["name"]]
+    for (draw in seq_len(setup[["S"]])) {
+      contributions[[name]][draw, ] <- contributions[[name]][draw, ] +
+        as.vector(.selection_covariance_draw(covariance, draw) %*%
+          state[["correction"]][draw, ])
+    }
+  }
+  contributions
+}
+
+
+# Retained sources remain posterior contexts. For several integrated sources,
+# ranef means condition on their observed sum rather than their auxiliary draw.
+.selection_random_source_conditional_means <- function(setup, state, contributions) {
+
+  sources <- .data_selection_model(setup[["data"]])[["sources"]][["random"]]
+  integrated <- Filter(function(source) !isTRUE(source[["retained"]]), sources)
+  if (length(integrated) < 2L) return(contributions)
+  S <- setup[["S"]]
+  K <- setup[["K"]]
+  total <- matrix(setup[["data"]][["outcome"]][["yi"]], S, K, byrow = TRUE) -
+    state[["baseline_mu"]] - state[["e"]]
+  weights <- matrix(0, S, K)
+  for (draw in seq_len(S)) {
+    covariance <- .selection_covariance_draw(state[["integrated_covariance"]], draw)
+    decomposition <- .covariance_factorization(covariance)
+    if (!.covariance_is_positive_semidefinite(decomposition)) {
+      stop("Integrated random-effect covariance must be positive semidefinite.", call. = FALSE)
+    }
+    factor <- .covariance_cholesky(decomposition, "Integrated random-effect covariance")
+    if (!is.null(factor)) {
+      weights[draw, ] <- backsolve(factor, forwardsolve(t(factor), total[draw, ]))
+    } else {
+      values <- .covariance_spectral_values(decomposition, "Integrated random-effect covariance")
+      positive <- values > 0
+      if (any(positive)) {
+        vectors <- decomposition[["eigenvectors"]][, positive, drop = FALSE]
+        weights[draw, ] <- as.vector(vectors %*%
+          (as.vector(crossprod(vectors, total[draw, ])) /
+             values[positive]))
+      }
+    }
+  }
+  for (source in integrated) {
+    covariance <- .selection_random_source_covariance(setup, source)
+    name <- source[["name"]]
+    for (draw in seq_len(S)) {
+      contributions[[name]][draw, ] <-
+        as.vector(.selection_covariance_draw(covariance, draw) %*% weights[draw, ])
+    }
+  }
+  contributions
+}
+
+
+.evaluate.brma.random_effects_by_block <- function(call_args, formula_design,
+                                                   blocks, S, K) {
+
+  random_samples <- matrix(0, nrow = K, ncol = S)
+  for (block in blocks) {
+    block_call_args <- call_args
+    block_call_args[["blocks"]]     <- block
+    block_call_args[["new_levels"]] <- .evaluate.brma.random_effects_new_levels(
+      formula_design = formula_design,
+      blocks         = block,
+      same_data      = FALSE
+    )
+    prediction <- do.call(BayesTools::JAGS_predict_formula, block_call_args)
+    block_samples <- .evaluate.brma.random_effects_prediction_samples(
+      prediction = prediction,
+      S          = S,
+      K          = K
+    )
+    if (!is.null(block_samples)) {
+      random_samples <- random_samples + block_samples
+    }
+  }
+
+  return(random_samples)
+}
+
+
+.evaluate.brma.random_effects_new_levels <- function(formula_design, blocks,
+                                                     same_data) {
+
+  if (isTRUE(same_data) ||
+      .formula_design_blocks_have_known_group_covariance(
+        formula_design = formula_design,
+        blocks         = blocks
+      )) {
+    return("error")
+  }
+
+  return("sample")
+}
+
+
+.evaluate.brma.random_effects_prediction_samples <- function(prediction, S, K) {
+
+  random_samples <- prediction[["random"]]
+  if (is.null(random_samples)) {
+    random_samples <- .random_effects_from_marginal_vcov(
+      prediction = prediction,
+      S          = S,
+      K          = K
+    )
+  }
+
+  return(random_samples)
+}
+
+
+.random_effects_from_marginal_vcov <- function(prediction, S, K) {
+
+  vcov <- prediction[["vcov"]]
+  if (is.null(vcov) || is.null(vcov[["samples"]])) {
+    return(NULL)
+  }
+
+  covariance_samples <- vcov[["samples"]]
+  if (length(dim(covariance_samples)) != 3L ||
+      dim(covariance_samples)[1L] != S ||
+      dim(covariance_samples)[2L] != K ||
+      dim(covariance_samples)[3L] != K) {
+    stop("Random-effect covariance samples have inconsistent dimensions.",
+         call. = FALSE)
+  }
+
+  zero_mu <- matrix(0, nrow = S, ncol = K)
+  return(t(.outcome_rng.norm_known_v_covariance(
+    mu_samples         = zero_mu,
+    covariance_samples = covariance_samples
+  )))
+}
+
+
+# Gaussian conditional means for fitted random-formula blocks:
+#   E(u_b | y, beta, G) = Q_b (V + sum_b Q_b)^-1 (y - X beta - bias).
+# This target is deliberately independent of whether a block was sampled or
+# marginalized during compilation.
+.evaluate.brma.mv_random_blup.norm <- function(object, mu_samples,
+                                               posterior_samples = NULL,
+                                               bias_offset = NULL,
+                                               by_block = FALSE) {
+
+  data <- object[["data"]]
+  if (!.is_data_random(data)) {
+    stop("brma.mv random-effect BLUPs require a random-formula model.",
+         call. = FALSE)
+  }
+  if (!.is_data_known_v(data)) {
+    stop("brma.mv random-effect BLUPs require known-V metadata.",
+         call. = FALSE)
+  }
+
+  posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
+  S                 <- nrow(posterior_samples)
+  K                 <- nrow(data[["outcome"]])
+  BayesTools::check_bool(by_block, "by_block")
+
+  if (!identical(dim(mu_samples), c(S, K))) {
+    stop("'mu_samples' must have dimensions posterior draw x observation.",
+         call. = FALSE)
+  }
+  if (!is.numeric(mu_samples) || any(!is.finite(mu_samples))) {
+    stop("'mu_samples' must contain only finite values.", call. = FALSE)
+  }
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have dimensions posterior draw x observation.",
+         call. = FALSE)
+  }
+  if (!is.numeric(bias_offset) || any(!is.finite(bias_offset))) {
+    stop("'bias_offset' must contain only finite values.", call. = FALSE)
+  }
+
+  known_V <- .data_known_v_data(data)
+  if (.known_v_nrow(known_V) != K) {
+    stop("Known-V covariance dimensions do not match fitted rows.",
+         call. = FALSE)
+  }
+  random_factors <- .brma_mv_random_effects_marginal_factor_plan(
+    object            = object,
+    posterior_samples = posterior_samples,
+    data              = data
+  )
+  dependency_blocks <- random_factors[["row_blocks"]]
+
+  weights <- .marglik_covariance_plan_precision_residual_batch(
+    cache                    = new.env(parent = emptyenv()),
+    y                        = data[["outcome"]][["yi"]],
+    means                    = mu_samples + bias_offset,
+    sampling_covariance      = .known_v_covariance_matrix(known_V),
+    random_covariance_plans  = random_factors[["factor_plans"]],
+    random_covariance_states = random_factors[["factor_states"]],
+    block_indices            = dependency_blocks,
+    extra_variances          = matrix(0, nrow = S, ncol = K)
+  )
+  return(BayesTools::random_effects_marginal_factor_product(
+    factors  = random_factors,
+    vectors  = weights,
+    by_block = by_block
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.scale_terms
+# ---------------------------------------------------------------------------- #
+#
+# Evaluate row-wise scale formulas. For component-specific random-formula scale
+# models this returns one block of columns per random scale target.
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.scale_terms <- function(fit, data, priors,
+                                       posterior_samples = NULL,
+                                       as_list = FALSE) {
+
+  if (!.is_data_scale(data)) {
+    stop("Scale predictions are not available because the model has no scale formula.",
+         call. = FALSE)
+  }
+
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  scale_specs       <- .data_scale_component_specs(data)
+  scale_samples     <- lapply(scale_specs, function(scale_spec) {
+
+    scale_priors <- .repair_formula_prior_list(
+      prior_list = .create_fit_scale_formula_prior_list(
+        priors    = priors,
+        parameter = scale_spec[["parameter"]]
+      ),
+      parameter  = scale_spec[["parameter"]]
+    )
+    log_scale_samples <- t(BayesTools::JAGS_evaluate_formula(
+      fit            = .posterior_formula_fit(
+        fit               = fit,
+        posterior_samples = posterior_samples,
+        formula_design    = FALSE
+      ),
+      formula        = .create_fit_scale_formula(scale_spec[["formula"]]),
+      parameter      = scale_spec[["parameter"]],
+      data           = scale_spec[["data"]],
+      prior_list     = scale_priors,
+      formula_target = "fixed"
+    ))
+    scale_samples <- exp(log_scale_samples)
+    if (as_list) {
+      colnames(scale_samples) <- paste0("tau[", seq_len(ncol(scale_samples)), "]")
+    } else {
+      colnames(scale_samples) <- paste0(
+        scale_spec[["source"]], "[",
+        seq_len(ncol(scale_samples)), "]"
+      )
+    }
+    scale_samples
+  })
+
+  if (as_list) {
+    names(scale_samples) <- .evaluate.brma.scale_component_names(scale_specs)
+    return(scale_samples)
+  }
+
+  return(do.call(cbind, scale_samples))
+}
+
+
+.evaluate.brma.scale_component_names <- function(scale_specs) {
+
+  vapply(scale_specs, `[[`, character(1), "display_name")
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.known_v_blup.norm
+# ---------------------------------------------------------------------------- #
+#
+# Exact same-data BLUP means for independent latent effects observed through a
+# known covariance matrix V: theta | y, mu, tau.
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.known_v_blup.norm <- function(mu_samples, tau_within, yi,
+                                             known_V, bias_offset = NULL) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have the same dimensions as 'mu_samples'.",
+         call. = FALSE)
+  }
+  if (is.null(known_V)) {
+    stop("Known-V BLUP requires known-V metadata.", call. = FALSE)
+  }
+
+  if (.known_v_nrow(known_V) != K) {
+    stop("Known-V covariance dimensions do not match prediction rows.",
+         call. = FALSE)
+  }
+
+  block_data <- .known_v_blocks(known_V)
+  .known_v_validate_dependency_blocks(
+    lapply(block_data, `[[`, "index"),
+    K
+  )
+
+  true_effects_samples <- mu_samples
+  for (block in block_data) {
+    idx          <- block[["index"]]
+    n_block      <- length(idx)
+    V_block      <- block[["covariance"]]
+    tau_block    <- tau_within[, idx, drop = FALSE]
+    residual     <- matrix(yi[idx], nrow = S, ncol = n_block, byrow = TRUE) -
+      bias_offset[, idx, drop = FALSE] - mu_samples[, idx, drop = FALSE]
+    constant_tau <- n_block == 1L ||
+      isTRUE(all(tau_block == tau_block[, 1L]))
+
+    if (n_block == 1L) {
+      tau2        <- tau_block[, 1L]^2
+      denominator <- tau2 + V_block[1L, 1L]
+      if (any(!is.finite(denominator) | denominator <= 0)) {
+        stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
+             call. = FALSE)
+      }
+      true_effects_samples[, idx] <- mu_samples[, idx] +
+        residual[, 1L] * tau2 / denominator
+      next
+    }
+
+    if (constant_tau) {
+      eigen_v     <- .covariance_factorization(V_block)
+      tau2        <- tau_block[, 1L]^2
+      denominator <- outer(tau2, eigen_v[["spectral_values"]], "+")
+      if (any(!is.finite(denominator) | denominator <= 0)) {
+        .covariance_cholesky(eigen_v, "Known-V BLUP covariance")
+        stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
+             call. = FALSE)
+      }
+      solved <- (residual %*% eigen_v[["eigenvectors"]] / denominator) %*%
+        t(eigen_v[["eigenvectors"]])
+      true_effects_samples[, idx] <- mu_samples[, idx, drop = FALSE] +
+        solved * tau2
+      next
+    }
+
+    for (s in seq_len(S)) {
+      tau2    <- tau_block[s, ]^2
+      M_block <- V_block
+      diag(M_block) <- diag(M_block) + tau2
+      chol_m  <- .covariance_cholesky(.covariance_factorization(M_block),
+                                      "Known-V BLUP covariance")
+      if (is.null(chol_m)) {
+        stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
+             call. = FALSE)
+      }
+      solved <- backsolve(chol_m, forwardsolve(t(chol_m), residual[s, ]))
+      true_effects_samples[s, idx] <- mu_samples[s, idx] + tau2 * solved
+    }
+  }
+
+  return(true_effects_samples)
 }
 
 
@@ -383,21 +1417,28 @@
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.bias_offset <- function(fit, outcome_data, is_PET, is_PEESE,
                                        effect_direction, K,
-                                       posterior_samples = NULL) {
+                                       posterior_samples = NULL,
+                                       priors = NULL) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S                 <- nrow(posterior_samples)
   bias_offset       <- matrix(0, nrow = S, ncol = K)
-  direction         <- if (effect_direction == "negative") -1 else 1
+  bias_parameters   <- c(if (is_PET) "PET", if (is_PEESE) "PEESE")
 
-  if (is_PET) {
-    bias_offset <- bias_offset +
-      direction * outer(posterior_samples[, "PET"], outcome_data[["sei"]])
-  }
-
-  if (is_PEESE) {
-    bias_offset <- bias_offset +
-      direction * outer(posterior_samples[, "PEESE"], outcome_data[["sei"]]^2)
+  for (parameter in bias_parameters) {
+    parameter_samples <- .posterior_or_fixed_scalar(
+      posterior_samples = posterior_samples,
+      parameter         = parameter,
+      fixed_value       = .fixed_bias_parameter_value(priors, parameter)
+    )
+    bias_offset <- bias_offset + outer(
+      parameter_samples,
+      .bias_regression_predictor(
+        sei              = outcome_data[["sei"]],
+        parameter        = parameter,
+        effect_direction = effect_direction
+      )
+    )
   }
 
   return(bias_offset)
@@ -422,57 +1463,29 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .build_multilevel_marginal_covariance
-# ---------------------------------------------------------------------------- #
-#
-# Construct the marginal covariance matrix for a 3-level normal model.
-#
-# The covariance decomposes into:
-# - sampling variance: diag(vi)
-# - estimate-level heterogeneity: diag(tau_within^2)
-# - cluster-level heterogeneity: block-wise tcrossprod(tau_between)
-#
-# @param tau_within    numeric vector of length K with estimate-level SDs
-# @param tau_between   numeric vector of length K with cluster-level SDs
-# @param vi            numeric vector of length K with sampling variances
-# @param block_indices list of observation indices for each cluster
-#
-# @return A K x K marginal covariance matrix.
-#
-# ---------------------------------------------------------------------------- #
-.build_multilevel_marginal_covariance <- function(tau_within, tau_between, vi,
-                                                  block_indices) {
-
-  K <- length(vi)
-
-  marginal_covariance <- diag(vi + tau_within^2, nrow = K, ncol = K)
-
-  for (idx in block_indices) {
-    marginal_covariance[idx, idx] <- marginal_covariance[idx, idx] +
-      tcrossprod(tau_between[idx])
-  }
-
-  return(marginal_covariance)
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .solve_diagonal_rank_one_block
 # ---------------------------------------------------------------------------- #
 #
 # Solve (diag(diagonal) + rank_one %*% t(rank_one))^-1 residual. The analytic
-# Sherman-Morrison path is O(K) per cluster and falls back to Cholesky/generalized
-# inverse when a diagonal element is non-positive.
+# Sherman-Morrison path is O(K) per cluster and falls back to Cholesky when a
+# diagonal element is non-positive.
 #
 # ---------------------------------------------------------------------------- #
 .solve_diagonal_rank_one_block <- function(diagonal, rank_one, residual) {
+
+  if (!all(is.finite(diagonal)) ||
+      !all(is.finite(rank_one)) ||
+      !all(is.finite(residual))) {
+    stop("Cannot solve known-V BLUP covariance block with non-finite inputs.",
+         call. = FALSE)
+  }
 
   if (all(is.finite(diagonal)) && all(diagonal > 0)) {
     inv_diag_residual <- residual / diagonal
     inv_diag_rank_one <- rank_one / diagonal
     denom             <- 1 + sum(rank_one * inv_diag_rank_one)
 
-    if (is.finite(denom) && denom > .Machine$double.eps) {
+    if (is.finite(denom) && denom > 0) {
       correction <- inv_diag_rank_one * sum(rank_one * inv_diag_residual) / denom
       return(inv_diag_residual - correction)
     }
@@ -480,15 +1493,68 @@
 
   covariance <- diag(diagonal, nrow = length(diagonal), ncol = length(diagonal)) +
     tcrossprod(rank_one)
-  chol_m <- try(chol(covariance), silent = TRUE)
+  chol_m <- .covariance_cholesky(.covariance_factorization(covariance),
+                                 "Known-V BLUP covariance")
 
-  if (inherits(chol_m, "try-error")) {
-    weights <- tryCatch(solve(covariance), error = function(e) MASS::ginv(covariance))
-  } else {
-    weights <- chol2inv(chol_m)
+  if (is.null(chol_m)) {
+    stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
+         call. = FALSE)
   }
+  weights <- chol2inv(chol_m)
 
   return(as.vector(weights %*% residual))
+}
+
+
+# Solve one diagonal-plus-rank-one system per posterior row. The ordinary path
+# is vectorized across draws; exceptional boundary rows retain the scalar
+# factorization and its exact diagnostics.
+.solve_diagonal_rank_one_batch <- function(diagonal, rank_one, residual) {
+
+  diagonal <- as.matrix(diagonal)
+  rank_one <- as.matrix(rank_one)
+  residual <- as.matrix(residual)
+  if (!identical(dim(diagonal), dim(rank_one)) ||
+      !identical(dim(diagonal), dim(residual)) ||
+      any(!is.finite(diagonal)) || any(!is.finite(rank_one)) ||
+      any(!is.finite(residual))) {
+    stop("Cannot solve known-V BLUP covariance batch with invalid inputs.",
+         call. = FALSE)
+  }
+
+  S        <- nrow(diagonal)
+  solution <- matrix(NA_real_, nrow = S, ncol = ncol(diagonal))
+  regular  <- rowSums(diagonal <= 0) == 0L
+  if (any(regular)) {
+    inv_diagonal <- 1 / diagonal[regular, , drop = FALSE]
+    inv_residual <- residual[regular, , drop = FALSE] * inv_diagonal
+    inv_rank_one <- rank_one[regular, , drop = FALSE] * inv_diagonal
+    denominator <- 1 + rowSums(
+      rank_one[regular, , drop = FALSE] * inv_rank_one
+    )
+    regular_rows <- which(regular)
+    valid <- is.finite(denominator) & denominator > 0
+    if (any(valid)) {
+      numerator <- rowSums(
+        rank_one[regular_rows[valid], , drop = FALSE] *
+          inv_residual[valid, , drop = FALSE]
+      )
+      solution[regular_rows[valid], ] <-
+        inv_residual[valid, , drop = FALSE] -
+        inv_rank_one[valid, , drop = FALSE] * (numerator / denominator[valid])
+    }
+    regular[regular_rows[!valid]] <- FALSE
+  }
+
+  for (draw in which(!regular)) {
+    solution[draw, ] <- .solve_diagonal_rank_one_block(
+      diagonal = diagonal[draw, ],
+      rank_one = rank_one[draw, ],
+      residual = residual[draw, ]
+    )
+  }
+
+  return(solution)
 }
 
 
@@ -531,25 +1597,99 @@
   cluster_contribution  <- matrix(0, nrow = S, ncol = K)
   estimate_contribution <- matrix(0, nrow = S, ncol = K)
 
-  for (s in seq_len(S)) {
-    for (idx in block_indices) {
-      weighted_residual <- .solve_diagonal_rank_one_block(
-        diagonal = vi[idx] + tau_within[s, idx]^2,
-        rank_one = tau_between[s, idx],
-        residual = yi[idx] - bias_offset[s, idx] - mu_samples[s, idx]
-      )
+  for (idx in block_indices) {
+    weighted_residual <- .solve_diagonal_rank_one_batch(
+      diagonal = tau_within[, idx, drop = FALSE]^2 +
+        matrix(vi[idx], nrow = S, ncol = length(idx), byrow = TRUE),
+      rank_one = tau_between[, idx, drop = FALSE],
+      residual = matrix(yi[idx], nrow = S, ncol = length(idx), byrow = TRUE) -
+        bias_offset[, idx, drop = FALSE] - mu_samples[, idx, drop = FALSE]
+    )
 
-      estimate_contribution[s, idx] <- tau_within[s, idx]^2 * weighted_residual
-
-      cluster_scale <- sum(tau_between[s, idx] * weighted_residual)
-      cluster_contribution[s, idx] <- tau_between[s, idx] * cluster_scale
-    }
+    estimate_contribution[, idx] <-
+      tau_within[, idx, drop = FALSE]^2 * weighted_residual
+    cluster_scale <- rowSums(
+      tau_between[, idx, drop = FALSE] * weighted_residual
+    )
+    cluster_contribution[, idx] <-
+      tau_between[, idx, drop = FALSE] * cluster_scale
   }
 
   return(list(
     cluster  = cluster_contribution,
     estimate = estimate_contribution
   ))
+}
+
+
+# Conditional simulation of the total or cluster-level fitted latent
+# contribution in the specialized multilevel normal model. The simulation
+# identity preserves shared cluster-level dependence instead of drawing
+# row-wise BLUP uncertainty.
+.evaluate.brma.multilevel_posterior.norm <- function(
+    mu_samples, tau_within, tau_between, yi, vi, cluster,
+    bias_offset = NULL, component = c("total", "cluster")) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+  component <- match.arg(component)
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have the same dimensions as 'mu_samples'.",
+         call. = FALSE)
+  }
+
+  block_indices <- .get_multilevel_block_indices(cluster)
+  prior_effect  <- matrix(0, nrow = S, ncol = K)
+  for (idx in block_indices) {
+    cluster_z <- stats::rnorm(S)
+    prior_effect[, idx] <-
+      tau_between[, idx, drop = FALSE] *
+        matrix(cluster_z, nrow = S, ncol = length(idx))
+    if (identical(component, "total")) {
+      prior_effect[, idx] <- prior_effect[, idx, drop = FALSE] +
+        tau_within[, idx, drop = FALSE] *
+          matrix(stats::rnorm(S * length(idx)),
+                 nrow = S, ncol = length(idx))
+    }
+  }
+  prior_noise <- matrix(
+    stats::rnorm(S * K),
+    nrow = S,
+    ncol = K
+  )
+  if (identical(component, "total")) {
+    prior_noise <- prior_noise *
+      matrix(sqrt(vi), nrow = S, ncol = K, byrow = TRUE)
+  } else {
+    prior_noise <- prior_noise * sqrt(
+      matrix(vi, nrow = S, ncol = K, byrow = TRUE) + tau_within^2
+    )
+  }
+  residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
+    bias_offset - mu_samples
+  out <- prior_effect
+
+  for (idx in block_indices) {
+    weights <- .solve_diagonal_rank_one_batch(
+      diagonal = tau_within[, idx, drop = FALSE]^2 +
+        matrix(vi[idx], nrow = S, ncol = length(idx), byrow = TRUE),
+      rank_one = tau_between[, idx, drop = FALSE],
+      residual = residual[, idx, drop = FALSE] -
+        prior_effect[, idx, drop = FALSE] -
+        prior_noise[, idx, drop = FALSE]
+    )
+    cluster_scale <- rowSums(tau_between[, idx, drop = FALSE] * weights)
+    out[, idx] <- prior_effect[, idx, drop = FALSE] +
+      tau_between[, idx, drop = FALSE] * cluster_scale
+    if (identical(component, "total")) {
+      out[, idx] <- out[, idx, drop = FALSE] +
+        tau_within[, idx, drop = FALSE]^2 * weights
+    }
+  }
+
+  return(out)
 }
 
 
@@ -585,7 +1725,6 @@
                                            posterior_samples = NULL) {
 
   S <- nrow(tau_between)
-  K <- ncol(tau_between)
 
   # NOTE: No direction flipping needed for cluster effects!
   # The JAGS model uses: "-gamma*tau_between" for negative effects, "+gamma*tau_between" for positive
@@ -600,10 +1739,10 @@
     n_clusters        <- max(cluster)
 
     # extract all gamma columns at once: S x n_clusters matrix
-    gamma_samples <- .extract_posterior_matrix(
+    gamma_samples <- .extract_indexed_parameter_samples(
       posterior_samples = posterior_samples,
       parameter         = "gamma",
-      K                 = n_clusters
+      n_expected        = n_clusters
     )
 
     # gamma_samples[, cluster] reorders columns to match observations
@@ -623,6 +1762,43 @@
   }
 
   return(cluster_contribution)
+}
+
+
+.evaluate.brma.sampling_dependency <- function(fit, data, posterior_samples = NULL) {
+
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  if (.is_data_joint_selection(data)) {
+    K <- nrow(data[["outcome"]])
+    out <- matrix(0, nrow = nrow(posterior_samples), ncol = K)
+    if (!.selection_retains_sampling(data)) {
+      return(out)
+    }
+    # Fitted sampling errors are reconstructed by
+    # .selection_conditioned_sampling_state(); this low-level extractor returns
+    # only the auxiliary sampling realization used by that calculation.
+    return(.selection_sampling_auxiliary(fit, data, posterior_samples))
+  }
+
+  known_V <- .data_known_v_data(data)
+  if (is.null(known_V) || !.is_data_known_v_backend(data, "latent") ||
+      .known_v_rank(known_V) == 0L) {
+    K <- nrow(data[["outcome"]])
+    return(matrix(0, nrow = nrow(posterior_samples), ncol = K))
+  }
+
+  z_samples <- .extract_posterior_matrix(
+    posterior_samples = posterior_samples,
+    parameter         = "sampling_z",
+    K                 = .known_v_rank(known_V)
+  )
+
+  sampling_dependency <- .known_v_latent_apply(known_V, z_samples)
+  if (.data_effect_direction(data) == "negative") {
+    sampling_dependency <- -sampling_dependency
+  }
+
+  return(sampling_dependency)
 }
 
 
@@ -674,8 +1850,10 @@
     # BLUP: empirical Bayes conditional means for existing observations
     # lambda = tau^2 / (tau^2 + se^2) ranges from 0 (strong shrinkage)
     # to 1 (weak shrinkage).
-    lambda <- tau_within^2
-    lambda <- lambda / sweep(lambda, 2, sei^2, "+")
+    lambda      <- tau_within^2
+    denominator <- sweep(lambda, 2, sei^2, "+")
+    lambda      <- lambda / denominator
+    lambda[denominator == 0] <- 0
 
     if (is.null(bias_offset)) {
       bias_offset <- matrix(0, nrow = S, ncol = K)
@@ -703,6 +1881,141 @@
 }
 
 
+# Exact conditional simulation for fitted independent latent effects observed
+# through a known sampling covariance V. For u ~ N(0, D) and e ~ N(0, V),
+# u + D(D + V)^-1(r - u - e) has the distribution u | r.
+.evaluate.brma.known_v_posterior.norm <- function(
+    mu_samples, tau_within, yi, known_V, bias_offset = NULL) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have the same dimensions as 'mu_samples'.",
+         call. = FALSE)
+  }
+  if (is.null(known_V) || .known_v_nrow(known_V) != K) {
+    stop("Known-V posterior prediction requires matching known-V metadata.",
+         call. = FALSE)
+  }
+
+  block_data <- .known_v_blocks(known_V)
+  .known_v_validate_dependency_blocks(lapply(block_data, `[[`, "index"), K)
+  prior_effect <- matrix(
+    stats::rnorm(S * K),
+    nrow = S,
+    ncol = K
+  ) * tau_within
+  prior_sampling <- .known_v_sampling_noise(known_V, S = S, K = K)
+  residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
+    bias_offset - mu_samples
+  out <- prior_effect
+
+  for (block in block_data) {
+    idx          <- block[["index"]]
+    n_block      <- length(idx)
+    V_block      <- block[["covariance"]]
+    tau_block    <- tau_within[, idx, drop = FALSE]
+    innovation   <- residual[, idx, drop = FALSE] -
+      prior_effect[, idx, drop = FALSE] -
+      prior_sampling[, idx, drop = FALSE]
+    constant_tau <- n_block == 1L ||
+      isTRUE(all(tau_block == tau_block[, 1L]))
+
+    if (n_block == 1L) {
+      tau2       <- tau_block[, 1L]^2
+      denominator <- tau2 + V_block[1L, 1L]
+      if (any(!is.finite(denominator) | denominator <= 0)) {
+        stop(
+          "Cannot solve known-V conditional posterior covariance block; ",
+          "covariance is not positive definite.",
+          call. = FALSE
+        )
+      }
+      out[, idx] <- prior_effect[, idx] +
+        tau2 * innovation[, 1L] / denominator
+      next
+    }
+
+    if (constant_tau) {
+      eigen_v     <- .covariance_factorization(V_block)
+      tau2        <- tau_block[, 1L]^2
+      denominator <- outer(tau2, eigen_v[["spectral_values"]], "+")
+      if (any(!is.finite(denominator) | denominator <= 0)) {
+        .covariance_cholesky(eigen_v, "Known-V conditional posterior covariance")
+        stop(
+          "Cannot solve known-V conditional posterior covariance block; ",
+          "covariance is not positive definite.",
+          call. = FALSE
+        )
+      }
+      solved <- (innovation %*% eigen_v[["eigenvectors"]] / denominator) %*%
+        t(eigen_v[["eigenvectors"]])
+      out[, idx] <- prior_effect[, idx, drop = FALSE] + solved * tau2
+      next
+    }
+
+    for (s in seq_len(S)) {
+      tau2    <- tau_block[s, ]^2
+      M_block <- V_block
+      diag(M_block) <- diag(M_block) + tau2
+      chol_m <- .covariance_cholesky(.covariance_factorization(M_block),
+                                     "Known-V conditional posterior covariance")
+      if (is.null(chol_m)) {
+        stop(
+          "Cannot solve known-V conditional posterior covariance block; ",
+          "covariance is not positive definite.",
+          call. = FALSE
+        )
+      }
+      solved <- backsolve(
+        chol_m,
+        forwardsolve(t(chol_m), innovation[s, ])
+      )
+      out[s, idx] <- prior_effect[s, idx] + tau2 * solved
+    }
+  }
+
+  return(mu_samples + out)
+}
+
+
+# Draw fitted latent effects from their Gaussian conditional posterior. This is
+# deliberately separate from `.evaluate.brma.true_effects.norm()`, whose
+# same-data branch is the conditional mean used by fitted values and BLUPs.
+.evaluate.brma.true_effects_posterior.norm <- function(
+    mu_samples, tau_within, yi, sei, bias_offset = NULL) {
+
+  conditional_mean <- .evaluate.brma.true_effects.norm(
+    mu_samples  = mu_samples,
+    tau_within  = tau_within,
+    yi          = yi,
+    sei         = sei,
+    same_data   = TRUE,
+    bias_offset = bias_offset
+  )
+  sampling_sd <- matrix(sei, nrow = nrow(tau_within),
+                         ncol = ncol(tau_within), byrow = TRUE)
+  small <- pmin(tau_within, sampling_sd)
+  large <- pmax(tau_within, sampling_sd)
+  conditional_sd <- small
+  positive <- large > 0
+  # tau * se / sqrt(tau^2 + se^2), evaluated without a product of
+  # variances that can overflow or underflow in otherwise valid units.
+  conditional_sd[positive] <- small[positive] /
+    sqrt(1 + (small[positive] / large[positive])^2)
+
+  out <- conditional_mean + matrix(
+    stats::rnorm(length(conditional_sd)),
+    nrow = nrow(conditional_sd),
+    ncol = ncol(conditional_sd)
+  ) * conditional_sd
+
+  return(out)
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .evaluate.brma.true_effects.glmm
 # ---------------------------------------------------------------------------- #
@@ -710,7 +2023,7 @@
 # Compute posterior samples of true effects (theta) for GLMM models.
 #
 # For GLMM models (binomial or Poisson), the estimate-level random effects
-# (theta) are directly sampled in JAGS (not marginalized as in normal models).
+# (theta) are directly sampled in JAGS rather than integrated into the outcome kernel.
 # The true effect is:
 #   true_effect_i = mu_i + theta_i * tau_within_i
 #
@@ -737,7 +2050,7 @@
                                              posterior_samples = NULL) {
 
   # add the estimate-level random effects (theta * tau_within) to mu
-  theta_contribution <- .evaluate.brma.theta.glmm(
+  theta_contribution <- .evaluate.brma.estimate_effects(
     fit               = fit,
     tau_within        = tau_within,
     same_data         = same_data,
@@ -770,10 +2083,10 @@
 .evaluate.brma.baserate <- function(fit, K, posterior_samples = NULL) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
-  pi_samples        <- .extract_posterior_matrix(
+  pi_samples        <- .extract_indexed_parameter_samples(
     posterior_samples = posterior_samples,
     parameter         = "pi",
-    K                 = K
+    n_expected        = K
   )
 
   return(.logit(pi_samples))
@@ -796,7 +2109,6 @@
 .evaluate.brma.baserate_newdata <- function(prior_pi, S, K) {
 
   pi_samples <- .draw_prior_samples_matrix(prior = prior_pi, S = S, K = K)
-  pi_samples <- pmin(pmax(pi_samples, .Machine$double.eps), 1 - .Machine$double.eps)
 
   return(.logit(pi_samples))
 }
@@ -824,10 +2136,10 @@
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
 
-  return(.extract_posterior_matrix(
+  return(.extract_indexed_parameter_samples(
     posterior_samples = posterior_samples,
     parameter         = "phi",
-    K                 = K
+    n_expected        = K
   ))
 }
 
@@ -891,12 +2203,12 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .evaluate.brma.theta.glmm
+# .evaluate.brma.estimate_effects
 # ---------------------------------------------------------------------------- #
 #
-# Extract or sample estimate-level random effects (theta) for GLMM models.
+# Extract or sample standardized estimate-level random effects (theta).
 #
-# For GLMMs, theta[i] represents the standardized estimate-level random effect
+# theta[i] represents the standardized estimate-level random effect
 # (i.e., theta ~ N(0, 1)). The actual random effect is theta * tau_within.
 #
 # @param fit              runjags fit object (needed to extract theta if same_data)
@@ -910,18 +2222,18 @@
 #         (theta[k] * tau_within[,k])
 #
 # ---------------------------------------------------------------------------- #
-.evaluate.brma.theta.glmm <- function(fit, tau_within, same_data, K,
-                                      posterior_samples = NULL) {
+.evaluate.brma.estimate_effects <- function(fit, tau_within, same_data, K,
+                                            posterior_samples = NULL) {
 
   S <- nrow(tau_within)
 
   if (same_data) {
 
     posterior_samples  <- .get_posterior_samples(fit, posterior_samples)
-    theta_contribution <- .extract_posterior_matrix(
+    theta_contribution <- .extract_indexed_parameter_samples(
       posterior_samples = posterior_samples,
       parameter         = "theta",
-      K                 = K
+      n_expected        = K
     ) * tau_within
 
   } else {
@@ -970,44 +2282,13 @@
 # ---------------------------------------------------------------------------- #
 .extract_use_normal <- function(object, posterior_samples = NULL) {
 
-  priors <- object[["priors"]]
-  fit    <- object[["fit"]]
+  posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
+  routing           <- .selection_row_routing(
+    priors               = object[["priors"]],
+    posterior_samples    = posterior_samples
+  )
 
-  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
-  S <- nrow(posterior_samples)
-
-  # check if bias_indicator column exists (RoBMA with mixture priors)
-  has_bias_indicator <- "bias_indicator" %in% colnames(posterior_samples)
-
-  if (has_bias_indicator) {
-
-    # RoBMA case: multiple bias priors in mixture
-    bias_indicator <- as.integer(posterior_samples[, "bias_indicator"])
-
-    # extract bias priors and ensure list format
-    priors_bias <- priors[["outcome"]][["bias"]]
-    if (!BayesTools::is.prior.mixture(priors_bias)) {
-      priors_bias <- list(priors_bias)
-    }
-
-    # identify which bias priors use selection kernels
-    weightfunction_indices <- which(sapply(priors_bias, .prior_is_selection_kernel))
-
-    # use_normal = TRUE for samples NOT from weightfunction priors
-    use_normal <- !(bias_indicator %in% weightfunction_indices)
-
-  } else {
-
-    # brma case: single bias prior (or no bias)
-    # check if the single prior is a weightfunction
-    is_weightfunction <- .is_priors_weightfunction(priors)
-
-    # if weightfunction, all samples use weighted path; otherwise all use normal
-    use_normal <- rep(!is_weightfunction, S)
-
-  }
-
-  return(use_normal)
+  return(routing[["use_normal"]])
 }
 
 
@@ -1028,11 +2309,10 @@
 .extract_bias_indicator <- function(object, posterior_samples = NULL) {
 
   posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
-  S <- nrow(posterior_samples)
+  routing           <- .selection_row_routing(
+    priors               = object[["priors"]],
+    posterior_samples    = posterior_samples
+  )
 
-  if ("bias_indicator" %in% colnames(posterior_samples)) {
-    return(as.integer(posterior_samples[, "bias_indicator"]))
-  }
-
-  return(rep(1L, S))
+  return(routing[["bias_indicator"]])
 }

@@ -1,0 +1,5 @@
+mu_intercept:
+  Normal(0, 0.71)
+random:
+  block: study_esid
+    sigma ~ Normal(0, 0.35)[0, Inf]

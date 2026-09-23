@@ -39,6 +39,76 @@ test_that("Hatvalues for BMA.norm fits are internally consistent", {
   }
 })
 
+test_that("Hatvalues support brma.mv known-V marginal GLS targets", {
+
+  model_names <- c(
+    "brma.mv_block_mvn",
+    "brma.mv_block_mvn_random_scale",
+    "brma.mv_block_mvn_known_R"
+  )
+  skip_if_missing_fits(model_names)
+
+  for (name in model_names) {
+    fit <- fits[[name]]
+    expected <- colMeans(.compute_hat_matrix_samples(
+      object             = fit,
+      conditioning_depth = "marginal",
+      return_full_H      = FALSE,
+      return_se          = FALSE
+    )[["H_diag"]])
+
+    actual <- hatvalues(fit)
+    expect_hatvalues_vector(actual, nobs(fit), info = name)
+    expect_equal(unname(actual), unname(expected), tolerance = 1e-12,
+                 info = name)
+  }
+})
+
+test_that("Hatvalues use factor plans without dense covariance allocation", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  fit          <- fits[[name]]
+  expected     <- hatvalues(fit)
+  old_options  <- options(
+    RoBMA.known_v_covariance_max_bytes = 1
+  )
+  on.exit(options(old_options), add = TRUE)
+
+  actual <- hatvalues(fit)
+  details <- .compute_hat_matrix_samples(
+    object             = fit,
+    conditioning_depth = "marginal",
+    return_full_H      = FALSE,
+    return_se          = FALSE
+  )
+  metadata <- details[["known_v_diagnostic"]]
+
+  expect_equal(unname(actual), unname(expected), tolerance = 1e-12)
+  expect_identical(metadata[["covariance_path"]], "factor_plan_gls")
+  expect_null(metadata[["n_chunks"]])
+  expect_equal(metadata[["n_used_samples"]], metadata[["n_posterior_samples"]])
+})
+
+test_that("Hatvalues expose deterministic known-V draw thinning", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  fit <- fits[[name]]
+
+  actual <- expect_warning(
+    hatvalues(fit, max_samples = 10),
+    "deterministically thinned"
+  )
+  metadata <- attr(actual, "known_v_diagnostic")
+
+  expect_hatvalues_vector(actual, nobs(fit), info = name)
+  expect_equal(metadata[["n_used_samples"]], 10L)
+  expect_true(metadata[["thinned"]])
+})
+
 test_that("Hatvalues use study labels as names", {
 
   name <- "bcg_meta-analysis"

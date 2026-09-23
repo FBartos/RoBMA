@@ -33,10 +33,15 @@ the full-posterior fitted value:
 This targets deletion influence on fitted values directly. It does not use
 LOO-PIT residuals, which are predictive outlier diagnostics rather than
 fitted-value deletion diagnostics.
+For \code{brma.mv()} known-\code{V} models, DFFITS uses estimate-unit PSIS
+weights. With correlated known-\code{V}, deletion is conditional estimate
+deletion and the reported fitted-value target is the fixed-location mean
+\eqn{\mu = X\beta}; sampled or marginalized random effects are not included
+in the reported fitted value.
 
 Estimate-unit LOO must first be computed with
 \code{model <- add_loo(model, unit = "estimate")}. If the leave-one-out
-posterior SD of a fitted value is near zero, the corresponding DFFITS value
+posterior SD of a fitted value is zero, the corresponding DFFITS value
 is returned as \code{NA}.
 }
 \examples{

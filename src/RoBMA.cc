@@ -2,10 +2,16 @@
 #include "distributions/DWN.h"
 #include "distributions/DWB.h"
 #include "distributions/DWP.h"
+#include "distributions/DKNOWNVMNORM.h"
 
 #include "distributions/DSELNORMKERNEL.h"
 #include "distributions/DSELNORMSTEP.h"
 #include "distributions/DSELNORMSTEPSWITCH.h"
+#include "distributions/DSELNORMMVSTEP.h"
+#include "distributions/DSELNORMCLUSTERSTEP.h"
+#include "distributions/DSELNORMFACTORSTEP.h"
+#include "distributions/DSELNORMSAMPLINGCONDITIONED.h"
+#include "samplers/CoarseCorrectedSlice.h"
 
 namespace jags {
   namespace RoBMA { // module namespace
@@ -24,15 +30,25 @@ namespace jags {
       insert(new DWN);
       insert(new DWB);
       insert(new DWP);
+      insert(new DKNOWNVMNORM);
 
       // mixture distributions
       insert(new DSELNORMSTEP);
       insert(new DSELNORMSTEPSWITCH);
       insert(new DSELNORMKERNEL);
+      insert(new DSELNORMMVSTEP);
+      insert(new DSELNORMCLUSTERSTEP);
+      insert(new DSELNORMFACTORSTEP);
+      insert(new DSELNORMSAMPLINGCONDITIONED);
+      // This process-lifetime factory starts disabled and owns no fitted model.
+      insert(coarse_corrected_slice_factory());
     }
 
     // destructor (executed when unloading the module)
     RoBMAModule::~RoBMAModule() {
+      // Normal process shutdown does not invoke the R namespace unload hook.
+      unload();
+
       std::vector<Function*> const &fvec = functions();
       for (unsigned int i = 0; i < fvec.size(); ++i) {
         delete fvec[i];

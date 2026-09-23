@@ -21,6 +21,10 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' @param type type of parameters to be summarized. Defaults to \code{"mods"}
 #' (for the effect size and meta-regression coefficients). Use \code{"scale"}
 #' for heterogeneity and scale-regression coefficients.
+#' @param component optional parameter namespace. Use \code{"random"} with one
+#'   explicitly selected semantic random-effect quantity.
+#' @param parameter semantic random-effect quantity used when
+#'   \code{component = "random"}.
 #' @param ... additional arguments. The internal \code{.weights} argument can
 #' supply precomputed PSIS weights for callers that already extracted them.
 #'
@@ -36,9 +40,14 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' Values > 1 indicate that the observation improves precision (decreases
 #' variance), while values < 1 indicate that the observation decreases precision
 #' (increases variance).
-#' If any included parameter has zero posterior variance, or if a full or LOO
-#' covariance determinant is zero or non-finite, COVRATIO is undefined. In that
-#' case, values are reported as \code{NaN} with a printed note when available.
+#' For \code{brma.mv()} objects, COVRATIO uses estimate-unit PSIS weights. With
+#' correlated known-\code{V} data, this is influence under conditional estimate
+#' deletion, not independent-study deletion.
+#' Parameters with zero posterior variance are excluded from the covariance
+#' determinant and reported in a printed note when available. If no estimable
+#' parameters remain, or if a full or LOO covariance determinant is zero or
+#' non-finite after exclusion, COVRATIO is undefined and values are reported as
+#' \code{NaN}.
 #'
 #' @return A named numeric vector of COVRATIO values, one for each observation.
 #'
@@ -55,127 +64,211 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' @seealso \code{\link{influence.brma}}, \code{\link{dffits.brma}}, \code{\link{cooks.distance.brma}}
 #' @aliases covratio
 #' @exportS3Method
-covratio.brma <- function(model, type = "mods", ...) {
+covratio.brma <- function(model, type = "mods", component = NULL,
+                          parameter = NULL, ...) {
 
   dots <- list(...)
   .weights <- dots[[".weights"]]
   BayesTools::check_char(type, "type", allow_values = c("mods", "scale"))
+  BayesTools::check_char(component, "component", check_length = 1,
+                         allow_NULL = TRUE)
+  BayesTools::check_char(parameter, "parameter", check_length = 1,
+                         allow_NULL = TRUE)
+  component <- .diagnostic_parameter_component(
+    type          = type,
+    component     = component,
+    type_supplied = !missing(type),
+    allow_bias    = FALSE
+  )
+  if (identical(component, "random") && is.null(parameter)) {
+    stop(
+      "COVRATIO for random-effect quantities requires one explicit 'parameter'.",
+      call. = FALSE
+    )
+  }
+  if (!identical(component, "random") && !is.null(parameter)) {
+    stop("'parameter' is currently available only with component = 'random'.",
+         call. = FALSE)
+  }
 
-  # Get PSIS weights (S x K matrix)
-  weights <- .diagnostic_psis_weights(model, .weights)
+  if (is.null(.weights)) {
+    psis_context <- .diagnostic_psis_context(model)
+    .diagnostic_check_loo(model, context = psis_context, unit = "estimate")
+    weights <- psis_context[["psis_weights"]]
+  } else {
+    weights <- .diagnostic_psis_weights(model, .weights)
+  }
 
   # determine whether to extract formula (for meta-regression) or parameter (for intercept-only)
-  is_mods  <- .is_mods(model)
   is_scale <- .is_scale(model)
 
   # We follow dfbetas logic here:
-  if (type == "mods") {
-    if (is_mods) {
-      # meta-regression: means mu is a formula
-      samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_formulas      = "mu",
-        remove_diagnostics = TRUE,
-        return_samples     = TRUE
-      )
-    } else {
-      # random/fixed effects: mu is a parameter (intercept)
-      samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_parameters    = "mu",
-        remove_diagnostics = TRUE,
-        return_samples     = TRUE
-      )
-    }
-  } else if (type == "scale") {
+  if (component == "mods") {
+    samples_table <- .diagnostic_location_parameter_samples(model)
+  } else if (component == "scale") {
     if (is_scale) {
       # scale-regression: tau is modeled via log_tau formula
       samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_formulas      = "log_tau",
-        remove_diagnostics = TRUE,
-        return_samples     = TRUE
+        fit                    = model[["fit"]],
+        keep_formulas          = "log_tau",
+        random_effects_summary = "none",
+        remove_diagnostics     = TRUE,
+        return_samples         = TRUE
       )
     } else {
       # random/fixed effects: tau is a parameter (intercept)
       samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_parameters    = "tau",
-        remove_diagnostics = TRUE,
-        return_samples     = TRUE
+        fit                    = model[["fit"]],
+        keep_parameters        = "tau",
+        random_effects_summary = "none",
+        remove_diagnostics     = TRUE,
+        return_samples         = TRUE
       )
     }
+  } else if (component == "random") {
+    samples_table <- .diagnostic_random_parameter_samples(
+      model     = model,
+      parameter = parameter
+    )
   }
 
   # Ensure matrix (S x P)
   beta_samples <- as.matrix(samples_table)
 
-  S <- nrow(beta_samples)
-  K <- ncol(weights)
+  result <- .covratio_internal(beta_samples, weights)
+  K      <- length(result[["values"]])
+  note   <- NULL
 
-  undefined <- apply(
-    beta_samples,
-    2,
-    function(x) diff(range(x, na.rm = TRUE)) <= sqrt(.Machine$double.eps)
-  )
-  if (any(undefined)) {
-    return(.diagnostic_with_note(
-      .diagnostic_set_names(rep(NaN, K), model),
-      class = "covratio.brma",
-      note  = .diagnostic_zero_variance_note(
-        diagnostic = "COVRATIO",
-        parameters = colnames(beta_samples)[undefined],
-        variance   = "posterior"
+  if (any(result[["excluded"]])) {
+    zero_note <- .diagnostic_excluded_zero_variance_note(
+      diagnostic = "COVRATIO",
+      parameters = colnames(beta_samples)[result[["excluded"]]],
+      variance   = "posterior"
+    )
+    if (all(result[["excluded"]])) {
+      note <- .diagnostic_collect_notes(
+        zero_note,
+        "COVRATIO could not be computed because no parameters with non-zero posterior variance remain; values are reported as NaN."
       )
-    ))
+      return(.diagnostic_with_note(
+        .diagnostic_set_names(rep(NaN, K), model),
+        class = "covratio.brma",
+        note  = note
+      ))
+    }
+    note <- .diagnostic_collect_notes(note, zero_note)
   }
 
-  # 1. Full Covariance (Method = "ML" for consistency)
-  # We construct uniform weights 1/S to use cov.wt with "ML"
-  # This avoids the (S-1)/S mismatch with the LOO calculation
-  w_full <- rep(1/S, S)
-  cov_full_res <- stats::cov.wt(beta_samples, wt = w_full, method = "ML")
-
-  # Log-Determinant of Full Covariance
-  # determinant() returns $modulus which is the log-abs-determinant
-  val_full <- as.numeric(determinant(cov_full_res$cov, logarithm = TRUE)$modulus)
-  if (!is.finite(val_full)) {
+  if (!result[["full_defined"]]) {
+    note <- .diagnostic_collect_notes(
+      note,
+      "COVRATIO could not be computed because the full posterior covariance determinant is zero or non-finite; values are reported as NaN."
+    )
     return(.diagnostic_with_note(
       .diagnostic_set_names(rep(NaN, K), model),
       class = "covratio.brma",
-      note  = "COVRATIO could not be computed because the full posterior covariance determinant is zero or non-finite; values are reported as NaN."
+      note  = note
     ))
   }
 
-  out <- numeric(K)
-
-  # 2. Loop over Studies for LOO Covariance
-  for (i in seq_len(K)) {
-
-    # Extract weights for observation i
-    # (These should be pre-normalized, but cov.wt handles normalization too)
-    w_i <- weights[, i]
-
-    # STABILITY FIX: Use method = "ML"
-    # "unbiased" uses factor 1/(1 - sum(w^2)), which explodes if ESS is low.
-    # "ML" uses factor 1/sum(w) = 1, which is stable for distribution variance.
-    cov_loo_res <- stats::cov.wt(beta_samples, wt = w_i, method = "ML")
-    val_loo     <- as.numeric(determinant(cov_loo_res$cov, logarithm = TRUE)$modulus)
-
-    # Compute Ratio
-    out[i] <- if (is.finite(val_loo)) exp(val_loo - val_full) else NaN
-  }
-
+  out <- result[["values"]]
   out <- .diagnostic_set_names(out, model)
-  if (any(is.nan(out))) {
+  if (any(!result[["loo_defined"]])) {
+    note <- .diagnostic_collect_notes(
+      note,
+      "COVRATIO could not be computed for one or more observations because the LOO covariance determinant is zero or non-finite; affected values are reported as NaN."
+    )
+  }
+  if (!is.null(note)) {
     out <- .diagnostic_with_note(
       out,
       class = "covratio.brma",
-      note  = "COVRATIO could not be computed for one or more observations because the LOO covariance determinant is zero or non-finite; affected values are reported as NaN."
+      note  = note
     )
   }
 
   return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .covratio_internal
+# ---------------------------------------------------------------------------- #
+#
+# Compute covariance determinant ratios in affine-standardized coordinates.
+#
+# ---------------------------------------------------------------------------- #
+.covratio_internal <- function(samples, weights) {
+
+  coordinates <- .influence_sample_coordinates(samples)
+  weights     <- .influence_normalize_weights(weights, nrow(samples))
+  excluded    <- !coordinates[["variable"]]
+  K           <- ncol(weights)
+  values      <- rep(NaN, K)
+  loo_defined <- rep(FALSE, K)
+
+  if (all(excluded)) {
+    return(list(
+      values       = values,
+      excluded     = excluded,
+      full_defined = FALSE,
+      loo_defined  = loo_defined
+    ))
+  }
+
+  samples  <- coordinates[["samples"]][, !excluded, drop = FALSE]
+  full_cov <- stats::cov.wt(
+    samples,
+    wt     = rep(1 / nrow(samples), nrow(samples)),
+    method = "ML"
+  )[["cov"]]
+  full_log_det <- .positive_log_determinant(full_cov)
+  if (!is.finite(full_log_det)) {
+    return(list(
+      values       = values,
+      excluded     = excluded,
+      full_defined = FALSE,
+      loo_defined  = loo_defined
+    ))
+  }
+
+  for (i in seq_len(K)) {
+    loo_cov     <- stats::cov.wt(
+      samples,
+      wt     = weights[, i],
+      method = "ML"
+    )[["cov"]]
+    loo_log_det <- .positive_log_determinant(loo_cov)
+    if (is.finite(loo_log_det)) {
+      values[[i]]      <- exp(loo_log_det - full_log_det)
+      loo_defined[[i]] <- TRUE
+    }
+  }
+
+  return(list(
+    values       = values,
+    excluded     = excluded,
+    full_defined = TRUE,
+    loo_defined  = loo_defined
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .positive_log_determinant
+# ---------------------------------------------------------------------------- #
+#
+# Return a finite log determinant only for positive-definite matrices.
+#
+# ---------------------------------------------------------------------------- #
+.positive_log_determinant <- function(x) {
+
+  value <- determinant(x, logarithm = TRUE)
+  if (value[["sign"]] != 1 || !is.finite(value[["modulus"]])) {
+    return(NA_real_)
+  }
+
+  return(as.numeric(value[["modulus"]]))
 }
 
 
@@ -189,4 +282,39 @@ print.covratio.brma <- function(x, ...) {
   .print_diagnostic_note(note)
 
   return(invisible(x))
+}
+
+
+#' @title Convert COVRATIO Results to a Data Frame
+#'
+#' @description Converts a \code{covratio.brma} vector to a component-aware
+#' long data frame.
+#'
+#' @param x a \code{covratio.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns and a numeric \code{value} column.
+#'
+#' @export
+as.data.frame.covratio.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  table <- data.frame(
+    value       = as.numeric(x),
+    row.names   = names(x),
+    check.names = FALSE
+  )
+  output <- .output_table_as_long_data_frame(
+    table            = table,
+    component        = "covratio",
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
 }

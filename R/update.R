@@ -22,16 +22,42 @@
 #' @param parallel logical. Whether to extend chains in parallel.
 #' @param cores integer. Number of cores to use when \code{parallel = TRUE}.
 #' @param silent logical. Whether to suppress JAGS output during extension.
-#' @param seed optional seed used before extending.
+#' @param seed retained for compatibility. Existing chains cannot be coherently
+#'   reseeded during continuation, so any non-\code{NULL} value is rejected.
 #' @param evaluate unsupported; included for compatibility with
 #'   \code{\link[stats]{update}}.
 #'
 #' @return The updated \code{brma} object.
 #'
 #' @details
-#' Extending a fit adds posterior samples only. It does not rerun adaptation or
-#' burn-in. Prior, data, and model-structure updates are intentionally not
-#' supported by this method.
+#' Extending a fit preserves the fitted model and adds posterior samples. No
+#' additional burn-in is requested. Rebuilding the compiled JAGS model, for
+#' example after loading a saved fit, for parallel workers, or under runjags'
+#' repeatable-method settings, can rerun adaptation before collecting those
+#' samples. Retained selection caches store normalizer calculations, not JAGS
+#' model pointers or sampler tuning. Prior, data, and model-structure updates are intentionally not
+#' supported by this method. For \code{brma.mv()} objects, the stored \code{V},
+#' \code{R}, known-\code{V} backend, and marginalized random-effect metadata are
+#' preserved because the fitted model structure is reused.
+#'
+#' Extensions continue the random-number generator state stored by JAGS. They
+#' cannot be restarted from a new seed without changing the meaning of chain
+#' continuation.
+#'
+#' Retained selection-normalizer caches are restored when compatible. Set
+#' \code{RoBMA.options(selection.cache_retain = TRUE)} to retain the cache after
+#' extension, or use [remove_selection_cache()] to remove saved cache entries.
+#'
+#' Only explicitly stored selection-sensitivity diagnostics are refreshed after
+#' chain extension, silently and using their stored simulation settings,
+#' independently of \code{recompute}. Models without a stored comparison do not
+#' compute one. Label-only updates retain the stored diagnostic. Use
+#' [selection_sensitivity_diagnostics()] to inspect the refreshed result or error.
+#'
+#' Named \code{NULL} elements in \code{autofit_control} and
+#' \code{convergence_checks} explicitly disable or clear the corresponding
+#' nullable setting. Omitted elements, a top-level \code{NULL}, and an empty
+#' \code{list()} inherit the setting stored in \code{object}.
 #'
 #' @examples \dontrun{
 #' fit <- update(fit, sample_extend = 1000)
@@ -55,6 +81,12 @@ update.brma <- function(
   }
   if (!isTRUE(evaluate)) {
     stop("update.brma() does not support 'evaluate = FALSE'.", call. = FALSE)
+  }
+  if (!is.null(seed)) {
+    stop(
+      "update.brma() cannot reseed an existing JAGS fit; omit 'seed' to continue the stored chain RNG state.",
+      call. = FALSE
+    )
   }
 
   dots <- list(...)
@@ -111,6 +143,7 @@ update.brma <- function(
     object <- .extend_brma_fit_once(object)
     object[["summary"]]      <- .object_summary(object)
     object[["coefficients"]] <- .object_coefficients(object)
+    object <- .refresh_selection_sensitivity_diagnostics(object)
     object <- .refresh_brma_fit_cache(
       object    = object,
       cached    = cached,
@@ -176,6 +209,7 @@ update.brma <- function(
   object[["autofit_control"]] <- extend_autofit_control
   object[["fit"]]             <- .fit(object, extend = TRUE)
   object[["autofit_control"]] <- stored_autofit_control
+  .stop_fit_errors(object[["fit"]])
 
   return(object)
 }
@@ -199,12 +233,16 @@ update.brma <- function(
   }
 
   check_fit <- BayesTools::JAGS_check_convergence(
-    fit          = fit,
-    prior_list   = prior_list,
-    max_Rhat     = object[["convergence_checks"]][["max_Rhat"]],
-    min_ESS      = object[["convergence_checks"]][["min_ESS"]],
-    max_error    = object[["convergence_checks"]][["max_error"]],
-    max_SD_error = object[["convergence_checks"]][["max_SD_error"]]
+    fit            = fit,
+    prior_list     = prior_list,
+    add_parameters = .convergence_structural_parameters(object[["priors"]]),
+    max_Rhat             = object[["convergence_checks"]][["max_Rhat"]],
+    min_ESS              = object[["convergence_checks"]][["min_ESS"]],
+    max_error            = object[["convergence_checks"]][["max_error"]],
+    max_SD_error         = object[["convergence_checks"]][["max_SD_error"]],
+    check_indicators     = isTRUE(object[["convergence_checks"]][["check_indicators"]]),
+    monitor              = object[["convergence_checks"]][["monitor"]],
+    allow_not_assessable = isTRUE(object[["convergence_checks"]][["allow_not_assessable"]])
   )
 
   fit[["converged"]]     <- check_fit

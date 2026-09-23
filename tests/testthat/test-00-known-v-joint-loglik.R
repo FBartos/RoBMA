@@ -1,0 +1,1041 @@
+# test-00-known-v-joint-loglik.R
+
+test_that("known-V joint log-likelihood uses block MVN density", {
+
+  V    <- matrix(c(.04, .015, .015, .09), nrow = 2L)
+  data <- list(outcome = data.frame(yi = c(.10, -.20), sei = c(.20, .30)))
+  attr(data, "outcome_type") <- "norm"
+  attr(data, "known_V")      <- TRUE
+  attr(data, "known_V_data") <- .known_v_prepare(
+    V                         = V,
+    keep_rows                 = rep(TRUE, nrow(V)),
+    known_v_parameterization  = "block_mvn"
+  )
+  attr(data, "random")       <- FALSE
+
+  setup <- list(
+    outcome_type      = "norm",
+    is_weightfunction = FALSE,
+    weights           = NULL,
+    data              = data,
+    K                 = 2L,
+    S                 = 2L,
+    yi                = c(.10, -.20),
+    mu                = matrix(c(.02, -.10, .06, -.16), nrow = 2L, byrow = TRUE),
+    tau_within        = matrix(c(.05, .08, .04, .06), nrow = 2L, byrow = TRUE),
+    effect_direction  = "positive",
+    posterior_samples = matrix(numeric(0), nrow = 2L, ncol = 0L),
+    marginalized_random_source_samples = NULL
+  )
+
+  out <- .log_lik_known_v_joint_sum_from_setup(setup)
+  ref <- vapply(seq_len(setup[["S"]]), function(s) {
+    covariance <- V + diag(setup[["tau_within"]][s, ]^2, nrow = 2L)
+    .marglik_mvn_log_density(
+      y          = setup[["yi"]],
+      mean       = setup[["mu"]][s, ],
+      covariance = covariance
+    )
+  }, numeric(1))
+
+  expect_equal(out, ref)
+  expect_equal(.log_lik_estimate_sum_from_setup(setup), ref)
+  expect_false(isTRUE(all.equal(
+    out,
+    rowSums(.log_lik_normal_covariance_estimate_target_from_setup(setup))
+  )))
+
+  singular_setup <- setup
+  singular_setup[["data"]] <- data
+  singular_setup[["data"]][["outcome"]][["sei"]] <- c(1, 1)
+  attr(singular_setup[["data"]], "known_V_data") <-
+    .known_v_prepare(
+      V                         = matrix(1, nrow = 2L, ncol = 2L),
+      keep_rows                 = rep(TRUE, 2L),
+      known_v_parameterization  = "block_mvn",
+      warn_singular             = FALSE
+    )
+  singular_setup[["tau_within"]] <- matrix(0, nrow = 2L, ncol = 2L)
+  expect_error(
+    .log_lik_known_v_joint_sum_from_setup(singular_setup),
+    "Known-V joint likelihood covariance"
+  )
+})
+
+
+test_that("diagonal known-V estimate log-likelihood is exactly vectorized", {
+
+  sampling_variance <- c(.04, .09, .16, .25)
+  V <- diag(sampling_variance)
+  data <- list(outcome = data.frame(
+    yi  = c(.10, -.20, .30, -.40),
+    sei = sqrt(sampling_variance)
+  ))
+  attr(data, "known_V") <- TRUE
+  attr(data, "known_V_data") <- .known_v_prepare(
+    V                         = V,
+    keep_rows                 = rep(TRUE, nrow(V)),
+    known_v_parameterization  = "block_mvn"
+  )
+  attr(data, "random") <- FALSE
+
+  mu <- matrix(
+    c(.02, -.10, .06, -.16, .04, -.12, .08, -.18, .06, -.14, .10, -.20),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  tau <- matrix(
+    c(.05, .08, .04, .06, .06, .09, .05, .07, .07, .10, .06, .08),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  setup <- list(
+    outcome_type      = "norm",
+    is_weightfunction = FALSE,
+    weights           = NULL,
+    data              = data,
+    K                 = 4L,
+    S                 = 3L,
+    yi                = data[["outcome"]][["yi"]],
+    mu                = mu,
+    tau_within        = tau,
+    effect_direction  = "positive",
+    posterior_samples = matrix(numeric(0), nrow = 3L, ncol = 0L),
+    marginalized_random_source_samples = NULL
+  )
+
+  expected <- matrix(NA_real_, nrow = 3L, ncol = 4L)
+  for (s in seq_len(nrow(expected))) {
+    for (k in seq_len(ncol(expected))) {
+      variance <- sampling_variance[[k]] + tau[s, k]^2
+      residual <- data[["outcome"]][["yi"]][[k]] - mu[s, k]
+      expected[s, k] <- -0.5 * (
+        log(2 * pi * variance) + residual^2 / variance
+      )
+    }
+  }
+
+  expect_identical(
+    .log_lik_normal_covariance_estimate_target_from_setup(setup),
+    expected
+  )
+  expect_equal(
+    .log_lik_known_v_joint_sum_from_setup(setup),
+    rowSums(expected),
+    tolerance = 1e-13
+  )
+
+  block_data <- .known_v_dependency_block_data(data, setup[["K"]])
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(setup[["yi"]]),
+    .known_v_covariance_matrix(.data_known_v_data(data)),
+    list(),
+    lapply(block_data, `[[`, "index"),
+    PACKAGE = "RoBMA"
+  )
+  expect_identical(attr(plan, "low_rank_blocks"), 0L)
+  expect_identical(attr(plan, "root_dense_blocks"), 4L)
+})
+
+
+test_that("native covariance plan returns exact Schur conditional densities", {
+
+  y <- c(0.1, -0.2, 0.3, -0.1, 0.05)
+  mean <- c(0.02, -0.03, 0.08, -0.04, 0.01)
+  sampling_covariance <- matrix(0, nrow = 5L, ncol = 5L)
+  sampling_covariance[1:3, 1:3] <- matrix(
+    c(0.08, 0.02, 0.01, 0.02, 0.09, 0.015, 0.01, 0.015, 0.07),
+    nrow = 3L,
+    byrow = TRUE
+  )
+  sampling_covariance[4:5, 4:5] <- matrix(
+    c(0.06, 0.012, 0.012, 0.05),
+    nrow = 2L
+  )
+  extra_variance <- c(0.01, 0.02, 0.015, 0.025, 0.018)
+  blocks <- list(1:3, 4:5)
+  plan <- .Call(
+    "RoBMA_known_v_covariance_plan_create",
+    as.double(y),
+    sampling_covariance,
+    list(),
+    blocks,
+    PACKAGE = "RoBMA"
+  )
+  actual <- .Call(
+    "RoBMA_known_v_covariance_plan_conditional_loglik",
+    plan,
+    as.double(mean),
+    list(),
+    as.double(extra_variance),
+    PACKAGE = "RoBMA"
+  )
+  expected <- numeric(length(y))
+  for (idx in blocks) {
+    covariance <- sampling_covariance[idx, idx, drop = FALSE] +
+      diag(extra_variance[idx], nrow = length(idx))
+    expected[idx] <- .known_v_conditional_loglik_reference(
+      yi         = y[idx],
+      mu         = mean[idx],
+      covariance = covariance
+    )
+  }
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+
+  means <- rbind(mean, mean + c(0.01, -0.02, 0.03, -0.01, 0.02))
+  extra_variances <- rbind(extra_variance, extra_variance * 1.25)
+  states <- rep(list(list()), nrow(means))
+  summary <- .marglik_covariance_plan_conditional_summary_batch(
+    cache                    = NULL,
+    y                        = y,
+    means                    = means,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = states,
+    block_indices            = blocks,
+    extra_variances          = extra_variances
+  )
+  actual_batch <- .marglik_covariance_plan_conditional_loglik_batch(
+    cache                    = NULL,
+    y                        = y,
+    means                    = means,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = states,
+    block_indices            = blocks,
+    extra_variances          = extra_variances
+  )
+  precision_residual <- .marglik_covariance_plan_precision_residual_batch(
+    cache                    = NULL,
+    y                        = y,
+    means                    = means,
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = states,
+    block_indices            = blocks,
+    extra_variances          = extra_variances
+  )
+  expected_residual <- expected_variance <- matrix(
+    NA_real_,
+    nrow = nrow(means),
+    ncol = length(y)
+  )
+  for (draw in seq_len(nrow(means))) {
+    for (idx in blocks) {
+      distribution <- .known_v_component_conditional_distribution(
+        yi         = y[idx],
+        mu         = means[draw, idx],
+        covariance = sampling_covariance[idx, idx, drop = FALSE] +
+          diag(extra_variances[draw, idx], nrow = length(idx))
+      )
+      expected_residual[draw, idx] <- distribution[["residual"]]
+      expected_variance[draw, idx] <- distribution[["variance"]]
+    }
+  }
+  expected_batch <- -0.5 * (
+    log(2 * pi * expected_variance) +
+      expected_residual^2 / expected_variance
+  )
+
+  expect_equal(summary[["residual"]], expected_residual, tolerance = 1e-12)
+  expect_equal(summary[["variance"]], expected_variance, tolerance = 1e-12)
+  expect_equal(actual_batch, expected_batch, tolerance = 1e-12)
+  expect_equal(
+    precision_residual,
+    expected_residual / expected_variance,
+    tolerance = 1e-12
+  )
+})
+
+
+test_that("multilevel estimate scores integrate cluster effects", {
+
+  fixed_mean <- matrix(
+    c(
+      0.05, 0.08, 0.00, 0.10,
+      0.04, 0.09, 0.01, 0.11
+    ),
+    nrow = 2L,
+    byrow = TRUE
+  )
+  cluster_effect <- matrix(
+    c(
+      0.20, 0.20, -0.10, -0.10,
+      0.10, 0.10, -0.20, -0.20
+    ),
+    nrow = 2L,
+    byrow = TRUE
+  )
+  setup <- list(
+    data              = structure(
+      list(outcome = data.frame(yi = c(0.10, 0.20, -0.10, 0.30))),
+      known_V = FALSE,
+      random  = FALSE
+    ),
+    outcome_type      = "norm",
+    is_multilevel     = TRUE,
+    is_weightfunction = FALSE,
+    weights           = NULL,
+    K                 = 4L,
+    S                 = 2L,
+    yi                = c(0.10, 0.20, -0.10, 0.30),
+    sei               = c(0.10, 0.12, 0.15, 0.08),
+    mu                = fixed_mean + cluster_effect,
+    mu_random         = cluster_effect,
+    tau_within        = matrix(
+      c(0.20, 0.20, 0.30, 0.30, 0.25, 0.25, 0.35, 0.35),
+      nrow = 2L,
+      byrow = TRUE
+    ),
+    tau_between       = matrix(
+      c(0.40, 0.40, 0.50, 0.50, 0.30, 0.30, 0.45, 0.45),
+      nrow = 2L,
+      byrow = TRUE
+    ),
+    cluster           = list(a = 1:2, b = 3:4),
+    effect_direction  = "positive"
+  )
+
+  expected_log_lik <- matrix(NA_real_, nrow = setup[["S"]], ncol = setup[["K"]])
+  expected_mean    <- expected_log_lik
+  expected_variance <- expected_log_lik
+  for (draw in seq_len(setup[["S"]])) {
+    for (indices in setup[["cluster"]]) {
+      covariance <- diag(
+        setup[["sei"]][indices]^2 + setup[["tau_within"]][draw, indices]^2,
+        nrow = length(indices)
+      ) + tcrossprod(setup[["tau_between"]][draw, indices])
+      for (row in seq_along(indices)) {
+        other <- setdiff(seq_along(indices), row)
+        conditional_mean <- fixed_mean[draw, indices[[row]]] +
+          covariance[row, other] / covariance[other, other] *
+          (setup[["yi"]][indices[other]] - fixed_mean[draw, indices[other]])
+        conditional_variance <- covariance[row, row] -
+          covariance[row, other]^2 / covariance[other, other]
+        expected_mean[draw, indices[[row]]]     <- conditional_mean
+        expected_variance[draw, indices[[row]]] <- conditional_variance
+        expected_log_lik[draw, indices[[row]]] <- stats::dnorm(
+          setup[["yi"]][indices[[row]]],
+          mean = conditional_mean,
+          sd   = sqrt(conditional_variance),
+          log  = TRUE
+        )
+      }
+    }
+  }
+
+  observed <- .log_lik_normal_covariance_estimate_target_from_setup(setup)
+  summary  <- .normal_covariance_estimate_target_summary_from_setup(
+    setup,
+    components = c("mean", "variance")
+  )
+
+  expect_equal(observed, expected_log_lik, tolerance = 1e-12)
+  expect_equal(summary[["mean"]], expected_mean, tolerance = 1e-12)
+  expect_equal(summary[["variance"]], expected_variance, tolerance = 1e-12)
+
+  shifted <- setup
+  shift   <- matrix(seq(-0.3, 0.4, length.out = 8L), nrow = 2L)
+  shifted[["mu"]]        <- shifted[["mu"]] + shift
+  shifted[["mu_random"]] <- shifted[["mu_random"]] + shift
+  expect_equal(
+    .log_lik_normal_covariance_estimate_target_from_setup(shifted),
+    observed,
+    tolerance = 0
+  )
+})
+
+
+test_that("known-V factor plans recover batched precision right-hand sides", {
+
+  sampling_covariance <- matrix(c(
+    1.4, 0.2, 0.1, 0.0,
+    0.2, 1.1, 0.3, 0.1,
+    0.1, 0.3, 1.6, 0.2,
+    0.0, 0.1, 0.2, 1.3
+  ), nrow = 4L, byrow = TRUE)
+  extra_variances <- rbind(
+    c(0.10, 0.20, 0.15, 0.05),
+    c(0.30, 0.05, 0.25, 0.10)
+  )
+  rhs <- cbind(c(0.3, -0.5, 0.8, 0.1), 1, c(-1, -0.2, 0.6, 1.4))
+  plan_data <- list(
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = rep(list(list()), nrow(extra_variances)),
+    block_indices            = list(seq_len(nrow(rhs))),
+    extra_variances          = extra_variances
+  )
+
+  observed <- .known_v_covariance_plan_precision_rhs_batch(
+    plan_data = plan_data,
+    rhs       = rhs
+  )
+  expected <- array(NA_real_, dim = dim(observed))
+  for (draw in seq_len(nrow(extra_variances))) {
+    covariance <- sampling_covariance + diag(extra_variances[draw, ])
+    expected[draw, , ] <- solve(covariance, rhs)
+  }
+
+  expect_equal(observed, expected, tolerance = 1e-12)
+})
+
+
+test_that("latent known-V metadata use the exact low-rank covariance plan", {
+
+  loading <- c(0.2, 0.3, -0.1, 0.4)
+  sampling_covariance <- tcrossprod(loading)
+  known_V <- .known_v_prepare(
+    V                         = sampling_covariance,
+    keep_rows                 = rep(TRUE, length(loading)),
+    known_v_parameterization  = "auto",
+    warn_singular             = FALSE
+  )
+  factor <- .known_v_sampling_factor_plan(known_V)
+  extra_variances <- rbind(
+    c(0.10, 0.20, 0.15, 0.05),
+    c(0.30, 0.05, 0.25, 0.10)
+  )
+  rhs <- cbind(c(0.3, -0.5, 0.8, 0.1), 1)
+  plan_data <- list(
+    sampling_covariance      = factor[["sampling_covariance"]],
+    random_covariance_plans  = list(factor[["factor_plan"]]),
+    random_covariance_states = rep(
+      list(list(factor[["factor_state"]])),
+      nrow(extra_variances)
+    ),
+    block_indices   = list(seq_along(loading)),
+    extra_variances = extra_variances
+  )
+
+  observed <- .known_v_covariance_plan_precision_rhs_batch(
+    plan_data = plan_data,
+    rhs       = rhs
+  )
+  expected <- array(NA_real_, dim = dim(observed))
+  for (draw in seq_len(nrow(extra_variances))) {
+    covariance <- sampling_covariance + diag(extra_variances[draw, ])
+    expected[draw, , ] <- solve(covariance, rhs)
+  }
+
+  expect_equal(
+    tcrossprod(factor[["factor_plan"]][["model_matrix"]]),
+    sampling_covariance,
+    tolerance = 0
+  )
+  expect_equal(observed, expected, tolerance = 1e-12)
+  expect_null(.known_v_sampling_factor_plan(.known_v_prepare(
+    V                         = sampling_covariance + diag(0.01, 4L),
+    keep_rows                 = rep(TRUE, 4L),
+    known_v_parameterization  = "block_mvn",
+    warn_singular             = FALSE
+  )))
+})
+
+
+test_that("declared known-V factors stay compact in GLS and prediction", {
+
+  diagonal <- c(.10, .20, .15, .05)
+  loading <- cbind(
+    c(.20, .30, -.10, .40),
+    c(.05, -.08, .12, .02)
+  )
+  known_V <- .known_v_prepare(
+    V                         = known_v_factor(diagonal, loading),
+    keep_rows                 = rep(TRUE, length(diagonal)),
+    known_v_parameterization  = "auto",
+    warn_singular             = FALSE
+  )
+  factor <- .known_v_sampling_factor_plan(known_V)
+
+  data <- list(outcome = data.frame(yi = rep(0, length(diagonal))))
+  attr(data, "known_V")      <- TRUE
+  attr(data, "outcome_type") <- "norm"
+  attr(data, "known_V_data") <- known_V
+  testthat::local_mocked_bindings(
+    .known_v_blocks = function(...) {
+      stop("Declared factors must not be materialized for dependency blocks.")
+    },
+    .known_v_covariance_matrix = function(...) {
+      stop("Declared factors must not be materialized for marginal GLS.")
+    },
+    .package = "RoBMA"
+  )
+  dependency_blocks <- .known_v_dependency_blocks(data, length(diagonal))
+  marginal_plan <- .known_v_marginal_factor_plan(
+    object            = list(data = data),
+    posterior_samples = matrix(numeric(), nrow = 1L, ncol = 0L),
+    known_V           = known_V,
+    extra_variances   = matrix(0, nrow = 1L, ncol = length(diagonal))
+  )
+
+  expect_identical(.known_v_effective_backend(known_V), "whitened")
+  expect_identical(dependency_blocks, known_V[["block_indices"]])
+  expect_identical(
+    marginal_plan[["random_covariance_plans"]][[1L]][["model_matrix"]],
+    loading
+  )
+  expect_equal(
+    factor[["sampling_covariance"]],
+    diag(diagonal, nrow = length(diagonal)),
+    tolerance = 0
+  )
+  expect_identical(factor[["factor_plan"]][["model_matrix"]], loading)
+  expect_equal(
+    factor[["factor_state"]][["coefficient_factor"]],
+    diag(1, nrow = ncol(loading)),
+    tolerance = 0
+  )
+
+  S <- 3L
+  set.seed(194)
+  expected <- sweep(
+    matrix(stats::rnorm(S * length(diagonal)), nrow = S),
+    2L,
+    sqrt(diagonal),
+    "*"
+  ) + matrix(stats::rnorm(S * ncol(loading)), nrow = S) %*% t(loading)
+  set.seed(194)
+  observed <- .known_v_sampling_noise(
+    known_V,
+    S = S,
+    K = length(diagonal)
+  )
+
+  expect_identical(observed, expected)
+})
+
+
+test_that("known-V factor-plan GLS matches exact dense projections", {
+
+  sampling_covariance <- matrix(c(
+    1.4, 0.2, 0.1, 0.0,
+    0.2, 1.1, 0.3, 0.1,
+    0.1, 0.3, 1.6, 0.2,
+    0.0, 0.1, 0.2, 1.3
+  ), nrow = 4L, byrow = TRUE)
+  extra_variances <- rbind(
+    c(0.10, 0.20, 0.15, 0.05),
+    c(0.30, 0.05, 0.25, 0.10)
+  )
+  y <- c(0.3, -0.5, 0.8, 0.1)
+  X <- cbind(1, c(-1, -0.2, 0.6, 1.4))
+  plan_data <- list(
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = list(),
+    random_covariance_states = rep(list(list()), nrow(extra_variances)),
+    block_indices            = list(seq_len(length(y))),
+    extra_variances          = extra_variances,
+    covariance_diagonal      = sweep(
+      extra_variances,
+      2L,
+      diag(sampling_covariance),
+      "+"
+    )
+  )
+  testthat::local_mocked_bindings(
+    .known_v_marginal_factor_plan = function(...) plan_data,
+    .package = "RoBMA"
+  )
+
+  observed <- .known_v_factor_gls_projection_batch(
+    object            = list(),
+    posterior_samples = matrix(0, nrow = 2L, ncol = 1L),
+    known_V           = list(),
+    X                 = X,
+    y                 = y,
+    return_full_H     = TRUE,
+    return_se         = TRUE,
+    return_resid      = TRUE
+  )
+
+  for (draw in seq_len(nrow(extra_variances))) {
+    covariance <- sampling_covariance + diag(extra_variances[draw, ])
+    expected <- .known_v_gls_projection_reference(X, y, covariance)
+    A <- diag(length(y)) - expected[["H"]]
+
+    expect_equal(observed[["H"]][draw, , ], expected[["H"]],
+                 tolerance = 1e-12)
+    expect_equal(observed[["H_diag"]][draw, ], diag(expected[["H"]]),
+                 tolerance = 1e-12)
+    expect_equal(observed[["M_diag"]][draw, ], diag(covariance),
+                 tolerance = 1e-12)
+    expect_equal(observed[["residual"]][draw, ], expected[["residual"]],
+                 tolerance = 1e-12)
+    expect_equal(
+      observed[["residual_variance"]][draw, ],
+      rowSums((A %*% expected[["covariance_factor"]])^2),
+      tolerance = 1e-12
+    )
+  }
+})
+
+
+test_that("rank-one known V retains sub-ULP diagonal variance", {
+
+  V    <- matrix(1, nrow = 2L, ncol = 2L)
+  data <- list(outcome = data.frame(yi = c(0.10, -0.20), sei = c(1, 1)))
+  attr(data, "known_V")      <- TRUE
+  attr(data, "known_V_data") <- .known_v_prepare(
+    V                         = V,
+    keep_rows                 = rep(TRUE, 2L),
+    known_v_parameterization  = "block_mvn",
+    warn_singular             = FALSE
+  )
+  attr(data, "random") <- FALSE
+
+  diagonal <- rep(1e-18, 2L)
+  setup <- list(
+    outcome_type      = "norm",
+    is_weightfunction = FALSE,
+    weights           = NULL,
+    data              = data,
+    K                 = 2L,
+    S                 = 1L,
+    yi                = c(0.10, -0.20),
+    mu                = matrix(0, nrow = 1L, ncol = 2L),
+    tau_within        = matrix(sqrt(diagonal), nrow = 1L),
+    effect_direction  = "positive",
+    posterior_samples = matrix(numeric(0), nrow = 1L, ncol = 0L),
+    marginalized_random_source_samples = NULL
+  )
+
+  determinant <- diagonal[[1L]] * (2 + diagonal[[1L]])
+  residual    <- setup[["yi"]]
+  quadratic   <- (
+    (1 + diagonal[[1L]]) * sum(residual^2) -
+      2 * prod(residual)
+  ) / determinant
+  expected_joint <- -0.5 * (
+    2 * log(2 * pi) + log(determinant) + quadratic
+  )
+  expected_variance <- diagonal[[1L]] *
+    (2 + diagonal[[1L]]) / (1 + diagonal[[1L]])
+
+  expect_equal(
+    .log_lik_known_v_joint_sum_from_setup(setup),
+    expected_joint,
+    tolerance = 1e-12
+  )
+  distribution <- .normal_covariance_estimate_target_summary_from_setup(setup)
+  expect_equal(
+    distribution[["variance"]],
+    matrix(expected_variance, nrow = 1L, ncol = 2L),
+    tolerance = 1e-12
+  )
+  expect_true(all(is.finite(distribution[["log_lower"]])))
+  expect_true(all(is.finite(distribution[["log_upper"]])))
+
+  unequal_diagonal <- c(1e-18, 2e-18)
+  setup[["tau_within"]] <- matrix(sqrt(unequal_diagonal), nrow = 1L)
+  residual <- setup[["yi"]] - setup[["mu"]][1L, ]
+  expected_variance <- c(
+    unequal_diagonal[[1L]] + 1 / (1 + 1 / unequal_diagonal[[2L]]),
+    unequal_diagonal[[2L]] + 1 / (1 + 1 / unequal_diagonal[[1L]])
+  )
+  expected_residual <- c(
+    residual[[1L]] - (residual[[2L]] / unequal_diagonal[[2L]]) /
+      (1 + 1 / unequal_diagonal[[2L]]),
+    residual[[2L]] - (residual[[1L]] / unequal_diagonal[[1L]]) /
+      (1 + 1 / unequal_diagonal[[1L]])
+  )
+  distribution <- .normal_covariance_estimate_target_summary_from_setup(
+    setup      = setup,
+    components = c("mean", "variance")
+  )
+  expect_equal(
+    distribution[["variance"]] / expected_variance,
+    matrix(1, nrow = 1L, ncol = 2L),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    matrix(setup[["yi"]], nrow = 1L) - distribution[["mean"]],
+    matrix(expected_residual, nrow = 1L),
+    tolerance = 1e-12
+  )
+
+  projection <- .known_v_gls_projection_blocks(
+    X              = matrix(1, nrow = 2L, ncol = 1L),
+    y              = setup[["yi"]],
+    known_V        = .data_known_v_data(data),
+    extra_variance = diagonal
+  )
+  expect_true(all(is.finite(unlist(projection))))
+})
+
+
+test_that("evaluated known-V random log-likelihood requires conditioned mu", {
+
+  dat <- data.frame(
+    yi    = c(.10, -.20),
+    study = c("s1", "s2")
+  )
+  object <- brma.mv(
+    yi                         = yi,
+    V                          = diag(c(.04, .09)),
+    random                     = ~ 1 | study,
+    data                       = dat,
+    measure                    = "GEN",
+    prior_unit_information_sd  = 1,
+    only_priors                = TRUE
+  )
+  object[["data"]] <- .set_data_random_effects_compile(
+    object[["data"]], compile = NULL, marginalized_effects = list())
+  object[["random_effects_compile"]] <- NULL
+  object[["formula_design"]][["mu"]] <- .object_bayestools_formula_design(
+    object, parameter = "mu", source = "location", random_effects_compile = NULL)
+
+  mu                <- matrix(0, nrow = 1L, ncol = 2L)
+  tau_within        <- matrix(0, nrow = 1L, ncol = 2L)
+  posterior_samples <- matrix(numeric(0), nrow = 1L, ncol = 0L)
+
+  expect_error(
+    .test_log_lik_known_v_joint_sum_from_evaluated_predictors(
+      fit                = object[["fit"]],
+      data               = object[["data"]],
+      priors             = object[["priors"]],
+      mu_samples         = mu,
+      tau_within_samples = tau_within,
+      posterior_samples  = posterior_samples
+    ),
+    "sampled random effects included"
+  )
+  expect_silent(
+    .test_log_lik_known_v_joint_sum_from_evaluated_predictors(
+      fit                         = object[["fit"]],
+      data                        = object[["data"]],
+      priors                      = object[["priors"]],
+      mu_samples                  = mu,
+      tau_within_samples          = tau_within,
+      posterior_samples           = posterior_samples,
+      random_effects_conditioning = "included_in_mu"
+    )
+  )
+})
+
+
+test_that("evaluated known-V marginalized scale maps component row source", {
+
+  dat <- data.frame(
+    yi   = c(0.10, 0.20, -0.05, 0.15),
+    type = factor(
+      c("RCT", "RCT", "cohort", "cohort"),
+      levels = c("RCT", "cohort")
+    )
+  )
+  dat$study   <- factor(seq_len(nrow(dat)))
+  dat$cohort  <- as.numeric(dat$type == "cohort")
+  dat$bias_id <- factor("cohort_bias")
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(0.04, 4)),
+    random                    = list(
+      coh_bias    = ~ diag(0 + cohort | bias_id),
+      ran_effects = ~ 1 | study
+    ),
+    scale                     = list(ran_effects = ~ type),
+    data                      = dat,
+    known_v_parameterization  = "block_mvn",
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  expect_equal(.data_sampled_random_effect_blocks(object[["data"]]), "coh_bias")
+
+  mu_samples         <- matrix(0, nrow = 1L, ncol = 4L)
+  tau_within_samples <- matrix(c(0.10, 0.20, 0.30, 0.40), nrow = 1L)
+  posterior_samples  <- matrix(numeric(0), nrow = 1L, ncol = 0L)
+
+  source_samples <- .known_v_marginalized_random_source_samples_from_tau(
+    data               = object[["data"]],
+    tau_within_samples = tau_within_samples
+  )
+  expect_named(source_samples, "tau_ran_effects")
+  expect_equal(source_samples[["tau_ran_effects"]], tau_within_samples)
+
+  formula_args <- .create_jags_formula_args(
+    data   = object[["data"]],
+    priors = object[["priors"]]
+  )
+  expect_false("tau_ran_effects" %in% formula_args[["add_parameters"]])
+
+  log_lik <- .test_log_lik_known_v_joint_sum_from_evaluated_predictors(
+    fit                         = object[["fit"]],
+    data                        = object[["data"]],
+    priors                      = object[["priors"]],
+    mu_samples                  = mu_samples,
+    tau_within_samples          = tau_within_samples,
+    posterior_samples           = posterior_samples,
+    random_effects_conditioning = "included_in_mu"
+  )
+  expected <- .marglik_mvn_log_density(
+    y          = dat[["yi"]],
+    mean       = rep(0, 4),
+    covariance = diag(rep(0.04, 4) + as.numeric(tau_within_samples)^2)
+  )
+
+  expect_equal(log_lik, expected, tolerance = 1e-12)
+
+  bridge_context <- structure(
+    list(nodes = stats::setNames(
+      as.numeric(tau_within_samples),
+      paste0("tau_ran_effects[", seq_len(ncol(tau_within_samples)), "]")
+    )),
+    class = c("BayesTools_bridge_context", "list")
+  )
+  expect_equal(
+    .log_posterior(
+      parameters                 = list(mu = 0),
+      data                       = .create_fit_data(object[["data"]], object[["priors"]]),
+      is_scale                   = TRUE,
+      is_random                  = TRUE,
+      is_multilevel              = FALSE,
+      is_weights                 = FALSE,
+      is_known_v                 = TRUE,
+      is_PET                     = FALSE,
+      is_PEESE                   = FALSE,
+      is_weightfunction          = FALSE,
+      effect_direction           = "positive",
+      outcome_type               = "norm",
+      model_data                 = object[["data"]],
+      bridge_context             = bridge_context
+    ),
+    expected,
+    tolerance = 1e-12
+  )
+})
+
+
+test_that("IWMDE evaluated known-V likelihood matches joint MVN oracle", {
+
+  V <- matrix(c(0.04, 0.015, 0.015, 0.09), nrow = 2L)
+  object <- brma.mv(
+    yi                         = c(0.10, -0.20),
+    V                          = V,
+    random                     = ~ 1 | study,
+    data                       = data.frame(
+      yi    = c(0.10, -0.20),
+      study = c("s1", "s2")
+    ),
+    known_v_parameterization   = "block_mvn",
+    measure                    = "GEN",
+    prior_unit_information_sd  = 1,
+    only_priors                = TRUE
+  )
+  object[["data"]] <- .set_data_random_effects_compile(
+    object[["data"]], compile = NULL, marginalized_effects = list())
+  object[["random_effects_compile"]] <- NULL
+  object[["formula_design"]][["mu"]] <- .object_bayestools_formula_design(
+    object, parameter = "mu", source = "location", random_effects_compile = NULL)
+  mu_samples  <- matrix(c(0.02, -0.10, 0.06, -0.16), nrow = 2L, byrow = TRUE)
+  tau_samples <- matrix(c(0.05, 0.08, 0.04, 0.06), nrow = 2L, byrow = TRUE)
+  context <- list(
+    object = object,
+    data   = object[["data"]]
+  )
+  active_setup <- list(
+    priors            = object[["priors"]],
+    is_PET            = FALSE,
+    is_PEESE          = FALSE,
+    is_weightfunction = FALSE
+  )
+
+  posterior_samples <- matrix(numeric(0), nrow = 2L, ncol = 0L)
+  setup <- .log_lik_evaluated_setup(
+    fit                         = object[["fit"]],
+    data                        = object[["data"]],
+    priors                      = object[["priors"]],
+    unit                        = "estimate",
+    data_hash                   = NULL,
+    mu_samples                  = mu_samples,
+    tau_within_samples          = tau_samples,
+    tau_between_samples         = NULL,
+    posterior_samples           = posterior_samples,
+    random_effects_conditioning = "included_in_mu"
+  )
+  expected <- vapply(seq_len(nrow(mu_samples)), function(s) {
+    .marglik_mvn_log_density(
+      y          = object[["data"]][["outcome"]][["yi"]],
+      mean       = mu_samples[s, ],
+      covariance = V
+    )
+  }, numeric(1))
+
+  expect_true(.iwmde_uses_known_v_joint_likelihood(context))
+  expect_equal(
+    .log_lik_known_v_joint_sum_from_setup(setup),
+    expected,
+    tolerance = 1e-12
+  )
+  expect_equal(
+    .iwmde_log_lik_from_evaluated_predictors_sum_active_branch(
+      context            = context,
+      active_setup       = active_setup,
+      mu_samples         = mu_samples,
+      tau_within_samples = tau_samples,
+      posterior_samples  = posterior_samples,
+      unit               = "estimate"
+    ),
+    expected,
+    tolerance = 1e-12
+  )
+})
+
+
+test_that("selection log-likelihood retains study effects and integrates full sampling covariance", {
+
+  dat <- data.frame(
+    yi    = c(0.1, -0.2, 0.3, 0.15),
+    study = c("a", "a", "b", "b"),
+    esid  = c("a1", "a2", "b1", "b2")
+  )
+  loading <- matrix(
+    c(0.1, 0.1, 0, 0, 0, 0, 0.2, 0.2),
+    nrow = 4L,
+    ncol = 2L
+  )
+  object <- bselmodel.mv(
+    yi                        = yi,
+    V                         = known_v_factor(
+      diagonal = c(0.01, 0.02, 0.03, 0.01),
+      loading  = loading
+    ),
+    random                    = ~ 1 | study / esid,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1)),
+      model = BayesTools::selection_model(known_sampling_variance = "integrate", group = "study")
+    ),
+    selection_control = set_selection_likelihood_control(relative_tolerance = 1e-12),
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  fit <- structure(
+    list(),
+    formula_design = object[["formula_design"]],
+    prior_list = c(
+      object[["formula_design"]][["mu"]][["prior_list"]],
+      .create_fit_priors(object[["data"]], object[["priors"]])
+    )
+  )
+  posterior_samples <- matrix(
+    c(
+      0.05, 0.10, 0.20, 0.15, -0.05, 0.80, 0.90,
+      0.10, 0.20, 0.30, -0.10, 0.20, 0.75, 0.85
+    ),
+    nrow = 2L,
+    byrow = TRUE,
+    dimnames = list(NULL, c(
+      "mu_intercept",
+      "mu__xREx__esid_study_intercept",
+      "mu__xREx__study_intercept",
+      "mu__xREx__study_xRE_Zx[1,1]",
+      "mu__xREx__study_xRE_Zx[2,1]",
+      "omega[1]",
+      "omega[2]"
+    ))
+  )
+  fixed_and_study <- matrix(
+    c(0.08, 0.08, 0.04, 0.04, 0.07, 0.07, 0.16, 0.16),
+    nrow = 2L,
+    byrow = TRUE
+  )
+  expected_mu <- fixed_and_study
+  expected_tau <- matrix(
+    posterior_samples[, "mu__xREx__esid_study_intercept"],
+    nrow = 2L,
+    ncol = 4L
+  )
+  expected_sei <- sqrt(c(0.01, 0.02, 0.03, 0.01))
+  expected_selection_sei <- sqrt(
+    c(0.01, 0.02, 0.03, 0.01) + rowSums(loading^2)
+  )
+
+  setup <- .estimate_likelihood_setup_from_parts(
+    fit               = fit,
+    data              = object[["data"]],
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples
+  )
+  sampling_covariance <- diag(expected_sei^2) + tcrossprod(loading)
+  expected <- matrix(NA_real_, 2L, 4L)
+  expected_joint <- numeric(2L)
+  cutoff <- expected_selection_sei * stats::qnorm(.025, lower.tail = FALSE)
+  # Conditional row scores and the full selected joint density are distinct
+  # under correlated V. A scalar conditional-normal integral supplies each
+  # bivariate publication normalizer independently of the selection kernels.
+  for (draw in 1:2) for (rows in list(1:2, 3:4)) {
+    sigma <- sampling_covariance[rows, rows] + diag(expected_tau[draw, rows]^2)
+    mean <- expected_mu[draw, rows]
+    y <- dat$yi[rows]
+    cuts <- cutoff[rows]
+    sd <- sqrt(diag(sigma))
+    high <- posterior_samples[draw, "omega[1]"]
+    low <- posterior_samples[draw, "omega[2]"]
+    both <- stats::integrate(function(x) {
+      stats::dnorm(x, mean[1L], sd[1L]) * stats::pnorm(cuts[2L],
+        mean[2L] + sigma[2L, 1L] / sigma[1L, 1L] * (x - mean[1L]),
+        sqrt(sigma[2L, 2L] - sigma[2L, 1L]^2 / sigma[1L, 1L]), lower.tail = FALSE)
+    }, cuts[1L], Inf, rel.tol = 1e-12, abs.tol = 1e-14)$value
+    normalizer <- low^2 + low * (high - low) * sum(stats::pnorm(cuts, mean, sd, lower.tail = FALSE)) +
+      (high - low)^2 * both
+    weights <- ifelse(y >= cuts, high, low)
+    expected_joint[draw] <- expected_joint[draw] + mvtnorm::dmvnorm(y, mean, sigma, log = TRUE) +
+      sum(log(weights)) - log(normalizer)
+    for (row in 1:2) {
+      other <- 3L - row
+      conditional_mean <- mean[row] + sigma[row, other] / sigma[other, other] * (y[other] - mean[other])
+      conditional_sd <- sqrt(sigma[row, row] - sigma[row, other]^2 / sigma[other, other])
+      mass <- low + (high - low) * stats::pnorm(cuts[row], conditional_mean, conditional_sd, lower.tail = FALSE)
+      expected[draw, rows[row]] <- stats::dnorm(y[row], conditional_mean, conditional_sd, log = TRUE) +
+        log(weights[row]) - log(mass)
+    }
+  }
+
+  expect_true(.estimate_normal_target_uses_covariance_backend(
+    object[["data"]],
+    object[["priors"]]
+  ))
+  expect_equal(setup[["mu"]], expected_mu, tolerance = 1e-15)
+  plan <- .data_selection_execution_plan(object$data)
+  factors <- .selection_joint_random_factor_samples(setup)
+  for (block in seq_along(plan$row_blocks)) {
+    rows <- plan$row_blocks[[block]]
+    covariance <- sampling_covariance[rows, rows, drop = FALSE]
+    packed <- t(vapply(1:2, function(draw) {
+      sigma <- covariance + diag(expected_tau[draw, rows]^2, length(rows))
+      sigma[lower.tri(sigma, diag = TRUE)]
+    }, numeric(length(rows) * (length(rows) + 1L) / 2L)))
+    expect_equal(.selection_joint_covariance_lower(setup, block, random_factor_samples = factors),
+                 packed, tolerance = 1e-15)
+  }
+  expect_equal(setup[["sei"]], expected_selection_sei, tolerance = 1e-15)
+  expect_equal(
+    setup[["selection_sei"]],
+    expected_selection_sei,
+    tolerance = 1e-15
+  )
+  expect_equal(
+    .log_lik_from_posterior_samples(
+      fit               = fit,
+      posterior_samples = posterior_samples,
+      data              = object[["data"]],
+      priors            = object[["priors"]]
+    ),
+    expected,
+    tolerance = 1e-14
+  )
+  expect_equal(
+    .log_lik_from_posterior_samples_sum(
+      fit               = fit,
+      posterior_samples = posterior_samples,
+      data              = object[["data"]],
+      priors            = object[["priors"]]
+    ),
+    expected_joint,
+    tolerance = 1e-11
+  )
+})

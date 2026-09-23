@@ -101,6 +101,7 @@ means, residuals, influence, LOO, and the standard meta-analytic plots.
 | [*Publication-Bias Adjustment*](articles/v11-metafor-parity-publication-bias.html) | `bselmodel()` / `bPET()` / `bPEESE()` and `metafor::selmodel()` |
 | [*Location-Scale Models*](articles/v12-metafor-parity-location-scale.html) | `brma()` with `scale` and `metafor::rma.ls()` |
 | [*Generalized Linear Mixed-Effects Meta-Analysis*](articles/v13-metafor-parity-glmm.html) | `brma.glmm()` and `metafor::rma.glmm()` for binomial and Poisson outcomes |
+| [*Multivariate and Multilevel Meta-Analysis*](articles/v14-metafor-parity-multivariate.html) | `brma.mv()` with known sampling covariance matrices and structured random effects |
 
 Each vignette starts from a `metafor` package analysis and shows the
 matching `RoBMA` R package syntax, output, and diagnostics.
@@ -111,6 +112,7 @@ matching `RoBMA` R package syntax, output, and diagnostics.
 |:---|:---|
 | [*Bayesian Model Averaging*](articles/v20-bayesian-model-averaging.html) | Accounting for model uncertainty across presence and absence of effect and heterogeneity, with posterior model probabilities and inclusion Bayes factors |
 | [*Robust Bayesian Meta-Analysis*](articles/v21-robust-bayesian-meta-analysis.html) | Extending the ensemble to publication-bias models used in `RoBMA()`, with `PSMA`, `PP`, and bespoke ensemble specifications |
+| [*Posterior Densities and Parameter Tests*](articles/v22-posterior-densities-parameter-tests.html) | Likelihood-aware posterior densities and hypothesis tests with qCMDE and IWMDE |
 
 The first vignette introduces model averaging on an ensemble of models
 with and without effect and heterogeneity. The second extends the
@@ -142,8 +144,8 @@ serve as references when citing the corresponding methodological work.
   [*Bayesian Meta-Analysis*](articles/v02-bayesian-meta-analysis.html).
 - For publication-bias adjustment: read [*Robust Bayesian
   Meta-Analysis*](articles/v21-robust-bayesian-meta-analysis.html), with
-  [*Adjusting for Publication Bias Tutorial*](articles/v30-tutorial.html)
-  as a worked example.
+  [*Adjusting for Publication Bias
+  Tutorial*](articles/v30-tutorial.html) as a worked example.
 
 ## References
 
@@ -190,7 +192,7 @@ presence of publication bias. *Psychological Methods*.
 Bartoš, F., Maier, M., & Wagenmakers, E.-J. (2026). Robust Bayesian
 multilevel meta-analysis: Adjusting for publication bias in the presence
 of dependent effect sizes. *Behavior Research Methods*.
-<https://doi.org/10.31234/osf.io/9tgp2_v1>
+<https://doi.org/10.31234/osf.io/9tgp2_v2>
 
 </div>
 

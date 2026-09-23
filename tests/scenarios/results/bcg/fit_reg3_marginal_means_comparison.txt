@@ -1,0 +1,10 @@
+                      alloc    ablat      RoBMA     metafor
+alternate, -1SD   alternate 19.01846 -0.3431679 -0.32793133
+random, -1SD         random 19.01846 -0.4135563 -0.50778487
+systematic, -1SD systematic 19.01846 -0.2006717 -0.09445127
+alternate, 0SD    alternate 33.46154 -0.6077278 -0.59283059
+random, 0SD          random 33.46154 -0.8379097 -0.91443432
+systematic, 0SD  systematic 33.46154 -0.5727958 -0.53976977
+alternate, 1SD    alternate 47.90462 -0.8722878 -0.85772985
+random, 1SD          random 47.90462 -1.2622631 -1.32108376
+systematic, 1SD  systematic 47.90462 -0.9449199 -0.98508827

@@ -1,0 +1,11 @@
+
+Effect
+                Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Spike(0)        Null              0.500       0.000        0.000                   NA
+Normal(0, 0.71) Alternative       0.500       1.000          Inf                   NA
+
+Heterogeneity
+                        Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Spike(0)                Null              0.500       0.859        6.116                3.391
+Normal(0, 0.35)[0, Inf] Alternative       0.500       0.141        0.164                3.391
+

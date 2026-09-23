@@ -1,11 +1,94 @@
-# ============================================================================ #
-# CONFIGURATION: Set to TRUE to regenerate reference files, FALSE to run tests
-# ============================================================================ #
-if (!exists("GENERATE_REFERENCE_FILES")) {
-  GENERATE_REFERENCE_FILES <- FALSE
+FIT_CACHE_SCHEMA_VERSION <- 7L
+FIT_CACHE_METADATA_FIELDS <- c(
+  "schema_version",
+  "name",
+  "saved_at",
+  "robma_version",
+  "bayestools_version",
+  "r_version",
+  "jags_version",
+  "fit_class",
+  "source_file",
+  "source_file_md5",
+  "package_source_md5",
+  "bayestools_backend_fingerprint",
+  "has_loo",
+  "has_waic",
+  "has_marglik",
+  "has_metafor_info"
+)
+
+TEST_PROFILES <- c("standard", "certification")
+
+test_profile <- function() {
+
+  profile <- Sys.getenv("ROBMA_TEST_PROFILE", unset = "standard")
+  profile <- tolower(profile)
+
+  if (!profile %in% TEST_PROFILES) {
+    stop(
+      "'ROBMA_TEST_PROFILE' must be one of: ",
+      paste(TEST_PROFILES, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  return(profile)
 }
-if (!exists("FIT_CACHE_VERSION")) {
-  FIT_CACHE_VERSION <- 3L
+
+is_certification_profile <- function() {
+
+  return(identical(test_profile(), "certification"))
+}
+
+.quiet_llm_reporter_class <- R6::R6Class(
+  classname = "RoBMAQuietLlmReporter",
+  inherit   = testthat::LlmReporter,
+  public    = list(
+    add_result = function(context, test, result) {
+
+      if (self$is_full()) {
+        return(invisible())
+      }
+      if (inherits(result, "expectation_skip")) {
+        self$n_skip <- self$n_skip + 1L
+        return(invisible())
+      }
+
+      super$add_result(context, test, result)
+    }
+  )
+)
+
+quiet_llm_reporter <- function(...) {
+
+  return(.quiet_llm_reporter_class$new(...))
+}
+
+test_glmm_fit_settings <- function() {
+
+  if (is_certification_profile()) {
+    return(list(
+      chains = 3L,
+      sample = 5000L,
+      burnin = 2000L,
+      adapt  = 500L
+    ))
+  }
+
+  return(list(
+    chains = 3L,
+    sample = 1500L,
+    burnin = 500L,
+    adapt  = 500L
+  ))
+}
+
+.test_profile_cache_dir <- function(root, profile = test_profile()) {
+
+  root <- normalizePath(root, winslash = "/", mustWork = FALSE)
+  return(file.path(root, profile))
 }
 
 .common_functions_dir <- function() {
@@ -29,18 +112,13 @@ if (!exists("FIT_CACHE_VERSION")) {
   return(normalizePath(getwd(), winslash = "/", mustWork = FALSE))
 }
 
-# Get the directory where prefitted models are stored. Local development uses
-# a persistent ignored folder; CRAN checks fall back to tempdir().
-test_files_dir <- Sys.getenv("ROBMA_TEST_FILES_DIR")
-if (test_files_dir == "") {
-  on_cran <- get("on_cran", envir = asNamespace("testthat"), inherits = FALSE)
-  test_files_dir <- if (on_cran()) {
-    file.path(tempdir(), "RoBMA_test_files")
-  } else {
-    file.path(.common_functions_dir(), "test_files")
-  }
+# Get the directory where prefitted models are stored. An explicit directory
+# is a shared cache root; each profile always receives its own subdirectory.
+test_files_root <- Sys.getenv("ROBMA_TEST_FILES_DIR")
+if (test_files_root == "") {
+  test_files_root <- file.path(.common_functions_dir(), "test_files")
 }
-test_files_dir <- normalizePath(test_files_dir, winslash = "/", mustWork = FALSE)
+test_files_dir <- .test_profile_cache_dir(test_files_root)
 
 # Setup directory for saving fitted models
 temp_fits_dir     <- file.path(test_files_dir, "fits")
@@ -53,59 +131,87 @@ if (!dir.exists(temp_info_dir)) dir.create(temp_info_dir, showWarnings = FALSE, 
 if (!dir.exists(temp_metadata_dir)) dir.create(temp_metadata_dir, showWarnings = FALSE, recursive = TRUE)
 if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, recursive = TRUE)
 
-# Set environment variable so other test files can locate pre-fitted models
-Sys.setenv(ROBMA_TEST_FILES_DIR = test_files_dir)
-
 # Use skip_if_no_fits() for tests that need pre-fitted models.
 
 # ============================================================================ #
 # HELPER FUNCTIONS: Reference File Testing
 # ============================================================================ #
 
-# Process reference file: save if GENERATE_REFERENCE_FILES=TRUE, test otherwise
+.reference_candidate_path <- function(path) {
+
+  if (grepl("[.]txt$", path)) {
+    return(sub("[.]txt$", ".new.txt", path))
+  }
+
+  return(paste0(path, ".new.txt"))
+}
+
+
+.write_reference_candidate <- function(lines, path) {
+
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  connection <- file(path, open = "wb")
+  on.exit(close(connection), add = TRUE)
+  writeLines(lines, connection, useBytes = TRUE)
+
+  return(invisible(path))
+}
+
+
+.test_reference_lines <- function(actual_output, filename, info_msg,
+                                  print_dir) {
+
+  ref_file      <- file.path(print_dir, filename)
+  candidate     <- .reference_candidate_path(ref_file)
+  candidate_msg <- paste0(
+    "Reference candidate cached at ", candidate,
+    ". Review it with 'review_test_snapshots()'."
+  )
+
+  if (!file.exists(ref_file)) {
+    skip(paste("Reference file", filename, "not found."))
+    return(invisible(actual_output))
+  }
+
+  expected_output <- readLines(ref_file, warn = FALSE, encoding = "UTF-8")
+  if (identical(actual_output, expected_output)) {
+    unlink(candidate)
+  } else {
+    .write_reference_candidate(actual_output, candidate)
+  }
+
+  expect_equal(
+    actual_output,
+    expected_output,
+    info = paste(c(info_msg, candidate_msg), collapse = "\n")
+  )
+  return(invisible(actual_output))
+}
+
+
 test_reference_table <- function(table, filename, info_msg = NULL,
                                  print_dir = REFERENCE_DIR) {
-  if (GENERATE_REFERENCE_FILES) {
-    # Save mode
-    if (!dir.exists(print_dir)) {
-      dir.create(print_dir, recursive = TRUE)
-    }
-    writeLines(
-      capture_output_lines(table, print = TRUE, width = 150),
-      file.path(print_dir, filename)
-    )
-  } else {
-    # Test mode
-    ref_file <- file.path(print_dir, filename)
-    if (file.exists(ref_file)) {
-      expected_output <- readLines(ref_file, warn = FALSE)
-      actual_output <- capture_output_lines(table, print = TRUE, width = 150)
-      expect_equal(actual_output, expected_output, info = info_msg)
-    } else {
-      skip(paste("Reference file", filename, "not found."))
-    }
-  }
+
+  actual_output <- capture_output_lines(table, print = TRUE, width = 150)
+  return(.test_reference_lines(
+    actual_output = actual_output,
+    filename      = filename,
+    info_msg      = info_msg,
+    print_dir     = print_dir
+  ))
 }
+
 
 test_reference_text <- function(text, filename, info_msg = NULL,
                                 print_dir = REFERENCE_DIR) {
-  if (GENERATE_REFERENCE_FILES) {
-    # Save mode
-    if (!dir.exists(print_dir)) {
-      dir.create(print_dir, recursive = TRUE)
-    }
-    writeLines(text, file.path(print_dir, filename))
-  } else {
-    # Test mode
-    ref_file <- file.path(print_dir, filename)
-    if (file.exists(ref_file)) {
-      expected_output <- readLines(ref_file, warn = FALSE)
-      expected_output <- paste0(expected_output, collapse = "\n")
-      expect_equal(text, expected_output, info = info_msg)
-    } else {
-      skip(paste("Reference file", filename, "not found."))
-    }
-  }
+
+  actual_output <- strsplit(text, "\n", fixed = TRUE)[[1L]]
+  return(.test_reference_lines(
+    actual_output = actual_output,
+    filename      = filename,
+    info_msg      = info_msg,
+    print_dir     = print_dir
+  ))
 }
 
 vdiffr_snapshots_available <- function() {
@@ -177,7 +283,28 @@ fit_catalog <- function() {
       "dat.lehmann2018_RoBMA_custom",
       "dat.lehmann2018_RoBMA_mods",
       "dat.lehmann2018_RoBMA_mods2",
-      "dat.lehmann2018_RoBMA_3lvl_mods_scale"
+      "dat.lehmann2018_RoBMA_3lvl_mods_scale",
+      "brma.mv_latent",
+      "brma.mv_whitened",
+      "brma.mv_block_mvn",
+      "brma.mv_block_mvn_fixed_random_null",
+      "brma.mv_block_mvn_random",
+      "brma.mv_block_mvn_random_sampled",
+      "brma.mv_block_mvn_known_R",
+      "brma.mv_latent_estimate_scale",
+      "brma.mv_block_mvn_estimate_scale",
+      "brma.mv_block_mvn_random_scale",
+      "brma.mv_block_mvn_3lvl_scale_total",
+      "brma.mv_block_mvn_3lvl_scale_top",
+      "brma.mv_block_mvn_3lvl_scale_bottom",
+      "brma.mv_block_mvn_mods",
+      "brma.mv_block_mvn_random_mods_scale",
+      "brma.mv_v14_konstantopoulos2011_cs",
+      "brma.mv_v14_assink2016_nested",
+      "brma.mv_v14_ishak2007_har",
+      "brma.mv_v14_begg1989_study_treatment",
+      "brma.mv_singular_regularized_whitened",
+      "brma.mv_singular_regularized_block_mvn"
     ),
     class = c(
       rep("brma.norm", 11),
@@ -187,7 +314,8 @@ fit_catalog <- function() {
       rep("bselmodel", 4),
       rep("BMA.norm", 4),
       rep("BMA.glmm", 4),
-      rep("RoBMA", 5)
+      rep("RoBMA", 5),
+      rep("brma.mv", 21)
     ),
     family = c(
       rep("norm", 11),
@@ -197,7 +325,8 @@ fit_catalog <- function() {
       rep("norm", 4),
       rep("norm", 4),
       rep("glmm", 4),
-      rep("norm", 5)
+      rep("norm", 5),
+      rep("norm", 21)
     ),
     source_file = c(
       rep("test-01-brma.norm.R", 11),
@@ -207,7 +336,8 @@ fit_catalog <- function() {
       rep("test-01-bselmodel.R", 4),
       rep("test-01-BMA.norm.R", 4),
       rep("test-01-BMA.glmm.R", 4),
-      rep("test-01-RoBMA.R", 5)
+      rep("test-01-RoBMA.R", 5),
+      rep("test-01-brma.mv.R", 21)
     ),
     has_metafor = c(
       TRUE, TRUE, TRUE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE, TRUE, TRUE,
@@ -215,14 +345,16 @@ fit_catalog <- function() {
       TRUE, TRUE, TRUE,
       TRUE, TRUE, TRUE,
       TRUE, TRUE, TRUE, TRUE,
-      rep(FALSE, 13)
+      rep(FALSE, 16),
+      TRUE,
+      FALSE,
+      FALSE,
+      TRUE,
+      rep(FALSE, 8),
+      rep(TRUE, 4),
+      rep(FALSE, 2)
     ),
-    has_loo = TRUE,
     has_waic = FALSE,
-    has_marglik = c(
-      rep(TRUE, 25),
-      rep(FALSE, 13)
-    ),
     tier = c(
       "core", "core", "extended", "extended", "core", "extended", "extended", "extended",
       "core", "core", "extended",
@@ -232,10 +364,24 @@ fit_catalog <- function() {
       "core", "extended", "extended", "extended",
       "core", "extended", "core", "extended",
       "core", "core", "extended", "extended",
-      "core", "extended", "core", "extended", "extended"
+      "core", "extended", "core", "extended", "extended",
+      "core", "core", "core", "core", "core", "core", "core", "core", "core", "core",
+      "core", "core", "core", "core", "core", "extended", "extended", "extended", "extended", "core",
+      "core"
     ),
     stringsAsFactors = FALSE
   )
+  catalog[["has_loo"]] <- !catalog[["name"]] %in% c(
+    "brma.mv_block_mvn_random_mods_scale"
+  )
+  catalog[["has_marglik"]] <- !catalog[["class"]] %in%
+    c("BMA.norm", "BMA.glmm", "RoBMA", "brma.mv")
+  catalog[["has_marglik"]][catalog[["name"]] %in% c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_assink2016_nested",
+    "brma.mv_v14_ishak2007_har",
+    "brma.mv_v14_begg1989_study_treatment"
+  )] <- TRUE
 
   catalog[["features"]] <- I(list(
     c("metafor", "normal", "simple"),
@@ -275,8 +421,238 @@ fit_catalog <- function() {
     c("RoBMA", "normal", "custom_priors"),
     c("RoBMA", "normal", "mods"),
     c("RoBMA", "normal", "interaction"),
-    c("RoBMA", "normal", "multilevel", "mods", "scale")
+    c("RoBMA", "normal", "multilevel", "mods", "scale"),
+    c("brma.mv", "normal", "known_v", "latent"),
+    c("brma.mv", "normal", "known_v", "whitened"),
+    c("brma.mv", "normal", "known_v", "block_mvn"),
+    c("brma.mv", "metafor", "normal", "known_v", "block_mvn", "fixed", "random_null"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "sampled"),
+    c("brma.mv", "metafor", "normal", "known_v", "known_R", "block_mvn", "random", "mods"),
+    c("brma.mv", "normal", "known_v", "latent", "random", "scale"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale", "allocation"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale", "3lvl", "total_sd"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale", "3lvl", "top_sd"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale", "3lvl", "bottom_sd"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "mods"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "mods", "scale"),
+    c("brma.mv", "metafor", "normal", "known_v", "v14", "multilevel", "cs"),
+    c("brma.mv", "metafor", "normal", "known_v", "v14", "multilevel", "nested"),
+    c("brma.mv", "metafor", "normal", "known_v", "v14", "multilevel", "mods", "har"),
+    c("brma.mv", "metafor", "normal", "known_v", "v14", "multilevel", "mods", "cs"),
+    c("brma.mv", "normal", "known_v", "singular", "whitened"),
+    c("brma.mv", "normal", "known_v", "singular", "block_mvn")
   ))
+
+  bma_mv_catalog <- data.frame(
+    name          = "BMA.mv_random_components",
+    class         = "BMA.mv",
+    family        = "norm",
+    source_file   = "test-01-BMA.mv.R",
+    has_metafor   = FALSE,
+    has_waic      = FALSE,
+    tier          = "core",
+    has_loo       = TRUE,
+    has_marglik   = FALSE,
+    features      = I(list(c(
+      "BMA.mv", "normal", "known_v", "random", "mods",
+      "product_space", "random_inclusion"
+    ))),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, bma_mv_catalog)
+
+  robma_mv_catalog <- data.frame(
+    name          = "RoBMA.mv_marg_product_space",
+    class         = "RoBMA.mv",
+    family        = "norm",
+    source_file   = "test-01-RoBMA.mv.R",
+    has_metafor   = FALSE,
+    has_waic      = FALSE,
+    tier          = "core",
+    has_loo       = TRUE,
+    has_marglik   = FALSE,
+    features      = I(list(c(
+      "RoBMA.mv", "normal", "known_v", "random", "mods",
+      "product_space", "random_inclusion", "selection", "marg", "PET",
+      "PEESE"
+    ))),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, robma_mv_catalog)
+
+  bselmodel_mv_catalog <- data.frame(
+    name          = "bselmodel.mv_marg_random",
+    class         = "bselmodel.mv",
+    family        = "norm",
+    source_file   = "test-01-bselmodel.mv.R",
+    has_metafor   = FALSE,
+    has_waic      = FALSE,
+    tier          = "core",
+    has_loo       = TRUE,
+    has_marglik   = TRUE,
+    features      = I(list(c(
+      "bselmodel.mv", "normal", "known_v", "random", "mods",
+      "selection", "marg"
+    ))),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, bselmodel_mv_catalog)
+
+  pet_peese_mv_catalog <- data.frame(
+    name = c("bPET.mv_random", "bPEESE.mv_random"),
+    class = c("bPET.mv", "bPEESE.mv"),
+    family = c("norm", "norm"),
+    source_file = rep("test-01-PET-PEESE.mv.R", 2L),
+    has_metafor = FALSE,
+    has_waic = FALSE,
+    tier = "core",
+    has_loo = TRUE,
+    has_marglik = TRUE,
+    features = I(list(
+      c("bPET.mv", "normal", "known_v", "random", "mods", "PET"),
+      c("bPEESE.mv", "normal", "known_v", "random", "mods", "PEESE")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, pet_peese_mv_catalog)
+
+  parity_catalog <- data.frame(
+    name = c(
+      "vif_parity_brma",
+      "vif_parity_brma_mv"
+    ),
+    class = c("brma.norm", "brma.mv"),
+    family = c("norm", "norm"),
+    source_file = rep("test-01-vif-parity.R", 2),
+    has_metafor = FALSE,
+    has_waic = FALSE,
+    tier = "core",
+    has_loo = TRUE,
+    has_marglik = c(TRUE, FALSE),
+    features = I(list(
+      c("normal", "mods", "vif", "parity"),
+      c("brma.mv", "normal", "known_v", "mods", "vif", "parity")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, parity_catalog)
+
+  iwmde_oracle_catalog <- data.frame(
+    name = c(
+      "nielweise2008_glmm_effect_null",
+      "dat.lehmann2018-3PSM_effect_null",
+      "iwmde_known_v_tau_full",
+      "iwmde_known_v_tau_null"
+    ),
+    class = c("brma.glmm", "bselmodel", "brma.mv", "brma.mv"),
+    family = c("glmm", "norm", "norm", "norm"),
+    source_file = rep("test-01-iwmde-oracle-nested.R", 4),
+    has_metafor = FALSE,
+    has_waic = FALSE,
+    tier = "extended",
+    has_loo = c(FALSE, FALSE, TRUE, TRUE),
+    has_marglik = TRUE,
+    features = I(list(
+      c("glmm", "poisson", "iwmde", "nested_null"),
+      c("normal", "selection", "iwmde", "nested_null"),
+      c("normal", "known_v", "iwmde", "nested_full"),
+      c("normal", "known_v", "iwmde", "nested_null")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, iwmde_oracle_catalog)
+
+  fixed_model_catalog <- data.frame(
+    name = c(
+      "fixed_null_brma",
+      "fixed_nonzero_brma",
+      "fixed_nonzero_brma_mv",
+      "fixed_null_brma_glmm",
+      "fixed_null_brma_glmm_pois",
+      "fixed_null_bPET",
+      "fixed_null_bPEESE",
+      "fixed_null_bselmodel"
+    ),
+    class = c(
+      "brma.norm",
+      "brma.norm",
+      "brma.mv",
+      "brma.glmm",
+      "brma.glmm",
+      "bPET",
+      "bPEESE",
+      "bselmodel"
+    ),
+    family = c("norm", "norm", "norm", "glmm", "glmm", "norm", "norm", "norm"),
+    source_file = rep("test-01-fixed-null-models.R", 8),
+    has_metafor = FALSE,
+    has_waic = FALSE,
+    tier = "core",
+    has_loo = TRUE,
+    has_marglik = TRUE,
+    features = I(list(
+      c("normal", "fixed", "null", "exact_marglik"),
+      c("normal", "fixed", "nonzero_tau", "exact_marglik"),
+      c("brma.mv", "normal", "known_v", "fixed", "nonzero_tau", "exact_marglik"),
+      c("glmm", "binomial", "fixed", "null", "point_nuisance"),
+      c("glmm", "poisson", "fixed", "null", "point_nuisance"),
+      c("normal", "PET", "fixed", "null", "exact_marglik"),
+      c("normal", "PEESE", "fixed", "null", "exact_marglik"),
+      c("normal", "selection", "fixed", "null", "exact_marglik")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, fixed_model_catalog)
+
+  catalog[["profile"]] <- "certification"
+  catalog[["profile"]][catalog[["name"]] %in% c(
+    "bcg_meta-analysis",
+    "bcg_meta-regression",
+    "bcg_meta-regression2",
+    "bcg_meta-regression2b",
+    "bcg_meta-regression3",
+    "bcg_meta-regression3b",
+    "bcg_meta-regression4",
+    "bcg_meta-regression4b",
+    "bangertdrowns2004_location-scale",
+    "konstantopoulos2011_3lvl",
+    "konstantopoulos2011_3lvl2",
+    "bcg_glmm",
+    "bcg_glmm_reg",
+    "nielweise2008_glmm",
+    "dat.lehmann2018-PET",
+    "dat.lehmann2018-PEESE",
+    "dat.lehmann2018-3PSM",
+    "dat.lehmann2018_BMA.norm",
+    "dat.lehmann2018_BMA.norm_mods",
+    "bcg_BMA.glmm",
+    "dat.lehmann2018_RoBMA",
+    "dat.lehmann2018_RoBMA_mods",
+    "dat.lehmann2018_RoBMA_mods2",
+    "dat.lehmann2018_RoBMA_3lvl_mods_scale",
+    "BMA.mv_random_components",
+    "RoBMA.mv_marg_product_space",
+    "bselmodel.mv_marg_random",
+    "bPET.mv_random",
+    "bPEESE.mv_random",
+    "brma.mv_latent",
+    "brma.mv_whitened",
+    "brma.mv_block_mvn",
+    "brma.mv_block_mvn_fixed_random_null",
+    "brma.mv_block_mvn_random",
+    "vif_parity_brma",
+    "vif_parity_brma_mv",
+    "fixed_null_brma",
+    "fixed_nonzero_brma",
+    "fixed_nonzero_brma_mv",
+    "fixed_null_brma_glmm",
+    "fixed_null_brma_glmm_pois",
+    "fixed_null_bPET",
+    "fixed_null_bPEESE",
+    "fixed_null_bselmodel"
+  )] <- "standard"
 
   return(catalog)
 }
@@ -293,9 +669,52 @@ fit_catalog_entry <- function(name) {
   return(catalog[index, , drop = FALSE])
 }
 
-catalog_group_fits <- function(name) {
+active_fit_catalog <- function() {
 
   catalog <- fit_catalog()
+  if (!is_certification_profile()) {
+    catalog <- catalog[catalog[["profile"]] == "standard", , drop = FALSE]
+  }
+
+  active_fits <- Sys.getenv("ROBMA_TEST_ACTIVE_FITS", unset = "")
+  if (nzchar(active_fits)) {
+    requested <- if (identical(active_fits, "__none__")) {
+      character()
+    } else {
+      strsplit(active_fits, ",", fixed = TRUE)[[1L]]
+    }
+    unknown <- setdiff(requested, catalog[["name"]])
+    if (length(unknown) > 0L) {
+      stop(
+        "Unknown active cached fit: ", paste(unknown, collapse = ", "),
+        call. = FALSE
+      )
+    }
+    catalog <- catalog[catalog[["name"]] %in% requested, , drop = FALSE]
+  }
+
+  return(catalog)
+}
+
+is_fit_active <- function(name) {
+
+  return(name %in% active_fit_catalog()[["name"]])
+}
+
+skip_if_fit_not_active <- function(name) {
+
+  if (!is_fit_active(name)) {
+    testthat::skip(paste0(
+      "Cached fit '", name, "' belongs to the certification profile."
+    ))
+  }
+
+  return(invisible(FALSE))
+}
+
+catalog_group_fits <- function(name, active_only = TRUE) {
+
+  catalog <- if (active_only) active_fit_catalog() else fit_catalog()
 
   if (name %in% catalog[["name"]]) {
     return(name)
@@ -369,8 +788,8 @@ catalog_fits <- function(feature, class, family, has_metafor, has_loo,
 
   return(
     call_name %in% c("context", "source", "skip_on_cran",
-                     "skip_if_not_installed", "skip_refit_if_cached") ||
-      grepl("^expect_", call_name)
+                     "skip_if_not_installed", "skip_refit_if_cached",
+                     "skip_if_fit_not_active", "skip_if_not_certification")
   )
 }
 
@@ -419,6 +838,7 @@ source_file_md5 <- function(source_file) {
     lines <- lines[nzchar(lines)]
   } else {
     lines <- unlist(lapply(parsed, .source_hash_normalize_expr), use.names = FALSE)
+    lines <- as.character(lines)
     lines <- trimws(lines)
     lines <- lines[nzchar(lines)]
   }
@@ -430,7 +850,19 @@ source_file_md5 <- function(source_file) {
   return(unname(tools::md5sum(normalized)))
 }
 
-.package_source_md5_cache <- new.env(parent = emptyenv())
+.package_source_md5_cache <- getOption("RoBMA.test.package_source_md5_cache")
+if (!is.environment(.package_source_md5_cache)) {
+  .package_source_md5_cache <- new.env(parent = emptyenv())
+  options(RoBMA.test.package_source_md5_cache = .package_source_md5_cache)
+}
+
+.clear_package_source_md5_cache <- function() {
+
+  rm(list = ls(envir = .package_source_md5_cache),
+     envir = .package_source_md5_cache)
+
+  return(invisible(TRUE))
+}
 
 .fit_cache_required_source_files <- function() {
 
@@ -438,43 +870,119 @@ source_file_md5 <- function(source_file) {
   # extensions. Post-fit methods are tested against the cached objects.
   r_files   <- c(
     "R/BMA.glmm.R",
+    "R/BMA.mv.R",
     "R/BMA.norm.R",
     "R/RoBMA.R",
+    "R/RoBMA.mv.R",
+    "R/bPET-PEESE.mv.R",
     "R/bPEESE.R",
     "R/bPET.R",
     "R/brma.glmm.R",
+    "R/brma.mv.R",
     "R/brma.norm.R",
     "R/bselmodel.R",
+    "R/bselmodel.mv.R",
+    "R/brma-mv-known-r.R",
+    "R/covariance-factorization.R",
+    "R/evaluate.R",
     "R/fit.R",
+    "R/formula-design.R",
+    "R/glmm-aghq.R",
     "R/input-data.R",
+    "R/input-data-mv.R",
     "R/input-object.R",
     "R/input-priors.R",
+    "R/input-priors-assignment.R",
+    "R/input-priors-check-list.R",
+    "R/input-priors-documentation.R",
+    "R/input-priors-formula.R",
+    "R/input-priors-heterogeneity-allocation.R",
+    "R/jags-formula-args.R",
+    "R/known-v-preflight.R",
+    "R/known-v-representation.R",
     "R/loo.R",
     "R/marglik.R",
-    "R/pdf.R",
+    "R/log-lik-cluster.R",
+    "R/log-lik-cluster-glmm.R",
+    "R/log-lik-cluster-normal.R",
+    "R/log-lik.R",
+    "R/log-lik-known-v.R",
+    "R/pdf-outcome-glmm.R",
+    "R/pdf-outcome-normal.R",
+    "R/pdf-utils.R",
     "R/priors.R",
+    "R/random-effects-compile.R",
+    "R/selection-likelihood.R",
     "R/selection-mapping.R",
+    "R/unit_level.R",
     "R/utilities.R",
     "R/zzz.R"
   )
   src_files <- c(
+    "src/Makevars.in",
+    "src/Makevars.ucrt",
+    "src/Makevars.win",
     "src/RoBMA.cc",
     "src/init.c",
+    "src/distributions/DSELNORMCLUSTERSTEP.cc",
+    "src/distributions/DSELNORMCLUSTERSTEP.h",
+    "src/distributions/DSELNORMFACTORSTEP.cc",
+    "src/distributions/DSELNORMFACTORSTEP.h",
     "src/distributions/DSELNORMKERNEL.cc",
     "src/distributions/DSELNORMKERNEL.h",
+    "src/distributions/DSELNORMMVSTEP.cc",
+    "src/distributions/DSELNORMMVSTEP.h",
+    "src/distributions/DSELNORMSAMPLINGCONDITIONED.cc",
+    "src/distributions/DSELNORMSAMPLINGCONDITIONED.h",
     "src/distributions/DSELNORMSTEP.cc",
     "src/distributions/DSELNORMSTEP.h",
     "src/distributions/DSELNORMSTEPSWITCH.cc",
     "src/distributions/DSELNORMSTEPSWITCH.h",
+    "src/distributions/selnorm-jags-bounds.h",
+    "src/distributions/DKNOWNVMNORM.cc",
+    "src/distributions/DKNOWNVMNORM.h",
     "src/distributions/DWB.cc",
     "src/distributions/DWB.h",
     "src/distributions/DWN.cc",
     "src/distributions/DWN.h",
     "src/distributions/DWP.cc",
     "src/distributions/DWP.h",
+    "src/glmm-aghq.cc",
+    "src/glmm-aghq.h",
+    "src/r-native-api.h",
+    "src/r-native-boundary.h",
     "src/r-glmm.cc",
+    "src/r-glmm-common.cc.inc",
+    "src/r-glmm-marginal.cc.inc",
+    "src/r-known-v.cc",
+    "src/r-known-v-common.cc.inc",
+    "src/r-known-v-evaluate.cc.inc",
+    "src/r-known-v-low-rank.cc.inc",
+    "src/r-known-v-plan.cc.inc",
+    "src/r-known-v-structured.cc.inc",
     "src/r-selnorm.cc",
+    "src/r-selnorm-cluster.cc.inc",
+    "src/r-selnorm-common.cc.inc",
+    "src/r-selnorm-funnel-common.cc.inc",
+    "src/r-selnorm-funnel-zcurve.cc.inc",
+    "src/r-selnorm-kernel.cc.inc",
+    "src/r-selnorm-loglik.cc.inc",
+    "src/r-selnorm-mv.cc.inc",
+    "src/r-selnorm-sampling-conditioned.cc.inc",
     "src/selnorm/selnorm.cc",
+    "src/selnorm/selnorm-api.cc.inc",
+    "src/selnorm/selnorm-boundary.cc.inc",
+    "src/selnorm/selnorm-event.cc.inc",
+    "src/selnorm/selnorm-fma.h",
+    "src/selnorm/selnorm-mv.cc",
+    "src/selnorm/selnorm-mv.h",
+    "src/selnorm/selnorm-parallel.h",
+    "src/selnorm/selnorm-phack.cc.inc",
+    "src/selnorm/selnorm-probability.cc.inc",
+    "src/selnorm/selnorm-sampling-conditioned.cc.inc",
+    "src/selnorm/selnorm-step.cc.inc",
+    "src/selnorm/selnorm-tail-kernel.cc.inc",
+    "src/selnorm/selnorm-tail.h",
     "src/selnorm/selnorm.h"
   )
 
@@ -582,6 +1090,7 @@ source_file_md5 <- function(source_file) {
       lines <- unlist(lapply(parsed, function(expr) {
         paste(deparse(expr, width.cutoff = 500L), collapse = "\n")
       }), use.names = FALSE)
+      lines <- as.character(lines)
 
       normalized <- tempfile("robma-package-source-", fileext = ".R")
       writeLines(lines, normalized, useBytes = TRUE)
@@ -591,25 +1100,63 @@ source_file_md5 <- function(source_file) {
     }
   }
 
+  text_extensions <- c(
+    "c", "cc", "cpp", "cxx", "f", "f77", "f90", "f95",
+    "h", "hh", "hpp", "hxx", "inc", "in"
+  )
+  text_basenames <- c(
+    "NAMESPACE", "Makevars", "Makevars.in", "Makevars.ucrt", "Makevars.win",
+    "configure", "configure.win", "cleanup", "cleanup.win"
+  )
+  if (extension %in% text_extensions || basename(path) %in% text_basenames) {
+    lines      <- readLines(path, warn = FALSE)
+    normalized <- tempfile("robma-package-source-", fileext = ".txt")
+    writeLines(lines, normalized, useBytes = TRUE)
+    on.exit(unlink(normalized), add = TRUE)
+
+    return(unname(tools::md5sum(normalized)))
+  }
+
   return(unname(tools::md5sum(path)))
+}
+
+.fit_cache_source_fingerprint <- function(package_root, source_files) {
+
+  info <- file.info(source_files)
+  paste(
+    package_root,
+    paste(source_files, info[["size"]], info[["mtime"]], sep = ":", collapse = "\n"),
+    sep = "\n"
+  )
 }
 
 package_source_md5 <- function() {
 
-  if (exists("value", envir = .package_source_md5_cache, inherits = FALSE)) {
-    return(get("value", envir = .package_source_md5_cache, inherits = FALSE))
-  }
-
   package_root <- .fit_cache_source_root()
   if (is.na(package_root)) {
     assign("value", NA_character_, envir = .package_source_md5_cache)
+    assign("fingerprint", NA_character_, envir = .package_source_md5_cache)
     return(NA_character_)
   }
 
   source_files <- .fit_cache_source_files(package_root = package_root)
   if (length(source_files) == 0L) {
     assign("value", NA_character_, envir = .package_source_md5_cache)
+    assign("fingerprint", NA_character_, envir = .package_source_md5_cache)
     return(NA_character_)
+  }
+
+  fingerprint <- .fit_cache_source_fingerprint(
+    package_root = package_root,
+    source_files = source_files
+  )
+  if (exists("value", envir = .package_source_md5_cache, inherits = FALSE) &&
+      exists("fingerprint", envir = .package_source_md5_cache, inherits = FALSE) &&
+      identical(
+        get("fingerprint", envir = .package_source_md5_cache, inherits = FALSE),
+        fingerprint
+      )) {
+    return(get("value", envir = .package_source_md5_cache, inherits = FALSE))
   }
 
   file_hashes    <- vapply(source_files, .fit_cache_source_file_md5, character(1))
@@ -625,27 +1172,91 @@ package_source_md5 <- function() {
 
   value <- unname(tools::md5sum(normalized))
   assign("value", value, envir = .package_source_md5_cache)
+  assign("fingerprint", fingerprint, envir = .package_source_md5_cache)
 
   return(value)
 }
+
+bayestools_backend_fingerprint <- function(
+    required = TRUE,
+    value    = BayesTools::fit_backend_fingerprint()) {
+
+  valid <- is.character(value) && length(value) == 1L && !is.na(value) &&
+    grepl("^[[:xdigit:]]{32}$", value)
+  if (!valid && required) {
+    stop(
+      "BayesTools backend fingerprint is unavailable or invalid.",
+      call. = FALSE
+    )
+  }
+  if (!valid) {
+    return(NA_character_)
+  }
+
+  return(value)
+}
+
+
+.fit_cache_versions_cache <- new.env(parent = emptyenv())
+
+
+fit_cache_versions <- function() {
+
+  if (exists("versions", envir = .fit_cache_versions_cache, inherits = FALSE)) {
+    return(get("versions", envir = .fit_cache_versions_cache, inherits = FALSE))
+  }
+  source_root <- .fit_cache_source_root()
+  description <- if (is.na(source_root)) {
+    ""
+  } else {
+    file.path(source_root, "DESCRIPTION")
+  }
+  robma_version <- if (file.exists(description)) {
+    unname(read.dcf(description, fields = "Version")[1L, 1L])
+  } else {
+    as.character(utils::packageVersion("RoBMA"))
+  }
+  jags_version <- tryCatch(
+    as.character(rjags::jags.version()),
+    error = function(error) NA_character_
+  )
+
+  versions <- list(
+    robma_version      = robma_version,
+    bayestools_version = as.character(utils::packageVersion("BayesTools")),
+    r_version          = paste(R.version$major, R.version$minor, sep = "."),
+    jags_version       = jags_version
+  )
+  assign("versions", versions, envir = .fit_cache_versions_cache)
+
+  return(versions)
+}
+
 
 fit_cache_metadata <- function(name, fit, info = NULL) {
 
   entry       <- fit_catalog_entry(name)
   source_file <- if (is.null(entry)) NA_character_ else entry[["source_file"]]
+  versions    <- fit_cache_versions()
 
   metadata <- list(
-    version            = FIT_CACHE_VERSION,
-    name               = name,
-    saved_at           = format(Sys.time(), usetz = TRUE),
-    fit_class          = class(fit),
-    source_file        = source_file,
-    source_file_md5    = source_file_md5(source_file),
-    package_source_md5 = package_source_md5(),
-    has_loo            = !is.null(fit[["loo"]]),
-    has_waic           = !is.null(fit[["waic"]]),
-    has_marglik        = !is.null(fit[["marglik"]]),
-    has_metafor_info   = !is.null(info) && "metafor" %in% names(info) && !is.null(info[["metafor"]])
+    schema_version                 = FIT_CACHE_SCHEMA_VERSION,
+    name                           = name,
+    saved_at                       = format(Sys.time(), usetz = TRUE),
+    robma_version                  = versions[["robma_version"]],
+    bayestools_version             = versions[["bayestools_version"]],
+    r_version                      = versions[["r_version"]],
+    jags_version                   = versions[["jags_version"]],
+    fit_class                      = class(fit),
+    source_file                    = source_file,
+    source_file_md5                = source_file_md5(source_file),
+    package_source_md5             = package_source_md5(),
+    bayestools_backend_fingerprint = bayestools_backend_fingerprint(),
+    has_loo                        = !is.null(fit[["loo"]]),
+    has_waic                       = !is.null(fit[["waic"]]),
+    has_marglik                    = !is.null(fit[["marglik"]]),
+    has_metafor_info               = !is.null(info) &&
+      "metafor" %in% names(info) && !is.null(info[["metafor"]])
   )
 
   return(metadata)
@@ -685,8 +1296,48 @@ read_cached_fit <- function(name) {
   return(fit)
 }
 
+read_cached_info <- function(name) {
+
+  path <- fit_cache_paths(name)[["info"]]
+  info <- suppressWarnings(try(readRDS(path), silent = TRUE))
+
+  if (inherits(info, "try-error")) {
+    return(list())
+  }
+
+  return(info)
+}
+
 .fit_object_cache  <- new.env(parent = emptyenv())
 .info_object_cache <- new.env(parent = emptyenv())
+
+.clear_fit_object_cache <- function(names = NULL) {
+
+  if (is.null(names)) {
+    names <- ls(envir = .fit_object_cache)
+  } else {
+    names <- intersect(names, ls(envir = .fit_object_cache))
+  }
+  if (length(names) > 0L) {
+    rm(list = names, envir = .fit_object_cache)
+  }
+
+  return(invisible(TRUE))
+}
+
+.clear_info_object_cache <- function(names = NULL) {
+
+  if (is.null(names)) {
+    names <- ls(envir = .info_object_cache)
+  } else {
+    names <- intersect(names, ls(envir = .info_object_cache))
+  }
+  if (length(names) > 0L) {
+    rm(list = names, envir = .info_object_cache)
+  }
+
+  return(invisible(TRUE))
+}
 
 is_true_env <- function(name) {
 
@@ -706,7 +1357,12 @@ is_false_env <- function(name) {
 
 validate_cached_fit <- function(name, fit = NULL, info = NULL,
                                 metadata = NULL, check_source = TRUE,
-                                check_files = TRUE, deep = FALSE) {
+                                check_files = TRUE, deep = FALSE,
+                                bayestools_fingerprint =
+                                  bayestools_backend_fingerprint(
+                                    required = FALSE
+                                  ),
+                                package_md5 = NULL) {
 
   messages <- character()
   paths    <- fit_cache_paths(name)
@@ -729,14 +1385,41 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
   }
   if (is.null(metadata)) {
     messages <- c(messages, "metadata file is missing")
+  } else if (!is.list(metadata)) {
+    messages <- c(messages, "metadata must be a list")
+    metadata <- NULL
   }
 
   if (!is.null(entry) && !is.null(metadata)) {
-    if (is.null(metadata[["version"]]) || !identical(metadata[["version"]], FIT_CACHE_VERSION)) {
-      messages <- c(messages, "cache version changed")
+    if (!identical(names(metadata), FIT_CACHE_METADATA_FIELDS)) {
+      messages <- c(messages, "cache metadata fields changed")
     }
-    if (!is.null(metadata[["name"]]) && !identical(metadata[["name"]], name)) {
+    if (is.null(metadata[["schema_version"]]) ||
+        !identical(
+          metadata[["schema_version"]],
+          FIT_CACHE_SCHEMA_VERSION
+        )) {
+      messages <- c(messages, "cache schema changed")
+    }
+    if (is.null(metadata[["name"]]) || !identical(metadata[["name"]], name)) {
       messages <- c(messages, "metadata name mismatch")
+    }
+    versions <- fit_cache_versions()
+    version_messages <- c(
+      robma_version      = "RoBMA version changed",
+      bayestools_version = "BayesTools version changed",
+      r_version          = "R version changed",
+      jags_version       = "JAGS version changed"
+    )
+    for (field in names(version_messages)) {
+      if (is.null(metadata[[field]]) ||
+          !identical(metadata[[field]], versions[[field]])) {
+        messages <- c(messages, unname(version_messages[[field]]))
+      }
+    }
+    if (is.null(metadata[["source_file"]]) ||
+        !identical(metadata[["source_file"]], entry[["source_file"]])) {
+      messages <- c(messages, "metadata source file mismatch")
     }
     if (is.null(metadata[["fit_class"]]) || !entry[["class"]] %in% metadata[["fit_class"]]) {
       messages <- c(messages, paste0("metadata fit class does not include '", entry[["class"]], "'"))
@@ -772,17 +1455,38 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
       }
     }
 
-    expected_md5 <- source_file_md5(entry[["source_file"]])
-    if (check_source && !is.na(expected_md5) &&
-        (is.null(metadata[["source_file_md5"]]) || !identical(metadata[["source_file_md5"]], expected_md5))) {
-      messages <- c(messages, "source file hash changed")
-    }
+    if (check_source) {
+      expected_md5 <- source_file_md5(entry[["source_file"]])
+      if (is.na(expected_md5)) {
+        messages <- c(messages, "source file fingerprint unavailable")
+      } else if (is.null(metadata[["source_file_md5"]]) ||
+                 !identical(metadata[["source_file_md5"]], expected_md5)) {
+        messages <- c(messages, "source file hash changed")
+      }
 
-    expected_package_md5 <- package_source_md5()
-    if (check_source && !is.na(expected_package_md5) &&
-        (is.null(metadata[["package_source_md5"]]) ||
-         !identical(metadata[["package_source_md5"]], expected_package_md5))) {
-      messages <- c(messages, "cache source hash changed")
+      if (is.null(package_md5)) {
+        package_md5 <- package_source_md5()
+      }
+      if (is.na(package_md5)) {
+        messages <- c(messages, "cache source fingerprint unavailable")
+      } else if (is.null(metadata[["package_source_md5"]]) ||
+                 !identical(metadata[["package_source_md5"]], package_md5)) {
+        messages <- c(messages, "cache source hash changed")
+      }
+
+      bayestools_fingerprint <- bayestools_backend_fingerprint(
+        required = FALSE,
+        value    = bayestools_fingerprint
+      )
+      if (is.na(bayestools_fingerprint)) {
+        messages <- c(messages, "BayesTools backend fingerprint unavailable")
+      } else if (is.null(metadata[["bayestools_backend_fingerprint"]]) ||
+                 !identical(
+                   metadata[["bayestools_backend_fingerprint"]],
+                   bayestools_fingerprint
+                 )) {
+        messages <- c(messages, "BayesTools backend changed")
+      }
     }
   }
 
@@ -799,7 +1503,7 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
   }
 
   if (is.null(info)) {
-    info <- load_info(name, validate = FALSE)
+    info <- read_cached_info(name)
   }
 
   if (!is.null(entry) && !inherits(fit, entry[["class"]])) {
@@ -845,27 +1549,49 @@ is_cached_fit_valid <- function(name, check_source = TRUE, deep = FALSE) {
 skip_if_no_fits <- function() {
 
   if (length(list_fits(validate = TRUE)) == 0) {
+    if (exists(".announce_existing_visual_snapshots", mode = "function")) {
+      .announce_existing_visual_snapshots()
+    }
     skip("No valid cached fits available. Run `devtools::test(filter = '01-')` first.")
   }
 }
 
-skip_if_missing_fits <- function(names) {
+skip_if_missing_fits <- function(names, active_only = TRUE) {
 
-  missing <- setdiff(names, list_fits(validate = TRUE))
+  missing <- setdiff(
+    names,
+    list_fits(validate = TRUE, active_only = active_only)
+  )
   if (length(missing) > 0) {
+    if (exists(".announce_existing_visual_snapshots", mode = "function")) {
+      .announce_existing_visual_snapshots()
+    }
     skip(paste0("Required pre-fitted models missing or stale: ", paste(missing, collapse = ", ")))
   }
 }
 
 skip_if_not_full_diagnostics <- function(reason) {
 
-  if (!is_true_env("ROBMA_TEST_FULL_DIAGNOSTICS")) {
+  if (!is_certification_profile()) {
     skip(paste(
       "Skipping extended diagnostic redundancy check by default.",
       reason,
-      "Set ROBMA_TEST_FULL_DIAGNOSTICS=TRUE to run it."
+      "Run the certification profile to include it."
     ))
   }
+}
+
+skip_if_not_certification <- function(reason = NULL) {
+
+  if (!is_certification_profile()) {
+    detail <- if (is.null(reason)) "" else paste0(" ", reason)
+    skip(paste0(
+      "Skipping numerical certification case in the standard profile.",
+      detail
+    ))
+  }
+
+  return(invisible(FALSE))
 }
 
 # Skip model fitting if a valid cached fit exists. Refit by setting
@@ -878,7 +1604,16 @@ skip_refit_if_cached <- function(name) {
 
   skip_refit_env <- Sys.getenv("ROBMA_TEST_SKIP_REFIT")
   skip_refit     <- if (skip_refit_env == "") TRUE else !is_false_env("ROBMA_TEST_SKIP_REFIT")
-  fit_names      <- catalog_group_fits(name)
+
+  catalog     <- active_fit_catalog()
+  source_file <- paste0("test-01-", name, ".R")
+  fit_names   <- if (name %in% catalog[["name"]]) {
+    name
+  } else if (source_file %in% catalog[["source_file"]]) {
+    catalog[catalog[["source_file"]] == source_file, "name"]
+  } else {
+    catalog_group_fits(name)
+  }
 
   if (skip_refit && length(fit_names) > 0 &&
       all(vapply(fit_names, is_cached_fit_valid, TRUE))) {
@@ -918,19 +1653,24 @@ save_fit <- function(name, fit, info = NULL) {
   # Save info if provided
   if (!is.null(info)) {
     saveRDS(info, file = paths[["info"]])
+  } else if (file.exists(paths[["info"]])) {
+    file.remove(paths[["info"]])
   }
 
   # Save cache metadata last so interrupted fits do not validate later.
   saveRDS(metadata, file = paths[["metadata"]])
 
+  assign(name, fit, envir = .fit_object_cache)
+  if (!is.null(info)) {
+    assign(name, info, envir = .info_object_cache)
+  } else {
+    .clear_info_object_cache(name)
+  }
+
   return(invisible(TRUE))
 }
 
 load_fit <- function(name, validate = TRUE) {
-
-  if (exists(name, envir = .fit_object_cache, inherits = FALSE)) {
-    return(get(name, envir = .fit_object_cache, inherits = FALSE))
-  }
 
   if (validate) {
     problems <- validate_cached_fit(name)
@@ -941,6 +1681,10 @@ load_fit <- function(name, validate = TRUE) {
         ". Run `test(filter = 'test-01')`."
       ))
     }
+  }
+
+  if (exists(name, envir = .fit_object_cache, inherits = FALSE)) {
+    return(get(name, envir = .fit_object_cache, inherits = FALSE))
   }
 
   fit <- read_cached_fit(name)
@@ -955,10 +1699,6 @@ load_fit <- function(name, validate = TRUE) {
 
 load_info <- function(name, validate = TRUE) {
 
-  if (exists(name, envir = .info_object_cache, inherits = FALSE)) {
-    return(get(name, envir = .info_object_cache, inherits = FALSE))
-  }
-
   if (validate) {
     problems <- validate_cached_fit(name)
     if (length(problems) > 0) {
@@ -970,11 +1710,11 @@ load_info <- function(name, validate = TRUE) {
     }
   }
 
-  # load model info
-  info <- suppressWarnings(try(readRDS(file = file.path(temp_info_dir, paste0(name, ".RDS"))), silent = TRUE))
-  if (inherits(info, "try-error")) {
-    info <- list()
+  if (exists(name, envir = .info_object_cache, inherits = FALSE)) {
+    return(get(name, envir = .info_object_cache, inherits = FALSE))
   }
+
+  info <- read_cached_info(name)
 
   assign(name, info, envir = .info_object_cache)
 
@@ -983,10 +1723,14 @@ load_info <- function(name, validate = TRUE) {
 
 list_fits <- function(name, feature, class, family, has_metafor, has_loo,
                       has_waic, has_marglik, tier, validate = TRUE,
-                      deep = FALSE) {
+                      deep = FALSE, active_only = TRUE) {
 
   files <- suppressWarnings(list.files(temp_fits_dir, pattern = "\\.RDS$"))
   files <- sub("\\.RDS$", "", files)
+
+  if (active_only) {
+    files <- intersect(files, active_fit_catalog()[["name"]])
+  }
 
   if (!missing(name)) {
     files <- intersect(files, name)
@@ -1009,7 +1753,18 @@ list_fits <- function(name, feature, class, family, has_metafor, has_loo,
   }
 
   if (validate) {
-    files <- files[vapply(files, is_cached_fit_valid, TRUE, deep = deep)]
+    package_md5 <- package_source_md5()
+    files <- files[vapply(
+      files,
+      function(name) {
+        length(validate_cached_fit(
+          name        = name,
+          deep        = deep,
+          package_md5 = package_md5
+        )) == 0L
+      },
+      logical(1)
+    )]
   }
 
   return(files)
@@ -1034,6 +1789,10 @@ lazy_fits <- function(names = list_fits(), validate = TRUE) {
   if (validate) {
     skip_if_missing_fits(names)
   }
+  names <- intersect(
+    names,
+    list_fits(validate = FALSE, active_only = TRUE)
+  )
 
   return(lazy_cached_objects(
     names,
@@ -1046,6 +1805,10 @@ lazy_infos <- function(names = list_fits(), validate = TRUE) {
   if (validate) {
     skip_if_missing_fits(names)
   }
+  names <- intersect(
+    names,
+    list_fits(validate = FALSE, active_only = TRUE)
+  )
 
   return(lazy_cached_objects(
     names,
@@ -1086,8 +1849,14 @@ length.lazy_cached_objects <- function(x) {
   if (is.numeric(i)) {
     i <- object_names[[i]]
   }
-  if (!is.character(i) || length(i) != 1L || !i %in% object_names) {
+  if (!is.character(i) || length(i) != 1L) {
     return(NULL)
+  }
+  if (!i %in% object_names) {
+    skip(paste0(
+      "Required pre-fitted model missing or stale: ", i,
+      ". Run `devtools::test(filter = '01-', reporter = 'llm')` first."
+    ))
   }
 
   cache <- unclass(x)[[".cache"]]
@@ -1120,14 +1889,19 @@ as.list.lazy_cached_objects <- function(x, ...) {
 clean_cached_fits <- function(name) {
 
   if (!missing(name)) {
-    fit_names <- catalog_group_fits(name)
-    if (length(fit_names) == 0) {
-      fit_names <- name
-    }
+    fit_names <- unique(unlist(lapply(name, function(value) {
+      selected <- catalog_group_fits(value, active_only = FALSE)
+      if (length(selected) == 0L) value else selected
+    }), use.names = FALSE))
     for (fit_name in fit_names) {
-      paths <- fit_cache_paths(fit_name)
-      file.remove(unlist(paths, use.names = FALSE))
+      paths <- unlist(fit_cache_paths(fit_name), use.names = FALSE)
+      paths <- paths[file.exists(paths)]
+      if (length(paths) > 0L) {
+        file.remove(paths)
+      }
     }
+    .clear_fit_object_cache(fit_names)
+    .clear_info_object_cache(fit_names)
   } else {
     # Remove all cached files from test directories
     unlink(temp_fits_dir, recursive = TRUE)
@@ -1140,7 +1914,11 @@ clean_cached_fits <- function(name) {
     dir.create(temp_info_dir, showWarnings = FALSE, recursive = TRUE)
     dir.create(temp_metadata_dir, showWarnings = FALSE, recursive = TRUE)
     dir.create(temp_temp_dir, showWarnings = FALSE, recursive = TRUE)
+
+    .clear_fit_object_cache()
+    .clear_info_object_cache()
   }
+  .clear_package_source_md5_cache()
 
   message("Cleaned cached fits in: ", test_files_dir)
 

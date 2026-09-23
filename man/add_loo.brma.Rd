@@ -12,7 +12,8 @@
 
 \item{unit}{output/deletion unit. \code{"estimate"} computes one contribution
 per effect-size estimate. \code{"cluster"} computes one contribution per
-cluster and is available only for multilevel models.}
+cluster and is available only for multilevel models fitted through the
+specialized clustered interface.}
 
 \item{r_eff}{optional vector of relative effective sample sizes. If not
 provided, it is computed from the log-likelihood values.}
@@ -37,25 +38,66 @@ With \code{unit = "estimate"}, LOO-CV is computed with one contribution per
 effect-size estimate. For binomial and Poisson models, each pair of counts
 (ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
 one contribution.
+Estimate-unit GLMM log-likelihoods support point or beta baserate priors and
+point or normal log-rate priors, including their supported truncations.
+Other nuisance-prior families are rejected when the model input is validated.
 
 With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 per cluster. For unweighted normal models without selection this uses the
-analytic cluster block covariance. Selection, data-weighted normal, and
-GLMM models integrate the held-out cluster effect with Gauss-Hermite
-quadrature.
+analytic cluster block covariance. Data-weighted normal models integrate
+the held-out cluster effect with Gauss-Hermite quadrature.
+Cluster-unit binomial and Poisson GLMM log-likelihoods are unavailable until
+certified nested adaptive quadrature is implemented; use
+\code{unit = "estimate"} for GLMMs.
+Cluster-unit contributions are also unavailable for \code{brma.mv()} models,
+whose random-formula deletion semantics still need a dedicated design; use
+\code{unit = "estimate"} there.
 
-For selection models, the LOO evaluates the weighted likelihood, conditioning
-on the posterior omega samples.
+Selection-model deletion conditions the Gaussian law on retained outcomes
+and on the context declared by the fitted selection model. It preserves the
+original publication event and selection standard errors. Product weights
+on retained outcomes cancel; best selection continues to depend on the best
+p-value among both retained and deleted outcomes. This finite-vector deletion
+score differs from prediction for an entirely new publication event.
+
+For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
+estimate-unit LOO integrates Gaussian local effects and uses
+\eqn{p(y_i \mid y_{-i}, \theta)} within each fitted dependency block. Thus
+deleting one estimate retains the other estimates in its cluster or random-
+effect block; it does not represent prediction for a wholly new group.
+
+For \code{brma.mv()} models with known random-effect group covariance
+\code{R}, the known \code{R} matrix and fitted random-effect covariance enter
+the marginal \eqn{ZGZ'} covariance through BayesTools' compiled random-effect
+metadata. The same calculation applies to every supported random structure.
+
+Estimate-unit deletion retains the fitted grouping and known-\code{V}
+dependency structure; it does not represent deletion of an entire new random
+group. Models with no local effects, sampled local effects, marginalized
+local effects, or a mixture of sampled and marginalized effects remain
+comparable when their data hash, deletion unit, retained context, and
+likelihood target agree. The sampled/marginalized labels are retained as
+provenance rather than comparison keys.
 
 The PSIS object is essential for model comparison via
 \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 RoBMA stores target metadata so comparisons can reject mismatched data,
-unit, or conditioning-depth targets.
+unit, or retained-context targets.
+Each finite log-likelihood column observed to be constant across posterior
+draws uses exact uniform importance ratios. Such columns bypass relative-ESS
+and generalized-Pareto fitting, including when other columns vary. Their
+Pareto-k diagnostic is recorded as the sentinel zero, meaning constant
+ratios with no tail instability rather than an estimated Pareto shape.
+Finite varying columns are centered by a column-specific constant before
+relative-ESS and PSIS evaluation. The offset is restored exactly afterward,
+preserving the LOO target while avoiding probability-scale underflow.
 
 \strong{Important for model comparison:} When comparing models via
 \code{\link[loo]{loo_compare}}, the selection is based on expected
-out-of-sample predictive performance. This evaluates how well models predict
-\emph{new} observations, not how well they fit the observed data.
+predictive performance for the documented deletion target, not in-sample
+fit. For dependent estimates, deleting one estimate may retain other
+observations from its fitted dependency block; this is not new-group
+prediction.
 }
 \examples{
 \dontrun{

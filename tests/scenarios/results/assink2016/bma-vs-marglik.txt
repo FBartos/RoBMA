@@ -1,0 +1,5 @@
+  Random..study Random..study.esid  post_prob marglik
+1      Excluded           Excluded 0.00000000 0.00000
+2      Included           Excluded 0.00000000 0.00000
+3      Excluded           Included 0.08273333 0.10963
+4      Included           Included 0.91726667 0.89037

@@ -1,4 +1,4 @@
-context("BayesTools forward API integration")
+context("BayesTools integration")
 
 if (!exists("fit_cache_paths", mode = "function")) {
   source(testthat::test_path("common-functions.R"))
@@ -25,19 +25,6 @@ if (!exists("fit_cache_paths", mode = "function")) {
 
   skip(paste0("Cached fit '", name, "' with formula design metadata is unavailable."))
 }
-
-test_that("BayesTools forward API guard passes for the active namespace", {
-
-  expect_true(isTRUE(.check_bayestools_forward_api()))
-  expect_true(all(
-    c("fit", "parameter") %in% names(formals(BayesTools::JAGS_formula_design))
-  ))
-  expect_true("interpret_records" %in% getNamespaceExports("BayesTools"))
-  expect_true(all(
-    c("legend", "legend_title", "legend_labels", "legend_position") %in%
-      names(formals(BayesTools::plot_marginal))
-  ))
-})
 
 test_that(".get_model_matrix uses fitted BayesTools design metadata", {
 
@@ -150,6 +137,28 @@ test_that("formula design accessors support current non-fitted objects", {
   expect_equal(nrow(data_design[["model_matrix"]]), nrow(dat))
   expect_equal(data_design[["assign"]], attr(data_design[["model_matrix"]], "assign"))
   expect_true(all(c("intercept", "x", "z") %in% data_design[["model_terms"]]))
+})
+
+test_that("optional fitted formula design lookup tolerates an absent parameter", {
+
+  scale_design <- list(parameter = "log_tau")
+  fit          <- structure(list(), class = "BayesTools_fit")
+  attr(fit, "formula_design") <- list(log_tau = scale_design)
+  object <- list(fit = fit)
+
+  expect_identical(
+    .fitted_formula_design(object, "log_tau", required = TRUE),
+    scale_design
+  )
+  expect_null(.fitted_formula_design(object, "mu", required = FALSE))
+  expect_error(
+    .fitted_formula_design(object, "mu", required = TRUE),
+    paste0(
+      "Fitted formula design metadata for parameter 'mu' is missing. ",
+      "Refit the model with the current RoBMA/BayesTools build."
+    ),
+    fixed = TRUE
+  )
 })
 
 test_that("Weightfunction observed p-values use selection mapping sign", {

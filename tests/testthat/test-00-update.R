@@ -182,6 +182,35 @@ test_that("update.brma rejects extension when no fit is stored", {
   )
 })
 
+
+test_that("update.brma preserves extension fitting errors", {
+
+  object         <- mock_update_object()
+  summary_called <- FALSE
+
+  testthat::local_mocked_bindings(
+    .fit = function(object, extend = FALSE) {
+
+      return(list(
+        errors        = "Original extension fitting diagnostic.",
+        has_posterior = FALSE
+      ))
+    },
+    .object_summary = function(object) {
+
+      summary_called <<- TRUE
+      stop("Summary should not be created.", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    update(object, sample_extend = 1),
+    "^Original extension fitting diagnostic[.]$"
+  )
+  expect_false(summary_called)
+})
+
 test_that("update.brma recomputes all named cached units", {
 
   object <- mock_update_object()

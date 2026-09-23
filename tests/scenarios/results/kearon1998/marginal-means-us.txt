@@ -1,0 +1,6 @@
+
+Marginal Means:
+                     Mean    SD  0.025    0.5 0.975
+group[sensitivity] -0.014 0.216 -0.424 -0.020 0.429
+group[specificity]  2.740 0.259  2.211  2.746 3.230
+

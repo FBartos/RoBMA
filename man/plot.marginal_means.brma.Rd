@@ -2,6 +2,7 @@
 % Please edit documentation in R/marginal_means.R
 \name{plot.marginal_means.brma}
 \alias{plot.marginal_means.brma}
+\alias{lines.marginal_means.brma}
 \title{Plot Estimated Marginal Means}
 \usage{
 \method{plot}{marginal_means.brma}(
@@ -13,8 +14,13 @@
   dots_prior = NULL,
   output_measure = NULL,
   transform = NULL,
+  density_method = NULL,
+  density_control = NULL,
+  add = FALSE,
   ...
 )
+
+\method{lines}{marginal_means.brma}(x, parameter, prior = FALSE, ...)
 }
 \arguments{
 \item{x}{a \code{marginal_means.brma} object.}
@@ -49,6 +55,42 @@ log-scale measures.}
 exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
 and \code{"IRR"}.}
 
+\item{density_method}{posterior density method. The default \code{NULL}
+reuses the method stored on \code{x}; specify \code{"KDE"} to override a
+stored qCMDE/IWMDE method. \code{"qCMDE"} and
+\code{"IWMDE"} compute any missing densities for the plotted marginal means
+before plotting and never silently mix with KDE. Plot-time qCMDE/IWMDE
+computation can be slow and is used only for the current plot call; precompute
+with \code{marginal_means(..., density_method = "qCMDE")} or
+\code{marginal_means(..., density_method = "IWMDE")} to reuse densities across
+plots. Prefer qCMDE for likelihood-aware final results; IWMDE can be faster
+but is more sensitive to its fitted conditional weights.}
+
+\item{density_control}{named list of qCMDE/IWMDE density-estimation settings.
+Supported entries are \code{n_points} (default \code{100}),
+\code{samples} (default \code{500} for qCMDE and \code{1000} for IWMDE
+density curves),
+\code{target_relative_mcse} (default \code{0.05}),
+\code{display_grid} (default \code{"adaptive"}),
+\code{normalization_points} (default \code{NULL}, resolved to
+\code{max(50, n_points)}), and \code{normalization_prob} (default
+\code{0.999}). \code{integration_control} (default \code{NULL}) accepts
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}} settings for Gaussian selection models;
+see \code{\link[=marginal_means.brma]{marginal_means.brma()}} for an example. The fitted object and posterior
+draws are unchanged. \code{samples} controls the fixed posterior-row budget for
+the density curve. \code{target_relative_mcse} is a point-ordinate
+diagnostic target and does not alter this fixed-budget plot. Curve
+diagnostics use the empirical 5--95 percent bulk, report the 5 and 95
+percent tail checkpoints, and retain a whole-curve absolute MCSE safeguard
+relative to the density peak. Supplying
+\code{density_control} forces
+recomputation for the plotted marginal means instead of reusing stored
+densities. Increase row and normalization budgets when diagnostics report
+concentrated contributions or unstable normalization.}
+
+\item{add}{whether to add the densities to an existing plot. This is used by
+\code{lines.marginal_means.brma()} and defaults to \code{FALSE}.}
+
 \item{...}{additional graphical arguments passed to
 \code{BayesTools::plot_marginal()}.}
 }
@@ -59,4 +101,9 @@ if \code{plot_type = "ggplot"}.
 \description{
 Plots estimated marginal means stored in a
 \code{marginal_means.brma} object using \code{BayesTools::plot_marginal()}.
+}
+\details{
+\code{lines.marginal_means.brma()} adds posterior densities to an
+existing base plot. With \code{plot_type = "ggplot"}, it returns ggplot2
+layer(s) that can be added to a marginal-means plot with \code{+}.
 }

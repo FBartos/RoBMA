@@ -23,6 +23,8 @@ test_that("bPEESE fits PEESE metafor-reference model", {
 })
 
 test_that("bPEESE fits negative-direction PEESE metafor-reference model", {
+
+  skip_if_fit_not_active("dat.lehmann2018-PEESE_neg")
   ### fit PEESE model
   data(dat.lehmann2018, package = "metadat")
   dat.lehmann2018$yi <- -dat.lehmann2018$yi
@@ -38,6 +40,8 @@ test_that("bPEESE fits negative-direction PEESE metafor-reference model", {
 })
 
 test_that("bPEESE fits PEESE meta-regression model", {
+
+  skip_if_fit_not_active("dat.lehmann2018-PEESEreg")
   ### fit PEESE model
   data(dat.lehmann2018, package = "metadat")
   fit_PEESE.metafor <- metafor::rma(yi, vi, mods = ~ vi + Preregistered, data = dat.lehmann2018)

@@ -89,6 +89,7 @@ test_that("Newdata prediction preserves duplicate rows and rejects novel factor 
 
   expect_error(
     predict(fit_factor, newdata = newdata_factor, type = "terms", quiet = TRUE),
+    regexp = "level",
     info = "novel factor levels are rejected"
   )
 })
@@ -153,6 +154,47 @@ test_that("Wrapper functions have correct interface", {
                info = "true_effects are identical to blup")
 })
 
+
+test_that("predict preserves the released positional type argument", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+
+  set.seed(481)
+  positional <- predict(fit_brma, NULL, "response")
+  set.seed(481)
+  named <- predict(fit_brma, newdata = NULL, type = "response")
+
+  expect_identical(names(formals(predict.brma))[3L], "type")
+  expect_equal(positional, named, tolerance = 0)
+})
+
+
+test_that("pooled_effect aggregates fitted-design location draws directly", {
+
+  name <- "bcg_meta-regression"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  terms <- predict(
+    fit_brma,
+    type          = "terms",
+    bias_adjusted = TRUE,
+    quiet         = TRUE
+  )
+  pooled   <- pooled_effect(fit_brma)
+  expected <- matrix(rowMeans(as.matrix(terms)), ncol = 1L)
+  expect_equal(unname(as.matrix(pooled)), unname(expected), tolerance = 1e-12)
+
+  testthat::local_mocked_bindings(
+    predict.brma = function(...) stop("pooled_effect used predict.brma"),
+    .package = "RoBMA"
+  )
+  expect_silent(pooled_effect(fit_brma))
+})
+
 test_that("fitted returns in-sample posterior means", {
 
   model_names <- c(
@@ -215,6 +257,10 @@ test_that("fitted returns in-sample posterior means", {
                info = "component all returns location and scale")
   expect_equal(unname(fitted_all[["location"]]), unname(fitted(fit_scale)),
                tolerance = 1e-12)
+  expect_equal(unname(fitted(fit_scale, component = "mods")),
+               unname(fitted(fit_scale)),
+               tolerance = 1e-12,
+               info = "component mods aliases location fitted values")
   expect_equal(unname(fitted_all[["scale"]]), unname(fitted_scale),
                tolerance = 1e-12)
 
@@ -255,30 +301,24 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
       object     = fit_brma,
       parameters = .conditional_effect_parameters(fit_brma)
     )
+    set.seed(247)
     pooled_effect_averaged <- pooled_effect(fit_brma)
+    set.seed(247)
     pooled_effect_cond     <- expect_silent(
       pooled_effect(fit_brma, conditional = TRUE)
     )
-    pooled_effect_predict  <- expect_silent(
+    pooled_effect_terms <- expect_silent(
       predict(
         fit_brma,
-        newdata       = TRUE,
         type          = "terms",
         bias_adjusted = TRUE,
         conditional   = TRUE,
         quiet         = TRUE
       )
     )
-    expect_message(
-      predict(
-        fit_brma,
-        newdata       = TRUE,
-        type          = "terms",
-        bias_adjusted = TRUE,
-        conditional   = TRUE,
-        quiet         = FALSE
-      ),
-      "flattened"
+    pooled_effect_expected <- matrix(
+      rowMeans(as.matrix(pooled_effect_terms)),
+      ncol = 1L
     )
 
     expect_equal(
@@ -287,9 +327,18 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
       info = paste(name, "pooled_effect conditional rows")
     )
     expect_equal(
+      unname(attr(pooled_effect_cond, "prediction_samples")),
+      unname(attr(pooled_effect_averaged, "prediction_samples")[
+        effect_rows,
+        ,
+        drop = FALSE
+      ]),
+      info = paste(name, "pooled prediction conditional rows")
+    )
+    expect_equal(
       unname(as.matrix(pooled_effect_cond)),
-      unname(as.matrix(pooled_effect_predict)),
-      info = paste(name, "pooled_effect matches conditional predict")
+      unname(pooled_effect_expected),
+      info = paste(name, "pooled_effect matches fitted-design row mean")
     )
     expect_match(attr(pooled_effect_cond, "title"), "Conditional")
   }
@@ -311,19 +360,17 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
   pooled_het_cond     <- expect_silent(
     pooled_heterogeneity(fit_brma, conditional = TRUE)
   )
-  pooled_het_predict  <- expect_silent(
-    predict(
-      fit_brma,
-      newdata     = TRUE,
-      type        = "terms.scale",
-      conditional = TRUE,
-      quiet       = TRUE
-    )
-  )
+  expect_silent(predict(
+    fit_brma,
+    newdata     = NULL,
+    type        = "terms.scale",
+    conditional = TRUE,
+    quiet       = TRUE
+  ))
   expect_message(
     predict(
       fit_brma,
-      newdata     = TRUE,
+      newdata     = NULL,
       type        = "terms.scale",
       conditional = TRUE,
       quiet       = FALSE
@@ -338,8 +385,15 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
   )
   expect_equal(
     unname(as.matrix(pooled_het_cond)),
-    unname(as.matrix(pooled_het_predict)),
-    info = "pooled_heterogeneity matches conditional predict"
+    unname(.pooled_heterogeneity_total_samples(
+      object            = fit_brma,
+      posterior_samples = .get_posterior_samples(fit_brma[["fit"]])[
+        heterogeneity_rows,
+        ,
+        drop = FALSE
+      ]
+    )),
+    info = "pooled_heterogeneity matches conditional average scale design"
   )
   expect_equal(
     unname(summary(pooled_het_cond)["tau", "Mean"]),
@@ -380,25 +434,23 @@ test_that("Model-averaged predictions cover BMA.norm, BMA.glmm, and RoBMA", {
     expect_brma_samples_matrix(response, n_studies, paste(name, "response"))
 
     pooled <- pooled_effect(fit_brma)
-    pooled_predict <- predict(
+    pooled_terms <- predict(
       fit_brma,
-      newdata       = TRUE,
       type          = "terms",
       bias_adjusted = TRUE,
       quiet         = TRUE
     )
+    pooled_expected <- matrix(rowMeans(as.matrix(pooled_terms)), ncol = 1L)
     expect_brma_samples_matrix(pooled, 1, paste(name, "pooled_effect"))
-    expect_equal(unname(as.matrix(pooled)), unname(as.matrix(pooled_predict)))
+    expect_equal(unname(as.matrix(pooled)), unname(pooled_expected))
 
     pooled_het <- pooled_heterogeneity(fit_brma)
-    pooled_het_predict <- predict(
-      fit_brma,
-      newdata = TRUE,
-      type    = "terms.scale",
-      quiet   = TRUE
+    pooled_het_expected <- matrix(
+      sqrt(rowMeans(as.matrix(scale)^2)),
+      ncol = 1L
     )
     expect_brma_samples_matrix(pooled_het, 1, paste(name, "pooled_heterogeneity"))
-    expect_equal(unname(as.matrix(pooled_het)), unname(as.matrix(pooled_het_predict)))
+    expect_equal(unname(as.matrix(pooled_het)), unname(pooled_het_expected))
 
     blup_samples <- blup(fit_brma)
     true_samples <- true_effects(fit_brma)
@@ -412,6 +464,17 @@ test_that("Model-averaged predictions cover BMA.norm, BMA.glmm, and RoBMA", {
       unname(as.matrix(ranef_samples)),
       unname(as.matrix(blup_samples) - as.matrix(terms))
     )
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "total"))),
+      unname(as.matrix(ranef_samples))
+    )
+    ranef_list <- ranef(fit_brma, simplify = FALSE)
+    expect_type(ranef_list, "list")
+    expect_equal(names(ranef_list), "estimate")
+    expect_equal(
+      unname(as.matrix(ranef_list[["estimate"]])),
+      unname(as.matrix(ranef_samples))
+    )
   }
 })
 
@@ -424,14 +487,38 @@ test_that("Model-averaged multilevel ranef decomposes cluster and estimate effec
   skip_if_missing_fits(product_names)
 
   for (name in product_names) {
-    fit_brma  <- fits[[name]]
-    n_studies <- nobs(fit_brma)
-    out       <- ranef(fit_brma)
+    fit_brma   <- fits[[name]]
+    n_studies  <- nobs(fit_brma)
+    out        <- ranef(fit_brma, expand = TRUE)
+    unique_out <- ranef(fit_brma)
 
     expect_type(out, "list")
     expect_equal(names(out), c("cluster", "estimate"), info = name)
     expect_brma_samples_matrix(out[["cluster"]], n_studies, paste(name, "cluster ranef"))
     expect_brma_samples_matrix(out[["estimate"]], n_studies, paste(name, "estimate ranef"))
+    expect_type(unique_out, "list")
+    expect_equal(names(unique_out), c("cluster", "estimate"), info = name)
+    expect_equal(
+      ncol(unique_out[["cluster"]]),
+      length(unique(fit_brma[["data"]][["outcome"]][["cluster"]])),
+      info = paste(name, "unique cluster ranef")
+    )
+    expect_equal(ncol(unique_out[["estimate"]]), n_studies, info = name)
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "cluster", expand = TRUE))),
+      unname(as.matrix(out[["cluster"]])),
+      info = paste(name, "component cluster")
+    )
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "total", expand = TRUE))),
+      unname(as.matrix(out[["cluster"]]) + as.matrix(out[["estimate"]])),
+      info = paste(name, "component total")
+    )
+    expect_error(
+      ranef(fit_brma, component = "total"),
+      "expand = TRUE",
+      fixed = TRUE
+    )
   }
 })
 

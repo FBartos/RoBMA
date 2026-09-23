@@ -1,0 +1,3 @@
+  structure     logml    looic
+1     mv-vi -76.19137 124.2211
+2   cluster -76.19038 123.7925

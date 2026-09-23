@@ -1,0 +1,16 @@
+
+Effect
+                Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Spike(0)        Null              0.500       0.011        0.011               35.068
+Normal(0, 0.71) Alternative       0.500       0.989       88.820               35.068
+
+Random: study
+         Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Excluded Null              0.500       0.072        0.077               15.920
+Included Alternative       0.500       0.928       12.966               15.920
+
+Random: study:esid
+         Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Excluded Null              0.500       0.000        0.000                   NA
+Included Alternative       0.500       1.000          Inf                   NA
+

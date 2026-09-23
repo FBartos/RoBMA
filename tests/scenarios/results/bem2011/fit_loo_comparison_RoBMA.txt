@@ -1,0 +1,7 @@
+Method: stacking
+------
+              weight
+fit_BMA       0.000 
+fit_BMA_con   0.000 
+fit_RoBMA     1.000 
+fit_RoBMA_con 0.000 

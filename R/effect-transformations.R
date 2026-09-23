@@ -80,7 +80,7 @@
   return(measure_key)
 }
 
-.normalize_effect_transform <- function(transform) {
+.normalize_effect_transform <- function(transform, allow_log = FALSE) {
 
   if (is.null(transform)) {
     return("identity")
@@ -95,9 +95,17 @@
     ID       = "identity",
     EXP      = "EXP"
   )
+  if (allow_log) {
+    transform_map <- c(transform_map, LOG = "LOG")
+  }
   if (!transform_key %in% names(transform_map)) {
+    available <- if (allow_log) {
+      "'EXP', 'LOG', and 'identity'"
+    } else {
+      "'EXP' and 'identity'"
+    }
     stop(
-      "Unknown 'transform'. Available options are 'EXP' and 'identity'.",
+      "Unknown 'transform'. Available options are ", available, ".",
       call. = FALSE
     )
   }
@@ -123,6 +131,15 @@
   ))
 }
 
+.log_plot_transformation <- function() {
+
+  return(list(
+    fun = log,
+    inv = exp,
+    jac = function(x) 1 / x
+  ))
+}
+
 .d_to_cor <- function(x) {
 
   out <- x / sqrt(x^2 + 4)
@@ -135,7 +152,12 @@
 
 .cor_to_z <- function(x) {
 
-  x <- pmin(pmax(x, -1), 1)
+  if (!is.numeric(x) || any(!is.finite(x)) || any(x < -1 | x > 1)) {
+    stop(
+      "Correlation values must be numeric, finite, and within [-1, 1].",
+      call. = FALSE
+    )
+  }
 
   return(atanh(x))
 }
@@ -315,6 +337,109 @@
   return(output)
 }
 
+.plot_output_setup <- function(object, parameter, parameter_entry,
+                               output_measure = NULL, transform = NULL) {
+
+  transform <- .normalize_effect_transform(transform, allow_log = TRUE)
+
+  formula_parameter     <- parameter_entry[["formula_parameter"]]
+  has_formula_parameter <- (
+    is.character(formula_parameter) &&
+    length(formula_parameter) == 1L &&
+    !is.na(formula_parameter) &&
+    nzchar(formula_parameter)
+  )
+  is_formula_coef       <- (
+    identical(parameter_entry[["role"]], "fixed_coefficient") ||
+    identical(parameter_entry[["role"]], "formula_coefficient_group")
+  )
+
+  is_effect_intercept <- .is_effect_location_parameter(parameter)
+  is_location_coef    <- identical(parameter_entry[["component"]], "mods")
+  is_scale_coef       <- (
+    identical(parameter_entry[["component"]], "scale") &&
+    is_formula_coef &&
+    has_formula_parameter &&
+    !identical(parameter_entry[["term"]], "intercept")
+  )
+  is_scale_intercept  <- (
+    identical(parameter_entry[["component"]], "scale") &&
+    identical(parameter_entry[["term"]], "intercept")
+  )
+  random_quantity <- parameter_entry[["quantity"]]
+  is_random_multiplier <- (
+    identical(parameter_entry[["component"]], "random") &&
+    is.character(random_quantity) && length(random_quantity) == 1L &&
+    !is.na(random_quantity) &&
+    random_quantity %in% c("var_mult", "sd_mult")
+  )
+
+  if (!is.null(output_measure) && !is_effect_intercept) {
+    stop(
+      "'output_measure' is only available for effect-size location parameters ",
+      "('mu' or the meta-regression intercept).",
+      call. = FALSE
+    )
+  }
+
+  if (identical(transform, "EXP")) {
+    if (is_scale_coef) {
+      return(list(
+        input_measure  = .measure(object),
+        output_measure = .measure(object),
+        transform      = transform,
+        requested      = TRUE,
+        active         = TRUE,
+        transformation = .exp_effect_transformation(),
+        label          = "multiplicative scale",
+        note           = NULL
+      ))
+    }
+
+    if (!is_effect_intercept && !is_location_coef) {
+      stop(
+        "transform = 'EXP' is only available for effect-size location, ",
+        "location meta-regression coefficients, and scale-regression ",
+        "coefficients.",
+        call. = FALSE
+      )
+    }
+
+    return(.effect_output_setup(
+      object         = object,
+      output_measure = output_measure,
+      transform      = transform
+    ))
+  }
+
+  if (identical(transform, "LOG")) {
+    if (!is_scale_intercept && !is_random_multiplier) {
+      stop(
+        "transform = 'LOG' is only available for positive heterogeneity ",
+        "intercepts and random-effect variance or SD multipliers.",
+        call. = FALSE
+      )
+    }
+
+    return(list(
+      input_measure  = .measure(object),
+      output_measure = .measure(object),
+      transform      = transform,
+      requested      = TRUE,
+      active         = TRUE,
+      transformation = .log_plot_transformation(),
+      label          = "log scale",
+      note           = NULL
+    ))
+  }
+
+  return(.effect_output_setup(
+    object         = object,
+    output_measure = output_measure,
+    transform      = transform
+  ))
+}
+
 .effect_output_requested <- function(effect_transform) {
 
   if (is.null(effect_transform)) {
@@ -417,7 +542,14 @@
     return(NULL)
   }
 
-  return(effect_transform[["transformation"]])
+  transformation <- effect_transform[["transformation"]]
+  if (identical(effect_transform[["transform"]], "EXP")) {
+    transformation[["output_support"]] <- c(0, Inf)
+  } else if (identical(effect_transform[["transform"]], "identity") &&
+             identical(effect_transform[["output_measure"]], "COR")) {
+    transformation[["output_support"]] <- c(-1, 1)
+  }
+  return(transformation)
 }
 
 .is_effect_location_parameter <- function(parameter) {
@@ -453,22 +585,32 @@
 }
 
 .new_effect_brma_samples <- function(samples, n_chains, n_iter, title,
+                                     component = "location",
                                      probs = c(.025, .975), data = NULL,
-                                     effect_transform = NULL) {
+                                     effect_transform = NULL,
+                                     prediction_samples = NULL) {
 
   if (!is.null(effect_transform)) {
     samples <- .transform_effect_matrix(samples, effect_transform)
-    title   <- .effect_output_title(title, effect_transform)
+    if (!is.null(prediction_samples)) {
+      prediction_samples <- .transform_effect_matrix(
+        prediction_samples,
+        effect_transform
+      )
+    }
+    title <- .effect_output_title(title, effect_transform)
   }
 
   return(.new_brma_samples(
-    samples          = samples,
-    n_chains         = n_chains,
-    n_iter           = n_iter,
-    title            = title,
-    probs            = probs,
-    data             = data,
-    effect_transform = effect_transform
+    samples            = samples,
+    n_chains           = n_chains,
+    n_iter             = n_iter,
+    title              = title,
+    component          = component,
+    probs              = probs,
+    data               = data,
+    effect_transform   = effect_transform,
+    prediction_samples = prediction_samples
   ))
 }
 

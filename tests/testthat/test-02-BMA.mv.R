@@ -1,0 +1,699 @@
+source(testthat::test_path("common-functions.R"))
+
+skip_if_missing_fits("BMA.mv_random_components")
+fit_bma_mv <- load_fit("BMA.mv_random_components", validate = FALSE)
+
+
+.bma_mv_root_allocation <- function(fit) {
+
+  # Read through the production accessor: `fit[["formula_design"]]` is not
+  # populated for every gated fit (a sole random component leaves it NULL),
+  # while the fitted design is always recorded on the JAGS object.
+  design <- .fitted_formula_design(fit, "mu", required = TRUE)
+  design[["random_allocations"]][[1L]]
+}
+
+
+.bma_mv_random_gate_names <- function(fit) {
+
+  vapply(
+    .bma_mv_root_allocation(fit)[["inclusion"]],
+    `[[`,
+    character(1),
+    "indicator_name"
+  )
+}
+
+
+.bma_mv_parameter_draws <- function(fit, parameter) {
+
+  catalog <- BayesTools::parameter_catalog(fit[["fit"]])
+  selection <- BayesTools::parameter_catalog_resolve(catalog, parameter)
+  as.numeric(as.matrix(BayesTools::parameter_draws(
+    fit[["fit"]],
+    selection
+  ))[, 1L])
+}
+
+
+test_that("BMA.mv summary reports exact random-component inclusion states", {
+
+  samples    <- .get_posterior_samples(fit_bma_mv[["fit"]])
+  gate_names <- .bma_mv_random_gate_names(fit_bma_mv)
+  out <- summary(
+    fit_bma_mv,
+    conditional              = TRUE,
+    include_mcmc_diagnostics = FALSE
+  )
+  inclusion <- out[["inclusion_random"]]
+
+  expect_equal(rownames(inclusion), paste0(names(gate_names), ": tau"))
+  expect_equal(unname(inclusion[["prior_prob"]]), c(0.5, 0.5))
+  expect_equal(
+    unname(inclusion[["post_prob"]]),
+    unname(colMeans(samples[, gate_names, drop = FALSE]))
+  )
+
+  summary_frame <- as.data.frame(out)
+  expect_equal(
+    summary_frame[["parameter"]][summary_frame[["component"]] == "inclusion"],
+    c(rownames(out[["inclusion_components"]]),
+      paste0("Heterogeneity: ", names(gate_names), ": tau"))
+  )
+  expect_false(any(summary_frame[["component"]] == "inclusion random"))
+  expect_false(any(grepl(
+    "__xRE_",
+    rownames(out[["inclusion_mods"]]),
+    fixed = TRUE
+  )))
+  expect_false(any(grepl(
+    "__xRE_",
+    c(
+      rownames(out[["estimates_random"]]),
+      rownames(out[["estimates_random_conditional"]])
+    ),
+    fixed = TRUE
+  )))
+  catalog <- BayesTools::parameter_catalog(fit_bma_mv[["fit"]])
+  expect_false(any(grepl(
+    "__xRE_",
+    catalog[["quantities"]][["canonical_name"]],
+    fixed = TRUE
+  )))
+  expect_null(attr(out[["estimates_random"]], "footnotes"))
+  expect_null(attr(out[["estimates_random_conditional"]], "footnotes"))
+
+  expected_parameters <- c(
+    "tau_total",
+    paste0("tau2_prop(", names(gate_names), ")")
+  )
+  expect_identical(rownames(out[["estimates_random"]]), expected_parameters)
+  expect_identical(rownames(out[["estimates_random_conditional"]]), expected_parameters)
+  expect_identical(data.frame(out), summary_frame)
+  expect_identical(
+    summary_frame[["parameter"]][summary_frame[["component"]] == "common"],
+    expected_parameters
+  )
+  heterogeneity <- summary_heterogeneity(fit_bma_mv)
+  full_conditional <- BayesTools::JAGS_estimates_table(
+    fit_bma_mv[["fit"]],
+    conditional            = TRUE,
+    random_effects_summary = "full",
+    keep_parameters        = "random",
+    formula_prefix         = FALSE,
+    simplify_names         = TRUE,
+    remove_diagnostics     = TRUE
+  )
+
+  for (component in names(gate_names)) {
+    sd_draws <- .bma_mv_parameter_draws(
+      fit_bma_mv,
+      paste0("(mu) ", component, ": sd(intercept)")
+    )
+    gate <- samples[, gate_names[[component]]]
+    expect_true(all(sd_draws[gate == 0] == 0), info = component)
+    expect_equal(
+      full_conditional[paste0(component, ": sd"), "Mean"],
+      mean(sd_draws[gate == 1]),
+      tolerance = 5e-4,
+      info = component
+    )
+    expect_equal(
+      heterogeneity[[component]][["estimates"]]["tau", "Mean"],
+      mean(sd_draws),
+      tolerance = 5e-4,
+      info = component
+    )
+  }
+})
+
+
+test_that("BMA.mv reports realized gated totals and variance proportions", {
+
+  samples    <- .get_posterior_samples(fit_bma_mv[["fit"]])
+  gate_names <- .bma_mv_random_gate_names(fit_bma_mv)
+  sd_total   <- .bma_mv_parameter_draws(fit_bma_mv, "(mu) sd_total")
+  component_sd <- list()
+  proportions <- list()
+
+  for (component in names(gate_names)) {
+    component_sd[[component]] <- .bma_mv_parameter_draws(
+      fit_bma_mv,
+      paste0("(mu) ", component, ": sd(intercept)")
+    )
+    proportions[[component]] <- .bma_mv_parameter_draws(
+      fit_bma_mv,
+      paste0("(mu) var_prop(", component, ")")
+    )
+  }
+
+  both_off <- rowSums(samples[, gate_names, drop = FALSE]) == 0
+  active <- !both_off
+  component_sd <- do.call(cbind, component_sd)
+  proportions <- do.call(cbind, proportions)
+
+  expect_true(any(both_off))
+  expect_true(all(sd_total[both_off] == 0))
+  expect_equal(
+    sd_total,
+    sqrt(rowSums(component_sd^2)),
+    tolerance = 1e-12
+  )
+  expect_true(all(is.na(proportions[both_off, , drop = FALSE])))
+  expect_equal(
+    rowSums(proportions[active, , drop = FALSE]),
+    rep(1, sum(active)),
+    tolerance = 1e-12
+  )
+  for (component in names(gate_names)) {
+    gate <- samples[, gate_names[[component]]]
+    expect_true(all(proportions[active & gate == 0, component] == 0))
+    expect_equal(
+      component_sd[active, component],
+      sd_total[active] * sqrt(proportions[active, component]),
+      tolerance = 1e-12,
+      info = component
+    )
+  }
+})
+
+
+test_that("BMA.mv gated totals equal I_j w_j tau^2 without renormalizing", {
+
+  # The self-consistency checks above still hold if the implementation
+  # renormalized the Dirichlet weights over the active gates. Pin the
+  # documented rule against the internal coordinates instead: the slab total
+  # SD, the raw Dirichlet weights, and the gates.
+  samples    <- .get_posterior_samples(fit_bma_mv[["fit"]])
+  allocation <- .bma_mv_root_allocation(fit_bma_mv)
+  components <- allocation[["component_labels"]]
+  gate_names <- .bma_mv_random_gate_names(fit_bma_mv)
+
+  slab_sd <- as.numeric(samples[, allocation[["scale_name"]]])
+  weights <- as.matrix(samples[, paste0(
+    allocation[["weight_name"]], "[", seq_along(components), "]"
+  ), drop = FALSE])
+  gates <- as.matrix(samples[, gate_names[components], drop = FALSE])
+  dimnames(weights) <- NULL
+  dimnames(gates) <- NULL
+
+  sd_total <- .bma_mv_parameter_draws(fit_bma_mv, "(mu) sd_total")
+  component_sd <- vapply(components, function(component) {
+    .bma_mv_parameter_draws(
+      fit_bma_mv,
+      paste0("(mu) ", component, ": sd(intercept)")
+    )
+  }, numeric(nrow(samples)))
+  proportions <- vapply(components, function(component) {
+    .bma_mv_parameter_draws(
+      fit_bma_mv,
+      paste0("(mu) var_prop(", component, ")")
+    )
+  }, numeric(nrow(samples)))
+
+  # Each component SD is the slab SD scaled by its own gate and raw weight.
+  for (i in seq_along(components)) {
+    expect_equal(
+      unname(component_sd[, i]),
+      slab_sd * gates[, i] * sqrt(weights[, i]),
+      tolerance = 1e-12,
+      info = components[[i]]
+    )
+  }
+
+  # The realized total is the un-renormalized gated sum.
+  gated_variance <- rowSums(gates * weights) * slab_sd^2
+  expect_equal(sd_total^2, gated_variance, tolerance = 1e-12)
+
+  # Renormalization would make the total equal the slab variance whenever any
+  # gate is on. It must not, and the discrepancy must be a real one.
+  some_on <- rowSums(gates) > 0
+  partial <- some_on & rowSums(gates) < length(components)
+  expect_true(any(partial))
+  expect_true(all(sd_total[partial]^2 < slab_sd[partial]^2))
+  expect_gt(max(abs(sd_total[partial]^2 - slab_sd[partial]^2)), 1e-6)
+
+  # Shares are the realized gated weights, not the raw Dirichlet weights.
+  for (i in seq_along(components)) {
+    expect_equal(
+      unname(proportions[some_on, i]),
+      (gates[, i] * weights[, i] / rowSums(gates * weights))[some_on],
+      tolerance = 1e-12,
+      info = components[[i]]
+    )
+  }
+})
+
+
+test_that("BMA.mv allocation densities preserve gate-defined atoms", {
+
+  total <- .brma_random_parameter_mixed_posterior(
+    fit_bma_mv,
+    "tau_total",
+    prior           = TRUE,
+    n_prior_samples = 2000L,
+    seed            = 732L
+  )[[1L]]
+  total_posterior_atoms <- attr(total, "posterior_atoms", exact = TRUE)
+  total_prior <- attr(total, "prior_density", exact = TRUE)
+  expect_equal(unname(total_posterior_atoms[["locations"]][, 1L]), 0)
+  expect_equal(total_prior[["points"]][["x"]], 0)
+  expect_equal(total_prior[["points"]][["p"]], 0.25)
+  expect_equal(total_prior[["density"]][["mass"]], 0.75)
+
+  proportion <- .brma_random_parameter_mixed_posterior(
+    fit_bma_mv,
+    "tau2_prop(study)",
+    prior           = TRUE,
+    n_prior_samples = 2000L,
+    seed            = 733L
+  )[[1L]]
+  proportion_posterior_atoms <- attr(
+    proportion,
+    "posterior_atoms",
+    exact = TRUE
+  )
+  proportion_prior <- attr(proportion, "prior_density", exact = TRUE)
+  expect_equal(
+    unname(proportion_posterior_atoms[["locations"]][, 1L]),
+    c(0, 1)
+  )
+  expect_equal(proportion_prior[["points"]][["x"]], c(0, 1))
+  expect_equal(proportion_prior[["points"]][["p"]], c(1 / 3, 1 / 3))
+  expect_equal(proportion_prior[["density"]][["mass"]], 1 / 3)
+
+  expect_s3_class(
+    plot(
+      fit_bma_mv,
+      "tau_total",
+      prior     = TRUE,
+      plot_type = "ggplot"
+    ),
+    "ggplot"
+  )
+  expect_s3_class(
+    plot(
+      fit_bma_mv,
+      "tau2_prop(study)",
+      prior     = TRUE,
+      plot_type = "ggplot"
+    ),
+    "ggplot"
+  )
+
+  for (parameter in c("tau_total", "tau2_prop(study)")) {
+    expect_error(
+      hypothesis(
+        fit_bma_mv,
+        paste0("`", parameter, "` = 0"),
+        density_method = "KDE"
+      ),
+      "realized allocation distribution contains structural point masses",
+      fixed = TRUE,
+      info = parameter
+    )
+  }
+
+  quantities <- hypothesis_quantities(fit_bma_mv)
+  gated <- quantities[["component"]] == "random" &
+    quantities[["parameter"]] %in% c(
+      "(mu) tau_total",
+      "(mu) tau2_total",
+      "(mu) tau2_prop(study)",
+      "(mu) tau2_prop(observation)"
+    )
+  expect_true(any(gated))
+  expect_true(all(!quantities[["point_test"]][gated]))
+  expect_true(all(quantities[["direction_test"]][gated]))
+})
+
+
+test_that("BMA.mv model tables include independent random gates", {
+
+  marginal <- summary_models(
+    fit_bma_mv,
+    type                     = "marginal",
+    include_mcmc_diagnostics = FALSE
+  )
+  individual <- summary_models(
+    fit_bma_mv,
+    type                     = "individual",
+    include_mcmc_diagnostics = FALSE
+  )[["individual"]]
+
+  expect_named(
+    marginal[["marginal"]],
+    c(
+      "Effect", "Location: x", "Heterogeneity Slab",
+      "Random: study", "Random: observation"
+    )
+  )
+  expect_equal(
+    marginal[["marginal"]][["Heterogeneity Slab"]][["prior_prob"]],
+    c(0.6, 0.4)
+  )
+  expect_equal(nrow(individual), 32L)
+  expect_equal(
+    sort(unique(individual[["prior_prob"]])),
+    c(0.025, 0.0375)
+  )
+  expect_equal(sum(individual[["post_prob"]]), 1, tolerance = 1e-12)
+  expect_equal(
+    sort(unique(individual[["Random: study"]])),
+    c("Excluded", "Included")
+  )
+  expect_equal(
+    sort(unique(individual[["Random: observation"]])),
+    c("Excluded", "Included")
+  )
+})
+
+
+test_that("BMA.mv model tables omit fixed random gates", {
+
+  prior_list <- attr(fit_bma_mv[["fit"]], "prior_list", exact = TRUE)
+  gate_names <- .bma_mv_random_gate_names(fit_bma_mv)
+  gate_prior_index <- which(vapply(prior_list, function(prior) {
+    identical(
+      attr(prior, "random_allocation_indicator", exact = TRUE),
+      gate_names[["study"]]
+    )
+  }, logical(1)))
+  expect_length(gate_prior_index, 1L)
+
+  for (fixed_value in c(0, 1)) {
+    fixed_prior <- BayesTools::prior(
+      "spike",
+      parameters = list(location = fixed_value)
+    )
+    attr(fixed_prior, "random_allocation_indicator") <- gate_names[["study"]]
+    fixed_prior_list <- prior_list
+    fixed_prior_list[[gate_prior_index]] <- fixed_prior
+
+    components <- .summary_models_add_random_components(
+      components = list(),
+      object      = fit_bma_mv,
+      prior_list  = fixed_prior_list
+    )
+    expect_named(components, "Random: observation")
+  }
+})
+
+
+test_that("BMA.mv prediction and diagnostic targets remain available", {
+
+  n <- nobs(fit_bma_mv)
+  terms <- predict(
+    fit_bma_mv,
+    type               = "terms",
+    conditioning_depth = "marginal"
+  )
+  estimate <- predict(
+    fit_bma_mv,
+    type               = "estimate",
+    conditioning_depth = "marginal"
+  )
+  response <- predict(
+    fit_bma_mv,
+    type               = "response",
+    conditioning_depth = "marginal"
+  )
+  scale_conditional <- predict(
+    fit_bma_mv,
+    type        = "terms.scale",
+    conditional = TRUE,
+    quiet       = TRUE
+  )
+  fitted_estimate <- fitted(
+    fit_bma_mv,
+    type               = "estimate",
+    conditioning_depth = "estimate",
+    summary             = FALSE
+  )
+
+  expect_brma_samples_matrix(terms, n, "BMA.mv terms")
+  expect_brma_samples_matrix(estimate, n, "BMA.mv estimate")
+  expect_brma_samples_matrix(response, n, "BMA.mv response")
+  expect_named(scale_conditional, names(.bma_mv_random_gate_names(fit_bma_mv)))
+  posterior_samples <- .get_posterior_samples(fit_bma_mv[["fit"]])
+  for (component in names(scale_conditional)) {
+    gate <- .bma_mv_random_gate_names(fit_bma_mv)[[component]]
+    expect_equal(
+      nrow(scale_conditional[[component]]),
+      sum(posterior_samples[, gate] == 1),
+      info = component
+    )
+  }
+  expect_length(fitted_estimate, n)
+  expect_true(all(is.finite(fitted_estimate)))
+  expect_brma_samples_matrix(pooled_effect(fit_bma_mv), 1L, "BMA.mv pooled effect")
+  expect_brma_samples_matrix(
+    pooled_heterogeneity(fit_bma_mv, component = "total"),
+    1L,
+    "BMA.mv pooled heterogeneity"
+  )
+  pooled_total_conditional <- pooled_heterogeneity(
+    fit_bma_mv,
+    conditional = TRUE,
+    component   = "total"
+  )
+  expect_equal(
+    nrow(pooled_total_conditional),
+    sum(rowSums(posterior_samples[, .bma_mv_random_gate_names(fit_bma_mv),
+                                  drop = FALSE]) > 0)
+  )
+
+  expect_equal(dim(log_lik(fit_bma_mv)), c(nrow(terms), n))
+  expect_length(residuals(fit_bma_mv), n)
+  expect_equal(nrow(rstandard(fit_bma_mv)), n)
+  expect_equal(nrow(rstudent(fit_bma_mv)), n)
+  expect_length(hatvalues(fit_bma_mv), n)
+  expect_equal(nrow(dfbetas(fit_bma_mv)), n)
+  expect_length(dffits(fit_bma_mv), n)
+  expect_length(cooks.distance(fit_bma_mv), n)
+  expect_length(covratio(fit_bma_mv), n)
+  expect_s3_class(suppressWarnings(influence(fit_bma_mv)), "infl.brma")
+})
+
+
+test_that("BMA.mv formula and ensemble post-processing remains available", {
+
+  random_effects <- ranef(fit_bma_mv, simplify = FALSE)
+  expect_named(random_effects, c("study", "observation"))
+  expect_brma_samples_matrix(
+    ranef(fit_bma_mv, component = "total", expand = TRUE),
+    nobs(fit_bma_mv),
+    "BMA.mv total random effect"
+  )
+  expect_brma_samples_matrix(
+    true_effects(fit_bma_mv),
+    nobs(fit_bma_mv),
+    "BMA.mv true effects"
+  )
+  expect_brma_samples_matrix(
+    blup(fit_bma_mv),
+    nobs(fit_bma_mv),
+    "BMA.mv BLUP"
+  )
+
+  draws <- RoBMA::as_draws(fit_bma_mv)
+  expect_s3_class(draws, "draws")
+  expect_s3_class(RoBMA::as_draws_array(fit_bma_mv), "draws_array")
+  expect_s3_class(RoBMA::as_draws_df(fit_bma_mv), "draws_df")
+  expect_s3_class(RoBMA::as_draws_matrix(fit_bma_mv), "draws_matrix")
+  expect_s3_class(RoBMA::as_draws_rvars(fit_bma_mv), "draws_rvars")
+  # Heterogeneity gates are public under the SD they switch on, never under
+  # their internal backend coordinate names.
+  gate_names <- .bma_mv_random_gate_names(fit_bma_mv)
+  expect_false(any(gate_names %in% posterior::variables(draws)))
+  public_gates <- paste0(
+    unname(RoBMA:::.random_inclusion_sd_names(fit_bma_mv)),
+    "_indicator"
+  )
+  expect_true(length(public_gates) > 0L)
+  expect_true(all(public_gates %in% posterior::variables(draws)))
+
+  # The public columns are exact 0/1 and agree draw by draw with the raw
+  # indicator coordinates.
+  sd_names  <- RoBMA:::.random_inclusion_sd_names(fit_bma_mv)
+  raw_gates <- as.matrix(BayesTools::JAGS_materialize_draws(
+    fit_bma_mv[["fit"]],
+    parameters       = unname(names(sd_names)),
+    include_internal = TRUE
+  ))
+  draws_matrix <- posterior::as_draws_matrix(draws)
+  for (indicator in names(sd_names)) {
+    public <- as.numeric(draws_matrix[, paste0(sd_names[[indicator]], "_indicator")])
+    expect_true(all(public %in% c(0, 1)))
+    expect_identical(public, as.numeric(raw_gates[, indicator]))
+  }
+  # The allocation-SD prior indicator is public under the aggregate SD it
+  # allocates, never under its internal coordinate name. It selects a mixture
+  # component, so it takes one value per component rather than a 0/1 state.
+  prior_list  <- attr(fit_bma_mv[["fit"]], "prior_list", exact = TRUE)
+  slab_priors <- .random_slab_prior_parameters(prior_list)
+  expect_true(length(slab_priors) > 0L)
+  expect_false(any(
+    paste0(slab_priors, "_indicator") %in% posterior::variables(draws)
+  ))
+  slab_names <- RoBMA:::.random_slab_sd_names(fit_bma_mv)
+  expect_identical(unname(slab_names), "tau_total")
+  expect_true(all(
+    paste0(unname(slab_names), "_indicator") %in% posterior::variables(draws)
+  ))
+  for (indicator in names(slab_names)) {
+    components <- attr(
+      prior_list[[sub("_indicator$", "", indicator)]],
+      "components",
+      exact = TRUE
+    )
+    public <- as.numeric(draws_matrix[, paste0(slab_names[[indicator]], "_indicator")])
+    expect_true(all(public %in% seq_along(components)))
+    expect_identical(public, as.numeric(as.matrix(
+      BayesTools::JAGS_materialize_draws(
+        fit_bma_mv[["fit"]], parameters = indicator, include_internal = TRUE
+      ))[, indicator]))
+  }
+  expect_s3_class(marginal_means(fit_bma_mv, n_samples = 100L), "marginal_means.brma")
+  expect_s3_class(vif(fit_bma_mv), "vif.brma")
+  expect_s3_class(interpret(fit_bma_mv), "interpret.brma")
+  expect_s3_class(summary_heterogeneity(fit_bma_mv), "summary_heterogeneity.brma_list")
+})
+
+
+test_that("BMA.mv LOO and WAIC use the model-averaged predictive density", {
+
+  log_likelihood <- log_lik(fit_bma_mv)
+  loo_result      <- loo(fit_bma_mv)
+  weights         <- loo_weights(fit_bma_mv)
+
+  expect_s3_class(loo_result, "loo")
+  expect_equal(dim(weights), dim(log_likelihood))
+  expect_equal(colSums(weights), rep(1, nobs(fit_bma_mv)), tolerance = 1e-10)
+  expect_no_error(suppressWarnings(check_loo(fit_bma_mv)))
+
+  fit_waic <- fit_bma_mv
+  fit_waic[["waic"]] <- NULL
+  fit_waic <- suppressWarnings(add_waic(fit_waic))
+  expect_s3_class(waic(fit_waic), "waic")
+})
+
+
+test_that("BMA.mv forest and diagnostic plot data use multivariate targets", {
+
+  forest_data <- as_metafor_forest(fit_bma_mv, addpred = TRUE)
+  forest_conditional <- as_metafor_forest(
+    fit_bma_mv,
+    addpred     = TRUE,
+    conditional = TRUE
+  )
+  expect_s3_class(forest_data, "metafor_forest.brma")
+  expect_s3_class(forest_conditional, "metafor_forest.brma")
+  expect_s3_class(
+    suppressWarnings(funnel(
+      fit_bma_mv,
+      type      = "rstandard",
+      plot_type = "ggplot"
+    )),
+    "ggplot"
+  )
+  expect_s3_class(
+    suppressWarnings(qqnorm(
+      fit_bma_mv,
+      type      = "rstandard",
+      reps      = 50L,
+      plot_type = "ggplot"
+    )),
+    "ggplot"
+  )
+  expect_s3_class(
+    suppressWarnings(regplot(fit_bma_mv, mod = "x", plot_type = "ggplot")),
+    "ggplot"
+  )
+  expect_s3_class(as_zplot(fit_bma_mv), "zplot_brma")
+})
+
+
+test_that("BMA.mv random plots and hypotheses respect component gates", {
+
+  expect_s3_class(
+    plot(fit_bma_mv, "study: tau", plot_type = "ggplot"),
+    "ggplot"
+  )
+  expect_s3_class(
+    plot(
+      fit_bma_mv,
+      "study: tau",
+      conditional = TRUE,
+      plot_type    = "ggplot"
+    ),
+    "ggplot"
+  )
+  expect_s3_class(
+    hypothesis(
+      fit_bma_mv,
+      "study: tau < 0.1",
+      density_method = "KDE"
+    ),
+    "BayesTools_hypothesis_BF"
+  )
+  expect_s3_class(
+    hypothesis(
+      fit_bma_mv,
+      "study: tau < 0.1",
+      conditional    = TRUE,
+      density_method = "KDE"
+    ),
+    "BayesTools_hypothesis_BF"
+  )
+  expect_error(
+    hypothesis(
+      fit_bma_mv,
+      "study: tau != 0 vs study: tau = 0",
+      density_method = "KDE"
+    ),
+    "Component Inclusion table",
+    fixed = TRUE
+  )
+})
+
+
+test_that("BMA.mv preserves established product-space limitations", {
+
+  expect_error(add_marglik(fit_bma_mv), "model-averaging objects", fixed = TRUE)
+  expect_error(
+    bridgesampling::bridge_sampler(fit_bma_mv),
+    "model-averaging objects",
+    fixed = TRUE
+  )
+  expect_error(radial(fit_bma_mv), "models that contain moderators", fixed = TRUE)
+  expect_error(AIC(fit_bma_mv), "not defined", fixed = TRUE)
+  expect_error(BIC(fit_bma_mv), "not defined", fixed = TRUE)
+})
+
+
+test_that("BMA.mv fits can be extended without rebuilding the product space", {
+
+  n_before <- nrow(.get_posterior_samples(fit_bma_mv[["fit"]]))
+  extended <- suppressWarnings(update(
+    fit_bma_mv,
+    sample_extend     = 20L,
+    recompute         = "drop",
+    silent            = TRUE,
+    convergence_checks = set_convergence_checks(
+      max_Rhat = NULL,
+      min_ESS  = NULL
+    )
+  ))
+
+  expect_s3_class(extended, "BMA.mv")
+  expect_equal(
+    nrow(.get_posterior_samples(extended[["fit"]])),
+    n_before + 40L
+  )
+  expect_null(extended[["loo"]])
+  expect_length(
+    summary(extended, include_mcmc_diagnostics = FALSE)[["inclusion_random"]][["post_prob"]],
+    2L
+  )
+})

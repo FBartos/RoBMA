@@ -66,8 +66,79 @@ test_that("GEN measure without ni is rejected", {
 
   expect_error(
     brma.norm(yi = effect, sei = std_err, data = test_data, measure = "GEN", only_priors = TRUE),
-    regexp = "ni|unit_information_sd|UISD"
+    regexp = "Sample size 'ni' or unit information sd 'unit_information_sd' must be specified"
   )
+})
+
+test_that("GEN measure accepts explicit default moderator prior without UISD", {
+
+  skip_on_cran()
+
+  explicit_effect <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 10)
+  )
+  explicit_heterogeneity <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 1),
+    truncation   = list(0, Inf)
+  )
+  explicit_mods <- BayesTools::prior_factor(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 2),
+    contrast     = "independent"
+  )
+
+  result <- brma.norm(
+    yi = effect, sei = std_err, mods = ~ 0 + mod_factor,
+    prior_effect        = explicit_effect,
+    prior_heterogeneity = explicit_heterogeneity,
+    prior_mods          = explicit_mods,
+    data = test_data, measure = "GEN", only_priors = TRUE
+  )[["priors"]]
+
+  expect_equal(result[["mods"]][["mod_factor"]][["parameters"]][["sd"]], 2)
+  expect_equal(result[["outcome"]][["tau"]][["parameters"]][["sd"]], 1)
+})
+
+test_that("GEN measure accepts fully specified named formula priors without UISD", {
+
+  skip_on_cran()
+
+  explicit_effect <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 10)
+  )
+  explicit_heterogeneity <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 1),
+    truncation   = list(0, Inf)
+  )
+  explicit_mods <- list(
+    mod_cont   = BayesTools::prior("normal", parameters = list(mean = 0, sd = 2)),
+    mod_factor = BayesTools::prior_factor(
+      distribution = "normal",
+      parameters   = list(mean = 0, sd = 3),
+      contrast     = "treatment"
+    )
+  )
+  explicit_scale <- list(
+    scale_var = BayesTools::prior("normal", parameters = list(mean = 0, sd = 4))
+  )
+
+  result <- brma.norm(
+    yi = effect, sei = std_err,
+    mods = ~ mod_cont + mod_factor, scale = ~ scale_var,
+    prior_effect        = explicit_effect,
+    prior_heterogeneity = explicit_heterogeneity,
+    prior_mods          = explicit_mods,
+    prior_scale         = explicit_scale,
+    data = test_data, measure = "GEN", only_priors = TRUE
+  )[["priors"]]
+
+  expect_equal(result[["mods"]][["mod_cont"]][["parameters"]][["sd"]], 2)
+  expect_equal(result[["mods"]][["mod_factor"]][["parameters"]][["sd"]], 3)
+  expect_equal(result[["scale"]][["scale_var"]][["parameters"]][["sd"]], 4)
 })
 
 test_that("GEN measure rejects incomplete ni for UISD defaults", {
@@ -108,18 +179,26 @@ test_that("Normal constructors require explicit measure", {
     BMA       = BMA,
     RoBMA     = RoBMA,
     bPET      = bPET,
+    bPET.mv   = bPET.mv,
     bPEESE    = bPEESE,
+    bPEESE.mv = bPEESE.mv,
     bselmodel = bselmodel
   )
 
-  for (constructor in constructors) {
+  for (constructor_name in names(constructors)) {
+    constructor <- constructors[[constructor_name]]
+    arguments <- list(
+      yi                        = test_data$effect,
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )
+    if (constructor_name %in% c("bPET.mv", "bPEESE.mv")) {
+      arguments[["V"]] <- diag(test_data$std_err^2)
+    } else {
+      arguments[["sei"]] <- test_data$std_err
+    }
     expect_error(
-      do.call(constructor, list(
-        yi                        = test_data$effect,
-        sei                       = test_data$std_err,
-        prior_unit_information_sd = 1,
-        only_priors               = TRUE
-      )),
+      do.call(constructor, arguments),
       regexp = "requires explicit 'measure'"
     )
   }
@@ -337,14 +416,15 @@ test_that("selection backend consumes BayesTools omega p-order directly", {
   )
   object <- bselmodel(
     yi = effect, sei = std_err, data = test_data,
-    measure = "SMD", prior_bias = prior_bias, only_priors = TRUE
+    measure = "SMD", prior_bias = prior_bias,
+    only_priors = TRUE
   )
 
   fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
   syntax   <- .create_model_syntax(object[["data"]], object[["priors"]])
 
   expect_true(all(c(
-    "sel_z_lower", "sel_z_upper", "sel_obs_bin", "sel_sign"
+    "sel_z_lower", "sel_z_upper", "sel_joint_singleton_obs_bin", "sel_sign"
   ) %in% names(fit_data)))
   expect_false(any(grepl("sel_phack|phack_z|sel_segment|sel_kernel_mode", names(fit_data))))
   expect_match(syntax, "dselnorm_step", fixed = TRUE)
@@ -442,6 +522,30 @@ test_that("rescale_priors scales prior distributions", {
       regexp = "rescale_priors"
     )
   ))
+})
+
+test_that("rescale_priors reports unsupported prior distributions once", {
+
+  skip_on_cran()
+
+  unsupported <- BayesTools::prior("gamma", parameters = list(shape = 1, rate = 1))
+
+  message <- tryCatch(
+    brma.norm(
+      yi             = effect,
+      sei            = std_err,
+      data           = test_data,
+      measure        = "SMD",
+      prior_effect   = unsupported,
+      rescale_priors = 2,
+      only_priors    = TRUE
+    ),
+    error = conditionMessage
+  )
+
+  expect_match(message, "The 'gamma' prior distribution cannot be rescaled", fixed = TRUE)
+  expect_match(message, "'normal', 'mnormal', 'cauchy', 'mcauchy', 't', 'mt', 'invgamma'", fixed = TRUE)
+  expect_equal(length(gregexpr("prior distribution cannot be rescaled", message, fixed = TRUE)[[1]]), 1L)
 })
 
 
@@ -561,6 +665,15 @@ test_that("Conflicting prior specifications are rejected", {
       regexp = "prior_informed_field"
     ),
     list(
+      label  = "informed-prior subfield without field",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, data = test_data,
+        measure = "SMD",
+        prior_informed_subfield = "neonatal", only_priors = TRUE
+      )),
+      regexp = "prior_informed_subfield.*prior_informed_field"
+    ),
+    list(
       label  = "UISD conflicts with informed priors",
       expr   = quote(brma.norm(
         yi = effect, sei = std_err, data = test_data,
@@ -655,6 +768,133 @@ test_that("Constrained point priors outside support are rejected", {
 # ============================================================================
 # Tests for moderator and scale priors
 # ============================================================================
+
+lazy_default_formula_data <- function(formula) {
+
+  brma.norm(
+    yi = effect, sei = std_err, mods = formula,
+    data = test_data, measure = "SMD", only_data = TRUE
+  )[["data"]]
+}
+
+expect_lazy_default_calls <- function(formula, continuous, factor) {
+
+  calls <- new.env(parent = emptyenv())
+  calls[["continuous"]] <- 0L
+  calls[["factor"]]     <- 0L
+
+  continuous_default <- .term_default_continuous_normal_prior
+  factor_default     <- .term_default_factor_normal_prior
+
+  testthat::local_mocked_bindings(
+    .term_default_continuous_normal_prior = function(prior_sd, rescale_priors) {
+
+      calls[["continuous"]] <- calls[["continuous"]] + 1L
+      continuous_default(prior_sd = prior_sd, rescale_priors = rescale_priors)
+    },
+    .term_default_factor_normal_prior = function(prior_sd, contrast, rescale_priors) {
+
+      calls[["factor"]] <- calls[["factor"]] + 1L
+      factor_default(
+        prior_sd       = prior_sd,
+        contrast       = contrast,
+        rescale_priors = rescale_priors
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  result <- .assign_prior_list.terms(
+    prior_list      = list(),
+    prior_intercept = BayesTools::prior("normal", parameters = list(mean = 0, sd = 1)),
+    parameter       = "mods",
+    measure         = "SMD",
+    data            = lazy_default_formula_data(formula),
+    rescale_priors  = 1
+  )
+
+  expect_equal(calls[["continuous"]], continuous)
+  expect_equal(calls[["factor"]], factor)
+  return(result)
+}
+
+test_that("Lazy moderator defaults are consumed only for missing term types", {
+
+  result_cont <- expect_lazy_default_calls(~ mod_cont, continuous = 1L, factor = 0L)
+  expect_true(BayesTools::is.prior(result_cont[["mod_cont"]]))
+
+  result_factor <- expect_lazy_default_calls(~ mod_factor, continuous = 0L, factor = 1L)
+  expect_true(BayesTools::is.prior.factor(result_factor[["mod_factor"]]))
+
+  result_mixed <- expect_lazy_default_calls(~ mod_cont + mod_factor, continuous = 1L, factor = 1L)
+  expect_true(BayesTools::is.prior(result_mixed[["mod_cont"]]))
+  expect_true(BayesTools::is.prior.factor(result_mixed[["mod_factor"]]))
+})
+
+test_that("Fully specified named moderator priors do not consume lazy defaults", {
+
+  calls <- new.env(parent = emptyenv())
+  calls[["continuous"]] <- 0L
+  calls[["factor"]]     <- 0L
+
+  testthat::local_mocked_bindings(
+    .term_default_continuous_normal_prior = function(prior_sd, rescale_priors) {
+
+      calls[["continuous"]] <- calls[["continuous"]] + 1L
+      stop("continuous default evaluated", call. = FALSE)
+    },
+    .term_default_factor_normal_prior = function(prior_sd, contrast, rescale_priors) {
+
+      calls[["factor"]] <- calls[["factor"]] + 1L
+      stop("factor default evaluated", call. = FALSE)
+    },
+    .get_unit_information_sd = function(data, measure) {
+
+      stop("UISD evaluated", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+
+  explicit_priors <- list(
+    mod_cont   = BayesTools::prior("normal", parameters = list(mean = 0, sd = 2)),
+    mod_factor = BayesTools::prior_factor(
+      distribution = "normal",
+      parameters   = list(mean = 0, sd = 3),
+      contrast     = "treatment"
+    )
+  )
+
+  result <- .assign_prior_list.terms(
+    prior_list      = explicit_priors,
+    prior_intercept = BayesTools::prior("normal", parameters = list(mean = 0, sd = 1)),
+    parameter       = "mods",
+    measure         = "GEN",
+    data            = lazy_default_formula_data(~ mod_cont + mod_factor),
+    rescale_priors  = 1
+  )
+
+  expect_equal(calls[["continuous"]], 0L)
+  expect_equal(calls[["factor"]], 0L)
+  expect_equal(result[["mod_cont"]][["parameters"]][["sd"]], 2)
+  expect_equal(result[["mod_factor"]][["parameters"]][["sd"]], 3)
+})
+
+test_that("Prior-object formula defaults still work", {
+
+  default_prior <- BayesTools::prior("normal", parameters = list(mean = 0, sd = 4))
+
+  result <- .assign_prior_list.terms(
+    prior_list      = default_prior,
+    prior_intercept = BayesTools::prior("normal", parameters = list(mean = 0, sd = 1)),
+    parameter       = "mods",
+    measure         = "SMD",
+    data            = lazy_default_formula_data(~ mod_cont + mod_factor),
+    rescale_priors  = 1
+  )
+
+  expect_equal(result[["mod_cont"]][["parameters"]][["sd"]], 4)
+  expect_equal(result[["mod_factor"]][["parameters"]][["sd"]], 4)
+})
 
 test_that("Moderator priors are assigned", {
 
@@ -794,9 +1034,10 @@ test_that("Scale priors are assigned", {
   result_smd  <- brma.norm(yi = effect, sei = std_err, scale = ~ scale_var, data = test_data, measure = "SMD",  only_priors = TRUE)[["priors"]]
   result_zcor <- brma.norm(yi = effect, sei = std_err, scale = ~ scale_var, data = test_data, measure = "ZCOR", only_priors = TRUE)[["priors"]]
 
-  if (!is.null(result_smd$scale$scale_var) && !is.null(result_zcor$scale$scale_var)) {
-    expect_equal(result_smd$scale$scale_var$parameters$sd, result_zcor$scale$scale_var$parameters$sd)
-  }
+  expect_true("scale_var" %in% names(result_smd$scale))
+  expect_true("scale_var" %in% names(result_zcor$scale))
+  expect_true(is.numeric(result_smd$scale$scale_var$parameters$sd))
+  expect_equal(result_smd$scale$scale_var$parameters$sd, result_zcor$scale$scale_var$parameters$sd)
 })
 
 
@@ -804,10 +1045,11 @@ test_that("Both mods and scale priors are assigned together", {
 
   skip_on_cran()
 
-  result <- brma.norm(
+  object <- brma.norm(
     yi = effect, sei = std_err, mods = ~ mod_cont + mod_factor, scale = ~ scale_var,
     data = test_data, measure = "SMD", only_priors = TRUE
-  )[["priors"]]
+  )
+  result <- object[["priors"]]
 
   expect_true(!is.null(result$mods))
   expect_true(!is.null(result$scale))
@@ -815,6 +1057,20 @@ test_that("Both mods and scale priors are assigned together", {
   expect_true("intercept" %in% names(result$scale))
   expect_false("mu" %in% names(result$outcome))
   expect_false("tau" %in% names(result$outcome))
+
+  formula_args <- .create_jags_formula_args(
+    data   = object[["data"]],
+    priors = object[["priors"]]
+  )
+
+  expect_named(formula_args[["formula_list"]],       c("mu", "log_tau"))
+  expect_named(formula_args[["formula_data_list"]],  c("mu", "log_tau"))
+  expect_named(formula_args[["formula_prior_list"]], c("mu", "log_tau"))
+  expect_named(formula_args[["formula_scale_list"]], c("mu", "log_tau"))
+  expect_length(formula_args[["formula_random_prior_list"]], 0L)
+  expect_length(formula_args[["formula_random_effects_compile_list"]], 0L)
+  expect_length(formula_args[["add_parameters"]], 0L)
+  expect_true(isTRUE(attr(formula_args[["formula_list"]][["log_tau"]], "log(intercept)")))
 })
 
 
@@ -833,6 +1089,13 @@ test_that("set_contrast_factor_predictors options are applied", {
     )[["priors"]]
     expect_true(any(grepl(contrast, class(result$mods[["mod_factor"]]))))
   }
+
+  result <- brma.norm(
+    yi = effect, sei = std_err, mods = ~ 0 + mod_factor, data = test_data,
+    measure = "SMD", set_contrast_factor_predictors = "independent",
+    only_priors = TRUE
+  )[["priors"]]
+  expect_s3_class(result$mods[["mod_factor"]], "prior.independent")
 
   expect_error(
     brma.norm(

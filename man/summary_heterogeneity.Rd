@@ -15,8 +15,8 @@ summary_heterogeneity(object, ...)
 Method-specific return value containing heterogeneity estimates.
 }
 \description{
-Computes the absolute heterogeneity (tau, tau^2) and
-relative measures of heterogeneity (I^2, H^2) for a fitted model.
+Computes method-specific absolute and relative heterogeneity
+summaries for a fitted model.
 }
 \seealso{
 \code{\link[=pooled_heterogeneity]{pooled_heterogeneity()}}, \code{\link[=summary.brma]{summary.brma()}}

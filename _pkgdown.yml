@@ -28,12 +28,16 @@ navbar:
         href: articles/v12-metafor-parity-location-scale.html
       - text: Generalized Linear Mixed-Effects Meta-Analysis
         href: articles/v13-metafor-parity-glmm.html
+      - text: Multivariate and Multilevel Meta-Analysis
+        href: articles/v14-metafor-parity-multivariate.html
       - text: -------
       - text: Bayesian Model Averaging
       - text: Bayesian Model Averaging
         href: articles/v20-bayesian-model-averaging.html
       - text: Robust Bayesian Meta-Analysis
         href: articles/v21-robust-bayesian-meta-analysis.html
+      - text: Posterior Densities and Parameter Tests
+        href: articles/v22-posterior-densities-parameter-tests.html
       - text: -------
       - text: Manuscript Companions
       - text: Adjusting for Publication Bias Tutorial
@@ -64,10 +68,12 @@ articles:
   - "v11-metafor-parity-publication-bias"
   - "v12-metafor-parity-location-scale"
   - "v13-metafor-parity-glmm"
+  - "v14-metafor-parity-multivariate"
 - title: Bayesian Model Averaging
   contents:
   - "v20-bayesian-model-averaging"
   - "v21-robust-bayesian-meta-analysis"
+  - "v22-posterior-densities-parameter-tests"
 - title: Manuscript Companions
   contents:
   - "v30-tutorial"
@@ -88,12 +94,18 @@ reference:
   contents:
   - brma
   - brma.glmm
+  - brma.mv
   - RoBMA
+  - RoBMA.mv
   - BMA
   - BMA.glmm
+  - BMA.mv
   - bselmodel
+  - bselmodel.mv
   - bPET
+  - bPET.mv
   - bPEESE
+  - bPEESE.mv
   - update.brma
 - title: Inputs, priors, and model specification
   contents:
@@ -102,6 +114,8 @@ reference:
   - prior_specification
   - RoBMA_prior_specification
   - publication_bias_prior_specification
+  - random_effect_formula_tags
+  - random_effect_prior_specification
   - prior
   - prior_none
   - prior_factor
@@ -109,6 +123,10 @@ reference:
   - prior_PET
   - prior_PEESE
   - prior_weightfunction
+  - prior_random
+  - selection_model
+  - known_v_factor
+  - set_selection_likelihood_control
   - estimate_unit_information_sd
   - contr.BayesTools
 - title: Summaries and estimates
@@ -135,6 +153,8 @@ reference:
   - fitted.brma
   - nobs.brma
   - predict.brma
+  - hypothesis.marginal_means.brma
+  - hypothesis_quantities
 - title: Model comparison
   contents:
   - add_marglik.brma
@@ -146,11 +166,13 @@ reference:
   - loo.brma
   - loo_compare.brma
   - loo_compare.loo
+  - loo_model_weights.brma
   - loo_weights.brma
   - check_loo.brma
   - add_waic.brma
   - waic.brma
-  - logLik.brma
+  - log_lik
+  - AIC.brma
   - reexports
 - title: Diagnostics and influence
   contents:
@@ -165,9 +187,16 @@ reference:
   - rstudent.brma
   - vif
   - vif.brma
+  - density_diagnostics
+  - selection_sensitivity_diagnostics
+  - selection_cache_info
+  - selection_sampler_info
+  - remove_selection_cache
 - title: Plots
   contents:
   - plot.brma
+  - forest.brma
+  - as_metafor_forest
   - funnel.brma
   - radial.brma
   - regplot.brma
@@ -199,6 +228,7 @@ reference:
   - Andrews2021
   - Bem2011
   - Havrankova2025
+  - Hoogeveen2023
   - Hoppen2025
   - Johnides2025
   - Kroupova2021
@@ -214,3 +244,15 @@ reference:
   - print.summary.marginal_means.brma
   - print.summary_heterogeneity.brma
   - print.vif.brma
+- title: Data frame coercion
+  contents:
+  - as.data.frame.brma
+  - as.data.frame.brma_samples
+  - as.data.frame.summary_heterogeneity.brma
+  - as.data.frame.summary_models.RoBMA
+  - as.data.frame.marginal_means.brma
+  - as.data.frame.zplot_brma
+  - as.data.frame.vif.brma
+  - as.data.frame.infl.brma
+  - as.data.frame.dfbetas.brma
+  - as.data.frame.covratio.brma

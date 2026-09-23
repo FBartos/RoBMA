@@ -1,0 +1,10 @@
+
+Bayesian Multivariate Random-Effects Model (k = 100)
+
+Estimates
+                       Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu                    0.411 0.114 0.178 0.412 0.632     0.00350          0.031 1066 1.001
+tau_total             0.540 0.071 0.421 0.532 0.702     0.00198          0.028 1312 1.004
+tau2_prop(esid_study) 0.400 0.106 0.206 0.394 0.616     0.00270          0.025 1585 1.006
+tau2_prop(study)      0.600 0.106 0.384 0.606 0.794     0.00270          0.025 1585 1.006
+

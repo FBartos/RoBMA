@@ -31,6 +31,8 @@ bselmodel(
   prior_informed_subfield,
   effect_direction = "detect",
   steps,
+  selection = BayesTools::selection_model(),
+  selection_control = set_selection_likelihood_control(),
   sample = 5000,
   burnin = 2000,
   adapt = 500,
@@ -56,20 +58,28 @@ supplied for normal models.}
 \item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
 
-\item{weights}{an optional vector of positive likelihood weights. For
+\item{weights}{an optional vector of finite positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
-two-arm likelihood for one study.}
+two-arm likelihood for one study. An integer weight \eqn{w} repeats that
+conditional likelihood contribution \eqn{w} times, with the declared
+latent-effect and grouping structure held fixed. Positive fractional
+likelihood powers are also supported.}
 
-\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
-or when estimating \code{"UISD"}).}
+\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
+when estimating the unit information standard deviation.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
-location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}
+and supports explicit columns and standard formula operators. Precompute
+transformed predictors as columns in \code{data}; inline calls such as \code{I()},
+\code{poly()}, spline constructors, and user functions are not supported.}
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}
@@ -94,19 +104,25 @@ functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
 
 \item{prior_heterogeneity}{prior distribution for the heterogeneity (\eqn{\tau})
 parameter. If omitted, a default prior is constructed. In single-model
-functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
+functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero. For
+\code{\link{brma.mv}} random-effect formulas, this can also be a partial or
+complete \code{\link{prior_random}} object; see
+\code{\link{random_effect_prior_specification}}.}
 
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used.}
+priors. If omitted or \code{NULL}, default priors are used. This argument can be
+specified only when \code{mods} is specified.}
 
 \item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used.}
+priors. If omitted or \code{NULL}, default priors are used. This argument can be
+specified only when \code{scale} is specified.}
 
 \item{prior_heterogeneity_allocation}{prior distribution for the fraction of
 heterogeneity allocated to the cluster-level component in multilevel models
-(\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}.}
+(\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}. This argument
+can be specified only when \code{cluster} is specified.}
 
 \item{prior_bias}{selection-model bias prior, usually created by
 \code{prior_weightfunction()}. If omitted or \code{NULL}, a default
@@ -116,8 +132,14 @@ one-sided weightfunction prior is constructed from \code{steps}.}
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults are constructor-specific and shown in each function usage; single-model
-constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
+Defaults are constructor-specific and shown in each function usage. Single-model
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.
+Accepted values are \code{"treatment"}, \code{"meandif"}, \code{"orthonormal"}, and
+\code{"independent"}. Independent coding creates one coefficient per factor
+level. Random-coefficient blocks reuse the resolved fixed-factor contrast
+unless \code{random_block(contrasts = ...)} overrides it. A warning is issued
+when default or inherited independent contrasts make a fixed or random
+design overspecified.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
@@ -131,8 +153,8 @@ default PEESE prior's UISD adjustment. Defaults to 1.}
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Omit to use the field-specific default, such as \code{"Cochrane"} for
-\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
+Can only be specified together with \code{prior_informed_field}. Omit to use the
+field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 
 \item{effect_direction}{direction used by publication-bias adjustments.
 \code{"positive"} assumes statistically significant positive estimates are more
@@ -143,6 +165,22 @@ likely to be selected; \code{"negative"} mirrors the selection direction;
 default selection model. If \code{prior_bias} is supplied, the prior carries its
 own side, steps, and weights. If omitted, the default is \code{0.025}, yielding
 intervals \verb{[0, .025]} and \verb{(.025, 1]}.}
+
+\item{selection}{specification created by \code{\link[=selection_model]{selection_model()}} for
+automatically constructed weightfunction priors. The default integrates
+estimate-level random effects and the complete sampling error, and conditions
+on other random effects. Each source can instead be conditioned upon or
+integrated through the corresponding selection-model setting. The default
+\code{weight_rule = "product"} needs no publication groups and ignores \code{group}.
+Publication grouping is active only for \code{weight_rule = "best"}. Explicit
+\code{prior_bias} objects retain their own selection specification; this argument
+does not overwrite it. Conditioning on sampling variation retains the entire
+sampling-error realization, including in ordinary univariate models.
+This sampling setting requires omitted or unit observation \code{weights}.}
+
+\item{selection_control}{numerical integration settings created by
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. These affect numerical evaluation,
+without changing the conditioning model or the vector weighting rule.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
@@ -165,9 +203,8 @@ Defaults to \code{FALSE}.}
 
 \item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
 
-\item{silent}{logical. Whether to suppress output. Constructors with no
-explicit default use \code{RoBMA.get_option("silent")} when \code{silent} is omitted.
-Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
+\item{silent}{logical. Whether to suppress output. When omitted,
+constructors use \code{RoBMA.get_option("silent")}.}
 
 \item{...}{additional advanced arguments. Fitting functions reject unused
 arguments; currently recognized internal arguments include \code{only_data},
@@ -185,6 +222,29 @@ and location-scale meta-analytic selection models.
 \code{bselmodel()} is a normal/effect-size selection-model constructor. Custom
 \code{prior_bias} can be a weightfunction prior or a supported BayesTools
 selection-kernel prior; p-hacking kernels are not supported in active RoBMA.
+By default, the model conditions on contextual cluster effects and uses
+the product of estimate weights. For independent rows conditional on these
+effects, this gives the usual selected-normal likelihood with within-cluster
+heterogeneity integrated. Use \code{selection = selection_model(...)} to choose
+\code{weight_rule = "best"}, which uses the weight at the smallest p-value in
+each publication group. For \code{"best"}, \code{group} identifies a data column;
+when \code{group = NULL}, the specialized \code{cluster} argument supplies publication
+groups, or an unclustered model uses one group per estimate. Product models
+use neither input to define selection groups.
+
+All conditioning choices use the same Gaussian source model. Conditioned
+sources remain latent; their population distributions stay outside selection
+normalization. Integrated sources may be reweighted by selection. With all
+sources conditioned and positive weights, the weights cancel and the
+observed law is the ordinary Gaussian model. See \code{\link[=bselmodel.mv]{bselmodel.mv()}} for the
+complete source and covariance contract.
+
+Product normalizers factorize only for conditionally independent
+rows. Dependent events use supported covariance-factor quadrature or fixed
+randomized quasi-Monte Carlo integration with explicit error diagnostics.
+Non-unit observation \code{weights} require
+\code{known_sampling_variance = "integrate"} and independent product factors.
+Unit weights are equivalent to omitting \code{weights}.
 }
 \examples{
 \dontrun{

@@ -53,7 +53,14 @@ nobs.brma <- function(object, ...) {
 #' @seealso [summary.brma()]
 #' @export
 coef.brma <- function(object, ...) {
-  return(object[["coefficients"]])
+
+  coefficients        <- object[["coefficients"]]
+  names(coefficients) <- .location_repair_intercept_labels(
+    labels = names(coefficients),
+    object = object
+  )
+
+  return(coefficients)
 }
 
 
@@ -68,9 +75,10 @@ coef.brma <- function(object, ...) {
 #' \code{"marginal"} uses fixed effects only, \code{"cluster"} conditions on
 #' cluster-level random effects, and \code{"estimate"} conditions on the full
 #' estimate-level fitted value.
-#' @param component fitted component to return. \code{"location"} returns
-#' location fitted values, \code{"scale"} returns fitted heterogeneity
-#' \eqn{\tau_i}, and \code{"all"} returns both as a named list.
+#' @param component fitted component to return. \code{"location"} (alias
+#' \code{"mods"}) returns location fitted values, \code{"scale"} returns
+#' fitted heterogeneity \eqn{\tau_i}, and \code{"all"} returns both as a
+#' named list.
 #' @param bias_adjusted whether location fitted values should adjust for
 #' publication bias. Defaults to \code{FALSE}.
 #' @param conditional whether to return fitted values from conditional posterior
@@ -114,7 +122,7 @@ fitted.brma <- function(object, unit = "estimate",
 
   unit                         <- .normalize_unit(unit)
   conditioning_depth           <- .normalize_conditioning_depth(conditioning_depth)
-  component                    <- match.arg(component, c("location", "scale", "all"))
+  component                    <- .fitted_component_normalize(component)
 
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
   BayesTools::check_bool(conditional, "conditional")
@@ -204,7 +212,7 @@ fitted.brma <- function(object, unit = "estimate",
   pred_type <- switch(conditioning_depth,
     "marginal" = "terms",
     "cluster"  = "cluster",
-    "estimate" = "estimate"
+    "estimate" = "blup"
   )
 
   samples <- predict.brma(
@@ -218,10 +226,7 @@ fitted.brma <- function(object, unit = "estimate",
     quiet          = quiet
   )
 
-  out <- colMeans(as.matrix(samples))
-  out <- .diagnostic_set_names(out, object)
-
-  return(out)
+  return(.fitted_brma_col_means(samples, object))
 }
 
 
@@ -234,6 +239,18 @@ fitted.brma <- function(object, unit = "estimate",
     conditional = conditional,
     quiet       = quiet
   )
+
+  if (is.list(samples) && !is.data.frame(samples)) {
+    out <- lapply(samples, .fitted_brma_col_means, object = object)
+    names(out) <- names(samples)
+    return(out)
+  }
+
+  return(.fitted_brma_col_means(samples, object))
+}
+
+
+.fitted_brma_col_means <- function(samples, object) {
 
   out <- colMeans(as.matrix(samples))
   out <- .diagnostic_set_names(out, object)
@@ -266,35 +283,50 @@ pooled_effect <- function(object, ...) {
 
 #' @title Pooled Effect Size for brma Objects
 #'
-#' @description Computes the pooled (aggregated) effect size estimate
-#' from a fitted brma object by averaging across the moderator model matrix.
+#' @description Computes the pooled effect and prediction interval at the
+#' average expanded moderator design of a fitted brma object.
 #'
 #' @param object a fitted brma object
 #' @param bias_adjusted whether to adjust for publication bias. Defaults to
 #' \code{TRUE}. For PET/PEESE models this removes the regression bias term from
 #' the pooled location effect. Selection-model weighting affects response
-#' predictions, not this \code{type = "terms"} wrapper.
+#' predictions, not this fixed-location posterior summary.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
 #' @param conditional whether to return the pooled effect conditional on the
 #' effect component for RoBMA product-space objects. Defaults to \code{FALSE}.
 #' @inheritParams predict.brma
-#' @param ... additional arguments passed to \code{\link{predict.brma}}; wrapper
-#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.
+#' @param ... reserved for internal posterior-sample reuse.
 #'
 #' @details
-#' This function is a convenience wrapper around \code{predict.brma(...,
-#' type = "terms", newdata = TRUE, bias_adjusted = TRUE, quiet = TRUE)}.
+#' This function evaluates the fixed-location model at the average expanded
+#' moderator design. Because the location predictor is linear in its design,
+#' this equals averaging its fitted-design posterior draws directly.
 #'
 #' For meta-regression models, the pooled effect averages the effect size
 #' estimate across moderator levels proportionately to the levels observed
 #' in the data. This provides an estimate representative of the sample of
 #' studies.
 #'
-#' For models without moderators, this returns the single mu parameter.
+#' For \code{brma.mv()} models and models with factor-specific or random-slope
+#' terms, the average expanded design can be synthetic and need not correspond
+#' to a single realizable outcome or study. The pooled effect and its prediction
+#' interval then describe that linear composite and should be interpreted only
+#' when the composite has a meaningful scientific interpretation. Use
+#' \code{predict(..., newdata = ...)} for a specified realizable design.
+#'
+#' For models without moderators, this returns the single mu parameter. The
+#' prediction interval is marginal over one new true effect at the same average
+#' location, scale, and random-effect design. It therefore uses
+#' \code{pooled_heterogeneity()}, not the observed-design RMS heterogeneity
+#' reported by \code{summary_heterogeneity()}. For known-\eqn{R} random
+#' effects this is a unit-kernel reference interval; use \code{predict()} for
+#' an interval tied to a fitted group and its known covariance multiplier.
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
-#' displays a summary table. Use \code{summary()} to obtain the summary table directly.
+#' displays a one-row summary table whose \code{PI} columns contain posterior
+#' prediction quantiles. Use \code{summary()} or \code{as.data.frame()} to
+#' obtain the table directly.
 #' The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
@@ -319,27 +351,93 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
                                output_measure = NULL, transform = NULL,
                                probs = c(.025, .975),
                                conditional = FALSE, ...) {
-  out <- predict.brma(
-    object         = object,
-    newdata        = TRUE,
-    type           = "terms",
-    output_measure = output_measure,
-    transform      = transform,
-    probs          = probs,
-    bias_adjusted  = bias_adjusted,
-    conditional    = conditional,
-    quiet          = TRUE,
-    ...
+  dots <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = ".posterior_samples",
+    caller  = "pooled_effect.brma()"
   )
-  attr(out, "title") <- .effect_output_title(
-    title            = if (conditional) {
-      "Conditional Pooled Effect Size"
+  BayesTools::check_bool(bias_adjusted, "bias_adjusted")
+  BayesTools::check_bool(conditional, "conditional")
+  if (conditional && !.is_RoBMA(object)) {
+    stop("'conditional' pooled effects are available only for RoBMA objects.",
+         call. = FALSE)
+  }
+
+  data              <- object[["data"]]
+  priors            <- object[["priors"]]
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    dots[[".posterior_samples"]]
+  )
+  mu_samples <- .evaluate.brma.mu(
+    fit               = object[["fit"]],
+    outcome_data      = data[["outcome"]],
+    mods_data         = data[["mods"]],
+    mods_formula      = if (.is_mods(object)) {
+      .create_fit_formula_list(data = data, "mods")
     } else {
-      "Pooled Effect Size"
+      NULL
     },
-    effect_transform = attr(out, "effect_transform")
+    mods_priors       = if (.is_random(object)) {
+      priors[["location"]]
+    } else {
+      priors[["mods"]]
+    },
+    is_mods           = .is_mods(object),
+    is_PET            = .is_PET(object),
+    is_PEESE          = .is_PEESE(object),
+    effect_direction  = .effect_direction(object),
+    bias_adjusted     = bias_adjusted,
+    K                 = nrow(data[["outcome"]]),
+    posterior_samples = posterior_samples,
+    priors            = priors
   )
-  return(out)
+  samples <- matrix(rowMeans(mu_samples), ncol = 1L)
+  colnames(samples) <- "mu"
+
+  tau_samples <- .pooled_heterogeneity_total_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  prediction_samples <- .with_preserved_rng(matrix(
+    stats::rnorm(
+      n    = nrow(samples),
+      mean = samples[, 1L],
+      sd   = tau_samples[, 1L]
+    ),
+    ncol     = 1L,
+    dimnames = list(NULL, "mu")
+  ))
+
+  chain_info <- .brma_samples_chain_info(
+    fit       = object[["fit"]],
+    n_samples = nrow(posterior_samples)
+  )
+  effect_transform <- .effect_output_setup(
+    object         = object,
+    output_measure = output_measure,
+    transform      = transform
+  )
+  out <- .new_effect_brma_samples(
+    samples            = samples,
+    n_chains           = chain_info[["n_chains"]],
+    n_iter             = chain_info[["n_iter"]],
+    title              = "Pooled Effect Size",
+    component          = "location",
+    probs              = probs,
+    data               = NULL,
+    effect_transform   = effect_transform,
+    prediction_samples = prediction_samples
+  )
+  return(.condition_prediction_samples(
+    object            = object,
+    samples           = out,
+    conditional       = conditional,
+    parameters        = .conditional_effect_parameters(object),
+    posterior_samples = posterior_samples,
+    quiet             = TRUE
+  ))
 }
 
 
@@ -349,8 +447,8 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
 
 #' @title Pooled Heterogeneity
 #'
-#' @description Computes the pooled (aggregated) heterogeneity estimate (tau)
-#' from a fitted model.
+#' @description Computes method-specific pooled (aggregated) heterogeneity from
+#' a fitted model.
 #'
 #' @param object a fitted model object
 #' @param ... additional arguments passed to methods
@@ -367,8 +465,8 @@ pooled_heterogeneity <- function(object, ...) {
 
 #' @title Pooled Heterogeneity for brma Objects
 #'
-#' @description Computes the pooled (aggregated) heterogeneity estimate (tau)
-#' from a fitted brma object by averaging across the scale model matrix.
+#' @description Computes heterogeneity (tau) at the average expanded scale and
+#' random-effect design of a fitted brma object.
 #'
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior distribution to be displayed.
@@ -376,25 +474,54 @@ pooled_heterogeneity <- function(object, ...) {
 #' @param conditional whether to return the pooled heterogeneity conditional on
 #' the heterogeneity component for RoBMA product-space objects. Defaults to
 #' \code{FALSE}.
-#' @param ... additional arguments passed to \code{\link{predict.brma}}; wrapper
-#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.
+#' @param component heterogeneity component to return for \code{brma.mv()}
+#' models. Defaults to \code{"all"}. Use \code{"total"} for the
+#' variance-additive total heterogeneity.
+#' @param ... reserved for internal posterior-sample forwarding.
 #'
 #' @details
-#' This function is a convenience wrapper around \code{predict.brma(...,
-#' type = "terms.scale", newdata = TRUE)}.
-#'
-#' For location-scale models (with scale regression), the pooled heterogeneity
-#' averages tau across the scale model matrix proportionately to the levels
-#' observed in the data.
+#' For location-scale models, the function averages the fitted log-scale linear
+#' predictor and then applies the inverse link. This is heterogeneity at the
+#' average expanded scale design, rather than RMS heterogeneity across observed
+#' rows. Use \code{summary_heterogeneity()} for the latter.
 #'
 #' For models without scale regression, this returns the single tau parameter.
 #'
 #' For multilevel (3-level) models, the returned tau is the total heterogeneity:
 #' \code{tau = sqrt(tau_within^2 + tau_between^2)}.
 #'
+#' For \code{brma.mv()} models, one ordinary selected component is named
+#' \code{tau}; a genuine variance-additive total is named \code{tau_total}; and a
+#' mean-variance allocation anchor is named \code{tau_common}. These quantities
+#' are available when a random formula is declared. For random-formula models,
+#' \code{component = "all"}
+#' returns one \code{brma_samples} object when there is a single heterogeneity
+#' component and a named list when there are multiple components.
+#' \code{component = "total"} computes the variance-additive total at the
+#' average random-effect design. Random slopes are evaluated as
+#' \eqn{\bar q^T G \bar q}. With a known group covariance \eqn{R}, the
+#' reported \code{sd} is the fitted multiplier of that kernel. It need not equal
+#' every row's marginal standard deviation when \eqn{\mathrm{diag}(R)} is not
+#' one. Row-specific marginal standard deviations are available from
+#' \code{predict(type = "terms.scale")}.
+#'
+#' For \code{brma.mv()} models and models with factor-specific or random-slope
+#' terms, the average expanded random-effect design can be synthetic and need
+#' not correspond to a single realizable outcome or study. The result is the
+#' heterogeneity of that linear composite, not typical heterogeneity across the
+#' observed designs. Interpret it only when the composite has a meaningful
+#' scientific interpretation; use \code{summary_heterogeneity()} for
+#' observed-design heterogeneity or \code{predict(..., newdata = ...)} for a
+#' specified realizable design.
+#'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
-#' displays a summary table. Use \code{summary()} to obtain the summary table directly.
-#' The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
+#' displays a summary table. For decomposed \code{brma.mv()} models, a named
+#' list of \code{brma_samples} objects is returned. Use \code{summary()} on an
+#' individual object or \code{as.data.frame()} on the complete result to obtain
+#' a summary data frame with component and parameter identifiers. Use
+#' \code{as.data.frame(format = "list")} to retain separate component tables.
+#' The samples can be converted to \pkg{posterior} draws formats using
+#' \code{as_draws()}.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -415,22 +542,94 @@ pooled_heterogeneity <- function(object, ...) {
 #' @seealso [predict.brma()], [pooled_effect()], [blup()]
 #' @export
 pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
-                                      conditional = FALSE, ...) {
-  out <- predict.brma(
-    object      = object,
-    newdata     = TRUE,
-    type        = "terms.scale",
-    probs       = probs,
-    conditional = conditional,
-    quiet       = TRUE,
-    ...
-  )
-  attr(out, "title") <- if (conditional) {
-    "Conditional Pooled Heterogeneity"
-  } else {
-    "Pooled Heterogeneity"
+                                      conditional = FALSE, component = "all",
+                                      ...) {
+  BayesTools::check_bool(conditional, "conditional")
+  if (conditional && !.is_RoBMA(object)) {
+    stop("'conditional' pooled heterogeneity is available only for RoBMA objects.",
+         call. = FALSE)
   }
-  return(out)
+  if (inherits(object, "brma.mv")) {
+    return(
+      .pooled_heterogeneity_brma_mv(
+        object      = object,
+        probs       = probs,
+        conditional = conditional,
+        component   = component,
+        ...
+      )
+    )
+  }
+
+  .check_univariate_heterogeneity_component(component)
+
+  dots <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = ".posterior_samples",
+    caller  = "pooled_heterogeneity.brma()"
+  )
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    dots[[".posterior_samples"]]
+  )
+  samples <- .pooled_heterogeneity_total_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  colnames(samples) <- "tau"
+
+  chain_info <- .brma_samples_chain_info(
+    fit       = object[["fit"]],
+    n_samples = nrow(posterior_samples)
+  )
+  out <- .new_brma_samples(
+    samples   = samples,
+    n_chains  = chain_info[["n_chains"]],
+    n_iter    = chain_info[["n_iter"]],
+    title     = "Pooled Heterogeneity",
+    component = "heterogeneity",
+    probs     = probs,
+    data      = NULL
+  )
+  return(.condition_prediction_samples(
+    object            = object,
+    samples           = out,
+    conditional       = conditional,
+    parameters        = .conditional_heterogeneity_parameters(object),
+    posterior_samples = posterior_samples,
+    quiet             = TRUE
+  ))
+}
+
+
+.pooled_heterogeneity_total_samples <- function(object, posterior_samples) {
+
+  if (inherits(object, "brma.mv")) {
+    components <- .pooled_brma_mv_heterogeneity_components(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
+    return(.total_brma_mv_heterogeneity_samples(components))
+  }
+
+  tau_result <- .evaluate.brma.pooled_tau(
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (.is_scale(object)) {
+      .create_fit_formula_list(data = object[["data"]], "scale")
+    } else {
+      NULL
+    },
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = .is_scale(object),
+    is_multilevel     = .is_multilevel(object),
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
+  )
+
+  return(tau_result[["tau_total"]])
 }
 
 
@@ -477,7 +676,9 @@ blup <- function(object, ...) {
 #'
 #' @details
 #' This function is a convenience wrapper around \code{predict.brma(...,
-#' type = "effect", newdata = NULL)}.
+#' type = "blup", newdata = NULL)}. Unlike \code{predict(..., type =
+#' "estimate", conditioning_depth = "estimate")}, it returns conditional
+#' location/BLUP means rather than adding conditional latent-effect uncertainty.
 #'
 #' For unweighted two-level normal models, true effects are computed using
 #' empirical Bayes shrinkage:
@@ -497,7 +698,8 @@ blup <- function(object, ...) {
 #' empirical-Bayes true-effect summaries with one column per estimate. For
 #' existing normal data, these are conditional BLUP means, not simulated
 #' latent-effect draws. When printed, displays a summary table. Use
-#' \code{summary()} to obtain the summary table directly. The samples can be
+#' \code{summary()} or \code{as.data.frame()} to obtain the summary table
+#' directly. The samples can be
 #' converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
@@ -525,7 +727,7 @@ blup.brma <- function(object, bias_adjusted = FALSE,
   out <- predict.brma(
     object         = object,
     newdata        = NULL,
-    type           = "effect",
+    type           = "blup",
     output_measure = output_measure,
     transform      = transform,
     probs          = probs,
@@ -579,7 +781,8 @@ true_effects <- function(object, ...) {
 #' empirical-Bayes true-effect summaries with one column per estimate. For
 #' existing normal data, these are conditional BLUP means, not simulated
 #' latent-effect draws. When printed, displays a summary table. Use
-#' \code{summary()} to obtain the summary table directly. The samples can be
+#' \code{summary()} or \code{as.data.frame()} to obtain the summary table
+#' directly. The samples can be
 #' converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
@@ -648,6 +851,20 @@ ranef <- function(object, ...) {
 #' \code{FALSE}. See \code{\link{blup.brma}} for details.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
+#' @param component random-effect component to return. Defaults to
+#' \code{"all"}. For decomposed models, use a component name such as
+#' \code{"cluster"}, \code{"estimate"}, or a \code{brma.mv()} random-effect
+#' block name. Use \code{"total"} for the summed random-effect deviation.
+#' @param simplify whether \code{component = "all"} should return a single
+#' \code{brma_samples} object instead of a one-element list. Defaults to
+#' \code{TRUE}, matching standard 2-level \code{brma()} behavior.
+#' @param expand whether to repeat random-effect contributions for every fitted
+#' observation. Defaults to \code{FALSE}, returning one column per unique
+#' grouping-level contribution in the fitted grouping order used by
+#' \code{metafor::ranef()}. Nested groups follow their original outer-to-inner
+#' order. Indicator-coded random coefficients retain one column per observed
+#' grouping-level and coefficient combination. Set to \code{TRUE} for
+#' observation-aligned output.
 #' @param ... additional arguments forwarded to \code{\link{predict.brma}} for
 #' supported options such as \code{conditional}. \code{newdata}, \code{type},
 #' \code{quiet}, \code{output_measure}, and \code{transform} are controlled by
@@ -661,8 +878,8 @@ ranef <- function(object, ...) {
 #' For standard (2-level) models, returns a single \code{brma_samples}
 #' object with the estimate-level random effects.
 #'
-#' For multilevel (3-level) models, returns a list with two observation-aligned
-#' \code{brma_samples} matrices, one column per estimate row:
+#' For multilevel (3-level) models, returns a list with two
+#' \code{brma_samples} matrices:
 #' \describe{
 #'   \item{\code{cluster}}{Cluster-level random effects
 #'     (\eqn{\gamma_j \cdot \tau_{between}}), representing between-cluster
@@ -672,9 +889,24 @@ ranef <- function(object, ...) {
 #'     representing within-cluster deviations from the cluster means.}
 #' }
 #'
-#' @return For 2-level models, a \code{brma_samples} object. For 3-level
-#' models, a named list of \code{brma_samples} objects (one per variance
-#' component).
+#' For \code{brma.mv()} random-formula models, decomposes the Gaussian
+#' conditional means by random-effect block. The result is invariant to whether
+#' each block was sampled or marginalized during fitting. If there is only one
+#' block and \code{simplify = TRUE}, returns a single \code{brma_samples} object.
+#' Multiple blocks are returned in one flat list under their canonical fitted
+#' block names; no additional location layer or component-name prefix is added.
+#' Unique-level output is available when a block's contribution is constant
+#' within each grouping level or observed grouping-level and indicator-
+#' coefficient combination. Other random slopes and row-varying random-effect
+#' scales generally require \code{expand = TRUE}. Summed \code{component =
+#' "total"} output across multiple blocks also requires \code{expand = TRUE}
+#' because different blocks need not share grouping levels.
+#'
+#' @return A \code{brma_samples} object for a single selected/simplified
+#' component, or a named list of \code{brma_samples} objects for decomposed
+#' \code{component = "all"} output. Use \code{as.data.frame()} to obtain the
+#' displayed summary table in long form, or
+#' \code{as.data.frame(format = "list")} to retain separate component tables.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -695,8 +927,10 @@ ranef <- function(object, ...) {
 #' @seealso [blup.brma()], [predict.brma()], [pooled_effect()]
 #' @export
 ranef.brma <- function(object, bias_adjusted = FALSE,
-                       probs = c(.025, .975), ...) {
+                       probs = c(.025, .975), component = "all",
+                       simplify = TRUE, expand = FALSE, ...) {
 
+  BayesTools::check_bool(expand, "expand")
   dots <- list(...)
   if (!is.null(dots[["output_measure"]]) || !is.null(dots[["transform"]])) {
     stop(
@@ -708,11 +942,36 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 
   is_multilevel <- .is_multilevel(object)
 
+  if (inherits(object, "brma.mv") && .is_random(object)) {
+    return(.ranef_brma_mv_random(
+      object        = object,
+      bias_adjusted = bias_adjusted,
+      probs         = probs,
+      component     = component,
+      simplify      = simplify,
+      expand        = expand,
+      ...
+    ))
+  }
+
+  if (is_multilevel && .outcome_type(object) == "norm" &&
+      !.is_weightfunction(object)) {
+    return(.ranef_brma_multilevel_normal(
+      object        = object,
+      bias_adjusted = bias_adjusted,
+      probs         = probs,
+      component     = component,
+      simplify      = simplify,
+      expand        = expand,
+      dots          = dots
+    ))
+  }
+
   # get BLUPs (fixed + all random effects)
   blup_samples <- predict.brma(
     object        = object,
     newdata       = NULL,
-    type          = "estimate",
+    type          = "blup",
     probs         = probs,
     bias_adjusted = bias_adjusted,
     quiet         = TRUE,
@@ -743,13 +1002,26 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     K         <- ncol(ranef_mat)
     colnames(ranef_mat) <- paste0("u[", labels[seq_len(K)], "]")
 
-    return(.new_brma_samples(
-      samples  = ranef_mat,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = "Random Effects:",
-      probs    = probs,
-      data     = data
+    estimate_ranef <- .new_brma_samples(
+      samples   = ranef_mat,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = "Random Effects:",
+      component = "random",
+      probs     = probs,
+      data      = data
+    )
+
+    return(.select_ranef_components(
+      components = list(estimate = estimate_ranef),
+      component  = component,
+      simplify   = simplify,
+      expand     = expand,
+      labels     = labels,
+      n_chains   = n_chains,
+      n_iter     = n_iter,
+      probs      = probs,
+      data       = data
     ))
 
   } else {
@@ -769,24 +1041,34 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     cluster_ranef_mat <- unclass(cluster_samples) - unclass(terms_samples)
     K                 <- ncol(cluster_ranef_mat)
     cluster          <- data[["outcome"]][["cluster"]]
-    cluster_labels   <- .get_cluster_labels(object)[as.character(cluster)]
-    cluster_labels   <- unname(cluster_labels)
-    cluster_missing  <- is.na(cluster_labels)
-    cluster_labels[cluster_missing] <- as.character(cluster[cluster_missing])
+    cluster_labels <- .ranef_cluster_labels(object, cluster)
     if (any(duplicated(cluster_labels))) {
       cluster_names <- paste0(cluster_labels, "|", labels[seq_len(K)])
     } else {
       cluster_names <- cluster_labels
     }
-    colnames(cluster_ranef_mat) <- paste0("u_cluster[", cluster_names, "]")
+    if (expand) {
+      colnames(cluster_ranef_mat) <- paste0("u_cluster[", cluster_names, "]")
+    } else {
+      cluster_levels         <- unique(cluster)
+      cluster_level_map      <- match(cluster, cluster_levels)
+      cluster_level_labels <- .ranef_cluster_labels(object, cluster_levels)
+      cluster_ranef_mat <- .ranef_unique_level_samples(
+        samples      = cluster_ranef_mat,
+        group_map    = cluster_level_map,
+        group_levels = cluster_level_labels,
+        block        = "cluster"
+      )
+    }
 
     cluster_ranef <- .new_brma_samples(
-      samples  = cluster_ranef_mat,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = "Cluster-Level Random Effects:",
-      probs    = probs,
-      data     = data
+      samples   = cluster_ranef_mat,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = "Cluster-Level Random Effects:",
+      component = "random/cluster",
+      probs     = probs,
+      data      = data
     )
 
     # estimate-level random effects: BLUP - cluster predictions
@@ -794,18 +1076,424 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     colnames(estimate_ranef_mat) <- paste0("u_estimate[", labels[seq_len(K)], "]")
 
     estimate_ranef <- .new_brma_samples(
-      samples  = estimate_ranef_mat,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = "Estimate-Level Random Effects:",
-      probs    = probs,
-      data     = data
+      samples   = estimate_ranef_mat,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = "Estimate-Level Random Effects:",
+      component = "random/estimate",
+      probs     = probs,
+      data      = data
     )
 
     out <- list(
       cluster  = cluster_ranef,
       estimate = estimate_ranef
     )
-    return(out)
+    return(.select_ranef_components(
+      components = out,
+      component  = component,
+      simplify   = simplify,
+      expand     = expand,
+      labels     = labels,
+      n_chains   = n_chains,
+      n_iter     = n_iter,
+      probs      = probs,
+      data       = data
+    ))
   }
+}
+
+
+.ranef_brma_multilevel_normal <- function(
+    object, bias_adjusted, probs, component, simplify, expand, dots) {
+
+  .check_unused_dots(
+    dots    = dots,
+    allowed = c("conditional", ".posterior_samples"),
+    caller  = "ranef.brma()"
+  )
+  conditional <- dots[["conditional"]]
+  if (is.null(conditional)) {
+    conditional <- FALSE
+  }
+
+  context <- .predict_brma_context(
+    object                       = object,
+    newdata                      = NULL,
+    V_new                        = NULL,
+    type                         = "blup",
+    conditioning_depth           = "estimate",
+    conditioning_depth_specified = TRUE,
+    as_measure                   = TRUE,
+    output_measure               = NULL,
+    transform                    = NULL,
+    probs                        = probs,
+    bias_adjusted                = bias_adjusted,
+    quiet                        = TRUE,
+    conditional                  = conditional,
+    dots                         = list(.posterior_samples = dots[[".posterior_samples"]])
+  )
+  scale_state    <- .predict_brma_scale_state(context)
+  location_state <- .predict_brma_location_state(context, scale_state)
+  components     <- location_state[["multilevel_blup"]]
+
+  if (is.null(components)) {
+    stop("The exact multilevel normal BLUP components are unavailable.",
+         call. = FALSE)
+  }
+
+  labels          <- .get_estimate_labels(object)
+  cluster         <- context[["new_data"]][["outcome"]][["cluster"]]
+  cluster_labels <- .ranef_cluster_labels(object, cluster)
+  if (any(duplicated(cluster_labels))) {
+    cluster_names <- paste0(cluster_labels, "|", labels)
+  } else {
+    cluster_names <- cluster_labels
+  }
+
+  if (expand) {
+    colnames(components[["cluster"]]) <- paste0(
+      "u_cluster[", cluster_names, "]"
+    )
+  } else {
+    cluster_levels         <- unique(cluster)
+    cluster_level_map      <- match(cluster, cluster_levels)
+    cluster_level_labels <- .ranef_cluster_labels(object, cluster_levels)
+    components[["cluster"]] <- .ranef_unique_level_samples(
+      samples      = components[["cluster"]],
+      group_map    = cluster_level_map,
+      group_levels = cluster_level_labels,
+      block        = "cluster"
+    )
+  }
+  colnames(components[["estimate"]]) <- paste0(
+    "u_estimate[", labels, "]"
+  )
+
+  out <- list(
+    cluster = .new_brma_samples(
+      samples   = components[["cluster"]],
+      n_chains  = context[["n_chains"]],
+      n_iter    = context[["n_iter"]],
+      title     = "Cluster-Level Random Effects:",
+      component = "random/cluster",
+      probs     = probs,
+      data      = context[["new_data"]]
+    ),
+    estimate = .new_brma_samples(
+      samples   = components[["estimate"]],
+      n_chains  = context[["n_chains"]],
+      n_iter    = context[["n_iter"]],
+      title     = "Estimate-Level Random Effects:",
+      component = "random/estimate",
+      probs     = probs,
+      data      = context[["new_data"]]
+    )
+  )
+
+  parameters <- if (conditional) {
+    .conditional_effect_parameters(object)
+  } else {
+    NULL
+  }
+  out <- .condition_prediction_samples(
+    object            = object,
+    samples           = out,
+    conditional       = conditional,
+    parameters        = parameters,
+    posterior_samples = context[["posterior_samples"]],
+    quiet             = TRUE
+  )
+
+  n_chains <- attr(out[[1L]], "nchains")
+  n_iter   <- attr(out[[1L]], "niter")
+  return(.select_ranef_components(
+    components = out,
+    component  = component,
+    simplify   = simplify,
+    expand     = expand,
+    labels     = labels,
+    n_chains   = n_chains,
+    n_iter     = n_iter,
+    probs      = probs,
+    data       = context[["new_data"]]
+  ))
+}
+
+
+.ranef_brma_mv_random <- function(object, bias_adjusted = FALSE,
+                                  probs = c(.025, .975), component = "all",
+                                  simplify = TRUE, expand = FALSE, ...) {
+
+  dots              <- list(...)
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    dots[[".posterior_samples"]]
+  )
+  dots[[".posterior_samples"]] <- posterior_samples
+
+  terms_samples <- do.call(
+    predict.brma,
+    c(
+      list(
+        object        = object,
+        newdata       = NULL,
+        type          = "terms",
+        probs         = probs,
+        bias_adjusted = bias_adjusted,
+        quiet         = TRUE
+      ),
+      dots
+    )
+  )
+
+  n_chains <- attr(terms_samples, "nchains")
+  n_iter   <- attr(terms_samples, "niter")
+  data     <- object[["data"]]
+  labels   <- .get_estimate_labels(object)
+  K        <- ncol(terms_samples)
+
+  bias_offset <- NULL
+  if (bias_adjusted && (.is_PET(object) || .is_PEESE(object))) {
+    bias_offset <- .evaluate.brma.bias_offset(
+      fit               = object[["fit"]],
+      outcome_data      = data[["outcome"]],
+      is_PET            = .is_PET(object),
+      is_PEESE          = .is_PEESE(object),
+      effect_direction  = .effect_direction(object),
+      K                 = K,
+      posterior_samples = posterior_samples,
+      priors            = object[["priors"]]
+    )
+  }
+
+  components <- .predict_brma_mv_random_posterior(
+    object            = object,
+    mu_samples        = unclass(terms_samples),
+    posterior_samples = posterior_samples,
+    bias_offset       = bias_offset,
+    type              = "mean",
+    by_block          = TRUE
+  )
+
+  design       <- .fitted_formula_design(object, "mu", required = TRUE)
+  random_terms <- design[["random_effects"]]
+  block_order  <- vapply(
+    random_terms,
+    `[[`,
+    character(1),
+    "block_name"
+  )
+  names(random_terms) <- block_order
+  block_order <- block_order[block_order %in% names(components)]
+  components  <- components[block_order]
+
+  out <- lapply(names(components), function(block) {
+    mat <- components[[block]]
+    if (expand) {
+      colnames(mat) <- paste0("u_", block, "[", labels[seq_len(K)], "]")
+    } else {
+      term     <- random_terms[[block]]
+      metadata <- .ranef_unique_level_term(term, block)
+      mat <- .ranef_unique_level_samples(
+        samples      = mat,
+        group_map    = metadata[["group_map"]],
+        group_levels = metadata[["group_levels"]],
+        block        = block
+      )
+    }
+    .new_brma_samples(
+      samples   = mat,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = paste0("Random Effects: ", block),
+      component = paste("random", block, sep = "/"),
+      probs     = probs,
+      data      = data
+    )
+  })
+  names(out) <- names(components)
+
+  return(.select_ranef_components(
+    components = out,
+    component  = component,
+    simplify   = simplify,
+    expand     = expand,
+    labels     = labels,
+    n_chains   = n_chains,
+    n_iter     = n_iter,
+    probs      = probs,
+    data       = data
+  ))
+}
+
+
+.select_ranef_components <- function(components, component = "all",
+                                     simplify = TRUE, expand = FALSE,
+                                     labels, n_chains,
+                                     n_iter, probs, data) {
+
+  BayesTools::check_bool(simplify, "simplify")
+  BayesTools::check_bool(expand, "expand")
+  if (is.null(component)) {
+    component <- "all"
+  }
+  if (!is.character(component) || length(component) != 1L ||
+      is.na(component) || !nzchar(component)) {
+    stop("'component' must be a single component name.", call. = FALSE)
+  }
+
+  component_names <- names(components)
+  if (component == "all") {
+    if (isTRUE(simplify) && length(components) == 1L) {
+      return(components[[1L]])
+    }
+    return(.new_brma_samples_list(components))
+  }
+
+  if (component == "total") {
+    .check_ranef_total_expansion(components, expand)
+    total <- Reduce(`+`, lapply(components, as.matrix))
+    if (expand) {
+      colnames(total) <- paste0("u[", labels[seq_len(ncol(total))], "]")
+    } else {
+      prefix <- paste0("u_", names(components)[[1L]])
+      colnames(total) <- paste0("u", substring(colnames(total), nchar(prefix) + 1L))
+    }
+    return(.new_brma_samples(
+      samples   = total,
+      n_chains  = n_chains,
+      n_iter    = n_iter,
+      title     = "Random Effects:",
+      component = "random",
+      probs     = probs,
+      data      = data
+    ))
+  }
+
+  if (!component %in% component_names) {
+    stop(
+      "Unknown random-effect component '", component, "'. Available components: ",
+      paste(c(component_names, "all", "total"), collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  return(components[[component]])
+}
+
+
+.ranef_cluster_labels <- function(object, cluster) {
+
+  labels  <- unname(.get_cluster_labels(object)[as.character(cluster)])
+  missing <- is.na(labels)
+  labels[missing] <- as.character(cluster[missing])
+
+  return(labels)
+}
+
+
+# Collapse observation-aligned random-effect samples to grouping levels.
+.ranef_unique_level_samples <- function(samples, group_map, group_levels,
+                                        block) {
+
+  group_map    <- as.integer(group_map)
+  group_levels <- as.character(group_levels)
+  n_groups     <- length(group_levels)
+  if (length(group_map) != ncol(samples) || n_groups < 1L ||
+      anyNA(group_map) || any(group_map < 1L | group_map > n_groups)) {
+    stop("Internal error: invalid random-effect grouping metadata.",
+         call. = FALSE)
+  }
+
+  group_order <- seq_len(n_groups)
+  level_rows  <- match(group_order, group_map)
+  if (anyNA(level_rows)) {
+    stop("Internal error: random-effect grouping levels are missing fitted rows.",
+         call. = FALSE)
+  }
+
+  out <- samples[, level_rows, drop = FALSE]
+  colnames(out) <- paste0(
+    "u_", block, "[", group_levels[group_order], "]"
+  )
+  return(out)
+}
+
+
+# Resolve the unique random-effect cells represented by a fitted block.
+.ranef_unique_level_term <- function(term, block) {
+
+  model_matrix <- term[["model_matrix"]]
+  is_intercept <- is.matrix(model_matrix) && is.numeric(model_matrix) &&
+    ncol(model_matrix) == 1L && all(is.finite(model_matrix)) &&
+    all(model_matrix[, 1L] == 1)
+  if (is_intercept) {
+    return(list(
+      group_map    = term[["group_map"]],
+      group_levels = term[["group_levels"]]
+    ))
+  }
+
+  is_indicator <- is.matrix(model_matrix) && is.numeric(model_matrix) &&
+    ncol(model_matrix) > 1L && all(is.finite(model_matrix)) &&
+    all(model_matrix == 0 | model_matrix == 1) &&
+    all(rowSums(model_matrix) == 1)
+  if (!is_indicator) {
+    stop(
+      "Unique-level random effects are unavailable for random-slope block '",
+      block, "'. Use 'expand = TRUE'.",
+      call. = FALSE
+    )
+  }
+
+  coefficient_labels <- if (identical(term[["contrast_owner"]], "structure")) {
+    term[["column_names"]]
+  } else {
+    term[["sd_leaves"]][["leaf_terms_by_column"]]
+  }
+  if (!is.character(coefficient_labels) ||
+      length(coefficient_labels) != ncol(model_matrix) ||
+      anyNA(coefficient_labels) || any(!nzchar(coefficient_labels)) ||
+      anyDuplicated(coefficient_labels)) {
+    stop(
+      "Unique-level random effects are unavailable for block '", block,
+      "' because its semantic coefficient labels are missing. Use ",
+      "'expand = TRUE'.",
+      call. = FALSE
+    )
+  }
+
+  group_map         <- term[["group_map"]]
+  group_levels      <- term[["group_levels"]]
+  coefficient_index <- max.col(model_matrix, ties.method = "first")
+  cell_key          <- paste(group_map, coefficient_index, sep = ":")
+  cell_rows         <- !duplicated(cell_key)
+  cell_map          <- match(cell_key, cell_key[cell_rows])
+  cell_levels       <- paste0(
+    coefficient_labels[coefficient_index[cell_rows]],
+    " | ",
+    group_levels[group_map[cell_rows]]
+  )
+
+  return(list(
+    group_map    = cell_map,
+    group_levels = cell_levels
+  ))
+}
+
+
+# Require common observation rows before summing multiple random-effect blocks.
+.check_ranef_total_expansion <- function(components, expand) {
+
+  if (!expand && length(components) > 1L) {
+    stop(
+      "'component = \"total\"' across multiple random-effect blocks requires ",
+      "'expand = TRUE'.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
 }

@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 4.0.0
+Version: 4.1.0.197
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -36,15 +36,18 @@ RoxygenNote: 7.3.3
 SystemRequirements: JAGS >= 4.3.1 (https://mcmc-jags.sourceforge.io/)
 NeedsCompilation: yes
 Depends:
-    R (>= 4.0.0)
+    R (>= 4.3.0)
 Imports:
-    BayesTools (>= 0.3.0),
+    BayesTools (>= 0.3.1.121),
     bridgesampling,
-    loo,
+    loo (>= 2.10.0),
     MASS,
+    Matrix (>= 1.6-2),
     parallel,
+    ps,
     runjags,
     rjags,
+    statmod,
     stats,
     graphics,
     mvtnorm,
@@ -63,11 +66,15 @@ Suggests:
     emmeans,
     metadat,
     testthat,
+    R6,
+    withr,
+    cli,
     vdiffr,
     knitr,
     rmarkdown,
     covr
 LinkingTo:
+    Matrix,
     mvtnorm
 RdMacros: Rdpack
 VignetteBuilder: knitr

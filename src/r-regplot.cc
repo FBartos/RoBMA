@@ -4,14 +4,23 @@
 #include <Rmath.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cfloat>
+#include <cmath>
 #include <limits>
+#include <utility>
 #include <vector>
 
+#include "plot-root.h"
 #include "selnorm/selnorm.h"
 
-static int regplot_matrix_nrow(SEXP x, const char *name)
+#include "r-native-api.h"
+
+// Funnel and regression plots invert the same posterior-row mixture CDF. This
+// file owns their shared normal/selected-normal evaluation and root semantics;
+// callers only construct plot-specific mean and SD matrices.
+namespace {
+
+int plot_matrix_nrow(SEXP x, const char *name)
 {
   SEXP dim = Rf_getAttrib(x, R_DimSymbol);
   if (TYPEOF(dim) != INTSXP || Rf_length(dim) != 2) {
@@ -20,7 +29,7 @@ static int regplot_matrix_nrow(SEXP x, const char *name)
   return INTEGER(dim)[0];
 }
 
-static int regplot_matrix_ncol(SEXP x, const char *name)
+int plot_matrix_ncol(SEXP x, const char *name)
 {
   SEXP dim = Rf_getAttrib(x, R_DimSymbol);
   if (TYPEOF(dim) != INTSXP || Rf_length(dim) != 2) {
@@ -29,29 +38,28 @@ static int regplot_matrix_ncol(SEXP x, const char *name)
   return INTEGER(dim)[1];
 }
 
-static void regplot_check_real(SEXP x, const char *name)
+void plot_check_real(SEXP x, const char *name)
 {
   if (TYPEOF(x) != REALSXP) {
     Rf_error("'%s' must be numeric.", name);
   }
 }
 
-static void regplot_check_integer(SEXP x, const char *name)
+void plot_check_integer(SEXP x, const char *name)
 {
   if (TYPEOF(x) != INTSXP) {
     Rf_error("'%s' must be integer.", name);
   }
 }
 
-static void regplot_check_logical(SEXP x, const char *name)
+void plot_check_logical(SEXP x, const char *name)
 {
   if (TYPEOF(x) != LGLSXP || Rf_length(x) != 1) {
     Rf_error("'%s' must be a logical scalar.", name);
   }
 }
 
-static int regplot_scalar_or_row_int(const int *x, int n, int row,
-                                     const char *name)
+int plot_scalar_or_row_int(const int *x, int n, int row, const char *name)
 {
   if (n == 1) {
     return x[0];
@@ -62,8 +70,8 @@ static int regplot_scalar_or_row_int(const int *x, int n, int row,
   return x[row];
 }
 
-static double regplot_scalar_or_row_real(const double *x, int n, int row,
-                                         const char *name)
+double plot_scalar_or_row_real(const double *x, int n, int row,
+                               const char *name)
 {
   if (n == 1) {
     return x[0];
@@ -74,27 +82,85 @@ static double regplot_scalar_or_row_real(const double *x, int n, int row,
   return x[row];
 }
 
-static void regplot_validate_omega_matrix(const double *omega, int S, int B)
+void plot_validate_mean_sd(SEXP mean, SEXP sd, int *S, int *K)
+{
+  plot_check_real(mean, "mean");
+  plot_check_real(sd, "sd");
+
+  *S = plot_matrix_nrow(mean, "mean");
+  *K = plot_matrix_ncol(mean, "mean");
+  if (*S < 1 || *K < 1) {
+    Rf_error("'mean' and 'sd' must have positive dimensions.");
+  }
+  if (plot_matrix_nrow(sd, "sd") != *S ||
+      plot_matrix_ncol(sd, "sd") != *K) {
+    Rf_error("'sd' dimensions must match 'mean'.");
+  }
+
+  const R_xlen_t N = XLENGTH(mean);
+  for (R_xlen_t i = 0; i < N; ++i) {
+    if (!std::isfinite(REAL(mean)[i])) {
+      Rf_error("'mean' must contain finite values.");
+    }
+    if (!std::isfinite(REAL(sd)[i]) || REAL(sd)[i] < 0) {
+      Rf_error("'sd' must contain finite non-negative values.");
+    }
+  }
+}
+
+void plot_validate_probs(SEXP probs)
+{
+  plot_check_real(probs, "probs");
+  if (Rf_length(probs) < 1) {
+    Rf_error("'probs' must contain at least one probability.");
+  }
+  for (int i = 0; i < Rf_length(probs); ++i) {
+    if (!std::isfinite(REAL(probs)[i]) ||
+        REAL(probs)[i] <= 0 || REAL(probs)[i] >= 1) {
+      Rf_error("'probs' must contain probabilities in (0, 1).");
+    }
+  }
+}
+
+double plot_validate_weights(SEXP weights, int S)
+{
+  plot_check_real(weights, "weights");
+  if (Rf_length(weights) != S) {
+    Rf_error("'weights' must contain one value per posterior mixture row.");
+  }
+
+  double total = 0;
+  for (int s = 0; s < S; ++s) {
+    const double weight = REAL(weights)[s];
+    if (!std::isfinite(weight) || weight < 0) {
+      Rf_error("'weights' must contain finite non-negative values.");
+    }
+    total += weight;
+  }
+  if (!(total > 0) || !std::isfinite(total)) {
+    Rf_error("'weights' must have a finite positive sum.");
+  }
+  return total;
+}
+
+void plot_validate_omega(const double *omega, int S, int B)
 {
   for (int b = 0; b < B; ++b) {
     for (int s = 0; s < S; ++s) {
-      const double w = omega[s + S * b];
-      if (!std::isfinite(w) || w < 0) {
+      const double weight = omega[s + S * b];
+      if (!std::isfinite(weight) || weight < 0) {
         Rf_error("'omega' must contain finite non-negative values.");
       }
     }
   }
 }
 
-static void regplot_set_kernel_data(SelNormKernelData *data, int B,
-                                    int n_segments, SEXP sign, SEXP q,
-                                    SEXP z_lower, SEXP z_upper,
-                                    SEXP phack_z_source,
-                                    SEXP phack_z_dest,
-                                    SEXP segment_bounds,
-                                    SEXP segment_step_bin,
-                                    SEXP segment_phack_region,
-                                    SEXP telescope_probabilities)
+void plot_set_kernel_data(SelNormKernelData *data, int B, int n_segments,
+                          SEXP sign, SEXP q, SEXP z_lower, SEXP z_upper,
+                          SEXP phack_z_source, SEXP phack_z_dest,
+                          SEXP segment_bounds, SEXP segment_step_bin,
+                          SEXP segment_phack_region,
+                          SEXP telescope_probabilities)
 {
   data->n_bins                 = B;
   data->n_segments             = n_segments;
@@ -116,220 +182,521 @@ static void regplot_set_kernel_data(SelNormKernelData *data, int B,
     LOGICAL(telescope_probabilities)[0] == TRUE;
 }
 
-static bool regplot_row_has_active_phack(int mode, double alpha, int phack_kind)
+bool plot_row_has_active_phack(int mode, double alpha, int phack_kind)
 {
   return (mode == SELKERNEL_PHACK_POWER ||
     mode == SELKERNEL_STEP_PHACK_POWER) && phack_kind > 0 && alpha > 0;
 }
 
-static double regplot_clamp_probability(double x)
+int plot_step_bin(double q, double se, const SelNormKernelData &data)
 {
-  if (x < 0) {
+  const double signed_q = data.effect_sign * q;
+  for (int b = 0; b < data.n_bins; ++b) {
+    if (signed_q >= data.z_lower[b] * se &&
+        signed_q <= data.z_upper[b] * se) {
+      return b;
+    }
+  }
+
+  return signed_q > data.z_upper[0] * se ? 0 : data.n_bins - 1;
+}
+
+double plot_probability_or_na(double x)
+{
+  return std::isfinite(x) && x >= 0 && x <= 1 ? x : NA_REAL;
+}
+
+double plot_interval_probability(double lower, double upper,
+                                 double mean, double sd)
+{
+  if (!(sd > 0) || lower >= upper) {
     return 0;
   }
-  if (x > 1) {
-    return 1;
+  if (std::isinf(lower) && lower < 0) {
+    return std::isinf(upper) && upper > 0 ?
+      1 : pnorm(upper, mean, sd, true, false);
   }
-  return x;
+  if (std::isinf(upper) && upper > 0) {
+    return pnorm(lower, mean, sd, false, false);
+  }
+  if (lower > mean) {
+    return pnorm(lower, mean, sd, false, false) -
+      pnorm(upper, mean, sd, false, false);
+  }
+  return pnorm(upper, mean, sd, true, false) -
+    pnorm(lower, mean, sd, true, false);
 }
 
-static double regplot_quantile_type8(const double *x, int n, double p)
+struct PlotMixtureContext {
+  int S;
+  double se;
+  const double *mean;
+  const double *sd;
+  const double *weights;
+  double weight_sum;
+  bool full_support;
+  const int *selected;
+  const double *omega;
+  const std::vector<double> *row_alpha;
+  const std::vector<int> *row_phack;
+  const std::vector<int> *row_mode;
+  const std::vector<bool> *row_active_phack;
+  const SelNormKernelData *data;
+  std::vector<char> telescope_plan_valid;
+  std::vector<char> telescope_has_zero;
+  std::vector<double> telescope_boundary_tail;
+  std::vector<double> telescope_omega_diff;
+  std::vector<double> telescope_omega_last;
+  std::vector<double> telescope_normalizer;
+  std::vector<double> telescope_gap_cdf;
+  std::vector<char> log_plan_valid;
+  std::vector<int> log_plan_groups;
+  std::vector<double> log_lower_score;
+  std::vector<double> log_upper_score;
+  std::vector<double> log_weight;
+};
+
+bool plot_has_selection(const PlotMixtureContext &ctx)
 {
-  std::vector<double> sorted(static_cast<size_t>(n));
-  for (int i = 0; i < n; ++i) {
-    if (!std::isfinite(x[i])) {
-      return NA_REAL;
+  return ctx.selected != NULL && ctx.data != NULL;
+}
+
+void plot_prepare_selection(PlotMixtureContext *ctx)
+{
+  const int B = ctx->data->n_bins;
+  const int boundaries = std::max(0, B - 1);
+  const size_t boundary_size = static_cast<size_t>(ctx->S) *
+    static_cast<size_t>(boundaries);
+  const size_t log_size = static_cast<size_t>(ctx->S) *
+    static_cast<size_t>(B);
+
+  ctx->telescope_plan_valid.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->telescope_has_zero.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->telescope_boundary_tail.assign(boundary_size, 0);
+  ctx->telescope_omega_diff.assign(boundary_size, 0);
+  ctx->telescope_omega_last.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->telescope_normalizer.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->telescope_gap_cdf.assign(log_size, NA_REAL);
+  ctx->log_plan_valid.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->log_plan_groups.assign(static_cast<size_t>(ctx->S), 0);
+  ctx->log_lower_score.assign(log_size, 0);
+  ctx->log_upper_score.assign(log_size, 0);
+  ctx->log_weight.assign(log_size, 0);
+
+  for (int s = 0; s < ctx->S; ++s) {
+    const size_t si = static_cast<size_t>(s);
+    const int mode = (*ctx->row_mode)[si];
+    if (ctx->selected[s] == 0 || !(ctx->sd[s] > 0) ||
+        !(ctx->se > 0) || (*ctx->row_active_phack)[si] ||
+        !(mode == SELKERNEL_STEP || mode == SELKERNEL_STEP_PHACK_POWER)) {
+      continue;
     }
-    sorted[i] = x[i];
-  }
-  std::sort(sorted.begin(), sorted.end());
 
-  const double h = (static_cast<double>(n) + 1.0 / 3.0) * p + 1.0 / 3.0;
-  if (h <= 1) {
-    return sorted[0];
-  }
-  if (h >= n) {
-    return sorted[static_cast<size_t>(n - 1)];
-  }
-
-  const int j = static_cast<int>(std::floor(h));
-  const double g = h - static_cast<double>(j);
-  return (1 - g) * sorted[static_cast<size_t>(j - 1)] +
-    g * sorted[static_cast<size_t>(j)];
-}
-
-static double regplot_normal_mixture_cdf(double q, const double *mean,
-                                         const double *sd, int S)
-{
-  const double eps_sd = std::sqrt(DBL_EPSILON);
-  double cdf_sum = 0;
-
-  for (int s = 0; s < S; ++s) {
-    double cdf_s;
-    if (sd[s] < eps_sd) {
-      cdf_s = q >= mean[s] ? 1.0 : 0.0;
-    } else {
-      cdf_s = pnorm(q, mean[s], sd[s], true, false);
+    const size_t boundary_offset = si * static_cast<size_t>(boundaries);
+    for (int b = 0; b < B; ++b) {
+      if (ctx->omega[s + ctx->S * b] == 0) {
+        ctx->telescope_has_zero[si] = 1;
+        break;
+      }
     }
-    cdf_sum += regplot_clamp_probability(cdf_s);
-  }
+    double *boundary_tail = boundaries > 0 ?
+      ctx->telescope_boundary_tail.data() + boundary_offset : NULL;
+    double *omega_diff = boundaries > 0 ?
+      ctx->telescope_omega_diff.data() + boundary_offset : NULL;
+    ctx->telescope_plan_valid[si] =
+      cpp_selnorm_step_cdf_telescope_plan(
+        ctx->mean[s], ctx->sd[s], ctx->se, ctx->omega + s, *ctx->data,
+        boundary_tail, omega_diff,
+        &ctx->telescope_omega_last[si],
+        &ctx->telescope_normalizer[si], ctx->S, false
+      );
+    if (ctx->telescope_plan_valid[si] && !ctx->telescope_has_zero[si]) {
+      continue;
+    }
 
-  return cdf_sum / static_cast<double>(S);
+    const size_t log_offset = si * static_cast<size_t>(B);
+    int n_groups = 0;
+    ctx->log_plan_valid[si] = cpp_selnorm_step_cdf_plan(
+      ctx->mean[s], ctx->sd[s], ctx->se, ctx->omega + s, *ctx->data,
+      ctx->log_lower_score.data() + log_offset,
+      ctx->log_upper_score.data() + log_offset,
+      ctx->log_weight.data() + log_offset,
+      &n_groups, ctx->S, false
+    );
+    ctx->log_plan_groups[si] = n_groups;
+    if (ctx->telescope_plan_valid[si] && ctx->log_plan_valid[si]) {
+      for (int b = 0; b < B; ++b) {
+        if (ctx->omega[s + ctx->S * b] != 0) {
+          continue;
+        }
+        const double signed_lower = ctx->data->z_lower[b] * ctx->se;
+        const double signed_upper = ctx->data->z_upper[b] * ctx->se;
+        double signed_query;
+        if (std::isfinite(signed_lower) && std::isfinite(signed_upper)) {
+          signed_query = 0.5 * signed_lower + 0.5 * signed_upper;
+        } else if (std::isfinite(signed_lower)) {
+          signed_query = std::nextafter(signed_lower, INFINITY);
+        } else {
+          signed_query = std::nextafter(signed_upper, -INFINITY);
+        }
+        const double query = ctx->data->effect_sign * signed_query;
+        ctx->telescope_gap_cdf[log_offset + static_cast<size_t>(b)] =
+          cpp_selnorm_step_cdf_from_plan(
+            query, ctx->mean[s], ctx->sd[s], ctx->se, *ctx->data,
+            ctx->log_lower_score.data() + log_offset,
+            ctx->log_upper_score.data() + log_offset,
+            ctx->log_weight.data() + log_offset,
+            ctx->log_plan_groups[si], true
+          );
+      }
+    }
+  }
 }
 
-static double regplot_selnorm_mixture_cdf_cached(
-  double q,
-  const double *mean,
-  const double *sd,
-  double se,
-  const double *omega,
-  const std::vector<double> &row_alpha,
-  const std::vector<int> &row_phack,
-  const std::vector<int> &row_mode,
-  const std::vector<bool> &row_active_phack,
-  const std::vector<double> &row_log_norm,
-  const SelNormKernelData &data,
-  int S)
+double plot_selected_cdf_zero_se(double q, int s,
+                                 const PlotMixtureContext &ctx)
 {
-  const double eps_sd = std::sqrt(DBL_EPSILON);
-  double cdf_sum = 0;
+  const SelNormKernelData &data = *ctx.data;
+  const double *omega_s = ctx.omega + s;
+  const double signed_mean = data.effect_sign * ctx.mean[s];
+  const double signed_q    = data.effect_sign * q;
+  double requested_mass  = 0;
+  double complement_mass = 0;
 
-  for (int s = 0; s < S; ++s) {
-    double cdf_s;
-    if (sd[s] < eps_sd) {
-      cdf_s = q >= mean[s] ? 1.0 : 0.0;
-    } else if (row_active_phack[static_cast<size_t>(s)]) {
-      cdf_s = NA_REAL;
+  for (int b = 0; b < data.n_bins; ++b) {
+    const double z_lower = data.z_lower[b];
+    const double z_upper = data.z_upper[b];
+    double lower;
+    double upper;
+    if (std::isinf(z_lower) && z_lower < 0 &&
+        std::isinf(z_upper) && z_upper > 0) {
+      lower = -INFINITY;
+      upper =  INFINITY;
+    } else if (std::isinf(z_upper) && z_upper > 0) {
+      lower = 0;
+      upper = INFINITY;
+    } else if (std::isinf(z_lower) && z_lower < 0) {
+      lower = -INFINITY;
+      upper = 0;
     } else {
-      cdf_s = cpp_selnorm_kernel_cdf_with_log_norm(
-        q,
-        mean[s],
-        sd[s],
-        se,
-        omega + s,
-        row_alpha[static_cast<size_t>(s)],
-        row_phack[static_cast<size_t>(s)],
-        row_mode[static_cast<size_t>(s)],
-        data,
-        row_log_norm[static_cast<size_t>(s)],
-        S,
-        true,
-        false
+      continue;
+    }
+
+    const double weight = omega_s[static_cast<size_t>(ctx.S) * b];
+    if (data.effect_sign == 1) {
+      requested_mass += weight * plot_interval_probability(
+        lower, std::min(upper, signed_q), signed_mean, ctx.sd[s]
+      );
+      complement_mass += weight * plot_interval_probability(
+        std::max(lower, signed_q), upper, signed_mean, ctx.sd[s]
+      );
+    } else {
+      requested_mass += weight * plot_interval_probability(
+        std::max(lower, signed_q), upper, signed_mean, ctx.sd[s]
+      );
+      complement_mass += weight * plot_interval_probability(
+        lower, std::min(upper, signed_q), signed_mean, ctx.sd[s]
       );
     }
-    cdf_sum += regplot_clamp_probability(cdf_s);
   }
 
-  return cdf_sum / static_cast<double>(S);
+  const double total_mass = requested_mass + complement_mass;
+  if (!(total_mass > 0) || !std::isfinite(total_mass)) {
+    return NA_REAL;
+  }
+  return plot_probability_or_na(requested_mass / total_mass);
 }
 
-static void regplot_normal_mixture_cdf_pdf(double q, const double *mean,
-                                           const double *sd, int S,
-                                           double *cdf, double *pdf)
+double plot_selected_cdf(double q, int s, const PlotMixtureContext &ctx)
 {
-  double cdf_sum = 0;
-  double pdf_sum = 0;
-
-  for (int s = 0; s < S; ++s) {
-    const double cdf_s = pnorm(q, mean[s], sd[s], true, false);
-    const double pdf_s = dnorm(q, mean[s], sd[s], false);
-    cdf_sum += regplot_clamp_probability(cdf_s);
-    pdf_sum += pdf_s;
+  const size_t si = static_cast<size_t>(s);
+  if (ctx.se <= 0) {
+    return plot_selected_cdf_zero_se(q, s, ctx);
+  }
+  if ((*ctx.row_active_phack)[si]) {
+    return NA_REAL;
   }
 
-  *cdf = cdf_sum / static_cast<double>(S);
-  *pdf = pdf_sum / static_cast<double>(S);
-}
+  const int B = ctx.data->n_bins;
+  if (ctx.telescope_plan_valid[si]) {
+    if (ctx.telescope_has_zero[si]) {
+      const int bin = plot_step_bin(q, ctx.se, *ctx.data);
+      if (ctx.omega[s + ctx.S * bin] == 0 && ctx.log_plan_valid[si]) {
+        const size_t log_offset = si * static_cast<size_t>(B);
+        return ctx.telescope_gap_cdf[
+          log_offset + static_cast<size_t>(bin)
+        ];
+      }
+    }
 
-template <typename CdfFun>
-static double regplot_grid_quantile(double p, double lower, double upper,
-                                    CdfFun cdf_fun)
-{
-  const int n_grid = 1000;
-
-  if (lower == upper) {
-    return upper;
-  }
-
-  for (int i = 0; i < n_grid; ++i) {
-    const double q = lower +
-      (upper - lower) * static_cast<double>(i) / static_cast<double>(n_grid - 1);
-    if (cdf_fun(q) >= p) {
-      return q;
+    const int boundaries = std::max(0, B - 1);
+    const size_t offset = si * static_cast<size_t>(boundaries);
+    const double *boundary_tail = boundaries > 0 ?
+      ctx.telescope_boundary_tail.data() + offset : NULL;
+    const double *omega_diff = boundaries > 0 ?
+      ctx.telescope_omega_diff.data() + offset : NULL;
+    const double probability = cpp_selnorm_step_cdf_from_telescope_plan(
+      q, ctx.mean[s], ctx.sd[s], ctx.se, *ctx.data,
+      boundary_tail, omega_diff,
+      ctx.telescope_omega_last[si], ctx.telescope_normalizer[si], true
+    );
+    if (std::isfinite(probability)) {
+      return probability;
     }
   }
 
-  return upper;
+  if (ctx.log_plan_valid[si]) {
+    const size_t offset = si * static_cast<size_t>(B);
+    return cpp_selnorm_step_cdf_from_plan(
+      q, ctx.mean[s], ctx.sd[s], ctx.se, *ctx.data,
+      ctx.log_lower_score.data() + offset,
+      ctx.log_upper_score.data() + offset,
+      ctx.log_weight.data() + offset,
+      ctx.log_plan_groups[si], true
+    );
+  }
+
+  return cpp_selnorm_kernel_cdf(
+    q, ctx.mean[s], ctx.sd[s], ctx.se, ctx.omega + s,
+    (*ctx.row_alpha)[si], (*ctx.row_phack)[si], (*ctx.row_mode)[si],
+    *ctx.data, ctx.S, true, false
+  );
 }
 
-template <typename CdfFun>
-static double regplot_mixture_quantile(double p, const double *mean,
-                                       const double *sd, int S,
-                                       CdfFun cdf_fun)
+double plot_mixture_cdf(double q, const PlotMixtureContext &ctx)
 {
-  const double eps_sd = std::sqrt(DBL_EPSILON);
+  double cdf_sum = 0;
+  for (int s = 0; s < ctx.S; ++s) {
+    if (ctx.weights[s] == 0) {
+      continue;
+    }
+
+    double cdf_s;
+    if (ctx.sd[s] == 0) {
+      cdf_s = q >= ctx.mean[s] ? 1.0 : 0.0;
+    } else if (plot_has_selection(ctx) && ctx.selected[s] != 0) {
+      cdf_s = plot_selected_cdf(q, s, ctx);
+    } else {
+      cdf_s = pnorm(q, ctx.mean[s], ctx.sd[s], true, false);
+    }
+    cdf_s = plot_probability_or_na(cdf_s);
+    if (!std::isfinite(cdf_s)) {
+      return NA_REAL;
+    }
+    cdf_sum += ctx.weights[s] * cdf_s;
+  }
+  return plot_probability_or_na(cdf_sum / ctx.weight_sum);
+}
+
+bool plot_mixture_has_full_support(const PlotMixtureContext &ctx)
+{
+  if (!plot_has_selection(ctx)) {
+    return true;
+  }
+
+  for (int s = 0; s < ctx.S; ++s) {
+    if (ctx.weights[s] == 0) {
+      continue;
+    }
+    if (ctx.selected[s] == 0) {
+      return true;
+    }
+    const size_t si = static_cast<size_t>(s);
+    const int mode = (*ctx.row_mode)[si];
+    if (mode == SELKERNEL_NORMAL ||
+        (mode == SELKERNEL_PHACK_POWER &&
+         !(*ctx.row_active_phack)[si])) {
+      return true;
+    }
+  }
+
+  for (int b = 0; b < ctx.data->n_bins; ++b) {
+    bool bin_has_support = false;
+    for (int s = 0; s < ctx.S; ++s) {
+      if (ctx.weights[s] == 0 || ctx.selected[s] == 0) {
+        continue;
+      }
+      const int mode = (*ctx.row_mode)[static_cast<size_t>(s)];
+      if ((mode == SELKERNEL_STEP || mode == SELKERNEL_STEP_PHACK_POWER) &&
+          ctx.omega[s + ctx.S * b] > 0) {
+        bin_has_support = true;
+        break;
+      }
+    }
+    if (!bin_has_support) {
+      return false;
+    }
+  }
+  return true;
+}
+
+double plot_weighted_empirical_quantile(const PlotMixtureContext &ctx,
+                                        double p)
+{
+  std::vector<std::pair<double, double> > values;
+  values.reserve(static_cast<size_t>(ctx.S));
+  for (int s = 0; s < ctx.S; ++s) {
+    if (ctx.weights[s] > 0) {
+      values.push_back(std::make_pair(ctx.mean[s], ctx.weights[s]));
+    }
+  }
+  std::sort(values.begin(), values.end());
+
+  const double threshold = p * ctx.weight_sum;
+  double cumulative = 0;
+  for (size_t i = 0; i < values.size(); ++i) {
+    cumulative += values[i].second;
+    if (cumulative >= threshold) {
+      return values[i].first;
+    }
+  }
+  return values.empty() ? NA_REAL : values.back().first;
+}
+
+double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
+                             double previous, bool use_previous,
+                             double floor, double floor_cdf, bool use_floor,
+                             double *quantile_cdf)
+{
   bool all_zero_sd = true;
+  bool all_positive_sd = true;
   double lower = INFINITY;
   double upper = -INFINITY;
   double step = 0;
-  double max_abs_mean = 1;
 
-  for (int s = 0; s < S; ++s) {
-    if (!(sd[s] < eps_sd)) {
-      all_zero_sd = false;
+  for (int s = 0; s < ctx.S; ++s) {
+    if (ctx.weights[s] == 0) {
+      continue;
     }
-
-    const double spread = std::max(sd[s], eps_sd);
-    lower = std::min(lower, mean[s] - 10 * spread);
-    upper = std::max(upper, mean[s] + 10 * spread);
-    step  = std::max(step, spread);
-
-    if (std::isfinite(mean[s])) {
-      max_abs_mean = std::max(max_abs_mean, std::fabs(mean[s]));
-    }
+    all_zero_sd     = all_zero_sd && ctx.sd[s] == 0;
+    all_positive_sd = all_positive_sd && ctx.sd[s] > 0;
+    lower = std::min(lower, ctx.mean[s] - 10 * ctx.sd[s]);
+    upper = std::max(upper, ctx.mean[s] + 10 * ctx.sd[s]);
+    step  = std::max(step, ctx.sd[s]);
   }
 
   if (all_zero_sd) {
-    return regplot_quantile_type8(mean, S, p);
+    const double quantile = plot_weighted_empirical_quantile(ctx, p);
+    *quantile_cdf = plot_mixture_cdf(quantile, ctx);
+    return quantile;
   }
-
-  if (!std::isfinite(lower) || !std::isfinite(upper)) {
+  if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper ||
+      !(step > 0)) {
     return NA_REAL;
   }
-  if (lower >= upper) {
-    lower -= 1;
-    upper += 1;
-  }
-  if (!std::isfinite(step) || step <= 0) {
-    step = max_abs_mean;
+
+  const double global_lower = lower;
+  const double global_upper = upper;
+  const double global_step  = step;
+  bool using_previous = use_previous && std::isfinite(previous);
+  const bool using_floor = use_floor && std::isfinite(floor) &&
+    std::isfinite(floor_cdf);
+  if (using_floor && floor_cdf >= p) {
+    *quantile_cdf = floor_cdf;
+    return floor;
   }
 
-  double lower_value = cdf_fun(lower) - p;
-  double upper_value = cdf_fun(upper) - p;
+  if (using_previous || using_floor) {
+    step  = std::max(
+      RoBMA::plot_root_tolerance(global_lower, global_upper, global_step),
+      0.05 * global_step
+    );
+  }
+  if (using_floor) {
+    lower = floor;
+    upper = using_previous ?
+      std::max(floor + step, previous + step) : global_upper;
+  } else if (using_previous) {
+    lower = previous - step;
+    upper = previous + step;
+  }
 
-  for (int i = 0; i < 25; ++i) {
-    if (lower_value <= 0 && upper_value >= 0) {
+  double lower_value = using_floor ?
+    floor_cdf - p : plot_mixture_cdf(lower, ctx) - p;
+  double upper_value = plot_mixture_cdf(upper, ctx) - p;
+  if (!std::isfinite(lower_value) || !std::isfinite(upper_value)) {
+    if (!using_previous) {
+      return NA_REAL;
+    }
+    using_previous = false;
+    lower = using_floor ? floor : global_lower;
+    upper = global_upper;
+    step  = global_step;
+    lower_value = using_floor ?
+      floor_cdf - p : plot_mixture_cdf(lower, ctx) - p;
+    upper_value = plot_mixture_cdf(upper, ctx) - p;
+  }
+
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    for (int i = 0; i < 25; ++i) {
+      if (lower_value < 0 && upper_value >= 0) {
+        break;
+      }
+      if (lower_value >= 0) {
+        if (using_floor) {
+          *quantile_cdf = floor_cdf;
+          return floor;
+        }
+        lower -= step;
+        lower_value = plot_mixture_cdf(lower, ctx) - p;
+      }
+      if (upper_value < 0) {
+        upper += step;
+        upper_value = plot_mixture_cdf(upper, ctx) - p;
+      }
+      if (!std::isfinite(lower_value) || !std::isfinite(upper_value)) {
+        break;
+      }
+      step *= 2;
+    }
+
+    if (lower_value < 0 && upper_value >= 0 &&
+        std::isfinite(lower_value) && std::isfinite(upper_value)) {
       break;
     }
-    if (lower_value > 0) {
-      lower -= step;
-      lower_value = cdf_fun(lower) - p;
+    if (!using_previous) {
+      return NA_REAL;
     }
-    if (upper_value < 0) {
-      upper += step;
-      upper_value = cdf_fun(upper) - p;
-    }
-    step *= 2;
+    using_previous = false;
+    lower = using_floor ? floor : global_lower;
+    upper = global_upper;
+    step  = global_step;
+    lower_value = using_floor ?
+      floor_cdf - p : plot_mixture_cdf(lower, ctx) - p;
+    upper_value = plot_mixture_cdf(upper, ctx) - p;
   }
 
-  if (lower_value > 0 || upper_value < 0) {
-    return regplot_grid_quantile(p, lower, upper, cdf_fun);
+  if (lower_value >= 0 || upper_value < 0 ||
+      !std::isfinite(lower_value) || !std::isfinite(upper_value)) {
+    return NA_REAL;
   }
 
-  for (int i = 0; i < 100; ++i) {
-    const double mid = lower + 0.5 * (upper - lower);
-    const double mid_value = cdf_fun(mid) - p;
+  if (all_positive_sd && ctx.full_support) {
+    const double tolerance = RoBMA::plot_root_tolerance(
+      global_lower, global_upper, global_step
+    );
+    double root_value = NA_REAL;
+    const double root = RoBMA::plot_brent_root(
+      [&ctx, p](double value) {
+        return plot_mixture_cdf(value, ctx) - p;
+      },
+      lower, upper, lower_value, upper_value, tolerance, &root_value
+    );
+    if (std::isfinite(root)) {
+      *quantile_cdf = p + root_value;
+      return root;
+    }
+  }
 
+  while (true) {
+    const double mid = 0.5 * lower + 0.5 * upper;
+    if (mid <= lower || mid >= upper) {
+      break;
+    }
+    const double mid_value = plot_mixture_cdf(mid, ctx) - p;
+    if (!std::isfinite(mid_value)) {
+      return NA_REAL;
+    }
     if (mid_value >= 0) {
       upper = mid;
       upper_value = mid_value;
@@ -337,263 +704,157 @@ static double regplot_mixture_quantile(double p, const double *mean,
       lower = mid;
       lower_value = mid_value;
     }
-
-    if (std::fabs(upper - lower) <= 1e-6) {
-      break;
-    }
-    if (mid_value == 0) {
-      return mid;
-    }
   }
-
-  return lower + 0.5 * (upper - lower);
+  *quantile_cdf = p + upper_value;
+  return upper;
 }
 
-static double regplot_normal_mixture_quantile(double p, const double *mean,
-                                              const double *sd, int S)
+SEXP plot_mixture_quantile_matrix(SEXP mean, SEXP sd, SEXP probs,
+                                  SEXP weights, PlotMixtureContext *ctx,
+                                  double weight_sum, bool prepare_selection,
+                                  const double *se = NULL,
+                                  int se_length = 0)
 {
-  const double eps_sd = std::sqrt(DBL_EPSILON);
-  bool all_zero_sd = true;
-  bool any_zero_sd = false;
-  double lower = INFINITY;
-  double upper = -INFINITY;
-  double step = 0;
-  double mix_mean = 0;
-  double mix_second = 0;
-
-  for (int s = 0; s < S; ++s) {
-    const bool zero_sd = sd[s] < eps_sd;
-    all_zero_sd = all_zero_sd && zero_sd;
-    any_zero_sd = any_zero_sd || zero_sd;
-
-    const double spread = std::max(sd[s], eps_sd);
-    lower = std::min(lower, mean[s] - 10 * spread);
-    upper = std::max(upper, mean[s] + 10 * spread);
-    step  = std::max(step, spread);
-    mix_mean   += mean[s];
-    mix_second += mean[s] * mean[s] + sd[s] * sd[s];
+  const int S = plot_matrix_nrow(mean, "mean");
+  const int K = plot_matrix_ncol(mean, "mean");
+  const int P = Rf_length(probs);
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, K, P));
+  std::vector<double> previous(static_cast<size_t>(P), NA_REAL);
+  std::vector<std::pair<double, int> > probability_order;
+  probability_order.reserve(static_cast<size_t>(P));
+  for (int j = 0; j < P; ++j) {
+    probability_order.push_back(std::make_pair(REAL(probs)[j], j));
   }
+  std::sort(probability_order.begin(), probability_order.end());
 
-  if (all_zero_sd) {
-    return regplot_quantile_type8(mean, S, p);
-  }
-
-  if (any_zero_sd) {
-    return regplot_mixture_quantile(
-      p, mean, sd, S,
-      [mean, sd, S](double q) {
-        return regplot_normal_mixture_cdf(q, mean, sd, S);
-      }
-    );
-  }
-
-  if (!std::isfinite(lower) || !std::isfinite(upper)) {
-    return NA_REAL;
-  }
-  if (lower >= upper) {
-    lower -= 1;
-    upper += 1;
-  }
-  if (!std::isfinite(step) || step <= 0) {
-    step = 1;
-  }
-
-  double lower_value = regplot_normal_mixture_cdf(lower, mean, sd, S) - p;
-  double upper_value = regplot_normal_mixture_cdf(upper, mean, sd, S) - p;
-
-  for (int i = 0; i < 25; ++i) {
-    if (lower_value <= 0 && upper_value >= 0) {
-      break;
-    }
-    if (lower_value > 0) {
-      lower -= step;
-      lower_value = regplot_normal_mixture_cdf(lower, mean, sd, S) - p;
-    }
-    if (upper_value < 0) {
-      upper += step;
-      upper_value = regplot_normal_mixture_cdf(upper, mean, sd, S) - p;
-    }
-    step *= 2;
-  }
-
-  if (lower_value > 0 || upper_value < 0) {
-    return regplot_grid_quantile(
-      p, lower, upper,
-      [mean, sd, S](double q) {
-        return regplot_normal_mixture_cdf(q, mean, sd, S);
-      }
-    );
-  }
-
-  mix_mean /= static_cast<double>(S);
-  mix_second /= static_cast<double>(S);
-  const double mix_var = std::max(mix_second - mix_mean * mix_mean, 0.0);
-  double q = mix_mean + std::sqrt(mix_var) * qnorm(p, 0, 1, true, false);
-
-  if (!std::isfinite(q) || q <= lower || q >= upper) {
-    q = lower + 0.5 * (upper - lower);
-  }
-
-  for (int i = 0; i < 40; ++i) {
-    double cdf = 0;
-    double pdf = 0;
-    regplot_normal_mixture_cdf_pdf(q, mean, sd, S, &cdf, &pdf);
-    const double value = cdf - p;
-
-    if (value >= 0) {
-      upper = q;
-      upper_value = value;
-    } else {
-      lower = q;
-      lower_value = value;
-    }
-
-    if (std::fabs(value) <= 1e-9 || std::fabs(upper - lower) <= 1e-6) {
-      return q;
-    }
-
-    double candidate = NA_REAL;
-    if (std::isfinite(pdf) && pdf > 0) {
-      candidate = q - value / pdf;
-    }
-    if (!std::isfinite(candidate) || candidate <= lower || candidate >= upper) {
-      candidate = lower + 0.5 * (upper - lower);
-    }
-    q = candidate;
-  }
-
-  return lower + 0.5 * (upper - lower);
-}
-
-static SEXP regplot_interval_result(int K, std::vector<double> &lower,
-                                    std::vector<double> &upper)
-{
-  SEXP lower_out = PROTECT(Rf_allocVector(REALSXP, K));
-  SEXP upper_out = PROTECT(Rf_allocVector(REALSXP, K));
-
+  ctx->S          = S;
+  ctx->weights    = REAL(weights);
+  ctx->weight_sum = weight_sum;
+  ctx->full_support = plot_mixture_has_full_support(*ctx);
   for (int k = 0; k < K; ++k) {
-    REAL(lower_out)[k] = lower[static_cast<size_t>(k)];
-    REAL(upper_out)[k] = upper[static_cast<size_t>(k)];
+    ctx->mean = REAL(mean) + static_cast<size_t>(S) * static_cast<size_t>(k);
+    ctx->sd   = REAL(sd)   + static_cast<size_t>(S) * static_cast<size_t>(k);
+    if (prepare_selection) {
+      ctx->se = se[se_length == 1 ? 0 : k];
+      plot_prepare_selection(ctx);
+    }
+
+    double quantile_floor = NA_REAL;
+    double floor_cdf      = NA_REAL;
+    double floor_prob     = NA_REAL;
+    for (int rank = 0; rank < P; ++rank) {
+      const int j = probability_order[static_cast<size_t>(rank)].second;
+      const double probability = REAL(probs)[j];
+      if (rank > 0 && probability == floor_prob) {
+        REAL(out)[k + K * j] = quantile_floor;
+        previous[static_cast<size_t>(j)] = quantile_floor;
+        continue;
+      }
+
+      const double quantile = plot_mixture_quantile(
+        probability, *ctx, previous[static_cast<size_t>(j)], k > 0,
+        quantile_floor, floor_cdf, rank > 0, &floor_cdf
+      );
+      if (!std::isfinite(quantile)) {
+        Rf_error(
+          "Plot mixture quantiles could not be computed from a valid bracketed CDF."
+        );
+      }
+      REAL(out)[k + K * j] = quantile;
+      previous[static_cast<size_t>(j)] = quantile;
+      quantile_floor = quantile;
+      floor_prob     = probability;
+      if (!std::isfinite(floor_cdf)) {
+        Rf_error(
+          "Plot mixture quantiles could not be evaluated at the computed root."
+        );
+      }
+    }
   }
 
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
-  SET_VECTOR_ELT(out, 0, lower_out);
-  SET_VECTOR_ELT(out, 1, upper_out);
-
-  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
-  SET_STRING_ELT(names, 0, Rf_mkChar("lower"));
-  SET_STRING_ELT(names, 1, Rf_mkChar("upper"));
-  Rf_setAttrib(out, R_NamesSymbol, names);
-
-  UNPROTECT(4);
+  UNPROTECT(1);
   return out;
 }
 
-static void regplot_validate_mean_sd(SEXP mean, SEXP sd, int *S, int *K)
+} // namespace
+
+extern "C" SEXP RoBMA_plot_normal_mixture_quantiles(
+  SEXP mean, SEXP sd, SEXP probs, SEXP weights)
 {
-  regplot_check_real(mean, "mean");
-  regplot_check_real(sd, "sd");
-
-  *S = regplot_matrix_nrow(mean, "mean");
-  *K = regplot_matrix_ncol(mean, "mean");
-
-  if (regplot_matrix_nrow(sd, "sd") != *S ||
-      regplot_matrix_ncol(sd, "sd") != *K) {
-    Rf_error("'sd' dimensions must match 'mean'.");
-  }
-}
-
-static void regplot_validate_probs(SEXP probs)
-{
-  regplot_check_real(probs, "probs");
-  if (Rf_length(probs) != 2) {
-    Rf_error("'probs' must have length 2.");
-  }
-  if (!std::isfinite(REAL(probs)[0]) || !std::isfinite(REAL(probs)[1]) ||
-      REAL(probs)[0] <= 0 || REAL(probs)[0] >= 1 ||
-      REAL(probs)[1] <= 0 || REAL(probs)[1] >= 1) {
-    Rf_error("'probs' must contain probabilities in (0, 1).");
-  }
-}
-
-extern "C" SEXP RoBMA_regplot_normal_mixture_interval(SEXP mean, SEXP sd,
-                                                       SEXP probs)
-{
+  ROBMA_NATIVE_BEGIN(mean, sd, probs, weights)
   int S, K;
-  regplot_validate_mean_sd(mean, sd, &S, &K);
-  regplot_validate_probs(probs);
+  plot_validate_mean_sd(mean, sd, &S, &K);
+  plot_validate_probs(probs);
+  const double weight_sum = plot_validate_weights(weights, S);
 
-  const double *mean_p = REAL(mean);
-  const double *sd_p   = REAL(sd);
-  const double p_lower = REAL(probs)[0];
-  const double p_upper = REAL(probs)[1];
-
-  std::vector<double> lower(static_cast<size_t>(K));
-  std::vector<double> upper(static_cast<size_t>(K));
-
-  for (int k = 0; k < K; ++k) {
-    const double *mean_k = mean_p + static_cast<size_t>(S) * static_cast<size_t>(k);
-    const double *sd_k   = sd_p   + static_cast<size_t>(S) * static_cast<size_t>(k);
-
-    lower[static_cast<size_t>(k)] = regplot_normal_mixture_quantile(
-      p_lower, mean_k, sd_k, S
-    );
-    upper[static_cast<size_t>(k)] = regplot_normal_mixture_quantile(
-      p_upper, mean_k, sd_k, S
-    );
-  }
-
-  return regplot_interval_result(K, lower, upper);
+  PlotMixtureContext ctx;
+  ctx.se               = 0;
+  ctx.selected         = NULL;
+  ctx.omega            = NULL;
+  ctx.row_alpha        = NULL;
+  ctx.row_phack        = NULL;
+  ctx.row_mode         = NULL;
+  ctx.row_active_phack = NULL;
+  ctx.data             = NULL;
+  return plot_mixture_quantile_matrix(
+    mean, sd, probs, weights, &ctx, weight_sum, false
+  );
+  ROBMA_NATIVE_END
 }
 
-extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
-  SEXP mean, SEXP sd, SEXP se, SEXP probs, SEXP omega, SEXP alpha,
-  SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
-  SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
-  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
+extern "C" SEXP RoBMA_plot_selnorm_mixture_quantiles(
+  SEXP mean, SEXP sd, SEXP se, SEXP probs, SEXP weights, SEXP selected,
+  SEXP omega, SEXP alpha, SEXP phack_kind, SEXP kernel_mode,
+  SEXP z_lower, SEXP z_upper, SEXP sign, SEXP q,
+  SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
+  SEXP segment_step_bin, SEXP segment_phack_region,
   SEXP telescope_probabilities)
 {
+  ROBMA_NATIVE_BEGIN(mean, sd, se, probs, weights, selected, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
   int S, K;
-  regplot_validate_mean_sd(mean, sd, &S, &K);
-  regplot_validate_probs(probs);
-  regplot_check_real(se, "se");
-  regplot_check_real(omega, "omega");
-  regplot_check_real(alpha, "alpha");
-  regplot_check_integer(phack_kind, "phack_kind");
-  regplot_check_integer(kernel_mode, "kernel_mode");
-  regplot_check_real(z_lower, "z_lower");
-  regplot_check_real(z_upper, "z_upper");
-  regplot_check_integer(sign, "sign");
-  regplot_check_integer(q, "q");
-  regplot_check_real(phack_z_source, "phack_z_source");
-  regplot_check_real(phack_z_dest, "phack_z_dest");
-  regplot_check_real(segment_bounds, "segment_bounds");
-  regplot_check_integer(segment_step_bin, "segment_step_bin");
-  regplot_check_integer(segment_phack_region, "segment_phack_region");
-  regplot_check_logical(telescope_probabilities, "telescope_probabilities");
+  plot_validate_mean_sd(mean, sd, &S, &K);
+  plot_validate_probs(probs);
+  const double weight_sum = plot_validate_weights(weights, S);
+  plot_check_real(se, "se");
+  plot_check_integer(selected, "selected");
+  plot_check_real(omega, "omega");
+  plot_check_real(alpha, "alpha");
+  plot_check_integer(phack_kind, "phack_kind");
+  plot_check_integer(kernel_mode, "kernel_mode");
+  plot_check_real(z_lower, "z_lower");
+  plot_check_real(z_upper, "z_upper");
+  plot_check_integer(sign, "sign");
+  plot_check_integer(q, "q");
+  plot_check_real(phack_z_source, "phack_z_source");
+  plot_check_real(phack_z_dest, "phack_z_dest");
+  plot_check_real(segment_bounds, "segment_bounds");
+  plot_check_integer(segment_step_bin, "segment_step_bin");
+  plot_check_integer(segment_phack_region, "segment_phack_region");
+  plot_check_logical(telescope_probabilities, "telescope_probabilities");
 
-  if (Rf_length(se) != 1 || !(REAL(se)[0] > 0)) {
-    Rf_error("'se' must be a positive scalar.");
+  if (Rf_length(se) != 1 && Rf_length(se) != K) {
+    Rf_error("'se' must have length 1 or one value per prediction.");
+  }
+  for (int k = 0; k < Rf_length(se); ++k) {
+    if (!std::isfinite(REAL(se)[k]) || REAL(se)[k] < 0) {
+      Rf_error("'se' must contain finite non-negative values.");
+    }
+  }
+  if (Rf_length(selected) != S) {
+    Rf_error("'selected' must contain one value per posterior mixture row.");
+  }
+  for (int s = 0; s < S; ++s) {
+    if (INTEGER(selected)[s] != 0 && INTEGER(selected)[s] != 1) {
+      Rf_error("'selected' must contain only zero or one.");
+    }
   }
 
-  const int B = regplot_matrix_ncol(omega, "omega");
-  if (B < 1) {
-    Rf_error("'omega' must have at least one column.");
-  }
-  if (regplot_matrix_nrow(omega, "omega") != S) {
-    Rf_error("'omega' must have one row per posterior sample.");
+  const int B = plot_matrix_ncol(omega, "omega");
+  if (B < 1 || plot_matrix_nrow(omega, "omega") != S) {
+    Rf_error("'omega' must have one row per posterior mixture row.");
   }
   if (Rf_length(z_lower) != B || Rf_length(z_upper) != B) {
     Rf_error("'z_lower' and 'z_upper' must match the number of omega columns.");
-  }
-  if (Rf_length(sign) != 1 || (INTEGER(sign)[0] != 1 && INTEGER(sign)[0] != -1)) {
-    Rf_error("'sign' must be 1 or -1.");
-  }
-  if (Rf_length(q) != 1 || INTEGER(q)[0] < 0 || INTEGER(q)[0] > 2) {
-    Rf_error("'q' must be 0, 1, or 2.");
-  }
-  if (Rf_length(phack_z_source) != 2 || Rf_length(phack_z_dest) != 2) {
-    Rf_error("'phack_z_source' and 'phack_z_dest' must have length 2.");
   }
   if (Rf_length(alpha) != 1 && Rf_length(alpha) != S) {
     Rf_error("'alpha' must have length 1 or one value per posterior sample.");
@@ -604,110 +865,64 @@ extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
   if (Rf_length(kernel_mode) != 1 && Rf_length(kernel_mode) != S) {
     Rf_error("'kernel_mode' must have length 1 or one value per posterior sample.");
   }
+  if (Rf_length(sign) != 1 ||
+      (INTEGER(sign)[0] != 1 && INTEGER(sign)[0] != -1)) {
+    Rf_error("'sign' must be 1 or -1.");
+  }
+  if (Rf_length(q) != 1 || INTEGER(q)[0] < 0 || INTEGER(q)[0] > 2) {
+    Rf_error("'q' must be 0, 1, or 2.");
+  }
+  if (Rf_length(phack_z_source) != 2 || Rf_length(phack_z_dest) != 2) {
+    Rf_error("'phack_z_source' and 'phack_z_dest' must have length 2.");
+  }
 
   const int n_segments = Rf_length(segment_step_bin);
   if (Rf_length(segment_phack_region) != n_segments ||
       Rf_length(segment_bounds) != n_segments + 1) {
     Rf_error("Segment arrays have incompatible lengths.");
   }
-
-  const double *mean_p       = REAL(mean);
-  const double *sd_p         = REAL(sd);
-  const double se_p          = REAL(se)[0];
-  const double *omega_p      = REAL(omega);
-  const double *alpha_p      = REAL(alpha);
-  const int *phack_kind_p    = INTEGER(phack_kind);
-  const int *kernel_mode_p   = INTEGER(kernel_mode);
-  const double p_lower       = REAL(probs)[0];
-  const double p_upper       = REAL(probs)[1];
-
-  regplot_validate_omega_matrix(omega_p, S, B);
+  plot_validate_omega(REAL(omega), S, B);
 
   SelNormKernelData data;
-  regplot_set_kernel_data(
+  plot_set_kernel_data(
     &data, B, n_segments, sign, q, z_lower, z_upper,
     phack_z_source, phack_z_dest, segment_bounds,
     segment_step_bin, segment_phack_region, telescope_probabilities
   );
 
-  std::vector<double> lower(static_cast<size_t>(K));
-  std::vector<double> upper(static_cast<size_t>(K));
   std::vector<double> row_alpha(static_cast<size_t>(S));
   std::vector<int> row_phack(static_cast<size_t>(S));
   std::vector<int> row_mode(static_cast<size_t>(S));
   std::vector<bool> row_active_phack(static_cast<size_t>(S));
-
   for (int s = 0; s < S; ++s) {
-    row_alpha[static_cast<size_t>(s)] = regplot_scalar_or_row_real(
-      alpha_p, Rf_length(alpha), s, "alpha"
+    row_alpha[static_cast<size_t>(s)] = plot_scalar_or_row_real(
+      REAL(alpha), Rf_length(alpha), s, "alpha"
     );
-    row_phack[static_cast<size_t>(s)] = regplot_scalar_or_row_int(
-      phack_kind_p, Rf_length(phack_kind), s, "phack_kind"
+    row_phack[static_cast<size_t>(s)] = plot_scalar_or_row_int(
+      INTEGER(phack_kind), Rf_length(phack_kind), s, "phack_kind"
     );
-    row_mode[static_cast<size_t>(s)] = regplot_scalar_or_row_int(
-      kernel_mode_p, Rf_length(kernel_mode), s, "kernel_mode"
+    row_mode[static_cast<size_t>(s)] = plot_scalar_or_row_int(
+      INTEGER(kernel_mode), Rf_length(kernel_mode), s, "kernel_mode"
     );
-    row_active_phack[static_cast<size_t>(s)] = regplot_row_has_active_phack(
+    row_active_phack[static_cast<size_t>(s)] = plot_row_has_active_phack(
       row_mode[static_cast<size_t>(s)],
       row_alpha[static_cast<size_t>(s)],
       row_phack[static_cast<size_t>(s)]
     );
   }
 
-  for (int k = 0; k < K; ++k) {
-    const double *mean_k = mean_p + static_cast<size_t>(S) * static_cast<size_t>(k);
-    const double *sd_k   = sd_p   + static_cast<size_t>(S) * static_cast<size_t>(k);
-    std::vector<double> row_log_norm(static_cast<size_t>(S), 0);
+  PlotMixtureContext ctx;
+  ctx.selected         = INTEGER(selected);
+  ctx.omega            = REAL(omega);
+  ctx.row_alpha        = &row_alpha;
+  ctx.row_phack        = &row_phack;
+  ctx.row_mode         = &row_mode;
+  ctx.row_active_phack = &row_active_phack;
+  ctx.data             = &data;
 
-    for (int s = 0; s < S; ++s) {
-      if (sd_k[s] < std::sqrt(DBL_EPSILON)) {
-        continue;
-      }
-      if (row_active_phack[static_cast<size_t>(s)]) {
-        row_log_norm[static_cast<size_t>(s)] =
-          std::numeric_limits<double>::quiet_NaN();
-        continue;
-      }
-      row_log_norm[static_cast<size_t>(s)] = cpp_selnorm_kernel_log_norm(
-        mean_k[s],
-        sd_k[s],
-        se_p,
-        omega_p + s,
-        row_alpha[static_cast<size_t>(s)],
-        row_phack[static_cast<size_t>(s)],
-        row_mode[static_cast<size_t>(s)],
-        data,
-        S,
-        false
-      );
-    }
-
-    auto cdf_fun = [mean_k, sd_k, se_p, omega_p, &row_alpha, &row_phack,
-                    &row_mode, &row_active_phack, &row_log_norm,
-                    &data, S](double q_val) {
-      return regplot_selnorm_mixture_cdf_cached(
-        q_val,
-        mean_k,
-        sd_k,
-        se_p,
-        omega_p,
-        row_alpha,
-        row_phack,
-        row_mode,
-        row_active_phack,
-        row_log_norm,
-        data,
-        S
-      );
-    };
-
-    lower[static_cast<size_t>(k)] = regplot_mixture_quantile(
-      p_lower, mean_k, sd_k, S, cdf_fun
-    );
-    upper[static_cast<size_t>(k)] = regplot_mixture_quantile(
-      p_upper, mean_k, sd_k, S, cdf_fun
-    );
-  }
-
-  return regplot_interval_result(K, lower, upper);
+  return plot_mixture_quantile_matrix(
+    mean, sd, probs, weights, &ctx, weight_sum, true,
+    REAL(se), Rf_length(se)
+  );
+  ROBMA_NATIVE_END
 }

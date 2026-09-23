@@ -7,11 +7,15 @@
 \method{marginal_means}{brma}(
   object,
   null_hypothesis = 0,
-  normal_approximation = FALSE,
   n_samples = 10000,
   output_measure = NULL,
   transform = NULL,
   bf = NULL,
+  parameter = NULL,
+  type = NULL,
+  levels = NULL,
+  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_control = NULL,
   ...
 )
 }
@@ -19,10 +23,9 @@
 \item{object}{a fitted \code{brma} object with moderators.}
 
 \item{null_hypothesis}{point null hypothesis used for inclusion Bayes
-factors. Defaults to \code{0}.}
-
-\item{normal_approximation}{whether prior and posterior density at the null
-should be approximated with a normal distribution. Defaults to \code{FALSE}.}
+factors, specified on the fitted linear-predictor scale. Defaults to
+\code{0}. This remains on the fitted scale when \code{output_measure} or
+\code{transform} changes the displayed scale.}
 
 \item{n_samples}{number of samples/grid points used by BayesTools for
 marginal prior densities. Defaults to \code{10000}.}
@@ -40,17 +43,85 @@ and \code{"IRR"}.}
 
 \item{bf}{whether inclusion Bayes factors should be shown by default in
 summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
-for single-model \code{brma} objects.}
+for single-model \code{brma} objects. With qCMDE/IWMDE, setting
+\code{bf = FALSE} also skips point-ordinate precomputation; point hypotheses
+can still compute requested ordinates on demand.}
 
-\item{...}{additional arguments (currently ignored).}
+\item{parameter, type, levels}{optional selectors restricting qCMDE/IWMDE
+density precomputation to a marginal-means parameter, output type, or factor
+levels. \code{parameter} and \code{levels} also restrict the conditional
+ordinates used for inclusion Bayes factors. These ordinates are always
+computed from conditional marginal means, even when \code{type} excludes
+\code{"conditional"}.}
+
+\item{density_method}{posterior density method. \code{"KDE"} uses the
+standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
+row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
+Chen-style moment-matched IWMDE densities for plotting. RoBMA stores
+separate precomputed posterior ordinates at \code{null_hypothesis}; these
+ordinates do not alter the plotting grid. qCMDE is preferred when its
+additional normalization cost is acceptable; IWMDE can be faster but is
+more sensitive to its fitted conditional weights. Matching is
+case-insensitive. When an ordinate is used for a Bayes factor,
+\code{BF_error} is a conditional Monte Carlo error estimate. It excludes
+uncertainty in the prior ordinate and, for IWMDE, uncertainty from estimating
+the conditional weight function. Use \code{density_diagnostics()} on a
+subsequent \code{hypothesis()} result to inspect the ordinate diagnostics.
+IWMDE is unavailable for binomial and Poisson GLMMs because its
+high-dimensional conditional weights did not meet the bridge-sampling
+certification tolerance. Use qCMDE for GLMM density curves and Bayes factors.}
+
+\item{density_control}{named list of density-estimation settings. Supported
+entries are \code{n_points} (default \code{100}), \code{samples} for density
+curves and point ordinates,
+\code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
+(default \code{"adaptive"}), \code{normalization_points} (default
+\code{NULL}, resolved to \code{max(50, n_points)}), and
+\code{normalization_prob} (default \code{0.999}).
+\code{integration_control} (default \code{NULL}) retains the fitted
+selection-integration settings. Supply a control created by
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}} to change those settings for this
+post-fit calculation, for example
+\code{list(integration_control = set_selection_likelihood_control(max_points_per_scramble = 32768))}.
+This entry is available for Gaussian selection models with a fitted integration plan.
+The fitted object and posterior draws are unchanged. The maximum point budget
+controls factor QMC fallback; analytic and deterministic quadrature rules
+remain unchanged. \code{samples} defaults
+to \code{500} for qCMDE and \code{1000} for IWMDE density curves and point
+ordinates. Point ordinates use one fixed state-independent
+simple random sample chosen before contributions are evaluated. Sample
+diagnostics do not decide whether a finite ordinate is returned. An unmet
+relative-MCSE target produces a warning; increase \code{samples} or use
+\code{Inf} for the census. The
+normalization entries are used with
+\code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+Curve diagnostics apply local reliability gates over the empirical 5--95
+percent bulk, report the 5 and 95 percent tail checkpoints, and retain a
+whole-curve absolute MCSE safeguard relative to the density peak. Point
+ordinates retain separate numerical-stability gates; their sample precision,
+effective-sample-size, and contribution-concentration checks are warnings.
+qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
+random-formula models and for derived semantic random-effect quantities.}
+
+\item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }
 \value{
-A list of class \code{marginal_means.brma} containing the
-BayesTools \code{marginal_inference} object and parameter metadata.
+A list of class \code{marginal_means.brma}. Its stable fields are
+\code{inference}, \code{parameters}, \code{term_map}, \code{formula},
+\code{null_hypothesis}, \code{n_samples}, \code{conditional_rule},
+\code{input_measure}, \code{effect_transform}, \code{model_averaged},
+\code{density_method}, \code{point_ordinate_supported}, \code{bf},
+\code{name}, and \code{source_object}. qCMDE/IWMDE objects additionally
+contain \code{density_diagnostics}, \code{ordinate_diagnostics},
+\code{density_settings}, and \code{ordinate_settings}.
 }
 \description{
 Computes estimated marginal means for a fitted \code{brma}
 object with moderators using \code{BayesTools::as_marginal_inference()}.
+Alternative-conditioned marginal means condition on the union of every
+nonzero formula coefficient contributing to the corresponding output cell.
+A location intercept fixed at zero is omitted whenever moderators are
+present.
 }
 \examples{
 \dontrun{

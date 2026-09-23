@@ -74,6 +74,7 @@ The [*Bayesian Meta-Analysis*](`r article_url("v02-bayesian-meta-analysis")`) vi
 | [*Publication-Bias Adjustment*](`r article_url("v11-metafor-parity-publication-bias")`) | `bselmodel()` / `bPET()` / `bPEESE()` and `metafor::selmodel()` |
 | [*Location-Scale Models*](`r article_url("v12-metafor-parity-location-scale")`) | `brma()` with `scale` and `metafor::rma.ls()`          |
 | [*Generalized Linear Mixed-Effects Meta-Analysis*](`r article_url("v13-metafor-parity-glmm")`) | `brma.glmm()` and `metafor::rma.glmm()` for binomial and Poisson outcomes |
+| [*Multivariate and Multilevel Meta-Analysis*](`r article_url("v14-metafor-parity-multivariate")`) | `brma.mv()` with known sampling covariance matrices and structured random effects |
 
 Each vignette starts from a `metafor` package analysis and shows the matching `RoBMA` R package syntax, output, and diagnostics.
 
@@ -83,6 +84,7 @@ Each vignette starts from a `metafor` package analysis and shows the matching `R
 |:-------------------------------|:-----------------------------------------------------------------------|
 | [*Bayesian Model Averaging*](`r article_url("v20-bayesian-model-averaging")`) | Accounting for model uncertainty across presence and absence of effect and heterogeneity, with posterior model probabilities and inclusion Bayes factors |
 | [*Robust Bayesian Meta-Analysis*](`r article_url("v21-robust-bayesian-meta-analysis")`) | Extending the ensemble to publication-bias models used in `RoBMA()`, with `PSMA`, `PP`, and bespoke ensemble specifications |
+| [*Posterior Densities and Parameter Tests*](`r article_url("v22-posterior-densities-parameter-tests")`) | Likelihood-aware posterior densities and hypothesis tests with qCMDE and IWMDE |
 
 The first vignette introduces model averaging on an ensemble of models with and without effect and heterogeneity.
 The second extends the ensemble to publication-bias models used in `RoBMA()`.

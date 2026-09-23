@@ -34,22 +34,87 @@ marginal_means <- function(object, ...) {
 #'
 #' @description Computes estimated marginal means for a fitted \code{brma}
 #' object with moderators using \code{BayesTools::as_marginal_inference()}.
+#' Alternative-conditioned marginal means condition on the union of every
+#' nonzero formula coefficient contributing to the corresponding output cell.
+#' A location intercept fixed at zero is omitted whenever moderators are
+#' present.
 #'
 #' @param object a fitted \code{brma} object with moderators.
 #' @param null_hypothesis point null hypothesis used for inclusion Bayes
-#' factors. Defaults to \code{0}.
-#' @param normal_approximation whether prior and posterior density at the null
-#' should be approximated with a normal distribution. Defaults to \code{FALSE}.
+#' factors, specified on the fitted linear-predictor scale. Defaults to
+#' \code{0}. This remains on the fitted scale when \code{output_measure} or
+#' \code{transform} changes the displayed scale.
 #' @param n_samples number of samples/grid points used by BayesTools for
 #' marginal prior densities. Defaults to \code{10000}.
 #' @param bf whether inclusion Bayes factors should be shown by default in
 #' summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
-#' for single-model \code{brma} objects.
+#' for single-model \code{brma} objects. With qCMDE/IWMDE, setting
+#' \code{bf = FALSE} also skips point-ordinate precomputation; point hypotheses
+#' can still compute requested ordinates on demand.
+#' @param density_method posterior density method. \code{"KDE"} uses the
+#' standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
+#' row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
+#' Chen-style moment-matched IWMDE densities for plotting. RoBMA stores
+#' separate precomputed posterior ordinates at \code{null_hypothesis}; these
+#' ordinates do not alter the plotting grid. qCMDE is preferred when its
+#' additional normalization cost is acceptable; IWMDE can be faster but is
+#' more sensitive to its fitted conditional weights. Matching is
+#' case-insensitive. When an ordinate is used for a Bayes factor,
+#' \code{BF_error} is a conditional Monte Carlo error estimate. It excludes
+#' uncertainty in the prior ordinate and, for IWMDE, uncertainty from estimating
+#' the conditional weight function. Use \code{density_diagnostics()} on a
+#' subsequent \code{hypothesis()} result to inspect the ordinate diagnostics.
+#' IWMDE is unavailable for binomial and Poisson GLMMs because its
+#' high-dimensional conditional weights did not meet the bridge-sampling
+#' certification tolerance. Use qCMDE for GLMM density curves and Bayes factors.
+#' @param parameter,type,levels optional selectors restricting qCMDE/IWMDE
+#' density precomputation to a marginal-means parameter, output type, or factor
+#' levels. \code{parameter} and \code{levels} also restrict the conditional
+#' ordinates used for inclusion Bayes factors. These ordinates are always
+#' computed from conditional marginal means, even when \code{type} excludes
+#' \code{"conditional"}.
+#' @param density_control named list of density-estimation settings. Supported
+#' entries are \code{n_points} (default \code{100}), \code{samples} for density
+#' curves and point ordinates,
+#' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
+#' (default \code{"adaptive"}), \code{normalization_points} (default
+#' \code{NULL}, resolved to \code{max(50, n_points)}), and
+#' \code{normalization_prob} (default \code{0.999}).
+#' \code{integration_control} (default \code{NULL}) retains the fitted
+#' selection-integration settings. Supply a control created by
+#' [set_selection_likelihood_control()] to change those settings for this
+#' post-fit calculation, for example
+#' \code{list(integration_control = set_selection_likelihood_control(max_points_per_scramble = 32768))}.
+#' This entry is available for Gaussian selection models with a fitted integration plan.
+#' The fitted object and posterior draws are unchanged. The maximum point budget
+#' controls factor QMC fallback; analytic and deterministic quadrature rules
+#' remain unchanged. \code{samples} defaults
+#' to \code{500} for qCMDE and \code{1000} for IWMDE density curves and point
+#' ordinates. Point ordinates use one fixed state-independent
+#' simple random sample chosen before contributions are evaluated. Sample
+#' diagnostics do not decide whether a finite ordinate is returned. An unmet
+#' relative-MCSE target produces a warning; increase \code{samples} or use
+#' \code{Inf} for the census. The
+#' normalization entries are used with
+#' \code{density_method = "qCMDE"} and \code{density_method = "IWMDE"}.
+#' Curve diagnostics apply local reliability gates over the empirical 5--95
+#' percent bulk, report the 5 and 95 percent tail checkpoints, and retain a
+#' whole-curve absolute MCSE safeguard relative to the density peak. Point
+#' ordinates retain separate numerical-stability gates; their sample precision,
+#' effective-sample-size, and contribution-concentration checks are warnings.
+#' qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
+#' random-formula models and for derived semantic random-effect quantities.
 #' @inheritParams predict.brma
-#' @param ... additional arguments (currently ignored).
+#' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
-#' @return A list of class \code{marginal_means.brma} containing the
-#' BayesTools \code{marginal_inference} object and parameter metadata.
+#' @return A list of class \code{marginal_means.brma}. Its stable fields are
+#' \code{inference}, \code{parameters}, \code{term_map}, \code{formula},
+#' \code{null_hypothesis}, \code{n_samples}, \code{conditional_rule},
+#' \code{input_measure}, \code{effect_transform}, \code{model_averaged},
+#' \code{density_method}, \code{point_ordinate_supported}, \code{bf},
+#' \code{name}, and \code{source_object}. qCMDE/IWMDE objects additionally
+#' contain \code{density_diagnostics}, \code{ordinate_diagnostics},
+#' \code{density_settings}, and \code{ordinate_settings}.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE) &&
@@ -74,10 +139,14 @@ marginal_means <- function(object, ...) {
 #' @seealso [summary()], [plot()], [summary.brma()], [regplot()]
 #' @export
 marginal_means.brma <- function(object, null_hypothesis = 0,
-                                normal_approximation = FALSE,
                                 n_samples = 10000,
                                 output_measure = NULL, transform = NULL,
-                                bf = NULL, ...) {
+                                bf = NULL,
+                                parameter = NULL, type = NULL, levels = NULL,
+                                density_method = c(
+                                  "KDE", "qCMDE", "IWMDE"
+                                ),
+                                density_control = NULL, ...) {
 
   if (!.is_mods(object)) {
     stop("'marginal_means' requires a model with moderators.", call. = FALSE)
@@ -87,10 +156,55 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   }
 
   BayesTools::check_real(null_hypothesis, "null_hypothesis", check_length = 1)
-  BayesTools::check_bool(normal_approximation, "normal_approximation")
   BayesTools::check_int(n_samples, "n_samples", lower = 2)
-  model_averaged <- .is_RoBMA(object)
-  bf             <- .marginal_means_resolve_bf(model_averaged, bf)
+  .warn_unused_dots(
+    dots    = list(...),
+    allowed = character(),
+    caller  = "marginal_means()"
+  )
+  density_method <- .density_method_normalize(
+    density_method = density_method
+  )
+  density_control_input <- density_control
+  precompute_density <- .density_method_uses_precomputed(density_method)
+  if (!precompute_density &&
+      (!is.null(parameter) || !is.null(type) || !is.null(levels))) {
+    stop(
+      "'parameter', 'type', and 'levels' are only used when ",
+      "'density_method' is 'qCMDE' or 'IWMDE'.",
+      call. = FALSE
+    )
+  }
+  if (precompute_density || !is.null(density_control)) {
+    density_control <- .density_control_normalize(
+      density_method  = density_method,
+      density_control = density_control,
+      purpose         = "density"
+    )
+  }
+  ordinate_control <- if (precompute_density) {
+    .density_control_normalize(
+      density_method  = density_method,
+      density_control = density_control_input,
+      purpose         = "ordinate"
+    )
+  } else {
+    NULL
+  }
+  model_averaged      <- .is_RoBMA(object)
+  precompute_type     <- .marginal_means_precompute_type(
+    type           = type,
+    model_averaged = model_averaged
+  )
+  precompute_levels   <- .marginal_means_precompute_levels(levels)
+  precompute_targeted <- !is.null(parameter) || !is.null(type) ||
+    !is.null(levels)
+  bf                       <- .marginal_means_resolve_bf(model_averaged, bf)
+  point_ordinate_supported <- !precompute_density ||
+    .iwmde_point_ordinate_supported(object, density_method)
+  if (precompute_density) {
+    .iwmde_check_density_method_supported(object, density_method)
+  }
   effect_transform <- .effect_output_setup(
     object         = object,
     output_measure = output_measure,
@@ -104,23 +218,31 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     parameters        = terms,
     formula_parameter = "mu"
   )
+  parameter_setup  <- .marginal_means_drop_fixed_zero_intercept(
+    object     = object,
+    formula    = formula,
+    terms      = terms,
+    parameters = parameters
+  )
+  formula    <- parameter_setup[["formula"]]
+  terms      <- parameter_setup[["terms"]]
+  parameters <- parameter_setup[["parameters"]]
   conditional_list <- .marginal_means_conditional_list(
+    object     = object,
     terms      = terms,
     parameters = parameters
   )
 
-  inference <- suppressWarnings(BayesTools::as_marginal_inference(
+  inference <- suppressWarnings(.marginal_means_inference(
     model                = object[["fit"]],
-    marginal_parameters  = parameters,
-    parameters           = parameters,
-    conditional_list     = conditional_list,
-    conditional_rule     = "OR",
-    formula              = formula,
-    null_hypothesis      = null_hypothesis,
-    normal_approximation = normal_approximation,
-    n_samples            = n_samples,
-    silent               = TRUE,
-    force_plots          = TRUE
+    marginal_parameters = parameters,
+    parameters          = parameters,
+    conditional_list    = conditional_list,
+    conditional_rule    = "OR",
+    formula             = formula,
+    null_hypothesis     = null_hypothesis,
+    n_samples           = n_samples,
+    bf                  = bf
   ))
 
   available_parameters <- Reduce(
@@ -152,18 +274,153 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     term_map               = term_map,
     formula                = formula,
     null_hypothesis        = null_hypothesis,
-    normal_approximation   = normal_approximation,
     n_samples              = n_samples,
+    conditional_rule       = "OR",
     input_measure          = .measure(object),
     effect_transform       = effect_transform,
     model_averaged         = model_averaged,
-    bf                     = bf,
-    name                   = .summary.brma_model_names(object)
+    density_method         = density_method,
+    point_ordinate_supported = point_ordinate_supported,
+    bf                       = bf,
+    name                     = .summary.brma_model_names(object),
+    source_object            = object
   )
 
   class(output) <- c("marginal_means.brma", "marginal_means")
 
+  if (precompute_density) {
+    output <- .marginal_means_attach_iwmde(
+      object                  = object,
+      marginal_means_object   = output,
+      n_points                = density_control[["n_points"]],
+      sample_budget           = density_control[["samples"]],
+      normalization_points    = density_control[["normalization_points"]],
+      normalization_prob      = density_control[["normalization_prob"]],
+      integration_control     = density_control[["integration_control"]],
+      density_method          = density_method,
+      display_grid            = density_control[["display_grid"]],
+      null_hypothesis         = null_hypothesis,
+      parameter               = parameter,
+      type                    = precompute_type,
+      levels                  = precompute_levels,
+      targeted                = precompute_targeted,
+      include_ordinates       = isTRUE(bf) && point_ordinate_supported,
+      ordinate_control        = ordinate_control
+    )
+  }
+
   return(output)
+}
+
+
+.marginal_means_inference <- function(
+    model, marginal_parameters, parameters, conditional_list,
+    conditional_rule, formula, null_hypothesis, n_samples, bf) {
+
+  out <- BayesTools::as_marginal_inference(
+    model                 = model,
+    marginal_parameters  = marginal_parameters,
+    parameters           = parameters,
+    conditional_list     = conditional_list,
+    conditional_rule     = conditional_rule,
+    formula              = formula,
+    null_hypothesis      = null_hypothesis,
+    normal_approximation = FALSE,
+    n_samples            = n_samples,
+    silent               = TRUE,
+    force_plots          = TRUE,
+    density_method       = "KDE",
+    compute_BF           = FALSE
+  )
+
+  available <- intersect(
+    marginal_parameters,
+    intersect(names(out[["averaged"]]), names(out[["conditional"]]))
+  )
+  for (parameter in available) {
+    out[["inference"]][[parameter]] <- .marginal_means_inclusion_bf(
+      posterior       = out[["conditional"]][[parameter]],
+      null_hypothesis = null_hypothesis,
+      compute          = bf
+    )
+  }
+
+  return(out)
+}
+
+
+.marginal_means_inclusion_bf <- function(posterior, null_hypothesis, compute) {
+
+  if (!isTRUE(compute)) {
+    if (is.list(posterior)) {
+      unavailable <- as.list(rep(NA_real_, length(posterior)))
+      return(stats::setNames(unavailable, names(posterior)))
+    }
+    return(NA_real_)
+  }
+
+  if (!is.list(posterior)) {
+    return(.marginal_means_inclusion_bf_one(posterior, null_hypothesis))
+  }
+  out <- lapply(seq_along(posterior), function(i) {
+
+    child <- posterior[[i]]
+    class(child) <- unique(c(class(child), "marginal_posterior"))
+    .marginal_means_inclusion_bf_one(child, null_hypothesis)
+  })
+  names(out) <- names(posterior)
+  return(out)
+}
+
+
+.marginal_means_inclusion_bf_one <- function(posterior, null_hypothesis) {
+
+  tryCatch(
+    BayesTools::Savage_Dickey_BF(
+      posterior       = posterior,
+      null_hypothesis = null_hypothesis,
+      silent          = TRUE,
+      density_method  = "KDE"
+    ),
+    error = function(error) {
+      if (!grepl("declared point mass at the exact null", conditionMessage(error),
+                 fixed = TRUE)) {
+        stop(error)
+      }
+      value <- NA_real_
+      attr(value, "warnings") <- paste0(
+        "The marginal mean is structurally fixed at the null hypothesis; ",
+        "its inclusion Bayes factor is undefined."
+      )
+      return(value)
+    }
+  )
+}
+
+
+.marginal_means_drop_fixed_zero_intercept <- function(object, formula, terms,
+                                                       parameters) {
+
+  intercept_index <- which(parameters == "mu_intercept")
+  if (length(intercept_index) != 1L ||
+      !.location_omit_fixed_zero_intercept(object)) {
+    return(list(
+      formula    = formula,
+      terms      = terms,
+      parameters = parameters
+    ))
+  }
+
+  keep <- seq_along(parameters) != intercept_index
+  if (!any(keep)) {
+    stop("No marginal means are available for this model.", call. = FALSE)
+  }
+
+  return(list(
+    formula    = stats::update.formula(formula, . ~ . - 1),
+    terms      = terms[keep],
+    parameters = parameters[keep]
+  ))
 }
 
 
@@ -187,7 +444,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 #' @param bf whether to show inclusion Bayes factors. Defaults to the setting
 #' stored by \code{marginal_means()}.
 #' @inheritParams predict.brma
-#' @param ... additional arguments (currently ignored).
+#' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
 #' @return A \code{BayesTools_table} of class
 #' \code{summary.marginal_means.brma}.
@@ -196,14 +453,25 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 summary.marginal_means.brma <- function(object, type = NULL,
                                         probs = c(.025, .50, .975),
                                         logBF = FALSE, BF01 = FALSE,
-                                        bf = NULL,
-                                        output_measure = NULL, transform = NULL, ...) {
+                                         bf = NULL,
+                                         output_measure = NULL, transform = NULL, ...) {
 
+  .warn_unused_dots(
+    dots    = list(...),
+    allowed = character(),
+    caller  = "summary.marginal_means()"
+  )
   type <- .marginal_means_type(object = object, type = type)
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
   BayesTools::check_bool(logBF, "logBF")
   BayesTools::check_bool(BF01, "BF01")
   bf <- .marginal_means_resolve_bf(object[["model_averaged"]], bf, object[["bf"]])
+  if (isTRUE(bf) && identical(object[["point_ordinate_supported"]], FALSE)) {
+    .iwmde_check_point_ordinate_supported(
+      object[["source_object"]],
+      object[["density_method"]]
+    )
+  }
 
   if (missing(output_measure) && missing(transform)) {
     effect_transform <- object[["effect_transform"]]
@@ -215,11 +483,22 @@ summary.marginal_means.brma <- function(object, type = NULL,
     )
   }
 
+  inference_object <- .marginal_means_refresh_iwmde_bf(
+    inference            = object[["inference"]],
+    parameters           = object[["parameters"]],
+    null_hypothesis      = object[["null_hypothesis"]],
+    density_method       = if (is.null(object[["density_method"]])) {
+      "KDE"
+    } else {
+      object[["density_method"]]
+    },
+    object               = object
+  )
   samples    <- .transform_marginal_samples_effect(
-    samples          = object[["inference"]][[type]],
+    samples          = inference_object[[type]],
     effect_transform = effect_transform
   )
-  inference  <- object[["inference"]][["inference"]]
+  inference  <- inference_object[["inference"]]
   parameters <- object[["parameters"]]
   parameters <- parameters[
     parameters %in% names(samples) &
@@ -288,20 +567,76 @@ print.marginal_means.brma <- function(x, ...) {
 #' @description Prints a summary table of estimated marginal means.
 #'
 #' @param x a \code{summary.marginal_means.brma} object.
-#' @param ... additional arguments (currently ignored).
+#' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
 #' @return Returns \code{x} invisibly.
 #'
 #' @export
 print.summary.marginal_means.brma <- function(x, ...) {
 
-  class(x) <- setdiff(class(x), "summary.marginal_means.brma")
+  .warn_unused_dots(
+    dots    = list(...),
+    allowed = character(),
+    caller  = "print.summary.marginal_means()"
+  )
+  display <- x
+  class(display) <- setdiff(class(display), "summary.marginal_means.brma")
 
   cat("\n")
-  print(x)
+  print(display)
   cat("\n")
 
   return(invisible(x))
+}
+
+
+#' @title Convert Marginal Means to a Data Frame
+#'
+#' @description Converts the summary displayed for a
+#' \code{marginal_means.brma} object to a plain long data frame with leading
+#' \code{component} and \code{parameter} columns. Printed quantile labels are
+#' returned as syntactic \code{CI_} column names.
+#'
+#' @param x a \code{marginal_means.brma} or
+#' \code{summary.marginal_means.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... additional arguments passed to \code{summary()}.
+#'
+#' @return A plain long \code{data.frame} containing the displayed
+#' marginal-means summary and leading \code{component} and \code{parameter}
+#' columns.
+#'
+#' @export
+as.data.frame.marginal_means.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- as.data.frame.summary.marginal_means.brma(
+    x                = summary(x, ...),
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.marginal_means.brma
+#' @export
+as.data.frame.summary.marginal_means.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- .output_table_as_long_data_frame(
+    table            = x,
+    component        = "marginal means",
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
 }
 
 
@@ -321,10 +656,43 @@ print.summary.marginal_means.brma <- function(x, ...) {
 #' means.
 #' @param prior whether the marginal prior distribution should be added to the
 #' plot. Defaults to \code{FALSE}.
+#' @param add whether to add the densities to an existing plot. This is used by
+#' \code{lines.marginal_means.brma()} and defaults to \code{FALSE}.
 #' @param plot_type whether to use base R graphics (\code{"base"}) or ggplot2
 #' (\code{"ggplot"}). Defaults to \code{"base"}.
 #' @param dots_prior list of additional graphical arguments passed to the prior
 #' plotting function.
+#' @param density_method posterior density method. The default \code{NULL}
+#' reuses the method stored on \code{x}; specify \code{"KDE"} to override a
+#' stored qCMDE/IWMDE method. \code{"qCMDE"} and
+#' \code{"IWMDE"} compute any missing densities for the plotted marginal means
+#' before plotting and never silently mix with KDE. Plot-time qCMDE/IWMDE
+#' computation can be slow and is used only for the current plot call; precompute
+#' with \code{marginal_means(..., density_method = "qCMDE")} or
+#' \code{marginal_means(..., density_method = "IWMDE")} to reuse densities across
+#' plots. Prefer qCMDE for likelihood-aware final results; IWMDE can be faster
+#' but is more sensitive to its fitted conditional weights.
+#' @param density_control named list of qCMDE/IWMDE density-estimation settings.
+#' Supported entries are \code{n_points} (default \code{100}),
+#' \code{samples} (default \code{500} for qCMDE and \code{1000} for IWMDE
+#' density curves),
+#' \code{target_relative_mcse} (default \code{0.05}),
+#' \code{display_grid} (default \code{"adaptive"}),
+#' \code{normalization_points} (default \code{NULL}, resolved to
+#' \code{max(50, n_points)}), and \code{normalization_prob} (default
+#' \code{0.999}). \code{integration_control} (default \code{NULL}) accepts
+#' [set_selection_likelihood_control()] settings for Gaussian selection models;
+#' see [marginal_means.brma()] for an example. The fitted object and posterior
+#' draws are unchanged. \code{samples} controls the fixed posterior-row budget for
+#' the density curve. \code{target_relative_mcse} is a point-ordinate
+#' diagnostic target and does not alter this fixed-budget plot. Curve
+#' diagnostics use the empirical 5--95 percent bulk, report the 5 and 95
+#' percent tail checkpoints, and retain a whole-curve absolute MCSE safeguard
+#' relative to the density peak. Supplying
+#' \code{density_control} forces
+#' recomputation for the plotted marginal means instead of reusing stored
+#' densities. Increase row and normalization budgets when diagnostics report
+#' concentrated contributions or unstable normalization.
 #' @inheritParams predict.brma
 #' @param ... additional graphical arguments passed to
 #' \code{BayesTools::plot_marginal()}.
@@ -336,11 +704,30 @@ print.summary.marginal_means.brma <- function(x, ...) {
 plot.marginal_means.brma <- function(x, parameter, type = NULL,
                                      prior = FALSE, plot_type = "base",
                                      dots_prior = NULL,
-                                     output_measure = NULL, transform = NULL, ...) {
+                                     output_measure = NULL, transform = NULL,
+                                     density_method = NULL,
+                                     density_control = NULL, add = FALSE, ...) {
 
   type <- .marginal_means_type(object = x, type = type)
   BayesTools::check_bool(prior, "prior")
+  BayesTools::check_bool(add, "add")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  density_control_requested <- !is.null(density_control)
+  density_method <- .marginal_means_density_method(x, density_method)
+  if (.density_method_uses_precomputed(density_method) ||
+      !is.null(density_control)) {
+    density_control <- .density_control_normalize(
+      density_method  = density_method,
+      density_control = density_control
+    )
+  }
+  dots_raw <- list(...)
+  .warn_unused_dots(
+    dots    = dots_raw,
+    allowed = .plot_dots_allowed(),
+    caller  = if (add) "lines.marginal_means()" else "plot.marginal_means()"
+  )
+  dots_raw <- .keep_allowed_dots(dots_raw, .plot_dots_allowed())
 
   if (missing(output_measure) && missing(transform)) {
     effect_transform <- x[["effect_transform"]]
@@ -365,8 +752,20 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
          selected[["term"]], "' and type = '", type, "'.", call. = FALSE)
   }
 
+  if (.density_method_uses_precomputed(density_method)) {
+    x <- .marginal_means_plot_prepare_iwmde(
+      x               = x,
+      selected        = selected,
+      type            = type,
+      density_method  = density_method,
+      density_control = density_control,
+      force           = density_control_requested
+    )
+    samples <- x[["inference"]][[type]]
+  }
+
   n_levels <- length(samples[[selected[["parameter"]]]])
-  dots     <- .set_dots_plot(..., n_levels = n_levels)
+  dots     <- do.call(.set_dots_plot, c(dots_raw, list(n_levels = n_levels)))
   if (is.null(dots[["xlab"]])) {
     dots[["xlab"]] <- .plot_parameter_label("mu", effect_transform)
   }
@@ -390,9 +789,13 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   args$n_points                 <- 1000
   args$transformation           <- .effect_plot_transformation(effect_transform)
   args$transformation_arguments <- NULL
-  args$transformation_settings  <- FALSE
+  args$transformation_settings  <- TRUE
   args$par_name                 <- dots[["xlab"]]
   args$dots_prior               <- dots_prior
+  args$add                      <- add
+  args$density_method           <- if (
+    .density_method_uses_precomputed(density_method)
+  ) "precomputed" else "KDE"
 
   plot <- suppressMessages(do.call(BayesTools::plot_marginal, args))
 
@@ -401,6 +804,33 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   } else if (plot_type == "ggplot") {
     return(plot)
   }
+}
+
+
+#' @details \code{lines.marginal_means.brma()} adds posterior densities to an
+#' existing base plot. With \code{plot_type = "ggplot"}, it returns ggplot2
+#' layer(s) that can be added to a marginal-means plot with \code{+}.
+#'
+#' @rdname plot.marginal_means.brma
+#' @export
+lines.marginal_means.brma <- function(x, parameter, prior = FALSE, ...) {
+
+  BayesTools::check_bool(prior, "prior")
+  if (isTRUE(prior)) {
+    stop(
+      "'lines.marginal_means.brma' adds posterior densities only; use ",
+      "'plot.marginal_means.brma(..., prior = TRUE)' for prior overlays.",
+      call. = FALSE
+    )
+  }
+
+  plot.marginal_means.brma(
+    x         = x,
+    parameter = parameter,
+    prior     = FALSE,
+    add       = TRUE,
+    ...
+  )
 }
 
 
@@ -426,22 +856,45 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
 
 
 # Build BayesTools conditional-list specification for marginal means.
-.marginal_means_conditional_list <- function(terms, parameters) {
+.marginal_means_conditional_list <- function(object, terms, parameters) {
 
-  intercept_parameter <- parameters[terms == "intercept"]
+  # A marginal cell can depend on lower-order and interaction coefficients
+  # beyond the coefficient naming its displayed term. BayesTools applies this
+  # candidate list per cell and removes coefficients with zero linear weight.
+  # Only coefficients carrying an inclusion indicator can be conditioned on;
+  # coefficients with plain priors are always included in every model and
+  # BayesTools rejects them as conditional candidates.
+  prior_list  <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  conditional <- parameters[vapply(parameters, function(parameter) {
+    .marginal_means_prior_is_conditional(prior_list[[parameter]])
+  }, logical(1))]
 
-  conditional_list <- lapply(seq_along(parameters), function(i) {
-
-    c(
-      if (length(intercept_parameter) > 0L && terms[i] != "intercept") {
-        intercept_parameter
-      },
-      parameters[i]
-    )
-  })
+  conditional_list <- rep(list(conditional), length(terms))
   names(conditional_list) <- parameters
 
   return(conditional_list)
+}
+
+
+# Whether a prior produces an inclusion indicator that BayesTools can condition
+# on. Mixtures qualify only with 'null'/'alternative' components.
+.marginal_means_prior_is_conditional <- function(prior) {
+
+  if (is.null(prior)) {
+    return(FALSE)
+  }
+
+  if (BayesTools::is.prior.spike_and_slab(prior)) {
+    return(TRUE)
+  }
+
+  if (BayesTools::is.prior.mixture(prior)) {
+    components <- attr(prior, "components", exact = TRUE)
+    return(length(components) > 0L &&
+             all(components %in% c("null", "alternative")))
+  }
+
+  return(FALSE)
 }
 
 
@@ -466,11 +919,12 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
 .marginal_means_drop_bf <- function(table) {
 
   table_type <- attr(table, "type")
-  if (is.null(table_type) || !any(table_type == "inclusion_BF")) {
+  bf_types   <- c("inclusion_BF", "BF_error")
+  if (is.null(table_type) || !any(table_type %in% bf_types)) {
     return(table)
   }
 
-  keep        <- table_type != "inclusion_BF"
+  keep        <- !table_type %in% bf_types
   table_attrs <- attributes(table)
   table       <- table[, keep, drop = FALSE]
 
@@ -485,14 +939,7 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
     attr(table, attr_name) <- table_attrs[[attr_name]]
   }
 
-  warnings <- attr(table, "warnings")
-  if (!is.null(warnings)) {
-    warnings <- warnings[!grepl("Savage-Dickey", warnings, fixed = TRUE)]
-    if (length(warnings) == 0L) {
-      warnings <- NULL
-    }
-    attr(table, "warnings") <- warnings
-  }
+  attr(table, "warnings") <- NULL
 
   return(table)
 }
@@ -514,6 +961,20 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   }
 
   return(type)
+}
+
+
+# Resolve a marginal-means density method, inheriting the stored method.
+.marginal_means_density_method <- function(object, density_method) {
+
+  if (is.null(density_method)) {
+    density_method <- object[["density_method"]]
+  }
+  if (is.null(density_method)) {
+    density_method <- "KDE"
+  }
+
+  return(.density_method_normalize(density_method))
 }
 
 
@@ -603,7 +1064,7 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
 
   n_prior_levels <- sum(prior_component_counts)
   if (is.null(dots_prior[["col"]]) && n_levels == 1L) {
-    dots_prior[["col"]] <- "black"
+    dots_prior[["col"]] <- rep("black", n_prior_levels)
   } else if (is.null(dots_prior[["col"]]) && n_levels > 1L) {
     level_col <- .plot_level_palette(n_levels)
     dots_prior[["col"]] <- rep(level_col, prior_component_counts)

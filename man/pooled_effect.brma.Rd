@@ -20,7 +20,7 @@
 \item{bias_adjusted}{whether to adjust for publication bias. Defaults to
 \code{TRUE}. For PET/PEESE models this removes the regression bias term from
 the pooled location effect. Selection-model weighting affects response
-predictions, not this \code{type = "terms"} wrapper.}
+predictions, not this fixed-location posterior summary.}
 
 \item{output_measure}{effect-size measure for location/effect predictions.
 Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
@@ -39,28 +39,43 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 \item{conditional}{whether to return the pooled effect conditional on the
 effect component for RoBMA product-space objects. Defaults to \code{FALSE}.}
 
-\item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
-arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.}
+\item{...}{reserved for internal posterior-sample reuse.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
-displays a summary table. Use \code{summary()} to obtain the summary table directly.
+displays a one-row summary table whose \code{PI} columns contain posterior
+prediction quantiles. Use \code{summary()} or \code{as.data.frame()} to
+obtain the table directly.
 The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
-Computes the pooled (aggregated) effect size estimate
-from a fitted brma object by averaging across the moderator model matrix.
+Computes the pooled effect and prediction interval at the
+average expanded moderator design of a fitted brma object.
 }
 \details{
-This function is a convenience wrapper around \code{predict.brma(...,
-type = "terms", newdata = TRUE, bias_adjusted = TRUE, quiet = TRUE)}.
+This function evaluates the fixed-location model at the average expanded
+moderator design. Because the location predictor is linear in its design,
+this equals averaging its fitted-design posterior draws directly.
 
 For meta-regression models, the pooled effect averages the effect size
 estimate across moderator levels proportionately to the levels observed
 in the data. This provides an estimate representative of the sample of
 studies.
 
-For models without moderators, this returns the single mu parameter.
+For \code{brma.mv()} models and models with factor-specific or random-slope
+terms, the average expanded design can be synthetic and need not correspond
+to a single realizable outcome or study. The pooled effect and its prediction
+interval then describe that linear composite and should be interpreted only
+when the composite has a meaningful scientific interpretation. Use
+\code{predict(..., newdata = ...)} for a specified realizable design.
+
+For models without moderators, this returns the single mu parameter. The
+prediction interval is marginal over one new true effect at the same average
+location, scale, and random-effect design. It therefore uses
+\code{pooled_heterogeneity()}, not the observed-design RMS heterogeneity
+reported by \code{summary_heterogeneity()}. For known-\eqn{R} random
+effects this is a unit-kernel reference interval; use \code{predict()} for
+an interval tied to a fitted group and its known covariance multiplier.
 }
 \examples{
 \dontrun{

@@ -1,7 +1,7 @@
 ---
 title: "Multilevel Meta-Analysis"
 author: "František Bartoš"
-date: "28th of April 2026"
+date: "28th of April 2026 (updated 22nd of June 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Multilevel Meta-Analysis}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -75,7 +74,10 @@ We walk through the school-calendar dataset from @konstantopoulos2011fixed, show
 All `brma()` calls keep the default prior distributions; see the [*Prior Distributions*](v01-prior-distributions.html) vignette for the prior definitions and customization options.
 For the non-multilevel workflow showing more features (also applicable to the multilevel models) see the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette.
 
-The `RoBMA` R package currently supports the simple multilevel structure shown here, with one cluster grouping above the estimate level (parameterized by total heterogeneity $\tau^2$ and cluster-level allocation $\rho$). Broader support for multivariate models and more complex random-effects structures is planned for a future release.
+The `cluster` argument provides a specialized way to fit three-level models through the univariate `brma()` interface, without requiring the more general `brma.mv()` specification.
+It supports one cluster grouping above the estimate level and parameterizes the model by total heterogeneity $\tau^2$ and cluster-level allocation $\rho$.
+Known sampling covariance matrices and richer random-formula structures use the separate `brma.mv(..., V = ..., random = ...)` interface; `brma.mv()` intentionally does not accept `cluster`.
+See the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette for those models.
 
 ## Multilevel Random-Effects Model
 
@@ -97,6 +99,8 @@ fit1_metafor
 
 The matching Bayesian fit replaces the `random = ...` argument with `cluster = district`.
 `brma()` parameterizes the multilevel model in the same compound-symmetric form: a total heterogeneity $\tau$ and a cluster-level allocation $\rho$ where $\tau_{between} = \tau\sqrt{\rho}$ and $\tau_{within} = \tau\sqrt{1 - \rho}$.
+`brma(..., cluster = ...)` is the specialized interface for this model.
+The same covariance can be represented with `brma.mv()`, but the narrower `cluster` parameterization provides dedicated output for $I^2$ and its within- and between-cluster components.
 `measure = "SMD"` selects the default prior distributions for standardized mean differences.
 
 ```{r fit1-brma, eval = FALSE}
@@ -146,6 +150,7 @@ The `tau` posterior concentrates around 0.3 with credible interval comparable to
 All inference helpers available for any other `brma()` fit work the same way for the multilevel fit specified via `cluster`.
 This includes meta-regression and location-scale models, model comparison, and fit diagnostics.
 See the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette for the full walkthrough; the only thing that changes here is the addition of `cluster = district`.
+For known sampling covariance matrices and richer random-effects structures, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
 
 
 ## References

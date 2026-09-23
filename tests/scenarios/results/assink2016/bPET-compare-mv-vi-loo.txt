@@ -1,0 +1,7 @@
+Method: stacking
+------
+                      weight
+fit_bPET.mv           0.629 
+fit_bPET.mv_no_study  0.000 
+fit_bPET.mv_no_effect 0.285 
+fit_bPET.mv_fixed     0.086 

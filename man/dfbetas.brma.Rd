@@ -10,6 +10,8 @@
   standardized_coefficients = FALSE,
   transform_factors = TRUE,
   return_loo_estimates = FALSE,
+  component = NULL,
+  parameter = NULL,
   ...
 )
 }
@@ -33,6 +35,12 @@ Defaults to \code{TRUE}.}
 \item{return_loo_estimates}{whether to return the leave-one-out coefficient
 estimates used to compute DFBETAS instead of standardized DFBETAS values.
 Defaults to \code{FALSE}.}
+
+\item{component}{optional parameter namespace. Use \code{"random"} for
+semantic random-effect SD, correlation, and allocation quantities.}
+
+\item{parameter}{optional semantic random-effect quantity. When omitted with
+\code{component = "random"}, all available random quantities are returned.}
 
 \item{...}{additional arguments (currently ignored).}
 }
@@ -70,6 +78,9 @@ weighted standard deviation of the posterior samples.
 
 This approximation allows computing influence statistics without refitting
 the model \eqn{K} times, making it computationally efficient.
+For \code{brma.mv()} objects, DFBETAS use estimate-unit PSIS weights. With
+correlated known-\code{V} data, this is influence under conditional estimate
+deletion, not independent-study deletion.
 For \code{type = "bias"}, fixed identification parameters (e.g., the reference
 \eqn{\omega = 1} interval) can have zero LOO posterior standard deviation.
 These parameters are retained in the output, but their DFBETAS values are

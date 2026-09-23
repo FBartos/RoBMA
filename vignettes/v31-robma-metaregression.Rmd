@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Robust Bayesian Model-Averaged Meta-Regression}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -82,7 +81,8 @@ fit_RoBMA <- RoBMA(
   mods = ~ measure + age,
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
-  data = Andrews2021_z, parallel = TRUE, seed = 1
+  data = Andrews2021_z, parallel = TRUE, seed = 1,
+  adapt = 5000, burnin = 3000, sample = 15000
 )
 
 vignette_cache_save(cached_fits)
@@ -208,11 +208,11 @@ pooled_effect(fit_BMA, output_measure = "COR")
 
 The summary function produces output with multiple sections.
 The first section contains the `Components summary` with the hypothesis test results for the overall effect size and heterogeneity. 
-We find overwhelming evidence for both with inclusion Bayes factors (`Inclusion BF`) above 10,000 (the numerical precision of Bayes factors above 100 is usually limited by the number of posterior samples).
+We find overwhelming evidence for both with inclusion Bayes factors (`Inclusion BF`) above 14,999 (the numerical precision of Bayes factors above 100 is usually limited by the number of posterior samples).
 
 The second section contains the `Meta-regression components summary` with the hypothesis test results for the moderators. 
-We find weak evidence for the moderation by the executive function assessment type, $\text{BF}_{\text{measure}} = 2.67$. 
-Furthermore, we find moderate evidence for the null hypothesis of no moderation by mean age of the children, $\text{BF}_{\text{age}} = 0.122$ (i.e., BF for the null is 1/0.122 = 8.20). 
+We find weak evidence for the moderation by the executive function assessment type, $\text{BF}_{\text{measure}} = 2.62$.
+Furthermore, we find moderate evidence for the null hypothesis of no moderation by mean age of the children, $\text{BF}_{\text{age}} = 0.117$ (i.e., BF for the null is 1/0.117 = 8.55).
 These findings extend the frequentist meta-regression by disentangling the absence of evidence from the evidence of absence.
 
 The third section contains the `Model-averaged estimates` with the model-averaged estimates for mean effect and between-study heterogeneity.
@@ -220,8 +220,8 @@ The third section contains the `Model-averaged estimates` with the model-average
 
 The fourth section contains the `Model-averaged meta-regression estimates` with the model-averaged regression coefficient estimates. 
 The main difference from the usual frequentist meta-regression output is that the categorical predictors are summarized as a difference from the grand mean for each factor level. 
-Here, the `intercept` regression coefficient estimate corresponds to the grand mean effect and the `measure[dif: direct]` regression coefficient estimate of -0.044, 95\% CI [-0.105, 0.000] corresponds to the difference between the direct assessment and the grand mean. 
-As such, the results suggest that the effect size in studies using direct assessment is lower in comparison to the grand mean of the studies. The `age` regression coefficient of 0.000, 95\% CI [-0.000, 0.009] corresponds to the increase in the mean effect for a one-unit increase in mean age of children.
+Here, the `intercept` regression coefficient estimate corresponds to the grand mean effect and the `measure[dif: direct]` regression coefficient estimate of -0.044, 95\% CI [-0.104, 0.000] corresponds to the difference between the direct assessment and the grand mean.
+As such, the results suggest that the effect size in studies using direct assessment is lower in comparison to the grand mean of the studies. The `age` regression coefficient of 0.000, 95\% CI [0.000, 0.009] corresponds to the increase in the mean effect for a one-unit increase in mean age of children.
 
 Similarly to the frequentist meta-regression, we can use `marginal_means()` and `summary()` to obtain the marginal estimates for each factor level on the correlation scale.
 ```{r}
@@ -229,13 +229,13 @@ BMA_marginal <- marginal_means(fit_BMA, output_measure = "COR")
 summary(BMA_marginal)
 ```
 The estimated marginal means are similar to the frequentist results. 
-Studies using the informant-completed questionnaires again show a stronger effect of household chaos on child executive functions, r = 0.210, 95\% CI [0.128, 0.289], than the direct assessment, r = 0.124, 95\% CI [0.054, 0.196]. 
+Studies using the informant-completed questionnaires again show a stronger effect of household chaos on child executive functions, r = 0.209, 95\% CI [0.129, 0.288], than the direct assessment, r = 0.124, 95\% CI [0.054, 0.197].
 
 The last column summarizes results from a test against a null hypothesis of marginal means equals 0. 
-Here, we find extreme evidence that the effect size for studies using the informant-completed questionnaires differs from zero, $\text{BF}_{10} > 10{,}000$, and strong evidence that the effect size for studies using direct assessment differs from zero, $\text{BF}_{10} = 23.6$.
+Here, we find extreme evidence that the effect size for studies using the informant-completed questionnaires differs from zero, $\text{BF}_{10} > 10{,}000$, and strong evidence that the effect size for studies using direct assessment differs from zero, $\text{BF}_{10} = 20.4$.
 The test is performed using the change from prior to posterior distribution at 0 (i.e., the Savage-Dickey density ratio) assuming the presence of the overall effect or the presence of difference according to the tested factor. 
 Because the tests use prior and posterior samples, calculating the Bayes factor can be problematic when the posterior distribution is far from the tested value. 
-In such cases, warning messages are printed and $\text{BF}_{10} = \infty$ returned (like here); while the actual Bayes factor is less than infinity, it is still too large to be computed precisely given the posterior samples.
+In such cases, warning messages are printed and very large Bayes factors returned (like here); while the actual Bayes factor is finite, it is still too large to be computed precisely given the posterior samples.
 
 The full model-averaged posterior marginal means distribution can be visualized by the `plot()` method.
 ```{r fig_BMA, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
@@ -255,7 +255,8 @@ fit_RoBMA <- RoBMA(
   mods = ~ measure + age,
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
-  data = Andrews2021_z, parallel = TRUE, seed = 1
+  data = Andrews2021_z, parallel = TRUE, seed = 1,
+  adapt = 5000, burnin = 3000, sample = 15000
 )
 ```
 ```{r}
@@ -265,16 +266,16 @@ pooled_effect(fit_RoBMA, output_measure = "COR")
 All previously described functions for manipulating the fitted model work identically with the publication bias adjusted model. 
 As such, we just briefly mention the main differences found after adjusting for publication bias.
 
-RoBMA-reg reveals moderate evidence of publication bias $\text{BF}_{\text{pb}} = 4.26$. 
-Furthermore, accounting for publication bias turns the previously found evidence for the overall effect into a weak evidence for the effect $\text{BF}_{10} = 1.25$ and notably reduces the mean effect estimate to r = 0.061, 95\% CI [-0.020, 0.189].
+RoBMA-reg reveals moderate evidence of publication bias $\text{BF}_{\text{pb}} = 4.38$.
+Furthermore, accounting for publication bias leaves the evidence for the overall effect undecided, $\text{BF}_{10} = 1.18$, and notably reduces the mean effect estimate to r = 0.059, 95\% CI [-0.019, 0.188].
 
 ```{r}
 RoBMA_marginal <- marginal_means(fit_RoBMA, output_measure = "COR")
 summary(RoBMA_marginal)
 ```
 
-The estimated marginal means now suggest that studies using the informant-completed questionnaires show a much smaller effect of household chaos on child executive functions, r = 0.128, 95\% CI [0.000, 0.116] with moderate evidence in favor of the effect, $\text{BF}_{10} = 6.33$, 
-while studies using direct assessment even provide weak evidence against the effect of household chaos on child executive functions, $\text{BF}_{10} = 0.626$, with most likely effect sizes around zero, r = 0.013, 95\% CI [-0.115, 0.175].
+The estimated marginal means now suggest that studies using the informant-completed questionnaires show a much smaller effect of household chaos on child executive functions, r = 0.127, 95\% CI [0.000, 0.264] with moderate evidence in favor of the effect, $\text{BF}_{10} = 6.17$,
+while studies using direct assessment even provide weak evidence against the effect of household chaos on child executive functions, $\text{BF}_{10} = 0.627$, with most likely effect sizes around zero, r = 0.010, 95\% CI [-0.112, 0.171].
 
 A visual summary of the estimated marginal means highlights the considerably wider model-averaged posterior distributions of the marginal means, a consequence of accounting and adjusting for publication bias.
 

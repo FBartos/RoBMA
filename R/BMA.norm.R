@@ -67,7 +67,7 @@ BMA <- BMA.norm <- function(
   convergence_checks = set_convergence_checks(),
 
   # additional settings
-  seed = NULL, silent = TRUE, ...
+  seed = NULL, silent, ...
 ) {
 
   ### create the output object
@@ -112,16 +112,8 @@ BMA <- BMA.norm <- function(
     prior_informed_subfield           = prior_informed_subfield,
     data = object[["data"]]
   )
-  if (isTRUE(dots[["only_priors"]]))
-    return(.set_only_priors_class(object))
-
-  ### fit the model
-  object$fit <- .fit(object)
-
-  ### store simple summary & coefficients
-  object$summary       <- .object_summary(object)
-  object$coefficients  <- .object_coefficients(object)
-  object               <- .autocompute_brma(object)
-
-  return(object)
+  .fit_and_finalize_object(
+    object,
+    only_priors = isTRUE(dots[["only_priors"]])
+  )
 }

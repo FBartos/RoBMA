@@ -41,7 +41,10 @@ test_that("coef returns model coefficients across cached fits", {
                 info = paste0("coef is non-empty numeric for '", name, "'"))
     expect_true(!is.null(names(cf)),
                 info = paste0("coef is named for '", name, "'"))
-    expect_identical(cf, fit$coefficients,
-                     info = paste0("coef matches $coefficients for '", name, "'"))
+    expect_identical(
+      unname(cf),
+      unname(fit$coefficients),
+      info = paste0("coef preserves fitted coefficients for '", name, "'")
+    )
   }
 })

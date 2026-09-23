@@ -1,0 +1,18 @@
+
+Heterogeneity Estimates (study/esid):
+                       Mean Median 0.025 0.975
+tau_total             0.472  0.464 0.370 0.619
+tau2_total            0.227  0.215 0.137 0.383
+tau2_prop(esid_study) 0.720  0.727 0.412 0.966
+tau2_prop(study)      0.280  0.273 0.034 0.588
+
+Heterogeneity Estimates (esid_study):
+      Mean Median 0.025 0.975
+tau  0.394  0.392 0.327 0.473
+tau2 0.157  0.154 0.107 0.224
+
+Heterogeneity Estimates (study):
+      Mean Median 0.025 0.975
+tau  0.246  0.240 0.075 0.461
+tau2 0.070  0.057 0.006 0.213
+

@@ -1,0 +1,874 @@
+# predict-brma-mv.R
+# ============================================================================ #
+#
+# brma.mv-specific prediction helpers. These stay outside predict.R so the
+# public prediction dispatch is not carrying known-V covariance construction.
+#
+# ============================================================================ #
+
+
+.predict_known_v_newdata_add_vi <- function(newdata, V_new) {
+
+  diag_v <- if (is.matrix(V_new)) diag(V_new) else as.numeric(V_new)
+  if ("vi" %in% names(newdata)) {
+    .predict_known_v_newdata_check_variance(
+      supplied = newdata[["vi"]],
+      expected = diag_v,
+      label    = "vi"
+    )
+  }
+  if ("sei" %in% names(newdata)) {
+    .predict_known_v_newdata_check_variance(
+      supplied = newdata[["sei"]],
+      expected = sqrt(diag_v),
+      label    = "sei"
+    )
+  }
+
+  newdata[["vi"]] <- diag_v
+  newdata[["sei"]] <- sqrt(diag_v)
+
+  return(newdata)
+}
+
+
+.predict_known_v_newdata_check_variance <- function(supplied, expected, label) {
+
+  if (!is.numeric(supplied) || length(supplied) != length(expected) ||
+      anyNA(supplied) || any(!is.finite(supplied))) {
+    stop(
+      "The '", label, "' column in 'newdata' must contain finite numeric ",
+      "values matching diag(V_new).",
+      call. = FALSE
+    )
+  }
+
+  if (any(supplied < 0) ||
+      any(!.equal_within_double_roundoff(supplied, expected))) {
+    stop(
+      "The '", label, "' column in 'newdata' must match diag(V_new).",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+.predict_brma_mv_new_effect_random_draws <- function(object, data,
+                                                     posterior_samples,
+                                                     max_bytes = NULL) {
+
+  S      <- nrow(posterior_samples)
+  K      <- nrow(data[["outcome"]])
+  if (.is_data_joint_selection(object[["data"]])) {
+    return(.predict_brma_mv_marginal_random_draws(
+      object            = object,
+      data              = data,
+      posterior_samples = posterior_samples
+    ))
+  }
+
+  out    <- matrix(0, nrow = S, ncol = K)
+  blocks <- .data_sampled_random_effect_blocks(object[["data"]])
+
+  if (length(blocks) > 0L) {
+    formula_design <- .predict_known_v_formula_design_with_row_source_values(
+      object = object,
+      data   = data
+    )
+    terms <- formula_design[["random_effects"]]
+
+    for (block in blocks) {
+      block_terms <- terms[vapply(
+        terms,
+        function(term) identical(term[["block_name"]], block),
+        logical(1)
+      )]
+      known_R <- any(vapply(
+        block_terms,
+        .random_effect_term_has_known_group_covariance,
+        logical(1)
+      ))
+      chunks <- if (known_R) {
+        .known_v_covariance_chunk_indices(
+          S         = S,
+          K         = K,
+          max_bytes = max_bytes
+        )
+      } else {
+        list(seq_len(S))
+      }
+
+      for (rows in chunks) {
+        contribution <- tryCatch(
+          .evaluate.brma.random_effects(
+            fit               = object[["fit"]],
+            data              = data,
+            priors            = object[["priors"]],
+            posterior_samples = posterior_samples[rows, , drop = FALSE],
+            same_data         = FALSE,
+            required          = TRUE,
+            formula_target    = "marginal",
+            blocks            = block,
+            object            = object
+          ),
+          error = function(e) {
+            message <- conditionMessage(e)
+            if (known_R && grepl(
+              "new levels|New random-effect level|cannot include new levels",
+              message,
+              ignore.case = TRUE
+            )) {
+              stop(
+                "New-effect prediction for unseen known-R levels requires ",
+                "'R_new', which is not supported. Supply fitted known-R ",
+                "levels or omit the prediction interval. Original error: ",
+                message,
+                call. = FALSE
+              )
+            }
+            stop(e)
+          }
+        )
+        out[rows, ] <- out[rows, , drop = FALSE] + contribution
+      }
+    }
+  }
+
+  if (.data_has_marginalized_random_effects(object[["data"]])) {
+    out <- out + .predict_known_v_marginalized_random_draws(
+      object            = object,
+      data              = data,
+      posterior_samples = posterior_samples
+    )
+  }
+
+  return(out)
+}
+
+
+.predict_brma_mv_marginal_random_draws <- function(
+    object, data, posterior_samples) {
+
+  return(.evaluate.brma.random_effects(
+    fit               = object[["fit"]],
+    data              = data,
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples,
+    same_data         = FALSE,
+    required          = TRUE,
+    formula_target    = "marginal",
+    object            = object
+  ))
+}
+
+
+# Conditional means or draws for the fitted random-formula contribution.
+# Selection retains the fitted context declared by its model. Only Gaussian
+# sources integrated before normalization receive a conditional Gaussian update.
+.predict_brma_mv_random_posterior <- function(
+    object, mu_samples, posterior_samples, bias_offset = NULL,
+    type = c("draws", "mean"), by_block = FALSE) {
+
+  type <- match.arg(type)
+  data <- object[["data"]]
+  if (by_block && type != "mean") {
+    stop("Blockwise random-effect posterior prediction requires conditional means.",
+         call. = FALSE)
+  }
+  if (!.is_data_random(data) || !.is_data_known_v(data)) {
+    stop(
+      "brma.mv() fitted random-effect posterior prediction requires a ",
+      "random-formula model with known-V metadata.",
+      call. = FALSE
+    )
+  }
+
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    posterior_samples
+  )
+  S <- nrow(posterior_samples)
+  K <- nrow(data[["outcome"]])
+  if (!identical(dim(mu_samples), c(S, K))) {
+    stop("Random-effect posterior means have inconsistent dimensions.",
+         call. = FALSE)
+  }
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have dimensions posterior draw x observation.",
+         call. = FALSE)
+  }
+
+  if (.is_data_joint_selection(data)) {
+    chunks <- .known_v_covariance_chunk_indices(
+      S = S, K = K, max_bytes = .known_v_covariance_max_bytes() / 4
+    )
+    if (length(chunks) > 1L) {
+      out <- NULL
+      for (rows in chunks) {
+        chunk <- .predict_brma_mv_random_posterior(
+          object, mu_samples[rows, , drop = FALSE],
+          posterior_samples[rows, , drop = FALSE], bias_offset[rows, , drop = FALSE],
+          type = type, by_block = by_block
+        )
+        if (by_block) {
+          if (is.null(out)) out <- lapply(chunk, function(value) matrix(0, S, K))
+          for (name in names(chunk)) out[[name]][rows, ] <- chunk[[name]]
+        } else {
+          if (is.null(out)) out <- matrix(0, S, K)
+          out[rows, ] <- chunk
+        }
+      }
+      return(out)
+    }
+    parts <- .predict_joint_selection_gaussian_parts(
+      object = object, data = data, posterior_samples = posterior_samples,
+      fixed_mu = mu_samples, within = matrix(0, S, K), between = matrix(0, S, K),
+      fitted_context = TRUE, bias_offset = bias_offset
+    )
+    if (!by_block) {
+      return(.predict_joint_selection_source_posterior(
+        parts, data[["outcome"]][["yi"]], draw = type != "mean"
+      ) - mu_samples)
+    }
+    if (!is.null(parts[["posterior_sources"]])) {
+      return(parts[["posterior_source_means"]])
+    }
+    sources <- .data_selection_model(data)[["sources"]][["random"]]
+    retained <- vapply(sources, function(source) isTRUE(source[["retained"]]), logical(1L))
+    if (sum(!retained) == 1L) {
+      # With one integrated source its contribution is the complete Gaussian
+      # update. Reuse the block/diagonal posterior evaluator instead of forming
+      # and factoring the full covariance again for each posterior draw.
+      source_parts <- parts
+      source_parts[["latent_means"]] <- matrix(0, S, K)
+      integrated_mean <- .predict_joint_selection_source_posterior(
+        source_parts, data[["outcome"]][["yi"]], draw = FALSE
+      )
+      components <- lapply(sources, function(source) {
+        if (!isTRUE(source[["retained"]])) return(integrated_mean)
+        .evaluate.brma.random_effects(
+          fit = object[["fit"]], data = data, priors = object[["priors"]],
+          posterior_samples = posterior_samples, blocks = source[["name"]],
+          object = object
+        )
+      })
+      names(components) <- vapply(sources, `[[`, character(1L), "name")
+      return(components)
+    }
+    weights <- matrix(0, S, K)
+    if (any(!retained)) {
+      # The assembled K x K matrix, not the blocks: a blocked LAPACK
+      # factorization of the whole matrix and of its blocks differ in the last
+      # bits, and these weights carry into every reported component.
+      for (s in seq_len(S)) {
+        factor <- chol(.block_covariance_dense(parts[["covariance"]], s))
+        weights[s, ] <- backsolve(factor, forwardsolve(
+          t(factor), data[["outcome"]][["yi"]] - parts[["means"]][s, ]
+        ))
+      }
+    }
+    components <- lapply(sources, function(source) {
+      if (isTRUE(source[["retained"]])) {
+        return(.evaluate.brma.random_effects(
+          fit = object[["fit"]], data = data, priors = object[["priors"]],
+          posterior_samples = posterior_samples, blocks = source[["name"]],
+          object = object
+        ))
+      }
+      result <- .brma_mv_random_effects_marginal_vcov(
+        object = object, posterior_samples = posterior_samples,
+        blocks = source[["name"]]
+      )
+      covariance <- .block_covariance_from_array(
+        result[["samples"]],
+        .known_v_block_indices(BayesTools::random_effects_dependency_matrix(
+          random_effects = result[["metadata"]][["blocks"]], n_rows = K,
+          blocks = source[["name"]]
+        ) * 1)
+      )
+      contribution <- matrix(0, S, K)
+      for (s in seq_len(S)) {
+        contribution[s, ] <- .block_covariance_matvec(covariance, s, weights[s, ])
+      }
+      contribution
+    })
+    names(components) <- vapply(sources, `[[`, character(1L), "name")
+    return(components)
+  }
+  if (.is_priors_weightfunction(object[["priors"]])) {
+    stop("Selected random-effect prediction is unavailable without bound selection-model metadata.", call. = FALSE)
+  }
+  if (type == "mean") {
+    return(.evaluate.brma.mv_random_blup.norm(
+      object            = object,
+      mu_samples        = mu_samples,
+      posterior_samples = posterior_samples,
+      bias_offset       = bias_offset,
+      by_block          = by_block
+    ))
+  }
+
+  sampled_blocks <- .data_sampled_random_effect_blocks(data)
+  sampled_effect <- matrix(0, nrow = S, ncol = K)
+  components     <- list()
+  if (length(sampled_blocks) > 0L) {
+    block_groups <- if (by_block) as.list(sampled_blocks) else list(sampled_blocks)
+    for (blocks in block_groups) {
+      block_effect <- .evaluate.brma.random_effects(
+        fit               = object[["fit"]],
+        data              = data,
+        priors            = object[["priors"]],
+        posterior_samples = posterior_samples,
+        same_data         = TRUE,
+        required          = TRUE,
+        formula_target    = "conditional",
+        blocks            = blocks,
+        object            = object
+      )
+      sampled_effect <- sampled_effect + block_effect
+      if (by_block) {
+        components[[blocks]] <- block_effect
+      }
+    }
+  }
+
+  marginalized_terms <- .data_marginalized_random_effects(data)
+  if (length(marginalized_terms) == 0L) {
+    return(if (by_block) components else sampled_effect)
+  }
+
+  source_samples <- .predict_known_v_newdata_marginalized_source_samples(
+    object            = object,
+    data              = data,
+    posterior_samples = posterior_samples
+  )
+  marginalized_variance <- matrix(0, nrow = S, ncol = K)
+  for (term in marginalized_terms) {
+    sd_samples <- .marginalized_random_effect_sd_samples(
+      term              = term,
+      posterior_samples = posterior_samples,
+      K                 = K,
+      source_samples    = source_samples,
+      fitted_K          = K
+    )
+    marginalized_variance <- marginalized_variance +
+      .marginalized_random_effect_variance_samples(
+        term       = term,
+        sd_samples = sd_samples,
+        K          = K
+      )
+  }
+
+  conditional_effect <- .evaluate.brma.known_v_posterior.norm(
+    mu_samples  = mu_samples + sampled_effect,
+    tau_within  = sqrt(marginalized_variance),
+    yi         = data[["outcome"]][["yi"]],
+    known_V    = .data_known_v_data(data),
+    bias_offset = bias_offset
+  )
+
+  if (by_block) {
+    # Estimate-level compilation permits a single integrated local block.
+    block <- marginalized_terms[[1L]][["block_name"]]
+    components[[block]] <- conditional_effect - mu_samples - sampled_effect
+    return(components)
+  }
+  return(conditional_effect - mu_samples)
+}
+
+
+.predict_known_v_marginalized_random_draws <- function(object, data,
+                                                       posterior_samples) {
+
+  terms <- .data_marginalized_random_effects(object[["data"]])
+  S     <- nrow(posterior_samples)
+  K     <- nrow(data[["outcome"]])
+  if (length(terms) == 0L) {
+    return(matrix(0, nrow = S, ncol = K))
+  }
+
+  source_samples <- .predict_known_v_newdata_marginalized_source_samples(
+    object            = object,
+    data              = data,
+    posterior_samples = posterior_samples
+  )
+  draws    <- matrix(0, nrow = S, ncol = K)
+  fitted_K <- nrow(object[["data"]][["outcome"]])
+
+  for (term in terms) {
+    sd_samples <- .marginalized_random_effect_sd_samples(
+      term              = term,
+      posterior_samples = posterior_samples,
+      K                 = K,
+      source_samples    = source_samples,
+      fitted_K          = fitted_K
+    )
+    term_variance <- .marginalized_random_effect_variance_samples(
+      term       = term,
+      sd_samples = sd_samples,
+      K          = K
+    )
+    draws <- draws + .predict_known_v_marginalized_random_term_draws(
+      term       = term,
+      data       = data,
+      sd_samples = sqrt(term_variance)
+    )
+  }
+
+  return(draws)
+}
+
+
+.predict_known_v_marginalized_random_term_draws <- function(term, data,
+                                                            sd_samples) {
+
+  S          <- nrow(sd_samples)
+  K          <- ncol(sd_samples)
+  group_keys <- .predict_known_v_marginalized_random_group_keys(term, data, K)
+  if (is.null(group_keys) || length(group_keys) != K || anyNA(group_keys)) {
+    stop(
+      "Marginalized random-effect prediction requires complete grouping ",
+      "variables in 'newdata'.",
+      call. = FALSE
+    )
+  }
+
+  group_factor <- factor(group_keys, levels = unique(group_keys))
+  z <- matrix(
+    stats::rnorm(S * nlevels(group_factor)),
+    nrow = S,
+    ncol = nlevels(group_factor)
+  )
+  out <- matrix(NA_real_, nrow = S, ncol = K)
+  for (level in seq_len(nlevels(group_factor))) {
+    rows <- which(group_factor == levels(group_factor)[[level]])
+    out[, rows] <- sd_samples[, rows, drop = FALSE] *
+      matrix(z[, level], nrow = S, ncol = length(rows))
+  }
+
+  return(out)
+}
+
+
+.predict_known_v_marginalized_random_group_keys <- function(term, data, K) {
+
+  location <- data[["location"]]
+  if (!is.data.frame(location) || nrow(location) != K) {
+    return(NULL)
+  }
+
+  group_label <- term[["group_label"]]
+  if (is.character(group_label) && length(group_label) == 1L &&
+      !is.na(group_label) && nzchar(group_label)) {
+    if (group_label %in% names(location)) {
+      return(as.character(location[[group_label]]))
+    }
+    variables <- strsplit(group_label, ":", fixed = TRUE)[[1L]]
+    if (length(variables) > 1L && all(variables %in% names(location))) {
+      parts <- lapply(variables, function(variable) {
+        as.character(location[[variable]])
+      })
+      if (any(vapply(parts, anyNA, logical(1)))) {
+        return(NULL)
+      }
+      return(do.call(paste, c(parts, sep = ":")))
+    }
+  }
+
+  grouping_factor <- attr(term, "grouping_factor", exact = TRUE)
+  if (is.character(grouping_factor) && length(grouping_factor) == 1L &&
+      !is.na(grouping_factor) && nzchar(grouping_factor) &&
+      grouping_factor %in% names(location)) {
+    return(as.character(location[[grouping_factor]]))
+  }
+
+  return(NULL)
+}
+
+
+.predict_known_v_formula_design_with_row_source_values <- function(
+    object, data, pooled = FALSE) {
+
+  formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
+  if (!.is_scale(object)) {
+    return(formula_design)
+  }
+
+  values <- .predict_known_v_tau_source_values_function(
+    object = object,
+    data   = data,
+    pooled = pooled
+  )
+  formula_design[["random_effects"]] <- lapply(
+    formula_design[["random_effects"]],
+    .predict_known_v_random_term_with_tau_source_values,
+    values = values
+  )
+
+  return(formula_design)
+}
+
+
+.predict_known_v_tau_source_values_function <- function(
+    object, data, pooled = FALSE) {
+
+  fit          <- object[["fit"]]
+  model_data   <- data
+  priors       <- object[["priors"]]
+  source_names <- unname(.data_scale_formula_sources(model_data))
+
+  force(fit)
+  force(model_data)
+  force(priors)
+
+  values <- lapply(source_names, function(source_name) {
+
+    force(source_name)
+    function(parameters, data, n_rows) {
+
+      parameter_values <- unlist(parameters, use.names = TRUE)
+      posterior_row    <- matrix(as.numeric(parameter_values), nrow = 1L)
+      colnames(posterior_row) <- names(parameter_values)
+
+      source_samples <- .predict_known_v_scale_source_samples(
+        fit               = fit,
+        data              = model_data,
+        priors            = priors,
+        posterior_samples = posterior_row,
+        source_names      = source_name
+      )
+      values <- source_samples[[source_name]]
+      if (pooled) {
+        values <- matrix(
+          exp(rowMeans(log(values))),
+          nrow = nrow(values),
+          ncol = 1L
+        )
+      }
+      if (ncol(values) != n_rows) {
+        stop(
+          "Known-V row SD source '", source_name, "' evaluated to ",
+          ncol(values), " row value(s), expected ", n_rows, ".",
+          call. = FALSE
+        )
+      }
+
+      as.numeric(values[1L, ])
+    }
+  })
+  names(values) <- source_names
+
+  return(values)
+}
+
+
+.predict_known_v_scale_source_samples <- function(fit, data, priors,
+                                                  posterior_samples,
+                                                  source_names = NULL) {
+
+  if (!.is_data_scale(data)) {
+    return(list())
+  }
+
+  available_sources <- unname(.data_scale_formula_sources(data))
+  if (is.null(source_names)) {
+    source_names <- available_sources
+  }
+  source_names <- unique(source_names)
+
+  missing_sources <- setdiff(source_names, available_sources)
+  if (length(missing_sources) > 0L) {
+    stop(
+      "Known-V prediction cannot evaluate random-effect row SD source(s): ",
+      paste(missing_sources, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  K             <- nrow(data[["outcome"]])
+  scale_samples <- .evaluate.brma.scale_terms(
+    fit               = fit,
+    data              = data,
+    priors            = priors,
+    posterior_samples = posterior_samples,
+    as_list           = FALSE
+  )
+
+  out <- lapply(source_names, function(source_name) {
+    columns <- paste0(source_name, "[", seq_len(K), "]")
+    if (!all(columns %in% colnames(scale_samples))) {
+      stop(
+        "Known-V prediction cannot evaluate random-effect row SD source '",
+        source_name, "'.",
+        call. = FALSE
+      )
+    }
+
+    unname(scale_samples[, columns, drop = FALSE])
+  })
+  names(out) <- source_names
+
+  return(out)
+}
+
+
+.predict_known_v_random_term_with_tau_source_values <- function(term, values) {
+
+  binding <- term[["sd_binding"]]
+  if (is.null(binding)) {
+    return(term)
+  }
+
+  binding <- .predict_known_v_binding_with_tau_source_values(
+    binding = binding,
+    values  = values
+  )
+  term[["sd_binding"]] <- binding
+
+  return(term)
+}
+
+
+.predict_known_v_binding_with_tau_source_values <- function(binding, values) {
+
+  if (!is.null(binding[["source"]])) {
+    binding[["source"]] <- .predict_known_v_source_with_tau_values(
+      source = binding[["source"]],
+      values = values
+    )
+  }
+
+  if (is.list(binding[["sources_by_column"]])) {
+    binding[["sources_by_column"]] <- lapply(
+      binding[["sources_by_column"]],
+      .predict_known_v_source_with_tau_values,
+      values = values
+    )
+  }
+
+  if (is.list(binding[["allocations"]])) {
+    binding[["allocations"]] <- lapply(binding[["allocations"]], function(allocation) {
+      if (!is.null(allocation[["source"]])) {
+        allocation[["source"]] <- .predict_known_v_source_with_tau_values(
+          source = allocation[["source"]],
+          values = values
+        )
+      }
+      allocation
+    })
+  }
+
+  return(binding)
+}
+
+
+.predict_known_v_source_with_tau_values <- function(source, values) {
+
+  source_name <- source[["name"]]
+  if (is.null(source) ||
+      !is.character(source_name) || length(source_name) != 1L ||
+      is.na(source_name) || !nzchar(source_name) ||
+      !identical(source[["shape"]], "row")) {
+    return(source)
+  }
+  if (!source_name %in% names(values)) {
+    return(source)
+  }
+
+  BayesTools::random_sd_source(
+    BayesTools::parameter_source(
+      name   = source_name,
+      shape  = "row",
+      values = values[[source_name]]
+    )
+  )
+}
+
+
+.predict_known_v_newdata_marginalized_source_samples <- function(object, data,
+                                                                 posterior_samples) {
+
+  if (!.is_scale(object)) {
+    return(NULL)
+  }
+
+  source_names <- .predict_known_v_marginalized_row_source_names(object)
+  if (length(source_names) == 0L) {
+    return(NULL)
+  }
+  .predict_known_v_scale_source_samples(
+    fit               = object[["fit"]],
+    data              = data,
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples,
+    source_names      = source_names
+  )
+}
+
+
+.predict_known_v_marginalized_row_source_names <- function(object) {
+
+  terms <- .data_marginalized_random_effects(object[["data"]])
+  if (length(terms) == 0L) {
+    return(character())
+  }
+
+  out <- character()
+  for (term in terms) {
+    sources <- .predict_known_v_marginalized_sd_sources(term)
+    for (source in sources) {
+      if (identical(source[["shape"]], "row")) {
+        out <- c(out, source[["name"]])
+      }
+    }
+  }
+
+  unique(out[!is.na(out) & nzchar(out)])
+}
+
+
+.predict_known_v_marginalized_sd_sources <- function(term) {
+
+  binding <- term[["sd_binding"]]
+  if (is.null(binding)) {
+    return(list())
+  }
+  if (.marginalized_random_effect_has_allocation(term)) {
+    allocation <- binding[["allocations"]][[1L]]
+    return(list(allocation[["source"]]))
+  }
+  if (!is.null(binding[["source"]])) {
+    return(list(binding[["source"]]))
+  }
+  sources <- binding[["sources_by_column"]]
+  if (is.list(sources)) {
+    return(Filter(Negate(is.null), sources))
+  }
+
+  list()
+}
+
+
+.predict_brma_attach_mv_metadata <- function(samples, object, type,
+                                             conditioning_depth, same_data,
+                                             random_mv,
+                                             known_V_new = NULL) {
+
+  if (!inherits(object, "brma.mv")) {
+    return(samples)
+  }
+
+  metadata <- .predict_brma_mv_metadata(
+    object             = object,
+    type               = type,
+    conditioning_depth = conditioning_depth,
+    same_data          = same_data,
+    random_mv          = random_mv,
+    known_V_new        = known_V_new
+  )
+
+  if (is.list(samples) && !is.matrix(samples)) {
+    samples <- lapply(samples, function(component_samples) {
+      attr(component_samples, "brma_mv_prediction_target") <- metadata
+      component_samples
+    })
+  }
+  attr(samples, "brma_mv_prediction_target") <- metadata
+
+  return(samples)
+}
+
+
+.predict_brma_mv_metadata <- function(object, type, conditioning_depth,
+                                      same_data, random_mv,
+                                      known_V_new = NULL) {
+
+  formula_target <- switch(type,
+    "terms"       = "fixed",
+    "terms.scale" = "scale",
+    "location"    = paste0("conditional_mean_", conditioning_depth),
+    "estimate"    = paste0("latent_effect_", conditioning_depth),
+    "response"    = paste0("observed_response_", conditioning_depth),
+    NA_character_
+  )
+
+  random_effect_target   <- "none"
+  random_effects_in_mean <- FALSE
+  mean_target            <- "fixed_location"
+  if (random_mv && type == "terms") {
+    random_effect_target <- "excluded"
+  } else if (random_mv && type == "location") {
+    random_effect_target   <- "conditional_mean"
+    random_effects_in_mean <- TRUE
+    mean_target            <- "fixed_plus_conditional_random_effect_mean"
+  } else if (random_mv && type %in% c("estimate", "response")) {
+    random_effect_target <- if (conditioning_depth == "estimate") {
+      "conditional_posterior_sample"
+    } else {
+      "marginal_sample"
+    }
+    random_effects_in_mean <- conditioning_depth == "estimate"
+    mean_target <- if (conditioning_depth == "estimate") {
+      "fixed_plus_conditional_random_effect"
+    } else {
+      "fixed_location"
+    }
+  }
+
+  response_covariance_target <- NA_character_
+  if (type == "response") {
+    response_covariance_target <- if (inherits(object, "brma.mv") && !random_mv) {
+      if (!is.null(known_V_new)) "V_new" else if (.is_data_known_v(object[["data"]])) {
+        "known_V"
+      } else "sampling_variance"
+    } else if (!is.null(known_V_new) && random_mv) {
+      "V_new_plus_marginal_random_effect_generation"
+    } else if (!is.null(known_V_new)) {
+      "V_new_plus_heterogeneity"
+    } else if (random_mv && .is_data_known_v(object[["data"]]) && same_data) {
+      paste0("known_V_plus_random_effect_", conditioning_depth)
+    } else if (random_mv && .data_has_marginalized_random_effects(object[["data"]])) {
+      "known_V_plus_marginalized_estimate_level_variance"
+    } else if (.is_data_known_v(object[["data"]])) {
+      "known_V_plus_heterogeneity"
+    } else {
+      "sampling_variance_plus_heterogeneity"
+    }
+  }
+
+  new_levels <- NA_character_
+  if (random_mv && !same_data) {
+    new_levels <- "marginal_new_effects"
+  } else if (random_mv && same_data) {
+    new_levels <- if (conditioning_depth == "estimate") {
+      "existing_levels_only"
+    } else {
+      "marginal_fitted_design"
+    }
+  }
+
+  return(list(
+    method                     = "predict.brma",
+    class                      = "brma.mv",
+    type                       = type,
+    unit                       = "estimate",
+    conditioning_depth         = conditioning_depth,
+    same_data                  = same_data,
+    known_v                    = .is_data_known_v(object[["data"]]) || !is.null(known_V_new),
+    random_formula             = random_mv,
+    v_new                      = !is.null(known_V_new),
+    mean_target                = mean_target,
+    covariance_target          = response_covariance_target,
+    formula_target             = formula_target,
+    random_effect_target       = random_effect_target,
+    random_effects_in_mean     = random_effects_in_mean,
+    response_covariance_target = response_covariance_target,
+    V_new                      = !is.null(known_V_new),
+    observed_cross_covariance  = if (!is.null(known_V_new)) FALSE else NA,
+    new_levels                 = new_levels
+  ))
+}

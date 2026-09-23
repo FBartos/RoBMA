@@ -1,0 +1,1336 @@
+# ============================================================================ #
+# IWMDE Row States, Density Aggregation, and Chen Weights
+# ============================================================================ #
+
+.iwmde_row_states <- function(context, rows, parameter = NULL,
+                              parameter_spec = NULL, estimator = NULL) {
+
+  if (length(rows) > 1L && .is_data_joint_selection(context[["data"]]) &&
+      .iwmde_context_uses_local_likelihood(context)) {
+    # Reuse the joint batch evaluator only for the baseline likelihood. Local
+    # parameters, priors and row diagnostics are still assembled below.
+    rng_kind <- RNGkind()
+    has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+    if (has_seed) old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+    tryCatch({
+      likelihood_mode <- .iwmde_likelihood_mode(parameter, parameter_spec, context)
+      state_scope     <- .iwmde_state_scope(parameter, parameter_spec, context)
+      active_keys     <- .iwmde_active_keys(context)[rows]
+      cache_keys      <- paste(rows, active_keys, likelihood_mode, sep = "|")
+      pending <- which(!duplicated(cache_keys) & !vapply(
+        cache_keys, exists, logical(1),
+        envir = context[["likelihood_cache"]], inherits = FALSE
+      ))
+      unit <- if (.is_data_multilevel(context[["data"]])) "cluster" else "estimate"
+
+      for (active_key in unique(active_keys[pending])) {
+        positions <- pending[active_keys[pending] == active_key]
+        group_rows <- rows[positions]
+        first_state <- .iwmde_base_row_state(
+          context, group_rows[[1L]], state_scope = state_scope
+        )
+        log_lik <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(
+          context           = context,
+          posterior_samples = context[["posterior_samples"]][group_rows, , drop = FALSE],
+          active_setup      = first_state[["active_setup"]],
+          unit              = unit
+        )
+        if (!is.numeric(log_lik) || !is.null(dim(log_lik)) ||
+            length(log_lik) != length(group_rows) || any(!is.finite(log_lik))) {
+          break
+        }
+        for (i in seq_along(positions)) {
+          assign(cache_keys[[positions[[i]]]], log_lik[[i]],
+                 envir = context[["likelihood_cache"]])
+        }
+      }
+    }, error = function(e) NULL, warning = function(w) NULL, finally = {
+      # A diagnostic or unavailable batch leaves the affected rows uncached;
+      # scalar evaluation emits the original condition without consuming RNG
+      # or duplicating warnings from this speculative calculation.
+      do.call(RNGkind, as.list(rng_kind))
+      if (has_seed) {
+        assign(".Random.seed", old_seed, envir = .GlobalEnv)
+      } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+        rm(".Random.seed", envir = .GlobalEnv)
+      }
+    })
+  }
+
+  lapply(rows, function(row) {
+    tryCatch(
+      .iwmde_row_state(
+        context        = context,
+        row_index      = row,
+        parameter      = parameter,
+        parameter_spec = parameter_spec
+      ),
+      error = function(e) {
+        if (inherits(e, "iwmde_construction_error") || is.null(estimator)) {
+          stop(e)
+        }
+        .iwmde_stop_construction_failure(
+          estimator = estimator,
+          parameter = parameter,
+          rows      = row,
+          stage     = "baseline joint-density evaluation",
+          detail    = conditionMessage(e)
+        )
+      }
+    )
+  })
+}
+
+
+.iwmde_row_states_grouped_marginal <- function(context, rows,
+                                               parameter = NULL,
+                                               parameter_spec = NULL,
+                                               estimator = NULL) {
+
+  if (!inherits(context, "iwmde_context")) {
+    return(NULL)
+  }
+  likelihood_mode <- .iwmde_likelihood_mode(
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    context        = context
+  )
+  state_scope <- .iwmde_state_scope(
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    context        = context
+  )
+  if (!identical(likelihood_mode, "marginal") ||
+      !identical(state_scope, "global")) {
+    return(NULL)
+  }
+  if (length(rows) == 0L) {
+    return(list())
+  }
+
+  states <- lapply(rows, function(row) {
+    .iwmde_base_row_state(
+      context     = context,
+      row_index   = row,
+      state_scope = state_scope
+    )
+  })
+  # One vectorized paste over the active keys rather than one call per state:
+  # the likelihood mode and the state scope are the same for the whole group.
+  state_keys <- paste(
+    vapply(states, `[[`, character(1L), "active_key"),
+    likelihood_mode,
+    state_scope,
+    sep = "|"
+  )
+  is_primitive <- is.null(parameter_spec) ||
+    identical(parameter_spec[["type"]], "primitive")
+  controls_random_sd <-
+    .iwmde_parameter_controls_sampled_random_sd(context, parameter)
+  unit <- if (.is_data_multilevel(context[["data"]])) {
+    "cluster"
+  } else {
+    "estimate"
+  }
+
+  for (key in unique(state_keys)) {
+    positions    <- which(state_keys == key)
+    group        <- states[positions]
+    first_state  <- group[[1L]]
+    prior_list   <- .iwmde_active_flat_prior_list(
+      context     = context,
+      row         = first_state[["row"]],
+      parameter   = parameter,
+      state_scope = state_scope
+    )
+    prior_evaluator <- .iwmde_prior_rows_evaluator(
+      context     = context,
+      row         = first_state[["row"]],
+      parameter   = parameter,
+      state_scope = state_scope,
+      prior_list  = prior_list
+    )
+    group_rows   <- vapply(group, `[[`, integer(1), "row_index")
+    log_prior    <- .iwmde_replacement_log_prior_rows(
+      context[["posterior_samples"]][group_rows, , drop = FALSE],
+      prior_list,
+      replacement = parameter_spec,
+      evaluator   = prior_evaluator
+    )
+
+    if (is_primitive) {
+      focal_prior <- .iwmde_focal_prior(
+        context,
+        parameter,
+        first_state[["row"]]
+      )
+      # A state's row is its posterior row, so a focal parameter that is a
+      # posterior column is read for the whole group in one subset instead of
+      # one named lookup per state. Anything else keeps the row-wise read and
+      # its errors.
+      focal_column <- length(parameter) == 1L && !is.na(parameter) &&
+        parameter %in% colnames(context[["posterior_samples"]])
+      focal_values <- if (focal_column) {
+        as.numeric(context[["posterior_samples"]][group_rows, parameter])
+      } else {
+        vapply(group, function(state) {
+          value <- state[["row"]][[parameter]]
+          if (is.null(value) || length(value) != 1L) {
+            return(NA_real_)
+          }
+
+          as.numeric(value)
+        }, numeric(1))
+      }
+      baseline_focal_log_prior <- .iwmde_focal_log_prior_values(
+        prior     = focal_prior,
+        values    = focal_values,
+        parameter = parameter
+      )
+      use_focal_prior_delta_base <-
+        !.iwmde_parameter_is_eta(parameter) &&
+        !controls_random_sd &&
+        .iwmde_can_use_focal_prior_delta(focal_prior)
+      use_focal_prior_delta <-
+        rep(use_focal_prior_delta_base, length(group)) &
+        is.finite(baseline_focal_log_prior)
+    } else {
+      focal_prior                  <- NULL
+      baseline_focal_log_prior     <- rep(NA_real_, length(group))
+      use_focal_prior_delta        <- rep(FALSE, length(group))
+    }
+
+    log_lik <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(
+      context           = context,
+      posterior_samples = context[["posterior_samples"]][
+        group_rows,
+        ,
+        drop = FALSE
+      ],
+      active_setup      = first_state[["active_setup"]],
+      unit              = unit
+    )
+    if (!is.numeric(log_lik) || length(log_lik) != length(group)) {
+      stop(
+        "Grouped marginal likelihood returned an invalid row result.",
+        call. = FALSE
+      )
+    }
+
+    baseline_log_q <- log_lik + log_prior
+    finite         <- is.finite(baseline_log_q)
+    if (!all(finite)) {
+      .iwmde_stop_construction_failure(
+        estimator = estimator,
+        parameter = parameter,
+        rows      = group_rows[!finite],
+        stage     = "baseline joint-density evaluation",
+        detail    = "the baseline joint log density was not finite"
+      )
+    }
+
+    for (i in seq_along(group)) {
+      state <- group[[i]]
+      state[["prior_list"]]               <- prior_list
+      state[["prior_evaluator"]]          <- prior_evaluator
+      state[["baseline_log_lik"]]         <- log_lik[[i]]
+      state[["baseline_log_prior"]]       <- log_prior[[i]]
+      state[["focal_prior"]]              <- focal_prior
+      state[["baseline_focal_log_prior"]] <-
+        baseline_focal_log_prior[[i]]
+      state[["use_focal_prior_delta"]] <- use_focal_prior_delta[[i]]
+      state[["baseline_log_q"]]         <- baseline_log_q[[i]]
+      state[["likelihood_mode"]]        <- likelihood_mode
+      state[["state_scope"]]            <- state_scope
+      group[[i]]                        <- state
+    }
+    # One constructor built the whole group, so its shared schema is validated
+    # once instead of once per row.
+    states[positions] <- .iwmde_new_row_states(group)
+  }
+
+  return(states)
+}
+
+
+.iwmde_stop_construction_failure <- function(estimator, parameter, rows,
+                                             stage, detail = NULL,
+                                             chain_coverage = NULL) {
+
+  estimator_label <- if (identical(estimator, "q_grid_cmde") ||
+                         identical(estimator, "qCMDE")) {
+    "qCMDE"
+  } else {
+    "IWMDE"
+  }
+  rows <- unique(as.integer(rows))
+  row_text <- if (length(rows) == 0L) {
+    "an unknown posterior row"
+  } else {
+    shown <- utils::head(rows, 8L)
+    suffix <- if (length(rows) > length(shown)) {
+      paste0(" (and ", length(rows) - length(shown), " more)")
+    } else {
+      ""
+    }
+    paste0(
+      "posterior row", if (length(rows) == 1L) " " else "s ",
+      paste(shown, collapse = ", "), suffix
+    )
+  }
+  detail_text <- if (!is.null(detail) && nzchar(as.character(detail)[[1L]])) {
+    paste0(
+      ": ",
+      sub("[.]+$", "", gsub("[\r\n\t]+", " ", as.character(detail)[[1L]]))
+    )
+  } else {
+    ""
+  }
+
+  message <- paste0(
+    estimator_label, " construction failed for target '", parameter,
+    "' at ", row_text, " during ", stage, detail_text, "."
+  )
+  condition <- structure(
+    list(
+      message        = message,
+      call           = NULL,
+      estimator      = estimator,
+      target         = parameter,
+      posterior_rows = rows,
+      stage          = stage,
+      detail         = detail,
+      chain_coverage = chain_coverage
+    ),
+    class = c("iwmde_construction_error", "error", "condition")
+  )
+  stop(condition)
+}
+
+
+.iwmde_validate_log_grid <- function(log_q_grid, estimator, parameter, rows,
+                                     n_values, stage) {
+
+  if (!is.numeric(log_q_grid) || !is.matrix(log_q_grid) ||
+      nrow(log_q_grid) != n_values || ncol(log_q_grid) != length(rows)) {
+    .iwmde_stop_construction_failure(
+      estimator = estimator,
+      parameter = parameter,
+      rows      = rows,
+      stage     = stage,
+      detail    = "joint log-density evaluation returned an invalid matrix"
+    )
+  }
+
+  invalid <- is.na(log_q_grid) | log_q_grid == Inf
+  if (any(invalid)) {
+    bad_columns <- unique(which(invalid, arr.ind = TRUE)[, "col"])
+    .iwmde_stop_construction_failure(
+      estimator = estimator,
+      parameter = parameter,
+      rows      = rows[bad_columns],
+      stage     = stage,
+      detail    = "joint log density was undefined or positive-infinite"
+    )
+  }
+
+  invisible(log_q_grid)
+}
+.iwmde_likelihood_mode <- function(parameter, parameter_spec = NULL,
+                                   context = NULL) {
+
+  if (.iwmde_context_uses_local_likelihood(context)) {
+    return("conditional")
+  }
+
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "linear")) {
+    if (.iwmde_linear_uses_local_latent(parameter_spec[["weights"]])) {
+      return("conditional")
+    }
+
+    return("marginal")
+  }
+
+  if (.iwmde_parameter_is_local_latent(parameter)) {
+    return("conditional")
+  }
+
+  return("marginal")
+}
+
+
+.iwmde_context_uses_local_likelihood <- function(context) {
+
+  if (is.null(context) || is.null(context[["data"]])) {
+    return(FALSE)
+  }
+
+  if (.is_data_joint_selection(context[["data"]])) {
+    return(.selection_retains_any_random(context[["data"]]) ||
+      .selection_retains_sampling(context[["data"]]))
+  }
+  return(.data_outcome_type(context[["data"]]) %in% c("bin", "pois"))
+}
+
+
+.iwmde_state_scope <- function(parameter, parameter_spec = NULL,
+                               context = NULL) {
+
+  if (identical(
+    .iwmde_likelihood_mode(parameter, parameter_spec, context),
+    "conditional"
+  )) {
+    return("local")
+  }
+
+  return("global")
+}
+
+
+.iwmde_state_scope_value <- function(state) {
+
+  state_scope <- state[["state_scope"]]
+  if (length(state_scope) != 1L ||
+      !state_scope %in% c("local", "global")) {
+    return("local")
+  }
+
+  return(state_scope)
+}
+
+
+.iwmde_linear_uses_local_latent <- function(weights) {
+
+  return(any(vapply(
+    names(weights),
+    .iwmde_parameter_is_local_latent,
+    logical(1)
+  )))
+}
+
+
+.iwmde_parameter_is_local_latent <- function(parameter) {
+
+  if (is.null(parameter) || length(parameter) != 1L || is.na(parameter)) {
+    return(FALSE)
+  }
+
+  return(grepl("^(gamma|theta|sampling_z|pi|phi)\\[", parameter))
+}
+
+
+.iwmde_prior_name_is_local_latent <- function(parameter) {
+
+  if (is.null(parameter) || length(parameter) != 1L || is.na(parameter)) {
+    return(FALSE)
+  }
+
+  return(parameter %in% c("gamma", "theta", "sampling_z", "pi", "phi"))
+}
+
+
+.iwmde_drop_local_latent_sample_columns <- function(samples, context = NULL) {
+
+  columns <- colnames(samples)
+  cache   <- if (is.list(context)) context[["predictor_cache"]] else NULL
+  key     <- "global_sample_columns"
+  cached  <- if (is.environment(cache) &&
+                   exists(key, envir = cache, inherits = FALSE)) {
+    get(key, envir = cache, inherits = FALSE)
+  } else {
+    NULL
+  }
+
+  if (is.list(cached) && identical(cached[["columns"]], columns)) {
+    keep <- cached[["keep"]]
+  } else {
+    keep <- !vapply(
+      columns,
+      .iwmde_parameter_is_local_latent,
+      logical(1)
+    )
+    fit <- if (is.list(context)) context[["formula_fit"]] else NULL
+    if (is.null(fit) && is.list(context) && !is.null(context[["object"]])) {
+      fit <- context[["object"]][["fit"]]
+    }
+    if (!is.null(fit) && inherits(fit, "BayesTools_fit")) {
+      coordinates <- BayesTools::parameter_coordinates(fit)
+      local_random <- coordinates[["coordinate_name"]][
+        coordinates[["role"]] %in% c(
+          "random_latent",
+          "random_group_coefficient"
+        )
+      ]
+      keep <- keep & !columns %in% local_random
+    }
+    if (is.environment(cache)) {
+      assign(key, list(columns = columns, keep = keep), envir = cache)
+    }
+  }
+
+  return(samples[, keep, drop = FALSE])
+}
+
+
+.iwmde_row_state <- function(context, row_index, parameter = NULL,
+                             parameter_spec = NULL) {
+
+  likelihood_mode <- .iwmde_likelihood_mode(
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    context        = context
+  )
+  state_scope <- .iwmde_state_scope(
+    parameter      = parameter,
+    parameter_spec = parameter_spec,
+    context        = context
+  )
+  base_state      <- .iwmde_base_row_state(
+    context     = context,
+    row_index   = row_index,
+    state_scope = state_scope
+  )
+  base_state[["parameters"]] <- .iwmde_row_parameters(
+    context      = context,
+    row          = base_state[["row"]],
+    active_setup = base_state[["active_setup"]],
+    state_scope  = state_scope
+  )
+  is_primitive    <- is.null(parameter_spec) ||
+    identical(parameter_spec[["type"]], "primitive")
+  prior_list <- .iwmde_active_flat_prior_list(
+    context     = context,
+    row         = base_state[["row"]],
+    parameter   = parameter,
+    state_scope = state_scope
+  )
+  prior_evaluator <- .iwmde_prior_rows_evaluator(
+    context     = context,
+    row         = base_state[["row"]],
+    parameter   = parameter,
+    state_scope = state_scope,
+    prior_list  = prior_list
+  )
+  log_prior <- .iwmde_replacement_log_prior_rows(
+    samples = matrix(
+      as.numeric(base_state[["row"]]),
+      nrow     = 1L,
+      dimnames = list(NULL, names(base_state[["row"]]))
+    ),
+    prior_list  = prior_list,
+    replacement = parameter_spec,
+    evaluator   = prior_evaluator
+  )[[1L]]
+  if (is_primitive) {
+    focal_prior <- .iwmde_focal_prior(context, parameter, base_state[["row"]])
+    baseline_focal_log_prior <- .iwmde_focal_log_prior(
+      prior     = focal_prior,
+      value     = base_state[["row"]][[parameter]],
+      parameter = parameter
+    )
+  } else {
+    focal_prior              <- NULL
+    baseline_focal_log_prior <- NA_real_
+  }
+  baseline_log_lik <- .iwmde_baseline_log_likelihood(
+    context         = context,
+    base_state      = base_state,
+    likelihood_mode = likelihood_mode
+  )
+  baseline_log_q <- if (is.finite(baseline_log_lik) &&
+                        is.finite(log_prior)) {
+    baseline_log_lik + log_prior
+  } else {
+    -Inf
+  }
+
+  base_state[["prior_list"]]               <- prior_list
+  base_state[["prior_evaluator"]]          <- prior_evaluator
+  base_state[["baseline_log_lik"]]         <- baseline_log_lik
+  base_state[["baseline_log_prior"]]       <- log_prior
+  base_state[["focal_prior"]]              <- focal_prior
+  base_state[["baseline_focal_log_prior"]] <- baseline_focal_log_prior
+  base_state[["use_focal_prior_delta"]]        <- is_primitive &&
+    !.iwmde_parameter_is_eta(parameter) &&
+    !.iwmde_parameter_controls_sampled_random_sd(context, parameter) &&
+    is.finite(baseline_focal_log_prior) &&
+    .iwmde_can_use_focal_prior_delta(focal_prior)
+  base_state[["baseline_log_q"]]               <- baseline_log_q
+  base_state[["likelihood_mode"]]              <- likelihood_mode
+  base_state[["state_scope"]]                  <- state_scope
+
+  return(.iwmde_new_row_state(base_state))
+}
+
+
+.iwmde_baseline_log_likelihood <- function(context, base_state,
+                                           likelihood_mode) {
+
+  key <- paste(
+    base_state[["row_index"]],
+    base_state[["active_key"]],
+    likelihood_mode,
+    sep = "|"
+  )
+  if (exists(key, envir = context[["likelihood_cache"]], inherits = FALSE)) {
+    return(get(key, envir = context[["likelihood_cache"]]))
+  }
+
+  row <- if (identical(base_state[["state_scope"]], "global") &&
+             identical(likelihood_mode, "marginal") &&
+             !.iwmde_marginal_likelihood_requires_row(context)) {
+    NULL
+  } else {
+    base_state[["row"]]
+  }
+
+  log_lik <- .iwmde_log_likelihood_parameters(
+    context         = context,
+    parameters      = base_state[["parameters"]],
+    active_setup    = base_state[["active_setup"]],
+    likelihood_mode = likelihood_mode,
+    row             = row
+  )
+
+  assign(key, log_lik, envir = context[["likelihood_cache"]])
+  return(log_lik)
+}
+
+
+.iwmde_marginal_likelihood_requires_row <- function(context) {
+
+  .is_data_joint_selection(context[["data"]]) ||
+    (.is_data_known_v(context[["data"]]) && .is_data_random(context[["data"]]))
+}
+
+
+.iwmde_base_row_state <- function(context, row_index,
+                                  state_scope = c("local", "global")) {
+
+  state_scope <- match.arg(state_scope)
+  key <- paste(row_index, state_scope, sep = "|")
+  if (exists(key, envir = context[["row_cache"]], inherits = FALSE)) {
+    return(get(key, envir = context[["row_cache"]]))
+  }
+
+  row          <- context[["posterior_samples"]][row_index, ]
+  active_key   <- .iwmde_active_keys(context)[[row_index]]
+  active_setup <- .iwmde_active_setup(context, row, active_key)
+
+  state <- list(
+    row_index        = row_index,
+    row              = row,
+    active_key       = active_key,
+    active_setup     = active_setup,
+    state_scope      = state_scope
+  )
+
+  assign(key, state, envir = context[["row_cache"]])
+  return(state)
+}
+
+
+.iwmde_state_active_key <- function(context, state) {
+
+  if (!is.null(state[["active_key"]])) {
+    return(state[["active_key"]])
+  }
+
+  return(.iwmde_active_key(context, state[["row"]]))
+}
+
+
+# Group row states by their active branch, in first-appearance order. The keys
+# are fixed for the whole plan while the grid sequence walks the same list of
+# states several times, so the grouping travels with the list once
+# .iwmde_plan_baseline_contract() has attached it. A list that was subset or
+# rebuilt elsewhere loses the attribute and is grouped again.
+.iwmde_row_state_groups <- function(context, row_states) {
+
+  # The grouping identifies this exact list of states. Subsetting and rebuilding
+  # drop the attribute, and the first and last row index are recorded with it so
+  # that an in-place edit which keeps the list length cannot be served a stale
+  # grouping either.
+  edges  <- .iwmde_row_state_group_edges(row_states)
+  cached <- attr(row_states, "iwmde_active_groups", exact = TRUE)
+  if (is.list(cached) &&
+      identical(attr(cached, "n_states", exact = TRUE), length(row_states)) &&
+      identical(attr(cached, "row_edges", exact = TRUE), edges)) {
+    return(cached)
+  }
+
+  keys   <- vapply(row_states, function(state) {
+    .iwmde_state_active_key(context, state)
+  }, character(1))
+  groups <- split(seq_along(keys), factor(keys, levels = unique(keys)))
+  attr(groups, "n_states") <- length(row_states)
+  attr(groups, "row_edges") <- edges
+
+  return(groups)
+}
+
+
+# The first and last state's row index, or NULL for an empty list.
+.iwmde_row_state_group_edges <- function(row_states) {
+
+  n <- length(row_states)
+  if (n == 0L) {
+    return(NULL)
+  }
+
+  return(c(row_states[[1L]][["row_index"]], row_states[[n]][["row_index"]]))
+}
+
+
+.iwmde_qcmde_evaluate_grid_sequence <- function(
+    context, parameter, display_grid, normalizer_plan, row_states,
+    replacement, estimator_rows, active_mass, denominator,
+    density_output = TRUE) {
+
+  grid_sequence <- normalizer_plan[["grid_sequence"]]
+  all_grid       <- normalizer_plan[["all_grid"]]
+  context[["normalizer_grid"]] <- .selection_normalizer_grid(context,
+    c(display_grid, all_grid[["x"]]), vapply(row_states, `[[`, integer(1L), "row_index"))
+  context[["covariance_grid"]] <- .selection_covariance_grid(context,
+    c(display_grid, all_grid[["x"]]), vapply(row_states, `[[`, integer(1L), "row_index"),
+    row_states, replacement, parameter)
+  n_states       <- length(row_states)
+  log_q_all      <- matrix(
+    NA_real_,
+    nrow = length(all_grid[["x"]]),
+    ncol = n_states
+  )
+  evaluated      <- rep(FALSE, nrow(log_q_all))
+  log_q_sequence <- vector("list", length(grid_sequence))
+  log_normalizer_sequence <- vector("list", length(grid_sequence))
+  quadrature_changes <- numeric()
+  pilot_gate_stopped <- FALSE
+  pilot_bulk_ess     <- numeric()
+  log_q_display      <- NULL
+  last_index         <- 0L
+  conditional_rows <- which(vapply(row_states, function(state) {
+    !is.null(state[["conditioning_transform"]])
+  }, logical(1L)))
+  conditional_normalizers <- lapply(conditional_rows, function(row) {
+    tryCatch(.iwmde_retained_location_normalizer(row_states[[row]]), error = function(e) {
+      .iwmde_stop_construction_failure("q_grid_cmde", parameter, estimator_rows[[row]],
+        stage = "retained-location conditional normalization", detail = conditionMessage(e))
+    })
+  })
+  conditional_log_mass <- vapply(conditional_normalizers, `[[`, numeric(1L), "log_normalizer")
+  if (length(conditional_rows)) {
+    quadrature_changes <- vapply(conditional_normalizers, `[[`, numeric(1L), "relative_error")
+  }
+  ordinary_rows <- setdiff(seq_len(n_states), conditional_rows)
+
+  evaluate_values <- function(values) {
+
+    log_q <- tryCatch(
+      .iwmde_log_q_grid(
+        context     = context,
+        parameter   = parameter,
+        values      = values,
+        row_states  = row_states,
+        replacement = replacement
+      ),
+      error = function(e) {
+        if (inherits(e, "iwmde_construction_error")) {
+          stop(e)
+        }
+        .iwmde_stop_construction_failure(
+          estimator = "q_grid_cmde",
+          parameter = parameter,
+          rows      = estimator_rows,
+          stage     = "joint-density grid evaluation",
+          detail    = conditionMessage(e)
+        )
+      }
+    )
+    .iwmde_validate_log_grid(
+      log_q_grid = log_q,
+      estimator  = "q_grid_cmde",
+      parameter  = parameter,
+      rows       = estimator_rows,
+      n_values   = length(values),
+      stage      = "joint-density grid evaluation"
+    )
+
+    return(log_q)
+  }
+
+  for (index in seq_along(grid_sequence)) {
+    grid      <- grid_sequence[[index]]
+    grid_rows <- grid[["all_index"]]
+    new_rows  <- grid_rows[!evaluated[grid_rows]]
+    new_x     <- all_grid[["x"]][new_rows]
+    values    <- if (index == 1L) c(display_grid, new_x) else new_x
+
+    if (length(values) > 0L) {
+      log_q_new <- evaluate_values(values)
+      quadrature_change <- attr(
+        log_q_new,
+        "max_quadrature_relative_change",
+        exact = TRUE
+      )
+      if (is.numeric(quadrature_change) &&
+          length(quadrature_change) == 1L && !is.na(quadrature_change)) {
+        quadrature_changes <- c(quadrature_changes, quadrature_change)
+      }
+
+      if (index == 1L) {
+        display_rows <- seq_along(display_grid)
+        log_q_display <- log_q_new[display_rows, , drop = FALSE]
+        new_value_rows <- length(display_grid) + seq_along(new_rows)
+        log_q_all[new_rows, ] <- log_q_new[new_value_rows, , drop = FALSE]
+      } else {
+        log_q_all[new_rows, ] <- log_q_new
+      }
+      evaluated[new_rows] <- TRUE
+    }
+
+    log_q_sequence[[index]] <- log_q_all[grid_rows, , drop = FALSE]
+    log_normalizer_sequence[[index]] <- numeric(n_states)
+    if (length(ordinary_rows)) {
+      log_normalizer_sequence[[index]][ordinary_rows] <- .iwmde_log_trapz_columns(
+        x     = grid[["z"]],
+        log_y = log_q_sequence[[index]][, ordinary_rows, drop = FALSE] + grid[["log_jacobian"]]
+      )
+    }
+    log_normalizer_sequence[[index]][conditional_rows] <- conditional_log_mass
+    last_index <- index
+
+    if (index >= 3L && .iwmde_qcmde_refinement_pair_converged(
+      log_q_display          = log_q_display,
+      candidate_normalizer   = log_normalizer_sequence[[index - 1L]],
+      validation_normalizer  = log_normalizer_sequence[[index]],
+      active_mass            = active_mass,
+      denominator            = denominator
+    )) {
+      break
+    }
+    # A line whose row weights already put it far below the acceptance gate at
+    # two settled grids cannot be rescued by refining the normalizer further,
+    # and refining it is the expensive part. Two grids are kept either way, so
+    # the validation diagnostics still have a pair to compare.
+    pilot_bulk_ess <- c(pilot_bulk_ess, if (density_output) .iwmde_qcmde_pilot_bulk_ess(
+      display_grid   = display_grid,
+      log_q_display  = log_q_display,
+      log_normalizer = log_normalizer_sequence[[index]],
+      active_mass    = active_mass,
+      denominator    = denominator
+    ) else NA_real_)
+    if (index == 2L && .iwmde_qcmde_pilot_gate_hopeless(
+      bulk_ess       = pilot_bulk_ess,
+      estimator_rows = length(estimator_rows)
+    )) {
+      pilot_gate_stopped <- TRUE
+      last_index <- index
+      break
+    }
+  }
+
+  evaluated_sequence <- seq_len(last_index)
+  quadrature_change  <- if (length(quadrature_changes) > 0L) {
+    max(quadrature_changes)
+  } else {
+    NA_real_
+  }
+
+  return(list(
+    log_q_display           = log_q_display,
+    log_q_sequence          = log_q_sequence[evaluated_sequence],
+    log_normalizer_sequence = log_normalizer_sequence[evaluated_sequence],
+    conditional_normalization = list(rows = conditional_rows,
+      methods = vapply(conditional_normalizers, `[[`, character(1), "method")),
+    quadrature_change       = quadrature_change,
+    pilot_gate_stopped      = pilot_gate_stopped,
+    pilot_bulk_ess          = pilot_bulk_ess,
+    normalizer_interpolation = .selection_normalizer_grid_diagnostics(context[["normalizer_grid"]]),
+    covariance_interpolation = .selection_covariance_grid_diagnostics(context[["covariance_grid"]])
+  ))
+}
+
+
+.iwmde_density_grid <- function(context, parameter, display_grid,
+                                normalization_grid, transform, row_states,
+                                active_mass, replacement,
+                                estimator_rows = seq_along(row_states),
+                                population_rows = estimator_rows,
+                                chain_id = rep(1L, length(estimator_rows)),
+                                expected_chain_ids = unique(chain_id),
+                                conditioned_rows = NULL,
+                                conditioned_chain_id = NULL,
+                                n_candidate_rows = length(row_states),
+                                density_output = TRUE) {
+
+  n_input_rows     <- length(row_states)
+  n_candidate_rows <- as.integer(n_candidate_rows[[1L]])
+  if (!is.finite(n_candidate_rows) || n_candidate_rows != n_input_rows ||
+      length(estimator_rows) != n_input_rows) {
+    .iwmde_stop_construction_failure(
+      estimator = "q_grid_cmde",
+      parameter = parameter,
+      rows      = estimator_rows,
+      stage     = "row-contract validation",
+      detail    = "candidate rows, estimator rows, and row states are inconsistent"
+    )
+  }
+  normalizer_plan  <- .iwmde_qcmde_normalizer_plan(
+    normalization_grid = normalization_grid,
+    transform          = transform
+  )
+  evaluation <- .iwmde_qcmde_evaluate_grid_sequence(
+    context          = context,
+    parameter        = parameter,
+    display_grid     = display_grid,
+    normalizer_plan  = normalizer_plan,
+    row_states       = row_states,
+    replacement      = replacement,
+    estimator_rows   = estimator_rows,
+    active_mass      = active_mass,
+    denominator      = n_candidate_rows,
+    density_output   = density_output
+  )
+  log_q_display           <- evaluation[["log_q_display"]]
+  log_q_sequence          <- evaluation[["log_q_sequence"]]
+  log_normalizer_sequence <- evaluation[["log_normalizer_sequence"]]
+  quadrature_change       <- evaluation[["quadrature_change"]]
+  normalizer_plan[["grid_sequence"]] <- normalizer_plan[["grid_sequence"]][
+    seq_along(log_q_sequence)
+  ]
+  refinement <- .iwmde_qcmde_select_refinement(
+    log_q_display           = log_q_display,
+    log_normalizer_sequence = log_normalizer_sequence,
+    active_mass             = active_mass,
+    denominator             = n_candidate_rows
+  )
+  normalizer_plan[["pilot_index"]] <- refinement[["pilot_index"]]
+  normalizer_plan[["final_index"]] <- refinement[["final_index"]]
+  normalizer_plan[["validation_index"]] <- refinement[["validation_index"]]
+  normalizer_plan[["n_refinement_steps"]] <- refinement[["n_refinement_steps"]]
+  pilot_grid      <- normalizer_plan[["grid_sequence"]][[refinement[["pilot_index"]]]]
+  final_grid      <- normalizer_plan[["grid_sequence"]][[refinement[["final_index"]]]]
+  log_q_initial   <- log_q_sequence[[refinement[["pilot_index"]]]]
+  log_q_final     <- log_q_sequence[[refinement[["final_index"]]]]
+
+  initial_log_normalizer <- log_normalizer_sequence[[refinement[["pilot_index"]]]]
+  final_log_normalizer   <- log_normalizer_sequence[[refinement[["final_index"]]]]
+  validation_log_normalizer <- log_normalizer_sequence[[refinement[["validation_index"]]]]
+  initial_finite <- is.finite(initial_log_normalizer)
+  final_finite   <- is.finite(final_log_normalizer)
+  validation_finite <- is.finite(validation_log_normalizer)
+  if (any(!final_finite)) {
+    .iwmde_stop_construction_failure(
+      estimator = "q_grid_cmde",
+      parameter = parameter,
+      rows      = estimator_rows[!final_finite],
+      stage     = "conditional-density normalization",
+      detail    = paste0(
+        "no finite positive normalizer was obtained after ",
+        normalizer_plan[["n_refinement_steps"]], " refinement step(s)"
+      )
+    )
+  }
+  if (any(!validation_finite)) {
+    .iwmde_stop_construction_failure(
+      estimator = "q_grid_cmde",
+      parameter = parameter,
+      rows      = estimator_rows[!validation_finite],
+      stage     = "conditional-density normalization validation",
+      detail    = "the validation grid did not produce a finite positive normalizer"
+    )
+  }
+  pilot_y        <- .iwmde_qcmde_pilot_density(
+    log_q_display  = log_q_display,
+    log_normalizer = initial_log_normalizer,
+    keep_rows      = initial_finite,
+    active_mass    = active_mass,
+    denominator    = n_candidate_rows
+  )
+  validation_y <- .iwmde_qcmde_pilot_density(
+    log_q_display  = log_q_display,
+    log_normalizer = validation_log_normalizer,
+    keep_rows      = validation_finite,
+    active_mass    = active_mass,
+    denominator    = n_candidate_rows
+  )
+  log_normalizer <- final_log_normalizer
+  normalizer_change <- .iwmde_qcmde_normalizer_change(
+    initial_log_normalizer = final_log_normalizer,
+    final_log_normalizer   = validation_log_normalizer
+  )
+
+  density_terms <- .iwmde_density_aggregate(
+    log_terms         = sweep(log_q_display, 2L, log_normalizer, "-"),
+    active_mass       = active_mass,
+    denominator       = n_candidate_rows,
+    contribution_rows = estimator_rows,
+    sampling_population_rows = population_rows,
+    chain_id = chain_id,
+    expected_chain_ids = expected_chain_ids,
+    conditioned_rows = conditioned_rows,
+    conditioned_chain_id = conditioned_chain_id,
+    evaluation_values = display_grid
+  )
+  y                <- density_terms[["y"]]
+  finite_terms     <- density_terms[["finite_terms"]]
+  max_log_ratio    <- density_terms[["max_log_ratio"]]
+  ess              <- density_terms[["ess"]]
+  max_weight_share <- density_terms[["max_weight_share"]]
+  contributions      <- density_terms[["contributions"]]
+  mcmc_contributions <- density_terms[["mcmc_contributions"]]
+
+  mcse_data <- .iwmde_mixture_mcse(
+    contributions      = contributions,
+    mcmc_contributions = mcmc_contributions,
+    active_mass_error  = density_terms[["active_mass_error"]],
+    active_mass        = active_mass
+  )
+  ess            <- mcse_data[["ess"]]
+  integral_mcse  <- .iwmde_integral_mcse(
+    contributions      = contributions,
+    mcmc_contributions = mcmc_contributions,
+    x                  = display_grid,
+    active_mass_error  = density_terms[["active_mass_error"]],
+    active_mass        = active_mass
+  )
+  norm_y_initial <- .iwmde_normalization_density(
+    log_q_norm         = log_q_initial,
+    log_normalizer     = log_normalizer,
+    log_jacobian       = pilot_grid[["log_jacobian"]],
+    normalization_grid = pilot_grid[["z"]],
+    active_mass        = active_mass,
+    denominator        = n_candidate_rows
+  )
+  norm_y_final <- .iwmde_normalization_density(
+    log_q_norm         = log_q_final,
+    log_normalizer     = log_normalizer,
+    log_jacobian       = final_grid[["log_jacobian"]],
+    normalization_grid = final_grid[["z"]],
+    active_mass        = active_mass,
+    denominator        = n_candidate_rows
+  )
+  ordinate_change <- .iwmde_qcmde_ordinate_change(
+    pilot_y = y,
+    final_y = validation_y
+  )
+  pilot_change <- .iwmde_qcmde_ordinate_change(
+    pilot_y = pilot_y,
+    final_y = y
+  )
+  pilot_normalization_integral <- .iwmde_trapz(
+    pilot_grid[["z"]],
+    norm_y_initial
+  )
+  final_normalization_integral <- .iwmde_trapz(
+    final_grid[["z"]],
+    norm_y_final
+  )
+
+  return(list(
+    x                      = display_grid,
+    y                      = y,
+    log_y                  = density_terms[["log_y"]],
+    finite_terms           = finite_terms,
+    max_log_ratio          = max_log_ratio,
+    ess                    = ess,
+    max_weight_share       = max_weight_share,
+    mcse                   = mcse_data[["mcse"]],
+    relative_mcse          = mcse_data[["relative_mcse"]],
+    active_branch_mcse     = mcse_data[["active_branch_mcse"]],
+    active_branch_relative_mcse =
+      mcse_data[["active_branch_relative_mcse"]],
+    active_mass_mcse       = mcse_data[["active_mass_mcse"]],
+    active_mass_relative_mcse =
+      mcse_data[["active_mass_relative_mcse"]],
+    active_mass_component_mcse =
+      mcse_data[["active_mass_component_mcse"]],
+    mixture_mcse_type      = mcse_data[["mixture_mcse_type"]],
+    sampling_mcse            = density_terms[["sampling_mcse"]],
+    sampling_relative_mcse   = density_terms[["sampling_relative_mcse"]],
+    sampling_fraction        = density_terms[["sampling_fraction"]],
+    sampling_uncertainty_type =
+      density_terms[["sampling_uncertainty_type"]],
+    mcmc_uncertainty_scope   = mcse_data[["uncertainty_scope"]],
+    mcmc_uncertainty_status  = mcse_data[["uncertainty_status"]],
+    mcmc_uncertainty_reason  = mcse_data[["uncertainty_reason"]],
+    log_normalizer         = log_normalizer,
+    pilot_log_normalizer   = initial_log_normalizer,
+    conditional_normalization = evaluation[["conditional_normalization"]],
+    normalizer_interpolation = evaluation[["normalizer_interpolation"]],
+    covariance_interpolation = evaluation[["covariance_interpolation"]],
+    pilot_gate_stopped     = evaluation[["pilot_gate_stopped"]],
+    pilot_bulk_ess         = evaluation[["pilot_bulk_ess"]],
+    n_candidate_rows       = n_candidate_rows,
+    n_evaluated_rows       = n_input_rows,
+    normalization_points              = length(final_grid[["x"]]),
+    normalization_range               = range(final_grid[["x"]]),
+    normalization_initial_points      = length(pilot_grid[["x"]]),
+    normalization_initial_range       = range(pilot_grid[["x"]]),
+    pilot_normalization_integral      = pilot_normalization_integral,
+    final_normalization_integral      = final_normalization_integral,
+    normalization_relative_error      = abs(
+      final_normalization_integral / active_mass - 1
+    ),
+    normalization_scale               = transform[["type"]],
+    normalization_mass_ratio          = 1,
+    pilot_y                           = pilot_y,
+    validation_y                      = validation_y,
+    ordinate_relative_change          = ordinate_change[["relative"]],
+    ordinate_log_change               = ordinate_change[["log"]],
+    pilot_ordinate_relative_change    = pilot_change[["relative"]],
+    pilot_ordinate_log_change         = pilot_change[["log"]],
+    max_normalizer_relative_change    = normalizer_change[["max"]],
+    max_quadrature_relative_change    = quadrature_change,
+    p95_normalizer_relative_change    = normalizer_change[["p95"]],
+    median_normalizer_relative_change = normalizer_change[["median"]],
+    normalization_refined_points      = length(final_grid[["x"]]),
+    normalization_refined_range       = range(final_grid[["x"]]),
+    n_rescued_normalizer              = sum(!initial_finite & final_finite),
+    n_initial_dropped_normalizer      = sum(!initial_finite),
+    n_refinement_steps                = normalizer_plan[["n_refinement_steps"]],
+    integral_mcse                     = integral_mcse[["mcse"]],
+    integral_relative_mcse            = integral_mcse[["relative_mcse"]],
+    batch_size                        = mcse_data[["batch_size"]],
+    n_batches                         = mcse_data[["n_batches"]],
+    estimator                         = "q_grid_cmde",
+    weight_method                     = "conditional_grid"
+  ))
+}
+
+.iwmde_density_iwmde <- function(context, parameter, display_grid,
+                                 row_states, active_rows,
+                                 active_values, proposal_weight,
+                                 active_mass, replacement,
+                                 population_rows = active_rows,
+                                 chain_id = rep(1L, length(active_rows)),
+                                 expected_chain_ids = unique(chain_id),
+                                 conditioned_rows = NULL,
+                                 conditioned_chain_id = NULL,
+                                 normalization_grid = NULL,
+                                 n_candidate_rows = length(row_states)) {
+
+  n_input_rows     <- length(row_states)
+  n_candidate_rows <- as.integer(n_candidate_rows[[1L]])
+  if (!is.finite(n_candidate_rows) || n_candidate_rows != n_input_rows ||
+      length(active_rows) != n_input_rows ||
+      length(active_values) != n_input_rows) {
+    .iwmde_stop_construction_failure(
+      estimator = "iwmde",
+      parameter = parameter,
+      rows      = active_rows,
+      stage     = "row-contract validation",
+      detail    = "candidate rows, active values, and row states are inconsistent"
+    )
+  }
+  weight <- proposal_weight
+  weight_fallbacks <- list(
+    count   = if (is.null(weight[["fallback_count"]])) {
+      0L
+    } else {
+      weight[["fallback_count"]]
+    },
+    rows    = if (is.null(weight[["fallback_rows"]])) {
+      0L
+    } else {
+      weight[["fallback_rows"]]
+    },
+    from    = if (is.null(weight[["fallback_from"]])) {
+      character()
+    } else {
+      weight[["fallback_from"]]
+    },
+    reasons = if (is.null(weight[["fallback_reasons"]])) {
+      structure(integer(), names = character())
+    } else {
+      weight[["fallback_reasons"]]
+    }
+  )
+  raw_log_weight    <- weight[["log_weight"]]
+  if (!is.numeric(raw_log_weight) ||
+      length(raw_log_weight) != length(active_rows)) {
+    .iwmde_stop_construction_failure(
+      estimator = "iwmde",
+      parameter = parameter,
+      rows      = active_rows,
+      stage     = "proposal-density construction",
+      detail    = "the proposal log-density vector has an invalid length or type"
+    )
+  }
+  finite_weight <- is.finite(raw_log_weight)
+  if (any(!finite_weight)) {
+    .iwmde_stop_construction_failure(
+      estimator = "iwmde",
+      parameter = parameter,
+      rows      = active_rows[!finite_weight],
+      stage     = "proposal-density construction",
+      detail    = "the normalized proposal density was zero or non-finite at an evaluation row"
+    )
+  }
+  contribution_rows <- active_rows
+  log_weight        <- raw_log_weight
+
+  has_normalization_grid <- !is.null(normalization_grid) &&
+    length(normalization_grid[["x"]]) >= 2L
+  q_grid <- if (has_normalization_grid) {
+    c(display_grid, normalization_grid[["x"]])
+  } else {
+    display_grid
+  }
+  log_q_grid <- tryCatch(
+    .iwmde_log_q_grid(
+      context     = context,
+      parameter   = parameter,
+      values      = q_grid,
+      row_states  = row_states,
+      replacement = replacement
+    ),
+    error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) {
+        stop(e)
+      }
+      .iwmde_stop_construction_failure(
+        estimator = "iwmde",
+        parameter = parameter,
+        rows      = contribution_rows,
+        stage     = "joint-density ordinate evaluation",
+        detail    = conditionMessage(e)
+      )
+    }
+  )
+  .iwmde_validate_log_grid(
+    log_q_grid = log_q_grid,
+    estimator  = "iwmde",
+    parameter  = parameter,
+    rows       = contribution_rows,
+    n_values   = length(q_grid),
+    stage      = "joint-density ordinate evaluation"
+  )
+  quadrature_change <- attr(
+    log_q_grid,
+    "max_quadrature_relative_change",
+    exact = TRUE
+  )
+  if (is.null(quadrature_change)) {
+    quadrature_change <- NA_real_
+  }
+  log_q_display <- log_q_grid[seq_along(display_grid), , drop = FALSE]
+  log_q_norm <- if (has_normalization_grid) {
+    log_q_grid[
+      length(display_grid) + seq_along(normalization_grid[["x"]]),
+      ,
+      drop = FALSE
+    ]
+  } else {
+    NULL
+  }
+  baseline_log_q <- vapply(row_states, function(state) {
+    state[["baseline_log_q"]]
+  }, numeric(1))
+
+  density_terms <- .iwmde_density_aggregate(
+    log_terms = sweep(
+      sweep(log_q_display, 2L, baseline_log_q, "-"),
+      2L,
+      log_weight,
+      "+"
+    ),
+    active_mass       = active_mass,
+    denominator       = n_candidate_rows,
+    contribution_rows = contribution_rows,
+    sampling_population_rows = population_rows,
+    chain_id = chain_id,
+    expected_chain_ids = expected_chain_ids,
+    conditioned_rows = conditioned_rows,
+    conditioned_chain_id = conditioned_chain_id,
+    evaluation_values = display_grid
+  )
+  y                <- density_terms[["y"]]
+  finite_terms     <- density_terms[["finite_terms"]]
+  max_log_ratio    <- density_terms[["max_log_ratio"]]
+  ess              <- density_terms[["ess"]]
+  max_weight_share <- density_terms[["max_weight_share"]]
+  contributions      <- density_terms[["contributions"]]
+  mcmc_contributions <- density_terms[["mcmc_contributions"]]
+
+  normalization <- .iwmde_iwmde_normalization(
+    normalization_grid = normalization_grid,
+    log_q_norm         = log_q_norm,
+    baseline_log_q     = baseline_log_q,
+    log_weight         = log_weight,
+    active_mass        = active_mass,
+    denominator        = n_candidate_rows
+  )
+
+  mcse_data <- .iwmde_mixture_mcse(
+    contributions      = contributions,
+    mcmc_contributions = mcmc_contributions,
+    active_mass_error  = density_terms[["active_mass_error"]],
+    active_mass        = active_mass
+  )
+  ess           <- mcse_data[["ess"]]
+  integral_mcse <- .iwmde_integral_mcse(
+    contributions      = contributions,
+    mcmc_contributions = mcmc_contributions,
+    x                  = display_grid,
+    active_mass_error  = density_terms[["active_mass_error"]],
+    active_mass        = active_mass
+  )
+
+  return(list(
+    x                      = display_grid,
+    y                      = y,
+    log_y                  = density_terms[["log_y"]],
+    finite_terms           = finite_terms,
+    max_log_ratio          = max_log_ratio,
+    ess                    = ess,
+    max_weight_share       = max_weight_share,
+    mcse                   = mcse_data[["mcse"]],
+    relative_mcse          = mcse_data[["relative_mcse"]],
+    active_branch_mcse     = mcse_data[["active_branch_mcse"]],
+    active_branch_relative_mcse =
+      mcse_data[["active_branch_relative_mcse"]],
+    active_mass_mcse       = mcse_data[["active_mass_mcse"]],
+    active_mass_relative_mcse =
+      mcse_data[["active_mass_relative_mcse"]],
+    active_mass_component_mcse =
+      mcse_data[["active_mass_component_mcse"]],
+    mixture_mcse_type      = mcse_data[["mixture_mcse_type"]],
+    sampling_mcse            = density_terms[["sampling_mcse"]],
+    sampling_relative_mcse   = density_terms[["sampling_relative_mcse"]],
+    sampling_fraction        = density_terms[["sampling_fraction"]],
+    sampling_uncertainty_type =
+      density_terms[["sampling_uncertainty_type"]],
+    mcmc_uncertainty_scope   = mcse_data[["uncertainty_scope"]],
+    mcmc_uncertainty_status  = mcse_data[["uncertainty_status"]],
+    mcmc_uncertainty_reason  = mcse_data[["uncertainty_reason"]],
+    log_normalizer         = numeric(),
+    n_candidate_rows       = n_candidate_rows,
+    n_evaluated_rows       = n_input_rows,
+    normalization_points              = normalization[["points"]],
+    normalization_range               = normalization[["range"]],
+    support_grid_normalization_integral = normalization[["integral"]],
+    normalization_relative_error      = abs(
+      normalization[["integral"]] / active_mass - 1
+    ),
+    normalization_scale               = normalization[["scale_type"]],
+    normalization_mass_ratio          = normalization[["mass_ratio"]],
+    max_normalizer_relative_change    = NA_real_,
+    max_quadrature_relative_change    = quadrature_change,
+    median_normalizer_relative_change = NA_real_,
+    normalization_refined_points      = 0L,
+    normalization_refined_range       = c(NA_real_, NA_real_),
+    weight_partitions                 = weight[["partitions"]],
+    n_weight_fallbacks                 = weight_fallbacks[["count"]],
+    n_weight_fallback_rows             = weight_fallbacks[["rows"]],
+    weight_fallback_from               = weight_fallbacks[["from"]],
+    weight_fallback_reasons            = weight_fallbacks[["reasons"]],
+    integral_mcse                     = integral_mcse[["mcse"]],
+    integral_relative_mcse            = integral_mcse[["relative_mcse"]],
+    batch_size                        = mcse_data[["batch_size"]],
+    n_batches                         = mcse_data[["n_batches"]],
+    estimator                         = "iwmde",
+    weight_method                     = weight[["method"]]
+  ))
+}

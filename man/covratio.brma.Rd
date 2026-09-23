@@ -5,7 +5,7 @@
 \alias{covratio}
 \title{COVRATIO for brma Objects}
 \usage{
-\method{covratio}{brma}(model, type = "mods", ...)
+\method{covratio}{brma}(model, type = "mods", component = NULL, parameter = NULL, ...)
 }
 \arguments{
 \item{model}{a fitted brma object.}
@@ -13,6 +13,12 @@
 \item{type}{type of parameters to be summarized. Defaults to \code{"mods"}
 (for the effect size and meta-regression coefficients). Use \code{"scale"}
 for heterogeneity and scale-regression coefficients.}
+
+\item{component}{optional parameter namespace. Use \code{"random"} with one
+explicitly selected semantic random-effect quantity.}
+
+\item{parameter}{semantic random-effect quantity used when
+\code{component = "random"}.}
 
 \item{...}{additional arguments. The internal \code{.weights} argument can
 supply precomputed PSIS weights for callers that already extracted them.}
@@ -37,9 +43,14 @@ are supplied.
 Values > 1 indicate that the observation improves precision (decreases
 variance), while values < 1 indicate that the observation decreases precision
 (increases variance).
-If any included parameter has zero posterior variance, or if a full or LOO
-covariance determinant is zero or non-finite, COVRATIO is undefined. In that
-case, values are reported as \code{NaN} with a printed note when available.
+For \code{brma.mv()} objects, COVRATIO uses estimate-unit PSIS weights. With
+correlated known-\code{V} data, this is influence under conditional estimate
+deletion, not independent-study deletion.
+Parameters with zero posterior variance are excluded from the covariance
+determinant and reported in a printed note when available. If no estimable
+parameters remain, or if a full or LOO covariance determinant is zero or
+non-finite after exclusion, COVRATIO is undefined and values are reported as
+\code{NaN}.
 }
 \examples{
 \dontrun{

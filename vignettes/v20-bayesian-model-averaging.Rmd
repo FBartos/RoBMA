@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Bayesian Model Averaging}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -309,7 +308,7 @@ fit_priors <- BMA(
   prior_mods_null = list(tailor = NULL),
   data = dat, only_priors = TRUE
 )
-print_prior(fit_priors, parameter_mods = "tailor")
+print_prior(fit_priors, parameter = "tailor")
 ```
 
 A tighter half-normal slab on $\tau$:

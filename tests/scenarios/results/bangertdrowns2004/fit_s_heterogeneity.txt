@@ -1,0 +1,5 @@
+
+Pooled Heterogeneity
+     Mean Median 0.025 0.975
+tau 0.240  0.238 0.142 0.348
+

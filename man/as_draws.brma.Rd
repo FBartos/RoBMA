@@ -45,17 +45,17 @@ as_draws_rvars(x, ...)
 
 \method{as_draws_rvars}{default}(x, ...)
 
-\method{as_draws}{brma}(x, ...)
+\method{as_draws}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_array}{brma}(x, ...)
+\method{as_draws_array}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_df}{brma}(x, ...)
+\method{as_draws_df}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_list}{brma}(x, ...)
+\method{as_draws_list}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_matrix}{brma}(x, ...)
+\method{as_draws_matrix}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_rvars}{brma}(x, ...)
+\method{as_draws_rvars}{brma}(x, include_auxiliary = FALSE, ...)
 }
 \arguments{
 \item{x}{an object to convert. The \code{brma} methods expect a fitted
@@ -64,6 +64,10 @@ corresponding \pkg{posterior} conversion function.}
 
 \item{...}{additional arguments passed to the corresponding
 \pkg{posterior} function.}
+
+\item{include_auxiliary}{logical; whether to include raw backend auxiliary
+variables in addition to the stable model-parameter schema. Formula-random
+parameters retain their RoBMA semantic names in either case.}
 }
 \value{
 An object of the corresponding \pkg{posterior} draws class.
@@ -93,7 +97,28 @@ The following conversion functions are available:
 These methods require the \pkg{posterior} package to be installed.
 For \code{brma} methods, conversion is performed by first extracting the MCMC
 samples as a \code{mcmc.list} object and then using the corresponding
-\pkg{posterior} conversion function. \code{brma_samples} objects have
+\pkg{posterior} conversion function. By default, backend-private latent
+effects, known-\code{V} dependency factors, random-effect simulation and
+Cholesky factors, and prior-parameterization variables are omitted. Stable
+fitted coordinates such as model indicators and likelihood parameters
+remain available. Formula-random coordinates are replaced by their semantic
+RoBMA quantities using the same names as summaries, plots, and hypotheses,
+such as \code{tau_total}, \code{tau_common}, \code{rho(...)}, and \code{tau2_prop(...)}.
+Random-effect SD switches are exposed as exact columns named after the
+standard deviation they act on, with an \verb{_indicator} suffix, pairing with
+the semantic SD column the same way \code{mu_x_indicator} pairs with \code{mu_x}. A
+heterogeneity-component inclusion gate is 0/1, such as \code{study: tau_indicator}
+and \code{observation: tau_indicator}, and carries the inclusion state the
+summary reports under \verb{Heterogeneity:}. An allocation-SD prior indicator,
+such as \code{tau_total_indicator}, records which mixture component allocated the
+total standard deviation and therefore takes one value per component,
+matching the order of that prior's components.
+Structural point-prior coordinates are returned as exact constant columns,
+with chain timing taken from the fitted draw geometry. Private backend
+anchors are never exposed. Use \code{include_auxiliary = TRUE} to skip RoBMA
+auxiliary filtering; added backend variables retain their coordinate names,
+while public random-effect parameters retain their RoBMA names.
+\code{brma_samples} objects have
 separate methods documented at \code{\link{as_draws.brma_samples}}.
 }
 \seealso{

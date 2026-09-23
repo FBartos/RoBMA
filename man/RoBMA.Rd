@@ -37,6 +37,8 @@ RoBMA(
   prior_informed_field,
   prior_informed_subfield,
   model_type = "PSMA",
+  selection = BayesTools::selection_model(),
+  selection_control = set_selection_likelihood_control(),
   sample = 5000,
   burnin = 2000,
   adapt = 500,
@@ -47,7 +49,7 @@ RoBMA(
   autofit_control = set_autofit_control(),
   convergence_checks = set_convergence_checks(),
   seed = NULL,
-  silent = TRUE,
+  silent,
   ...
 )
 }
@@ -62,20 +64,28 @@ supplied for normal models.}
 \item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
 
-\item{weights}{an optional vector of positive likelihood weights. For
+\item{weights}{an optional vector of finite positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
-two-arm likelihood for one study.}
+two-arm likelihood for one study. An integer weight \eqn{w} repeats that
+conditional likelihood contribution \eqn{w} times, with the declared
+latent-effect and grouping structure held fixed. Positive fractional
+likelihood powers are also supported.}
 
-\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
-or when estimating \code{"UISD"}).}
+\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
+when estimating the unit information standard deviation.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
-location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}
+and supports explicit columns and standard formula operators. Precompute
+transformed predictors as columns in \code{data}; inline calls such as \code{I()},
+\code{poly()}, spline constructors, and user functions are not supported.}
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}
@@ -107,14 +117,17 @@ heterogeneity component(s).}
 
 \item{prior_mods}{prior distribution(s) for alternative moderator
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{mods} is
+specified.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{scale}
+is specified.}
 
 \item{prior_heterogeneity_allocation}{prior distribution(s) for the
-alternative cluster-level heterogeneity allocation component(s).}
+alternative cluster-level heterogeneity allocation component(s). This
+argument can be specified only when \code{cluster} is specified.}
 
 \item{prior_bias}{prior distribution(s) for alternative publication-bias
 component(s), such as weight functions, PET, or PEESE.
@@ -137,14 +150,16 @@ heterogeneity component(s).}
 
 \item{prior_mods_null}{prior distribution(s) for null moderator components.
 A single prior applies to all terms; a named list can specify term-specific
-components.}
+components. This argument can be specified only when \code{mods} is specified.}
 
 \item{prior_scale_null}{prior distribution(s) for null scale-regression
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{scale}
+is specified.}
 
 \item{prior_heterogeneity_allocation_null}{prior distribution(s) for the
-null cluster-level heterogeneity allocation component(s).}
+null cluster-level heterogeneity allocation component(s). This argument can
+be specified only when \code{cluster} is specified.}
 
 \item{prior_bias_null}{prior distribution(s) for null publication-bias
 component(s), usually \code{prior_none()}. See
@@ -162,8 +177,14 @@ Defaults to a point mass (spike) at zero for effect and heterogeneity parameters
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults are constructor-specific and shown in each function usage; single-model
-constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
+Defaults are constructor-specific and shown in each function usage. Single-model
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.
+Accepted values are \code{"treatment"}, \code{"meandif"}, \code{"orthonormal"}, and
+\code{"independent"}. Independent coding creates one coefficient per factor
+level. Random-coefficient blocks reuse the resolved fixed-factor contrast
+unless \code{random_block(contrasts = ...)} overrides it. A warning is issued
+when default or inherited independent contrasts make a fixed or random
+design overspecified.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
@@ -177,8 +198,8 @@ default PEESE prior's UISD adjustment. Defaults to 1.}
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Omit to use the field-specific default, such as \code{"Cochrane"} for
-\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
+Can only be specified together with \code{prior_informed_field}. Omit to use the
+field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 
 \item{model_type}{character string specifying predefined publication-bias model
 ensembles. One of:
@@ -191,6 +212,22 @@ ensembles. One of:
 Custom \code{prior_bias} replaces the preset alternative bias components. If
 \code{prior_bias} is omitted, \code{model_type} determines the default alternatives even
 when \code{prior_bias_null} is customized or omitted.}
+
+\item{selection}{specification created by \code{\link[=selection_model]{selection_model()}} for
+automatically constructed weightfunction priors. The default integrates
+estimate-level random effects and the complete sampling error, and conditions
+on other random effects. Each source can instead be conditioned upon or
+integrated through the corresponding selection-model setting. The default
+\code{weight_rule = "product"} needs no publication groups and ignores \code{group}.
+Publication grouping is active only for \code{weight_rule = "best"}. Explicit
+\code{prior_bias} objects retain their own selection specification; this argument
+does not overwrite it. Conditioning on sampling variation retains the entire
+sampling-error realization, including in ordinary univariate models.
+This sampling setting requires omitted or unit observation \code{weights}.}
+
+\item{selection_control}{numerical integration settings created by
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. These affect numerical evaluation,
+without changing the conditioning model or the vector weighting rule.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
@@ -213,9 +250,8 @@ Defaults to \code{FALSE}.}
 
 \item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
 
-\item{silent}{logical. Whether to suppress output. Constructors with no
-explicit default use \code{RoBMA.get_option("silent")} when \code{silent} is omitted.
-Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
+\item{silent}{logical. Whether to suppress output. When omitted,
+constructors use \code{RoBMA.get_option("silent")}.}
 
 \item{...}{additional advanced arguments. Fitting functions reject unused
 arguments; currently recognized internal arguments include \code{only_data},
@@ -246,6 +282,16 @@ a single meta-analytic model.
 \code{RoBMA()} uses normal/effect-size input (\code{yi} with \code{vi} or \code{sei}). Raw-count
 GLMM model averaging is provided by \code{BMA.glmm()}.
 
+\code{selection} configures every generated default weightfunction. Its default
+integrates estimate-level random effects and the complete sampling error,
+and conditions on other random effects. Explicit priors retain their nested
+\code{\link[=selection_model]{selection_model()}} settings. Active selection branches must share the same
+conditioning choices. Only \code{weight_rule = "best"} branches require and must
+share a publication partition. Product branches ignore \code{group}; an ensemble
+without \code{"best"} needs no publication groups and accepts \code{group = NULL}.
+Branches can differ in weight-height priors, bins, and \code{weight_rule}.
+These fixed model choices do not introduce new inclusion parameters.
+
 Product-space objects support predictive comparison with \code{add_loo()} and
 \code{add_waic()}. Bridge-sampling marginal likelihood via \code{add_marglik()} is
 not available for product-space model-averaging objects.
@@ -271,6 +317,6 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 
 }
 \seealso{
-\link{publication_bias_prior_specification}, \code{\link[=BMA]{BMA()}}, \code{\link[=brma]{brma()}},
-\code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bPET]{bPET()}}, \code{\link[=bPEESE]{bPEESE()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=plot.brma]{plot.brma()}}
+\link{publication_bias_prior_specification}, \code{\link[=RoBMA.mv]{RoBMA.mv()}}, \code{\link[=BMA]{BMA()}},
+\code{\link[=brma]{brma()}}, \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bPET]{bPET()}}, \code{\link[=bPEESE]{bPEESE()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=plot.brma]{plot.brma()}}
 }

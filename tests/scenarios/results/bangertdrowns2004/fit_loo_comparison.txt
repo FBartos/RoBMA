@@ -1,0 +1,7 @@
+Method: stacking
+------
+           weight
+fit_simple 0.070 
+fit_l      0.000 
+fit_s      0.000 
+fit_ls     0.930 

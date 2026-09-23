@@ -1,0 +1,2 @@
+    marglik         KDE       qCMDE qCMDE (BMA) 
+   1.782965    1.772023    1.991400    2.135077 

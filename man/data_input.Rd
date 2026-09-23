@@ -14,20 +14,58 @@ supplied for normal models.}
 \item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
 
-\item{weights}{an optional vector of positive likelihood weights. For
+\item{V}{a known working variance-covariance matrix, a list of block
+variance-covariance matrices, or an exact diagonal-plus-factor declaration
+created by \code{\link[=known_v_factor]{known_v_factor()}}, used by \code{brma.mv()}. Ordinary covariance
+matrices from \code{\link[metafor:vcalc]{metafor::vcalc()}} can be supplied directly. Product selection
+requires no publication groups. For best-p-value selection, declare groups
+separately with \code{selection_model(weight_rule = "best", group = ...)}.
+Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
+stored symmetrically by averaging off-diagonal pairs; the supplied object
+and its diagonal are unchanged. Dependency blocks that are block constant
+on nested partitions are represented exactly as a diagonal-plus-factor
+structure without a \code{\link[=known_v_factor]{known_v_factor()}} declaration.}
+
+\item{known_v_parameterization}{known-\code{V} backend used by \code{brma.mv()}.
+\code{"auto"} chooses an exact backend when feasible; \code{"latent"} uses a latent
+\verb{D + BB'} decomposition; \code{"whitened"} uses an eigen-rotated normal
+likelihood; \code{"block_mvn"} uses an exact native block multivariate-normal
+likelihood.}
+
+\item{weights}{an optional vector of finite positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
-two-arm likelihood for one study.}
+two-arm likelihood for one study. An integer weight \eqn{w} repeats that
+conditional likelihood contribution \eqn{w} times, with the declared
+latent-effect and grouping structure held fixed. Positive fractional
+likelihood powers are also supported.}
 
-\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
-or when estimating \code{"UISD"}).}
+\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
+when estimating the unit information standard deviation.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
-location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}
+and supports explicit columns and standard formula operators. Precompute
+transformed predictors as columns in \code{data}; inline calls such as \code{I()},
+\code{poly()}, spline constructors, and user functions are not supported.}
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
+
+\item{random}{an optional formula or list of formulas specifying
+BayesTools random-effect terms for \code{brma.mv()}. Use
+\link[=random_effect_formula_tags]{random-effect formula structure tags} such as
+\code{diag()}, \code{us()}/\code{un()}, \code{cs()}, \code{hcs()}, \code{ar1()}/\code{ar()}, \code{har()}, or
+\code{car()} inside the formula. Plain \code{(expr | group)} syntax uses an
+unstructured random-coefficient block; \code{expr || group} uses a diagonal
+block. The coefficient-formula and structured-index tag families have
+different left-side semantics; see the linked documentation. A bare formula
+or unnamed one-entry list has no redundant component prefix. An explicitly
+named one-entry list retains its name; lists with two or more entries
+generate missing names as \verb{component 1}, \verb{component 2}, and so on.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}

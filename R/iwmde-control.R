@@ -1,0 +1,348 @@
+# ============================================================================ #
+# IWMDE Controls and Reliability Policy
+# ============================================================================ #
+
+.density_control_normalize <- function(density_method, density_control = NULL,
+                                       allow_normal = FALSE,
+                                       purpose = c("density", "ordinate")) {
+
+  density_method <- .density_method_normalize(
+    density_method = density_method,
+    allow_normal   = allow_normal
+  )
+  purpose <- match.arg(purpose)
+  allowed_names <- c(
+    "n_points", "samples", "target_relative_mcse",
+    "normalization_points", "normalization_prob", "display_grid",
+    "integration_control"
+  )
+  defaults <- list(
+    n_points             = 100L,
+    samples              = if (identical(density_method, "IWMDE")) {
+      1000L
+    } else {
+      500L
+    },
+    target_relative_mcse = .05,
+    normalization_points = NULL,
+    normalization_prob   = .999,
+    display_grid         = "adaptive",
+    integration_control  = NULL
+  )
+
+  if (is.null(density_control)) {
+    return(defaults)
+  }
+  if (!is.list(density_control)) {
+    stop("'density_control' must be a named list.", call. = FALSE)
+  }
+  if (length(density_control) == 0L) {
+    return(defaults)
+  }
+
+  control_names <- names(density_control)
+  if (is.null(control_names) || any(!nzchar(control_names))) {
+    stop("'density_control' must be a fully named list.", call. = FALSE)
+  }
+  duplicated_names <- unique(control_names[duplicated(control_names)])
+  if (length(duplicated_names) > 0L) {
+    stop(
+      "'density_control' contains duplicate setting(s): ",
+      paste0("'", duplicated_names, "'", collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  unknown_names <- setdiff(control_names, allowed_names)
+  if (length(unknown_names) > 0L) {
+    stop(
+      "'density_control' contains unrecognized setting(s): ",
+      paste0("'", unknown_names, "'", collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  if (density_method %in% c("KDE", "normal")) {
+    stop(
+      "'density_control' is only used when 'density_method' is ",
+      "'qCMDE' or 'IWMDE'.",
+      call. = FALSE
+    )
+  }
+
+  for (name in control_names) {
+    defaults[[name]] <- density_control[[name]]
+  }
+
+  BayesTools::check_int(
+    defaults[["n_points"]],
+    "density_control$n_points",
+    lower = 20
+  )
+  .iwmde_check_samples(defaults[["samples"]])
+  BayesTools::check_real(
+    defaults[["target_relative_mcse"]],
+    "density_control$target_relative_mcse",
+    lower        = 0,
+    upper        = 1,
+    check_length = 1,
+    allow_NA     = FALSE
+  )
+  if (defaults[["target_relative_mcse"]] <= 0) {
+    stop(
+      "'density_control$target_relative_mcse' must be higher than 0.",
+      call. = FALSE
+    )
+  }
+  BayesTools::check_int(
+    defaults[["normalization_points"]],
+    "density_control$normalization_points",
+    lower        = 20,
+    allow_NULL   = TRUE,
+    check_length = 1
+  )
+  BayesTools::check_real(
+    defaults[["normalization_prob"]],
+    "density_control$normalization_prob",
+    lower        = 0,
+    upper        = 1,
+    check_length = 1,
+    allow_NA     = FALSE
+  )
+  if (defaults[["normalization_prob"]] <= 0) {
+    stop(
+      "'density_control$normalization_prob' must be higher than 0.",
+      call. = FALSE
+    )
+  }
+  defaults[["display_grid"]] <- .iwmde_normalize_display_grid(
+    defaults[["display_grid"]]
+  )
+  if (!is.null(defaults[["integration_control"]])) {
+    defaults[["integration_control"]] <- .check_selection_likelihood_control(
+      defaults[["integration_control"]],
+      argument = "density_control$integration_control"
+    )
+  }
+  return(defaults)
+}
+
+
+# Resolve public density controls while preserving the private ordinate marker.
+.iwmde_density_control_resolve <- function(
+    density_method, density_control = NULL, allow_normal = FALSE,
+    purpose = c("density", "ordinate")) {
+
+  purpose <- match.arg(purpose)
+  ordinate_marker <- is.list(density_control) &&
+    identical(density_control[["display_grid"]], "ordinate")
+  if (ordinate_marker) {
+    density_control[["display_grid"]] <- "adaptive"
+  }
+  control <- .density_control_normalize(
+    density_method  = density_method,
+    density_control = density_control,
+    allow_normal    = allow_normal,
+    purpose         = purpose
+  )
+  if (ordinate_marker) {
+    control[["display_grid"]] <- "ordinate"
+  }
+
+  return(control)
+}
+
+
+.iwmde_check_samples <- function(samples) {
+
+  if (length(samples) != 1L || is.na(samples) ||
+      (!is.finite(samples) && !identical(as.numeric(samples), Inf)) ||
+      (is.finite(samples) &&
+       (samples < 20 || samples != as.integer(samples)))) {
+    stop(
+      "'density_control$samples' must be an integer at least 20 or Inf.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+.iwmde_bf_warning_relative_mcse <- function() {
+
+  return(.05)
+}
+
+
+.iwmde_bf_warning_min_ess <- function() {
+
+  return(100)
+}
+
+
+.iwmde_bf_warning_weight_share <- function() {
+
+  return(.20)
+}
+
+
+.iwmde_bf_warning_min_finite_terms <- function() {
+
+  return(100)
+}
+
+
+.iwmde_bf_mass_warning_tolerance <- function(estimator) {
+
+  if (identical(estimator, "q_grid_cmde")) {
+    return(.025)
+  }
+  if (identical(estimator, "iwmde")) {
+    return(.05)
+  }
+
+  return(Inf)
+}
+
+
+.iwmde_bf_mass_fail_tolerance <- function(estimator) {
+
+  if (identical(estimator, "q_grid_cmde")) {
+    return(.05)
+  }
+  if (identical(estimator, "iwmde")) {
+    return(.10)
+  }
+
+  return(0)
+}
+
+
+.iwmde_density_min_estimator_rows <- function() {
+
+  return(300)
+}
+
+
+.iwmde_density_warning_min_estimator_rows <- function() {
+
+  return(500)
+}
+
+
+.iwmde_density_tail_probabilities <- function() {
+
+  return(c(.05, .95))
+}
+
+
+.iwmde_density_max_relative_mcse <- function() {
+
+  return(.25)
+}
+
+
+.iwmde_density_warning_relative_mcse <- function() {
+
+  return(.10)
+}
+
+
+.iwmde_density_min_ess <- function(estimator_rows = NA_real_) {
+
+  estimator_rows <- as.numeric(estimator_rows)[1L]
+  if (is.finite(estimator_rows) && estimator_rows > 0) {
+    return(min(50, max(4, .25 * estimator_rows)))
+  }
+
+  return(50)
+}
+
+
+.iwmde_density_warning_min_ess <- function(estimator_rows = NA_real_) {
+
+  estimator_rows <- as.numeric(estimator_rows)[1L]
+  if (is.finite(estimator_rows) && estimator_rows > 0) {
+    return(min(100, max(20, .50 * estimator_rows)))
+  }
+
+  return(100)
+}
+
+
+.iwmde_density_max_weight_share <- function() {
+
+  return(.25)
+}
+
+
+.iwmde_density_warning_weight_share <- function() {
+
+  return(.10)
+}
+
+
+.iwmde_quadrature_warning_tolerance <- function() {
+
+  return(.025)
+}
+
+
+.iwmde_quadrature_fail_tolerance <- function() {
+
+  return(.05)
+}
+
+
+# Whether likelihood-aware density estimation supports this model and estimator.
+.iwmde_density_method_supported <- function(object, density_method) {
+
+  capability <- .iwmde_capability(
+    object         = object,
+    density_method = density_method
+  )
+
+  return(capability[["available"]])
+}
+
+
+# Fail before an uncertified estimator can enter any public result.
+.iwmde_check_density_method_supported <- function(object, density_method) {
+
+  capability <- .iwmde_capability(
+    object         = object,
+    density_method = density_method
+  )
+  if (!capability[["available"]]) {
+    stop(capability[["reason"]], call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
+.iwmde_point_ordinate_supported <- function(object, density_method) {
+
+  return(.iwmde_density_method_supported(object, density_method))
+}
+
+
+.iwmde_check_point_ordinate_supported <- function(object, density_method) {
+
+  .iwmde_check_density_method_supported(object, density_method)
+}
+
+
+.iwmde_check_context_density_method_supported <- function(context,
+                                                           density_method) {
+
+  capability <- .iwmde_capability(
+    object         = context[["object"]],
+    data           = context[["data"]],
+    density_method = density_method
+  )
+  if (!capability[["available"]]) {
+    stop(capability[["reason"]], call. = FALSE)
+  }
+
+  invisible(TRUE)
+}

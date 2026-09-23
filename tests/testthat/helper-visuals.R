@@ -1,12 +1,24 @@
 if (!exists("skip_if_no_vdiffr_snapshots", mode = "function")) {
   source(testthat::test_path("common-functions.R"))
 }
+if (!exists(".write_canonical_svg", mode = "function")) {
+  source(testthat::test_path("helper-visual-writer.R"))
+}
 
 expect_vdiffr_snapshot <- function(title, fig, ...) {
 
   skip_if_no_vdiffr_snapshots()
+  if (!requireNamespace("vdiffr", quietly = TRUE) &&
+      exists(".announce_existing_visual_snapshots", mode = "function")) {
+    .announce_existing_visual_snapshots()
+  }
   testthat::skip_if_not_installed("vdiffr")
-  vdiffr::expect_doppelganger(title, fig, ...)
+  vdiffr::expect_doppelganger(
+    title,
+    fig,
+    ...,
+    writer = .write_canonical_svg
+  )
 }
 
 expect_brma_plot_snapshot <- function(name, plot) {

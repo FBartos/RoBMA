@@ -1,0 +1,21 @@
+
+Bayesian Multivariate Mixed-Effect Selection Model (k = 100)
+
+Common Estimates
+                       Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau_total             0.520 0.074 0.403 0.511 0.689     0.00245          0.033  973 1.003
+tau2_prop(esid_study) 0.327 0.099 0.154 0.320 0.539     0.00278          0.028 1267 1.001
+tau2_prop(study)      0.673 0.099 0.461 0.680 0.846     0.00278          0.028 1267 1.001
+
+Meta-Regression
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+intercept        -0.076 0.189 -0.446 -0.073 0.296     0.01240          0.066 228 1.017
+deltype[general]  0.483 0.157  0.168  0.481 0.799     0.00801          0.051 383 1.017
+deltype[overt]    0.256 0.168 -0.071  0.254 0.586     0.00654          0.039 657 1.007
+
+Publication Bias
+                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,1] 0.587 0.180 0.276 0.571 0.950     0.00287          0.016 3918 1.000
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

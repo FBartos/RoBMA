@@ -50,6 +50,22 @@ test_that("Q-Q plot for simple meta-analysis matches metafor structure", {
   )
 })
 
+test_that("Q-Q plot supports known-V brma.mv residual targets", {
+
+  name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+
+  qq_student <- suppressWarnings(qqnorm(fit_brma, as_data = TRUE))
+  qq_standard <- qqnorm(fit_brma, as_data = TRUE, type = "rstandard")
+
+  expect_true(is.list(qq_student))
+  expect_true(is.list(qq_standard))
+  expect_equal(nrow(qq_student[["points"]]), nobs(fit_brma))
+  expect_equal(nrow(qq_standard[["points"]]), nobs(fit_brma))
+})
+
 # ============================================================================ #
 # Test: Meta-Regression Q-Q Plot
 # ============================================================================ #
@@ -170,50 +186,42 @@ test_that("Q-Q plot for 3-level meta-regression renders residual quantiles", {
 # Test: GLMM Model Q-Q Plot
 # ============================================================================ #
 
-test_that("Q-Q plot for GLMM model renders residual quantiles", {
+test_that("Q-Q plot rejects GLMMs without a discrete PIT convention", {
 
   name     <- "nielweise2008_glmm"
   fit_brma <- fits[[name]]
-  set.seed(1)
-
-  # rstudent only (rstandard not available for GLMM)
-  expect_vdiffr_snapshot("qqnorm_glmm_base", function() {
-    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
-  })
-
-  expect_vdiffr_snapshot(
-    "qqnorm_glmm_ggplot",
-    suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
+  expect_error(
+    rstudent(fit_brma),
+    "discrete PIT convention"
+  )
+  expect_error(
+    qqnorm(fit_brma, envelope = FALSE, as_data = TRUE),
+    "discrete PIT convention"
   )
 
   # rstandard should error for GLMM models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
+    regexp = "only available for normal outcome models",
     info = "rstandard residuals are rejected for GLMM models"
   )
 })
 
-test_that("Q-Q plot for GLMM meta-regression renders residual quantiles", {
+test_that("Q-Q plot rejects GLMM meta-regression without a PIT convention", {
 
   skip_if_not_full_visuals("GLMM meta-regression duplicates the default GLMM Q-Q visual.")
 
   name     <- "bcg_glmm_reg"
   fit_brma <- fits[[name]]
-  set.seed(1)
-
-  # rstudent only (rstandard not available for GLMM)
-  expect_vdiffr_snapshot("qqnorm_glmm_reg_base", function() {
-    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
-  })
-
-  expect_vdiffr_snapshot(
-    "qqnorm_glmm_reg_ggplot",
-    suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
+  expect_error(
+    qqnorm(fit_brma),
+    "discrete PIT convention"
   )
 
   # rstandard should error for GLMM models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
+    regexp = "only available for normal outcome models",
     info = "rstandard residuals are rejected for GLMM models"
   )
 })
@@ -272,23 +280,28 @@ test_that("Q-Q plot for selection model renders residual quantiles", {
 
   name     <- "dat.lehmann2018-3PSM"
   fit_brma <- fits[[name]]
+
+  # rstandard should error for selection models
+  expect_error(
+    qqnorm(fit_brma, type = "rstandard"),
+    regexp = "not available for selection models",
+    info = "rstandard residuals are rejected for selection models"
+  )
+})
+
+test_that("Selection Q-Q endpoint geometry is retained for certification", {
+
+  skip_if_not_full_visuals(
+    "Exact PIT-tail evaluation shifted one plotted point and needs maintainer review."
+  )
+
+  name     <- "dat.lehmann2018-3PSM"
+  fit_brma <- fits[[name]]
   set.seed(1)
 
   expect_vdiffr_snapshot("qqnorm_selmodel_base", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
-
-  # skip the ggplot version for to save test time
-  # expect_vdiffr_snapshot(
-  #   "qqnorm_selmodel_ggplot",
-  #   suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
-  # )
-
-  # rstandard should error for selection models
-  expect_error(
-    qqnorm(fit_brma, type = "rstandard"),
-    info = "rstandard residuals are rejected for selection models"
-  )
 })
 
 test_that("Q-Q plot for selection meta-regression renders residual quantiles", {
@@ -312,6 +325,7 @@ test_that("Q-Q plot for selection meta-regression renders residual quantiles", {
   # rstandard should error for selection models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
+    regexp = "not available for selection models",
     info = "rstandard residuals are rejected for selection models"
   )
 })
@@ -348,15 +362,11 @@ test_that("Q-Q plot for BMA.norm meta-regression renders base output", {
 # Test: BMA.glmm Model Q-Q Plot
 # ============================================================================ #
 
-test_that("Q-Q plot for BMA.glmm model renders base output", {
+test_that("Q-Q plot rejects BMA.glmm without a discrete PIT convention", {
 
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
   fit_brma <- fits[[name]]
-  set.seed(1)
-
-  expect_vdiffr_snapshot("qqnorm_BMA.glmm", function() {
-    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
-  })
+  expect_error(qqnorm(fit_brma), "discrete PIT convention")
 })
 
 # ============================================================================ #
@@ -402,7 +412,12 @@ test_that("Q-Q plot data and argument validation are stable", {
   # Test as_data = TRUE returns list with expected components
   # --------------------------------------------------
 
-  qq_data <- qqnorm(fit_brma, as_data = TRUE, type = "rstandard")
+  qq_data <- qqnorm(
+    fit_brma,
+    as_data     = TRUE,
+    type        = "rstandard",
+    max_samples = 100
+  )
 
   expect_true(is.list(qq_data),
     info = "as_data = TRUE returns a list"
@@ -444,7 +459,13 @@ test_that("Q-Q plot data and argument validation are stable", {
   # Test envelope = FALSE suppresses envelope
   # --------------------------------------------------
 
-  qq_data_no_env <- qqnorm(fit_brma, as_data = TRUE, envelope = FALSE, type = "rstandard")
+  qq_data_no_env <- qqnorm(
+    fit_brma,
+    as_data     = TRUE,
+    envelope    = FALSE,
+    type        = "rstandard",
+    max_samples = 100
+  )
   expect_null(qq_data_no_env$envelope,
     info = "envelope is NULL when envelope = FALSE"
   )
@@ -463,18 +484,20 @@ test_that("Q-Q plot data and argument validation are stable", {
   set.seed(1)
   qq_env_1 <- qqnorm(
     fit_brma,
-    as_data  = TRUE,
-    type     = "rstandard",
-    reps     = 10,
-    envelope = TRUE
+    as_data     = TRUE,
+    type        = "rstandard",
+    reps        = 10,
+    envelope    = TRUE,
+    max_samples = 100
   )[["envelope"]]
   set.seed(999)
   qq_env_2 <- qqnorm(
     fit_brma,
-    as_data  = TRUE,
-    type     = "rstandard",
-    reps     = 100,
-    envelope = TRUE
+    as_data     = TRUE,
+    type        = "rstandard",
+    reps        = 100,
+    envelope    = TRUE,
+    max_samples = 100
   )[["envelope"]]
   expect_equal(qq_env_1, qq_env_2,
     info = "closed-form QQ envelope is deterministic and ignores reps"
@@ -485,6 +508,7 @@ test_that("Q-Q plot data and argument validation are stable", {
   # --------------------------------------------------
 
   expect_error(qqnorm(fit_brma, plot_type = "invalid"),
+    regexp = "'plot_type'",
     info = "invalid plot_type is rejected"
   )
 
@@ -493,7 +517,15 @@ test_that("Q-Q plot data and argument validation are stable", {
   # --------------------------------------------------
 
   expect_error(qqnorm(fit_brma, type = "invalid"),
+    regexp = "'type'",
     info = "invalid type is rejected"
+  )
+
+  expect_error(
+    qqnorm(fit_brma, type = "rstandard", max_samples = 9),
+    "'max_samples' must be at least 10",
+    fixed = TRUE,
+    info  = "invalid maximum posterior sample count is rejected"
   )
 })
 

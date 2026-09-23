@@ -1,0 +1,4 @@
+             quantity metafor_UN metafor_DIAG
+1      sensitivity SD  0.6504728    0.6628726
+2      specificity SD  0.7353966    0.7434252
+3 outcome correlation -0.4547048    0.0000000

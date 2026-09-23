@@ -525,6 +525,21 @@ test_that("Custom prior_mods_null replaces null for terms", {
   expect_equal(mean(result$mods$mod_cont[[null_idx]]), 0.1)
 })
 
+test_that("User intercept entries in moderator prior lists are honored", {
+
+  custom_intercept <- BayesTools::prior("normal", parameters = list(mean = 0.4, sd = 0.2))
+
+  result <- RoBMA(
+    yi = effect, sei = std_err, mods = ~ mod_cont,
+    prior_mods = list(intercept = custom_intercept),
+    data = test_data, measure = "SMD", only_priors = TRUE,
+    silent = TRUE
+  )[["priors"]]
+
+  expect_equal(result$mods$intercept$parameters$mean, 0.4)
+  expect_equal(result$mods$intercept$parameters$sd, 0.2)
+})
+
 
 # ============================================================================
 # Tests for informed priors with mixtures
@@ -591,6 +606,14 @@ test_that("Invalid model_type is rejected", {
 
 test_that("Conflicting prior specifications are rejected", {
 
+  expect_error(
+    RoBMA(
+      yi = effect, sei = std_err, data = test_data, measure = "SMD",
+      prior_informed_subfield = "neonatal", only_priors = TRUE
+    ),
+    regexp = "prior_informed_subfield.*prior_informed_field"
+  )
+
   # Both UISD and informed priors
   expect_error(
     RoBMA(
@@ -628,7 +651,7 @@ test_that("GEN measure requires ni or prior_unit_information_sd for RoBMA", {
 
   expect_error(
     RoBMA(yi = effect, sei = std_err, data = test_data, measure = "GEN", only_priors = TRUE),
-    regexp = "ni|unit_information_sd|UISD|Sample size"
+    regexp = "Sample size 'ni' or unit information sd 'unit_information_sd' must be specified"
   )
 
   # Should work with ni
@@ -640,6 +663,53 @@ test_that("GEN measure requires ni or prior_unit_information_sd for RoBMA", {
   expect_no_error(
     RoBMA(yi = effect, sei = std_err, data = test_data, measure = "GEN", prior_unit_information_sd = 1.5, only_priors = TRUE)
   )
+})
+
+test_that("GEN RoBMA accepts fully specified named formula priors without UISD", {
+
+  explicit_effect <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 10)
+  )
+  explicit_heterogeneity <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 1),
+    truncation   = list(0, Inf)
+  )
+  explicit_mods <- list(
+    mod_cont   = BayesTools::prior("normal", parameters = list(mean = 0, sd = 2)),
+    mod_factor = BayesTools::prior_factor(
+      distribution = "normal",
+      parameters   = list(mean = 0, sd = 3),
+      contrast     = "treatment"
+    )
+  )
+  explicit_scale <- list(
+    scale_var = BayesTools::prior("normal", parameters = list(mean = 0, sd = 4))
+  )
+
+  result <- suppressWarnings(RoBMA(
+    yi = effect, sei = std_err,
+    mods = ~ mod_cont + mod_factor, scale = ~ scale_var,
+    data = test_data, measure = "GEN", model_type = "6w",
+    prior_effect        = explicit_effect,
+    prior_heterogeneity = explicit_heterogeneity,
+    prior_mods          = explicit_mods,
+    prior_scale         = explicit_scale,
+    only_priors         = TRUE,
+    silent              = TRUE
+  )[["priors"]])
+
+  is_null_cont <- .get_is_null(result[["mods"]][["mod_cont"]])
+  alt_cont     <- which(!is_null_cont)[1]
+  is_null_fact <- .get_is_null(result[["mods"]][["mod_factor"]])
+  alt_fact     <- which(!is_null_fact)[1]
+  is_null_scale <- .get_is_null(result[["scale"]][["scale_var"]])
+  alt_scale     <- which(!is_null_scale)[1]
+
+  expect_equal(result[["mods"]][["mod_cont"]][[alt_cont]][["parameters"]][["sd"]], 2)
+  expect_equal(result[["mods"]][["mod_factor"]][[alt_fact]][["parameters"]][["sd"]], 3)
+  expect_equal(result[["scale"]][["scale_var"]][[alt_scale]][["parameters"]][["sd"]], 4)
 })
 
 
@@ -705,6 +775,21 @@ test_that("Custom prior_scale replaces alternative for scale terms", {
   is_null <- .get_is_null(result$scale$scale_var)
   alt_indices <- which(!is_null)
   expect_equal(result$scale$scale_var[[alt_indices[1]]]$parameters$sd, 0.4)
+})
+
+test_that("User intercept entries in scale prior lists are honored", {
+
+  custom_intercept <- BayesTools::prior("normal", parameters = list(mean = 0.4, sd = 0.2))
+
+  result <- suppressWarnings(RoBMA(
+    yi = effect, sei = std_err, scale = ~ scale_var,
+    prior_scale = list(intercept = custom_intercept),
+    data = test_data, measure = "SMD", only_priors = TRUE,
+    silent = TRUE
+  )[["priors"]])
+
+  expect_equal(result$scale$intercept$parameters$mean, 0.4)
+  expect_equal(result$scale$intercept$parameters$sd, 0.2)
 })
 
 
@@ -832,6 +917,42 @@ test_that("Different moderators can have different null specifications", {
   # mod_factor should still have null component
   is_null_factor <- .get_is_null(result$mods$mod_factor)
   expect_equal(sum(is_null_factor), 1)
+})
+
+test_that("Unknown NULL/FALSE moderator omission names warn", {
+
+  expect_warning(
+    RoBMA(
+      yi = effect, sei = std_err,
+      mods = ~ mod_cont + mod_factor,
+      prior_mods_null = list(mod_typo = NULL),
+      data = test_data, measure = "SMD", only_priors = TRUE,
+      silent = TRUE
+    ),
+    "Unknown term\\(s\\) in 'prior_mods_null'.*'mod_typo'"
+  )
+
+  expect_warning(
+    RoBMA(
+      yi = effect, sei = std_err,
+      mods = ~ mod_cont * scale_var,
+      prior_mods_null = list("scale_var:mod_cont" = NULL),
+      data = test_data, measure = "SMD", only_priors = TRUE,
+      silent = TRUE
+    ),
+    "Unknown term\\(s\\) in 'prior_mods_null'.*'scale_var:mod_cont'"
+  )
+
+  expect_warning(
+    RoBMA(
+      yi = effect, sei = std_err,
+      mods = ~ mod_cont + mod_factor,
+      prior_mods = list(mod_typo = FALSE),
+      data = test_data, measure = "SMD", only_priors = TRUE,
+      silent = TRUE
+    ),
+    "Unknown term\\(s\\) in 'prior_mods'.*'mod_typo'"
+  )
 })
 
 

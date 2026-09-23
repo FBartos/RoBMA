@@ -36,7 +36,7 @@ BMA.glmm(
   prior_scale_null,
   prior_heterogeneity_allocation_null,
   standardize_continuous_predictors = TRUE,
-  set_contrast_factor_predictors = "treatment",
+  set_contrast_factor_predictors = "meandif",
   prior_unit_information_sd,
   rescale_priors = 1,
   prior_informed_field,
@@ -51,7 +51,7 @@ BMA.glmm(
   autofit_control = set_autofit_control(),
   convergence_checks = set_convergence_checks(),
   seed = NULL,
-  silent = TRUE,
+  silent,
   ...
 )
 }
@@ -83,17 +83,25 @@ binomial GLMMs, it is computed as \code{ci + di}.}
 
 \item{t2i}{a vector of the person-time in the control group.}
 
-\item{weights}{an optional vector of positive likelihood weights. For
+\item{weights}{an optional vector of finite positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
-two-arm likelihood for one study.}
+two-arm likelihood for one study. An integer weight \eqn{w} repeats that
+conditional likelihood contribution \eqn{w} times, with the declared
+latent-effect and grouping structure held fixed. Positive fractional
+likelihood powers are also supported.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
-location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}
+and supports explicit columns and standard formula operators. Precompute
+transformed predictors as columns in \code{data}; inline calls such as \code{I()},
+\code{poly()}, spline constructors, and user functions are not supported.}
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}
@@ -120,22 +128,32 @@ heterogeneity component(s).}
 
 \item{prior_mods}{prior distribution(s) for alternative moderator
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{mods} is
+specified.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{scale}
+is specified.}
 
 \item{prior_heterogeneity_allocation}{prior distribution(s) for the
-alternative cluster-level heterogeneity allocation component(s).}
+alternative cluster-level heterogeneity allocation component(s). This
+argument can be specified only when \code{cluster} is specified.}
 
 \item{prior_baserate}{prior distribution for the estimate-specific midpoint
-base-rate probability in binomial GLMM models. If omitted or \code{NULL}, defaults
-to independent \code{Beta(1, 1)} priors.}
+base-rate probability in binomial GLMM models (\code{measure = "OR"}). If omitted
+or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors. Only beta and point
+priors are supported; beta priors may be truncated within \verb{[0, 1]}, and point
+priors must lie strictly inside \verb{(0, 1)}.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
-log-rate in Poisson GLMM models. If omitted or \code{NULL}, a data-based
-unit-information normal prior is used independently for each estimate.}
+log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a
+normal prior centered at the pooled crude log-rate is used independently for
+each estimate. Its standard deviation defaults to \code{1} and can be changed via
+\code{RoBMA.options(default_lograte.sd = ...)}. Rescaling all person-times shifts
+the prior mean by the corresponding log conversion while leaving its
+standard deviation unchanged. Only normal and point priors are supported;
+normal priors may be truncated.}
 
 \item{prior_effect_null}{prior distribution(s) for the null effect
 component(s).}
@@ -145,21 +163,29 @@ heterogeneity component(s).}
 
 \item{prior_mods_null}{prior distribution(s) for null moderator components.
 A single prior applies to all terms; a named list can specify term-specific
-components.}
+components. This argument can be specified only when \code{mods} is specified.}
 
 \item{prior_scale_null}{prior distribution(s) for null scale-regression
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{scale}
+is specified.}
 
 \item{prior_heterogeneity_allocation_null}{prior distribution(s) for the
-null cluster-level heterogeneity allocation component(s).}
+null cluster-level heterogeneity allocation component(s). This argument can
+be specified only when \code{cluster} is specified.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults are constructor-specific and shown in each function usage; single-model
-constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
+Defaults are constructor-specific and shown in each function usage. Single-model
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.
+Accepted values are \code{"treatment"}, \code{"meandif"}, \code{"orthonormal"}, and
+\code{"independent"}. Independent coding creates one coefficient per factor
+level. Random-coefficient blocks reuse the resolved fixed-factor contrast
+unless \code{random_block(contrasts = ...)} overrides it. A warning is issued
+when default or inherited independent contrasts make a fixed or random
+design overspecified.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
@@ -173,8 +199,8 @@ default PEESE prior's UISD adjustment. Defaults to 1.}
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Omit to use the field-specific default, such as \code{"Cochrane"} for
-\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
+Can only be specified together with \code{prior_informed_field}. Omit to use the
+field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
@@ -197,9 +223,8 @@ Defaults to \code{FALSE}.}
 
 \item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
 
-\item{silent}{logical. Whether to suppress output. Constructors with no
-explicit default use \code{RoBMA.get_option("silent")} when \code{silent} is omitted.
-Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
+\item{silent}{logical. Whether to suppress output. When omitted,
+constructors use \code{RoBMA.get_option("silent")}.}
 
 \item{...}{additional advanced arguments. Fitting functions reject unused
 arguments; currently recognized internal arguments include \code{only_data},
@@ -230,6 +255,11 @@ model as described in \insertCite{bagos2009mixed;textual}{RoBMA}.
 
 When \code{weights} are supplied, they are treated as likelihood weights on
 the paired two-arm study contribution.
+
+For factor moderators, \code{BMA.glmm()} defaults to
+\code{set_contrast_factor_predictors = "meandif"}, matching the other
+model-averaging constructors. This differs from \code{\link{brma.glmm}()},
+which defaults to \code{"treatment"} as a single-model constructor.
 }
 \examples{
 \dontrun{

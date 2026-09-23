@@ -1,0 +1,1088 @@
+#
+# ============================================================================ #
+
+
+# ---------------------------------------------------------------------------- #
+# as_zplot generic and method
+# ---------------------------------------------------------------------------- #
+
+#' @export
+as_zplot <- function(object, ...) UseMethod("as_zplot")
+
+
+#' @title Transform brma Object to Zplot
+#'
+#' @description Transforms an estimated brma model into a zplot object
+#' that can be summarized and plotted to assess replicability.
+#'
+#' @param object a normal-outcome \code{brma} object.
+#' @param significance_level z-value threshold for significance. Defaults
+#' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
+#' @param max_samples maximum number of posterior samples for the EDR and
+#' missing-study summaries. Defaults to 10000. Use \code{Inf} to use all
+#' posterior samples. The density budget is supplied separately to
+#' \code{plot()} or \code{lines()} and defaults to 1000 for \code{brma.mv}
+#' models and 10000 for other models.
+#' @param conditioning_depth predictive conditioning depth. Options are
+#' \code{"marginal"} (default), which integrates all newly realized random
+#' effects; \code{"cluster"}, which retains fitted cluster effects and
+#' integrates within-cluster heterogeneity; and \code{"estimate"}, which
+#' retains each fitted latent true effect, integrates its posterior conditional
+#' uncertainty, and adds new sampling error. Cluster conditioning is available
+#' only for multilevel models.
+#' Selection models currently support only \code{"marginal"} conditioning.
+#' @param integration_control numerical integration settings created by
+#' \code{set_selection_likelihood_control()}. These control integration within
+#' each posterior draw, independently of \code{max_samples}. Factor blocks and
+#' supported full-covariance product-selection blocks use deterministic
+#' Gauss-Hermite quadrature where possible, with the existing adaptive randomized
+#' quasi-Monte Carlo fallback. Density-error checks use the peak within each
+#' posterior draw and also check the selection normalizer. Bounded CDF
+#' interpolation, Gaussian-mixture approximation, and omitted contributions
+#' are charged to the same numerical error budget.
+#' @param ... additional arguments (currently unused).
+#'
+#' @details
+#' Zplot is the pushforward into z-space of the design-conditional posterior
+#' predictive distribution. It retains the empirical mix of observed standard
+#' errors and moderators, evaluates one row-specific predictive distribution
+#' for each estimate, transforms each through \eqn{Z = Y / SE}, and averages
+#' the resulting densities with equal weight per estimate.
+#'
+#' The default marginal target integrates every latent effect that would be
+#' newly realized in a replicated literature. For a specialized multilevel
+#' model fitted with \code{cluster},
+#' the predictive variance before sampling error is the sum of between- and
+#' within-cluster heterogeneity. Cluster conditioning instead retains the fitted
+#' cluster effects and includes only within-cluster heterogeneity. Estimate
+#' conditioning uses the conditional true-effect means returned by
+#' \code{predict(type = "blup")} and additionally integrates the posterior
+#' conditional variance of those latent effects before adding new sampling
+#' error. It therefore represents a posterior predictive replication of the
+#' same uncertain latent effects rather than a BLUP-mean plug-in distribution.
+#' Thus the marginal zplot collapses the row-specific slices of the marginal
+#' funnel target onto the common significance scale. Unlike LOO diagnostics,
+#' it is a full-posterior predictive projection and does not leave observations
+#' or clusters out when estimating model parameters.
+#'
+#' The Expected Discovery Rate (EDR) is the posterior average probability that
+#' a new outcome from the bias-adjusted reference distribution is statistically
+#' significant at the supplied threshold. It is therefore not an exact-repeat
+#' estimand unless \code{conditioning_depth = "estimate"} is requested.
+#'
+#' The EDR uses the bias-adjusted reference distribution: selection and
+#' PET/PEESE offsets are removed. For multivariate selection models, models
+#' integrating applicable contextual sources, and best-rule selection models,
+#' this reference is the normalized pre-selection Gaussian marginal,
+#' integrating all newly realized contexts. Its integral is
+#' one and EDR is its significance probability. Relative selection weights do
+#' not identify an absolute publication probability or missing count, so
+#' \code{Missing N} is unavailable for these targets.
+#'
+#' The fitted selected curve preserves the original publication event and the
+#' fitted model's normalization order. It integrates the model's integrated
+#' sources inside each full-event normalizer and averages conditionally
+#' normalized projections over newly realized retained contexts. A best rule
+#' still selects the full original event when displaying one estimate.
+#' Supported full-covariance product blocks reuse numerator and normalizer
+#' calculations while refining their quadrature separately. Computation by
+#' posterior row and covariance block preserves the full publication event.
+#'
+#' Numerical diagnostics distinguish raw normalizer-mass ratios from bounds on
+#' omitted contributions. A raw mass ratio does not certify that the compressed
+#' displayed curve integrates to one. An omitted-mass bound covers only the
+#' omitted components, not the total integrated error of the compressed curve.
+#' Retained component weights are not renormalized to hide omissions.
+#'
+#' Independent univariate product-weight models and the released conditional
+#' cluster display retain their reference-bin-normalized inverse-weight
+#' extrapolation convention and corresponding \code{Missing N} summary.
+#' Product selection does not use publication groups; its covariance
+#' dependencies and source settings determine the reference distribution and
+#' diagnostic. Best-p-value selection preserves the resolved publication groups.
+#' A literal count interpretation additionally treats the reference bin as
+#' fully observed and requires a reporting/stopping design relating attempted
+#' to observed estimates. These assumptions are not supplied by the fitted
+#' relative-weight likelihood, which conditions on the reported vector and
+#' does not identify an absolute publication probability or finite missing pool.
+#' Valid above-one relative weights can give a negative diagnostic; such a
+#' value is not a literal missing count.
+#' Restricting a plot with \code{from} or \code{to} does not restrict the
+#' summary integrals.
+#'
+#' Zplot diagnostics are available only for normal outcome models. GLMM
+#' objects are rejected because their raw likelihood is on a count scale while
+#' zplot diagnostics require observed effect-size z-statistics with standard
+#' errors. For correlated known-\code{V} \code{brma.mv()} models, zplot is a
+#' scalar display using \eqn{z_i = y_i / se_i}. The histogram does not display
+#' dependence, but the fitted selected marginals retain the full covariance.
+#' Numerical integration can be substantially more expensive for correlated
+#' selection than for ordinary Gaussian models. Density plotting uses its own
+#' \code{max_samples} argument, independently of the summaries stored here.
+#'
+#' The resulting object retains all original brma properties while adding
+#' zplot results, enabling both standard meta-analytic summaries and
+#' zplot diagnostics on the same object.
+#'
+#' @return The input object with added class \code{"zplot_brma"} and a new
+#' \code{zplot} list component containing:
+#' \describe{
+#'   \item{estimates}{a list with posterior samples for \code{EDR} and
+#'     extrapolation \code{weights}, when a missing-count convention applies}
+#'   \item{data}{a list with \code{significance_level},
+#'     \code{conditioning_depth}, observed \code{z}-statistics,
+#'     \code{N_significant}, and \code{N_observed}}
+#'   \item{target}{the fitted reporting specification, reference distribution,
+#'     source and publication identities, and missing-count applicability}
+#' }
+#'
+#' @seealso [summary.zplot_brma()], [plot.zplot_brma()], [hist.zplot_brma()],
+#'   [predict.brma()], [funnel.brma()], [regplot.brma()]
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'
+#'   zfit <- as_zplot(fit)
+#'   summary(zfit)
+#'   plot(zfit)
+#' }
+#' }
+#'
+#' @aliases as_zplot
+#' @export
+as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
+                          max_samples = 10000,
+                          conditioning_depth = "marginal",
+                          integration_control = set_selection_likelihood_control(), ...) {
+
+  BayesTools::check_real(significance_level, "significance_level", lower = 0)
+  max_samples        <- .normalize_max_samples(max_samples, "max_samples")
+  conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
+
+  if (.outcome_type(object) != "norm") {
+    stop(
+      "as_zplot() is only available for normal outcome models; ",
+      "GLMM objects are not supported.",
+      call. = FALSE
+    )
+  }
+
+  .check_unit_conditioning_depth(
+    object             = object,
+    unit               = "estimate",
+    conditioning_depth = conditioning_depth,
+    caller             = "as_zplot()"
+  )
+
+  # compute the bias-adjusted expected discovery rate for the selected target
+  out_estimates <- .zplot_fun.brma(
+    object             = object,
+    z_threshold        = significance_level,
+    max_samples        = max_samples,
+    extrapolate        = TRUE,
+    conditioning_depth = conditioning_depth,
+    integration_control = integration_control
+  )
+
+  # compute data summaries (observed z-stats)
+  yi  <- .outcome_data_yi(object)
+  sei <- .outcome_data_sei(object)
+  z   <- yi / sei
+  vector_target <- .zplot_vector_selection_target(object)
+  model <- .data_selection_model(object[["data"]])
+  target <- list(
+    fitted = model,
+    reference = if (vector_target) "pre_selection_gaussian" else "univariate_extrapolation",
+    conditioning_depth = conditioning_depth,
+    publication_groups = model[["groups"]],
+    source_roles = model[["sources"]],
+    sampling_structure = .selection_postfit_target_metadata(object[["data"]])[["sampling_structure"]],
+    row_index = model[["groups"]][["row_index"]],
+    missing_count = if (vector_target) "unavailable" else "univariate_convention",
+    missing_count_reason = if (vector_target) {
+      "Missing N is unavailable because relative selection weights do not identify an absolute publication probability."
+    } else NULL
+  )
+
+  # store zplot results
+  object[["zplot"]] <- list(
+    estimates = list(
+      EDR     = out_estimates[["EDR"]],
+      weights = if (vector_target) NULL else out_estimates[["weights"]]
+    ),
+    data = list(
+      significance_level = significance_level,
+      conditioning_depth  = conditioning_depth,
+      integration_control = integration_control,
+      z                   = z,
+      N_significant       = sum(abs(z) > significance_level),
+      N_observed          = length(z)
+    ),
+    target = target
+  )
+
+  # add class
+  class(object) <- c("zplot_brma", class(object))
+
+  return(object)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# zplot generic and methods
+# ---------------------------------------------------------------------------- #
+
+#' @export
+zplot <- function(object, ...) UseMethod("zplot")
+
+
+#' @title Plot Zplot Diagnostics Directly
+#'
+#' @description Convenience wrapper for creating and plotting zplot diagnostics
+#' from a fitted \code{brma} object.
+#'
+#' @param object a normal-outcome \code{brma} object, or a
+#' \code{zplot_brma} object.
+#' @param significance_level z-value threshold for significance. Defaults
+#' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
+#' @param summary_max_samples maximum number of posterior samples used for the
+#' EDR and missing-study summaries stored in the generated zplot object.
+#' This is separate from the plot-density \code{max_samples} argument accepted
+#' by \code{plot.zplot_brma()} through \code{...}. The summary default is 10000;
+#' the density default is 1000 for \code{brma.mv} models and 10000 for other
+#' models. Use \code{Inf} for either budget to use all posterior samples.
+#' @param conditioning_depth predictive conditioning depth passed to
+#' \code{as_zplot()}. Defaults to \code{"marginal"}.
+#' @inheritParams as_zplot.brma
+#' @param ... arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.
+#'
+#' @details When \code{object} already inherits from \code{zplot_brma},
+#' \code{zplot()} dispatches directly to \code{plot.zplot_brma()} without
+#' recomputing stored summaries.
+#'
+#' @return \code{NULL} invisibly for base graphics, or a ggplot2 object.
+#'
+#' @seealso [as_zplot.brma()], [plot.zplot_brma()], [summary.zplot_brma()]
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'
+#'   zplot(fit)
+#' }
+#' }
+#'
+#' @aliases zplot
+#' @export
+zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
+                       summary_max_samples = 10000,
+                       conditioning_depth = "marginal",
+                       integration_control = set_selection_likelihood_control(), ...) {
+
+  zplot_object <- as_zplot(
+    object             = object,
+    significance_level = significance_level,
+    max_samples        = summary_max_samples,
+    conditioning_depth = conditioning_depth,
+    integration_control = integration_control
+  )
+
+  return(plot(zplot_object, ...))
+}
+
+
+#' @rdname zplot.brma
+#' @export
+zplot.zplot_brma <- function(object, ...) {
+
+  return(plot(object, ...))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# summary.zplot_brma
+# ---------------------------------------------------------------------------- #
+
+#' @title Summarize Zplot Results
+#'
+#' @description Creates summary tables for zplot estimates including
+#' EDR, Soric FDR, and the conventional missing-count diagnostic when applicable.
+#'
+#' @param object a zplot_brma object.
+#' @param probs quantiles of the posterior distribution to display.
+#' Defaults to \code{c(.025, .975)}.
+#' @param ... additional arguments (currently unused).
+#'
+#' @details
+#' The summary includes:
+#' \describe{
+#'   \item{EDR}{Expected Discovery Rate - average power of significant studies}
+#'   \item{Soric FDR}{Expected proportion of false discoveries among significant
+#'     results, computed from EDR following Soric (1989)}
+#'   \item{Missing N}{The retained reference-bin-normalized inverse-weight
+#'     diagnostic for independent univariate and conditional-cluster product
+#'     models. See [as_zplot.brma()] for the additional assumptions required by
+#'     a literal count interpretation. Unavailable for multivariate models,
+#'     applicable integrated contexts, or best-rule selection models because
+#'     relative weights do not identify a missing count}
+#' }
+#'
+#' The footer reports the Observed Discovery Rate (ODR) with 95% CI for
+#' comparison with the model-estimated EDR.
+#'
+#' @return An object of class \code{"summary.zplot_brma"} containing the
+#' estimates table.
+#'
+#' @seealso [as_zplot.brma()], [plot.zplot_brma()]
+#'
+#' @export
+summary.zplot_brma <- function(object, probs = c(.025, .975), ...) {
+
+  # get proportion of significant results
+  obs_proportion <- stats::prop.test(
+    object$zplot$data[["N_significant"]],
+    object$zplot$data[["N_observed"]],
+    conf.level = 0.95
+  )
+
+  info_text <- sprintf(
+    paste0(
+      "Estimated using %1$i estimates, %2$i significant ",
+      "(ODR = %3$.2f, 95%% CI [%4$.2f, %5$.2f]); ",
+      "conditioning depth: %6$s)."
+    ),
+    object$zplot$data[["N_observed"]],
+    object$zplot$data[["N_significant"]],
+    obs_proportion$estimate,
+    obs_proportion$conf.int[1],
+    obs_proportion$conf.int[2],
+    .zplot_stored_conditioning_depth(object)
+  )
+  if (identical(object[["zplot"]][["target"]][["missing_count"]], "unavailable")) {
+    info_text <- paste(info_text, object[["zplot"]][["target"]][["missing_count_reason"]])
+  }
+
+  # compute estimates
+  sig_level <- stats::pnorm(object$zplot$data[["significance_level"]], lower.tail = FALSE) * 2
+
+  estimates <- cbind.data.frame(
+    "EDR"       = object$zplot$estimates[["EDR"]],
+    "Soric FDR" = .get_Soric_FDR(object$zplot$estimates[["EDR"]], sig_level)
+  )
+  if (!is.null(object$zplot$estimates[["weights"]])) {
+    estimates[["Missing N"]] <- (object$zplot$estimates[["weights"]] - 1) *
+      object$zplot$data[["N_observed"]]
+  }
+
+  estimates_table <- BayesTools::ensemble_estimates_table(
+    samples    = estimates,
+    parameters = names(estimates),
+    probs      = probs,
+    title      = "Zplot Estimates:",
+    footnotes  = info_text
+  )
+
+  output <- list(
+    estimates = estimates_table,
+    target = object[["zplot"]][["target"]]
+  )
+
+  class(output) <- "summary.zplot_brma"
+  return(output)
+}
+
+
+#' @title Print Zplot Summary
+#'
+#' @param x a summary.zplot_brma object.
+#' @param ... additional arguments (currently unused).
+#'
+#' @return Invisibly returns the summary object.
+#'
+#' @export
+print.summary.zplot_brma <- function(x, ...) {
+
+  cat("\n")
+  print(x[["estimates"]])
+  cat("\n")
+
+  return(invisible(x))
+}
+
+
+#' @title Convert Z-Plot Summaries to a Data Frame
+#'
+#' @description Converts the table displayed for a \code{zplot_brma} or
+#' \code{summary.zplot_brma} object to a component-aware long data frame.
+#' Printed quantile labels are returned as syntactic \code{CI_} column names.
+#'
+#' @param x a \code{zplot_brma} or \code{summary.zplot_brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... additional arguments passed to \code{summary()} for a
+#' \code{zplot_brma} object and otherwise unused.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns.
+#'
+#' @export
+as.data.frame.zplot_brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- as.data.frame.summary.zplot_brma(
+    x                = summary(x, ...),
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.zplot_brma
+#' @export
+as.data.frame.summary.zplot_brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- .output_table_as_long_data_frame(
+    table            = x[["estimates"]],
+    component        = "zplot",
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
+#' @export
+print.zplot_brma <- function(x, ...) {
+  print(summary(x, ...))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# plot.zplot_brma
+# ---------------------------------------------------------------------------- #
+
+#' @title Plot Zplot Results
+#'
+#' @description Plots a zplot visualization showing the histogram of
+#' observed z-statistics overlaid with model-implied densities.
+#'
+#' @param x a zplot_brma object.
+#' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
+#' Defaults to \code{"base"}.
+#' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
+#' @param max_samples maximum posterior samples for density estimation.
+#' Defaults to 1000 for \code{brma.mv} models and 10000 for other models.
+#' Use \code{Inf} to use all posterior samples. This plotting budget does not
+#' change the EDR and missing-study summary budget in \code{as_zplot()}.
+#' @param parallel whether to distribute multivariate selection-model density
+#' calculations across local workers. Defaults to \code{FALSE}. Only posterior
+#' draws are divided; the full publication event and integration settings are
+#' retained. Scalar models, Gaussian-reference-only curves, and EDR summaries
+#' remain serial.
+#' @param cores number of local workers when \code{parallel = TRUE}. Defaults
+#' to the smaller of 4 and \code{RoBMA.get_option("max_cores")}. One core or
+#' fewer posterior draws than workers uses serial computation. Parallel workers
+#' require matching installed package/native builds and share the configured
+#' selection-cache budget. Worker count is reported when parallel work starts.
+#' @inheritParams as_zplot.brma
+#' @param plot_fit whether to show fitted density (with bias adjustments).
+#' Defaults to \code{TRUE}.
+#' @param plot_extrapolation whether to show extrapolated density (bias removed).
+#' Defaults to \code{FALSE}.
+#' @param plot_ci whether to show credible interval bands. Defaults to \code{TRUE}.
+#' @param plot_thresholds whether to show significance threshold lines.
+#' Defaults to \code{TRUE}.
+#' @param from,to z-value range for plotting. Defaults to \code{-6} and \code{6}.
+#' @param by.hist bin width for histogram. Defaults to 0.5.
+#' @param length.out.hist number of histogram bins (alternative to \code{by.hist}).
+#' @param by.lines step size for density lines. Defaults to 0.05.
+#' @param length.out.lines number of density points (alternative to \code{by.lines}).
+#' @param dots_hist graphical parameters for histogram (list).
+#' @param dots_fit graphical parameters for fit lines (list).
+#' @param dots_extrapolation graphical parameters for extrapolation lines (list).
+#' @param dots_thresholds graphical parameters for threshold lines (list).
+#' @param ... additional graphical parameters passed to components.
+#'
+#' @details
+#' All model-implied curves use the \code{conditioning_depth} stored by
+#' \code{as_zplot()}. Recreate the zplot object to change the predictive target.
+#'
+#' The plot can display two density curves:
+#' \describe{
+#'   \item{Fit (black)}{Model-implied density including publication bias adjustments.
+#'     This represents the expected distribution of z-statistics given the estimated
+#'     selection process. Shown by default.}
+#'   \item{Extrapolation (blue)}{The bias-adjusted reference without selective
+#'     reporting. Multivariate models, applicable integrated contexts, and
+#'     best-rule selection models use the normalized pre-selection Gaussian
+#'     marginal. Released univariate product
+#'     targets retain their inverse-weight scaling convention. Shown only when
+#'     \code{plot_extrapolation = TRUE}, since the extrapolated curve rescales
+#'     the display by an inferred selection convention rather than describing
+#'     the observed literature.}
+#' }
+#'
+#' @return \code{NULL} invisibly for base graphics, or a ggplot2 object.
+#'
+#' @seealso [hist.zplot_brma()], [lines.zplot_brma()], [summary.zplot_brma()]
+#'
+#' @export
+plot.zplot_brma <- function(x, plot_type = "base",
+                             probs = c(.025, .975),
+                             max_samples = if (inherits(x, "brma.mv")) 1000 else 10000,
+                             plot_fit = TRUE, plot_extrapolation = FALSE,
+                             plot_ci = TRUE, plot_thresholds = TRUE,
+                             from = -6, to = 6,
+                             by.hist = 0.5, length.out.hist = NULL,
+                             by.lines = 0.05, length.out.lines = NULL,
+                             dots_hist = NULL, dots_fit = NULL,
+                             dots_extrapolation = NULL, dots_thresholds = NULL,
+                             integration_control = x[["zplot"]][["data"]][["integration_control"]],
+                             parallel = FALSE, cores = min(4, RoBMA.get_option("max_cores")), ...) {
+
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_bool(plot_fit, "plot_fit")
+  BayesTools::check_bool(plot_extrapolation, "plot_extrapolation")
+  BayesTools::check_bool(plot_ci, "plot_ci")
+  BayesTools::check_bool(plot_thresholds, "plot_thresholds")
+  BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
+  BayesTools::check_bool(parallel, "parallel", allow_NA = FALSE)
+  BayesTools::check_int(cores, "cores", lower = 1L, allow_NA = FALSE)
+
+  dots <- list(...)
+
+  # get line values first so we can set ylim
+  ymax                <- 0
+  lines_fit           <- NULL
+  lines_extrapolation <- NULL
+
+  computational_args <- c(
+    "x", "probs", "max_samples", "parallel", "cores", "plot_ci", "extrapolate", "from", "to",
+    "by", "length.out", "as_data", "integration_control"
+  )
+  pair_overrides <- any(c(
+    names(dots), names(dots_fit), names(dots_extrapolation)
+  ) %in% computational_args)
+  if (plot_fit && plot_extrapolation && !pair_overrides) {
+    z_sequence <- .zplot_bins(
+      priors     = x[["priors"]],
+      from       = from,
+      to         = to,
+      by         = by.lines,
+      length.out = length.out.lines,
+      type       = "dens"
+    )
+    paired_density <- .zplot_density_pair(
+      object             = x,
+      z_sequence         = z_sequence,
+      max_samples        = max_samples,
+      conditioning_depth = .zplot_stored_conditioning_depth(x),
+      integration_control = integration_control,
+      parallel = parallel, cores = cores
+    )
+    lines_fit <- .zplot_density_data(
+      z_sequence = z_sequence,
+      z_density  = paired_density[["fitted"]],
+      probs      = probs
+    )
+    lines_extrapolation <- .zplot_density_data(
+      z_sequence = z_sequence,
+      z_density  = paired_density[["extrapolated"]],
+      probs      = probs
+    )
+  }
+
+  # 1. Fit lines (Fitted model - with bias)
+  if (plot_fit && is.null(lines_fit)) {
+    dots_fit <- if(!is.null(dots_fit)) dots_fit else list()
+    lines_fit <- do.call(lines.zplot_brma, .zplot_deduplicate_call_args(c(
+      list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
+           parallel = parallel, cores = cores, extrapolate = FALSE, plot_ci = plot_ci, from = from, to = to,
+           by = by.lines, length.out = length.out.lines, as_data = TRUE,
+           integration_control = integration_control),
+      dots, dots_fit
+    )))
+    ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
+  }
+
+  # 2. Extrapolation lines (unbiased zplot density)
+  if (plot_extrapolation && is.null(lines_extrapolation)) {
+    # prepare extrapolation dots with default blue color
+    dots_extrapolation <- if(!is.null(dots_extrapolation)) dots_extrapolation else list()
+    lines_extrapolation <- do.call(lines.zplot_brma, .zplot_deduplicate_call_args(c(
+      list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
+           parallel = parallel, cores = cores, extrapolate = TRUE, plot_ci = plot_ci, from = from, to = to,
+           by = by.lines, length.out = length.out.lines, as_data = TRUE,
+           integration_control = integration_control,
+           col = "blue"), # default color if not in dots
+      dots, dots_extrapolation
+    )))
+    ymax <- max(c(ymax, lines_extrapolation$y, if (plot_ci) lines_extrapolation$y_uCI))
+  }
+  if (plot_fit) {
+    ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
+  }
+  if (plot_extrapolation) {
+    ymax <- max(c(
+      ymax,
+      lines_extrapolation$y,
+      if (plot_ci) lines_extrapolation$y_uCI
+    ))
+  }
+
+  # 3. Create histogram base
+  plot <- hist.zplot_brma(
+    x               = x,
+    plot_type       = plot_type,
+    from            = from,
+    to              = to,
+    by              = by.hist,
+    length.out      = length.out.hist,
+    plot_thresholds = plot_thresholds,
+    dots_thresholds = dots_thresholds,
+    .zplot_auto_ymax = if (ymax != 0) ymax * 1.05 else NULL,
+    dots_hist       = dots_hist,
+    dots_all        = dots
+  )
+
+  # 4. Add fit lines
+  if (plot_fit) {
+    dots_fit_lines <- .get_dots_lines_zplot(c(dots_fit, dots), plot_type = plot_type)
+
+    if (plot_type == "base") {
+      if (plot_ci) {
+        graphics::polygon(
+          c(lines_fit$x, rev(lines_fit$x)),
+          c(lines_fit$y_lCI, rev(lines_fit$y_uCI)),
+          border = NA,
+          col    = scales::alpha(dots_fit_lines$col, dots_fit_lines$alpha)
+        )
+      }
+      graphics::lines(
+        lines_fit$x, lines_fit$y,
+        lwd = dots_fit_lines$lwd,
+        col = dots_fit_lines$col,
+        lty = dots_fit_lines$lty
+      )
+    } else if (plot_type == "ggplot") {
+      if (plot_ci) {
+        plot <- plot + ggplot2::geom_ribbon(
+          ggplot2::aes(
+            x    = lines_fit$x,
+            ymin = lines_fit$y_lCI,
+            ymax = lines_fit$y_uCI
+          ),
+          fill  = dots_fit_lines$color,
+          alpha = dots_fit_lines$alpha
+        )
+      }
+      plot <- plot + ggplot2::geom_line(
+        ggplot2::aes(
+          x = lines_fit$x,
+          y = lines_fit$y
+        ),
+        color     = dots_fit_lines$color,
+        linewidth = dots_fit_lines$linewidth,
+        linetype  = dots_fit_lines$linetype
+      )
+    }
+  }
+
+  # 5. Add extrapolation lines
+  if (plot_extrapolation) {
+     dots_ext_lines <- .get_dots_lines_zplot(c(dots_extrapolation, dots), plot_type = plot_type, col = "blue")
+
+    if (plot_type == "base") {
+      if (plot_ci) {
+        graphics::polygon(
+          c(lines_extrapolation$x, rev(lines_extrapolation$x)),
+          c(lines_extrapolation$y_lCI, rev(lines_extrapolation$y_uCI)),
+          border = NA,
+          col    = scales::alpha(dots_ext_lines$col, dots_ext_lines$alpha)
+        )
+      }
+      graphics::lines(
+        lines_extrapolation$x, lines_extrapolation$y,
+        lwd = dots_ext_lines$lwd,
+        col = dots_ext_lines$col,
+        lty = dots_ext_lines$lty
+      )
+    } else if (plot_type == "ggplot") {
+      if (plot_ci) {
+        plot <- plot + ggplot2::geom_ribbon(
+          ggplot2::aes(
+            x    = lines_extrapolation$x,
+            ymin = lines_extrapolation$y_lCI,
+            ymax = lines_extrapolation$y_uCI
+          ),
+          fill  = dots_ext_lines$color,
+          alpha = dots_ext_lines$alpha
+        )
+      }
+      plot <- plot + ggplot2::geom_line(
+        ggplot2::aes(
+          x = lines_extrapolation$x,
+          y = lines_extrapolation$y
+        ),
+        color     = dots_ext_lines$color,
+        linewidth = dots_ext_lines$linewidth,
+        linetype  = dots_ext_lines$linetype
+      )
+    }
+  }
+
+  # return
+  if (plot_type == "base") {
+    return(invisible())
+  } else if (plot_type == "ggplot") {
+    return(plot)
+  }
+}
+
+
+.zplot_deduplicate_call_args <- function(args) {
+
+  arg_names <- names(args)
+  if (is.null(arg_names)) {
+    return(args)
+  }
+
+  keep <- !nzchar(arg_names) | !duplicated(arg_names, fromLast = TRUE)
+  return(args[keep])
+}
+
+
+# ---------------------------------------------------------------------------- #
+# hist.zplot_brma
+# ---------------------------------------------------------------------------- #
+
+#' @title Histogram of Z-Statistics
+#'
+#' @description Plots a histogram of observed z-values from the meta-analysis.
+#'
+#' @param x a zplot_brma object.
+#' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
+#' Defaults to \code{"base"}.
+#' @param from,to z-value range for plotting. Defaults to \code{-6} and \code{6}.
+#' @param by bin width. Defaults to 0.5.
+#' @param length.out number of bins (alternative to \code{by}).
+#' @param add whether to add to existing plot. Defaults to \code{FALSE}.
+#' @param plot_thresholds whether to show significance threshold lines.
+#' Defaults to \code{TRUE}.
+#' @param dots_thresholds graphical parameters for threshold lines (list).
+#' @param dots_hist graphical parameters for histogram (list).
+#' @param dots_all graphical parameters passed to all components (list).
+#' @param ... additional graphical parameters.
+#'
+#' @details
+#' Z-statistics are computed as effect size divided by standard error
+#' (\code{yi / sei}). Histogram bins are adjusted to align with significance
+#' thresholds when selection model priors are present.
+#'
+#' @return \code{NULL} invisibly for base graphics, or a ggplot2 object.
+#'
+#' @seealso [plot.zplot_brma()], [lines.zplot_brma()]
+#'
+#' @export
+hist.zplot_brma <- function(x, plot_type = "base",
+                             from = -6, to = 6, by = 0.5, length.out = NULL,
+                             add = FALSE, plot_thresholds = TRUE,
+                             dots_thresholds = NULL, dots_hist = NULL, dots_all = NULL, ...) {
+
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_real(from, "from")
+  BayesTools::check_real(to, "to")
+  BayesTools::check_real(by, "by", allow_NULL = TRUE)
+  BayesTools::check_bool(add, "add")
+  BayesTools::check_bool(plot_thresholds, "plot_thresholds")
+
+  dots <- list(...)
+  if (!is.null(dots_all)) {
+    dots <- c(dots, dots_all[!names(dots_all) %in% names(dots)])
+  }
+
+  z <- x$zplot$data[["z"]]
+
+  # create bin sequence using zplot helper (handles thresholds)
+  z_sequence <- .zplot_bins(priors = x[["priors"]], from = from, to = to, by = by, length.out = length.out, type = "hist")
+  z_in_range <- z >= min(z_sequence) & z <= max(z_sequence)
+
+  # message about out-of-range values
+  if (sum(!z_in_range) > 0) {
+    message(sprintf("%1$i z-statistics are out of the plotting range", sum(!z_in_range)))
+  }
+
+  # create histogram data
+  z_hist <- graphics::hist(z[z_in_range], breaks = z_sequence, plot = FALSE)
+  z_hist$density <- z_hist$density * mean(z_in_range)
+
+  df_hist <- data.frame(
+    x       = z_hist$mids,
+    density = z_hist$density,
+    breaks  = diff(z_hist$breaks)
+  )
+
+  # return data if requested via dots
+  if (isTRUE(dots[["as_data"]])) {
+    return(df_hist)
+  }
+
+  # merge dots_hist
+  if (!is.null(dots_hist)) {
+    dots <- c(dots_hist, dots[!names(dots) %in% names(dots_hist)])
+  }
+  dots_hist_params <- .get_dots_hist_zplot(dots, plot_type = plot_type, max_density = max(z_hist$density))
+
+  # create the plot
+  if (plot_type == "ggplot") {
+    out <- ggplot2::ggplot() +
+      ggplot2::geom_col(
+        ggplot2::aes(
+          x = df_hist$x,
+          y = df_hist$density
+        ),
+        fill  = dots_hist_params$fill,
+        color = dots_hist_params$color,
+        alpha = dots_hist_params$alpha,
+        width = df_hist$breaks
+      ) +
+      ggplot2::labs(x = dots_hist_params$xlab, y = dots_hist_params$ylab) +
+      ggplot2::ggtitle(dots_hist_params$main) +
+      ggplot2::coord_cartesian(ylim = dots_hist_params$ylim)
+  } else {
+    if (add) {
+      graphics::rect(
+        xleft   = df_hist$x - df_hist$breaks / 2,
+        xright  = df_hist$x + df_hist$breaks / 2,
+        ybottom = 0,
+        ytop    = df_hist$density,
+        border  = dots_hist_params$border,
+        col     = dots_hist_params$col
+      )
+    } else {
+      graphics::plot(
+        z_hist,
+        freq   = FALSE,
+        border = dots_hist_params$border,
+        col    = dots_hist_params$col,
+        xlab   = dots_hist_params$xlab,
+        ylab   = dots_hist_params$ylab,
+        main   = dots_hist_params$main,
+        ylim   = dots_hist_params$ylim,
+        xaxt   = dots_hist_params$xaxt,
+        yaxt   = dots_hist_params$yaxt,
+        las    = dots_hist_params$las
+      )
+    }
+  }
+
+  # add threshold lines
+  if (plot_thresholds) {
+    thresholds <- .zplot_threshold(x[["priors"]])
+    if (length(thresholds) > 0) {
+      dots_thresholds <- if (!is.null(dots_thresholds)) dots_thresholds else list()
+      dots_thresholds_params <- .get_dots_thresholds_zplot(dots_thresholds, plot_type = plot_type)
+
+      if (plot_type == "base") {
+        graphics::abline(
+          v   = thresholds,
+          col = dots_thresholds_params$col,
+          lty = dots_thresholds_params$lty,
+          lwd = dots_thresholds_params$lwd
+        )
+      } else if (plot_type == "ggplot") {
+        out <- out + ggplot2::geom_vline(
+          xintercept = thresholds,
+          color      = dots_thresholds_params$color,
+          linetype   = dots_thresholds_params$linetype,
+          linewidth  = dots_thresholds_params$linewidth
+        )
+      }
+    }
+  }
+
+  # return
+  if (plot_type == "base") {
+    return(invisible())
+  } else if (plot_type == "ggplot") {
+    return(out)
+  }
+}
+
+
+.zplot_density_data <- function(z_sequence, z_density, probs) {
+
+  # One sorted pass per column: stats::quantile() evaluates each probability
+  # independently, so asking for both returns the two numbers the two separate
+  # passes returned. apply() then labels its two rows with the probabilities,
+  # where one pass per probability named its result after the columns of
+  # `z_density` alone; a single-column grid would otherwise carry a probability
+  # label into the row names of the returned data frame, and an empty grid would
+  # not give a matrix at all. Both are restored by naming the result here.
+  bounds <- matrix(apply(z_density, 2, stats::quantile, probs = probs[1:2]),
+                   nrow = 2L, dimnames = list(NULL, colnames(z_density)))
+
+  return(data.frame(
+    x     = z_sequence,
+    y     = colMeans(z_density),
+    y_lCI = bounds[1L, ],
+    y_uCI = bounds[2L, ]
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# lines.zplot_brma
+# ---------------------------------------------------------------------------- #
+
+#' @title Add Zplot Density Lines
+#'
+#' @description Adds model-implied density lines to an existing zplot.
+#'
+#' @param x a zplot_brma object.
+#' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
+#' Defaults to \code{"base"}.
+#' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
+#' @param max_samples maximum posterior samples for density.
+#' Defaults to 1000 for \code{brma.mv} models and 10000 for other models.
+#' Use \code{Inf} to use all posterior samples. This plotting budget does not
+#' change the EDR and missing-study summaries stored by \code{as_zplot()}.
+#' @inheritParams plot.zplot_brma
+#' @inheritParams as_zplot.brma
+#' @param plot_ci whether to show credible interval bands. Defaults to \code{TRUE}.
+#' @param extrapolate whether to remove bias adjustments. Defaults to \code{FALSE}.
+#' @param from,to z-value range for density. Defaults to \code{-6} and \code{6}.
+#' @param by step size for density points. Defaults to 0.05.
+#' @param length.out number of density points (alternative to \code{by}).
+#' @param col line color. Defaults to \code{"black"}.
+#' @param as_data whether to return data instead of plotting. Defaults to \code{FALSE}.
+#' @param ... additional graphical parameters.
+#'
+#' @details
+#' The density uses the \code{conditioning_depth} stored by
+#' \code{as_zplot()}. Recreate the zplot object to change the predictive target.
+#'
+#' When \code{extrapolate = FALSE}, the density includes all bias adjustments
+#' (PET/PEESE regression, selection weights) representing the fitted model.
+#' When \code{extrapolate = TRUE}, bias adjustments are removed to show the
+#' hypothetical distribution without publication bias. Multivariate models,
+#' applicable integrated contexts, and best-rule selection models use a
+#' normalized pre-selection Gaussian reference. Released univariate product
+#' targets retain inverse-weight scaling
+#' and their extrapolated curve need not integrate to one.
+#'
+#' @return \code{NULL} invisibly for base graphics, ggplot2 layers for ggplot,
+#' or a data frame with columns \code{x}, \code{y}, \code{y_lCI}, \code{y_uCI}
+#' if \code{as_data = TRUE}.
+#'
+#' @seealso [plot.zplot_brma()], [hist.zplot_brma()]
+#'
+#' @export
+lines.zplot_brma <- function(x, plot_type = "base",
+                              probs = c(.025, .975),
+                              max_samples = if (inherits(x, "brma.mv")) 1000 else 10000,
+                              plot_ci = TRUE, extrapolate = FALSE,
+                              from = -6, to = 6, by = 0.05, length.out = NULL,
+                              col = "black", as_data = FALSE,
+                              integration_control = x[["zplot"]][["data"]][["integration_control"]],
+                              parallel = FALSE, cores = min(4, RoBMA.get_option("max_cores")), ...) {
+
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
+  BayesTools::check_bool(parallel, "parallel", allow_NA = FALSE)
+  BayesTools::check_int(cores, "cores", lower = 1L, allow_NA = FALSE)
+  BayesTools::check_bool(plot_ci, "plot_ci")
+  BayesTools::check_bool(extrapolate, "extrapolate")
+  BayesTools::check_real(from, "from")
+  BayesTools::check_real(to, "to")
+  BayesTools::check_real(by, "by", allow_NULL = TRUE)
+
+
+  dots <- list(...)
+
+  # prepare z sequence
+  z_sequence <- .zplot_bins(priors = x[["priors"]], from = from, to = to, by = by, length.out = length.out, type = "dens")
+
+  # get densities from model
+  z_density <- .zplot_fun.brma(
+    object             = x,
+    z_sequence         = z_sequence,
+    max_samples        = max_samples,
+    extrapolate        = extrapolate,
+    conditioning_depth = .zplot_stored_conditioning_depth(x),
+    integration_control = integration_control,
+    parallel = parallel, cores = cores
+  )
+
+  df_density <- .zplot_density_data(
+    z_sequence = z_sequence,
+    z_density  = z_density,
+    probs      = probs
+  )
+
+  # return data if requested
+  if (as_data) {
+    return(df_density)
+  }
+
+  # get line-specific parameters
+  dots_lines <- .get_dots_lines_zplot(dots, plot_type = plot_type, col = col)
+
+  if (plot_type == "ggplot") {
+    out <- list()
+    if (plot_ci) {
+      out[[1]] <- ggplot2::geom_ribbon(
+        ggplot2::aes(
+          x    = df_density$x,
+          ymin = df_density$y_lCI,
+          ymax = df_density$y_uCI
+        ),
+        fill  = dots_lines$color,
+        alpha = dots_lines$alpha
+      )
+    }
+    out[[length(out) + 1]] <- ggplot2::geom_line(
+      ggplot2::aes(
+        x = df_density$x,
+        y = df_density$y
+      ),
+      color     = dots_lines$color,
+      linewidth = dots_lines$linewidth,
+      linetype  = dots_lines$linetype
+    )
+  } else {
+    if (plot_ci) {
+      graphics::polygon(
+        c(df_density$x, rev(df_density$x)),
+        c(df_density$y_lCI, rev(df_density$y_uCI)),
+        border = NA,
+        col    = scales::alpha(dots_lines$col, dots_lines$alpha)
+      )
+    }
+    graphics::lines(
+      df_density$x, df_density$y,
+      lwd = dots_lines$lwd,
+      col = dots_lines$col,
+      lty = dots_lines$lty
+    )
+  }
+
+  # return
+  if (plot_type == "base") {
+    return(invisible())
+  } else if (plot_type == "ggplot") {
+    return(out)
+  }
+}

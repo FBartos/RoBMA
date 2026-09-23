@@ -1,0 +1,13 @@
+
+Bayesian Mixed-Effect Model (k = 13)
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.576 0.143 0.351 0.557 0.901     0.00176          0.012 6557 1.000
+
+Meta-Regression
+                    Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept         -0.568 0.279 -1.129 -0.566 -0.021     0.00436          0.016 4104 1.001
+alloc[random]     -0.299 0.317 -0.906 -0.301  0.337     0.00457          0.014 4804 1.001
+alloc[systematic]  0.088 0.335 -0.565  0.093  0.748     0.00414          0.012 6549 1.000
+

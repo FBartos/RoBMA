@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Generalized Linear Mixed-Effects Meta-Analysis}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -60,7 +59,8 @@ data("dat.bcg", package = "metadat")
 
 fit1_brma <- brma.glmm(
   ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
-  data = dat.bcg, seed = 1
+  data = dat.bcg, seed = 1,
+  sample = 15000, burnin = 3000
 )
 
 vignette_cache_save(cached_fits)
@@ -87,11 +87,21 @@ head(dat.bcg)
 
 `metafor::rma.glmm()` fits the random-effects logistic model.
 We use `model = "UM.FS"` to obtain the unconditional model with fixed study-specific intercepts, the formulation that corresponds to the binomial GLMM in `brma.glmm()` (Model 4 in @jackson2018comparison).
+The explicit `bobyqa` optimizer and larger evaluation budget make this
+reference fit reproducible when all package vignettes are built in one
+session; they do not change the model or the resulting estimates.
 
 ```{r fit1-metafor}
 fit1_metafor <- metafor::rma.glmm(
-  ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR", 
-  model = "UM.FS", data = dat.bcg
+  ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
+  model = "UM.FS",
+  control = list(
+    glmerCtrl = list(
+      optimizer = "bobyqa",
+      optCtrl   = list(maxfun = 100000)
+    )
+  ),
+  data = dat.bcg
 )
 fit1_metafor
 ```
@@ -101,7 +111,8 @@ The matching Bayesian fit takes the same count columns and `measure = "OR"`.
 ```{r fit1-brma, eval = FALSE}
 fit1_brma <- brma.glmm(
   ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
-  data = dat.bcg, seed = 1
+  data = dat.bcg, seed = 1,
+  sample = 15000, burnin = 3000
 )
 ```
 
@@ -125,16 +136,22 @@ Beyond `mu` and `tau`, GLMM models include estimate-specific nuisance parameters
 For binomial outcomes (`measure = "OR"`), `logit(pi[i])` is the midpoint of the two arm logits before applying half of the study-specific log odds ratio to each arm.
 The default `prior_baserate = Beta(1, 1)` is placed independently on each `pi[i]`.
 For Poisson outcomes (`measure = "IRR"`), `phi[i]` is the midpoint of the two arm log incidence rates before applying half of the study-specific log incidence rate ratio to each arm.
-Because this midpoint log-rate is unbounded, there is no bounded flat default analogous to `Beta(1, 1)`, so the default `prior_lograte` is a proper data-based unit-information normal used independently for each `phi[i]`.
+Because this midpoint log-rate is unbounded, there is no bounded flat default analogous to `Beta(1, 1)`, so the default `prior_lograte` is a proper normal distribution centered at the pooled crude log-rate and used independently for each `phi[i]`.
+Its standard deviation defaults to `1`, matching the default IRR effect-prior scale, and can be changed with `RoBMA.options(default_lograte.sd = ...)`.
+The fixed standard deviation makes the default equivariant to exposure-unit changes: rescaling every person-time shifts the prior mean by the corresponding log conversion while retaining its informativeness.
 Thus the default nuisance-parameter prior distributions are exchangeable in the iid sense, but they are not hierarchical prior distributions with a learned common baseline-rate distribution.
 Both defaults can be overridden via the corresponding `prior_*` argument; see the [*Prior Distributions*](v01-prior-distributions.html) vignette.
 The Poisson model corresponds to @bagos2009mixed and uses event counts and exposure times (`x1i`, `t1i`, `x2i`, `t2i`) in place of the four-way count layout.
 
 ## Other Inference Helpers
 
-All inference helpers available for any other `brma()` fit work the same way for a `brma.glmm()` fit.
-Meta-regression via `mods`, multilevel structures via `cluster`, location-scale models via `scale`, posterior summaries, plots, predictions, residuals, influence, and LOO comparisons all carry over.
-See the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette for the full walkthrough and the [*Multilevel Meta-Analysis*](v10-metafor-parity-multilevel.html) vignette for the multilevel extension; the only thing that changes here is the count-based input and the auxiliary baseline-rate prior.
+GLMM fits support meta-regression via `mods`, multilevel structures via `cluster`, location-scale models via `scale`, posterior summaries, plots, and predictions.
+Binomial response predictions accept arm totals alone (`n1i`, `n2i`), optional event counts with those totals (`ai`, `ci`, `n1i`, `n2i`), or four-cell counts (`ai`, `bi`, `ci`, `di`); Poisson response predictions require exposures (`t1i`, `t2i`) and accept optional event counts (`x1i`, `x2i`).
+Raw outcome residuals are available on the derived effect-size scale, but Pearson and internally standardized residuals are unavailable for GLMMs.
+LOO-PIT diagnostics are also unavailable until a discrete PIT convention is defined.
+Estimate-unit `log_lik()`, LOO, and WAIC support point or beta baserate priors and point or normal log-rate priors, including supported truncations; cluster-unit likelihood diagnostics remain unavailable.
+Standalone `covratio()` and `dfbetas()` diagnostics are supported, whereas the combined `influence()` summary is not.
+See the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette for the general workflow and the [*Multilevel Meta-Analysis*](v10-metafor-parity-multilevel.html) vignette for multilevel structure.
 
 
 ## References

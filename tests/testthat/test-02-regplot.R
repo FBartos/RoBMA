@@ -5,6 +5,92 @@ source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
 
+test_that("random-slope regplot variance replays its prediction grid", {
+
+  dat <- data.frame(
+    yi    = c(0.10, 0.20, 0.30, 0.40),
+    x     = c(0, 1, 0, 1),
+    study = c("s1", "s1", "s2", "s2")
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.04, nrow(dat)),
+    mods                      = ~ x,
+    scale                     = ~ x,
+    random                    = ~ diag(1 + x | study),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_samples <- matrix(
+    c(
+      0.20, 0,      0.25, 0.75,
+      0.30, log(2), 0.40, 0.60
+    ),
+    nrow     = 2L,
+    byrow    = TRUE,
+    dimnames = list(NULL, c(
+      "log_tau_intercept",
+      "log_tau_x",
+      "mu__xRE_ALLOCx_study_components__weight[1]",
+      "mu__xRE_ALLOCx_study_components__weight[2]"
+    ))
+  )
+  grid_data <- data.frame(x = c(0, 1))
+
+  tau <- rbind(c(0.20, 0.20), c(0.30, 0.60))
+  z   <- (grid_data[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  allocation <- rbind(c(0.50, 1.50), c(0.80, 1.20))
+  expected <- tau * sqrt(
+    allocation[, 1L] + tcrossprod(allocation[, 2L], z^2)
+  )
+
+  out <- .regplot_mv_random_sd_samples(
+    x                 = object,
+    newdata           = grid_data,
+    posterior_samples = posterior_samples
+  )
+
+  expect_equal(unname(out), unname(expected), tolerance = 1e-12)
+})
+
+
+test_that("regplot prediction precision follows or overrides precision moderators", {
+
+  vi <- c(0.01, 0.04)
+  vi_grid <- .regplot_prediction_precision(
+    newdata       = data.frame(vi = vi),
+    mod_name      = "vi",
+    n_pred        = length(vi),
+    default_sei   = 1,
+    reference_sei = NULL
+  )
+  expect_equal(vi_grid[["sei"]], sqrt(vi))
+  expect_equal(vi_grid[["newdata"]][["vi"]], vi)
+
+  sei <- c(0.1, 0.2)
+  sei_grid <- .regplot_prediction_precision(
+    newdata       = data.frame(sei = sei),
+    mod_name      = "sei",
+    n_pred        = length(sei),
+    default_sei   = 1,
+    reference_sei = NULL
+  )
+  expect_equal(sei_grid[["sei"]], sei)
+  expect_equal(sei_grid[["newdata"]][["sei"]], sei)
+
+  override <- .regplot_prediction_precision(
+    newdata       = data.frame(year = 1:2, vi = vi),
+    mod_name      = "year",
+    n_pred        = length(vi),
+    default_sei   = 1,
+    reference_sei = 0.3
+  )
+  expect_equal(override[["sei"]], rep(0.3, length(vi)))
+  expect_equal(override[["newdata"]][["vi"]], rep(0.3^2, length(vi)))
+})
+
 # list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
@@ -175,6 +261,67 @@ test_that("Regression plot thins location-scale prediction intervals", {
   expect_true(all(is.finite(regplot_data[["pi"]][["upper"]])))
 })
 
+test_that("Regression plot supports scale-only moderators", {
+
+  name <- "dat.lehmann2018_BMA.norm_scale"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  regplot_data <- .test_regplot(
+    fit_brma,
+    mod         = "Preregistered",
+    si          = TRUE,
+    as_data     = TRUE,
+    max_samples = 200
+  )
+
+  expect_identical(regplot_data[["mod_name"]], "Preregistered")
+  expect_equal(
+    regplot_data[["pred"]][["y"]],
+    rep(regplot_data[["pred"]][["y"]][1L], nrow(regplot_data[["pred"]]))
+  )
+  expect_equal(
+    regplot_data[["ci"]][["lower"]],
+    rep(regplot_data[["ci"]][["lower"]][1L], nrow(regplot_data[["ci"]]))
+  )
+  expect_equal(
+    regplot_data[["ci"]][["upper"]],
+    rep(regplot_data[["ci"]][["upper"]][1L], nrow(regplot_data[["ci"]]))
+  )
+  si_width <- regplot_data[["si"]][["upper"]] -
+    regplot_data[["si"]][["lower"]]
+  expect_gt(diff(range(si_width)), 0)
+})
+
+test_that("Regression plot supports pointwise brma.mv random-formula PI and SI", {
+
+  name <- "brma.mv_block_mvn_random_mods_scale"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+
+  regplot_data <- .test_regplot(
+    fit_brma,
+    mod         = "x",
+    pi          = TRUE,
+    si          = TRUE,
+    as_data     = TRUE,
+    at          = c(0, 1),
+    max_samples = 80
+  )
+
+  expect_equal(nrow(regplot_data[["pi"]]), 2 * nrow(regplot_data[["pred"]]))
+  expect_equal(nrow(regplot_data[["si"]]), 2 * nrow(regplot_data[["pred"]]))
+  expect_true(all(is.finite(regplot_data[["pi"]][["lower"]])))
+  expect_true(all(is.finite(regplot_data[["pi"]][["upper"]])))
+  expect_true(all(is.finite(regplot_data[["si"]][["lower"]])))
+  expect_true(all(is.finite(regplot_data[["si"]][["upper"]])))
+  expect_equal(
+    regplot_data[["sei"]],
+    stats::median(.outcome_data_sei(fit_brma))
+  )
+})
+
 # ============================================================================ #
 # Test: 3-Level Model Regression Plot
 # ============================================================================ #
@@ -195,6 +342,30 @@ test_that("Regression plot for multilevel model renders fitted moderator", {
   })
 
   expect_s3_class(.test_regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
+
+  plot_data <- .test_regplot(
+    fit_brma,
+    mod      = mod,
+    si       = TRUE,
+    as_data  = TRUE
+  )
+  expect_equal(plot_data[["sei"]], sqrt(plot_data[["pred"]][["x"]]))
+  expect_true(all(is.finite(plot_data[["si"]][["lower"]])))
+  expect_true(all(is.finite(plot_data[["si"]][["upper"]])))
+  expect_error(
+    .test_regplot(fit_brma, mod = mod, sei = 0.1),
+    "cannot be supplied"
+  )
+
+  sei_grid <- c(0.1, 0.2)
+  sei_newdata <- .regplot_add_dummy_outcome(
+    x       = fit_brma,
+    newdata = data.frame(sei = sei_grid),
+    n_pred  = length(sei_grid),
+    sei     = 1
+  )
+  expect_equal(sei_newdata[["sei"]], sei_grid)
+  expect_equal(sei_newdata[["vi"]], sei_grid^2)
 })
 
 # ============================================================================ #
@@ -345,9 +516,11 @@ test_that("Regression plot data and argument validation are stable", {
     expect_true(all(vapply(band_data[band_columns], length, integer(1)) == nrow(band_data)),
       info = paste0(band_name, " columns all have matching lengths")
     )
-    expect_equal(band_data$x, band_data$xpred,
-      info = paste0(band_name, " x coordinates match the stored prediction x values")
+    expected_x <- c(regplot_data$pred$x, rev(regplot_data$pred$x))
+    expect_equal(band_data$x, expected_x,
+      info = paste0(band_name, " x coordinates follow the prediction grid in both directions")
     )
+    expect_equal(band_data$xpred, expected_x)
   }
 
   # Check number of points matches number of studies
@@ -373,10 +546,12 @@ test_that("Regression plot data and argument validation are stable", {
   # --------------------------------------------------
 
   expect_error(.test_regplot(fit_brma, plot_type = "invalid"),
+    regexp = "plot_type",
     info = "invalid plot_type is rejected"
   )
 
   expect_error(.test_regplot(fit_brma, sei = 0),
+    regexp = "sei",
     info = "non-positive reference sei is rejected"
   )
 
@@ -558,7 +733,7 @@ test_that("Regression plot confidence-level snapshots are stable", {
 
 test_that("native regplot mixture intervals match R fallback", {
 
-  skip_if_not(RoBMA:::.has_native_regplot_mixture())
+  skip_if_not(.has_native_regplot_mixture())
 
   set.seed(1024)
 
@@ -569,7 +744,7 @@ test_that("native regplot mixture intervals match R fallback", {
   mean_samples <- matrix(stats::rnorm(S * K), nrow = S, ncol = K)
   sd_samples   <- matrix(stats::runif(S * K, .05, 1.25), nrow = S, ncol = K)
 
-  expected <- RoBMA:::.regplot_mixture_interval_quantiles_r(
+  expected <- .regplot_mixture_interval_quantiles_r(
     mean_samples = mean_samples,
     sd_samples   = sd_samples,
     probs        = probs

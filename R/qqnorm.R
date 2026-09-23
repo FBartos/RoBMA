@@ -26,8 +26,8 @@
 #' @param type the type of standardized residuals to use. Options are:
 #' \itemize{
 #'   \item \code{"rstudent"} (alias: \code{"LOO-PIT"}; default): Leave-one-out
-#'     probability integral transform residuals. Works for all model types
-#'     including GLMMs and selection models. This is the recommended type for
+#'     probability integral transform residuals. Works for normal outcome
+#'     models, including selection models. This is the recommended type for
 #'     Bayesian models as it properly accounts for estimation uncertainty and
 #'     leverage. Note: requires that loo has been computed (see
 #'     \code{\link{add_loo}}).
@@ -53,6 +53,9 @@
 #' @param smooth logical indicating whether to smooth the envelope bounds using
 #' Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
 #' \code{TRUE}.
+#' @param max_samples maximum posterior draws used to compute known-\code{V}
+#' internally standardized residuals. Defaults to \code{Inf}. Finite values
+#' select draws deterministically and are ignored for other residual types.
 #' @param xlim x-axis limits. If not specified, limits are computed from data.
 #' @param ylim y-axis limits. If not specified, limits are computed from data.
 #' @param xlab title for the x-axis. If not specified, defaults to
@@ -86,11 +89,14 @@
 #' plotted at coordinates \eqn{(\Phi^{-1}(p_i), z_{(i)})} where
 #' \eqn{p_i} are the plotting positions and \eqn{z_{(i)}} are the sorted
 #' standardized residuals.
+#' Each retained input row contributes one point, irrespective of its likelihood
+#' weight. Weights affect fitting and the residual calculation; they do not
+#' replicate points or multiply residual values in this plot.
 #'
 #' The default residual type is \code{"rstudent"} (LOO-PIT), which differs
 #' from \code{metafor::qqnorm} (which defaults to \code{"rstandard"}).
-#' LOO-PIT residuals are preferred because they are available for all model
-#' types (including GLMMs and selection models) and properly account for
+#' LOO-PIT residuals are preferred for normal outcome models because they
+#' properly account for
 #' estimation uncertainty via leave-one-out cross-validation.
 #'
 #' The confidence envelope is computed in closed form from the distribution of
@@ -101,9 +107,15 @@
 #' Friedman's SuperSmoother. When \code{bonferroni = TRUE}, the confidence
 #' level is adjusted for simultaneous inference across all \eqn{k} comparisons.
 #'
-#' For GLMM models, LOO-PIT residuals and the QQ plot are computed on the
-#' approximate effect-size scale used by \code{loo}; they are not exact
-#' count-scale PIT diagnostics.
+#' For correlated known-\code{V} \code{brma.mv()} \code{"rstandard"} residuals,
+#' this envelope remains an independent order-statistic reference band. It is
+#' descriptive and does not model residual correlation induced by known sampling
+#' covariance.
+#'
+#' Q-Q residual plots are not available for binomial or Poisson GLMMs. Their
+#' fitted predictive distributions are discrete, so a randomized, mid-P, or
+#' other discrete PIT convention must be chosen before a normal Q-Q diagnostic
+#' is defined.
 #'
 #' @return For \code{plot_type = "base"}, returns an invisible list with
 #' components \code{x} (theoretical quantiles) and \code{y} (sorted
@@ -142,7 +154,8 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
                          conditioning_depth = "marginal", envelope = TRUE,
                          conf_level = 95,
                          bonferroni = FALSE, reps = 1000, smooth = TRUE,
-                         xlim, ylim, xlab, ylab, plot_type = "base", ...) {
+                         xlim, ylim, xlab, ylab, plot_type = "base",
+                         max_samples = Inf, ...) {
 
   # input validation
   conditioning_depth_specified <- !missing(conditioning_depth)
@@ -164,6 +177,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   BayesTools::check_bool(bonferroni, "bonferroni")
   BayesTools::check_int(reps, "reps", lower = 1)
   BayesTools::check_bool(smooth, "smooth")
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   .check_unit_conditioning_depth(
     object             = y,
@@ -198,6 +212,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     bonferroni         = bonferroni,
     reps               = reps,
     smooth             = smooth,
+    max_samples        = max_samples,
     xlim               = if (missing(xlim)) NULL else xlim,
     ylim               = if (missing(ylim)) NULL else ylim,
     xlab               = if (missing(xlab)) NULL else xlab,
@@ -238,6 +253,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 # @param bonferroni logical; Bonferroni correction
 # @param reps       number of simulation replications
 # @param smooth     logical; smooth envelope bounds
+# @param max_samples maximum posterior draws for known-V rstandard residuals.
 # @param xlim       x-axis limits (NULL for auto)
 # @param ylim       y-axis limits (NULL for auto)
 # @param xlab       x-axis label (NULL for default)
@@ -248,21 +264,30 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 #
 # ---------------------------------------------------------------------------- #
 .qqnorm_data <- function(x, type, unit, conditioning_depth, envelope, conf_level,
-                          bonferroni, reps, smooth,
-                          xlim, ylim, xlab, ylab, dots) {
+                         bonferroni, reps, smooth, max_samples,
+                         xlim, ylim, xlab, ylab, dots) {
 
   # get standardized residuals
+  res_obj <- NULL
   if (type == "rstandard") {
     res_obj <- rstandard.brma(
       model              = x,
       unit               = unit,
-      conditioning_depth = conditioning_depth
+      conditioning_depth = conditioning_depth,
+      max_samples        = max_samples
     )
+    z <- res_obj$z
   } else {
     # type == "rstudent" or "LOO-PIT"
-    res_obj <- rstudent.brma(x, unit = unit)
+    z <- residuals.brma(
+      object = x,
+      type   = type,
+      unit   = unit
+    )
   }
-  z <- res_obj$z
+  if (length(z) == 0L || any(!is.finite(z))) {
+    stop("Normal QQ plots require finite standardized residuals.", call. = FALSE)
+  }
   K <- length(z)
 
   # theoretical standard normal quantiles
@@ -293,14 +318,14 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 
   # axis limits
   if (is.null(xlim)) {
-    xlim <- range(qq_x) * 1.1
+    xlim <- grDevices::extendrange(qq_x, f = 0.05)
   }
   if (is.null(ylim)) {
     all_y <- qq_y
     if (!is.null(env_data)) {
       all_y <- c(all_y, env_data$lower, env_data$upper)
     }
-    ylim <- range(all_y) * 1.1
+    ylim <- grDevices::extendrange(all_y, f = 0.05)
   }
 
   # axis labels

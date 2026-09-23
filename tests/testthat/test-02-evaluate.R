@@ -103,6 +103,195 @@ test_that(".evaluate.brma.true_effects.norm returns BLUP means for same data", {
   expect_equal(apply(theta, 2, stats::var), c(0, 0), tolerance = 1e-14)
 })
 
+test_that("known-V BLUP block solver fails on invalid covariance blocks", {
+
+  expect_error(
+    .solve_diagonal_rank_one_block(
+      diagonal = c(1, -2),
+      rank_one = c(0, 0),
+      residual = c(1, 1)
+    ),
+    "not positive definite"
+  )
+  expect_error(
+    .solve_diagonal_rank_one_block(
+      diagonal = c(1, NA_real_),
+      rank_one = c(0, 0),
+      residual = c(1, 1)
+    ),
+    "non-finite"
+  )
+})
+
+test_that("known-V BLUP uses full covariance blocks", {
+
+  mu_samples <- matrix(c(0.2, -0.1), nrow = 1)
+  tau_within <- matrix(c(0.5, 0.25), nrow = 1)
+  yi         <- c(1.0, -0.7)
+  V          <- matrix(c(0.04, 0.02, 0.02, 0.09), nrow = 2)
+  known_V    <- .known_v_newdata_prepare(V, k = length(yi))
+
+  theta <- .evaluate.brma.known_v_blup.norm(
+    mu_samples = mu_samples,
+    tau_within = tau_within,
+    yi         = yi,
+    known_V    = known_V
+  )
+
+  T_block  <- diag(tau_within[1, ]^2)
+  expected <- mu_samples[1, ] +
+    as.vector(T_block %*% solve(T_block + V) %*% (yi - mu_samples[1, ]))
+  diagonal <- mu_samples[1, ] +
+    tau_within[1, ]^2 / (tau_within[1, ]^2 + diag(V)) * (yi - mu_samples[1, ])
+
+  expect_equal(theta[1, ], expected, tolerance = 1e-12)
+  expect_false(isTRUE(all.equal(expected, diagonal, tolerance = 1e-8)))
+})
+
+test_that("known-V BLUP scalar-tau blocks match inverse oracle", {
+
+  mu_samples <- matrix(
+    c(.10, .20, .30,
+      .25, .35, .45,
+      .40, .50, .60),
+    nrow = 3,
+    byrow = TRUE
+  )
+  tau_within <- matrix(
+    c(.20, .20, .20,
+      .35, .35, .35,
+      .50, .50, .50),
+    nrow = 3,
+    byrow = TRUE
+  )
+  yi <- c(.50, -.10, .80)
+  V <- matrix(
+    c(.09, .03, .01,
+      .03, .16, .02,
+      .01, .02, .25),
+    nrow = 3
+  )
+  bias_offset <- matrix(
+    c(.02, .01, -.03,
+      .00, .04,  .01,
+      .03, .02,  .00),
+    nrow = 3,
+    byrow = TRUE
+  )
+
+  theta <- .evaluate.brma.known_v_blup.norm(
+    mu_samples  = mu_samples,
+    tau_within  = tau_within,
+    yi          = yi,
+    known_V     = .known_v_newdata_prepare(V, k = length(yi)),
+    bias_offset = bias_offset
+  )
+  expected <- mu_samples
+  for (s in seq_len(nrow(mu_samples))) {
+    T_block <- diag(tau_within[s, ]^2)
+    expected[s, ] <- mu_samples[s, ] +
+      as.vector(T_block %*% solve(T_block + V) %*%
+                  (yi - bias_offset[s, ] - mu_samples[s, ]))
+  }
+
+  expect_equal(theta, expected, tolerance = 1e-12)
+})
+
+
+test_that("known-V BLUP row-varying tau blocks match inverse oracle", {
+
+  mu_samples <- matrix(
+    c(.10, .20, .30,
+      .25, .35, .45),
+    nrow = 2,
+    byrow = TRUE
+  )
+  tau_within <- matrix(
+    c(.20, .35, .50,
+      .45, .25, .30),
+    nrow = 2,
+    byrow = TRUE
+  )
+  yi <- c(.50, -.10, .80)
+  V <- matrix(
+    c(.09, .03, .01,
+      .03, .16, .02,
+      .01, .02, .25),
+    nrow = 3
+  )
+
+  theta <- .evaluate.brma.known_v_blup.norm(
+    mu_samples = mu_samples,
+    tau_within = tau_within,
+    yi         = yi,
+    known_V    = .known_v_newdata_prepare(V, k = length(yi))
+  )
+  expected <- mu_samples
+  for (s in seq_len(nrow(mu_samples))) {
+    T_block <- diag(tau_within[s, ]^2)
+    expected[s, ] <- mu_samples[s, ] +
+      as.vector(T_block %*% solve(T_block + V) %*%
+                  (yi - mu_samples[s, ]))
+  }
+
+  expect_equal(theta, expected, tolerance = 1e-12)
+})
+
+
+test_that("known-V BLUP singleton blocks use scalar shrinkage", {
+
+  mu_samples <- matrix(c(.10, .30), ncol = 1)
+  tau_within <- matrix(c(.20, .50), ncol = 1)
+  yi         <- .70
+  V          <- matrix(.09, nrow = 1)
+  bias_offset <- matrix(c(.05, -.10), ncol = 1)
+
+  theta <- .evaluate.brma.known_v_blup.norm(
+    mu_samples  = mu_samples,
+    tau_within  = tau_within,
+    yi          = yi,
+    known_V     = .known_v_newdata_prepare(V, k = length(yi)),
+    bias_offset = bias_offset
+  )
+  expected <- mu_samples[, 1L] +
+    tau_within[, 1L]^2 / (tau_within[, 1L]^2 + V[1L, 1L]) *
+      (yi - bias_offset[, 1L] - mu_samples[, 1L])
+
+  expect_equal(theta[, 1L], expected, tolerance = 1e-12)
+})
+
+
+test_that("known-V BLUP helper rejects unsolvable covariance blocks", {
+
+  invalid_known_V <- .new_known_v(list(
+    version       = 2L,
+    storage       = "dense",
+    K             = 1L,
+    diagonal      = 0,
+    V             = matrix(-.5, nrow = 1),
+    blocks        = NULL,
+    block_indices = list(1L)
+  ))
+
+  expect_error(
+    .evaluate.brma.known_v_blup.norm(
+      mu_samples = matrix(0, nrow = 1, ncol = 1),
+      tau_within = matrix(.1, nrow = 1, ncol = 1),
+      yi         = 0,
+      known_V    = invalid_known_V
+    ),
+    "positive definite"
+  )
+})
+
+test_that("LOO chain IDs require retained MCMC draws", {
+
+  expect_error(
+    .loo_chain_id(list(sample = 10), n_samples = 10),
+    "fitted MCMC draws are missing"
+  )
+})
+
 test_that(".evaluate.brma.true_effects.norm subtracts posterior-row bias offsets", {
 
   mu_samples <- matrix(
@@ -210,6 +399,42 @@ test_that(".outcome_rng.norm has correct sampling variance", {
   }
 })
 
+test_that(".outcome_rng.norm_known_v uses Cholesky orientation for full covariance", {
+
+  S <- 60000L
+  K <- 3L
+  V <- matrix(
+    c(
+      .040, .018, .012,
+      .018, .090, .026,
+      .012, .026, .160
+    ),
+    nrow  = K,
+    byrow = TRUE
+  )
+  tau <- .15
+  known_V         <- .known_v_canonicalize(V)
+  sampling_factor <- .known_v_sampling_factor(V)
+
+  expect_equal(
+    t(sampling_factor) %*% sampling_factor,
+    V,
+    tolerance = 1e-14
+  )
+
+  set.seed(20260615)
+  response <- .outcome_rng.norm_known_v(
+    mu_samples = matrix(0, nrow = S, ncol = K),
+    tau_within = matrix(tau, nrow = S, ncol = K),
+    known_V    = known_V
+  )
+  expected_cov <- V + diag(tau^2, nrow = K)
+
+  expect_equal(dim(response), c(S, K))
+  expect_equal(colMeans(response), rep(0, K), tolerance = .01)
+  expect_equal(stats::cov(response), expected_cov, tolerance = .01)
+})
+
 test_that(".evaluate.brma.cluster_effects returns contribution matrix for new data", {
 
   S <- 10000  # many samples
@@ -239,6 +464,23 @@ test_that(".evaluate.brma.cluster_effects returns contribution matrix for new da
   expect_equal(contribution[, 1], contribution[, 2])
 })
 
+.multilevel_reference_covariance <- function(tau_within, tau_between, vi,
+                                             block_indices) {
+
+  covariance <- diag(
+    vi + tau_within^2,
+    nrow = length(vi),
+    ncol = length(vi)
+  )
+  for (indices in block_indices) {
+    covariance[indices, indices] <- covariance[indices, indices] +
+      tcrossprod(tau_between[indices])
+  }
+
+  return(covariance)
+}
+
+
 test_that(".evaluate.brma.multilevel_blup.norm matches full covariance solve", {
 
   S       <- 8
@@ -266,7 +508,7 @@ test_that(".evaluate.brma.multilevel_blup.norm matches full covariance solve", {
   expected_estimate <- matrix(0, nrow = S, ncol = K)
 
   for (s in seq_len(S)) {
-    covariance <- .build_multilevel_marginal_covariance(
+    covariance <- .multilevel_reference_covariance(
       tau_within    = tau_within[s, ],
       tau_between   = tau_between[s, ],
       vi            = vi,
@@ -331,7 +573,7 @@ test_that(".evaluate.brma.multilevel_blup.norm subtracts posterior-row bias offs
   expected_estimate <- matrix(0, nrow = S, ncol = K)
 
   for (s in seq_len(S)) {
-    covariance <- .build_multilevel_marginal_covariance(
+    covariance <- .multilevel_reference_covariance(
       tau_within    = tau_within[s, ],
       tau_between   = tau_between[s, ],
       vi            = vi,
@@ -394,6 +636,89 @@ test_that("variance ordering: mu < theta < response", {
               info = "theta has more variance than terms")
 })
 
+test_that("selection row routing validates posterior bias indicators", {
+
+  bias <- BayesTools::prior_mixture(list(
+    BayesTools::prior_none(),
+    BayesTools::prior_weightfunction(
+      side    = "one-sided",
+      steps   = c(.025),
+      weights = BayesTools::wf_fixed(c(1, .5))
+    )
+  ))
+  object <- list(
+    fit    = NULL,
+    priors = list(outcome = list(bias = bias))
+  )
+
+  posterior_samples <- matrix(c(1, 2, 1, 2), ncol = 1)
+  colnames(posterior_samples) <- "bias_indicator"
+
+  expect_equal(
+    .extract_bias_indicator(object, posterior_samples = posterior_samples),
+    c(1L, 2L, 1L, 2L)
+  )
+  expect_equal(
+    .extract_use_normal(object, posterior_samples = posterior_samples),
+    c(TRUE, FALSE, TRUE, FALSE)
+  )
+
+  invalid <- posterior_samples
+  invalid[, "bias_indicator"] <- c(1, 0, 1, 2)
+  expect_error(
+    .extract_bias_indicator(object, posterior_samples = invalid),
+    "Invalid posterior model indicator range"
+  )
+
+  invalid[, "bias_indicator"] <- c(1, NA, 1, 2)
+  expect_error(
+    .extract_use_normal(object, posterior_samples = invalid),
+    "Invalid posterior model indicator"
+  )
+
+  invalid[, "bias_indicator"] <- c(1, 3, 1, 2)
+  expect_error(
+    .selection_row_routing(
+      priors               = object[["priors"]],
+      posterior_samples    = invalid
+    ),
+    "Invalid posterior model indicator range"
+  )
+})
+
+test_that("selected-normal RNG requires explicit row routing", {
+
+  expect_error(
+    .outcome_rng.selnorm(
+      mu_samples        = matrix(0, nrow = 2, ncol = 1),
+      tau_within        = matrix(0, nrow = 2, ncol = 1),
+      sei               = 1,
+      selection_context = list(kernel_mode = c(0L, 0L))
+    ),
+    "use_normal"
+  )
+})
+
+test_that("outcome CDF values retain exact probability endpoints", {
+
+  cdf_vals <- .outcome_cdf.norm(
+    yi         = c(-100, 100),
+    mu_samples = matrix(0, nrow = 1L, ncol = 2L),
+    tau_within = matrix(0, nrow = 1L, ncol = 2L),
+    sei        = c(1, 1)
+  )
+
+  expect_identical(cdf_vals, matrix(c(0, 1), nrow = 1L))
+
+  interior_tail <- .outcome_cdf.norm(
+    yi         = c(-38, 8.2),
+    mu_samples = matrix(0, nrow = 1L, ncol = 2L),
+    tau_within = matrix(0, nrow = 1L, ncol = 2L),
+    sei        = c(1, 1)
+  )
+  expect_equal(as.numeric(interior_tail), stats::pnorm(c(-38, 8.2)))
+})
+
 
 # ============================================================================ #
 # SECTION 2: Integration Tests with Pre-fitted Models
@@ -423,15 +748,44 @@ test_that(".evaluate.brma.tau returns correct structure", {
     # Direct tau extraction for scale formulas is exercised through predict().
     if (is_scale) next
 
-    result <- .evaluate.brma.tau(
-      fit           = object[["fit"]],
-      scale_data    = object[["data"]][["scale"]],
-      scale_formula = if (is_scale) attr(object[["data"]][["scale"]], "formula") else NULL,
-      scale_priors  = priors[["scale"]],
-      is_scale      = is_scale,
-      is_multilevel = is_multilevel,
-      K             = K
-    )
+    posterior_samples <- as.matrix(object[["fit"]][["mcmc"]])
+    has_tau_samples <- !is.null(.extract_indexed_parameter_samples(
+      posterior_samples = posterior_samples,
+      parameter         = "tau",
+      required          = FALSE
+    ))
+
+    evaluate_tau <- function(fixed_tau = NULL) {
+      .evaluate.brma.tau(
+        fit               = object[["fit"]],
+        scale_data        = object[["data"]][["scale"]],
+        scale_formula     = if (is_scale) attr(object[["data"]][["scale"]], "formula") else NULL,
+        scale_priors      = priors[["scale"]],
+        is_scale          = is_scale,
+        is_multilevel     = is_multilevel,
+        K                 = K,
+        posterior_samples = posterior_samples,
+        fixed_tau         = fixed_tau,
+        fixed_rho         = .fixed_rho_prior_value(priors)
+      )
+    }
+
+    fixed_tau <- .fixed_tau_prior_value(priors)
+    if (!has_tau_samples && !is.null(fixed_tau)) {
+      expect_error(
+        evaluate_tau(),
+        "Missing posterior tau columns",
+        info = paste(name, ": missing tau requires explicit allowance")
+      )
+      result <- evaluate_tau(fixed_tau = fixed_tau)
+      expect_equal(
+        result[["tau_total"]],
+        matrix(fixed_tau, nrow = nrow(posterior_samples), ncol = K),
+        info = paste(name, ": fixed tau is reconstructed from the prior")
+      )
+    } else {
+      result <- evaluate_tau()
+    }
 
     # verify structure
     expect_true(is.list(result), info = paste(name, ": returns list"))
@@ -475,8 +829,8 @@ test_that(".evaluate.brma.mu returns correct dimensions", {
     outcome_data     <- object[["data"]][["outcome"]]
     K                <- nrow(outcome_data)
 
-    # Direct moderator design handling is exercised through predict().
-    if (is_mods) next
+    # Direct moderator/random-design handling is exercised through predict().
+    if (is_mods || .is_random(object)) next
 
     mu_samples <- .evaluate.brma.mu(
       fit               = object[["fit"]],
@@ -489,7 +843,8 @@ test_that(".evaluate.brma.mu returns correct dimensions", {
       is_PEESE          = is_PEESE,
       effect_direction  = effect_direction,
       bias_adjusted     = TRUE,
-      K                 = K
+      K                 = K,
+      priors            = priors
     )
 
     # verify dimensions
@@ -537,6 +892,32 @@ test_that("PET/PEESE bias offsets match column-wise algebra", {
                info = "Vectorized outer() matches loop for PEESE")
 })
 
+test_that("bias-regression predictors share one original-scale convention", {
+
+  sei <- c(0.10, 0.20, 0.30)
+
+  expect_equal(
+    .bias_regression_predictor(sei, "PET", "positive"),
+    sei
+  )
+  expect_equal(
+    .bias_regression_predictor(sei, "PET", "negative"),
+    -sei
+  )
+  expect_equal(
+    .bias_regression_predictor(sei, "PEESE", "positive"),
+    sei^2
+  )
+  expect_equal(
+    .bias_regression_predictor(sei, "PEESE", "negative"),
+    -sei^2
+  )
+  expect_error(
+    .bias_regression_predictor(sei, "unknown", "positive"),
+    "Unknown bias-regression parameter: unknown\\."
+  )
+})
+
 test_that(".evaluate.brma.bias_offset handles PET/PEESE and effect direction", {
 
   posterior_samples <- matrix(
@@ -576,30 +957,6 @@ test_that(".evaluate.brma.bias_offset handles PET/PEESE and effect direction", {
   expect_equal(offset_negative, -expected_positive, tolerance = 1e-12)
 })
 
-test_that("rho clamping handles boundary values", {
-
-  # test that rho values outside [0, 1] are properly clamped
-
-  # create mock rho with edge cases
-  rho <- c(-0.01, 0, 0.5, 1, 1.001)
-  rho_clamped <- pmin(pmax(rho, 0), 1)
-
-  expect_equal(rho_clamped, c(0, 0, 0.5, 1, 1))
-
-  # verify tau decomposition is valid after clamping
-  tau <- 0.3
-  tau_within  <- tau * sqrt(1 - rho_clamped)
-  tau_between <- tau * sqrt(rho_clamped)
-
-  # all values should be non-negative
-  expect_true(all(tau_within >= 0))
-  expect_true(all(tau_between >= 0))
-
-  # verify Pythagorean relationship: tau^2 = tau_within^2 + tau_between^2
-  tau_reconstructed <- sqrt(tau_within^2 + tau_between^2)
-  expect_equal(tau_reconstructed, rep(tau, length(rho)), tolerance = 1e-10)
-})
-
 test_that("GLMM posterior extraction helpers are vectorized", {
 
   posterior_samples <- matrix(
@@ -625,7 +982,7 @@ test_that("GLMM posterior extraction helpers are vectorized", {
     posterior_samples[, c("phi[1]", "phi[2]")]
   )
   expect_equal(
-    .evaluate.brma.theta.glmm(
+    .evaluate.brma.estimate_effects(
       fit               = NULL,
       tau_within        = tau_within,
       same_data         = TRUE,
@@ -633,6 +990,29 @@ test_that("GLMM posterior extraction helpers are vectorized", {
       posterior_samples = posterior_samples
     ),
     posterior_samples[, c("theta[1]", "theta[2]")] * tau_within
+  )
+})
+
+
+test_that("Binomial baserate evaluation preserves exact endpoints", {
+
+  posterior_samples <- cbind(mu = c(0.1, 0.2), "pi[1]" = c(0, 1))
+
+  expect_identical(
+    as.vector(.evaluate.brma.baserate(
+      fit               = NULL,
+      K                 = 1L,
+      posterior_samples = posterior_samples
+    )),
+    c(-Inf, Inf)
+  )
+  expect_identical(
+    as.vector(.evaluate.brma.baserate_newdata(
+      prior_pi = BayesTools::prior("spike", parameters = list(location = 0)),
+      S        = 2L,
+      K        = 1L
+    )),
+    rep(-Inf, 2L)
   )
 })
 
@@ -665,225 +1045,6 @@ test_that("matrix replication patterns preserve dimensions", {
     expect_equal(mat2[, k], vec2)
   }
 })
-
-# ============================================================================ #
-# SECTION 3: Unit Tests for Aggregated Predictions (newdata = TRUE)
-# ============================================================================ #
-# These tests verify the aggregation logic for predict.brma with newdata = TRUE
-# ============================================================================ #
-
-test_that("aggregation matches rowMeans", {
-
-  # test that rowMeans aggregation works as expected
-  S <- 100
-  K <- 5
-
-  set.seed(888)
-  mu_samples <- matrix(rnorm(S * K, mean = 0.3, sd = 0.1), nrow = S, ncol = K)
-
-  # aggregation: rowMeans across K observations
-
-  mu_aggregated <- matrix(rowMeans(mu_samples), ncol = 1)
-
-  # verify dimensions
-  expect_equal(dim(mu_aggregated), c(S, 1))
-
-  # verify mean is preserved (on average)
-  expect_equal(mean(mu_aggregated), mean(mu_samples), tolerance = 0.01)
-
-  # verify aggregation against a direct matrix calculation
-  expected_aggregated <- matrix(apply(mu_samples, 1, mean), ncol = 1)
-  expect_equal(mu_aggregated, expected_aggregated, tolerance = 1e-14)
-})
-
-test_that("aggregation is no-op for identical columns (non-mods/scale models)", {
-
-  # for models without moderators/scale, all columns are identical
-  # aggregation should return the same value
-  S <- 100
-  K <- 5
-
-  # create mock data where all columns are identical
-  mu_values <- rnorm(S, mean = 0.5, sd = 0.1)
-  mu_samples <- matrix(mu_values, nrow = S, ncol = K)
-
-  # aggregation
-  mu_aggregated <- matrix(rowMeans(mu_samples), ncol = 1)
-
-  # should be identical to original column
-  expect_equal(mu_aggregated[, 1], mu_values, tolerance = 1e-14)
-})
-
-test_that("aggregated true effects have expected variance", {
-
-  # for aggregated effect predictions:
-  # theta ~ N(mu, tau) where mu and tau are aggregated
-  # variance of theta should be approximately var(mu) + mean(tau)^2
-
-  S <- 10000  # many samples for stable variance estimation
-
-  set.seed(999)
-  mu_aggregated  <- matrix(rnorm(S, mean = 0.4, sd = 0.05), ncol = 1)
-  tau_aggregated <- matrix(abs(rnorm(S, mean = 0.25, sd = 0.02)), ncol = 1)
-
-  # sample true effects: theta = mu + rnorm(S) * tau
-  theta_samples <- mu_aggregated + rnorm(S) * tau_aggregated
-
-  # expected variance: Var(mu) + E[tau^2] = Var(mu) + Var(tau) + E[tau]^2
-  expected_var <- var(mu_aggregated) + var(tau_aggregated) + mean(tau_aggregated)^2
-
-  # observed variance should be close
-  observed_var <- var(theta_samples)
-  expect_equal(observed_var, expected_var, tolerance = 0.02,
-               info = "Aggregated theta variance matches theory")
-})
-
-
-# ============================================================================ #
-# SECTION 4: Integration Tests for predict.brma with newdata = TRUE
-# ============================================================================ #
-# These tests verify predict.brma with aggregated predictions using cached fits
-# ============================================================================ #
-
-skip_if_no_fits()
-
-test_that("predict.brma with newdata = TRUE returns single aggregated prediction", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    # test type = "terms"
-    result_terms <- predict(object, newdata = TRUE, type = "terms")
-
-    expect_s3_class(result_terms, "brma_samples")
-    expect_null(attr(result_terms, "data"), info = paste(name, ": data is NULL for aggregate"))
-    expect_equal(nrow(summary(result_terms)), 1,
-                 info = paste(name, ": has single row for aggregate terms"))
-
-    # test type = "terms.scale"
-    result_scale <- predict(object, newdata = TRUE, type = "terms.scale")
-
-    expect_s3_class(result_scale, "brma_samples")
-    expect_null(attr(result_scale, "data"), info = paste(name, ": data is NULL for aggregate scale"))
-    expect_equal(nrow(summary(result_scale)), 1,
-                 info = paste(name, ": has single row for aggregate scale"))
-
-    # test type = "effect"
-    result_effect <- predict(object, newdata = TRUE, type = "effect")
-
-    expect_s3_class(result_effect, "brma_samples")
-    expect_null(attr(result_effect, "data"), info = paste(name, ": data is NULL for aggregate effect"))
-    expect_equal(nrow(summary(result_effect)), 1,
-                 info = paste(name, ": has single row for aggregate effect"))
-  }
-})
-
-test_that("predict.brma with newdata = TRUE returns S x 1 matrix", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    # get expected sample count
-    posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
-    S <- nrow(posterior_samples)
-
-    # test type = "terms"
-    samples_terms <- predict(object, newdata = TRUE, type = "terms")
-    expect_equal(dim(samples_terms), c(S, 1),
-                 info = paste(name, ": terms samples are S x 1"))
-    expect_equal(colnames(samples_terms), "mu",
-                 info = paste(name, ": terms samples have 'mu' column name"))
-
-    # test type = "terms.scale"
-    samples_scale <- predict(object, newdata = TRUE, type = "terms.scale")
-    expect_equal(dim(samples_scale), c(S, 1),
-                 info = paste(name, ": scale samples are S x 1"))
-    expect_equal(colnames(samples_scale), "tau",
-                 info = paste(name, ": scale samples have 'tau' column name"))
-
-    # test type = "effect"
-    samples_effect <- predict(object, newdata = TRUE, type = "effect")
-    expect_equal(dim(samples_effect), c(S, 1),
-                 info = paste(name, ": effect samples are S x 1"))
-    expect_equal(colnames(samples_effect), "theta",
-                 info = paste(name, ": effect samples have 'theta' column name"))
-  }
-})
-
-test_that("predict.brma rejects response-scale newdata predictions", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    # should throw error for type = "response"
-    expect_error(
-      predict(object, newdata = TRUE, type = "response"),
-      "Aggregated predictions.*not available for type = 'response'",
-      info = paste(name, ": aggregate + response is rejected")
-    )
-  }
-})
-
-test_that("aggregated mu equals rowMeans of non-aggregated mu", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    # get non-aggregated samples (as plain matrix)
-    samples_full <- as.matrix(predict(object, newdata = NULL, type = "terms"))
-
-    # get aggregated samples (as plain matrix)
-    samples_agg <- as.matrix(predict(object, newdata = TRUE, type = "terms"))
-
-    # aggregated should equal rowMeans of full
-    expected_agg <- matrix(rowMeans(samples_full), ncol = 1)
-    colnames(expected_agg) <- "mu"
-
-    expect_equal(samples_agg, expected_agg, tolerance = 1e-10,
-                 info = paste(name, ": aggregated mu equals rowMeans of full mu"))
-  }
-})
-
-test_that("aggregated tau equals rowMeans of non-aggregated tau", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects
-    if (!inherits(object, "brma")) next
-
-    # get non-aggregated samples (as plain matrix)
-    samples_full <- as.matrix(predict(object, newdata = NULL, type = "terms.scale"))
-
-    # get aggregated samples (as plain matrix)
-    samples_agg <- as.matrix(predict(object, newdata = TRUE, type = "terms.scale"))
-
-    # aggregated should equal rowMeans of full
-    expected_agg <- matrix(rowMeans(samples_full), ncol = 1)
-    colnames(expected_agg) <- "tau"
-
-    expect_equal(samples_agg, expected_agg, tolerance = 1e-10,
-                 info = paste(name, ": aggregated tau equals rowMeans of full tau"))
-  }
-})
-
 
 # ============================================================================ #
 # SECTION 3: Tests for .extract_use_normal()
@@ -1044,13 +1205,13 @@ test_that(".extract_use_normal returns correct structure for RoBMA", {
 })
 
 # ============================================================================ #
-# SECTION 4: Integration Tests for .pdf.brma() and .cdf.brma() with use_normal
+# SECTION 4: Integration Tests for .log_lik.brma() and .cdf.brma() with use_normal
 # ============================================================================ #
 # These tests verify that PDF and CDF functions work correctly with the
 # use_normal fast-path optimization
 # ============================================================================ #
 
-test_that(".pdf.brma returns finite log-likelihoods for weightfunction models", {
+test_that(".log_lik.brma returns finite log-likelihoods for weightfunction models", {
 
   for (name in names(fits)) {
 
@@ -1061,7 +1222,7 @@ test_that(".pdf.brma returns finite log-likelihoods for weightfunction models", 
     if (!.is_weightfunction(object)) next
 
     # compute PDF (this internally uses use_normal optimization)
-    log_lik <- .pdf.brma(object)
+    log_lik <- .log_lik.brma(object)
 
     # verify structure
     expect_true(is.matrix(log_lik),
@@ -1087,15 +1248,23 @@ test_that(".cdf.brma returns valid CDF values for weightfunction models", {
     if (!.is_weightfunction(object)) next
 
     # compute CDF (this internally uses use_normal optimization)
-    cdf_vals <- .cdf.brma(object)
+    conditioning_depth <- if (.is_data_known_v(object[["data"]])) {
+      "estimate"
+    } else {
+      "marginal"
+    }
+    cdf_vals <- .cdf.brma(
+      object,
+      conditioning_depth = conditioning_depth
+    )
 
     # verify structure
     expect_true(is.matrix(cdf_vals),
                 info = paste(name, ": cdf_vals is a matrix"))
     expect_true(all(is.finite(cdf_vals)),
                 info = paste(name, ": all CDF values are finite"))
-    expect_true(all(cdf_vals > 0 & cdf_vals < 1),
-                info = paste(name, ": all CDF values are in (0, 1)"))
+    expect_true(all(cdf_vals >= 0 & cdf_vals <= 1),
+                info = paste(name, ": all CDF values are in [0, 1]"))
 
     # verify dimensions match
     K <- length(.outcome_data_yi(object))

@@ -24,7 +24,10 @@ fit <- load_fit("bcg_meta-analysis")
 
 .fit_draw_dimensions <- function(fit) {
 
-  mcmc_list <- RoBMA:::.brma_to_mcmc.list(fit)
+  mcmc_list <- RoBMA:::.brma_to_mcmc.list(
+    fit,
+    include_auxiliary = TRUE
+  )
   n_iter    <- vapply(mcmc_list, function(x) nrow(as.matrix(x)), integer(1))
 
   return(list(
@@ -106,11 +109,17 @@ test_that("as_draws methods return posterior draws for fits", {
   expect_true("mu" %in% posterior::variables(draws))
 })
 
-test_that("as_draws methods preserve raw MCMC values and order", {
+test_that("as_draws methods preserve auxiliary-inclusive values and order", {
 
-  mcmc_list       <- RoBMA:::.brma_to_mcmc.list(fit)
+  mcmc_list       <- RoBMA:::.brma_to_mcmc.list(
+    fit,
+    include_auxiliary = TRUE
+  )
   expected_matrix <- do.call(rbind, lapply(mcmc_list, as.matrix))
-  draws_matrix    <- as.matrix(RoBMA::as_draws_matrix(fit))
+  draws_matrix    <- as.matrix(RoBMA::as_draws_matrix(
+    fit,
+    include_auxiliary = TRUE
+  ))
   variables       <- intersect(colnames(expected_matrix), colnames(draws_matrix))
   selected_rows   <- unique(round(seq(1, nrow(expected_matrix), length.out = 7)))
   selected_vars   <- head(variables, 8)
@@ -122,7 +131,10 @@ test_that("as_draws methods preserve raw MCMC values and order", {
     tolerance = 0
   )
 
-  draws_array <- RoBMA::as_draws_array(fit)
+  draws_array <- RoBMA::as_draws_array(
+    fit,
+    include_auxiliary = TRUE
+  )
   first_var   <- selected_vars[[1]]
   expect_equal(
     as.numeric(draws_array[1, 1, first_var]),
@@ -132,12 +144,317 @@ test_that("as_draws methods preserve raw MCMC values and order", {
   )
 })
 
+test_that("auxiliary catalog separates backend state from model parameters", {
+
+  variables <- c(
+    "mu",
+    "tau_indicator",
+    "theta[1]",
+    "gamma[1]",
+    "sampling_z[1]",
+    "mu__xREx__study_xRE_Zx[1,1]",
+    "mu__xREx__study_xRE_CORx_L[1,1]",
+    "mu__xREx__study_xRE_CORx_lkj_u[1]",
+    "mu__xREx__study_xRE_CORx_lkj_cpc[1]",
+    "mu__xREx__study_xRE_CORx_R[1,1]",
+    "prior_par_eta_mu__xRE_ALLOCx_total__weight[1]",
+    "inv_tau",
+    "eta[1]",
+    "log_omega[1]",
+    "alpha",
+    "pi_null",
+    "mu__xRE_ALLOCx_total__weight[1]",
+    "mu_variable",
+    "mu_beta",
+    "mu_beta_indicator",
+    "mu_beta_variable",
+    "mu_beta_inclusion"
+  )
+  fit_metadata <- list()
+  attr(fit_metadata, "prior_list") <- list(
+    mu_beta = BayesTools::prior_spike_and_slab(
+      BayesTools::prior(
+        distribution = "normal",
+        parameters   = list(mean = 0, sd = 1)
+      )
+    )
+  )
+  object <- structure(list(fit = fit_metadata), class = "brma")
+  catalog <- RoBMA:::.brma_auxiliary_variable_catalog(object, variables)
+
+  expect_equal(
+    catalog[["variable"]],
+    variables[c(3:9, 11:16, 21:22)]
+  )
+  expect_false("tau_indicator" %in% catalog[["variable"]])
+  expect_false("mu__xREx__study_xRE_CORx_R[1,1]" %in% catalog[["variable"]])
+  expect_false("mu__xRE_ALLOCx_total__weight[1]" %in% catalog[["variable"]])
+  expect_false("mu_variable" %in% catalog[["variable"]])
+  expect_false("mu_beta_indicator" %in% catalog[["variable"]])
+  expect_true(all(nzchar(catalog[["category"]])))
+})
+
+test_that("default draw extraction filters auxiliary variables only", {
+
+  values <- matrix(
+    seq_len(32),
+    nrow     = 4,
+    dimnames = list(NULL, c(
+      "mu",
+      "tau_indicator",
+      "sampling_z[1]",
+      "theta[1]",
+      "mu__xREx__study_xRE_Zx[1,1]",
+      "mu__xREx__study_xRE_CORx_lkj_u[1]",
+      "mu__xREx__study_xRE_CORx_lkj_cpc[1]",
+      "mu__xREx__study_xRE_CORx_R[1,1]"
+    ))
+  )
+  chain <- coda::mcmc(values, start = 5, thin = 2)
+  materialized <- coda::mcmc.list(chain)
+  fit <- structure(list(sentinel = TRUE), class = "BayesTools_fit")
+  attr(fit, "prior_list") <- list()
+  object <- structure(list(fit = fit), class = "brma")
+  testthat::local_mocked_bindings(
+    JAGS_validate_fit_contract = function(...) invisible(TRUE),
+    JAGS_materialize_draws = function(...) materialized,
+    .package = "BayesTools"
+  )
+
+  filtered <- RoBMA:::.brma_to_mcmc.list(object)
+  raw      <- RoBMA:::.brma_to_mcmc.list(
+    object,
+    include_auxiliary = TRUE
+  )
+
+  expect_equal(
+    colnames(as.matrix(filtered[[1]])),
+    c("mu", "tau_indicator", "mu__xREx__study_xRE_CORx_R[1,1]")
+  )
+  expect_equal(coda::mcpar(filtered[[1]]), coda::mcpar(chain))
+  expect_equal(raw, materialized, tolerance = 0)
+})
+
+test_that("all brma draw formats share auxiliary filtering and validation", {
+
+  converters <- list(
+    RoBMA::as_draws,
+    RoBMA::as_draws_array,
+    RoBMA::as_draws_df,
+    RoBMA::as_draws_list,
+    RoBMA::as_draws_matrix,
+    RoBMA::as_draws_rvars
+  )
+  expected_default <- posterior::variables(RoBMA::as_draws_matrix(fit))
+  expected_raw <- colnames(as.matrix(
+    RoBMA:::.brma_to_mcmc.list(fit, include_auxiliary = TRUE)[[1]]
+  ))
+
+  for (converter in converters) {
+    expect_equal(
+      posterior::variables(converter(fit)),
+      expected_default
+    )
+    expect_equal(
+      posterior::variables(converter(fit, include_auxiliary = TRUE)),
+      expected_raw
+    )
+    expect_error(
+      converter(fit, include_auxiliary = 1),
+      "include_auxiliary"
+    )
+  }
+})
+
+test_that("all auxiliary-inclusive draw formats preserve values", {
+
+  name <- "brma.mv_latent"
+  skip_if_missing_fits(name)
+
+  object     <- load_fit(name, validate = FALSE)
+  converters <- list(
+    RoBMA::as_draws,
+    RoBMA::as_draws_array,
+    RoBMA::as_draws_df,
+    RoBMA::as_draws_list,
+    RoBMA::as_draws_matrix,
+    RoBMA::as_draws_rvars
+  )
+  raw_mcmc <- RoBMA:::.brma_to_mcmc.list(
+    object,
+    include_auxiliary = TRUE
+  )
+  expected <- do.call(rbind, lapply(raw_mcmc, as.matrix))
+
+  expect_true(any(startsWith(colnames(expected), "sampling_z[")))
+  for (converter in converters) {
+    actual <- as.matrix(posterior::as_draws_matrix(converter(
+      object,
+      include_auxiliary = TRUE
+    )))
+
+    expect_equal(colnames(actual), colnames(expected))
+    expect_equal(as.vector(actual), as.vector(expected), tolerance = 0)
+  }
+})
+
+test_that("draw schemas are stable across known-V parameterizations", {
+
+  names <- c(
+    "brma.mv_latent",
+    "brma.mv_whitened",
+    "brma.mv_block_mvn",
+    "brma.mv_block_mvn_random",
+    "brma.mv_block_mvn_random_sampled",
+    "brma.mv_block_mvn_known_R"
+  )
+  skip_if_missing_fits(names)
+
+  objects <- lapply(names, load_fit, validate = FALSE)
+  names(objects) <- names
+  schemas <- lapply(objects, function(object) {
+    posterior::variables(RoBMA::as_draws_matrix(object))
+  })
+  raw_schemas <- lapply(objects, function(object) {
+    posterior::variables(RoBMA::as_draws_matrix(
+      object,
+      include_auxiliary = TRUE
+    ))
+  })
+
+  expect_equal(schemas[["brma.mv_latent"]], c("mu", "tau"))
+  expect_equal(schemas[["brma.mv_whitened"]], c("mu", "tau"))
+  expect_equal(schemas[["brma.mv_block_mvn"]], c("mu", "tau"))
+  expect_equal(
+    schemas[["brma.mv_block_mvn_random"]],
+    schemas[["brma.mv_block_mvn_random_sampled"]]
+  )
+  expect_true(any(startsWith(
+    raw_schemas[["brma.mv_latent"]],
+    "sampling_z["
+  )))
+  expect_false(any(startsWith(
+    schemas[["brma.mv_latent"]],
+    "sampling_z["
+  )))
+  expect_true(any(grepl(
+    "_xRE_Zx[",
+    raw_schemas[["brma.mv_block_mvn_random_sampled"]],
+    fixed = TRUE
+  )))
+  expect_false(any(grepl(
+    "_xRE_Zx[",
+    schemas[["brma.mv_block_mvn_random_sampled"]],
+    fixed = TRUE
+  )))
+  expect_true(all(
+    c("tau", "tau2") %in% schemas[["brma.mv_block_mvn_known_R"]]
+  ))
+  expect_false(any(grepl(
+    "_xRE_",
+    schemas[["brma.mv_block_mvn_known_R"]],
+    fixed = TRUE
+  )))
+})
+
+test_that("draw schemas filter model-family-specific auxiliary state", {
+
+  names <- c(
+    "konstantopoulos2011_3lvl",
+    "bcg_glmm_reg",
+    "dat.lehmann2018-3PSM",
+    "brma.mv_block_mvn_random_mods_scale",
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_ishak2007_har"
+  )
+  skip_if_missing_fits(names)
+
+  schemas <- lapply(names, function(name) {
+    posterior::variables(RoBMA::as_draws_matrix(
+      load_fit(name, validate = FALSE)
+    ))
+  })
+  names(schemas) <- names
+
+  expect_false(any(startsWith(schemas[["konstantopoulos2011_3lvl"]], "gamma[")))
+  expect_true("rho" %in% schemas[["konstantopoulos2011_3lvl"]])
+  expect_false(any(startsWith(schemas[["bcg_glmm_reg"]], "theta[")))
+  expect_true(any(startsWith(schemas[["bcg_glmm_reg"]], "pi[")))
+  expect_false(any(startsWith(schemas[["dat.lehmann2018-3PSM"]], "eta[")))
+  expect_true(any(startsWith(schemas[["dat.lehmann2018-3PSM"]], "omega[")))
+
+  for (name in names[4:6]) {
+    expect_false(any(grepl("_xRE_Zx[", schemas[[name]], fixed = TRUE)))
+    expect_false(any(grepl("_xRE_CORx_L[", schemas[[name]], fixed = TRUE)))
+    expect_false(any(startsWith(schemas[[name]], "prior_par_eta_")))
+  }
+  expect_true("rho" %in% schemas[["brma.mv_v14_konstantopoulos2011_cs"]])
+  expect_true("rho" %in% schemas[["brma.mv_v14_ishak2007_har"]])
+  expect_false(any(grepl(
+    "_xRE_",
+    c(
+      schemas[["brma.mv_v14_konstantopoulos2011_cs"]],
+      schemas[["brma.mv_v14_ishak2007_har"]]
+    ),
+    fixed = TRUE
+  )))
+})
+
+test_that("known-V backend posterior draws agree for common parameters", {
+
+  names <- c(
+    "brma.mv_latent",
+    "brma.mv_whitened",
+    "brma.mv_block_mvn"
+  )
+  skip_if_missing_fits(names)
+
+  draws <- lapply(names, function(name) {
+    as.matrix(RoBMA::as_draws_matrix(
+      load_fit(name, validate = FALSE)
+    ))
+  })
+  estimates <- vapply(draws, function(x) {
+    c(mu = mean(x[, "mu"]), tau = mean(x[, "tau"]))
+  }, numeric(2))
+
+  expect_lt(diff(range(estimates["mu", ])), 0.08)
+  expect_lt(diff(range(estimates["tau", ])), 0.08)
+})
+
+test_that("equivalent brma and brma.mv fits expose corresponding population draws", {
+
+  names <- c("vif_parity_brma", "vif_parity_brma_mv")
+  skip_if_missing_fits(names)
+
+  objects <- lapply(names, load_fit, validate = FALSE)
+  draws <- lapply(objects, function(object) RoBMA::as_draws_matrix(object))
+  schemas <- lapply(draws, posterior::variables)
+  scale_coordinates <- c("tau", "tau")
+  selections <- list(
+    .brma_parameter_select_entry(objects[[1L]], "tau")[["selection"]],
+    .brma_parameter_select_entry(objects[[2L]], "tau", component = "random")[["selection"]]
+  )
+  expect_equal(
+    setdiff(schemas[[1L]], scale_coordinates[[1L]]),
+    setdiff(schemas[[2L]], c("tau", "tau2"))
+  )
+  for (i in seq_along(objects)) {
+    expect_true(scale_coordinates[[i]] %in% schemas[[i]])
+    semantic <- as.matrix(BayesTools::parameter_draws(objects[[i]], selections[[i]]))
+    expect_identical(ncol(semantic), 1L)
+    expect_equal(as.vector(draws[[i]][, scale_coordinates[[i]]]), as.vector(semantic), tolerance = 0)
+    expect_false(any(grepl("^(theta|gamma|sampling_z)\\[|_xRE_Zx\\[|^prior_par_eta_|^inv_", schemas[[i]])))
+  }
+})
+
 test_that("as_draws methods preserve product-space BMA and RoBMA indicators", {
 
   product_names <- c(
     "dat.lehmann2018_BMA.norm",
     "bcg_BMA.glmm",
     "nielweise2008_BMA.glmm",
+    "BMA.mv_random_components",
     "dat.lehmann2018_RoBMA"
   )
   skip_if_missing_fits(product_names)

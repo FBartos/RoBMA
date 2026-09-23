@@ -2,7 +2,7 @@
 Conditional Marginal Means:
                                     Mean    SD  0.025    0.5 0.975 Inclusion BF
 intercept                          0.132 0.075 -0.011  0.129 0.267        0.439
-Preregistered[Not Pre-Registered]  0.221 0.048  0.131  0.220 0.319          Inf
+Preregistered[Not Pre-Registered]  0.221 0.048  0.131  0.220 0.319  8000226.160
 Preregistered[Pre-Registered]     -0.139 0.145 -0.298 -0.190 0.234        1.132
-[0;31mmu_Preregistered[Not Pre-Registered]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.[0m
+[0;31mmu_Preregistered[Not Pre-Registered]: Posterior samples do not span both sides of the null hypothesis. The posterior KDE height is estimated from Gaussian kernel tails and may be unstable.[0m
 

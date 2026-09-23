@@ -1,284 +1,167 @@
-# Unit Testing in RoBMA
+# Testing
 
-Reference this file when working with tests in `tests/testthat/`.
+Use this guide for changes under `tests/testthat/` or the ordinary test-profile
+runners under `tools/`. For maintainer analysis scenarios under
+`tests/scenarios/` or `tools/test-scenario.R`, use `scenarios.md` instead.
 
-## Test Structure Overview
+In BayesToolsVerse, the shared validation guide defines tests, verification,
+and scenarios. The runner's `certification` profile is deeper verification,
+separate from routine tests. Use the workspace's configured R and private agent
+library when available.
 
-Tests are organized by prefix number indicating their role:
+## Development Workflow
 
-| Prefix | Purpose | Examples |
-|--------|---------|----------|
-| `test-00-*` | Input validation, CRAN checks | `test-00-input-data-norm.R` |
-| `test-01-*` | **Model fitting** (creates cached fits) | `test-01-brma.norm.R` |
-| `test-02-*` | Core method tests using cached fits | `test-02-residuals.R`, `test-02-predict.R` |
-| `test-03+` | Higher-level integration tests | `test-03-loo.R` |
-
-### Critical Rule: Model Fitting Centralization
-
-**Only `test-01-*` files fit models.** All other tests load pre-fitted models from cache.
-
-## Running Tests
-
-Always use testthat LLM reporting for unit tests. Prefer
-`devtools::test(..., reporter = "llm")`; if a wrapper cannot pass `reporter`,
-set `AGENT=1` so testthat selects `LlmReporter`.
+Always use the LLM reporter:
 
 ```r
-# Run all tests (fits models on first run, caches them)
-devtools::test(reporter = "llm")
-
-# Run specific test file
-devtools::test(filter = "residuals", reporter = "llm")
-
-# Run only model fitting tests (populates cache)
-devtools::test(filter = "01-", reporter = "llm")
-
-# Run tests matching multiple patterns
-devtools::test(filter = "predict|residuals", reporter = "llm")
+devtools::test(filter = "topic", reporter = "llm")
 ```
 
-### Recommended Workflow
+Run the narrowest relevant test first. Populate affected cached fits only when
+needed:
 
 ```r
-# 1. First run: populate the cache (slow)
-devtools::test(filter = "01-", reporter = "llm")
-
-# 2. Iterate on your feature (fast, uses cached fits)
-devtools::test(filter = "your-feature", reporter = "llm")
-
-# 3. Final verification before commit
-devtools::test(reporter = "llm")
+devtools::test(filter = "^01-", reporter = "llm")
 ```
 
-## Cache System
+Do not use repeated full-suite runs as an iteration loop.
 
-### How It Works
+For an intentional full run from an interactive session, source
+`.dev/user-tests.R` by its absolute path. The script works from any current
+working directory and calls `test_tests(refit = TRUE,
+stop_on_failure = TRUE)`. `test_tests()` is loaded by the project `.Rprofile`.
+Without a filter it refreshes and runs the standard profile, then runs every
+certification case with its independent one-hour limit. A regular-expression
+`filter` runs only matching standard test files and does not refresh cached
+fits unless `refit = TRUE`; filtered runs omit certification. `refit = TRUE`
+cleans the standard fit cache before rebuilding; `update = TRUE` permits
+missing visual candidates, and `regenerate = TRUE` combines those controls.
+Every run ends with snapshot review. Ordinary tests have no per-file timing
+baseline, so `update_timings = TRUE` fails clearly; the standard profile's
+15-minute total limit is an extreme ceiling, not a runtime target. Interactive
+calls default to
+testthat's progress reporter. Use `reporter = "llm"` for agent-oriented output;
+the quiet LLM reporter prints failures and warnings immediately, retains skip
+counts, and omits individual skip reports. An unfiltered run is deliberately
+much slower than the ordinary standard profile and does not run
+`devtools::check()`.
 
-- Fitted models are saved to `ROBMA_TEST_FILES_DIR` when that environment
-  variable is set
-- Default local cache when `ROBMA_TEST_FILES_DIR` is unset:
-  `tests/testthat/test_files`, resolved relative to `common-functions.R`
-- CRAN cache: `tempdir()/RoBMA_test_files`
-- Subdirectories: `fits/`, `info/`, `metadata/`, `temp/`
-- Cache persists across R sessions by default in local development
+## Test Profiles
 
-### Environment Variables
+- `Rscript tools/test-profile.R standard`: routine unit, integration,
+  representative metafor, and human-reviewed visual tests using an already
+  valid fit cache; its 15-minute maximum on the reference machine is a ceiling,
+  not a target. It never fits models.
+- `Rscript tools/test-profile.R refresh-standard`: create only missing or stale
+  standard cached fits. Use `--clean` only for an intentional full refresh.
+- `Rscript tools/test-profile.R certification --list`: list independently
+  runnable expensive numerical and extended-regression cases. Run named cases
+  by appending their names; omitting names runs every case in sequence.
+- `Rscript tools/test-profile.R release`: refresh standard fits, run the
+  standard suite, run all certification cases, then call `devtools::check()`.
 
-| Variable | Purpose |
-|----------|---------|
-| `ROBMA_TEST_FILES_DIR` | Cache directory location |
-| `ROBMA_TEST_SKIP_REFIT` | Skip fitting if a valid cache exists; defaults to `TRUE` |
-| `ROBMA_TEST_FORCE_REFIT` | Force refitting even if a valid cache exists |
-| `ROBMA_TEST_EXTENDED` | Include extended, slower model-family/case matrix tests |
-| `ROBMA_TEST_FULL_DIAGNOSTICS` | Run extended redundant residual/influence diagnostics skipped by default |
-| `ROBMA_TEST_FULL_VISUALS` | Run visual-gallery snapshots skipped by default |
-| `ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS` | Allow missing vdiffr snapshots only while regenerating snapshots |
+Every profile checks the loaded DLL against the native entry points declared
+in `src/init.c` before running tests. The complete standard profile also requires
+the core oracle and real-estimator cases named by `standard_required_tests()`
+to execute with passing expectations. Missing symbols and skipped required cases
+are failures; optional dependency and extended-gallery skips remain visible and
+permitted. Filtered development runs enforce native availability but do not claim
+complete standard evidence.
 
-### Cache Validation
+Every certification case has a hard one-hour limit shared by its cache
+preparation and verification phases. The phases execute in separate processes,
+so native fitting state cannot leak into post-fit verification. Certification
+has no total limit because cases can be selected or rerun independently.
 
-`save_fit()` writes the fit, info object, and metadata. Metadata records the normalized `test-01-*` file hash, the cache-affecting fitting-source hash, and whether the object contains LOO, WAIC, marginal likelihood, and metafor info. The fitting-source hash is intentionally scoped to fitting, prior/data input, cached LOO/marglik, and native likelihood/JAGS code; unrelated summaries, plotting, prediction, documentation, and post-fit methods should not force refits.
+## Test Organization
 
-`skip_refit_if_cached("brma.norm")` and similar group calls skip a whole `test-01-*` file only when all cataloged fits for that group are valid.
+- `test-00-*`: deterministic validation and focused low-level tests.
+- `test-01-*`: model fits and cache generation.
+- `test-02-*`: post-fit methods using cached fits.
+- `test-03-*`: higher-level integration.
 
-`list_fits(validate = TRUE)` performs metadata-only validation so test setup stays fast. `load_fit()` validates the requested fit and memoizes it within the test file. Use `validate_cached_fit(name, deep = TRUE)` only in dedicated cache-integrity tests because it reads the full fit object.
+Only `test-01-*` files create ordinary cached model fits. Reuse existing fits
+elsewhere. Check `fit_catalog()` before adding a fit, and update the catalog in
+the same change when a new cached fit is necessary.
 
-A cached fit is stale if:
+Source `common-functions.R` in files using cached fits. Prefer
+`list_fits()`, `catalog_fits()`, `lazy_fits()`, and `lazy_infos()` over
+hard-coded bulk loading. Missing or stale required fits are not passing release
+evidence.
 
-- its `test-01-*` source file changed
-- cache-affecting fitting source changed
-- metadata is missing
-- required LOO/marglik/metafor info is missing
-- forbidden fields are present, e.g. marginal likelihood for product-space `RoBMA`, `BMA.norm`, or `BMA.glmm`
+## Cache Rules
 
-Use `list_fits(validate = FALSE)` only when inspecting raw cache files.
+Standard and certification caches are isolated below
+`ROBMA_TEST_FILES_DIR`, or under `tests/testthat/test_files/` by default.
+Cache validity includes RoBMA, BayesTools, R, and JAGS versions; the fitting
+test hash; cache-affecting RoBMA source; BayesTools' backend fingerprint; and
+required attached results.
 
-Some residual and influence tests are intentionally gated with
-`skip_if_not_full_diagnostics()`. They duplicate core metafor/model-family
-coverage or have no stable oracle, but remain available by setting
-`ROBMA_TEST_FULL_DIAGNOSTICS=TRUE`.
+Regenerate only affected fits with `refresh-standard` after fitting, prior/data
+input, native likelihood, or JAGS changes. Do not invalidate fits for unrelated
+plotting, summary, documentation, or post-fit changes.
 
-### Fit Catalog
+CI restores the standard cache using a key derived from cache-affecting package
+sources, fitting tests, R/JAGS versions, and the BayesTools backend fingerprint.
+It refreshes missing or stale entries before running the strictly cached
+standard profile. Certification caches remain local or release-worker assets.
 
-`fit_catalog()` in `common-functions.R` is the source of truth for cached test fits. It records:
+Relevant controls are `ROBMA_TEST_PROFILE`, `ROBMA_TEST_FILES_DIR`,
+`ROBMA_TEST_SKIP_REFIT`, and `ROBMA_TEST_FORCE_REFIT`.
+`ROBMA_TEST_QUIET_SKIPS=TRUE` retains skip counts while suppressing individual
+skip reports in profile-runner output.
 
-- expected class and likelihood family
-- source `test-01-*` file
-- availability of metafor reference, LOO, WAIC, and marginal likelihood
-- test tier and feature tags
+## Correctness Evidence
 
-Use catalog filters instead of ad hoc hard-coded model lists when possible:
+- Test behavior, not implementation trivia.
+- Use analytic identities or independent reference implementations for numerical
+  kernels.
+- Compare against metafor where estimands match. Save the metafor object in the
+  cached fit's `info` during `test-01-*`, then reuse it in post-fit tests.
+- Justify tolerances from Monte Carlo or numerical error. Do not use a fixed
+  package-wide tolerance merely because it makes a test pass.
+- State numerical error explicitly with absolute, relative, log, or peak-scaled
+  comparisons where scale matters. Do not rely on testthat edition-specific
+  `expect_equal()` normalization for small probabilities or near-zero quantities.
+  Keep the current edition unless a separate migration validates its effects.
+- Use deterministic call/path guards for algorithmic work limits. Machine-specific
+  elapsed-time thresholds belong in focused performance verification, not ordinary
+  unit assertions.
+- A failing expectation requires diagnosis. Generate a candidate when the
+  intended result changed; accept a verified baseline change only after
+  maintainer or explicitly delegated review.
+- Do not add redundant matrices, samples, fits, or assertions for coverage alone.
 
-```r
-list_fits(has_marglik = TRUE)
-list_fits(has_metafor = TRUE, feature = "mods")
-catalog_fits(class = "RoBMA")
-```
+The evidence inventory in `tests/testthat/REGRESSION-COVERAGE.md` records the
+representative oracle and visual coverage expected for public post-fit methods.
+Update it when a method changes tier or loses an oracle.
 
-When adding a new cached fit in `test-01-*`, add it to `fit_catalog()` in the same change.
+## Visual Regression
 
-### When to Clear Cache
+Use `expect_vdiffr_snapshot()` from
+`tests/testthat/helper-visuals.R`. Representative, human-reviewed snapshots
+belong in the standard profile. Gate redundant galleries with
+`skip_if_not_full_visuals()`.
 
-Clear cache when:
+Retain candidates for maintainer or explicitly delegated review before
+acceptance. Structural `as_data = TRUE` tests supplement visual snapshots;
+they do not replace them.
 
-- You modify model fitting logic in constructor/input files, `R/fit.R`, cache-affecting likelihood files, or native likelihood/JAGS code
-- You change model definitions in `test-01-*.R` files
-- Tests fail unexpectedly due to stale cached fits
+After sourcing `tests/scenarios/helper-scenarios.R`, call
+`review_test_snapshots()` to open testthat's native reviewer for ordinary text
+and figure candidates under `tests/testthat/`, followed by per-artifact text and
+table candidates under `tests/results/`. Its optional `files` argument has the
+same test-name or trailing-slash directory semantics as
+`testthat::snapshot_review()`; use `reference_filter` to select reference
+groups such as `"interpret"` or `"marginal_means"`. Accept changes only after
+maintainer or explicitly delegated review. Rejected `.new.txt` candidates are
+deleted and skipped ones remain available for a later review.
 
-```r
-# Clear all cached fits
-source(testthat::test_path("common-functions.R"))
-clean_cached_fits()
-```
+Set `ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS=TRUE` only during an explicit snapshot
+regeneration workflow.
 
-`clean_cached_fits()` cleans the active cache root. If
-`ROBMA_TEST_FILES_DIR` is set, it cleans that directory rather than the
-repo-local default.
+## Final Verification
 
-## Writing New Tests
-
-### For Tests Using Cached Fits (test-02-* and higher)
-
-```r
-# At the top of test file
-source(testthat::test_path("common-functions.R"))
-
-# Create lazy fit stores; individual RDS files load on first `[[name]]`.
-fit_names <- list_fits()
-fits      <- lazy_fits(fit_names, validate = FALSE)
-info      <- lazy_infos(fit_names, validate = FALSE)
-
-# Skip if no fits available
-test_that("My test uses cached fits", {
-  skip_if_no_fits()
-
-  fit_brma    <- fits[["bcg_meta-analysis"]]
-  fit_metafor <- info[["bcg_meta-analysis"]][["metafor"]]
-
-  # Your test assertions...
-  expect_equal(...)
-})
-```
-
-### For Tests Fitting New Models (test-01-* only)
-
-```r
-test_that("Fit my new model type", {
-
-  # Skip if already cached
-  name <- "my-new-model"
-  skip_refit_if_cached(name)
-
-  # Fit the model
-  fit_brma <- brma(yi ~ 1, sei = sei, data = my_data, ...)
-
-  # Also fit metafor reference (optional)
-  fit_metafor <- metafor::rma(yi = yi, sei = sei, data = my_data)
-
-  # Save to cache
-  save_fit(
-    name    = name,
-    fit     = fit_brma,
-    info    = list(metafor = fit_metafor, data = my_data)
-  )
-
-  expect_s3_class(fit_brma, "brma")
-})
-```
-
-## Helper Functions (common-functions.R)
-
-| Function | Purpose |
-|----------|---------|
-| `load_fit(name)` | Load cached brma fit |
-| `load_info(name)` | Load associated metadata (e.g., metafor reference fit) |
-| `lazy_fits(names)` | Create a lazy cached-fit store |
-| `lazy_infos(names)` | Create a lazy cached-info store |
-| `load_fits(names)` | Eagerly load a named fit subset |
-| `load_infos(names)` | Eagerly load a named info subset |
-| `load_fit_metadata(name)` | Load cache metadata |
-| `list_fits()` | List valid cached model names |
-| `list_fits(validate = FALSE)` | List raw cached model names |
-| `catalog_fits()` | List cataloged model names matching feature filters |
-| `fit_catalog()` | Full cached-fit catalog |
-| `validate_cached_fit(name)` | Return cache validation problems |
-| `save_fit(name, fit, info)` | Save model to cache |
-| `skip_if_no_fits()` | Skip test if cache is empty |
-| `skip_if_missing_fits(names)` | Skip test if required cached fits are missing/stale |
-| `skip_refit_if_cached(name)` | Skip model fitting if already cached |
-| `clean_cached_fits()` | Clear entire cache |
-| `clean_cached_fits(name)` | Clear specific model from cache |
-
-## Comparing with metafor
-
-Many tests compare brma results to metafor as a reference implementation:
-
-```r
-test_that("My method matches metafor", {
-  skip_if_no_fits()
-
-  name        <- "bcg_meta-analysis"
-  fit_brma    <- fits[[name]]
-  fit_metafor <- info[[name]][["metafor"]]
-
-  # Compare results (allow MCMC tolerance)
-  brma_result    <- my_method(fit_brma)
-  metafor_result <- my_method(fit_metafor)
-
-  expect_equal(brma_result, metafor_result, tolerance = 0.10,
-               info = "brma should match metafor within MCMC tolerance")
-})
-```
-
-Put required packages to the top of the test file (even if a subset of tests could run otherwise).
-For example, a heading of the file might start
-```r
-context("DFBETAS")
-
-# Load common test helpers
-source(testthat::test_path("common-functions.R"))
-
-# list cached fits lazily
-skip_if_no_fits()
-skip_if_not_installed("metafor")
-fit_names <- list_fits()
-fits      <- lazy_fits(fit_names, validate = FALSE)
-info      <- lazy_infos(fit_names, validate = FALSE)
-```
-
-### Tolerance Guidelines
-
-- Use 0.05 whenever possible.
-- Some output in complex models might require 0.10.
-
-## Numerical Regressions
-
-Never update results of committed tests. If tests fail there was either:
-
-- an error in the new implementation (fix the implementation, do not skip the test)
-- an error in the previous implementation (notify the user to verify the error)
-
-## Visual Regression Tests (vdiffr)
-
-Some tests use `expect_vdiffr_snapshot()` from `helper-visuals.R`, which wraps
-`vdiffr::expect_doppelganger()` and skips when snapshots are not available.
-Never update visual comparisons automatically. Ask the user to manually verify updates.
-
-## Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| "Pre-fitted models not found" | Run `devtools::test(filter = "01-", reporter = "llm")` |
-| Tests pass locally, fail on CI | Check if CI has cached fits |
-| Stale cache causing failures | Run `clean_cached_fits()` then retest |
-| MCMC tolerance too tight | Increase `tolerance` in `expect_equal()` |
-| Snapshot test failures | Ask for human review |
-
-## Agent Protocol
-
-1. **Always source common-functions.R** at the top of test files
-2. **Always use LLM reporting** when running unit tests: `reporter = "llm"` or `AGENT=1`
-3. **Check `fit_catalog()` / `list_fits()`** to see available cached models before writing tests
-4. **Never fit models** outside `test-01-*` files
-5. **Reuse existing cached models** - check `fit_catalog()` and `test-01-*.R` for available model types
-6. **Use appropriate tolerances** for MCMC-based comparisons
-7. **Never modify `GENERATE_REFERENCE_FILES`** flag (maintainer only)
+Run focused tests after each meaningful change. Before handoff, run the standard
+profile when the change scope warrants it. State exactly what ran, what did not,
+and why.

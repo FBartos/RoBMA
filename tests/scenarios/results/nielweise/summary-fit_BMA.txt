@@ -1,0 +1,18 @@
+
+Bayesian Model-Averaged Random-Effects Model (k = 9)
+
+Component Inclusion
+              Prior prob. Post. prob. Inclusion BF
+Effect              0.500       0.643        1.801
+Heterogeneity       0.500       0.587        1.419
+
+Estimates
+      Mean    SD  0.025    0.5 0.975
+mu  -0.279 0.271 -0.832 -0.275 0.000
+tau  0.228 0.265  0.000  0.125 0.831
+
+Conditional Estimates
+      Mean    SD  0.025    0.5  0.975
+mu  -0.433 0.218 -0.880 -0.427 -0.021
+tau  0.388 0.239  0.021  0.368  0.910
+

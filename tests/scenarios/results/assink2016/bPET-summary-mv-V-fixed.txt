@@ -1,0 +1,12 @@
+
+Bayesian Multivariate Fixed-Effect PET Model (k = 100)
+
+Estimates
+     Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu  0.030 0.029 -0.026 0.030 0.086     0.00041          0.014 4911 1.000
+tau 0.000 0.000  0.000 0.000 0.000     0.00000             NA    0    NA
+
+Publication Bias
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+PET 1.860 0.282 1.317 1.855 2.419     0.00440          0.016 4135 1.000
+

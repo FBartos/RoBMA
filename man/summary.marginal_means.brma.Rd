@@ -47,7 +47,7 @@ log-scale measures.}
 exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
 and \code{"IRR"}.}
 
-\item{...}{additional arguments (currently ignored).}
+\item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }
 \value{
 A \code{BayesTools_table} of class

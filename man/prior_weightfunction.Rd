@@ -12,7 +12,8 @@ prior_weightfunction(
   steps = c(0.025, 0.05),
   weights = wf_cumulative(),
   reference = "most_significant",
-  prior_weights = 1
+  prior_weights = 1,
+  model = selection_model()
 )
 
 wf_cumulative(alpha = NULL)
@@ -35,6 +36,11 @@ wf_independent(prior, scale = "omega")
 \code{"most_significant"}.}
 
 \item{prior_weights}{numeric prior model weight.}
+
+\item{model}{fixed likelihood choices from \code{selection_model()}. The
+default integrates estimate random effects and the complete sampling error,
+conditions on other random effects, and uses product weights. These choices
+do not change the weight-height prior or \code{prior_weights}.}
 
 \item{alpha}{optional positive cumulative-Dirichlet concentration parameters,
 one per p-value bin. If \code{NULL}, \code{prior_weightfunction()} uses

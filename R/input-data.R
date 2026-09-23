@@ -15,17 +15,52 @@
 #' supplied for normal models.
 #' @param sei a vector of standard errors. Either `vi` or `sei` must be
 #' supplied for normal models.
-#' @param weights an optional vector of positive likelihood weights. For
+#' @param V a known working variance-covariance matrix, a list of block
+#' variance-covariance matrices, or an exact diagonal-plus-factor declaration
+#' created by [known_v_factor()], used by `brma.mv()`. Ordinary covariance
+#' matrices from [metafor::vcalc()] can be supplied directly. Product selection
+#' requires no publication groups. For best-p-value selection, declare groups
+#' separately with `selection_model(weight_rule = "best", group = ...)`.
+#' Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
+#' stored symmetrically by averaging off-diagonal pairs; the supplied object
+#' and its diagonal are unchanged. Dependency blocks that are block constant
+#' on nested partitions are represented exactly as a diagonal-plus-factor
+#' structure without a [known_v_factor()] declaration.
+#' @param known_v_parameterization known-`V` backend used by `brma.mv()`.
+#' `"auto"` chooses an exact backend when feasible; `"latent"` uses a latent
+#' `D + BB'` decomposition; `"whitened"` uses an eigen-rotated normal
+#' likelihood; `"block_mvn"` uses an exact native block multivariate-normal
+#' likelihood.
+#' @param weights an optional vector of finite positive likelihood weights. For
 #' normal/effect-size models, each weight powers the estimate likelihood. For
 #' constructors with GLMM raw-count input, each weight powers the paired
-#' two-arm likelihood for one study.
-#' @param ni an optional vector of sample sizes. Used for `measure = "GEN"`
-#' or when estimating `"UISD"`).
+#' two-arm likelihood for one study. An integer weight \eqn{w} repeats that
+#' conditional likelihood contribution \eqn{w} times, with the declared
+#' latent-effect and grouping structure held fixed. Positive fractional
+#' likelihood powers are also supported.
+#' @param ni an optional vector of sample sizes. Used for `measure = "GEN"` or
+#' when estimating the unit information standard deviation.
 #' @param mods an optional matrix, data.frame, or formula specifying
-#' location moderators (meta-regressors). Formula input is evaluated in `data`.
+#' location moderators (meta-regressors). Formula input is evaluated in `data`
+#' and supports explicit columns and standard formula operators. Precompute
+#' transformed predictors as columns in `data`; inline calls such as `I()`,
+#' `poly()`, spline constructors, and user functions are not supported.
 #' @param scale an optional matrix, data.frame, or formula specifying
 #' scale predictors for location-scale models. Formula input is evaluated in
-#' `data`.
+#' `data` and follows the same explicit-column formula grammar as `mods`.
+#' Random-formula models also accept a named list targeting top-level random
+#' components or concrete random-effect blocks; see [brma.mv()].
+#' @param random an optional formula or list of formulas specifying
+#' BayesTools random-effect terms for `brma.mv()`. Use
+#' [random-effect formula structure tags][random_effect_formula_tags] such as
+#' `diag()`, `us()`/`un()`, `cs()`, `hcs()`, `ar1()`/`ar()`, `har()`, or
+#' `car()` inside the formula. Plain `(expr | group)` syntax uses an
+#' unstructured random-coefficient block; `expr || group` uses a diagonal
+#' block. The coefficient-formula and structured-index tag families have
+#' different left-side semantics; see the linked documentation. A bare formula
+#' or unnamed one-entry list has no redundant component prefix. An explicitly
+#' named one-entry list retains its name; lists with two or more entries
+#' generate missing names as `component 1`, `component 2`, and so on.
 #' @param cluster an optional vector of cluster identifiers for multilevel
 #' meta-analysis.
 #' @param data an optional data frame containing the variables.
@@ -74,9 +109,8 @@ NULL
 # @param data The data frame to search in (can be NULL)
 # @param enclos The enclosing environment for evaluation
 # @param name The name of the argument (for error messages)
-# @param allow_NULL Logical; if TRUE, NULL values are allowed
 # @return The extracted vector or NULL
-.get_variable <- function(mf, data, enclos, name, allow_NULL = TRUE) {
+.get_variable <- function(mf, data, enclos, name) {
 
   # Check if argument is in the call
   arg_index <- match(name, names(mf))
@@ -111,7 +145,7 @@ NULL
 
     # Strip attributes (e.g., from metafor::escalc output) from atomic vectors only
     # Do not strip from formulas, data.frames, lists, or other complex objects
-    if (is.atomic(out) && !inherits(out, "formula")) {
+    if (is.atomic(out) && is.null(dim(out)) && !inherits(out, "formula")) {
       out <- as.vector(out)
     }
 
@@ -123,13 +157,10 @@ NULL
     return(as.vector(data[[mf_x]]))
   }
 
-  # If still not found, report error
-  if (!allow_NULL) {
-    stop(paste0("Cannot find the object/variable ('", deparse(mf_x),
-                "') specified for the '", name, "' argument."), call. = FALSE)
-  }
-
-  return(NULL)
+  # If still not found, report error. Missing arguments and explicit NULL
+  # values were handled above.
+  stop(paste0("Cannot find the object/variable ('", deparse(mf_x),
+              "') specified for the '", name, "' argument."), call. = FALSE)
 }
 
 
@@ -151,9 +182,9 @@ NULL
 .check_and_list_data.optional_vars <- function(.call, data, .envir, k, primary_var) {
 
   # Extract optional variables
-  weights   <- .get_variable(.call, data, .envir, "weights",   allow_NULL = TRUE)
-  cluster   <- .get_variable(.call, data, .envir, "cluster",   allow_NULL = TRUE)
-  slab      <- .get_variable(.call, data, .envir, "slab",      allow_NULL = TRUE)
+  weights   <- .get_variable(.call, data, .envir, "weights")
+  cluster   <- .get_variable(.call, data, .envir, "cluster")
+  slab      <- .get_variable(.call, data, .envir, "slab")
 
   # Track which optional fields were provided
   weights_provided   <- !is.null(weights)
@@ -165,6 +196,8 @@ NULL
     stop("The 'weights' argument must not contain missing values.", call. = FALSE)
   if (!is.null(weights))
     BayesTools::check_real(weights, "weights", check_length = k, allow_NULL = TRUE, allow_NA = FALSE, lower = 0, allow_bound = FALSE)
+  if (!is.null(weights) && any(!is.finite(weights)))
+    stop("The 'weights' argument must contain only finite values.", call. = FALSE)
 
   # Validate cluster
   if (!is.null(cluster) && length(cluster) != k)
@@ -207,25 +240,40 @@ NULL
 #   - scale: scale information (data.frame or NULL)
 .check_and_list_data <- function(.call, .envir, class = "norm", measure,
                                  set_contrast_factor_predictors, standardize_continuous_predictors,
-                                 effect_direction = "positive", skip_validation = FALSE) {
+                                 effect_direction = "positive", skip_validation = FALSE,
+                                 allow_na_drop = TRUE,
+                                 random_effects_metadata = NULL,
+                                 random_group_covariance = NULL,
+                                 known_v_parameterization = "auto",
+                                 selection_binding = FALSE) {
 
   # check additional input
   .check_measure(measure, class = class)
   BayesTools::check_bool(standardize_continuous_predictors, "standardize_continuous_predictors", allow_NA = FALSE)
-  BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c("treatment", "meandif", "orthonormal"), allow_NA = FALSE)
+  BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c("treatment", "meandif", "orthonormal", "independent"), allow_NA = FALSE)
   if (missing(effect_direction)) {
     effect_direction <- "positive"
   }
   BayesTools::check_char(effect_direction, "effect_direction", allow_values = c("positive", "negative", "detect"))
   BayesTools::check_bool(skip_validation, "skip_validation")
+  BayesTools::check_bool(allow_na_drop, "allow_na_drop")
+  if (is.null(known_v_parameterization)) {
+    known_v_parameterization <- "auto"
+  }
+  BayesTools::check_char(
+    known_v_parameterization,
+    "known_v_parameterization",
+    allow_values = c("auto", "latent", "whitened", "block_mvn")
+  )
 
   ### Extract the data argument first - other variables may reference columns within it
-  data <- .get_variable(.call, NULL, .envir, "data", allow_NULL = TRUE)
+  data <- .get_variable(.call, NULL, .envir, "data")
 
   ### Step 1: Extract and validate outcome variables (dispatch based on class)
   outcome_result <- switch(
     class,
     "norm" = .check_and_list_data.outcome.norm(.call, data, .envir, effect_direction, skip_validation),
+    "mv"   = .check_and_list_data.outcome.mv(.call, data, .envir, effect_direction, skip_validation),
     "glmm" = switch(
       measure,
       "OR"  = .check_and_list_data.outcome.bin(.call, data, .envir, skip_validation),
@@ -243,6 +291,8 @@ NULL
   na_check_cols      <- outcome_result$na_check_cols
   outcome_type       <- outcome_result$outcome_type
   effect_direction   <- outcome_result$effect_direction
+  known_V_input      <- outcome_result$known_V_input
+  known_V_hidden     <- outcome_result$known_V_hidden
 
   ### Step 2: Extract moderator variables (mods and scale)
   if (!is.null(mods_from_yi)) {
@@ -260,28 +310,47 @@ NULL
     )
   }
 
-  data_scale <- .check_and_list_data.predictors(
+  data_scale <- .check_and_list_data.scale(
     .call  = .call,
     data   = data,
     .envir = .envir,
-    name   = "scale",
     k      = k
   )
+  data_random <- .check_and_list_data.random(
+    .call                   = .call,
+    data                    = data,
+    .envir                  = .envir,
+    k                       = k,
+    random_effects_metadata = random_effects_metadata,
+    random_group_covariance = random_group_covariance
+  )
+  if (identical(class, "mv") && !is.null(data_scale) &&
+      length(data_random[["terms"]]) == 0L) {
+    stop("The 'scale' argument requires 'random' in multivariate models.", call. = FALSE)
+  }
 
-    data_mods  <- .check_and_list_data.coerce_character_predictors(data_mods)
-    data_scale <- .check_and_list_data.coerce_character_predictors(data_scale)
+  data_mods  <- .check_and_list_data.coerce_character_predictors(data_mods)
+  data_scale <- .check_and_list_data.scale_coerce_character_predictors(data_scale)
+  if (!is.null(data_random[["data"]])) {
+    data_random[["data"]] <- .check_and_list_data.coerce_character_predictors(data_random[["data"]])
+  }
 
   ### Step 3: Apply subset (before NA handling)
-  subset <- .get_variable(.call, data, .envir, "subset", allow_NULL = TRUE)
+  subset    <- .get_variable(.call, data, .envir, "subset")
+  keep_rows <- rep(TRUE, k)
 
   if (!is.null(subset)) {
     # Validate and convert subset to logical
     subset <- .check_and_list_data.validate_subset(subset, k)
+    keep_rows <- keep_rows & subset
 
     # Apply subsetting to all data frames
     data_outcome <- .check_and_list_data.subset(data_outcome, subset)
     data_mods    <- .check_and_list_data.subset(data_mods, subset)
-    data_scale   <- .check_and_list_data.subset(data_scale, subset)
+    data_scale   <- .check_and_list_data.scale_subset(data_scale, subset)
+    if (!is.null(data_random[["data"]])) {
+      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], subset)
+    }
   }
 
   ### Step 4: Handle NA dropping
@@ -293,8 +362,12 @@ NULL
   if (!is.null(data_mods)) {
     data_list_for_na$mods <- data_mods
   }
-  if (!is.null(data_scale)) {
-    data_list_for_na$scale <- data_scale
+  data_list_for_na <- c(
+    data_list_for_na,
+    .check_and_list_data.scale_na_frames(data_scale)
+  )
+  if (!is.null(data_random[["data"]])) {
+    data_list_for_na$random <- data_random[["data"]]
   }
 
   # Get rows with NAs
@@ -303,20 +376,35 @@ NULL
   # Drop NA rows if any
   n_dropped <- sum(na_rows)
   if (n_dropped > 0) {
+    if (!allow_na_drop) {
+      .check_and_list_data.stop_na(data_list_for_na)
+    }
 
     warning(paste0(n_dropped, " observation(s) removed due to missing values."), call. = FALSE, immediate. = TRUE)
 
-    keep_rows <- !na_rows
-    data_outcome <- .check_and_list_data.subset(data_outcome, keep_rows)
-    data_mods    <- .check_and_list_data.subset(data_mods, keep_rows)
-    data_scale   <- .check_and_list_data.subset(data_scale, keep_rows)
+    keep_after_subset <- !na_rows
+    current_rows <- which(keep_rows)
+    keep_rows[current_rows] <- keep_after_subset
+
+    data_outcome <- .check_and_list_data.subset(data_outcome, keep_after_subset)
+    data_mods    <- .check_and_list_data.subset(data_mods, keep_after_subset)
+    data_scale   <- .check_and_list_data.scale_subset(data_scale, keep_after_subset)
+    if (!is.null(data_random[["data"]])) {
+      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], keep_after_subset)
+    }
   }
 
   ### Step 5: Final validation and processing
   k_final <- nrow(data_outcome)
 
   if (k_final == 0) {
-    stop("No observations remaining after removing missing values.", call. = FALSE)
+    stop(
+      .check_and_list_data.no_observations_message(
+        subsetted = !is.null(subset),
+        n_dropped = n_dropped
+      ),
+      call. = FALSE
+    )
   }
 
   if (outcome_type == "norm" && effect_direction == "detect") {
@@ -326,7 +414,8 @@ NULL
   # Validate predictor variables (after subsetting and NA dropping)
   # Skip validation when processing newdata (skip_validation = TRUE)
   .check_and_list_data.validate_predictors(data_mods, "mods", skip_validation)
-  .check_and_list_data.validate_predictors(data_scale, "scale", skip_validation)
+  .check_and_list_data.scale_validate_predictors(data_scale, skip_validation)
+  data_scale <- .check_and_list_data.validate_scale_random(data_scale, data_random)
 
   # Generate default study labels if not provided (after NA dropping)
   if (!slab_provided) {
@@ -345,11 +434,31 @@ NULL
   }
 
   ### Create output object
+  known_V <- NULL
+  if (!is.null(known_V_input)) {
+    .check_and_list_data.mv_validate_hidden_inputs(
+      hidden    = known_V_hidden,
+      keep_rows = keep_rows
+    )
+    known_V <- .known_v_prepare(
+      V                        = known_V_input,
+      keep_rows                = keep_rows,
+      known_v_parameterization = known_v_parameterization,
+      known_v_is_scale         = !is.null(data_scale)
+    )
+    data_outcome[["sei"]] <- sqrt(.known_v_diagonal(known_V))
+  }
+
   data_list <- list(
-    outcome = data_outcome,
-    mods    = data_mods,
-    scale   = data_scale
+    outcome  = data_outcome,
+    mods     = data_mods,
+    scale    = data_scale,
+    location = .check_and_list_data.location(
+      data_mods   = data_mods,
+      data_random = data_random
+    )
   )
+  data_list <- .check_and_list_data.detach_formula_environments(data_list)
 
   class(data_list) <- "RoBMA_data"
   attr(data_list, "outcome_type")                       <- outcome_type
@@ -358,13 +467,103 @@ NULL
   attr(data_list, "k_final")                            <- k_final
   attr(data_list, "mods")                               <- !is.null(data_mods)
   attr(data_list, "scale")                              <- !is.null(data_scale)
+  attr(data_list, "random")                             <- !is.null(data_random[["formula"]])
   attr(data_list, "weights")                            <- weights_provided
+  attr(data_list, "known_V")                            <- !is.null(known_V)
+  attr(data_list, "known_V_data")                       <- known_V
   attr(data_list, "slab")                               <- slab_provided
   attr(data_list, "cluster")                            <- cluster_provided
   attr(data_list, "standardize_continuous_predictors")  <- standardize_continuous_predictors
   attr(data_list, "set_contrast_factor_predictors")     <- set_contrast_factor_predictors
   attr(data_list, "effect_direction")                   <- effect_direction
+  if (selection_binding) {
+    attr(data_list, "selection_binding") <- list(
+      input_data = data,
+      row_index  = which(keep_rows),
+      cluster    = if (cluster_provided) {
+        outcome_result[["data_outcome"]][["cluster_label"]]
+      } else NULL
+    )
+  }
   return(data_list)
+}
+
+
+.equal_within_double_roundoff <- function(x, y) {
+
+  difference <- abs(x - y)
+  scale      <- pmax(abs(x), abs(y))
+
+  return(difference == 0 | difference <= .Machine$double.eps * scale)
+}
+
+
+.sampling_variance_matches_se <- function(vi, sei) {
+
+  return(.equal_within_double_roundoff(sqrt(vi), sei))
+}
+
+
+# Fixed and scale formulas are later compiled by BayesTools::JAGS_formula().
+# Validate its deliberately narrow replay grammar before model.frame() can
+# materialize an input design that the fitting backend cannot reproduce.
+.check_and_list_data.validate_fixed_formula <- function(formula, name) {
+
+  if (!inherits(formula, "formula")) {
+    stop("Internal error: 'formula' must be a formula.", call. = FALSE)
+  }
+
+  validate_expression <- function(expression) {
+
+    if (is.symbol(expression)) {
+      if (identical(as.character(expression), ".")) {
+        stop(
+          "Unsupported term '.' in the '", name,
+          "' formula. List each data column explicitly.",
+          call. = FALSE
+        )
+      }
+      return(invisible(TRUE))
+    }
+
+    if (is.numeric(expression) && length(expression) == 1L &&
+        is.finite(expression) && expression %in% c(0, 1)) {
+      return(invisible(TRUE))
+    }
+
+    if (is.call(expression)) {
+      call_name <- if (is.symbol(expression[[1L]])) {
+        as.character(expression[[1L]])
+      } else {
+        ""
+      }
+
+      if (call_name %in% c("+", "-", "*", ":", "/", "^", "(")) {
+        for (argument in as.list(expression)[-1L]) {
+          validate_expression(argument)
+        }
+        return(invisible(TRUE))
+      }
+
+      expression_label <- paste(deparse(expression), collapse = " ")
+      stop(
+        "Unsupported call '", expression_label, "' in the '", name,
+        "' formula. Precompute transformed predictors as columns in 'data' ",
+        "and reference those columns by name.",
+        call. = FALSE
+      )
+    }
+
+    stop(
+      "Unsupported expression '", paste(deparse(expression), collapse = " "),
+      "' in the '", name, "' formula. Use literal data-column names.",
+      call. = FALSE
+    )
+  }
+
+  rhs_index <- if (length(formula) == 3L) 3L else 2L
+  validate_expression(formula[[rhs_index]])
+  invisible(TRUE)
 }
 
 
@@ -389,7 +588,7 @@ NULL
 .check_and_list_data.outcome.norm <- function(.call, data, .envir, effect_direction, skip_validation = FALSE) {
 
   # Extract yi (may be a formula like yi ~ mod1 + mod2)
-  yi <- .get_variable(.call, data, .envir, "yi", allow_NULL = FALSE)
+  yi <- .get_variable(.call, data, .envir, "yi")
 
   # Handle yi as formula (e.g., yi ~ mod1 + mod2)
   formula_yi   <- NULL
@@ -398,36 +597,37 @@ NULL
   if (inherits(yi, "formula")) {
 
     formula_yi <- yi
+    .check_and_list_data.validate_fixed_formula(yi, "yi")
 
     # Check that mods is not also specified (would be ambiguous)
-    mods_check <- .get_variable(.call, data, .envir, "mods", allow_NULL = TRUE)
+    mods_check <- .get_variable(.call, data, .envir, "mods")
     if (!is.null(mods_check)) {
       stop("Cannot specify 'mods' when 'yi' is a formula. Use either 'yi ~ mod1 + mod2' or 'yi = effect, mods = ~ mod1 + mod2', but not both.", call. = FALSE)
     }
 
-    # Extract the model frame from the formula
-    na_act <- getOption("na.action")
-    options(na.action = "na.pass")
-    on.exit(options(na.action = na_act), add = TRUE)
-
-    full_mf <- stats::model.frame(yi, data = data)
+    # Extract the model frame without changing the process-wide NA policy.
+    full_mf <- stats::model.frame(
+      yi,
+      data      = data,
+      na.action = stats::na.pass
+    )
 
     # Extract response (LHS)
     yi <- stats::model.response(full_mf)
     names(yi) <- NULL
 
-    # Extract predictors (RHS)
-    if (ncol(full_mf) > 1) {
+    # An empty RHS still carries the structural zero intercept in yi ~ 0.
+    if (ncol(full_mf) > 1 || attr(stats::terms(formula_yi), "intercept") == 0L) {
       mods_from_yi <- full_mf[, -1, drop = FALSE]
     }
   }
 
   # Extract variance/standard error
-  vi  <- .get_variable(.call, data, .envir, "vi",  allow_NULL = TRUE)
-  sei <- .get_variable(.call, data, .envir, "sei", allow_NULL = TRUE)
+  vi  <- .get_variable(.call, data, .envir, "vi")
+  sei <- .get_variable(.call, data, .envir, "sei")
 
   # Extract ni (sample sizes) - specific to normal likelihood models
-  ni <- .get_variable(.call, data, .envir, "ni", allow_NULL = TRUE)
+  ni <- .get_variable(.call, data, .envir, "ni")
 
   ### Input validation
 
@@ -457,8 +657,20 @@ NULL
     stop("Either 'vi' (variance) or 'sei' (standard error) must be provided.", call. = FALSE)
   } else {
     # Both provided - check consistency
-    if (any(abs(vi - sei^2) > 1e-10, na.rm = TRUE))
+    if (any(!.sampling_variance_matches_se(vi, sei), na.rm = TRUE))
       stop("The provided 'vi' and 'sei' values are inconsistent.", call. = FALSE)
+    missing_sei <- is.na(sei)
+    sei[missing_sei] <- sqrt(vi[missing_sei])
+  }
+
+  represented_vi  <- sei^2
+  unrepresentable <- !is.na(sei) & sei > 0 &
+    (!is.finite(represented_vi) | represented_vi == 0)
+  if (any(unrepresentable)) {
+    stop(
+      "Positive 'sei' values must have positive finite squared sampling variances.",
+      call. = FALSE
+    )
   }
 
   # Validate ni (sample sizes)
@@ -496,6 +708,297 @@ NULL
 }
 
 
+# Internal function to extract and validate outcome variables for normal models
+# with a known working variance-covariance matrix.
+.check_and_list_data.outcome.mv <- function(.call, data, .envir, effect_direction, skip_validation = FALSE) {
+
+  yi <- .get_variable(.call, data, .envir, "yi")
+
+  formula_yi   <- NULL
+  mods_from_yi <- NULL
+
+  if (inherits(yi, "formula")) {
+
+    formula_yi <- yi
+    .check_and_list_data.validate_fixed_formula(yi, "yi")
+
+    mods_check <- .get_variable(.call, data, .envir, "mods")
+    if (!is.null(mods_check)) {
+      stop("Cannot specify 'mods' when 'yi' is a formula. Use either 'yi ~ mod1 + mod2' or 'yi = effect, mods = ~ mod1 + mod2', but not both.", call. = FALSE)
+    }
+
+    full_mf <- stats::model.frame(
+      yi,
+      data      = data,
+      na.action = stats::na.pass
+    )
+
+    yi <- stats::model.response(full_mf)
+    names(yi) <- NULL
+
+    # An empty RHS still carries the structural zero intercept in yi ~ 0.
+    if (ncol(full_mf) > 1 || attr(stats::terms(formula_yi), "intercept") == 0L) {
+      mods_from_yi <- full_mf[, -1, drop = FALSE]
+    }
+  }
+
+  V   <- .get_variable(.call, data, .envir, "V")
+  vi  <- .get_variable(.call, data, .envir, "vi")
+  sei <- .get_variable(.call, data, .envir, "sei")
+  ni  <- .get_variable(.call, data, .envir, "ni")
+
+  BayesTools::check_real(yi, "yi", check_length = 0, allow_NULL = FALSE, allow_NA = TRUE)
+  if (all(is.na(yi)))
+    stop("The 'yi' argument must contain at least one non-NA value.", call. = FALSE)
+
+  k             <- length(yi)
+  known_V_input <- .check_and_list_data.mv_known_v_input(
+    V   = V,
+    vi  = vi,
+    sei = sei,
+    k   = k
+  )
+  if (.known_v_input_nrow(known_V_input[["V"]]) != k) {
+    stop("The dimensions of 'V' must match the length of 'yi'.", call. = FALSE)
+  }
+  missing_for_na <- known_V_input[["missing_for_na"]]
+  sei            <- numeric(k)
+  sei[missing_for_na] <- NA_real_
+
+  if (!is.null(ni))
+    BayesTools::check_real(ni, "ni", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
+
+  optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "yi")
+  if (optional$weights_provided) {
+    stop("'weights' are not supported in brma.mv().", call. = FALSE)
+  }
+  if (optional$cluster_provided) {
+    stop(
+      "'cluster' is not supported in brma.mv(); use the dedicated ",
+      "'random' argument for multilevel structures.",
+      call. = FALSE
+    )
+  }
+
+  data_outcome <- data.frame(
+    yi            = yi,
+    sei           = sei,
+    ni            = if (!is.null(ni))                  ni               else rep(NA_integer_, k),
+    cluster       = rep(NA_character_, k),
+    cluster_label = rep(NA_character_, k),
+    slab          = if (!is.null(optional$slab))       optional$slab    else rep(NA_character_, k),
+    weights       = rep(NA, k),
+    stringsAsFactors = FALSE
+  )
+
+  return(list(
+    data_outcome       = data_outcome,
+    k                  = k,
+    mods_from_yi       = mods_from_yi,
+    formula_yi         = formula_yi,
+    weights_provided   = FALSE,
+    slab_provided      = optional$slab_provided,
+    cluster_provided   = FALSE,
+    na_check_cols      = c("yi", "sei"),
+    effect_direction   = effect_direction,
+    outcome_type       = "norm",
+    known_V_input      = known_V_input[["V"]],
+    known_V_hidden     = known_V_input[["hidden"]]
+  ))
+}
+
+
+.check_and_list_data.mv_known_v_input <- function(V, vi, sei, k) {
+
+  has_V   <- !is.null(V)
+  has_vi  <- !is.null(vi)
+  has_sei <- !is.null(sei)
+
+  if (has_V && (has_vi || has_sei)) {
+    stop("Use only one of 'V' and 'vi'/'sei' inputs in brma.mv().",
+         call. = FALSE)
+  }
+  if (!has_V && !has_vi && !has_sei) {
+    stop("For brma.mv(), provide 'V' or diagonal input 'vi'/'sei'.",
+         call. = FALSE)
+  }
+  if (has_V) {
+    return(list(
+      V              = V,
+      missing_for_na = is.na(.known_v_input_diagonal(V)),
+      hidden         = NULL
+    ))
+  }
+
+  if (has_vi) {
+    .check_and_list_data.mv_hidden_input_structure(vi, "vi", k)
+  }
+  if (has_sei) {
+    .check_and_list_data.mv_hidden_input_structure(sei, "sei", k)
+  }
+
+  if (has_vi && has_sei) {
+    missing_vi  <- is.na(vi)
+    missing_sei <- is.na(sei)
+    vi[missing_vi]   <- sei[missing_vi]^2
+    sei[missing_sei] <- sqrt(vi[missing_sei])
+  }
+
+  missing_for_na <- rep(FALSE, k)
+  if (has_vi) {
+    missing_for_na <- missing_for_na | is.na(vi)
+  }
+  if (has_sei) {
+    missing_for_na <- missing_for_na | is.na(sei)
+  }
+
+  return(list(
+    V              = if (has_vi) vi else sei^2,
+    missing_for_na = missing_for_na,
+    hidden         = list(
+      vi  = if (has_vi)  vi  else NULL,
+      sei = if (has_sei) sei else NULL
+    )
+  ))
+}
+
+
+.check_and_list_data.mv_hidden_input_structure <- function(x, name, k) {
+
+  if (!is.numeric(x) || !is.null(dim(x)) || length(x) != k) {
+    stop(
+      "brma.mv() input '", name,
+      "' must be a numeric vector with the same length as 'yi'.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+# Validate hidden diagonal inputs after row selection.
+.check_and_list_data.mv_validate_hidden_inputs <- function(hidden, keep_rows) {
+
+  if (is.null(hidden)) {
+    return(invisible(TRUE))
+  }
+  if (!is.logical(keep_rows) || anyNA(keep_rows)) {
+    stop("Internal error: invalid hidden known-V row selector.", call. = FALSE)
+  }
+
+  vi  <- hidden[["vi"]]
+  sei <- hidden[["sei"]]
+  if (!is.null(vi)) {
+    vi <- vi[keep_rows]
+    if (any(!is.finite(vi)) || any(vi <= 0)) {
+      stop("brma.mv() input 'vi' must contain positive finite values.",
+           call. = FALSE)
+    }
+  }
+  if (!is.null(sei)) {
+    sei <- sei[keep_rows]
+    if (any(!is.finite(sei)) || any(sei <= 0)) {
+      stop("brma.mv() input 'sei' must contain positive finite values.",
+           call. = FALSE)
+    }
+  }
+  if (!is.null(vi) && !is.null(sei)) {
+    if (any(!.sampling_variance_matches_se(vi, sei))) {
+      stop("brma.mv() inputs 'vi' and 'sei' must be consistent.",
+           call. = FALSE)
+    }
+  }
+  if (!is.null(sei)) {
+    represented_vi <- sei^2
+    if (any(!is.finite(represented_vi)) || any(represented_vi <= 0)) {
+      stop(
+        "brma.mv() input 'sei' must have positive finite squared ",
+        "sampling variances.",
+        call. = FALSE
+      )
+    }
+  }
+
+  return(invisible(TRUE))
+}
+
+
+# Internal helper to validate and canonicalize binomial arm counts.
+.canonicalize_binomial_counts <- function(ai, bi = NULL, ci = NULL, di = NULL,
+                                          n1i = NULL, n2i = NULL,
+                                          skip_validation = FALSE) {
+
+  if (is.null(ai)) {
+    stop(
+      "For GLMM models, provide either (ai, bi, ci, di) or ",
+      "(ai, ci, n1i, n2i).",
+      call. = FALSE
+    )
+  }
+
+  k          <- length(ai)
+  count_args <- list(ai = ai, bi = bi, ci = ci, di = di, n1i = n1i, n2i = n2i)
+  for (arg_name in names(count_args)) {
+    if (!is.null(count_args[[arg_name]])) {
+      BayesTools::check_int(
+        count_args[[arg_name]], arg_name,
+        check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0
+      )
+    }
+  }
+
+  has_cells  <- !is.null(ci) && !is.null(bi) && !is.null(di)
+  has_totals <- !is.null(ci) && !is.null(n1i) && !is.null(n2i)
+
+  if (!has_cells && !has_totals) {
+    stop(
+      "For GLMM models, provide either (ai, bi, ci, di) or ",
+      "(ai, ci, n1i, n2i).",
+      call. = FALSE
+    )
+  }
+
+  if (!is.null(n1i) && any(ai > n1i, na.rm = TRUE)) {
+    stop("Invalid data: some values of 'bi' (= n1i - ai) are negative.", call. = FALSE)
+  }
+  if (!is.null(n2i) && any(ci > n2i, na.rm = TRUE)) {
+    stop("Invalid data: some values of 'di' (= n2i - ci) are negative.", call. = FALSE)
+  }
+
+  if (!is.null(bi) && !is.null(n1i) && any(n1i != ai + bi, na.rm = TRUE)) {
+    stop("The provided 'n1i' values must equal 'ai + bi' when both are supplied.", call. = FALSE)
+  }
+  if (!is.null(di) && !is.null(n2i) && any(n2i != ci + di, na.rm = TRUE)) {
+    stop("The provided 'n2i' values must equal 'ci + di' when both are supplied.", call. = FALSE)
+  }
+
+  if (!is.null(bi)) {
+    n1i <- ai + bi
+  }
+  if (!is.null(di)) {
+    n2i <- ci + di
+  }
+
+  if (!skip_validation) {
+    if (any(n1i <= 0, na.rm = TRUE)) {
+      stop("Invalid data: 'n1i' must contain positive arm totals.", call. = FALSE)
+    }
+    if (any(n2i <= 0, na.rm = TRUE)) {
+      stop("Invalid data: 'n2i' must contain positive arm totals.", call. = FALSE)
+    }
+  }
+
+  return(list(
+    ai  = ai,
+    ci  = ci,
+    n1i = n1i,
+    n2i = n2i,
+    k   = k
+  ))
+}
+
+
 # Internal function to extract and validate outcome variables for binomial GLMM models
 # Handles ai, bi, ci, di, n1i, n2i, weights, cluster, slab (for measure = "OR")
 #
@@ -515,58 +1018,27 @@ NULL
 .check_and_list_data.outcome.bin <- function(.call, data, .envir, skip_validation = FALSE) {
 
   # Extract cell counts for 2x2 tables
-  ai  <- .get_variable(.call, data, .envir, "ai",  allow_NULL = TRUE)
-  bi  <- .get_variable(.call, data, .envir, "bi",  allow_NULL = TRUE)
-  ci  <- .get_variable(.call, data, .envir, "ci",  allow_NULL = TRUE)
-  di  <- .get_variable(.call, data, .envir, "di",  allow_NULL = TRUE)
-  n1i <- .get_variable(.call, data, .envir, "n1i", allow_NULL = TRUE)
-  n2i <- .get_variable(.call, data, .envir, "n2i", allow_NULL = TRUE)
+  ai  <- .get_variable(.call, data, .envir, "ai")
+  bi  <- .get_variable(.call, data, .envir, "bi")
+  ci  <- .get_variable(.call, data, .envir, "ci")
+  di  <- .get_variable(.call, data, .envir, "di")
+  n1i <- .get_variable(.call, data, .envir, "n1i")
+  n2i <- .get_variable(.call, data, .envir, "n2i")
 
-  ### Determine input format and validate
-
-  # Determine k from first available variable
-  if (!is.null(ai)) {
-    k <- length(ai)
-  } else {
-    stop("For GLMM models, provide either (ai, bi, ci, di) or (ai, ci, n1i, n2i).", call. = FALSE)
-  }
-
-  count_args <- list(ai = ai, bi = bi, ci = ci, di = di, n1i = n1i, n2i = n2i)
-  for (arg_name in names(count_args)) {
-    if (!is.null(count_args[[arg_name]])) {
-      BayesTools::check_int(
-        count_args[[arg_name]], arg_name,
-        check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0
-      )
-    }
-  }
-
-  has_cells  <- !is.null(ci) && !is.null(bi) && !is.null(di)
-  has_totals <- !is.null(ci) && !is.null(n1i) && !is.null(n2i)
-
-  if (!has_cells && !has_totals) {
-    stop("For GLMM models, provide either (ai, bi, ci, di) or (ai, ci, n1i, n2i).", call. = FALSE)
-  }
-
-  if (!is.null(n1i) && any(ai > n1i, na.rm = TRUE))
-    stop("Invalid data: some values of 'bi' (= n1i - ai) are negative.", call. = FALSE)
-  if (!is.null(n2i) && any(ci > n2i, na.rm = TRUE))
-    stop("Invalid data: some values of 'di' (= n2i - ci) are negative.", call. = FALSE)
-
-  if (!is.null(bi) && !is.null(n1i) && any(n1i != ai + bi, na.rm = TRUE))
-    stop("The provided 'n1i' values must equal 'ai + bi' when both are supplied.", call. = FALSE)
-  if (!is.null(di) && !is.null(n2i) && any(n2i != ci + di, na.rm = TRUE))
-    stop("The provided 'n2i' values must equal 'ci + di' when both are supplied.", call. = FALSE)
-
-  if (!is.null(bi)) {
-    n1i <- ai + bi
-  }
-  if (!is.null(di)) {
-    n2i <- ci + di
-  }
-
-  bi <- n1i - ai
-  di <- n2i - ci
+  counts <- .canonicalize_binomial_counts(
+    ai              = ai,
+    bi              = bi,
+    ci              = ci,
+    di              = di,
+    n1i             = n1i,
+    n2i             = n2i,
+    skip_validation = skip_validation
+  )
+  ai  <- counts[["ai"]]
+  ci  <- counts[["ci"]]
+  n1i <- counts[["n1i"]]
+  n2i <- counts[["n2i"]]
+  k   <- counts[["k"]]
 
   # Extract and validate common optional variables (weights, cluster, slab)
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "ai")
@@ -619,10 +1091,10 @@ NULL
 .check_and_list_data.outcome.pois <- function(.call, data, .envir, skip_validation = FALSE) {
 
   # Extract event counts and person-time for Poisson models
-  x1i <- .get_variable(.call, data, .envir, "x1i", allow_NULL = TRUE)
-  x2i <- .get_variable(.call, data, .envir, "x2i", allow_NULL = TRUE)
-  t1i <- .get_variable(.call, data, .envir, "t1i", allow_NULL = TRUE)
-  t2i <- .get_variable(.call, data, .envir, "t2i", allow_NULL = TRUE)
+  x1i <- .get_variable(.call, data, .envir, "x1i")
+  x2i <- .get_variable(.call, data, .envir, "x2i")
+  t1i <- .get_variable(.call, data, .envir, "t1i")
+  t2i <- .get_variable(.call, data, .envir, "t2i")
 
   ### Validate that all required variables are provided
   if (is.null(x1i) || is.null(x2i) || is.null(t1i) || is.null(t2i)) {
@@ -712,35 +1184,57 @@ NULL
     stop(paste0("Cannot evaluate the '", name, "' argument: ",
                 conditionMessage(attr(mods, "condition"))), call. = FALSE)
 
-  # Handle formula input
-  if (inherits(mods, "formula")) {
+  .check_and_list_data.predictors_value(
+    predictors = mods,
+    data       = data,
+    name       = name,
+    k          = k
+  )
+}
 
-    original_formula <- mods
+.check_and_list_data.predictors_value <- function(predictors, data, name, k) {
+
+  # Handle formula input
+  if (inherits(predictors, "formula")) {
+
+    original_formula <- predictors
 
     # Ensure formula has no LHS (response)
-    if (length(mods) == 3) {
+    if (length(predictors) == 3) {
       warning(paste0("The '", name, "' formula should not have a left-hand side. ",
                      "The LHS will be ignored."), call. = FALSE)
-      mods <- mods[-2]
-      original_formula <- mods
+      predictors <- predictors[-2]
+      original_formula <- predictors
     }
+
+    .check_and_list_data.validate_fixed_formula(predictors, name)
 
     # Create model frame from formula
     if (!is.null(data) && is.data.frame(data)) {
       mf <- try(
-        stats::model.frame(mods, data = data, na.action = stats::na.pass),
+        stats::model.frame(predictors, data = data, na.action = stats::na.pass),
         silent = TRUE
       )
     } else {
       mf <- try(
-        stats::model.frame(mods, na.action = stats::na.pass),
+        stats::model.frame(predictors, na.action = stats::na.pass),
         silent = TRUE
       )
     }
 
-    if (inherits(mf, "try-error"))
+    if (inherits(mf, "try-error")) {
+      condition_message <- conditionMessage(attr(mf, "condition"))
+      missing_variable  <- regmatches(
+        condition_message,
+        regexec("object '([^']+)' not found", condition_message)
+      )[[1L]]
+      # Name the missing variable the way the random-effect parser does.
+      if (length(missing_variable) == 2L)
+        stop(paste0("Cannot find the '", name, "' variable ('",
+                    missing_variable[[2L]], "')."), call. = FALSE)
       stop(paste0("Cannot create model frame from '", name, "' formula: ",
-                  conditionMessage(attr(mf, "condition"))), call. = FALSE)
+                  condition_message), call. = FALSE)
+    }
 
     if (nrow(mf) != k)
       stop(paste0("The number of rows in '", name, "' (", nrow(mf),
@@ -751,9 +1245,9 @@ NULL
 
     return(mf)
 
-  } else if (is.matrix(mods)) {
+  } else if (is.matrix(predictors)) {
 
-    mods_df <- as.data.frame(mods)
+    mods_df <- as.data.frame(predictors)
 
     if (nrow(mods_df) != k)
       stop(paste0("The number of rows in '", name, "' (", nrow(mods_df),
@@ -764,9 +1258,9 @@ NULL
 
     return(mods_df)
 
-  } else if (is.data.frame(mods)) {
+  } else if (is.data.frame(predictors)) {
 
-    mods_df <- mods
+    mods_df <- predictors
 
     if (nrow(mods_df) != k)
       stop(paste0("The number of rows in '", name, "' (", nrow(mods_df),
@@ -781,6 +1275,425 @@ NULL
     stop(paste0("The '", name, "' argument must be a formula, matrix, or data.frame."),
          call. = FALSE)
   }
+}
+
+.check_and_list_data.scale <- function(.call, data, .envir, k) {
+
+  arg_index <- match("scale", names(.call))
+  if (is.na(arg_index)) {
+    return(NULL)
+  }
+
+  scale_expr <- .call[[arg_index]]
+  if (is.null(scale_expr)) {
+    return(NULL)
+  }
+
+  scale <- if (!is.null(data) && is.data.frame(data)) {
+    try(eval(scale_expr, data, .envir), silent = TRUE)
+  } else {
+    try(eval(scale_expr, .envir), silent = TRUE)
+  }
+  if (inherits(scale, "try-error")) {
+    stop(
+      "Cannot evaluate the 'scale' argument: ",
+      conditionMessage(attr(scale, "condition")),
+      call. = FALSE
+    )
+  }
+
+  if (is.list(scale) && !is.data.frame(scale) && !inherits(scale, "formula")) {
+    if (is.null(names(scale)) || any(!nzchar(names(scale)))) {
+      stop(
+        "Component-specific 'scale' lists must be named by random component or block.",
+        call. = FALSE
+      )
+    }
+    if (anyDuplicated(names(scale))) {
+      stop(
+        "Component-specific 'scale' list names must be unique.",
+        call. = FALSE
+      )
+    }
+
+    scale_components <- lapply(names(scale), function(component) {
+      component_data <- .check_and_list_data.predictors_value(
+        predictors = scale[[component]],
+        data       = data,
+        name       = paste0("scale$", component),
+        k          = k
+      )
+      attr(component_data, "component") <- component
+      attr(component_data, "source")    <- paste0("tau_", component)
+      attr(component_data, "parameter") <- paste0("log_tau_", component)
+      component_data
+    })
+    names(scale_components) <- names(scale)
+    class(scale_components) <- c("RoBMA_scale_components", "list")
+
+    return(scale_components)
+  }
+
+  .check_and_list_data.predictors_value(
+    predictors = scale,
+    data       = data,
+    name       = "scale",
+    k          = k
+  )
+}
+
+.check_and_list_data.validate_scale_component_name <- function(component) {
+
+  if (!grepl("^[A-Za-z][A-Za-z0-9_]*$", component)) {
+    stop(
+      "Scale component name '", component,
+      "' is not a valid JAGS parameter-name fragment.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+.check_and_list_data.scale_component_aliases <- function(component, name,
+                                                         scale_name) {
+
+  aliases <- unique(c(component, name, scale_name))
+  aliases[!is.na(aliases) & nzchar(aliases)]
+}
+
+.check_and_list_data.random <- function(.call, data, .envir, k,
+                                        random_effects_metadata = NULL,
+                                        random_group_covariance = NULL) {
+
+  arg_index <- match("random", names(.call))
+  if (is.na(arg_index)) {
+    if (!is.null(random_group_covariance)) {
+      stop("'R' requires a 'random' formula.", call. = FALSE)
+    }
+    if (!is.null(random_effects_metadata)) {
+      if (!inherits(random_effects_metadata, "BayesTools_random_effects")) {
+        stop("Internal error: random-effect metadata must be a BayesTools random-effect object.",
+             call. = FALSE)
+      }
+      return(list(
+        formula        = NULL,
+        data           = NULL,
+        terms          = random_effects_metadata[["terms"]],
+        random_effects = random_effects_metadata
+      ))
+    }
+    return(list(formula = NULL, data = NULL, terms = list()))
+  }
+
+  random_expr <- .call[[arg_index]]
+  random <- if (!is.null(data) && is.data.frame(data)) {
+    try(eval(random_expr, data, .envir), silent = TRUE)
+  } else {
+    try(eval(random_expr, .envir), silent = TRUE)
+  }
+  if (inherits(random, "try-error")) {
+    stop(
+      "Cannot evaluate the 'random' argument: ",
+      conditionMessage(attr(random, "condition")),
+      call. = FALSE
+    )
+  }
+  if (is.null(random)) {
+    if (!is.null(random_group_covariance)) {
+      stop("'R' requires a non-NULL 'random' formula.", call. = FALSE)
+    }
+    return(list(formula = NULL, data = NULL, terms = list()))
+  }
+
+  if (inherits(random, "BayesTools_random_effects")) {
+    if (!is.null(random_group_covariance)) {
+      stop(
+        "'R' cannot be combined with a pre-parsed BayesTools random-effect ",
+        "object; supply the random-effect formula to 'random' instead.",
+        call. = FALSE
+      )
+    }
+    random_effects <- random
+  } else {
+    random_effects <- tryCatch(
+      BayesTools::random_effects_formula(
+        random           = random,
+        envir            = .envir,
+        group_covariance = random_group_covariance
+      ),
+      error = function(e) {
+        message <- conditionMessage(e)
+        if (!is.null(random_group_covariance)) {
+          message <- .brma_mv_group_covariance_error_message(message)
+        }
+        stop(message, call. = FALSE)
+      }
+    )
+    .check_and_list_data.random_validate_formula_component(
+      random_effects = random_effects,
+      random         = random
+    )
+  }
+  formula <- random_effects[["formula"]]
+  terms   <- random_effects[["terms"]]
+  if (length(terms) == 0L) {
+    stop("The 'random' formula must contain at least one random-effect term.",
+         call. = FALSE)
+  }
+  .check_and_list_data.random_validate_group_covariance_terms(terms)
+
+  variables <- all.vars(formula)
+  random_data <- .check_and_list_data.random_variables(
+    variables = variables,
+    data      = data,
+    .envir    = .envir,
+    k         = k
+  )
+  attr(random_data, "formula") <- formula
+
+  return(list(
+    formula        = formula,
+    data           = random_data,
+    terms          = terms,
+    random_effects = random_effects
+  ))
+}
+
+.check_and_list_data.random_validate_group_covariance_terms <- function(terms) {
+
+  for (term in terms) {
+    if (!.random_effect_term_has_known_group_covariance(term)) {
+      next
+    }
+
+    block <- term[["block_name"]]
+    structure <- term[["structure"]]
+    structure_label <- if (is.character(structure) && length(structure) == 1L &&
+                           !is.na(structure) && nzchar(structure)) {
+      structure
+    } else {
+      "unknown"
+    }
+    if (!is.character(structure) || length(structure) != 1L ||
+        is.na(structure) || !tolower(structure) %in% c("id", "diag", "us")) {
+      stop(
+        "'R' currently supports random-intercept blocks only; ",
+        "random-effect block '", block, "' uses structure '",
+        structure_label, "'.",
+        call. = FALSE
+      )
+    }
+    if (!identical(term[["expr"]], 1)) {
+      stop(
+        "'R' currently supports random intercepts only; ",
+        "random-effect block '", block, "' contains random slopes.",
+        call. = FALSE
+      )
+    }
+  }
+
+  invisible(TRUE)
+}
+
+.check_and_list_data.random_validate_formula_component <- function(random_effects,
+                                                                   random) {
+
+  is_single_formula <- inherits(random, "formula") ||
+    (is.list(random) && length(random) == 1L &&
+       inherits(random[[1L]], "formula"))
+  if (!is_single_formula) {
+    return(invisible(TRUE))
+  }
+
+  terms <- random_effects[["terms"]]
+  if (length(terms) == 0L) {
+    return(invisible(TRUE))
+  }
+  component_visible <- vapply(terms, function(term) {
+    isTRUE(term[["component_visible"]])
+  }, logical(1))
+  if (any(component_visible)) {
+    return(invisible(TRUE))
+  }
+  if (length(terms) > 1L &&
+      !.check_and_list_data.random_is_plain_nested(random)) {
+    stop(
+      "Bare 'random' formulas with multiple random-effect terms are ",
+      "ambiguous. Use a named list such as ",
+      "'random = list(component = ~ 1 | study)'.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+.check_and_list_data.random_is_plain_nested <- function(random) {
+
+  formula <- if (inherits(random, "formula")) random else random[[1L]]
+  rhs <- formula[[if (length(formula) == 3L) 3L else 2L]]
+  while (is.call(rhs) && identical(rhs[[1L]], as.name("("))) {
+    rhs <- rhs[[2L]]
+  }
+
+  is.call(rhs) &&
+    identical(rhs[[1L]], as.name("|")) &&
+    .check_and_list_data.random_group_has_nested_slash(rhs[[3L]])
+}
+
+.check_and_list_data.random_group_has_nested_slash <- function(expr) {
+
+  if (!is.call(expr)) {
+    return(FALSE)
+  }
+  if (identical(expr[[1L]], as.name("/"))) {
+    return(TRUE)
+  }
+
+  any(vapply(as.list(expr[-1L]), .check_and_list_data.random_group_has_nested_slash,
+             logical(1)))
+}
+
+.check_and_list_data.formula_rhs <- function(formula) {
+
+  rhs_index <- if (length(formula) == 3L) 3L else 2L
+  paste(
+    deparse(formula[[rhs_index]], width.cutoff = 500L, backtick = TRUE),
+    collapse = " "
+  )
+}
+
+.check_and_list_data.random_variables <- function(variables, data, .envir, k) {
+
+  if (length(variables) == 0L) {
+    out <- data.frame(.RoBMA_random_intercept = rep(1, k))
+    return(out[, FALSE, drop = FALSE])
+  }
+
+  out <- data.frame(row.names = seq_len(k))
+  for (variable in variables) {
+    value <- .check_and_list_data.random_variable(
+      variable = variable,
+      data     = data,
+      .envir   = .envir
+    )
+    if (length(value) != k) {
+      stop(
+        "The random-effect variable '", variable,
+        "' must have length ", k, " (same as 'yi').",
+        call. = FALSE
+      )
+    }
+    out[[variable]] <- value
+  }
+  rownames(out) <- NULL
+
+  return(out)
+}
+
+# Attribute an empty data set to the step that emptied it.
+.check_and_list_data.no_observations_message <- function(subsetted, n_dropped) {
+
+  if (!subsetted && n_dropped == 0) {
+    return("The data contain no observations.")
+  }
+  if (!subsetted) {
+    return("No observations remaining after removing missing values.")
+  }
+  if (n_dropped == 0) {
+    return("No observations remaining after applying 'subset'.")
+  }
+
+  paste0(
+    "No observations remaining after applying 'subset' and removing ",
+    "missing values."
+  )
+}
+
+
+.check_and_list_data.random_variable <- function(variable, data, .envir) {
+
+  if (!is.null(data) && is.data.frame(data) && variable %in% names(data)) {
+    return(data[[variable]])
+  }
+  if (exists(variable, envir = .envir, inherits = TRUE)) {
+    value <- get(variable, envir = .envir, inherits = TRUE)
+    if (!is.function(value)) {
+      return(value)
+    }
+  }
+
+  stop(
+    "Cannot find the random-effect variable ('", variable, "').",
+    call. = FALSE
+  )
+}
+
+.check_and_list_data.location <- function(data_mods, data_random) {
+
+  if (is.null(data_mods) && is.null(data_random[["data"]])) {
+    return(NULL)
+  }
+
+  if (!is.null(data_mods)) {
+    location <- data_mods
+  } else {
+    location <- data.frame(
+      row.names = seq_len(nrow(data_random[["data"]]))
+    )
+  }
+  if (!is.null(data_random[["data"]])) {
+    for (variable in names(data_random[["data"]])) {
+      if (variable %in% names(location)) {
+        if (!identical(location[[variable]], data_random[["data"]][[variable]])) {
+          stop(
+            "The variable '", variable, "' is used by both 'mods' and ",
+            "'random' with different values. Use distinct names or make ",
+            "both inputs refer to the same data column.",
+            call. = FALSE
+          )
+        }
+      } else {
+        location[[variable]] <- data_random[["data"]][[variable]]
+      }
+    }
+  }
+  rownames(location) <- NULL
+
+  attr(location, "formula") <- .check_and_list_data.location_formula(
+    data_mods   = data_mods,
+    data_random = data_random
+  )
+  attr(location, "random_effects") <- data_random[["random_effects"]]
+
+  return(location)
+}
+
+.check_and_list_data.location_formula <- function(data_mods, data_random) {
+
+  fixed_rhs <- if (!is.null(data_mods)) {
+    .check_and_list_data.formula_rhs(attr(data_mods, "formula"))
+  } else {
+    "1"
+  }
+
+  if (is.null(data_random[["formula"]])) {
+    return(stats::as.formula(paste("~", fixed_rhs)))
+  }
+
+  random_rhs <- .check_and_list_data.formula_rhs(data_random[["formula"]])
+
+  formula <- stats::as.formula(
+    paste("~", fixed_rhs, "+", random_rhs),
+    env = environment(data_random[["formula"]])
+  )
+  attr(formula, "random_terms") <- data_random[["terms"]]
+  if (!is.null(data_random[["random_effects"]][["components"]])) {
+    attr(formula, "random_components") <- data_random[["random_effects"]][["components"]]
+  }
+
+  formula
 }
 
 
@@ -806,6 +1719,17 @@ NULL
   }
 
   return(df)
+}
+
+.check_and_list_data.scale_coerce_character_predictors <- function(data_scale) {
+
+  if (.check_and_list_data.is_scale_components(data_scale)) {
+    data_scale <- lapply(data_scale, .check_and_list_data.coerce_character_predictors)
+    class(data_scale) <- c("RoBMA_scale_components", "list")
+    return(data_scale)
+  }
+
+  .check_and_list_data.coerce_character_predictors(data_scale)
 }
 
 
@@ -866,6 +1790,9 @@ NULL
   # Preserve attributes
   saved_formula    <- attr(df, "formula")
   saved_formula_yi <- attr(df, "formula_yi")
+  saved_component  <- attr(df, "component")
+  saved_source     <- attr(df, "source")
+  saved_parameter  <- attr(df, "parameter")
 
   # Apply subset
   df <- df[subset, , drop = FALSE]
@@ -881,8 +1808,25 @@ NULL
     attr(df, "formula") <- saved_formula
   if (!is.null(saved_formula_yi))
     attr(df, "formula_yi") <- saved_formula_yi
+  if (!is.null(saved_component))
+    attr(df, "component") <- saved_component
+  if (!is.null(saved_source))
+    attr(df, "source") <- saved_source
+  if (!is.null(saved_parameter))
+    attr(df, "parameter") <- saved_parameter
 
   return(df)
+}
+
+.check_and_list_data.scale_subset <- function(data_scale, subset) {
+
+  if (.check_and_list_data.is_scale_components(data_scale)) {
+    data_scale <- lapply(data_scale, .check_and_list_data.subset, subset = subset)
+    class(data_scale) <- c("RoBMA_scale_components", "list")
+    return(data_scale)
+  }
+
+  .check_and_list_data.subset(data_scale, subset)
 }
 
 
@@ -938,6 +1882,299 @@ NULL
   return(invisible(NULL))
 }
 
+.check_and_list_data.scale_validate_predictors <- function(data_scale, skip_validation = FALSE) {
+
+  if (.check_and_list_data.is_scale_components(data_scale)) {
+    for (component in names(data_scale)) {
+      .check_and_list_data.validate_predictors(
+        df              = data_scale[[component]],
+        name            = paste0("scale$", component),
+        skip_validation = skip_validation
+      )
+    }
+    return(invisible(NULL))
+  }
+
+  .check_and_list_data.validate_predictors(
+    df              = data_scale,
+    name            = "scale",
+    skip_validation = skip_validation
+  )
+}
+
+.check_and_list_data.scale_na_frames <- function(data_scale) {
+
+  if (is.null(data_scale)) {
+    return(list())
+  }
+  if (.check_and_list_data.is_scale_components(data_scale)) {
+    out <- as.list(data_scale)
+    names(out) <- paste0("scale$", names(out))
+    return(out)
+  }
+
+  list(scale = data_scale)
+}
+
+.check_and_list_data.is_scale_components <- function(data_scale) {
+
+  inherits(data_scale, "RoBMA_scale_components")
+}
+
+.check_and_list_data.validate_scale_random <- function(data_scale, data_random) {
+
+  if (is.null(data_scale)) {
+    return(NULL)
+  }
+  if (length(data_random[["terms"]]) == 0L) {
+    if (.check_and_list_data.is_scale_components(data_scale)) {
+      stop(
+        "Component-specific 'scale' lists require a 'random' formula.",
+        call. = FALSE
+      )
+    }
+    return(data_scale)
+  }
+
+  components       <- .check_and_list_data.random_components(data_random[["terms"]])
+  component_labels <- components[["label"]]
+
+  if (.check_and_list_data.is_scale_components(data_scale)) {
+    targets            <- .check_and_list_data.random_scale_targets(
+      data_random[["terms"]]
+    )
+    scale_names        <- names(data_scale)
+    mapped_targets     <- lapply(
+      scale_names,
+      .check_and_list_data.resolve_random_scale_target,
+      targets = targets
+    )
+    unknown_components <- scale_names[vapply(mapped_targets, is.null, logical(1))]
+    if (length(unknown_components) > 0L) {
+      stop(
+        "Component-specific 'scale' names must match a top-level 'random' ",
+        "component or a concrete random-effect block. Unknown: ",
+        .check_and_list_data.collapse_or_none(unknown_components),
+        ".",
+        call. = FALSE
+      )
+    }
+    target_keys <- vapply(mapped_targets, function(target) {
+      paste(target[["type"]], target[["label"]], sep = "::")
+    }, character(1))
+    if (anyDuplicated(target_keys)) {
+      stop(
+        "Component-specific 'scale' names must resolve to unique random-effect targets.",
+        call. = FALSE
+      )
+    }
+    scaled_groups <- vapply(mapped_targets, function(target) {
+      if (identical(target[["type"]], "component")) {
+        target[["component"]]
+      } else {
+        ""
+      }
+    }, character(1))
+    scaled_groups <- scaled_groups[nzchar(scaled_groups)]
+    overlapping_blocks <- vapply(mapped_targets, function(target) {
+      identical(target[["type"]], "block") &&
+        target[["component"]] %in% scaled_groups
+    }, logical(1))
+    if (any(overlapping_blocks)) {
+      stop(
+        "Component-specific 'scale' names must not target both a random ",
+        "component and one of its blocks.",
+        call. = FALSE
+      )
+    }
+
+    target_order <- order(vapply(mapped_targets, `[[`, integer(1), "order"))
+    data_scale     <- data_scale[target_order]
+    mapped_targets <- mapped_targets[target_order]
+    scale_names    <- scale_names[target_order]
+    names(data_scale) <- vapply(mapped_targets, `[[`, character(1), "label")
+    for (i in seq_along(data_scale)) {
+      target         <- mapped_targets[[i]]
+      component      <- target[["label"]]
+      component_name <- target[["name"]]
+      scale_name     <- scale_names[[i]]
+      .check_and_list_data.validate_scale_component_name(component)
+      attr(data_scale[[i]], "component")          <- component
+      attr(data_scale[[i]], "component_name")     <- component_name
+      attr(data_scale[[i]], "scale_name")         <- scale_name
+      attr(data_scale[[i]], "random_target_type") <- target[["type"]]
+      attr(data_scale[[i]], "random_target")      <- component
+      attr(data_scale[[i]], "aliases")            <-
+        .check_and_list_data.scale_component_aliases(
+          component  = component,
+          name       = component_name,
+          scale_name = scale_name
+        )
+      attr(data_scale[[i]], "source")    <- paste0("tau_", component)
+      attr(data_scale[[i]], "parameter") <- paste0("log_tau_", component)
+    }
+    class(data_scale) <- c("RoBMA_scale_components", "list")
+
+    return(data_scale)
+  }
+
+  if (length(component_labels) > 1L) {
+    stop(
+      "A single 'scale' formula is ambiguous when 'random' has multiple ",
+      "top-level components. Use a named list such as ",
+      "'scale = list(component = ~ x)'.",
+      call. = FALSE
+    )
+  }
+
+  attr(data_scale, "component")      <- component_labels[[1L]]
+  attr(data_scale, "component_name") <- components[["name"]][[1L]]
+  attr(data_scale, "aliases")        <- .check_and_list_data.scale_component_aliases(
+    component  = component_labels[[1L]],
+    name       = components[["name"]][[1L]],
+    scale_name = NULL
+  )
+
+  data_scale
+}
+
+.check_and_list_data.random_scale_targets <- function(terms) {
+
+  components <- .check_and_list_data.random_components(terms)
+  targets <- lapply(seq_len(nrow(components)), function(i) {
+    list(
+      type           = "component",
+      label          = components[["label"]][[i]],
+      name           = components[["name"]][[i]],
+      component      = components[["label"]][[i]],
+      aliases        = unique(c(
+        components[["label"]][[i]],
+        components[["name"]][[i]]
+      )),
+      nested_aliases = character(),
+      order          = i
+    )
+  })
+
+  component_count <- length(targets)
+  component_labels <- .check_and_list_data.random_component_labels(terms)
+  for (i in seq_along(terms)) {
+    term <- terms[[i]]
+    block_name <- term[["block_name"]]
+    group_name <- term[["group_label"]]
+    if (is.null(group_name) || length(group_name) != 1L ||
+        is.na(group_name) || !nzchar(group_name)) {
+      group_name <- block_name
+    }
+    nesting <- term[["group_nesting_components"]]
+    nested_aliases <- if (is.character(nesting) && length(nesting) > 1L) {
+      utils::tail(nesting, 1L)
+    } else {
+      character()
+    }
+    targets[[length(targets) + 1L]] <- list(
+      type           = "block",
+      label          = block_name,
+      name           = group_name,
+      component      = component_labels[[i]],
+      aliases        = unique(c(block_name, group_name)),
+      nested_aliases = nested_aliases,
+      order          = component_count + i
+    )
+  }
+
+  targets
+}
+
+.check_and_list_data.resolve_random_scale_target <- function(name, targets) {
+
+  component_matches <- which(vapply(targets, function(target) {
+    identical(target[["type"]], "component") && name %in% target[["aliases"]]
+  }, logical(1)))
+  if (length(component_matches) == 1L) {
+    return(targets[[component_matches]])
+  }
+  if (length(component_matches) > 1L) {
+    stop(
+      "Component-specific 'scale' name '", name,
+      "' ambiguously matches multiple random components.",
+      call. = FALSE
+    )
+  }
+
+  block_matches <- which(vapply(targets, function(target) {
+    identical(target[["type"]], "block") && name %in% target[["aliases"]]
+  }, logical(1)))
+  if (length(block_matches) == 1L) {
+    return(targets[[block_matches]])
+  }
+  if (length(block_matches) > 1L) {
+    stop(
+      "Component-specific 'scale' name '", name,
+      "' ambiguously matches multiple random-effect blocks.",
+      call. = FALSE
+    )
+  }
+
+  nested_matches <- which(vapply(targets, function(target) {
+    identical(target[["type"]], "block") &&
+      name %in% target[["nested_aliases"]]
+  }, logical(1)))
+  if (length(nested_matches) == 1L) {
+    return(targets[[nested_matches]])
+  }
+  if (length(nested_matches) > 1L) {
+    stop(
+      "Component-specific 'scale' name '", name,
+      "' ambiguously matches multiple nested random-effect blocks.",
+      call. = FALSE
+    )
+  }
+
+  NULL
+}
+
+.check_and_list_data.random_components <- function(terms) {
+
+  labels <- .check_and_list_data.random_component_labels(terms)
+  names  <- vapply(seq_along(terms), function(i) {
+    component <- terms[[i]][["component"]]
+    if (is.null(component) || length(component) != 1L ||
+        is.na(component) || !nzchar(component)) {
+      return(labels[[i]])
+    }
+    component
+  }, character(1))
+
+  keep <- !duplicated(labels)
+  data.frame(
+    label = labels[keep],
+    name  = names[keep],
+    stringsAsFactors = FALSE
+  )
+}
+
+.check_and_list_data.collapse_or_none <- function(x) {
+
+  if (length(x) == 0L) {
+    return("<none>")
+  }
+
+  paste(x, collapse = ", ")
+}
+
+.check_and_list_data.random_component_labels <- function(terms) {
+
+  vapply(seq_along(terms), function(i) {
+    label <- terms[[i]][["component_label"]]
+    if (is.null(label) || length(label) != 1L ||
+        is.na(label) || !nzchar(label)) {
+      return(terms[[i]][["block_name"]])
+    }
+    label
+  }, character(1))
+}
+
 
 # Internal function to check for NA values across a list of data.frames
 # Returns a logical vector indicating which rows have at least one NA
@@ -959,6 +2196,43 @@ NULL
   return(na_rows)
 }
 
+.check_and_list_data.stop_na <- function(data_list) {
+
+  na_entries <- do.call(rbind, lapply(names(data_list), function(frame_name) {
+    df <- data_list[[frame_name]]
+    if (is.null(df) || !is.data.frame(df) || ncol(df) == 0L) {
+      return(NULL)
+    }
+
+    indices <- which(is.na(df), arr.ind = TRUE)
+    if (nrow(indices) == 0L) {
+      return(NULL)
+    }
+
+    data.frame(
+      row    = indices[, "row"],
+      column = paste0(frame_name, "$", colnames(df)[indices[, "col"]]),
+      stringsAsFactors = FALSE
+    )
+  }))
+
+  if (is.null(na_entries)) {
+    stop("Prediction data must not contain missing values.", call. = FALSE)
+  }
+
+  rows    <- sort(unique(na_entries[["row"]]))
+  columns <- unique(na_entries[["column"]])
+
+  stop(
+    "Prediction data must not contain missing values. Missing values found in row(s): ",
+    paste(rows, collapse = ", "),
+    "; column(s): ",
+    paste(columns, collapse = ", "),
+    ".",
+    call. = FALSE
+  )
+}
+
 
 # Internal helper to create a formula from column names
 # Creates a one-sided formula like ~ var1 + var2 + var3
@@ -968,7 +2242,7 @@ NULL
 .create_formula_from_names <- function(col_names) {
 
   if (length(col_names) == 0) {
-    return(~ 1)
+    return(stats::as.formula("~ 1", env = baseenv()))
   }
 
   # Backtick names that need protection (contain spaces, special chars, etc.)
@@ -982,7 +2256,47 @@ NULL
 
   # Create formula string and convert to formula
   formula_str <- paste("~", paste(col_names_safe, collapse = " + "))
-  return(stats::as.formula(formula_str))
+  return(stats::as.formula(formula_str, env = baseenv()))
+}
+
+
+# Detach persisted formula metadata from caller evaluation frames. Predictor
+# values have already been materialized in data frames at this boundary, so
+# retaining caller environments only serializes unrelated session objects.
+.check_and_list_data.detach_formula_environments <- function(x) {
+
+  if (is.environment(x)) {
+    return(x)
+  }
+
+  if (inherits(x, "formula")) {
+    environment(x) <- baseenv()
+  }
+  if (inherits(x, "terms")) {
+    attr(x, ".Environment") <- baseenv()
+  }
+
+  if (is.list(x)) {
+    for (i in seq_along(x)) {
+      x[i] <- list(.check_and_list_data.detach_formula_environments(x[[i]]))
+    }
+  }
+
+  metadata <- attributes(x)
+  if (!is.null(metadata)) {
+    metadata_names <- intersect(
+      names(metadata),
+      c("formula", "formula_yi", "terms", "random_terms",
+        "random_components", "random_effects")
+    )
+    for (name in metadata_names) {
+      attr(x, name) <- .check_and_list_data.detach_formula_environments(
+        attr(x, name, exact = TRUE)
+      )
+    }
+  }
+
+  return(x)
 }
 
 
@@ -1059,16 +2373,55 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 }
 
 
-# Internal helper to add placeholder columns that are not used by prediction.
-.prepare_newdata_add_missing <- function(newdata, cols, value, n) {
+# Parser placeholders keep the shared data-input path usable without making
+# absent outcome variables visible to fitted moderator, scale, or random
+# formulas. The namespace is reserved so user data cannot shadow a placeholder.
+.prepare_newdata_placeholder_name <- function(name) {
 
-  for (col in cols) {
-    if (!col %in% names(newdata)) {
-      newdata[[col]] <- rep(value, n)
-    }
+  return(paste0(".RoBMA_newdata_parser_", name))
+}
+
+
+.prepare_newdata_reject_placeholder_columns <- function(newdata) {
+
+  reserved <- startsWith(names(newdata), ".RoBMA_newdata_parser_")
+  if (any(reserved)) {
+    stop(
+      "The 'newdata' contains a column reserved for internal prediction parsing: ",
+      paste(names(newdata)[reserved], collapse = ", "), ".",
+      call. = FALSE
+    )
   }
 
+  invisible(TRUE)
+}
+
+
+.prepare_newdata_add_placeholder <- function(newdata, name, value, n) {
+
+  placeholder <- .prepare_newdata_placeholder_name(name)
+  if (length(value) == 1L) {
+    value <- rep(value, n)
+  } else if (length(value) != n) {
+    stop("Internal error: prediction placeholder length mismatch.", call. = FALSE)
+  }
+  newdata[[placeholder]] <- value
   return(newdata)
+}
+
+
+.prepare_newdata_parser_column <- function(newdata, name) {
+
+  if (name %in% names(newdata)) {
+    return(name)
+  }
+
+  placeholder <- .prepare_newdata_placeholder_name(name)
+  if (placeholder %in% names(newdata)) {
+    return(placeholder)
+  }
+
+  return(NULL)
 }
 
 
@@ -1093,12 +2446,14 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   n_new        <- nrow(newdata)
 
   if (outcome_type == "norm") {
-    newdata <- .prepare_newdata_add_missing(
-      newdata = newdata,
-      cols    = "yi",
-      value   = 0,
-      n       = n_new
-    )
+    if (!"yi" %in% names(newdata)) {
+      newdata <- .prepare_newdata_add_placeholder(
+        newdata = newdata,
+        name    = "yi",
+        value   = 0,
+        n       = n_new
+      )
+    }
 
     if (!("sei" %in% names(newdata) || "vi" %in% names(newdata))) {
       if (.prepare_newdata_needs_norm_sei(object, type, bias_adjusted)) {
@@ -1108,30 +2463,70 @@ print.RoBMA_data <- function(x, n = 6, ...) {
           call. = FALSE
         )
       }
-      newdata[["sei"]] <- rep(0, n_new)
+      newdata <- .prepare_newdata_add_placeholder(
+        newdata = newdata,
+        name    = "sei",
+        value   = 0,
+        n       = n_new
+      )
     }
 
   } else if (outcome_type == "bin") {
-    if (type == "response") {
-      .prepare_newdata_stop_missing(newdata, c("n1i", "n2i"))
+    count_names      <- c("ai", "bi", "ci", "di", "n1i", "n2i")
+    provided_counts  <- intersect(count_names, names(newdata))
+    totals_available <- all(c("n1i", "n2i") %in% provided_counts)
+
+    if (length(provided_counts) == 0L && type != "response") {
+      for (name in c("ai", "ci", "n1i", "n2i")) {
+        newdata <- .prepare_newdata_add_placeholder(
+          newdata = newdata,
+          name    = name,
+          value   = 0L,
+          n       = n_new
+        )
+      }
+    } else {
+      count_args <- lapply(count_names, function(name) {
+        if (name %in% names(newdata)) {
+          return(newdata[[name]])
+        }
+        if (totals_available && name %in% c("ai", "ci")) {
+          return(rep(0L, n_new))
+        }
+        return(NULL)
+      })
+      names(count_args) <- count_names
+      count_args[["skip_validation"]] <- TRUE
+      counts <- do.call(.canonicalize_binomial_counts, count_args)
+
+      for (name in c("ai", "ci", "n1i", "n2i")) {
+        if (name %in% provided_counts) {
+          newdata[[name]] <- counts[[name]]
+        } else {
+          newdata <- .prepare_newdata_add_placeholder(
+            newdata = newdata,
+            name    = name,
+            value   = counts[[name]],
+            n       = n_new
+          )
+        }
+      }
     }
-    newdata <- .prepare_newdata_add_missing(
-      newdata = newdata,
-      cols    = c("ai", "ci", "n1i", "n2i"),
-      value   = 0L,
-      n       = n_new
-    )
 
   } else if (outcome_type == "pois") {
     if (type == "response") {
       .prepare_newdata_stop_missing(newdata, c("t1i", "t2i"))
     }
-    newdata <- .prepare_newdata_add_missing(
-      newdata = newdata,
-      cols    = c("x1i", "x2i", "t1i", "t2i"),
-      value   = 0,
-      n       = n_new
-    )
+    for (name in c("x1i", "x2i", "t1i", "t2i")) {
+      if (!name %in% names(newdata)) {
+        newdata <- .prepare_newdata_add_placeholder(
+          newdata = newdata,
+          name    = name,
+          value   = 0,
+          n       = n_new
+        )
+      }
+    }
   }
 
   return(newdata)
@@ -1139,32 +2534,37 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 
 
 # Internal helper to construct outcome arguments for `.check_and_list_data`.
-.prepare_newdata_outcome_call_args <- function(outcome_type, newdata) {
+.prepare_newdata_outcome_call_args <- function(outcome_type, newdata,
+                                               prefer_vi = FALSE) {
 
   if (outcome_type == "norm") {
-    call_args <- list(yi = quote(yi))
+    call_args <- list(
+      yi = as.name(.prepare_newdata_parser_column(newdata, "yi"))
+    )
 
-    if ("sei" %in% names(newdata)) {
-      call_args[["sei"]] <- quote(sei)
+    sampling_names <- if (prefer_vi && "vi" %in% names(newdata)) {
+      "vi"
     } else {
-      call_args[["vi"]] <- quote(vi)
+      c("vi", "sei")
+    }
+    for (name in sampling_names) {
+      column <- .prepare_newdata_parser_column(newdata, name)
+      if (!is.null(column)) {
+        call_args[[name]] <- as.name(column)
+      }
     }
 
   } else if (outcome_type == "bin") {
-    call_args <- list(
-      ai  = quote(ai),
-      ci  = quote(ci),
-      n1i = quote(n1i),
-      n2i = quote(n2i)
-    )
+    call_args <- lapply(c("ai", "ci", "n1i", "n2i"), function(name) {
+      as.name(.prepare_newdata_parser_column(newdata, name))
+    })
+    names(call_args) <- c("ai", "ci", "n1i", "n2i")
 
   } else if (outcome_type == "pois") {
-    call_args <- list(
-      x1i = quote(x1i),
-      x2i = quote(x2i),
-      t1i = quote(t1i),
-      t2i = quote(t2i)
-    )
+    call_args <- lapply(c("x1i", "x2i", "t1i", "t2i"), function(name) {
+      as.name(.prepare_newdata_parser_column(newdata, name))
+    })
+    names(call_args) <- c("x1i", "x2i", "t1i", "t2i")
   }
 
   return(call_args)
@@ -1187,6 +2587,133 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 }
 
 
+.prepare_newdata_validate_formula_arg <- function(newdata, formula_arg, label) {
+
+  if (is.null(formula_arg)) {
+    return(invisible(TRUE))
+  }
+  if (inherits(formula_arg, "formula")) {
+    .prepare_newdata_validate_formula_vars(newdata, formula_arg, label)
+    return(invisible(TRUE))
+  }
+  if (inherits(formula_arg, "BayesTools_random_effects")) {
+    .prepare_newdata_validate_formula_vars(newdata, formula_arg[["formula"]], label)
+    return(invisible(TRUE))
+  }
+  if (is.list(formula_arg)) {
+    for (i in seq_along(formula_arg)) {
+      .prepare_newdata_validate_formula_vars(newdata, formula_arg[[i]], label)
+    }
+    return(invisible(TRUE))
+  }
+
+  stop("Internal error: unsupported formula argument for newdata.", call. = FALSE)
+}
+
+
+.prepare_newdata_formula_arg_variables <- function(formula_arg) {
+
+  if (is.null(formula_arg)) {
+    return(character())
+  }
+  if (inherits(formula_arg, "formula")) {
+    return(all.vars(formula_arg))
+  }
+  if (inherits(formula_arg, "BayesTools_random_effects")) {
+    return(all.vars(formula_arg[["formula"]]))
+  }
+  if (is.list(formula_arg)) {
+    return(unique(unlist(
+      lapply(formula_arg, .prepare_newdata_formula_arg_variables),
+      use.names = FALSE
+    )))
+  }
+
+  stop("Internal error: unsupported formula argument for newdata.", call. = FALSE)
+}
+
+
+.prepare_newdata_scale_formula_arg <- function(original_data) {
+
+  if (!.is_data_scale(original_data)) {
+    return(NULL)
+  }
+
+  if (!inherits(original_data[["scale"]], "RoBMA_scale_components")) {
+    return(attr(original_data[["scale"]], "formula"))
+  }
+
+  scale_specs <- .data_scale_component_specs(original_data)
+  out <- lapply(scale_specs, `[[`, "formula")
+  names(out) <- vapply(scale_specs, function(scale_spec) {
+    scale_name <- scale_spec[["scale_name"]]
+    if (!is.null(scale_name) && length(scale_name) == 1L &&
+        !is.na(scale_name) && nzchar(scale_name)) {
+      return(scale_name)
+    }
+    scale_spec[["display_name"]]
+  }, character(1))
+
+  return(out)
+}
+
+
+.prepare_newdata_random_formula_arg <- function(original_data) {
+
+  if (!.is_data_random(original_data)) {
+    return(NULL)
+  }
+
+  random_effects <- attr(original_data[["location"]], "random_effects")
+  if (is.null(random_effects) || is.null(random_effects[["formula"]])) {
+    stop("Internal error: missing fitted random formula.", call. = FALSE)
+  }
+
+  return(random_effects)
+}
+
+
+.prepare_newdata_random_grouping_values <- function(newdata, random_effects,
+                                                    protected_variables = character()) {
+
+  terms <- random_effects[["terms"]]
+  if (length(terms) == 0L) {
+    return(newdata)
+  }
+
+  random_design_variables <- unique(unlist(lapply(terms, function(term) {
+    all.vars(term[["expr"]])
+  }), use.names = FALSE))
+  protected_variables <- unique(c(protected_variables, random_design_variables))
+
+  for (term in terms) {
+    grouping_vars <- all.vars(term[["group_expr"]])
+    missing_vars  <- setdiff(grouping_vars, names(newdata))
+    if (length(missing_vars) == 0L) {
+      next
+    }
+    if (.random_effect_term_has_known_group_covariance(term)) {
+      stop(
+        "Known-R new-effect prediction requires explicit fitted grouping ",
+        "variable(s) for block '", term[["block_name"]], "': ",
+        paste(missing_vars, collapse = ", "), ". Unseen known-R levels ",
+        "require 'R_new', which is not supported.",
+        call. = FALSE
+      )
+    }
+
+    synthesis_vars <- setdiff(missing_vars, protected_variables)
+    for (variable in synthesis_vars) {
+      newdata[[variable]] <- paste0(
+        ".RoBMA_new_", term[["block_name"]], "_", seq_len(nrow(newdata))
+      )
+    }
+  }
+
+  return(newdata)
+}
+
+
 # Internal helper function to prepare newdata for prediction
 # Reuses `.check_and_list_data` by constructing appropriate call and environment
 #
@@ -1200,9 +2727,13 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 # @param newdata A data.frame with new data for prediction.
 # @param type Prediction type: "terms", "effect", or "response"
 # @param bias_adjusted Whether PET/PEESE terms should be omitted.
+# @param include_scale Whether to replay the fitted scale formula.
+# @param include_random Whether to replay the fitted random formula.
 #
 # @return A data list equivalent to `object[["data"]]` but for `newdata`
-.prepare_newdata <- function(object, newdata, type, bias_adjusted = FALSE) {
+.prepare_newdata <- function(object, newdata, type, bias_adjusted = FALSE,
+                             include_scale = type != "terms",
+                             include_random = FALSE) {
 
   # extract settings from the original fitted object's data attributes
   original_data <- object[["data"]]
@@ -1210,8 +2741,10 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   standardize_continuous_predictors <- attr(original_data, "standardize_continuous_predictors")
   effect_direction                  <- .effect_direction(object)
   outcome_type                      <- .outcome_type(object)
+  extra_env                         <- list()
 
   newdata <- .prepare_newdata_as_data_frame(newdata)
+  .prepare_newdata_reject_placeholder_columns(newdata)
   newdata <- .prepare_newdata_outcome(
     object        = object,
     newdata       = newdata,
@@ -1229,7 +2762,11 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   # add outcome arguments based on outcome_type
   call_args <- c(
     call_args,
-    .prepare_newdata_outcome_call_args(outcome_type, newdata)
+    .prepare_newdata_outcome_call_args(
+      outcome_type = outcome_type,
+      newdata      = newdata,
+      prefer_vi    = .is_data_known_v(original_data) && type == "response"
+    )
   )
 
   # add mods formula if this is a regression model
@@ -1238,8 +2775,39 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   }
 
   # add scale formula if present
-  if (.is_scale(object)) {
-    call_args[["scale"]] <- attr(original_data[["scale"]], "formula")
+  if (.is_scale(object) && include_scale) {
+    scale_formula_arg <- .prepare_newdata_scale_formula_arg(original_data)
+    call_args[["scale"]] <- quote(.RoBMA_scale)
+    extra_env[[".RoBMA_scale"]] <- scale_formula_arg
+  } else {
+    scale_formula_arg <- NULL
+  }
+
+  # add random formula when the requested prediction needs random metadata
+  if (include_random) {
+    random_formula_arg <- .prepare_newdata_random_formula_arg(original_data)
+    protected_variables <- character()
+    if (.is_mods(object)) {
+      protected_variables <- c(
+        protected_variables,
+        all.vars(attr(original_data[["mods"]], "formula"))
+      )
+    }
+    if (.is_scale(object) && include_scale) {
+      protected_variables <- c(
+        protected_variables,
+        .prepare_newdata_formula_arg_variables(scale_formula_arg)
+      )
+    }
+    newdata <- .prepare_newdata_random_grouping_values(
+      newdata             = newdata,
+      random_effects      = random_formula_arg,
+      protected_variables = protected_variables
+    )
+    call_args[["random"]] <- quote(.RoBMA_random)
+    extra_env[[".RoBMA_random"]] <- random_formula_arg
+  } else {
+    random_formula_arg <- NULL
   }
 
   # add cluster structure for multilevel predictions
@@ -1248,8 +2816,10 @@ print.RoBMA_data <- function(x, n = 6, ...) {
       call_args[["cluster"]] <- quote(cluster)
     } else {
       n_new <- nrow(newdata)
-      newdata[[".RoBMA_cluster"]] <- seq_len(n_new)
-      call_args[["cluster"]] <- quote(.RoBMA_cluster)
+      newdata <- .prepare_newdata_add_placeholder(
+        newdata = newdata, name = "cluster", value = seq_len(n_new), n = n_new
+      )
+      call_args[["cluster"]] <- as.name(.prepare_newdata_parser_column(newdata, "cluster"))
     }
   }
 
@@ -1263,17 +2833,25 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     .prepare_newdata_validate_formula_vars(newdata, mods_formula, "moderator")
   }
 
-  if (.is_scale(object)) {
-    scale_formula <- attr(original_data[["scale"]], "formula")
-    .prepare_newdata_validate_formula_vars(newdata, scale_formula, "scale")
+  if (.is_scale(object) && include_scale) {
+    .prepare_newdata_validate_formula_arg(newdata, scale_formula_arg, "scale")
+  }
+
+  if (include_random) {
+    .prepare_newdata_validate_formula_arg(newdata, random_formula_arg, "random-effect")
   }
 
   # create environment with newdata as "data"
   # use baseenv() as parent to prevent variable leakage from calling context
   .envir           <- new.env(parent = baseenv())
   .envir[["data"]] <- newdata
+  for (name in names(extra_env)) {
+    .envir[[name]] <- extra_env[[name]]
+  }
 
-  # determine class and measure for .check_and_list_data
+  # Determine class and measure for .check_and_list_data.
+  # brma.mv() known-V response newdata reaches this path after predict.brma()
+  # has validated V_new and injected its diagonal as vi.
   measure    <- .measure(object)
   data_class <- switch(
     outcome_type,
@@ -1296,7 +2874,8 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     set_contrast_factor_predictors    = set_contrast_factor_predictors,
     standardize_continuous_predictors = standardize_continuous_predictors,
     effect_direction                  = effect_direction,
-    skip_validation                   = TRUE
+    skip_validation                   = TRUE,
+    allow_na_drop                     = FALSE
   )
 
   return(new_data)

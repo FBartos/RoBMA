@@ -1,0 +1,3 @@
+                       group  metafor_UN     brma_UN metafor_DIAG   brma_DIAG probability_UN_metafor probability_UN_brma
+groupsensitivity sensitivity -0.04982192 -0.05897006  -0.04844994 -0.06414132              0.4875471           0.4852618
+groupspecificity specificity  3.00923039  3.00862524   3.03467556  3.08952802              0.9529894           0.9529623

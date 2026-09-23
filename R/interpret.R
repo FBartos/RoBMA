@@ -224,6 +224,9 @@ print.interpret.brma <- function(x, ...) {
                                     conditional, scope, probs, central,
                                     effect_central) {
 
+  summary_object[["inclusion_components"]] <-
+    .summary_brma_component_inclusion(summary_object)
+
   sources <- .interpret_brma_sources(
     object           = object,
     summary_object   = summary_object,
@@ -327,18 +330,12 @@ print.interpret.brma <- function(x, ...) {
       error = function(e) NULL
     )
     if (!is.null(heterogeneity)) {
-      sources[["pooled_heterogeneity"]] <- .interpret_record_source(
-        .interpret_samples_record(
-          samples      = heterogeneity,
-          parameter    = "tau",
-          conditioning = if (conditional) {
-            "conditional on heterogeneity inclusion"
-          } else {
-            NULL
-          },
-          probs        = probs,
-          central      = central
-        )
+      sources <- .interpret_add_heterogeneity_sources(
+        sources       = sources,
+        heterogeneity = heterogeneity,
+        conditional   = conditional,
+        probs         = probs,
+        central       = central
       )
     }
 
@@ -431,8 +428,7 @@ print.interpret.brma <- function(x, ...) {
     lower          = .interpret_probability_column(row, probs[1]),
     upper          = .interpret_probability_column(row, probs[2]),
     lower_prob     = probs[1],
-    upper_prob     = probs[2],
-    interval_level = diff(range(probs))
+    upper_prob     = probs[2]
   )
   if (!is.null(units)) {
     schema[["units"]] <- units
@@ -452,10 +448,93 @@ print.interpret.brma <- function(x, ...) {
   ))
 }
 
+.interpret_add_heterogeneity_sources <- function(sources, heterogeneity,
+                                                 conditional, probs, central) {
+
+  conditioning <- if (conditional) {
+    "conditional on heterogeneity inclusion"
+  } else {
+    NULL
+  }
+
+  if (!is.list(heterogeneity) || is.matrix(heterogeneity)) {
+    sources[["pooled_heterogeneity"]] <- .interpret_record_source(
+      .interpret_samples_record(
+        samples      = heterogeneity,
+        parameter    = "tau",
+        conditioning = conditioning,
+        probs        = probs,
+        central      = central
+      )
+    )
+    return(sources)
+  }
+
+  component_labels <- .interpret_heterogeneity_component_labels(heterogeneity)
+  component_ids    <- make.unique(make.names(component_labels))
+  component_map    <- attr(sources, "heterogeneity_components")
+  if (is.null(component_map)) {
+    component_map <- character()
+  }
+
+  for (i in seq_along(heterogeneity)) {
+    component_label <- component_labels[[i]]
+    source_id       <- .interpret_heterogeneity_source_id(component_ids[[i]])
+    component_map[[source_id]] <- component_label
+    sources[[source_id]] <- .interpret_record_source(
+      .interpret_samples_record(
+        samples      = heterogeneity[[i]],
+        parameter    = paste0("tau [", component_label, "]"),
+        conditioning = conditioning,
+        probs        = probs,
+        central      = central
+      )
+    )
+  }
+  attr(sources, "heterogeneity_components") <- component_map
+
+  return(sources)
+}
+
+.interpret_heterogeneity_component_labels <- function(heterogeneity) {
+
+  component_labels <- names(heterogeneity)
+  if (is.null(component_labels)) {
+    component_labels <- paste0("component_", seq_along(heterogeneity))
+  }
+  missing_labels <- is.na(component_labels) | !nzchar(component_labels)
+  component_labels[missing_labels] <- paste0(
+    "component_",
+    which(missing_labels)
+  )
+
+  return(component_labels)
+}
+
+.interpret_heterogeneity_source_id <- function(component_id) {
+
+  paste0("pooled_heterogeneity.", component_id)
+}
+
+.interpret_heterogeneity_component_id_from_source <- function(source) {
+
+  sub("^pooled_heterogeneity\\.", "", source)
+}
+
+.interpret_heterogeneity_component_from_source <- function(source, sources) {
+
+  component_map <- attr(sources, "heterogeneity_components")
+  if (!is.null(component_map) && source %in% names(component_map)) {
+    return(unname(component_map[[source]]))
+  }
+
+  .interpret_heterogeneity_component_id_from_source(source)
+}
+
 .interpret_samples_record <- function(samples, parameter, conditioning,
                                       probs, central) {
 
-  table <- summary(samples, probs = probs)
+  table <- .output_plain_data_frame(summary(samples, probs = probs))
   if (central == "mode") {
     table <- cbind(
       Mode = .interpret_posterior_mode(as.numeric(samples[, 1L])),
@@ -477,7 +556,6 @@ print.interpret.brma <- function(x, ...) {
     upper_value    = as.numeric(row[1, upper_col]),
     lower_prob     = probs[1],
     upper_prob     = probs[2],
-    interval_level = diff(range(probs)),
     conditioning   = conditioning
   ))
 }
@@ -558,12 +636,33 @@ print.interpret.brma <- function(x, ...) {
         label   = "pooled heterogeneity"
       )
     }
+    heterogeneity_sources <- grep(
+      "^pooled_heterogeneity\\.",
+      names(sources),
+      value = TRUE
+    )
+    for (i in seq_along(heterogeneity_sources)) {
+      source          <- heterogeneity_sources[[i]]
+      component_id    <- .interpret_heterogeneity_component_id_from_source(source)
+      component_label <- .interpret_heterogeneity_component_from_source(
+        source  = source,
+        sources = sources
+      )
+      plan[[length(plan) + 1L]] <- list(
+        kind    = "estimate",
+        section = "estimates",
+        item_id = paste0("heterogeneity.", component_id),
+        order   = 110 + i,
+        source  = source,
+        label   = paste0("Pooled heterogeneity (", component_label, ")")
+      )
+    }
     if ("common_estimates" %in% names(sources)) {
       plan[[length(plan) + 1L]] <- list(
         kind      = "estimate",
         section   = "estimates",
         item_id   = "rho",
-        order     = 120,
+        order     = 190,
         source    = "common_estimates",
         row       = "rho",
         label     = "cluster correlation",
@@ -706,12 +805,12 @@ print.interpret.brma <- function(x, ...) {
   return(list(
     kind    = "evidence",
     section = "components",
-    item_id = if (!is.null(item_ids[[row]])) unname(item_ids[[row]]) else row,
+    item_id = if (row %in% names(item_ids)) unname(item_ids[[row]]) else row,
     order   = order,
     source  = "component_tests",
     row     = row,
-    label   = if (!is.null(labels[[row]])) unname(labels[[row]]) else tolower(row),
-    BF_name = if (!is.null(BF_names[[row]])) unname(BF_names[[row]]) else "BF"
+    label   = if (row %in% names(labels)) unname(labels[[row]]) else row,
+    BF_name = if (row %in% names(BF_names)) unname(BF_names[[row]]) else "BF"
   ))
 }
 
@@ -842,6 +941,9 @@ print.interpret.brma <- function(x, ...) {
   }
   if (section == "estimates" && item_id == "heterogeneity") {
     return("Pooled heterogeneity")
+  }
+  if (section == "estimates" && startsWith(item_id, "heterogeneity.")) {
+    return(record[["label"]])
   }
   if (section == "estimates" && item_id == "rho") {
     return("Cluster correlation")

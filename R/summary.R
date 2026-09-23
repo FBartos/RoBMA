@@ -3,17 +3,20 @@
 #'
 #' @description \code{summary.brma} creates summary tables for a
 #' brma object. For RoBMA objects, inclusion summaries are printed before
-#' parameter estimates.
+#' parameter estimates. Random-effect inclusion rows are included in
+#' `Component Inclusion`, immediately before `Publication Bias` when present.
+#' Their labels prefix the corresponding SD quantity with `Heterogeneity:`, retaining
+#' component names where needed. Data-frame exports use the same layout.
 #'
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior samples to be displayed.
 #' Defaults to \code{c(.025, .50, .975)}
 #' @param include_mcmc_diagnostics whether to include MCMC diagnostics in the output.
 #' Defaults to \code{TRUE}.
-#' @param standardized_coefficients whether to show standardized meta-regression coefficients.
-#' Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
-#' coefficients are returned for the intercept and continuous predictors. These coefficients
-#' correspond to the standardized scale on which prior distributions are specified by default
+#' @param standardized_coefficients whether to show standardized formula
+#' coefficients. Defaults to \code{FALSE}. When set to \code{TRUE},
+#' meta-regression coefficients and random-component summaries are returned on
+#' the standardized scale on which prior distributions are specified by default
 #' (i.e., `standardize_continuous_predictors = TRUE`).
 #' @param conditional whether to include conditional estimates for RoBMA
 #'   product-space objects. Defaults to \code{FALSE}.
@@ -26,7 +29,36 @@
 #' @return A list of class `summary.brma` with model name, optional RoBMA
 #' inclusion tables, common estimates, moderator estimates, scale estimates,
 #' publication-bias estimates, and optional conditional estimates. The printed
-#' form displays the non-empty tables.
+#' form displays the non-empty tables. Objects created with `only_data = TRUE`
+#' return the resolved data and objects created with `only_priors = TRUE`
+#' return the resolved prior list, because neither carries a posterior.
+#' Intercept-only multivariate location
+#' models label their sole coefficient `mu`, consistently with ordinary
+#' meta-analysis models. Once location moderators are present, the coefficient
+#' is labeled `intercept`; an intercept fixed at zero is omitted.
+#' Multivariate models without `mods` or `scale` display location and random
+#' estimates together in one `Estimates` table. With predictors, random estimates
+#' join `Common Estimates`, location coefficients appear in `Meta-Regression`
+#' (or `Location` when `scale` is present), and scale coefficients appear in
+#' `Scale`. Without location moderators, `mu` remains in the common table.
+#' Conditional estimates follow the same layout. Data-frame conversion follows
+#' these displayed sections; the returned list retains its separate raw tables.
+#' Scale tables label the baseline SD as `exp(intercept)`; its estimates are
+#' already exponentiated. Other scale coefficients remain on the log-SD scale.
+#' Multivariate scale rows identify their targeted random-effect heterogeneity
+#' (`tau`), total heterogeneity (`tau_total`), or mean-variance allocation scale
+#' (`tau_common`). The baseline
+#' corresponds to zero non-intercept design columns under the fitted contrasts
+#' and the requested predictor standardization.
+#' The random table reports the quantities aligned with prior specification;
+#' use [summary_heterogeneity()] for aggregate variances and the complete family
+#' of deterministic allocation transforms.
+#' This reporting rule is the same for `brma.mv()` and `BMA.mv()`: component
+#' `tau` values derived from a variance allocation appear only in
+#' [summary_heterogeneity()].
+#' Optional selection-conditioning comparisons are inspected explicitly with
+#' [selection_sensitivity_diagnostics()]. Printing a model or its summary does
+#' not emit sensitivity notifications.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -59,12 +91,14 @@ summary.brma       <- function(
   ### model information
   is_mods       <- .is_mods(object)
   is_scale      <- .is_scale(object)
+  is_random     <- .is_random(object)
   is_multilevel <- .is_multilevel(object)
   is_bias       <- .is_bias(object)
   is_robma      <- .is_RoBMA(object)
   outcome_type  <- .outcome_type(object)
 
   BayesTools::check_bool(include_mcmc_diagnostics, "include_mcmc_diagnostics")
+  BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(logBF, "logBF")
   BayesTools::check_bool(BF01, "BF01")
@@ -77,6 +111,17 @@ summary.brma       <- function(
   # deal with `only_data` fit
   if (is.null(object[["priors"]]) && is.null(object[["fit"]])) {
     return(object[["data"]])
+  }
+
+  # deal with `only_priors` fit: prior resolution stopped before fitting, so
+  # there is no posterior to summarize and the resolved priors are reported
+  # instead, mirroring the `only_data` branch above.
+  if (inherits(object, "only_priors.brma") &&
+      !inherits(object[["fit"]], "BayesTools_fit")) {
+    if (is.null(object[["priors"]])) {
+      stop("'summary' requires a fitted brma object.", call. = FALSE)
+    }
+    return(object[["priors"]])
   }
 
   ### provide common estimates
@@ -92,16 +137,18 @@ summary.brma       <- function(
     is_robma                 = is_robma,
     conditional              = conditional,
     main_args                = list(
-      transform_factors = TRUE,
-      transform_scaled  = !standardized_coefficients,
-      keep_parameters   = common_parameters,
-      title             = if (is_mods || is_scale) "Common Estimates" else "Estimates"
+      transform_factors      = TRUE,
+      transform_scaled       = !standardized_coefficients,
+      keep_parameters        = common_parameters,
+      random_effects_summary = "none",
+      title                  = if (is_mods || is_scale) "Common Estimates" else "Estimates"
     ),
     conditional_args         = list(
-      transform_factors = TRUE,
-      transform_scaled  = !standardized_coefficients,
-      keep_parameters   = common_parameters,
-      title             = if (is_mods || is_scale) {
+      transform_factors      = TRUE,
+      transform_scaled       = !standardized_coefficients,
+      keep_parameters        = common_parameters,
+      random_effects_summary = "none",
+      title                  = if (is_mods || is_scale) {
         "Conditional Common Estimates"
       } else {
         "Conditional Estimates"
@@ -112,37 +159,56 @@ summary.brma       <- function(
   estimates_common_conditional <- estimates_common_pair[["conditional"]]
 
   ### provide regression estimates for the effect size meta-regression
+  location_remove_parameters <- if (
+    .location_omit_fixed_zero_intercept(object)
+  ) {
+    "mu_intercept"
+  } else {
+    NULL
+  }
   estimates_mods_pair <- .summary_estimates_pair(
-    enabled                  = is_mods,
+    enabled                  = is_mods || is_random,
     object                   = object,
     probs                    = probs,
     include_mcmc_diagnostics = include_mcmc_diagnostics,
     is_robma                 = is_robma,
     conditional              = conditional,
     main_args                = list(
-      transform_factors = TRUE,
-      transform_scaled  = !standardized_coefficients,
-      keep_formulas     = "mu",
-      formula_prefix    = FALSE,
-      title             = if (is_scale) "Location" else "Meta-Regression"
+      transform_factors      = TRUE,
+      transform_scaled       = !standardized_coefficients,
+      keep_formulas          = "mu",
+      remove_parameters      = location_remove_parameters,
+      random_effects_summary = "none",
+      formula_prefix         = FALSE,
+      title                  = if (is_scale || is_random) "Location" else "Meta-Regression"
     ),
     conditional_args         = list(
-      transform_factors = TRUE,
-      transform_scaled  = !standardized_coefficients,
-      keep_formulas     = "mu",
-      formula_prefix    = FALSE,
-      title             = if (is_scale) {
+      transform_factors      = TRUE,
+      transform_scaled       = !standardized_coefficients,
+      keep_formulas          = "mu",
+      remove_parameters      = location_remove_parameters,
+      random_effects_summary = "none",
+      formula_prefix         = FALSE,
+      title                  = if (is_scale || is_random) {
         "Conditional Location"
       } else {
         "Conditional Meta-Regression"
       }
     )
   )
-  estimates_mods             <- estimates_mods_pair[["estimates"]]
-  estimates_mods_conditional <- estimates_mods_pair[["conditional"]]
+  estimates_mods             <- .summary_location_repair_row_labels(
+    estimates = estimates_mods_pair[["estimates"]],
+    object    = object
+  )
+  estimates_mods_conditional <- .summary_location_repair_row_labels(
+    estimates = estimates_mods_pair[["conditional"]],
+    object    = object
+  )
 
   ### provide regression estimates for the scale meta-regression
-  scale_footnotes <- "exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale."
+  scale_footnotes <- .summary_scale_footnotes(object)
+  scale_formulas       <- .summary_scale_formula_parameters(object)
+  scale_formula_prefix <- is_random || length(scale_formulas) > 1L
   estimates_scale_pair <- .summary_estimates_pair(
     enabled                  = is_scale,
     object                   = object,
@@ -151,29 +217,35 @@ summary.brma       <- function(
     is_robma                 = is_robma,
     conditional              = conditional,
     main_args                = list(
-      transform_factors = TRUE,
-      transform_scaled  = !standardized_coefficients,
-      keep_formulas     = "log_tau",
-      formula_prefix    = FALSE,
-      title             = "Scale",
-      footnotes         = scale_footnotes
+      transform_factors      = TRUE,
+      transform_scaled       = !standardized_coefficients,
+      keep_formulas          = scale_formulas,
+      random_effects_summary = "none",
+      formula_prefix         = scale_formula_prefix,
+      title                  = "Scale",
+      footnotes              = scale_footnotes
     ),
     conditional_args         = list(
-      transform_factors = TRUE,
-      transform_scaled  = !standardized_coefficients,
-      keep_formulas     = "log_tau",
-      formula_prefix    = FALSE,
-      title             = "Conditional Scale",
-      footnotes         = scale_footnotes
+      transform_factors      = TRUE,
+      transform_scaled       = !standardized_coefficients,
+      keep_formulas          = scale_formulas,
+      random_effects_summary = "none",
+      formula_prefix         = scale_formula_prefix,
+      title                  = "Conditional Scale",
+      footnotes              = scale_footnotes
     )
   )
-  estimates_scale             <- estimates_scale_pair[["estimates"]]
-  estimates_scale_conditional <- estimates_scale_pair[["conditional"]]
+  estimates_scale             <- .summary_scale_repair_row_labels(
+    estimates = estimates_scale_pair[["estimates"]],
+    object    = object
+  )
+  estimates_scale_conditional <- .summary_scale_repair_row_labels(
+    estimates = estimates_scale_pair[["conditional"]],
+    object    = object
+  )
 
   ### provide publication bias estimates
-  bias_footnotes <- if (.is_weightfunction(object)) {
-    "P-value intervals for publication bias weights omega correspond to one-sided p-values."
-  }
+  bias_footnotes <- if (.is_weightfunction(object)) "P-value intervals for publication bias weights omega correspond to one-sided p-values."
   estimates_bias_pair <- .summary_estimates_pair(
     enabled                  = is_bias,
     object                   = object,
@@ -182,18 +254,54 @@ summary.brma       <- function(
     is_robma                 = is_robma,
     conditional              = conditional,
     main_args                = list(
-      keep_parameters = c("bias", "omega", "PET", "PEESE"),
-      title           = "Publication Bias",
-      footnotes       = bias_footnotes
+      keep_parameters        = c("bias", "omega", "PET", "PEESE"),
+      random_effects_summary = "none",
+      title                  = "Publication Bias",
+      footnotes              = bias_footnotes
     ),
     conditional_args         = list(
-      keep_parameters = c("bias", "omega", "PET", "PEESE"),
-      title           = "Conditional Publication Bias",
-      footnotes       = bias_footnotes
+      keep_parameters        = c("bias", "omega", "PET", "PEESE"),
+      random_effects_summary = "none",
+      title                  = "Conditional Publication Bias",
+      footnotes              = bias_footnotes
     )
   )
   estimates_bias             <- estimates_bias_pair[["estimates"]]
   estimates_bias_conditional <- estimates_bias_pair[["conditional"]]
+
+  ### provide random-effect component estimates
+  estimates_random_pair <- .summary_estimates_pair(
+    enabled                  = .summary_random_components_enabled(object),
+    object                   = object,
+    probs                    = probs,
+    include_mcmc_diagnostics = include_mcmc_diagnostics,
+    is_robma                 = is_robma,
+    conditional              = conditional,
+    main_args                = list(
+      keep_parameters         = "random",
+      transform_scaled        = !standardized_coefficients,
+      random_effects_summary  = "standard",
+      random_effects_metadata = TRUE,
+      formula_prefix          = FALSE,
+      title                   = "Random"
+    ),
+    conditional_args         = list(
+      keep_parameters         = "random",
+      transform_scaled        = !standardized_coefficients,
+      random_effects_summary  = "standard",
+      random_effects_metadata = TRUE,
+      formula_prefix          = FALSE,
+      title                   = "Conditional Random"
+    )
+  )
+  estimates_random <- .summary_random_repair_parameter_names(
+    estimates = estimates_random_pair[["estimates"]],
+    object    = object
+  )
+  estimates_random_conditional <- .summary_random_repair_parameter_names(
+    estimates = estimates_random_pair[["conditional"]],
+    object    = object
+  )
 
   ### provide RoBMA inclusion summaries
   if (is_robma) {
@@ -207,28 +315,40 @@ summary.brma       <- function(
     inclusion <- list(
       inclusion_components = list(),
       inclusion_mods       = list(),
-      inclusion_scale      = list()
+      inclusion_scale      = list(),
+      inclusion_random     = list()
     )
   }
 
   out <- list(
     name                        = .summary.brma_model_names(object),
+    known_v_backend             = .brma_mv_known_v_backend_metadata(object),
     inclusion_components        = inclusion[["inclusion_components"]],
     inclusion_mods              = inclusion[["inclusion_mods"]],
     inclusion_scale             = inclusion[["inclusion_scale"]],
+    inclusion_random            = inclusion[["inclusion_random"]],
     estimates                   = estimates_common,
     estimates_conditional       = estimates_common_conditional,
     estimates_mods              = estimates_mods,
     estimates_mods_conditional  = estimates_mods_conditional,
     estimates_scale             = estimates_scale,
     estimates_scale_conditional = estimates_scale_conditional,
+    estimates_random             = estimates_random,
+    estimates_random_conditional = estimates_random_conditional,
     estimates_bias              = estimates_bias,
     estimates_bias_conditional  = estimates_bias_conditional
   )
+  out[["selection_sensitivity_diagnostics"]] <-
+    object[["selection_sensitivity_diagnostics"]]
+  out[["selection_model"]] <- .data_selection_model(object[["data"]])
+  out[["selection_sampling"]] <- .selection_postfit_target_metadata(
+    object[["data"]]
+  )[["sampling_structure"]]
 
   class(out) <- "summary.brma"
   attr(out, "mods")         <- is_mods
   attr(out, "scale")        <- is_scale
+  attr(out, "random")       <- is_random
   attr(out, "multilevel")   <- is_multilevel
   attr(out, "bias")         <- is_bias
   attr(out, "RoBMA")        <- is_robma
@@ -242,20 +362,24 @@ summary.brma       <- function(
 #' @export
 print.summary.brma <- function(x, ...) {
 
+  x_print <- .summary_brma_prepare_print_sections(x)
+
   cat("\n")
-  cat(x[["name"]])
+  cat(x_print[["name"]])
   cat("\n")
 
   for (type in c(
     "inclusion_components", "inclusion_mods", "inclusion_scale",
+    "inclusion_random",
     "estimates", "estimates_conditional",
     "estimates_mods", "estimates_mods_conditional",
     "estimates_scale", "estimates_scale_conditional",
+    "estimates_random", "estimates_random_conditional",
     "estimates_bias", "estimates_bias_conditional"
   )) {
-    if (length(x[[type]]) > 0) {
+    if (length(x_print[[type]]) > 0) {
       cat("\n")
-      print(x[[type]])
+      print(x_print[[type]])
     }
   }
 
@@ -265,10 +389,353 @@ print.summary.brma <- function(x, ...) {
   return(invisible(x))
 }
 
+
+#' @title Convert brma Summaries to a Data Frame
+#'
+#' @description Converts the non-empty tables displayed by a fitted
+#' \code{brma} object or its \code{summary.brma} result to one plain,
+#' long-form data frame. The leading
+#' \code{component} column identifies the summary section and
+#' \code{parameter} retains the displayed row label. Printed quantile labels
+#' are returned as syntactic \code{CI_} column names.
+#'
+#' @param x a fitted \code{brma} or \code{summary.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... for a fitted object, additional arguments passed to
+#' \code{summary.brma()}; otherwise unused.
+#'
+#' @return A plain \code{data.frame} containing all displayed summary rows.
+#'
+#' @export
+as.data.frame.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  output <- as.data.frame.summary.brma(
+    x                = summary(x, ...),
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.brma
+#' @export
+as.data.frame.summary.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  x_data <- .summary_brma_prepare_print_sections(x)
+  components <- c(
+    inclusion_components         = "inclusion",
+    inclusion_mods               = "inclusion location",
+    inclusion_scale              = "inclusion scale",
+    inclusion_random             = "inclusion random",
+    estimates                    = "common",
+    estimates_conditional        = "conditional common",
+    estimates_mods               = "location",
+    estimates_mods_conditional   = "conditional location",
+    estimates_scale              = "scale",
+    estimates_scale_conditional  = "conditional scale",
+    estimates_random             = "random",
+    estimates_random_conditional = "conditional random",
+    estimates_bias               = "bias",
+    estimates_bias_conditional   = "conditional bias"
+  )
+
+  tables <- lapply(names(components), function(section) {
+    table <- x_data[[section]]
+    if (length(table) == 0L) {
+      return(NULL)
+    }
+
+    .output_table_as_long_data_frame(
+      table            = table,
+      component        = components[[section]],
+      stringsAsFactors = stringsAsFactors
+    )
+  })
+
+  output <- .output_bind_long_data_frames(
+    tables    = tables,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
+}
+
+.summary_brma_component_inclusion <- function(x) {
+
+  random_inclusion <- x[["inclusion_random"]]
+  if (length(random_inclusion) > 0L && nrow(random_inclusion) > 0L) {
+    rownames(random_inclusion) <- paste0("Heterogeneity: ", rownames(random_inclusion))
+    inclusion <- .summary_brma_combine_tables(
+      tables = list(x[["inclusion_components"]], random_inclusion),
+      title = "Component Inclusion"
+    )
+    indices <- order(rownames(inclusion) == "Publication Bias")
+    return(.summary.inclusion_subtable(
+      table = inclusion, indices = indices,
+      row_labels = rownames(inclusion)[indices], title = "Component Inclusion"
+    ))
+  }
+
+  return(x[["inclusion_components"]])
+}
+
+.summary_brma_prepare_print_sections <- function(x) {
+
+  x[["inclusion_components"]] <- .summary_brma_component_inclusion(x)
+  random_inclusion <- x[["inclusion_random"]]
+  if (length(random_inclusion) > 0L && nrow(random_inclusion) > 0L) {
+    x[["inclusion_random"]] <- list()
+  }
+
+  x[["estimates_random"]] <- .summary_brma_random_section_for_print(
+    random = x[["estimates_random"]],
+    title  = "Random"
+  )
+  x[["estimates_random_conditional"]] <- .summary_brma_random_section_for_print(
+    random = x[["estimates_random_conditional"]],
+    title  = "Conditional Random"
+  )
+
+  if (isTRUE(attr(x, "random", exact = TRUE))) {
+    mods  <- isTRUE(attr(x, "mods", exact = TRUE))
+    scale <- isTRUE(attr(x, "scale", exact = TRUE))
+    for (suffix in c("", "_conditional")) {
+      prefix <- if (nzchar(suffix)) "Conditional " else ""
+      sections <- paste0(c("estimates", if (!mods) "estimates_mods", "estimates_random"), suffix)
+      common <- paste0("estimates", suffix)
+      x[[common]] <- .summary_brma_combine_tables(
+        tables = x[sections],
+        title = paste0(prefix, if (mods || scale) "Common Estimates" else "Estimates")
+      )
+      for (section in setdiff(sections, common)) x[[section]] <- list()
+      location <- paste0("estimates_mods", suffix)
+      if (mods && length(x[[location]]) > 0L) {
+        attr(x[[location]], "title") <- paste0(prefix, if (scale) "Location" else "Meta-Regression")
+      }
+    }
+  }
+
+  return(x)
+}
+
+.summary_brma_combine_tables <- function(tables, title) {
+
+  tables <- Filter(function(table) length(table) > 0L && nrow(table) > 0L, tables)
+  if (length(tables) == 0L) return(list())
+  out <- .output_bind_long_data_frames(
+    tables = lapply(tables, .output_plain_data_frame),
+    row.names = make.unique(unlist(lapply(tables, rownames), use.names = FALSE))
+  )
+  class(out) <- class(tables[[1L]])
+  for (column in colnames(out)) {
+    sources <- lapply(tables, function(table) table[[column]])
+    present <- which(!vapply(sources, is.null, logical(1L)))
+    column_attributes <- attributes(sources[[present[[1L]]]])
+    for (attribute in setdiff(names(column_attributes), c("names", "bound_operator"))) {
+      attr(out[[column]], attribute) <- column_attributes[[attribute]]
+    }
+    out[[column]] <- .output_bind_bf_attributes(
+      out[[column]], sources, vapply(tables, nrow, integer(1L))
+    )
+  }
+  for (attribute in c("type", "n_models")) {
+    values <- unlist(unname(lapply(tables, function(table) {
+      value <- attr(table, attribute, exact = TRUE)
+      if (is.null(value)) return(NULL)
+      stats::setNames(value, colnames(table))
+    })))
+    attr(out, attribute) <- if (length(values)) unname(values[colnames(out)]) else NULL
+  }
+  for (attribute in c("parameters", "footnotes", "warnings")) {
+    values <- unlist(unname(lapply(tables, attr, which = attribute, exact = TRUE)),
+                     use.names = attribute == "warnings")
+    attr(out, attribute) <- if (attribute == "footnotes") unique(values) else values
+  }
+  attr(out, "title") <- title
+  attr(out, "rownames") <- attr(tables[[1L]], "rownames", exact = TRUE)
+  out
+}
+
+.summary_brma_random_section_for_print <- function(random, title) {
+
+  if (length(random) == 0L) {
+    return(random)
+  }
+
+  out <- .summary_brma_random_estimates_for_print(random)
+  if (length(out) == 0L) {
+    return(out)
+  }
+  attr(out, "title") <- title
+  attr(out, "rownames") <- attr(random, "rownames", exact = TRUE)
+
+  return(out)
+}
+
+.summary_brma_random_estimates_for_print <- function(random) {
+
+  metadata_cols <- c("Random name", "Random grouping", "Random structure")
+  estimate_cols <- setdiff(colnames(random), metadata_cols)
+  if (length(estimate_cols) == 0L) {
+    return(list())
+  }
+
+  out <- random[, estimate_cols, drop = FALSE]
+
+  return(out)
+}
+
 #' @rdname summary.brma
 #' @export
 print.brma <- function(x, ...) {
   print(summary(x, ...))
+}
+
+.summary_scale_formula_parameters <- function(object) {
+
+  parameters <- .data_scale_formula_parameters(object[["data"]])
+  if (length(parameters) == 0L) {
+    return("log_tau")
+  }
+
+  parameters
+}
+
+.summary_scale_footnotes <- function(object) {
+
+  target <- if (.is_random(object)) {
+    "heterogeneity SD (tau) of the indicated target"
+  } else {
+    "heterogeneity SD (tau)"
+  }
+
+  paste0(
+    "exp(intercept) is the baseline ", target,
+    ", already exponentiated. Other coefficients are changes in log(SD); ",
+    "exp(coefficient) is an SD multiplier."
+  )
+}
+
+.summary_scale_repair_row_labels <- function(estimates, object) {
+
+  if (length(estimates) == 0L || is.null(rownames(estimates))) {
+    return(estimates)
+  }
+
+  scale_names <- .summary_scale_display_names(object)
+  for (parameter in names(scale_names)) {
+    rownames(estimates) <- sub(
+      pattern     = paste0("^\\(", parameter, "\\)"),
+      replacement = paste0("(", scale_names[[parameter]], ")"),
+      x           = rownames(estimates)
+    )
+  }
+  rownames(estimates) <- sub(
+    pattern     = "(^|\\) )intercept$",
+    replacement = "\\1exp(intercept)",
+    x           = rownames(estimates)
+  )
+
+  estimates
+}
+
+.summary_random_repair_parameter_names <- function(estimates, object) {
+
+  parameters <- attr(estimates, "parameters", exact = TRUE)
+  if (length(estimates) == 0L || is.null(parameters) ||
+      is.null(rownames(estimates)) || is.null(object[["fit"]])) {
+    return(estimates)
+  }
+
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  rows       <- match(parameters, quantities[["canonical_name"]])
+  matched    <- !is.na(rows) & startsWith(quantities[["role"]][rows], "random_")
+  if (!any(matched)) {
+    return(estimates)
+  }
+
+  matched_rows <- rows[matched]
+  rownames(estimates)[matched] <- .brma_random_parameter_io_names(
+    rownames(estimates)[matched],
+    quantities[["quantity"]][matched_rows]
+  )
+  parameters[matched] <- .brma_random_parameter_io_names(
+    parameters[matched],
+    quantities[["quantity"]][matched_rows]
+  )
+  attr(estimates, "parameters") <- parameters
+
+  display_rows <- attr(estimates, "rownames", exact = TRUE)
+  if (is.character(display_rows) && length(display_rows) == nrow(estimates)) {
+    display_rows[matched] <- .brma_random_parameter_io_names(
+      display_rows[matched],
+      quantities[["quantity"]][matched_rows]
+    )
+    attr(estimates, "rownames") <- display_rows
+  }
+
+  estimates
+}
+
+.summary_location_repair_row_labels <- function(estimates, object) {
+
+  if (length(estimates) == 0L || is.null(rownames(estimates))) {
+    return(estimates)
+  }
+
+  rownames(estimates) <- .location_repair_intercept_labels(
+    labels = rownames(estimates),
+    object = object
+  )
+  return(estimates)
+}
+
+.summary_scale_display_names <- function(object) {
+
+  scale_specs <- .data_scale_component_specs(object[["data"]])
+  if (length(scale_specs) == 0L) {
+    return(character(0))
+  }
+
+  design <- .fitted_formula_design(object, "mu", required = FALSE)
+  out <- vapply(scale_specs, function(spec) {
+
+    for (allocation in design[["random_allocations"]]) {
+      if (identical(allocation[["source"]][["name"]], spec[["source"]])) {
+        quantity <- if (allocation[["n_targets"]] == 1L) {
+          "sd"
+        } else {
+          .brma_mv_allocation_aggregate_quantities(allocation)[["sd"]]
+        }
+        return(.brma_mv_allocation_parameter_name(
+          .brma_mv_allocation_public_name(allocation),
+          .brma_random_parameter_io_quantity(quantity)
+        ))
+      }
+    }
+    for (term in design[["random_effects"]]) {
+      if (identical(term[["sd_binding"]][["source"]][["name"]],
+                    spec[["source"]])) {
+        owner <- if (identical(term[["block_name"]],
+                               term[["component_label"]])) {
+          term[["component"]]
+        } else {
+          term[["block_name"]]
+        }
+        return(.brma_mv_allocation_parameter_name(owner, "tau"))
+      }
+    }
+    spec[["display_name"]]
+  }, character(1))
+  stats::setNames(out, vapply(scale_specs, `[[`, character(1), "parameter"))
 }
 
 .summary_estimates_table <- function(object, probs, include_mcmc_diagnostics,
@@ -277,21 +744,43 @@ print.brma <- function(x, ...) {
   args <- list(
     fit                = object[["fit"]],
     conditional        = conditional,
+    simplify_names     = TRUE,
     remove_diagnostics = !include_mcmc_diagnostics,
     remove_inclusion   = if (conditional) TRUE else is_robma,
-    probs              = probs
-  )
-  args <- c(args, list(...))
-  if (.summary_function_has_argument(
-    BayesTools::JAGS_estimates_table,
-    "diagnostic_columns"
-  )) {
-    args[["diagnostic_columns"]] <- .summary_estimates_diagnostic_columns(
+    remove_spike_0     = FALSE,
+    probs              = probs,
+    diagnostic_columns = .summary_estimates_diagnostic_columns(
       include_mcmc_diagnostics
     )
-  }
+  )
+  args <- c(args, list(...))
 
   return(do.call(BayesTools::JAGS_estimates_table, args))
+}
+
+.summary_random_components_enabled <- function(object) {
+
+  if (!.is_random(object)) {
+    return(FALSE)
+  }
+
+  design <- .fitted_formula_design(object, "mu", required = FALSE)
+  if (is.null(design) || length(design[["random_effects"]]) == 0L) {
+    return(FALSE)
+  }
+  if (!.is_scale(object)) {
+    return(TRUE)
+  }
+
+  any(vapply(design[["random_effects"]], function(term) {
+    binding <- term[["sd_binding"]]
+    if (is.null(binding)) {
+      return(TRUE)
+    }
+    length(binding[["factors_by_column"]]) > 0L ||
+      length(binding[["allocations"]]) > 0L ||
+      is.null(binding[["source"]])
+  }, logical(1)))
 }
 
 .summary_estimates_pair <- function(enabled, object, probs,
@@ -344,6 +833,10 @@ print.brma <- function(x, ...) {
     model_name <- "Bayesian"
   }
 
+  if (inherits(object, "brma.mv")) {
+    model_name <- paste(model_name, "Multivariate")
+  }
+
   if (is_multilevel) {
     model_name <- paste(model_name, "Multilevel")
   }
@@ -352,6 +845,9 @@ print.brma <- function(x, ...) {
     model_name <- paste(model_name, "Location-Scale")
   } else if (is_mods) {
     model_name <- paste(model_name, "Mixed-Effect")
+  } else if (!.is_random(object) &&
+             isTRUE(.fixed_tau_prior_value(object[["priors"]]) == 0)) {
+    model_name <- paste(model_name, "Fixed-Effect")
   } else if (!is_mods && !is_scale) {
     model_name <- paste(model_name, "Random-Effects")
   }
@@ -382,50 +878,19 @@ print.brma <- function(x, ...) {
                                             logBF, BF01) {
 
   args <- list(
-    fit            = object[["fit"]],
-    formula_prefix = TRUE
-  )
-  if (.summary_function_has_argument(
-    BayesTools::JAGS_inference_table,
-    "logBF"
-  )) {
-    args[["logBF"]] <- logBF
-  } else if (isTRUE(logBF)) {
-    stop("Installed BayesTools does not support 'logBF' in inclusion summaries.",
-         call. = FALSE)
-  }
-  if (.summary_function_has_argument(
-    BayesTools::JAGS_inference_table,
-    "BF01"
-  )) {
-    args[["BF01"]] <- BF01
-  } else if (isTRUE(BF01)) {
-    stop("Installed BayesTools does not support 'BF01' in inclusion summaries.",
-         call. = FALSE)
-  }
-  if (.summary_function_has_argument(
-    BayesTools::JAGS_inference_table,
-    "BF_diagnostic_columns"
-  )) {
-    args[["BF_diagnostic_columns"]] <- .summary_BF_diagnostic_columns(
+    fit                   = object[["fit"]],
+    formula_prefix        = TRUE,
+    logBF                 = logBF,
+    BF01                  = BF01,
+    BF_diagnostic_columns = .summary_BF_diagnostic_columns(
       include_mcmc_diagnostics
     )
-  } else {
-    args[["BF_diagnostics"]] <- include_mcmc_diagnostics
-  }
+  )
 
   inclusion <- do.call(BayesTools::JAGS_inference_table, args)
-  if (!.summary_function_has_argument(
-    BayesTools::JAGS_inference_table,
-    "BF_diagnostic_columns"
-  )) {
-    inclusion <- .summary_filter_legacy_BF_diagnostics(
-      inclusion                 = inclusion,
-      include_mcmc_diagnostics = include_mcmc_diagnostics
-    )
-  }
 
   parameters <- attr(inclusion, "parameters")
+  parameter_roles <- attr(inclusion, "parameter_roles", exact = TRUE)
   row_labels <- rownames(inclusion)
 
   core_map <- c(
@@ -438,11 +903,22 @@ print.brma <- function(x, ...) {
   core_parameters <- names(core_map)[names(core_map) %in% parameters]
   core_indices    <- match(core_parameters, parameters)
 
+  random_indices      <- which(parameter_roles == "random_inclusion")
+  random_slab_indices <- which(parameter_roles == "random_slab")
+
   mods_indices <- grep("^mu_", parameters)
   mods_indices <- mods_indices[parameters[mods_indices] != "mu_intercept"]
+  mods_indices <- setdiff(
+    mods_indices,
+    c(random_indices, random_slab_indices)
+  )
 
   scale_indices <- grep("^log_tau_", parameters)
   scale_indices <- scale_indices[parameters[scale_indices] != "log_tau_intercept"]
+  scale_indices <- setdiff(
+    scale_indices,
+    c(random_indices, random_slab_indices)
+  )
 
   output <- list(
     inclusion_components = .summary.inclusion_subtable(
@@ -470,10 +946,44 @@ print.brma <- function(x, ...) {
         sub("^\\(log_tau\\) ", "", row_labels[scale_indices])
       ),
       title      = "Scale Inclusion"
+    ),
+    inclusion_random = .summary.inclusion_subtable(
+      table      = inclusion,
+      indices    = random_indices,
+      row_labels = .summary_random_inclusion_labels(
+        object,
+        parameters[random_indices],
+        row_labels[random_indices]
+      ),
+      title      = "Random-Effect Inclusion"
     )
   )
 
   return(output)
+}
+
+.summary_random_inclusion_labels <- function(object, parameters, labels) {
+
+  if (length(parameters) == 0L) {
+    return(labels)
+  }
+  labels     <- sub("^.*inclusion\\((.*)\\)$", "\\1", labels)
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  keys       <- quantities[["extraction_key"]]
+  sd_names   <- .random_inclusion_sd_names(object)
+
+  for (i in seq_along(parameters)) {
+    gate <- match(parameters[[i]], quantities[["canonical_name"]])
+    if (is.na(gate) || !identical(quantities[["role"]][[gate]], "random_inclusion")) {
+      next
+    }
+    source <- keys[[gate]][["source_parameter"]]
+    if (length(source) == 1L && !is.na(source) && source %in% names(sd_names)) {
+      labels[[i]] <- sd_names[[source]]
+    }
+  }
+
+  .summary_parameter_label(labels)
 }
 
 .summary_estimates_diagnostic_columns <- function(include_mcmc_diagnostics) {
@@ -492,38 +1002,6 @@ print.brma <- function(x, ...) {
   }
 
   return("none")
-}
-
-.summary_function_has_argument <- function(fun, argument) {
-
-  return(argument %in% names(formals(fun)))
-}
-
-.summary_filter_legacy_BF_diagnostics <- function(inclusion,
-                                                  include_mcmc_diagnostics) {
-
-  keep_columns <- c("prior_prob", "post_prob", "inclusion_BF")
-  if (isTRUE(include_mcmc_diagnostics)) {
-    keep_columns <- c(keep_columns, "BF_error_percent")
-  }
-  keep_columns <- intersect(keep_columns, colnames(inclusion))
-
-  custom_attributes <- attributes(inclusion)
-  custom_attributes <- custom_attributes[!names(custom_attributes) %in%
-    c("names", "row.names", "class")]
-
-  inclusion <- inclusion[, keep_columns, drop = FALSE]
-  for (attribute in names(custom_attributes)) {
-    attr(inclusion, attribute) <- custom_attributes[[attribute]]
-  }
-  attr(inclusion, "type") <- unname(c(
-    prior_prob       = "prior_prob",
-    post_prob        = "post_prob",
-    inclusion_BF     = "inclusion_BF",
-    BF_error_percent = "BF_error"
-  )[colnames(inclusion)])
-
-  return(inclusion)
 }
 
 # Convert internal interaction separators back to formula syntax.
@@ -553,13 +1031,19 @@ print.brma <- function(x, ...) {
   return(output)
 }
 
-# Restore row-level BayesTools_BF attributes after table subsetting.
+# Restore row-level bounds after table subsetting. Unbounded BF columns also
+# carry all-NA bound metadata even though they do not have BayesTools_BF class.
 .summary.inclusion_subtable_restore_BF_attributes <- function(output, table,
                                                               indices) {
 
   for (column in intersect(colnames(output), colnames(table))) {
     if (inherits(table[[column]], "BayesTools_BF")) {
       output[[column]] <- table[[column]][indices]
+    }
+    bounds <- attr(table[[column]], "bound_operator", exact = TRUE)
+    if (!is.null(bounds)) {
+      attr(output[[column]], "bound_operator") <-
+        .output_bf_bound_operators(bounds, nrow(table))[indices]
     }
   }
 

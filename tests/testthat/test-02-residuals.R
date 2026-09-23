@@ -7,6 +7,22 @@ source(testthat::test_path("helper-metafor.R"))
 
 REFERENCE_DIR <<- testthat::test_path("..", "results", "residuals")
 
+test_that("internal CDF routes reject discrete GLMM approximations", {
+
+  for (outcome_type in c("bin", "pois")) {
+    data <- list()
+    attr(data, "outcome_type") <- outcome_type
+    object <- list(data = data)
+
+    expect_error(.cdf.brma(object), "discrete PIT convention")
+    expect_error(
+      .cdf_lik_estimate.brma(object),
+      "discrete PIT convention"
+    )
+  }
+})
+
+
 skip_if_no_fits()
 skip_if_not_installed("metafor")
 
@@ -113,8 +129,7 @@ test_that("Extended rstudent residuals without direct metafor oracle are calibra
 
   scale_name <- "bangertdrowns2004_location-scale"
   sel_name   <- "dat.lehmann2018-3PSMreg"
-  glmm_name  <- "bcg_glmm_reg"
-  skip_if_missing_fits(c(scale_name, sel_name, glmm_name))
+  skip_if_missing_fits(c(scale_name, sel_name))
 
   scale_rstudent <- rstudent(fits[[scale_name]])
   scale_standard <- rstandard(info[[scale_name]][["metafor"]])
@@ -127,10 +142,26 @@ test_that("Extended rstudent residuals without direct metafor oracle are calibra
   expect_true(sel_rstudent$z[4] > 4)
   expect_true(all(abs(sel_rstudent$z[-4]) < 4))
   expect_true(cor(sel_resid, sel_rstudent$z) > 0.9)
+})
 
-  glmm_resid    <- residuals(fits[[glmm_name]])
-  glmm_rstudent <- suppressWarnings(rstudent(fits[[glmm_name]], type = "estimate"))
-  expect_true(cor(glmm_resid, glmm_rstudent$z) > 0.9)
+test_that("GLMM residual methods reject undefined PIT diagnostics", {
+
+  model_names <- c("nielweise2008_glmm", "bcg_glmm_reg")
+  skip_if_missing_fits(model_names)
+
+  for (name in model_names) {
+    fit_brma <- fits[[name]]
+    expect_error(
+      rstudent(fit_brma),
+      "discrete PIT convention",
+      info = name
+    )
+    expect_error(
+      residuals(fit_brma, type = "LOO-PIT"),
+      "discrete PIT convention",
+      info = name
+    )
+  }
 })
 
 test_that("Residuals for BMA.norm fits are internally consistent", {
@@ -183,20 +214,33 @@ test_that("Residuals for BMA.norm fits are internally consistent", {
 
 test_that("Residuals for BMA.glmm fits are internally consistent", {
 
-  model_names <- c("bcg_BMA.glmm", "nielweise2008_BMA.glmm", "bcg_BMA.glmm_3lvl_location_scale")
+  model_names <- "bcg_BMA.glmm"
+  if (is_certification_profile()) {
+    model_names <- c(model_names, "nielweise2008_BMA.glmm")
+  }
   skip_if_missing_fits(model_names)
 
-  for (name in c("bcg_BMA.glmm", "nielweise2008_BMA.glmm")) {
+  for (name in model_names) {
     fit_brma <- fits[[name]]
     n        <- nobs(fit_brma)
 
     expect_residual_vector(residuals(fit_brma), n)
     expect_error(residuals(fit_brma, type = "pearson"), "normal outcome models")
     expect_error(rstandard(fit_brma), "normal outcome models")
-    expect_residual_table(suppressWarnings(rstudent(fit_brma)), n)
+    expect_error(rstudent(fit_brma), "discrete PIT convention")
   }
+})
 
-  fit_3lvl <- fits[["bcg_BMA.glmm_3lvl_location_scale"]]
+test_that("Residuals for multilevel BMA.glmm fits are internally consistent", {
+
+  skip_if_not_certification(
+    "The multilevel BMA.glmm fit is a certification fixture."
+  )
+
+  name <- "bcg_BMA.glmm_3lvl_location_scale"
+  skip_if_missing_fits(name)
+
+  fit_3lvl <- fits[[name]]
   n_3lvl   <- nrow(fit_3lvl[["data"]][["outcome"]])
 
   expect_null(fit_3lvl[["marglik"]])
@@ -228,4 +272,389 @@ test_that("Residuals for RoBMA fits are internally consistent", {
   expect_null(fit_3lvl[["marglik"]])
   expect_residual_vector(residuals(fit_3lvl, conditioning_depth = "cluster"),
                          n_3lvl)
+})
+
+
+.known_v_first_block_cdf_oracle <- function(fit_brma) {
+
+  setup       <- .estimate_likelihood_setup.brma(fit_brma)
+  known_V     <- .data_known_v_data(setup[["data"]])
+  known_block <- .known_v_blocks(known_V)[[1L]]
+  block       <- known_block[["index"]]
+  s           <- 1L
+  extra       <- .known_v_extra_variance_from_setup(setup)
+  covariance  <- known_block[["covariance"]] +
+    diag(extra[s, block], nrow = length(block))
+  yi          <- setup[["yi"]][block]
+  mu          <- setup[["mu"]][s, block]
+  lower_tail  <- TRUE
+
+  if (identical(setup[["effect_direction"]], "negative")) {
+    yi         <- -yi
+    mu         <- -mu
+    lower_tail <- FALSE
+  }
+
+  if (length(block) == 1L) {
+    residual <- yi - mu
+    variance <- covariance[1L, 1L]
+  } else {
+    precision <- chol2inv(chol(covariance))
+    residual  <- as.vector(precision %*% (yi - mu)) / diag(precision)
+    variance  <- 1 / diag(precision)
+  }
+
+  stats::pnorm(
+    residual,
+    mean       = 0,
+    sd         = sqrt(variance),
+    lower.tail = lower_tail
+  )
+}
+
+
+.known_v_rstandard_gls_oracle <- function(fit_brma) {
+
+  setup         <- .estimate_likelihood_setup.brma(fit_brma)
+  covariance_samples <- .known_v_marginal_covariance_samples(
+    object            = fit_brma,
+    posterior_samples = setup[["posterior_samples"]]
+  )
+  X             <- .get_model_matrix(fit_brma)
+  yi            <- setup[["yi"]]
+  K             <- setup[["K"]]
+  S             <- setup[["S"]]
+  I_K           <- diag(K)
+  resid_samples <- matrix(NA_real_, nrow = S, ncol = K)
+  se_samples    <- matrix(NA_real_, nrow = S, ncol = K)
+  z_samples     <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (s in seq_len(S)) {
+    covariance <- covariance_samples[s, , ]
+    W          <- chol2inv(chol(covariance))
+    WX         <- W %*% X
+    XtWX_inv   <- .hat_solve_crossprod(crossprod(X, WX))
+    H          <- X %*% XtWX_inv %*% t(WX)
+    beta_hat   <- as.vector(XtWX_inv %*% crossprod(X, as.vector(W %*% yi)))
+    residual   <- yi - as.vector(X %*% beta_hat)
+    se         <- sqrt(pmax(diag((I_K - H) %*% covariance %*% t(I_K - H)), 0))
+
+    resid_samples[s, ] <- residual
+    se_samples[s, ]    <- se
+    z_samples[s, ]     <- residual / se
+  }
+
+  data.frame(
+    resid = colMeans(resid_samples),
+    se    = colMeans(se_samples),
+    z     = colMeans(z_samples)
+  )
+}
+
+
+.known_v_rstandard_estimate_oracle <- function(fit_brma) {
+
+  setup               <- .estimate_likelihood_setup.brma(fit_brma)
+  known_V             <- .data_known_v_data(setup[["data"]])
+  sampling_covariance <- .known_v_materialize(known_V)
+  extra               <- .known_v_extra_variance_from_setup(setup)
+  X                   <- .get_model_matrix(fit_brma)
+  yi                  <- setup[["yi"]]
+  K                   <- setup[["K"]]
+  S                   <- setup[["S"]]
+  offset_samples      <- setup[["mu_random"]]
+  if (is.null(offset_samples)) {
+    offset_samples <- matrix(0, nrow = S, ncol = K)
+  }
+
+  resid_samples <- matrix(NA_real_, nrow = S, ncol = K)
+  se_samples    <- matrix(NA_real_, nrow = S, ncol = K)
+  z_samples     <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (s in seq_len(S)) {
+    covariance <- sampling_covariance + diag(extra[s, ], nrow = K)
+    W          <- chol2inv(chol(covariance))
+    WX         <- W %*% X
+    XtWX_inv   <- .hat_solve_crossprod(crossprod(X, WX))
+    y_offset   <- yi - offset_samples[s, ]
+    beta_hat   <- as.vector(XtWX_inv %*% crossprod(X, as.vector(W %*% y_offset)))
+    raw_resid  <- y_offset - as.vector(X %*% beta_hat)
+    residual   <- as.vector(sampling_covariance %*% W %*% raw_resid)
+    C          <- W - WX %*% XtWX_inv %*% t(WX)
+    se         <- sqrt(pmax(diag(
+      sampling_covariance %*% C %*% sampling_covariance
+    ), 0))
+
+    resid_samples[s, ] <- residual
+    se_samples[s, ]    <- se
+    z_samples[s, ]     <- residual / se
+  }
+
+  data.frame(
+    resid = colMeans(resid_samples),
+    se    = colMeans(se_samples),
+    z     = colMeans(z_samples)
+  )
+}
+
+
+test_that("brma.mv known-V residual diagnostics are internally consistent", {
+
+  mv_names <- "brma.mv_block_mvn"
+  if (is_certification_profile()) {
+    mv_names <- c(
+      "brma.mv_latent",
+      "brma.mv_whitened",
+      mv_names,
+      "brma.mv_block_mvn_random_scale",
+      "brma.mv_block_mvn_known_R"
+    )
+  }
+  skip_if_missing_fits(mv_names)
+
+  for (name in mv_names) {
+    fit_brma  <- fits[[name]]
+    n         <- nobs(fit_brma)
+    is_random <- .is_random(fit_brma)
+
+    expect_residual_vector(residuals(fit_brma), n, info = name)
+    expect_residual_vector(
+      residuals(fit_brma, conditioning_depth = "estimate"),
+      n,
+      info = name
+    )
+
+    pearson <- residuals(fit_brma, type = "pearson")
+    standard <- rstandard(fit_brma)
+
+    expect_residual_vector(pearson, n, info = name)
+    expect_residual_table(standard, n, info = name)
+
+    if (is_random) {
+      pearson_estimate <- residuals(
+        fit_brma,
+        type               = "pearson",
+        conditioning_depth = "estimate"
+      )
+      standard_estimate <- rstandard(fit_brma, conditioning_depth = "estimate")
+
+      expect_residual_vector(pearson_estimate, n, info = name)
+      expect_residual_table(standard_estimate, n, info = name)
+    }
+
+    student <- suppressWarnings(rstudent(fit_brma))
+    expect_residual_table(student, n, info = name)
+    expect_equal(
+      suppressWarnings(residuals(fit_brma, type = "LOO-PIT")),
+      student[["z"]],
+      tolerance = 1e-12,
+      info      = name
+    )
+  }
+})
+
+test_that("v14 brma.mv residual diagnostics return finite estimate-unit output", {
+
+  skip_if_not_certification("This case exercises the high-draw v14 fixtures.")
+  mv_names <- c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_assink2016_nested",
+    "brma.mv_v14_ishak2007_har",
+    "brma.mv_v14_begg1989_study_treatment"
+  )
+  skip_if_missing_fits(mv_names)
+
+  for (name in mv_names) {
+    fit_brma <- fits[[name]]
+    n        <- nobs(fit_brma)
+
+    expect_residual_vector(residuals(fit_brma), n, info = name)
+    expect_residual_vector(
+      residuals(fit_brma, conditioning_depth = "estimate"),
+      n,
+      info = name
+    )
+    expect_residual_vector(
+      residuals(fit_brma, type = "pearson"),
+      n,
+      info = name
+    )
+    expect_residual_table(rstandard(fit_brma), n, info = name)
+    expect_residual_table(
+      rstandard(fit_brma, conditioning_depth = "estimate"),
+      n,
+      info = name
+    )
+    expect_residual_table(suppressWarnings(rstudent(fit_brma)), n, info = name)
+
+    fit_missing <- fit_brma
+    fit_missing[["loo"]] <- NULL
+    expect_error(
+      rstudent(fit_missing),
+      "LOO has not been computed",
+      info = name
+    )
+  }
+})
+
+
+test_that("brma.mv known-V residual diagnostics match Schur and GLS oracles", {
+
+  name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(name)
+
+  fit_brma    <- fits[[name]]
+  setup       <- .estimate_likelihood_setup.brma(fit_brma)
+  cdf_matrix  <- .cdf_lik_estimate.brma(fit_brma)
+  known_V     <- .data_known_v_data(setup[["data"]])
+  first_block <- .known_v_blocks(known_V)[[1L]][["index"]]
+
+  expect_equal(
+    unname(cdf_matrix[1L, first_block]),
+    unname(.known_v_first_block_cdf_oracle(fit_brma)),
+    tolerance = 1e-12
+  )
+
+  expect_equal(
+    unname(.known_v_pearson_residual_se_samples(fit_brma, "marginal")),
+    unname(sqrt(
+      matrix(
+        .known_v_diagonal(known_V),
+        nrow  = setup[["S"]],
+        ncol  = setup[["K"]],
+        byrow = TRUE
+      ) + .known_v_extra_variance_from_setup(setup)
+    )),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(.known_v_pearson_residual_se_samples(fit_brma, "estimate")),
+    unname(sqrt(matrix(
+      .known_v_diagonal(known_V),
+      nrow  = setup[["S"]],
+      ncol  = setup[["K"]],
+      byrow = TRUE
+    ))),
+    tolerance = 1e-12
+  )
+
+  expect_equal(
+    unname(as.matrix(rstandard(fit_brma))),
+    unname(as.matrix(.known_v_rstandard_gls_oracle(fit_brma))),
+    tolerance = 1e-10
+  )
+  expect_equal(
+    unname(as.matrix(rstandard(fit_brma, conditioning_depth = "estimate"))),
+    unname(as.matrix(.known_v_rstandard_estimate_oracle(fit_brma))),
+    tolerance = 1e-10
+  )
+})
+
+
+test_that("brma.mv random known-V estimate residuals use BLUP and sampled offsets", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  setup    <- .estimate_likelihood_setup.brma(fit_brma)
+  yi_mat   <- matrix(
+    setup[["yi"]],
+    nrow  = setup[["S"]],
+    ncol  = setup[["K"]],
+    byrow = TRUE
+  )
+  expected_resid <- colMeans(yi_mat - .known_v_estimate_blup_from_setup(setup))
+  known_V        <- .data_known_v_data(setup[["data"]])
+  covariance_samples <- .known_v_marginal_covariance_samples(
+    object            = fit_brma,
+    posterior_samples = setup[["posterior_samples"]]
+  )
+  marginal_se <- matrix(NA_real_, nrow = setup[["S"]], ncol = setup[["K"]])
+  for (s in seq_len(setup[["S"]])) {
+    marginal_se[s, ] <- sqrt(diag(covariance_samples[s, , ]))
+  }
+
+  expect_equal(
+    unname(residuals(fit_brma, conditioning_depth = "estimate")),
+    unname(expected_resid),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(.known_v_pearson_residual_se_samples(fit_brma, "marginal")),
+    unname(marginal_se),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(.known_v_pearson_residual_se_samples(fit_brma, "estimate")),
+    unname(sqrt(matrix(
+      .known_v_diagonal(known_V),
+      nrow  = setup[["S"]],
+      ncol  = setup[["K"]],
+      byrow = TRUE
+    ))),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(as.matrix(rstandard(fit_brma, conditioning_depth = "estimate"))),
+    unname(as.matrix(.known_v_rstandard_estimate_oracle(fit_brma))),
+    tolerance = 1e-10
+  )
+  expect_equal(
+    unname(as.matrix(rstandard(fit_brma))),
+    unname(as.matrix(.known_v_rstandard_gls_oracle(fit_brma))),
+    tolerance = 1e-10
+  )
+})
+
+
+test_that("Known-V Pearson residuals avoid dense covariance allocation", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  fit_brma     <- fits[[name]]
+  expected     <- residuals(fit_brma, type = "pearson")
+  old_options  <- options(
+    RoBMA.known_v_covariance_max_bytes = 1
+  )
+  on.exit(options(old_options), add = TRUE)
+
+  actual   <- residuals(fit_brma, type = "pearson")
+  expect_equal(unname(actual), unname(expected), tolerance = 1e-10)
+  expect_null(attr(actual, "known_v_diagnostic"))
+})
+
+
+test_that("legacy known-V CDF wrapper uses estimate-unit target", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+
+  cdf_legacy <- .cdf.brma(fit_brma, conditioning_depth = "estimate")
+  cdf_target <- .cdf_lik_estimate.brma(fit_brma)
+
+  expect_equal(unname(cdf_legacy), unname(cdf_target))
+  expect_error(
+    .cdf.brma(fit_brma, conditioning_depth = "marginal"),
+    "conditioning_depth = 'estimate'"
+  )
+})
+
+
+test_that("brma.mv known-V residual consumers accept residual tables", {
+
+  name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  qq_data  <- qqnorm(fit_brma, as_data = TRUE)
+  fun_data <- funnel(fit_brma, residual = TRUE, as_data = TRUE)
+
+  expect_true(is.list(qq_data))
+  expect_true(is.list(fun_data))
+  expect_true("points" %in% names(qq_data))
+  expect_true("points" %in% names(fun_data))
 })

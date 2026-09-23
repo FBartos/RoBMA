@@ -11,16 +11,24 @@
 #' The available options are:
 #' \describe{
 #'   \item{\code{max_cores}}{number of cores to use for parallel computing (default is one fewer than detected logical cores, with a minimum/fallback of 1)}
+#'   \item{\code{native_threads}}{maximum number of native threads used to evaluate independent posterior rows of the compiled selection-likelihood batches in post-processing such as likelihood-aware densities, z-plots, and predictions. The default \code{NA} keeps this processing single-threaded and instead inherits the model's fitting setup: models fitted with \code{parallel = TRUE} evaluate their post-processing rows with up to \code{max_cores} native threads, unless this option sets an explicit thread count. Parallel work is arranged so that every reduction keeps its serial order, so results do not depend on the thread count; single-state fitting and bridge-sampling evaluations stay serial. A model fitted with \code{parallel = FALSE} therefore does its post-processing serially, which the kernels notice: set this option to use several threads for post-fit calls on such a fit.}
 #'   \item{\code{check_scaling}}{whether to check scaling of predictors (default \code{TRUE})}
-#'   \item{\code{silent}}{whether to suppress output (default \code{FALSE})}
+#'   \item{\code{silent}}{whether to suppress JAGS output when fitting or extending models (default \code{TRUE}, the released constructor default)}
+#'   \item{\code{jags.worker_output}}{file path for parallel JAGS worker stdout and stderr when fitting or extending. The parent directory must exist; workers append to the same file and messages may interleave. The default empty string disables capture. Set this option inside any background job that fits the model. It does not change sampling or numerical integration settings.}
 #'   \item{\code{autocompute.loo}}{whether to automatically compute LOO (default \code{FALSE})}
 #'   \item{\code{autocompute.waic}}{whether to automatically compute WAIC (default \code{FALSE})}
 #'   \item{\code{autocompute.marglik}}{whether to automatically compute marginal likelihood (default \code{FALSE})}
-#'   \item{\code{cluster_likelihood.n_gamma}}{number of Gauss-Hermite nodes used for cluster-unit log-likelihoods (default \code{15})}
+#'   \item{\code{cluster_likelihood.n_gamma}}{number of Gauss-Hermite nodes used for ordinary cluster-unit log-likelihoods (default \code{15}); selected-normal likelihoods use their own quadrature schedules and integration controls.}
+#'   \item{\code{selection.cache_max_bytes}}{one shared storage budget for exact and coarse selection-normalizer caches across all chains in a fit. The default \code{"auto"} uses the smaller of 4 GiB and one quarter of currently available system RAM, resolved before fitting. Supply a nonnegative whole number of bytes to set an explicit total; \code{0} disables caching. Storage grows as needed. Chains receive equal shares, pooled within each worker process; sequential chains share the total.}
+#'   \item{\code{selection.cache_retain}}{whether to save selection-normalizer cache entries with the fitted object after fitting or extending (default \code{FALSE}). Retained entries survive \code{saveRDS()} and are restored when extending a compatible fit. See \code{\link{remove_selection_cache}} for memory costs and removal.}
+#'   \item{\code{selection.sampler}}{\code{"default"} retains ordinary JAGS sampling. \code{"coarse_corrected"} uses coarse slice proposals with a full-target Metropolis correction for eligible scalar updates involving multivariate step selection. Settings are captured when each model is compiled.}
+#'   \item{\code{selection.coarse_grid}}{named nonnegative grid steps \code{c(mean = .05, variance = .05, log_weight = .01)}. Mean spacing is its step times the largest original sampling SE in the block; covariance-diagonal spacing is its step times that SE squared. Each diagonal is rounded upward on a grid whose origin is its own squared original sampling SE, retaining all off-diagonal entries. Positive weights are rounded on the natural-log scale; zero weights remain zero. A zero step retains that coordinate exactly but does not disable the coarse rule budget or fallback. These settings affect proposals, not the corrected target.}
+#'   \item{\code{selection.coarse_max_rules}}{maximum number of rules tried from the beginning of the fitted quadrature schedule for a coarse anchor (default \code{3}, minimum \code{3}). Unsupported or unsuccessful coarse integration uses the prescribed unit normalizer, without QMC fallback. The full-target evaluator retains its ordinary numerical controls and diagnostics.}
 #'   \item{\code{default_UISD.effect}}{default scaling of the unit information standard deviation for the effect size parameter (default \code{0.5})}
 #'   \item{\code{default_UISD.heterogeneity}}{default scaling of the unit information standard deviation for the heterogeneity parameter (default \code{0.25})}
 #'   \item{\code{default_UISD.mods}}{default scaling of the unit information standard deviation for the moderators (default \code{0.25})}
 #'   \item{\code{default_UISD.scale}}{default scaling of the unit information standard deviation for the scale parameter (default \code{0.5})}
+#'   \item{\code{default_lograte.sd}}{default standard deviation of the estimate-specific midpoint log-rate prior in Poisson GLMMs (default \code{1})}
 #'   \item{\code{default_informed_priors.mods}}{default scaling of informed priors for moderators (default \code{0.5})}
 #'   \item{\code{default_informed_priors.scale}}{default scaling of informed priors for the scale parameter (default \code{0.5})}
 #'   \item{\code{default_bias_weightfunction.alpha}}{default alpha for the weightfunction (default \code{1})}
@@ -65,11 +73,103 @@ RoBMA.options    <- function(...) {
       stop(paste("Unmatched or ambiguous option '", names(opts)[i], "'", sep = ""), call. = FALSE)
     }
 
-    value <- .RoBMA_validate_option(names(opts)[i], opts[[i]])
-    assign(names(opts)[i], value, envir = RoBMA.private)
+    opts[[i]] <- .RoBMA_validate_option(names(opts)[i], opts[[i]])
+  }
+
+  if (length(opts) > 0L && any(startsWith(names(opts), "selection.")) &&
+      .selection_runtime_available() && !isTRUE(RoBMA.private[["selection_runtime_loading"]])) {
+    options <- utils::modifyList(.RoBMA_current_options(), opts)
+    capacity <- if ("selection.cache_max_bytes" %in% names(opts) ||
+                    !isTRUE(RoBMA.private[["selection_runtime_initialized"]])) NULL else
+      .Call("RoBMA_selnorm_cache_control", NULL, 0L, PACKAGE = "RoBMA")[["capacity_bytes"]]
+    .selection_runtime_configure(.selection_runtime_settings(options, capacity))
+  }
+  if (length(opts) > 0L && "native_threads" %in% names(opts)) {
+    .native_threads_configure(opts[["native_threads"]])
+  }
+  for (i in seq_along(opts)) {
+    assign(names(opts)[i], opts[[i]], envir = RoBMA.private)
   }
 
   return(invisible(.RoBMA_current_options()))
+}
+
+
+# Push the native row-thread budget into the compiled batch kernels. The
+# process-global value is only read between rows; ongoing calls are unaffected.
+# Returns the budget it replaced (NULL without the native routines), so a
+# scoped caller restores that value on exit instead of a fixed one.
+.native_threads_configure <- function(threads) {
+
+  if (!is.loaded("RoBMA_selnorm_set_native_threads", PACKAGE = "RoBMA")) {
+    return(invisible(NULL))
+  }
+  if (length(threads) != 1L || is.na(threads)) {
+    threads <- 1L
+  }
+  invisible(.Call("RoBMA_selnorm_set_native_threads", as.numeric(threads),
+                  PACKAGE = "RoBMA"))
+}
+
+
+# Evaluate 'expr' with the native row-thread budget resolved for 'object' and
+# put the previous budget back afterwards, whether or not 'expr' succeeds.
+.with_native_threads <- function(object, expr) {
+
+  previous <- .native_threads_configure(.resolve_native_threads(object))
+  if (!is.null(previous)) {
+    on.exit(.native_threads_configure(previous), add = TRUE)
+  }
+
+  expr
+}
+
+
+# Evaluate 'expr' without leaving a trace in the caller's random-number
+# stream: the RNG kind and '.Random.seed' are put back afterwards.
+.with_preserved_rng <- function(expr) {
+
+  rng_kind <- RNGkind()
+  has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (has_seed) {
+    old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  } else {
+    # A read-only stochastic summary must also be repeatable before the caller
+    # has initialized R's RNG stream.
+    set.seed(1L)
+  }
+  on.exit({
+    do.call(RNGkind, as.list(rng_kind))
+    if (has_seed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+
+  expr
+}
+
+
+# Resolve the native row-thread budget for a fitted object. An explicit
+# 'native_threads' option always wins; otherwise models fitted in parallel
+# inherit parallel row evaluation for their post-processing and models fitted
+# sequentially stay single-threaded.
+.resolve_native_threads <- function(object) {
+
+  requested <- RoBMA.private[["native_threads"]]
+  if (length(requested) == 1L && !is.na(requested)) {
+    return(max(1L, as.integer(requested)))
+  }
+  fit_control <- if (!is.null(object) && !is.null(object[["fit_control"]])) {
+    object[["fit_control"]]
+  } else {
+    NULL
+  }
+  if (isTRUE(fit_control[["parallel"]])) {
+    return(max(1L, as.integer(RoBMA.private[["max_cores"]])))
+  }
+  return(1L)
 }
 
 #' @rdname RoBMA_options
@@ -113,6 +213,21 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   return(max(1L, as.integer(cores) - 1L))
 }
 
+
+.RoBMA_default_native_threads <- function() {
+
+  return(NA_integer_)
+}
+
+
+.RoBMA_check_option_threads <- function(value, name) {
+
+  if (length(value) == 1L && is.na(value)) {
+    return(NA_integer_)
+  }
+  return(.RoBMA_check_option_int(value, name, lower = 1L))
+}
+
 .RoBMA_check_option_bool <- function(value, name) {
 
   if (!is.logical(value) || length(value) != 1 || is.na(value)) {
@@ -125,7 +240,8 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
 .RoBMA_check_option_int <- function(value, name, lower = -Inf) {
 
   if (!is.numeric(value) || length(value) != 1 || is.na(value) ||
-      !is.finite(value) || value != as.integer(value) || value < lower) {
+      !is.finite(value) || value != floor(value) ||
+      value > .Machine$integer.max || value < lower) {
     stop(paste0("Option '", name, "' must be an integer >= ", lower, "."), call. = FALSE)
   }
 
@@ -147,18 +263,73 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   return(as.numeric(value))
 }
 
+.RoBMA_check_option_bytes <- function(value, name) {
+
+  value <- .RoBMA_check_option_real(value, name, lower = 0)
+  if (value != floor(value) || value > 2^53 - 1) {
+    stop(paste0("Option '", name, "' must be a nonnegative whole number of bytes representable exactly in R."),
+         call. = FALSE)
+  }
+  return(value)
+}
+
+.RoBMA_check_option_cache_bytes <- function(value, name) {
+
+  if (identical(value, "auto")) return(value)
+  return(.RoBMA_check_option_bytes(value, name))
+}
+
+.RoBMA_check_option_sampler <- function(value, name) {
+
+  if (!is.character(value) || length(value) != 1L || is.na(value) ||
+      !value %in% c("default", "coarse_corrected")) {
+    stop(paste0("Option '", name, "' must be 'default' or 'coarse_corrected'."), call. = FALSE)
+  }
+  return(value)
+}
+
+
+.RoBMA_check_option_worker_output <- function(value, name) {
+
+  if (!is.character(value) || length(value) != 1L || is.na(value)) {
+    stop(paste0("Option '", name, "' must be a file path or an empty string."), call. = FALSE)
+  }
+  return(value)
+}
+
+.RoBMA_check_option_coarse_grid <- function(value, name) {
+
+  keys <- c("mean", "variance", "log_weight")
+  if (!is.numeric(value) || length(value) != 3L ||
+      anyDuplicated(names(value)) || !setequal(names(value), keys) ||
+      any(!is.finite(value)) || any(value < 0)) {
+    stop(paste0("Option '", name,
+      "' must contain finite nonnegative 'mean', 'variance', and 'log_weight' steps."),
+      call. = FALSE)
+  }
+  return(stats::setNames(as.numeric(value[keys]), keys))
+}
+
 .RoBMA_option_schema <- list(
   "max_cores" = list(
     default  = .RoBMA_default_max_cores,
     validate = function(value, name) .RoBMA_check_option_int(value, name, lower = 1L)
+  ),
+  "native_threads" = list(
+    default  = .RoBMA_default_native_threads,
+    validate = .RoBMA_check_option_threads
   ),
   "check_scaling" = list(
     default  = TRUE,
     validate = .RoBMA_check_option_bool
   ),
   "silent" = list(
-    default  = FALSE,
+    default  = TRUE,
     validate = .RoBMA_check_option_bool
+  ),
+  "jags.worker_output" = list(
+    default  = "",
+    validate = .RoBMA_check_option_worker_output
   ),
   "autocompute.loo" = list(
     default  = FALSE,
@@ -176,6 +347,26 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
     default  = 15L,
     validate = function(value, name) .RoBMA_check_option_int(value, name, lower = 3L)
   ),
+  "selection.cache_max_bytes" = list(
+    default  = "auto",
+    validate = .RoBMA_check_option_cache_bytes
+  ),
+  "selection.cache_retain" = list(
+    default  = FALSE,
+    validate = .RoBMA_check_option_bool
+  ),
+  "selection.sampler" = list(
+    default  = "default",
+    validate = .RoBMA_check_option_sampler
+  ),
+  "selection.coarse_grid" = list(
+    default  = c(mean = .05, variance = .05, log_weight = .01),
+    validate = .RoBMA_check_option_coarse_grid
+  ),
+  "selection.coarse_max_rules" = list(
+    default  = 3L,
+    validate = function(value, name) .RoBMA_check_option_int(value, name, lower = 3L)
+  ),
   "default_UISD.effect" = list(
     default  = 1/2,
     validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
@@ -190,6 +381,10 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
   ),
   "default_UISD.scale" = list(
     default  = 1/2,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_lograte.sd" = list(
+    default  = 1,
     validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
   ),
   "default_informed_priors.mods" = list(
@@ -265,6 +460,18 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' @param max_SD_error maximum value of the proportion of MCMC error
 #' of the estimated SD of the parameter.
 #' Defaults to \code{NULL}.
+#' @param check_indicators whether model indicator variables should be included
+#' in convergence checks. Binary indicators are checked as state occupancies
+#' and categorical indicators are checked separately for every observed state.
+#' Eligible indicators remain included when \code{monitor} selects a narrower
+#' parameter set; auxiliary inclusion-probability coordinates remain excluded
+#' unless requested explicitly.
+#' Defaults to \code{TRUE}.
+#' @param monitor optional character vector selecting the parameters used for
+#' convergence checks. A base name selects all indexed elements. Defaults to
+#' \code{NULL}, which checks every eligible parameter.
+#' @param allow_not_assessable whether requested sampled parameters with
+#' undefined diagnostics may be ignored. Defaults to \code{FALSE}.
 #' @param max_time list with the time and unit specifying the maximum
 #' autofitting process per model. Passed to \link[base]{difftime} function
 #' (possible units are \code{"secs"}, \code{"mins"}, \code{"hours"},
@@ -289,7 +496,8 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 #' \code{max_SD_error}, \code{max_time}, \code{restarts}, and
 #' \code{max_extend} can be set to \code{NULL}; \code{sample_extend} must be a
-#' positive integer.
+#' positive integer. The routing controls are delegated to
+#' \code{BayesTools::JAGS_check_convergence()}.
 #' Thresholds can be disabled with \code{NULL}; otherwise \code{max_Rhat} must be
 #' at least 1, \code{min_ESS} and \code{max_error} must be nonnegative, and
 #' \code{max_SD_error} must be between 0 and 1.
@@ -325,11 +533,12 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' @return \code{set_autofit_control} returns a list of autofit control settings
 #' including \code{max_Rhat}, \code{min_ESS}, \code{max_error},
 #' \code{max_SD_error}, \code{max_time}, \code{sample_extend},
-#' \code{restarts}, \code{max_extend}, and delegated
-#' \code{check_indicators}.
+#' \code{restarts}, \code{max_extend}, \code{check_indicators},
+#' \code{monitor}, and \code{allow_not_assessable}.
 #' \code{set_convergence_checks} returns a list with convergence thresholds
 #' \code{max_Rhat}, \code{min_ESS}, \code{max_error}, \code{max_SD_error},
-#' and delegated \code{check_indicators}.
+#' \code{check_indicators}, \code{monitor}, and
+#' \code{allow_not_assessable}.
 #'
 #' @export set_autofit_control
 #' @export set_convergence_checks
@@ -340,7 +549,7 @@ for (option_name in names(.RoBMA_option_schema)) {
 NULL
 
 #' @rdname RoBMA_control
-set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10, max_extend = 10){
+set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10, max_extend = 10, check_indicators = TRUE, monitor = NULL, allow_not_assessable = FALSE){
 
   autofit_settings <- list(
     max_Rhat      = max_Rhat,
@@ -350,20 +559,26 @@ set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     max_time      = max_time,
     sample_extend = sample_extend,
     restarts      = restarts,
-    max_extend    = max_extend
+    max_extend          = max_extend,
+    check_indicators     = check_indicators,
+    monitor              = monitor,
+    allow_not_assessable = allow_not_assessable
   )
   autofit_settings <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_settings, call = "Checking 'autofit_control':\n\t")
 
   return(autofit_settings)
 }
 #' @rdname RoBMA_control
-set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL){
+set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, check_indicators = TRUE, monitor = NULL, allow_not_assessable = FALSE){
 
   convergence_checks <- list(
     max_Rhat     = max_Rhat,
     min_ESS      = min_ESS,
     max_error    = max_error,
-    max_SD_error = max_SD_error
+    max_SD_error         = max_SD_error,
+    check_indicators     = check_indicators,
+    monitor              = monitor,
+    allow_not_assessable = allow_not_assessable
   )
   # allows NULL arguments so it can be used in this way too
   convergence_checks <- .check_and_list_convergence_checks(convergence_checks)
@@ -418,27 +633,27 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 .update_autofit_control <- function(old_autofit_control, autofit_control){
 
-  if(!is.null(autofit_control[["max_Rhat"]])){
+  if("max_Rhat" %in% names(autofit_control)){
     max_Rhat <- autofit_control[["max_Rhat"]]
   }else{
     max_Rhat <- old_autofit_control[["max_Rhat"]]
   }
-  if(!is.null(autofit_control[["min_ESS"]])){
+  if("min_ESS" %in% names(autofit_control)){
     min_ESS <- autofit_control[["min_ESS"]]
   }else{
     min_ESS <- old_autofit_control[["min_ESS"]]
   }
-  if(!is.null(autofit_control[["max_error"]])){
+  if("max_error" %in% names(autofit_control)){
     max_error <- autofit_control[["max_error"]]
   }else{
     max_error <- old_autofit_control[["max_error"]]
   }
-  if(!is.null(autofit_control[["max_SD_error"]])){
+  if("max_SD_error" %in% names(autofit_control)){
     max_SD_error <- autofit_control[["max_SD_error"]]
   }else{
     max_SD_error <- old_autofit_control[["max_SD_error"]]
   }
-  if(!is.null(autofit_control[["max_time"]])){
+  if("max_time" %in% names(autofit_control)){
     max_time <- autofit_control[["max_time"]]
   }else{
     max_time <- old_autofit_control[["max_time"]]
@@ -448,45 +663,80 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   }else{
     sample_extend <- old_autofit_control[["sample_extend"]]
   }
-  if(!is.null(autofit_control[["restarts"]])){
+  if("restarts" %in% names(autofit_control)){
     restarts <- autofit_control[["restarts"]]
   }else{
     restarts <- old_autofit_control[["restarts"]]
   }
-  if(!is.null(autofit_control[["max_extend"]])){
+  if("max_extend" %in% names(autofit_control)){
     max_extend <- autofit_control[["max_extend"]]
   }else{
     max_extend <- old_autofit_control[["max_extend"]]
   }
 
-  new_autofit_control <- set_autofit_control(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts, max_extend = max_extend)
+  check_indicators <- if(!is.null(autofit_control[["check_indicators"]])) {
+    autofit_control[["check_indicators"]]
+  } else if(is.null(old_autofit_control[["check_indicators"]])) {
+    TRUE
+  } else {
+    isTRUE(old_autofit_control[["check_indicators"]])
+  }
+  monitor <- if("monitor" %in% names(autofit_control)) {
+    autofit_control[["monitor"]]
+  } else {
+    old_autofit_control[["monitor"]]
+  }
+  allow_not_assessable <- if(!is.null(autofit_control[["allow_not_assessable"]])) {
+    autofit_control[["allow_not_assessable"]]
+  } else {
+    isTRUE(old_autofit_control[["allow_not_assessable"]])
+  }
+
+  new_autofit_control <- set_autofit_control(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts, max_extend = max_extend, check_indicators = check_indicators, monitor = monitor, allow_not_assessable = allow_not_assessable)
   new_autofit_control <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_control = new_autofit_control)
 
   return(new_autofit_control)
 }
 .update_convergence_checks <- function(old_convergence_checks, convergence_checks){
 
-  if(!is.null(convergence_checks[["max_Rhat"]])){
+  if("max_Rhat" %in% names(convergence_checks)){
     max_Rhat <- convergence_checks[["max_Rhat"]]
   }else{
     max_Rhat <- old_convergence_checks[["max_Rhat"]]
   }
-  if(!is.null(convergence_checks[["min_ESS"]])){
+  if("min_ESS" %in% names(convergence_checks)){
     min_ESS <- convergence_checks[["min_ESS"]]
   }else{
     min_ESS <- old_convergence_checks[["min_ESS"]]
   }
-  if(!is.null(convergence_checks[["max_error"]])){
+  if("max_error" %in% names(convergence_checks)){
     max_error <- convergence_checks[["max_error"]]
   }else{
     max_error <- old_convergence_checks[["max_error"]]
   }
-  if(!is.null(convergence_checks[["max_SD_error"]])){
+  if("max_SD_error" %in% names(convergence_checks)){
     max_SD_error <- convergence_checks[["max_SD_error"]]
   }else{
     max_SD_error <- old_convergence_checks[["max_SD_error"]]
   }
-  new_convergence_checks <- set_convergence_checks(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error)
+  check_indicators <- if(!is.null(convergence_checks[["check_indicators"]])) {
+    convergence_checks[["check_indicators"]]
+  } else if(is.null(old_convergence_checks[["check_indicators"]])) {
+    TRUE
+  } else {
+    isTRUE(old_convergence_checks[["check_indicators"]])
+  }
+  monitor <- if("monitor" %in% names(convergence_checks)) {
+    convergence_checks[["monitor"]]
+  } else {
+    old_convergence_checks[["monitor"]]
+  }
+  allow_not_assessable <- if(!is.null(convergence_checks[["allow_not_assessable"]])) {
+    convergence_checks[["allow_not_assessable"]]
+  } else {
+    isTRUE(old_convergence_checks[["allow_not_assessable"]])
+  }
+  new_convergence_checks <- set_convergence_checks(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, check_indicators = check_indicators, monitor = monitor, allow_not_assessable = allow_not_assessable)
   new_convergence_checks <- .check_and_list_convergence_checks(new_convergence_checks)
 
   return(new_convergence_checks)
@@ -548,58 +798,26 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   ))))
 }
 
-.thin_sample_rows_by_group <- function(group, max_samples) {
+.nested_srs_rows <- function(rows, max_samples) {
 
-  n_samples <- length(group)
-  if (is.infinite(max_samples) || n_samples <= max_samples) {
-    return(NULL)
-  }
-  if (anyNA(group)) {
-    stop("'group' must not contain missing values.", call. = FALSE)
+  if (length(rows) <= max_samples) {
+    return(rows)
   }
 
-  max_samples <- as.integer(max_samples)
-  group       <- factor(group)
-  group_rows  <- split(seq_len(n_samples), group)
-  group_n     <- as.integer(vapply(group_rows, length, integer(1)))
-  raw_n       <- group_n / n_samples * max_samples
-  selected_n  <- floor(raw_n)
-  remaining   <- max_samples - sum(selected_n)
+  positions <- seq_along(rows)
+  seed <- sum(
+    (as.double(rows) %% 104729) * ((positions %% 997) + 1)
+  )
+  seed <- as.integer(seed %% (.Machine$integer.max - 1)) + 1L
 
-  while (remaining > 0L && any(selected_n < group_n)) {
-    available  <- which(selected_n < group_n)
-    remainders <- raw_n - selected_n
-    add_to     <- available[which.max(remainders[available])]
-    selected_n[add_to] <- selected_n[add_to] + 1L
-    remaining          <- remaining - 1L
-  }
+  selected <- .with_preserved_rng({
+    RNGkind("Mersenne-Twister", "Inversion", "Rejection")
+    set.seed(seed)
+    permutation <- sample.int(length(rows), length(rows), replace = FALSE)
+    sort(permutation[seq_len(as.integer(max_samples))])
+  })
 
-  if (max_samples >= length(group_n) && any(selected_n == 0L)) {
-    for (i in which(selected_n == 0L)) {
-      donors <- which(selected_n > 1L)
-      if (length(donors) == 0L) {
-        break
-      }
-      donor <- donors[which.max(selected_n[donors])]
-      selected_n[donor] <- selected_n[donor] - 1L
-      selected_n[i]     <- 1L
-    }
-  }
-
-  rows <- integer(0)
-  for (i in seq_along(group_rows)) {
-    if (selected_n[i] == 0L) {
-      next
-    }
-    selected <- group_rows[[i]][round(seq(
-      from       = 1,
-      to         = length(group_rows[[i]]),
-      length.out = selected_n[i]
-    ))]
-    rows     <- c(rows, selected)
-  }
-
-  return(sort(unique(rows)))
+  return(rows[selected])
 }
 
 .check_plot_numeric <- function(x, argument, check_length = NULL,
