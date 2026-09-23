@@ -19,6 +19,12 @@ residuals, marginal covariance diagnostics, or marginal likelihood.
 Do not reuse one target's covariance or likelihood merely because dimensions
 match.
 
+An integer likelihood weight `w` repeats the conditional likelihood contribution
+`w` times with the declared latent-effect and grouping structure held fixed.
+Fractional likelihood powers remain supported. This fitting interpretation does
+not choose between per-copy and whole-row deletion or define fractional-weight
+diagnostic conventions.
+
 Likelihood weights affect fitting and PSIS deletion, not the observation law
 used to scale diagnostics. Pearson and LOO-PIT/rstudent use the original outcome
 variance/CDF. Internally standardized residuals use the fitted weighted
