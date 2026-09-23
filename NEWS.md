@@ -1,5 +1,8 @@
 ## version 4.1.0 (IN PROGRESS)
 ### Fixes
+- reports working-precision failures when an accepted covariance cannot supply
+  a usable Cholesky factor or represent a retained positive variance, rather
+  than silently losing that direction or misreporting structural singularity.
 - preserves compiled random-prior branches in qCMDE likelihood evaluation and
   derives internally generated point targets from persisted prior locations.
 - uses original outcome variances for weighted residual diagnostics, retaining
