@@ -380,3 +380,59 @@ test_that("heterogeneity summaries reject invalid rho without projection", {
     "within \\[0, 1\\]"
   )
 })
+
+
+test_that("undefined original-scale correlations are summarized over defined draws", {
+
+  skip_on_cran()
+  set.seed(2)
+  k   <- 30L
+  dat <- data.frame(
+    study = rep(sprintf("s%02d", seq_len(10L)), each = 3L),
+    x     = stats::rnorm(k)
+  )
+  dat[["yi"]] <- 0.2 + 0.1 * dat[["x"]] +
+    stats::rnorm(10L, 0, 0.1)[as.integer(factor(dat[["study"]]))] +
+    stats::rnorm(k, 0, 0.15)
+  fit <- suppressWarnings(brma.mv(
+    yi = yi, V = diag(rep(0.0225, k)), random = ~ us(1 + x | study),
+    data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    chains = 1, sample = 300, burnin = 100, adapt = 100, seed = 1,
+    silent = TRUE
+  ))
+
+  # Draws 3 and 4 allocate the whole block variance to the intercept: the SD
+  # of the scaled slope is zero and its original-scale correlation undefined.
+  samples  <- as.matrix(fit[["fit"]][["mcmc"]])
+  modified <- samples
+  modified[3:4, "mu__xRE_ALLOCx_heterogeneity__weight[1]"] <- 1
+  modified[3:4, "mu__xRE_ALLOCx_heterogeneity__weight[2]"] <- 0
+  modified[3:4, "mu__xREx__study_intercept"] <-
+    modified[3:4, "mu__xRE_ALLOCx_heterogeneity__allocation_sd"]
+  modified[3:4, "mu__xREx__study_x"] <- 0
+  label <- "rho(intercept,x)"
+
+  reference <- .brma_mv_correlation_sample_lists(fit, samples)[["study"]][[label]]
+  undefined <- .brma_mv_correlation_sample_lists(fit, modified)[["study"]][[label]]
+  expect_true(all(!is.na(reference)))
+  expect_identical(which(is.na(undefined)), 3:4)
+  expect_identical(attr(undefined, "undefined_draws"), "correlation")
+
+  probs     <- c(.025, .975)
+  result    <- summary_heterogeneity(fit, probs = probs, .posterior_samples = modified)
+  estimates <- result[["estimates"]]
+  defined   <- reference[-(3:4)]
+  expect_equal(estimates[label, "Mean"], mean(defined))
+  expect_equal(estimates[label, "Median"], stats::median(defined))
+  expect_equal(
+    as.numeric(estimates[label, c("0.025", "0.975")]),
+    unname(stats::quantile(defined, probs))
+  )
+  expect_identical(
+    unname(attr(estimates, "footnotes")),
+    paste0(
+      label, ": summarized over 298 of 300 draws where the correlation is ",
+      "defined, i.e. both SDs are positive."
+    )
+  )
+})

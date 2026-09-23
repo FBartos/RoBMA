@@ -522,10 +522,26 @@
       selected[["display_label"]][i],
       selected[["quantity"]][i]
     )
-    out[[block]][[label]] <- as.numeric(draws[[1L]][, 1L])
+    out[[block]][[label]] <- .brma_mv_catalog_draw_values(draws)
   }
 
   return(out)
+}
+
+
+# The draws of one catalog quantity as a plain vector. Quantities that can be
+# undefined in some draws (original-scale correlations with a zero SD) keep
+# the 'undefined_draws' declaration of parameter_draws(), so summaries use the
+# defined draws and footnote their share instead of rejecting the NA draws.
+.brma_mv_catalog_draw_values <- function(draws) {
+
+  values    <- as.numeric(draws[[1L]][, 1L])
+  undefined <- attr(draws, "undefined_draws", exact = TRUE)
+  if (!is.null(undefined)) {
+    attr(values, "undefined_draws") <- unname(undefined[[1L]])
+  }
+
+  return(values)
 }
 
 
@@ -746,7 +762,7 @@
         selection,
         model_samples = posterior_samples
       )
-      values <- as.numeric(draws[[1L]][, 1L])
+      values <- .brma_mv_catalog_draw_values(draws)
       if (identical(selected[["quantity"]][i], "var_prop")) {
         values <- values[!is.na(values)]
         if (length(values) == 0L) {
