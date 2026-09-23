@@ -321,6 +321,17 @@
     }
   }
   if (nrow(entry) != 1L) {
+    coefficients <- .brma_contrast_coefficient_quantities(
+      metadata, selection[["quantity_id"]]
+    )
+    if (nrow(coefficients) > 0L) {
+      .brma_stop_contrast_coefficient(
+        metadata    = metadata,
+        selector    = parameter,
+        coefficient = coefficients[1L, , drop = FALSE],
+        hypothesis  = FALSE
+      )
+    }
     stop(
       "Resolved parameter metadata are unavailable. Refit the model with the ",
       "current RoBMA/BayesTools build.",
@@ -350,6 +361,114 @@
   }
 
   return(NULL)
+}
+
+# Contrast coefficients '<term>{j}' of mean-difference, orthonormal, and
+# ordered factors are factor-level catalog quantities that no RoBMA entry
+# covers: RoBMA addresses factor terms through their level labels.
+.brma_contrast_coefficient_quantities <- function(metadata, quantity_ids) {
+
+  quantities <- metadata[["catalog"]][["quantities"]]
+  if (!is.data.frame(quantities) || length(quantity_ids) == 0L) {
+    return(data.frame())
+  }
+  rows <- quantities[
+    quantities[["quantity_id"]] %in% quantity_ids,
+    ,
+    drop = FALSE
+  ]
+  entries <- metadata[["entries"]]
+  covered <- rows[["quantity_id"]] %in% c(
+    entries[["quantity_id"]],
+    unlist(entries[["member_quantity_ids"]], use.names = FALSE)
+  )
+  factor_level <- vapply(rows[["extraction_key"]], function(key) {
+    is.list(key) && identical(key[["type"]], "factor_level")
+  }, logical(1))
+
+  return(rows[factor_level & !covered, , drop = FALSE])
+}
+
+# The public label of a factor term and the labels of its non-structural
+# levels (the treatment reference level is structural).
+.brma_factor_term_selectors <- function(metadata, entry) {
+
+  aliases <- as.list(rep(entry[["parameter"]], length(entry[["aliases"]][[1L]])))
+  names(aliases) <- entry[["aliases"]][[1L]]
+  quantities <- metadata[["catalog"]][["quantities"]]
+  levels     <- quantities[
+    quantities[["quantity_id"]] %in%
+      unlist(entry[["member_quantity_ids"]], use.names = FALSE) &
+      quantities[["status"]] != "structural",
+    ,
+    drop = FALSE
+  ]
+
+  return(list(
+    label  = .hypothesis_brma_alias_label(aliases, entry[["parameter"]]),
+    levels = levels[["component"]]
+  ))
+}
+
+# Stop for a selector of a factor contrast coefficient ('g{1}' or, for terms
+# without coefficient quantities, any '{j}' selector), naming the level-label
+# form that RoBMA supports. 'term_alias' identifies the term by one of its
+# aliases when the selector did not resolve to a catalog quantity.
+.brma_stop_contrast_coefficient <- function(metadata, selector,
+                                            coefficient = NULL,
+                                            term_alias = NULL,
+                                            hypothesis = TRUE) {
+
+  entries <- metadata[["entries"]]
+  groups  <- entries[
+    entries[["role"]] == "formula_coefficient_group",
+    ,
+    drop = FALSE
+  ]
+  group <- if (!is.null(coefficient)) {
+    groups[
+      groups[["term"]] == coefficient[["term"]] &
+        groups[["formula_parameter"]] == coefficient[["formula_parameter"]],
+      ,
+      drop = FALSE
+    ]
+  } else {
+    groups[groups[["parameter"]] %in% term_alias |
+      vapply(groups[["aliases"]], function(aliases) {
+        term_alias %in% aliases
+      }, logical(1)), , drop = FALSE]
+  }
+  example <- NULL
+  label   <- NULL
+  if (nrow(group) == 1L) {
+    selectors <- .brma_factor_term_selectors(metadata, group)
+    label     <- selectors[["label"]]
+    if (!is.null(coefficient)) {
+      selector <- paste0(label, coefficient[["component"]])
+    }
+    if (length(selectors[["levels"]]) > 0L) {
+      example <- paste0(label, "[", selectors[["levels"]][[1L]], "]")
+    }
+  }
+  example <- if (is.null(example)) {
+    "their labels"
+  } else {
+    paste0("their labels, such as '", example, "'")
+  }
+
+  if (hypothesis) {
+    stop(
+      "Hypotheses on factor contrast coefficients such as '", selector,
+      "' are not supported. State them on factor levels by ", example, ".",
+      call. = FALSE
+    )
+  }
+  stop(
+    "Factor contrast coefficients such as '", selector, "' cannot be ",
+    "selected. Select factor levels by ", example,
+    if (!is.null(label)) paste0(", or the whole term '", label, "'"), ".",
+    call. = FALSE
+  )
 }
 
 .brma_parameter_catalog <- function(object) {

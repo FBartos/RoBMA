@@ -267,10 +267,19 @@ hypothesis.brma <- function(object, hypothesis,
          call. = FALSE)
   }
   parameter_metadata <- .brma_parameter_catalog_metadata(object)
-  hypothesis <- BayesTools::hypothesis_parse(
-    hypothesis = hypothesis,
-    catalog    = parameter_metadata[["catalog"]],
-    simplify_names = TRUE
+  hypothesis <- tryCatch(
+    BayesTools::hypothesis_parse(
+      hypothesis = hypothesis,
+      catalog    = parameter_metadata[["catalog"]],
+      simplify_names = TRUE
+    ),
+    error = function(error) {
+      .hypothesis_brma_check_coefficient_selector(
+        hypothesis = hypothesis,
+        metadata   = parameter_metadata
+      )
+      stop(error)
+    }
   )
   requested_point_refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = hypothesis,
@@ -1177,6 +1186,16 @@ hypothesis.brma <- function(object, hypothesis,
       if (fixed) {
         return(NULL)
       }
+      key <- if (nrow(quantity) == 1L) quantity[["extraction_key"]][[1L]]
+      if (is.null(target) && is.list(key) &&
+          identical(key[["type"]], "factor_level") &&
+          length(key[["dependencies"]]) > 0L) {
+        .hypothesis_brma_stop_combined_level(
+          selected   = selected,
+          quantities = quantities,
+          level      = level
+        )
+      }
       stop(
         "Resolved formula coefficient '", level_name,
         "' is absent from the fitted coefficient transformation.",
@@ -1197,6 +1216,42 @@ hypothesis.brma <- function(object, hypothesis,
   out <- out[!vapply(out, is.null, logical(1))]
 
   return(out)
+}
+
+
+# A factor level that combines several fitted contrast coefficients
+# (mean-difference, orthonormal, or ordered contrasts) has no single fitted
+# coefficient whose prior ordinate a point hypothesis could use.
+.hypothesis_brma_stop_combined_level <- function(selected, quantities, level) {
+
+  label    <- .hypothesis_brma_alias_label(
+    selected[["aliases"]],
+    selected[["parameter"]]
+  )
+  selector <- paste0(label, "[", level, "]")
+  members  <- unlist(
+    selected[["entry"]][["member_quantity_ids"]],
+    use.names = FALSE
+  )
+  others   <- setdiff(
+    quantities[["component"]][quantities[["quantity_id"]] %in% members],
+    level
+  )
+
+  stop(
+    "Point hypotheses on factor level '", selector, "' are not supported: ",
+    "the level combines several fitted contrast coefficients ",
+    "(mean-difference, orthonormal, or ordered contrasts), and point ",
+    "hypotheses on a single level require a level fitted as one coefficient ",
+    "(treatment or independent contrasts). Test the level with a region ",
+    "hypothesis such as '", selector, " > 0'",
+    if (length(others) > 0L) {
+      paste0(" or a level contrast such as '", selector, " = ", label, "[",
+             others[[1L]], "]'")
+    },
+    ".",
+    call. = FALSE
+  )
 }
 
 

@@ -149,6 +149,7 @@ test_that("factor-level hypotheses resolve exact transformed coordinates", {
   quantities <- data.frame(
     quantity_id      = paste0("q_", names(level_names)),
     canonical_name   = unname(level_names),
+    component        = names(level_names),
     status           = c("sampled", "structural", "derived"),
     fixed_value      = c(NA_real_, 0, NA_real_),
     stringsAsFactors = FALSE
@@ -164,10 +165,16 @@ test_that("factor-level hypotheses resolve exact transformed coordinates", {
   selected_levels <- function(levels) {
 
     list(
+      parameter = "mu_alloc__xXx__ablat",
+      aliases   = list(
+        "alloc:ablat"          = "mu_alloc__xXx__ablat",
+        "mu_alloc__xXx__ablat" = "mu_alloc__xXx__ablat"
+      ),
       component = "mods",
       entry = list(
-        role              = "formula_coefficient_group",
-        formula_parameter = "mu"
+        role                = "formula_coefficient_group",
+        formula_parameter   = "mu",
+        member_quantity_ids = list(paste0("q_", names(level_names)))
       ),
       resolution = list(occurrences = data.frame(
         level          = levels,
@@ -200,18 +207,25 @@ test_that("factor-level hypotheses resolve exact transformed coordinates", {
     target[["random"]][["route"]][["weights"]],
     c("mu_alloc__xXx__ablat[1]" = 0.25)
   )
-  expect_error(
+  # A level combining several coefficients has no single coefficient prior:
+  # the stop names the level and the hypotheses that remain available.
+  combined <- tryCatch(
     .hypothesis_brma_formula_coefficient_level_targets(
       object     = object,
       selected   = selected_levels("systematic"),
       point_refs = data.frame(level = "systematic", value = 0)
     ),
-    paste0(
-      "Resolved formula coefficient 'mu_alloc__xXx__ablat[systematic]' is ",
-      "absent from the fitted coefficient transformation."
-    ),
-    fixed = TRUE
+    error = conditionMessage
   )
+  expect_identical(combined, paste0(
+    "Point hypotheses on factor level 'alloc:ablat[systematic]' are not ",
+    "supported: the level combines several fitted contrast coefficients ",
+    "(mean-difference, orthonormal, or ordered contrasts), and point ",
+    "hypotheses on a single level require a level fitted as one coefficient ",
+    "(treatment or independent contrasts). Test the level with a region ",
+    "hypothesis such as 'alloc:ablat[systematic] > 0' or a level contrast ",
+    "such as 'alloc:ablat[systematic] = alloc:ablat[random]'."
+  ))
 })
 
 

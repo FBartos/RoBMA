@@ -58,6 +58,16 @@
       ))
   }, logical(1))
   if (length(quantity_ids) == 0L || !all(covered) || nrow(entries) == 0L) {
+    coefficients <- .brma_contrast_coefficient_quantities(
+      metadata, quantity_ids[!covered]
+    )
+    if (nrow(coefficients) > 0L) {
+      .brma_stop_contrast_coefficient(
+        metadata    = metadata,
+        selector    = coefficients[["canonical_name"]][[1L]],
+        coefficient = coefficients[1L, , drop = FALSE]
+      )
+    }
     stop(
       "Resolved hypothesis metadata are unavailable. Refit the model with ",
       "the current RoBMA/BayesTools build.",
@@ -97,6 +107,28 @@
     entry      = as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE]),
     resolution = resolved
   ))
+}
+
+
+# A '{j}' selector that did not parse names a factor contrast coefficient
+# that the fitted catalog does not have (for example of a treatment factor,
+# whose levels are its coefficients). Stop naming the level-label form.
+.hypothesis_brma_check_coefficient_selector <- function(hypothesis, metadata) {
+
+  text      <- paste(hypothesis, collapse = " ")
+  selectors <- regmatches(
+    text,
+    gregexpr("[^[:space:]()<>=!&|,+*/~-]+\\{[0-9]+\\}", text)
+  )[[1L]]
+  if (length(selectors) == 0L) {
+    return(invisible(NULL))
+  }
+
+  .brma_stop_contrast_coefficient(
+    metadata   = metadata,
+    selector   = selectors[[1L]],
+    term_alias = sub("\\{[0-9]+\\}$", "", selectors[[1L]])
+  )
 }
 
 

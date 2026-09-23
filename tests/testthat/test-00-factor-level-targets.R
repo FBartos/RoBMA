@@ -127,14 +127,73 @@ test_that("mean-difference level point hypotheses stop without a single coordina
   skip_on_cran()
   fit <- .factor_level_target_fits()[["meandif"]]
 
-  for (hypothesis in c("g1[10] = 0", "g2[2] = 0")) {
+  cases <- list(
+    c(hypothesis = "g1[10] = 0", level = "g1[10]", other = "g1[5]"),
+    c(hypothesis = "g2[2] = 0",  level = "g2[2]",  other = "g2[1]")
+  )
+  for (case in cases) {
     expect_error(
-      suppressWarnings(hypothesis(fit, hypothesis, density_method = "KDE")),
-      "is absent from the fitted coefficient transformation",
+      suppressWarnings(hypothesis(fit, case[["hypothesis"]], density_method = "KDE")),
+      paste0(
+        "Point hypotheses on factor level '", case[["level"]], "' are not ",
+        "supported: the level combines several fitted contrast coefficients ",
+        "(mean-difference, orthonormal, or ordered contrasts), and point ",
+        "hypotheses on a single level require a level fitted as one ",
+        "coefficient (treatment or independent contrasts). Test the level ",
+        "with a region hypothesis such as '", case[["level"]], " > 0' or a ",
+        "level contrast such as '", case[["level"]], " = ", case[["other"]], "'."
+      ),
       fixed = TRUE,
-      info = hypothesis
+      info = case[["hypothesis"]]
     )
   }
+  # The alternatives the message names are available.
+  region   <- suppressWarnings(hypothesis(fit, "g1[10] > 0", density_method = "KDE"))
+  contrast <- suppressWarnings(hypothesis(fit, "g1[10] = g1[5]", density_method = "KDE"))
+  expect_true(is.finite(attr(region, "raw_BF")))
+  expect_true(is.finite(attr(contrast, "raw_BF")))
+})
+
+
+test_that("contrast-coefficient selectors stop naming the level-label form", {
+
+  skip_on_cran()
+  fits <- .factor_level_target_fits()
+
+  # Mean-difference coefficients are catalog quantities without RoBMA entries.
+  for (selector in c("g1{1} = 0", "g1{1} > 0", "(mu) g1{1} = 0", "mu_g1{1} = 0")) {
+    expect_error(
+      suppressWarnings(hypothesis(fits[["meandif"]], selector, density_method = "KDE")),
+      paste0(
+        "Hypotheses on factor contrast coefficients such as 'g1{1}' are not ",
+        "supported. State them on factor levels by their labels, such as ",
+        "'g1[5]'."
+      ),
+      fixed = TRUE,
+      info = selector
+    )
+  }
+  expect_error(
+    plot(fits[["meandif"]], parameter = "g1{1}", plot_type = "ggplot"),
+    paste0(
+      "Factor contrast coefficients such as 'g1{1}' cannot be selected. ",
+      "Select factor levels by their labels, such as 'g1[5]', or the whole ",
+      "term 'g1'."
+    ),
+    fixed = TRUE
+  )
+
+  # Treatment levels are the coefficients: the selector has no quantity and
+  # the example level skips the structural reference level 5.
+  expect_error(
+    suppressWarnings(hypothesis(fits[["treatment"]], "g1{1} = 0", density_method = "KDE")),
+    paste0(
+      "Hypotheses on factor contrast coefficients such as 'g1{1}' are not ",
+      "supported. State them on factor levels by their labels, such as ",
+      "'g1[10]'."
+    ),
+    fixed = TRUE
+  )
 })
 
 
