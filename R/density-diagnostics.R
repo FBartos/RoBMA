@@ -76,7 +76,7 @@
 #'
 #' @param object an object returned by [hypothesis()] with
 #'   `density_method = "qCMDE"` or `density_method = "IWMDE"`, or an
-#'   `RoBMA_density_ordinate_error` caught from a rejected point-ordinate
+#'   `RoBMA_density_ordinate_error` caught from a failed or rejected point-ordinate
 #'   computation.
 #' @param ... unused.
 #'
