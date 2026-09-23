@@ -1078,9 +1078,11 @@ test_that("separate random targets share one hypothesis result", {
     attr(out, "raw_BF"),
     c(allocation_BF[[1L]], total_BF, allocation_BF[[2L]])
   )
+  # BayesTools numbers the rows of repeated statements on one quantity;
+  # the warnings follow their rows into statement order.
   expect_identical(
     names(attr(out, "warnings")),
-    c("theta", "theta2", "theta1")
+    c("theta (1)", "theta", "theta (2)")
   )
   expect_identical(attr(out, "hypothesis_ast"), hypothesis)
   expect_s3_class(out, "BayesTools_hypothesis_BF")
