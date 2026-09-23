@@ -95,6 +95,9 @@
 #' covariance \eqn{M}, as in \pkg{metafor} diagnostics with custom fitting weights.
 #' RoBMA retains its Bayesian posterior averaging and LOO-PIT transformation;
 #' these are not identical to frequentist deleted-residual z-statistics.
+#' Each retained row produces one residual, without multiplying or repeating it
+#' by its observation weight. Estimate-unit LOO removes the row's entire
+#' weighted likelihood contribution, for integer and non-integer weights alike.
 #'
 #' LOO-PIT residuals (\code{type = "LOO-PIT"}) are the Bayesian equivalent of
 #' studentized deleted residuals \insertCite{vehtari2017practical}{RoBMA}. They

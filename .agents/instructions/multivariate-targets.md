@@ -21,9 +21,13 @@ match.
 
 An integer likelihood weight `w` repeats the conditional likelihood contribution
 `w` times with the declared latent-effect and grouping structure held fixed.
-Fractional likelihood powers remain supported. This fitting interpretation does
-not choose between per-copy and whole-row deletion or define fractional-weight
-diagnostic conventions.
+Positive fractional likelihood powers remain supported. Each original retained
+row remains one observation for estimate-level diagnostics; do not expand it into
+copies or multiply its residual or Q-Q contribution by its likelihood weight.
+Estimate-unit LOO removes the row's entire powered contribution, `f_i^w_i`, for
+every positive real weight (`w_i -> 0`, never `w_i -> w_i - 1`). Cluster deletion
+removes the complete weighted contributions of its member rows. Replication is
+the interpretation of the fitting factor, not a change of diagnostic identity.
 
 Likelihood weights affect fitting and PSIS deletion, not the observation law
 used to scale diagnostics. Pearson and LOO-PIT/rstudent use the original outcome

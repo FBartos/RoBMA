@@ -122,6 +122,9 @@ under a correctly specified model. Each point represents one estimate,
 plotted at coordinates \eqn{(\Phi^{-1}(p_i), z_{(i)})} where
 \eqn{p_i} are the plotting positions and \eqn{z_{(i)}} are the sorted
 standardized residuals.
+Each retained input row contributes one point, irrespective of its likelihood
+weight. Weights affect fitting and the residual calculation; they do not
+replicate points or multiply residual values in this plot.
 
 The default residual type is \code{"rstudent"} (LOO-PIT), which differs
 from \code{metafor::qqnorm} (which defaults to \code{"rstandard"}).
