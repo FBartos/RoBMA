@@ -93,7 +93,12 @@
     density_control = density_control,
     purpose         = "ordinate"
   )
-  plan <- .iwmde_plan(
+  plan <- NULL
+  enrich_error <- function(error) .iwmde_enrich_ordinate_error(
+    error, plan, context, parameter, density_method, control, values, metadata,
+    parameter_spec[["prior_ordinates"]]
+  )
+  plan <- tryCatch(.iwmde_plan(
     context         = context,
     parameter       = parameter,
     density_method  = density_method,
@@ -102,12 +107,14 @@
     values          = values,
     parameter_spec  = parameter_spec,
     metadata        = metadata
-  )
-  out <- .iwmde_estimate_from_plan(
+  ), iwmde_construction_error = enrich_error,
+     iwmde_ordinate_numerical_error = enrich_error)
+  out <- tryCatch(.iwmde_estimate_from_plan(
     context = context,
     plan    = plan,
     cache   = cache
-  )
+  ), iwmde_construction_error = enrich_error,
+     iwmde_ordinate_numerical_error = enrich_error)
 
   diagnostic <- out[["diagnostics"]][["ordinate"]]
   eligible   <- length(plan[["rows"]][["continuous_rows"]])
@@ -119,6 +126,18 @@
     .iwmde_posterior_ordinate_entries(out[["posterior_ordinate"]]),
     .iwmde_posterior_ordinate_entries(out[["rejected_posterior_ordinate"]])
   )
+  failures <- out[["ordinate_failures"]]
+  if (!is.null(failures) && nrow(failures)) {
+    entry_values <- vapply(ordinate_entries, .iwmde_ordinate_scalar, numeric(1L), "value")
+    for (value in failures[["requested_value"]][!failures[["requested_value"]] %in% entry_values]) {
+      selected <- if (!is.null(diagnostic[["iwmde"]])) {
+        .iwmde_select_ordinate_diagnostic(diagnostic, value)
+      } else diagnostic
+      ordinate_entries[[length(ordinate_entries) + 1L]] <- list(
+        value = value, diagnostics = selected[["diagnostics"]], ordinate_failure = TRUE
+      )
+    }
+  }
   if (length(ordinate_entries) == 0L) {
     ordinate_entries <- list(diagnostic)
   }
@@ -167,6 +186,11 @@
     diagnostic[["diagnostics"]][["mixture_mcse_type"]],
     "worst_correlation_delta_upper_bound"
   )
+  if (isTRUE(diagnostic[["ordinate_failure"]])) {
+    precision_target_met <- FALSE
+    sampling_target_met <- FALSE
+    bf_grade_met <- FALSE
+  }
 
   return(list(
     fixed_budget         = TRUE,
@@ -272,6 +296,10 @@
   }
 
   estimate[["sampling_design"]] <- sampling_design
+  estimate[["ordinate_failures"]] <- .iwmde_estimate_ordinate_failures(
+    estimate[["plan"]], estimate[["diagnostics"]][["ordinate"]],
+    estimate[["posterior_ordinate"]]
+  )
 
   return(estimate)
 }
@@ -409,6 +437,9 @@
     provenance                   = .iwmde_plan_provenance(plan)
   )
   class(out) <- c("iwmde_estimate", "list")
+  out[["ordinate_failures"]] <- .iwmde_estimate_ordinate_failures(
+    plan, ordinate_diagnostic, ordinate_attribute
+  )
 
   return(out)
 }
@@ -881,6 +912,7 @@
     bf_included                 = bf_diagnostics[["bf_included"]],
     bf_grid_index               = bf_diagnostics[["bf_grid_index"]],
     bf_ordinate                 = bf_diagnostics[["bf_ordinate"]],
+    bf_log_ordinate             = bf_diagnostics[["bf_log_ordinate"]],
     bf_pilot_ordinate           = bf_diagnostics[["bf_pilot_ordinate"]],
     bf_validation_ordinate      =
       bf_diagnostics[["bf_validation_ordinate"]],

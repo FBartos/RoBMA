@@ -8,7 +8,8 @@
                                      chain_id = NULL,
                                      expected_chain_ids = NULL,
                                      conditioned_rows = NULL,
-                                     conditioned_chain_id = NULL) {
+                                     conditioned_chain_id = NULL,
+                                     evaluation_values = NULL) {
 
   if (!is.matrix(log_terms)) {
     log_terms <- as.matrix(log_terms)
@@ -63,6 +64,7 @@
 
   n_grid           <- nrow(log_terms)
   y                <- numeric(n_grid)
+  log_y            <- rep(-Inf, n_grid)
   max_log_ratio    <- rep(Inf, n_grid)
   ess              <- numeric(n_grid)
   max_weight_share <- rep(1, n_grid)
@@ -92,10 +94,18 @@
 
     y[active_rows] <- active_mass * exp(max_term[active_rows]) *
       sum_scaled_terms[active_rows] / denominator
+    log_y[active_rows] <- log(active_mass) + max_term[active_rows] +
+      log(sum_scaled_terms[active_rows]) - log(denominator)
     ess[active_rows] <- sum_scaled_terms[active_rows]^2 /
       sum_scaled_sq[active_rows]
     max_weight_share[active_rows] <- max_scaled[active_rows] /
       sum_scaled_terms[active_rows]
+    if (any(!is.finite(y))) {
+      .iwmde_stop_ordinate_numerical_failure(
+        ordinate = y, log_ordinate = log_y, values = evaluation_values,
+        finite_terms = finite_terms, max_weight_share = max_weight_share
+      )
+    }
     if (ncol(log_terms) > 0L) {
       design_factor <- active_mass * ncol(log_terms) / denominator
       contributions <- design_factor * exp(log_terms)
@@ -134,6 +144,7 @@
 
   return(list(
     y                        = y,
+    log_y                    = log_y,
     finite_terms             = finite_terms,
     max_log_ratio            = max_log_ratio,
     ess                      = ess,

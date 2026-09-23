@@ -314,16 +314,9 @@
 
   for (name in names(specs)) {
     estimate <- estimates[[name]]
-    diagnostic <- estimate[["diagnostics"]][["ordinate"]]
-    if (!identical(diagnostic[["status"]], "ok")) {
-      next
-    }
     ordinate <- estimate[["posterior_ordinate"]]
     if (is.null(ordinate)) {
       ordinate <- estimate[["rejected_posterior_ordinate"]]
-    }
-    if (is.null(ordinate)) {
-      next
     }
 
     parameter <- specs[[name]][["parameter"]]
@@ -334,9 +327,11 @@
     }
 
     if (is.list(samples) && !is.null(samples[[level]])) {
-      attr(samples[[level]], "posterior_ordinate") <- ordinate
+      attr(samples[[level]], "ordinate_failures") <- estimate[["ordinate_failures"]]
+      if (!is.null(ordinate)) attr(samples[[level]], "posterior_ordinate") <- ordinate
     } else {
-      attr(samples, "posterior_ordinate") <- ordinate
+      attr(samples, "ordinate_failures") <- estimate[["ordinate_failures"]]
+      if (!is.null(ordinate)) attr(samples, "posterior_ordinate") <- ordinate
     }
     marginal_means_object[["inference"]][[type]][[parameter]] <- samples
   }
@@ -525,7 +520,9 @@
       out[[i]] <- .marginal_means_unavailable_bf_scalar(
         .marginal_means_iwmde_bf_warning(
           attr(posterior[[i]], "posterior_ordinate", exact = TRUE),
-          default = warning
+          default = warning,
+          failure_records = attr(posterior[[i]], "ordinate_failures", exact = TRUE),
+          value = null_hypothesis
         )
       )
     }
@@ -553,7 +550,9 @@
       out[[i]] <- .marginal_means_unavailable_bf_scalar(
         .marginal_means_iwmde_bf_warning(
           attr(posterior[[i]], "posterior_ordinate", exact = TRUE),
-          default = warning
+          default = warning,
+          failure_records = attr(posterior[[i]], "ordinate_failures", exact = TRUE),
+          value = null_hypothesis
         )
       )
     }
@@ -575,7 +574,9 @@
     return(.marginal_means_unavailable_bf_scalar(
       .marginal_means_iwmde_bf_warning(
         attr(posterior, "posterior_ordinate", exact = TRUE),
-        default = warning
+        default = warning,
+        failure_records = attr(posterior, "ordinate_failures", exact = TRUE),
+        value = null_hypothesis
       )
     ))
   }
@@ -597,7 +598,22 @@
 
 
 .marginal_means_iwmde_bf_warning <- function(posterior_ordinate = NULL,
-                                             default = NULL) {
+                                             default = NULL,
+                                             failure_records = NULL,
+                                             value = NULL) {
+
+  if (!is.null(failure_records) && nrow(failure_records)) {
+    if (!is.null(value)) {
+      failure_records <- failure_records[failure_records[["requested_value"]] == value, , drop = FALSE]
+    }
+    if (nrow(failure_records)) {
+      prefix <- if (all(failure_records[["status"]] == "rejected")) {
+        "Precomputed posterior ordinate was rejected by diagnostics: "
+      } else "Precomputed posterior ordinate is unavailable: "
+      return(paste0(prefix, paste(unique(failure_records[["failure_reason"]]), collapse = "; "),
+        ". Savage-Dickey Bayes factor is not reported."))
+    }
+  }
 
   if (is.null(default)) {
     default <- paste0(

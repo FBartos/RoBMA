@@ -970,7 +970,8 @@
     chain_id = chain_id,
     expected_chain_ids = expected_chain_ids,
     conditioned_rows = conditioned_rows,
-    conditioned_chain_id = conditioned_chain_id
+    conditioned_chain_id = conditioned_chain_id,
+    evaluation_values = display_grid
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
@@ -1030,6 +1031,7 @@
   return(list(
     x                      = display_grid,
     y                      = y,
+    log_y                  = density_terms[["log_y"]],
     finite_terms           = finite_terms,
     max_log_ratio          = max_log_ratio,
     ess                    = ess,
@@ -1241,7 +1243,8 @@
     chain_id = chain_id,
     expected_chain_ids = expected_chain_ids,
     conditioned_rows = conditioned_rows,
-    conditioned_chain_id = conditioned_chain_id
+    conditioned_chain_id = conditioned_chain_id,
+    evaluation_values = display_grid
   )
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
@@ -1278,6 +1281,7 @@
   return(list(
     x                      = display_grid,
     y                      = y,
+    log_y                  = density_terms[["log_y"]],
     finite_terms           = finite_terms,
     max_log_ratio          = max_log_ratio,
     ess                    = ess,

@@ -213,6 +213,7 @@
   }
 
   ordinate_diagnostics <- list(
+    log_ordinate                      = diagnostics[["bf_log_ordinate"]],
     evaluation_value                  = diagnostics[["bf_evaluation_value"]],
     mcse                              = diagnostics[["bf_mcse"]],
     relative_mcse                     = diagnostics[["bf_relative_mcse"]],

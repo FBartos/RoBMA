@@ -172,7 +172,7 @@
   }
   source_keys <- vapply(source_value, .iwmde_key_number, character(1))
 
-  estimate <- .iwmde_estimate(
+  estimate <- tryCatch(.iwmde_estimate(
     context         = context,
     parameter       = parameter,
     density_method  = density_method,
@@ -193,7 +193,15 @@
       parameter = parameter
     ),
     cache          = estimate_cache
-  )
+  ), RoBMA_density_ordinate_error = function(error) {
+    if (!is.null(display_transform)) {
+      error[["density_diagnostics"]] <- .hypothesis_brma_transform_iwmde_failures(
+        error[["density_diagnostics"]], display_transform,
+        source_values = source_value, requested_values = value
+      )
+    }
+    stop(error)
+  })
   diagnostic <- estimate[["diagnostics"]][["ordinate"]]
   marginal_parameter <- attr(posterior, "parameter", exact = TRUE)
   values <- .iwmde_sorted_ordinate_values(source_value)
@@ -208,17 +216,28 @@
       values             = requested_source_value
     )
     if (is.null(ordinate)) {
+      failure_estimate <- estimate
+      failure_value <- requested_source_value
+      if (!is.null(display_transform)) {
+        failure_estimate[["ordinate_failures"]] <- .hypothesis_brma_transform_iwmde_failures(
+          estimate[["ordinate_failures"]], display_transform,
+          source_values = source_value, requested_values = value
+        )
+        failure_value <- requested_value
+      }
       .iwmde_stop_ordinate_unavailable(
         message = .hypothesis_brma_iwmde_ordinate_failure_message(
           density_method = density_method,
           target         = paste0(parameter_label, " = ", requested_value),
           diagnostic     = diagnostic,
           reason         = .hypothesis_brma_estimate_ordinate_reason(
-            estimate = estimate,
-            value    = requested_source_value
-          )
+            estimate = failure_estimate,
+            value    = failure_value
+          ),
+          numerical_status = .iwmde_ordinate_failure_record(
+            failure_estimate, failure_value)[["numerical_status"]]
         ),
-        estimate = estimate
+        estimate = failure_estimate
       )
     }
     if (!is.null(display_transform)) {
@@ -270,6 +289,9 @@
   )
   ordinate[["ordinate"]] <- ordinate[["ordinate"]] / jacobian
   diagnostics <- ordinate[["diagnostics"]]
+  if (!is.null(diagnostics[["log_ordinate"]])) {
+    diagnostics[["log_ordinate"]] <- diagnostics[["log_ordinate"]] - log(jacobian)
+  }
   value_fields <- intersect(
     c("evaluation_value"),
     names(diagnostics)
@@ -302,12 +324,60 @@
     ordinate[["iwmde_provenance"]] <- provenance
   }
 
+  if (!is.finite(ordinate[["ordinate"]]) || ordinate[["ordinate"]] <= 0) {
+    entry <- unclass(ordinate)
+    entry[["computed"]] <- TRUE
+    entry[["diagnostics"]][["evaluation_value"]] <- ordinate[["evaluation_value"]]
+    failure <- .iwmde_ordinate_failure_row(entry, preserve_accuracy = TRUE)
+    .iwmde_stop_ordinate_unavailable(
+      paste0("Transformed posterior ordinate is unavailable: ", failure[["failure_reason"]]),
+      list(ordinate_failures = failure)
+    )
+  }
+
   ordinate
+}
+
+
+.hypothesis_brma_transform_iwmde_failures <- function(records, transform,
+                                                       source_values = NULL,
+                                                       requested_values = NULL) {
+
+  if (is.null(records) || !nrow(records)) return(records)
+  sources <- records[["requested_value"]]
+  records[["requested_value"]] <- BayesTools::parameter_transform_forward(sources, transform)
+  if (!is.null(source_values) && !is.null(requested_values)) {
+    index <- match(sources, source_values)
+    matched <- !is.na(index)
+    records[["requested_value"]][matched] <- requested_values[index[matched]]
+  }
+  for (i in seq_len(nrow(records))) {
+    value <- records[["evaluation_value"]][[i]]
+    if (!is.finite(value)) next
+    jacobian <- BayesTools::parameter_transform_jacobian(value, transform)
+    if (length(jacobian) != 1L || !is.finite(jacobian) || jacobian <= 0) {
+      stop("Unsupported qCMDE/IWMDE display transform.", call. = FALSE)
+    }
+    records[["evaluation_value"]][[i]] <- BayesTools::parameter_transform_forward(value, transform)
+    records[["ordinate"]][[i]] <- records[["ordinate"]][[i]] / jacobian
+    records[["log_ordinate"]][[i]] <- records[["log_ordinate"]][[i]] - log(jacobian)
+    previous <- records[["numerical_status"]][[i]]
+    current <- .iwmde_ordinate_numerical_status(records[["ordinate"]][[i]], records[["log_ordinate"]][[i]])
+    records[["numerical_status"]][[i]] <- current
+    if (!identical(current, "finite")) records[["status"]][[i]] <- "unavailable"
+    if (!identical(previous, "finite") || !identical(current, "finite")) {
+      records[["failure_reason"]][[i]] <- .iwmde_ordinate_numerical_reason(current,
+        records[["log_ordinate"]][[i]], records[["failure_reason"]][[i]])
+    }
+  }
+  records
 }
 
 
 .hypothesis_brma_estimate_ordinate_reason <- function(estimate, value) {
 
+  failure <- .iwmde_ordinate_failure_record(estimate, value)
+  if (!is.null(failure)) return(failure[["failure_reason"]])
   rejected <- .iwmde_posterior_ordinate_keep_values(
     posterior_ordinate = estimate[["rejected_posterior_ordinate"]],
     values             = value
@@ -423,7 +493,8 @@
         density_method = density_method,
         target         = paste0(parameter, "[", level, "] = ", value),
         diagnostic     = diagnostic,
-        reason         = .hypothesis_brma_diagnostic_reason(diagnostic)
+        reason         = .hypothesis_brma_estimate_ordinate_reason(estimate, value),
+        numerical_status = .iwmde_ordinate_failure_record(estimate, value)[["numerical_status"]]
       ),
       estimate = estimate
     )
@@ -444,9 +515,10 @@
 
 
 .hypothesis_brma_iwmde_ordinate_failure_message <- function(
-    density_method, target, diagnostic, reason) {
+    density_method, target, diagnostic, reason, numerical_status = NULL) {
 
-  if (identical(diagnostic[["status"]], "ok")) {
+  if (identical(diagnostic[["status"]], "ok") &&
+      (is.null(numerical_status) || identical(numerical_status, "finite"))) {
     return(paste0(
       density_method, " posterior ordinate for '", target,
       "' was rejected by diagnostics: ", reason

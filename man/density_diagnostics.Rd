@@ -16,7 +16,7 @@ computation.}
 }
 \value{
 A data frame of class \code{RoBMA_density_diagnostics}, with one row per
-computed point ordinate. Columns identify the estimator, parameter, requested
+computed or failed requested point ordinate. Columns identify the estimator, parameter, requested
 and evaluated values, schema/source provenance, row counts, active mass,
 relative MCSE, ESS, largest contribution share, finite terms, normalization
 and quadrature checks, whether the qCMDE pilot gate stopped refinement and
@@ -42,7 +42,8 @@ The exact columns, in order, are \code{schema_version}, \code{algorithm_version}
 \code{warning_max_weight_share}, \code{all_rows_used}, \code{target_met},
 \code{precision_target_met},
 \code{sampling_target_met}, \code{bf_grade_met}, \code{n_weight_fallbacks},
-\code{weight_fallback_reasons}, \code{status}, and \code{warnings}.
+\code{weight_fallback_reasons}, \code{status}, \code{ordinate}, \code{log_ordinate},
+\code{numerical_status}, \code{failure_reason}, and \code{warnings}.
 }
 \description{
 Extracts the compact reliability diagnostics attached to a
@@ -81,6 +82,25 @@ selected estimator sequence.
 These fields concern the continuous density ordinate. At a location that is
 also a posterior atom, the atom probability remains a separate discrete mass
 and is never added to the density ordinate.
+
+\code{ordinate} and \code{log_ordinate} describe the posterior density at the requested
+point, not the model's marginal likelihood. \code{log_ordinate} is retained only
+when actually computed; it is not reconstructed for older results.
+\code{numerical_status} distinguishes \code{finite}, \code{underflow}, \code{overflow},
+\code{arithmetic_failure}, \code{invalid_density}, \code{zero_without_log_evidence},
+\code{nonfinite}, and \code{not_computed}. Underflow/overflow requires finite log
+evidence and confirmation that exponentiating that log loses range. A zero
+without this evidence is not classified as a mathematical zero. A small
+density alone does not establish unreliability.
+
+Failed requested points retain separate diagnostic records with a
+\code{failure_reason}, including failures occurring before a final ordinate was
+obtained. \code{status = "unavailable"} distinguishes these failures from a
+finite positive ordinate rejected by accuracy diagnostics. Ordinary-scale
+precision diagnostics lost to underflow/overflow are unavailable, not zero
+error or proof of convergence. Retaining a log estimate does not authorize a
+Bayes factor: the existing finite-positive ordinate requirement is unchanged.
+Legacy tables remain inspectable with unknown new fields set to \code{NA}.
 
 The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 below 100, the largest contribution share is at least 20 percent, or fewer

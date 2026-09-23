@@ -38,6 +38,25 @@
 #' also a posterior atom, the atom probability remains a separate discrete mass
 #' and is never added to the density ordinate.
 #'
+#' `ordinate` and `log_ordinate` describe the posterior density at the requested
+#' point, not the model's marginal likelihood. `log_ordinate` is retained only
+#' when actually computed; it is not reconstructed for older results.
+#' `numerical_status` distinguishes `finite`, `underflow`, `overflow`,
+#' `arithmetic_failure`, `invalid_density`, `zero_without_log_evidence`,
+#' `nonfinite`, and `not_computed`. Underflow/overflow requires finite log
+#' evidence and confirmation that exponentiating that log loses range. A zero
+#' without this evidence is not classified as a mathematical zero. A small
+#' density alone does not establish unreliability.
+#'
+#' Failed requested points retain separate diagnostic records with a
+#' `failure_reason`, including failures occurring before a final ordinate was
+#' obtained. `status = "unavailable"` distinguishes these failures from a
+#' finite positive ordinate rejected by accuracy diagnostics. Ordinary-scale
+#' precision diagnostics lost to underflow/overflow are unavailable, not zero
+#' error or proof of convergence. Retaining a log estimate does not authorize a
+#' Bayes factor: the existing finite-positive ordinate requirement is unchanged.
+#' Legacy tables remain inspectable with unknown new fields set to `NA`.
+#'
 #' The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 #' below 100, the largest contribution share is at least 20 percent, or fewer
 #' than 100 finite contributions remain. These same-sample diagnostics do not
@@ -62,7 +81,7 @@
 #' @param ... unused.
 #'
 #' @return A data frame of class `RoBMA_density_diagnostics`, with one row per
-#' computed point ordinate. Columns identify the estimator, parameter, requested
+#' computed or failed requested point ordinate. Columns identify the estimator, parameter, requested
 #' and evaluated values, schema/source provenance, row counts, active mass,
 #' relative MCSE, ESS, largest contribution share, finite terms, normalization
 #' and quadrature checks, whether the qCMDE pilot gate stopped refinement and
@@ -88,7 +107,8 @@
 #' `warning_max_weight_share`, `all_rows_used`, `target_met`,
 #' `precision_target_met`,
 #' `sampling_target_met`, `bf_grade_met`, `n_weight_fallbacks`,
-#' `weight_fallback_reasons`, `status`, and `warnings`.
+#' `weight_fallback_reasons`, `status`, `ordinate`, `log_ordinate`,
+#' `numerical_status`, `failure_reason`, and `warnings`.
 #'
 #' @examples \dontrun{
 #' result <- hypothesis(
@@ -137,7 +157,10 @@ density_diagnostics.default <- function(object, ...) {
 
   message     <- paste0(sub("[.]+$", "", message), ".")
   ordinate    <- estimate[["rejected_posterior_ordinate"]]
-  diagnostics <- .iwmde_collect_ordinate_density_diagnostics(ordinate)
+  diagnostics <- estimate[["ordinate_failures"]]
+  if (is.null(diagnostics)) {
+    diagnostics <- .iwmde_collect_ordinate_density_diagnostics(ordinate)
+  }
   condition <- structure(
     list(
       message             = message,
@@ -219,8 +242,15 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     return(.iwmde_empty_public_density_diagnostics())
   }
   provenance <- .iwmde_attribute_provenance(entry)
-  warnings   <- .iwmde_posterior_ordinate_warnings(entry)
   failure    <- .iwmde_posterior_ordinate_bf_failure_reason(entry)
+  numerical_status <- .iwmde_ordinate_numerical_status(
+    entry[["ordinate"]], diagnostics[["log_ordinate"]],
+    entry[["computed"]]
+  )
+  warnings <- if (identical(numerical_status, "finite")) {
+    .iwmde_posterior_ordinate_warnings(entry)
+  } else diagnostics[["ordinate_warnings"]]
+  if (!is.null(entry[["failure_reason"]])) failure <- entry[["failure_reason"]]
   policy     <- .iwmde_diagnostic_policy()
   estimator  <- .iwmde_public_character(diagnostics[["estimator"]])
   stability_metric <- if (identical(estimator, "q_grid_cmde")) {
@@ -344,7 +374,13 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     weight_fallback_reasons = .iwmde_public_named_counts(
       diagnostics[["weight_fallback_reasons"]]
     ),
-    status = if (is.null(failure)) "ok" else "rejected",
+    status = if (is.null(failure)) "ok" else if (identical(numerical_status, "finite")) {
+      "rejected"
+    } else "unavailable",
+    ordinate = .iwmde_public_numeric(entry[["ordinate"]]),
+    log_ordinate = .iwmde_public_numeric(diagnostics[["log_ordinate"]]),
+    numerical_status = numerical_status,
+    failure_reason = if (is.null(failure)) NA_character_ else failure,
     warnings = paste(warnings, collapse = " | "),
     stringsAsFactors = FALSE
   )
@@ -382,7 +418,9 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     precision_target_met = logical(), sampling_target_met = logical(),
     bf_grade_met = logical(),
     n_weight_fallbacks = integer(), weight_fallback_reasons = character(),
-    status = character(), warnings = character(), stringsAsFactors = FALSE
+    status = character(), ordinate = numeric(), log_ordinate = numeric(),
+    numerical_status = character(), failure_reason = character(),
+    warnings = character(), stringsAsFactors = FALSE
   )
   class(out) <- c("RoBMA_density_diagnostics", "data.frame")
 
@@ -394,6 +432,18 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
 .density_diagnostics_validate <- function(diagnostics) {
 
   template <- .iwmde_empty_public_density_diagnostics()
+  added <- c("ordinate", "log_ordinate", "numerical_status", "failure_reason")
+  if (inherits(diagnostics, "RoBMA_density_diagnostics") &&
+      is.data.frame(diagnostics) &&
+      identical(names(diagnostics), setdiff(names(template), added))) {
+    # Older records did not store these values. Do not reconstruct log
+    # estimates or failure evidence from presentation fields.
+    diagnostics[["ordinate"]] <- rep(NA_real_, nrow(diagnostics))
+    diagnostics[["log_ordinate"]] <- rep(NA_real_, nrow(diagnostics))
+    diagnostics[["numerical_status"]] <- rep(NA_character_, nrow(diagnostics))
+    diagnostics[["failure_reason"]] <- rep(NA_character_, nrow(diagnostics))
+    diagnostics <- diagnostics[names(template)]
+  }
   if (!inherits(diagnostics, "RoBMA_density_diagnostics") ||
       !is.data.frame(diagnostics) ||
       !identical(names(diagnostics), names(template))) {

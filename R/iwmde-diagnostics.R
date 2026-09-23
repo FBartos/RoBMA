@@ -1042,6 +1042,7 @@
     bf_included         = FALSE,
     bf_grid_index       = NA_integer_,
     bf_ordinate         = NA_real_,
+    bf_log_ordinate     = NA_real_,
     bf_pilot_ordinate   = NA_real_,
     bf_validation_ordinate = NA_real_,
     bf_ordinate_relative_change = NA_real_,
@@ -1081,6 +1082,7 @@
   out[["bf_grid_index"]]       <- index
   out[["bf_evaluation_value"]] <- .iwmde_density_evaluation_value(density, index)
   out[["bf_ordinate"]]         <- .iwmde_density_index_value(density, "y", index)
+  out[["bf_log_ordinate"]]     <- .iwmde_density_index_value(density, "log_y", index)
   out[["bf_pilot_ordinate"]]   <- .iwmde_density_index_value(density, "pilot_y", index)
   out[["bf_validation_ordinate"]] <-
     .iwmde_density_index_value(density, "validation_y", index)

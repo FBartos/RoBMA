@@ -571,7 +571,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
         density_method = density_method,
         target         = paste0(label, " = ", value),
         diagnostic     = diagnostic,
-        reason         = .hypothesis_brma_diagnostic_reason(diagnostic)
+        reason         = .hypothesis_brma_estimate_ordinate_reason(estimate, value),
+        numerical_status = .iwmde_ordinate_failure_record(estimate, value)[["numerical_status"]]
       ),
       estimate = estimate
     )
