@@ -34,42 +34,30 @@ Rscript tools/bench-glmm-aghq.R --fits=fit_BMA --reps=3
 Rscript tools/bench-glmm-aghq.R --root=<other tree>   # a comparison tree
 ```
 
-**What it detects.** The Poisson AGHQ kernel `run_poisson`
-(`src/glmm-aghq.cc`, reached through `.Call("RoBMA_glmm_pois_aghq", ...)`) runs
-2.2x slower in some linked images than in others, with its compiled object
-byte-identical and its computation and entry address unchanged. Linked call
-and data-reference operands differ because their targets are relocated.
-What moves is the placement of
-the statically linked mingw libm bodies it calls (`exp`, `log`, `lgamma`)
-relative to it: an exact placement collides (branch-target aliasing is the
-consistent hypothesis; unproven, and naming the resource needs hardware
-counters that are not installed here). Any native change relinks the image and
-can land on such a placement; the measured chance is a few percent.
+**What it detects.** Historical builds of the Poisson AGHQ kernel `run_poisson`
+(`src/glmm-aghq.cc`, reached through `.Call("RoBMA_glmm_pois_aghq", ...)`) differed
+by about 2.2x in runtime despite a byte-identical compiled object and unchanged
+computation and entry address. The statically linked mingw libm functions it
+calls (`exp`, `log`, `lgamma`) moved relative to it; linked call and data-reference
+operands therefore differed. These experiments establish a code-placement
+effect. A specific CPU predictor/cache mechanism remains unproven.
 
-The collision is invisible to every other check. All repetitions return
-bit-identical numbers, so no test, no snapshot and no scenario fingerprint
-moves; only `add_loo()` on a Poisson GLMM gets slower, and the GLMM scenario
-timings are the only place it would eventually surface. Neither 64-byte
-function alignment, nor the page offset of `exp`, nor a link order that pins
-`glmm-aghq.o` last prevents it (pinning it last was itself slow on both trees
-measured).
+The measured builds returned bit-identical numbers, so numerical tests,
+snapshots and scenario fingerprints did not detect the slowdown. Every native
+relink can change placement. Tested function alignment, page offsets and moving
+`glmm-aghq.o` to the end of the link order did not reliably prevent the slowdown.
 
 **Reading it.** The tool prints a median per cached fit. On the development
 machine (AMD Ryzen 9 9950X, R 4.6.0 UCRT, Rtools45 g++ 14.2.0, one thread)
-`fit_BMA` takes about 12.7 s in a fast layout and about 28 s in the collided
-one; there is no intermediate value. Absolute seconds are machine-specific:
+the historical `fit_BMA` runs clustered near 12.7 s and 28 s in fast and slow
+layouts. Absolute seconds are machine-specific:
 measure the tree you compare against in the same session, on the same machine,
 and compare the medians.
 
-**What to do with a slow reading.** Report it - it is a build-layout property,
-not a regression in the change under test, and the maintainer decides whether
-to carry a workaround. The available results-identical mitigation is a
-never-called pad object that shifts the image tail: a `used`, `noinline`
-function whose body is `.skip N, 0x90` in its own translation unit, listed in
-`OBJECTS` of `src/Makevars.in`, `src/Makevars.win` and `src/Makevars.ucrt`.
-Any `N >= 0x100` restored the fast layout in all 15 padded builds measured, but
-a pad is a property of one image: a later native change relinks and re-rolls
-the placement, so re-run the benchmark rather than trusting the pad.
+**What to do with a slow reading.** Report the measured build and comparison.
+Past experiments restored speed by changing code placement, but no padding or
+link-order workaround is shipped. Keep the numerical implementation and settings unchanged;
+any workaround needs evidence for that linked image and a maintainer decision.
 
 **Note on `src/Makevars.win`.** R 4.6.0 is UCRT and reads `src/Makevars.ucrt`,
 so `src/Makevars.win` does not affect the build on this machine (its
